@@ -4,6 +4,8 @@
 //   /v1/profile, /v1/scores, /v1/scoreboard, /v1/races*
 //                                        screen names, races, scoreboard (compete.js)
 //   POST /v1/errors, GET /admin/errors   anonymous error reports from the apps (errors.js)
+//   GET /v1/config                       announcements, switched-off themes, features (settings.js)
+//   /admin/*                             the admin dashboard and its API (admin.js)
 //   GET /v1/health[?deep=1]              a quick check that the Worker (and with
 //                                        deep=1, the database and daily cleanup) is up
 // scheduled(): the daily cleanup of old data (upkeep.js, cron in wrangler.toml).
@@ -11,6 +13,8 @@
 import { handleLearn } from './learn.js';
 import { handleCompete } from './compete.js';
 import { handleErrors } from './errors.js';
+import { handleAdmin } from './admin.js';
+import { publicConfig } from './settings.js';
 import { runUpkeep, deepHealth } from './upkeep.js';
 import { handleSync, handleDeleteAccount, isDeleted } from './sync.js';
 import { verifyIdToken, AuthError } from './auth.js';
@@ -27,6 +31,15 @@ async function signedIn(req, env) {
 async function route(req, env, ctx) {
   const url = new URL(req.url);
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: corsHeaders(req, env) });
+
+  const admin = await handleAdmin(req, env, ctx, url, async () => (await handleLearn(req, env, ctx, url)) || (await handleErrors(req, env, url)) || json(req, env, { error: 'not_found' }, 404));
+  if (admin) return admin;
+
+  if (url.pathname === '/v1/config' && req.method === 'GET') {
+    const ip = req.headers.get('CF-Connecting-IP') || 'local';
+    if (env.LIMIT_AUTHLESS && !(await env.LIMIT_AUTHLESS.limit({ key: ip })).success) return json(req, env, { error: 'slow_down' }, 429, { 'Retry-After': '60' });
+    return publicConfig(req, env);
+  }
 
   const learn = await handleLearn(req, env, ctx, url);
   if (learn) return learn;

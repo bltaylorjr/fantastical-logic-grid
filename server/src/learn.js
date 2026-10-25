@@ -17,6 +17,10 @@ import { THEMES } from '../../engine/src/themes.js';
 import { getTopics, storyKey } from '../../engine/src/topics.js';
 import { TIER_ORDER, CLUE_TYPES } from '../../engine/src/tiers.js';
 import { ADMIN_HTML } from './learn-admin.js';
+import { getSettings } from './settings.js';
+
+// The edge-cache key of the tuning reply; the admin dashboard clears it after a review.
+export const TUNING_CACHE_KEY = 'https://flg-cloud.internal/v1/learn/tuning';
 
 const THEME_IDS = new Set(THEMES.map((t) => t.id));
 // Story parts are kept per story key: a theme id (its classic topic) or "theme/topic".
@@ -85,6 +89,8 @@ function cleanPlay(p) {
 
 async function postPlays(req, env) {
   const body = await bodyJson(req, 64_000);
+  // Switched off in the admin dashboard: accept and drop, so apps do not retry.
+  if (!(await getSettings(env)).learning_enabled) return json({ saved: 0 });
   const rows = (Array.isArray(body.plays) ? body.plays : []).slice(0, 50).map(cleanPlay).filter(Boolean);
   if (!rows.length) return json({ saved: 0 });
   const day = today();
@@ -141,7 +147,7 @@ export function computeTuning(plays, approved) {
 
 async function getTuning(req, env, ctx) {
   const cache = caches.default;
-  const key = new Request('https://flg-cloud.internal/v1/learn/tuning');
+  const key = new Request(TUNING_CACHE_KEY);
   const hit = await cache.match(key);
   if (hit) return new Response(hit.body, hit);
   const since = new Date(Date.now() - TUNING_DAYS * 86400000).toISOString().slice(0, 10);
@@ -155,6 +161,7 @@ async function getTuning(req, env, ctx) {
 // ---------- story parts ----------
 async function postPart(req, env) {
   const body = await bodyJson(req, 4_000);
+  if (!(await getSettings(env)).story_sharing_enabled) return json({ ok: false, errors: ['Sharing story parts is switched off for now.'] }, 503);
   const { theme, kind, value } = body;
   if (!STORY_KEYS.has(theme) || !PART_KINDS[kind]) return json({ ok: false, errors: ['Unknown theme or part.'] }, 400);
   const check = checkStoryPart(kind, value);
@@ -187,6 +194,8 @@ async function bump(env, name, cap) {
 
 async function postTts(req, env, ctx, headers) {
   if (!env.GEMINI_API_KEY) return json({ error: 'Voices are not set up on the server.', fallback: 'kokoro' }, 503, headers);
+  const settings = await getSettings(env);
+  if (!settings.tts_enabled) return json({ error: 'The free voices are switched off for now.', fallback: 'kokoro' }, 503, headers);
   const body = await bodyJson(req, 2_000);
   const text = String(body.text || '').trim();
   const voice = VOICES.has(body.voice) ? body.voice : 'Charon';
@@ -197,7 +206,7 @@ async function postTts(req, env, ctx, headers) {
   const hit = await cache.match(key);
   if (hit) return new Response(hit.body, { headers: { ...headers, 'Content-Type': 'audio/wav', 'X-Cache': 'hit' } });
   // Only new clips count toward the daily cap.
-  if (!(await bump(env, 'tts', Number(env.DAILY_TTS_CAP) || 300))) {
+  if (settings.daily_tts_cap <= 0 || !(await bump(env, 'tts', settings.daily_tts_cap))) {
     return json({ error: 'The free voices are used up for today.', fallback: 'kokoro' }, 429, { ...headers, 'Retry-After': '3600' });
   }
   const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
@@ -241,13 +250,13 @@ async function admin(req, env, url) {
     const rows = (await env.DB.prepare('SELECT key, theme, kind, value, source, status, submitted FROM parts WHERE status = ? ORDER BY submitted DESC LIMIT 200').bind(status).all()).results;
     const stats = await env.DB.prepare('SELECT COUNT(*) AS games, COUNT(rating) AS rated FROM plays').first();
     const voices = await env.DB.prepare("SELECT count FROM usage WHERE day = ? AND name = 'tts'").bind(today()).first();
-    return json({ parts: rows.map((r) => ({ ...r, value: JSON.parse(r.value) })), stats: { ...stats, voicesToday: voices ? voices.count : 0, voiceCap: Number(env.DAILY_TTS_CAP) || 300 } });
+    return json({ parts: rows.map((r) => ({ ...r, value: JSON.parse(r.value) })), stats: { ...stats, voicesToday: voices ? voices.count : 0, voiceCap: (await getSettings(env)).daily_tts_cap } });
   }
   if (url.pathname === '/admin/learn/review' && req.method === 'POST') {
     const { key, status } = await bodyJson(req, 2_000);
     if (!['approved', 'rejected', 'pending'].includes(status)) return json({ error: 'Bad status.' }, 400);
     await env.DB.prepare('UPDATE parts SET status = ?, reviewed = ? WHERE key = ?').bind(status, new Date().toISOString(), String(key)).run();
-    await caches.default.delete(new Request('https://flg-cloud.internal/v1/learn/tuning'));
+    await caches.default.delete(new Request(TUNING_CACHE_KEY));
     return json({ ok: true });
   }
   return json({ error: 'Not found.' }, 404);

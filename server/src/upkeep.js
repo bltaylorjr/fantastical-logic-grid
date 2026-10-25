@@ -8,10 +8,16 @@
 //   error reports             after 30 days
 //   anonymous play summaries  after 400 days (tuning only reads the last 90)
 //   this cleanup's own log    after 90 days
-// Scores are never deleted: the all-time scoreboard needs them.
+//   the admin audit log       after 365 days
+//   ended bans                when they end
+//   ended announcements       90 days after they end
+// Scores are never deleted here: the all-time scoreboard needs them (only an
+// admin's reset in the dashboard removes a player's scores).
 //
 // GET /v1/health?deep=1 reports whether the database answers, when the cleanup
 // last ran and how close the free voice quota is, for the GitHub health check.
+
+import { getSettings } from './settings.js';
 
 const DAY = 24 * 3600_000;
 const isoDay = (ms) => new Date(ms).toISOString().slice(0, 10);
@@ -27,6 +33,9 @@ export async function runUpkeep(env, now = Date.now()) {
     app_errors: db.prepare('DELETE FROM app_errors WHERE day < ?1').bind(isoDay(now - 30 * DAY)),
     plays: db.prepare('DELETE FROM plays WHERE day < ?1').bind(isoDay(now - 400 * DAY)),
     upkeep_log: db.prepare('DELETE FROM upkeep_log WHERE ran_at < ?1').bind(now - 90 * DAY),
+    admin_audit: db.prepare('DELETE FROM admin_audit WHERE at < ?1').bind(now - 365 * DAY),
+    bans: db.prepare('DELETE FROM bans WHERE until IS NOT NULL AND until < ?1').bind(now),
+    announcements: db.prepare('DELETE FROM announcements WHERE ends_at IS NOT NULL AND ends_at < ?1').bind(now - 90 * DAY),
   };
   const results = await db.batch(Object.values(jobs));
   const removed = Object.fromEntries(Object.keys(jobs).map((name, i) => [name, results[i].meta?.changes || 0]));
@@ -35,11 +44,12 @@ export async function runUpkeep(env, now = Date.now()) {
 }
 
 export async function deepHealth(env, now = Date.now()) {
-  const out = { ok: true, db: false, lastUpkeep: null, voicesToday: 0, voiceCap: Number(env.DAILY_TTS_CAP) || 300, errorsToday: 0 };
+  const out = { ok: true, db: false, lastUpkeep: null, voicesToday: 0, voiceCap: 0, errorsToday: 0 };
   try {
     const last = await env.DB.prepare('SELECT ran_at FROM upkeep_log ORDER BY ran_at DESC LIMIT 1').first();
     const voices = await env.DB.prepare("SELECT count FROM usage WHERE day = ?1 AND name = 'tts'").bind(isoDay(now)).first();
     const errors = await env.DB.prepare('SELECT COALESCE(SUM(count), 0) AS n FROM app_errors WHERE day = ?1').bind(isoDay(now)).first();
+    out.voiceCap = (await getSettings(env, now)).daily_tts_cap;
     out.db = true;
     out.lastUpkeep = last ? last.ran_at : null;
     out.voicesToday = voices ? voices.count : 0;
