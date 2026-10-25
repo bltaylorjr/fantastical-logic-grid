@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Command line generator.
-//   node cli.js --difficulty hard --theme mystery --clues 12 --seed abc
+//   node cli.js --difficulty hard --theme mystery --topic heist --clues 12 --seed abc
 //   node cli.js --difficulty mensa --json > puzzle.json
 //   node cli.js --options        (list difficulties, themes and clue types)
 import { generatePuzzle, formatPuzzleText, describeOptions } from './src/index.js';
@@ -13,6 +13,7 @@ if (flag('help')) {
   console.log(`Options:
   --difficulty basic|easy|medium|hard|expert|mensa   (default easy)
   --theme <id>|random                                (default random)
+  --topic <id>|any     topic within the theme (see --options)
   --categories <3-6>  --items <3-8>                  (default: the tier's size)
   --clues <n>          target number of clues
   --types a,b,c        only these clue types (see --options)
@@ -34,6 +35,7 @@ const num = (v) => (v != null ? Number(v) : undefined);
 const puzzle = generatePuzzle({
   difficulty: value('difficulty') || 'easy',
   theme: value('theme') || 'random',
+  topic: value('topic'),
   categories: num(value('categories')),
   items: num(value('items')),
   clueCount: num(value('clues')),
