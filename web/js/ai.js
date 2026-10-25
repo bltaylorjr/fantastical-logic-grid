@@ -153,7 +153,8 @@ function deviceVoice(seed, narrator) {
   const natural = pool.filter((v) => /natural|neural|online|premium|enhanced/i.test(v.name));
   if (natural.length) pool = natural;
   if (narrator) {
-    const storyteller = pool.find((v) => /aria|jenny|ava|samantha/i.test(v.name));
+    // American male storytellers (Windows Natural voices, then macOS).
+    const storyteller = pool.find((v) => /\b(guy|andrew|brian|christopher|eric|davis|roger|steffan|tony|jason|alex|aaron|fred)\b/i.test(v.name));
     if (storyteller) return storyteller;
   }
   return pool.length ? pool[seed % pool.length] : null;
@@ -161,9 +162,9 @@ function deviceVoice(seed, narrator) {
 
 // Free natural voices that run on this computer (Kokoro, Apache-2.0). The
 // model downloads once from Hugging Face (about 90 MB) and then works offline.
-const KOKORO_NARRATOR = 'af_heart';
+const KOKORO_NARRATOR = 'am_michael'; // American male
 // American English voices only, best rated first.
-const KOKORO_VOICES = ['af_bella', 'am_michael', 'af_nicole', 'am_fenrir', 'af_aoede', 'am_puck'];
+const KOKORO_VOICES = ['af_bella', 'am_fenrir', 'af_nicole', 'am_puck', 'af_aoede'];
 let kWorker = null;
 let kSeq = 0;
 const kCalls = new Map();
@@ -287,15 +288,15 @@ function voicePlan(settings, puzzle, who) {
     return { seed, kind, gap: 220, key: `k2|${voice}|${speed}`, make: (t) => kokoroTts(t, voice, speed) };
   }
   if (kind === 'gemini') {
-    const voice = narr ? 'Charon' : GEMINI_VOICES[seed % GEMINI_VOICES.length];
+    const voice = narr ? 'Charon' : GEMINI_VOICES[seed % GEMINI_VOICES.length]; // Charon: male, steady
     return { seed, kind, gap: 80, key: `g2|${voice}`, make: (t) => geminiTts(settings, t, voice) };
   }
   if (kind === 'openai') {
     const style = narr
-      ? `Warm storyteller reading a ${puzzle.theme.name.toLowerCase()} story aloud, unhurried, gentle suspense.`
+      ? `Warm male storyteller reading a ${puzzle.theme.name.toLowerCase()} story aloud, unhurried, gentle suspense.`
       : `A character in a ${puzzle.theme.name.toLowerCase()} story telling a detective what they saw. Natural, conversational, a little ${['nervous', 'cheerful', 'serious', 'proud', 'secretive'][seed % 5]}.`;
     const accent = ' Speak in a natural General American accent. Enunciate clearly, keep a relaxed, even pace, and pause briefly at commas and full stops. Say names and times naturally.';
-    const voice = narr ? 'coral' : AI_VOICES[seed % AI_VOICES.length];
+    const voice = narr ? 'ash' : AI_VOICES[seed % AI_VOICES.length]; // ash: American male
     return { seed, kind, gap: 80, key: `o2|${voice}|${hashOf(style)}`, make: (t) => ttsBlob(settings, t, voice, style + accent) };
   }
   return { seed, kind: 'device' };
