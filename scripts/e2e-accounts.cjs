@@ -158,6 +158,12 @@ function startAuth(signer) {
     const settingsRow = await db.prepare("SELECT data FROM sync_records WHERE kind = 'settings'").first();
     assert(settingsRow && !('aiKey' in JSON.parse(settingsRow.data)), 'API keys are never sent with the settings');
     await A.page.click('#dlg-account .dlg-actions:last-child [data-close]');
+    // Signed-in players are asked for a screen name once the account window closes.
+    await A.page.waitForSelector('#dlg-name[open]');
+    assert(await A.page.isHidden('#name-cancel'), 'a new account must choose a screen name');
+    await A.page.fill('#name-input', 'Bobby Grid');
+    await A.page.click('#name-form button[type=submit]');
+    await A.page.waitForSelector('#dlg-name[open]', { state: 'detached' });
 
     // ---- Device B signs in and gets everything.
     const B = await device('B');

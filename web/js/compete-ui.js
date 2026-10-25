@@ -17,6 +17,8 @@ let pendingCode = null; // a race link opened before signing in
 let shareCode = null; // the race in the share window
 let invites = []; // challenges waiting for this player
 let seenInvites = null; // ids already announced, null until the first check
+let required = false; // the name window is open because a signed-in player has no name yet
+export const GUEST = 'Guest';
 
 export function initCompete(hooks) {
   ui = hooks;
@@ -28,6 +30,8 @@ export function initCompete(hooks) {
   wireName();
   wireRace();
   wireBoard();
+  $('#player-chip').hidden = false;
+  $('#player-chip').onclick = () => { if (account.current()) openName(); else ui.openAccount(); };
   $('#race-share').onclick = () => { const g = ui.game(); if (g && g.save.race) showShare(g.save.race.code); };
   $('#race-standings').onclick = () => { const g = ui.game(); if (g && g.save.race) showStandings(g.save.race.code); };
   account.onChange((user) => {
@@ -43,10 +47,27 @@ export function initCompete(hooks) {
 }
 
 async function refreshName() {
-  try { name = await compete.loadName(); } catch (e) { /* offline: keep the cached name */ }
+  let known = false;
+  try { name = await compete.loadName(); known = true; } catch (e) { /* offline: keep the cached name */ }
   renderCard();
   refreshInvites();
-  if (pendingCode) { const code = pendingCode; pendingCode = null; needName(() => openJoin(code)); }
+  const code = pendingCode;
+  pendingCode = null;
+  // Signed-in players always play under a screen name: ask straight after
+  // sign-in or sign-up, and on the first sign-in of an older account.
+  if (known && !name && account.current()) { requireName(code ? () => openJoin(code) : null); return; }
+  if (code) needName(() => openJoin(code));
+}
+
+function requireName(then) {
+  const d = $('#dlg-name');
+  if (d.open) return;
+  // Let the player see the account window first, then ask once it closes.
+  const acct = $('#dlg-account');
+  if (acct && acct.open) { acct.addEventListener('close', () => { if (account.current() && !name) requireName(then); }, { once: true }); return; }
+  afterName = then;
+  required = true;
+  openName();
 }
 
 // ------------------------------------------------------------ home card
@@ -56,13 +77,15 @@ function renderCard() {
   const btn = (id, text, primary) => `<button class="btn${primary ? ' primary' : ''}" type="button" data-compete="${id}">${text}</button>`;
   let actions;
   const me = $('#compete-me');
-  me.hidden = !(user && name);
+  renderChip();
+  me.hidden = false;
+  me.innerHTML = `Playing as <b>${esc(user && name ? name : GUEST)}</b>`;
   if (!user) {
     actions = btn('signin', 'Sign in to race', true) + btn('board', 'Scoreboard');
   } else if (!name) {
     actions = btn('name', 'Choose a screen name', true) + btn('board', 'Scoreboard');
   } else {
-    me.innerHTML = `Playing as <b>${esc(name)}</b> <button class="btn quiet small" type="button" data-compete="name">Change<span class="sr-only"> screen name</span></button>`;
+    me.innerHTML += ` <button class="btn quiet small" type="button" data-compete="name">Change<span class="sr-only"> screen name</span></button>`;
     actions = btn('start', 'Start a race', true) + btn('challenge', 'Challenge a player') + btn('find', 'Find a race') + btn('join', 'Join with a code') + btn('board', 'Scoreboard');
   }
   $('#compete-intro').textContent = user && name
@@ -70,6 +93,15 @@ function renderCard() {
     : 'Race other detectives on the very same puzzle and climb the scoreboard. Sign in and choose a screen name to take part. You never need an account to play on your own.';
   $('#compete-actions').innerHTML = actions;
   renderInvites();
+}
+
+// The name in the top bar: the screen name when signed in, otherwise Guest.
+function renderChip() {
+  const user = account.current();
+  const label = user && name ? name : GUEST;
+  $('#player-chip-name').textContent = label;
+  $('#player-chip').classList.toggle('named', !!(user && name));
+  $('#player-chip').title = user ? (name ? 'Change your screen name' : 'Choose a screen name') : 'Playing as Guest. Sign in to use a screen name';
 }
 
 // ------------------------------------------------------------ challenges
@@ -157,6 +189,9 @@ function openName() {
   $('#name-leave').hidden = !name;
   $('#name-leave').open = false;
   $('#name-h').textContent = name ? 'Change your screen name' : 'Choose a screen name';
+  $('#name-required').hidden = !required;
+  $('#name-cancel').hidden = required;
+  $('#name-signout').hidden = !required;
   ui.openDialog(d, $('#name-input'));
 }
 
@@ -165,7 +200,14 @@ function wireName() {
   const form = $('#name-form');
   const fail = (text) => { const box = $('.error-box', form); box.textContent = text; box.hidden = false; $('#name-input').setAttribute('aria-invalid', 'true'); $('#name-input').focus(); };
   d.addEventListener('click', (e) => { if (e.target.closest('[data-close]')) d.close(); });
-  d.addEventListener('close', () => { afterName = null; });
+  d.addEventListener('close', () => { afterName = null; required = false; });
+  // A required name can't be skipped with Escape: choose one or sign out.
+  d.addEventListener('cancel', (e) => { if (required) e.preventDefault(); });
+  $('#name-signout').onclick = async () => {
+    required = false;
+    d.close();
+    try { await account.signOut(); } catch (err) { ui.toast(err.message); }
+  };
   form.onsubmit = async (e) => {
     e.preventDefault();
     const value = $('#name-input').value;
@@ -190,14 +232,15 @@ function wireName() {
     try { await compete.setAcceptInvites($('#name-invites').checked); } catch (err) { fail(err.message); $('#name-invites').checked = compete.acceptsInvites(); }
   };
   $('#name-leave-btn').onclick = async () => {
-    const ok = await ui.confirmDialog({ title: 'Leave the scoreboard?', text: 'Your screen name, points and race results will be removed. This cannot be undone. Your account and puzzles stay.', yes: 'Remove my name and scores', no: 'Keep them' });
+    const ok = await ui.confirmDialog({ title: 'Leave the scoreboard?', text: 'Your screen name, points and race results will be removed. This cannot be undone. Your account and puzzles stay, and you choose a new name to keep playing signed in.', yes: 'Remove my name and scores', no: 'Keep them' });
     if (!ok) return;
     try {
       await compete.leave();
       name = null;
       d.close();
       renderCard();
-      ui.toast('Your screen name and scores are removed.');
+      ui.toast('Your screen name and scores are removed. Choose a new name to keep playing signed in.');
+      requireName(null);
     } catch (err) { fail(err.message); }
   };
 }
@@ -473,6 +516,7 @@ async function loadBoard() {
   try {
     const b = await compete.scoreboard(period);
     if (b.me && b.me.rank) $('#board-me').innerHTML = `You (${esc(b.me.name)}) are <b>number ${b.me.rank}</b> with ${b.me.points} points from ${b.me.solved} solved puzzle${b.me.solved === 1 ? '' : 's'}.`;
+    else if (!user || !name) $('#board-me').innerHTML = `You are playing as <b>${GUEST}</b>. ${user ? 'Choose a screen name' : 'Sign in and choose a screen name'} to get on the scoreboard.`;
     else if (b.me) $('#board-me').textContent = `You (${b.me.name}) have no points ${period === 'week' ? 'this week' : 'yet'}. Solve a puzzle to get on the board.`;
     if (!b.rows.length) { body.innerHTML = `<p class="muted">No one is on the scoreboard ${period === 'week' ? 'this week' : ''} yet. Solve a puzzle to be the first!</p>`; return; }
     body.innerHTML = `<div class="table-wrap"><table class="board"><caption class="sr-only">Scoreboard, ${period === 'week' ? 'this week' : 'all time'}</caption>
