@@ -822,3 +822,20 @@ setInterval(() => { if (session && Date.now() - lastActive > IDLE_MS) signOut('Y
 session = loadSession();
 if (session) tryEnter();
 else $('#login').hidden = false;
+
+// ------------------------------------------------------------- install
+// The dashboard installs as an app (manifest.webmanifest, sw.js). Chrome and
+// Edge offer their install prompt through the header button; iPhone users add
+// it from Safari's Share menu (steps on the sign-in page).
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/admin/sw.js', { scope: '/admin/' }).catch(() => {});
+let installPrompt = null;
+window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installPrompt = e; $('#install').hidden = false; });
+window.addEventListener('appinstalled', () => { installPrompt = null; $('#install').hidden = true; toast('Installed. Open Grid Admin from your home screen or apps.'); });
+$('#install').onclick = async () => {
+  if (!installPrompt) return;
+  installPrompt.prompt();
+  await installPrompt.userChoice.catch(() => {});
+  installPrompt = null;
+  $('#install').hidden = true;
+};
+if (matchMedia('(display-mode: standalone)').matches || navigator.standalone) $('#phone-help').hidden = true;

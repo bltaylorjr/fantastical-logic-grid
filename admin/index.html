@@ -6,6 +6,12 @@
 <meta name="robots" content="noindex, nofollow">
 <title>Logic Grid Admin</title>
 <link rel="icon" href="/admin/icon.svg" type="image/svg+xml">
+<link rel="manifest" href="/admin/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/admin/apple-touch-icon.png">
+<meta name="theme-color" content="#5B3CC4">
+<meta name="apple-mobile-web-app-title" content="Grid Admin">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <link rel="stylesheet" href="/admin/admin.css">
 <script type="module" src="/admin/admin.js"></script>
 </head>
@@ -17,6 +23,7 @@
     <span id="who-email"></span> <span class="badge" id="who-role"></span>
     <button type="button" class="btn small" id="sign-out">Sign out</button>
   </div>
+  <button type="button" class="btn small" id="install" hidden>Install the app</button>
 </header>
 
 <div id="live" class="sr-only" aria-live="polite"></div>
@@ -36,6 +43,16 @@
     <p><b>Confirm your email first.</b> We can send a confirmation link to <span id="verify-email"></span>. Open it, then come back and press "I have confirmed it".</p>
     <div class="row"><button class="btn" type="button" id="verify-send">Send the link</button><button class="btn primary" type="button" id="verify-done">I have confirmed it</button></div>
   </div>
+  <details class="phone-help" id="phone-help">
+    <summary>Put the dashboard on your phone</summary>
+    <p class="muted">It installs like an app, free, with no app store.</p>
+    <ul>
+      <li><b>iPhone or iPad:</b> open this page in Safari, tap the Share button, then <b>Add to Home Screen</b>.</li>
+      <li><b>Android:</b> open this page in Chrome, tap the menu (three dots), then <b>Install app</b> or <b>Add to Home screen</b>.</li>
+      <li><b>Windows or Mac:</b> in Chrome or Edge, use <b>Install the app</b> at the top of this page.</li>
+    </ul>
+    <p class="muted">You sign in each time you open it, as on the web.</p>
+  </details>
   <details class="break-glass">
     <summary>Use the break-glass key</summary>
     <p class="muted">For emergencies only, for example if sign-in is down. This is the Worker's <code>ADMIN_TOKEN</code> secret. It has the owner's rights and every use is logged.</p>

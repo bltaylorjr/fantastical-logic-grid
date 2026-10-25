@@ -139,6 +139,10 @@ function startAuth(signer) {
     await A.page.waitForSelector('#name-form .error-box:not([hidden])');
     assert(/not allowed/.test(await A.page.textContent('#name-form .error-box')), 'a rude screen name is refused');
     assert(await A.page.getAttribute('#name-input', 'aria-invalid') === 'true', 'the name field is marked invalid');
+    await A.page.click('#name-suggest');
+    const made = await A.page.inputValue('#name-input');
+    assert(/^[A-Z][a-z]+[A-Z][a-z]+\d\d$/.test(made) && await A.page.isHidden('#name-form .error-box'), `Suggest a name fills in a made-up name (${made}) and clears the error`);
+    assert((await A.page.textContent('#name-suggested')).includes(made), 'the suggested name is announced to screen readers');
     await A.page.fill('#name-input', 'Sky Fox');
     await A.page.click('#name-form button[type=submit]');
     await A.page.waitForSelector('#dlg-name[open]', { state: 'detached' });

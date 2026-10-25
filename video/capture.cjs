@@ -424,7 +424,7 @@ const CSS = `
       // Signed in, the game asks for a screen name straight away.
       await p.waitForSelector('#dlg-name[open]', { timeout: 15000 });
       await p.fill('#name-input', 'Sky Fox');
-      await scene('screen-name', ['Once you are signed in, you pick a screen name.', 'It is the only thing other players see, and rude names are turned away.', 'Don\'t want one? Sign out instead, and you play as Guest.']);
+      await scene('screen-name', ['Once you are signed in, you pick a screen name.', 'Type your own, or press Suggest a name and the game makes one up for you.', 'It is the only thing other players see, and rude names are turned away.', 'Don\'t want one? Sign out instead, and you play as Guest.']);
       await p.click('#name-form button[type=submit]'); await p.waitForSelector('#dlg-name[open]', { state: 'detached' });
       await scrollTo('#compete-section'); await hl(['#compete-section', '#player-chip']);
       await scene('compete', ['Your screen name now shows at the top.', 'Play against others lets you race other players on the very same puzzle, and climb the scoreboard.']);

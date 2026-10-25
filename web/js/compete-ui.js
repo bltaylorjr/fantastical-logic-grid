@@ -207,6 +207,7 @@ function openName() {
   const form = $('#name-form');
   $('#name-input').value = name || '';
   $('#name-input').removeAttribute('aria-invalid');
+  $('#name-suggested').textContent = '';
   $('#name-post').checked = ui.getSetting('postScores') !== false;
   $('#name-invites').checked = compete.acceptsInvites();
   $('.error-box', form).hidden = true;
@@ -249,6 +250,13 @@ function wireName() {
       ui.toast(`You are now ${name} on the scoreboard and in races.`);
       if (next) next();
     } catch (err) { fail(err.message); } finally { btn.disabled = false; }
+  };
+  $('#name-suggest').onclick = () => {
+    const input = $('#name-input');
+    input.value = compete.suggestName();
+    input.removeAttribute('aria-invalid');
+    $('.error-box', form).hidden = true;
+    $('#name-suggested').textContent = `Suggested name: ${input.value}. Press Save name to use it, or edit it.`;
   };
   $('#name-post').onchange = () => { if (name) ui.setSetting('postScores', $('#name-post').checked); };
   $('#name-invites').onchange = async () => {

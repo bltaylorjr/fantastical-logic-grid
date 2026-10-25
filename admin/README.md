@@ -33,6 +33,20 @@ mode, colors, play aids, "Learn from how I play", and their sound effects and
 theme music switches and volumes. The Sound button on a puzzle mutes
 everything in one tap.
 
+## On your phone
+
+The dashboard installs like an app, free and with no app store:
+
+- **iPhone or iPad:** open https://flg-api.btay74.workers.dev/admin/ in Safari,
+  tap Share, then **Add to Home Screen**.
+- **Android:** open it in Chrome, tap the menu (three dots), then **Install app**
+  (or **Add to Home screen**).
+- **Windows or Mac:** in Chrome or Edge, press **Install the app** at the top.
+
+It opens full screen as "Grid Admin". You sign in each time you open it. The
+service worker (`sw.js`) keeps only the app's own files; admin data and sign-in
+are never stored on the phone. Icons: `node scripts/admin-icons.cjs admin`.
+
 ## Security
 
 - **Sign-in** uses the admin's normal game account (Firebase, free). The Worker
