@@ -14,7 +14,7 @@
 //     lessBy / moreBy    - with an exact gap, {d} is the formatted gap
 //     gap(steps)         - formats a gap of `steps` scale steps
 
-const clock = (startMin) => (v) => {
+export const clock = (startMin) => (v) => {
   const m = startMin + v;
   let h = Math.floor(m / 60) % 24;
   const mm = String(m % 60).padStart(2, '0');
@@ -22,8 +22,8 @@ const clock = (startMin) => (v) => {
   h = h % 12 || 12;
   return `${h}:${mm} ${ampm}`;
 };
-const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
-const money = (v) => `$${v}`;
+export const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+export const money = (v) => `$${v}`;
 
 export const THEMES = [
   {

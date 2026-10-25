@@ -9,11 +9,11 @@ Plain JavaScript (ES modules), no dependencies. It runs in the browser and in No
 ```js
 import { generatePuzzle, getHint, isSolved, describeOptions } from './src/index.js';
 
-const puzzle = generatePuzzle({ difficulty: 'hard', theme: 'mystery', clueCount: 12, seed: 'abc' });
+const puzzle = generatePuzzle({ difficulty: 'hard', theme: 'holiday', topic: 'halloween', clueCount: 12, seed: 'abc' });
 ```
 
 ```
-node cli.js --difficulty medium --theme holiday --seed party
+node cli.js --difficulty medium --theme holiday --topic halloween --seed party
 node cli.js --difficulty mensa --json > puzzle.json
 node cli.js --help
 npm test            # full suite (about 2 minutes)
@@ -49,6 +49,7 @@ This follows the design process step by step:
 | --- | --- | --- |
 | `difficulty` | `basic`, `easy`, `medium`, `hard`, `expert`, `mensa` | `easy` |
 | `theme` | `mystery`, `action`, `adventure`, `holiday`, `occasion` (Special Occasion), `fantasy`, `scifi`, `sports`, `cooking`, `pets`, `random` | `random` |
+| `topic` | a topic id from the theme (see Themes, topics and stories), or `any`. Ignored when the theme is `random` | `any` (a random topic in the theme) |
 | `categories` | 3 to 6 (number of categories, including the cast) | tier default |
 | `items` | 3 to 8 (items per category) | tier default |
 | `clueCount` | target number of clues | the fewest that work |
@@ -59,7 +60,8 @@ This follows the design process step by step:
 | `seed` | any text. The same seed and options always give the same puzzle | random |
 | `usedStories` | story ids already used on this device; none will be repeated | `[]` |
 
-`describeOptions()` returns everything a setup screen needs, including a
+`describeOptions()` returns everything a setup screen needs (each theme lists
+its `topics`, with `any` first as the default), including a
 one-line summary for each tier.
 
 **Clue count.** More clues make a puzzle easier, fewer make it harder. If the
@@ -107,17 +109,45 @@ in a Web Worker and show the "Writing your story..." message.
 
 Item names in clues match the grid labels exactly, and clue order is fixed once the puzzle is made.
 
-## Themes and stories
+## Themes, topics and stories
 
 Ten themes, each a small world with its own cast and six categories (two of
 them numbered) with eight items each.
 
+Each theme has topics: the scenario under it, such as which holiday or which
+kind of mystery. The topic shapes the whole puzzle: its categories and items
+(Halloween has costumes, streets and pumpkins; Museum Heist has wings and
+jobs), the cast ("trick-or-treaters"), the story parts and the art prompt. The
+player can pick a topic or leave it on **Any**, which picks one at random.
+
+| Theme | Topics |
+| --- | --- |
+| Mystery | Classic Whodunit (`whodunit`), Museum Heist (`heist`), Missing Person (`missing`), Cozy Village Mystery (`cozy`), Haunted House (`haunted`) |
+| Action | Spy Mission (`spy`), Bank Heist Chase (`chase`), Disaster Rescue (`rescue`), Superhero Showdown (`heroes`) |
+| Adventure | Jungle Treasure (`jungle`), Pirate Voyage (`pirates`), Polar Expedition (`polar`), Desert Ruins (`desert`) |
+| Holiday | Christmas (`christmas`), Halloween (`halloween`), Thanksgiving (`thanksgiving`), Fourth of July (`july4`), Valentine's Day (`valentines`), New Year's Eve (`newyear`), Easter (`easter`) |
+| Special Occasion | Birthday Party (`birthday`), Wedding (`wedding`), Graduation (`graduation`), Anniversary (`anniversary`), Baby Shower (`babyshower`), Retirement Party (`retirement`) |
+| Fantasy | Dragon Kingdom (`dragons`), Wizard School (`school`), Fairy Forest (`fairy`), Knights' Quest (`knights`) |
+| Sci-Fi | Space Station (`starbase`), Alien Contact (`contact`), Robot Lab (`robots`), Time Travel (`timetravel`) |
+| Sports | World Games (`games`), Soccer Tournament (`soccer`), City Marathon (`marathon`), School Field Day (`fieldday`) |
+| Cooking | Cook-Off (`cookoff`), Bake Sale (`bakesale`), Restaurant Kitchen (`restaurant`), Food Truck Rally (`foodtrucks`) |
+| Pets | Pet Show (`show`), Pet Hotel (`hotel`), Dog Park (`dogpark`), Animal Shelter (`shelter`) |
+
+The first topic of most themes is its classic setting (Classic Whodunit, Spy
+Mission...), which uses the theme's own categories and story parts. A puzzle
+reports its topic in `puzzle.topic` and its picture prompt in `puzzle.art`
+(`setting`, a phrase for the scene, and `mood`, a few words for color and music).
+
 **Stories are never reused.** Each story is assembled from parts in
-`src/storylines.js`: a title word, an opening, an incident (what is at stake),
-a mishap (why the facts are scrambled), a lead tied to the goal category, and an
-ending. That gives about 220,000 storylines per theme, before the cast names
-and items change. Every story has an id (`puzzle.story.id`, for example
-`mystery|t2|o1|i3|m0|lroom.1|e4`) that records which parts it used.
+`src/storylines.js` (or the topic's own in `src/topics.js`): a title word, an
+opening, an incident (what is at stake), a mishap (why the facts are scrambled),
+a lead tied to the goal category, and an ending. That gives 55,000 to 220,000
+storylines per topic (`storylineCount(theme, topic)`), before the cast names and
+items change. Every story has an id (`puzzle.story.id`) that records which parts
+it used. It starts with the theme, plus the topic when the topic has its own
+story parts: `mystery|t2|o1|i3|m0|lroom.1|e4` (Classic Whodunit) or
+`holiday/halloween|t0|o5|i2|m1|lcostume.0|e3`. Ids saved before topics existed
+stay valid, because classic topics kept the same id form.
 
 The app saves each id once a puzzle is started and passes the list back:
 
@@ -128,20 +158,29 @@ savedIds.push(puzzle.story.id);   // or storyId(puzzle)
 
 The engine never returns a story whose id is in `usedStories`. It also picks
 the story that shares the fewest parts (opening, incident, ending...) with the
-last 300 used stories, so back-to-back puzzles feel different, not just
-technically different.
+last 300 used stories of the same topic, so back-to-back puzzles feel
+different, not just technically different.
 
 A story sets the scene in under 150 words and ends with the goal question
 ("Can you work out who was in the Library?"). The ending in `story.ending` is
 the reward, shown on solve.
 
-To add a theme, add its categories to `src/themes.js` and its story parts to `src/storylines.js`.
+To add a theme, add its categories to `src/themes.js`, its story parts to
+`src/storylines.js` and at least one topic to `src/topics.js`.
+
+To add a topic, add an entry to the theme's list in `src/topics.js` with `id`,
+`name`, `description` and `art`. Give it `categories` (theme category ids to
+reuse and/or new ones: at least five, one numbered, eight items each, no label
+used twice, and not the id `name`), and `story` parts (`adjs`, `openings`,
+`incidents`, plus `mishaps`, `endings` or `leads` where the theme's own do not
+fit). Every category needs at least one lead. The test suite checks all of this.
 
 ## The puzzle JSON
 
 `generatePuzzle` returns plain JSON that can be saved and reloaded as is:
 
-- `title`, `theme`, `difficulty`, `seed`, `options`
+- `title`, `theme`, `topic` (`id`, `name`, `description`), `difficulty`, `seed`, `options`
+- `art`: `setting` and `mood` for picture and music prompts
 - `categories`: each with `id`, `name`, `items` (`{ id: 'room:2', label: 'Kitchen' }`), and phrasing
 - `grid`: `columns`, `rows` and `blocks` (every pair of categories once)
 - `story`: `id` (save it, see above), `title`, `paragraphs`, `goal`, `ending`, `wordCount`
@@ -185,6 +224,7 @@ src/clues.js       true clue candidates from the solution
 src/language.js    clue and hint wording
 src/story.js       storyline and questions
 src/themes.js      theme casts and categories
+src/topics.js      topics under each theme: categories, story parts, art
 src/storylines.js  story parts per theme
 src/tiers.js       difficulty tiers and clue types
 src/play.js        hints, checking and print text

@@ -98,7 +98,7 @@ const label = (m, id) => m.L.label(m.toG(id));
 
 // Plain text version for printing or sharing (the answer key starts on a new page).
 export function formatPuzzleText(puzzle, { answerKey = true } = {}) {
-  const lines = [puzzle.title, `${puzzle.theme.name} · ${puzzle.difficulty.name} · ${puzzle.categories.length} categories x ${puzzle.categories[0].items.length} items`, ''];
+  const lines = [puzzle.title, `${puzzle.theme.name}${puzzle.topic ? ` (${puzzle.topic.name})` : ''} · ${puzzle.difficulty.name} · ${puzzle.categories.length} categories x ${puzzle.categories[0].items.length} items`, ''];
   lines.push(...puzzle.story.paragraphs.flatMap((p) => [p, '']));
   lines.push('Categories:');
   for (const c of puzzle.categories) lines.push(`  ${c.name}: ${c.items.map((i) => i.label).join(', ')}`);
