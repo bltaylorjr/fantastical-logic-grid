@@ -13,7 +13,7 @@ migrations_dir = "migrations"
 
 [vars]
 # The Firebase project that owns player sign-in. Its ID tokens are checked here.
-FIREBASE_PROJECT_ID = "REPLACE_WITH_FIREBASE_PROJECT_ID"
+FIREBASE_PROJECT_ID = "fantastical-logic-grid"
 # Pages and apps allowed to call this Worker: the website, GitHub Pages, the
 # Windows/macOS desktop app (Tauri), the Android app and the iPhone app.
 ALLOWED_ORIGINS = "https://thelogicgrid.com,https://www.thelogicgrid.com,https://bltaylorjr.github.io,http://tauri.localhost,https://tauri.localhost,tauri://localhost,https://appassets.androidplatform.net,app://localhost"
