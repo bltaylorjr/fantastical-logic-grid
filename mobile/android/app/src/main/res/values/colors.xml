@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Match the game's light page and header tokens (app.css). -->
+    <color name="page">#F3F4F6</color>
+    <color name="bar">#FFFFFF</color>
+</resources>

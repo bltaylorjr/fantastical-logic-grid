@@ -1,0 +1,72 @@
+// The Android app: a WebView shell around the web build (../../dist/web).
+// No third-party libraries. Build: ./gradlew assembleRelease (or bundleRelease
+// for Google Play). Release signing reads these environment variables:
+// FLG_KEYSTORE (path to the .p12), FLG_KEYSTORE_PASSWORD, FLG_KEY_ALIAS.
+plugins {
+    id 'com.android.application'
+}
+
+// One version for every app: desktop/src-tauri/tauri.conf.json.
+def appVersion = new groovy.json.JsonSlurper().parse(file('../../../desktop/src-tauri/tauri.conf.json')).version
+def webBuild = file('../../../dist/web')
+def bridgeAssets = layout.buildDirectory.dir('generated/flg-assets')
+
+android {
+    namespace = 'com.fantasticallogicgrid.app'
+    compileSdk = 36
+
+    defaultConfig {
+        applicationId = 'com.fantasticallogicgrid.app'
+        minSdk = 24
+        targetSdk = 36
+        versionName = appVersion
+        // 1.2.3 -> 10203; a CI run number can be added with -PversionCodeOffset.
+        def parts = appVersion.tokenize('.').collect { it.replaceAll(/\D.*/, '') as int }
+        versionCode = parts[0] * 10000 + parts[1] * 100 + parts[2] + (project.findProperty('versionCodeOffset') ?: '0').toInteger()
+    }
+
+    signingConfigs {
+        release {
+            if (System.getenv('FLG_KEYSTORE')) {
+                storeFile = file(System.getenv('FLG_KEYSTORE'))
+                storeType = 'pkcs12'
+                storePassword = System.getenv('FLG_KEYSTORE_PASSWORD')
+                keyAlias = System.getenv('FLG_KEY_ALIAS') ?: 'flg'
+                keyPassword = System.getenv('FLG_KEYSTORE_PASSWORD')
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled = false
+            if (System.getenv('FLG_KEYSTORE')) signingConfig = signingConfigs.release
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    sourceSets {
+        main {
+            // The web build goes in as assets/www, and the bridge beside it.
+            assets.srcDirs += [bridgeAssets.get().asFile]
+        }
+    }
+
+    androidResources {
+        noCompress += ['mp4', 'webm']
+    }
+}
+
+def copyWeb = tasks.register('copyWebBuild', Copy) {
+    doFirst {
+        if (!webBuild.exists()) throw new GradleException("Run `npm run build` in the app folder first (no dist/web).")
+    }
+    from(webBuild) { into 'www' }
+    from('../../shared/native-bridge.js')
+    into bridgeAssets
+}
+tasks.named('preBuild') { dependsOn copyWeb }
