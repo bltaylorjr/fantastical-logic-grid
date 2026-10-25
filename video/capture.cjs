@@ -392,6 +392,9 @@ const CSS = `
     await scene('silent', ['And Silent mode is always there when you just want the puzzle.']);
     await p.evaluate(() => { document.documentElement.classList.remove('silent'); });
     await p.click('#home-btn'); await p.waitForSelector('#tier-choices input'); await prep();
+    await p.click('#menu-btn'); await p.click('[data-cmd=install]'); await p.waitForSelector('#dlg-install[open]'); await prep();
+    await scene('install', ['To play without opening a browser, choose Install the app from the Menu.', 'Download the Windows desktop app, which keeps itself up to date.', 'Or add the game\'s icon to your phone\'s home screen. On your phone, the same menu shows you how.']);
+    await p.click('#install-close'); await p.waitForTimeout(300);
 
     // =================== Accounts, screen names, races, scoreboard
     card('online', ['You can also play with other detectives.']);
@@ -402,7 +405,7 @@ const CSS = `
       await p.click('#sync-btn'); await p.waitForSelector('#dlg-account[open]');
       await p.click('[data-view=signin] [data-go=signup]');
       await p.fill('#su-email', 'detective@example.com'); await p.fill('#su-pass', 'correct horse battery');
-      await scene('signup', ['Create one with your email and a password.', 'If you ever forget your password, Forgot password sends you a reset link.']);
+      await scene('signup', ['Create one with your email and a password.', 'Keep me signed in is ticked, so you stay signed in on this device. Untick it on a shared computer.', 'If you ever forget your password, Forgot password sends you a reset link.']);
       await p.click('[data-view=signup] button[type=submit]');
       await p.waitForSelector('[data-view=account]:not([hidden])', { timeout: 15000 });
       await p.waitForTimeout(1500);

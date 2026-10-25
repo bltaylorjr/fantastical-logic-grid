@@ -1604,19 +1604,71 @@ document.addEventListener('keydown', (e) => {
 // ====================================================================
 // Install (PWA) and offline
 // ====================================================================
+// The Install menu offers two things: an icon on the phone's home screen (the
+// browser's own install prompt, or Share > Add to Home Screen steps on iPhone
+// and iPad) and the Windows desktop app from the latest GitHub release.
+const RELEASE_API = 'https://api.github.com/repos/bltaylorjr/fantastical-logic-grid/releases/latest';
+const ua = navigator.userAgent || '';
+const isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const isAndroid = /Android/i.test(ua);
+const isStandalone = () => !!(window.matchMedia?.('(display-mode: standalone)').matches || window.matchMedia?.('(display-mode: window-controls-overlay)').matches || navigator.standalone);
 let installEvent = null;
+if (!isDesktop) $('[data-cmd=install]').hidden = false;
 window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault();
   installEvent = e;
-  $('[data-cmd=install]').hidden = false;
+  if ($('#dlg-install').open) renderInstall();
 });
-async function installApp() {
+window.addEventListener('appinstalled', () => { installEvent = null; if ($('#dlg-install').open) renderInstall(); });
+
+function renderInstall() {
+  const standalone = isStandalone();
+  const mobile = isIOS || isAndroid;
+  $('#install-phone-done').hidden = !standalone;
+  $('#install-phone-btn-row').hidden = standalone || !installEvent;
+  $('#install-phone-btn').textContent = mobile ? 'Add to home screen' : 'Install in this browser';
+  $('#install-ios').hidden = standalone || !isIOS;
+  $('#install-android').hidden = standalone || !isAndroid || !!installEvent;
+  $('#install-other').hidden = standalone || mobile;
+  $('#install-here-note').hidden = standalone || mobile || !installEvent;
+  $('#install-phone-h').textContent = mobile ? 'Add an icon to your home screen' : "Add an icon to your phone's home screen";
+  // The desktop app is for Windows; on a phone it goes last.
+  const desk = $('#install-desktop');
+  if (mobile) desk.parentNode.insertBefore(desk, $('#install-close').closest('.dlg-actions'));
+  else desk.parentNode.insertBefore(desk, $('#install-phone'));
+}
+
+// Points the Windows button straight at the newest installer when GitHub
+// answers; otherwise it opens the release page, where the installer is listed.
+let installerLooked = false;
+async function findInstaller() {
+  if (installerLooked) return;
+  installerLooked = true;
+  try {
+    const res = await fetch(RELEASE_API, { headers: { Accept: 'application/vnd.github+json' } });
+    if (!res.ok) return;
+    const rel = await res.json();
+    const exe = (rel.assets || []).find((a) => /x64-setup\.exe$/i.test(a.name));
+    if (!exe) return;
+    $('#install-desktop-btn').href = exe.browser_download_url;
+    $('#install-desktop-size').textContent = `Version ${String(rel.tag_name || '').replace(/^v/, '')}, ${Math.round(exe.size / 1048576)} MB`;
+  } catch (e) { /* the release page link still works */ }
+}
+
+function installApp() {
+  renderInstall();
+  findInstaller();
+  openDialog($('#dlg-install'), $('#install-h'));
+}
+$('#install-close').onclick = () => $('#dlg-install').close();
+$('#install-phone-btn').onclick = async () => {
   if (!installEvent) return;
   installEvent.prompt();
   const choice = await installEvent.userChoice;
-  if (choice.outcome === 'accepted') { $('[data-cmd=install]').hidden = true; toast('Installed. You can open the game from your Start menu, dock or home screen.'); }
   installEvent = null;
-}
+  if (choice.outcome === 'accepted') { $('#dlg-install').close(); toast('Installed. Open the game from its icon on your home screen, Start menu or dock.'); }
+  else renderInstall();
+};
 if ('serviceWorker' in navigator && !isDesktop && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
   watchWebUpdates();
 }
