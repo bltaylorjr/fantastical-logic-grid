@@ -372,20 +372,27 @@ export function warmVoice(settings, puzzle, who, text) {
 function playBlob(blob, volume, token) {
   return new Promise((resolve, reject) => {
     if (token !== speakToken) { resolve(false); return; }
-    const audio = new Audio(URL.createObjectURL(blob));
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio(url);
     audio.volume = volume;
     current = audio;
-    audio.onended = () => resolve(true);
-    audio.onpause = () => resolve(false);
-    audio.play().catch(reject);
+    const done = (ok) => { URL.revokeObjectURL(url); if (current === audio) current = null; resolve(ok); };
+    audio.onended = () => done(true);
+    // Browsers fire 'pause' just before 'ended' when a clip finishes, so only
+    // a pause before the end means the player stopped it.
+    audio.onpause = () => { if (!audio.ended) done(false); };
+    audio.play().catch((e) => { URL.revokeObjectURL(url); reject(e); });
   });
 }
 function speakDevice(text, seed, who, volume, token) {
-  if (!window.speechSynthesis || token !== speakToken) return Promise.resolve();
+  if (!window.speechSynthesis || token !== speakToken) return Promise.resolve(false);
   const v = deviceVoice(seed, who === 'narrator', who);
   // One utterance per sentence gives a natural pause between sentences.
   const parts = text.split(/(?<=[.!?]["”’)]?)\s+/).filter(Boolean);
   return new Promise((resolve) => {
+    // Some browsers never report the end of speech; don't wait forever.
+    const timer = setTimeout(() => resolve(token === speakToken), 4000 + text.length * 120);
+    const end = () => { clearTimeout(timer); resolve(token === speakToken); };
     parts.forEach((part, i) => {
       const u = new SpeechSynthesisUtterance(part);
       if (v) u.voice = v;
@@ -393,49 +400,74 @@ function speakDevice(text, seed, who, volume, token) {
       u.rate = who === 'narrator' ? 0.92 : 0.97;
       u.pitch = who === 'narrator' ? 1 : 0.94 + (seed % 5) * 0.03;
       u.volume = volume;
-      if (i === parts.length - 1) u.onend = u.onerror = () => resolve();
+      if (i === parts.length - 1) u.onend = u.onerror = end;
       speechSynthesis.speak(u);
     });
-    if (!parts.length) resolve();
+    if (!parts.length) end();
   });
 }
 
 // who: a character's name, or 'narrator'. Resolves when speech ends.
 export async function speak(settings, puzzle, who, text, { volume = 1 } = {}) {
   stopSpeaking();
+  await say(settings, puzzle, who, text, volume, speakToken);
+}
+
+// Several speakers in turn, for example every clue told by its witness.
+// lines: [{ who, text }]. onLine(i) is called as each line starts, and with
+// -1 at the end. Resolves true when every line was spoken, false if stopped.
+export async function speakLines(settings, puzzle, lines, { volume = 1, onLine } = {}) {
+  stopSpeaking();
   const token = speakToken;
+  for (let i = 0; i < lines.length; i++) {
+    if (token !== speakToken) return false;
+    if (onLine) onLine(i);
+    if (!(await say(settings, puzzle, lines[i].who, lines[i].text, volume, token))) break;
+  }
+  const finished = token === speakToken;
+  if (onLine) onLine(-1);
+  return finished;
+}
+
+// Speaks one text with one voice. If a natural voice fails partway, the rest
+// is read by the next voice that works, so no words are skipped.
+// Resolves true when the whole text was spoken, false if stopped.
+async function say(settings, puzzle, who, text, volume, token) {
   const clean = speechText(text);
   const plan = voicePlan(settings, puzzle, who);
   if (plan.kind === 'device') return speakDevice(clean, plan.seed, who, volume, token);
   if (plan.kind === 'kokoro' && kokoroLoading()) {
     try { await kokoroDownload(); } catch (e) { return speakDevice(clean, plan.seed, who, volume, token); }
-    if (token !== speakToken) return undefined;
+    if (token !== speakToken) return false;
   }
   const parts = speechChunks(clean);
   // Make the next piece while the current one plays.
   const jobs = parts.map(() => null);
   const job = (i) => { if (i < parts.length && !jobs[i]) { jobs[i] = clip(plan, parts[i]); jobs[i].catch(() => {}); } return jobs[i]; };
+  const rest = (i) => parts.slice(i).join(' ');
   for (let i = 0; i < parts.length; i++) {
-    if (token !== speakToken) return undefined;
+    if (token !== speakToken) return false;
     let blob;
     try {
       blob = await job(i);
       job(i + 1);
     } catch (e) {
-      if (plan.kind === 'cloud') return speak({ ...settings, serverVoices: false }, puzzle, who, parts.slice(i).join(' '), { volume });
+      if (token !== speakToken) return false;
+      if (plan.kind === 'cloud') return say({ ...settings, serverVoices: false }, puzzle, who, rest(i), volume, token);
       console.warn('Natural voice unavailable, using device voice:', e.message);
-      return speakDevice(parts.slice(i).join(' '), plan.seed, who, volume, token);
+      return speakDevice(rest(i), plan.seed, who, volume, token);
     }
     try {
-      if (!(await playBlob(blob, volume, token))) return undefined;
+      if (!(await playBlob(blob, volume, token))) return false;
       // A short breath between sentences, as a reader would take.
       if (plan.gap && i < parts.length - 1) await new Promise((r) => setTimeout(r, plan.gap));
     } catch (e) {
-      if (e && e.name === 'NotAllowedError') return undefined;
-      return speakDevice(parts.slice(i).join(' '), plan.seed, who, volume, token);
+      if (token !== speakToken || (e && e.name === 'NotAllowedError')) return false;
+      console.warn('Voice clip did not play, using device voice:', e && e.message);
+      return speakDevice(rest(i), plan.seed, who, volume, token);
     }
   }
-  return undefined;
+  return token === speakToken;
 }
 
 // Quick check from Settings: one tiny request that lists models.

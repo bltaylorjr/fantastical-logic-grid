@@ -1233,6 +1233,34 @@ $('#read-story').addEventListener('click', () => {
   voiceWaitNote();
   ai.speak(settings, S.puzzle, 'narrator', S.puzzle.story.paragraphs.join(' '), { volume: settings.volume / 100 });
 });
+// Every clue, in order, each told by its witness in their own voice. The clue
+// being read is highlighted; pressing the button again stops.
+function readCluesDone() {
+  $$('#clue-list li.reading').forEach((li) => li.classList.remove('reading'));
+  const b = $('#read-clues');
+  b.setAttribute('aria-pressed', 'false');
+  b.textContent = 'Read the clues aloud';
+}
+$('#read-clues').addEventListener('click', async () => {
+  if (!S) return;
+  const b = $('#read-clues');
+  if (b.getAttribute('aria-pressed') === 'true') { ai.stopSpeaking(); readCluesDone(); return; }
+  if (!settings.sound) { status('Sound is off. Turn it on to hear the clues.'); return; }
+  const game = S;
+  const lines = game.puzzle.clues.map((c) => ({ who: game.witness[c.number] || 'narrator', text: `Clue ${c.number}. ${c.text}` }));
+  b.setAttribute('aria-pressed', 'true');
+  b.textContent = 'Stop reading the clues';
+  voiceWaitNote();
+  await ai.speakLines(settings, game.puzzle, lines, {
+    volume: settings.volume / 100,
+    onLine: (i) => {
+      if (S !== game) return;
+      $$('#clue-list li.reading').forEach((li) => li.classList.remove('reading'));
+      if (i >= 0) $(`#clue-list li[data-n="${game.puzzle.clues[i].number}"]`)?.classList.add('reading');
+    },
+  });
+  readCluesDone();
+});
 // Free Kokoro voices: one-time model download, then they run on this computer.
 function kokoroStatus() {
   $('#kokoro-status').textContent = ai.kokoroReady(settings) ? 'Free voices are on this computer.' : '';
