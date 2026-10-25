@@ -1,81 +1,106 @@
-// Local check of the shared service with wrangler dev (no Cloudflare account
-// needed): plays are saved, tuning adds them up, shared story parts wait for
-// review, admin needs the token, and voices fall back when not set up.
-import { spawn, execSync } from 'node:child_process';
-import { writeFileSync, rmSync, mkdtempSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+// Learning and voice tests: run with `npm test` in server/. They start the
+// whole Worker in Miniflare with a local D1 database and a stand-in for the
+// Gemini voice service, so nothing leaves this computer.
+import { test, before, after } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { Miniflare } from 'miniflare';
 import { computeTuning } from '../src/learn.js';
 
-const here = dirname(fileURLToPath(import.meta.url));
-const state = mkdtempSync(join(tmpdir(), 'flg-learn-'));
-const W = 'npx --yes wrangler@4.145.0';
-const cfg = `--config ${join(here, 'learn.wrangler.toml')} --persist-to ${state}`;
+const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+const ORIGIN = 'https://thelogicgrid.com';
+const ADMIN = 'test-admin-token-1234567890';
+let mf;
+let geminiCalls = 0;
 
-let passed = 0, failed = 0;
-const rawFetch = globalThis.fetch;
-globalThis.fetch = (u, o = {}) => rawFetch(u, { ...o, signal: AbortSignal.timeout(8000) });
-const check = (name, cond, detail = '') => { if (cond) { passed++; console.log(`ok  ${name}`); } else { failed++; console.log(`FAIL ${name} ${detail}`); } };
+before(async () => {
+  mf = new Miniflare({
+    modules: true,
+    modulesRoot: join(root, '..'), // learn.js uses the engine's story-part rules
+    modulesRules: [{ type: 'ESModule', include: ['**/*.js'] }],
+    scriptPath: join(root, 'src/index.js'),
+    compatibilityDate: '2026-08-01',
+    d1Databases: ['DB'],
+    ratelimits: Object.fromEntries(['LIMIT_PLAYS', 'LIMIT_PARTS', 'LIMIT_TTS'].map((n, i) => [n, { namespace_id: String(41001 + i), simple: { limit: 100, period: 60 } }])),
+    bindings: { ALLOWED_ORIGINS: `${ORIGIN},http://tauri.localhost`, ADMIN_TOKEN: ADMIN, GEMINI_API_KEY: 'test-key', DAILY_TTS_CAP: '2', FIREBASE_PROJECT_ID: 'flg-test' },
+    // Stand-in for Google: one second of silent 24 kHz audio.
+    outboundService: async (req) => {
+      if (!req.url.startsWith('https://generativelanguage.googleapis.com/')) return new Response('blocked', { status: 500 });
+      geminiCalls++;
+      const pcm = Buffer.alloc(48000).toString('base64');
+      return Response.json({ candidates: [{ content: { parts: [{ inlineData: { mimeType: 'audio/L16;codec=pcm;rate=24000', data: pcm } }] } }] });
+    },
+  });
+  const db = await mf.getD1Database('DB');
+  for (const f of readdirSync(join(root, 'migrations')).filter((n) => n.endsWith('.sql')).sort()) {
+    const sql = readFileSync(join(root, 'migrations', f), 'utf8').replace(/--.*$/gm, '');
+    for (const stmt of sql.split(';').map((s) => s.trim()).filter(Boolean)) await db.prepare(stmt).run();
+  }
+});
+after(() => mf.dispose());
 
-// Pure aggregation.
+const call = (path, { method = 'POST', body, origin = ORIGIN, token } = {}) => mf.dispatchFetch(`https://api.test${path}`, {
+  method,
+  headers: { ...(origin ? { Origin: origin } : {}), ...(token ? { Authorization: `Bearer ${token}` } : {}), 'Content-Type': 'application/json' },
+  body: body === undefined ? undefined : JSON.stringify(body),
+});
+
 const many = (n, p) => Array.from({ length: n }, () => ({ clue_types: '{"not":3,"either":1}', ...p }));
-const t = computeTuning([...many(12, { tier: 'easy', theme: 'pets', effort: 0, signal: 1, rating: 5 }), ...many(12, { tier: 'hard', theme: 'mystery', effort: 0, signal: -1, rating: 2 })], []);
-check('easy players who found it too easy get tougher Easy puzzles', t.effort.easy > 0.2, JSON.stringify(t.effort));
-check('hard players who struggled get gentler Hard puzzles', t.effort.hard < -0.2);
-check('shared limits stay gentle', Math.abs(t.effort.easy) <= 0.6 && Object.values(t.clueWeights).every((w) => w >= 0.75 && w <= 1.4));
-check('liked themes lean up', t.themeWeights.pets > t.themeWeights.mystery, JSON.stringify(t.themeWeights));
-check('a level with few games is left alone', computeTuning(many(3, { tier: 'basic', theme: 'pets', effort: 0, signal: 1 }), []).effort.basic === undefined);
 
-// Local worker.
-const port = 8700 + Math.floor(Math.random() * 200);
-writeFileSync(join(here, '.dev.vars'), 'ADMIN_TOKEN=test-admin-token-1234567890\nGEMINI_API_KEY=not-a-real-key\n');
-execSync(`${W} d1 migrations apply flg-cloud --local ${cfg}`, { stdio: ['ignore', 'ignore', 'inherit'], env: { ...process.env, CI: '1' }, timeout: 90000 });
-const dev = spawn(`${W} dev --local --port ${port} --var DAILY_TTS_CAP:1 ${cfg}`, { shell: true, stdio: ['ignore', process.env.DEV_LOG ? 'inherit' : 'ignore', process.env.DEV_LOG ? 'inherit' : 'ignore'], detached: true });
-let stored = '';
-const base = `http://localhost:${port}`;
-const origin = { Origin: 'https://thelogicgrid.com', 'Content-Type': 'application/json' };
-try {
-  for (let i = 0; i < 60; i++) { try { if ((await fetch(`${base}/v1/health`)).ok) break; } catch (e) { /* starting */ } await new Promise((r) => setTimeout(r, 500)); }
+test('tuning: players who found a level too easy or too hard move it, gently', () => {
+  const t = computeTuning([...many(12, { tier: 'easy', theme: 'pets', effort: 0, signal: 1, rating: 5 }), ...many(12, { tier: 'hard', theme: 'mystery', effort: 0, signal: -1, rating: 2 })], []);
+  assert.ok(t.effort.easy > 0.2, JSON.stringify(t.effort));
+  assert.ok(t.effort.hard < -0.2);
+  assert.ok(Math.abs(t.effort.easy) <= 0.6 && Object.values(t.clueWeights).every((w) => w >= 0.75 && w <= 1.4));
+  assert.ok(t.themeWeights.pets > t.themeWeights.mystery, JSON.stringify(t.themeWeights));
+  assert.equal(computeTuning(many(3, { tier: 'basic', theme: 'pets', effort: 0, signal: 1 }), []).effort.basic, undefined, 'a level with few games is left alone');
+});
+
+test('plays: saved without anything personal; bad rows dropped; CORS only for the game', async () => {
   const play = { tier: 'medium', theme: 'cooking', outcome: 'solved', effort: 0.2, signal: 0.6, rating: 4, feel: 'right', clueTypes: { not: 4, less: 2 }, parts: { o: '1', i: 'x3k' }, platform: 'android', minutes: 7.5, hints: 1, mistakes: 0 };
-  const r1 = await fetch(`${base}/v1/learn/plays`, { method: 'POST', headers: origin, body: JSON.stringify({ plays: [play, { tier: 'nope', theme: 'cooking', outcome: 'solved' }, { ...play, email: 'a@b.c', name: 'Sam' }] }) });
-  check('plays are saved; bad rows are dropped', (await r1.json()).saved === 2);
-  check('CORS allows the game site', r1.headers.get('Access-Control-Allow-Origin') === 'https://thelogicgrid.com');
-  const r2 = await fetch(`${base}/v1/learn/plays`, { method: 'POST', headers: { ...origin, Origin: 'https://evil.example' }, body: JSON.stringify({ plays: [] }) });
-  check('CORS does not allow other sites', !r2.headers.get('Access-Control-Allow-Origin'));
+  const r = await call('/v1/learn/plays', { body: { plays: [play, { tier: 'nope', theme: 'cooking', outcome: 'solved' }, { ...play, email: 'a@b.c', name: 'Sam' }] } });
+  assert.equal((await r.json()).saved, 2);
+  assert.equal(r.headers.get('Access-Control-Allow-Origin'), ORIGIN);
+  const bad = await call('/v1/learn/plays', { body: { plays: [] }, origin: 'https://evil.example' });
+  assert.equal(bad.headers.get('Access-Control-Allow-Origin'), null);
+  const rows = (await (await mf.getD1Database('DB')).prepare('SELECT * FROM plays').all()).results;
+  assert.equal(rows.length, 2);
+  assert.ok(!/a@b\.c|Sam/.test(JSON.stringify(rows)) && rows[0].platform === 'android');
+});
 
-  const bad = await fetch(`${base}/v1/learn/parts`, { method: 'POST', headers: origin, body: JSON.stringify({ theme: 'pets', kind: 'openings', value: 'Five dogs met.' }) });
-  check('a shared part that breaks the rules is refused', bad.status === 400);
+test('shared story parts wait for review; approved ones reach every player', async () => {
+  assert.equal((await call('/v1/learn/parts', { body: { theme: 'pets', kind: 'openings', value: 'Five dogs met.' } })).status, 400);
   const part = { theme: 'pets', kind: 'openings', value: 'The dog park was muddy, but {n} {many} came anyway.' };
-  const good = await fetch(`${base}/v1/learn/parts`, { method: 'POST', headers: origin, body: JSON.stringify(part) });
-  check('a good shared part waits for review', (await good.json()).status === 'pending');
-  let tun = await (await fetch(`${base}/v1/learn/tuning`, { headers: origin })).json();
-  check('unreviewed parts are not sent to players', !tun.parts.pets);
-  check('tuning counts games', tun.games === 2, JSON.stringify(tun));
+  assert.equal((await (await call('/v1/learn/parts', { body: part })).json()).status, 'pending');
+  let tun = await (await call('/v1/learn/tuning', { method: 'GET' })).json();
+  assert.equal(tun.parts.pets, undefined, 'not shared before review');
+  assert.equal(tun.games, 2);
 
-  check('admin needs the token', (await fetch(`${base}/admin/learn/parts`)).status === 401);
-  const auth = { Authorization: 'Bearer test-admin-token-1234567890', 'Content-Type': 'application/json' };
-  const list = await (await fetch(`${base}/admin/learn/parts`, { headers: auth })).json();
-  check('admin lists the waiting part', list.parts.length === 1 && list.stats.games === 2);
-  await fetch(`${base}/admin/learn/review`, { method: 'POST', headers: auth, body: JSON.stringify({ key: list.parts[0].key, status: 'approved' }) });
-  tun = await (await fetch(`${base}/v1/learn/tuning`, { headers: origin })).json();
-  check('approved parts reach every player', tun.parts.pets && tun.parts.pets.openings[0] === part.value);
-  check('the review page loads', (await (await fetch(`${base}/admin/learn`)).text()).includes('Story review'));
+  assert.equal((await call('/admin/learn/parts', { method: 'GET' })).status, 401);
+  assert.equal((await call('/admin/learn/parts', { method: 'GET', token: 'wrong-token-wrong-token' })).status, 401);
+  const list = await (await call('/admin/learn/parts', { method: 'GET', token: ADMIN })).json();
+  assert.equal(list.parts.length, 1);
+  await call('/admin/learn/review', { token: ADMIN, body: { key: list.parts[0].key, status: 'approved' } });
+  tun = await (await call('/v1/learn/tuning', { method: 'GET' })).json();
+  assert.deepEqual(tun.parts.pets.openings, [part.value]);
+  assert.match(await (await call('/admin/learn', { method: 'GET' })).text(), /Story review/);
+});
 
-  const say = () => fetch(`${base}/v1/tts`, { method: 'POST', headers: origin, body: JSON.stringify({ text: 'Hello there.', voice: 'Kore' }) });
-  const t1 = await say();
-  check('a voice the server cannot make tells the app to use Kokoro', t1.status >= 500 && (await t1.json()).fallback === 'kokoro', String(t1.status));
-  const t2 = await say();
-  check('the daily voice cap stops new clips and falls back to Kokoro', t2.status === 429 && (await t2.json()).fallback === 'kokoro', String(t2.status));
-  const long = await fetch(`${base}/v1/tts`, { method: 'POST', headers: origin, body: JSON.stringify({ text: 'x'.repeat(500) }) });
-  check('long text is refused', long.status === 400);
-} finally {
-  try { process.kill(-dev.pid); } catch (e) { dev.kill(); }
-  rmSync(join(here, '.dev.vars'), { force: true });
-}
-await new Promise((r) => setTimeout(r, 1000));
-stored = execSync(`${W} d1 execute flg-cloud --local --json ${cfg} --command "SELECT * FROM plays"`).toString();
-check('nothing personal is stored', !/a@b\.c|Sam|127\.0\.0\.1/.test(stored) && /android/.test(stored));
-rmSync(state, { recursive: true, force: true });
-console.log(`\n${passed} passed, ${failed} failed`);
-process.exit(failed ? 1 : 0);
+test('voices: cached, capped per day, and fall back to Kokoro', async () => {
+  const say = (text) => call('/v1/tts', { body: { text, voice: 'Kore' } });
+  const a = await say('Hello there.');
+  assert.equal(a.status, 200);
+  assert.equal(a.headers.get('Content-Type'), 'audio/wav');
+  assert.equal(new TextDecoder().decode((await a.arrayBuffer()).slice(0, 4)), 'RIFF');
+  const again = await say('Hello there.');
+  assert.equal(again.headers.get('X-Cache'), 'hit', 'the same clip comes from the cache');
+  await again.arrayBuffer();
+  assert.equal((await say('Second clip.')).status, 200);
+  const capped = await say('Third clip.');
+  assert.equal(capped.status, 429);
+  assert.equal((await capped.json()).fallback, 'kokoro');
+  assert.equal(geminiCalls, 2, 'cached and capped clips never reach Google');
+  assert.equal((await say('x'.repeat(500))).status, 400);
+});

@@ -15,6 +15,7 @@ import { icon } from './icons.js';
 import * as learn from './learn.js';
 import * as workshop from './workshop.js';
 import * as share from './share.js';
+import { initAccounts, openAccount, onHome as accountsOnHome, signedIn } from './account-ui.js';
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -142,7 +143,7 @@ function showScreen(name) {
   setWorld(name === 'play' && S ? S.puzzle.theme.id : setup.theme);
   $('#skip-link').hidden = name !== 'play';
   document.title = name === 'play' && S ? `${S.save.name} · The Fantastical Logic Grid` : 'The Fantastical Logic Grid';
-  if (name === 'home') { closeGame(); renderSaved(); renderSuggestion(); setTimeout(offerUpdate, 500); }
+  if (name === 'home') { closeGame(); renderSaved(); renderSuggestion(); accountsOnHome(); setTimeout(offerUpdate, 500); }
   wake.setPlaying(name === 'play' && S && !S.save.solved);
   updateMusic();
 }
@@ -367,6 +368,7 @@ async function renderSaved() {
     $('#continue-name').textContent = `${last.name} · ${last.percent || 0}%`;
   }
   $('#saved-empty').hidden = saves.length > 0;
+  $('#saved-empty').textContent = signedIn() ? 'Your puzzles save automatically and sync to your account. Start one and it will appear here.' : 'Your puzzles save automatically on this device. Start one and it will appear here.';
   const fmt = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' });
   $('#saved-list').innerHTML = saves.map((s) => {
     const p = s.puzzle;
@@ -403,7 +405,7 @@ $('#saved-list').addEventListener('click', async (e) => {
   else if (act === 'export') exportSave(save);
   else if (act === 'rename') startRename(li, save);
   else if (act === 'delete') {
-    const ok = await confirmDialog({ title: `Delete “${save.name}”?`, text: 'This removes the puzzle and your progress from this device. You can undo for 10 seconds.', yes: 'Delete puzzle', no: 'Keep it' });
+    const ok = await confirmDialog({ title: `Delete “${save.name}”?`, text: `This removes the puzzle and your progress from ${signedIn() ? 'all your devices' : 'this device'}. You can undo for 10 seconds.`, yes: 'Delete puzzle', no: 'Keep it' });
     if (!ok) return;
     if (!save.solved && settings.learn) { await learn.record(save, 'abandoned').catch(() => {}); share.soon(); }
     await store.deleteSave(id);
@@ -1400,6 +1402,7 @@ $('#app-menu').addEventListener('click', async (e) => {
   if (cmd === 'new') goHome();
   else if (cmd === 'saved') { await goHome({ focusSaved: true }); $('#saved-section').scrollIntoView(); }
   else if (cmd === 'settings') openSettings();
+  else if (cmd === 'account') openAccount();
   else if (cmd === 'install') installApp();
 });
 $('#home-btn').onclick = () => goHome();
@@ -1555,6 +1558,13 @@ async function init() {
   await renderSaved();
   renderSuggestion();
   store.requestPersistence();
+  initAccounts({
+    openDialog, toast, announce,
+    // The open puzzle is never replaced underneath the player.
+    isBusy: (kind, key) => kind === 'save' && !!S && S.save.id === key,
+    onSavesChanged: () => { if (!$('#screen-home').hidden) renderSaved(); },
+    onSettingsChanged: () => { settings = store.loadSettings(); applyColorTheme(); applyMode(); },
+  }).catch(() => { /* accounts are optional */ });
   window.addEventListener('resize', () => { if (!$('#screen-home').hidden) updatePreview(); });
   document.documentElement.classList.add('ready');
   offerIntro();

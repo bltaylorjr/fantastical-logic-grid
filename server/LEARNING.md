@@ -81,6 +81,6 @@ In `server/wrangler.toml` under `[vars]`:
 
 ## Tests
 
-`node server/test/learn.test.mjs` runs the learning routes locally with
-`wrangler dev`, using `server/test/learn.wrangler.toml`. No Cloudflare account is
-needed.
+`npm test` in `server/` runs the whole Worker in Miniflare with a local database and
+a stand-in for Google's voice service (`test/learn.test.mjs`). No Cloudflare account
+or Google key is needed, and nothing leaves the computer.

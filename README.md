@@ -61,6 +61,15 @@ sentence plays while the rest is made; the story opening is pre-made when a puzz
 
 `releases/The-Fantastical-Logic-Grid.zip` holds the installer, a portable .exe and the web build.
 
+## Player accounts (optional)
+
+Players can create an account (email and password) so saved puzzles, progress,
+settings and the used-story list sync across the website, desktop and phone
+apps. Playing without an account works exactly as before. Accounts use free
+plans only (Firebase Authentication and a Cloudflare Worker with D1) and stay
+switched off until `FLG_FIREBASE_API_KEY` and `FLG_CLOUD_URL` are set. Setup,
+costs and how conflicts are merged: [server/README.md](server/README.md).
+
 ## Build
 
 ```

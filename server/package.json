@@ -1,0 +1,16 @@
+{
+  "name": "flg-api",
+  "private": true,
+  "description": "Cloudflare Worker for The Fantastical Logic Grid: account sync and shared learning.",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "migrate": "wrangler d1 migrations apply flg --remote",
+    "deploy": "wrangler d1 migrations apply flg --remote && wrangler deploy",
+    "test": "node --test test/*.test.mjs"
+  },
+  "devDependencies": {
+    "miniflare": "^4.20260730.0",
+    "wrangler": "^4.152.0"
+  }
+}
