@@ -5,6 +5,8 @@
 // AI-generated art later, replace sceneSvg/portraitSvg with functions that
 // return an <img> for a generated image URL; callers only insert the markup.
 
+import { genderOf } from './gender.js';
+
 function rngFrom(text) {
   let h = 2166136261;
   for (const ch of String(text)) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); }
@@ -240,8 +242,11 @@ export function portraitSvg(puzzle, name, { size = 72 } = {}) {
   if (isPet) face = animalFace(r, name);
   else {
     const skin = pick(r, SKIN), hair = pick(r, HAIR);
-    const style = Math.floor(r() * 5);
-    const hairBack = style === 2 ? `<path d="M22 50 q0 -34 28 -34 q28 0 28 34 v30 h-56z" fill="${hair}"/>` : style === 4 ? `<circle cx="50" cy="20" r="10" fill="${hair}"/>` : '';
+    // Women have long hair (and sometimes a bun); men have short styles.
+    const female = genderOf(name) === 'f';
+    const style = (female ? [0, 2, 4] : [0, 1, 3])[Math.floor(r() * 3)];
+    const longHair = `<path d="M22 50 q0 -34 28 -34 q28 0 28 34 v30 h-56z" fill="${hair}"/>`;
+    const hairBack = female ? longHair + (style === 4 ? `<circle cx="50" cy="20" r="10" fill="${hair}"/>` : '') : '';
     const hairTop = [
       `<path d="M26 44 q2 -26 24 -26 q24 0 24 26 q-10 -12 -24 -12 q-14 0 -24 12z" fill="${hair}"/>`,
       `<path d="M26 40 q4 -22 24 -22 q22 0 24 22 l-6 -6 l-6 6 l-6 -8 l-6 8 l-6 -8 l-6 8z" fill="${hair}"/>`,
@@ -257,5 +262,6 @@ export function portraitSvg(puzzle, name, { size = 72 } = {}) {
       <path d="M50 52 q-3 7 0 9" stroke="#00000040" stroke-width="1.6" fill="none"/>${mouth}
       <circle cx="35" cy="60" r="4" fill="#ff8a8a" opacity=".25"/><circle cx="65" cy="60" r="4" fill="#ff8a8a" opacity=".25"/>${hat(themeId, r, L)}`;
   }
-  return `<svg class="portrait-svg" width="${size}" height="${size}" viewBox="0 0 100 100" aria-hidden="true" focusable="false"><circle cx="50" cy="50" r="50" fill="${bg}"/><clipPath id="pc-${size}-${name.replace(/\W/g, '')}"><circle cx="50" cy="50" r="50"/></clipPath><g clip-path="url(#pc-${size}-${name.replace(/\W/g, '')})">${face}</g></svg>`;
+  const gender = isPet ? '' : ` data-gender="${genderOf(name)}"`;
+  return `<svg class="portrait-svg"${gender} width="${size}" height="${size}" viewBox="0 0 100 100" aria-hidden="true" focusable="false"><circle cx="50" cy="50" r="50" fill="${bg}"/><clipPath id="pc-${size}-${name.replace(/\W/g, '')}"><circle cx="50" cy="50" r="50"/></clipPath><g clip-path="url(#pc-${size}-${name.replace(/\W/g, '')})">${face}</g></svg>`;
 }
