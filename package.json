@@ -13,7 +13,8 @@
     "desktop:build:win-from-linux": "npm run build && cd desktop && tauri build --target x86_64-pc-windows-gnu",
     "test:accounts": "npm --prefix server install --no-audit --no-fund && npm run build && node scripts/e2e-accounts.cjs",
     "test:compete": "npm --prefix server install --no-audit --no-fund && npm run build && node scripts/e2e-compete.cjs",
-    "test:server": "npm --prefix server install --no-audit --no-fund && npm --prefix server test"
+    "test:server": "npm --prefix server install --no-audit --no-fund && npm --prefix server test",
+    "test:errors": "npm --prefix server install --no-audit --no-fund && npm run build && node scripts/e2e-errors.cjs"
   },
   "devDependencies": {
     "@fontsource/atkinson-hyperlegible": "^5.2.5",

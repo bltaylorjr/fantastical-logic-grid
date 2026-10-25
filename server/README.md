@@ -153,7 +153,9 @@ secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
 | --- | --- | --- |
 | `POST /v1/sync` | signed in | push changes and/or pull changes since a revision |
 | `DELETE /v1/account` | signed in within 10 minutes | delete all synced data |
-| `GET /v1/health` | anyone | check the Worker is up |
+| `GET /v1/health` | anyone | check the Worker is up; `?deep=1` adds the database, last daily cleanup, voice quota and errors today |
+| `POST /v1/errors` | anyone (rate limited) | anonymous error reports from the apps (`src/errors.js`) |
+| `GET /admin/errors?days=7` | `ADMIN_TOKEN` | most frequent error reports |
 | `GET/PUT/DELETE /v1/profile` | signed in | read, choose or remove the screen name |
 | `POST /v1/scores` | screen name | add a solved solo puzzle |
 | `GET /v1/scoreboard?period=week\|all` | anyone | top players (and your place when signed in) |
@@ -163,7 +165,10 @@ secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
 
 Limits: 60 sync requests a minute per player, 1 MB per saved puzzle, 5,000
 records per player; 30 race and score requests a minute per player, 20 races
-started a day.
+started a day; 10 error reports a minute per connection, 300 distinct errors a day.
+
+A daily cron (`[triggers]` in `wrangler.toml`, `src/upkeep.js`) deletes data the game no longer
+needs; see [MAINTENANCE.md](../MAINTENANCE.md).
 
 ## Tests
 
@@ -171,4 +176,5 @@ started a day.
 npm test                           # Worker tests (Miniflare, local D1)
 cd .. && npm run test:accounts     # two-device browser test of the whole flow
 cd .. && npm run test:compete      # two players: screen names, a race, the scoreboard
+cd .. && npm run test:errors       # an error in the game reaches the Worker, cleaned
 ```

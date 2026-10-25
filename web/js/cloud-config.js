@@ -12,6 +12,8 @@ export const CLOUD = {
   learnUrl: '',
   authUrl: 'https://identitytoolkit.googleapis.com/v1',
   tokenUrl: 'https://securetoken.googleapis.com/v1',
+  // The app version (package.json), stamped in at build time for error reports.
+  appVersion: '',
 };
 
 export const cloudEnabled = () => !!(CLOUD.firebaseApiKey && CLOUD.syncUrl);

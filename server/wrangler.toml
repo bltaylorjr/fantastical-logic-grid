@@ -23,6 +23,11 @@ TTS_MODEL = "gemini-3.8-flash-tts"
 # Secrets (never in this file): GEMINI_API_KEY and ADMIN_TOKEN, set with
 # `npx wrangler secret put <NAME>`.
 
+# The daily cleanup of old data (src/upkeep.js), at 03:17 UTC. Free plans
+# allow up to 5 cron triggers.
+[triggers]
+crons = ["17 3 * * *"]
+
 # Per-client request limits.
 [[ratelimits]]
 name = "LIMIT_SYNC"
@@ -53,3 +58,8 @@ simple = { limit = 5, period = 60 }
 name = "LIMIT_TTS"
 namespace_id = "41003"
 simple = { limit = 30, period = 60 }
+
+[[ratelimits]]
+name = "LIMIT_ERRORS"
+namespace_id = "41030"
+simple = { limit = 10, period = 60 }
