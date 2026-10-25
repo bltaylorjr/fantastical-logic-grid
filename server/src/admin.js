@@ -39,7 +39,7 @@ const STORED_ROLES = ['admin', 'moderator', 'viewer'];
 const MAX_BODY = 8_000;
 const DENIED_PER_DAY = 500; // refused requests written to the audit log, so a flood cannot fill it
 const ANALYTICS_CACHE_MS = 120_000;
-const TABLES = ['sync_users', 'sync_records', 'sync_deleted_users', 'players', 'scores', 'races', 'race_entries', 'plays', 'parts', 'usage',
+const TABLES = ['sync_users', 'sync_records', 'sync_deleted_users', 'players', 'scores', 'races', 'race_entries', 'race_invites', 'plays', 'parts', 'usage',
   'app_errors', 'upkeep_log', 'admins', 'admin_audit', 'settings', 'announcements', 'bans', 'name_reviews'];
 // Free plan allowances (Cloudflare and Firebase pages, October 2026).
 export const FREE_LIMITS = {

@@ -116,6 +116,7 @@
       <p class="lede" id="compete-intro">Race other detectives on the very same puzzle and climb the scoreboard. You never need an account to play on your own.</p>
       <p class="compete-me" id="compete-me" hidden></p>
       <div class="compete-actions" id="compete-actions"></div>
+      <div class="invites" id="compete-invites" hidden></div>
       <p class="gen-status" id="compete-status" role="status" aria-live="polite"></p>
       <div class="error-box" id="compete-error" role="alert" hidden></div>
     </section>
@@ -530,6 +531,7 @@
     <div class="field"><label for="name-input">Screen name</label><input type="text" id="name-input" maxlength="20" autocomplete="nickname" spellcheck="false" aria-describedby="name-rules" required></div>
     <p class="help" id="name-rules">3 to 20 letters or numbers. Spaces, dots, dashes and underscores are fine. Names must be friendly and not already taken.</p>
     <label class="check"><input type="checkbox" id="name-post"> Put my solved puzzles on the scoreboard</label>
+    <label class="check"><input type="checkbox" id="name-invites"> Let other players challenge me by my screen name</label>
     <div class="error-box" role="alert" hidden></div>
     <div class="dlg-actions"><button class="btn" type="button" data-close>Cancel</button><button class="btn primary" type="submit">Save name</button></div>
     <details class="acct-danger" id="name-leave">
@@ -555,11 +557,23 @@
     <div class="error-box" role="alert" hidden></div>
     <div class="dlg-actions"><button class="btn" type="button" data-close>Cancel</button><button class="btn primary" type="submit">Join the race</button></div>
   </form>
+  <form class="race-view" data-view="challenge" novalidate hidden>
+    <p class="help">Challenge one player to race you on the same puzzle. They see your challenge in the game the next time they open it, and the race stays open for 7 days.</p>
+    <div class="field"><label for="challenge-name">Their screen name</label><input type="text" id="challenge-name" maxlength="20" autocomplete="off" spellcheck="false" required></div>
+    <p id="challenge-choice"></p>
+    <div class="error-box" role="alert" hidden></div>
+    <div class="dlg-actions"><button class="btn" type="button" data-close>Cancel</button><button class="btn primary" type="submit">Send the challenge</button></div>
+  </form>
   <div class="race-view" data-view="share" hidden>
     <p class="help">Give this code or link to the people you want to race. Your clock is already running in the game, so start whenever you are ready.</p>
     <p class="race-code-big" id="race-code-big"></p>
     <p class="race-link"><a id="race-link" href="#" target="_blank" rel="noopener"></a></p>
     <p class="acct-done" id="race-copied" role="status"></p>
+    <form class="invite-row" id="race-invite-form" novalidate>
+      <div class="field"><label for="race-invite-name">Challenge a player by screen name</label><input type="text" id="race-invite-name" maxlength="20" autocomplete="off" spellcheck="false"></div>
+      <button class="btn" type="submit">Send challenge</button>
+    </form>
+    <p class="acct-done" id="race-invite-msg" role="status"></p>
     <div class="dlg-actions"><button class="btn" type="button" id="race-copy">Copy the link</button><button class="btn primary" type="button" data-close>Start solving</button></div>
   </div>
   <div class="race-view" data-view="standings" hidden>
@@ -611,6 +625,7 @@
   <ol>
     <li><b>Start:</b> a race uses your New puzzle choices. Share the 6-character code or link. You choose whether strangers can join through Find a race.</li>
     <li><b>Join:</b> with the code, the link, or Find a race. A race is open to new players for 7 days and takes up to 20 players.</li>
+    <li><b>Challenges:</b> anyone in a race can challenge a player by screen name. The challenge waits in the game under Play against others until they accept (and join the race) or say no thanks. Each player can be challenged once per race, and you can send up to 30 challenges a day. Players can turn challenges off in their screen name window.</li>
     <li><b>Race time</b> = solve time + 1 minute per hint + 15 seconds per check. The clock runs while the puzzle is on screen.</li>
     <li><b>Places</b> go from the lowest race time. Equal times share a place.</li>
     <li><b>Finishing:</b> your answers are checked, and a result is sent once and cannot be changed. Results count for 14 days after the race starts.</li>
@@ -669,7 +684,7 @@
   <p><button class="btn" type="button" id="help-video"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 9.003a1 1 0 0 1 1.517-.859l4.997 2.997a1 1 0 0 1 0 1.718l-4.997 2.997A1 1 0 0 1 9 14.996z"/><circle cx="12" cy="12" r="10"/></svg> Watch the how-to-play video</button> <span class="muted">8 minutes, narrated, with captions and examples</span></p>
   <p>Read a clue, then mark the grid. <b>X</b> means two things do not go together. <b>O</b> means they do. Each row in a sub-grid has exactly one O. When the grid is full, answer the story questions.</p>
   <p>Select a character's portrait to hear the clues they remember. Each finished section of the grid reveals more of the scene. Want fewer distractions? Choose <b>Silent mode</b> on the New puzzle screen or in Settings to see only the story, the grid, the clues and the answer key.</p>
-  <p id="help-compete" hidden>Want company? Under <b>Play against others</b> on the home screen, sign in and choose a screen name, then start a race (everyone gets the same puzzle, fastest solve wins), join one with a code, or find an open race. Your solved puzzles earn points on the <b>Scoreboard</b>. <button class="btn quiet small" type="button" data-rules>Scoring and race rules</button></p>
+  <p id="help-compete" hidden>Want company? Under <b>Play against others</b> on the home screen, sign in and choose a screen name, then start a race (everyone gets the same puzzle, fastest solve wins), challenge a player by screen name, join one with a code, or find an open race. Your solved puzzles earn points on the <b>Scoreboard</b>. <button class="btn quiet small" type="button" data-rules>Scoring and race rules</button></p>
   <h3>Keys</h3>
   <table class="keys">
     <tbody>

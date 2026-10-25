@@ -139,6 +139,13 @@ secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
   time can never be shorter than the server's own clock since joining.
   Revealing the solution counts as giving up. Shared puzzles are checked for
   rude words (custom titles and names) before anyone else sees them.
+- **Challenges**: anyone in a race can challenge one player by screen name
+  (*Challenge a player* starts a private race and sends the challenge in one
+  step). The challenge waits under *Play against others* until the player
+  accepts (joins the race) or says no thanks; the app checks for new ones
+  every 2 minutes on the home screen, so no live connection is needed. One
+  challenge per player per race, 30 a day per sender, and players can turn
+  challenges off in the screen name window (table `race_invites`).
 - **Points**: each solved puzzle (solo or race) earns points: more for harder
   and bigger puzzles, up to 50% more for beating the usual time, less for
   each hint and check, nothing for a revealed solution. A puzzle scores once;
@@ -164,6 +171,7 @@ secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
 | `GET /v1/scoreboard?period=week\|all` | anyone | top players (and your place when signed in) |
 | `POST /v1/races`, `POST /v1/races/find` | screen name | start a race, or find an open one |
 | `POST /v1/races/:code/join`, `.../finish`, `GET /v1/races/:code` | screen name | join, send a result, standings |
+| `POST /v1/races/:code/invite`, `GET /v1/invites`, `POST /v1/invites/:id/decline` | screen name | challenge a player, list challenges, say no thanks |
 | `/v1/learn/*`, `/v1/tts`, `/admin/learn*` | see `src/learn.js` | shared learning and voices |
 
 Limits: 60 sync requests a minute per player, 1 MB per saved puzzle, 5,000

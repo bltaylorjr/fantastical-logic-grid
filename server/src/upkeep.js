@@ -25,6 +25,7 @@ const isoDay = (ms) => new Date(ms).toISOString().slice(0, 10);
 export async function runUpkeep(env, now = Date.now()) {
   const db = env.DB;
   const jobs = {
+    race_invites: db.prepare('DELETE FROM race_invites WHERE code NOT IN (SELECT code FROM races) OR created_at < ?1').bind(now - 45 * DAY),
     race_entries: db.prepare('DELETE FROM race_entries WHERE code IN (SELECT code FROM races WHERE created_at < ?1)').bind(now - 45 * DAY),
     races: db.prepare('DELETE FROM races WHERE created_at < ?1').bind(now - 45 * DAY),
     usage: db.prepare('DELETE FROM usage WHERE day < ?1').bind(isoDay(now - 60 * DAY)),
