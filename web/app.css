@@ -660,3 +660,8 @@ table.board .pill { font-size: .75rem; margin-left: 4px; }
 .announcement { display: flex; align-items: center; justify-content: space-between; gap: 12px; background: var(--surface-2); color: var(--text); border: 1px solid var(--edge-hi); border-left: 6px solid var(--accent); border-radius: 10px; padding: 8px 8px 8px 16px; }
 .announcement.warning { border-left-color: #C0392B; }
 .announcement p { margin: 0; }
+dialog.rules h3 { margin: 20px 0 6px; }
+dialog.rules ul, dialog.rules ol { padding-left: 1.4em; margin: 0 0 8px; }
+dialog.rules li { margin: 4px 0; }
+dialog.rules table.board caption { caption-side: top; text-align: left; font-weight: 700; padding: 8px 0 4px; }
+dialog.rules table.board td { font-variant-numeric: tabular-nums; }

@@ -191,3 +191,18 @@ test('leaving the scoreboard and deleting the account remove everything', async 
   assert.equal((await db.prepare("SELECT COUNT(*) AS n FROM races WHERE host_id = 'ann'").first()).n, 0, 'hosted races stay for the others, without the host');
   assert.equal((await name('ann', 'Back Again')).status, 401, 'a deleted account cannot come back');
 });
+
+test('the in-game rules table matches the real points formula', () => {
+  const html = readFileSync(join(root, '..', 'web', 'index.html'), 'utf8');
+  const table = html.slice(html.indexOf('id="dlg-rules"'), html.indexOf('</table>', html.indexOf('id="dlg-rules"')));
+  const rows = [...table.matchAll(/<th scope="row">(\w+) (\d) × (\d)<\/th><td>[^<]*<\/td><td>(\d+)<\/td><td>(\d+)<\/td><td>(\d+)<\/td>/g)];
+  assert.equal(rows.length, 6);
+  const PAR = { basic: 0.12, easy: 0.16, medium: 0.22, hard: 0.3, expert: 0.36, mensa: 0.42 };
+  for (const [, label, k, n, atPar, fast, slow] of rows) {
+    const tier = label.toLowerCase();
+    const cells = (k * (k - 1) / 2) * n * n;
+    const par = cells * PAR[tier] * 60_000;
+    const pts = (ms) => pointsFor({ tier, cells, elapsedMs: ms, hints: 0, checks: 0 });
+    assert.deepEqual([+atPar, +fast, +slow], [pts(par), pts(par / 2), pts(par * 3)], label);
+  }
+});
