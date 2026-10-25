@@ -11,6 +11,7 @@
 //   the admin audit log       after 365 days
 //   ended bans                when they end
 //   ended announcements       90 days after they end
+//   done ideas and problems   180 days after they were marked done
 // Scores are never deleted here: the all-time scoreboard needs them (only an
 // admin's reset in the dashboard removes a player's scores).
 //
@@ -36,6 +37,7 @@ export async function runUpkeep(env, now = Date.now()) {
     admin_audit: db.prepare('DELETE FROM admin_audit WHERE at < ?1').bind(now - 365 * DAY),
     bans: db.prepare('DELETE FROM bans WHERE until IS NOT NULL AND until < ?1').bind(now),
     announcements: db.prepare('DELETE FROM announcements WHERE ends_at IS NOT NULL AND ends_at < ?1').bind(now - 90 * DAY),
+    feedback: db.prepare("DELETE FROM feedback WHERE status = 'done' AND done_at < ?1").bind(now - 180 * DAY),
   };
   const results = await db.batch(Object.values(jobs));
   const removed = Object.fromEntries(Object.keys(jobs).map((name, i) => [name, results[i].meta?.changes || 0]));

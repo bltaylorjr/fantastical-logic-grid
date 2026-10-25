@@ -138,3 +138,10 @@ dialog h2 { margin: 0; }
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; transition: none !important; } }
 @media (forced-colors: active) { .nav a[aria-current=page] { outline: 2px solid CanvasText; } }
 .words { grid-column: 1 / -1; max-width: 420px; }
+.tabs { border: 0; padding: 0; margin: 8px 0; display: flex; gap: 8px; flex-wrap: wrap; }
+.tab { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px; cursor: pointer; background: var(--panel); }
+.tab:has(input:checked) { border-color: var(--accent); font-weight: 700; }
+.tab:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.services { display: grid; gap: 6px; }
+.services p { margin: 0; }
+.fb-text { white-space: pre-wrap; }

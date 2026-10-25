@@ -11,6 +11,8 @@
 //   GET  /admin/v1/usage?days=         Cloudflare's own request and D1 counts (optional token)
 //   GET  /admin/v1/errors?days=        error reports, most frequent first
 //   GET  /admin/v1/parts?status=       shared story parts; POST /admin/v1/parts/review
+//   GET  /admin/v1/workshop            Story workshop choices; POST .../draft (AI writer), .../add
+//   GET  /admin/v1/feedback?kind=&status=  ideas and problems from the game; POST .../:id (done|new|delete)
 //   GET  /admin/v1/names?status=       screen names to moderate; POST /admin/v1/names/:uid/approve
 //   GET  /admin/v1/players?q=&filter=  players with screen names; GET /admin/v1/players/:uid
 //   POST /admin/v1/players/:uid/(rename|ban|unban|reset-scores|delete)
@@ -32,6 +34,8 @@ import { checkName, cleanName, nameKey, hasBlockedWords } from './names.js';
 import { deleteCompeteStatements, clearBoardCache } from './compete.js';
 import { SETTINGS, getSettings, checkSetting, saveSetting, themeList } from './settings.js';
 import { TUNING_CACHE_KEY } from './learn.js';
+import { workshopOptions, addPart, draftParts } from './workshop.js';
+import { TOPICS as FEEDBACK_TOPICS } from './feedback.js';
 
 const DAY = 24 * 3600_000;
 const ROLES = { viewer: 1, moderator: 2, admin: 3, owner: 4 };
@@ -40,7 +44,7 @@ const MAX_BODY = 8_000;
 const DENIED_PER_DAY = 500; // refused requests written to the audit log, so a flood cannot fill it
 const ANALYTICS_CACHE_MS = 120_000;
 const TABLES = ['sync_users', 'sync_records', 'sync_deleted_users', 'players', 'scores', 'races', 'race_entries', 'plays', 'parts', 'usage',
-  'app_errors', 'upkeep_log', 'admins', 'admin_audit', 'settings', 'announcements', 'bans', 'name_reviews'];
+  'app_errors', 'upkeep_log', 'admins', 'admin_audit', 'settings', 'announcements', 'bans', 'name_reviews', 'feedback'];
 // Free plan allowances (Cloudflare and Firebase pages, October 2026).
 export const FREE_LIMITS = {
   workerRequestsPerDay: 100_000, d1RowsReadPerDay: 5_000_000, d1RowsWrittenPerDay: 100_000,
@@ -151,6 +155,8 @@ async function analytics(env, days, now = Date.now()) {
     voicesByDay: db.prepare("SELECT day, count AS n FROM usage WHERE name = 'tts' AND day >= ?1").bind(sinceDay),
     errorsByDay: db.prepare('SELECT day, SUM(count) AS n FROM app_errors WHERE day >= ?1 GROUP BY day').bind(sinceDay),
     parts: db.prepare('SELECT status AS id, COUNT(*) AS n FROM parts GROUP BY status'),
+    feedbackNew: db.prepare("SELECT kind AS id, COUNT(*) AS n FROM feedback WHERE status = 'new' GROUP BY kind"),
+    picturesByDay: db.prepare("SELECT day, count AS n FROM usage WHERE name = 'pictures' AND day >= ?1").bind(sinceDay),
     namesWaiting: db.prepare('SELECT COUNT(*) AS n FROM players p LEFT JOIN name_reviews r ON r.user_id = p.user_id WHERE r.name_key IS NULL OR r.name_key != p.name_key'),
   };
   const names = Object.keys(q);
@@ -176,8 +182,9 @@ async function analytics(env, days, now = Date.now()) {
     scores: { byDay: series(r.scoresByDay), pointsByDay: series(r.scoresByDay, 'points'), byTier: r.scoresByTier.map((x) => ({ ...x, points: round(x.points) })) },
     races: { byDay: series(r.racesByDay), open: one('racesOpen'), ...r.raceEntries[0] },
     voices: { byDay: series(r.voicesByDay), cap: settings.daily_tts_cap, enabled: settings.tts_enabled, today: series(r.voicesByDay).at(-1) },
+    pictures: { byDay: series(r.picturesByDay), cap: settings.daily_picture_cap, mode: settings.ai_pictures, today: series(r.picturesByDay).at(-1) },
     errors: { byDay: series(r.errorsByDay) },
-    review: { parts: Object.fromEntries(r.parts.map((x) => [x.id, x.n])), namesWaiting: one('namesWaiting') },
+    review: { parts: Object.fromEntries(r.parts.map((x) => [x.id, x.n])), namesWaiting: one('namesWaiting'), feedback: Object.fromEntries(r.feedbackNew.map((x) => [x.id, x.n])) },
   };
   analyticsCache.set(days, { at: now, body });
   return body;
@@ -335,6 +342,37 @@ const ROUTES = [
     return { body: { ok: true }, target: body.key, detail: { status: body.status } };
   }],
 
+  ['GET', /^workshop$/, 'moderator', 'workshop.view', async () => ({ body: workshopOptions() })],
+  ['POST', /^workshop\/draft$/, 'moderator', 'workshop.draft', async ({ env, body }) => {
+    const r = await draftParts(env, (await getSettings(env)).story_model, String(body.story), String(body.kind), String(body.idea || ''));
+    if (r.error) throw new Refusal(400, 'draft_failed', r.error);
+    return { body: r, target: String(body.story) };
+  }],
+  ['POST', /^workshop\/add$/, 'moderator', 'workshop.add', async ({ env, body }) => {
+    const r = await addPart(env, String(body.story), String(body.kind), body.value, body.source);
+    if (!r.ok) throw new Refusal(400, 'bad_part', r.errors.join(' '));
+    await caches.default.delete(new Request(TUNING_CACHE_KEY));
+    return { body: { ok: true, key: r.key }, target: r.key };
+  }],
+
+  ['GET', /^feedback$/, 'moderator', 'feedback.view', async ({ env, url }) => {
+    const kind = FEEDBACK_TOPICS[url.searchParams.get('kind')] ? url.searchParams.get('kind') : 'idea';
+    const status = ['new', 'done', 'all'].includes(url.searchParams.get('status')) ? url.searchParams.get('status') : 'new';
+    const { results } = await env.DB.prepare(`SELECT id, kind, topic, text, platform, version, status, created_at AS createdAt, done_at AS doneAt FROM feedback
+      WHERE kind = ?1 AND (?2 = 'all' OR status = ?2) ORDER BY created_at DESC LIMIT 200`).bind(kind, status).all();
+    const counts = (await env.DB.prepare("SELECT kind, COUNT(*) AS n FROM feedback WHERE status = 'new' GROUP BY kind").all()).results;
+    return { body: { kind, status, items: results, waiting: Object.fromEntries(counts.map((x) => [x.kind, x.n])) } };
+  }],
+  ['POST', /^feedback\/(\d+)$/, 'moderator', 'feedback.update', async ({ env, params: [id], body, now }) => {
+    let r;
+    if (body.status === 'delete') r = await env.DB.prepare('DELETE FROM feedback WHERE id = ?1').bind(Number(id)).run();
+    else if (['new', 'done'].includes(body.status)) r = await env.DB.prepare('UPDATE feedback SET status = ?1, done_at = ?2 WHERE id = ?3').bind(body.status, body.status === 'done' ? now : null, Number(id)).run();
+    else throw new Refusal(400, 'bad_status');
+    if (!r.meta.changes) throw new Refusal(404, 'gone', 'That message is gone.');
+    analyticsCache.clear();
+    return { body: { ok: true }, target: id, detail: { status: body.status } };
+  }],
+
   ['GET', /^names$/, 'moderator', 'names.view', async ({ env, url, now }) => {
     const status = ['pending', 'reviewed', 'all'].includes(url.searchParams.get('status')) ? url.searchParams.get('status') : 'pending';
     const { results } = await env.DB.prepare(`SELECT p.user_id AS uid, p.screen_name AS name, p.created_at AS createdAt, p.updated_at AS updatedAt,
@@ -400,6 +438,8 @@ const ROUTES = [
     return {
       body: {
         themes: themeList(),
+        // Keys stay in Cloudflare secrets; the dashboard only shows whether they are set.
+        services: { gemini: !!env.GEMINI_API_KEY, pictures: !!env.AI },
         settings: Object.entries(SETTINGS).map(([key, s]) => ({
           key, type: s.type, group: s.group, label: s.label, help: s.help, min: s.min, max: s.max, options: s.options, value: values[key],
           updatedAt: meta.get(key)?.updated_at || null, updatedBy: meta.get(key)?.updated_by || null,

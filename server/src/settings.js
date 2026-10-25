@@ -2,8 +2,9 @@
 // game config built from them.
 //
 //   GET /v1/config   announcements, switched-off themes, which shared
-//                    features are on, defaults for new players and the AI
-//                    models the game asks for, for every copy (no sign-in)
+//                    features are on, the sound, voice and picture choices
+//                    made for every player, and starting values for the
+//                    player's own sound settings, for every copy (no sign-in)
 //
 // Values live in the D1 table `settings` (JSON). A missing row means the
 // default below. Each Worker copy keeps them for CACHE_MS, so a change reaches
@@ -17,38 +18,61 @@ const THEME_IDS = THEMES.map((t) => t.id);
 // type: bool, int (with min/max), choice (one of options), model (an AI
 // model name), themes (list of theme ids) or words.
 export const SETTINGS = {
-  tts_enabled: { type: 'bool', default: true, group: 'Voices', label: 'Free server voices', help: 'Off: players use their own key or the offline Kokoro voices.' },
+  // ---- Sounds: the player can still turn their own effects and music off,
+  // and the one-tap mute and Silent mode always work.
+  sound_effects_enabled: { type: 'bool', default: true, group: 'Sounds', label: 'Sound effects', help: 'Off: no sound effects for anyone, and the player\'s switch is hidden.' },
+  default_sound: { type: 'bool', default: true, group: 'Sounds', label: 'Sound effects start on', help: 'For every player who has not turned them off.' },
+  default_volume: { type: 'int', min: 0, max: 100, default: 60, group: 'Sounds', label: 'Effects volume to start with (0 to 100)', help: 'Players can change their own volume.' },
+  theme_music_enabled: { type: 'bool', default: true, group: 'Sounds', label: 'Theme music', help: 'Off: no theme music for anyone, and the player\'s switch is hidden.' },
+  default_music: { type: 'bool', default: true, group: 'Sounds', label: 'Theme music starts on', help: 'For every player who has not turned it off.' },
+  default_music_volume: { type: 'int', min: 0, max: 100, default: 40, group: 'Sounds', label: 'Music volume to start with (0 to 100)', help: 'Players can change their own volume.' },
+  // ---- Voices
+  read_aloud: { type: 'bool', default: true, group: 'Voices', label: 'Characters speak their clues', help: 'When a player selects a portrait. Off: only the Read aloud buttons speak.' },
+  voice_source: {
+    type: 'choice', default: 'server', group: 'Voices', label: 'Where voices come from', help: 'If the first choice is off or used up for the day, the game moves down the list on its own. All three are free.',
+    options: [
+      { value: 'server', label: 'Natural voices from the game\'s server (Gemini, then Kokoro, then the device)' },
+      { value: 'kokoro', label: 'Natural voices on the player\'s device (Kokoro, one-time 90 MB download)' },
+      { value: 'device', label: 'The device\'s built-in voices (more robotic, no download)' },
+    ],
+  },
+  tts_enabled: { type: 'bool', default: true, group: 'Voices', label: 'Server voices (Google Gemini)', help: 'Uses the GEMINI_API_KEY Cloudflare secret on Google\'s free tier. Off: players hear the Kokoro voices.' },
   daily_tts_cap: {
     type: 'int', min: 0, max: 1000, default: (env) => Number(env.DAILY_TTS_CAP) || 300, group: 'Voices', label: 'New voice clips a day',
     help: 'Protects the free Gemini quota. Above Google\'s free daily limit Google refuses requests (it never bills on the free tier). Cached clips do not count.',
   },
+  gemini_voice_model: { type: 'model', default: (env) => env.TTS_MODEL || 'gemini-3.8-flash-tts', group: 'Voices', label: 'Gemini voice model', help: 'Change it here when Google retires a model.' },
+  // ---- Pictures
+  portrait_style: {
+    type: 'choice', default: 'notionists', group: 'Pictures', label: 'Character portraits', help: 'Built into the game, free, and work offline.',
+    options: [
+      { value: 'notionists', label: 'Sketchbook (Notionists)' }, { value: 'lorelei', label: 'Storybook (Lorelei)' },
+      { value: 'openPeeps', label: 'Hand-drawn (Open Peeps)' }, { value: 'builtin', label: 'Simple (built-in)' },
+    ],
+  },
+  confetti: { type: 'bool', default: true, group: 'Pictures', label: 'Confetti when a puzzle is solved', help: 'Never shown in Silent mode.' },
+  ai_pictures: {
+    type: 'choice', default: 'scene', group: 'Pictures', label: 'AI pictures', help: 'Painted by Cloudflare Workers AI on its free daily allowance (no key, never billed on the free plan). Without them, or when the day\'s pictures run out, the built-in art shows.',
+    options: [
+      { value: 'none', label: 'None, use the built-in art' }, { value: 'scene', label: 'A painted scene for each story' },
+      { value: 'all', label: 'Scene and character portraits (uses the allowance faster)' },
+    ],
+  },
+  daily_picture_cap: { type: 'int', min: 0, max: 1000, default: 100, group: 'Pictures', label: 'New AI pictures a day', help: 'Keeps inside Workers AI\'s free daily allowance (about 150 pictures). Pictures already made are kept on each device.' },
+  picture_model: { type: 'model', default: '@cf/black-forest-labs/flux-1-schnell', group: 'Pictures', label: 'Workers AI picture model', help: 'Change it here when Cloudflare retires a model.' },
+  // ---- Play
   races_enabled: { type: 'bool', default: true, group: 'Play', label: 'Races', help: 'Off: nobody can start, find or join a race. Players already in one can still finish.' },
   scores_enabled: { type: 'bool', default: true, group: 'Play', label: 'Solo scores', help: 'Off: solo solves stop counting for the scoreboard. Race points still count.' },
   names_enabled: { type: 'bool', default: true, group: 'Play', label: 'New and changed screen names', help: 'Off: players keep their names but cannot choose new ones.' },
   disabled_themes: { type: 'themes', default: [], group: 'Play', label: 'Themes switched off', help: 'Hidden from the theme picker and never picked by Surprise me.' },
-  learning_enabled: { type: 'bool', default: true, group: 'Learning', label: 'Accept shared play summaries', help: 'Off: anonymous summaries from players are dropped.' },
-  story_sharing_enabled: { type: 'bool', default: true, group: 'Learning', label: 'Accept shared story parts', help: 'Off: players cannot send story parts for review.' },
-  error_reports_enabled: { type: 'bool', default: true, group: 'Upkeep', label: 'Accept error reports', help: 'Off: error reports from the apps are dropped.' },
+  // ---- Learning and stories
+  learning_enabled: { type: 'bool', default: true, group: 'Learning', label: 'Learn from everyone', help: 'On: anonymous play summaries from players who keep "Learn from how I play" on tune puzzles, clue mix and story parts for all. Off: nothing is sent and summaries are dropped.' },
+  story_sharing_enabled: { type: 'bool', default: true, group: 'Learning', label: 'Accept story parts from older apps', help: 'Older app versions can still send story parts for review. New ones are written in the Story workshop here.' },
+  story_model: { type: 'model', default: 'gemini-flash-latest', group: 'Learning', label: 'Story workshop AI writer (Gemini model)', help: 'Drafts story parts in the Story workshop with the GEMINI_API_KEY secret, on Google\'s free tier.' },
+  // ---- Ideas, problems and upkeep
+  feedback_enabled: { type: 'bool', default: true, group: 'Ideas and problems', label: 'Idea and problem boxes', help: 'Off: the game hides its Ideas and problems boxes.' },
+  error_reports_enabled: { type: 'bool', default: true, group: 'Ideas and problems', label: 'Automatic error reports', help: 'Anonymous reports the apps send when something breaks. Off: nothing is sent.' },
   blocked_words: { type: 'words', default: [], group: 'Moderation', label: 'Extra blocked words in screen names', help: 'Added to the built-in word filter. Letters only, 3 to 30 each.' },
-  // Starting values in the game's Settings. A player's own choice always wins;
-  // these apply to every player who has not changed that setting.
-  default_share_learning: { type: 'bool', default: true, group: 'Player defaults', label: 'Learn from everyone', help: 'On: players share anonymous play summaries unless they turn it off. They are told the first time.' },
-  default_report_errors: { type: 'bool', default: true, group: 'Player defaults', label: 'Send anonymous error reports', help: 'On: the apps send error reports unless the player turns it off.' },
-  default_server_voices: { type: 'bool', default: true, group: 'Player defaults', label: 'Free natural voices from the server', help: 'On: players hear the server voices unless they turn them off.' },
-  default_voice_source: {
-    type: 'choice', default: 'kokoro', group: 'Player defaults', label: 'Voices on the player\'s device', help: 'Used when server voices are off or run out. Both are free and need no key.',
-    options: [{ value: 'kokoro', label: 'Natural voices (Kokoro, one-time 90 MB download)' }, { value: 'device', label: 'The device\'s built-in voices' }],
-  },
-  // Which AI models the game asks for when a player adds their own key. Change
-  // one here when a provider retires a model; no new release is needed.
-  image_model: { type: 'model', default: 'gpt-image-2.5-flare', group: 'AI models', label: 'OpenAI picture model', help: 'For painted scenes and portraits.' },
-  image_quality: {
-    type: 'choice', default: 'medium', group: 'AI models', label: 'OpenAI picture quality', help: 'Higher quality costs the player more per picture.',
-    options: [{ value: 'low', label: 'Low' }, { value: 'medium', label: 'Medium' }, { value: 'high', label: 'High' }],
-  },
-  openai_voice_model: { type: 'model', default: 'gpt-4o-mini-tts', group: 'AI models', label: 'OpenAI voice model', help: 'For voices when a player uses their OpenAI key.' },
-  gemini_voice_model: { type: 'model', default: 'gemini-3.8-flash-tts', group: 'AI models', label: 'Gemini voice model', help: 'For voices when a player uses their Google key.' },
-  story_model: { type: 'model', default: '', blank: true, group: 'AI models', label: 'Story writer model', help: 'For the Story workshop\'s AI writer. Leave empty to use each provider\'s standard model.' },
 };
 
 let cache = { at: 0, values: null };
@@ -82,8 +106,7 @@ export function checkSetting(key, value) {
   if (s.type === 'choice') return s.options.some((o) => o.value === value) ? { value } : { error: 'Pick one of the options.' };
   if (s.type === 'model') {
     const v = typeof value === 'string' ? value.trim() : null;
-    if (v === '' && s.blank) return { value: v };
-    return v && /^[a-z0-9][a-z0-9.:_-]{1,79}$/i.test(v) ? { value: v } : { error: 'Use a model name such as gpt-4o-mini-tts: letters, numbers, dots and dashes.' };
+    return v && /^@?[a-z0-9][a-z0-9.:_/-]{1,99}$/i.test(v) ? { value: v } : { error: 'Use a model name such as gemini-flash-latest: letters, numbers, dots, dashes and slashes.' };
   }
   if (!Array.isArray(value)) return { error: 'Use a list.' };
   if (s.type === 'themes') {
@@ -124,8 +147,11 @@ export async function publicConfig(req, env) {
     features: {
       races: s.races_enabled, scores: s.scores_enabled, names: s.names_enabled, voices: s.tts_enabled,
       storySharing: s.story_sharing_enabled, learning: s.learning_enabled, errorReports: s.error_reports_enabled,
+      feedback: s.feedback_enabled, soundEffects: s.sound_effects_enabled, music: s.theme_music_enabled, pictures: s.ai_pictures !== 'none',
     },
-    defaults: { shareLearning: s.default_share_learning, reportErrors: s.default_report_errors, serverVoices: s.default_server_voices, voiceProvider: s.default_voice_source },
-    models: { image: s.image_model, imageQuality: s.image_quality, openaiVoice: s.openai_voice_model, geminiVoice: s.gemini_voice_model, story: s.story_model },
+    // Chosen here for every player.
+    game: { voiceSource: s.voice_source, readAloud: s.read_aloud, portraitStyle: s.portrait_style, confetti: s.confetti, aiPictures: s.ai_pictures },
+    // Starting values; a player's own choice wins.
+    defaults: { sound: s.default_sound, volume: s.default_volume, music: s.default_music, musicVolume: s.default_music_volume },
   }, 200, { 'Cache-Control': 'public, max-age=60' });
 }

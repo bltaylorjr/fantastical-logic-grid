@@ -183,7 +183,8 @@ function pcmToWav(bytes, rate = 24000) {
   return out;
 }
 
-async function bump(env, name, cap) {
+// Counts one more use of `name` today; false once the day's cap is reached.
+export async function bump(env, name, cap) {
   const day = today();
   const row = await env.DB.prepare('INSERT INTO usage (day, name, count) VALUES (?, ?, 1) ON CONFLICT(day, name) DO UPDATE SET count = count + 1 WHERE count < ? RETURNING count')
     .bind(day, name, cap).first();
@@ -198,7 +199,7 @@ async function postTts(req, env, ctx, headers) {
   const text = String(body.text || '').trim();
   const voice = VOICES.has(body.voice) ? body.voice : 'Charon';
   if (!text || text.length > 400) return json({ error: 'Text must be 1 to 400 characters.' }, 400, headers);
-  const model = env.TTS_MODEL || 'gemini-3.8-flash-tts';
+  const model = settings.gemini_voice_model;
   const cache = caches.default;
   const key = new Request(`https://flg-cloud.internal/tts/${await sha256(`${model}|${voice}|${text}`)}`);
   const hit = await cache.match(key);

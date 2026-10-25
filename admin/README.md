@@ -7,13 +7,14 @@ needs no extra hosting and stays free. Its API is `server/src/admin.js`.
 
 | Section | What you can do | Lowest role |
 | --- | --- | --- |
-| Overview | Accounts, screen names, scoring players, games finished and solved by theme and difficulty, scores, races, free voices against the daily cap, error reports, things waiting for review | viewer |
+| Overview | Accounts, screen names, scoring players, games finished and solved by theme and difficulty, scores, races, free voices and AI pictures against their daily caps, error reports, things waiting for review (story parts, names, new ideas and problems) | viewer |
 | Usage and free limits | Database size and rows per table; with the optional Cloudflare token, daily Worker requests and D1 reads and writes against the free allowances | viewer |
-| Story review | Approve or reject story parts players shared | moderator |
+| Story workshop and review | Write story parts for every player's new stories (checked by the game's rules, live within about 15 minutes), draft them with the AI writer (Gemini free tier), and approve or reject parts sent from older app versions | moderator |
+| Ideas and problems | What players sent from the game's two boxes, each in its own list; mark done or delete | moderator |
 | Screen names | See new and changed names (names the word filter would now refuse come first), mark them fine, rename, reset or ban | moderator |
 | Players | Find a player by screen name or id, see their scores, races and how much they sync; rename, ban or lift a ban | moderator |
 | | Reset scores (this week or all time), delete an account's data | admin |
-| Settings and switches | Free voices on/off and the daily voice cap, races, solo scores, new screen names, themes on/off, accepting shared plays, story parts and error reports, extra blocked words, **player defaults** (the starting value of Learn from everyone, error reports, server voices and which voices the device uses; a player's own choice always wins), **AI models** (the OpenAI picture model and quality, the OpenAI and Gemini voice models and the story writer model used with a player's own key) | viewer to look, admin to change |
+| Settings and switches | **Keys and services**: whether the GEMINI_API_KEY secret and Workers AI are set up (keys are never shown or typed here). **Sounds**: sound effects and theme music on/off for everyone, and whether they start on and at what volume (a player can still turn their own off). **Voices**: characters speak their clues, where voices come from (server Gemini, Kokoro on the device, or the device's own), server voices on/off, the daily voice cap and the Gemini voice model. **Pictures**: portrait style, confetti, AI pictures (none, scenes, or scenes and portraits, from Workers AI's free allowance), the daily picture cap and model. **Play**: races, solo scores, new screen names, themes on/off. **Learning**: learn from everyone, story parts from older apps, the AI writer's model. **Ideas and problems**: the game's two boxes and automatic error reports. **Moderation**: extra blocked words | viewer to look, admin to change |
 | Announcements | A message at the top of the game's home screen, with an optional start and end | viewer to look, admin to publish |
 | Error reports | Anonymous errors from the apps, most frequent first | viewer |
 | Audit log | Every admin request, allowed or refused, kept for a year | admin |
@@ -21,9 +22,14 @@ needs no extra hosting and stays free. Its API is `server/src/admin.js`.
 
 Changes reach every copy of the game within about a minute (the game reads
 `GET /v1/config` every 10 minutes and when it opens; the server's own switches
-apply within 30 seconds). No new release is needed. When a shared feature is
-switched off, the game also hides the player's matching choice in Settings
-(server voices, Learn from everyone, error reports, sharing a story part).
+apply within 30 seconds). No new release is needed. When a feature is
+switched off, the game also hides it (theme music, the Ideas and problems
+boxes, the note about anonymous sharing).
+
+In the game's own Settings, players keep only their personal choices: Silent
+mode, colors, play aids, "Learn from how I play", and their sound effects and
+theme music switches and volumes. The Sound button on a puzzle mutes
+everything in one tap.
 
 ## Security
 

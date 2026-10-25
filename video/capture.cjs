@@ -110,7 +110,7 @@ const CSS = `
   const app = spawn('node', [path.join(ROOT, 'scripts/serve.mjs'), path.join(ROOT, 'dist', 'web'), String(APP_PORT)], { stdio: 'ignore' });
   await new Promise((r) => setTimeout(r, 600));
 
-  const config = `export const CLOUD = { firebaseApiKey: 'video-key', syncUrl: 'http://localhost:${API_PORT}', authUrl: 'http://localhost:${AUTH_PORT}/v1', tokenUrl: 'http://localhost:${AUTH_PORT}/v1', learnUrl: '' };\nexport const cloudEnabled = () => true;\nexport const CLOUD_URL = '';\n`;
+  const config = `export const CLOUD = { firebaseApiKey: 'video-key', syncUrl: 'http://localhost:${API_PORT}', authUrl: 'http://localhost:${AUTH_PORT}/v1', tokenUrl: 'http://localhost:${AUTH_PORT}/v1', learnUrl: 'http://localhost:${API_PORT}' };\nexport const cloudEnabled = () => true;\nexport const CLOUD_URL = 'http://localhost:${API_PORT}';\n`;
   const browser = await chromium.launch();
   const scenes = [];
   let p; // the page being filmed
@@ -381,8 +381,11 @@ const CSS = `
     await scene('saved', ['Your progress saves automatically.', 'Come back any time and pick up where you left off, from Saved puzzles.']);
     await clearFx();
     await p.click('#help-btn'); await p.waitForTimeout(300);
-    await scene('help', ['Press Help to see every keyboard shortcut, and to watch this video again.']);
+    await scene('help', ['Press Help to see every keyboard shortcut.']);
     await p.keyboard.press('Escape');
+    await top(); await hl('#howto-btn');
+    await scene('howto', ['And How to play, at the top of every page, plays this video again.']);
+    await clearFx();
     await p.click('.saved-item [data-do=resume]'); await p.waitForSelector('#screen-play:not([hidden])'); await prep(); await top();
     await p.evaluate(() => { document.documentElement.dataset.theme = 'dark'; }); await p.waitForTimeout(300);
     await scene('dark', ['Play in light or dark colors,']);
@@ -462,23 +465,25 @@ const CSS = `
       await scrollTo('#compete-section'); await p.click('#compete-section [data-compete=board]'); await p.waitForSelector('#dlg-board[open] table.board'); await p.waitForTimeout(400);
       await scene('board', ['The scoreboard ranks players this week and of all time.', 'Every solve earns points, even when you play on your own.']);
       await p.keyboard.press('Escape');
+      await p.evaluate(async () => (await import('./js/compete-ui.js')).refreshMiniBoard({ force: true }));
+      await p.waitForSelector('#miniboard:not([hidden])'); await top(); await hl('#miniboard');
+      await scene('miniboard', ["This week's leaders are always in view at the top of the page.", 'Select Scoreboard there to see the full board.']);
+      await clearFx();
       await rival.context().close();
     }
 
-    // =================== Learning and the Story workshop
+    // =================== Settings, ideas and problems
     card('more', ['Finally, make the game your own.']);
     await p.click('#menu-btn'); await p.click('[data-cmd=settings]'); await p.waitForTimeout(300); await prep();
-    if (await p.isVisible('#learn-summary')) {
-      await p.evaluate(() => document.querySelector('#learn-summary').scrollIntoView({ block: 'center' })); await p.waitForTimeout(200);
-      await hl(['#learn-summary', '#learn-workshop']);
-      await scene('learn', ['Settings shows what the game has learned from your play.', 'You can reset it at any time.']);
-      await clearFx();
-      await p.click('#learn-workshop'); await p.waitForSelector('#dlg-workshop[open]'); await prep();
-      await p.fill('#ws-text', 'Moonlight filled the old observatory, where {n} {many} waited for the comet.');
-      await scene('workshop', ['In the Story workshop you can write your own story openings and endings.', 'The game mixes them into new stories, so every case can include your ideas.']);
+    await p.evaluate(() => document.querySelector('#sound-settings').scrollIntoView({ block: 'center' })); await p.waitForTimeout(200);
+    await scene('settings', ['In Settings, sound effects and theme music start on, and you can turn either one off.', 'Learn from how I play tunes your next puzzles to suit you.']);
+    await p.keyboard.press('Escape');
+    if (!(await p.$eval('[data-cmd=feedback]', (b) => b.hidden))) {
+      await p.click('#menu-btn'); await p.click('[data-cmd=feedback]'); await p.waitForSelector('#dlg-feedback[open]'); await prep();
+      await p.fill('#idea-text', 'A pirate ship lost in the fog, where the crew mixed up the treasure maps.');
+      await scene('feedback', ['Have an idea for a story, or found a problem?', 'Ideas and problems, in the menu, has a separate box for each, and they go straight to the game\'s team.']);
       await p.keyboard.press('Escape');
     }
-    await p.keyboard.press('Escape');
     card('outro', [["That's all you need: read the story, follow the clues, and mark your X's and O's.", "That's all you need. Read the story, follow the clues, and mark your exes and ohs."], 'Welcome to The Fantastical Logic Grid. Happy sleuthing!']);
 
     // Title cards.

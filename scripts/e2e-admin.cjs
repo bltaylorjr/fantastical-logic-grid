@@ -105,6 +105,18 @@ const SHOTS = process.env.SHOTS;
     await page.click('#parts-list button[data-status=approved]');
     await page.waitForFunction(() => /Nothing here/.test(document.querySelector('#parts-list').textContent));
     assert((await db.prepare("SELECT status FROM parts WHERE key = 'mystery|places|mill'").first()).status === 'approved', 'a story part is approved');
+    // The Story workshop moved here from the game.
+    await page.selectOption('#ws-story', 'mystery');
+    await page.selectOption('#ws-kind', 'openings');
+    await page.fill('#ws-text', 'Five friends met at the pier.');
+    await page.click('#ws-form button[type=submit]');
+    await page.waitForSelector('#ws-error:not([hidden])');
+    assert(true, 'the workshop refuses a part with a head count, with a reason');
+    await page.fill('#ws-text', 'Moonlight filled the old observatory, where {n} {many} waited for the comet.');
+    await page.click('#ws-form button[type=submit]');
+    let added = null;
+    for (let i = 0; i < 50 && !added; i++) { added = await db.prepare("SELECT status, source FROM parts WHERE theme = 'mystery' AND kind = 'openings'").first(); if (!added) await new Promise((r) => setTimeout(r, 100)); }
+    assert(added && added.status === 'approved' && added.source === 'admin', 'a story part written in the workshop goes straight to every player');
 
     await page.click('a[href="#settings"]');
     await page.waitForSelector('input[name=theme-off]');
@@ -114,22 +126,23 @@ const SHOTS = process.env.SHOTS;
     await page.waitForFunction(() => /Changed by/.test(document.querySelector('#settings-body').textContent));
     const saved = JSON.parse((await db.prepare("SELECT value FROM settings WHERE key = 'disabled_themes'").first()).value);
     assert(saved.length === 1 && saved[0] === theme, `theme "${theme}" is switched off`);
-    // Settings moved out of the game: server voices off, a player default and an AI model.
+    // Settings that moved out of the game.
     const dbValue = async (key) => { const r = await db.prepare('SELECT value FROM settings WHERE key = ?').bind(key).first(); return r && JSON.parse(r.value); };
     const until = async (key, want) => { for (let i = 0; i < 50 && (await dbValue(key)) !== want; i++) await new Promise((r) => setTimeout(r, 100)); return (await dbValue(key)) === want; };
-    await page.uncheck('input[data-key=tts_enabled]');
-    assert(await until('tts_enabled', false), 'free server voices are switched off');
-    await page.waitForSelector('input[data-key=default_share_learning]:not([disabled])');
-    await page.uncheck('input[data-key=default_share_learning]');
-    assert(await until('default_share_learning', false), 'Learn from everyone starts off for new players');
-    await page.waitForSelector('#set-default_voice_source');
-    await page.selectOption('#set-default_voice_source', 'device');
-    await page.click('button[data-save=default_voice_source]');
-    assert(await until('default_voice_source', 'device'), 'a choice setting is saved');
-    await page.waitForSelector('#set-image_model');
-    await page.fill('#set-image_model', 'gpt-image-3');
-    await page.click('button[data-save=image_model]');
-    assert(await until('image_model', 'gpt-image-3'), 'the AI picture model is changed');
+    assert(/GEMINI_API_KEY/.test(await page.textContent('#settings-body')), 'the dashboard shows which keys are set, without the keys');
+    await page.uncheck('input[data-key=default_music]');
+    assert(await until('default_music', false), 'theme music starts off for players who have not chosen');
+    await page.waitForSelector('input[data-key=confetti]:not([disabled])');
+    await page.uncheck('input[data-key=confetti]');
+    assert(await until('confetti', false), 'confetti is switched off for everyone');
+    await page.waitForSelector('#set-portrait_style');
+    await page.selectOption('#set-portrait_style', 'lorelei');
+    await page.click('button[data-save=portrait_style]');
+    assert(await until('portrait_style', 'lorelei'), 'the portrait style is chosen for everyone');
+    await page.waitForSelector('#set-voice_source');
+    await page.selectOption('#set-voice_source', 'device');
+    await page.click('button[data-save=voice_source]');
+    assert(await until('voice_source', 'device'), 'where voices come from is chosen for everyone');
     await shot(page, '2-settings');
 
     await page.click('a[href="#announcements"]');
@@ -202,20 +215,53 @@ const SHOTS = process.env.SHOTS;
     assert(await p.locator('#announcements').isHidden(), 'a closed announcement stays closed');
 
     // Settings now run from the dashboard.
-    const rc = await p.evaluate(() => JSON.parse(localStorage.getItem('flg.remoteConfig')));
-    assert(rc.models.image === 'gpt-image-3', 'the game gets the AI model from the dashboard');
+    const st = await p.evaluate(async () => (await import('./js/store.js')).loadSettings());
+    assert(st.portraitStyle === 'lorelei' && st.voiceProvider === 'device' && st.confetti === false, 'the game uses the dashboard\'s pictures and voices');
     const openSettings = async () => { await p.click('#menu-btn'); await p.click('#app-menu [data-cmd=settings]'); await p.waitForSelector('#dlg-settings[open]'); };
     await openSettings();
-    assert(await p.locator('input[name=serverVoices]').isHidden(), 'the server voices choice is hidden when they are switched off');
-    assert(await p.locator('input[name=shareLearning]').isVisible(), 'Learn from everyone is still the player\'s choice');
-    assert(!(await p.isChecked('input[name=shareLearning]')), 'the dashboard\'s starting value applies to a player who never changed it');
-    assert(await p.isChecked('input[name=voiceProvider][value=device]'), 'the player\'s own voice choice is kept');
-    await p.check('input[name=shareLearning]');
+    const names = await p.$$eval('#settings-form [name]', (els) => [...new Set(els.map((e) => e.name))]);
+    assert(!names.some((n) => ['portraitStyle', 'confetti', 'readAloud', 'aiKey', 'geminiKey', 'voiceProvider', 'serverVoices', 'shareLearning', 'reportErrors', 'aiPictures'].includes(n)), `Settings keeps only the player's own choices (${names.join(', ')})`);
+    assert(await p.isChecked('input[name=sound]'), 'sound effects start on');
+    assert(!(await p.isChecked('input[name=music]')), 'the dashboard\'s starting value for theme music applies to a player who never changed it');
+    await p.check('input[name=music]');
     await p.keyboard.press('Escape');
     await p.reload();
     await p.waitForSelector('#tier-choices input');
     await openSettings();
-    assert(await p.isChecked('input[name=shareLearning]'), 'a player\'s own choice wins over the dashboard\'s starting value');
+    assert(await p.isChecked('input[name=music]'), 'a player\'s own choice wins over the dashboard\'s starting value');
+    await p.keyboard.press('Escape');
+
+    // The two boxes: an idea and a problem report arrive separately.
+    await p.click('#menu-btn');
+    await p.click('#app-menu [data-cmd=feedback]');
+    await p.waitForSelector('#dlg-feedback[open]');
+    await p.fill('#idea-text', 'A pirate ship lost in the fog where the crew swapped maps.');
+    await p.click('#idea-form button[type=submit]');
+    await p.waitForFunction(() => /sent/.test(document.querySelector('#idea-form .acct-done').textContent));
+    await p.selectOption('#problem-topic', 'sound');
+    await p.fill('#problem-text', 'The music stopped after the second puzzle.');
+    await p.click('#problem-form button[type=submit]');
+    await p.waitForFunction(() => /sent/.test(document.querySelector('#problem-form .acct-done').textContent));
+    const fb = (await db.prepare('SELECT kind, topic FROM feedback ORDER BY id').all()).results.map((r) => `${r.kind}:${r.topic}`);
+    assert(fb.join() === 'idea:story,problem:sound', `an idea and a problem arrive in separate boxes (${fb.join()})`);
+
+    // ...and show up in the dashboard, each in its own list.
+    const look = await browser.newContext();
+    const q = await look.newPage();
+    watch(q);
+    await q.goto(`${API}/admin/#feedback`);
+    await q.click('.break-glass summary');
+    await q.fill('#token-input', TOKEN);
+    await q.click('#token-form button[type=submit]');
+    await q.waitForSelector('#fb-list button[data-status=done]');
+    assert(/pirate ship/.test(await q.textContent('#fb-list')) && !/music stopped/.test(await q.textContent('#fb-list')), 'the dashboard lists ideas on their own');
+    await q.check('input[name=fb-kind][value=problem]');
+    await q.waitForFunction(() => /music stopped/.test(document.querySelector('#fb-list').textContent));
+    await q.click('#fb-list button[data-status=done]');
+    await q.waitForFunction(() => /Nothing here/.test(document.querySelector('#fb-list').textContent));
+    assert((await db.prepare("SELECT status FROM feedback WHERE kind = 'problem'").first()).status === 'done', 'a problem can be marked done');
+    await shot(q, '7-feedback');
+    await look.close();
     await game.close();
 
     assert(!problems.length, `no console errors or blocked scripts (${problems.join(' | ')})`);
