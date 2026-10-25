@@ -267,12 +267,12 @@
       <label class="check"><input type="checkbox" name="aiVoice"> Use OpenAI for voices too</label>
     </fieldset>
     <fieldset class="ai-settings"><legend>Where voices come from</legend>
-      <label class="radio"><input type="radio" name="voiceProvider" value="kokoro"> Free natural voices on this computer (Kokoro; no key, no limits, works offline after a one-time download)</label>
+      <label class="radio"><input type="radio" name="voiceProvider" value="kokoro"> Natural human-sounding voices on this computer (recommended; Kokoro, free, no key, works offline after a one-time download)</label>
       <label class="radio"><input type="radio" name="voiceProvider" value="gemini"> Google Gemini natural voices (free tier, needs a free Google key)</label>
       <label class="radio"><input type="radio" name="voiceProvider" value="openai"> OpenAI natural voices (uses the OpenAI key above)</label>
-      <label class="radio"><input type="radio" name="voiceProvider" value="device"> This computer's own voices (free, works offline)</label>
+      <label class="radio"><input type="radio" name="voiceProvider" value="device"> This computer's built-in voices (more robotic; works offline with no download)</label>
       <div class="kokoro-box">
-        <p class="help">Kokoro voices download once from Hugging Face (about 90 MB), then stay on this computer. Nothing you play is sent anywhere.</p>
+        <p class="help">Kokoro voices download once from Hugging Face (about 90 MB) the first time the game opens, then stay on this computer. Each character gets a voice that suits their name. Nothing you play is sent anywhere.</p>
         <div class="row-inline"><button class="btn small" type="button" id="kokoro-get">Download free voices</button><span id="kokoro-status" role="status"></span></div>
         <progress id="kokoro-progress" max="1" value="0" hidden aria-label="Voice download progress"></progress>
       </div>
