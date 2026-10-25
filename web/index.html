@@ -217,6 +217,13 @@
         <button class="btn" type="button" id="check-answers">Check answers</button>
         <p id="answer-result" role="status" aria-live="polite"></p>
       </section>
+      <section class="card mynotes" aria-labelledby="mynotes-h">
+        <h2 id="mynotes-h">My notes</h2>
+        <label class="sr-only" for="my-notes">My notes for this puzzle</label>
+        <textarea id="my-notes" rows="5" maxlength="5000" spellcheck="true" aria-describedby="my-notes-help" placeholder="Type your own notes here"></textarea>
+        <p class="help" id="my-notes-help">Your notes save with this puzzle. Only you can see them, even in a race.</p>
+        <p class="help" id="my-notes-count" role="status"></p>
+      </section>
     </aside>
   </div>
 
@@ -264,6 +271,7 @@
       <label class="radio"><input type="radio" name="pwhat" value="blank" checked> A blank puzzle</label>
       <label class="radio"><input type="radio" name="pwhat" value="progress"> The puzzle with my marks</label>
     </fieldset>
+    <label class="check" id="p-notes-row"><input type="checkbox" id="p-mynotes"> Include my notes</label>
     <label class="check"><input type="checkbox" id="p-key"> Include the answer key (on its own page)</label>
     <label class="check" id="p-steps-row"><input type="checkbox" id="p-steps"> Add the step-by-step solution to the answer key</label>
     <fieldset><legend>Paper size</legend>
