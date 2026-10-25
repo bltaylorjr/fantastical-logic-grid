@@ -138,6 +138,74 @@ test('settings switch game features off and back on', async () => {
   assert.deepEqual(change.detail, { from: 300, to: 120 });
 });
 
+test('sound, voice and picture choices reach the game', async () => {
+  // Uses the break-glass token: the owner's per-minute limit is spent above.
+  let cfg = (await call('/v1/config')).body;
+  assert.deepEqual(cfg.game, { voiceSource: 'server', readAloud: true, portraitStyle: 'notionists', confetti: true, aiPictures: 'scene' });
+  assert.deepEqual(cfg.defaults, { sound: true, volume: 60, music: true, musicVolume: 40 });
+  assert.equal(cfg.features.errorReports, true);
+  assert.equal(cfg.features.feedback, true);
+  assert.equal(cfg.features.pictures, true);
+  assert.equal((await call('/admin/v1/settings', { auth: TOKEN, body: { key: 'voice_source', value: 'openai' } })).status, 400);
+  assert.equal((await call('/admin/v1/settings', { auth: TOKEN, body: { key: 'voice_source', value: 'device' } })).status, 200);
+  assert.equal((await call('/admin/v1/settings', { auth: TOKEN, body: { key: 'portrait_style', value: 'lorelei' } })).status, 200);
+  assert.equal((await call('/admin/v1/settings', { auth: TOKEN, body: { key: 'default_music', value: false } })).status, 200);
+  assert.equal((await call('/admin/v1/settings', { auth: TOKEN, body: { key: 'default_volume', value: 101 } })).status, 400);
+  assert.equal((await call('/admin/v1/settings', { auth: TOKEN, body: { key: 'picture_model', value: 'bad model!' } })).status, 400);
+  assert.equal((await call('/admin/v1/settings', { auth: TOKEN, body: { key: 'picture_model', value: '@cf/black-forest-labs/flux-2' } })).status, 200);
+  assert.equal((await call('/admin/v1/settings', { auth: TOKEN, body: { key: 'gemini_voice_model', value: '' } })).status, 400);
+  cfg = (await call('/v1/config')).body;
+  assert.equal(cfg.game.voiceSource, 'device');
+  assert.equal(cfg.game.portraitStyle, 'lorelei');
+  assert.equal(cfg.defaults.music, false);
+  const listed = await call('/admin/v1/settings', { auth: TOKEN });
+  assert.deepEqual(listed.body.settings.find((x) => x.key === 'ai_pictures').options.map((o) => o.value), ['none', 'scene', 'all']);
+  assert.deepEqual(listed.body.services, { gemini: false, pictures: false });
+  // No Workers AI binding here: the game is told to use its built-in art.
+  assert.equal((await call('/v1/picture', { body: { prompt: 'A lighthouse at dusk', kind: 'scene' } })).body.error, 'not_set_up');
+  await call('/admin/v1/settings', { auth: TOKEN, body: { key: 'ai_pictures', value: 'none' } });
+  assert.equal((await call('/v1/picture', { body: { prompt: 'A lighthouse at dusk', kind: 'scene' } })).body.error, 'switched_off');
+  assert.equal((await call('/v1/config')).body.features.pictures, false);
+});
+
+test('ideas and problems arrive in separate boxes', async () => {
+  assert.equal((await call('/v1/feedback', { body: { kind: 'idea', topic: 'story', text: 'A pirate ship lost in the fog! Write me at a@b.co', platform: 'web', version: '1.6.0' } })).status, 200);
+  assert.equal((await call('/v1/feedback', { body: { kind: 'problem', topic: 'sound', text: 'The music stops after a while.' } })).status, 200);
+  assert.equal((await call('/v1/feedback', { body: { kind: 'problem', text: 'hi' } })).status, 400);
+  assert.equal((await call('/v1/feedback', { body: { kind: 'spam', text: 'Buy things now' } })).status, 400);
+  const ideas = await call('/admin/v1/feedback?kind=idea', { auth: TOKEN });
+  assert.equal(ideas.body.items.length, 1);
+  assert.equal(ideas.body.items[0].topic, 'story');
+  assert.match(ideas.body.items[0].text, /<email>/);
+  assert.deepEqual(ideas.body.waiting, { idea: 1, problem: 1 });
+  const problems = await call('/admin/v1/feedback?kind=problem', { auth: TOKEN });
+  assert.equal(problems.body.items[0].topic, 'sound');
+  const id = problems.body.items[0].id;
+  assert.equal((await call(`/admin/v1/feedback/${id}`, { auth: TOKEN, body: { status: 'done' } })).status, 200);
+  assert.equal((await call('/admin/v1/feedback?kind=problem', { auth: TOKEN })).body.items.length, 0);
+  assert.equal((await call('/admin/v1/feedback?kind=problem&status=done', { auth: TOKEN })).body.items.length, 1);
+  assert.equal((await call(`/admin/v1/feedback/${id}`, { auth: TOKEN, body: { status: 'delete' } })).status, 200);
+  await call('/admin/v1/settings', { auth: TOKEN, body: { key: 'feedback_enabled', value: false } });
+  assert.equal((await call('/v1/feedback', { body: { kind: 'idea', text: 'More dragons please' } })).status, 503);
+  assert.equal((await call('/v1/config')).body.features.feedback, false);
+  await call('/admin/v1/settings', { auth: TOKEN, body: { key: 'feedback_enabled', value: true } });
+});
+
+test('the story workshop adds checked story parts for everyone', async () => {
+  const opts = (await call('/admin/v1/workshop', { auth: TOKEN })).body;
+  assert.ok(opts.stories.some((s) => s.key === 'mystery'));
+  assert.deepEqual(opts.kinds.map((k) => k.id), ['openings', 'incidents', 'mishaps', 'endings']);
+  const bad = await call('/admin/v1/workshop/add', { auth: TOKEN, body: { story: 'mystery', kind: 'openings', value: 'Five people met.' } });
+  assert.equal(bad.status, 400);
+  const good = await call('/admin/v1/workshop/add', { auth: TOKEN, body: { story: 'mystery', kind: 'mishaps', value: 'The butler mixed up every name on the guest list.' } });
+  assert.equal(good.status, 200);
+  const row = await db.prepare('SELECT status, source FROM parts WHERE key = ?1').bind(good.body.key).first();
+  assert.deepEqual({ ...row }, { status: 'approved', source: 'admin' });
+  const draft = await call('/admin/v1/workshop/draft', { auth: TOKEN, body: { story: 'mystery', kind: 'mishaps', idea: 'fog' } });
+  assert.equal(draft.status, 400);
+  assert.match(draft.body.message, /GEMINI_API_KEY/);
+});
+
 test('announcements show in the game between their start and end', async () => {
   const made = await call('/admin/v1/announcements', { auth: owner(), body: { text: 'New themes this weekend!', level: 'info' } });
   assert.equal(made.status, 200);
@@ -247,6 +315,7 @@ test('the older token pages still work and are audited', async () => {
 test('each admin is rate limited', async () => {
   const token = idToken('mod-uid', 'mod@example.com');
   let limited = false;
-  for (let i = 0; i < 60 && !limited; i++) limited = (await call('/admin/v1/me', { auth: token })).status === 429;
+  // 100 quick calls: even if they straddle a one-minute window, one side passes the limit of 40.
+  for (let i = 0; i < 100 && !limited; i++) limited = (await call('/admin/v1/me', { auth: token })).status === 429;
   assert.ok(limited);
 });

@@ -33,9 +33,19 @@
     <button role="menuitem" type="button" data-cmd="new">New puzzle</button>
     <button role="menuitem" type="button" data-cmd="saved">Saved puzzles</button>
     <button role="menuitem" type="button" data-cmd="settings">Settings</button>
+    <button role="menuitem" type="button" data-cmd="feedback" hidden>Ideas and problems</button>
     <button role="menuitem" type="button" data-cmd="board" hidden>Scoreboard</button>
     <button role="menuitem" type="button" data-cmd="account" hidden>Account and sync</button>
     <button role="menuitem" type="button" data-cmd="install" hidden>Install the app</button>
+  </div>
+  <!-- Always visible: How to play and a small scoreboard. -->
+  <div class="topstrip">
+    <button class="btn quiet small" type="button" id="howto-btn"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 9.003a1 1 0 0 1 1.517-.859l4.997 2.997a1 1 0 0 1 0 1.718l-4.997 2.997A1 1 0 0 1 9 14.996z"/><circle cx="12" cy="12" r="10"/></svg> How to play</button>
+    <section class="miniboard" id="miniboard" aria-labelledby="miniboard-h" hidden>
+      <h2 class="sr-only" id="miniboard-h">Scoreboard this week</h2>
+      <ol id="miniboard-list"></ol>
+      <button class="btn quiet small" type="button" id="miniboard-open">Scoreboard</button>
+    </section>
   </div>
 </header>
 
@@ -308,14 +318,6 @@
       <label class="radio"><input type="radio" name="colorTheme" value="dark"> Dark</label>
       <label class="radio"><input type="radio" name="colorTheme" value="contrast"> High contrast</label>
     </fieldset>
-    <fieldset><legend>Pictures</legend>
-      <p class="help">Character portraits</p>
-      <label class="radio"><input type="radio" name="portraitStyle" value="notionists"> Sketchbook (Notionists)</label>
-      <label class="radio"><input type="radio" name="portraitStyle" value="lorelei"> Storybook (Lorelei)</label>
-      <label class="radio"><input type="radio" name="portraitStyle" value="openPeeps"> Hand-drawn (Open Peeps)</label>
-      <label class="radio"><input type="radio" name="portraitStyle" value="builtin"> Simple (built-in)</label>
-      <label class="check"><input type="checkbox" name="confetti"> Confetti when I solve a puzzle</label>
-    </fieldset>
     <fieldset><legend>Play</legend>
       <label class="check"><input type="checkbox" name="autoX"> Auto-X: when I place an O, rule out the rest of its row and column</label>
       <label class="check"><input type="checkbox" name="singleKeys"> Single-key shortcuts (X, O, H, C, R)</label>
@@ -324,85 +326,48 @@
       <label class="check"><input type="checkbox" name="instant"> Show mistakes as I play (a wrong mark gets a warning right away)</label>
     </fieldset>
     <fieldset class="learning"><legend>Learning</legend>
-      <label class="check"><input type="checkbox" name="learn"> Learn from how I play: tune how tough puzzles are within each level, the mix of clues, and which themes and story parts come up. This stays on this device.</label>
-      <label class="check needs-cloud" hidden><input type="checkbox" name="shareLearning"> Learn from everyone: share my results anonymously and use what all players' games taught. Shared: level, theme, size, clue types, time, hints, mistakes, rating, and which story parts were used. Never shared: your name, saved puzzles, AI keys or anything that identifies you.</label>
-      <label class="check needs-cloud" hidden><input type="checkbox" name="reportErrors"> Send anonymous error reports so problems get fixed. Sent: the error message, where in the game it happened, the app version and platform. Never sent: your name, saved puzzles, AI keys or anything that identifies you.</label>
+      <label class="check"><input type="checkbox" name="learn"> Learn from how I play: tune how tough puzzles are within each level, the mix of clues, and which themes and story parts come up.</label>
+      <p class="help needs-cloud" data-feature="learning" hidden>While this is on, the game also shares an anonymous summary of each finished puzzle so it can learn from everyone's games: level, theme, size, clue types, time, hints, mistakes and rating. Never shared: your name, saved puzzles or anything that identifies you.</p>
       <p class="help">Every puzzle is still checked to have exactly one solution with no guessing, and no story is ever used twice.</p>
-      <p class="help"><b>What the game has learned</b></p>
-      <ul class="learn-summary" id="learn-summary"></ul>
-      <div class="row-inline"><button class="btn small" type="button" id="learn-workshop">Story workshop</button><button class="btn small quiet" type="button" id="learn-reset">Reset learning</button></div>
     </fieldset>
-    <fieldset><legend>Sound</legend>
-      <label class="check"><input type="checkbox" name="sound"> Sound effects</label>
-      <div class="field"><label for="volume">Effects volume</label><input type="range" id="volume" name="volume" min="0" max="100" step="5"></div>
-      <label class="check"><input type="checkbox" name="music"> Theme music</label>
-      <div class="field"><label for="musicVolume">Music volume</label><input type="range" id="musicVolume" name="musicVolume" min="0" max="100" step="5"></div>
-    </fieldset>
-    <fieldset><legend>Voices</legend>
-      <label class="check"><input type="checkbox" name="readAloud"> Characters speak their clues when I select their portrait</label>
-    </fieldset>
-    <fieldset class="ai-settings"><legend>AI pictures and voice</legend>
-      <p class="help">With an OpenAI API key, each new story gets its own painted scene, and characters and the narrator speak in natural voices. Pictures and voices are made once per story and saved on this computer. The key stays on this computer. OpenAI charges your account for each picture and voice clip (roughly a few cents to 20 cents per picture). Without a key, the game uses its built-in art and your computer's own voices.</p>
-      <div class="field"><label for="aiKey">OpenAI API key</label><input type="password" id="aiKey" name="aiKey" autocomplete="off" spellcheck="false" placeholder="sk-..."></div>
-      <div class="row-inline"><button class="btn small" type="button" id="ai-test">Test the key</button><span id="ai-test-result" role="status"></span></div>
-      <fieldset><legend>AI pictures</legend>
-        <label class="radio"><input type="radio" name="aiPictures" value="none"> None, use the built-in art</label>
-        <label class="radio"><input type="radio" name="aiPictures" value="scene"> A painted scene for each story</label>
-        <label class="radio"><input type="radio" name="aiPictures" value="all"> Scene and character portraits (more pictures, higher cost)</label>
-      </fieldset>
-      <label class="check"><input type="checkbox" name="aiVoice"> Use OpenAI for voices too</label>
-    </fieldset>
-    <fieldset class="ai-settings"><legend>Where voices come from</legend>
-      <label class="check needs-cloud" hidden><input type="checkbox" name="serverVoices"> Free natural voices from the game's server (no key needed). Only the words being spoken are sent. If the day's free voices run out, the voices on this computer take over.</label>
-      <label class="radio"><input type="radio" name="voiceProvider" value="kokoro"> Natural human-sounding voices on this computer (recommended; Kokoro, free, no key, works offline after a one-time download)</label>
-      <label class="radio"><input type="radio" name="voiceProvider" value="gemini"> Google Gemini natural voices (free tier, needs a free Google key)</label>
-      <label class="radio"><input type="radio" name="voiceProvider" value="openai"> OpenAI natural voices (uses the OpenAI key above)</label>
-      <label class="radio"><input type="radio" name="voiceProvider" value="device"> This computer's built-in voices (more robotic; works offline with no download)</label>
-      <div class="kokoro-box">
-        <p class="help">Kokoro voices download once from Hugging Face (about 90 MB) the first time the game opens, then stay on this computer. Each character gets a voice that suits their name. Nothing you play is sent anywhere.</p>
-        <div class="row-inline"><button class="btn small" type="button" id="kokoro-get">Download free voices</button><span id="kokoro-status" role="status"></span></div>
-        <progress id="kokoro-progress" max="1" value="0" hidden aria-label="Voice download progress"></progress>
+    <fieldset id="sound-settings"><legend>Sound</legend>
+      <label class="check"><input type="checkbox" name="sound"> Sound effects and voices</label>
+      <div class="field"><label for="volume">Volume</label><input type="range" id="volume" name="volume" min="0" max="100" step="5"></div>
+      <div id="music-settings">
+        <label class="check"><input type="checkbox" name="music"> Theme music</label>
+        <div class="field"><label for="musicVolume">Music volume</label><input type="range" id="musicVolume" name="musicVolume" min="0" max="100" step="5"></div>
       </div>
-      <p class="help">Get a free Google key at aistudio.google.com (Get API key). On Google's free tier, the story and clue text you send may be used to improve Google's products. The free tier has a daily limit; when it runs out, the game uses this computer's voices until the next day.</p>
-      <div class="field"><label for="geminiKey">Google Gemini API key</label><input type="password" id="geminiKey" name="geminiKey" autocomplete="off" spellcheck="false" placeholder="AIza..."></div>
-      <div class="row-inline"><button class="btn small" type="button" id="gemini-test">Test the Google key</button><span id="gemini-test-result" role="status"></span></div>
+      <p class="help">The Sound button at the top of a puzzle turns all sound off and on in one tap.</p>
     </fieldset>
     <div class="dlg-actions"><button class="btn primary" value="close">Done</button></div>
   </form>
 </dialog>
 
-<dialog id="dlg-workshop" class="wide" aria-labelledby="workshop-h">
-  <form method="dialog" id="workshop-form">
-    <h2 id="workshop-h">Story workshop</h2>
-    <p class="help">Add your own story parts. The game mixes them with its own to write brand new stories, so a story is never repeated. Story parts only change the words, never the logic, so every puzzle still has exactly one solution.</p>
-    <div class="field"><label for="ws-theme">Theme</label><select id="ws-theme"></select></div>
-    <div class="field"><label for="ws-topic">Topic</label><select id="ws-topic"></select></div>
-    <p class="help">Your parts join stories for this topic only, so a story always fits its puzzle.</p>
-    <fieldset><legend>Part of the story</legend>
-      <label class="radio"><input type="radio" name="wskind" value="openings" checked> Opening: where everyone is</label>
-      <label class="radio"><input type="radio" name="wskind" value="incidents"> Event: what happened</label>
-      <label class="radio"><input type="radio" name="wskind" value="mishaps"> Mix-up: why the facts got scrambled</label>
-      <label class="radio"><input type="radio" name="wskind" value="endings"> Ending: shown when the puzzle is solved</label>
+<dialog id="dlg-feedback" class="wide" aria-labelledby="feedback-h">
+  <h2 id="feedback-h">Ideas and problems</h2>
+  <p class="help">Two boxes: one for ideas, one for problems. Both go to the game's team. Don't include your name, email or anything personal; messages are anonymous, so we can't write back.</p>
+  <form class="feedback-box" id="idea-form" data-kind="idea" novalidate>
+    <h3>Share an idea</h3>
+    <fieldset><legend>What is it about?</legend>
+      <label class="radio"><input type="radio" name="idea-topic" value="story" checked> A storyline or theme idea</label>
+      <label class="radio"><input type="radio" name="idea-topic" value="other"> Something else</label>
     </fieldset>
-    <p class="help" id="ws-tip"></p>
-    <div class="field" id="ws-name-row" hidden><label for="ws-name">Short name for the title (1 to 3 words)</label><input type="text" id="ws-name" maxlength="40" placeholder="Golden Key"></div>
-    <div class="field"><label for="ws-text">Your text</label><textarea id="ws-text" rows="3" maxlength="300"></textarea></div>
-    <div class="field" id="ws-prize-row" hidden><label for="ws-prize">The thing at stake</label><input type="text" id="ws-prize" maxlength="60" placeholder="the golden key"></div>
-    <label class="check needs-cloud" hidden><input type="checkbox" id="ws-share" checked> Also send it to the game's editor to share with every player (it is reviewed first)</label>
-    <div class="ws-errors" id="ws-errors" role="alert"></div>
-    <div class="row-inline"><button class="btn primary small" type="button" id="ws-add">Add to the game</button><span id="ws-status" role="status"></span></div>
-
-    <fieldset class="ai-writer"><legend>AI story writer (optional)</legend>
-      <p class="help">Describe an idea and the AI drafts a few story parts for you to choose from. It uses your Google Gemini or OpenAI key from the AI settings, and only your idea and the theme are sent. Nothing is added until you approve it.</p>
-      <div class="field"><label for="ws-idea">Your idea</label><input type="text" id="ws-idea" maxlength="200" placeholder="A pirate ship lost in the fog"></div>
-      <div class="row-inline"><button class="btn small" type="button" id="ws-ai">Draft story parts</button><span id="ws-ai-status" role="status"></span></div>
-      <ul class="ws-drafts" id="ws-drafts"></ul>
-    </fieldset>
-
-    <h3>Your story parts</h3>
-    <ul class="ws-mine" id="ws-mine"></ul>
-    <div class="dlg-actions"><button class="btn primary" value="close">Done</button></div>
+    <div class="field"><label for="idea-text">Your idea</label><textarea id="idea-text" rows="4" maxlength="1000" placeholder="A pirate ship lost in the fog, where the crew mixed up the treasure maps…"></textarea></div>
+    <div class="error-box" role="alert" hidden></div>
+    <p class="acct-done" role="status"></p>
+    <div class="row-inline"><button class="btn primary" type="submit">Send idea</button></div>
   </form>
+  <form class="feedback-box" id="problem-form" data-kind="problem" novalidate>
+    <h3>Report a problem</h3>
+    <div class="field"><label for="problem-topic">Where did it happen?</label><select id="problem-topic">
+      <option value="play">Playing a puzzle</option><option value="sound">Sound, music or voices</option><option value="pictures">Pictures</option>
+      <option value="saving">Saving or signing in</option><option value="other">Somewhere else</option></select></div>
+    <div class="field"><label for="problem-text">What went wrong?</label><textarea id="problem-text" rows="4" maxlength="1000" placeholder="What you did, what you expected, and what happened instead."></textarea></div>
+    <div class="error-box" role="alert" hidden></div>
+    <p class="acct-done" role="status"></p>
+    <div class="row-inline"><button class="btn primary" type="submit">Send problem report</button></div>
+  </form>
+  <div class="dlg-actions"><button class="btn" type="button" data-close>Close</button></div>
 </dialog>
 
 <dialog id="dlg-account" aria-labelledby="account-h">
@@ -496,21 +461,22 @@
   <details class="transcript">
     <summary>Read the transcript</summary>
       <p>Welcome to The Fantastical Logic Grid. Every case is a brand new story, and you are the detective. Each puzzle is a logic grid wrapped in a story. The story sets up a mystery, the clues give you the facts, and the grid is where you work out the answer. Every story is written fresh for you and never repeated. And every puzzle has exactly one answer you can reach without guessing.</p>
-      <p>Here&#x27;s how to play. Start on the New puzzle screen and pick a difficulty. Basic and Easy are perfect for beginners. MENSA is for true masterminds. Next, choose a theme, like Mystery, Fantasy, Sci-Fi, Sports or Pets. Or pick Surprise me.</p>
+      <p>Here&#x27;s how to play. Start on the New puzzle screen and pick a difficulty. Basic and Easy are perfect for beginners. MENSA is for true masterminds. Next, choose a theme, like Mystery, Fantasy, Sci-Fi, Around Town, National Parks or Vacation Destinations. Or pick Surprise me.</p>
       <p>Most themes also have topics, like which holiday or which kind of mystery. Pick one, or leave it on Any. Then pick a size. More categories and more items make a bigger, harder grid. Full experience adds scenes, characters and sound. Silent mode keeps only the story, the grid, the clues and the answer key.</p>
-      <p>Press Generate puzzle, and your story is written in a moment. Here&#x27;s our case: The Spooky Key. The buttons along the top help you as you play. Read the story first. It tells you who is involved, and it ends with the question you need to answer. Here, it&#x27;s: Who arrived at 9:45 PM? You can also press Read the story aloud to hear it.</p>
-      <p>Select a character&#x27;s portrait to hear the clues they remember. Every clue is also in the clue list. On your first Easy puzzle, coach tips appear above the grid to guide your first moves. Now the grid. Each square is where two things meet, like a ghost hunter and an arrival time. Your job is to decide whether they go together.</p>
+      <p>Press Generate puzzle, and your story is written in a moment. Here&#x27;s our case: The Spooky Keys. The buttons along the top help you as you play. Read the story first. It tells you who is involved, and it ends with the question you need to answer. Here, it&#x27;s: Who arrived at 9:45 PM? You can also press Read the story aloud to hear it.</p>
+      <p>Select a character&#x27;s portrait to hear the clues they remember. Every clue is also in the clue list. To hear every clue in order, press Read the clues aloud. Each character tells their own clue, and the clue being read lights up. On your first Easy puzzle, coach tips appear above the grid to guide your first moves. Now the grid. Each square is where two things meet, like a ghost hunter and an arrival time. Your job is to decide whether they go together.</p>
       <p>Click or tap a square once to mark an X. X means ruled out: these two don&#x27;t go together. Tap again for an O. O means confirmed: these two are a match. Tap a third time to clear the square. Let&#x27;s solve it together, starting with the simplest clues. Clue 1 says the ghost hunter who carried the Flashlight arrived at 10:00 PM. Mark an O there.</p>
       <p>Clues 2 and 3 each rule out pairs directly. Mark an X for each one. Clue 4 says the ghost hunter who carried the Flashlight is Felix or Hugo, so no other ghost hunter is possible. Clue 5 says the ghost hunter who carried the Thermometer did not arrive at 9:30 PM. Mark an X there. Clue 6 says Felix arrived at 9:45 PM. Mark an O there.</p>
       <p>Clue 7 says the ghost hunter who carried the Compass did not arrive at 9:45 PM. Mark an X there. Felix arrived at 9:45 PM, so Felix cannot go with any other arrival, and no other ghost hunter can go with 9:45 PM. Each row and each column in a section has exactly one match, so everything else in that line is an X. The ghost hunter who carried the Flashlight arrived at 10:00 PM, so Flashlight cannot go with any other arrival, and no other gear can go with 10:00 PM. 9:15 PM is the only arrival left for Thermometer. Mark an O there. When only one square is left in a row or column, it must be the answer.</p>
       <p>In the full experience, each finished section also reveals more of the scene. Stuck? Press Hint. The first hint points you to a clue. Press Show more for the exact square, and then the full reasoning. You can even let it mark the square for you. Press Check at any time to see whether any of your marks are wrong.</p>
-      <p>Made a mistake? Undo and Redo take back any move, as many times as you like. Prefer words to grids? List view lets you choose each match from a menu. The game also works fully by keyboard and with a screen reader. When you think you know, answer the questions under the clues, and press Check answers. Keep going the same way, clue by clue, until the whole grid is filled in. Case closed! Felix arrived at 9:45 PM, so Felix was behind the attic key all along! It was a prank with a bedsheet and a fan. You also see your time and a suggestion for your next puzzle.</p>
-      <p>Then rate the puzzle, and say whether it felt too easy, just right or too hard. The game learns from your answers and tunes your next puzzle to suit you. You can print any puzzle, blank or with your marks, with the answer key on its own page. Your progress saves automatically. Come back any time and pick up where you left off, from Saved puzzles. Press Help to see every keyboard shortcut, and to watch this video again.</p>
-      <p>Play in light or dark colors, or in high contrast. And Silent mode is always there when you just want the puzzle. You can also play with other detectives. You never need an account to play. But a free account keeps your puzzles, progress and settings in step on the website, the desktop app and your phone.</p>
-      <p>Create one with your email and a password. If you ever forget your password, Forgot password sends you a reset link. Once you are signed in, your puzzles sync on their own. Sign in on another device and they are waiting for you. Play against others lets you race other players on the very same puzzle, and climb the scoreboard. First, pick a screen name. It is the only thing other players see, and rude names are turned away.</p>
-      <p>To race, press Start a race. It uses the difficulty, theme and size you picked on the New puzzle screen. Share the race code or link with a friend. Or anyone can press Find a race to join an open race. Everyone gets the very same puzzle. The race bar shows the code, and Standings shows who is still solving.</p>
-      <p>When you finish, you see your place. Fastest solve wins, and each hint adds time. The scoreboard ranks players this week and of all time. Every solve earns points, even when you play on your own. Finally, make the game your own. Settings shows what the game has learned from your play. You can reset it at any time.</p>
-      <p>In the Story workshop you can write your own story openings and endings. The game mixes them into new stories, so every case can include your ideas. That&#x27;s all you need: read the story, follow the clues, and mark your X&#x27;s and O&#x27;s. Welcome to The Fantastical Logic Grid. Happy sleuthing!</p>
+      <p>Made a mistake? Undo and Redo take back any move, as many times as you like. Prefer words to grids? List view lets you choose each match from a menu. The game also works fully by keyboard and with a screen reader. When you think you know, answer the questions under the clues, and press Check answers. Want to jot something down? Type it in My notes. Your notes save with the puzzle, and only you can see them, even in a race.</p>
+      <p>Keep going the same way, clue by clue, until the whole grid is filled in. Case closed! Felix arrived at 9:45 PM, so Felix was behind the ring of keys all along! It was a prank with a bedsheet and a fan. You also see your time and a suggestion for your next puzzle. Then rate the puzzle, and say whether it felt too easy, just right or too hard. The game learns from your answers and tunes your next puzzle to suit you.</p>
+      <p>You can print any puzzle, blank or with your marks, with the answer key on its own page. Your progress saves automatically. Come back any time and pick up where you left off, from Saved puzzles. Press Help to see every keyboard shortcut. And How to play, at the top of every page, plays this video again. Play in light or dark colors,</p>
+      <p>or in high contrast. And Silent mode is always there when you just want the puzzle. You can also play with other detectives. You never need an account to play. But a free account keeps your puzzles, progress and settings in step on the website, the desktop app and your phone. Create one with your email and a password. If you ever forget your password, Forgot password sends you a reset link.</p>
+      <p>Once you are signed in, your puzzles sync on their own. Sign in on another device and they are waiting for you. Play against others lets you race other players on the very same puzzle, and climb the scoreboard. First, pick a screen name. It is the only thing other players see, and rude names are turned away. To race, press Start a race. It uses the difficulty, theme and size you picked on the New puzzle screen.</p>
+      <p>Share the race code or link with a friend. Or anyone can press Find a race to join an open race. Everyone gets the very same puzzle. The race bar shows the code, and Standings shows who is still solving. When you finish, you see your place. Fastest solve wins, and each hint adds time.</p>
+      <p>The scoreboard ranks players this week and of all time. Every solve earns points, even when you play on your own. This week&#x27;s leaders are always in view at the top of the page. Select Scoreboard there to see the full board. Finally, make the game your own. In Settings, sound effects and theme music start on, and you can turn either one off. Learn from how I play tunes your next puzzles to suit you.</p>
+      <p>Have an idea for a story, or found a problem? Ideas and problems, in the menu, has a separate box for each, and they go straight to the game&#x27;s team. That&#x27;s all you need: read the story, follow the clues, and mark your X&#x27;s and O&#x27;s. Welcome to The Fantastical Logic Grid. Happy sleuthing!</p>
   </details>
   <div class="dlg-actions"><button class="btn primary" type="button" id="video-close">Close</button></div>
 </dialog>
@@ -527,7 +493,7 @@
 <dialog id="dlg-welcome" aria-labelledby="welcome-h">
   <h2 id="welcome-h">Welcome, detective!</h2>
   <p>New to The Fantastical Logic Grid? An 8-minute narrated video shows how to play, with examples. It has captions.</p>
-  <p class="muted">You can watch it any time from Help.</p>
+  <p class="muted">You can watch it any time with How to play at the top of the page.</p>
   <div class="dlg-actions"><button class="btn" type="button" id="welcome-skip">Start playing</button><button class="btn primary" type="button" id="welcome-watch"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 9.003a1 1 0 0 1 1.517-.859l4.997 2.997a1 1 0 0 1 0 1.718l-4.997 2.997A1 1 0 0 1 9 14.996z"/><circle cx="12" cy="12" r="10"/></svg> Watch the video</button></div>
 </dialog>
 
@@ -689,8 +655,8 @@
 </dialog>
 
 <dialog id="dlg-help" aria-labelledby="help-h">
-  <h2 id="help-h">How to play</h2>
-  <p><button class="btn" type="button" id="help-video"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 9.003a1 1 0 0 1 1.517-.859l4.997 2.997a1 1 0 0 1 0 1.718l-4.997 2.997A1 1 0 0 1 9 14.996z"/><circle cx="12" cy="12" r="10"/></svg> Watch the how-to-play video</button> <span class="muted">8 minutes, narrated, with captions and examples</span></p>
+  <h2 id="help-h">Help</h2>
+  <p class="muted">For the narrated how-to-play video, choose <b>How to play</b> at the top of the page.</p>
   <p>Read a clue, then mark the grid. <b>X</b> means two things do not go together. <b>O</b> means they do. Each row in a sub-grid has exactly one O. When the grid is full, answer the story questions.</p>
   <p>Select a character's portrait to hear the clues they remember. Each finished section of the grid reveals more of the scene. Want fewer distractions? Choose <b>Silent mode</b> on the New puzzle screen or in Settings to see only the story, the grid, the clues and the answer key.</p>
   <p id="help-compete" hidden>Want company? Under <b>Play against others</b> on the home screen, sign in and choose a screen name (until you sign in you play as Guest), then start a race (everyone gets the same puzzle, fastest solve wins), challenge a player by screen name, join one with a code, or find an open race. Your solved puzzles earn points on the <b>Scoreboard</b>. <button class="btn quiet small" type="button" data-rules>Scoring and race rules</button></p>

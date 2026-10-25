@@ -7,7 +7,6 @@
 //   POST /v1/learn/parts   a story part a player chose to share; waits for review
 //   POST /v1/tts           Gemini voice clips for players without their own key,
 //                          cached, rate limited and capped per day
-//   GET  /admin/learn      review page for shared story parts (ADMIN_TOKEN)
 //
 // This data is never joined to player accounts.
 // Nothing personal is stored. Rate limits use a one-way hash of the
@@ -16,7 +15,6 @@ import { checkStoryPart, partKey, PART_KINDS } from '../../engine/src/story.js';
 import { THEMES } from '../../engine/src/themes.js';
 import { getTopics, storyKey } from '../../engine/src/topics.js';
 import { TIER_ORDER, CLUE_TYPES } from '../../engine/src/tiers.js';
-import { ADMIN_HTML } from './learn-admin.js';
 import { getSettings } from './settings.js';
 
 // The edge-cache key of the tuning reply; the admin dashboard clears it after a review.
@@ -185,7 +183,8 @@ function pcmToWav(bytes, rate = 24000) {
   return out;
 }
 
-async function bump(env, name, cap) {
+// Counts one more use of `name` today; false once the day's cap is reached.
+export async function bump(env, name, cap) {
   const day = today();
   const row = await env.DB.prepare('INSERT INTO usage (day, name, count) VALUES (?, ?, 1) ON CONFLICT(day, name) DO UPDATE SET count = count + 1 WHERE count < ? RETURNING count')
     .bind(day, name, cap).first();
@@ -200,7 +199,7 @@ async function postTts(req, env, ctx, headers) {
   const text = String(body.text || '').trim();
   const voice = VOICES.has(body.voice) ? body.voice : 'Charon';
   if (!text || text.length > 400) return json({ error: 'Text must be 1 to 400 characters.' }, 400, headers);
-  const model = env.TTS_MODEL || 'gemini-3.8-flash-tts';
+  const model = settings.gemini_voice_model;
   const cache = caches.default;
   const key = new Request(`https://flg-cloud.internal/tts/${await sha256(`${model}|${voice}|${text}`)}`);
   const hit = await cache.match(key);
@@ -242,7 +241,6 @@ function safeEqual(a, b) {
 }
 
 async function admin(req, env, url) {
-  if (url.pathname === '/admin/learn') return new Response(ADMIN_HTML, { headers: { 'Content-Type': 'text/html; charset=utf-8', 'Content-Security-Policy': "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'" } });
   const token = (req.headers.get('Authorization') || '').replace(/^Bearer\s+/, '');
   if (!env.ADMIN_TOKEN || env.ADMIN_TOKEN.length < 16 || !safeEqual(token, env.ADMIN_TOKEN)) return json({ error: 'Not allowed.' }, 401);
   if (url.pathname === '/admin/learn/parts' && req.method === 'GET') {

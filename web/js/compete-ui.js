@@ -35,6 +35,7 @@ export function initCompete(hooks) {
   $('#race-share').onclick = () => { const g = ui.game(); if (g && g.save.race) showShare(g.save.race.code); };
   $('#race-standings').onclick = () => { const g = ui.game(); if (g && g.save.race) showStandings(g.save.race.code); };
   account.onChange((user) => {
+    refreshMiniBoard();
     if (!user) { name = null; invites = []; seenInvites = null; compete.forget(); renderCard(); return; }
     refreshName();
   });
@@ -44,6 +45,29 @@ export function initCompete(hooks) {
   // home screen. No live connection, so nothing extra to pay for.
   setInterval(() => { if (!document.hidden && !$('#screen-home').hidden) refreshInvites(); }, INVITE_POLL_MS);
   document.addEventListener('visibilitychange', () => { if (!document.hidden && !$('#screen-home').hidden) refreshInvites(); });
+  refreshMiniBoard();
+  setInterval(() => { if (document.visibilityState === 'visible') refreshMiniBoard(); }, MINI_EVERY_MS);
+}
+
+// ------------------------------------------------------------ small scoreboard
+// Always at the top of the page: this week's top three, and the player's own
+// place when they are on the board. Select it for the full scoreboard.
+const MINI_EVERY_MS = 5 * 60_000;
+let miniAt = 0;
+export async function refreshMiniBoard({ force = false } = {}) {
+  const box = $('#miniboard');
+  if (!box || !compete.enabled()) return;
+  if (!force && Date.now() - miniAt < 30_000) return;
+  miniAt = Date.now();
+  try {
+    const b = await compete.scoreboard('week');
+    const top = b.rows.slice(0, 3).map((r) => `<li${r.me ? ' class="me"' : ''}><b>${r.rank}.</b> ${esc(r.name)} <span>${r.points}</span></li>`);
+    if (b.me && b.me.rank > 3) top.push(`<li class="me"><b>${b.me.rank}.</b> You <span>${b.me.points}</span></li>`);
+    $('#miniboard-list').innerHTML = top.length ? top.join('') : '<li class="empty">No scores yet this week. Solve a puzzle to lead!</li>';
+    box.hidden = false;
+  } catch (e) {
+    // Offline or not reachable: keep the last board, or stay hidden.
+  }
 }
 
 async function refreshName() {
@@ -432,6 +456,7 @@ export function onGameOpen(save) {
 // Called whenever the solved panel shows. Sends a result that has not reached
 // the server yet (a new solve, or one made offline) and shows the outcome.
 export async function onSolved(save, pairs) {
+  setTimeout(() => refreshMiniBoard({ force: true }), 4000);
   const box = $('#compete-result');
   box.hidden = true;
   box.innerHTML = '';

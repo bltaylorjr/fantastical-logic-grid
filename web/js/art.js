@@ -32,6 +32,10 @@ export const THEME_LOOKS = {
   sports: { sky: ['#0f2a4a', '#2f6db0'], ground: '#2f7a3a', shape: '#0c1f36', glow: '#ffffff', accent: '#ffb703' },
   cooking: { sky: ['#f6e3c5', '#e9c99a'], ground: '#8b5a3c', shape: '#5b3a28', glow: '#fff7e6', accent: '#d1495b' },
   pets: { sky: ['#8fd3f4', '#d4f1c5'], ground: '#5aa04a', shape: '#3d7a35', glow: '#fffbe0', accent: '#f4845f' },
+  town: { sky: ['#9fd3f2', '#e8f4fb'], ground: '#5b6470', shape: '#8a5a44', glow: '#fff3b0', accent: '#d1495b' },
+  parks: { sky: ['#6fb3e0', '#d8eef5'], ground: '#3f6b3a', shape: '#24452a', glow: '#fff4c2', accent: '#c4622d' },
+  travel: { sky: ['#4cc3e8', '#fde6b8'], ground: '#f1d9a7', shape: '#2f8f4e', glow: '#fff1a8', accent: '#e63946' },
+  wonders: { sky: ['#2b2350', '#e8916b'], ground: '#2a2340', shape: '#1a1530', glow: '#ffe3a3', accent: '#c9a227' },
 };
 const lookFor = (themeId) => THEME_LOOKS[themeId] || THEME_LOOKS.mystery;
 
@@ -176,6 +180,48 @@ const SCENES = {
       `<g fill="#6b4b2e"><ellipse cx="520" cy="226" rx="20" ry="10"/><circle cx="540" cy="216" r="9"/><path d="M536 208 l-4 -8 l8 4z M546 208 l4 -8 l-8 4z"/></g><circle cx="600" cy="232" r="6" fill="#e63946"/>`,
     ];
   },
+  town(r, L) {
+    const awning = (x, w, c) => `<path d="M${x} 150 h${w} l-6 16 h-${w - 12}z" fill="${c}"/>${Array.from({ length: Math.floor(w / 16) }, (_, i) => `<rect x="${x + 4 + i * 16}" y="150" width="8" height="16" fill="#fff" opacity=".55"/>`).join('')}`;
+    return [
+      `<circle cx="110" cy="62" r="30" fill="${L.glow}"/><g fill="#fff" opacity=".85"><ellipse cx="520" cy="54" rx="56" ry="14"/><ellipse cx="560" cy="44" rx="34" ry="14"/><ellipse cx="300" cy="70" rx="40" ry="10"/></g>`,
+      skyline(r, '#c7d3e3', 200, 30, 70),
+      `<g fill="${L.shape}"><rect x="60" y="120" width="120" height="96"/><rect x="200" y="132" width="110" height="84"/><path d="M340 216 V120 l50 -30 l50 30 V216z"/><rect x="383" y="40" width="14" height="52"/><path d="M378 44 L390 14 L402 44z"/><rect x="470" y="128" width="130" height="88"/><rect x="620" y="112" width="120" height="104"/></g><path d="M384 30 h12 M390 24 v14" stroke="${L.glow}" stroke-width="3"/>`,
+      `${windows(r, 66, 128, 108, 24, 4, 1, 0.9, '#fdf6d8', '#30455e')}${windows(r, 476, 134, 118, 20, 5, 1, 0.9, '#fdf6d8', '#30455e')}${windows(r, 626, 120, 108, 30, 4, 1, 0.9, '#fdf6d8', '#30455e')}${awning(66, 108, L.accent)}${awning(206, 98, '#2a9d8f')}${awning(476, 118, '#e9c46a')}<path d="M372 216 v-34 a18 18 0 0 1 36 0 v34z" fill="#5a3a22"/><g fill="#f1ede4">${[636, 668, 700].map((x) => `<rect x="${x}" y="170" width="10" height="46"/>`).join('')}</g><text x="652" y="164" font-size="11" fill="#f1ede4" font-family="sans-serif">LIBRARY</text>`,
+      `<rect x="0" y="216" width="${W}" height="44" fill="${L.ground}"/><rect x="0" y="214" width="${W}" height="6" fill="#d9d4c7"/>${Array.from({ length: 10 }, (_, i) => `<rect x="${i * 84 + 20}" y="238" width="40" height="4" fill="#f4e9a3"/>`).join('')}`,
+      `${tree(20, 216, 60, '#3d7a35')}${tree(770, 216, 70, '#3d7a35')}<g><rect x="250" y="196" width="34" height="18" rx="4" fill="${L.accent}"/><circle cx="257" cy="216" r="4" fill="#222"/><circle cx="277" cy="216" r="4" fill="#222"/></g><rect x="446" y="176" width="3" height="40" fill="#555"/><circle cx="447" cy="172" r="6" fill="${L.glow}"/>`,
+    ];
+  },
+  parks(r, L) {
+    return [
+      `<circle cx="640" cy="64" r="32" fill="${L.glow}"/><g fill="#fff" opacity=".8"><ellipse cx="200" cy="50" rx="50" ry="12"/><ellipse cx="420" cy="36" rx="40" ry="10"/></g>`,
+      `<path d="M0 200 L120 80 L210 160 L330 50 L470 180 L580 70 L720 170 L800 120 L800 260 L0 260Z" fill="#6f8fa8"/><path d="M120 80 l-26 26 l14 -4 l12 10 l12 -10 l14 4z M330 50 l-34 34 l18 -6 l16 12 l16 -12 l18 6z M580 70 l-30 30 l16 -5 l14 10 l14 -10 l16 5z" fill="#fff"/>`,
+      `<path d="M0 ${H} L0 190 Q200 170 400 192 T800 186 L800 ${H} Z" fill="#4e7d4a"/><ellipse cx="560" cy="214" rx="150" ry="16" fill="#7cc4e4"/><path d="M420 214 q70 6 140 0" stroke="#fff" stroke-width="2" opacity=".6" fill="none"/>`,
+      `<g>${[40, 90, 150, 690, 740, 780].map((x, i) => tree(x, 226, 70 + (i % 3) * 18, L.shape)).join('')}</g>`,
+      `<path d="M0 ${H} L0 236 Q400 222 ${W} 240 L${W} ${H} Z" fill="${L.ground}"/><path d="M250 260 q40 -30 120 -40 t160 -14" stroke="#c9a66b" stroke-width="8" fill="none" stroke-linecap="round"/>`,
+      `<g fill="#3b2a1e"><ellipse cx="300" cy="214" rx="26" ry="14"/><ellipse cx="282" cy="206" rx="12" ry="11"/><rect x="288" y="222" width="5" height="12"/><rect x="310" y="222" width="5" height="12"/><path d="M276 198 q-4 -6 -10 -4 M288 198 q4 -6 10 -4" stroke="#3b2a1e" stroke-width="2" fill="none"/></g><path d="M640 120 q10 -8 20 0 q10 -8 20 0" stroke="#2b2b2b" stroke-width="2" fill="none"/><rect x="200" y="196" width="4" height="34" fill="#6b4b2e"/><rect x="186" y="190" width="32" height="14" rx="2" fill="${L.accent}"/>`,
+    ];
+  },
+  travel(r, L) {
+    const palm = (x, base, h, flip = 1) => `<path d="M${x} ${base} q${8 * flip} ${-h / 2} ${-6 * flip} ${-h}" stroke="#7a5230" stroke-width="7" fill="none" stroke-linecap="round"/>${[[-40, 6], [-30, -14], [36, 4], [26, -16], [0, -26]].map(([dx, dy]) => `<path d="M${x - 6 * flip} ${base - h} q${dx / 2} ${dy - 14} ${dx} ${dy + 10}" stroke="#2f8f4e" stroke-width="7" fill="none" stroke-linecap="round"/>`).join('')}`;
+    return [
+      `<circle cx="160" cy="70" r="36" fill="${L.glow}"/><g fill="#fff" opacity=".9"><ellipse cx="480" cy="50" rx="50" ry="13"/><ellipse cx="520" cy="40" rx="30" ry="12"/></g>`,
+      `<rect x="0" y="150" width="${W}" height="70" fill="#2bb3c0"/><path d="M0 170 q40 -6 80 0 t80 0 t80 0 t80 0 t80 0 t80 0 t80 0 t80 0 t80 0 t80 0" stroke="#fff" stroke-width="2" opacity=".5" fill="none"/><path d="M560 150 q60 -50 120 0z" fill="#3f8f5a" opacity=".8"/>`,
+      `<path d="M0 ${H} L0 214 Q300 196 ${W} 222 L${W} ${H} Z" fill="${L.ground}"/>`,
+      `${palm(90, 226, 110)}${palm(720, 230, 120, -1)}`,
+      `<g transform="translate(330 60) rotate(-8)"><path d="M0 10 h90 q10 0 10 6 q0 6 -10 6 h-90z" fill="#f5f7fa"/><path d="M40 12 l-20 -26 h12 l26 26z M40 20 l-20 24 h12 l26 -24z M2 12 l-8 -14 h8 l10 14z" fill="${L.accent}"/></g><path d="M80 90 q120 10 250 -16" stroke="#fff" stroke-width="3" stroke-dasharray="6 8" fill="none" opacity=".9"/>`,
+      `<rect x="430" y="196" width="46" height="34" rx="6" fill="${L.accent}"/><rect x="444" y="188" width="18" height="8" rx="3" fill="none" stroke="#5a3a22" stroke-width="3"/><path d="M430 210 h46" stroke="#fff" stroke-width="3"/><rect x="500" y="204" width="30" height="26" rx="5" fill="#f4a261"/><ellipse cx="300" cy="234" rx="40" ry="6" fill="#e76f51"/><path d="M300 234 v-46" stroke="#555" stroke-width="3"/><path d="M262 192 q38 -26 76 0z" fill="#ffd166"/>`,
+    ];
+  },
+  wonders(r, L) {
+    return [
+      `${stars(r, 30, '#fff', 90)}<circle cx="650" cy="70" r="30" fill="${L.glow}" opacity=".9"/>`,
+      `<path d="M0 ${H} L0 200 Q400 180 ${W} 205 L${W} ${H} Z" fill="#4a3f6b"/>`,
+      `<g fill="${L.shape}"><path d="M120 216 L160 40 L200 216 h-14 L160 100 L134 216z"/><rect x="138" y="140" width="44" height="6"/><path d="M128 190 q32 -26 64 0" stroke="${L.shape}" stroke-width="6" fill="none"/></g>`,
+      `<g fill="${L.shape}"><path d="M260 216 L340 130 L420 216z"/><rect x="470" y="150" width="120" height="66"/><path d="M470 150 q60 -70 120 0z"/><rect x="525" y="96" width="10" height="24"/>${[480, 505, 530, 555, 575].map((x) => `<rect x="${x}" y="160" width="8" height="56" fill="${L.sky[1]}" opacity=".35"/>`).join('')}</g>`,
+      `<path d="M600 216 q100 -90 200 0" stroke="${L.accent}" stroke-width="6" fill="none"/><path d="M600 216 L800 216" stroke="${L.accent}" stroke-width="5"/>${[630, 660, 690, 720, 750].map((x) => `<path d="M${x} 216 V${216 - Math.round(90 * Math.sin(Math.PI * (x - 600) / 200)) + 4}" stroke="${L.accent}" stroke-width="2"/>`).join('')}`,
+      `<rect x="0" y="216" width="${W}" height="44" fill="${L.ground}"/><g fill="${L.glow}" opacity=".9"><circle cx="160" cy="40" r="4"/><circle cx="530" cy="94" r="4"/></g>${Array.from({ length: 12 }, () => `<circle cx="${(r() * W).toFixed(0)}" cy="${(226 + r() * 26).toFixed(0)}" r="2" fill="${L.glow}" opacity=".7"/>`).join('')}`,
+    ];
+  },
 };
 
 // The scene for a puzzle. `revealed` (0..5) is how many detail layers show.
@@ -216,6 +262,10 @@ function hat(themeId, r, L) {
     case 'scifi': return `<rect x="26" y="40" width="48" height="12" rx="6" fill="${L.glow}" opacity=".85"/><rect x="22" y="38" width="4" height="16" fill="#555"/><rect x="74" y="38" width="4" height="16" fill="#555"/>`;
     case 'sports': return pick(r, [`<rect x="26" y="30" width="48" height="7" fill="${L.accent}"/>`, `<path d="M26 34 q24 -22 48 0z" fill="#1d4e89"/><path d="M70 34 h14 v4 h-14z" fill="#1d4e89"/>`]);
     case 'cooking': return `<path d="M30 30 h40 v-6 q8 -10 -2 -16 q-4 -10 -16 -6 q-12 -4 -16 6 q-10 6 -2 16z" fill="#fff" stroke="#ddd"/>`;
+    case 'town': return pick(r, [`<path d="M26 34 q24 -24 48 0z" fill="${L.accent}"/><path d="M70 34 h14 v4 h-14z" fill="${L.accent}"/>`, '']);
+    case 'parks': return `<path d="M14 34 h72 v4 h-72z" fill="#8b6b3e"/><path d="M30 34 q2 -18 20 -20 q18 2 20 20z" fill="#a0814f"/><path d="M42 16 l8 -6 l8 6" stroke="#6b4f2a" stroke-width="2" fill="none"/>`;
+    case 'travel': return pick(r, [`<path d="M14 36 q36 -10 72 0 l-10 -4 q-4 -16 -26 -16 q-22 0 -26 16z" fill="#f2d16b"/><rect x="26" y="29" width="48" height="4" fill="${L.accent}"/>`, `<rect x="30" y="44" width="16" height="9" rx="3" fill="#1d1d1d"/><rect x="54" y="44" width="16" height="9" rx="3" fill="#1d1d1d"/><path d="M46 47 h8" stroke="#1d1d1d" stroke-width="2"/>`]);
+    case 'wonders': return `<path d="M22 34 q28 -30 56 0z" fill="#f2c14e"/><rect x="18" y="32" width="64" height="5" rx="2" fill="#e0a92e"/><rect x="47" y="10" width="6" height="22" fill="#e0a92e"/>`;
     default: return '';
   }
 }

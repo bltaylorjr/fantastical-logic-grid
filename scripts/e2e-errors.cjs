@@ -1,6 +1,6 @@
 // End-to-end check of anonymous error reports: an error in the game reaches
 // the real Worker (Miniflare, local D1) cleaned of personal details, and
-// nothing is sent once the player turns reports off. Needs `npm install` in
+// nothing is sent once the admin dashboard switches reports off. Needs `npm install` in
 // server/ first (npm run test:errors does that).
 const { chromium } = require('playwright');
 const { spawn } = require('child_process');
@@ -38,8 +38,10 @@ const APP = `http://localhost:${APP_PORT}`;
   const config = `export const CLOUD = { firebaseApiKey: '', syncUrl: '', learnUrl: '${api}', appVersion: '9.9.9' };\nexport const cloudEnabled = () => false;\nexport const CLOUD_URL = '${api}';\n`;
   const browser = await chromium.launch();
   const rows = async () => (await db.prepare('SELECT * FROM app_errors').all()).results;
-  async function device(settings) {
+  async function device(settings, { reportsOff = false } = {}) {
     const ctx = await browser.newContext({ serviceWorkers: 'block' });
+    // The dashboard's "Automatic error reports" switch, as /v1/config sends it.
+    if (reportsOff) await ctx.route('**/v1/config', (r) => r.fulfill({ contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': APP }, body: JSON.stringify({ announcements: [], disabledThemes: [], features: { errorReports: false } }) }));
     await ctx.route('**/js/cloud-config.js', (r) => r.fulfill({ contentType: 'text/javascript', body: config }));
     await ctx.route('**/v1/learn/**', (r) => r.fulfill({ status: 204, body: '' }));
     await ctx.addInitScript((s) => localStorage.setItem('flg.settings', JSON.stringify(s)), { introOffered: true, voiceProvider: 'device', silent: true, ...settings });
@@ -50,7 +52,7 @@ const APP = `http://localhost:${APP_PORT}`;
   }
   try {
     const a = await device({});
-    assert(await a.page.locator('input[name="reportErrors"]').count() === 1, 'Settings has the error report switch');
+    assert(await a.page.locator('input[name="reportErrors"]').count() === 0, 'error reports are switched in the admin dashboard, not in Settings');
     await a.page.evaluate(() => { setTimeout(() => { throw new Error('Broke while drawing for sam@example.com at https://thelogicgrid.com/?save=1234567'); }); });
     await a.page.evaluate(() => { Promise.reject(new Error('A promise nobody caught')); });
     for (let i = 0; i < 40 && (await rows()).length < 2; i++) await a.page.waitForTimeout(150);
@@ -62,10 +64,11 @@ const APP = `http://localhost:${APP_PORT}`;
     assert(got.some((r) => r.kind === 'rejection'), 'uncaught promise errors are reported too');
     await a.ctx.close();
 
-    const b = await device({ reportErrors: false });
+    const b = await device({}, { reportsOff: true });
+    await b.page.waitForFunction(() => JSON.parse(localStorage.getItem('flg.remoteConfig') || '{}').features?.errorReports === false);
     await b.page.evaluate(() => { setTimeout(() => { throw new Error('Should stay on this device'); }); });
     await b.page.waitForTimeout(3000);
-    assert((await rows()).length === 2, 'nothing is sent when reports are turned off');
+    assert((await rows()).length === 2, 'nothing is sent when the dashboard switches reports off');
     await b.ctx.close();
   } finally {
     await browser.close();

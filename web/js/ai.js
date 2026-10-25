@@ -1,17 +1,18 @@
 // AI-generated pictures and natural voices.
 //
-// Pictures and voice clips come from the OpenAI API using the player's own API
-// key (Settings > AI pictures and voice). Each result is saved on this device
-// by story id, so a story's pictures are made once. Without a key, or offline,
-// the game keeps its built-in art and uses the computer's own voices.
+// Both come from the game's own server (server/src/pictures.js and learn.js),
+// on free allowances, as chosen in the admin dashboard: pictures from
+// Cloudflare Workers AI and voices from Google Gemini, with the free Kokoro
+// voices on this device and then the device's own voices as fallbacks. No
+// keys are kept in the game. Each result is saved on this device by story id,
+// so a story's pictures are made once. Offline, the game keeps its built-in
+// art.
 import * as store from './store.js';
 import { CLOUD_URL } from './cloud-config.js';
 import { genderOf } from './gender.js';
+import { feature } from './remote-config.js';
 
-const API = 'https://api.openai.com/v1';
 const pending = new Map();
-
-const STYLE = 'Warm storybook illustration, painterly, soft cinematic light, rich color, no text, no letters, no words, no logos, family friendly.';
 const THEME_SETTING = {
   mystery: 'a stormy old English manor house at night, candlelight, a classic detective mystery',
   action: 'a sleek spy thriller city at dusk, neon reflections',
@@ -23,9 +24,14 @@ const THEME_SETTING = {
   sports: 'a floodlit stadium on championship night',
   cooking: 'a bustling restaurant kitchen with copper pots and steam',
   pets: 'a sunny park with a pet show tent',
+  town: 'a cheerful small-town main street with shops, a church and a park',
+  parks: 'a grand national park with snowy peaks, pine forest and a lake',
+  travel: 'a sunny tropical vacation spot with palm trees, a beach and a plane overhead',
+  wonders: 'famous world landmarks at golden hour, towers, domes and bridges',
 };
 
-export const aiReady = (settings) => !!(settings.aiKey && settings.aiKey.trim().length > 20);
+// The server adds the picture style; this says what to paint.
+export const picturesReady = (settings) => !!CLOUD_URL && feature('pictures') && settings.aiPictures !== 'none';
 
 async function cached(key, make) {
   const hit = await store.getMedia(key).catch(() => null);
@@ -36,31 +42,18 @@ async function cached(key, make) {
   return p;
 }
 
-async function apiError(res) {
-  let msg = `${res.status}`;
-  try { const j = await res.json(); msg = (j.error && j.error.message) || msg; } catch (e) { /* keep status */ }
-  if (res.status === 401) msg = 'The API key was not accepted. Check it in Settings.';
-  if (res.status === 429) msg = 'The AI service says the limit or credit has run out for now.';
-  return new Error(msg);
-}
-
-async function generateImage(settings, prompt, size) {
-  const res = await fetch(`${API}/images/generations`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${settings.aiKey.trim()}` },
-    body: JSON.stringify({ model: settings.imageModel || 'gpt-image-2.5-flare', prompt, size, quality: settings.imageQuality || 'medium', n: 1 }),
-  });
-  if (!res.ok) throw await apiError(res);
-  const json = await res.json();
-  const item = json.data && json.data[0];
-  if (item && item.b64_json) {
-    const bin = atob(item.b64_json);
-    const bytes = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    return new Blob([bytes], { type: 'image/png' });
+let picturesOffUntil = 0;
+async function serverPicture(prompt, kind) {
+  if (Date.now() < picturesOffUntil) throw new Error('AI pictures are resting for now.');
+  const res = await fetch(`${CLOUD_URL}/v1/picture`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt, kind }) });
+  if (!res.ok) {
+    // Used up for today, switched off or not set up: try again in a few hours.
+    picturesOffUntil = Date.now() + (res.status === 429 || res.status === 503 ? 3 * 3600_000 : 600_000);
+    let msg = `${res.status}`;
+    try { msg = (await res.json()).error || msg; } catch (e) { /* keep status */ }
+    throw new Error(msg);
   }
-  if (item && item.url) return (await fetch(item.url)).blob();
-  throw new Error('The AI service returned no picture.');
+  return res.blob();
 }
 
 // The topic's own setting and mood when the engine gives one (a Halloween
@@ -72,16 +65,16 @@ const storyKey = (puzzle) => (puzzle.story && puzzle.story.id) || puzzle.id;
 
 export function sceneImage(settings, puzzle) {
   const setting = settingOf(puzzle);
-  const prompt = `${STYLE} Wide establishing shot of ${setting}. Scene from this story: ${puzzle.story.paragraphs[0]} ${puzzle.story.paragraphs.slice(1, -1).join(' ')} Show the place and mood only, with small distant figures, no faces in close-up.`;
-  return cached(`${storyKey(puzzle)}|scene`, () => generateImage(settings, prompt, '1536x1024'));
+  const prompt = `Wide establishing shot of ${setting}. Scene from this story: ${puzzle.story.paragraphs[0]} ${puzzle.story.paragraphs.slice(1, -1).join(' ')} Show the place and mood only, with small distant figures, no faces in close-up.`;
+  return cached(`${storyKey(puzzle)}|scene`, () => serverPicture(prompt, 'scene'));
 }
 
 export function portraitImage(settings, puzzle, name) {
   const setting = settingOf(puzzle);
   const role = (puzzle.cast && puzzle.cast.one) || 'character';
   const g = genderOf(name);
-  const prompt = `${STYLE} Head-and-shoulders portrait of a friendly ${g === 'f' ? 'woman' : 'man'}, a ${role} named ${name}, in ${setting}, looking at the viewer, plain softly lit background, centered, one person only.`;
-  return cached(`${puzzle.theme.id}|${(puzzle.topic && puzzle.topic.id) || ''}|${role}|${name}|${g}|portrait`, () => generateImage(settings, prompt, '1024x1024'));
+  const prompt = `Head-and-shoulders portrait of a friendly ${g === 'f' ? 'woman' : 'man'}, a ${role} named ${name}, in ${setting}, looking at the viewer, plain softly lit background, centered, one person only.`;
+  return cached(`${puzzle.theme.id}|${(puzzle.topic && puzzle.topic.id) || ''}|${role}|${name}|${g}|portrait`, () => serverPicture(prompt, 'portrait'));
 }
 
 // ---------------------------------------------------------------------------
@@ -98,68 +91,9 @@ function voiceFor(who, seed, female, male) {
   return pool[seed % pool.length];
 }
 
-async function ttsBlob(settings, text, voice, style) {
-  const res = await fetch(`${API}/audio/speech`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${settings.aiKey.trim()}` },
-    body: JSON.stringify({ model: settings.voiceModel || 'gpt-4o-mini-tts', voice, input: text, instructions: style, response_format: 'mp3' }),
-  });
-  if (!res.ok) throw await apiError(res);
-  return res.blob();
-}
-
-// Google Gemini text-to-speech (free tier available). Returns raw 16-bit PCM,
-// which is wrapped in a WAV header so the browser can play it.
+// Google Gemini voices, spoken by the game's server.
 const GEMINI_F = ['Kore', 'Aoede', 'Leda', 'Zephyr', 'Callirrhoe'];
 const GEMINI_M = ['Puck', 'Fenrir', 'Orus', 'Enceladus', 'Iapetus', 'Umbriel'];
-const AI_F = ['nova', 'shimmer', 'sage', 'coral']; // alloy sounds neither, so it is left out
-const AI_M = ['ballad', 'echo', 'onyx', 'verse'];
-export const geminiReady = (settings) => !!(settings.geminiKey && settings.geminiKey.trim().length > 20);
-
-function pcmToWav(bytes, rate = 24000) {
-  const header = new ArrayBuffer(44);
-  const v = new DataView(header);
-  const w = (o, str) => { for (let i = 0; i < str.length; i++) v.setUint8(o + i, str.charCodeAt(i)); };
-  w(0, 'RIFF'); v.setUint32(4, 36 + bytes.length, true); w(8, 'WAVE'); w(12, 'fmt ');
-  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
-  v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
-  w(36, 'data'); v.setUint32(40, bytes.length, true);
-  return new Blob([header, bytes], { type: 'audio/wav' });
-}
-
-// Only the words to say are sent; spoken style comes from the voice choice, so
-// no direction text can be read out.
-async function geminiTts(settings, text, voice) {
-  const model = settings.geminiVoiceModel || 'gemini-3.8-flash-tts';
-  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': settings.geminiKey.trim() },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text }] }],
-      generationConfig: { responseModalities: ['AUDIO'], speechConfig: { languageCode: 'en-US', voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } } },
-    }),
-  });
-  if (!res.ok) {
-    let msg = `${res.status}`;
-    try { const j = await res.json(); msg = (j.error && j.error.message) || msg; } catch (e) { /* keep status */ }
-    if (res.status === 400 && /key/i.test(msg)) msg = 'The Google key was not accepted. Check it in Settings.';
-    if (res.status === 429) msg = 'The free daily voice limit is used up for now.';
-    throw new Error(msg);
-  }
-  const json = await res.json();
-  const part = json.candidates && json.candidates[0] && json.candidates[0].content && json.candidates[0].content.parts.find((p) => p.inlineData);
-  if (!part) throw new Error('Google returned no audio.');
-  const bin = atob(part.inlineData.data);
-  const bytes = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  const rate = Number((/rate=(\d+)/.exec(part.inlineData.mimeType || '') || [])[1]) || 24000;
-  return /wav|mpeg|mp3|ogg/.test(part.inlineData.mimeType || '') ? new Blob([bytes], { type: part.inlineData.mimeType }) : pcmToWav(bytes, rate);
-}
-
-export async function testGeminiKey(settings) {
-  await geminiTts(settings, 'Hello.', 'Kore');
-  return true;
-}
 
 // Pick the most natural American English voice the computer has. Windows 11
 // and Edge include "Natural" voices such as Aria, Jenny, Guy and Ava.
@@ -307,7 +241,7 @@ let speakToken = 0;
 // players without a Google key. When the day's free clips run out, speech
 // moves to the Kokoro voices on this device until tomorrow.
 let cloudOffUntil = 0;
-const cloudVoicesReady = (settings) => !!CLOUD_URL && settings.serverVoices !== false && Date.now() > cloudOffUntil;
+const cloudVoicesReady = () => !!CLOUD_URL && feature('voices') && Date.now() > cloudOffUntil;
 async function cloudTts(text, voice) {
   const res = await fetch(`${CLOUD_URL}/v1/tts`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, voice }) });
   if (!res.ok) {
@@ -322,42 +256,27 @@ async function cloudTts(text, voice) {
   return res.blob();
 }
 
+// The admin dashboard picks where voices come from (settings.voiceProvider):
+// 'server' tries the server's Gemini voices, then Kokoro, then the device;
+// 'kokoro' starts with Kokoro; 'device' uses only the device's own voices.
 function voicePlan(settings, puzzle, who) {
   const seed = hashOf(`${puzzle.theme.id}:${who}`);
   const narr = who === 'narrator';
-  // The player's own Google key comes first; otherwise the game's free
-  // server voices, unless the player chose a specific other service.
-  if (!geminiReady(settings) && ['kokoro', 'gemini'].includes(settings.voiceProvider || 'kokoro') && cloudVoicesReady(settings)) {
-    const voice = narr ? 'Charon' : voiceFor(who, seed, GEMINI_F, GEMINI_M);
+  const source = settings.voiceProvider || 'server';
+  if (source === 'device') return { seed, kind: 'device' };
+  if (source === 'server' && !settings.noServerVoices && cloudVoicesReady()) {
+    const voice = narr ? 'Charon' : voiceFor(who, seed, GEMINI_F, GEMINI_M); // Charon: male, steady
     return { seed, kind: 'cloud', gap: 80, key: `g2|${voice}`, make: (t) => cloudTts(t, voice) };
   }
-  const ready = {
-    kokoro: kokoroReady(settings) || kokoroLoading(),
-    gemini: geminiReady(settings),
-    openai: aiReady(settings) && settings.aiVoice,
-  };
-  const order = [settings.voiceProvider || 'gemini', 'kokoro', 'gemini', 'openai'];
-  if (settings.voiceProvider === 'device') return { seed, kind: 'device' };
-  const kind = order.find((k) => ready[k]);
-  if (kind === 'kokoro') {
+  if (kokoroReady(settings) || kokoroLoading()) {
     const [voice, pace] = (narr ? KOKORO_NARRATOR : voiceFor(who, seed, KOKORO_F, KOKORO_M)).split(':');
     const speed = narr ? 0.94 : Number(pace || 1);
-    return { seed, kind, gap: 220, key: `k2|${voice}|${speed}`, make: (t) => kokoroTts(t, voice, speed) };
-  }
-  if (kind === 'gemini') {
-    const voice = narr ? 'Charon' : voiceFor(who, seed, GEMINI_F, GEMINI_M); // Charon: male, steady
-    return { seed, kind, gap: 80, key: `g2|${voice}`, make: (t) => geminiTts(settings, t, voice) };
-  }
-  if (kind === 'openai') {
-    const style = narr
-      ? `Warm male storyteller reading a ${puzzle.theme.name.toLowerCase()} story aloud, unhurried, gentle suspense.`
-      : `A character in a ${puzzle.theme.name.toLowerCase()} story telling a detective what they saw. Natural, conversational, a little ${['nervous', 'cheerful', 'serious', 'proud', 'secretive'][seed % 5]}.`;
-    const accent = ' Speak in a natural General American accent. Enunciate clearly, keep a relaxed, even pace, and pause briefly at commas and full stops. Say names and times naturally.';
-    const voice = narr ? 'ash' : voiceFor(who, seed, AI_F, AI_M); // ash: American male
-    return { seed, kind, gap: 80, key: `o2|${voice}|${hashOf(style)}`, make: (t) => ttsBlob(settings, t, voice, style + accent) };
+    return { seed, kind: 'kokoro', gap: 220, key: `k2|${voice}|${speed}`, make: (t) => kokoroTts(t, voice, speed) };
   }
   return { seed, kind: 'device' };
 }
+// Which voice would speak right now: 'cloud', 'kokoro' or 'device'.
+export const voiceKind = (settings, puzzle, who = 'narrator') => voicePlan(settings, puzzle, who).kind;
 const clip = (plan, text) => cached(`voice|${plan.key}|${hashOf(text)}|${text.length}`, () => plan.make(text));
 
 // Start making the first clip early (for example when a puzzle opens), so
@@ -453,7 +372,7 @@ async function say(settings, puzzle, who, text, volume, token) {
       job(i + 1);
     } catch (e) {
       if (token !== speakToken) return false;
-      if (plan.kind === 'cloud') return say({ ...settings, serverVoices: false }, puzzle, who, rest(i), volume, token);
+      if (plan.kind === 'cloud') return say({ ...settings, noServerVoices: true }, puzzle, who, rest(i), volume, token);
       console.warn('Natural voice unavailable, using device voice:', e.message);
       return speakDevice(rest(i), plan.seed, who, volume, token);
     }
@@ -468,75 +387,4 @@ async function say(settings, puzzle, who, text, volume, token) {
     }
   }
   return token === speakToken;
-}
-
-// Quick check from Settings: one tiny request that lists models.
-export async function testKey(settings) {
-  const res = await fetch(`${API}/models`, { headers: { Authorization: `Bearer ${settings.aiKey.trim()}` } });
-  if (!res.ok) throw await apiError(res);
-  return true;
-}
-
-// ---------- AI story writer ----------
-// Drafts new story parts from the player's idea. Only the idea, the theme and
-// a few example parts are sent. The game checks every draft with the engine's
-// story-part rules, and the player approves each one before it is used.
-const PART_HELP = {
-  openings: 'an opening sentence that sets the scene. It must use {n} (or {N} at the start of the sentence) for how many people there are, and {many} for what they are called (the cast word).',
-  incidents: 'an event: what happened. Give "name" (1 to 3 words, used in the title "The <adjective> <name>"), "text" (one or two sentences) and "prize" (the thing at stake, like "the golden key").',
-  mishaps: 'one or two sentences saying why the facts got mixed up, so only the clues can be trusted.',
-  endings: 'an ending shown when the puzzle is solved. It must include {Fact} (the answer, already a full clause like "Mia has the red hat") and may use {winner} (that person) and {prize}.',
-};
-
-function storyPrompt(theme, kind, idea, examples) {
-  return [
-    `You write short story parts for "The Fantastical Logic Grid", a family-friendly logic puzzle game. Theme: ${theme.name} (${theme.description}). The cast are called "${theme.cast.many}".`,
-    `Write 4 different options for ${PART_HELP[kind]}`,
-    'Rules: friendly for all ages; no numbers or head counts in words or digits (the game fills in {n}); no names of people; use only the fill-ins named above, in curly brackets; 6 to 28 words each; end with a full stop or exclamation mark.',
-    `Examples from the game: ${JSON.stringify(examples)}`,
-    `The player's idea: "${String(idea).slice(0, 200)}"`,
-    kind === 'incidents' ? 'Reply with JSON only: {"parts":[{"name":"...","text":"...","prize":"..."}]}' : 'Reply with JSON only: {"parts":["...","..."]}',
-  ].join('\n');
-}
-
-async function openaiModel(settings) {
-  if (settings.storyModel) return settings.storyModel;
-  try {
-    const res = await fetch(`${API}/models`, { headers: { Authorization: `Bearer ${settings.aiKey.trim()}` } });
-    if (res.ok) {
-      const ids = (await res.json()).data.map((m) => m.id).filter((id) => /^gpt-[\d.]+o?-mini$/.test(id)).sort((a, b) => parseFloat(b.slice(4)) - parseFloat(a.slice(4)));
-      if (ids.length) return ids[0];
-    }
-  } catch (e) { /* use the default */ }
-  return 'gpt-4o-mini';
-}
-
-export const storyWriterReady = (settings) => geminiReady(settings) || aiReady(settings);
-
-export async function draftStoryParts(settings, theme, kind, idea, examples) {
-  const prompt = storyPrompt(theme, kind, idea, examples);
-  let text;
-  if (geminiReady(settings)) {
-    const model = settings.storyModel && /gemini/.test(settings.storyModel) ? settings.storyModel : 'gemini-flash-latest';
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': settings.geminiKey.trim() },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: 'application/json', temperature: 1 } }),
-    });
-    if (!res.ok) throw await apiError(res);
-    const j = await res.json();
-    text = j.candidates?.[0]?.content?.parts?.map((p) => p.text || '').join('') || '';
-  } else if (aiReady(settings)) {
-    const res = await fetch(`${API}/chat/completions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${settings.aiKey.trim()}` },
-      body: JSON.stringify({ model: await openaiModel(settings), messages: [{ role: 'user', content: prompt }], response_format: { type: 'json_object' } }),
-    });
-    if (!res.ok) throw await apiError(res);
-    text = (await res.json()).choices?.[0]?.message?.content || '';
-  } else throw new Error('Add a Google Gemini or OpenAI key in Settings first.');
-  let parts;
-  try { parts = JSON.parse(text.replace(/^```(json)?|```$/g, '').trim()).parts; } catch (e) { throw new Error('The AI reply could not be read. Try again.'); }
-  if (!Array.isArray(parts)) throw new Error('The AI reply had no story parts. Try again.');
-  return parts.slice(0, 6);
 }

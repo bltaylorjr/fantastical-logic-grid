@@ -1,6 +1,6 @@
 // End-to-end check of learning from play: a solve is recorded, the rating and
-// "too easy" tap tune the next puzzle, the story workshop checks and adds
-// story parts, and Reset learning clears the history.
+// "too easy" tap tune the next puzzle, Settings keeps only the player's own
+// learning switch, and added story parts still reach new stories.
 const { chromium } = require('playwright');
 const { spawn } = require('child_process');
 const path = require('path');
@@ -53,31 +53,21 @@ const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`o
     const now = await page.evaluate(() => window.__flg.state.save.storyId);
     assert(!ids.includes(now), 'the tuned puzzle has a brand new story');
 
-    // Story workshop
+    // Learning in Settings is only the player's own switch; the Story
+    // workshop and the rest moved to the admin dashboard.
     await page.click('#menu-btn');
     await page.click('[data-cmd=settings]');
     await page.waitForSelector('#dlg-settings[open]');
-    assert((await page.textContent('#learn-summary')).includes('1 puzzle played'), 'Settings shows what the game has learned');
-    await page.click('#learn-workshop');
-    await page.waitForSelector('#dlg-workshop[open]');
-    await page.selectOption('#ws-theme', 'mystery');
-    await page.fill('#ws-text', 'Five friends met at the pier.');
-    await page.click('#ws-add');
-    assert((await page.textContent('#ws-errors')).length > 0, 'a part with a head count is refused with a reason');
-    await page.fill('#ws-text', 'Moonlight filled the old observatory, where {n} {many} waited for the comet.');
-    await page.click('#ws-add');
-    await page.waitForFunction(() => document.querySelector('#ws-mine').textContent.includes('observatory'));
-    assert(true, 'a valid opening is added to the mix');
+    const learnInputs = await page.$$eval('#dlg-settings fieldset.learning input', (els) => els.map((e) => e.name));
+    assert(learnInputs.join() === 'learn', 'Learning in Settings has only "Learn from how I play"');
+    assert(!(await page.locator('#learn-workshop, #dlg-workshop').count()), 'the Story workshop is no longer in the game');
+    await page.keyboard.press('Escape');
+    // Story parts (from the dashboard's workshop, through shared tuning) still reach new stories.
+    await page.evaluate(async () => (await import('./js/learn.js')).addPart('mystery', 'openings', 'Moonlight filled the old observatory, where {n} {many} waited for the comet.', 'mine'));
     const tuned = await page.evaluate(async () => (await import('./js/learn.js')).tuning('basic'));
-    assert(tuned.storyParts.mystery.openings.length === 1, 'the added part goes to the engine');
+    assert(tuned.storyParts.mystery.openings.length === 1, 'an added story part goes to the engine');
     const p = await page.evaluate(async (t) => (await import('./engine/index.js')).generatePuzzle({ ...t, difficulty: 'basic', theme: 'mystery', seed: 'ws' }), tuned);
     assert(/^mystery[|\/]/.test(p.story.id), `puzzles still generate with added parts (${p.story.id})`);
-    await page.click('#dlg-workshop .dlg-actions button');
-    await page.click('#learn-reset');
-    await page.click('#confirm-yes');
-    await page.waitForFunction(() => document.querySelector('#learn-summary').textContent.includes('part'));
-    L = await learning();
-    assert(L.plays.length === 0 && L.parts.mystery.openings.length === 1, 'Reset learning clears play history and keeps added parts');
     assert(!errors.length, `no console errors${errors.length ? `: ${errors.join(' | ')}` : ''}`);
   } finally {
     await browser.close();

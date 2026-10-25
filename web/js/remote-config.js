@@ -1,6 +1,8 @@
 // Settings the game's admin dashboard can change without a new release:
-// announcements at the top of the home screen and themes that are switched
-// off. Read from the shared Worker's GET /v1/config (server/src/settings.js)
+// announcements at the top of the home screen, themes and shared features
+// that are switched off, the sound, voice and picture choices made for every
+// player, and starting values for the player's own sound settings (both
+// applied in store.loadSettings). Read from the shared Worker's GET /v1/config (server/src/settings.js)
 // and kept on this device, so the game still works offline with the last copy.
 import { CLOUD_URL } from './cloud-config.js';
 import * as store from './store.js';
@@ -12,8 +14,11 @@ const EVERY_MS = 10 * 60_000;
 
 let config = store.getLocal(KEY) || null;
 let onThemes = () => {};
+let onChange = () => {};
 
 export const disabledThemes = () => new Set((config && config.disabledThemes) || []);
+// A shared feature is on unless the dashboard switched it off.
+export const feature = (name) => !(config && config.features && config.features[name] === false);
 
 function renderAnnouncements() {
   const box = document.getElementById('announcements');
@@ -32,15 +37,21 @@ async function refresh() {
     if (!res.ok) return;
     const next = await res.json();
     const themesChanged = JSON.stringify((config && config.disabledThemes) || []) !== JSON.stringify(next.disabledThemes || []);
-    config = { announcements: next.announcements || [], disabledThemes: next.disabledThemes || [], features: next.features || {}, fetchedAt: Date.now() };
+    const before = JSON.stringify(config && [config.features, config.defaults, config.game]);
+    config = {
+      announcements: next.announcements || [], disabledThemes: next.disabledThemes || [], features: next.features || {},
+      defaults: next.defaults || {}, game: next.game || {}, fetchedAt: Date.now(),
+    };
     store.setLocal(KEY, config);
     renderAnnouncements();
     if (themesChanged) onThemes();
+    if (before !== JSON.stringify([config.features, config.defaults, config.game])) onChange();
   } catch (e) { /* offline: keep the last copy */ }
 }
 
-export function init({ onThemesChanged } = {}) {
+export function init({ onThemesChanged, onConfigChanged } = {}) {
   if (onThemesChanged) onThemes = onThemesChanged;
+  if (onConfigChanged) onChange = onConfigChanged;
   renderAnnouncements();
   const box = document.getElementById('announcements');
   if (box) {
