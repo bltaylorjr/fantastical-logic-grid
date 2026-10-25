@@ -199,12 +199,12 @@ function startAuth(signer) {
     assert(savedA.marks >= 2, `progress from B reached A (${savedA.marks} marks)`);
     assert(savedA.notes === 'Notes typed on B', 'notes typed on B reached A');
 
-    // ---- Settings sync, but keys stay on each device.
+    // ---- Settings sync, but keys never travel.
     await B.page.evaluate(async () => { const st = await import('./js/store.js'); st.saveSettings({ ...st.loadSettings(), colorTheme: 'dark', aiKey: 'sk-only-on-B' }); });
     await syncNow(B.page);
     await syncNow(A.page);
     assert(await A.page.evaluate(() => document.documentElement.dataset.theme) === 'dark', 'a settings change on B applies on A');
-    assert(await A.page.evaluate(async () => (await import('./js/store.js')).loadSettings().aiKey) === '', 'the API key did not travel');
+    assert(await A.page.evaluate(async () => (await import('./js/store.js')).loadSettings().aiKey) === undefined, 'the API key did not travel (and the game keeps no keys)');
 
     // ---- Offline play on both, then a conflict.
     await A.ctx.setOffline(true);
@@ -226,9 +226,14 @@ function startAuth(signer) {
     assert(back.state === 'synced', 'A syncs once back online');
     await syncNow(B.page);
     const namesA = await savedNames(A.page);
-    const namesB = await savedNames(B.page);
     assert(namesA.includes(`${title} (from another device)`), `conflict keeps both copies of the progress (${namesA.join(', ')})`);
-    assert(JSON.stringify(namesA) === JSON.stringify(namesB), 'both devices end up with the same puzzles');
+    // The saved list redraws after sync finishes, so give B a moment to catch up.
+    let namesB = await savedNames(B.page);
+    for (let i = 0; i < 20 && JSON.stringify(namesA) !== JSON.stringify(namesB); i++) {
+      await B.page.waitForTimeout(250);
+      namesB = await savedNames(B.page);
+    }
+    assert(JSON.stringify(namesA) === JSON.stringify(namesB), `both devices end up with the same puzzles (B: ${namesB.join(', ')})`);
 
     // ---- Deleting a puzzle reaches the other device.
     await A.page.click(`#saved-list li:has(.name:text-is("${title} (from another device)")) [data-do=delete]`);
