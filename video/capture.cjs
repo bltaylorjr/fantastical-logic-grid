@@ -352,11 +352,10 @@ const CSS = `
     await hl(['#q-h', '#q-list', '#check-answers']);
     await scene('questions', ['When you think you know, answer the questions under the clues, and press Check answers.']);
     await clearFx();
-    await scrollTo('#my-notes'); await clickShown('#my-notes');
+    await top(); await clickShown('#notes-btn'); await p.waitForSelector('#dlg-notes[open]');
     await p.keyboard.type(`Start with clue 1. Come back to the last two.`, { delay: 25 });
-    await hl('.mynotes');
-    await scene('notes', ['Want to jot something down? Type it in My notes.', 'Your notes save with the puzzle, and only you can see them, even in a race.']);
-    await clearFx(); await p.evaluate(() => document.activeElement.blur());
+    await scene('notes', ['Want to jot something down? Press My notes and type.', 'Press Save to keep them, or Close to get back to the puzzle.', 'Only you can see your notes, even in a race.']);
+    await p.click('#notes-save'); await p.waitForTimeout(200);
     await fillFromSolution(0.6); await gridView();
     await scene('keep-going', ['Keep going the same way, clue by clue, until the whole grid is filled in.']);
     await fillFromSolution(1);
