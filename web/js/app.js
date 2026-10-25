@@ -1124,6 +1124,7 @@ $('#cast-row').addEventListener('click', (e) => {
   sound('whoosh');
   if (voiceOn()) {
     const lines = clues.length ? clues.map((c) => `${SAYINGS[(c.number + who.length) % SAYINGS.length]} ${c.text}`).join(' ') : "I didn't see anything, I promise.";
+    voiceWaitNote();
     ai.speak(settings, S.puzzle, who, lines, { volume: settings.volume / 100 });
   }
 });
@@ -1131,6 +1132,7 @@ $('#cast-row').addEventListener('click', (e) => {
 $('#read-story').addEventListener('click', () => {
   if (!S) return;
   if (!settings.sound) { status('Sound is off. Turn it on to hear the story.'); return; }
+  voiceWaitNote();
   ai.speak(settings, S.puzzle, 'narrator', S.puzzle.story.paragraphs.join(' '), { volume: settings.volume / 100 });
 });
 // Free Kokoro voices: one-time model download, then they run on this computer.
@@ -1159,6 +1161,31 @@ $('#kokoro-get').addEventListener('click', async () => {
     bar.hidden = true;
   }
 });
+// Natural voices are the default for all speech. On first launch they download
+// in the background; later launches load them from the browser's cache early,
+// so the first Read aloud starts promptly.
+async function ensureNaturalVoices() {
+  if ((settings.voiceProvider || 'kokoro') !== 'kokoro' || settings.silent || ai.kokoroLoading()) return;
+  const first = !ai.kokoroReady(settings);
+  if (first && (navigator.onLine === false || navigator.connection?.saveData)) return;
+  if (first) toast('Getting the natural voices ready. This is a one-time download of about 90 MB.', null, { ms: 8000 });
+  try {
+    await ai.kokoroDownload();
+    if (first) {
+      settings.kokoroReady = true;
+      store.saveSettings(settings);
+      kokoroStatus();
+      toast('Natural voices are ready.');
+    }
+  } catch (e) {
+    console.warn('Natural voices not ready:', e.message);
+    if (first) toast('The natural voices could not be downloaded yet. The game will try again next time.', { label: 'Try again', run: ensureNaturalVoices });
+  }
+}
+function voiceWaitNote() {
+  if (ai.kokoroLoading() && (settings.voiceProvider || 'kokoro') === 'kokoro') status(`The natural voices are still getting ready (${Math.round(ai.kokoroProgress() * 100)}%). Speech starts when they are.`);
+}
+
 $('#gemini-test').addEventListener('click', async () => {
   const out = $('#gemini-test-result');
   if (!ai.geminiReady(settings)) { out.textContent = 'Paste a Google key first.'; return; }
@@ -1456,6 +1483,7 @@ async function init() {
   document.documentElement.classList.add('ready');
   offerIntro();
   setTimeout(checkUpdates, 4000);
+  if (!isPreview) setTimeout(ensureNaturalVoices, 1500);
 }
 init();
 
