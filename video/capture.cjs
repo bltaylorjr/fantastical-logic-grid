@@ -343,6 +343,9 @@ const CSS = `
     await clearFx(); await hl(['[data-act=undo]', '[data-act=redo]']);
     await scene('undo', ['Made a mistake? Undo and Redo take back any move, as many times as you like.']);
     await clearFx();
+    await top(); await clickShown('[data-act=restart]'); await p.waitForSelector('#dlg-confirm[open]');
+    await scene('start-over', ['Want a fresh start? Press Start over.', 'It clears your marks and resets the timer, hints and checks.', 'Your notes stay unless you choose to clear them, and Undo can bring everything back.']);
+    await p.click('#confirm-no'); await p.waitForTimeout(200);
     await gridView(); await p.check('input[name=view][value=list]', { force: true }); await p.waitForTimeout(200); await hl('#grid-region');
     await scene('listview', ['Prefer words to grids? List view lets you choose each match from a menu.', 'The game also works fully by keyboard and with a screen reader.']);
     await clearFx(); await p.check('input[name=view][value=grid]', { force: true });

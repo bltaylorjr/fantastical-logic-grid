@@ -149,6 +149,30 @@ const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`o
     assert(await page.inputValue('#my-notes') === 'Chef is not in the cellar.\nCheck hat colors?', 'notes restored on resume');
     await page.keyboard.press('Escape');
 
+    // start over: asks first, keeps notes unless asked, and can be undone
+    const progress = () => page.evaluate(() => { const S = window.__flg.state; return { marks: S.marks.size, hints: S.save.hintsUsed, checks: S.save.checksUsed, ms: S.save.elapsedMs, notes: S.save.myNotes, restarted: !!S.save.restarted }; });
+    const p0 = await progress();
+    await page.click('[data-act=restart]');
+    await page.waitForSelector('#dlg-confirm[open]');
+    assert(await page.isVisible('#confirm-check') && !(await page.isChecked('#confirm-check')), 'start over offers to clear notes, unticked');
+    await page.click('#confirm-no');
+    assert((await progress()).marks === p0.marks, 'Keep playing leaves the puzzle as it was');
+    await page.click('[data-act=restart]');
+    await page.click('#confirm-yes');
+    let p1 = await progress();
+    assert(p1.marks === 0 && p1.hints === 0 && p1.checks === 0 && p1.ms < 1500 && p1.restarted, `start over clears marks, hints, checks and time (${JSON.stringify(p1)})`);
+    assert(p1.notes === p0.notes && (await page.textContent('#hint-count')) === '', 'start over keeps my notes and resets the hint count');
+    assert(await page.evaluate(() => window.__flg.state.save.ticked.length) === 0, 'start over unticks clues');
+    await page.keyboard.press('Control+z');
+    p1 = await progress();
+    assert(p1.marks === p0.marks && p1.hints === p0.hints && p1.checks === p0.checks && !p1.restarted, 'undo brings back everything start over cleared');
+    await page.click('[data-act=restart]');
+    await page.check('#confirm-check');
+    await page.click('#confirm-yes');
+    assert((await progress()).notes === '', 'start over can also clear my notes');
+    await page.keyboard.press('Control+z');
+    assert((await progress()).notes === p0.notes, 'undo brings the notes back');
+
     // reveal => solved
     await page.click('[data-act=reveal]');
     await page.click('#confirm-yes');
@@ -173,6 +197,12 @@ const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`o
     await page.screenshot({ path: process.env.SHOTS + '/5-solved.png', fullPage: true });
     assert(await page.locator('#resolution .hero svg').count() === 1, 'resolution scene shows the culprit');
     assert(await page.locator('#scene .layer.on').count() === 5, 'whole scene revealed when solved');
+    await page.click('[data-act=restart]');
+    await page.click('#confirm-yes');
+    assert(await page.isHidden('#solved') && !(await page.evaluate(() => window.__flg.state.save.solved)), 'start over on a solved puzzle reopens it');
+    await page.keyboard.press('Control+z');
+    await page.waitForSelector('#solved:not([hidden])');
+    assert(await page.evaluate(() => window.__flg.state.save.solved && !window.__flg.state.save.restarted), 'undo of start over shows it solved again');
 
     // mobile layout: no sideways page scroll
     await page.setViewportSize({ width: 360, height: 800 });

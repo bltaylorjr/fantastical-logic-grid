@@ -68,15 +68,18 @@ function toast(text, action, { ms = 6000 } = {}) {
   start();
 }
 
-function confirmDialog({ title, text, yes, no }) {
+// check: optional { label, checked } for one extra choice; its checked is set on close.
+function confirmDialog({ title, text, yes, no, check }) {
   const dlg = $('#dlg-confirm');
+  $('#confirm-check-row').hidden = !check;
+  if (check) { $('#confirm-check-label').textContent = check.label; $('#confirm-check').checked = !!check.checked; }
   $('#confirm-h').textContent = title;
   $('#confirm-text').textContent = text;
   $('#confirm-yes').textContent = yes;
   $('#confirm-no').textContent = no;
   const back = document.activeElement;
   return new Promise((resolve) => {
-    const done = (v) => { dlg.close(); resolve(v); back?.focus?.(); };
+    const done = (v) => { if (check) check.checked = $('#confirm-check').checked; dlg.close(); resolve(v); back?.focus?.(); };
     $('#confirm-yes').onclick = () => done(true);
     $('#confirm-no').onclick = () => done(false);
     dlg.oncancel = (e) => { e.preventDefault(); done(false); };
@@ -608,7 +611,8 @@ function paintCell(k) {
   S.grid.paint(k, S.marks.get(k) || '', { wrong: S.wrong.has(k), target });
 }
 
-// Every change is a list of { t: 'm' (mark) | 't' (clue tick), k, b (before), a (after) }.
+// Every change is a list of { t: 'm' (mark) | 't' (clue tick) | 's' (progress,
+// used by Start over), k, b (before), a (after) }.
 function applyChanges(changes, dir) {
   for (const ch of changes) {
     const v = dir > 0 ? ch.a : ch.b;
@@ -623,7 +627,7 @@ function applyChanges(changes, dir) {
       const li = $(`#clue-list li[data-n="${n}"]`);
       li.classList.toggle('used', !!v);
       li.querySelector('input').checked = !!v;
-    }
+    } else if (ch.t === 's') applyProgress(v);
   }
 }
 
@@ -941,6 +945,75 @@ async function clearGrid() {
   toast('Grid cleared.', { label: 'Undo', run: undo }, { ms: 10000 });
 }
 
+// Start over: one undoable step that clears marks, ticks and answers and, outside
+// an active race, resets the timer, hints and checks. A restarted puzzle no
+// longer earns scoreboard points, so starting over can't buy a faster score.
+// In an active race the race clock, hints, checks and a reveal all stay.
+const PROGRESS_KEYS = ['elapsedMs', 'hintsUsed', 'checksUsed', 'mistakes', 'revealed', 'solved', 'completedAt', 'scorePending', 'restarted', 'answers', 'myNotes'];
+function progressOf(save) {
+  const o = {};
+  for (const key of PROGRESS_KEYS) o[key] = key === 'answers' ? { ...(save.answers || {}) } : save[key];
+  return o;
+}
+function applyProgress(p) {
+  for (const key of PROGRESS_KEYS) { if (p[key] === undefined) delete S.save[key]; else S.save[key] = key === 'answers' ? { ...p[key] } : p[key]; }
+  for (const q of S.puzzle.questions) {
+    $(`#q-${q.number}`).value = S.save.answers[q.number] || '';
+    $(`#qr-${q.number}`).textContent = '';
+  }
+  $('#answer-result').textContent = '';
+  S.started = performance.now();
+  updateHintCount();
+  updateNotesButton();
+  renderTimer();
+  queueMicrotask(syncSolvedView); // once the marks in the same step are back
+}
+function syncSolvedView() {
+  if (!S) return;
+  if (S.save.solved) {
+    stopTimer();
+    renderTimer();
+    if ($('#solved').hidden) showSolved(false);
+  } else {
+    $('#solved').hidden = true;
+    if (!timerId) startTimer();
+  }
+  wake.setPlaying(!S.save.solved);
+}
+
+async function startOver() {
+  const s = S.save;
+  const racing = !!(s.race && !s.race.finished);
+  if (!S.marks.size && !s.ticked.length && !Object.values(s.answers).some(Boolean) && !s.elapsedMs && !s.hintsUsed && !s.checksUsed) {
+    status('This puzzle is already at the start.');
+    return;
+  }
+  const notes = (s.myNotes || '').trim() ? { label: 'Also clear my notes', checked: false } : null;
+  const text = racing
+    ? 'This removes every X and O, clue tick and answer. The race clock keeps running, and your hints and checks still count. You can undo it.'
+    : `This removes every X and O, clue tick and answer, and resets the timer, hints and checks.${signedIn() && !s.race ? ' A restarted puzzle no longer earns scoreboard points.' : ''} Your notes stay unless you choose to clear them. You can undo it.`;
+  const ok = await confirmDialog({ title: 'Start this puzzle over?', text, yes: 'Start over', no: 'Keep playing', check: notes });
+  if (!ok || !S || S.save !== s) return;
+  tickTimer();
+  const before = progressOf(s);
+  const after = racing
+    ? { ...before, answers: {}, solved: false }
+    : { ...before, elapsedMs: 0, hintsUsed: 0, checksUsed: 0, mistakes: 0, revealed: false, solved: false, completedAt: null, scorePending: undefined, restarted: true, answers: {} };
+  if (notes && notes.checked) after.myNotes = '';
+  clearHint();
+  const old = S.wrong;
+  S.wrong = new Set();
+  for (const k of old) paintCell(k);
+  commit([
+    ...[...S.marks].map(([k, v]) => ({ t: 'm', k, b: v, a: '' })),
+    ...s.ticked.map((n) => ({ t: 't', k: String(n), b: 'y', a: '' })),
+    { t: 's', k: '', b: before, a: after },
+  ], 'start over');
+  sound('clear');
+  status(racing ? 'Started over. The race clock is still running.' : 'Started over.');
+  toast('Puzzle started over.', { label: 'Undo', run: undo }, { ms: 10000 });
+}
+
 async function reveal() {
   if (S.save.solved && !S.save.revealed) { status('This puzzle is already solved.'); return; }
   const raceNote = S.save.race && !S.save.race.finished ? ' In a race this counts as giving up.' : '';
@@ -966,7 +1039,7 @@ function checkSolved() {
   if (solved && !S.save.solved) {
     S.save.solved = true;
     S.save.completedAt = Date.now();
-    if (!S.save.race && !S.save.revealed) S.save.scorePending = true;
+    if (!S.save.race && !S.save.revealed && !S.save.restarted) S.save.scorePending = true;
     tickTimer();
     recordSolve(S.save);
     if (settings.learn) learn.record(S.save, S.save.revealed ? 'revealed' : 'solved').then(() => share.soon(), () => {});
@@ -1545,7 +1618,7 @@ $('#back-saved').onclick = async () => { await goHome({ focusSaved: true }); $('
 
 const ACTIONS = {
   undo, redo, hint, check,
-  clear: clearGrid, reveal,
+  clear: clearGrid, restart: startOver, reveal,
   save: () => flushSave({ manual: true }),
   print: openPrint,
   notes: openNotes,

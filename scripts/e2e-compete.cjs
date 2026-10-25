@@ -169,6 +169,16 @@ function startAuth(signer) {
     assert((await A.page.getAttribute('#race-link', 'href')) === `https://thelogicgrid.com/?race=${code}`, 'a share link is shown');
     await A.page.click('[data-view=share] [data-close]');
     assert(await A.page.isVisible('#race-bar'), 'the play screen shows the race bar');
+    // Start over in a race clears the marks but keeps the race clock and help.
+    await A.page.locator('td.c').first().click();
+    await A.page.click('[data-act=check]');
+    await A.page.waitForTimeout(1100);
+    const raceMs = await A.page.evaluate(() => window.__flg.state.save.elapsedMs);
+    await A.page.click('[data-act=restart]');
+    assert(/race clock keeps running/.test(await A.page.textContent('#confirm-text')), 'start over in a race says the race clock keeps running');
+    await A.page.click('#confirm-yes');
+    const raceAfter = await A.page.evaluate(() => { const s = window.__flg.state; return { marks: s.marks.size, ms: s.save.elapsedMs, checks: s.save.checksUsed }; });
+    assert(raceAfter.marks === 0 && raceAfter.ms >= raceMs && raceAfter.checks === 1, `start over in a race keeps time and checks (${JSON.stringify(raceAfter)})`);
     const title = await A.page.textContent('#p-title');
 
     // ---- B joins with the code from a link and gets the same puzzle.
