@@ -71,6 +71,10 @@ const fakeAndroid = () => {
       await page.locator('#gen-btn').tap();
       await page.waitForSelector('#screen-play:not([hidden])', { timeout: 30000 });
       await noSideScroll('the play screen');
+      // The screen's entrance animation briefly scales it to 99.5%, so measure once it has settled.
+      await page.evaluate(() => Promise.all(document.getAnimations()
+        .filter((a) => a.effect && a.effect.getComputedTiming().iterations !== Infinity)
+        .map((a) => a.finished.catch(() => {}))));
       const cell = await page.locator('td.c').first().boundingBox();
       assert(cell.width >= 44 && cell.height >= 44, `${name}: grid cells are at least 44 px (${Math.round(cell.width)} x ${Math.round(cell.height)})`);
       await page.locator('td.c').nth(5).tap();
