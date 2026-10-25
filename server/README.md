@@ -35,10 +35,14 @@ Worker only checks Firebase's signed ID tokens and learns the player's id.
    app called "The Fantastical Logic Grid". Hosting is not needed. Copy two
    values: **apiKey** and **projectId**. The apiKey is not a secret; it only
    names the project.
-6. Recommended: in Google Cloud Console > APIs & Services > Credentials, edit
-   that "Browser key" and under **API restrictions** allow only *Identity
-   Toolkit API* and *Token Service API*. Do not add website restrictions: the
-   desktop and phone apps have no website address.
+6. Recommended: in Google Cloud Console (project fantastical-logic-grid) >
+   APIs & Services > Credentials, open the "Browser key (auto created by
+   Firebase)" and under **API restrictions** choose *Restrict key* and allow
+   only *Identity Toolkit API* and *Token Service API*. Leave **Application
+   restrictions** at *None*: the desktop and phone apps send no website
+   address, so a website restriction would block their sign-in. The key ships
+   inside every copy of the game anyway; Firebase keys only name the project,
+   and the API restriction stops anyone using it for other Google services.
 
 ### 2. Cloudflare (the Worker and database)
 
@@ -74,8 +78,7 @@ repository variable**, add:
 - `FLG_FIREBASE_API_KEY` = the Firebase apiKey
 - `FLG_CLOUD_URL` = the Worker address from step 2 (the same variable the shared learning service uses)
 
-The next website publish and desktop release include accounts. (Alternatively,
-put the two values in `web/js/cloud-config.js`.) Until both are set, the game
+The next website publish and desktop release include accounts. (The key is kept out of the code so GitHub's secret scanner stays quiet.) Until both are set, the game
 shows no account controls and works exactly as before.
 
 ### Deploying through Cloudflare's GitHub connection
