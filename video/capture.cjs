@@ -466,11 +466,30 @@ const CSS = `
       await clearFx();
       await p.click('#home-btn'); await p.waitForSelector('#tier-choices input'); await prep();
       await scrollTo('#compete-section'); await p.click('#compete-section [data-compete=board]'); await p.waitForSelector('#dlg-board[open] table.board'); await p.waitForTimeout(400);
-      await scene('board', ['The scoreboard ranks players this week and of all time.', 'Every solve earns points, even when you play on your own.']);
+      await scene('board', ['The scoreboard ranks players this week and of all time.', 'Every solve earns points, even when you play on your own.', 'Press Scoring and race rules to see exactly how points are awarded.']);
       await p.keyboard.press('Escape');
       await p.evaluate(async () => (await import('./js/compete-ui.js')).refreshMiniBoard({ force: true }));
       await p.waitForSelector('#miniboard:not([hidden])'); await top(); await hl('#miniboard');
       await scene('miniboard', ["This week's leaders are always in view at the top of the page.", 'Select Scoreboard there to see the full board.']);
+      // Challenge one player by screen name.
+      await scrollTo('#compete-section');
+      await p.click('[data-compete=challenge]'); await p.waitForSelector('#dlg-race[open] [data-view=challenge]:not([hidden])');
+      await p.fill('#challenge-name', 'Bold Badger');
+      await scene('challenge', ['To race one particular player, press Challenge a player and type their screen name.']);
+      await p.click('[data-view=challenge] button[type=submit]');
+      await p.waitForSelector('[data-view=share]:not([hidden])', { timeout: 60000 });
+      await p.waitForFunction(() => /Challenge sent/.test(document.querySelector('#race-invite-msg').textContent), null, { timeout: 15000 });
+      await p.click('[data-view=share] [data-close]'); await p.waitForTimeout(300);
+      await p.click('#home-btn'); await p.waitForSelector('#tier-choices input');
+      // The rival challenges back, so the invite shows on this screen.
+      await rival.click('#home-btn').catch(() => {}); await rival.waitForSelector('#compete-section [data-compete=challenge]');
+      await rival.click('[data-compete=challenge]'); await rival.fill('#challenge-name', 'Sky Fox');
+      await rival.click('[data-view=challenge] button[type=submit]');
+      await rival.waitForFunction(() => /Challenge sent/.test(document.querySelector('#race-invite-msg').textContent), null, { timeout: 60000 });
+      await p.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+      await p.waitForSelector('#compete-invites li', { timeout: 15000 }); await prep();
+      await scrollTo('#compete-invites'); await hl('#compete-invites');
+      await scene('challenge-received', ['They see your challenge under Play against others, the next time they open the game.', 'Accept starts the race on the very same puzzle. No thanks turns it down.']);
       await clearFx();
       await rival.context().close();
     }

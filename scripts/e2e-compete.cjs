@@ -210,6 +210,12 @@ function startAuth(signer) {
     assert(/You \(Sky Fox\) are number/.test(await A.page.textContent('#board-me')), 'A sees their own place');
     assert(await A.page.$$eval('#board-body tr.me', (t) => t.length) === 1, 'A\'s row is highlighted');
     await A.page.screenshot({ path: path.join(process.env.SHOTS || '/tmp', 'compete-board.png') });
+    await A.page.click('#dlg-board [data-rules]');
+    await A.page.waitForSelector('#dlg-rules[open]');
+    assert(/Race time<\/b> = solve time \+ 1 minute per hint/.test(await A.page.innerHTML('#dlg-rules')), 'the scoreboard links to the scoring and race rules');
+    await A.page.locator('#dlg-rules').screenshot({ path: path.join(process.env.SHOTS || '/tmp', 'compete-rules.png') });
+    await A.page.click('#dlg-rules [data-close]');
+    assert(await A.page.isVisible('#dlg-board[open]'), 'closing the rules returns to the scoreboard');
     await A.page.check('input[name=board-period][value=all]', { force: true });
     await A.page.waitForFunction(() => document.querySelectorAll('#board-body tbody tr').length === 2);
     assert(true, 'the all-time board works');
@@ -249,6 +255,50 @@ function startAuth(signer) {
     await A.page.click('[data-compete=find]');
     await A.page.waitForFunction(() => /No open races/.test(document.querySelector('#compete-error').textContent));
     assert(true, 'no race is offered twice');
+
+    // ---- A challenges B by screen name; B accepts from the home screen.
+    await A.page.click('[data-compete=challenge]');
+    await A.page.waitForSelector('#dlg-race[open] [data-view=challenge]:not([hidden])');
+    await A.page.fill('#challenge-name', 'bold badger');
+    await A.page.click('[data-view=challenge] button[type=submit]');
+    await A.page.waitForSelector('[data-view=share]:not([hidden])', { timeout: 30000 });
+    await A.page.waitForFunction(() => /Challenge sent to Bold Badger/.test(document.querySelector('#race-invite-msg').textContent));
+    assert(true, 'a challenge is sent by screen name');
+    const code3 = await A.page.textContent('#race-code-big');
+    await A.page.fill('#race-invite-name', 'Nobody Atall');
+    await A.page.click('#race-invite-form button');
+    await A.page.waitForFunction(() => /No player has that screen name/.test(document.querySelector('#race-invite-msg').textContent));
+    assert(true, 'an unknown screen name is reported');
+    await A.page.locator('#dlg-race').screenshot({ path: path.join(process.env.SHOTS || '/tmp', 'compete-challenge-sent.png') });
+    await A.page.click('[data-view=share] [data-close]');
+    await B.page.click('#home-btn');
+    await B.page.waitForSelector('#compete-invites li', { timeout: 10000 });
+    assert(/Sky Fox<\/b> challenged you/.test(await B.page.innerHTML('#compete-invites')), 'B sees the challenge on the home screen');
+    await B.page.locator('#compete-section').screenshot({ path: path.join(process.env.SHOTS || '/tmp', 'compete-challenge-received.png') });
+    await B.page.click(`[data-invite-accept="${code3}"]`);
+    await B.page.waitForSelector('#screen-play:not([hidden])');
+    assert(await B.page.evaluate(() => window.__flg.state.save.race.code) === code3, 'accepting opens the challenge race');
+    await A.page.click('#race-standings');
+    await A.page.waitForFunction(() => /Bold Badger/.test(document.querySelector('#race-standings-body').textContent) && /Still solving/.test(document.querySelector('#race-standings-body').textContent));
+    assert(true, 'the challenger sees the player has joined');
+    await A.page.keyboard.press('Escape');
+
+    // A second challenge, declined.
+    await A.page.click('#home-btn');
+    await A.page.click('[data-compete=challenge]');
+    await A.page.fill('#challenge-name', 'Bold Badger');
+    await A.page.click('[data-view=challenge] button[type=submit]');
+    await A.page.waitForSelector('[data-view=share]:not([hidden])', { timeout: 30000 });
+    await A.page.click('[data-view=share] [data-close]');
+    await B.page.click('#home-btn');
+    await B.page.waitForSelector('#compete-invites [data-invite-decline]', { timeout: 10000 });
+    await B.page.click('#compete-invites [data-invite-decline]');
+    await B.page.waitForSelector('#compete-invites', { state: 'hidden' });
+    await A.page.click('#race-standings');
+    await A.page.waitForFunction(() => /Said no thanks/.test(document.querySelector('#race-standings-body').textContent));
+    assert(true, 'a declined challenge shows in the standings');
+    await A.page.keyboard.press('Escape');
+    await A.page.click('#home-btn');
 
     // ---- Leaving the scoreboard removes the name and scores.
     await A.page.click('#compete-me [data-compete=name]');

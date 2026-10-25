@@ -12,6 +12,7 @@ public repositories) and a Cloudflare Workers cron trigger (free plan allows 5).
 | Daily puzzle page and sitemap refresh, then IndexNow notice to Bing and other engines | `.github/workflows/pages.yml` | nightly, 00:17 UTC |
 | Weekly live search check (sitemap, every page, canonical links, Lighthouse). Opens a `search-check` issue when something is wrong. See [SEO.md](SEO.md) | `.github/workflows/seo.yml` | Mondays |
 | Cleanup of data the game no longer needs, so the free D1 database never fills up | `server/src/upkeep.js` | daily at 03:17 UTC |
+| Weekly archive email: old rows zipped, emailed to the owner, then removed (off until switched on). See [server/ARCHIVE.md](server/ARCHIVE.md) | `server/src/archive.js` | Mondays at 04:47 UTC |
 | Anonymous error reports from the apps (players can turn them off in Settings) | `web/js/errors.js`, `server/src/errors.js` | when an error happens |
 | Website publish | `.github/workflows/pages.yml` | each push to main |
 | Worker deploy and database migrations | Cloudflare Workers Builds | each push to main |
@@ -27,6 +28,11 @@ the admin audit log after a year, ended bans, and announcements 90 days after
 they end.
 Scores, saves, accounts and approved story parts are never removed (an admin
 can reset a player's scores or delete an account from the admin dashboard).
+While the weekly archive email is switched on, the daily cleanup leaves races,
+play summaries, error reports, voice counters, rejected parts, announcements and
+the logs to the weekly archive, which emails them before removing them (with
+shorter ages: play summaries and the audit log after 90 days). See
+[server/ARCHIVE.md](server/ARCHIVE.md).
 
 ## One-time setup
 
