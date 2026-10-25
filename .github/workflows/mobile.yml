@@ -3,14 +3,17 @@
 # added to that GitHub Release.
 # Android release signing needs these repository secrets (otherwise a debug APK
 # is built): ANDROID_KEYSTORE_BASE64 (the .p12, base64) and ANDROID_KEYSTORE_PASSWORD.
-#
-# PAUSED (Bobby, 2026-10-25): runs only when started by hand from the Actions
-# tab. To resume, put back the pull_request, push and workflow_run triggers:
-#   pull_request / push (main): paths ['mobile/**', 'web/**', 'engine/**', 'scripts/build.mjs', '.github/workflows/mobile.yml']
-#   workflow_run: workflows ['Release desktop app'], types [completed]
 name: Mobile apps
 on:
   workflow_dispatch:
+  pull_request:
+    paths: ['mobile/**', 'web/**', 'engine/**', 'scripts/build.mjs', '.github/workflows/mobile.yml']
+  push:
+    branches: [main]
+    paths: ['mobile/**', 'web/**', 'engine/**', 'scripts/build.mjs', '.github/workflows/mobile.yml']
+  workflow_run:
+    workflows: ['Release desktop app']
+    types: [completed]
 permissions:
   contents: write
 jobs:
