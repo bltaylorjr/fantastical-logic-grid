@@ -2,14 +2,25 @@
 // through Firebase Authentication's REST API (no SDK to bundle). Firebase keeps
 // the email and password; the game never stores the password.
 //
-// Session: the long-lived refresh token is kept on this device (as Firebase's
-// own SDK does) so the player stays signed in. The short-lived ID token (one
-// hour) lives only in memory and is renewed when needed.
+// Session: with "Keep me signed in" (the default) the long-lived refresh token
+// is kept on this device (as Firebase's own SDK does) so the player stays
+// signed in. Without it the token lives in sessionStorage, so closing the game
+// signs the player out. The short-lived ID token (one hour) lives only in
+// memory and is renewed when needed.
 import { CLOUD, cloudEnabled } from './cloud-config.js';
 import * as store from './store.js';
 
 const SESSION = 'auth';
-let session = store.getLocal(SESSION) || null; // { uid, email, refreshToken, verified }
+const TAB_KEY = 'flg.auth';
+function readTabSession() { try { return JSON.parse(sessionStorage.getItem(TAB_KEY)) || null; } catch (e) { return null; } }
+function writeTabSession(v) { try { if (v) sessionStorage.setItem(TAB_KEY, JSON.stringify(v)); else sessionStorage.removeItem(TAB_KEY); } catch (e) { /* memory only */ } }
+let session = store.getLocal(SESSION) || readTabSession(); // { uid, email, refreshToken, verified, remember }
+
+// Keeps the session where the player chose: on the device, or for this visit only.
+function saveSession() {
+  if (session && session.remember === false) { store.setLocal(SESSION, undefined); writeTabSession(session); }
+  else { writeTabSession(null); store.setLocal(SESSION, session || undefined); }
+}
 let idToken = null;
 let idTokenExp = 0;
 const listeners = new Set();
@@ -65,27 +76,27 @@ async function post(url, body, form = false) {
 }
 const auth = (path, body) => post(`${CLOUD.authUrl}/${path}?key=${encodeURIComponent(CLOUD.firebaseApiKey)}`, body);
 
-function begin(data, verified) {
-  session = { uid: data.localId, email: data.email, refreshToken: data.refreshToken, verified: !!verified };
+function begin(data, verified, remember = true) {
+  session = { uid: data.localId, email: data.email, refreshToken: data.refreshToken, verified: !!verified, remember: remember !== false };
   idToken = data.idToken;
   idTokenExp = Date.now() + (Number(data.expiresIn) || 3600) * 1000;
-  store.setLocal(SESSION, session);
+  saveSession();
   emit();
 }
 
-export async function signUp(email, password) {
+export async function signUp(email, password, { remember = true } = {}) {
   if (String(password).length < 8) throw new AccountError('WEAK_PASSWORD', MESSAGES.WEAK_PASSWORD);
   const data = await auth('accounts:signUp', { email, password, returnSecureToken: true });
-  begin(data, false);
+  begin(data, false, remember);
   // A confirmation email helps the player spot a typo before they need a reset.
   auth('accounts:sendOobCode', { requestType: 'VERIFY_EMAIL', idToken: data.idToken }).catch(() => {});
 }
 
-export async function signIn(email, password) {
+export async function signIn(email, password, { remember = true } = {}) {
   const data = await auth('accounts:signInWithPassword', { email, password, returnSecureToken: true });
   let verified = false;
   try { verified = !!(await auth('accounts:lookup', { idToken: data.idToken })).users?.[0]?.emailVerified; } catch (e) { /* optional */ }
-  begin(data, verified);
+  begin(data, verified, remember);
 }
 
 // Always reports success, so the form never reveals which emails have accounts.
@@ -99,7 +110,7 @@ export function signOut() {
   session = null;
   idToken = null;
   idTokenExp = 0;
-  store.setLocal(SESSION, undefined);
+  saveSession();
   emit();
 }
 
@@ -112,7 +123,7 @@ export async function getIdToken({ force = false } = {}) {
     const data = await post(`${CLOUD.tokenUrl}/token?key=${encodeURIComponent(CLOUD.firebaseApiKey)}`, { grant_type: 'refresh_token', refresh_token: session.refreshToken }, true);
     idToken = data.id_token;
     idTokenExp = Date.now() + (Number(data.expires_in) || 3600) * 1000;
-    if (data.refresh_token && data.refresh_token !== session.refreshToken) { session.refreshToken = data.refresh_token; store.setLocal(SESSION, session); }
+    if (data.refresh_token && data.refresh_token !== session.refreshToken) { session.refreshToken = data.refresh_token; saveSession(); }
     return idToken;
   } catch (e) {
     if (SIGNED_OUT_CODES.has(e.code)) { signOut(); throw new AccountError('SIGNED_OUT', MESSAGES[e.code]); }

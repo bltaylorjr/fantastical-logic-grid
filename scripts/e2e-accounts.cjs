@@ -149,6 +149,7 @@ function startAuth(signer) {
     await A.page.click('[data-view=signup] button[type=submit]');
     await A.page.waitForSelector('[data-view=account]:not([hidden])');
     assert((await A.page.textContent('#acct-email')) === 'bobby@example.com', 'signed in after creating the account');
+    assert(await A.page.evaluate(() => !!localStorage.getItem('flg.auth')), '"Keep me signed in" is on by default and keeps the sign-in on the device');
     assert(auth.emails.some((e) => e.type === 'VERIFY_EMAIL'), 'a confirmation email is requested');
     await A.page.waitForFunction(() => /Synced/.test(document.querySelector('#acct-sync-text').textContent), null, { timeout: 15000 });
     assert(true, 'first sync finished');
@@ -261,11 +262,23 @@ function startAuth(signer) {
     await openAccount(B.page);
     await B.page.fill('#si-email', 'bobby@example.com');
     await B.page.fill('#si-pass', 'correct horse battery');
+    assert(await B.page.isChecked('[data-view=signin] [data-remember]'), 'sign-in offers "Keep me signed in", ticked');
+    await B.page.uncheck('[data-view=signin] [data-remember]');
     await B.page.click('[data-view=signin] button[type=submit]');
     await B.page.waitForFunction(() => /Synced/.test(document.querySelector('#acct-sync-text').textContent), null, { timeout: 15000 });
     await B.page.keyboard.press('Escape');
     await B.page.waitForFunction((t) => [...document.querySelectorAll('#saved-list .name')].some((e) => e.textContent === t), title, { timeout: 5000 });
     assert(true, 'signing in again brings the puzzles back');
+    assert(await B.page.evaluate(() => !localStorage.getItem('flg.auth') && !!sessionStorage.getItem('flg.auth')), 'without "Keep me signed in" the sign-in is kept for this visit only');
+    await B.page.reload();
+    await B.page.waitForSelector('#tier-choices input');
+    assert(!/Sign in to keep them/.test(await B.page.textContent('#sync-text')), 'still signed in after a reload');
+    const B2 = await B.ctx.newPage();
+    await B2.goto(`${APP}/`);
+    await B2.waitForSelector('#tier-choices input');
+    await B2.waitForFunction(() => /Sign in to keep them/.test(document.querySelector('#sync-text').textContent), null, { timeout: 5000 });
+    assert(true, 'opening the game afresh is signed out');
+    await B2.close();
     await B.page.screenshot({ path: path.join(process.env.SHOTS || '/tmp', 'acct-home.png') });
 
     // ---- Delete the account.
