@@ -6,7 +6,7 @@ public repositories) and a Cloudflare Workers cron trigger (free plan allows 5).
 | What | Where | When |
 |---|---|---|
 | Tests on every pull request and every push to main | `.github/workflows/ci.yml` | each PR and push |
-| Library updates, each one tested before anyone merges it | `.github/dependabot.yml` | weekly; security fixes right away |
+| Library updates, each one tested; passing patch and minor updates merge themselves and republish the website, major updates wait for you | `.github/dependabot.yml`, `dependabot-merge` in `ci.yml` | weekly; security fixes right away |
 | Health check of the website, Worker, database, daily cleanup and desktop update file. Opens a `health-check` issue when something is down and closes it when it is back up | `.github/workflows/health.yml` | every 3 hours |
 | Daily digest of errors players hit, as a `player-errors` issue | `.github/workflows/health.yml` | daily, once `FLG_ADMIN_TOKEN` is set |
 | Cleanup of data the game no longer needs, so the free D1 database never fills up | `server/src/upkeep.js` | daily at 03:17 UTC |

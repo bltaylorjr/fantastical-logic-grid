@@ -1,5 +1,6 @@
 # Runs every test on each pull request and each push to main, so nothing
-# broken reaches players. Free: GitHub Actions minutes are free for public repos.
+# broken reaches players. Passing Dependabot patch/minor updates merge
+# themselves (dependabot-merge below). Free: GitHub Actions minutes are free for public repos.
 name: Tests
 on:
   pull_request:
@@ -56,3 +57,34 @@ jobs:
       - name: Worker config is valid (dry run, nothing is deployed)
         working-directory: server
         run: npx wrangler deploy --dry-run --outdir "$RUNNER_TEMP/worker"
+
+  # Bobby approved (2026-10-25): Dependabot updates that pass every test above
+  # merge themselves. Only patch and minor updates; major updates wait for a person.
+  dependabot-merge:
+    needs: [app, server]
+    if: github.event_name == 'pull_request' && github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+    steps:
+      - id: meta
+        uses: dependabot/fetch-metadata@v2
+      - name: Merge a passing patch or minor update
+        if: steps.meta.outputs.update-type == 'version-update:semver-patch' || steps.meta.outputs.update-type == 'version-update:semver-minor'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.html_url }}
+        run: |
+          gh pr merge "$PR" --squash --delete-branch
+          # A merge made with this workflow's token does not start other
+          # workflows, so ask for the website publish directly. (Cloudflare
+          # deploys the Worker from its side and needs nothing here.)
+          gh workflow run pages.yml --repo "$GITHUB_REPOSITORY" --ref main
+      - name: Leave major updates for a person
+        if: steps.meta.outputs.update-type == 'version-update:semver-major'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.html_url }}
+        run: gh pr comment "$PR" --body "All tests pass. This is a major version update, so it waits for a person to merge it."

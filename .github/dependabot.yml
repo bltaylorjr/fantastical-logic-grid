@@ -1,7 +1,7 @@
 # Dependabot (free, built into GitHub) opens a pull request each week when a
 # library the game uses has an update, and right away for security fixes.
-# Every PR runs the full test suite (.github/workflows/ci.yml) and waits for
-# a person to merge it.
+# Every PR runs the full test suite (.github/workflows/ci.yml). Passing patch
+# and minor updates merge themselves; major updates wait for a person.
 version: 2
 updates:
   - package-ecosystem: npm
