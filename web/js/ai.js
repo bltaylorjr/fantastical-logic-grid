@@ -79,7 +79,7 @@ export function portraitImage(settings, puzzle, name) {
 // ---------------------------------------------------------------------------
 // Voice
 // ---------------------------------------------------------------------------
-const AI_VOICES = ['alloy', 'ash', 'ballad', 'coral', 'echo', 'fable', 'nova', 'onyx', 'sage', 'shimmer', 'verse'];
+const AI_VOICES = ['alloy', 'ash', 'ballad', 'echo', 'nova', 'onyx', 'sage', 'shimmer', 'verse'];
 let current = null;
 
 function hashOf(text) { let h = 7; for (const c of text) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h; }
@@ -119,7 +119,7 @@ async function geminiTts(settings, text, voice) {
     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': settings.geminiKey.trim() },
     body: JSON.stringify({
       contents: [{ parts: [{ text }] }],
-      generationConfig: { responseModalities: ['AUDIO'], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } } },
+      generationConfig: { responseModalities: ['AUDIO'], speechConfig: { languageCode: 'en-US', voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } } },
     }),
   });
   if (!res.ok) {
@@ -144,21 +144,26 @@ export async function testGeminiKey(settings) {
   return true;
 }
 
-// Pick the most natural voice the computer has (Windows 11 and Edge include "Natural" voices).
-function deviceVoice(seed) {
+// Pick the most natural American English voice the computer has. Windows 11
+// and Edge include "Natural" voices such as Aria, Jenny, Guy and Ava.
+function deviceVoice(seed, narrator) {
   const voices = (window.speechSynthesis && speechSynthesis.getVoices()) || [];
-  const lang = (navigator.language || 'en').slice(0, 2);
-  let pool = voices.filter((v) => v.lang && v.lang.startsWith(lang));
-  if (!pool.length) pool = voices.filter((v) => v.lang && v.lang.startsWith('en'));
+  const us = voices.filter((v) => /^en[-_]US/i.test(v.lang || ''));
+  let pool = us.length ? us : voices.filter((v) => /^en/i.test(v.lang || ''));
   const natural = pool.filter((v) => /natural|neural|online|premium|enhanced/i.test(v.name));
-  const pick = natural.length ? natural : pool;
-  return pick.length ? pick[seed % pick.length] : null;
+  if (natural.length) pool = natural;
+  if (narrator) {
+    const storyteller = pool.find((v) => /aria|jenny|ava|samantha/i.test(v.name));
+    if (storyteller) return storyteller;
+  }
+  return pool.length ? pool[seed % pool.length] : null;
 }
 
 // Free natural voices that run on this computer (Kokoro, Apache-2.0). The
 // model downloads once from Hugging Face (about 90 MB) and then works offline.
 const KOKORO_NARRATOR = 'af_heart';
-const KOKORO_VOICES = ['af_bella', 'am_michael', 'bf_emma', 'am_fenrir', 'af_nicole', 'bm_george', 'am_puck', 'af_aoede', 'bm_fable'];
+// American English voices only, best rated first.
+const KOKORO_VOICES = ['af_bella', 'am_michael', 'af_nicole', 'am_fenrir', 'af_aoede', 'am_puck'];
 let kWorker = null;
 let kSeq = 0;
 const kCalls = new Map();
@@ -191,8 +196,8 @@ export async function kokoroDownload(onProgress) {
   try { await kokoro({ type: 'load' }); } finally { kProgress = null; }
   return true;
 }
-async function kokoroTts(text, voice) {
-  const { wav } = await kokoro({ type: 'speak', text, voice });
+async function kokoroTts(text, voice, speed = 1) {
+  const { wav } = await kokoro({ type: 'speak', text, voice, speed });
   return new Blob([wav], { type: 'audio/wav' });
 }
 
@@ -209,6 +214,40 @@ export function cleanSpeech(text) {
     .replace(/\s+([.,!?;:])/g, '$1')
     .trim();
 }
+// Spoken forms for things voices tend to stumble on: times, ranges, symbols,
+// abbreviations and all-caps words. Punctuation is kept so voices pause there.
+const SPOKEN = [
+  [/\b(\d{1,2}):00\s*([AP])\.?M\.?\b/g, '$1 $2M'],
+  [/\b([AP])\.M\.(?=\s+[A-Z]|\s*$)/g, '$1M.'],
+  [/\b([AP])\.M\./g, '$1M'],
+  [/(\d)\s*[-–]\s*(\d)/g, '$1 to $2'],
+  [/\s*[—–]\s*|\s+-\s+/g, ', '],
+  [/\.{3}|…/g, '. '],
+  [/\s*&\s*/g, ' and '],
+  [/(\d)\s*%/g, '$1 percent'],
+  [/(\d)\s*[x×]\s*(\d)/g, '$1 by $2'],
+  [/#\s?(\d)/g, 'number $1'],
+  [/\bMr\.\s/g, 'Mister '],
+  [/\bMrs\.\s/g, 'Missus '],
+  [/\bMs\.\s/g, 'Miz '],
+  [/\bDr\.\s(?=[A-Z])/g, 'Doctor '],
+  [/\bSt\.\s(?=[A-Z])/g, 'Saint '],
+  [/\be\.g\.,?/gi, 'for example,'],
+  [/\bi\.e\.,?/gi, 'that is,'],
+  [/\betc\./gi, 'and so on.'],
+  [/\bvs\.?\s/gi, 'versus '],
+  [/\b(\w+)\/(\w+)\b/g, '$1 or $2'],
+  [/\b(?!(?:AM|PM|TV|DJ|OK|UK|USA|UFO|DNA|VIP|CEO|SOS|FBI|CIA)\b)([A-Z])([A-Z]{2,})\b/g, (m, a, b) => a + b.toLowerCase()],
+  [/\(([^)]*)\)/g, ', $1,'],
+  [/,\s*([.,!?;:])/g, '$1'],
+  [/\s{2,}/g, ' '],
+];
+export function speechText(text) {
+  let t = cleanSpeech(text);
+  for (const [re, to] of SPOKEN) t = t.replace(re, to);
+  return t.trim();
+}
+
 // Short first piece so speech starts fast, then larger pieces.
 export function speechChunks(text) {
   const sentences = text.split(/(?<=[.!?]["”’)]?)\s+/).map((x) => x.trim()).filter(Boolean);
@@ -244,18 +283,20 @@ function voicePlan(settings, puzzle, who) {
   const kind = order.find((k) => ready[k]);
   if (kind === 'kokoro') {
     const voice = narr ? KOKORO_NARRATOR : KOKORO_VOICES[seed % KOKORO_VOICES.length];
-    return { seed, kind, key: `k|${voice}`, make: (t) => kokoroTts(t, voice) };
+    const speed = narr ? 0.94 : 1;
+    return { seed, kind, gap: 220, key: `k2|${voice}|${speed}`, make: (t) => kokoroTts(t, voice, speed) };
   }
   if (kind === 'gemini') {
     const voice = narr ? 'Charon' : GEMINI_VOICES[seed % GEMINI_VOICES.length];
-    return { seed, kind, key: `g|${voice}`, make: (t) => geminiTts(settings, t, voice) };
+    return { seed, kind, gap: 80, key: `g2|${voice}`, make: (t) => geminiTts(settings, t, voice) };
   }
   if (kind === 'openai') {
     const style = narr
       ? `Warm storyteller reading a ${puzzle.theme.name.toLowerCase()} story aloud, unhurried, gentle suspense.`
       : `A character in a ${puzzle.theme.name.toLowerCase()} story telling a detective what they saw. Natural, conversational, a little ${['nervous', 'cheerful', 'serious', 'proud', 'secretive'][seed % 5]}.`;
-    const voice = narr ? 'fable' : AI_VOICES[seed % AI_VOICES.length];
-    return { seed, kind, key: `o|${voice}|${hashOf(style)}`, make: (t) => ttsBlob(settings, t, voice, style) };
+    const accent = ' Speak in a natural General American accent. Enunciate clearly, keep a relaxed, even pace, and pause briefly at commas and full stops. Say names and times naturally.';
+    const voice = narr ? 'coral' : AI_VOICES[seed % AI_VOICES.length];
+    return { seed, kind, gap: 80, key: `o2|${voice}|${hashOf(style)}`, make: (t) => ttsBlob(settings, t, voice, style + accent) };
   }
   return { seed, kind: 'device' };
 }
@@ -266,7 +307,7 @@ const clip = (plan, text) => cached(`voice|${plan.key}|${hashOf(text)}|${text.le
 export function warmVoice(settings, puzzle, who, text) {
   const plan = voicePlan(settings, puzzle, who);
   if (plan.kind === 'device') return;
-  const first = speechChunks(cleanSpeech(text))[0];
+  const first = speechChunks(speechText(text))[0];
   if (first) clip(plan, first).catch(() => {});
 }
 
@@ -283,14 +324,16 @@ function playBlob(blob, volume, token) {
 }
 function speakDevice(text, seed, who, volume, token) {
   if (!window.speechSynthesis || token !== speakToken) return Promise.resolve();
-  const v = deviceVoice(seed);
-  const parts = speechChunks(text);
+  const v = deviceVoice(seed, who === 'narrator');
+  // One utterance per sentence gives a natural pause between sentences.
+  const parts = text.split(/(?<=[.!?]["”’)]?)\s+/).filter(Boolean);
   return new Promise((resolve) => {
     parts.forEach((part, i) => {
       const u = new SpeechSynthesisUtterance(part);
-      if (v) { u.voice = v; u.lang = v.lang; }
-      u.rate = who === 'narrator' ? 0.95 : 1;
-      u.pitch = who === 'narrator' ? 1 : 0.85 + (seed % 5) * 0.08;
+      if (v) u.voice = v;
+      u.lang = (v && v.lang) || 'en-US';
+      u.rate = who === 'narrator' ? 0.92 : 0.97;
+      u.pitch = who === 'narrator' ? 1 : 0.94 + (seed % 5) * 0.03;
       u.volume = volume;
       if (i === parts.length - 1) u.onend = u.onerror = () => resolve();
       speechSynthesis.speak(u);
@@ -303,7 +346,7 @@ function speakDevice(text, seed, who, volume, token) {
 export async function speak(settings, puzzle, who, text, { volume = 1 } = {}) {
   stopSpeaking();
   const token = speakToken;
-  const clean = cleanSpeech(text);
+  const clean = speechText(text);
   const plan = voicePlan(settings, puzzle, who);
   if (plan.kind === 'device') return speakDevice(clean, plan.seed, who, volume, token);
   const parts = speechChunks(clean);
@@ -322,6 +365,8 @@ export async function speak(settings, puzzle, who, text, { volume = 1 } = {}) {
     }
     try {
       if (!(await playBlob(blob, volume, token))) return undefined;
+      // A short breath between sentences, as a reader would take.
+      if (plan.gap && i < parts.length - 1) await new Promise((r) => setTimeout(r, plan.gap));
     } catch (e) {
       if (e && e.name === 'NotAllowedError') return undefined;
       return speakDevice(parts.slice(i).join(' '), plan.seed, who, volume, token);

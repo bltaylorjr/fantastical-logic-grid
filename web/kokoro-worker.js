@@ -5,7 +5,7 @@
 import { KokoroTTS, env } from './vendor/kokoro/kokoro.web.js';
 
 const MODEL = 'onnx-community/Kokoro-82M-v1.0-ONNX';
-const VOICES = ['af_heart', 'af_bella', 'af_nicole', 'af_aoede', 'bf_emma', 'am_michael', 'am_fenrir', 'am_puck', 'bm_george', 'bm_fable'];
+const VOICES = ['af_heart', 'af_bella', 'af_nicole', 'af_aoede', 'am_michael', 'am_fenrir', 'am_puck'];
 env.wasmPaths = new URL('./vendor/ort/', import.meta.url).href;
 
 // The library looks voices up in this cache by their Hugging Face address, so
