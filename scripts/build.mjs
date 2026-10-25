@@ -32,6 +32,8 @@ for (const [from, to] of [['latin-400-normal', 'atkinson-400'], ['latin-700-norm
   const f = join(fontDir, `atkinson-hyperlegible-${from}.woff2`);
   if (existsSync(f)) cpSync(f, join(web, 'fonts', `${to}.woff2`));
 }
+const cinzel = join(root, 'node_modules/@fontsource/cinzel/files/cinzel-latin-700-normal.woff2');
+if (existsSync(cinzel)) cpSync(cinzel, join(web, 'fonts', 'cinzel-700.woff2'));
 
 // 3. dist/web with a stamped service worker.
 rmSync(out, { recursive: true, force: true });

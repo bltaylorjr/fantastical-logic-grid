@@ -11,6 +11,7 @@ import { portrait } from './portraits.js';
 import * as wake from './wakelock.js';
 import * as updates from './updates.js';
 import { celebrate as confettiBurst } from './effects.js';
+import { icon } from './icons.js';
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -127,9 +128,15 @@ function applyColorTheme() {
 // ====================================================================
 // Screens
 // ====================================================================
+// The backdrop and accents take the colors of the chosen theme's world.
+function setWorld(id) { document.documentElement.dataset.world = id || 'random'; }
+
 function showScreen(name) {
   $('#screen-home').hidden = name !== 'home';
   $('#screen-play').hidden = name !== 'play';
+  const scr = $(`#screen-${name}`);
+  scr.classList.remove('enter'); void scr.offsetWidth; scr.classList.add('enter');
+  setWorld(name === 'play' && S ? S.puzzle.theme.id : setup.theme);
   $('#skip-link').hidden = name !== 'play';
   document.title = name === 'play' && S ? `${S.save.name} · The Fantastical Logic Grid` : 'The Fantastical Logic Grid';
   if (name === 'home') { closeGame(); renderSaved(); renderSuggestion(); setTimeout(offerUpdate, 500); }
@@ -165,13 +172,14 @@ function renderSetup() {
   if (saved) Object.assign(setup, saved);
   if (!TIERS[setup.tier]) setup.tier = 'easy';
 
-  $('#tier-choices').innerHTML = OPTIONS.difficulties.map((d) => `
+  const levels = OPTIONS.difficulties.length;
+  $('#tier-choices').innerHTML = OPTIONS.difficulties.map((d, i) => `
     <label class="choice"><input type="radio" name="tier" value="${d.id}"${d.id === setup.tier ? ' checked' : ''}>
-    <span><b>${esc(d.name)}</b><small>${esc(d.summary)}</small></span></label>`).join('');
+    <span><span class="pips" aria-hidden="true">${'<i class="on"></i>'.repeat(i + 1)}${'<i></i>'.repeat(levels - i - 1)}</span><b>${esc(d.name)}</b><small>${esc(d.summary)}</small></span></label>`).join('');
   const themes = [{ id: 'random', name: 'Surprise me', description: 'Any theme' }, ...OPTIONS.themes];
   $('#theme-choices').innerHTML = themes.map((t) => `
     <label class="choice" title="${esc(t.description || '')}"><input type="radio" name="theme" value="${t.id}"${t.id === setup.theme ? ' checked' : ''} aria-describedby="theme-d-${t.id}">
-    <span>${esc(t.name)}</span><span class="sr-only" id="theme-d-${t.id}">${esc(t.description || '')}</span></label>`).join('');
+    <span class="tile" data-world="${t.id}">${icon(t.id, 'glyph')}<b>${esc(t.name)}</b></span><span class="sr-only" id="theme-d-${t.id}">${esc(t.description || '')}</span></label>`).join('');
   if (!$('input[name=theme]:checked')) $('input[name=theme]').checked = true;
   renderSizes();
   renderClueTypes();
@@ -179,7 +187,8 @@ function renderSetup() {
   $('#items').value = setup.custom[1];
 
   $('#tier-choices').onchange = () => { setup.tier = $('input[name=tier]:checked').value; setup.size = null; renderSizes(); renderClueTypes(); updatePreview(); };
-  $('#theme-choices').onchange = () => { setup.theme = $('input[name=theme]:checked').value; updatePreview(); };
+  $('#theme-choices').onchange = () => { setup.theme = $('input[name=theme]:checked').value; setWorld(setup.theme); updatePreview(); };
+  setWorld(setup.theme);
   $('#size-choices').onchange = () => { setup.size = $('input[name=size]:checked').value; $('#custom-size').hidden = setup.size !== 'custom'; updatePreview(); };
   $('#cats').oninput = $('#items').oninput = () => { setup.custom = [+$('#cats').value || 4, +$('#items').value || 4]; updatePreview(); };
   $('#clue-count').oninput = updatePreview;
@@ -324,6 +333,12 @@ async function renderSaved() {
   let saves = [];
   try { saves = await store.listSaves(); } catch (e) { $('#saved-empty').textContent = 'Saved puzzles could not be loaded on this device.'; }
   saves.sort((a, b) => b.lastPlayed - a.lastPlayed);
+  const last = saves.find((x) => !x.solved);
+  $('#continue-btn').hidden = !last;
+  if (last) {
+    $('#continue-btn').dataset.id = last.id;
+    $('#continue-name').textContent = `${last.name} · ${last.percent || 0}%`;
+  }
   $('#saved-empty').hidden = saves.length > 0;
   const fmt = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' });
   $('#saved-list').innerHTML = saves.map((s) => {
@@ -342,6 +357,12 @@ async function renderSaved() {
       </div></li>`;
   }).join('');
 }
+
+$('#continue-btn').onclick = async () => {
+  const save = await store.getSave($('#continue-btn').dataset.id);
+  if (save) openGame(save);
+};
+$('#hero-new').onclick = () => { $('#setup-h').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); $('#setup-h').tabIndex = -1; $('#setup-h').focus({ preventScroll: true }); };
 
 $('#saved-list').addEventListener('click', async (e) => {
   const b = e.target.closest('button[data-do]');
@@ -645,6 +666,7 @@ function updateProgress() {
   revealScene(done / S.puzzle.grid.blocks.length);
   try { sfx.setMood(pct / 100); } catch (e) { /* ignore */ }
   $('#progress').textContent = `${pct}% filled · ${done} of ${S.puzzle.grid.blocks.length} sections done`;
+  $('#progress-fill').style.width = `${pct}%`;
 }
 
 // ---- list view: one select per row of each sub-grid, sharing the same marks ----

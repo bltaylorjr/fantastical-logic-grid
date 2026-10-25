@@ -108,6 +108,7 @@ const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`o
     await page.reload();
     await page.waitForSelector('.saved-item');
     assert(await page.locator('.saved-item').count() === 1, 'saved list shows the puzzle');
+    assert(await page.locator('#continue-btn').isVisible() && (await page.textContent('#continue-name')).length > 3, 'title banner offers Continue for the unfinished puzzle');
     await page.screenshot({ path: process.env.SHOTS + '/4-saved.png', fullPage: true });
     await page.click('.saved-item [data-do=resume]');
     await page.waitForSelector('#screen-play:not([hidden])');
@@ -122,6 +123,7 @@ const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`o
 
     // solve a fresh puzzle by hand from the solution
     await page.click('#next-btn');
+    await page.waitForSelector('#screen-home:not([hidden])');
     await page.check('input[name=tier][value=basic]', { force: true });
     await page.click('#gen-btn');
     await page.waitForSelector('#screen-play:not([hidden])', { timeout: 30000 });
