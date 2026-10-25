@@ -75,6 +75,7 @@ function startAuth(signer) {
     port: API_PORT,
     modules: true,
     modulesRules: [{ type: 'ESModule', include: ['**/*.js'] }],
+    modulesRoot: ROOT, // learn.js uses the engine's story-part rules
     scriptPath: path.join(ROOT, 'server/src/index.js'),
     compatibilityDate: '2026-08-01',
     d1Databases: ['DB'],
@@ -89,7 +90,7 @@ function startAuth(signer) {
   const app = spawn('node', [path.join(__dirname, 'serve.mjs'), path.join(ROOT, 'dist', 'web'), String(APP_PORT)], { stdio: 'ignore' });
   await new Promise((r) => setTimeout(r, 600));
 
-  const config = `export const CLOUD = { firebaseApiKey: 'test-key', syncUrl: 'http://localhost:${API_PORT}', authUrl: 'http://localhost:${AUTH_PORT}/v1', tokenUrl: 'http://localhost:${AUTH_PORT}/v1' };\nexport const cloudEnabled = () => true;\n`;
+  const config = `export const CLOUD = { firebaseApiKey: 'test-key', syncUrl: 'http://localhost:${API_PORT}', authUrl: 'http://localhost:${AUTH_PORT}/v1', tokenUrl: 'http://localhost:${AUTH_PORT}/v1', learnUrl: '' };\nexport const cloudEnabled = () => true;\nexport const CLOUD_URL = '';\n`;
   const browser = await chromium.launch();
   const errors = [];
   async function device(name) {

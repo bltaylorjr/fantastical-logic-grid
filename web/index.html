@@ -226,6 +226,21 @@
     <p class="ending" id="ending"></p>
     <dl class="solved-stats" id="solved-stats"></dl>
     <div class="compete-result" id="compete-result" hidden></div>
+    <div class="feedback" id="feedback" hidden>
+      <fieldset class="stars"><legend>How was this puzzle?</legend>
+        <label><input type="radio" name="rating" value="1"><span aria-hidden="true">★</span><span class="sr-only">1 star, not for me</span></label>
+        <label><input type="radio" name="rating" value="2"><span aria-hidden="true">★</span><span class="sr-only">2 stars</span></label>
+        <label><input type="radio" name="rating" value="3"><span aria-hidden="true">★</span><span class="sr-only">3 stars</span></label>
+        <label><input type="radio" name="rating" value="4"><span aria-hidden="true">★</span><span class="sr-only">4 stars</span></label>
+        <label><input type="radio" name="rating" value="5"><span aria-hidden="true">★</span><span class="sr-only">5 stars, loved it</span></label>
+      </fieldset>
+      <fieldset class="feel"><legend>How did the difficulty feel?</legend>
+        <label class="chip"><input type="radio" name="feel" value="easy"> Too easy</label>
+        <label class="chip"><input type="radio" name="feel" value="right"> Just right</label>
+        <label class="chip"><input type="radio" name="feel" value="hard"> Too hard</label>
+      </fieldset>
+      <p class="help"><span id="feedback-thanks" role="status"></span> <button class="btn quiet small" type="button" id="feedback-idea">Add a story idea</button></p>
+    </div>
     <p id="next-tip"></p>
     <div class="solved-actions">
       <button class="btn primary" type="button" id="next-btn">New puzzle</button>
@@ -290,6 +305,14 @@
       <label class="check"><input type="checkbox" name="coach"> Coach tips on my next Easy puzzle</label>
       <label class="check"><input type="checkbox" name="instant"> Show mistakes as I play (a wrong mark gets a warning right away)</label>
     </fieldset>
+    <fieldset class="learning"><legend>Learning</legend>
+      <label class="check"><input type="checkbox" name="learn"> Learn from how I play: tune how tough puzzles are within each level, the mix of clues, and which themes and story parts come up. This stays on this device.</label>
+      <label class="check needs-cloud" hidden><input type="checkbox" name="shareLearning"> Learn from everyone: share my results anonymously and use what all players' games taught. Shared: level, theme, size, clue types, time, hints, mistakes, rating, and which story parts were used. Never shared: your name, saved puzzles, AI keys or anything that identifies you.</label>
+      <p class="help">Every puzzle is still checked to have exactly one solution with no guessing, and no story is ever used twice.</p>
+      <p class="help"><b>What the game has learned</b></p>
+      <ul class="learn-summary" id="learn-summary"></ul>
+      <div class="row-inline"><button class="btn small" type="button" id="learn-workshop">Story workshop</button><button class="btn small quiet" type="button" id="learn-reset">Reset learning</button></div>
+    </fieldset>
     <fieldset><legend>Sound</legend>
       <label class="check"><input type="checkbox" name="sound"> Sound effects</label>
       <div class="field"><label for="volume">Effects volume</label><input type="range" id="volume" name="volume" min="0" max="100" step="5"></div>
@@ -311,6 +334,7 @@
       <label class="check"><input type="checkbox" name="aiVoice"> Use OpenAI for voices too</label>
     </fieldset>
     <fieldset class="ai-settings"><legend>Where voices come from</legend>
+      <label class="check needs-cloud" hidden><input type="checkbox" name="serverVoices"> Free natural voices from the game's server (no key needed). Only the words being spoken are sent. If the day's free voices run out, the voices on this computer take over.</label>
       <label class="radio"><input type="radio" name="voiceProvider" value="kokoro"> Natural human-sounding voices on this computer (recommended; Kokoro, free, no key, works offline after a one-time download)</label>
       <label class="radio"><input type="radio" name="voiceProvider" value="gemini"> Google Gemini natural voices (free tier, needs a free Google key)</label>
       <label class="radio"><input type="radio" name="voiceProvider" value="openai"> OpenAI natural voices (uses the OpenAI key above)</label>
@@ -324,6 +348,38 @@
       <div class="field"><label for="geminiKey">Google Gemini API key</label><input type="password" id="geminiKey" name="geminiKey" autocomplete="off" spellcheck="false" placeholder="AIza..."></div>
       <div class="row-inline"><button class="btn small" type="button" id="gemini-test">Test the Google key</button><span id="gemini-test-result" role="status"></span></div>
     </fieldset>
+    <div class="dlg-actions"><button class="btn primary" value="close">Done</button></div>
+  </form>
+</dialog>
+
+<dialog id="dlg-workshop" class="wide" aria-labelledby="workshop-h">
+  <form method="dialog" id="workshop-form">
+    <h2 id="workshop-h">Story workshop</h2>
+    <p class="help">Add your own story parts. The game mixes them with its own to write brand new stories, so a story is never repeated. Story parts only change the words, never the logic, so every puzzle still has exactly one solution.</p>
+    <div class="field"><label for="ws-theme">Theme</label><select id="ws-theme"></select></div>
+    <fieldset><legend>Part of the story</legend>
+      <label class="radio"><input type="radio" name="wskind" value="openings" checked> Opening: where everyone is</label>
+      <label class="radio"><input type="radio" name="wskind" value="incidents"> Event: what happened</label>
+      <label class="radio"><input type="radio" name="wskind" value="mishaps"> Mix-up: why the facts got scrambled</label>
+      <label class="radio"><input type="radio" name="wskind" value="endings"> Ending: shown when the puzzle is solved</label>
+    </fieldset>
+    <p class="help" id="ws-tip"></p>
+    <div class="field" id="ws-name-row" hidden><label for="ws-name">Short name for the title (1 to 3 words)</label><input type="text" id="ws-name" maxlength="40" placeholder="Golden Key"></div>
+    <div class="field"><label for="ws-text">Your text</label><textarea id="ws-text" rows="3" maxlength="300"></textarea></div>
+    <div class="field" id="ws-prize-row" hidden><label for="ws-prize">The thing at stake</label><input type="text" id="ws-prize" maxlength="60" placeholder="the golden key"></div>
+    <label class="check needs-cloud" hidden><input type="checkbox" id="ws-share" checked> Also send it to the game's editor to share with every player (it is reviewed first)</label>
+    <div class="ws-errors" id="ws-errors" role="alert"></div>
+    <div class="row-inline"><button class="btn primary small" type="button" id="ws-add">Add to the game</button><span id="ws-status" role="status"></span></div>
+
+    <fieldset class="ai-writer"><legend>AI story writer (optional)</legend>
+      <p class="help">Describe an idea and the AI drafts a few story parts for you to choose from. It uses your Google Gemini or OpenAI key from the AI settings, and only your idea and the theme are sent. Nothing is added until you approve it.</p>
+      <div class="field"><label for="ws-idea">Your idea</label><input type="text" id="ws-idea" maxlength="200" placeholder="A pirate ship lost in the fog"></div>
+      <div class="row-inline"><button class="btn small" type="button" id="ws-ai">Draft story parts</button><span id="ws-ai-status" role="status"></span></div>
+      <ul class="ws-drafts" id="ws-drafts"></ul>
+    </fieldset>
+
+    <h3>Your story parts</h3>
+    <ul class="ws-mine" id="ws-mine"></ul>
     <div class="dlg-actions"><button class="btn primary" value="close">Done</button></div>
   </form>
 </dialog>

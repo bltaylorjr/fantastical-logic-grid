@@ -3,7 +3,7 @@
 // The key check is independent of the engine's solver: a brute-force search
 // counts every grid that satisfies the clues and must find exactly one.
 import {
-  generatePuzzle, getHint, checkMarks, isSolved, checkAnswers, describeOptions, formatPuzzleText, THEMES, TIERS, parseStoryId,
+  generatePuzzle, getHint, checkMarks, isSolved, checkAnswers, describeOptions, formatPuzzleText, THEMES, TIERS, parseStoryId, checkStoryPart, partKey,
   getTopics,
 } from '../src/index.js';
 import { buildScenario } from '../src/topics.js';
@@ -251,6 +251,54 @@ for (const diff of ['easy', 'medium', 'expert']) {
   check('unknown topic lists the valid ones', msg.includes('halloween') && msg.includes('any'), msg);
   const opts = describeOptions().themes;
   check('describeOptions lists topics with "Any" first', opts.every((t) => t.topics[0].id === 'any' && t.defaultTopic === 'any' && t.topics.length >= 5));
+}
+
+
+// Learning from play: tuning changes which puzzle and story are chosen, never
+// the rules. Every tuned puzzle still has exactly one solution and no reused story.
+{
+  const extra = { mystery: {
+    openings: ['Rain hammered the old observatory, where {n} {many} waited for the comet.'],
+    incidents: [{ name: 'Telescope', text: 'The brass telescope lens vanished during the eclipse.', prize: 'the brass lens' }],
+    mishaps: ['The guestbook got smudged, so only a few facts can be trusted.'],
+    endings: ['{Fact}, so {winner} had {prize} all along, wrapped in a scarf.'],
+  } };
+  check('valid story parts pass', Object.entries(extra.mystery).every(([k, v]) => v.every((x) => checkStoryPart(k, x).ok)));
+  check('a head count is rejected', !checkStoryPart('openings', 'Five {many} met at the pier.').ok);
+  check('an unknown fill-in is rejected', !checkStoryPart('openings', '{N} {many} met {place} at the pier today.').ok);
+  check('an ending needs the answer', !checkStoryPart('endings', 'Everyone went home happy after a long night.').ok);
+  check('links are rejected', !checkStoryPart('mishaps', 'See http://example.com for the facts, they are mixed up.').ok);
+  check('part keys ignore order', partKey('openings', extra.mystery.openings[0]) === partKey('openings', String(extra.mystery.openings[0])));
+
+  const used = [];
+  let repeats = 0, usedExtra = 0;
+  const xo = partKey('openings', extra.mystery.openings[0]);
+  const prefs = { mystery: { o: { [xo]: 1, 0: -1 } } };
+  for (let i = 0; i < (quick ? 40 : 200); i++) {
+    const p = generatePuzzle({ difficulty: 'basic', theme: 'mystery', seed: `learn-${i}`, usedStories: used, storyParts: extra, storyPrefs: prefs });
+    if (used.includes(p.story.id)) repeats++;
+    if (p.story.parts.o === xo) usedExtra++;
+    used.push(p.story.id);
+  }
+  check('added story parts never repeat a story', repeats === 0, `${repeats} repeats`);
+  check('added story parts are used', usedExtra > 0, `${usedExtra}`);
+  const bad = generatePuzzle({ difficulty: 'basic', theme: 'mystery', seed: 'learn-bad', storyParts: { mystery: { openings: ['Five people met.'] } } });
+  check('invalid added parts are ignored', !bad.story.text.startsWith('Five people met.'));
+
+  for (const effort of [-1, 1]) {
+    for (const diff of ['easy', 'medium', 'hard']) {
+      const p = generatePuzzle({ difficulty: diff, seed: `effort-${effort}-${diff}`, learning: { effort, clueWeights: { not: 0.5, either: 2 }, themeWeights: { pets: 3 } } });
+      check(`tuned ${diff} (effort ${effort}) meets tier`, p.stats.meetsTier, p.notes.join(' '));
+      const n = countSolutions(p);
+      if (n >= 0) check(`tuned ${diff} (effort ${effort}) has exactly one solution`, n === 1, `found ${n}`);
+    }
+  }
+  const scores = [-1, 1].map((effort) => {
+    let total = 0;
+    for (let i = 0; i < 6; i++) total += generatePuzzle({ difficulty: 'medium', theme: 'cooking', seed: `cmp-${i}`, learning: { effort } }).stats.difficultyScore;
+    return total;
+  });
+  check('a tougher effort picks tougher puzzles', scores[1] > scores[0], scores.join(' vs '));
 }
 
 console.log('\nGeneration time per tier (ms, avg / max):');

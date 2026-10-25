@@ -19,6 +19,7 @@ before(async () => {
   mf = new Miniflare({
     modules: true,
     modulesRules: [{ type: 'ESModule', include: ['**/*.js'] }],
+    modulesRoot: join(root, '..'), // learn.js uses the engine's story-part rules
     scriptPath: join(root, 'src/index.js'),
     compatibilityDate: '2026-08-01',
     d1Databases: ['DB'],
