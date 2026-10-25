@@ -50,6 +50,8 @@ from it at build time, so it stays in step with the video.
 2. Choose **Import from Google Search Console**. This copies the site and its sitemap in one step.
    - Or add the site by hand, pick the **Meta tag** method, and save its `content` value as
      the repository variable `FLG_BING_SITE_VERIFICATION`, then publish and verify.
+   - Done (2026-10-25): the site is verified with Bing's **XML file** method. The file
+     `hosting/BingSiteAuth.xml` is published at the site root. Keep it there.
 3. IndexNow needs nothing more: the key file is already on the site.
 
 ### 3. Optional, also free
