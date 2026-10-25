@@ -70,6 +70,11 @@ plans only (Firebase Authentication and a Cloudflare Worker with D1) and stay
 switched off until `FLG_FIREBASE_API_KEY` and `FLG_CLOUD_URL` are set. Setup,
 costs and how conflicts are merged: [server/README.md](server/README.md).
 
+Signed-in players can also choose a screen name, race other players on the
+same puzzle (by code, link, or *Find a race*) and climb the weekly and
+all-time scoreboard. It runs on the same free Worker and database; see
+"How races and the scoreboard work" in [server/README.md](server/README.md).
+
 ## Build
 
 ```

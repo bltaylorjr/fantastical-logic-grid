@@ -13,6 +13,7 @@ import * as updates from './updates.js';
 import { celebrate as confettiBurst } from './effects.js';
 import { icon } from './icons.js';
 import { initAccounts, openAccount, onHome as accountsOnHome, signedIn } from './account-ui.js';
+import * as competeUi from './compete-ui.js';
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -140,7 +141,7 @@ function showScreen(name) {
   setWorld(name === 'play' && S ? S.puzzle.theme.id : setup.theme);
   $('#skip-link').hidden = name !== 'play';
   document.title = name === 'play' && S ? `${S.save.name} · The Fantastical Logic Grid` : 'The Fantastical Logic Grid';
-  if (name === 'home') { closeGame(); renderSaved(); renderSuggestion(); accountsOnHome(); setTimeout(offerUpdate, 500); }
+  if (name === 'home') { closeGame(); renderSaved(); renderSuggestion(); accountsOnHome(); competeUi.onHome(); setTimeout(offerUpdate, 500); }
   wake.setPlaying(name === 'play' && S && !S.save.solved);
   updateMusic();
 }
@@ -287,6 +288,43 @@ async function rememberStory(id) {
   await store.setMeta('usedStories', used.slice(-USED_STORY_LIMIT));
 }
 
+// A new puzzle from the setup choices, with a story this player has never had.
+async function makePuzzle() {
+  const options = gatherOptions();
+  store.saveSetupChoices({ tier: setup.tier, theme: setup.theme, topic: setup.topic, size: setup.size, custom: currentSize() });
+  const used = await store.getMeta('usedStories', []);
+  const usedSet = new Set(used);
+  let puzzle = null;
+  // The engine skips used stories itself; the loop is a safety net.
+  for (let i = 0; i < 4 && !puzzle; i++) {
+    const p = await engine.generate({ ...options, usedStories: used });
+    if (!usedSet.has(storyIdOf(p))) puzzle = p;
+  }
+  if (!puzzle) throw new Error('Every story we tried has already been used. Try another theme.');
+  await rememberStory(storyIdOf(puzzle));
+  return puzzle;
+}
+
+function setupSummary() {
+  const [k, n] = currentSize();
+  const theme = OPTIONS.themes.find((t) => t.id === setup.theme);
+  return [TIERS[setup.tier].name, theme ? theme.name : 'Any theme', `${k} × ${n}`].join(' · ');
+}
+
+// A race puzzle: the host's own new puzzle, or one joined from the server.
+async function openRace(puzzle, race) {
+  const existing = await findRaceSave(race.code);
+  if (existing) { openGame(existing); return existing; }
+  await rememberStory(storyIdOf(puzzle));
+  const save = newSave(puzzle);
+  save.race = { code: race.code, finished: false };
+  save.coach = false;
+  await store.putSave(save);
+  openGame(save, { fresh: true });
+  return save;
+}
+async function findRaceSave(code) { return (await store.listSaves()).find((x) => x.race && x.race.code === code) || null; }
+
 let generating = false;
 async function startGeneration() {
   if (generating) return;
@@ -297,19 +335,8 @@ async function startGeneration() {
   err.hidden = true;
   btn.disabled = true;
   st.textContent = 'Writing your story… Large puzzles can take up to 20 seconds.';
-  const options = gatherOptions();
-  store.saveSetupChoices({ tier: setup.tier, theme: setup.theme, topic: setup.topic, size: setup.size, custom: currentSize() });
   try {
-    const used = await store.getMeta('usedStories', []);
-    const usedSet = new Set(used);
-    let puzzle = null;
-    // The engine skips used stories itself; the loop is a safety net.
-    for (let i = 0; i < 4 && !puzzle; i++) {
-      const p = await engine.generate({ ...options, usedStories: used });
-      if (!usedSet.has(storyIdOf(p))) puzzle = p;
-    }
-    if (!puzzle) throw new Error('Every story we tried has already been used. Try another theme.');
-    await rememberStory(storyIdOf(puzzle));
+    const puzzle = await makePuzzle();
     const save = newSave(puzzle);
     await store.putSave(save);
     st.textContent = '';
@@ -364,7 +391,7 @@ async function renderSaved() {
     const state = s.solved ? (s.revealed ? 'Solution revealed' : 'Solved') : `${pct}% complete`;
     return `<li class="saved-item" data-id="${s.id}">
       <h3 class="name">${esc(s.name)}</h3>
-      <div class="info">${esc(p.theme.name)} · ${esc(p.difficulty.name)} · ${p.categories.length} × ${p.categories[0].items.length} · ${state}<br>Last played ${esc(fmt.format(new Date(s.lastPlayed)))}</div>
+      <div class="info">${s.race ? `<span class="pill">Race ${esc(s.race.code)}</span> ` : ''}${esc(p.theme.name)} · ${esc(p.difficulty.name)} · ${p.categories.length} × ${p.categories[0].items.length} · ${state}<br>Last played ${esc(fmt.format(new Date(s.lastPlayed)))}</div>
       <div class="bar" role="img" aria-label="${state}"><i style="width:${pct}%"></i></div>
       <div class="row">
         <button class="btn primary small" type="button" data-do="resume">${s.solved ? 'Open' : 'Resume'}<span class="sr-only"> ${esc(s.name)}</span></button>
@@ -516,6 +543,7 @@ function openGame(save, { fresh = false } = {}) {
   showScreen('play');
   window.scrollTo(0, 0);
 
+  competeUi.onGameOpen(save);
   if (save.solved) showSolved(false);
   if (fresh) {
     $('#p-title').setAttribute('tabindex', '-1');
@@ -851,7 +879,8 @@ async function clearGrid() {
 
 async function reveal() {
   if (S.save.solved && !S.save.revealed) { status('This puzzle is already solved.'); return; }
-  const ok = await confirmDialog({ title: 'Reveal the solution?', text: 'Every cell will be filled in and this puzzle will no longer count as solved by you. You can undo for 10 seconds.', yes: 'Reveal solution', no: 'Keep solving' });
+  const raceNote = S.save.race && !S.save.race.finished ? ' In a race this counts as giving up.' : '';
+  const ok = await confirmDialog({ title: 'Reveal the solution?', text: `Every cell will be filled in and this puzzle will no longer count as solved by you.${raceNote} You can undo for 10 seconds.`, yes: 'Reveal solution', no: 'Keep solving' });
   if (!ok) return;
   const wasRevealed = S.save.revealed;
   const changes = [];
@@ -873,6 +902,7 @@ function checkSolved() {
   if (solved && !S.save.solved) {
     S.save.solved = true;
     S.save.completedAt = Date.now();
+    if (!S.save.race && !S.save.revealed) S.save.scorePending = true;
     tickTimer();
     recordSolve(S.save);
     stopTimer();
@@ -926,6 +956,7 @@ function showSolved(celebrate) {
   res.classList.remove('celebrate');
   if (celebrate) { void res.offsetWidth; res.classList.add('celebrate'); }
   $('#solved').hidden = false;
+  reportResult(save);
   clearHint();
   $('#coach').hidden = true;
   if (celebrate) {
@@ -935,6 +966,15 @@ function showSolved(celebrate) {
     $('#solved').focus({ preventScroll: true });
     announce(`${save.revealed ? 'Solution revealed.' : 'Solved!'} ${S.puzzle.story.ending}`);
   }
+}
+
+// Race results and scoreboard points. A revealed race waits until the undo
+// window has passed, so an accidental reveal can still be taken back.
+function reportResult(save) {
+  const pairs = () => markList().filter((m) => m.mark === 'O').map((m) => [m.a, m.b]);
+  const send = () => { if (S && S.save === save && save.solved) competeUi.onSolved(save, pairs()); };
+  if (save.race && save.revealed && !save.race.finished) setTimeout(send, 11000);
+  else send();
 }
 
 let coachBusy = false;
@@ -1342,6 +1382,7 @@ $('#app-menu').addEventListener('click', async (e) => {
   else if (cmd === 'saved') { await goHome({ focusSaved: true }); $('#saved-section').scrollIntoView(); }
   else if (cmd === 'settings') openSettings();
   else if (cmd === 'account') openAccount();
+  else if (cmd === 'board') competeUi.openBoard();
   else if (cmd === 'install') installApp();
 });
 $('#home-btn').onclick = () => goHome();
@@ -1504,6 +1545,17 @@ async function init() {
     onSavesChanged: () => { if (!$('#screen-home').hidden) renderSaved(); },
     onSettingsChanged: () => { settings = store.loadSettings(); applyColorTheme(); applyMode(); },
   }).catch(() => { /* accounts are optional */ });
+  competeUi.initCompete({
+    openDialog, toast, announce, confirmDialog, openAccount, fmtTime, makePuzzle, setupSummary, openRace, findRaceSave,
+    openSave: (save) => openGame(save),
+    currentTier: () => setup.tier,
+    usedStories: () => store.getMeta('usedStories', []),
+    game: () => S,
+    saveGame: () => scheduleSave(),
+    getSetting: (k) => settings[k],
+    setSetting: (k, v) => { settings[k] = v; store.saveSettings(settings); },
+  });
+  competeUi.handleRaceLink();
   window.addEventListener('resize', () => { if (!$('#screen-home').hidden) updatePreview(); });
   document.documentElement.classList.add('ready');
   offerIntro();

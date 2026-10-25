@@ -1,4 +1,5 @@
-# The game's Cloudflare Worker: player accounts sync (src/sync.js) and the
+# The game's Cloudflare Worker: player accounts sync (src/sync.js), screen
+# names, races and the scoreboard (src/compete.js), and the
 # shared learning + voice service (src/learn.js). Setup steps: README.md.
 name = "flg-api"
 main = "src/index.js"
@@ -32,6 +33,11 @@ simple = { limit = 60, period = 60 }
 name = "LIMIT_AUTHLESS"
 namespace_id = "41011"
 simple = { limit = 120, period = 60 }
+
+[[ratelimits]]
+name = "LIMIT_COMPETE"
+namespace_id = "41020"
+simple = { limit = 30, period = 60 }
 
 [[ratelimits]]
 name = "LIMIT_PLAYS"

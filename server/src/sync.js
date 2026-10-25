@@ -6,10 +6,11 @@
 //   the server copy, and the device merges and tries again. With `since`, the
 //   reply also carries every record written after that rev (a page at a time).
 // DELETE /v1/account
-//   Removes all of the player's synced data. Needs a sign-in from the last
+//   Removes all of the player's synced data, screen name and scores. Needs a sign-in from the last
 //   10 minutes, so a stolen old token cannot erase an account.
 
 import { json } from './http.js';
+import { deleteCompeteStatements } from './compete.js';
 
 const KINDS = new Set(['save', 'meta', 'settings']);
 const MAX_CHANGES = 100;
@@ -110,6 +111,7 @@ export async function handleDeleteAccount(req, env, user) {
   await env.DB.batch([
     env.DB.prepare('DELETE FROM sync_records WHERE user_id = ?1').bind(user.uid),
     env.DB.prepare('DELETE FROM sync_users WHERE user_id = ?1').bind(user.uid),
+    ...deleteCompeteStatements(env, user.uid),
     env.DB.prepare('INSERT OR REPLACE INTO sync_deleted_users (user_id, deleted_at) VALUES (?1, ?2)').bind(user.uid, Date.now()),
   ]);
   return json(req, env, { deleted: true });
