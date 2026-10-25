@@ -53,8 +53,23 @@ function remember(screenName) {
   store.setLocal(PROFILE, user && screenName ? { uid: user.uid, screenName } : undefined);
   return screenName;
 }
-export async function loadName() { return remember((await call('/v1/profile')).screenName); }
-export async function setName(screenName) { return remember((await call('/v1/profile', { method: 'PUT', body: { screenName } })).screenName); }
+let acceptInvites = true;
+export const acceptsInvites = () => acceptInvites;
+export async function loadName() {
+  const r = await call('/v1/profile');
+  acceptInvites = r.acceptInvites !== false;
+  return remember(r.screenName);
+}
+export async function setName(screenName, accept = acceptInvites) {
+  const r = await call('/v1/profile', { method: 'PUT', body: { screenName, acceptInvites: !!accept } });
+  acceptInvites = r.acceptInvites !== false;
+  return remember(r.screenName);
+}
+export async function setAcceptInvites(accept) {
+  const r = await call('/v1/profile', { method: 'PUT', body: { acceptInvites: !!accept } });
+  acceptInvites = r.acceptInvites !== false;
+  return acceptInvites;
+}
 export async function leave() { await call('/v1/profile', { method: 'DELETE' }); remember(null); }
 export function forget() { store.setLocal(PROFILE, undefined); }
 
@@ -91,6 +106,11 @@ export function finishRace(save, pairs) {
     body: { elapsedMs: Math.round(save.elapsedMs), hints: save.hintsUsed || 0, checks: save.checksUsed || 0, revealed: !!save.revealed, pairs },
   });
 }
+
+// Challenges: invite one player by screen name to a race you are in.
+export const invitePlayer = (code, screenName) => call(`/v1/races/${code}/invite`, { method: 'POST', body: { screenName } });
+export const listInvites = () => call('/v1/invites');
+export const declineInvite = (id) => call(`/v1/invites/${id}/decline`, { method: 'POST' });
 
 export const shareLink = (code) => `${SHARE_ORIGIN}/?race=${code}`;
 export const cleanCode = (raw) => String(raw || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);

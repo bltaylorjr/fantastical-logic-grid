@@ -11,6 +11,9 @@
 //   POST   /v1/races/:code/join      returns the race puzzle and starts the clock
 //   POST   /v1/races/:code/finish    { elapsedMs, hints, checks, revealed, pairs }
 //   GET    /v1/races/:code           the standings
+//   POST   /v1/races/:code/invite    { screenName }  challenge a player to this race
+//   GET    /v1/invites               challenges waiting for this player
+//   POST   /v1/invites/:id/decline   say no to a challenge (accepting = joining)
 //
 // Times come from the player's device, but a race time can never be shorter
 // than the server's own clock since joining, and a race only counts as solved
@@ -31,6 +34,7 @@ const MIN_SOLVE_MS = 5_000;
 const MAX_SOLVE_MS = 7 * 24 * 3600_000;
 const SOLO_PER_DAY = 40;
 const RACES_PER_DAY = 20;
+const INVITES_PER_DAY = 30;
 const RACE_PLAYERS = 20;
 const RACE_OPEN_MS = 7 * 24 * 3600_000; // others can join for a week
 const RACE_FINISH_MS = 14 * 24 * 3600_000; // and finish within two
@@ -71,6 +75,7 @@ export function deleteCompeteStatements(env, uid) {
     env.DB.prepare('DELETE FROM players WHERE user_id = ?1').bind(uid),
     env.DB.prepare('DELETE FROM scores WHERE user_id = ?1').bind(uid),
     env.DB.prepare('DELETE FROM race_entries WHERE user_id = ?1').bind(uid),
+    env.DB.prepare('DELETE FROM race_invites WHERE from_id = ?1 OR to_id = ?1').bind(uid),
     env.DB.prepare('UPDATE races SET host_id = NULL WHERE host_id = ?1').bind(uid),
   ];
 }
@@ -202,6 +207,13 @@ async function standings(env, race, uid, now) {
       raceMs: r.solved ? r.adjusted_ms : null,
     };
   });
+  // Players challenged to this race who have not joined yet.
+  const { results: asked } = await env.DB.prepare(`SELECT i.to_id, i.status, p.screen_name FROM race_invites i JOIN players p ON p.user_id = i.to_id
+    WHERE i.code = ?1 AND i.status != 'accepted' AND NOT EXISTS (SELECT 1 FROM race_entries e WHERE e.code = i.code AND e.user_id = i.to_id)
+    ORDER BY i.created_at`).bind(race.code).all();
+  for (const a of asked) {
+    players.push({ name: a.screen_name, me: a.to_id === uid, host: false, status: a.status === 'declined' ? 'declined' : 'invited', place: null, elapsedMs: null, hints: null, checks: null, raceMs: null });
+  }
   return {
     code: race.code, title: race.title, tier: race.tier, cells: race.cells,
     createdAt: race.created_at, closesAt: race.closes_at, open: now < race.closes_at && results.length < RACE_PLAYERS,
@@ -213,7 +225,7 @@ async function standings(env, race, uid, now) {
 const getRace = (env, code) => env.DB.prepare('SELECT code, host_id, tier, cells, story_id, title, public, created_at, closes_at FROM races WHERE code = ?1').bind(code).first();
 
 // ------------------------------------------------------------- routing
-const ROUTES = /^\/v1\/(profile|scores|scoreboard|races)(?:\/(find|[A-Z0-9]{6})(?:\/(join|finish))?)?$/;
+const ROUTES = /^\/v1\/(profile|scores|scoreboard|races|invites)(?:\/(find|[A-Z0-9]{6}|\d{1,12})(?:\/(join|finish|invite|decline))?)?$/;
 
 export async function handleCompete(req, env, ctx, url, signedIn) {
   const m = url.pathname.match(ROUTES);
@@ -254,7 +266,7 @@ export async function handleCompete(req, env, ctx, url, signedIn) {
     const uid = user.uid;
     const isWrite = method !== 'GET';
     if (isWrite && env.LIMIT_COMPETE && !(await env.LIMIT_COMPETE.limit({ key: uid })).success) return fail('slow_down', 429);
-    const profile = await db.prepare('SELECT screen_name FROM players WHERE user_id = ?1').bind(uid).first();
+    const profile = await db.prepare('SELECT screen_name, accept_invites FROM players WHERE user_id = ?1').bind(uid).first();
     const settings = await getSettings(env, now);
     // A banned player can still look at their name and remove it.
     if (!(area === 'profile' && !sub && method !== 'PUT')) {
@@ -264,25 +276,32 @@ export async function handleCompete(req, env, ctx, url, signedIn) {
     const off = (what) => fail('switched_off', 503, { message: `${what} are switched off for now. Please try again later.` });
 
     if (area === 'profile' && !sub) {
-      if (method === 'GET') return json(req, env, { screenName: profile ? profile.screen_name : null });
+      if (method === 'GET') return json(req, env, { screenName: profile ? profile.screen_name : null, acceptInvites: profile ? !!profile.accept_invites : true });
       if (method === 'DELETE') {
         await db.batch(deleteCompeteStatements(env, uid));
         boardCache.clear();
         return json(req, env, { screenName: null });
       }
       if (method === 'PUT') {
-        if (!settings.names_enabled) return off('New screen names');
         const b = await body();
+        // Only the "let others challenge me" switch, keeping the name.
+        if (b && profile && b.screenName === undefined && typeof b.acceptInvites === 'boolean') {
+          await db.prepare('UPDATE players SET accept_invites = ?2 WHERE user_id = ?1').bind(uid, b.acceptInvites ? 1 : 0).run();
+          return json(req, env, { screenName: profile.screen_name, acceptInvites: b.acceptInvites });
+        }
+        if (!settings.names_enabled) return off('New screen names');
         const problem = checkName(b && b.screenName, { extra: settings.blocked_words });
         if (problem) return fail(problem.code, 422, { message: problem.message });
         const name = cleanName(b.screenName);
         const key = nameKey(name);
         const taken = await db.prepare('SELECT user_id FROM players WHERE name_key = ?1').bind(key).first();
         if (taken && taken.user_id !== uid) return fail('name_taken', 409, { message: 'Someone already has that screen name. Try adding a number or another word.' });
-        await db.prepare(`INSERT INTO players (user_id, screen_name, name_key, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?4)
-          ON CONFLICT (user_id) DO UPDATE SET screen_name = excluded.screen_name, name_key = excluded.name_key, updated_at = excluded.updated_at`).bind(uid, name, key, now).run();
+        const accept = typeof b.acceptInvites === 'boolean' ? (b.acceptInvites ? 1 : 0) : (profile ? profile.accept_invites : 1);
+        await db.prepare(`INSERT INTO players (user_id, screen_name, name_key, created_at, updated_at, accept_invites) VALUES (?1, ?2, ?3, ?4, ?4, ?5)
+          ON CONFLICT (user_id) DO UPDATE SET screen_name = excluded.screen_name, name_key = excluded.name_key, updated_at = excluded.updated_at,
+            accept_invites = excluded.accept_invites`).bind(uid, name, key, now, accept).run();
         boardCache.clear();
-        return json(req, env, { screenName: name });
+        return json(req, env, { screenName: name, acceptInvites: !!accept });
       }
       return fail('not_found', 404);
     }
@@ -307,6 +326,24 @@ export async function handleCompete(req, env, ctx, url, signedIn) {
         VALUES (?1, ?2, 'solo', ?3, ?4, ?5, ?6, ?7, ?8, ?9)`).bind(uid, b.storyId, b.tier, cells, elapsedMs, hints, checks, points, now).run();
       boardCache.clear();
       return json(req, env, { points, counted: r.meta.changes > 0 });
+    }
+
+    if (area === 'invites') {
+      if (!sub && method === 'GET') {
+        const { results } = await db.prepare(`SELECT i.id, i.code, i.created_at, r.title, r.tier, r.cells, p.screen_name AS from_name
+          FROM race_invites i JOIN races r ON r.code = i.code LEFT JOIN players p ON p.user_id = i.from_id
+          WHERE i.to_id = ?1 AND i.status = 'pending' AND r.closes_at > ?2
+            AND NOT EXISTS (SELECT 1 FROM race_entries e WHERE e.code = i.code AND e.user_id = ?1)
+          ORDER BY i.created_at DESC LIMIT 20`).bind(uid, now).all();
+        return json(req, env, {
+          invites: results.map((r) => ({ id: r.id, code: r.code, title: r.title, tier: r.tier, cells: r.cells, from: r.from_name || 'A former player', at: r.created_at })),
+        });
+      }
+      if (sub && /^\d+$/.test(sub) && action === 'decline' && method === 'POST') {
+        await db.prepare("UPDATE race_invites SET status = 'declined' WHERE id = ?1 AND to_id = ?2 AND status = 'pending'").bind(Number(sub), uid).run();
+        return json(req, env, { declined: true });
+      }
+      return fail('not_found', 404);
     }
 
     if (area !== 'races') return fail('not_found', 404);
@@ -368,9 +405,34 @@ export async function handleCompete(req, env, ctx, url, signedIn) {
         if (now >= race.closes_at) return fail('race_closed', 410, { message: 'This race has closed to new players.' });
         const { n } = await db.prepare('SELECT COUNT(*) AS n FROM race_entries WHERE code = ?1').bind(sub).first();
         if (n >= RACE_PLAYERS) return fail('race_full', 409, { message: 'This race is full.' });
-        await db.prepare('INSERT OR IGNORE INTO race_entries (code, user_id, joined_at) VALUES (?1, ?2, ?3)').bind(sub, uid, now).run();
+        await db.batch([
+          db.prepare('INSERT OR IGNORE INTO race_entries (code, user_id, joined_at) VALUES (?1, ?2, ?3)').bind(sub, uid, now),
+          db.prepare("UPDATE race_invites SET status = 'accepted' WHERE code = ?1 AND to_id = ?2").bind(sub, uid),
+        ]);
       }
       return json(req, env, { race: await standings(env, race, uid, now), puzzle: JSON.parse(race.puzzle) });
+    }
+
+    if (action === 'invite' && method === 'POST') {
+      if (!entry) return fail('not_in_race', 403, { message: 'Join this race first.' });
+      if (now >= race.closes_at) return fail('race_closed', 410, { message: 'This race has closed to new players.' });
+      const b = (await body()) || {};
+      const key = nameKey(cleanName(b.screenName));
+      const nobody = () => fail('no_player', 404, { message: 'No player has that screen name. Check the spelling and try again.' });
+      if (!key) return nobody();
+      const target = await db.prepare('SELECT user_id, screen_name, accept_invites FROM players WHERE name_key = ?1').bind(key).first();
+      if (!target || (await banOf(env, target.user_id, now))) return nobody();
+      if (target.user_id === uid) return fail('self', 400, { message: 'That is your own screen name. Enter the name of the player you want to challenge.' });
+      if (!target.accept_invites) return fail('no_invites', 403, { message: `${target.screen_name} is not taking challenges right now.` });
+      if (await db.prepare('SELECT 1 FROM race_entries WHERE code = ?1 AND user_id = ?2').bind(sub, target.user_id).first()) {
+        return fail('already_in', 409, { message: `${target.screen_name} is already in this race.` });
+      }
+      const { n: sent } = await db.prepare('SELECT COUNT(*) AS n FROM race_invites WHERE from_id = ?1 AND created_at >= ?2').bind(uid, now - 24 * 3600_000).first();
+      if (sent >= INVITES_PER_DAY) return fail('daily_limit', 429, { message: `You can send up to ${INVITES_PER_DAY} challenges a day.` });
+      // One challenge per player per race: a "no" stays a no.
+      const r = await db.prepare('INSERT OR IGNORE INTO race_invites (code, from_id, to_id, created_at) VALUES (?1, ?2, ?3, ?4)')
+        .bind(sub, uid, target.user_id, now).run();
+      return json(req, env, { invited: target.screen_name, already: r.meta.changes === 0 });
     }
 
     if (action === 'finish' && method === 'POST') {

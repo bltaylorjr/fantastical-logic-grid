@@ -206,3 +206,59 @@ test('the in-game rules table matches the real points formula', () => {
     assert.deepEqual([+atPar, +fast, +slow], [pts(par), pts(par / 2), pts(par * 3)], label);
   }
 });
+
+test('challenges: invite a player by screen name, who accepts or declines', async () => {
+  await name('dee', 'Daring Dee');
+  await name('eli', 'Eli Sleuth');
+  await name('fay', 'Fay Finder');
+  const made = await call('/v1/races', { as: 'dee', body: { puzzle: puzzle('invite-story-1'), public: false } });
+  const code = made.body.code;
+  const inv = (as, screenName, c = code) => call(`/v1/races/${c}/invite`, { as, body: { screenName } });
+
+  assert.equal((await inv('dee', 'nobody here')).status, 404, 'unknown names are refused');
+  assert.equal((await inv('dee', 'daring_dee')).status, 400, 'you cannot challenge yourself');
+  assert.equal((await inv('eli', 'Fay Finder')).status, 403, 'only players in the race can invite');
+  const sent = await inv('dee', 'eli sleuth');
+  assert.equal(sent.status, 200);
+  assert.equal(sent.body.invited, 'Eli Sleuth', 'names match however they are typed');
+  assert.equal((await inv('dee', 'Eli Sleuth')).body.already, true, 'a second invite to the same race is not sent again');
+
+  const list = await call('/v1/invites', { as: 'eli', method: 'GET' });
+  assert.equal(list.body.invites.length, 1);
+  assert.equal(list.body.invites[0].from, 'Daring Dee');
+  assert.equal(list.body.invites[0].code, code);
+  assert.equal((await call('/v1/invites', { as: 'fay', method: 'GET' })).body.invites.length, 0, 'others see nothing');
+
+  let standing = await call(`/v1/races/${code}`, { as: 'dee', method: 'GET' });
+  assert.deepEqual(standing.body.players.map((p) => [p.name, p.status]), [['Daring Dee', 'solving'], ['Eli Sleuth', 'invited']], 'the host sees who was challenged');
+
+  // Eli accepts by joining.
+  assert.equal((await call(`/v1/races/${code}/join`, { as: 'eli' })).status, 200);
+  assert.equal((await call('/v1/invites', { as: 'eli', method: 'GET' })).body.invites.length, 0, 'an accepted challenge leaves the list');
+  standing = await call(`/v1/races/${code}`, { as: 'dee', method: 'GET' });
+  assert.deepEqual(standing.body.players.map((p) => p.status), ['solving', 'solving']);
+  assert.equal((await inv('dee', 'Eli Sleuth')).status, 409, 'a player already in the race is not invited');
+
+  // Eli brings Fay in; Fay says no, and stays a no.
+  await inv('eli', 'Fay Finder');
+  const fayList = await call('/v1/invites', { as: 'fay', method: 'GET' });
+  assert.equal(fayList.body.invites[0].from, 'Eli Sleuth');
+  await call(`/v1/invites/${fayList.body.invites[0].id}/decline`, { as: 'fay' });
+  assert.equal((await call('/v1/invites', { as: 'fay', method: 'GET' })).body.invites.length, 0);
+  assert.equal((await inv('dee', 'Fay Finder')).body.already, true, 'a declined challenge is not sent again');
+  standing = await call(`/v1/races/${code}`, { as: 'dee', method: 'GET' });
+  assert.equal(standing.body.players.find((p) => p.name === 'Fay Finder').status, 'declined');
+
+  // Fay turns challenges off.
+  const off = await call('/v1/profile', { as: 'fay', method: 'PUT', body: { acceptInvites: false } });
+  assert.equal(off.body.screenName, 'Fay Finder', 'the switch keeps the name');
+  assert.equal((await call('/v1/profile', { as: 'fay', method: 'GET' })).body.acceptInvites, false);
+  const other = await call('/v1/races', { as: 'dee', body: { puzzle: puzzle('invite-story-2'), public: false } });
+  const refused = await inv('dee', 'Fay Finder', other.body.code);
+  assert.equal(refused.status, 403);
+  assert.match(refused.body.message, /not taking challenges/);
+
+  // Leaving the scoreboard removes challenges too.
+  await call('/v1/profile', { as: 'eli', method: 'DELETE' });
+  assert.equal((await db.prepare("SELECT COUNT(*) AS n FROM race_invites WHERE from_id = 'eli' OR to_id = 'eli'").first()).n, 0);
+});

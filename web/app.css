@@ -668,3 +668,12 @@ dialog.rules ul, dialog.rules ol { padding-left: 1.4em; margin: 0 0 8px; }
 dialog.rules li { margin: 4px 0; }
 dialog.rules table.board caption { caption-side: top; text-align: left; font-weight: 700; padding: 8px 0 4px; }
 dialog.rules table.board td { font-variant-numeric: tabular-nums; }
+.invites { margin-top: 16px; border-top: 1px solid var(--hairline, var(--border)); padding-top: 12px; }
+.invites h3 { margin: 0 0 8px; font-size: 1rem; }
+.invite-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.invite-list li { border: 1px solid var(--border); border-left: 4px solid var(--accent); border-radius: 12px; padding: 10px 12px; }
+.invite-list p { margin: 0 0 8px; }
+.invite-list .row { display: flex; flex-wrap: wrap; gap: 8px; }
+.invite-row { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; }
+.invite-row .field { flex: 1 1 200px; }
+#race-invite-msg:empty { display: none; }
