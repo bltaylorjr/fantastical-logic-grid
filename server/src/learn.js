@@ -14,10 +14,13 @@
 // connection address that is kept only in memory by Cloudflare's limiter.
 import { checkStoryPart, partKey, PART_KINDS } from '../../engine/src/story.js';
 import { THEMES } from '../../engine/src/themes.js';
+import { getTopics, storyKey } from '../../engine/src/topics.js';
 import { TIER_ORDER, CLUE_TYPES } from '../../engine/src/tiers.js';
 import { ADMIN_HTML } from './learn-admin.js';
 
 const THEME_IDS = new Set(THEMES.map((t) => t.id));
+// Story parts are kept per story key: a theme id (its classic topic) or "theme/topic".
+const STORY_KEYS = new Set(THEMES.flatMap((t) => getTopics(t.id).map((p) => storyKey(t, p))));
 const TIERS = new Set(TIER_ORDER);
 const PLATFORMS = new Set(['web', 'desktop', 'android', 'ios']);
 const OUTCOMES = new Set(['solved', 'revealed', 'abandoned']);
@@ -153,7 +156,7 @@ async function getTuning(req, env, ctx) {
 async function postPart(req, env) {
   const body = await bodyJson(req, 4_000);
   const { theme, kind, value } = body;
-  if (!THEME_IDS.has(theme) || !PART_KINDS[kind]) return json({ ok: false, errors: ['Unknown theme or part.'] }, 400);
+  if (!STORY_KEYS.has(theme) || !PART_KINDS[kind]) return json({ ok: false, errors: ['Unknown theme or part.'] }, 400);
   const check = checkStoryPart(kind, value);
   if (!check.ok) return json(check, 400);
   const key = `${theme}|${kind}|${partKey(kind, value)}`;

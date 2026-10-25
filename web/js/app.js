@@ -1016,7 +1016,7 @@ $('#feedback').addEventListener('change', async (e) => {
   $('#feedback-thanks').textContent = 'Thanks. Your next puzzles will use this.';
   window.share?.soon();
 });
-$('#feedback-idea').onclick = () => workshop.open({ theme: S ? S.puzzle.theme.id : null });
+$('#feedback-idea').onclick = () => workshop.open({ theme: S ? S.puzzle.theme.id : null, topic: S && S.puzzle.topic ? S.puzzle.topic.id : null });
 
 let coachBusy = false;
 async function updateCoach() {
