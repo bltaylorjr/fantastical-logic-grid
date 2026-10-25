@@ -96,6 +96,8 @@ button, input, select { font: inherit; color: inherit; }
 .btn .count { font-weight: 400; color: inherit; }
 .field { display: grid; gap: 4px; }
 .field label { font-weight: 700; }
+.name-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.name-row input { flex: 1 1 12em; width: auto; }
 .field input[type=text], .field input[type=number] { min-height: 44px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); width: 100%; }
 fieldset { border: 0; padding: 0; margin: 0 0 24px; min-width: 0; }
 legend { font-weight: 700; font-size: 1.05rem; padding: 0; margin-bottom: 8px; }
@@ -188,7 +190,8 @@ legend { font-weight: 700; font-size: 1.05rem; padding: 0; margin-bottom: 8px; }
 
 /* The grid: scrolls inside its own frame with pinned headers. */
 .gridframe { overflow: auto; max-height: 80vh; max-width: 100%; border-radius: 4px; overscroll-behavior: contain; }
-table.lg { border-collapse: separate; border-spacing: 0; font-size: 14px; }
+/* The lines between categories, a little heavier than the 1px lines between cells. */
+table.lg { --cat-line: 3px; border-collapse: separate; border-spacing: 0; font-size: 14px; }
 table.lg th { background: var(--bg); font-weight: 400; }
 table.lg thead th { position: sticky; z-index: 2; }
 table.lg thead tr:first-child th { top: 0; }
@@ -197,18 +200,18 @@ table.lg tbody th { position: sticky; z-index: 1; }
 table.lg tbody th.rcat { left: 0; }
 table.lg tbody th.rowh { left: var(--rcat-w, 30px); }
 table.lg thead th.corner { left: 0; z-index: 3; }
-table.lg th.cath { font-weight: 700; text-align: center; padding: 4px; border-bottom: 2px solid var(--rule); height: 30px; white-space: nowrap; }
-table.lg th.colh { vertical-align: bottom; padding: 4px 0 6px; width: var(--cell); min-width: var(--cell); max-width: var(--cell); border-bottom: 2px solid var(--rule); }
+table.lg th.cath { font-weight: 700; text-align: center; padding: 4px; border-bottom: var(--cat-line) solid var(--rule); height: 30px; white-space: nowrap; }
+table.lg th.colh { vertical-align: bottom; padding: 4px 0 6px; width: var(--cell); min-width: var(--cell); max-width: var(--cell); border-bottom: var(--cat-line) solid var(--rule); }
 table.lg th.colh div { writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap; margin: 0 auto; max-height: 160px; overflow: hidden; text-overflow: ellipsis; }
-table.lg th.colh.lastcol, table.lg th.cath { border-right: 2px solid var(--rule); }
-table.lg th.rcat { font-weight: 700; writing-mode: vertical-rl; transform: rotate(180deg); text-align: center; padding: 4px; min-width: 30px; border-left: 2px solid var(--rule); border-bottom: 2px solid var(--rule); }
-table.lg th.rowh { text-align: right; padding: 0 8px; white-space: nowrap; height: var(--cell); border-right: 2px solid var(--rule); max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
-table.lg th.rowh.lastrow { border-bottom: 2px solid var(--rule); }
+table.lg th.colh.lastcol, table.lg th.cath { border-right: var(--cat-line) solid var(--rule); }
+table.lg th.rcat { font-weight: 700; writing-mode: vertical-rl; transform: rotate(180deg); text-align: center; padding: 4px; min-width: 30px; border-left: var(--cat-line) solid var(--rule); border-bottom: var(--cat-line) solid var(--rule); }
+table.lg th.rowh { text-align: right; padding: 0 8px; white-space: nowrap; height: var(--cell); border-right: var(--cat-line) solid var(--rule); max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
+table.lg th.rowh.lastrow { border-bottom: var(--cat-line) solid var(--rule); }
 table.lg th.hl { background: var(--cross); font-weight: 700; }
 td.c { width: var(--cell); height: var(--cell); min-width: var(--cell); padding: 0; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border);
   background: var(--bg); text-align: center; vertical-align: middle; cursor: pointer; user-select: none; -webkit-user-select: none; position: relative; touch-action: manipulation; -webkit-touch-callout: none; }
-td.c.bR { border-right: 2px solid var(--rule); }
-td.c.bB { border-bottom: 2px solid var(--rule); }
+td.c.bR { border-right: var(--cat-line) solid var(--rule); }
+td.c.bB { border-bottom: var(--cat-line) solid var(--rule); }
 td.c.cross { background: var(--cross); }
 td.c.m-x { background: var(--x-fill); }
 td.c:focus { outline: none; box-shadow: inset 0 0 0 3px var(--focus); z-index: 1; }
@@ -569,8 +572,8 @@ dialog::backdrop { background: rgb(5 7 16 / .6); backdrop-filter: blur(6px); -we
   table.pg { border-collapse: collapse; font-size: 10pt; break-inside: avoid; margin: 6pt 0 10pt; }
   table.pg tr { break-inside: avoid; }
   table.pg td.c { width: var(--pcell); height: var(--pcell); min-width: var(--pcell); border: .5pt solid #000; text-align: center; vertical-align: middle; padding: 0; font-size: calc(var(--pcell) * .6); line-height: 1; }
-  table.pg td.c.bR { border-right: 1.5pt solid #000; }
-  table.pg td.c.bB { border-bottom: 1.5pt solid #000; }
+  table.pg td.c.bR { border-right: 2pt solid #000; }
+  table.pg td.c.bB { border-bottom: 2pt solid #000; }
   table.pg td.gap { border: 0; }
   table.pg th { font-weight: 400; padding: 0 3pt; }
   table.pg th.cath { font-weight: 700; border-bottom: 1.5pt solid #000; border-right: 1.5pt solid #000; white-space: nowrap; }

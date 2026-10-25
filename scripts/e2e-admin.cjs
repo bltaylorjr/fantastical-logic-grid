@@ -90,6 +90,16 @@ const SHOTS = process.env.SHOTS;
     const page = await ctx.newPage();
     watch(page);
     await page.goto(`${API}/admin/`);
+    // Installable on phones: manifest, icons and the service worker.
+    const man = await page.evaluate(async () => { const r = await fetch(document.querySelector('link[rel=manifest]').href); return { type: r.headers.get('content-type'), body: await r.json() }; });
+    assert(/manifest\+json/.test(man.type) && man.body.start_url === '/admin/' && man.body.display === 'standalone', 'the dashboard has an app manifest');
+    for (const icon of [...man.body.icons.map((i) => i.src), '/admin/apple-touch-icon.png']) {
+      const st = await page.evaluate(async (u) => (await fetch(u)).status, icon);
+      assert(st === 200, `app icon ${icon} is served`);
+    }
+    const sw = await page.evaluate(async () => { const reg = await navigator.serviceWorker.ready; return reg.scope; });
+    assert(/\/admin\/$/.test(sw), 'the service worker is installed for /admin/');
+    assert(await page.locator('#phone-help summary').isVisible(), 'the sign-in page explains how to put it on a phone');
     await page.fill('#login-email', OWNER);
     await page.fill('#login-password', 'wrong');
     await page.click('#login-form button[type=submit]');

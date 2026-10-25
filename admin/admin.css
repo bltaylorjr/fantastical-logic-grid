@@ -58,8 +58,9 @@ input[type=checkbox] { width: 22px; height: 22px; min-height: 0; accent-color: v
 .note { background: var(--warn-bg); color: var(--text); border-left: 4px solid var(--warn); padding: 12px; border-radius: 8px; margin: 16px 0; }
 
 .login { max-width: 440px; margin: 48px auto; padding: 24px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
-.break-glass { margin-top: 24px; border-top: 1px solid var(--line); padding-top: 12px; }
-.break-glass summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; }
+.break-glass, .phone-help { margin-top: 24px; border-top: 1px solid var(--line); padding-top: 12px; }
+.phone-help + .break-glass { margin-top: 12px; }
+.break-glass summary, .phone-help summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; }
 
 .shell { display: grid; grid-template-columns: 240px 1fr; min-height: calc(100vh - 61px); }
 .nav { background: var(--panel); border-right: 1px solid var(--line); padding: 12px 8px; }

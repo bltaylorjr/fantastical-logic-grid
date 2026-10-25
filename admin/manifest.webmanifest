@@ -1,0 +1,17 @@
+{
+  "name": "The Fantastical Logic Grid Admin",
+  "short_name": "Grid Admin",
+  "description": "The admin dashboard for The Fantastical Logic Grid.",
+  "id": "/admin/",
+  "start_url": "/admin/",
+  "scope": "/admin/",
+  "display": "standalone",
+  "background_color": "#5B3CC4",
+  "theme_color": "#5B3CC4",
+  "icons": [
+    { "src": "/admin/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/admin/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/admin/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "/admin/icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}

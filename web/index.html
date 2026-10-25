@@ -502,8 +502,10 @@
     <h2 id="name-h">Your screen name</h2>
     <p class="help" id="name-required" hidden>You are signed in, so choose a screen name to play under. Players who are not signed in show as Guest.</p>
     <p class="help">Other players see only this name, on the scoreboard and in races. Never your email.</p>
-    <div class="field"><label for="name-input">Screen name</label><input type="text" id="name-input" maxlength="20" autocomplete="nickname" spellcheck="false" aria-describedby="name-rules" required></div>
-    <p class="help" id="name-rules">3 to 20 letters or numbers. Spaces, dots, dashes and underscores are fine. Names must be friendly and not already taken.</p>
+    <div class="field"><label for="name-input">Screen name</label>
+      <div class="name-row"><input type="text" id="name-input" maxlength="20" autocomplete="nickname" spellcheck="false" aria-describedby="name-rules" required><button class="btn" type="button" id="name-suggest">Suggest a name</button></div></div>
+    <p class="help" id="name-rules">Type your own, or press Suggest a name for one made up for you (press again for another). 3 to 20 letters or numbers. Spaces, dots, dashes and underscores are fine. Names must be friendly and not already taken.</p>
+    <p class="sr-only" id="name-suggested" aria-live="polite"></p>
     <label class="check"><input type="checkbox" id="name-post"> Put my solved puzzles on the scoreboard</label>
     <label class="check"><input type="checkbox" id="name-invites"> Let other players challenge me by my screen name</label>
     <div class="error-box" role="alert" hidden></div>

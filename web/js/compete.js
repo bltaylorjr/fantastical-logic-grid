@@ -81,6 +81,16 @@ export function nameProblem(raw) {
   return null;
 }
 
+// A friendly made-up name, such as "SwiftOwl42", for players who would rather
+// not think one up. Always 3 to 20 characters and passes nameProblem; the
+// server still checks it is free.
+const NAME_ADJ = ['Swift', 'Clever', 'Bright', 'Quiet', 'Lucky', 'Brave', 'Keen', 'Sly', 'Sunny', 'Misty', 'Golden', 'Silver', 'Cosmic', 'Witty', 'Nimble', 'Merry', 'Bold', 'Calm', 'Starry', 'Sharp'];
+const NAME_NOUN = ['Owl', 'Fox', 'Sleuth', 'Riddler', 'Wizard', 'Falcon', 'Badger', 'Comet', 'Dragon', 'Otter', 'Raven', 'Sphinx', 'Lynx', 'Puzzler', 'Gryphon', 'Hawk', 'Seeker', 'Pixie', 'Tiger', 'Scout'];
+export function suggestName(rand = Math.random) {
+  const pick = (list) => list[Math.floor(rand() * list.length)];
+  return `${pick(NAME_ADJ)}${pick(NAME_NOUN)}${10 + Math.floor(rand() * 90)}`;
+}
+
 // ------------------------------------------------------------ scores
 export const scoreboard = (period) => call(`/v1/scoreboard?period=${period === 'all' ? 'all' : 'week'}`);
 
