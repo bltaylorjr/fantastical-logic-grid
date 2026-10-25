@@ -166,6 +166,8 @@ secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
 | `GET /v1/health` | anyone | check the Worker is up; `?deep=1` adds the database, last daily cleanup, voice quota and errors today |
 | `POST /v1/errors` | anyone (rate limited) | anonymous error reports from the apps (`src/errors.js`) |
 | `GET /admin/errors?days=7` | `ADMIN_TOKEN` | most frequent error reports |
+| `POST /v1/feedback` | anyone (rate limited) | the game's Ideas and Problems boxes (`src/feedback.js`) |
+| `POST /v1/picture` | anyone (rate limited, daily cap) | AI pictures from Cloudflare Workers AI's free allowance (`src/pictures.js`) |
 | `GET/PUT/DELETE /v1/profile` | signed in | read, choose or remove the screen name |
 | `POST /v1/scores` | screen name | add a solved solo puzzle |
 | `GET /v1/scoreboard?period=week\|all` | anyone | top players (and your place when signed in) |
@@ -176,7 +178,13 @@ secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
 
 Limits: 60 sync requests a minute per player, 1 MB per saved puzzle, 5,000
 records per player; 30 race and score requests a minute per player, 20 races
-started a day; 10 error reports a minute per connection, 300 distinct errors a day.
+started a day; 10 error reports a minute per connection, 300 distinct errors a day;
+5 ideas or problem reports a minute per connection, 500 a day; 10 AI pictures a
+minute per connection and the daily picture cap set in the admin dashboard.
+
+AI pictures use the `[ai]` binding in `wrangler.toml` (Workers AI). It needs no
+key and runs on Cloudflare's free daily allowance; on the free plan Cloudflare
+refuses requests past the allowance and never bills.
 
 A daily cron (`[triggers]` in `wrangler.toml`, `src/upkeep.js`) deletes data the game no longer
 needs; see [MAINTENANCE.md](../MAINTENANCE.md).

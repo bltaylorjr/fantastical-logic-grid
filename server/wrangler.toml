@@ -31,6 +31,11 @@ SEARCH_SITE_URL = "https://thelogicgrid.com/"
 # CF_API_TOKEN and CF_ACCOUNT_ID, GSC_SERVICE_ACCOUNT and BING_WEBMASTER_KEY
 # (see ../admin/README.md).
 
+# Cloudflare Workers AI paints the game's AI pictures (src/pictures.js) on its
+# free daily allowance. No key is needed, and on the free plan it never bills.
+[ai]
+binding = "AI"
+
 # The admin dashboard's files (../admin), served by src/admin.js at /admin/.
 # The Worker runs first so it can add security headers and keep every other
 # path for the API.
@@ -83,6 +88,16 @@ simple = { limit = 5, period = 60 }
 name = "LIMIT_TTS"
 namespace_id = "41003"
 simple = { limit = 30, period = 60 }
+
+[[ratelimits]]
+name = "LIMIT_FEEDBACK"
+namespace_id = "41031"
+simple = { limit = 5, period = 60 }
+
+[[ratelimits]]
+name = "LIMIT_PICTURES"
+namespace_id = "41004"
+simple = { limit = 10, period = 60 }
 
 [[ratelimits]]
 name = "LIMIT_ERRORS"

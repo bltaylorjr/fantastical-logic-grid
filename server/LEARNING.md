@@ -39,10 +39,11 @@ share with everyone. The engine's rules check it first: no head counts, no links
 friendly for all ages, and the right fill-ins. Then it **waits for your review**.
 Nothing a player writes reaches other players until you approve it.
 
-To review, open `https://<your worker address>/admin/learn`, paste your admin token,
-and approve or reject each one. Approved parts reach every player within about 15
-minutes. The same page shows how many games have been shared and how many voice clips
-were made today.
+To review, open the admin dashboard at `https://<your worker address>/admin/`, sign in
+and choose **Story review**, then approve or reject each one. Approved parts reach every
+player within about 15 minutes. The dashboard's Overview and Usage pages show how many
+games have been shared and how many voice clips were made today. (The old
+`/admin/learn` address now opens the dashboard.)
 
 ## One-time setup
 

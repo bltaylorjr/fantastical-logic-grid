@@ -13,7 +13,7 @@ import * as updates from './updates.js';
 import { celebrate as confettiBurst } from './effects.js';
 import { icon } from './icons.js';
 import * as learn from './learn.js';
-import * as workshop from './workshop.js';
+import * as feedbackBox from './feedback.js';
 import * as share from './share.js';
 import * as errorReports from './errors.js';
 import { initAccounts, openAccount, onHome as accountsOnHome, signedIn } from './account-ui.js';
@@ -93,7 +93,7 @@ function openDialog(dlg, focusEl) {
 }
 
 function sound(kind) {
-  if (!settings.sound || settings.silent) return;
+  if (!settings.sound || settings.silent || !remote.feature('soundEffects')) return;
   try { sfx.setVolumes({ sfx: settings.volume / 100, music: settings.musicVolume / 100 }); sfx.play(kind); } catch (e) { /* sound is optional */ }
 }
 
@@ -107,7 +107,7 @@ function applyMode() {
   updateMusic();
 }
 function updateMusic() {
-  const want = !!(S && settings.music && settings.sound && !settings.silent && !$('#screen-play').hidden);
+  const want = !!(S && settings.music && settings.sound && !settings.silent && remote.feature('music') && !$('#screen-play').hidden);
   try {
     if (want && !sfx.musicPlaying()) { sfx.setVolumes({ sfx: settings.volume / 100, music: settings.musicVolume / 100 }); sfx.startMusic(S.puzzle.theme.id); sfx.setMood((S.save.percent || 0) / 100); }
     else if (!want && sfx.musicPlaying()) sfx.stopMusic();
@@ -305,7 +305,7 @@ async function makePuzzle() {
   const usedSet = new Set(used);
   // Learning only picks between puzzles the engine has fully checked.
   let tuned = {};
-  if (settings.learn) { try { tuned = await learn.tuning(setup.tier, { useShared: settings.shareLearning }); } catch (e) { tuned = {}; } }
+  if (settings.learn) { try { tuned = await learn.tuning(setup.tier, { useShared: share.available() && remote.feature('learning') }); } catch (e) { tuned = {}; } }
   // Surprise me never picks a theme that is switched off.
   const off = remote.disabledThemes();
   if (options.theme === 'random' && off.size) {
@@ -552,8 +552,7 @@ function openGame(save, { fresh = false } = {}) {
     <select id="q-${q.number}" data-n="${q.number}"><option value="">Choose an answer</option>${q.options.map((o) => `<option value="${o}"${save.answers[q.number] === o ? ' selected' : ''}>${esc(ix.label(o))}</option>`).join('')}</select>
     <span class="res" id="qr-${q.number}"></span></li>`).join('');
   $('#answer-result').textContent = '';
-  $('#my-notes').value = save.myNotes || '';
-  updateNotesCount();
+  updateNotesButton();
 
   S.grid = createGrid($('#gridframe'), puzzle, ix, {
     onCycle: (k) => { const cur = S.marks.get(k) || ''; setCell(k, cur === '' ? 'X' : cur === 'O' ? '' : 'O'); },
@@ -794,12 +793,30 @@ function updateNotesCount() {
   const left = NOTES_MAX - $('#my-notes').value.length;
   $('#my-notes-count').textContent = left <= 500 ? (left ? `${left} characters left.` : 'Your notes are full.') : '';
 }
+function updateNotesButton() {
+  const has = !!(S && (S.save.myNotes || '').trim());
+  $('#notes-dot').hidden = !has;
+  $('#notes-has').textContent = has ? ' (has notes)' : '';
+}
+function openNotes() {
+  if (!S) return;
+  $('#my-notes').value = S.save.myNotes || '';
+  updateNotesCount();
+  openDialog($('#dlg-notes'), $('#my-notes'));
+}
 $('#my-notes').addEventListener('input', () => {
   if (!S) return;
   S.save.myNotes = $('#my-notes').value;
   updateNotesCount();
+  updateNotesButton();
   scheduleSave();
 });
+$('#notes-save').onclick = async () => {
+  $('#dlg-notes').close();
+  await flushSave({ manual: true });
+  status('Notes saved.');
+};
+$('#notes-close').onclick = () => $('#dlg-notes').close();
 
 // ---- clues and questions ----
 $('#clue-list').addEventListener('change', (e) => {
@@ -1043,7 +1060,7 @@ $('#feedback').addEventListener('change', async (e) => {
   $('#feedback-thanks').textContent = 'Thanks. Your next puzzles will use this.';
   window.share?.soon();
 });
-$('#feedback-idea').onclick = () => workshop.open({ theme: S ? S.puzzle.theme.id : null, topic: S && S.puzzle.topic ? S.puzzle.topic.id : null });
+$('#feedback-idea').onclick = () => feedbackBox.open(openDialog, { kind: 'idea' });
 
 let coachBusy = false;
 async function updateCoach() {
@@ -1183,9 +1200,10 @@ function renderMedia() {
 
 const voiceOn = () => settings.sound && settings.readAloud && !settings.silent;
 
-// Swap in AI pictures when a key is set. Built-in art stays until they arrive.
+// Swap in AI pictures from the game's server when the admin dashboard has them
+// on. Built-in art stays until they arrive, and whenever they can't be made.
 async function loadAiArt() {
-  if (isPreview || settings.silent || !ai.aiReady(settings) || settings.aiPictures === 'none') return;
+  if (isPreview || settings.silent || !ai.picturesReady(settings)) return;
   const game = S;
   const p = game.puzzle;
   const tag = document.createElement('span');
@@ -1201,7 +1219,7 @@ async function loadAiArt() {
     updateProgress();
   } catch (e) {
     tag.remove();
-    if (S === game) status(`AI picture not made: ${e.message} Using the built-in art.`);
+    if (S === game) console.warn('AI picture not made:', e.message);
     return;
   }
   if (settings.aiPictures !== 'all') return;
@@ -1212,7 +1230,7 @@ async function loadAiArt() {
       if (S !== game) return;
       game.portraitUrls[who] = URL.createObjectURL(blob);
       btn.querySelector('svg, img').outerHTML = `<img class="portrait-img" src="${game.portraitUrls[who]}" alt="">`;
-    } catch (e) { if (S === game) status(`AI portrait not made: ${e.message}`); return; }
+    } catch (e) { if (S === game) console.warn('AI portrait not made:', e.message); return; }
   }
 }
 
@@ -1288,37 +1306,11 @@ $('#read-clues').addEventListener('click', async () => {
   });
   readCluesDone();
 });
-// Free Kokoro voices: one-time model download, then they run on this computer.
-function kokoroStatus() {
-  $('#kokoro-status').textContent = ai.kokoroReady(settings) ? 'Free voices are on this computer.' : '';
-  $('#kokoro-get').textContent = ai.kokoroReady(settings) ? 'Check the free voices' : 'Download free voices';
-}
-$('#kokoro-get').addEventListener('click', async () => {
-  const btn = $('#kokoro-get'), out = $('#kokoro-status'), bar = $('#kokoro-progress');
-  btn.disabled = true;
-  bar.hidden = false;
-  bar.value = 0;
-  out.textContent = ai.kokoroReady(settings) ? 'Loading the voices…' : 'Downloading the voices (about 90 MB, one time only)…';
-  try {
-    await ai.kokoroDownload((x) => { bar.value = x; });
-    settings.kokoroReady = true;
-    settings.voiceProvider = 'kokoro';
-    store.saveSettings(settings);
-    for (const r of $$('#settings-form input[name=voiceProvider]')) r.checked = r.value === 'kokoro';
-    kokoroStatus();
-    out.textContent = 'Free voices are ready. They now read the story and clues.';
-  } catch (e) {
-    out.textContent = `The voices could not be downloaded (${e.message.replace(/\.+$/, "")}). Check the internet connection and try again.`;
-  } finally {
-    btn.disabled = false;
-    bar.hidden = true;
-  }
-});
 // Natural voices are the default for all speech. On first launch they download
 // in the background; later launches load them from the browser's cache early,
 // so the first Read aloud starts promptly.
 async function ensureNaturalVoices() {
-  if ((settings.voiceProvider || 'kokoro') !== 'kokoro' || settings.silent || ai.kokoroLoading()) return;
+  if (!['server', 'kokoro'].includes(settings.voiceProvider) || settings.silent || ai.kokoroLoading()) return;
   const first = !ai.kokoroReady(settings);
   if (first && (navigator.onLine === false || navigator.connection?.saveData)) return;
   if (first) toast('Getting the natural voices ready. This is a one-time download of about 90 MB.', null, { ms: 8000 });
@@ -1327,7 +1319,6 @@ async function ensureNaturalVoices() {
     if (first) {
       settings.kokoroReady = true;
       store.saveSettings(settings);
-      kokoroStatus();
       toast('Natural voices are ready.');
     }
   } catch (e) {
@@ -1336,21 +1327,8 @@ async function ensureNaturalVoices() {
   }
 }
 function voiceWaitNote() {
-  if (ai.kokoroLoading() && (settings.voiceProvider || 'kokoro') === 'kokoro') status(`The natural voices are still getting ready (${Math.round(ai.kokoroProgress() * 100)}%). Speech starts when they are.`);
+  if (S && ai.kokoroLoading() && ai.voiceKind(settings, S.puzzle) === 'kokoro') status(`The natural voices are still getting ready (${Math.round(ai.kokoroProgress() * 100)}%). Speech starts when they are.`);
 }
-
-$('#gemini-test').addEventListener('click', async () => {
-  const out = $('#gemini-test-result');
-  if (!ai.geminiReady(settings)) { out.textContent = 'Paste a Google key first.'; return; }
-  out.textContent = 'Checking…';
-  try { await ai.testGeminiKey(settings); out.textContent = 'The key works.'; } catch (e) { out.textContent = `Not working: ${e.message}`; }
-});
-$('#ai-test').addEventListener('click', async () => {
-  const out = $('#ai-test-result');
-  if (!ai.aiReady(settings)) { out.textContent = 'Paste an API key first.'; return; }
-  out.textContent = 'Checking…';
-  try { await ai.testKey(settings); out.textContent = 'The key works.'; } catch (e) { out.textContent = `Not working: ${e.message}`; }
-});
 
 // Adaptive difficulty: suggest a level from the last few solves.
 async function recordSolve(save) {
@@ -1424,24 +1402,18 @@ $('#print-cancel').onclick = () => $('#dlg-print').close();
 // ====================================================================
 // Settings, help, menu, keyboard
 // ====================================================================
-async function renderLearning() {
-  const names = (list) => Object.fromEntries(list.map((x) => [x.id, x.name]));
-  const lines = await learn.summary(names(OPTIONS.difficulties), names(OPTIONS.themes), names(OPTIONS.clueTypes)).catch(() => []);
-  $('#learn-summary').innerHTML = lines.map((l) => `<li>${esc(l)}</li>`).join('');
+// Choices that use the game's server show only when it is set up and the
+// admin dashboard has not switched that feature off for everyone.
+function applyFeatures() {
+  for (const el of $$('.needs-cloud')) el.hidden = !share.available() || (!!el.dataset.feature && !remote.feature(el.dataset.feature));
+  $('#music-settings').hidden = !remote.feature('music');
+  $('[data-cmd=feedback]').hidden = !feedbackBox.available();
+  $('#feedback-idea').hidden = !feedbackBox.available();
+  competeUi.refreshMiniBoard();
 }
-$('#learn-reset').addEventListener('click', async () => {
-  const ok = await confirmDialog({ title: 'Reset learning?', text: 'The game forgets your ratings and play history and goes back to standard puzzles. Your saved puzzles and the story parts you added are kept.', yes: 'Reset learning', no: 'Keep it' });
-  if (!ok) return;
-  const parts = await learn.listParts();
-  await learn.reset();
-  for (const p of parts) await learn.addPart(p.theme, p.kind, p.value, p.source);
-  await renderLearning();
-  status('Learning reset.');
-});
-$('#learn-workshop').addEventListener('click', () => workshop.open({}));
-for (const el of $$('.needs-cloud')) el.hidden = !share.available();
+applyFeatures();
 share.init({
-  onNotice: () => toast('The game now learns from everyone\'s puzzles. Your results are shared without your name or any personal details.', { label: 'Settings', run: openSettings }, { ms: 12000 }),
+  onNotice: () => toast('The game now learns from everyone\'s puzzles. Your results are shared without your name or any personal details. Turn off "Learn from how I play" in Settings to stop.', { label: 'Settings', run: openSettings }, { ms: 12000 }),
 });
 
 function openSettings() {
@@ -1452,22 +1424,14 @@ function openSettings() {
     else if (el.type === 'checkbox') el.checked = !!settings[el.name];
     else if (el.type === 'range' || el.type === 'password' || el.type === 'text') el.value = settings[el.name] ?? '';
   }
-  kokoroStatus();
-  renderLearning();
   openDialog($('#dlg-settings'), f.querySelector('input:checked') || f.querySelector('input'));
 }
 $('#settings-form').addEventListener('change', (e) => {
   const el = e.target;
   if (!el.name) return;
   settings[el.name] = el.type === 'checkbox' ? el.checked : el.type === 'range' ? +el.value : el.type === 'password' ? el.value.trim() : el.value;
-  if (S && (el.name === 'aiPictures' || el.name === 'aiKey') && !$('#screen-play').hidden) loadAiArt();
-  if (el.name === 'shareLearning' || el.name === 'learn') { store.saveSettings(settings); share.refresh(true); }
-  if (S && el.name === 'portraitStyle') {
-    for (const btn of $$('#cast-row .cast-btn')) {
-      const face = btn.querySelector('svg.portrait-svg');
-      if (face) face.outerHTML = portrait(S.puzzle, btn.dataset.who, { style: settings.portraitStyle });
-    }
-  }
+  store.markChosen(settings, el.name);
+  if (el.name === 'learn') { store.saveSettings(settings); share.refresh(true); }
   store.saveSettings(settings);
   applyColorTheme();
   applyMode();
@@ -1502,6 +1466,7 @@ $('#app-menu').addEventListener('click', async (e) => {
   if (cmd === 'new') goHome();
   else if (cmd === 'saved') { await goHome({ focusSaved: true }); $('#saved-section').scrollIntoView(); }
   else if (cmd === 'settings') openSettings();
+  else if (cmd === 'feedback') feedbackBox.open(openDialog);
   else if (cmd === 'account') openAccount();
   else if (cmd === 'board') competeUi.openBoard();
   else if (cmd === 'install') installApp();
@@ -1515,7 +1480,14 @@ function openVideo() {
   if ($('#dlg-help').open) $('#dlg-help').close();
   openDialog($('#dlg-video'), $('#intro-video'));
 }
-$('#help-video').onclick = openVideo;
+// The app bar (with How to play and the small scoreboard) stays at the top;
+// its height keeps scrolled-to items from hiding under it.
+const appbar = $('.appbar');
+const setAppbarHeight = () => document.documentElement.style.setProperty('--appbar-h', `${appbar.offsetHeight}px`);
+if (window.ResizeObserver) new ResizeObserver(setAppbarHeight).observe(appbar);
+setAppbarHeight();
+$('#howto-btn').onclick = openVideo;
+$('#miniboard-open').onclick = () => competeUi.openBoard();
 $('#video-close').onclick = () => $('#dlg-video').close();
 $('#dlg-video').addEventListener('close', () => { $('#intro-video').pause(); });
 function offerIntro() {
@@ -1576,6 +1548,7 @@ const ACTIONS = {
   clear: clearGrid, reveal,
   save: () => flushSave({ manual: true }),
   print: openPrint,
+  notes: openNotes,
 };
 document.addEventListener('click', (e) => {
   const b = e.target.closest('[data-act]');
@@ -1595,6 +1568,7 @@ document.addEventListener('keydown', (e) => {
     if (!mod && !e.altKey && !typing && settings.singleKeys) {
       if (k === 'h') { e.preventDefault(); hint(); return; }
       if (k === 'c') { e.preventDefault(); check(); return; }
+      if (k === 'n') { e.preventDefault(); openNotes(); return; }
     }
   }
   if (!mod && !e.altKey && !typing && e.key === '?' && settings.singleKeys) { e.preventDefault(); $('#help-btn').click(); }
@@ -1709,7 +1683,10 @@ async function init() {
   applyMode();
   matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', applyColorTheme);
   renderSetup();
-  remote.init({ onThemesChanged: () => { if (!$('#screen-home').hidden) renderSetup(); } });
+  remote.init({
+    onThemesChanged: () => { if (!$('#screen-home').hidden) renderSetup(); },
+    onConfigChanged: () => { settings = store.loadSettings(); applyFeatures(); applyMode(); },
+  });
   await renderSaved();
   renderSuggestion();
   store.requestPersistence();

@@ -37,6 +37,9 @@ const path = require('path');
       } };
       return w;
     };
+    // Keep clip addresses alive: the app frees each one as its clip ends, which
+    // could beat the lookup below and make a played clue look skipped.
+    URL.revokeObjectURL = () => {};
     const play = HTMLMediaElement.prototype.play;
     HTMLMediaElement.prototype.play = function () {
       const el = this;
@@ -49,7 +52,10 @@ const path = require('path');
   });
   await page.goto('http://localhost:8133/');
   await page.waitForSelector('#dlg-welcome[open]'); await page.keyboard.press('Escape');
-  await page.waitForFunction(async () => (await (await import('./js/store.js')).loadSettings()).kokoroReady === true, null, { timeout: 15000 });
+  // A plain (not async) check: waitForFunction treats a returned promise as already true.
+  await page.waitForFunction(() => (JSON.parse(localStorage.getItem('flg.settings') || '{}')).kokoroReady === true, null, { timeout: 15000 });
+  // The "Natural voices are ready" notice sits over the setup choices until it fades.
+  await page.waitForSelector('.toast', { state: 'detached', timeout: 15000 });
   await page.check('input[name=tier][value=medium]', { force: true });
   await page.check('input[name=theme][value=mystery]', { force: true });
   await page.click('#gen-btn'); await page.waitForSelector('#screen-play:not([hidden])', { timeout: 30000 });

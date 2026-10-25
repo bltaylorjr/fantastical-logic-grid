@@ -24,8 +24,12 @@ const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`o
     const vid = await page.evaluate(async () => { const v = document.querySelector('#intro-video'); if (v.readyState < 1) await new Promise((r) => { v.onloadedmetadata = r; setTimeout(r, 5000); }); const t = v.textTracks[0]; return { d: v.duration, track: t && t.kind, mode: t && t.mode }; });
     assert(vid.d > 200 && vid.track === 'captions' && vid.mode === 'showing', `intro video loads with captions on (${Math.round(vid.d)} s)`);
     await page.click('#video-close');
+    assert(await page.locator('#howto-btn').isVisible(), 'How to play is on the game page');
+    await page.click('#howto-btn');
+    await page.waitForSelector('#dlg-video[open]');
+    await page.click('#video-close');
     await page.click('#help-btn');
-    assert(await page.locator('#help-video').isVisible(), 'video is in Help');
+    assert(!(await page.locator('#dlg-help button#help-video').count()), 'the video moved out of Help');
     await page.click('#help-close');
     await page.reload();
     await page.waitForSelector('#tier-choices input');
@@ -92,14 +96,26 @@ const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`o
 
     // the player's own notes: typing never triggers the single-key shortcuts
     const hintsBefore = await page.evaluate(() => window.__flg.state.save.hintsUsed);
-    await page.click('#my-notes');
+    assert(!(await page.isVisible('#my-notes')), 'notes stay closed until asked for');
+    await page.click('#notes-btn');
+    await page.waitForSelector('#dlg-notes[open]');
+    assert(await page.evaluate(() => document.activeElement.id) === 'my-notes', 'the My notes button opens the notes, ready to type');
     await page.keyboard.type('Chef is not in the cellar. Check hat colors?');
     assert(await page.evaluate(() => window.__flg.state.save.hintsUsed) === hintsBefore && await page.inputValue('#my-notes') === 'Chef is not in the cellar. Check hat colors?', 'notes take typing without firing H or C');
     const undoBefore = await page.evaluate(() => window.__flg.state.save.undo.length);
     await page.keyboard.press('Control+z');
     assert(await page.evaluate(() => window.__flg.state.save.undo.length) === undoBefore, 'Ctrl+Z in notes does not undo grid marks');
     await page.fill('#my-notes', 'Chef is not in the cellar.\nCheck hat colors?');
+    await page.click('#notes-save');
+    await page.waitForFunction(() => /Notes saved/.test(document.querySelector('#status').textContent), null, { timeout: 5000 });
+    assert(!(await page.locator('#dlg-notes[open]').count()), 'Save saves the notes and closes them');
     assert(await page.evaluate(() => window.__flg.state.save.myNotes) === 'Chef is not in the cellar.\nCheck hat colors?', 'notes are kept with the puzzle');
+    assert(await page.isVisible('#notes-dot') && (await page.textContent('#notes-btn')).includes('has notes'), 'the button shows the puzzle has notes');
+    await page.locator('td.c').first().focus();
+    await page.keyboard.press('n');
+    await page.waitForSelector('#dlg-notes[open]');
+    await page.click('#notes-close');
+    assert(!(await page.locator('#dlg-notes[open]').count()), 'N opens the notes and Close closes them');
 
     // print layout
     await page.click('[data-act=print]');
@@ -129,7 +145,9 @@ const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`o
     await page.waitForSelector('#screen-play:not([hidden])');
     assert(await page.evaluate(() => window.__flg.state.marks.size) === before, 'marks restored on resume');
     assert(await page.evaluate(() => window.__flg.state.save.undo.length) > 0, 'undo history restored');
+    await page.click('#notes-btn');
     assert(await page.inputValue('#my-notes') === 'Chef is not in the cellar.\nCheck hat colors?', 'notes restored on resume');
+    await page.keyboard.press('Escape');
 
     // reveal => solved
     await page.click('[data-act=reveal]');

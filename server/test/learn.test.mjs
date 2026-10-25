@@ -41,8 +41,8 @@ before(async () => {
 });
 after(() => mf.dispose());
 
-const call = (path, { method = 'POST', body, origin = ORIGIN, token } = {}) => mf.dispatchFetch(`https://api.test${path}`, {
-  method,
+const call = (path, { method = 'POST', body, origin = ORIGIN, token, redirect } = {}) => mf.dispatchFetch(`https://api.test${path}`, {
+  method, redirect,
   headers: { ...(origin ? { Origin: origin } : {}), ...(token ? { Authorization: `Bearer ${token}` } : {}), 'Content-Type': 'application/json' },
   body: body === undefined ? undefined : JSON.stringify(body),
 });
@@ -85,7 +85,10 @@ test('shared story parts wait for review; approved ones reach every player', asy
   await call('/admin/learn/review', { token: ADMIN, body: { key: list.parts[0].key, status: 'approved' } });
   tun = await (await call('/v1/learn/tuning', { method: 'GET' })).json();
   assert.deepEqual(tun.parts.pets.openings, [part.value]);
-  assert.match(await (await call('/admin/learn', { method: 'GET' })).text(), /Story review/);
+  // The old review page now sends admins to the dashboard's Story review.
+  const old = await call('/admin/learn', { method: 'GET', redirect: 'manual' });
+  assert.equal(old.status, 301);
+  assert.match(old.headers.get('Location'), /\/admin\/#stories$/);
   // Parts can belong to one topic (its story key), but not to a made-up one.
   const topicPart = { theme: 'pets/hotel', kind: 'mishaps', value: 'The night clerk dozed off, so the check-in cards are a jumble.' };
   assert.equal((await (await call('/v1/learn/parts', { body: topicPart })).json()).status, 'pending');

@@ -180,6 +180,9 @@ views.overview = async () => {
   setCount('#count-names', d.review.namesWaiting || 0);
   const review = [];
   if (can('moderator') && d.review.parts.pending) review.push(`<a href="#stories">${fmt(d.review.parts.pending)} story ${d.review.parts.pending === 1 ? 'part' : 'parts'} waiting for review</a>`);
+  const fb = d.review.feedback || {};
+  setCount('#count-feedback', (fb.idea || 0) + (fb.problem || 0));
+  if (can('moderator') && (fb.idea || fb.problem)) review.push(`<a href="#feedback">${fmt(fb.idea || 0)} new ${fb.idea === 1 ? 'idea' : 'ideas'} and ${fmt(fb.problem || 0)} new ${fb.problem === 1 ? 'problem' : 'problems'} from players</a>`);
   if (can('moderator') && d.review.namesWaiting) review.push(`<a href="#names">${fmt(d.review.namesWaiting)} new or changed screen ${d.review.namesWaiting === 1 ? 'name' : 'names'}</a>`);
   $('#ov-body').innerHTML = `
     ${review.length ? `<div class="note">${review.join(' · ')}</div>` : ''}
@@ -199,6 +202,7 @@ views.overview = async () => {
       ${tile('Races started', fmt(races), `${fmt(d.races.open)} open now`)}
       ${tile('Race entries', fmt(d.races.entries), `${fmt(d.races.solved)} solved`)}
       ${tile('Free voices today', `${fmt(d.voices.today)} <span class="muted">/ ${fmt(d.voices.cap)}</span>`, d.voices.enabled ? meter(d.voices.today, d.voices.cap) : 'Switched off')}
+      ${tile('AI pictures today', `${fmt(d.pictures.today)} <span class="muted">/ ${fmt(d.pictures.cap)}</span>`, d.pictures.mode !== 'none' ? meter(d.pictures.today, d.pictures.cap) : 'Switched off')}
       ${tile('Error reports', fmt(errors), 'in this period')}
     </div>
     <div class="charts">
@@ -207,6 +211,7 @@ views.overview = async () => {
       ${bars('Scores posted per day', d.scores.byDay, { labels })}
       ${bars('Races started per day', d.races.byDay, { labels })}
       ${bars('Free voice clips per day', d.voices.byDay, { cap: d.voices.cap, labels, names: ['Clips made'] })}
+      ${bars('AI pictures per day', d.pictures.byDay, { cap: d.pictures.cap, labels, names: ['Pictures made'] })}
       ${bars('Error reports per day', d.errors.byDay, { labels })}
     </div>
     <h2>By theme</h2>
@@ -254,11 +259,78 @@ views.usage = async () => {
   ])}`;
 };
 
+// ---- Story workshop: admins add story parts for every player.
+let workshop = null;
+let drafts = [];
+const wsKind = () => $('#ws-kind').value;
+const partText = (kind, v) => (kind === 'incidents' ? `${v.name}: ${v.text} (at stake: ${v.prize})` : String(v));
+function showWsKind() {
+  const k = workshop.kinds.find((x) => x.id === wsKind());
+  $('#ws-tip').textContent = k ? k.tip : '';
+  $('#ws-name-row').hidden = wsKind() !== 'incidents';
+  $('#ws-prize-row').hidden = wsKind() !== 'incidents';
+  $('#ws-error').hidden = true;
+}
+function renderDrafts() {
+  $('#ws-drafts').innerHTML = drafts.map((d, i) => `<li><p>${esc(partText(d.kind, d.value))}</p>${d.ok
+    ? `<div class="row"><button class="btn small" type="button" data-draft="${i}">Add for every player</button></div>`
+    : `<p class="muted">Can't be used: ${esc((d.errors || [])[0] || '')}</p>`}</li>`).join('');
+}
+async function addPart(value, source, button) {
+  const body = { story: $('#ws-story').value, kind: wsKind(), value, source };
+  try {
+    button.disabled = true;
+    await api('workshop/add', { method: 'POST', body });
+    toast('Added. Players get it within about 15 minutes.');
+    announce('Story part added.');
+    return true;
+  } catch (e) {
+    $('#ws-error').textContent = e.message;
+    $('#ws-error').hidden = false;
+    return false;
+  } finally { button.disabled = false; }
+}
+$('#ws-kind').onchange = () => { drafts = []; renderDrafts(); showWsKind(); };
+$('#ws-story').onchange = () => { drafts = []; renderDrafts(); };
+$('#ws-form').onsubmit = async (e) => {
+  e.preventDefault();
+  const text = $('#ws-text').value.trim();
+  const value = wsKind() === 'incidents' ? { name: $('#ws-name').value.trim(), text, prize: $('#ws-prize').value.trim() } : text;
+  if (await addPart(value, 'admin', $('#ws-form button[type=submit]'))) { $('#ws-text').value = ''; $('#ws-name').value = ''; $('#ws-prize').value = ''; show('stories', { keepFocus: true }); }
+};
+$('#ws-draft').onclick = async () => {
+  const b = $('#ws-draft');
+  $('#ws-error').hidden = true;
+  b.disabled = true;
+  b.textContent = 'Drafting…';
+  try {
+    const d = await api('workshop/draft', { method: 'POST', body: { story: $('#ws-story').value, kind: wsKind(), idea: $('#ws-idea').value } });
+    drafts = d.drafts.map((x) => ({ ...x, kind: wsKind() }));
+    renderDrafts();
+    announce(`${drafts.length} drafts ready.`);
+  } catch (err) {
+    $('#ws-error').textContent = err.message;
+    $('#ws-error').hidden = false;
+  } finally { b.disabled = false; b.textContent = 'Draft story parts'; }
+};
+$('#ws-drafts').onclick = async (e) => {
+  const b = e.target.closest('button[data-draft]');
+  if (!b) return;
+  const d = drafts[Number(b.dataset.draft)];
+  if (await addPart(d.value, 'ai', b)) { drafts.splice(Number(b.dataset.draft), 1); renderDrafts(); show('stories', { keepFocus: true }); }
+};
+
 views.stories = async () => {
+  if (!workshop) {
+    workshop = await api('workshop');
+    $('#ws-story').innerHTML = workshop.stories.map((s) => `<option value="${esc(s.key)}">${esc(s.name)}</option>`).join('');
+    $('#ws-kind').innerHTML = workshop.kinds.map((k) => `<option value="${esc(k.id)}">${esc(k.name)}</option>`).join('');
+    showWsKind();
+  }
   const d = await api(`parts?status=${$('#parts-status').value}`);
   const text = (p) => (p.kind === 'incidents' ? `${p.value.name}: ${p.value.text} (at stake: ${p.value.prize})` : typeof p.value === 'string' ? p.value : JSON.stringify(p.value));
   $('#parts-list').innerHTML = d.parts.length ? d.parts.map((p) => `<li>
-      <b>${esc(p.theme)} · ${esc(p.kind)}</b> ${p.source === 'ai' ? '<span class="badge">Drafted with AI</span>' : ''} <span class="muted">sent ${esc(p.submitted)}</span>
+      <b>${esc(p.theme)} · ${esc(p.kind)}</b> ${p.source === 'ai' ? '<span class="badge">Drafted with AI</span>' : ''}${p.source === 'admin' ? '<span class="badge ok">Written here</span>' : ''} <span class="muted">${p.source === 'admin' || p.source === 'ai' ? 'added' : 'sent'} ${esc(p.submitted)}</span>
       <p>${esc(text(p))}</p>
       <div class="row">${p.status !== 'approved' ? `<button class="btn primary small" data-key="${esc(p.key)}" data-status="approved">Approve</button>` : ''}
       ${p.status !== 'rejected' ? `<button class="btn small" data-key="${esc(p.key)}" data-status="rejected">Reject</button>` : ''}
@@ -271,6 +343,31 @@ $('#parts-list').onclick = async (e) => {
   if (!b) return;
   const words = { approved: 'Approved.', rejected: 'Rejected.', pending: 'Moved back to waiting.' };
   if (await act(b, () => api('parts/review', { method: 'POST', body: { key: b.dataset.key, status: b.dataset.status } }), words[b.dataset.status])) show('stories', { keepFocus: true });
+};
+
+// ---- Ideas and problems players sent.
+const FB_TOPICS = { story: 'Storyline idea', other: 'Other', play: 'Playing', sound: 'Sound and voices', pictures: 'Pictures', saving: 'Saving and sync' };
+const fbKind = () => $('input[name=fb-kind]:checked').value;
+views.feedback = async () => {
+  const d = await api(`feedback?kind=${fbKind()}&status=${$('#fb-status').value}`);
+  setCount('#count-ideas', d.waiting.idea || 0);
+  setCount('#count-problems', d.waiting.problem || 0);
+  setCount('#count-feedback', (d.waiting.idea || 0) + (d.waiting.problem || 0));
+  $('#fb-list').innerHTML = d.items.length ? d.items.map((f) => `<li>
+      <b>${esc(FB_TOPICS[f.topic] || f.topic)}</b> ${f.status === 'done' ? '<span class="badge ok">Done</span>' : '<span class="badge">New</span>'}
+      <span class="muted">${when(f.createdAt)} · ${esc(f.platform)} ${esc(f.version)}</span>
+      <p class="fb-text">${esc(f.text)}</p>
+      <div class="row">${f.status === 'new' ? `<button class="btn primary small" data-fb="${f.id}" data-status="done">Mark done</button>` : `<button class="btn small" data-fb="${f.id}" data-status="new">Mark new</button>`}
+      <button class="btn small" data-fb="${f.id}" data-status="delete">Delete</button></div></li>`).join('')
+    : '<li class="muted">Nothing here.</li>';
+};
+$('#fb-status').onchange = () => show('feedback', { keepFocus: true });
+$$('input[name=fb-kind]').forEach((r) => { r.onchange = () => show('feedback', { keepFocus: true }); });
+$('#fb-list').onclick = async (e) => {
+  const b = e.target.closest('button[data-fb]');
+  if (!b) return;
+  const words = { done: 'Marked done.', new: 'Marked new.', delete: 'Deleted.' };
+  if (await act(b, () => api(`feedback/${b.dataset.fb}`, { method: 'POST', body: { status: b.dataset.status } }), words[b.dataset.status])) show('feedback', { keepFocus: true });
 };
 
 views.names = async () => {
@@ -389,7 +486,11 @@ views.settings = async () => {
   const control = (s) => {
     const dis = editable ? '' : ' disabled';
     if (s.type === 'bool') return `<label class="check"><input type="checkbox" data-key="${s.key}"${s.value ? ' checked' : ''}${dis}> <span>${s.value ? 'On' : 'Off'}</span></label>`;
-    if (s.type === 'int') return `<div class="row"><div class="field"><label class="sr-only" for="set-${s.key}">${esc(s.label)}</label><input id="set-${s.key}" type="number" min="${s.min}" max="${s.max}" value="${s.value}" inputmode="numeric"${dis}></div>${editable ? `<button class="btn small" data-save="${s.key}">Save</button>` : ''}</div>`;
+    const save = editable ? `<button class="btn small" data-save="${s.key}">Save</button>` : '';
+    const label = `<label class="sr-only" for="set-${s.key}">${esc(s.label)}</label>`;
+    if (s.type === 'int') return `<div class="row"><div class="field">${label}<input id="set-${s.key}" type="number" min="${s.min}" max="${s.max}" value="${s.value}" inputmode="numeric"${dis}></div>${save}</div>`;
+    if (s.type === 'choice') return `<div class="row"><div class="field">${label}<select id="set-${s.key}"${dis}>${s.options.map((o) => `<option value="${esc(o.value)}"${o.value === s.value ? ' selected' : ''}>${esc(o.label)}</option>`).join('')}</select></div>${save}</div>`;
+    if (s.type === 'model') return `<div class="row"><div class="field">${label}<input id="set-${s.key}" type="text" value="${esc(s.value)}" autocomplete="off" spellcheck="false"${dis}></div>${save}</div>`;
     if (s.type === 'themes') return `${editable ? `<button class="btn small" data-save="${s.key}">Save themes</button>` : ''}`;
     return `${editable ? `<button class="btn small" data-save="${s.key}">Save words</button>` : ''}`;
   };
@@ -398,7 +499,12 @@ views.settings = async () => {
     if (s.type === 'words') return `<div class="field words"><label for="set-${s.key}">One word per line</label><textarea id="set-${s.key}" rows="4"${editable ? '' : ' disabled'}>${esc(s.value.join('\n'))}</textarea></div>`;
     return '';
   };
-  $('#settings-body').innerHTML = (editable ? '' : '<p class="note">You can see the settings. Changing them needs the admin role.</p>')
+  const keyLine = (ok, name, what) => `<p>${ok ? '<span class="badge ok">Set</span>' : '<span class="badge warn">Not set</span>'} <b>${esc(name)}</b>: ${esc(what)}</p>`;
+  const services = `<div class="card"><h2>Keys and services</h2><div class="services">
+    ${keyLine(d.services.gemini, 'GEMINI_API_KEY', 'server voices and the Story workshop\'s AI writer (Google\'s free tier).')}
+    ${keyLine(d.services.pictures, 'Workers AI', 'AI pictures (the AI binding in wrangler.toml, on Cloudflare\'s free allowance).')}
+    <p class="muted">Keys are never typed here or kept in the game. Add or change them in Cloudflare: Workers &amp; Pages &gt; flg-api &gt; Settings &gt; Variables and Secrets, as type Secret.</p></div></div>`;
+  $('#settings-body').innerHTML = services + (editable ? '' : '<p class="note">You can see the settings. Changing them needs the admin role.</p>')
     + Object.entries(groups).map(([g, list]) => `<div class="card"><h2>${esc(g)}</h2>${list.map((s) => `<div class="setting">
       <div><b id="lbl-${s.key}">${esc(s.label)}</b><p class="help">${esc(s.help)}</p>${s.updatedBy ? `<p class="meta">Changed by ${esc(s.updatedBy)} on ${when(s.updatedAt)}</p>` : ''}</div>
       <div>${control(s)}</div>${extra(s)}</div>`).join('')}</div>`).join('');
@@ -418,7 +524,8 @@ $('#settings-body').onclick = (e) => {
   const key = b.dataset.save;
   if (key === 'disabled_themes') saveSettingValue(key, $$('input[name=theme-off]:checked').map((x) => x.value), b);
   else if (key === 'blocked_words') saveSettingValue(key, $(`#set-${key}`).value.split(/[\s,]+/).filter(Boolean), b);
-  else saveSettingValue(key, Number($(`#set-${key}`).value), b);
+  else if ($(`#set-${key}`).type === 'number') saveSettingValue(key, Number($(`#set-${key}`).value), b);
+  else saveSettingValue(key, $(`#set-${key}`).value.trim(), b);
 };
 
 views.announcements = async () => {
