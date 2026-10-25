@@ -40,7 +40,7 @@ Worker only checks Firebase's signed ID tokens and learns the player's id.
    app called "The Fantastical Logic Grid". Hosting is not needed. Copy two
    values: **apiKey** and **projectId**. The apiKey is not a secret; it only
    names the project.
-6. Recommended: in Google Cloud Console (project fantastical-logic-grid) >
+6. Recommended: in Google Cloud Console (project the-fantastical-logic-grid) >
    APIs & Services > Credentials, open the "Browser key (auto created by
    Firebase)" and under **API restrictions** choose *Restrict key* and allow
    only *Identity Toolkit API* and *Token Service API*. Leave **Application
