@@ -22,7 +22,10 @@ function resolveOptions(opts = {}) {
   const tier = TIERS[opts.difficulty] || TIERS.easy;
   const seed = opts.seed != null ? String(opts.seed) : Math.floor(Math.random() * 2 ** 32).toString(36);
   const rng = makeRng(`${seed}|${tier.id}|${opts.theme || ''}|${opts.topic || ''}|${opts.categories || ''}x${opts.items || ''}`);
-  const theme = opts.theme && opts.theme !== 'random' ? getTheme(opts.theme) : rng.pick(THEMES);
+  const learn = opts.learning || {};
+  // A "random" theme leans toward themes the player enjoys (learning.themeWeights).
+  const themeWeights = learn.themeWeights && Object.fromEntries(THEMES.map((t) => [t.id, clamp(Number(learn.themeWeights[t.id]) || 1, [0.3, 3])]));
+  const theme = opts.theme && opts.theme !== 'random' ? getTheme(opts.theme) : themeWeights ? getTheme(rng.weighted(themeWeights)) : rng.pick(THEMES);
   if (!theme) throw new Error(`Unknown theme "${opts.theme}". Try one of: ${THEMES.map((t) => t.id).join(', ')}`);
   // A topic only makes sense within a chosen theme; a random theme gets a random topic.
   const topic = resolveTopic(theme, opts.theme && opts.theme !== 'random' ? opts.topic : null, rng);
@@ -37,9 +40,16 @@ function resolveOptions(opts = {}) {
     for (const t of opts.clueTypes) if (CLUE_TYPES[t]) weights[t] = tier.weights[t] || 2;
     if (!Object.keys(weights).length) throw new Error('clueTypes has no known clue types');
   }
+  // Learning only re-weights the tier's own clue types, within limits, so a
+  // tier always keeps its character.
+  if (learn.clueWeights) for (const t in weights) weights[t] *= clamp(Number(learn.clueWeights[t]) || 1, [0.5, 2]);
+  // effort -1 (gentler) to 1 (tougher): which of several puzzles that all meet
+  // the tier is kept.
+  const effort = clamp(Number(learn.effort) || 0, [-1, 1]);
   const clueCount = opts.clueCount ? Math.max(1, Math.floor(opts.clueCount)) : null;
   const questions = clamp(opts.questions ?? 3, [1, 6]);
-  return { tier, seed, rng, theme, topic, scenario, K, N, customSize, weights, clueCount, questions,
+  return { tier, seed, rng, theme, topic, scenario, K, N, customSize, weights, clueCount, questions, effort,
+    extraParts: opts.storyParts, storyPrefs: opts.storyPrefs,
     customNames: opts.customNames, customTitle: opts.title, usedStories: opts.usedStories || [], timeLimitMs: opts.timeLimitMs ?? 15000,
     maxAttempts: opts.maxAttempts ?? 60 };
 }
@@ -169,6 +179,10 @@ export function generatePuzzle(options = {}) {
   const o = resolveOptions(options);
   const started = Date.now();
   let best = null;
+  // With an effort setting, keep a few puzzles that meet the tier and choose
+  // the gentlest or toughest; each one is still fully checked.
+  const pool = [];
+  const want = Math.abs(o.effort) >= 0.15 ? 4 : 1;
 
   for (let attempt = 0; attempt < o.maxAttempts; attempt++) {
     const model = buildModel(o);
@@ -180,9 +194,16 @@ export function generatePuzzle(options = {}) {
     const g = grade(model.K, model.N, clues, o.tier, L);
     const countGap = o.clueCount ? Math.abs(clues.length - o.clueCount) : 0;
     const fit = (g.meets ? 0 : 1000 + g.reasons.length * 100) + countGap * 10;
-    if (!best || fit < best.fit) best = { fit, model, clues, attempt };
-    if (fit === 0) break;
+    if (!best || fit < best.fit) best = { fit, model, clues, attempt, score: g.score };
+    if (fit === 0) pool.push({ fit, model, clues, attempt, score: g.score });
+    if (pool.length >= want) break;
+    // Searching for a better effort match gets half the time budget.
+    if (pool.length && Date.now() - started > o.timeLimitMs / 2) break;
     if (Date.now() - started > o.timeLimitMs) break;
+  }
+  if (pool.length > 1) {
+    pool.sort((p, q) => p.score - q.score);
+    best = pool[Math.round(((o.effort + 1) / 2) * (pool.length - 1))];
   }
   if (!best) throw new Error('Could not build a puzzle with these options. Try a smaller size or more clue types.');
   return finalize(o, best, Date.now() - started);
@@ -202,7 +223,8 @@ function finalize(o, best, elapsedMs) {
   const itemId = (gl) => `${cats[Math.floor(gl / N)].id}:${gl % N}`;
   const ref = (gl) => ({ category: cats[Math.floor(gl / N)].id, item: gl % N, id: itemId(gl), label: L.label(gl) });
 
-  const story = buildStory({ rng, scenario, goal: { cat: model.goal.cat, item: rng.int(N) }, model, L, customTitle: o.customTitle, usedStories: o.usedStories });
+  const story = buildStory({ rng, scenario, goal: { cat: model.goal.cat, item: rng.int(N) }, model, L, customTitle: o.customTitle, usedStories: o.usedStories,
+    extraParts: o.extraParts, storyPrefs: prefsFor(o.storyPrefs, theme.id, scenario.key) });
   const goalAbout = { cat: model.goal.cat, item: null };
   // buildStory picked the goal item; recover it from the answer for questions.
   goalAbout.item = sol[model.goal.cat][story.goalAnswer.item];
@@ -237,7 +259,7 @@ function finalize(o, best, elapsedMs) {
       pos: c.pos, neg: c.neg, ...(c.ordinal ? { phrases: c.ordinal } : {}),
     })),
     grid: gridLayout(cats),
-    story: { id: story.id, title: story.title, paragraphs: story.paragraphs, text: story.text, goal: story.goalQuestion, ending: story.ending, wordCount: story.wordCount },
+    story: { id: story.id, parts: story.parts, title: story.title, paragraphs: story.paragraphs, text: story.text, goal: story.goalQuestion, ending: story.ending, wordCount: story.wordCount },
     clues: clues.map((c, i) => ({ number: i + 1, text: clueText(L, c, rng), type: c.type, typeName: CLUE_TYPES[c.type], logic: encodeClue(c, itemId) })),
     questions: questions.map((q, i) => ({
       number: i + 1, text: q.text, category: cats[q.askCat].id,
@@ -267,6 +289,7 @@ function finalize(o, best, elapsedMs) {
       meetsTier: g.meets,
       attempts: best.attempt + 1,
       generationMs: elapsedMs,
+      ...(o.effort ? { effort: o.effort } : {}),
     },
     notes,
   };
@@ -284,6 +307,17 @@ export function gridLayout(cats) {
     for (let c = 1; c <= K - 1 - ri; c++) blocks.push({ row: cats[r].id, column: cats[c].id });
   });
   return { columns, rows, blocks };
+}
+
+// Part preferences are kept per story key; a theme's own entry (player-added
+// parts) also applies to each of its topics.
+function prefsFor(prefs, themeId, key) {
+  if (!prefs) return null;
+  const out = {};
+  for (const src of [prefs[themeId], key !== themeId ? prefs[key] : null]) {
+    for (const [k, m] of Object.entries(src || {})) out[k] = { ...(out[k] || {}), ...m };
+  }
+  return out;
 }
 
 function encodeClue(c, id) {
