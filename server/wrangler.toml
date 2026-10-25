@@ -19,8 +19,11 @@ FIREBASE_PROJECT_ID = "the-fantastical-logic-grid"
 # Windows/macOS desktop app (Tauri), the Android app and the iPhone app.
 ALLOWED_ORIGINS = "https://thelogicgrid.com,https://www.thelogicgrid.com,https://bltaylorjr.github.io,http://tauri.localhost,https://tauri.localhost,tauri://localhost,https://appassets.androidplatform.net,app://localhost"
 DAILY_TTS_CAP = "300"
+# The sender of the weekly archive email: an address on a domain that has
+# Cloudflare Email Routing switched on (ARCHIVE.md).
+ARCHIVE_FROM = "backups@thelogicgrid.com"
 TTS_MODEL = "gemini-3.8-flash-tts"
-# Secrets (never in this file): GEMINI_API_KEY and ADMIN_TOKEN, set with
+# Secrets (never in this file): GEMINI_API_KEY, ADMIN_TOKEN and ARCHIVE_TO, set with
 # `npx wrangler secret put <NAME>` or in the dashboard as type Secret. The admin
 # dashboard also uses OWNER_EMAIL and FIREBASE_WEB_API_KEY, and optionally
 # CF_API_TOKEN and CF_ACCOUNT_ID (see ../admin/README.md).
@@ -34,10 +37,17 @@ binding = "ASSETS"
 run_worker_first = true
 html_handling = "none"
 
-# The daily cleanup of old data (src/upkeep.js), at 03:17 UTC. Free plans
-# allow up to 5 cron triggers.
+# The daily cleanup of old data (src/upkeep.js), at 03:17 UTC, and the weekly
+# archive email (src/archive.js), Mondays at 04:47 UTC. Free plans allow up to
+# 5 cron triggers.
 [triggers]
-crons = ["17 3 * * *"]
+crons = ["17 3 * * *", "47 4 * * 1"]
+
+# The weekly archive email goes through Cloudflare Email Routing (free to a
+# verified address). Setup: ARCHIVE.md. The address it goes to is the
+# ARCHIVE_TO secret. Uncomment this once Email Routing is on for the domain:
+# [[send_email]]
+# name = "ARCHIVE_EMAIL"
 
 # Per-client request limits.
 [[ratelimits]]

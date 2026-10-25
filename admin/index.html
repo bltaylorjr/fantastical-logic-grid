@@ -58,6 +58,7 @@
       <li><a href="#settings" data-min="viewer">Settings and switches</a></li>
       <li><a href="#announcements" data-min="viewer">Announcements</a></li>
       <li><a href="#errors" data-min="viewer">Error reports</a></li>
+      <li><a href="#backups" data-min="admin">Backups and archive</a></li>
       <li><a href="#audit" data-min="admin">Audit log</a></li>
       <li><a href="#admins" data-min="owner">Admins</a></li>
     </ul>
@@ -132,6 +133,14 @@
       </div>
       <p class="muted">Anonymous reports from the apps, most frequent first. Web addresses, emails and long numbers are removed before they are stored.</p>
       <div class="table-wrap"><table class="table"><thead><tr><th scope="col">Count</th><th scope="col">Message</th><th scope="col">Where</th><th scope="col">App</th><th scope="col">Seen</th></tr></thead><tbody id="err-rows"></tbody></table></div>
+    </section>
+
+    <section data-view="backups" hidden aria-labelledby="h-backups">
+      <div class="head"><h1 id="h-backups">Backups and archive</h1>
+        <a class="btn" href="/admin/archive.html" target="_blank" rel="noopener">Open the archive viewer</a>
+      </div>
+      <p class="muted">Every Monday, rows the game no longer needs are zipped and emailed to the owner, then removed from the database to save space. Accounts, saved games, screen names, scores and bans are never archived.</p>
+      <div id="backups-body"><p class="muted">Loading…</p></div>
     </section>
 
     <section data-view="audit" hidden aria-labelledby="h-audit">

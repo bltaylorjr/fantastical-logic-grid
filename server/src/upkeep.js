@@ -11,6 +11,9 @@
 //   the admin audit log       after 365 days
 //   ended bans                when they end
 //   ended announcements       90 days after they end
+//   the weekly archive's log  after 365 days
+// While the weekly archive email is on (archive.js), the rows it covers are
+// left for it instead, so they are emailed before they are removed.
 // Scores are never deleted here: the all-time scoreboard needs them (only an
 // admin's reset in the dashboard removes a player's scores).
 //
@@ -18,6 +21,7 @@
 // last ran and how close the free voice quota is, for the GitHub health check.
 
 import { getSettings } from './settings.js';
+import { ARCHIVED_UPKEEP_JOBS } from './archive.js';
 
 const DAY = 24 * 3600_000;
 const isoDay = (ms) => new Date(ms).toISOString().slice(0, 10);
@@ -37,7 +41,12 @@ export async function runUpkeep(env, now = Date.now()) {
     admin_audit: db.prepare('DELETE FROM admin_audit WHERE at < ?1').bind(now - 365 * DAY),
     bans: db.prepare('DELETE FROM bans WHERE until IS NOT NULL AND until < ?1').bind(now),
     announcements: db.prepare('DELETE FROM announcements WHERE ends_at IS NOT NULL AND ends_at < ?1').bind(now - 90 * DAY),
+    archive_log: db.prepare('DELETE FROM archive_log WHERE ran_at < ?1').bind(now - 365 * DAY),
   };
+  if ((await getSettings(env, now)).archive_email_enabled) {
+    for (const name of ARCHIVED_UPKEEP_JOBS) delete jobs[name];
+    jobs.race_invites = db.prepare('DELETE FROM race_invites WHERE code NOT IN (SELECT code FROM races)');
+  }
   const results = await db.batch(Object.values(jobs));
   const removed = Object.fromEntries(Object.keys(jobs).map((name, i) => [name, results[i].meta?.changes || 0]));
   await db.prepare('INSERT OR REPLACE INTO upkeep_log (ran_at, removed) VALUES (?1, ?2)').bind(now, JSON.stringify(removed)).run();
