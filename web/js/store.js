@@ -9,6 +9,7 @@ const MEDIA = 'media';
 const LS_PREFIX = 'flg.';
 
 let dbPromise = null;
+let current = null;
 const memory = new Map();
 
 // Account sync listens for local changes (sync.js). Writes that sync itself
@@ -20,9 +21,17 @@ function changed(kind, key, deleted, opts) {
   for (const fn of listeners) { try { fn({ kind, key, deleted: !!deleted }); } catch (e) { /* sync is optional */ } }
 }
 
+// The browser can close our connection at any time: another tab or a new
+// version of the app upgrading the database, iOS/Android suspending the page,
+// clearing site data, or low disk. A closed connection throws "The database
+// connection is closing" (InvalidStateError), so we forget it and reopen.
+function forgetDb(db) {
+  if (current === db) { current = null; dbPromise = null; }
+}
+
 function openDb() {
   if (dbPromise) return dbPromise;
-  dbPromise = new Promise((resolve) => {
+  const p = new Promise((resolve) => {
     try {
       const req = indexedDB.open(DB_NAME, 2);
       req.onupgradeneeded = () => {
@@ -31,14 +40,27 @@ function openDb() {
         if (!db.objectStoreNames.contains(META)) db.createObjectStore(META);
         if (!db.objectStoreNames.contains(MEDIA)) db.createObjectStore(MEDIA);
       };
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => resolve(null);
-      req.onblocked = () => resolve(null);
+      req.onsuccess = () => {
+        const db = req.result;
+        // Let a newer version (another tab, an app update) upgrade; we reopen on next use.
+        db.onversionchange = () => { forgetDb(db); try { db.close(); } catch (e) { /* already closed */ } };
+        db.onclose = () => forgetDb(db);
+        current = db;
+        resolve(db);
+      };
+      // Not cached, so a later call can try again once the block clears.
+      req.onerror = () => { if (dbPromise === p) dbPromise = null; resolve(null); };
+      req.onblocked = () => { if (dbPromise === p) dbPromise = null; resolve(null); };
     } catch (e) {
       resolve(null);
     }
   });
-  return dbPromise;
+  dbPromise = p;
+  return p;
+}
+
+function isClosing(e) {
+  return !!e && (e.name === 'InvalidStateError' || /closing|closed/i.test(e.message || ''));
 }
 
 function tx(db, store, mode, fn) {
@@ -50,6 +72,23 @@ function tx(db, store, mode, fn) {
     t.onerror = () => reject(t.error || new Error('Storage error'));
     t.onabort = () => reject(t.error || new Error('Storage was full or blocked'));
   });
+}
+
+// Runs one transaction, reopening the database and retrying once if the
+// connection was closed under us. Returns { ok: false } when IndexedDB is
+// unavailable, so the caller uses the localStorage fallback.
+async function run(store, mode, fn) {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const db = await openDb();
+    if (!db) return { ok: false };
+    try {
+      return { ok: true, value: await tx(db, store, mode, fn) };
+    } catch (e) {
+      if (attempt === 0 && isClosing(e)) { forgetDb(db); continue; }
+      throw e;
+    }
+  }
+  return { ok: false };
 }
 
 // localStorage fallback keeps each save under its own key.
@@ -65,54 +104,51 @@ const ls = {
 };
 
 export async function listSaves() {
-  const db = await openDb();
-  if (db) return tx(db, SAVES, 'readonly', (s) => s.getAll());
+  const r = await run(SAVES, 'readonly', (s) => s.getAll());
+  if (r.ok) return r.value;
   return ls.keys('save:').map((k) => ls.get(k)).filter(Boolean);
 }
 
 export async function getSave(id) {
-  const db = await openDb();
-  if (db) return tx(db, SAVES, 'readonly', (s) => s.get(id));
+  const r = await run(SAVES, 'readonly', (s) => s.get(id));
+  if (r.ok) return r.value;
   return ls.get(`save:${id}`);
 }
 
 export async function putSave(save, opts) {
-  const db = await openDb();
-  if (db) await tx(db, SAVES, 'readwrite', (s) => s.put(save));
-  else ls.set(`save:${save.id}`, save);
+  const r = await run(SAVES, 'readwrite', (s) => s.put(save));
+  if (!r.ok) ls.set(`save:${save.id}`, save);
   changed('save', save.id, false, opts);
 }
 
 export async function deleteSave(id, opts) {
-  const db = await openDb();
-  if (db) await tx(db, SAVES, 'readwrite', (s) => s.delete(id));
-  else ls.del(`save:${id}`);
+  const r = await run(SAVES, 'readwrite', (s) => s.delete(id));
+  if (!r.ok) ls.del(`save:${id}`);
   changed('save', id, true, opts);
 }
 
 export async function getMeta(key, fallback) {
-  const db = await openDb();
-  const v = db ? await tx(db, META, 'readonly', (s) => s.get(key)) : ls.get(`meta:${key}`);
+  const r = await run(META, 'readonly', (s) => s.get(key));
+  const v = r.ok ? r.value : ls.get(`meta:${key}`);
   return v === undefined ? fallback : v;
 }
 
 export async function setMeta(key, value, opts) {
-  const db = await openDb();
-  if (db) await tx(db, META, 'readwrite', (s) => s.put(value, key));
-  else ls.set(`meta:${key}`, value);
+  const r = await run(META, 'readwrite', (s) => s.put(value, key));
+  if (!r.ok) ls.set(`meta:${key}`, value);
   changed('meta', key, false, opts);
 }
 
 // Generated pictures and voice clips (Blobs), keyed by story id. Memory only
 // when IndexedDB is unavailable.
 export async function getMedia(key) {
-  const db = await openDb();
-  if (db) return tx(db, MEDIA, 'readonly', (s) => s.get(key));
+  const r = await run(MEDIA, 'readonly', (s) => s.get(key));
+  if (r.ok) return r.value;
   return memory.get(`media:${key}`);
 }
 export async function putMedia(key, blob) {
-  const db = await openDb();
-  if (db) return tx(db, MEDIA, 'readwrite', (s) => s.put(blob, key));
+  const r = await run(MEDIA, 'readwrite', (s) => s.put(blob, key));
+  if (r.ok) return r.value;
   memory.set(`media:${key}`, blob);
 }
 
