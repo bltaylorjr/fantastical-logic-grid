@@ -1297,11 +1297,16 @@ function offerIntro() {
 }
 // Desktop updates: asked about on the home screen only, never mid-puzzle.
 let pendingUpdate = null;
+let shownUpdate = null;
 function offerUpdate() {
   if (!pendingUpdate || $('#screen-home').hidden || document.querySelector('dialog[open]')) return;
   const u = pendingUpdate;
   pendingUpdate = null;
-  $('#update-text').textContent = `Version ${u.version} of The Fantastical Logic Grid is available.${u.notes ? ` ${u.notes}` : ''}`;
+  shownUpdate = u;
+  $('#update-text').textContent = u.kind === 'web'
+    ? 'A new version of The Fantastical Logic Grid is ready.'
+    : `Version ${u.version} of The Fantastical Logic Grid is available.${u.notes ? ` ${u.notes}` : ''}`;
+  $('#update-install').textContent = u.kind === 'web' ? 'Reload now' : 'Install and restart';
   $('#update-status').textContent = '';
   openDialog($('#dlg-update'), $('#update-install'));
 }
@@ -1311,6 +1316,12 @@ $('#update-install').onclick = async () => {
   $('#update-install').disabled = true;
   $('#update-later').disabled = true;
   bar.hidden = false;
+  if (shownUpdate && shownUpdate.kind === 'web') {
+    webUpdateAccepted = true;
+    $('#update-status').textContent = 'Reloading…';
+    shownUpdate.worker.postMessage({ type: 'skip-waiting' });
+    return;
+  }
   $('#update-status').textContent = 'Downloading the update…';
   try {
     await updates.install((x) => { if (x == null) bar.removeAttribute('value'); else bar.value = x; });
@@ -1378,8 +1389,31 @@ async function installApp() {
   installEvent = null;
 }
 if ('serviceWorker' in navigator && !isDesktop && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
-  navigator.serviceWorker.register('sw.js').catch(() => { /* offline support is optional */ });
+  watchWebUpdates();
 }
+
+// Website updates: a new version installs in the background; the player is
+// offered a reload on the home screen, never mid-puzzle.
+async function watchWebUpdates() {
+  let reg;
+  try { reg = await navigator.serviceWorker.register('sw.js'); } catch (e) { return; /* offline support is optional */ }
+  const waiting = () => {
+    if (!reg.waiting || !navigator.serviceWorker.controller) return; // first install needs no reload
+    pendingUpdate = { kind: 'web', worker: reg.waiting };
+    offerUpdate();
+  };
+  waiting();
+  reg.addEventListener('updatefound', () => {
+    const w = reg.installing;
+    if (w) w.addEventListener('statechange', () => { if (w.state === 'installed') waiting(); });
+  });
+  let reloading = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (!reloading && webUpdateAccepted) { reloading = true; location.reload(); } });
+  const check = () => reg.update().catch(() => {});
+  setInterval(check, 30 * 60 * 1000);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') check(); });
+}
+let webUpdateAccepted = false;
 
 // ====================================================================
 // Start

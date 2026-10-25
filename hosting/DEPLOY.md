@@ -45,8 +45,28 @@ To upload this folder by hand instead: put its contents on a `gh-pages` branch a
 
 ## Updating
 
-Upload the new folder over the old one. Each build has its own service worker version,
-so players get the update the next time they open the game.
+**Players never have to do anything.** Each build has its own service worker version.
+An open copy of the game checks for a new version every 30 minutes and whenever it is
+brought back to the front. When one is ready, the home screen offers **Reload now**. It
+never interrupts a puzzle in progress, and saved games carry over.
+
+**By hand:** upload the new folder over the old one.
+
+**Automatically:** every push to `main` runs the **Publish web version** workflow. It always
+updates GitHub Pages, and it also updates any host below whose secrets you add under
+**Settings > Secrets and variables > Actions > New repository secret** in the GitHub repo.
+Hosts without secrets are skipped, so add only the ones you use.
+
+| Host | Secrets to add | Where to get them |
+|---|---|---|
+| Netlify | `NETLIFY_AUTH_TOKEN`, `NETLIFY_SITE_ID` | User settings > Applications > Personal access tokens; Site configuration > Site ID |
+| Cloudflare Pages | `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_PROJECT` | My Profile > API Tokens (template "Edit Cloudflare Workers", or a token with Cloudflare Pages: Edit); the account ID is on the dashboard sidebar; the project is your Pages project name |
+| FTP or FTPS (most shared hosting, cPanel, GoDaddy, Bluehost, Hostinger) | `FTP_SERVER`, `FTP_USERNAME`, `FTP_PASSWORD`, optional `FTP_DIR` (for example `/public_html/`) | Your host's FTP accounts page. Use `ftps://host` when your host supports it |
+| SSH server (VPS, nginx, Apache, Raspberry Pi) | `SSH_HOST`, `SSH_USER`, `SSH_PRIVATE_KEY`, `SSH_PATH` (for example `/var/www/logic-grid`), optional `SSH_PORT` | Make a key just for deploying (`ssh-keygen -t ed25519`), add the public half to the server's `~/.ssh/authorized_keys`, paste the private half as the secret |
+| Anything with a deploy hook (Vercel, Render, Netlify build hooks, DigitalOcean App Platform) | `DEPLOY_HOOK_URL` | The host's "deploy hook" or "build hook" setting. The workflow sends it a POST after each push |
+
+The FTP and SSH steps upload only changed files and delete files the new version no longer
+uses. To run it without pushing, open **Actions > Publish web version > Run workflow**.
 
 ## What the game reaches on the internet
 

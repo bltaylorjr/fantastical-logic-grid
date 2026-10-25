@@ -1,5 +1,8 @@
-# Publishes the web version (dist/site) to GitHub Pages on every push to main.
-# One-time setup: Settings > Pages > Source: GitHub Actions.
+# Publishes the web version (dist/site) on every push to main, which includes
+# every version bump that ships a release.
+# GitHub Pages: one-time setup is Settings > Pages > Source: GitHub Actions.
+# Other web hosts are opt-in: each one deploys only when its repository secrets
+# are set (Settings > Secrets and variables > Actions). See hosting/DEPLOY.md.
 name: Publish web version
 on:
   workflow_dispatch:
@@ -31,3 +34,70 @@ jobs:
           path: dist/site
       - id: deploy
         uses: actions/deploy-pages@v4
+
+  other-hosts:
+    runs-on: ubuntu-latest
+    env:
+      NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+      NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_PROJECT: ${{ secrets.CLOUDFLARE_PROJECT }}
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+      FTP_DIR: ${{ secrets.FTP_DIR }}
+      SSH_HOST: ${{ secrets.SSH_HOST }}
+      SSH_PORT: ${{ secrets.SSH_PORT }}
+      SSH_USER: ${{ secrets.SSH_USER }}
+      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+      SSH_PATH: ${{ secrets.SSH_PATH }}
+      DEPLOY_HOOK_URL: ${{ secrets.DEPLOY_HOOK_URL }}
+    steps:
+      - name: Check which hosts are set up
+        id: hosts
+        run: |
+          any=false
+          for v in NETLIFY_AUTH_TOKEN CLOUDFLARE_API_TOKEN FTP_SERVER SSH_HOST DEPLOY_HOOK_URL; do
+            [ -n "${!v}" ] && any=true
+          done
+          echo "any=$any" >> "$GITHUB_OUTPUT"
+          [ "$any" = true ] || echo "No other web hosts are set up; only GitHub Pages is updated."
+      - if: steps.hosts.outputs.any == 'true'
+        uses: actions/checkout@v4
+      - if: steps.hosts.outputs.any == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - if: steps.hosts.outputs.any == 'true'
+        run: npm ci && npm run build
+
+      - name: Netlify
+        if: env.NETLIFY_AUTH_TOKEN != '' && env.NETLIFY_SITE_ID != ''
+        run: npx --yes netlify-cli@27.10.2 deploy --prod --dir dist/site --site "$NETLIFY_SITE_ID" --message "${GITHUB_SHA::7}"
+
+      - name: Cloudflare Pages
+        if: env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_ACCOUNT_ID != '' && env.CLOUDFLARE_PROJECT != ''
+        run: npx --yes wrangler@4.145.0 pages deploy dist/site --project-name "$CLOUDFLARE_PROJECT" --branch main --commit-dirty=true
+
+      - name: FTP or FTPS server
+        if: env.FTP_SERVER != '' && env.FTP_USERNAME != '' && env.FTP_PASSWORD != ''
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq lftp
+          # Uploads only changed files and removes files the new version no longer has.
+          # FTP_SERVER may start with ftp:// or ftps://; plain hosts use FTPS when the server offers it.
+          lftp -u "$FTP_USERNAME,$FTP_PASSWORD" "$FTP_SERVER" -e "set ssl:verify-certificate yes; set ftp:ssl-allow yes; mirror --reverse --delete --verbose --exclude-glob .git* dist/site '${FTP_DIR:-/}'; quit"
+
+      - name: SSH server (rsync)
+        if: env.SSH_HOST != '' && env.SSH_USER != '' && env.SSH_PRIVATE_KEY != '' && env.SSH_PATH != ''
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key && chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p "${SSH_PORT:-22}" "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          rsync -rlvz --delete -e "ssh -i ~/.ssh/deploy_key -p ${SSH_PORT:-22}" dist/site/ "$SSH_USER@$SSH_HOST:$SSH_PATH/"
+          rm -f ~/.ssh/deploy_key
+
+      - name: Deploy hook (Vercel, Render, Netlify build hooks, cPanel and others)
+        if: env.DEPLOY_HOOK_URL != ''
+        run: curl -fsS -X POST "$DEPLOY_HOOK_URL"
