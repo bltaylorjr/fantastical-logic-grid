@@ -42,8 +42,10 @@ cpSync(web, out, { recursive: true });
 // and the sync Worker's address (GitHub repository variables in CI).
 const cloudFile = join(out, 'js', 'cloud-config.js');
 let cloud = readFileSync(cloudFile, 'utf8');
-for (const [name, field] of [['FLG_FIREBASE_API_KEY', 'firebaseApiKey'], ['FLG_SYNC_URL', 'syncUrl']]) {
-  if (process.env[name]) cloud = cloud.replace(new RegExp(`${field}: '[^']*'`), `${field}: ${JSON.stringify(process.env[name])}`);
+// FLG_CLOUD_URL is the shared Worker address (also used for learning).
+const cloudEnv = { firebaseApiKey: process.env.FLG_FIREBASE_API_KEY, syncUrl: process.env.FLG_SYNC_URL || process.env.FLG_CLOUD_URL };
+for (const [field, value] of Object.entries(cloudEnv)) {
+  if (value) cloud = cloud.replace(new RegExp(`${field}: '[^']*'`), `${field}: ${JSON.stringify(value)}`);
 }
 writeFileSync(cloudFile, cloud);
 const files = [];

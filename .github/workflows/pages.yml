@@ -31,7 +31,7 @@ jobs:
       - run: npm run build
         env:
           FLG_FIREBASE_API_KEY: ${{ vars.FLG_FIREBASE_API_KEY }}
-          FLG_SYNC_URL: ${{ vars.FLG_SYNC_URL }}
+          FLG_CLOUD_URL: ${{ vars.FLG_CLOUD_URL }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist/site
@@ -77,7 +77,7 @@ jobs:
         run: npm ci && npm run build
         env:
           FLG_FIREBASE_API_KEY: ${{ vars.FLG_FIREBASE_API_KEY }}
-          FLG_SYNC_URL: ${{ vars.FLG_SYNC_URL }}
+          FLG_CLOUD_URL: ${{ vars.FLG_CLOUD_URL }}
 
       - name: Netlify
         if: env.NETLIFY_AUTH_TOKEN != '' && env.NETLIFY_SITE_ID != ''

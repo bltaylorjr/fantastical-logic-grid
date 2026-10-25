@@ -67,7 +67,7 @@ Players can create an account (email and password) so saved puzzles, progress,
 settings and the used-story list sync across the website, desktop and phone
 apps. Playing without an account works exactly as before. Accounts use free
 plans only (Firebase Authentication and a Cloudflare Worker with D1) and stay
-switched off until `FLG_FIREBASE_API_KEY` and `FLG_SYNC_URL` are set. Setup,
+switched off until `FLG_FIREBASE_API_KEY` and `FLG_CLOUD_URL` are set. Setup,
 costs and how conflicts are merged: [server/README.md](server/README.md).
 
 ## Build

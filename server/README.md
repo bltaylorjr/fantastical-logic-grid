@@ -72,11 +72,19 @@ In GitHub: **Settings > Secrets and variables > Actions > Variables > New
 repository variable**, add:
 
 - `FLG_FIREBASE_API_KEY` = the Firebase apiKey
-- `FLG_SYNC_URL` = the Worker address from step 2
+- `FLG_CLOUD_URL` = the Worker address from step 2 (the same variable the shared learning service uses)
 
 The next website publish and desktop release include accounts. (Alternatively,
 put the two values in `web/js/cloud-config.js`.) Until both are set, the game
 shows no account controls and works exactly as before.
+
+### Deploying through Cloudflare's GitHub connection
+
+If the Worker is connected to this repository in Cloudflare (Workers & Pages >
+Create > Import a repository), set **Root directory** to `server` and **Deploy
+command** to `npx wrangler d1 migrations apply flg --remote && npx wrangler deploy`.
+The D1 database still has to exist first (dashboard: Storage & Databases > D1 >
+Create database, name `flg`) with its id in `wrangler.toml`.
 
 ### Later deploys from GitHub (optional)
 
