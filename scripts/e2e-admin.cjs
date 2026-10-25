@@ -114,6 +114,13 @@ const SHOTS = process.env.SHOTS;
     assert(/Games finished/.test(overview) && /mystery/.test(overview), 'the overview shows games and themes');
     assert(/140/.test(overview) && /300/.test(overview), 'the overview shows voices used against the cap');
     assert(await page.locator('#ov-body svg[role=img]').count() >= 5, 'the overview has charts with text descriptions');
+    await page.click('#nav-list a[href="#settings"]');
+    await page.waitForSelector('[data-view="settings"]:not([hidden])');
+    await page.click('#home');
+    await page.waitForSelector('[data-view="overview"]:not([hidden])');
+    assert(await page.locator('[data-view="settings"]').isHidden(), 'the Home button goes back to the overview');
+    await page.click('#home');
+    assert(await page.locator('[data-view="overview"]').isVisible() && page.url().endsWith('#overview'), 'Home on the overview stays on the overview');
     await shot(page, '1-overview');
 
     await page.click('a[href="#stories"]');
