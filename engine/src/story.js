@@ -1,6 +1,5 @@
 // Storyline builder: scene, cast, goal, and the ending revealed on solve.
 import { cap, joinList } from './language.js';
-import { STORYLINES } from './storylines.js';
 
 const NUMBER_WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
 
@@ -8,27 +7,31 @@ export function countWords(text) {
   return text.split(/\s+/).filter(Boolean).length;
 }
 
-// A storyline is one choice of each part kind (see storylines.js). Its id
-// records those choices, e.g. "mystery|t2|o1|i3|m0|lroom.1|e4".
+// A storyline is one choice of each part kind (see storylines.js and
+// topics.js). Its id starts with the story key (the theme, plus the topic for
+// any topic with its own story parts) and records those choices, e.g.
+// "mystery|t2|o1|i3|m0|lroom.1|e4" or "holiday/halloween|t0|o5|i2|m1|lcostume.0|e3".
 const PART_WEIGHTS = { t: 1, o: 3, i: 3, m: 1, l: 1, e: 2 };
 
 export function parseStoryId(id) {
-  const [theme, ...parts] = String(id).split('|');
-  const out = { theme };
+  const [key, ...parts] = String(id).split('|');
+  const [theme, topic = null] = key.split('/');
+  const out = { key, theme, topic };
   for (const p of parts) out[p[0]] = p.slice(1);
   return out;
 }
 
-function makeId(theme, c) {
-  return `${theme}|t${c.adj}|o${c.o}|i${c.i}|m${c.m}|l${c.leadCat}.${c.lead}|e${c.e}`;
+function makeId(key, c) {
+  return `${key}|t${c.adj}|o${c.o}|i${c.i}|m${c.m}|l${c.leadCat}.${c.lead}|e${c.e}`;
 }
 
 // Pick a storyline that has never been used, preferring ones that share the
 // fewest parts with recently used storylines.
-export function pickStoryline(rng, themeId, leadCat, usedStories = []) {
-  const S = STORYLINES[themeId];
+export function pickStoryline(rng, scenario, leadCat, usedStories = []) {
+  const S = scenario.story;
+  const key = scenario.key;
   const used = new Set(usedStories);
-  const recent = usedStories.slice(-300).map(parseStoryId).filter((u) => u.theme === themeId);
+  const recent = usedStories.slice(-300).map(parseStoryId).filter((u) => u.key === key);
   const random = () => ({
     adj: rng.int(S.adjs.length), o: rng.int(S.openings.length),
     i: rng.int(S.incidents.length), m: rng.int(S.mishaps.length), leadCat, lead: rng.int(S.leads[leadCat].length),
@@ -48,7 +51,7 @@ export function pickStoryline(rng, themeId, leadCat, usedStories = []) {
   let best = null, bestScore = Infinity;
   for (let n = 0; n < 400; n++) {
     const c = random();
-    const id = makeId(themeId, c);
+    const id = makeId(key, c);
     if (used.has(id)) continue;
     const sc = overlap(c);
     if (sc < bestScore) { best = { ...c, id }; bestScore = sc; }
@@ -63,22 +66,23 @@ export function pickStoryline(rng, themeId, leadCat, usedStories = []) {
           for (let o = 0; o < S.openings.length; o++)
             for (let adj = 0; adj < S.adjs.length; adj++) {
                 const c = { adj, o, i, m, leadCat, lead, e };
-                const id = makeId(themeId, c);
+                const id = makeId(key, c);
                 if (!used.has(id)) return { ...c, id };
               }
-  throw new Error(`Every ${themeId} storyline for this goal has been used. Choose another theme.`);
+  throw new Error(`Every ${scenario.theme.name} / ${scenario.topic.name} storyline for this goal has been used. Choose another topic.`);
 }
 
 // model: built puzzle model (see generator); goal: { cat, item }.
-export function buildStory({ rng, theme, goal, model, L, customTitle, usedStories }) {
+export function buildStory({ rng, scenario, goal, model, L, customTitle, usedStories }) {
   const { N, cats } = model;
-  const S = STORYLINES[theme.id];
+  const S = scenario.story;
+  const cast = scenario.cast;
   const names = cats[0].labels;
   const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? vars[k] : m));
   // Capitalize the start of every sentence (a part may begin with {prize}).
   const capFirst = (t) => t.replace(/(^\W*|[.!?]\s+)([a-z])/g, (m, p, c) => p + c.toUpperCase());
 
-  const pick = pickStoryline(rng, theme.id, cats[goal.cat].id, usedStories);
+  const pick = pickStoryline(rng, scenario, cats[goal.cat].id, usedStories);
   const incident = S.incidents[pick.i];
   const goalItem = goal.cat * N + goal.item;
   const winnerEntity = model.sol[goal.cat].indexOf(goal.item);
@@ -86,14 +90,14 @@ export function buildStory({ rng, theme, goal, model, L, customTitle, usedStorie
   const fact = `${winner} ${L.pos(goalItem)}`;
   const n = NUMBER_WORDS[N] || String(N);
   const vars = {
-    n, N: cap(n), many: theme.cast.many, one: theme.cast.one,
+    n, N: cap(n), many: cast.many, one: cast.one,
     x: L.label(goalItem), prize: incident.prize, winner, Fact: cap(fact), fact,
   };
 
   const scene = [S.openings[pick.o], incident.text, S.mishaps[pick.m]].map((t) => capFirst(fill(t, vars))).join(' ');
-  const castLine = `The ${theme.cast.many} are ${joinList(names)}.`;
+  const castLine = `The ${cast.many} are ${joinList(names)}.`;
   const catNames = cats.slice(1).map((c) => c.name.toLowerCase());
-  const task = `Use the clues to match each ${theme.cast.one} with their ${joinList(catNames)}.`;
+  const task = `Use the clues to match each ${cast.one} with their ${joinList(catNames)}.`;
   const lead = capFirst(fill(S.leads[pick.leadCat][pick.lead], vars));
   const question = `Who ${L.pos(goalItem)}?`;
   const goalLine = `Can you work out who ${L.pos(goalItem)}?`;

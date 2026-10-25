@@ -6,6 +6,7 @@
 // does not need. The result is graded against the chosen difficulty tier.
 import { makeRng } from './rng.js';
 import { THEMES, getTheme } from './themes.js';
+import { resolveTopic, buildScenario } from './topics.js';
 import { TIERS, CLUE_TYPES, SIZE_LIMITS } from './tiers.js';
 import { candidateStream, clueHolds } from './clues.js';
 import { isSolvable, solveWithTrace, TECHNIQUE_NAMES } from './solver.js';
@@ -20,9 +21,12 @@ const clamp = (v, [lo, hi]) => Math.max(lo, Math.min(hi, v));
 function resolveOptions(opts = {}) {
   const tier = TIERS[opts.difficulty] || TIERS.easy;
   const seed = opts.seed != null ? String(opts.seed) : Math.floor(Math.random() * 2 ** 32).toString(36);
-  const rng = makeRng(`${seed}|${tier.id}|${opts.theme || ''}|${opts.categories || ''}x${opts.items || ''}`);
+  const rng = makeRng(`${seed}|${tier.id}|${opts.theme || ''}|${opts.topic || ''}|${opts.categories || ''}x${opts.items || ''}`);
   const theme = opts.theme && opts.theme !== 'random' ? getTheme(opts.theme) : rng.pick(THEMES);
   if (!theme) throw new Error(`Unknown theme "${opts.theme}". Try one of: ${THEMES.map((t) => t.id).join(', ')}`);
+  // A topic only makes sense within a chosen theme; a random theme gets a random topic.
+  const topic = resolveTopic(theme, opts.theme && opts.theme !== 'random' ? opts.topic : null, rng);
+  const scenario = buildScenario(theme, topic);
   const K = clamp(opts.categories || tier.defaultSize[0], SIZE_LIMITS.categories);
   const N = clamp(opts.items || tier.defaultSize[1], SIZE_LIMITS.items);
   const customSize = K < tier.categories[0] || K > tier.categories[1] || N < tier.items[0] || N > tier.items[1];
@@ -35,18 +39,18 @@ function resolveOptions(opts = {}) {
   }
   const clueCount = opts.clueCount ? Math.max(1, Math.floor(opts.clueCount)) : null;
   const questions = clamp(opts.questions ?? 3, [1, 6]);
-  return { tier, seed, rng, theme, K, N, customSize, weights, clueCount, questions,
+  return { tier, seed, rng, theme, topic, scenario, K, N, customSize, weights, clueCount, questions,
     customNames: opts.customNames, customTitle: opts.title, usedStories: opts.usedStories || [], timeLimitMs: opts.timeLimitMs ?? 15000,
     maxAttempts: opts.maxAttempts ?? 60 };
 }
 
 // Choose the goal category, the other categories and their items.
 function buildModel(o) {
-  const { rng, theme, K, N, weights } = o;
+  const { rng, scenario, K, N, weights } = o;
   const wantsOrdinal = 'less' in weights || 'diff' in weights;
-  const goalDef = rng.pick(theme.categories);
+  const goalDef = rng.pick(scenario.categories);
 
-  const pool = theme.categories.slice();
+  const pool = scenario.categories.slice();
   const chosen = [];
   const take = (c) => { if (c && !chosen.includes(c) && chosen.length < K - 1) chosen.push(c); };
   take(goalDef);
@@ -56,11 +60,11 @@ function buildModel(o) {
   chosen.sort((p, q) => (p.ordinal ? 1 : 0) - (q.ordinal ? 1 : 0) || pool.indexOf(p) - pool.indexOf(q));
 
   let names = Array.isArray(o.customNames) ? [...new Set(o.customNames.map((s) => String(s).trim()).filter(Boolean))] : [];
-  if (names.length < N) names = names.concat(rng.sample(theme.names.filter((n) => !names.includes(n)), N - names.length));
+  if (names.length < N) names = names.concat(rng.sample(scenario.names.filter((n) => !names.includes(n)), N - names.length));
   else names = names.slice(0, N);
   names.sort((p, q) => p.localeCompare(q));
 
-  const cats = [{ id: 'name', name: cap(theme.cast.one), labels: names, pos: 'is {x}', neg: 'is not {x}', ordinal: null }];
+  const cats = [{ id: 'name', name: cap(scenario.cast.one), labels: names, pos: 'is {x}', neg: 'is not {x}', ordinal: null }];
   for (const c of chosen) {
     if (c.ordinal) {
       const od = c.ordinal;
@@ -74,7 +78,7 @@ function buildModel(o) {
     }
   }
   return {
-    K, N, cats, cast: theme.cast,
+    K, N, cats, cast: scenario.cast,
     goal: { cat: cats.findIndex((c) => c.id === goalDef.id) },
     ordinals: cats.map((c, i) => (c.ordinal ? i : -1)).filter((i) => i > 0),
   };
@@ -185,7 +189,7 @@ export function generatePuzzle(options = {}) {
 }
 
 function finalize(o, best, elapsedMs) {
-  const { rng, tier, theme } = o;
+  const { rng, tier, theme, topic, scenario } = o;
   const { model } = best;
   const { K, N, cats, sol } = model;
   const L = makeLanguage(model);
@@ -198,7 +202,7 @@ function finalize(o, best, elapsedMs) {
   const itemId = (gl) => `${cats[Math.floor(gl / N)].id}:${gl % N}`;
   const ref = (gl) => ({ category: cats[Math.floor(gl / N)].id, item: gl % N, id: itemId(gl), label: L.label(gl) });
 
-  const story = buildStory({ rng, theme, goal: { cat: model.goal.cat, item: rng.int(N) }, model, L, customTitle: o.customTitle, usedStories: o.usedStories });
+  const story = buildStory({ rng, scenario, goal: { cat: model.goal.cat, item: rng.int(N) }, model, L, customTitle: o.customTitle, usedStories: o.usedStories });
   const goalAbout = { cat: model.goal.cat, item: null };
   // buildStory picked the goal item; recover it from the answer for questions.
   goalAbout.item = sol[model.goal.cat][story.goalAnswer.item];
@@ -218,13 +222,15 @@ function finalize(o, best, elapsedMs) {
   return {
     engine: ENGINE_NAME,
     version: ENGINE_VERSION,
-    id: `${theme.id}-${tier.id}-${K}x${N}-${o.seed}`,
+    id: `${theme.id}-${topic.id}-${tier.id}-${K}x${N}-${o.seed}`,
     seed: o.seed,
-    options: { difficulty: tier.id, theme: theme.id, categories: K, items: N, clueCount: o.clueCount, clueTypes: Object.keys(o.weights), questions: o.questions },
+    options: { difficulty: tier.id, theme: theme.id, topic: topic.id, categories: K, items: N, clueCount: o.clueCount, clueTypes: Object.keys(o.weights), questions: o.questions },
     title: story.title,
     theme: { id: theme.id, name: theme.name },
+    topic: { id: topic.id, name: topic.name, description: topic.description },
+    art: { setting: scenario.art.setting, mood: scenario.art.mood },
     difficulty: { id: tier.id, name: tier.name, summary: tier.summary },
-    cast: theme.cast,
+    cast: scenario.cast,
     categories: cats.map((c) => ({
       id: c.id, name: c.name, noun: c.noun || c.name.toLowerCase(), ordinal: !!c.ordinal,
       items: c.labels.map((label, i) => ({ id: `${c.id}:${i}`, label, ...(c.values ? { value: c.values[i] } : {}) })),
