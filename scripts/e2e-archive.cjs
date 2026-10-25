@@ -65,8 +65,8 @@ const DAY = 86400000;
     await page.waitForSelector('#backups-body table');
     const text = await page.textContent('#backups-body');
     assert(/Anonymous play summaries/.test(text) && /90 days/.test(text), 'the list of what gets archived and for how long is shown');
-    assert(/Email not set up|not set up yet/.test(text), 'it says the email is not set up yet');
-    assert(await page.isDisabled('#archive-send'), 'sending is disabled until the email is set up');
+    assert(/GitHub Action "Weekly archive email"/.test(text), 'it says the GitHub Action sends the email');
+    assert(!(await page.$('#archive-send')), 'no Cloudflare send button while the GitHub Action sends');
     assert(/Switched off|Off\./.test(text), 'the weekly email starts off');
     await shot('archive-1-dashboard');
 

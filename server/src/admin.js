@@ -21,6 +21,8 @@
 //   GET  /admin/v1/archive             the weekly archive: setup, what goes, past runs (archive.js)
 //   POST /admin/v1/archive/run         send the archive email now (owner)
 //   GET  /admin/v1/archive/download    the same zip as a download, nothing removed (owner)
+//   POST /admin/v1/archive/export[?test=1]  the zip for the weekly GitHub Action to email (owner)
+//   POST /admin/v1/archive/confirm     that Action says the email went out; rows may now go (owner)
 //
 // Sign-in: a Firebase ID token from a game account with a confirmed email that
 // is the OWNER_EMAIL secret or listed in the admins table. The ADMIN_TOKEN
@@ -35,7 +37,7 @@ import { checkName, cleanName, nameKey, hasBlockedWords } from './names.js';
 import { deleteCompeteStatements, clearBoardCache } from './compete.js';
 import { SETTINGS, getSettings, checkSetting, saveSetting, themeList } from './settings.js';
 import { TUNING_CACHE_KEY } from './learn.js';
-import { archiveStatus, runArchive, buildArchive } from './archive.js';
+import { archiveStatus, runArchive, buildArchive, exportArchive, confirmArchive } from './archive.js';
 
 const DAY = 24 * 3600_000;
 const ROLES = { viewer: 1, moderator: 2, admin: 3, owner: 4 };
@@ -462,6 +464,23 @@ const ROUTES = [
     const { zip, name, counts } = await buildArchive(env, now);
     return { file: zip, name, detail: { rows: counts } };
   }],
+  ['POST', /^archive\/export$/, 'owner', 'archive.export', async ({ env, url, now }) => {
+    const test = url.searchParams.get('test') === '1';
+    const r = await exportArchive(env, now, { test });
+    if (r.status === 'off') throw new Refusal(409, 'off', 'The weekly archive email is switched off in Settings and switches.');
+    if (r.status === 'too_big') throw new Refusal(413, 'too_big', 'The zip is too big to email. Nothing was removed.');
+    const total = Object.values(r.counts).reduce((a, n) => a + n, 0);
+    return {
+      file: r.zip, name: r.name, detail: { rows: r.counts, test },
+      headers: { 'X-Archive-Id': String(r.id), 'X-Archive-Total': String(total), 'X-Archive-Rows': JSON.stringify(r.counts), 'X-Archive-Test': test ? '1' : '0' },
+    };
+  }],
+  ['POST', /^archive\/confirm$/, 'owner', 'archive.confirm', async ({ env, body, now }) => {
+    const r = await confirmArchive(env, body.id, now);
+    if (r.status === 'unknown') throw new Refusal(404, 'unknown', r.message);
+    if (r.status === 'expired') throw new Refusal(410, 'expired', 'Too late to confirm. Nothing was removed.');
+    return { body: r, target: String(body.id), detail: r };
+  }],
 
   ['GET', /^admins$/, 'owner', 'admins.view', async ({ env }) => {
     const { results } = await env.DB.prepare('SELECT email, role, added_by AS addedBy, added_at AS addedAt FROM admins ORDER BY added_at').all();
@@ -525,7 +544,7 @@ async function api(req, env, url, path) {
     await audit(env, { actor: who.actor, role: who.role, action, target: out.target, detail: out.detail, status: 200 });
     if (out.file) {
       return new Response(out.file, {
-        headers: { 'Content-Type': 'application/zip', 'Content-Disposition': `attachment; filename="${out.name}"`, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
+        headers: { 'Content-Type': 'application/zip', 'Content-Disposition': `attachment; filename="${out.name}"`, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', ...out.headers },
       });
     }
     return reply(out.body);

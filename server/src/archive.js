@@ -10,9 +10,14 @@
 //                           (upkeep.js) leaves these rows for the archive.
 //   archive_delete_enabled  remove the rows after Cloudflare accepted the email.
 //
-// Email goes through Cloudflare Email Routing's send_email binding
-// (ARCHIVE_EMAIL), which is free to a verified destination address. The
-// address is the ARCHIVE_TO secret, so it is not in the repo. Player ids are
+// Two ways to send, both free:
+//   - Gmail, from the weekly GitHub Action (.github/workflows/archive-email.yml,
+//     scripts/archive-email.py): it asks for the zip (exportArchive), emails
+//     it, then confirms (confirmArchive), and only then are the rows removed.
+//     Used because the domain's DNS is not on Cloudflare.
+//   - Cloudflare Email Routing's send_email binding (ARCHIVE_EMAIL), from this
+//     Worker's own Monday cron (runArchive), if the domain ever moves.
+// The address is a secret (ARCHIVE_TO), so it is not in the repo. Player ids are
 // replaced with a keyed code (the same player gets the same code every week),
 // so the archive cannot be tied back to an account without the Worker's key.
 
@@ -105,7 +110,7 @@ export async function buildArchive(env, now = Date.now()) {
   const code = idCoder(env);
   const files = [];
   const counts = {};
-  const removals = [];
+  const plan = [];
   const tables = {};
   for (const spec of ARCHIVE) {
     const cutoff = spec.cutoff(now);
@@ -125,9 +130,8 @@ export async function buildArchive(env, now = Date.now()) {
       counts[child.table] = kids.length;
       tables[child.table] = { label: `${spec.label} (${child.table})`, rows: kids.length, file: `${child.table}.csv`, dateColumn: child.dateColumn, keptDays: spec.keepDays, cutoff, why: spec.why };
       files.push({ name: `${child.table}.csv`, data: toCsv(kids, childCols) });
-      if (rows.length) removals.push(db.prepare(`DELETE FROM ${child.table} WHERE code IN (${picked})`).bind(cutoff, maxRowid));
     }
-    if (rows.length) removals.push(db.prepare(`DELETE FROM ${spec.table} WHERE (${spec.where}) AND rowid <= ?2`).bind(cutoff, maxRowid));
+    if (rows.length) plan.push({ table: spec.table, cutoff, maxRowid });
   }
   const total = Object.values(counts).reduce((s, n) => s + n, 0);
   const manifest = {
@@ -136,7 +140,23 @@ export async function buildArchive(env, now = Date.now()) {
   files.unshift({ name: 'manifest.json', data: JSON.stringify(manifest, null, 2) });
   files.push({ name: 'README.txt', data: readme(manifest) });
   const zip = await makeZip(files, now);
-  return { zip, counts, total, removals, name: `flg-archive-${isoDay(now)}.zip`, manifest };
+  return { zip, counts, total, plan, name: `flg-archive-${isoDay(now)}.zip`, manifest };
+}
+
+// The DELETEs that remove exactly the rows a zip holds: those matching the
+// table's cutoff up to the last rowid read (children first). plan comes from
+// buildArchive, possibly stored in archive_log; only table names in ARCHIVE
+// are used, so a stored plan cannot reach any other table.
+export function removalStatements(db, plan) {
+  const out = [];
+  for (const step of plan || []) {
+    const spec = ARCHIVE.find((s) => s.table === step.table);
+    if (!spec || !Number.isInteger(step.maxRowid)) continue;
+    const picked = `SELECT code FROM ${spec.table} WHERE (${spec.where}) AND rowid <= ?2`;
+    for (const child of spec.children || []) out.push(db.prepare(`DELETE FROM ${child.table} WHERE code IN (${picked})`).bind(step.cutoff, step.maxRowid));
+    out.push(db.prepare(`DELETE FROM ${spec.table} WHERE (${spec.where}) AND rowid <= ?2`).bind(step.cutoff, step.maxRowid));
+  }
+  return out;
 }
 
 function readme(m) {
@@ -176,8 +196,8 @@ export async function pendingCounts(env, now = Date.now()) {
 const isSetUp = (env) => !!(env.ARCHIVE_EMAIL && env.ARCHIVE_TO && env.ARCHIVE_FROM);
 
 async function log(env, now, entry) {
-  await env.DB.prepare('INSERT OR REPLACE INTO archive_log (ran_at, trigger, status, rows, bytes, removed, message) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)')
-    .bind(now, entry.trigger, entry.status, JSON.stringify(entry.rows || {}), entry.bytes || 0, entry.removed ? 1 : 0, entry.message || null).run();
+  await env.DB.prepare('INSERT OR REPLACE INTO archive_log (ran_at, trigger, status, rows, bytes, removed, message, plan) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)')
+    .bind(now, entry.trigger, entry.status, JSON.stringify(entry.rows || {}), entry.bytes || 0, entry.removed ? 1 : 0, entry.message || null, entry.plan ? JSON.stringify(entry.plan) : null).run();
   return entry;
 }
 
@@ -186,8 +206,10 @@ async function log(env, now, entry) {
 // are only removed when both switches are on.
 export async function runArchive(env, now = Date.now(), { trigger = 'weekly' } = {}) {
   const settings = await getSettings(env, now);
+  // Without the binding the GitHub Action sends instead, so the cron stays quiet.
+  if (trigger === 'weekly' && !isSetUp(env)) return { trigger, status: 'not_set_up' };
   if (trigger === 'weekly' && !settings.archive_email_enabled) return log(env, now, { trigger, status: 'off' });
-  if (!isSetUp(env)) return log(env, now, { trigger, status: 'not_set_up', message: 'Add the ARCHIVE_EMAIL binding and the ARCHIVE_TO secret (see server/ARCHIVE.md).' });
+  if (!isSetUp(env)) return log(env, now, { trigger, status: 'not_set_up', message: 'Cloudflare email is not connected. The weekly GitHub Action sends the email instead (see server/ARCHIVE.md).' });
   const removeAfter = settings.archive_email_enabled && settings.archive_delete_enabled;
 
   let built;
@@ -195,11 +217,12 @@ export async function runArchive(env, now = Date.now(), { trigger = 'weekly' } =
     console.error('archive build', e);
     return log(env, now, { trigger, status: 'failed', message: `Could not read the old rows: ${e.message}` });
   }
-  const { zip, counts, total, removals, name } = built;
+  const { zip, counts, total, plan, name } = built;
+  const removals = removalStatements(env.DB, plan);
   if (zip.length > MAX_ZIP_BYTES) return log(env, now, { trigger, status: 'failed', rows: counts, bytes: zip.length, message: 'The zip is too big to email. Nothing was removed.' });
 
   const list = Object.entries(counts).filter(([, n]) => n).map(([t, n]) => `  ${t}: ${n} rows`).join('\n');
-  const plan = !total ? 'Nothing was old enough to archive this week.'
+  const outcome = !total ? 'Nothing was old enough to archive this week.'
     : removeAfter ? 'These rows have now been removed from the database. This email is the only copy, so keep it.'
       : 'Nothing was removed (removal is switched off in the dashboard), so the same rows will come again next week.';
   try {
@@ -207,7 +230,7 @@ export async function runArchive(env, now = Date.now(), { trigger = 'weekly' } =
       to: env.ARCHIVE_TO,
       from: { email: env.ARCHIVE_FROM, name: 'The Fantastical Logic Grid' },
       subject: `Logic Grid archive ${isoDay(now)}: ${total} old rows`,
-      text: `The weekly archive of data the game no longer needs.\n\n${list || '  (no rows)'}\n\n${plan}\n\nOpen the zip with Backups and archive > Archive viewer in the admin dashboard, or open the CSV files in a spreadsheet. Player ids are replaced with codes; README.txt in the zip lists the personal data it holds.\n`,
+      text: `The weekly archive of data the game no longer needs.\n\n${list || '  (no rows)'}\n\n${outcome}\n\nOpen the zip with Backups and archive > Archive viewer in the admin dashboard, or open the CSV files in a spreadsheet. Player ids are replaced with codes; README.txt in the zip lists the personal data it holds.\n`,
       attachments: total ? [{ filename: name, content: zip.buffer.slice(zip.byteOffset, zip.byteOffset + zip.length), type: 'application/zip', disposition: 'attachment' }] : undefined,
     });
   } catch (e) {
@@ -228,6 +251,52 @@ export async function runArchive(env, now = Date.now(), { trigger = 'weekly' } =
   return log(env, now, { trigger, status: total ? 'sent' : 'empty', rows: counts, bytes: zip.length, removed });
 }
 
+// For a sender outside the Worker (the weekly GitHub Action): build the zip
+// and remember exactly which rows it holds. Nothing is removed until
+// confirmArchive. test: send even while the weekly email switch is off.
+export const CONFIRM_WITHIN_MS = 6 * 3600_000;
+export async function exportArchive(env, now = Date.now(), { trigger = 'github action', test = false } = {}) {
+  const settings = await getSettings(env, now);
+  if (!test && !settings.archive_email_enabled) return { status: 'off' };
+  const built = await buildArchive(env, now);
+  if (built.zip.length > MAX_ZIP_BYTES) {
+    await log(env, now, { trigger, status: 'failed', rows: built.counts, bytes: built.zip.length, message: 'The zip is too big to email. Nothing was removed.' });
+    return { status: 'too_big' };
+  }
+  // A test send stores no plan, so confirming it removes nothing.
+  await log(env, now, { trigger, status: 'exported', rows: built.counts, bytes: built.zip.length, plan: test ? null : built.plan, message: test ? 'Test send: nothing is removed.' : null });
+  return { status: 'exported', id: now, ...built };
+}
+
+// The sender says the email went out. The rows in that zip are removed when
+// both switches are on (a test send never removes anything).
+export async function confirmArchive(env, id, now = Date.now()) {
+  const row = await env.DB.prepare('SELECT status, plan, message FROM archive_log WHERE ran_at = ?1').bind(Number(id)).first();
+  if (!row || row.status !== 'exported') return { status: 'unknown', message: 'No archive waiting for that id.' };
+  if (now - Number(id) > CONFIRM_WITHIN_MS) {
+    await env.DB.prepare("UPDATE archive_log SET status = 'failed', message = 'Not confirmed in time. Nothing was removed.' WHERE ran_at = ?1").bind(Number(id)).run();
+    return { status: 'expired' };
+  }
+  const settings = await getSettings(env, now);
+  const removeAfter = settings.archive_email_enabled && settings.archive_delete_enabled;
+  let removed = false;
+  let message = row.message;
+  if (removeAfter) {
+    const removals = removalStatements(env.DB, JSON.parse(row.plan || '[]'));
+    try {
+      if (removals.length) await env.DB.batch(removals);
+      removed = removals.length > 0;
+    } catch (e) {
+      console.error('archive remove', e);
+      message = `Sent, but removing the rows failed (${e.message}). They go again next week.`;
+    }
+  }
+  const counts = JSON.parse((await env.DB.prepare('SELECT rows FROM archive_log WHERE ran_at = ?1').bind(Number(id)).first()).rows);
+  const total = Object.values(counts).reduce((a, n) => a + n, 0);
+  await env.DB.prepare('UPDATE archive_log SET status = ?2, removed = ?3, message = ?4, plan = NULL WHERE ran_at = ?1').bind(Number(id), total ? 'sent' : 'empty', removed ? 1 : 0, message).run();
+  return { status: total ? 'sent' : 'empty', removed };
+}
+
 export async function archiveStatus(env, now = Date.now()) {
   const settings = await getSettings(env, now);
   const { results } = await env.DB.prepare('SELECT ran_at, trigger, status, rows, bytes, removed, message FROM archive_log ORDER BY ran_at DESC LIMIT 20').all();
@@ -235,7 +304,8 @@ export async function archiveStatus(env, now = Date.now()) {
     setUp: { binding: !!env.ARCHIVE_EMAIL, to: !!env.ARCHIVE_TO, from: env.ARCHIVE_FROM || null },
     emailOn: settings.archive_email_enabled,
     removeOn: settings.archive_delete_enabled,
-    schedule: 'Mondays at 04:47 UTC',
+    route: env.ARCHIVE_EMAIL ? 'cloudflare' : 'github',
+    schedule: env.ARCHIVE_EMAIL ? 'Mondays at 04:47 UTC' : 'Mondays at 05:07 UTC, by the GitHub Action "Weekly archive email"',
     plan: ARCHIVE.map((s) => ({ table: s.table, label: s.label, keepDays: s.keepDays, why: s.why, children: (s.children || []).map((c) => c.table) })),
     personalData: PERSONAL_DATA,
     pending: await pendingCounts(env, now),

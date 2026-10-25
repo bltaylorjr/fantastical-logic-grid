@@ -221,6 +221,15 @@ test('backups: the archive page, a download, and the viewer page', async () => {
   const bytes = new Uint8Array(await dl.arrayBuffer());
   assert.deepEqual([...bytes.slice(0, 4)], [0x50, 0x4b, 0x03, 0x04]);
 
+  const off = await mf.dispatchFetch('https://api.test/admin/v1/archive/export', { method: 'POST', headers: { Authorization: `Bearer ${TOKEN}` } });
+  assert.equal(off.status, 409, 'the GitHub Action gets "off" while the weekly switch is off');
+  const exp = await mf.dispatchFetch('https://api.test/admin/v1/archive/export?test=1', { method: 'POST', headers: { Authorization: `Bearer ${TOKEN}` } });
+  assert.equal(exp.status, 200);
+  assert.equal(exp.headers.get('x-archive-test'), '1');
+  await exp.arrayBuffer();
+  const confirm = await call('/admin/v1/archive/confirm', { auth: TOKEN, body: { id: Number(exp.headers.get('x-archive-id')) } });
+  assert.equal(confirm.body.removed, false, 'a test send removes nothing');
+
   const page = await call('/admin/archive.html', { origin: null });
   assert.equal(page.status, 200);
   assert.match(page.text, /Archive viewer/);

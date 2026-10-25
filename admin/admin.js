@@ -478,16 +478,18 @@ let auditTimer;
 $('#audit-actor').oninput = () => { clearTimeout(auditTimer); auditTimer = setTimeout(() => show('audit', { keepFocus: true }), 400); };
 $('#audit-more').onclick = () => views.audit({ more: true }).catch((e) => toast(e.message));
 
-const ARCHIVE_STATUS = { sent: ['ok', 'Sent'], empty: ['ok', 'Nothing to archive'], off: ['', 'Switched off'], not_set_up: ['warn', 'Email not set up'], failed: ['bad', 'Failed'] };
+const ARCHIVE_STATUS = { exported: ['warn', 'Made; email not confirmed'], sent: ['ok', 'Sent'], empty: ['ok', 'Nothing to archive'], off: ['', 'Switched off'], not_set_up: ['warn', 'Email not set up'], failed: ['bad', 'Failed'] };
 
 views.backups = async () => {
   const d = await api('archive');
   const owner = can('owner');
   const yes = (ok, text) => `<span class="badge ${ok ? 'ok' : 'warn'}">${ok ? 'Done' : 'Not yet'}</span> ${text}`;
+  const viaGitHub = d.route === 'github';
   const ready = d.setUp.binding && d.setUp.to;
   const mode = !d.emailOn ? 'Off. The daily cleanup removes old rows without a backup, as before.'
     : d.removeOn ? 'On. Each Monday the rows below are emailed, then removed.'
       : 'Email only. Each Monday the rows below are emailed and nothing is removed, so they pile up until removal is switched on.';
+  const lastSent = d.runs.find((r) => r.status === 'sent' || r.status === 'empty');
   const pendingRows = d.plan.flatMap((p) => [[`<b>${esc(p.label)}</b><br><span class="muted">${esc(p.table)}${p.children.length ? ` + ${esc(p.children.join(', '))}` : ''}</span>`,
     `${p.keepDays} days`, esc(p.why), fmt([p.table, ...p.children].reduce((s, t) => s + (d.pending[t] || 0), 0))]]);
   const runs = d.runs.map((r) => {
@@ -496,18 +498,20 @@ views.backups = async () => {
     return [when(r.ranAt), esc(r.trigger === 'weekly' ? 'Weekly' : r.trigger), `<span class="badge ${cls}">${esc(label)}</span>${r.message ? `<br><span class="muted">${esc(r.message)}</span>` : ''}`,
       fmt(rows), bytes(r.bytes), r.removed ? 'Yes' : 'No'];
   });
+  const route = viaGitHub
+    ? `<p><b>Sent by:</b> the GitHub Action "Weekly archive email", from the game's Gmail account. Last sent: ${lastSent ? when(lastSent.ranAt) : 'not yet'}.</p>
+      <p class="muted">It needs the repository secrets <code>FLG_ADMIN_TOKEN</code>, <code>GMAIL_USER</code>, <code>GMAIL_APP_PASSWORD</code> and <code>ARCHIVE_TO</code> (steps in <code>server/ARCHIVE.md</code>). To send now, run that workflow from the repository's Actions tab.</p>`
+    : `<ul class="plain">
+        <li>${yes(d.setUp.binding, 'Cloudflare Email Routing connected to the Worker (the <code>ARCHIVE_EMAIL</code> binding)')}</li>
+        <li>${yes(d.setUp.to, 'Where it goes: the <code>ARCHIVE_TO</code> secret, a verified destination address')}</li>
+      </ul>`;
   $('#backups-body').innerHTML = `<div class="card"><h2>Status</h2>
       <p><b>Weekly email:</b> ${esc(mode)} <a href="#settings">Change in Settings and switches</a> (group Backups).</p>
       <p><b>When:</b> ${esc(d.schedule)}.</p>
-      <ul class="plain">
-        <li>${yes(d.setUp.binding, 'Cloudflare Email Routing connected to the Worker (the <code>ARCHIVE_EMAIL</code> binding)')}</li>
-        <li>${yes(d.setUp.to, 'Where it goes: the <code>ARCHIVE_TO</code> secret, a verified destination address')}</li>
-        <li><span class="badge">From</span> ${esc(d.setUp.from || 'not set')}</li>
-      </ul>
-      ${ready ? '' : '<p class="note">The email is not set up yet. The steps are in <code>server/ARCHIVE.md</code>. Until then you can still download the zip below.</p>'}
-      ${owner ? `<div class="row"><button class="btn primary" type="button" id="archive-send"${ready ? '' : ' disabled'}>Send the archive email now</button>
+      ${route}
+      ${owner ? `<div class="row">${viaGitHub ? '' : `<button class="btn primary" type="button" id="archive-send"${ready ? '' : ' disabled'}>Send the archive email now</button>`}
         <button class="btn" type="button" id="archive-download">Download the zip now</button></div>
-        <p class="muted">Sending now removes rows only when both Backups switches are on. Downloading never removes anything.</p>` : ''}
+        <p class="muted">Rows are removed only after an email is confirmed sent and both Backups switches are on. Downloading never removes anything.</p>` : ''}
     </div>
     <div class="card"><h2>What gets archived</h2>
       <p class="muted">Rows older than the number of days shown. "Waiting" is how many would go in the next archive.</p>

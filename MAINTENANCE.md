@@ -12,7 +12,7 @@ public repositories) and a Cloudflare Workers cron trigger (free plan allows 5).
 | Daily puzzle page and sitemap refresh, then IndexNow notice to Bing and other engines | `.github/workflows/pages.yml` | nightly, 00:17 UTC |
 | Weekly live search check (sitemap, every page, canonical links, Lighthouse). Opens a `search-check` issue when something is wrong. See [SEO.md](SEO.md) | `.github/workflows/seo.yml` | Mondays |
 | Cleanup of data the game no longer needs, so the free D1 database never fills up | `server/src/upkeep.js` | daily at 03:17 UTC |
-| Weekly archive email: old rows zipped, emailed to the owner, then removed (off until switched on). See [server/ARCHIVE.md](server/ARCHIVE.md) | `server/src/archive.js` | Mondays at 04:47 UTC |
+| Weekly archive email: old rows zipped, emailed to the owner from Gmail, then removed (off until switched on). See [server/ARCHIVE.md](server/ARCHIVE.md) | `.github/workflows/archive-email.yml`, `server/src/archive.js` | Mondays at 05:07 UTC |
 | Anonymous error reports from the apps (players can turn them off in Settings) | `web/js/errors.js`, `server/src/errors.js` | when an error happens |
 | Website publish | `.github/workflows/pages.yml` | each push to main |
 | Worker deploy and database migrations | Cloudflare Workers Builds | each push to main |

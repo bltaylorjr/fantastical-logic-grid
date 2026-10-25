@@ -1,0 +1,39 @@
+# The weekly archive email: asks the Worker for a zip of the old rows the game
+# no longer needs, emails it from the game's Gmail account, then confirms so
+# the Worker may remove those rows (only when both Backups switches are on in
+# the admin dashboard). Steps and secrets: server/ARCHIVE.md.
+# The repository is public, so this job prints only row counts and keeps the
+# zip in memory: no files, no artifacts, no data in the log.
+# Free: scheduled GitHub Actions on a public repo and Gmail cost nothing.
+name: Weekly archive email
+on:
+  schedule:
+    - cron: '7 5 * * 1'   # Mondays 05:07 UTC
+  workflow_dispatch:
+    inputs:
+      test:
+        description: Test send (works while the weekly switch is off, never removes anything)
+        type: boolean
+        default: true
+permissions:
+  contents: read
+concurrency:
+  group: archive-email
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: scripts/archive-email.py
+          sparse-checkout-cone-mode: false
+      - name: Export, email and confirm
+        env:
+          FLG_CLOUD_URL: ${{ vars.FLG_CLOUD_URL || 'https://flg-api.btay74.workers.dev' }}
+          FLG_ADMIN_TOKEN: ${{ secrets.FLG_ADMIN_TOKEN }}
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          ARCHIVE_TO: ${{ secrets.ARCHIVE_TO }}
+          TEST: ${{ github.event_name == 'workflow_dispatch' && inputs.test }}
+        run: python3 -I scripts/archive-email.py

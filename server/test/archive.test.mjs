@@ -8,7 +8,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Miniflare } from 'miniflare';
-import { runArchive, buildArchive, archiveStatus, toCsv } from '../src/archive.js';
+import { runArchive, buildArchive, archiveStatus, toCsv, exportArchive, confirmArchive } from '../src/archive.js';
 import { runUpkeep } from '../src/upkeep.js';
 import { saveSetting, clearSettingsCache } from '../src/settings.js';
 import { readZip, parseCsv } from '../../admin/archive-zip.js';
@@ -161,6 +161,43 @@ test('removal needs the weekly email on, even when run from the dashboard', asyn
   const r = await runArchive(envWith(email), NOW, { trigger: 'owner@example.com' });
   assert.equal(r.status, 'sent', 'a test send works while the weekly email is off');
   assert.equal(r.removed, false);
+  assert.equal(await count('races'), 2);
+});
+
+test('the weekly cron stays quiet when the GitHub Action sends instead', async () => {
+  await switches(true, true);
+  const r = await runArchive({ DB: db }, NOW);
+  assert.equal(r.status, 'not_set_up');
+  assert.equal(await count('archive_log'), 0);
+});
+
+test('GitHub Action route: export, then rows go only after the send is confirmed', async () => {
+  assert.equal((await exportArchive({ DB: db }, NOW)).status, 'off', 'off until the weekly switch is on');
+
+  // A test send works while off and never removes anything.
+  const test = await exportArchive({ DB: db }, NOW, { test: true });
+  assert.equal(test.status, 'exported');
+  await switches(true, true);
+  assert.equal((await confirmArchive({ DB: db }, test.id, NOW + 1000)).removed, false);
+  assert.equal(await count('races'), 2);
+
+  // A real export: nothing goes until the confirmation.
+  const r = await exportArchive({ DB: db }, NOW + 60_000);
+  assert.equal(r.status, 'exported');
+  assert.equal(await count('races'), 2, 'exporting removes nothing');
+  assert.equal((await confirmArchive({ DB: db }, 12345, NOW)).status, 'unknown');
+  const done = await confirmArchive({ DB: db }, r.id, NOW + 120_000);
+  assert.deepEqual(done, { status: 'sent', removed: true });
+  assert.deepEqual((await db.prepare('SELECT code FROM races').all()).results.map((x) => x.code), ['NEW1']);
+  assert.equal(await count('plays'), 1);
+  for (const t of ['scores', 'players', 'sync_users', 'sync_records', 'bans']) assert.equal(await count(t), 1, `${t} is never archived`);
+  assert.equal((await confirmArchive({ DB: db }, r.id, NOW + 130_000)).status, 'unknown', 'a confirmation counts once');
+});
+
+test('GitHub Action route: a late confirmation removes nothing', async () => {
+  await switches(true, true);
+  const r = await exportArchive({ DB: db }, NOW);
+  assert.equal((await confirmArchive({ DB: db }, r.id, NOW + 7 * 3600_000)).status, 'expired');
   assert.equal(await count('races'), 2);
 });
 
