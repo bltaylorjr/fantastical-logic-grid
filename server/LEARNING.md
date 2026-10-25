@@ -46,13 +46,12 @@ were made today.
 
 ## One-time setup
 
-These steps assume the Worker is already set up with the player accounts steps in
-`server/README.md` (one Cloudflare account, one Worker, one D1 database).
+These steps assume the Worker is already set up with the player accounts steps
+(one Cloudflare account, one Worker, one D1 database, deployed from GitHub).
 
-1. **Create the learning tables.** Either:
-   - run `npx wrangler d1 migrations apply <database name> --remote` from `server/`, or
-   - in the Cloudflare dashboard, open **Storage & Databases, D1**, open the database,
-     open **Console**, paste the contents of `server/migrations/0100_learning.sql`, and run it.
+1. **Learning tables:** nothing to do. Cloudflare's GitHub deploy runs
+   `wrangler d1 migrations apply` before each deploy, which creates them from
+   `server/migrations/0100_learning.sql`.
 2. **Add the Gemini key as a secret.** Make a new free key at aistudio.google.com
    (Get API key). Don't use a key that has been posted anywhere, including chat. Then either:
    - run `npx wrangler secret put GEMINI_API_KEY` from `server/` and paste the key when asked, or
@@ -64,11 +63,12 @@ These steps assume the Worker is already set up with the player accounts steps i
 3. **Add an admin token** for the review page, in the same way: a secret named
    `ADMIN_TOKEN`, set to a long random password (at least 16 characters) that you keep
    to yourself.
-4. **Point the game at the Worker.** On GitHub, open the repository's **Settings,
-   Secrets and variables, Actions, Variables** tab and add a variable named
-   `FLG_CLOUD_URL` with the Worker's address (for example
-   `https://flg-cloud.<your-subdomain>.workers.dev`). The next web build and desktop
-   release pick it up. Until it is set, the game works fully on its own, as before.
+4. **Point the game at the Worker.** This is the same `FLG_CLOUD_URL` variable that
+   player accounts use, so set it once. On GitHub, open the repository's **Settings,
+   Secrets and variables, Actions, Variables** tab and add `FLG_CLOUD_URL` with the
+   Worker's address (for example `https://flg.<your-subdomain>.workers.dev`). The next
+   web build and desktop release pick it up. Until it is set, the game works fully on
+   its own, as before.
 
 ## Settings you can change
 

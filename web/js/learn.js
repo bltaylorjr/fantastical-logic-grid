@@ -11,7 +11,7 @@
 // writer drafts). Shared learning (other players' results and approved story
 // parts) arrives through setShared() and is blended in.
 import * as store from './store.js';
-import { checkStoryPart, partKey } from '../engine/index.js';
+import { checkStoryPart, partKey, parseStoryId } from '../engine/index.js';
 
 const KEY = 'learning';
 const MAX_PLAYS = 400;
@@ -132,8 +132,11 @@ function localStoryPrefs(plays, parts) {
   const sum = {}, n = {};
   for (const p of plays) {
     if (!p.rating || !p.parts) continue;
+    // Built-in part keys are positions in one theme's or topic's list, so
+    // likes are kept per story key ("holiday/halloween" or "mystery").
+    const storyKey = parseStoryId(p.storyId).key || p.theme;
     for (const [k, key] of Object.entries(p.parts)) {
-      const id = `${p.theme}|${k}|${key}`;
+      const id = `${storyKey}|${k}|${key}`;
       sum[id] = (sum[id] || 0) + delta(p);
       n[id] = (n[id] || 0) + 1;
     }

@@ -1,6 +1,5 @@
 // Storyline builder: scene, cast, goal, and the ending revealed on solve.
 import { cap, joinList } from './language.js';
-import { STORYLINES } from './storylines.js';
 import { hashString } from './rng.js';
 
 const NUMBER_WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
@@ -9,25 +8,30 @@ export function countWords(text) {
   return text.split(/\s+/).filter(Boolean).length;
 }
 
-// A storyline is one choice of each part kind (see storylines.js). Its id
-// records those choices, e.g. "mystery|t2|o1|i3|m0|lroom.1|e4".
+// A storyline is one choice of each part kind (see storylines.js and
+// topics.js). Its id starts with the story key (the theme, plus the topic for
+// any topic with its own story parts) and records those choices, e.g.
+// "mystery|t2|o1|i3|m0|lroom.1|e4" or "holiday/halloween|t0|o5|i2|m1|lcostume.0|e3".
 const PART_WEIGHTS = { t: 1, o: 3, i: 3, m: 1, l: 1, e: 2 };
 
 export function parseStoryId(id) {
-  const [theme, ...parts] = String(id).split('|');
-  const out = { theme };
+  const [key, ...parts] = String(id).split('|');
+  const [theme, topic = null] = key.split('/');
+  const out = { key, theme, topic };
   for (const p of parts) out[p[0]] = p.slice(1);
   return out;
 }
 
-function makeId(theme, c) {
-  return `${theme}|t${c.adj}|o${c.o}|i${c.i}|m${c.m}|l${c.leadCat}.${c.lead}|e${c.e}`;
+function makeId(key, c) {
+  return `${key}|t${c.adj}|o${c.o}|i${c.i}|m${c.m}|l${c.leadCat}.${c.lead}|e${c.e}`;
 }
 
 // Story parts a player wrote (or approved from the AI story writer) join the
 // built-in ones. A built-in part's key is its index; an added part's key is
 // "x" plus a hash of its text, so story ids stay the same whatever order the
 // added parts are stored in, and a story built from them is never repeated.
+// Added parts are keyed by theme (used in every topic of that theme) or by
+// story key (one topic only, e.g. "holiday/halloween").
 export const PART_KINDS = { openings: 'o', incidents: 'i', mishaps: 'm', endings: 'e' };
 
 export function partKey(kind, part) {
@@ -35,17 +39,19 @@ export function partKey(kind, part) {
   return `x${hashString(text).toString(36)}`;
 }
 
-function themeParts(themeId, extra) {
-  const S = STORYLINES[themeId];
-  const add = (extra && extra[themeId]) || {};
+function scenarioParts(scenario, extra) {
+  const S = scenario.story;
+  const adds = extra ? [extra[scenario.theme.id], scenario.key !== scenario.theme.id ? extra[scenario.key] : null].filter(Boolean) : [];
   const out = { adjs: S.adjs, leads: S.leads };
   for (const kind of Object.keys(PART_KINDS)) {
     const list = S[kind].map((value, i) => ({ key: String(i), value }));
     const seen = new Set();
-    for (const value of add[kind] || []) {
-      if (!checkStoryPart(kind, value).ok) continue;
-      const key = partKey(kind, value);
-      if (!seen.has(key)) { seen.add(key); list.push({ key, value }); }
+    for (const add of adds) {
+      for (const value of add[kind] || []) {
+        if (!checkStoryPart(kind, value).ok) continue;
+        const key = partKey(kind, value);
+        if (!seen.has(key)) { seen.add(key); list.push({ key, value }); }
+      }
     }
     out[kind] = list;
   }
@@ -56,10 +62,11 @@ function themeParts(themeId, extra) {
 // fewest parts with recently used storylines. prefs ({ o: { key: weight } },
 // weights -1 to 1) leans toward parts the player liked and away from ones they
 // did not; it never brings back a used storyline.
-export function pickStoryline(rng, themeId, leadCat, usedStories = [], { extraParts, prefs } = {}) {
-  const S = themeParts(themeId, extraParts);
+export function pickStoryline(rng, scenario, leadCat, usedStories = [], { extraParts, prefs } = {}) {
+  const S = scenarioParts(scenario, extraParts);
+  const key = scenario.key;
   const used = new Set(usedStories);
-  const recent = usedStories.slice(-300).map(parseStoryId).filter((u) => u.theme === themeId);
+  const recent = usedStories.slice(-300).map(parseStoryId).filter((u) => u.key === key);
   const random = () => ({
     adj: rng.int(S.adjs.length), o: rng.pick(S.openings).key,
     i: rng.pick(S.incidents).key, m: rng.pick(S.mishaps).key, leadCat, lead: rng.int(S.leads[leadCat].length),
@@ -81,7 +88,7 @@ export function pickStoryline(rng, themeId, leadCat, usedStories = [], { extraPa
   let best = null, bestScore = Infinity;
   for (let n = 0; n < 400; n++) {
     const c = random();
-    const id = makeId(themeId, c);
+    const id = makeId(key, c);
     if (used.has(id)) continue;
     const sc = overlap(c);
     if (sc < bestScore) { best = { ...c, id }; bestScore = sc; }
@@ -96,10 +103,10 @@ export function pickStoryline(rng, themeId, leadCat, usedStories = [], { extraPa
           for (const o of S.openings)
             for (let adj = 0; adj < S.adjs.length; adj++) {
                 const c = { adj, o: o.key, i: i.key, m: m.key, leadCat, lead, e: e.key };
-                const id = makeId(themeId, c);
+                const id = makeId(key, c);
                 if (!used.has(id)) return finish(S, { ...c, id });
               }
-  throw new Error(`Every ${themeId} storyline for this goal has been used. Choose another theme.`);
+  throw new Error(`Every ${scenario.theme.name} / ${scenario.topic.name} storyline for this goal has been used. Choose another topic.`);
 }
 
 function finish(S, c) {
@@ -107,63 +114,17 @@ function finish(S, c) {
   return { ...c, parts: { opening: get('openings', c.o), incident: get('incidents', c.i), mishap: get('mishaps', c.m), ending: get('endings', c.e) } };
 }
 
-// Checks a story part a player or the AI story writer wrote before it can be
-// used. Parts never touch the logic, so they cannot change a puzzle's single
-// solution; these rules keep the story short, in the theme's voice, and free
-// of facts (like a head count) that could contradict the grid.
-const PART_RULES = {
-  openings: { allowed: ['n', 'N', 'many', 'one'], need: [['n', 'N'], ['many']], words: [6, 30],
-    tip: 'Use {n} (or {N} at the start of a sentence) for how many there are, and {many} for who they are, e.g. "{N} {many} met at the old pier."' },
-  incidents: { allowed: ['n', 'N', 'many', 'one'], need: [], words: [5, 30], tip: 'Say what happened, give it a short name for the title, and name the thing at stake.' },
-  mishaps: { allowed: ['n', 'N', 'many', 'one'], need: [], words: [5, 30], tip: 'Say why the facts got mixed up, so only the clues can be trusted.' },
-  endings: { allowed: ['Fact', 'fact', 'winner', 'prize', 'many', 'one'], need: [['Fact', 'fact']], words: [5, 35],
-    tip: 'Include {Fact} (the answer, e.g. "Mia has the red hat") and you may use {winner} and {prize}.' },
-};
-const NUMBERS = /\b(\d+|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|both|pair|trio|dozen)\b/i;
-const BANNED = /\b(kill(ed|s)?|murder\w*|blood\w*|gun|guns|shoot\w*|sex\w*|drugs?|damn|hell|shit\w*|fuck\w*|bitch\w*|bastard)\b/i;
-
-export function checkStoryPart(kind, part) {
-  const rule = PART_RULES[kind];
-  const errors = [];
-  if (!rule) return { ok: false, errors: [`Unknown story part "${kind}".`] };
-  const texts = kind === 'incidents'
-    ? [['name', part && part.name], ['text', part && part.text], ['prize', part && part.prize]]
-    : [['text', part]];
-  for (const [field, value] of texts) {
-    if (typeof value !== 'string' || !value.trim()) { errors.push(`The ${field === 'text' ? 'text' : field} is missing.`); continue; }
-    if (/[<>]|https?:|www\./i.test(value)) errors.push('Links and code are not allowed.');
-    if (BANNED.test(value)) errors.push('Please keep stories friendly for all ages.');
-    const marks = [...value.matchAll(/\{(\w*)\}/g)].map((m) => m[1]);
-    const bad = marks.filter((m) => !(field === 'text' ? rule.allowed : []).includes(m));
-    if (bad.length) errors.push(field === 'text' ? `Unknown fill-in ${bad.map((b) => `{${b}}`).join(', ')}. ${rule.tip}` : `The ${field} cannot use fill-ins.`);
-    if (/[{}]/.test(value.replace(/\{\w*\}/g, ''))) errors.push('A curly bracket is not closed.');
-    if (NUMBERS.test(value.replace(/\{\w*\}/g, ''))) errors.push('Leave out numbers and head counts; the game fills them in so the story always matches the grid.');
-  }
-  if (!errors.length) {
-    const text = kind === 'incidents' ? part.text : part;
-    const marks = [...text.matchAll(/\{(\w+)\}/g)].map((m) => m[1]);
-    for (const group of rule.need) if (!group.some((g) => marks.includes(g))) errors.push(rule.tip);
-    const words = countWords(text);
-    if (words < rule.words[0] || words > rule.words[1]) errors.push(`Use ${rule.words[0]} to ${rule.words[1]} words (this has ${words}).`);
-    if (!/[.!?]["')]?$/.test(text.trim())) errors.push('End with a full stop, question mark or exclamation mark.');
-    if (kind === 'incidents') {
-      if (countWords(part.name) > 3) errors.push('Keep the name to 1 to 3 words; it becomes the title, e.g. "The Midnight Emerald".');
-      if (countWords(part.prize) > 6) errors.push('Keep the thing at stake short, e.g. "the golden key".');
-    }
-  }
-  return { ok: !errors.length, errors: [...new Set(errors)] };
-}
-
 // model: built puzzle model (see generator); goal: { cat, item }.
-export function buildStory({ rng, theme, goal, model, L, customTitle, usedStories, extraParts, storyPrefs }) {
+export function buildStory({ rng, scenario, goal, model, L, customTitle, usedStories, extraParts, storyPrefs }) {
   const { N, cats } = model;
-  const S = STORYLINES[theme.id];
+  const S = scenario.story;
+  const cast = scenario.cast;
   const names = cats[0].labels;
   const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? vars[k] : m));
   // Capitalize the start of every sentence (a part may begin with {prize}).
   const capFirst = (t) => t.replace(/(^\W*|[.!?]\s+)([a-z])/g, (m, p, c) => p + c.toUpperCase());
 
-  const pick = pickStoryline(rng, theme.id, cats[goal.cat].id, usedStories, { extraParts, prefs: storyPrefs });
+  const pick = pickStoryline(rng, scenario, cats[goal.cat].id, usedStories, { extraParts, prefs: storyPrefs });
   const incident = pick.parts.incident;
   const goalItem = goal.cat * N + goal.item;
   const winnerEntity = model.sol[goal.cat].indexOf(goal.item);
@@ -171,14 +132,14 @@ export function buildStory({ rng, theme, goal, model, L, customTitle, usedStorie
   const fact = `${winner} ${L.pos(goalItem)}`;
   const n = NUMBER_WORDS[N] || String(N);
   const vars = {
-    n, N: cap(n), many: theme.cast.many, one: theme.cast.one,
+    n, N: cap(n), many: cast.many, one: cast.one,
     x: L.label(goalItem), prize: incident.prize, winner, Fact: cap(fact), fact,
   };
 
   const scene = [pick.parts.opening, incident.text, pick.parts.mishap].map((t) => capFirst(fill(t, vars))).join(' ');
-  const castLine = `The ${theme.cast.many} are ${joinList(names)}.`;
+  const castLine = `The ${cast.many} are ${joinList(names)}.`;
   const catNames = cats.slice(1).map((c) => c.name.toLowerCase());
-  const task = `Use the clues to match each ${theme.cast.one} with their ${joinList(catNames)}.`;
+  const task = `Use the clues to match each ${cast.one} with their ${joinList(catNames)}.`;
   const lead = capFirst(fill(S.leads[pick.leadCat][pick.lead], vars));
   const question = `Who ${L.pos(goalItem)}?`;
   const goalLine = `Can you work out who ${L.pos(goalItem)}?`;
@@ -228,3 +189,50 @@ export function buildQuestions({ rng, model, L, story, goal, count }) {
   }
   return qs;
 }
+// Checks a story part a player or the AI story writer wrote before it can be
+// used. Parts never touch the logic, so they cannot change a puzzle's single
+// solution; these rules keep the story short, in the theme's voice, and free
+// of facts (like a head count) that could contradict the grid.
+const PART_RULES = {
+  openings: { allowed: ['n', 'N', 'many', 'one'], need: [['n', 'N'], ['many']], words: [6, 30],
+    tip: 'Use {n} (or {N} at the start of a sentence) for how many there are, and {many} for who they are, e.g. "{N} {many} met at the old pier."' },
+  incidents: { allowed: ['n', 'N', 'many', 'one'], need: [], words: [5, 30], tip: 'Say what happened, give it a short name for the title, and name the thing at stake.' },
+  mishaps: { allowed: ['n', 'N', 'many', 'one'], need: [], words: [5, 30], tip: 'Say why the facts got mixed up, so only the clues can be trusted.' },
+  endings: { allowed: ['Fact', 'fact', 'winner', 'prize', 'many', 'one'], need: [['Fact', 'fact']], words: [5, 35],
+    tip: 'Include {Fact} (the answer, e.g. "Mia has the red hat") and you may use {winner} and {prize}.' },
+};
+const NUMBERS = /\b(\d+|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|both|pair|trio|dozen)\b/i;
+const BANNED = /\b(kill(ed|s)?|murder\w*|blood\w*|gun|guns|shoot\w*|sex\w*|drugs?|damn|hell|shit\w*|fuck\w*|bitch\w*|bastard)\b/i;
+
+export function checkStoryPart(kind, part) {
+  const rule = PART_RULES[kind];
+  const errors = [];
+  if (!rule) return { ok: false, errors: [`Unknown story part "${kind}".`] };
+  const texts = kind === 'incidents'
+    ? [['name', part && part.name], ['text', part && part.text], ['prize', part && part.prize]]
+    : [['text', part]];
+  for (const [field, value] of texts) {
+    if (typeof value !== 'string' || !value.trim()) { errors.push(`The ${field === 'text' ? 'text' : field} is missing.`); continue; }
+    if (/[<>]|https?:|www\./i.test(value)) errors.push('Links and code are not allowed.');
+    if (BANNED.test(value)) errors.push('Please keep stories friendly for all ages.');
+    const marks = [...value.matchAll(/\{(\w*)\}/g)].map((m) => m[1]);
+    const bad = marks.filter((m) => !(field === 'text' ? rule.allowed : []).includes(m));
+    if (bad.length) errors.push(field === 'text' ? `Unknown fill-in ${bad.map((b) => `{${b}}`).join(', ')}. ${rule.tip}` : `The ${field} cannot use fill-ins.`);
+    if (/[{}]/.test(value.replace(/\{\w*\}/g, ''))) errors.push('A curly bracket is not closed.');
+    if (NUMBERS.test(value.replace(/\{\w*\}/g, ''))) errors.push('Leave out numbers and head counts; the game fills them in so the story always matches the grid.');
+  }
+  if (!errors.length) {
+    const text = kind === 'incidents' ? part.text : part;
+    const marks = [...text.matchAll(/\{(\w+)\}/g)].map((m) => m[1]);
+    for (const group of rule.need) if (!group.some((g) => marks.includes(g))) errors.push(rule.tip);
+    const words = countWords(text);
+    if (words < rule.words[0] || words > rule.words[1]) errors.push(`Use ${rule.words[0]} to ${rule.words[1]} words (this has ${words}).`);
+    if (!/[.!?]["')]?$/.test(text.trim())) errors.push('End with a full stop, question mark or exclamation mark.');
+    if (kind === 'incidents') {
+      if (countWords(part.name) > 3) errors.push('Keep the name to 1 to 3 words; it becomes the title, e.g. "The Midnight Emerald".');
+      if (countWords(part.prize) > 6) errors.push('Keep the thing at stake short, e.g. "the golden key".');
+    }
+  }
+  return { ok: !errors.length, errors: [...new Set(errors)] };
+}
+

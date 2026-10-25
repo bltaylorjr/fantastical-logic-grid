@@ -4,7 +4,9 @@
 // counts every grid that satisfies the clues and must find exactly one.
 import {
   generatePuzzle, getHint, checkMarks, isSolved, checkAnswers, describeOptions, formatPuzzleText, THEMES, TIERS, parseStoryId, checkStoryPart, partKey,
+  getTopics,
 } from '../src/index.js';
+import { buildScenario } from '../src/topics.js';
 import { TIER_ORDER } from '../src/tiers.js';
 
 const quick = process.argv.includes('--quick');
@@ -86,6 +88,16 @@ for (const tier of TIER_ORDER) {
     for (const seed of seeds) sizes.push({ difficulty: tier, theme: theme.id, seed: `${seed}-${theme.id}` });
   }
 }
+// Every topic: at every tier in the full run, one rotating tier in the quick run.
+{
+  let k = 0;
+  for (const theme of THEMES) {
+    for (const topic of getTopics(theme.id)) {
+      const tiers = quick ? [TIER_ORDER[k++ % TIER_ORDER.length]] : TIER_ORDER;
+      for (const tier of tiers) sizes.push({ difficulty: tier, theme: theme.id, topic: topic.id, seed: `topic-${theme.id}-${topic.id}` });
+    }
+  }
+}
 
 let bruteChecked = 0, bruteSkipped = 0;
 const timing = {};
@@ -94,7 +106,7 @@ for (const opt of sizes) {
   const p = generatePuzzle(opt);
   const ms = Date.now() - t0;
   (timing[opt.difficulty] ||= []).push(ms);
-  const name = `${opt.difficulty}/${opt.theme}/${opt.seed}`;
+  const name = `${opt.difficulty}/${opt.theme}${opt.topic ? '/' + opt.topic : ''}/${opt.seed}`;
   const K = p.categories.length, N = p.categories[0].items.length;
   const tier = TIERS[opt.difficulty];
 
@@ -114,6 +126,18 @@ for (const opt of sizes) {
     return ids.every((id) => c.text.includes(labelOf[id]));
   }), p.clues.map((c) => c.text).join(' / '));
   check(`${name} solution solves`, isSolved(p, allMatches(p)) && checkMarks(p, allMatches(p)).length === 0);
+  // The topic drives cast, categories, story and art.
+  const theme = THEMES.find((t) => t.id === p.theme.id);
+  const topic = getTopics(theme.id).find((t) => t.id === p.topic.id);
+  check(`${name} topic belongs to theme`, !!topic && (!opt.topic || opt.topic === p.topic.id));
+  if (topic) {
+    const sc = buildScenario(theme, topic);
+    check(`${name} categories come from the topic`, p.categories.slice(1).every((c) => sc.categories.some((x) => x.id === c.id)));
+    check(`${name} cast comes from the topic`, p.cast.one === sc.cast.one && p.categories[0].items.every((i) => sc.names.includes(i.label)));
+    check(`${name} art comes from the topic`, p.art.setting === topic.art.setting && p.art.mood === topic.art.mood);
+    check(`${name} story id has the topic key`, parseStoryId(p.story.id).key === sc.key);
+    check(`${name} story uses a topic incident`, sc.story.incidents.some((i) => p.title.endsWith(i.name)));
+  }
 
   // Independent uniqueness check.
   const n = countSolutions(p, 2, quick ? 3000 : 20000);
@@ -175,7 +199,7 @@ for (const diff of ['easy', 'medium', 'expert']) {
   const used = [];
   let repeats = 0, sameScene = 0;
   for (let i = 0; i < (quick ? 150 : 1000); i++) {
-    const p = generatePuzzle({ difficulty: 'basic', theme: 'mystery', seed: `story-${i % 3}`, usedStories: used });
+    const p = generatePuzzle({ difficulty: 'basic', theme: 'mystery', topic: 'whodunit', seed: `story-${i % 3}`, usedStories: used });
     if (used.includes(p.story.id)) repeats++;
     const cur = parseStoryId(p.story.id);
     for (const prevId of used.slice(-3)) {
@@ -187,6 +211,46 @@ for (const diff of ['easy', 'medium', 'expert']) {
   check('no story id repeats when used ids are passed back', repeats === 0, `${repeats} repeats`);
   check('the last 3 stories never share an opening or an incident', sameScene === 0, `${sameScene} times`);
   check('story ids are in the puzzle', typeof used[0] === 'string' && used[0].startsWith('mystery|'));
+}
+// The same holds within every topic, and across topics when "Any" is chosen.
+{
+  const used = [];
+  let repeats = 0, sameScene = 0, wrongKey = 0;
+  for (const theme of THEMES) {
+    for (const topic of getTopics(theme.id)) {
+      const mine = [];
+      for (let i = 0; i < (quick ? 8 : 40); i++) {
+        const p = generatePuzzle({ difficulty: 'basic', theme: theme.id, topic: topic.id, seed: `ts-${i % 2}`, usedStories: used });
+        if (used.includes(p.story.id)) repeats++;
+        const cur = parseStoryId(p.story.id);
+        if (cur.theme !== theme.id || (topic.story && cur.topic !== topic.id)) wrongKey++;
+        for (const prevId of mine.slice(-3)) {
+          const prev = parseStoryId(prevId);
+          if (prev.o === cur.o || prev.i === cur.i) sameScene++;
+        }
+        used.push(p.story.id);
+        mine.push(p.story.id);
+      }
+    }
+  }
+  check('no story repeats within any topic', repeats === 0, `${repeats} repeats`);
+  check('story ids name their theme and topic', wrongKey === 0, `${wrongKey} wrong`);
+  check('within a topic the last 3 stories never share an opening or an incident', sameScene === 0, `${sameScene} times`);
+  const anyTopics = new Set();
+  let anyRepeats = 0;
+  for (let i = 0; i < 60; i++) {
+    const p = generatePuzzle({ difficulty: 'basic', theme: 'holiday', topic: i % 2 ? 'any' : undefined, seed: `any-${i}`, usedStories: used });
+    if (used.includes(p.story.id)) anyRepeats++;
+    used.push(p.story.id);
+    anyTopics.add(p.topic.id);
+  }
+  check('"Any" topic picks across all topics', anyTopics.size === getTopics('holiday').length, [...anyTopics].join(','));
+  check('"Any" topic never repeats a story', anyRepeats === 0);
+  let msg = '';
+  try { generatePuzzle({ theme: 'holiday', topic: 'mardi-gras' }); } catch (e) { msg = e.message; }
+  check('unknown topic lists the valid ones', msg.includes('halloween') && msg.includes('any'), msg);
+  const opts = describeOptions().themes;
+  check('describeOptions lists topics with "Any" first', opts.every((t) => t.topics[0].id === 'any' && t.defaultTopic === 'any' && t.topics.length >= 5));
 }
 
 

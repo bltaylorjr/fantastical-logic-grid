@@ -38,7 +38,41 @@ The repository has a workflow that builds and publishes the site on every push t
 1. On GitHub, open the repository, then **Settings > Pages**.
 2. Under **Build and deployment**, set **Source** to **GitHub Actions**.
 3. Go to **Actions**, open **Publish web version**, and click **Run workflow** (or push to `main`).
-4. The site appears at `https://bltaylorjr.github.io/fantastical-logic-grid/`.
+4. The site appears at `https://thelogicgrid.com/` (and the old
+   `https://bltaylorjr.github.io/fantastical-logic-grid/` address forwards there).
+
+### Custom domain: thelogicgrid.com
+
+The game uses only relative paths, so it runs the same at the domain root. `CNAME` in this
+folder records the domain for hosts that read it; with **Source: GitHub Actions** GitHub
+ignores that file, so the domain is set once in the repository settings.
+
+1. At the domain registrar, open the DNS settings for `thelogicgrid.com`, delete any
+   existing `A`, `AAAA` or `CNAME` records for `@` and `www` (parking pages), then add:
+
+   | Type | Name | Value |
+   |---|---|---|
+   | A | @ | 185.199.108.153 |
+   | A | @ | 185.199.109.153 |
+   | A | @ | 185.199.110.153 |
+   | A | @ | 185.199.111.153 |
+   | AAAA | @ | 2606:50c0:8000::153 |
+   | AAAA | @ | 2606:50c0:8001::153 |
+   | AAAA | @ | 2606:50c0:8002::153 |
+   | AAAA | @ | 2606:50c0:8003::153 |
+   | CNAME | www | bltaylorjr.github.io |
+
+   On Cloudflare DNS, set each record to **DNS only** (grey cloud) until HTTPS works.
+2. In the repository, **Settings > Pages > Custom domain**, enter `thelogicgrid.com` and
+   click **Save**. Wait for the DNS check to pass (minutes, sometimes up to a day).
+3. Tick **Enforce HTTPS** once GitHub has issued the certificate (it greys out until then).
+4. Optional, protects the domain from takeover: GitHub profile **Settings > Pages >
+   Add a domain**, enter `thelogicgrid.com`, and add the `TXT` record it shows at the
+   registrar.
+
+Saved games live in the browser per web address, so a game saved at the old github.io
+address does not appear at thelogicgrid.com. Use **Save to file** on the old address,
+then **Open a puzzle file** on the new one.
 
 To upload this folder by hand instead: put its contents on a `gh-pages` branch and choose
 "Deploy from a branch" in the same settings page. Keep `.nojekyll`.

@@ -62,19 +62,24 @@ async function generateImage(settings, prompt, size) {
   throw new Error('The AI service returned no picture.');
 }
 
+// The topic's own setting and mood when the engine gives one (a Halloween
+// party, a locked-room mystery); older saved puzzles use the theme's.
+const settingOf = (puzzle) => (puzzle.art && puzzle.art.setting
+  ? `${puzzle.art.setting}${puzzle.art.mood ? `, with a ${puzzle.art.mood} mood` : ''}`
+  : THEME_SETTING[puzzle.theme.id] || puzzle.theme.name);
 const storyKey = (puzzle) => (puzzle.story && puzzle.story.id) || puzzle.id;
 
 export function sceneImage(settings, puzzle) {
-  const setting = THEME_SETTING[puzzle.theme.id] || puzzle.theme.name;
+  const setting = settingOf(puzzle);
   const prompt = `${STYLE} Wide establishing shot of ${setting}. Scene from this story: ${puzzle.story.paragraphs[0]} ${puzzle.story.paragraphs.slice(1, -1).join(' ')} Show the place and mood only, with small distant figures, no faces in close-up.`;
   return cached(`${storyKey(puzzle)}|scene`, () => generateImage(settings, prompt, '1536x1024'));
 }
 
 export function portraitImage(settings, puzzle, name) {
-  const setting = THEME_SETTING[puzzle.theme.id] || puzzle.theme.name;
+  const setting = settingOf(puzzle);
   const role = (puzzle.cast && puzzle.cast.one) || 'character';
   const prompt = `${STYLE} Head-and-shoulders portrait of a friendly ${role} named ${name} in ${setting}, looking at the viewer, plain softly lit background, centered, one person only.`;
-  return cached(`${puzzle.theme.id}|${role}|${name}|portrait`, () => generateImage(settings, prompt, '1024x1024'));
+  return cached(`${puzzle.theme.id}|${(puzzle.topic && puzzle.topic.id) || ''}|${role}|${name}|portrait`, () => generateImage(settings, prompt, '1024x1024'));
 }
 
 // ---------------------------------------------------------------------------

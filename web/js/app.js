@@ -160,7 +160,7 @@ async function goHome({ focusSaved = false } = {}) {
 // Setup screen
 // ====================================================================
 const setup = {
-  tier: 'easy', theme: 'random', size: null, custom: [4, 4],
+  tier: 'easy', theme: 'random', topic: 'any', size: null, custom: [4, 4],
 };
 
 function sizesFor(tierId) {
@@ -184,13 +184,15 @@ function renderSetup() {
     <label class="choice" title="${esc(t.description || '')}"><input type="radio" name="theme" value="${t.id}"${t.id === setup.theme ? ' checked' : ''} aria-describedby="theme-d-${t.id}">
     <span class="tile" data-world="${t.id}">${icon(t.id, 'glyph')}<b>${esc(t.name)}</b></span><span class="sr-only" id="theme-d-${t.id}">${esc(t.description || '')}</span></label>`).join('');
   if (!$('input[name=theme]:checked')) $('input[name=theme]').checked = true;
+  renderTopics();
   renderSizes();
   renderClueTypes();
   $('#cats').value = setup.custom[0];
   $('#items').value = setup.custom[1];
 
   $('#tier-choices').onchange = () => { setup.tier = $('input[name=tier]:checked').value; setup.size = null; renderSizes(); renderClueTypes(); updatePreview(); };
-  $('#theme-choices').onchange = () => { setup.theme = $('input[name=theme]:checked').value; setWorld(setup.theme); updatePreview(); };
+  $('#theme-choices').onchange = () => { setup.theme = $('input[name=theme]:checked').value; setup.topic = 'any'; renderTopics(); setWorld(setup.theme); updatePreview(); };
+  $('#topic-choices').onchange = () => { setup.topic = $('input[name=topic]:checked').value; updatePreview(); };
   setWorld(setup.theme);
   $('#size-choices').onchange = () => { setup.size = $('input[name=size]:checked').value; $('#custom-size').hidden = setup.size !== 'custom'; updatePreview(); };
   $('#cats').oninput = $('#items').oninput = () => { setup.custom = [+$('#cats').value || 4, +$('#items').value || 4]; updatePreview(); };
@@ -198,6 +200,18 @@ function renderSetup() {
   $('#setup').onsubmit = (e) => { e.preventDefault(); startGeneration(); };
   $('#style-choices').onchange = () => { settings.silent = $('input[name=playstyle]:checked').value === 'silent'; store.saveSettings(settings); applyMode(); };
   updatePreview();
+}
+
+// Topics narrow a theme, for example which holiday or which kind of mystery.
+// "Surprise me" has none, so the picker hides.
+function renderTopics() {
+  const theme = OPTIONS.themes.find((t) => t.id === setup.theme);
+  const topics = (theme && theme.topics) || [];
+  $('#topic-field').hidden = topics.length < 2;
+  if (!topics.some((t) => t.id === setup.topic)) setup.topic = 'any';
+  $('#topic-choices').innerHTML = topics.map((t) => `
+    <label class="choice"><input type="radio" name="topic" value="${esc(t.id)}"${t.id === setup.topic ? ' checked' : ''}>
+    <span><b>${esc(t.name)}</b><small>${esc(t.description || '')}</small></span></label>`).join('');
 }
 
 function renderSizes() {
@@ -245,6 +259,7 @@ function updatePreview() {
 function gatherOptions() {
   const [k, n] = currentSize();
   const o = { difficulty: setup.tier, theme: setup.theme, categories: k, items: n };
+  if (setup.theme !== 'random' && setup.topic && setup.topic !== 'any') o.topic = setup.topic;
   const cc = parseInt($('#clue-count').value, 10);
   if (cc > 0) o.clueCount = cc;
   const q = parseInt($('#questions').value, 10);
@@ -285,7 +300,7 @@ async function startGeneration() {
   btn.disabled = true;
   st.textContent = 'Writing your story… Large puzzles can take up to 20 seconds.';
   const options = gatherOptions();
-  store.saveSetupChoices({ tier: setup.tier, theme: setup.theme, size: setup.size, custom: currentSize() });
+  store.saveSetupChoices({ tier: setup.tier, theme: setup.theme, topic: setup.topic, size: setup.size, custom: currentSize() });
   try {
     const used = await store.getMeta('usedStories', []);
     const usedSet = new Set(used);
@@ -476,7 +491,7 @@ function openGame(save, { fresh = false } = {}) {
 
   $('#p-title').textContent = save.name;
   const K = ix.K, N = ix.N;
-  $('#p-meta').innerHTML = [puzzle.difficulty.name, puzzle.theme.name, `${K} categories × ${N} items`, `${puzzle.clues.length} clues`].map((t) => `<span class="pill">${esc(t)}</span>`).join('');
+  $('#p-meta').innerHTML = [puzzle.difficulty.name, puzzle.theme.name, ...(puzzle.topic && puzzle.topic.id !== 'any' ? [puzzle.topic.name] : []), `${K} categories × ${N} items`, `${puzzle.clues.length} clues`].map((t) => `<span class="pill">${esc(t)}</span>`).join('');
   const paras = puzzle.story.paragraphs;
   $('#p-story').innerHTML = paras.map((p, i) => `<p${i === paras.length - 1 ? ' class="goal"' : ''}>${esc(p)}</p>`).join('');
   $('#story').open = !fresh ? !save.storyRead : true;

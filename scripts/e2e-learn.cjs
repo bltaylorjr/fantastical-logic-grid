@@ -71,7 +71,7 @@ const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`o
     const tuned = await page.evaluate(async () => (await import('./js/learn.js')).tuning('basic'));
     assert(tuned.storyParts.mystery.openings.length === 1, 'the added part goes to the engine');
     const p = await page.evaluate(async (t) => (await import('./engine/index.js')).generatePuzzle({ ...t, difficulty: 'basic', theme: 'mystery', seed: 'ws' }), tuned);
-    assert(p.story.id.startsWith('mystery|'), 'puzzles still generate with added parts');
+    assert(/^mystery[|\/]/.test(p.story.id), `puzzles still generate with added parts (${p.story.id})`);
     await page.click('#dlg-workshop .dlg-actions button');
     await page.click('#learn-reset');
     await page.click('#confirm-yes');
