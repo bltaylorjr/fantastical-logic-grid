@@ -54,6 +54,8 @@ const path = require('path');
   await page.waitForSelector('#dlg-welcome[open]'); await page.keyboard.press('Escape');
   // A plain (not async) check: waitForFunction treats a returned promise as already true.
   await page.waitForFunction(() => (JSON.parse(localStorage.getItem('flg.settings') || '{}')).kokoroReady === true, null, { timeout: 15000 });
+  // The "Natural voices are ready" notice sits over the setup choices until it fades.
+  await page.waitForSelector('.toast', { state: 'detached', timeout: 15000 });
   await page.check('input[name=tier][value=medium]', { force: true });
   await page.check('input[name=theme][value=mystery]', { force: true });
   await page.click('#gen-btn'); await page.waitForSelector('#screen-play:not([hidden])', { timeout: 30000 });
