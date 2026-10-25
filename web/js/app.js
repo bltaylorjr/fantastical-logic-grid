@@ -12,6 +12,8 @@ import * as wake from './wakelock.js';
 import * as updates from './updates.js';
 import { celebrate as confettiBurst } from './effects.js';
 import { icon } from './icons.js';
+import * as learn from './learn.js';
+import * as workshop from './workshop.js';
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -286,15 +288,19 @@ async function startGeneration() {
   try {
     const used = await store.getMeta('usedStories', []);
     const usedSet = new Set(used);
+    // Learning only picks between puzzles the engine has fully checked.
+    let tuned = {};
+    if (settings.learn) { try { tuned = await learn.tuning(setup.tier, { useShared: settings.shareLearning }); } catch (e) { tuned = {}; } }
     let puzzle = null;
     // The engine skips used stories itself; the loop is a safety net.
     for (let i = 0; i < 4 && !puzzle; i++) {
-      const p = await engine.generate({ ...options, usedStories: used });
+      const p = await engine.generate({ ...tuned, ...options, usedStories: used });
       if (!usedSet.has(storyIdOf(p))) puzzle = p;
     }
     if (!puzzle) throw new Error('Every story we tried has already been used. Try another theme.');
     await rememberStory(storyIdOf(puzzle));
     const save = newSave(puzzle);
+    save.chosenTheme = setup.theme;
     await store.putSave(save);
     st.textContent = '';
     openGame(save, { fresh: true });
@@ -309,6 +315,11 @@ async function startGeneration() {
   }
 }
 
+function expectedMsFor(puzzle) {
+  const K = puzzle.categories.length, N = puzzle.categories[0].items.length;
+  return (K * (K - 1) / 2) * N * N * (MINUTES_PER_CELL[puzzle.difficulty.id] || 0.2) * 60000;
+}
+
 function newSave(puzzle) {
   const now = Date.now();
   return {
@@ -318,7 +329,7 @@ function newSave(puzzle) {
     puzzle,
     marks: {}, ticked: [], answers: {},
     undo: [], redo: [],
-    hintsUsed: 0, checksUsed: 0, elapsedMs: 0,
+    hintsUsed: 0, checksUsed: 0, elapsedMs: 0, mistakes: 0, expectedMs: expectedMsFor(puzzle),
     focus: null, view: 'grid',
     solved: false, revealed: false, completedAt: null,
     coach: settings.coach && ['basic', 'easy'].includes(puzzle.difficulty.id),
@@ -378,6 +389,7 @@ $('#saved-list').addEventListener('click', async (e) => {
   else if (act === 'delete') {
     const ok = await confirmDialog({ title: `Delete “${save.name}”?`, text: 'This removes the puzzle and your progress from this device. You can undo for 10 seconds.', yes: 'Delete puzzle', no: 'Keep it' });
     if (!ok) return;
+    if (!save.solved && settings.learn) await learn.record(save, 'abandoned').catch(() => {});
     await store.deleteSave(id);
     await renderSaved();
     $('#saved-h').focus();
@@ -619,9 +631,12 @@ function setCell(k, v) {
   const what = `${S.ix.label(a)} and ${S.ix.label(b)} ${v === 'O' ? 'confirmed' : v ? 'ruled out' : 'cleared'}`;
   commit(changes, what);
   let wrongNow = false;
-  if (settings.instant && v) {
+  if (v) {
     const [mk] = checkMarks(S.puzzle, [{ a, b, mark: v === 'O' ? 'O' : 'X' }]);
-    if (mk) { S.wrong.add(k); paintCell(k); wrongNow = true; }
+    // A wrong O counts as a mistake for learning (an X is often a step on the
+    // way to an O, so wrong Xs count only when Check or a hint finds them).
+    if (mk && v === 'O' && !S.save.solved) S.save.mistakes = (S.save.mistakes || 0) + 1;
+    if (mk && settings.instant) { S.wrong.add(k); paintCell(k); wrongNow = true; }
   }
   sound(wrongNow ? 'error' : v === 'O' ? 'O' : v ? 'X' : 'clear');
   const td = S.grid.cells.get(k);
@@ -771,6 +786,7 @@ async function hint() {
       if (!S) return;
       const targets = new Set((res.marks || []).slice(0, 1).map((m) => S.ix.key(m.a, m.b)));
       S.hint = { res, level: 0, targets };
+      if (res.kind === 'mistake') S.save.mistakes = (S.save.mistakes || 0) + 1;
       S.save.hintsUsed++;
       status('');
     } catch (e) {
@@ -817,6 +833,7 @@ function check() {
   S.wrong = new Set(bad.map((m) => S.ix.key(m.a, m.b)));
   for (const k of new Set([...old, ...S.wrong])) paintCell(k);
   S.save.checksUsed = (S.save.checksUsed || 0) + 1;
+  S.save.mistakes = (S.save.mistakes || 0) + [...S.wrong].filter((k) => !old.has(k)).length;
   const msg = bad.length ? `${bad.length} mark${bad.length > 1 ? 's conflict' : ' conflicts'} with the solution. ${bad.length > 1 ? 'They are' : 'It is'} outlined with a warning sign.` : (S.marks.size ? 'No errors so far.' : 'No marks to check yet.');
   status(msg);
   sound(bad.length ? 'error' : 'tick');
@@ -858,6 +875,7 @@ function checkSolved() {
     S.save.completedAt = Date.now();
     tickTimer();
     recordSolve(S.save);
+    if (settings.learn) learn.record(S.save, S.save.revealed ? 'revealed' : 'solved').catch(() => {});
     stopTimer();
     showSolved(true);
     scheduleSave();
@@ -892,6 +910,7 @@ function showSolved(celebrate) {
     tip = `Nicely done. Ready for ${TIERS[next].name}?`;
   } else tip = `Try another ${TIERS[tier].name} puzzle with a brand new story.`;
   $('#next-tip').textContent = tip;
+  renderFeedback(save);
   $('#next-btn').textContent = next === tier ? `New ${TIERS[tier].name} puzzle` : `Try ${TIERS[next].name}`;
   $('#next-btn').onclick = () => {
     setup.tier = next;
@@ -919,6 +938,25 @@ function showSolved(celebrate) {
     announce(`${save.revealed ? 'Solution revealed.' : 'Solved!'} ${S.puzzle.story.ending}`);
   }
 }
+
+// "How was it?" after each puzzle: stars and a quick feel, saved for learning.
+async function renderFeedback(save) {
+  const box = $('#feedback');
+  box.hidden = !settings.learn;
+  if (!settings.learn) return;
+  const prev = await learn.ratingOf(save.storyId).catch(() => ({}));
+  for (const r of $$('input[name=rating]', box)) r.checked = prev.rating === +r.value;
+  for (const r of $$('input[name=feel]', box)) r.checked = prev.feel === r.value;
+  $('#feedback-thanks').textContent = '';
+}
+$('#feedback').addEventListener('change', async (e) => {
+  if (!S || !e.target.name) return;
+  const v = e.target.name === 'rating' ? { rating: +e.target.value } : { feel: e.target.value };
+  await learn.rate(S.save, v).catch(() => {});
+  $('#feedback-thanks').textContent = 'Thanks. Your next puzzles will use this.';
+  window.sync?.soon();
+});
+$('#feedback-idea').onclick = () => workshop.open({ theme: S ? S.puzzle.theme.id : null });
 
 let coachBusy = false;
 async function updateCoach() {
@@ -1268,6 +1306,22 @@ $('#print-cancel').onclick = () => $('#dlg-print').close();
 // ====================================================================
 // Settings, help, menu, keyboard
 // ====================================================================
+async function renderLearning() {
+  const names = (list) => Object.fromEntries(list.map((x) => [x.id, x.name]));
+  const lines = await learn.summary(names(OPTIONS.difficulties), names(OPTIONS.themes), names(OPTIONS.clueTypes)).catch(() => []);
+  $('#learn-summary').innerHTML = lines.map((l) => `<li>${esc(l)}</li>`).join('');
+}
+$('#learn-reset').addEventListener('click', async () => {
+  const ok = await confirmDialog({ title: 'Reset learning?', text: 'The game forgets your ratings and play history and goes back to standard puzzles. Your saved puzzles and the story parts you added are kept.', yes: 'Reset learning', no: 'Keep it' });
+  if (!ok) return;
+  const parts = await learn.listParts();
+  await learn.reset();
+  for (const p of parts) await learn.addPart(p.theme, p.kind, p.value, p.source);
+  await renderLearning();
+  status('Learning reset.');
+});
+$('#learn-workshop').addEventListener('click', () => workshop.open({}));
+
 function openSettings() {
   const f = $('#settings-form');
   for (const el of f.elements) {
@@ -1277,6 +1331,7 @@ function openSettings() {
     else if (el.type === 'range' || el.type === 'password' || el.type === 'text') el.value = settings[el.name] ?? '';
   }
   kokoroStatus();
+  renderLearning();
   openDialog($('#dlg-settings'), f.querySelector('input:checked') || f.querySelector('input'));
 }
 $('#settings-form').addEventListener('change', (e) => {

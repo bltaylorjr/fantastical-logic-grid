@@ -417,3 +417,67 @@ export async function testKey(settings) {
   if (!res.ok) throw await apiError(res);
   return true;
 }
+
+// ---------- AI story writer ----------
+// Drafts new story parts from the player's idea. Only the idea, the theme and
+// a few example parts are sent. The game checks every draft with the engine's
+// story-part rules, and the player approves each one before it is used.
+const PART_HELP = {
+  openings: 'an opening sentence that sets the scene. It must use {n} (or {N} at the start of the sentence) for how many people there are, and {many} for what they are called (the cast word).',
+  incidents: 'an event: what happened. Give "name" (1 to 3 words, used in the title "The <adjective> <name>"), "text" (one or two sentences) and "prize" (the thing at stake, like "the golden key").',
+  mishaps: 'one or two sentences saying why the facts got mixed up, so only the clues can be trusted.',
+  endings: 'an ending shown when the puzzle is solved. It must include {Fact} (the answer, already a full clause like "Mia has the red hat") and may use {winner} (that person) and {prize}.',
+};
+
+function storyPrompt(theme, kind, idea, examples) {
+  return [
+    `You write short story parts for "The Fantastical Logic Grid", a family-friendly logic puzzle game. Theme: ${theme.name} (${theme.description}). The cast are called "${theme.cast.many}".`,
+    `Write 4 different options for ${PART_HELP[kind]}`,
+    'Rules: friendly for all ages; no numbers or head counts in words or digits (the game fills in {n}); no names of people; use only the fill-ins named above, in curly brackets; 6 to 28 words each; end with a full stop or exclamation mark.',
+    `Examples from the game: ${JSON.stringify(examples)}`,
+    `The player's idea: "${String(idea).slice(0, 200)}"`,
+    kind === 'incidents' ? 'Reply with JSON only: {"parts":[{"name":"...","text":"...","prize":"..."}]}' : 'Reply with JSON only: {"parts":["...","..."]}',
+  ].join('\n');
+}
+
+async function openaiModel(settings) {
+  if (settings.storyModel) return settings.storyModel;
+  try {
+    const res = await fetch(`${API}/models`, { headers: { Authorization: `Bearer ${settings.aiKey.trim()}` } });
+    if (res.ok) {
+      const ids = (await res.json()).data.map((m) => m.id).filter((id) => /^gpt-[\d.]+o?-mini$/.test(id)).sort((a, b) => parseFloat(b.slice(4)) - parseFloat(a.slice(4)));
+      if (ids.length) return ids[0];
+    }
+  } catch (e) { /* use the default */ }
+  return 'gpt-4o-mini';
+}
+
+export const storyWriterReady = (settings) => geminiReady(settings) || aiReady(settings);
+
+export async function draftStoryParts(settings, theme, kind, idea, examples) {
+  const prompt = storyPrompt(theme, kind, idea, examples);
+  let text;
+  if (geminiReady(settings)) {
+    const model = settings.storyModel && /gemini/.test(settings.storyModel) ? settings.storyModel : 'gemini-flash-latest';
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': settings.geminiKey.trim() },
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: 'application/json', temperature: 1 } }),
+    });
+    if (!res.ok) throw await apiError(res);
+    const j = await res.json();
+    text = j.candidates?.[0]?.content?.parts?.map((p) => p.text || '').join('') || '';
+  } else if (aiReady(settings)) {
+    const res = await fetch(`${API}/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${settings.aiKey.trim()}` },
+      body: JSON.stringify({ model: await openaiModel(settings), messages: [{ role: 'user', content: prompt }], response_format: { type: 'json_object' } }),
+    });
+    if (!res.ok) throw await apiError(res);
+    text = (await res.json()).choices?.[0]?.message?.content || '';
+  } else throw new Error('Add a Google Gemini or OpenAI key in Settings first.');
+  let parts;
+  try { parts = JSON.parse(text.replace(/^```(json)?|```$/g, '').trim()).parts; } catch (e) { throw new Error('The AI reply could not be read. Try again.'); }
+  if (!Array.isArray(parts)) throw new Error('The AI reply had no story parts. Try again.');
+  return parts.slice(0, 6);
+}

@@ -219,7 +219,7 @@ function finalize(o, best, elapsedMs) {
   const itemId = (gl) => `${cats[Math.floor(gl / N)].id}:${gl % N}`;
   const ref = (gl) => ({ category: cats[Math.floor(gl / N)].id, item: gl % N, id: itemId(gl), label: L.label(gl) });
 
-  const story = buildStory({ rng, theme, goal: { cat: model.goal.cat, item: rng.int(N) }, model, L, customTitle: o.customTitle, usedStories: o.usedStories, extraParts: o.extraParts, storyPrefs: o.storyPrefs });
+  const story = buildStory({ rng, theme, goal: { cat: model.goal.cat, item: rng.int(N) }, model, L, customTitle: o.customTitle, usedStories: o.usedStories, extraParts: o.extraParts, storyPrefs: o.storyPrefs && o.storyPrefs[theme.id] });
   const goalAbout = { cat: model.goal.cat, item: null };
   // buildStory picked the goal item; recover it from the answer for questions.
   goalAbout.item = sol[model.goal.cat][story.goalAnswer.item];

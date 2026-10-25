@@ -209,7 +209,7 @@ for (const diff of ['easy', 'medium', 'expert']) {
   const used = [];
   let repeats = 0, usedExtra = 0;
   const xo = partKey('openings', extra.mystery.openings[0]);
-  const prefs = { o: { [xo]: 1, 0: -1 } };
+  const prefs = { mystery: { o: { [xo]: 1, 0: -1 } } };
   for (let i = 0; i < (quick ? 40 : 200); i++) {
     const p = generatePuzzle({ difficulty: 'basic', theme: 'mystery', seed: `learn-${i}`, usedStories: used, storyParts: extra, storyPrefs: prefs });
     if (used.includes(p.story.id)) repeats++;
