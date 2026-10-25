@@ -270,6 +270,9 @@ const CSS = `
     await hl(['#cast-row', '#bubble']);
     await scene('cast', ["Select a character's portrait to hear the clues they remember.", 'Every clue is also in the clue list.']);
     await clearFx(); await spotClues([]); await p.evaluate(() => { document.querySelector('#bubble').hidden = true; });
+    await scrollTo('#read-clues'); await hl(['#read-clues']);
+    await scene('read-clues', ['To hear every clue in order, press Read the clues aloud.', 'Each character tells their own clue, and the clue being read lights up.']);
+    await clearFx();
 
     // =================== The grid
     await gridView();
