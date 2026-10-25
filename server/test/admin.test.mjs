@@ -306,6 +306,7 @@ test('the older token pages still work and are audited', async () => {
 test('each admin is rate limited', async () => {
   const token = idToken('mod-uid', 'mod@example.com');
   let limited = false;
-  for (let i = 0; i < 60 && !limited; i++) limited = (await call('/admin/v1/me', { auth: token })).status === 429;
+  // 100 quick calls: even if they straddle a one-minute window, one side passes the limit of 40.
+  for (let i = 0; i < 100 && !limited; i++) limited = (await call('/admin/v1/me', { auth: token })).status === 429;
   assert.ok(limited);
 });
