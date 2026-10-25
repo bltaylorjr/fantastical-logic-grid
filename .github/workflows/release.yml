@@ -24,6 +24,9 @@ jobs:
           workspaces: desktop/src-tauri -> target
       - run: npm ci
       - run: npm run build
+        env:
+          FLG_FIREBASE_API_KEY: ${{ vars.FLG_FIREBASE_API_KEY }}
+          FLG_CLOUD_URL: ${{ vars.FLG_CLOUD_URL }}
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

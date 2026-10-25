@@ -567,3 +567,25 @@ dialog::backdrop { background: rgb(5 7 16 / .6); backdrop-filter: blur(6px); -we
   table.ptab th, table.ptab td { border: .5pt solid #000; padding: 3pt 6pt; text-align: left; }
   .psteps { font-size: 10pt; }
 }
+
+/* Account and sync */
+.field input[type=email] { min-height: 44px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); color: var(--text); width: 100%; }
+.field input[type=password] { min-height: 44px; padding: 8px 12px; border: 1px solid var(--border); width: 100%; color: var(--text); }
+.acct-view { display: grid; gap: 12px; }
+.acct-view .help { margin: 0; }
+.acct-actions { justify-content: flex-start; margin-top: 4px; }
+.acct-switch { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.acct-done:empty { display: none; }
+.acct-done { margin: 0; border-left: 4px solid var(--accent); padding: 6px 12px; }
+.acct-sync, .sync-line { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px;
+  border: 1px solid var(--edge); border-radius: 14px; padding: 8px 8px 8px 16px; background: var(--accent-soft); }
+.acct-sync p, .sync-line p { margin: 0; flex: 1 1 220px; }
+.sync-line { margin: 0 0 12px; }
+.sync-line .dot, .acct-sync .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; background: var(--muted); vertical-align: middle; }
+.sync-line .dot.ok, .acct-sync .dot.ok { background: var(--accent); }
+.sync-line .dot.warn, .acct-sync .dot.warn { background: var(--error); }
+.acct-danger { margin-top: 8px; border-top: 1px solid var(--hairline); padding-top: 8px; }
+.acct-danger summary { cursor: pointer; font-weight: 700; min-height: 44px; display: flex; align-items: center; color: var(--error); }
+.acct-danger form { display: grid; gap: 12px; }
+.btn.danger { background: var(--error-soft); border: 2px solid var(--error); color: var(--error); font-weight: 700; justify-self: start; }
+:root[data-theme="contrast"] .acct-sync, :root[data-theme="contrast"] .sync-line { background: #000; border-color: #fff; }

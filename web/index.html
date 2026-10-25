@@ -32,6 +32,7 @@
     <button role="menuitem" type="button" data-cmd="new">New puzzle</button>
     <button role="menuitem" type="button" data-cmd="saved">Saved puzzles</button>
     <button role="menuitem" type="button" data-cmd="settings">Settings</button>
+    <button role="menuitem" type="button" data-cmd="account" hidden>Account and sync</button>
     <button role="menuitem" type="button" data-cmd="install" hidden>Install app</button>
   </div>
 </header>
@@ -114,6 +115,10 @@
           <button class="btn quiet small" type="button" id="import-btn">Open a puzzle file</button>
           <input type="file" id="import-file" accept=".json,.flg.json,application/json" hidden>
         </div>
+      </div>
+      <div class="sync-line" id="sync-line" hidden>
+        <p id="sync-text" role="status"></p>
+        <button class="btn small" type="button" id="sync-btn">Sign in to sync</button>
       </div>
       <p class="muted" id="saved-empty">Your puzzles save automatically on this device. Start one and it will appear here.</p>
       <ul class="saved-list" id="saved-list"></ul>
@@ -301,6 +306,84 @@
     </fieldset>
     <div class="dlg-actions"><button class="btn primary" value="close">Done</button></div>
   </form>
+</dialog>
+
+<dialog id="dlg-account" aria-labelledby="account-h">
+  <h2 id="account-h">Sign in</h2>
+
+  <form class="acct-view" data-view="signin" novalidate>
+    <p class="help">Sign in to keep your saved puzzles, progress and settings on every device: the website, the desktop app and your phone. You never need an account to play.</p>
+    <div class="field"><label for="si-email">Email</label><input type="email" id="si-email" name="email" autocomplete="username email" inputmode="email" spellcheck="false" required></div>
+    <div class="field"><label for="si-pass">Password</label><input type="password" id="si-pass" name="password" autocomplete="current-password" required></div>
+    <label class="check"><input type="checkbox" data-show-pass> Show password</label>
+    <div class="error-box" role="alert" hidden></div>
+    <div class="dlg-actions acct-actions">
+      <button class="btn primary" type="submit">Sign in</button>
+      <button class="btn quiet" type="button" data-go="reset">Forgot your password?</button>
+    </div>
+    <p class="acct-switch">New here? <button class="btn small" type="button" data-go="signup">Create an account</button></p>
+    <p class="acct-switch"><button class="btn quiet small" type="button" data-close>Keep playing without an account</button></p>
+  </form>
+
+  <form class="acct-view" data-view="signup" novalidate hidden>
+    <p class="help">An account keeps your puzzles in step on all your devices. Puzzles already on this device are added to it.</p>
+    <div class="field"><label for="su-email">Email</label><input type="email" id="su-email" name="email" autocomplete="username email" inputmode="email" spellcheck="false" required></div>
+    <div class="field"><label for="su-pass">Password</label><input type="password" id="su-pass" name="password" autocomplete="new-password" minlength="8" required aria-describedby="su-pass-help"><p class="help" id="su-pass-help">At least 8 characters. A short phrase is easy to remember.</p></div>
+    <label class="check"><input type="checkbox" data-show-pass> Show password</label>
+    <p class="help">We keep only your email and your game data (saved puzzles, progress, used stories and settings, but never your API keys). You can delete your account and all of it at any time from this window.</p>
+    <div class="error-box" role="alert" hidden></div>
+    <div class="dlg-actions acct-actions">
+      <button class="btn primary" type="submit">Create account</button>
+      <button class="btn quiet" type="button" data-go="signin">I already have an account</button>
+    </div>
+  </form>
+
+  <form class="acct-view" data-view="reset" novalidate hidden>
+    <p class="help">Enter the email you signed up with. We'll send a link that lets you choose a new password.</p>
+    <div class="field"><label for="rs-email">Email</label><input type="email" id="rs-email" name="email" autocomplete="username email" inputmode="email" spellcheck="false" required></div>
+    <div class="error-box" role="alert" hidden></div>
+    <p class="acct-done" role="status"></p>
+    <div class="dlg-actions acct-actions">
+      <button class="btn primary" type="submit">Send reset link</button>
+      <button class="btn quiet" type="button" data-go="signin">Back to sign in</button>
+    </div>
+  </form>
+
+  <div class="acct-view" data-view="account" hidden>
+    <p>Signed in as <b id="acct-email"></b></p>
+    <p class="help" id="acct-verify" hidden>Check your inbox for a link to confirm this email. It makes sure a password reset can reach you.</p>
+    <div class="acct-sync">
+      <p id="acct-sync-text" role="status"></p>
+      <button class="btn small" type="button" id="acct-sync-now">Sync now</button>
+    </div>
+    <p class="help">Your puzzles always save on this device first, so you can play offline. They sync the next time you're connected.</p>
+    <div class="dlg-actions acct-actions">
+      <button class="btn" type="button" id="acct-change-pass">Change password</button>
+      <button class="btn" type="button" data-go="signout">Sign out</button>
+    </div>
+    <p class="acct-done" id="acct-msg" role="status"></p>
+    <details class="acct-danger">
+      <summary>Delete my account</summary>
+      <form id="acct-delete-form" novalidate>
+        <p class="help">This permanently deletes your account and every puzzle, setting and used-story list stored in it. Puzzles on this device stay here, so you can keep playing without an account. This cannot be undone.</p>
+        <div class="field"><label for="del-pass">Enter your password to confirm</label><input type="password" id="del-pass" autocomplete="current-password" required></div>
+        <div class="error-box" role="alert" hidden></div>
+        <button class="btn danger" type="submit">Delete account permanently</button>
+      </form>
+    </details>
+  </div>
+
+  <form class="acct-view" data-view="signout" novalidate hidden>
+    <p class="help">Your puzzles stay in your account. Sign in again on any device to get them back.</p>
+    <label class="check"><input type="checkbox" id="so-clear"> Also remove my saved puzzles from this device (for shared computers)</label>
+    <div class="error-box" role="alert" hidden></div>
+    <div class="dlg-actions acct-actions">
+      <button class="btn primary" type="submit">Sign out</button>
+      <button class="btn quiet" type="button" data-go="account">Stay signed in</button>
+    </div>
+  </form>
+
+  <div class="dlg-actions"><button class="btn" type="button" data-close>Close</button></div>
 </dialog>
 
 <dialog id="dlg-video" class="wide" aria-labelledby="video-h">

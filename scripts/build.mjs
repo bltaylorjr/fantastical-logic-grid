@@ -38,6 +38,16 @@ if (existsSync(cinzel)) cpSync(cinzel, join(web, 'fonts', 'cinzel-700.woff2'));
 // 3. dist/web with a stamped service worker.
 rmSync(out, { recursive: true, force: true });
 cpSync(web, out, { recursive: true });
+// Player accounts switch on when the build is given the Firebase web API key
+// and the sync Worker's address (GitHub repository variables in CI).
+const cloudFile = join(out, 'js', 'cloud-config.js');
+let cloud = readFileSync(cloudFile, 'utf8');
+// FLG_CLOUD_URL is the shared Worker address (also used for learning).
+const cloudEnv = { firebaseApiKey: process.env.FLG_FIREBASE_API_KEY, syncUrl: process.env.FLG_SYNC_URL || process.env.FLG_CLOUD_URL };
+for (const [field, value] of Object.entries(cloudEnv)) {
+  if (value) cloud = cloud.replace(new RegExp(`${field}: '[^']*'`), `${field}: ${JSON.stringify(value)}`);
+}
+writeFileSync(cloudFile, cloud);
 const files = [];
 const walk = (d) => { for (const n of readdirSync(d)) { const p = join(d, n); if (statSync(p).isDirectory()) walk(p); else files.push(relative(out, p).split('\\').join('/')); } };
 walk(out);
