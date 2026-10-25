@@ -7,7 +7,7 @@ export { generatePuzzle, gridLayout, ENGINE_NAME, ENGINE_VERSION } from './gener
 export { getHint, checkMarks, checkAnswers, isSolved, formatPuzzleText } from './play.js';
 export { THEMES, TIERS, CLUE_TYPES, SIZE_LIMITS };
 export { STORYLINES } from './storylines.js';
-export { TOPICS, getTopics } from './topics.js';
+export { TOPICS, getTopics, storyKey } from './topics.js';
 export { parseStoryId, checkStoryPart, partKey, PART_KINDS } from './story.js';
 
 // The id to save once a player starts a puzzle; pass saved ids back as

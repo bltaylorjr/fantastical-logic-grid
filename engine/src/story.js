@@ -30,8 +30,8 @@ function makeId(key, c) {
 // built-in ones. A built-in part's key is its index; an added part's key is
 // "x" plus a hash of its text, so story ids stay the same whatever order the
 // added parts are stored in, and a story built from them is never repeated.
-// Added parts are keyed by theme (used in every topic of that theme) or by
-// story key (one topic only, e.g. "holiday/halloween").
+// Added parts are keyed by story key: the theme id for the theme's classic
+// topic, or "theme/topic" for one topic only (e.g. "holiday/halloween").
 export const PART_KINDS = { openings: 'o', incidents: 'i', mishaps: 'm', endings: 'e' };
 
 export function partKey(kind, part) {
@@ -39,9 +39,11 @@ export function partKey(kind, part) {
   return `x${hashString(text).toString(36)}`;
 }
 
+// Parts added for a whole theme were written for its classic setting, so
+// they join only the classic topic's stories; a topic uses parts added for it.
 function scenarioParts(scenario, extra) {
   const S = scenario.story;
-  const adds = extra ? [extra[scenario.theme.id], scenario.key !== scenario.theme.id ? extra[scenario.key] : null].filter(Boolean) : [];
+  const adds = extra && extra[scenario.key] ? [extra[scenario.key]] : [];
   const out = { adjs: S.adjs, leads: S.leads };
   for (const kind of Object.keys(PART_KINDS)) {
     const list = S[kind].map((value, i) => ({ key: String(i), value }));

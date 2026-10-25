@@ -149,6 +149,18 @@ story parts: `mystery|t2|o1|i3|m0|lroom.1|e4` (Classic Whodunit) or
 `holiday/halloween|t0|o5|i2|m1|lcostume.0|e3`. Ids saved before topics existed
 stay valid, because classic topics kept the same id form.
 
+**Stories match their grid.** A story only talks about its own topic: its
+setting, its cast word and the categories in the grid. No story part names an
+item or a cast name its topic can put in a grid (a story that says "a dozen
+roses appeared" reads like a clue when Roses is a Flower item), every topic
+with its own story gives every part kind and a lead for each of its
+categories, and a topic can reuse a theme category with items that suit it
+(`{ from: 'gear', items: [...] }`). The tests check all of this part by part
+for every theme and topic, and on built stories at every grid size.
+
+Story parts a player adds (`storyParts`) are keyed by story key: the theme id
+for its classic topic, or `theme/topic` for one topic.
+
 The app saves each id once a puzzle is started and passes the list back:
 
 ```js

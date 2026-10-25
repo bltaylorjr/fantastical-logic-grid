@@ -1,7 +1,7 @@
 // Story workshop: players add their own story parts (or approve drafts from
 // the AI story writer). Every part is checked by the engine's rules before it
 // joins the mix; see learn.js for how parts reach new stories.
-import { THEMES, STORYLINES, checkStoryPart } from '../engine/index.js';
+import { THEMES, STORYLINES, checkStoryPart, getTopics, storyKey } from '../engine/index.js';
 import * as learn from './learn.js';
 import * as ai from './ai.js';
 import * as store from './store.js';
@@ -20,6 +20,25 @@ const TIPS = {
 
 const kind = () => $('input[name=wskind]:checked').value;
 const theme = () => THEMES.find((t) => t.id === $('#ws-theme').value) || THEMES[0];
+// Parts belong to one topic (its story key, e.g. "holiday/halloween"; the
+// theme id for its classic topic), so they only join stories they fit.
+const topic = () => getTopics(theme().id).find((t) => t.id === $('#ws-topic').value) || getTopics(theme().id)[0];
+const key = () => storyKey(theme(), topic());
+// What the AI story writer is told about the setting.
+const setting = () => ({ name: `${theme().name}: ${topic().name}`, description: topic().description, cast: topic().cast || theme().cast });
+const examples = (k) => (topic().story && topic().story[k]) || STORYLINES[theme().id][k];
+function keyName(k) {
+  const [th, tp] = k.split('/');
+  const t = THEMES.find((x) => x.id === th);
+  if (!t) return k;
+  const topics = getTopics(th);
+  const p = tp ? topics.find((x) => x.id === tp) : topics.find((x) => !x.story);
+  return p ? `${t.name}: ${p.name}` : t.name;
+}
+function fillTopics(topicId) {
+  $('#ws-topic').innerHTML = getTopics(theme().id).map((t) => `<option value="${t.id}">${esc(t.name)}</option>`).join('');
+  if (topicId && getTopics(theme().id).some((t) => t.id === topicId)) $('#ws-topic').value = topicId;
+}
 const sample = (list, n) => list.slice().sort(() => Math.random() - 0.5).slice(0, n);
 let drafts = [];
 
@@ -41,7 +60,7 @@ const partText = (k, v) => (k === 'incidents' ? `${v.name}: ${v.text} (at stake:
 async function renderMine() {
   const mine = await learn.listParts();
   $('#ws-mine').innerHTML = mine.length
-    ? mine.map((p) => `<li><span>${esc(partText(p.kind, p.value))}<small>${esc(THEMES.find((t) => t.id === p.theme)?.name || p.theme)} · ${KIND_NAMES[p.kind]}${p.source === 'ai' ? ' · drafted with AI' : ''}</small></span>
+    ? mine.map((p) => `<li><span>${esc(partText(p.kind, p.value))}<small>${esc(keyName(p.theme))} · ${KIND_NAMES[p.kind]}${p.source === 'ai' ? ' · drafted with AI' : ''}</small></span>
       <button class="btn quiet small" type="button" data-remove="${esc(p.theme)}|${p.kind}|${p.key}">Remove</button></li>`).join('')
     : '<li><span class="help">None yet.</span></li>';
 }
@@ -56,12 +75,12 @@ function renderDrafts() {
 }
 
 async function add(value, source) {
-  const res = await learn.addPart(theme().id, kind(), value, source);
+  const res = await learn.addPart(key(), kind(), value, source);
   if (!res.ok) { $('#ws-errors').innerHTML = res.errors.map(esc).join('<br>'); return false; }
   $('#ws-errors').textContent = '';
   $('#ws-status').textContent = 'Added. It will appear in new stories.';
   if (share.available() && $('#ws-share').checked) {
-    share.sharePart(theme().id, kind(), value, source).then(
+    share.sharePart(key(), kind(), value, source).then(
       () => { $('#ws-status').textContent = 'Added, and sent to the editor to share with everyone.'; },
       () => { $('#ws-status').textContent = 'Added. It could not be sent to the editor right now.'; },
     );
@@ -76,6 +95,9 @@ function wire() {
   if (wired) return;
   wired = true;
   $('#ws-theme').innerHTML = THEMES.map((t) => `<option value="${t.id}">${esc(t.name)}</option>`).join('');
+  fillTopics();
+  $('#ws-theme').addEventListener('change', () => { fillTopics(); drafts = []; renderDrafts(); });
+  $('#ws-topic').addEventListener('change', () => { drafts = []; renderDrafts(); });
   $$('input[name=wskind]').forEach((r) => r.addEventListener('change', () => { drafts = []; renderDrafts(); showKind(); }));
   $('#ws-add').onclick = async () => {
     if (await add(readPart(), 'mine')) { $('#ws-text').value = ''; $('#ws-name').value = ''; $('#ws-prize').value = ''; }
@@ -89,8 +111,7 @@ function wire() {
     out.textContent = 'Drafting…';
     $('#ws-ai').disabled = true;
     try {
-      const t = theme();
-      drafts = await ai.draftStoryParts(settings, t, kind(), idea, sample(STORYLINES[t.id][kind()], 3));
+      drafts = await ai.draftStoryParts(settings, setting(), kind(), idea, sample(examples(kind()), 3));
       out.textContent = drafts.length ? 'Pick the ones you like.' : 'No drafts came back. Try again.';
       renderDrafts();
     } catch (e) {
@@ -111,9 +132,9 @@ function wire() {
   });
 }
 
-export async function open({ theme: themeId } = {}) {
+export async function open({ theme: themeId, topic: topicId } = {}) {
   wire();
-  if (themeId) $('#ws-theme').value = themeId;
+  if (themeId) { $('#ws-theme').value = themeId; fillTopics(topicId); }
   showKind();
   $('#ws-status').textContent = '';
   await renderMine();

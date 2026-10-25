@@ -54,8 +54,9 @@ function resolveOptions(opts = {}) {
     maxAttempts: opts.maxAttempts ?? 60 };
 }
 
-// Choose the goal category, the other categories and their items.
-function buildModel(o) {
+// Choose the goal category, the other categories and their items. Exported
+// for the tests, which build stories for every topic and size.
+export function buildModel(o) {
   const { rng, scenario, K, N, weights } = o;
   const wantsOrdinal = 'less' in weights || 'diff' in weights;
   const goalDef = rng.pick(scenario.categories);
@@ -94,7 +95,7 @@ function buildModel(o) {
   };
 }
 
-function randomSolution(rng, K, N) {
+export function randomSolution(rng, K, N) {
   const sol = [[...Array(N).keys()]];
   for (let c = 1; c < K; c++) sol.push(rng.shuffle([...Array(N).keys()]));
   return sol;

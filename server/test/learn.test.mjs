@@ -86,6 +86,10 @@ test('shared story parts wait for review; approved ones reach every player', asy
   tun = await (await call('/v1/learn/tuning', { method: 'GET' })).json();
   assert.deepEqual(tun.parts.pets.openings, [part.value]);
   assert.match(await (await call('/admin/learn', { method: 'GET' })).text(), /Story review/);
+  // Parts can belong to one topic (its story key), but not to a made-up one.
+  const topicPart = { theme: 'pets/hotel', kind: 'mishaps', value: 'The night clerk dozed off, so the check-in cards are a jumble.' };
+  assert.equal((await (await call('/v1/learn/parts', { body: topicPart })).json()).status, 'pending');
+  assert.equal((await call('/v1/learn/parts', { body: { ...topicPart, theme: 'pets/moon-base' } })).status, 400);
 });
 
 test('voices: cached, capped per day, and fall back to Kokoro', async () => {
