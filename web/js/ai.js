@@ -6,6 +6,7 @@
 // the game keeps its built-in art and uses the computer's own voices.
 import * as store from './store.js';
 import { CLOUD_URL } from './cloud-config.js';
+import { genderOf } from './gender.js';
 
 const API = 'https://api.openai.com/v1';
 const pending = new Map();
@@ -78,25 +79,22 @@ export function sceneImage(settings, puzzle) {
 export function portraitImage(settings, puzzle, name) {
   const setting = settingOf(puzzle);
   const role = (puzzle.cast && puzzle.cast.one) || 'character';
-  const prompt = `${STYLE} Head-and-shoulders portrait of a friendly ${role} named ${name} in ${setting}, looking at the viewer, plain softly lit background, centered, one person only.`;
-  return cached(`${puzzle.theme.id}|${(puzzle.topic && puzzle.topic.id) || ''}|${role}|${name}|portrait`, () => generateImage(settings, prompt, '1024x1024'));
+  const g = genderOf(name);
+  const prompt = `${STYLE} Head-and-shoulders portrait of a friendly ${g === 'f' ? 'woman' : 'man'}, a ${role} named ${name}, in ${setting}, looking at the viewer, plain softly lit background, centered, one person only.`;
+  return cached(`${puzzle.theme.id}|${(puzzle.topic && puzzle.topic.id) || ''}|${role}|${name}|${g}|portrait`, () => generateImage(settings, prompt, '1024x1024'));
 }
 
 // ---------------------------------------------------------------------------
 // Voice
 // ---------------------------------------------------------------------------
-const AI_VOICES = ['alloy', 'ash', 'ballad', 'echo', 'nova', 'onyx', 'sage', 'shimmer', 'verse'];
 let current = null;
 
 function hashOf(text) { let h = 7; for (const c of text) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h; }
 
-// Characters get a voice that fits their name: a woman's voice for Clara, a
-// man's for Hugo. Names that could be either keep a mixed pick.
-const FEMALE = new Set('Ada Clara Edith Greta Iris Ivy Amara Cora Elsa Gemma Isla Annie Carly Ella Gwen Alice Chloe Emma Hannah Julia Brynn Delphine Elowen Hazel Isolde Juniper Astra Electra Gaia Juno Bella Dina Fatima Holly Jada Bea Dolores Freya Harriet Indira Abby Cassie Eva Grace'.split(' '));
-const MALE = new Set('Basil Dorian Felix Hugo Jasper Ace Blaze Cobra Falcon Hawk Jett Bruno Diego Finn Hector Jonah Ben Danny Frank Henry Jack Brian David George Isaac Kevin Alaric Cassius Fenwick Galen Cosmo Dax Andre Carlos Eli Grant Ivan Antonio Chen Emile Gus Fred Harry Josh Dylan'.split(' '));
-function voiceFor(who, seed, female, male, mixed) {
-  const first = String(who).split(/\s+/)[0];
-  const pool = FEMALE.has(first) ? female : MALE.has(first) ? male : mixed;
+// Characters get a voice that matches their portrait: a woman's voice for
+// Clara, a man's for Hugo (see gender.js).
+function voiceFor(who, seed, female, male) {
+  const pool = genderOf(who) === 'f' ? female : male;
   return pool[seed % pool.length];
 }
 
@@ -112,10 +110,9 @@ async function ttsBlob(settings, text, voice, style) {
 
 // Google Gemini text-to-speech (free tier available). Returns raw 16-bit PCM,
 // which is wrapped in a WAV header so the browser can play it.
-const GEMINI_VOICES = ['Kore', 'Puck', 'Charon', 'Fenrir', 'Aoede', 'Leda', 'Orus', 'Zephyr', 'Callirrhoe', 'Enceladus', 'Iapetus', 'Umbriel'];
 const GEMINI_F = ['Kore', 'Aoede', 'Leda', 'Zephyr', 'Callirrhoe'];
 const GEMINI_M = ['Puck', 'Fenrir', 'Orus', 'Enceladus', 'Iapetus', 'Umbriel'];
-const AI_F = ['nova', 'shimmer', 'sage', 'alloy'];
+const AI_F = ['nova', 'shimmer', 'sage', 'coral']; // alloy sounds neither, so it is left out
 const AI_M = ['ballad', 'echo', 'onyx', 'verse'];
 export const geminiReady = (settings) => !!(settings.geminiKey && settings.geminiKey.trim().length > 20);
 
@@ -177,9 +174,8 @@ function deviceVoice(seed, narrator, who = '') {
     const storyteller = pool.find((v) => /\b(guy|andrew|brian|christopher|eric|davis|roger|steffan|tony|jason|alex|aaron|fred)\b/i.test(v.name));
     if (storyteller) return storyteller;
   }
-  const first = String(who).split(/\s+/)[0];
-  const female = /\b(aria|jenny|ava|emma|michelle|ana|samantha|zira|susan|allison|nancy|sara|jane|libby|sonia)\b/i;
-  const sub = FEMALE.has(first) ? pool.filter((v) => female.test(v.name)) : MALE.has(first) ? pool.filter((v) => !female.test(v.name)) : [];
+  const female = /\b(aria|jenny|ava|emma|michelle|ana|samantha|zira|susan|allison|nancy|sara|jane|libby|sonia|victoria|joanna|salli|kendra|kimberly|ivy|amber|ashley|monica|elizabeth|cora|jessa|ellie|serena|ruth|danielle|google us english)\b/i;
+  const sub = narrator ? [] : genderOf(who) === 'f' ? pool.filter((v) => female.test(v.name)) : pool.filter((v) => !female.test(v.name));
   if (sub.length) pool = sub;
   return pool.length ? pool[seed % pool.length] : null;
 }
@@ -191,7 +187,6 @@ const KOKORO_NARRATOR = 'am_michael'; // American male
 // each also has a slightly different pace to tell speakers apart.
 const KOKORO_F = ['af_heart', 'af_bella', 'af_nicole', 'af_aoede'];
 const KOKORO_M = ['am_fenrir', 'am_puck', 'am_michael:1.06', 'am_fenrir:0.95', 'am_puck:1.05'];
-const KOKORO_VOICES = ['af_bella', 'am_fenrir', 'af_heart', 'am_puck', 'af_nicole', 'af_aoede'];
 let kWorker = null;
 let kSeq = 0;
 const kCalls = new Map();
@@ -333,7 +328,7 @@ function voicePlan(settings, puzzle, who) {
   // The player's own Google key comes first; otherwise the game's free
   // server voices, unless the player chose a specific other service.
   if (!geminiReady(settings) && ['kokoro', 'gemini'].includes(settings.voiceProvider || 'kokoro') && cloudVoicesReady(settings)) {
-    const voice = narr ? 'Charon' : voiceFor(who, seed, GEMINI_F, GEMINI_M, GEMINI_VOICES);
+    const voice = narr ? 'Charon' : voiceFor(who, seed, GEMINI_F, GEMINI_M);
     return { seed, kind: 'cloud', gap: 80, key: `g2|${voice}`, make: (t) => cloudTts(t, voice) };
   }
   const ready = {
@@ -345,12 +340,12 @@ function voicePlan(settings, puzzle, who) {
   if (settings.voiceProvider === 'device') return { seed, kind: 'device' };
   const kind = order.find((k) => ready[k]);
   if (kind === 'kokoro') {
-    const [voice, pace] = (narr ? KOKORO_NARRATOR : voiceFor(who, seed, KOKORO_F, KOKORO_M, KOKORO_VOICES)).split(':');
+    const [voice, pace] = (narr ? KOKORO_NARRATOR : voiceFor(who, seed, KOKORO_F, KOKORO_M)).split(':');
     const speed = narr ? 0.94 : Number(pace || 1);
     return { seed, kind, gap: 220, key: `k2|${voice}|${speed}`, make: (t) => kokoroTts(t, voice, speed) };
   }
   if (kind === 'gemini') {
-    const voice = narr ? 'Charon' : voiceFor(who, seed, GEMINI_F, GEMINI_M, GEMINI_VOICES); // Charon: male, steady
+    const voice = narr ? 'Charon' : voiceFor(who, seed, GEMINI_F, GEMINI_M); // Charon: male, steady
     return { seed, kind, gap: 80, key: `g2|${voice}`, make: (t) => geminiTts(settings, t, voice) };
   }
   if (kind === 'openai') {
@@ -358,7 +353,7 @@ function voicePlan(settings, puzzle, who) {
       ? `Warm male storyteller reading a ${puzzle.theme.name.toLowerCase()} story aloud, unhurried, gentle suspense.`
       : `A character in a ${puzzle.theme.name.toLowerCase()} story telling a detective what they saw. Natural, conversational, a little ${['nervous', 'cheerful', 'serious', 'proud', 'secretive'][seed % 5]}.`;
     const accent = ' Speak in a natural General American accent. Enunciate clearly, keep a relaxed, even pace, and pause briefly at commas and full stops. Say names and times naturally.';
-    const voice = narr ? 'ash' : voiceFor(who, seed, AI_F, AI_M, AI_VOICES); // ash: American male
+    const voice = narr ? 'ash' : voiceFor(who, seed, AI_F, AI_M); // ash: American male
     return { seed, kind, gap: 80, key: `o2|${voice}|${hashOf(style)}`, make: (t) => ttsBlob(settings, t, voice, style + accent) };
   }
   return { seed, kind: 'device' };

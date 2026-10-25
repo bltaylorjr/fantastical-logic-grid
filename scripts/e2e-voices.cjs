@@ -36,12 +36,13 @@ const { spawn } = require('child_process');
   assert(await page.evaluate(async () => (await (await import('./js/store.js')).loadSettings()).kokoroReady === true), 'ready state saved');
   const k = await page.evaluate(() => window.__k);
   assert(k.length && k[0].startsWith('am_michael'), 'the narrator is the American male voice');
-  const female = new Set(['Ada', 'Greta', 'Iris', 'Clara', 'Edith']);
-  for (const who of await page.$$eval('.cast-btn', (bs) => bs.map((x) => x.dataset.who))) {
+  // Each character sounds like their portrait looks.
+  const cast = await page.$$eval('.cast-btn', (bs) => bs.map((x) => [x.dataset.who, x.querySelector('[data-gender]') && x.querySelector('[data-gender]').dataset.gender]));
+  for (const [who, g] of cast) {
     const before = (await page.evaluate(() => window.__k.length));
     await page.click(`.cast-btn[data-who="${who}"]`); await page.waitForTimeout(300);
     const v = (await page.evaluate((n) => window.__k.slice(n), before))[0] || '';
-    assert(v.startsWith(female.has(who) ? 'af_' : 'am_'), `${who} speaks with a ${female.has(who) ? "woman's" : "man's"} voice (${v})`);
+    assert(g && v.startsWith(g === 'f' ? 'af_' : 'am_'), `${who} looks ${g === 'f' ? 'like a woman' : 'like a man'} and speaks with a ${g === 'f' ? "woman's" : "man's"} voice (${v})`);
   }
   assert(await page.evaluate(() => window.__dev) === 0, 'no robotic computer voice was used');
   assert(!errs.length, 'no page errors');

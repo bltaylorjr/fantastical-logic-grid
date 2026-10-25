@@ -15,9 +15,11 @@ import { icon } from './icons.js';
 import * as learn from './learn.js';
 import * as workshop from './workshop.js';
 import * as share from './share.js';
+import * as errorReports from './errors.js';
 import { initAccounts, openAccount, onHome as accountsOnHome, signedIn } from './account-ui.js';
 import * as competeUi from './compete-ui.js';
 
+errorReports.init();
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const OPTIONS = describeOptions();
@@ -1566,6 +1568,7 @@ if ('serviceWorker' in navigator && !isDesktop && (location.protocol === 'https:
 async function watchWebUpdates() {
   let reg;
   try { reg = await navigator.serviceWorker.register('sw.js'); } catch (e) { return; /* offline support is optional */ }
+  if (!reg) return; // some browsers and privacy settings resolve without a registration
   const waiting = () => {
     if (!reg.waiting || !navigator.serviceWorker.controller) return; // first install needs no reload
     pendingUpdate = { kind: 'web', worker: reg.waiting };

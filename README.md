@@ -121,7 +121,10 @@ scripts/                    build, local server, icons, end-to-end test
 - **Desktop updates**: the Tauri updater (`desktop/src-tauri`, `web/js/updates.js`) reads
   `https://github.com/bltaylorjr/fantastical-logic-grid/releases/latest/download/latest.json`
   and only installs packages signed with the updater key. To release: raise `version` in
-  `desktop/src-tauri/tauri.conf.json`, `desktop/src-tauri/Cargo.toml` and `package.json`, push, then run
-  **Actions > Release desktop app**. It needs the repository secret `TAURI_SIGNING_PRIVATE_KEY`.
+  `desktop/src-tauri/tauri.conf.json`, `desktop/src-tauri/Cargo.toml` and `package.json` and merge to `main`;
+  **Actions > Release desktop app** then runs by itself (or run it by hand). It needs the repository secret `TAURI_SIGNING_PRIVATE_KEY`.
   The key is never committed; losing it means installed copies can no longer update.
 - **Web version**: **Actions > Publish web version** deploys `dist/site` to GitHub Pages on each push to `main`.
+- **Self-maintenance**: tests on every PR, weekly dependency updates, a health check every 3 hours
+  that opens an issue when something is down, a daily cleanup of old server data and anonymous
+  error reports. See [MAINTENANCE.md](MAINTENANCE.md).
