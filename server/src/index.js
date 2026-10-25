@@ -8,12 +8,14 @@
 //   /admin/*                             the admin dashboard and its API (admin.js)
 //   GET /v1/health[?deep=1]              a quick check that the Worker (and with
 //                                        deep=1, the database and daily cleanup) is up
-// scheduled(): the daily cleanup of old data (upkeep.js, cron in wrangler.toml).
+// scheduled(): the daily cleanup of old data (upkeep.js) and the daily fetch of
+// Google and Bing search numbers (search.js); crons in wrangler.toml.
 
 import { handleLearn } from './learn.js';
 import { handleCompete } from './compete.js';
 import { handleErrors } from './errors.js';
 import { handleAdmin } from './admin.js';
+import { refreshSearch, SEARCH_CRON } from './search.js';
 import { publicConfig } from './settings.js';
 import { runUpkeep, deepHealth } from './upkeep.js';
 import { handleSync, handleDeleteAccount, isDeleted } from './sync.js';
@@ -84,6 +86,10 @@ export default {
     }
   },
   async scheduled(controller, env, ctx) {
+    if (controller.cron === SEARCH_CRON) {
+      ctx.waitUntil(refreshSearch(env).then((r) => console.log('search', JSON.stringify(r))));
+      return;
+    }
     ctx.waitUntil(runUpkeep(env).then((removed) => console.log('upkeep', JSON.stringify(removed))));
   },
 };

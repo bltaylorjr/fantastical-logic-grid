@@ -9,6 +9,7 @@
 //   GET  /admin/v1/analytics?days=     players, games, scores, races, voices, errors
 //   GET  /admin/v1/storage             rows per table, database size, free limits
 //   GET  /admin/v1/usage?days=         Cloudflare's own request and D1 counts (optional token)
+//   GET  /admin/v1/search              Google and Bing search numbers (search.js); POST .../refresh
 //   GET  /admin/v1/errors?days=        error reports, most frequent first
 //   GET  /admin/v1/parts?status=       shared story parts; POST /admin/v1/parts/review
 //   GET  /admin/v1/names?status=       screen names to moderate; POST /admin/v1/names/:uid/approve
@@ -32,6 +33,7 @@ import { checkName, cleanName, nameKey, hasBlockedWords } from './names.js';
 import { deleteCompeteStatements, clearBoardCache } from './compete.js';
 import { SETTINGS, getSettings, checkSetting, saveSetting, themeList } from './settings.js';
 import { TUNING_CACHE_KEY } from './learn.js';
+import { refreshSearch, searchSnapshots, lastTry, REFRESH_GAP_MS } from './search.js';
 
 const DAY = 24 * 3600_000;
 const ROLES = { viewer: 1, moderator: 2, admin: 3, owner: 4 };
@@ -40,7 +42,7 @@ const MAX_BODY = 8_000;
 const DENIED_PER_DAY = 500; // refused requests written to the audit log, so a flood cannot fill it
 const ANALYTICS_CACHE_MS = 120_000;
 const TABLES = ['sync_users', 'sync_records', 'sync_deleted_users', 'players', 'scores', 'races', 'race_entries', 'race_invites', 'plays', 'parts', 'usage',
-  'app_errors', 'upkeep_log', 'admins', 'admin_audit', 'settings', 'announcements', 'bans', 'name_reviews'];
+  'app_errors', 'upkeep_log', 'admins', 'admin_audit', 'settings', 'announcements', 'bans', 'name_reviews', 'search_snapshots'];
 // Free plan allowances (Cloudflare and Firebase pages, October 2026).
 export const FREE_LIMITS = {
   workerRequestsPerDay: 100_000, d1RowsReadPerDay: 5_000_000, d1RowsWrittenPerDay: 100_000,
@@ -311,6 +313,13 @@ const ROUTES = [
   ['GET', /^me$/, 'viewer', 'me', async ({ who }) => ({ body: { email: who.actor, role: who.role, roles: Object.keys(ROLES) } })],
 
   ['GET', /^analytics$/, 'viewer', 'analytics.view', async ({ env, url }) => ({ body: await analytics(env, daysParam(url)) })],
+  ['GET', /^search$/, 'viewer', 'search.view', async ({ env }) => ({ body: { sources: await searchSnapshots(env) } })],
+  ['POST', /^search\/refresh$/, 'admin', 'search.refresh', async ({ env, now }) => {
+    // Google and Bing are only asked again after a short gap, whoever presses.
+    if (now - (await lastTry(env)) < REFRESH_GAP_MS) throw new Refusal(429, 'too_soon', 'The search numbers were fetched a few minutes ago. Try again in 10 minutes.');
+    const result = await refreshSearch(env, now);
+    return { body: { result, sources: await searchSnapshots(env) }, detail: result };
+  }],
   ['GET', /^storage$/, 'viewer', 'storage.view', async ({ env }) => ({ body: await storage(env) })],
   ['GET', /^usage$/, 'viewer', 'usage.view', async ({ env, url }) => ({ body: await cloudflareUsage(env, daysParam(url, 30)) })],
 

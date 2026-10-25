@@ -53,6 +53,12 @@ const SHOTS = process.env.SHOTS;
   await db.prepare('INSERT INTO sync_users (user_id, rev, created_at) VALUES (?1, 0, ?2)').bind('player-1', now - 86400000).run();
   await db.prepare('INSERT INTO players (user_id, screen_name, name_key, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?4)').bind('player-1', 'Sneaky Name', 'sneakyname', now).run();
   await db.prepare("INSERT INTO scores (user_id, story_id, kind, tier, cells, elapsed_ms, hints, checks, points, created_at) VALUES ('player-1', 's1', 'solo', 'easy', 48, 300000, 0, 0, 25, ?1)").bind(now).run();
+  const gsc = { site: 'https://thelogicgrid.com/', start: '2026-09-27', end: '2026-10-24', totals: { clicks: 40, impressions: 900, ctr: 4.4, position: 7.3 },
+    byDay: [{ date: '2026-10-23', clicks: 15, impressions: 400 }, { date: '2026-10-24', clicks: 25, impressions: 500 }],
+    queries: [{ key: 'logic grid puzzles', clicks: 30, impressions: 600, ctr: 5, position: 4.2 }], pages: [{ key: 'https://thelogicgrid.com/rules.html', clicks: 8, impressions: 90, ctr: 8.9, position: 5 }],
+    sitemaps: [{ path: 'https://thelogicgrid.com/sitemap.xml', lastSubmitted: '2026-10-25T18:00:00Z', lastDownloaded: null, pending: false, errors: 0, warnings: 0, submitted: 12, indexed: 9 }],
+    home: { verdict: 'PASS', coverage: 'Submitted and indexed', lastCrawl: '2026-10-24T10:00:00Z' }, errors: [] };
+  await db.prepare("INSERT INTO search_snapshots (source, fetched_at, data, tried_at) VALUES ('google', ?1, ?2, ?1)").bind(now, JSON.stringify(gsc)).run();
   await mf.ready;
   const app = spawn('node', [path.join(__dirname, 'serve.mjs'), path.join(ROOT, 'dist', 'web'), String(APP_PORT)], { stdio: 'ignore' });
   await new Promise((r) => setTimeout(r, 600));
@@ -137,6 +143,13 @@ const SHOTS = process.env.SHOTS;
     await page.waitForSelector('#player-card');
     assert(/Latest scores/.test(await page.textContent('#player-card')), 'a player opens with their scores');
     await shot(page, '3-player');
+
+    await page.click('a[href="#search"]');
+    await page.waitForSelector('#search-body .tile');
+    const search = await page.textContent('#search-body');
+    assert(/logic grid puzzles/.test(search) && /Submitted and indexed/.test(search) && /\/rules\.html/.test(search), 'the Search section shows Google searches, pages and indexing');
+    assert(/Not connected yet/.test(search), 'Bing shows how to connect it');
+    await shot(page, '4-search');
 
     await page.click('a[href="#audit"]');
     await page.waitForSelector('#audit-rows tr td');

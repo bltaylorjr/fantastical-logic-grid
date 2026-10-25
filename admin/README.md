@@ -9,6 +9,7 @@ needs no extra hosting and stays free. Its API is `server/src/admin.js`.
 | --- | --- | --- |
 | Overview | Accounts, screen names, scoring players, games finished and solved by theme and difficulty, scores, races, free voices against the daily cap, error reports, things waiting for review | viewer |
 | Usage and free limits | Database size and rows per table; with the optional Cloudflare token, daily Worker requests and D1 reads and writes against the free allowances | viewer |
+| Search (Google and Bing) | Clicks, impressions, average position, top searches and top pages for the last 28 days, sitemaps and whether the home page is indexed; fetched daily, Refresh now for admins | viewer |
 | Story review | Approve or reject story parts players shared | moderator |
 | Screen names | See new and changed names (names the word filter would now refuse come first), mark them fine, rename, reset or ban | moderator |
 | Players | Find a player by screen name or id, see their scores, races and how much they sync; rename, ban or lift a ban | moderator |
@@ -67,7 +68,30 @@ apply within 30 seconds). No new release is needed.
    Tokens > Create Token > Custom token with permission *Account > Account
    Analytics > Read*. Add it as the Worker secret `CF_API_TOKEN`, and your
    Account ID (shown on the Workers & Pages overview) as `CF_ACCOUNT_ID`. Free.
-6. Optional: add helpers under **Admins** with the email of their game account.
+7. Optional, **Google and Bing numbers** for the Search section (both free):
+   - **Google.** Sign in to https://console.cloud.google.com with the Google
+     account that owns the Search Console property.
+     1. Top bar project picker > **New project**, name it `logic-grid-search`,
+        **Create**, then select it.
+     2. Search the top bar for **Google Search Console API** > **Enable**.
+     3. Menu > IAM & Admin > **Service accounts** > **Create service account**,
+        name `search-reader`, **Done** (no roles needed).
+     4. Open it > **Keys** > Add key > Create new key > **JSON** > Create. A
+        `.json` file downloads. Copy its `client_email` (ends in
+        `iam.gserviceaccount.com`).
+     5. https://search.google.com/search-console > the `https://thelogicgrid.com/`
+        property > Settings > **Users and permissions** > **Add user**, paste
+        that email, permission **Restricted**, Add.
+     6. Open the `.json` file in Notepad, copy everything, and add it as the
+        Worker secret `GSC_SERVICE_ACCOUNT` (type **Secret**). Then delete the
+        downloaded file.
+   - **Bing.** https://www.bing.com/webmasters > Settings (gear) > **API access**
+     > **API Key** > Generate. Add it as the Worker secret `BING_WEBMASTER_KEY`.
+   - Open the dashboard's **Search** section and press **Refresh now**. After
+     that it updates by itself every day at 06:41 UTC. If your property is a
+     domain property, set the Worker variable `SEARCH_SITE_URL` in
+     `server/wrangler.toml` to `sc-domain:thelogicgrid.com`.
+8. Optional: add helpers under **Admins** with the email of their game account.
 
 Everything here is on free plans; nothing can bill.
 
