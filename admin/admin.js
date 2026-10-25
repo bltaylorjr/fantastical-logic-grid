@@ -389,7 +389,11 @@ views.settings = async () => {
   const control = (s) => {
     const dis = editable ? '' : ' disabled';
     if (s.type === 'bool') return `<label class="check"><input type="checkbox" data-key="${s.key}"${s.value ? ' checked' : ''}${dis}> <span>${s.value ? 'On' : 'Off'}</span></label>`;
-    if (s.type === 'int') return `<div class="row"><div class="field"><label class="sr-only" for="set-${s.key}">${esc(s.label)}</label><input id="set-${s.key}" type="number" min="${s.min}" max="${s.max}" value="${s.value}" inputmode="numeric"${dis}></div>${editable ? `<button class="btn small" data-save="${s.key}">Save</button>` : ''}</div>`;
+    const save = editable ? `<button class="btn small" data-save="${s.key}">Save</button>` : '';
+    const label = `<label class="sr-only" for="set-${s.key}">${esc(s.label)}</label>`;
+    if (s.type === 'int') return `<div class="row"><div class="field">${label}<input id="set-${s.key}" type="number" min="${s.min}" max="${s.max}" value="${s.value}" inputmode="numeric"${dis}></div>${save}</div>`;
+    if (s.type === 'choice') return `<div class="row"><div class="field">${label}<select id="set-${s.key}"${dis}>${s.options.map((o) => `<option value="${esc(o.value)}"${o.value === s.value ? ' selected' : ''}>${esc(o.label)}</option>`).join('')}</select></div>${save}</div>`;
+    if (s.type === 'model') return `<div class="row"><div class="field">${label}<input id="set-${s.key}" type="text" value="${esc(s.value)}" autocomplete="off" spellcheck="false"${dis}></div>${save}</div>`;
     if (s.type === 'themes') return `${editable ? `<button class="btn small" data-save="${s.key}">Save themes</button>` : ''}`;
     return `${editable ? `<button class="btn small" data-save="${s.key}">Save words</button>` : ''}`;
   };
@@ -418,7 +422,8 @@ $('#settings-body').onclick = (e) => {
   const key = b.dataset.save;
   if (key === 'disabled_themes') saveSettingValue(key, $$('input[name=theme-off]:checked').map((x) => x.value), b);
   else if (key === 'blocked_words') saveSettingValue(key, $(`#set-${key}`).value.split(/[\s,]+/).filter(Boolean), b);
-  else saveSettingValue(key, Number($(`#set-${key}`).value), b);
+  else if ($(`#set-${key}`).type === 'number') saveSettingValue(key, Number($(`#set-${key}`).value), b);
+  else saveSettingValue(key, $(`#set-${key}`).value.trim(), b);
 };
 
 views.announcements = async () => {

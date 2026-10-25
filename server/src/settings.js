@@ -1,8 +1,9 @@
 // Settings the admin dashboard can change without a deploy, and the public
 // game config built from them.
 //
-//   GET /v1/config   announcements, switched-off themes and which shared
-//                    features are on, for every copy of the game (no sign-in)
+//   GET /v1/config   announcements, switched-off themes, which shared
+//                    features are on, defaults for new players and the AI
+//                    models the game asks for, for every copy (no sign-in)
 //
 // Values live in the D1 table `settings` (JSON). A missing row means the
 // default below. Each Worker copy keeps them for CACHE_MS, so a change reaches
@@ -13,7 +14,8 @@ import { json } from './http.js';
 const CACHE_MS = 30_000;
 const THEME_IDS = THEMES.map((t) => t.id);
 
-// type: bool, int (with min/max), themes (list of theme ids) or words.
+// type: bool, int (with min/max), choice (one of options), model (an AI
+// model name), themes (list of theme ids) or words.
 export const SETTINGS = {
   tts_enabled: { type: 'bool', default: true, group: 'Voices', label: 'Free server voices', help: 'Off: players use their own key or the offline Kokoro voices.' },
   daily_tts_cap: {
@@ -28,6 +30,25 @@ export const SETTINGS = {
   story_sharing_enabled: { type: 'bool', default: true, group: 'Learning', label: 'Accept shared story parts', help: 'Off: players cannot send story parts for review.' },
   error_reports_enabled: { type: 'bool', default: true, group: 'Upkeep', label: 'Accept error reports', help: 'Off: error reports from the apps are dropped.' },
   blocked_words: { type: 'words', default: [], group: 'Moderation', label: 'Extra blocked words in screen names', help: 'Added to the built-in word filter. Letters only, 3 to 30 each.' },
+  // Starting values in the game's Settings. A player's own choice always wins;
+  // these apply to every player who has not changed that setting.
+  default_share_learning: { type: 'bool', default: true, group: 'Player defaults', label: 'Learn from everyone', help: 'On: players share anonymous play summaries unless they turn it off. They are told the first time.' },
+  default_report_errors: { type: 'bool', default: true, group: 'Player defaults', label: 'Send anonymous error reports', help: 'On: the apps send error reports unless the player turns it off.' },
+  default_server_voices: { type: 'bool', default: true, group: 'Player defaults', label: 'Free natural voices from the server', help: 'On: players hear the server voices unless they turn them off.' },
+  default_voice_source: {
+    type: 'choice', default: 'kokoro', group: 'Player defaults', label: 'Voices on the player\'s device', help: 'Used when server voices are off or run out. Both are free and need no key.',
+    options: [{ value: 'kokoro', label: 'Natural voices (Kokoro, one-time 90 MB download)' }, { value: 'device', label: 'The device\'s built-in voices' }],
+  },
+  // Which AI models the game asks for when a player adds their own key. Change
+  // one here when a provider retires a model; no new release is needed.
+  image_model: { type: 'model', default: 'gpt-image-2.5-flare', group: 'AI models', label: 'OpenAI picture model', help: 'For painted scenes and portraits.' },
+  image_quality: {
+    type: 'choice', default: 'medium', group: 'AI models', label: 'OpenAI picture quality', help: 'Higher quality costs the player more per picture.',
+    options: [{ value: 'low', label: 'Low' }, { value: 'medium', label: 'Medium' }, { value: 'high', label: 'High' }],
+  },
+  openai_voice_model: { type: 'model', default: 'gpt-4o-mini-tts', group: 'AI models', label: 'OpenAI voice model', help: 'For voices when a player uses their OpenAI key.' },
+  gemini_voice_model: { type: 'model', default: 'gemini-3.8-flash-tts', group: 'AI models', label: 'Gemini voice model', help: 'For voices when a player uses their Google key.' },
+  story_model: { type: 'model', default: '', blank: true, group: 'AI models', label: 'Story writer model', help: 'For the Story workshop\'s AI writer. Leave empty to use each provider\'s standard model.' },
 };
 
 let cache = { at: 0, values: null };
@@ -57,6 +78,12 @@ export function checkSetting(key, value) {
   if (s.type === 'bool') return typeof value === 'boolean' ? { value } : { error: 'Use on or off.' };
   if (s.type === 'int') {
     return Number.isInteger(value) && value >= s.min && value <= s.max ? { value } : { error: `Use a whole number from ${s.min} to ${s.max}.` };
+  }
+  if (s.type === 'choice') return s.options.some((o) => o.value === value) ? { value } : { error: 'Pick one of the options.' };
+  if (s.type === 'model') {
+    const v = typeof value === 'string' ? value.trim() : null;
+    if (v === '' && s.blank) return { value: v };
+    return v && /^[a-z0-9][a-z0-9.:_-]{1,79}$/i.test(v) ? { value: v } : { error: 'Use a model name such as gpt-4o-mini-tts: letters, numbers, dots and dashes.' };
   }
   if (!Array.isArray(value)) return { error: 'Use a list.' };
   if (s.type === 'themes') {
@@ -94,6 +121,11 @@ export async function publicConfig(req, env) {
   return json(req, env, {
     announcements: await activeAnnouncements(env),
     disabledThemes: s.disabled_themes,
-    features: { races: s.races_enabled, scores: s.scores_enabled, names: s.names_enabled, voices: s.tts_enabled, storySharing: s.story_sharing_enabled, learning: s.learning_enabled },
+    features: {
+      races: s.races_enabled, scores: s.scores_enabled, names: s.names_enabled, voices: s.tts_enabled,
+      storySharing: s.story_sharing_enabled, learning: s.learning_enabled, errorReports: s.error_reports_enabled,
+    },
+    defaults: { shareLearning: s.default_share_learning, reportErrors: s.default_report_errors, serverVoices: s.default_server_voices, voiceProvider: s.default_voice_source },
+    models: { image: s.image_model, imageQuality: s.image_quality, openaiVoice: s.openai_voice_model, geminiVoice: s.gemini_voice_model, story: s.story_model },
   }, 200, { 'Cache-Control': 'public, max-age=60' });
 }

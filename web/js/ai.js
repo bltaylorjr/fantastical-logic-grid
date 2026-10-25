@@ -7,6 +7,7 @@
 import * as store from './store.js';
 import { CLOUD_URL } from './cloud-config.js';
 import { genderOf } from './gender.js';
+import { feature, models } from './remote-config.js';
 
 const API = 'https://api.openai.com/v1';
 const pending = new Map();
@@ -48,7 +49,7 @@ async function generateImage(settings, prompt, size) {
   const res = await fetch(`${API}/images/generations`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${settings.aiKey.trim()}` },
-    body: JSON.stringify({ model: settings.imageModel || 'gpt-image-2.5-flare', prompt, size, quality: settings.imageQuality || 'medium', n: 1 }),
+    body: JSON.stringify({ model: models().image, prompt, size, quality: models().imageQuality, n: 1 }),
   });
   if (!res.ok) throw await apiError(res);
   const json = await res.json();
@@ -102,7 +103,7 @@ async function ttsBlob(settings, text, voice, style) {
   const res = await fetch(`${API}/audio/speech`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${settings.aiKey.trim()}` },
-    body: JSON.stringify({ model: settings.voiceModel || 'gpt-4o-mini-tts', voice, input: text, instructions: style, response_format: 'mp3' }),
+    body: JSON.stringify({ model: models().openaiVoice, voice, input: text, instructions: style, response_format: 'mp3' }),
   });
   if (!res.ok) throw await apiError(res);
   return res.blob();
@@ -130,7 +131,7 @@ function pcmToWav(bytes, rate = 24000) {
 // Only the words to say are sent; spoken style comes from the voice choice, so
 // no direction text can be read out.
 async function geminiTts(settings, text, voice) {
-  const model = settings.geminiVoiceModel || 'gemini-3.8-flash-tts';
+  const model = models().geminiVoice;
   const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': settings.geminiKey.trim() },
@@ -307,7 +308,7 @@ let speakToken = 0;
 // players without a Google key. When the day's free clips run out, speech
 // moves to the Kokoro voices on this device until tomorrow.
 let cloudOffUntil = 0;
-const cloudVoicesReady = (settings) => !!CLOUD_URL && settings.serverVoices !== false && Date.now() > cloudOffUntil;
+const cloudVoicesReady = (settings) => !!CLOUD_URL && feature('voices') && settings.serverVoices !== false && Date.now() > cloudOffUntil;
 async function cloudTts(text, voice) {
   const res = await fetch(`${CLOUD_URL}/v1/tts`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, voice }) });
   if (!res.ok) {
@@ -500,7 +501,8 @@ function storyPrompt(theme, kind, idea, examples) {
 }
 
 async function openaiModel(settings) {
-  if (settings.storyModel) return settings.storyModel;
+  const { story } = models();
+  if (story && !/gemini/.test(story)) return story;
   try {
     const res = await fetch(`${API}/models`, { headers: { Authorization: `Bearer ${settings.aiKey.trim()}` } });
     if (res.ok) {
@@ -517,7 +519,7 @@ export async function draftStoryParts(settings, theme, kind, idea, examples) {
   const prompt = storyPrompt(theme, kind, idea, examples);
   let text;
   if (geminiReady(settings)) {
-    const model = settings.storyModel && /gemini/.test(settings.storyModel) ? settings.storyModel : 'gemini-flash-latest';
+    const model = /gemini/.test(models().story) ? models().story : 'gemini-flash-latest';
     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': settings.geminiKey.trim() },

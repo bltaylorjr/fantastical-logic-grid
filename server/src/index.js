@@ -1,5 +1,5 @@
 // The game's Cloudflare Worker. Routes:
-//   /v1/learn/*, /v1/tts, /admin/learn*  shared learning and voices (learn.js)
+//   /v1/learn/*, /v1/tts, /admin/learn/*  shared learning and voices (learn.js)
 //   POST /v1/sync, DELETE /v1/account    account sync (sync.js), signed in only
 //   /v1/profile, /v1/scores, /v1/scoreboard, /v1/races*
 //                                        screen names, races, scoreboard (compete.js)

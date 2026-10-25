@@ -7,7 +7,6 @@
 //   POST /v1/learn/parts   a story part a player chose to share; waits for review
 //   POST /v1/tts           Gemini voice clips for players without their own key,
 //                          cached, rate limited and capped per day
-//   GET  /admin/learn      review page for shared story parts (ADMIN_TOKEN)
 //
 // This data is never joined to player accounts.
 // Nothing personal is stored. Rate limits use a one-way hash of the
@@ -16,7 +15,6 @@ import { checkStoryPart, partKey, PART_KINDS } from '../../engine/src/story.js';
 import { THEMES } from '../../engine/src/themes.js';
 import { getTopics, storyKey } from '../../engine/src/topics.js';
 import { TIER_ORDER, CLUE_TYPES } from '../../engine/src/tiers.js';
-import { ADMIN_HTML } from './learn-admin.js';
 import { getSettings } from './settings.js';
 
 // The edge-cache key of the tuning reply; the admin dashboard clears it after a review.
@@ -242,7 +240,6 @@ function safeEqual(a, b) {
 }
 
 async function admin(req, env, url) {
-  if (url.pathname === '/admin/learn') return new Response(ADMIN_HTML, { headers: { 'Content-Type': 'text/html; charset=utf-8', 'Content-Security-Policy': "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'" } });
   const token = (req.headers.get('Authorization') || '').replace(/^Bearer\s+/, '');
   if (!env.ADMIN_TOKEN || env.ADMIN_TOKEN.length < 16 || !safeEqual(token, env.ADMIN_TOKEN)) return json({ error: 'Not allowed.' }, 401);
   if (url.pathname === '/admin/learn/parts' && req.method === 'GET') {

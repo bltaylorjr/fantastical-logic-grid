@@ -2,9 +2,11 @@
 // goes to the game's service (server/src/errors.js) so it can be fixed without
 // anyone writing in. Sent: the error message, file:line of where it happened,
 // the app version and platform. Never sent: names, saves, keys or page text.
-// Players can turn it off in Settings; it never runs without CLOUD_URL.
+// Players can turn it off in Settings, the admin dashboard can switch it off
+// for everyone, and it never runs without CLOUD_URL.
 import { CLOUD_URL, CLOUD } from './cloud-config.js';
 import * as store from './store.js';
+import { feature } from './remote-config.js';
 
 const MAX_PER_SESSION = 10;
 const seen = new Set();
@@ -12,7 +14,7 @@ let queue = [];
 let timer = null;
 let sent = 0;
 
-const on = () => { try { return !!CLOUD_URL && store.loadSettings().reportErrors !== false; } catch (e) { return false; } };
+const on = () => { try { return !!CLOUD_URL && feature('errorReports') && store.loadSettings().reportErrors !== false; } catch (e) { return false; } };
 
 function platform() {
   if (window.__TAURI_INTERNALS__ || window.__TAURI__) return 'desktop';

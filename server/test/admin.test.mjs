@@ -138,6 +138,27 @@ test('settings switch game features off and back on', async () => {
   assert.deepEqual(change.detail, { from: 300, to: 120 });
 });
 
+test('player defaults and AI models reach the game', async () => {
+  // Uses the break-glass token: the owner's per-minute limit is spent above.
+  let cfg = (await call('/v1/config')).body;
+  assert.deepEqual(cfg.defaults, { shareLearning: true, reportErrors: true, serverVoices: true, voiceProvider: 'kokoro' });
+  assert.equal(cfg.models.image, 'gpt-image-2.5-flare');
+  assert.equal(cfg.features.errorReports, true);
+  assert.equal((await call('/admin/v1/settings', { auth: TOKEN, body: { key: 'default_voice_source', value: 'openai' } })).status, 400);
+  assert.equal((await call('/admin/v1/settings', { auth: TOKEN, body: { key: 'default_voice_source', value: 'device' } })).status, 200);
+  assert.equal((await call('/admin/v1/settings', { auth: TOKEN, body: { key: 'default_share_learning', value: false } })).status, 200);
+  assert.equal((await call('/admin/v1/settings', { auth: TOKEN, body: { key: 'image_model', value: 'bad model!' } })).status, 400);
+  assert.equal((await call('/admin/v1/settings', { auth: TOKEN, body: { key: 'image_model', value: 'gpt-image-3' } })).status, 200);
+  assert.equal((await call('/admin/v1/settings', { auth: TOKEN, body: { key: 'image_model', value: '' } })).status, 400);
+  assert.equal((await call('/admin/v1/settings', { auth: TOKEN, body: { key: 'story_model', value: '' } })).status, 200);
+  cfg = (await call('/v1/config')).body;
+  assert.equal(cfg.defaults.voiceProvider, 'device');
+  assert.equal(cfg.defaults.shareLearning, false);
+  assert.equal(cfg.models.image, 'gpt-image-3');
+  const listed = (await call('/admin/v1/settings', { auth: TOKEN })).body.settings.find((x) => x.key === 'image_quality');
+  assert.deepEqual(listed.options.map((o) => o.value), ['low', 'medium', 'high']);
+});
+
 test('announcements show in the game between their start and end', async () => {
   const made = await call('/admin/v1/announcements', { auth: owner(), body: { text: 'New themes this weekend!', level: 'info' } });
   assert.equal(made.status, 200);

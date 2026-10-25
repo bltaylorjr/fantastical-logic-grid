@@ -6,6 +6,7 @@ import * as learn from './learn.js';
 import * as ai from './ai.js';
 import * as store from './store.js';
 import * as share from './share.js';
+import { feature } from './remote-config.js';
 import { esc } from './grid.js';
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -79,7 +80,7 @@ async function add(value, source) {
   if (!res.ok) { $('#ws-errors').innerHTML = res.errors.map(esc).join('<br>'); return false; }
   $('#ws-errors').textContent = '';
   $('#ws-status').textContent = 'Added. It will appear in new stories.';
-  if (share.available() && $('#ws-share').checked) {
+  if (share.available() && feature('storySharing') && $('#ws-share').checked) {
     share.sharePart(key(), kind(), value, source).then(
       () => { $('#ws-status').textContent = 'Added, and sent to the editor to share with everyone.'; },
       () => { $('#ws-status').textContent = 'Added. It could not be sent to the editor right now.'; },

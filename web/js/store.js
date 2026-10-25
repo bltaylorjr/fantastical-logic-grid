@@ -162,15 +162,33 @@ export const DEFAULT_SETTINGS = {
   colorTheme: 'system', autoX: false, singleKeys: true, showTimer: true, coach: true, sound: true, volume: 60,
   silent: false, music: false, musicVolume: 40, instant: false,
   readAloud: true, aiKey: '', aiPictures: 'scene', aiVoice: true, imageModel: 'gpt-image-2.5-flare', imageQuality: 'medium', voiceModel: 'gpt-4o-mini-tts',
-  voiceProvider: 'kokoro', kokoroReady: false, portraitStyle: 'notionists', confetti: true, introOffered: false, geminiKey: '', geminiVoiceModel: 'gemini-3.8-flash-tts',
-  learn: true, shareLearning: true, shareNoticeShown: false, serverVoices: true, storyModel: '', reportErrors: true,
+  voiceProvider: 'kokoro', kokoroReady: false, portraitStyle: 'notionists', confetti: true, introOffered: false, geminiKey: '',
+  learn: true, shareLearning: true, shareNoticeShown: false, serverVoices: true, reportErrors: true,
 };
 
+// Starting values the admin dashboard can change (GET /v1/config, kept by
+// remote-config.js). They apply until the player changes that setting; the
+// keys a player changed are listed in settings.chosen.
+const ADMIN_DEFAULTS = ['shareLearning', 'reportErrors', 'serverVoices', 'voiceProvider'];
+// The AI model names moved to the admin dashboard (remote-config.js models()).
+const MOVED = ['imageModel', 'imageQuality', 'voiceModel', 'geminiVoiceModel', 'storyModel'];
+
 export function loadSettings() {
-  const s = { ...DEFAULT_SETTINGS, ...(ls.get('settings') || {}) };
-  // gpt-image-1 was shut down on 2026-10-23; move older saved settings to the current model.
-  if (s.imageModel === 'gpt-image-1') s.imageModel = DEFAULT_SETTINGS.imageModel;
+  const saved = ls.get('settings') || {};
+  const s = { ...DEFAULT_SETTINGS, ...saved };
+  for (const k of MOVED) delete s[k];
+  // Settings saved before the list existed: a value other than the built-in
+  // default was the player's own choice.
+  if (!Array.isArray(s.chosen)) s.chosen = ADMIN_DEFAULTS.filter((k) => k in saved && saved[k] !== DEFAULT_SETTINGS[k]);
+  const admin = (ls.get('remoteConfig') || {}).defaults || {};
+  for (const k of ADMIN_DEFAULTS) if (!s.chosen.includes(k) && admin[k] !== undefined) s[k] = admin[k];
   return s;
+}
+
+// Remembers that the player picked this value themselves, so the dashboard's
+// starting value no longer replaces it.
+export function markChosen(settings, key) {
+  if (ADMIN_DEFAULTS.includes(key) && !(settings.chosen || []).includes(key)) settings.chosen = [...(settings.chosen || []), key];
 }
 
 export function saveSettings(settings, opts) {

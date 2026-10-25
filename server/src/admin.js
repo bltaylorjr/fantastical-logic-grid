@@ -401,7 +401,7 @@ const ROUTES = [
       body: {
         themes: themeList(),
         settings: Object.entries(SETTINGS).map(([key, s]) => ({
-          key, type: s.type, group: s.group, label: s.label, help: s.help, min: s.min, max: s.max, value: values[key],
+          key, type: s.type, group: s.group, label: s.label, help: s.help, min: s.min, max: s.max, options: s.options, value: values[key],
           updatedAt: meta.get(key)?.updated_at || null, updatedBy: meta.get(key)?.updated_by || null,
         })),
       },
@@ -535,7 +535,7 @@ async function appFile(env, url, file) {
 const LEGACY = /^\/admin\/(learn(\/.*)?|errors)$/;
 
 // Returns a Response for /admin paths, or null for anything else. legacy()
-// runs the older token-only routes (/admin/learn*, /admin/errors), which are
+// runs the older token-only routes (/admin/learn/*, /admin/errors), which are
 // rate limited and audited here too.
 export async function handleAdmin(req, env, ctx, url, legacy) {
   const path = url.pathname;
@@ -547,12 +547,13 @@ export async function handleAdmin(req, env, ctx, url, legacy) {
     }
   }
   if (path === '/admin') return Response.redirect(new URL('/admin/', url).toString(), 301);
+  // The old token-only story review page moved into the dashboard.
+  if (path === '/admin/learn' && req.method === 'GET') return Response.redirect(new URL('/admin/#stories', url).toString(), 301);
   if (path.startsWith('/admin/v1/')) return api(req, env, url, path.slice('/admin/v1/'.length));
   const file = req.method === 'GET' && path.match(APP_FILE);
   if (file) return appFile(env, url, file[1] || 'index.html');
   if (LEGACY.test(path)) {
     const res = await legacy();
-    if (path === '/admin/learn' && req.method === 'GET') return res; // the page itself
     const ok = tokenMatches(env, bearer(req));
     await audit(env, { actor: ok ? 'break-glass token' : 'unknown', role: ok ? 'owner' : null, action: `legacy ${req.method} ${path}`, status: res.status });
     return res;

@@ -13,7 +13,7 @@ needs no extra hosting and stays free. Its API is `server/src/admin.js`.
 | Screen names | See new and changed names (names the word filter would now refuse come first), mark them fine, rename, reset or ban | moderator |
 | Players | Find a player by screen name or id, see their scores, races and how much they sync; rename, ban or lift a ban | moderator |
 | | Reset scores (this week or all time), delete an account's data | admin |
-| Settings and switches | Free voices on/off and the daily voice cap, races, solo scores, new screen names, themes on/off, accepting shared plays, story parts and error reports, extra blocked words | viewer to look, admin to change |
+| Settings and switches | Free voices on/off and the daily voice cap, races, solo scores, new screen names, themes on/off, accepting shared plays, story parts and error reports, extra blocked words, **player defaults** (the starting value of Learn from everyone, error reports, server voices and which voices the device uses; a player's own choice always wins), **AI models** (the OpenAI picture model and quality, the OpenAI and Gemini voice models and the story writer model used with a player's own key) | viewer to look, admin to change |
 | Announcements | A message at the top of the game's home screen, with an optional start and end | viewer to look, admin to publish |
 | Error reports | Anonymous errors from the apps, most frequent first | viewer |
 | Audit log | Every admin request, allowed or refused, kept for a year | admin |
@@ -21,7 +21,9 @@ needs no extra hosting and stays free. Its API is `server/src/admin.js`.
 
 Changes reach every copy of the game within about a minute (the game reads
 `GET /v1/config` every 10 minutes and when it opens; the server's own switches
-apply within 30 seconds). No new release is needed.
+apply within 30 seconds). No new release is needed. When a shared feature is
+switched off, the game also hides the player's matching choice in Settings
+(server voices, Learn from everyone, error reports, sharing a story part).
 
 ## Security
 
@@ -35,7 +37,9 @@ apply within 30 seconds). No new release is needed.
   the dashboard with the owner's rights, for when sign-in is down. Every use is
   logged as "break-glass token".
 - **Audit log**: every `/admin/v1` request and every use of the older
-  `/admin/learn` and `/admin/errors` pages is written to `admin_audit`.
+  token-only `/admin/learn/*` and `/admin/errors` routes is written to
+  `admin_audit`. The old `/admin/learn` review page now opens the dashboard's
+  Story review.
 - **Rate limits**: 120 requests a minute per connection on every `/admin` path
   and 60 a minute per signed-in admin.
 - The API sends no CORS headers, so only the dashboard (same address) can call

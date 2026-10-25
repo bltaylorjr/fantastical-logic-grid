@@ -1439,7 +1439,12 @@ $('#learn-reset').addEventListener('click', async () => {
   status('Learning reset.');
 });
 $('#learn-workshop').addEventListener('click', () => workshop.open({}));
-for (const el of $$('.needs-cloud')) el.hidden = !share.available();
+// Choices that use the game's server show only when it is set up and the
+// admin dashboard has not switched that feature off for everyone.
+function applyFeatures() {
+  for (const el of $$('.needs-cloud')) el.hidden = !share.available() || (!!el.dataset.feature && !remote.feature(el.dataset.feature));
+}
+applyFeatures();
 share.init({
   onNotice: () => toast('The game now learns from everyone\'s puzzles. Your results are shared without your name or any personal details.', { label: 'Settings', run: openSettings }, { ms: 12000 }),
 });
@@ -1460,6 +1465,7 @@ $('#settings-form').addEventListener('change', (e) => {
   const el = e.target;
   if (!el.name) return;
   settings[el.name] = el.type === 'checkbox' ? el.checked : el.type === 'range' ? +el.value : el.type === 'password' ? el.value.trim() : el.value;
+  store.markChosen(settings, el.name);
   if (S && (el.name === 'aiPictures' || el.name === 'aiKey') && !$('#screen-play').hidden) loadAiArt();
   if (el.name === 'shareLearning' || el.name === 'learn') { store.saveSettings(settings); share.refresh(true); }
   if (S && el.name === 'portraitStyle') {
@@ -1657,7 +1663,10 @@ async function init() {
   applyMode();
   matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', applyColorTheme);
   renderSetup();
-  remote.init({ onThemesChanged: () => { if (!$('#screen-home').hidden) renderSetup(); } });
+  remote.init({
+    onThemesChanged: () => { if (!$('#screen-home').hidden) renderSetup(); },
+    onConfigChanged: () => { settings = store.loadSettings(); applyFeatures(); },
+  });
   await renderSaved();
   renderSuggestion();
   store.requestPersistence();

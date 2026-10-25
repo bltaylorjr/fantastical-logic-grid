@@ -5,6 +5,7 @@
 import { CLOUD_URL } from './cloud-config.js';
 import * as learn from './learn.js';
 import * as store from './store.js';
+import { feature } from './remote-config.js';
 
 const TUNING_EVERY_MS = 6 * 3600 * 1000;
 const SETTLE_MS = 10 * 60 * 1000; // wait for a rating before sending a finished puzzle
@@ -12,7 +13,7 @@ let timer = null;
 let notice = () => {};
 
 export const available = () => !!CLOUD_URL;
-const on = () => { const s = store.loadSettings(); return available() && s.learn && s.shareLearning; };
+const on = () => { const s = store.loadSettings(); return available() && feature('learning') && s.learn && s.shareLearning; };
 
 function platform() {
   if (window.__TAURI_INTERNALS__ || window.__TAURI__) return 'desktop';

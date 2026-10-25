@@ -164,7 +164,7 @@ secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
 | `GET /v1/scoreboard?period=week\|all` | anyone | top players (and your place when signed in) |
 | `POST /v1/races`, `POST /v1/races/find` | screen name | start a race, or find an open one |
 | `POST /v1/races/:code/join`, `.../finish`, `GET /v1/races/:code` | screen name | join, send a result, standings |
-| `/v1/learn/*`, `/v1/tts`, `/admin/learn*` | see `src/learn.js` | shared learning and voices |
+| `/v1/learn/*`, `/v1/tts`, `/admin/learn/*` | see `src/learn.js` | shared learning and voices |
 
 Limits: 60 sync requests a minute per player, 1 MB per saved puzzle, 5,000
 records per player; 30 race and score requests a minute per player, 20 races

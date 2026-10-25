@@ -114,6 +114,22 @@ const SHOTS = process.env.SHOTS;
     await page.waitForFunction(() => /Changed by/.test(document.querySelector('#settings-body').textContent));
     const saved = JSON.parse((await db.prepare("SELECT value FROM settings WHERE key = 'disabled_themes'").first()).value);
     assert(saved.length === 1 && saved[0] === theme, `theme "${theme}" is switched off`);
+    // Settings moved out of the game: server voices off, a player default and an AI model.
+    const dbValue = async (key) => { const r = await db.prepare('SELECT value FROM settings WHERE key = ?').bind(key).first(); return r && JSON.parse(r.value); };
+    const until = async (key, want) => { for (let i = 0; i < 50 && (await dbValue(key)) !== want; i++) await new Promise((r) => setTimeout(r, 100)); return (await dbValue(key)) === want; };
+    await page.uncheck('input[data-key=tts_enabled]');
+    assert(await until('tts_enabled', false), 'free server voices are switched off');
+    await page.waitForSelector('input[data-key=default_share_learning]:not([disabled])');
+    await page.uncheck('input[data-key=default_share_learning]');
+    assert(await until('default_share_learning', false), 'Learn from everyone starts off for new players');
+    await page.waitForSelector('#set-default_voice_source');
+    await page.selectOption('#set-default_voice_source', 'device');
+    await page.click('button[data-save=default_voice_source]');
+    assert(await until('default_voice_source', 'device'), 'a choice setting is saved');
+    await page.waitForSelector('#set-image_model');
+    await page.fill('#set-image_model', 'gpt-image-3');
+    await page.click('button[data-save=image_model]');
+    assert(await until('image_model', 'gpt-image-3'), 'the AI picture model is changed');
     await shot(page, '2-settings');
 
     await page.click('a[href="#announcements"]');
@@ -170,7 +186,7 @@ const SHOTS = process.env.SHOTS;
     const cfg = `export const CLOUD = { firebaseApiKey: '', syncUrl: '', learnUrl: '${API}', appVersion: '9.9.9' };\nexport const cloudEnabled = () => false;\nexport const CLOUD_URL = '${API}';\n`;
     await game.route('**/js/cloud-config.js', (r) => r.fulfill({ contentType: 'text/javascript', body: cfg }));
     await game.route('**/v1/learn/**', (r) => r.fulfill({ status: 204, body: '' }));
-    await game.addInitScript(() => localStorage.setItem('flg.settings', JSON.stringify({ introOffered: true, voiceProvider: 'device', silent: true })));
+    await game.addInitScript(() => { if (!localStorage.getItem('flg.settings')) localStorage.setItem('flg.settings', JSON.stringify({ introOffered: true, voiceProvider: 'device', silent: true })); });
     const p = await game.newPage();
     await p.goto(`${APP}/`);
     await p.waitForSelector('#announcements:not([hidden]) .announcement');
@@ -184,6 +200,22 @@ const SHOTS = process.env.SHOTS;
     await p.waitForSelector('#tier-choices input');
     await p.waitForTimeout(800);
     assert(await p.locator('#announcements').isHidden(), 'a closed announcement stays closed');
+
+    // Settings now run from the dashboard.
+    const rc = await p.evaluate(() => JSON.parse(localStorage.getItem('flg.remoteConfig')));
+    assert(rc.models.image === 'gpt-image-3', 'the game gets the AI model from the dashboard');
+    const openSettings = async () => { await p.click('#menu-btn'); await p.click('#app-menu [data-cmd=settings]'); await p.waitForSelector('#dlg-settings[open]'); };
+    await openSettings();
+    assert(await p.locator('input[name=serverVoices]').isHidden(), 'the server voices choice is hidden when they are switched off');
+    assert(await p.locator('input[name=shareLearning]').isVisible(), 'Learn from everyone is still the player\'s choice');
+    assert(!(await p.isChecked('input[name=shareLearning]')), 'the dashboard\'s starting value applies to a player who never changed it');
+    assert(await p.isChecked('input[name=voiceProvider][value=device]'), 'the player\'s own voice choice is kept');
+    await p.check('input[name=shareLearning]');
+    await p.keyboard.press('Escape');
+    await p.reload();
+    await p.waitForSelector('#tier-choices input');
+    await openSettings();
+    assert(await p.isChecked('input[name=shareLearning]'), 'a player\'s own choice wins over the dashboard\'s starting value');
     await game.close();
 
     assert(!problems.length, `no console errors or blocked scripts (${problems.join(' | ')})`);
