@@ -24,6 +24,10 @@ const THEME_SETTING = {
   sports: 'a floodlit stadium on championship night',
   cooking: 'a bustling restaurant kitchen with copper pots and steam',
   pets: 'a sunny park with a pet show tent',
+  town: 'a cheerful small-town main street with shops, a church and a park',
+  parks: 'a grand national park with snowy peaks, pine forest and a lake',
+  travel: 'a sunny tropical vacation spot with palm trees, a beach and a plane overhead',
+  wonders: 'famous world landmarks at golden hour, towers, domes and bridges',
 };
 
 // The server adds the picture style; this says what to paint.

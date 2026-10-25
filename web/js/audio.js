@@ -105,6 +105,10 @@ const MOODS = {
   sports: { root: 130.81, scale: [0, 2, 4, 5, 7, 9, 11], tempo: 0.34, wave: 'square' },
   cooking: { root: 164.81, scale: [0, 2, 4, 7, 9], tempo: 0.46, wave: 'triangle' },
   pets: { root: 196, scale: [0, 2, 4, 7, 9], tempo: 0.42, wave: 'sine' },
+  town: { root: 174.61, scale: [0, 2, 4, 5, 7, 9], tempo: 0.44, wave: 'triangle' },
+  parks: { root: 130.81, scale: [0, 2, 4, 7, 9], tempo: 0.58, wave: 'sine' },
+  travel: { root: 196, scale: [0, 2, 4, 5, 7, 9, 11], tempo: 0.38, wave: 'triangle' },
+  wonders: { root: 146.83, scale: [0, 2, 3, 5, 7, 9, 10], tempo: 0.6, wave: 'sine' },
 };
 
 export function startMusic(themeId) {

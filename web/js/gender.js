@@ -17,6 +17,10 @@ const FEMALE = new Set(`
   Anne Esme Morgan
   Bluebell Clover Dewdrop Fern
   Brienne Elaine Rowena
+  Lena Marta Nadia Opal Paige
+  Willa Tessa Rosa Nell Maren
+  Bianca Daphne Leila Mina Rhea
+  Celeste Flora Imani Noor Vera
 `.trim().split(/\s+/));
 const MALE = new Set(`
   Basil Dorian Felix Hugo Jasper
@@ -33,6 +37,10 @@ const MALE = new Set(`
   Barnaby Calico Drake Flint Hook Jonas
   Moss Pip Thistle
   Arthur Cedric Gareth Lancel Percival Tristan
+  Owen Rafael Simon Theo Wade
+  Cody Reed Wyatt Abel Gideon
+  Arlo Enzo Kai Milo Omar
+  Ezra Hugh Leon Nico Soren
 `.trim().split(/\s+/));
 
 export const KNOWN_NAMES = new Set([...FEMALE, ...MALE]);

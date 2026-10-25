@@ -48,7 +48,7 @@ This follows the design process step by step:
 | Option | Values | Default |
 | --- | --- | --- |
 | `difficulty` | `basic`, `easy`, `medium`, `hard`, `expert`, `mensa` | `easy` |
-| `theme` | `mystery`, `action`, `adventure`, `holiday`, `occasion` (Special Occasion), `fantasy`, `scifi`, `sports`, `cooking`, `pets`, `random` | `random` |
+| `theme` | `mystery`, `action`, `adventure`, `holiday`, `occasion` (Special Occasion), `fantasy`, `scifi`, `sports`, `cooking`, `pets`, `town` (Around Town), `parks` (National Parks), `travel` (Vacation Destinations), `wonders` (Architectural Wonders), `random` | `random` |
 | `topic` | a topic id from the theme (see Themes, topics and stories), or `any`. Ignored when the theme is `random` | `any` (a random topic in the theme) |
 | `categories` | 3 to 6 (number of categories, including the cast) | tier default |
 | `items` | 3 to 8 (items per category) | tier default |
@@ -111,7 +111,7 @@ Item names in clues match the grid labels exactly, and clue order is fixed once 
 
 ## Themes, topics and stories
 
-Ten themes, each a small world with its own cast and six categories (two of
+Fourteen themes, each a small world with its own cast and six categories (two of
 them numbered) with eight items each.
 
 Each theme has topics: the scenario under it, such as which holiday or which
@@ -132,6 +132,10 @@ player can pick a topic or leave it on **Any**, which picks one at random.
 | Sports | World Games (`games`), Soccer Tournament (`soccer`), City Marathon (`marathon`), School Field Day (`fieldday`) |
 | Cooking | Cook-Off (`cookoff`), Bake Sale (`bakesale`), Restaurant Kitchen (`restaurant`), Food Truck Rally (`foodtrucks`) |
 | Pets | Pet Show (`show`), Pet Hotel (`hotel`), Dog Park (`dogpark`), Animal Shelter (`shelter`) |
+| Around Town | Errand Day (`errands`), Fitness Center (`gym`), Church Bake Sale (`church`), Grocery Store (`grocery`), Public Library (`library`), Town Park (`townpark`) |
+| National Parks | Trail Day (`trails`), Campground (`campground`), Junior Rangers (`juniors`), River Rafting (`rafting`), Stargazing Night (`stargazing`) |
+| Vacation Destinations | Dream Getaways (`getaways`), Beach Resort (`beach`), City Sightseeing (`city`), Cruise Ship (`cruise`), Theme Park (`themepark`) |
+| Architectural Wonders | Model Wonders Fair (`models`), Famous Bridges (`bridges`), Skyscrapers (`skyscrapers`), Ancient Wonders (`ancient`), Castles and Palaces (`castles`) |
 
 The first topic of most themes is its classic setting (Classic Whodunit, Spy
 Mission...), which uses the theme's own categories and story parts. A puzzle
