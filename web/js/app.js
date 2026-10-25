@@ -18,6 +18,7 @@ import * as share from './share.js';
 import * as errorReports from './errors.js';
 import { initAccounts, openAccount, onHome as accountsOnHome, signedIn } from './account-ui.js';
 import * as competeUi from './compete-ui.js';
+import * as remote from './remote-config.js';
 
 errorReports.init();
 const $ = (s, el = document) => el.querySelector(s);
@@ -183,7 +184,10 @@ function renderSetup() {
   $('#tier-choices').innerHTML = OPTIONS.difficulties.map((d, i) => `
     <label class="choice"><input type="radio" name="tier" value="${d.id}"${d.id === setup.tier ? ' checked' : ''}>
     <span><span class="pips" aria-hidden="true">${'<i class="on"></i>'.repeat(i + 1)}${'<i></i>'.repeat(levels - i - 1)}</span><b>${esc(d.name)}</b><small>${esc(d.summary)}</small></span></label>`).join('');
-  const themes = [{ id: 'random', name: 'Surprise me', description: 'Any theme' }, ...OPTIONS.themes];
+  // Themes switched off in the admin dashboard are left out.
+  const off = remote.disabledThemes();
+  if (off.has(setup.theme)) { setup.theme = 'random'; setup.topic = 'any'; }
+  const themes = [{ id: 'random', name: 'Surprise me', description: 'Any theme' }, ...OPTIONS.themes.filter((t) => !off.has(t.id))];
   $('#theme-choices').innerHTML = themes.map((t) => `
     <label class="choice" title="${esc(t.description || '')}"><input type="radio" name="theme" value="${t.id}"${t.id === setup.theme ? ' checked' : ''} aria-describedby="theme-d-${t.id}">
     <span class="tile" data-world="${t.id}">${icon(t.id, 'glyph')}<b>${esc(t.name)}</b></span><span class="sr-only" id="theme-d-${t.id}">${esc(t.description || '')}</span></label>`).join('');
@@ -302,6 +306,14 @@ async function makePuzzle() {
   // Learning only picks between puzzles the engine has fully checked.
   let tuned = {};
   if (settings.learn) { try { tuned = await learn.tuning(setup.tier, { useShared: settings.shareLearning }); } catch (e) { tuned = {}; } }
+  // Surprise me never picks a theme that is switched off.
+  const off = remote.disabledThemes();
+  if (options.theme === 'random' && off.size) {
+    const allowed = OPTIONS.themes.filter((t) => !off.has(t.id));
+    const weights = (tuned.learning && tuned.learning.themeWeights) || {};
+    let r = Math.random() * allowed.reduce((sum, t) => sum + (Number(weights[t.id]) || 1), 0);
+    options.theme = (allowed.find((t) => (r -= Number(weights[t.id]) || 1) < 0) || allowed[allowed.length - 1]).id;
+  }
   let puzzle = null;
   // The engine skips used stories itself; the loop is a safety net.
   for (let i = 0; i < 4 && !puzzle; i++) {
@@ -1645,6 +1657,7 @@ async function init() {
   applyMode();
   matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', applyColorTheme);
   renderSetup();
+  remote.init({ onThemesChanged: () => { if (!$('#screen-home').hidden) renderSetup(); } });
   await renderSaved();
   renderSuggestion();
   store.requestPersistence();

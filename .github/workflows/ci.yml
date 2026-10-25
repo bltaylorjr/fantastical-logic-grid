@@ -34,12 +34,13 @@ jobs:
         run: npm install --no-save --no-audit --no-fund playwright@1.63.0 && npx playwright install --with-deps chromium
       - name: App tests (generate, play, save, print, voices, topics, learning)
         run: npm test
-      - name: Accounts, races and error reports against the real Worker
+      - name: Accounts, races, error reports and the admin dashboard against the real Worker
         run: |
           npm --prefix server ci --no-audit --no-fund
           node scripts/e2e-accounts.cjs
           node scripts/e2e-compete.cjs
           node scripts/e2e-errors.cjs
+          node scripts/e2e-admin.cjs
 
   server:
     runs-on: ubuntu-latest
@@ -52,7 +53,7 @@ jobs:
           cache: npm
           cache-dependency-path: server/package-lock.json
       - run: npm --prefix server ci --no-audit --no-fund
-      - name: Worker tests (sync, races, learning, cleanup, error reports)
+      - name: Worker tests (sync, races, learning, cleanup, error reports, admin)
         run: npm --prefix server test
       - name: Worker config is valid (dry run, nothing is deployed)
         working-directory: server

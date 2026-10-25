@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Logic Grid Admin</title>
+<link rel="icon" href="/admin/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/admin/admin.css">
+<script type="module" src="/admin/admin.js"></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="top">
+  <div class="brand"><img src="/admin/icon.svg" alt="" width="28" height="28"><span>The Fantastical Logic Grid <b>Admin</b></span></div>
+  <div class="who" id="who" hidden>
+    <span id="who-email"></span> <span class="badge" id="who-role"></span>
+    <button type="button" class="btn small" id="sign-out">Sign out</button>
+  </div>
+</header>
+
+<div id="live" class="sr-only" aria-live="polite"></div>
+<div id="toast" class="toast" role="status" hidden></div>
+
+<!-- Sign-in -->
+<section id="login" class="login" hidden aria-labelledby="login-h">
+  <h1 id="login-h">Sign in</h1>
+  <p class="muted">Use your game account. Only emails on the admin list can open the dashboard, and the email must be confirmed.</p>
+  <form id="login-form" class="stack" novalidate>
+    <div class="field"><label for="login-email">Email</label><input id="login-email" type="email" autocomplete="username" required></div>
+    <div class="field"><label for="login-password">Password</label><input id="login-password" type="password" autocomplete="current-password" required></div>
+    <p class="error" id="login-error" role="alert" hidden></p>
+    <div class="row"><button class="btn primary" type="submit">Sign in</button><button class="btn link" type="button" id="forgot">Forgot password?</button></div>
+  </form>
+  <div id="verify" class="note" hidden>
+    <p><b>Confirm your email first.</b> We can send a confirmation link to <span id="verify-email"></span>. Open it, then come back and press "I have confirmed it".</p>
+    <div class="row"><button class="btn" type="button" id="verify-send">Send the link</button><button class="btn primary" type="button" id="verify-done">I have confirmed it</button></div>
+  </div>
+  <details class="break-glass">
+    <summary>Use the break-glass key</summary>
+    <p class="muted">For emergencies only, for example if sign-in is down. This is the Worker's <code>ADMIN_TOKEN</code> secret. It has the owner's rights and every use is logged.</p>
+    <form id="token-form" class="stack" novalidate>
+      <div class="field"><label for="token-input">Break-glass key</label><input id="token-input" type="password" autocomplete="off" spellcheck="false"></div>
+      <div class="row"><button class="btn" type="submit">Open with the key</button></div>
+    </form>
+  </details>
+</section>
+
+<!-- Dashboard -->
+<div id="app" class="shell" hidden>
+  <nav class="nav" aria-label="Sections">
+    <ul id="nav-list">
+      <li><a href="#overview" data-min="viewer">Overview</a></li>
+      <li><a href="#usage" data-min="viewer">Usage and free limits</a></li>
+      <li><a href="#stories" data-min="moderator">Story review <span class="count" id="count-parts" hidden></span></a></li>
+      <li><a href="#names" data-min="moderator">Screen names <span class="count" id="count-names" hidden></span></a></li>
+      <li><a href="#players" data-min="moderator">Players</a></li>
+      <li><a href="#settings" data-min="viewer">Settings and switches</a></li>
+      <li><a href="#announcements" data-min="viewer">Announcements</a></li>
+      <li><a href="#errors" data-min="viewer">Error reports</a></li>
+      <li><a href="#audit" data-min="admin">Audit log</a></li>
+      <li><a href="#admins" data-min="owner">Admins</a></li>
+    </ul>
+  </nav>
+  <main id="main" tabindex="-1">
+    <section data-view="overview" hidden aria-labelledby="h-overview">
+      <div class="head"><h1 id="h-overview">Overview</h1>
+        <div class="field inline"><label for="ov-days">Period</label><select id="ov-days"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option></select></div>
+      </div>
+      <div id="ov-body"><p class="muted">Loading…</p></div>
+    </section>
+
+    <section data-view="usage" hidden aria-labelledby="h-usage">
+      <div class="head"><h1 id="h-usage">Usage and free limits</h1></div>
+      <p class="muted">Everything runs on free plans. When a free allowance runs out, Cloudflare refuses requests for the rest of the day; it never bills.</p>
+      <div id="usage-body"><p class="muted">Loading…</p></div>
+    </section>
+
+    <section data-view="stories" hidden aria-labelledby="h-stories">
+      <div class="head"><h1 id="h-stories">Story review</h1>
+        <div class="field inline"><label for="parts-status">Show</label><select id="parts-status"><option value="pending">Waiting for review</option><option value="approved">Approved</option><option value="rejected">Rejected</option></select></div>
+      </div>
+      <p class="muted">Story parts players shared. Approved parts reach every player within about 15 minutes. Rejected parts are never shown. Parts are anonymous.</p>
+      <ul class="cards" id="parts-list"></ul>
+    </section>
+
+    <section data-view="names" hidden aria-labelledby="h-names">
+      <div class="head"><h1 id="h-names">Screen names</h1>
+        <div class="field inline"><label for="names-status">Show</label><select id="names-status"><option value="pending">New or changed</option><option value="reviewed">Looked at</option><option value="all">All</option></select></div>
+      </div>
+      <p class="muted">Names other players can see. Names the word filter would refuse today are marked <span class="badge warn">Check</span> and listed first.</p>
+      <div class="table-wrap"><table class="table"><thead><tr><th scope="col">Screen name</th><th scope="col">Since</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody id="names-rows"></tbody></table></div>
+    </section>
+
+    <section data-view="players" hidden aria-labelledby="h-players">
+      <div class="head"><h1 id="h-players">Players</h1></div>
+      <form id="players-form" class="row" role="search">
+        <div class="field grow"><label for="players-q">Screen name or player id</label><input id="players-q" type="search" autocomplete="off"></div>
+        <div class="field"><label for="players-filter">Who</label><select id="players-filter"><option value="all">Everyone</option><option value="banned">Banned</option></select></div>
+        <button class="btn primary" type="submit">Search</button>
+      </form>
+      <p class="muted">Players are listed by screen name. Emails stay in Firebase and are not shown here; saved puzzles are only counted.</p>
+      <div class="table-wrap"><table class="table"><thead><tr><th scope="col">Screen name</th><th scope="col">Points</th><th scope="col">Solves</th><th scope="col">Last score</th><th scope="col">Status</th></tr></thead><tbody id="players-rows"></tbody></table></div>
+      <div id="player-detail"></div>
+    </section>
+
+    <section data-view="settings" hidden aria-labelledby="h-settings">
+      <div class="head"><h1 id="h-settings">Settings and switches</h1></div>
+      <p class="muted">Changes reach every copy of the game within about a minute, with no new release.</p>
+      <div id="settings-body"></div>
+    </section>
+
+    <section data-view="announcements" hidden aria-labelledby="h-ann">
+      <div class="head"><h1 id="h-ann">Announcements</h1></div>
+      <p class="muted">A short message at the top of the game's home screen. Players can close it. Up to three show at once.</p>
+      <form id="ann-form" class="stack card" data-min="admin" novalidate>
+        <div class="field"><label for="ann-text">Message (3 to 280 characters)</label><textarea id="ann-text" rows="3" maxlength="280" required></textarea></div>
+        <div class="row">
+          <div class="field"><label for="ann-level">Style</label><select id="ann-level"><option value="info">Information</option><option value="warning">Warning</option></select></div>
+          <div class="field"><label for="ann-start">Starts</label><input id="ann-start" type="datetime-local"></div>
+          <div class="field"><label for="ann-end">Ends (optional)</label><input id="ann-end" type="datetime-local"></div>
+        </div>
+        <p class="error" id="ann-error" role="alert" hidden></p>
+        <div class="row"><button class="btn primary" type="submit">Publish</button></div>
+      </form>
+      <ul class="cards" id="ann-list"></ul>
+    </section>
+
+    <section data-view="errors" hidden aria-labelledby="h-errors">
+      <div class="head"><h1 id="h-errors">Error reports</h1>
+        <div class="field inline"><label for="err-days">Period</label><select id="err-days"><option value="1">Today</option><option value="7" selected>Last 7 days</option><option value="30">Last 30 days</option></select></div>
+      </div>
+      <p class="muted">Anonymous reports from the apps, most frequent first. Web addresses, emails and long numbers are removed before they are stored.</p>
+      <div class="table-wrap"><table class="table"><thead><tr><th scope="col">Count</th><th scope="col">Message</th><th scope="col">Where</th><th scope="col">App</th><th scope="col">Seen</th></tr></thead><tbody id="err-rows"></tbody></table></div>
+    </section>
+
+    <section data-view="audit" hidden aria-labelledby="h-audit">
+      <div class="head"><h1 id="h-audit">Audit log</h1>
+        <div class="field inline"><label for="audit-actor">Who</label><input id="audit-actor" type="search" placeholder="Any admin" autocomplete="off"></div>
+      </div>
+      <p class="muted">Every admin request, allowed or refused, kept for a year.</p>
+      <div class="table-wrap"><table class="table"><thead><tr><th scope="col">When</th><th scope="col">Who</th><th scope="col">What</th><th scope="col">Target</th><th scope="col">Result</th></tr></thead><tbody id="audit-rows"></tbody></table></div>
+      <div class="row"><button class="btn" type="button" id="audit-more" hidden>Show older</button></div>
+    </section>
+
+    <section data-view="admins" hidden aria-labelledby="h-admins">
+      <div class="head"><h1 id="h-admins">Admins</h1></div>
+      <dl class="roles">
+        <dt>Owner</dt><dd>Everything, including this list. Set by the Worker's <code>OWNER_EMAIL</code> secret.</dd>
+        <dt>Admin</dt><dd>Settings, announcements, resetting scores, deleting accounts and the audit log, plus everything a moderator can do.</dd>
+        <dt>Moderator</dt><dd>Story review, screen names, players, bans, plus everything a viewer can do.</dd>
+        <dt>Viewer</dt><dd>Read-only: overview, usage, settings, announcements and error reports.</dd>
+      </dl>
+      <form id="admin-form" class="row card" novalidate>
+        <div class="field grow"><label for="admin-email">Email of their game account</label><input id="admin-email" type="email" autocomplete="off" required></div>
+        <div class="field"><label for="admin-role">Role</label><select id="admin-role"><option value="viewer">Viewer</option><option value="moderator">Moderator</option><option value="admin">Admin</option></select></div>
+        <button class="btn primary" type="submit">Add or change</button>
+      </form>
+      <div class="table-wrap"><table class="table"><thead><tr><th scope="col">Email</th><th scope="col">Role</th><th scope="col">Added</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody id="admin-rows"></tbody></table></div>
+    </section>
+  </main>
+</div>
+
+<dialog id="dialog" aria-labelledby="dialog-title">
+  <form method="dialog" id="dialog-form" class="stack">
+    <h2 id="dialog-title"></h2>
+    <div id="dialog-body"></div>
+    <p class="error" id="dialog-error" role="alert" hidden></p>
+    <div class="row end"><button class="btn" value="cancel" type="button" id="dialog-cancel">Cancel</button><button class="btn primary" value="ok" id="dialog-ok">OK</button></div>
+  </form>
+</dialog>
+</body>
+</html>

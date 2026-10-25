@@ -37,15 +37,16 @@ const squeeze = (s) => s.replace(/(.)\1+/g, '$1');
 // True when the text has a blocked word. Names are also checked with their
 // words joined ("s.h.i.t", "big_shit") and for the short whole words; puzzle
 // text (strict = false) is checked one word at a time, so ordinary sentences
-// such as "the cat's hit" never trip it.
-export function hasBlockedWords(text, { strict = true } = {}) {
+// such as "the cat's hit" never trip it. extra: more words to refuse, from the
+// admin dashboard's blocked_words setting.
+export function hasBlockedWords(text, { strict = true, extra = [] } = {}) {
   const folded = fold(text);
   const tokens = folded.split(/[^a-z]+/).filter(Boolean);
   if (strict && tokens.some((t) => WHOLE.includes(t) || WHOLE.includes(squeeze(t)))) return true;
   const runs = strict ? [folded.replace(/[^a-z]+/g, '')] : tokens;
   return runs.some((run) => {
     for (const safe of SAFE) run = run.split(safe).join('~');
-    return ALWAYS.some((w) => run.includes(w) || squeeze(run).includes(w));
+    return ALWAYS.some((w) => run.includes(w) || squeeze(run).includes(w)) || extra.some((w) => run.includes(w) || squeeze(run).includes(w));
   });
 }
 
@@ -56,7 +57,7 @@ export function nameKey(name) { return fold(name).replace(/[^a-z0-9]+/g, ''); }
 export function cleanName(raw) { return String(raw ?? '').normalize('NFKC').trim().replace(/\s+/g, ' '); }
 
 // Returns null when the name is fine, or { code, message } for the player.
-export function checkName(raw) {
+export function checkName(raw, { extra = [] } = {}) {
   const name = cleanName(raw);
   if (name.length < NAME_MIN || name.length > NAME_MAX) return { code: 'name_length', message: `Use ${NAME_MIN} to ${NAME_MAX} characters.` };
   if (!NAME_CHARS.test(name)) return { code: 'name_chars', message: 'Use letters, numbers, spaces, dots, dashes or underscores, starting with a letter or number.' };
@@ -64,6 +65,6 @@ export function checkName(raw) {
   if (key.length < NAME_MIN) return { code: 'name_length', message: `Use at least ${NAME_MIN} letters or numbers.` };
   if (/^\d+$/.test(name.replace(/[ _.-]/g, ''))) return { code: 'name_digits', message: 'Include at least one letter.' };
   if (RESERVED.some((r) => key === r || key.startsWith(r) && r.length >= 5)) return { code: 'name_reserved', message: 'That name is kept for the game itself. Please choose another.' };
-  if (hasBlockedWords(name)) return { code: 'name_blocked', message: 'That name is not allowed. Please choose a friendly one.' };
+  if (hasBlockedWords(name, { extra })) return { code: 'name_blocked', message: 'That name is not allowed. Please choose a friendly one.' };
   return null;
 }

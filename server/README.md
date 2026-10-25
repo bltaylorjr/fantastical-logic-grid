@@ -8,6 +8,9 @@ Android, iPhone):
 - **Screen names, races and the scoreboard** (`src/compete.js`): players who
   choose a screen name can race others on the same puzzle and earn points.
 - **Shared learning and voices** (`src/learn.js`): added by the learning work.
+- **Admin dashboard** (`src/admin.js`, `src/settings.js`, app in `../admin`):
+  analytics, settings and switches, announcements, players, moderation, admin
+  roles and an audit log, at `/admin/`. Setup: `../admin/README.md`.
 
 Everything here runs on free plans. Nothing needs a credit card.
 

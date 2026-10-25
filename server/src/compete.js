@@ -20,6 +20,7 @@ import { json } from './http.js';
 import { checkName, cleanName, nameKey, hasBlockedWords } from './names.js';
 import { isDeleted } from './sync.js';
 import { AuthError } from './auth.js';
+import { getSettings } from './settings.js';
 
 export const TIERS = { basic: 10, easy: 20, medium: 35, hard: 55, expert: 80, mensa: 110 };
 // Minutes a typical player needs per grid cell (the same as the app's estimate).
@@ -130,6 +131,13 @@ function matchesSolution(puzzle, pairs) {
 
 // ------------------------------------------------------------- scoreboard
 let boardCache = new Map(); // period -> { at, body }
+export const clearBoardCache = () => boardCache.clear();
+
+// A ban from the admin dashboard keeps a player out of races, scores and
+// screen names, and off the scoreboard. until NULL means no end.
+export async function banOf(env, uid, now = Date.now()) {
+  return env.DB.prepare('SELECT reason, until FROM bans WHERE user_id = ?1 AND (until IS NULL OR until > ?2)').bind(uid, now).first();
+}
 
 async function scoreboard(env, period, now) {
   const since = period === 'all' ? 0 : weekStart(now);
@@ -149,7 +157,8 @@ async function scoreboard(env, period, now) {
     )
     SELECT p.screen_name AS name, p.user_id AS uid, pts.points, pts.solved, COALESCE(wins.wins, 0) AS wins
     FROM pts JOIN players p ON p.user_id = pts.user_id LEFT JOIN wins ON wins.user_id = pts.user_id
-    ORDER BY pts.points DESC, wins DESC, pts.first ASC LIMIT ?2`).bind(since, BOARD_ROWS).all();
+    WHERE NOT EXISTS (SELECT 1 FROM bans b WHERE b.user_id = pts.user_id AND (b.until IS NULL OR b.until > ?3))
+    ORDER BY pts.points DESC, wins DESC, pts.first ASC LIMIT ?2`).bind(since, BOARD_ROWS, now).all();
   let rank = 0;
   let prev = null;
   const rows = results.map((r, i) => {
@@ -246,6 +255,13 @@ export async function handleCompete(req, env, ctx, url, signedIn) {
     const isWrite = method !== 'GET';
     if (isWrite && env.LIMIT_COMPETE && !(await env.LIMIT_COMPETE.limit({ key: uid })).success) return fail('slow_down', 429);
     const profile = await db.prepare('SELECT screen_name FROM players WHERE user_id = ?1').bind(uid).first();
+    const settings = await getSettings(env, now);
+    // A banned player can still look at their name and remove it.
+    if (!(area === 'profile' && !sub && method !== 'PUT')) {
+      const ban = await banOf(env, uid, now);
+      if (ban) return fail('banned', 403, { message: 'Your account cannot take part in races or the scoreboard right now.', until: ban.until });
+    }
+    const off = (what) => fail('switched_off', 503, { message: `${what} are switched off for now. Please try again later.` });
 
     if (area === 'profile' && !sub) {
       if (method === 'GET') return json(req, env, { screenName: profile ? profile.screen_name : null });
@@ -255,8 +271,9 @@ export async function handleCompete(req, env, ctx, url, signedIn) {
         return json(req, env, { screenName: null });
       }
       if (method === 'PUT') {
+        if (!settings.names_enabled) return off('New screen names');
         const b = await body();
-        const problem = checkName(b && b.screenName);
+        const problem = checkName(b && b.screenName, { extra: settings.blocked_words });
         if (problem) return fail(problem.code, 422, { message: problem.message });
         const name = cleanName(b.screenName);
         const key = nameKey(name);
@@ -273,6 +290,7 @@ export async function handleCompete(req, env, ctx, url, signedIn) {
     if (!profile) return fail('no_screen_name', 403, { message: 'Choose a screen name first.' });
 
     if (area === 'scores' && !sub && method === 'POST') {
+      if (!settings.scores_enabled) return off('Solo scores');
       const b = (await body()) || {};
       const k = int(b.categories, 3, 6);
       const n = int(b.items, 3, 8);
@@ -292,6 +310,8 @@ export async function handleCompete(req, env, ctx, url, signedIn) {
     }
 
     if (area !== 'races') return fail('not_found', 404);
+    // Players already in a race can always finish it and see the standings.
+    if (!settings.races_enabled && method === 'POST' && action !== 'finish') return off('Races');
 
     if (!sub && method === 'POST') {
       if (Number(req.headers.get('Content-Length') || 0) > MAX_PUZZLE_CHARS + 1000) return fail('too_large', 413);

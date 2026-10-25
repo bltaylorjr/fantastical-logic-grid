@@ -27,7 +27,7 @@ function b64url(s) {
 }
 const decodeJson = (s) => JSON.parse(new TextDecoder().decode(b64url(s)));
 
-// Returns { uid, email, authTime } or throws AuthError.
+// Returns { uid, email, emailVerified, authTime } or throws AuthError.
 export async function verifyIdToken(token, env) {
   const project = env.FIREBASE_PROJECT_ID;
   if (!project || project.startsWith('REPLACE')) throw new Error('FIREBASE_PROJECT_ID is not set');
@@ -50,5 +50,5 @@ export async function verifyIdToken(token, env) {
   const key = await crypto.subtle.importKey('jwk', { kty: jwk.kty, n: jwk.n, e: jwk.e, alg: 'RS256', ext: true }, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['verify']);
   const ok = await crypto.subtle.verify('RSASSA-PKCS1-v1_5', key, b64url(parts[2]), new TextEncoder().encode(`${parts[0]}.${parts[1]}`));
   if (!ok) throw new AuthError('Bad signature');
-  return { uid: claims.sub, email: claims.email || null, authTime: claims.auth_time };
+  return { uid: claims.sub, email: claims.email || null, emailVerified: claims.email_verified === true, authTime: claims.auth_time };
 }
