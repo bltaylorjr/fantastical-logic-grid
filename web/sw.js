@@ -24,11 +24,14 @@ self.addEventListener('fetch', (e) => {
   // Video is streamed with range requests; let the browser handle it directly.
   if (req.headers.has('range') || new URL(req.url).pathname.includes('/media/')) return;
   e.respondWith(caches.open(CACHE).then(async (cache) => {
-    const hit = await cache.match(req, { ignoreSearch: true }) || (req.mode === 'navigate' ? await cache.match('./index.html') : null);
+    const hit = await cache.match(req, { ignoreSearch: true });
     // Each version's files stay together in its own cache; new versions arrive
     // as a new service worker. Files not cached yet (voice engine) are added on first use.
     if (hit) return hit;
     const res = await fetch(req).catch(() => null);
+    // Website pages (how to play, daily puzzle...) come from the network and
+    // are not cached; offline, any page opens the game instead.
+    if (req.mode === 'navigate') return res && res.status < 500 ? res : (await cache.match('./index.html')) || new Response('Offline', { status: 503 });
     if (res && res.ok) cache.put(req, res.clone());
     return res || new Response('Offline', { status: 503 });
   }));

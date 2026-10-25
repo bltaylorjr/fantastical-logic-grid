@@ -1,0 +1,27 @@
+<!doctype html>
+<!-- Source of seo/og-image.jpg, the picture shown when a link to the site is shared.
+     Rebuild: npm run build && node scripts/og-image.cjs -->
+<html lang="en"><head><meta charset="utf-8">
+<style>
+@font-face { font-family: Atk; font-weight: 700; src: url(../web/fonts/atkinson-700.woff2); }
+@font-face { font-family: Atk; font-weight: 400; src: url(../web/fonts/atkinson-400.woff2); }
+@font-face { font-family: Cinzel; font-weight: 700; src: url(../web/fonts/cinzel-700.woff2); }
+html, body { margin: 0; width: 1200px; height: 630px; overflow: hidden; }
+body { display: flex; align-items: center; gap: 64px; padding: 0 80px; box-sizing: border-box;
+  background: radial-gradient(circle at 20% 30%, #7C5CFF 0, transparent 55%), radial-gradient(circle at 85% 80%, #22B8CF 0, transparent 50%), #121729;
+  color: #EEF0F8; font-family: Atk, sans-serif; }
+img { width: 300px; height: 300px; flex: none; filter: drop-shadow(0 20px 40px rgb(0 0 0 / .5)); }
+.eyebrow { font-size: 30px; letter-spacing: .12em; text-transform: uppercase; color: #F5C451; font-weight: 700; margin: 0; }
+h1 { font: 700 72px/1.08 Cinzel, serif; margin: 14px 0 22px; }
+p.tag { font-size: 34px; line-height: 1.35; margin: 0; color: #DDE1EE; }
+.url { margin-top: 26px; font-size: 30px; font-weight: 700; color: #F5C451; }
+</style></head>
+<body>
+<img src="../web/icons/icon.svg" alt="">
+<div>
+  <p class="eyebrow">Free story logic puzzles</p>
+  <h1>The Fantastical Logic Grid</h1>
+  <p class="tag">Every case is a brand new story. Read the clues, fill the grid, close the case.</p>
+  <p class="url">thelogicgrid.com</p>
+</div>
+</body></html>

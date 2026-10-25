@@ -1,5 +1,8 @@
 # Publishes the web version (dist/site) on every push to main, which includes
-# every version bump that ships a release.
+# every version bump that ships a release, and again each day just after
+# midnight UTC so the daily puzzle page and the sitemap stay fresh. After each
+# publish it tells IndexNow search engines (Bing, Yandex, Seznam, Naver...)
+# which pages changed. Search setup: SEO.md.
 # GitHub Pages: one-time setup is Settings > Pages > Source: GitHub Actions.
 # Other web hosts are opt-in: each one deploys only when its repository secrets
 # are set (Settings > Secrets and variables > Actions). See hosting/DEPLOY.md.
@@ -8,6 +11,8 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
+  schedule:
+    - cron: '17 0 * * *'   # daily puzzle page
 permissions:
   contents: read
   pages: write
@@ -32,11 +37,38 @@ jobs:
         env:
           FLG_FIREBASE_API_KEY: ${{ vars.FLG_FIREBASE_API_KEY }}
           FLG_CLOUD_URL: ${{ vars.FLG_CLOUD_URL }}
+          FLG_SITE_URL: ${{ vars.FLG_SITE_URL }}
+          FLG_GOOGLE_SITE_VERIFICATION: ${{ vars.FLG_GOOGLE_SITE_VERIFICATION }}
+          FLG_BING_SITE_VERIFICATION: ${{ vars.FLG_BING_SITE_VERIFICATION }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist/site
       - id: deploy
         uses: actions/deploy-pages@v4
+
+  indexnow:
+    needs: deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      SITE: ${{ vars.FLG_SITE_URL || 'https://thelogicgrid.com' }}
+      # Must match INDEXNOW_KEY in scripts/seo.mjs (the site serves it as <key>.txt).
+      KEY: ${{ vars.FLG_INDEXNOW_KEY || 'fae88a004ad87116c0e93df007b2de7e' }}
+    steps:
+      - name: Tell IndexNow search engines which pages changed today
+        run: |
+          sleep 60   # let the new version reach the Pages CDN
+          today=$(date -u +%F)
+          sitemap=$(curl -fsSL --retry 3 "$SITE/sitemap.xml")
+          urls=$(grep -o "<loc>[^<]*</loc><lastmod>$today<" <<<"$sitemap" | sed 's#<loc>##; s#</loc>.*##' | jq -R . | jq -sc .)
+          if [ "$urls" = "[]" ]; then echo "No pages changed today."; exit 0; fi
+          echo "Submitting: $urls"
+          host=${SITE#*://}; host=${host%%/*}
+          body=$(jq -nc --arg host "$host" --arg key "$KEY" --arg loc "$SITE/$KEY.txt" --argjson urls "$urls" '{host: $host, key: $key, keyLocation: $loc, urlList: $urls}')
+          code=$(curl -sS -o /dev/stderr -w '%{http_code}' -X POST https://api.indexnow.org/indexnow -H 'Content-Type: application/json; charset=utf-8' -d "$body")
+          echo "IndexNow answered $code"
+          # 200 and 202 mean accepted; 429 means too many submissions today (try again tomorrow).
+          case "$code" in 200|202|429) ;; *) exit 1 ;; esac
 
   other-hosts:
     runs-on: ubuntu-latest
@@ -78,6 +110,9 @@ jobs:
         env:
           FLG_FIREBASE_API_KEY: ${{ vars.FLG_FIREBASE_API_KEY }}
           FLG_CLOUD_URL: ${{ vars.FLG_CLOUD_URL }}
+          FLG_SITE_URL: ${{ vars.FLG_SITE_URL }}
+          FLG_GOOGLE_SITE_VERIFICATION: ${{ vars.FLG_GOOGLE_SITE_VERIFICATION }}
+          FLG_BING_SITE_VERIFICATION: ${{ vars.FLG_BING_SITE_VERIFICATION }}
 
       - name: Netlify
         if: env.NETLIFY_AUTH_TOKEN != '' && env.NETLIFY_SITE_ID != ''

@@ -1,0 +1,62 @@
+/* Search pages (how to play, themes, daily puzzle), inlined into each page by scripts/seo.mjs.
+   Same fonts and colors as the game; fonts are "optional" so the page never jumps when they load. */
+@font-face { font-family: "Atkinson Hyperlegible"; font-weight: 400; font-style: normal; font-display: optional; src: url(fonts/atkinson-400.woff2) format("woff2"); }
+@font-face { font-family: "Atkinson Hyperlegible"; font-weight: 700; font-style: normal; font-display: optional; src: url(fonts/atkinson-700.woff2) format("woff2"); }
+@font-face { font-family: "Cinzel"; font-weight: 700; font-style: normal; font-display: optional; src: url(fonts/cinzel-700.woff2) format("woff2"); }
+:root {
+  color-scheme: light dark;
+  --bg: #FFFFFF; --page: #E9EDF7; --text: #121626; --muted: #4A5168; --accent: #5B3CC4; --on-accent: #FFFFFF;
+  --edge: rgb(18 22 38 / .14); --focus: #5B3CC4;
+  --font: "Atkinson Hyperlegible", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --display: "Cinzel", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #121729; --page: #080B16; --text: #EEF0F8; --muted: #AEB5CB; --accent: #F5C451; --on-accent: #1B1400; --edge: rgb(255 255 255 / .14); --focus: #FFD66B; }
+}
+@media (prefers-contrast: more) {
+  :root { --muted: var(--text); --edge: var(--text); }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--page); color: var(--text); font: 18px/1.6 var(--font); }
+a { color: var(--accent); text-underline-offset: 2px; }
+a:focus-visible, summary:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
+.skip { position: absolute; left: -999px; top: 8px; background: var(--bg); padding: 8px 12px; z-index: 2; }
+.skip:focus { left: 8px; }
+.top { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; padding: 12px 20px; background: var(--bg); border-bottom: 1px solid var(--edge); }
+.brand { font: 700 1.15rem var(--display); color: var(--text); text-decoration: none; }
+.top nav { flex: 1; }
+.top ul { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 0; padding: 0; list-style: none; }
+.top nav a { display: inline-block; padding: 10px 2px; min-height: 44px; }
+.top nav a[aria-current="page"] { font-weight: 700; color: var(--text); }
+.btn { display: inline-flex; align-items: center; min-height: 44px; padding: 8px 18px; border-radius: 999px; background: var(--accent); color: var(--on-accent); font-weight: 700; text-decoration: none; }
+.btn.big { min-height: 52px; padding: 12px 26px; font-size: 1.1rem; }
+.crumbs ol { display: flex; flex-wrap: wrap; gap: 6px; max-width: 860px; margin: 16px auto 0; padding: 0 20px; list-style: none; color: var(--muted); font-size: .95rem; }
+.crumbs li + li::before { content: "›"; margin-right: 6px; }
+main { max-width: 860px; margin: 0 auto; padding: 8px 20px 40px; }
+h1, h2 { font-family: var(--display); line-height: 1.25; }
+h1 { font-size: clamp(1.8rem, 5vw, 2.6rem); margin: 24px 0 12px; }
+h2 { font-size: 1.5rem; margin: 36px 0 10px; }
+h3 { font-size: 1.15rem; margin: 22px 0 6px; }
+.lede { font-size: 1.15rem; }
+.muted, .meta { color: var(--muted); }
+.steps li, .clues li { margin: 6px 0; }
+video { width: 100%; height: auto; border-radius: 12px; background: #000; }
+details { margin: 16px 0; padding: 12px 16px; background: var(--bg); border: 1px solid var(--edge); border-radius: 12px; }
+summary { cursor: pointer; font-weight: 700; min-height: 44px; display: flex; align-items: center; }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; padding: 0; list-style: none; }
+.cards li { padding: 4px 18px; background: var(--bg); border: 1px solid var(--edge); border-radius: 14px; }
+.cards h2, .cards h3 { font-size: 1.15rem; margin: 14px 0 4px; }
+.table-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; background: var(--bg); }
+caption { text-align: left; font-weight: 700; padding: 8px 0; }
+th, td { border: 1px solid var(--edge); padding: 8px 10px; text-align: left; vertical-align: top; }
+dt { font-weight: 700; margin-top: 10px; }
+dd { margin: 0 0 0 1rem; }
+.archive li { margin: 4px 0; }
+.foot { max-width: 860px; margin: 0 auto; padding: 20px; border-top: 1px solid var(--edge); color: var(--muted); }
+@media print { .top, .foot, .crumbs, .btn { display: none; } details { border: 0; } }
+@media (max-width: 720px) {
+  .top { justify-content: space-between; }
+  .top nav { order: 3; flex-basis: 100%; }
+  .top nav a { padding: 10px 0; }
+}

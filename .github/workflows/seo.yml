@@ -1,0 +1,111 @@
+# Keeps the website easy for search engines to find and rank.
+# - Every pull request: builds the site and runs Lighthouse on the game page and
+#   the search pages (lighthouserc.json). SEO and accessibility must score 90+
+#   or the check fails; speed is reported as a warning.
+# - Every Monday: checks the live site (robots.txt, sitemap, every page in it,
+#   canonical links, the daily puzzle refresh, the IndexNow key file) and runs
+#   Lighthouse on it (lighthouserc.live.json). If something is wrong it opens a
+#   GitHub issue labelled search-check, which closes itself once it is fixed.
+# Free: GitHub Actions on a public repo and Lighthouse cost nothing. See SEO.md.
+name: Search check
+on:
+  pull_request:
+  schedule:
+    - cron: '37 7 * * 1'   # Mondays
+  workflow_dispatch:
+permissions:
+  contents: read
+  issues: write
+concurrency:
+  group: seo-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  lighthouse:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Lighthouse (SEO, accessibility, speed)
+        run: npx --yes @lhci/cli@0.15.1 autorun
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-reports
+          path: .lighthouseci/reports
+          if-no-files-found: ignore
+
+  live:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SITE: ${{ vars.FLG_SITE_URL || 'https://thelogicgrid.com' }}
+      KEY: ${{ vars.FLG_INDEXNOW_KEY || 'fae88a004ad87116c0e93df007b2de7e' }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Check the live site
+        id: check
+        run: |
+          problems=()
+          fetch() { curl -fsSL --retry 2 --max-time 20 "$1"; }
+          robots=$(fetch "$SITE/robots.txt") || problems+=("$SITE/robots.txt does not answer.")
+          grep -q "^Sitemap: $SITE/sitemap.xml" <<<"$robots" || problems+=("robots.txt does not point search engines to the sitemap.")
+          grep -qi '^Disallow: /$' <<<"$robots" && problems+=("robots.txt blocks the whole site from search engines.")
+          if sitemap=$(fetch "$SITE/sitemap.xml"); then
+            urls=$(grep -o '<loc>[^<]*</loc>' <<<"$sitemap" | sed 's#</*loc>##g')
+            echo "$(wc -l <<<"$urls") pages in the sitemap"
+            while read -r u; do
+              if page=$(fetch "$u"); then
+                grep -q "<link rel=\"canonical\" href=\"$u\">" <<<"$page" || problems+=("$u does not name itself as the canonical address.")
+                grep -qi 'name="robots" content="noindex' <<<"$page" && problems+=("$u tells search engines not to list it.")
+              else problems+=("$u is in the sitemap but does not answer."); fi
+            done <<<"$urls"
+            # The daily page is rebuilt each night; a stale date means the daily publish stopped.
+            daily=$(grep -o "<loc>$SITE/daily/</loc><lastmod>[^<]*" <<<"$sitemap" | sed 's#.*<lastmod>##')
+            [ "$daily" = "$(date -u +%F)" ] || [ "$daily" = "$(date -u -d yesterday +%F)" ] \
+              || problems+=("The daily puzzle page was last refreshed on ${daily:-never}. Check the \"Publish web version\" workflow's nightly runs (GitHub pauses scheduled workflows after 60 days without a commit).")
+          else problems+=("$SITE/sitemap.xml does not answer."); fi
+          [ "$(fetch "$SITE/$KEY.txt")" = "$KEY" ] || problems+=("The IndexNow key file $SITE/$KEY.txt is missing, so Bing cannot accept change notices.")
+          fetch "$SITE/og-image.jpg" >/dev/null || problems+=("The share picture $SITE/og-image.jpg is missing.")
+          if ! npx --yes @lhci/cli@0.15.1 autorun --config=./lighthouserc.live.json; then
+            problems+=("Lighthouse scored the live site below 95 for SEO or below 90 for accessibility (see the run's Lighthouse report).")
+          fi
+          { echo 'problems<<EOF'; printf '%s\n' "${problems[@]}"; echo 'EOF'; } >> "$GITHUB_OUTPUT"
+          printf 'Problem: %s\n' "${problems[@]}"
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-live-reports
+          path: .lighthouseci/reports
+          if-no-files-found: ignore
+      - name: Open, update or close the search issue
+        uses: actions/github-script@v7
+        env:
+          PROBLEMS: ${{ steps.check.outputs.problems }}
+        with:
+          script: |
+            const label = 'search-check';
+            const problems = process.env.PROBLEMS.split('\n').filter(Boolean);
+            const run = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const { data: open } = await github.rest.issues.listForRepo({ ...context.repo, state: 'open', labels: label });
+            if (problems.length) {
+              const body = `The weekly search check found something that can hurt how the site shows up in search results.\n\n${problems.map((p) => `- ${p}`).join('\n')}\n\nChecked ${new Date().toUTCString()} ([run](${run})). This issue closes itself when the check passes.`;
+              if (open.length) await github.rest.issues.createComment({ ...context.repo, issue_number: open[0].number, body });
+              else {
+                await github.rest.issues.createLabel({ ...context.repo, name: label, color: '5b3cc4', description: 'Opened by the weekly search check' }).catch(() => {});
+                await github.rest.issues.create({ ...context.repo, title: 'Search check: the website needs attention', labels: [label], body });
+              }
+              core.setFailed(problems.join(' '));
+            } else {
+              for (const issue of open) {
+                await github.rest.issues.createComment({ ...context.repo, issue_number: issue.number, body: `The search check passes again (${new Date().toUTCString()}, [run](${run})). Closing.` });
+                await github.rest.issues.update({ ...context.repo, issue_number: issue.number, state: 'closed', state_reason: 'completed' });
+              }
+            }
