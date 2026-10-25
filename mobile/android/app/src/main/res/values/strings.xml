@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Logic Grid</string>
+    <string name="no_app_for_link">No app on this device can open that link.</string>
+    <string name="saved_file">Saved.</string>
+    <string name="save_failed">The file could not be saved.</string>
+</resources>

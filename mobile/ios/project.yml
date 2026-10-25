@@ -1,0 +1,32 @@
+# XcodeGen spec for the iPhone and iPad app. On a Mac:
+#   npm run build            (in the repo root; writes dist/web)
+#   brew install xcodegen && cd mobile/ios && xcodegen
+#   open LogicGrid.xcodeproj
+name: LogicGrid
+options:
+  deploymentTarget:
+    iOS: "16.0"
+targets:
+  LogicGrid:
+    type: application
+    platform: iOS
+    scheme: {}
+    sources:
+      - path: LogicGrid
+      - path: ../shared/native-bridge.js
+        buildPhase: resources
+      - path: ../../dist/web
+        type: folder
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.fantasticallogicgrid.app
+        PRODUCT_NAME: LogicGrid
+        INFOPLIST_FILE: LogicGrid/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        MARKETING_VERSION: "1.0.0"
+        CURRENT_PROJECT_VERSION: "1"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SWIFT_VERSION: "5.0"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        CODE_SIGN_STYLE: Automatic
