@@ -1,0 +1,104 @@
+# Builds the Android app (APK, plus an AAB for Google Play) and checks that the
+# iPhone/iPad app compiles. After "Release desktop app" succeeds, the APK is
+# added to that GitHub Release.
+# Android release signing needs these repository secrets (otherwise a debug APK
+# is built): ANDROID_KEYSTORE_BASE64 (the .p12, base64) and ANDROID_KEYSTORE_PASSWORD.
+name: Mobile apps
+on:
+  workflow_dispatch:
+  pull_request:
+    paths: ['mobile/**', 'web/**', 'engine/**', 'scripts/build.mjs', '.github/workflows/mobile.yml']
+  push:
+    branches: [main]
+    paths: ['mobile/**', 'web/**', 'engine/**', 'scripts/build.mjs', '.github/workflows/mobile.yml']
+  workflow_run:
+    workflows: ['Release desktop app']
+    types: [completed]
+permissions:
+  contents: write
+jobs:
+  android:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - run: npm ci
+      - run: npm run build
+      - name: Phone check (bridge and layout)
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+          node mobile/scripts/mobile-e2e.cjs
+      - name: Version
+        id: v
+        run: echo "version=$(node -p "require('./desktop/src-tauri/tauri.conf.json').version")" >> "$GITHUB_OUTPUT"
+      - name: Build
+        working-directory: mobile/android
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          FLG_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          chmod +x gradlew
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.p12"
+            export FLG_KEYSTORE="$RUNNER_TEMP/release.p12" FLG_KEY_ALIAS=flg
+            ./gradlew --no-daemon assembleRelease bundleRelease
+            cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/The-Fantastical-Logic-Grid-${{ steps.v.outputs.version }}.apk"
+            cp app/build/outputs/bundle/release/app-release.aab "$RUNNER_TEMP/The-Fantastical-Logic-Grid-${{ steps.v.outputs.version }}.aab"
+          else
+            echo "::warning::No signing secrets, so this is a debug build (installable, but not for release)."
+            ./gradlew --no-daemon assembleDebug
+            cp app/build/outputs/apk/debug/app-debug.apk "$RUNNER_TEMP/The-Fantastical-Logic-Grid-${{ steps.v.outputs.version }}-debug.apk"
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-${{ steps.v.outputs.version }}
+          path: |
+            ${{ runner.temp }}/*.apk
+            ${{ runner.temp }}/*.aab
+      - name: Add the APK to the release
+        if: github.event_name == 'workflow_run'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ]; then echo "::warning::Not adding a debug APK to the release."; exit 0; fi
+          gh release upload "v${{ steps.v.outputs.version }}" "$RUNNER_TEMP/The-Fantastical-Logic-Grid-${{ steps.v.outputs.version }}.apk" --clobber --repo "$GITHUB_REPOSITORY"
+
+  ios:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: brew install xcodegen
+      - name: Build for the iOS Simulator (no Apple account needed)
+        working-directory: mobile/ios
+        run: |
+          xcodegen
+          V=$(node -p "require('../../desktop/src-tauri/tauri.conf.json').version")
+          xcodebuild -project LogicGrid.xcodeproj -scheme LogicGrid -configuration Release \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build CODE_SIGNING_ALLOWED=NO MARKETING_VERSION="$V" build
+          cd build/Build/Products/Release-iphonesimulator && zip -qr "$RUNNER_TEMP/LogicGrid-simulator.zip" LogicGrid.app
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios-simulator-app
+          path: ${{ runner.temp }}/LogicGrid-simulator.zip
