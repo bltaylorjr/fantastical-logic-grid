@@ -182,11 +182,13 @@ function startAuth(signer) {
     await B.page.waitForSelector('#screen-play:not([hidden])');
     assert(await B.page.locator('td.c .mk-x, td.c[aria-label*="ruled out" i]').count() >= 0, 'opened the synced puzzle on B');
     await markCells(B.page, [5]);
+    await B.page.fill('#my-notes', 'Notes typed on B');
     await B.page.click('#home-btn');
     await syncNow(B.page);
     await syncNow(A.page);
-    const marksA = await A.page.evaluate(async (t) => { const s = (await (await import('./js/store.js')).listSaves()).find((x) => x.name === t); return Object.keys(s.marks).length; }, title);
-    assert(marksA >= 2, `progress from B reached A (${marksA} marks)`);
+    const savedA = await A.page.evaluate(async (t) => { const s = (await (await import('./js/store.js')).listSaves()).find((x) => x.name === t); return { marks: Object.keys(s.marks).length, notes: s.myNotes }; }, title);
+    assert(savedA.marks >= 2, `progress from B reached A (${savedA.marks} marks)`);
+    assert(savedA.notes === 'Notes typed on B', 'notes typed on B reached A');
 
     // ---- Settings sync, but keys stay on each device.
     await B.page.evaluate(async () => { const st = await import('./js/store.js'); st.saveSettings({ ...st.loadSettings(), colorTheme: 'dark', aiKey: 'sk-only-on-B' }); });

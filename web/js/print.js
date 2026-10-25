@@ -28,7 +28,7 @@ function gridTable(puzzle, ix, stateOf, cellPt) {
   return `${h}</tbody></table>`;
 }
 
-// options: { withMarks, answerKey, steps, paper, marks: Map }
+// options: { withMarks, answerKey, steps, paper, marks: Map, myNotes }
 export function buildPrint(puzzle, options) {
   const ix = puzzleIndex(puzzle);
   const { N, K } = ix;
@@ -44,7 +44,8 @@ export function buildPrint(puzzle, options) {
   const story = `<h2>The story</h2>${puzzle.story.paragraphs.map((p) => `<p>${esc(p)}</p>`).join('')}`;
   const grid = gridTable(puzzle, ix, state, cellPt);
   const clues = `<h2>Clues</h2><ol>${puzzle.clues.map((c) => `<li>${esc(c.text)}</li>`).join('')}</ol>`;
-  const questions = `<h2>Questions</h2><ol>${puzzle.questions.map((q) => `<li>${esc(q.text)} <span class="qline"></span></li>`).join('')}</ol>`;
+  const myNotes = (options.myNotes || '').trim() ? `<h2>My notes</h2><p class="pnotes">${esc(options.myNotes.trim())}</p>` : '';
+  const questions = `<h2>Questions</h2><ol>${puzzle.questions.map((q) => `<li>${esc(q.text)} <span class="qline"></span></li>`).join('')}</ol>${myNotes}`;
 
   // Small puzzles fit on one page; otherwise the grid goes on page 1 and the clues on page 2.
   const gridHeightPt = (K - 1) * N * cellPt + labelPt;

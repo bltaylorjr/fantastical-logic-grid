@@ -270,6 +270,9 @@ const CSS = `
     await hl(['#cast-row', '#bubble']);
     await scene('cast', ["Select a character's portrait to hear the clues they remember.", 'Every clue is also in the clue list.']);
     await clearFx(); await spotClues([]); await p.evaluate(() => { document.querySelector('#bubble').hidden = true; });
+    await scrollTo('#read-clues'); await hl(['#read-clues']);
+    await scene('read-clues', ['To hear every clue in order, press Read the clues aloud.', 'Each character tells their own clue, and the clue being read lights up.']);
+    await clearFx();
 
     // =================== The grid
     await gridView();
@@ -349,6 +352,11 @@ const CSS = `
     await hl(['#q-h', '#q-list', '#check-answers']);
     await scene('questions', ['When you think you know, answer the questions under the clues, and press Check answers.']);
     await clearFx();
+    await scrollTo('#my-notes'); await clickShown('#my-notes');
+    await p.keyboard.type(`Start with clue 1. Come back to the last two.`, { delay: 25 });
+    await hl('.mynotes');
+    await scene('notes', ['Want to jot something down? Type it in My notes.', 'Your notes save with the puzzle, and only you can see them, even in a race.']);
+    await clearFx(); await p.evaluate(() => document.activeElement.blur());
     await fillFromSolution(0.6); await gridView();
     await scene('keep-going', ['Keep going the same way, clue by clue, until the whole grid is filled in.']);
     await fillFromSolution(1);

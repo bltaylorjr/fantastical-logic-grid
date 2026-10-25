@@ -90,8 +90,21 @@ const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`o
     assert(await page.locator('#listview select').count() === 12, 'list view has a select per row');
     await page.check('input[name=view][value=grid]', { force: true });
 
+    // the player's own notes: typing never triggers the single-key shortcuts
+    const hintsBefore = await page.evaluate(() => window.__flg.state.save.hintsUsed);
+    await page.click('#my-notes');
+    await page.keyboard.type('Chef is not in the cellar. Check hat colors?');
+    assert(await page.evaluate(() => window.__flg.state.save.hintsUsed) === hintsBefore && await page.inputValue('#my-notes') === 'Chef is not in the cellar. Check hat colors?', 'notes take typing without firing H or C');
+    const undoBefore = await page.evaluate(() => window.__flg.state.save.undo.length);
+    await page.keyboard.press('Control+z');
+    assert(await page.evaluate(() => window.__flg.state.save.undo.length) === undoBefore, 'Ctrl+Z in notes does not undo grid marks');
+    await page.fill('#my-notes', 'Chef is not in the cellar.\nCheck hat colors?');
+    assert(await page.evaluate(() => window.__flg.state.save.myNotes) === 'Chef is not in the cellar.\nCheck hat colors?', 'notes are kept with the puzzle');
+
     // print layout
     await page.click('[data-act=print]');
+    assert(await page.isVisible('#p-mynotes'), 'print offers to include my notes');
+    await page.check('#p-mynotes');
     await page.check('#p-key');
     await page.evaluate(() => { window.print = () => { window.__printed = true; }; });
     await page.click('#print-go');
@@ -100,6 +113,7 @@ const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`o
     await page.screenshot({ path: process.env.SHOTS + '/3-print.png', fullPage: true });
     const pages = await page.locator('#print-root .pp').count();
     assert(pages >= 2, `print has ${pages} pages incl. answer key`);
+    assert((await page.textContent('#print-root .pnotes')) === 'Chef is not in the cellar.\nCheck hat colors?', 'print includes my notes');
     await page.emulateMedia({ media: 'screen' });
 
     // save + resume
@@ -108,12 +122,14 @@ const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`o
     await page.reload();
     await page.waitForSelector('.saved-item');
     assert(await page.locator('.saved-item').count() === 1, 'saved list shows the puzzle');
+    assert((await page.textContent('.saved-item .info')).includes('Has notes'), 'saved list marks puzzles with notes');
     assert(await page.locator('#continue-btn').isVisible() && (await page.textContent('#continue-name')).length > 3, 'title banner offers Continue for the unfinished puzzle');
     await page.screenshot({ path: process.env.SHOTS + '/4-saved.png', fullPage: true });
     await page.click('.saved-item [data-do=resume]');
     await page.waitForSelector('#screen-play:not([hidden])');
     assert(await page.evaluate(() => window.__flg.state.marks.size) === before, 'marks restored on resume');
     assert(await page.evaluate(() => window.__flg.state.save.undo.length) > 0, 'undo history restored');
+    assert(await page.inputValue('#my-notes') === 'Chef is not in the cellar.\nCheck hat colors?', 'notes restored on resume');
 
     // reveal => solved
     await page.click('[data-act=reveal]');

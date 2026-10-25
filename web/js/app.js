@@ -405,7 +405,7 @@ async function renderSaved() {
     const state = s.solved ? (s.revealed ? 'Solution revealed' : 'Solved') : `${pct}% complete`;
     return `<li class="saved-item" data-id="${s.id}">
       <h3 class="name">${esc(s.name)}</h3>
-      <div class="info">${s.race ? `<span class="pill">Race ${esc(s.race.code)}</span> ` : ''}${esc(p.theme.name)} · ${esc(p.difficulty.name)} · ${p.categories.length} × ${p.categories[0].items.length} · ${state}<br>Last played ${esc(fmt.format(new Date(s.lastPlayed)))}</div>
+      <div class="info">${s.race ? `<span class="pill">Race ${esc(s.race.code)}</span> ` : ''}${(s.myNotes || '').trim() ? '<span class="pill">Has notes</span> ' : ''}${esc(p.theme.name)} · ${esc(p.difficulty.name)} · ${p.categories.length} × ${p.categories[0].items.length} · ${state}<br>Last played ${esc(fmt.format(new Date(s.lastPlayed)))}</div>
       <div class="bar" role="img" aria-label="${state}"><i style="width:${pct}%"></i></div>
       <div class="row">
         <button class="btn primary small" type="button" data-do="resume">${s.solved ? 'Open' : 'Resume'}<span class="sr-only"> ${esc(s.name)}</span></button>
@@ -540,6 +540,8 @@ function openGame(save, { fresh = false } = {}) {
     <select id="q-${q.number}" data-n="${q.number}"><option value="">Choose an answer</option>${q.options.map((o) => `<option value="${o}"${save.answers[q.number] === o ? ' selected' : ''}>${esc(ix.label(o))}</option>`).join('')}</select>
     <span class="res" id="qr-${q.number}"></span></li>`).join('');
   $('#answer-result').textContent = '';
+  $('#my-notes').value = save.myNotes || '';
+  updateNotesCount();
 
   S.grid = createGrid($('#gridframe'), puzzle, ix, {
     onCycle: (k) => { const cur = S.marks.get(k) || ''; setCell(k, cur === '' ? 'X' : cur === 'O' ? '' : 'O'); },
@@ -773,6 +775,19 @@ $('#listview').addEventListener('change', (e) => {
   announce(sel.value ? `${S.ix.label(row)}, ${S.ix.label(sel.value)}, confirmed.` : `${S.ix.label(row)}, ${cat.name} not decided.`);
 });
 $$('input[name=view]').forEach((r) => r.addEventListener('change', () => setView(r.value)));
+
+// ---- the player's own notes ----
+const NOTES_MAX = 5000;
+function updateNotesCount() {
+  const left = NOTES_MAX - $('#my-notes').value.length;
+  $('#my-notes-count').textContent = left <= 500 ? (left ? `${left} characters left.` : 'Your notes are full.') : '';
+}
+$('#my-notes').addEventListener('input', () => {
+  if (!S) return;
+  S.save.myNotes = $('#my-notes').value;
+  updateNotesCount();
+  scheduleSave();
+});
 
 // ---- clues and questions ----
 $('#clue-list').addEventListener('change', (e) => {
@@ -1233,6 +1248,34 @@ $('#read-story').addEventListener('click', () => {
   voiceWaitNote();
   ai.speak(settings, S.puzzle, 'narrator', S.puzzle.story.paragraphs.join(' '), { volume: settings.volume / 100 });
 });
+// Every clue, in order, each told by its witness in their own voice. The clue
+// being read is highlighted; pressing the button again stops.
+function readCluesDone() {
+  $$('#clue-list li.reading').forEach((li) => li.classList.remove('reading'));
+  const b = $('#read-clues');
+  b.setAttribute('aria-pressed', 'false');
+  b.textContent = 'Read the clues aloud';
+}
+$('#read-clues').addEventListener('click', async () => {
+  if (!S) return;
+  const b = $('#read-clues');
+  if (b.getAttribute('aria-pressed') === 'true') { ai.stopSpeaking(); readCluesDone(); return; }
+  if (!settings.sound) { status('Sound is off. Turn it on to hear the clues.'); return; }
+  const game = S;
+  const lines = game.puzzle.clues.map((c) => ({ who: game.witness[c.number] || 'narrator', text: `Clue ${c.number}. ${c.text}` }));
+  b.setAttribute('aria-pressed', 'true');
+  b.textContent = 'Stop reading the clues';
+  voiceWaitNote();
+  await ai.speakLines(settings, game.puzzle, lines, {
+    volume: settings.volume / 100,
+    onLine: (i) => {
+      if (S !== game) return;
+      $$('#clue-list li.reading').forEach((li) => li.classList.remove('reading'));
+      if (i >= 0) $(`#clue-list li[data-n="${game.puzzle.clues[i].number}"]`)?.classList.add('reading');
+    },
+  });
+  readCluesDone();
+});
 // Free Kokoro voices: one-time model download, then they run on this computer.
 function kokoroStatus() {
   $('#kokoro-status').textContent = ai.kokoroReady(settings) ? 'Free voices are on this computer.' : '';
@@ -1338,6 +1381,8 @@ function openPrint() {
   $('#p-steps-row').hidden = !['basic', 'easy'].includes(S.puzzle.difficulty.id);
   $('#p-steps').checked = false;
   $('#p-key').checked = false;
+  $('#p-notes-row').hidden = !(S.save.myNotes || '').trim();
+  $('#p-mynotes').checked = false;
   $('#print-pdf').hidden = !(window.desktop && window.desktop.savePdf);
   openDialog(dlg, $('input[name=pwhat]:checked'));
 }
@@ -1348,6 +1393,7 @@ function printOptions() {
     steps: $('#p-key').checked && $('#p-steps').checked && !$('#p-steps-row').hidden,
     paper: $('input[name=ppaper]:checked').value,
     marks: S.marks,
+    myNotes: $('#p-mynotes').checked && !$('#p-notes-row').hidden ? S.save.myNotes : '',
   };
 }
 $('#print-go').onclick = () => {
