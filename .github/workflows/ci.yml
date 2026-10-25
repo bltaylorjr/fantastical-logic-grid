@@ -41,6 +41,7 @@ jobs:
           node scripts/e2e-compete.cjs
           node scripts/e2e-errors.cjs
           node scripts/e2e-admin.cjs
+          node scripts/e2e-archive.cjs
 
   server:
     runs-on: ubuntu-latest

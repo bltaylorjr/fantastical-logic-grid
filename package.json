@@ -15,7 +15,7 @@
     "test:compete": "npm --prefix server install --no-audit --no-fund && npm run build && node scripts/e2e-compete.cjs",
     "test:server": "npm --prefix server install --no-audit --no-fund && npm --prefix server test",
     "test:errors": "npm --prefix server install --no-audit --no-fund && npm run build && node scripts/e2e-errors.cjs",
-    "test:admin": "npm --prefix server install --no-audit --no-fund && npm run build && node scripts/e2e-admin.cjs"
+    "test:admin": "npm --prefix server install --no-audit --no-fund && npm run build && node scripts/e2e-admin.cjs && node scripts/e2e-archive.cjs"
   },
   "devDependencies": {
     "@fontsource/atkinson-hyperlegible": "^5.2.5",

@@ -18,6 +18,9 @@
 //   GET/POST /admin/v1/announcements   messages in the game; POST .../:id/(end|delete)
 //   GET  /admin/v1/audit               the audit log
 //   GET/POST /admin/v1/admins          who may sign in (owner only); POST /admin/v1/admins/remove
+//   GET  /admin/v1/archive             the weekly archive: setup, what goes, past runs (archive.js)
+//   POST /admin/v1/archive/run         send the archive email now (owner)
+//   GET  /admin/v1/archive/download    the same zip as a download, nothing removed (owner)
 //
 // Sign-in: a Firebase ID token from a game account with a confirmed email that
 // is the OWNER_EMAIL secret or listed in the admins table. The ADMIN_TOKEN
@@ -32,6 +35,7 @@ import { checkName, cleanName, nameKey, hasBlockedWords } from './names.js';
 import { deleteCompeteStatements, clearBoardCache } from './compete.js';
 import { SETTINGS, getSettings, checkSetting, saveSetting, themeList } from './settings.js';
 import { TUNING_CACHE_KEY } from './learn.js';
+import { archiveStatus, runArchive, buildArchive } from './archive.js';
 
 const DAY = 24 * 3600_000;
 const ROLES = { viewer: 1, moderator: 2, admin: 3, owner: 4 };
@@ -40,7 +44,7 @@ const MAX_BODY = 8_000;
 const DENIED_PER_DAY = 500; // refused requests written to the audit log, so a flood cannot fill it
 const ANALYTICS_CACHE_MS = 120_000;
 const TABLES = ['sync_users', 'sync_records', 'sync_deleted_users', 'players', 'scores', 'races', 'race_entries', 'race_invites', 'plays', 'parts', 'usage',
-  'app_errors', 'upkeep_log', 'admins', 'admin_audit', 'settings', 'announcements', 'bans', 'name_reviews'];
+  'app_errors', 'upkeep_log', 'admins', 'admin_audit', 'settings', 'announcements', 'bans', 'name_reviews', 'archive_log'];
 // Free plan allowances (Cloudflare and Firebase pages, October 2026).
 export const FREE_LIMITS = {
   workerRequestsPerDay: 100_000, d1RowsReadPerDay: 5_000_000, d1RowsWrittenPerDay: 100_000,
@@ -449,6 +453,16 @@ const ROUTES = [
     return { body: { entries: results.map((e) => ({ ...e, detail: e.detail ? JSON.parse(e.detail) : null })) } };
   }],
 
+  ['GET', /^archive$/, 'admin', 'archive.view', async ({ env, now }) => ({ body: await archiveStatus(env, now) })],
+  ['POST', /^archive\/run$/, 'owner', 'archive.run', async ({ env, who, now }) => {
+    const r = await runArchive(env, now, { trigger: who.actor });
+    return { body: r, detail: { status: r.status, rows: r.rows, removed: !!r.removed } };
+  }],
+  ['GET', /^archive\/download$/, 'owner', 'archive.download', async ({ env, now }) => {
+    const { zip, name, counts } = await buildArchive(env, now);
+    return { file: zip, name, detail: { rows: counts } };
+  }],
+
   ['GET', /^admins$/, 'owner', 'admins.view', async ({ env }) => {
     const { results } = await env.DB.prepare('SELECT email, role, added_by AS addedBy, added_at AS addedAt FROM admins ORDER BY added_at').all();
     const owner = String(env.OWNER_EMAIL || '').trim().toLowerCase();
@@ -509,6 +523,11 @@ async function api(req, env, url, path) {
     const body = await readBody(req);
     const out = await route[4]({ req, env, url, who, params, body, now: Date.now() });
     await audit(env, { actor: who.actor, role: who.role, action, target: out.target, detail: out.detail, status: 200 });
+    if (out.file) {
+      return new Response(out.file, {
+        headers: { 'Content-Type': 'application/zip', 'Content-Disposition': `attachment; filename="${out.name}"`, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
+      });
+    }
     return reply(out.body);
   } catch (e) {
     if (!(e instanceof Refusal)) {
@@ -522,7 +541,7 @@ async function api(req, env, url, path) {
   }
 }
 
-const APP_FILE = /^\/admin\/([\w-]+\.(?:js|css|svg|png))?$/;
+const APP_FILE = /^\/admin\/([\w-]+\.(?:js|css|svg|png|html))?$/;
 const TYPES = { js: 'text/javascript; charset=utf-8', css: 'text/css; charset=utf-8', svg: 'image/svg+xml', png: 'image/png', html: 'text/html; charset=utf-8' };
 
 async function appFile(env, url, file) {

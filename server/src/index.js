@@ -8,7 +8,8 @@
 //   /admin/*                             the admin dashboard and its API (admin.js)
 //   GET /v1/health[?deep=1]              a quick check that the Worker (and with
 //                                        deep=1, the database and daily cleanup) is up
-// scheduled(): the daily cleanup of old data (upkeep.js, cron in wrangler.toml).
+// scheduled(): the daily cleanup of old data (upkeep.js) and the weekly archive
+// email (archive.js), on the crons in wrangler.toml.
 
 import { handleLearn } from './learn.js';
 import { handleCompete } from './compete.js';
@@ -16,11 +17,13 @@ import { handleErrors } from './errors.js';
 import { handleAdmin } from './admin.js';
 import { publicConfig } from './settings.js';
 import { runUpkeep, deepHealth } from './upkeep.js';
+import { runArchive } from './archive.js';
 import { handleSync, handleDeleteAccount, isDeleted } from './sync.js';
 import { verifyIdToken, AuthError } from './auth.js';
 import { json, corsHeaders } from './http.js';
 
 const MAX_BODY = 4_000_000;
+const WEEKLY_ARCHIVE_CRON = '47 4 * * 1';
 
 async function signedIn(req, env) {
   const m = (req.headers.get('Authorization') || '').match(/^Bearer (.+)$/);
@@ -84,6 +87,10 @@ export default {
     }
   },
   async scheduled(controller, env, ctx) {
+    if (controller.cron === WEEKLY_ARCHIVE_CRON) {
+      ctx.waitUntil(runArchive(env).then((r) => console.log('archive', r.status, JSON.stringify(r.rows || {}))));
+      return;
+    }
     ctx.waitUntil(runUpkeep(env).then((removed) => console.log('upkeep', JSON.stringify(removed))));
   },
 };

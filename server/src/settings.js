@@ -28,6 +28,14 @@ export const SETTINGS = {
   story_sharing_enabled: { type: 'bool', default: true, group: 'Learning', label: 'Accept shared story parts', help: 'Off: players cannot send story parts for review.' },
   error_reports_enabled: { type: 'bool', default: true, group: 'Upkeep', label: 'Accept error reports', help: 'Off: error reports from the apps are dropped.' },
   blocked_words: { type: 'words', default: [], group: 'Moderation', label: 'Extra blocked words in screen names', help: 'Added to the built-in word filter. Letters only, 3 to 30 each.' },
+  archive_email_enabled: {
+    type: 'bool', default: false, group: 'Backups', label: 'Weekly archive email',
+    help: 'On: every Monday, old rows the game no longer needs are zipped and emailed (see Backups and archive). While on, the daily cleanup leaves those rows for the archive.',
+  },
+  archive_delete_enabled: {
+    type: 'bool', default: false, group: 'Backups', label: 'Remove archived rows after the email is sent',
+    help: 'Needs the weekly email on. Rows are removed only after Cloudflare accepts the email. Off: the email is a copy, nothing is removed and the same rows come again next week.',
+  },
 };
 
 let cache = { at: 0, values: null };

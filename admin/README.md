@@ -16,7 +16,8 @@ needs no extra hosting and stays free. Its API is `server/src/admin.js`.
 | Settings and switches | Free voices on/off and the daily voice cap, races, solo scores, new screen names, themes on/off, accepting shared plays, story parts and error reports, extra blocked words | viewer to look, admin to change |
 | Announcements | A message at the top of the game's home screen, with an optional start and end | viewer to look, admin to publish |
 | Error reports | Anonymous errors from the apps, most frequent first | viewer |
-| Audit log | Every admin request, allowed or refused, kept for a year | admin |
+| Backups and archive | What the weekly archive email takes out of the database and for how long each kind is kept, rows waiting, past runs; send now or download the zip (owner). Archive viewer: open archive zips in the browser to filter, group, chart and export them | admin (send/download: owner) |
+| Audit log | Every admin request, allowed or refused; 90 days in the database, older entries in the weekly archive | admin |
 | Admins | Add or remove admins and choose their role | owner |
 
 Changes reach every copy of the game within about a minute (the game reads
@@ -75,4 +76,6 @@ Everything here is on free plans; nothing can bill.
 
 `npm --prefix server test` (API, roles, audit, rate limits, settings, players)
 and `npm run test:admin` (the dashboard in a real browser against the real
-Worker, plus the announcement and switched-off theme in the game).
+Worker, plus the announcement and switched-off theme in the game, and the
+Backups section and archive viewer). The weekly archive is explained in
+`server/ARCHIVE.md`.
