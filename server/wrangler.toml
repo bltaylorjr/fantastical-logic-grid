@@ -4,11 +4,11 @@ name = "flg-api"
 main = "src/index.js"
 compatibility_date = "2026-08-01"
 
-# Fill in database_id after `npx wrangler d1 create flg` (see README.md).
+# The D1 database "flg" (created in the Cloudflare dashboard).
 [[d1_databases]]
 binding = "DB"
 database_name = "flg"
-database_id = "REPLACE_WITH_D1_DATABASE_ID"
+database_id = "7285197a-aadd-4e07-ba53-0af8268cf794"
 migrations_dir = "migrations"
 
 [vars]
