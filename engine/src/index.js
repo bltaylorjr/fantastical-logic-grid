@@ -6,7 +6,7 @@ export { generatePuzzle, gridLayout, ENGINE_NAME, ENGINE_VERSION } from './gener
 export { getHint, checkMarks, checkAnswers, isSolved, formatPuzzleText } from './play.js';
 export { THEMES, TIERS, CLUE_TYPES, SIZE_LIMITS };
 export { STORYLINES, storylineCount } from './storylines.js';
-export { parseStoryId } from './story.js';
+export { parseStoryId, checkStoryPart, partKey, PART_KINDS } from './story.js';
 
 // The id to save once a player starts a puzzle; pass saved ids back as
 // generatePuzzle({ usedStories }) and the engine never repeats one.
