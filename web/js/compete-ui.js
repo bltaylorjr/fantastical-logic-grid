@@ -341,12 +341,20 @@ function renderRaceResult(box, save, race) {
 }
 
 // ------------------------------------------------------------ scoreboard
+// The rules window opens from the scoreboard, the race window and Help.
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('[data-rules]')) return;
+  const d = $('#dlg-rules');
+  ui.openDialog(d, $('#rules-h'));
+});
+
 export function openBoard() {
   ui.openDialog($('#dlg-board'), $('#dlg-board input[name=board-period]:checked'));
   loadBoard();
 }
 
 function wireBoard() {
+  $('#dlg-rules').addEventListener('click', (e) => { if (e.target.closest('[data-close]')) $('#dlg-rules').close(); });
   const d = $('#dlg-board');
   d.addEventListener('click', (e) => { if (e.target.closest('[data-close]')) d.close(); });
   $$('input[name=board-period]', d).forEach((r) => { r.onchange = loadBoard; });

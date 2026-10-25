@@ -543,7 +543,7 @@
 <dialog id="dlg-race" aria-labelledby="race-h">
   <h2 id="race-h">Start a race</h2>
   <form class="race-view" data-view="start" novalidate>
-    <p class="help">You and everyone who joins get the same puzzle. The fastest solve wins; each hint adds 1 minute and each check 15 seconds to your race time. Others can join for 7 days.</p>
+    <p class="help">You and everyone who joins get the same puzzle. The fastest solve wins; each hint adds 1 minute and each check 15 seconds to your race time. Others can join for 7 days. <button class="btn quiet small" type="button" data-rules>Scoring and race rules</button></p>
     <p id="race-choice"></p>
     <label class="check"><input type="checkbox" id="race-public" checked> Let anyone join with Find a race, not only people I give the code to</label>
     <div class="error-box" role="alert" hidden></div>
@@ -580,7 +580,53 @@
   <p class="help">Points come from solved puzzles: harder, bigger and faster solves earn more, and hints and checks earn less. Race wins count races you won against at least one other player. The week starts on Monday.</p>
   <p id="board-me" class="board-me"></p>
   <div id="board-body" aria-live="polite"></div>
-  <div class="dlg-actions"><button class="btn" type="button" id="board-name" hidden>Choose a screen name</button><button class="btn primary" type="button" data-close>Close</button></div>
+  <div class="dlg-actions"><button class="btn" type="button" data-rules>Scoring and race rules</button><button class="btn" type="button" id="board-name" hidden>Choose a screen name</button><button class="btn primary" type="button" data-close>Close</button></div>
+</dialog>
+
+<dialog id="dlg-rules" class="wide rules" aria-labelledby="rules-h">
+  <h2 id="rules-h" tabindex="-1">Scoring and race rules</h2>
+  <p>Every puzzle you solve earns points, alone or in a race. In a race everyone gets the same puzzle, and the lowest race time wins. You need an account and a screen name to earn points or race. Playing alone never needs one.</p>
+
+  <h3>How points are awarded</h3>
+  <p>Points = <b>difficulty base</b> × <b>size</b> × <b>speed</b> × <b>help</b>, rounded, and at least 1.</p>
+  <ul>
+    <li><b>Difficulty base:</b> Basic 10, Easy 20, Medium 35, Hard 55, Expert 80, MENSA 110.</li>
+    <li><b>Size:</b> bigger grids are worth more. A 3 × 4 grid counts as 1, a 4 × 4 grid as 1.4, a 6 × 7 grid as 3.9.</li>
+    <li><b>Speed:</b> matching the usual time for the puzzle (shown on the New puzzle screen) counts as 1. Solving in under about half the usual time earns up to 1.5. Very slow solves still get at least 0.6.</li>
+    <li><b>Help:</b> each hint takes away 15% and each check 5%, but you always keep at least a quarter of the points. Each step of a hint (the nudge, the clue, the cell) counts as one hint.</li>
+    <li>A revealed solution earns nothing. Each puzzle counts once, and up to 40 solo puzzles a day count.</li>
+  </ul>
+  <div class="table-wrap"><table class="board"><caption>Points for a puzzle solved without help</caption>
+    <thead><tr><th scope="col">Puzzle</th><th scope="col">Usual time</th><th scope="col">At the usual time</th><th scope="col">Twice as fast</th><th scope="col">Three times slower</th></tr></thead>
+    <tbody>
+      <tr><th scope="row">Basic 3 × 4</th><td>6 min</td><td>10</td><td>14</td><td>6</td></tr>
+      <tr><th scope="row">Easy 4 × 4</th><td>15 min</td><td>28</td><td>40</td><td>17</td></tr>
+      <tr><th scope="row">Medium 4 × 5</th><td>33 min</td><td>62</td><td>88</td><td>37</td></tr>
+      <tr><th scope="row">Hard 5 × 5</th><td>75 min</td><td>126</td><td>178</td><td>75</td></tr>
+      <tr><th scope="row">Expert 5 × 6</th><td>2 h 10 min</td><td>219</td><td>310</td><td>131</td></tr>
+      <tr><th scope="row">MENSA 6 × 7</th><td>5 h 9 min</td><td>430</td><td>609</td><td>258</td></tr>
+    </tbody></table></div>
+
+  <h3>Race rules</h3>
+  <ol>
+    <li><b>Start:</b> a race uses your New puzzle choices. Share the 6-character code or link. You choose whether strangers can join through Find a race.</li>
+    <li><b>Join:</b> with the code, the link, or Find a race. A race is open to new players for 7 days and takes up to 20 players.</li>
+    <li><b>Race time</b> = solve time + 1 minute per hint + 15 seconds per check. The clock runs while the puzzle is on screen.</li>
+    <li><b>Places</b> go from the lowest race time. Equal times share a place.</li>
+    <li><b>Finishing:</b> your answers are checked, and a result is sent once and cannot be changed. Results count for 14 days after the race starts.</li>
+    <li><b>Giving up:</b> revealing the solution counts as giving up and earns no points. You have 10 seconds to undo it.</li>
+    <li><b>Points:</b> a solved race earns points the same way as a solo puzzle.</li>
+    <li><b>Race wins:</b> you have a win while you are in first place and at least one other player has solved the race. Someone who finishes later with a lower time can take the win.</li>
+  </ol>
+
+  <h3>The scoreboard</h3>
+  <ul>
+    <li><b>This week</b> starts on Monday at 00:00 UTC. <b>All time</b> never resets.</li>
+    <li>Players are ranked by points. A tie goes to more race wins, then to whoever scored first.</li>
+    <li>The top 50 are shown, and your own place is always shown. The board can be up to 30 seconds behind.</li>
+    <li><b>Leave the scoreboard</b> (in the screen name window) removes your name, points and race results.</li>
+  </ul>
+  <div class="dlg-actions"><button class="btn primary" type="button" data-close>Close</button></div>
 </dialog>
 
 <dialog id="dlg-install" aria-labelledby="install-h">
@@ -623,7 +669,7 @@
   <p><button class="btn" type="button" id="help-video"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 9.003a1 1 0 0 1 1.517-.859l4.997 2.997a1 1 0 0 1 0 1.718l-4.997 2.997A1 1 0 0 1 9 14.996z"/><circle cx="12" cy="12" r="10"/></svg> Watch the how-to-play video</button> <span class="muted">8 minutes, narrated, with captions and examples</span></p>
   <p>Read a clue, then mark the grid. <b>X</b> means two things do not go together. <b>O</b> means they do. Each row in a sub-grid has exactly one O. When the grid is full, answer the story questions.</p>
   <p>Select a character's portrait to hear the clues they remember. Each finished section of the grid reveals more of the scene. Want fewer distractions? Choose <b>Silent mode</b> on the New puzzle screen or in Settings to see only the story, the grid, the clues and the answer key.</p>
-  <p id="help-compete" hidden>Want company? Under <b>Play against others</b> on the home screen, sign in and choose a screen name, then start a race (everyone gets the same puzzle, fastest solve wins), join one with a code, or find an open race. Your solved puzzles earn points on the <b>Scoreboard</b>.</p>
+  <p id="help-compete" hidden>Want company? Under <b>Play against others</b> on the home screen, sign in and choose a screen name, then start a race (everyone gets the same puzzle, fastest solve wins), join one with a code, or find an open race. Your solved puzzles earn points on the <b>Scoreboard</b>. <button class="btn quiet small" type="button" data-rules>Scoring and race rules</button></p>
   <h3>Keys</h3>
   <table class="keys">
     <tbody>

@@ -210,6 +210,12 @@ function startAuth(signer) {
     assert(/You \(Sky Fox\) are number/.test(await A.page.textContent('#board-me')), 'A sees their own place');
     assert(await A.page.$$eval('#board-body tr.me', (t) => t.length) === 1, 'A\'s row is highlighted');
     await A.page.screenshot({ path: path.join(process.env.SHOTS || '/tmp', 'compete-board.png') });
+    await A.page.click('#dlg-board [data-rules]');
+    await A.page.waitForSelector('#dlg-rules[open]');
+    assert(/Race time<\/b> = solve time \+ 1 minute per hint/.test(await A.page.innerHTML('#dlg-rules')), 'the scoreboard links to the scoring and race rules');
+    await A.page.locator('#dlg-rules').screenshot({ path: path.join(process.env.SHOTS || '/tmp', 'compete-rules.png') });
+    await A.page.click('#dlg-rules [data-close]');
+    assert(await A.page.isVisible('#dlg-board[open]'), 'closing the rules returns to the scoreboard');
     await A.page.check('input[name=board-period][value=all]', { force: true });
     await A.page.waitForFunction(() => document.querySelectorAll('#board-body tbody tr').length === 2);
     assert(true, 'the all-time board works');
