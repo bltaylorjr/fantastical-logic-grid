@@ -73,7 +73,7 @@ export async function ratingOf(storyId) {
 }
 
 // How a finished play felt, from -1 (far too hard) to 1 (far too easy).
-function signal(p) {
+export function signal(p) {
   if (p.feel === 'easy') return 1;
   if (p.feel === 'hard') return -1;
   if (p.feel === 'right') return 0;

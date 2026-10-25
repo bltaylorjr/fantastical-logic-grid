@@ -278,6 +278,7 @@
     </fieldset>
     <fieldset class="learning"><legend>Learning</legend>
       <label class="check"><input type="checkbox" name="learn"> Learn from how I play: tune how tough puzzles are within each level, the mix of clues, and which themes and story parts come up. This stays on this device.</label>
+      <label class="check needs-cloud" hidden><input type="checkbox" name="shareLearning"> Learn from everyone: share my results anonymously and use what all players' games taught. Shared: level, theme, size, clue types, time, hints, mistakes, rating, and which story parts were used. Never shared: your name, saved puzzles, AI keys or anything that identifies you.</label>
       <p class="help">Every puzzle is still checked to have exactly one solution with no guessing, and no story is ever used twice.</p>
       <p class="help"><b>What the game has learned</b></p>
       <ul class="learn-summary" id="learn-summary"></ul>
@@ -304,6 +305,7 @@
       <label class="check"><input type="checkbox" name="aiVoice"> Use OpenAI for voices too</label>
     </fieldset>
     <fieldset class="ai-settings"><legend>Where voices come from</legend>
+      <label class="check needs-cloud" hidden><input type="checkbox" name="serverVoices"> Free natural voices from the game's server (no key needed). Only the words being spoken are sent. If the day's free voices run out, the voices on this computer take over.</label>
       <label class="radio"><input type="radio" name="voiceProvider" value="kokoro"> Natural human-sounding voices on this computer (recommended; Kokoro, free, no key, works offline after a one-time download)</label>
       <label class="radio"><input type="radio" name="voiceProvider" value="gemini"> Google Gemini natural voices (free tier, needs a free Google key)</label>
       <label class="radio"><input type="radio" name="voiceProvider" value="openai"> OpenAI natural voices (uses the OpenAI key above)</label>
@@ -336,6 +338,7 @@
     <div class="field" id="ws-name-row" hidden><label for="ws-name">Short name for the title (1 to 3 words)</label><input type="text" id="ws-name" maxlength="40" placeholder="Golden Key"></div>
     <div class="field"><label for="ws-text">Your text</label><textarea id="ws-text" rows="3" maxlength="300"></textarea></div>
     <div class="field" id="ws-prize-row" hidden><label for="ws-prize">The thing at stake</label><input type="text" id="ws-prize" maxlength="60" placeholder="the golden key"></div>
+    <label class="check needs-cloud" hidden><input type="checkbox" id="ws-share" checked> Also send it to the game's editor to share with every player (it is reviewed first)</label>
     <div class="ws-errors" id="ws-errors" role="alert"></div>
     <div class="row-inline"><button class="btn primary small" type="button" id="ws-add">Add to the game</button><span id="ws-status" role="status"></span></div>
 

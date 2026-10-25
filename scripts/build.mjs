@@ -38,6 +38,11 @@ if (existsSync(cinzel)) cpSync(cinzel, join(web, 'fonts', 'cinzel-700.woff2'));
 // 3. dist/web with a stamped service worker.
 rmSync(out, { recursive: true, force: true });
 cpSync(web, out, { recursive: true });
+// The shared service address (server/), if this build has one.
+if (process.env.FLG_CLOUD_URL) {
+  const cfg = join(out, 'js', 'cloud-config.js');
+  writeFileSync(cfg, readFileSync(cfg, 'utf8').replaceAll('__FLG_CLOUD_URL__', process.env.FLG_CLOUD_URL.replace(/\/+$/, '')));
+}
 const files = [];
 const walk = (d) => { for (const n of readdirSync(d)) { const p = join(d, n); if (statSync(p).isDirectory()) walk(p); else files.push(relative(out, p).split('\\').join('/')); } };
 walk(out);

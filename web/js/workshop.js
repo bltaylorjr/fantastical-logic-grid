@@ -5,6 +5,7 @@ import { THEMES, STORYLINES, checkStoryPart } from '../engine/index.js';
 import * as learn from './learn.js';
 import * as ai from './ai.js';
 import * as store from './store.js';
+import * as share from './share.js';
 import { esc } from './grid.js';
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -59,8 +60,14 @@ async function add(value, source) {
   if (!res.ok) { $('#ws-errors').innerHTML = res.errors.map(esc).join('<br>'); return false; }
   $('#ws-errors').textContent = '';
   $('#ws-status').textContent = 'Added. It will appear in new stories.';
+  if (share.available() && $('#ws-share').checked) {
+    share.sharePart(theme().id, kind(), value, source).then(
+      () => { $('#ws-status').textContent = 'Added, and sent to the editor to share with everyone.'; },
+      () => { $('#ws-status').textContent = 'Added. It could not be sent to the editor right now.'; },
+    );
+  }
   await renderMine();
-  window.sync?.soon();
+  window.share?.soon();
   return true;
 }
 

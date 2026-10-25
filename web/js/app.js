@@ -14,6 +14,7 @@ import { celebrate as confettiBurst } from './effects.js';
 import { icon } from './icons.js';
 import * as learn from './learn.js';
 import * as workshop from './workshop.js';
+import * as share from './share.js';
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -389,7 +390,7 @@ $('#saved-list').addEventListener('click', async (e) => {
   else if (act === 'delete') {
     const ok = await confirmDialog({ title: `Delete “${save.name}”?`, text: 'This removes the puzzle and your progress from this device. You can undo for 10 seconds.', yes: 'Delete puzzle', no: 'Keep it' });
     if (!ok) return;
-    if (!save.solved && settings.learn) await learn.record(save, 'abandoned').catch(() => {});
+    if (!save.solved && settings.learn) { await learn.record(save, 'abandoned').catch(() => {}); share.soon(); }
     await store.deleteSave(id);
     await renderSaved();
     $('#saved-h').focus();
@@ -875,7 +876,7 @@ function checkSolved() {
     S.save.completedAt = Date.now();
     tickTimer();
     recordSolve(S.save);
-    if (settings.learn) learn.record(S.save, S.save.revealed ? 'revealed' : 'solved').catch(() => {});
+    if (settings.learn) learn.record(S.save, S.save.revealed ? 'revealed' : 'solved').then(() => share.soon(), () => {});
     stopTimer();
     showSolved(true);
     scheduleSave();
@@ -954,7 +955,7 @@ $('#feedback').addEventListener('change', async (e) => {
   const v = e.target.name === 'rating' ? { rating: +e.target.value } : { feel: e.target.value };
   await learn.rate(S.save, v).catch(() => {});
   $('#feedback-thanks').textContent = 'Thanks. Your next puzzles will use this.';
-  window.sync?.soon();
+  window.share?.soon();
 });
 $('#feedback-idea').onclick = () => workshop.open({ theme: S ? S.puzzle.theme.id : null });
 
@@ -1321,6 +1322,10 @@ $('#learn-reset').addEventListener('click', async () => {
   status('Learning reset.');
 });
 $('#learn-workshop').addEventListener('click', () => workshop.open({}));
+for (const el of $$('.needs-cloud')) el.hidden = !share.available();
+share.init({
+  onNotice: () => toast('The game now learns from everyone\'s puzzles. Your results are shared without your name or any personal details.', { label: 'Settings', run: openSettings }, { ms: 12000 }),
+});
 
 function openSettings() {
   const f = $('#settings-form');
@@ -1339,6 +1344,7 @@ $('#settings-form').addEventListener('change', (e) => {
   if (!el.name) return;
   settings[el.name] = el.type === 'checkbox' ? el.checked : el.type === 'range' ? +el.value : el.type === 'password' ? el.value.trim() : el.value;
   if (S && (el.name === 'aiPictures' || el.name === 'aiKey') && !$('#screen-play').hidden) loadAiArt();
+  if (el.name === 'shareLearning' || el.name === 'learn') { store.saveSettings(settings); share.refresh(true); }
   if (S && el.name === 'portraitStyle') {
     for (const btn of $$('#cast-row .cast-btn')) {
       const face = btn.querySelector('svg.portrait-svg');

@@ -29,6 +29,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+        env:
+          FLG_CLOUD_URL: ${{ vars.FLG_CLOUD_URL }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist/site
@@ -72,6 +74,8 @@ jobs:
           cache: npm
       - if: steps.hosts.outputs.any == 'true'
         run: npm ci && npm run build
+        env:
+          FLG_CLOUD_URL: ${{ vars.FLG_CLOUD_URL }}
 
       - name: Netlify
         if: env.NETLIFY_AUTH_TOKEN != '' && env.NETLIFY_SITE_ID != ''
