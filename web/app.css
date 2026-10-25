@@ -259,6 +259,11 @@ td.c.auto { background-image: radial-gradient(circle, var(--border) 1px, transpa
 .q-list select { display: block; margin-top: 4px; min-height: 44px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); max-width: 100%; }
 .q-list .res { font-weight: 700; margin-left: 4px; }
 .q-list .res.bad { color: var(--error); }
+.mynotes h2 { margin-bottom: 12px; }
+.mynotes textarea { display: block; width: 100%; min-height: 120px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); color: var(--text); font: inherit; line-height: 1.5; resize: vertical; }
+.mynotes textarea::placeholder { color: var(--muted); opacity: 1; }
+.mynotes .help { margin: 8px 0 0; }
+.mynotes #my-notes-count:empty { display: none; }
 
 .solved { margin-top: 24px; border: 2px solid var(--accent); outline: none; }
 .solved h2 { font-size: 1.6rem; color: var(--accent); }
@@ -382,8 +387,8 @@ h3, legend, .card h3 { font-family: var(--font); }
 /* Panels */
 .card { background: var(--surface); border: 1px solid var(--edge); border-radius: var(--radius); box-shadow: inset 0 1px 0 var(--edge), var(--shadow);
   backdrop-filter: blur(16px) saturate(1.25); -webkit-backdrop-filter: blur(16px) saturate(1.25); }
-.card > h2:first-child, .grid-head h2, .clues h2, .questions h2, .saved-head h2 { display: flex; align-items: center; gap: 10px; }
-.clues h2::before, .questions h2::before, .grid-head h2::before, .saved-head h2::before, .setup-card > h2::before {
+.card > h2:first-child, .grid-head h2, .clues h2, .questions h2, .mynotes h2, .saved-head h2 { display: flex; align-items: center; gap: 10px; }
+.clues h2::before, .questions h2::before, .mynotes h2::before, .grid-head h2::before, .saved-head h2::before, .setup-card > h2::before {
   content: ""; width: 4px; height: 1em; border-radius: 2px; background: linear-gradient(var(--accent-hi), var(--accent)); flex: none; }
 
 /* Buttons */
@@ -550,6 +555,7 @@ dialog::backdrop { background: rgb(5 7 16 / .6); backdrop-filter: blur(6px); -we
   .pp ol { margin: 0; padding-left: 18pt; }
   .pp li { break-inside: avoid; margin-bottom: 3pt; }
   .pp .qline { display: inline-block; min-width: 140pt; border-bottom: .5pt solid #000; margin-left: 6pt; }
+  .pp .pnotes { white-space: pre-wrap; overflow-wrap: anywhere; }
   table.pg { border-collapse: collapse; font-size: 10pt; break-inside: avoid; margin: 6pt 0 10pt; }
   table.pg tr { break-inside: avoid; }
   table.pg td.c { width: var(--pcell); height: var(--pcell); min-width: var(--pcell); border: .5pt solid #000; text-align: center; vertical-align: middle; padding: 0; font-size: calc(var(--pcell) * .6); line-height: 1; }

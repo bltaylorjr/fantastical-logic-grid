@@ -8,7 +8,7 @@
 // a conflict, and the two copies are merged here:
 //   saved puzzle  a solved copy beats an unsolved one, otherwise the copy
 //                 played most recently wins. If the other copy had progress
-//                 of its own, it is kept as "<name> (from another device)".
+//                 or notes of its own, it is kept as "<name> (from another device)".
 //                 Progress beats a deletion. The open puzzle always wins
 //                 while it is being played.
 //   used stories  both lists are combined, so a story is never reused.
@@ -339,9 +339,12 @@ function better(a, b) {
   return (a.lastPlayed || 0) >= (b.lastPlayed || 0);
 }
 
-// Does the losing copy hold progress the winner lacks?
+// Does the losing copy hold progress or notes the winner lacks?
 function ownProgress(loser, winner) {
-  if (!loser || !loser.puzzle || loser.solved || winner.solved) return false;
+  if (!loser || !loser.puzzle) return false;
+  const notes = (loser.myNotes || '').trim();
+  if (notes && !(winner.myNotes || '').includes(notes)) return true;
+  if (loser.solved || winner.solved) return false;
   const lm = loser.marks || {};
   const wm = winner.marks || {};
   const keys = Object.keys(lm);
