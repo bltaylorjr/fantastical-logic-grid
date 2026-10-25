@@ -674,6 +674,46 @@ $('#admin-rows').onclick = async (e) => {
   if (await act(b, () => api('admins/remove', { method: 'POST', body: { email: b.dataset.email } }), 'Removed.')) show('admins', { keepFocus: true });
 };
 
+views.search = async () => {
+  const d = await api('search');
+  $('#search-refresh').hidden = !can('admin');
+  $('#search-body').innerHTML = [['google', 'Google Search Console'], ['bing', 'Bing Webmaster Tools']].map(([key, title]) => searchSource(title, key, d.sources[key])).join('');
+};
+const SEARCH_SETUP = {
+  google: 'Add the Worker secret <code>GSC_SERVICE_ACCOUNT</code> (a Google Cloud service account key that is a user on the Search Console property). Steps are in admin/README.md.',
+  bing: 'Add the Worker secret <code>BING_WEBMASTER_KEY</code> (Bing Webmaster Tools, Settings, API access). Steps are in admin/README.md.',
+};
+function searchSource(title, key, s) {
+  const head = `<h2>${esc(title)}</h2>`;
+  if (!s.connected && !s.data) return `<div class="card">${head}<p class="note">Not connected yet. ${SEARCH_SETUP[key]}</p></div>`;
+  const status = s.error
+    ? `<p class="error">The last fetch (${when(s.triedAt)}) failed: ${esc(s.error)}${s.data ? ' The numbers below are from the last good fetch.' : ''}</p>`
+    : s.fetchedAt ? `<p class="muted">Fetched ${when(s.fetchedAt)}.</p>` : '<p class="muted">Not fetched yet: it runs daily at 06:41 UTC, or press Refresh now.</p>';
+  const x = s.data;
+  if (!x) return `<div class="card">${head}${status}</div>`;
+  const t = x.totals;
+  const short = (u) => esc(String(u).replace(/^https?:\/\/(www\.)?thelogicgrid\.com/, '') || '/');
+  const rows = (list, label, link) => table([{ label }, { label: 'Clicks', num: 1 }, { label: 'Impressions', num: 1 }, { label: 'CTR', num: 1 }, { label: 'Position', num: 1 }],
+    list.map((r) => [link ? `<span title="${esc(r.key)}">${short(r.key)}</span>` : esc(r.key), fmt(r.clicks), fmt(r.impressions), r.ctr == null ? '–' : `${r.ctr}%`, r.position ?? '–']), 'No data yet.');
+  const maps = x.sitemaps.length ? table([{ label: 'Sitemap' }, { label: 'Submitted' }, { label: 'Last read' }, { label: 'Pages', num: 1 }, { label: 'Indexed', num: 1 }, { label: 'Status' }],
+    x.sitemaps.map((m) => [short(m.path), m.lastSubmitted ? when(Date.parse(m.lastSubmitted)) : '–', m.lastDownloaded ? when(Date.parse(m.lastDownloaded)) : '–', fmt(m.submitted), m.indexed == null ? '–' : fmt(m.indexed),
+      m.errors ? `<span class="badge bad">${fmt(m.errors)} errors</span>` : m.pending ? '<span class="badge">Waiting</span>' : m.status ? esc(m.status) : '<span class="badge ok">OK</span>'])) : '<p class="muted">No sitemaps listed.</p>';
+  const index = key === 'google'
+    ? (x.home ? `<p>Home page: <span class="badge ${x.home.verdict === 'PASS' ? 'ok' : 'warn'}">${esc(x.home.coverage || x.home.verdict || 'Unknown')}</span>${x.home.lastCrawl ? ` · last crawled ${when(Date.parse(x.home.lastCrawl))}` : ''}</p>` : '')
+    : (x.crawl ? `<p>Pages in Bing's index: <b>${fmt(x.crawl.inIndex)}</b> · crawled ${fmt(x.crawl.crawled)} on ${esc(x.crawl.date)}${x.crawl.errors ? ` · <span class="badge bad">${fmt(x.crawl.errors)} crawl errors</span>` : ''}</p>` : '');
+  return `<div class="card">${head}${status}
+    ${x.errors?.length ? `<p class="note">Some parts did not load: ${esc(x.errors.join(' · '))}</p>` : ''}
+    <p class="muted">${esc(x.start)} to ${esc(x.end)}</p>
+    <div class="tiles">${tile('Clicks', fmt(t.clicks))}${tile('Impressions', fmt(t.impressions))}${tile('Click rate', `${t.ctr ?? 0}%`)}${t.position != null ? tile('Average position', t.position) : ''}</div>
+    <div class="charts">${bars('Clicks per day', x.byDay.map((r) => r.clicks), { labels: x.byDay.map((r) => r.date) })}${bars('Impressions per day', x.byDay.map((r) => r.impressions), { labels: x.byDay.map((r) => r.date) })}</div>
+    <h3>Indexing and sitemaps</h3>${index}${maps}
+    <h3>Top searches</h3>${rows(x.queries, 'Search')}
+    <h3>Top pages</h3>${rows(x.pages, 'Page', true)}</div>`;
+}
+$('#search-refresh').onclick = async (e) => {
+  if (await act(e.currentTarget, () => api('search/refresh', { method: 'POST' }), 'Fetched the latest numbers.')) show('search', { keepFocus: true });
+};
+
 $('#ov-days').onchange = () => show('overview');
 
 // ------------------------------------------------------------- navigation

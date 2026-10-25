@@ -52,6 +52,7 @@
     <ul id="nav-list">
       <li><a href="#overview" data-min="viewer">Overview</a></li>
       <li><a href="#usage" data-min="viewer">Usage and free limits</a></li>
+      <li><a href="#search" data-min="viewer">Search (Google and Bing)</a></li>
       <li><a href="#stories" data-min="moderator">Story workshop and review <span class="count" id="count-parts" hidden></span></a></li>
       <li><a href="#feedback" data-min="moderator">Ideas and problems <span class="count" id="count-feedback" hidden></span></a></li>
       <li><a href="#names" data-min="moderator">Screen names <span class="count" id="count-names" hidden></span></a></li>
@@ -76,6 +77,14 @@
       <div class="head"><h1 id="h-usage">Usage and free limits</h1></div>
       <p class="muted">Everything runs on free plans. When a free allowance runs out, Cloudflare refuses requests for the rest of the day; it never bills.</p>
       <div id="usage-body"><p class="muted">Loading…</p></div>
+    </section>
+
+    <section data-view="search" hidden aria-labelledby="h-search">
+      <div class="head"><h1 id="h-search">Search (Google and Bing)</h1>
+        <button class="btn" type="button" id="search-refresh" data-min="admin">Refresh now</button>
+      </div>
+      <p class="muted">How people find thelogicgrid.com in Google and Bing over the last 28 days. Fetched once a day (06:41 UTC) and kept on the game's server. Google's numbers arrive two or three days late.</p>
+      <div id="search-body"><p class="muted">Loading…</p></div>
     </section>
 
     <section data-view="stories" hidden aria-labelledby="h-stories">
