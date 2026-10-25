@@ -189,7 +189,9 @@ function startAuth(signer) {
     await B.page.waitForSelector('#screen-play:not([hidden])');
     assert(await B.page.locator('td.c .mk-x, td.c[aria-label*="ruled out" i]').count() >= 0, 'opened the synced puzzle on B');
     await markCells(B.page, [5]);
+    await B.page.click('#notes-btn');
     await B.page.fill('#my-notes', 'Notes typed on B');
+    await B.page.click('#notes-save');
     await B.page.click('#home-btn');
     await syncNow(B.page);
     await syncNow(A.page);
