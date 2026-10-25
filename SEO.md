@@ -37,6 +37,9 @@ from it at build time, so it stays in step with the video.
      value. In GitHub, open the repository **Settings > Secrets and variables > Actions >
      Variables**, add `FLG_GOOGLE_SITE_VERIFICATION` with that value, run the
      **Publish web version** workflow, then press **Verify**.
+   - Done (2026-10-25): the site is verified with Google's **HTML file** method. The file
+     `hosting/google42317eab27119d46.html` is published at the site root. Keep it there,
+     because Google re-checks it from time to time.
 4. Open **Sitemaps**, enter `sitemap.xml`, and press **Submit**.
 5. Open **URL inspection**, paste `https://thelogicgrid.com/`, and press
    **Request indexing**. Do the same for `/how-to-play/` and `/daily/`.
@@ -47,6 +50,8 @@ from it at build time, so it stays in step with the video.
 2. Choose **Import from Google Search Console**. This copies the site and its sitemap in one step.
    - Or add the site by hand, pick the **Meta tag** method, and save its `content` value as
      the repository variable `FLG_BING_SITE_VERIFICATION`, then publish and verify.
+   - Done (2026-10-25): the site is verified with Bing's **XML file** method. The file
+     `hosting/BingSiteAuth.xml` is published at the site root. Keep it there.
 3. IndexNow needs nothing more: the key file is already on the site.
 
 ### 3. Optional, also free

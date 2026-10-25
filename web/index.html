@@ -35,7 +35,7 @@
     <button role="menuitem" type="button" data-cmd="feedback" hidden>Ideas and problems</button>
     <button role="menuitem" type="button" data-cmd="board" hidden>Scoreboard</button>
     <button role="menuitem" type="button" data-cmd="account" hidden>Account and sync</button>
-    <button role="menuitem" type="button" data-cmd="install" hidden>Install app</button>
+    <button role="menuitem" type="button" data-cmd="install" hidden>Install the app</button>
   </div>
   <!-- Always visible: How to play and a small scoreboard. -->
   <div class="topstrip">
@@ -370,6 +370,8 @@
     <div class="field"><label for="si-email">Email</label><input type="email" id="si-email" name="email" autocomplete="username email" inputmode="email" spellcheck="false" required></div>
     <div class="field"><label for="si-pass">Password</label><input type="password" id="si-pass" name="password" autocomplete="current-password" required></div>
     <label class="check"><input type="checkbox" data-show-pass> Show password</label>
+    <label class="check"><input type="checkbox" data-remember checked> Keep me signed in on this device</label>
+    <p class="help">Untick this on a shared or public device: you are signed out when you close the game.</p>
     <div class="error-box" role="alert" hidden></div>
     <div class="dlg-actions acct-actions">
       <button class="btn primary" type="submit">Sign in</button>
@@ -384,6 +386,7 @@
     <div class="field"><label for="su-email">Email</label><input type="email" id="su-email" name="email" autocomplete="username email" inputmode="email" spellcheck="false" required></div>
     <div class="field"><label for="su-pass">Password</label><input type="password" id="su-pass" name="password" autocomplete="new-password" minlength="8" required aria-describedby="su-pass-help"><p class="help" id="su-pass-help">At least 8 characters. A short phrase is easy to remember.</p></div>
     <label class="check"><input type="checkbox" data-show-pass> Show password</label>
+    <label class="check"><input type="checkbox" data-remember checked> Keep me signed in on this device</label>
     <p class="help">We keep only your email and your game data (saved puzzles, progress, used stories and settings, but never your API keys). You can delete your account and all of it at any time from this window.</p>
     <div class="error-box" role="alert" hidden></div>
     <div class="dlg-actions acct-actions">
@@ -544,6 +547,41 @@
   <p id="board-me" class="board-me"></p>
   <div id="board-body" aria-live="polite"></div>
   <div class="dlg-actions"><button class="btn" type="button" id="board-name" hidden>Choose a screen name</button><button class="btn primary" type="button" data-close>Close</button></div>
+</dialog>
+
+<dialog id="dlg-install" aria-labelledby="install-h">
+  <h2 id="install-h" tabindex="-1">Install the app</h2>
+  <p>Play without opening a browser first. Your saved puzzles come with you when you sign in.</p>
+  <section class="install-opt" id="install-phone" aria-labelledby="install-phone-h">
+    <h3 id="install-phone-h">Add an icon to your phone's home screen</h3>
+    <p class="muted" id="install-phone-done" hidden>You are already playing from the home screen icon.</p>
+    <p id="install-other" hidden>On your phone, open <b>thelogicgrid.com</b>, then choose <b>Install the app</b> from the Menu for the steps.</p>
+    <p class="muted" id="install-here-note" hidden>Or add the game to this computer as an app, straight from this browser:</p>
+    <p id="install-phone-btn-row" hidden><button class="btn primary" type="button" id="install-phone-btn">Add to home screen</button></p>
+    <div id="install-ios" hidden>
+      <p>On an iPhone or iPad, in Safari:</p>
+      <ol class="install-steps">
+        <li>Tap the <b>Share</b> button (the square with an arrow pointing up) at the bottom or top of the screen.</li>
+        <li>Scroll down and tap <b>Add to Home Screen</b>.</li>
+        <li>Tap <b>Add</b>. The game's icon appears on your home screen.</li>
+      </ol>
+    </div>
+    <div id="install-android" hidden>
+      <p>On an Android phone or tablet, in Chrome:</p>
+      <ol class="install-steps">
+        <li>Tap the <b>menu</b> button (three dots) at the top right.</li>
+        <li>Tap <b>Add to Home screen</b> or <b>Install app</b>.</li>
+        <li>Tap <b>Install</b> or <b>Add</b>. The game's icon appears on your home screen.</li>
+      </ol>
+    </div>
+  </section>
+  <section class="install-opt" id="install-desktop" aria-labelledby="install-desktop-h">
+    <h3 id="install-desktop-h">Download the Windows desktop app</h3>
+    <p>A free app for Windows 10 and 11 computers. It works offline and keeps itself up to date.</p>
+    <p><a class="btn" id="install-desktop-btn" href="https://github.com/bltaylorjr/fantastical-logic-grid/releases/latest" target="_blank" rel="noopener">Download for Windows</a> <span class="muted" id="install-desktop-size"></span></p>
+    <p class="muted">Windows may say it protected your PC because the app is new. Choose <b>More info</b>, then <b>Run anyway</b>.</p>
+  </section>
+  <div class="dlg-actions"><button class="btn primary" type="button" id="install-close">Close</button></div>
 </dialog>
 
 <dialog id="dlg-help" aria-labelledby="help-h">

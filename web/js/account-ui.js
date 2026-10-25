@@ -156,7 +156,7 @@ function wireDialog() {
     if (!pass.value) { fail(signinForm, 'Enter your password.', pass); return; }
     busy(signinForm, 'Signing in…', async () => {
       try {
-        await account.signIn(email, pass.value);
+        await account.signIn(email, pass.value, { remember: $('[data-remember]', signinForm).checked });
         pass.value = '';
         show('account');
         focusView();
@@ -174,7 +174,7 @@ function wireDialog() {
     if (pass.value.length < 8) { fail(signupForm, 'Choose a password with at least 8 characters.', pass); return; }
     busy(signupForm, 'Creating your account…', async () => {
       try {
-        await account.signUp(email, pass.value);
+        await account.signUp(email, pass.value, { remember: $('[data-remember]', signupForm).checked });
         pass.value = '';
         show('account');
         focusView();
