@@ -1,0 +1,9 @@
+node_modules/
+dist/
+desktop/src-tauri/target/
+desktop/src-tauri/gen/
+web/engine/
+web/fonts/
+undefined/
+*.key
+.private/

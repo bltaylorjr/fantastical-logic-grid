@@ -1,0 +1,14 @@
+The Fantastical Logic Grid uses these free, open-source components.
+Full license texts are in the vendor/ folder next to each component.
+
+Kokoro text-to-speech (kokoro-js 1.2.1)          Apache-2.0   vendor/kokoro/
+  Kokoro-82M voice model (downloaded once from Hugging Face, onnx-community/Kokoro-82M-v1.0-ONNX)   Apache-2.0
+  Voice style files (10 English voices)          Apache-2.0   vendor/kokoro/voices/
+ONNX Runtime Web (from Transformers.js 3.5.1)    MIT / Apache-2.0   vendor/ort/
+DiceBear 9.4.2 (avatar code)                     MIT          vendor/dicebear/
+  Notionists artwork by Zoish                    CC0 1.0
+  Lorelei artwork by Lisa Wischofsky             CC0 1.0
+  Open Peeps artwork by Pablo Stanley            CC0 1.0
+canvas-confetti 1.9.4 by Kiril Vatev             ISC          vendor/confetti/
+Lucide icons 1.61.0                              ISC          vendor/lucide/
+Atkinson Hyperlegible font (Braille Institute)   SIL OFL 1.1  fonts/

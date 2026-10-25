@@ -1,0 +1,16 @@
+{
+  "name": "fantastical-logic-grid-engine",
+  "version": "1.0.0",
+  "description": "The Fantastical Logic Grid: generates logic grid puzzles with storylines, clues, hints and answer keys.",
+  "type": "module",
+  "main": "src/index.js",
+  "exports": "./src/index.js",
+  "bin": { "logic-grid": "./cli.js" },
+  "scripts": {
+    "test": "node test/run-tests.js",
+    "test:quick": "node test/run-tests.js --quick",
+    "generate": "node cli.js"
+  },
+  "engines": { "node": ">=18" },
+  "license": "UNLICENSED"
+}

@@ -1,0 +1,12 @@
+# Apache: correct types for the game's files, and always re-check the app shell.
+AddType text/javascript .js .mjs
+AddType application/wasm .wasm
+AddType application/manifest+json .webmanifest
+AddType text/vtt .vtt
+AddType video/mp4 .mp4
+AddType font/woff2 .woff2
+AddType application/octet-stream .bin
+<FilesMatch "^(sw\.js|index\.html)$">
+  Header set Cache-Control "no-cache"
+</FilesMatch>
+Header set X-Content-Type-Options "nosniff"

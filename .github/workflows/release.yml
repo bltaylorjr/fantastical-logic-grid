@@ -1,0 +1,39 @@
+# Builds the Windows desktop app and publishes a GitHub Release with a signed
+# update package and latest.json, which installed copies check for updates.
+# Run it from the Actions tab (Run workflow) or by pushing a tag like v1.2.0.
+# Needs the repository secret TAURI_SIGNING_PRIVATE_KEY (the updater signing key).
+name: Release desktop app
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+permissions:
+  contents: write
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri -> target
+      - run: npm ci
+      - run: npm run build
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ''
+        with:
+          projectPath: desktop
+          tauriScript: npx tauri
+          tagName: v__VERSION__
+          releaseName: The Fantastical Logic Grid v__VERSION__
+          releaseBody: Download the setup .exe below to install. Installed copies update themselves.
+          releaseDraft: false
+          prerelease: false

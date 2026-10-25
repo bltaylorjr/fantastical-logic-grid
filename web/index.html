@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>The Fantastical Logic Grid</title>
+<meta name="description" content="Story logic grid puzzles: pick a difficulty, theme and size, then solve, save, resume and print.">
+<meta name="theme-color" content="#1F5FAD">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="app.css">
+<script>
+  // Apply the saved color theme before first paint.
+  try { const s = JSON.parse(localStorage.getItem('flg.settings') || '{}'); if (s.colorTheme && s.colorTheme !== 'system') document.documentElement.dataset.theme = s.colorTheme; } catch (e) {}
+</script>
+<script type="module" src="js/app.js"></script>
+</head>
+<body>
+<a class="skip" href="#grid-region" id="skip-link" hidden>Skip to grid</a>
+
+<header class="appbar">
+  <button class="brand" type="button" id="home-btn" aria-label="The Fantastical Logic Grid, home">
+    <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><rect x="2" y="2" width="28" height="28" rx="6" fill="currentColor"/><path d="M11 2v28M21 2v28M2 11h28M2 21h28" stroke="var(--bg)" stroke-width="1.6"/><circle cx="16" cy="16" r="3.4" fill="var(--bg)"/><path d="M4.8 4.8l3.4 3.4M8.2 4.8l-3.4 3.4M23.8 23.8l3.4 3.4M27.2 23.8l-3.4 3.4" stroke="var(--bg)" stroke-width="1.6" stroke-linecap="round"/></svg>
+    <span>The Fantastical Logic Grid</span>
+  </button>
+  <div class="appbar-actions">
+    <button class="btn quiet" type="button" id="help-btn" aria-keyshortcuts="Shift+?">Help</button>
+    <button class="btn quiet" type="button" id="menu-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="app-menu">Menu</button>
+  </div>
+  <div class="menu" id="app-menu" role="menu" hidden>
+    <button role="menuitem" type="button" data-cmd="new">New puzzle</button>
+    <button role="menuitem" type="button" data-cmd="saved">Saved puzzles</button>
+    <button role="menuitem" type="button" data-cmd="settings">Settings</button>
+    <button role="menuitem" type="button" data-cmd="install" hidden>Install app</button>
+  </div>
+</header>
+
+<!-- ============ Home: setup + saved puzzles ============ -->
+<main id="screen-home" class="screen" tabindex="-1">
+  <div class="home">
+    <section class="card setup-card" aria-labelledby="setup-h">
+      <h1 id="setup-h">New puzzle</h1>
+      <p class="lede">Choose a difficulty, a theme and a size. Every puzzle has a brand new story and exactly one answer you can reach without guessing.</p>
+      <form id="setup" novalidate>
+        <fieldset>
+          <legend>Difficulty</legend>
+          <div class="choices tiers" id="tier-choices"></div>
+        </fieldset>
+        <fieldset>
+          <legend>Theme</legend>
+          <div class="choices chips" id="theme-choices"></div>
+        </fieldset>
+        <fieldset>
+          <legend>Size</legend>
+          <div class="choices chips" id="size-choices"></div>
+          <div class="custom-size" id="custom-size" hidden>
+            <div class="field"><label for="cats">Categories (3 to 6)</label><input id="cats" type="number" min="3" max="6" inputmode="numeric"></div>
+            <div class="field"><label for="items">Items in each (3 to 8)</label><input id="items" type="number" min="3" max="8" inputmode="numeric"></div>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>Play style</legend>
+          <div class="choices chips" id="style-choices">
+            <label class="choice"><input type="radio" name="playstyle" value="full"><span><b>Full experience</b><small>Scenes, characters, sound</small></span></label>
+            <label class="choice"><input type="radio" name="playstyle" value="silent"><span><b>Silent mode</b><small>Story, grid and answer key only</small></span></label>
+          </div>
+        </fieldset>
+        <details class="more" id="more-options">
+          <summary>More options</summary>
+          <div class="more-body">
+            <div class="field"><label for="clue-count">Number of clues</label><input id="clue-count" type="number" min="1" max="80" inputmode="numeric" placeholder="Fewest that work" aria-describedby="clue-help"><p class="help" id="clue-help">More clues make a puzzle easier, fewer make it harder.</p></div>
+            <div class="field"><label for="questions">Story questions</label><input id="questions" type="number" min="1" max="6" inputmode="numeric" value="3"></div>
+            <div class="field"><label for="cast">Cast names (optional, separated by commas)</label><input id="cast" type="text" autocomplete="off" placeholder="For example: Mia, Leo, Grandpa Joe"></div>
+            <div class="field"><label for="custom-title">Puzzle title (optional)</label><input id="custom-title" type="text" autocomplete="off" placeholder="Taken from the story"></div>
+            <fieldset class="clue-types">
+              <legend>Clue types</legend>
+              <div id="clue-type-choices" class="checks"></div>
+            </fieldset>
+          </div>
+        </details>
+        <p class="preview" id="preview" aria-live="polite"></p>
+        <p class="warn" id="size-warning" hidden></p>
+        <div class="gen-row">
+          <button class="btn primary big" type="submit" id="gen-btn">Generate puzzle</button>
+          <p class="gen-status" id="gen-status" role="status" aria-live="polite"></p>
+        </div>
+        <div class="error-box" id="gen-error" role="alert" hidden></div>
+      </form>
+    </section>
+
+    <section class="card saved-card" id="saved-section" aria-labelledby="saved-h">
+      <div class="saved-head">
+        <h2 id="saved-h">Saved puzzles</h2>
+        <div class="saved-tools">
+          <button class="btn quiet small" type="button" id="import-btn">Open a puzzle file</button>
+          <input type="file" id="import-file" accept=".json,.flg.json,application/json" hidden>
+        </div>
+      </div>
+      <p class="muted" id="saved-empty">Your puzzles save automatically on this device. Start one and it will appear here.</p>
+      <ul class="saved-list" id="saved-list"></ul>
+    </section>
+  </div>
+</main>
+
+<!-- ============ Play ============ -->
+<main id="screen-play" class="screen" tabindex="-1" hidden>
+  <div class="play-head">
+    <div class="title-row">
+      <h1 id="p-title"></h1>
+      <div class="meta" id="p-meta"></div>
+    </div>
+    <div class="toolbar" role="toolbar" aria-label="Play actions" id="toolbar">
+      <button class="btn" type="button" data-act="undo" aria-keyshortcuts="Control+Z Meta+Z"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11"/></svg> Undo</button>
+      <button class="btn" type="button" data-act="redo" aria-keyshortcuts="Control+Shift+Z Meta+Shift+Z"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5A5.5 5.5 0 0 0 4 14.5A5.5 5.5 0 0 0 9.5 20H13"/></svg> Redo</button>
+      <button class="btn" type="button" data-act="hint" aria-keyshortcuts="H"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg> Hint <span class="count" id="hint-count"></span></button>
+      <button class="btn" type="button" data-act="check" aria-keyshortcuts="C"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/></svg> Check</button>
+      <button class="btn" type="button" data-act="clear"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 21H8a2 2 0 0 1-1.42-.587l-3.994-3.999a2 2 0 0 1 0-2.828l10-10a2 2 0 0 1 2.829 0l5.999 6a2 2 0 0 1 0 2.828L12.834 21"/><path d="m5.082 11.09 8.828 8.828"/></svg> Clear grid</button>
+      <button class="btn" type="button" data-act="reveal"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg> Reveal solution</button>
+      <button class="btn" type="button" data-act="save" aria-keyshortcuts="Control+S Meta+S"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/></svg> Save</button>
+      <button class="btn" type="button" data-act="print" aria-keyshortcuts="Control+P Meta+P"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg> Print</button>
+    </div>
+    <div class="statusline">
+      <span id="status" role="status" aria-live="polite"></span>
+      <span class="progress" id="progress"></span>
+      <span class="timer" id="timer" aria-hidden="true"></span>
+      <span class="saveind" id="saveind"></span>
+      <button class="btn quiet small media" type="button" id="sound-btn" aria-pressed="false">Sound off</button>
+    </div>
+  </div>
+
+  <div class="scene media" id="scene" aria-hidden="true"></div>
+  <details class="card story" id="story" open>
+    <summary><h2>The story</h2></summary>
+    <div class="story-body" id="p-story"></div>
+    <button class="btn small media" type="button" id="read-story">Read the story aloud</button>
+    <section class="cast media" id="cast" aria-labelledby="cast-h">
+      <h3 id="cast-h">Talk to the cast</h3>
+      <p class="help">Each character remembers one or more clues. Select a portrait to hear what they saw.</p>
+      <div class="cast-row" id="cast-row"></div>
+      <div class="bubble" id="bubble" aria-live="polite" hidden></div>
+    </section>
+  </details>
+
+  <div class="notes" id="p-notes" hidden></div>
+
+  <div class="play">
+    <section class="card grid-card" id="grid-region" tabindex="-1" aria-labelledby="grid-h">
+      <div class="grid-head">
+        <h2 id="grid-h">The grid</h2>
+        <div class="seg" role="radiogroup" aria-label="Grid view">
+          <label><input type="radio" name="view" value="grid" checked><span>Grid</span></label>
+          <label><input type="radio" name="view" value="list"><span>List</span></label>
+        </div>
+      </div>
+      <div class="coach" id="coach" hidden>
+        <p id="coach-text"></p>
+        <button class="btn quiet small" type="button" id="coach-skip">Skip tips</button>
+      </div>
+      <div class="hintbox" id="hintbox" hidden></div>
+      <div class="gridframe" id="gridframe"></div>
+      <div class="listview" id="listview" hidden></div>
+      <p class="help legend"><span class="sym-x" aria-hidden="true"></span> ruled out &nbsp; <span class="sym-o" aria-hidden="true"></span> confirmed &nbsp;·&nbsp; Click or tap a cell to cycle blank, X, O. Right-click or long-press to choose. Press ? for keys.</p>
+    </section>
+
+    <aside class="side">
+      <section class="card clues" aria-labelledby="clues-h">
+        <h2 id="clues-h">Clues</h2>
+        <ol class="clue-list" id="clue-list"></ol>
+      </section>
+      <section class="card questions" aria-labelledby="q-h">
+        <h2 id="q-h">Questions</h2>
+        <ol class="q-list" id="q-list"></ol>
+        <button class="btn" type="button" id="check-answers">Check answers</button>
+        <p id="answer-result" role="status" aria-live="polite"></p>
+      </section>
+    </aside>
+  </div>
+
+  <section class="card solved" id="solved" hidden tabindex="-1" aria-labelledby="solved-h">
+    <div class="resolution media" id="resolution" aria-hidden="true"></div>
+    <h2 id="solved-h">Case closed!</h2>
+    <p class="ending" id="ending"></p>
+    <dl class="solved-stats" id="solved-stats"></dl>
+    <p id="next-tip"></p>
+    <div class="solved-actions">
+      <button class="btn primary" type="button" id="next-btn">New puzzle</button>
+      <button class="btn" type="button" data-act="print"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg> Print</button>
+      <button class="btn" type="button" id="back-saved">Saved puzzles</button>
+    </div>
+  </section>
+</main>
+
+<!-- ============ Dialogs ============ -->
+<dialog id="dlg-confirm" aria-labelledby="confirm-h">
+  <h2 id="confirm-h"></h2>
+  <p id="confirm-text"></p>
+  <div class="dlg-actions"><button class="btn" type="button" id="confirm-no"></button><button class="btn primary" type="button" id="confirm-yes"></button></div>
+</dialog>
+
+<dialog id="dlg-print" aria-labelledby="print-h">
+  <form method="dialog" id="print-form">
+    <h2 id="print-h">Print</h2>
+    <fieldset><legend>What to print</legend>
+      <label class="radio"><input type="radio" name="pwhat" value="blank" checked> A blank puzzle</label>
+      <label class="radio"><input type="radio" name="pwhat" value="progress"> The puzzle with my marks</label>
+    </fieldset>
+    <label class="check"><input type="checkbox" id="p-key"> Include the answer key (on its own page)</label>
+    <label class="check" id="p-steps-row"><input type="checkbox" id="p-steps"> Add the step-by-step solution to the answer key</label>
+    <fieldset><legend>Paper size</legend>
+      <label class="radio"><input type="radio" name="ppaper" value="letter"> Letter</label>
+      <label class="radio"><input type="radio" name="ppaper" value="A4"> A4</label>
+    </fieldset>
+    <div class="dlg-actions">
+      <button class="btn" type="button" id="print-cancel">Close</button>
+      <button class="btn" type="button" id="print-pdf" hidden>Save as PDF</button>
+      <button class="btn primary" type="button" id="print-go">Print</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dlg-settings" aria-labelledby="settings-h">
+  <form method="dialog" id="settings-form">
+    <h2 id="settings-h">Settings</h2>
+    <fieldset><legend>Mode</legend>
+      <label class="check"><input type="checkbox" name="silent"> Silent mode: only the story, grid, clues and answer key. No pictures, sound, music or animation.</label>
+    </fieldset>
+    <fieldset><legend>Colors</legend>
+      <label class="radio"><input type="radio" name="colorTheme" value="system"> Match my device</label>
+      <label class="radio"><input type="radio" name="colorTheme" value="light"> Light</label>
+      <label class="radio"><input type="radio" name="colorTheme" value="dark"> Dark</label>
+      <label class="radio"><input type="radio" name="colorTheme" value="contrast"> High contrast</label>
+    </fieldset>
+    <fieldset><legend>Pictures</legend>
+      <p class="help">Character portraits</p>
+      <label class="radio"><input type="radio" name="portraitStyle" value="notionists"> Sketchbook (Notionists)</label>
+      <label class="radio"><input type="radio" name="portraitStyle" value="lorelei"> Storybook (Lorelei)</label>
+      <label class="radio"><input type="radio" name="portraitStyle" value="openPeeps"> Hand-drawn (Open Peeps)</label>
+      <label class="radio"><input type="radio" name="portraitStyle" value="builtin"> Simple (built-in)</label>
+      <label class="check"><input type="checkbox" name="confetti"> Confetti when I solve a puzzle</label>
+    </fieldset>
+    <fieldset><legend>Play</legend>
+      <label class="check"><input type="checkbox" name="autoX"> Auto-X: when I place an O, rule out the rest of its row and column</label>
+      <label class="check"><input type="checkbox" name="singleKeys"> Single-key shortcuts (X, O, H, C, R)</label>
+      <label class="check"><input type="checkbox" name="showTimer"> Show the timer</label>
+      <label class="check"><input type="checkbox" name="coach"> Coach tips on my next Easy puzzle</label>
+      <label class="check"><input type="checkbox" name="instant"> Show mistakes as I play (a wrong mark gets a warning right away)</label>
+    </fieldset>
+    <fieldset><legend>Sound</legend>
+      <label class="check"><input type="checkbox" name="sound"> Sound effects</label>
+      <div class="field"><label for="volume">Effects volume</label><input type="range" id="volume" name="volume" min="0" max="100" step="5"></div>
+      <label class="check"><input type="checkbox" name="music"> Theme music</label>
+      <div class="field"><label for="musicVolume">Music volume</label><input type="range" id="musicVolume" name="musicVolume" min="0" max="100" step="5"></div>
+    </fieldset>
+    <fieldset><legend>Voices</legend>
+      <label class="check"><input type="checkbox" name="readAloud"> Characters speak their clues when I select their portrait</label>
+    </fieldset>
+    <fieldset class="ai-settings"><legend>AI pictures and voice</legend>
+      <p class="help">With an OpenAI API key, each new story gets its own painted scene, and characters and the narrator speak in natural voices. Pictures and voices are made once per story and saved on this computer. The key stays on this computer. OpenAI charges your account for each picture and voice clip (roughly a few cents to 20 cents per picture). Without a key, the game uses its built-in art and your computer's own voices.</p>
+      <div class="field"><label for="aiKey">OpenAI API key</label><input type="password" id="aiKey" name="aiKey" autocomplete="off" spellcheck="false" placeholder="sk-..."></div>
+      <div class="row-inline"><button class="btn small" type="button" id="ai-test">Test the key</button><span id="ai-test-result" role="status"></span></div>
+      <fieldset><legend>AI pictures</legend>
+        <label class="radio"><input type="radio" name="aiPictures" value="none"> None, use the built-in art</label>
+        <label class="radio"><input type="radio" name="aiPictures" value="scene"> A painted scene for each story</label>
+        <label class="radio"><input type="radio" name="aiPictures" value="all"> Scene and character portraits (more pictures, higher cost)</label>
+      </fieldset>
+      <label class="check"><input type="checkbox" name="aiVoice"> Use OpenAI for voices too</label>
+    </fieldset>
+    <fieldset class="ai-settings"><legend>Where voices come from</legend>
+      <label class="radio"><input type="radio" name="voiceProvider" value="kokoro"> Free natural voices on this computer (Kokoro; no key, no limits, works offline after a one-time download)</label>
+      <label class="radio"><input type="radio" name="voiceProvider" value="gemini"> Google Gemini natural voices (free tier, needs a free Google key)</label>
+      <label class="radio"><input type="radio" name="voiceProvider" value="openai"> OpenAI natural voices (uses the OpenAI key above)</label>
+      <label class="radio"><input type="radio" name="voiceProvider" value="device"> This computer's own voices (free, works offline)</label>
+      <div class="kokoro-box">
+        <p class="help">Kokoro voices download once from Hugging Face (about 90 MB), then stay on this computer. Nothing you play is sent anywhere.</p>
+        <div class="row-inline"><button class="btn small" type="button" id="kokoro-get">Download free voices</button><span id="kokoro-status" role="status"></span></div>
+        <progress id="kokoro-progress" max="1" value="0" hidden aria-label="Voice download progress"></progress>
+      </div>
+      <p class="help">Get a free Google key at aistudio.google.com (Get API key). On Google's free tier, the story and clue text you send may be used to improve Google's products. The free tier has a daily limit; when it runs out, the game uses this computer's voices until the next day.</p>
+      <div class="field"><label for="geminiKey">Google Gemini API key</label><input type="password" id="geminiKey" name="geminiKey" autocomplete="off" spellcheck="false" placeholder="AIza..."></div>
+      <div class="row-inline"><button class="btn small" type="button" id="gemini-test">Test the Google key</button><span id="gemini-test-result" role="status"></span></div>
+    </fieldset>
+    <div class="dlg-actions"><button class="btn primary" value="close">Done</button></div>
+  </form>
+</dialog>
+
+<dialog id="dlg-video" class="wide" aria-labelledby="video-h">
+  <h2 id="video-h">How to play The Fantastical Logic Grid</h2>
+  <video id="intro-video" controls preload="metadata" playsinline aria-describedby="video-note">
+    <source src="media/intro.mp4" type="video/mp4">
+    <track kind="captions" srclang="en" label="English" src="media/intro.en.vtt" default>
+  </video>
+  <p class="muted" id="video-note">Captions are on. Use the CC button in the player to turn them off.</p>
+  <details class="transcript">
+    <summary>Read the transcript</summary>
+      <p>Welcome to The Fantastical Logic Grid. Every puzzle is a brand new story, and you are the detective. Each puzzle is a logic grid wrapped in a story. The story sets up a mystery, the clues give you the facts, and the grid is where you work out the answer. Every story is written fresh for you and never repeated. And every puzzle has exactly one answer you can reach without guessing.</p>
+      <p>Here&#x27;s how to play. Start on the New puzzle screen and pick a difficulty. Basic and Easy are perfect for beginners. MENSA is for true masterminds. Next, choose a theme, like Mystery, Fantasy, Sci-Fi, Sports or Pets. Or pick Surprise me. Then pick a size. More categories and more items make a bigger, harder grid. Full experience adds scenes, characters and sound. Silent mode keeps only the story, the grid, the clues and the answer key.</p>
+      <p>Press Generate puzzle, and your story is written in a moment. Read the story first. It tells you who is involved, and it ends with the question you need to answer. Here, it&#x27;s: who was holding the Silk Glove? Select a character&#x27;s portrait to hear the clues they remember. Every clue is also in the clue list. On your first Easy puzzle, coach tips appear above the grid to guide your first moves.</p>
+      <p>Now the grid. Each square is where two things meet, like a suspect and an age. Your job is to decide whether they go together. Click or tap a square once to mark an X. X means ruled out: these two don&#x27;t go together. Tap again for an O. O means confirmed: these two are a match. Tap a third time to clear the square. Let&#x27;s solve one together, starting with the simplest clue. Clue 7 says Greta is 35, so mark an O where Greta meets 35.</p>
+      <p>Each suspect has exactly one age, and each age belongs to one suspect. So the rest of Greta&#x27;s row and the rest of the 35 column are all X. Tip: turn on Auto-X in Settings and the game fills those in for you. Clue 3 says whoever held the Brass Key is not 35. That&#x27;s an X where 35 meets Brass Key. Clue 1 says neither the 50-year-old nor the 45-year-old held the Fountain Pen. Two more X marks.</p>
+      <p>Now combine clues. Clue 6 says the Fountain Pen holder is 50 or 40. Clue 1 already ruled out 50, so it must be 40. Mark the O, then rule out the rest of that row and column. Clue 2 says neither the Brass Key holder nor the Silk Glove holder is 50. Look along the 50 row. Only the Letter Opener is left, so that&#x27;s an O. When only one square is left in a row or column, it must be the answer.</p>
+      <p>The same idea finishes this section: the Brass Key goes with 45, and the Silk Glove with 35. A finished section glows. In the full experience, each finished section also reveals more of the scene. Now connect the sections. Greta is 35, and the 35-year-old held the Silk Glove. So Greta held the Silk Glove. That answers the story&#x27;s question! Stuck? Press Hint. The first hint points you to a clue.</p>
+      <p>Press Show more for the exact square, and then the full reasoning. You can even let it mark the square for you. Press Check at any time to see whether any of your marks are wrong. Made a mistake? Undo and Redo take back any move, as many times as you like. Prefer words to grids? List view lets you choose each match from a menu. The game also works fully by keyboard and with a screen reader.</p>
+      <p>When you think you know, answer the questions under the clues, and press Check answers. Fill in the whole grid to close the case. Case closed! You get the story&#x27;s ending, your time, and a suggestion for your next puzzle. Your progress saves automatically. Come back any time and pick up where you left off, from Saved puzzles. You can also print any puzzle, blank or with your marks, with the answer key on its own page.</p>
+      <p>Press Help to see every keyboard shortcut. Play in light or dark colors, or in high contrast. And Silent mode is always there when you just want the puzzle. That&#x27;s all you need: read the story, follow the clues, and mark your X&#x27;s and O&#x27;s. Welcome to The Fantastical Logic Grid. Happy sleuthing!</p>
+  </details>
+  <div class="dlg-actions"><button class="btn primary" type="button" id="video-close">Close</button></div>
+</dialog>
+
+<dialog id="dlg-update" aria-labelledby="update-h">
+  <h2 id="update-h">A new version is ready</h2>
+  <p id="update-text"></p>
+  <p class="muted">Your saved puzzles and settings are kept. The game restarts when the update is installed.</p>
+  <progress id="update-progress" max="1" hidden aria-label="Update download progress"></progress>
+  <p id="update-status" role="status"></p>
+  <div class="dlg-actions"><button class="btn" type="button" id="update-later">Later</button><button class="btn primary" type="button" id="update-install">Install and restart</button></div>
+</dialog>
+
+<dialog id="dlg-welcome" aria-labelledby="welcome-h">
+  <h2 id="welcome-h">Welcome, detective!</h2>
+  <p>New to The Fantastical Logic Grid? A 4-minute narrated video shows how to play, with examples. It has captions.</p>
+  <p class="muted">You can watch it any time from Help.</p>
+  <div class="dlg-actions"><button class="btn" type="button" id="welcome-skip">Start playing</button><button class="btn primary" type="button" id="welcome-watch"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 9.003a1 1 0 0 1 1.517-.859l4.997 2.997a1 1 0 0 1 0 1.718l-4.997 2.997A1 1 0 0 1 9 14.996z"/><circle cx="12" cy="12" r="10"/></svg> Watch the video</button></div>
+</dialog>
+
+<dialog id="dlg-help" aria-labelledby="help-h">
+  <h2 id="help-h">How to play</h2>
+  <p><button class="btn" type="button" id="help-video"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 9.003a1 1 0 0 1 1.517-.859l4.997 2.997a1 1 0 0 1 0 1.718l-4.997 2.997A1 1 0 0 1 9 14.996z"/><circle cx="12" cy="12" r="10"/></svg> Watch the how-to-play video</button> <span class="muted">4 minutes, narrated, with captions and examples</span></p>
+  <p>Read a clue, then mark the grid. <b>X</b> means two things do not go together. <b>O</b> means they do. Each row in a sub-grid has exactly one O. When the grid is full, answer the story questions.</p>
+  <p>Select a character's portrait to hear the clues they remember. Each finished section of the grid reveals more of the scene. Want fewer distractions? Choose <b>Silent mode</b> on the New puzzle screen or in Settings to see only the story, the grid, the clues and the answer key.</p>
+  <h3>Keys</h3>
+  <table class="keys">
+    <tbody>
+      <tr><th scope="row">Tab, Shift+Tab</th><td>Move between story, grid, clues and toolbar</td></tr>
+      <tr><th scope="row">Arrow keys</th><td>Move one cell</td></tr>
+      <tr><th scope="row">Home, End</th><td>First or last cell in the row</td></tr>
+      <tr><th scope="row">Ctrl+Home, Ctrl+End</th><td>First or last cell in the grid</td></tr>
+      <tr><th scope="row">X or Space</th><td>Rule out</td></tr>
+      <tr><th scope="row">O or Enter</th><td>Confirm</td></tr>
+      <tr><th scope="row">Delete, Backspace</th><td>Clear the cell</td></tr>
+      <tr><th scope="row">R</th><td>Describe the row</td></tr>
+      <tr><th scope="row">Ctrl+Z, Ctrl+Shift+Z</th><td>Undo, redo</td></tr>
+      <tr><th scope="row">H, C</th><td>Hint, check</td></tr>
+      <tr><th scope="row">Ctrl+S, Ctrl+P</th><td>Save, print</td></tr>
+      <tr><th scope="row">?</th><td>This help</td></tr>
+      <tr><th scope="row">Esc</th><td>Close a dialog or menu</td></tr>
+    </tbody>
+  </table>
+  <p class="muted">Single keys (X, O, H, C, R) can be turned off in Settings. On a Mac, use Cmd instead of Ctrl.</p>
+  <div class="dlg-actions"><button class="btn primary" type="button" id="help-close">Close</button></div>
+</dialog>
+
+<div class="cellmenu" id="cellmenu" role="menu" aria-label="Mark this cell" hidden>
+  <button role="menuitem" type="button" data-mark="X">Rule out (X)</button>
+  <button role="menuitem" type="button" data-mark="O">Confirm (O)</button>
+  <button role="menuitem" type="button" data-mark="">Clear</button>
+</div>
+
+<div class="toasts" id="toasts" aria-live="polite"></div>
+<div class="sr-only" id="announcer" aria-live="polite"></div>
+<div id="print-root" class="print-root"></div>
+<noscript><p style="padding:16px">The Fantastical Logic Grid needs JavaScript turned on.</p></noscript>
+</body>
+</html>

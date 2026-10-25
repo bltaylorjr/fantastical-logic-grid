@@ -1,0 +1,60 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "The Fantastical Logic Grid",
+  "version": "1.1.0",
+  "identifier": "com.fantasticallogicgrid.app",
+  "build": {
+    "frontendDist": "../../dist/web"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "The Fantastical Logic Grid",
+        "width": 1280,
+        "height": 860,
+        "minWidth": 360,
+        "minHeight": 480,
+        "center": true,
+        "dragDropEnabled": false,
+        "label": "main"
+      }
+    ],
+    "security": {
+      "csp": null
+    },
+    "withGlobalTauri": true
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "nsis"
+    ],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.ico",
+      "icons/icon.png"
+    ],
+    "windows": {
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper"
+      },
+      "nsis": {
+        "installMode": "currentUser"
+      }
+    },
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDYzQzQzNTc0N0QwQkFBMTcKUldRWHFndDlkRFhFWTRHWURra1huSzlXckpvU2cxNjlhODNBL0FockNjQ0hWVncxYmU3NzlPajUK",
+      "endpoints": [
+        "https://github.com/bltaylorjr/fantastical-logic-grid/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  }
+}
