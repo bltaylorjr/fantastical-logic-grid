@@ -1,12 +1,16 @@
 # Weekly archive email
 
-Every Monday at 04:47 UTC the Worker (`src/archive.js`) collects the rows the
-game no longer needs, zips them as CSV files, emails the zip to the owner and
-only then removes those rows from the D1 database to save space. Everything
-used to run the game or serve players stays.
+Every Monday at 05:07 UTC the GitHub Action **Weekly archive email**
+(`.github/workflows/archive-email.yml`, `scripts/archive-email.py`) asks the
+Worker (`src/archive.js`) for a zip of the rows the game no longer needs, emails
+it from the game's Gmail account, and then tells the Worker it was sent. Only
+then are those rows removed from the D1 database to save space. Everything used
+to run the game or serve players stays.
 
-It is free: Cloudflare Email Routing can send to a verified address of your
-own at no cost, and the zip is built inside the Worker.
+It is free: scheduled Actions on a public repository and Gmail cost nothing.
+The repository is public, so the Action prints only row counts: the zip never
+goes into a log, a file or an artifact. (If thelogicgrid.com's DNS ever moves to
+Cloudflare, the Worker can send the email itself instead; see the last section.)
 
 ## What gets archived
 
@@ -54,12 +58,14 @@ In the admin dashboard, **Settings and switches > Backups**:
    While it is on, the daily cleanup leaves these rows for the archive, so
    nothing is removed without a backup.
 2. **Remove archived rows after the email is sent** (off at first). Rows are
-   removed only when Cloudflare has accepted the email. While this is off the
-   email is just a copy, and the same rows come again the next week.
+   removed only after the email was sent (Gmail accepted it and the Action
+   confirmed it within 6 hours). While this is off the email is just a copy,
+   and the same rows come again the next week.
 
 **Backups and archive** in the dashboard shows the list above with how many rows
-are waiting, past runs, a **Send the archive email now** button (owner) and
-**Download the zip now** (owner; never removes anything).
+are waiting, past runs and **Download the zip now** (owner; never removes
+anything). To send an email straight away, run the workflow by hand (step 4
+below).
 
 ## Archive viewer
 
@@ -70,53 +76,63 @@ database. You can filter by date, text and column, group by any column, see
 totals and averages, a chart over time, and export the matching rows or the
 groups as CSV. Rows that appear in two archives are counted once.
 
-## One-time setup (about 15 minutes)
+## One-time setup (about 10 minutes)
 
-Email Routing needs the domain's DNS to be on Cloudflare. thelogicgrid.com
-works; any domain on your Cloudflare account would too.
+**1. Turn on 2-Step Verification for the game's Gmail** (Google only gives app
+passwords to accounts that have it)
+- Sign in to fantasticallogicgrid@gmail.com, go to <https://myaccount.google.com>
+  and choose **Security** (on a phone: **Security & sign-in**).
+- Under "How you sign in to Google", click **2-Step Verification**, then
+  **Turn on**, and follow the steps (a phone number or the Google app).
 
-1. **Is thelogicgrid.com on Cloudflare?** Sign in at
-   <https://dash.cloudflare.com>. If thelogicgrid.com is listed under your
-   domains with status **Active**, go to step 3.
-2. **Move the domain's DNS to Cloudflare (free).** Choose **Add a domain**,
-   type `thelogicgrid.com`, pick the **Free** plan. Cloudflare copies the
-   existing DNS records; check the GitHub Pages ones are there (four `A` records
-   to 185.199.108.153, .109.153, .110.153 and .111.153, and `www` as a `CNAME`
-   to `bltaylorjr.github.io`) and set them to **DNS only** (grey cloud). Then at
-   the company where you bought the domain, replace its nameservers with the
-   two Cloudflare shows. When the domain says **Active** (minutes to a few
-   hours), carry on. The website stays on GitHub Pages; only DNS moves.
-3. **Switch on Email Routing.** Open thelogicgrid.com in Cloudflare >
-   **Email > Email Routing > Get started**. Skip creating a custom address if
-   asked, then choose **Add records and enable** so Cloudflare adds its MX,
-   SPF and DKIM records. (If the domain already receives email somewhere else,
-   stop and ask first: this replaces its MX records.)
-4. **Verify the address the zips go to.** **Email Routing > Destination
-   addresses > Add destination address**, enter the address, then open the
-   email Cloudflare sends and click **Verify email address** (check Junk).
-5. **Connect the Worker.** In `server/wrangler.toml`, remove the `# ` in front
-   of the two `[[send_email]]` lines. (Claude can do this as a small pull
-   request once steps 3 and 4 are done.)
-6. **Add the address as a secret.** **Workers & Pages > flg-api > Settings >
-   Variables and Secrets > Add**, type **Secret**, name `ARCHIVE_TO`, value the
-   verified address. It is a secret so the address is not in the public repo.
-7. **Test it.** Dashboard > **Backups and archive > Send the archive email
-   now**. The zip should arrive within a minute (nothing is removed by a test
-   while the switches are off).
-8. **Switch it on.** Settings and switches > Backups > **Weekly archive email**
-   on. When you are happy with the list above, also switch on **Remove
-   archived rows after the email is sent**.
+**2. Make an app password**
+- Go to <https://myaccount.google.com/apppasswords> (sign in again if asked).
+- Type a name such as `Logic Grid archive` and click **Create**.
+- Copy the 16-letter password Google shows. You will not see it again (you
+  can always delete it and make a new one).
 
-The sender is `backups@thelogicgrid.com` (`ARCHIVE_FROM` in `wrangler.toml`);
-it does not need a mailbox.
+**3. Add four repository secrets in GitHub**
+Repository **Settings > Secrets and variables > Actions > Secrets > New
+repository secret**, one at a time:
+
+| Name | Value |
+| --- | --- |
+| `GMAIL_USER` | fantasticallogicgrid@gmail.com |
+| `GMAIL_APP_PASSWORD` | the 16-letter app password (spaces are fine) |
+| `ARCHIVE_TO` | the address the zips go to (btay74@outlook.com) |
+| `FLG_ADMIN_TOKEN` | the same value as the Worker's `ADMIN_TOKEN` secret. Skip if it is already there (the health check uses it too). Cloudflare cannot show a secret again: if you no longer have it, make a new long random value and set it in both places (Cloudflare: Workers & Pages > flg-api > Settings > Variables and Secrets, type Secret). |
+
+The addresses are secrets so they never appear in the public repository.
+
+**4. Send a test**
+Repository **Actions > Weekly archive email > Run workflow**, leave **Test
+send** ticked, click **Run workflow**. Within a minute or two the email should
+reach the inbox (check Junk the first time and mark it "Not junk"). A test
+never removes anything, and works while the switches are off.
+
+**5. Switch it on**
+Admin dashboard > **Settings and switches > Backups > Weekly archive email**
+on. When you are happy with the list above, also switch on **Remove archived
+rows after the email is sent**.
+
+If a weekly run fails (for example the app password was removed), GitHub emails
+the repository owner and nothing is removed; the next Monday tries again.
 
 ## Limits and costs
 
-- Free: Email Routing sends to verified addresses at no cost, up to 25 MiB per
-  message. The Worker refuses zips over 17 MB and removes nothing in that case.
-- The Workers free plan gives a cron run a small amount of CPU time. A very
+- Free. Gmail allows 25 MB per email; the Worker refuses zips over 17 MB and
+  removes nothing in that case. Up to 20,000 rows per table (1,000 races) go
+  each week; anything more goes the next week.
+- The Workers free plan gives each request a small amount of CPU time. A very
   large week could run out; then the run fails, nothing is removed, and the
-  next week tries again with the row limits above.
-- If you would rather not move DNS to Cloudflare, use **Download the zip now**
-  each week instead, and leave the switches off. A free alternative that
-  emails from a Gmail account through a GitHub Action is possible too.
+  next week tries again.
+
+## If the domain's DNS moves to Cloudflare later
+
+The Worker can then send the email itself through Cloudflare Email Routing
+(free to a verified address) on its own Monday cron, with no Gmail or Action:
+switch on Email Routing for thelogicgrid.com (**Email > Email Routing > Get
+started > Add records and enable**), verify the destination address under
+**Destination addresses**, add the Worker secret `ARCHIVE_TO`, and remove the
+`# ` in front of the two `[[send_email]]` lines in `server/wrangler.toml`. Then
+disable the GitHub workflow so only one email goes out.

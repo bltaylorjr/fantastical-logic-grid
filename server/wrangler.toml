@@ -52,9 +52,9 @@ html_handling = "none"
 [triggers]
 crons = ["17 3 * * *", "47 4 * * 1", "41 6 * * *"]
 
-# The weekly archive email goes through Cloudflare Email Routing (free to a
-# verified address). Setup: ARCHIVE.md. The address it goes to is the
-# ARCHIVE_TO secret. Uncomment this once Email Routing is on for the domain:
+# The weekly archive email is sent from Gmail by a GitHub Action, because the
+# domain's DNS is not on Cloudflare (ARCHIVE.md). Only if it moves there and
+# Email Routing is switched on, uncomment this so the Worker sends it itself:
 # [[send_email]]
 # name = "ARCHIVE_EMAIL"
 

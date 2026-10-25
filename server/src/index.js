@@ -104,6 +104,7 @@ export default {
       return;
     }
     if (controller.cron === WEEKLY_ARCHIVE_CRON) {
+      // Only when Cloudflare email is connected; otherwise the GitHub Action sends it.
       ctx.waitUntil(runArchive(env).then((r) => console.log('archive', r.status, JSON.stringify(r.rows || {}))));
       return;
     }
