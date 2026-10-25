@@ -3,6 +3,8 @@
 // Sign-in uses Firebase's REST API with the admin's game account; the session
 // lives only in this tab (sessionStorage) and ends after 30 idle minutes.
 
+import { initPullRefresh } from './pull-refresh.js';
+
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -818,6 +820,16 @@ $('#sign-out').onclick = () => signOut();
 
 for (const ev of ['pointerdown', 'keydown']) addEventListener(ev, () => { lastActive = Date.now(); }, { passive: true });
 setInterval(() => { if (session && Date.now() - lastActive > IDLE_MS) signOut('You were signed out after 30 minutes without activity.'); }, 60_000);
+
+// Pull down to refresh on a phone. The session lives in sessionStorage, so a
+// refresh keeps the admin signed in; typed text that is not saved yet is lost,
+// so ask first.
+initPullRefresh({
+  beforeReload: () => {
+    const unsaved = $$('#main textarea, #main input[type=text], #main input:not([type])').some((i) => i.value.trim() && i.value !== i.defaultValue);
+    return !unsaved || confirm('Some text you typed is not saved yet. Refresh anyway?');
+  },
+});
 
 session = loadSession();
 if (session) tryEnter();

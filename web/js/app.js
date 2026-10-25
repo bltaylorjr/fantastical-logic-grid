@@ -19,6 +19,7 @@ import * as errorReports from './errors.js';
 import { initAccounts, openAccount, onHome as accountsOnHome, signedIn } from './account-ui.js';
 import * as competeUi from './compete-ui.js';
 import * as remote from './remote-config.js';
+import { initPullRefresh } from './pull-refresh.js';
 
 errorReports.init();
 const $ = (s, el = document) => el.querySelector(s);
@@ -1649,10 +1650,12 @@ if ('serviceWorker' in navigator && !isDesktop && (location.protocol === 'https:
 
 // Website updates: a new version installs in the background; the player is
 // offered a reload on the home screen, never mid-puzzle.
+let swReg = null;
 async function watchWebUpdates() {
   let reg;
   try { reg = await navigator.serviceWorker.register('sw.js'); } catch (e) { return; /* offline support is optional */ }
   if (!reg) return; // some browsers and privacy settings resolve without a registration
+  swReg = reg;
   const waiting = () => {
     if (!reg.waiting || !navigator.serviceWorker.controller) return; // first install needs no reload
     pendingUpdate = { kind: 'web', worker: reg.waiting };
@@ -1670,6 +1673,22 @@ async function watchWebUpdates() {
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') check(); });
 }
 let webUpdateAccepted = false;
+
+// Pull down to refresh (touch screens): saves first, then reloads. If a new
+// version of the website is waiting, the refresh brings it in.
+async function refreshApp() {
+  if (swReg && navigator.serviceWorker?.controller) {
+    if (!swReg.waiting) await Promise.race([swReg.update().catch(() => {}), new Promise((r) => setTimeout(r, 1500))]);
+    if (swReg.waiting) {
+      webUpdateAccepted = true;
+      swReg.waiting.postMessage({ type: 'skip-waiting' });
+      setTimeout(() => location.reload(), 3000); // in case the new version is slow to take over
+      return;
+    }
+  }
+  location.reload();
+}
+initPullRefresh({ ignore: ['#grid-region', '#cellmenu', '#app-menu'], beforeReload: () => flushSave(), reload: refreshApp });
 
 // ====================================================================
 // Start
