@@ -217,9 +217,14 @@ function startAuth(signer) {
     assert(back.state === 'synced', 'A syncs once back online');
     await syncNow(B.page);
     const namesA = await savedNames(A.page);
-    const namesB = await savedNames(B.page);
     assert(namesA.includes(`${title} (from another device)`), `conflict keeps both copies of the progress (${namesA.join(', ')})`);
-    assert(JSON.stringify(namesA) === JSON.stringify(namesB), 'both devices end up with the same puzzles');
+    // The saved list redraws after sync finishes, so give B a moment to catch up.
+    let namesB = await savedNames(B.page);
+    for (let i = 0; i < 20 && JSON.stringify(namesA) !== JSON.stringify(namesB); i++) {
+      await B.page.waitForTimeout(250);
+      namesB = await savedNames(B.page);
+    }
+    assert(JSON.stringify(namesA) === JSON.stringify(namesB), `both devices end up with the same puzzles (B: ${namesB.join(', ')})`);
 
     // ---- Deleting a puzzle reaches the other device.
     await A.page.click(`#saved-list li:has(.name:text-is("${title} (from another device)")) [data-do=delete]`);
