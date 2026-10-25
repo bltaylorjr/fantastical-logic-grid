@@ -271,6 +271,8 @@ function startAuth(signer) {
     await B.page.check('#so-clear');
     await B.page.click('[data-view=signout] button[type=submit]');
     await B.page.waitForSelector('#dlg-account[open]', { state: 'detached' });
+    // The saved list is redrawn after the local copies are wiped, a moment after the dialog closes.
+    await B.page.waitForFunction(() => !document.querySelector('#saved-list .name'), null, { timeout: 5000 }).catch(() => {});
     assert((await savedNames(B.page)).length === 0, 'sign-out can remove puzzles from a shared device');
     await openAccount(B.page);
     await B.page.fill('#si-email', 'bobby@example.com');
