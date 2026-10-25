@@ -552,8 +552,7 @@ function openGame(save, { fresh = false } = {}) {
     <select id="q-${q.number}" data-n="${q.number}"><option value="">Choose an answer</option>${q.options.map((o) => `<option value="${o}"${save.answers[q.number] === o ? ' selected' : ''}>${esc(ix.label(o))}</option>`).join('')}</select>
     <span class="res" id="qr-${q.number}"></span></li>`).join('');
   $('#answer-result').textContent = '';
-  $('#my-notes').value = save.myNotes || '';
-  updateNotesCount();
+  updateNotesButton();
 
   S.grid = createGrid($('#gridframe'), puzzle, ix, {
     onCycle: (k) => { const cur = S.marks.get(k) || ''; setCell(k, cur === '' ? 'X' : cur === 'O' ? '' : 'O'); },
@@ -794,12 +793,30 @@ function updateNotesCount() {
   const left = NOTES_MAX - $('#my-notes').value.length;
   $('#my-notes-count').textContent = left <= 500 ? (left ? `${left} characters left.` : 'Your notes are full.') : '';
 }
+function updateNotesButton() {
+  const has = !!(S && (S.save.myNotes || '').trim());
+  $('#notes-dot').hidden = !has;
+  $('#notes-has').textContent = has ? ' (has notes)' : '';
+}
+function openNotes() {
+  if (!S) return;
+  $('#my-notes').value = S.save.myNotes || '';
+  updateNotesCount();
+  openDialog($('#dlg-notes'), $('#my-notes'));
+}
 $('#my-notes').addEventListener('input', () => {
   if (!S) return;
   S.save.myNotes = $('#my-notes').value;
   updateNotesCount();
+  updateNotesButton();
   scheduleSave();
 });
+$('#notes-save').onclick = async () => {
+  $('#dlg-notes').close();
+  await flushSave({ manual: true });
+  status('Notes saved.');
+};
+$('#notes-close').onclick = () => $('#dlg-notes').close();
 
 // ---- clues and questions ----
 $('#clue-list').addEventListener('change', (e) => {
@@ -1531,6 +1548,7 @@ const ACTIONS = {
   clear: clearGrid, reveal,
   save: () => flushSave({ manual: true }),
   print: openPrint,
+  notes: openNotes,
 };
 document.addEventListener('click', (e) => {
   const b = e.target.closest('[data-act]');
@@ -1550,6 +1568,7 @@ document.addEventListener('keydown', (e) => {
     if (!mod && !e.altKey && !typing && settings.singleKeys) {
       if (k === 'h') { e.preventDefault(); hint(); return; }
       if (k === 'c') { e.preventDefault(); check(); return; }
+      if (k === 'n') { e.preventDefault(); openNotes(); return; }
     }
   }
   if (!mod && !e.altKey && !typing && e.key === '?' && settings.singleKeys) { e.preventDefault(); $('#help-btn').click(); }

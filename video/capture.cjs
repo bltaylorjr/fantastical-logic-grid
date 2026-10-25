@@ -352,11 +352,10 @@ const CSS = `
     await hl(['#q-h', '#q-list', '#check-answers']);
     await scene('questions', ['When you think you know, answer the questions under the clues, and press Check answers.']);
     await clearFx();
-    await scrollTo('#my-notes'); await clickShown('#my-notes');
+    await top(); await clickShown('#notes-btn'); await p.waitForSelector('#dlg-notes[open]');
     await p.keyboard.type(`Start with clue 1. Come back to the last two.`, { delay: 25 });
-    await hl('.mynotes');
-    await scene('notes', ['Want to jot something down? Type it in My notes.', 'Your notes save with the puzzle, and only you can see them, even in a race.']);
-    await clearFx(); await p.evaluate(() => document.activeElement.blur());
+    await scene('notes', ['Want to jot something down? Press My notes and type.', 'Press Save to keep them, or Close to get back to the puzzle.', 'Only you can see your notes, even in a race.']);
+    await p.click('#notes-save'); await p.waitForTimeout(200);
     await fillFromSolution(0.6); await gridView();
     await scene('keep-going', ['Keep going the same way, clue by clue, until the whole grid is filled in.']);
     await fillFromSolution(1);
@@ -405,6 +404,11 @@ const CSS = `
       await scrollTo('#sync-line'); await hl('#sync-line');
       await scene('sync', ['You never need an account to play.', 'But a free account keeps your puzzles, progress and settings in step on the website, the desktop app and your phone.']);
       await clearFx();
+      if (await p.isVisible('#player-chip')) {
+        await hl('#player-chip');
+        await scene('guest', ['The name at the top shows who you are playing as.', 'Until you sign in, you play as Guest.']);
+        await clearFx();
+      }
       await p.click('#sync-btn'); await p.waitForSelector('#dlg-account[open]');
       await p.click('[data-view=signin] [data-go=signup]');
       await p.fill('#su-email', 'detective@example.com'); await p.fill('#su-pass', 'correct horse battery');
@@ -417,19 +421,19 @@ const CSS = `
       await p.waitForTimeout(300);
     }
     if (await p.isVisible('#compete-section')) {
-      await p.waitForSelector('[data-compete=name]', { timeout: 15000 });
-      await scrollTo('#compete-section'); await hl('#compete-section');
-      await scene('compete', ['Play against others lets you race other players on the very same puzzle, and climb the scoreboard.']);
-      await clearFx();
-      await p.click('[data-compete=name]'); await p.waitForSelector('#dlg-name[open]');
+      // Signed in, the game asks for a screen name straight away.
+      await p.waitForSelector('#dlg-name[open]', { timeout: 15000 });
       await p.fill('#name-input', 'Sky Fox');
-      await scene('screen-name', ['First, pick a screen name.', 'It is the only thing other players see, and rude names are turned away.']);
+      await scene('screen-name', ['Once you are signed in, you pick a screen name.', 'It is the only thing other players see, and rude names are turned away.', 'Don\'t want one? Sign out instead, and you play as Guest.']);
       await p.click('#name-form button[type=submit]'); await p.waitForSelector('#dlg-name[open]', { state: 'detached' });
+      await scrollTo('#compete-section'); await hl(['#compete-section', '#player-chip']);
+      await scene('compete', ['Your screen name now shows at the top.', 'Play against others lets you race other players on the very same puzzle, and climb the scoreboard.']);
+      await clearFx();
       // A second player gets ready on another device.
       const rival = await device({ silent: true });
       await rival.evaluate(async () => (await import('./js/account.js')).signUp('rival@example.com', 'correct horse battery'));
-      await rival.waitForSelector('[data-compete=name]', { timeout: 15000 });
-      await rival.click('[data-compete=name]'); await rival.fill('#name-input', 'Bold Badger');
+      await rival.waitForSelector('#dlg-name[open]', { timeout: 15000 });
+      await rival.fill('#name-input', 'Bold Badger');
       await rival.click('#name-form button[type=submit]'); await rival.waitForSelector('#dlg-name[open]', { state: 'detached' });
       // Start a race with a quick Basic puzzle.
       await p.check('input[name=tier][value=basic]', { force: true });

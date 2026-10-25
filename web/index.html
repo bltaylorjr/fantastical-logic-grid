@@ -25,6 +25,7 @@
     <span>The Fantastical Logic Grid</span>
   </button>
   <div class="appbar-actions">
+    <button class="btn quiet player-chip" type="button" id="player-chip" hidden><span class="sr-only">Playing as </span><span id="player-chip-name">Guest</span></button>
     <button class="btn quiet" type="button" id="help-btn" aria-keyshortcuts="Shift+?">Help</button>
     <button class="btn quiet" type="button" id="menu-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="app-menu">Menu</button>
   </div>
@@ -165,6 +166,7 @@
       <button class="btn" type="button" data-act="check" aria-keyshortcuts="C"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/></svg> Check</button>
       <button class="btn" type="button" data-act="clear"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 21H8a2 2 0 0 1-1.42-.587l-3.994-3.999a2 2 0 0 1 0-2.828l10-10a2 2 0 0 1 2.829 0l5.999 6a2 2 0 0 1 0 2.828L12.834 21"/><path d="m5.082 11.09 8.828 8.828"/></svg> Clear grid</button>
       <button class="btn" type="button" data-act="reveal"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg> Reveal solution</button>
+      <button class="btn" type="button" data-act="notes" id="notes-btn" aria-keyshortcuts="N"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13.4 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7.4"/><path d="M2 6h4"/><path d="M2 10h4"/><path d="M2 14h4"/><path d="M2 18h4"/><path d="M21.378 5.626a1 1 0 1 0-3.004-3.004l-5.01 5.012a2 2 0 0 0-.506.854l-.837 2.87a.5.5 0 0 0 .62.62l2.87-.837a2 2 0 0 0 .854-.506z"/></svg> My notes<span class="notes-dot" id="notes-dot" hidden aria-hidden="true"></span><span class="sr-only" id="notes-has"></span></button>
       <button class="btn" type="button" data-act="save" aria-keyshortcuts="Control+S Meta+S"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/></svg> Save</button>
       <button class="btn" type="button" data-act="print" aria-keyshortcuts="Control+P Meta+P"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg> Print</button>
     </div>
@@ -230,13 +232,6 @@
         <button class="btn" type="button" id="check-answers">Check answers</button>
         <p id="answer-result" role="status" aria-live="polite"></p>
       </section>
-      <section class="card mynotes" aria-labelledby="mynotes-h">
-        <h2 id="mynotes-h">My notes</h2>
-        <label class="sr-only" for="my-notes">My notes for this puzzle</label>
-        <textarea id="my-notes" rows="5" maxlength="5000" spellcheck="true" aria-describedby="my-notes-help" placeholder="Type your own notes here"></textarea>
-        <p class="help" id="my-notes-help">Your notes save with this puzzle. Only you can see them, even in a race.</p>
-        <p class="help" id="my-notes-count" role="status"></p>
-      </section>
     </aside>
   </div>
 
@@ -275,6 +270,18 @@
   <h2 id="confirm-h"></h2>
   <p id="confirm-text"></p>
   <div class="dlg-actions"><button class="btn" type="button" id="confirm-no"></button><button class="btn primary" type="button" id="confirm-yes"></button></div>
+</dialog>
+
+<dialog id="dlg-notes" class="mynotes" aria-labelledby="mynotes-h">
+  <h2 id="mynotes-h">My notes</h2>
+  <label class="sr-only" for="my-notes">My notes for this puzzle</label>
+  <textarea id="my-notes" rows="10" maxlength="5000" spellcheck="true" aria-describedby="my-notes-help" placeholder="Type your own notes here"></textarea>
+  <p class="help" id="my-notes-help">Your notes save with this puzzle as you type. Only you can see them, even in a race.</p>
+  <p class="help" id="my-notes-count" role="status"></p>
+  <div class="dlg-actions">
+    <button class="btn" type="button" id="notes-close">Close</button>
+    <button class="btn primary" type="button" id="notes-save">Save</button>
+  </div>
 </dialog>
 
 <dialog id="dlg-print" aria-labelledby="print-h">
@@ -493,13 +500,14 @@
 <dialog id="dlg-name" aria-labelledby="name-h">
   <form id="name-form" novalidate>
     <h2 id="name-h">Your screen name</h2>
+    <p class="help" id="name-required" hidden>You are signed in, so choose a screen name to play under. Players who are not signed in show as Guest.</p>
     <p class="help">Other players see only this name, on the scoreboard and in races. Never your email.</p>
     <div class="field"><label for="name-input">Screen name</label><input type="text" id="name-input" maxlength="20" autocomplete="nickname" spellcheck="false" aria-describedby="name-rules" required></div>
     <p class="help" id="name-rules">3 to 20 letters or numbers. Spaces, dots, dashes and underscores are fine. Names must be friendly and not already taken.</p>
     <label class="check"><input type="checkbox" id="name-post"> Put my solved puzzles on the scoreboard</label>
     <label class="check"><input type="checkbox" id="name-invites"> Let other players challenge me by my screen name</label>
     <div class="error-box" role="alert" hidden></div>
-    <div class="dlg-actions"><button class="btn" type="button" data-close>Cancel</button><button class="btn primary" type="submit">Save name</button></div>
+    <div class="dlg-actions"><button class="btn" type="button" data-close id="name-cancel">Cancel</button><button class="btn" type="button" id="name-signout" hidden>Sign out instead</button><button class="btn primary" type="submit">Save name</button></div>
     <details class="acct-danger" id="name-leave">
       <summary>Leave the scoreboard</summary>
       <p class="help">Removes your screen name, your points and your race results. Your account and puzzles stay.</p>
@@ -566,6 +574,7 @@
 <dialog id="dlg-rules" class="wide rules" aria-labelledby="rules-h">
   <h2 id="rules-h" tabindex="-1">Scoring and race rules</h2>
   <p>Every puzzle you solve earns points, alone or in a race. In a race everyone gets the same puzzle, and the lowest race time wins. You need an account and a screen name to earn points or race. Playing alone never needs one.</p>
+  <p>Once you sign in, the game asks you to choose a screen name (or uses the one your account already has), and it shows at the top of the screen. If you are not signed in, you play as <b>Guest</b>.</p>
 
   <h3>How points are awarded</h3>
   <p>Points = <b>difficulty base</b> × <b>size</b> × <b>speed</b> × <b>help</b>, rounded, and at least 1.</p>
@@ -605,7 +614,7 @@
     <li><b>This week</b> starts on Monday at 00:00 UTC. <b>All time</b> never resets.</li>
     <li>Players are ranked by points. A tie goes to more race wins, then to whoever scored first.</li>
     <li>The top 50 are shown, and your own place is always shown. The board can be up to 30 seconds behind.</li>
-    <li><b>Leave the scoreboard</b> (in the screen name window) removes your name, points and race results.</li>
+    <li><b>Leave the scoreboard</b> (in the screen name window) removes your name, points and race results. To stay signed in you then choose a new name, or you can sign out and play as Guest.</li>
   </ul>
   <div class="dlg-actions"><button class="btn primary" type="button" data-close>Close</button></div>
 </dialog>
@@ -650,7 +659,7 @@
   <p class="muted">For the narrated how-to-play video, choose <b>How to play</b> at the top of the page.</p>
   <p>Read a clue, then mark the grid. <b>X</b> means two things do not go together. <b>O</b> means they do. Each row in a sub-grid has exactly one O. When the grid is full, answer the story questions.</p>
   <p>Select a character's portrait to hear the clues they remember. Each finished section of the grid reveals more of the scene. Want fewer distractions? Choose <b>Silent mode</b> on the New puzzle screen or in Settings to see only the story, the grid, the clues and the answer key.</p>
-  <p id="help-compete" hidden>Want company? Under <b>Play against others</b> on the home screen, sign in and choose a screen name, then start a race (everyone gets the same puzzle, fastest solve wins), challenge a player by screen name, join one with a code, or find an open race. Your solved puzzles earn points on the <b>Scoreboard</b>. <button class="btn quiet small" type="button" data-rules>Scoring and race rules</button></p>
+  <p id="help-compete" hidden>Want company? Under <b>Play against others</b> on the home screen, sign in and choose a screen name (until you sign in you play as Guest), then start a race (everyone gets the same puzzle, fastest solve wins), challenge a player by screen name, join one with a code, or find an open race. Your solved puzzles earn points on the <b>Scoreboard</b>. <button class="btn quiet small" type="button" data-rules>Scoring and race rules</button></p>
   <h3>Keys</h3>
   <table class="keys">
     <tbody>
@@ -664,6 +673,7 @@
       <tr><th scope="row">R</th><td>Describe the row</td></tr>
       <tr><th scope="row">Ctrl+Z, Ctrl+Shift+Z</th><td>Undo, redo</td></tr>
       <tr><th scope="row">H, C</th><td>Hint, check</td></tr>
+      <tr><th scope="row">N</th><td>Open my notes</td></tr>
       <tr><th scope="row">Ctrl+S, Ctrl+P</th><td>Save, print</td></tr>
       <tr><th scope="row">?</th><td>This help</td></tr>
       <tr><th scope="row">Esc</th><td>Close a dialog or menu</td></tr>
