@@ -117,14 +117,18 @@ scripts/                    build, local server, icons, end-to-end test
 - `engine/` is a snapshot of the puzzle engine (`/mnt/project-files/logic-grid-engine`); `npm run build`
   copies `engine/src` into `web/engine`. Set `ENGINE_DIR` to build from another copy.
 - `npm run build` writes `dist/web` (the app), `dist/preview` (claude.ai preview) and `dist/site`
-  (`dist/web` plus `hosting/` files: `_headers`, `.htaccess`, `web.config`, `.nojekyll`, `DEPLOY.md`).
+  (`dist/web` plus `hosting/` files: `_headers`, `.htaccess`, `web.config`, `.nojekyll`, `DEPLOY.md`,
+  and the search pages, daily puzzle, sitemap and search tags from `scripts/seo.mjs`).
 - **Desktop updates**: the Tauri updater (`desktop/src-tauri`, `web/js/updates.js`) reads
   `https://github.com/bltaylorjr/fantastical-logic-grid/releases/latest/download/latest.json`
   and only installs packages signed with the updater key. To release: raise `version` in
   `desktop/src-tauri/tauri.conf.json`, `desktop/src-tauri/Cargo.toml` and `package.json` and merge to `main`;
   **Actions > Release desktop app** then runs by itself (or run it by hand). It needs the repository secret `TAURI_SIGNING_PRIVATE_KEY`.
   The key is never committed; losing it means installed copies can no longer update.
-- **Web version**: **Actions > Publish web version** deploys `dist/site` to GitHub Pages on each push to `main`.
+- **Web version**: **Actions > Publish web version** deploys `dist/site` to GitHub Pages on each push to `main`
+  and every night (new daily puzzle page), then notifies IndexNow search engines.
+- **Search**: crawlable how-to-play, themes, difficulty and daily puzzle pages, Lighthouse on every PR and a
+  weekly live search check. Google Search Console and Bing setup steps: [SEO.md](SEO.md).
 - **Self-maintenance**: tests on every PR, weekly dependency updates, a health check every 3 hours
   that opens an issue when something is down, a daily cleanup of old server data and anonymous
   error reports. See [MAINTENANCE.md](MAINTENANCE.md).

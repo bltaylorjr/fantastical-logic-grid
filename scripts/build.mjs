@@ -4,6 +4,7 @@ import { cpSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFi
 import { join, relative, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
+import { buildSeo } from './seo.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const web = join(root, 'web');
@@ -82,4 +83,6 @@ const site = join(root, 'dist', 'site');
 rmSync(site, { recursive: true, force: true });
 cpSync(out, site, { recursive: true });
 cpSync(join(root, 'hosting'), site, { recursive: true });
-console.log('Built dist/site for web hosting.');
+// Search pages, daily puzzle, sitemap and search tags (website only).
+const seo = await buildSeo({ root, site });
+console.log(`Built dist/site for web hosting (${seo.pages.length} pages in the sitemap).`);
