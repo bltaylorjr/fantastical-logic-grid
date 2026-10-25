@@ -1,0 +1,126 @@
+# The game's Cloudflare Worker
+
+One small Worker (`flg-api`) serves every copy of the game (website, desktop,
+Android, iPhone):
+
+- **Account sync** (`src/sync.js`): saved puzzles, progress, settings and the
+  used-story list follow a signed-in player to every device.
+- **Shared learning and voices** (`src/learn.js`): added by the learning work.
+
+Everything here runs on free plans. Nothing needs a credit card.
+
+| Service | What it does | Free allowance | When it could cost money |
+| --- | --- | --- | --- |
+| Firebase Authentication (Spark plan) | Email + password sign-in, password reset emails, email confirmation | 50,000 monthly active players; reset/confirm emails are sent by Firebase (daily send limits apply) | Only if you upgrade to the Blaze plan on purpose. Spark never bills. |
+| Cloudflare Workers (Free) | Runs `flg-api` | 100,000 requests a day, 10 ms CPU per request | If you choose Workers Paid ($5/month). On Free, requests over the limit are refused, never billed. |
+| Cloudflare D1 (Free) | Stores the synced game data | 5 GB, 5 million row reads and 100,000 row writes a day | Same as above: Free stops, it never bills. |
+
+Passwords never reach this Worker or the game's code. Firebase stores them; the
+Worker only checks Firebase's signed ID tokens and learns the player's id.
+
+## One-time setup
+
+### 1. Firebase (sign-in)
+
+1. Go to <https://console.firebase.google.com>, sign in with a Google account
+   and choose **Create a project**. Name it (for example `fantastical-logic-grid`).
+   Google Analytics is not needed. The project stays on the free **Spark** plan.
+2. **Build > Authentication > Get started > Sign-in method > Email/Password >
+   Enable** (leave "Email link" off) and **Save**.
+3. **Authentication > Settings > Password policy**: set a minimum length of 8
+   (optional; the game already asks for 8).
+4. **Authentication > Templates**: optionally set the sender name to
+   "The Fantastical Logic Grid" for the password reset and confirmation emails.
+5. **Project settings (gear) > General > Your apps > Web (`</>`)**: register an
+   app called "The Fantastical Logic Grid". Hosting is not needed. Copy two
+   values: **apiKey** and **projectId**. The apiKey is not a secret; it only
+   names the project.
+6. Recommended: in Google Cloud Console > APIs & Services > Credentials, edit
+   that "Browser key" and under **API restrictions** allow only *Identity
+   Toolkit API* and *Token Service API*. Do not add website restrictions: the
+   desktop and phone apps have no website address.
+
+### 2. Cloudflare (the Worker and database)
+
+You need a free Cloudflare account (<https://dash.cloudflare.com/sign-up>).
+From a computer with Node.js 20 or later, in this `server` folder:
+
+```sh
+npm install
+npx wrangler login                 # opens the browser once
+npx wrangler d1 create flg         # prints a database_id
+```
+
+Then edit `wrangler.toml`:
+
+- `database_id` = the id printed above
+- `FIREBASE_PROJECT_ID` = the Firebase projectId from step 1.5
+
+and run:
+
+```sh
+npm run deploy                     # creates the tables and publishes the Worker
+```
+
+It prints the Worker's address, like `https://flg-api.<your-name>.workers.dev`.
+Optional: in the Cloudflare dashboard, give it a nicer address such as
+`https://api.thelogicgrid.com` (Workers & Pages > flg-api > Settings > Domains & Routes).
+
+### 3. Switch accounts on in the game
+
+In GitHub: **Settings > Secrets and variables > Actions > Variables > New
+repository variable**, add:
+
+- `FLG_FIREBASE_API_KEY` = the Firebase apiKey
+- `FLG_SYNC_URL` = the Worker address from step 2
+
+The next website publish and desktop release include accounts. (Alternatively,
+put the two values in `web/js/cloud-config.js`.) Until both are set, the game
+shows no account controls and works exactly as before.
+
+### Later deploys from GitHub (optional)
+
+To have GitHub deploy the Worker, create a Cloudflare API token with the
+"Edit Cloudflare Workers" template plus D1 edit permission, and add the repo
+secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
+
+## How sync works
+
+- Every change is saved on the device first, so the game plays offline. When
+  signed in, changes go to the Worker in the background (a few seconds after a
+  change, when the app comes back into view, when the connection returns, and
+  every 5 minutes).
+- Each record has a server revision number. A write based on an old revision
+  comes back as a conflict, and the app merges:
+  - **Saved puzzle**: a solved copy beats an unsolved one, otherwise the most
+    recently played copy wins. If the other copy had progress of its own, it is
+    kept as "*name* (from another device)". Progress beats a deletion. The
+    puzzle open on screen is never replaced while it is being played.
+  - **Used stories** and **history**: both lists are combined, so a story is
+    never reused on any device.
+  - **Settings**: the most recent change wins. API keys stay on each device.
+- When someone signs in on a device that already has puzzles, those puzzles
+  join their account. Signing out can optionally remove puzzles from a shared
+  device; they stay in the account.
+- **Deleting an account** (in the game: Menu > Account and sync > Delete my
+  account) needs the password again. It removes all synced data here, then the
+  Firebase account. The player's puzzles stay on that device.
+
+## Routes
+
+| Route | Who | What |
+| --- | --- | --- |
+| `POST /v1/sync` | signed in | push changes and/or pull changes since a revision |
+| `DELETE /v1/account` | signed in within 10 minutes | delete all synced data |
+| `GET /v1/health` | anyone | check the Worker is up |
+| `/v1/learn/*`, `/v1/tts`, `/admin/learn*` | see `src/learn.js` | shared learning and voices |
+
+Limits: 60 sync requests a minute per player, 1 MB per saved puzzle, 5,000
+records per player.
+
+## Tests
+
+```sh
+npm test                           # Worker tests (Miniflare, local D1)
+cd .. && npm run test:accounts     # two-device browser test of the whole flow
+```

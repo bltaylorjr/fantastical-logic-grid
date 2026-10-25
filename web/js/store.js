@@ -11,6 +11,15 @@ const LS_PREFIX = 'flg.';
 let dbPromise = null;
 const memory = new Map();
 
+// Account sync listens for local changes (sync.js). Writes that sync itself
+// makes pass { fromSync: true } so they are not sent back to the server.
+const listeners = new Set();
+export function onChange(fn) { listeners.add(fn); return () => listeners.delete(fn); }
+function changed(kind, key, deleted, opts) {
+  if (opts && opts.fromSync) return;
+  for (const fn of listeners) { try { fn({ kind, key, deleted: !!deleted }); } catch (e) { /* sync is optional */ } }
+}
+
 function openDb() {
   if (dbPromise) return dbPromise;
   dbPromise = new Promise((resolve) => {
@@ -67,16 +76,18 @@ export async function getSave(id) {
   return ls.get(`save:${id}`);
 }
 
-export async function putSave(save) {
+export async function putSave(save, opts) {
   const db = await openDb();
-  if (db) return tx(db, SAVES, 'readwrite', (s) => s.put(save));
-  return ls.set(`save:${save.id}`, save);
+  if (db) await tx(db, SAVES, 'readwrite', (s) => s.put(save));
+  else ls.set(`save:${save.id}`, save);
+  changed('save', save.id, false, opts);
 }
 
-export async function deleteSave(id) {
+export async function deleteSave(id, opts) {
   const db = await openDb();
-  if (db) return tx(db, SAVES, 'readwrite', (s) => s.delete(id));
-  return ls.del(`save:${id}`);
+  if (db) await tx(db, SAVES, 'readwrite', (s) => s.delete(id));
+  else ls.del(`save:${id}`);
+  changed('save', id, true, opts);
 }
 
 export async function getMeta(key, fallback) {
@@ -85,10 +96,11 @@ export async function getMeta(key, fallback) {
   return v === undefined ? fallback : v;
 }
 
-export async function setMeta(key, value) {
+export async function setMeta(key, value, opts) {
   const db = await openDb();
-  if (db) return tx(db, META, 'readwrite', (s) => s.put(value, key));
-  return ls.set(`meta:${key}`, value);
+  if (db) await tx(db, META, 'readwrite', (s) => s.put(value, key));
+  else ls.set(`meta:${key}`, value);
+  changed('meta', key, false, opts);
 }
 
 // Generated pictures and voice clips (Blobs), keyed by story id. Memory only
@@ -124,9 +136,23 @@ export function loadSettings() {
   return s;
 }
 
-export function saveSettings(settings) {
+export function saveSettings(settings, opts) {
   try { ls.set('settings', settings); } catch (e) { /* settings are optional */ }
+  if (!(opts && opts.fromSync)) { try { ls.set('settingsAt', Date.now()); } catch (e) { /* optional */ } }
+  changed('settings', 'settings', false, opts);
 }
+export function settingsChangedAt() { return ls.get('settingsAt') || 0; }
+export function setSettingsChangedAt(t) { try { ls.set('settingsAt', t); } catch (e) { /* optional */ } }
+
+// Small per-device values that sync and sign-in keep in localStorage.
+export function getLocal(key) { return ls.get(key); }
+export function setLocal(key, value) { if (value === undefined) ls.del(key); else ls.set(key, value); }
 
 export function loadSetupChoices() { return ls.get('setup') || null; }
 export function saveSetupChoices(choices) { try { ls.set('setup', choices); } catch (e) { /* optional */ } }
+
+// Removes every saved puzzle from this device only (signing out on a shared
+// device). Synced copies stay in the player's account.
+export async function clearSavesOnDevice() {
+  for (const s of await listSaves()) await deleteSave(s.id, { fromSync: true });
+}

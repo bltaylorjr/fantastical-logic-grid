@@ -1,0 +1,49 @@
+# The game's Cloudflare Worker: player accounts sync (src/sync.js) and the
+# shared learning + voice service (src/learn.js). Setup steps: README.md.
+name = "flg-api"
+main = "src/index.js"
+compatibility_date = "2026-08-01"
+
+# Fill in database_id after `npx wrangler d1 create flg` (see README.md).
+[[d1_databases]]
+binding = "DB"
+database_name = "flg"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+migrations_dir = "migrations"
+
+[vars]
+# The Firebase project that owns player sign-in. Its ID tokens are checked here.
+FIREBASE_PROJECT_ID = "REPLACE_WITH_FIREBASE_PROJECT_ID"
+# Pages and apps allowed to call this Worker: the website, GitHub Pages, the
+# Windows/macOS desktop app (Tauri), the Android app and the iPhone app.
+ALLOWED_ORIGINS = "https://thelogicgrid.com,https://www.thelogicgrid.com,https://bltaylorjr.github.io,http://tauri.localhost,https://tauri.localhost,tauri://localhost,https://appassets.androidplatform.net,app://localhost"
+DAILY_TTS_CAP = "300"
+TTS_MODEL = "gemini-3.8-flash-tts"
+# Secrets (never in this file): GEMINI_API_KEY and ADMIN_TOKEN, set with
+# `npx wrangler secret put <NAME>`.
+
+# Per-client request limits.
+[[ratelimits]]
+name = "LIMIT_SYNC"
+namespace_id = "41010"
+simple = { limit = 60, period = 60 }
+
+[[ratelimits]]
+name = "LIMIT_AUTHLESS"
+namespace_id = "41011"
+simple = { limit = 120, period = 60 }
+
+[[ratelimits]]
+name = "LIMIT_PLAYS"
+namespace_id = "41001"
+simple = { limit = 20, period = 60 }
+
+[[ratelimits]]
+name = "LIMIT_PARTS"
+namespace_id = "41002"
+simple = { limit = 5, period = 60 }
+
+[[ratelimits]]
+name = "LIMIT_TTS"
+namespace_id = "41003"
+simple = { limit = 30, period = 60 }
