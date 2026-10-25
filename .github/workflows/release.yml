@@ -1,16 +1,43 @@
 # Builds the Windows desktop app and publishes a GitHub Release with a signed
 # update package and latest.json, which installed copies check for updates.
-# Run it from the Actions tab (Run workflow) or by pushing a tag like v1.2.0.
+# It runs by itself when a version bump reaches main (package.json changes to a
+# version that has no release yet), or from the Actions tab (Run workflow), or
+# by pushing a tag like v1.2.0.
 # Needs the repository secret TAURI_SIGNING_PRIVATE_KEY (the updater signing key).
 name: Release desktop app
 on:
   workflow_dispatch:
   push:
     tags: ['v*']
+    branches: [main]
+    paths: [package.json]
 permissions:
   contents: write
+concurrency:
+  group: release
 jobs:
+  new-version:
+    runs-on: ubuntu-latest
+    outputs:
+      release: ${{ steps.v.outputs.release }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if [ "$GITHUB_EVENT_NAME" = push ] && [ "$GITHUB_REF_TYPE" = branch ] && gh release view "v$version" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "v$version is already released; nothing to do."
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Releasing v$version."
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          fi
+
   windows:
+    needs: new-version
+    if: needs.new-version.outputs.release == 'true'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4

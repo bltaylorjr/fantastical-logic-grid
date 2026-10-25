@@ -127,7 +127,7 @@ export const DEFAULT_SETTINGS = {
   silent: false, music: false, musicVolume: 40, instant: false,
   readAloud: true, aiKey: '', aiPictures: 'scene', aiVoice: true, imageModel: 'gpt-image-2.5-flare', imageQuality: 'medium', voiceModel: 'gpt-4o-mini-tts',
   voiceProvider: 'kokoro', kokoroReady: false, portraitStyle: 'notionists', confetti: true, introOffered: false, geminiKey: '', geminiVoiceModel: 'gemini-3.8-flash-tts',
-  learn: true, shareLearning: true, shareNoticeShown: false, serverVoices: true, storyModel: '',
+  learn: true, shareLearning: true, shareNoticeShown: false, serverVoices: true, storyModel: '', reportErrors: true,
 };
 
 export function loadSettings() {

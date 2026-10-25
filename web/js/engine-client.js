@@ -1,5 +1,6 @@
 // Talks to worker.js. Falls back to running the engine on the page if module
 // workers are not available (very old browsers).
+import { report } from './errors.js';
 let worker = null;
 let seq = 0;
 const pending = new Map();
@@ -12,7 +13,10 @@ function getWorker() {
       const p = pending.get(e.data.id);
       if (!p) return;
       pending.delete(e.data.id);
-      e.data.ok ? p.resolve(e.data.result) : p.reject(new Error(e.data.error));
+      if (e.data.ok) return p.resolve(e.data.result);
+      const err = new Error(e.data.error);
+      report(err, 'engine');
+      p.reject(err);
     };
     worker.onerror = (e) => {
       for (const p of pending.values()) p.reject(new Error(e.message || 'The puzzle writer stopped unexpectedly.'));

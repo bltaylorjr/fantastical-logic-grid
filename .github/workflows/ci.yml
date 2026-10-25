@@ -1,0 +1,90 @@
+# Runs every test on each pull request and each push to main, so nothing
+# broken reaches players. Passing Dependabot patch/minor updates merge
+# themselves (dependabot-merge below). Free: GitHub Actions minutes are free for public repos.
+name: Tests
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  app:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Versions match (package.json, tauri.conf.json, Cargo.toml)
+        run: |
+          a=$(node -p "require('./package.json').version")
+          b=$(node -p "require('./desktop/src-tauri/tauri.conf.json').version")
+          c=$(sed -n 's/^version = "\(.*\)"/\1/p' desktop/src-tauri/Cargo.toml | head -1)
+          echo "package.json $a, tauri.conf.json $b, Cargo.toml $c"
+          [ "$a" = "$b" ] && [ "$a" = "$c" ]
+      - run: npm ci
+      - name: Install the test browser
+        run: npm install --no-save --no-audit --no-fund playwright@1.63.0 && npx playwright install --with-deps chromium
+      - name: App tests (generate, play, save, print, voices, topics, learning)
+        run: npm test
+      - name: Accounts, races and error reports against the real Worker
+        run: |
+          npm --prefix server ci --no-audit --no-fund
+          node scripts/e2e-accounts.cjs
+          node scripts/e2e-compete.cjs
+          node scripts/e2e-errors.cjs
+
+  server:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - run: npm --prefix server ci --no-audit --no-fund
+      - name: Worker tests (sync, races, learning, cleanup, error reports)
+        run: npm --prefix server test
+      - name: Worker config is valid (dry run, nothing is deployed)
+        working-directory: server
+        run: npx wrangler deploy --dry-run --outdir "$RUNNER_TEMP/worker"
+
+  # Bobby approved (2026-10-25): Dependabot updates that pass every test above
+  # merge themselves. Only patch and minor updates; major updates wait for a person.
+  dependabot-merge:
+    needs: [app, server]
+    if: github.event_name == 'pull_request' && github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+    steps:
+      - id: meta
+        uses: dependabot/fetch-metadata@v2
+      - name: Merge a passing patch or minor update
+        if: steps.meta.outputs.update-type == 'version-update:semver-patch' || steps.meta.outputs.update-type == 'version-update:semver-minor'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.html_url }}
+        run: |
+          gh pr merge "$PR" --squash --delete-branch
+          # A merge made with this workflow's token does not start other
+          # workflows, so ask for the website publish directly. (Cloudflare
+          # deploys the Worker from its side and needs nothing here.)
+          gh workflow run pages.yml --repo "$GITHUB_REPOSITORY" --ref main
+      - name: Leave major updates for a person
+        if: steps.meta.outputs.update-type == 'version-update:semver-major'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.html_url }}
+        run: gh pr comment "$PR" --body "All tests pass. This is a major version update, so it waits for a person to merge it."

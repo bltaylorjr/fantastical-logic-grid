@@ -1,0 +1,125 @@
+# Checks every few hours that the game is up for players: the website, the
+# shared Worker and its database, the daily cleanup, and the desktop update
+# file. If something is down it opens a GitHub issue (GitHub emails the repo
+# owner); when it is back up the issue closes itself with a note.
+# Once a day it also opens or updates an issue listing errors players hit,
+# when the repository secret FLG_ADMIN_TOKEN (the Worker's ADMIN_TOKEN) is set.
+# Free: scheduled GitHub Actions on a public repo cost nothing.
+name: Health check
+on:
+  schedule:
+    - cron: '23 */3 * * *'   # every 3 hours
+    - cron: '41 6 * * *'     # daily error digest
+  workflow_dispatch:
+permissions:
+  contents: read
+  issues: write
+concurrency:
+  group: health
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SITE: https://thelogicgrid.com
+      API: ${{ vars.FLG_CLOUD_URL || 'https://flg-api.btay74.workers.dev' }}
+    steps:
+      - name: Check the website, Worker, database, cleanup and desktop updates
+        id: check
+        run: |
+          problems=()
+          notes=()
+          # Each address gets three tries, 20 s apart, so a passing blip is not reported.
+          fetch() { for i in 1 2 3; do if body=$(curl -fsSL --max-time 20 "$1"); then printf '%s' "$body"; return 0; fi; sleep 20; done; return 1; }
+
+          if page=$(fetch "$SITE/"); then
+            grep -q 'The Fantastical Logic Grid' <<<"$page" || problems+=("The website at $SITE answers, but the game page is missing.")
+          else problems+=("The website at $SITE does not answer."); fi
+          for f in sw.js manifest.webmanifest js/app.js engine/index.js; do
+            fetch "$SITE/$f" >/dev/null || problems+=("The website file $SITE/$f is missing, so the game may not start or work offline.")
+          done
+
+          if health=$(fetch "$API/v1/health?deep=1"); then
+            echo "Worker: $health"
+            jq -e '.db == true' <<<"$health" >/dev/null || problems+=("The Worker answers, but its D1 database does not.")
+            last=$(jq -r '.lastUpkeep // empty' <<<"$health")
+            if [ -z "$last" ]; then notes+=("The daily cleanup has not run yet (normal for the first day after it was added).")
+            elif [ $(( $(date +%s) * 1000 - last )) -gt $(( 36 * 3600 * 1000 )) ]; then problems+=("The Worker's daily cleanup has not run for more than 36 hours. Check the cron trigger in the Cloudflare dashboard (Workers > flg-api > Settings > Triggers).")
+            fi
+            if jq -e '.voicesToday >= .voiceCap' <<<"$health" >/dev/null; then notes+=("Today's free server voice clips are used up; players fall back to the built-in Kokoro voices until midnight UTC.")
+            fi
+          else problems+=("The shared Worker at $API does not answer, so sign-in sync, races, learning and server voices are down.")
+          fi
+
+          fetch "https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/latest.json" | jq -e '.version' >/dev/null \
+            || problems+=("The desktop update file (latest.json on the latest GitHub release) is missing, so installed copies cannot update.")
+
+          {
+            echo 'problems<<EOF'; printf '%s\n' "${problems[@]}"; echo 'EOF'
+            echo 'notes<<EOF'; printf '%s\n' "${notes[@]}"; echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+          printf 'Problem: %s\n' "${problems[@]}"
+          printf 'Note: %s\n' "${notes[@]}"
+
+      - name: Open, update or close the health issue
+        uses: actions/github-script@v7
+        env:
+          PROBLEMS: ${{ steps.check.outputs.problems }}
+          NOTES: ${{ steps.check.outputs.notes }}
+        with:
+          script: |
+            const label = 'health-check';
+            const problems = process.env.PROBLEMS.split('\n').filter(Boolean);
+            const notes = process.env.NOTES.split('\n').filter(Boolean);
+            const run = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const { data: open } = await github.rest.issues.listForRepo({ ...context.repo, state: 'open', labels: label });
+            if (problems.length) {
+              const body = `The automatic health check found a problem players will notice.\n\n${problems.map((p) => `- ${p}`).join('\n')}\n\n${notes.map((n) => `_${n}_`).join('\n')}\n\nChecked ${new Date().toUTCString()} ([run](${run})). This issue closes itself when everything is back up.`;
+              if (open.length) await github.rest.issues.createComment({ ...context.repo, issue_number: open[0].number, body });
+              else {
+                await github.rest.issues.createLabel({ ...context.repo, name: label, color: 'd73a4a', description: 'Opened by the automatic health check' }).catch(() => {});
+                await github.rest.issues.create({ ...context.repo, title: 'Health check: part of the game is down', labels: [label], body });
+              }
+              core.setFailed(problems.join(' '));
+            } else {
+              for (const issue of open) {
+                await github.rest.issues.createComment({ ...context.repo, issue_number: issue.number, body: `Everything is back up (${new Date().toUTCString()}, [run](${run})). Closing.` });
+                await github.rest.issues.update({ ...context.repo, issue_number: issue.number, state: 'closed', state_reason: 'completed' });
+              }
+              for (const n of notes) core.notice(n);
+            }
+
+  errors:
+    if: github.event.schedule == '41 6 * * *' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      API: ${{ vars.FLG_CLOUD_URL || 'https://flg-api.btay74.workers.dev' }}
+      TOKEN: ${{ secrets.FLG_ADMIN_TOKEN }}
+    steps:
+      - name: Fetch yesterday's and today's error reports
+        id: fetch
+        run: |
+          if [ -z "$TOKEN" ]; then echo "FLG_ADMIN_TOKEN is not set; skipping the error digest."; echo 'json={"errors":[]}' >> "$GITHUB_OUTPUT"; exit 0; fi
+          json=$(curl -fsS --max-time 20 -H "Authorization: Bearer $TOKEN" "$API/admin/errors?days=2")
+          echo "json=$(jq -c . <<<"$json")" >> "$GITHUB_OUTPUT"
+      - name: Open or update the error digest issue
+        uses: actions/github-script@v7
+        env:
+          REPORTS: ${{ steps.fetch.outputs.json }}
+        with:
+          script: |
+            const label = 'player-errors';
+            // Only errors several players (or one player, repeatedly) hit are worth a look.
+            const rows = JSON.parse(process.env.REPORTS).errors.filter((e) => e.count >= 3);
+            const { data: open } = await github.rest.issues.listForRepo({ ...context.repo, state: 'open', labels: label });
+            if (!rows.length) return;
+            const cell = (s) => String(s ?? '').replace(/\|/g, '\\|').replace(/\n/g, ' ');
+            const table = ['| Times | Kind | Platform | Version | Message | Where |', '|---:|---|---|---|---|---|',
+              ...rows.slice(0, 30).map((e) => `| ${e.count} | ${e.kind} | ${e.platform} | ${cell(e.version)} | ${cell(e.message)} | ${cell(e.place)} |`)].join('\n');
+            const body = `Errors players hit in the last two days (anonymous reports, cleaned of personal details):\n\n${table}\n\nUpdated ${new Date().toUTCString()}. Close this issue once they are fixed; a new one opens if errors come back.`;
+            if (open.length) await github.rest.issues.update({ ...context.repo, issue_number: open[0].number, body });
+            else {
+              await github.rest.issues.createLabel({ ...context.repo, name: label, color: 'fbca04', description: 'Error reports from players' }).catch(() => {});
+              await github.rest.issues.create({ ...context.repo, title: 'Players are hitting errors', labels: [label], body });
+            }

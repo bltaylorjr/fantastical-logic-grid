@@ -3,10 +3,15 @@
 //   POST /v1/sync, DELETE /v1/account    account sync (sync.js), signed in only
 //   /v1/profile, /v1/scores, /v1/scoreboard, /v1/races*
 //                                        screen names, races, scoreboard (compete.js)
-//   GET /v1/health                       a quick check that the Worker is up
+//   POST /v1/errors, GET /admin/errors   anonymous error reports from the apps (errors.js)
+//   GET /v1/health[?deep=1]              a quick check that the Worker (and with
+//                                        deep=1, the database and daily cleanup) is up
+// scheduled(): the daily cleanup of old data (upkeep.js, cron in wrangler.toml).
 
 import { handleLearn } from './learn.js';
 import { handleCompete } from './compete.js';
+import { handleErrors } from './errors.js';
+import { runUpkeep, deepHealth } from './upkeep.js';
 import { handleSync, handleDeleteAccount, isDeleted } from './sync.js';
 import { verifyIdToken, AuthError } from './auth.js';
 import { json, corsHeaders } from './http.js';
@@ -29,7 +34,14 @@ async function route(req, env, ctx) {
   const compete = await handleCompete(req, env, ctx, url, signedIn);
   if (compete) return compete;
 
-  if (url.pathname === '/v1/health') return json(req, env, { ok: true });
+  const errors = await handleErrors(req, env, url);
+  if (errors) return errors;
+
+  if (url.pathname === '/v1/health') {
+    if (url.searchParams.get('deep') !== '1') return json(req, env, { ok: true });
+    const health = await deepHealth(env);
+    return json(req, env, health, health.ok ? 200 : 503);
+  }
 
   const isSync = url.pathname === '/v1/sync' && req.method === 'POST';
   const isDelete = url.pathname === '/v1/account' && req.method === 'DELETE';
@@ -57,5 +69,8 @@ export default {
       console.error(e);
       return json(req, env, { error: 'server' }, 500);
     }
+  },
+  async scheduled(controller, env, ctx) {
+    ctx.waitUntil(runUpkeep(env).then((removed) => console.log('upkeep', JSON.stringify(removed))));
   },
 };
