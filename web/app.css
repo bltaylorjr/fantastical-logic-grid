@@ -54,6 +54,10 @@
 :root[data-world="sports"] { --w1: #22C55E; --w2: #3B82F6; }
 :root[data-world="cooking"] { --w1: #F97316; --w2: #EAB308; }
 :root[data-world="pets"] { --w1: #F59E0B; --w2: #14B8A6; }
+:root[data-world="town"] { --w1: #E11D48; --w2: #0EA5E9; }
+:root[data-world="parks"] { --w1: #16A34A; --w2: #0284C7; }
+:root[data-world="travel"] { --w1: #06B6D4; --w2: #F97316; }
+:root[data-world="wonders"] { --w1: #D97706; --w2: #7C3AED; }
 
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
@@ -455,6 +459,8 @@ h3, legend, .card h3 { font-family: var(--font); }
 .tile[data-world="occasion"] { --w1: #EC4899; --w2: #F59E0B; } .tile[data-world="fantasy"] { --w1: #8B5CF6; --w2: #EC4899; }
 .tile[data-world="scifi"] { --w1: #06B6D4; --w2: #6366F1; } .tile[data-world="sports"] { --w1: #22C55E; --w2: #3B82F6; }
 .tile[data-world="cooking"] { --w1: #F97316; --w2: #EAB308; } .tile[data-world="pets"] { --w1: #F59E0B; --w2: #14B8A6; }
+.tile[data-world="town"] { --w1: #E11D48; --w2: #0EA5E9; } .tile[data-world="parks"] { --w1: #16A34A; --w2: #0284C7; }
+.tile[data-world="travel"] { --w1: #06B6D4; --w2: #F97316; } .tile[data-world="wonders"] { --w1: #D97706; --w2: #7C3AED; }
 .tile[data-world="random"] { --w1: #7C5CFF; --w2: #22B8CF; }
 .chips .choice > span { border-radius: 999px; padding: 10px 18px; }
 .chips .choice small { font-weight: 400; }
