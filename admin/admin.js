@@ -478,6 +478,73 @@ let auditTimer;
 $('#audit-actor').oninput = () => { clearTimeout(auditTimer); auditTimer = setTimeout(() => show('audit', { keepFocus: true }), 400); };
 $('#audit-more').onclick = () => views.audit({ more: true }).catch((e) => toast(e.message));
 
+const ARCHIVE_STATUS = { sent: ['ok', 'Sent'], empty: ['ok', 'Nothing to archive'], off: ['', 'Switched off'], not_set_up: ['warn', 'Email not set up'], failed: ['bad', 'Failed'] };
+
+views.backups = async () => {
+  const d = await api('archive');
+  const owner = can('owner');
+  const yes = (ok, text) => `<span class="badge ${ok ? 'ok' : 'warn'}">${ok ? 'Done' : 'Not yet'}</span> ${text}`;
+  const ready = d.setUp.binding && d.setUp.to;
+  const mode = !d.emailOn ? 'Off. The daily cleanup removes old rows without a backup, as before.'
+    : d.removeOn ? 'On. Each Monday the rows below are emailed, then removed.'
+      : 'Email only. Each Monday the rows below are emailed and nothing is removed, so they pile up until removal is switched on.';
+  const pendingRows = d.plan.flatMap((p) => [[`<b>${esc(p.label)}</b><br><span class="muted">${esc(p.table)}${p.children.length ? ` + ${esc(p.children.join(', '))}` : ''}</span>`,
+    `${p.keepDays} days`, esc(p.why), fmt([p.table, ...p.children].reduce((s, t) => s + (d.pending[t] || 0), 0))]]);
+  const runs = d.runs.map((r) => {
+    const [cls, label] = ARCHIVE_STATUS[r.status] || ['', r.status];
+    const rows = Object.values(r.rows || {}).reduce((s, n) => s + n, 0);
+    return [when(r.ranAt), esc(r.trigger === 'weekly' ? 'Weekly' : r.trigger), `<span class="badge ${cls}">${esc(label)}</span>${r.message ? `<br><span class="muted">${esc(r.message)}</span>` : ''}`,
+      fmt(rows), bytes(r.bytes), r.removed ? 'Yes' : 'No'];
+  });
+  $('#backups-body').innerHTML = `<div class="card"><h2>Status</h2>
+      <p><b>Weekly email:</b> ${esc(mode)} <a href="#settings">Change in Settings and switches</a> (group Backups).</p>
+      <p><b>When:</b> ${esc(d.schedule)}.</p>
+      <ul class="plain">
+        <li>${yes(d.setUp.binding, 'Cloudflare Email Routing connected to the Worker (the <code>ARCHIVE_EMAIL</code> binding)')}</li>
+        <li>${yes(d.setUp.to, 'Where it goes: the <code>ARCHIVE_TO</code> secret, a verified destination address')}</li>
+        <li><span class="badge">From</span> ${esc(d.setUp.from || 'not set')}</li>
+      </ul>
+      ${ready ? '' : '<p class="note">The email is not set up yet. The steps are in <code>server/ARCHIVE.md</code>. Until then you can still download the zip below.</p>'}
+      ${owner ? `<div class="row"><button class="btn primary" type="button" id="archive-send"${ready ? '' : ' disabled'}>Send the archive email now</button>
+        <button class="btn" type="button" id="archive-download">Download the zip now</button></div>
+        <p class="muted">Sending now removes rows only when both Backups switches are on. Downloading never removes anything.</p>` : ''}
+    </div>
+    <div class="card"><h2>What gets archived</h2>
+      <p class="muted">Rows older than the number of days shown. "Waiting" is how many would go in the next archive.</p>
+      ${table(['What', 'Kept in the database', 'Why the game does not need older rows', { label: 'Waiting', num: true }], pendingRows)}
+      <h3>Personal data in the zip</h3><ul>${d.personalData.map((p) => `<li>${esc(p)}</li>`).join('')}</ul>
+    </div>
+    <h2>Recent runs</h2>
+    ${table(['When', 'Started by', 'Result', { label: 'Rows', num: true }, { label: 'Zip', num: true }, 'Removed'], runs, 'No runs yet.')}`;
+};
+$('#backups-body').onclick = async (e) => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  if (b.id === 'archive-send') {
+    const ok = await ask({ title: 'Send the archive email now?', text: 'The zip goes to the ARCHIVE_TO address. Rows are removed afterwards only if both Backups switches are on.', ok: 'Send' });
+    if (!ok) return;
+    let r;
+    if (await act(b, async () => { r = await api('archive/run', { method: 'POST', body: {} }); })) {
+      toast(r.status === 'sent' ? `Sent${r.removed ? ' and removed' : ''}.` : (ARCHIVE_STATUS[r.status] || [, r.status])[1]);
+      show('backups', { keepFocus: true });
+    }
+  }
+  if (b.id === 'archive-download') {
+    await act(b, async () => {
+      const res = await fetch('/admin/v1/archive/download', { headers: { Authorization: `Bearer ${await bearer()}` } });
+      if (!res.ok) throw new ApiError('download', `The download failed (${res.status}).`);
+      const name = (res.headers.get('Content-Disposition') || '').match(/filename="([^"]+)"/)?.[1] || 'flg-archive.zip';
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(await res.blob());
+      a.download = name;
+      document.body.append(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
+    }, 'Downloaded. Nothing was removed.');
+  }
+};
+
 views.admins = async () => {
   const d = await api('admins');
   const rows = [

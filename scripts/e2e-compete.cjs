@@ -114,10 +114,13 @@ function startAuth(signer) {
     const A = await device('A');
     assert(await A.page.isVisible('#compete-section'), 'home shows Play against others');
     assert(/never need an account to play on your own/.test(await cardText(A.page)), 'solo play needs no account');
+    assert(/Playing as Guest/.test(await A.page.textContent('#compete-me')), 'a signed-out player shows as Guest on the card');
+    assert((await A.page.textContent('#player-chip')).includes('Guest'), 'a signed-out player shows as Guest at the top');
     await A.page.click('[data-compete=board]');
     await A.page.waitForSelector('#dlg-board[open]');
     await A.page.waitForFunction(() => /No one is on the scoreboard/.test(document.querySelector('#board-body').textContent));
     assert(true, 'a guest can open the scoreboard');
+    assert(/playing as Guest/.test(await A.page.textContent('#board-me')), 'the scoreboard calls a signed-out player Guest');
     await A.page.keyboard.press('Escape');
     await A.page.click('[data-compete=signin]');
     assert(await A.page.isVisible('#dlg-account[open]'), '"Sign in to race" opens sign-in');
@@ -125,9 +128,12 @@ function startAuth(signer) {
 
     // ---- A signs in and picks a screen name; rude names are refused.
     await signUp(A.page, 'ann@example.com');
-    await A.page.waitForSelector('[data-compete=name]');
-    await A.page.click('[data-compete=name]');
     await A.page.waitForSelector('#dlg-name[open]');
+    assert(true, 'signing in asks for a screen name straight away');
+    assert(await A.page.isHidden('#name-cancel') && await A.page.isVisible('#name-signout'), 'the name is required: no Cancel, only Sign out instead');
+    await A.page.keyboard.press('Escape');
+    await A.page.waitForTimeout(200);
+    assert(await A.page.isVisible('#dlg-name[open]'), 'Escape does not skip the screen name');
     await A.page.fill('#name-input', 'sh1t');
     await A.page.click('#name-form button[type=submit]');
     await A.page.waitForSelector('#name-form .error-box:not([hidden])');
@@ -137,12 +143,12 @@ function startAuth(signer) {
     await A.page.click('#name-form button[type=submit]');
     await A.page.waitForSelector('#dlg-name[open]', { state: 'detached' });
     assert(/Playing as Sky Fox/.test(await A.page.textContent('#compete-me')), 'home shows the screen name');
+    assert((await A.page.textContent('#player-chip')).includes('Sky Fox'), 'the top bar shows the screen name');
 
     // ---- B wants the same name.
     const B = await device('B');
     await signUp(B.page, 'ben@example.com');
-    await B.page.waitForSelector('[data-compete=name]');
-    await B.page.click('[data-compete=name]');
+    await B.page.waitForSelector('#dlg-name[open]');
     await B.page.fill('#name-input', 'sky_f0x');
     await B.page.click('#name-form button[type=submit]');
     await B.page.waitForSelector('#name-form .error-box:not([hidden])');
@@ -295,9 +301,16 @@ function startAuth(signer) {
     await A.page.click('#name-leave summary');
     await A.page.click('#name-leave-btn');
     await A.page.click('#confirm-yes');
-    await A.page.waitForSelector('[data-compete=name].primary, #compete-actions [data-compete=name]');
+    await A.page.waitForSelector('#dlg-name[open] #name-signout:not([hidden])');
+    assert(true, 'after leaving, a signed-in player is asked for a new name');
     const { n } = await db.prepare('SELECT COUNT(*) AS n FROM scores s JOIN players p ON p.user_id = s.user_id WHERE p.screen_name = ?').bind('Sky Fox').first();
     assert(n === 0 && !(await db.prepare("SELECT 1 FROM players WHERE screen_name = 'Sky Fox'").first()), 'leaving removes the name and scores');
+
+    // ---- Signing out instead of choosing a name: back to Guest.
+    await A.page.click('#name-signout');
+    await A.page.waitForSelector('#dlg-name[open]', { state: 'detached' });
+    await A.page.waitForFunction(() => document.querySelector('#player-chip').textContent.includes('Guest'));
+    assert(/Playing as Guest/.test(await A.page.textContent('#compete-me')), 'signing out instead shows the player as Guest');
 
     // Accessibility basics.
     const labels = await A.page.$$eval('#dlg-name input, #dlg-race input', (els) => els.every((i) => i.labels && i.labels.length));

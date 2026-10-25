@@ -8,8 +8,9 @@
 //   /admin/*                             the admin dashboard and its API (admin.js)
 //   GET /v1/health[?deep=1]              a quick check that the Worker (and with
 //                                        deep=1, the database and daily cleanup) is up
-// scheduled(): the daily cleanup of old data (upkeep.js) and the daily fetch of
-// Google and Bing search numbers (search.js); crons in wrangler.toml.
+// scheduled(): the daily cleanup of old data (upkeep.js), the weekly archive
+// email (archive.js) and the daily fetch of Google and Bing search numbers
+// (search.js), on the crons in wrangler.toml.
 
 import { handleLearn } from './learn.js';
 import { handleCompete } from './compete.js';
@@ -18,11 +19,13 @@ import { handleAdmin } from './admin.js';
 import { refreshSearch, SEARCH_CRON } from './search.js';
 import { publicConfig } from './settings.js';
 import { runUpkeep, deepHealth } from './upkeep.js';
+import { runArchive } from './archive.js';
 import { handleSync, handleDeleteAccount, isDeleted } from './sync.js';
 import { verifyIdToken, AuthError } from './auth.js';
 import { json, corsHeaders } from './http.js';
 
 const MAX_BODY = 4_000_000;
+const WEEKLY_ARCHIVE_CRON = '47 4 * * 1';
 
 async function signedIn(req, env) {
   const m = (req.headers.get('Authorization') || '').match(/^Bearer (.+)$/);
@@ -88,6 +91,10 @@ export default {
   async scheduled(controller, env, ctx) {
     if (controller.cron === SEARCH_CRON) {
       ctx.waitUntil(refreshSearch(env).then((r) => console.log('search', JSON.stringify(r))));
+      return;
+    }
+    if (controller.cron === WEEKLY_ARCHIVE_CRON) {
+      ctx.waitUntil(runArchive(env).then((r) => console.log('archive', r.status, JSON.stringify(r.rows || {}))));
       return;
     }
     ctx.waitUntil(runUpkeep(env).then((removed) => console.log('upkeep', JSON.stringify(removed))));

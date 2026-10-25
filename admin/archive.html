@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Archive viewer</title>
+<link rel="icon" href="/admin/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/admin/admin.css">
+<script type="module" src="/admin/archive-viewer.js"></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="top">
+  <div class="brand"><img src="/admin/icon.svg" alt="" width="28" height="28"><span>The Fantastical Logic Grid <b>Archive viewer</b></span></div>
+  <a class="btn small" href="/admin/#backups">Back to the dashboard</a>
+</header>
+<div id="live" class="sr-only" aria-live="polite"></div>
+
+<main id="main" class="viewer" tabindex="-1">
+  <h1>Archive viewer</h1>
+  <p class="muted">Open one or more of the weekly archive zips from your email. They are read in this browser only: nothing is uploaded, and nothing goes back into the database. You do not need to sign in.</p>
+
+  <label class="drop" id="drop" for="files">
+    <span><b>Choose archive zips</b> or drop them here</span>
+    <span class="muted">Files named like flg-archive-2026-10-26.zip. You can pick several at once.</span>
+    <input id="files" type="file" accept=".zip,application/zip" multiple>
+  </label>
+  <p class="error" id="load-error" role="alert" hidden></p>
+
+  <div id="loaded" hidden>
+    <h2>Opened archives</h2>
+    <div class="table-wrap"><table class="table"><thead><tr><th scope="col">File</th><th scope="col">Made</th><th scope="col" class="num">Rows</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody id="file-rows"></tbody></table></div>
+
+    <h2>Explore</h2>
+    <form id="controls" class="card stack" novalidate>
+      <div class="row">
+        <div class="field"><label for="table">Data</label><select id="table"></select></div>
+        <div class="field"><label for="from">From</label><input id="from" type="date"></div>
+        <div class="field"><label for="to">To</label><input id="to" type="date"></div>
+        <div class="field grow"><label for="search">Contains text</label><input id="search" type="search" autocomplete="off"></div>
+      </div>
+      <div class="row">
+        <div class="field"><label for="filter-col">Only rows where</label><select id="filter-col"></select></div>
+        <div class="field"><label for="filter-val">is</label><select id="filter-val" disabled></select></div>
+        <div class="field"><label for="group">Group by</label><select id="group"></select></div>
+        <div class="field"><label for="measure">Measure</label><select id="measure"></select></div>
+        <div class="field"><label for="period">Over time by</label><select id="period"><option value="day">Day</option><option value="week" selected>Week</option><option value="month">Month</option></select></div>
+      </div>
+      <div class="row"><button class="btn" type="button" id="reset">Clear filters</button></div>
+    </form>
+
+    <div id="summary" class="tiles" aria-live="polite"></div>
+    <div class="charts" id="charts"></div>
+    <h2 id="groups-h">Groups</h2>
+    <div id="groups"></div>
+    <div class="row"><button class="btn" type="button" id="export-groups">Export groups (CSV)</button><button class="btn primary" type="button" id="export-rows">Export matching rows (CSV)</button></div>
+    <h2>Rows</h2>
+    <p class="muted" id="rows-note"></p>
+    <div id="rows"></div>
+  </div>
+</main>
+</body>
+</html>

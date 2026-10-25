@@ -25,6 +25,7 @@
     <span>The Fantastical Logic Grid</span>
   </button>
   <div class="appbar-actions">
+    <button class="btn quiet player-chip" type="button" id="player-chip" hidden><span class="sr-only">Playing as </span><span id="player-chip-name">Guest</span></button>
     <button class="btn quiet" type="button" id="help-btn" aria-keyshortcuts="Shift+?">Help</button>
     <button class="btn quiet" type="button" id="menu-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="app-menu">Menu</button>
   </div>
@@ -527,13 +528,14 @@
 <dialog id="dlg-name" aria-labelledby="name-h">
   <form id="name-form" novalidate>
     <h2 id="name-h">Your screen name</h2>
+    <p class="help" id="name-required" hidden>You are signed in, so choose a screen name to play under. Players who are not signed in show as Guest.</p>
     <p class="help">Other players see only this name, on the scoreboard and in races. Never your email.</p>
     <div class="field"><label for="name-input">Screen name</label><input type="text" id="name-input" maxlength="20" autocomplete="nickname" spellcheck="false" aria-describedby="name-rules" required></div>
     <p class="help" id="name-rules">3 to 20 letters or numbers. Spaces, dots, dashes and underscores are fine. Names must be friendly and not already taken.</p>
     <label class="check"><input type="checkbox" id="name-post"> Put my solved puzzles on the scoreboard</label>
     <label class="check"><input type="checkbox" id="name-invites"> Let other players challenge me by my screen name</label>
     <div class="error-box" role="alert" hidden></div>
-    <div class="dlg-actions"><button class="btn" type="button" data-close>Cancel</button><button class="btn primary" type="submit">Save name</button></div>
+    <div class="dlg-actions"><button class="btn" type="button" data-close id="name-cancel">Cancel</button><button class="btn" type="button" id="name-signout" hidden>Sign out instead</button><button class="btn primary" type="submit">Save name</button></div>
     <details class="acct-danger" id="name-leave">
       <summary>Leave the scoreboard</summary>
       <p class="help">Removes your screen name, your points and your race results. Your account and puzzles stay.</p>
@@ -600,6 +602,7 @@
 <dialog id="dlg-rules" class="wide rules" aria-labelledby="rules-h">
   <h2 id="rules-h" tabindex="-1">Scoring and race rules</h2>
   <p>Every puzzle you solve earns points, alone or in a race. In a race everyone gets the same puzzle, and the lowest race time wins. You need an account and a screen name to earn points or race. Playing alone never needs one.</p>
+  <p>Once you sign in, the game asks you to choose a screen name (or uses the one your account already has), and it shows at the top of the screen. If you are not signed in, you play as <b>Guest</b>.</p>
 
   <h3>How points are awarded</h3>
   <p>Points = <b>difficulty base</b> × <b>size</b> × <b>speed</b> × <b>help</b>, rounded, and at least 1.</p>
@@ -639,7 +642,7 @@
     <li><b>This week</b> starts on Monday at 00:00 UTC. <b>All time</b> never resets.</li>
     <li>Players are ranked by points. A tie goes to more race wins, then to whoever scored first.</li>
     <li>The top 50 are shown, and your own place is always shown. The board can be up to 30 seconds behind.</li>
-    <li><b>Leave the scoreboard</b> (in the screen name window) removes your name, points and race results.</li>
+    <li><b>Leave the scoreboard</b> (in the screen name window) removes your name, points and race results. To stay signed in you then choose a new name, or you can sign out and play as Guest.</li>
   </ul>
   <div class="dlg-actions"><button class="btn primary" type="button" data-close>Close</button></div>
 </dialog>
@@ -684,7 +687,7 @@
   <p><button class="btn" type="button" id="help-video"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 9.003a1 1 0 0 1 1.517-.859l4.997 2.997a1 1 0 0 1 0 1.718l-4.997 2.997A1 1 0 0 1 9 14.996z"/><circle cx="12" cy="12" r="10"/></svg> Watch the how-to-play video</button> <span class="muted">8 minutes, narrated, with captions and examples</span></p>
   <p>Read a clue, then mark the grid. <b>X</b> means two things do not go together. <b>O</b> means they do. Each row in a sub-grid has exactly one O. When the grid is full, answer the story questions.</p>
   <p>Select a character's portrait to hear the clues they remember. Each finished section of the grid reveals more of the scene. Want fewer distractions? Choose <b>Silent mode</b> on the New puzzle screen or in Settings to see only the story, the grid, the clues and the answer key.</p>
-  <p id="help-compete" hidden>Want company? Under <b>Play against others</b> on the home screen, sign in and choose a screen name, then start a race (everyone gets the same puzzle, fastest solve wins), challenge a player by screen name, join one with a code, or find an open race. Your solved puzzles earn points on the <b>Scoreboard</b>. <button class="btn quiet small" type="button" data-rules>Scoring and race rules</button></p>
+  <p id="help-compete" hidden>Want company? Under <b>Play against others</b> on the home screen, sign in and choose a screen name (until you sign in you play as Guest), then start a race (everyone gets the same puzzle, fastest solve wins), challenge a player by screen name, join one with a code, or find an open race. Your solved puzzles earn points on the <b>Scoreboard</b>. <button class="btn quiet small" type="button" data-rules>Scoring and race rules</button></p>
   <h3>Keys</h3>
   <table class="keys">
     <tbody>

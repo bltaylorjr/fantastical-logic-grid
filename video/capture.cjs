@@ -402,6 +402,11 @@ const CSS = `
       await scrollTo('#sync-line'); await hl('#sync-line');
       await scene('sync', ['You never need an account to play.', 'But a free account keeps your puzzles, progress and settings in step on the website, the desktop app and your phone.']);
       await clearFx();
+      if (await p.isVisible('#player-chip')) {
+        await hl('#player-chip');
+        await scene('guest', ['The name at the top shows who you are playing as.', 'Until you sign in, you play as Guest.']);
+        await clearFx();
+      }
       await p.click('#sync-btn'); await p.waitForSelector('#dlg-account[open]');
       await p.click('[data-view=signin] [data-go=signup]');
       await p.fill('#su-email', 'detective@example.com'); await p.fill('#su-pass', 'correct horse battery');
@@ -414,19 +419,19 @@ const CSS = `
       await p.waitForTimeout(300);
     }
     if (await p.isVisible('#compete-section')) {
-      await p.waitForSelector('[data-compete=name]', { timeout: 15000 });
-      await scrollTo('#compete-section'); await hl('#compete-section');
-      await scene('compete', ['Play against others lets you race other players on the very same puzzle, and climb the scoreboard.']);
-      await clearFx();
-      await p.click('[data-compete=name]'); await p.waitForSelector('#dlg-name[open]');
+      // Signed in, the game asks for a screen name straight away.
+      await p.waitForSelector('#dlg-name[open]', { timeout: 15000 });
       await p.fill('#name-input', 'Sky Fox');
-      await scene('screen-name', ['First, pick a screen name.', 'It is the only thing other players see, and rude names are turned away.']);
+      await scene('screen-name', ['Once you are signed in, you pick a screen name.', 'It is the only thing other players see, and rude names are turned away.', 'Don\'t want one? Sign out instead, and you play as Guest.']);
       await p.click('#name-form button[type=submit]'); await p.waitForSelector('#dlg-name[open]', { state: 'detached' });
+      await scrollTo('#compete-section'); await hl(['#compete-section', '#player-chip']);
+      await scene('compete', ['Your screen name now shows at the top.', 'Play against others lets you race other players on the very same puzzle, and climb the scoreboard.']);
+      await clearFx();
       // A second player gets ready on another device.
       const rival = await device({ silent: true });
       await rival.evaluate(async () => (await import('./js/account.js')).signUp('rival@example.com', 'correct horse battery'));
-      await rival.waitForSelector('[data-compete=name]', { timeout: 15000 });
-      await rival.click('[data-compete=name]'); await rival.fill('#name-input', 'Bold Badger');
+      await rival.waitForSelector('#dlg-name[open]', { timeout: 15000 });
+      await rival.fill('#name-input', 'Bold Badger');
       await rival.click('#name-form button[type=submit]'); await rival.waitForSelector('#dlg-name[open]', { state: 'detached' });
       // Start a race with a quick Basic puzzle.
       await p.check('input[name=tier][value=basic]', { force: true });

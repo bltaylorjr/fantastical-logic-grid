@@ -203,6 +203,30 @@ test('analytics, storage and story review', async () => {
   assert.equal((await call('/admin/v1/parts/review', { auth: owner(), body: { key: 'gone', status: 'approved' } })).status, 404);
 });
 
+test('backups: the archive page, a download, and the viewer page', async () => {
+  const status = await call('/admin/v1/archive', { auth: TOKEN });
+  assert.equal(status.status, 200);
+  assert.equal(status.body.setUp.binding, false, 'no email binding in tests');
+  assert.equal(status.body.emailOn, false, 'the weekly email starts off');
+  assert.equal(status.body.removeOn, false, 'removal starts off');
+  assert.ok(status.body.plan.some((p) => p.table === 'plays'));
+  assert.ok(!status.body.plan.some((p) => ['scores', 'players', 'sync_records', 'bans'].includes(p.table)));
+
+  const run = await call('/admin/v1/archive/run', { auth: TOKEN, body: {} });
+  assert.equal(run.body.status, 'not_set_up');
+
+  const dl = await mf.dispatchFetch('https://api.test/admin/v1/archive/download', { headers: { Authorization: `Bearer ${TOKEN}` } });
+  assert.equal(dl.status, 200);
+  assert.equal(dl.headers.get('content-type'), 'application/zip');
+  const bytes = new Uint8Array(await dl.arrayBuffer());
+  assert.deepEqual([...bytes.slice(0, 4)], [0x50, 0x4b, 0x03, 0x04]);
+
+  const page = await call('/admin/archive.html', { origin: null });
+  assert.equal(page.status, 200);
+  assert.match(page.text, /Archive viewer/);
+  assert.match(page.headers.get('content-security-policy'), /script-src 'self'/);
+});
+
 test('the older token pages still work and are audited', async () => {
   const r = await call('/admin/errors', { auth: TOKEN });
   assert.equal(r.status, 200);
