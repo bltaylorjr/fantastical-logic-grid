@@ -1,9 +1,12 @@
 // The game's Cloudflare Worker. Routes:
 //   /v1/learn/*, /v1/tts, /admin/learn*  shared learning and voices (learn.js)
 //   POST /v1/sync, DELETE /v1/account    account sync (sync.js), signed in only
+//   /v1/profile, /v1/scores, /v1/scoreboard, /v1/races*
+//                                        screen names, races, scoreboard (compete.js)
 //   GET /v1/health                       a quick check that the Worker is up
 
 import { handleLearn } from './learn.js';
+import { handleCompete } from './compete.js';
 import { handleSync, handleDeleteAccount, isDeleted } from './sync.js';
 import { verifyIdToken, AuthError } from './auth.js';
 import { json, corsHeaders } from './http.js';
@@ -22,6 +25,9 @@ async function route(req, env, ctx) {
 
   const learn = await handleLearn(req, env, ctx, url);
   if (learn) return learn;
+
+  const compete = await handleCompete(req, env, ctx, url, signedIn);
+  if (compete) return compete;
 
   if (url.pathname === '/v1/health') return json(req, env, { ok: true });
 

@@ -32,6 +32,7 @@
     <button role="menuitem" type="button" data-cmd="new">New puzzle</button>
     <button role="menuitem" type="button" data-cmd="saved">Saved puzzles</button>
     <button role="menuitem" type="button" data-cmd="settings">Settings</button>
+    <button role="menuitem" type="button" data-cmd="board" hidden>Scoreboard</button>
     <button role="menuitem" type="button" data-cmd="account" hidden>Account and sync</button>
     <button role="menuitem" type="button" data-cmd="install" hidden>Install app</button>
   </div>
@@ -108,6 +109,16 @@
       </form>
     </section>
 
+    <div class="home-side">
+    <section class="card compete-card" id="compete-section" aria-labelledby="compete-h" hidden>
+      <h2 id="compete-h">Play against others</h2>
+      <p class="lede" id="compete-intro">Race other detectives on the very same puzzle and climb the scoreboard. You never need an account to play on your own.</p>
+      <p class="compete-me" id="compete-me" hidden></p>
+      <div class="compete-actions" id="compete-actions"></div>
+      <p class="gen-status" id="compete-status" role="status" aria-live="polite"></p>
+      <div class="error-box" id="compete-error" role="alert" hidden></div>
+    </section>
+
     <section class="card saved-card" id="saved-section" aria-labelledby="saved-h">
       <div class="saved-head">
         <h2 id="saved-h">Saved puzzles</h2>
@@ -123,6 +134,8 @@
       <p class="muted" id="saved-empty">Your puzzles save automatically on this device. Start one and it will appear here.</p>
       <ul class="saved-list" id="saved-list"></ul>
     </section>
+
+    </div>
   </div>
 </main>
 
@@ -151,6 +164,12 @@
       <span class="hud-bar" aria-hidden="true"><i id="progress-fill"></i></span>
       <button class="btn quiet small media" type="button" id="sound-btn" aria-pressed="false">Sound off</button>
     </div>
+  </div>
+
+  <div class="race-bar" id="race-bar" hidden>
+    <p id="race-bar-text"></p>
+    <button class="btn small" type="button" id="race-share">Share the race</button>
+    <button class="btn small" type="button" id="race-standings">Standings</button>
   </div>
 
   <div class="scene media" id="scene" aria-hidden="true"></div>
@@ -206,6 +225,7 @@
     <h2 id="solved-h">Case closed!</h2>
     <p class="ending" id="ending"></p>
     <dl class="solved-stats" id="solved-stats"></dl>
+    <div class="compete-result" id="compete-result" hidden></div>
     <div class="feedback" id="feedback" hidden>
       <fieldset class="stars"><legend>How was this puzzle?</legend>
         <label><input type="radio" name="rating" value="1"><span aria-hidden="true">★</span><span class="sr-only">1 star, not for me</span></label>
@@ -481,11 +501,72 @@
   <div class="dlg-actions"><button class="btn" type="button" id="welcome-skip">Start playing</button><button class="btn primary" type="button" id="welcome-watch"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 9.003a1 1 0 0 1 1.517-.859l4.997 2.997a1 1 0 0 1 0 1.718l-4.997 2.997A1 1 0 0 1 9 14.996z"/><circle cx="12" cy="12" r="10"/></svg> Watch the video</button></div>
 </dialog>
 
+<dialog id="dlg-name" aria-labelledby="name-h">
+  <form id="name-form" novalidate>
+    <h2 id="name-h">Your screen name</h2>
+    <p class="help">Other players see only this name, on the scoreboard and in races. Never your email.</p>
+    <div class="field"><label for="name-input">Screen name</label><input type="text" id="name-input" maxlength="20" autocomplete="nickname" spellcheck="false" aria-describedby="name-rules" required></div>
+    <p class="help" id="name-rules">3 to 20 letters or numbers. Spaces, dots, dashes and underscores are fine. Names must be friendly and not already taken.</p>
+    <label class="check"><input type="checkbox" id="name-post"> Put my solved puzzles on the scoreboard</label>
+    <div class="error-box" role="alert" hidden></div>
+    <div class="dlg-actions"><button class="btn" type="button" data-close>Cancel</button><button class="btn primary" type="submit">Save name</button></div>
+    <details class="acct-danger" id="name-leave">
+      <summary>Leave the scoreboard</summary>
+      <p class="help">Removes your screen name, your points and your race results. Your account and puzzles stay.</p>
+      <button class="btn" type="button" id="name-leave-btn">Remove my name and scores</button>
+    </details>
+  </form>
+</dialog>
+
+<dialog id="dlg-race" aria-labelledby="race-h">
+  <h2 id="race-h">Start a race</h2>
+  <form class="race-view" data-view="start" novalidate>
+    <p class="help">You and everyone who joins get the same puzzle. The fastest solve wins; each hint adds 1 minute and each check 15 seconds to your race time. Others can join for 7 days.</p>
+    <p id="race-choice"></p>
+    <label class="check"><input type="checkbox" id="race-public" checked> Let anyone join with Find a race, not only people I give the code to</label>
+    <div class="error-box" role="alert" hidden></div>
+    <div class="dlg-actions"><button class="btn" type="button" data-close>Cancel</button><button class="btn primary" type="submit">Start the race</button></div>
+  </form>
+  <form class="race-view" data-view="join" novalidate hidden>
+    <p class="help">Enter the 6-character race code a friend gave you.</p>
+    <div class="field"><label for="race-code">Race code</label><input type="text" id="race-code" maxlength="8" autocomplete="off" autocapitalize="characters" spellcheck="false" class="code-input" required></div>
+    <div class="error-box" role="alert" hidden></div>
+    <div class="dlg-actions"><button class="btn" type="button" data-close>Cancel</button><button class="btn primary" type="submit">Join the race</button></div>
+  </form>
+  <div class="race-view" data-view="share" hidden>
+    <p class="help">Give this code or link to the people you want to race. Your clock is already running in the game, so start whenever you are ready.</p>
+    <p class="race-code-big" id="race-code-big"></p>
+    <p class="race-link"><a id="race-link" href="#" target="_blank" rel="noopener"></a></p>
+    <p class="acct-done" id="race-copied" role="status"></p>
+    <div class="dlg-actions"><button class="btn" type="button" id="race-copy">Copy the link</button><button class="btn primary" type="button" data-close>Start solving</button></div>
+  </div>
+  <div class="race-view" data-view="standings" hidden>
+    <p class="help" id="race-standings-head"></p>
+    <div id="race-standings-body"></div>
+    <div class="dlg-actions"><button class="btn" type="button" id="race-refresh">Refresh</button><button class="btn primary" type="button" data-close>Close</button></div>
+  </div>
+</dialog>
+
+<dialog id="dlg-board" class="wide" aria-labelledby="board-h">
+  <h2 id="board-h">Scoreboard</h2>
+  <fieldset class="board-tabs"><legend class="sr-only">Show</legend>
+    <div class="choices chips">
+      <label class="choice"><input type="radio" name="board-period" value="week" checked><span>This week</span></label>
+      <label class="choice"><input type="radio" name="board-period" value="all"><span>All time</span></label>
+    </div>
+  </fieldset>
+  <p class="help">Points come from solved puzzles: harder, bigger and faster solves earn more, and hints and checks earn less. Race wins count races you won against at least one other player. The week starts on Monday.</p>
+  <p id="board-me" class="board-me"></p>
+  <div id="board-body" aria-live="polite"></div>
+  <div class="dlg-actions"><button class="btn" type="button" id="board-name" hidden>Choose a screen name</button><button class="btn primary" type="button" data-close>Close</button></div>
+</dialog>
+
 <dialog id="dlg-help" aria-labelledby="help-h">
   <h2 id="help-h">How to play</h2>
   <p><button class="btn" type="button" id="help-video"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 9.003a1 1 0 0 1 1.517-.859l4.997 2.997a1 1 0 0 1 0 1.718l-4.997 2.997A1 1 0 0 1 9 14.996z"/><circle cx="12" cy="12" r="10"/></svg> Watch the how-to-play video</button> <span class="muted">5 minutes, narrated, with captions and examples</span></p>
   <p>Read a clue, then mark the grid. <b>X</b> means two things do not go together. <b>O</b> means they do. Each row in a sub-grid has exactly one O. When the grid is full, answer the story questions.</p>
   <p>Select a character's portrait to hear the clues they remember. Each finished section of the grid reveals more of the scene. Want fewer distractions? Choose <b>Silent mode</b> on the New puzzle screen or in Settings to see only the story, the grid, the clues and the answer key.</p>
+  <p id="help-compete" hidden>Want company? Under <b>Play against others</b> on the home screen, sign in and choose a screen name, then start a race (everyone gets the same puzzle, fastest solve wins), join one with a code, or find an open race. Your solved puzzles earn points on the <b>Scoreboard</b>.</p>
   <h3>Keys</h3>
   <table class="keys">
     <tbody>

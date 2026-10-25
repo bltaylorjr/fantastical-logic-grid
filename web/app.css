@@ -615,3 +615,34 @@ dialog::backdrop { background: rgb(5 7 16 / .6); backdrop-filter: blur(6px); -we
 .acct-danger form { display: grid; gap: 12px; }
 .btn.danger { background: var(--error-soft); border: 2px solid var(--error); color: var(--error); font-weight: 700; justify-self: start; }
 :root[data-theme="contrast"] .acct-sync, :root[data-theme="contrast"] .sync-line { background: #000; border-color: #fff; }
+
+/* ============ Play against others: races and the scoreboard ============ */
+.home-side { display: grid; gap: 24px; align-content: start; min-width: 0; }
+.compete-card .lede { margin-top: 0; }
+.compete-me { margin: 0 0 12px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.compete-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.compete-card .error-box { margin-top: 12px; }
+.race-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0 0 16px; padding: 10px 16px;
+  border: 1px solid var(--border); border-left: 4px solid var(--accent); border-radius: 12px; background: var(--surface, var(--bg)); }
+.race-bar p { margin: 0; flex: 1 1 260px; }
+.race-view { display: grid; gap: 12px; }
+.race-view .help, .race-view p { margin: 0; }
+.code-input { font-size: 1.4rem; letter-spacing: .25em; text-transform: uppercase; font-family: ui-monospace, Menlo, Consolas, monospace; max-width: 12ch; }
+.race-code-big { font-size: 2.2rem; font-weight: 700; letter-spacing: .3em; text-align: center; font-family: ui-monospace, Menlo, Consolas, monospace; }
+.race-link { text-align: center; overflow-wrap: anywhere; }
+.compete-result { margin: 16px 0; padding: 12px 16px; border: 1px solid var(--border); border-radius: 12px; }
+.compete-result h3 { margin: 0 0 4px; }
+.compete-result p { margin: 0 0 8px; }
+.compete-result .row { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 0; }
+.board-tabs { border: 0; padding: 0; margin: 0 0 8px; }
+.board-me:empty { display: none; }
+.board-me { margin: 8px 0; border-left: 4px solid var(--accent); padding: 6px 12px; }
+.table-wrap { overflow-x: auto; }
+table.board { border-collapse: collapse; width: 100%; font-size: .95rem; }
+table.board th, table.board td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--hairline, var(--border)); vertical-align: middle; }
+table.board thead th { font-weight: 700; color: var(--muted); font-size: .85rem; }
+table.board tbody th { font-weight: 700; }
+table.board tr.me { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+table.board .pill { font-size: .75rem; margin-left: 4px; }
+:root[data-theme="contrast"] .race-bar, :root[data-theme="contrast"] .compete-result { background: #000; border-color: #fff; }
+:root[data-theme="contrast"] table.board tr.me { outline: 2px solid #fff; background: #000; }

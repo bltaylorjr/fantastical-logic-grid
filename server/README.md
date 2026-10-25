@@ -5,6 +5,8 @@ Android, iPhone):
 
 - **Account sync** (`src/sync.js`): saved puzzles, progress, settings and the
   used-story list follow a signed-in player to every device.
+- **Screen names, races and the scoreboard** (`src/compete.js`): players who
+  choose a screen name can race others on the same puzzle and earn points.
 - **Shared learning and voices** (`src/learn.js`): added by the learning work.
 
 Everything here runs on free plans. Nothing needs a credit card.
@@ -117,6 +119,34 @@ secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
   account) needs the password again. It removes all synced data here, then the
   Firebase account. The player's puzzles stay on that device.
 
+## How races and the scoreboard work
+
+- **Screen names** are optional and need an account. 3 to 20 letters, numbers,
+  spaces, dots, dashes or underscores. `src/names.js` refuses rude words
+  (also spelled with look-alikes such as `sh1t`, `$hit` or `s.h.i.t`), names
+  that pretend to be the game (admin, support, official), and names that
+  match an existing one once case, spaces and look-alike digits are ignored
+  (`Sky Fox`, `sky_f0x`). The screen name is the only thing other players see.
+- **Races**: a player starts a race from their New puzzle choices. The puzzle
+  is stored here and everyone who joins (with the 6-character code, a
+  `thelogicgrid.com/?race=CODE` link, or *Find a race* for open races) gets
+  the very same puzzle. The fastest race time wins: solve time plus 1 minute
+  per hint and 15 seconds per check. A race is open for 7 days, up to 20
+  players. A finish counts only when the answers match the solution, and the
+  time can never be shorter than the server's own clock since joining.
+  Revealing the solution counts as giving up. Shared puzzles are checked for
+  rude words (custom titles and names) before anyone else sees them.
+- **Points**: each solved puzzle (solo or race) earns points: more for harder
+  and bigger puzzles, up to 50% more for beating the usual time, less for
+  each hint and check, nothing for a revealed solution. A puzzle scores once;
+  up to 40 solo puzzles a day count. Solo times come from the player's device,
+  so the scoreboard is for fun, not prizes.
+- **Scoreboard**: this week (from Monday, UTC) and all time, top 50 by points,
+  with solved puzzles and race wins (races won against at least one other
+  finisher). Anyone can view it; it is cached for 30 seconds.
+- **Leaving**: *Leave the scoreboard* in the screen name window, or deleting
+  the account, removes the name, points and race results.
+
 ## Routes
 
 | Route | Who | What |
@@ -124,14 +154,21 @@ secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
 | `POST /v1/sync` | signed in | push changes and/or pull changes since a revision |
 | `DELETE /v1/account` | signed in within 10 minutes | delete all synced data |
 | `GET /v1/health` | anyone | check the Worker is up |
+| `GET/PUT/DELETE /v1/profile` | signed in | read, choose or remove the screen name |
+| `POST /v1/scores` | screen name | add a solved solo puzzle |
+| `GET /v1/scoreboard?period=week\|all` | anyone | top players (and your place when signed in) |
+| `POST /v1/races`, `POST /v1/races/find` | screen name | start a race, or find an open one |
+| `POST /v1/races/:code/join`, `.../finish`, `GET /v1/races/:code` | screen name | join, send a result, standings |
 | `/v1/learn/*`, `/v1/tts`, `/admin/learn*` | see `src/learn.js` | shared learning and voices |
 
 Limits: 60 sync requests a minute per player, 1 MB per saved puzzle, 5,000
-records per player.
+records per player; 30 race and score requests a minute per player, 20 races
+started a day.
 
 ## Tests
 
 ```sh
 npm test                           # Worker tests (Miniflare, local D1)
 cd .. && npm run test:accounts     # two-device browser test of the whole flow
+cd .. && npm run test:compete      # two players: screen names, a race, the scoreboard
 ```
