@@ -701,3 +701,13 @@ dialog.rules table.board td { font-variant-numeric: tabular-nums; }
 .invite-row { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; }
 .invite-row .field { flex: 1 1 200px; }
 #race-invite-msg:empty { display: none; }
+
+/* Pull down to refresh (touch screens) */
+.ptr { position: fixed; top: 0; left: 50%; z-index: 70; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--surface-2); color: var(--muted); border: 1px solid var(--edge-hi); box-shadow: 0 4px 14px rgb(0 0 0 / .18);
+  transform: translate(-50%, -48px); opacity: 0; pointer-events: none; transition: color .15s; }
+.ptr.ready, .ptr.spin { color: var(--accent); opacity: 1; }
+.ptr.spin svg { animation: ptr-spin .8s linear infinite; }
+@keyframes ptr-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .ptr.spin svg { animation: none; } }
+.ptr-live { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
