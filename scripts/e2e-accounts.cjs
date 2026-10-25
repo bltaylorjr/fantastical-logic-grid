@@ -129,6 +129,8 @@ function startAuth(signer) {
     await markCells(A.page, [0]);
     await A.page.click('#home-btn');
     await A.page.waitForSelector('#screen-home:not([hidden])');
+    // The saved list fills in after the home screen shows, so wait for it.
+    await A.page.waitForFunction((t) => [...document.querySelectorAll('#saved-list .name')].some((e) => e.textContent === t), title, { timeout: 10000 }).catch(() => {});
     assert((await savedNames(A.page)).includes(title), `guest can play without an account ("${title}")`);
 
     // ---- A creates an account; the guest puzzle joins it.
