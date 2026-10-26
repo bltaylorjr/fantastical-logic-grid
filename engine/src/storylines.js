@@ -53,6 +53,8 @@ export const STORYLINES = {
       secret: ['The thief was seen slipping the {x} into a pocket.', 'The {x} fell out of the thief\'s coat.'],
       arrival: ['The gardener saw the thief come in at {x}.', 'The thief arrived at {x}, just as the clock chimed.'],
       age: ['A witness is sure the thief is {x} years old.', 'The thief\'s passport says {x} years old.'],
+      hat: ['A feather from the {x} was caught on the window latch.', 'The cook glimpsed the thief in the {x}.'],
+      pet: ['The {x} would not leave the thief alone all evening.', 'Hair from the {x} was found on the windowsill.'],
     },
     endings: [
       '{Fact}, so {winner} took {prize}! It was tucked inside a hollow book.',
@@ -100,6 +102,8 @@ export const STORYLINES = {
       codename: ['Operation {x} holds the answer.', 'The breakthrough came from Operation {x}.'],
       launch: ['The agent of the hour launched at {x}.', 'Satellite photos show the key move came at {x}.'],
       years: ['The top agent has served {x} years.', 'Only an agent with {x} years of service could pull this off.'],
+      disguise: ['The agent of the hour slipped past the guards in the {x}.', 'Cameras caught someone in the {x} at the key moment.'],
+      hideout: ['The plan was made in the {x}.', 'A radio signal was traced back to the {x}.'],
     },
     endings: [
       '{Fact}, so {winner} recovered {prize}! Mission accomplished.',
@@ -147,6 +151,8 @@ export const STORYLINES = {
       companion: ['The {x} sniffed out the trail.', 'Locals say the {x} led the way to {prize}.'],
       days: ['The one who reached {prize} was away {x} days.', 'It took {x} days to reach {prize}.'],
       miles: ['The trip to {prize} was {x} miles long.', 'The winner traveled {x} miles to get there.'],
+      hometown: ['The one who reached {prize} is from {x}.', 'A postcard home to {x} told the whole story.'],
+      snack: ['A trail of {x} wrappers led to {prize}.', 'The winner shared {x} with a friendly local guide.'],
     },
     endings: [
       '{Fact}, so {winner} reached {prize}! The museum throws a grand party.',
@@ -194,6 +200,8 @@ export const STORYLINES = {
       sweater: ['A thread from the {x} sweater was caught on {prize}.', 'Someone in the {x} sweater was seen nearby.'],
       arrive: ['The helper arrived at {x}.', 'Footprints in the snow show the helper came at {x}.'],
       age: ['The helper is {x} years old.', 'Grandma says the helper is exactly {x} years old.'],
+      song: ['The helper was humming {x} the whole time.', 'Someone was singing {x} right next to {prize}.'],
+      pajamas: ['The helper was still in the {x} pajamas.', 'A fuzzy thread from the {x} pajamas was found by {prize}.'],
     },
     endings: [
       '{Fact}! {winner} gets {prize}, and the whole family cheers.',
@@ -241,6 +249,8 @@ export const STORYLINES = {
       dance: ['It happened right after the {x}.', 'The answer was on the dance floor during the {x}.'],
       toast: ['It all happened at {x}.', 'The clock said {x} when it happened.'],
       cost: ['The receipt shows {x}.', 'Whoever it was spent {x} on a gift.'],
+      cake: ['A crumb of {x} cake was found by {prize}.', 'Whoever it was went back for more {x} cake.'],
+      hobby: ['It was someone who loves {x}.', 'The guest you want could not stop talking about {x}.'],
     },
     endings: [
       '{Fact}! {winner} wins {prize}, and the room bursts into applause.',
@@ -288,6 +298,8 @@ export const STORYLINES = {
       potion: ['A drop of {x} was spilled nearby.', 'Only the {x} could explain it.'],
       age: ['The answer lies with a wizard who is {x} years old.', 'An old prophecy names a wizard of {x} years.'],
       level: ['The Council says the answer lies with rank {x}.', 'Only a wizard of rank {x} could do this.'],
+      wand: ['Sparks from the {x} wand were left behind.', 'Only the {x} wand could do this.'],
+      robe: ['A wizard wearing the {x} robe was seen near {prize}.', 'A scrap of {x} robe was caught on the gate.'],
     },
     endings: [
       '{Fact}, so {winner} holds {prize}! Peace returns to the kingdom.',
@@ -335,6 +347,8 @@ export const STORYLINES = {
       cargo: ['Part of the answer was in the {x} shipment.', 'It all depends on the {x}.'],
       lightyears: ['The pilot traveled {x} light-years to get there.', '{prize} is {x} light-years away.'],
       dock: ['The hero docked at {x}.', 'Base cameras show the key moment at {x}.'],
+      snack: ['A wrapper from the {x} floated near {prize}.', 'The hero always packs the {x}.'],
+      crew: ['The hero has a crew of {x}.', 'The flight log lists a crew of {x}.'],
     },
     endings: [
       '{Fact}, so {winner} brought back {prize}! The whole base cheers.',
@@ -382,6 +396,8 @@ export const STORYLINES = {
       snack: ['The winner ate the {x} for luck.', 'The {x} gave the winner a boost.'],
       points: ['The winner scored {x} points.', 'A score of {x} points sealed it.'],
       place: ['The answer finished in place {x}.', 'Look at place {x} on the results board.'],
+      shoes: ['The winner wore the {x} shoes.', 'A flash of {x} shoes crossed the line first.'],
+      mascot: ['The {x} mascot danced for the winner.', 'The winner\'s fans cheered for the {x} mascot.'],
     },
     endings: [
       '{Fact}, so {winner} wins {prize}! The crowd is on its feet.',
@@ -429,6 +445,8 @@ export const STORYLINES = {
       dessert: ['The winning meal ended with {x}.', 'A plate of {x} was served alongside.'],
       minutes: ['That chef cooked for {x} minutes.', 'The timer was set for {x} minutes.'],
       score: ['That chef scored {x}.', 'The judges gave it a {x}.'],
+      apron: ['That chef wore the {x} apron.', 'A splash of sauce landed on the {x} apron.'],
+      utensil: ['That chef swears by the {x}.', 'The {x} was the secret.'],
     },
     endings: [
       '{Fact}, so {winner} earns {prize}! The judges ask for seconds.',
@@ -476,6 +494,8 @@ export const STORYLINES = {
       ribbon: ['The same pet also won the {x} ribbon.', 'The {x} ribbon winner is the one to look at.'],
       age: ['That pet is {x} years old.', 'The vet chart says {x} years old.'],
       weight: ['That pet weighs {x} pounds.', 'The scale read {x} pounds.'],
+      collar: ['The pet everyone loved wears the {x} collar.', 'A flash of the {x} collar caught the judges\' eyes.'],
+      trick: ['The pet everyone loved knows the {x} trick.', 'The crowd cheered for the {x} trick.'],
     },
     endings: [
       '{Fact}, so {winner}\'s pet earns {prize}! Treats for everyone.',
@@ -523,6 +543,8 @@ export const STORYLINES = {
       snack: ['The neighbor you want stopped to grab the {x}.', 'Whoever grabbed the {x} is the one.'],
       arrival: ['It happened at {x}.', 'The town clock read {x} at the key moment.'],
       spent: ['The neighbor you want spent {x}.', 'The cash register shows {x}.'],
+      dog: ['The neighbor you want was out walking the {x}.', 'Someone saw the {x} waiting by the door.'],
+      coffee: ['The neighbor you want ordered the {x}.', 'A cup marked {x} was left on the counter.'],
     },
     endings: [
       '{Fact}, so {winner} gets {prize}! The whole street cheers.',
@@ -570,6 +592,8 @@ export const STORYLINES = {
       gear: ['The hiker you want packed the {x}.', 'The {x} made all the difference.'],
       miles: ['The hiker you want hiked {x} miles.', 'The trail log shows {x} miles.'],
       start: ['The hiker you want set out at {x}.', 'The trailhead sign-in says {x}.'],
+      flower: ['The hiker you want photographed the {x}.', 'A photo of the {x} gave it away.'],
+      bottle: ['The hiker you want carried the {x} water bottle.', 'A {x} water bottle was left at the trailhead.'],
     },
     endings: [
       '{Fact}, so {winner} earns {prize}! The rangers cheer at the visitor center.',
@@ -617,6 +641,8 @@ export const STORYLINES = {
       suitcase: ['The tourist you want packed the {x} suitcase.', 'Look for the {x} suitcase.'],
       days: ['The tourist you want was away {x} days.', 'The plane ticket shows {x} days away.'],
       spent: ['The tourist you want spent {x}.', 'The receipts add up to {x}.'],
+      lodging: ['The tourist you want stayed in the {x}.', 'A key from the {x} gave it away.'],
+      treat: ['The tourist you want tasted the {x}.', 'A napkin from the {x} stand was the best clue.'],
     },
     endings: [
       '{Fact}, so {winner} wins {prize}! Bon voyage!',
@@ -664,6 +690,8 @@ export const STORYLINES = {
       tool: ['The {x} was the secret.', 'The builder you want could not have done it without the {x}.'],
       height: ['The model you want stands {x} inches tall.', 'The tape measure reads {x} inches.'],
       hours: ['The builder you want worked {x} hours.', 'The build log shows {x} hours.'],
+      music: ['The builder you want worked to {x} music.', 'Everyone could hear {x} music from that table.'],
+      helper: ['The builder you want got help from {x}.', 'A thank-you note to {x} was taped to that model.'],
     },
     endings: [
       '{Fact}, so {winner} takes home {prize}! The crowd applauds.',

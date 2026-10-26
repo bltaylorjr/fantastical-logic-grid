@@ -111,7 +111,7 @@ Item names in clues match the grid labels exactly, and clue order is fixed once 
 
 ## Themes, topics and stories
 
-Fourteen themes, each a small world with its own cast and six categories (two of
+Fourteen themes, each a small world with its own cast and eight categories (two of
 them numbered) with eight items each.
 
 Each theme has topics: the scenario under it, such as which holiday or which
