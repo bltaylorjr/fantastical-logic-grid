@@ -61,6 +61,15 @@ def build(s):
     ]))
     if s['alerts']:
         sections.append(('Free limits to watch', [f"{a['label']}: {a['percent']}%. {a['text']}" for a in s['alerts']]))
+    r = s.get('ratings')
+    if r and r.get('rated'):
+        spread = ', '.join(f"{i + 1} star{'s' if i else ''}: {n(c)}" for i, c in enumerate(r.get('spread') or []))
+        lines = [f"Average {r['average']} of 5 stars from {n(r['rated'])} ratings ({spread})"]
+        if r.get('summary'):
+            lines.append(r['summary'])
+        lines += [f"Working: {f['text']} {f.get('advice') or ''}".strip() for f in r.get('good') or []]
+        lines += [f"To improve: {f['text']} {f.get('advice') or ''}".strip() for f in r.get('improve') or []]
+        sections.append(('Puzzle ratings', lines))
     if s['quality']:
         sections.append(('Puzzles that need attention', [f"{q['theme']}, {TIERS.get(q['tier'], q['tier'])} ({n(q['games'])} games): " + '; '.join(i['text'] for i in q['issues']) for q in s['quality']]))
     fb = s['feedback']

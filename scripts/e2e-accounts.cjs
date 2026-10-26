@@ -150,6 +150,8 @@ function startAuth(signer) {
     await A.page.waitForSelector('[data-view=account]:not([hidden])');
     assert((await A.page.textContent('#acct-email')) === 'bobby@example.com', 'signed in after creating the account');
     assert(await A.page.evaluate(() => !!localStorage.getItem('flg.auth')), '"Keep me signed in" is on by default and keeps the sign-in on the device');
+    // The app sends this without waiting for it, so give a slow runner a moment.
+    for (let t = 0; t < 50 && !auth.emails.some((e) => e.type === 'VERIFY_EMAIL'); t++) await new Promise((r) => setTimeout(r, 100));
     assert(auth.emails.some((e) => e.type === 'VERIFY_EMAIL'), 'a confirmation email is requested');
     await A.page.waitForFunction(() => /Synced/.test(document.querySelector('#acct-sync-text').textContent), null, { timeout: 15000 });
     assert(true, 'first sync finished');

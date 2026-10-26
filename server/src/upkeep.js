@@ -49,6 +49,7 @@ export async function runUpkeep(env, now = Date.now()) {
     feedback_replies: db.prepare('DELETE FROM feedback_replies WHERE created_at < ?1').bind(now - 30 * DAY),
     translations: db.prepare('DELETE FROM translations WHERE day < ?1').bind(isoDay(now - 180 * DAY)),
     ...messageUpkeepStatements(env, now),
+    rating_insights: db.prepare('DELETE FROM rating_insights WHERE day < ?1').bind(isoDay(now - 90 * DAY)),
   };
   if ((await getSettings(env, now)).archive_email_enabled) {
     for (const name of ARCHIVED_UPKEEP_JOBS) delete jobs[name];

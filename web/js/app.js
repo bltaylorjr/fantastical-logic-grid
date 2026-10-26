@@ -17,6 +17,7 @@ import * as feedbackBox from './feedback.js';
 import * as messages from './messages.js';
 import * as share from './share.js';
 import * as errorReports from './errors.js';
+import * as campaign from './campaign.js';
 import { initAccounts, openAccount, onHome as accountsOnHome, signedIn } from './account-ui.js';
 import * as competeUi from './compete-ui.js';
 import * as remote from './remote-config.js';
@@ -28,6 +29,7 @@ import * as i18n from './i18n.js';
 import { CLOUD_URL } from './cloud-config.js';
 
 errorReports.init();
+campaign.init();
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const OPTIONS = describeOptions();
@@ -316,14 +318,15 @@ async function rememberStory(id) {
 }
 
 // A new puzzle from the setup choices, with a story this player has never had.
-async function makePuzzle() {
-  const options = gatherOptions();
-  store.saveSetupChoices({ tier: setup.tier, theme: setup.theme, topic: setup.topic, size: setup.size, custom: currentSize() });
+// With `override` (a quick puzzle), the setup choices are neither read nor saved.
+async function makePuzzle(override = null) {
+  const options = override ? { ...override } : gatherOptions();
+  if (!override) store.saveSetupChoices({ tier: setup.tier, theme: setup.theme, topic: setup.topic, size: setup.size, custom: currentSize() });
   const used = await store.getMeta('usedStories', []);
   const usedSet = new Set(used);
   // Learning only picks between puzzles the engine has fully checked.
   let tuned = {};
-  if (settings.learn) { try { tuned = await learn.tuning(setup.tier, { useShared: share.available() && remote.feature('learning') }); } catch (e) { tuned = {}; } }
+  if (settings.learn) { try { tuned = await learn.tuning(options.difficulty, { useShared: share.available() && remote.feature('learning') }); } catch (e) { tuned = {}; } }
   // Surprise me never picks a theme that is switched off.
   const off = remote.disabledThemes();
   if (options.theme === 'random' && off.size) {
@@ -391,6 +394,46 @@ async function startGeneration() {
   }
 }
 
+// A quick puzzle: a small Easy case in any theme, with no setup, so a first
+// visit is playing within seconds (the market test's "Play now"). Coach tips
+// show as on any Easy puzzle. Also opened by a link ending ?play=now.
+const QUICK = { difficulty: 'easy', theme: 'random', categories: 3, items: 4 };
+async function startQuick() {
+  if (generating) return;
+  generating = true;
+  const btn = $('#quick-btn');
+  const st = $('#quick-status');
+  const err = $('#quick-error');
+  err.hidden = true;
+  btn.disabled = true;
+  st.textContent = 'Writing a quick case for you…';
+  try {
+    const save = newSave(await makePuzzle(QUICK));
+    save.quick = true;
+    await store.putSave(save);
+    st.textContent = '';
+    openGame(save, { fresh: true });
+  } catch (e) {
+    st.textContent = '';
+    err.innerHTML = `<p><b>The story could not be written.</b> ${esc(e.message || e)}</p><button class="btn" type="button" id="quick-retry">Try again</button>`;
+    err.hidden = false;
+    $('#quick-retry').onclick = startQuick;
+  } finally {
+    btn.disabled = false;
+    generating = false;
+  }
+}
+$('#quick-btn').onclick = startQuick;
+// ?play=now in a link (ads, the website) starts a quick puzzle straight away.
+function handlePlayLink() {
+  const url = new URL(location.href);
+  if (url.searchParams.get('play') !== 'now') return false;
+  url.searchParams.delete('play');
+  try { history.replaceState(history.state, '', url.pathname + url.search + url.hash); } catch (e) { /* framed preview */ }
+  startQuick();
+  return true;
+}
+
 function expectedMsFor(puzzle) {
   const K = puzzle.categories.length, N = puzzle.categories[0].items.length;
   return (K * (K - 1) / 2) * N * N * (MINUTES_PER_CELL[puzzle.difficulty.id] || 0.2) * 60000;
@@ -422,6 +465,8 @@ async function renderSaved() {
   saves.sort((a, b) => b.lastPlayed - a.lastPlayed);
   const last = saves.find((x) => !x.solved);
   $('#continue-btn').hidden = !last;
+  // With nothing to continue, the quick puzzle is the main way in.
+  $('#quick-btn').classList.toggle('primary', !last);
   if (last) {
     $('#continue-btn').dataset.id = last.id;
     $('#continue-name').textContent = `${last.name} · ${last.percent || 0}%`;
@@ -535,6 +580,7 @@ $('#import-file').onchange = async (e) => {
 // ====================================================================
 function openGame(save, { fresh = false } = {}) {
   closeGame();
+  campaign.played();
   const puzzle = save.puzzle;
   const ix = puzzleIndex(puzzle);
   S = {
@@ -1088,6 +1134,7 @@ function checkSolved() {
     if (!S.save.race && !S.save.daily && !S.save.revealed && !S.save.restarted) S.save.scorePending = true;
     tickTimer();
     recordSolve(S.save);
+    if (!S.save.revealed) campaign.solved();
     if (settings.learn) learn.record(S.save, S.save.revealed ? 'revealed' : 'solved').then(() => share.soon(), () => {});
     stopTimer();
     showSolved(true);
@@ -1164,23 +1211,37 @@ function reportResult(save) {
   else send();
 }
 
-// "How was it?" after each puzzle: stars and a quick feel, saved for learning.
+// "Rate this puzzle" after each puzzle: optional 1 to 5 stars (5 is
+// excellent) and a quick feel. It never blocks anything. With "Learn from how
+// I play" on it tunes the next puzzles and joins the anonymous ratings report
+// (admin Ratings and insights); with it off the rating stays on this device.
 async function renderFeedback(save) {
   const box = $('#feedback');
-  box.hidden = !settings.learn;
-  if (!settings.learn) return;
   const prev = await learn.ratingOf(save.storyId).catch(() => ({}));
+  if (!S || S.save !== save) return;
   for (const r of $$('input[name=rating]', box)) r.checked = prev.rating === +r.value;
   for (const r of $$('input[name=feel]', box)) r.checked = prev.feel === r.value;
+  $('#rating-clear').hidden = !prev.rating;
   $('#feedback-thanks').textContent = '';
+}
+async function saveRating(v) {
+  await learn.rate(S.save, v, { keepLocal: !settings.learn }).catch(() => {});
+  $('#feedback-thanks').textContent = settings.learn ? 'Thanks. Your next puzzles will use this.' : 'Thanks. This stays on your device, because Learn from how I play is off.';
+  if (settings.learn) window.share?.soon();
 }
 $('#feedback').addEventListener('change', async (e) => {
   if (!S || !e.target.name) return;
-  const v = e.target.name === 'rating' ? { rating: +e.target.value } : { feel: e.target.value };
-  await learn.rate(S.save, v).catch(() => {});
-  $('#feedback-thanks').textContent = 'Thanks. Your next puzzles will use this.';
-  window.share?.soon();
+  if (e.target.name === 'rating') $('#rating-clear').hidden = false;
+  await saveRating(e.target.name === 'rating' ? { rating: +e.target.value } : { feel: e.target.value });
 });
+$('#rating-clear').onclick = async () => {
+  if (!S) return;
+  for (const r of $$('#feedback input[name=rating]')) r.checked = false;
+  $('#rating-clear').hidden = true;
+  $('#feedback .stars input')?.focus();
+  await saveRating({ rating: null });
+  $('#feedback-thanks').textContent = 'Rating cleared.';
+};
 $('#feedback-idea').onclick = () => feedbackBox.open(openDialog, { kind: 'idea' });
 
 // Streak, new badges and Share my result on the solved panel.
@@ -1864,7 +1925,7 @@ async function checkUpdates() {
   offerUpdate();
 }
 
-$('#welcome-skip').onclick = () => $('#dlg-welcome').close();
+$('#welcome-skip').onclick = () => { $('#dlg-welcome').close(); startQuick(); };
 $('#welcome-watch').onclick = () => { $('#dlg-welcome').close(); openVideo(); };
 $('#back-saved').onclick = async () => { await goHome({ focusSaved: true }); $('#saved-section').scrollIntoView(); };
 
@@ -1920,7 +1981,7 @@ window.addEventListener('beforeinstallprompt', (e) => {
   installEvent = e;
   if ($('#dlg-install').open) renderInstall();
 });
-window.addEventListener('appinstalled', () => { installEvent = null; if ($('#dlg-install').open) renderInstall(); });
+window.addEventListener('appinstalled', () => { campaign.installed(); installEvent = null; if ($('#dlg-install').open) renderInstall(); });
 
 function renderInstall() {
   const standalone = isStandalone();
@@ -1962,6 +2023,7 @@ function installApp() {
   openDialog($('#dlg-install'), $('#install-h'));
 }
 $('#install-close').onclick = () => $('#dlg-install').close();
+$('#install-desktop-btn').addEventListener('click', () => campaign.downloaded());
 $('#install-phone-btn').onclick = async () => {
   if (!installEvent) return;
   installEvent.prompt();
@@ -2058,7 +2120,8 @@ async function init() {
   competeUi.handleRaceLink();
   window.addEventListener('resize', () => { if (!$('#screen-home').hidden) updatePreview(); });
   document.documentElement.classList.add('ready');
-  offerIntro();
+  // A ?play=now link goes straight into a puzzle; the welcome waits for next time.
+  if (!handlePlayLink()) offerIntro();
   offerLanguage();
   setTimeout(checkUpdates, 4000);
   if (!isPreview) setTimeout(ensureNaturalVoices, 1500);

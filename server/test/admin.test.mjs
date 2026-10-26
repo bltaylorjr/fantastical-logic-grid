@@ -490,9 +490,18 @@ test('admins sign in again after 12 hours, even with a fresh token', async () =>
 test('admin bodies over the limit are refused while still arriving', async () => {
   // No Content-Length: the body is streamed and cut off once it passes the cap.
   const big = new ReadableStream({ start(c) { for (let i = 0; i < 20; i++) c.enqueue(new TextEncoder().encode('x'.repeat(1000))); c.close(); } });
-  const r = await mf.dispatchFetch('https://api.test/admin/v1/settings', { method: 'POST', headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json' }, body: big, duplex: 'half' });
-  assert.equal(r.status, 413);
-  await r.arrayBuffer();
+  // The Worker may answer before the upload ends, so a reset also means refused.
+  // Its own sign-in, so earlier tests' calls do not count toward the rate limit.
+  const auth = idToken('size-check-uid', OWNER);
+  let status;
+  try {
+    const r = await mf.dispatchFetch('https://api.test/admin/v1/settings', { method: 'POST', headers: { Authorization: `Bearer ${auth}`, 'Content-Type': 'application/json' }, body: big, duplex: 'half' });
+    await r.arrayBuffer();
+    status = r.status;
+  } catch (e) { status = 'reset'; }
+  assert.ok([413, 'reset'].includes(status), `gave ${status}`);
+  const sized = await call('/admin/v1/settings', { auth, body: { pad: 'x'.repeat(9000) } });
+  assert.equal(sized.status, 413);
 });
 
 test('the dashboard keeps other sites and powerful features away', async () => {
