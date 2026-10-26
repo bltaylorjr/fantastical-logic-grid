@@ -1,12 +1,14 @@
 // Character portraits from DiceBear (code MIT; Notionists, Lorelei and Open
 // Peeps artwork CC0). The same name in the same theme always gets the same
 // face. Animal casts and the "Built-in" choice use the game's own art.
-// Each face is drawn as a woman or a man to match the character's voice.
+// Each face is drawn as a woman or a man to match the character's voice, and
+// wears an expression that suits their personality (castbook.js).
 import { createAvatar, notionists, lorelei, openPeeps } from '../vendor/dicebear/dicebear.js';
 import { portraitSvg } from './art.js';
 import { genderOf } from './gender.js';
 import { LOOKS, BACKGROUNDS } from './looks.js';
 import { characterOf } from './cast.js';
+import { profileOf } from './castbook.js';
 
 const STYLES = { notionists, lorelei, openPeeps };
 export { LOOKS };
@@ -33,8 +35,8 @@ export function portrait(puzzle, name, { size = 72, style = 'notionists' } = {})
   try {
     return createAvatar(st, {
       seed: `${puzzle.theme.id}:${name}`, size, radius: 50, randomizeIds: true,
-      backgroundColor: BACKGROUNDS, backgroundType: ['solid'], ...LOOKS[style][g],
-    }).toString().replace('<svg ', `<svg class="portrait-svg" data-gender="${g}" aria-hidden="true" focusable="false" `);
+      backgroundColor: BACKGROUNDS, backgroundType: ['solid'], ...LOOKS[style][g], ...(profileOf(name).face[style] || {}),
+    }).toString().replace('<svg ', `<svg class="portrait-svg" data-gender="${g}" data-personality="${profileOf(name).personality}" aria-hidden="true" focusable="false" `);
   } catch (e) {
     return portraitSvg(puzzle, name, { size });
   }

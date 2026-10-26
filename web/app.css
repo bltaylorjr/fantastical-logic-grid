@@ -347,6 +347,11 @@ input[type=range] { width: 100%; min-height: 44px; accent-color: var(--accent); 
 .bubble { position: relative; margin-top: 12px; border: 2px solid var(--accent); border-radius: 14px; padding: 12px 16px; background: var(--bg); max-width: 70ch; }
 .bubble p { margin: 0 0 6px; } .bubble p:last-child { margin: 0; }
 .bubble .who { font-weight: 700; }
+/* Each character's personality (castbook.js) and their lines. */
+.cast-btn small.trait { font-style: italic; }
+.bubble .about { color: var(--muted); font-style: italic; }
+.char-line { margin: 0 0 8px; font-style: italic; }
+.resolution .char-line.cheer { position: absolute; left: 50%; bottom: 6%; transform: translateX(-50%); max-width: 90%; text-align: center; background: rgb(0 0 0 / .65); color: #fff; padding: 6px 14px; border-radius: 12px; }
 .clue-list .from { display: block; font-size: .85rem; color: var(--muted); }
 .clue-list li.spot label { background: var(--accent-soft); }
 .resolution { position: relative; border-radius: 12px; overflow: hidden; margin: -8px 0 16px; width: 100%; height: clamp(180px, 26vw, 300px); }

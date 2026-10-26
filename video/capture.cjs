@@ -287,10 +287,10 @@ const CSS = `
     await scene('story', ['Read the story first.', 'It tells you who is involved, and it ends with the question you need to answer.', `Here, it's: ${P.goal}`, 'You can also press Read the story aloud to hear it.']);
     await clearFx();
     await scrollTo('#cast-row');
-    const who = await p.evaluate(() => [...document.querySelectorAll('.cast-btn')].find((b) => !/^0 /.test(b.querySelector('small').textContent)).dataset.who);
+    const who = await p.evaluate(() => [...document.querySelectorAll('.cast-btn')].find((b) => !/^0 /.test(b.querySelector('small:last-of-type').textContent)).dataset.who);
     await clickShown(`.cast-btn[data-who="${who}"]`); await p.waitForTimeout(200);
     await hl(['#cast-row', '#bubble']);
-    await scene('cast', ["Select a character's portrait to hear the clues they remember.", 'Every clue is also in the clue list.']);
+    await scene('cast', ['Every character has a personality, shown under their name, and a voice of their own.', "Select a character's portrait to hear the clues they remember, in their own words.", 'Every clue is also in the clue list.']);
     await clearFx(); await spotClues([]); await p.evaluate(() => { document.querySelector('#bubble').hidden = true; });
     await scrollTo('#read-clues'); await hl(['#read-clues']);
     await scene('read-clues', ['To hear every clue in order, press Read the clues aloud.', 'Each character tells their own clue, and the clue being read lights up.']);
