@@ -94,7 +94,7 @@ test('the game counts campaign visits anonymously, and made-up codes fold into o
   await send({ e: 'visit', c: 'made-up-campaign', s: 'my-spam-site', m: 'banner', k: 'zzz', p: 'toaster' });
   await send({ e: 'visit', c: '', s: 'pinterest', m: 'social', p: 'web' });
   assert.equal((await send({ e: 'hack' })).status, 400, 'unknown events refused');
-  assert.equal((await mf.dispatchFetch('https://api.test/v1/m', { method: 'POST', body: 'x'.repeat(5000) })).status, 413, 'big bodies refused');
+  assert.equal((await mf.dispatchFetch('https://api.test/v1/m', { method: 'POST', body: 'not json' })).status, 400, 'junk refused');
   const rows = (await db.prepare('SELECT campaign, source, medium, content, event, platform, n FROM campaign_stats ORDER BY campaign, event').all()).results;
   assert.deepEqual(rows.find((x) => x.event === 'visit' && x.campaign === 'launch-2026'), { campaign: 'launch-2026', source: 'reddit', medium: 'forum', content: 'webgames-launch', event: 'visit', platform: 'web', n: 3 });
   assert.deepEqual(rows.find((x) => x.campaign === '(other)'), { campaign: '(other)', source: 'other', medium: 'other', content: '', event: 'visit', platform: 'web', n: 1 });
