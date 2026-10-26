@@ -1306,6 +1306,8 @@ export const TOPICS = {
           cargo: ['The aliens asked about the {x}.', 'It all depends on the {x}.'],
           lightyears: ['The pilot behind it traveled {x} light-years to get there.', 'The friendly signal came from {x} light-years away.'],
           dock: ['The pilot behind it docked at {x}.', 'Base cameras show the key moment at {x}.'],
+          snack: ['The aliens were curious about the {x}.', 'The pilot behind it shared the {x} with the visitors.'],
+          crew: ['The pilot behind it has a crew of {x}.', 'The welcome party counted a crew of {x}.'],
         },
       },
       art: { setting: 'a glowing alien spaceship landing in a desert under a sky full of stars', mood: 'violet and green glow, curious' } },
