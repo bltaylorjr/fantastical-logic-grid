@@ -226,18 +226,19 @@
 
     <section data-view="supporters" hidden aria-labelledby="h-supporters">
       <div class="head"><h1 id="h-supporters">Supporters</h1></div>
-      <p class="muted">The game is free. A <b>Supporter</b> gets a badge next to their name on the scoreboard. <b>Premium</b> also opens the themes ticked under Settings and switches &gt; Support and premium. Payment services add people here by themselves once connected; you can also add someone by hand, for example a GitHub Sponsors or Ko-fi tipper. A grant made out to an email reaches the player the next time they sign in with that confirmed email.</p>
+      <p class="muted">The game is free. A <b>Supporter</b> gets a badge next to their name on the scoreboard: Bronze, Silver, Gold or Platinum. Payment services pick the badge from the membership tier's name or the amount paid (the tier amounts are under Settings and switches &gt; Support and premium); a player shows their highest running badge. <b>Premium</b> also opens the themes ticked under Settings and switches &gt; Support and premium. Payment services add people here by themselves once connected; you can also add someone by hand, for example a GitHub Sponsors or Ko-fi tipper. A grant made out to an email reaches the player the next time they sign in with that confirmed email.</p>
       <form id="sup-form" class="stack card" novalidate>
         <div class="row">
           <div class="field grow"><label for="sup-who">Player's email or player id</label><input id="sup-who" type="text" autocomplete="off" spellcheck="false" required></div>
           <div class="field"><label for="sup-kind">Gets</label><select id="sup-kind"><option value="supporter">Supporter badge</option><option value="premium">Premium (badge and extras)</option></select></div>
+          <div class="field"><label for="sup-tier">Badge</label><select id="sup-tier"><option value="1">Bronze</option><option value="2">Silver</option><option value="3">Gold</option><option value="4">Platinum</option></select></div>
           <div class="field"><label for="sup-until">Ends (optional)</label><input id="sup-until" type="date"></div>
         </div>
         <div class="field"><label for="sup-note">Note (optional, for you)</label><input id="sup-note" type="text" maxlength="200" autocomplete="off"></div>
         <p class="error" id="sup-error" role="alert" hidden></p>
         <div class="row"><button class="btn primary" type="submit">Add</button></div>
       </form>
-      <div class="table-wrap"><table class="table"><thead><tr><th scope="col">Who</th><th scope="col">Gets</th><th scope="col">From</th><th scope="col">Since</th><th scope="col">Ends</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody id="sup-rows"></tbody></table></div>
+      <div class="table-wrap"><table class="table"><thead><tr><th scope="col">Who</th><th scope="col">Gets</th><th scope="col">Badge</th><th scope="col">From</th><th scope="col">Since</th><th scope="col">Ends</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody id="sup-rows"></tbody></table></div>
     </section>
 
     <section data-view="settings" hidden aria-labelledby="h-settings">

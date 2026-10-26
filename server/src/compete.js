@@ -24,7 +24,7 @@ import { checkName, cleanName, nameKey, hasBlockedWords } from './names.js';
 import { isDeleted } from './sync.js';
 import { AuthError } from './auth.js';
 import { getSettings } from './settings.js';
-import { supporterSet } from './supporters.js';
+import { supporterTiers } from './supporters.js';
 
 export const TIERS = { basic: 10, easy: 20, medium: 35, hard: 55, expert: 80, mensa: 110 };
 // Minutes a typical player needs per grid cell (the same as the app's estimate).
@@ -167,10 +167,10 @@ async function scoreboard(env, period, now) {
     ORDER BY pts.points DESC, wins DESC, pts.first ASC LIMIT ?2`).bind(since, BOARD_ROWS, now).all();
   let rank = 0;
   let prev = null;
-  const supporters = await supporterSet(env, results.map((r) => r.uid), now);
+  const supporters = await supporterTiers(env, results.map((r) => r.uid), now);
   const rows = results.map((r, i) => {
     if (r.points !== prev) { rank = i + 1; prev = r.points; }
-    return { rank, name: r.name, points: r.points, solved: r.solved, wins: r.wins, uid: r.uid, ...(supporters.has(r.uid) ? { supporter: true } : {}) };
+    return { rank, name: r.name, points: r.points, solved: r.solved, wins: r.wins, uid: r.uid, ...(supporters.has(r.uid) ? { supporter: supporters.get(r.uid) } : {}) };
   });
   const body = { period, since, rows };
   boardCache.set(period, { at: now, since, body });
