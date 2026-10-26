@@ -1,0 +1,147 @@
+# The weekly improvement run (IMPROVE.md), every Monday at 08:23 UTC (4:23 am
+# EDT, 3:23 am EST): after the 2 am nightly maintenance and the Monday summary
+# email, and before the weekly Claude task.
+#   1. scripts/improve.mjs reads every signal (ratings, puzzle quality, the
+#      daily puzzle, story parts, shared learning, errors and feedback counts,
+#      free limits, the nightly maintenance issue and the last nights'
+#      Lighthouse scores), ranks what it found and works out small, bounded
+#      tuning (engine/src/house-tuning.js).
+#   2. The findings go in one GitHub issue labelled weekly-improvement, which
+#      the weekly Claude task reads to make small fixes for the bigger items.
+#   3. A tuning change goes in a pull request labelled improvement. The full
+#      test suite runs on it, and it merges itself when every test passes.
+#   4. scripts/improve-email.py emails the owner what changed and why.
+# Stop it with the repository variable IMPROVE=off; IMPROVE=report writes the
+# report and email but never changes the tuning.
+# Privacy: the repository is public, so only counts, rates and built-in names
+# are written anywhere. Never player text.
+# Free: scheduled GitHub Actions on a public repo and Gmail cost nothing.
+name: Weekly improvement
+on:
+  schedule:
+    - cron: '23 8 * * 1'   # Mondays 08:23 UTC
+  workflow_dispatch:
+    inputs:
+      email:
+        description: Send the email
+        type: boolean
+        default: true
+      tune:
+        description: Apply the tuning (a pull request that merges itself when the tests pass)
+        type: boolean
+        default: true
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  actions: write
+concurrency:
+  group: improve
+jobs:
+  improve:
+    if: vars.IMPROVE != 'off'
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      OUT_DIR: ${{ github.workspace }}/improve-report
+      LH_DIR: ${{ github.workspace }}/nightly-lighthouse
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Download the last nights' Lighthouse results
+        run: |
+          mkdir -p "$LH_DIR"
+          for id in $(gh run list --repo "$GITHUB_REPOSITORY" --workflow nightly.yml --status success -L 8 --json databaseId -q '.[].databaseId' 2>/dev/null); do
+            gh run download "$id" --repo "$GITHUB_REPOSITORY" -n nightly-lighthouse -D "$LH_DIR/$id" >/dev/null 2>&1 || true
+          done
+          echo "Nights with Lighthouse results: $(find "$LH_DIR" -mindepth 1 -maxdepth 1 -type d | wc -l)"
+
+      - name: Analyze and work out the tuning
+        env:
+          FLG_CLOUD_URL: ${{ vars.FLG_CLOUD_URL || 'https://flg-api.btay74.workers.dev' }}
+          FLG_ADMIN_TOKEN: ${{ secrets.FLG_ADMIN_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          IMPROVE_TUNE: ${{ (vars.IMPROVE == 'report' || (github.event_name == 'workflow_dispatch' && !inputs.tune)) && '0' || '1' }}
+        run: node scripts/improve.mjs
+
+      - name: Update the weekly improvement issue
+        id: issue
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const fs = require('fs');
+            const body = fs.readFileSync(`${process.env.OUT_DIR}/report.md`, 'utf8');
+            const label = 'weekly-improvement';
+            const { data: open } = await github.rest.issues.listForRepo({ ...context.repo, state: 'open', labels: label });
+            let number;
+            if (open.length) { number = open[0].number; await github.rest.issues.update({ ...context.repo, issue_number: number, body }); }
+            else {
+              await github.rest.issues.createLabel({ ...context.repo, name: label, color: '5b3cc4', description: 'The weekly improvement report' }).catch(() => {});
+              ({ data: { number } } = await github.rest.issues.create({ ...context.repo, title: 'Weekly improvement report', labels: [label], body }));
+            }
+            core.setOutput('url', `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/issues/${number}`);
+            await core.summary.addRaw(body).write();
+
+      - name: Open the tuning pull request, test it and merge it when every test passes
+        id: pr
+        env:
+          REPORT_URL: ${{ steps.issue.outputs.url }}
+        run: |
+          if git diff --quiet -- engine/src/house-tuning.js; then echo "No tuning change this week."; exit 0; fi
+          day=$(date -u +%F)
+          branch="improve/$day"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898+github-actions[bot]@users.noreply.github.com'
+          git switch -c "$branch"
+          git add engine/src/house-tuning.js
+          git commit -q -m "Weekly tuning from players' games ($day)" -m "$(node -e "const r=require(process.env.OUT_DIR+'/improve.json');console.log(r.changes.map(c=>'- '+c).join('\n'))")"
+          git push -q -f origin "$branch"
+          gh label create improvement --color 5b3cc4 --description 'Made by the weekly improvement loop' 2>/dev/null || true
+          {
+            echo "The weekly improvement run tuned the game from everyone's games. Small, bounded changes that apply from $(node -p "require(process.env.OUT_DIR+'/improve.json').entry.from") on; past daily puzzles do not change."
+            echo
+            echo "## What changed and why"
+            echo
+            node -e "const r=require(process.env.OUT_DIR+'/improve.json');console.log(r.changes.map(c=>'- '+c).join('\n'))"
+            echo
+            echo "Full report: $REPORT_URL"
+            echo
+            echo "This pull request merges itself when every test passes (IMPROVE.md)."
+          } > "$RUNNER_TEMP/body.md"
+          url=$(gh pr create --base main --head "$branch" --title "Weekly tuning from players' games ($day)" --label improvement --body-file "$RUNNER_TEMP/body.md")
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          # A pull request opened with this workflow's token does not start the
+          # tests by itself, so start them on the branch and wait.
+          gh workflow run ci.yml --ref "$branch"
+          sleep 20
+          id=""
+          for i in 1 2 3 4 5 6; do
+            id=$(gh run list --workflow ci.yml --branch "$branch" --event workflow_dispatch -L 1 --json databaseId -q '.[0].databaseId')
+            [ -n "$id" ] && break; sleep 10
+          done
+          if [ -n "$id" ] && gh run watch "$id" --exit-status --interval 60 >/dev/null; then
+            gh pr merge "$url" --squash --delete-branch
+            # The merge does not start other workflows either: publish the site.
+            gh workflow run pages.yml --ref main
+            echo "state=merged" >> "$GITHUB_OUTPUT"
+          else
+            gh pr comment "$url" --body "The tests did not pass, so this tuning was not applied. It stays open for a look; next week's run starts again from main."
+            echo "state=failed" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Email what changed and why
+        if: github.event_name == 'schedule' || inputs.email
+        env:
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          ARCHIVE_TO: ${{ secrets.ARCHIVE_TO }}
+          SUMMARY_TO: ${{ secrets.SUMMARY_TO }}
+          PR_URL: ${{ steps.pr.outputs.url }}
+          PR_STATE: ${{ steps.pr.outputs.state }}
+          REPORT_URL: ${{ steps.issue.outputs.url }}
+        run: python3 -I scripts/improve-email.py

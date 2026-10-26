@@ -25,6 +25,8 @@
 //   GET  /admin/v1/audit               the audit log
 //   GET  /admin/v1/daily               the daily puzzle planner; POST .../:date (change), .../:date/reset (daily.js)
 //   GET  /admin/v1/quality?days=       puzzles players give up on, rate low or find too hard or easy (report.js)
+//   GET  /admin/v1/ratings?days=&by=[&brief=1]  puzzle ratings, trends and the plain-words analysis; POST .../summary (ratings.js)
+//   GET  /admin/v1/marketing?days=     campaigns, ads, media, tracked links and their numbers (marketing.js)
 //   GET  /admin/v1/alerts              free allowances close to running out
 //   GET  /admin/v1/summary?days=       the week in numbers, for the Monday summary email
 //   GET  /admin/v1/export/(players|scores|feedback).csv   spreadsheet downloads
@@ -57,6 +59,8 @@ import { FREE_LIMITS, cloudflareUsage } from './usage.js';
 import { plannerView, checkPlan, savePlan, resetPlan } from './daily.js';
 import { quality, alerts, summary, csv, CSV_KINDS } from './report.js';
 import { withFixes, errorFile } from './errors.js';
+import { ratingRoutes } from './ratings.js';
+import { marketingRoutes } from './marketing.js';
 
 const DAY = 24 * 3600_000;
 const ROLES = { viewer: 1, moderator: 2, admin: 3, owner: 4 };
@@ -69,7 +73,7 @@ const SESSION_MAX_S = 12 * 3600;
 const DENIED_PER_DAY = 500; // refused requests written to the audit log, so a flood cannot fill it
 const ANALYTICS_CACHE_MS = 120_000;
 const TABLES = ['sync_users', 'sync_records', 'sync_deleted_users', 'players', 'scores', 'races', 'race_entries', 'race_invites', 'plays', 'parts', 'usage',
-  'app_errors', 'upkeep_log', 'admins', 'admin_audit', 'settings', 'announcements', 'bans', 'name_reviews', 'archive_log', 'feedback', 'feedback_replies', 'error_fixes', 'search_snapshots', 'daily_plan', 'translations'];
+  'app_errors', 'upkeep_log', 'admins', 'admin_audit', 'settings', 'announcements', 'bans', 'name_reviews', 'archive_log', 'feedback', 'feedback_replies', 'error_fixes', 'search_snapshots', 'daily_plan', 'translations', 'rating_insights', 'campaigns', 'campaign_ads', 'marketing_media', 'campaign_stats'];
 const SECURITY_HEADERS = {
   'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
   'X-Content-Type-Options': 'nosniff',
@@ -566,6 +570,10 @@ const ROUTES = [
   }],
 
   ['GET', /^quality$/, 'viewer', 'quality.view', async ({ env, url }) => ({ body: await quality(env, daysParam(url, 90)) })],
+  // ---- Puzzle ratings and insights (ratings.js).
+  ...ratingRoutes(Refusal),
+  // ---- Marketing: campaigns, ads, media and what each link brought in (marketing.js).
+  ...marketingRoutes(Refusal),
   ['GET', /^alerts$/, 'viewer', 'alerts.view', async ({ env }) => ({ body: await alerts(env) })],
   ['GET', /^summary$/, 'admin', 'summary.view', async ({ env, url }) => {
     const s = await summary(env, daysParam(url, 31));

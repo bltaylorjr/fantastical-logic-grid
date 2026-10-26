@@ -14,6 +14,8 @@ public repositories) and a Cloudflare Workers cron trigger (free plan allows 5).
 | Weekly live search check (sitemap, every page, canonical links, Lighthouse). Opens a `search-check` issue when something is wrong. See [SEO.md](SEO.md) | `.github/workflows/seo.yml` | Mondays |
 | Cleanup of data the game no longer needs, so the free D1 database never fills up | `server/src/upkeep.js` | daily at 03:17 UTC |
 | Weekly archive email: old rows zipped, emailed to the owner from Gmail, then removed (off until switched on). See [server/ARCHIVE.md](server/ARCHIVE.md) | `.github/workflows/archive-email.yml`, `server/src/archive.js` | Mondays at 05:07 UTC |
+| Owner task email: anything only the owner can do (DNS, secrets, switches) is emailed to fantasticallogicgrid@gmail.com. See [docs/owner-tasks/README.md](docs/owner-tasks/README.md) | `.github/workflows/owner-email.yml`, `docs/owner-tasks/` | when a task file reaches main |
+| Weekly improvement: reads every signal (ratings, quit rates, the daily puzzle, story parts, errors, feedback counts, free limits, the nightly checks and speed scores), writes a ranked `weekly-improvement` issue, tunes the daily puzzles and story choices in a PR that merges itself when the tests pass, and emails what changed and why. A weekly Claude task then makes small fixes for the bigger items. See [IMPROVE.md](IMPROVE.md) | `.github/workflows/improve.yml`, `scripts/improve.mjs` | Mondays at 08:23 UTC |
 | Anonymous error reports from the apps (players can turn them off in Settings) | `web/js/errors.js`, `server/src/errors.js` | when an error happens |
 | Website publish | `.github/workflows/pages.yml` | each push to main |
 | Worker deploy and database migrations | Cloudflare Workers Builds | each push to main |
@@ -25,7 +27,7 @@ Races and their entries 45 days after the race was made, voice usage counters
 after 60 days, rejected story parts 90 days after review, deleted-account
 markers after 30 days, error reports after 30 days, anonymous play summaries
 after 400 days (tuning only reads the last 90), its own log after 90 days,
-the admin audit log after a year, ended bans, and announcements 90 days after
+the admin audit log after a year, kept rating summaries after 90 days, ended bans, and announcements 90 days after
 they end.
 Scores, saves, accounts and approved story parts are never removed (an admin
 can reset a player's scores or delete an account from the admin dashboard).
@@ -36,6 +38,10 @@ shorter ages: play summaries and the audit log after 90 days). See
 [server/ARCHIVE.md](server/ARCHIVE.md).
 
 ## One-time setup
+
+The current list of things waiting on the owner is in
+[docs/owner-tasks/](docs/owner-tasks/).
+
 
 1. **Turn on Dependabot alerts**: Settings > Code security > Dependabot alerts
    and Dependabot security updates. The weekly update PRs start on their own
