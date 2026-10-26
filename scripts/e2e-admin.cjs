@@ -158,14 +158,19 @@ const SHOTS = process.env.SHOTS;
     await page.waitForSelector('input[data-key=confetti]:not([disabled])');
     await page.uncheck('input[data-key=confetti]');
     assert(await until('confetti', false), 'confetti is switched off for everyone');
-    await page.waitForSelector('#set-portrait_style');
-    await page.selectOption('#set-portrait_style', 'lorelei');
-    await page.click('button[data-save=portrait_style]');
-    assert(await until('portrait_style', 'lorelei'), 'the portrait style is chosen for everyone');
-    await page.waitForSelector('#set-voice_source');
-    await page.selectOption('#set-voice_source', 'device');
-    await page.click('button[data-save=voice_source]');
-    assert(await until('voice_source', 'device'), 'where voices come from is chosen for everyone');
+    // Each save redraws the settings, so a choice made while the last save is
+    // still redrawing can be lost: try again until it is stored.
+    const pick = async (key, value) => {
+      for (let i = 0; i < 4; i++) {
+        await page.waitForSelector(`#set-${key}`);
+        await page.selectOption(`#set-${key}`, value);
+        await page.click(`button[data-save=${key}]`);
+        if (await until(key, value)) return true;
+      }
+      return false;
+    };
+    assert(await pick('portrait_style', 'lorelei'), 'the portrait style is chosen for everyone');
+    assert(await pick('voice_source', 'device'), 'where voices come from is chosen for everyone');
     await shot(page, '2-settings');
 
     await page.click('a[href="#announcements"]');

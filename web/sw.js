@@ -23,6 +23,8 @@ self.addEventListener('fetch', (e) => {
   if (req.method !== 'GET' || new URL(req.url).origin !== location.origin) return;
   // Video is streamed with range requests; let the browser handle it directly.
   if (req.headers.has('range') || new URL(req.url).pathname.includes('/media/')) return;
+  // The daily puzzle changes every day: always from the network (the game keeps its own copy).
+  if (/\/daily\/.*\.json$/.test(new URL(req.url).pathname)) return;
   e.respondWith(caches.open(CACHE).then(async (cache) => {
     const hit = await cache.match(req, { ignoreSearch: true });
     // Each version's files stay together in its own cache; new versions arrive
