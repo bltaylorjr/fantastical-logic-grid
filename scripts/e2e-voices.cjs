@@ -43,9 +43,12 @@ const { spawn } = require('child_process');
     const before = (await page.evaluate(() => window.__k.length));
     await page.click(`.cast-btn[data-who="${who}"]`); await page.waitForTimeout(300);
     const v = (await page.evaluate((n) => window.__k.slice(n), before))[0] || '';
-    assert(g && v.startsWith(g === 'f' ? 'af_' : 'am_'), `${who} looks ${g === 'f' ? 'like a woman' : 'like a man'} and speaks with a ${g === 'f' ? "woman's" : "man's"} voice (${v})`);
+    assert(g && v[1] === g && v[2] === '_', `${who} looks ${g === 'f' ? 'like a woman' : 'like a man'} and speaks with a ${g === 'f' ? "woman's" : "man's"} voice (${v})`);
   }
   assert(await page.evaluate(() => window.__dev) === 0, 'no robotic computer voice was used');
+  // Clock times are said as words, never "ten zero zero PM".
+  const said = await page.evaluate(async () => (await import('./js/ai.js')).speechText('Ann arrived at 10:00 PM. Bo came at 9:45 p.m., Cy at 7:05 AM and Di at 12:30.'));
+  assert(said === 'Ann arrived at ten PM. Bo came at nine forty-five PM, Cy at seven oh five AM and Di at twelve thirty.', `times are spoken as words (${said})`);
   assert(!errs.length, 'no page errors');
   await b.close(); server.kill();
 })();

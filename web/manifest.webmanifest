@@ -1,18 +1,92 @@
 {
+  "id": "./",
   "name": "The Fantastical Logic Grid",
   "short_name": "Logic Grid",
-  "description": "Story logic grid puzzles with hints, saves and printable answer keys.",
+  "description": "Story logic grid puzzles: every case is a brand new story. Pick a difficulty, theme and size, then solve with hints, save, print with an answer key, race friends and play the daily puzzle. Free, no ads.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "display_override": ["window-controls-overlay", "standalone"],
+  "display_override": [
+    "window-controls-overlay",
+    "standalone"
+  ],
   "background_color": "#F3F4F6",
   "theme_color": "#1F5FAD",
-  "categories": ["games", "puzzle", "education"],
+  "categories": [
+    "games",
+    "puzzle",
+    "education",
+    "entertainment"
+  ],
   "icons": [
-    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
-    { "src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
-    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml" }
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ],
+  "lang": "en-US",
+  "dir": "ltr",
+  "orientation": "any",
+  "shortcuts": [
+    {
+      "name": "Play a quick puzzle",
+      "short_name": "Quick puzzle",
+      "description": "A small Easy puzzle with no setup",
+      "url": "./?play=now",
+      "icons": [
+        {
+          "src": "icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "icons/screens/wide-play.jpg",
+      "sizes": "1280x800",
+      "type": "image/jpeg",
+      "form_factor": "wide",
+      "label": "Solving a story logic grid with clues"
+    },
+    {
+      "src": "icons/screens/wide-home.jpg",
+      "sizes": "1280x800",
+      "type": "image/jpeg",
+      "form_factor": "wide",
+      "label": "Choose a difficulty, theme and size"
+    },
+    {
+      "src": "icons/screens/narrow-home.jpg",
+      "sizes": "540x1170",
+      "type": "image/jpeg",
+      "form_factor": "narrow",
+      "label": "Play a quick puzzle on your phone"
+    },
+    {
+      "src": "icons/screens/narrow-play.jpg",
+      "sizes": "540x1170",
+      "type": "image/jpeg",
+      "form_factor": "narrow",
+      "label": "The grid and clues on a phone"
+    }
   ]
 }

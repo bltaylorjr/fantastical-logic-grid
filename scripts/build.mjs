@@ -52,11 +52,77 @@ const appVersion = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).
 cloud = cloud.replace(/appVersion: '[^']*'/, `appVersion: ${JSON.stringify(appVersion)}`);
 writeFileSync(cloudFile, cloud);
 await speedUpFirstLoad(out);
+// Windows downloads come from the public site repository once the source is
+// private (FLG_SITE_REPO, docs/PRIVATE-REPO.md); players cannot reach releases
+// in a private repository.
+if (process.env.FLG_SITE_REPO) {
+  const repo = process.env.FLG_SITE_REPO.trim();
+  if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) throw new Error(`FLG_SITE_REPO must look like owner/name, not ${repo}`);
+  for (const f of [join(out, 'index.html'), join(out, 'js', 'app.js')]) {
+    const text = readFileSync(f, 'utf8');
+    writeFileSync(f, text.replaceAll('bltaylorjr/fantastical-logic-grid/releases', `${repo}/releases`));
+  }
+}
+
+// Minify the game's own scripts and styles (not vendor/, which keeps its
+// published files and licenses) so the shipped code is smaller and much
+// harder to read or lift. Exports and imports keep their names, so modules
+// still load each other. FLG_NO_MINIFY=1 keeps readable files for debugging.
+if (!process.env.FLG_NO_MINIFY) {
+  const { transformSync } = await import('esbuild');
+  const banner = '/*! The Fantastical Logic Grid. © 2026 Bobby Taylor. All rights reserved. Terms: https://thelogicgrid.com/terms/ */';
+  const own = [];
+  const walkOwn = (d) => { for (const n of readdirSync(d)) { const p = join(d, n); if (statSync(p).isDirectory()) { if (n !== 'vendor') walkOwn(p); } else if (/\.(js|css)$/.test(n) && n !== 'sw.js') own.push(p); } };
+  walkOwn(out);
+  for (const p of own) {
+    const loader = p.endsWith('.css') ? 'css' : 'js';
+    const { code } = transformSync(readFileSync(p, 'utf8'), { loader, minify: true, legalComments: 'none', target: 'es2022', charset: 'utf8' });
+    writeFileSync(p, `${banner}\n${code}`);
+  }
+}
+
+// Content Security Policy for the game page (a <meta> tag, because GitHub
+// Pages cannot send headers). Scripts run only from the game's own files and
+// the one inline theme script (allowed by its hash); the page may talk only to
+// its own Worker, Firebase sign-in, GitHub releases and the desktop app's
+// bridge. No plugins, no <base> tricks, and forms post nowhere else.
+// Without a cloud address (tests and offline builds) the page may also reach
+// localhost, where the tests run their stand-in servers.
+const origin = (u) => { try { return u ? new URL(u).origin : null; } catch (e) { return null; } };
+const indexFile = join(out, 'index.html');
+let indexHtml = readFileSync(indexFile, 'utf8');
+const inlineHashes = [...indexHtml.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(([, code]) => `'sha256-${createHash('sha256').update(code).digest('base64')}'`);
+const cloudOrigins = [...new Set([cloudEnv.syncUrl, cloudEnv.learnUrl].map(origin).filter(Boolean))];
+// The desktop app reads the daily puzzle from the public website (js/daily.js).
+const siteOrigin = origin(cloudEnv.siteUrl || 'https://thelogicgrid.com');
+const connect = ["'self'", 'blob:', 'data:', ...cloudOrigins, siteOrigin, 'https://identitytoolkit.googleapis.com', 'https://securetoken.googleapis.com', 'https://api.github.com',
+  'ipc:', 'http://ipc.localhost', ...(cloudOrigins.length ? [] : ['http://localhost:*', 'http://127.0.0.1:*'])];
+const CSP = [
+  "default-src 'self'",
+  `script-src 'self' ${inlineHashes.join(' ')}`.trim(),
+  // Inline style attributes only (progress bars, print sizes); scripts stay locked.
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob:",
+  "media-src 'self' data: blob:",
+  "font-src 'self'",
+  `connect-src ${connect.join(' ')}`,
+  "worker-src 'self' blob:",
+  "manifest-src 'self'",
+  "frame-src 'none'",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+].join('; ');
+if (!indexHtml.includes('http-equiv="Content-Security-Policy"')) {
+  indexHtml = indexHtml.replace(/(<meta charset="utf-8">)/, `$1\n<meta http-equiv="Content-Security-Policy" content="${CSP}">\n<meta name="referrer" content="strict-origin-when-cross-origin">`);
+  if (!indexHtml.includes('Content-Security-Policy')) throw new Error('Could not add the security policy to index.html');
+  writeFileSync(indexFile, indexHtml);
+}
 const files = [];
 const walk = (d) => { for (const n of readdirSync(d)) { const p = join(d, n); if (statSync(p).isDirectory()) walk(p); else files.push(relative(out, p).split('\\').join('/')); } };
 walk(out);
 // The Kokoro voice engine (about 28 MB) is cached when first used, not on install.
-const shell = ['./', ...files.filter((f) => f !== 'sw.js' && !f.endsWith('icon-1024.png') && !/^vendor\/(ort|kokoro)\//.test(f) && f !== 'kokoro-worker.js' && !f.startsWith('media/'))];
+const shell = ['./', ...files.filter((f) => f !== 'sw.js' && !f.endsWith('icon-1024.png') && !f.startsWith('icons/screens/') && !/^vendor\/(ort|kokoro)\//.test(f) && f !== 'kokoro-worker.js' && !f.startsWith('media/'))];
 const hash = createHash('sha256');
 for (const f of files.sort()) hash.update(f).update(readFileSync(join(out, f)));
 const version = hash.digest('hex').slice(0, 10);
@@ -78,12 +144,44 @@ html = head.replace('<title>The Fantastical Logic Grid</title>', '<title>The Fan
 writeFileSync(join(prev, 'index.html'), html);
 console.log('Built dist/preview for the claude.ai page.');
 
+// 4b. dist/portal: the copy to upload to game sites such as itch.io, which
+// show it inside their own frame. It is served from their domain, so letting
+// it be framed puts nothing of thelogicgrid.com at risk; the website keeps
+// its anti-framing. No service worker (game sites serve each version at its
+// own address) and no web-app manifest. Zip it with npm run build:portal.
+const portal = join(root, 'dist', 'portal');
+rmSync(portal, { recursive: true, force: true });
+cpSync(out, portal, { recursive: true });
+rmSync(join(portal, 'sw.js'));
+rmSync(join(portal, 'manifest.webmanifest'), { force: true });
+let portalHtml = readFileSync(join(portal, 'index.html'), 'utf8')
+  .replace(/<link rel="manifest"[^>]*>\s*/, '')
+  .replace('<title>The Fantastical Logic Grid</title>', '<title>The Fantastical Logic Grid</title>\n<meta name="flg-mode" content="portal">');
+if (!portalHtml.includes('content="portal"')) throw new Error('Could not mark the portal build');
+writeFileSync(join(portal, 'index.html'), portalHtml);
+console.log('Built dist/portal for game sites such as itch.io.');
+
 // 5. dist/site: the web build plus host settings files and a deploy guide,
 // ready to upload to any static host (see hosting/DEPLOY.md).
 const site = join(root, 'dist', 'site');
 rmSync(site, { recursive: true, force: true });
 cpSync(out, site, { recursive: true });
 cpSync(join(root, 'hosting'), site, { recursive: true });
+// How to report a security problem (RFC 9116). The site is rebuilt every
+// night, so the expiry date always stays a year ahead.
+mkdirSync(join(site, '.well-known'), { recursive: true });
+writeFileSync(join(site, '.well-known', 'security.txt'), [
+  'Contact: mailto:fantasticallogicgrid@gmail.com',
+  `Expires: ${new Date(Date.now() + 365 * 24 * 3600_000).toISOString().slice(0, 19)}Z`,
+  'Preferred-Languages: en',
+  `Canonical: ${(process.env.FLG_SITE_URL || 'https://thelogicgrid.com').replace(/\/+$/, '')}/.well-known/security.txt`,
+  `Policy: ${(process.env.FLG_SITE_URL || 'https://thelogicgrid.com').replace(/\/+$/, '')}/security-policy.txt`,
+  '',
+].join('\n'));
+// The license and the security policy, readable on the site (the source
+// repository may be private).
+cpSync(join(root, 'LICENSE'), join(site, 'LICENSE.txt'));
+cpSync(join(root, 'SECURITY.md'), join(site, 'security-policy.txt'));
 // Search pages, daily puzzle, sitemap and search tags (website only).
 const seo = await buildSeo({ root, site });
 console.log(`Built dist/site for web hosting (${seo.pages.length} pages in the sitemap).`);

@@ -64,7 +64,7 @@ export const BADGES = [
   { id: 'medium', name: 'Getting serious', text: 'Solve a Medium puzzle.', test: (f) => has(f, 'medium') },
   { id: 'hard', name: 'Hard case', text: 'Solve a Hard puzzle.', test: (f) => has(f, 'hard') },
   { id: 'expert', name: 'Expert detective', text: 'Solve an Expert puzzle.', test: (f) => has(f, 'expert') },
-  { id: 'mensa', name: 'Mastermind', text: 'Solve a MENSA puzzle.', test: (f) => has(f, 'mensa') },
+  { id: 'mensa', name: 'Mastermind', text: 'Solve a Quantum Physicist puzzle.', test: (f) => has(f, 'mensa') },
   { id: 'big', name: 'Big picture', text: 'Solve a puzzle with 5 or more categories.', test: (f) => f.solved.some((x) => x.categories >= 5) },
   { id: 'ten', name: 'Ten cases', text: 'Solve 10 puzzles.', test: (f) => f.solved.length >= 10 },
   { id: 'fifty', name: 'Fifty cases', text: 'Solve 50 puzzles.', test: (f) => f.solved.length >= 50 },

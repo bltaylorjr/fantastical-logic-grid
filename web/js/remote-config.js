@@ -19,6 +19,13 @@ let onChange = () => {};
 export const disabledThemes = () => new Set((config && config.disabledThemes) || []);
 // A shared feature is on unless the dashboard switched it off.
 export const feature = (name) => !(config && config.features && config.features[name] === false);
+// News from the team for everyone, shown in Messages (messages.js).
+export const news = () => (config && config.news) || [];
+// The owner's optional "Support the game" page (an https link), or ''.
+export const supportUrl = () => {
+  const u = config && config.game && config.game.supportUrl;
+  return typeof u === 'string' && u.startsWith('https://') ? u : '';
+};
 
 function renderAnnouncements() {
   const box = document.getElementById('announcements');
@@ -37,17 +44,20 @@ async function refresh() {
     if (!res.ok) return;
     const next = await res.json();
     const themesChanged = JSON.stringify((config && config.disabledThemes) || []) !== JSON.stringify(next.disabledThemes || []);
-    const before = JSON.stringify(config && [config.features, config.defaults, config.game]);
+    const before = JSON.stringify(config && [config.features, config.defaults, config.game, config.news]);
     config = {
       announcements: next.announcements || [], disabledThemes: next.disabledThemes || [], features: next.features || {},
-      defaults: next.defaults || {}, game: next.game || {}, fetchedAt: Date.now(),
+      defaults: next.defaults || {}, game: next.game || {}, news: next.news || [], fetchedAt: Date.now(),
     };
     store.setLocal(KEY, config);
     renderAnnouncements();
     if (themesChanged) onThemes();
-    if (before !== JSON.stringify([config.features, config.defaults, config.game])) onChange();
+    if (before !== JSON.stringify([config.features, config.defaults, config.game, config.news])) onChange();
   } catch (e) { /* offline: keep the last copy */ }
 }
+
+// Fetch the config now (the how-to-play video capture uses it).
+export const refreshNow = () => refresh();
 
 export function init({ onThemesChanged, onConfigChanged } = {}) {
   if (onThemesChanged) onThemes = onThemesChanged;

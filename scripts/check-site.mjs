@@ -128,7 +128,9 @@ const listedPages = pages.filter((p) => !/<meta name="robots" content="noindex/i
 for (const p of listedPages) if (!locs.some(([, loc]) => loc === `${SITE_URL}/${p.replace(/index\.html$/, '')}`)) warn(`${p} can be listed by search engines but is not in the sitemap.`);
 const robots = existsSync(join(site, 'robots.txt')) ? readFileSync(join(site, 'robots.txt'), 'utf8') : '';
 if (!robots.includes(`Sitemap: ${SITE_URL}/sitemap.xml`)) problem('robots.txt does not point to the sitemap.');
-if (/^Disallow:\s*\/\s*$/m.test(robots)) problem('robots.txt blocks the whole site.');
+// Only the groups search engines follow matter (AI training crawlers may be shut out on purpose).
+const groups = robots.split(/\n\s*\n/).map((g) => ({ agents: [...g.matchAll(/^User-agent:\s*(.+)$/gim)].map((m) => m[1].trim().toLowerCase()), block: /^Disallow:\s*\/\s*$/m.test(g) }));
+for (const bot of ['*', 'googlebot', 'bingbot']) if (groups.some((g) => g.block && g.agents.includes(bot))) problem(`robots.txt blocks the whole site for ${bot === '*' ? 'every search engine' : bot}.`);
 
 // Links to other websites (nightly only).
 if (external) {

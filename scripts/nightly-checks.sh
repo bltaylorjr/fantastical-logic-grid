@@ -108,7 +108,8 @@ endsection
 section "Live website, sitemap and IndexNow"
 robots=$(fetch "$SITE/robots.txt") || problem "$SITE/robots.txt does not answer."
 grep -q "^Sitemap: $SITE/sitemap.xml" <<<"${robots:-}" || problem "The live robots.txt does not point search engines to the sitemap."
-grep -qi '^Disallow: /$' <<<"${robots:-}" && problem "The live robots.txt blocks the whole site from search engines."
+# Only the groups search engines follow matter (AI training crawlers may be shut out on purpose).
+awk 'BEGIN{RS="";IGNORECASE=1} /User-agent:[ \t]*(\*|Googlebot|Bingbot)[ \t]*(\n|$)/ && /\nDisallow:[ \t]*\/[ \t]*(\n|$)/{f=1} END{exit !f}' <<<"${robots:-}" && problem "The live robots.txt blocks the whole site from search engines."
 if sitemap=$(fetch "$SITE/sitemap.xml"); then
   urls=$(grep -o '<loc>[^<]*</loc>' <<<"$sitemap" | sed 's#</*loc>##g')
   bad=0
