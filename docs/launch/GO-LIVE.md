@@ -79,7 +79,7 @@ Needs the Lemon Squeezy pull request merged. Lemon Squeezy is the seller of reco
 4. Cloudflare > **flg-api > Settings > Variables and Secrets > Add**: name `LEMONSQUEEZY_SIGNING_SECRET`, type **Secret**, the same secret, **Deploy**.
 5. Admin > **Settings and switches > Support and premium**: tick the supporter extra themes, and set **Get extras page link** to the checkout link from step 2. The game adds the signed-in player's id to the link, so the purchase reaches the right account even if they type another email.
 6. Badge tiers: the order's price sets the badge (Settings > Support and premium has the amounts), or give the product variants badge names, for example "Silver" $4.99 and "Gold" $14.99, to let buyers pick.
-7. Test in Lemon Squeezy's **Test mode** with card 4242 4242 4242 4242. Admin > **Supporters** should show the order, and a refund ends it.
+7. Admin > **Settings and switches > Support and premium**: turn on **Lemon Squeezy payments**. Then test in Lemon Squeezy's **Test mode** with card 4242 4242 4242 4242. Admin > **Supporters** should show the order, and a refund ends it.
 
 ## Option 4: all free for now
 

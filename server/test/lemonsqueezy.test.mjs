@@ -13,6 +13,8 @@ import { makeSigner } from './signer.mjs';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const PROJECT = 'flg-test';
 const SECRET = 'lemon-signing-secret-for-tests-42';
+const ADMIN = 'break-glass-token-for-lemon-tests';
+const ORIGIN = 'https://thelogicgrid.com';
 const signer = makeSigner(PROJECT);
 let mf;
 let db;
@@ -25,7 +27,7 @@ before(async () => {
     scriptPath: join(root, 'src/index.js'),
     compatibilityDate: '2026-08-01',
     d1Databases: ['DB'],
-    bindings: { FIREBASE_PROJECT_ID: PROJECT, TEST_JWKS: JSON.stringify(signer.jwks), LEMONSQUEEZY_SIGNING_SECRET: SECRET },
+    bindings: { FIREBASE_PROJECT_ID: PROJECT, TEST_JWKS: JSON.stringify(signer.jwks), LEMONSQUEEZY_SIGNING_SECRET: SECRET, ADMIN_TOKEN: ADMIN, ALLOWED_ORIGINS: ORIGIN },
   });
   db = await mf.getD1Database('DB');
   for (const f of readdirSync(join(root, 'migrations')).filter((n) => n.endsWith('.sql')).sort()) {
@@ -47,6 +49,15 @@ async function send(payload, { secret = SECRET, signature } = {}) {
   return { status: r.status, body: await r.json().catch(() => null) };
 }
 const perks = async (uid, email) => (await mf.dispatchFetch('https://api.test/v1/perks', { headers: { Authorization: `Bearer ${signer.token({ sub: uid, ...(email ? { email, email_verified: true } : {}) })}` } })).json();
+
+test('orders are refused while Lemon Squeezy payments are switched off', async () => {
+  assert.equal((await send(order('order_created', { id: 9001, uid: 'p-early' }))).status, 503);
+  assert.equal((await db.prepare('SELECT COUNT(*) AS n FROM supporters').first()).n, 0);
+  const r = await mf.dispatchFetch('https://api.test/admin/v1/settings', {
+    method: 'POST', headers: { Authorization: `Bearer ${ADMIN}`, Origin: ORIGIN, 'Content-Type': 'application/json' }, body: JSON.stringify({ key: 'lemonsqueezy_payments_enabled', value: true }),
+  });
+  assert.equal(r.status, 200);
+});
 
 test('an unsigned or wrongly signed order is refused', async () => {
   assert.equal((await send(order('order_created'), { secret: 'some-other-secret-entirely' })).status, 403);

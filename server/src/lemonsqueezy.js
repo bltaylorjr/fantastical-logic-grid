@@ -4,7 +4,8 @@
 //
 //   POST /v1/pay/lemonsqueezy   (Lemon Squeezy > Settings > Webhooks)
 //
-// The body is signed: X-Signature is the hex HMAC-SHA256 of the raw body with
+// It does nothing until the admin turns on Settings > Support and premium >
+// Lemon Squeezy payments. The body is signed: X-Signature is the hex HMAC-SHA256 of the raw body with
 // the webhook's signing secret (the LEMONSQUEEZY_SIGNING_SECRET Cloudflare
 // secret). Then:
 //   order_created (paid)  Premium with no end, made out to the buyer's email,
@@ -17,6 +18,7 @@
 //   anything else         nothing
 import { json, readText, TooLarge } from './http.js';
 import { grant, revoke, secretMatches, tierFor } from './supporters.js';
+import { getSettings } from './settings.js';
 
 const MAX_BODY = 64_000;
 const UID = /^[\w-]{1,128}$/;
@@ -34,6 +36,8 @@ export async function handleLemonSqueezy(req, env, url) {
   if (req.method !== 'POST') return json(req, env, { error: 'method' }, 405);
   const secret = String(env.LEMONSQUEEZY_SIGNING_SECRET || '').trim();
   if (!secret) return json(req, env, { error: 'not_set_up' }, 503);
+  // Off until launch (Settings > Support and premium > Lemon Squeezy payments); Lemon Squeezy retries refused calls.
+  if (!(await getSettings(env)).lemonsqueezy_payments_enabled) return json(req, env, { error: 'switched_off' }, 503);
   const ip = req.headers.get('CF-Connecting-IP') || 'local';
   if (env.LIMIT_AUTHLESS && !(await env.LIMIT_AUTHLESS.limit({ key: ip })).success) return json(req, env, { error: 'slow_down' }, 429, { 'Retry-After': '60' });
 
