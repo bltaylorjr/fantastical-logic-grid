@@ -86,7 +86,11 @@ test('supporters get a badge on the scoreboard', async () => {
   // The highest running tier shows: Ada has Bronze, then Silver until yesterday, then Gold.
   await db.prepare("INSERT INTO supporters (user_id, kind, tier, source, ref, created_at, until) VALUES ('p-a', 'supporter', 2, 'admin', 'old', ?1, ?1)").bind(now - 86400_000).run();
   assert.equal((await admin('supporters', { kind: 'supporter', uid: 'p-a', tier: 3 })).status, 200);
-  const rows = (await call('/v1/scoreboard?period=all')).body.rows;
+  // Hidden until the owner switches badges on.
+  let rows = (await call('/v1/scoreboard?period=all')).body.rows;
+  assert.equal(rows.find((r) => r.name === 'Ada Sleuth').supporter, undefined, 'no badges while switched off');
+  assert.equal((await admin('settings', { key: 'supporter_badges_enabled', value: true })).status, 200);
+  rows = (await call('/v1/scoreboard?period=week')).body.rows; // a fresh board, not the cached one
   assert.equal(rows.find((r) => r.name === 'Ada Sleuth').supporter, 3);
   assert.equal(rows.find((r) => r.name === 'Cy Clue').supporter, undefined);
   assert.ok(rows.every((r) => !('uid' in r)), 'player ids stay private');
@@ -117,6 +121,9 @@ test('supporter extra themes and the extras link reach the game config', async (
   const themes = (await admin('settings')).body.themes;
   assert.equal((await admin('settings', { key: 'premium_themes', value: [themes[1].id] })).status, 200);
   assert.equal((await admin('settings', { key: 'extras_url', value: 'https://ko-fi.com/example/tiers' })).status, 200);
+  game = (await call('/v1/config')).body.game;
+  assert.deepEqual([game.premiumThemes, game.extrasUrl], [[], ''], 'nothing locked or shown while extras are switched off');
+  assert.equal((await admin('settings', { key: 'premium_extras_enabled', value: true })).status, 200);
   game = (await call('/v1/config')).body.game;
   assert.deepEqual([game.premiumThemes, game.extrasUrl], [[themes[1].id], 'https://ko-fi.com/example/tiers']);
 });
