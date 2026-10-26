@@ -12,7 +12,7 @@ import * as characters from './characters.js';
 import { characterOf, narratorOf, lineOf } from './cast.js';
 import * as wake from './wakelock.js';
 import * as updates from './updates.js';
-import { celebrate as confettiBurst } from './effects.js';
+import { celebrate as celebrateSolve } from './effects.js';
 import { icon } from './icons.js';
 import * as learn from './learn.js';
 import * as feedbackBox from './feedback.js';
@@ -1173,7 +1173,8 @@ function showSolved(celebrate) {
   $('#coach').hidden = true;
   if (celebrate) {
     sound('solve');
-    if (settings.confetti && !save.revealed) confettiBurst();
+    const shown = save.revealed ? null : celebrateSolve(settings.celebrations, { random: settings.celebrateRandom, theme: S.puzzle.theme.id });
+    $('#solved').dataset.effects = shown ? shown.join(' ') : '';
     $('#solved').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
     $('#solved').focus({ preventScroll: true });
     announce(`${save.revealed ? 'Solution revealed.' : 'Solved!'} ${S.puzzle.story.ending}`);
@@ -1934,6 +1935,8 @@ document.addEventListener('click', (e) => {
 document.addEventListener('keydown', (e) => {
   if (document.querySelector('dialog[open]')) return;
   const mod = e.ctrlKey || e.metaKey;
+  // Browser autofill and some extensions send keydown events with no key.
+  if (typeof e.key !== 'string') return;
   const k = e.key.toLowerCase();
   const typing = /^(input|select|textarea)$/i.test(e.target.tagName) && e.target.type !== 'checkbox' && e.target.type !== 'radio';
   if (S && !$('#screen-play').hidden) {

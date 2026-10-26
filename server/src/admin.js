@@ -15,6 +15,8 @@
 //   GET  /admin/v1/workshop            Story workshop choices; POST .../draft (AI writer), .../add
 //   GET  /admin/v1/characters[/:id]    the Characters section; POST .../save, .../:id/(portrait|lines|publish|unpublish|delete) (characters.js)
 //   GET  /admin/v1/feedback?kind=&status=  ideas and problems from the game; POST .../:id (done|new|delete)
+//   POST /admin/v1/replies/claim       thank-you emails waiting, for the GitHub Action to send (owner, replies.js)
+//   POST /admin/v1/replies/done        that Action says which went out; their addresses are removed (owner)
 //   GET  /admin/v1/names?status=       screen names to moderate; POST /admin/v1/names/:uid/approve
 //   GET  /admin/v1/players?q=&filter=  players with screen names; GET /admin/v1/players/:uid
 //   POST /admin/v1/players/:uid/(rename|ban|unban|reset-scores|delete)
@@ -50,6 +52,7 @@ import { refreshSearch, searchSnapshots, lastTry, REFRESH_GAP_MS } from './searc
 import { workshopOptions, addPart, draftParts } from './workshop.js';
 import { characterRoutes } from './characters.js';
 import { TOPICS as FEEDBACK_TOPICS } from './feedback.js';
+import { claimReplies, finishReplies, replyCounts } from './replies.js';
 import { archiveStatus, runArchive, buildArchive, exportArchive, confirmArchive } from './archive.js';
 import { FREE_LIMITS, cloudflareUsage } from './usage.js';
 import { plannerView, checkPlan, savePlan, resetPlan } from './daily.js';
@@ -66,7 +69,7 @@ const SESSION_MAX_S = 12 * 3600;
 const DENIED_PER_DAY = 500; // refused requests written to the audit log, so a flood cannot fill it
 const ANALYTICS_CACHE_MS = 120_000;
 const TABLES = ['sync_users', 'sync_records', 'sync_deleted_users', 'players', 'scores', 'races', 'race_entries', 'race_invites', 'plays', 'parts', 'usage',
-  'app_errors', 'upkeep_log', 'admins', 'admin_audit', 'settings', 'announcements', 'bans', 'name_reviews', 'archive_log', 'feedback', 'search_snapshots', 'daily_plan', 'translations'];
+  'app_errors', 'upkeep_log', 'admins', 'admin_audit', 'settings', 'announcements', 'bans', 'name_reviews', 'archive_log', 'feedback', 'feedback_replies', 'search_snapshots', 'daily_plan', 'translations'];
 const SECURITY_HEADERS = {
   'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; media-src 'self' blob:; connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
   'X-Content-Type-Options': 'nosniff',
@@ -364,7 +367,16 @@ const ROUTES = [
     const { results } = await env.DB.prepare(`SELECT id, kind, topic, text, platform, version, status, created_at AS createdAt, done_at AS doneAt FROM feedback
       WHERE kind = ?1 AND (?2 = 'all' OR status = ?2) ORDER BY created_at DESC LIMIT 200`).bind(kind, status).all();
     const counts = (await env.DB.prepare("SELECT kind, COUNT(*) AS n FROM feedback WHERE status = 'new' GROUP BY kind").all()).results;
-    return { body: { kind, status, items: results, waiting: Object.fromEntries(counts.map((x) => [x.kind, x.n])) } };
+    return { body: { kind, status, items: results, waiting: Object.fromEntries(counts.map((x) => [x.kind, x.n])), replies: await replyCounts(env) } };
+  }],
+  // Called every 15 minutes; a call with nothing to send is not written to the audit log.
+  ['POST', /^replies\/claim$/, 'owner', 'replies.claim', async ({ env, body, now }) => {
+    const r = await claimReplies(env, body.limit, now);
+    return { body: r, quiet: !r.replies.length && !r.dropped, detail: { claimed: r.replies.length, dropped: r.dropped || 0 } };
+  }],
+  ['POST', /^replies\/done$/, 'owner', 'replies.done', async ({ env, body, now }) => {
+    const r = await finishReplies(env, body.sent, body.failed, now);
+    return { body: r, detail: r };
   }],
   ['POST', /^feedback\/(\d+)$/, 'moderator', 'feedback.update', async ({ env, params: [id], body, now }) => {
     let r;
@@ -606,7 +618,7 @@ async function api(req, env, url, path) {
     if (ROLES[who.role] < ROLES[route[2]]) throw new Refusal(403, 'role', `This needs the ${route[2]} role.`);
     const body = await readBody(req);
     const out = await route[4]({ req, env, url, who, params, body, now: Date.now() });
-    await audit(env, { actor: who.actor, role: who.role, action, target: out.target, detail: out.detail, status: 200 });
+    if (!out.quiet) await audit(env, { actor: who.actor, role: who.role, action, target: out.target, detail: out.detail, status: 200 });
     if (out.file) {
       return new Response(out.file, {
         headers: { 'Content-Type': out.type || 'application/zip', 'Content-Disposition': `attachment; filename="${out.name}"`, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', ...out.headers },
