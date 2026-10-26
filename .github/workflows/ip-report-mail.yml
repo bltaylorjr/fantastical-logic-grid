@@ -1,0 +1,63 @@
+# Temporary: emails Bobby's private design reports as attachments, then is removed.
+# The reports never appear in the repo unencrypted: this run makes a one-time key,
+# publishes only its public half, waits for the encrypted file, decrypts, emails.
+name: Private report email (temporary)
+on:
+  push:
+    branches: [claude/project-thread-5fmxvg]
+    paths: ['.github/workflows/ip-report-mail.yml']
+permissions:
+  contents: write
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - name: Publish one-time public key
+        run: |
+          umask 077
+          openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:3072 -out "$RUNNER_TEMP/k.pem"
+          mkdir -p ip-report
+          openssl pkey -in "$RUNNER_TEMP/k.pem" -pubout -out ip-report/pubkey.pem
+          git config user.name github-actions; git config user.email github-actions@users.noreply.github.com
+          git add ip-report/pubkey.pem && git commit -qm "One-time public key for report email" && git push -q
+      - name: Wait for encrypted reports
+        run: |
+          for i in $(seq 1 100); do
+            git pull -q --rebase || true
+            [ -f ip-report/payload.enc ] && [ -f ip-report/key.enc ] && exit 0
+            sleep 15
+          done
+          echo "No payload arrived"; exit 1
+      - name: Decrypt and email
+        env:
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+        run: |
+          umask 077; d="$RUNNER_TEMP/r"; mkdir -p "$d"
+          openssl pkeyutl -decrypt -inkey "$RUNNER_TEMP/k.pem" -pkeyopt rsa_padding_mode:oaep -pkeyopt rsa_oaep_md:sha256 -in ip-report/key.enc -out "$d/key"
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -pass file:"$d/key" -in ip-report/payload.enc -out "$d/p.tgz"
+          tar -xzf "$d/p.tgz" -C "$d"
+          rm -f "$RUNNER_TEMP/k.pem" "$d/key"
+          D="$d" python3 - <<'PY'
+          import os, glob, smtplib, ssl
+          from email.message import EmailMessage
+          d = os.environ['D']
+          m = EmailMessage()
+          m['From'] = os.environ['GMAIL_USER']
+          m['To'] = 'btay74@outlook.com'
+          m['Subject'] = 'The Fantastical Logic Grid: design reports (GDD, TDD, contribution record)'
+          m.set_content(open(f'{d}/body.txt').read())
+          for f in sorted(glob.glob(f'{d}/*.pdf')):
+              m.add_attachment(open(f, 'rb').read(), maintype='application', subtype='pdf', filename=os.path.basename(f))
+          with smtplib.SMTP_SSL('smtp.gmail.com', 465, context=ssl.create_default_context()) as s:
+              s.login(os.environ['GMAIL_USER'], os.environ['GMAIL_APP_PASSWORD'])
+              s.send_message(m)
+          print('Sent', len(m.get_payload()) - 1, 'attachments')
+          PY
+      - name: Remove key and payload from branch
+        if: always()
+        run: |
+          git pull -q --rebase || true
+          git rm -rq --ignore-unmatch ip-report && git commit -qm "Remove one-time report email files" && git push -q || true
