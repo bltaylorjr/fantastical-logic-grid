@@ -18,7 +18,8 @@ const THEME_IDS = THEMES.map((t) => t.id);
 const CELEBRATIONS = ['confetti', 'fireworks', 'stars', 'balloons', 'sparkles', 'theme_emoji', 'bubbles', 'falling', 'shooting_stars', 'ribbons', 'light_rays', 'emoji_burst'];
 
 // type: bool, int (with min/max), choice (one of options), model (an AI
-// model name), themes (list of theme ids) or words.
+// model name), url (an https link, or empty), themes (list of theme ids) or
+// words.
 export const SETTINGS = {
   // ---- Sounds: the player can still turn their own effects and music off,
   // and the one-tap mute and Silent mode always work.
@@ -105,6 +106,11 @@ export const SETTINGS = {
   ratings_ai_enabled: { type: 'bool', default: true, group: 'Alerts and reports', label: 'AI summary of puzzle ratings', help: 'Ratings and insights: a few plain sentences on what is working and what to improve, written by a free Cloudflare Workers AI text model from the rating numbers only (never player text). Off: only the rule-based findings show.' },
   ratings_ai_daily_cap: { type: 'int', min: 0, max: 20, default: 3, group: 'Alerts and reports', label: 'AI rating summaries a day', help: 'Each one is kept for the day and shared by the dashboard, the nightly report and the emails. Shares Workers AI\'s free daily allowance with pictures and translations; a summary uses very little.' },
   ratings_model: { type: 'model', default: '@cf/meta/llama-3.1-8b-instruct-fast', group: 'Alerts and reports', label: 'Workers AI model for rating summaries', help: 'Change it here when Cloudflare retires a model.' },
+  // ---- Support and premium: the game is free. These only add an optional
+  // link out to a page the owner sets up elsewhere; nothing here takes
+  // payments or locks any part of the game.
+  support_link_enabled: { type: 'bool', default: false, group: 'Support and premium', label: 'Support the game link', help: 'On: the game\'s Menu shows "Support the game", which opens the page below in a new window. Needs a link below. Nothing in the game is locked either way.' },
+  support_url: { type: 'url', default: '', group: 'Support and premium', label: 'Support page link', help: 'An https link to your tip, sponsor or membership page, such as a GitHub Sponsors, Ko-fi or Paddle page. Leave empty for none.' },
   blocked_words: { type: 'words', default: [], group: 'Moderation', label: 'Extra blocked words in screen names', help: 'Added to the built-in word filter. Letters only, 3 to 30 each.' },
   archive_email_enabled: {
     type: 'bool', default: false, group: 'Backups', label: 'Weekly archive email',
@@ -149,6 +155,7 @@ export function checkSetting(key, value) {
     const v = typeof value === 'string' ? value.trim() : null;
     return v && /^@?[a-z0-9][a-z0-9.:_/-]{1,99}$/i.test(v) ? { value: v } : { error: 'Use a model name such as gemini-flash-latest: letters, numbers, dots, dashes and slashes.' };
   }
+  if (s.type === 'url') return checkUrl(value);
   if (!Array.isArray(value)) return { error: 'Use a list.' };
   if (s.type === 'themes') {
     const list = [...new Set(value)];
@@ -159,6 +166,16 @@ export function checkSetting(key, value) {
   const words = [...new Set(value.map((w) => String(w).trim().toLowerCase()).filter(Boolean))];
   if (words.length > 200 || words.some((w) => !/^[a-z]{3,30}$/.test(w))) return { error: 'Use up to 200 words of 3 to 30 letters.' };
   return { value: words };
+}
+
+function checkUrl(value) {
+  const v = typeof value === 'string' ? value.trim() : null;
+  if (v === '') return { value: '' };
+  try {
+    const u = new URL(v);
+    if (u.protocol === 'https:' && !u.username && !u.password && v.length <= 300) return { value: u.href };
+  } catch (e) { /* not a link */ }
+  return { error: 'Use a full https:// link of up to 300 characters, or leave it empty.' };
 }
 
 export async function saveSetting(env, key, value, by) {
@@ -193,7 +210,8 @@ export async function publicConfig(req, env) {
     },
     // Chosen here for every player.
     game: { voiceSource: s.voice_source, readAloud: s.read_aloud, portraitStyle: s.portrait_style, confetti: s.confetti, aiPictures: s.ai_pictures,
-      celebrations: CELEBRATIONS.filter((k) => s[k]), celebrateRandom: s.celebrate_random },
+      celebrations: CELEBRATIONS.filter((k) => s[k]), celebrateRandom: s.celebrate_random,
+      supportUrl: s.support_link_enabled && s.support_url ? s.support_url : '' },
     // Starting values; a player's own choice wins.
     defaults: { sound: s.default_sound, volume: s.default_volume, music: s.default_music, musicVolume: s.default_music_volume },
   }, 200, { 'Cache-Control': 'public, max-age=60' });

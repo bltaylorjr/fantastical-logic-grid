@@ -549,6 +549,7 @@ views.settings = async () => {
     if (s.type === 'int') return `<div class="row"><div class="field">${label}<input id="set-${s.key}" type="number" min="${s.min}" max="${s.max}" value="${s.value}" inputmode="numeric"${dis}></div>${save}</div>`;
     if (s.type === 'choice') return `<div class="row"><div class="field">${label}<select id="set-${s.key}"${dis}>${s.options.map((o) => `<option value="${esc(o.value)}"${o.value === s.value ? ' selected' : ''}>${esc(o.label)}</option>`).join('')}</select></div>${save}</div>`;
     if (s.type === 'model') return `<div class="row"><div class="field">${label}<input id="set-${s.key}" type="text" value="${esc(s.value)}" autocomplete="off" spellcheck="false"${dis}></div>${save}</div>`;
+    if (s.type === 'url') return `<div class="row"><div class="field">${label}<input id="set-${s.key}" type="url" value="${esc(s.value)}" placeholder="https://" autocomplete="off" spellcheck="false"${dis}></div>${save}</div>`;
     if (s.type === 'themes') return `${editable ? `<button class="btn small" data-save="${s.key}">Save themes</button>` : ''}`;
     return `${editable ? `<button class="btn small" data-save="${s.key}">Save words</button>` : ''}`;
   };
