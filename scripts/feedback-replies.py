@@ -1,4 +1,4 @@
-"""Thank-you emails for the game's Ideas and Problems boxes, sent by the
+"""Thank-you and update emails for the game's Ideas and Problems boxes, sent by the
 GitHub Action .github/workflows/feedback-replies.yml every 15 minutes (the
 domain's DNS is not on Cloudflare, so the Worker cannot send email itself).
 
@@ -7,7 +7,9 @@ domain's DNS is not on Cloudflare, so the Worker cannot send email itself).
    100 a day, 3,000 a month) when RESEND_API_KEY is set and the domain is
    verified there. Anything Resend does not take goes from the game's Gmail
    (smtp.gmail.com, an app password) with a "(no-reply)" sender name
-   instead. The text is fixed: it never contains anything the player wrote.
+   instead. The wording is fixed; thank-you and update emails also quote
+   what the player wrote (and, for an update, the team's note on what was
+   done). They only ever go to the player's own confirmed address.
 3. Tell the Worker which went out (POST /admin/v1/replies/done), which
    removes their email addresses.
 
@@ -39,24 +41,76 @@ SENDER_NAME = 'The Fantastical Logic Grid (no-reply)'
 NO_REPLY = ('This is an automatic message from a no-reply address. Please do not reply to it: '
             'replies are not read. To share another idea or report a problem, use Menu > Ideas and problems in the game.')
 
+SIGN_OFF = 'The Fantastical Logic Grid team\n' + GAME_URL
+
+# Each email is a list of blocks: plain paragraphs, and ('quote', label, text)
+# for the player's own words or the team's note. Those come from the Worker,
+# already cleaned (no email addresses or links), and go only to the player's
+# own address. An email whose words are missing still reads well without them.
 NOTES = {
     'idea': {
         'subject': 'Thank you for your idea!',
-        'body': ('Hello, puzzler!\n\n'
-                 'Thank you for sending us your idea for The Fantastical Logic Grid, and for helping to make the game better. '
-                 'We read every idea, and the best ones find their way into new stories, themes and features.\n\n'
-                 'Thank you for contributing!\n\n'
-                 'The Fantastical Logic Grid team\n' + GAME_URL),
+        'blocks': lambda r: [
+            'Hello, puzzler!',
+            'Thank you for sending us your idea for The Fantastical Logic Grid, and for helping to make the game better. '
+            'We read every idea, and the best ones find their way into new stories, themes and features.',
+            ('quote', 'Your idea', r.get('text')),
+            'We will email you again when the team acts on it. Thank you for contributing!',
+            SIGN_OFF,
+        ],
     },
     'problem': {
         'subject': 'We received your problem report',
-        'body': ('Hello, puzzler!\n\n'
-                 'We are sorry for the inconvenience. Your problem report for The Fantastical Logic Grid has been received, '
-                 'and it is being looked into and addressed.\n\n'
-                 'Thank you for the information. Reports like yours help us find and fix problems for every player.\n\n'
-                 'The Fantastical Logic Grid team\n' + GAME_URL),
+        'blocks': lambda r: [
+            'Hello, puzzler!',
+            'We are sorry for the inconvenience. Your problem report for The Fantastical Logic Grid has been received, '
+            'and it is being looked into and addressed.',
+            ('quote', 'What you reported', r.get('text')),
+            'Thank you for the information. Reports like yours help us find and fix problems for every player. '
+            'We will email you again when it has been addressed.',
+            SIGN_OFF,
+        ],
+    },
+    'idea_update': {
+        'subject': 'An update on your idea',
+        'blocks': lambda r: [
+            'Hello, puzzler!',
+            'Good news: the team has acted on the idea you sent us for The Fantastical Logic Grid.',
+            ('quote', 'Your idea', r.get('text')),
+            ('quote', 'What we did', r.get('note')),
+            'Thank you again for helping to make the game better. Open the game to see it, and keep the ideas coming!',
+            SIGN_OFF,
+        ],
+    },
+    'problem_update': {
+        'subject': 'The problem you reported has been addressed',
+        'blocks': lambda r: [
+            'Hello, puzzler!',
+            'The problem you reported in The Fantastical Logic Grid has been addressed. Thank you for your patience.',
+            ('quote', 'What you reported', r.get('text')),
+            ('quote', 'What we did', r.get('note')),
+            'If you still see it after updating the game, please tell us in Menu > Ideas and problems. '
+            'Thank you for helping us make the game better for every player.',
+            SIGN_OFF,
+        ],
+    },
+    'message': {
+        'subject': 'You have a new message from The Fantastical Logic Grid team',
+        'blocks': lambda r: [
+            'Hello, puzzler!',
+            'The Fantastical Logic Grid team has written to you. To read it and reply, open the game, '
+            'sign in and choose Menu > Messages.',
+            'You get this email because you turned on "Email me when the team writes" in Messages. '
+            'To stop these emails, untick it there.',
+            SIGN_OFF,
+        ],
     },
 }
+
+
+def blocks(r):
+    """The email's blocks, without quotes that have no words."""
+    return [b for b in NOTES[r['kind']]['blocks'](r) if isinstance(b, str) or (b[2] or '').strip()]
 
 
 def call(path, body):
@@ -71,30 +125,42 @@ def fail(message):
     sys.exit(1)
 
 
-def html_version(text):
-    paras = ''.join(f'<p style="margin:0 0 14px">{html.escape(p).replace(chr(10), "<br>")}</p>' for p in text.split('\n\n'))
+def html_version(r):
+    parts = []
+    for b in blocks(r):
+        if isinstance(b, str):
+            parts.append(f'<p style="margin:0 0 14px">{html.escape(b).replace(chr(10), "<br>")}</p>')
+        else:
+            parts.append(f'<p style="margin:0 0 6px;font-weight:bold">{html.escape(b[1])}:</p>'
+                         '<blockquote style="margin:0 0 16px;padding:10px 14px;border-left:4px solid #b08d3c;background:#f6f1e7;'
+                         f'border-radius:4px">{html.escape(b[2].strip()).replace(chr(10), "<br>")}</blockquote>')
     return ('<!doctype html><html><body style="margin:0;padding:24px;background:#f6f1e7;font-family:Arial,Helvetica,sans-serif;'
             'font-size:16px;line-height:1.5;color:#1f1a14"><div style="max-width:560px;margin:0 auto;background:#fffdf8;'
-            'border-radius:10px;padding:24px">' + paras +
+            'border-radius:10px;padding:24px">' + ''.join(parts) +
             f'<p style="margin:20px 0 0;font-size:13px;color:#5c5246">{html.escape(NO_REPLY)}</p></div></body></html>')
 
 
-def text_version(kind):
-    return NOTES[kind]['body'] + '\n\n--\n' + NO_REPLY + '\n'
+def text_version(r):
+    out = []
+    for b in blocks(r):
+        if isinstance(b, str):
+            out.append(b)
+        else:
+            out.append(b[1] + ':\n' + '\n'.join('> ' + line for line in b[2].strip().split('\n')))
+    return '\n\n'.join(out) + '\n\n--\n' + NO_REPLY + '\n'
 
 
-def message(kind, to):
-    note = NOTES[kind]
+def message(r):
     msg = EmailMessage()
     msg['From'] = formataddr((SENDER_NAME, GMAIL_USER))
-    msg['To'] = to
-    msg['Subject'] = note['subject']
+    msg['To'] = r['email']
+    msg['Subject'] = NOTES[r['kind']]['subject']
     msg['Message-ID'] = make_msgid(domain='thelogicgrid.com')
     # An automatic message: mail programs should not send out-of-office answers to it.
     msg['Auto-Submitted'] = 'auto-replied'
     msg['X-Auto-Response-Suppress'] = 'All'
-    msg.set_content(text_version(kind))
-    msg.add_alternative(html_version(note['body']), subtype='html')
+    msg.set_content(text_version(r))
+    msg.add_alternative(html_version(r), subtype='html')
     return msg
 
 
@@ -104,7 +170,7 @@ def send_resend(replies):
     sent, refused = [], []
     for r in replies:
         payload = {'from': formataddr(('The Fantastical Logic Grid', MAIL_FROM)), 'to': [r['email']], 'subject': NOTES[r['kind']]['subject'],
-                   'text': text_version(r['kind']), 'html': html_version(NOTES[r['kind']]['body']),
+                   'text': text_version(r), 'html': html_version(r),
                    'headers': {'Auto-Submitted': 'auto-replied', 'X-Auto-Response-Suppress': 'All'}}
         req = urllib.request.Request('https://api.resend.com/emails', method='POST', data=json.dumps(payload).encode(),
                                      headers={'Authorization': f'Bearer {RESEND_KEY}', 'Content-Type': 'application/json', 'User-Agent': 'flg-feedback-replies'})
@@ -133,7 +199,7 @@ def send_gmail(replies):
             smtp.login(GMAIL_USER, GMAIL_PASSWORD)
             for r in replies:
                 try:
-                    smtp.send_message(message(r['kind'], r['email']))
+                    smtp.send_message(message(r))
                     sent.append(r['id'])
                 except smtplib.SMTPRecipientsRefused:
                     refused.append(r['id'])

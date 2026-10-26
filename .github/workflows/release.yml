@@ -4,6 +4,11 @@
 # version that has no release yet), or from the Actions tab (Run workflow), or
 # by pushing a tag like v1.2.0.
 # Needs the repository secret TAURI_SIGNING_PRIVATE_KEY (the updater signing key).
+# Private source (docs/PRIVATE-REPO.md): when the variable FLG_SITE_REPO names
+# the public site repository, the mirror job copies each release (installer,
+# update package, latest.json) there, because players cannot download from a
+# private repository. Running this workflow by hand also mirrors a release that
+# exists here but not there yet.
 name: Release desktop app
 on:
   workflow_dispatch:
@@ -17,7 +22,7 @@ concurrency:
   group: release
 jobs:
   new-version:
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork && '"ubuntu-latest"') || vars.FLG_RUNNER || '"ubuntu-latest"') }}
     outputs:
       release: ${{ steps.v.outputs.release }}
     steps:
@@ -56,6 +61,7 @@ jobs:
         env:
           FLG_FIREBASE_API_KEY: ${{ vars.FLG_FIREBASE_API_KEY }}
           FLG_CLOUD_URL: ${{ vars.FLG_CLOUD_URL }}
+          FLG_SITE_REPO: ${{ vars.FLG_SITE_REPO }}
       - uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0.6.2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -69,3 +75,30 @@ jobs:
           releaseBody: Download the setup .exe below to install. Installed copies update themselves.
           releaseDraft: false
           prerelease: false
+
+  mirror:
+    needs: [new-version, windows]
+    if: always() && vars.FLG_SITE_REPO != '' && needs.windows.result != 'failure' && needs.windows.result != 'cancelled'
+    runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork && '"ubuntu-latest"') || vars.FLG_RUNNER || '"ubuntu-latest"') }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - name: Copy the release to the public site repository
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SITE_REPO: ${{ vars.FLG_SITE_REPO }}
+          SITE_REPO_TOKEN: ${{ secrets.SITE_REPO_TOKEN }}
+        run: |
+          [ -n "$SITE_REPO_TOKEN" ] || { echo "::error::Add the SITE_REPO_TOKEN secret (docs/PRIVATE-REPO.md)."; exit 1; }
+          tag="v$(node -p "require('./package.json').version")"
+          if GH_TOKEN="$SITE_REPO_TOKEN" gh release view "$tag" --repo "$SITE_REPO" >/dev/null 2>&1; then
+            echo "$tag is already in $SITE_REPO."; exit 0
+          fi
+          gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null || { echo "$tag is not released here yet."; exit 0; }
+          mkdir -p rel && gh release download "$tag" --repo "$GITHUB_REPOSITORY" --dir rel
+          # The update file names its downloads by address; point them at the public copy.
+          sed -i "s#github.com/${GITHUB_REPOSITORY}/releases/download/#github.com/${SITE_REPO}/releases/download/#g" rel/latest.json
+          grep -q "github.com/${SITE_REPO}/releases/download/" rel/latest.json
+          GH_TOKEN="$SITE_REPO_TOKEN" gh release create "$tag" rel/* --repo "$SITE_REPO" --target gh-pages --latest \
+            --title "The Fantastical Logic Grid $tag" \
+            --notes "Download the setup .exe below to install. Installed copies update themselves. © 2026 Bobby Taylor. All rights reserved. Terms: https://thelogicgrid.com/terms/"

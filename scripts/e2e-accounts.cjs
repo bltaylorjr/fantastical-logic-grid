@@ -157,6 +157,8 @@ function startAuth(signer) {
     await A.page.waitForSelector('[data-view=account]:not([hidden])');
     assert((await A.page.textContent('#acct-email')) === 'bobby@example.com', 'signed in after creating the account');
     assert(await A.page.evaluate(() => !!localStorage.getItem('flg.auth')), '"Keep me signed in" is on by default and keeps the sign-in on the device');
+    // The app sends this without waiting for it, so give a slow runner a moment.
+    for (let t = 0; t < 50 && !auth.emails.some((e) => e.type === 'VERIFY_EMAIL'); t++) await new Promise((r) => setTimeout(r, 100));
     assert(auth.emails.some((e) => e.type === 'VERIFY_EMAIL'), 'a confirmation email is requested');
     await A.page.waitForFunction(() => /Synced/.test(document.querySelector('#acct-sync-text').textContent), null, { timeout: 15000 });
     assert(true, 'first sync finished');
@@ -191,7 +193,7 @@ function startAuth(signer) {
     const usedB = await meta(B.page, 'usedStories');
     assert(usedA.length > 0 && usedA.every((id) => usedB.includes(id)), 'used-story list synced, so stories are not reused on the other device');
 
-    // ---- A signed-in player is offered a thank-you email for an idea; the
+    // ---- A signed-in player is offered email updates for an idea; the
     // stand-in's accounts are not confirmed, so the game says to confirm first.
     // (A second tab, with the idea boxes pointed at the same local Worker.)
     const F = await B.page.context().newPage();
@@ -201,12 +203,47 @@ function startAuth(signer) {
     await F.click('#menu-btn');
     await F.click('#app-menu [data-cmd=feedback]');
     await F.waitForSelector('#dlg-feedback[open]');
-    assert(await F.isVisible('#idea-form .fb-reply') && /bobby@example\.com/.test(await F.textContent('#idea-form .fb-reply')), 'a signed-in player is offered a thank-you email at their address');
+    assert(await F.isVisible('#idea-form .fb-reply') && /^Email me an update at bobby@example\.com$/.test((await F.textContent('#idea-form .fb-reply')).trim()), 'a signed-in player is offered email updates at their address');
+    assert(await F.isVisible('#idea-form .fb-talk'), 'a signed-in player can ask the team to reply in Messages');
+    await F.check('#idea-form [data-talk]');
     await F.fill('#idea-text', 'A clockwork carnival where the tickets got mixed up.');
     await F.click('#idea-form button[type=submit]');
     await F.waitForFunction(() => /confirm your email/i.test(document.querySelector('#idea-form .acct-done').textContent));
+    assert(/reply to you in Menu > Messages/.test(await F.textContent('#idea-form .acct-done')), 'the player is told where the reply will show');
     assert((await db.prepare('SELECT COUNT(*) AS n FROM feedback').first()).n === 1, 'the idea itself arrives');
     assert((await db.prepare('SELECT COUNT(*) AS n FROM feedback_replies').first()).n === 0, 'no email is queued for an unconfirmed address');
+    const conv = await db.prepare('SELECT c.id, c.topic FROM feedback f JOIN conversations c ON c.id = f.conversation_id').first();
+    assert(conv && conv.topic === 'idea', 'the idea is linked to a conversation because the player asked');
+    await F.keyboard.press('Escape');
+
+    // ---- Messages: the team replies (as the dashboard would), the player
+    // sees a badge, reads "The team", and answers.
+    await db.prepare("INSERT INTO conversation_messages (conversation_id, sender, author, text, created_at) VALUES (?1, 'team', 'admin@example.com', 'What a fun idea! It is on our list.', ?2)").bind(conv.id, Date.now()).run();
+    await db.prepare('UPDATE conversations SET player_unread = 1, updated_at = ?2 WHERE id = ?1').bind(conv.id, Date.now()).run();
+    await F.evaluate(async () => (await import('./js/messages.js')).refresh());
+    await F.waitForSelector('#menu-count:not([hidden])');
+    assert(/1 new/.test(await F.getAttribute('#menu-btn', 'aria-label')), 'the Menu button says a message is new');
+    await F.click('#menu-btn');
+    assert(/1 new/.test(await F.textContent('#app-menu [data-cmd=messages]')), 'the Messages item shows the count');
+    await F.click('#app-menu [data-cmd=messages]');
+    await F.waitForSelector('#dlg-messages[open] #msg-convs details');
+    await F.click('#msg-convs summary');
+    assert(/The team/.test(await F.textContent('#msg-convs .msg.team')) && !/admin@example/.test(await F.textContent('#dlg-messages')), 'the reply is signed "The team", never the admin');
+    await F.waitForFunction(() => document.querySelector('#menu-count').hidden);
+    await F.fill('#msg-convs textarea', 'Thank you! Maybe a ferris wheel too?');
+    await F.click('#msg-convs .msg-reply button[type=submit]');
+    await F.waitForFunction(() => document.querySelectorAll('#msg-convs .msg.me').length === 2);
+    const row = await db.prepare('SELECT player_unread, admin_unread, status FROM conversations WHERE id = ?1').bind(conv.id).first();
+    assert(row.player_unread === 0 && row.admin_unread >= 1 && row.status === 'open', 'reading and replying reach the server');
+    await F.selectOption('#msg-new-topic', 'question');
+    await F.fill('#msg-new-text', 'Can I play offline?');
+    await F.click('#msg-new button[type=submit]');
+    await F.waitForFunction(() => /Sent/.test(document.querySelector('#msg-new-done').textContent));
+    assert((await db.prepare("SELECT COUNT(*) AS n FROM conversations WHERE topic = 'question'").first()).n === 1, 'a player can start a new conversation');
+    if (process.env.SHOTS) await F.screenshot({ path: path.join(process.env.SHOTS, 'messages.png'), fullPage: true });
+    await F.check('#msg-email-on');
+    await F.waitForSelector('#msg-email-error:not([hidden])');
+    assert(!(await F.isChecked('#msg-email-on')), 'email notices need a confirmed email');
     await F.close();
 
     // ---- Progress made on B shows on A.
