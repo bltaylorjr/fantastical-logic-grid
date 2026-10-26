@@ -9,3 +9,4 @@ undefined/
 .private/
 .lighthouseci/
 screenshots/
+__pycache__/
