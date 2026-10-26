@@ -25,6 +25,7 @@ import * as stats from './stats.js';
 import { shareResult } from './share-result.js';
 import * as i18n from './i18n.js';
 import { CLOUD_URL } from './cloud-config.js';
+import * as tutorial from './tutorial.js';
 
 errorReports.init();
 const $ = (s, el = document) => el.querySelector(s);
@@ -159,11 +160,13 @@ function setWorld(id) { document.documentElement.dataset.world = id || 'random';
 function showScreen(name) {
   $('#screen-home').hidden = name !== 'home';
   $('#screen-play').hidden = name !== 'play';
+  $('#screen-learn').hidden = name !== 'learn';
+  if (name !== 'learn') tutorial.close();
   const scr = $(`#screen-${name}`);
   scr.classList.remove('enter'); void scr.offsetWidth; scr.classList.add('enter');
   setWorld(name === 'play' && S ? S.puzzle.theme.id : setup.theme);
   $('#skip-link').hidden = name !== 'play';
-  document.title = name === 'play' && S ? `${S.save.name} · The Fantastical Logic Grid` : 'The Fantastical Logic Grid';
+  document.title = name === 'play' && S ? `${S.save.name} · The Fantastical Logic Grid` : name === 'learn' ? 'How to play · The Fantastical Logic Grid' : 'The Fantastical Logic Grid';
   if (name === 'home') { closeGame(); renderSaved(); renderSuggestion(); renderDaily(); accountsOnHome(); competeUi.onHome(); setTimeout(offerUpdate, 500); }
   wake.setPlaying(name === 'play' && S && !S.save.solved);
   updateMusic();
@@ -1793,21 +1796,55 @@ $('#app-menu').addEventListener('click', async (e) => {
   else if (cmd === 'install') installApp();
 });
 $('#home-btn').onclick = () => goHome();
+
+// How to play: the step-by-step tutorial and the tips page (tutorial.js).
+// The narrated video is the Introduction.
+// The open puzzle is saved and closed first; the tutorial never saves.
+async function openTutorial(opts = {}) {
+  const open = [...document.querySelectorAll('dialog[open]')];
+  open.forEach((d) => d.close());
+  // A closing dialog hands focus back to its button; let that happen first.
+  if (open.length) await new Promise((r) => setTimeout(r, 0));
+  await flushSave();
+  closeGame();
+  showScreen('learn');
+  tutorial.open(opts);
+}
+tutorial.initTutorial({
+  announce, status, sound, openVideo: () => openVideo(),
+  hint: (puzzle, marks) => engine.hint(puzzle, marks),
+  onExit: () => goHome(),
+  onPlayBasic: async () => {
+    await goHome();
+    const basic = $('input[name=tier][value=basic]');
+    if (basic && !basic.checked) basic.click();
+    $('#gen-btn').scrollIntoView({ block: 'center' });
+    $('#gen-btn').focus();
+    status('Basic is chosen. Pick a theme if you like, then press Generate puzzle.');
+  },
+});
+$('#home-learn').onclick = () => openTutorial();
+$('#help-tutorial').onclick = () => openTutorial();
+$('#help-tips').onclick = () => openTutorial({ tips: true });
+$('#video-learn').onclick = () => openTutorial();
+$('#help-intro').onclick = () => openVideo();
+$('#welcome-learn').onclick = () => openTutorial({ lesson: 0 });
 $('#help-btn').onclick = () => openDialog($('#dlg-help'), $('#help-close'));
 $('#help-close').onclick = () => $('#dlg-help').close();
 
-// Narrated how-to-play video: offered once on first launch, always in Help.
+// The Introduction (narrated video): offered once on first launch, always at the top.
 function openVideo() {
   if ($('#dlg-help').open) $('#dlg-help').close();
   openDialog($('#dlg-video'), $('#intro-video'));
 }
-// The app bar (with How to play and the small scoreboard) stays at the top;
+// The app bar (with How to play, the Introduction and the small scoreboard) stays at the top;
 // its height keeps scrolled-to items from hiding under it.
 const appbar = $('.appbar');
 const setAppbarHeight = () => document.documentElement.style.setProperty('--appbar-h', `${appbar.offsetHeight}px`);
 if (window.ResizeObserver) new ResizeObserver(setAppbarHeight).observe(appbar);
 setAppbarHeight();
-$('#howto-btn').onclick = openVideo;
+$('#howto-btn').onclick = () => openTutorial();
+$('#intro-btn').onclick = openVideo;
 $('#miniboard-open').onclick = () => competeUi.openBoard();
 $('#video-close').onclick = () => $('#dlg-video').close();
 $('#dlg-video').addEventListener('close', () => { $('#intro-video').pause(); });
@@ -1815,7 +1852,7 @@ function offerIntro() {
   if (settings.introOffered) return;
   settings.introOffered = true;
   store.saveSettings(settings);
-  openDialog($('#dlg-welcome'), $('#welcome-watch'));
+  openDialog($('#dlg-welcome'), $('#welcome-learn'));
 }
 // Desktop updates: asked about on the home screen only, never mid-puzzle.
 let pendingUpdate = null;
@@ -2051,7 +2088,8 @@ async function init() {
   competeUi.handleRaceLink();
   window.addEventListener('resize', () => { if (!$('#screen-home').hidden) updatePreview(); });
   document.documentElement.classList.add('ready');
-  offerIntro();
+  // thelogicgrid.com/?learn opens How to play straight away.
+  if (new URLSearchParams(location.search).has('learn')) { settings.introOffered = true; store.saveSettings(settings); openTutorial(); } else offerIntro();
   offerLanguage();
   setTimeout(checkUpdates, 4000);
   if (!isPreview) setTimeout(ensureNaturalVoices, 1500);
@@ -2059,4 +2097,4 @@ async function init() {
 init();
 
 // For tests and debugging.
-window.__flg = { get state() { return S; }, settings: () => settings };
+window.__flg = { get state() { return S; }, settings: () => settings, get tutorial() { return tutorial.state(); } };

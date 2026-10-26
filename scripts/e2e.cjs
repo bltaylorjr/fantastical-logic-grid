@@ -17,17 +17,23 @@ const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`o
   try {
     await page.goto('http://localhost:8123/');
     await page.waitForSelector('#tier-choices input');
-    // First launch offers the narrated how-to-play video.
+    // First launch offers How to play and the narrated Introduction video.
     await page.waitForSelector('#dlg-welcome[open]');
     await page.click('#welcome-watch');
     await page.waitForSelector('#dlg-video[open]');
     const vid = await page.evaluate(async () => { const v = document.querySelector('#intro-video'); if (v.readyState < 1) await new Promise((r) => { v.onloadedmetadata = r; setTimeout(r, 5000); }); const t = v.textTracks[0]; return { d: v.duration, track: t && t.kind, mode: t && t.mode }; });
     assert(vid.d > 200 && vid.track === 'captions' && vid.mode === 'showing', `intro video loads with captions on (${Math.round(vid.d)} s)`);
     await page.click('#video-close');
-    assert(await page.locator('#howto-btn').isVisible(), 'How to play is on the game page');
-    await page.click('#howto-btn');
+    assert(await page.locator('#intro-btn').isVisible(), 'the Introduction is on the game page');
+    await page.click('#intro-btn');
     await page.waitForSelector('#dlg-video[open]');
     await page.click('#video-close');
+    assert(await page.locator('#howto-btn').isVisible(), 'How to play is on the game page');
+    await page.click('#howto-btn');
+    await page.waitForSelector('#screen-learn:not([hidden])');
+    assert(true, 'How to play opens the step-by-step tutorial');
+    await page.click('#learn-exit');
+    await page.waitForSelector('#screen-home:not([hidden])');
     await page.click('#help-btn');
     assert(!(await page.locator('#dlg-help button#help-video').count()), 'the video moved out of Help');
     await page.click('#help-close');
