@@ -72,6 +72,9 @@ export const SETTINGS = {
   // ---- Ideas, problems and upkeep
   feedback_enabled: { type: 'bool', default: true, group: 'Ideas and problems', label: 'Idea and problem boxes', help: 'Off: the game hides its Ideas and problems boxes.' },
   error_reports_enabled: { type: 'bool', default: true, group: 'Ideas and problems', label: 'Automatic error reports', help: 'Anonymous reports the apps send when something breaks. Off: nothing is sent.' },
+  // ---- Alerts and reports
+  alert_percent: { type: 'int', min: 50, max: 100, default: 80, group: 'Alerts and reports', label: 'Warn when a free allowance reaches (percent)', help: 'The dashboard shows a warning, and the health check opens a GitHub issue (which GitHub emails you), when a daily free allowance or the database passes this level.' },
+  summary_email_enabled: { type: 'bool', default: true, group: 'Alerts and reports', label: 'Weekly summary email', help: 'Every Monday: new players, games, top themes, new ideas and problems, errors, puzzles that need attention and free-limit warnings. Sent from the game\'s Gmail with the same setup as the archive email (server/ARCHIVE.md).' },
   blocked_words: { type: 'words', default: [], group: 'Moderation', label: 'Extra blocked words in screen names', help: 'Added to the built-in word filter. Letters only, 3 to 30 each.' },
   archive_email_enabled: {
     type: 'bool', default: false, group: 'Backups', label: 'Weekly archive email',

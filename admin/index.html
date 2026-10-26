@@ -72,6 +72,8 @@
       <li><a href="#overview" data-min="viewer">Overview</a></li>
       <li><a href="#usage" data-min="viewer">Usage and free limits</a></li>
       <li><a href="#search" data-min="viewer">Search (Google and Bing)</a></li>
+      <li><a href="#daily" data-min="moderator">Daily puzzles</a></li>
+      <li><a href="#quality" data-min="viewer">Puzzle quality <span class="count" id="count-quality" hidden></span></a></li>
       <li><a href="#stories" data-min="moderator">Story workshop and review <span class="count" id="count-parts" hidden></span></a></li>
       <li><a href="#feedback" data-min="moderator">Ideas and problems <span class="count" id="count-feedback" hidden></span></a></li>
       <li><a href="#names" data-min="moderator">Screen names <span class="count" id="count-names" hidden></span></a></li>
@@ -104,6 +106,21 @@
       </div>
       <p class="muted">How people find thelogicgrid.com in Google and Bing over the last 28 days. Fetched once a day (06:41 UTC) and kept on the game's server. Google's numbers arrive two or three days late.</p>
       <div id="search-body"><p class="muted">Loading…</p></div>
+    </section>
+
+    <section data-view="daily" hidden aria-labelledby="h-daily">
+      <div class="head"><h1 id="h-daily">Daily puzzles</h1></div>
+      <p class="muted">Everyone gets the same daily puzzle. Change a coming day's theme, difficulty or size, or ask for a new story. Past days and today never change, and no story is ever used twice. The site is rebuilt every night at 00:17 UTC, so a change shows in the preview and the game after the next build.</p>
+      <p class="muted" data-min="admin">To publish a change sooner, run <a href="https://github.com/bltaylorjr/fantastical-logic-grid/actions/workflows/pages.yml" target="_blank" rel="noopener">Publish web version</a> on GitHub (Run workflow).</p>
+      <div id="daily-body"><p class="muted">Loading…</p></div>
+    </section>
+
+    <section data-view="quality" hidden aria-labelledby="h-quality">
+      <div class="head"><h1 id="h-quality">Puzzle quality</h1>
+        <div class="field inline"><label for="q-days">Period</label><select id="q-days"><option value="30">Last 30 days</option><option value="90" selected>Last 90 days</option></select></div>
+      </div>
+      <p class="muted">Themes and levels that players give up on, rate low, or say are too hard or too easy, worst first. From the anonymous play summaries; a group needs at least 5 games before it is flagged. Fix ideas: add story parts in the Story workshop, switch a theme off for a while, or plan easier daily puzzles.</p>
+      <div id="quality-body"><p class="muted">Loading…</p></div>
     </section>
 
     <section data-view="stories" hidden aria-labelledby="h-stories">
@@ -146,6 +163,7 @@
         <label class="tab"><input type="radio" name="fb-kind" value="problem"> Problems <span class="count" id="count-problems" hidden></span></label>
       </fieldset>
       <ul class="cards" id="fb-list"></ul>
+      <div class="row" data-min="admin"><button class="btn" type="button" data-export="feedback">Download all ideas and problems (CSV)</button></div>
     </section>
 
     <section data-view="names" hidden aria-labelledby="h-names">
@@ -165,6 +183,7 @@
       </form>
       <p class="muted">Players are listed by screen name. Emails stay in Firebase and are not shown here; saved puzzles are only counted.</p>
       <div class="table-wrap"><table class="table"><thead><tr><th scope="col">Screen name</th><th scope="col">Points</th><th scope="col">Solves</th><th scope="col">Last score</th><th scope="col">Status</th></tr></thead><tbody id="players-rows"></tbody></table></div>
+      <div class="row" data-min="admin"><button class="btn" type="button" data-export="players">Download all players (CSV)</button><button class="btn" type="button" data-export="scores">Download all scores (CSV)</button></div>
       <div id="player-detail"></div>
     </section>
 

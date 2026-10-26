@@ -118,6 +118,22 @@ rows after the email is sent**.
 If a weekly run fails (for example the app password was removed), GitHub emails
 the repository owner and nothing is removed; the next Monday tries again.
 
+## Weekly summary email
+
+Every Monday at 05:37 UTC, `.github/workflows/summary-email.yml` sends a short
+email with last week in numbers: new accounts and screen names, games finished
+and solved, top themes, races and scores, new ideas and problems waiting,
+the most common errors, puzzles players struggle with (from Puzzle quality)
+and any free-limit alerts. It uses the same four secrets as the archive email
+(steps 1 to 3 above), so once those are set up nothing more is needed. To
+send it somewhere else, add an optional secret `SUMMARY_TO`; otherwise it goes
+to `ARCHIVE_TO`.
+
+Test it with **Actions > Weekly summary email > Run workflow** (Test send
+ticked). Turn it off with Admin dashboard > **Settings and switches > Alerts
+and reports > Weekly summary email**. The Action log only says whether it was
+sent, never what was in it.
+
 ## Limits and costs
 
 - Free. Gmail allows 25 MB per email; the Worker refuses zips over 17 MB and

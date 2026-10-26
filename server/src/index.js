@@ -7,6 +7,7 @@
 //   POST /v1/feedback                    the game's idea and problem boxes (feedback.js)
 //   POST /v1/picture                     AI pictures from Workers AI (pictures.js)
 //   GET /v1/config                       announcements, switched-off themes, features (settings.js)
+//   GET /v1/daily/plan                   daily puzzle changes for the website build (daily.js)
 //   /admin/*                             the admin dashboard and its API (admin.js)
 //   GET /v1/health[?deep=1]              a quick check that the Worker (and with
 //                                        deep=1, the database and daily cleanup) is up
@@ -19,6 +20,7 @@ import { handleCompete } from './compete.js';
 import { handleErrors } from './errors.js';
 import { handleFeedback } from './feedback.js';
 import { handlePictures } from './pictures.js';
+import { handleDaily } from './daily.js';
 import { handleAdmin } from './admin.js';
 import { refreshSearch, SEARCH_CRON } from './search.js';
 import { publicConfig } from './settings.js';
@@ -64,6 +66,9 @@ async function route(req, env, ctx) {
 
   const picture = await handlePictures(req, env, ctx, url);
   if (picture) return picture;
+
+  const daily = await handleDaily(req, env, url);
+  if (daily) return daily;
 
   if (url.pathname === '/v1/health') {
     if (url.searchParams.get('deep') !== '1') return json(req, env, { ok: true });

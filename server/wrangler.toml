@@ -25,6 +25,8 @@ ARCHIVE_FROM = "backups@thelogicgrid.com"
 TTS_MODEL = "gemini-3.8-flash-tts"
 # The Search Console and Bing Webmaster property shown in the admin dashboard.
 SEARCH_SITE_URL = "https://thelogicgrid.com/"
+# The public website: the daily puzzle planner reads the coming days from it.
+SITE_URL = "https://thelogicgrid.com"
 # Secrets (never in this file): GEMINI_API_KEY, ADMIN_TOKEN and ARCHIVE_TO, set with
 # `npx wrangler secret put <NAME>` or in the dashboard as type Secret. The admin
 # dashboard also uses OWNER_EMAIL and FIREBASE_WEB_API_KEY, and optionally

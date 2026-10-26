@@ -7,20 +7,31 @@ needs no extra hosting and stays free. Its API is `server/src/admin.js`.
 
 | Section | What you can do | Lowest role |
 | --- | --- | --- |
-| Overview | Accounts, screen names, scoring players, games finished and solved by theme and difficulty, scores, races, free voices and AI pictures against their daily caps, error reports, things waiting for review (story parts, names, new ideas and problems) | viewer |
+| Overview | Alerts when a free allowance (voices, pictures, database size, Worker requests, database reads and writes) passes the alert level; accounts, screen names, scoring players, games finished and solved by theme and difficulty, scores, races, free voices and AI pictures against their daily caps, error reports, things waiting for review (story parts, names, new ideas and problems) | viewer |
 | Usage and free limits | Database size and rows per table; with the optional Cloudflare token, daily Worker requests and D1 reads and writes against the free allowances | viewer |
 | Search (Google and Bing) | Clicks, impressions, average position, top searches and top pages for the last 28 days, sitemaps and whether the home page is indexed; fetched daily, Refresh now for admins | viewer |
+| Daily puzzles | The next 14 days' daily puzzles (title, theme, level, size) as the last site build made them; plan up to 60 days ahead: change a day's theme, level or size, ask for a new story, add a note, or put a day back to automatic. Changes go live with the next site build (daily at 00:17 UTC, or Publish web version now) | moderator to look, admin to change |
+| Puzzle quality | For each theme and level over the last 30 or 90 days: games, solve rate, how many gave up or revealed the answer, ratings and "too hard / too easy", minutes and hints. Groups with 5 or more games that many players give up on, rate under 3 or find too hard or too easy are flagged and come first | viewer |
 | Story workshop and review | Write story parts for every player's new stories (checked by the game's rules, live within about 15 minutes), draft them with the AI writer (Gemini free tier), and approve or reject parts sent from older app versions | moderator |
 | Ideas and problems | What players sent from the game's two boxes, each in its own list; mark done or delete | moderator |
 | Screen names | See new and changed names (names the word filter would now refuse come first), mark them fine, rename, reset or ban | moderator |
 | Players | Find a player by screen name or id, see their scores, races and how much they sync; rename, ban or lift a ban | moderator |
 | | Reset scores (this week or all time), delete an account's data | admin |
-| Settings and switches | **Keys and services**: whether the GEMINI_API_KEY secret and Workers AI are set up (keys are never shown or typed here). **Sounds**: sound effects and theme music on/off for everyone, and whether they start on and at what volume (a player can still turn their own off). **Voices**: characters speak their clues, where voices come from (server Gemini, Kokoro on the device, or the device's own), server voices on/off, the daily voice cap and the Gemini voice model. **Pictures**: portrait style, confetti, AI pictures (none, scenes, or scenes and portraits, from Workers AI's free allowance), the daily picture cap and model. **Play**: races, solo scores, new screen names, themes on/off. **Learning**: learn from everyone, story parts from older apps, the AI writer's model. **Ideas and problems**: the game's two boxes and automatic error reports. **Moderation**: extra blocked words | viewer to look, admin to change |
+| Settings and switches | **Keys and services**: whether the GEMINI_API_KEY secret and Workers AI are set up (keys are never shown or typed here). **Sounds**: sound effects and theme music on/off for everyone, and whether they start on and at what volume (a player can still turn their own off). **Voices**: characters speak their clues, where voices come from (server Gemini, Kokoro on the device, or the device's own), server voices on/off, the daily voice cap and the Gemini voice model. **Pictures**: portrait style, confetti, AI pictures (none, scenes, or scenes and portraits, from Workers AI's free allowance), the daily picture cap and model. **Play**: races, solo scores, new screen names, themes on/off. **Learning**: learn from everyone, story parts from older apps, the AI writer's model. **Ideas and problems**: the game's two boxes and automatic error reports. **Moderation**: extra blocked words. **Alerts and reports**: the alert level (80% at first) and the weekly summary email on/off | viewer to look, admin to change |
 | Announcements | A message at the top of the game's home screen, with an optional start and end | viewer to look, admin to publish |
 | Error reports | Anonymous errors from the apps, most frequent first | viewer |
 | Backups and archive | What the weekly archive email takes out of the database and for how long each kind is kept, rows waiting, past runs; send now or download the zip (owner). Archive viewer: open archive zips in the browser to filter, group, chart and export them | admin (send/download: owner) |
 | Audit log | Every admin request, allowed or refused; 90 days in the database, older entries in the weekly archive | admin |
 | Admins | Add or remove admins and choose their role | owner |
+
+Every table has **Download this table (CSV)**, and admins can download all
+players, all scores, or all ideas and problems as spreadsheet files (Players
+and Ideas and problems sections). Cells that start like a formula get an
+apostrophe so a spreadsheet never runs them.
+
+When an allowance passes the alert level, the hourly health check (GitHub
+Actions) also opens an issue titled **Free limits** in the repository, so
+GitHub emails you, and closes it again when usage drops.
 
 Changes reach every copy of the game within about a minute (the game reads
 `GET /v1/config` every 10 minutes and when it opens; the server's own switches

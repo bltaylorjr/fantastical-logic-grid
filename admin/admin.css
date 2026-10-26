@@ -167,3 +167,10 @@ ul.plain { list-style: none; padding: 0; display: flex; flex-direction: column; 
 @keyframes ptr-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .ptr.spin svg { animation: none; } }
 .ptr-live { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* Free-limit alerts, CSV downloads */
+.alerts h2 { margin: 0 0 8px; font-size: 1.05rem; }
+.alerts ul { margin: 0; padding-left: 1.2em; }
+.alerts li { margin: 4px 0; }
+.csv-btn { float: right; margin: -4px 0 4px; }
+td.num, th.num { white-space: nowrap; }
