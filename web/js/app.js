@@ -25,6 +25,9 @@ import * as stats from './stats.js';
 import { shareResult } from './share-result.js';
 import * as i18n from './i18n.js';
 import { CLOUD_URL } from './cloud-config.js';
+import { addCloseButtons } from './dialog-close.js';
+
+addCloseButtons();
 
 errorReports.init();
 const $ = (s, el = document) => el.querySelector(s);
@@ -1781,6 +1784,8 @@ $('#app-menu').addEventListener('click', async (e) => {
   const b = e.target.closest('button[data-cmd]');
   if (!b) return;
   toggleMenu(false);
+  // A dialog opened from the menu gives focus back to the Menu button, not a hidden item.
+  $('#menu-btn').focus();
   const cmd = b.dataset.cmd;
   if (cmd === 'new') goHome();
   else if (cmd === 'saved') { await goHome({ focusSaved: true }); $('#saved-section').scrollIntoView(); }

@@ -298,6 +298,12 @@ dialog::backdrop { background: rgb(0 0 0 / .5); }
 dialog h2 { margin-bottom: 12px; }
 dialog fieldset { margin-bottom: 16px; }
 .dlg-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+/* Close (X) in every dialog's top corner; sticky so it stays in view while a long dialog scrolls. */
+.dlg-x { position: sticky; top: -12px; z-index: 2; float: right; display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; margin: -12px -12px 4px 8px; padding: 0;
+  border: 1px solid var(--border); border-radius: 50%; background: var(--bg); color: var(--text); cursor: pointer; }
+.dlg-x:hover { background: var(--accent-soft); }
+.dlg-x svg { width: 22px; height: 22px; }
+.dlg-x[hidden] { display: none; }
 .install-opt { border-top: 1px solid var(--hairline); padding-top: 12px; margin-top: 12px; }
 .install-opt h3 { margin-bottom: 6px; }
 .install-steps { margin: 6px 0 8px; padding-left: 1.4em; display: grid; gap: 6px; max-width: 60ch; }
@@ -552,7 +558,7 @@ dialog::backdrop { background: rgb(5 7 16 / .6); backdrop-filter: blur(6px); -we
 :root[data-theme="contrast"] body::before { background: #000; }
 :root[data-theme="contrast"] .appbar::after, :root[data-theme="contrast"] .banner::before { display: none; }
 :root[data-theme="contrast"] .card, :root[data-theme="contrast"] .banner, :root[data-theme="contrast"] .play-head, :root[data-theme="contrast"] dialog,
-:root[data-theme="contrast"] .btn, :root[data-theme="contrast"] .choice > span { background: #000; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; filter: none; }
+:root[data-theme="contrast"] .btn, :root[data-theme="contrast"] .dlg-x, :root[data-theme="contrast"] .choice > span { background: #000; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; filter: none; }
 :root[data-theme="contrast"] .btn.primary, :root[data-theme="contrast"] .seg input:checked + span { background: var(--accent); }
 :root[data-theme="contrast"] .tile .glyph { background: #000; border: 2px solid #fff; box-shadow: none; }
 :root[data-theme="contrast"] td.c.cross, :root[data-theme="contrast"] table.lg th.hl { background: var(--cross); }
