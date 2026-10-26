@@ -1732,7 +1732,8 @@ function renderMedia() {
   if (!portraitsReady()) {
     const game = S;
     loadPortraits().then(() => {
-      if (S !== game || S.portraitUrls && Object.keys(S.portraitUrls).length) return;
+      if (S !== game) return;
+      // AI-painted faces (img) stay; only drawn stand-ins are swapped.
       $$('#cast-row .cast-btn').forEach((b) => {
         const old = b.querySelector('svg');
         if (old) old.outerHTML = portrait(p, b.dataset.who, { style: settings.portraitStyle });
