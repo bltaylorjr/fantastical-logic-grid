@@ -3,7 +3,8 @@
 //
 //   POST /v1/pay/kofi   (Ko-fi > More > API > Webhook URL)
 //
-// It checks Ko-fi's verification token (the KOFI_VERIFICATION_TOKEN
+// It does nothing until the admin turns on Settings > Support and premium >
+// Ko-fi payments. It checks Ko-fi's verification token (the KOFI_VERIFICATION_TOKEN
 // Cloudflare secret), then:
 //   Subscription  a membership payment: Premium for 35 days from the payment,
 //                 so each monthly payment extends it and a cancelled
@@ -16,6 +17,7 @@
 // player when they sign in to the game with that confirmed email.
 import { json, readText, TooLarge } from './http.js';
 import { grant, cleanEmail, secretMatches, tierFor } from './supporters.js';
+import { getSettings } from './settings.js';
 
 const MAX_BODY = 32_000;
 const MEMBERSHIP_DAYS = 35;
@@ -28,6 +30,8 @@ export async function handleKofi(req, env, url) {
   if (url.pathname !== '/v1/pay/kofi') return null;
   if (req.method !== 'POST') return json(req, env, { error: 'method' }, 405);
   if (!String(env.KOFI_VERIFICATION_TOKEN || '').trim()) return json(req, env, { error: 'not_set_up' }, 503);
+  // Off until launch (Settings > Support and premium > Ko-fi payments); Ko-fi retries refused calls.
+  if (!(await getSettings(env)).kofi_payments_enabled) return json(req, env, { error: 'switched_off' }, 503);
   const ip = req.headers.get('CF-Connecting-IP') || 'local';
   if (env.LIMIT_AUTHLESS && !(await env.LIMIT_AUTHLESS.limit({ key: ip })).success) return json(req, env, { error: 'slow_down' }, 429, { 'Retry-After': '60' });
 

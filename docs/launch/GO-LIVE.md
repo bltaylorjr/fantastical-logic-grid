@@ -64,7 +64,7 @@ Needs the Ko-fi pull request merged. Payments arrive by Ko-fi's webhook, so nobo
 2. In Ko-fi, open **Memberships** and create a tier, for example "Supporter extras", $3 a month. Say it unlocks the supporter extra themes and the badge, and that players must use the same email as their game account.
 3. Ko-fi > **More > API** (https://ko-fi.com/manage/webhooks): set **Webhook URL** to `https://flg-api.btay74.workers.dev/v1/pay/kofi` and click **Update**. Copy the **Verification Token** shown there.
 4. Cloudflare > **Workers & Pages > flg-api > Settings > Variables and Secrets > Add**: name `KOFI_VERIFICATION_TOKEN`, type **Secret**, paste the token, **Deploy**.
-5. Back in Ko-fi, click **Send Single Donation Test**. Admin > **Supporters** should show a new row from Ko-fi.
+5. Admin > **Settings and switches > Support and premium**: turn on **Ko-fi payments**. Then back in Ko-fi, click **Send Single Donation Test**. Admin > **Supporters** should show a new row from Ko-fi.
 6. Admin > **Settings and switches > Support and premium**: tick the themes that become supporter extras, and set **Get extras page link** to your Ko-fi memberships page (`https://ko-fi.com/<you>/tiers`).
 
 What the webhook does: a membership payment gives Premium for 35 days and each monthly payment extends it, so a cancelled membership runs out by itself. The badge tier follows the membership tier's name (a tier called "Gold supporters" gives Gold) or its price, and moving to another tier changes the badge at the next payment. A one-off tip gives a supporter badge at the tier of the largest tip. A shop order is ignored.
