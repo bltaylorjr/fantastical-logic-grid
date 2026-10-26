@@ -117,6 +117,10 @@ const MOODS = {
   parks: { root: 130.81, scale: [0, 2, 4, 7, 9], prog: [0, 4, 3, 2], chord: 13, chime: 0.35, bright: 640 },
   travel: { root: 196, scale: [0, 2, 4, 5, 7, 9, 11], prog: [0, 5, 3, 4], chord: 12, chime: 0.36, bright: 650 },
   wonders: { root: 146.83, scale: [0, 2, 3, 5, 7, 9, 10], prog: [0, 6, 3, 4], chord: 14, chime: 0.3, bright: 620 },
+  music: { root: 164.81, scale: [0, 2, 3, 5, 7, 9, 10], prog: [0, 3, 1, 4], chord: 11, chime: 0.4, bright: 660 },
+  nautical: { root: 130.81, scale: [0, 2, 4, 5, 7, 9], prog: [0, 3, 4, 2], chord: 13, chime: 0.34, bright: 640 },
+  farm: { root: 196, scale: [0, 2, 4, 7, 9], prog: [0, 3, 4, 1], chord: 11, chime: 0.38, bright: 650 },
+  science: { root: 164.81, scale: [0, 2, 4, 6, 7, 9, 11], prog: [0, 1, 4, 5], chord: 13, chime: 0.34, bright: 640 },
 };
 
 // A soft swell: rises over `attack`, holds, then fades over `release`.

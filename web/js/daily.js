@@ -57,6 +57,15 @@ export async function latest() {
   }
 }
 
+// The Hand-picked collection: [{ date, title, themeName, difficultyName,
+// hand | average, rated }]. Empty when the site has none or is out of reach.
+export async function picks() {
+  try {
+    const body = await getJson('picks.json');
+    return Array.isArray(body?.picks) ? body.picks.filter((x) => /^\d{4}-\d{2}-\d{2}$/.test(x.date) && x.title) : [];
+  } catch (e) { return []; }
+}
+
 // The full puzzle for a day. Kept on this device once read.
 export async function puzzleFor(date) {
   const cache = await store.getMeta(CACHE_KEY, {});

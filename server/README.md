@@ -166,7 +166,8 @@ secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
 | `GET /v1/health` | anyone | check the Worker is up; `?deep=1` adds the database, last daily cleanup, voice quota and errors today |
 | `POST /v1/errors` | anyone (rate limited) | anonymous error reports from the apps (`src/errors.js`) |
 | `GET /admin/errors?days=7` | `ADMIN_TOKEN` | most frequent error reports |
-| `POST /v1/feedback` | anyone (rate limited) | the game's Ideas and Problems boxes (`src/feedback.js`) |
+| `POST /v1/feedback` | anyone (rate limited) | the game's Ideas and Problems boxes (`src/feedback.js`); with `talk: true` and a sign-in, the team can reply in Messages |
+| `GET /v1/messages`, `POST /v1/messages`, `POST /v1/messages/:id`, `.../:id/read`, `POST /v1/messages/email` | signed in (rate limited, daily caps) | Menu > Messages: conversations with the team, and email notices on or off (`src/messages.js`, see `MESSAGES.md`) |
 | `POST /v1/picture` | anyone (rate limited, daily cap) | AI pictures from Cloudflare Workers AI's free allowance (`src/pictures.js`) |
 | `GET/PUT/DELETE /v1/profile` | signed in | read, choose or remove the screen name |
 | `POST /v1/scores` | screen name | add a solved solo puzzle |

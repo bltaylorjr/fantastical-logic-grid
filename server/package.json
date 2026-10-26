@@ -1,6 +1,7 @@
 {
   "name": "flg-api",
   "private": true,
+  "license": "UNLICENSED",
   "description": "Cloudflare Worker for The Fantastical Logic Grid: account sync and shared learning.",
   "type": "module",
   "scripts": {
