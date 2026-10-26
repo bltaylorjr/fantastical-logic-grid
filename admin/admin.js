@@ -600,17 +600,19 @@ $('#settings-body').onclick = (e) => {
   else saveSettingValue(key, $(`#set-${key}`).value.trim(), b);
 };
 
+const SUP_TIER = ['', 'Bronze', 'Silver', 'Gold', 'Platinum'];
 const SUP_SOURCE = { admin: 'Added here', kofi: 'Ko-fi', lemonsqueezy: 'Lemon Squeezy' };
 views.supporters = async () => {
   const d = await api('supporters');
   $('#sup-rows').innerHTML = d.supporters.length ? d.supporters.map((s) => `<tr>
       <td>${s.name ? `<bdi>${esc(s.name)}</bdi><br>` : ''}<span class="muted">${esc(s.email || s.uid || '')}</span>${s.note ? `<br><small>${esc(s.note)}</small>` : ''}</td>
       <td>${s.kind === 'premium' ? 'Premium' : 'Supporter'}${s.active ? '' : ' <span class="badge">Ended</span>'}</td>
+      <td>${SUP_TIER[s.tier] || 'Bronze'}</td>
       <td>${esc(SUP_SOURCE[s.source] || s.source)}${s.createdBy ? `<br><small class="muted">${esc(s.createdBy)}</small>` : ''}</td>
       <td>${when(s.createdAt)}</td>
       <td>${s.until ? when(s.until) : 'Never'}</td>
       <td>${s.active ? `<button class="btn small danger" data-sup-end="${s.id}">End now</button>` : ''}</td>
-    </tr>`).join('') : '<tr><td colspan="6" class="muted">No supporters yet.</td></tr>';
+    </tr>`).join('') : '<tr><td colspan="7" class="muted">No supporters yet.</td></tr>';
 };
 $('#sup-form').onsubmit = async (e) => {
   e.preventDefault();
@@ -619,7 +621,7 @@ $('#sup-form').onsubmit = async (e) => {
   err.hidden = true;
   if (!who) { err.textContent = 'Give the player\'s email or player id.'; err.hidden = false; $('#sup-who').focus(); return; }
   const day = $('#sup-until').value;
-  const body = { kind: $('#sup-kind').value, note: $('#sup-note').value.trim(), until: day ? new Date(`${day}T23:59:59`).getTime() : null, ...(who.includes('@') ? { email: who } : { uid: who }) };
+  const body = { kind: $('#sup-kind').value, tier: Number($('#sup-tier').value), note: $('#sup-note').value.trim(), until: day ? new Date(`${day}T23:59:59`).getTime() : null, ...(who.includes('@') ? { email: who } : { uid: who }) };
   try {
     await api('supporters', { method: 'POST', body });
     $('#sup-form').reset();

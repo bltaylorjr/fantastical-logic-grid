@@ -2,7 +2,8 @@
 
 There are four options, each in its own pull request so they can be reviewed
 side by side. All four share the supporter system (option 1's pull request):
-an admin **Supporters** page, a ★ Supporter badge on the scoreboard, and
+an admin **Supporters** page, a ★ supporter badge on the scoreboard in four
+tiers (Bronze, Silver, Gold, Platinum), and
 **supporter extra** themes that open only for premium supporters. Nothing is
 locked until you tick themes under **Settings and switches > Support and
 premium**, and the daily puzzle, races and shared puzzles always stay free.
@@ -16,11 +17,27 @@ premium**, and the daily puzzle, races and shared puzzles always stay free.
 
 Options 2 and 3 can run together. Option 1's Support link can run with any of them.
 
+## Badge tiers
+
+Every supporter gets a ★ badge next to their name on the scoreboard, in one of
+four tiers: **Bronze**, **Silver**, **Gold** or **Platinum**. A player with more
+than one running grant shows the highest one.
+
+- **Added by hand** (Admin > **Supporters**): you choose the badge.
+- **Through a payment service**: if the membership tier's name says Bronze,
+  Silver, Gold or Platinum (for example a Ko-fi tier called "Gold
+  supporters"), that is the badge. Otherwise the amount paid decides it, using
+  Admin > **Settings and switches > Support and premium**: Silver from $5, Gold
+  from $15, Platinum from $50 to start with, and Bronze below that.
+- Name your Ko-fi membership tiers after the badges (for example "Bronze
+  supporters" $3, "Silver supporters" $5, "Gold supporters" $15) so the badge
+  always matches the tier the player picked.
+
 ## Option 1: tip jar with a Supporter badge
 
 1. Set up a tip page. GitHub Sponsors: https://github.com/sponsors > **Get sponsored** with your personal account, add bank and tax details, wait for approval. Or Ko-fi: sign up at https://ko-fi.com and connect Stripe or PayPal.
 2. Admin dashboard > **Settings and switches > Support and premium**: paste the page link in **Support page link**, save, and turn on **Support the game link**.
-3. When someone tips and you want to thank them, open **Supporters**, enter the email they used (or their player id from **Players**), choose **Supporter badge**, and click **Add**. The badge appears once they sign in with that confirmed email.
+3. When someone tips and you want to thank them, open **Supporters**, enter the email they used (or their player id from **Players**), choose **Supporter badge** and the badge tier (Bronze, Silver, Gold or Platinum), and click **Add**. The badge appears once they sign in with that confirmed email.
 
 ## Option 2: Ko-fi membership unlocks the extras
 

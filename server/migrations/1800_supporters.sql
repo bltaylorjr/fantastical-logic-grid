@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS supporters (
   user_id TEXT,
   email TEXT,
   kind TEXT NOT NULL,          -- 'supporter' (badge) or 'premium' (badge and extras)
+  tier INTEGER NOT NULL DEFAULT 1, -- badge level: 1 Bronze, 2 Silver, 3 Gold, 4 Platinum
   source TEXT NOT NULL,        -- 'admin', or the payment service
   ref TEXT NOT NULL,           -- the payment's id, so a repeated webhook adds nothing
   note TEXT,
