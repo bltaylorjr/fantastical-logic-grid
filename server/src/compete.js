@@ -167,7 +167,8 @@ async function scoreboard(env, period, now) {
     ORDER BY pts.points DESC, wins DESC, pts.first ASC LIMIT ?2`).bind(since, BOARD_ROWS, now).all();
   let rank = 0;
   let prev = null;
-  const supporters = await supporterTiers(env, results.map((r) => r.uid), now);
+  // Supporter badges show only once the owner switches them on (Settings > Support and premium).
+  const supporters = (await getSettings(env, now)).supporter_badges_enabled ? await supporterTiers(env, results.map((r) => r.uid), now) : new Map();
   const rows = results.map((r, i) => {
     if (r.points !== prev) { rank = i + 1; prev = r.points; }
     return { rank, name: r.name, points: r.points, solved: r.solved, wins: r.wins, uid: r.uid, ...(supporters.has(r.uid) ? { supporter: supporters.get(r.uid) } : {}) };
