@@ -5,6 +5,7 @@
 
 import { initPullRefresh } from './pull-refresh.js';
 import { ratingsView, initRatings } from './ratings.js';
+import { marketingView, initMarketing } from './marketing.js';
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -870,6 +871,11 @@ $('#q-days').onchange = () => show('quality');
 const ratingHelpers = { api, esc, fmt, when, tile, table, can, act, setCount };
 views.ratings = () => ratingsView(ratingHelpers);
 initRatings(ratingHelpers, (name, o) => show(name, o));
+
+// ---- Marketing (marketing.js): campaigns, ads, media, tracked links and their numbers.
+const marketingHelpers = { api, esc, fmt, when, tile, table, can, act, ask, toast };
+views.marketing = () => marketingView(marketingHelpers);
+initMarketing(marketingHelpers, (name, o) => show(name, o));
 
 // ------------------------------------------------------------- navigation
 const MIN_ROLE = Object.fromEntries($$('#nav-list a').map((a) => [a.hash.slice(1), a.dataset.min]));
