@@ -32,8 +32,10 @@ jobs:
       - run: npm ci
       - name: Install the test browser
         run: npm install --no-save --no-audit --no-fund playwright@1.63.0 && npx playwright install --with-deps chromium
-      - name: App tests (generate, play, save, print, voices, topics, learning)
-        run: npm test
+      - name: App tests (generate, play, save, print, voices, topics, learning, responsive layout)
+        run: mkdir -p screenshots && npm test
+        env:
+          SHOTS: screenshots
       - name: Accounts, races, error reports and the admin dashboard against the real Worker
         run: |
           npm --prefix server ci --no-audit --no-fund
@@ -42,6 +44,16 @@ jobs:
           node scripts/e2e-errors.cjs
           node scripts/e2e-admin.cjs
           node scripts/e2e-archive.cjs
+      # The screenshots from every size the layout test checks, to look at when
+      # a layout check fails (kept 14 days, free).
+      - name: Keep the screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: screenshots/
+          retention-days: 14
+          if-no-files-found: ignore
 
   server:
     runs-on: ubuntu-latest

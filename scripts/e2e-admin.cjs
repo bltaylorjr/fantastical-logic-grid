@@ -255,11 +255,35 @@ const SHOTS = process.env.SHOTS;
     assert(/settings\.change/.test(log) && /players\.rename/.test(log) && /parts\.review/.test(log), 'the audit log shows what was done');
     await shot(page, '4-audit');
 
+    // Responsive: every page at phone, tablet, 200% zoom and monitor sizes, with
+    // no sideways scrolling and no button or field under 44 px.
+    const pages = await page.$$eval('#nav-list a:not([hidden])', (as) => as.map((a) => a.getAttribute('href').slice(1)));
+    for (const [label, width, height] of [['a phone', 360, 780], ['a portrait tablet', 768, 1024], ['200% zoom', 640, 400], ['a large monitor', 1920, 1080]]) {
+      await page.setViewportSize({ width, height });
+      const bad = [];
+      for (const view of pages) {
+        await page.evaluate((v) => { location.hash = v; }, view);
+        await page.waitForSelector(`[data-view="${view}"]:not([hidden])`);
+        await page.waitForTimeout(250);
+        const r = await page.evaluate(() => {
+          const small = [];
+          for (const el of document.querySelectorAll('#app button, #app a[href], #app input, #app select, #app textarea, #app summary')) {
+            if (el.closest('[hidden], .sr-only') || el.matches('.skip')) continue;
+            let b = el.getBoundingClientRect();
+            if (!b.width || !b.height || (el.tagName === 'A' && getComputedStyle(el).display === 'inline')) continue;
+            if (el.matches('input[type=checkbox], input[type=radio]') && el.closest('label')) b = el.closest('label').getBoundingClientRect();
+            if (Math.round(Math.min(b.width, b.height)) < 44) small.push(`${el.id || el.tagName} "${el.textContent.trim().slice(0, 20)}"`);
+          }
+          return { sideways: document.documentElement.scrollWidth > innerWidth + 1, small };
+        });
+        if (r.sideways) bad.push(`${view} scrolls sideways`);
+        if (r.small.length) bad.push(`${view}: ${r.small.join(', ')} under 44 px`);
+      }
+      assert(!bad.length, `every dashboard page fits ${label} (${width} x ${height}) with 44 px targets${bad.length ? `: ${bad.join('; ')}` : ''}`);
+    }
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.click('a[href="#overview"]');
+    await page.evaluate(() => { location.hash = 'overview'; });
     await page.waitForSelector('#ov-body .tile');
-    const wide = await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1);
-    assert(wide, 'the dashboard fits a phone screen without sideways scrolling');
     await shot(page, '5-phone');
     await page.click('#sign-out');
     assert(await page.locator('#login').isVisible(), 'signing out returns to the sign-in form');
