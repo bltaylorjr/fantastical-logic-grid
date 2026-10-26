@@ -319,7 +319,7 @@ test('players: every player in sections, searchable, sortable, a page at a time'
   assert.equal((await call('/admin/v1/players?q=oldtim', { auth: mod })).body.players[0].uid, 'sec-old');
   assert.equal((await call('/admin/v1/players?q=sec-sync', { auth: mod })).body.players[0].uid, 'sec-sync-only');
 
-  const csvText = (await call('/admin/v1/export/players.csv', { auth: TOKEN })).text;
+  const csvText = (await call('/admin/v1/export/players.csv', { auth: owner() })).text;
   assert.match(csvText, /Last seen/);
   assert.match(csvText, /sec-sync-only/);
 });
