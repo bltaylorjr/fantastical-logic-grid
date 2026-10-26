@@ -9,11 +9,14 @@
 // secret). Then:
 //   order_created (paid)  Premium with no end, made out to the buyer's email,
 //                         and to their game account when the checkout link
-//                         carried it (checkout[custom][uid], added by the game)
+//                         carried it (checkout[custom][uid], added by the game).
+//                         The badge tier comes from the variant or product name
+//                         if it names one, otherwise from the price paid
+//                         (supporters.js tierFor)
 //   order_refunded        ends that order's Premium
 //   anything else         nothing
 import { json, readText, TooLarge } from './http.js';
-import { grant, revoke, secretMatches } from './supporters.js';
+import { grant, revoke, secretMatches, tierFor } from './supporters.js';
 
 const MAX_BODY = 64_000;
 const UID = /^[\w-]{1,128}$/;
@@ -55,6 +58,8 @@ export async function handleLemonSqueezy(req, env, url) {
     const item = a.first_order_item || {};
     await grant(env, {
       uid, email: a.user_email, kind: 'premium', source: 'lemonsqueezy', ref,
+      // total is in cents, before any refund.
+      tier: await tierFor(env, { amount: (Number(a.total) || 0) / 100, name: `${item.variant_name || ''} ${item.product_name || ''}` }),
       note: `${event.meta.test_mode ? 'TEST: ' : ''}Lemon Squeezy order ${String(a.identifier || order.id).slice(0, 40)}${item.product_name ? `, ${String(item.product_name).slice(0, 80)}` : ''}`,
     });
     return done(req, env, 'premium');
