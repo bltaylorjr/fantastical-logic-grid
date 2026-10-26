@@ -1,10 +1,11 @@
 # Thank-you emails for the game's Ideas and Problems boxes: every 15 minutes
-# the notes signed-in players asked for are sent from the game's Gmail with a
-# no-reply sender name (scripts/feedback-replies.py). Same secrets as the
-# weekly archive email (server/ARCHIVE.md); without them each run just says
-# "not set up". Switch it off in the admin dashboard (Ideas and problems).
+# the notes signed-in players asked for are sent from noreply@thelogicgrid.com
+# through Resend's free plan (secret RESEND_API_KEY), with the game's Gmail as
+# the backup (same secrets as the weekly archive email, server/ARCHIVE.md).
+# Without either, each run just says "not set up" (server/FEEDBACK-EMAILS.md). Switch it off in the admin dashboard (Ideas and problems).
 # The repository is public, so this job prints only counts, never addresses.
-# Free: scheduled GitHub Actions on a public repo and Gmail cost nothing.
+# Free: scheduled GitHub Actions on a public repo, Resend's free plan and
+# Gmail cost nothing.
 name: Thank-you emails
 on:
   schedule:
@@ -29,4 +30,6 @@ jobs:
           FLG_ADMIN_TOKEN: ${{ secrets.FLG_ADMIN_TOKEN }}
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          MAIL_FROM: ${{ vars.MAIL_FROM }}
         run: python3 -I scripts/feedback-replies.py

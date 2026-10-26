@@ -408,7 +408,7 @@ views.feedback = async () => {
   setCount('#count-feedback', (d.waiting.idea || 0) + (d.waiting.problem || 0));
   const r = d.replies;
   $('#fb-replies').textContent = !r ? '' : r.enabled
-    ? `Thank-you emails (players who were signed in and ticked the box): ${fmt(r.sentToday)} sent in the last 24 hours, ${fmt(r.waiting)} waiting${r.failedToday ? `, ${fmt(r.failedToday)} could not be sent` : ''}. Limit ${fmt(r.cap)} a day. They go out every 15 minutes from the game's Gmail; the address is removed once sent and is never kept with the message.`
+    ? `Thank-you emails (players who were signed in and ticked the box): ${fmt(r.sentToday)} sent in the last 24 hours, ${fmt(r.waiting)} waiting${r.failedToday ? `, ${fmt(r.failedToday)} could not be sent` : ''}. Limit ${fmt(r.cap)} a day. They go out every 15 minutes from noreply@thelogicgrid.com (or the game's Gmail as a backup); the address is removed once sent and is never kept with the message.`
     : 'Thank-you emails are switched off (Settings and switches > Ideas and problems).';
   $('#fb-list').innerHTML = d.items.length ? d.items.map((f) => `<li>
       <b>${esc(FB_TOPICS[f.topic] || f.topic)}</b> ${f.status === 'done' ? '<span class="badge ok">Done</span>' : '<span class="badge">New</span>'}
