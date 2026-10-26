@@ -207,6 +207,25 @@ const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`o
     });
     await page.waitForSelector('#solved:not([hidden])');
     assert((await page.textContent('#solved-h')).includes('Case closed'), 'solving by hand shows "Case closed!"');
+    assert(await page.getAttribute('#solved', 'data-effects') === 'confetti', 'a solve shows confetti by default');
+    {
+      const all = ['confetti', 'fireworks', 'stars', 'balloons', 'sparkles', 'theme_emoji', 'bubbles', 'falling', 'shooting_stars', 'ribbons', 'light_rays', 'emoji_burst'];
+      const errors = [];
+      page.on('pageerror', (e) => errors.push(e.message));
+      const fx = await page.evaluate(async (list) => {
+        const m = await import('./js/effects.js');
+        return { all: m.celebrate(list, { theme: 'pets' }), one: m.celebrate(list, { random: true, theme: 'mystery' }), none: m.celebrate([], {}) };
+      }, all);
+      assert(await page.locator('.fx-rays').count() >= 1, 'light rays add their glow');
+      await page.waitForTimeout(4000);
+      assert(await page.locator('.fx-rays').count() === 0, 'the light rays glow removes itself');
+      assert(fx.all.join() === all.join() && errors.length === 0, `every celebration effect plays without errors (${errors.join('; ')})`);
+      assert(fx.one.length === 1 && all.includes(fx.one[0]), 'Random plays one of the checked effects');
+      assert(fx.none === null, 'no effect plays when none is checked');
+      await page.emulateMedia({ reducedMotion: 'reduce' });
+      assert(await page.evaluate(async () => (await import('./js/effects.js')).celebrate(['fireworks'])) === null, 'no celebration when the device asks for reduced motion');
+      await page.emulateMedia({ reducedMotion: 'no-preference' });
+    }
     await page.screenshot({ path: process.env.SHOTS + '/5-solved.png', fullPage: true });
     assert(await page.locator('#resolution .hero svg').count() === 1, 'resolution scene shows the culprit');
     assert(await page.locator('#scene .layer.on').count() === 5, 'whole scene revealed when solved');
@@ -223,8 +242,19 @@ const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`o
     assert(sw <= 360, `no horizontal page scroll at 360px (scrollWidth ${sw})`);
     await page.screenshot({ path: process.env.SHOTS + '/6-mobile.png', fullPage: true });
 
-    // dark + high contrast
+    // tablet portrait: the clues move under the grid, so the grid is not squeezed into a sideways scroll
+    await page.setViewportSize({ width: 820, height: 1180 });
+    const tab = await page.evaluate(() => { const f = document.querySelector('#gridframe'); return [f.scrollWidth, f.clientWidth]; });
+    assert(tab[0] <= tab[1] + 1, `easy grid fits at 820px without sideways scrolling (${tab.join('/')})`);
+
+    // a grid that fits on screen does not scroll inside the page as well (player report: "extra scrolling")
     await page.setViewportSize({ width: 1280, height: 900 });
+    const fit = await page.evaluate(() => { const f = document.querySelector('#gridframe'); return [f.scrollHeight, f.clientHeight, parseFloat(getComputedStyle(f).maxHeight), innerHeight - document.querySelector('.appbar').offsetHeight - 16]; });
+    assert(fit[0] <= fit[1] + 1 && Math.abs(fit[2] - fit[3]) <= 1, `grid frame is as tall as the screen below the app bar, no inner scroll (${fit.join('/')})`);
+    // Browser autofill sends keydown events with no key (player error report: reading 'toLowerCase').
+    await page.evaluate(() => { document.dispatchEvent(new Event('keydown')); document.dispatchEvent(new KeyboardEvent('keydown')); });
+
+    // dark + high contrast
     await page.evaluate(() => { document.documentElement.dataset.theme = 'dark'; });
     await page.screenshot({ path: process.env.SHOTS + '/7-dark.png' });
     await page.evaluate(() => { document.documentElement.dataset.theme = 'contrast'; });
