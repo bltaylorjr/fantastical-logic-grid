@@ -70,7 +70,8 @@ the model downloads once from Hugging Face when the player clicks "Download free
 `web/vendor/kokoro/voices`, `web/kokoro-worker.js` runs it off the main thread, and it is left out of the service
 worker precache), DiceBear portraits (`web/js/portraits.js`; MIT code, CC0 Notionists/Lorelei/Open Peeps art;
 setting `portraitStyle`), canvas-confetti on a real solve (`web/js/effects.js`, ISC; off in silent mode and with
-reduced motion; setting `confetti`), Lucide toolbar icons (ISC, inlined in `index.html`). Vendored files came from
+reduced motion; the admin dashboard picks which effects play, confetti, fireworks, stars, balloons, sparkles, theme
+pictures, bubbles, falling snow/leaves/petals, shooting stars, ribbons, light rays or party emoji, and whether one is picked at random: settings `celebrations` and `celebrateRandom`), Lucide toolbar icons (ISC, inlined in `index.html`). Vendored files came from
 npm (`npm pack`); DiceBear is bundled with esbuild into `web/vendor/dicebear/dicebear.js`.
 
 **Narration**: `cleanSpeech` removes notes, brackets, markdown and emoji; `speechChunks` splits text so the first

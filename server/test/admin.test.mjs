@@ -143,7 +143,7 @@ test('settings switch game features off and back on', async () => {
 test('sound, voice and picture choices reach the game', async () => {
   // Uses the break-glass token: the owner's per-minute limit is spent above.
   let cfg = (await call('/v1/config')).body;
-  assert.deepEqual(cfg.game, { voiceSource: 'server', readAloud: true, portraitStyle: 'notionists', confetti: true, aiPictures: 'scene' });
+  assert.deepEqual(cfg.game, { voiceSource: 'server', readAloud: true, portraitStyle: 'notionists', confetti: true, aiPictures: 'scene', celebrations: ['confetti'], celebrateRandom: false });
   assert.deepEqual(cfg.defaults, { sound: true, volume: 60, music: true, musicVolume: 40 });
   assert.equal(cfg.features.errorReports, true);
   assert.equal(cfg.features.feedback, true);
@@ -196,6 +196,53 @@ test('ideas and problems arrive in separate boxes', async () => {
   assert.equal((await call('/v1/feedback', { body: { kind: 'idea', text: 'More dragons please' } })).status, 503);
   assert.equal((await call('/v1/config')).body.features.feedback, false);
   await call('/admin/v1/settings', { auth: TOKEN, body: { key: 'feedback_enabled', value: true } });
+});
+
+test('signed-in players with a confirmed email can get a thank-you email', async () => {
+  const send = (kind, auth, reply = true) => call('/v1/feedback', { auth, body: { kind, topic: 'other', text: 'More dragons, please!', reply } });
+  // Anonymous, unconfirmed, or not asked for: saved, but no email.
+  assert.equal((await send('idea', undefined)).body.reply, 'signed_out');
+  assert.equal((await send('idea', idToken('p-new', 'new@example.com', false))).body.reply, 'unverified');
+  assert.equal((await send('idea', idToken('p1', 'p1@example.com'), false)).body.reply, 'none');
+  assert.equal((await send('idea', 'not.a.token')).body.reply, 'signed_out');
+  // One note per player per kind a day.
+  assert.equal((await send('idea', idToken('p1', 'P1@Example.com'))).body.reply, 'queued');
+  assert.equal((await send('idea', idToken('p1', 'p1@example.com'))).body.reply, 'limit');
+  assert.equal((await send('problem', idToken('p1', 'p1@example.com'))).body.reply, 'queued');
+  const row = await db.prepare("SELECT * FROM feedback_replies WHERE kind = 'idea'").first();
+  assert.equal(row.email, 'p1@example.com');
+  assert.ok(!JSON.stringify(row).includes('p1"'), 'the account id is not stored');
+  // Only the owner (the GitHub Action's break-glass key) can claim them.
+  assert.equal((await call('/admin/v1/replies/claim', { auth: idToken('p1', 'p1@example.com'), body: {} })).status, 403);
+  const claim = (await call('/admin/v1/replies/claim', { auth: TOKEN, body: { limit: 10 } })).body;
+  assert.equal(claim.off, false);
+  assert.deepEqual(claim.replies.map((r) => r.kind).sort(), ['idea', 'problem']);
+  assert.equal((await call('/admin/v1/replies/claim', { auth: TOKEN, body: {} })).body.replies.length, 0, 'claimed notes are not handed out twice');
+  const [a, b] = claim.replies;
+  assert.deepEqual((await call('/admin/v1/replies/done', { auth: TOKEN, body: { sent: [a.id], failed: [b.id] } })).body, { sent: 1, failed: 1 });
+  assert.equal((await db.prepare('SELECT email, status FROM feedback_replies WHERE id = ?1').bind(a.id).first()).email, null, 'address removed once sent');
+  assert.equal((await db.prepare('SELECT status FROM feedback_replies WHERE id = ?1').bind(b.id).first()).status, 'waiting', 'a failed note is tried again');
+  const counts = (await call('/admin/v1/feedback?kind=idea', { auth: TOKEN })).body.replies;
+  assert.equal(counts.sentToday, 1);
+  assert.equal(counts.waiting, 1);
+  // The daily cap for everyone.
+  await call('/admin/v1/settings', { auth: TOKEN, body: { key: 'feedback_reply_daily_cap', value: 2 } });
+  assert.equal((await send('idea', idToken('p2', 'p2@example.com'))).body.reply, 'limit');
+  await call('/admin/v1/settings', { auth: TOKEN, body: { key: 'feedback_reply_daily_cap', value: 100 } });
+  // The switch: off drops waiting notes and their addresses.
+  await call('/admin/v1/settings', { auth: TOKEN, body: { key: 'feedback_replies_enabled', value: false } });
+  assert.equal((await call('/v1/config')).body.features.feedbackReplies, false);
+  assert.equal((await send('idea', idToken('p3', 'p3@example.com'))).body.reply, 'off');
+  const off = (await call('/admin/v1/replies/claim', { auth: TOKEN, body: {} })).body;
+  assert.equal(off.off, true);
+  assert.equal(off.dropped, 1);
+  assert.equal((await db.prepare('SELECT COUNT(*) AS n FROM feedback_replies WHERE email IS NOT NULL').first()).n, 0);
+  await call('/admin/v1/settings', { auth: TOKEN, body: { key: 'feedback_replies_enabled', value: true } });
+  // An empty claim is not written to the audit log (it runs every 15 minutes).
+  const before = (await db.prepare("SELECT COUNT(*) AS n FROM admin_audit WHERE action = 'replies.claim'").first()).n;
+  await call('/admin/v1/replies/claim', { auth: TOKEN, body: {} });
+  assert.equal((await db.prepare("SELECT COUNT(*) AS n FROM admin_audit WHERE action = 'replies.claim'").first()).n, before);
+  await db.prepare('DELETE FROM feedback_replies').run();
 });
 
 test('the story workshop adds checked story parts for everyone', async () => {

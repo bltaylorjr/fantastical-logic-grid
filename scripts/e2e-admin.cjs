@@ -161,6 +161,12 @@ const SHOTS = process.env.SHOTS;
     await page.waitForSelector('input[data-key=confetti]:not([disabled])');
     await page.uncheck('input[data-key=confetti]');
     assert(await until('confetti', false), 'confetti is switched off for everyone');
+    await page.waitForSelector('input[data-key=fireworks]:not([disabled])');
+    await page.check('input[data-key=fireworks]');
+    assert(await until('fireworks', true), 'fireworks are switched on for everyone');
+    await page.waitForSelector('input[data-key=celebrate_random]:not([disabled])');
+    await page.check('input[data-key=celebrate_random]');
+    assert(await until('celebrate_random', true), 'Random celebrations are switched on');
     // Each save redraws the settings, so a choice made while the last save is
     // still redrawing can be lost: try again until it is stored.
     const pick = async (key, value) => {
@@ -299,10 +305,11 @@ const SHOTS = process.env.SHOTS;
     // Settings now run from the dashboard.
     const st = await p.evaluate(async () => (await import('./js/store.js')).loadSettings());
     assert(st.portraitStyle === 'lorelei' && st.voiceProvider === 'device' && st.confetti === false, 'the game uses the dashboard\'s pictures and voices');
+    assert(st.celebrations.join() === 'fireworks' && st.celebrateRandom === true, `the game uses the dashboard's celebration effects (${st.celebrations})`);
     const openSettings = async () => { await p.click('#menu-btn'); await p.click('#app-menu [data-cmd=settings]'); await p.waitForSelector('#dlg-settings[open]'); };
     await openSettings();
     const names = await p.$$eval('#settings-form [name]', (els) => [...new Set(els.map((e) => e.name))]);
-    assert(!names.some((n) => ['portraitStyle', 'confetti', 'readAloud', 'aiKey', 'geminiKey', 'voiceProvider', 'serverVoices', 'shareLearning', 'reportErrors', 'aiPictures'].includes(n)), `Settings keeps only the player's own choices (${names.join(', ')})`);
+    assert(!names.some((n) => ['portraitStyle', 'confetti', 'celebrations', 'celebrateRandom', 'readAloud', 'aiKey', 'geminiKey', 'voiceProvider', 'serverVoices', 'shareLearning', 'reportErrors', 'aiPictures'].includes(n)), `Settings keeps only the player's own choices (${names.join(', ')})`);
     assert(await p.isChecked('input[name=sound]'), 'sound effects start on');
     assert(!(await p.isChecked('input[name=music]')), 'the dashboard\'s starting value for theme music applies to a player who never changed it');
     await p.check('input[name=music]');
@@ -317,6 +324,7 @@ const SHOTS = process.env.SHOTS;
     await p.click('#menu-btn');
     await p.click('#app-menu [data-cmd=feedback]');
     await p.waitForSelector('#dlg-feedback[open]');
+    assert(await p.$eval('#idea-form .fb-reply', (el) => el.hidden), 'a guest is not offered a thank-you email');
     await p.fill('#idea-text', 'A pirate ship lost in the fog where the crew swapped maps.');
     await p.click('#idea-form button[type=submit]');
     await p.waitForFunction(() => /sent/.test(document.querySelector('#idea-form .acct-done').textContent));
@@ -337,6 +345,7 @@ const SHOTS = process.env.SHOTS;
     await q.click('#token-form button[type=submit]');
     await q.waitForSelector('#fb-list button[data-status=done]');
     assert(/pirate ship/.test(await q.textContent('#fb-list')) && !/music stopped/.test(await q.textContent('#fb-list')), 'the dashboard lists ideas on their own');
+    assert(/Thank-you emails/.test(await q.textContent('#fb-replies')), 'the dashboard shows the thank-you email counts');
     await q.check('input[name=fb-kind][value=problem]');
     await q.waitForFunction(() => /music stopped/.test(document.querySelector('#fb-list').textContent));
     await q.click('#fb-list button[data-status=addressed]');

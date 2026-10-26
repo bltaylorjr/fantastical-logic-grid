@@ -144,12 +144,21 @@ export function buildStory({ rng, scenario, goal, model, L, customTitle, usedSto
   const task = `Use the clues to match each ${cast.one} with their ${joinList(catNames)}.`;
   const lead = capFirst(fill(S.leads[pick.leadCat][pick.lead], vars));
   const question = `Who ${L.pos(goalItem)}?`;
-  const goalLine = `Can you work out who ${L.pos(goalItem)}?`;
+  // The goal question ties the grid fact back to the event, so a story about
+  // a song request never ends on an unexplained "who ordered the Tacos?".
+  const goalLine = `The ${cast.one} who ${L.pos(goalItem)} is the one behind ${incident.prize}. Can you work out who ${L.pos(goalItem)}?`;
   const ending = capFirst(fill(pick.parts.ending, vars));
+  // Category notes explain what a column means and which way its numbers
+  // run ("rank 1 is the lowest rank"). They are rules, not scene, so they
+  // sit apart from the word count.
+  const notes = cats.slice(1).filter((c) => c.note).map((c) => capFirst(fill(c.note, vars)));
 
+  const withNotes = (ps) => (notes.length ? [...ps.slice(0, -1), notes.join(' '), ps.at(-1)] : ps);
   let paragraphs = [scene, castLine, `${task} ${lead}`, goalLine];
   // Guideline: the story sets the scene in under 150 words.
   if (countWords(paragraphs.join(' ')) >= 150) paragraphs = [scene, `${task} ${lead}`, goalLine];
+  const wordCount = countWords(paragraphs.join(' '));
+  paragraphs = withNotes(paragraphs);
 
   return {
     id: pick.id,
@@ -159,7 +168,8 @@ export function buildStory({ rng, scenario, goal, model, L, customTitle, usedSto
     goalQuestion: question,
     goalAnswer: { cat: 0, item: winnerEntity },
     ending,
-    wordCount: countWords(paragraphs.join(' ')),
+    notes,
+    wordCount,
     parts: { t: String(pick.adj), o: pick.o, i: pick.i, m: pick.m, l: `${pick.leadCat}.${pick.lead}`, e: pick.e },
   };
 }
