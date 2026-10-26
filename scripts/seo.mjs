@@ -8,6 +8,10 @@
 //   FLG_BING_SITE_VERIFICATION   Bing Webmaster Tools "meta tag" content value
 //   FLG_INDEXNOW_KEY             IndexNow key (public by design; a default is set)
 //   FLG_TODAY                    YYYY-MM-DD, to build another day's puzzle (tests)
+//   FLG_CLOUD_URL                the game's Worker; its /v1/daily/plan holds the
+//                                daily puzzle changes made in the admin dashboard
+//   FLG_DAILY_PLAN_REQUIRED      1 to stop the build when no plan can be read
+//                                (the publish workflow), so past days never change
 import { cpSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -18,6 +22,8 @@ export const INDEXNOW_KEY = process.env.FLG_INDEXNOW_KEY || 'fae88a004ad87116c0e
 // so a daily story is never used twice.
 const DAILY_START = '2026-10-25';
 const DAILY_ARCHIVE_DAYS = 30;
+// Days ahead the admin dashboard's daily planner can preview.
+const DAILY_AHEAD_DAYS = 14;
 // One difficulty per weekday (Sunday first). Expert and MENSA take seconds
 // to make, and the daily chain is rebuilt from the start on every build.
 const DAILY_TIERS = ['hard', 'easy', 'medium', 'basic', 'easy', 'medium', 'hard'];
@@ -26,6 +32,33 @@ const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&
 const json = (o) => JSON.stringify(o).replace(/</g, '\\u003c');
 const day = (d) => d.toISOString().slice(0, 10);
 const addDays = (s, n) => { const d = new Date(`${s}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return day(d); };
+const dailySummary = (p, d, planned) => ({
+  date: d, title: p.title, theme: p.theme.id, themeName: p.theme.name, difficulty: p.difficulty.id, difficultyName: p.difficulty.name,
+  categories: p.categories.length, items: p.categories[0].items.length, opening: p.story.paragraphs[0], storyId: p.story.id, planned: !!planned,
+});
+
+// The daily plan: changes made in the admin dashboard, by date. The Worker is
+// asked first; if it can't be reached, the copy the live site published last
+// time is used, so past daily puzzles stay exactly as they were.
+async function readDailyPlan(base) {
+  const get = async (u) => {
+    const res = await fetch(u, { signal: AbortSignal.timeout(15000) });
+    if (res.status === 404) return [];
+    if (!res.ok) throw new Error(`${u} answered ${res.status}`);
+    const body = await res.json();
+    if (!Array.isArray(body.plan)) throw new Error(`${u} has no plan`);
+    return body.plan;
+  };
+  const sources = [process.env.FLG_CLOUD_URL && `${process.env.FLG_CLOUD_URL.replace(/\/+$/, '')}/v1/daily/plan`, `${base}/daily/plan.json`].filter(Boolean);
+  for (const u of sources) {
+    try {
+      const rows = await get(u);
+      return new Map(rows.filter((r) => r && /^\d{4}-\d{2}-\d{2}$/.test(r.date)).map((r) => [r.date, r]));
+    } catch (e) { console.warn(`Daily plan: ${e.message}`); }
+  }
+  if (process.env.FLG_DAILY_PLAN_REQUIRED === '1') throw new Error('The daily puzzle plan could not be read, so the site was not rebuilt (past daily puzzles must not change).');
+  return new Map();
+}
 const longDate = (s) => new Date(`${s}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
 
 export async function buildSeo({ root, site }) {
@@ -133,7 +166,8 @@ ${body(up)}
 ${social({ title: `${name}: free story logic grid puzzles`, description: appDescription, path: '' })}
 ${verification}
 <script type="application/ld+json">${json(website)}</script>
-<script type="application/ld+json">${json(game)}</script>`;
+<script type="application/ld+json">${json(game)}</script>
+<meta name="flg-daily" content="daily/">`;
   // Shown when scripts are off, and read by crawlers that do not run them.
   const noscript = `<noscript><div class="card" style="margin:1rem"><p><strong>${name}</strong> is a free logic grid puzzle game where every puzzle is a brand new story. Turn on JavaScript to play.</p><p>${NAV.map(([p, n]) => `<a href="${p}">${n}</a>`).join(' · ')}</p></div></noscript>`;
   const game_html = appHtml
@@ -245,19 +279,37 @@ ${playBtn(up, `Play a ${t.name.toLowerCase()} puzzle`)}
   }
 
   // ---------- daily puzzles ----------
+  // Every day from the first one is rebuilt in order, so a story is never used
+  // twice. Changes planned in the admin dashboard (a theme, difficulty or size,
+  // or a new story) come from the Worker; past days are locked there.
+  const plan = await readDailyPlan(base);
   const used = new Set();
   const daily = new Map();
-  for (let d = DAILY_START, i = 0; d <= today; d = addDays(d, 1), i++) {
-    const theme = THEMES[i % THEMES.length].id;
-    const difficulty = DAILY_TIERS[new Date(`${d}T00:00:00Z`).getUTCDay()];
+  const upcoming = [];
+  for (let d = DAILY_START, i = 0; d <= addDays(today, DAILY_AHEAD_DAYS); d = addDays(d, 1), i++) {
+    const o = plan.get(d) || {};
+    const theme = THEMES.some((t) => t.id === o.theme) ? o.theme : THEMES[i % THEMES.length].id;
+    const difficulty = TIERS[o.difficulty] ? o.difficulty : DAILY_TIERS[new Date(`${d}T00:00:00Z`).getUTCDay()];
+    const size = o.categories && o.items ? { categories: o.categories, items: o.items } : {};
+    const seed = `daily-${d}${o.reroll ? `-r${o.reroll}` : ''}`;
     let p;
     for (let n = 0; n < 20; n++) {
-      p = generatePuzzle({ difficulty, theme, seed: `daily-${d}${n ? `-${n}` : ''}` });
+      p = generatePuzzle({ difficulty, theme, ...size, seed: `${seed}${n ? `-${n}` : ''}` });
       if (!used.has(p.story.id)) break;
     }
     used.add(p.story.id);
-    if (d > addDays(today, -DAILY_ARCHIVE_DAYS - 1)) daily.set(d, p);
+    if (d > today) upcoming.push(dailySummary(p, d, plan.has(d)));
+    else if (d > addDays(today, -DAILY_ARCHIVE_DAYS - 1)) daily.set(d, p);
   }
+  // The game's Daily puzzle reads these: latest.json names today's puzzle and
+  // puzzles/<date>.json holds each one in full (the pages show the answers anyway).
+  mkdirSync(join(site, 'daily', 'puzzles'), { recursive: true });
+  for (const [d, p] of daily) writeFileSync(join(site, 'daily', 'puzzles', `${d}.json`), JSON.stringify({ date: d, puzzle: p }));
+  writeFileSync(join(site, 'daily', 'latest.json'), JSON.stringify({ date: today, ...dailySummary(daily.get(today), today, plan.has(today)), days: [...daily.keys()].sort().reverse() }));
+  // For the dashboard's planner: the next days, without clues or answers.
+  writeFileSync(join(site, 'daily', 'upcoming.json'), JSON.stringify({ built: new Date().toISOString(), today, days: upcoming }));
+  // Every change ever made, so a later build can rebuild past days the same way.
+  writeFileSync(join(site, 'daily', 'plan.json'), JSON.stringify({ plan: [...plan.values()] }));
   const puzzleBody = (p, d, up) => `<p class="meta">${esc(longDate(d))} · ${esc(p.theme.name)}${p.topic ? ` (${esc(p.topic.name)})` : ''} · ${esc(p.difficulty.name)} · ${p.categories.length} categories × ${p.categories[0].items.length} items</p>
 <h2>The story</h2>
 ${p.story.paragraphs.map((t) => `<p>${esc(t)}</p>`).join('\n')}

@@ -20,6 +20,9 @@ import { initAccounts, openAccount, onHome as accountsOnHome, signedIn } from '.
 import * as competeUi from './compete-ui.js';
 import * as remote from './remote-config.js';
 import { initPullRefresh } from './pull-refresh.js';
+import * as daily from './daily.js';
+import * as stats from './stats.js';
+import { shareResult } from './share-result.js';
 
 errorReports.init();
 const $ = (s, el = document) => el.querySelector(s);
@@ -151,7 +154,7 @@ function showScreen(name) {
   setWorld(name === 'play' && S ? S.puzzle.theme.id : setup.theme);
   $('#skip-link').hidden = name !== 'play';
   document.title = name === 'play' && S ? `${S.save.name} · The Fantastical Logic Grid` : 'The Fantastical Logic Grid';
-  if (name === 'home') { closeGame(); renderSaved(); renderSuggestion(); accountsOnHome(); competeUi.onHome(); setTimeout(offerUpdate, 500); }
+  if (name === 'home') { closeGame(); renderSaved(); renderSuggestion(); renderDaily(); accountsOnHome(); competeUi.onHome(); setTimeout(offerUpdate, 500); }
   wake.setPlaying(name === 'play' && S && !S.save.solved);
   updateMusic();
 }
@@ -421,7 +424,7 @@ async function renderSaved() {
     const state = s.solved ? (s.revealed ? 'Solution revealed' : 'Solved') : `${pct}% complete`;
     return `<li class="saved-item" data-id="${s.id}">
       <h3 class="name">${esc(s.name)}</h3>
-      <div class="info">${s.race ? `<span class="pill">Race ${esc(s.race.code)}</span> ` : ''}${(s.myNotes || '').trim() ? '<span class="pill">Has notes</span> ' : ''}${esc(p.theme.name)} · ${esc(p.difficulty.name)} · ${p.categories.length} × ${p.categories[0].items.length} · ${state}<br>Last played ${esc(fmt.format(new Date(s.lastPlayed)))}</div>
+      <div class="info">${s.race ? `<span class="pill">Race ${esc(s.race.code)}</span> ` : ''}${s.daily ? `<span class="pill">Daily ${esc(daily.longDate(s.daily))}</span> ` : ''}${(s.myNotes || '').trim() ? '<span class="pill">Has notes</span> ' : ''}${esc(p.theme.name)} · ${esc(p.difficulty.name)} · ${p.categories.length} × ${p.categories[0].items.length} · ${state}<br>Last played ${esc(fmt.format(new Date(s.lastPlayed)))}</div>
       <div class="bar" role="img" aria-label="${state}"><i style="width:${pct}%"></i></div>
       <div class="row">
         <button class="btn primary small" type="button" data-do="resume">${s.solved ? 'Open' : 'Resume'}<span class="sr-only"> ${esc(s.name)}</span></button>
@@ -538,7 +541,7 @@ function openGame(save, { fresh = false } = {}) {
 
   $('#p-title').textContent = save.name;
   const K = ix.K, N = ix.N;
-  $('#p-meta').innerHTML = [puzzle.difficulty.name, puzzle.theme.name, ...(puzzle.topic && puzzle.topic.id !== 'any' ? [puzzle.topic.name] : []), `${K} categories × ${N} items`, `${puzzle.clues.length} clues`].map((t) => `<span class="pill">${esc(t)}</span>`).join('');
+  $('#p-meta').innerHTML = [...(save.daily ? [`Daily puzzle · ${daily.longDate(save.daily)}`] : []), puzzle.difficulty.name, puzzle.theme.name, ...(puzzle.topic && puzzle.topic.id !== 'any' ? [puzzle.topic.name] : []), `${K} categories × ${N} items`, `${puzzle.clues.length} clues`].map((t) => `<span class="pill">${esc(t)}</span>`).join('');
   const paras = puzzle.story.paragraphs;
   $('#p-story').innerHTML = paras.map((p, i) => `<p${i === paras.length - 1 ? ' class="goal"' : ''}>${esc(p)}</p>`).join('');
   $('#story').open = !fresh ? !save.storyRead : true;
@@ -1040,7 +1043,8 @@ function checkSolved() {
   if (solved && !S.save.solved) {
     S.save.solved = true;
     S.save.completedAt = Date.now();
-    if (!S.save.race && !S.save.revealed && !S.save.restarted) S.save.scorePending = true;
+    // The daily puzzle's answers are on the website, so it earns no scoreboard points.
+    if (!S.save.race && !S.save.daily && !S.save.revealed && !S.save.restarted) S.save.scorePending = true;
     tickTimer();
     recordSolve(S.save);
     if (settings.learn) learn.record(S.save, S.save.revealed ? 'revealed' : 'solved').then(() => share.soon(), () => {});
@@ -1079,6 +1083,7 @@ function showSolved(celebrate) {
   } else tip = `Try another ${TIERS[tier].name} puzzle with a brand new story.`;
   $('#next-tip').textContent = tip;
   renderFeedback(save);
+  renderSolvedExtras(save);
   $('#next-btn').textContent = next === tier ? `New ${TIERS[tier].name} puzzle` : `Try ${TIERS[next].name}`;
   $('#next-btn').onclick = () => {
     setup.tier = next;
@@ -1135,6 +1140,150 @@ $('#feedback').addEventListener('change', async (e) => {
   window.share?.soon();
 });
 $('#feedback-idea').onclick = () => feedbackBox.open(openDialog, { kind: 'idea' });
+
+// Streak, new badges and Share my result on the solved panel.
+async function renderSolvedExtras(save) {
+  $('#share-result').hidden = !!save.revealed;
+  $('#share-note').textContent = '';
+  const box = $('#solved-badges');
+  const fresh = (S && S.save === save && S.newBadges) || [];
+  box.hidden = !fresh.length;
+  box.innerHTML = fresh.length ? `<h3>New badge${fresh.length > 1 ? 's' : ''}</h3><ul class="badges">${fresh.map(badgeHtml).join('')}</ul>` : '';
+  const line = $('#solved-streak');
+  line.hidden = true;
+  if (!save.daily || save.revealed) return;
+  const st = daily.streak(await stats.solveLog().catch(() => []), save.daily);
+  if (!S || S.save !== save) return;
+  line.hidden = false;
+  line.textContent = st.days.has(save.daily)
+    ? (st.current > 1 ? `Daily streak: ${st.current} days in a row. Come back tomorrow for the next one.` : 'Your daily streak has started. Come back tomorrow for the next puzzle.')
+    : 'This daily puzzle was finished after its day, so it does not add to your streak.';
+}
+function badgeHtml(b) {
+  return `<li class="badge-item${b.at === null ? ' locked' : ''}"><span class="badge-mark" aria-hidden="true">${b.at === null ? '◇' : '◆'}</span><span><b>${esc(b.name)}</b><small>${esc(b.text)}${b.at ? ` Earned ${esc(new Date(b.at).toLocaleDateString())}.` : ''}</small></span>${b.at === null ? '<span class="sr-only">Not earned yet.</span>' : ''}</li>`;
+}
+
+$('#share-result').onclick = async () => {
+  if (!S) return;
+  const save = S.save;
+  const p = S.puzzle;
+  let streakNow = 0;
+  if (save.daily) { try { streakNow = daily.streak(await stats.solveLog(), save.daily).current; } catch (e) { /* no streak */ } }
+  const info = {
+    title: save.name, tier: p.difficulty.name, theme: p.theme.name, size: `${p.categories.length} × ${p.categories[0].items.length}`,
+    time: fmtTime(save.elapsedMs), hints: save.hintsUsed || 0, daily: save.daily ? daily.longDate(save.daily) : null, streak: streakNow,
+  };
+  const res = await shareResult(info);
+  if (res.done === 'shared') $('#share-note').textContent = 'Shared.';
+  else if (res.done === 'cancelled') $('#share-note').textContent = '';
+  else openShareDialog(res, info);
+};
+function openShareDialog(res, info) {
+  $('#share-text').value = res.text || '';
+  $('#share-status').textContent = res.done === 'copied' ? 'The message is copied. Paste it anywhere.' : '';
+  const img = $('#share-img'), dl = $('#share-download');
+  if (img.src) URL.revokeObjectURL(img.src);
+  if (res.blob) { img.src = URL.createObjectURL(res.blob); dl.href = img.src; }
+  img.hidden = !res.blob;
+  dl.hidden = !res.blob || isDesktop;
+  dl.download = `${(info.title || 'result').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-') || 'result'}.png`;
+  openDialog($('#dlg-share'), $('#share-copy'));
+}
+$('#share-copy').onclick = async () => {
+  try { await navigator.clipboard.writeText($('#share-text').value); $('#share-status').textContent = 'Copied. Paste it anywhere.'; }
+  catch (e) { $('#share-text').select(); $('#share-status').textContent = 'Press Ctrl+C (or Command+C) to copy the selected message.'; }
+};
+$('#share-close').onclick = () => $('#dlg-share').close();
+
+// ====================================================================
+// Daily puzzle
+// ====================================================================
+let dailyLatest = null;
+async function renderDaily() {
+  const box = $('#daily-today');
+  $('#daily-section').hidden = isPreview || !daily.available();
+  $('[data-cmd=daily]').hidden = $('#daily-section').hidden;
+  if ($('#daily-section').hidden) return;
+  let l;
+  try { l = await daily.latest(); } catch (e) {
+    box.innerHTML = `<p class="muted">Today's puzzle could not be loaded${navigator.onLine === false ? ' while offline' : ''}. Try again later.</p><button class="btn small" type="button" id="daily-retry">Try again</button>`;
+    $('#daily-retry').onclick = renderDaily;
+    return;
+  }
+  dailyLatest = l;
+  const log = await stats.solveLog().catch(() => []);
+  const st = daily.streak(log, l.date);
+  const saves = await store.listSaves().catch(() => []);
+  const todays = saves.find((x) => x.daily === l.date);
+  const sl = $('#daily-streak');
+  sl.hidden = !st.current && !st.best;
+  sl.innerHTML = `<b>${st.current}</b> day streak${st.best > st.current ? ` · best ${st.best}` : ''}`;
+  const state = todays ? (todays.solved ? (todays.revealed ? 'Solution revealed' : 'Solved today') : `${todays.percent || 0}% done`) : '';
+  box.innerHTML = `<p class="daily-title"><b>${esc(l.title)}</b></p>
+    <p class="daily-meta"><span class="pill">${esc(daily.longDate(l.date))}</span> <span class="pill">${esc(l.difficultyName)}</span> <span class="pill">${esc(l.themeName)}</span> <span class="pill">${l.categories} × ${l.items}</span>${state ? ` <span class="pill">${esc(state)}</span>` : ''}</p>
+    ${l.offline ? '<p class="help">Offline: showing the last daily puzzle this device saw.</p>' : ''}
+    <button class="btn primary" type="button" data-daily="${esc(l.date)}">${todays ? (todays.solved ? "Open today's puzzle" : "Continue today's puzzle") : "Play today's puzzle"}</button>`;
+  const earlier = (l.days || []).filter((d) => d < l.date).slice(0, 7);
+  $('#daily-earlier').hidden = !earlier.length;
+  $('#daily-list').innerHTML = earlier.map((d) => {
+    const sv = saves.find((x) => x.daily === d);
+    return `<li><button class="btn quiet small" type="button" data-daily="${esc(d)}">${esc(daily.longDate(d))}</button>${sv ? ` <span class="muted">${sv.solved ? (st.days.has(d) ? 'solved' : 'finished') : `${sv.percent || 0}% done`}</span>` : ''}</li>`;
+  }).join('');
+}
+$('#daily-section').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-daily]');
+  if (b) openDaily(b.dataset.daily, b);
+});
+async function openDaily(date, btn) {
+  const existing = (await store.listSaves()).find((x) => x.daily === date);
+  if (existing) { openGame(existing); return; }
+  if (btn) btn.disabled = true;
+  try {
+    const puzzle = await daily.puzzleFor(date);
+    await rememberStory(storyIdOf(puzzle));
+    const save = newSave(puzzle);
+    save.daily = date;
+    await store.putSave(save);
+    openGame(save, { fresh: true });
+  } catch (e) {
+    toast(`The daily puzzle could not be opened. ${e.message || ''}`.trim(), { label: 'Try again', run: () => openDaily(date) });
+  } finally { if (btn) btn.disabled = false; }
+}
+async function openTodaysDaily() {
+  try { const l = dailyLatest || await daily.latest(); openDaily(l.date); }
+  catch (e) { toast("Today's puzzle could not be loaded. Try again later."); }
+}
+
+// ====================================================================
+// My stats and badges
+// ====================================================================
+async function openStats() {
+  openDialog($('#dlg-stats'), $('#stats-close'));
+  const body = $('#stats-body');
+  let sm;
+  try { sm = await stats.summary(dailyLatest ? dailyLatest.date : daily.utcDay()); } catch (e) { body.innerHTML = '<p>Your stats could not be loaded on this device.</p>'; return; }
+  const themeName = (id) => (OPTIONS.themes.find((t) => t.id === id) || {}).name || id;
+  const hours = sm.totalMs / 3600000;
+  const earned = sm.badges.filter((b) => b.at);
+  body.innerHTML = `
+    <dl class="solved-stats stats-tiles">
+      <div><dt>Puzzles solved</dt><dd>${sm.solved}</dd></div>
+      <div><dt>Without hints</dt><dd>${sm.noHints}</dd></div>
+      <div><dt>Daily streak</dt><dd>${sm.streak.current}</dd></div>
+      <div><dt>Best streak</dt><dd>${sm.streak.best}</dd></div>
+      <div><dt>Last 30 days</dt><dd>${sm.last30}</dd></div>
+      <div><dt>Time solving</dt><dd>${hours >= 1 ? `${Math.round(hours * 10) / 10} h` : `${Math.round(sm.totalMs / 60000)} min`}</dd></div>
+    </dl>
+    ${sm.solved ? '' : '<p>Solve a puzzle and your stats start here.</p>'}
+    ${sm.byTier.length ? `<h3>By difficulty</h3><div class="table-wrap"><table class="stats-table"><thead><tr><th scope="col">Level</th><th scope="col">Solved</th><th scope="col">Best time</th><th scope="col">Average time</th><th scope="col">Average hints</th></tr></thead><tbody>
+      ${sm.byTier.map((t) => `<tr><th scope="row">${esc((TIERS[t.tier] || {}).name || t.tier)}</th><td>${t.solved}</td><td>${fmtTime(t.bestMs)}</td><td>${fmtTime(t.avgMs)}</td><td>${Math.round(t.avgHints * 10) / 10}</td></tr>`).join('')}
+    </tbody></table></div>` : ''}
+    ${sm.themes.length ? `<h3>Favorite themes</h3><p>${sm.themes.slice(0, 5).map(([id, n]) => `${esc(themeName(id))} (${n})`).join(', ')}</p>` : ''}
+    ${sm.revealed ? `<p class="help">${sm.revealed} puzzle${sm.revealed > 1 ? 's' : ''} ended with the solution revealed; those don't count above.</p>` : ''}
+    <h3>Badges <span class="muted">${earned.length} of ${sm.badges.length}</span></h3>
+    <ul class="badges">${[...earned, ...sm.badges.filter((b) => !b.at)].map(badgeHtml).join('')}</ul>`;
+}
+$('#stats-close').onclick = () => $('#dlg-stats').close();
 
 let coachBusy = false;
 async function updateCoach() {
@@ -1406,10 +1555,19 @@ function voiceWaitNote() {
 
 // Adaptive difficulty: suggest a level from the last few solves.
 async function recordSolve(save) {
-  const hist = await store.getMeta('history', []);
   const { K, N } = S.ix;
-  hist.push({ tier: S.puzzle.difficulty.id, ms: save.elapsedMs, hints: save.hintsUsed, revealed: !!save.revealed, cells: (K * (K - 1) / 2) * N * N, at: Date.now() });
+  // The stats page, daily streak and badges. First, because a new solve log
+  // starts from the history below.
+  let fresh = [];
+  try { fresh = await stats.record(save); } catch (e) { /* stats are optional */ }
+  const hist = await store.getMeta('history', []);
+  hist.push({ tier: save.puzzle.difficulty.id, ms: save.elapsedMs, hints: save.hintsUsed, revealed: !!save.revealed, cells: (K * (K - 1) / 2) * N * N, at: Date.now() });
   await store.setMeta('history', hist.slice(-50));
+  if (S && S.save === save) { S.newBadges = fresh; renderSolvedExtras(save); }
+  if (fresh.length) {
+    sound('section');
+    toast(fresh.length === 1 ? `Badge earned: ${fresh[0].name}` : `${fresh.length} badges earned: ${fresh.map((b) => b.name).join(', ')}`, { label: 'My badges', run: openStats });
+  }
 }
 
 function suggestTier(hist) {
@@ -1540,6 +1698,8 @@ $('#app-menu').addEventListener('click', async (e) => {
   if (cmd === 'new') goHome();
   else if (cmd === 'saved') { await goHome({ focusSaved: true }); $('#saved-section').scrollIntoView(); }
   else if (cmd === 'settings') openSettings();
+  else if (cmd === 'stats') openStats();
+  else if (cmd === 'daily') openTodaysDaily();
   else if (cmd === 'feedback') feedbackBox.open(openDialog);
   else if (cmd === 'account') openAccount();
   else if (cmd === 'board') competeUi.openBoard();
@@ -1781,6 +1941,7 @@ async function init() {
   });
   await renderSaved();
   renderSuggestion();
+  renderDaily();
   store.requestPersistence();
   initAccounts({
     openDialog, toast, announce,

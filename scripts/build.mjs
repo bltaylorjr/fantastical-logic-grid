@@ -44,7 +44,7 @@ cpSync(web, out, { recursive: true });
 const cloudFile = join(out, 'js', 'cloud-config.js');
 let cloud = readFileSync(cloudFile, 'utf8');
 // FLG_CLOUD_URL is the shared Worker address (also used for learning).
-const cloudEnv = { firebaseApiKey: process.env.FLG_FIREBASE_API_KEY, syncUrl: process.env.FLG_SYNC_URL || process.env.FLG_CLOUD_URL, learnUrl: process.env.FLG_CLOUD_URL };
+const cloudEnv = { firebaseApiKey: process.env.FLG_FIREBASE_API_KEY, syncUrl: process.env.FLG_SYNC_URL || process.env.FLG_CLOUD_URL, learnUrl: process.env.FLG_CLOUD_URL, siteUrl: process.env.FLG_SITE_URL };
 for (const [field, value] of Object.entries(cloudEnv)) {
   if (value) cloud = cloud.replace(new RegExp(`${field}: '[^']*'`), `${field}: ${JSON.stringify(value.replace(/\/+$/, ''))}`);
 }

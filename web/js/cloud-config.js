@@ -12,6 +12,9 @@ export const CLOUD = {
   learnUrl: '',
   authUrl: 'https://identitytoolkit.googleapis.com/v1',
   tokenUrl: 'https://securetoken.googleapis.com/v1',
+  // The public website (FLG_SITE_URL at build time). The desktop app reads the
+  // daily puzzle from it.
+  siteUrl: 'https://thelogicgrid.com',
   // The app version (package.json), stamped in at build time for error reports.
   appVersion: '',
 };

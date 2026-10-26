@@ -32,6 +32,8 @@
   <div class="menu" id="app-menu" role="menu" hidden>
     <button role="menuitem" type="button" data-cmd="new">New puzzle</button>
     <button role="menuitem" type="button" data-cmd="saved">Saved puzzles</button>
+    <button role="menuitem" type="button" data-cmd="daily">Daily puzzle</button>
+    <button role="menuitem" type="button" data-cmd="stats">My stats and badges</button>
     <button role="menuitem" type="button" data-cmd="settings">Settings</button>
     <button role="menuitem" type="button" data-cmd="feedback" hidden>Ideas and problems</button>
     <button role="menuitem" type="button" data-cmd="board" hidden>Scoreboard</button>
@@ -122,6 +124,20 @@
     </section>
 
     <div class="home-side">
+    <section class="card daily-card" id="daily-section" aria-labelledby="daily-h">
+      <div class="daily-head">
+        <h2 id="daily-h">Daily puzzle</h2>
+        <p class="streak" id="daily-streak" hidden></p>
+      </div>
+      <p class="lede" id="daily-intro">A new puzzle every day, the same for everyone. Solve it each day to build a streak.</p>
+      <div class="daily-today" id="daily-today" aria-live="polite"><p class="muted">Looking for today's puzzle…</p></div>
+      <details class="daily-earlier" id="daily-earlier" hidden>
+        <summary>Earlier days</summary>
+        <p class="help">Earlier puzzles are fun to play, but only today's puzzle adds to your streak.</p>
+        <ul class="daily-list" id="daily-list"></ul>
+      </details>
+    </section>
+
     <section class="card compete-card" id="compete-section" aria-labelledby="compete-h" hidden>
       <h2 id="compete-h">Play against others</h2>
       <p class="lede" id="compete-intro">Race other detectives on the very same puzzle and climb the scoreboard. You never need an account to play on your own.</p>
@@ -241,6 +257,9 @@
     <h2 id="solved-h">Case closed!</h2>
     <p class="ending" id="ending"></p>
     <dl class="solved-stats" id="solved-stats"></dl>
+    <p class="streak-line" id="solved-streak" hidden></p>
+    <div class="new-badges" id="solved-badges" hidden></div>
+    <div class="row-inline share-row"><button class="btn" type="button" id="share-result"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.59 13.51 6.83 3.98"/><path d="m15.41 6.51-6.82 3.98"/></svg> Share my result</button><span class="help" id="share-note" role="status"></span></div>
     <div class="compete-result" id="compete-result" hidden></div>
     <div class="feedback" id="feedback" hidden>
       <fieldset class="stars"><legend>How was this puzzle?</legend>
@@ -272,6 +291,25 @@
   <p id="confirm-text"></p>
   <label class="check" id="confirm-check-row" hidden><input type="checkbox" id="confirm-check"> <span id="confirm-check-label"></span></label>
   <div class="dlg-actions"><button class="btn" type="button" id="confirm-no"></button><button class="btn primary" type="button" id="confirm-yes"></button></div>
+</dialog>
+
+<dialog id="dlg-stats" class="wide" aria-labelledby="stats-h">
+  <h2 id="stats-h">My stats and badges</h2>
+  <div id="stats-body"><p class="muted">Loading…</p></div>
+  <div class="dlg-actions"><button class="btn" type="button" id="stats-close">Close</button></div>
+</dialog>
+
+<dialog id="dlg-share" aria-labelledby="share-h">
+  <h2 id="share-h">Share my result</h2>
+  <p class="help">No answers are included, so it's safe to share.</p>
+  <img id="share-img" class="share-img" alt="A card showing the puzzle's title, level, theme, your time and hints" hidden>
+  <div class="field"><label for="share-text">Message</label><textarea id="share-text" rows="4" readonly></textarea></div>
+  <p class="help" id="share-status" role="status"></p>
+  <div class="dlg-actions">
+    <button class="btn" type="button" id="share-close">Close</button>
+    <a class="btn" id="share-download" download="my-logic-grid-result.png" hidden>Save the picture</a>
+    <button class="btn primary" type="button" id="share-copy">Copy the message</button>
+  </div>
 </dialog>
 
 <dialog id="dlg-notes" class="mynotes" aria-labelledby="mynotes-h">
