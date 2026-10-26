@@ -252,7 +252,7 @@ let speakToken = 0;
 let cloudOffUntil = 0;
 const cloudVoicesReady = () => !!CLOUD_URL && feature('voices') && Date.now() > cloudOffUntil;
 async function cloudTts(text, voice) {
-  const res = await fetch(`${CLOUD_URL}/v1/tts`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, voice }) });
+  const res = await fetch(`${CLOUD_URL}/v1/tts`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, voice, lang: i18n.speechTag() }) });
   if (!res.ok) {
     // Used up for today (or not set up): rest until the next day, or an hour on other errors.
     cloudOffUntil = Date.now() + (res.status === 429 || res.status === 503 ? 3600 * 1000 * 6 : 3600 * 1000);
@@ -266,7 +266,8 @@ async function cloudTts(text, voice) {
 }
 
 // The admin dashboard picks where voices come from (settings.voiceProvider):
-// 'server' tries the server's Gemini voices, then Kokoro, then the device;
+// 'server' tries the server's voices (Gemini, then Google Cloud Chirp 3 HD),
+// then Kokoro, then the device;
 // 'kokoro' starts with Kokoro; 'device' uses only the device's own voices.
 function voicePlan(settings, puzzle, who) {
   const seed = hashOf(`${puzzle.theme.id}:${who}`);

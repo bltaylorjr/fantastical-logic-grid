@@ -14,6 +14,7 @@ const ORIGIN = 'https://thelogicgrid.com';
 const ADMIN = 'test-admin-token-1234567890';
 let mf;
 let geminiCalls = 0;
+let chirpCalls = 0;
 
 before(async () => {
   mf = new Miniflare({
@@ -24,9 +25,16 @@ before(async () => {
     compatibilityDate: '2026-08-01',
     d1Databases: ['DB'],
     ratelimits: Object.fromEntries(['LIMIT_PLAYS', 'LIMIT_PARTS', 'LIMIT_TTS'].map((n, i) => [n, { namespace_id: String(41001 + i), simple: { limit: 100, period: 60 } }])),
-    bindings: { ALLOWED_ORIGINS: `${ORIGIN},http://tauri.localhost`, ADMIN_TOKEN: ADMIN, GEMINI_API_KEY: 'test-key', DAILY_TTS_CAP: '2', FIREBASE_PROJECT_ID: 'flg-test' },
+    bindings: { ALLOWED_ORIGINS: `${ORIGIN},http://tauri.localhost`, ADMIN_TOKEN: ADMIN, GEMINI_API_KEY: 'test-key', DAILY_TTS_CAP: '2', GOOGLE_TTS_KEY: 'test-cloud-key', GCLOUD_TTS_MONTH_CAP: '30', FIREBASE_PROJECT_ID: 'flg-test' },
     // Stand-in for Google: one second of silent 24 kHz audio.
     outboundService: async (req) => {
+      if (req.url.startsWith('https://texttospeech.googleapis.com/')) {
+        chirpCalls++;
+        const { voice } = await req.json();
+        if (voice.name !== `${voice.languageCode}-Chirp3-HD-Kore`) return new Response('bad voice', { status: 400 });
+        const wav = Buffer.concat([Buffer.from('RIFF'), Buffer.alloc(4040)]).toString('base64');
+        return Response.json({ audioContent: wav });
+      }
       if (!req.url.startsWith('https://generativelanguage.googleapis.com/')) return new Response('blocked', { status: 500 });
       geminiCalls++;
       const pcm = Buffer.alloc(48000).toString('base64');
@@ -95,8 +103,8 @@ test('shared story parts wait for review; approved ones reach every player', asy
   assert.equal((await call('/v1/learn/parts', { body: { ...topicPart, theme: 'pets/moon-base' } })).status, 400);
 });
 
-test('voices: cached, capped per day, and fall back to Kokoro', async () => {
-  const say = (text) => call('/v1/tts', { body: { text, voice: 'Kore' } });
+test('voices: cached, capped, Chirp 3 HD backup, then Kokoro', async () => {
+  const say = (text, lang) => call('/v1/tts', { body: { text, voice: 'Kore', lang } });
   const a = await say('Hello there.');
   assert.equal(a.status, 200);
   assert.equal(a.headers.get('Content-Type'), 'audio/wav');
@@ -105,9 +113,19 @@ test('voices: cached, capped per day, and fall back to Kokoro', async () => {
   assert.equal(again.headers.get('X-Cache'), 'hit', 'the same clip comes from the cache');
   await again.arrayBuffer();
   assert.equal((await say('Second clip.')).status, 200);
-  const capped = await say('Third clip.');
+  // Gemini's day is used up: the backup voices speak, up to the month's 30 characters.
+  const backup = await say('Third clip.', 'es-US');
+  assert.equal(backup.status, 200);
+  assert.equal(backup.headers.get('X-Voice'), 'chirp');
+  assert.equal(new TextDecoder().decode((await backup.arrayBuffer()).slice(0, 4)), 'RIFF');
+  const backupAgain = await say('Third clip.', 'es-US');
+  assert.equal(backupAgain.headers.get('X-Cache'), 'hit');
+  await backupAgain.arrayBuffer();
+  assert.equal((await say('Fourth clip.')).status, 200, '23 of 30 characters used');
+  const capped = await say('Fifth clip, too long.');
   assert.equal(capped.status, 429);
   assert.equal((await capped.json()).fallback, 'kokoro');
   assert.equal(geminiCalls, 2, 'cached and capped clips never reach Google');
+  assert.equal(chirpCalls, 2, 'the backup stops at its monthly cap');
   assert.equal((await say('x'.repeat(500))).status, 400);
 });

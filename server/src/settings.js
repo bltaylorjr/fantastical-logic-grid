@@ -31,17 +31,22 @@ export const SETTINGS = {
   voice_source: {
     type: 'choice', default: 'server', group: 'Voices', label: 'Where voices come from', help: 'If the first choice is off or used up for the day, the game moves down the list on its own. All three are free.',
     options: [
-      { value: 'server', label: 'Natural voices from the game\'s server (Gemini, then Kokoro, then the device)' },
+      { value: 'server', label: 'Natural voices from the game\'s server (Gemini, then the backup Google Cloud voices if set up, then Kokoro, then the device)' },
       { value: 'kokoro', label: 'Natural voices on the player\'s device (Kokoro, one-time 90 MB download)' },
       { value: 'device', label: 'The device\'s built-in voices (more robotic, no download)' },
     ],
   },
-  tts_enabled: { type: 'bool', default: true, group: 'Voices', label: 'Server voices (Google Gemini)', help: 'Uses the GEMINI_API_KEY Cloudflare secret on Google\'s free tier. Off: players hear the Kokoro voices.' },
+  tts_enabled: { type: 'bool', default: true, group: 'Voices', label: 'Server voices (Google Gemini)', help: 'Uses the GEMINI_API_KEY Cloudflare secret on Google\'s free tier. Off: the backup server voices speak if set up, otherwise players hear the Kokoro voices.' },
   daily_tts_cap: {
     type: 'int', min: 0, max: 1000, default: (env) => Number(env.DAILY_TTS_CAP) || 300, group: 'Voices', label: 'New voice clips a day',
     help: 'Protects the free Gemini quota. Above Google\'s free daily limit Google refuses requests (it never bills on the free tier). Cached clips do not count.',
   },
   gemini_voice_model: { type: 'model', default: (env) => env.TTS_MODEL || 'gemini-3.8-flash-tts', group: 'Voices', label: 'Gemini voice model', help: 'Change it here when Google retires a model.' },
+  gcloud_tts_enabled: { type: 'bool', default: true, group: 'Voices', label: 'Backup server voices (Google Cloud Chirp 3 HD)', help: 'Speaks when the Gemini voices are off or used up, with the same voice for each character. Only works once the GOOGLE_TTS_KEY Cloudflare secret is set. Off: players hear Kokoro instead.' },
+  gcloud_tts_month_cap: {
+    type: 'int', min: 0, max: 1000000, default: (env) => Number(env.GCLOUD_TTS_MONTH_CAP) || 900000, group: 'Voices', label: 'Backup voice characters a month',
+    help: 'Google gives 1,000,000 Chirp 3 HD characters free each month and bills past that, so keep this under 1,000,000. The server stops at this number. Cached clips do not count.',
+  },
   // ---- Pictures
   portrait_style: {
     type: 'choice', default: 'notionists', group: 'Pictures', label: 'Character portraits', help: 'Built into the game, free, and work offline.',

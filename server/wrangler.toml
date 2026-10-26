@@ -23,11 +23,15 @@ DAILY_TTS_CAP = "300"
 # Cloudflare Email Routing switched on (ARCHIVE.md).
 ARCHIVE_FROM = "backups@thelogicgrid.com"
 TTS_MODEL = "gemini-3.8-flash-tts"
+# Backup voices (Google Cloud Chirp 3 HD) stop at this many characters a
+# month, under Google's free 1,000,000. Only used when GOOGLE_TTS_KEY is set.
+GCLOUD_TTS_MONTH_CAP = "900000"
 # The Search Console and Bing Webmaster property shown in the admin dashboard.
 SEARCH_SITE_URL = "https://thelogicgrid.com/"
 # The public website: the daily puzzle planner reads the coming days from it.
 SITE_URL = "https://thelogicgrid.com"
-# Secrets (never in this file): GEMINI_API_KEY, ADMIN_TOKEN and ARCHIVE_TO, set with
+# Secrets (never in this file): GEMINI_API_KEY, ADMIN_TOKEN and ARCHIVE_TO
+# (and optionally GOOGLE_TTS_KEY for the backup voices, README.md), set with
 # `npx wrangler secret put <NAME>` or in the dashboard as type Secret. The admin
 # dashboard also uses OWNER_EMAIL and FIREBASE_WEB_API_KEY, and optionally
 # CF_API_TOKEN and CF_ACCOUNT_ID, GSC_SERVICE_ACCOUNT and BING_WEBMASTER_KEY

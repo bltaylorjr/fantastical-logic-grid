@@ -190,23 +190,17 @@ export async function bump(env, name, cap) {
   return !!row;
 }
 
-async function postTts(req, env, ctx, headers) {
-  if (!env.GEMINI_API_KEY) return json({ error: 'Voices are not set up on the server.', fallback: 'kokoro' }, 503, headers);
-  const settings = await getSettings(env);
-  if (!settings.tts_enabled) return json({ error: 'The free voices are switched off for now.', fallback: 'kokoro' }, 503, headers);
-  const body = await bodyJson(req, 2_000);
-  const text = String(body.text || '').trim();
-  const voice = VOICES.has(body.voice) ? body.voice : 'Charon';
-  if (!text || text.length > 400) return json({ error: 'Text must be 1 to 400 characters.' }, 400, headers);
-  const model = settings.gemini_voice_model;
-  const cache = caches.default;
-  const key = new Request(`https://flg-cloud.internal/tts/${await sha256(`${model}|${voice}|${text}`)}`);
-  const hit = await cache.match(key);
-  if (hit) return new Response(hit.body, { headers: { ...headers, 'Content-Type': 'audio/wav', 'X-Cache': 'hit' } });
-  // Only new clips count toward the daily cap.
-  if (settings.daily_tts_cap <= 0 || !(await bump(env, 'tts', settings.daily_tts_cap))) {
-    return json({ error: 'The free voices are used up for today.', fallback: 'kokoro' }, 429, { ...headers, 'Retry-After': '3600' });
-  }
+// Counts `n` more characters of Google Cloud voices this month; false when
+// that would pass the month's cap (kept under Google's free 1M characters).
+async function bumpChars(env, n, cap) {
+  const month = today().slice(0, 7);
+  const row = await env.DB.prepare('INSERT INTO usage (day, name, count) SELECT ?1, ?2, ?3 WHERE ?3 <= ?4 ON CONFLICT(day, name) DO UPDATE SET count = count + ?3 WHERE count + ?3 <= ?4 RETURNING count')
+    .bind(month, 'gcloud_tts_chars', n, cap).first();
+  return !!row;
+}
+
+// Gemini voice: base64 PCM (or WAV) inside a generateContent answer.
+async function geminiTts(env, model, voice, text) {
   const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': env.GEMINI_API_KEY },
@@ -215,20 +209,75 @@ async function postTts(req, env, ctx, headers) {
       generationConfig: { responseModalities: ['AUDIO'], speechConfig: { languageCode: 'en-US', voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } } },
     }),
   });
-  if (!res.ok) {
-    const status = res.status === 429 ? 429 : 502;
-    return json({ error: status === 429 ? 'The free voices are used up for now.' : 'The voice service did not answer.', fallback: 'kokoro' }, status, headers);
-  }
+  if (!res.ok) return { status: res.status };
   const j = await res.json();
   const part = j.candidates?.[0]?.content?.parts?.find((p) => p.inlineData);
-  if (!part) return json({ error: 'No audio came back.', fallback: 'kokoro' }, 502, headers);
-  const bin = atob(part.inlineData.data);
+  if (!part) return { status: 502 };
+  const bytes = fromBase64(part.inlineData.data);
+  const rate = Number((/rate=(\d+)/.exec(part.inlineData.mimeType || '') || [])[1]) || 24000;
+  return { wav: /wav/.test(part.inlineData.mimeType || '') ? bytes : pcmToWav(bytes, rate) };
+}
+
+// Google Cloud Text-to-Speech, Chirp 3 HD: the same voice names as Gemini,
+// so a character sounds the same whichever one speaks. LINEAR16 comes back
+// as a whole WAV file.
+async function chirpTts(env, voice, text, lang) {
+  const res = await fetch('https://texttospeech.googleapis.com/v1/text:synthesize', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': env.GOOGLE_TTS_KEY },
+    body: JSON.stringify({ input: { text }, voice: { languageCode: lang, name: `${lang}-Chirp3-HD-${voice}` }, audioConfig: { audioEncoding: 'LINEAR16', sampleRateHertz: 24000 } }),
+  });
+  if (!res.ok) return { status: res.status };
+  const j = await res.json();
+  return j.audioContent ? { wav: fromBase64(j.audioContent) } : { status: 502 };
+}
+
+function fromBase64(data) {
+  const bin = atob(data);
   const bytes = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  const rate = Number((/rate=(\d+)/.exec(part.inlineData.mimeType || '') || [])[1]) || 24000;
-  const wav = /wav/.test(part.inlineData.mimeType || '') ? bytes : pcmToWav(bytes, rate);
-  ctx.waitUntil(cache.put(key, new Response(wav, { headers: { 'Content-Type': 'audio/wav', 'Cache-Control': 'public, max-age=2592000' } })));
-  return new Response(wav, { headers: { ...headers, 'Content-Type': 'audio/wav', 'X-Cache': 'miss' } });
+  return bytes;
+}
+
+// Gemini first (free, no billing). When it is off, used up or refuses, the
+// Google Cloud Chirp 3 HD voices take over if GOOGLE_TTS_KEY is set, up to
+// the month's character cap. After that the player's device uses Kokoro.
+async function postTts(req, env, ctx, headers) {
+  const settings = await getSettings(env);
+  const gemini = !!env.GEMINI_API_KEY && settings.tts_enabled;
+  const chirp = !!env.GOOGLE_TTS_KEY && settings.gcloud_tts_enabled;
+  if (!gemini && !chirp) {
+    return json({ error: env.GEMINI_API_KEY || env.GOOGLE_TTS_KEY ? 'The free voices are switched off for now.' : 'Voices are not set up on the server.', fallback: 'kokoro' }, 503, headers);
+  }
+  const body = await bodyJson(req, 2_000);
+  const text = String(body.text || '').trim();
+  const voice = VOICES.has(body.voice) ? body.voice : 'Charon';
+  const lang = /^[a-z]{2,3}-[A-Z]{2}$/.test(body.lang || '') ? body.lang : 'en-US';
+  if (!text || text.length > 400) return json({ error: 'Text must be 1 to 400 characters.' }, 400, headers);
+  const model = settings.gemini_voice_model;
+  const cache = caches.default;
+  const keys = {
+    gemini: new Request(`https://flg-cloud.internal/tts/${await sha256(`${model}|${voice}|${text}`)}`),
+    chirp: new Request(`https://flg-cloud.internal/tts/${await sha256(`chirp3|${lang}|${voice}|${text}`)}`),
+  };
+  for (const k of [keys.gemini, keys.chirp]) {
+    const hit = await cache.match(k);
+    if (hit) return new Response(hit.body, { headers: { ...headers, 'Content-Type': 'audio/wav', 'X-Cache': 'hit' } });
+  }
+  let out = { status: 429 };
+  let used = 'gemini';
+  // Only new clips count toward the caps.
+  if (gemini && settings.daily_tts_cap > 0 && (await bump(env, 'tts', settings.daily_tts_cap))) out = await geminiTts(env, model, voice, text);
+  if (!out.wav && chirp && (await bumpChars(env, text.length, settings.gcloud_tts_month_cap))) {
+    out = await chirpTts(env, voice, text, lang);
+    used = 'chirp';
+  }
+  if (!out.wav) {
+    const status = out.status === 429 ? 429 : 502;
+    return json({ error: status === 429 ? 'The free voices are used up for today.' : 'The voice service did not answer.', fallback: 'kokoro' }, status, status === 429 ? { ...headers, 'Retry-After': '3600' } : headers);
+  }
+  ctx.waitUntil(cache.put(keys[used], new Response(out.wav, { headers: { 'Content-Type': 'audio/wav', 'Cache-Control': 'public, max-age=2592000' } })));
+  return new Response(out.wav, { headers: { ...headers, 'Content-Type': 'audio/wav', 'X-Cache': 'miss', 'X-Voice': used } });
 }
 
 // ---------- admin ----------
@@ -248,7 +297,9 @@ async function admin(req, env, url) {
     const rows = (await env.DB.prepare('SELECT key, theme, kind, value, source, status, submitted FROM parts WHERE status = ? ORDER BY submitted DESC LIMIT 200').bind(status).all()).results;
     const stats = await env.DB.prepare('SELECT COUNT(*) AS games, COUNT(rating) AS rated FROM plays').first();
     const voices = await env.DB.prepare("SELECT count FROM usage WHERE day = ? AND name = 'tts'").bind(today()).first();
-    return json({ parts: rows.map((r) => ({ ...r, value: JSON.parse(r.value) })), stats: { ...stats, voicesToday: voices ? voices.count : 0, voiceCap: (await getSettings(env)).daily_tts_cap } });
+    const chars = await env.DB.prepare("SELECT count FROM usage WHERE day = ? AND name = 'gcloud_tts_chars'").bind(today().slice(0, 7)).first();
+    const s = await getSettings(env);
+    return json({ parts: rows.map((r) => ({ ...r, value: JSON.parse(r.value) })), stats: { ...stats, voicesToday: voices ? voices.count : 0, voiceCap: s.daily_tts_cap, cloudVoiceCharsThisMonth: chars ? chars.count : 0, cloudVoiceCharCap: s.gcloud_tts_month_cap } });
   }
   if (url.pathname === '/admin/learn/review' && req.method === 'POST') {
     const { key, status } = await bodyJson(req, 2_000);
