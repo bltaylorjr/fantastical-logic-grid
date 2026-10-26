@@ -23,12 +23,14 @@ export const SEEDS = [{
   campaign: {
     code: 'launch-2026',
     name: 'Launch on free channels',
-    status: 'draft',
+    status: 'active',
     starts: '2026-11-02',
     ends: '2026-12-31',
     goal: 'First players from free channels: visits, first puzzles solved and installs. Every link is tracked, so the table below shows which posts bring players who stay.',
-    notes: 'Free channels only. Nothing is posted until Bobby approves the ads. Set an ad to Approved when it is OK to post, then Posted with the post link once it is live. Check each community\'s self-promotion rules on the day you post.',
+    notes: 'Free channels only. Bobby approved every ad on 2026-10-26. Set an ad to Posted with the post link once it is live. Check each community\'s self-promotion rules on the day you post.',
   },
+  // Bobby approved all of these on 2026-10-26.
+  adStatus: 'approved',
   ads: [
     {
       channel: 'reddit', medium: 'forum', content: 'webgames-launch', media: ['wide'], where: 'https://www.reddit.com/r/WebGames/',

@@ -68,10 +68,10 @@ test('the starter campaign arrives once with its ads, media and tracked links', 
   assert.equal(r.status, 200);
   const c = r.body.campaigns.find((x) => x.code === 'launch-2026');
   assert.ok(c, 'launch campaign seeded');
-  assert.equal(c.status, 'draft');
+  assert.equal(c.status, 'active');
   const ads = r.body.ads.filter((a) => a.campaignId === c.id);
   assert.ok(ads.length >= 20, `${ads.length} ads`);
-  assert.ok(ads.every((a) => a.status === 'draft'), 'every ad waits for approval');
+  assert.ok(ads.every((a) => a.status === 'approved'), 'Bobby approved every starter ad');
   const contents = ads.map((a) => `${a.channel}|${a.content}`);
   assert.equal(new Set(contents).size, contents.length, 'each ad has its own link');
   const reddit = ads.find((a) => a.content === 'webgames-launch');
