@@ -380,6 +380,18 @@ input[type=range] { width: 100%; min-height: 44px; accent-color: var(--accent); 
 .portrait-img { width: 72px; height: 72px; border-radius: 50%; object-fit: cover; display: block; }
 .resolution .bg { width: 100%; height: 100%; object-fit: cover; display: block; }
 .resolution .hero img { width: clamp(72px, 14vw, 120px); height: clamp(72px, 14vw, 120px); border-radius: 50%; object-fit: cover; box-shadow: 0 0 0 4px #fff, 0 0 40px rgb(255 255 255 / .6); }
+/* The game's own characters: who tells the story, and their lines. */
+.told-by { display: flex; align-items: center; gap: 10px; margin: 4px 0 10px; color: var(--muted); }
+.told-by b { color: var(--text); }
+.told-face { display: inline-flex; width: 40px; height: 40px; border-radius: 50%; overflow: hidden; flex: none; }
+.told-face svg, .told-face img { width: 40px; height: 40px; object-fit: cover; display: block; }
+.char-line { margin: 0 0 8px; font-style: italic; }
+.resolution .char-line.cheer { position: absolute; left: 50%; bottom: 6%; transform: translateX(-50%); max-width: 90%; text-align: center; background: rgb(0 0 0 / .65); color: #fff; padding: 6px 14px; border-radius: 12px; font-style: italic; }
+#dlg-suggest select, #dlg-suggest textarea { box-sizing: border-box; min-height: 44px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); color: var(--text); width: 100%; font: inherit; }
+#dlg-suggest .field { margin-bottom: 12px; }
+#dlg-suggest fieldset { border: 0; padding: 0; margin: 0 0 12px; }
+#dlg-suggest legend { font-weight: 700; padding: 0; }
+.check-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0 12px; }
 #read-story { margin-top: 12px; }
 #read-clues { margin-bottom: 10px; }
 .clue-list li.reading label { background: var(--accent-soft); outline: 2px solid var(--accent); outline-offset: -2px; }
