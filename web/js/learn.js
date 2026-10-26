@@ -12,6 +12,7 @@
 // parts) arrives through setShared() and is blended in.
 import * as store from './store.js';
 import { checkStoryPart, partKey, parseStoryId } from '../engine/index.js';
+import { houseTuningFor } from '../engine/house-tuning.js';
 
 const KEY = 'learning';
 const MAX_PLAYS = 400;
@@ -209,6 +210,18 @@ export async function tuning(tier, { useShared = true } = {}) {
   if (Object.keys(themeWeights).length) learning.themeWeights = themeWeights;
   const storyParts = mergeParts(L.parts, shared?.parts);
   const prefs = localStoryPrefs(plays, L.parts);
+  // What everyone's ratings say about the built-in story parts (the weekly
+  // improvement run, engine/house-tuning.js), at half strength, wherever this
+  // player has not rated that part themselves.
+  const house = houseTuningFor(new Date().toISOString().slice(0, 10));
+  for (const [key, kinds] of Object.entries(house?.storyPrefs || {})) {
+    for (const [k, parts] of Object.entries(kinds)) {
+      for (const [part, v] of Object.entries(parts)) {
+        const mine = ((prefs[key] ||= {})[k] ||= {});
+        if (mine[part] === undefined) mine[part] = clamp(v * 0.5, -1, 1);
+      }
+    }
+  }
   return {
     ...(Object.keys(learning).length ? { learning } : {}),
     ...(Object.keys(storyParts).length ? { storyParts } : {}),

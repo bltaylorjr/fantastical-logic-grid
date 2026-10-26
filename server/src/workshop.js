@@ -9,6 +9,7 @@ import { THEMES } from '../../engine/src/themes.js';
 import { STORYLINES } from '../../engine/src/storylines.js';
 import { getTopics, storyKey } from '../../engine/src/topics.js';
 import { checkStoryPart, partKey, PART_KINDS } from '../../engine/src/story.js';
+import { characterNamesFor, namesCharacter } from './characters.js';
 
 export const KIND_NAMES = { openings: 'Opening: where everyone is', incidents: 'Event: what happened', mishaps: 'Mix-up: why the facts got scrambled', endings: 'Ending: shown when the puzzle is solved' };
 export const TIPS = {
@@ -46,6 +47,9 @@ export function checkPart(key, kind, value) {
 export async function addPart(env, key, kind, value, source) {
   const res = checkPart(key, kind, value);
   if (!res.ok) return res;
+  // A story must never name one of the cast, and published characters can be cast.
+  const who = namesCharacter(typeof value === 'string' ? value : Object.values(value || {}).join(' '), await characterNamesFor(env, key.split('/')[0]));
+  if (who) return { ok: false, errors: [`It names the character ${who}, who can be in these puzzles. Stories never name the cast.`] };
   const id = `${key}|${kind}|${partKey(kind, value)}`;
   const now = new Date().toISOString();
   const r = await env.DB.prepare(`INSERT INTO parts (key, theme, kind, value, source, status, submitted, reviewed) VALUES (?1, ?2, ?3, ?4, ?5, 'approved', ?6, ?7)

@@ -148,3 +148,19 @@ test('spreadsheet downloads are CSV, admin only, and safe to open', async () => 
   assert.equal((await call('/admin/v1/export/scores.csv', { auth: owner() })).status, 200);
   assert.equal((await call('/admin/v1/export/admins.csv', { auth: owner() })).status, 404);
 });
+
+test('the weekly summary has where visitors came from and the market test pass marks', async () => {
+  const day = iso(Date.now());
+  await db.prepare(`INSERT INTO campaign_stats (day, campaign, source, medium, content, event, platform, n) VALUES
+    (?1, '(none)', 'reddit', 'forum', '', 'visit', 'web', 150), (?1, '(none)', 'reddit', 'forum', '', 'play', 'web', 75),
+    (?1, '(none)', 'reddit', 'forum', '', 'return', 'web', 12), (?1, '(none)', 'google', 'search', '', 'visit', 'web', 5)`).bind(day).run();
+  const s = await call('/admin/v1/summary?days=7', { auth: TOKEN });
+  assert.equal(s.status, 200);
+  assert.deepEqual(s.body.funnel[0], { source: 'reddit', medium: 'forum', visit: 150, play: 75, solve: 0, return: 12, install: 0, download: 0, startPct: 50, returnPct: 8 });
+  const marks = Object.fromEntries(s.body.marketTest.marks.map((m) => [m.id, m]));
+  assert.equal(marks.start.status, 'pass');
+  assert.equal(marks.start.value, 48); // 75 of 155 visitors
+  assert.equal(marks.return.status, 'below');
+  assert.equal(marks.support.status, 'not_measured');
+  assert.ok(['pass', 'below', 'too_early'].includes(marks.rating.status));
+});

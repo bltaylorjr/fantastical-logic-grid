@@ -7,15 +7,20 @@ import { printPuzzle } from './print.js';
 import { sceneSvg } from './art.js';
 import * as sfx from './audio.js';
 import * as ai from './ai.js';
-import { portrait } from './portraits.js';
+import { portrait, characterFace } from './portraits.js';
+import * as characters from './characters.js';
+import { characterOf, narratorOf, lineOf } from './cast.js';
+import { profileOf, sayingOf } from './castbook.js';
 import * as wake from './wakelock.js';
 import * as updates from './updates.js';
 import { celebrate as celebrateSolve } from './effects.js';
 import { icon } from './icons.js';
 import * as learn from './learn.js';
 import * as feedbackBox from './feedback.js';
+import * as messages from './messages.js';
 import * as share from './share.js';
 import * as errorReports from './errors.js';
+import * as campaign from './campaign.js';
 import { initAccounts, openAccount, onHome as accountsOnHome, signedIn } from './account-ui.js';
 import * as competeUi from './compete-ui.js';
 import * as remote from './remote-config.js';
@@ -23,10 +28,15 @@ import { initPullRefresh } from './pull-refresh.js';
 import * as daily from './daily.js';
 import * as stats from './stats.js';
 import { shareResult } from './share-result.js';
+import * as challenge from './challenge.js';
+import * as dailyResults from './daily-results.js';
+import * as dailyEmail from './daily-email.js';
+import { onChange as onAccountChange } from './account.js';
 import * as i18n from './i18n.js';
-import { CLOUD_URL } from './cloud-config.js';
+import { CLOUD, CLOUD_URL } from './cloud-config.js';
 
 errorReports.init();
+campaign.init();
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const OPTIONS = describeOptions();
@@ -37,6 +47,10 @@ const USED_STORY_LIMIT = 5000;
 const isDesktop = !!(window.__TAURI_INTERNALS__ || window.__TAURI__);
 // The claude.ai preview build cannot print or download files, so those controls are hidden there.
 const isPreview = !!document.querySelector('meta[name="flg-mode"][content="preview"]');
+// The copy uploaded to game sites such as itch.io (dist/portal): it runs inside
+// their frame, so it has no service worker or home-screen install, and the
+// menu links to the full website instead.
+const isPortal = !!document.querySelector('meta[name="flg-mode"][content="portal"]');
 
 let settings = store.loadSettings();
 let S = null; // the open game: { save, puzzle, ix, marks, grid, wrong, hint, ... }
@@ -315,22 +329,29 @@ async function rememberStory(id) {
 }
 
 // A new puzzle from the setup choices, with a story this player has never had.
-async function makePuzzle() {
-  const options = gatherOptions();
-  store.saveSetupChoices({ tier: setup.tier, theme: setup.theme, topic: setup.topic, size: setup.size, custom: currentSize() });
+// With `override` (a quick puzzle), the setup choices are neither read nor saved.
+async function makePuzzle(override = null) {
+  const options = override ? { ...override } : gatherOptions();
+  if (!override) store.saveSetupChoices({ tier: setup.tier, theme: setup.theme, topic: setup.topic, size: setup.size, custom: currentSize() });
   const used = await store.getMeta('usedStories', []);
   const usedSet = new Set(used);
   // Learning only picks between puzzles the engine has fully checked.
   let tuned = {};
-  if (settings.learn) { try { tuned = await learn.tuning(setup.tier, { useShared: share.available() && remote.feature('learning') }); } catch (e) { tuned = {}; } }
+  if (settings.learn) { try { tuned = await learn.tuning(options.difficulty, { useShared: share.available() && remote.feature('learning') }); } catch (e) { tuned = {}; } }
   // Surprise me never picks a theme that is switched off.
   const off = remote.disabledThemes();
-  if (options.theme === 'random' && off.size) {
+  // Surprise me is decided here when the game's own characters might join,
+  // since they depend on the theme.
+  if (options.theme === 'random' && (off.size || characters.anyFor())) {
     const allowed = OPTIONS.themes.filter((t) => !off.has(t.id));
     const weights = (tuned.learning && tuned.learning.themeWeights) || {};
     let r = Math.random() * allowed.reduce((sum, t) => sum + (Number(weights[t.id]) || 1), 0);
     options.theme = (allowed.find((t) => (r -= Number(weights[t.id]) || 1) < 0) || allowed[allowed.length - 1]).id;
   }
+  // The game's own characters (made in the admin dashboard) may join the
+  // cast or tell the story. Names the player typed always win.
+  const picked = options.customNames || options.theme === 'random' ? {} : characters.pick(options.theme, options.items);
+  if (picked.cast && picked.cast.length) options.customNames = picked.cast.map((c) => c.name);
   let puzzle = null;
   // The engine skips used stories itself; the loop is a safety net.
   for (let i = 0; i < 4 && !puzzle; i++) {
@@ -338,6 +359,7 @@ async function makePuzzle() {
     if (!usedSet.has(storyIdOf(p))) puzzle = p;
   }
   if (!puzzle) throw new Error('Every story we tried has already been used. Try another theme.');
+  characters.attach(puzzle, picked);
   await rememberStory(storyIdOf(puzzle));
   return puzzle;
 }
@@ -390,6 +412,53 @@ async function startGeneration() {
   }
 }
 
+// A quick puzzle: a small Easy case in any theme, with no setup, so a first
+// visit is playing within seconds (the market test's "Play now"). Coach tips
+// show as on any Easy puzzle. Also opened by a link ending ?play=now.
+const QUICK = { difficulty: 'easy', theme: 'random', categories: 3, items: 4 };
+async function startQuick() {
+  if (generating) return;
+  generating = true;
+  const btn = $('#quick-btn');
+  const st = $('#quick-status');
+  const err = $('#quick-error');
+  err.hidden = true;
+  btn.disabled = true;
+  st.textContent = 'Writing a quick case for you…';
+  try {
+    const save = newSave(await makePuzzle(QUICK));
+    save.quick = true;
+    await store.putSave(save);
+    st.textContent = '';
+    openGame(save, { fresh: true });
+  } catch (e) {
+    st.textContent = '';
+    err.innerHTML = `<p><b>The story could not be written.</b> ${esc(e.message || e)}</p><button class="btn" type="button" id="quick-retry">Try again</button>`;
+    err.hidden = false;
+    $('#quick-retry').onclick = startQuick;
+  } finally {
+    btn.disabled = false;
+    generating = false;
+  }
+}
+$('#quick-btn').onclick = startQuick;
+// ?play=now in a link (ads, the website) starts a quick puzzle straight away.
+// ?play=daily (the daily email) opens today's daily puzzle, or with &day= that day's.
+function handlePlayLink() {
+  const url = new URL(location.href);
+  const play = url.searchParams.get('play');
+  if (play !== 'now' && play !== 'daily') return false;
+  // A Hand-picked link names its day: ?play=daily&day=2026-11-03.
+  const day = /^\d{4}-\d{2}-\d{2}$/.test(url.searchParams.get('day') || '') ? url.searchParams.get('day') : null;
+  url.searchParams.delete('play');
+  url.searchParams.delete('day');
+  try { history.replaceState(history.state, '', url.pathname + url.search + url.hash); } catch (e) { /* framed preview */ }
+  if (play === 'daily' && daily.available() && !isPreview) {
+    (day ? Promise.resolve(day) : daily.latest().then((l) => l.date)).then((d) => openDaily(d)).catch(() => startQuick());
+  } else startQuick();
+  return true;
+}
+
 function expectedMsFor(puzzle) {
   const K = puzzle.categories.length, N = puzzle.categories[0].items.length;
   return (K * (K - 1) / 2) * N * N * (MINUTES_PER_CELL[puzzle.difficulty.id] || 0.2) * 60000;
@@ -421,6 +490,8 @@ async function renderSaved() {
   saves.sort((a, b) => b.lastPlayed - a.lastPlayed);
   const last = saves.find((x) => !x.solved);
   $('#continue-btn').hidden = !last;
+  // With nothing to continue, the quick puzzle is the main way in.
+  $('#quick-btn').classList.toggle('primary', !last);
   if (last) {
     $('#continue-btn').dataset.id = last.id;
     $('#continue-name').textContent = `${last.name} · ${last.percent || 0}%`;
@@ -534,6 +605,7 @@ $('#import-file').onchange = async (e) => {
 // ====================================================================
 function openGame(save, { fresh = false } = {}) {
   closeGame();
+  campaign.played();
   const puzzle = save.puzzle;
   const ix = puzzleIndex(puzzle);
   S = {
@@ -554,6 +626,10 @@ function openGame(save, { fresh = false } = {}) {
   $('#p-meta').innerHTML = [...(save.daily ? [`Daily puzzle · ${daily.longDate(save.daily)}`] : []), puzzle.difficulty.name, puzzle.theme.name, ...(puzzle.topic && puzzle.topic.id !== 'any' ? [puzzle.topic.name] : []), `${K} categories × ${N} items`, `${puzzle.clues.length} clues`].map((t) => `<span class="pill">${esc(t)}</span>`).join('');
   const paras = puzzle.story.paragraphs;
   $('#p-story').innerHTML = paras.map((p, i) => `<p${i === paras.length - 1 ? ' class="goal"' : ''}>${esc(p)}</p>`).join('');
+  characters.useFor(puzzle);
+  const teller = narratorOf(puzzle);
+  $('#told-by').hidden = !teller;
+  $('#told-by').innerHTML = teller ? `<span class="told-face" data-who="${esc(teller.name)}">${characterFace(teller, { size: 40 })}</span> Told by <b>${esc(teller.name)}</b>` : '';
   $('#story').open = !fresh ? !save.storyRead : true;
   const notes = (puzzle.notes || []).filter((n) => !/Closest match/.test(n));
   $('#p-notes').hidden = !notes.length;
@@ -968,7 +1044,14 @@ function hintLines(res, level) {
 function renderHint() {
   const { res, level } = S.hint;
   const box = $('#hintbox');
-  const lines = hintLines(res, level);
+  // The admin dashboard's storyteller offers the first nudge; otherwise one
+  // of the cast does, in their own way (castbook.js).
+  const teller = level === 0 && res.kind !== 'done' ? narratorOf(S.puzzle) : null;
+  const names = S.ix.cats[0].items.map((i) => i.label);
+  const helper = level === 0 && res.kind !== 'done' && !settings.silent ? names[S.save.hintsUsed % names.length] : null;
+  const told = teller && lineOf(teller, 'hint', S.save.hintsUsed);
+  const [by, said] = told ? [teller.name, told] : helper ? [helper, lineOf(characterOf(S.puzzle, helper), 'hint', S.save.hintsUsed) || sayingOf(helper, 'hint', S.save.hintsUsed)] : [];
+  const lines = (said ? `<p class="char-line"><b>${esc(by)}:</b> “${esc(said)}”</p>` : '') + hintLines(res, level);
   const more = level < 2 ? `<button class="btn small" type="button" id="hint-more">${level === 0 ? 'Which cell?' : 'Explain why'}</button>` : '';
   const apply = level === 2 && res.kind !== 'done' ? `<button class="btn small" type="button" id="hint-apply">${res.kind === 'mistake' ? 'Fix it for me' : 'Mark it for me'}</button>` : '';
   box.innerHTML = `${lines}<div class="row">${more}${apply}<button class="btn quiet small" type="button" id="hint-close">Close hint</button></div>`;
@@ -1108,9 +1191,10 @@ function checkSolved() {
     S.save.solved = true;
     S.save.completedAt = Date.now();
     // The daily puzzle's answers are on the website, so it earns no scoreboard points.
-    if (!S.save.race && !S.save.daily && !S.save.revealed && !S.save.restarted) S.save.scorePending = true;
+    if (!S.save.race && !S.save.daily && !S.save.challenge && !S.save.revealed && !S.save.restarted) S.save.scorePending = true;
     tickTimer();
     recordSolve(S.save);
+    if (!S.save.revealed) campaign.solved();
     if (settings.learn) learn.record(S.save, S.save.revealed ? 'revealed' : 'solved').then(() => share.soon(), () => {});
     stopTimer();
     showSolved(true);
@@ -1160,8 +1244,23 @@ function showSolved(celebrate) {
   const winner = winnerOf(S.puzzle, S.ix);
   const bg = S.sceneUrl ? `<img class="bg" src="${S.sceneUrl}" alt="">` : sceneSvg(S.puzzle, 5, { animate: false });
   const face = S.portraitUrls && S.portraitUrls[winner] ? `<img src="${S.portraitUrls[winner]}" alt="">` : winner ? portrait(S.puzzle, winner, { size: 120, style: settings.portraitStyle }) : '';
-  res.innerHTML = `${bg}<div class="spot"></div>${winner ? `<div class="hero">${face}<b>${esc(winner)}</b></div>` : ''}`;
-  if (celebrate && voiceOn()) setTimeout(() => { if (S && S.save.solved) ai.speak(settings, S.puzzle, 'narrator', S.puzzle.story.ending, { volume: settings.volume / 100 }); }, 1200);
+  // A character from the admin dashboard cheers in their own words: the
+  // winner if they are one, otherwise the one who told the story. If neither
+  // has a cheer, the winner cheers in their personality's words (castbook.js).
+  const admin = [characterOf(S.puzzle, winner), narratorOf(S.puzzle)].find((c) => lineOf(c, 'solve'));
+  const plain = !admin && winner && !save.revealed && !settings.silent;
+  const cheer = admin || (plain ? { name: winner } : null);
+  const cheerLine = admin ? lineOf(admin, 'solve', S.save.hintsUsed + S.puzzle.clues.length) : plain ? sayingOf(winner, 'solve', save.hintsUsed + S.puzzle.clues.length) : null;
+  res.innerHTML = `${bg}<div class="spot"></div>${winner ? `<div class="hero">${face}<b>${esc(winner)}</b></div>` : ''}${cheerLine ? `<p class="char-line cheer"><b>${esc(cheer.name)}:</b> “${esc(cheerLine)}”</p>` : ''}`;
+  // The picture is hidden from screen readers, so the cheer is announced.
+  if (celebrate && cheerLine && !settings.silent) setTimeout(() => announce(`${cheer.name} says: ${cheerLine}`), 800);
+  if (celebrate && voiceOn()) {
+    setTimeout(() => {
+      if (!S || !S.save.solved) return;
+      const said = [...(cheerLine ? [{ who: cheer.id && cheer.id === S.puzzle.narrator ? 'narrator' : cheer.name, text: cheerLine }] : []), { who: 'narrator', text: S.puzzle.story.ending }];
+      ai.speakLines(settings, S.puzzle, said, { volume: settings.volume / 100 });
+    }, 1200);
+  }
   res.classList.remove('celebrate');
   if (celebrate) { void res.offsetWidth; res.classList.add('celebrate'); }
   $('#solved').hidden = false;
@@ -1223,6 +1322,8 @@ $('#feedback-idea').onclick = () => feedbackBox.open(openDialog, { kind: 'idea' 
 // Streak, new badges and Share my result on the solved panel.
 async function renderSolvedExtras(save) {
   $('#share-result').hidden = !!save.revealed;
+  $('#challenge-btn').hidden = !!save.revealed || !!save.race || !challenge.available();
+  renderChallenge(save);
   $('#share-note').textContent = '';
   const box = $('#solved-badges');
   const fresh = (S && S.save === save && S.newBadges) || [];
@@ -1230,6 +1331,16 @@ async function renderSolvedExtras(save) {
   box.innerHTML = fresh.length ? `<h3>New badge${fresh.length > 1 ? 's' : ''}</h3><ul class="badges">${fresh.map(badgeHtml).join('')}</ul>` : '';
   const line = $('#solved-streak');
   line.hidden = true;
+  const nums = $('#solved-daily-numbers');
+  nums.hidden = true;
+  // Counted once: the mark is saved before the time is sent.
+  let sent = null;
+  if (save.daily && !save.dailySent) {
+    save.dailySent = true;
+    await flushSave({ manual: true });
+    sent = dailyResults.finished(save.daily, save.elapsedMs, save.revealed);
+  }
+  if (save.daily) showDailyNumbers(save, sent);
   if (!save.daily || save.revealed) return;
   const st = daily.streak(await stats.solveLog().catch(() => []), save.daily);
   if (!S || S.save !== save) return;
@@ -1237,6 +1348,17 @@ async function renderSolvedExtras(save) {
   line.textContent = st.days.has(save.daily)
     ? (st.current > 1 ? `Daily streak: ${st.current} days in a row. Come back tomorrow for the next one.` : 'Your daily streak has started. Come back tomorrow for the next puzzle.')
     : 'This daily puzzle was finished after its day, so it does not add to your streak.';
+}
+// Everyone's numbers for this daily puzzle, under the streak.
+async function showDailyNumbers(save, sent) {
+  // Wait for this solve to be counted (at most a few seconds), so it is in the numbers.
+  if (sent) await Promise.race([sent, new Promise((r) => setTimeout(r, 4000))]);
+  const st = await dailyResults.statsFor(save.daily);
+  if (!st || !st.started || !S || S.save !== save) return;
+  const quicker = save.revealed ? null : dailyResults.quickerThan(st, save.elapsedMs);
+  const nums = $('#solved-daily-numbers');
+  nums.textContent = `Everyone on this puzzle: ${dailyResults.summaryLine(st)}.${quicker !== null ? ` You were quicker than ${quicker}% of the other solvers.` : ''}`;
+  nums.hidden = false;
 }
 function badgeHtml(b) {
   return `<li class="badge-item${b.at === null ? ' locked' : ''}"><span class="badge-mark" aria-hidden="true">${b.at === null ? '◇' : '◆'}</span><span><b>${esc(b.name)}</b><small>${esc(b.text)}${b.at ? ` Earned ${esc(new Date(b.at).toLocaleDateString())}.` : ''}</small></span>${b.at === null ? '<span class="sr-only">Not earned yet.</span>' : ''}</li>`;
@@ -1257,6 +1379,83 @@ $('#share-result').onclick = async () => {
   else if (res.done === 'cancelled') $('#share-note').textContent = '';
   else openShareDialog(res, info);
 };
+// ====================================================================
+// Challenge a friend: the same puzzle by link, with a time to beat
+// ====================================================================
+$('#challenge-btn').onclick = async () => {
+  if (!S || !S.save.solved) return;
+  const save = S.save;
+  const btn = $('#challenge-btn');
+  btn.disabled = true;
+  $('#share-note').textContent = 'Making your challenge link…';
+  try {
+    // One link per solve, kept with the save so sharing again reuses it.
+    if (!save.challengeLink) {
+      save.challengeLink = (await challenge.create(S.puzzle, save.elapsedMs, save.hintsUsed)).url;
+      scheduleSave();
+    }
+    const text = challenge.message({ title: save.name, time: fmtTime(save.elapsedMs), hints: save.hintsUsed || 0 });
+    $('#share-note').textContent = '';
+    if (navigator.share) {
+      try { await navigator.share({ title: save.name, text, url: save.challengeLink }); $('#share-note').textContent = 'Challenge sent.'; return; }
+      catch (e) { if (e && e.name === 'AbortError') return; }
+    }
+    let copied = false;
+    try { await navigator.clipboard.writeText(`${text} ${save.challengeLink}`); copied = true; } catch (e) { /* show it to copy */ }
+    openShareDialog({ text: `${text} ${save.challengeLink}`, done: copied ? 'copied' : 'show' }, { title: save.name });
+  } catch (e) {
+    $('#share-note').textContent = e.message || 'The challenge link could not be made.';
+  } finally {
+    btn.disabled = false;
+  }
+};
+
+// Both times on the solved panel of a puzzle opened from a challenge link.
+async function renderChallenge(save) {
+  const box = $('#challenge-result');
+  box.hidden = true;
+  const c = save.challenge;
+  if (!c || !save.solved || save.revealed) return;
+  // Counted once: the mark is saved before the result is sent, so reopening
+  // the puzzle (even straight away) never counts it again.
+  if (!c.sent) {
+    c.sent = true;
+    await flushSave({ manual: true });
+    try { c.result = await challenge.sendResult(c.code, save.elapsedMs, save.hintsUsed); scheduleSave(); } catch (e) { c.result = null; }
+  }
+  if (!S || S.save !== save) return;
+  const won = save.elapsedMs < c.theirMs;
+  const r = c.result;
+  box.innerHTML = `<h3>${won ? 'You beat your friend\'s time!' : 'Your friend was quicker this time.'}</h3>
+    <p>Your time: <b>${fmtTime(save.elapsedMs)}</b>. Your friend's time: <b>${fmtTime(c.theirMs)}</b>.</p>
+    ${r && r.plays > 1 ? `<p>${r.beat} of ${r.plays} players who took this challenge beat your friend's time.</p>` : ''}
+    <p class="help">Press Challenge a friend to send this puzzle on with your own time.</p>`;
+  box.hidden = false;
+}
+
+// ?challenge=CODE: open that puzzle (once; the same link later resumes it).
+function handleChallengeLink() {
+  const code = challenge.linkCode();
+  if (!code) return false;
+  (async () => {
+    const existing = (await store.listSaves()).find((x) => x.challenge && x.challenge.code === code);
+    if (existing) { openGame(existing); return; }
+    if (!CLOUD_URL) { toast('Challenge links need the internet version of the game.'); return; }
+    try {
+      const c = await challenge.load(code);
+      await rememberStory(storyIdOf(c.puzzle));
+      const save = newSave(c.puzzle);
+      save.challenge = { code, theirMs: c.elapsedMs, theirHints: c.hints || 0 };
+      await store.putSave(save);
+      openGame(save, { fresh: true });
+      toast(`A friend solved this puzzle in ${fmtTime(c.elapsedMs)}. Can you beat that time?`, null, { ms: 9000 });
+    } catch (e) {
+      toast(e.message || 'That challenge could not be opened.', null, { ms: 9000 });
+    }
+  })();
+  return true;
+}
+
 function openShareDialog(res, info) {
   $('#share-text').value = res.text || '';
   $('#share-status').textContent = res.done === 'copied' ? 'The message is copied. Paste it anywhere.' : '';
@@ -1301,7 +1500,17 @@ async function renderDaily() {
   box.innerHTML = `<p class="daily-title"><b>${esc(l.title)}</b></p>
     <p class="daily-meta"><span class="pill">${esc(daily.longDate(l.date))}</span> <span class="pill">${esc(l.difficultyName)}</span> <span class="pill">${esc(l.themeName)}</span> <span class="pill">${l.categories} × ${l.items}</span>${state ? ` <span class="pill">${esc(state)}</span>` : ''}</p>
     ${l.offline ? '<p class="help">Offline: showing the last daily puzzle this device saw.</p>' : ''}
-    <button class="btn primary" type="button" data-daily="${esc(l.date)}">${todays ? (todays.solved ? "Open today's puzzle" : "Continue today's puzzle") : "Play today's puzzle"}</button>`;
+    <p class="daily-numbers muted" id="daily-numbers" hidden></p>
+    <button class="btn primary" type="button" data-daily="${esc(l.date)}">${todays ? (todays.solved ? "Open today's puzzle" : "Continue today's puzzle") : "Play today's puzzle"}</button>
+    <div class="daily-email" id="daily-email" hidden></div>`;
+  renderDailyEmail();
+  if (!l.offline) dailyResults.statsFor(l.date).then((st) => {
+    const el = $('#daily-numbers');
+    if (!st || !el || dailyLatest !== l) return;
+    el.textContent = dailyResults.summaryLine(st);
+    el.hidden = !el.textContent;
+  });
+  renderPicks(saves);
   const earlier = (l.days || []).filter((d) => d < l.date).slice(0, 7);
   $('#daily-earlier').hidden = !earlier.length;
   $('#daily-list').innerHTML = earlier.map((d) => {
@@ -1309,6 +1518,57 @@ async function renderDaily() {
     return `<li><button class="btn quiet small" type="button" data-daily="${esc(d)}">${esc(daily.longDate(d))}</button>${sv ? ` <span class="muted">${sv.solved ? (st.days.has(d) ? 'solved' : 'finished') : `${sv.percent || 0}% done`}</span>` : ''}</li>`;
   }).join('');
 }
+// Hand-picked: the best-rated daily puzzles and ones the team picked
+// (daily/picks.json from the website build). They never add to a streak.
+async function renderPicks(saves) {
+  const box = $('#daily-picks');
+  const list = await daily.picks();
+  box.hidden = !list.length;
+  if (!list.length) return;
+  $('#daily-picks-list').innerHTML = list.map((x) => {
+    const sv = saves.find((s) => s.daily === x.date);
+    const why = x.hand ? 'picked by the team' : `rated ${x.average} of 5`;
+    return `<li><button class="btn quiet small" type="button" data-daily="${esc(x.date)}">${esc(x.title)}</button> <span class="muted">${esc(x.difficultyName)} · ${esc(x.themeName)} · ${esc(why)}${sv ? (sv.solved ? ' · finished' : ` · ${sv.percent || 0}% done`) : ''}</span></li>`;
+  }).join('');
+}
+
+// The daily email switch under today's puzzle: signed-in players with a
+// confirmed email can get each day's puzzle in their inbox.
+async function renderDailyEmail() {
+  const box = $('#daily-email');
+  if (!box) return;
+  if (isPortal || !dailyEmail.available()) { box.hidden = true; return; }
+  if (!signedIn()) {
+    box.innerHTML = '<button class="btn quiet small" type="button" id="daily-email-signin">Get each day\'s puzzle by email</button> <span class="help">Free, with a sign-in.</span>';
+    box.hidden = false;
+    $('#daily-email-signin').onclick = () => openAccount();
+    return;
+  }
+  const st = await dailyEmail.status();
+  if (!st || !$('#daily-email')) { box.hidden = true; return; }
+  box.innerHTML = st.verified || st.on
+    ? `<label class="check"><input type="checkbox" id="daily-email-on"${st.on ? ' checked' : ''}> Email me each day's puzzle</label> <span class="help" id="daily-email-note" aria-live="polite"></span>`
+    : '<p class="help">To get each day\'s puzzle by email, first confirm your email address with the link we sent when you made your account.</p>';
+  box.hidden = false;
+  const cb = $('#daily-email-on');
+  if (!cb) return;
+  cb.onchange = async () => {
+    const note = $('#daily-email-note');
+    cb.disabled = true;
+    try {
+      const r = await dailyEmail.set(cb.checked);
+      cb.checked = r.on;
+      note.textContent = r.on ? 'Done. It arrives at about 7 am Eastern, with a one-click unsubscribe link.' : 'Done. No more daily emails.';
+    } catch (e) {
+      cb.checked = !cb.checked;
+      note.textContent = navigator.onLine === false ? 'You seem to be offline.' : e.message;
+    } finally {
+      cb.disabled = false;
+    }
+  };
+}
+onAccountChange(() => renderDailyEmail());
+
 $('#daily-section').addEventListener('click', (e) => {
   const b = e.target.closest('[data-daily]');
   if (b) openDaily(b.dataset.daily, b);
@@ -1323,6 +1583,7 @@ async function openDaily(date, btn) {
     const save = newSave(puzzle);
     save.daily = date;
     await store.putSave(save);
+    dailyResults.started(date);
     openGame(save, { fresh: true });
   } catch (e) {
     toast(`The daily puzzle could not be opened. ${e.message || ''}`.trim(), { label: 'Try again', run: () => openDaily(date) });
@@ -1461,7 +1722,16 @@ window.addEventListener('pagehide', () => flushSave());
 // ====================================================================
 // Multimedia: scene, cast, witness clues, section chimes, adaptive difficulty
 // ====================================================================
-const SAYINGS = ['I saw it with my own eyes:', 'I am sure of this much:', 'Here is what I noticed:', 'I remember it clearly:', 'You might want to write this down:', 'I was there, and', 'Between you and me,', 'I can tell you this:'];
+// The admin dashboard's characters say their own lines before a clue; the
+// rest of the cast lead in by their personality (castbook.js).
+const sayingFor = (who, n) => lineOf(characterOf(S.puzzle, who), 'clue', n) || sayingOf(who, 'clue', n);
+// Who a character is, for their cast button and speech bubble.
+function aboutOf(name) {
+  const own = characterOf(S.puzzle, name);
+  if (own) return { label: 'Special guest', about: own.personality ? `${name}: ${own.personality}` : name };
+  const p = profileOf(name);
+  return { label: p.label, about: `${name} ${p.about}` };
+}
 
 // Each clue is told by one character, preferably one the clue is not about.
 function assignWitnesses(puzzle, ix) {
@@ -1490,12 +1760,14 @@ function renderMedia() {
   const names = S.ix.cats[0].items.map((i) => i.label);
   $('#cast-row').innerHTML = names.map((n) => {
     const count = Object.values(S.witness).filter((w) => w === n).length;
-    return `<button class="cast-btn" type="button" data-who="${esc(n)}" aria-pressed="false">${portrait(p, n, { style: settings.portraitStyle })}<span>${esc(n)}</span><small>${count} clue${count === 1 ? '' : 's'}</small></button>`;
+    const who = aboutOf(n);
+    return `<button class="cast-btn" type="button" data-who="${esc(n)}" aria-pressed="false" title="${esc(who.about)}">${portrait(p, n, { style: settings.portraitStyle })}<span>${esc(n)}</span><small class="trait">${esc(who.label)}</small><small>${count} clue${count === 1 ? '' : 's'}</small></button>`;
   }).join('');
   $('#bubble').hidden = true;
   S.sceneUrl = null;
   S.portraitUrls = {};
   loadAiArt();
+  loadCharacterArt();
   // Make the start of the story narration ahead of time so Read aloud plays at once.
   if (voiceOn()) ai.warmVoice(settings, p, 'narrator', p.story.paragraphs.join(' '));
 }
@@ -1527,12 +1799,35 @@ async function loadAiArt() {
   if (settings.aiPictures !== 'all') return;
   for (const btn of $$('#cast-row .cast-btn')) {
     const who = btn.dataset.who;
+    if (characterOf(p, who)) continue; // keeps the face made for them
     try {
       const blob = await ai.portraitImage(settings, p, who);
       if (S !== game) return;
       game.portraitUrls[who] = URL.createObjectURL(blob);
       btn.querySelector('svg, img').outerHTML = `<img class="portrait-img" src="${game.portraitUrls[who]}" alt="">`;
     } catch (e) { if (S === game) console.warn('AI portrait not made:', e.message); return; }
+  }
+}
+
+// AI portraits painted for the game's own characters in the admin dashboard.
+// Their drawn face shows until the picture arrives, and whenever it can't.
+async function loadCharacterArt() {
+  if (isPreview || settings.silent) return;
+  const game = S;
+  for (const c of game.puzzle.characters || []) {
+    if (!c.portrait) continue;
+    try {
+      const blob = await ai.characterImage(c);
+      if (S !== game) return;
+      const url = URL.createObjectURL(blob);
+      if (c.inCast) {
+        game.portraitUrls[c.name] = url;
+        const btn = $(`#cast-row .cast-btn[data-who="${CSS.escape(c.name)}"]`);
+        btn?.querySelector('svg, img')?.replaceWith(Object.assign(document.createElement('img'), { className: 'portrait-img', src: url, alt: '' }));
+      } else {
+        $('#told-by .told-face')?.replaceChildren(Object.assign(document.createElement('img'), { className: 'portrait-img', src: url, alt: '' }));
+      }
+    } catch (e) { /* the drawn face stays */ }
   }
 }
 
@@ -1562,13 +1857,14 @@ $('#cast-row').addEventListener('click', (e) => {
   const clues = S.puzzle.clues.filter((c) => S.witness[c.number] === who);
   $$('#clue-list li.spot').forEach((li) => li.classList.remove('spot'));
   clues.forEach((c) => $(`#clue-list li[data-n="${c.number}"]`)?.classList.add('spot'));
-  $('#bubble').innerHTML = clues.length
-    ? clues.map((c) => `<p><span class="who">${esc(who)}:</span> “${esc(SAYINGS[(c.number + who.length) % SAYINGS.length])} ${esc(c.text)}” <span class="muted">(clue ${c.number})</span></p>`).join('')
-    : `<p><span class="who">${esc(who)}:</span> “I didn't see anything, I promise.”</p>`;
+  const nothing = characterOf(S.puzzle, who) ? "I didn't see anything, I promise." : sayingOf(who, 'nothing', S.puzzle.clues.length);
+  $('#bubble').innerHTML = `<p class="about">${esc(aboutOf(who).about)}.</p>` + (clues.length
+    ? clues.map((c) => `<p><span class="who">${esc(who)}:</span> “${esc(sayingFor(who, c.number))} ${esc(c.text)}” <span class="muted">(clue ${c.number})</span></p>`).join('')
+    : `<p><span class="who">${esc(who)}:</span> “${esc(nothing)}”</p>`);
   $('#bubble').hidden = false;
   sound('whoosh');
   if (voiceOn()) {
-    const lines = clues.length ? clues.map((c) => `${SAYINGS[(c.number + who.length) % SAYINGS.length]} ${c.text}`).join(' ') : "I didn't see anything, I promise.";
+    const lines = clues.length ? clues.map((c) => `${sayingFor(who, c.number)} ${c.text}`).join(' ') : nothing;
     voiceWaitNote();
     ai.speak(settings, S.puzzle, who, lines, { volume: settings.volume / 100 });
   }
@@ -1719,7 +2015,12 @@ function applyFeatures() {
   for (const el of $$('.needs-cloud')) el.hidden = !share.available() || (!!el.dataset.feature && !remote.feature(el.dataset.feature));
   $('#music-settings').hidden = !remote.feature('music');
   $('[data-cmd=feedback]').hidden = !feedbackBox.available();
+  $('[data-cmd=suggest]').hidden = !characters.suggestionsOpen();
   $('#feedback-idea').hidden = !feedbackBox.available();
+  messages.configChanged();
+  const support = remote.supportUrl();
+  $('#support-link').hidden = !support;
+  if (support) $('#support-link').href = support;
   competeUi.refreshMiniBoard();
 }
 applyFeatures();
@@ -1808,7 +2109,7 @@ function toggleMenu(open) {
 }
 $('#menu-btn').onclick = () => toggleMenu();
 $('#app-menu').addEventListener('keydown', (e) => {
-  const items = $$('#app-menu button:not([hidden])');
+  const items = $$('#app-menu [role=menuitem]:not([hidden])');
   const i = items.indexOf(document.activeElement);
   if (e.key === 'Escape') { e.preventDefault(); toggleMenu(false); $('#menu-btn').focus(); }
   else if (e.key === 'ArrowDown') { e.preventDefault(); items[(i + 1) % items.length].focus(); }
@@ -1817,6 +2118,7 @@ $('#app-menu').addEventListener('keydown', (e) => {
 });
 document.addEventListener('pointerdown', (e) => { if (!$('#app-menu').hidden && !e.target.closest('#app-menu, #menu-btn')) toggleMenu(false); });
 $('#app-menu').addEventListener('click', async (e) => {
+  if (e.target.closest('#support-link')) { toggleMenu(false); return; }
   const b = e.target.closest('button[data-cmd]');
   if (!b) return;
   toggleMenu(false);
@@ -1825,11 +2127,14 @@ $('#app-menu').addEventListener('click', async (e) => {
   else if (cmd === 'saved') { await goHome({ focusSaved: true }); $('#saved-section').scrollIntoView(); }
   else if (cmd === 'settings') openSettings();
   else if (cmd === 'stats') openStats();
+  else if (cmd === 'suggest') characters.openSuggest(openDialog, OPTIONS.themes.filter((t) => !remote.disabledThemes().has(t.id)));
   else if (cmd === 'daily') openTodaysDaily();
   else if (cmd === 'feedback') feedbackBox.open(openDialog);
+  else if (cmd === 'messages') messages.open();
   else if (cmd === 'account') openAccount();
   else if (cmd === 'board') competeUi.openBoard();
   else if (cmd === 'install') installApp();
+  else if (cmd === 'site') window.open(`${(CLOUD.siteUrl || 'https://thelogicgrid.com').replace(/\/+$/, '')}/?utm_source=portal&utm_medium=store&utm_campaign=portal`, '_blank', 'noopener');
 });
 $('#home-btn').onclick = () => goHome();
 $('#help-btn').onclick = () => openDialog($('#dlg-help'), $('#help-close'));
@@ -1899,7 +2204,7 @@ async function checkUpdates() {
   offerUpdate();
 }
 
-$('#welcome-skip').onclick = () => $('#dlg-welcome').close();
+$('#welcome-skip').onclick = () => { $('#dlg-welcome').close(); startQuick(); };
 $('#welcome-watch').onclick = () => { $('#dlg-welcome').close(); openVideo(); };
 $('#back-saved').onclick = async () => { await goHome({ focusSaved: true }); $('#saved-section').scrollIntoView(); };
 
@@ -1949,13 +2254,14 @@ const isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' 
 const isAndroid = /Android/i.test(ua);
 const isStandalone = () => !!(window.matchMedia?.('(display-mode: standalone)').matches || window.matchMedia?.('(display-mode: window-controls-overlay)').matches || navigator.standalone);
 let installEvent = null;
-if (!isDesktop) $('[data-cmd=install]').hidden = false;
+if (!isDesktop && !isPortal) $('[data-cmd=install]').hidden = false;
+$('[data-cmd=site]').hidden = !isPortal;
 window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault();
   installEvent = e;
   if ($('#dlg-install').open) renderInstall();
 });
-window.addEventListener('appinstalled', () => { installEvent = null; if ($('#dlg-install').open) renderInstall(); });
+window.addEventListener('appinstalled', () => { campaign.installed(); installEvent = null; if ($('#dlg-install').open) renderInstall(); });
 
 function renderInstall() {
   const standalone = isStandalone();
@@ -1997,6 +2303,7 @@ function installApp() {
   openDialog($('#dlg-install'), $('#install-h'));
 }
 $('#install-close').onclick = () => $('#dlg-install').close();
+$('#install-desktop-btn').addEventListener('click', () => campaign.downloaded());
 $('#install-phone-btn').onclick = async () => {
   if (!installEvent) return;
   installEvent.prompt();
@@ -2005,7 +2312,7 @@ $('#install-phone-btn').onclick = async () => {
   if (choice.outcome === 'accepted') { $('#dlg-install').close(); toast('Installed. Open the game from its icon on your home screen, Start menu or dock.'); }
   else renderInstall();
 };
-if ('serviceWorker' in navigator && !isDesktop && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
+if ('serviceWorker' in navigator && !isDesktop && !isPortal && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
   watchWebUpdates();
 }
 
@@ -2064,6 +2371,7 @@ async function init() {
   applyLanguage();
   matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', applyColorTheme);
   renderSetup();
+  characters.init({ onCharactersChanged: applyFeatures });
   remote.init({
     onThemesChanged: () => { if (!$('#screen-home').hidden) renderSetup(); },
     onConfigChanged: () => { settings = store.loadSettings(); applyFeatures(); applyMode(); languageNote(); },
@@ -2079,6 +2387,7 @@ async function init() {
     onSavesChanged: () => { if (!$('#screen-home').hidden) renderSaved(); },
     onSettingsChanged: () => { settings = store.loadSettings(); applyColorTheme(); applyMode(); applyLanguage(); },
   }).catch(() => { /* accounts are optional */ });
+  messages.init({ openDialog, openAccount, announce });
   competeUi.initCompete({
     openDialog, toast, announce, confirmDialog, openAccount, fmtTime, makePuzzle, setupSummary, openRace, findRaceSave,
     openSave: (save) => openGame(save),
@@ -2092,7 +2401,8 @@ async function init() {
   competeUi.handleRaceLink();
   window.addEventListener('resize', () => { if (!$('#screen-home').hidden) updatePreview(); });
   document.documentElement.classList.add('ready');
-  offerIntro();
+  // A ?play=now link goes straight into a puzzle; the welcome waits for next time.
+  if (!handleChallengeLink() && !handlePlayLink()) offerIntro();
   offerLanguage();
   setTimeout(checkUpdates, 4000);
   if (!isPreview) setTimeout(ensureNaturalVoices, 1500);
