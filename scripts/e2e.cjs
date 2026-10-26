@@ -201,6 +201,23 @@ const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`o
     });
     await page.waitForSelector('#solved:not([hidden])');
     assert((await page.textContent('#solved-h')).includes('Case closed'), 'solving by hand shows "Case closed!"');
+    assert(await page.getAttribute('#solved', 'data-effects') === 'confetti', 'a solve shows confetti by default');
+    {
+      const all = ['confetti', 'fireworks', 'stars', 'balloons', 'sparkles', 'theme_emoji'];
+      const errors = [];
+      page.on('pageerror', (e) => errors.push(e.message));
+      const fx = await page.evaluate(async (list) => {
+        const m = await import('./js/effects.js');
+        return { all: m.celebrate(list, { theme: 'pets' }), one: m.celebrate(list, { random: true, theme: 'mystery' }), none: m.celebrate([], {}) };
+      }, all);
+      await page.waitForTimeout(2500);
+      assert(fx.all.join() === all.join() && errors.length === 0, `every celebration effect plays without errors (${errors.join('; ')})`);
+      assert(fx.one.length === 1 && all.includes(fx.one[0]), 'Random plays one of the checked effects');
+      assert(fx.none === null, 'no effect plays when none is checked');
+      await page.emulateMedia({ reducedMotion: 'reduce' });
+      assert(await page.evaluate(async () => (await import('./js/effects.js')).celebrate(['fireworks'])) === null, 'no celebration when the device asks for reduced motion');
+      await page.emulateMedia({ reducedMotion: 'no-preference' });
+    }
     await page.screenshot({ path: process.env.SHOTS + '/5-solved.png', fullPage: true });
     assert(await page.locator('#resolution .hero svg').count() === 1, 'resolution scene shows the culprit');
     assert(await page.locator('#scene .layer.on').count() === 5, 'whole scene revealed when solved');

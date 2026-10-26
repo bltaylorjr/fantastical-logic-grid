@@ -388,6 +388,13 @@ const CSS = `
     await p.waitForTimeout(1500); await prep();
     await scrollTo('#solved', 'start', -76);
     await scene('solved', ['Case closed!', P.ending, 'You also see your time and a suggestion for your next puzzle.']);
+    // The solve celebration (filming runs with reduced motion, which turns it off).
+    await p.emulateMedia({ reducedMotion: 'no-preference' });
+    await p.evaluate(async () => (await import('./js/effects.js')).celebrate(['fireworks', 'stars', 'balloons'], { theme: window.__flg.state.puzzle.theme.id }));
+    await p.waitForTimeout(1100);
+    await scene('celebrate', ['Every solve ends with a celebration, like confetti, fireworks, stars or balloons.', 'Silent mode and your device\'s reduce motion setting turn it off.']);
+    await p.emulateMedia({ reducedMotion: 'reduce' });
+    await p.waitForTimeout(4000);
     if (await p.isVisible('#share-result')) {
       await scrollTo('#share-result'); await hl(['#solved-badges', '#share-result']);
       await scene('share', ['Solving puzzles earns badges, like First case closed.', 'Press Share my result to send friends a picture of your win. It never gives the answers away.']);

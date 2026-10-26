@@ -15,6 +15,8 @@ import { publicNews } from './messages.js';
 
 const CACHE_MS = 30_000;
 const THEME_IDS = THEMES.map((t) => t.id);
+// Solve effects, in the order the game knows them (web/js/effects.js).
+const CELEBRATIONS = ['confetti', 'fireworks', 'stars', 'balloons', 'sparkles', 'theme_emoji'];
 
 // type: bool, int (with min/max), choice (one of options), model (an AI
 // model name), themes (list of theme ids) or words.
@@ -56,7 +58,6 @@ export const SETTINGS = {
       { value: 'openPeeps', label: 'Hand-drawn (Open Peeps)' }, { value: 'builtin', label: 'Simple (built-in)' },
     ],
   },
-  confetti: { type: 'bool', default: true, group: 'Pictures', label: 'Confetti when a puzzle is solved', help: 'Never shown in Silent mode.' },
   ai_pictures: {
     type: 'choice', default: 'scene', group: 'Pictures', label: 'AI pictures', help: 'Painted by Cloudflare Workers AI on its free daily allowance (no key, never billed on the free plan). Without them, or when the day\'s pictures run out, the built-in art shows.',
     options: [
@@ -66,6 +67,15 @@ export const SETTINGS = {
   },
   daily_picture_cap: { type: 'int', min: 0, max: 1000, default: 100, group: 'Pictures', label: 'New AI pictures a day', help: 'Keeps inside Workers AI\'s free daily allowance (about 150 pictures). Pictures already made are kept on each device.' },
   picture_model: { type: 'model', default: '@cf/black-forest-labs/flux-1-schnell', group: 'Pictures', label: 'Workers AI picture model', help: 'Change it here when Cloudflare retires a model.' },
+  // ---- Celebrations: shown when a puzzle is solved (not after Reveal). Never
+  // shown in Silent mode or when the device asks for reduced motion.
+  confetti: { type: 'bool', default: true, group: 'Celebrations', label: 'Confetti', help: 'Paper pieces burst up from the middle of the screen.' },
+  fireworks: { type: 'bool', default: false, group: 'Celebrations', label: 'Fireworks', help: 'Soft bursts of color across the screen. No flashing.' },
+  stars: { type: 'bool', default: false, group: 'Celebrations', label: 'Stars', help: 'Gold stars shoot out from both sides.' },
+  balloons: { type: 'bool', default: false, group: 'Celebrations', label: 'Balloons', help: 'Balloons float up from the bottom of the screen.' },
+  sparkles: { type: 'bool', default: false, group: 'Celebrations', label: 'Sparkles', help: 'Small twinkling sparkles drift down.' },
+  theme_emoji: { type: 'bool', default: false, group: 'Celebrations', label: 'Theme pictures', help: 'Little pictures that match the puzzle\'s theme, such as magnifying glasses for Mystery or paw prints for Pets.' },
+  celebrate_random: { type: 'bool', default: false, group: 'Celebrations', label: 'Random', help: 'On: each solve shows one of the checked effects, picked at random. Off: every checked effect plays together.' },
   // ---- Languages
   translate_enabled: { type: 'bool', default: true, group: 'Languages', label: 'Translations for other languages', help: 'Players can choose any of 100 languages (US English is the default). Browsers that can translate on the device do it themselves; for everyone else Cloudflare Workers AI translates on its free daily allowance and each text is kept, so it is translated once for everyone. Off: only players whose browser translates on the device get other languages.' },
   daily_translate_cap: { type: 'int', min: 0, max: 20000, default: 3000, group: 'Languages', label: 'New translations a day', help: 'Texts sent to Workers AI each day (a menu label or a story sentence is one). Shares the free daily allowance with AI pictures. Texts already translated do not count.' },
@@ -178,7 +188,8 @@ export async function publicConfig(req, env) {
     },
     news: s.messages_enabled ? await publicNews(env) : [],
     // Chosen here for every player.
-    game: { voiceSource: s.voice_source, readAloud: s.read_aloud, portraitStyle: s.portrait_style, confetti: s.confetti, aiPictures: s.ai_pictures },
+    game: { voiceSource: s.voice_source, readAloud: s.read_aloud, portraitStyle: s.portrait_style, confetti: s.confetti, aiPictures: s.ai_pictures,
+      celebrations: CELEBRATIONS.filter((k) => s[k]), celebrateRandom: s.celebrate_random },
     // Starting values; a player's own choice wins.
     defaults: { sound: s.default_sound, volume: s.default_volume, music: s.default_music, musicVolume: s.default_music_volume },
   }, 200, { 'Cache-Control': 'public, max-age=60' });
