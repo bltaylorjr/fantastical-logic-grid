@@ -574,7 +574,7 @@ export const CONNECTIONS = [
   },
 ];
 
-// Names the check ignores: provided by GitHub or only used by tests.
+// Names the check ignores: provided by GitHub or only used by tests (any TEST_* name too).
 export const IGNORED = ['GITHUB_TOKEN', 'TEST_JWKS', 'TEST_TRANSLATE'];
 
 // Every (name, where) pair, for the Worker's live checks and the CI check.

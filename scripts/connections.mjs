@@ -35,7 +35,7 @@ const walk = (dir, ext) => readdirSync(dir, { withFileTypes: true }).flatMap((e)
 // Returns [{ name, family: 'worker' | 'github-secret' | 'github-variable', file }].
 export function usedNames() {
   const out = [];
-  const add = (name, family, file) => { if (!IGNORED.includes(name)) out.push({ name, family, file: relative(root, file) }); };
+  const add = (name, family, file) => { if (!IGNORED.includes(name) && !name.startsWith('TEST_')) out.push({ name, family, file: relative(root, file) }); };
   for (const f of walk(join(root, 'server', 'src'), ['.js', '.mjs'])) {
     for (const m of readFileSync(f, 'utf8').matchAll(/\benv\.([A-Z][A-Z0-9_]+)\b/g)) add(m[1], 'worker', f);
   }
