@@ -12,6 +12,7 @@
 import { json, readText, TooLarge } from './http.js';
 import { deleteCompeteStatements } from './compete.js';
 import { deleteMessageStatements } from './messages.js';
+import { deleteDailyEmailStatement } from './daily-email.js';
 
 const KINDS = new Set(['save', 'meta', 'settings']);
 const MAX_CHANGES = 100;
@@ -118,6 +119,7 @@ export async function handleDeleteAccount(req, env, user) {
     env.DB.prepare('DELETE FROM sync_users WHERE user_id = ?1').bind(user.uid),
     ...deleteCompeteStatements(env, user.uid),
     ...deleteMessageStatements(env, user.uid),
+    deleteDailyEmailStatement(env, user.uid),
     env.DB.prepare('INSERT OR REPLACE INTO sync_deleted_users (user_id, deleted_at) VALUES (?1, ?2)').bind(user.uid, Date.now()),
   ]);
   return json(req, env, { deleted: true });

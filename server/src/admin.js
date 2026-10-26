@@ -18,6 +18,8 @@
 //   GET  /admin/v1/feedback?kind=&status=  ideas and problems from the game; POST .../:id (addressed + note|done|new|delete)
 //   POST /admin/v1/replies/claim       thank-you emails waiting, for the GitHub Action to send (owner, replies.js)
 //   POST /admin/v1/replies/done        that Action says which went out; their addresses are removed (owner)
+//   POST /admin/v1/daily-email/claim   the day's daily puzzle email list, for the GitHub Action (owner, daily-email.js)
+//   POST /admin/v1/daily-email/done    which of those failed (tried again) or were refused (removed) (owner)
 //   GET  /admin/v1/names?status=       screen names to moderate; POST /admin/v1/names/:uid/approve
 //   GET  /admin/v1/players?q=&filter=  players with screen names; GET /admin/v1/players/:uid
 //   POST /admin/v1/players/:uid/(rename|ban|unban|reset-scores|delete)
@@ -61,6 +63,7 @@ import { characterRoutes } from './characters.js';
 import { TOPICS as FEEDBACK_TOPICS } from './feedback.js';
 import { claimReplies, finishReplies, replyCounts } from './replies.js';
 import { inbox, INBOX_TYPES, conversationView, teamReply, setConversationStatus, startConversation, listNews, addNews, endNews, deleteNews, deleteMessageStatements, MessageRefusal } from './messages.js';
+import { claimDailyEmail, finishDailyEmail } from './daily-email.js';
 import { archiveStatus, runArchive, buildArchive, exportArchive, confirmArchive } from './archive.js';
 import { FREE_LIMITS, cloudflareUsage } from './usage.js';
 import { plannerView, checkPlan, savePlan, resetPlan } from './daily.js';
@@ -80,7 +83,7 @@ const SESSION_MAX_S = 12 * 3600;
 const DENIED_PER_DAY = 500; // refused requests written to the audit log, so a flood cannot fill it
 const ANALYTICS_CACHE_MS = 120_000;
 const TABLES = ['sync_users', 'sync_records', 'sync_deleted_users', 'players', 'scores', 'races', 'race_entries', 'race_invites', 'plays', 'parts', 'usage',
-  'app_errors', 'upkeep_log', 'admins', 'admin_audit', 'settings', 'announcements', 'bans', 'name_reviews', 'archive_log', 'feedback', 'feedback_replies', 'error_fixes', 'conversations', 'conversation_messages', 'message_contacts', 'news', 'search_snapshots', 'daily_plan', 'translations', 'rating_insights', 'campaigns', 'campaign_ads', 'marketing_media', 'campaign_stats'];
+  'app_errors', 'upkeep_log', 'admins', 'admin_audit', 'settings', 'announcements', 'bans', 'name_reviews', 'archive_log', 'feedback', 'feedback_replies', 'error_fixes', 'conversations', 'conversation_messages', 'message_contacts', 'news', 'search_snapshots', 'daily_plan', 'translations', 'rating_insights', 'campaigns', 'campaign_ads', 'marketing_media', 'campaign_stats', 'challenges', 'daily_results', 'daily_email'];
 const SECURITY_HEADERS = {
   'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; media-src 'self' blob:; connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
   'X-Content-Type-Options': 'nosniff',
@@ -408,6 +411,16 @@ const ROUTES = [
   }],
   ['POST', /^replies\/done$/, 'owner', 'replies.done', async ({ env, body, now }) => {
     const r = await finishReplies(env, body.sent, body.failed, now);
+    return { body: r, detail: r };
+  }],
+  // Called once a day by the daily email Action; addresses are never written to the audit log.
+  ['POST', /^daily-email\/claim$/, 'owner', 'daily-email.claim', async ({ env, body, now }) => {
+    const r = await claimDailyEmail(env, String(body.day || ''), body.limit, now);
+    if (r.error) throw new Refusal(400, r.error);
+    return { body: r, quiet: !r.list.length, detail: { claimed: r.list.length, off: !!r.off } };
+  }],
+  ['POST', /^daily-email\/done$/, 'owner', 'daily-email.done', async ({ env, body }) => {
+    const r = await finishDailyEmail(env, body.failed, body.refused);
     return { body: r, detail: r };
   }],
   ['POST', /^feedback\/(\d+)$/, 'moderator', 'feedback.update', async ({ env, params: [id], body, now }) => {

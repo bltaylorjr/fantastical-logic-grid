@@ -474,6 +474,7 @@ ${playBtn(up)}`,
 </ul>
 <h2>Things you choose to send</h2>
 <p>Ideas, problem reports and story suggestions you write go to the team. If you are signed in and ask for a reply, the team may answer by email or in Messages.</p>
+<p><strong>Daily puzzle by email:</strong> if you are signed in and tick <strong>Email me each day's puzzle</strong>, the game keeps your account's email address to send it, once a day. Every email has a one-click unsubscribe link, and unticking the box or deleting your account removes the address.</p>
 <h2>Services the game uses</h2>
 <ul>
 <li><strong>Natural voices:</strong> the words being read aloud are sent to Google (Gemini or Google Cloud text-to-speech) through the game's server. Google may use text sent to its free services to improve them. Choose the device's own voices in Settings to keep speech on your device.</li>

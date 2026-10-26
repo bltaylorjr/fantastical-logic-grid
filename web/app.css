@@ -804,3 +804,5 @@ dialog.rules table.board td { font-variant-numeric: tabular-nums; }
 [dir=rtl] #gridframe th, [dir=rtl] #print-root .pg th { direction: rtl; unicode-bidi: plaintext; }
 #language { max-width: 100%; }
 .daily-numbers { margin: 0 0 12px; }
+.daily-email { margin-top: 10px; }
+.daily-email p.help { margin: 0; }

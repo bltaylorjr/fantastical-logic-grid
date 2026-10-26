@@ -30,6 +30,8 @@ import * as stats from './stats.js';
 import { shareResult } from './share-result.js';
 import * as challenge from './challenge.js';
 import * as dailyResults from './daily-results.js';
+import * as dailyEmail from './daily-email.js';
+import { onChange as onAccountChange } from './account.js';
 import * as i18n from './i18n.js';
 import { CLOUD, CLOUD_URL } from './cloud-config.js';
 
@@ -441,12 +443,16 @@ async function startQuick() {
 }
 $('#quick-btn').onclick = startQuick;
 // ?play=now in a link (ads, the website) starts a quick puzzle straight away.
+// ?play=daily (the daily email) opens today's daily puzzle.
 function handlePlayLink() {
   const url = new URL(location.href);
-  if (url.searchParams.get('play') !== 'now') return false;
+  const play = url.searchParams.get('play');
+  if (play !== 'now' && play !== 'daily') return false;
   url.searchParams.delete('play');
   try { history.replaceState(history.state, '', url.pathname + url.search + url.hash); } catch (e) { /* framed preview */ }
-  startQuick();
+  if (play === 'daily' && daily.available() && !isPreview) {
+    daily.latest().then((l) => openDaily(l.date)).catch(() => startQuick());
+  } else startQuick();
   return true;
 }
 
@@ -1468,7 +1474,9 @@ async function renderDaily() {
     <p class="daily-meta"><span class="pill">${esc(daily.longDate(l.date))}</span> <span class="pill">${esc(l.difficultyName)}</span> <span class="pill">${esc(l.themeName)}</span> <span class="pill">${l.categories} × ${l.items}</span>${state ? ` <span class="pill">${esc(state)}</span>` : ''}</p>
     ${l.offline ? '<p class="help">Offline: showing the last daily puzzle this device saw.</p>' : ''}
     <p class="daily-numbers muted" id="daily-numbers" hidden></p>
-    <button class="btn primary" type="button" data-daily="${esc(l.date)}">${todays ? (todays.solved ? "Open today's puzzle" : "Continue today's puzzle") : "Play today's puzzle"}</button>`;
+    <button class="btn primary" type="button" data-daily="${esc(l.date)}">${todays ? (todays.solved ? "Open today's puzzle" : "Continue today's puzzle") : "Play today's puzzle"}</button>
+    <div class="daily-email" id="daily-email" hidden></div>`;
+  renderDailyEmail();
   if (!l.offline) dailyResults.statsFor(l.date).then((st) => {
     const el = $('#daily-numbers');
     if (!st || !el || dailyLatest !== l) return;
@@ -1482,6 +1490,43 @@ async function renderDaily() {
     return `<li><button class="btn quiet small" type="button" data-daily="${esc(d)}">${esc(daily.longDate(d))}</button>${sv ? ` <span class="muted">${sv.solved ? (st.days.has(d) ? 'solved' : 'finished') : `${sv.percent || 0}% done`}</span>` : ''}</li>`;
   }).join('');
 }
+// The daily email switch under today's puzzle: signed-in players with a
+// confirmed email can get each day's puzzle in their inbox.
+async function renderDailyEmail() {
+  const box = $('#daily-email');
+  if (!box) return;
+  if (isPortal || !dailyEmail.available()) { box.hidden = true; return; }
+  if (!signedIn()) {
+    box.innerHTML = '<button class="btn quiet small" type="button" id="daily-email-signin">Get each day\'s puzzle by email</button> <span class="help">Free, with a sign-in.</span>';
+    box.hidden = false;
+    $('#daily-email-signin').onclick = () => openAccount();
+    return;
+  }
+  const st = await dailyEmail.status();
+  if (!st || !$('#daily-email')) { box.hidden = true; return; }
+  box.innerHTML = st.verified || st.on
+    ? `<label class="check"><input type="checkbox" id="daily-email-on"${st.on ? ' checked' : ''}> Email me each day's puzzle</label> <span class="help" id="daily-email-note" aria-live="polite"></span>`
+    : '<p class="help">To get each day\'s puzzle by email, first confirm your email address with the link we sent when you made your account.</p>';
+  box.hidden = false;
+  const cb = $('#daily-email-on');
+  if (!cb) return;
+  cb.onchange = async () => {
+    const note = $('#daily-email-note');
+    cb.disabled = true;
+    try {
+      const r = await dailyEmail.set(cb.checked);
+      cb.checked = r.on;
+      note.textContent = r.on ? 'Done. It arrives at about 7 am Eastern, with a one-click unsubscribe link.' : 'Done. No more daily emails.';
+    } catch (e) {
+      cb.checked = !cb.checked;
+      note.textContent = navigator.onLine === false ? 'You seem to be offline.' : e.message;
+    } finally {
+      cb.disabled = false;
+    }
+  };
+}
+onAccountChange(() => renderDailyEmail());
+
 $('#daily-section').addEventListener('click', (e) => {
   const b = e.target.closest('[data-daily]');
   if (b) openDaily(b.dataset.daily, b);
