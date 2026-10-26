@@ -68,15 +68,20 @@ def unsubscribe_link(token):
     return f'{API}/v1/daily-email/unsubscribe?t={token}'
 
 
-def content(p):
-    """Subject, text and HTML for the day's puzzle; the HTML has {unsub} to fill in."""
+SUPPORT_LINE = 'The Fantastical Logic Grid is free, has no ads, and is made by one person. If you enjoy it, you can help keep it going'
+
+
+def content(p, support=''):
+    """Subject, text and HTML for the day's puzzle; the HTML has {unsub} to fill in.
+    support: the Support page link, sent by the Worker only once support asks are on."""
     when = p['date']
     size = f"{p['categories']} categories x {p['items']} items"
     subject = f"Today's logic puzzle: {p['title']}"
     link = play_link(when)
     text = (f"Today's daily puzzle is ready.\n\n{p['title']}\n{p['difficultyName']} · {p['themeName']} · {size}\n\n"
             f"{p['opening']}\n\nPlay it free: {link}\n\nThe same puzzle for everyone today. Solve it to keep your streak going.\n\n"
-            "--\nYou asked for the daily puzzle by email in The Fantastical Logic Grid. This is a no-reply address.\n"
+            + (f"{SUPPORT_LINE}: {support}\n\n" if support else '')
+            + "--\nYou asked for the daily puzzle by email in The Fantastical Logic Grid. This is a no-reply address.\n"
             "Unsubscribe with one click: {unsub}\n")
     e = html.escape
     body = ('<!doctype html><html><body style="margin:0;padding:24px;background:#f6f1e7;font-family:Arial,Helvetica,sans-serif;'
@@ -88,7 +93,8 @@ def content(p):
             f'<p style="margin:0 0 20px"><a href="{e(link)}" style="display:inline-block;background:#7a3e00;color:#ffffff;text-decoration:none;'
             'padding:12px 20px;border-radius:8px;font-weight:bold">Play today\'s puzzle</a></p>'
             '<p style="margin:0 0 14px">The same puzzle for everyone today. Solve it to keep your streak going.</p>'
-            '<p style="margin:20px 0 0;font-size:13px;color:#5c5246">You asked for the daily puzzle by email in The Fantastical Logic Grid. '
+            + (f'<p style="margin:0 0 14px;font-size:14px;color:#5c5246">{e(SUPPORT_LINE)}: <a href="{e(support)}" style="color:#7a3e00">support the game</a>.</p>' if support else '')
+            + '<p style="margin:20px 0 0;font-size:13px;color:#5c5246">You asked for the daily puzzle by email in The Fantastical Logic Grid. '
             'This is a no-reply address. <a href="{unsub}" style="color:#5c5246">Unsubscribe</a> with one click.</p>'
             '</div></body></html>')
     return subject, text, body
@@ -169,7 +175,7 @@ def main():
         fail(f"Today's puzzle could not be read from the site ({type(e).__name__}).")
     if not all(puzzle.get(k) for k in ('date', 'title', 'opening', 'difficultyName', 'themeName')):
         fail("The site's latest.json is missing today's puzzle.")
-    mail = content(puzzle)
+    mail = None
 
     totals = {'Resend': 0, 'Gmail': 0, 'retry': 0, 'removed': 0}
     resend_ok = bool(RESEND_KEY)
@@ -186,6 +192,8 @@ def main():
         people = [r for r in claim.get('list', []) if r.get('email') and r.get('token')]
         if not people:
             break
+        if mail is None:
+            mail = content(puzzle, claim.get('support') or '')
         sent, refused = [], []
         if resend_ok:
             s, f = send_resend(people, mail)

@@ -34,6 +34,9 @@ export const supportUrl = () => {
   return typeof u === 'string' && u.startsWith('https://') ? u : '';
 };
 
+// Gentle support asks (web/js/support.js): on only with the Support page link.
+export const supportAsks = () => !!(config && config.game && config.game.supportAsks) && !!supportUrl();
+
 function renderAnnouncements() {
   const box = document.getElementById('announcements');
   if (!box) return;

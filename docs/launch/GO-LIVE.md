@@ -17,6 +17,7 @@ launch day.
 | Tick box | What players see when it's on |
 | --- | --- |
 | **Support the game link** | "Support the game" in the game's Menu |
+| **Support asks in the game** | The Supporter plan's gentle asks: a thank-you on the solved panel after the 3rd, 10th and 25th puzzle, a note at a 7- and 30-day streak, the Supporters window from the Menu, one line on printed puzzles and in the daily puzzle email. At most once a week, never during play or a race, and "Don't ask again" means never. Needs the Support the game link on too. |
 | **Show supporter badges** | Bronze to Platinum badges on the scoreboard |
 | **Supporter extras** | The ticked themes locked for non-premium players, and the Get extras link |
 | **Ko-fi payments** (option 2) | Ko-fi payments add supporters (off: Ko-fi's calls are refused, and Ko-fi retries them later) |

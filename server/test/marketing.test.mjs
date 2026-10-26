@@ -102,12 +102,12 @@ test('the game counts campaign visits anonymously, and made-up codes fold into o
   assert.equal(rows.length, 5);
 
   const r = await call('/admin/v1/marketing?days=7', { auth: viewer() });
-  assert.deepEqual(r.body.totals, { visit: 5, play: 1, solve: 1, return: 0, install: 0, download: 0 });
+  assert.deepEqual(r.body.totals, { visit: 5, play: 1, solve: 1, return: 0, install: 0, download: 0, support: 0 });
   assert.equal(r.body.trend.length, 7);
   assert.equal(r.body.trend.at(-1).visit, 5);
   assert.equal(r.body.bySource[0].source, 'reddit');
   const ad = r.body.ads.find((a) => a.content === 'webgames-launch');
-  assert.deepEqual(ad.stats, { visit: 3, play: 1, solve: 1, return: 0, install: 0, download: 0 });
+  assert.deepEqual(ad.stats, { visit: 3, play: 1, solve: 1, return: 0, install: 0, download: 0, support: 0 });
   assert.equal(r.body.byCampaign.find((x) => x.campaign === '(none)').name, 'No campaign (links from other sites)');
 });
 
