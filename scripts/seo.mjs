@@ -31,6 +31,15 @@ const DAILY_AHEAD_DAYS = 14;
 // One difficulty per weekday (Sunday first). Expert and MENSA take seconds
 // to make, and the daily chain is rebuilt from the start on every build.
 const DAILY_TIERS = ['hard', 'easy', 'medium', 'basic', 'easy', 'medium', 'hard'];
+// Printable worksheets for teachers and parents: a new set every week (weeks
+// start on Monday), one puzzle per level, at a size that fits on paper.
+const PRINT_START = '2026-10-26';
+const PRINT_LEVELS = [
+  { tier: 'basic', categories: 3, items: 3, ages: 'ages 7 and up' },
+  { tier: 'easy', categories: 3, items: 4, ages: 'ages 9 and up' },
+  { tier: 'medium', categories: 4, items: 4, ages: 'ages 11 and up' },
+  { tier: 'hard', categories: 4, items: 5, ages: 'ages 13 and up' },
+];
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const json = (o) => JSON.stringify(o).replace(/</g, '\\u003c');
@@ -127,7 +136,7 @@ export async function buildSeo({ root, site }) {
   const owner = 'Bobby Taylor';
   const copyright = `© 2026${year > 2026 ? `–${year}` : ''} ${owner}. All rights reserved.`;
   const tdmMeta = `<meta name="tdm-reservation" content="1">\n<meta name="tdm-policy" content="${url('terms/')}">`;
-  const NAV = [['how-to-play/', 'How to play'], ['daily/', 'Daily puzzle'], ['themes/', 'Themes'], ['difficulty-levels/', 'Difficulty levels']];
+  const NAV = [['how-to-play/', 'How to play'], ['daily/', 'Daily puzzle'], ['printables/', 'Printables'], ['themes/', 'Themes'], ['difficulty-levels/', 'Difficulty levels']];
   const page = ({ path, title, description, body, crumbs = [], schema = [], lastmod = updated, priority = 0.6, type, listed = true }) => {
     const file = path.endsWith('.html') ? path : `${path}index.html`;
     const up = '../'.repeat(file.split('/').length - 1);
@@ -329,6 +338,7 @@ ${playBtn(up, `Play a ${t.name.toLowerCase()} puzzle`, false)}
   // or a new story) come from the Worker; past days are locked there.
   const plan = await readDailyPlan(base);
   const used = new Set();
+  const dailyStories = []; // [date, story id], in date order, for the printables below
   const daily = new Map();
   const upcoming = [];
   for (let d = DAILY_START, i = 0; d <= addDays(today, DAILY_AHEAD_DAYS); d = addDays(d, 1), i++) {
@@ -346,6 +356,7 @@ ${playBtn(up, `Play a ${t.name.toLowerCase()} puzzle`, false)}
       if (!used.has(p.story.id)) break;
     }
     used.add(p.story.id);
+    dailyStories.push([d, p.story.id]);
     if (d > today) upcoming.push(dailySummary(p, d, plan.has(d)));
     else if (d > addDays(today, -DAILY_ARCHIVE_DAYS - 1)) daily.set(d, p);
   }
@@ -439,6 +450,102 @@ ${puzzleBody(p, d, up)}
 <p>We may update these terms; the date above shows the latest version. To ask for permission, report a copy of the game, or ask a question, email <a href="mailto:fantasticallogicgrid@gmail.com">fantasticallogicgrid@gmail.com</a>.</p>
 ${playBtn(up)}`,
   });
+  // ---------- Printable worksheets (teachers and parents) ----------
+  // Built week by week from PRINT_START, like the daily chain, so a past
+  // week's sheets never change: each week's stories avoid every daily story
+  // published before that week and every earlier worksheet.
+  const monday = (d) => { const x = new Date(`${d}T00:00:00Z`); return addDays(d, -((x.getUTCDay() + 6) % 7)); };
+  const thisWeek = monday(today);
+  const printUsed = new Set();
+  let sheets = [];
+  for (let w = monday(PRINT_START), i = 0; w <= thisWeek; w = addDays(w, 7), i++) {
+    for (const [d, id] of dailyStories) if (d < w) printUsed.add(id);
+    sheets = PRINT_LEVELS.map((lv, j) => {
+      let p;
+      for (let n = 0; n < 20; n++) {
+        p = generatePuzzle({ difficulty: lv.tier, categories: lv.categories, items: lv.items, theme: THEMES[(i * PRINT_LEVELS.length + j * 7) % THEMES.length].id, seed: `print-${w}-${lv.tier}${n ? `-${n}` : ''}` });
+        if (!printUsed.has(p.story.id)) break;
+      }
+      printUsed.add(p.story.id);
+      return { ...lv, puzzle: p };
+    });
+  }
+  // The classic staircase grid: the first category down the side against every
+  // other, then the last against the rest, and so on, ready to fill with X and O.
+  const gridTable = (p) => {
+    const cats = p.categories;
+    const K = cats.length;
+    const cols = cats.slice(1);
+    const rowCats = [cats[0], ...cats.slice(2).reverse()];
+    const span = (rc) => (rc === cats[0] ? cols.length : cats.indexOf(rc) - 1);
+    const head = `<tr><td class="corner" colspan="2" rowspan="2"></td>${cols.map((c) => `<th scope="colgroup" colspan="${c.items.length}" class="cat">${esc(c.name)}</th>`).join('')}</tr>
+<tr>${cols.map((c) => c.items.map((it) => `<th scope="col" class="item"><span>${esc(it.label)}</span></th>`).join('')).join('')}</tr>`;
+    const body = rowCats.map((rc) => rc.items.map((it, r) => `<tr${r === 0 ? ' class="t"' : ''}>${r === 0 ? `<th scope="rowgroup" rowspan="${rc.items.length}" class="cat side"><span>${esc(rc.name)}</span></th>` : ''}<th scope="row" class="item">${esc(it.label)}</th>${cols.slice(0, span(rc)).map((c) => c.items.map((x, ci) => `<td${ci === 0 ? ' class="l"' : ''}></td>`).join('')).join('')}</tr>`).join('')).join('');
+    return `<div class="table-wrap"><table class="lgrid" aria-label="Blank logic grid with ${K} categories"><thead>${head}</thead><tbody>${body}</tbody></table></div>`;
+  };
+  const answerKey = (p) => `<section class="key"><h2>Answer key: ${esc(p.title)}</h2>
+<div class="table-wrap"><table><thead><tr>${p.answerKey.columns.map((c) => `<th scope="col">${esc(c)}</th>`).join('')}</tr></thead>
+<tbody>${p.answerKey.rows.map((r) => `<tr>${r.map((v, i) => i ? `<td>${esc(v)}</td>` : `<th scope="row">${esc(v)}</th>`).join('')}</tr>`).join('')}</tbody></table></div>
+<ol>${p.answerKey.questions.map((q) => `<li>${esc(q.question)} <strong>${esc(q.answer)}</strong></li>`).join('')}</ol>
+<p>${esc(p.story.ending)}</p></section>`;
+  const weekLabel = new Date(`${thisWeek}T12:00:00Z`).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+  page({
+    path: 'printables/', priority: 0.8, lastmod: thisWeek,
+    title: `Free printable logic puzzles with answer keys | ${name}`,
+    description: 'Free printable logic grid puzzles for classrooms and home, from age 7 up. A new worksheet set every week, each with a story, a blank grid and an answer key on its own page.',
+    crumbs: [['printables/', 'Printables']],
+    body: (up) => `<h1>Free printable logic puzzles</h1>
+<p class="lede">Story logic grid puzzles to print for the classroom, homeschool or the kitchen table. A new set every Monday, from age 7 up, each with a blank grid and an answer key on its own page.</p>
+<h2>This week's worksheets</h2>
+<p class="meta">Week of ${esc(weekLabel)}</p>
+<ul class="cards">${sheets.map((sh) => `<li><h3><a href="${up}printables/${sh.tier}/">${esc(TIERS[sh.tier].name)}: ${esc(sh.puzzle.title)}</a></h3><p>${esc(sh.ages)} · ${sh.categories} categories × ${sh.items} items · ${esc(sh.puzzle.theme.name)}</p></li>`).join('')}</ul>
+<h2>What children practise</h2>
+<ul>
+<li><strong>Deductive reasoning:</strong> using what is known to rule things out, one step at a time.</li>
+<li><strong>Close reading:</strong> every word of a clue matters, especially "not", "either" and "before".</li>
+<li><strong>Working systematically:</strong> recording each step in the grid and checking it against the clues.</li>
+<li><strong>Explaining their thinking:</strong> each puzzle has exactly one answer, so students can show how they reached it.</li>
+</ul>
+<h2>How to use them</h2>
+<ol class="steps">
+<li>Open a worksheet and print it with your browser's Print command (Ctrl+P, or Command+P on a Mac). The answer key prints on its own page, so you can keep it back.</li>
+<li>Read the story together. Point out the categories along the top and side of the grid.</li>
+<li>Students mark X where a clue rules a pair out and O where two things go together. One O in a row means the rest of that row is X.</li>
+<li>When the grid is full, they answer the questions and check with the key.</li>
+</ol>
+<p>New to logic grids? <a href="${up}how-to-play/">How to play</a> walks through the rules with a short video.</p>
+<h2>Make as many as you need</h2>
+<p>In the game you can make unlimited puzzles at any of six levels, in more than 40 themes and almost any size, then print them blank or with your marks, on Letter or A4, with the answer key on its own page. Easy puzzles can also print a step-by-step solution. Every puzzle is a new story, in any of 100 languages, so it also works for language learners.</p>
+${playBtn(up, 'Make a puzzle to print', false)}
+<h2>Free for classroom use</h2>
+<p>You may print and copy these worksheets for your own students or family, free. Please don't sell them or post them elsewhere. Link to this page instead.</p>`,
+  });
+  for (const sh of sheets) {
+    const p = sh.puzzle;
+    const level = TIERS[sh.tier].name;
+    page({
+      path: `printables/${sh.tier}/`, priority: 0.6, lastmod: thisWeek,
+      title: `Printable ${level.toLowerCase()} logic puzzle: ${p.title} | ${name}`,
+      description: `A free printable ${level.toLowerCase()} logic grid puzzle (${sh.ages}): ${p.title}, with a story, a blank grid and the answer key on its own page.`,
+      crumbs: [['printables/', 'Printables'], [`printables/${sh.tier}/`, level]],
+      body: (up) => `<article class="sheet">
+<h1>${esc(p.title)}</h1>
+<p class="meta">${esc(level)} · ${esc(sh.ages)} · ${esc(p.theme.name)} · ${p.categories.length} categories × ${p.categories[0].items.length} items · week of ${esc(weekLabel)}</p>
+<p class="noprint">Print this page with your browser's Print command (Ctrl+P, or Command+P on a Mac). The answer key prints on its own page.</p>
+<p class="name-line">Name: ______________________ &nbsp; Date: ____________</p>
+${p.story.paragraphs.map((t) => `<p>${esc(t)}</p>`).join('\n')}
+<h2>Clues</h2>
+<ol class="clues">${p.clues.map((c) => `<li>${esc(c.text)}</li>`).join('')}</ol>
+<h2>The grid</h2>
+<p class="help">Mark X where two things cannot go together and O where they do.</p>
+${gridTable(p)}
+<h2>Questions</h2>
+<ol class="qs">${p.questions.map((q) => `<li>${esc(q.text)}<br>_______________________________</li>`).join('')}</ol>
+${answerKey(p)}
+</article>
+<p class="noprint"><a href="${up}printables/">All this week's worksheets</a> · <a href="${up}">Play in the game</a></p>`,
+    });
+  }
 
   // ---------- 404, files, sitemap, robots, llms.txt, IndexNow ----------
   page({ path: '404.html', listed: false, title: `Page not found | ${name}`, description: 'This page does not exist.', body: (up) => `<h1>That page is not here</h1><p class="lede">The page may have moved. Try one of these.</p>${playBtn(up, 'Play a puzzle')}` });
@@ -481,6 +588,7 @@ Sitemap: ${url('sitemap.xml')}
 - [Play the game](${url('')})
 - [How to play](${url('how-to-play/')}): rules, a narrated video and FAQ
 - [Daily puzzle](${url('daily/')}): a new free puzzle every day, with the answer key
+- [Printables](${url('printables/')}): free printable logic puzzles for classrooms and home, a new set every week, with answer keys
 - [Themes](${url('themes/')})
 - [Difficulty levels](${url('difficulty-levels/')})
 - [Terms of use](${url('terms/')})
