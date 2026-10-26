@@ -355,7 +355,19 @@ for (const diff of ['easy', 'medium', 'expert']) {
         ...S.adjs.map((t) => ['title word', t]), ...S.openings.map((t) => ['opening', t]), ...S.mishaps.map((t) => ['mix-up', t]),
         ...S.endings.map((t) => ['ending', t]), ...S.incidents.flatMap((i) => [['event', i.name], ['event', i.text], ['event', i.prize]]),
         ...sc.categories.flatMap((c) => (S.leads[c.id] || []).map((t) => [`${c.id} lead`, t])),
+        ...sc.categories.filter((c) => c.note).map((c) => [`${c.id} note`, c.note]),
       ];
+      // Numbered categories say which way they run. "Holds a higher rank"
+      // means nothing until the player knows whether rank 1 is the top
+      // (player report, 2026-10-26), so any comparison in higher/lower or
+      // above/below terms needs a note that settles it.
+      for (const c of sc.categories) {
+        if (!c.ordinal) continue;
+        const o = c.ordinal;
+        const words = [o.less, o.more, o.lessBy, o.moreBy].join(' ');
+        if (/\b(higher|lower|above|below|top|bottom)\b/i.test(words) && !c.note) problem(where, `"${c.id}" compares with higher/lower but has no note saying which way its numbers run`);
+        if (c.note && /\brank|place|grade|year|lane|score\b/i.test(c.name) && !/\b(1|bigger|higher|better|first)\b/.test(c.note)) problem(where, `"${c.id}" note does not say which end is the top`);
+      }
       for (const [kind, raw] of texts) {
         const text = raw.replace(/\{\w+\}/g, ' ');
         for (const [w, what] of words) if (has(text, w)) problem(where, `${kind} "${raw}" names the ${what} "${w}"`);
@@ -389,6 +401,16 @@ for (const diff of ['easy', 'medium', 'expert']) {
             if (!has(story.text, sc.cast.many)) bad.push(`${where}: never calls the cast "${sc.cast.many}"`);
             if (!new RegExp(`\\b${NUMBER_WORDS[N]}\\b`, 'i').test(story.text)) bad.push(`${where}: the head count is not ${NUMBER_WORDS[N]}`);
             if (!has(story.text, goalLabel)) bad.push(`${where}: the goal "${goalLabel}" is not in the story`);
+            // The goal question ties the grid answer to the story's event
+            // (a song-request story must not end on "who ordered the Tacos?"
+            // without saying why that matters).
+            const incident = sc.story.incidents.find((i) => story.title.endsWith(i.name));
+            const last = story.paragraphs.at(-1);
+            if (!incident || !last.includes(incident.prize)) bad.push(`${where}: the goal question does not link "${goalLabel}" to the story's event`);
+            if (!last.endsWith('?') || !has(last, goalLabel)) bad.push(`${where}: the story does not end on its goal question`);
+            for (const c of model.cats.slice(1)) {
+              if (c.note && !story.text.includes(c.note.replace(/\{one\}/g, sc.cast.one).replace(/\{many\}/g, sc.cast.many).slice(1))) bad.push(`${where}: the ${c.name} note is missing from the story`);
+            }
             const task = story.paragraphs.find((x) => x.startsWith('Use the clues'));
             for (const c of model.cats.slice(1)) if (!task.toLowerCase().includes(c.name.toLowerCase())) bad.push(`${where}: the task leaves out ${c.name}`);
             for (const n of sc.names) if (!names.includes(n) && has(all, n)) bad.push(`${where}: names "${n}", who is not in the puzzle`);

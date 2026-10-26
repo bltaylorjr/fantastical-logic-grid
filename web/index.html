@@ -394,7 +394,7 @@
 
 <dialog id="dlg-feedback" class="wide" aria-labelledby="feedback-h">
   <h2 id="feedback-h">Ideas and problems</h2>
-  <p class="help">Two boxes: one for ideas, one for problems. Both go to the game's team. Don't include your name, email or anything personal; messages are anonymous, so we can't write back.</p>
+  <p class="help">Two boxes: one for ideas, one for problems. Both go to the game's team. Don't include your name, email or anything personal: messages are anonymous. Signed in with a confirmed email? Tick the box and we'll send you a short thank-you note.</p>
   <form class="feedback-box" id="idea-form" data-kind="idea" novalidate>
     <h3>Share an idea</h3>
     <fieldset><legend>What is it about?</legend>
@@ -402,6 +402,7 @@
       <label class="radio"><input type="radio" name="idea-topic" value="other"> Something else</label>
     </fieldset>
     <div class="field"><label for="idea-text">Your idea</label><textarea id="idea-text" rows="4" maxlength="1000" placeholder="A pirate ship lost in the fog, where the crew mixed up the treasure maps…"></textarea></div>
+    <label class="check fb-reply" hidden><input type="checkbox" data-reply checked> <span>Email me a thank-you note<span class="fb-reply-to"></span></span></label>
     <div class="error-box" role="alert" hidden></div>
     <p class="acct-done" role="status"></p>
     <div class="row-inline"><button class="btn primary" type="submit">Send idea</button></div>
@@ -412,6 +413,7 @@
       <option value="play">Playing a puzzle</option><option value="sound">Sound, music or voices</option><option value="pictures">Pictures</option>
       <option value="saving">Saving or signing in</option><option value="other">Somewhere else</option></select></div>
     <div class="field"><label for="problem-text">What went wrong?</label><textarea id="problem-text" rows="4" maxlength="1000" placeholder="What you did, what you expected, and what happened instead."></textarea></div>
+    <label class="check fb-reply" hidden><input type="checkbox" data-reply checked> <span>Email me a thank-you note<span class="fb-reply-to"></span></span></label>
     <div class="error-box" role="alert" hidden></div>
     <p class="acct-done" role="status"></p>
     <div class="row-inline"><button class="btn primary" type="submit">Send problem report</button></div>
