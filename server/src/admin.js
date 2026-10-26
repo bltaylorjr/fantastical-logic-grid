@@ -21,6 +21,10 @@
 //   POST /admin/v1/players/:uid/(rename|ban|unban|reset-scores|delete)
 //   GET/POST /admin/v1/settings        feature switches and limits (settings.js)
 //   GET/POST /admin/v1/announcements   messages in the game; POST .../:id/(end|delete)
+//   GET  /admin/v1/inbox?type=&status=&q=  Communication: messages, ideas, problems, errors and emails in one list (messages.js)
+//   GET  /admin/v1/conversations/:id   one conversation; POST .../:id/reply, .../:id/status (open|done|delete)
+//   POST /admin/v1/conversations       write to one player first
+//   GET/POST /admin/v1/news            news in every player's Messages; POST .../:id/(end|delete)
 //   GET  /admin/v1/audit               the audit log
 //   GET  /admin/v1/daily               the daily puzzle planner; POST .../:date (change), .../:date/reset (daily.js)
 //   GET  /admin/v1/quality?days=       puzzles players give up on, rate low or find too hard or easy (report.js)
@@ -51,6 +55,7 @@ import { refreshSearch, searchSnapshots, lastTry, REFRESH_GAP_MS } from './searc
 import { workshopOptions, addPart, draftParts } from './workshop.js';
 import { TOPICS as FEEDBACK_TOPICS } from './feedback.js';
 import { claimReplies, finishReplies, replyCounts } from './replies.js';
+import { inbox, INBOX_TYPES, conversationView, teamReply, setConversationStatus, startConversation, listNews, addNews, endNews, deleteNews, deleteMessageStatements, MessageRefusal } from './messages.js';
 import { archiveStatus, runArchive, buildArchive, exportArchive, confirmArchive } from './archive.js';
 import { FREE_LIMITS, cloudflareUsage } from './usage.js';
 import { plannerView, checkPlan, savePlan, resetPlan } from './daily.js';
@@ -67,7 +72,7 @@ const SESSION_MAX_S = 12 * 3600;
 const DENIED_PER_DAY = 500; // refused requests written to the audit log, so a flood cannot fill it
 const ANALYTICS_CACHE_MS = 120_000;
 const TABLES = ['sync_users', 'sync_records', 'sync_deleted_users', 'players', 'scores', 'races', 'race_entries', 'race_invites', 'plays', 'parts', 'usage',
-  'app_errors', 'upkeep_log', 'admins', 'admin_audit', 'settings', 'announcements', 'bans', 'name_reviews', 'archive_log', 'feedback', 'feedback_replies', 'search_snapshots', 'daily_plan', 'translations'];
+  'app_errors', 'upkeep_log', 'admins', 'admin_audit', 'settings', 'announcements', 'bans', 'name_reviews', 'archive_log', 'feedback', 'feedback_replies', 'conversations', 'conversation_messages', 'message_contacts', 'news', 'search_snapshots', 'daily_plan', 'translations'];
 const SECURITY_HEADERS = {
   'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
   'X-Content-Type-Options': 'nosniff',
@@ -180,6 +185,7 @@ async function analytics(env, days, now = Date.now()) {
     errorsByDay: db.prepare('SELECT day, SUM(count) AS n FROM app_errors WHERE day >= ?1 GROUP BY day').bind(sinceDay),
     parts: db.prepare('SELECT status AS id, COUNT(*) AS n FROM parts GROUP BY status'),
     feedbackNew: db.prepare("SELECT kind AS id, COUNT(*) AS n FROM feedback WHERE status = 'new' GROUP BY kind"),
+    messagesUnread: db.prepare("SELECT COUNT(*) AS n FROM conversations WHERE status = 'open' AND admin_unread > 0"),
     picturesByDay: db.prepare("SELECT day, count AS n FROM usage WHERE name = 'pictures' AND day >= ?1").bind(sinceDay),
     namesWaiting: db.prepare('SELECT COUNT(*) AS n FROM players p LEFT JOIN name_reviews r ON r.user_id = p.user_id WHERE r.name_key IS NULL OR r.name_key != p.name_key'),
   };
@@ -208,7 +214,7 @@ async function analytics(env, days, now = Date.now()) {
     voices: { byDay: series(r.voicesByDay), cap: settings.daily_tts_cap, enabled: settings.tts_enabled, today: series(r.voicesByDay).at(-1) },
     pictures: { byDay: series(r.picturesByDay), cap: settings.daily_picture_cap, mode: settings.ai_pictures, today: series(r.picturesByDay).at(-1) },
     errors: { byDay: series(r.errorsByDay) },
-    review: { parts: Object.fromEntries(r.parts.map((x) => [x.id, x.n])), namesWaiting: one('namesWaiting'), feedback: Object.fromEntries(r.feedbackNew.map((x) => [x.id, x.n])) },
+    review: { parts: Object.fromEntries(r.parts.map((x) => [x.id, x.n])), namesWaiting: one('namesWaiting'), feedback: Object.fromEntries(r.feedbackNew.map((x) => [x.id, x.n])), messages: one('messagesUnread') },
   };
   analyticsCache.set(days, { at: now, body });
   return body;
@@ -434,6 +440,7 @@ const ROUTES = [
       env.DB.prepare('DELETE FROM sync_records WHERE user_id = ?1').bind(uid),
       env.DB.prepare('DELETE FROM sync_users WHERE user_id = ?1').bind(uid),
       ...deleteCompeteStatements(env, uid),
+      ...deleteMessageStatements(env, uid),
       env.DB.prepare('DELETE FROM name_reviews WHERE user_id = ?1').bind(uid),
       env.DB.prepare('INSERT OR REPLACE INTO sync_deleted_users (user_id, deleted_at) VALUES (?1, ?2)').bind(uid, now),
     ]);
@@ -490,6 +497,38 @@ const ROUTES = [
     await env.DB.prepare('DELETE FROM announcements WHERE id = ?1').bind(Number(id)).run();
     return { body: { ok: true }, target: id };
   }],
+
+  // ---- Communication (messages.js). Viewers see error reports and the email
+  // log only; reading and answering what players wrote needs a moderator.
+  ['GET', /^inbox$/, 'viewer', 'inbox.view', async ({ env, url, who, now }) => {
+    const type = INBOX_TYPES.includes(url.searchParams.get('type')) ? url.searchParams.get('type') : 'all';
+    const status = ['new', 'done', 'all'].includes(url.searchParams.get('status')) ? url.searchParams.get('status') : 'new';
+    const q = str(url.searchParams.get('q') || '', 100);
+    const body = await inbox(env, who.role, { type, status, q }, now);
+    return { body: { ...body, replies: await replyCounts(env) }, detail: { type, status } };
+  }],
+  ['GET', /^conversations\/(\d{1,12})$/, 'moderator', 'conversations.view', async ({ env, params: [id] }) => ({ body: await conversationView(env, Number(id)), target: id })],
+  ['POST', /^conversations\/(\d{1,12})\/reply$/, 'moderator', 'conversations.reply', async ({ env, params: [id], body, who, now }) => {
+    const r = await teamReply(env, Number(id), body, who, now);
+    analyticsCache.clear();
+    return { body: r, target: id, detail: { length: r.length, email: r.email, done: r.done } };
+  }],
+  ['POST', /^conversations\/(\d{1,12})\/status$/, 'moderator', 'conversations.status', async ({ env, params: [id], body, who, now }) => {
+    if (body.status === 'delete' && ROLES[who.role] < ROLES.admin) throw new Refusal(403, 'role', 'Deleting a conversation needs the admin role.');
+    analyticsCache.clear();
+    return { body: await setConversationStatus(env, Number(id), body.status, now), target: id, detail: { status: body.status } };
+  }],
+  ['POST', /^conversations$/, 'admin', 'conversations.start', async ({ env, body, who, now }) => {
+    const r = await startConversation(env, body, who, now);
+    return { body: r, target: r.uid, detail: { conversation: r.id, email: r.email } };
+  }],
+  ['GET', /^news$/, 'viewer', 'news.view', async ({ env, now }) => ({ body: { news: await listNews(env, now) } })],
+  ['POST', /^news$/, 'admin', 'news.create', async ({ env, body, who, now }) => {
+    const r = await addNews(env, body, who, now);
+    return { body: r, target: r.id, detail: { title: r.title, endsAt: r.endsAt } };
+  }],
+  ['POST', /^news\/(\d{1,12})\/end$/, 'admin', 'news.end', async ({ env, params: [id], now }) => { await endNews(env, Number(id), now); return { body: { ok: true }, target: id }; }],
+  ['POST', /^news\/(\d{1,12})\/delete$/, 'admin', 'news.delete', async ({ env, params: [id] }) => { await deleteNews(env, Number(id)); return { body: { ok: true }, target: id }; }],
 
   ['GET', /^audit$/, 'admin', 'audit.view', async ({ env, url }) => {
     const before = Number(url.searchParams.get('before')) || Number.MAX_SAFE_INTEGER;
@@ -612,7 +651,11 @@ async function api(req, env, url, path) {
     if (!route) throw new Refusal(404, 'not_found');
     if (ROLES[who.role] < ROLES[route[2]]) throw new Refusal(403, 'role', `This needs the ${route[2]} role.`);
     const body = await readBody(req);
-    const out = await route[4]({ req, env, url, who, params, body, now: Date.now() });
+    let out;
+    try { out = await route[4]({ req, env, url, who, params, body, now: Date.now() }); } catch (e) {
+      if (e instanceof MessageRefusal) throw new Refusal(e.status, e.error, e.message);
+      throw e;
+    }
     if (!out.quiet) await audit(env, { actor: who.actor, role: who.role, action, target: out.target, detail: out.detail, status: 200 });
     if (out.file) {
       return new Response(out.file, {

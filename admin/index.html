@@ -75,12 +75,10 @@
       <li><a href="#daily" data-min="moderator">Daily puzzles</a></li>
       <li><a href="#quality" data-min="viewer">Puzzle quality <span class="count" id="count-quality" hidden></span></a></li>
       <li><a href="#stories" data-min="moderator">Story workshop and review <span class="count" id="count-parts" hidden></span></a></li>
-      <li><a href="#feedback" data-min="moderator">Ideas and problems <span class="count" id="count-feedback" hidden></span></a></li>
+      <li><a href="#communication" data-min="viewer">Communication <span class="count" id="count-comm" hidden></span></a></li>
       <li><a href="#names" data-min="moderator">Screen names <span class="count" id="count-names" hidden></span></a></li>
       <li><a href="#players" data-min="moderator">Players</a></li>
       <li><a href="#settings" data-min="viewer">Settings and switches</a></li>
-      <li><a href="#announcements" data-min="viewer">Announcements</a></li>
-      <li><a href="#errors" data-min="viewer">Error reports</a></li>
       <li><a href="#backups" data-min="admin">Backups and archive</a></li>
       <li><a href="#audit" data-min="admin">Audit log</a></li>
       <li><a href="#admins" data-min="owner">Admins</a></li>
@@ -153,18 +151,68 @@
       <ul class="cards" id="parts-list"></ul>
     </section>
 
-    <section data-view="feedback" hidden aria-labelledby="h-feedback">
-      <div class="head"><h1 id="h-feedback">Ideas and problems</h1>
-        <div class="field inline"><label for="fb-status">Show</label><select id="fb-status"><option value="new">New</option><option value="done">Done</option><option value="all">All</option></select></div>
-      </div>
-      <p class="muted">What players sent from the game's two boxes. Anonymous: no name, account or email is kept, and email addresses in the text are blanked. Done messages are deleted after 180 days.</p>
-      <p class="muted" id="fb-replies"></p>
-      <fieldset class="tabs"><legend class="sr-only">Box</legend>
-        <label class="tab"><input type="radio" name="fb-kind" value="idea" checked> Ideas <span class="count" id="count-ideas" hidden></span></label>
-        <label class="tab"><input type="radio" name="fb-kind" value="problem"> Problems <span class="count" id="count-problems" hidden></span></label>
+        <section data-view="communication" hidden aria-labelledby="h-comm">
+      <div class="head"><h1 id="h-comm">Communication</h1></div>
+      <p class="muted">Everything players send and the game reports, in one inbox, and the messages the team sends back. Players see the team's messages in the game under Menu &gt; Messages, signed as "The team".</p>
+      <fieldset class="tabs"><legend class="sr-only">Part</legend>
+        <label class="tab"><input type="radio" name="comm-tab" value="inbox" checked> Inbox <span class="count" id="count-inbox" hidden></span></label>
+        <label class="tab"><input type="radio" name="comm-tab" value="send"> Send to players</label>
       </fieldset>
-      <ul class="cards" id="fb-list"></ul>
-      <div class="row" data-min="admin"><button class="btn" type="button" data-export="feedback">Download all ideas and problems (CSV)</button></div>
+
+      <div id="comm-inbox">
+        <form class="row" id="comm-filter" role="search">
+          <div class="field"><label for="comm-type">Show</label><select id="comm-type">
+            <option value="all">Everything</option><option value="message">Messages</option><option value="idea">Ideas</option><option value="problem">Problems</option>
+            <option value="error">Error reports</option><option value="email">Emails to players</option></select></div>
+          <div class="field"><label for="comm-status">Status</label><select id="comm-status"><option value="new">New and open</option><option value="done">Done</option><option value="all">All</option></select></div>
+          <div class="field grow"><label for="comm-q">Find words</label><input id="comm-q" type="search" autocomplete="off" maxlength="100"></div>
+          <button class="btn primary" type="submit">Find</button>
+        </form>
+        <p id="comm-summary" role="status"></p>
+        <p class="muted" id="fb-replies"></p>
+        <section class="card thread" id="comm-thread" hidden aria-labelledby="thread-h"></section>
+        <ul class="cards" id="comm-list"></ul>
+        <p class="muted">Ideas and problems are anonymous unless the player ticked "Let the team reply to me"; then they show a Reply button. Error reports are anonymous and have no done state: New shows the last 7 days, All the last 30. Done items are deleted after 180 days.</p>
+        <div class="row" data-min="admin"><button class="btn" type="button" data-export="feedback">Download all ideas and problems (CSV)</button></div>
+      </div>
+
+      <div id="comm-send" hidden>
+        <form id="msg-form" class="stack card" data-min="admin" novalidate aria-labelledby="msg-h">
+          <h2 id="msg-h">Message one player</h2>
+          <p class="muted">It appears in their Messages in the game. They can reply, and the conversation shows in the inbox.</p>
+          <div class="field"><label for="msg-to">Screen name or player id</label><input id="msg-to" autocomplete="off" maxlength="128" required></div>
+          <div class="field"><label for="msg-subject">Subject (optional)</label><input id="msg-subject" autocomplete="off" maxlength="80"></div>
+          <div class="field"><label for="msg-text">Message (up to 2,000 characters)</label><textarea id="msg-text" rows="4" maxlength="2000" required></textarea></div>
+          <label class="check"><input type="checkbox" id="msg-email" checked> Also email them a notice, if they turned that on (it never includes the message)</label>
+          <p class="error" id="msg-error" role="alert" hidden></p>
+          <div class="row"><button class="btn primary" type="submit">Send message</button></div>
+        </form>
+
+        <h2>News in every player's Messages</h2>
+        <p class="muted">A longer note than a banner, for everyone who opens Messages, signed in or not. The newest five show.</p>
+        <form id="news-form" class="stack card" data-min="admin" novalidate aria-label="Write news">
+          <div class="field"><label for="news-title">Title (3 to 80 characters)</label><input id="news-title" autocomplete="off" maxlength="80" required></div>
+          <div class="field"><label for="news-text">News (up to 1,500 characters)</label><textarea id="news-text" rows="4" maxlength="1500" required></textarea></div>
+          <div class="field"><label for="news-end">Ends (optional)</label><input id="news-end" type="datetime-local"></div>
+          <p class="error" id="news-error" role="alert" hidden></p>
+          <div class="row"><button class="btn primary" type="submit">Publish news</button></div>
+        </form>
+        <ul class="cards" id="news-list"></ul>
+
+        <h2>Banner on the home screen</h2>
+        <p class="muted">A short message at the top of the game's home screen. Players can close it. Up to three show at once.</p>
+        <form id="ann-form" class="stack card" data-min="admin" novalidate>
+        <div class="field"><label for="ann-text">Message (3 to 280 characters)</label><textarea id="ann-text" rows="3" maxlength="280" required></textarea></div>
+        <div class="row">
+          <div class="field"><label for="ann-level">Style</label><select id="ann-level"><option value="info">Information</option><option value="warning">Warning</option></select></div>
+          <div class="field"><label for="ann-start">Starts</label><input id="ann-start" type="datetime-local"></div>
+          <div class="field"><label for="ann-end">Ends (optional)</label><input id="ann-end" type="datetime-local"></div>
+        </div>
+        <p class="error" id="ann-error" role="alert" hidden></p>
+        <div class="row"><button class="btn primary" type="submit">Publish</button></div>
+      </form>
+      <ul class="cards" id="ann-list"></ul>
+      </div>
     </section>
 
     <section data-view="names" hidden aria-labelledby="h-names">
@@ -194,31 +242,7 @@
       <div id="settings-body"></div>
     </section>
 
-    <section data-view="announcements" hidden aria-labelledby="h-ann">
-      <div class="head"><h1 id="h-ann">Announcements</h1></div>
-      <p class="muted">A short message at the top of the game's home screen. Players can close it. Up to three show at once.</p>
-      <form id="ann-form" class="stack card" data-min="admin" novalidate>
-        <div class="field"><label for="ann-text">Message (3 to 280 characters)</label><textarea id="ann-text" rows="3" maxlength="280" required></textarea></div>
-        <div class="row">
-          <div class="field"><label for="ann-level">Style</label><select id="ann-level"><option value="info">Information</option><option value="warning">Warning</option></select></div>
-          <div class="field"><label for="ann-start">Starts</label><input id="ann-start" type="datetime-local"></div>
-          <div class="field"><label for="ann-end">Ends (optional)</label><input id="ann-end" type="datetime-local"></div>
-        </div>
-        <p class="error" id="ann-error" role="alert" hidden></p>
-        <div class="row"><button class="btn primary" type="submit">Publish</button></div>
-      </form>
-      <ul class="cards" id="ann-list"></ul>
-    </section>
-
-    <section data-view="errors" hidden aria-labelledby="h-errors">
-      <div class="head"><h1 id="h-errors">Error reports</h1>
-        <div class="field inline"><label for="err-days">Period</label><select id="err-days"><option value="1">Today</option><option value="7" selected>Last 7 days</option><option value="30">Last 30 days</option></select></div>
-      </div>
-      <p class="muted">Anonymous reports from the apps, most frequent first. Web addresses, emails and long numbers are removed before they are stored.</p>
-      <div class="table-wrap"><table class="table"><thead><tr><th scope="col">Count</th><th scope="col">Message</th><th scope="col">Where</th><th scope="col">App</th><th scope="col">Seen</th></tr></thead><tbody id="err-rows"></tbody></table></div>
-    </section>
-
-    <section data-view="backups" hidden aria-labelledby="h-backups">
+            <section data-view="backups" hidden aria-labelledby="h-backups">
       <div class="head"><h1 id="h-backups">Backups and archive</h1>
         <a class="btn" href="/admin/archive.html" target="_blank" rel="noopener">Open the archive viewer</a>
       </div>
@@ -239,9 +263,9 @@
       <div class="head"><h1 id="h-admins">Admins</h1></div>
       <dl class="roles">
         <dt>Owner</dt><dd>Everything, including this list. Set by the Worker's <code>OWNER_EMAIL</code> secret.</dd>
-        <dt>Admin</dt><dd>Settings, announcements, resetting scores, deleting accounts and the audit log, plus everything a moderator can do.</dd>
-        <dt>Moderator</dt><dd>Story review, screen names, players, bans, plus everything a viewer can do.</dd>
-        <dt>Viewer</dt><dd>Read-only: overview, usage, settings, announcements and error reports.</dd>
+        <dt>Admin</dt><dd>Settings, announcements, news, writing to a player first, deleting conversations, resetting scores, deleting accounts and the audit log, plus everything a moderator can do.</dd>
+        <dt>Moderator</dt><dd>Story review, screen names, players, bans, reading and answering messages, ideas and problems, plus everything a viewer can do.</dd>
+        <dt>Viewer</dt><dd>Read-only: overview, usage, settings, announcements, news, error reports and the email log. Viewers cannot read what players wrote.</dd>
       </dl>
       <form id="admin-form" class="row card" novalidate>
         <div class="field grow"><label for="admin-email">Email of their game account</label><input id="admin-email" type="email" autocomplete="off" required></div>

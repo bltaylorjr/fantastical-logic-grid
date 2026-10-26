@@ -543,8 +543,30 @@ const CSS = `
       await p.click('#menu-btn'); await p.click('[data-cmd=feedback]'); await p.waitForSelector('#dlg-feedback[open]'); await prep();
       await p.fill('#idea-text', 'A pirate ship lost in the fog, where the crew mixed up the treasure maps.');
       const replyOffered = await p.isVisible('#idea-form .fb-reply');
+      const talkOffered = await p.isVisible('#idea-form .fb-talk');
       await scene('feedback', ['Have an idea for a story, or found a problem?', 'Ideas and problems, in the menu, has a separate box for each, and they go straight to the game\'s team.',
-        ...(replyOffered ? ['Signed in with a confirmed email? Leave the box ticked, and the game emails you a short thank-you note.'] : [])]);
+        ...(replyOffered ? ['Signed in with a confirmed email? Leave the box ticked, and the game emails you a short thank-you note.'] : []),
+        ...(talkOffered ? ['Want an answer? Tick Let the team reply to me.'] : [])]);
+      await p.keyboard.press('Escape');
+    }
+    // Messages: news from the team, and (signed in) a conversation with a reply.
+    if (!(await p.$eval('[data-cmd=messages]', (b) => b.hidden))) {
+      const now = Date.now();
+      await db.prepare("INSERT INTO news (title, text, created_by, created_at) VALUES ('Three new worlds to explore', 'The sunken city, the cloud market and the clockwork forest are open. Happy sleuthing!', 'video', ?1)").bind(now - 3600_000).run();
+      const me = await p.evaluate(async () => (await import('./js/account.js')).current());
+      if (me) {
+        const c = await db.prepare("INSERT INTO conversations (user_id, topic, subject, status, player_unread, created_at, updated_at) VALUES (?1, 'question', 'Can I print a puzzle for my class?', 'open', 1, ?2, ?2) RETURNING id").bind(me.uid, now - 600_000).first();
+        await db.prepare("INSERT INTO conversation_messages (conversation_id, sender, text, created_at) VALUES (?1, 'player', 'Can I print a puzzle for my class?', ?2)").bind(c.id, now - 900_000).run();
+        await db.prepare("INSERT INTO conversation_messages (conversation_id, sender, author, text, created_at) VALUES (?1, 'team', 'video', 'Yes! Open the puzzle and press Print. The answer key prints on its own page.', ?2)").bind(c.id, now - 600_000).run();
+      }
+      await p.evaluate(async () => { await (await import('./js/remote-config.js')).refreshNow(); await (await import('./js/messages.js')).refresh(); });
+      await p.click('#menu-btn'); await p.waitForTimeout(300); await prep();
+      await scene('messages-menu', ['When the team writes to you, or posts news, the Menu button shows a number.']);
+      await p.click('[data-cmd=messages]'); await p.waitForSelector('#dlg-messages[open]');
+      if (me) { await p.click('#msg-convs summary'); await p.waitForTimeout(300); }
+      await prep();
+      await scene('messages', ['Messages, in the menu, has news from the game\'s team for everyone.',
+        ...(me ? ['Signed in, you can write to the team with a question, an idea or a problem, and read their replies right here.', 'Tick Email me, and you get a short email when the team writes back.'] : ['Sign in to write to the team and read their replies.'])]);
       await p.keyboard.press('Escape');
     }
     card('outro', [["That's all you need: read the story, follow the clues, and mark your X's and O's.", "That's all you need. Read the story, follow the clues, and mark your exes and ohs."], 'Welcome to The Fantastical Logic Grid. Happy sleuthing!']);

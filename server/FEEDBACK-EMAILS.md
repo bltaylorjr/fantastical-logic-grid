@@ -9,6 +9,11 @@ Menu > Ideas and problems, they can leave "Email me a thank-you note" ticked:
   inconvenience, saying the report was received and is being addressed, and
   thanking them for the information.
 
+- **Message notice:** "You have a new message from The Fantastical Logic Grid
+  team", sent when the team writes to a player who turned on "Email me when
+  the team writes" in Menu > Messages (see `MESSAGES.md`). At most one a day
+  per player, and it only says to open Messages.
+
 The text is fixed (`scripts/feedback-replies.py`). It never includes what the
 player wrote, so the boxes cannot be used to send someone a message.
 

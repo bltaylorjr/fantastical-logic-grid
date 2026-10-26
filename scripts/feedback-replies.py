@@ -56,6 +56,15 @@ NOTES = {
                  'Thank you for the information. Reports like yours help us find and fix problems for every player.\n\n'
                  'The Fantastical Logic Grid team\n' + GAME_URL),
     },
+    'message': {
+        'subject': 'You have a new message from The Fantastical Logic Grid team',
+        'body': ('Hello, puzzler!\n\n'
+                 'The Fantastical Logic Grid team has written to you. To read it and reply, open the game, '
+                 'sign in and choose Menu > Messages.\n\n'
+                 'You get this email because you turned on "Email me when the team writes" in Messages. '
+                 'To stop these emails, untick it there.\n\n'
+                 'The Fantastical Logic Grid team\n' + GAME_URL),
+    },
 }
 
 
