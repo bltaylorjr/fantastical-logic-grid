@@ -4,6 +4,7 @@
 // lives only in this tab (sessionStorage) and ends after 30 idle minutes.
 
 import { initPullRefresh } from './pull-refresh.js';
+import { characterView } from './characters.js';
 import { ratingsView, initRatings } from './ratings.js';
 import { marketingView, initMarketing } from './marketing.js';
 
@@ -421,11 +422,18 @@ function commCounts(c) {
   return `Waiting: ${parts.join(', ')}.`;
 }
 
+const FB_BADGES = { new: '<span class="badge">New</span>', addressed: '<span class="badge ok">Addressed</span>', done: '<span class="badge ok">Done</span>' };
+// An error report the team marked addressed (fixed in a version), or a button to mark it.
+let errItems = [];
+const errFix = (i) => { const f = i.meta.fix; return !f ? (can('admin') ? `<div class="row"><button class="btn small" type="button" data-err="${errItems.indexOf(i)}">Mark addressed</button></div>` : '')
+  : f.missed ? `<p class="fb-note"><span class="badge warn">Still happening</span> Marked fixed in ${esc(f.fixedIn)}, but this report is from ${esc(i.meta.version)}. ${esc(f.note)}</p>`
+  : `<p class="fb-note"><span class="badge ok">Addressed</span> Fixed in ${esc(f.fixedIn)}: ${esc(f.note)}</p>`; };
+
 function itemHtml(i) {
   const type = `<span class="badge${i.type === 'error' ? ' bad' : i.type === 'problem' ? ' warn' : ''}">${TYPE_NAMES[i.type]}</span>`;
   const state = i.type === 'message'
     ? (i.status === 'done' ? '<span class="badge ok">Done</span>' : i.meta.unread ? '<span class="badge warn">Unread</span>' : '<span class="badge">Open</span>')
-    : i.type === 'error' || i.type === 'email' ? '' : i.status === 'done' ? '<span class="badge ok">Done</span>' : '<span class="badge">New</span>';
+    : i.type === 'error' || i.type === 'email' ? '' : FB_BADGES[i.status] || FB_BADGES.new;
   if (i.type === 'message') {
     const m = i.meta;
     return `<li>${type} ${state} <b>${esc(i.title)}</b>
@@ -438,14 +446,16 @@ function itemHtml(i) {
     return `<li>${type} ${state} <b>${esc(FB_TOPICS[m.topic] || m.topic)}</b>
       <span class="muted">${when(i.at)} · ${esc(m.platform)} ${esc(m.version)}${m.conversationId ? ' · the player asked for a reply' : ''}</span>
       <p class="fb-text">${esc(i.text)}</p>
+      ${i.status === 'addressed' && m.note ? `<p class="fb-note"><b>What we did:</b> ${esc(m.note)} <span class="muted">${when(m.doneAt)}</span></p>` : ''}
       <div class="row">${m.conversationId ? `<button class="btn primary small" type="button" data-open="${m.conversationId}">Reply</button>` : ''}
-      ${i.status === 'new' ? `<button class="btn${m.conversationId ? '' : ' primary'} small" type="button" data-fb="${i.id}" data-status="done">Mark done</button>` : `<button class="btn small" type="button" data-fb="${i.id}" data-status="new">Mark new</button>`}
+      ${i.status === 'new' ? `<button class="btn${m.conversationId ? '' : ' primary'} small" type="button" data-fb="${i.id}" data-status="addressed">Mark addressed</button>
+        <button class="btn small" type="button" data-fb="${i.id}" data-status="done">Mark done</button>` : `<button class="btn small" type="button" data-fb="${i.id}" data-status="new">Mark new</button>`}
       <button class="btn small" type="button" data-fb="${i.id}" data-status="delete">Delete</button></div></li>`;
   }
   if (i.type === 'error') {
     const m = i.meta;
     return `<li>${type} <b>${esc(i.text)}</b> <span class="badge">${esc(i.title)}</span>
-      <p class="muted">Seen ${plural(m.count, 'time', 'times')} · <code>${esc(m.place || '–')}</code> · ${esc(m.platform)} ${esc(m.version)} · ${esc(m.first)}${m.last !== m.first ? ` to ${esc(m.last)}` : ''}</p></li>`;
+      <p class="muted">Seen ${plural(m.count, 'time', 'times')} · <code>${esc(m.place || '–')}</code> · ${esc(m.platform)} ${esc(m.version)} · ${esc(m.first)}${m.last !== m.first ? ` to ${esc(m.last)}` : ''}</p>${errFix(i)}</li>`;
   }
   return `<li>${type} <b>${esc(i.title)}</b> <span class="badge${i.meta.state === 'sent' ? ' ok' : i.meta.state === 'failed' ? ' bad' : ''}">${esc(i.text)}</span>
     <span class="muted">${when(i.at)}${i.meta.sentAt ? ` · sent ${when(i.meta.sentAt)}` : ''}</span></li>`;
@@ -464,6 +474,7 @@ views.communication = async () => {
   $('#fb-replies').textContent = !r ? '' : r.enabled
     ? `Emails to players (thank-you notes, and notices of a team message for players who turned them on): ${fmt(r.sentToday)} sent in the last 24 hours, ${fmt(r.waiting)} waiting${r.failedToday ? `, ${fmt(r.failedToday)} could not be sent` : ''}. Limit ${fmt(r.cap)} a day. They go out every 15 minutes from noreply@thelogicgrid.com (or the game's Gmail as a backup); addresses are removed once sent.`
     : 'Emails to players are switched off (Settings and switches > Ideas and problems).';
+  errItems = d.items;
   $('#comm-list').innerHTML = d.items.length ? d.items.map(itemHtml).join('') : '<li class="muted">Nothing here.</li>';
   if (openThread) await showThread(openThread, { keepFocus: true }).catch(() => closeThread());
 };
@@ -521,11 +532,29 @@ $('#comm-status').onchange = () => { closeThread(); show('communication', { keep
 $('#comm-list').onclick = async (e) => {
   const o = e.target.closest('button[data-open]');
   if (o) { await act(o, () => showThread(Number(o.dataset.open))); return; }
+  const eb = e.target.closest('button[data-err]');
+  const x = eb && errItems[Number(eb.dataset.err)];
+  if (x) {
+    const m = x.meta;
+    const v = await ask({ title: 'Mark this error addressed', text: `Every report of this error from ${esc(m.place ? m.place.split(':')[0] : 'this place')} counts as fixed for versions older than the one below.`, ok: 'Mark addressed',
+      fields: [{ name: 'fixedIn', label: 'Fixed in version', value: '', help: 'The game version the fix shipped in, like 1.7.1.' }, { name: 'note', label: 'What was done', type: 'textarea' }],
+      check: (y) => (!/^\d+(\.\d+){1,3}$/.test(y.fixedIn.trim()) ? 'Give a version like 1.7.1.' : y.note.trim() ? '' : 'Write a short note.') });
+    if (!v) return;
+    if (await act(eb, () => api('errors/fix', { method: 'POST', body: { message: x.text, place: m.place, fixedIn: v.fixedIn.trim(), note: v.note } }), 'Marked addressed.')) show('communication', { keepFocus: true });
+    return;
+  }
   const b = e.target.closest('button[data-fb]');
   if (!b) return;
   if (b.dataset.status === 'delete' && !(await ask({ title: 'Delete this message?', text: 'It cannot be brought back.', ok: 'Delete', danger: true }))) return;
-  const words = { done: 'Marked done.', new: 'Marked new.', delete: 'Deleted.' };
-  if (await act(b, () => api(`feedback/${b.dataset.fb}`, { method: 'POST', body: { status: b.dataset.status } }), words[b.dataset.status])) show('communication', { keepFocus: true });
+  const words = { addressed: 'Marked addressed.', done: 'Marked done.', new: 'Marked new.', delete: 'Deleted.' };
+  const body = { status: b.dataset.status };
+  if (body.status === 'addressed') {
+    const v = await ask({ title: 'Mark addressed', text: 'Say in plain words what was done, so anyone reading this later knows.', ok: 'Mark addressed',
+      fields: [{ name: 'note', label: 'What was done', type: 'textarea' }], check: (x) => (x.note.trim() ? '' : 'Write a short note.') });
+    if (!v) return;
+    body.note = v.note;
+  }
+  if (await act(b, () => api(`feedback/${b.dataset.fb}`, { method: 'POST', body }), words[b.dataset.status])) show('communication', { keepFocus: true });
 };
 $('#comm-thread').onclick = async (e) => {
   const b = e.target.closest('button[data-thread]');
@@ -732,6 +761,7 @@ views.settings = async () => {
     if (s.type === 'int') return `<div class="row"><div class="field">${label}<input id="set-${s.key}" type="number" min="${s.min}" max="${s.max}" value="${s.value}" inputmode="numeric"${dis}></div>${save}</div>`;
     if (s.type === 'choice') return `<div class="row"><div class="field">${label}<select id="set-${s.key}"${dis}>${s.options.map((o) => `<option value="${esc(o.value)}"${o.value === s.value ? ' selected' : ''}>${esc(o.label)}</option>`).join('')}</select></div>${save}</div>`;
     if (s.type === 'model') return `<div class="row"><div class="field">${label}<input id="set-${s.key}" type="text" value="${esc(s.value)}" autocomplete="off" spellcheck="false"${dis}></div>${save}</div>`;
+    if (s.type === 'url') return `<div class="row"><div class="field">${label}<input id="set-${s.key}" type="url" value="${esc(s.value)}" placeholder="https://" autocomplete="off" spellcheck="false"${dis}></div>${save}</div>`;
     if (s.type === 'themes') return `${editable ? `<button class="btn small" data-save="${s.key}">Save themes</button>` : ''}`;
     return `${editable ? `<button class="btn small" data-save="${s.key}">Save words</button>` : ''}`;
   };
@@ -1017,6 +1047,9 @@ $('#daily-body').addEventListener('submit', (e) => {
   if (!date) { toast('Pick a day first.'); return; }
   planDay(date, e.target.querySelector('button'));
 });
+
+// ---- Characters (characters.js): the game's own cast and narrators.
+views.characters = () => characterView({ api, esc, toast, announce, act, can, setCount });
 
 // ---- Puzzle quality: what to fix first.
 views.quality = async () => {

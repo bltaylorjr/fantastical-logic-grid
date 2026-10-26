@@ -21,6 +21,11 @@ export const disabledThemes = () => new Set((config && config.disabledThemes) ||
 export const feature = (name) => !(config && config.features && config.features[name] === false);
 // News from the team for everyone, shown in Messages (messages.js).
 export const news = () => (config && config.news) || [];
+// The owner's optional "Support the game" page (an https link), or ''.
+export const supportUrl = () => {
+  const u = config && config.game && config.game.supportUrl;
+  return typeof u === 'string' && u.startsWith('https://') ? u : '';
+};
 
 function renderAnnouncements() {
   const box = document.getElementById('announcements');

@@ -143,7 +143,7 @@ test('settings switch game features off and back on', async () => {
 test('sound, voice and picture choices reach the game', async () => {
   // Uses the break-glass token: the owner's per-minute limit is spent above.
   let cfg = (await call('/v1/config')).body;
-  assert.deepEqual(cfg.game, { voiceSource: 'server', readAloud: true, portraitStyle: 'notionists', confetti: true, aiPictures: 'scene', celebrations: ['confetti'], celebrateRandom: false });
+  assert.deepEqual(cfg.game, { voiceSource: 'server', readAloud: true, portraitStyle: 'notionists', confetti: true, aiPictures: 'scene', celebrations: ['confetti'], celebrateRandom: false, supportUrl: '' });
   assert.deepEqual(cfg.defaults, { sound: true, volume: 60, music: true, musicVolume: 40 });
   assert.equal(cfg.features.errorReports, true);
   assert.equal(cfg.features.feedback, true);
@@ -186,6 +186,11 @@ test('ideas and problems arrive in separate boxes', async () => {
   assert.equal((await call(`/admin/v1/feedback/${id}`, { auth: TOKEN, body: { status: 'done' } })).status, 200);
   assert.equal((await call('/admin/v1/feedback?kind=problem', { auth: TOKEN })).body.items.length, 0);
   assert.equal((await call('/admin/v1/feedback?kind=problem&status=done', { auth: TOKEN })).body.items.length, 1);
+  assert.equal((await call(`/admin/v1/feedback/${id}`, { auth: idToken('owner-addr-uid', OWNER), body: { status: 'addressed' } })).status, 400, 'addressed needs a note');
+  assert.equal((await call(`/admin/v1/feedback/${id}`, { auth: idToken('owner-addr-uid', OWNER), body: { status: 'addressed', note: '  Fixed the music   loop in 1.7.1. ' } })).status, 200);
+  const addressed = (await call('/admin/v1/feedback?kind=problem&status=addressed', { auth: idToken('owner-addr-uid', OWNER) })).body;
+  assert.deepEqual(addressed.items.map((x) => [x.status, x.note]), [['addressed', 'Fixed the music loop in 1.7.1.']]);
+  assert.equal(addressed.waiting.problem, undefined, 'addressed is not waiting');
   assert.equal((await call(`/admin/v1/feedback/${id}`, { auth: TOKEN, body: { status: 'delete' } })).status, 200);
   await call('/admin/v1/settings', { auth: TOKEN, body: { key: 'feedback_enabled', value: false } });
   assert.equal((await call('/v1/feedback', { body: { kind: 'idea', text: 'More dragons please' } })).status, 503);
@@ -282,6 +287,18 @@ test('communication: players and the team write to each other, with one inbox fo
   const found = (await call('/admin/v1/inbox?type=all&q=lighthouse', { auth: mod })).body.items;
   assert.deepEqual([...new Set(found.map((i) => i.type))].sort(), ['idea', 'message']);
   assert.equal((await call('/admin/v1/inbox?type=all&q=100%25', { auth: mod })).body.items.length, 0, 'a % in the search is not a wildcard');
+  // Addressed: a problem with a note, and an error fixed in a version, leave "new" and show under "addressed".
+  const prob = all.items.find((i) => i.type === 'problem' && /music skips/.test(i.text));
+  assert.equal((await call(`/admin/v1/feedback/${prob.id}`, { auth: mod, body: { status: 'addressed', note: 'The music no longer skips.' } })).status, 200);
+  assert.equal((await call('/admin/v1/errors/fix', { auth: boss, body: { message: 'grid is undefined', place: 'app.js:1', fixedIn: '1.1', note: 'Grid loads first now.' } })).status, 200);
+  const fresh = (await call('/admin/v1/inbox?type=all&status=new', { auth: mod })).body.items;
+  assert.ok(!fresh.some((i) => i.id === prob.id && i.type === 'problem') && !fresh.some((i) => i.type === 'error' && i.id === 'fp-comm'), 'addressed items leave the new list');
+  const done = (await call('/admin/v1/inbox?type=all&status=addressed', { auth: mod })).body.items;
+  assert.equal(done.find((i) => i.type === 'problem' && i.id === prob.id).meta.note, 'The music no longer skips.');
+  assert.equal(done.find((i) => i.type === 'error' && i.id === 'fp-comm').meta.fix.fixedIn, '1.1');
+  assert.ok(done.every((i) => ['idea', 'problem', 'error'].includes(i.type)), 'only ideas, problems and errors can be addressed');
+  await call(`/admin/v1/feedback/${prob.id}`, { auth: mod, body: { status: 'new' } });
+  await db.prepare("DELETE FROM error_fixes WHERE message = 'grid is undefined'").run();
 
   // The player turns on email notices; the team replies; the player sees "The team".
   assert.equal((await call('/v1/messages/email', { auth: idToken('ann-uid', 'ann@example.com', false), body: { on: true } })).status, 403, 'needs a confirmed email');
@@ -461,6 +478,25 @@ test('backups: the archive page, a download, and the viewer page', async () => {
   assert.equal(page.status, 200);
   assert.match(page.text, /Archive viewer/);
   assert.match(page.headers.get('content-security-policy'), /script-src 'self'/);
+});
+
+test('errors can be marked addressed with the version that fixed them', async () => {
+  // The owner on another device (its own rate limit), so the other tests keep theirs. (its own rate limit), so the other tests keep theirs.
+  const owner = idToken('owner-fix-uid', OWNER);
+  const report = (version) => ({ kind: 'error', message: "Cannot read properties of undefined (reading 'toLowerCase')", stack: 'at h (https://x.test/js/app.js:1882:9)', platform: 'web', version });
+  await call('/v1/errors', { body: { errors: [report('1.6.0'), report('1.7.1')] } });
+  const before = (await call('/admin/v1/errors', { auth: owner })).body.errors.filter((x) => /toLowerCase/.test(x.message));
+  assert.equal(before.length, 2);
+  assert.ok(before.every((x) => !x.fix));
+  const mark = { message: before[0].message, place: before[0].place, fixedIn: '1.7.1', note: 'Ignore key presses with no key (autofill).' };
+  assert.equal((await call('/admin/v1/errors/fix', { auth: owner, body: { ...mark, fixedIn: 'soon' } })).status, 400);
+  assert.equal((await call('/admin/v1/errors/fix', { auth: owner, body: mark })).status, 200);
+  const after = (await call('/admin/v1/errors', { auth: owner })).body.errors.filter((x) => /toLowerCase/.test(x.message));
+  const byVersion = Object.fromEntries(after.map((x) => [x.version, x.fix]));
+  assert.equal(byVersion['1.6.0'].missed, false, 'an older version counts as fixed');
+  assert.equal(byVersion['1.7.1'].missed, true, 'the fixed version or later shows the fix missed it');
+  assert.equal(byVersion['1.6.0'].note, mark.note);
+  assert.equal((await call(`/admin/v1/errors/fix/${byVersion['1.6.0'].id}/delete`, { auth: owner, body: {} })).status, 200);
 });
 
 test('the older token pages still work and are audited', async () => {

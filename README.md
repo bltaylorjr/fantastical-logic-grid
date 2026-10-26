@@ -14,6 +14,10 @@ The playable game, built on the puzzle and story engine in
 - **Preview on claude.ai:** `dist/preview` is the same app as an Artifact page. Printing and
   saving to files are hidden there because the Artifact frame blocks them.
 
+**Copyright and license:** © 2026 Bobby Taylor. All rights reserved. This is proprietary
+software, not open source: see [LICENSE](LICENSE) and the player [Terms of use](https://thelogicgrid.com/terms/).
+Third-party parts keep their own licenses (`web/THIRD-PARTY-NOTICES.txt`).
+
 ## Features
 
 Setup (difficulty, theme, size, clue count, cast names, title, clue types), a brand new story
@@ -102,6 +106,9 @@ npm run build        # copies the engine + fonts, writes dist/web and dist/previ
 npm run serve        # http://localhost:8080
 npm test             # end-to-end check in headless Chromium (needs Playwright)
 ```
+
+The build minifies the game's own scripts and styles (esbuild; `web/vendor/` is left as is) and stamps
+each with the copyright line. Set `FLG_NO_MINIFY=1` for readable files while debugging.
 
 Windows installer (on Windows: `npm run desktop:build`; from Linux, with mingw-w64 and nsis):
 

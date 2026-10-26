@@ -21,6 +21,7 @@
 import { json, readText, TooLarge } from './http.js';
 import { getSettings } from './settings.js';
 import { cleanText } from './feedback.js';
+import { withFixes } from './errors.js';
 import { queueNotice } from './replies.js';
 import { AuthError } from './auth.js';
 import { nameKey } from './names.js';
@@ -272,7 +273,8 @@ const EMAIL_KINDS = { idea: 'Thank-you email for an idea', problem: 'Email about
 const EMAIL_STATUS = { waiting: 'Waiting to be sent', sending: 'Being sent', sent: 'Sent', failed: 'Could not be sent', dropped: 'Not sent (emails were switched off)' };
 
 // One list, newest first, of everything players sent or the game reported.
-// type: one of INBOX_TYPES; status: new (open, waiting), done or all; q: words to find.
+// type: one of INBOX_TYPES; status: new (open, waiting), addressed (ideas, problems
+// and errors the team marked addressed with a note), done or all; q: words to find.
 export async function inbox(env, role, { type = 'all', status = 'new', q = '' } = {}, now = Date.now()) {
   const db = env.DB;
   const allowed = typesFor(role);
@@ -281,7 +283,7 @@ export async function inbox(env, role, { type = 'all', status = 'new', q = '' } 
   const items = [];
   const has = (t) => want.includes(t);
 
-  if (has('message')) {
+  if (has('message') && status !== 'addressed') {
     const st = status === 'new' ? 'open' : status;
     const { results } = await db.prepare(`SELECT c.id, c.topic, c.subject, c.status, c.admin_unread AS unread, c.updated_at AS at, c.created_at AS createdAt,
         p.screen_name AS name,
@@ -301,23 +303,27 @@ export async function inbox(env, role, { type = 'all', status = 'new', q = '' } 
   }
   for (const kind of ['idea', 'problem']) {
     if (!has(kind)) continue;
-    const { results } = await db.prepare(`SELECT id, topic, text, platform, version, status, created_at AS at, conversation_id AS conversationId FROM feedback
+    const { results } = await db.prepare(`SELECT id, topic, text, platform, version, status, note, created_at AS at, done_at AS doneAt, conversation_id AS conversationId FROM feedback
       WHERE kind = ?1 AND (?2 = 'all' OR status = ?2) AND (?3 IS NULL OR text LIKE ?3 ESCAPE '\\') ORDER BY created_at DESC LIMIT ?4`).bind(kind, status, search, PER_TYPE).all();
     for (const f of results) {
-      items.push({ type: kind, id: f.id, at: f.at, status: f.status, title: f.topic, text: f.text, meta: { topic: f.topic, platform: f.platform, version: f.version, conversationId: f.conversationId } });
+      items.push({ type: kind, id: f.id, at: f.at, status: f.status, title: f.topic, text: f.text, meta: { topic: f.topic, platform: f.platform, version: f.version, conversationId: f.conversationId, note: f.note, doneAt: f.doneAt } });
     }
   }
-  // Error reports have no done state: "new" is the last 7 days, "all" the last 30.
+  // Error reports have no done state: "new" is the last 7 days, "all" and
+  // "addressed" the last 30. An error marked addressed (errors.js withFixes)
+  // leaves "new" unless a report comes from the fixed version or later.
   if (has('error') && status !== 'done') {
     const since = new Date(now - ((status === 'new' ? 7 : 30) - 1) * DAY).toISOString().slice(0, 10);
     const { results } = await db.prepare(`SELECT fingerprint AS id, kind, platform, version, message, place, SUM(count) AS count, MIN(day) AS first, MAX(day) AS last
       FROM app_errors WHERE day >= ?1 AND (?2 IS NULL OR message LIKE ?2 ESCAPE '\\') GROUP BY fingerprint ORDER BY last DESC, count DESC LIMIT ?3`).bind(since, search, PER_TYPE).all();
-    for (const e of results) {
-      items.push({ type: 'error', id: e.id, at: Date.parse(`${e.last}T23:59:59Z`), status: 'new', title: e.kind, text: e.message, meta: { count: e.count, place: e.place, platform: e.platform, version: e.version, first: e.first, last: e.last } });
+    for (const e of await withFixes(env, results)) {
+      const st = e.fix && !e.fix.missed ? 'addressed' : 'new';
+      if (status !== 'all' && st !== status) continue;
+      items.push({ type: 'error', id: e.id, at: Date.parse(`${e.last}T23:59:59Z`), status: st, title: e.kind, text: e.message, meta: { count: e.count, place: e.place, platform: e.platform, version: e.version, first: e.first, last: e.last, fix: e.fix || null } });
     }
   }
   // The email log: the notes themselves are fixed text, and addresses are never shown.
-  if (has('email') && !search) {
+  if (has('email') && !search && status !== 'addressed') {
     const st = status === 'new' ? "status IN ('waiting', 'sending')" : status === 'done' ? "status IN ('sent', 'failed', 'dropped')" : '1 = 1';
     try {
       const { results } = await db.prepare(`SELECT id, kind, status, created_at AS at, sent_at AS sentAt FROM feedback_replies WHERE ${st} ORDER BY created_at DESC LIMIT ?1`).bind(PER_TYPE).all();

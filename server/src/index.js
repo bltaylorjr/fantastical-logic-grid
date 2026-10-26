@@ -7,10 +7,13 @@
 //   POST /v1/feedback                    the game's idea and problem boxes (feedback.js)
 //   /v1/messages*                        messages between signed-in players and the team (messages.js)
 //   POST /v1/picture                     AI pictures from Workers AI (pictures.js)
+//   /v1/characters*                      the game's own characters and player suggestions (characters.js)
 //   GET /v1/config                       announcements, switched-off themes, features (settings.js)
 //   GET /v1/daily/plan                   daily puzzle changes for the website build (daily.js)
+//   /v1/daily/:date/(start|result|stats) everyone's numbers for a daily puzzle (daily-results.js)
 //   POST /v1/translate                   the game's text in another language (translate.js)
 //   POST /v1/m                           anonymous counts of visits from campaign links (marketing.js)
+//   /v1/challenges[/:code[/result]]       Challenge a friend links, no account (challenges.js)
 //   /admin/*                             the admin dashboard and its API (admin.js)
 //   GET /v1/health[?deep=1]              a quick check that the Worker (and with
 //                                        deep=1, the database and daily cleanup) is up
@@ -20,11 +23,14 @@
 
 import { handleLearn } from './learn.js';
 import { handleCompete } from './compete.js';
+import { handleChallenges } from './challenges.js';
 import { handleErrors } from './errors.js';
 import { handleFeedback } from './feedback.js';
 import { handleMessages } from './messages.js';
 import { handlePictures } from './pictures.js';
+import { handleCharacters } from './characters.js';
 import { handleDaily } from './daily.js';
+import { handleDailyResults } from './daily-results.js';
 import { handleTranslate } from './translate.js';
 import { handleAdmin } from './admin.js';
 import { handleMarketing } from './marketing.js';
@@ -61,6 +67,9 @@ async function route(req, env, ctx) {
   const learn = await handleLearn(req, env, ctx, url);
   if (learn) return learn;
 
+  const challenge = await handleChallenges(req, env, url);
+  if (challenge) return challenge;
+
   const compete = await handleCompete(req, env, ctx, url, signedIn);
   if (compete) return compete;
 
@@ -75,6 +84,12 @@ async function route(req, env, ctx) {
 
   const picture = await handlePictures(req, env, ctx, url);
   if (picture) return picture;
+
+  const character = await handleCharacters(req, env, url);
+  if (character) return character;
+
+  const dailyResults = await handleDailyResults(req, env, url);
+  if (dailyResults) return dailyResults;
 
   const daily = await handleDaily(req, env, url);
   if (daily) return daily;

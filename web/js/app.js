@@ -7,7 +7,9 @@ import { printPuzzle } from './print.js';
 import { sceneSvg } from './art.js';
 import * as sfx from './audio.js';
 import * as ai from './ai.js';
-import { portrait } from './portraits.js';
+import { portrait, characterFace } from './portraits.js';
+import * as characters from './characters.js';
+import { characterOf, narratorOf, lineOf } from './cast.js';
 import * as wake from './wakelock.js';
 import * as updates from './updates.js';
 import { celebrate as celebrateSolve } from './effects.js';
@@ -25,6 +27,8 @@ import { initPullRefresh } from './pull-refresh.js';
 import * as daily from './daily.js';
 import * as stats from './stats.js';
 import { shareResult } from './share-result.js';
+import * as challenge from './challenge.js';
+import * as dailyResults from './daily-results.js';
 import * as i18n from './i18n.js';
 import { CLOUD_URL } from './cloud-config.js';
 
@@ -329,12 +333,18 @@ async function makePuzzle(override = null) {
   if (settings.learn) { try { tuned = await learn.tuning(options.difficulty, { useShared: share.available() && remote.feature('learning') }); } catch (e) { tuned = {}; } }
   // Surprise me never picks a theme that is switched off.
   const off = remote.disabledThemes();
-  if (options.theme === 'random' && off.size) {
+  // Surprise me is decided here when the game's own characters might join,
+  // since they depend on the theme.
+  if (options.theme === 'random' && (off.size || characters.anyFor())) {
     const allowed = OPTIONS.themes.filter((t) => !off.has(t.id));
     const weights = (tuned.learning && tuned.learning.themeWeights) || {};
     let r = Math.random() * allowed.reduce((sum, t) => sum + (Number(weights[t.id]) || 1), 0);
     options.theme = (allowed.find((t) => (r -= Number(weights[t.id]) || 1) < 0) || allowed[allowed.length - 1]).id;
   }
+  // The game's own characters (made in the admin dashboard) may join the
+  // cast or tell the story. Names the player typed always win.
+  const picked = options.customNames || options.theme === 'random' ? {} : characters.pick(options.theme, options.items);
+  if (picked.cast && picked.cast.length) options.customNames = picked.cast.map((c) => c.name);
   let puzzle = null;
   // The engine skips used stories itself; the loop is a safety net.
   for (let i = 0; i < 4 && !puzzle; i++) {
@@ -342,6 +352,7 @@ async function makePuzzle(override = null) {
     if (!usedSet.has(storyIdOf(p))) puzzle = p;
   }
   if (!puzzle) throw new Error('Every story we tried has already been used. Try another theme.');
+  characters.attach(puzzle, picked);
   await rememberStory(storyIdOf(puzzle));
   return puzzle;
 }
@@ -601,6 +612,10 @@ function openGame(save, { fresh = false } = {}) {
   $('#p-meta').innerHTML = [...(save.daily ? [`Daily puzzle · ${daily.longDate(save.daily)}`] : []), puzzle.difficulty.name, puzzle.theme.name, ...(puzzle.topic && puzzle.topic.id !== 'any' ? [puzzle.topic.name] : []), `${K} categories × ${N} items`, `${puzzle.clues.length} clues`].map((t) => `<span class="pill">${esc(t)}</span>`).join('');
   const paras = puzzle.story.paragraphs;
   $('#p-story').innerHTML = paras.map((p, i) => `<p${i === paras.length - 1 ? ' class="goal"' : ''}>${esc(p)}</p>`).join('');
+  characters.useFor(puzzle);
+  const teller = narratorOf(puzzle);
+  $('#told-by').hidden = !teller;
+  $('#told-by').innerHTML = teller ? `<span class="told-face" data-who="${esc(teller.name)}">${characterFace(teller, { size: 40 })}</span> Told by <b>${esc(teller.name)}</b>` : '';
   $('#story').open = !fresh ? !save.storyRead : true;
   const notes = (puzzle.notes || []).filter((n) => !/Closest match/.test(n));
   $('#p-notes').hidden = !notes.length;
@@ -991,7 +1006,9 @@ function hintLines(res, level) {
 function renderHint() {
   const { res, level } = S.hint;
   const box = $('#hintbox');
-  const lines = hintLines(res, level);
+  const teller = level === 0 && res.kind !== 'done' ? narratorOf(S.puzzle) : null;
+  const said = teller && lineOf(teller, 'hint', S.save.hintsUsed);
+  const lines = (said ? `<p class="char-line"><b>${esc(teller.name)}:</b> “${esc(said)}”</p>` : '') + hintLines(res, level);
   const more = level < 2 ? `<button class="btn small" type="button" id="hint-more">${level === 0 ? 'Which cell?' : 'Explain why'}</button>` : '';
   const apply = level === 2 && res.kind !== 'done' ? `<button class="btn small" type="button" id="hint-apply">${res.kind === 'mistake' ? 'Fix it for me' : 'Mark it for me'}</button>` : '';
   box.innerHTML = `${lines}<div class="row">${more}${apply}<button class="btn quiet small" type="button" id="hint-close">Close hint</button></div>`;
@@ -1131,7 +1148,7 @@ function checkSolved() {
     S.save.solved = true;
     S.save.completedAt = Date.now();
     // The daily puzzle's answers are on the website, so it earns no scoreboard points.
-    if (!S.save.race && !S.save.daily && !S.save.revealed && !S.save.restarted) S.save.scorePending = true;
+    if (!S.save.race && !S.save.daily && !S.save.challenge && !S.save.revealed && !S.save.restarted) S.save.scorePending = true;
     tickTimer();
     recordSolve(S.save);
     if (!S.save.revealed) campaign.solved();
@@ -1184,8 +1201,20 @@ function showSolved(celebrate) {
   const winner = winnerOf(S.puzzle, S.ix);
   const bg = S.sceneUrl ? `<img class="bg" src="${S.sceneUrl}" alt="">` : sceneSvg(S.puzzle, 5, { animate: false });
   const face = S.portraitUrls && S.portraitUrls[winner] ? `<img src="${S.portraitUrls[winner]}" alt="">` : winner ? portrait(S.puzzle, winner, { size: 120, style: settings.portraitStyle }) : '';
-  res.innerHTML = `${bg}<div class="spot"></div>${winner ? `<div class="hero">${face}<b>${esc(winner)}</b></div>` : ''}`;
-  if (celebrate && voiceOn()) setTimeout(() => { if (S && S.save.solved) ai.speak(settings, S.puzzle, 'narrator', S.puzzle.story.ending, { volume: settings.volume / 100 }); }, 1200);
+  // A character from the admin dashboard cheers in their own words: the
+  // winner if they are one, otherwise the one who told the story.
+  const cheer = [characterOf(S.puzzle, winner), narratorOf(S.puzzle)].find((c) => lineOf(c, 'solve'));
+  const cheerLine = cheer ? lineOf(cheer, 'solve', S.save.hintsUsed + S.puzzle.clues.length) : null;
+  res.innerHTML = `${bg}<div class="spot"></div>${winner ? `<div class="hero">${face}<b>${esc(winner)}</b></div>` : ''}${cheerLine ? `<p class="char-line cheer"><b>${esc(cheer.name)}:</b> “${esc(cheerLine)}”</p>` : ''}`;
+  // The picture is hidden from screen readers, so the cheer is announced.
+  if (celebrate && cheerLine && !settings.silent) setTimeout(() => announce(`${cheer.name} says: ${cheerLine}`), 800);
+  if (celebrate && voiceOn()) {
+    setTimeout(() => {
+      if (!S || !S.save.solved) return;
+      const said = [...(cheerLine ? [{ who: cheer.id === S.puzzle.narrator ? 'narrator' : cheer.name, text: cheerLine }] : []), { who: 'narrator', text: S.puzzle.story.ending }];
+      ai.speakLines(settings, S.puzzle, said, { volume: settings.volume / 100 });
+    }, 1200);
+  }
   res.classList.remove('celebrate');
   if (celebrate) { void res.offsetWidth; res.classList.add('celebrate'); }
   $('#solved').hidden = false;
@@ -1247,6 +1276,8 @@ $('#feedback-idea').onclick = () => feedbackBox.open(openDialog, { kind: 'idea' 
 // Streak, new badges and Share my result on the solved panel.
 async function renderSolvedExtras(save) {
   $('#share-result').hidden = !!save.revealed;
+  $('#challenge-btn').hidden = !!save.revealed || !!save.race || !challenge.available();
+  renderChallenge(save);
   $('#share-note').textContent = '';
   const box = $('#solved-badges');
   const fresh = (S && S.save === save && S.newBadges) || [];
@@ -1254,6 +1285,15 @@ async function renderSolvedExtras(save) {
   box.innerHTML = fresh.length ? `<h3>New badge${fresh.length > 1 ? 's' : ''}</h3><ul class="badges">${fresh.map(badgeHtml).join('')}</ul>` : '';
   const line = $('#solved-streak');
   line.hidden = true;
+  const nums = $('#solved-daily-numbers');
+  nums.hidden = true;
+  // Counted once: the mark is saved before the time is sent.
+  if (save.daily && !save.dailySent) {
+    save.dailySent = true;
+    await flushSave({ manual: true });
+    dailyResults.finished(save.daily, save.elapsedMs, save.revealed);
+  }
+  if (save.daily) showDailyNumbers(save);
   if (!save.daily || save.revealed) return;
   const st = daily.streak(await stats.solveLog().catch(() => []), save.daily);
   if (!S || S.save !== save) return;
@@ -1261,6 +1301,15 @@ async function renderSolvedExtras(save) {
   line.textContent = st.days.has(save.daily)
     ? (st.current > 1 ? `Daily streak: ${st.current} days in a row. Come back tomorrow for the next one.` : 'Your daily streak has started. Come back tomorrow for the next puzzle.')
     : 'This daily puzzle was finished after its day, so it does not add to your streak.';
+}
+// Everyone's numbers for this daily puzzle, under the streak.
+async function showDailyNumbers(save) {
+  const st = await dailyResults.statsFor(save.daily);
+  if (!st || !st.started || !S || S.save !== save) return;
+  const quicker = save.revealed ? null : dailyResults.quickerThan(st, save.elapsedMs);
+  const nums = $('#solved-daily-numbers');
+  nums.textContent = `Everyone on this puzzle: ${dailyResults.summaryLine(st)}.${quicker !== null ? ` You were quicker than ${quicker}% of the other solvers.` : ''}`;
+  nums.hidden = false;
 }
 function badgeHtml(b) {
   return `<li class="badge-item${b.at === null ? ' locked' : ''}"><span class="badge-mark" aria-hidden="true">${b.at === null ? '◇' : '◆'}</span><span><b>${esc(b.name)}</b><small>${esc(b.text)}${b.at ? ` Earned ${esc(new Date(b.at).toLocaleDateString())}.` : ''}</small></span>${b.at === null ? '<span class="sr-only">Not earned yet.</span>' : ''}</li>`;
@@ -1281,6 +1330,83 @@ $('#share-result').onclick = async () => {
   else if (res.done === 'cancelled') $('#share-note').textContent = '';
   else openShareDialog(res, info);
 };
+// ====================================================================
+// Challenge a friend: the same puzzle by link, with a time to beat
+// ====================================================================
+$('#challenge-btn').onclick = async () => {
+  if (!S || !S.save.solved) return;
+  const save = S.save;
+  const btn = $('#challenge-btn');
+  btn.disabled = true;
+  $('#share-note').textContent = 'Making your challenge link…';
+  try {
+    // One link per solve, kept with the save so sharing again reuses it.
+    if (!save.challengeLink) {
+      save.challengeLink = (await challenge.create(S.puzzle, save.elapsedMs, save.hintsUsed)).url;
+      scheduleSave();
+    }
+    const text = challenge.message({ title: save.name, time: fmtTime(save.elapsedMs), hints: save.hintsUsed || 0 });
+    $('#share-note').textContent = '';
+    if (navigator.share) {
+      try { await navigator.share({ title: save.name, text, url: save.challengeLink }); $('#share-note').textContent = 'Challenge sent.'; return; }
+      catch (e) { if (e && e.name === 'AbortError') return; }
+    }
+    let copied = false;
+    try { await navigator.clipboard.writeText(`${text} ${save.challengeLink}`); copied = true; } catch (e) { /* show it to copy */ }
+    openShareDialog({ text: `${text} ${save.challengeLink}`, done: copied ? 'copied' : 'show' }, { title: save.name });
+  } catch (e) {
+    $('#share-note').textContent = e.message || 'The challenge link could not be made.';
+  } finally {
+    btn.disabled = false;
+  }
+};
+
+// Both times on the solved panel of a puzzle opened from a challenge link.
+async function renderChallenge(save) {
+  const box = $('#challenge-result');
+  box.hidden = true;
+  const c = save.challenge;
+  if (!c || !save.solved || save.revealed) return;
+  // Counted once: the mark is saved before the result is sent, so reopening
+  // the puzzle (even straight away) never counts it again.
+  if (!c.sent) {
+    c.sent = true;
+    await flushSave({ manual: true });
+    try { c.result = await challenge.sendResult(c.code, save.elapsedMs, save.hintsUsed); scheduleSave(); } catch (e) { c.result = null; }
+  }
+  if (!S || S.save !== save) return;
+  const won = save.elapsedMs < c.theirMs;
+  const r = c.result;
+  box.innerHTML = `<h3>${won ? 'You beat your friend\'s time!' : 'Your friend was quicker this time.'}</h3>
+    <p>Your time: <b>${fmtTime(save.elapsedMs)}</b>. Your friend's time: <b>${fmtTime(c.theirMs)}</b>.</p>
+    ${r && r.plays > 1 ? `<p>${r.beat} of ${r.plays} players who took this challenge beat your friend's time.</p>` : ''}
+    <p class="help">Press Challenge a friend to send this puzzle on with your own time.</p>`;
+  box.hidden = false;
+}
+
+// ?challenge=CODE: open that puzzle (once; the same link later resumes it).
+function handleChallengeLink() {
+  const code = challenge.linkCode();
+  if (!code) return false;
+  (async () => {
+    const existing = (await store.listSaves()).find((x) => x.challenge && x.challenge.code === code);
+    if (existing) { openGame(existing); return; }
+    if (!CLOUD_URL) { toast('Challenge links need the internet version of the game.'); return; }
+    try {
+      const c = await challenge.load(code);
+      await rememberStory(storyIdOf(c.puzzle));
+      const save = newSave(c.puzzle);
+      save.challenge = { code, theirMs: c.elapsedMs, theirHints: c.hints || 0 };
+      await store.putSave(save);
+      openGame(save, { fresh: true });
+      toast(`A friend solved this puzzle in ${fmtTime(c.elapsedMs)}. Can you beat that time?`, null, { ms: 9000 });
+    } catch (e) {
+      toast(e.message || 'That challenge could not be opened.', null, { ms: 9000 });
+    }
+  })();
+  return true;
+}
+
 function openShareDialog(res, info) {
   $('#share-text').value = res.text || '';
   $('#share-status').textContent = res.done === 'copied' ? 'The message is copied. Paste it anywhere.' : '';
@@ -1325,7 +1451,14 @@ async function renderDaily() {
   box.innerHTML = `<p class="daily-title"><b>${esc(l.title)}</b></p>
     <p class="daily-meta"><span class="pill">${esc(daily.longDate(l.date))}</span> <span class="pill">${esc(l.difficultyName)}</span> <span class="pill">${esc(l.themeName)}</span> <span class="pill">${l.categories} × ${l.items}</span>${state ? ` <span class="pill">${esc(state)}</span>` : ''}</p>
     ${l.offline ? '<p class="help">Offline: showing the last daily puzzle this device saw.</p>' : ''}
+    <p class="daily-numbers muted" id="daily-numbers" hidden></p>
     <button class="btn primary" type="button" data-daily="${esc(l.date)}">${todays ? (todays.solved ? "Open today's puzzle" : "Continue today's puzzle") : "Play today's puzzle"}</button>`;
+  if (!l.offline) dailyResults.statsFor(l.date).then((st) => {
+    const el = $('#daily-numbers');
+    if (!st || !el || dailyLatest !== l) return;
+    el.textContent = dailyResults.summaryLine(st);
+    el.hidden = !el.textContent;
+  });
   const earlier = (l.days || []).filter((d) => d < l.date).slice(0, 7);
   $('#daily-earlier').hidden = !earlier.length;
   $('#daily-list').innerHTML = earlier.map((d) => {
@@ -1347,6 +1480,7 @@ async function openDaily(date, btn) {
     const save = newSave(puzzle);
     save.daily = date;
     await store.putSave(save);
+    dailyResults.started(date);
     openGame(save, { fresh: true });
   } catch (e) {
     toast(`The daily puzzle could not be opened. ${e.message || ''}`.trim(), { label: 'Try again', run: () => openDaily(date) });
@@ -1486,6 +1620,8 @@ window.addEventListener('pagehide', () => flushSave());
 // Multimedia: scene, cast, witness clues, section chimes, adaptive difficulty
 // ====================================================================
 const SAYINGS = ['I saw it with my own eyes:', 'I am sure of this much:', 'Here is what I noticed:', 'I remember it clearly:', 'You might want to write this down:', 'I was there, and', 'Between you and me,', 'I can tell you this:'];
+// The game's own characters say their own lines before a clue.
+const sayingFor = (who, n) => lineOf(characterOf(S.puzzle, who), 'clue', n) || SAYINGS[(n + who.length) % SAYINGS.length];
 
 // Each clue is told by one character, preferably one the clue is not about.
 function assignWitnesses(puzzle, ix) {
@@ -1520,6 +1656,7 @@ function renderMedia() {
   S.sceneUrl = null;
   S.portraitUrls = {};
   loadAiArt();
+  loadCharacterArt();
   // Make the start of the story narration ahead of time so Read aloud plays at once.
   if (voiceOn()) ai.warmVoice(settings, p, 'narrator', p.story.paragraphs.join(' '));
 }
@@ -1551,12 +1688,35 @@ async function loadAiArt() {
   if (settings.aiPictures !== 'all') return;
   for (const btn of $$('#cast-row .cast-btn')) {
     const who = btn.dataset.who;
+    if (characterOf(p, who)) continue; // keeps the face made for them
     try {
       const blob = await ai.portraitImage(settings, p, who);
       if (S !== game) return;
       game.portraitUrls[who] = URL.createObjectURL(blob);
       btn.querySelector('svg, img').outerHTML = `<img class="portrait-img" src="${game.portraitUrls[who]}" alt="">`;
     } catch (e) { if (S === game) console.warn('AI portrait not made:', e.message); return; }
+  }
+}
+
+// AI portraits painted for the game's own characters in the admin dashboard.
+// Their drawn face shows until the picture arrives, and whenever it can't.
+async function loadCharacterArt() {
+  if (isPreview || settings.silent) return;
+  const game = S;
+  for (const c of game.puzzle.characters || []) {
+    if (!c.portrait) continue;
+    try {
+      const blob = await ai.characterImage(c);
+      if (S !== game) return;
+      const url = URL.createObjectURL(blob);
+      if (c.inCast) {
+        game.portraitUrls[c.name] = url;
+        const btn = $(`#cast-row .cast-btn[data-who="${CSS.escape(c.name)}"]`);
+        btn?.querySelector('svg, img')?.replaceWith(Object.assign(document.createElement('img'), { className: 'portrait-img', src: url, alt: '' }));
+      } else {
+        $('#told-by .told-face')?.replaceChildren(Object.assign(document.createElement('img'), { className: 'portrait-img', src: url, alt: '' }));
+      }
+    } catch (e) { /* the drawn face stays */ }
   }
 }
 
@@ -1587,12 +1747,12 @@ $('#cast-row').addEventListener('click', (e) => {
   $$('#clue-list li.spot').forEach((li) => li.classList.remove('spot'));
   clues.forEach((c) => $(`#clue-list li[data-n="${c.number}"]`)?.classList.add('spot'));
   $('#bubble').innerHTML = clues.length
-    ? clues.map((c) => `<p><span class="who">${esc(who)}:</span> “${esc(SAYINGS[(c.number + who.length) % SAYINGS.length])} ${esc(c.text)}” <span class="muted">(clue ${c.number})</span></p>`).join('')
+    ? clues.map((c) => `<p><span class="who">${esc(who)}:</span> “${esc(sayingFor(who, c.number))} ${esc(c.text)}” <span class="muted">(clue ${c.number})</span></p>`).join('')
     : `<p><span class="who">${esc(who)}:</span> “I didn't see anything, I promise.”</p>`;
   $('#bubble').hidden = false;
   sound('whoosh');
   if (voiceOn()) {
-    const lines = clues.length ? clues.map((c) => `${SAYINGS[(c.number + who.length) % SAYINGS.length]} ${c.text}`).join(' ') : "I didn't see anything, I promise.";
+    const lines = clues.length ? clues.map((c) => `${sayingFor(who, c.number)} ${c.text}`).join(' ') : "I didn't see anything, I promise.";
     voiceWaitNote();
     ai.speak(settings, S.puzzle, who, lines, { volume: settings.volume / 100 });
   }
@@ -1743,8 +1903,12 @@ function applyFeatures() {
   for (const el of $$('.needs-cloud')) el.hidden = !share.available() || (!!el.dataset.feature && !remote.feature(el.dataset.feature));
   $('#music-settings').hidden = !remote.feature('music');
   $('[data-cmd=feedback]').hidden = !feedbackBox.available();
+  $('[data-cmd=suggest]').hidden = !characters.suggestionsOpen();
   $('#feedback-idea').hidden = !feedbackBox.available();
   messages.configChanged();
+  const support = remote.supportUrl();
+  $('#support-link').hidden = !support;
+  if (support) $('#support-link').href = support;
   competeUi.refreshMiniBoard();
 }
 applyFeatures();
@@ -1833,7 +1997,7 @@ function toggleMenu(open) {
 }
 $('#menu-btn').onclick = () => toggleMenu();
 $('#app-menu').addEventListener('keydown', (e) => {
-  const items = $$('#app-menu button:not([hidden])');
+  const items = $$('#app-menu [role=menuitem]:not([hidden])');
   const i = items.indexOf(document.activeElement);
   if (e.key === 'Escape') { e.preventDefault(); toggleMenu(false); $('#menu-btn').focus(); }
   else if (e.key === 'ArrowDown') { e.preventDefault(); items[(i + 1) % items.length].focus(); }
@@ -1842,6 +2006,7 @@ $('#app-menu').addEventListener('keydown', (e) => {
 });
 document.addEventListener('pointerdown', (e) => { if (!$('#app-menu').hidden && !e.target.closest('#app-menu, #menu-btn')) toggleMenu(false); });
 $('#app-menu').addEventListener('click', async (e) => {
+  if (e.target.closest('#support-link')) { toggleMenu(false); return; }
   const b = e.target.closest('button[data-cmd]');
   if (!b) return;
   toggleMenu(false);
@@ -1850,6 +2015,7 @@ $('#app-menu').addEventListener('click', async (e) => {
   else if (cmd === 'saved') { await goHome({ focusSaved: true }); $('#saved-section').scrollIntoView(); }
   else if (cmd === 'settings') openSettings();
   else if (cmd === 'stats') openStats();
+  else if (cmd === 'suggest') characters.openSuggest(openDialog, OPTIONS.themes.filter((t) => !remote.disabledThemes().has(t.id)));
   else if (cmd === 'daily') openTodaysDaily();
   else if (cmd === 'feedback') feedbackBox.open(openDialog);
   else if (cmd === 'messages') messages.open();
@@ -2091,6 +2257,7 @@ async function init() {
   applyLanguage();
   matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', applyColorTheme);
   renderSetup();
+  characters.init({ onCharactersChanged: applyFeatures });
   remote.init({
     onThemesChanged: () => { if (!$('#screen-home').hidden) renderSetup(); },
     onConfigChanged: () => { settings = store.loadSettings(); applyFeatures(); applyMode(); languageNote(); },
@@ -2121,7 +2288,7 @@ async function init() {
   window.addEventListener('resize', () => { if (!$('#screen-home').hidden) updatePreview(); });
   document.documentElement.classList.add('ready');
   // A ?play=now link goes straight into a puzzle; the welcome waits for next time.
-  if (!handlePlayLink()) offerIntro();
+  if (!handleChallengeLink() && !handlePlayLink()) offerIntro();
   offerLanguage();
   setTimeout(checkUpdates, 4000);
   if (!isPreview) setTimeout(ensureNaturalVoices, 1500);

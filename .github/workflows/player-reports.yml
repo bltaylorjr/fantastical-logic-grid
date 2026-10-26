@@ -1,5 +1,5 @@
 # The daily player report: errors players hit and the problems and ideas they
-# sent, grouped (already-fixed errors listed apart) and emailed from the game's
+# sent, grouped (errors marked addressed listed apart) and emailed from the game's
 # Gmail account. No email when nothing is new. Same secrets as the weekly
 # archive email (server/ARCHIVE.md); REPORTS_TO is optional (defaults to
 # ARCHIVE_TO). Stop it with the repository variable PLAYER_REPORTS=off.
@@ -37,9 +37,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          sparse-checkout: |
-            scripts/player-reports.py
-            scripts/known-errors.json
+          sparse-checkout: scripts/player-reports.py
           sparse-checkout-cone-mode: false
       - name: Fetch the reports, group them and email them
         env:

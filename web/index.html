@@ -38,12 +38,14 @@
     <button role="menuitem" type="button" data-cmd="saved">Saved puzzles</button>
     <button role="menuitem" type="button" data-cmd="daily">Daily puzzle</button>
     <button role="menuitem" type="button" data-cmd="stats">My stats and badges</button>
+    <button role="menuitem" type="button" data-cmd="suggest" hidden>Suggest a character</button>
     <button role="menuitem" type="button" data-cmd="settings">Settings</button>
     <button role="menuitem" type="button" data-cmd="messages" hidden>Messages<span class="count"></span></button>
     <button role="menuitem" type="button" data-cmd="feedback" hidden>Ideas and problems</button>
     <button role="menuitem" type="button" data-cmd="board" hidden>Scoreboard</button>
     <button role="menuitem" type="button" data-cmd="account" hidden>Account and sync</button>
     <button role="menuitem" type="button" data-cmd="install" hidden>Install the app</button>
+    <a role="menuitem" id="support-link" href="#" target="_blank" rel="noopener" hidden>Support the game</a>
   </div>
   <!-- Always visible: How to play and a small scoreboard. -->
   <div class="topstrip">
@@ -215,6 +217,7 @@
   <details class="card story" id="story" open>
     <summary><h2>The story</h2></summary>
     <div class="story-body" id="p-story"></div>
+    <p class="told-by media" id="told-by" hidden></p>
     <button class="btn small media" type="button" id="read-story">Read the story aloud</button>
     <section class="cast media" id="cast" aria-labelledby="cast-h">
       <h3 id="cast-h">Talk to the cast</h3>
@@ -266,8 +269,10 @@
     <p class="ending" id="ending"></p>
     <dl class="solved-stats" id="solved-stats"></dl>
     <p class="streak-line" id="solved-streak" hidden></p>
+    <p class="streak-line" id="solved-daily-numbers" hidden></p>
     <div class="new-badges" id="solved-badges" hidden></div>
-    <div class="row-inline share-row"><button class="btn" type="button" id="share-result"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.59 13.51 6.83 3.98"/><path d="m15.41 6.51-6.82 3.98"/></svg> Share my result</button><span class="help" id="share-note" role="status"></span></div>
+    <div class="row-inline share-row"><button class="btn" type="button" id="share-result"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.59 13.51 6.83 3.98"/><path d="m15.41 6.51-6.82 3.98"/></svg> Share my result</button><button class="btn" type="button" id="challenge-btn" hidden>Challenge a friend</button><span class="help" id="share-note" role="status"></span></div>
+    <div class="compete-result" id="challenge-result" hidden></div>
     <div class="compete-result" id="compete-result" hidden></div>
     <div class="feedback" id="feedback">
       <fieldset class="stars" aria-describedby="rate-help"><legend>Rate this puzzle <span class="optional">(optional)</span></legend>
@@ -395,6 +400,28 @@
     </fieldset>
     <div class="dlg-actions"><button class="btn primary" value="close">Done</button></div>
   </form>
+</dialog>
+
+<dialog id="dlg-suggest" class="wide" aria-labelledby="suggest-h">
+  <h2 id="suggest-h">Suggest a character</h2>
+  <p class="help">Dream up someone for the game's puzzles. A few questions, then your idea goes to the game's team. They check every suggestion first, so it may change a little, and only some join the game. Please don't use real people or anything personal.</p>
+  <form class="feedback-box" id="suggest-form" novalidate>
+    <div class="field"><label for="suggest-name">1. What is their name? <span class="help">(one or two words, like Zara or Captain Mo)</span></label><input type="text" id="suggest-name" name="name" maxlength="16" autocomplete="off"></div>
+    <fieldset><legend>2. Are they a woman or a man? <span class="help">Their face and voice will match.</span></legend>
+      <label class="radio"><input type="radio" name="gender" value="f"> A woman</label>
+      <label class="radio"><input type="radio" name="gender" value="m"> A man</label>
+    </fieldset>
+    <div class="field"><label for="suggest-look">3. What do they look like?</label><input type="text" id="suggest-look" name="look" maxlength="200" autocomplete="off" placeholder="Curly red hair, round glasses and a green scarf"></div>
+    <div class="field"><label for="suggest-personality">4. What are they like?</label><textarea id="suggest-personality" name="personality" rows="2" maxlength="240" placeholder="Brave, curious and always cracking jokes"></textarea></div>
+    <div class="field"><label for="suggest-voice">5. How should they sound?</label><select id="suggest-voice" name="voiceStyle">
+      <option value="warm">Warm and friendly</option><option value="calm">Calm and gentle</option><option value="lively">Bright and lively</option>
+      <option value="deep">Deep and steady</option><option value="mysterious">Mysterious</option></select></div>
+    <fieldset><legend>6. Which puzzles would they fit? <span class="help">Choose none for any theme.</span></legend><div class="check-grid" id="suggest-themes"></div></fieldset>
+    <div class="error-box" role="alert" hidden></div>
+    <p class="acct-done" role="status"></p>
+    <div class="row-inline"><button class="btn primary" type="submit">Send my character</button></div>
+  </form>
+  <div class="dlg-actions"><button class="btn" type="button" data-close>Close</button></div>
 </dialog>
 
 <dialog id="dlg-feedback" class="wide" aria-labelledby="feedback-h">
@@ -777,6 +804,7 @@
     </tbody>
   </table>
   <p class="muted">Single keys (X, O, H, C, R) can be turned off in Settings. On a Mac, use Cmd instead of Ctrl.</p>
+  <p class="muted small" id="help-legal">© 2026 Bobby Taylor. All rights reserved. Free to play, and to print for personal or classroom use. Copying, scraping or using the puzzles, stories or art to train AI is not allowed. <a href="https://thelogicgrid.com/terms/" target="_blank" rel="noopener">Terms of use</a></p>
   <div class="dlg-actions"><button class="btn primary" type="button" id="help-close">Close</button></div>
 </dialog>
 

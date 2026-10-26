@@ -12,6 +12,7 @@ import { CLOUD_URL } from './cloud-config.js';
 import { genderOf } from './gender.js';
 import { feature } from './remote-config.js';
 import * as i18n from './i18n.js';
+import { characterOf, narratorOf } from './cast.js';
 
 const pending = new Map();
 const THEME_SETTING = {
@@ -76,6 +77,18 @@ export function portraitImage(settings, puzzle, name) {
   const g = genderOf(name);
   const prompt = `Head-and-shoulders portrait of a friendly ${g === 'f' ? 'woman' : 'man'}, a ${role} named ${name}, in ${setting}, looking at the viewer, plain softly lit background, centered, one person only.`;
   return cached(`${puzzle.theme.id}|${(puzzle.topic && puzzle.topic.id) || ''}|${role}|${name}|${g}|portrait`, () => serverPicture(prompt, 'portrait'));
+}
+
+// An AI portrait painted for one of the game's own characters in the admin
+// dashboard (cast.js). It comes from the game's server and is kept on this
+// device; c.portrait is a path on the server that changes when it is repainted.
+export function characterImage(c) {
+  if (!CLOUD_URL || !c || !/^\/v1\/characters\/[\w-]+\/portrait\?v=[\w-]+$/.test(c.portrait || '')) return Promise.reject(new Error('No AI portrait.'));
+  return cached(`character|${c.portrait}`, async () => {
+    const res = await fetch(`${CLOUD_URL}${c.portrait}`);
+    if (!res.ok) throw new Error(`${res.status}`);
+    return res.blob();
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -270,6 +283,10 @@ async function cloudTts(text, voice) {
 // then Kokoro, then the device;
 // 'kokoro' starts with Kokoro; 'device' uses only the device's own voices.
 function voicePlan(settings, puzzle, who) {
+  // The game's own characters (cast.js) keep the voices chosen for them, in
+  // every theme, and one of them may tell the story instead of the narrator.
+  const own = who === 'narrator' ? narratorOf(puzzle) : characterOf(puzzle, who);
+  if (own) return ownVoicePlan(settings, own);
   const seed = hashOf(`${puzzle.theme.id}:${who}`);
   const narr = who === 'narrator';
   const source = settings.voiceProvider || 'server';
@@ -287,6 +304,21 @@ function voicePlan(settings, puzzle, who) {
     return { seed, kind: 'kokoro', gap: 220, key: `k2|${voice}|${speed}`, make: (t) => kokoroTts(t, voice, speed) };
   }
   return { seed, kind: 'device' };
+}
+function ownVoicePlan(settings, c) {
+  const seed = hashOf(`character:${c.id}`);
+  const v = c.voice || {};
+  const source = settings.voiceProvider || 'server';
+  const device = { seed, kind: 'device', speaker: c.name };
+  if (source === 'device') return device;
+  if (source === 'server' && !settings.noServerVoices && cloudVoicesReady() && GEMINI_F.concat(GEMINI_M, ['Charon']).includes(v.gemini)) {
+    return { seed, kind: 'cloud', gap: 80, speaker: c.name, key: `g2|${v.gemini}`, make: (t) => cloudTts(t, v.gemini) };
+  }
+  if (i18n.isEnglish() && (kokoroReady(settings) || kokoroLoading()) && /^a[fm]_[a-z]+$/.test(v.kokoro || '')) {
+    const speed = Math.min(1.2, Math.max(0.8, Number(v.speed) || 1));
+    return { seed, kind: 'kokoro', gap: 220, speaker: c.name, key: `k2|${v.kokoro}|${speed}`, make: (t) => kokoroTts(t, v.kokoro, speed) };
+  }
+  return device;
 }
 // Which voice would speak right now: 'cloud', 'kokoro' or 'device'.
 export const voiceKind = (settings, puzzle, who = 'narrator') => voicePlan(settings, puzzle, who).kind;
@@ -371,9 +403,10 @@ async function say(settings, puzzle, who, text, volume, token) {
     if (token !== speakToken) return false;
   }
   const plan = voicePlan(settings, puzzle, who);
-  if (plan.kind === 'device') return speakDevice(clean, plan.seed, who, volume, token);
+  const speaker = plan.speaker || who;
+  if (plan.kind === 'device') return speakDevice(clean, plan.seed, speaker, volume, token);
   if (plan.kind === 'kokoro' && kokoroLoading()) {
-    try { await kokoroDownload(); } catch (e) { return speakDevice(clean, plan.seed, who, volume, token); }
+    try { await kokoroDownload(); } catch (e) { return speakDevice(clean, plan.seed, speaker, volume, token); }
     if (token !== speakToken) return false;
   }
   const parts = speechChunks(clean);
@@ -391,7 +424,7 @@ async function say(settings, puzzle, who, text, volume, token) {
       if (token !== speakToken) return false;
       if (plan.kind === 'cloud') return say({ ...settings, noServerVoices: true }, puzzle, who, rest(i), volume, token);
       console.warn('Natural voice unavailable, using device voice:', e.message);
-      return speakDevice(rest(i), plan.seed, who, volume, token);
+      return speakDevice(rest(i), plan.seed, speaker, volume, token);
     }
     try {
       if (!(await playBlob(blob, volume, token))) return false;
@@ -400,7 +433,7 @@ async function say(settings, puzzle, who, text, volume, token) {
     } catch (e) {
       if (token !== speakToken || (e && e.name === 'NotAllowedError')) return false;
       console.warn('Voice clip did not play, using device voice:', e && e.message);
-      return speakDevice(rest(i), plan.seed, who, volume, token);
+      return speakDevice(rest(i), plan.seed, speaker, volume, token);
     }
   }
   return token === speakToken;
