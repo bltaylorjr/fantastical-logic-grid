@@ -554,6 +554,15 @@ const CSS = `
         ...(replyOffered ? ['Signed in with a confirmed email? Leave the box ticked, and the game emails you a short thank-you note.'] : [])]);
       await p.keyboard.press('Escape');
     }
+    if (!(await p.$eval('[data-cmd=suggest]', (b) => b.hidden))) {
+      await p.click('#menu-btn'); await p.click('[data-cmd=suggest]'); await p.waitForSelector('#dlg-suggest[open]'); await prep();
+      await p.fill('#suggest-name', 'Captain Mo');
+      await p.check('#suggest-form input[name=gender][value=m]');
+      await p.fill('#suggest-look', 'A blue sea captain\'s coat and a white beard');
+      await p.fill('#suggest-personality', 'Cheerful, a little forgetful, and loves a good riddle');
+      await scene('suggest', ['Dream up a character of your own with Suggest a character, in the menu.', 'Answer a few questions about their name, look, personality and voice.', 'The game\'s team reviews every suggestion, and you might meet yours in a puzzle.']);
+      await p.keyboard.press('Escape');
+    }
     card('outro', [["That's all you need: read the story, follow the clues, and mark your X's and O's.", "That's all you need. Read the story, follow the clues, and mark your exes and ohs."], 'Welcome to The Fantastical Logic Grid. Happy sleuthing!']);
 
     // Title cards.

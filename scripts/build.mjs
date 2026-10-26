@@ -52,6 +52,23 @@ const appVersion = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).
 cloud = cloud.replace(/appVersion: '[^']*'/, `appVersion: ${JSON.stringify(appVersion)}`);
 writeFileSync(cloudFile, cloud);
 
+// Minify the game's own scripts and styles (not vendor/, which keeps its
+// published files and licenses) so the shipped code is smaller and much
+// harder to read or lift. Exports and imports keep their names, so modules
+// still load each other. FLG_NO_MINIFY=1 keeps readable files for debugging.
+if (!process.env.FLG_NO_MINIFY) {
+  const { transformSync } = await import('esbuild');
+  const banner = '/*! The Fantastical Logic Grid. © 2026 Bobby Taylor. All rights reserved. Terms: https://thelogicgrid.com/terms/ */';
+  const own = [];
+  const walkOwn = (d) => { for (const n of readdirSync(d)) { const p = join(d, n); if (statSync(p).isDirectory()) { if (n !== 'vendor') walkOwn(p); } else if (/\.(js|css)$/.test(n) && n !== 'sw.js') own.push(p); } };
+  walkOwn(out);
+  for (const p of own) {
+    const loader = p.endsWith('.css') ? 'css' : 'js';
+    const { code } = transformSync(readFileSync(p, 'utf8'), { loader, minify: true, legalComments: 'none', target: 'es2022', charset: 'utf8' });
+    writeFileSync(p, `${banner}\n${code}`);
+  }
+}
+
 // Content Security Policy for the game page (a <meta> tag, because GitHub
 // Pages cannot send headers). Scripts run only from the game's own files and
 // the one inline theme script (allowed by its hash); the page may talk only to
