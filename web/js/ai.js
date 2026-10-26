@@ -31,6 +31,8 @@ const THEME_SETTING = {
   parks: 'a grand national park with snowy peaks, pine forest and a lake',
   travel: 'a sunny tropical vacation spot with palm trees, a beach and a plane overhead',
   wonders: 'famous world landmarks at golden hour, towers, domes and bridges',
+  music: 'an outdoor concert stage at dusk with bright lights, instruments and a cheering crowd',
+  nautical: 'sailboats racing on a sparkling bay with a lighthouse, colorful flags and gulls',
 };
 
 // The server adds the picture style; this says what to paint.

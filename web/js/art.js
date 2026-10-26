@@ -36,6 +36,8 @@ export const THEME_LOOKS = {
   parks: { sky: ['#6fb3e0', '#d8eef5'], ground: '#3f6b3a', shape: '#24452a', glow: '#fff4c2', accent: '#c4622d' },
   travel: { sky: ['#4cc3e8', '#fde6b8'], ground: '#f1d9a7', shape: '#2f8f4e', glow: '#fff1a8', accent: '#e63946' },
   wonders: { sky: ['#2b2350', '#e8916b'], ground: '#2a2340', shape: '#1a1530', glow: '#ffe3a3', accent: '#c9a227' },
+  music: { sky: ['#1a1038', '#5b2a86'], ground: '#1c1430', shape: '#0f0a20', glow: '#ffe066', accent: '#ef476f' },
+  nautical: { sky: ['#5fb4e6', '#e3f3fb'], ground: '#e9d8a6', shape: '#1d3557', glow: '#fff4c2', accent: '#e63946' },
 };
 const lookFor = (themeId) => THEME_LOOKS[themeId] || THEME_LOOKS.mystery;
 
@@ -222,6 +224,28 @@ const SCENES = {
       `<rect x="0" y="216" width="${W}" height="44" fill="${L.ground}"/><g fill="${L.glow}" opacity=".9"><circle cx="160" cy="40" r="4"/><circle cx="530" cy="94" r="4"/></g>${Array.from({ length: 12 }, () => `<circle cx="${(r() * W).toFixed(0)}" cy="${(226 + r() * 26).toFixed(0)}" r="2" fill="${L.glow}" opacity=".7"/>`).join('')}`,
     ];
   },
+  music(r, L) {
+    const note = (x, y, c) => `<ellipse cx="${x}" cy="${y}" rx="7" ry="5" fill="${c}" transform="rotate(-20 ${x} ${y})"/><path d="M${x + 6} ${y - 2} v-26 q8 4 10 12" stroke="${c}" stroke-width="2.5" fill="none"/>`;
+    return [
+      `${stars(r, 40, '#fff', 120)}`,
+      `<g fill="${L.glow}" opacity=".12">${[160, 400, 640].map((x) => `<path d="M${x} 20 L${x - 90} 200 L${x + 90} 200Z"/>`).join('')}</g>`,
+      `<path d="M150 200 V90 q250 -70 500 0 V200z" fill="${L.shape}"/><rect x="170" y="110" width="460" height="90" fill="#2a1f4a"/><rect x="140" y="196" width="520" height="14" fill="#3a2d5c"/>`,
+      `<g fill="#111"><rect x="180" y="140" width="34" height="58" rx="3"/><rect x="586" y="140" width="34" height="58" rx="3"/></g><g fill="#444">${[157, 177].map((y) => `<circle cx="197" cy="${y}" r="9"/><circle cx="603" cy="${y}" r="9"/>`).join('')}</g><circle cx="330" cy="176" r="20" fill="${L.accent}" stroke="#ddd" stroke-width="3"/><rect x="292" y="166" width="20" height="12" rx="2" fill="${L.accent}"/><path d="M352 150 h26 M365 150 v46" stroke="#ccc" stroke-width="3"/><rect x="458" y="150" width="3" height="46" fill="#bbb"/><circle cx="459" cy="148" r="5" fill="#bbb"/>`,
+      `<rect x="0" y="210" width="${W}" height="50" fill="${L.ground}"/>${Array.from({ length: 26 }, (_, i) => `<circle cx="${i * 31 + 10 + Math.round(r() * 8)}" cy="${(226 + r() * 10).toFixed(0)}" r="10" fill="#0b0716"/>`).join('')}${[60, 230, 520, 700].map((x) => `<path d="M${x} 222 l-6 -22 M${x + 14} 222 l6 -22" stroke="#0b0716" stroke-width="4" stroke-linecap="round"/>`).join('')}`,
+      `${note(90, 80, L.glow)}${note(700, 64, L.accent)}${note(260, 50, '#7bdff2')}${note(560, 40, L.glow)}<g fill="${L.glow}">${[200, 300, 400, 500, 600].map((x) => `<circle cx="${x}" cy="96" r="4"/>`).join('')}</g>`,
+    ];
+  },
+  nautical(r, L) {
+    const sail = (x, base, h, c) => `<path d="M${x - 30} ${base} q30 12 60 0 l-6 10 h-48z" fill="${L.shape}"/><path d="M${x} ${base - 2} V${base - h}" stroke="#5a3a22" stroke-width="3"/><path d="M${x + 2} ${base - h} L${x + 2} ${base - 6} L${x + 34} ${base - 6}Z" fill="#fff"/><path d="M${x - 2} ${base - h + 14} L${x - 2} ${base - 6} L${x - 26} ${base - 6}Z" fill="${c}"/><path d="M${x} ${base - h} l12 4 l-12 4z" fill="${L.accent}"/>`;
+    return [
+      `<circle cx="560" cy="48" r="26" fill="${L.glow}"/><g fill="#fff" opacity=".9"><ellipse cx="180" cy="50" rx="54" ry="13"/><ellipse cx="220" cy="40" rx="32" ry="12"/><ellipse cx="460" cy="70" rx="40" ry="10"/></g>`,
+      `<rect x="0" y="140" width="${W}" height="120" fill="#2a7fb8"/>${Array.from({ length: 6 }, (_, j) => `<path d="M0 ${156 + j * 18} ${Array.from({ length: 20 }, () => 'q20 -6 40 0').join(' ')}" stroke="#fff" stroke-width="1.5" opacity="${(0.5 - j * 0.06).toFixed(2)}" fill="none"/>`).join('')}`,
+      `<path d="M700 160 L700 140 Q740 120 800 130 L800 160Z" fill="#6b7d5a"/><g><path d="M736 132 L742 60 h12 L760 132z" fill="#fff"/><path d="M738 112 h20 l1 8 h-22z M740 88 h16 l1 8 h-18z" fill="${L.accent}"/><rect x="738" y="48" width="20" height="12" fill="${L.glow}"/><path d="M736 48 L748 36 L760 48z" fill="#333"/></g><path d="M758 54 L640 30 L640 78z" fill="${L.glow}" opacity=".25"/>`,
+      `${sail(180, 186, 90, '#f4a261')}${sail(420, 170, 70, '#2a9d8f')}${sail(580, 200, 100, '#e9c46a')}`,
+      `<path d="M0 ${H} L0 236 Q220 222 440 238 L440 ${H} Z" fill="${L.ground}"/><g><rect x="60" y="214" width="6" height="30" fill="#7a5230"/><rect x="100" y="214" width="6" height="30" fill="#7a5230"/><rect x="40" y="210" width="90" height="6" fill="#9c6b3e"/></g>`,
+      `<path d="M300 56 l200 0" stroke="#555" stroke-width="1"/>${['#e63946', '#f1c453', '#1d3557', '#2a9d8f', '#fff', '#e63946', '#f1c453', '#1d3557'].map((c, i) => `<path d="M${310 + i * 24} 56 l8 16 l8 -16z" fill="${c}"/>`).join('')}<g transform="translate(250 226)"><circle cx="0" cy="-18" r="5" fill="none" stroke="#5a5a5a" stroke-width="3"/><path d="M0 -13 V12 M-8 -6 h16 M-16 2 q16 18 32 0" stroke="#5a5a5a" stroke-width="3" fill="none" stroke-linecap="round"/></g><path d="M80 110 q8 -6 16 0 q8 -6 16 0 M520 100 q6 -5 12 0 q6 -5 12 0" stroke="#2b2b2b" stroke-width="2" fill="none"/>`,
+    ];
+  },
 };
 
 // The scene for a puzzle. `revealed` (0..5) is how many detail layers show.
@@ -266,6 +290,8 @@ function hat(themeId, r, L) {
     case 'parks': return `<path d="M14 34 h72 v4 h-72z" fill="#8b6b3e"/><path d="M30 34 q2 -18 20 -20 q18 2 20 20z" fill="#a0814f"/><path d="M42 16 l8 -6 l8 6" stroke="#6b4f2a" stroke-width="2" fill="none"/>`;
     case 'travel': return pick(r, [`<path d="M14 36 q36 -10 72 0 l-10 -4 q-4 -16 -26 -16 q-22 0 -26 16z" fill="#f2d16b"/><rect x="26" y="29" width="48" height="4" fill="${L.accent}"/>`, `<rect x="30" y="44" width="16" height="9" rx="3" fill="#1d1d1d"/><rect x="54" y="44" width="16" height="9" rx="3" fill="#1d1d1d"/><path d="M46 47 h8" stroke="#1d1d1d" stroke-width="2"/>`]);
     case 'wonders': return `<path d="M22 34 q28 -30 56 0z" fill="#f2c14e"/><rect x="18" y="32" width="64" height="5" rx="2" fill="#e0a92e"/><rect x="47" y="10" width="6" height="22" fill="#e0a92e"/>`;
+    case 'music': return pick(r, [`<path d="M24 50 q0 -32 26 -32 q26 0 26 32" stroke="#222" stroke-width="4" fill="none"/><rect x="18" y="44" width="10" height="16" rx="4" fill="${L.accent}"/><rect x="72" y="44" width="10" height="16" rx="4" fill="${L.accent}"/>`, `<rect x="30" y="44" width="16" height="9" rx="3" fill="#1d1d1d"/><rect x="54" y="44" width="16" height="9" rx="3" fill="#1d1d1d"/><path d="M46 47 h8" stroke="#1d1d1d" stroke-width="2"/>`, '']);
+    case 'nautical': return `<path d="M26 32 q24 -18 48 0z" fill="#fff" stroke="#ccc"/><rect x="24" y="30" width="52" height="6" rx="2" fill="#1d3557"/><path d="M74 34 h12 v3 h-12z" fill="#1d3557"/><circle cx="50" cy="26" r="3" fill="#c9a227"/>`;
     default: return '';
   }
 }
