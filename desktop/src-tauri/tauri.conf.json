@@ -51,6 +51,7 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDYzQzQzNTc0N0QwQkFBMTcKUldRWHFndDlkRFhFWTRHWURra1huSzlXckpvU2cxNjlhODNBL0FockNjQ0hWVncxYmU3NzlPajUK",
       "endpoints": [
+        "https://github.com/bltaylorjr/thelogicgrid/releases/latest/download/latest.json",
         "https://github.com/bltaylorjr/fantastical-logic-grid/releases/latest/download/latest.json"
       ],
       "windows": {
