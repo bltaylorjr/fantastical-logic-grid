@@ -1,0 +1,63 @@
+# Mark ideas or problems "Addressed" in the admin dashboard after a fix ships,
+# without opening the dashboard: Actions > Mark addressed > Run workflow, with
+# the feedback ids (from the Communication inbox or the player report), a
+# short plain note of what was done, and the version it shipped in. A player
+# who asked for a reply gets the note in Messages (and by email if their
+# address was confirmed): see server/MESSAGES.md.
+# The repository is public, so this prints only ids and results, never what
+# players wrote. Free: a manual GitHub Actions run.
+name: Mark addressed
+on:
+  workflow_dispatch:
+    inputs:
+      ids:
+        description: 'Feedback ids, separated by commas (e.g. 3,4,5)'
+        required: true
+      note:
+        description: 'What was done, in plain words (players who asked for a reply see this)'
+        required: true
+      fixed_in:
+        description: 'Version the fix shipped in (e.g. 1.7.2), or leave empty'
+        required: false
+permissions:
+  contents: read
+jobs:
+  mark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Mark them addressed
+        env:
+          FLG_CLOUD_URL: ${{ vars.FLG_CLOUD_URL || 'https://flg-api.btay74.workers.dev' }}
+          FLG_ADMIN_TOKEN: ${{ secrets.FLG_ADMIN_TOKEN }}
+          IDS: ${{ inputs.ids }}
+          NOTE: ${{ inputs.note }}
+          FIXED_IN: ${{ inputs.fixed_in }}
+        run: |
+          python3 -I - <<'PY'
+          import json, os, re, sys, urllib.error, urllib.request
+          api = os.environ['FLG_CLOUD_URL'].strip().rstrip('/')
+          token = os.environ.get('FLG_ADMIN_TOKEN', '').strip()
+          if not token:
+              print('::error::The FLG_ADMIN_TOKEN secret is not set.'); sys.exit(1)
+          ids = [i for i in re.split(r'[\s,]+', os.environ['IDS'].strip()) if i]
+          if not ids or not all(i.isdigit() for i in ids):
+              print('::error::ids must be numbers separated by commas.'); sys.exit(1)
+          body = {'status': 'addressed', 'note': os.environ['NOTE'].strip()}
+          if os.environ.get('FIXED_IN', '').strip():
+              body['fixedIn'] = os.environ['FIXED_IN'].strip()
+          bad = 0
+          for i in ids:
+              req = urllib.request.Request(f'{api}/admin/v1/feedback/{i}', method='POST', data=json.dumps(body).encode(),
+                                           headers={'Authorization': f'Bearer {token}', 'Content-Type': 'application/json', 'User-Agent': 'flg-mark-addressed'})
+              try:
+                  with urllib.request.urlopen(req, timeout=30) as res:
+                      told = json.loads(res.read() or b'{}').get('told') or {}
+                      print(f'#{i}: addressed' + (f" (Messages: {told.get('message')}, email: {told.get('email')})" if told else ''))
+              except urllib.error.HTTPError as e:
+                  bad += 1
+                  try: why = json.loads(e.read()).get('message') or e.code
+                  except Exception: why = e.code
+                  print(f'::error::#{i}: refused ({why})')
+          sys.exit(1 if bad else 0)
+          PY
