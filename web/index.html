@@ -68,8 +68,11 @@
       <p class="hero-tag">Every case is a brand new story. Read the clues, fill the grid, close the case.</p>
       <div class="hero-actions">
         <button class="btn primary big" type="button" id="continue-btn" hidden><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg> <span>Continue <small id="continue-name"></small></span></button>
+        <button class="btn big" type="button" id="quick-btn">Play a quick puzzle</button>
         <button class="btn big" type="button" id="hero-new">Start a new case</button>
       </div>
+      <p class="gen-status" id="quick-status" role="status" aria-live="polite"></p>
+      <div class="error-box" id="quick-error" role="alert" hidden></div>
     </div>
   </section>
   <div class="home">
@@ -549,7 +552,7 @@
   <h2 id="welcome-h">Welcome, detective!</h2>
   <p>New to The Fantastical Logic Grid? An 11-minute narrated video shows how to play, with examples. It has captions.</p>
   <p class="muted">You can watch it any time with How to play at the top of the page.</p>
-  <div class="dlg-actions"><button class="btn" type="button" id="welcome-skip">Start playing</button><button class="btn primary" type="button" id="welcome-watch"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 9.003a1 1 0 0 1 1.517-.859l4.997 2.997a1 1 0 0 1 0 1.718l-4.997 2.997A1 1 0 0 1 9 14.996z"/><circle cx="12" cy="12" r="10"/></svg> Watch the video</button></div>
+  <div class="dlg-actions"><button class="btn" type="button" id="welcome-skip">Play a quick puzzle</button><button class="btn primary" type="button" id="welcome-watch"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 9.003a1 1 0 0 1 1.517-.859l4.997 2.997a1 1 0 0 1 0 1.718l-4.997 2.997A1 1 0 0 1 9 14.996z"/><circle cx="12" cy="12" r="10"/></svg> Watch the video</button></div>
 </dialog>
 
 <dialog id="dlg-name" aria-labelledby="name-h">
