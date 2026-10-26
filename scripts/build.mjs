@@ -64,7 +64,9 @@ const indexFile = join(out, 'index.html');
 let indexHtml = readFileSync(indexFile, 'utf8');
 const inlineHashes = [...indexHtml.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(([, code]) => `'sha256-${createHash('sha256').update(code).digest('base64')}'`);
 const cloudOrigins = [...new Set([cloudEnv.syncUrl, cloudEnv.learnUrl].map(origin).filter(Boolean))];
-const connect = ["'self'", 'blob:', 'data:', ...cloudOrigins, 'https://identitytoolkit.googleapis.com', 'https://securetoken.googleapis.com', 'https://api.github.com',
+// The desktop app reads the daily puzzle from the public website (js/daily.js).
+const siteOrigin = origin(cloudEnv.siteUrl || 'https://thelogicgrid.com');
+const connect = ["'self'", 'blob:', 'data:', ...cloudOrigins, siteOrigin, 'https://identitytoolkit.googleapis.com', 'https://securetoken.googleapis.com', 'https://api.github.com',
   'ipc:', 'http://ipc.localhost', ...(cloudOrigins.length ? [] : ['http://localhost:*', 'http://127.0.0.1:*'])];
 const CSP = [
   "default-src 'self'",

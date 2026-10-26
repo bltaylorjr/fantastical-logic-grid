@@ -31,6 +31,7 @@ const SITE = `http://localhost:${PORT}`;
     await page.waitForSelector('#home-btn');
     const csp = await page.getAttribute('meta[http-equiv="Content-Security-Policy"]', 'content');
     assert(/script-src 'self' 'sha256-/.test(csp || ''), 'the game page has a script policy with the inline script hash');
+    assert(/connect-src [^;]*https:\/\/thelogicgrid\.com/.test(csp), 'the desktop app may read the daily puzzle from the website');
     assert(/object-src 'none'/.test(csp) && /base-uri 'self'/.test(csp) && !/unsafe-eval/.test(csp), 'no plugins, no base tag tricks, no eval');
 
     // Play a little so the grid, clues and dialogs all render under the policy.
