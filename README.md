@@ -14,6 +14,10 @@ The playable game, built on the puzzle and story engine in
 - **Preview on claude.ai:** `dist/preview` is the same app as an Artifact page. Printing and
   saving to files are hidden there because the Artifact frame blocks them.
 
+**Copyright and license:** © 2026 Bobby Taylor. All rights reserved. This is proprietary
+software, not open source: see [LICENSE](LICENSE) and the player [Terms of use](https://thelogicgrid.com/terms/).
+Third-party parts keep their own licenses (`web/THIRD-PARTY-NOTICES.txt`).
+
 ## Features
 
 Setup (difficulty, theme, size, clue count, cast names, title, clue types), a brand new story

@@ -2,6 +2,7 @@
   "name": "fantastical-logic-grid-app",
   "version": "1.9.1",
   "private": true,
+  "license": "UNLICENSED",
   "description": "The Fantastical Logic Grid: browser (PWA) and desktop app.",
   "type": "module",
   "scripts": {
