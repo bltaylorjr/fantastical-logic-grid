@@ -31,16 +31,17 @@ export const cleanEmail = (v) => {
 };
 
 // Adds a grant. A repeat of the same (source, ref) changes nothing, except
-// that a later end date replaces an earlier one (a monthly renewal) and a
-// higher tier replaces a lower one (an upgraded membership).
-export async function grant(env, { uid = null, email = null, kind, tier = 1, source, ref, until = null, note = null, by = null }, now = Date.now()) {
+// that a later end date replaces an earlier one (a monthly renewal), and the
+// tier rises to the higher of the two, or with replaceTier becomes the new
+// one (a membership moved to another tier).
+export async function grant(env, { uid = null, email = null, kind, tier = 1, replaceTier = false, source, ref, until = null, note = null, by = null }, now = Date.now()) {
   if (!KINDS.includes(kind)) throw new Error('bad kind');
   await env.DB.prepare(`INSERT INTO supporters (user_id, email, kind, tier, source, ref, note, created_at, until, created_by)
     VALUES (?1, ?2, ?3, ?10, ?4, ?5, ?6, ?7, ?8, ?9)
-    ON CONFLICT (source, ref) DO UPDATE SET tier = MAX(supporters.tier, excluded.tier), until = CASE
+    ON CONFLICT (source, ref) DO UPDATE SET tier = CASE WHEN ?11 THEN excluded.tier ELSE MAX(supporters.tier, excluded.tier) END, until = CASE
       WHEN excluded.until IS NULL OR supporters.until IS NULL THEN NULL
       ELSE MAX(supporters.until, excluded.until) END`)
-    .bind(uid, cleanEmail(email), kind, source, String(ref).slice(0, 200), note ? String(note).slice(0, 200) : null, now, until, by, cleanTier(tier) || 1).run();
+    .bind(uid, cleanEmail(email), kind, source, String(ref).slice(0, 200), note ? String(note).slice(0, 200) : null, now, until, by, cleanTier(tier) || 1, replaceTier ? 1 : 0).run();
 }
 
 // The badge tier for a payment: a membership tier named "Gold supporters"
