@@ -111,6 +111,8 @@ const MOODS = {
   wonders: { root: 146.83, scale: [0, 2, 3, 5, 7, 9, 10], tempo: 0.6, wave: 'sine' },
   music: { root: 164.81, scale: [0, 3, 5, 6, 7, 10], tempo: 0.36, wave: 'square' },
   nautical: { root: 130.81, scale: [0, 2, 4, 5, 7, 9], tempo: 0.52, wave: 'triangle' },
+  farm: { root: 196, scale: [0, 2, 4, 7, 9], tempo: 0.4, wave: 'triangle' },
+  science: { root: 164.81, scale: [0, 2, 4, 6, 7, 9, 11], tempo: 0.42, wave: 'square' },
 };
 
 export function startMusic(themeId) {

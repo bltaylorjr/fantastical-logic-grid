@@ -38,6 +38,8 @@ export const THEME_LOOKS = {
   wonders: { sky: ['#2b2350', '#e8916b'], ground: '#2a2340', shape: '#1a1530', glow: '#ffe3a3', accent: '#c9a227' },
   music: { sky: ['#1a1038', '#5b2a86'], ground: '#1c1430', shape: '#0f0a20', glow: '#ffe066', accent: '#ef476f' },
   nautical: { sky: ['#5fb4e6', '#e3f3fb'], ground: '#e9d8a6', shape: '#1d3557', glow: '#fff4c2', accent: '#e63946' },
+  farm: { sky: ['#7cc6ee', '#fbe7b5'], ground: '#6a9a3a', shape: '#b23a2e', glow: '#fff3b0', accent: '#f2c14e' },
+  science: { sky: ['#dfeaf7', '#f5f8fc'], ground: '#9aa7b8', shape: '#2f4a6b', glow: '#7df9c0', accent: '#2563eb' },
 };
 const lookFor = (themeId) => THEME_LOOKS[themeId] || THEME_LOOKS.mystery;
 
@@ -246,6 +248,27 @@ const SCENES = {
       `<path d="M300 56 l200 0" stroke="#555" stroke-width="1"/>${['#e63946', '#f1c453', '#1d3557', '#2a9d8f', '#fff', '#e63946', '#f1c453', '#1d3557'].map((c, i) => `<path d="M${310 + i * 24} 56 l8 16 l8 -16z" fill="${c}"/>`).join('')}<g transform="translate(250 226)"><circle cx="0" cy="-18" r="5" fill="none" stroke="#5a5a5a" stroke-width="3"/><path d="M0 -13 V12 M-8 -6 h16 M-16 2 q16 18 32 0" stroke="#5a5a5a" stroke-width="3" fill="none" stroke-linecap="round"/></g><path d="M80 110 q8 -6 16 0 q8 -6 16 0 M520 100 q6 -5 12 0 q6 -5 12 0" stroke="#2b2b2b" stroke-width="2" fill="none"/>`,
     ];
   },
+  farm(r, L) {
+    return [
+      `<circle cx="640" cy="62" r="32" fill="${L.glow}"/><g fill="#fff" opacity=".9"><ellipse cx="200" cy="54" rx="52" ry="14"/><ellipse cx="236" cy="44" rx="32" ry="13"/><ellipse cx="460" cy="40" rx="40" ry="11"/></g>`,
+      hills(r, '#9cc95e', 190, 40),
+      `<path d="M0 ${H} L0 205 Q400 190 ${W} 208 L${W} ${H} Z" fill="${L.ground}"/>${Array.from({ length: 9 }, (_, i) => `<path d="M${i * 90 + 420} 260 L${560 + i * 30} 206" stroke="#557d2c" stroke-width="5" opacity=".6"/>`).join('')}`,
+      `<g><path d="M150 210 V130 L210 92 L270 130 V210Z" fill="${L.shape}"/><path d="M140 134 L210 86 L280 134" stroke="#f5f0e1" stroke-width="6" fill="none"/><rect x="186" y="150" width="48" height="60" fill="#f5f0e1"/><path d="M186 150 L234 210 M234 150 L186 210" stroke="${L.shape}" stroke-width="5"/><rect x="198" y="112" width="24" height="20" fill="#f5f0e1"/><rect x="290" y="80" width="40" height="130" fill="#c9ccd1"/><path d="M290 80 q20 -26 40 0z" fill="#9aa2ad"/><path d="M290 110 h40 M290 140 h40 M290 170 h40" stroke="#9aa2ad" stroke-width="3"/></g>`,
+      `<g fill="#f5f0e1">${Array.from({ length: 12 }, (_, i) => `<rect x="${400 + i * 34}" y="196" width="6" height="30"/>`).join('')}</g><rect x="400" y="202" width="380" height="5" fill="#f5f0e1"/><rect x="400" y="214" width="380" height="5" fill="#f5f0e1"/>${tree(60, 214, 80, '#3d7a35')}`,
+      `<g><ellipse cx="520" cy="232" rx="30" ry="15" fill="#fff"/><circle cx="508" cy="228" r="6" fill="#222"/><circle cx="530" cy="236" r="5" fill="#222"/><ellipse cx="552" cy="226" rx="11" ry="9" fill="#fff"/><rect x="500" y="242" width="5" height="12" fill="#fff"/><rect x="536" y="242" width="5" height="12" fill="#fff"/></g><g><rect x="620" y="222" width="54" height="22" rx="3" fill="${L.accent}"/><rect x="650" y="204" width="22" height="20" fill="${L.accent}"/><circle cx="632" cy="248" r="9" fill="#333"/><circle cx="664" cy="246" r="13" fill="#333"/></g><ellipse cx="380" cy="240" rx="10" ry="8" fill="#c0392b"/><path d="M372 234 l8 -6 l8 6" fill="#e9c46a"/>`,
+    ];
+  },
+  science(r, L) {
+    const flask = (x, base, c) => `<path d="M${x - 8} ${base - 60} h16 v20 l18 34 q4 8 -6 8 h-38 q-10 0 -6 -8 l18 -34z" fill="#fff" opacity=".85" stroke="#9aa7b8" stroke-width="2"/><path d="M${x - 18} ${base - 22} h36 l8 14 q2 4 -4 4 h-44 q-6 0 -4 -4z" fill="${c}"/>`;
+    return [
+      `<g opacity=".5">${Array.from({ length: 9 }, (_, i) => `<rect x="${i * 90 + 10}" y="10" width="80" height="120" fill="#fff"/>`).join('')}</g>`,
+      `<rect x="80" y="30" width="200" height="100" rx="6" fill="#1f3b2f" stroke="#8b6b3e" stroke-width="6"/><g fill="none" stroke="#f5f8fc" stroke-width="2" opacity=".85"><circle cx="140" cy="76" r="18"/><ellipse cx="140" cy="76" rx="34" ry="10"/><ellipse cx="140" cy="76" rx="34" ry="10" transform="rotate(60 140 76)"/><path d="M200 60 h50 M200 80 h36 M200 100 h44"/></g>`,
+      `<rect x="0" y="170" width="${W}" height="90" fill="${L.ground}"/><rect x="0" y="164" width="${W}" height="12" fill="${L.shape}"/>`,
+      `${flask(400, 166, L.glow)}${flask(470, 166, '#ff7aa8')}<g><rect x="560" y="120" width="12" height="46" rx="5" fill="#fff" opacity=".85" stroke="#9aa7b8" stroke-width="2"/><rect x="561" y="144" width="10" height="20" rx="4" fill="#ffd166"/><rect x="584" y="120" width="12" height="46" rx="5" fill="#fff" opacity=".85" stroke="#9aa7b8" stroke-width="2"/><rect x="585" y="136" width="10" height="28" rx="4" fill="${L.accent}"/><rect x="552" y="150" width="54" height="6" fill="${L.shape}"/></g>`,
+      `<g fill="${L.shape}"><rect x="660" y="150" width="50" height="10" rx="3"/><rect x="680" y="96" width="10" height="56" rx="3" transform="rotate(-20 685 124)"/><rect x="684" y="80" width="18" height="30" rx="4" transform="rotate(-20 693 95)"/><rect x="694" y="146" width="20" height="8"/></g>`,
+      `<g fill="#fff" opacity=".8">${Array.from({ length: 8 }, () => `<circle cx="${(390 + r() * 100).toFixed(0)}" cy="${(40 + r() * 60).toFixed(0)}" r="${(3 + r() * 5).toFixed(1)}"/>`).join('')}</g><g transform="translate(330 210)"><path d="M0 0 h50 l-6 26 h-38z" fill="#c9a227"/><path d="M8 0 q-16 -2 -14 12 M42 0 q16 -2 14 12" stroke="#c9a227" stroke-width="4" fill="none"/></g>`,
+    ];
+  },
 };
 
 // The scene for a puzzle. `revealed` (0..5) is how many detail layers show.
@@ -292,6 +315,8 @@ function hat(themeId, r, L) {
     case 'wonders': return `<path d="M22 34 q28 -30 56 0z" fill="#f2c14e"/><rect x="18" y="32" width="64" height="5" rx="2" fill="#e0a92e"/><rect x="47" y="10" width="6" height="22" fill="#e0a92e"/>`;
     case 'music': return pick(r, [`<path d="M24 50 q0 -32 26 -32 q26 0 26 32" stroke="#222" stroke-width="4" fill="none"/><rect x="18" y="44" width="10" height="16" rx="4" fill="${L.accent}"/><rect x="72" y="44" width="10" height="16" rx="4" fill="${L.accent}"/>`, `<rect x="30" y="44" width="16" height="9" rx="3" fill="#1d1d1d"/><rect x="54" y="44" width="16" height="9" rx="3" fill="#1d1d1d"/><path d="M46 47 h8" stroke="#1d1d1d" stroke-width="2"/>`, '']);
     case 'nautical': return `<path d="M26 32 q24 -18 48 0z" fill="#fff" stroke="#ccc"/><rect x="24" y="30" width="52" height="6" rx="2" fill="#1d3557"/><path d="M74 34 h12 v3 h-12z" fill="#1d3557"/><circle cx="50" cy="26" r="3" fill="#c9a227"/>`;
+    case 'farm': return pick(r, [`<path d="M14 36 q36 -10 72 0 l-10 -4 q-4 -16 -26 -16 q-22 0 -26 16z" fill="#e9c46a"/><rect x="26" y="29" width="48" height="4" fill="#b23a2e"/>`, `<path d="M26 34 q24 -22 48 0z" fill="#b23a2e"/><path d="M70 34 h14 v4 h-14z" fill="#b23a2e"/>`]);
+    case 'science': return `<rect x="24" y="40" width="22" height="12" rx="5" fill="${L.glow}" opacity=".75" stroke="#2f4a6b" stroke-width="2"/><rect x="54" y="40" width="22" height="12" rx="5" fill="${L.glow}" opacity=".75" stroke="#2f4a6b" stroke-width="2"/><path d="M46 46 h8" stroke="#2f4a6b" stroke-width="2"/>`;
     default: return '';
   }
 }

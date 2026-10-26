@@ -33,6 +33,8 @@ const THEME_SETTING = {
   wonders: 'famous world landmarks at golden hour, towers, domes and bridges',
   music: 'an outdoor concert stage at dusk with bright lights, instruments and a cheering crowd',
   nautical: 'sailboats racing on a sparkling bay with a lighthouse, colorful flags and gulls',
+  farm: 'a sunny family farm with a red barn, a silo, green fields and animals in the pasture',
+  science: 'a bright science lab with bubbling beakers, a microscope and colorful experiments',
 };
 
 // The server adds the picture style; this says what to paint.
