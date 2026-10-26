@@ -1,23 +1,42 @@
-# Thank-you emails for ideas and problems
+# Thank-you and update emails for ideas and problems
 
 When a player who is **signed in with a confirmed email** sends something from
-Menu > Ideas and problems, they can leave "Email me a thank-you note" ticked:
+Menu > Ideas and problems, they can leave "Email me an update" ticked:
 
 - **Idea:** "Thank you for your idea!", thanking them for the submission and
-  for contributing.
+  for contributing, quoting their idea.
 - **Problem:** "We received your problem report", apologizing for the
-  inconvenience, saying the report was received and is being addressed, and
-  thanking them for the information.
+  inconvenience, saying the report was received and is being addressed,
+  quoting what they reported, and thanking them for the information.
+- **Update (idea or problem):** "An update on your idea" or "The problem you
+  reported has been addressed", sent when the team presses **Mark addressed**
+  in the admin Communication inbox. It quotes what the player wrote and the
+  team's **What was done** note. Write that note in plain, everyday words a
+  player understands (the dashboard refuses obvious technical words like file
+  names, "PR #", "commit" or "null"). Marking it **Done** or deleting it
+  instead sends no update and removes the held address and words.
 
-The text is fixed (`scripts/feedback-replies.py`). It never includes what the
-player wrote, so the boxes cannot be used to send someone a message.
+- **Message notice:** "You have a new message from The Fantastical Logic Grid
+  team", sent when the team writes to a player who turned on "Email me when
+  the team writes" in Menu > Messages (see `MESSAGES.md`). At most one a day
+  per player, and it only says to open Messages.
+
+The wording is fixed (`scripts/feedback-replies.py`). The player's words (with
+email addresses and links already blanked) and the team's note only ever go to
+the player's own confirmed address, so the boxes cannot be used to send
+someone else a message. They are removed together with the address once the
+email is sent.
 
 ## How it works
 
 1. `POST /v1/feedback` saves the idea or problem as before (anonymous). If the
    player asked for a note, the game sends their sign-in token too, and
-   `server/src/replies.js` queues a note for the account's own confirmed
-   address in the D1 table `feedback_replies`, kept apart from the message.
+   `server/src/replies.js` queues a thank-you note for the account's own
+   confirmed address in the D1 table `feedback_replies`, and holds an update
+   row (status `held`, linked by `feedback_id`) until the team marks that idea
+   or problem addressed. The feedback row itself still has nothing about the
+   player. A player can have at most 20 updates held; held rows go after 180
+   days, and deleting the account removes them.
 2. Every 15 minutes the GitHub Action **Thank-you emails**
    (`.github/workflows/feedback-replies.yml`) collects the waiting notes
    (`POST /admin/v1/replies/claim`), sends them from
@@ -35,7 +54,8 @@ out-of-office replies.
 ## Limits
 
 - Only to the signed-in account's own **confirmed** address.
-- One note per player per day for ideas, and one for problems.
+- One thank-you note per player per day for ideas, and one for problems.
+  Update emails go only when the team marks something addressed.
 - **Thank-you emails a day** (admin dashboard, default 100, at most 400) for
   everyone together. Resend's free plan sends 100 a day and 3,000 a month;
   past that, the rest go from Gmail, which allows about 500 a day (shared with

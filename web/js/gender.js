@@ -21,8 +21,13 @@ const FEMALE = new Set(`
   Willa Tessa Rosa Nell Maren
   Bianca Daphne Leila Mina Rhea
   Celeste Flora Imani Noor Vera
+  Lyra Odette Selena Tamsin Yara
+  Greer Hattie Linnea Sloane Thea
+  Mabel Josie Lottie Hedy Priya
+  Coralie Marina Nerissa Ondine Delphina Serena Muriel Oceane
 `.trim().split(/\s+/));
 const MALE = new Set(`
+  Amos Clem Otis Boone Ravi Sam Finnian
   Basil Dorian Felix Hugo Jasper
   Ace Blaze Cobra Falcon Ghost Hawk Jett
   Bruno Diego Finn Hector Jonah
@@ -41,14 +46,21 @@ const MALE = new Set(`
   Cody Reed Wyatt Abel Gideon
   Arlo Enzo Kai Milo Omar
   Ezra Hugh Leon Nico Soren
+  Beckett Ronan Silas Tobias Wesley
+  Angus Callum Murray Rory Tucker
 `.trim().split(/\s+/));
 
 export const KNOWN_NAMES = new Set([...FEMALE, ...MALE]);
 
 function hashOf(text) { let h = 7; for (const c of text) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h; }
 
+// The game's own characters (cast.js) say which they are; set for the open puzzle.
+let chosen = new Map();
+export function setChosenGenders(characters = []) { chosen = new Map(characters.map((c) => [c.name, c.gender])); }
+
 // 'f' or 'm', always the same for the same name.
 export function genderOf(name) {
+  if (chosen.has(String(name || '').trim())) return chosen.get(String(name).trim());
   const first = String(name || '').trim().split(/\s+/)[0];
   const cap = first.charAt(0).toUpperCase() + first.slice(1).toLowerCase();
   if (FEMALE.has(cap)) return 'f';

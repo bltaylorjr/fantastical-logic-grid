@@ -11,22 +11,23 @@ needs no extra hosting and stays free. Its API is `server/src/admin.js`.
 | Usage and free limits | Database size and rows per table; with the optional Cloudflare token, daily Worker requests and D1 reads and writes against the free allowances | viewer |
 | Search (Google and Bing) | Clicks, impressions, average position, top searches and top pages for the last 28 days, sitemaps and whether the home page is indexed; fetched daily, Refresh now for admins | viewer |
 | Daily puzzles | The next 14 days' daily puzzles (title, theme, level, size) as the last site build made them; plan up to 60 days ahead: change a day's theme, level or size, ask for a new story, add a note, or put a day back to automatic. Changes go live with the next site build (daily at 00:17 UTC, or Publish web version now) | moderator to look, admin to change |
+| Characters | The game's own characters: name, woman or man (face and voice both follow it), personality, cast or storyteller, every theme or chosen ones, a drawn face (DiceBear) or an AI portrait (Workers AI, counts toward New AI pictures a day), a server voice and an on-device Kokoro voice with a pace, and lines for clues, hints and solves (drafted free by a Workers AI text model, editable). Names and lines are checked against the story rules and the word filter before publishing. Also reviews characters players suggest from Menu > Suggest a character. Switches and caps are under Settings > Characters | moderator; admin to publish |
 | Puzzle quality | For each theme and level over the last 30 or 90 days: games, solve rate, how many gave up or revealed the answer, ratings and "too hard / too easy", minutes and hints. Groups with 5 or more games that many players give up on, rate under 3 or find too hard or too easy are flagged and come first | viewer |
+| Ratings and insights | The optional 1 to 5 stars players give after solving (5 is excellent): average, how many rate, the spread of stars and the average over time, for the last 7, 30, 90 or 365 days. Group by theme and difficulty, theme, topic, difficulty, size, clue type, what-if reasoning, story part, story, character, app version, platform or play mode, each with solve, give-up, too hard / too easy and trend columns. "What's working" and "What to improve" say in plain words which groups (5 ratings or more) stand out and what to try. "In a few words" is a short summary from the free Workers AI text model, written from the numbers only, at most `ratings_ai_daily_cap` times a day (Settings > Alerts and reports) and kept for the day. The same analysis goes into the weekly summary email and the nightly report (`GET /admin/v1/ratings?brief=1`: `headline` and `actionNeeded`) | viewer (Write it again: admin) |
+| Marketing | Every campaign and ad: the exact words to post, its media (videos and pictures in `media/promo` and `media/marketing`), where it goes, its status (draft, approved, posted with the live link) and its tracked link. Numbers per day, channel, campaign and ad: visits from campaign links and other websites, the first puzzle played, solves, app installs and Windows downloads in the 30 days after the visit. Make a tracked link for anything else, and download every number as CSV. The game sends these as anonymous daily counts (`web/js/campaign.js`, `POST /v1/m`); unknown campaign codes are counted as "(other)". The launch campaign (`server/src/marketing-seed.js`) is added once, as drafts | viewer (change, CSV: admin) |
 | Story workshop and review | Write story parts for every player's new stories (checked by the game's rules, live within about 15 minutes), draft them with the AI writer (Gemini free tier), and approve or reject parts sent from older app versions | moderator |
-| Ideas and problems | What players sent from the game's two boxes, each in its own list; mark done or delete | moderator |
+| Communication | **Inbox**: one list, newest first, of messages from signed-in players, ideas, problems, error reports and the log of emails to players, with filters (what, new or done, words to find). Open a conversation to read it and reply as "The team", mark it done or reopen it; ideas and problems are marked done or deleted, and show Reply when the player asked for one. **Send to players**: message one player (by screen name or player id, also from their page under Players), news in every player's Messages, and the home-screen banner (announcements). Older links to #feedback, #errors and #announcements open it | viewer: error reports, email log, news and banners; moderator: read and reply to what players wrote; admin: write first, news, banners, delete conversations |
 | Screen names | See new and changed names (names the word filter would now refuse come first), mark them fine, rename, reset or ban | moderator |
 | Players | Find a player by screen name or id, see their scores, races and how much they sync; rename, ban or lift a ban | moderator |
 | | Reset scores (this week or all time), delete an account's data | admin |
 | Settings and switches | **Keys and services**: whether the GEMINI_API_KEY secret and Workers AI are set up (keys are never shown or typed here). **Sounds**: sound effects and theme music on/off for everyone, and whether they start on and at what volume (a player can still turn their own off). **Voices**: characters speak their clues, where voices come from (server Gemini, Kokoro on the device, or the device's own), server voices on/off, the daily voice cap and the Gemini voice model. **Pictures**: portrait style, AI pictures (none, scenes, or scenes and portraits, from Workers AI's free allowance), the daily picture cap and model. **Celebrations**: which effects play when a puzzle is solved (confetti, fireworks, stars, balloons, sparkles, theme pictures, bubbles, falling snow, leaves or petals, shooting stars, ribbons, light rays, party emoji), each with its own checkbox, and Random to play one checked effect at each solve instead of all of them. **Play**: races, solo scores, new screen names, themes on/off. **Learning**: learn from everyone, story parts from older apps, the AI writer's model. **Ideas and problems**: the game's two boxes and automatic error reports. **Moderation**: extra blocked words. **Languages**: translations for players who choose another language on/off, new translations a day, and the Workers AI translation model. **Alerts and reports**: the alert level (80% at first) and the weekly summary email on/off | viewer to look, admin to change |
-| Announcements | A message at the top of the game's home screen, with an optional start and end | viewer to look, admin to publish |
-| Error reports | Anonymous errors from the apps, most frequent first | viewer |
 | Backups and archive | What the weekly archive email takes out of the database and for how long each kind is kept, rows waiting, past runs; send now or download the zip (owner). Archive viewer: open archive zips in the browser to filter, group, chart and export them | admin (send/download: owner) |
 | Audit log | Every admin request, allowed or refused; 90 days in the database, older entries in the weekly archive | admin |
 | Admins | Add or remove admins and choose their role | owner |
 
 Every table has **Download this table (CSV)**, and admins can download all
 players, all scores, or all ideas and problems as spreadsheet files (Players
-and Ideas and problems sections). Cells that start like a formula get an
+and Communication sections). Cells that start like a formula get an
 apostrophe so a spreadsheet never runs them.
 
 When an allowance passes the alert level, the hourly health check (GitHub
@@ -44,7 +45,7 @@ mode, colors, play aids, "Learn from how I play", and their sound effects and
 theme music switches and volumes. The Sound button on a puzzle mutes
 everything in one tap.
 
-## On your phone
+## On your phone or computer
 
 The dashboard installs like an app, free and with no app store:
 
@@ -52,7 +53,14 @@ The dashboard installs like an app, free and with no app store:
   tap Share, then **Add to Home Screen**.
 - **Android:** open it in Chrome, tap the menu (three dots), then **Install app**
   (or **Add to Home screen**).
-- **Windows or Mac:** in Chrome or Edge, press **Install the app** at the top.
+- **Windows app:** press **Download for Windows** at the top (shown to Windows
+  visitors) or use the link in "Put the dashboard on your phone or computer" on
+  the sign-in page. It is a free installer that updates itself; see
+  [desktop-admin/README.md](../desktop-admin/README.md). Windows may show
+  "Windows protected your PC" because it is not signed with a paid certificate:
+  click **More info**, then **Run anyway**.
+- **Windows or Mac in Chrome or Edge:** press **Install the app** at the top, or
+  the install icon at the right end of the address bar.
 
 It opens full screen as "Grid Admin". You sign in each time you open it. The
 service worker (`sw.js`) keeps only the app's own files; admin data and sign-in
