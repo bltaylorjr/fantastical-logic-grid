@@ -15,6 +15,7 @@ public repositories) and a Cloudflare Workers cron trigger (free plan allows 5).
 | Cleanup of data the game no longer needs, so the free D1 database never fills up | `server/src/upkeep.js` | daily at 03:17 UTC |
 | Weekly archive email: old rows zipped, emailed to the owner from Gmail, then removed (off until switched on). See [server/ARCHIVE.md](server/ARCHIVE.md) | `.github/workflows/archive-email.yml`, `server/src/archive.js` | Mondays at 05:07 UTC |
 | Owner task email: anything only the owner can do (DNS, secrets, switches) is emailed to fantasticallogicgrid@gmail.com. See [docs/owner-tasks/README.md](docs/owner-tasks/README.md) | `.github/workflows/owner-email.yml`, `docs/owner-tasks/` | when a task file reaches main |
+| Weekly improvement: reads every signal (ratings, quit rates, the daily puzzle, story parts, errors, feedback counts, free limits, the nightly checks and speed scores), writes a ranked `weekly-improvement` issue, tunes the daily puzzles and story choices in a PR that merges itself when the tests pass, and emails what changed and why. A weekly Claude task then makes small fixes for the bigger items. See [IMPROVE.md](IMPROVE.md) | `.github/workflows/improve.yml`, `scripts/improve.mjs` | Mondays at 08:23 UTC |
 | Anonymous error reports from the apps (players can turn them off in Settings) | `web/js/errors.js`, `server/src/errors.js` | when an error happens |
 | Website publish | `.github/workflows/pages.yml` | each push to main |
 | Worker deploy and database migrations | Cloudflare Workers Builds | each push to main |
