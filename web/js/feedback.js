@@ -2,9 +2,11 @@
 // separate one for reporting a problem. Both go to the game's Worker
 // (server/src/feedback.js) and show up in the admin dashboard. Anonymous:
 // only the text, the topic, the app version and the platform are sent. A
-// signed-in player can also ask for a thank-you email; then the sign-in
-// token goes along so the server can find the account's confirmed address
-// (server/src/replies.js), which is never stored with the message. Ticking
+// signed-in player can also tick "Email me an update": a thank-you email
+// quoting what they wrote, and another with the team's note once it is
+// addressed. Then the sign-in token goes along so the server can find the
+// account's confirmed address (server/src/replies.js), which is never stored
+// with the message. Ticking
 // "Let the team reply to me" links this one message to the account, so the
 // team can answer it in Menu > Messages (server/src/messages.js).
 import { CLOUD, CLOUD_URL } from './cloud-config.js';
@@ -16,9 +18,10 @@ const $ = (s, el = document) => el.querySelector(s);
 
 const REPLY_WORDS = {
   queued: 'We\'ll email you a thank-you note soon.',
-  unverified: 'To get a thank-you email, confirm your email address first (Account).',
+  unverified: 'To get email updates, confirm your email address first (Account).',
   limit: 'You already got a thank-you email today, so we won\'t send another.',
 };
+const UPDATE_WORDS = 'We\'ll email you again when the team acts on it.';
 const TALK_WORDS = {
   linked: 'The team can reply to you in Menu > Messages.',
   limit: 'You have many messages waiting for the team already, so this one can\'t get a reply in Messages.',
@@ -51,7 +54,7 @@ async function send(form) {
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.message || 'It could not be sent right now. Please try again later.');
     $('textarea', form).value = '';
-    done.textContent = (kind === 'idea' ? 'Thank you! Your idea was sent.' : 'Thank you! Your report was sent.') + (REPLY_WORDS[data.reply] ? ` ${REPLY_WORDS[data.reply]}` : '') + (TALK_WORDS[data.talk] ? ` ${TALK_WORDS[data.talk]}` : '');
+    done.textContent = (kind === 'idea' ? 'Thank you! Your idea was sent.' : 'Thank you! Your report was sent.') + (REPLY_WORDS[data.reply] ? ` ${REPLY_WORDS[data.reply]}` : '') + (data.update ? ` ${UPDATE_WORDS}` : '') + (TALK_WORDS[data.talk] ? ` ${TALK_WORDS[data.talk]}` : '');
   } catch (e) {
     err.textContent = navigator.onLine === false ? 'You seem to be offline. Connect to the internet and try again.' : e.message;
     err.hidden = false;

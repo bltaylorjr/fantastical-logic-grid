@@ -549,13 +549,26 @@ $('#comm-list').onclick = async (e) => {
   const words = { addressed: 'Marked addressed.', done: 'Marked done.', new: 'Marked new.', delete: 'Deleted.' };
   const body = { status: b.dataset.status };
   if (body.status === 'addressed') {
-    const v = await ask({ title: 'Mark addressed', text: 'Say in plain words what was done, so anyone reading this later knows.', ok: 'Mark addressed',
-      fields: [{ name: 'note', label: 'What was done', type: 'textarea' }], check: (x) => (x.note.trim() ? '' : 'Write a short note.') });
+    const v = await ask({ title: 'Mark addressed', text: 'Say what was done in plain, everyday words a player would understand, like "Fixed: the grid no longer scrolls twice on tablets." If the player ticked "Email me an update", they get this note by email, with what they wrote.', ok: 'Mark addressed',
+      fields: [{ name: 'note', label: 'What was done (plain words for the player)', type: 'textarea' }], check: (x) => (x.note.trim() ? plainWords(x.note) : 'Write a short note.') });
     if (!v) return;
     body.note = v.note;
   }
-  if (await act(b, () => api(`feedback/${b.dataset.fb}`, { method: 'POST', body }), words[b.dataset.status])) show('communication', { keepFocus: true });
+  let emailed = 0;
+  if (await act(b, async () => { emailed = (await api(`feedback/${b.dataset.fb}`, { method: 'POST', body }))?.emailed || 0; }, '')) {
+    const done = words[b.dataset.status] + (emailed ? ' The player gets an email update with your note.' : '');
+    toast(done);
+    announce(done);
+    show('communication', { keepFocus: true });
+  }
 };
+// The "What was done" note can go to the player by email, so it should read
+// in everyday words: this catches the usual technical giveaways.
+const TECH_WORDS = /\b[\w-]+\.(?:js|mjs|cjs|css|html|py|json|sql|yml)\b|\bPR\s*#?\d+|\b(?:commit|merged?|refactor(?:ed)?|regex|CSS|DOM|API|endpoint|null|undefined|stack trace|exception|D1|Worker|CI|repo|branch|viewport|z-index|async|callback|deploy(?:ed)?)\b/i;
+function plainWords(note) {
+  const m = note.match(TECH_WORDS);
+  return m ? `"${m[0]}" is a technical word. Say what changed for the player in everyday words instead.` : '';
+}
 $('#comm-thread').onclick = async (e) => {
   const b = e.target.closest('button[data-thread]');
   if (!b) return;

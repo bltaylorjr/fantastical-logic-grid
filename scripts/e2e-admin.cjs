@@ -386,7 +386,7 @@ const SHOTS = process.env.SHOTS;
     await p.click('#menu-btn');
     await p.click('#app-menu [data-cmd=feedback]');
     await p.waitForSelector('#dlg-feedback[open]');
-    assert(await p.$eval('#idea-form .fb-reply', (el) => el.hidden), 'a guest is not offered a thank-you email');
+    assert(await p.$eval('#idea-form .fb-reply', (el) => el.hidden), 'a guest is not offered email updates');
     await p.fill('#idea-text', 'A pirate ship lost in the fog where the crew swapped maps.');
     await p.click('#idea-form button[type=submit]');
     await p.waitForFunction(() => /sent/.test(document.querySelector('#idea-form .acct-done').textContent));

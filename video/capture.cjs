@@ -581,7 +581,7 @@ const CSS = `
       const replyOffered = await p.isVisible('#idea-form .fb-reply');
       const talkOffered = await p.isVisible('#idea-form .fb-talk');
       await scene('feedback', ['Have an idea for a story, or found a problem?', 'Ideas and problems, in the menu, has a separate box for each, and they go straight to the game\'s team.',
-        ...(replyOffered ? ['Signed in with a confirmed email? Leave the box ticked, and the game emails you a short thank-you note.'] : []),
+        ...(replyOffered ? ['Signed in with a confirmed email? Leave Email me an update ticked. The game emails you a thank-you, and again when the team acts on it.'] : []),
         ...(talkOffered ? ['Want an answer? Tick Let the team reply to me.'] : [])]);
       await p.keyboard.press('Escape');
     }
