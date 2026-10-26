@@ -435,6 +435,7 @@ const ROUTES = [
     const p = await env.DB.prepare('SELECT name_key, screen_name FROM players WHERE user_id = ?1').bind(uid).first();
     if (!p) throw new Refusal(404, 'no_player', 'That player has no screen name.');
     await env.DB.prepare('INSERT OR REPLACE INTO name_reviews (user_id, name_key, reviewed_by, reviewed_at) VALUES (?1, ?2, ?3, ?4)').bind(uid, p.name_key, who.actor, now).run();
+    clearBoardCache();
     return { body: { ok: true }, target: uid, detail: { name: p.screen_name } };
   }],
 

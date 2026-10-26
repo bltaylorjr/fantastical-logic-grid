@@ -73,6 +73,7 @@ export const SETTINGS = {
   races_enabled: { type: 'bool', default: true, group: 'Play', label: 'Races', help: 'Off: nobody can start, find or join a race. Players already in one can still finish.' },
   scores_enabled: { type: 'bool', default: true, group: 'Play', label: 'Solo scores', help: 'Off: solo solves stop counting for the scoreboard. Race points still count.' },
   names_enabled: { type: 'bool', default: true, group: 'Play', label: 'New and changed screen names', help: 'Off: players keep their names but cannot choose new ones.' },
+  names_need_approval: { type: 'bool', default: true, group: 'Play', label: 'New screen names wait for approval', help: 'On: other players see a name a player typed only after an admin approves it in Players or Screen names; until then it shows as "New player". Names from Suggest a name are approved automatically. The player always sees their own name. Off: names show straight away.' },
   disabled_themes: { type: 'themes', default: [], group: 'Play', label: 'Themes switched off', help: 'Hidden from the theme picker and never picked by Surprise me.' },
   // ---- Learning and stories
   learning_enabled: { type: 'bool', default: true, group: 'Learning', label: 'Learn from everyone', help: 'On: anonymous play summaries from players who keep "Learn from how I play" on tune puzzles, clue mix and story parts for all. Off: nothing is sent and summaries are dropped.' },
@@ -165,7 +166,7 @@ export async function publicConfig(req, env) {
     announcements: await activeAnnouncements(env),
     disabledThemes: s.disabled_themes,
     features: {
-      races: s.races_enabled, scores: s.scores_enabled, names: s.names_enabled, voices: s.tts_enabled,
+      races: s.races_enabled, scores: s.scores_enabled, names: s.names_enabled, nameApproval: s.names_need_approval, voices: s.tts_enabled,
       storySharing: s.story_sharing_enabled, learning: s.learning_enabled, errorReports: s.error_reports_enabled,
       feedback: s.feedback_enabled, soundEffects: s.sound_effects_enabled, music: s.theme_music_enabled, pictures: s.ai_pictures !== 'none',
       translate: s.translate_enabled,
