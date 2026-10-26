@@ -104,16 +104,17 @@
             <div class="field"><label for="items">Items in each (3 to 8)</label><input id="items" type="number" min="3" max="8" inputmode="numeric"></div>
           </div>
         </fieldset>
-        <fieldset>
-          <legend>Play style</legend>
-          <div class="choices chips" id="style-choices">
-            <label class="choice"><input type="radio" name="playstyle" value="full"><span><b>Full experience</b><small>Scenes, characters, sound</small></span></label>
-            <label class="choice"><input type="radio" name="playstyle" value="silent"><span><b>Silent mode</b><small>Story, grid and answer key only</small></span></label>
-          </div>
-        </fieldset>
         <details class="more" id="more-options">
           <summary>More options</summary>
+          <p class="help">Optional. Every choice here has a sensible default.</p>
           <div class="more-body">
+            <fieldset id="style-field">
+              <legend>Play style</legend>
+              <div class="choices chips" id="style-choices">
+                <label class="choice"><input type="radio" name="playstyle" value="full"><span><b>Full experience</b><small>Scenes, characters, sound</small></span></label>
+                <label class="choice"><input type="radio" name="playstyle" value="silent"><span><b>Silent mode</b><small>Story, grid and answer key only</small></span></label>
+              </div>
+            </fieldset>
             <div class="field"><label for="clue-count">Number of clues</label><input id="clue-count" type="number" min="1" max="80" inputmode="numeric" placeholder="Fewest that work" aria-describedby="clue-help"><p class="help" id="clue-help">More clues make a puzzle easier, fewer make it harder.</p></div>
             <div class="field"><label for="questions">Story questions</label><input id="questions" type="number" min="1" max="6" inputmode="numeric" value="3"></div>
             <div class="field"><label for="cast">Cast names (optional, separated by commas)</label><input id="cast" type="text" autocomplete="off" placeholder="For example: Mia, Leo, Grandpa Joe"></div>
@@ -369,32 +370,6 @@
 <dialog id="dlg-settings" aria-labelledby="settings-h">
   <form method="dialog" id="settings-form">
     <h2 id="settings-h">Settings</h2>
-    <fieldset id="language-settings"><legend>Language</legend>
-      <div class="field"><label for="language">Game language</label><select id="language" name="language" translate="no" aria-describedby="language-help"></select></div>
-      <p class="help" id="language-help">US English is the game's own language. In any other language the game translates itself automatically as you play, so a few words may read oddly: the English button at the top shows the original at any time. Names and your own notes are never translated.</p>
-      <p class="help" id="language-note" role="status"></p>
-    </fieldset>
-    <fieldset><legend>Mode</legend>
-      <label class="check"><input type="checkbox" name="silent"> Silent mode: only the story, grid, clues and answer key. No pictures, sound, music or animation.</label>
-    </fieldset>
-    <fieldset><legend>Colors</legend>
-      <label class="radio"><input type="radio" name="colorTheme" value="system"> Match my device</label>
-      <label class="radio"><input type="radio" name="colorTheme" value="light"> Light</label>
-      <label class="radio"><input type="radio" name="colorTheme" value="dark"> Dark</label>
-      <label class="radio"><input type="radio" name="colorTheme" value="contrast"> High contrast</label>
-    </fieldset>
-    <fieldset><legend>Play</legend>
-      <label class="check"><input type="checkbox" name="autoX"> Auto-X: when I place an O, rule out the rest of its row and column</label>
-      <label class="check"><input type="checkbox" name="singleKeys"> Single-key shortcuts (X, O, H, C, R)</label>
-      <label class="check"><input type="checkbox" name="showTimer"> Show the timer</label>
-      <label class="check"><input type="checkbox" name="coach"> Coach tips on my next Easy puzzle</label>
-      <label class="check"><input type="checkbox" name="instant"> Show mistakes as I play (a wrong mark gets a warning right away)</label>
-    </fieldset>
-    <fieldset class="learning"><legend>Learning</legend>
-      <label class="check"><input type="checkbox" name="learn"> Learn from how I play: tune how tough puzzles are within each level, the mix of clues, and which themes and story parts come up.</label>
-      <p class="help needs-cloud" data-feature="learning" hidden>While this is on, the game also shares an anonymous summary of each finished puzzle so it can learn from everyone's games: level, theme, topic, size, clue types, which story and characters it used, time, hints, mistakes, your rating and the app version. Never shared: your name, saved puzzles or anything that identifies you.</p>
-      <p class="help">Every puzzle is still checked to have exactly one solution with no guessing, and no story is ever used twice.</p>
-    </fieldset>
     <fieldset id="sound-settings"><legend>Sound</legend>
       <label class="check"><input type="checkbox" name="sound"> Sound effects and voices</label>
       <div class="field"><label for="volume">Volume</label><input type="range" id="volume" name="volume" min="0" max="100" step="5"></div>
@@ -404,6 +379,35 @@
       </div>
       <p class="help">The Sound button at the top of a puzzle turns all sound off and on in one tap.</p>
     </fieldset>
+    <fieldset><legend>Colors</legend>
+      <label class="radio"><input type="radio" name="colorTheme" value="system"> Match my device</label>
+      <label class="radio"><input type="radio" name="colorTheme" value="light"> Light</label>
+      <label class="radio"><input type="radio" name="colorTheme" value="dark"> Dark</label>
+      <label class="radio"><input type="radio" name="colorTheme" value="contrast"> High contrast</label>
+    </fieldset>
+    <fieldset><legend>Mode</legend>
+      <label class="check"><input type="checkbox" name="silent"> Silent mode: only the story, grid, clues and answer key. No pictures, sound, music or animation.</label>
+    </fieldset>
+    <fieldset id="language-settings"><legend>Language</legend>
+      <div class="field"><label for="language">Game language</label><select id="language" name="language" translate="no" aria-describedby="language-help"></select></div>
+      <p class="help" id="language-help">US English is the game's own language. In any other language the game translates itself automatically as you play, so a few words may read oddly: the English button at the top shows the original at any time. Names and your own notes are never translated.</p>
+      <p class="help" id="language-note" role="status"></p>
+    </fieldset>
+    <fieldset class="learning"><legend>Learning</legend>
+      <label class="check"><input type="checkbox" name="learn"> Learn from how I play: tune how tough puzzles are within each level, the mix of clues, and which themes and story parts come up.</label>
+      <p class="help needs-cloud" data-feature="learning" hidden>While this is on, the game also shares an anonymous summary of each finished puzzle so it can learn from everyone's games: level, theme, topic, size, clue types, which story and characters it used, time, hints, mistakes, your rating and the app version. Never shared: your name, saved puzzles or anything that identifies you.</p>
+      <p class="help">Every puzzle is still checked to have exactly one solution with no guessing, and no story is ever used twice.</p>
+    </fieldset>
+    <details class="more" id="more-settings">
+      <summary>More play settings</summary>
+      <fieldset><legend class="sr-only">Play</legend>
+        <label class="check"><input type="checkbox" name="autoX"> Auto-X: when I place an O, rule out the rest of its row and column</label>
+        <label class="check"><input type="checkbox" name="singleKeys"> Single-key shortcuts (X, O, H, C, R)</label>
+        <label class="check"><input type="checkbox" name="showTimer"> Show the timer</label>
+        <label class="check"><input type="checkbox" name="coach"> Coach tips on my next Easy puzzle</label>
+        <label class="check"><input type="checkbox" name="instant"> Show mistakes as I play (a wrong mark gets a warning right away)</label>
+      </fieldset>
+    </details>
     <div class="dlg-actions"><button class="btn primary" value="close">Done</button></div>
   </form>
 </dialog>
@@ -790,7 +794,7 @@
   <h2 id="help-h">Help</h2>
   <p class="muted">For the narrated how-to-play video, choose <b>How to play</b> at the top of the page.</p>
   <p>Read a clue, then mark the grid. <b>X</b> means two things do not go together. <b>O</b> means they do. Each row in a sub-grid has exactly one O. When the grid is full, answer the story questions. To begin a puzzle again, press <b>Start over</b>: it clears your marks, clue ticks and answers and resets the timer, hints and checks (in a race the race clock keeps running). Your notes stay unless you choose to clear them, and Undo brings it all back.</p>
-  <p>Select a character's portrait to hear the clues they remember. Each finished section of the grid reveals more of the scene. Want fewer distractions? Choose <b>Silent mode</b> on the New puzzle screen or in Settings to see only the story, the grid, the clues and the answer key.</p>
+  <p>Select a character's portrait to hear the clues they remember. Each finished section of the grid reveals more of the scene. Want fewer distractions? Choose <b>Silent mode</b> under More options on the New puzzle screen, or in Settings, to see only the story, the grid, the clues and the answer key.</p>
   <p id="help-compete" hidden>Want company? Under <b>Play against others</b> on the home screen, sign in and choose a screen name (until you sign in you play as Guest), then start a race (everyone gets the same puzzle, fastest solve wins), challenge a player by screen name, join one with a code, or find an open race. Your solved puzzles earn points on the <b>Scoreboard</b>. <button class="btn quiet small" type="button" data-rules>Scoring and race rules</button></p>
   <h3>Keys</h3>
   <table class="keys">
@@ -811,7 +815,7 @@
       <tr><th scope="row">Esc</th><td>Close a dialog or menu</td></tr>
     </tbody>
   </table>
-  <p class="muted">Single keys (X, O, H, C, R) can be turned off in Settings. On a Mac, use Cmd instead of Ctrl.</p>
+  <p class="muted">Single keys (X, O, H, C, R) can be turned off in Settings, under More play settings. On a Mac, use Cmd instead of Ctrl.</p>
   <p class="muted small" id="help-legal">© 2026 Bobby Taylor. All rights reserved. Free to play, and to print for personal or classroom use. Copying, scraping or using the puzzles, stories or art to train AI is not allowed. <a href="https://thelogicgrid.com/terms/" target="_blank" rel="noopener">Terms of use</a></p>
   <div class="dlg-actions"><button class="btn primary" type="button" id="help-close">Close</button></div>
 </dialog>

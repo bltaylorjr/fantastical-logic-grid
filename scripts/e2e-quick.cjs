@@ -36,6 +36,15 @@ const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`o
     await page.waitForSelector('#dlg-welcome[open]');
     await page.keyboard.press('Escape');
     assert(await page.locator('#quick-btn.primary').isVisible(), 'quick puzzle is the main button on a first visit');
+    // The New puzzle form asks only difficulty, theme and size up front; the
+    // rest waits under More options, and Settings tucks away the play switches.
+    assert(await page.locator('#more-options:not([open]) input[name=playstyle]').count() === 2 && !(await page.locator('input[name=playstyle]').first().isVisible()), 'play style waits under More options');
+    await page.click('#menu-btn'); await page.click('[data-cmd=settings]');
+    await page.waitForSelector('#dlg-settings[open]');
+    assert(await page.locator('#dlg-settings input[name=sound]').isVisible() && !(await page.locator('#dlg-settings input[name=singleKeys]').isVisible()), 'Settings shows sound first and tucks the play switches away');
+    await page.click('#more-settings summary');
+    assert(await page.locator('#dlg-settings input[name=singleKeys]').isVisible(), 'More play settings opens them');
+    await page.keyboard.press('Escape');
     await page.click('#quick-btn');
     await page.waitForSelector('#screen-play:not([hidden])', { timeout: 30000 });
     await page.locator('td.c').first().click();
