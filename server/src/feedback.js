@@ -10,7 +10,7 @@ import { json, readText, TooLarge } from './http.js';
 import { getSettings } from './settings.js';
 
 export const TOPICS = {
-  idea: ['story', 'other'],
+  idea: ['story', 'theme', 'feature', 'other'],
   problem: ['play', 'sound', 'pictures', 'saving', 'other'],
 };
 const PLATFORMS = new Set(['web', 'desktop', 'android', 'ios']);

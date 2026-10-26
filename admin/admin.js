@@ -399,7 +399,7 @@ $('#parts-list').onclick = async (e) => {
 };
 
 // ---- Ideas and problems players sent.
-const FB_TOPICS = { story: 'Storyline idea', other: 'Other', play: 'Playing', sound: 'Sound and voices', pictures: 'Pictures', saving: 'Saving and sync' };
+const FB_TOPICS = { story: 'Storyline idea', theme: 'Theme or topic idea', feature: 'Game feature idea', other: 'Other', play: 'Playing', sound: 'Sound and voices', pictures: 'Pictures', saving: 'Saving and sync' };
 const fbKind = () => $('input[name=fb-kind]:checked').value;
 views.feedback = async () => {
   const d = await api(`feedback?kind=${fbKind()}&status=${$('#fb-status').value}`);

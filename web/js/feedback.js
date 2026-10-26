@@ -1,5 +1,6 @@
-// The "Ideas and problems" boxes: one form for storyline and other ideas, a
-// separate one for reporting a problem. Both go to the game's Worker
+// The "Ideas and problems" boxes: one form for ideas (a storyline, a new theme
+// or topic, a game feature, or something else), a separate one for reporting
+// a problem. Both go to the game's Worker
 // (server/src/feedback.js) and show up in the admin dashboard. Anonymous:
 // only the text, the topic, the app version and the platform are sent.
 import { CLOUD, CLOUD_URL } from './cloud-config.js';

@@ -143,7 +143,8 @@ reports its topic in `puzzle.topic` and its picture prompt in `puzzle.art`
 (`setting`, a phrase for the scene, and `mood`, a few words for color and music).
 
 **Stories are never reused.** Each story is assembled from parts in
-`src/storylines.js` (or the topic's own in `src/topics.js`): a title word, an
+`src/storylines.js` (or the topic's own in `src/topics.js`, plus any extras in
+`src/more-stories.js`, which are added to the end of each list): a title word, an
 opening, an incident (what is at stake), a mishap (why the facts are scrambled),
 a lead tied to the goal category, and an ending. That gives 55,000 to 220,000
 storylines per topic (`storylineCount(theme, topic)`), before the cast names and
@@ -251,6 +252,7 @@ src/story.js       storyline and questions
 src/themes.js      theme casts and categories
 src/topics.js      topics under each theme: categories, story parts, art
 src/storylines.js  story parts per theme
+src/more-stories.js extra story parts, appended to the lists above on load
 src/tiers.js       difficulty tiers and clue types
 src/play.js        hints, checking and print text
 cli.js             command line generator
