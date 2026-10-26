@@ -13,6 +13,7 @@
 //   POST /v1/m                           anonymous counts of visits from campaign links (marketing.js)
 //   /v1/challenges[/:code[/result]]       Challenge a friend links, no account (challenges.js)
 //   GET /v1/perks                        a signed-in player's supporter perks (supporters.js)
+//   POST /v1/pay/kofi                    Ko-fi's payment webhook (kofi.js)
 //   /admin/*                             the admin dashboard and its API (admin.js)
 //   GET /v1/health[?deep=1]              a quick check that the Worker (and with
 //                                        deep=1, the database and daily cleanup) is up
@@ -32,6 +33,7 @@ import { handleTranslate } from './translate.js';
 import { handleAdmin } from './admin.js';
 import { handleMarketing } from './marketing.js';
 import { handlePerks } from './supporters.js';
+import { handleKofi } from './kofi.js';
 import { refreshSearch, SEARCH_CRON } from './search.js';
 import { publicConfig } from './settings.js';
 import { runUpkeep, deepHealth } from './upkeep.js';
@@ -70,6 +72,9 @@ async function route(req, env, ctx) {
 
   const perks = await handlePerks(req, env, url, signedIn);
   if (perks) return perks;
+
+  const kofi = await handleKofi(req, env, url);
+  if (kofi) return kofi;
 
   const compete = await handleCompete(req, env, ctx, url, signedIn);
   if (compete) return compete;

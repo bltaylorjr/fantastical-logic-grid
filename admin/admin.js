@@ -573,6 +573,7 @@ views.settings = async () => {
   const services = `<div class="card"><h2>Keys and services</h2><div class="services">
     ${keyLine(d.services.gemini, 'GEMINI_API_KEY', 'server voices and the Story workshop\'s AI writer (Google\'s free tier).')}
     ${keyLine(d.services.pictures, 'Workers AI', 'AI pictures (the AI binding in wrangler.toml, on Cloudflare\'s free allowance).')}
+    ${keyLine(d.services.kofi, 'KOFI_VERIFICATION_TOKEN', 'Ko-fi payments: memberships give Premium and tips the Supporter badge (docs/launch/GO-LIVE.md, option 2).')}
     <p class="muted">Keys are never typed here or kept in the game. Add or change them in Cloudflare: Workers &amp; Pages &gt; flg-api &gt; Settings &gt; Variables and Secrets, as type Secret.</p></div></div>`;
   $('#settings-body').innerHTML = services + (editable ? '' : '<p class="note">You can see the settings. Changing them needs the admin role.</p>')
     + Object.entries(groups).map(([g, list]) => `<div class="card"><h2>${esc(g)}</h2>${list.map((s) => `<div class="setting">
