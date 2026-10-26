@@ -10,7 +10,8 @@ const fs = require('fs');
 const SHOTS = process.env.SHOTS;
 const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`ok  ${m}`); };
 
-const API = 'https://api.flg.test';
+// A localhost address: test builds allow only localhost for the cloud (see build.mjs's CSP).
+const API = 'http://localhost:8142';
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
 const CHARACTERS = {
   enabled: true, suggestions: true, castChance: 100, narratorChance: 100,
