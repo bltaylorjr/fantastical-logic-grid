@@ -48,7 +48,7 @@ This follows the design process step by step:
 | Option | Values | Default |
 | --- | --- | --- |
 | `difficulty` | `basic`, `easy`, `medium`, `hard`, `expert`, `mensa` | `easy` |
-| `theme` | `mystery`, `action`, `adventure`, `holiday`, `occasion` (Special Occasion), `fantasy`, `scifi`, `sports`, `cooking`, `pets`, `town` (Around Town), `parks` (National Parks), `travel` (Vacation Destinations), `wonders` (Architectural Wonders), `random` | `random` |
+| `theme` | `mystery`, `action`, `adventure`, `holiday`, `occasion` (Special Occasion), `fantasy`, `scifi`, `sports`, `cooking`, `pets`, `town` (Around Town), `parks` (National Parks), `travel` (Vacation Destinations), `wonders` (Architectural Wonders), `music`, `nautical`, `farm` (Farm Life), `science`, `random` | `random` |
 | `topic` | a topic id from the theme (see Themes, topics and stories), or `any`. Ignored when the theme is `random` | `any` (a random topic in the theme) |
 | `categories` | 3 to 6 (number of categories, including the cast) | tier default |
 | `items` | 3 to 8 (items per category) | tier default |
@@ -80,17 +80,17 @@ Each tier has fixed lever ranges, so a tier means the same thing every time.
 | Medium | 4 | 4-5 | + more/less, all different | at least one advanced step |
 | Hard | 4-5 | 5 | + exact gap, one of each | 4+ advanced steps |
 | Expert | 5 | 5-6 | + if/then | 6+ advanced steps, up to 2 short what-if chains |
-| MENSA | 5-6 | 6-7 | every type | 8+ advanced steps and at least one what-if chain |
+| Quantum Physicist | 5-6 | 6-7 | every type | 8+ advanced steps and at least one what-if chain |
 
 Deduction levels used by the solver and in hints:
 
 - **Direct**: read a clue and mark it. One O in a row rules out the rest of that row. The last open cell is the match.
 - **Cross-grid**: carry a known match or mismatch from one grid into another.
 - **Advanced**: ordering and exact gaps, if/then, and "these two share no possible option, so they cannot match".
-- **What-if**: "If Ada were in the Library, clue 5 would break within a few steps, so she was not." The chain length is capped (3 passes for Expert, 5 for MENSA), so this stays reasoning, not guessing.
+- **What-if**: "If Ada were in the Library, clue 5 would break within a few steps, so she was not." The chain length is capped (3 passes for Expert, 5 for Quantum Physicist), so this stays reasoning, not guessing.
 
 Custom sizes outside a tier's range are allowed and noted. Large custom grids
-(6 x 8 at MENSA) can take 10 to 20 seconds, so in the app run `generatePuzzle`
+(6 x 8 at Quantum Physicist) can take 10 to 20 seconds, so in the app run `generatePuzzle`
 in a Web Worker and show the "Writing your story..." message.
 
 ## Clue types
@@ -111,8 +111,8 @@ Item names in clues match the grid labels exactly, and clue order is fixed once 
 
 ## Themes, topics and stories
 
-Fourteen themes, each a small world with its own cast and six categories (two of
-them numbered) with eight items each.
+Eighteen themes, each a small world with its own cast and eight categories
+(at least two of them numbered) with eight items each.
 
 Each theme has topics: the scenario under it, such as which holiday or which
 kind of mystery. The topic shapes the whole puzzle: its categories and items
@@ -123,19 +123,23 @@ player can pick a topic or leave it on **Any**, which picks one at random.
 | Theme | Topics |
 | --- | --- |
 | Mystery | Classic Whodunit (`whodunit`), Museum Heist (`heist`), Missing Person (`missing`), Cozy Village Mystery (`cozy`), Haunted House (`haunted`) |
-| Action | Spy Mission (`spy`), Bank Heist Chase (`chase`), Disaster Rescue (`rescue`), Superhero Showdown (`heroes`) |
-| Adventure | Jungle Treasure (`jungle`), Pirate Voyage (`pirates`), Polar Expedition (`polar`), Desert Ruins (`desert`) |
+| Action | Spy Mission (`spy`), Bank Heist Chase (`chase`), Disaster Rescue (`rescue`), Superhero Showdown (`heroes`), Runaway Train (`train`) |
+| Adventure | Jungle Treasure (`jungle`), Pirate Voyage (`pirates`), Polar Expedition (`polar`), Desert Ruins (`desert`), Mountain Summit (`mountain`) |
 | Holiday | Christmas (`christmas`), Halloween (`halloween`), Thanksgiving (`thanksgiving`), Fourth of July (`july4`), Valentine's Day (`valentines`), New Year's Eve (`newyear`), Easter (`easter`) |
 | Special Occasion | Birthday Party (`birthday`), Wedding (`wedding`), Graduation (`graduation`), Anniversary (`anniversary`), Baby Shower (`babyshower`), Retirement Party (`retirement`) |
-| Fantasy | Dragon Kingdom (`dragons`), Wizard School (`school`), Fairy Forest (`fairy`), Knights' Quest (`knights`) |
-| Sci-Fi | Space Station (`starbase`), Alien Contact (`contact`), Robot Lab (`robots`), Time Travel (`timetravel`) |
-| Sports | World Games (`games`), Soccer Tournament (`soccer`), City Marathon (`marathon`), School Field Day (`fieldday`) |
-| Cooking | Cook-Off (`cookoff`), Bake Sale (`bakesale`), Restaurant Kitchen (`restaurant`), Food Truck Rally (`foodtrucks`) |
-| Pets | Pet Show (`show`), Pet Hotel (`hotel`), Dog Park (`dogpark`), Animal Shelter (`shelter`) |
+| Fantasy | Dragon Kingdom (`dragons`), Wizard School (`school`), Fairy Forest (`fairy`), Knights' Quest (`knights`), Mermaid Lagoon (`mermaids`) |
+| Sci-Fi | Space Station (`starbase`), Alien Contact (`contact`), Robot Lab (`robots`), Time Travel (`timetravel`), Mars Colony (`mars`) |
+| Sports | World Games (`games`), Soccer Tournament (`soccer`), City Marathon (`marathon`), School Field Day (`fieldday`), Basketball Tournament (`basketball`) |
+| Cooking | Cook-Off (`cookoff`), Bake Sale (`bakesale`), Restaurant Kitchen (`restaurant`), Food Truck Rally (`foodtrucks`), Pizza Night (`pizza`) |
+| Pets | Pet Show (`show`), Pet Hotel (`hotel`), Dog Park (`dogpark`), Animal Shelter (`shelter`), Riding Stables (`stables`) |
 | Around Town | Errand Day (`errands`), Fitness Center (`gym`), Church Bake Sale (`church`), Grocery Store (`grocery`), Public Library (`library`), Town Park (`townpark`) |
 | National Parks | Trail Day (`trails`), Campground (`campground`), Junior Rangers (`juniors`), River Rafting (`rafting`), Stargazing Night (`stargazing`) |
 | Vacation Destinations | Dream Getaways (`getaways`), Beach Resort (`beach`), City Sightseeing (`city`), Cruise Ship (`cruise`), Theme Park (`themepark`) |
 | Architectural Wonders | Model Wonders Fair (`models`), Famous Bridges (`bridges`), Skyscrapers (`skyscrapers`), Ancient Wonders (`ancient`), Castles and Palaces (`castles`) |
+| Music | Big Concert (`concert`), Battle of the Bands (`bands`), Music Lessons (`lessons`), Karaoke Night (`karaoke`) |
+| Nautical | Sailing Regatta (`regatta`), Lighthouse Keepers (`lighthouse`), Harbor Festival (`harbor`), Deep-Sea Fishing (`fishing`) |
+| Farm Life | Busy Farm Day (`farmday`), County Fair (`countyfair`), Apple Orchard (`orchard`), Farmers Market (`market`) |
+| Science | Science Fair (`sciencefair`), Dinosaur Dig (`dinosaurs`), Chemistry Lab (`lab`), Weather Watch (`weather`), Space Camp (`spacecamp`) |
 
 The first topic of most themes is its classic setting (Classic Whodunit, Spy
 Mission...), which uses the theme's own categories and story parts. A puzzle

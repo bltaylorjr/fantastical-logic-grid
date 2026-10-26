@@ -10,3 +10,9 @@ AddType application/octet-stream .bin
   Header set Cache-Control "no-cache"
 </FilesMatch>
 Header set X-Content-Type-Options "nosniff"
+Header set Referrer-Policy "strict-origin-when-cross-origin"
+Header set Strict-Transport-Security "max-age=63072000; includeSubDomains"
+Header set X-Frame-Options "DENY"
+Header set Content-Security-Policy "frame-ancestors 'none'; object-src 'none'; base-uri 'self'"
+Header set Cross-Origin-Opener-Policy "same-origin"
+Header set Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=(), serial=(), hid=(), bluetooth=(), interest-cohort=()"

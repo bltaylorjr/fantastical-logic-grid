@@ -143,7 +143,7 @@ test('settings switch game features off and back on', async () => {
 test('sound, voice and picture choices reach the game', async () => {
   // Uses the break-glass token: the owner's per-minute limit is spent above.
   let cfg = (await call('/v1/config')).body;
-  assert.deepEqual(cfg.game, { voiceSource: 'server', readAloud: true, portraitStyle: 'notionists', confetti: true, aiPictures: 'scene', celebrations: ['confetti'], celebrateRandom: false });
+  assert.deepEqual(cfg.game, { voiceSource: 'server', readAloud: true, portraitStyle: 'notionists', confetti: true, aiPictures: 'scene', celebrations: ['confetti'], celebrateRandom: false, supportUrl: '' });
   assert.deepEqual(cfg.defaults, { sound: true, volume: 60, music: true, musicVolume: 40 });
   assert.equal(cfg.features.errorReports, true);
   assert.equal(cfg.features.feedback, true);
@@ -186,6 +186,11 @@ test('ideas and problems arrive in separate boxes', async () => {
   assert.equal((await call(`/admin/v1/feedback/${id}`, { auth: TOKEN, body: { status: 'done' } })).status, 200);
   assert.equal((await call('/admin/v1/feedback?kind=problem', { auth: TOKEN })).body.items.length, 0);
   assert.equal((await call('/admin/v1/feedback?kind=problem&status=done', { auth: TOKEN })).body.items.length, 1);
+  assert.equal((await call(`/admin/v1/feedback/${id}`, { auth: idToken('owner-addr-uid', OWNER), body: { status: 'addressed' } })).status, 400, 'addressed needs a note');
+  assert.equal((await call(`/admin/v1/feedback/${id}`, { auth: idToken('owner-addr-uid', OWNER), body: { status: 'addressed', note: '  Fixed the music   loop in 1.7.1. ' } })).status, 200);
+  const addressed = (await call('/admin/v1/feedback?kind=problem&status=addressed', { auth: idToken('owner-addr-uid', OWNER) })).body;
+  assert.deepEqual(addressed.items.map((x) => [x.status, x.note]), [['addressed', 'Fixed the music loop in 1.7.1.']]);
+  assert.equal(addressed.waiting.problem, undefined, 'addressed is not waiting');
   assert.equal((await call(`/admin/v1/feedback/${id}`, { auth: TOKEN, body: { status: 'delete' } })).status, 200);
   await call('/admin/v1/settings', { auth: TOKEN, body: { key: 'feedback_enabled', value: false } });
   assert.equal((await call('/v1/feedback', { body: { kind: 'idea', text: 'More dragons please' } })).status, 503);
@@ -211,11 +216,14 @@ test('signed-in players with a confirmed email can get a thank-you email', async
   assert.equal((await call('/admin/v1/replies/claim', { auth: idToken('p1', 'p1@example.com'), body: {} })).status, 403);
   const claim = (await call('/admin/v1/replies/claim', { auth: TOKEN, body: { limit: 10 } })).body;
   assert.equal(claim.off, false);
-  assert.deepEqual(claim.replies.map((r) => r.kind).sort(), ['idea', 'problem']);
+  assert.deepEqual(claim.replies.map((r) => r.kind).sort(), ['idea', 'problem'], 'update emails wait for the team');
+  assert.ok(claim.replies.every((r) => r.text === 'More dragons, please!'), 'the note quotes what the player wrote');
   assert.equal((await call('/admin/v1/replies/claim', { auth: TOKEN, body: {} })).body.replies.length, 0, 'claimed notes are not handed out twice');
   const [a, b] = claim.replies;
   assert.deepEqual((await call('/admin/v1/replies/done', { auth: TOKEN, body: { sent: [a.id], failed: [b.id] } })).body, { sent: 1, failed: 1 });
-  assert.equal((await db.prepare('SELECT email, status FROM feedback_replies WHERE id = ?1').bind(a.id).first()).email, null, 'address removed once sent');
+  const sentRow = await db.prepare('SELECT email, text FROM feedback_replies WHERE id = ?1').bind(a.id).first();
+  assert.equal(sentRow.email, null, 'address removed once sent');
+  assert.equal(sentRow.text, null, 'the player\'s words removed once sent');
   assert.equal((await db.prepare('SELECT status FROM feedback_replies WHERE id = ?1').bind(b.id).first()).status, 'waiting', 'a failed note is tried again');
   const counts = (await call('/admin/v1/feedback?kind=idea', { auth: TOKEN })).body.replies;
   assert.equal(counts.sentToday, 1);
@@ -230,7 +238,7 @@ test('signed-in players with a confirmed email can get a thank-you email', async
   assert.equal((await send('idea', idToken('p3', 'p3@example.com'))).body.reply, 'off');
   const off = (await call('/admin/v1/replies/claim', { auth: TOKEN, body: {} })).body;
   assert.equal(off.off, true);
-  assert.equal(off.dropped, 1);
+  assert.equal(off.dropped, 5, 'the waiting note and the four held updates');
   assert.equal((await db.prepare('SELECT COUNT(*) AS n FROM feedback_replies WHERE email IS NOT NULL').first()).n, 0);
   await call('/admin/v1/settings', { auth: TOKEN, body: { key: 'feedback_replies_enabled', value: true } });
   // An empty claim is not written to the audit log (it runs every 15 minutes).
@@ -238,6 +246,165 @@ test('signed-in players with a confirmed email can get a thank-you email', async
   await call('/admin/v1/replies/claim', { auth: TOKEN, body: {} });
   assert.equal((await db.prepare("SELECT COUNT(*) AS n FROM admin_audit WHERE action = 'replies.claim'").first()).n, before);
   await db.prepare('DELETE FROM feedback_replies').run();
+});
+
+test('"Email me an update": the team marking it addressed emails the player their words and the note', async () => {
+  const boss = idToken('up-owner', OWNER); // its own rate-limit bucket
+  const send = (kind, uid, text) => call('/v1/feedback', { auth: idToken(uid, `${uid}@example.com`), body: { kind, topic: 'other', text, reply: true } });
+  const sent = await send('problem', 'up1', 'The grid scrolls twice on my tablet.');
+  assert.equal(sent.body.reply, 'queued');
+  assert.equal(sent.body.update, true);
+  assert.equal((await send('idea', 'up2', 'A pirate ship lost in the fog.')).body.update, true);
+  assert.equal((await call('/v1/feedback', { body: { kind: 'idea', topic: 'other', text: 'No account here.', reply: true } })).body.update, false);
+  const fb = async (text) => (await db.prepare('SELECT id FROM feedback WHERE text = ?1').bind(text).first()).id;
+  const problemId = await fb('The grid scrolls twice on my tablet.');
+  const ideaId = await fb('A pirate ship lost in the fog.');
+  assert.equal((await db.prepare('SELECT COUNT(*) AS n FROM feedback WHERE id = ?1 AND conversation_id IS NULL').bind(problemId).first()).n, 1, 'the feedback row itself stays unlinked');
+  // The thank-you notes go now; the updates wait.
+  const first = (await call('/admin/v1/replies/claim', { auth: boss, body: {} })).body.replies;
+  assert.deepEqual(first.map((r) => r.kind).sort(), ['idea', 'problem']);
+  await call('/admin/v1/replies/done', { auth: boss, body: { sent: first.map((r) => r.id) } });
+  // Marked addressed: the update is queued with the note.
+  const marked = await call(`/admin/v1/feedback/${problemId}`, { auth: boss, body: { status: 'addressed', note: 'Fixed the grid height in version 1.7.1.' } });
+  assert.equal(marked.status, 200);
+  assert.equal(marked.body.emailed, 1);
+  // Closed without a fix: no update, and its address and words go.
+  assert.equal((await call(`/admin/v1/feedback/${ideaId}`, { auth: boss, body: { status: 'done' } })).body.emailed, 0);
+  const dropped = await db.prepare("SELECT status, email, text FROM feedback_replies WHERE feedback_id = ?1").bind(ideaId).first();
+  assert.deepEqual({ ...dropped }, { status: 'dropped', email: null, text: null });
+  const update = (await call('/admin/v1/replies/claim', { auth: boss, body: {} })).body.replies;
+  assert.equal(update.length, 1);
+  assert.equal(update[0].kind, 'problem_update');
+  assert.equal(update[0].email, 'up1@example.com');
+  assert.equal(update[0].text, 'The grid scrolls twice on my tablet.');
+  assert.equal(update[0].note, 'Fixed the grid height in version 1.7.1.');
+  await call('/admin/v1/replies/done', { auth: boss, body: { sent: [update[0].id] } });
+  // Marking it again does not send a second email.
+  assert.equal((await call(`/admin/v1/feedback/${problemId}`, { auth: boss, body: { status: 'addressed', note: 'Again.' } })).body.emailed, 0);
+  assert.equal((await db.prepare('SELECT COUNT(*) AS n FROM feedback_replies WHERE email IS NOT NULL OR text IS NOT NULL OR note IS NOT NULL').first()).n, 0, 'nothing about the player is kept once sent');
+  await db.prepare('DELETE FROM feedback_replies').run();
+});
+
+test('communication: players and the team write to each other, with one inbox for everything', async () => {
+  const boss = idToken('comm-owner', OWNER); // its own rate-limit bucket
+  const mod = idToken('comm-mod', 'comm-mod@example.com');
+  const view = idToken('comm-view', 'comm-view@example.com');
+  await call('/admin/v1/admins', { auth: boss, body: { email: 'comm-mod@example.com', role: 'moderator' } });
+  await call('/admin/v1/admins', { auth: boss, body: { email: 'comm-view@example.com', role: 'viewer' } });
+  const ann = idToken('ann-uid', 'ann@example.com');
+  await db.prepare("INSERT OR REPLACE INTO players (user_id, screen_name, name_key, created_at, updated_at) VALUES ('ann-uid', 'Puzzle Ann', 'puzzleann', 1, 1)").run();
+
+  // Messages need a sign-in.
+  assert.equal((await call('/v1/messages')).status, 401);
+  assert.deepEqual((await call('/v1/messages', { auth: ann })).body.conversations, []);
+  // A player writes to the team; email addresses and links are blanked.
+  const sent = await call('/v1/messages', { auth: ann, body: { topic: 'question', text: 'How do I print a puzzle? Mail me at ann@example.com' } });
+  assert.equal(sent.status, 200);
+  const convId = sent.body.id;
+  assert.equal((await call('/v1/messages', { auth: ann, body: { text: 'x' } })).status, 400, 'too short');
+  // An idea with "let the team reply" starts a conversation linked to that idea only.
+  const idea = await call('/v1/feedback', { auth: ann, body: { kind: 'idea', topic: 'story', text: 'A lighthouse keeper mystery', talk: true } });
+  assert.equal(idea.body.talk, 'linked');
+  const anon = await call('/v1/feedback', { body: { kind: 'problem', topic: 'sound', text: 'The music skips a beat', talk: true } });
+  assert.equal(anon.body.talk, 'signed_out');
+  assert.equal((await db.prepare("SELECT conversation_id FROM feedback WHERE text LIKE 'The music%'").first()).conversation_id, null, 'other feedback stays anonymous');
+  await db.prepare("INSERT INTO app_errors (day, fingerprint, platform, version, kind, message, place) VALUES (?1, 'fp-comm', 'web', '1.0', 'error', 'grid is undefined', 'app.js:1')").bind(new Date().toISOString().slice(0, 10)).run();
+
+  // One inbox. Viewers see error reports and the email log, not what players wrote.
+  const all = (await call('/admin/v1/inbox?type=all&status=new', { auth: mod })).body;
+  const types = new Set(all.items.map((i) => i.type));
+  for (const t of ['message', 'idea', 'problem', 'error']) assert.ok(types.has(t), `the inbox lists ${t}`);
+  assert.equal(all.counts.unread, 2);
+  const msg = all.items.find((i) => i.type === 'message' && i.id === convId);
+  assert.equal(msg.meta.name, 'Puzzle Ann');
+  assert.match(msg.text, /<email>/);
+  const seen = (await call('/admin/v1/inbox?type=all', { auth: view })).body;
+  assert.deepEqual([...new Set(seen.items.map((i) => i.type))].sort(), ['error']);
+  assert.equal((await call(`/admin/v1/conversations/${convId}`, { auth: view })).status, 403);
+  assert.equal((await call(`/admin/v1/conversations/${convId}/reply`, { auth: view, body: { text: 'Hi' } })).status, 403, 'viewers cannot send');
+  // Filters and search.
+  assert.ok((await call('/admin/v1/inbox?type=idea', { auth: mod })).body.items.every((i) => i.type === 'idea'));
+  const found = (await call('/admin/v1/inbox?type=all&q=lighthouse', { auth: mod })).body.items;
+  assert.deepEqual([...new Set(found.map((i) => i.type))].sort(), ['idea', 'message']);
+  assert.equal((await call('/admin/v1/inbox?type=all&q=100%25', { auth: mod })).body.items.length, 0, 'a % in the search is not a wildcard');
+  // Addressed: a problem with a note, and an error fixed in a version, leave "new" and show under "addressed".
+  const prob = all.items.find((i) => i.type === 'problem' && /music skips/.test(i.text));
+  assert.equal((await call(`/admin/v1/feedback/${prob.id}`, { auth: mod, body: { status: 'addressed', note: 'The music no longer skips.' } })).status, 200);
+  assert.equal((await call('/admin/v1/errors/fix', { auth: boss, body: { message: 'grid is undefined', place: 'app.js:1', fixedIn: '1.1', note: 'Grid loads first now.' } })).status, 200);
+  const fresh = (await call('/admin/v1/inbox?type=all&status=new', { auth: mod })).body.items;
+  assert.ok(!fresh.some((i) => i.id === prob.id && i.type === 'problem') && !fresh.some((i) => i.type === 'error' && i.id === 'fp-comm'), 'addressed items leave the new list');
+  const done = (await call('/admin/v1/inbox?type=all&status=addressed', { auth: mod })).body.items;
+  assert.equal(done.find((i) => i.type === 'problem' && i.id === prob.id).meta.note, 'The music no longer skips.');
+  assert.equal(done.find((i) => i.type === 'error' && i.id === 'fp-comm').meta.fix.fixedIn, '1.1');
+  assert.ok(done.every((i) => ['idea', 'problem', 'error'].includes(i.type)), 'only ideas, problems and errors can be addressed');
+  await call(`/admin/v1/feedback/${prob.id}`, { auth: mod, body: { status: 'new' } });
+  await db.prepare("DELETE FROM error_fixes WHERE message = 'grid is undefined'").run();
+
+  // The player turns on email notices; the team replies; the player sees "The team".
+  assert.equal((await call('/v1/messages/email', { auth: idToken('ann-uid', 'ann@example.com', false), body: { on: true } })).status, 403, 'needs a confirmed email');
+  assert.equal((await call('/v1/messages/email', { auth: ann, body: { on: true } })).body.email, true);
+  const thread = (await call(`/admin/v1/conversations/${convId}`, { auth: mod })).body;
+  assert.equal(thread.messages.length, 1);
+  assert.equal(thread.emailOn, true);
+  const reply = await call(`/admin/v1/conversations/${convId}/reply`, { auth: mod, body: { text: 'Open the puzzle and press Print. See https://thelogicgrid.com/help' } });
+  assert.equal(reply.status, 200);
+  assert.equal(reply.body.email, 'queued');
+  assert.equal((await call(`/admin/v1/conversations/${convId}/reply`, { auth: mod, body: { text: 'One more thing.' } })).body.email, 'limit', 'one email notice a day');
+  const notice = await db.prepare("SELECT email, kind FROM feedback_replies WHERE kind = 'message'").first();
+  assert.equal(notice.email, 'ann@example.com');
+  const mine = (await call('/v1/messages', { auth: ann })).body;
+  const c = mine.conversations.find((x) => x.id === convId);
+  assert.equal(c.unread, true);
+  assert.equal(mine.unread, 1);
+  assert.deepEqual(c.messages.map((m) => m.from), ['player', 'team', 'team']);
+  assert.match(c.messages[1].text, /https:\/\/thelogicgrid\.com\/help/, 'team links are kept');
+  assert.ok(!JSON.stringify(mine).includes('mod@example.com'), 'players never see which admin wrote');
+  await call(`/v1/messages/${convId}/read`, { auth: ann, body: {} });
+  assert.equal((await call('/v1/messages', { auth: ann })).body.unread, 0);
+  // Done, then the player's reply opens it again. Another player cannot reply in it.
+  await call(`/admin/v1/conversations/${convId}/status`, { auth: mod, body: { status: 'done' } });
+  assert.equal((await call(`/v1/messages/${convId}`, { auth: idToken('bob-uid', 'bob@example.com'), body: { text: 'Hello there' } })).status, 404);
+  await call(`/v1/messages/${convId}`, { auth: ann, body: { text: 'Thanks, that worked!' } });
+  assert.equal((await db.prepare('SELECT status, admin_unread FROM conversations WHERE id = ?1').bind(convId).first()).status, 'open');
+  assert.equal((await call(`/admin/v1/conversations/${convId}/status`, { auth: mod, body: { status: 'delete' } })).status, 403, 'deleting needs an admin');
+
+  // Admins write first, by screen name; moderators cannot.
+  assert.equal((await call('/admin/v1/conversations', { auth: mod, body: { to: 'Puzzle Ann', text: 'Hello' } })).status, 403);
+  const first = await call('/admin/v1/conversations', { auth: boss, body: { to: 'puzzle ann', subject: 'Your race', text: 'Congratulations on your win!' } });
+  assert.equal(first.status, 200);
+  assert.equal(first.body.uid, 'ann-uid');
+  assert.equal((await call('/admin/v1/conversations', { auth: boss, body: { to: 'Nobody Here', text: 'Hi' } })).status, 404);
+
+  // News reaches every copy of the game through /v1/config.
+  assert.equal((await call('/admin/v1/news', { auth: mod, body: { title: 'New themes', text: 'Three new worlds.' } })).status, 403);
+  const news = await call('/admin/v1/news', { auth: boss, body: { title: 'New themes', text: 'Three new worlds to explore.' } });
+  assert.equal(news.status, 200);
+  assert.equal((await call('/v1/config')).body.news[0].title, 'New themes');
+  assert.equal((await call('/v1/config')).body.features.messages, true);
+  await call(`/admin/v1/news/${news.body.id}/end`, { auth: boss, body: {} });
+  assert.equal((await call('/v1/config')).body.news.length, 0);
+
+  // Banned players can read but not send; the switch closes Messages.
+  await db.prepare("INSERT INTO bans (user_id, banned_by, banned_at) VALUES ('ann-uid', 'test', 1)").run();
+  assert.equal((await call('/v1/messages', { auth: ann, body: { text: 'Let me back in' } })).status, 403);
+  await db.prepare("DELETE FROM bans WHERE user_id = 'ann-uid'").run();
+  await call('/admin/v1/settings', { auth: boss, body: { key: 'messages_enabled', value: false } });
+  assert.equal((await call('/v1/messages', { auth: ann })).body.off, true);
+  assert.equal((await call('/v1/messages', { auth: ann, body: { text: 'Hello again' } })).status, 503);
+  await call('/admin/v1/settings', { auth: boss, body: { key: 'messages_enabled', value: true } });
+  // Everything is in the audit log.
+  const acts = (await db.prepare("SELECT action FROM admin_audit WHERE action LIKE 'conversations.%' OR action LIKE 'news.%' OR action = 'inbox.view'").all()).results.map((r) => r.action);
+  for (const a of ['inbox.view', 'conversations.view', 'conversations.reply', 'conversations.status', 'conversations.start', 'news.create']) assert.ok(acts.includes(a), `${a} is audited`);
+
+  // Deleting the account removes the conversations and the email address.
+  await call('/admin/v1/players/ann-uid/delete', { auth: boss, body: { confirm: 'ann-uid' } });
+  assert.equal((await db.prepare("SELECT COUNT(*) AS n FROM conversations WHERE user_id = 'ann-uid'").first()).n, 0);
+  assert.equal((await db.prepare("SELECT COUNT(*) AS n FROM message_contacts").first()).n, 0);
+  assert.equal((await db.prepare("SELECT COUNT(*) AS n FROM feedback WHERE conversation_id IS NOT NULL").first()).n, 0);
+  await db.batch(['feedback_replies', 'feedback', 'conversation_messages', 'news', 'sync_deleted_users'].map((t) => db.prepare(`DELETE FROM ${t}`)));
+  await db.prepare("DELETE FROM app_errors WHERE fingerprint = 'fp-comm'").run();
+  await call('/admin/v1/admins/remove', { auth: boss, body: { email: 'comm-mod@example.com' } });
+  await call('/admin/v1/admins/remove', { auth: boss, body: { email: 'comm-view@example.com' } });
 });
 
 test('the story workshop adds checked story parts for everyone', async () => {
@@ -353,6 +520,25 @@ test('backups: the archive page, a download, and the viewer page', async () => {
   assert.match(page.headers.get('content-security-policy'), /script-src 'self'/);
 });
 
+test('errors can be marked addressed with the version that fixed them', async () => {
+  // The owner on another device (its own rate limit), so the other tests keep theirs. (its own rate limit), so the other tests keep theirs.
+  const owner = idToken('owner-fix-uid', OWNER);
+  const report = (version) => ({ kind: 'error', message: "Cannot read properties of undefined (reading 'toLowerCase')", stack: 'at h (https://x.test/js/app.js:1882:9)', platform: 'web', version });
+  await call('/v1/errors', { body: { errors: [report('1.6.0'), report('1.7.1')] } });
+  const before = (await call('/admin/v1/errors', { auth: owner })).body.errors.filter((x) => /toLowerCase/.test(x.message));
+  assert.equal(before.length, 2);
+  assert.ok(before.every((x) => !x.fix));
+  const mark = { message: before[0].message, place: before[0].place, fixedIn: '1.7.1', note: 'Ignore key presses with no key (autofill).' };
+  assert.equal((await call('/admin/v1/errors/fix', { auth: owner, body: { ...mark, fixedIn: 'soon' } })).status, 400);
+  assert.equal((await call('/admin/v1/errors/fix', { auth: owner, body: mark })).status, 200);
+  const after = (await call('/admin/v1/errors', { auth: owner })).body.errors.filter((x) => /toLowerCase/.test(x.message));
+  const byVersion = Object.fromEntries(after.map((x) => [x.version, x.fix]));
+  assert.equal(byVersion['1.6.0'].missed, false, 'an older version counts as fixed');
+  assert.equal(byVersion['1.7.1'].missed, true, 'the fixed version or later shows the fix missed it');
+  assert.equal(byVersion['1.6.0'].note, mark.note);
+  assert.equal((await call(`/admin/v1/errors/fix/${byVersion['1.6.0'].id}/delete`, { auth: owner, body: {} })).status, 200);
+});
+
 test('the older token pages still work and are audited', async () => {
   const r = await call('/admin/errors', { auth: TOKEN });
   assert.equal(r.status, 200);
@@ -380,9 +566,18 @@ test('admins sign in again after 12 hours, even with a fresh token', async () =>
 test('admin bodies over the limit are refused while still arriving', async () => {
   // No Content-Length: the body is streamed and cut off once it passes the cap.
   const big = new ReadableStream({ start(c) { for (let i = 0; i < 20; i++) c.enqueue(new TextEncoder().encode('x'.repeat(1000))); c.close(); } });
-  const r = await mf.dispatchFetch('https://api.test/admin/v1/settings', { method: 'POST', headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json' }, body: big, duplex: 'half' });
-  assert.equal(r.status, 413);
-  await r.arrayBuffer();
+  // The Worker may answer before the upload ends, so a reset also means refused.
+  // Its own sign-in, so earlier tests' calls do not count toward the rate limit.
+  const auth = idToken('size-check-uid', OWNER);
+  let status;
+  try {
+    const r = await mf.dispatchFetch('https://api.test/admin/v1/settings', { method: 'POST', headers: { Authorization: `Bearer ${auth}`, 'Content-Type': 'application/json' }, body: big, duplex: 'half' });
+    await r.arrayBuffer();
+    status = r.status;
+  } catch (e) { status = 'reset'; }
+  assert.ok([413, 'reset'].includes(status), `gave ${status}`);
+  const sized = await call('/admin/v1/settings', { auth, body: { pad: 'x'.repeat(9000) } });
+  assert.equal(sized.status, 413);
 });
 
 test('the dashboard keeps other sites and powerful features away', async () => {

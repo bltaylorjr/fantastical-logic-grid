@@ -12,6 +12,7 @@
 // parts) arrives through setShared() and is blended in.
 import * as store from './store.js';
 import { checkStoryPart, partKey, parseStoryId } from '../engine/index.js';
+import { houseTuningFor } from '../engine/house-tuning.js';
 
 const KEY = 'learning';
 const MAX_PLAYS = 400;
@@ -39,7 +40,19 @@ function playOf(save) {
     K: p.categories.length, N: p.categories[0].items.length, clueCount: p.clues.length, clueTypes: p.stats.clueTypes,
     score: p.stats.difficultyScore, effort: p.stats.effort || 0, parts: p.story.parts || null,
     ms: 0, expectedMs: save.expectedMs || 0, hints: 0, checks: 0, mistakes: 0, percent: 0, outcome: 'playing', rating: null, feel: null,
+    // For the anonymous ratings report: a random key for this puzzle only
+    // (never reused, never tied to the player), so a later rating updates
+    // the same summary.
+    pid: randomKey(), topic: p.topic?.id || null, story: p.story?.id || null,
+    chars: (p.characters || []).map((c) => c.id).filter(Boolean), whatif: p.stats.stepsByLevel?.whatIf ?? null,
+    mode: save.daily ? 'daily' : save.race ? 'race' : 'free',
   };
+}
+
+function randomKey() {
+  const a = new Uint8Array(12);
+  crypto.getRandomValues(a);
+  return [...a].map((b) => 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'[b % 62]).join('');
 }
 
 export async function record(save, outcome) {
@@ -57,12 +70,17 @@ export async function record(save, outcome) {
   return play;
 }
 
-export async function rate(save, { rating, feel }) {
+// keepLocal: the player keeps "Learn from how I play" off, so the rating
+// stays on this device and is never shared.
+export async function rate(save, { rating, feel }, { keepLocal = false } = {}) {
   const L = await load();
   let play = L.plays.find((x) => x.storyId === save.storyId);
   if (!play) play = await record(save, save.solved ? (save.revealed ? 'revealed' : 'solved') : 'playing');
   if (rating !== undefined) play.rating = rating;
   if (feel !== undefined) play.feel = feel;
+  // Already shared: send it again (same pid) so the shared summary gets the rating.
+  if (keepLocal) play.sent = 3;
+  else if (play.sent && play.pid) play.sent = 0;
   await persist();
 }
 
@@ -192,6 +210,18 @@ export async function tuning(tier, { useShared = true } = {}) {
   if (Object.keys(themeWeights).length) learning.themeWeights = themeWeights;
   const storyParts = mergeParts(L.parts, shared?.parts);
   const prefs = localStoryPrefs(plays, L.parts);
+  // What everyone's ratings say about the built-in story parts (the weekly
+  // improvement run, engine/house-tuning.js), at half strength, wherever this
+  // player has not rated that part themselves.
+  const house = houseTuningFor(new Date().toISOString().slice(0, 10));
+  for (const [key, kinds] of Object.entries(house?.storyPrefs || {})) {
+    for (const [k, parts] of Object.entries(kinds)) {
+      for (const [part, v] of Object.entries(parts)) {
+        const mine = ((prefs[key] ||= {})[k] ||= {});
+        if (mine[part] === undefined) mine[part] = clamp(v * 0.5, -1, 1);
+      }
+    }
+  }
   return {
     ...(Object.keys(learning).length ? { learning } : {}),
     ...(Object.keys(storyParts).length ? { storyParts } : {}),
