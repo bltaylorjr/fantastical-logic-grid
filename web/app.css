@@ -62,6 +62,10 @@
 :root[data-world="nautical"] { --w1: #1D4ED8; --w2: #DC2626; }
 :root[data-world="farm"] { --w1: #65A30D; --w2: #DC2626; }
 :root[data-world="science"] { --w1: #2563EB; --w2: #10B981; }
+:root[data-world="math"] { --w1: #1E40AF; --w2: #F59E0B; }
+:root[data-world="biology"] { --w1: #4D7C0F; --w2: #0D9488; }
+:root[data-world="chemistry"] { --w1: #DB2777; --w2: #0891B2; }
+:root[data-world="paradox"] { --w1: #7C3AED; --w2: #DB2777; }
 
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
@@ -478,7 +482,10 @@ h3, legend, .card h3 { font-family: var(--font); }
 .pips { display: flex; gap: 4px; margin-bottom: 8px; }
 .pips i { width: 18px; height: 6px; border-radius: 3px; background: var(--x-fill); border: 1px solid var(--border); }
 .pips i.on { background: linear-gradient(90deg, var(--accent), var(--accent-hi)); border-color: var(--accent); }
-#theme-choices { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 10px; }
+#theme-choices { display: grid; grid-template-columns: 1fr; gap: 16px; }
+#theme-choices .theme-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 10px; }
+.theme-group { display: grid; gap: 8px; }
+.theme-group-name { margin: 0; font-size: .8rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted, inherit); }
 #theme-choices .choice > .tile { display: grid; justify-items: center; gap: 8px; padding: 14px 8px 12px; text-align: center; height: 100%; }
 #theme-choices .choice input:checked + .tile { padding: 13px 7px 11px; }
 #theme-choices .choice input:checked + .tile > b::before { content: none; }
@@ -495,6 +502,8 @@ h3, legend, .card h3 { font-family: var(--font); }
 .tile[data-world="travel"] { --w1: #06B6D4; --w2: #F97316; } .tile[data-world="wonders"] { --w1: #D97706; --w2: #7C3AED; }
 .tile[data-world="music"] { --w1: #DB2777; --w2: #6366F1; } .tile[data-world="nautical"] { --w1: #1D4ED8; --w2: #DC2626; }
 .tile[data-world="farm"] { --w1: #65A30D; --w2: #DC2626; } .tile[data-world="science"] { --w1: #2563EB; --w2: #10B981; }
+.tile[data-world="math"] { --w1: #1E40AF; --w2: #F59E0B; } .tile[data-world="biology"] { --w1: #4D7C0F; --w2: #0D9488; }
+.tile[data-world="chemistry"] { --w1: #DB2777; --w2: #0891B2; } .tile[data-world="paradox"] { --w1: #7C3AED; --w2: #DB2777; }
 .tile[data-world="random"] { --w1: #7C5CFF; --w2: #22B8CF; }
 .chips .choice > span { border-radius: 999px; padding: 10px 18px; }
 .chips .choice small { font-weight: 400; }
@@ -576,7 +585,7 @@ dialog::backdrop { background: rgb(5 7 16 / .6); backdrop-filter: blur(6px); -we
   .toolbar::-webkit-scrollbar { display: none; }
   .toolbar .btn { flex: none; scroll-snap-align: start; flex-direction: column; gap: 2px; min-width: 64px; padding: 6px 10px; font-size: .85rem; }
   .toolbar .btn .ico { width: 20px; height: 20px; }
-  #theme-choices { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); }
+  #theme-choices .theme-row { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); }
 }
 
 /* High contrast: flat, solid, no glow */

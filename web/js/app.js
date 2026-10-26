@@ -218,10 +218,19 @@ function renderSetup() {
   // Themes switched off in the admin dashboard are left out.
   const off = remote.disabledThemes();
   if (off.has(setup.theme)) { setup.theme = 'random'; setup.topic = 'any'; }
-  const themes = [{ id: 'random', name: 'Surprise me', description: 'Any theme' }, ...OPTIONS.themes.filter((t) => !off.has(t.id))];
-  $('#theme-choices').innerHTML = themes.map((t) => `
+  // Themes are shown in labeled groups (Mystery & Action, Science & Learning
+  // ...) so the long list is easy to scan. "Surprise me" leads on its own.
+  const themeTile = (t) => `
     <label class="choice" title="${esc(t.description || '')}"><input type="radio" name="theme" value="${t.id}"${t.id === setup.theme ? ' checked' : ''} aria-describedby="theme-d-${t.id}">
-    <span class="tile" data-world="${t.id}">${icon(t.id, 'glyph')}<b>${esc(t.name)}</b></span><span class="sr-only" id="theme-d-${t.id}">${esc(t.description || '')}</span></label>`).join('');
+    <span class="tile" data-world="${t.id}">${icon(t.id, 'glyph')}<b>${esc(t.name)}</b></span><span class="sr-only" id="theme-d-${t.id}">${esc(t.description || '')}</span></label>`;
+  const shown = OPTIONS.themes.filter((t) => !off.has(t.id));
+  const groups = (OPTIONS.themeGroups || []).map((g) => ({ ...g, list: g.themes.map((id) => shown.find((t) => t.id === id)).filter(Boolean) }));
+  const ungrouped = shown.filter((t) => !groups.some((g) => g.list.includes(t)));
+  if (ungrouped.length) groups.push({ id: 'more', name: 'More themes', list: ungrouped });
+  $('#theme-choices').innerHTML = `<div class="choices chips theme-row">${themeTile({ id: 'random', name: 'Surprise me', description: 'Any theme' })}</div>`
+    + groups.filter((g) => g.list.length).map((g) => `
+    <div class="theme-group" role="group" aria-labelledby="tg-${g.id}"><p class="theme-group-name" id="tg-${g.id}">${esc(g.name)}</p>
+    <div class="choices chips theme-row">${g.list.map(themeTile).join('')}</div></div>`).join('');
   if (!$('input[name=theme]:checked')) $('input[name=theme]').checked = true;
   renderTopics();
   renderSizes();

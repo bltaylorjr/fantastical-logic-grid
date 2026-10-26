@@ -113,6 +113,10 @@ const MOODS = {
   nautical: { root: 130.81, scale: [0, 2, 4, 5, 7, 9], tempo: 0.52, wave: 'triangle' },
   farm: { root: 196, scale: [0, 2, 4, 7, 9], tempo: 0.4, wave: 'triangle' },
   science: { root: 164.81, scale: [0, 2, 4, 6, 7, 9, 11], tempo: 0.42, wave: 'square' },
+  math: { root: 146.83, scale: [0, 2, 4, 5, 7, 9, 11], tempo: 0.4, wave: 'triangle' },
+  biology: { root: 196, scale: [0, 2, 4, 7, 9], tempo: 0.5, wave: 'sine' },
+  chemistry: { root: 174.61, scale: [0, 2, 3, 5, 7, 9, 10], tempo: 0.38, wave: 'triangle' },
+  paradox: { root: 130.81, scale: [0, 2, 4, 6, 8, 10], tempo: 0.64, wave: 'sine' },
 };
 
 export function startMusic(themeId) {
