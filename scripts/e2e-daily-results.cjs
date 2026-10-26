@@ -86,7 +86,7 @@ const APP = `http://localhost:${APP_PORT}`;
     await fresh.addInitScript(() => localStorage.setItem('flg.settings', JSON.stringify({ introOffered: true, voiceProvider: 'device', silent: true, learn: false })));
     const linked = await fresh.newPage();
     linked.on('pageerror', (e) => errors.push(String(e)));
-    await linked.goto(`${APP}/?play=daily&utm_source=daily-email`);
+    await linked.goto(`${APP}/?play=daily&utm_source=email&utm_campaign=daily-email`);
     await linked.waitForSelector('#screen-play:not([hidden])');
     assert(await linked.evaluate((d) => window.__flg.state.save.daily === d, latest.date), 'a ?play=daily link opens today\'s daily puzzle');
     assert(!/play=/.test(linked.url()), 'and the link is tidied from the address bar');

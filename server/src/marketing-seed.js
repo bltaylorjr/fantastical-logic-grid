@@ -175,4 +175,17 @@ export const SEEDS = [{
       notes: 'The quickest first players. Send from your own address, a few people at a time.',
     },
   ],
+}, {
+  // Built into the game: the daily puzzle email's Play button is tagged with
+  // this code (scripts/daily-email.py), so its visits, plays and solves show
+  // here. Nothing to post.
+  id: 'daily-email',
+  campaign: {
+    code: 'daily-email',
+    name: 'Daily puzzle email',
+    status: 'active',
+    goal: 'Players who asked for each day\'s puzzle by email, coming back to play it.',
+    notes: 'Sent automatically every morning (server/DAILY-EMAIL.md). Nothing to post or approve.',
+  },
+  ads: [],
 }];
