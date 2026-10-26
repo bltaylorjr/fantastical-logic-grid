@@ -16,6 +16,7 @@ import { THEMES } from '../../engine/src/themes.js';
 import { getTopics, storyKey } from '../../engine/src/topics.js';
 import { TIER_ORDER, CLUE_TYPES } from '../../engine/src/tiers.js';
 import { getSettings } from './settings.js';
+import { readText } from './http.js';
 
 // The edge-cache key of the tuning reply; the admin dashboard clears it after a review.
 export const TUNING_CACHE_KEY = 'https://flg-cloud.internal/v1/learn/tuning';
@@ -62,9 +63,7 @@ async function limited(binding, req) {
 }
 
 async function bodyJson(req, maxBytes) {
-  const text = await req.text();
-  if (text.length > maxBytes) throw new Error('too large');
-  return JSON.parse(text);
+  return JSON.parse(await readText(req, maxBytes));
 }
 
 // ---------- plays ----------

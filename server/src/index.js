@@ -26,7 +26,7 @@ import { runUpkeep, deepHealth } from './upkeep.js';
 import { runArchive } from './archive.js';
 import { handleSync, handleDeleteAccount, isDeleted } from './sync.js';
 import { verifyIdToken, AuthError } from './auth.js';
-import { json, corsHeaders } from './http.js';
+import { json, corsHeaders, secured } from './http.js';
 
 const MAX_BODY = 4_000_000;
 const WEEKLY_ARCHIVE_CRON = '47 4 * * 1';
@@ -92,10 +92,10 @@ async function route(req, env, ctx) {
 export default {
   async fetch(req, env, ctx) {
     try {
-      return await route(req, env, ctx);
+      return secured(await route(req, env, ctx));
     } catch (e) {
       console.error(e);
-      return json(req, env, { error: 'server' }, 500);
+      return secured(json(req, env, { error: 'server' }, 500));
     }
   },
   async scheduled(controller, env, ctx) {

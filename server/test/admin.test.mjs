@@ -319,3 +319,26 @@ test('each admin is rate limited', async () => {
   for (let i = 0; i < 100 && !limited; i++) limited = (await call('/admin/v1/me', { auth: token })).status === 429;
   assert.ok(limited);
 });
+
+test('admins sign in again after 12 hours, even with a fresh token', async () => {
+  const old = Math.floor(Date.now() / 1000) - 13 * 3600;
+  const stale = signer.token({ sub: 'owner-uid', email: OWNER, email_verified: true }, { auth_time: old });
+  const r = await call('/admin/v1/me', { auth: stale });
+  assert.equal(r.status, 401);
+  assert.equal(r.body.error, 'sign_in');
+});
+
+test('admin bodies over the limit are refused while still arriving', async () => {
+  // No Content-Length: the body is streamed and cut off once it passes the cap.
+  const big = new ReadableStream({ start(c) { for (let i = 0; i < 20; i++) c.enqueue(new TextEncoder().encode('x'.repeat(1000))); c.close(); } });
+  const r = await mf.dispatchFetch('https://api.test/admin/v1/settings', { method: 'POST', headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json' }, body: big, duplex: 'half' });
+  assert.equal(r.status, 413);
+  await r.arrayBuffer();
+});
+
+test('the dashboard keeps other sites and powerful features away', async () => {
+  const r = await call('/admin/', { origin: null });
+  assert.match(r.headers.get('strict-transport-security'), /max-age=\d{8}/);
+  assert.equal(r.headers.get('cross-origin-opener-policy'), 'same-origin');
+  assert.match(r.headers.get('permissions-policy'), /camera=\(\)/);
+});

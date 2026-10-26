@@ -9,7 +9,7 @@
 // is kept. Nothing about the player or device is stored. The same error on
 // the same day only raises its count, and a day holds at most
 // MAX_DISTINCT_PER_DAY distinct errors, so a flood cannot fill the database.
-import { json } from './http.js';
+import { json, readText, TooLarge } from './http.js';
 import { getSettings } from './settings.js';
 
 const MAX_DISTINCT_PER_DAY = 300;
@@ -51,10 +51,8 @@ function safeEqual(a, b) {
 }
 
 async function postErrors(req, env) {
-  const text = await req.text();
-  if (text.length > 8_000) return json(req, env, { error: 'too_large' }, 413);
   let body;
-  try { body = JSON.parse(text); } catch (e) { return json(req, env, { error: 'bad_request' }, 400); }
+  try { body = JSON.parse(await readText(req, 8_000)); } catch (e) { return json(req, env, { error: e instanceof TooLarge ? 'too_large' : 'bad_request' }, e instanceof TooLarge ? 413 : 400); }
   // Switched off in the admin dashboard: accept and drop, so apps do not retry.
   if (!(await getSettings(env)).error_reports_enabled) return json(req, env, { saved: 0 });
   const list = Array.isArray(body?.errors) ? body.errors.slice(0, 5) : [];

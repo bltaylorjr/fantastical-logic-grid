@@ -6,7 +6,7 @@
 // Anonymous: nothing about the player or device is stored. Email addresses,
 // web addresses and long numbers are blanked before saving. The admin
 // dashboard lists them (admin.js) and the daily cleanup removes done ones.
-import { json } from './http.js';
+import { json, readText, TooLarge } from './http.js';
 import { getSettings } from './settings.js';
 
 export const TOPICS = {
@@ -33,10 +33,8 @@ export function cleanText(text) {
 }
 
 async function postFeedback(req, env) {
-  const raw = await req.text();
-  if (raw.length > 6_000) return json(req, env, { error: 'too_large' }, 413);
   let body;
-  try { body = JSON.parse(raw); } catch (e) { return json(req, env, { error: 'bad_request' }, 400); }
+  try { body = JSON.parse(await readText(req, 6_000)); } catch (e) { return json(req, env, { error: e instanceof TooLarge ? 'too_large' : 'bad_request' }, e instanceof TooLarge ? 413 : 400); }
   if (!(await getSettings(env)).feedback_enabled) return json(req, env, { error: 'switched_off', message: 'The idea and problem boxes are closed for now.' }, 503);
   const kind = TOPICS[body?.kind] ? body.kind : null;
   if (!kind) return json(req, env, { error: 'bad_request' }, 400);

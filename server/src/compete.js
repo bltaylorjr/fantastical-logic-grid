@@ -19,7 +19,7 @@
 // than the server's own clock since joining, and a race only counts as solved
 // when the submitted answers match the puzzle's solution.
 
-import { json } from './http.js';
+import { json, readText, TooLarge } from './http.js';
 import { checkName, cleanName, nameKey, hasBlockedWords } from './names.js';
 import { isDeleted } from './sync.js';
 import { AuthError } from './auth.js';
@@ -242,7 +242,9 @@ export async function handleCompete(req, env, ctx, url, signedIn) {
     if (await isDeleted(env, user.uid)) throw new AuthError('Account deleted');
     return user;
   };
-  const body = async () => { try { return await req.json(); } catch (e) { return null; } };
+  // A body over max bytes, or one that is not JSON, reads as null (race starts
+  // check the size first and answer too_large).
+  const body = async (max = 64_000) => { try { return JSON.parse(await readText(req, max)); } catch (e) { return null; } };
   const fail = (error, status = 400, extra = {}) => json(req, env, { error, ...extra }, status);
 
   try {
@@ -351,8 +353,11 @@ export async function handleCompete(req, env, ctx, url, signedIn) {
     if (!settings.races_enabled && method === 'POST' && action !== 'finish') return off('Races');
 
     if (!sub && method === 'POST') {
-      if (Number(req.headers.get('Content-Length') || 0) > MAX_PUZZLE_CHARS + 1000) return fail('too_large', 413);
-      const b = await body();
+      let b;
+      try { b = JSON.parse(await readText(req, MAX_PUZZLE_CHARS + 1000)); } catch (e) {
+        if (e instanceof TooLarge) return fail('too_large', 413);
+        b = null;
+      }
       const puzzle = b && b.puzzle;
       const problem = checkPuzzle(puzzle);
       if (problem === 'puzzle_words') return fail(problem, 422, { message: 'This puzzle has words that cannot be shared with other players. Remove the custom title or names and try again.' });

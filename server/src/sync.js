@@ -9,7 +9,7 @@
 //   Removes all of the player's synced data, screen name and scores. Needs a sign-in from the last
 //   10 minutes, so a stolen old token cannot erase an account.
 
-import { json } from './http.js';
+import { json, readText, TooLarge } from './http.js';
 import { deleteCompeteStatements } from './compete.js';
 
 const KINDS = new Set(['save', 'meta', 'settings']);
@@ -19,6 +19,7 @@ const MAX_RECORDS = 5000;
 const PULL_ROWS = 500;
 const PULL_CHARS = 1_500_000;
 const RECENT_SIGN_IN = 600;
+const MAX_BODY = 4_000_000;
 
 export async function isDeleted(env, uid) {
   return !!(await env.DB.prepare('SELECT 1 AS d FROM sync_deleted_users WHERE user_id = ?1').bind(uid).first());
@@ -26,7 +27,10 @@ export async function isDeleted(env, uid) {
 
 export async function handleSync(req, env, user) {
   let body;
-  try { body = await req.json(); } catch (e) { return json(req, env, { error: 'bad_json' }, 400); }
+  try { body = JSON.parse(await readText(req, MAX_BODY)); } catch (e) {
+    return e instanceof TooLarge ? json(req, env, { error: 'too_large' }, 413) : json(req, env, { error: 'bad_json' }, 400);
+  }
+  if (!body || typeof body !== 'object') return json(req, env, { error: 'bad_json' }, 400);
   const changes = Array.isArray(body.changes) ? body.changes : [];
   if (changes.length > MAX_CHANGES) return json(req, env, { error: 'too_many_changes', max: MAX_CHANGES }, 413);
   for (const c of changes) {
