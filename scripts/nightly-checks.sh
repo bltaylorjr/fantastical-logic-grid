@@ -95,12 +95,11 @@ endsection
 
 # ---------------------------------------------------------------- the built site: links and structured data
 section "Built website: links, tags and structured data"
-if node scripts/check-site.mjs --external --json "$REPORT_DIR/site.json"; then :; fi
-if [ -f "$REPORT_DIR/site.json" ]; then
-  note "Website build: $(jq -r .summary "$REPORT_DIR/site.json")"
-  jq -r '.problems[]' "$REPORT_DIR/site.json" | while read -r l; do problem "Website build: $l"; done
-  jq -r '.warnings[]' "$REPORT_DIR/site.json" | while read -r l; do warning "Website build: $l"; done
-  rm -f "$REPORT_DIR/site.json"
+site_out=$(node scripts/check-site.mjs --external 2>&1)
+if [ -n "$site_out" ]; then
+  note "Website build: $(head -1 <<<"$site_out")"
+  grep '^Problem: ' <<<"$site_out" | sed 's/^Problem: //' | while read -r l; do problem "Website build: $l"; done
+  grep '^Warning: ' <<<"$site_out" | sed 's/^Warning: //' | while read -r l; do warning "Website build: $l"; done
 else problem "The website link and structured-data check did not run (see the run log)."; fi
 endsection
 

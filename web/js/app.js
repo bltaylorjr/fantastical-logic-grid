@@ -1754,9 +1754,10 @@ function renderMedia() {
     loadPortraits().then(() => {
       if (S !== game) return;
       // AI-painted faces (img) stay; only drawn stand-ins are swapped.
-      $$('#cast-row .cast-btn').forEach((b) => {
+      // Faces come from the puzzle's own names (the same order as the buttons).
+      $$('#cast-row .cast-btn').forEach((b, i) => {
         const old = b.querySelector('svg');
-        if (old) old.outerHTML = portrait(p, b.dataset.who, { style: settings.portraitStyle });
+        if (old && names[i] !== undefined) old.outerHTML = portrait(p, names[i], { style: settings.portraitStyle });
       });
       const teller = narratorOf(p);
       const told = $('#told-by .told-face');

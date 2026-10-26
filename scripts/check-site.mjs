@@ -5,9 +5,10 @@
 //   - sitemap.xml lists only pages that exist, with real dates, and robots.txt points to it
 // With --external it also tries every link to another website and lists the
 // broken ones (as warnings: other sites go down for a while and come back).
-// Run: npm run build && node scripts/check-site.mjs [--external] [--json report.json]
+// Run: npm run build && node scripts/check-site.mjs [--external]
+// Prints a summary line, then one "Problem: " or "Warning: " line each.
 // Used by the Tests workflow (every pull request) and the nightly maintenance run.
-import { readFileSync, readdirSync, statSync, existsSync, writeFileSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { join, dirname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -15,7 +16,6 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const site = join(root, 'dist', 'site');
 const args = process.argv.slice(2);
 const external = args.includes('--external');
-const jsonOut = args.includes('--json') ? args[args.indexOf('--json') + 1] : null;
 const SITE_URL = (process.env.FLG_SITE_URL || 'https://thelogicgrid.com').replace(/\/+$/, '');
 
 const problems = [];
@@ -71,7 +71,9 @@ function checkSchema(page, data) {
 
 const internal = new Set();
 const externalLinks = new Map();
-const strip = (h) => h.replace(/<(script|style|noscript)[\s\S]*?<\/\1>/gi, '');
+// Leaves out script, style and noscript blocks before counting headings and
+// links (repeated until nothing changes, so nested or broken tags go too).
+const strip = (h) => { let prev; do { prev = h; h = h.replace(/<(script|style|noscript)\b[\s\S]*?<\/\1\s*>/gi, ''); } while (h !== prev); return h; };
 for (const page of pages) {
   const html = readFileSync(join(site, page), 'utf8');
   const listed = !/<meta name="robots" content="noindex/i.test(html);
@@ -157,5 +159,4 @@ const summary = `${pages.length} pages, ${locs.length} in the sitemap, ${interna
 console.log(summary);
 for (const p of problems) console.log(`Problem: ${p}`);
 for (const w of warnings) console.log(`Warning: ${w}`);
-if (jsonOut) writeFileSync(jsonOut, JSON.stringify({ summary, problems, warnings }, null, 2));
 if (problems.length) process.exitCode = 1;
