@@ -20,6 +20,7 @@ import * as campaign from './campaign.js';
 import { initAccounts, openAccount, onHome as accountsOnHome, signedIn } from './account-ui.js';
 import * as competeUi from './compete-ui.js';
 import * as remote from './remote-config.js';
+import * as perks from './perks.js';
 import { initPullRefresh } from './pull-refresh.js';
 import * as daily from './daily.js';
 import * as stats from './stats.js';
@@ -205,13 +206,22 @@ function renderSetup() {
   $('#tier-choices').innerHTML = OPTIONS.difficulties.map((d, i) => `
     <label class="choice"><input type="radio" name="tier" value="${d.id}"${d.id === setup.tier ? ' checked' : ''}>
     <span><span class="pips" aria-hidden="true">${'<i class="on"></i>'.repeat(i + 1)}${'<i></i>'.repeat(levels - i - 1)}</span><b>${esc(d.name)}</b><small>${esc(d.summary)}</small></span></label>`).join('');
-  // Themes switched off in the admin dashboard are left out.
+  // Themes switched off in the admin dashboard are left out; supporter extras
+  // show to everyone but open only for premium supporters.
   const off = remote.disabledThemes();
-  if (off.has(setup.theme)) { setup.theme = 'random'; setup.topic = 'any'; }
+  const locked = lockedThemes();
+  if (off.has(setup.theme) || locked.has(setup.theme)) { setup.theme = 'random'; setup.topic = 'any'; }
   const themes = [{ id: 'random', name: 'Surprise me', description: 'Any theme' }, ...OPTIONS.themes.filter((t) => !off.has(t.id))];
-  $('#theme-choices').innerHTML = themes.map((t) => `
-    <label class="choice" title="${esc(t.description || '')}"><input type="radio" name="theme" value="${t.id}"${t.id === setup.theme ? ' checked' : ''} aria-describedby="theme-d-${t.id}">
-    <span class="tile" data-world="${t.id}">${icon(t.id, 'glyph')}<b>${esc(t.name)}</b></span><span class="sr-only" id="theme-d-${t.id}">${esc(t.description || '')}</span></label>`).join('');
+  $('#theme-choices').innerHTML = themes.map((t) => {
+    const lock = locked.has(t.id);
+    return `
+    <label class="choice${lock ? ' locked' : ''}" title="${esc(t.description || '')}"><input type="radio" name="theme" value="${t.id}"${t.id === setup.theme ? ' checked' : ''}${lock ? ' disabled' : ''} aria-describedby="theme-d-${t.id}">
+    <span class="tile" data-world="${t.id}">${icon(t.id, 'glyph')}<b>${esc(t.name)}</b>${lock ? '<small class="extra-tag">Supporter extra</small>' : ''}</span><span class="sr-only" id="theme-d-${t.id}">${esc(t.description || '')}${lock ? '. Supporter extra: open to premium supporters.' : ''}</span></label>`;
+  }).join('');
+  const extras = remote.extrasUrl();
+  $('#extras-note').hidden = !locked.size;
+  $('#extras-link').hidden = !extras;
+  if (extras) $('#extras-link').href = extrasLink(extras);
   if (!$('input[name=theme]:checked')) $('input[name=theme]').checked = true;
   renderTopics();
   renderSizes();
@@ -230,6 +240,14 @@ function renderSetup() {
   $('#style-choices').onchange = () => { settings.silent = $('input[name=playstyle]:checked').value === 'silent'; store.saveSettings(settings); applyMode(); };
   updatePreview();
 }
+
+// Supporter extra themes this player can't pick yet (none for premium supporters).
+function lockedThemes() {
+  return perks.isPremium() ? new Set() : remote.premiumThemes();
+}
+// The page where players get the extras. Hook for payment pages that need to
+// know who is buying.
+function extrasLink(url) { return url; }
 
 // Topics narrow a theme, for example which holiday or which kind of mystery.
 // "Surprise me" has none, so the picker hides.
@@ -328,8 +346,10 @@ async function makePuzzle(override = null) {
   // Learning only picks between puzzles the engine has fully checked.
   let tuned = {};
   if (settings.learn) { try { tuned = await learn.tuning(options.difficulty, { useShared: share.available() && remote.feature('learning') }); } catch (e) { tuned = {}; } }
-  // Surprise me never picks a theme that is switched off.
-  const off = remote.disabledThemes();
+  // Surprise me never picks a theme that is switched off, or a supporter extra
+  // this player can't open.
+  const off = new Set([...remote.disabledThemes(), ...lockedThemes()]);
+  if (off.has(options.theme)) options.theme = 'random';
   if (options.theme === 'random' && off.size) {
     const allowed = OPTIONS.themes.filter((t) => !off.has(t.id));
     const weights = (tuned.learning && tuned.learning.themeWeights) || {};
@@ -2198,11 +2218,13 @@ async function init() {
   applyMode();
   applyLanguage();
   matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', applyColorTheme);
+  perks.init();
   renderSetup();
   remote.init({
     onThemesChanged: () => { if (!$('#screen-home').hidden) renderSetup(); },
     onConfigChanged: () => { settings = store.loadSettings(); applyFeatures(); applyMode(); languageNote(); },
   });
+  perks.onChange(() => { if (!$('#screen-home').hidden) renderSetup(); });
   await renderSaved();
   renderSuggestion();
   renderDaily();

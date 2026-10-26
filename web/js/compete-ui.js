@@ -554,7 +554,7 @@ async function loadBoard() {
     if (!b.rows.length) { body.innerHTML = `<p class="muted">No one is on the scoreboard ${period === 'week' ? 'this week' : ''} yet. Solve a puzzle to be the first!</p>`; return; }
     body.innerHTML = `<div class="table-wrap"><table class="board"><caption class="sr-only">Scoreboard, ${period === 'week' ? 'this week' : 'all time'}</caption>
       <thead><tr><th scope="col">Rank</th><th scope="col">Player</th><th scope="col">Points</th><th scope="col">Solved</th><th scope="col">Race wins</th></tr></thead>
-      <tbody>${b.rows.map((r) => `<tr${r.me ? ' class="me"' : ''}><td><b>${r.rank}</b></td><th scope="row"><bdi translate="no">${esc(r.name)}</bdi>${r.me ? ' <span class="pill">You</span>' : ''}</th><td>${r.points}</td><td>${r.solved}</td><td>${r.wins}</td></tr>`).join('')}</tbody></table></div>`;
+      <tbody>${b.rows.map((r) => `<tr${r.me ? ' class="me"' : ''}><td><b>${r.rank}</b></td><th scope="row"><bdi translate="no">${esc(r.name)}</bdi>${r.supporter ? ' <span class="pill supporter" title="Supports the game">★ Supporter</span>' : ''}${r.me ? ' <span class="pill">You</span>' : ''}</th><td>${r.points}</td><td>${r.solved}</td><td>${r.wins}</td></tr>`).join('')}</tbody></table></div>`;
   } catch (err) { body.innerHTML = `<p class="error-box">${esc(err.message)}</p>`; }
 }
 

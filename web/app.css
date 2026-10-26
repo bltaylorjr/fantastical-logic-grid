@@ -132,6 +132,11 @@ legend { font-weight: 700; font-size: 1.05rem; padding: 0; margin-bottom: 8px; }
 .chips .choice > span { padding: 10px 14px; font-weight: 700; }
 .chips .choice input:checked + span { padding: 9px 13px; }
 .chips .choice input:checked + span:not(:has(b))::before { content: "✓ "; color: var(--accent); }
+.choice.locked > span { cursor: not-allowed; border-style: dashed; }
+.choice.locked .extra-tag { display: block; font-weight: 400; font-size: .8em; }
+.extras-note { margin: 8px 0 0; font-size: .95em; color: var(--muted); }
+.extras-note .btn { margin-left: 6px; }
+.pill.supporter { background: var(--accent-soft); color: inherit; }
 .custom-size { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 12px; max-width: 480px; }
 .more { margin-bottom: 24px; border-top: 1px solid var(--hairline); padding-top: 8px; }
 .more summary { cursor: pointer; font-weight: 700; min-height: 44px; display: flex; align-items: center; }

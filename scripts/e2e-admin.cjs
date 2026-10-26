@@ -145,9 +145,9 @@ const SHOTS = process.env.SHOTS;
     assert(added && added.status === 'approved' && added.source === 'admin', 'a story part written in the workshop goes straight to every player');
 
     await page.click('a[href="#settings"]');
-    await page.waitForSelector('input[name=theme-off]');
-    const theme = await page.getAttribute('input[name=theme-off]:nth-of-type(1)', 'value');
-    await page.locator('input[name=theme-off]').first().check();
+    await page.waitForSelector('input[name=theme-disabled_themes]');
+    const theme = await page.getAttribute('input[name=theme-disabled_themes]:nth-of-type(1)', 'value');
+    await page.locator('input[name=theme-disabled_themes]').first().check();
     await page.click('button[data-save=disabled_themes]');
     await page.waitForFunction(() => /Changed by/.test(document.querySelector('#settings-body').textContent));
     const saved = JSON.parse((await db.prepare("SELECT value FROM settings WHERE key = 'disabled_themes'").first()).value);
@@ -203,6 +203,15 @@ const SHOTS = process.env.SHOTS;
     await page.waitForSelector('#player-card');
     assert(/Latest scores/.test(await page.textContent('#player-card')), 'a player opens with their scores');
     await shot(page, '3-player');
+
+    await page.click('a[href="#supporters"]');
+    await page.waitForSelector('#sup-rows td');
+    await page.fill('#sup-who', 'fan@example.com');
+    await page.selectOption('#sup-kind', 'premium');
+    await page.fill('#sup-note', 'Ko-fi tip');
+    await page.click('#sup-form button[type=submit]');
+    await page.waitForSelector('#sup-rows button[data-sup-end]');
+    assert(/fan@example\.com/.test(await page.textContent('#sup-rows')) && /Premium/.test(await page.textContent('#sup-rows')), 'an admin adds a premium supporter by email');
 
     await page.click('a[href="#search"]');
     await page.waitForSelector('#search-body .tile');

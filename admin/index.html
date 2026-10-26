@@ -81,6 +81,7 @@
       <li><a href="#feedback" data-min="moderator">Ideas and problems <span class="count" id="count-feedback" hidden></span></a></li>
       <li><a href="#names" data-min="moderator">Screen names <span class="count" id="count-names" hidden></span></a></li>
       <li><a href="#players" data-min="moderator">Players</a></li>
+      <li><a href="#supporters" data-min="admin">Supporters</a></li>
       <li><a href="#settings" data-min="viewer">Settings and switches</a></li>
       <li><a href="#announcements" data-min="viewer">Announcements</a></li>
       <li><a href="#errors" data-min="viewer">Error reports</a></li>
@@ -208,6 +209,22 @@
       <div class="table-wrap"><table class="table"><thead><tr><th scope="col">Screen name</th><th scope="col">Points</th><th scope="col">Solves</th><th scope="col">Last score</th><th scope="col">Status</th></tr></thead><tbody id="players-rows"></tbody></table></div>
       <div class="row" data-min="admin"><button class="btn" type="button" data-export="players">Download all players (CSV)</button><button class="btn" type="button" data-export="scores">Download all scores (CSV)</button></div>
       <div id="player-detail"></div>
+    </section>
+
+    <section data-view="supporters" hidden aria-labelledby="h-supporters">
+      <div class="head"><h1 id="h-supporters">Supporters</h1></div>
+      <p class="muted">The game is free. A <b>Supporter</b> gets a badge next to their name on the scoreboard. <b>Premium</b> also opens the themes ticked under Settings and switches &gt; Support and premium. Payment services add people here by themselves once connected; you can also add someone by hand, for example a GitHub Sponsors or Ko-fi tipper. A grant made out to an email reaches the player the next time they sign in with that confirmed email.</p>
+      <form id="sup-form" class="stack card" novalidate>
+        <div class="row">
+          <div class="field grow"><label for="sup-who">Player's email or player id</label><input id="sup-who" type="text" autocomplete="off" spellcheck="false" required></div>
+          <div class="field"><label for="sup-kind">Gets</label><select id="sup-kind"><option value="supporter">Supporter badge</option><option value="premium">Premium (badge and extras)</option></select></div>
+          <div class="field"><label for="sup-until">Ends (optional)</label><input id="sup-until" type="date"></div>
+        </div>
+        <div class="field"><label for="sup-note">Note (optional, for you)</label><input id="sup-note" type="text" maxlength="200" autocomplete="off"></div>
+        <p class="error" id="sup-error" role="alert" hidden></p>
+        <div class="row"><button class="btn primary" type="submit">Add</button></div>
+      </form>
+      <div class="table-wrap"><table class="table"><thead><tr><th scope="col">Who</th><th scope="col">Gets</th><th scope="col">From</th><th scope="col">Since</th><th scope="col">Ends</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody id="sup-rows"></tbody></table></div>
     </section>
 
     <section data-view="settings" hidden aria-labelledby="h-settings">
