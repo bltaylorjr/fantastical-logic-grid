@@ -297,7 +297,7 @@
         <label class="chip"><input type="radio" name="feel" value="right"> Just right</label>
         <label class="chip"><input type="radio" name="feel" value="hard"> Too hard</label>
       </fieldset>
-      <p class="help"><span id="feedback-thanks" role="status"></span> <button class="btn quiet small" type="button" id="feedback-idea">Add a story idea</button></p>
+      <p class="help"><span id="feedback-thanks" role="status"></span> <button class="btn quiet small" type="button" id="feedback-idea">Share an idea</button></p>
     </div>
     <p id="next-tip"></p>
     <div class="solved-actions">
@@ -522,7 +522,9 @@
   <form class="feedback-box" id="idea-form" data-kind="idea" novalidate>
     <h3>Share an idea</h3>
     <fieldset><legend>What is it about?</legend>
-      <label class="radio"><input type="radio" name="idea-topic" value="story" checked> A storyline or theme idea</label>
+      <label class="radio"><input type="radio" name="idea-topic" value="story" checked> A storyline idea</label>
+      <label class="radio"><input type="radio" name="idea-topic" value="theme"> A new theme or topic</label>
+      <label class="radio"><input type="radio" name="idea-topic" value="feature"> A new game feature</label>
       <label class="radio"><input type="radio" name="idea-topic" value="other"> Something else</label>
     </fieldset>
     <div class="field"><label for="idea-text">Your idea</label><textarea id="idea-text" rows="4" maxlength="1000" placeholder="A pirate ship lost in the fog, where the crew mixed up the treasure maps…"></textarea></div>
