@@ -383,9 +383,15 @@ const SHOTS = process.env.SHOTS;
             if (el.matches('input[type=checkbox], input[type=radio]') && el.closest('label')) b = el.closest('label').getBoundingClientRect();
             if (Math.round(Math.min(b.width, b.height)) < 44) small.push(`${el.id || el.tagName} "${el.textContent.trim().slice(0, 20)}"`);
           }
-          return { sideways: document.documentElement.scrollWidth > innerWidth + 1, small };
+          // The first element that sticks out past the screen, to name in a failure.
+          const out = [...document.querySelectorAll('#app *')].find((el) => {
+            if (el.getBoundingClientRect().right <= innerWidth + 1) return false;
+            for (let a = el.parentElement; a && a !== document.body; a = a.parentElement) if (getComputedStyle(a).overflowX !== 'visible') return false;
+            return true;
+          });
+          return { sideways: document.documentElement.scrollWidth > innerWidth + 1 && (out ? `${out.tagName}.${out.className} "${out.textContent.trim().slice(0, 30)}"` : 'yes'), small };
         });
-        if (r.sideways) bad.push(`${view} scrolls sideways`);
+        if (r.sideways) bad.push(`${view} scrolls sideways (${r.sideways})`);
         if (r.small.length) bad.push(`${view}: ${r.small.join(', ')} under 44 px`);
       }
       assert(!bad.length, `every dashboard page fits ${label} (${width} x ${height}) with 44 px targets${bad.length ? `: ${bad.join('; ')}` : ''}`);

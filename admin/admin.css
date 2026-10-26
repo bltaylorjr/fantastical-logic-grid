@@ -240,7 +240,10 @@ td.num, th.num { white-space: nowrap; }
 /* Responsive layout (checked from 320 px phones to 2560 px monitors and at
    200% zoom by scripts/e2e-responsive.cjs). */
 /* Every button and link-button is at least 44 px, also the compact ones. */
-.btn.small, .table button.rowlink, .tab, .skip { min-height: 44px; }
+.btn.small, .table button.rowlink, .table th button.sort, .tab, .skip { min-height: 44px; }
+/* Setup steps: a 44 px tick target, and long setting names and links wrap instead of widening the page. */
+.conn-steps .check { min-height: 44px; }
+.conn-steps .check > * { min-width: 0; overflow-wrap: anywhere; }
 .skip { display: inline-flex; align-items: center; }
 /* A visually hidden column label is placed against the page unless the
    scroller is its containing block; without this a phone scrolls sideways. */
