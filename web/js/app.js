@@ -1801,10 +1801,12 @@ $('#home-btn').onclick = () => goHome();
 // The narrated video is the Introduction.
 // The open puzzle is saved and closed first; the tutorial never saves.
 async function openTutorial(opts = {}) {
-  const open = [...document.querySelectorAll('dialog[open]')];
-  open.forEach((d) => d.close());
-  // A closing dialog hands focus back to its button; let that happen first.
-  if (open.length) await new Promise((r) => setTimeout(r, 0));
+  // A closing dialog hands focus back to its button when its close event
+  // fires; wait for that, so the tutorial's own focus wins.
+  await Promise.all([...document.querySelectorAll('dialog[open]')].map((d) => new Promise((r) => {
+    d.addEventListener('close', () => setTimeout(r, 0), { once: true });
+    d.close();
+  })));
   await flushSave();
   closeGame();
   showScreen('learn');
