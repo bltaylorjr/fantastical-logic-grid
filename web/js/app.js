@@ -7,7 +7,9 @@ import { printPuzzle } from './print.js';
 import { sceneSvg } from './art.js';
 import * as sfx from './audio.js';
 import * as ai from './ai.js';
-import { portrait } from './portraits.js';
+import { portrait, characterFace } from './portraits.js';
+import * as characters from './characters.js';
+import { characterOf, narratorOf, lineOf } from './cast.js';
 import * as wake from './wakelock.js';
 import * as updates from './updates.js';
 import { celebrate as confettiBurst } from './effects.js';
@@ -325,12 +327,18 @@ async function makePuzzle() {
   if (settings.learn) { try { tuned = await learn.tuning(setup.tier, { useShared: share.available() && remote.feature('learning') }); } catch (e) { tuned = {}; } }
   // Surprise me never picks a theme that is switched off.
   const off = remote.disabledThemes();
-  if (options.theme === 'random' && off.size) {
+  // Surprise me is decided here when the game's own characters might join,
+  // since they depend on the theme.
+  if (options.theme === 'random' && (off.size || characters.anyFor())) {
     const allowed = OPTIONS.themes.filter((t) => !off.has(t.id));
     const weights = (tuned.learning && tuned.learning.themeWeights) || {};
     let r = Math.random() * allowed.reduce((sum, t) => sum + (Number(weights[t.id]) || 1), 0);
     options.theme = (allowed.find((t) => (r -= Number(weights[t.id]) || 1) < 0) || allowed[allowed.length - 1]).id;
   }
+  // The game's own characters (made in the admin dashboard) may join the
+  // cast or tell the story. Names the player typed always win.
+  const picked = options.customNames || options.theme === 'random' ? {} : characters.pick(options.theme, options.items);
+  if (picked.cast && picked.cast.length) options.customNames = picked.cast.map((c) => c.name);
   let puzzle = null;
   // The engine skips used stories itself; the loop is a safety net.
   for (let i = 0; i < 4 && !puzzle; i++) {
@@ -338,6 +346,7 @@ async function makePuzzle() {
     if (!usedSet.has(storyIdOf(p))) puzzle = p;
   }
   if (!puzzle) throw new Error('Every story we tried has already been used. Try another theme.');
+  characters.attach(puzzle, picked);
   await rememberStory(storyIdOf(puzzle));
   return puzzle;
 }
@@ -554,6 +563,10 @@ function openGame(save, { fresh = false } = {}) {
   $('#p-meta').innerHTML = [...(save.daily ? [`Daily puzzle · ${daily.longDate(save.daily)}`] : []), puzzle.difficulty.name, puzzle.theme.name, ...(puzzle.topic && puzzle.topic.id !== 'any' ? [puzzle.topic.name] : []), `${K} categories × ${N} items`, `${puzzle.clues.length} clues`].map((t) => `<span class="pill">${esc(t)}</span>`).join('');
   const paras = puzzle.story.paragraphs;
   $('#p-story').innerHTML = paras.map((p, i) => `<p${i === paras.length - 1 ? ' class="goal"' : ''}>${esc(p)}</p>`).join('');
+  characters.useFor(puzzle);
+  const teller = narratorOf(puzzle);
+  $('#told-by').hidden = !teller;
+  $('#told-by').innerHTML = teller ? `<span class="told-face" data-who="${esc(teller.name)}">${characterFace(teller, { size: 40 })}</span> Told by <b>${esc(teller.name)}</b>` : '';
   $('#story').open = !fresh ? !save.storyRead : true;
   const notes = (puzzle.notes || []).filter((n) => !/Closest match/.test(n));
   $('#p-notes').hidden = !notes.length;
@@ -944,7 +957,9 @@ function hintLines(res, level) {
 function renderHint() {
   const { res, level } = S.hint;
   const box = $('#hintbox');
-  const lines = hintLines(res, level);
+  const teller = level === 0 && res.kind !== 'done' ? narratorOf(S.puzzle) : null;
+  const said = teller && lineOf(teller, 'hint', S.save.hintsUsed);
+  const lines = (said ? `<p class="char-line"><b>${esc(teller.name)}:</b> “${esc(said)}”</p>` : '') + hintLines(res, level);
   const more = level < 2 ? `<button class="btn small" type="button" id="hint-more">${level === 0 ? 'Which cell?' : 'Explain why'}</button>` : '';
   const apply = level === 2 && res.kind !== 'done' ? `<button class="btn small" type="button" id="hint-apply">${res.kind === 'mistake' ? 'Fix it for me' : 'Mark it for me'}</button>` : '';
   box.innerHTML = `${lines}<div class="row">${more}${apply}<button class="btn quiet small" type="button" id="hint-close">Close hint</button></div>`;
@@ -1136,8 +1151,20 @@ function showSolved(celebrate) {
   const winner = winnerOf(S.puzzle, S.ix);
   const bg = S.sceneUrl ? `<img class="bg" src="${S.sceneUrl}" alt="">` : sceneSvg(S.puzzle, 5, { animate: false });
   const face = S.portraitUrls && S.portraitUrls[winner] ? `<img src="${S.portraitUrls[winner]}" alt="">` : winner ? portrait(S.puzzle, winner, { size: 120, style: settings.portraitStyle }) : '';
-  res.innerHTML = `${bg}<div class="spot"></div>${winner ? `<div class="hero">${face}<b>${esc(winner)}</b></div>` : ''}`;
-  if (celebrate && voiceOn()) setTimeout(() => { if (S && S.save.solved) ai.speak(settings, S.puzzle, 'narrator', S.puzzle.story.ending, { volume: settings.volume / 100 }); }, 1200);
+  // A character from the admin dashboard cheers in their own words: the
+  // winner if they are one, otherwise the one who told the story.
+  const cheer = [characterOf(S.puzzle, winner), narratorOf(S.puzzle)].find((c) => lineOf(c, 'solve'));
+  const cheerLine = cheer ? lineOf(cheer, 'solve', S.save.hintsUsed + S.puzzle.clues.length) : null;
+  res.innerHTML = `${bg}<div class="spot"></div>${winner ? `<div class="hero">${face}<b>${esc(winner)}</b></div>` : ''}${cheerLine ? `<p class="char-line cheer"><b>${esc(cheer.name)}:</b> “${esc(cheerLine)}”</p>` : ''}`;
+  // The picture is hidden from screen readers, so the cheer is announced.
+  if (celebrate && cheerLine && !settings.silent) setTimeout(() => announce(`${cheer.name} says: ${cheerLine}`), 800);
+  if (celebrate && voiceOn()) {
+    setTimeout(() => {
+      if (!S || !S.save.solved) return;
+      const said = [...(cheerLine ? [{ who: cheer.id === S.puzzle.narrator ? 'narrator' : cheer.name, text: cheerLine }] : []), { who: 'narrator', text: S.puzzle.story.ending }];
+      ai.speakLines(settings, S.puzzle, said, { volume: settings.volume / 100 });
+    }, 1200);
+  }
   res.classList.remove('celebrate');
   if (celebrate) { void res.offsetWidth; res.classList.add('celebrate'); }
   $('#solved').hidden = false;
@@ -1423,6 +1450,8 @@ window.addEventListener('pagehide', () => flushSave());
 // Multimedia: scene, cast, witness clues, section chimes, adaptive difficulty
 // ====================================================================
 const SAYINGS = ['I saw it with my own eyes:', 'I am sure of this much:', 'Here is what I noticed:', 'I remember it clearly:', 'You might want to write this down:', 'I was there, and', 'Between you and me,', 'I can tell you this:'];
+// The game's own characters say their own lines before a clue.
+const sayingFor = (who, n) => lineOf(characterOf(S.puzzle, who), 'clue', n) || SAYINGS[(n + who.length) % SAYINGS.length];
 
 // Each clue is told by one character, preferably one the clue is not about.
 function assignWitnesses(puzzle, ix) {
@@ -1457,6 +1486,7 @@ function renderMedia() {
   S.sceneUrl = null;
   S.portraitUrls = {};
   loadAiArt();
+  loadCharacterArt();
   // Make the start of the story narration ahead of time so Read aloud plays at once.
   if (voiceOn()) ai.warmVoice(settings, p, 'narrator', p.story.paragraphs.join(' '));
 }
@@ -1488,12 +1518,35 @@ async function loadAiArt() {
   if (settings.aiPictures !== 'all') return;
   for (const btn of $$('#cast-row .cast-btn')) {
     const who = btn.dataset.who;
+    if (characterOf(p, who)) continue; // keeps the face made for them
     try {
       const blob = await ai.portraitImage(settings, p, who);
       if (S !== game) return;
       game.portraitUrls[who] = URL.createObjectURL(blob);
       btn.querySelector('svg, img').outerHTML = `<img class="portrait-img" src="${game.portraitUrls[who]}" alt="">`;
     } catch (e) { if (S === game) console.warn('AI portrait not made:', e.message); return; }
+  }
+}
+
+// AI portraits painted for the game's own characters in the admin dashboard.
+// Their drawn face shows until the picture arrives, and whenever it can't.
+async function loadCharacterArt() {
+  if (isPreview || settings.silent) return;
+  const game = S;
+  for (const c of game.puzzle.characters || []) {
+    if (!c.portrait) continue;
+    try {
+      const blob = await ai.characterImage(c);
+      if (S !== game) return;
+      const url = URL.createObjectURL(blob);
+      if (c.inCast) {
+        game.portraitUrls[c.name] = url;
+        const btn = $(`#cast-row .cast-btn[data-who="${CSS.escape(c.name)}"]`);
+        btn?.querySelector('svg, img')?.replaceWith(Object.assign(document.createElement('img'), { className: 'portrait-img', src: url, alt: '' }));
+      } else {
+        $('#told-by .told-face')?.replaceChildren(Object.assign(document.createElement('img'), { className: 'portrait-img', src: url, alt: '' }));
+      }
+    } catch (e) { /* the drawn face stays */ }
   }
 }
 
@@ -1524,12 +1577,12 @@ $('#cast-row').addEventListener('click', (e) => {
   $$('#clue-list li.spot').forEach((li) => li.classList.remove('spot'));
   clues.forEach((c) => $(`#clue-list li[data-n="${c.number}"]`)?.classList.add('spot'));
   $('#bubble').innerHTML = clues.length
-    ? clues.map((c) => `<p><span class="who">${esc(who)}:</span> “${esc(SAYINGS[(c.number + who.length) % SAYINGS.length])} ${esc(c.text)}” <span class="muted">(clue ${c.number})</span></p>`).join('')
+    ? clues.map((c) => `<p><span class="who">${esc(who)}:</span> “${esc(sayingFor(who, c.number))} ${esc(c.text)}” <span class="muted">(clue ${c.number})</span></p>`).join('')
     : `<p><span class="who">${esc(who)}:</span> “I didn't see anything, I promise.”</p>`;
   $('#bubble').hidden = false;
   sound('whoosh');
   if (voiceOn()) {
-    const lines = clues.length ? clues.map((c) => `${SAYINGS[(c.number + who.length) % SAYINGS.length]} ${c.text}`).join(' ') : "I didn't see anything, I promise.";
+    const lines = clues.length ? clues.map((c) => `${sayingFor(who, c.number)} ${c.text}`).join(' ') : "I didn't see anything, I promise.";
     voiceWaitNote();
     ai.speak(settings, S.puzzle, who, lines, { volume: settings.volume / 100 });
   }
@@ -1680,6 +1733,7 @@ function applyFeatures() {
   for (const el of $$('.needs-cloud')) el.hidden = !share.available() || (!!el.dataset.feature && !remote.feature(el.dataset.feature));
   $('#music-settings').hidden = !remote.feature('music');
   $('[data-cmd=feedback]').hidden = !feedbackBox.available();
+  $('[data-cmd=suggest]').hidden = !characters.suggestionsOpen();
   $('#feedback-idea').hidden = !feedbackBox.available();
   competeUi.refreshMiniBoard();
 }
@@ -1786,6 +1840,7 @@ $('#app-menu').addEventListener('click', async (e) => {
   else if (cmd === 'saved') { await goHome({ focusSaved: true }); $('#saved-section').scrollIntoView(); }
   else if (cmd === 'settings') openSettings();
   else if (cmd === 'stats') openStats();
+  else if (cmd === 'suggest') characters.openSuggest(openDialog, OPTIONS.themes.filter((t) => !remote.disabledThemes().has(t.id)));
   else if (cmd === 'daily') openTodaysDaily();
   else if (cmd === 'feedback') feedbackBox.open(openDialog);
   else if (cmd === 'account') openAccount();
@@ -2023,6 +2078,7 @@ async function init() {
   applyLanguage();
   matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', applyColorTheme);
   renderSetup();
+  characters.init({ onCharactersChanged: applyFeatures });
   remote.init({
     onThemesChanged: () => { if (!$('#screen-home').hidden) renderSetup(); },
     onConfigChanged: () => { settings = store.loadSettings(); applyFeatures(); applyMode(); languageNote(); },

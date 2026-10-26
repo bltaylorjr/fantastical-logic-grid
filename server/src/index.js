@@ -6,6 +6,7 @@
 //   POST /v1/errors, GET /admin/errors   anonymous error reports from the apps (errors.js)
 //   POST /v1/feedback                    the game's idea and problem boxes (feedback.js)
 //   POST /v1/picture                     AI pictures from Workers AI (pictures.js)
+//   /v1/characters*                      the game's own characters and player suggestions (characters.js)
 //   GET /v1/config                       announcements, switched-off themes, features (settings.js)
 //   GET /v1/daily/plan                   daily puzzle changes for the website build (daily.js)
 //   POST /v1/translate                   the game's text in another language (translate.js)
@@ -21,6 +22,7 @@ import { handleCompete } from './compete.js';
 import { handleErrors } from './errors.js';
 import { handleFeedback } from './feedback.js';
 import { handlePictures } from './pictures.js';
+import { handleCharacters } from './characters.js';
 import { handleDaily } from './daily.js';
 import { handleTranslate } from './translate.js';
 import { handleAdmin } from './admin.js';
@@ -68,6 +70,9 @@ async function route(req, env, ctx) {
 
   const picture = await handlePictures(req, env, ctx, url);
   if (picture) return picture;
+
+  const character = await handleCharacters(req, env, url);
+  if (character) return character;
 
   const daily = await handleDaily(req, env, url);
   if (daily) return daily;
