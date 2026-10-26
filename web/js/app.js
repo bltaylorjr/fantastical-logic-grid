@@ -443,15 +443,18 @@ async function startQuick() {
 }
 $('#quick-btn').onclick = startQuick;
 // ?play=now in a link (ads, the website) starts a quick puzzle straight away.
-// ?play=daily (the daily email) opens today's daily puzzle.
+// ?play=daily (the daily email) opens today's daily puzzle, or with &day= that day's.
 function handlePlayLink() {
   const url = new URL(location.href);
   const play = url.searchParams.get('play');
   if (play !== 'now' && play !== 'daily') return false;
+  // A Hand-picked link names its day: ?play=daily&day=2026-11-03.
+  const day = /^\d{4}-\d{2}-\d{2}$/.test(url.searchParams.get('day') || '') ? url.searchParams.get('day') : null;
   url.searchParams.delete('play');
+  url.searchParams.delete('day');
   try { history.replaceState(history.state, '', url.pathname + url.search + url.hash); } catch (e) { /* framed preview */ }
   if (play === 'daily' && daily.available() && !isPreview) {
-    daily.latest().then((l) => openDaily(l.date)).catch(() => startQuick());
+    (day ? Promise.resolve(day) : daily.latest().then((l) => l.date)).then((d) => openDaily(d)).catch(() => startQuick());
   } else startQuick();
   return true;
 }
@@ -1483,6 +1486,7 @@ async function renderDaily() {
     el.textContent = dailyResults.summaryLine(st);
     el.hidden = !el.textContent;
   });
+  renderPicks(saves);
   const earlier = (l.days || []).filter((d) => d < l.date).slice(0, 7);
   $('#daily-earlier').hidden = !earlier.length;
   $('#daily-list').innerHTML = earlier.map((d) => {
@@ -1490,6 +1494,20 @@ async function renderDaily() {
     return `<li><button class="btn quiet small" type="button" data-daily="${esc(d)}">${esc(daily.longDate(d))}</button>${sv ? ` <span class="muted">${sv.solved ? (st.days.has(d) ? 'solved' : 'finished') : `${sv.percent || 0}% done`}</span>` : ''}</li>`;
   }).join('');
 }
+// Hand-picked: the best-rated daily puzzles and ones the team picked
+// (daily/picks.json from the website build). They never add to a streak.
+async function renderPicks(saves) {
+  const box = $('#daily-picks');
+  const list = await daily.picks();
+  box.hidden = !list.length;
+  if (!list.length) return;
+  $('#daily-picks-list').innerHTML = list.map((x) => {
+    const sv = saves.find((s) => s.daily === x.date);
+    const why = x.hand ? 'picked by the team' : `rated ${x.average} of 5`;
+    return `<li><button class="btn quiet small" type="button" data-daily="${esc(x.date)}">${esc(x.title)}</button> <span class="muted">${esc(x.difficultyName)} · ${esc(x.themeName)} · ${esc(why)}${sv ? (sv.solved ? ' · finished' : ` · ${sv.percent || 0}% done`) : ''}</span></li>`;
+  }).join('');
+}
+
 // The daily email switch under today's puzzle: signed-in players with a
 // confirmed email can get each day's puzzle in their inbox.
 async function renderDailyEmail() {

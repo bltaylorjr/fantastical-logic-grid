@@ -19,8 +19,8 @@ const THEME_IDS = THEMES.map((t) => t.id);
 const CELEBRATIONS = ['confetti', 'fireworks', 'stars', 'balloons', 'sparkles', 'theme_emoji', 'bubbles', 'falling', 'shooting_stars', 'ribbons', 'light_rays', 'emoji_burst'];
 
 // type: bool, int (with min/max), choice (one of options), model (an AI
-// model name), url (an https link, or empty), themes (list of theme ids) or
-// words.
+// model name), url (an https link, or empty), themes (list of theme ids),
+// words or days (YYYY-MM-DD dates).
 export const SETTINGS = {
   // ---- Sounds: the player can still turn their own effects and music off,
   // and the one-tap mute and Silent mode always work.
@@ -102,6 +102,7 @@ export const SETTINGS = {
   challenges_enabled: { type: 'bool', default: true, group: 'Play', label: 'Challenge a friend links', help: 'After solving, players can share a link that opens the same puzzle for anyone, with their time to beat. No account needed. Off: no new links; links already shared still open.' },
   challenges_daily_cap: { type: 'int', min: 0, max: 5000, default: 500, group: 'Play', label: 'New challenge links a day', help: 'Keeps the database inside Cloudflare\'s free limits. Each link is kept for 60 days.' },
   daily_results_enabled: { type: 'bool', default: true, group: 'Play', label: 'Daily puzzle numbers for everyone', help: 'Shows how many played today\'s puzzle, how many solved it and the typical time, on the home screen and after solving. Only counts are kept. Off: the numbers are hidden.' },
+  hand_picked_days: { type: 'days', default: [], group: 'Play', label: 'Hand-picked daily puzzles', help: 'Past daily puzzles to put first in the Hand-picked collection on the website and in the game, one date per line (like 2026-11-03), up to 30. The rest of the collection is the best-rated daily puzzles. Shows after the next website build (every night).' },
   daily_email_enabled: { type: 'bool', default: true, group: 'Play', label: 'Daily puzzle by email', help: 'Signed-in players with a confirmed email can get each day\'s puzzle by email, sent at about 7 am Eastern from noreply@thelogicgrid.com through Resend, or from the game\'s Gmail as a backup (server/DAILY-EMAIL.md). Every email has a one-click unsubscribe link. Off: no emails and no new sign-ups; the list is kept.' },
   daily_email_daily_cap: { type: 'int', min: 0, max: 450, default: 300, group: 'Play', label: 'Daily emails a day', help: 'The most people on the daily email list. New sign-ups stop at this number, so everyone on the list gets the email. Resend\'s free plan sends 100 a day, then Gmail (about 500 a day, shared with the other emails) takes over.' },
   disabled_themes: { type: 'themes', default: [], group: 'Play', label: 'Themes switched off', help: 'Hidden from the theme picker and never picked by Surprise me.' },
@@ -179,6 +180,11 @@ export function checkSetting(key, value) {
     if (list.some((t) => !THEME_IDS.includes(t))) return { error: 'Unknown theme.' };
     if (list.length >= THEME_IDS.length) return { error: 'Keep at least one theme on.' };
     return { value: list };
+  }
+  if (s.type === 'days') {
+    const days = [...new Set(value.map((d) => String(d).trim()).filter(Boolean))];
+    if (days.length > 30 || days.some((d) => !/^\d{4}-\d{2}-\d{2}$/.test(d) || Number.isNaN(Date.parse(`${d}T00:00:00Z`)))) return { error: 'Use up to 30 dates like 2026-11-03, one per line.' };
+    return { value: days.sort() };
   }
   const words = [...new Set(value.map((w) => String(w).trim().toLowerCase()).filter(Boolean))];
   if (words.length > 200 || words.some((w) => !/^[a-z]{3,30}$/.test(w))) return { error: 'Use up to 200 words of 3 to 30 letters.' };

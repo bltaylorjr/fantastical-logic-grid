@@ -763,10 +763,12 @@ views.settings = async () => {
     if (s.type === 'model') return `<div class="row"><div class="field">${label}<input id="set-${s.key}" type="text" value="${esc(s.value)}" autocomplete="off" spellcheck="false"${dis}></div>${save}</div>`;
     if (s.type === 'url') return `<div class="row"><div class="field">${label}<input id="set-${s.key}" type="url" value="${esc(s.value)}" placeholder="https://" autocomplete="off" spellcheck="false"${dis}></div>${save}</div>`;
     if (s.type === 'themes') return `${editable ? `<button class="btn small" data-save="${s.key}">Save themes</button>` : ''}`;
+    if (s.type === 'days') return `${editable ? `<button class="btn small" data-save="${s.key}">Save dates</button>` : ''}`;
     return `${editable ? `<button class="btn small" data-save="${s.key}">Save words</button>` : ''}`;
   };
   const extra = (s) => {
     if (s.type === 'themes') return `<fieldset class="themes"><legend class="sr-only">${esc(s.label)}</legend>${d.themes.map((t) => `<label class="check"><input type="checkbox" name="theme-off" value="${esc(t.id)}"${s.value.includes(t.id) ? ' checked' : ''}${editable ? '' : ' disabled'}> ${esc(t.name)} off</label>`).join('')}</fieldset>`;
+    if (s.type === 'days') return `<div class="field words"><label for="set-${s.key}">One date per line, like 2026-11-03</label><textarea id="set-${s.key}" rows="4"${editable ? '' : ' disabled'}>${esc(s.value.join('\n'))}</textarea></div>`;
     if (s.type === 'words') return `<div class="field words"><label for="set-${s.key}">One word per line</label><textarea id="set-${s.key}" rows="4"${editable ? '' : ' disabled'}>${esc(s.value.join('\n'))}</textarea></div>`;
     return '';
   };
@@ -794,7 +796,7 @@ $('#settings-body').onclick = (e) => {
   if (!b) return;
   const key = b.dataset.save;
   if (key === 'disabled_themes') saveSettingValue(key, $$('input[name=theme-off]:checked').map((x) => x.value), b);
-  else if (key === 'blocked_words') saveSettingValue(key, $(`#set-${key}`).value.split(/[\s,]+/).filter(Boolean), b);
+  else if (key === 'blocked_words' || key === 'hand_picked_days') saveSettingValue(key, $(`#set-${key}`).value.split(/[\s,]+/).filter(Boolean), b);
   else if ($(`#set-${key}`).type === 'number') saveSettingValue(key, Number($(`#set-${key}`).value), b);
   else saveSettingValue(key, $(`#set-${key}`).value.trim(), b);
 };
