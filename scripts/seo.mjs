@@ -177,7 +177,7 @@ ${body(up)}
 </main>
 <footer class="foot">
   <p><a href="${up}">Play ${name}</a> · free in your browser, offline-ready, and on Windows.</p>
-  <p>${NAV.map(([p, n]) => `<a href="${up}${p}">${n}</a>`).join(' · ')}</p>
+  <p>${NAV.map(([p, n]) => `<a href="${up}${p}">${n}</a>`).join(' · ')} · <a href="${up}privacy/">Privacy</a></p>
   <p class="muted">${copyright} <a href="${up}terms/">Terms of use</a></p>
 </footer>
 </body>
@@ -450,6 +450,50 @@ ${puzzleBody(p, d, up)}
 <p>We may update these terms; the date above shows the latest version. To ask for permission, report a copy of the game, or ask a question, email <a href="mailto:fantasticallogicgrid@gmail.com">fantasticallogicgrid@gmail.com</a>.</p>
 ${playBtn(up)}`,
   });
+  // ---------- Privacy (also the app stores' privacy policy link) ----------
+  page({
+    path: 'privacy/', priority: 0.3,
+    title: `Privacy | ${name}`,
+    description: `What ${name} keeps, what it sends, and what it never does: no ads, no tracking cookies, no selling data.`,
+    crumbs: [['privacy/', 'Privacy']],
+    body: () => `<h1>Privacy</h1>
+<p class="lede">${name} is free, has no ads and does not track you. You can play without an account. This page says what the game keeps and sends, in plain words.</p>
+<h2>On your device</h2>
+<p>Your puzzles, notes, settings, stats and badges are saved in your browser or the app on your device. They stay there unless you sign in to sync them.</p>
+<h2>If you make an account</h2>
+<p>An account is optional. It uses Google Firebase sign-in with your email address and a password. Your saves, notes, settings and stats are then kept on the game's server so they appear on all your devices. You can delete the account and everything synced with it at any time in <strong>Menu &gt; Account and sync</strong>.</p>
+<p>A screen name is needed only for races and the scoreboard, and it is the only thing other players see. Never your email.</p>
+<h2>Anonymous numbers</h2>
+<p>To make the puzzles better, the game sends counts and summaries that are not tied to you, your account or your device:</p>
+<ul>
+<li><strong>Play summaries</strong> (difficulty, size, theme, time, hints, and your optional star rating). Turn this off in <strong>Settings &gt; Learning</strong>; your ratings then stay on your device.</li>
+<li><strong>Daily puzzle numbers</strong>: that the day's puzzle was opened and how long the solve took, kept only as totals per day.</li>
+<li><strong>Error reports</strong> when something breaks, with the error message and app version.</li>
+<li><strong>Which link or site you arrived from</strong>, such as a post on a forum, kept only as totals per day.</li>
+<li><strong>Challenge a friend</strong> links keep the puzzle, the time to beat, and how many people played it.</li>
+</ul>
+<h2>Things you choose to send</h2>
+<p>Ideas, problem reports and story suggestions you write go to the team. If you are signed in and ask for a reply, the team may answer by email or in Messages.</p>
+<h2>Services the game uses</h2>
+<ul>
+<li><strong>Natural voices:</strong> the words being read aloud are sent to Google (Gemini or Google Cloud text-to-speech) through the game's server. Google may use text sent to its free services to improve them. Choose the device's own voices in Settings to keep speech on your device.</li>
+<li><strong>Translations and pictures:</strong> text to translate and the description of a story's scene go to Cloudflare Workers AI through the game's server.</li>
+<li><strong>Your own AI key:</strong> if you paste an OpenAI or Google key in Settings, the game talks to that service directly with your key. The key stays on your device.</li>
+<li><strong>Hosting:</strong> the website is hosted by GitHub Pages and the game's server runs on Cloudflare. Like any website, they see the address your requests come from. The game's server uses it only to slow down floods of requests and does not store it.</li>
+</ul>
+<h2>What the game never does</h2>
+<ul>
+<li>No advertising and no advertising or tracking cookies.</li>
+<li>No selling or renting of anything about you.</li>
+<li>No reading of anything on your device outside the game.</li>
+</ul>
+<h2>Children</h2>
+<p>Everything except races and the scoreboard can be played with no account and no personal details. An account needs an email address, so for a younger child a parent or teacher should make it, or simply play without one.</p>
+<h2>Questions</h2>
+<p>Email <strong>fantasticallogicgrid@gmail.com</strong>. To report a security problem, see <a href="https://github.com/bltaylorjr/fantastical-logic-grid/security/advisories/new">the security page</a>.</p>
+<p class="meta">Last changed: 26 October 2026.</p>`,
+  });
+
   // ---------- Printable worksheets (teachers and parents) ----------
   // Built week by week from PRINT_START, like the daily chain, so a past
   // week's sheets never change: each week's stories avoid every daily story
