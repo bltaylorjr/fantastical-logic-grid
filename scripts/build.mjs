@@ -51,6 +51,17 @@ for (const [field, value] of Object.entries(cloudEnv)) {
 const appVersion = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version;
 cloud = cloud.replace(/appVersion: '[^']*'/, `appVersion: ${JSON.stringify(appVersion)}`);
 writeFileSync(cloudFile, cloud);
+// Windows downloads come from the public site repository once the source is
+// private (FLG_SITE_REPO, docs/PRIVATE-REPO.md); players cannot reach releases
+// in a private repository.
+if (process.env.FLG_SITE_REPO) {
+  const repo = process.env.FLG_SITE_REPO.trim();
+  if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) throw new Error(`FLG_SITE_REPO must look like owner/name, not ${repo}`);
+  for (const f of [join(out, 'index.html'), join(out, 'js', 'app.js')]) {
+    const text = readFileSync(f, 'utf8');
+    writeFileSync(f, text.replaceAll('bltaylorjr/fantastical-logic-grid/releases', `${repo}/releases`));
+  }
+}
 
 // Minify the game's own scripts and styles (not vendor/, which keeps its
 // published files and licenses) so the shipped code is smaller and much
@@ -159,14 +170,17 @@ cpSync(join(root, 'hosting'), site, { recursive: true });
 // night, so the expiry date always stays a year ahead.
 mkdirSync(join(site, '.well-known'), { recursive: true });
 writeFileSync(join(site, '.well-known', 'security.txt'), [
-  'Contact: https://github.com/bltaylorjr/fantastical-logic-grid/security/advisories/new',
   'Contact: mailto:fantasticallogicgrid@gmail.com',
   `Expires: ${new Date(Date.now() + 365 * 24 * 3600_000).toISOString().slice(0, 19)}Z`,
   'Preferred-Languages: en',
   `Canonical: ${(process.env.FLG_SITE_URL || 'https://thelogicgrid.com').replace(/\/+$/, '')}/.well-known/security.txt`,
-  'Policy: https://github.com/bltaylorjr/fantastical-logic-grid/blob/main/SECURITY.md',
+  `Policy: ${(process.env.FLG_SITE_URL || 'https://thelogicgrid.com').replace(/\/+$/, '')}/security-policy.txt`,
   '',
 ].join('\n'));
+// The license and the security policy, readable on the site (the source
+// repository may be private).
+cpSync(join(root, 'LICENSE'), join(site, 'LICENSE.txt'));
+cpSync(join(root, 'SECURITY.md'), join(site, 'security-policy.txt'));
 // Search pages, daily puzzle, sitemap and search tags (website only).
 const seo = await buildSeo({ root, site });
 console.log(`Built dist/site for web hosting (${seo.pages.length} pages in the sitemap).`);

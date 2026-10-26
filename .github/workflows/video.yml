@@ -27,7 +27,7 @@ jobs:
   video:
     # The video's own pull request also touches web/, so skip it when it merges.
     if: ${{ github.event_name == 'workflow_dispatch' || !contains(github.event.head_commit.message, '[video]') }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork && '"ubuntu-latest"') || vars.FLG_RUNNER || '"ubuntu-latest"') }}
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
