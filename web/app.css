@@ -866,3 +866,7 @@ dialog.rules table.board td { font-variant-numeric: tabular-nums; }
 .tips-body h3 { margin: 8px 0 6px; }
 .tips-body ul { margin: 0 0 8px; padding-left: 1.2em; display: grid; gap: 6px; }
 @media print { #screen-learn { display: none !important; } }
+/* Links to the website's guide pages, at the foot of the home screen (added by scripts/seo.mjs, website only). */
+.site-links { margin: 24px auto 8px; max-width: 1100px; padding: 0 16px; }
+.site-links ul { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 20px; margin: 0; padding: 0; list-style: none; }
+.site-links a { display: inline-block; padding: 10px 4px; min-height: 44px; color: var(--text); }

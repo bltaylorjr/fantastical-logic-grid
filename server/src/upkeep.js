@@ -1,5 +1,5 @@
-// The Worker looks after itself. Cloudflare runs scheduled() once a day (the
-// cron in wrangler.toml) and it deletes data the game no longer needs, so the
+// The Worker looks after itself. Every night at 2 am Eastern (nightly.js, on
+// the crons in wrangler.toml) it deletes data the game no longer needs, so the
 // free D1 database never fills up:
 //   races and their entries   45 days after the race was made (as compete.js does)
 //   voice usage counters      after 60 days

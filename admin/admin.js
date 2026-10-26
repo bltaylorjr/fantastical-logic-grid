@@ -1071,7 +1071,7 @@ function searchSource(title, key, s) {
   if (!s.connected && !s.data) return `<div class="card">${head}<p class="note">Not connected yet. ${SEARCH_SETUP[key]}</p></div>`;
   const status = s.error
     ? `<p class="error">The last fetch (${when(s.triedAt)}) failed: ${esc(s.error)}${s.data ? ' The numbers below are from the last good fetch.' : ''}</p>`
-    : s.fetchedAt ? `<p class="muted">Fetched ${when(s.fetchedAt)}.</p>` : '<p class="muted">Not fetched yet: it runs daily at 06:41 UTC, or press Refresh now.</p>';
+    : s.fetchedAt ? `<p class="muted">Fetched ${when(s.fetchedAt)}.</p>` : '<p class="muted">Not fetched yet: it runs every night at 2 am Eastern, or press Refresh now.</p>';
   const x = s.data;
   if (!x) return `<div class="card">${head}${status}</div>`;
   const t = x.totals;

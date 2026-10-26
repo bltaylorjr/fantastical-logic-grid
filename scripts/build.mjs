@@ -51,6 +51,7 @@ for (const [field, value] of Object.entries(cloudEnv)) {
 const appVersion = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version;
 cloud = cloud.replace(/appVersion: '[^']*'/, `appVersion: ${JSON.stringify(appVersion)}`);
 writeFileSync(cloudFile, cloud);
+await speedUpFirstLoad(out);
 // Windows downloads come from the public site repository once the source is
 // private (FLG_SITE_REPO, docs/PRIVATE-REPO.md); players cannot reach releases
 // in a private repository.
@@ -135,7 +136,7 @@ const prev = join(root, 'dist', 'preview');
 rmSync(prev, { recursive: true, force: true });
 cpSync(out, prev, { recursive: true });
 rmSync(join(prev, 'sw.js'));
-let html = readFileSync(join(web, 'index.html'), 'utf8');
+let html = readFileSync(join(out, 'index.html'), 'utf8');
 const head = html.match(/<head>([\s\S]*?)<\/head>/)[1]
   .replace(/<meta charset[^>]*>\s*/, '').replace(/<meta name="viewport"[^>]*>\s*/, '').replace(/<link rel="manifest"[^>]*>\s*/, '');
 const body = html.match(/<body>([\s\S]*?)<\/body>/)[1];
@@ -184,3 +185,30 @@ cpSync(join(root, 'SECURITY.md'), join(site, 'security-policy.txt'));
 // Search pages, daily puzzle, sitemap and search tags (website only).
 const seo = await buildSeo({ root, site });
 console.log(`Built dist/site for web hosting (${seo.pages.length} pages in the sitemap).`);
+
+// The game page's first load (see MAINTENANCE.md, "Speed"):
+// - The setup screen's choice lists are drawn into index.html here, with the
+//   default choices, so the page is complete before any script runs and does
+//   not jump when app.js redraws them with the player's saved choices.
+// (modulepreload links for app.js's imports were tried and made the first
+// paint later, because they compete with the stylesheet and fonts.)
+async function speedUpFirstLoad(dir) {
+  const file = join(dir, 'index.html');
+  let page = readFileSync(file, 'utf8');
+  const url = (p) => new URL(`file://${join(dir, p)}`).href;
+  const { describeOptions } = await import(url('engine/index.js'));
+  const m = await import(url('js/setup-markup.js'));
+  const o = describeOptions();
+  const tier = o.difficulties.find((d) => d.id === 'easy') || o.difficulties[0];
+  const fill = (id, inner) => {
+    const re = new RegExp(`(<div[^>]*id="${id}"[^>]*>)(</div>)`);
+    if (!re.test(page)) throw new Error(`index.html has no empty #${id} to fill`);
+    page = page.replace(re, (_, open, close) => `${open}${inner}${close}`);
+  };
+  fill('tier-choices', m.tierChoicesHtml(o.difficulties, tier.id));
+  fill('theme-choices', m.themeChoicesHtml([m.SURPRISE_THEME, ...o.themes], m.SURPRISE_THEME.id));
+  fill('size-choices', m.sizeChoicesHtml(m.sizesFor(tier), m.sizesFor(tier)[0]));
+  fill('clue-type-choices', m.clueTypesHtml(o.clueTypes, tier.clueTypes));
+
+  writeFileSync(file, page);
+}
