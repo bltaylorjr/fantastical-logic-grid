@@ -22,11 +22,11 @@ import urllib.error
 import urllib.request
 from email.message import EmailMessage
 
-API = os.environ.get('FLG_CLOUD_URL', '').rstrip('/')
-TOKEN = os.environ.get('FLG_ADMIN_TOKEN', '')
-GMAIL_USER = os.environ.get('GMAIL_USER', '')
-GMAIL_PASSWORD = os.environ.get('GMAIL_APP_PASSWORD', '').replace(' ', '')
-TO = os.environ.get('ARCHIVE_TO', '')
+API = os.environ.get('FLG_CLOUD_URL', '').strip().rstrip('/')
+TOKEN = os.environ.get('FLG_ADMIN_TOKEN', '').strip()
+GMAIL_USER = os.environ.get('GMAIL_USER', '').strip()
+GMAIL_PASSWORD = ''.join(os.environ.get('GMAIL_APP_PASSWORD', '').split())
+TO = os.environ.get('ARCHIVE_TO', '').strip()
 TEST = os.environ.get('TEST', '').lower() == 'true'
 
 
@@ -53,7 +53,16 @@ def main():
         if e.code == 409:
             print('The weekly archive email is switched off in the admin dashboard (Settings and switches > Backups). Nothing to do.')
             return
-        fail(f'The Worker refused the export (HTTP {e.code}). Check FLG_ADMIN_TOKEN matches the Worker ADMIN_TOKEN.')
+        try:
+            reason = json.loads(e.read() or b'{}').get('message') or ''
+        except ValueError:
+            reason = ''
+        hint = ''
+        if e.code == 401:
+            hint = (f' The FLG_ADMIN_TOKEN secret here is {len(TOKEN)} characters long; the Worker ADMIN_TOKEN must be the'
+                    ' same value, at least 16 characters, saved as type Secret. Test it by signing in to the admin'
+                    ' dashboard with it (Use the break-glass key).')
+        fail(f'The Worker refused the export (HTTP {e.code}{": " + reason if reason else ""}).{hint}')
     except urllib.error.URLError as e:
         fail(f'The Worker did not answer: {e.reason}')
     zip_bytes = res.read()
