@@ -400,6 +400,7 @@ $('#parts-list').onclick = async (e) => {
 
 // ---- Ideas and problems players sent.
 const FB_TOPICS = { story: 'Storyline idea', other: 'Other', play: 'Playing', sound: 'Sound and voices', pictures: 'Pictures', saving: 'Saving and sync' };
+const FB_BADGES = { new: '<span class="badge">New</span>', addressed: '<span class="badge ok">Addressed</span>', done: '<span class="badge ok">Done</span>' };
 const fbKind = () => $('input[name=fb-kind]:checked').value;
 views.feedback = async () => {
   const d = await api(`feedback?kind=${fbKind()}&status=${$('#fb-status').value}`);
@@ -407,10 +408,12 @@ views.feedback = async () => {
   setCount('#count-problems', d.waiting.problem || 0);
   setCount('#count-feedback', (d.waiting.idea || 0) + (d.waiting.problem || 0));
   $('#fb-list').innerHTML = d.items.length ? d.items.map((f) => `<li>
-      <b>${esc(FB_TOPICS[f.topic] || f.topic)}</b> ${f.status === 'done' ? '<span class="badge ok">Done</span>' : '<span class="badge">New</span>'}
+      <b>${esc(FB_TOPICS[f.topic] || f.topic)}</b> ${FB_BADGES[f.status] || FB_BADGES.new}
       <span class="muted">${when(f.createdAt)} · ${esc(f.platform)} ${esc(f.version)}</span>
       <p class="fb-text">${esc(f.text)}</p>
-      <div class="row">${f.status === 'new' ? `<button class="btn primary small" data-fb="${f.id}" data-status="done">Mark done</button>` : `<button class="btn small" data-fb="${f.id}" data-status="new">Mark new</button>`}
+      ${f.status === 'addressed' && f.note ? `<p class="fb-note"><b>What we did:</b> ${esc(f.note)} <span class="muted">${when(f.doneAt)}</span></p>` : ''}
+      <div class="row">${f.status === 'new' ? `<button class="btn primary small" data-fb="${f.id}" data-status="addressed">Mark addressed</button>
+        <button class="btn small" data-fb="${f.id}" data-status="done">Mark done</button>` : `<button class="btn small" data-fb="${f.id}" data-status="new">Mark new</button>`}
       <button class="btn small" data-fb="${f.id}" data-status="delete">Delete</button></div></li>`).join('')
     : '<li class="muted">Nothing here.</li>';
 };
@@ -419,8 +422,15 @@ $$('input[name=fb-kind]').forEach((r) => { r.onchange = () => show('feedback', {
 $('#fb-list').onclick = async (e) => {
   const b = e.target.closest('button[data-fb]');
   if (!b) return;
-  const words = { done: 'Marked done.', new: 'Marked new.', delete: 'Deleted.' };
-  if (await act(b, () => api(`feedback/${b.dataset.fb}`, { method: 'POST', body: { status: b.dataset.status } }), words[b.dataset.status])) show('feedback', { keepFocus: true });
+  const words = { addressed: 'Marked addressed.', done: 'Marked done.', new: 'Marked new.', delete: 'Deleted.' };
+  const body = { status: b.dataset.status };
+  if (body.status === 'addressed') {
+    const v = await ask({ title: 'Mark addressed', text: 'Say in plain words what was done, so anyone reading this later knows.', ok: 'Mark addressed',
+      fields: [{ name: 'note', label: 'What was done', type: 'textarea' }], check: (x) => (x.note.trim() ? '' : 'Write a short note.') });
+    if (!v) return;
+    body.note = v.note;
+  }
+  if (await act(b, () => api(`feedback/${b.dataset.fb}`, { method: 'POST', body }), words[b.dataset.status])) show('feedback', { keepFocus: true });
 };
 
 views.names = async () => {
@@ -614,13 +624,28 @@ $('#ann-list').onclick = async (e) => {
   if (await act(b, () => api(`announcements/${b.dataset.id}/${b.dataset.act}`, { method: 'POST' }), b.dataset.act === 'end' ? 'Ended.' : 'Deleted.')) show('announcements', { keepFocus: true });
 };
 
+let errRows = [];
+const errFix = (x) => !x.fix ? (can('admin') ? `<br><button class="btn small" data-err="${errRows.indexOf(x)}">Mark addressed</button>` : '')
+  : x.fix.missed ? `<p class="fb-note"><span class="badge warn">Still happening</span> Marked fixed in ${esc(x.fix.fixedIn)}, but this report is from ${esc(x.version)}. ${esc(x.fix.note)}</p>`
+  : `<p class="fb-note"><span class="badge ok">Addressed</span> Fixed in ${esc(x.fix.fixedIn)}: ${esc(x.fix.note)}</p>`;
 views.errors = async () => {
   const d = await api(`errors?days=${$('#err-days').value}`);
-  $('#err-rows').innerHTML = d.errors.length ? d.errors.map((x) => `<tr><td class="num">${fmt(x.count)}</td><td>${esc(x.message)} <span class="badge">${esc(x.kind)}</span></td>
+  errRows = d.errors;
+  $('#err-rows').innerHTML = d.errors.length ? d.errors.map((x) => `<tr><td class="num">${fmt(x.count)}</td><td>${esc(x.message)} <span class="badge">${esc(x.kind)}</span>${errFix(x)}</td>
       <td><code>${esc(x.place || '–')}</code></td><td>${esc(x.platform)} ${esc(x.version)}</td><td>${esc(x.first)}${x.last !== x.first ? ` to ${esc(x.last)}` : ''}</td></tr>`).join('')
     : '<tr><td colspan="5" class="muted">No error reports in this period.</td></tr>';
 };
 $('#err-days').onchange = () => show('errors');
+$('#err-rows').onclick = async (e) => {
+  const b = e.target.closest('button[data-err]');
+  const x = b && errRows[Number(b.dataset.err)];
+  if (!x) return;
+  const v = await ask({ title: 'Mark this error addressed', text: `Every report of this error from ${esc(x.place ? x.place.split(':')[0] : 'this place')} counts as fixed for versions older than the one below.`, ok: 'Mark addressed',
+    fields: [{ name: 'fixedIn', label: 'Fixed in version', value: '', help: 'The game version the fix shipped in, like 1.7.1.' }, { name: 'note', label: 'What was done', type: 'textarea' }],
+    check: (y) => (!/^\d+(\.\d+){1,3}$/.test(y.fixedIn.trim()) ? 'Give a version like 1.7.1.' : y.note.trim() ? '' : 'Write a short note.') });
+  if (!v) return;
+  if (await act(b, () => api('errors/fix', { method: 'POST', body: { message: x.message, place: x.place, fixedIn: v.fixedIn.trim(), note: v.note } }), 'Marked addressed.')) show('errors');
+};
 
 let auditBefore = null;
 views.audit = async ({ more } = {}) => {

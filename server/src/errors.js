@@ -4,6 +4,9 @@
 //   POST /v1/errors        up to 5 reports { kind, message, stack, platform, version }
 //   GET  /admin/errors     the last 7 days of reports, most frequent first (ADMIN_TOKEN)
 //
+// Fixes the team marked addressed (table error_fixes, set from the admin
+// dashboard) are joined onto the reports by withFixes().
+//
 // Reports are cleaned before they are stored: web addresses, email addresses
 // and long numbers are blanked, and only file:line of the first stack frames
 // is kept. Nothing about the player or device is stored. The same error on
@@ -41,6 +44,31 @@ export function cleanStack(text) {
     if (places.length === 3) break;
   }
   return places.join(' < ');
+}
+
+const versionParts = (v) => (/^\d+(\.\d+)*$/.test(String(v)) ? String(v).split('.').map(Number) : null);
+// True when version a is older than b; unknown versions are never "older".
+export function olderThan(a, b) {
+  const x = versionParts(a), y = versionParts(b);
+  if (!x || !y) return false;
+  for (let i = 0; i < Math.max(x.length, y.length); i++) {
+    if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) < (y[i] || 0);
+  }
+  return false;
+}
+
+export const errorFile = (place) => String(place || '').split(':')[0];
+
+// Adds fix: { id, fixedIn, note, missed } to each report the team marked
+// addressed. missed = the report comes from the fixed version or later.
+export async function withFixes(env, rows) {
+  const { results: fixes } = await env.DB.prepare('SELECT id, message, file, fixed_in AS fixedIn, note FROM error_fixes').all();
+  if (!fixes.length) return rows;
+  const byKey = new Map(fixes.map((f) => [`${f.message}|${f.file}`, f]));
+  return rows.map((r) => {
+    const f = byKey.get(`${r.message}|${errorFile(r.place)}`);
+    return f ? { ...r, fix: { id: f.id, fixedIn: f.fixedIn, note: f.note, missed: !olderThan(r.version, f.fixedIn) } } : r;
+  });
 }
 
 function safeEqual(a, b) {
@@ -85,7 +113,7 @@ async function listErrors(req, env) {
   const since = new Date(Date.now() - (days - 1) * 24 * 3600_000).toISOString().slice(0, 10);
   const { results } = await env.DB.prepare(`SELECT kind, platform, version, message, place, SUM(count) AS count, MIN(day) AS first, MAX(day) AS last
     FROM app_errors WHERE day >= ?1 GROUP BY fingerprint ORDER BY count DESC LIMIT 100`).bind(since).all();
-  return json(req, env, { since, errors: results });
+  return json(req, env, { since, errors: await withFixes(env, results) });
 }
 
 // Returns a Response for this module's routes, or null for anything else.

@@ -52,11 +52,12 @@ shorter ages: play summaries and the audit log after 90 days). See
 
 The daily player report emails the game's Gmail (`REPORTS_TO`, else
 `ARCHIVE_TO`) using the archive email's secrets. Errors are grouped by message
-and file across versions. When a fix ships, add it to
-`scripts/known-errors.json` (`match`, `place`, `fixedIn`): reports of that
-error from older versions then show under "Already fixed", and one from the
-fixed version or later shows under "Needs a look" with a note that the fix
-missed it. To stop the email, set the repository variable `PLAYER_REPORTS` to
+and file across versions. When a fix ships, mark it in the admin dashboard
+(Error reports > Mark addressed, with the version it shipped in and a short
+note): reports of that error from older versions then show under "Already
+fixed", and one from the fixed version or later shows under "Needs a look"
+with a note that the fix missed it. Problems and ideas get the same Mark
+addressed button with a note. To stop the email, set the repository variable `PLAYER_REPORTS` to
 `off`.
 
 The repository is public, so its Actions logs are too: the job prints counts

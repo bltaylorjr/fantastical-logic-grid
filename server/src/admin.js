@@ -10,10 +10,11 @@
 //   GET  /admin/v1/storage             rows per table, database size, free limits
 //   GET  /admin/v1/usage?days=         Cloudflare's own request and D1 counts (optional token)
 //   GET  /admin/v1/search              Google and Bing search numbers (search.js); POST .../refresh
-//   GET  /admin/v1/errors?days=        error reports, most frequent first
+//   GET  /admin/v1/errors?days=        error reports, most frequent first, with the fixes marked addressed
+//   POST /admin/v1/errors/fix          mark an error addressed { message, place, fixedIn, note }; POST .../fix/:id/delete
 //   GET  /admin/v1/parts?status=       shared story parts; POST /admin/v1/parts/review
 //   GET  /admin/v1/workshop            Story workshop choices; POST .../draft (AI writer), .../add
-//   GET  /admin/v1/feedback?kind=&status=  ideas and problems from the game; POST .../:id (done|new|delete)
+//   GET  /admin/v1/feedback?kind=&status=  ideas and problems from the game; POST .../:id (addressed + note|done|new|delete)
 //   GET  /admin/v1/names?status=       screen names to moderate; POST /admin/v1/names/:uid/approve
 //   GET  /admin/v1/players?q=&filter=  players with screen names; GET /admin/v1/players/:uid
 //   POST /admin/v1/players/:uid/(rename|ban|unban|reset-scores|delete)
@@ -52,6 +53,7 @@ import { archiveStatus, runArchive, buildArchive, exportArchive, confirmArchive 
 import { FREE_LIMITS, cloudflareUsage } from './usage.js';
 import { plannerView, checkPlan, savePlan, resetPlan } from './daily.js';
 import { quality, alerts, summary, csv, CSV_KINDS } from './report.js';
+import { withFixes, errorFile } from './errors.js';
 
 const DAY = 24 * 3600_000;
 const ROLES = { viewer: 1, moderator: 2, admin: 3, owner: 4 };
@@ -64,7 +66,7 @@ const SESSION_MAX_S = 12 * 3600;
 const DENIED_PER_DAY = 500; // refused requests written to the audit log, so a flood cannot fill it
 const ANALYTICS_CACHE_MS = 120_000;
 const TABLES = ['sync_users', 'sync_records', 'sync_deleted_users', 'players', 'scores', 'races', 'race_entries', 'race_invites', 'plays', 'parts', 'usage',
-  'app_errors', 'upkeep_log', 'admins', 'admin_audit', 'settings', 'announcements', 'bans', 'name_reviews', 'archive_log', 'feedback', 'search_snapshots', 'daily_plan', 'translations'];
+  'app_errors', 'upkeep_log', 'admins', 'admin_audit', 'settings', 'announcements', 'bans', 'name_reviews', 'archive_log', 'feedback', 'error_fixes', 'search_snapshots', 'daily_plan', 'translations'];
 const SECURITY_HEADERS = {
   'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
   'X-Content-Type-Options': 'nosniff',
@@ -82,6 +84,9 @@ const isoDay = (ms) => new Date(ms).toISOString().slice(0, 10);
 const weekStart = (now) => { const d = new Date(now); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - ((d.getUTCDay() + 6) % 7)); };
 const dayStart = (now) => { const d = new Date(now); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()); };
 const daysParam = (url, max = 90) => Math.min(max, Math.max(1, Number(url.searchParams.get('days')) || 30));
+
+// A short plain-language note on what was done about a player's report.
+const cleanNote = (text) => String(text || '').replace(/\s+/g, ' ').trim().slice(0, 500);
 
 class Refusal extends Error {
   constructor(status, error, message) { super(message || error); this.status = status; this.error = error; }
@@ -324,7 +329,24 @@ const ROUTES = [
     const since = isoDay(Date.now() - (days - 1) * DAY);
     const { results } = await env.DB.prepare(`SELECT kind, platform, version, message, place, SUM(count) AS count, MIN(day) AS first, MAX(day) AS last
       FROM app_errors WHERE day >= ?1 GROUP BY fingerprint ORDER BY count DESC LIMIT 100`).bind(since).all();
-    return { body: { since, errors: results } };
+    return { body: { since, errors: await withFixes(env, results) } };
+  }],
+  ['POST', /^errors\/fix$/, 'admin', 'errors.fix', async ({ env, body, now }) => {
+    const message = String(body.message || '').slice(0, 300);
+    const fixedIn = String(body.fixedIn || '').trim();
+    const note = cleanNote(body.note);
+    if (!message) throw new Refusal(400, 'bad_message', 'Which error was fixed?');
+    if (!/^\d+(\.\d+){1,3}$/.test(fixedIn)) throw new Refusal(400, 'bad_version', 'Give the version the fix shipped in, like 1.7.1.');
+    if (!note) throw new Refusal(400, 'bad_note', 'Write a short note on what was done.');
+    const file = errorFile(body.place);
+    await env.DB.prepare(`INSERT INTO error_fixes (message, file, fixed_in, note, created_at) VALUES (?1, ?2, ?3, ?4, ?5)
+      ON CONFLICT (message, file) DO UPDATE SET fixed_in = ?3, note = ?4, created_at = ?5`).bind(message, file, fixedIn, note, now).run();
+    return { body: { ok: true }, target: `${file} ${message}`.slice(0, 120), detail: { fixedIn, note } };
+  }],
+  ['POST', /^errors\/fix\/(\d+)\/delete$/, 'admin', 'errors.unfix', async ({ env, params: [id] }) => {
+    const r = await env.DB.prepare('DELETE FROM error_fixes WHERE id = ?1').bind(Number(id)).run();
+    if (!r.meta.changes) throw new Refusal(404, 'gone', 'That mark is gone.');
+    return { body: { ok: true }, target: id };
   }],
 
   ['GET', /^parts$/, 'moderator', 'parts.view', async ({ env, url }) => {
@@ -355,8 +377,8 @@ const ROUTES = [
 
   ['GET', /^feedback$/, 'moderator', 'feedback.view', async ({ env, url }) => {
     const kind = FEEDBACK_TOPICS[url.searchParams.get('kind')] ? url.searchParams.get('kind') : 'idea';
-    const status = ['new', 'done', 'all'].includes(url.searchParams.get('status')) ? url.searchParams.get('status') : 'new';
-    const { results } = await env.DB.prepare(`SELECT id, kind, topic, text, platform, version, status, created_at AS createdAt, done_at AS doneAt FROM feedback
+    const status = ['new', 'addressed', 'done', 'all'].includes(url.searchParams.get('status')) ? url.searchParams.get('status') : 'new';
+    const { results } = await env.DB.prepare(`SELECT id, kind, topic, text, platform, version, status, note, created_at AS createdAt, done_at AS doneAt FROM feedback
       WHERE kind = ?1 AND (?2 = 'all' OR status = ?2) ORDER BY created_at DESC LIMIT 200`).bind(kind, status).all();
     const counts = (await env.DB.prepare("SELECT kind, COUNT(*) AS n FROM feedback WHERE status = 'new' GROUP BY kind").all()).results;
     return { body: { kind, status, items: results, waiting: Object.fromEntries(counts.map((x) => [x.kind, x.n])) } };
@@ -364,11 +386,15 @@ const ROUTES = [
   ['POST', /^feedback\/(\d+)$/, 'moderator', 'feedback.update', async ({ env, params: [id], body, now }) => {
     let r;
     if (body.status === 'delete') r = await env.DB.prepare('DELETE FROM feedback WHERE id = ?1').bind(Number(id)).run();
-    else if (['new', 'done'].includes(body.status)) r = await env.DB.prepare('UPDATE feedback SET status = ?1, done_at = ?2 WHERE id = ?3').bind(body.status, body.status === 'done' ? now : null, Number(id)).run();
+    else if (body.status === 'addressed') {
+      const note = cleanNote(body.note);
+      if (!note) throw new Refusal(400, 'bad_note', 'Write a short note on what was done.');
+      r = await env.DB.prepare("UPDATE feedback SET status = 'addressed', note = ?1, done_at = ?2 WHERE id = ?3").bind(note, now, Number(id)).run();
+    } else if (['new', 'done'].includes(body.status)) r = await env.DB.prepare('UPDATE feedback SET status = ?1, done_at = ?2, note = NULL WHERE id = ?3').bind(body.status, body.status === 'done' ? now : null, Number(id)).run();
     else throw new Refusal(400, 'bad_status');
     if (!r.meta.changes) throw new Refusal(404, 'gone', 'That message is gone.');
     analyticsCache.clear();
-    return { body: { ok: true }, target: id, detail: { status: body.status } };
+    return { body: { ok: true }, target: id, detail: { status: body.status, note: body.status === 'addressed' ? cleanNote(body.note) : undefined } };
   }],
 
   ['GET', /^names$/, 'moderator', 'names.view', async ({ env, url, now }) => {
