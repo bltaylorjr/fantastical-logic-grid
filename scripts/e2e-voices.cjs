@@ -42,7 +42,7 @@ const { spawn } = require('child_process');
     const before = (await page.evaluate(() => window.__k.length));
     await page.click(`.cast-btn[data-who="${who}"]`); await page.waitForTimeout(300);
     const v = (await page.evaluate((n) => window.__k.slice(n), before))[0] || '';
-    assert(g && v.startsWith(g === 'f' ? 'af_' : 'am_'), `${who} looks ${g === 'f' ? 'like a woman' : 'like a man'} and speaks with a ${g === 'f' ? "woman's" : "man's"} voice (${v})`);
+    assert(g && v[1] === g && v[2] === '_', `${who} looks ${g === 'f' ? 'like a woman' : 'like a man'} and speaks with a ${g === 'f' ? "woman's" : "man's"} voice (${v})`);
   }
   assert(await page.evaluate(() => window.__dev) === 0, 'no robotic computer voice was used');
   assert(!errs.length, 'no page errors');

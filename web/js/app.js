@@ -8,6 +8,7 @@ import { sceneSvg } from './art.js';
 import * as sfx from './audio.js';
 import * as ai from './ai.js';
 import { portrait } from './portraits.js';
+import { profileOf, sayingOf } from './castbook.js';
 import * as wake from './wakelock.js';
 import * as updates from './updates.js';
 import { celebrate as celebrateSolve } from './effects.js';
@@ -944,7 +945,11 @@ function hintLines(res, level) {
 function renderHint() {
   const { res, level } = S.hint;
   const box = $('#hintbox');
-  const lines = hintLines(res, level);
+  // One of the cast offers the first nudge, in their own way.
+  const names = S.ix.cats[0].items.map((i) => i.label);
+  const helper = level === 0 && res.kind !== 'done' && !settings.silent ? names[S.save.hintsUsed % names.length] : null;
+  const said = helper && sayingOf(helper, 'hint', S.save.hintsUsed);
+  const lines = (said ? `<p class="char-line"><b>${esc(helper)}:</b> “${esc(said)}”</p>` : '') + hintLines(res, level);
   const more = level < 2 ? `<button class="btn small" type="button" id="hint-more">${level === 0 ? 'Which cell?' : 'Explain why'}</button>` : '';
   const apply = level === 2 && res.kind !== 'done' ? `<button class="btn small" type="button" id="hint-apply">${res.kind === 'mistake' ? 'Fix it for me' : 'Mark it for me'}</button>` : '';
   box.innerHTML = `${lines}<div class="row">${more}${apply}<button class="btn quiet small" type="button" id="hint-close">Close hint</button></div>`;
@@ -1136,8 +1141,18 @@ function showSolved(celebrate) {
   const winner = winnerOf(S.puzzle, S.ix);
   const bg = S.sceneUrl ? `<img class="bg" src="${S.sceneUrl}" alt="">` : sceneSvg(S.puzzle, 5, { animate: false });
   const face = S.portraitUrls && S.portraitUrls[winner] ? `<img src="${S.portraitUrls[winner]}" alt="">` : winner ? portrait(S.puzzle, winner, { size: 120, style: settings.portraitStyle }) : '';
-  res.innerHTML = `${bg}<div class="spot"></div>${winner ? `<div class="hero">${face}<b>${esc(winner)}</b></div>` : ''}`;
-  if (celebrate && voiceOn()) setTimeout(() => { if (S && S.save.solved) ai.speak(settings, S.puzzle, 'narrator', S.puzzle.story.ending, { volume: settings.volume / 100 }); }, 1200);
+  // The winner cheers in their own words (castbook.js).
+  const cheer = winner && !save.revealed && !settings.silent ? sayingOf(winner, 'solve', save.hintsUsed + S.puzzle.clues.length) : '';
+  res.innerHTML = `${bg}<div class="spot"></div>${winner ? `<div class="hero">${face}<b>${esc(winner)}</b></div>` : ''}${cheer ? `<p class="char-line cheer"><b>${esc(winner)}:</b> “${esc(cheer)}”</p>` : ''}`;
+  // The picture is hidden from screen readers, so the cheer is announced.
+  if (celebrate && cheer) setTimeout(() => announce(`${winner} says: ${cheer}`), 800);
+  if (celebrate && voiceOn()) {
+    setTimeout(() => {
+      if (!S || !S.save.solved) return;
+      const said = [...(cheer ? [{ who: winner, text: cheer }] : []), { who: 'narrator', text: S.puzzle.story.ending }];
+      ai.speakLines(settings, S.puzzle, said, { volume: settings.volume / 100 });
+    }, 1200);
+  }
   res.classList.remove('celebrate');
   if (celebrate) { void res.offsetWidth; res.classList.add('celebrate'); }
   $('#solved').hidden = false;
@@ -1437,7 +1452,8 @@ window.addEventListener('pagehide', () => flushSave());
 // ====================================================================
 // Multimedia: scene, cast, witness clues, section chimes, adaptive difficulty
 // ====================================================================
-const SAYINGS = ['I saw it with my own eyes:', 'I am sure of this much:', 'Here is what I noticed:', 'I remember it clearly:', 'You might want to write this down:', 'I was there, and', 'Between you and me,', 'I can tell you this:'];
+// Each character leads into their clues in their own way (castbook.js).
+const sayingFor = (who, n) => sayingOf(who, 'clue', n);
 
 // Each clue is told by one character, preferably one the clue is not about.
 function assignWitnesses(puzzle, ix) {
@@ -1466,7 +1482,8 @@ function renderMedia() {
   const names = S.ix.cats[0].items.map((i) => i.label);
   $('#cast-row').innerHTML = names.map((n) => {
     const count = Object.values(S.witness).filter((w) => w === n).length;
-    return `<button class="cast-btn" type="button" data-who="${esc(n)}" aria-pressed="false">${portrait(p, n, { style: settings.portraitStyle })}<span>${esc(n)}</span><small>${count} clue${count === 1 ? '' : 's'}</small></button>`;
+    const who = profileOf(n);
+    return `<button class="cast-btn" type="button" data-who="${esc(n)}" aria-pressed="false" title="${esc(`${n} ${who.about}`)}">${portrait(p, n, { style: settings.portraitStyle })}<span>${esc(n)}</span><small class="trait">${esc(who.label)}</small><small>${count} clue${count === 1 ? '' : 's'}</small></button>`;
   }).join('');
   $('#bubble').hidden = true;
   S.sceneUrl = null;
@@ -1538,13 +1555,14 @@ $('#cast-row').addEventListener('click', (e) => {
   const clues = S.puzzle.clues.filter((c) => S.witness[c.number] === who);
   $$('#clue-list li.spot').forEach((li) => li.classList.remove('spot'));
   clues.forEach((c) => $(`#clue-list li[data-n="${c.number}"]`)?.classList.add('spot'));
-  $('#bubble').innerHTML = clues.length
-    ? clues.map((c) => `<p><span class="who">${esc(who)}:</span> “${esc(SAYINGS[(c.number + who.length) % SAYINGS.length])} ${esc(c.text)}” <span class="muted">(clue ${c.number})</span></p>`).join('')
-    : `<p><span class="who">${esc(who)}:</span> “I didn't see anything, I promise.”</p>`;
+  const nothing = sayingOf(who, 'nothing', S.puzzle.clues.length);
+  $('#bubble').innerHTML = `<p class="about">${esc(who)} ${esc(profileOf(who).about)}.</p>` + (clues.length
+    ? clues.map((c) => `<p><span class="who">${esc(who)}:</span> “${esc(sayingFor(who, c.number))} ${esc(c.text)}” <span class="muted">(clue ${c.number})</span></p>`).join('')
+    : `<p><span class="who">${esc(who)}:</span> “${esc(nothing)}”</p>`);
   $('#bubble').hidden = false;
   sound('whoosh');
   if (voiceOn()) {
-    const lines = clues.length ? clues.map((c) => `${SAYINGS[(c.number + who.length) % SAYINGS.length]} ${c.text}`).join(' ') : "I didn't see anything, I promise.";
+    const lines = clues.length ? clues.map((c) => `${sayingFor(who, c.number)} ${c.text}`).join(' ') : nothing;
     voiceWaitNote();
     ai.speak(settings, S.puzzle, who, lines, { volume: settings.volume / 100 });
   }
