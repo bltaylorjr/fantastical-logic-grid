@@ -1,7 +1,7 @@
 // Lets the admin dashboard install as a phone or desktop app. It always goes to
 // the network; the app's own files are kept only so it can say it is offline.
 // The API (/admin/v1) and sign-in are never stored.
-const CACHE = 'flg-admin-v1';
+const CACHE = 'flg-admin-v2';
 const SHELL = ['/admin/', '/admin/admin.css', '/admin/admin.js', '/admin/icon.svg'];
 
 self.addEventListener('install', (e) => {

@@ -1,17 +1,22 @@
 // The game's "Ideas and problems" boxes: two separate forms, one for story
 // and other ideas and one for problems a player wants to report.
 //
-//   POST /v1/feedback   { kind: idea|problem, topic, text, platform, version, reply }
+//   POST /v1/feedback   { kind: idea|problem, topic, text, platform, version, reply, talk }
 //
 // Anonymous: nothing about the player or device is stored. Email addresses,
 // web addresses and long numbers are blanked before saving. The admin
 // dashboard lists them (admin.js) and the daily cleanup removes done ones.
-// With reply: true and a signed-in player's token, a thank-you email is
-// queued for the account's own confirmed address (replies.js), kept apart
-// from the message itself.
+// With reply: true and a signed-in player's token, a thank-you email quoting
+// the message is queued for the account's own confirmed address, and an
+// update email waits for the team to mark it addressed (replies.js); the
+// address is kept apart from the message itself. With talk: true and a token, the player asks the
+// team to answer in the game's Messages: only then is the row linked to the
+// account, through a new conversation (messages.js).
 import { json, readText, TooLarge } from './http.js';
 import { getSettings } from './settings.js';
 import { queueReply } from './replies.js';
+import { talkAboutFeedback } from './messages.js';
+import { verifyIdToken } from './auth.js';
 
 export const TOPICS = {
   idea: ['story', 'other'],
@@ -50,11 +55,20 @@ async function postFeedback(req, env) {
   const since = Date.now() - 24 * 3600_000;
   const { n } = await env.DB.prepare('SELECT COUNT(*) AS n FROM feedback WHERE created_at > ?1').bind(since).first();
   if (n >= MAX_NEW_PER_DAY) return json(req, env, { error: 'busy', message: 'The boxes are full for today. Please try again tomorrow.' }, 429);
-  await env.DB.prepare('INSERT INTO feedback (kind, topic, text, platform, version, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)')
-    .bind(kind, topic, text, platform, version, Date.now()).run();
+  const row = await env.DB.prepare('INSERT INTO feedback (kind, topic, text, platform, version, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6) RETURNING id')
+    .bind(kind, topic, text, platform, version, Date.now()).first();
   let reply = 'none';
-  try { reply = await queueReply(req, env, kind, body.reply === true); } catch (e) { console.error(e); reply = 'error'; }
-  return json(req, env, { ok: true, reply });
+  let update = false;
+  try { ({ reply, update } = await queueReply(req, env, kind, body.reply === true, text, row.id)); } catch (e) { console.error(e); reply = 'error'; }
+  let talk = 'none';
+  if (body.talk === true) {
+    const token = (req.headers.get('Authorization') || '').match(/^Bearer\s+(.+)$/)?.[1];
+    let user = null;
+    if (token) { try { user = await verifyIdToken(token, env); } catch (e) { /* signed out */ } }
+    if (!user) talk = 'signed_out';
+    else { try { talk = await talkAboutFeedback(env, user, kind, text, row.id); } catch (e) { console.error(e); talk = 'error'; } }
+  }
+  return json(req, env, { ok: true, reply, update, talk });
 }
 
 // Returns a Response for this module's routes, or null for anything else.

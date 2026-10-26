@@ -21,7 +21,7 @@ concurrency:
   group: health
 jobs:
   check:
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork && '"ubuntu-latest"') || vars.FLG_RUNNER || '"ubuntu-latest"') }}
     timeout-minutes: 10
     env:
       SITE: https://thelogicgrid.com
@@ -54,7 +54,7 @@ jobs:
           else problems+=("The shared Worker at $API does not answer, so sign-in sync, races, learning and server voices are down.")
           fi
 
-          fetch "https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/latest.json" | jq -e '.version' >/dev/null \
+          fetch "https://github.com/${{ vars.FLG_SITE_REPO || github.repository }}/releases/latest/download/latest.json" | jq -e '.version' >/dev/null \
             || problems+=("The desktop update file (latest.json on the latest GitHub release) is missing, so installed copies cannot update.")
 
           {
@@ -94,7 +94,7 @@ jobs:
 
   errors:
     if: github.event.schedule == '41 6 * * *' || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork && '"ubuntu-latest"') || vars.FLG_RUNNER || '"ubuntu-latest"') }}
     timeout-minutes: 5
     env:
       API: ${{ vars.FLG_CLOUD_URL || 'https://flg-api.btay74.workers.dev' }}
@@ -128,7 +128,7 @@ jobs:
             }
 
   limits:
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork && '"ubuntu-latest"') || vars.FLG_RUNNER || '"ubuntu-latest"') }}
     timeout-minutes: 5
     env:
       API: ${{ vars.FLG_CLOUD_URL || 'https://flg-api.btay74.workers.dev' }}

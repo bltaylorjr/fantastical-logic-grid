@@ -3,7 +3,7 @@
 // Nothing personal is sent: no name, saves, story text or device id. It runs
 // while the player keeps "Learn from how I play" on and the admin dashboard
 // has "Learn from everyone" on, and never without CLOUD_URL.
-import { CLOUD_URL } from './cloud-config.js';
+import { CLOUD, CLOUD_URL } from './cloud-config.js';
 import * as learn from './learn.js';
 import * as store from './store.js';
 import { feature } from './remote-config.js';
@@ -46,6 +46,7 @@ export async function flush() {
     platform: platform(), tier: p.tier, theme: p.theme, size: `${p.K}x${p.N}`, clueTypes: p.clueTypes, effort: p.effort,
     signal: learn.signal(p), outcome: p.outcome, rating: p.rating, feel: p.feel, parts: p.parts,
     minutes: Math.round(p.ms / 6000) / 10, hints: p.hints, mistakes: p.mistakes,
+    pid: p.pid, topic: p.topic, story: p.story, chars: p.chars, version: CLOUD.appVersion || null, mode: p.mode, whatif: p.whatif,
   }));
   try {
     await post('/v1/learn/plays', { plays });
