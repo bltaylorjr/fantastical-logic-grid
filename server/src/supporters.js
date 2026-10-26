@@ -55,6 +55,18 @@ export async function perksFor(env, user, now = Date.now()) {
   };
 }
 
+// For payment webhooks: compares a secret in constant time. Secrets are
+// trimmed, because one pasted into the Cloudflare dashboard can carry a stray
+// space or line break.
+export function secretMatches(given, secret) {
+  const a = String(given || '').trim();
+  const b = String(secret || '').trim();
+  if (b.length < 16 || a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
 // Which of these players are supporters now (for the scoreboard badge).
 export async function supporterSet(env, uids, now = Date.now()) {
   if (!uids.length) return new Set();
