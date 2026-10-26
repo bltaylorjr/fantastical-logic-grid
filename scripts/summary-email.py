@@ -22,11 +22,12 @@ import urllib.error
 import urllib.request
 from email.message import EmailMessage
 
-API = os.environ.get('FLG_CLOUD_URL', '').rstrip('/')
-TOKEN = os.environ.get('FLG_ADMIN_TOKEN', '')
-GMAIL_USER = os.environ.get('GMAIL_USER', '')
-GMAIL_PASSWORD = os.environ.get('GMAIL_APP_PASSWORD', '').replace(' ', '')
-TO = os.environ.get('SUMMARY_TO') or os.environ.get('ARCHIVE_TO', '')
+# Stray spaces or line breaks pasted around a secret are ignored.
+API = os.environ.get('FLG_CLOUD_URL', '').strip().rstrip('/')
+TOKEN = os.environ.get('FLG_ADMIN_TOKEN', '').strip()
+GMAIL_USER = os.environ.get('GMAIL_USER', '').strip()
+GMAIL_PASSWORD = ''.join(os.environ.get('GMAIL_APP_PASSWORD', '').split())
+TO = os.environ.get('SUMMARY_TO', '').strip() or os.environ.get('ARCHIVE_TO', '').strip()
 TEST = os.environ.get('TEST', '').lower() == 'true'
 DASHBOARD = f'{API}/admin/'
 TIERS = {'basic': 'Basic', 'easy': 'Easy', 'medium': 'Medium', 'hard': 'Hard', 'expert': 'Expert', 'mensa': 'MENSA'}

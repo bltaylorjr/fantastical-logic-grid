@@ -71,6 +71,23 @@ These steps assume the Worker is already set up with the player accounts steps
    web build and desktop release pick it up. Until it is set, the game works fully on
    its own, as before.
 
+5. **Optional: backup voices (Google Cloud Chirp 3 HD).** Gemini's free voices
+   run out for the day quickly. Chirp 3 HD has the same voice names, so each
+   character keeps its voice, and Google gives 1,000,000 characters free each month.
+   **Cost warning:** Google Cloud asks for a billing account with a card, and it
+   bills for anything past the free amount. The Worker stops at
+   `GCLOUD_TTS_MONTH_CAP` (900,000 a month by default) so it stays inside the free
+   amount, and you can also set a budget alert in Google Cloud. Steps:
+   - In console.cloud.google.com, make a project, link a billing account, and turn
+     on the **Cloud Text-to-Speech API**.
+   - Under **APIs & Services, Credentials**, create an API key and restrict it to the
+     Cloud Text-to-Speech API only.
+   - Optional but wise: **Billing, Budgets & alerts**, a $1 budget that emails you.
+   - Add the key to the Worker as a secret named `GOOGLE_TTS_KEY` (as in step 2).
+
+   Without the key, nothing changes: the game uses Gemini, then Kokoro. The admin
+   dashboard has a switch for the backup voices and their monthly cap.
+
 ## Settings you can change
 
 In `server/wrangler.toml` under `[vars]`:
@@ -79,6 +96,8 @@ In `server/wrangler.toml` under `[vars]`:
   Lower it if Google's free limit for your key is lower.
 - `ALLOWED_ORIGINS`: the sites and apps allowed to call the service.
 - `TTS_MODEL`: the Gemini voice model.
+- `GCLOUD_TTS_MONTH_CAP`: backup voice characters per month (default 900,000; keep
+  it under Google's free 1,000,000).
 
 ## Tests
 

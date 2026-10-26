@@ -123,6 +123,23 @@ const CSS = `
       const res = await r.fetch();
       r.fulfill({ response: res, body: (await res.text()).replace('generatePuzzle(args)', `generatePuzzle({ ...args, seed: args.seed || '${seed}' })`) });
     });
+    // The daily puzzle, from the website build when there is one.
+    const DAILY = path.join(ROOT, 'dist', 'site', 'daily');
+    if (fs.existsSync(path.join(DAILY, 'latest.json'))) {
+      // The page itself is left alone (a page Playwright serves may not reach
+      // the local Worker); the site build's daily marker is added as it loads.
+      await ctx.addInitScript(() => {
+        new MutationObserver((_, o) => {
+          if (!document.head) return;
+          const m = document.createElement('meta'); m.name = 'flg-daily'; m.content = 'daily/';
+          document.head.prepend(m); o.disconnect();
+        }).observe(document, { childList: true, subtree: true });
+      });
+      await ctx.route('**/daily/**', (r) => {
+        const f = path.join(DAILY, decodeURIComponent(new URL(r.request().url()).pathname.replace(/^\/daily\//, '')));
+        return f.startsWith(DAILY) && fs.existsSync(f) ? r.fulfill({ path: f, contentType: 'application/json' }) : r.fulfill({ status: 404, body: '' });
+      });
+    }
     await ctx.addInitScript((s) => { if (!localStorage.getItem('flg.settings')) localStorage.setItem('flg.settings', JSON.stringify({ introOffered: true, voiceProvider: 'device', silent: s })); }, silent);
     const page = await ctx.newPage();
     page.on('pageerror', (e) => console.log('page error:', e.message));
@@ -227,6 +244,11 @@ const CSS = `
     await top();
     await scene('home', ['Each puzzle is a logic grid wrapped in a story.', 'The story sets up a mystery, the clues give you the facts, and the grid is where you work out the answer.']);
     await scene('home-2', ['Every story is written fresh for you and never repeated.', 'And every puzzle has exactly one answer you can reach without guessing.']);
+    if (await p.isVisible('#daily-today [data-daily]')) {
+      await scrollTo('#daily-section'); await hl('#daily-section');
+      await scene('daily', ['Every day there is also a new Daily puzzle, the same one for everyone.', 'Solve it each day to build a streak.']);
+      await clearFx(); await top();
+    }
     card('howto', ["Here's how to play."]);
 
     // =================== Set up
@@ -333,10 +355,10 @@ const CSS = `
     // =================== Help while playing
     await clickShown('[data-act=hint]'); await p.waitForSelector('#hintbox:not([hidden])');
     await gridView(); await hl('#hintbox');
-    await scene('hint1', ['Stuck? Press Hint.', 'The first hint points you to a clue.']);
+    await scene('hint1', ['Stuck? Press Hint.', 'The first hint shows you which clue to use, and names the trick that cracks it.']);
     await clearFx();
     await p.click('#hint-more'); await p.click('#hint-more'); await p.waitForTimeout(200); await hl('#hintbox');
-    await scene('hint3', ['Press Show more for the exact square, and then the full reasoning.', 'You can even let it mark the square for you.']);
+    await scene('hint3', ['Press Which cell? for the exact square, then Explain why for the full reasoning.', 'It ends with a short lesson on how that trick works, so you can spot it yourself next time.', 'You can even let it mark the square for you.']);
     await clearFx(); await p.click('#hint-close');
     await top(); await clickShown('[data-act=check]'); await hl(['#toolbar', '#status']);
     await scene('check', ['Press Check at any time to see whether any of your marks are wrong.']);
@@ -366,6 +388,11 @@ const CSS = `
     await p.waitForTimeout(1500); await prep();
     await scrollTo('#solved', 'start', -76);
     await scene('solved', ['Case closed!', P.ending, 'You also see your time and a suggestion for your next puzzle.']);
+    if (await p.isVisible('#share-result')) {
+      await scrollTo('#share-result'); await hl(['#solved-badges', '#share-result']);
+      await scene('share', ['Solving puzzles earns badges, like First case closed.', 'Press Share my result to send friends a picture of your win. It never gives the answers away.']);
+      await clearFx();
+    }
     if (await p.isVisible('#feedback')) {
       await scrollTo('#feedback'); await p.locator('#feedback .stars label').nth(4).click();
       await p.locator('#feedback .feel label').nth(1).click().catch(() => {});
@@ -382,6 +409,9 @@ const CSS = `
     await scrollTo('#saved-section'); await hl('#saved-section');
     await scene('saved', ['Your progress saves automatically.', 'Come back any time and pick up where you left off, from Saved puzzles.']);
     await clearFx();
+    await p.click('#menu-btn'); await p.click('[data-cmd=stats]'); await p.waitForSelector('#dlg-stats[open]'); await p.waitForTimeout(300); await prep();
+    await scene('stats', ['My stats and badges, in the Menu, shows your totals, best times, favorite themes, your daily streak and every badge to earn.']);
+    await p.keyboard.press('Escape'); await p.waitForTimeout(200);
     await p.click('#help-btn'); await p.waitForTimeout(300);
     await scene('help', ['Press Help to see every keyboard shortcut.']);
     await p.keyboard.press('Escape');
@@ -506,6 +536,8 @@ const CSS = `
     await p.click('#menu-btn'); await p.click('[data-cmd=settings]'); await p.waitForTimeout(300); await prep();
     await p.evaluate(() => document.querySelector('#sound-settings').scrollIntoView({ block: 'center' })); await p.waitForTimeout(200);
     await scene('settings', ['In Settings, sound effects and theme music start on, and you can turn either one off.', 'Learn from how I play tunes your next puzzles to suit you.']);
+    await p.evaluate(() => document.querySelector('#language-settings').scrollIntoView({ block: 'start' })); await p.waitForTimeout(200);
+    await scene('language', ['And play in your own language.', 'US English is the default, and you can choose any of 100 languages under Language.', 'The game translates itself as you play, and the English button at the top shows the original at any time.']);
     await p.keyboard.press('Escape');
     if (!(await p.$eval('[data-cmd=feedback]', (b) => b.hidden))) {
       await p.click('#menu-btn'); await p.click('[data-cmd=feedback]'); await p.waitForSelector('#dlg-feedback[open]'); await prep();

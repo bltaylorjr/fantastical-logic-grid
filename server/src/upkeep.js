@@ -13,6 +13,7 @@
 //   ended announcements       90 days after they end
 //   done ideas and problems   180 days after they were marked done
 //   the weekly archive's log  after 365 days
+//   kept translations         180 days after they were last used
 // While the weekly archive email is on (archive.js), the rows it covers are
 // left for it instead, so they are emailed before they are removed.
 // Scores are never deleted here: the all-time scoreboard needs them (only an
@@ -44,6 +45,7 @@ export async function runUpkeep(env, now = Date.now()) {
     announcements: db.prepare('DELETE FROM announcements WHERE ends_at IS NOT NULL AND ends_at < ?1').bind(now - 90 * DAY),
     feedback: db.prepare("DELETE FROM feedback WHERE status = 'done' AND done_at < ?1").bind(now - 180 * DAY),
     archive_log: db.prepare('DELETE FROM archive_log WHERE ran_at < ?1').bind(now - 365 * DAY),
+    translations: db.prepare('DELETE FROM translations WHERE day < ?1').bind(isoDay(now - 180 * DAY)),
   };
   if ((await getSettings(env, now)).archive_email_enabled) {
     for (const name of ARCHIVED_UPKEEP_JOBS) delete jobs[name];

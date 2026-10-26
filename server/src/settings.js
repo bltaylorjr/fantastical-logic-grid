@@ -31,17 +31,22 @@ export const SETTINGS = {
   voice_source: {
     type: 'choice', default: 'server', group: 'Voices', label: 'Where voices come from', help: 'If the first choice is off or used up for the day, the game moves down the list on its own. All three are free.',
     options: [
-      { value: 'server', label: 'Natural voices from the game\'s server (Gemini, then Kokoro, then the device)' },
+      { value: 'server', label: 'Natural voices from the game\'s server (Gemini, then the backup Google Cloud voices if set up, then Kokoro, then the device)' },
       { value: 'kokoro', label: 'Natural voices on the player\'s device (Kokoro, one-time 90 MB download)' },
       { value: 'device', label: 'The device\'s built-in voices (more robotic, no download)' },
     ],
   },
-  tts_enabled: { type: 'bool', default: true, group: 'Voices', label: 'Server voices (Google Gemini)', help: 'Uses the GEMINI_API_KEY Cloudflare secret on Google\'s free tier. Off: players hear the Kokoro voices.' },
+  tts_enabled: { type: 'bool', default: true, group: 'Voices', label: 'Server voices (Google Gemini)', help: 'Uses the GEMINI_API_KEY Cloudflare secret on Google\'s free tier. Off: the backup server voices speak if set up, otherwise players hear the Kokoro voices.' },
   daily_tts_cap: {
     type: 'int', min: 0, max: 1000, default: (env) => Number(env.DAILY_TTS_CAP) || 300, group: 'Voices', label: 'New voice clips a day',
     help: 'Protects the free Gemini quota. Above Google\'s free daily limit Google refuses requests (it never bills on the free tier). Cached clips do not count.',
   },
   gemini_voice_model: { type: 'model', default: (env) => env.TTS_MODEL || 'gemini-3.8-flash-tts', group: 'Voices', label: 'Gemini voice model', help: 'Change it here when Google retires a model.' },
+  gcloud_tts_enabled: { type: 'bool', default: true, group: 'Voices', label: 'Backup server voices (Google Cloud Chirp 3 HD)', help: 'Speaks when the Gemini voices are off or used up, with the same voice for each character. Only works once the GOOGLE_TTS_KEY Cloudflare secret is set. Off: players hear Kokoro instead.' },
+  gcloud_tts_month_cap: {
+    type: 'int', min: 0, max: 1000000, default: (env) => Number(env.GCLOUD_TTS_MONTH_CAP) || 900000, group: 'Voices', label: 'Backup voice characters a month',
+    help: 'Google gives 1,000,000 Chirp 3 HD characters free each month and bills past that, so keep this under 1,000,000. The server stops at this number. Cached clips do not count.',
+  },
   // ---- Pictures
   portrait_style: {
     type: 'choice', default: 'notionists', group: 'Pictures', label: 'Character portraits', help: 'Built into the game, free, and work offline.',
@@ -60,6 +65,10 @@ export const SETTINGS = {
   },
   daily_picture_cap: { type: 'int', min: 0, max: 1000, default: 100, group: 'Pictures', label: 'New AI pictures a day', help: 'Keeps inside Workers AI\'s free daily allowance (about 150 pictures). Pictures already made are kept on each device.' },
   picture_model: { type: 'model', default: '@cf/black-forest-labs/flux-1-schnell', group: 'Pictures', label: 'Workers AI picture model', help: 'Change it here when Cloudflare retires a model.' },
+  // ---- Languages
+  translate_enabled: { type: 'bool', default: true, group: 'Languages', label: 'Translations for other languages', help: 'Players can choose any of 100 languages (US English is the default). Browsers that can translate on the device do it themselves; for everyone else Cloudflare Workers AI translates on its free daily allowance and each text is kept, so it is translated once for everyone. Off: only players whose browser translates on the device get other languages.' },
+  daily_translate_cap: { type: 'int', min: 0, max: 20000, default: 3000, group: 'Languages', label: 'New translations a day', help: 'Texts sent to Workers AI each day (a menu label or a story sentence is one). Shares the free daily allowance with AI pictures. Texts already translated do not count.' },
+  translate_model: { type: 'model', default: '@cf/meta/m2m100-1.2b', group: 'Languages', label: 'Workers AI translation model', help: 'Change it here when Cloudflare retires a model.' },
   // ---- Play
   races_enabled: { type: 'bool', default: true, group: 'Play', label: 'Races', help: 'Off: nobody can start, find or join a race. Players already in one can still finish.' },
   scores_enabled: { type: 'bool', default: true, group: 'Play', label: 'Solo scores', help: 'Off: solo solves stop counting for the scoreboard. Race points still count.' },
@@ -159,6 +168,7 @@ export async function publicConfig(req, env) {
       races: s.races_enabled, scores: s.scores_enabled, names: s.names_enabled, voices: s.tts_enabled,
       storySharing: s.story_sharing_enabled, learning: s.learning_enabled, errorReports: s.error_reports_enabled,
       feedback: s.feedback_enabled, soundEffects: s.sound_effects_enabled, music: s.theme_music_enabled, pictures: s.ai_pictures !== 'none',
+      translate: s.translate_enabled,
     },
     // Chosen here for every player.
     game: { voiceSource: s.voice_source, readAloud: s.read_aloud, portraitStyle: s.portrait_style, confetti: s.confetti, aiPictures: s.ai_pictures },

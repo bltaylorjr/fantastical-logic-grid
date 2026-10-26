@@ -11,6 +11,7 @@ import * as store from './store.js';
 import { CLOUD_URL } from './cloud-config.js';
 import { genderOf } from './gender.js';
 import { feature } from './remote-config.js';
+import * as i18n from './i18n.js';
 
 const pending = new Map();
 const THEME_SETTING = {
@@ -99,6 +100,14 @@ const GEMINI_M = ['Puck', 'Fenrir', 'Orus', 'Enceladus', 'Iapetus', 'Umbriel'];
 // and Edge include "Natural" voices such as Aria, Jenny, Guy and Ava.
 function deviceVoice(seed, narrator, who = '') {
   const voices = (window.speechSynthesis && speechSynthesis.getVoices()) || [];
+  if (!i18n.isEnglish()) {
+    // The player's language: any voice for it, natural ones first.
+    const base = i18n.speechTag().split('-')[0].toLowerCase();
+    const mine = voices.filter((v) => (v.lang || '').toLowerCase().replace('_', '-').split('-')[0] === base);
+    const nat = mine.filter((v) => /natural|neural|online|premium|enhanced/i.test(v.name));
+    const pick = nat.length ? nat : mine;
+    return pick.length ? pick[seed % pick.length] : null;
+  }
   const us = voices.filter((v) => /^en[-_]US/i.test(v.lang || ''));
   let pool = us.length ? us : voices.filter((v) => /^en/i.test(v.lang || ''));
   const natural = pool.filter((v) => /natural|neural|online|premium|enhanced/i.test(v.name));
@@ -243,7 +252,7 @@ let speakToken = 0;
 let cloudOffUntil = 0;
 const cloudVoicesReady = () => !!CLOUD_URL && feature('voices') && Date.now() > cloudOffUntil;
 async function cloudTts(text, voice) {
-  const res = await fetch(`${CLOUD_URL}/v1/tts`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, voice }) });
+  const res = await fetch(`${CLOUD_URL}/v1/tts`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, voice, lang: i18n.speechTag() }) });
   if (!res.ok) {
     // Used up for today (or not set up): rest until the next day, or an hour on other errors.
     cloudOffUntil = Date.now() + (res.status === 429 || res.status === 503 ? 3600 * 1000 * 6 : 3600 * 1000);
@@ -257,18 +266,22 @@ async function cloudTts(text, voice) {
 }
 
 // The admin dashboard picks where voices come from (settings.voiceProvider):
-// 'server' tries the server's Gemini voices, then Kokoro, then the device;
+// 'server' tries the server's voices (Gemini, then Google Cloud Chirp 3 HD),
+// then Kokoro, then the device;
 // 'kokoro' starts with Kokoro; 'device' uses only the device's own voices.
 function voicePlan(settings, puzzle, who) {
   const seed = hashOf(`${puzzle.theme.id}:${who}`);
   const narr = who === 'narrator';
   const source = settings.voiceProvider || 'server';
   if (source === 'device') return { seed, kind: 'device' };
+  // In another language: Gemini's voices speak it; Kokoro's are English only,
+  // so the device's own voice for that language reads instead.
+  const other = !i18n.isEnglish();
   if (source === 'server' && !settings.noServerVoices && cloudVoicesReady()) {
     const voice = narr ? 'Charon' : voiceFor(who, seed, GEMINI_F, GEMINI_M); // Charon: male, steady
     return { seed, kind: 'cloud', gap: 80, key: `g2|${voice}`, make: (t) => cloudTts(t, voice) };
   }
-  if (kokoroReady(settings) || kokoroLoading()) {
+  if (!other && (kokoroReady(settings) || kokoroLoading())) {
     const [voice, pace] = (narr ? KOKORO_NARRATOR : voiceFor(who, seed, KOKORO_F, KOKORO_M)).split(':');
     const speed = narr ? 0.94 : Number(pace || 1);
     return { seed, kind: 'kokoro', gap: 220, key: `k2|${voice}|${speed}`, make: (t) => kokoroTts(t, voice, speed) };
@@ -283,7 +296,7 @@ const clip = (plan, text) => cached(`voice|${plan.key}|${hashOf(text)}|${text.le
 // pressing Read aloud plays at once.
 export function warmVoice(settings, puzzle, who, text) {
   const plan = voicePlan(settings, puzzle, who);
-  if (plan.kind === 'device') return;
+  if (plan.kind === 'device' || !i18n.isEnglish()) return;
   const first = speechChunks(speechText(text))[0];
   if (first) clip(plan, first).catch(() => {});
 }
@@ -315,7 +328,7 @@ function speakDevice(text, seed, who, volume, token) {
     parts.forEach((part, i) => {
       const u = new SpeechSynthesisUtterance(part);
       if (v) u.voice = v;
-      u.lang = (v && v.lang) || 'en-US';
+      u.lang = (v && v.lang) || i18n.speechTag();
       u.rate = who === 'narrator' ? 0.92 : 0.97;
       u.pitch = who === 'narrator' ? 1 : 0.94 + (seed % 5) * 0.03;
       u.volume = volume;
@@ -352,7 +365,11 @@ export async function speakLines(settings, puzzle, lines, { volume = 1, onLine }
 // is read by the next voice that works, so no words are skipped.
 // Resolves true when the whole text was spoken, false if stopped.
 async function say(settings, puzzle, who, text, volume, token) {
-  const clean = speechText(text);
+  let clean = speechText(text);
+  if (!i18n.isEnglish()) {
+    clean = speechText(await i18n.t(clean));
+    if (token !== speakToken) return false;
+  }
   const plan = voicePlan(settings, puzzle, who);
   if (plan.kind === 'device') return speakDevice(clean, plan.seed, who, volume, token);
   if (plan.kind === 'kokoro' && kokoroLoading()) {

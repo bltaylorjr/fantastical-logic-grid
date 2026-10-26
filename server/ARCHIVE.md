@@ -99,7 +99,7 @@ repository secret**, one at a time:
 | --- | --- |
 | `GMAIL_USER` | fantasticallogicgrid@gmail.com |
 | `GMAIL_APP_PASSWORD` | the 16-letter app password (spaces are fine) |
-| `ARCHIVE_TO` | the address the zips go to (btay74@outlook.com) |
+| `ARCHIVE_TO` | the address the zips go to (fantasticallogicgrid@gmail.com) |
 | `FLG_ADMIN_TOKEN` | the same value as the Worker's `ADMIN_TOKEN` secret. Skip if it is already there (the health check uses it too). Cloudflare cannot show a secret again: if you no longer have it, make a new long random value and set it in both places (Cloudflare: Workers & Pages > flg-api > Settings > Variables and Secrets, type Secret). |
 
 The addresses are secrets so they never appear in the public repository.
