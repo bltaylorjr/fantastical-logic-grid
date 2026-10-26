@@ -51,6 +51,42 @@ for (const [field, value] of Object.entries(cloudEnv)) {
 const appVersion = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version;
 cloud = cloud.replace(/appVersion: '[^']*'/, `appVersion: ${JSON.stringify(appVersion)}`);
 writeFileSync(cloudFile, cloud);
+
+// Content Security Policy for the game page (a <meta> tag, because GitHub
+// Pages cannot send headers). Scripts run only from the game's own files and
+// the one inline theme script (allowed by its hash); the page may talk only to
+// its own Worker, Firebase sign-in, GitHub releases and the desktop app's
+// bridge. No plugins, no <base> tricks, and forms post nowhere else.
+// Without a cloud address (tests and offline builds) the page may also reach
+// localhost, where the tests run their stand-in servers.
+const origin = (u) => { try { return u ? new URL(u).origin : null; } catch (e) { return null; } };
+const indexFile = join(out, 'index.html');
+let indexHtml = readFileSync(indexFile, 'utf8');
+const inlineHashes = [...indexHtml.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(([, code]) => `'sha256-${createHash('sha256').update(code).digest('base64')}'`);
+const cloudOrigins = [...new Set([cloudEnv.syncUrl, cloudEnv.learnUrl].map(origin).filter(Boolean))];
+const connect = ["'self'", 'blob:', 'data:', ...cloudOrigins, 'https://identitytoolkit.googleapis.com', 'https://securetoken.googleapis.com', 'https://api.github.com',
+  'ipc:', 'http://ipc.localhost', ...(cloudOrigins.length ? [] : ['http://localhost:*', 'http://127.0.0.1:*'])];
+const CSP = [
+  "default-src 'self'",
+  `script-src 'self' ${inlineHashes.join(' ')}`.trim(),
+  // Inline style attributes only (progress bars, print sizes); scripts stay locked.
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob:",
+  "media-src 'self' data: blob:",
+  "font-src 'self'",
+  `connect-src ${connect.join(' ')}`,
+  "worker-src 'self' blob:",
+  "manifest-src 'self'",
+  "frame-src 'none'",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+].join('; ');
+if (!indexHtml.includes('http-equiv="Content-Security-Policy"')) {
+  indexHtml = indexHtml.replace(/(<meta charset="utf-8">)/, `$1\n<meta http-equiv="Content-Security-Policy" content="${CSP}">\n<meta name="referrer" content="strict-origin-when-cross-origin">`);
+  if (!indexHtml.includes('Content-Security-Policy')) throw new Error('Could not add the security policy to index.html');
+  writeFileSync(indexFile, indexHtml);
+}
 const files = [];
 const walk = (d) => { for (const n of readdirSync(d)) { const p = join(d, n); if (statSync(p).isDirectory()) walk(p); else files.push(relative(out, p).split('\\').join('/')); } };
 walk(out);
@@ -83,6 +119,18 @@ const site = join(root, 'dist', 'site');
 rmSync(site, { recursive: true, force: true });
 cpSync(out, site, { recursive: true });
 cpSync(join(root, 'hosting'), site, { recursive: true });
+// How to report a security problem (RFC 9116). The site is rebuilt every
+// night, so the expiry date always stays a year ahead.
+mkdirSync(join(site, '.well-known'), { recursive: true });
+writeFileSync(join(site, '.well-known', 'security.txt'), [
+  'Contact: https://github.com/bltaylorjr/fantastical-logic-grid/security/advisories/new',
+  'Contact: mailto:fantasticallogicgrid@gmail.com',
+  `Expires: ${new Date(Date.now() + 365 * 24 * 3600_000).toISOString().slice(0, 19)}Z`,
+  'Preferred-Languages: en',
+  `Canonical: ${(process.env.FLG_SITE_URL || 'https://thelogicgrid.com').replace(/\/+$/, '')}/.well-known/security.txt`,
+  'Policy: https://github.com/bltaylorjr/fantastical-logic-grid/blob/main/SECURITY.md',
+  '',
+].join('\n'));
 // Search pages, daily puzzle, sitemap and search tags (website only).
 const seo = await buildSeo({ root, site });
 console.log(`Built dist/site for web hosting (${seo.pages.length} pages in the sitemap).`);

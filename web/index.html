@@ -13,6 +13,9 @@
 <script>
   // Apply the saved color theme before first paint.
   try { const s = JSON.parse(localStorage.getItem('flg.settings') || '{}'); if (s.colorTheme && s.colorTheme !== 'system') document.documentElement.dataset.theme = s.colorTheme; } catch (e) {}
+  // Never run inside another site's frame, where clicks could be tricked
+  // (GitHub Pages cannot send X-Frame-Options). The claude.ai preview is framed on purpose.
+  if (window.top !== window.self && !document.querySelector('meta[name="flg-mode"]')) { document.documentElement.hidden = true; try { window.top.location = window.location.href; } catch (e) {} }
 </script>
 <script type="module" src="js/app.js"></script>
 </head>
