@@ -19,6 +19,11 @@ let onChange = () => {};
 export const disabledThemes = () => new Set((config && config.disabledThemes) || []);
 // A shared feature is on unless the dashboard switched it off.
 export const feature = (name) => !(config && config.features && config.features[name] === false);
+// The owner's optional "Support the game" page (an https link), or ''.
+export const supportUrl = () => {
+  const u = config && config.game && config.game.supportUrl;
+  return typeof u === 'string' && u.startsWith('https://') ? u : '';
+};
 
 function renderAnnouncements() {
   const box = document.getElementById('announcements');

@@ -43,6 +43,7 @@
     <button role="menuitem" type="button" data-cmd="board" hidden>Scoreboard</button>
     <button role="menuitem" type="button" data-cmd="account" hidden>Account and sync</button>
     <button role="menuitem" type="button" data-cmd="install" hidden>Install the app</button>
+    <a role="menuitem" id="support-link" href="#" target="_blank" rel="noopener" hidden>Support the game</a>
   </div>
   <!-- Always visible: How to play and a small scoreboard. -->
   <div class="topstrip">
@@ -68,8 +69,11 @@
       <p class="hero-tag">Every case is a brand new story. Read the clues, fill the grid, close the case.</p>
       <div class="hero-actions">
         <button class="btn primary big" type="button" id="continue-btn" hidden><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg> <span>Continue <small id="continue-name"></small></span></button>
+        <button class="btn big" type="button" id="quick-btn">Play a quick puzzle</button>
         <button class="btn big" type="button" id="hero-new">Start a new case</button>
       </div>
+      <p class="gen-status" id="quick-status" role="status" aria-live="polite"></p>
+      <div class="error-box" id="quick-error" role="alert" hidden></div>
     </div>
   </section>
   <div class="home">
@@ -262,8 +266,10 @@
     <p class="ending" id="ending"></p>
     <dl class="solved-stats" id="solved-stats"></dl>
     <p class="streak-line" id="solved-streak" hidden></p>
+    <p class="streak-line" id="solved-daily-numbers" hidden></p>
     <div class="new-badges" id="solved-badges" hidden></div>
-    <div class="row-inline share-row"><button class="btn" type="button" id="share-result"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.59 13.51 6.83 3.98"/><path d="m15.41 6.51-6.82 3.98"/></svg> Share my result</button><span class="help" id="share-note" role="status"></span></div>
+    <div class="row-inline share-row"><button class="btn" type="button" id="share-result"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.59 13.51 6.83 3.98"/><path d="m15.41 6.51-6.82 3.98"/></svg> Share my result</button><button class="btn" type="button" id="challenge-btn" hidden>Challenge a friend</button><span class="help" id="share-note" role="status"></span></div>
+    <div class="compete-result" id="challenge-result" hidden></div>
     <div class="compete-result" id="compete-result" hidden></div>
     <div class="feedback" id="feedback">
       <fieldset class="stars" aria-describedby="rate-help"><legend>Rate this puzzle <span class="optional">(optional)</span></legend>
@@ -549,7 +555,7 @@
   <h2 id="welcome-h">Welcome, detective!</h2>
   <p>New to The Fantastical Logic Grid? An 11-minute narrated video shows how to play, with examples. It has captions.</p>
   <p class="muted">You can watch it any time with How to play at the top of the page.</p>
-  <div class="dlg-actions"><button class="btn" type="button" id="welcome-skip">Start playing</button><button class="btn primary" type="button" id="welcome-watch"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 9.003a1 1 0 0 1 1.517-.859l4.997 2.997a1 1 0 0 1 0 1.718l-4.997 2.997A1 1 0 0 1 9 14.996z"/><circle cx="12" cy="12" r="10"/></svg> Watch the video</button></div>
+  <div class="dlg-actions"><button class="btn" type="button" id="welcome-skip">Play a quick puzzle</button><button class="btn primary" type="button" id="welcome-watch"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 9.003a1 1 0 0 1 1.517-.859l4.997 2.997a1 1 0 0 1 0 1.718l-4.997 2.997A1 1 0 0 1 9 14.996z"/><circle cx="12" cy="12" r="10"/></svg> Watch the video</button></div>
 </dialog>
 
 <dialog id="dlg-name" aria-labelledby="name-h">

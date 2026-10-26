@@ -154,7 +154,7 @@ ${[breadcrumb, ...schema].map((s) => `<script type="application/ld+json">${json(
   <nav aria-label="Site">
     <ul>${NAV.map(([p, n]) => `<li><a href="${up}${p}"${p === path ? ' aria-current="page"' : ''}>${n}</a></li>`).join('')}</ul>
   </nav>
-  <a class="btn" href="${up}">Play free</a>
+  <a class="btn" href="${up}?play=now" rel="nofollow">Play free</a>
 </header>
 ${crumbs.length ? `<nav class="crumbs" aria-label="Breadcrumb"><ol>${trail.map(([p, n], i) => i === trail.length - 1 ? `<li aria-current="page">${esc(n)}</li>` : `<li><a href="${up}${p}">${esc(n)}</a></li>`).join('')}</ol></nav>` : ''}
 <main id="main">
@@ -171,7 +171,9 @@ ${body(up)}
     writeFileSync(join(site, file), html);
     if (listed) pages.push({ path, lastmod, priority });
   };
-  const playBtn = (up, text = 'Play a new puzzle now') => `<p><a class="btn big" href="${up}">${text}</a></p>`;
+  // Generic play buttons open a quick puzzle straight away (?play=now in web/js/app.js);
+  // a theme page's button opens the game to choose that theme.
+  const playBtn = (up, text = 'Play a new puzzle now', quick = true) => `<p><a class="btn big" href="${up}${quick ? '?play=now' : ''}"${quick ? ' rel="nofollow"' : ''}>${text}</a></p>`;
 
   // The how-to-play video. Google does not follow an @id to another page, so every page
   // that mentions it (the game's trailer and the how-to-play page) carries the full object.
@@ -303,7 +305,7 @@ ${playBtn(up)}`,
       crumbs: [['themes/', 'Themes'], [`themes/${t.id}/`, t.name]],
       body: (up) => `<h1>${esc(t.name)} logic grid puzzles</h1>
 <p class="lede">${esc(t.description)} The ${esc(t.cast.many)} and their details change in every puzzle, and the story is never repeated.</p>
-${playBtn(up, `Play a ${t.name.toLowerCase()} puzzle`)}
+${playBtn(up, `Play a ${t.name.toLowerCase()} puzzle`, false)}
 <h2>Topics</h2>
 <ul class="cards">${topics.map((p) => `<li><h3>${esc(p.name)}</h3><p>${esc(p.description)}</p></li>`).join('')}</ul>
 <h2>What you match</h2>
