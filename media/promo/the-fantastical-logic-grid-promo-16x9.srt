@@ -1,0 +1,99 @@
+1
+00:00:00,250 --> 00:00:02,027
+Every puzzle tells a story.
+
+2
+00:00:02,047 --> 00:00:04,108
+And every story is brand new.
+
+3
+00:00:06,250 --> 00:00:08,953
+Welcome to The Fantastical Logic Grid!
+
+4
+00:00:10,250 --> 00:00:11,940
+Pick from fourteen worlds.
+
+5
+00:00:11,960 --> 00:00:18,217
+Spooky mysteries, secret agents, fantasy and sci-fi,
+Around Town, National Parks, and more.
+
+6
+00:00:18,750 --> 00:00:22,666
+Then choose your challenge, from Basic all the way
+up to MENSA.
+
+7
+00:00:23,250 --> 00:00:27,332
+Press Generate, and a one-of-a-kind story is written
+just for you.
+
+8
+00:00:27,352 --> 00:00:29,712
+No two cases are ever the same.
+
+9
+00:00:30,250 --> 00:00:34,279
+Meet the characters, and hear the clues they
+remember, read aloud.
+
+10
+00:00:34,750 --> 00:00:40,583
+Then dive into the grid. Mark an X to rule something
+out, and an O to lock in a match.
+
+11
+00:00:41,250 --> 00:00:45,673
+Stuck? Smart hints guide you step by step, without
+spoiling the fun.
+
+12
+00:00:46,250 --> 00:00:49,300
+Every section you finish brings the scene to life,
+
+13
+00:00:49,320 --> 00:00:50,991
+until you crack the case!
+
+14
+00:00:51,750 --> 00:00:54,023
+Race friends on the very same puzzle.
+
+15
+00:00:54,043 --> 00:00:57,512
+Share a code, or challenge any player by screen
+name.
+
+16
+00:00:58,250 --> 00:01:03,286
+Every solve earns points, so climb the weekly
+scoreboard and claim the top spot!
+
+17
+00:01:03,750 --> 00:01:05,809
+Print any puzzle with its answer key.
+
+18
+00:01:05,829 --> 00:01:11,141
+Your progress saves automatically, and a free
+account syncs it across your devices.
+
+19
+00:01:11,750 --> 00:01:17,135
+Play in light, dark, or high contrast, with full
+keyboard and screen reader support.
+
+20
+00:01:17,750 --> 00:01:21,922
+Play free in your browser, or install the Windows
+desktop app.
+
+21
+00:01:23,750 --> 00:01:25,797
+The Fantastical Logic Grid.
+
+22
+00:01:25,817 --> 00:01:29,609
+Your next case is waiting at thelogicgrid.com!
+
