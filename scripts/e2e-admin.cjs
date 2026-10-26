@@ -161,6 +161,12 @@ const SHOTS = process.env.SHOTS;
     await page.waitForSelector('input[data-key=confetti]:not([disabled])');
     await page.uncheck('input[data-key=confetti]');
     assert(await until('confetti', false), 'confetti is switched off for everyone');
+    await page.waitForSelector('input[data-key=fireworks]:not([disabled])');
+    await page.check('input[data-key=fireworks]');
+    assert(await until('fireworks', true), 'fireworks are switched on for everyone');
+    await page.waitForSelector('input[data-key=celebrate_random]:not([disabled])');
+    await page.check('input[data-key=celebrate_random]');
+    assert(await until('celebrate_random', true), 'Random celebrations are switched on');
     // Each save redraws the settings, so a choice made while the last save is
     // still redrawing can be lost: try again until it is stored.
     const pick = async (key, value) => {
@@ -299,10 +305,11 @@ const SHOTS = process.env.SHOTS;
     // Settings now run from the dashboard.
     const st = await p.evaluate(async () => (await import('./js/store.js')).loadSettings());
     assert(st.portraitStyle === 'lorelei' && st.voiceProvider === 'device' && st.confetti === false, 'the game uses the dashboard\'s pictures and voices');
+    assert(st.celebrations.join() === 'fireworks' && st.celebrateRandom === true, `the game uses the dashboard's celebration effects (${st.celebrations})`);
     const openSettings = async () => { await p.click('#menu-btn'); await p.click('#app-menu [data-cmd=settings]'); await p.waitForSelector('#dlg-settings[open]'); };
     await openSettings();
     const names = await p.$$eval('#settings-form [name]', (els) => [...new Set(els.map((e) => e.name))]);
-    assert(!names.some((n) => ['portraitStyle', 'confetti', 'readAloud', 'aiKey', 'geminiKey', 'voiceProvider', 'serverVoices', 'shareLearning', 'reportErrors', 'aiPictures'].includes(n)), `Settings keeps only the player's own choices (${names.join(', ')})`);
+    assert(!names.some((n) => ['portraitStyle', 'confetti', 'celebrations', 'celebrateRandom', 'readAloud', 'aiKey', 'geminiKey', 'voiceProvider', 'serverVoices', 'shareLearning', 'reportErrors', 'aiPictures'].includes(n)), `Settings keeps only the player's own choices (${names.join(', ')})`);
     assert(await p.isChecked('input[name=sound]'), 'sound effects start on');
     assert(!(await p.isChecked('input[name=music]')), 'the dashboard\'s starting value for theme music applies to a player who never changed it');
     await p.check('input[name=music]');
