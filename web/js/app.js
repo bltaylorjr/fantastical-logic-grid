@@ -24,6 +24,7 @@ import { initPullRefresh } from './pull-refresh.js';
 import * as daily from './daily.js';
 import * as stats from './stats.js';
 import { shareResult } from './share-result.js';
+import * as challenge from './challenge.js';
 import * as i18n from './i18n.js';
 import { CLOUD_URL } from './cloud-config.js';
 
@@ -1130,7 +1131,7 @@ function checkSolved() {
     S.save.solved = true;
     S.save.completedAt = Date.now();
     // The daily puzzle's answers are on the website, so it earns no scoreboard points.
-    if (!S.save.race && !S.save.daily && !S.save.revealed && !S.save.restarted) S.save.scorePending = true;
+    if (!S.save.race && !S.save.daily && !S.save.challenge && !S.save.revealed && !S.save.restarted) S.save.scorePending = true;
     tickTimer();
     recordSolve(S.save);
     if (!S.save.revealed) campaign.solved();
@@ -1246,6 +1247,8 @@ $('#feedback-idea').onclick = () => feedbackBox.open(openDialog, { kind: 'idea' 
 // Streak, new badges and Share my result on the solved panel.
 async function renderSolvedExtras(save) {
   $('#share-result').hidden = !!save.revealed;
+  $('#challenge-btn').hidden = !!save.revealed || !!save.race || !challenge.available();
+  renderChallenge(save);
   $('#share-note').textContent = '';
   const box = $('#solved-badges');
   const fresh = (S && S.save === save && S.newBadges) || [];
@@ -1280,6 +1283,79 @@ $('#share-result').onclick = async () => {
   else if (res.done === 'cancelled') $('#share-note').textContent = '';
   else openShareDialog(res, info);
 };
+// ====================================================================
+// Challenge a friend: the same puzzle by link, with a time to beat
+// ====================================================================
+$('#challenge-btn').onclick = async () => {
+  if (!S || !S.save.solved) return;
+  const save = S.save;
+  const btn = $('#challenge-btn');
+  btn.disabled = true;
+  $('#share-note').textContent = 'Making your challenge link…';
+  try {
+    // One link per solve, kept with the save so sharing again reuses it.
+    if (!save.challengeLink) {
+      save.challengeLink = (await challenge.create(S.puzzle, save.elapsedMs, save.hintsUsed)).url;
+      scheduleSave();
+    }
+    const text = challenge.message({ title: save.name, time: fmtTime(save.elapsedMs), hints: save.hintsUsed || 0 });
+    $('#share-note').textContent = '';
+    if (navigator.share) {
+      try { await navigator.share({ title: save.name, text, url: save.challengeLink }); $('#share-note').textContent = 'Challenge sent.'; return; }
+      catch (e) { if (e && e.name === 'AbortError') return; }
+    }
+    let copied = false;
+    try { await navigator.clipboard.writeText(`${text} ${save.challengeLink}`); copied = true; } catch (e) { /* show it to copy */ }
+    openShareDialog({ text: `${text} ${save.challengeLink}`, done: copied ? 'copied' : 'show' }, { title: save.name });
+  } catch (e) {
+    $('#share-note').textContent = e.message || 'The challenge link could not be made.';
+  } finally {
+    btn.disabled = false;
+  }
+};
+
+// Both times on the solved panel of a puzzle opened from a challenge link.
+async function renderChallenge(save) {
+  const box = $('#challenge-result');
+  box.hidden = true;
+  const c = save.challenge;
+  if (!c || !save.solved || save.revealed) return;
+  if (!c.result) {
+    try { c.result = await challenge.sendResult(c.code, save.elapsedMs, save.hintsUsed); scheduleSave(); } catch (e) { c.result = null; }
+  }
+  if (!S || S.save !== save) return;
+  const won = save.elapsedMs < c.theirMs;
+  const r = c.result;
+  box.innerHTML = `<h3>${won ? 'You beat your friend\'s time!' : 'Your friend was quicker this time.'}</h3>
+    <p>Your time: <b>${fmtTime(save.elapsedMs)}</b>. Your friend's time: <b>${fmtTime(c.theirMs)}</b>.</p>
+    ${r && r.plays > 1 ? `<p>${r.beat} of ${r.plays} players who took this challenge beat your friend's time.</p>` : ''}
+    <p class="help">Press Challenge a friend to send this puzzle on with your own time.</p>`;
+  box.hidden = false;
+}
+
+// ?challenge=CODE: open that puzzle (once; the same link later resumes it).
+function handleChallengeLink() {
+  const code = challenge.linkCode();
+  if (!code) return false;
+  (async () => {
+    const existing = (await store.listSaves()).find((x) => x.challenge && x.challenge.code === code);
+    if (existing) { openGame(existing); return; }
+    if (!CLOUD_URL) { toast('Challenge links need the internet version of the game.'); return; }
+    try {
+      const c = await challenge.load(code);
+      await rememberStory(storyIdOf(c.puzzle));
+      const save = newSave(c.puzzle);
+      save.challenge = { code, theirMs: c.elapsedMs, theirHints: c.hints || 0 };
+      await store.putSave(save);
+      openGame(save, { fresh: true });
+      toast(`A friend solved this puzzle in ${fmtTime(c.elapsedMs)}. Can you beat that time?`, null, { ms: 9000 });
+    } catch (e) {
+      toast(e.message || 'That challenge could not be opened.', null, { ms: 9000 });
+    }
+  })();
+  return true;
+}
+
 function openShareDialog(res, info) {
   $('#share-text').value = res.text || '';
   $('#share-status').textContent = res.done === 'copied' ? 'The message is copied. Paste it anywhere.' : '';
@@ -2117,7 +2193,7 @@ async function init() {
   window.addEventListener('resize', () => { if (!$('#screen-home').hidden) updatePreview(); });
   document.documentElement.classList.add('ready');
   // A ?play=now link goes straight into a puzzle; the welcome waits for next time.
-  if (!handlePlayLink()) offerIntro();
+  if (!handleChallengeLink() && !handlePlayLink()) offerIntro();
   offerLanguage();
   setTimeout(checkUpdates, 4000);
   if (!isPreview) setTimeout(ensureNaturalVoices, 1500);

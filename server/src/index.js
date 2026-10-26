@@ -10,6 +10,7 @@
 //   GET /v1/daily/plan                   daily puzzle changes for the website build (daily.js)
 //   POST /v1/translate                   the game's text in another language (translate.js)
 //   POST /v1/m                           anonymous counts of visits from campaign links (marketing.js)
+//   /v1/challenges[/:code[/result]]       Challenge a friend links, no account (challenges.js)
 //   /admin/*                             the admin dashboard and its API (admin.js)
 //   GET /v1/health[?deep=1]              a quick check that the Worker (and with
 //                                        deep=1, the database and daily cleanup) is up
@@ -19,6 +20,7 @@
 
 import { handleLearn } from './learn.js';
 import { handleCompete } from './compete.js';
+import { handleChallenges } from './challenges.js';
 import { handleErrors } from './errors.js';
 import { handleFeedback } from './feedback.js';
 import { handlePictures } from './pictures.js';
@@ -58,6 +60,9 @@ async function route(req, env, ctx) {
 
   const learn = await handleLearn(req, env, ctx, url);
   if (learn) return learn;
+
+  const challenge = await handleChallenges(req, env, url);
+  if (challenge) return challenge;
 
   const compete = await handleCompete(req, env, ctx, url, signedIn);
   if (compete) return compete;
