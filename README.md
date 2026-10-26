@@ -107,6 +107,9 @@ npm run serve        # http://localhost:8080
 npm test             # end-to-end check in headless Chromium (needs Playwright)
 ```
 
+The build minifies the game's own scripts and styles (esbuild; `web/vendor/` is left as is) and stamps
+each with the copyright line. Set `FLG_NO_MINIFY=1` for readable files while debugging.
+
 Windows installer (on Windows: `npm run desktop:build`; from Linux, with mingw-w64 and nsis):
 
 ```
