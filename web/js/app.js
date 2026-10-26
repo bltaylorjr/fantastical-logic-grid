@@ -1742,22 +1742,28 @@ function renderMedia() {
   S.sceneLayers = -1;
   $('#scene').innerHTML = sceneSvg(p, 0);
   const names = S.ix.cats[0].items.map((i) => i.label);
+  const drawCastRow = () => {
   $('#cast-row').innerHTML = names.map((n) => {
     const count = Object.values(S.witness).filter((w) => w === n).length;
     const who = aboutOf(n);
     return `<button class="cast-btn" type="button" data-who="${esc(n)}" aria-pressed="false" title="${esc(who.about)}">${portrait(p, n, { style: settings.portraitStyle })}<span>${esc(n)}</span><small class="trait">${esc(who.label)}</small><small>${count} clue${count === 1 ? '' : 's'}</small></button>`;
   }).join('');
+  };
+  drawCastRow();
   // The DiceBear faces load after the first screen; if they are not here yet,
-  // the game's own faces show and are swapped in place when they arrive.
+  // the game's own faces show and the row is drawn again when they arrive.
   if (!portraitsReady()) {
     const game = S;
     loadPortraits().then(() => {
       if (S !== game) return;
-      // AI-painted faces (img) stay; only drawn stand-ins are swapped.
-      // Faces come from the puzzle's own names (the same order as the buttons).
+      // AI-painted faces (img) and pressed buttons carry over to the new row.
+      const before = $$('#cast-row .cast-btn').map((b) => ({ img: b.querySelector('img'), pressed: b.getAttribute('aria-pressed') }));
+      drawCastRow();
       $$('#cast-row .cast-btn').forEach((b, i) => {
-        const old = b.querySelector('svg');
-        if (old && names[i] !== undefined) old.outerHTML = portrait(p, names[i], { style: settings.portraitStyle });
+        const was = before[i];
+        if (!was) return;
+        b.setAttribute('aria-pressed', was.pressed || 'false');
+        if (was.img) b.querySelector('svg')?.replaceWith(was.img);
       });
       const teller = narratorOf(p);
       const told = $('#told-by .told-face');
