@@ -1,7 +1,9 @@
 // Share my result: a spoiler-free card (title, level, theme, time, hints,
-// daily streak) as a picture and a short message with a link to the game.
+// daily streak) as a picture and a short message with a link to the game,
+// in the player's language.
 // Never includes answers, marks or clues.
 import { CLOUD } from './cloud-config.js';
+import * as i18n from './i18n.js';
 
 const W = 1200, H = 630;
 
@@ -11,14 +13,29 @@ function siteUrl(daily) {
 }
 
 // info: { title, tier, theme, size, time, hints, revealed, daily (a date label), streak }
-export function shareText(info) {
+// The message without its link, which is never translated.
+function message(info) {
   const how = info.hints ? `with ${info.hints} hint${info.hints === 1 ? '' : 's'}` : 'with no hints';
   const parts = [
     `I solved “${info.title}” (${info.tier} · ${info.theme}) in ${info.time} ${how} on The Fantastical Logic Grid.`,
     info.daily ? `Daily puzzle, ${info.daily}.${info.streak > 1 ? ` ${info.streak}-day streak!` : ''}` : '',
-    `Can you crack it? ${siteUrl(!!info.daily)}`,
+    'Can you crack it?',
   ];
   return parts.filter(Boolean).join(' ');
+}
+export const shareText = (info) => `${message(info)} ${siteUrl(!!info.daily)}`;
+
+// The picture's words in the player's language.
+const WORDS = { closed: 'Case closed', daily: 'Daily puzzle', time: 'Time', hints: 'Hints', streak: 'Streak', day: 'day', days: 'days' };
+async function translated(info) {
+  if (i18n.isEnglish()) return { info, words: WORDS, text: shareText(info) };
+  const keys = Object.keys(WORDS);
+  const [text, title, tier, theme, daily, ...w] = await i18n.tAll([message(info), info.title, info.tier, info.theme, info.daily || '', ...keys.map((k) => WORDS[k])]);
+  return {
+    info: { ...info, title, tier, theme, daily: info.daily ? daily : null },
+    words: Object.fromEntries(keys.map((k, i) => [k, w[i]])),
+    text: `${text} ${siteUrl(!!info.daily)}`,
+  };
 }
 
 function wrap(ctx, text, maxWidth) {
@@ -33,7 +50,7 @@ function wrap(ctx, text, maxWidth) {
   return lines;
 }
 
-export async function shareImage(info) {
+export async function shareImage(info, words = WORDS) {
   try { await Promise.all([document.fonts.load('700 40px Cinzel'), document.fonts.load('400 30px "Atkinson Hyperlegible"'), document.fonts.load('700 30px "Atkinson Hyperlegible"')]); } catch (e) { /* system fonts are fine */ }
   const c = document.createElement('canvas');
   c.width = W; c.height = H;
@@ -54,14 +71,14 @@ export async function shareImage(info) {
   }
   ctx.fillStyle = '#ffffff';
   ctx.font = '700 30px "Atkinson Hyperlegible", system-ui, sans-serif';
-  ctx.fillText(info.daily ? `DAILY PUZZLE · ${info.daily.toUpperCase()}` : 'CASE CLOSED', 64, 92);
+  ctx.fillText(info.daily ? `${words.daily} · ${info.daily}`.toUpperCase() : words.closed.toUpperCase(), 64, 92);
   ctx.font = '700 64px Cinzel, Georgia, serif';
   const lines = wrap(ctx, info.title, 760).slice(0, 2);
   lines.forEach((l, i) => ctx.fillText(l, 64, 180 + i * 76));
   ctx.font = '400 32px "Atkinson Hyperlegible", system-ui, sans-serif';
   ctx.fillText(`${info.tier} · ${info.theme} · ${info.size}`, 64, 180 + lines.length * 76 + 10);
-  const stats = [['Time', info.time], ['Hints', String(info.hints)]];
-  if (info.daily && info.streak) stats.push(['Streak', `${info.streak} day${info.streak === 1 ? '' : 's'}`]);
+  const stats = [[words.time, info.time], [words.hints, String(info.hints)]];
+  if (info.daily && info.streak) stats.push([words.streak, `${info.streak} ${info.streak === 1 ? words.day : words.days}`]);
   stats.forEach(([k, v], i) => {
     const x = 64 + i * 300;
     ctx.fillStyle = 'rgba(255,255,255,0.14)';
@@ -82,10 +99,10 @@ export async function shareImage(info) {
 
 // Uses the device's share sheet when there is one (with the picture where
 // supported), otherwise copies the message. Returns what happened.
-export async function shareResult(info) {
-  const text = shareText(info);
+export async function shareResult(english) {
+  const { info, words, text } = await translated(english);
   let blob = null;
-  try { blob = await shareImage(info); } catch (e) { /* the text is enough */ }
+  try { blob = await shareImage(info, words); } catch (e) { /* the text is enough */ }
   const file = blob && typeof File === 'function' ? new File([blob], 'my-logic-grid-result.png', { type: 'image/png' }) : null;
   if (navigator.share) {
     try {

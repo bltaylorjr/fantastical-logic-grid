@@ -25,7 +25,8 @@
     <span>The Fantastical Logic Grid</span>
   </button>
   <div class="appbar-actions">
-    <button class="btn quiet player-chip" type="button" id="player-chip" hidden><span class="sr-only">Playing as </span><span id="player-chip-name">Guest</span></button>
+    <button class="btn quiet player-chip" type="button" id="player-chip" hidden><span class="sr-only">Playing as </span><span id="player-chip-name" translate="no">Guest</span></button>
+    <button class="btn quiet" type="button" id="lang-btn" translate="no" aria-pressed="false" hidden>English</button>
     <button class="btn quiet" type="button" id="help-btn" aria-keyshortcuts="Shift+?">Help</button>
     <button class="btn quiet" type="button" id="menu-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="app-menu">Menu</button>
   </div>
@@ -188,7 +189,7 @@
       <button class="btn" type="button" data-act="print" aria-keyshortcuts="Control+P Meta+P"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg> Print</button>
     </div>
     <div class="statusline">
-      <span id="status" role="status" aria-live="polite"></span>
+      <span id="status" role="status" aria-live="polite" translate="no"></span>
       <span class="progress" id="progress"></span>
       <span class="timer" id="timer" aria-hidden="true"></span>
       <span class="saveind" id="saveind"></span>
@@ -349,6 +350,11 @@
 <dialog id="dlg-settings" aria-labelledby="settings-h">
   <form method="dialog" id="settings-form">
     <h2 id="settings-h">Settings</h2>
+    <fieldset id="language-settings"><legend>Language</legend>
+      <div class="field"><label for="language">Game language</label><select id="language" name="language" translate="no" aria-describedby="language-help"></select></div>
+      <p class="help" id="language-help">US English is the game's own language. In any other language the game translates itself automatically as you play, so a few words may read oddly: the English button at the top shows the original at any time. Names and your own notes are never translated.</p>
+      <p class="help" id="language-note" role="status"></p>
+    </fieldset>
     <fieldset><legend>Mode</legend>
       <label class="check"><input type="checkbox" name="silent"> Silent mode: only the story, grid, clues and answer key. No pictures, sound, music or animation.</label>
     </fieldset>
@@ -734,7 +740,7 @@
 </div>
 
 <div class="toasts" id="toasts" aria-live="polite"></div>
-<div class="sr-only" id="announcer" aria-live="polite"></div>
+<div class="sr-only" id="announcer" aria-live="polite" translate="no"></div>
 <div id="print-root" class="print-root"></div>
 <noscript><p style="padding:16px">The Fantastical Logic Grid needs JavaScript turned on.</p></noscript>
 </body>
