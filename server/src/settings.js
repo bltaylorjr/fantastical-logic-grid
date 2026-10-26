@@ -14,6 +14,8 @@ import { json } from './http.js';
 
 const CACHE_MS = 30_000;
 const THEME_IDS = THEMES.map((t) => t.id);
+// Solve effects, in the order the game knows them (web/js/effects.js).
+const CELEBRATIONS = ['confetti', 'fireworks', 'stars', 'balloons', 'sparkles', 'theme_emoji', 'bubbles', 'falling', 'shooting_stars', 'ribbons', 'light_rays', 'emoji_burst'];
 
 // type: bool, int (with min/max), choice (one of options), model (an AI
 // model name), themes (list of theme ids) or words.
@@ -55,7 +57,6 @@ export const SETTINGS = {
       { value: 'openPeeps', label: 'Hand-drawn (Open Peeps)' }, { value: 'builtin', label: 'Simple (built-in)' },
     ],
   },
-  confetti: { type: 'bool', default: true, group: 'Pictures', label: 'Confetti when a puzzle is solved', help: 'Never shown in Silent mode.' },
   ai_pictures: {
     type: 'choice', default: 'scene', group: 'Pictures', label: 'AI pictures', help: 'Painted by Cloudflare Workers AI on its free daily allowance (no key, never billed on the free plan). Without them, or when the day\'s pictures run out, the built-in art shows.',
     options: [
@@ -65,6 +66,21 @@ export const SETTINGS = {
   },
   daily_picture_cap: { type: 'int', min: 0, max: 1000, default: 100, group: 'Pictures', label: 'New AI pictures a day', help: 'Keeps inside Workers AI\'s free daily allowance (about 150 pictures). Pictures already made are kept on each device.' },
   picture_model: { type: 'model', default: '@cf/black-forest-labs/flux-1-schnell', group: 'Pictures', label: 'Workers AI picture model', help: 'Change it here when Cloudflare retires a model.' },
+  // ---- Celebrations: shown when a puzzle is solved (not after Reveal). Never
+  // shown in Silent mode or when the device asks for reduced motion.
+  confetti: { type: 'bool', default: true, group: 'Celebrations', label: 'Confetti', help: 'Paper pieces burst up from the middle of the screen.' },
+  fireworks: { type: 'bool', default: false, group: 'Celebrations', label: 'Fireworks', help: 'Soft bursts of color across the screen. No flashing.' },
+  stars: { type: 'bool', default: false, group: 'Celebrations', label: 'Stars', help: 'Gold stars shoot out from both sides.' },
+  balloons: { type: 'bool', default: false, group: 'Celebrations', label: 'Balloons', help: 'Balloons float up from the bottom of the screen.' },
+  sparkles: { type: 'bool', default: false, group: 'Celebrations', label: 'Sparkles', help: 'Small twinkling sparkles drift down.' },
+  theme_emoji: { type: 'bool', default: false, group: 'Celebrations', label: 'Theme pictures', help: 'Little pictures that match the puzzle\'s theme, such as magnifying glasses for Mystery or paw prints for Pets.' },
+  bubbles: { type: 'bool', default: false, group: 'Celebrations', label: 'Bubbles', help: 'Soft bubbles float up from the bottom of the screen.' },
+  falling: { type: 'bool', default: false, group: 'Celebrations', label: 'Falling snow, leaves or petals', help: 'Matches the theme, such as snow for Holidays or leaves for National Parks. Other themes follow the season.' },
+  shooting_stars: { type: 'bool', default: false, group: 'Celebrations', label: 'Shooting stars', help: 'A few stars glide across the top of the screen with a trail.' },
+  ribbons: { type: 'bool', default: false, group: 'Celebrations', label: 'Ribbons', help: 'Curly streamers shoot up from the bottom corners.' },
+  light_rays: { type: 'bool', default: false, group: 'Celebrations', label: 'Light rays', help: 'A soft golden glow with slowly turning rays that fades in and out. Never bright and never flashing.' },
+  emoji_burst: { type: 'bool', default: false, group: 'Celebrations', label: 'Party emoji', help: 'Party pictures, such as party poppers, trophies and stars, burst from the sides.' },
+  celebrate_random: { type: 'bool', default: false, group: 'Celebrations', label: 'Random', help: 'On: each solve shows one of the checked effects, picked at random. Off: every checked effect plays together.' },
   // ---- Languages
   translate_enabled: { type: 'bool', default: true, group: 'Languages', label: 'Translations for other languages', help: 'Players can choose any of 100 languages (US English is the default). Browsers that can translate on the device do it themselves; for everyone else Cloudflare Workers AI translates on its free daily allowance and each text is kept, so it is translated once for everyone. Off: only players whose browser translates on the device get other languages.' },
   daily_translate_cap: { type: 'int', min: 0, max: 20000, default: 3000, group: 'Languages', label: 'New translations a day', help: 'Texts sent to Workers AI each day (a menu label or a story sentence is one). Shares the free daily allowance with AI pictures. Texts already translated do not count.' },
@@ -81,6 +97,8 @@ export const SETTINGS = {
   story_model: { type: 'model', default: 'gemini-flash-latest', group: 'Learning', label: 'Story workshop AI writer (Gemini model)', help: 'Drafts story parts in the Story workshop with the GEMINI_API_KEY secret, on Google\'s free tier.' },
   // ---- Ideas, problems and upkeep
   feedback_enabled: { type: 'bool', default: true, group: 'Ideas and problems', label: 'Idea and problem boxes', help: 'Off: the game hides its Ideas and problems boxes.' },
+  feedback_replies_enabled: { type: 'bool', default: true, group: 'Ideas and problems', label: 'Thank-you emails', help: 'Signed-in players with a confirmed email can ask for a short no-reply note: a thank-you for an idea, or an apology and thank-you for a problem report. Sent every 15 minutes from noreply@thelogicgrid.com through Resend, or from the game\'s Gmail as a backup (server/FEEDBACK-EMAILS.md). Off: no new notes, and waiting ones are dropped.' },
+  feedback_reply_daily_cap: { type: 'int', min: 0, max: 400, default: 100, group: 'Ideas and problems', label: 'Thank-you emails a day', help: 'For everyone together. Resend\'s free plan sends 100 a day, then Gmail (about 500 a day, shared with the archive and summary emails) takes over. Each player gets at most one note a day for ideas and one for problems.' },
   error_reports_enabled: { type: 'bool', default: true, group: 'Ideas and problems', label: 'Automatic error reports', help: 'Anonymous reports the apps send when something breaks. Off: nothing is sent.' },
   // ---- Alerts and reports
   alert_percent: { type: 'int', min: 50, max: 100, default: 80, group: 'Alerts and reports', label: 'Warn when a free allowance reaches (percent)', help: 'The dashboard shows a warning, and the health check opens a GitHub issue (which GitHub emails you), when a daily free allowance or the database passes this level.' },
@@ -168,11 +186,12 @@ export async function publicConfig(req, env) {
     features: {
       races: s.races_enabled, scores: s.scores_enabled, names: s.names_enabled, nameApproval: s.names_need_approval, voices: s.tts_enabled,
       storySharing: s.story_sharing_enabled, learning: s.learning_enabled, errorReports: s.error_reports_enabled,
-      feedback: s.feedback_enabled, soundEffects: s.sound_effects_enabled, music: s.theme_music_enabled, pictures: s.ai_pictures !== 'none',
+      feedback: s.feedback_enabled, feedbackReplies: s.feedback_replies_enabled, soundEffects: s.sound_effects_enabled, music: s.theme_music_enabled, pictures: s.ai_pictures !== 'none',
       translate: s.translate_enabled,
     },
     // Chosen here for every player.
-    game: { voiceSource: s.voice_source, readAloud: s.read_aloud, portraitStyle: s.portrait_style, confetti: s.confetti, aiPictures: s.ai_pictures },
+    game: { voiceSource: s.voice_source, readAloud: s.read_aloud, portraitStyle: s.portrait_style, confetti: s.confetti, aiPictures: s.ai_pictures,
+      celebrations: CELEBRATIONS.filter((k) => s[k]), celebrateRandom: s.celebrate_random },
     // Starting values; a player's own choice wins.
     defaults: { sound: s.default_sound, volume: s.default_volume, music: s.default_music, musicVolume: s.default_music_volume },
   }, 200, { 'Cache-Control': 'public, max-age=60' });

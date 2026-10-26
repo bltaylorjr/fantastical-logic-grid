@@ -773,7 +773,7 @@ dependencies = [
 
 [[package]]
 name = "fantastical-logic-grid"
-version = "1.7.2"
+version = "1.9.0"
 dependencies = [
  "serde_json",
  "tauri",
