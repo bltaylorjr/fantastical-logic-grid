@@ -61,7 +61,7 @@ import { refreshSearch, searchSnapshots, lastTry, REFRESH_GAP_MS } from './searc
 import { workshopOptions, addPart, draftParts } from './workshop.js';
 import { characterRoutes } from './characters.js';
 import { TOPICS as FEEDBACK_TOPICS } from './feedback.js';
-import { claimReplies, finishReplies, replyCounts } from './replies.js';
+import { claimReplies, finishReplies, replyCounts, releaseUpdate, dropUpdate, deleteReplyStatements } from './replies.js';
 import { inbox, INBOX_TYPES, conversationView, teamReply, setConversationStatus, startConversation, listNews, addNews, endNews, deleteNews, deleteMessageStatements, MessageRefusal } from './messages.js';
 import { claimDailyEmail, finishDailyEmail } from './daily-email.js';
 import { archiveStatus, runArchive, buildArchive, exportArchive, confirmArchive } from './archive.js';
@@ -425,6 +425,7 @@ const ROUTES = [
   }],
   ['POST', /^feedback\/(\d+)$/, 'moderator', 'feedback.update', async ({ env, params: [id], body, now }) => {
     let r;
+    let emailed = 0;
     if (body.status === 'delete') r = await env.DB.prepare('DELETE FROM feedback WHERE id = ?1').bind(Number(id)).run();
     else if (body.status === 'addressed') {
       const note = cleanNote(body.note);
@@ -433,8 +434,11 @@ const ROUTES = [
     } else if (['new', 'done'].includes(body.status)) r = await env.DB.prepare('UPDATE feedback SET status = ?1, done_at = ?2, note = NULL WHERE id = ?3').bind(body.status, body.status === 'done' ? now : null, Number(id)).run();
     else throw new Refusal(400, 'bad_status');
     if (!r.meta.changes) throw new Refusal(404, 'gone', 'That message is gone.');
+    // A player who ticked "Email me an update" hears about it, with the note.
+    if (body.status === 'addressed') emailed = await releaseUpdate(env, id, cleanNote(body.note));
+    else if (body.status !== 'new') await dropUpdate(env, id);
     analyticsCache.clear();
-    return { body: { ok: true }, target: id, detail: { status: body.status, note: body.status === 'addressed' ? cleanNote(body.note) : undefined } };
+    return { body: { ok: true, emailed }, target: id, detail: { status: body.status, note: body.status === 'addressed' ? cleanNote(body.note) : undefined } };
   }],
 
   ['GET', /^names$/, 'moderator', 'names.view', async ({ env, url, now }) => {
@@ -489,6 +493,7 @@ const ROUTES = [
       env.DB.prepare('DELETE FROM sync_users WHERE user_id = ?1').bind(uid),
       ...deleteCompeteStatements(env, uid),
       ...deleteMessageStatements(env, uid),
+      ...(await deleteReplyStatements(env, uid)),
       env.DB.prepare('DELETE FROM name_reviews WHERE user_id = ?1').bind(uid),
       env.DB.prepare('INSERT OR REPLACE INTO sync_deleted_users (user_id, deleted_at) VALUES (?1, ?2)').bind(uid, now),
     ]);

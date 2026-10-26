@@ -216,11 +216,14 @@ test('signed-in players with a confirmed email can get a thank-you email', async
   assert.equal((await call('/admin/v1/replies/claim', { auth: idToken('p1', 'p1@example.com'), body: {} })).status, 403);
   const claim = (await call('/admin/v1/replies/claim', { auth: TOKEN, body: { limit: 10 } })).body;
   assert.equal(claim.off, false);
-  assert.deepEqual(claim.replies.map((r) => r.kind).sort(), ['idea', 'problem']);
+  assert.deepEqual(claim.replies.map((r) => r.kind).sort(), ['idea', 'problem'], 'update emails wait for the team');
+  assert.ok(claim.replies.every((r) => r.text === 'More dragons, please!'), 'the note quotes what the player wrote');
   assert.equal((await call('/admin/v1/replies/claim', { auth: TOKEN, body: {} })).body.replies.length, 0, 'claimed notes are not handed out twice');
   const [a, b] = claim.replies;
   assert.deepEqual((await call('/admin/v1/replies/done', { auth: TOKEN, body: { sent: [a.id], failed: [b.id] } })).body, { sent: 1, failed: 1 });
-  assert.equal((await db.prepare('SELECT email, status FROM feedback_replies WHERE id = ?1').bind(a.id).first()).email, null, 'address removed once sent');
+  const sentRow = await db.prepare('SELECT email, text FROM feedback_replies WHERE id = ?1').bind(a.id).first();
+  assert.equal(sentRow.email, null, 'address removed once sent');
+  assert.equal(sentRow.text, null, 'the player\'s words removed once sent');
   assert.equal((await db.prepare('SELECT status FROM feedback_replies WHERE id = ?1').bind(b.id).first()).status, 'waiting', 'a failed note is tried again');
   const counts = (await call('/admin/v1/feedback?kind=idea', { auth: TOKEN })).body.replies;
   assert.equal(counts.sentToday, 1);
@@ -235,13 +238,50 @@ test('signed-in players with a confirmed email can get a thank-you email', async
   assert.equal((await send('idea', idToken('p3', 'p3@example.com'))).body.reply, 'off');
   const off = (await call('/admin/v1/replies/claim', { auth: TOKEN, body: {} })).body;
   assert.equal(off.off, true);
-  assert.equal(off.dropped, 1);
+  assert.equal(off.dropped, 5, 'the waiting note and the four held updates');
   assert.equal((await db.prepare('SELECT COUNT(*) AS n FROM feedback_replies WHERE email IS NOT NULL').first()).n, 0);
   await call('/admin/v1/settings', { auth: TOKEN, body: { key: 'feedback_replies_enabled', value: true } });
   // An empty claim is not written to the audit log (it runs every 15 minutes).
   const before = (await db.prepare("SELECT COUNT(*) AS n FROM admin_audit WHERE action = 'replies.claim'").first()).n;
   await call('/admin/v1/replies/claim', { auth: TOKEN, body: {} });
   assert.equal((await db.prepare("SELECT COUNT(*) AS n FROM admin_audit WHERE action = 'replies.claim'").first()).n, before);
+  await db.prepare('DELETE FROM feedback_replies').run();
+});
+
+test('"Email me an update": the team marking it addressed emails the player their words and the note', async () => {
+  const boss = idToken('up-owner', OWNER); // its own rate-limit bucket
+  const send = (kind, uid, text) => call('/v1/feedback', { auth: idToken(uid, `${uid}@example.com`), body: { kind, topic: 'other', text, reply: true } });
+  const sent = await send('problem', 'up1', 'The grid scrolls twice on my tablet.');
+  assert.equal(sent.body.reply, 'queued');
+  assert.equal(sent.body.update, true);
+  assert.equal((await send('idea', 'up2', 'A pirate ship lost in the fog.')).body.update, true);
+  assert.equal((await call('/v1/feedback', { body: { kind: 'idea', topic: 'other', text: 'No account here.', reply: true } })).body.update, false);
+  const fb = async (text) => (await db.prepare('SELECT id FROM feedback WHERE text = ?1').bind(text).first()).id;
+  const problemId = await fb('The grid scrolls twice on my tablet.');
+  const ideaId = await fb('A pirate ship lost in the fog.');
+  assert.equal((await db.prepare('SELECT COUNT(*) AS n FROM feedback WHERE id = ?1 AND conversation_id IS NULL').bind(problemId).first()).n, 1, 'the feedback row itself stays unlinked');
+  // The thank-you notes go now; the updates wait.
+  const first = (await call('/admin/v1/replies/claim', { auth: boss, body: {} })).body.replies;
+  assert.deepEqual(first.map((r) => r.kind).sort(), ['idea', 'problem']);
+  await call('/admin/v1/replies/done', { auth: boss, body: { sent: first.map((r) => r.id) } });
+  // Marked addressed: the update is queued with the note.
+  const marked = await call(`/admin/v1/feedback/${problemId}`, { auth: boss, body: { status: 'addressed', note: 'Fixed the grid height in version 1.7.1.' } });
+  assert.equal(marked.status, 200);
+  assert.equal(marked.body.emailed, 1);
+  // Closed without a fix: no update, and its address and words go.
+  assert.equal((await call(`/admin/v1/feedback/${ideaId}`, { auth: boss, body: { status: 'done' } })).body.emailed, 0);
+  const dropped = await db.prepare("SELECT status, email, text FROM feedback_replies WHERE feedback_id = ?1").bind(ideaId).first();
+  assert.deepEqual({ ...dropped }, { status: 'dropped', email: null, text: null });
+  const update = (await call('/admin/v1/replies/claim', { auth: boss, body: {} })).body.replies;
+  assert.equal(update.length, 1);
+  assert.equal(update[0].kind, 'problem_update');
+  assert.equal(update[0].email, 'up1@example.com');
+  assert.equal(update[0].text, 'The grid scrolls twice on my tablet.');
+  assert.equal(update[0].note, 'Fixed the grid height in version 1.7.1.');
+  await call('/admin/v1/replies/done', { auth: boss, body: { sent: [update[0].id] } });
+  // Marking it again does not send a second email.
+  assert.equal((await call(`/admin/v1/feedback/${problemId}`, { auth: boss, body: { status: 'addressed', note: 'Again.' } })).body.emailed, 0);
+  assert.equal((await db.prepare('SELECT COUNT(*) AS n FROM feedback_replies WHERE email IS NOT NULL OR text IS NOT NULL OR note IS NOT NULL').first()).n, 0, 'nothing about the player is kept once sent');
   await db.prepare('DELETE FROM feedback_replies').run();
 });
 

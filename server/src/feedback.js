@@ -6,9 +6,10 @@
 // Anonymous: nothing about the player or device is stored. Email addresses,
 // web addresses and long numbers are blanked before saving. The admin
 // dashboard lists them (admin.js) and the daily cleanup removes done ones.
-// With reply: true and a signed-in player's token, a thank-you email is
-// queued for the account's own confirmed address (replies.js), kept apart
-// from the message itself. With talk: true and a token, the player asks the
+// With reply: true and a signed-in player's token, a thank-you email quoting
+// the message is queued for the account's own confirmed address, and an
+// update email waits for the team to mark it addressed (replies.js); the
+// address is kept apart from the message itself. With talk: true and a token, the player asks the
 // team to answer in the game's Messages: only then is the row linked to the
 // account, through a new conversation (messages.js).
 import { json, readText, TooLarge } from './http.js';
@@ -57,7 +58,8 @@ async function postFeedback(req, env) {
   const row = await env.DB.prepare('INSERT INTO feedback (kind, topic, text, platform, version, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6) RETURNING id')
     .bind(kind, topic, text, platform, version, Date.now()).first();
   let reply = 'none';
-  try { reply = await queueReply(req, env, kind, body.reply === true); } catch (e) { console.error(e); reply = 'error'; }
+  let update = false;
+  try { ({ reply, update } = await queueReply(req, env, kind, body.reply === true, text, row.id)); } catch (e) { console.error(e); reply = 'error'; }
   let talk = 'none';
   if (body.talk === true) {
     const token = (req.headers.get('Authorization') || '').match(/^Bearer\s+(.+)$/)?.[1];
@@ -66,7 +68,7 @@ async function postFeedback(req, env) {
     if (!user) talk = 'signed_out';
     else { try { talk = await talkAboutFeedback(env, user, kind, text, row.id); } catch (e) { console.error(e); talk = 'error'; } }
   }
-  return json(req, env, { ok: true, reply, talk });
+  return json(req, env, { ok: true, reply, update, talk });
 }
 
 // Returns a Response for this module's routes, or null for anything else.

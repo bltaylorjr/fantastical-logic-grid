@@ -269,8 +269,8 @@ const TYPES_FOR = { viewer: ['error', 'email'], moderator: ['message', 'idea', '
 export const typesFor = (role) => (role === 'viewer' ? TYPES_FOR.viewer : TYPES_FOR.moderator);
 const PER_TYPE = 100;
 const like = (q) => `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
-const EMAIL_KINDS = { idea: 'Thank-you email for an idea', problem: 'Email about a problem report', message: 'Email: new message from the team' };
-const EMAIL_STATUS = { waiting: 'Waiting to be sent', sending: 'Being sent', sent: 'Sent', failed: 'Could not be sent', dropped: 'Not sent (emails were switched off)' };
+const EMAIL_KINDS = { idea: 'Thank-you email for an idea', problem: 'Email about a problem report', idea_update: 'Update email: idea addressed', problem_update: 'Update email: problem addressed', message: 'Email: new message from the team' };
+const EMAIL_STATUS = { held: 'Sent once the team marks it addressed', waiting: 'Waiting to be sent', sending: 'Being sent', sent: 'Sent', failed: 'Could not be sent', dropped: 'Not sent (emails were switched off, or it was closed without being addressed)' };
 
 // One list, newest first, of everything players sent or the game reported.
 // type: one of INBOX_TYPES; status: new (open, waiting), addressed (ideas, problems
@@ -322,7 +322,7 @@ export async function inbox(env, role, { type = 'all', status = 'new', q = '' } 
       items.push({ type: 'error', id: e.id, at: Date.parse(`${e.last}T23:59:59Z`), status: st, title: e.kind, text: e.message, meta: { count: e.count, place: e.place, platform: e.platform, version: e.version, first: e.first, last: e.last, fix: e.fix || null } });
     }
   }
-  // The email log: the notes themselves are fixed text, and addresses are never shown.
+  // The email log: only the kind and state, never the address or the player's words.
   if (has('email') && !search && status !== 'addressed') {
     const st = status === 'new' ? "status IN ('waiting', 'sending')" : status === 'done' ? "status IN ('sent', 'failed', 'dropped')" : '1 = 1';
     try {
