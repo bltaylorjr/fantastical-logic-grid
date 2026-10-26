@@ -40,6 +40,7 @@ jobs:
           node scripts/e2e-accounts.cjs
           node scripts/e2e-compete.cjs
           node scripts/e2e-challenge.cjs
+          node scripts/e2e-daily-results.cjs
           node scripts/e2e-errors.cjs
           node scripts/e2e-admin.cjs
           node scripts/e2e-archive.cjs

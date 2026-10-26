@@ -8,6 +8,7 @@
 //   POST /v1/picture                     AI pictures from Workers AI (pictures.js)
 //   GET /v1/config                       announcements, switched-off themes, features (settings.js)
 //   GET /v1/daily/plan                   daily puzzle changes for the website build (daily.js)
+//   /v1/daily/:date/(start|result|stats) everyone's numbers for a daily puzzle (daily-results.js)
 //   POST /v1/translate                   the game's text in another language (translate.js)
 //   POST /v1/m                           anonymous counts of visits from campaign links (marketing.js)
 //   /v1/challenges[/:code[/result]]       Challenge a friend links, no account (challenges.js)
@@ -25,6 +26,7 @@ import { handleErrors } from './errors.js';
 import { handleFeedback } from './feedback.js';
 import { handlePictures } from './pictures.js';
 import { handleDaily } from './daily.js';
+import { handleDailyResults } from './daily-results.js';
 import { handleTranslate } from './translate.js';
 import { handleAdmin } from './admin.js';
 import { handleMarketing } from './marketing.js';
@@ -75,6 +77,9 @@ async function route(req, env, ctx) {
 
   const picture = await handlePictures(req, env, ctx, url);
   if (picture) return picture;
+
+  const dailyResults = await handleDailyResults(req, env, url);
+  if (dailyResults) return dailyResults;
 
   const daily = await handleDaily(req, env, url);
   if (daily) return daily;
