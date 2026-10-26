@@ -284,6 +284,10 @@
     <p class="streak-line" id="solved-streak" hidden></p>
     <p class="streak-line" id="solved-daily-numbers" hidden></p>
     <div class="new-badges" id="solved-badges" hidden></div>
+    <div class="support-ask" id="support-ask" role="region" aria-label="Support the game" hidden>
+      <p id="support-ask-text"></p>
+      <div class="row-inline"><a class="btn primary" id="support-ask-go" href="#" target="_blank" rel="noopener">Support the game</a><button class="btn primary" type="button" id="support-ask-how" hidden>See how</button><button class="btn" type="button" id="support-ask-later">Maybe later</button><button class="btn quiet" type="button" id="support-ask-never">Don't ask again</button></div>
+    </div>
     <div class="row-inline share-row"><button class="btn" type="button" id="share-result"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.59 13.51 6.83 3.98"/><path d="m15.41 6.51-6.82 3.98"/></svg> Share my result</button><button class="btn" type="button" id="challenge-btn" hidden>Challenge a friend</button><span class="help" id="share-note" role="status"></span></div>
     <div class="compete-result" id="challenge-result" hidden></div>
     <div class="compete-result" id="compete-result" hidden></div>
@@ -398,6 +402,12 @@
   <p id="confirm-text"></p>
   <label class="check" id="confirm-check-row" hidden><input type="checkbox" id="confirm-check"> <span id="confirm-check-label"></span></label>
   <div class="dlg-actions"><button class="btn" type="button" id="confirm-no"></button><button class="btn primary" type="button" id="confirm-yes"></button></div>
+</dialog>
+
+<dialog id="dlg-supporters" aria-labelledby="supporters-h">
+  <h2 id="supporters-h">Supporters</h2>
+  <p id="supporters-text"></p>
+  <div class="dlg-actions"><button class="btn" type="button" id="supporters-close">Close</button><a class="btn primary" id="supporters-go" href="#" target="_blank" rel="noopener">Support the game</a></div>
 </dialog>
 
 <dialog id="dlg-stats" class="wide" aria-labelledby="stats-h">

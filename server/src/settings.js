@@ -130,6 +130,7 @@ export const SETTINGS = {
   // payments or locks any part of the game.
   support_link_enabled: { type: 'bool', default: false, group: 'Support and premium', label: 'Support the game link', help: 'On: the game\'s Menu shows "Support the game", which opens the page below in a new window. Needs a link below. Nothing in the game is locked either way.' },
   support_url: { type: 'url', default: '', group: 'Support and premium', label: 'Support page link', help: 'An https link to your tip, sponsor or membership page, such as a GitHub Sponsors, Ko-fi or Paddle page. Leave empty for none.' },
+  support_asks_enabled: { type: 'bool', default: false, group: 'Support and premium', label: 'Support asks in the game', help: 'On (with the Support the game link on): a short thank-you after a player\'s 3rd, 10th and 25th solved puzzle, a note at a 7- and 30-day daily streak, a Supporters window, one line on printed puzzles and one line in the daily puzzle email. At most one ask a week per player, never during a puzzle or a race, never after a revealed solution, and "Don\'t ask again" stops them for good. Off: none of these show.' },
   supporter_badges_enabled: { type: 'bool', default: false, group: 'Support and premium', label: 'Show supporter badges', help: 'On: Bronze, Silver, Gold and Platinum supporter badges show next to names on the scoreboard. Off: no badges anywhere, even for people already added under Supporters. Leave off until you launch.' },
   premium_extras_enabled: { type: 'bool', default: false, group: 'Support and premium', label: 'Supporter extras', help: 'On: the themes ticked below open only for premium supporters, and the Get extras link shows. Off: every theme is open to everyone and nothing about extras shows in the game, so you can set them up before you launch.' },
   premium_themes: { type: 'themes', default: [], group: 'Support and premium', label: 'Supporter extra themes', help: 'Themes only premium supporters can pick (bonus themes or early access). Everyone else sees them marked "Supporter extra". None ticked: nothing is locked. The daily puzzle, races and shared puzzles stay open to everyone.' },
@@ -244,6 +245,7 @@ export async function publicConfig(req, env) {
     game: { voiceSource: s.voice_source, readAloud: s.read_aloud, portraitStyle: s.portrait_style, confetti: s.confetti, aiPictures: s.ai_pictures,
       celebrations: CELEBRATIONS.filter((k) => s[k]), celebrateRandom: s.celebrate_random,
       supportUrl: s.support_link_enabled && s.support_url ? s.support_url : '',
+      supportAsks: !!(s.support_asks_enabled && s.support_link_enabled && s.support_url),
       premiumThemes: s.premium_extras_enabled ? s.premium_themes : [], extrasUrl: s.premium_extras_enabled ? s.extras_url : '' },
     // Starting values; a player's own choice wins.
     defaults: { sound: s.default_sound, volume: s.default_volume, music: s.default_music, musicVolume: s.default_music_volume },

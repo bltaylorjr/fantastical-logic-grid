@@ -109,11 +109,13 @@ export async function claimDailyEmail(env, day, limit, now = Date.now()) {
   const db = env.DB;
   const done = await db.prepare('SELECT COUNT(*) AS n FROM daily_email WHERE last_sent = ?1').bind(day).first();
   const n = Math.min(CLAIM_MAX, Math.max(1, Number(limit) || CLAIM_MAX), Math.max(0, s.daily_email_daily_cap - done.n));
-  if (!n) return { off: false, list: [] };
+  // The support line in the email footer, only once support asks are switched on.
+  const support = s.support_asks_enabled && s.support_link_enabled && s.support_url ? s.support_url : '';
+  if (!n) return { off: false, list: [], support };
   const { results } = await db.prepare('SELECT token, email FROM daily_email WHERE (last_sent IS NULL OR last_sent < ?1) AND created_at < ?2 ORDER BY created_at LIMIT ?3')
     .bind(day, now, n).all();
   if (results.length) await db.batch(results.map((r) => db.prepare('UPDATE daily_email SET last_sent = ?1 WHERE token = ?2').bind(day, r.token)));
-  return { off: false, list: results };
+  return { off: false, list: results, support };
 }
 
 // The sender says which addresses failed: they are tried again on the next

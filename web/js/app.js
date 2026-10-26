@@ -25,6 +25,7 @@ import { initAccounts, openAccount, onHome as accountsOnHome, signedIn } from '.
 import * as competeUi from './compete-ui.js';
 import * as remote from './remote-config.js';
 import * as perks from './perks.js';
+import * as support from './support.js';
 import { initPullRefresh } from './pull-refresh.js';
 import * as daily from './daily.js';
 import * as stats from './stats.js';
@@ -1216,6 +1217,7 @@ function showSolved(celebrate) {
   $('#next-tip').textContent = tip;
   renderFeedback(save);
   renderSolvedExtras(save);
+  $('#support-ask').hidden = true;
   $('#next-btn').textContent = next === tier ? `New ${TIERS[tier].name} puzzle` : `Try ${TIERS[next].name}`;
   $('#next-btn').onclick = () => {
     setup.tier = next;
@@ -1333,6 +1335,47 @@ async function renderSolvedExtras(save) {
     ? (st.current > 1 ? `Daily streak: ${st.current} days in a row. Come back tomorrow for the next one.` : 'Your daily streak has started. Come back tomorrow for the next puzzle.')
     : 'This daily puzzle was finished after its day, so it does not add to your streak.';
 }
+// A gentle support ask on the solved panel (support.js), right after a fresh
+// solve: never after a revealed answer or in a race, at most once a week.
+async function renderSupportAsk(save) {
+  const box = $('#support-ask');
+  box.hidden = true;
+  if (!support.on() || save.revealed || save.race) return;
+  const log = await stats.solveLog().catch(() => []);
+  if (!S || S.save !== save) return;
+  const solvedCount = log.filter((x) => !x.revealed).length;
+  let streak = 0;
+  if (save.daily) {
+    const st = daily.streak(log, save.daily);
+    if (st.days.has(save.daily)) streak = st.current;
+  }
+  const ask = support.pick({ solvedCount, streak, revealed: save.revealed, race: !!save.race });
+  if (!ask) return;
+  $('#support-ask-text').textContent = ask.text;
+  $('#support-ask-go').href = support.url();
+  $('#support-ask-go').hidden = ask.kind === 'streak';
+  $('#support-ask-how').hidden = ask.kind !== 'streak';
+  box.dataset.kind = ask.kind;
+  box.hidden = false;
+}
+const closeSupportAsk = () => { $('#support-ask').hidden = true; $('#next-btn').focus(); };
+$('#support-ask-go').onclick = () => { campaign.supportPressed(); $('#support-ask').hidden = true; };
+$('#support-ask-how').onclick = () => openSupporters();
+$('#support-ask-later').onclick = closeSupportAsk;
+$('#support-ask-never').onclick = () => {
+  support.neverAgain();
+  closeSupportAsk();
+  toast('Got it. The game will not ask again.');
+};
+// The Supporters window: where the money goes, and the Support page link.
+function openSupporters() {
+  $('#supporters-text').textContent = support.TEXT.page;
+  $('#supporters-go').href = support.url();
+  openDialog($('#dlg-supporters'), $('#supporters-close'));
+}
+$('#supporters-close').onclick = () => $('#dlg-supporters').close();
+$('#supporters-go').onclick = () => { campaign.supportPressed(); $('#dlg-supporters').close(); };
+
 // Everyone's numbers for this daily puzzle, under the streak.
 async function showDailyNumbers(save, sent) {
   // Wait for this solve to be counted (at most a few seconds), so it is in the numbers.
@@ -1945,7 +1988,7 @@ async function recordSolve(save) {
   const hist = await store.getMeta('history', []);
   hist.push({ tier: save.puzzle.difficulty.id, ms: save.elapsedMs, hints: save.hintsUsed, revealed: !!save.revealed, cells: (K * (K - 1) / 2) * N * N, at: Date.now() });
   await store.setMeta('history', hist.slice(-50));
-  if (S && S.save === save) { S.newBadges = fresh; renderSolvedExtras(save); }
+  if (S && S.save === save) { S.newBadges = fresh; renderSolvedExtras(save); renderSupportAsk(save); }
   if (fresh.length) {
     sound('section');
     toast(fresh.length === 1 ? `Badge earned: ${fresh[0].name}` : `${fresh.length} badges earned: ${fresh.map((b) => b.name).join(', ')}`, { label: 'My badges', run: openStats });
@@ -1998,6 +2041,7 @@ function printOptions() {
     paper: $('input[name=ppaper]:checked').value,
     marks: S.marks,
     myNotes: $('#p-mynotes').checked && !$('#p-notes-row').hidden ? S.save.myNotes : '',
+    supportLine: support.printLine(),
   };
 }
 $('#print-go').onclick = () => {
@@ -2125,7 +2169,12 @@ $('#app-menu').addEventListener('keydown', (e) => {
 });
 document.addEventListener('pointerdown', (e) => { if (!$('#app-menu').hidden && !e.target.closest('#app-menu, #menu-btn')) toggleMenu(false); });
 $('#app-menu').addEventListener('click', async (e) => {
-  if (e.target.closest('#support-link')) { toggleMenu(false); return; }
+  if (e.target.closest('#support-link')) {
+    toggleMenu(false);
+    // With support asks on, the menu opens the Supporters window first.
+    if (support.on()) { e.preventDefault(); openSupporters(); } else campaign.supportPressed();
+    return;
+  }
   const b = e.target.closest('button[data-cmd]');
   if (!b) return;
   toggleMenu(false);

@@ -6,7 +6,7 @@ const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 
 let h = null; // helpers from admin.js
 let data = null; // the last GET /admin/v1/marketing
-const EVENT_NAMES = { visit: 'Visits', play: 'First puzzles', solve: 'Solves', return: 'Came back within a week', install: 'Installs', download: 'Windows downloads' };
+const EVENT_NAMES = { visit: 'Visits', play: 'First puzzles', solve: 'Solves', return: 'Came back within a week', install: 'Installs', download: 'Windows downloads', support: 'Support presses' };
 const STATUS_BADGE = { draft: '', approved: 'warn', posted: 'ok', removed: 'bad', active: 'ok', paused: 'warn', ended: '' };
 const STATUS_NAMES = { draft: 'Draft', approved: 'Approved to post', posted: 'Posted', removed: 'Taken down', active: 'Running', paused: 'Paused', ended: 'Ended' };
 const MEDIUM_NAMES = { social: 'Social post', video: 'Video', forum: 'Forum', community: 'Community', directory: 'Directory', store: 'Store or game site', email: 'Email', referral: 'Link from a site', search: 'Search engine', print: 'Print', qr: 'QR code', other: 'Other' };
