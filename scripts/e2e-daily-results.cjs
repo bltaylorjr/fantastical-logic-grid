@@ -80,6 +80,18 @@ const APP = `http://localhost:${APP_PORT}`;
     await page.waitForTimeout(500);
     row = await db.prepare('SELECT SUM(n) AS n FROM daily_results WHERE day = ?1 AND bucket >= 0').bind(latest.date).first();
     assert(row.n === 5, 'opening the solved puzzle again does not count it twice');
+    // The daily email's link opens today's daily puzzle straight away.
+    const fresh = await browser.newContext({ viewport: { width: 1200, height: 900 }, serviceWorkers: 'block' });
+    await fresh.route('**/js/cloud-config.js', (r) => r.fulfill({ contentType: 'text/javascript', body: config }));
+    await fresh.addInitScript(() => localStorage.setItem('flg.settings', JSON.stringify({ introOffered: true, voiceProvider: 'device', silent: true, learn: false })));
+    const linked = await fresh.newPage();
+    linked.on('pageerror', (e) => errors.push(String(e)));
+    await linked.goto(`${APP}/?play=daily&utm_source=daily-email`);
+    await linked.waitForSelector('#screen-play:not([hidden])');
+    assert(await linked.evaluate((d) => window.__flg.state.save.daily === d, latest.date), 'a ?play=daily link opens today\'s daily puzzle');
+    assert(!/play=/.test(linked.url()), 'and the link is tidied from the address bar');
+    assert(await linked.evaluate(() => document.querySelector('#daily-email')?.hidden !== false), 'the email switch stays hidden without accounts');
+    await fresh.close();
     assert(!errors.length, `no page errors${errors.length ? `: ${errors.join(' | ')}` : ''}`);
   } finally {
     await browser.close();
