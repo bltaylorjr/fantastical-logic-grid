@@ -2,6 +2,7 @@
   "name": "fantastical-logic-grid-app",
   "version": "1.9.1",
   "private": true,
+  "license": "UNLICENSED",
   "description": "The Fantastical Logic Grid: browser (PWA) and desktop app.",
   "type": "module",
   "scripts": {
@@ -20,6 +21,7 @@
   "devDependencies": {
     "@fontsource/atkinson-hyperlegible": "^5.2.5",
     "@fontsource/cinzel": "^5.3.0",
-    "@tauri-apps/cli": "^2.12.4"
+    "@tauri-apps/cli": "^2.12.4",
+    "esbuild": "^0.28.2"
   }
 }
