@@ -47,8 +47,13 @@ export const KNOWN_NAMES = new Set([...FEMALE, ...MALE]);
 
 function hashOf(text) { let h = 7; for (const c of text) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h; }
 
+// The game's own characters (cast.js) say which they are; set for the open puzzle.
+let chosen = new Map();
+export function setChosenGenders(characters = []) { chosen = new Map(characters.map((c) => [c.name, c.gender])); }
+
 // 'f' or 'm', always the same for the same name.
 export function genderOf(name) {
+  if (chosen.has(String(name || '').trim())) return chosen.get(String(name).trim());
   const first = String(name || '').trim().split(/\s+/)[0];
   const cap = first.charAt(0).toUpperCase() + first.slice(1).toLowerCase();
   if (FEMALE.has(cap)) return 'f';

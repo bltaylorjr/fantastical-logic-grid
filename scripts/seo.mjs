@@ -122,6 +122,11 @@ export async function buildSeo({ root, site }) {
 
   // Inlined so the page paints without waiting for a stylesheet.
   const css = readFileSync(join(root, 'seo', 'site.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\s*\n\s*/g, '\n');
+  // Copyright and text-and-data-mining reservation (W3C TDMRep), shown on every page.
+  const year = Number(today.slice(0, 4));
+  const owner = 'Bobby Taylor';
+  const copyright = `© 2026${year > 2026 ? `–${year}` : ''} ${owner}. All rights reserved.`;
+  const tdmMeta = `<meta name="tdm-reservation" content="1">\n<meta name="tdm-policy" content="${url('terms/')}">`;
   const NAV = [['how-to-play/', 'How to play'], ['daily/', 'Daily puzzle'], ['themes/', 'Themes'], ['difficulty-levels/', 'Difficulty levels']];
   const page = ({ path, title, description, body, crumbs = [], schema = [], lastmod = updated, priority = 0.6, type, listed = true }) => {
     const file = path.endsWith('.html') ? path : `${path}index.html`;
@@ -138,6 +143,7 @@ export async function buildSeo({ root, site }) {
 <meta name="description" content="${esc(description)}">
 <meta name="robots" content="${listed ? 'index, follow, max-image-preview:large' : 'noindex'}">
 <meta name="theme-color" content="#5B3CC4">
+${tdmMeta}
 ${social({ title, description, path, type })}
 ${verification}
 <link rel="icon" href="${up}icons/icon.svg" type="image/svg+xml">
@@ -163,6 +169,7 @@ ${body(up)}
 <footer class="foot">
   <p><a href="${up}">Play ${name}</a> · free in your browser, offline-ready, and on Windows.</p>
   <p>${NAV.map(([p, n]) => `<a href="${up}${p}">${n}</a>`).join(' · ')}</p>
+  <p class="muted">${copyright} <a href="${up}terms/">Terms of use</a></p>
 </footer>
 </body>
 </html>
@@ -196,10 +203,12 @@ ${body(up)}
     playMode: ['SinglePlayer', 'MultiPlayer'], isAccessibleForFree: true, offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
     accessibilityFeature: ['highContrastDisplay', 'largePrint', 'captions', 'transcript', 'fullKeyboardControl', 'screenReaderSupport'],
     trailer: video,
+    copyrightHolder: { '@type': 'Person', name: owner }, copyrightYear: 2026,
   };
   const website = { '@context': 'https://schema.org', '@type': 'WebSite', name, url: url(''), description: appDescription };
   const head = `<meta name="description" content="${esc(appDescription)}">
 <meta name="robots" content="index, follow, max-image-preview:large">
+${tdmMeta}
 ${social({ title: `${name}: free story logic grid puzzles`, description: appDescription, path: '' })}
 ${verification}
 <script type="application/ld+json">${json(website)}</script>
@@ -394,6 +403,43 @@ ${puzzleBody(p, d, up)}
     });
   }
 
+  // ---------- terms of use ----------
+  page({
+    path: 'terms/', priority: 0.2,
+    title: `Terms of use | ${name}`,
+    description: `What you may and may not do with ${name}: play and print for personal or classroom use; no copying, scraping or AI training.`,
+    crumbs: [['terms/', 'Terms of use']],
+    body: (up) => `<h1>Terms of use</h1>
+<p class="lede">${name} is free to play. The game and everything in it belong to its owner. These terms say what you may do with it. By playing or using this website you agree to them.</p>
+<p class="muted">Last updated 26 October 2026.</p>
+<h2>Who owns it</h2>
+<p>${copyright} The game, its puzzle and story engine, storylines, topics, characters, text, pictures, music, sounds, videos, website and app code, and the name and logo "${name}" are protected by copyright and other laws. The code is visible on GitHub, but it is not open source: see the <a href="https://github.com/bltaylorjr/fantastical-logic-grid/blob/main/LICENSE">license</a>. A few free, open-source parts keep their own licenses (listed in <a href="${up}THIRD-PARTY-NOTICES.txt">third-party notices</a>).</p>
+<h2>What you may do</h2>
+<ul>
+<li>Play the game in your browser, the Windows app or an installed copy, as much as you like, for free.</li>
+<li>Print puzzles, including the answer key, for yourself, your family, or a classroom, club or library group you lead, as long as you do not charge for them and you keep the game's name on the page.</li>
+<li>Share your results with the game's Share button, link to any page, and quote a short part of a page with a link back.</li>
+<li>Write about, review, stream or make videos of yourself playing.</li>
+</ul>
+<h2>What you may not do</h2>
+<p>Unless you have written permission, you may not:</p>
+<ul>
+<li>Copy, republish, sell or give away the game's puzzles, storylines, characters, pictures, audio, video or code, in print or online, including in books, apps, websites or worksheets for sale.</li>
+<li>Host your own copy of the game or website, or make a changed version of it.</li>
+<li>Use bots, scrapers or other automated tools to collect puzzles, stories or other content, or to send many requests to the game's servers.</li>
+<li>Use any part of the game or website to train, fine-tune or test an AI or machine-learning model, or to build a dataset. Text and data mining is expressly reserved (this is the opt-out under Article 4 of the EU Directive 2019/790, also signaled in our <a href="${up}robots.txt">robots.txt</a> and <a href="${up}.well-known/tdmrep.json">tdmrep.json</a>).</li>
+<li>Get around the game's security, limits or sign-in, or take apart the apps except where the law allows it.</li>
+<li>Use the name "${name}", its logo or a name that could be confused with it for another game, app or service.</li>
+</ul>
+<h2>Accounts, screen names and races</h2>
+<p>Accounts are optional. Be kind: screen names, ideas and reports must not be rude, hateful or pretend to be someone else. We may remove a screen name, a score or an account that breaks these terms or cheats in races.</p>
+<h2>No guarantees</h2>
+<p>The game is provided as it is, without any warranty. We do our best to keep it working and your saves safe, but we are not responsible for lost progress or for any loss from using it, as far as the law allows.</p>
+<h2>Changes and contact</h2>
+<p>We may update these terms; the date above shows the latest version. To ask for permission, report a copy of the game, or ask a question, email <a href="mailto:fantasticallogicgrid@gmail.com">fantasticallogicgrid@gmail.com</a>.</p>
+${playBtn(up)}`,
+  });
+
   // ---------- 404, files, sitemap, robots, llms.txt, IndexNow ----------
   page({ path: '404.html', listed: false, title: `Page not found | ${name}`, description: 'This page does not exist.', body: (up) => `<h1>That page is not here</h1><p class="lede">The page may have moved. Try one of these.</p>${playBtn(up, 'Play a puzzle')}` });
   // 404.html is served at any depth, so its links must start at the site root.
@@ -407,7 +453,16 @@ ${puzzleBody(p, d, up)}
 ${pages.map((p) => `  <url><loc>${url(p.path)}</loc><lastmod>${p.lastmod}</lastmod><priority>${p.priority.toFixed(1)}</priority></url>`).join('\n')}
 </urlset>
 `);
-  writeFileSync(join(site, 'robots.txt'), `# ${name}: every page may be crawled, by search engines and AI assistants alike.
+  // Search engines and AI assistants that look things up for a person (and link
+  // back) may crawl everything. Crawlers that only gather training data may not:
+  // the content is copyrighted and text and data mining is reserved (terms/).
+  const trainingBots = ['GPTBot', 'Google-Extended', 'CCBot', 'ClaudeBot', 'anthropic-ai', 'Applebot-Extended', 'Bytespider', 'Meta-ExternalAgent', 'meta-externalagent', 'FacebookBot', 'cohere-ai', 'cohere-training-data-crawler', 'Diffbot', 'Omgilibot', 'Timpibot', 'ImagesiftBot', 'img2dataset', 'PanguBot', 'AI2Bot', 'Ai2Bot-Dolma', 'Amazonbot', 'Kangaroo Bot', 'webzio-extended', 'YouBot'];
+  writeFileSync(join(site, 'robots.txt'), `# ${name}: ${copyright}
+# Search engines and AI search assistants may crawl every page.
+# AI training crawlers may not; text and data mining is reserved: ${url('terms/')}
+${trainingBots.map((b) => `User-agent: ${b}`).join('\n')}
+Disallow: /
+
 User-agent: *
 Allow: /
 
@@ -428,6 +483,14 @@ Sitemap: ${url('sitemap.xml')}
 - [Daily puzzle](${url('daily/')}): a new free puzzle every day, with the answer key
 - [Themes](${url('themes/')})
 - [Difficulty levels](${url('difficulty-levels/')})
+- [Terms of use](${url('terms/')})
+
+## Use of this content
+
+${copyright} You may describe this game, answer questions about it and link to it. Do not copy its puzzles, stories or pictures, and do not use any of it to train AI models; text and data mining is reserved (${url('terms/')}).
 `);
+  // W3C TDM Reservation Protocol: text and data mining is reserved site-wide.
+  mkdirSync(join(site, '.well-known'), { recursive: true });
+  writeFileSync(join(site, '.well-known', 'tdmrep.json'), `${JSON.stringify([{ location: '/*', 'tdm-reservation': 1, 'tdm-policy': url('terms/') }], null, 2)}\n`);
   return { pages: pages.map((p) => url(p.path)), today };
 }
