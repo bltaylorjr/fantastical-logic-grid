@@ -1,0 +1,32 @@
+# Thank-you emails for the game's Ideas and Problems boxes: every 15 minutes
+# the notes signed-in players asked for are sent from the game's Gmail with a
+# no-reply sender name (scripts/feedback-replies.py). Same secrets as the
+# weekly archive email (server/ARCHIVE.md); without them each run just says
+# "not set up". Switch it off in the admin dashboard (Ideas and problems).
+# The repository is public, so this job prints only counts, never addresses.
+# Free: scheduled GitHub Actions on a public repo and Gmail cost nothing.
+name: Thank-you emails
+on:
+  schedule:
+    - cron: '4,19,34,49 * * * *'   # every 15 minutes (GitHub may start it a few minutes late)
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: feedback-replies
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: scripts/feedback-replies.py
+          sparse-checkout-cone-mode: false
+      - name: Send the waiting thank-you emails
+        env:
+          FLG_CLOUD_URL: ${{ vars.FLG_CLOUD_URL || 'https://flg-api.btay74.workers.dev' }}
+          FLG_ADMIN_TOKEN: ${{ secrets.FLG_ADMIN_TOKEN }}
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+        run: python3 -I scripts/feedback-replies.py

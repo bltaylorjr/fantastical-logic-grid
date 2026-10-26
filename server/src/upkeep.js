@@ -45,6 +45,7 @@ export async function runUpkeep(env, now = Date.now()) {
     announcements: db.prepare('DELETE FROM announcements WHERE ends_at IS NOT NULL AND ends_at < ?1').bind(now - 90 * DAY),
     feedback: db.prepare("DELETE FROM feedback WHERE status = 'done' AND done_at < ?1").bind(now - 180 * DAY),
     archive_log: db.prepare('DELETE FROM archive_log WHERE ran_at < ?1').bind(now - 365 * DAY),
+    feedback_replies: db.prepare('DELETE FROM feedback_replies WHERE created_at < ?1').bind(now - 30 * DAY),
     translations: db.prepare('DELETE FROM translations WHERE day < ?1').bind(isoDay(now - 180 * DAY)),
   };
   if ((await getSettings(env, now)).archive_email_enabled) {

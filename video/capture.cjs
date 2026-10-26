@@ -542,7 +542,9 @@ const CSS = `
     if (!(await p.$eval('[data-cmd=feedback]', (b) => b.hidden))) {
       await p.click('#menu-btn'); await p.click('[data-cmd=feedback]'); await p.waitForSelector('#dlg-feedback[open]'); await prep();
       await p.fill('#idea-text', 'A pirate ship lost in the fog, where the crew mixed up the treasure maps.');
-      await scene('feedback', ['Have an idea for a story, or found a problem?', 'Ideas and problems, in the menu, has a separate box for each, and they go straight to the game\'s team.']);
+      const replyOffered = await p.isVisible('#idea-form .fb-reply');
+      await scene('feedback', ['Have an idea for a story, or found a problem?', 'Ideas and problems, in the menu, has a separate box for each, and they go straight to the game\'s team.',
+        ...(replyOffered ? ['Signed in with a confirmed email? Leave the box ticked, and the game emails you a short thank-you note.'] : [])]);
       await p.keyboard.press('Escape');
     }
     card('outro', [["That's all you need: read the story, follow the clues, and mark your X's and O's.", "That's all you need. Read the story, follow the clues, and mark your exes and ohs."], 'Welcome to The Fantastical Logic Grid. Happy sleuthing!']);
