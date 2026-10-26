@@ -138,7 +138,7 @@ player can pick a topic or leave it on **Any**, which picks one at random.
 | Architectural Wonders | Model Wonders Fair (`models`), Famous Bridges (`bridges`), Skyscrapers (`skyscrapers`), Ancient Wonders (`ancient`), Castles and Palaces (`castles`) |
 | Music | Big Concert (`concert`), Battle of the Bands (`bands`), Music Lessons (`lessons`), Karaoke Night (`karaoke`) |
 | Nautical | Sailing Regatta (`regatta`), Lighthouse Keepers (`lighthouse`), Harbor Festival (`harbor`), Deep-Sea Fishing (`fishing`) |
-| Farm Life | Busy Farm Day (`farmday`), County Fair (`countyfair`), Apple Orchard (`orchard`), Horse Stable (`stable`), Farmers Market (`market`) |
+| Farm Life | Busy Farm Day (`farmday`), County Fair (`countyfair`), Apple Orchard (`orchard`), Farmers Market (`market`) |
 | Science | Science Fair (`sciencefair`), Dinosaur Dig (`dinosaurs`), Chemistry Lab (`lab`), Weather Watch (`weather`), Space Camp (`spacecamp`) |
 
 The first topic of most themes is its classic setting (Classic Whodunit, Spy

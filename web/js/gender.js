@@ -24,9 +24,10 @@ const FEMALE = new Set(`
   Lyra Odette Selena Tamsin Yara
   Greer Hattie Linnea Sloane Thea
   Mabel Josie Lottie Hedy Priya
+  Coralie Marina Nerissa Ondine Delphina Serena Muriel Oceane
 `.trim().split(/\s+/));
 const MALE = new Set(`
-  Amos Clem Otis Boone Ravi Sam
+  Amos Clem Otis Boone Ravi Sam Finnian
   Basil Dorian Felix Hugo Jasper
   Ace Blaze Cobra Falcon Ghost Hawk Jett
   Bruno Diego Finn Hector Jonah
