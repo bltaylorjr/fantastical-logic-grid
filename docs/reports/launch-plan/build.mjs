@@ -138,6 +138,62 @@ function funnel(s) {
   }).join('')}</svg>`;
 }
 
+// --- Money: costs, revenue and profit, November 2026 to October 2027 ---
+// Running costs follow the pricing report's model (docs/reports/pricing-model,
+// PR #91) so the two reports agree: $0 infrastructure below ~10k monthly
+// players, Workers Paid $5 past the free limits, domain $1.25 a month, build
+// tools $100 a month, art and music help from 10k players. Revenue uses that
+// report's $2.10 net a month per paying supporter (blend of $2.99 monthly,
+// $19.99 yearly and $4.99 Founder after Lemon Squeezy's 5% + 50c), and tips
+// through GitHub Sponsors (no fee).
+const MONTHS = ['Nov 2026', 'Dec 2026', 'Jan 2027', 'Feb 2027', 'Mar 2027', 'Apr 2027', 'May 2027', 'Jun 2027', 'Jul 2027', 'Aug 2027', 'Sep 2027', 'Oct 2027'];
+const NET = 2.10, GROSS = 2.60, TIP = 3.00;
+const MONEY = [
+  { name: 'Low', mau: [300, 500, 600, 700, 800, 900, 1000, 1100, 1200, 1300, 1400, 1500], tip: 0.002, paid: 0.01 },
+  { name: 'Expected', mau: [1000, 1600, 1900, 2200, 2500, 2900, 3300, 3700, 4100, 4500, 5000, 5500], tip: 0.003, paid: 0.015 },
+  { name: 'High', mau: [3000, 5000, 6000, 7000, 8000, 9000, 10500, 11500, 12500, 13500, 14500, 15500], tip: 0.004, paid: 0.02 },
+];
+function cloudflare(mau) { // same free-limit test as pricing-model/model.py
+  const dau = mau * 0.25;
+  return dau * 25 * 1.5 < 100000 && dau * 15 * 1.5 < 100000 && dau * 400 < 5e6 && mau * 15 / 1e6 < 0.5 ? 0 : 5;
+}
+for (const s of MONEY) {
+  let tierOn = false;
+  s.rows = s.mau.map((mau, i) => {
+    // Support link (tip jar) from December; Supporter tier and Founder unlock
+    // from the first month with 2,000+ players (the pricing report's trigger).
+    if (mau >= 2000 && i >= 2) tierOn = true;
+    const tippers = i >= 1 && !tierOn ? Math.round(mau * s.tip) : 0;
+    const supporters = tierOn ? Math.round(mau * s.paid) : 0;
+    const rev = { tips: tippers * TIP, supporters: supporters * GROSS };
+    const fees = supporters * (GROSS - NET);
+    const cost = { marketing: 0, domain: 1.25, hosting: cloudflare(mau), firebase: 0, email: 0, voices: 0, tools: 100, art: mau >= 10000 ? 100 : 0, fees };
+    const revenue = rev.tips + rev.supporters, costs = Object.values(cost).reduce((a, b) => a + b, 0);
+    return { month: MONTHS[i], mau, tippers, supporters, rev, revenue, cost, costs, profit: revenue - costs };
+  });
+  const sum = (f, from = 0, to = 12) => s.rows.slice(from, to).reduce((a, r) => a + f(r), 0);
+  s.sum = sum;
+  s.year = { revenue: sum((r) => r.revenue), costs: sum((r) => r.costs), profit: sum((r) => r.profit) };
+  s.camp = { revenue: sum((r) => r.revenue, 0, 2), costs: sum((r) => r.costs, 0, 2), profit: sum((r) => r.profit, 0, 2) };
+  s.firstProfit = s.rows.find((r) => r.profit > 0)?.month || 'Not within 12 months';
+  s.tierFrom = s.rows.find((r) => r.supporters > 0)?.month || 'Not within 12 months';
+}
+const money = (n, d = 0) => `${n < 0 ? '-' : ''}$${Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d })}`;
+const expM = MONEY[1];
+const breakEven = (share) => Math.ceil(101.25 / (share * NET) / 100) * 100;
+function profitChart() {
+  const w = 640, h = 210, left = 50, top = 12, bottom = 30, pw = w - left - 120, ph = h - top - bottom;
+  const all = MONEY.flatMap((s) => s.rows.map((r) => r.profit)); const lo = Math.min(...all, -120), hi = Math.max(...all, 50);
+  const y = (v) => top + (hi - v) / (hi - lo) * ph, x = (i) => left + i * (pw / 11);
+  const cols = [C.muted, C.a, C.c];
+  const ticks = [lo, 0, hi].map((v) => Math.round(v / 50) * 50);
+  const grid = [...new Set(ticks)].map((v) => `<line x1="${left}" x2="${left + pw}" y1="${y(v)}" y2="${y(v)}" stroke="${v === 0 ? C.ink : C.line}" stroke-width="${v === 0 ? 1 : 0.6}"/><text x="${left - 6}" y="${y(v) + 3}" text-anchor="end" font-size="9" fill="${C.muted}">${money(v)}</text>`).join('');
+  const lines = MONEY.map((s, k) => `<polyline fill="none" stroke="${cols[k]}" stroke-width="2" points="${s.rows.map((r, i) => `${x(i)},${y(r.profit)}`).join(' ')}"/>
+    <text x="${x(11) + 6}" y="${y(s.rows[11].profit) + 3}" font-size="10" fill="${cols[k]}" font-weight="600">${s.name} ${money(s.rows[11].profit)}</text>`).join('');
+  const xs = MONTHS.map((m, i) => i % 2 ? '' : `<text x="${x(i)}" y="${h - 12}" text-anchor="middle" font-size="9" fill="${C.muted}">${m.replace(' 20', " '")}</text>`).join('');
+  return `<svg viewBox="0 0 ${w} ${h}" width="100%" role="img" aria-label="Monthly profit by scenario">${grid}${lines}${xs}</svg>`;
+}
+
 const counts = {};
 for (const a of ads) counts[a.channel] = (counts[a.channel] || 0) + 1;
 const channelsUsed = Object.keys(counts).length;
@@ -226,7 +282,7 @@ code { font-family: 'Courier New', monospace; font-size: 8.6pt; background: ${C.
 <h2>Contents</h2>
 <ol class="toc">
   <li>Executive summary</li><li>Where the game stands</li><li>Who we are trying to reach</li><li>Goals and how we will know</li>
-  <li>Channel analysis</li><li>Schedule</li><li>Tracking and reports</li><li>Cost analysis</li><li>Risks and how we handle them</li>
+  <li>Channel analysis</li><li>Schedule</li><li>Tracking and reports</li><li>Costs, revenue and profit</li><li>Risks and how we handle them</li>
   <li>Decisions needed from you</li><li>Appendix A: all ${ads.length} ads, word for word</li><li>Appendix B: media library</li><li>Appendix C: account setup checklist</li>
 </ol>
 <h2 style="margin-top:22px">1. Executive summary</h2>
@@ -243,6 +299,7 @@ code { font-family: 'Courier New', monospace; font-size: 8.6pt; background: ${C.
   <li><b>Every link is tracked</b> with an anonymous campaign code. The admin Marketing section shows visits, puzzles started, puzzles solved and installs per channel, per ad and per day. No personal data, no cookies, no third-party trackers.</li>
   <li><b>Every ad opens a quick Easy puzzle</b> (<code>?play=now</code>), so a new visitor is playing in one tap.</li>
   <li><b>Expected result</b> (middle scenario): about ${exp.visits.toLocaleString('en-US')} visits, ${exp.starts.toLocaleString('en-US')} players starting a puzzle and ${exp.solves.toLocaleString('en-US')} solving one by December 31. The range is ${SCEN[0].visits.toLocaleString('en-US')} to ${SCEN[2].visits.toLocaleString('en-US')} visits (section 4).</li>
+  <li><b>Money:</b> the campaign itself costs $0. Running the game costs about $101 a month (mostly your build tools). The game earns nothing until a Support option is switched on. In the expected case it starts making a profit in ${expM.firstProfit}. Over 12 months that comes to a ${expM.year.profit < 0 ? 'loss' : 'profit'} of ${money(Math.abs(expM.year.profit))}: ${money(expM.year.revenue)} of revenue against ${money(expM.year.costs)} of costs (section 8).</li>
 </ul>
 <div class="callout"><b>What happens next:</b> you approve the ads (in the admin Marketing section or by replying in the project), create the free accounts (Appendix C, also emailed), and the first post goes out on Monday, November 2.</div>
 </section>
@@ -386,8 +443,9 @@ ${gantt()}
 </section>
 
 <section>
-<h2>8. Cost analysis</h2>
-<div class="callout ok"><b>Total planned spend: $0.</b> Every channel, account and tool in this plan is free. Nothing that costs money is used without your OK.</div>
+<h2>8. Costs, revenue and profit</h2>
+<h3>Campaign spending</h3>
+<div class="callout ok"><b>Total planned campaign spend: $0.</b> Every channel, account and tool in this plan is free. Nothing that costs money is used without your OK.</div>
 <table>
   <tr><th>Item</th><th class="n">Cost</th><th>Notes</th></tr>
   <tr><td>Social accounts (Facebook, Instagram, Threads, TikTok, YouTube, X, Bluesky, Mastodon, Pinterest, LinkedIn)</td><td class="n">$0</td><td>Free accounts and free business/creator modes</td></tr>
@@ -407,6 +465,81 @@ ${gantt()}
 </table>
 <h3>Your time</h3>
 <p>The real cost is time. About 3 to 4 hours in week 0 for accounts, about 30 minutes on each posting day, about 2 hours on each big launch day (replying to comments), and 30 minutes on Mondays for the review. Roughly 15 to 20 hours over the eight weeks.</p>
+</section>
+
+<section>
+<h2>8. Costs, revenue and profit (continued)</h2>
+<p>These figures cover the game as a whole, not just the ads, for November 2026 to October 2027. Running costs use the same model as the pricing report of October 26, so the two reports agree. Revenue assumes the Support options you are choosing between (pull requests 88 to 90) are switched on. Nothing is charged today.</p>
+<h3>Assumptions</h3>
+<table>
+  <tr><th style="width:34%">Item</th><th>Assumption</th><th style="width:22%">Source</th></tr>
+  <tr><td>Monthly players</td><td>Low ${MONEY[0].mau[1].toLocaleString('en-US')} in December, rising to ${MONEY[0].mau[11].toLocaleString('en-US')}. Expected ${expM.mau[1].toLocaleString('en-US')} rising to ${expM.mau[11].toLocaleString('en-US')}. High ${MONEY[2].mau[1].toLocaleString('en-US')} rising to ${MONEY[2].mau[11].toLocaleString('en-US')}.</td><td>Campaign scenarios (section 4), then steady growth from search, Pinterest and the daily email</td></tr>
+  <tr><td>Support link (tip jar)</td><td>Live from December. ${MONEY.map((s) => `${(s.tip * 100).toFixed(1)}%`).join(' / ')} of players tip about $3 a month. GitHub Sponsors takes no fee. Once the Supporter tier starts, tippers are counted among the supporters.</td><td>Pricing report: tip jars alone get under 0.5%</td></tr>
+  <tr><td>Supporter tier and Founder unlock</td><td>Switched on from the first month with 2,000 players. ${MONEY.map((s) => `${s.paid * 100}%`).join(' / ')} of players pay. A mix of $2.99 a month, $19.99 a year and the $4.99 Founder unlock comes to about $${GROSS.toFixed(2)} gross a month per supporter. That leaves $${NET.toFixed(2)} after Lemon Squeezy's 5% + 50c.</td><td>Pricing report: 1 to 3% of players pay for an optional tier</td></tr>
+  <tr><td>Running costs</td><td>Domain $1.25 a month. Build tools $100 a month. Hosting, database, sign-ins, email and voices are $0 on free plans below about 10,000 players. Past those limits: Cloudflare Workers Paid at $5 a month, and $100 a month for art and music help.</td><td>Pricing report cost model</td></tr>
+  <tr><td>Not counted</td><td>Your own time, income tax, and paid advertising (none planned)</td><td></td></tr>
+</table>
+
+<h3>Campaign period: November and December 2026</h3>
+<table>
+  <tr><th>Line</th>${MONEY.map((s) => `<th class="n">${s.name}</th>`).join('')}</tr>
+  <tr><td>Tips (Support link)</td>${MONEY.map((s) => `<td class="n">${money(s.sum((r) => r.rev.tips, 0, 2), 2)}</td>`).join('')}</tr>
+  <tr><td>Supporter tier and Founder unlock</td>${MONEY.map((s) => `<td class="n">${money(s.sum((r) => r.rev.supporters, 0, 2), 2)}</td>`).join('')}</tr>
+  <tr><td><b>Revenue</b></td>${MONEY.map((s) => `<td class="n"><b>${money(s.camp.revenue, 2)}</b></td>`).join('')}</tr>
+  <tr><td>Advertising and campaign tools</td>${MONEY.map(() => '<td class="n">$0.00</td>').join('')}</tr>
+  <tr><td>Domain (thelogicgrid.com)</td>${MONEY.map((s) => `<td class="n">${money(s.sum((r) => r.cost.domain, 0, 2), 2)}</td>`).join('')}</tr>
+  <tr><td>Hosting, database, sign-ins, email, voices</td>${MONEY.map((s) => `<td class="n">${money(s.sum((r) => r.cost.hosting + r.cost.firebase + r.cost.email + r.cost.voices, 0, 2), 2)}</td>`).join('')}</tr>
+  <tr><td>Build tools</td>${MONEY.map((s) => `<td class="n">${money(s.sum((r) => r.cost.tools, 0, 2), 2)}</td>`).join('')}</tr>
+  <tr><td><b>Costs</b></td>${MONEY.map((s) => `<td class="n"><b>${money(s.camp.costs, 2)}</b></td>`).join('')}</tr>
+  <tr><td><b>Profit (loss)</b></td>${MONEY.map((s) => `<td class="n"><b>${money(s.camp.profit, 2)}</b></td>`).join('')}</tr>
+</table>
+<p>The launch months run at a loss in every case. This is expected: the money options only pay once there are enough regular players.</p>
+
+<h3>Twelve months: November 2026 to October 2027</h3>
+<table>
+  <tr><th>Line</th>${MONEY.map((s) => `<th class="n">${s.name}</th>`).join('')}</tr>
+  <tr><td>Tips (Support link)</td>${MONEY.map((s) => `<td class="n">${money(s.sum((r) => r.rev.tips))}</td>`).join('')}</tr>
+  <tr><td>Supporter tier and Founder unlock (gross)</td>${MONEY.map((s) => `<td class="n">${money(s.sum((r) => r.rev.supporters))}</td>`).join('')}</tr>
+  <tr><td><b>Revenue</b></td>${MONEY.map((s) => `<td class="n"><b>${money(s.year.revenue)}</b></td>`).join('')}</tr>
+  <tr><td>Payment fees (Lemon Squeezy)</td>${MONEY.map((s) => `<td class="n">${money(s.sum((r) => r.cost.fees))}</td>`).join('')}</tr>
+  <tr><td>Advertising</td>${MONEY.map(() => '<td class="n">$0</td>').join('')}</tr>
+  <tr><td>Domain</td>${MONEY.map((s) => `<td class="n">${money(s.sum((r) => r.cost.domain))}</td>`).join('')}</tr>
+  <tr><td>Hosting and server (Cloudflare)</td>${MONEY.map((s) => `<td class="n">${money(s.sum((r) => r.cost.hosting))}</td>`).join('')}</tr>
+  <tr><td>Sign-ins, email, voices</td>${MONEY.map((s) => `<td class="n">${money(s.sum((r) => r.cost.firebase + r.cost.email + r.cost.voices))}</td>`).join('')}</tr>
+  <tr><td>Build tools</td>${MONEY.map((s) => `<td class="n">${money(s.sum((r) => r.cost.tools))}</td>`).join('')}</tr>
+  <tr><td>Art and music help</td>${MONEY.map((s) => `<td class="n">${money(s.sum((r) => r.cost.art))}</td>`).join('')}</tr>
+  <tr><td><b>Costs</b></td>${MONEY.map((s) => `<td class="n"><b>${money(s.year.costs)}</b></td>`).join('')}</tr>
+  <tr><td><b>Profit (loss)</b></td>${MONEY.map((s) => `<td class="n"><b>${money(s.year.profit)}</b></td>`).join('')}</tr>
+  <tr><td>Supporter tier starts</td>${MONEY.map((s) => `<td class="n">${s.tierFrom}</td>`).join('')}</tr>
+  <tr><td>First month in profit</td>${MONEY.map((s) => `<td class="n">${s.firstProfit}</td>`).join('')}</tr>
+  <tr><td>Profit in October 2027 (monthly)</td>${MONEY.map((s) => `<td class="n">${money(s.rows[11].profit)}</td>`).join('')}</tr>
+</table>
+<h3>Monthly profit by scenario</h3>
+${profitChart()}
+</section>
+
+<section>
+<h2>8. Costs, revenue and profit (continued)</h2>
+<h3>Expected scenario, month by month</h3>
+<table>
+  <tr><th>Month</th><th class="n">Players</th><th class="n">Tippers</th><th class="n">Supporters</th><th class="n">Revenue</th><th class="n">Fees</th><th class="n">Running costs</th><th class="n">Profit</th></tr>
+  ${expM.rows.map((r) => `<tr><td>${r.month}</td><td class="n">${r.mau.toLocaleString('en-US')}</td><td class="n">${r.tippers}</td><td class="n">${r.supporters}</td><td class="n">${money(r.revenue, 2)}</td><td class="n">${money(r.cost.fees, 2)}</td><td class="n">${money(r.costs - r.cost.fees, 2)}</td><td class="n"><b>${money(r.profit, 2)}</b></td></tr>`).join('')}
+</table>
+<h3>What it takes to break even</h3>
+<p>Monthly costs are about $101.25 until the free limits are passed at around 10,000 players. Each paying supporter leaves $${NET.toFixed(2)} a month, so about 49 supporters cover the costs. That is reached at these player numbers:</p>
+<table>
+  <tr><th>Share of players who pay</th><th class="n">1%</th><th class="n">1.5%</th><th class="n">2%</th><th class="n">3%</th></tr>
+  <tr><td>Monthly players needed to break even</td>${[0.01, 0.015, 0.02, 0.03].map((x) => `<td class="n">${breakEven(x).toLocaleString('en-US')}</td>`).join('')}</tr>
+</table>
+<h3>What this means</h3>
+<ul>
+  <li><b>The campaign costs nothing.</b> The only running costs are the domain and your build tools, about $1,215 a year, and they are paid whether or not the campaign runs.</li>
+  <li><b>No revenue until you switch on a Support option.</b> The money-option pull requests (88 to 90) are waiting for your pick. A tip jar alone will not cover costs at these sizes.</li>
+  <li><b>Profit depends on regular players, not visits.</b> The 7-day return pass mark (15%) matters more for money than any single launch day. The Supporter tier pays its way from about ${breakEven(0.015).toLocaleString('en-US')} monthly players at 1.5% paying.</li>
+  <li><b>No paid advertising yet.</b> At $2.10 a month per supporter, a paid player only pays back if the ad costs less than about $0.03 per visit (1.5% paying, 12 months). Free channels first, then test small boosts only where the numbers prove it.</li>
+  <li><b>These are planning figures, not a forecast.</b> From week 2 the dashboard has real player numbers. This table will be rebuilt from them at the one-month review on December 7.</li>
+</ul>
+<p class="small muted">Not tax or accounting advice. Revenue from sales is taxable income; Lemon Squeezy acts as the seller and handles sales tax.</p>
 </section>
 
 <section>
