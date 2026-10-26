@@ -99,6 +99,7 @@ export const SETTINGS = {
   races_enabled: { type: 'bool', default: true, group: 'Play', label: 'Races', help: 'Off: nobody can start, find or join a race. Players already in one can still finish.' },
   scores_enabled: { type: 'bool', default: true, group: 'Play', label: 'Solo scores', help: 'Off: solo solves stop counting for the scoreboard. Race points still count.' },
   names_enabled: { type: 'bool', default: true, group: 'Play', label: 'New and changed screen names', help: 'Off: players keep their names but cannot choose new ones.' },
+  names_need_approval: { type: 'bool', default: true, group: 'Play', label: 'New screen names wait for approval', help: 'On: other players see a name a player typed only after an admin approves it in Players or Screen names; until then it shows as "New player". Names from Suggest a name are approved automatically. The player always sees their own name. Off: names show straight away.' },
   challenges_enabled: { type: 'bool', default: true, group: 'Play', label: 'Challenge a friend links', help: 'After solving, players can share a link that opens the same puzzle for anyone, with their time to beat. No account needed. Off: no new links; links already shared still open.' },
   challenges_daily_cap: { type: 'int', min: 0, max: 5000, default: 500, group: 'Play', label: 'New challenge links a day', help: 'Keeps the database inside Cloudflare\'s free limits. Each link is kept for 60 days.' },
   daily_results_enabled: { type: 'bool', default: true, group: 'Play', label: 'Daily puzzle numbers for everyone', help: 'Shows how many played today\'s puzzle, how many solved it and the typical time, on the home screen and after solving. Only counts are kept. Off: the numbers are hidden.' },
@@ -226,7 +227,7 @@ export async function publicConfig(req, env) {
     announcements: await activeAnnouncements(env),
     disabledThemes: s.disabled_themes,
     features: {
-      races: s.races_enabled, scores: s.scores_enabled, names: s.names_enabled, voices: s.tts_enabled,
+      races: s.races_enabled, scores: s.scores_enabled, names: s.names_enabled, nameApproval: s.names_need_approval, voices: s.tts_enabled,
       storySharing: s.story_sharing_enabled, learning: s.learning_enabled, errorReports: s.error_reports_enabled,
       feedback: s.feedback_enabled, feedbackReplies: s.feedback_replies_enabled, soundEffects: s.sound_effects_enabled, music: s.theme_music_enabled, pictures: s.ai_pictures !== 'none',
       translate: s.translate_enabled, messages: s.messages_enabled, challenges: s.challenges_enabled, dailyResults: s.daily_results_enabled, dailyEmail: s.daily_email_enabled,

@@ -21,7 +21,7 @@
 //   POST /admin/v1/daily-email/claim   the day's daily puzzle email list, for the GitHub Action (owner, daily-email.js)
 //   POST /admin/v1/daily-email/done    which of those failed (tried again) or were refused (removed) (owner)
 //   GET  /admin/v1/names?status=       screen names to moderate; POST /admin/v1/names/:uid/approve
-//   GET  /admin/v1/players?q=&filter=  players with screen names; GET /admin/v1/players/:uid
+//   GET  /admin/v1/players?q=&filter=&sort=&dir=&page=&per=  every player, a page at a time; GET /admin/v1/players/:uid
 //   POST /admin/v1/players/:uid/(rename|ban|unban|reset-scores|delete)
 //   GET/POST /admin/v1/settings        feature switches and limits (settings.js)
 //   GET/POST /admin/v1/announcements   messages in the game; POST .../:id/(end|delete)
@@ -251,23 +251,68 @@ async function storage(env) {
 }
 
 // ------------------------------------------------------------- players
-async function findPlayers(env, url, now) {
-  const q = String(url.searchParams.get('q') || '').trim().slice(0, 128);
-  const filter = url.searchParams.get('filter') === 'banned' ? 'banned' : 'all';
-  const { results } = await env.DB.prepare(`SELECT p.user_id AS uid, p.screen_name AS name, p.created_at AS createdAt, p.updated_at AS updatedAt,
-      (SELECT COALESCE(SUM(points), 0) FROM scores s WHERE s.user_id = p.user_id) AS points,
-      (SELECT COUNT(*) FROM scores s WHERE s.user_id = p.user_id) AS solves,
-      (SELECT MAX(created_at) FROM scores s WHERE s.user_id = p.user_id) AS lastScore,
-      b.user_id IS NOT NULL AS banned, b.reason AS banReason, b.until AS banUntil
-    FROM players p LEFT JOIN bans b ON b.user_id = p.user_id AND (b.until IS NULL OR b.until > ?1)
-    WHERE (?2 = '' OR p.name_key LIKE ?3 OR p.user_id = ?2) AND (?4 = 'all' OR b.user_id IS NOT NULL)
-    ORDER BY p.updated_at DESC LIMIT 100`).bind(now, q, `%${nameKey(q)}%`, filter).all();
-  // A player id with no screen name (an account that only syncs) is still found.
-  if (!results.length && /^[\w-]{6,128}$/.test(q)) {
-    const acct = await env.DB.prepare('SELECT created_at FROM sync_users WHERE user_id = ?1').bind(q).first();
-    if (acct) return { players: [{ uid: q, name: null, createdAt: acct.created_at, points: 0, solves: 0 }] };
-  }
-  return { players: results };
+// Every player in one list, in sections: names that need approval, approved
+// names seen in the last 30 days, approved names not seen for longer, blocked
+// (banned) players, and accounts that only sync saves (no screen name yet).
+// Searchable, sortable and a page at a time. Viewers see names, dates and
+// counts only: no player ids, ban reasons or links.
+const INACTIVE_MS = 30 * DAY;
+const PLAYER_SORTS = {
+  seen: 'seen', name: 'name IS NULL, name_key', joined: 'joined', solves: 'solves', races: 'races', points: 'points',
+};
+const PLAYER_SECTIONS = ['pending', 'active', 'inactive', 'blocked', 'account'];
+const PAGE_SIZES = [25, 50, 100];
+const PLAYER_ROWS = `WITH ids AS (SELECT user_id FROM players UNION SELECT user_id FROM sync_users),
+  base AS (SELECT i.user_id AS uid, pl.screen_name AS name, pl.name_key,
+    CASE WHEN pl.created_at IS NULL THEN u.created_at WHEN u.created_at IS NULL THEN pl.created_at ELSE MIN(pl.created_at, u.created_at) END AS joined,
+    u.user_id IS NOT NULL AS synced,
+    (r.name_key IS NOT NULL AND r.name_key = pl.name_key) AS approved, r.reviewed_by AS approvedBy,
+    (SELECT COALESCE(SUM(points), 0) FROM scores s WHERE s.user_id = i.user_id) AS points,
+    (SELECT COUNT(*) FROM scores s WHERE s.user_id = i.user_id) AS solves,
+    (SELECT COUNT(*) FROM race_entries e WHERE e.user_id = i.user_id) AS races,
+    MAX(COALESCE(pl.updated_at, 0), COALESCE(u.created_at, 0),
+      COALESCE((SELECT MAX(updated_at) FROM sync_records x WHERE x.user_id = i.user_id), 0),
+      COALESCE((SELECT MAX(created_at) FROM scores s WHERE s.user_id = i.user_id), 0),
+      COALESCE((SELECT MAX(joined_at) FROM race_entries e WHERE e.user_id = i.user_id), 0)) AS seen,
+    b.user_id IS NOT NULL AS banned, b.reason AS banReason, b.until AS banUntil
+    FROM ids i LEFT JOIN players pl ON pl.user_id = i.user_id LEFT JOIN sync_users u ON u.user_id = i.user_id
+    LEFT JOIN name_reviews r ON r.user_id = i.user_id
+    LEFT JOIN bans b ON b.user_id = i.user_id AND (b.until IS NULL OR b.until > ?1)),
+  rows AS (SELECT *, CASE WHEN banned THEN 'blocked' WHEN name IS NULL THEN 'account' WHEN NOT approved THEN 'pending'
+    WHEN seen < ?1 - ${INACTIVE_MS} THEN 'inactive' ELSE 'active' END AS section FROM base)`;
+
+async function findPlayers(env, url, now, role = 'owner') {
+  const p = url.searchParams;
+  const q = String(p.get('q') || '').trim().slice(0, 128);
+  let filter = p.get('filter') === 'banned' ? 'blocked' : p.get('filter');
+  if (![...PLAYER_SECTIONS, 'named', 'all'].includes(filter)) filter = 'all';
+  const sort = PLAYER_SORTS[p.get('sort')] ? p.get('sort') : 'seen';
+  const dir = p.get('dir') === 'asc' || (!p.get('dir') && sort === 'name') ? 'ASC' : 'DESC';
+  const per = PAGE_SIZES.includes(Number(p.get('per'))) ? Number(p.get('per')) : 50;
+  const page = Math.min(Math.max(1, Math.floor(Number(p.get('page')) || 1)), 10_000);
+  const key = q ? nameKey(q) : '';
+  const order = PLAYER_SORTS[sort].split(', ').map((c) => (c.endsWith('IS NULL') ? c : `${c} ${dir}`)).join(', ');
+  const db = env.DB;
+  const [list, counts] = (await db.batch([
+    db.prepare(`${PLAYER_ROWS}
+      SELECT *, COUNT(*) OVER () AS total FROM rows
+      WHERE (?2 = '' OR (?3 != '' AND name_key LIKE ?4) OR uid = ?2 OR (length(?2) >= 6 AND uid LIKE ?5))
+        AND (?6 = 'all' OR section = ?6 OR (?6 = 'named' AND name IS NOT NULL))
+      ORDER BY ${order}, uid LIMIT ?7 OFFSET ?8`)
+      .bind(now, q, key, `%${key}%`, `${q.replace(/[%_]/g, '')}%`, filter, per, (page - 1) * per),
+    db.prepare(`${PLAYER_ROWS} SELECT section, COUNT(*) AS n FROM rows GROUP BY section`).bind(now),
+  ])).map((x) => x.results);
+  const total = list.length ? list[0].total : 0;
+  const full = ROLES[role] >= ROLES.moderator;
+  const sections = Object.fromEntries(PLAYER_SECTIONS.map((s) => [s, 0]));
+  for (const c of counts) sections[c.section] = c.n;
+  sections.all = PLAYER_SECTIONS.reduce((n, s) => n + sections[s], 0);
+  const players = list.map((x) => ({
+    ...(full ? { uid: x.uid, banReason: x.banReason, banUntil: x.banUntil, approvedBy: x.approvedBy } : {}),
+    name: x.name, section: x.section, joined: x.joined, seen: x.seen || null, synced: !!x.synced,
+    points: x.points, solves: x.solves, races: x.races, banned: !!x.banned, approved: !!x.approved,
+  }));
+  return { players, total, page, per, pages: Math.max(1, Math.ceil(total / per)), sort, dir: dir.toLowerCase(), filter, sections, ids: full };
 }
 
 async function playerDetail(env, uid, now) {
@@ -470,10 +515,11 @@ const ROUTES = [
     const p = await env.DB.prepare('SELECT name_key, screen_name FROM players WHERE user_id = ?1').bind(uid).first();
     if (!p) throw new Refusal(404, 'no_player', 'That player has no screen name.');
     await env.DB.prepare('INSERT OR REPLACE INTO name_reviews (user_id, name_key, reviewed_by, reviewed_at) VALUES (?1, ?2, ?3, ?4)').bind(uid, p.name_key, who.actor, now).run();
+    clearBoardCache();
     return { body: { ok: true }, target: uid, detail: { name: p.screen_name } };
   }],
 
-  ['GET', /^players$/, 'moderator', 'players.search', async ({ env, url, now }) => ({ body: await findPlayers(env, url, now), detail: { q: url.searchParams.get('q') || '' } })],
+  ['GET', /^players$/, 'viewer', 'players.search', async ({ env, url, now, who }) => ({ body: await findPlayers(env, url, now, who.role), detail: { q: url.searchParams.get('q') || '' } })],
   ['GET', /^players\/([\w-]{1,128})$/, 'moderator', 'players.view', async ({ env, params: [uid], now }) => ({ body: await playerDetail(env, uid, now), target: uid })],
   ['POST', /^players\/([\w-]{1,128})\/rename$/, 'moderator', 'players.rename', async ({ env, params: [uid], body, who, now }) => ({ target: uid, ...(await renamePlayer(env, uid, body, who, now)) })],
   ['POST', /^players\/([\w-]{1,128})\/ban$/, 'moderator', 'players.ban', async ({ env, params: [uid], body, who, now }) => {

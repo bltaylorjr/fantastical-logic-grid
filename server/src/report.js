@@ -192,12 +192,22 @@ export const CSV_KINDS = ['players', 'scores', 'feedback'];
 
 export async function csv(env, kind, now = Date.now()) {
   if (kind === 'players') {
-    const { results } = await env.DB.prepare(`SELECT p.user_id, p.screen_name, p.created_at, p.updated_at,
-        COALESCE(SUM(s.points), 0) AS points, COUNT(s.user_id) AS solves, MAX(s.created_at) AS last_score,
-        EXISTS (SELECT 1 FROM bans b WHERE b.user_id = p.user_id AND (b.until IS NULL OR b.until > ?1)) AS banned
-      FROM players p LEFT JOIN scores s ON s.user_id = p.user_id GROUP BY p.user_id ORDER BY points DESC LIMIT 50000`).bind(now).all();
-    return toCsv(['Player id', 'Screen name', 'Name since', 'Name changed', 'Points', 'Solves', 'Last score', 'Banned'],
-      results.map((x) => [x.user_id, x.screen_name, iso(x.created_at), iso(x.updated_at), x.points, x.solves, iso(x.last_score), x.banned ? 'yes' : 'no']));
+    // Everyone: screen names and accounts that only sync (no screen name yet).
+    const { results } = await env.DB.prepare(`WITH ids AS (SELECT user_id FROM players UNION SELECT user_id FROM sync_users)
+      SELECT i.user_id, p.screen_name, p.created_at, p.updated_at, u.created_at AS synced_since,
+        (SELECT COALESCE(SUM(points), 0) FROM scores s WHERE s.user_id = i.user_id) AS points,
+        (SELECT COUNT(*) FROM scores s WHERE s.user_id = i.user_id) AS solves,
+        (SELECT COUNT(*) FROM race_entries e WHERE e.user_id = i.user_id) AS races,
+        (SELECT MAX(created_at) FROM scores s WHERE s.user_id = i.user_id) AS last_score,
+        MAX(COALESCE(p.updated_at, 0), COALESCE(u.created_at, 0),
+          COALESCE((SELECT MAX(updated_at) FROM sync_records r WHERE r.user_id = i.user_id), 0),
+          COALESCE((SELECT MAX(created_at) FROM scores s WHERE s.user_id = i.user_id), 0),
+          COALESCE((SELECT MAX(joined_at) FROM race_entries e WHERE e.user_id = i.user_id), 0)) AS last_seen,
+        EXISTS (SELECT 1 FROM bans b WHERE b.user_id = i.user_id AND (b.until IS NULL OR b.until > ?1)) AS banned
+      FROM ids i LEFT JOIN players p ON p.user_id = i.user_id LEFT JOIN sync_users u ON u.user_id = i.user_id
+      ORDER BY p.screen_name IS NULL, points DESC LIMIT 50000`).bind(now).all();
+    return toCsv(['Player id', 'Screen name', 'Name since', 'Name changed', 'Synced account since', 'Last seen', 'Points', 'Solves', 'Races', 'Last score', 'Banned'],
+      results.map((x) => [x.user_id, x.screen_name || '', iso(x.created_at), iso(x.updated_at), iso(x.synced_since), iso(x.last_seen), x.points, x.solves, x.races, iso(x.last_score), x.banned ? 'yes' : 'no']));
   }
   if (kind === 'scores') {
     const { results } = await env.DB.prepare(`SELECT s.created_at, p.screen_name, s.kind, s.tier, s.cells, s.elapsed_ms, s.hints, s.checks, s.points
