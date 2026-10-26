@@ -10,12 +10,14 @@ import * as ai from './ai.js';
 import { portrait, characterFace } from './portraits.js';
 import * as characters from './characters.js';
 import { characterOf, narratorOf, lineOf } from './cast.js';
+import { profileOf, sayingOf } from './castbook.js';
 import * as wake from './wakelock.js';
 import * as updates from './updates.js';
 import { celebrate as celebrateSolve } from './effects.js';
 import { icon } from './icons.js';
 import * as learn from './learn.js';
 import * as feedbackBox from './feedback.js';
+import * as messages from './messages.js';
 import * as share from './share.js';
 import * as errorReports from './errors.js';
 import * as campaign from './campaign.js';
@@ -30,8 +32,10 @@ import * as stats from './stats.js';
 import { shareResult } from './share-result.js';
 import * as challenge from './challenge.js';
 import * as dailyResults from './daily-results.js';
+import * as dailyEmail from './daily-email.js';
+import { onChange as onAccountChange } from './account.js';
 import * as i18n from './i18n.js';
-import { CLOUD_URL } from './cloud-config.js';
+import { CLOUD, CLOUD_URL } from './cloud-config.js';
 
 errorReports.init();
 campaign.init();
@@ -45,6 +49,10 @@ const USED_STORY_LIMIT = 5000;
 const isDesktop = !!(window.__TAURI_INTERNALS__ || window.__TAURI__);
 // The claude.ai preview build cannot print or download files, so those controls are hidden there.
 const isPreview = !!document.querySelector('meta[name="flg-mode"][content="preview"]');
+// The copy uploaded to game sites such as itch.io (dist/portal): it runs inside
+// their frame, so it has no service worker or home-screen install, and the
+// menu links to the full website instead.
+const isPortal = !!document.querySelector('meta[name="flg-mode"][content="portal"]');
 
 let settings = store.loadSettings();
 let S = null; // the open game: { save, puzzle, ix, marks, grid, wrong, hint, ... }
@@ -465,12 +473,19 @@ async function startQuick() {
 }
 $('#quick-btn').onclick = startQuick;
 // ?play=now in a link (ads, the website) starts a quick puzzle straight away.
+// ?play=daily (the daily email) opens today's daily puzzle, or with &day= that day's.
 function handlePlayLink() {
   const url = new URL(location.href);
-  if (url.searchParams.get('play') !== 'now') return false;
+  const play = url.searchParams.get('play');
+  if (play !== 'now' && play !== 'daily') return false;
+  // A Hand-picked link names its day: ?play=daily&day=2026-11-03.
+  const day = /^\d{4}-\d{2}-\d{2}$/.test(url.searchParams.get('day') || '') ? url.searchParams.get('day') : null;
   url.searchParams.delete('play');
+  url.searchParams.delete('day');
   try { history.replaceState(history.state, '', url.pathname + url.search + url.hash); } catch (e) { /* framed preview */ }
-  startQuick();
+  if (play === 'daily' && daily.available() && !isPreview) {
+    (day ? Promise.resolve(day) : daily.latest().then((l) => l.date)).then((d) => openDaily(d)).catch(() => startQuick());
+  } else startQuick();
   return true;
 }
 
@@ -1035,9 +1050,14 @@ function hintLines(res, level) {
 function renderHint() {
   const { res, level } = S.hint;
   const box = $('#hintbox');
+  // The admin dashboard's storyteller offers the first nudge; otherwise one
+  // of the cast does, in their own way (castbook.js).
   const teller = level === 0 && res.kind !== 'done' ? narratorOf(S.puzzle) : null;
-  const said = teller && lineOf(teller, 'hint', S.save.hintsUsed);
-  const lines = (said ? `<p class="char-line"><b>${esc(teller.name)}:</b> “${esc(said)}”</p>` : '') + hintLines(res, level);
+  const names = S.ix.cats[0].items.map((i) => i.label);
+  const helper = level === 0 && res.kind !== 'done' && !settings.silent ? names[S.save.hintsUsed % names.length] : null;
+  const told = teller && lineOf(teller, 'hint', S.save.hintsUsed);
+  const [by, said] = told ? [teller.name, told] : helper ? [helper, lineOf(characterOf(S.puzzle, helper), 'hint', S.save.hintsUsed) || sayingOf(helper, 'hint', S.save.hintsUsed)] : [];
+  const lines = (said ? `<p class="char-line"><b>${esc(by)}:</b> “${esc(said)}”</p>` : '') + hintLines(res, level);
   const more = level < 2 ? `<button class="btn small" type="button" id="hint-more">${level === 0 ? 'Which cell?' : 'Explain why'}</button>` : '';
   const apply = level === 2 && res.kind !== 'done' ? `<button class="btn small" type="button" id="hint-apply">${res.kind === 'mistake' ? 'Fix it for me' : 'Mark it for me'}</button>` : '';
   box.innerHTML = `${lines}<div class="row">${more}${apply}<button class="btn quiet small" type="button" id="hint-close">Close hint</button></div>`;
@@ -1231,16 +1251,19 @@ function showSolved(celebrate) {
   const bg = S.sceneUrl ? `<img class="bg" src="${S.sceneUrl}" alt="">` : sceneSvg(S.puzzle, 5, { animate: false });
   const face = S.portraitUrls && S.portraitUrls[winner] ? `<img src="${S.portraitUrls[winner]}" alt="">` : winner ? portrait(S.puzzle, winner, { size: 120, style: settings.portraitStyle }) : '';
   // A character from the admin dashboard cheers in their own words: the
-  // winner if they are one, otherwise the one who told the story.
-  const cheer = [characterOf(S.puzzle, winner), narratorOf(S.puzzle)].find((c) => lineOf(c, 'solve'));
-  const cheerLine = cheer ? lineOf(cheer, 'solve', S.save.hintsUsed + S.puzzle.clues.length) : null;
+  // winner if they are one, otherwise the one who told the story. If neither
+  // has a cheer, the winner cheers in their personality's words (castbook.js).
+  const admin = [characterOf(S.puzzle, winner), narratorOf(S.puzzle)].find((c) => lineOf(c, 'solve'));
+  const plain = !admin && winner && !save.revealed && !settings.silent;
+  const cheer = admin || (plain ? { name: winner } : null);
+  const cheerLine = admin ? lineOf(admin, 'solve', S.save.hintsUsed + S.puzzle.clues.length) : plain ? sayingOf(winner, 'solve', save.hintsUsed + S.puzzle.clues.length) : null;
   res.innerHTML = `${bg}<div class="spot"></div>${winner ? `<div class="hero">${face}<b>${esc(winner)}</b></div>` : ''}${cheerLine ? `<p class="char-line cheer"><b>${esc(cheer.name)}:</b> “${esc(cheerLine)}”</p>` : ''}`;
   // The picture is hidden from screen readers, so the cheer is announced.
   if (celebrate && cheerLine && !settings.silent) setTimeout(() => announce(`${cheer.name} says: ${cheerLine}`), 800);
   if (celebrate && voiceOn()) {
     setTimeout(() => {
       if (!S || !S.save.solved) return;
-      const said = [...(cheerLine ? [{ who: cheer.id === S.puzzle.narrator ? 'narrator' : cheer.name, text: cheerLine }] : []), { who: 'narrator', text: S.puzzle.story.ending }];
+      const said = [...(cheerLine ? [{ who: cheer.id && cheer.id === S.puzzle.narrator ? 'narrator' : cheer.name, text: cheerLine }] : []), { who: 'narrator', text: S.puzzle.story.ending }];
       ai.speakLines(settings, S.puzzle, said, { volume: settings.volume / 100 });
     }, 1200);
   }
@@ -1317,12 +1340,13 @@ async function renderSolvedExtras(save) {
   const nums = $('#solved-daily-numbers');
   nums.hidden = true;
   // Counted once: the mark is saved before the time is sent.
+  let sent = null;
   if (save.daily && !save.dailySent) {
     save.dailySent = true;
     await flushSave({ manual: true });
-    dailyResults.finished(save.daily, save.elapsedMs, save.revealed);
+    sent = dailyResults.finished(save.daily, save.elapsedMs, save.revealed);
   }
-  if (save.daily) showDailyNumbers(save);
+  if (save.daily) showDailyNumbers(save, sent);
   if (!save.daily || save.revealed) return;
   const st = daily.streak(await stats.solveLog().catch(() => []), save.daily);
   if (!S || S.save !== save) return;
@@ -1332,7 +1356,9 @@ async function renderSolvedExtras(save) {
     : 'This daily puzzle was finished after its day, so it does not add to your streak.';
 }
 // Everyone's numbers for this daily puzzle, under the streak.
-async function showDailyNumbers(save) {
+async function showDailyNumbers(save, sent) {
+  // Wait for this solve to be counted (at most a few seconds), so it is in the numbers.
+  if (sent) await Promise.race([sent, new Promise((r) => setTimeout(r, 4000))]);
   const st = await dailyResults.statsFor(save.daily);
   if (!st || !st.started || !S || S.save !== save) return;
   const quicker = save.revealed ? null : dailyResults.quickerThan(st, save.elapsedMs);
@@ -1481,13 +1507,16 @@ async function renderDaily() {
     <p class="daily-meta"><span class="pill">${esc(daily.longDate(l.date))}</span> <span class="pill">${esc(l.difficultyName)}</span> <span class="pill">${esc(l.themeName)}</span> <span class="pill">${l.categories} × ${l.items}</span>${state ? ` <span class="pill">${esc(state)}</span>` : ''}</p>
     ${l.offline ? '<p class="help">Offline: showing the last daily puzzle this device saw.</p>' : ''}
     <p class="daily-numbers muted" id="daily-numbers" hidden></p>
-    <button class="btn primary" type="button" data-daily="${esc(l.date)}">${todays ? (todays.solved ? "Open today's puzzle" : "Continue today's puzzle") : "Play today's puzzle"}</button>`;
+    <button class="btn primary" type="button" data-daily="${esc(l.date)}">${todays ? (todays.solved ? "Open today's puzzle" : "Continue today's puzzle") : "Play today's puzzle"}</button>
+    <div class="daily-email" id="daily-email" hidden></div>`;
+  renderDailyEmail();
   if (!l.offline) dailyResults.statsFor(l.date).then((st) => {
     const el = $('#daily-numbers');
     if (!st || !el || dailyLatest !== l) return;
     el.textContent = dailyResults.summaryLine(st);
     el.hidden = !el.textContent;
   });
+  renderPicks(saves);
   const earlier = (l.days || []).filter((d) => d < l.date).slice(0, 7);
   $('#daily-earlier').hidden = !earlier.length;
   $('#daily-list').innerHTML = earlier.map((d) => {
@@ -1495,6 +1524,57 @@ async function renderDaily() {
     return `<li><button class="btn quiet small" type="button" data-daily="${esc(d)}">${esc(daily.longDate(d))}</button>${sv ? ` <span class="muted">${sv.solved ? (st.days.has(d) ? 'solved' : 'finished') : `${sv.percent || 0}% done`}</span>` : ''}</li>`;
   }).join('');
 }
+// Hand-picked: the best-rated daily puzzles and ones the team picked
+// (daily/picks.json from the website build). They never add to a streak.
+async function renderPicks(saves) {
+  const box = $('#daily-picks');
+  const list = await daily.picks();
+  box.hidden = !list.length;
+  if (!list.length) return;
+  $('#daily-picks-list').innerHTML = list.map((x) => {
+    const sv = saves.find((s) => s.daily === x.date);
+    const why = x.hand ? 'picked by the team' : `rated ${x.average} of 5`;
+    return `<li><button class="btn quiet small" type="button" data-daily="${esc(x.date)}">${esc(x.title)}</button> <span class="muted">${esc(x.difficultyName)} · ${esc(x.themeName)} · ${esc(why)}${sv ? (sv.solved ? ' · finished' : ` · ${sv.percent || 0}% done`) : ''}</span></li>`;
+  }).join('');
+}
+
+// The daily email switch under today's puzzle: signed-in players with a
+// confirmed email can get each day's puzzle in their inbox.
+async function renderDailyEmail() {
+  const box = $('#daily-email');
+  if (!box) return;
+  if (isPortal || !dailyEmail.available()) { box.hidden = true; return; }
+  if (!signedIn()) {
+    box.innerHTML = '<button class="btn quiet small" type="button" id="daily-email-signin">Get each day\'s puzzle by email</button> <span class="help">Free, with a sign-in.</span>';
+    box.hidden = false;
+    $('#daily-email-signin').onclick = () => openAccount();
+    return;
+  }
+  const st = await dailyEmail.status();
+  if (!st || !$('#daily-email')) { box.hidden = true; return; }
+  box.innerHTML = st.verified || st.on
+    ? `<label class="check"><input type="checkbox" id="daily-email-on"${st.on ? ' checked' : ''}> Email me each day's puzzle</label> <span class="help" id="daily-email-note" aria-live="polite"></span>`
+    : '<p class="help">To get each day\'s puzzle by email, first confirm your email address with the link we sent when you made your account.</p>';
+  box.hidden = false;
+  const cb = $('#daily-email-on');
+  if (!cb) return;
+  cb.onchange = async () => {
+    const note = $('#daily-email-note');
+    cb.disabled = true;
+    try {
+      const r = await dailyEmail.set(cb.checked);
+      cb.checked = r.on;
+      note.textContent = r.on ? 'Done. It arrives at about 7 am Eastern, with a one-click unsubscribe link.' : 'Done. No more daily emails.';
+    } catch (e) {
+      cb.checked = !cb.checked;
+      note.textContent = navigator.onLine === false ? 'You seem to be offline.' : e.message;
+    } finally {
+      cb.disabled = false;
+    }
+  };
+}
+onAccountChange(() => renderDailyEmail());
+
 $('#daily-section').addEventListener('click', (e) => {
   const b = e.target.closest('[data-daily]');
   if (b) openDaily(b.dataset.daily, b);
@@ -1648,9 +1728,16 @@ window.addEventListener('pagehide', () => flushSave());
 // ====================================================================
 // Multimedia: scene, cast, witness clues, section chimes, adaptive difficulty
 // ====================================================================
-const SAYINGS = ['I saw it with my own eyes:', 'I am sure of this much:', 'Here is what I noticed:', 'I remember it clearly:', 'You might want to write this down:', 'I was there, and', 'Between you and me,', 'I can tell you this:'];
-// The game's own characters say their own lines before a clue.
-const sayingFor = (who, n) => lineOf(characterOf(S.puzzle, who), 'clue', n) || SAYINGS[(n + who.length) % SAYINGS.length];
+// The admin dashboard's characters say their own lines before a clue; the
+// rest of the cast lead in by their personality (castbook.js).
+const sayingFor = (who, n) => lineOf(characterOf(S.puzzle, who), 'clue', n) || sayingOf(who, 'clue', n);
+// Who a character is, for their cast button and speech bubble.
+function aboutOf(name) {
+  const own = characterOf(S.puzzle, name);
+  if (own) return { label: 'Special guest', about: own.personality ? `${name}: ${own.personality}` : name };
+  const p = profileOf(name);
+  return { label: p.label, about: `${name} ${p.about}` };
+}
 
 // Each clue is told by one character, preferably one the clue is not about.
 function assignWitnesses(puzzle, ix) {
@@ -1679,7 +1766,8 @@ function renderMedia() {
   const names = S.ix.cats[0].items.map((i) => i.label);
   $('#cast-row').innerHTML = names.map((n) => {
     const count = Object.values(S.witness).filter((w) => w === n).length;
-    return `<button class="cast-btn" type="button" data-who="${esc(n)}" aria-pressed="false">${portrait(p, n, { style: settings.portraitStyle })}<span>${esc(n)}</span><small>${count} clue${count === 1 ? '' : 's'}</small></button>`;
+    const who = aboutOf(n);
+    return `<button class="cast-btn" type="button" data-who="${esc(n)}" aria-pressed="false" title="${esc(who.about)}">${portrait(p, n, { style: settings.portraitStyle })}<span>${esc(n)}</span><small class="trait">${esc(who.label)}</small><small>${count} clue${count === 1 ? '' : 's'}</small></button>`;
   }).join('');
   $('#bubble').hidden = true;
   S.sceneUrl = null;
@@ -1775,13 +1863,14 @@ $('#cast-row').addEventListener('click', (e) => {
   const clues = S.puzzle.clues.filter((c) => S.witness[c.number] === who);
   $$('#clue-list li.spot').forEach((li) => li.classList.remove('spot'));
   clues.forEach((c) => $(`#clue-list li[data-n="${c.number}"]`)?.classList.add('spot'));
-  $('#bubble').innerHTML = clues.length
+  const nothing = characterOf(S.puzzle, who) ? "I didn't see anything, I promise." : sayingOf(who, 'nothing', S.puzzle.clues.length);
+  $('#bubble').innerHTML = `<p class="about">${esc(aboutOf(who).about)}.</p>` + (clues.length
     ? clues.map((c) => `<p><span class="who">${esc(who)}:</span> “${esc(sayingFor(who, c.number))} ${esc(c.text)}” <span class="muted">(clue ${c.number})</span></p>`).join('')
-    : `<p><span class="who">${esc(who)}:</span> “I didn't see anything, I promise.”</p>`;
+    : `<p><span class="who">${esc(who)}:</span> “${esc(nothing)}”</p>`);
   $('#bubble').hidden = false;
   sound('whoosh');
   if (voiceOn()) {
-    const lines = clues.length ? clues.map((c) => `${sayingFor(who, c.number)} ${c.text}`).join(' ') : "I didn't see anything, I promise.";
+    const lines = clues.length ? clues.map((c) => `${sayingFor(who, c.number)} ${c.text}`).join(' ') : nothing;
     voiceWaitNote();
     ai.speak(settings, S.puzzle, who, lines, { volume: settings.volume / 100 });
   }
@@ -1934,6 +2023,7 @@ function applyFeatures() {
   $('[data-cmd=feedback]').hidden = !feedbackBox.available();
   $('[data-cmd=suggest]').hidden = !characters.suggestionsOpen();
   $('#feedback-idea').hidden = !feedbackBox.available();
+  messages.configChanged();
   const support = remote.supportUrl();
   $('#support-link').hidden = !support;
   if (support) $('#support-link').href = support;
@@ -2046,9 +2136,11 @@ $('#app-menu').addEventListener('click', async (e) => {
   else if (cmd === 'suggest') characters.openSuggest(openDialog, OPTIONS.themes.filter((t) => !remote.disabledThemes().has(t.id)));
   else if (cmd === 'daily') openTodaysDaily();
   else if (cmd === 'feedback') feedbackBox.open(openDialog);
+  else if (cmd === 'messages') messages.open();
   else if (cmd === 'account') openAccount();
   else if (cmd === 'board') competeUi.openBoard();
   else if (cmd === 'install') installApp();
+  else if (cmd === 'site') window.open(`${(CLOUD.siteUrl || 'https://thelogicgrid.com').replace(/\/+$/, '')}/?utm_source=portal&utm_medium=store&utm_campaign=portal`, '_blank', 'noopener');
 });
 $('#home-btn').onclick = () => goHome();
 $('#help-btn').onclick = () => openDialog($('#dlg-help'), $('#help-close'));
@@ -2168,7 +2260,8 @@ const isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' 
 const isAndroid = /Android/i.test(ua);
 const isStandalone = () => !!(window.matchMedia?.('(display-mode: standalone)').matches || window.matchMedia?.('(display-mode: window-controls-overlay)').matches || navigator.standalone);
 let installEvent = null;
-if (!isDesktop) $('[data-cmd=install]').hidden = false;
+if (!isDesktop && !isPortal) $('[data-cmd=install]').hidden = false;
+$('[data-cmd=site]').hidden = !isPortal;
 window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault();
   installEvent = e;
@@ -2225,7 +2318,7 @@ $('#install-phone-btn').onclick = async () => {
   if (choice.outcome === 'accepted') { $('#dlg-install').close(); toast('Installed. Open the game from its icon on your home screen, Start menu or dock.'); }
   else renderInstall();
 };
-if ('serviceWorker' in navigator && !isDesktop && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
+if ('serviceWorker' in navigator && !isDesktop && !isPortal && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
   watchWebUpdates();
 }
 
@@ -2302,6 +2395,7 @@ async function init() {
     onSavesChanged: () => { if (!$('#screen-home').hidden) renderSaved(); },
     onSettingsChanged: () => { settings = store.loadSettings(); applyColorTheme(); applyMode(); applyLanguage(); },
   }).catch(() => { /* accounts are optional */ });
+  messages.init({ openDialog, openAccount, announce });
   competeUi.initCompete({
     openDialog, toast, announce, confirmDialog, openAccount, fmtTime, makePuzzle, setupSummary, openRace, findRaceSave,
     openSave: (save) => openGame(save),

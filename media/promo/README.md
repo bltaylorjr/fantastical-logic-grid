@@ -44,7 +44,7 @@ folder. The Kokoro voice model (about 350 MB, Apache-2.0) downloads into
   scene has the lines the narrator says, a kicker and headline shown beside
   the footage, and the clip ranges to show. A line can be
   `['Caption text', 'Spoken text']` when the voice needs a different spelling
-  (for example `MENSA` is spoken as `Mensa` and the website as "the logic grid
+  (for example the website is spoken as "the logic grid
   dot com").
 - New feature to show: film it in `tools/capture.cjs` with `film('name', ...)`
   and add a scene that uses it.

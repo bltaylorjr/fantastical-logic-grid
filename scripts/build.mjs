@@ -51,6 +51,17 @@ for (const [field, value] of Object.entries(cloudEnv)) {
 const appVersion = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version;
 cloud = cloud.replace(/appVersion: '[^']*'/, `appVersion: ${JSON.stringify(appVersion)}`);
 writeFileSync(cloudFile, cloud);
+// Windows downloads come from the public site repository once the source is
+// private (FLG_SITE_REPO, docs/PRIVATE-REPO.md); players cannot reach releases
+// in a private repository.
+if (process.env.FLG_SITE_REPO) {
+  const repo = process.env.FLG_SITE_REPO.trim();
+  if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) throw new Error(`FLG_SITE_REPO must look like owner/name, not ${repo}`);
+  for (const f of [join(out, 'index.html'), join(out, 'js', 'app.js')]) {
+    const text = readFileSync(f, 'utf8');
+    writeFileSync(f, text.replaceAll('bltaylorjr/fantastical-logic-grid/releases', `${repo}/releases`));
+  }
+}
 
 // Minify the game's own scripts and styles (not vendor/, which keeps its
 // published files and licenses) so the shipped code is smaller and much
@@ -110,7 +121,7 @@ const files = [];
 const walk = (d) => { for (const n of readdirSync(d)) { const p = join(d, n); if (statSync(p).isDirectory()) walk(p); else files.push(relative(out, p).split('\\').join('/')); } };
 walk(out);
 // The Kokoro voice engine (about 28 MB) is cached when first used, not on install.
-const shell = ['./', ...files.filter((f) => f !== 'sw.js' && !f.endsWith('icon-1024.png') && !/^vendor\/(ort|kokoro)\//.test(f) && f !== 'kokoro-worker.js' && !f.startsWith('media/'))];
+const shell = ['./', ...files.filter((f) => f !== 'sw.js' && !f.endsWith('icon-1024.png') && !f.startsWith('icons/screens/') && !/^vendor\/(ort|kokoro)\//.test(f) && f !== 'kokoro-worker.js' && !f.startsWith('media/'))];
 const hash = createHash('sha256');
 for (const f of files.sort()) hash.update(f).update(readFileSync(join(out, f)));
 const version = hash.digest('hex').slice(0, 10);
@@ -132,6 +143,23 @@ html = head.replace('<title>The Fantastical Logic Grid</title>', '<title>The Fan
 writeFileSync(join(prev, 'index.html'), html);
 console.log('Built dist/preview for the claude.ai page.');
 
+// 4b. dist/portal: the copy to upload to game sites such as itch.io, which
+// show it inside their own frame. It is served from their domain, so letting
+// it be framed puts nothing of thelogicgrid.com at risk; the website keeps
+// its anti-framing. No service worker (game sites serve each version at its
+// own address) and no web-app manifest. Zip it with npm run build:portal.
+const portal = join(root, 'dist', 'portal');
+rmSync(portal, { recursive: true, force: true });
+cpSync(out, portal, { recursive: true });
+rmSync(join(portal, 'sw.js'));
+rmSync(join(portal, 'manifest.webmanifest'), { force: true });
+let portalHtml = readFileSync(join(portal, 'index.html'), 'utf8')
+  .replace(/<link rel="manifest"[^>]*>\s*/, '')
+  .replace('<title>The Fantastical Logic Grid</title>', '<title>The Fantastical Logic Grid</title>\n<meta name="flg-mode" content="portal">');
+if (!portalHtml.includes('content="portal"')) throw new Error('Could not mark the portal build');
+writeFileSync(join(portal, 'index.html'), portalHtml);
+console.log('Built dist/portal for game sites such as itch.io.');
+
 // 5. dist/site: the web build plus host settings files and a deploy guide,
 // ready to upload to any static host (see hosting/DEPLOY.md).
 const site = join(root, 'dist', 'site');
@@ -142,14 +170,17 @@ cpSync(join(root, 'hosting'), site, { recursive: true });
 // night, so the expiry date always stays a year ahead.
 mkdirSync(join(site, '.well-known'), { recursive: true });
 writeFileSync(join(site, '.well-known', 'security.txt'), [
-  'Contact: https://github.com/bltaylorjr/fantastical-logic-grid/security/advisories/new',
   'Contact: mailto:fantasticallogicgrid@gmail.com',
   `Expires: ${new Date(Date.now() + 365 * 24 * 3600_000).toISOString().slice(0, 19)}Z`,
   'Preferred-Languages: en',
   `Canonical: ${(process.env.FLG_SITE_URL || 'https://thelogicgrid.com').replace(/\/+$/, '')}/.well-known/security.txt`,
-  'Policy: https://github.com/bltaylorjr/fantastical-logic-grid/blob/main/SECURITY.md',
+  `Policy: ${(process.env.FLG_SITE_URL || 'https://thelogicgrid.com').replace(/\/+$/, '')}/security-policy.txt`,
   '',
 ].join('\n'));
+// The license and the security policy, readable on the site (the source
+// repository may be private).
+cpSync(join(root, 'LICENSE'), join(site, 'LICENSE.txt'));
+cpSync(join(root, 'SECURITY.md'), join(site, 'security-policy.txt'));
 // Search pages, daily puzzle, sitemap and search tags (website only).
 const seo = await buildSeo({ root, site });
 console.log(`Built dist/site for web hosting (${seo.pages.length} pages in the sitemap).`);

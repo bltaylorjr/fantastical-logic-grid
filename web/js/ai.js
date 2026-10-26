@@ -10,6 +10,7 @@
 import * as store from './store.js';
 import { CLOUD_URL } from './cloud-config.js';
 import { genderOf } from './gender.js';
+import { profileOf } from './castbook.js';
 import { feature } from './remote-config.js';
 import * as i18n from './i18n.js';
 import { characterOf, narratorOf } from './cast.js';
@@ -30,16 +31,22 @@ const THEME_SETTING = {
   parks: 'a grand national park with snowy peaks, pine forest and a lake',
   travel: 'a sunny tropical vacation spot with palm trees, a beach and a plane overhead',
   wonders: 'famous world landmarks at golden hour, towers, domes and bridges',
+  music: 'an outdoor concert stage at dusk with bright lights, instruments and a cheering crowd',
+  nautical: 'sailboats racing on a sparkling bay with a lighthouse, colorful flags and gulls',
+  farm: 'a sunny family farm with a red barn, a silo, green fields and animals in the pasture',
+  science: 'a bright science lab with bubbling beakers, a microscope and colorful experiments',
 };
 
 // The server adds the picture style; this says what to paint.
 export const picturesReady = (settings) => !!CLOUD_URL && feature('pictures') && settings.aiPictures !== 'none';
 
+// A clip spoken by a stand-in voice (blob.standIn) is not kept, so the
+// character's own voice is used once it has downloaded.
 async function cached(key, make) {
   const hit = await store.getMedia(key).catch(() => null);
   if (hit) return hit;
   if (pending.has(key)) return pending.get(key);
-  const p = make().then(async (blob) => { await store.putMedia(key, blob).catch(() => {}); pending.delete(key); return blob; }, (e) => { pending.delete(key); throw e; });
+  const p = make().then(async (blob) => { if (!blob.standIn) await store.putMedia(key, blob).catch(() => {}); pending.delete(key); return blob; }, (e) => { pending.delete(key); throw e; });
   pending.set(key, p);
   return p;
 }
@@ -75,8 +82,10 @@ export function portraitImage(settings, puzzle, name) {
   const setting = settingOf(puzzle);
   const role = (puzzle.cast && puzzle.cast.one) || 'character';
   const g = genderOf(name);
-  const prompt = `Head-and-shoulders portrait of a friendly ${g === 'f' ? 'woman' : 'man'}, a ${role} named ${name}, in ${setting}, looking at the viewer, plain softly lit background, centered, one person only.`;
-  return cached(`${puzzle.theme.id}|${(puzzle.topic && puzzle.topic.id) || ''}|${role}|${name}|${g}|portrait`, () => serverPicture(prompt, 'portrait'));
+  // The face shows their personality: a grumpy chef frowns, a cheerful one beams.
+  const who = profileOf(name);
+  const prompt = `Head-and-shoulders portrait of a ${who.label.toLowerCase()} ${g === 'f' ? 'woman' : 'man'} who ${who.about}, a ${role} named ${name}, in ${setting}, looking at the viewer, an expression that shows their personality, plain softly lit background, centered, one person only.`;
+  return cached(`${puzzle.theme.id}|${(puzzle.topic && puzzle.topic.id) || ''}|${role}|${name}|${g}|${who.personality}|portrait`, () => serverPicture(prompt, 'portrait'));
 }
 
 // An AI portrait painted for one of the game's own characters in the admin
@@ -98,16 +107,9 @@ let current = null;
 
 function hashOf(text) { let h = 7; for (const c of text) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h; }
 
-// Characters get a voice that matches their portrait: a woman's voice for
-// Clara, a man's for Hugo (see gender.js).
-function voiceFor(who, seed, female, male) {
-  const pool = genderOf(who) === 'f' ? female : male;
-  return pool[seed % pool.length];
-}
-
-// Google Gemini voices, spoken by the game's server.
-const GEMINI_F = ['Kore', 'Aoede', 'Leda', 'Zephyr', 'Callirrhoe'];
-const GEMINI_M = ['Puck', 'Fenrir', 'Orus', 'Enceladus', 'Iapetus', 'Umbriel'];
+// Each character has their own voice, chosen to suit their personality and
+// matching their portrait: a woman's voice for Clara, a man's for Hugo (see
+// castbook.js and gender.js).
 
 // Pick the most natural American English voice the computer has. Windows 11
 // and Edge include "Natural" voices such as Aria, Jenny, Guy and Ava.
@@ -138,11 +140,8 @@ function deviceVoice(seed, narrator, who = '') {
 
 // Free natural voices that run on this computer (Kokoro, Apache-2.0). The
 // model downloads once from Hugging Face (about 90 MB) and then works offline.
+// Each character's Kokoro voice and pace come from castbook.js.
 const KOKORO_NARRATOR = 'am_michael'; // American male
-// American English voices only, best rated first. Men's voices are fewer, so
-// each also has a slightly different pace to tell speakers apart.
-const KOKORO_F = ['af_heart', 'af_bella', 'af_nicole', 'af_aoede'];
-const KOKORO_M = ['am_fenrir', 'am_puck', 'am_michael:1.06', 'am_fenrir:0.95', 'am_puck:1.05'];
 let kWorker = null;
 let kSeq = 0;
 const kCalls = new Map();
@@ -185,9 +184,13 @@ export function kokoroDownload(onProgress) {
   }
   return kLoad;
 }
-async function kokoroTts(text, voice, speed = 1) {
-  const { wav } = await kokoro({ type: 'speak', text, voice, speed });
-  return new Blob([wav], { type: 'audio/wav' });
+// Voices that don't ship with the game download once; until then (or
+// offline) the stand-in voice speaks.
+async function kokoroTts(text, voice, speed = 1, standIn = voice) {
+  const { wav, voice: used } = await kokoro({ type: 'speak', text, voice, speed, standIn });
+  const blob = new Blob([wav], { type: 'audio/wav' });
+  if (used && used !== voice) blob.standIn = true;
+  return blob;
 }
 
 // What gets spoken: plain sentences only. Stage directions, bracketed notes,
@@ -203,10 +206,29 @@ export function cleanSpeech(text) {
     .replace(/\s+([.,!?;:])/g, '$1')
     .trim();
 }
+// Clock times as English words: '9:45 PM' -> 'nine forty-five PM', '10:00 PM'
+// -> 'ten PM'. Some voices (Kokoro among them) read '10:00' as 'ten zero zero'.
+// Other languages keep the digits, minus a ':00', since the words are English.
+const ONES = 'zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen'.split(' ');
+const TENS = { 2: 'twenty', 3: 'thirty', 4: 'forty', 5: 'fifty' };
+export function clockWords(h, m, ap) {
+  h = Number(h); m = Number(m);
+  let w = h < 20 ? ONES[h] : `twenty${h > 20 ? `-${ONES[h - 20]}` : ''}`;
+  if (m === 0) w += ap ? '' : h > 12 ? ' hundred' : " o'clock";
+  else if (m < 10) w += ` oh ${ONES[m]}`;
+  else if (m < 20) w += ` ${ONES[m]}`;
+  else w += ` ${TENS[Math.floor(m / 10)]}${m % 10 ? `-${ONES[m % 10]}` : ''}`;
+  return ap ? `${w} ${ap.toUpperCase()}M` : w;
+}
+const CLOCK = /\b([01]?\d|2[0-3]):([0-5]\d)(?:\s*([AaPp])(?:\.[Mm](?:\.(?!\s+[A-Z]|\s*$))?|[Mm]\b))?/g;
+function sayTimes(t) {
+  if (i18n.isEnglish()) return t.replace(CLOCK, (_, h, m, ap) => clockWords(h, m, ap));
+  return t.replace(/\b(\d{1,2}):00\s*([AP])\.?M\.?\b/g, '$1 $2M');
+}
+
 // Spoken forms for things voices tend to stumble on: times, ranges, symbols,
 // abbreviations and all-caps words. Punctuation is kept so voices pause there.
 const SPOKEN = [
-  [/\b(\d{1,2}):00\s*([AP])\.?M\.?\b/g, '$1 $2M'],
   [/\b([AP])\.M\.(?=\s+[A-Z]|\s*$)/g, '$1M.'],
   [/\b([AP])\.M\./g, '$1M'],
   [/(\d)\s*[-–]\s*(\d)/g, '$1 to $2'],
@@ -232,7 +254,7 @@ const SPOKEN = [
   [/\s{2,}/g, ' '],
 ];
 export function speechText(text) {
-  let t = cleanSpeech(text);
+  let t = sayTimes(cleanSpeech(text));
   for (const [re, to] of SPOKEN) t = t.replace(re, to);
   return t.trim();
 }
@@ -295,13 +317,12 @@ function voicePlan(settings, puzzle, who) {
   // so the device's own voice for that language reads instead.
   const other = !i18n.isEnglish();
   if (source === 'server' && !settings.noServerVoices && cloudVoicesReady()) {
-    const voice = narr ? 'Charon' : voiceFor(who, seed, GEMINI_F, GEMINI_M); // Charon: male, steady
+    const voice = narr ? 'Charon' : profileOf(who).voice.gemini; // Charon: male, steady
     return { seed, kind: 'cloud', gap: 80, key: `g2|${voice}`, make: (t) => cloudTts(t, voice) };
   }
   if (!other && (kokoroReady(settings) || kokoroLoading())) {
-    const [voice, pace] = (narr ? KOKORO_NARRATOR : voiceFor(who, seed, KOKORO_F, KOKORO_M)).split(':');
-    const speed = narr ? 0.94 : Number(pace || 1);
-    return { seed, kind: 'kokoro', gap: 220, key: `k2|${voice}|${speed}`, make: (t) => kokoroTts(t, voice, speed) };
+    const v = narr ? { kokoro: KOKORO_NARRATOR, pace: 0.94, standIn: KOKORO_NARRATOR } : profileOf(who).voice;
+    return { seed, kind: 'kokoro', gap: 220, key: `k3|${v.kokoro}|${v.pace}`, make: (t) => kokoroTts(t, v.kokoro, v.pace, v.standIn) };
   }
   return { seed, kind: 'device' };
 }
@@ -361,8 +382,9 @@ function speakDevice(text, seed, who, volume, token) {
       const u = new SpeechSynthesisUtterance(part);
       if (v) u.voice = v;
       u.lang = (v && v.lang) || i18n.speechTag();
-      u.rate = who === 'narrator' ? 0.92 : 0.97;
-      u.pitch = who === 'narrator' ? 1 : 0.94 + (seed % 5) * 0.03;
+      const own = who === 'narrator' ? null : profileOf(who).voice;
+      u.rate = own ? own.rate : 0.92;
+      u.pitch = own ? own.pitch : 1;
       u.volume = volume;
       if (i === parts.length - 1) u.onend = u.onerror = end;
       speechSynthesis.speak(u);
