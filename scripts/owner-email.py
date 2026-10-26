@@ -4,7 +4,10 @@ account. Run by .github/workflows/owner-email.yml:
 - on a push to main, once for each file added or changed under
   docs/owner-tasks/ (README.md is skipped), so any pull request that adds a
   task file emails it when it merges;
-- by hand (Run workflow) with a FILE path, or with a SUBJECT and BODY.
+- by hand (Run workflow) with a FILE path, or with a SUBJECT and BODY,
+  optionally with ATTACH (a PDF under docs/reports/) and a "to" address.
+  The address is read from the run's event file, not the environment, and
+  masked, so it never shows in the public log.
 
 The subject is the file's first "# " heading. The body goes out as plain text
 (the Markdown itself) and as simple HTML. The repository is public, so the log
@@ -13,6 +16,7 @@ Needs: GMAIL_USER, GMAIL_APP_PASSWORD; OWNER_TO (defaults to GMAIL_USER).
 Python standard library only.
 """
 import html
+import json
 import os
 import re
 import smtplib
@@ -24,6 +28,22 @@ GMAIL_USER = os.environ.get('GMAIL_USER', '').strip()
 GMAIL_PASSWORD = ''.join(os.environ.get('GMAIL_APP_PASSWORD', '').split())
 TO = os.environ.get('OWNER_TO', '').strip() or GMAIL_USER
 REPO = os.environ.get('GITHUB_REPOSITORY', 'bltaylorjr/fantastical-logic-grid')
+ATTACH = os.environ.get('ATTACH', '').strip()
+
+
+def input_to():
+    """The optional "to" input, read from the event file so it is never
+    printed with the step's environment."""
+    try:
+        with open(os.environ.get('GITHUB_EVENT_PATH', ''), encoding='utf-8') as f:
+            to = ((json.load(f).get('inputs') or {}).get('to') or '').strip()
+    except (OSError, ValueError):
+        return ''
+    if to:
+        print(f'::add-mask::{to}')
+        if not re.fullmatch(r'[^@\s,;<>]+@[^@\s,;<>]+\.[A-Za-z]{2,}', to):
+            fail('The "to" input is not one email address.')
+    return to
 
 
 def fail(message):
@@ -95,7 +115,7 @@ def to_html(markdown):
     return f'<!doctype html><html><head><meta charset="utf-8"><style>{style}</style></head><body>{"".join(parts)}</body></html>'
 
 
-def send(subject, markdown, source=''):
+def send(subject, markdown, source='', attach=''):
     msg = EmailMessage()
     msg['From'] = f'The Fantastical Logic Grid <{GMAIL_USER}>'
     msg['To'] = TO
@@ -104,6 +124,9 @@ def send(subject, markdown, source=''):
               f'\n\n---\nSent automatically from https://github.com/{REPO}')
     msg.set_content(markdown + footer)
     msg.add_alternative(to_html(markdown + footer), subtype='html')
+    if attach:
+        with open(attach, 'rb') as f:
+            msg.add_attachment(f.read(), maintype='application', subtype='pdf', filename=os.path.basename(attach))
     try:
         with smtplib.SMTP_SSL('smtp.gmail.com', 465, context=ssl.create_default_context(), timeout=120) as smtp:
             smtp.login(GMAIL_USER, GMAIL_PASSWORD)
@@ -124,6 +147,8 @@ def from_file(path):
 
 
 def main():
+    global TO
+    TO = input_to() or TO
     if not GMAIL_USER or not GMAIL_PASSWORD:
         fail('Missing the GMAIL_USER or GMAIL_APP_PASSWORD secret. See server/ARCHIVE.md.')
     files = [p for p in os.environ.get('FILES', '').split() if p]
@@ -139,8 +164,10 @@ def main():
         if not os.path.isfile(path):
             fail(f'{path} is not in the repository.')
         send(*from_file(path), source=path)
+    if ATTACH and (not re.fullmatch(r'docs/reports/[\w.-]+\.pdf', ATTACH) or not os.path.isfile(ATTACH)):
+        fail(f'{ATTACH} is not a PDF in docs/reports/.')
     if body:
-        send(subject or 'To do: a task for you', body.replace('\\n', '\n'))
+        send(subject or 'To do: a task for you', body.replace('\\n', '\n'), attach=ATTACH)
 
 
 if __name__ == '__main__':
