@@ -92,7 +92,7 @@ function card({ w, h, layout }) {
   if (layout === 'wide') {
     body = `<div class="wrap" style="align-items:center">
       <div class="col" style="flex: 0 0 44%">${brand}<h1>Logic puzzles with <em>a new story</em> every time</h1>
-        <ul><li>Six levels, Basic to MENSA</li><li>A new daily puzzle</li><li>Hints that teach</li><li>Print with an answer key</li></ul>
+        <ul><li>Six levels, Basic to Quantum Physicist</li><li>A new daily puzzle</li><li>Hints that teach</li><li>Print with an answer key</li></ul>
         <div><span class="cta">Play free</span> &nbsp; <span class="url">thelogicgrid.com</span></div></div>
       <div style="flex:1; position:relative; height: 100%">
         ${frame(shot('grid'), 'position:absolute; right:0; top:4%; width:88%; height:70%')}
@@ -105,7 +105,7 @@ function card({ w, h, layout }) {
   } else if (layout === 'tall') {
     body = `<div class="wrap" style="flex-direction:column">
       ${brand}<h1>Free printable <em>logic puzzles</em> with answer keys</h1>
-      <p class="sub">Pick a theme and a level, from beginner to MENSA. A brand-new story every time.</p>
+      <p class="sub">Pick a theme and a level, from beginner to Quantum Physicist. A brand-new story every time.</p>
       <div style="flex:1; position:relative">${frame(shot('grid'), 'position:absolute; left:0; right:0; top:0; height:58%')}${frame(shot('clues'), 'position:absolute; left:8%; right:8%; bottom:0; height:38%')}</div>
       <div style="display:flex; justify-content:space-between; align-items:center"><span class="cta">Make one free</span><span class="url">thelogicgrid.com</span></div></div>`;
   } else {

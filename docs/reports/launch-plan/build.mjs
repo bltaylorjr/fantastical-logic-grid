@@ -309,7 +309,7 @@ code { font-family: 'Courier New', monospace; font-size: 8.6pt; background: ${C.
 <h3>What we are launching</h3>
 <ul>
   <li>Free logic grid puzzles in the browser, plus a Windows app and an installable web app that works offline.</li>
-  <li>A new story, cast and clue wording for every puzzle, from 14 themes and six levels (Basic to MENSA). Every puzzle has exactly one answer, checked by a solver.</li>
+  <li>A new story, cast and clue wording for every puzzle, from 14 themes and six levels (Basic to Quantum Physicist). Every puzzle has exactly one answer, checked by a solver.</li>
   <li>A daily puzzle with streaks, races against other players and a scoreboard, Challenge a friend links, printing with answer keys, hints that explain the reasoning, read-aloud voices, more than 100 languages, keyboard and screen-reader play.</li>
 </ul>
 <h3>The market</h3>
@@ -334,7 +334,7 @@ code { font-family: 'Courier New', monospace; font-size: 8.6pt; background: ${C.
 <h2>3. Who we are trying to reach</h2>
 <table>
   <tr><th style="width:20%">Group</th><th>What they want</th><th>Message that fits</th><th style="width:22%">Where they are</th></tr>
-  <tr><td><b>Puzzle fans</b></td><td>Fair, hard puzzles; a steady supply</td><td>"Basic to MENSA, a new puzzle whenever you want, exactly one answer"</td><td>r/logicpuzzles, r/puzzles, Facebook puzzle groups</td></tr>
+  <tr><td><b>Puzzle fans</b></td><td>Fair, hard puzzles; a steady supply</td><td>"Basic to Quantum Physicist, a new puzzle whenever you want, exactly one answer"</td><td>r/logicpuzzles, r/puzzles, Facebook puzzle groups</td></tr>
   <tr><td><b>Casual brain-game players</b></td><td>Something short and pleasant each day</td><td>"A new daily puzzle with a little story"</td><td>Instagram, TikTok, Threads, Facebook, YouTube Shorts</td></tr>
   <tr><td><b>Teachers and parents</b></td><td>Free printables with answer keys</td><td>"Free printable logic puzzles with answer keys, any theme"</td><td>Pinterest, homeschool groups, LinkedIn</td></tr>
   <tr><td><b>Web and indie gamers</b></td><td>Something new and well made to try</td><td>"Logic puzzles with a story, free in the browser"</td><td>r/WebGames, r/playmygame, itch.io</td></tr>

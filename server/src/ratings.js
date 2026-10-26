@@ -213,8 +213,8 @@ export function findings(n) {
       if (high && g.solveRate >= 0.8) extra.push(`${pct(g.solveRate)} solved`);
       const [who, verb] = subject(dim, g);
       const text = `${who} ${verb} ${stars(g.avg)} stars from ${g.rated} ratings (all puzzles: ${stars(base)})${extra.length ? `; ${extra.join(', ')}` : ''}.`;
-      // The same games seen another way (Fantasy, MENSA and MENSA Fantasy
-      // when only MENSA Fantasy was played) are said once, the most exact way.
+      // The same games seen another way (Fantasy, Quantum Physicist and Quantum Physicist Fantasy
+      // when only Quantum Physicist Fantasy was played) are said once, the most exact way.
       const key = `${g.games}:${g.rated}:${g.avg}:${g.quitRate}`;
       if (seen.has(key)) continue;
       seen.add(key);

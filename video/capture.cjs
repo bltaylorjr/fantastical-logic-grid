@@ -275,7 +275,7 @@ const CSS = `
     // =================== Set up
     await p.check('input[name=tier][value=easy]', { force: true });
     await scrollTo('#tier-choices'); await hl('#tier-choices'); await point('input[name=tier][value=easy] + *');
-    await scene('tiers', ['Start on the New puzzle screen and pick a difficulty.', 'Basic and Easy are perfect for beginners.', ['MENSA is for true masterminds.', 'Mensa is for true masterminds.']]);
+    await scene('tiers', ['Start on the New puzzle screen and pick a difficulty.', 'Basic and Easy are perfect for beginners.', 'Quantum Physicist is for true masterminds.']);
     await clearFx();
     await scrollTo('#theme-choices'); await clickShown('input[name=theme][value=mystery] + *'); await hl('#theme-choices');
     await scene('themes', [['Next, choose a theme, like Mystery, Fantasy, Sci-Fi, Around Town, National Parks or Vacation Destinations.', 'Next, choose a theme, like Mystery, Fantasy, Sci Fi, Around Town, National Parks, or Vacation Destinations.'], 'Or pick Surprise me.']);
