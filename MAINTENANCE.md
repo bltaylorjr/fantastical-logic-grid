@@ -14,6 +14,7 @@ public repositories) and a Cloudflare Workers cron trigger (free plan allows 5).
 | Weekly live search check (sitemap, every page, canonical links, Lighthouse). Opens a `search-check` issue when something is wrong. See [SEO.md](SEO.md) | `.github/workflows/seo.yml` | Mondays |
 | Cleanup of data the game no longer needs, so the free D1 database never fills up | `server/src/upkeep.js` | daily at 03:17 UTC |
 | Weekly archive email: old rows zipped, emailed to the owner from Gmail, then removed (off until switched on). See [server/ARCHIVE.md](server/ARCHIVE.md) | `.github/workflows/archive-email.yml`, `server/src/archive.js` | Mondays at 05:07 UTC |
+| Owner task email: anything only the owner can do (DNS, secrets, switches) is emailed to fantasticallogicgrid@gmail.com. See [docs/owner-tasks/README.md](docs/owner-tasks/README.md) | `.github/workflows/owner-email.yml`, `docs/owner-tasks/` | when a task file reaches main |
 | Anonymous error reports from the apps (players can turn them off in Settings) | `web/js/errors.js`, `server/src/errors.js` | when an error happens |
 | Website publish | `.github/workflows/pages.yml` | each push to main |
 | Worker deploy and database migrations | Cloudflare Workers Builds | each push to main |
@@ -36,6 +37,10 @@ shorter ages: play summaries and the audit log after 90 days). See
 [server/ARCHIVE.md](server/ARCHIVE.md).
 
 ## One-time setup
+
+The current list of things waiting on the owner is in
+[docs/owner-tasks/](docs/owner-tasks/).
+
 
 1. **Turn on Dependabot alerts**: Settings > Code security > Dependabot alerts
    and Dependabot security updates. The weekly update PRs start on their own
