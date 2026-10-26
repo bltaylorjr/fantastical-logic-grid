@@ -7,8 +7,8 @@ const http = require('http');
 const path = require('path');
 const assert = (c, m) => { if (!c) { console.error(`FAIL: ${m}`); process.exitCode = 1; } else console.log(`ok  ${m}`); };
 
-const PORT = 8137;
-const EVIL = 8138;
+const PORT = 8171;
+const EVIL = 8172;
 const SITE = `http://localhost:${PORT}`;
 
 (async () => {
