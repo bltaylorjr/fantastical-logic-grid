@@ -16,8 +16,9 @@ migrations_dir = "migrations"
 # The Firebase project that owns player sign-in. Its ID tokens are checked here.
 FIREBASE_PROJECT_ID = "the-fantastical-logic-grid"
 # Pages and apps allowed to call this Worker: the website, GitHub Pages, the
-# Windows/macOS desktop app (Tauri), the Android app and the iPhone app.
-ALLOWED_ORIGINS = "https://thelogicgrid.com,https://www.thelogicgrid.com,https://bltaylorjr.github.io,http://tauri.localhost,https://tauri.localhost,tauri://localhost,https://appassets.androidplatform.net,app://localhost"
+# Windows/macOS desktop app (Tauri), the Android app, the iPhone app and the
+# copy on itch.io (html-classic.itch.zone and html.itch.zone, see docs/PORTALS.md).
+ALLOWED_ORIGINS = "https://thelogicgrid.com,https://www.thelogicgrid.com,https://bltaylorjr.github.io,http://tauri.localhost,https://tauri.localhost,tauri://localhost,https://appassets.androidplatform.net,app://localhost,https://html-classic.itch.zone,https://html.itch.zone"
 DAILY_TTS_CAP = "300"
 # The sender of the weekly archive email: an address on a domain that has
 # Cloudflare Email Routing switched on (ARCHIVE.md).

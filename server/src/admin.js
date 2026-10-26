@@ -19,6 +19,8 @@
 //                                     addressed tells a player who asked for a reply (followups.js)
 //   POST /admin/v1/replies/claim       thank-you emails waiting, for the GitHub Action to send (owner, replies.js)
 //   POST /admin/v1/replies/done        that Action says which went out; their addresses are removed (owner)
+//   POST /admin/v1/daily-email/claim   the day's daily puzzle email list, for the GitHub Action (owner, daily-email.js)
+//   POST /admin/v1/daily-email/done    which of those failed (tried again) or were refused (removed) (owner)
 //   GET  /admin/v1/names?status=       screen names to moderate; POST /admin/v1/names/:uid/approve
 //   GET  /admin/v1/players?q=&filter=  players with screen names; GET /admin/v1/players/:uid
 //   POST /admin/v1/players/:uid/(rename|ban|unban|reset-scores|delete)
@@ -60,14 +62,15 @@ import { refreshSearch, searchSnapshots, lastTry, REFRESH_GAP_MS } from './searc
 import { workshopOptions, addPart, draftParts } from './workshop.js';
 import { characterRoutes } from './characters.js';
 import { TOPICS as FEEDBACK_TOPICS } from './feedback.js';
-import { claimReplies, finishReplies, replyCounts } from './replies.js';
+import { claimReplies, finishReplies, replyCounts, releaseUpdate, dropUpdate, deleteReplyStatements } from './replies.js';
 import { inbox, INBOX_TYPES, conversationView, teamReply, setConversationStatus, startConversation, listNews, addNews, endNews, deleteNews, deleteMessageStatements, MessageRefusal } from './messages.js';
+import { claimDailyEmail, finishDailyEmail } from './daily-email.js';
 import { archiveStatus, runArchive, buildArchive, exportArchive, confirmArchive } from './archive.js';
 import { FREE_LIMITS, cloudflareUsage } from './usage.js';
 import { plannerView, checkPlan, savePlan, resetPlan } from './daily.js';
 import { quality, alerts, summary, csv, CSV_KINDS } from './report.js';
 import { withFixes, errorFile } from './errors.js';
-import { tellPlayer } from './followups.js';
+import { tellPlayer, updateNote } from './followups.js';
 import { ratingRoutes } from './ratings.js';
 import { marketingRoutes } from './marketing.js';
 
@@ -82,7 +85,7 @@ const SESSION_MAX_S = 12 * 3600;
 const DENIED_PER_DAY = 500; // refused requests written to the audit log, so a flood cannot fill it
 const ANALYTICS_CACHE_MS = 120_000;
 const TABLES = ['sync_users', 'sync_records', 'sync_deleted_users', 'players', 'scores', 'races', 'race_entries', 'race_invites', 'plays', 'parts', 'usage',
-  'app_errors', 'upkeep_log', 'admins', 'admin_audit', 'settings', 'announcements', 'bans', 'name_reviews', 'archive_log', 'feedback', 'feedback_replies', 'error_fixes', 'conversations', 'conversation_messages', 'message_contacts', 'news', 'search_snapshots', 'daily_plan', 'translations', 'rating_insights', 'campaigns', 'campaign_ads', 'marketing_media', 'campaign_stats'];
+  'app_errors', 'upkeep_log', 'admins', 'admin_audit', 'settings', 'announcements', 'bans', 'name_reviews', 'archive_log', 'feedback', 'feedback_replies', 'error_fixes', 'conversations', 'conversation_messages', 'message_contacts', 'news', 'search_snapshots', 'daily_plan', 'translations', 'rating_insights', 'campaigns', 'campaign_ads', 'marketing_media', 'campaign_stats', 'challenges', 'daily_results', 'daily_email'];
 const SECURITY_HEADERS = {
   'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; media-src 'self' blob:; connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
   'X-Content-Type-Options': 'nosniff',
@@ -412,9 +415,21 @@ const ROUTES = [
     const r = await finishReplies(env, body.sent, body.failed, now);
     return { body: r, detail: r };
   }],
+  // Called once a day by the daily email Action; addresses are never written to the audit log.
+  ['POST', /^daily-email\/claim$/, 'owner', 'daily-email.claim', async ({ env, body, now }) => {
+    const r = await claimDailyEmail(env, String(body.day || ''), body.limit, now);
+    if (r.error) throw new Refusal(400, r.error);
+    return { body: r, quiet: !r.list.length, detail: { claimed: r.list.length, off: !!r.off } };
+  }],
+  ['POST', /^daily-email\/done$/, 'owner', 'daily-email.done', async ({ env, body }) => {
+    const r = await finishDailyEmail(env, body.failed, body.refused);
+    return { body: r, detail: r };
+  }],
   ['POST', /^feedback\/(\d+)$/, 'moderator', 'feedback.update', async ({ env, params: [id], body, who, now }) => {
     let r;
+    let emailed = 0;
     let told;
+    let firstTime = false;
     if (body.status === 'delete') r = await env.DB.prepare('DELETE FROM feedback WHERE id = ?1').bind(Number(id)).run();
     else if (body.status === 'addressed') {
       const note = cleanNote(body.note);
@@ -423,13 +438,18 @@ const ROUTES = [
       if (fixedIn && !/^\d+(\.\d+){1,3}$/.test(fixedIn)) throw new Refusal(400, 'bad_version', 'Give a version like 1.7.2, or leave it empty.');
       const before = await env.DB.prepare('SELECT status FROM feedback WHERE id = ?1').bind(Number(id)).first();
       r = await env.DB.prepare("UPDATE feedback SET status = 'addressed', note = ?1, fixed_in = ?2, done_at = ?3 WHERE id = ?4").bind(note, fixedIn || null, now, Number(id)).run();
-      // The player hears about it once: the first time it is marked addressed.
-      if (r.meta.changes && before && before.status !== 'addressed') told = await tellPlayer(env, Number(id), who, teamReply, now);
+      firstTime = !!(r.meta.changes && before && before.status !== 'addressed');
     } else if (['new', 'done'].includes(body.status)) r = await env.DB.prepare('UPDATE feedback SET status = ?1, done_at = ?2, note = NULL, fixed_in = NULL WHERE id = ?3').bind(body.status, body.status === 'done' ? now : null, Number(id)).run();
     else throw new Refusal(400, 'bad_status');
     if (!r.meta.changes) throw new Refusal(404, 'gone', 'That message is gone.');
+    // A player who ticked "Email me an update" hears about it, with the note.
+    if (body.status === 'addressed') emailed = await releaseUpdate(env, id, updateNote(cleanNote(body.note), String(body.fixedIn || '').trim()));
+    else if (body.status !== 'new') await dropUpdate(env, id);
+    // A player who asked the team to reply hears about it in Messages, once:
+    // the first time it is marked addressed.
+    if (firstTime) told = await tellPlayer(env, Number(id), who, teamReply, emailed > 0, now);
     analyticsCache.clear();
-    return { body: { ok: true, ...(told ? { told } : {}) }, target: id, detail: { status: body.status, note: body.status === 'addressed' ? cleanNote(body.note) : undefined, told } };
+    return { body: { ok: true, emailed, ...(told ? { told } : {}) }, target: id, detail: { status: body.status, note: body.status === 'addressed' ? cleanNote(body.note) : undefined, told } };
   }],
 
   ['GET', /^names$/, 'moderator', 'names.view', async ({ env, url, now }) => {
@@ -484,6 +504,7 @@ const ROUTES = [
       env.DB.prepare('DELETE FROM sync_users WHERE user_id = ?1').bind(uid),
       ...deleteCompeteStatements(env, uid),
       ...deleteMessageStatements(env, uid),
+      ...(await deleteReplyStatements(env, uid)),
       env.DB.prepare('DELETE FROM name_reviews WHERE user_id = ?1').bind(uid),
       env.DB.prepare('INSERT OR REPLACE INTO sync_deleted_users (user_id, deleted_at) VALUES (?1, ?2)').bind(uid, now),
     ]);

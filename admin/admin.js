@@ -22,7 +22,7 @@ const TOKEN_URL = 'https://securetoken.googleapis.com/v1';
 const SESSION_KEY = 'flg-admin-session';
 const IDLE_MS = 30 * 60_000;
 const ROLES = { viewer: 1, moderator: 2, admin: 3, owner: 4 };
-const TIER_NAMES = { basic: 'Basic', easy: 'Easy', medium: 'Medium', hard: 'Hard', expert: 'Expert', mensa: 'MENSA' };
+const TIER_NAMES = { basic: 'Basic', easy: 'Easy', medium: 'Medium', hard: 'Hard', expert: 'Expert', mensa: 'Quantum Physicist' };
 
 let session = null; // { mode: 'firebase'|'token', key?, refreshToken?, idToken?, exp?, email? }
 let me = null; // { email, role }
@@ -559,17 +559,32 @@ $('#comm-list').onclick = async (e) => {
   const body = { status: b.dataset.status };
   if (body.status === 'addressed') {
     const reach = b.dataset.linked === '1'
-      ? `The player asked for a reply, so this note goes to their Messages${b.dataset.email === '1' ? ' and their email' : ''}, after "Good news: we've addressed what you sent. What we did:".`
-      : 'This message is anonymous, so the note is only kept here.';
-    const v = await ask({ title: 'Mark addressed', text: `Say in plain words what was done. ${reach}`, ok: 'Mark addressed',
-      fields: [{ name: 'note', label: 'What was done', type: 'textarea' }, { name: 'fixedIn', label: 'Fixed in version (optional)', value: '', help: 'Like 1.7.2.' }],
-      check: (x) => (!x.note.trim() ? 'Write a short note.' : x.fixedIn.trim() && !/^\d+(\.\d+){1,3}$/.test(x.fixedIn.trim()) ? 'Give a version like 1.7.2, or leave it empty.' : '') });
+      ? `The player asked the team to reply, so this note also goes to their Messages, after "Good news: we've addressed what you sent. What we did:".`
+      : '';
+    const mail = b.dataset.email === '1' ? ' The player ticked "Email me an update", so they get this note by email, with what they wrote.' : '';
+    const v = await ask({ title: 'Mark addressed', text: `Say what was done in plain, everyday words a player would understand, like "Fixed: the grid no longer scrolls twice on tablets."${mail} ${reach}`.trim(), ok: 'Mark addressed',
+      fields: [{ name: 'note', label: 'What was done (plain words for the player)', type: 'textarea' }, { name: 'fixedIn', label: 'Fixed in version (optional)', value: '', help: 'Like 1.7.2.' }],
+      check: (x) => (!x.note.trim() ? 'Write a short note.' : x.fixedIn.trim() && !/^\d+(\.\d+){1,3}$/.test(x.fixedIn.trim()) ? 'Give a version like 1.7.2, or leave it empty.' : plainWords(x.note)) });
     if (!v) return;
     body.note = v.note;
     if (v.fixedIn.trim()) body.fixedIn = v.fixedIn.trim();
   }
-  if (await act(b, () => api(`feedback/${b.dataset.fb}`, { method: 'POST', body }), words[b.dataset.status])) show('communication', { keepFocus: true });
+  let emailed = 0;
+  let told = '';
+  if (await act(b, async () => { ({ emailed = 0, told = '' } = (await api(`feedback/${b.dataset.fb}`, { method: 'POST', body })) || {}); }, '')) {
+    const done = words[b.dataset.status] + (emailed ? ' The player gets an email update with your note.' : '') + (told === 'sent' ? ' Your note is in their Messages.' : '');
+    toast(done);
+    announce(done);
+    show('communication', { keepFocus: true });
+  }
 };
+// The "What was done" note can go to the player by email, so it should read
+// in everyday words: this catches the usual technical giveaways.
+const TECH_WORDS = /\b[\w-]+\.(?:js|mjs|cjs|css|html|py|json|sql|yml)\b|\bPR\s*#?\d+|\b(?:commit|merged?|refactor(?:ed)?|regex|CSS|DOM|API|endpoint|null|undefined|stack trace|exception|D1|Worker|CI|repo|branch|viewport|z-index|async|callback|deploy(?:ed)?)\b/i;
+function plainWords(note) {
+  const m = note.match(TECH_WORDS);
+  return m ? `"${m[0]}" is a technical word. Say what changed for the player in everyday words instead.` : '';
+}
 $('#comm-thread').onclick = async (e) => {
   const b = e.target.closest('button[data-thread]');
   if (!b) return;
@@ -777,10 +792,12 @@ views.settings = async () => {
     if (s.type === 'model') return `<div class="row"><div class="field">${label}<input id="set-${s.key}" type="text" value="${esc(s.value)}" autocomplete="off" spellcheck="false"${dis}></div>${save}</div>`;
     if (s.type === 'url') return `<div class="row"><div class="field">${label}<input id="set-${s.key}" type="url" value="${esc(s.value)}" placeholder="https://" autocomplete="off" spellcheck="false"${dis}></div>${save}</div>`;
     if (s.type === 'themes') return `${editable ? `<button class="btn small" data-save="${s.key}">Save themes</button>` : ''}`;
+    if (s.type === 'days') return `${editable ? `<button class="btn small" data-save="${s.key}">Save dates</button>` : ''}`;
     return `${editable ? `<button class="btn small" data-save="${s.key}">Save words</button>` : ''}`;
   };
   const extra = (s) => {
     if (s.type === 'themes') return `<fieldset class="themes"><legend class="sr-only">${esc(s.label)}</legend>${d.themes.map((t) => `<label class="check"><input type="checkbox" name="theme-off" value="${esc(t.id)}"${s.value.includes(t.id) ? ' checked' : ''}${editable ? '' : ' disabled'}> ${esc(t.name)} off</label>`).join('')}</fieldset>`;
+    if (s.type === 'days') return `<div class="field words"><label for="set-${s.key}">One date per line, like 2026-11-03</label><textarea id="set-${s.key}" rows="4"${editable ? '' : ' disabled'}>${esc(s.value.join('\n'))}</textarea></div>`;
     if (s.type === 'words') return `<div class="field words"><label for="set-${s.key}">One word per line</label><textarea id="set-${s.key}" rows="4"${editable ? '' : ' disabled'}>${esc(s.value.join('\n'))}</textarea></div>`;
     return '';
   };
@@ -808,7 +825,7 @@ $('#settings-body').onclick = (e) => {
   if (!b) return;
   const key = b.dataset.save;
   if (key === 'disabled_themes') saveSettingValue(key, $$('input[name=theme-off]:checked').map((x) => x.value), b);
-  else if (key === 'blocked_words') saveSettingValue(key, $(`#set-${key}`).value.split(/[\s,]+/).filter(Boolean), b);
+  else if (key === 'blocked_words' || key === 'hand_picked_days') saveSettingValue(key, $(`#set-${key}`).value.split(/[\s,]+/).filter(Boolean), b);
   else if ($(`#set-${key}`).type === 'number') saveSettingValue(key, Number($(`#set-${key}`).value), b);
   else saveSettingValue(key, $(`#set-${key}`).value.trim(), b);
 };
@@ -1230,7 +1247,7 @@ else $('#login').hidden = false;
 // it from Safari's Share menu (steps on the sign-in page).
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/admin/sw.js', { scope: '/admin/' }).catch(() => {});
 let installPrompt = null;
-window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installPrompt = e; $('#install').hidden = false; });
+window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); if (window.__FLG_ADMIN_DESKTOP__) return; installPrompt = e; $('#install').hidden = false; });
 window.addEventListener('appinstalled', () => { installPrompt = null; $('#install').hidden = true; toast('Installed. Open Grid Admin from your home screen or apps.'); });
 $('#install').onclick = async () => {
   if (!installPrompt) return;
@@ -1239,4 +1256,8 @@ $('#install').onclick = async () => {
   installPrompt = null;
   $('#install').hidden = true;
 };
-if (matchMedia('(display-mode: standalone)').matches || navigator.standalone) $('#phone-help').hidden = true;
+// The Windows app (desktop-admin/) opens this same page and marks itself with
+// __FLG_ADMIN_DESKTOP__, so neither the download nor the install steps show there.
+const installed = matchMedia('(display-mode: standalone)').matches || navigator.standalone || window.__FLG_ADMIN_DESKTOP__;
+if (installed) $('#phone-help').hidden = true;
+$('#get-windows').hidden = installed || !/Windows/.test(navigator.userAgent);

@@ -244,17 +244,38 @@ const CSS = `
     await top();
     await scene('home', ['Each puzzle is a logic grid wrapped in a story.', 'The story sets up a mystery, the clues give you the facts, and the grid is where you work out the answer.']);
     await scene('home-2', ['Every story is written fresh for you and never repeated.', 'And every puzzle has exactly one answer you can reach without guessing.']);
+    if (await p.isVisible('#quick-btn')) {
+      await hl('#quick-btn'); await point('#quick-btn');
+      await scene('quick', ['In a hurry? Play a quick puzzle starts a small Easy case straight away, with no choices to make.']);
+      await clearFx();
+    }
     if (await p.isVisible('#daily-today [data-daily]')) {
       await scrollTo('#daily-section'); await hl('#daily-section');
       await scene('daily', ['Every day there is also a new Daily puzzle, the same one for everyone.', 'Solve it each day to build a streak.']);
-      await clearFx(); await top();
+      await clearFx();
+      if (await p.isVisible('#daily-numbers')) {
+        await hl('#daily-numbers');
+        await scene('daily-numbers', ['Under it, you see how many people have played today\'s puzzle, how many solved it, and the typical time.']);
+        await clearFx();
+      }
+      if (await p.isVisible('#daily-email-signin')) {
+        await hl('#daily-email'); await point('#daily-email-signin');
+        await scene('daily-email', ['With a free sign-in, you can get each day\'s puzzle by email.']);
+        await clearFx();
+      }
+      if (await p.isVisible('#daily-picks')) {
+        await hl('#daily-picks');
+        await scene('daily-picks', ['And Hand-picked puzzles lists the daily puzzles players liked best.']);
+        await clearFx();
+      }
+      await top();
     }
     card('howto', ["Here's how to play."]);
 
     // =================== Set up
     await p.check('input[name=tier][value=easy]', { force: true });
     await scrollTo('#tier-choices'); await hl('#tier-choices'); await point('input[name=tier][value=easy] + *');
-    await scene('tiers', ['Start on the New puzzle screen and pick a difficulty.', 'Basic and Easy are perfect for beginners.', ['MENSA is for true masterminds.', 'Mensa is for true masterminds.']]);
+    await scene('tiers', ['Start on the New puzzle screen and pick a difficulty.', 'Basic and Easy are perfect for beginners.', 'Quantum Physicist is for true masterminds.']);
     await clearFx();
     await scrollTo('#theme-choices'); await clickShown('input[name=theme][value=mystery] + *'); await hl('#theme-choices');
     await scene('themes', [['Next, choose a theme, like Mystery, Fantasy, Sci-Fi, Around Town, National Parks or Vacation Destinations.', 'Next, choose a theme, like Mystery, Fantasy, Sci Fi, Around Town, National Parks, or Vacation Destinations.'], 'Or pick Surprise me.']);
@@ -267,10 +288,13 @@ const CSS = `
     await scrollTo('#size-choices'); await hl('#size-choices');
     await scene('sizes', ['Then pick a size.', 'More categories and more items make a bigger, harder grid.']);
     await clearFx();
-    await scrollTo('#gen-btn'); await hl(['label:has(> input[name=playstyle])']);
-    await scene('playstyle', ['Full experience adds scenes, characters and sound.', 'Silent mode keeps only the story, the grid, the clues and the answer key.']);
+    // Play style sits under More options.
+    await p.evaluate(() => { document.querySelector('#more-options').open = true; }); await p.waitForTimeout(200);
+    await scrollTo('#style-field'); await hl(['label:has(> input[name=playstyle])']);
+    await scene('playstyle', ['Under More options, Full experience adds scenes, characters and sound.', 'Silent mode keeps only the story, the grid, the clues and the answer key.']);
     await clearFx();
-    await hl('#gen-btn'); await point('#gen-btn');
+    await p.evaluate(() => { document.querySelector('#more-options').open = false; });
+    await scrollTo('#gen-btn'); await hl('#gen-btn'); await point('#gen-btn');
     await scene('generate', ['Press Generate puzzle, and your story is written in a moment.']);
     await clearFx();
     await p.click('#gen-btn');
@@ -398,6 +422,11 @@ const CSS = `
     if (await p.isVisible('#share-result')) {
       await scrollTo('#share-result'); await hl(['#solved-badges', '#share-result']);
       await scene('share', ['Solving puzzles earns badges, like First case closed.', 'Press Share my result to send friends a picture of your win. It never gives the answers away.']);
+      await clearFx();
+    }
+    if (await p.isVisible('#challenge-btn')) {
+      await scrollTo('#challenge-btn'); await hl('#challenge-btn'); await point('#challenge-btn');
+      await scene('challenge-link', ['Challenge a friend makes a link to this very puzzle, with your time to beat.', 'Your friend needs no account, and you both see who was quicker.']);
       await clearFx();
     }
     if (await p.isVisible('#feedback')) {
@@ -552,7 +581,7 @@ const CSS = `
       const replyOffered = await p.isVisible('#idea-form .fb-reply');
       const talkOffered = await p.isVisible('#idea-form .fb-talk');
       await scene('feedback', ['Have an idea for a story, or found a problem?', 'Ideas and problems, in the menu, has a separate box for each, and they go straight to the game\'s team.',
-        ...(replyOffered ? ['Signed in with a confirmed email? Leave the box ticked, and the game emails you a short thank-you note.'] : []),
+        ...(replyOffered ? ['Signed in with a confirmed email? Leave Email me an update ticked. The game emails you a thank-you, and again when the team acts on it.'] : []),
         ...(talkOffered ? ['Want an answer? Tick Let the team reply to me.'] : [])]);
       await p.keyboard.press('Escape');
     }

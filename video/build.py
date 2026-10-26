@@ -56,10 +56,30 @@ def clock_words(m):
     return words + (f' {ap[0].upper()}M' if ap else '')
 
 
-def spoken(text):
+def say_aloud(text):
     """What the narrator says for a caption. Kokoro reads '10:00 PM' as
     'ten zero zero PM', so clock times are written out as words first."""
     return re.sub(r'\b([01]?\d|2[0-3]):([0-5]\d)(?:\s*([AaPp])(?:\.[Mm](?:\.(?!\s+[A-Z]|\s*$))?|[Mm]\b))?', clock_words, text)
+
+
+# Same sound fixes as web/js/kokoro-words.js: eSpeak gives "story" and
+# "categories" a long, heavy "or" that Kokoro wasn't trained on.
+PHONEME_FIXES = [
+    (r'kˈæɾɪɡɚɹ', 'kˈæɾəɡˌɔɹ'),
+    (r'[oɔ]ːɹ', 'ɔɹ'),
+    (r'ɚɹ', 'əɹ'),
+]
+
+
+def fix_phonemes(p):
+    for a, b in PHONEME_FIXES:
+        p = re.sub(a, b, p)
+    return p
+
+
+def narrate(tts, text):
+    sounds = fix_phonemes(tts.tokenizer.phonemize(say_aloud(text), 'en-us'))
+    return tts.create(sounds, voice=VOICE, speed=SPEED, is_phonemes=True)
 
 
 def fonts():
@@ -107,9 +127,9 @@ def main():
         for li, s in enumerate(sc['sentences']):
             cap, spoken = (s if isinstance(s, list) else (s, s))
             # Kokoro reads X and O well, so it says the caption itself (with
-            # clock times as words). The spelled-out variant is only for voices
+            # clock times as words, and the sound fixes). The spelled-out variant is only for voices
             # that need it.
-            samples, sr = tts.create(spoken(cap), voice=VOICE, speed=SPEED, lang='en-us')
+            samples, sr = narrate(tts, cap)
             assert sr == SR
             a = (np.clip(samples, -1, 1) * 32767).astype(np.int16)
             d = len(a) / SR

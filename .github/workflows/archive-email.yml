@@ -21,7 +21,7 @@ concurrency:
   group: archive-email
 jobs:
   send:
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork && '"ubuntu-latest"') || vars.FLG_RUNNER || '"ubuntu-latest"') }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7

@@ -103,6 +103,22 @@ const SHOTS = process.env.SHOTS;
     const sw = await page.evaluate(async () => { const reg = await navigator.serviceWorker.ready; return reg.scope; });
     assert(/\/admin\/$/.test(sw), 'the service worker is installed for /admin/');
     assert(await page.locator('#phone-help summary').isVisible(), 'the sign-in page explains how to put it on a phone');
+    const winApp = /\/releases\/download\/admin-desktop\/The-Fantastical-Logic-Grid-Admin-Setup\.exe$/;
+    assert(winApp.test(await page.locator('#phone-help a').first().getAttribute('href')), 'the install steps link the Windows admin app');
+    assert(await page.locator('#get-windows').isHidden(), 'Download for Windows is hidden off Windows');
+    {
+      // On Windows the header offers the download; inside the Windows app
+      // (which sets __FLG_ADMIN_DESKTOP__) neither it nor the steps show.
+      const win = await browser.newContext({ userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0' });
+      const w = await win.newPage();
+      await w.goto(`${API}/admin/`);
+      assert(await w.locator('#get-windows').isVisible(), 'Windows visitors see Download for Windows');
+      assert(winApp.test(await w.locator('#get-windows').getAttribute('href')), 'Download for Windows links the admin installer');
+      await w.addInitScript(() => { window.__FLG_ADMIN_DESKTOP__ = true; });
+      await w.reload();
+      assert(await w.locator('#get-windows').isHidden() && await w.locator('#phone-help').isHidden(), 'the Windows app hides the download and install steps');
+      await win.close();
+    }
     await page.fill('#login-email', OWNER);
     await page.fill('#login-password', 'wrong');
     await page.click('#login-form button[type=submit]');
@@ -150,7 +166,13 @@ const SHOTS = process.env.SHOTS;
     await page.locator('input[name=theme-off]').first().check();
     await page.click('button[data-save=disabled_themes]');
     await page.waitForFunction(() => /Changed by/.test(document.querySelector('#settings-body').textContent));
-    const saved = JSON.parse((await db.prepare("SELECT value FROM settings WHERE key = 'disabled_themes'").first()).value);
+    // "Changed by" can already show from an earlier save, so wait for the row itself.
+    let saved = [];
+    for (let i = 0; i < 50 && saved.length !== 1; i++) {
+      const row = await db.prepare("SELECT value FROM settings WHERE key = 'disabled_themes'").first();
+      saved = row ? JSON.parse(row.value) : [];
+      if (saved.length !== 1) await new Promise((r) => setTimeout(r, 100));
+    }
     assert(saved.length === 1 && saved[0] === theme, `theme "${theme}" is switched off`);
     // Settings that moved out of the game.
     const dbValue = async (key) => { const r = await db.prepare('SELECT value FROM settings WHERE key = ?').bind(key).first(); return r && JSON.parse(r.value); };
@@ -386,7 +408,7 @@ const SHOTS = process.env.SHOTS;
     await p.click('#menu-btn');
     await p.click('#app-menu [data-cmd=feedback]');
     await p.waitForSelector('#dlg-feedback[open]');
-    assert(await p.$eval('#idea-form .fb-reply', (el) => el.hidden), 'a guest is not offered a thank-you email');
+    assert(await p.$eval('#idea-form .fb-reply', (el) => el.hidden), 'a guest is not offered email updates');
     await p.fill('#idea-text', 'A pirate ship lost in the fog where the crew swapped maps.');
     await p.click('#idea-form button[type=submit]');
     await p.waitForFunction(() => /sent/.test(document.querySelector('#idea-form .acct-done').textContent));

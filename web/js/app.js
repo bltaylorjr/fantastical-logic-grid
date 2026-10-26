@@ -30,8 +30,10 @@ import * as stats from './stats.js';
 import { shareResult } from './share-result.js';
 import * as challenge from './challenge.js';
 import * as dailyResults from './daily-results.js';
+import * as dailyEmail from './daily-email.js';
+import { onChange as onAccountChange } from './account.js';
 import * as i18n from './i18n.js';
-import { CLOUD_URL } from './cloud-config.js';
+import { CLOUD, CLOUD_URL } from './cloud-config.js';
 
 errorReports.init();
 campaign.init();
@@ -45,6 +47,10 @@ const USED_STORY_LIMIT = 5000;
 const isDesktop = !!(window.__TAURI_INTERNALS__ || window.__TAURI__);
 // The claude.ai preview build cannot print or download files, so those controls are hidden there.
 const isPreview = !!document.querySelector('meta[name="flg-mode"][content="preview"]');
+// The copy uploaded to game sites such as itch.io (dist/portal): it runs inside
+// their frame, so it has no service worker or home-screen install, and the
+// menu links to the full website instead.
+const isPortal = !!document.querySelector('meta[name="flg-mode"][content="portal"]');
 
 let settings = store.loadSettings();
 let S = null; // the open game: { save, puzzle, ix, marks, grid, wrong, hint, ... }
@@ -437,12 +443,19 @@ async function startQuick() {
 }
 $('#quick-btn').onclick = startQuick;
 // ?play=now in a link (ads, the website) starts a quick puzzle straight away.
+// ?play=daily (the daily email) opens today's daily puzzle, or with &day= that day's.
 function handlePlayLink() {
   const url = new URL(location.href);
-  if (url.searchParams.get('play') !== 'now') return false;
+  const play = url.searchParams.get('play');
+  if (play !== 'now' && play !== 'daily') return false;
+  // A Hand-picked link names its day: ?play=daily&day=2026-11-03.
+  const day = /^\d{4}-\d{2}-\d{2}$/.test(url.searchParams.get('day') || '') ? url.searchParams.get('day') : null;
   url.searchParams.delete('play');
+  url.searchParams.delete('day');
   try { history.replaceState(history.state, '', url.pathname + url.search + url.hash); } catch (e) { /* framed preview */ }
-  startQuick();
+  if (play === 'daily' && daily.available() && !isPreview) {
+    (day ? Promise.resolve(day) : daily.latest().then((l) => l.date)).then((d) => openDaily(d)).catch(() => startQuick());
+  } else startQuick();
   return true;
 }
 
@@ -1298,12 +1311,13 @@ async function renderSolvedExtras(save) {
   const nums = $('#solved-daily-numbers');
   nums.hidden = true;
   // Counted once: the mark is saved before the time is sent.
+  let sent = null;
   if (save.daily && !save.dailySent) {
     save.dailySent = true;
     await flushSave({ manual: true });
-    dailyResults.finished(save.daily, save.elapsedMs, save.revealed);
+    sent = dailyResults.finished(save.daily, save.elapsedMs, save.revealed);
   }
-  if (save.daily) showDailyNumbers(save);
+  if (save.daily) showDailyNumbers(save, sent);
   if (!save.daily || save.revealed) return;
   const st = daily.streak(await stats.solveLog().catch(() => []), save.daily);
   if (!S || S.save !== save) return;
@@ -1313,7 +1327,9 @@ async function renderSolvedExtras(save) {
     : 'This daily puzzle was finished after its day, so it does not add to your streak.';
 }
 // Everyone's numbers for this daily puzzle, under the streak.
-async function showDailyNumbers(save) {
+async function showDailyNumbers(save, sent) {
+  // Wait for this solve to be counted (at most a few seconds), so it is in the numbers.
+  if (sent) await Promise.race([sent, new Promise((r) => setTimeout(r, 4000))]);
   const st = await dailyResults.statsFor(save.daily);
   if (!st || !st.started || !S || S.save !== save) return;
   const quicker = save.revealed ? null : dailyResults.quickerThan(st, save.elapsedMs);
@@ -1462,13 +1478,16 @@ async function renderDaily() {
     <p class="daily-meta"><span class="pill">${esc(daily.longDate(l.date))}</span> <span class="pill">${esc(l.difficultyName)}</span> <span class="pill">${esc(l.themeName)}</span> <span class="pill">${l.categories} × ${l.items}</span>${state ? ` <span class="pill">${esc(state)}</span>` : ''}</p>
     ${l.offline ? '<p class="help">Offline: showing the last daily puzzle this device saw.</p>' : ''}
     <p class="daily-numbers muted" id="daily-numbers" hidden></p>
-    <button class="btn primary" type="button" data-daily="${esc(l.date)}">${todays ? (todays.solved ? "Open today's puzzle" : "Continue today's puzzle") : "Play today's puzzle"}</button>`;
+    <button class="btn primary" type="button" data-daily="${esc(l.date)}">${todays ? (todays.solved ? "Open today's puzzle" : "Continue today's puzzle") : "Play today's puzzle"}</button>
+    <div class="daily-email" id="daily-email" hidden></div>`;
+  renderDailyEmail();
   if (!l.offline) dailyResults.statsFor(l.date).then((st) => {
     const el = $('#daily-numbers');
     if (!st || !el || dailyLatest !== l) return;
     el.textContent = dailyResults.summaryLine(st);
     el.hidden = !el.textContent;
   });
+  renderPicks(saves);
   const earlier = (l.days || []).filter((d) => d < l.date).slice(0, 7);
   $('#daily-earlier').hidden = !earlier.length;
   $('#daily-list').innerHTML = earlier.map((d) => {
@@ -1476,6 +1495,57 @@ async function renderDaily() {
     return `<li><button class="btn quiet small" type="button" data-daily="${esc(d)}">${esc(daily.longDate(d))}</button>${sv ? ` <span class="muted">${sv.solved ? (st.days.has(d) ? 'solved' : 'finished') : `${sv.percent || 0}% done`}</span>` : ''}</li>`;
   }).join('');
 }
+// Hand-picked: the best-rated daily puzzles and ones the team picked
+// (daily/picks.json from the website build). They never add to a streak.
+async function renderPicks(saves) {
+  const box = $('#daily-picks');
+  const list = await daily.picks();
+  box.hidden = !list.length;
+  if (!list.length) return;
+  $('#daily-picks-list').innerHTML = list.map((x) => {
+    const sv = saves.find((s) => s.daily === x.date);
+    const why = x.hand ? 'picked by the team' : `rated ${x.average} of 5`;
+    return `<li><button class="btn quiet small" type="button" data-daily="${esc(x.date)}">${esc(x.title)}</button> <span class="muted">${esc(x.difficultyName)} · ${esc(x.themeName)} · ${esc(why)}${sv ? (sv.solved ? ' · finished' : ` · ${sv.percent || 0}% done`) : ''}</span></li>`;
+  }).join('');
+}
+
+// The daily email switch under today's puzzle: signed-in players with a
+// confirmed email can get each day's puzzle in their inbox.
+async function renderDailyEmail() {
+  const box = $('#daily-email');
+  if (!box) return;
+  if (isPortal || !dailyEmail.available()) { box.hidden = true; return; }
+  if (!signedIn()) {
+    box.innerHTML = '<button class="btn quiet small" type="button" id="daily-email-signin">Get each day\'s puzzle by email</button> <span class="help">Free, with a sign-in.</span>';
+    box.hidden = false;
+    $('#daily-email-signin').onclick = () => openAccount();
+    return;
+  }
+  const st = await dailyEmail.status();
+  if (!st || !$('#daily-email')) { box.hidden = true; return; }
+  box.innerHTML = st.verified || st.on
+    ? `<label class="check"><input type="checkbox" id="daily-email-on"${st.on ? ' checked' : ''}> Email me each day's puzzle</label> <span class="help" id="daily-email-note" aria-live="polite"></span>`
+    : '<p class="help">To get each day\'s puzzle by email, first confirm your email address with the link we sent when you made your account.</p>';
+  box.hidden = false;
+  const cb = $('#daily-email-on');
+  if (!cb) return;
+  cb.onchange = async () => {
+    const note = $('#daily-email-note');
+    cb.disabled = true;
+    try {
+      const r = await dailyEmail.set(cb.checked);
+      cb.checked = r.on;
+      note.textContent = r.on ? 'Done. It arrives at about 7 am Eastern, with a one-click unsubscribe link.' : 'Done. No more daily emails.';
+    } catch (e) {
+      cb.checked = !cb.checked;
+      note.textContent = navigator.onLine === false ? 'You seem to be offline.' : e.message;
+    } finally {
+      cb.disabled = false;
+    }
+  };
+}
+onAccountChange(() => renderDailyEmail());
+
 $('#daily-section').addEventListener('click', (e) => {
   const b = e.target.closest('[data-daily]');
   if (b) openDaily(b.dataset.daily, b);
@@ -2041,6 +2111,7 @@ $('#app-menu').addEventListener('click', async (e) => {
   else if (cmd === 'account') openAccount();
   else if (cmd === 'board') competeUi.openBoard();
   else if (cmd === 'install') installApp();
+  else if (cmd === 'site') window.open(`${(CLOUD.siteUrl || 'https://thelogicgrid.com').replace(/\/+$/, '')}/?utm_source=portal&utm_medium=store&utm_campaign=portal`, '_blank', 'noopener');
 });
 $('#home-btn').onclick = () => goHome();
 $('#help-btn').onclick = () => openDialog($('#dlg-help'), $('#help-close'));
@@ -2160,7 +2231,8 @@ const isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' 
 const isAndroid = /Android/i.test(ua);
 const isStandalone = () => !!(window.matchMedia?.('(display-mode: standalone)').matches || window.matchMedia?.('(display-mode: window-controls-overlay)').matches || navigator.standalone);
 let installEvent = null;
-if (!isDesktop) $('[data-cmd=install]').hidden = false;
+if (!isDesktop && !isPortal) $('[data-cmd=install]').hidden = false;
+$('[data-cmd=site]').hidden = !isPortal;
 window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault();
   installEvent = e;
@@ -2217,7 +2289,7 @@ $('#install-phone-btn').onclick = async () => {
   if (choice.outcome === 'accepted') { $('#dlg-install').close(); toast('Installed. Open the game from its icon on your home screen, Start menu or dock.'); }
   else renderInstall();
 };
-if ('serviceWorker' in navigator && !isDesktop && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
+if ('serviceWorker' in navigator && !isDesktop && !isPortal && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
   watchWebUpdates();
 }
 

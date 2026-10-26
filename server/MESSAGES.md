@@ -24,12 +24,11 @@ optional email notices use the same free sender as the thank-you emails
 - **Addressed**: when the team marks a linked idea or problem addressed in the
   dashboard (a short plain note of what was done, and optionally the version),
   the player gets that note as a reply from the team in Messages: "Good news:
-  we've addressed your idea in version 1.7.2. What we did: ...". If their
-  email was confirmed when they sent it, the same note goes by email too
-  (kind `fixed`, the only email that carries text: the team's note, never the
-  player's own words). The address is kept in `feedback_followups` only until
-  then (180 days at most; deleting the account removes it). Anonymous ideas
-  and problems are only marked. See `src/followups.js`.
+  we've addressed your idea in version 1.7.2. What we did: ...". If they
+  also ticked "Email me an update", the note (with the version) goes by
+  email as well (see `FEEDBACK-EMAILS.md`), and no separate "new message"
+  notice is sent. Anonymous ideas and problems are only marked. See
+  `src/followups.js`.
 - **Puzzle details**: an idea or problem sent while a puzzle is open carries
   that puzzle's story id, title, theme, topic, difficulty, seed, size, engine
   version and clue texts (`feedback.puzzle`), unless the player unticks

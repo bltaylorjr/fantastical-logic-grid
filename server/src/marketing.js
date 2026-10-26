@@ -3,8 +3,9 @@
 //
 //   POST /v1/m                          one anonymous event from the game: a visit
 //                                       from a campaign link or another site, and
-//                                       later plays, solves, installs and Windows
-//                                       downloads from that visit (web/js/campaign.js)
+//                                       later plays, solves, returns within a week,
+//                                       installs and Windows downloads from that
+//                                       visit (web/js/campaign.js)
 //   GET  /admin/v1/marketing?days=      campaigns, ads, media and their numbers (viewer)
 //   POST /admin/v1/marketing/campaigns  add or change a campaign (admin)
 //   POST /admin/v1/marketing/campaigns/:id/delete   with its ads (admin)
@@ -24,7 +25,7 @@ import { SEEDS } from './marketing-seed.js';
 
 const DAY = 24 * 3600_000;
 const isoDay = (ms) => new Date(ms).toISOString().slice(0, 10);
-export const EVENTS = ['visit', 'play', 'solve', 'install', 'download'];
+export const EVENTS = ['visit', 'play', 'solve', 'return', 'install', 'download'];
 export const MEDIUMS = ['social', 'video', 'forum', 'community', 'directory', 'store', 'email', 'referral', 'search', 'print', 'qr', 'other'];
 export const CAMPAIGN_STATUS = ['draft', 'active', 'paused', 'ended'];
 export const AD_STATUS = ['draft', 'approved', 'posted', 'removed'];

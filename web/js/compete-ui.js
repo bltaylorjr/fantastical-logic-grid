@@ -8,7 +8,7 @@ import { esc } from './grid.js';
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const RACE_TITLES = { start: 'Start a race', join: 'Join a race', challenge: 'Challenge a player', share: 'Race started', standings: 'Race standings' };
-const TIER_NAMES = { basic: 'Basic', easy: 'Easy', medium: 'Medium', hard: 'Hard', expert: 'Expert', mensa: 'MENSA' };
+const TIER_NAMES = { basic: 'Basic', easy: 'Easy', medium: 'Medium', hard: 'Hard', expert: 'Expert', mensa: 'Quantum Physicist' };
 const INVITE_POLL_MS = 120_000;
 let ui = null;
 let name = null; // the player's screen name, once known

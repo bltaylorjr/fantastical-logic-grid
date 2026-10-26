@@ -2,9 +2,10 @@
 // A visit that arrives on a tracked campaign link (utm_source, utm_medium,
 // utm_campaign, utm_content) or from another website is counted once, and the
 // campaign is remembered on this device for 30 days so that the first puzzle
-// played, puzzles solved, an install and a Windows download can be counted
-// for it too. The link's tags are then taken out of the address bar, so a
-// shared or bookmarked page stays clean.
+// played, puzzles solved, coming back on a later day within a week, an
+// install and a Windows download can be counted for it too. The link's tags
+// are then taken out of the address bar, so a shared or bookmarked page stays
+// clean.
 //
 // Sent: the event, the campaign tags, the platform. Never sent: names, ids,
 // saves or anything else about the player. Visits without a campaign or
@@ -72,6 +73,7 @@ export function init() {
   try {
     const a = arrival();
     cleanAddress();
+    cameBack(a);
     if (!a) return;
     // One visit per browser tab, so reloads are not counted again.
     const seen = `${a.c}|${a.s}|${a.k}`;
@@ -83,6 +85,20 @@ export function init() {
     if (a.c || !prev?.c) store(c);
     if (!counted) send('visit', c);
   } catch (e) { /* never break the game */ }
+}
+
+// A player from a campaign visit who comes back on a later day within a week
+// counts once as a return (the market test's 7-day return), whatever link or
+// bookmark they come back by.
+const RETURN_DAYS = 7;
+function cameBack(a) {
+  const c = load();
+  if (!c || c.returned || (a && a.c && a.c !== c.c)) return;
+  const days = (Date.parse(`${today()}T00:00:00Z`) - Date.parse(`${new Date(c.at).toISOString().slice(0, 10)}T00:00:00Z`)) / 86400_000;
+  if (days < 1 || days > RETURN_DAYS) return;
+  c.returned = true;
+  store(c);
+  send('return', c);
 }
 
 // The first puzzle opened after a campaign visit.

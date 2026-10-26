@@ -11,6 +11,8 @@
 //   GET /v1/config                       announcements, switched-off themes, features (settings.js)
 //   GET /v1/daily/plan                   daily puzzle changes for the website build (daily.js)
 //   /v1/daily/:date/(start|result|stats) everyone's numbers for a daily puzzle (daily-results.js)
+//   /v1/daily-email[/unsubscribe]       daily puzzle by email for signed-in players (daily-email.js)
+//   GET /v1/quality                      average rating and best-rated daily puzzles (quality.js)
 //   POST /v1/translate                   the game's text in another language (translate.js)
 //   POST /v1/m                           anonymous counts of visits from campaign links (marketing.js)
 //   /v1/challenges[/:code[/result]]       Challenge a friend links, no account (challenges.js)
@@ -31,6 +33,8 @@ import { handlePictures } from './pictures.js';
 import { handleCharacters } from './characters.js';
 import { handleDaily } from './daily.js';
 import { handleDailyResults } from './daily-results.js';
+import { handleQuality } from './quality.js';
+import { handleDailyEmail } from './daily-email.js';
 import { handleTranslate } from './translate.js';
 import { handleAdmin } from './admin.js';
 import { handleMarketing } from './marketing.js';
@@ -90,6 +94,12 @@ async function route(req, env, ctx) {
 
   const dailyResults = await handleDailyResults(req, env, url);
   if (dailyResults) return dailyResults;
+
+  const dailyEmail = await handleDailyEmail(req, env, url);
+  if (dailyEmail) return dailyEmail;
+
+  const quality = await handleQuality(req, env, url);
+  if (quality) return quality;
 
   const daily = await handleDaily(req, env, url);
   if (daily) return daily;

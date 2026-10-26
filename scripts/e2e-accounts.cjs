@@ -186,7 +186,7 @@ function startAuth(signer) {
     const usedB = await meta(B.page, 'usedStories');
     assert(usedA.length > 0 && usedA.every((id) => usedB.includes(id)), 'used-story list synced, so stories are not reused on the other device');
 
-    // ---- A signed-in player is offered a thank-you email for an idea; the
+    // ---- A signed-in player is offered email updates for an idea; the
     // stand-in's accounts are not confirmed, so the game says to confirm first.
     // (A second tab, with the idea boxes pointed at the same local Worker.)
     const F = await B.page.context().newPage();
@@ -196,7 +196,7 @@ function startAuth(signer) {
     await F.click('#menu-btn');
     await F.click('#app-menu [data-cmd=feedback]');
     await F.waitForSelector('#dlg-feedback[open]');
-    assert(await F.isVisible('#idea-form .fb-reply') && /bobby@example\.com/.test(await F.textContent('#idea-form .fb-reply')), 'a signed-in player is offered a thank-you email at their address');
+    assert(await F.isVisible('#idea-form .fb-reply') && /^Email me an update at bobby@example\.com$/.test((await F.textContent('#idea-form .fb-reply')).trim()), 'a signed-in player is offered email updates at their address');
     assert(await F.isVisible('#idea-form .fb-talk'), 'a signed-in player can ask the team to reply in Messages');
     await F.check('#idea-form [data-talk]');
     await F.fill('#idea-text', 'A clockwork carnival where the tickets got mixed up.');
