@@ -13,6 +13,19 @@ concurrency:
   group: tests-${{ github.ref }}
   cancel-in-progress: true
 jobs:
+  # Every secret, variable and binding the code uses must be in the setup guide
+  # (admin/connections.js), and docs/CONNECTIONS.md must match it.
+  connections:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Setup guide lists every connection (admin/connections.js)
+        run: node scripts/connections.mjs check
+
   app:
     runs-on: ubuntu-latest
     timeout-minutes: 30

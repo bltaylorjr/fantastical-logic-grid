@@ -78,6 +78,23 @@ main:focus { outline: none; }
 .cards > li { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px; margin: 10px 0; }
 .cards p { margin: 6px 0; }
 
+/* Connections and setup */
+.conn > summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; list-style-position: outside; }
+.conn > summary .conn-title { display: inline-flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.conn[open] > summary { margin-bottom: 8px; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
+.conn-steps { padding-left: 1.5rem; }
+.conn-steps li { margin: 4px 0; }
+.conn-steps .check { align-items: flex-start; min-height: 0; }
+.conn-steps .check input { flex: none; margin-top: 2px; }
+.conn-steps input:checked + span { color: var(--muted); text-decoration: line-through; }
+.conn-settings { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 4px 16px; margin: 0; }
+.conn-settings dt { font-weight: 600; }
+.conn-settings dd { margin: 0; overflow-wrap: anywhere; }
+.conn-checks { list-style: none; padding: 0; }
+.conn-checks li { margin: 4px 0; }
+.conn a { overflow-wrap: anywhere; }
+@media (max-width: 760px) { .conn-settings { grid-template-columns: minmax(0, 1fr); } }
+
 .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px; margin: 12px 0; }
 .tile { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
 .tile .label { color: var(--muted); font-size: .9rem; }

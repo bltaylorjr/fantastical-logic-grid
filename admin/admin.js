@@ -4,6 +4,7 @@
 // lives only in this tab (sessionStorage) and ends after 30 idle minutes.
 
 import { initPullRefresh } from './pull-refresh.js';
+import { renderConnections } from './connections-view.js';
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -556,7 +557,8 @@ views.settings = async () => {
   const services = `<div class="card"><h2>Keys and services</h2><div class="services">
     ${keyLine(d.services.gemini, 'GEMINI_API_KEY', 'server voices and the Story workshop\'s AI writer (Google\'s free tier).')}
     ${keyLine(d.services.pictures, 'Workers AI', 'AI pictures (the AI binding in wrangler.toml, on Cloudflare\'s free allowance).')}
-    <p class="muted">Keys are never typed here or kept in the game. Add or change them in Cloudflare: Workers &amp; Pages &gt; flg-api &gt; Settings &gt; Variables and Secrets, as type Secret.</p></div></div>`;
+    <p class="muted">Keys are never typed here or kept in the game. Add or change them in Cloudflare: Workers &amp; Pages &gt; flg-api &gt; Settings &gt; Variables and Secrets, as type Secret.</p>
+    <p><a href="#connections">Every key, service and setting, with steps: Connections and setup</a></p></div></div>`;
   $('#settings-body').innerHTML = services + (editable ? '' : '<p class="note">You can see the settings. Changing them needs the admin role.</p>')
     + Object.entries(groups).map(([g, list]) => `<div class="card"><h2>${esc(g)}</h2>${list.map((s) => `<div class="setting">
       <div><b id="lbl-${s.key}">${esc(s.label)}</b><p class="help">${esc(s.help)}</p>${s.updatedBy ? `<p class="meta">Changed by ${esc(s.updatedBy)} on ${when(s.updatedAt)}</p>` : ''}</div>
@@ -580,6 +582,8 @@ $('#settings-body').onclick = (e) => {
   else if ($(`#set-${key}`).type === 'number') saveSettingValue(key, Number($(`#set-${key}`).value), b);
   else saveSettingValue(key, $(`#set-${key}`).value.trim(), b);
 };
+
+views.connections = () => renderConnections($('#connections-view'), { api, esc, when, toast, announce });
 
 views.announcements = async () => {
   const d = await api('announcements');

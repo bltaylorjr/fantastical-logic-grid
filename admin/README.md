@@ -131,6 +131,17 @@ are never stored on the phone. Icons: `node scripts/admin-icons.cjs admin`.
 
 Everything here is on free plans; nothing can bill.
 
+## Connections and setup
+
+**Connections and setup** (viewer and up) is a searchable guide to every outside
+connection: why it is needed, the exact names and settings, steps, and links to
+each settings page, with live status (Connected, Missing, Not checked yet,
+Optional, Check by hand). It is built from `admin/connections.js`; secrets are
+never shown, only whether each name is set. GitHub's secret and variable names
+come from the daily **Connections status** Action, which needs the
+`FLG_ADMIN_TOKEN` repository secret. Ticked steps are remembered only in that
+browser. See MAINTENANCE.md for how the list is kept up to date.
+
 ## Tests
 
 `npm --prefix server test` (API, roles, audit, rate limits, settings, players)
