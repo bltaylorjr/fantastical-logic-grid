@@ -239,7 +239,7 @@ ${body(up)}
   const head = `<meta name="description" content="${esc(appDescription)}">
 <meta name="robots" content="index, follow, max-image-preview:large">
 ${tdmMeta}
-${social({ title: `${name}: free story logic grid puzzles`, description: appDescription, path: '' })}
+${social({ title: name, description: appDescription, path: '' })}
 ${verification}
 <script type="application/ld+json">${json(website)}</script>
 <script type="application/ld+json">${json(checkVideos(game, ''))}</script>
