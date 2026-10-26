@@ -97,7 +97,8 @@ function safeEqual(a, b) {
 }
 
 const bearer = (req) => (req.headers.get('Authorization') || '').match(/^Bearer\s+(.+)$/)?.[1] || '';
-const tokenMatches = (env, token) => !!env.ADMIN_TOKEN && env.ADMIN_TOKEN.length >= 16 && safeEqual(token, env.ADMIN_TOKEN);
+// Trimmed: a secret pasted into the Cloudflare dashboard can carry a stray space or line break.
+const tokenMatches = (env, token) => { const want = String(env.ADMIN_TOKEN || '').trim(); return want.length >= 16 && safeEqual(token.trim(), want); };
 
 // ------------------------------------------------------------- identity
 async function identify(req, env) {

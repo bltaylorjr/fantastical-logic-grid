@@ -241,7 +241,8 @@ function safeEqual(a, b) {
 
 async function admin(req, env, url) {
   const token = (req.headers.get('Authorization') || '').replace(/^Bearer\s+/, '');
-  if (!env.ADMIN_TOKEN || env.ADMIN_TOKEN.length < 16 || !safeEqual(token, env.ADMIN_TOKEN)) return json({ error: 'Not allowed.' }, 401);
+  const want = String(env.ADMIN_TOKEN || '').trim();
+  if (want.length < 16 || !safeEqual(String(token || '').trim(), want)) return json({ error: 'Not allowed.' }, 401);
   if (url.pathname === '/admin/learn/parts' && req.method === 'GET') {
     const status = ['pending', 'approved', 'rejected'].includes(url.searchParams.get('status')) ? url.searchParams.get('status') : 'pending';
     const rows = (await env.DB.prepare('SELECT key, theme, kind, value, source, status, submitted FROM parts WHERE status = ? ORDER BY submitted DESC LIMIT 200').bind(status).all()).results;
