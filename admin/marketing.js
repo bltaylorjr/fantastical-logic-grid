@@ -6,7 +6,7 @@ const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 
 let h = null; // helpers from admin.js
 let data = null; // the last GET /admin/v1/marketing
-const EVENT_NAMES = { visit: 'Visits', play: 'First puzzles', solve: 'Solves', install: 'Installs', download: 'Windows downloads' };
+const EVENT_NAMES = { visit: 'Visits', play: 'First puzzles', solve: 'Solves', return: 'Came back within a week', install: 'Installs', download: 'Windows downloads' };
 const STATUS_BADGE = { draft: '', approved: 'warn', posted: 'ok', removed: 'bad', active: 'ok', paused: 'warn', ended: '' };
 const STATUS_NAMES = { draft: 'Draft', approved: 'Approved to post', posted: 'Posted', removed: 'Taken down', active: 'Running', paused: 'Paused', ended: 'Ended' };
 const MEDIUM_NAMES = { social: 'Social post', video: 'Video', forum: 'Forum', community: 'Community', directory: 'Directory', store: 'Store or game site', email: 'Email', referral: 'Link from a site', search: 'Search engine', print: 'Print', qr: 'QR code', other: 'Other' };
@@ -33,8 +33,8 @@ function trendChart(trend) {
     <div class="legend"><span><i class="k1"></i>Visits</span><span><i class="k2"></i>Solves</span></div></figure>`;
 }
 
-const numberCells = (s) => [h.fmt(s.visit), h.fmt(s.play), h.fmt(s.solve), h.fmt(s.install), h.fmt(s.download), pct(s.play, s.visit), pct(s.solve, s.visit)];
-const numberHead = [{ label: 'Visits', num: 1 }, { label: 'First puzzles', num: 1 }, { label: 'Solves', num: 1 }, { label: 'Installs', num: 1 }, { label: 'Downloads', num: 1 }, { label: 'Visit to play', num: 1 }, { label: 'Solves per visit', num: 1 }];
+const numberCells = (s) => [h.fmt(s.visit), h.fmt(s.play), h.fmt(s.solve), h.fmt(s.return || 0), h.fmt(s.install), h.fmt(s.download), pct(s.play, s.visit), pct(s.solve, s.visit), pct(s.return || 0, s.visit)];
+const numberHead = [{ label: 'Visits', num: 1 }, { label: 'First puzzles', num: 1 }, { label: 'Solves', num: 1 }, { label: 'Came back', num: 1 }, { label: 'Installs', num: 1 }, { label: 'Downloads', num: 1 }, { label: 'Visit to play', num: 1 }, { label: 'Solves per visit', num: 1 }, { label: 'Came back within a week', num: 1 }];
 
 function mediaName(id) {
   const m = data.media.find((x) => x.id === id);
@@ -91,6 +91,7 @@ function builder() {
       <div class="field"><label for="mk-b-s">Channel (source)</label><input id="mk-b-s" list="mk-sources" value="reddit" autocomplete="off"><datalist id="mk-sources">${data.sources.map((s) => `<option value="${h.esc(s)}">`).join('')}</datalist></div>
       <div class="field"><label for="mk-b-m">Kind (medium)</label><select id="mk-b-m">${data.mediums.map((m) => `<option value="${m}">${h.esc(MEDIUM_NAMES[m] || m)}</option>`).join('')}</select></div>
       <div class="field"><label for="mk-b-k">Ad name (content, optional)</label><input id="mk-b-k" autocomplete="off"></div>
+      <div class="field"><label for="mk-b-l">Opens</label><select id="mk-b-l"><option value="/?play=now">A quick Easy puzzle</option><option value="/">The home screen</option></select></div>
     </div>
     <div class="field"><label for="mk-b-out">Link</label><input id="mk-b-out" type="text" readonly></div>
     <button class="btn small" type="button" id="mk-b-copy">Copy the link</button></section>`;
@@ -99,10 +100,14 @@ const slugify = (v) => String(v || '').trim().toLowerCase().replace(/[^a-z0-9_-]
 function buildLink() {
   const out = $('#mk-b-out');
   if (!out) return;
-  const q = new URLSearchParams({ utm_source: slugify($('#mk-b-s').value) || 'other', utm_medium: $('#mk-b-m').value, utm_campaign: $('#mk-b-c').value });
+  const [path, query] = $('#mk-b-l').value.split('?');
+  const q = new URLSearchParams(query || '');
+  q.set('utm_source', slugify($('#mk-b-s').value) || 'other');
+  q.set('utm_medium', $('#mk-b-m').value);
+  q.set('utm_campaign', $('#mk-b-c').value);
   const k = slugify($('#mk-b-k').value);
   if (k) q.set('utm_content', k);
-  out.value = `${data.site.replace(/\/+$/, '')}/?${q}`;
+  out.value = `${data.site.replace(/\/+$/, '')}${path}?${q}`;
 }
 
 async function render() {
@@ -120,6 +125,7 @@ async function render() {
     <div class="tiles">${h.tile('Visits', h.fmt(t.visit), `from campaign links and other sites since ${h.esc(data.since)}`)}
       ${h.tile('First puzzles', h.fmt(t.play), `${pct(t.play, t.visit)} of visits`)}
       ${h.tile('Solves', h.fmt(t.solve), 'by those visitors, within 30 days')}
+      ${h.tile('Came back', h.fmt(t.return || 0), `${pct(t.return || 0, t.visit)} of visits, on a later day within a week`)}
       ${h.tile('Installs and downloads', h.fmt(t.install + t.download), `${h.fmt(t.install)} app installs, ${h.fmt(t.download)} Windows downloads`)}
       ${h.tile('Ads posted', h.fmt(posted), `${h.fmt(waiting)} approved and waiting, ${h.fmt(data.ads.length)} in all`)}</div>
     <div class="charts">${trendChart(data.trend)}</div>
@@ -196,6 +202,7 @@ async function editAd(a) {
     { name: 'content', label: 'Ad name in the link (utm_content)', value: a.content, help: 'Tells two ads on the same channel apart. Made from the title if left empty.' },
     { name: 'body', label: 'Words to post', type: 'textarea', rows: 8, value: a.body, help: 'Write {link} where the tracked link goes.' },
     { name: 'media', label: 'Media', type: 'checks', value: a.media || [], options: data.media.map((m) => [m.id, `${m.title} (${m.size || m.kind})`]) },
+    { name: 'landing', label: 'Opens this page', value: a.landing || '/?play=now', help: '/?play=now starts a quick Easy puzzle straight away; / opens the home screen; /daily/ the daily puzzle page.' },
     { name: 'where', label: 'Where to post it', value: a.where },
     { name: 'status', label: 'Status', type: 'select', value: a.status || 'draft', options: opts(data.adStatus, STATUS_NAMES) },
     { name: 'postUrl', label: 'Live post link (once posted)', type: 'url', value: a.postUrl || '' },

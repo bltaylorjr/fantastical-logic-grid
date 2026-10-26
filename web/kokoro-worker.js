@@ -41,9 +41,19 @@ self.onmessage = async ({ data }) => {
     const tts = await load();
     if (type === 'load') { postMessage({ id, ok: true }); return; }
     if (type === 'speak') {
-      const audio = await tts.generate(data.text, { voice: data.voice || 'af_heart', speed: data.speed || 1 });
+      // A voice that doesn't ship with the game downloads once; if it can't
+      // (offline), its stand-in speaks instead.
+      let voice = data.voice || 'af_heart';
+      let audio;
+      try {
+        audio = await tts.generate(data.text, { voice, speed: data.speed || 1 });
+      } catch (e) {
+        if (!data.standIn || data.standIn === voice) throw e;
+        voice = data.standIn;
+        audio = await tts.generate(data.text, { voice, speed: data.speed || 1 });
+      }
       const wav = audio.toWav();
-      postMessage({ id, ok: true, wav }, [wav]);
+      postMessage({ id, ok: true, wav, voice }, [wav]);
     }
   } catch (e) {
     postMessage({ id, ok: false, error: (e && e.message) || String(e) });

@@ -17,6 +17,7 @@ import { getTopics, storyKey } from '../../engine/src/topics.js';
 import { TIER_ORDER, CLUE_TYPES } from '../../engine/src/tiers.js';
 import { getSettings } from './settings.js';
 import { readText } from './http.js';
+import { GEMINI_VOICES } from './voices.js';
 
 // The edge-cache key of the tuning reply; the admin dashboard clears it after a review.
 export const TUNING_CACHE_KEY = 'https://flg-cloud.internal/v1/learn/tuning';
@@ -30,7 +31,6 @@ const OUTCOMES = new Set(['solved', 'revealed', 'abandoned']);
 const FEELS = new Set(['easy', 'right', 'hard']);
 const MODES = new Set(['free', 'daily', 'race']);
 const TOPIC_KEYS = new Set(THEMES.flatMap((t) => getTopics(t.id).map((p) => `${t.id}/${p.id}`)));
-const VOICES = new Set(['Kore', 'Puck', 'Charon', 'Fenrir', 'Aoede', 'Leda', 'Orus', 'Zephyr', 'Callirrhoe', 'Enceladus', 'Iapetus', 'Umbriel']);
 const TUNING_DAYS = 90;
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -269,7 +269,7 @@ async function postTts(req, env, ctx, headers) {
   }
   const body = await bodyJson(req, 2_000);
   const text = String(body.text || '').trim();
-  const voice = VOICES.has(body.voice) ? body.voice : 'Charon';
+  const voice = GEMINI_VOICES.has(body.voice) ? body.voice : 'Charon';
   const lang = /^[a-z]{2,3}-[A-Z]{2}$/.test(body.lang || '') ? body.lang : 'en-US';
   if (!text || text.length > 400) return json({ error: 'Text must be 1 to 400 characters.' }, 400, headers);
   const model = settings.gemini_voice_model;
