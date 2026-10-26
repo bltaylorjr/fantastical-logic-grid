@@ -15,7 +15,8 @@
 //   GET  /admin/v1/parts?status=       shared story parts; POST /admin/v1/parts/review
 //   GET  /admin/v1/workshop            Story workshop choices; POST .../draft (AI writer), .../add
 //   GET  /admin/v1/characters[/:id]    the Characters section; POST .../save, .../:id/(portrait|lines|publish|unpublish|delete) (characters.js)
-//   GET  /admin/v1/feedback?kind=&status=  ideas and problems from the game; POST .../:id (addressed + note|done|new|delete)
+//   GET  /admin/v1/feedback?kind=&status=  ideas and problems from the game; POST .../:id (addressed + note [+ fixedIn]|done|new|delete);
+//                                     addressed tells a player who asked for a reply (followups.js)
 //   POST /admin/v1/replies/claim       thank-you emails waiting, for the GitHub Action to send (owner, replies.js)
 //   POST /admin/v1/replies/done        that Action says which went out; their addresses are removed (owner)
 //   GET  /admin/v1/names?status=       screen names to moderate; POST /admin/v1/names/:uid/approve
@@ -66,6 +67,7 @@ import { FREE_LIMITS, cloudflareUsage } from './usage.js';
 import { plannerView, checkPlan, savePlan, resetPlan } from './daily.js';
 import { quality, alerts, summary, csv, CSV_KINDS } from './report.js';
 import { withFixes, errorFile } from './errors.js';
+import { tellPlayer } from './followups.js';
 import { ratingRoutes } from './ratings.js';
 import { marketingRoutes } from './marketing.js';
 
@@ -410,18 +412,24 @@ const ROUTES = [
     const r = await finishReplies(env, body.sent, body.failed, now);
     return { body: r, detail: r };
   }],
-  ['POST', /^feedback\/(\d+)$/, 'moderator', 'feedback.update', async ({ env, params: [id], body, now }) => {
+  ['POST', /^feedback\/(\d+)$/, 'moderator', 'feedback.update', async ({ env, params: [id], body, who, now }) => {
     let r;
+    let told;
     if (body.status === 'delete') r = await env.DB.prepare('DELETE FROM feedback WHERE id = ?1').bind(Number(id)).run();
     else if (body.status === 'addressed') {
       const note = cleanNote(body.note);
       if (!note) throw new Refusal(400, 'bad_note', 'Write a short note on what was done.');
-      r = await env.DB.prepare("UPDATE feedback SET status = 'addressed', note = ?1, done_at = ?2 WHERE id = ?3").bind(note, now, Number(id)).run();
-    } else if (['new', 'done'].includes(body.status)) r = await env.DB.prepare('UPDATE feedback SET status = ?1, done_at = ?2, note = NULL WHERE id = ?3').bind(body.status, body.status === 'done' ? now : null, Number(id)).run();
+      const fixedIn = String(body.fixedIn || '').trim();
+      if (fixedIn && !/^\d+(\.\d+){1,3}$/.test(fixedIn)) throw new Refusal(400, 'bad_version', 'Give a version like 1.7.2, or leave it empty.');
+      const before = await env.DB.prepare('SELECT status FROM feedback WHERE id = ?1').bind(Number(id)).first();
+      r = await env.DB.prepare("UPDATE feedback SET status = 'addressed', note = ?1, fixed_in = ?2, done_at = ?3 WHERE id = ?4").bind(note, fixedIn || null, now, Number(id)).run();
+      // The player hears about it once: the first time it is marked addressed.
+      if (r.meta.changes && before && before.status !== 'addressed') told = await tellPlayer(env, Number(id), who, teamReply, now);
+    } else if (['new', 'done'].includes(body.status)) r = await env.DB.prepare('UPDATE feedback SET status = ?1, done_at = ?2, note = NULL, fixed_in = NULL WHERE id = ?3').bind(body.status, body.status === 'done' ? now : null, Number(id)).run();
     else throw new Refusal(400, 'bad_status');
     if (!r.meta.changes) throw new Refusal(404, 'gone', 'That message is gone.');
     analyticsCache.clear();
-    return { body: { ok: true }, target: id, detail: { status: body.status, note: body.status === 'addressed' ? cleanNote(body.note) : undefined } };
+    return { body: { ok: true, ...(told ? { told } : {}) }, target: id, detail: { status: body.status, note: body.status === 'addressed' ? cleanNote(body.note) : undefined, told } };
   }],
 
   ['GET', /^names$/, 'moderator', 'names.view', async ({ env, url, now }) => {

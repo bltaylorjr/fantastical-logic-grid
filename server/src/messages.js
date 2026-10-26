@@ -23,6 +23,7 @@ import { getSettings } from './settings.js';
 import { cleanText } from './feedback.js';
 import { withFixes } from './errors.js';
 import { queueNotice } from './replies.js';
+import { parsePuzzle } from './followups.js';
 import { AuthError } from './auth.js';
 import { nameKey } from './names.js';
 
@@ -210,6 +211,8 @@ export function deleteMessageStatements(env, uid) {
     env.DB.prepare('UPDATE feedback SET conversation_id = NULL WHERE conversation_id IN (SELECT id FROM conversations WHERE user_id = ?1)').bind(uid),
     env.DB.prepare('DELETE FROM conversations WHERE user_id = ?1').bind(uid),
     env.DB.prepare('DELETE FROM message_contacts WHERE user_id = ?1').bind(uid),
+    // Addresses kept to say an idea or problem was addressed (followups.js).
+    env.DB.prepare('DELETE FROM feedback_followups WHERE user_id = ?1').bind(uid),
   ];
 }
 
@@ -221,6 +224,7 @@ export function messageUpkeepStatements(env, now) {
       (SELECT id FROM conversations WHERE (status = 'done' AND done_at < ?1) OR updated_at < ?2)`).bind(old, now - 365 * DAY),
     conversations: env.DB.prepare("DELETE FROM conversations WHERE (status = 'done' AND done_at < ?1) OR updated_at < ?2").bind(old, now - 365 * DAY),
     news: env.DB.prepare('DELETE FROM news WHERE (ends_at IS NOT NULL AND ends_at < ?1) OR created_at < ?2').bind(now - 90 * DAY, now - 365 * DAY),
+    feedback_followups: env.DB.prepare('DELETE FROM feedback_followups WHERE created_at < ?1').bind(old),
   };
 }
 
@@ -269,7 +273,7 @@ const TYPES_FOR = { viewer: ['error', 'email'], moderator: ['message', 'idea', '
 export const typesFor = (role) => (role === 'viewer' ? TYPES_FOR.viewer : TYPES_FOR.moderator);
 const PER_TYPE = 100;
 const like = (q) => `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
-const EMAIL_KINDS = { idea: 'Thank-you email for an idea', problem: 'Email about a problem report', message: 'Email: new message from the team' };
+const EMAIL_KINDS = { idea: 'Thank-you email for an idea', problem: 'Email about a problem report', message: 'Email: new message from the team', fixed: 'Email: what we fixed' };
 const EMAIL_STATUS = { waiting: 'Waiting to be sent', sending: 'Being sent', sent: 'Sent', failed: 'Could not be sent', dropped: 'Not sent (emails were switched off)' };
 
 // One list, newest first, of everything players sent or the game reported.
@@ -303,10 +307,13 @@ export async function inbox(env, role, { type = 'all', status = 'new', q = '' } 
   }
   for (const kind of ['idea', 'problem']) {
     if (!has(kind)) continue;
-    const { results } = await db.prepare(`SELECT id, topic, text, platform, version, status, note, created_at AS at, done_at AS doneAt, conversation_id AS conversationId FROM feedback
+    const { results } = await db.prepare(`SELECT id, topic, text, platform, version, status, note, fixed_in AS fixedIn, puzzle, created_at AS at, done_at AS doneAt, conversation_id AS conversationId,
+        EXISTS (SELECT 1 FROM feedback_followups u WHERE u.feedback_id = feedback.id) AS canEmail FROM feedback
       WHERE kind = ?1 AND (?2 = 'all' OR status = ?2) AND (?3 IS NULL OR text LIKE ?3 ESCAPE '\\') ORDER BY created_at DESC LIMIT ?4`).bind(kind, status, search, PER_TYPE).all();
     for (const f of results) {
-      items.push({ type: kind, id: f.id, at: f.at, status: f.status, title: f.topic, text: f.text, meta: { topic: f.topic, platform: f.platform, version: f.version, conversationId: f.conversationId, note: f.note, doneAt: f.doneAt } });
+      items.push({ type: kind, id: f.id, at: f.at, status: f.status, title: f.topic, text: f.text, meta: {
+        topic: f.topic, platform: f.platform, version: f.version, conversationId: f.conversationId, note: f.note, doneAt: f.doneAt,
+        fixedIn: f.fixedIn, canEmail: !!f.canEmail, puzzle: parsePuzzle(f.puzzle) } });
     }
   }
   // Error reports have no done state: "new" is the last 7 days, "all" and

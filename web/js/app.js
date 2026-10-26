@@ -1281,6 +1281,7 @@ $('#rating-clear').onclick = async () => {
   $('#feedback-thanks').textContent = 'Rating cleared.';
 };
 $('#feedback-idea').onclick = () => feedbackBox.open(openDialog, { kind: 'idea' });
+feedbackBox.setPuzzleSource(() => (S ? feedbackBox.puzzleDetails(S.puzzle, S.save.daily ? { daily: true } : {}) : null));
 
 // Streak, new badges and Share my result on the solved panel.
 async function renderSolvedExtras(save) {

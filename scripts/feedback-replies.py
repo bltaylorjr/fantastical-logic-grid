@@ -7,7 +7,9 @@ domain's DNS is not on Cloudflare, so the Worker cannot send email itself).
    100 a day, 3,000 a month) when RESEND_API_KEY is set and the domain is
    verified there. Anything Resend does not take goes from the game's Gmail
    (smtp.gmail.com, an app password) with a "(no-reply)" sender name
-   instead. The text is fixed: it never contains anything the player wrote.
+   instead. The text is fixed and never contains anything the player wrote;
+   a 'fixed' note (an idea or problem the team marked addressed) adds the
+   team's own short note of what was done.
 3. Tell the Worker which went out (POST /admin/v1/replies/done), which
    removes their email addresses.
 
@@ -65,7 +67,23 @@ NOTES = {
                  'To stop these emails, untick it there.\n\n'
                  'The Fantastical Logic Grid team\n' + GAME_URL),
     },
+    'fixed': {
+        'subject': 'We fixed what you told us about',
+        'body': ('Hello, puzzler!\n\n'
+                 '{note}\n\n'
+                 'You can also read this in the game under Menu > Messages.\n\n'
+                 'The Fantastical Logic Grid team\n' + GAME_URL),
+    },
 }
+
+
+def body_of(r):
+    """The email text for one queued note. Only 'fixed' notes carry text, and
+    that text is the team's own words from the admin dashboard."""
+    body = NOTES[r['kind']]['body']
+    if r['kind'] == 'fixed':
+        body = body.replace('{note}', str(r.get('note') or 'We have addressed what you sent us. Thank you!').strip())
+    return body
 
 
 def call(path, body):
@@ -88,22 +106,22 @@ def html_version(text):
             f'<p style="margin:20px 0 0;font-size:13px;color:#5c5246">{html.escape(NO_REPLY)}</p></div></body></html>')
 
 
-def text_version(kind):
-    return NOTES[kind]['body'] + '\n\n--\n' + NO_REPLY + '\n'
+def text_version(body):
+    return body + '\n\n--\n' + NO_REPLY + '\n'
 
 
-def message(kind, to):
-    note = NOTES[kind]
+def message(r):
+    note = NOTES[r['kind']]
     msg = EmailMessage()
     msg['From'] = formataddr((SENDER_NAME, GMAIL_USER))
-    msg['To'] = to
+    msg['To'] = r['email']
     msg['Subject'] = note['subject']
     msg['Message-ID'] = make_msgid(domain='thelogicgrid.com')
     # An automatic message: mail programs should not send out-of-office answers to it.
     msg['Auto-Submitted'] = 'auto-replied'
     msg['X-Auto-Response-Suppress'] = 'All'
-    msg.set_content(text_version(kind))
-    msg.add_alternative(html_version(note['body']), subtype='html')
+    msg.set_content(text_version(body_of(r)))
+    msg.add_alternative(html_version(body_of(r)), subtype='html')
     return msg
 
 
@@ -113,7 +131,7 @@ def send_resend(replies):
     sent, refused = [], []
     for r in replies:
         payload = {'from': formataddr(('The Fantastical Logic Grid', MAIL_FROM)), 'to': [r['email']], 'subject': NOTES[r['kind']]['subject'],
-                   'text': text_version(r['kind']), 'html': html_version(NOTES[r['kind']]['body']),
+                   'text': text_version(body_of(r)), 'html': html_version(body_of(r)),
                    'headers': {'Auto-Submitted': 'auto-replied', 'X-Auto-Response-Suppress': 'All'}}
         req = urllib.request.Request('https://api.resend.com/emails', method='POST', data=json.dumps(payload).encode(),
                                      headers={'Authorization': f'Bearer {RESEND_KEY}', 'Content-Type': 'application/json', 'User-Agent': 'flg-feedback-replies'})
@@ -142,7 +160,7 @@ def send_gmail(replies):
             smtp.login(GMAIL_USER, GMAIL_PASSWORD)
             for r in replies:
                 try:
-                    smtp.send_message(message(r['kind'], r['email']))
+                    smtp.send_message(message(r))
                     sent.append(r['id'])
                 except smtplib.SMTPRecipientsRefused:
                     refused.append(r['id'])

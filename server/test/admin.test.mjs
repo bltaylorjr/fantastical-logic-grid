@@ -499,6 +499,61 @@ test('errors can be marked addressed with the version that fixed them', async ()
   assert.equal((await call(`/admin/v1/errors/fix/${byVersion['1.6.0'].id}/delete`, { auth: owner, body: {} })).status, 200);
 });
 
+test('ideas carry the open puzzle, and marking one addressed tells a player who asked for a reply', async () => {
+  const boss = idToken('fix-owner', OWNER);
+  const bea = idToken('bea-uid', 'bea@example.com');
+  await call('/admin/v1/settings', { auth: boss, body: { key: 'feedback_replies_enabled', value: true } });
+  const puzzle = { storyId: 'occasion/anniversary|t1|o2|i1|m0|ldish.1|e2', title: 'The Golden Song', theme: 'occasion', topic: 'anniversary', tier: 'medium', seed: 'abc123', size: '4x5',
+    engine: '1.0.0', clues: ['Carly holds a higher rank than Stephen. Mail me@example.com', 'Rose ordered the Tacos.'], name: 'Bea', marks: [1, 2] };
+  const sent = await call('/v1/feedback', { auth: bea, body: { kind: 'idea', topic: 'story', text: 'Why does a song story end on tacos?', talk: true, puzzle } });
+  assert.equal(sent.body.talk, 'linked');
+  const anon = await call('/v1/feedback', { body: { kind: 'idea', topic: 'story', text: 'Ranks are unclear to me', puzzle: { theme: 'fantasy', clues: 'not a list' } } });
+  assert.equal(anon.status, 200);
+  const row = await db.prepare("SELECT id, puzzle FROM feedback WHERE text LIKE 'Why does a song%'").first();
+  const kept = JSON.parse(row.puzzle);
+  assert.equal(kept.storyId, puzzle.storyId);
+  assert.equal(kept.size, '4x5');
+  assert.equal(kept.clues.length, 2);
+  assert.match(kept.clues[0], /<email>/, 'clue text is cleaned');
+  assert.ok(!('name' in kept) && !('marks' in kept), 'only puzzle details are kept');
+  assert.equal((await db.prepare('SELECT email FROM feedback_followups WHERE feedback_id = ?1').bind(row.id).first()).email, 'bea@example.com');
+
+  const items = (await call('/admin/v1/inbox?type=idea&status=new', { auth: boss })).body.items;
+  const mine = items.find((i) => i.id === row.id);
+  assert.equal(mine.meta.puzzle.title, 'The Golden Song');
+  assert.equal(mine.meta.canEmail, true);
+  const other = items.find((i) => /Ranks are unclear/.test(i.text));
+  assert.deepEqual(other.meta.puzzle.clues, [], 'a puzzle without a clue list still shows its theme');
+
+  assert.equal((await call(`/admin/v1/feedback/${row.id}`, { auth: boss, body: { status: 'addressed', note: 'Stories now end on a question about their own event.', fixedIn: 'soon' } })).status, 400);
+  const done = await call(`/admin/v1/feedback/${row.id}`, { auth: boss, body: { status: 'addressed', note: 'Stories now end on a question about their own event.', fixedIn: '1.7.2' } });
+  assert.equal(done.status, 200);
+  assert.deepEqual(done.body.told, { message: 'sent', email: 'queued' });
+  const conv = (await call('/v1/messages', { auth: bea })).body.conversations.find((c) => c.messages.some((m) => /song story/.test(m.text)));
+  const last = conv.messages.at(-1);
+  assert.equal(last.from, 'team');
+  assert.match(last.text, /addressed your idea in version 1\.7\.2\. What we did: Stories now end/);
+  assert.equal(conv.status, 'done');
+  const mail = await db.prepare("SELECT email, note FROM feedback_replies WHERE kind = 'fixed'").first();
+  assert.equal(mail.email, 'bea@example.com');
+  assert.match(mail.note, /What we did: Stories now end/);
+  assert.equal(await db.prepare('SELECT 1 FROM feedback_followups WHERE feedback_id = ?1').bind(row.id).first(), null, 'the address is not kept once used');
+  assert.equal((await db.prepare("SELECT COUNT(*) AS n FROM feedback_replies WHERE kind = 'message'").first()).n, 0, 'no second "new message" email');
+  const claim = (await call('/admin/v1/replies/claim', { auth: boss, body: { limit: 10 } })).body.replies.find((r) => r.kind === 'fixed');
+  assert.match(claim.note, /Stories now end/);
+  const fin = await call('/admin/v1/replies/done', { auth: boss, body: { sent: [claim.id] } });
+  assert.equal(fin.body.sent, 1, JSON.stringify(fin.body));
+  assert.equal((await db.prepare('SELECT email, note FROM feedback_replies WHERE id = ?1').bind(claim.id).first()).note, null);
+
+  // Marking it addressed again (a corrected note) does not message the player twice.
+  const again = await call(`/admin/v1/feedback/${row.id}`, { auth: boss, body: { status: 'addressed', note: 'Corrected note.' } });
+  assert.equal(again.body.told, undefined);
+  // An anonymous idea is only marked.
+  const anonDone = await call(`/admin/v1/feedback/${other.id}`, { auth: boss, body: { status: 'addressed', note: 'Ranks now say rank 1 is the lowest.' } });
+  assert.deepEqual(anonDone.body.told, { message: 'not_linked', email: 'none' });
+  await db.prepare('DELETE FROM feedback_replies').run();
+});
+
 test('the older token pages still work and are audited', async () => {
   const r = await call('/admin/errors', { auth: TOKEN });
   assert.equal(r.status, 200);

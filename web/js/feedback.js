@@ -6,7 +6,12 @@
 // token goes along so the server can find the account's confirmed address
 // (server/src/replies.js), which is never stored with the message. Ticking
 // "Let the team reply to me" links this one message to the account, so the
-// team can answer it in Menu > Messages (server/src/messages.js).
+// team can answer it in Menu > Messages (server/src/messages.js), and once
+// it is addressed the team's note of what was fixed arrives there (and by
+// email) (server/src/followups.js). Sent from an open puzzle, the puzzle's
+// own details come along unless the player unticks the box: story id,
+// title, theme, topic, difficulty, seed, size and clue texts. Never the
+// player's marks or notes.
 import { CLOUD, CLOUD_URL } from './cloud-config.js';
 import * as account from './account.js';
 import { feature } from './remote-config.js';
@@ -26,6 +31,21 @@ const TALK_WORDS = {
 
 export const available = () => !!CLOUD_URL && feature('feedback');
 
+// app.js says which puzzle is open (or null).
+let openPuzzle = () => null;
+export function setPuzzleSource(fn) { openPuzzle = fn; }
+
+export function puzzleDetails(p, extra = {}) {
+  if (!p || !p.story) return null;
+  const o = p.options || {};
+  return {
+    storyId: String(p.story.id || ''), title: p.title, theme: p.theme && p.theme.id, topic: p.topic && p.topic.id,
+    tier: p.difficulty && p.difficulty.id, seed: p.seed != null ? String(p.seed) : undefined,
+    size: o.categories && o.items ? `${o.categories}x${o.items}` : undefined, engine: p.version,
+    clues: (p.clues || []).map((c) => c.text), ...extra,
+  };
+}
+
 async function send(form) {
   const kind = form.dataset.kind;
   const text = $('textarea', form).value.trim();
@@ -44,9 +64,11 @@ async function send(form) {
     const talk = !talkBox.hidden && $('[data-talk]', talkBox).checked && !!account.current();
     let token = null;
     if (reply || talk) { try { token = await account.getIdToken(); } catch (e) { /* sent without a note */ } }
+    const pBox = $('.fb-puzzle', form);
+    const puzzle = !pBox.hidden && $('[data-puzzle]', pBox).checked ? form._puzzle : null;
     const res = await fetch(`${CLOUD_URL}/v1/feedback`, {
       method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-      body: JSON.stringify({ kind, topic, text, platform: platform(), version: CLOUD.appVersion || 'dev', reply: !!token && reply, talk: !!token && talk }),
+      body: JSON.stringify({ kind, topic, text, platform: platform(), version: CLOUD.appVersion || 'dev', reply: !!token && reply, talk: !!token && talk, ...(puzzle ? { puzzle } : {}) }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.message || 'It could not be sent right now. Please try again later.');
@@ -76,6 +98,11 @@ export function open(openDialog, { kind = 'idea' } = {}) {
     $('.fb-reply', form).hidden = !me || !feature('feedbackReplies');
     $('.fb-reply-to', form).textContent = me?.email ? ` at ${me.email}` : '';
     $('.fb-talk', form).hidden = !me || !feature('messages');
+    // Taken when the box opens, so the details match what the player saw.
+    form._puzzle = openPuzzle();
+    $('.fb-puzzle', form).hidden = !form._puzzle;
+    $('[data-puzzle]', form).checked = true;
+    $('.fb-puzzle-name', form).textContent = form._puzzle && form._puzzle.title ? `, "${form._puzzle.title}"` : '';
   }
   if (kind === 'idea') $('input[name=idea-topic][value=story]').checked = true;
   openDialog(dlg, kind === 'problem' ? $('#problem-topic') : $('#idea-text'));

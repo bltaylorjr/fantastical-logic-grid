@@ -63,7 +63,7 @@ export async function claimReplies(env, limit, now = Date.now()) {
     db.prepare("UPDATE feedback_replies SET status = 'waiting' WHERE status = 'sending' AND claimed_at < ?1").bind(now - CLAIM_TIMEOUT),
   ]);
   const n = Math.min(CLAIM_MAX, Math.max(1, Number(limit) || CLAIM_MAX));
-  const { results } = await db.prepare("SELECT id, kind, email FROM feedback_replies WHERE status = 'waiting' AND email IS NOT NULL ORDER BY created_at LIMIT ?1").bind(n).all();
+  const { results } = await db.prepare("SELECT id, kind, email, note FROM feedback_replies WHERE status = 'waiting' AND email IS NOT NULL ORDER BY created_at LIMIT ?1").bind(n).all();
   if (results.length) {
     await db.batch(results.map((r) => db.prepare("UPDATE feedback_replies SET status = 'sending', claimed_at = ?1, tries = tries + 1 WHERE id = ?2").bind(now, r.id)));
   }
@@ -76,7 +76,7 @@ export async function finishReplies(env, sent, failed, now = Date.now()) {
   const db = env.DB;
   const ids = (list) => (Array.isArray(list) ? list : []).map(Number).filter(Number.isInteger).slice(0, CLAIM_MAX);
   const stmts = [];
-  for (const id of ids(sent)) stmts.push(db.prepare("UPDATE feedback_replies SET status = 'sent', sent_at = ?1, email = NULL WHERE id = ?2 AND status = 'sending'").bind(now, id));
+  for (const id of ids(sent)) stmts.push(db.prepare("UPDATE feedback_replies SET status = 'sent', sent_at = ?1, email = NULL, note = NULL WHERE id = ?2 AND status = 'sending'").bind(now, id));
   for (const id of ids(failed)) {
     stmts.push(db.prepare(`UPDATE feedback_replies SET status = CASE WHEN tries >= ?1 THEN 'failed' ELSE 'waiting' END,
       email = CASE WHEN tries >= ?1 THEN NULL ELSE email END WHERE id = ?2 AND status = 'sending'`).bind(MAX_TRIES, id));

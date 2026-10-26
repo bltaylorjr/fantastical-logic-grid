@@ -428,6 +428,14 @@ let errItems = [];
 const errFix = (i) => { const f = i.meta.fix; return !f ? (can('admin') ? `<div class="row"><button class="btn small" type="button" data-err="${errItems.indexOf(i)}">Mark addressed</button></div>` : '')
   : f.missed ? `<p class="fb-note"><span class="badge warn">Still happening</span> Marked fixed in ${esc(f.fixedIn)}, but this report is from ${esc(i.meta.version)}. ${esc(f.note)}</p>`
   : `<p class="fb-note"><span class="badge ok">Addressed</span> Fixed in ${esc(f.fixedIn)}: ${esc(f.note)}</p>`; };
+// The puzzle a player had open when they sent an idea or problem.
+function puzzleHtml(p) {
+  if (!p) return '';
+  const facts = [p.title && `"${esc(p.title)}"`, [p.theme, p.topic].filter(Boolean).map(esc).join(' / '), p.tier && esc(p.tier), p.size && esc(p.size.replace('x', ' × ')),
+    p.daily && 'daily puzzle', p.seed && `seed <code>${esc(p.seed)}</code>`, p.storyId && `story <code>${esc(p.storyId)}</code>`].filter(Boolean).join(' · ');
+  return `<details class="fb-puzzle"><summary>The puzzle they had open: ${facts}</summary>
+    ${p.clues && p.clues.length ? `<ol>${p.clues.map((c) => `<li>${esc(c)}</li>`).join('')}</ol>` : '<p class="muted">No clues were sent.</p>'}</details>`;
+}
 
 function itemHtml(i) {
   const type = `<span class="badge${i.type === 'error' ? ' bad' : i.type === 'problem' ? ' warn' : ''}">${TYPE_NAMES[i.type]}</span>`;
@@ -446,9 +454,10 @@ function itemHtml(i) {
     return `<li>${type} ${state} <b>${esc(FB_TOPICS[m.topic] || m.topic)}</b>
       <span class="muted">${when(i.at)} · ${esc(m.platform)} ${esc(m.version)}${m.conversationId ? ' · the player asked for a reply' : ''}</span>
       <p class="fb-text">${esc(i.text)}</p>
-      ${i.status === 'addressed' && m.note ? `<p class="fb-note"><b>What we did:</b> ${esc(m.note)} <span class="muted">${when(m.doneAt)}</span></p>` : ''}
+      ${puzzleHtml(m.puzzle)}
+      ${i.status === 'addressed' && m.note ? `<p class="fb-note"><b>What we did${m.fixedIn ? ` (version ${esc(m.fixedIn)})` : ''}:</b> ${esc(m.note)} <span class="muted">${when(m.doneAt)}</span></p>` : ''}
       <div class="row">${m.conversationId ? `<button class="btn primary small" type="button" data-open="${m.conversationId}">Reply</button>` : ''}
-      ${i.status === 'new' ? `<button class="btn${m.conversationId ? '' : ' primary'} small" type="button" data-fb="${i.id}" data-status="addressed">Mark addressed</button>
+      ${i.status === 'new' ? `<button class="btn${m.conversationId ? '' : ' primary'} small" type="button" data-fb="${i.id}" data-status="addressed" data-linked="${m.conversationId ? 1 : 0}" data-email="${m.canEmail ? 1 : 0}">Mark addressed</button>
         <button class="btn small" type="button" data-fb="${i.id}" data-status="done">Mark done</button>` : `<button class="btn small" type="button" data-fb="${i.id}" data-status="new">Mark new</button>`}
       <button class="btn small" type="button" data-fb="${i.id}" data-status="delete">Delete</button></div></li>`;
   }
@@ -549,10 +558,15 @@ $('#comm-list').onclick = async (e) => {
   const words = { addressed: 'Marked addressed.', done: 'Marked done.', new: 'Marked new.', delete: 'Deleted.' };
   const body = { status: b.dataset.status };
   if (body.status === 'addressed') {
-    const v = await ask({ title: 'Mark addressed', text: 'Say in plain words what was done, so anyone reading this later knows.', ok: 'Mark addressed',
-      fields: [{ name: 'note', label: 'What was done', type: 'textarea' }], check: (x) => (x.note.trim() ? '' : 'Write a short note.') });
+    const reach = b.dataset.linked === '1'
+      ? `The player asked for a reply, so this note goes to their Messages${b.dataset.email === '1' ? ' and their email' : ''}, after "Good news: we've addressed what you sent. What we did:".`
+      : 'This message is anonymous, so the note is only kept here.';
+    const v = await ask({ title: 'Mark addressed', text: `Say in plain words what was done. ${reach}`, ok: 'Mark addressed',
+      fields: [{ name: 'note', label: 'What was done', type: 'textarea' }, { name: 'fixedIn', label: 'Fixed in version (optional)', value: '', help: 'Like 1.7.2.' }],
+      check: (x) => (!x.note.trim() ? 'Write a short note.' : x.fixedIn.trim() && !/^\d+(\.\d+){1,3}$/.test(x.fixedIn.trim()) ? 'Give a version like 1.7.2, or leave it empty.' : '') });
     if (!v) return;
     body.note = v.note;
+    if (v.fixedIn.trim()) body.fixedIn = v.fixedIn.trim();
   }
   if (await act(b, () => api(`feedback/${b.dataset.fb}`, { method: 'POST', body }), words[b.dataset.status])) show('communication', { keepFocus: true });
 };

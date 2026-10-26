@@ -1,7 +1,7 @@
 // The game's "Ideas and problems" boxes: two separate forms, one for story
 // and other ideas and one for problems a player wants to report.
 //
-//   POST /v1/feedback   { kind: idea|problem, topic, text, platform, version, reply, talk }
+//   POST /v1/feedback   { kind: idea|problem, topic, text, platform, version, reply, talk, puzzle }
 //
 // Anonymous: nothing about the player or device is stored. Email addresses,
 // web addresses and long numbers are blanked before saving. The admin
@@ -10,7 +10,11 @@
 // queued for the account's own confirmed address (replies.js), kept apart
 // from the message itself. With talk: true and a token, the player asks the
 // team to answer in the game's Messages: only then is the row linked to the
-// account, through a new conversation (messages.js).
+// account, through a new conversation (messages.js); if their email is
+// confirmed it is also kept to tell them when it is addressed (followups.js).
+// puzzle: the open puzzle's own details (story id, settings, clue texts),
+// never anything about the player (followups.js cleanPuzzle).
+import { cleanPuzzle, keepFollowup } from './followups.js';
 import { json, readText, TooLarge } from './http.js';
 import { getSettings } from './settings.js';
 import { queueReply } from './replies.js';
@@ -42,7 +46,7 @@ export function cleanText(text) {
 
 async function postFeedback(req, env) {
   let body;
-  try { body = JSON.parse(await readText(req, 6_000)); } catch (e) { return json(req, env, { error: e instanceof TooLarge ? 'too_large' : 'bad_request' }, e instanceof TooLarge ? 413 : 400); }
+  try { body = JSON.parse(await readText(req, 24_000)); } catch (e) { return json(req, env, { error: e instanceof TooLarge ? 'too_large' : 'bad_request' }, e instanceof TooLarge ? 413 : 400); }
   if (!(await getSettings(env)).feedback_enabled) return json(req, env, { error: 'switched_off', message: 'The idea and problem boxes are closed for now.' }, 503);
   const kind = TOPICS[body?.kind] ? body.kind : null;
   if (!kind) return json(req, env, { error: 'bad_request' }, 400);
@@ -54,8 +58,9 @@ async function postFeedback(req, env) {
   const since = Date.now() - 24 * 3600_000;
   const { n } = await env.DB.prepare('SELECT COUNT(*) AS n FROM feedback WHERE created_at > ?1').bind(since).first();
   if (n >= MAX_NEW_PER_DAY) return json(req, env, { error: 'busy', message: 'The boxes are full for today. Please try again tomorrow.' }, 429);
-  const row = await env.DB.prepare('INSERT INTO feedback (kind, topic, text, platform, version, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6) RETURNING id')
-    .bind(kind, topic, text, platform, version, Date.now()).first();
+  const puzzle = cleanPuzzle(body.puzzle);
+  const row = await env.DB.prepare('INSERT INTO feedback (kind, topic, text, platform, version, puzzle, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7) RETURNING id')
+    .bind(kind, topic, text, platform, version, puzzle, Date.now()).first();
   let reply = 'none';
   try { reply = await queueReply(req, env, kind, body.reply === true); } catch (e) { console.error(e); reply = 'error'; }
   let talk = 'none';
@@ -65,6 +70,7 @@ async function postFeedback(req, env) {
     if (token) { try { user = await verifyIdToken(token, env); } catch (e) { /* signed out */ } }
     if (!user) talk = 'signed_out';
     else { try { talk = await talkAboutFeedback(env, user, kind, text, row.id); } catch (e) { console.error(e); talk = 'error'; } }
+    if (talk === 'linked') { try { await keepFollowup(env, user, row.id); } catch (e) { console.error(e); } }
   }
   return json(req, env, { ok: true, reply, talk });
 }

@@ -207,6 +207,26 @@ function startAuth(signer) {
     assert((await db.prepare('SELECT COUNT(*) AS n FROM feedback_replies').first()).n === 0, 'no email is queued for an unconfirmed address');
     const conv = await db.prepare('SELECT c.id, c.topic FROM feedback f JOIN conversations c ON c.id = f.conversation_id').first();
     assert(conv && conv.topic === 'idea', 'the idea is linked to a conversation because the player asked');
+    assert((await db.prepare('SELECT puzzle FROM feedback').first()).puzzle === null, 'with no puzzle open, no puzzle details are sent');
+    await F.keyboard.press('Escape');
+
+    // ---- Sent while a puzzle is open, an idea carries that puzzle's details
+    // (a stand-in puzzle here), never the player's marks.
+    await F.evaluate(async () => {
+      const fb = await import('./js/feedback.js');
+      fb.setPuzzleSource(() => fb.puzzleDetails({ story: { id: 'occasion/wedding|t1|o2' }, title: 'The Lakeside Song', theme: { id: 'occasion' }, topic: { id: 'wedding' },
+        difficulty: { id: 'easy' }, seed: 's1', options: { categories: 3, items: 4 }, version: '1.0.0', clues: [{ text: 'Ann ordered the Tacos.' }] }));
+    });
+    await F.click('#menu-btn');
+    await F.click('#app-menu [data-cmd=feedback]');
+    await F.waitForSelector('#dlg-feedback[open]');
+    assert(await F.isVisible('#idea-form .fb-puzzle') && /The Lakeside Song/.test(await F.textContent('#idea-form .fb-puzzle')), 'the player sees which puzzle comes along');
+    assert(await F.isChecked('#idea-form [data-puzzle]'), 'including the puzzle is ticked by default');
+    await F.fill('#idea-text', 'Why does a song story end with tacos?');
+    await F.click('#idea-form button[type=submit]');
+    await F.waitForFunction(() => /Your idea was sent/.test(document.querySelector('#idea-form .acct-done').textContent));
+    const withPuzzle = JSON.parse((await db.prepare("SELECT puzzle FROM feedback WHERE text LIKE 'Why does a song%'").first()).puzzle);
+    assert(withPuzzle.title === 'The Lakeside Song' && withPuzzle.size === '3x4' && withPuzzle.clues[0] === 'Ann ordered the Tacos.', 'the puzzle details arrive with the idea');
     await F.keyboard.press('Escape');
 
     // ---- Messages: the team replies (as the dashboard would), the player

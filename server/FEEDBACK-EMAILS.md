@@ -14,8 +14,14 @@ Menu > Ideas and problems, they can leave "Email me a thank-you note" ticked:
   the team writes" in Menu > Messages (see `MESSAGES.md`). At most one a day
   per player, and it only says to open Messages.
 
-The text is fixed (`scripts/feedback-replies.py`). It never includes what the
-player wrote, so the boxes cannot be used to send someone a message.
+- **What we fixed:** "We fixed what you told us about", sent once when the team
+  marks an idea or problem addressed and the player had ticked "Let the team
+  reply to me" with a confirmed email (see `MESSAGES.md`). It carries the
+  team's own short note of what was done.
+
+The text is fixed (`scripts/feedback-replies.py`), apart from the team's note
+in "What we fixed". It never includes what the player wrote, so the boxes
+cannot be used to send someone a message.
 
 ## How it works
 
