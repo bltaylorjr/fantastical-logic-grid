@@ -228,7 +228,7 @@ ${body(up)}
   // that mentions it (the game's trailer and the how-to-play page) carries the full object.
   const minutes = (appHtml.match(/An (\d+)-minute narrated video/) || [])[1];
   const video = {
-    '@type': 'VideoObject', '@id': url('how-to-play/#video'), name: `How to play ${name}`,
+    '@type': 'VideoObject', '@id': url('how-to-play/#video'), name: `Introduction to ${name}`,
     description: 'A narrated, captioned walkthrough of a full puzzle, from picking a theme to closing the case.',
     thumbnailUrl: [url('og-image.jpg')], uploadDate: '2026-10-25T00:00:00-04:00',
     contentUrl: url('media/intro.mp4'), embedUrl: url('how-to-play/'), inLanguage: 'en',
@@ -302,6 +302,7 @@ ${verification}
     body: (up) => `<h1>How to play logic grid puzzles</h1>
 <p class="lede">Each puzzle in ${name} is a logic grid wrapped in a story. The story sets up a mystery, the clues give you the facts, and the grid is where you work out the answer. Every puzzle has exactly one answer you can reach without guessing.</p>
 ${playBtn(up)}
+<p>Never solved one before? <a href="${up}?learn">How to play, step by step</a> teaches you in the game on real grids: X and O, every kind of clue, carrying facts across the grid and what-if thinking, with tips and tricks.</p>
 <h2>The rules in five steps</h2>
 <ol class="steps">
   <li><strong>Pick a puzzle.</strong> Choose a <a href="${up}difficulty-levels/">difficulty</a>, a <a href="${up}themes/">theme</a> and a size. More categories and items make a bigger, harder grid.</li>
@@ -311,7 +312,7 @@ ${playBtn(up)}
   <li><strong>Answer the questions</strong> under the clues and press Check answers to close the case.</li>
 </ol>
 <p>Stuck? Press <strong>Hint</strong>: the first hint points you to a clue, then the exact square, then the full reasoning. Undo and Redo take back any move, and <strong>Check</strong> shows whether any mark is wrong.</p>
-<h2>Watch: a full case, solved</h2>
+<h2>Watch the introduction: a full case, solved</h2>
 <video id="video" controls preload="metadata" playsinline poster="${up}og-image.jpg" width="1280" height="720">
   <source src="${up}media/intro.mp4" type="video/mp4">
   <track kind="captions" srclang="en" label="English" src="${up}media/intro.en.vtt" default>
