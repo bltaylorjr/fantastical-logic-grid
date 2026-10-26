@@ -86,20 +86,21 @@ Details: https://github.com/bltaylorjr/fantastical-logic-grid/blob/main/server/A
 
 Guide: https://claude.ai/artifact/4MEsyqiPS5MfXAtdnp4K3W
 
-## 6. Turn on Dependabot alerts and GitHub's security settings
+## 6. Check Dependabot alerts and GitHub's security settings
 
-**Why:** Dependabot alerts warn you about known holes in the libraries the game uses, and security updates fix them on their own. The other settings stop leaked keys from being pushed and give people a private way to report problems. All of these are free for public repositories.
+**Why:** Dependabot alerts look switched on already, and GitHub reports that the main branch has open alerts about known holes in libraries the game uses. Security updates fix most of them on their own, and anything that needs a major update waits for you. The other settings stop leaked keys from being pushed and give people a private way to report problems. All of these are free for public repositories.
 
 **Steps:**
 
-1. Open https://github.com/bltaylorjr/fantastical-logic-grid/settings/security_analysis
-2. Click **Enable** for each of these that's still off:
+1. Open https://github.com/bltaylorjr/fantastical-logic-grid/security/dependabot and look through the open alerts. Many will already have a Dependabot pull request. If an alert has none and says a major update is needed, tell the project chat and it will be handled in code.
+2. Open https://github.com/bltaylorjr/fantastical-logic-grid/settings/security_analysis
+3. Click **Enable** for each of these that's still off:
    - **Dependabot alerts**
    - **Dependabot security updates**
    - **Private vulnerability reporting**
    - **Secret scanning** and **Push protection**
-3. Make sure two-factor sign-in is on for your GitHub, Cloudflare and Google (btay74@outlook.com) accounts, and for fantasticallogicgrid@gmail.com. For GitHub, check https://github.com/settings/security, for Cloudflare go to **My Profile > Authentication**, and for Google use https://myaccount.google.com/security
-4. Optional: protect `main` from being deleted or force-pushed. Open https://github.com/bltaylorjr/fantastical-logic-grid/settings/rules, choose **New ruleset > New branch ruleset**, and name it `main`. Set **Enforcement** to **Active**, click **Add target > Include default branch**, keep **Restrict deletions** and **Block force pushes** ticked, and click **Create**. Don't tick "Require a pull request" or "Require approvals", because they would stop the automatic merges.
+4. Make sure two-factor sign-in is on for your GitHub, Cloudflare and Google (btay74@outlook.com) accounts, and for fantasticallogicgrid@gmail.com. For GitHub, check https://github.com/settings/security, for Cloudflare go to **My Profile > Authentication**, and for Google use https://myaccount.google.com/security
+5. Optional: protect `main` from being deleted or force-pushed. Open https://github.com/bltaylorjr/fantastical-logic-grid/settings/rules, choose **New ruleset > New branch ruleset**, and name it `main`. Set **Enforcement** to **Active**, click **Add target > Include default branch**, keep **Restrict deletions** and **Block force pushes** ticked, and click **Create**. Don't tick "Require a pull request" or "Require approvals", because they would stop the automatic merges.
 
 The security work still in progress may add a few more owner-only settings. They'll arrive in a separate email.
 
