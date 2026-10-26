@@ -203,10 +203,29 @@ export function cleanSpeech(text) {
     .replace(/\s+([.,!?;:])/g, '$1')
     .trim();
 }
+// Clock times as English words: '9:45 PM' -> 'nine forty-five PM', '10:00 PM'
+// -> 'ten PM'. Some voices (Kokoro among them) read '10:00' as 'ten zero zero'.
+// Other languages keep the digits, minus a ':00', since the words are English.
+const ONES = 'zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen'.split(' ');
+const TENS = { 2: 'twenty', 3: 'thirty', 4: 'forty', 5: 'fifty' };
+export function clockWords(h, m, ap) {
+  h = Number(h); m = Number(m);
+  let w = h < 20 ? ONES[h] : `twenty${h > 20 ? `-${ONES[h - 20]}` : ''}`;
+  if (m === 0) w += ap ? '' : h > 12 ? ' hundred' : " o'clock";
+  else if (m < 10) w += ` oh ${ONES[m]}`;
+  else if (m < 20) w += ` ${ONES[m]}`;
+  else w += ` ${TENS[Math.floor(m / 10)]}${m % 10 ? `-${ONES[m % 10]}` : ''}`;
+  return ap ? `${w} ${ap.toUpperCase()}M` : w;
+}
+const CLOCK = /\b([01]?\d|2[0-3]):([0-5]\d)(?:\s*([AaPp])(?:\.[Mm](?:\.(?!\s+[A-Z]|\s*$))?|[Mm]\b))?/g;
+function sayTimes(t) {
+  if (i18n.isEnglish()) return t.replace(CLOCK, (_, h, m, ap) => clockWords(h, m, ap));
+  return t.replace(/\b(\d{1,2}):00\s*([AP])\.?M\.?\b/g, '$1 $2M');
+}
+
 // Spoken forms for things voices tend to stumble on: times, ranges, symbols,
 // abbreviations and all-caps words. Punctuation is kept so voices pause there.
 const SPOKEN = [
-  [/\b(\d{1,2}):00\s*([AP])\.?M\.?\b/g, '$1 $2M'],
   [/\b([AP])\.M\.(?=\s+[A-Z]|\s*$)/g, '$1M.'],
   [/\b([AP])\.M\./g, '$1M'],
   [/(\d)\s*[-–]\s*(\d)/g, '$1 to $2'],
@@ -232,7 +251,7 @@ const SPOKEN = [
   [/\s{2,}/g, ' '],
 ];
 export function speechText(text) {
-  let t = cleanSpeech(text);
+  let t = sayTimes(cleanSpeech(text));
   for (const [re, to] of SPOKEN) t = t.replace(re, to);
   return t.trim();
 }
