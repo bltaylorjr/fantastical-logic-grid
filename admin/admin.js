@@ -4,6 +4,7 @@
 // lives only in this tab (sessionStorage) and ends after 30 idle minutes.
 
 import { initPullRefresh } from './pull-refresh.js';
+import { renderConnections } from './connections-view.js';
 import { characterView } from './characters.js';
 import { ratingsView, initRatings } from './ratings.js';
 import { marketingView, initMarketing } from './marketing.js';
@@ -789,7 +790,8 @@ views.settings = async () => {
   const services = `<div class="card"><h2>Keys and services</h2><div class="services">
     ${keyLine(d.services.gemini, 'GEMINI_API_KEY', 'server voices and the Story workshop\'s AI writer (Google\'s free tier).')}
     ${keyLine(d.services.pictures, 'Workers AI', 'AI pictures (the AI binding in wrangler.toml, on Cloudflare\'s free allowance).')}
-    <p class="muted">Keys are never typed here or kept in the game. Add or change them in Cloudflare: Workers &amp; Pages &gt; flg-api &gt; Settings &gt; Variables and Secrets, as type Secret.</p></div></div>`;
+    <p class="muted">Keys are never typed here or kept in the game. Add or change them in Cloudflare: Workers &amp; Pages &gt; flg-api &gt; Settings &gt; Variables and Secrets, as type Secret.</p>
+    <p><a href="#connections">Every key, service and setting, with steps: Connections and setup</a></p></div></div>`;
   $('#settings-body').innerHTML = services + (editable ? '' : '<p class="note">You can see the settings. Changing them needs the admin role.</p>')
     + Object.entries(groups).map(([g, list]) => `<div class="card"><h2>${esc(g)}</h2>${list.map((s) => `<div class="setting">
       <div><b id="lbl-${s.key}">${esc(s.label)}</b><p class="help">${esc(s.help)}</p>${s.updatedBy ? `<p class="meta">Changed by ${esc(s.updatedBy)} on ${when(s.updatedAt)}</p>` : ''}</div>
@@ -813,6 +815,8 @@ $('#settings-body').onclick = (e) => {
   else if ($(`#set-${key}`).type === 'number') saveSettingValue(key, Number($(`#set-${key}`).value), b);
   else saveSettingValue(key, $(`#set-${key}`).value.trim(), b);
 };
+
+views.connections = () => renderConnections($('#connections-view'), { api, esc, when, toast, announce });
 
 $('#ann-form').onsubmit = async (e) => {
   e.preventDefault();
@@ -1231,7 +1235,7 @@ else $('#login').hidden = false;
 // it from Safari's Share menu (steps on the sign-in page).
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/admin/sw.js', { scope: '/admin/' }).catch(() => {});
 let installPrompt = null;
-window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installPrompt = e; $('#install').hidden = false; });
+window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); if (window.__FLG_ADMIN_DESKTOP__) return; installPrompt = e; $('#install').hidden = false; });
 window.addEventListener('appinstalled', () => { installPrompt = null; $('#install').hidden = true; toast('Installed. Open Grid Admin from your home screen or apps.'); });
 $('#install').onclick = async () => {
   if (!installPrompt) return;
@@ -1240,4 +1244,8 @@ $('#install').onclick = async () => {
   installPrompt = null;
   $('#install').hidden = true;
 };
-if (matchMedia('(display-mode: standalone)').matches || navigator.standalone) $('#phone-help').hidden = true;
+// The Windows app (desktop-admin/) opens this same page and marks itself with
+// __FLG_ADMIN_DESKTOP__, so neither the download nor the install steps show there.
+const installed = matchMedia('(display-mode: standalone)').matches || navigator.standalone || window.__FLG_ADMIN_DESKTOP__;
+if (installed) $('#phone-help').hidden = true;
+$('#get-windows').hidden = installed || !/Windows/.test(navigator.userAgent);

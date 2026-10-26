@@ -103,6 +103,22 @@ const SHOTS = process.env.SHOTS;
     const sw = await page.evaluate(async () => { const reg = await navigator.serviceWorker.ready; return reg.scope; });
     assert(/\/admin\/$/.test(sw), 'the service worker is installed for /admin/');
     assert(await page.locator('#phone-help summary').isVisible(), 'the sign-in page explains how to put it on a phone');
+    const winApp = /\/releases\/download\/admin-desktop\/The-Fantastical-Logic-Grid-Admin-Setup\.exe$/;
+    assert(winApp.test(await page.locator('#phone-help a').first().getAttribute('href')), 'the install steps link the Windows admin app');
+    assert(await page.locator('#get-windows').isHidden(), 'Download for Windows is hidden off Windows');
+    {
+      // On Windows the header offers the download; inside the Windows app
+      // (which sets __FLG_ADMIN_DESKTOP__) neither it nor the steps show.
+      const win = await browser.newContext({ userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0' });
+      const w = await win.newPage();
+      await w.goto(`${API}/admin/`);
+      assert(await w.locator('#get-windows').isVisible(), 'Windows visitors see Download for Windows');
+      assert(winApp.test(await w.locator('#get-windows').getAttribute('href')), 'Download for Windows links the admin installer');
+      await w.addInitScript(() => { window.__FLG_ADMIN_DESKTOP__ = true; });
+      await w.reload();
+      assert(await w.locator('#get-windows').isHidden() && await w.locator('#phone-help').isHidden(), 'the Windows app hides the download and install steps');
+      await win.close();
+    }
     await page.fill('#login-email', OWNER);
     await page.fill('#login-password', 'wrong');
     await page.click('#login-form button[type=submit]');
@@ -150,12 +166,36 @@ const SHOTS = process.env.SHOTS;
     await page.locator('input[name=theme-off]').first().check();
     await page.click('button[data-save=disabled_themes]');
     await page.waitForFunction(() => /Changed by/.test(document.querySelector('#settings-body').textContent));
-    const saved = JSON.parse((await db.prepare("SELECT value FROM settings WHERE key = 'disabled_themes'").first()).value);
+    // "Changed by" can already show from an earlier save, so wait for the row itself.
+    let saved = [];
+    for (let i = 0; i < 50 && saved.length !== 1; i++) {
+      const row = await db.prepare("SELECT value FROM settings WHERE key = 'disabled_themes'").first();
+      saved = row ? JSON.parse(row.value) : [];
+      if (saved.length !== 1) await new Promise((r) => setTimeout(r, 100));
+    }
     assert(saved.length === 1 && saved[0] === theme, `theme "${theme}" is switched off`);
     // Settings that moved out of the game.
     const dbValue = async (key) => { const r = await db.prepare('SELECT value FROM settings WHERE key = ?').bind(key).first(); return r && JSON.parse(r.value); };
     const until = async (key, want) => { for (let i = 0; i < 50 && (await dbValue(key)) !== want; i++) await new Promise((r) => setTimeout(r, 100)); return (await dbValue(key)) === want; };
     assert(/GEMINI_API_KEY/.test(await page.textContent('#settings-body')), 'the dashboard shows which keys are set, without the keys');
+    // The Connections and setup guide, from admin/connections.js, with live status.
+    await page.click('#settings-body a[href="#connections"]');
+    await page.waitForSelector('#conn-list details.conn[data-id=admin-sign-in][data-state=connected]', { state: 'attached' });
+    assert(await page.locator('#conn-list details.conn').count() > 15, 'the setup guide lists every connection');
+    assert((await page.getAttribute('details.conn[data-id=admin-sign-in]', 'data-state')) === 'connected', 'a connection whose Worker secrets are set shows Connected');
+    assert((await page.getAttribute('details.conn[data-id=github-security]', 'data-state')) === 'manual', 'one with nothing to check says to check it by hand');
+    await page.fill('#conn-q', 'GMAIL_APP_PASSWORD');
+    await page.waitForFunction(() => [...document.querySelectorAll('details.conn')].filter((d) => !d.hidden).length === 1);
+    assert(await page.locator('details.conn[data-id=gmail]').evaluate((d) => d.open && !d.hidden), 'searching a secret name finds and opens its connection');
+    assert(/myaccount\.google\.com\/apppasswords/.test(await page.textContent('details.conn[data-id=gmail]')), 'its steps link to the settings page');
+    await page.check('details.conn[data-id=gmail] input[data-tick=gmail-0]');
+    await page.fill('#conn-q', '');
+    await page.selectOption('#conn-show', 'attention');
+    assert(await page.locator('details.conn[data-id=github-security]').isHidden(), 'Needs attention hides the rest');
+    await page.selectOption('#conn-show', 'all');
+    await shot(page, '8-connections');
+    await page.click('a[href="#settings"]');
+    await page.waitForSelector('input[data-key=default_music]');
     await page.uncheck('input[data-key=default_music]');
     assert(await until('default_music', false), 'theme music starts off for players who have not chosen');
     await page.waitForSelector('input[data-key=confetti]:not([disabled])');
