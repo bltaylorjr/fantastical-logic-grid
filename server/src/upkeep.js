@@ -23,6 +23,7 @@
 // GET /v1/health?deep=1 reports whether the database answers, when the cleanup
 // last ran and how close the free voice quota is, for the GitHub health check.
 
+import { messageUpkeepStatements } from './messages.js';
 import { getSettings } from './settings.js';
 import { ARCHIVED_UPKEEP_JOBS } from './archive.js';
 
@@ -48,6 +49,7 @@ export async function runUpkeep(env, now = Date.now()) {
     archive_log: db.prepare('DELETE FROM archive_log WHERE ran_at < ?1').bind(now - 365 * DAY),
     feedback_replies: db.prepare('DELETE FROM feedback_replies WHERE created_at < ?1').bind(now - 30 * DAY),
     translations: db.prepare('DELETE FROM translations WHERE day < ?1').bind(isoDay(now - 180 * DAY)),
+    ...messageUpkeepStatements(env, now),
     rating_insights: db.prepare('DELETE FROM rating_insights WHERE day < ?1').bind(isoDay(now - 90 * DAY)),
     daily_results: db.prepare('DELETE FROM daily_results WHERE day < ?1').bind(isoDay(now - 120 * DAY)),
   };

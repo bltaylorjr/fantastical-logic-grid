@@ -17,6 +17,7 @@ import { celebrate as celebrateSolve } from './effects.js';
 import { icon } from './icons.js';
 import * as learn from './learn.js';
 import * as feedbackBox from './feedback.js';
+import * as messages from './messages.js';
 import * as share from './share.js';
 import * as errorReports from './errors.js';
 import * as campaign from './campaign.js';
@@ -1922,6 +1923,7 @@ function applyFeatures() {
   $('[data-cmd=feedback]').hidden = !feedbackBox.available();
   $('[data-cmd=suggest]').hidden = !characters.suggestionsOpen();
   $('#feedback-idea').hidden = !feedbackBox.available();
+  messages.configChanged();
   const support = remote.supportUrl();
   $('#support-link').hidden = !support;
   if (support) $('#support-link').href = support;
@@ -2034,6 +2036,7 @@ $('#app-menu').addEventListener('click', async (e) => {
   else if (cmd === 'suggest') characters.openSuggest(openDialog, OPTIONS.themes.filter((t) => !remote.disabledThemes().has(t.id)));
   else if (cmd === 'daily') openTodaysDaily();
   else if (cmd === 'feedback') feedbackBox.open(openDialog);
+  else if (cmd === 'messages') messages.open();
   else if (cmd === 'account') openAccount();
   else if (cmd === 'board') competeUi.openBoard();
   else if (cmd === 'install') installApp();
@@ -2288,6 +2291,7 @@ async function init() {
     onSavesChanged: () => { if (!$('#screen-home').hidden) renderSaved(); },
     onSettingsChanged: () => { settings = store.loadSettings(); applyColorTheme(); applyMode(); applyLanguage(); },
   }).catch(() => { /* accounts are optional */ });
+  messages.init({ openDialog, openAccount, announce });
   competeUi.initCompete({
     openDialog, toast, announce, confirmDialog, openAccount, fmtTime, makePuzzle, setupSummary, openRace, findRaceSave,
     openSave: (save) => openGame(save),

@@ -31,7 +31,7 @@
     <button class="btn quiet player-chip" type="button" id="player-chip" hidden><span class="sr-only">Playing as </span><span id="player-chip-name" translate="no">Guest</span></button>
     <button class="btn quiet" type="button" id="lang-btn" translate="no" aria-pressed="false" hidden>English</button>
     <button class="btn quiet" type="button" id="help-btn" aria-keyshortcuts="Shift+?">Help</button>
-    <button class="btn quiet" type="button" id="menu-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="app-menu">Menu</button>
+    <button class="btn quiet" type="button" id="menu-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="app-menu">Menu<span class="count-dot" id="menu-count" aria-hidden="true" hidden></span></button>
   </div>
   <div class="menu" id="app-menu" role="menu" hidden>
     <button role="menuitem" type="button" data-cmd="new">New puzzle</button>
@@ -40,6 +40,7 @@
     <button role="menuitem" type="button" data-cmd="stats">My stats and badges</button>
     <button role="menuitem" type="button" data-cmd="suggest" hidden>Suggest a character</button>
     <button role="menuitem" type="button" data-cmd="settings">Settings</button>
+    <button role="menuitem" type="button" data-cmd="messages" hidden>Messages<span class="count"></span></button>
     <button role="menuitem" type="button" data-cmd="feedback" hidden>Ideas and problems</button>
     <button role="menuitem" type="button" data-cmd="board" hidden>Scoreboard</button>
     <button role="menuitem" type="button" data-cmd="account" hidden>Account and sync</button>
@@ -425,7 +426,7 @@
 
 <dialog id="dlg-feedback" class="wide" aria-labelledby="feedback-h">
   <h2 id="feedback-h">Ideas and problems</h2>
-  <p class="help">Two boxes: one for ideas, one for problems. Both go to the game's team. Don't include your name, email or anything personal: messages are anonymous. Signed in with a confirmed email? Tick the box and we'll send you a short thank-you note.</p>
+  <p class="help">Two boxes: one for ideas, one for problems. Both go to the game's team. Don't include your name, email or anything personal: messages are anonymous. Signed in with a confirmed email? Tick the box and we'll send you a short thank-you note. Signed in and want an answer? Tick "Let the team reply to me" and the reply shows in Menu &gt; Messages.</p>
   <form class="feedback-box" id="idea-form" data-kind="idea" novalidate>
     <h3>Share an idea</h3>
     <fieldset><legend>What is it about?</legend>
@@ -434,6 +435,7 @@
     </fieldset>
     <div class="field"><label for="idea-text">Your idea</label><textarea id="idea-text" rows="4" maxlength="1000" placeholder="A pirate ship lost in the fog, where the crew mixed up the treasure maps…"></textarea></div>
     <label class="check fb-reply" hidden><input type="checkbox" data-reply checked> <span>Email me a thank-you note<span class="fb-reply-to"></span></span></label>
+    <label class="check fb-talk" hidden><input type="checkbox" data-talk> <span>Let the team reply to me in Messages</span></label>
     <div class="error-box" role="alert" hidden></div>
     <p class="acct-done" role="status"></p>
     <div class="row-inline"><button class="btn primary" type="submit">Send idea</button></div>
@@ -445,10 +447,45 @@
       <option value="saving">Saving or signing in</option><option value="other">Somewhere else</option></select></div>
     <div class="field"><label for="problem-text">What went wrong?</label><textarea id="problem-text" rows="4" maxlength="1000" placeholder="What you did, what you expected, and what happened instead."></textarea></div>
     <label class="check fb-reply" hidden><input type="checkbox" data-reply checked> <span>Email me a thank-you note<span class="fb-reply-to"></span></span></label>
+    <label class="check fb-talk" hidden><input type="checkbox" data-talk> <span>Let the team reply to me in Messages</span></label>
     <div class="error-box" role="alert" hidden></div>
     <p class="acct-done" role="status"></p>
     <div class="row-inline"><button class="btn primary" type="submit">Send problem report</button></div>
   </form>
+  <div class="dlg-actions"><button class="btn" type="button" data-close>Close</button></div>
+</dialog>
+
+<dialog id="dlg-messages" class="wide" aria-labelledby="messages-h">
+  <h2 id="messages-h">Messages</h2>
+  <section id="msg-news-box" aria-labelledby="msg-news-h" hidden>
+    <h3 id="msg-news-h">News from the team</h3>
+    <ul class="msg-news" id="msg-news"></ul>
+  </section>
+  <section aria-labelledby="msg-convs-h">
+    <h3 id="msg-convs-h">You and the team</h3>
+    <div id="msg-signed-out" hidden>
+      <p class="help">Sign in to write to the game's team and read their replies here. You never need an account to play.</p>
+      <div class="row-inline"><button class="btn primary" type="button" id="msg-signin">Sign in</button></div>
+    </div>
+    <div id="msg-signed-in" hidden>
+      <p class="help" id="msg-loading" role="status" hidden>Loading your messages…</p>
+      <div class="error-box" id="msg-load-error" role="alert" hidden></div>
+      <p class="help" id="msg-banned" hidden>Your account cannot send messages right now.</p>
+      <ul class="msg-convs" id="msg-convs"></ul>
+      <form class="msg-box" id="msg-new" novalidate>
+        <h3>Write to the team</h3>
+        <div class="field"><label for="msg-new-topic">What is it?</label><select id="msg-new-topic">
+          <option value="question">A question</option><option value="idea">An idea</option><option value="problem">A problem</option></select></div>
+        <div class="field"><label for="msg-new-text">Your message</label><textarea id="msg-new-text" rows="4" maxlength="1000"></textarea></div>
+        <p class="help">Don't include passwords or anything private. Email and web addresses are removed.</p>
+        <div class="error-box" role="alert" hidden></div>
+        <p class="acct-done" id="msg-new-done" role="status"></p>
+        <div class="row-inline"><button class="btn primary" type="submit">Send to the team</button></div>
+      </form>
+      <label class="check"><input type="checkbox" id="msg-email-on"> <span>Email me<span id="msg-email-to"></span> when the team writes (a short notice; the message stays here)</span></label>
+      <div class="error-box" id="msg-email-error" role="alert" hidden></div>
+    </div>
+  </section>
   <div class="dlg-actions"><button class="btn" type="button" data-close>Close</button></div>
 </dialog>
 

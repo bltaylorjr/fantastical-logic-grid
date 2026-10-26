@@ -639,8 +639,8 @@ dialog::backdrop { background: rgb(5 7 16 / .6); backdrop-filter: blur(6px); -we
 .chip { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 14px; border: 2px solid var(--border); border-radius: 999px; cursor: pointer; }
 .chip input { width: 20px; height: 20px; margin: 0; accent-color: var(--accent); }
 .chip:has(input:checked) { border-color: var(--accent); font-weight: 700; }
-#dlg-feedback textarea { width: 100%; font: inherit; }
-#dlg-feedback select, #dlg-feedback textarea { min-height: 44px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); color: var(--text); width: 100%; }
+#dlg-feedback textarea, #dlg-messages textarea { width: 100%; font: inherit; }
+#dlg-feedback select, #dlg-feedback textarea, #dlg-messages select, #dlg-messages textarea { min-height: 44px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); color: var(--text); width: 100%; }
 /* Account and sync */
 .field input[type=email] { min-height: 44px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); color: var(--text); width: 100%; }
 .field input[type=password] { min-height: 44px; padding: 8px 12px; border: 1px solid var(--border); width: 100%; color: var(--text); }
@@ -714,6 +714,24 @@ table.board .pill { font-size: .75rem; margin-left: 4px; }
 .miniboard li.empty span::before { content: none; }
 #dlg-feedback .feedback-box { border-top: 1px solid var(--edge); padding-top: 8px; margin-top: 12px; }
 #dlg-feedback textarea { box-sizing: border-box; }
+/* Messages: news, and conversations with the team */
+#dlg-messages textarea { box-sizing: border-box; }
+#dlg-messages .msg-box { border-top: 1px solid var(--edge); padding-top: 8px; margin-top: 12px; }
+.msg-news, .msg-convs, .msg-list { list-style: none; margin: 0; padding: 0; }
+.msg-news > li { border: 1px solid var(--edge-hi); background: var(--surface-2); border-radius: 12px; padding: 10px 14px; margin: 8px 0; }
+.msg-news h4 { margin: 0; }
+.msg-convs > li { margin: 8px 0; }
+.msg-convs details { border: 1px solid var(--edge-hi); border-radius: 12px; padding: 0 14px; }
+.msg-convs summary { cursor: pointer; min-height: 44px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 8px 0; }
+.msg-list { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 12px; }
+.msg { border-radius: 12px; padding: 8px 12px; max-width: 90%; border: 1px solid var(--edge-hi); }
+.msg.team { align-self: flex-start; background: var(--accent-soft); }
+.msg.me { align-self: flex-end; background: var(--surface-2); }
+.msg p { margin: 2px 0; }
+.msg-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.msg-reply { padding-bottom: 12px; }
+.pill.new { border-color: var(--accent); background: var(--accent-soft); color: var(--text); font-weight: 700; }
+.count-dot { display: inline-block; margin-left: 6px; min-width: 1.4em; padding: 0 5px; border-radius: 999px; background: var(--accent); color: var(--on-accent); font-size: .8rem; font-weight: 700; line-height: 1.4; text-align: center; }
 @media (max-width: 520px) {
   /* Keep the strip to one line on phones: the leader, and the player when they are on the board. */
   .miniboard li:nth-child(n+2):not(.me) { display: none; }

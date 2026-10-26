@@ -93,3 +93,23 @@ export async function replyCounts(env, now = Date.now()) {
   const settings = await getSettings(env, now);
   return { enabled: settings.feedback_replies_enabled, cap: settings.feedback_reply_daily_cap, sentToday: c.sent || 0, waiting: (c.waiting || 0) + (c.sending || 0), failedToday: c.failed || 0 };
 }
+
+// Messages (messages.js): when the team writes to a player who turned on
+// "Email me when the team writes", queue a fixed notice (kind 'message') that
+// says there is a new message in the game, never what it says. Same limits:
+// one a day per player, inside the shared daily cap. Returns queued, limit,
+// off or none (the player did not turn it on).
+export async function queueNotice(env, uid, now = Date.now()) {
+  const contact = await env.DB.prepare('SELECT email FROM message_contacts WHERE user_id = ?1').bind(uid).first();
+  if (!contact) return 'none';
+  const settings = await getSettings(env, now);
+  if (!settings.feedback_replies_enabled || !settings.message_emails_enabled) return 'off';
+  const who = (await sha256(`flg-reply|${uid}`)).slice(0, 32);
+  const since = now - DAY;
+  const mine = await env.DB.prepare("SELECT COUNT(*) AS n FROM feedback_replies WHERE who = ?1 AND kind = 'message' AND created_at > ?2").bind(who, since).first();
+  if (mine.n >= 1) return 'limit';
+  const all = await env.DB.prepare("SELECT COUNT(*) AS n FROM feedback_replies WHERE created_at > ?1 AND status != 'dropped'").bind(since).first();
+  if (all.n >= settings.feedback_reply_daily_cap) return 'limit';
+  await env.DB.prepare("INSERT INTO feedback_replies (who, kind, email, created_at) VALUES (?1, 'message', ?2, ?3)").bind(who, contact.email, now).run();
+  return 'queued';
+}
