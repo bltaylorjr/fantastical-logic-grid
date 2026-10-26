@@ -56,7 +56,7 @@ def clock_words(m):
     return words + (f' {ap[0].upper()}M' if ap else '')
 
 
-def spoken(text):
+def say_aloud(text):
     """What the narrator says for a caption. Kokoro reads '10:00 PM' as
     'ten zero zero PM', so clock times are written out as words first."""
     return re.sub(r'\b([01]?\d|2[0-3]):([0-5]\d)(?:\s*([AaPp])(?:\.[Mm](?:\.(?!\s+[A-Z]|\s*$))?|[Mm]\b))?', clock_words, text)
@@ -109,7 +109,7 @@ def main():
             # Kokoro reads X and O well, so it says the caption itself (with
             # clock times as words). The spelled-out variant is only for voices
             # that need it.
-            samples, sr = tts.create(spoken(cap), voice=VOICE, speed=SPEED, lang='en-us')
+            samples, sr = tts.create(say_aloud(cap), voice=VOICE, speed=SPEED, lang='en-us')
             assert sr == SR
             a = (np.clip(samples, -1, 1) * 32767).astype(np.int16)
             d = len(a) / SR
