@@ -139,3 +139,26 @@ test('deleting an account needs a recent sign-in and removes everything', async 
   // Another device still holding a token cannot write the account back.
   assert.equal((await call('/v1/sync', { token: fresh, body: { changes: [save('g2')], since: 0 } })).status, 401);
 });
+
+test('every answer carries security headers', async () => {
+  for (const r of [await call('/v1/health', { method: 'GET' }), await call('/v1/sync', { body: {} }), await call('/nowhere', { method: 'GET' })]) {
+    assert.equal(r.headers.get('x-content-type-options'), 'nosniff');
+    assert.match(r.headers.get('strict-transport-security'), /max-age=\d{8}/);
+    assert.match(r.headers.get('content-security-policy'), /default-src 'none'.*frame-ancestors 'none'/);
+    assert.equal(r.headers.get('referrer-policy'), 'no-referrer');
+    await r.arrayBuffer();
+  }
+});
+
+test('bodies over the limit are cut off while still arriving', async () => {
+  const stream = (kb) => new ReadableStream({ start(c) { for (let i = 0; i < kb; i++) c.enqueue(new TextEncoder().encode('x'.repeat(1024))); c.close(); } });
+  const post = (path, kb) => mf.dispatchFetch(`https://api.test${path}`, { method: 'POST', headers: { Origin: ORIGIN, 'Content-Type': 'application/json' }, body: stream(kb), duplex: 'half' });
+  for (const [path, kb] of [['/v1/errors', 20], ['/v1/feedback', 20], ['/v1/learn/plays', 100]]) {
+    const r = await post(path, kb);
+    assert.ok([400, 413].includes(r.status), `${path} gave ${r.status}`);
+    await r.arrayBuffer();
+  }
+  const r = await post('/v1/errors', 20);
+  assert.equal(r.status, 413);
+  await r.arrayBuffer();
+});

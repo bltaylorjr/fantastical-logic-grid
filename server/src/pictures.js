@@ -9,7 +9,7 @@
 // The same prompt always returns the cached picture, which does not count
 // toward the cap. Each device also keeps its pictures, so a story's are made
 // once.
-import { json, corsHeaders } from './http.js';
+import { json, corsHeaders, readText, TooLarge } from './http.js';
 import { getSettings } from './settings.js';
 import { bump } from './learn.js';
 
@@ -25,7 +25,7 @@ async function postPicture(req, env, ctx) {
   if (settings.ai_pictures === 'none') return json(req, env, { error: 'switched_off' }, 503);
   if (!env.AI) return json(req, env, { error: 'not_set_up' }, 503);
   let body;
-  try { body = JSON.parse(await req.text()); } catch (e) { return json(req, env, { error: 'bad_request' }, 400); }
+  try { body = JSON.parse(await readText(req, 4_000)); } catch (e) { return json(req, env, { error: e instanceof TooLarge ? 'too_large' : 'bad_request' }, e instanceof TooLarge ? 413 : 400); }
   const kind = body?.kind === 'portrait' ? 'portrait' : 'scene';
   if (kind === 'portrait' && settings.ai_pictures !== 'all') return json(req, env, { error: 'switched_off' }, 503);
   const prompt = String(body?.prompt || '').replace(/\s+/g, ' ').trim();

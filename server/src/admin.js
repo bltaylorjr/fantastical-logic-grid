@@ -34,7 +34,7 @@
 // Privacy: anonymous learning data (plays, parts) is only ever counted on its
 // own. Nothing here joins it to accounts, and saved puzzles are only counted,
 // never shown.
-import { json } from './http.js';
+import { json, readText, TooLarge } from './http.js';
 import { verifyIdToken, AuthError } from './auth.js';
 import { checkName, cleanName, nameKey, hasBlockedWords } from './names.js';
 import { deleteCompeteStatements, clearBoardCache } from './compete.js';
@@ -49,6 +49,10 @@ const DAY = 24 * 3600_000;
 const ROLES = { viewer: 1, moderator: 2, admin: 3, owner: 4 };
 const STORED_ROLES = ['admin', 'moderator', 'viewer'];
 const MAX_BODY = 8_000;
+// An admin must sign in again (with their password) at least this often, even
+// while the dashboard keeps refreshing their token; the dashboard itself signs
+// out after 30 idle minutes.
+const SESSION_MAX_S = 12 * 3600;
 const DENIED_PER_DAY = 500; // refused requests written to the audit log, so a flood cannot fill it
 const ANALYTICS_CACHE_MS = 120_000;
 const TABLES = ['sync_users', 'sync_records', 'sync_deleted_users', 'players', 'scores', 'races', 'race_entries', 'race_invites', 'plays', 'parts', 'usage',
@@ -65,6 +69,10 @@ const SECURITY_HEADERS = {
   'Referrer-Policy': 'no-referrer',
   'X-Robots-Tag': 'noindex, nofollow',
   'Cache-Control': 'no-cache',
+  'Strict-Transport-Security': 'max-age=63072000; includeSubDomains',
+  'Cross-Origin-Opener-Policy': 'same-origin',
+  'Cross-Origin-Resource-Policy': 'same-origin',
+  'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=(), usb=(), serial=(), hid=(), bluetooth=(), interest-cohort=()',
 };
 
 const isoDay = (ms) => new Date(ms).toISOString().slice(0, 10);
@@ -102,6 +110,7 @@ async function identify(req, env) {
     if (e instanceof AuthError) throw new Refusal(401, 'sign_in', 'Please sign in again.');
     throw e;
   }
+  if (Date.now() / 1000 - user.authTime > SESSION_MAX_S) throw new Refusal(401, 'sign_in', 'For safety, please sign in again.');
   const email = String(user.email || '').trim().toLowerCase();
   if (!email) throw new Refusal(403, 'not_admin', 'This account is not an admin.');
   const owner = String(env.OWNER_EMAIL || '').trim().toLowerCase();
@@ -554,8 +563,11 @@ const ROUTES = [
 
 async function readBody(req) {
   if (req.method !== 'POST') return {};
-  const text = await req.text();
-  if (text.length > MAX_BODY) throw new Refusal(413, 'too_large');
+  let text;
+  try { text = await readText(req, MAX_BODY); } catch (e) {
+    if (e instanceof TooLarge) throw new Refusal(413, 'too_large');
+    throw e;
+  }
   if (!text) return {};
   try {
     const b = JSON.parse(text);
