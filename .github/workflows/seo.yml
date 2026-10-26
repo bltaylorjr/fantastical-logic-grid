@@ -57,7 +57,10 @@ jobs:
           fetch() { curl -fsSL --retry 2 --max-time 20 "$1"; }
           robots=$(fetch "$SITE/robots.txt") || problems+=("$SITE/robots.txt does not answer.")
           grep -q "^Sitemap: $SITE/sitemap.xml" <<<"$robots" || problems+=("robots.txt does not point search engines to the sitemap.")
-          grep -qi '^Disallow: /$' <<<"$robots" && problems+=("robots.txt blocks the whole site from search engines.")
+          # Only the rules for every crawler (User-agent: *) matter here; the
+          # AI training crawlers are blocked on purpose in their own group.
+          everyone=$(awk 'tolower($1) == "user-agent:" { star = ($2 == "*") } star' <<<"$robots")
+          grep -qi '^Disallow: /\s*$' <<<"$everyone" && problems+=("robots.txt blocks the whole site from search engines.")
           if sitemap=$(fetch "$SITE/sitemap.xml"); then
             urls=$(grep -o '<loc>[^<]*</loc>' <<<"$sitemap" | sed 's#</*loc>##g')
             echo "$(wc -l <<<"$urls") pages in the sitemap"
