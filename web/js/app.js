@@ -317,14 +317,15 @@ async function rememberStory(id) {
 }
 
 // A new puzzle from the setup choices, with a story this player has never had.
-async function makePuzzle() {
-  const options = gatherOptions();
-  store.saveSetupChoices({ tier: setup.tier, theme: setup.theme, topic: setup.topic, size: setup.size, custom: currentSize() });
+// With `override` (a quick puzzle), the setup choices are neither read nor saved.
+async function makePuzzle(override = null) {
+  const options = override ? { ...override } : gatherOptions();
+  if (!override) store.saveSetupChoices({ tier: setup.tier, theme: setup.theme, topic: setup.topic, size: setup.size, custom: currentSize() });
   const used = await store.getMeta('usedStories', []);
   const usedSet = new Set(used);
   // Learning only picks between puzzles the engine has fully checked.
   let tuned = {};
-  if (settings.learn) { try { tuned = await learn.tuning(setup.tier, { useShared: share.available() && remote.feature('learning') }); } catch (e) { tuned = {}; } }
+  if (settings.learn) { try { tuned = await learn.tuning(options.difficulty, { useShared: share.available() && remote.feature('learning') }); } catch (e) { tuned = {}; } }
   // Surprise me never picks a theme that is switched off.
   const off = remote.disabledThemes();
   // Surprise me is decided here when the game's own characters might join,
@@ -399,6 +400,46 @@ async function startGeneration() {
   }
 }
 
+// A quick puzzle: a small Easy case in any theme, with no setup, so a first
+// visit is playing within seconds (the market test's "Play now"). Coach tips
+// show as on any Easy puzzle. Also opened by a link ending ?play=now.
+const QUICK = { difficulty: 'easy', theme: 'random', categories: 3, items: 4 };
+async function startQuick() {
+  if (generating) return;
+  generating = true;
+  const btn = $('#quick-btn');
+  const st = $('#quick-status');
+  const err = $('#quick-error');
+  err.hidden = true;
+  btn.disabled = true;
+  st.textContent = 'Writing a quick case for you…';
+  try {
+    const save = newSave(await makePuzzle(QUICK));
+    save.quick = true;
+    await store.putSave(save);
+    st.textContent = '';
+    openGame(save, { fresh: true });
+  } catch (e) {
+    st.textContent = '';
+    err.innerHTML = `<p><b>The story could not be written.</b> ${esc(e.message || e)}</p><button class="btn" type="button" id="quick-retry">Try again</button>`;
+    err.hidden = false;
+    $('#quick-retry').onclick = startQuick;
+  } finally {
+    btn.disabled = false;
+    generating = false;
+  }
+}
+$('#quick-btn').onclick = startQuick;
+// ?play=now in a link (ads, the website) starts a quick puzzle straight away.
+function handlePlayLink() {
+  const url = new URL(location.href);
+  if (url.searchParams.get('play') !== 'now') return false;
+  url.searchParams.delete('play');
+  try { history.replaceState(history.state, '', url.pathname + url.search + url.hash); } catch (e) { /* framed preview */ }
+  startQuick();
+  return true;
+}
+
 function expectedMsFor(puzzle) {
   const K = puzzle.categories.length, N = puzzle.categories[0].items.length;
   return (K * (K - 1) / 2) * N * N * (MINUTES_PER_CELL[puzzle.difficulty.id] || 0.2) * 60000;
@@ -430,6 +471,8 @@ async function renderSaved() {
   saves.sort((a, b) => b.lastPlayed - a.lastPlayed);
   const last = saves.find((x) => !x.solved);
   $('#continue-btn').hidden = !last;
+  // With nothing to continue, the quick puzzle is the main way in.
+  $('#quick-btn').classList.toggle('primary', !last);
   if (last) {
     $('#continue-btn').dataset.id = last.id;
     $('#continue-name').textContent = `${last.name} · ${last.percent || 0}%`;
@@ -1930,7 +1973,7 @@ async function checkUpdates() {
   offerUpdate();
 }
 
-$('#welcome-skip').onclick = () => $('#dlg-welcome').close();
+$('#welcome-skip').onclick = () => { $('#dlg-welcome').close(); startQuick(); };
 $('#welcome-watch').onclick = () => { $('#dlg-welcome').close(); openVideo(); };
 $('#back-saved').onclick = async () => { await goHome({ focusSaved: true }); $('#saved-section').scrollIntoView(); };
 
@@ -2124,7 +2167,8 @@ async function init() {
   competeUi.handleRaceLink();
   window.addEventListener('resize', () => { if (!$('#screen-home').hidden) updatePreview(); });
   document.documentElement.classList.add('ready');
-  offerIntro();
+  // A ?play=now link goes straight into a puzzle; the welcome waits for next time.
+  if (!handlePlayLink()) offerIntro();
   offerLanguage();
   setTimeout(checkUpdates, 4000);
   if (!isPreview) setTimeout(ensureNaturalVoices, 1500);

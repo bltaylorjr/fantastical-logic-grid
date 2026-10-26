@@ -7,7 +7,7 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "serve": "npm run build && node scripts/serve.mjs dist/web 8080",
-    "test": "node scripts/test-gender.mjs && node scripts/test-improve.mjs && npm run build && node scripts/e2e.cjs && node scripts/e2e-voices.cjs && node scripts/e2e-clues-voice.cjs && node scripts/e2e-topics.cjs && node scripts/e2e-learn.cjs && node scripts/e2e-storage.cjs && node scripts/e2e-install.cjs && node scripts/e2e-pull-refresh.cjs && node scripts/e2e-daily.cjs && node scripts/e2e-language.cjs && node scripts/e2e-security.cjs && node scripts/e2e-characters.cjs",
+    "test": "node scripts/test-gender.mjs && node scripts/test-improve.mjs && npm run build && node scripts/e2e.cjs && node scripts/e2e-voices.cjs && node scripts/e2e-clues-voice.cjs && node scripts/e2e-topics.cjs && node scripts/e2e-learn.cjs && node scripts/e2e-storage.cjs && node scripts/e2e-install.cjs && node scripts/e2e-pull-refresh.cjs && node scripts/e2e-daily.cjs && node scripts/e2e-language.cjs && node scripts/e2e-security.cjs && node scripts/e2e-quick.cjs && node scripts/e2e-characters.cjs",
     "desktop:dev": "npm run build && tauri dev --config desktop/src-tauri/tauri.conf.json",
     "desktop:build": "npm run build && cd desktop && tauri build",
     "desktop:build:win-from-linux": "npm run build && cd desktop && tauri build --target x86_64-pc-windows-gnu",
