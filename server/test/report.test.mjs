@@ -156,7 +156,7 @@ test('the weekly summary has where visitors came from and the market test pass m
     (?1, '(none)', 'reddit', 'forum', '', 'return', 'web', 12), (?1, '(none)', 'google', 'search', '', 'visit', 'web', 5)`).bind(day).run();
   const s = await call('/admin/v1/summary?days=7', { auth: TOKEN });
   assert.equal(s.status, 200);
-  assert.deepEqual(s.body.funnel[0], { source: 'reddit', medium: 'forum', visit: 150, play: 75, solve: 0, return: 12, install: 0, download: 0, startPct: 50, returnPct: 8 });
+  assert.deepEqual(s.body.funnel[0], { source: 'reddit', medium: 'forum', visit: 150, play: 75, solve: 0, return: 12, install: 0, download: 0, support: 0, startPct: 50, returnPct: 8 });
   const marks = Object.fromEntries(s.body.marketTest.marks.map((m) => [m.id, m]));
   assert.equal(marks.start.status, 'pass');
   assert.equal(marks.start.value, 48); // 75 of 155 visitors

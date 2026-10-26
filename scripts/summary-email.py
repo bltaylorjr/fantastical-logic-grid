@@ -68,7 +68,7 @@ def build(s):
             unit = ' of 5' if m['id'] == 'rating' else '%'
             mark = f"{m['mark']}{unit}" if m['id'] == 'rating' else f"{m['mark']}%"
             if m['status'] == 'not_measured':
-                got = 'there is no Support button yet'
+                got = 'the Support the game link is switched off'
             elif m['value'] is None:
                 got = f"no {m['unit']} yet"
             else:
@@ -76,6 +76,9 @@ def build(s):
             extra = f" (needs {n(m['min'])} {m['unit']} to judge)" if m['status'] == 'too_early' else ''
             lines.append(f"{words.get(m['status'], m['status'])}: {m['label']}: {got}, pass mark {mark}{extra}")
         sections.append((f"Market test, last {mt['days']} days", lines))
+    sup = s.get('supporters')
+    if sup and (sup['active'] or sup['added'] or sup['ended']):
+        sections.append(('Supporters', [f"{n(sup['active'])} supporting now: {n(sup['added'])} new, {n(sup['renewed'])} renewed, {n(sup['ended'])} ended this week"]))
     fun = s.get('funnel')
     if fun:
         pc = lambda v: '-' if v is None else f'{v}%'

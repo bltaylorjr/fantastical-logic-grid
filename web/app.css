@@ -141,6 +141,8 @@ legend { font-weight: 700; font-size: 1.05rem; padding: 0; margin-bottom: 8px; }
 .extras-note { margin: 8px 0 0; font-size: .95em; color: var(--muted); }
 .extras-note .btn { margin-left: 6px; }
 .pill.supporter { background: var(--accent-soft); color: inherit; }
+.support-ask { margin: 16px 0; padding: 12px 16px; border-radius: 10px; background: var(--accent-soft); }
+.support-ask p { margin: 0 0 10px; }
 /* Supporter badge tiers: the star's colour and a matching edge. */
 .pill.supporter.tier-1 { box-shadow: inset 0 0 0 2px #b0703a; } .pill.supporter.tier-1 > span { color: #b0703a; }
 .pill.supporter.tier-2 { box-shadow: inset 0 0 0 2px #8a929e; } .pill.supporter.tier-2 > span { color: #8a929e; }
@@ -616,6 +618,7 @@ dialog::backdrop { background: rgb(5 7 16 / .6); backdrop-filter: blur(6px); -we
   .pp li { break-inside: avoid; margin-bottom: 3pt; }
   .pp .qline { display: inline-block; min-width: 140pt; border-bottom: .5pt solid #000; margin-left: 6pt; }
   .pp .pnotes { white-space: pre-wrap; overflow-wrap: anywhere; }
+  .pp .psupport { font-size: 9pt; margin: 12pt 0 0; }
   table.pg { border-collapse: collapse; font-size: 10pt; break-inside: avoid; margin: 6pt 0 10pt; }
   table.pg tr { break-inside: avoid; }
   table.pg td.c { width: var(--pcell); height: var(--pcell); min-width: var(--pcell); border: .5pt solid #000; text-align: center; vertical-align: middle; padding: 0; font-size: calc(var(--pcell) * .6); line-height: 1; }

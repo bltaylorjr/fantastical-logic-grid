@@ -129,6 +129,26 @@ test('supporter extra themes and the extras link reach the game config', async (
   assert.deepEqual([game.premiumThemes, game.extrasUrl], [[themes[1].id], 'https://ko-fi.com/example/tiers']);
 });
 
+test('support asks stay hidden until the switch, the link and a page are all set', async () => {
+  const today = new Date().toISOString().slice(0, 10);
+  assert.equal((await call('/v1/config')).body.game.supportAsks, false);
+  assert.equal((await admin('settings', { key: 'support_asks_enabled', value: true })).status, 200);
+  assert.equal((await call('/v1/config')).body.game.supportAsks, false, 'no asks without the Support the game link');
+  assert.equal((await admin('settings', { key: 'support_url', value: 'https://example.com/support' })).status, 200);
+  assert.equal((await admin('settings', { key: 'support_link_enabled', value: true })).status, 200);
+  assert.equal((await call('/v1/config')).body.game.supportAsks, true);
+  // The daily puzzle email gets the one support line too.
+  assert.equal((await admin('settings', { key: 'daily_email_enabled', value: true })).status, 200);
+  assert.equal((await admin('daily-email/claim', { day: today })).body.support, 'https://example.com/support');
+  assert.equal((await admin('settings', { key: 'support_asks_enabled', value: false })).status, 200);
+  assert.equal((await call('/v1/config')).body.game.supportAsks, false);
+  assert.equal((await admin('daily-email/claim', { day: today })).body.support, '');
+  for (const key of ['support_link_enabled', 'daily_email_enabled']) await admin('settings', { key, value: false });
+  // The weekly summary counts supporters.
+  const sup = (await call('/admin/v1/summary?days=7', { auth: TOKEN })).body.supporters;
+  assert.ok(sup.active >= 1 && sup.added >= 1, JSON.stringify(sup));
+});
+
 test('deleting an account keeps the payment record but unlinks it', async () => {
   assert.equal((await call('/v1/account', { auth: player('p-a', 'new@example.com'), method: 'DELETE' })).status, 200);
   const row = await db.prepare("SELECT user_id, email FROM supporters WHERE email = 'a@example.com'").first();

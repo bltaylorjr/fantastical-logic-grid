@@ -148,7 +148,7 @@ test('settings switch game features off and back on', async () => {
 test('sound, voice and picture choices reach the game', async () => {
   // Uses the break-glass token: the owner's per-minute limit is spent above.
   let cfg = (await call('/v1/config')).body;
-  assert.deepEqual(cfg.game, { voiceSource: 'server', readAloud: true, portraitStyle: 'notionists', confetti: true, aiPictures: 'scene', celebrations: ['confetti'], celebrateRandom: false, supportUrl: '', premiumThemes: [], extrasUrl: '' });
+  assert.deepEqual(cfg.game, { voiceSource: 'server', readAloud: true, portraitStyle: 'notionists', confetti: true, aiPictures: 'scene', celebrations: ['confetti'], celebrateRandom: false, supportUrl: '', supportAsks: false, premiumThemes: [], extrasUrl: '' });
   assert.deepEqual(cfg.defaults, { sound: true, volume: 60, music: true, musicVolume: 40 });
   assert.equal(cfg.features.errorReports, true);
   assert.equal(cfg.features.feedback, true);

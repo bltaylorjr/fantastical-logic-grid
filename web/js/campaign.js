@@ -121,4 +121,6 @@ export function solved() {
 }
 
 export function installed() { send('install', load()); }
+// A press of Support the game (the market test's support pass mark).
+export function supportPressed() { const c = load(); if (c) send('support', c); }
 export function downloaded() { send('download', load()); }

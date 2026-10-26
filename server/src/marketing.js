@@ -25,7 +25,7 @@ import { SEEDS } from './marketing-seed.js';
 
 const DAY = 24 * 3600_000;
 const isoDay = (ms) => new Date(ms).toISOString().slice(0, 10);
-export const EVENTS = ['visit', 'play', 'solve', 'return', 'install', 'download'];
+export const EVENTS = ['visit', 'play', 'solve', 'return', 'install', 'download', 'support'];
 export const MEDIUMS = ['social', 'video', 'forum', 'community', 'directory', 'store', 'email', 'referral', 'search', 'print', 'qr', 'other'];
 export const CAMPAIGN_STATUS = ['draft', 'active', 'paused', 'ended'];
 export const AD_STATUS = ['draft', 'approved', 'posted', 'removed'];
