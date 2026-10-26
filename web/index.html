@@ -262,14 +262,15 @@
     <div class="new-badges" id="solved-badges" hidden></div>
     <div class="row-inline share-row"><button class="btn" type="button" id="share-result"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.59 13.51 6.83 3.98"/><path d="m15.41 6.51-6.82 3.98"/></svg> Share my result</button><span class="help" id="share-note" role="status"></span></div>
     <div class="compete-result" id="compete-result" hidden></div>
-    <div class="feedback" id="feedback" hidden>
-      <fieldset class="stars"><legend>How was this puzzle?</legend>
-        <label><input type="radio" name="rating" value="1"><span aria-hidden="true">★</span><span class="sr-only">1 star, not for me</span></label>
-        <label><input type="radio" name="rating" value="2"><span aria-hidden="true">★</span><span class="sr-only">2 stars</span></label>
-        <label><input type="radio" name="rating" value="3"><span aria-hidden="true">★</span><span class="sr-only">3 stars</span></label>
-        <label><input type="radio" name="rating" value="4"><span aria-hidden="true">★</span><span class="sr-only">4 stars</span></label>
-        <label><input type="radio" name="rating" value="5"><span aria-hidden="true">★</span><span class="sr-only">5 stars, loved it</span></label>
+    <div class="feedback" id="feedback">
+      <fieldset class="stars" aria-describedby="rate-help"><legend>Rate this puzzle <span class="optional">(optional)</span></legend>
+        <label><input type="radio" name="rating" value="1"><span aria-hidden="true">★</span><span class="sr-only">1 star, poor</span></label>
+        <label><input type="radio" name="rating" value="2"><span aria-hidden="true">★</span><span class="sr-only">2 stars, fair</span></label>
+        <label><input type="radio" name="rating" value="3"><span aria-hidden="true">★</span><span class="sr-only">3 stars, good</span></label>
+        <label><input type="radio" name="rating" value="4"><span aria-hidden="true">★</span><span class="sr-only">4 stars, very good</span></label>
+        <label><input type="radio" name="rating" value="5"><span aria-hidden="true">★</span><span class="sr-only">5 stars, excellent</span></label>
       </fieldset>
+      <p class="help rate-help" id="rate-help">1 star is poor, 5 stars is excellent. Skip it if you like. <button class="btn quiet small" type="button" id="rating-clear" hidden>Clear my rating</button></p>
       <fieldset class="feel"><legend>How did the difficulty feel?</legend>
         <label class="chip"><input type="radio" name="feel" value="easy"> Too easy</label>
         <label class="chip"><input type="radio" name="feel" value="right"> Just right</label>
@@ -373,7 +374,7 @@
     </fieldset>
     <fieldset class="learning"><legend>Learning</legend>
       <label class="check"><input type="checkbox" name="learn"> Learn from how I play: tune how tough puzzles are within each level, the mix of clues, and which themes and story parts come up.</label>
-      <p class="help needs-cloud" data-feature="learning" hidden>While this is on, the game also shares an anonymous summary of each finished puzzle so it can learn from everyone's games: level, theme, size, clue types, time, hints, mistakes and rating. Never shared: your name, saved puzzles or anything that identifies you.</p>
+      <p class="help needs-cloud" data-feature="learning" hidden>While this is on, the game also shares an anonymous summary of each finished puzzle so it can learn from everyone's games: level, theme, topic, size, clue types, which story and characters it used, time, hints, mistakes, your rating and the app version. Never shared: your name, saved puzzles or anything that identifies you.</p>
       <p class="help">Every puzzle is still checked to have exactly one solution with no guessing, and no story is ever used twice.</p>
     </fieldset>
     <fieldset id="sound-settings"><legend>Sound</legend>
@@ -517,7 +518,7 @@
       <p>In the full experience, each finished section also reveals more of the scene. Stuck? Press Hint. The first hint shows you which clue to use, and names the trick that cracks it. Press Which cell? for the exact square, then Explain why for the full reasoning. It ends with a short lesson on how that trick works, so you can spot it yourself next time. You can even let it mark the square for you.</p>
       <p>Press Check at any time to see whether any of your marks are wrong. Made a mistake? Undo and Redo take back any move, as many times as you like. Want a fresh start? Press Start over. It clears your marks and resets the timer, hints and checks. Your notes stay unless you choose to clear them, and Undo can bring everything back. Prefer words to grids? List view lets you choose each match from a menu. The game also works fully by keyboard and with a screen reader.</p>
       <p>When you think you know, answer the questions under the clues, and press Check answers. Want to jot something down? Press My notes and type. Press Save to keep them, or Close to get back to the puzzle. Only you can see your notes, even in a race. Keep going the same way, clue by clue, until the whole grid is filled in. Case closed! Felix arrived at 9:45 PM, so Felix was behind the ring of keys all along! It was a prank with a bedsheet and a fan. You also see your time and a suggestion for your next puzzle.</p>
-      <p>Solving puzzles earns badges, like First case closed. Press Share my result to send friends a picture of your win. It never gives the answers away. Then rate the puzzle, and say whether it felt too easy, just right or too hard. The game learns from your answers and tunes your next puzzle to suit you. You can print any puzzle, blank or with your marks, with the answer key on its own page. Your progress saves automatically. Come back any time and pick up where you left off, from Saved puzzles.</p>
+      <p>Solving puzzles earns badges, like First case closed. Press Share my result to send friends a picture of your win. It never gives the answers away. If you like, rate the puzzle from 1 to 5 stars (5 is excellent), and say whether it felt too easy, just right or too hard. The game learns from your answers and tunes your next puzzle to suit you. You can print any puzzle, blank or with your marks, with the answer key on its own page. Your progress saves automatically. Come back any time and pick up where you left off, from Saved puzzles.</p>
       <p>My stats and badges, in the Menu, shows your totals, best times, favorite themes, your daily streak and every badge to earn. Press Help to see every keyboard shortcut. And How to play, at the top of every page, plays this video again. Play in light or dark colors, or in high contrast. And Silent mode is always there when you just want the puzzle.</p>
       <p>To play without opening a browser, choose Install the app from the Menu. Download the Windows desktop app, which keeps itself up to date. Or add the game&#x27;s icon to your phone&#x27;s home screen. On your phone, the same menu shows you how. On a phone, pull down from the top of the page to refresh. Your progress is saved first. You can also play with other detectives. You never need an account to play. But a free account keeps your puzzles, progress and settings in step on the website, the desktop app and your phone.</p>
       <p>The name at the top shows who you are playing as. Until you sign in, you play as Guest. Create one with your email and a password. Keep me signed in is ticked, so you stay signed in on this device. Untick it on a shared computer. If you ever forget your password, Forgot password sends you a reset link. Once you are signed in, your puzzles sync on their own. Sign in on another device and they are waiting for you.</p>

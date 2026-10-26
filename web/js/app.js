@@ -1162,23 +1162,37 @@ function reportResult(save) {
   else send();
 }
 
-// "How was it?" after each puzzle: stars and a quick feel, saved for learning.
+// "Rate this puzzle" after each puzzle: optional 1 to 5 stars (5 is
+// excellent) and a quick feel. It never blocks anything. With "Learn from how
+// I play" on it tunes the next puzzles and joins the anonymous ratings report
+// (admin Ratings and insights); with it off the rating stays on this device.
 async function renderFeedback(save) {
   const box = $('#feedback');
-  box.hidden = !settings.learn;
-  if (!settings.learn) return;
   const prev = await learn.ratingOf(save.storyId).catch(() => ({}));
+  if (!S || S.save !== save) return;
   for (const r of $$('input[name=rating]', box)) r.checked = prev.rating === +r.value;
   for (const r of $$('input[name=feel]', box)) r.checked = prev.feel === r.value;
+  $('#rating-clear').hidden = !prev.rating;
   $('#feedback-thanks').textContent = '';
+}
+async function saveRating(v) {
+  await learn.rate(S.save, v, { keepLocal: !settings.learn }).catch(() => {});
+  $('#feedback-thanks').textContent = settings.learn ? 'Thanks. Your next puzzles will use this.' : 'Thanks. This stays on your device, because Learn from how I play is off.';
+  if (settings.learn) window.share?.soon();
 }
 $('#feedback').addEventListener('change', async (e) => {
   if (!S || !e.target.name) return;
-  const v = e.target.name === 'rating' ? { rating: +e.target.value } : { feel: e.target.value };
-  await learn.rate(S.save, v).catch(() => {});
-  $('#feedback-thanks').textContent = 'Thanks. Your next puzzles will use this.';
-  window.share?.soon();
+  if (e.target.name === 'rating') $('#rating-clear').hidden = false;
+  await saveRating(e.target.name === 'rating' ? { rating: +e.target.value } : { feel: e.target.value });
 });
+$('#rating-clear').onclick = async () => {
+  if (!S) return;
+  for (const r of $$('#feedback input[name=rating]')) r.checked = false;
+  $('#rating-clear').hidden = true;
+  $('#feedback .stars input')?.focus();
+  await saveRating({ rating: null });
+  $('#feedback-thanks').textContent = 'Rating cleared.';
+};
 $('#feedback-idea').onclick = () => feedbackBox.open(openDialog, { kind: 'idea' });
 
 // Streak, new badges and Share my result on the solved panel.

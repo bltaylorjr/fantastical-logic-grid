@@ -397,7 +397,7 @@ const CSS = `
       await scrollTo('#feedback'); await p.locator('#feedback .stars label').nth(4).click();
       await p.locator('#feedback .feel label').nth(1).click().catch(() => {});
       await hl('#feedback');
-      await scene('rating', ['Then rate the puzzle, and say whether it felt too easy, just right or too hard.', 'The game learns from your answers and tunes your next puzzle to suit you.']);
+      await scene('rating', ['If you like, rate the puzzle from 1 to 5 stars, where 5 is excellent, and say whether it felt too easy, just right or too hard.', 'It is optional. The game learns from your answers and tunes your next puzzle to suit you.']);
       await clearFx();
     }
 
