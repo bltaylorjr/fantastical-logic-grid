@@ -18,6 +18,7 @@ import * as learn from './learn.js';
 import * as feedbackBox from './feedback.js';
 import * as share from './share.js';
 import * as errorReports from './errors.js';
+import * as campaign from './campaign.js';
 import { initAccounts, openAccount, onHome as accountsOnHome, signedIn } from './account-ui.js';
 import * as competeUi from './compete-ui.js';
 import * as remote from './remote-config.js';
@@ -25,10 +26,13 @@ import { initPullRefresh } from './pull-refresh.js';
 import * as daily from './daily.js';
 import * as stats from './stats.js';
 import { shareResult } from './share-result.js';
+import * as challenge from './challenge.js';
+import * as dailyResults from './daily-results.js';
 import * as i18n from './i18n.js';
 import { CLOUD_URL } from './cloud-config.js';
 
 errorReports.init();
+campaign.init();
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const OPTIONS = describeOptions();
@@ -586,6 +590,7 @@ $('#import-file').onchange = async (e) => {
 // ====================================================================
 function openGame(save, { fresh = false } = {}) {
   closeGame();
+  campaign.played();
   const puzzle = save.puzzle;
   const ix = puzzleIndex(puzzle);
   S = {
@@ -1142,9 +1147,10 @@ function checkSolved() {
     S.save.solved = true;
     S.save.completedAt = Date.now();
     // The daily puzzle's answers are on the website, so it earns no scoreboard points.
-    if (!S.save.race && !S.save.daily && !S.save.revealed && !S.save.restarted) S.save.scorePending = true;
+    if (!S.save.race && !S.save.daily && !S.save.challenge && !S.save.revealed && !S.save.restarted) S.save.scorePending = true;
     tickTimer();
     recordSolve(S.save);
+    if (!S.save.revealed) campaign.solved();
     if (settings.learn) learn.record(S.save, S.save.revealed ? 'revealed' : 'solved').then(() => share.soon(), () => {});
     stopTimer();
     showSolved(true);
@@ -1269,6 +1275,8 @@ $('#feedback-idea').onclick = () => feedbackBox.open(openDialog, { kind: 'idea' 
 // Streak, new badges and Share my result on the solved panel.
 async function renderSolvedExtras(save) {
   $('#share-result').hidden = !!save.revealed;
+  $('#challenge-btn').hidden = !!save.revealed || !!save.race || !challenge.available();
+  renderChallenge(save);
   $('#share-note').textContent = '';
   const box = $('#solved-badges');
   const fresh = (S && S.save === save && S.newBadges) || [];
@@ -1276,6 +1284,15 @@ async function renderSolvedExtras(save) {
   box.innerHTML = fresh.length ? `<h3>New badge${fresh.length > 1 ? 's' : ''}</h3><ul class="badges">${fresh.map(badgeHtml).join('')}</ul>` : '';
   const line = $('#solved-streak');
   line.hidden = true;
+  const nums = $('#solved-daily-numbers');
+  nums.hidden = true;
+  // Counted once: the mark is saved before the time is sent.
+  if (save.daily && !save.dailySent) {
+    save.dailySent = true;
+    await flushSave({ manual: true });
+    dailyResults.finished(save.daily, save.elapsedMs, save.revealed);
+  }
+  if (save.daily) showDailyNumbers(save);
   if (!save.daily || save.revealed) return;
   const st = daily.streak(await stats.solveLog().catch(() => []), save.daily);
   if (!S || S.save !== save) return;
@@ -1283,6 +1300,15 @@ async function renderSolvedExtras(save) {
   line.textContent = st.days.has(save.daily)
     ? (st.current > 1 ? `Daily streak: ${st.current} days in a row. Come back tomorrow for the next one.` : 'Your daily streak has started. Come back tomorrow for the next puzzle.')
     : 'This daily puzzle was finished after its day, so it does not add to your streak.';
+}
+// Everyone's numbers for this daily puzzle, under the streak.
+async function showDailyNumbers(save) {
+  const st = await dailyResults.statsFor(save.daily);
+  if (!st || !st.started || !S || S.save !== save) return;
+  const quicker = save.revealed ? null : dailyResults.quickerThan(st, save.elapsedMs);
+  const nums = $('#solved-daily-numbers');
+  nums.textContent = `Everyone on this puzzle: ${dailyResults.summaryLine(st)}.${quicker !== null ? ` You were quicker than ${quicker}% of the other solvers.` : ''}`;
+  nums.hidden = false;
 }
 function badgeHtml(b) {
   return `<li class="badge-item${b.at === null ? ' locked' : ''}"><span class="badge-mark" aria-hidden="true">${b.at === null ? '◇' : '◆'}</span><span><b>${esc(b.name)}</b><small>${esc(b.text)}${b.at ? ` Earned ${esc(new Date(b.at).toLocaleDateString())}.` : ''}</small></span>${b.at === null ? '<span class="sr-only">Not earned yet.</span>' : ''}</li>`;
@@ -1303,6 +1329,83 @@ $('#share-result').onclick = async () => {
   else if (res.done === 'cancelled') $('#share-note').textContent = '';
   else openShareDialog(res, info);
 };
+// ====================================================================
+// Challenge a friend: the same puzzle by link, with a time to beat
+// ====================================================================
+$('#challenge-btn').onclick = async () => {
+  if (!S || !S.save.solved) return;
+  const save = S.save;
+  const btn = $('#challenge-btn');
+  btn.disabled = true;
+  $('#share-note').textContent = 'Making your challenge link…';
+  try {
+    // One link per solve, kept with the save so sharing again reuses it.
+    if (!save.challengeLink) {
+      save.challengeLink = (await challenge.create(S.puzzle, save.elapsedMs, save.hintsUsed)).url;
+      scheduleSave();
+    }
+    const text = challenge.message({ title: save.name, time: fmtTime(save.elapsedMs), hints: save.hintsUsed || 0 });
+    $('#share-note').textContent = '';
+    if (navigator.share) {
+      try { await navigator.share({ title: save.name, text, url: save.challengeLink }); $('#share-note').textContent = 'Challenge sent.'; return; }
+      catch (e) { if (e && e.name === 'AbortError') return; }
+    }
+    let copied = false;
+    try { await navigator.clipboard.writeText(`${text} ${save.challengeLink}`); copied = true; } catch (e) { /* show it to copy */ }
+    openShareDialog({ text: `${text} ${save.challengeLink}`, done: copied ? 'copied' : 'show' }, { title: save.name });
+  } catch (e) {
+    $('#share-note').textContent = e.message || 'The challenge link could not be made.';
+  } finally {
+    btn.disabled = false;
+  }
+};
+
+// Both times on the solved panel of a puzzle opened from a challenge link.
+async function renderChallenge(save) {
+  const box = $('#challenge-result');
+  box.hidden = true;
+  const c = save.challenge;
+  if (!c || !save.solved || save.revealed) return;
+  // Counted once: the mark is saved before the result is sent, so reopening
+  // the puzzle (even straight away) never counts it again.
+  if (!c.sent) {
+    c.sent = true;
+    await flushSave({ manual: true });
+    try { c.result = await challenge.sendResult(c.code, save.elapsedMs, save.hintsUsed); scheduleSave(); } catch (e) { c.result = null; }
+  }
+  if (!S || S.save !== save) return;
+  const won = save.elapsedMs < c.theirMs;
+  const r = c.result;
+  box.innerHTML = `<h3>${won ? 'You beat your friend\'s time!' : 'Your friend was quicker this time.'}</h3>
+    <p>Your time: <b>${fmtTime(save.elapsedMs)}</b>. Your friend's time: <b>${fmtTime(c.theirMs)}</b>.</p>
+    ${r && r.plays > 1 ? `<p>${r.beat} of ${r.plays} players who took this challenge beat your friend's time.</p>` : ''}
+    <p class="help">Press Challenge a friend to send this puzzle on with your own time.</p>`;
+  box.hidden = false;
+}
+
+// ?challenge=CODE: open that puzzle (once; the same link later resumes it).
+function handleChallengeLink() {
+  const code = challenge.linkCode();
+  if (!code) return false;
+  (async () => {
+    const existing = (await store.listSaves()).find((x) => x.challenge && x.challenge.code === code);
+    if (existing) { openGame(existing); return; }
+    if (!CLOUD_URL) { toast('Challenge links need the internet version of the game.'); return; }
+    try {
+      const c = await challenge.load(code);
+      await rememberStory(storyIdOf(c.puzzle));
+      const save = newSave(c.puzzle);
+      save.challenge = { code, theirMs: c.elapsedMs, theirHints: c.hints || 0 };
+      await store.putSave(save);
+      openGame(save, { fresh: true });
+      toast(`A friend solved this puzzle in ${fmtTime(c.elapsedMs)}. Can you beat that time?`, null, { ms: 9000 });
+    } catch (e) {
+      toast(e.message || 'That challenge could not be opened.', null, { ms: 9000 });
+    }
+  })();
+  return true;
+}
+
 function openShareDialog(res, info) {
   $('#share-text').value = res.text || '';
   $('#share-status').textContent = res.done === 'copied' ? 'The message is copied. Paste it anywhere.' : '';
@@ -1347,7 +1450,14 @@ async function renderDaily() {
   box.innerHTML = `<p class="daily-title"><b>${esc(l.title)}</b></p>
     <p class="daily-meta"><span class="pill">${esc(daily.longDate(l.date))}</span> <span class="pill">${esc(l.difficultyName)}</span> <span class="pill">${esc(l.themeName)}</span> <span class="pill">${l.categories} × ${l.items}</span>${state ? ` <span class="pill">${esc(state)}</span>` : ''}</p>
     ${l.offline ? '<p class="help">Offline: showing the last daily puzzle this device saw.</p>' : ''}
+    <p class="daily-numbers muted" id="daily-numbers" hidden></p>
     <button class="btn primary" type="button" data-daily="${esc(l.date)}">${todays ? (todays.solved ? "Open today's puzzle" : "Continue today's puzzle") : "Play today's puzzle"}</button>`;
+  if (!l.offline) dailyResults.statsFor(l.date).then((st) => {
+    const el = $('#daily-numbers');
+    if (!st || !el || dailyLatest !== l) return;
+    el.textContent = dailyResults.summaryLine(st);
+    el.hidden = !el.textContent;
+  });
   const earlier = (l.days || []).filter((d) => d < l.date).slice(0, 7);
   $('#daily-earlier').hidden = !earlier.length;
   $('#daily-list').innerHTML = earlier.map((d) => {
@@ -1369,6 +1479,7 @@ async function openDaily(date, btn) {
     const save = newSave(puzzle);
     save.daily = date;
     await store.putSave(save);
+    dailyResults.started(date);
     openGame(save, { fresh: true });
   } catch (e) {
     toast(`The daily puzzle could not be opened. ${e.message || ''}`.trim(), { label: 'Try again', run: () => openDaily(date) });
@@ -1793,6 +1904,9 @@ function applyFeatures() {
   $('[data-cmd=feedback]').hidden = !feedbackBox.available();
   $('[data-cmd=suggest]').hidden = !characters.suggestionsOpen();
   $('#feedback-idea').hidden = !feedbackBox.available();
+  const support = remote.supportUrl();
+  $('#support-link').hidden = !support;
+  if (support) $('#support-link').href = support;
   competeUi.refreshMiniBoard();
 }
 applyFeatures();
@@ -1881,7 +1995,7 @@ function toggleMenu(open) {
 }
 $('#menu-btn').onclick = () => toggleMenu();
 $('#app-menu').addEventListener('keydown', (e) => {
-  const items = $$('#app-menu button:not([hidden])');
+  const items = $$('#app-menu [role=menuitem]:not([hidden])');
   const i = items.indexOf(document.activeElement);
   if (e.key === 'Escape') { e.preventDefault(); toggleMenu(false); $('#menu-btn').focus(); }
   else if (e.key === 'ArrowDown') { e.preventDefault(); items[(i + 1) % items.length].focus(); }
@@ -1890,6 +2004,7 @@ $('#app-menu').addEventListener('keydown', (e) => {
 });
 document.addEventListener('pointerdown', (e) => { if (!$('#app-menu').hidden && !e.target.closest('#app-menu, #menu-btn')) toggleMenu(false); });
 $('#app-menu').addEventListener('click', async (e) => {
+  if (e.target.closest('#support-link')) { toggleMenu(false); return; }
   const b = e.target.closest('button[data-cmd]');
   if (!b) return;
   toggleMenu(false);
@@ -2029,7 +2144,7 @@ window.addEventListener('beforeinstallprompt', (e) => {
   installEvent = e;
   if ($('#dlg-install').open) renderInstall();
 });
-window.addEventListener('appinstalled', () => { installEvent = null; if ($('#dlg-install').open) renderInstall(); });
+window.addEventListener('appinstalled', () => { campaign.installed(); installEvent = null; if ($('#dlg-install').open) renderInstall(); });
 
 function renderInstall() {
   const standalone = isStandalone();
@@ -2071,6 +2186,7 @@ function installApp() {
   openDialog($('#dlg-install'), $('#install-h'));
 }
 $('#install-close').onclick = () => $('#dlg-install').close();
+$('#install-desktop-btn').addEventListener('click', () => campaign.downloaded());
 $('#install-phone-btn').onclick = async () => {
   if (!installEvent) return;
   installEvent.prompt();
@@ -2168,7 +2284,7 @@ async function init() {
   window.addEventListener('resize', () => { if (!$('#screen-home').hidden) updatePreview(); });
   document.documentElement.classList.add('ready');
   // A ?play=now link goes straight into a puzzle; the welcome waits for next time.
-  if (!handlePlayLink()) offerIntro();
+  if (!handleChallengeLink() && !handlePlayLink()) offerIntro();
   offerLanguage();
   setTimeout(checkUpdates, 4000);
   if (!isPreview) setTimeout(ensureNaturalVoices, 1500);

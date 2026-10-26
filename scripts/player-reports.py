@@ -4,8 +4,9 @@ GitHub Action .github/workflows/player-reports.yml (same setup as the archive
 email, server/ARCHIVE.md).
 
 Errors (GET /admin/errors) are grouped by message and file across versions
-and platforms. Errors already fixed (scripts/known-errors.json) that only come
-from older versions are listed apart, so only new trouble needs a look.
+and platforms. Errors marked addressed in the admin dashboard (Error reports >
+Mark addressed, with the version the fix shipped in) that only come from older
+versions are listed apart, so only new trouble needs a look.
 Problems and ideas (GET /admin/v1/feedback) are grouped by topic. Nothing new
 since yesterday means no email.
 
@@ -46,7 +47,6 @@ TEST = os.environ.get('TEST', '').lower() == 'true'
 SEND = os.environ.get('SEND', 'true').lower() != 'false'
 PUBLIC_KEY = ''.join(os.environ.get('PUBLIC_KEY', '').split())
 DASHBOARD = f'{API}/admin/'
-KNOWN = pathlib.Path(__file__).with_name('known-errors.json')
 TOPICS = {'story': 'Story idea', 'other': 'Other', 'play': 'Playing', 'sound': 'Sound', 'pictures': 'Pictures', 'saving': 'Saving'}
 DAY_MS = 24 * 3600 * 1000
 
@@ -73,14 +73,7 @@ def version_key(v):
         return ()
 
 
-def known_fix(g, known):
-    for k in known:
-        if k['match'] in g['message'] and k.get('place', '') in g['file']:
-            return k
-    return None
-
-
-def group_errors(rows, known, since_day):
+def group_errors(rows, since_day):
     """Groups the error rows by message and file. Returns (needs_look, fixed)."""
     groups = {}
     for e in rows:
@@ -99,14 +92,14 @@ def group_errors(rows, known, since_day):
     for g in groups.values():
         if g['last'] < since_day:
             continue
-        k = known_fix(g, known)
+        fix = next((r['fix'] for r in g['rows'] if r.get('fix')), None)
         # Fixed only while every report comes from a version before the fix.
-        if k and all(version_key(r['version']) and version_key(r['version']) < version_key(k['fixedIn']) for r in g['rows']):
-            g['fix'] = k
+        if fix and all(r.get('fix') and not r['fix']['missed'] for r in g['rows']):
+            g['fix'] = fix
             fixed.append(g)
         else:
-            if k:
-                g['note'] = f"Still seen in {k['fixedIn']} or later, so the fix in {k['fixedIn']} did not cover it."
+            if fix:
+                g['note'] = f"Marked fixed in {fix['fixedIn']}, but still seen in {fix['fixedIn']} or later."
             needs.append(g)
     order = lambda g: (-g['count'], g['message'])
     return sorted(needs, key=order), sorted(fixed, key=order)
@@ -148,14 +141,14 @@ def build(needs, fixed, problems, ideas, new_problems, new_ideas):
         parts.append(f"{len(new_ideas)} new idea{'s' if len(new_ideas) != 1 else ''}")
     day = datetime.now(timezone.utc).strftime('%Y-%m-%d')
     subject = f"Logic Grid player report {day}: " + (', '.join(parts) or 'nothing new')
-    footer = (f"Mark problems and ideas done in the dashboard: {DASHBOARD}\n"
+    footer = (f"Mark problems and ideas addressed in the dashboard: {DASHBOARD}\n"
               "Errors are anonymous and cleaned of personal details. Stop this email with the repository variable PLAYER_REPORTS=off.")
     text = f"The Fantastical Logic Grid, player report for {day}\n\n" + '\n\n'.join(
         f"{h}\n" + '\n'.join(f'- {x}' for x in ls) for h, ls in sections) + f"\n\n{footer}\n"
     body = ''.join(f"<h2 style=\"font-size:16px;margin:20px 0 6px\">{html.escape(h)}</h2><ul style=\"margin:0;padding-left:20px\">"
                    + ''.join(f'<li style="margin:3px 0">{html.escape(x)}</li>' for x in ls) + '</ul>' for h, ls in sections)
     page = (f"<div style=\"font-family:Arial,sans-serif;font-size:14px;color:#121626;max-width:640px\"><h1 style=\"font-size:20px;color:#5B3CC4\">The Fantastical Logic Grid</h1>"
-            f"<p>Player report for {html.escape(day)}</p>{body}<p style=\"margin-top:24px\"><a href=\"{html.escape(DASHBOARD)}\">Open the dashboard</a> to mark problems and ideas done. "
+            f"<p>Player report for {html.escape(day)}</p>{body}<p style=\"margin-top:24px\"><a href=\"{html.escape(DASHBOARD)}\">Open the dashboard</a> to mark problems and ideas addressed. "
             "Errors are anonymous and cleaned of personal details. Stop this email with the repository variable PLAYER_REPORTS=off.</p></div>")
     return subject, text, page
 
@@ -185,10 +178,9 @@ def main():
     if PUBLIC_KEY:
         print_encrypted({'errors': errors, 'problems': problems, 'ideas': ideas})
 
-    known = json.loads(KNOWN.read_text())['fixed']
     since_day = (datetime.now(timezone.utc) - timedelta(days=1)).strftime('%Y-%m-%d')
     since_ms = time.time() * 1000 - DAY_MS - 3600_000  # a little overlap with yesterday's run
-    needs, fixed = group_errors(errors, known, since_day)
+    needs, fixed = group_errors(errors, since_day)
     new_problems = [f for f in problems if f['status'] == 'new' and f['createdAt'] >= since_ms]
     new_ideas = [f for f in ideas if f['status'] == 'new' and f['createdAt'] >= since_ms]
     print(f'{len(needs)} error groups need a look, {len(fixed)} already fixed, {len(new_problems)} new problems, {len(new_ideas)} new ideas.')

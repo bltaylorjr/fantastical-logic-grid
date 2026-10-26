@@ -155,6 +155,7 @@ dialog h2 { margin: 0; }
 .services { display: grid; gap: 6px; }
 .services p { margin: 0; }
 .fb-text { white-space: pre-wrap; }
+.fb-note { margin: 6px 0 0; padding: 6px 10px; border-left: 3px solid var(--ok); background: var(--panel); }
 
 /* Backups and the archive viewer */
 a.btn { display: inline-flex; align-items: center; text-decoration: none; }
