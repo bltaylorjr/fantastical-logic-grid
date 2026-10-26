@@ -88,7 +88,7 @@ const path = require('path');
 
   // 3. A character with several clues says all of them, not just the first.
   const who = await page.$$eval('.cast-btn', (bs) => {
-    const best = bs.map((x) => [x.dataset.who, parseInt(x.querySelector('small').textContent, 10)]).sort((a, z) => z[1] - a[1])[0];
+    const best = bs.map((x) => [x.dataset.who, parseInt(x.querySelector('small:last-of-type').textContent, 10)]).sort((a, z) => z[1] - a[1])[0];
     return best[0];
   });
   const mine = await page.$$eval('#clue-list li', (ls, w) => ls.filter((li) => li.querySelector('.from').textContent === `From ${w}`).map((li) => li.querySelector('.txt').textContent), who);

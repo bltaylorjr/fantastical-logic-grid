@@ -8,10 +8,11 @@ const { chromium } = require('playwright');
 const { spawn } = require('child_process');
 const path = require('path');
 const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`ok  ${m}`); };
-const API = 'https://api.example.test';
+// A localhost address: test builds' content policy allows localhost (scripts/build.mjs).
+const API = 'http://localhost:8157';
 
 (async () => {
-  const server = spawn('node', [path.join(__dirname, 'serve.mjs'), path.join(__dirname, '..', 'dist', 'web'), '8139'], { stdio: 'ignore' });
+  const server = spawn('node', [path.join(__dirname, 'serve.mjs'), path.join(__dirname, '..', 'dist', 'web'), '8156'], { stdio: 'ignore' });
   await new Promise((r) => setTimeout(r, 600));
   const browser = await chromium.launch();
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' });
@@ -53,7 +54,7 @@ export const CLOUD_URL = CLOUD.learnUrl;` }));
   const nextDisabled = () => page.isDisabled('#step-next');
 
   try {
-    await page.goto('http://localhost:8139/');
+    await page.goto('http://localhost:8156/');
     await page.waitForSelector('#dlg-welcome[open]');
     assert(await page.isVisible('#welcome-learn'), 'first-time players are offered Learn to solve');
     assert(await page.evaluate(() => document.activeElement.id) === 'welcome-learn', 'Learn to solve has the focus in the welcome window');

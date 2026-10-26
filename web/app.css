@@ -58,6 +58,10 @@
 :root[data-world="parks"] { --w1: #16A34A; --w2: #0284C7; }
 :root[data-world="travel"] { --w1: #06B6D4; --w2: #F97316; }
 :root[data-world="wonders"] { --w1: #D97706; --w2: #7C3AED; }
+:root[data-world="music"] { --w1: #DB2777; --w2: #6366F1; }
+:root[data-world="nautical"] { --w1: #1D4ED8; --w2: #DC2626; }
+:root[data-world="farm"] { --w1: #65A30D; --w2: #DC2626; }
+:root[data-world="science"] { --w1: #2563EB; --w2: #10B981; }
 
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
@@ -84,6 +88,8 @@ button, input, select { font: inherit; color: inherit; }
 .player-chip::before { content: ""; display: inline-block; width: .6em; height: .6em; margin-right: .4em; border-radius: 50%; background: var(--edge); vertical-align: .05em; }
 .player-chip.named::before { background: currentColor; }
 .menu { position: absolute; right: max(16px, env(safe-area-inset-right)); top: calc(100% + 4px); background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 6px; display: grid; min-width: 200px; box-shadow: 0 8px 24px rgb(0 0 0 / .18); }
+.menu a { color: inherit; text-decoration: none; text-align: left; padding: 10px 12px; min-height: 44px; border-radius: 6px; display: flex; align-items: center; }
+.menu a:hover, .menu a:focus-visible { background: var(--accent-soft); }
 .menu button, .cellmenu button { background: none; border: 0; text-align: left; padding: 10px 12px; min-height: 44px; border-radius: 6px; cursor: pointer; }
 .menu button:hover, .menu button:focus-visible, .cellmenu button:hover, .cellmenu button:focus-visible { background: var(--accent-soft); }
 
@@ -345,6 +351,11 @@ input[type=range] { width: 100%; min-height: 44px; accent-color: var(--accent); 
 .bubble { position: relative; margin-top: 12px; border: 2px solid var(--accent); border-radius: 14px; padding: 12px 16px; background: var(--bg); max-width: 70ch; }
 .bubble p { margin: 0 0 6px; } .bubble p:last-child { margin: 0; }
 .bubble .who { font-weight: 700; }
+/* Each character's personality (castbook.js) and their lines. */
+.cast-btn small.trait { font-style: italic; }
+.bubble .about { color: var(--muted); font-style: italic; }
+.char-line { margin: 0 0 8px; font-style: italic; }
+.resolution .char-line.cheer { position: absolute; left: 50%; bottom: 6%; transform: translateX(-50%); max-width: 90%; text-align: center; background: rgb(0 0 0 / .65); color: #fff; padding: 6px 14px; border-radius: 12px; }
 .clue-list .from { display: block; font-size: .85rem; color: var(--muted); }
 .clue-list li.spot label { background: var(--accent-soft); }
 .resolution { position: relative; border-radius: 12px; overflow: hidden; margin: -8px 0 16px; width: 100%; height: clamp(180px, 26vw, 300px); }
@@ -373,6 +384,18 @@ input[type=range] { width: 100%; min-height: 44px; accent-color: var(--accent); 
 .portrait-img { width: 72px; height: 72px; border-radius: 50%; object-fit: cover; display: block; }
 .resolution .bg { width: 100%; height: 100%; object-fit: cover; display: block; }
 .resolution .hero img { width: clamp(72px, 14vw, 120px); height: clamp(72px, 14vw, 120px); border-radius: 50%; object-fit: cover; box-shadow: 0 0 0 4px #fff, 0 0 40px rgb(255 255 255 / .6); }
+/* The game's own characters: who tells the story, and their lines. */
+.told-by { display: flex; align-items: center; gap: 10px; margin: 4px 0 10px; color: var(--muted); }
+.told-by b { color: var(--text); }
+.told-face { display: inline-flex; width: 40px; height: 40px; border-radius: 50%; overflow: hidden; flex: none; }
+.told-face svg, .told-face img { width: 40px; height: 40px; object-fit: cover; display: block; }
+.char-line { margin: 0 0 8px; font-style: italic; }
+.resolution .char-line.cheer { position: absolute; left: 50%; bottom: 6%; transform: translateX(-50%); max-width: 90%; text-align: center; background: rgb(0 0 0 / .65); color: #fff; padding: 6px 14px; border-radius: 12px; font-style: italic; }
+#dlg-suggest select, #dlg-suggest textarea { box-sizing: border-box; min-height: 44px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); color: var(--text); width: 100%; font: inherit; }
+#dlg-suggest .field { margin-bottom: 12px; }
+#dlg-suggest fieldset { border: 0; padding: 0; margin: 0 0 12px; }
+#dlg-suggest legend { font-weight: 700; padding: 0; }
+.check-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0 12px; }
 #read-story { margin-top: 12px; }
 #read-clues { margin-bottom: 10px; }
 .clue-list li.reading label { background: var(--accent-soft); outline: 2px solid var(--accent); outline-offset: -2px; }
@@ -405,7 +428,7 @@ h3, legend, .card h3 { font-family: var(--font); }
 .brand-mark { color: var(--accent); filter: drop-shadow(0 0 10px color-mix(in srgb, var(--accent) 55%, transparent)); }
 .menu, .cellmenu { background: var(--surface); border: 1px solid var(--edge-hi); border-radius: 14px; box-shadow: var(--shadow);
   backdrop-filter: blur(20px) saturate(1.3); -webkit-backdrop-filter: blur(20px) saturate(1.3); }
-.menu button, .cellmenu button { border-radius: 10px; font-weight: 700; }
+.menu button, .menu a, .cellmenu button { border-radius: 10px; font-weight: 700; }
 
 /* Panels */
 .card { background: var(--surface); border: 1px solid var(--edge); border-radius: var(--radius); box-shadow: inset 0 1px 0 var(--edge), var(--shadow);
@@ -470,6 +493,8 @@ h3, legend, .card h3 { font-family: var(--font); }
 .tile[data-world="cooking"] { --w1: #F97316; --w2: #EAB308; } .tile[data-world="pets"] { --w1: #F59E0B; --w2: #14B8A6; }
 .tile[data-world="town"] { --w1: #E11D48; --w2: #0EA5E9; } .tile[data-world="parks"] { --w1: #16A34A; --w2: #0284C7; }
 .tile[data-world="travel"] { --w1: #06B6D4; --w2: #F97316; } .tile[data-world="wonders"] { --w1: #D97706; --w2: #7C3AED; }
+.tile[data-world="music"] { --w1: #DB2777; --w2: #6366F1; } .tile[data-world="nautical"] { --w1: #1D4ED8; --w2: #DC2626; }
+.tile[data-world="farm"] { --w1: #65A30D; --w2: #DC2626; } .tile[data-world="science"] { --w1: #2563EB; --w2: #10B981; }
 .tile[data-world="random"] { --w1: #7C5CFF; --w2: #22B8CF; }
 .chips .choice > span { border-radius: 999px; padding: 10px 18px; }
 .chips .choice small { font-weight: 400; }
@@ -610,13 +635,18 @@ dialog::backdrop { background: rgb(5 7 16 / .6); backdrop-filter: blur(6px); -we
 .stars:has(input:checked) label { color: var(--accent); }
 .stars label:has(input:checked) ~ label { color: var(--muted); }
 .stars label:has(input:focus-visible) { outline: 3px solid var(--accent); outline-offset: 2px; border-radius: 8px; }
+.stars:hover label { color: var(--accent); }
+.stars label:hover ~ label { color: var(--muted); }
+.feedback .optional { font-weight: 400; color: var(--muted); }
+.feedback .rate-help { margin: 0 0 10px; }
+@media (forced-colors: active) { .stars label { color: GrayText; } .stars:has(input:checked) label { color: Highlight; } .stars label:has(input:checked) ~ label { color: GrayText; } }
 .feel { display: flex; flex-wrap: wrap; gap: 8px; }
 .feel legend { width: 100%; }
 .chip { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 14px; border: 2px solid var(--border); border-radius: 999px; cursor: pointer; }
 .chip input { width: 20px; height: 20px; margin: 0; accent-color: var(--accent); }
 .chip:has(input:checked) { border-color: var(--accent); font-weight: 700; }
-#dlg-feedback textarea { width: 100%; font: inherit; }
-#dlg-feedback select, #dlg-feedback textarea { min-height: 44px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); color: var(--text); width: 100%; }
+#dlg-feedback textarea, #dlg-messages textarea { width: 100%; font: inherit; }
+#dlg-feedback select, #dlg-feedback textarea, #dlg-messages select, #dlg-messages textarea { min-height: 44px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); color: var(--text); width: 100%; }
 /* Account and sync */
 .field input[type=email] { min-height: 44px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); color: var(--text); width: 100%; }
 .field input[type=password] { min-height: 44px; padding: 8px 12px; border: 1px solid var(--border); width: 100%; color: var(--text); }
@@ -690,6 +720,24 @@ table.board .pill { font-size: .75rem; margin-left: 4px; }
 .miniboard li.empty span::before { content: none; }
 #dlg-feedback .feedback-box { border-top: 1px solid var(--edge); padding-top: 8px; margin-top: 12px; }
 #dlg-feedback textarea { box-sizing: border-box; }
+/* Messages: news, and conversations with the team */
+#dlg-messages textarea { box-sizing: border-box; }
+#dlg-messages .msg-box { border-top: 1px solid var(--edge); padding-top: 8px; margin-top: 12px; }
+.msg-news, .msg-convs, .msg-list { list-style: none; margin: 0; padding: 0; }
+.msg-news > li { border: 1px solid var(--edge-hi); background: var(--surface-2); border-radius: 12px; padding: 10px 14px; margin: 8px 0; }
+.msg-news h4 { margin: 0; }
+.msg-convs > li { margin: 8px 0; }
+.msg-convs details { border: 1px solid var(--edge-hi); border-radius: 12px; padding: 0 14px; }
+.msg-convs summary { cursor: pointer; min-height: 44px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 8px 0; }
+.msg-list { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 12px; }
+.msg { border-radius: 12px; padding: 8px 12px; max-width: 90%; border: 1px solid var(--edge-hi); }
+.msg.team { align-self: flex-start; background: var(--accent-soft); }
+.msg.me { align-self: flex-end; background: var(--surface-2); }
+.msg p { margin: 2px 0; }
+.msg-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.msg-reply { padding-bottom: 12px; }
+.pill.new { border-color: var(--accent); background: var(--accent-soft); color: var(--text); font-weight: 700; }
+.count-dot { display: inline-block; margin-left: 6px; min-width: 1.4em; padding: 0 5px; border-radius: 999px; background: var(--accent); color: var(--on-accent); font-size: .8rem; font-weight: 700; line-height: 1.4; text-align: center; }
 @media (max-width: 520px) {
   /* Keep the strip to one line on phones: the leader, and the player when they are on the board. */
   .miniboard li:nth-child(n+2):not(.me) { display: none; }
@@ -761,6 +809,9 @@ dialog.rules table.board td { font-variant-numeric: tabular-nums; }
 [dir=rtl] #gridframe, [dir=rtl] #print-root .pg { direction: ltr; }
 [dir=rtl] #gridframe th, [dir=rtl] #print-root .pg th { direction: rtl; unicode-bidi: plaintext; }
 #language { max-width: 100%; }
+.daily-numbers { margin: 0 0 12px; }
+.daily-email { margin-top: 10px; }
+.daily-email p.help { margin: 0; }
 
 /* ---- Learn to solve: tutorial and tips ---- */
 .hero-learn { margin: 14px 0 0; color: var(--muted); }

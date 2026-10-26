@@ -40,7 +40,7 @@ export function buildPrint(puzzle, options) {
   const marks = options.marks || new Map();
   const state = (k) => (options.withMarks ? (marks.get(k) === 'A' ? 'X' : marks.get(k) || '') : '');
   const meta = `${esc(puzzle.theme.name)} · ${esc(puzzle.difficulty.name)} · ${K} categories, ${N} items each · ${puzzle.clues.length} clues`;
-  const head = (suffix = '') => `<h1>${esc(puzzle.title)}${suffix}</h1><p class="pmeta">${meta}</p>`;
+  const head = (suffix = '') => `<h1>${esc(puzzle.title)}${suffix}</h1><p class="pmeta">${meta} · <span translate="no">© The Fantastical Logic Grid, thelogicgrid.com</span></p>`;
 
   const story = `<h2>The story</h2>${puzzle.story.paragraphs.map((p) => `<p>${esc(p)}</p>`).join('')}`;
   const grid = gridTable(puzzle, ix, state, cellPt);

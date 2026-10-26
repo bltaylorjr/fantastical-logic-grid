@@ -260,7 +260,7 @@ const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`o
     await page.evaluate(() => { document.documentElement.dataset.theme = 'contrast'; });
     await page.screenshot({ path: process.env.SHOTS + '/8-contrast.png' });
 
-    // MENSA in the worker
+    // Quantum Physicist in the worker
     await page.evaluate(() => { document.documentElement.dataset.theme = 'light'; });
     await page.click('#home-btn');
     await page.waitForSelector('#tier-choices .suggest');
@@ -270,7 +270,7 @@ const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`o
     await page.click('#gen-btn');
     assert(await page.isDisabled('#gen-btn'), 'generate button disabled while writing');
     await page.waitForSelector('#screen-play:not([hidden])', { timeout: 60000 });
-    console.log(`    MENSA generated in ${((Date.now() - t0) / 1000).toFixed(1)} s`);
+    console.log(`    Quantum Physicist generated in ${((Date.now() - t0) / 1000).toFixed(1)} s`);
     await page.screenshot({ path: process.env.SHOTS + '/9-mensa.png', fullPage: true });
 
     const used = await page.evaluate(() => new Promise((res) => { const r = indexedDB.open('fantastical-logic-grid'); r.onsuccess = () => { const g = r.result.transaction('meta').objectStore('meta').get('usedStories'); g.onsuccess = () => res(g.result); }; }));

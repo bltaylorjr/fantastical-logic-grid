@@ -158,7 +158,7 @@ export const LESSONS = [
         text: `<p><b>If / then</b> clues work best backwards: if the "then" part is false, the "if" part must be false too.</p>
         <p>An earlier clue already ruled out Cleo and Blue (marked for you). So Ava did not bring the Cat: <b>X</b>.</p>
         <p>Careful: it doesn't work the other way round. Knowing Ava did not bring the Cat would tell you nothing about Cleo's hat.</p>` },
-      { title: 'Every clue, done', text: `<p>Those are all nine. Basic puzzles use the first three. Each level adds more: Easy adds either / or, Medium adds more / less and all different, Hard adds exact gaps and one of each, and Expert and MENSA add if / then.</p>
+      { title: 'Every clue, done', text: `<p>Those are all nine. Basic puzzles use the first three. Each level adds more: Easy adds either / or, Medium adds more / less and all different, Hard adds exact gaps and one of each, and Expert and Quantum Physicist add if / then.</p>
         <p>Whatever the clue, ask two questions: <i>what does it rule out?</i> and <i>what does that leave?</i></p>` },
     ],
   },
@@ -176,7 +176,7 @@ export const LESSONS = [
       { title: 'Back to the clue', clues: [1], expect: ['O Ava Cat', 'X Ava Dog', 'X Ben Cat', 'X Cleo Cat'],
         text: `<p>Clue 1 left Ava the Cat or the Owl. The Owl is out, so Ava brought the Cat: mark it <b>O</b>, and X the rest of its row and column.</p>` },
       { title: 'A shortcut', text: `<p>Many what-ifs have a shortcut. Here: the Owl goes with Green, and Ava does not go with Green, so Ava can't go with the Owl. That's the "carry facts across sections" trick from lesson 2.</p>
-        <p>Reach for what-if last, after every clue and every section. Only Expert and MENSA puzzles need long what-if chains.</p>` },
+        <p>Reach for what-if last, after every clue and every section. Only Expert and Quantum Physicist puzzles need long what-if chains.</p>` },
     ],
   },
   {
