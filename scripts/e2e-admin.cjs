@@ -15,6 +15,7 @@ const ROOT = path.join(__dirname, '..');
 const API_PORT = 8162;
 const APP_PORT = 8163;
 const APP = `http://localhost:${APP_PORT}`;
+const SITE_PORT = 8164;
 const API = `http://localhost:${API_PORT}`;
 const PROJECT = 'flg-e2e';
 const TOKEN = 'break-glass-key-for-the-e2e-test';
@@ -34,7 +35,7 @@ const SHOTS = process.env.SHOTS;
     compatibilityDate: '2026-08-01',
     d1Databases: ['DB'],
     assets: { directory: path.join(ROOT, 'admin'), binding: 'ASSETS', routerConfig: { invoke_user_worker_ahead_of_assets: true, has_user_worker: true } },
-    bindings: { FIREBASE_PROJECT_ID: PROJECT, ALLOWED_ORIGINS: APP, ADMIN_TOKEN: TOKEN, OWNER_EMAIL: OWNER, FIREBASE_WEB_API_KEY: 'e2e-key', TEST_JWKS: JSON.stringify(signer.jwks) },
+    bindings: { FIREBASE_PROJECT_ID: PROJECT, ALLOWED_ORIGINS: APP, ADMIN_TOKEN: TOKEN, OWNER_EMAIL: OWNER, FIREBASE_WEB_API_KEY: 'e2e-key', TEST_JWKS: JSON.stringify(signer.jwks), SITE_URL: `http://localhost:${SITE_PORT}` },
   });
   const db = await mf.getD1Database('DB');
   for (const f of fs.readdirSync(path.join(ROOT, 'server/migrations')).filter((n) => n.endsWith('.sql')).sort()) {
@@ -61,6 +62,8 @@ const SHOTS = process.env.SHOTS;
   await db.prepare("INSERT INTO search_snapshots (source, fetched_at, data, tried_at) VALUES ('google', ?1, ?2, ?1)").bind(now, JSON.stringify(gsc)).run();
   await mf.ready;
   const app = spawn('node', [path.join(__dirname, 'serve.mjs'), path.join(ROOT, 'dist', 'web'), String(APP_PORT)], { stdio: 'ignore' });
+  // The website build, for the daily puzzle planner's preview.
+  const siteServer = spawn('node', [path.join(__dirname, 'serve.mjs'), path.join(ROOT, 'dist', 'site'), String(SITE_PORT)], { stdio: 'ignore' });
   await new Promise((r) => setTimeout(r, 600));
 
   const browser = await chromium.launch();
@@ -158,14 +161,19 @@ const SHOTS = process.env.SHOTS;
     await page.waitForSelector('input[data-key=confetti]:not([disabled])');
     await page.uncheck('input[data-key=confetti]');
     assert(await until('confetti', false), 'confetti is switched off for everyone');
-    await page.waitForSelector('#set-portrait_style');
-    await page.selectOption('#set-portrait_style', 'lorelei');
-    await page.click('button[data-save=portrait_style]');
-    assert(await until('portrait_style', 'lorelei'), 'the portrait style is chosen for everyone');
-    await page.waitForSelector('#set-voice_source');
-    await page.selectOption('#set-voice_source', 'device');
-    await page.click('button[data-save=voice_source]');
-    assert(await until('voice_source', 'device'), 'where voices come from is chosen for everyone');
+    // Each save redraws the settings, so a choice made while the last save is
+    // still redrawing can be lost: try again until it is stored.
+    const pick = async (key, value) => {
+      for (let i = 0; i < 4; i++) {
+        await page.waitForSelector(`#set-${key}`);
+        await page.selectOption(`#set-${key}`, value);
+        await page.click(`button[data-save=${key}]`);
+        if (await until(key, value)) return true;
+      }
+      return false;
+    };
+    assert(await pick('portrait_style', 'lorelei'), 'the portrait style is chosen for everyone');
+    assert(await pick('voice_source', 'device'), 'where voices come from is chosen for everyone');
     await shot(page, '2-settings');
 
     await page.click('a[href="#announcements"]');
@@ -196,6 +204,50 @@ const SHOTS = process.env.SHOTS;
     assert(/logic grid puzzles/.test(search) && /Submitted and indexed/.test(search) && /\/rules\.html/.test(search), 'the Search section shows Google searches, pages and indexing');
     assert(/Not connected yet/.test(search), 'Bing shows how to connect it');
     await shot(page, '4-search');
+
+    // Free-limit alerts: voices at 140 of 300 are fine; at 290 the overview warns.
+    assert(!(await page.locator('#ov-body .alerts').count()), 'no free-limit warning while usage is low');
+
+    // Daily puzzles: the coming days from the site build, and a planned change.
+    const upcoming = JSON.parse(fs.readFileSync(path.join(ROOT, 'dist', 'site', 'daily', 'upcoming.json'), 'utf8'));
+    await page.click('a[href="#daily"]');
+    await page.waitForSelector('#daily-body table');
+    assert((await page.textContent('#daily-body')).includes(upcoming.days[0].title), 'the planner previews the coming days from the website build');
+    await page.click(`#daily-body button[data-plan="${upcoming.days[1].date}"]`);
+    await page.selectOption('#dialog [name=theme]', 'scifi');
+    await page.selectOption('#dialog [name=difficulty]', 'hard');
+    await page.fill('#dialog [name=note]', 'Space week');
+    await page.click('#dialog-ok');
+    await page.waitForSelector('#daily-body .badge.warn');
+    const planned = await db.prepare('SELECT theme, difficulty, note FROM daily_plan WHERE date = ?1').bind(upcoming.days[1].date).first();
+    assert(planned && planned.theme === 'scifi' && planned.difficulty === 'hard' && planned.note === 'Space week', 'a coming day is planned');
+    const pub = await page.evaluate(async (u) => (await fetch(u)).json(), `${API}/v1/daily/plan`);
+    assert(pub.plan.length === 1 && pub.plan[0].theme === 'scifi', 'the website build can read the plan');
+    await page.click(`#daily-body button[data-plan-new="${upcoming.days[2].date}"]`);
+    await page.waitForFunction((d) => document.querySelector(`#daily-body button[data-plan-reset="${d}"]`), upcoming.days[2].date);
+    assert((await db.prepare('SELECT reroll FROM daily_plan WHERE date = ?1').bind(upcoming.days[2].date).first()).reroll === 1, 'New story asks for a different story');
+    await page.click(`#daily-body button[data-plan-reset="${upcoming.days[2].date}"]`);
+    await page.waitForFunction((d) => !document.querySelector(`#daily-body button[data-plan-reset="${d}"]`), upcoming.days[2].date);
+    assert(!(await db.prepare('SELECT 1 FROM daily_plan WHERE date = ?1').bind(upcoming.days[2].date).first()), 'Back to automatic removes the change');
+    await shot(page, '4-daily');
+
+    // Puzzle quality.
+    await page.click('a[href="#quality"]');
+    await page.waitForSelector('#quality-body .tile');
+    assert(/Groups to look at/.test(await page.textContent('#quality-body')) && await page.locator('#quality-body table tbody tr').count() >= 4, 'the quality report lists themes and levels');
+    // Any table downloads as CSV.
+    const [dl] = await Promise.all([page.waitForEvent('download'), page.click('#quality-body [data-csv]')]);
+    const csvFile = fs.readFileSync(await dl.path(), 'utf8');
+    assert(/^\uFEFF?Theme,Difficulty/.test(csvFile) && /\.csv$/.test(dl.suggestedFilename()), `a table downloads as a CSV file (${dl.suggestedFilename()})`);
+    await page.click('a[href="#players"]');
+    const [dl2] = await Promise.all([page.waitForEvent('download'), page.click('[data-export=scores]')]);
+    assert(/Screen name/.test(fs.readFileSync(await dl2.path(), 'utf8')) && /logic-grid-scores-/.test(dl2.suggestedFilename()), 'all scores download as a CSV file');
+
+    await db.prepare("UPDATE usage SET count = 290 WHERE name = 'tts'").run();
+    await page.click('a[href="#overview"]');
+    await page.waitForSelector('#ov-body .alerts');
+    assert(/Free server voices today/.test(await page.textContent('#ov-body .alerts')), 'the overview warns when a free allowance is nearly used');
+    await db.prepare("UPDATE usage SET count = 140 WHERE name = 'tts'").run();
 
     await page.click('a[href="#audit"]');
     await page.waitForSelector('#audit-rows tr td');
@@ -298,6 +350,7 @@ const SHOTS = process.env.SHOTS;
   } finally {
     await browser.close();
     app.kill();
+    siteServer.kill();
     await mf.dispose();
   }
 })().catch((e) => { console.error(e); process.exit(1); });

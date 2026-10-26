@@ -20,6 +20,11 @@
 //   GET/POST /admin/v1/settings        feature switches and limits (settings.js)
 //   GET/POST /admin/v1/announcements   messages in the game; POST .../:id/(end|delete)
 //   GET  /admin/v1/audit               the audit log
+//   GET  /admin/v1/daily               the daily puzzle planner; POST .../:date (change), .../:date/reset (daily.js)
+//   GET  /admin/v1/quality?days=       puzzles players give up on, rate low or find too hard or easy (report.js)
+//   GET  /admin/v1/alerts              free allowances close to running out
+//   GET  /admin/v1/summary?days=       the week in numbers, for the Monday summary email
+//   GET  /admin/v1/export/(players|scores|feedback).csv   spreadsheet downloads
 //   GET/POST /admin/v1/admins          who may sign in (owner only); POST /admin/v1/admins/remove
 //   GET  /admin/v1/archive             the weekly archive: setup, what goes, past runs (archive.js)
 //   POST /admin/v1/archive/run         send the archive email now (owner)
@@ -44,6 +49,9 @@ import { refreshSearch, searchSnapshots, lastTry, REFRESH_GAP_MS } from './searc
 import { workshopOptions, addPart, draftParts } from './workshop.js';
 import { TOPICS as FEEDBACK_TOPICS } from './feedback.js';
 import { archiveStatus, runArchive, buildArchive, exportArchive, confirmArchive } from './archive.js';
+import { FREE_LIMITS, cloudflareUsage } from './usage.js';
+import { plannerView, checkPlan, savePlan, resetPlan } from './daily.js';
+import { quality, alerts, summary, csv, CSV_KINDS } from './report.js';
 
 const DAY = 24 * 3600_000;
 const ROLES = { viewer: 1, moderator: 2, admin: 3, owner: 4 };
@@ -56,12 +64,7 @@ const SESSION_MAX_S = 12 * 3600;
 const DENIED_PER_DAY = 500; // refused requests written to the audit log, so a flood cannot fill it
 const ANALYTICS_CACHE_MS = 120_000;
 const TABLES = ['sync_users', 'sync_records', 'sync_deleted_users', 'players', 'scores', 'races', 'race_entries', 'race_invites', 'plays', 'parts', 'usage',
-  'app_errors', 'upkeep_log', 'admins', 'admin_audit', 'settings', 'announcements', 'bans', 'name_reviews', 'archive_log', 'feedback', 'search_snapshots'];
-// Free plan allowances (Cloudflare and Firebase pages, October 2026).
-export const FREE_LIMITS = {
-  workerRequestsPerDay: 100_000, d1RowsReadPerDay: 5_000_000, d1RowsWrittenPerDay: 100_000,
-  d1DatabaseBytes: 500 * 1024 * 1024, d1AccountBytes: 5 * 1024 * 1024 * 1024, firebaseMonthlyActiveUsers: 50_000,
-};
+  'app_errors', 'upkeep_log', 'admins', 'admin_audit', 'settings', 'announcements', 'bans', 'name_reviews', 'archive_log', 'feedback', 'search_snapshots', 'daily_plan'];
 const SECURITY_HEADERS = {
   'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
   'X-Content-Type-Options': 'nosniff',
@@ -97,7 +100,8 @@ function safeEqual(a, b) {
 }
 
 const bearer = (req) => (req.headers.get('Authorization') || '').match(/^Bearer\s+(.+)$/)?.[1] || '';
-const tokenMatches = (env, token) => !!env.ADMIN_TOKEN && env.ADMIN_TOKEN.length >= 16 && safeEqual(token, env.ADMIN_TOKEN);
+// Trimmed: a secret pasted into the Cloudflare dashboard can carry a stray space or line break.
+const tokenMatches = (env, token) => { const want = String(env.ADMIN_TOKEN || '').trim(); return want.length >= 16 && safeEqual(token.trim(), want); };
 
 // ------------------------------------------------------------- identity
 async function identify(req, env) {
@@ -218,36 +222,6 @@ async function storage(env) {
     databaseBytes: sizes.length ? Math.max(...sizes) : null,
     limits: FREE_LIMITS,
   };
-}
-
-// Cloudflare's own daily counts for this Worker and D1, from its GraphQL
-// analytics API. Optional: needs the CF_API_TOKEN (Account Analytics: Read)
-// and CF_ACCOUNT_ID secrets. Free on every plan.
-async function cloudflareUsage(env, days, now = Date.now()) {
-  if (!env.CF_API_TOKEN || !env.CF_ACCOUNT_ID) return { configured: false, limits: FREE_LIMITS };
-  const start = isoDay(now - (days - 1) * DAY);
-  const end = isoDay(now);
-  const query = `query ($account: String!, $start: Date!, $end: Date!, $script: String!) { viewer { accounts(filter: { accountTag: $account }) {
-    d1: d1AnalyticsAdaptiveGroups(limit: 1000, filter: { date_geq: $start, date_leq: $end }) { sum { readQueries writeQueries rowsRead rowsWritten } dimensions { date } }
-    workers: workersInvocationsAdaptive(limit: 1000, filter: { date_geq: $start, date_leq: $end, scriptName: $script }) { sum { requests errors } dimensions { date } }
-  } } }`;
-  try {
-    const res = await fetch('https://api.cloudflare.com/client/v4/graphql', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${env.CF_API_TOKEN}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query, variables: { account: env.CF_ACCOUNT_ID, start, end, script: env.WORKER_NAME || 'flg-api' } }),
-    });
-    const j = await res.json();
-    if (!res.ok || j.errors?.length) return { configured: true, error: (j.errors && j.errors[0]?.message) || `HTTP ${res.status}`, limits: FREE_LIMITS };
-    const acct = j.data.viewer.accounts[0] || { d1: [], workers: [] };
-    const byDay = {};
-    const add = (date, k, v) => { (byDay[date] ||= { date, requests: 0, errors: 0, rowsRead: 0, rowsWritten: 0, readQueries: 0, writeQueries: 0 })[k] += v || 0; };
-    for (const g of acct.d1) for (const k of ['rowsRead', 'rowsWritten', 'readQueries', 'writeQueries']) add(g.dimensions.date, k, g.sum[k]);
-    for (const g of acct.workers) for (const k of ['requests', 'errors']) add(g.dimensions.date, k, g.sum[k]);
-    return { configured: true, days: Object.values(byDay).sort((a, b) => a.date.localeCompare(b.date)), limits: FREE_LIMITS };
-  } catch (e) {
-    return { configured: true, error: 'Cloudflare did not answer.', limits: FREE_LIMITS };
-  }
 }
 
 // ------------------------------------------------------------- players
@@ -540,6 +514,31 @@ const ROUTES = [
     return { body: r, target: String(body.id), detail: r };
   }],
 
+  ['GET', /^daily$/, 'moderator', 'daily.view', async ({ env, now }) => ({ body: await plannerView(env, now) })],
+  ['POST', /^daily\/(\d{4}-\d{2}-\d{2})$/, 'admin', 'daily.plan', async ({ env, params: [date], body, who, now }) => {
+    const { value, error } = checkPlan(date, body, now);
+    if (error) throw new Refusal(400, 'bad_plan', error);
+    const saved = await savePlan(env, value, who.actor, now);
+    return { body: { ok: true, plan: saved }, target: date, detail: saved };
+  }],
+  ['POST', /^daily\/(\d{4}-\d{2}-\d{2})\/reset$/, 'admin', 'daily.reset', async ({ env, params: [date], now }) => {
+    const r = await resetPlan(env, date, now);
+    if (r.error) throw new Refusal(400, 'bad_plan', r.error);
+    return { body: r, target: date };
+  }],
+
+  ['GET', /^quality$/, 'viewer', 'quality.view', async ({ env, url }) => ({ body: await quality(env, daysParam(url, 90)) })],
+  ['GET', /^alerts$/, 'viewer', 'alerts.view', async ({ env }) => ({ body: await alerts(env) })],
+  ['GET', /^summary$/, 'admin', 'summary.view', async ({ env, url }) => {
+    const s = await summary(env, daysParam(url, 31));
+    s.enabled = (await getSettings(env)).summary_email_enabled;
+    return { body: s };
+  }],
+  ['GET', /^export\/(players|scores|feedback)\.csv$/, 'admin', 'export.csv', async ({ env, params: [kind], now }) => {
+    if (!CSV_KINDS.includes(kind)) throw new Refusal(404, 'not_found');
+    return { file: await csv(env, kind, now), type: 'text/csv; charset=utf-8', name: `logic-grid-${kind}-${new Date(now).toISOString().slice(0, 10)}.csv`, target: kind };
+  }],
+
   ['GET', /^admins$/, 'owner', 'admins.view', async ({ env }) => {
     const { results } = await env.DB.prepare('SELECT email, role, added_by AS addedBy, added_at AS addedAt FROM admins ORDER BY added_at').all();
     const owner = String(env.OWNER_EMAIL || '').trim().toLowerCase();
@@ -605,7 +604,7 @@ async function api(req, env, url, path) {
     await audit(env, { actor: who.actor, role: who.role, action, target: out.target, detail: out.detail, status: 200 });
     if (out.file) {
       return new Response(out.file, {
-        headers: { 'Content-Type': 'application/zip', 'Content-Disposition': `attachment; filename="${out.name}"`, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', ...out.headers },
+        headers: { 'Content-Type': out.type || 'application/zip', 'Content-Disposition': `attachment; filename="${out.name}"`, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', ...out.headers },
       });
     }
     return reply(out.body);

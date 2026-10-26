@@ -1,0 +1,40 @@
+# The weekly summary email: the week in numbers (new players, games, top
+# themes, ideas and problems, errors, puzzles that need attention, free-limit
+# warnings), emailed from the game's Gmail account. Same secrets as the weekly
+# archive email (server/ARCHIVE.md); SUMMARY_TO is optional (defaults to
+# ARCHIVE_TO). Switch it off in the admin dashboard (Alerts and reports).
+# The repository is public, so this job prints nothing but whether it sent.
+# Free: scheduled GitHub Actions on a public repo and Gmail cost nothing.
+name: Weekly summary email
+on:
+  schedule:
+    - cron: '37 5 * * 1'   # Mondays 05:37 UTC
+  workflow_dispatch:
+    inputs:
+      test:
+        description: Send even while the switch is off
+        type: boolean
+        default: true
+permissions:
+  contents: read
+concurrency:
+  group: summary-email
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: scripts/summary-email.py
+          sparse-checkout-cone-mode: false
+      - name: Fetch the summary and email it
+        env:
+          FLG_CLOUD_URL: ${{ vars.FLG_CLOUD_URL || 'https://flg-api.btay74.workers.dev' }}
+          FLG_ADMIN_TOKEN: ${{ secrets.FLG_ADMIN_TOKEN }}
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          ARCHIVE_TO: ${{ secrets.ARCHIVE_TO }}
+          SUMMARY_TO: ${{ secrets.SUMMARY_TO }}
+          TEST: ${{ github.event_name == 'workflow_dispatch' && inputs.test }}
+        run: python3 -I scripts/summary-email.py

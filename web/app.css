@@ -714,3 +714,37 @@ dialog.rules table.board td { font-variant-numeric: tabular-nums; }
 @keyframes ptr-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .ptr.spin svg { animation: none; } }
 .ptr-live { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* Daily puzzle, stats and badges, Share my result */
+.daily-card { border-top: 4px solid var(--accent); }
+.daily-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px; }
+.daily-head h2 { margin: 0; }
+.streak { margin: 0; padding: 3px 12px; border-radius: 999px; background: var(--accent-soft); border: 1px solid var(--accent); font-weight: 700; }
+.streak b { color: var(--accent); }
+.daily-title { margin: 0 0 6px; font-size: 1.15rem; }
+.daily-meta { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; }
+.daily-earlier { margin-top: 14px; }
+.daily-earlier summary { cursor: pointer; font-weight: 700; }
+.daily-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 4px; }
+.streak-line { font-weight: 700; color: var(--accent); }
+.new-badges h3 { margin: 0 0 8px; font-size: 1rem; }
+.badges { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr)); gap: 10px; }
+.badge-item { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--edge-hi); background: var(--surface-2); }
+.badge-item small { display: block; color: var(--muted); }
+.badge-mark { font-size: 1.4rem; line-height: 1; color: var(--accent); }
+.badge-item.locked { opacity: .62; }
+.badge-item.locked .badge-mark { color: var(--muted); }
+.share-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 8px 0 12px; }
+.share-img { width: 100%; height: auto; border-radius: 12px; border: 1px solid var(--edge-hi); margin-bottom: 12px; }
+#share-text { width: 100%; }
+.stats-tiles { margin-bottom: 16px; }
+.table-wrap { overflow-x: auto; }
+.stats-table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+.stats-table th, .stats-table td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--edge-hi); }
+#dlg-stats h3 { margin: 18px 0 8px; }
+
+/* Smarter hints */
+.hint-clue { display: block; margin-top: 4px; padding-left: 10px; border-left: 3px solid var(--hint); font-style: italic; quotes: "“" "”"; }
+.hint-lesson { color: var(--muted); }
+.hint-chain summary { cursor: pointer; font-weight: 700; }
+.hint-chain ol { margin: 6px 0 0; padding-left: 1.4em; }

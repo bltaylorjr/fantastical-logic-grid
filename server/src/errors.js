@@ -79,7 +79,8 @@ async function postErrors(req, env) {
 
 async function listErrors(req, env) {
   const token = (req.headers.get('Authorization') || '').replace(/^Bearer\s+/, '');
-  if (!env.ADMIN_TOKEN || env.ADMIN_TOKEN.length < 16 || !safeEqual(token, env.ADMIN_TOKEN)) return json(req, env, { error: 'not_allowed' }, 401);
+  const want = String(env.ADMIN_TOKEN || '').trim();
+  if (want.length < 16 || !safeEqual(String(token || '').trim(), want)) return json(req, env, { error: 'not_allowed' }, 401);
   const days = Math.min(30, Math.max(1, Number(new URL(req.url).searchParams.get('days')) || 7));
   const since = new Date(Date.now() - (days - 1) * 24 * 3600_000).toISOString().slice(0, 10);
   const { results } = await env.DB.prepare(`SELECT kind, platform, version, message, place, SUM(count) AS count, MIN(day) AS first, MAX(day) AS last

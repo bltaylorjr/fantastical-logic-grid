@@ -86,6 +86,13 @@ const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`o
     await page.click('#hint-more');
     await page.click('#hint-more');
     assert(await page.locator('#hint-apply').count() === 1, 'hint reaches the reasoning level');
+    const hintKind = await page.evaluate(() => window.__flg.state.hint.res.kind);
+    if (hintKind === 'step') {
+      const box = await page.textContent('#hintbox');
+      assert(/How this works:/.test(box) && /Why:/.test(box) && await page.locator('#hintbox .hint-tech .pill').count() === 1, 'the hint names the technique and explains how it works');
+      const n = await page.evaluate(() => window.__flg.state.hint.res.clue);
+      if (n) assert(await page.locator('#hintbox q.hint-clue').count() === 1, 'the hint quotes the clue');
+    }
     await page.click('#hint-apply');
     assert(await page.evaluate(() => window.__flg.state.save.hintsUsed) === 3, 'hint uses counted');
 

@@ -161,16 +161,66 @@ function meter(used, limit) {
 
 const tile = (label, value, sub = '') => `<div class="tile"><div class="label">${esc(label)}</div><div class="value">${value}</div>${sub ? `<div class="sub">${sub}</div>` : ''}</div>`;
 
-function table(head, rows, empty = 'Nothing yet.') {
+function table(head, rows, empty = 'Nothing yet.', { csv = true } = {}) {
   if (!rows.length) return `<p class="muted">${esc(empty)}</p>`;
-  return `<div class="table-wrap"><table class="table"><thead><tr>${head.map((h) => `<th scope="col"${h.num ? ' class="num"' : ''}>${esc(h.label || h)}</th>`).join('')}</tr></thead><tbody>${rows.map((r) => `<tr>${r.map((c, i) => `<td${head[i].num ? ' class="num"' : ''}>${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+  return `${csv ? '<button class="btn small link csv-btn" type="button" data-csv>Download this table (CSV)</button>' : ''}<div class="table-wrap"><table class="table"><thead><tr>${head.map((h) => `<th scope="col"${h.num ? ' class="num"' : ''}>${esc(h.label || h)}</th>`).join('')}</tr></thead><tbody>${rows.map((r) => `<tr>${r.map((c, i) => `<td${head[i].num ? ' class="num"' : ''}>${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
 }
+
+// ------------------------------------------------------------- spreadsheets
+// Any table can be saved as a CSV file for Excel; cells a spreadsheet would
+// read as a formula get an apostrophe, because some text comes from players.
+function csvText(rows) {
+  const cell = (v) => {
+    let t = String(v ?? '').replace(/\s+/g, ' ').trim();
+    if (/^[=+\-@]/.test(t)) t = `'${t}`;
+    return /[",\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
+  };
+  return `\uFEFF${rows.map((r) => r.map(cell).join(',')).join('\r\n')}\r\n`;
+}
+function saveFile(blob, name) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.append(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+}
+const slug = (t) => String(t || 'table').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'table';
+document.addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-csv]');
+  if (b) {
+    const tbl = b.nextElementSibling && b.nextElementSibling.querySelector('table');
+    if (!tbl) return;
+    const rows = [...tbl.rows].map((r) => [...r.cells].map((c) => c.innerText));
+    const sec = b.closest('[data-view]');
+    let h = b.previousElementSibling;
+    while (h && !/^H[1-3]$/.test(h.tagName)) h = h.previousElementSibling;
+    const title = [sec && sec.querySelector('h1') && sec.querySelector('h1').textContent, h && h.textContent].filter(Boolean).join(' ');
+    saveFile(new Blob([csvText(rows)], { type: 'text/csv' }), `${slug(title)}-${new Date().toISOString().slice(0, 10)}.csv`);
+    announce('Table saved as a CSV file.');
+    return;
+  }
+  const x = e.target.closest('[data-export]');
+  if (x) {
+    await act(x, async () => {
+      const res = await fetch(`/admin/v1/export/${x.dataset.export}.csv`, { headers: { Authorization: `Bearer ${await bearer()}` } });
+      if (!res.ok) { const d = await res.json().catch(() => ({})); throw new ApiError(d.error || 'export', d.message || `Download failed (${res.status}).`); }
+      const name = (res.headers.get('Content-Disposition') || '').match(/filename="([^"]+)"/)?.[1] || `${x.dataset.export}.csv`;
+      saveFile(await res.blob(), name);
+    }, 'Download ready.');
+  }
+});
 
 // ------------------------------------------------------------- views
 const views = {};
 
+function alertsHtml(a) {
+  if (!a || !a.alerts.length) return '';
+  return `<div class="note alerts" role="alert"><h2>Free limits</h2><ul>${a.alerts.map((x) => `<li><span class="badge ${x.level === 'full' ? 'bad' : 'warn'}">${x.percent}%</span> <b>${esc(x.label)}</b>: ${esc(x.text)}</li>`).join('')}</ul></div>`;
+}
+
 views.overview = async () => {
-  const d = await api(`analytics?days=${$('#ov-days').value}`);
+  const [d, al] = await Promise.all([api(`analytics?days=${$('#ov-days').value}`), api('alerts').catch(() => null)]);
   const p = d.players;
   const g = d.games;
   const plays = g.byDay.reduce((s, v) => s + v, 0);
@@ -187,6 +237,7 @@ views.overview = async () => {
   if (can('moderator') && (fb.idea || fb.problem)) review.push(`<a href="#feedback">${fmt(fb.idea || 0)} new ${fb.idea === 1 ? 'idea' : 'ideas'} and ${fmt(fb.problem || 0)} new ${fb.problem === 1 ? 'problem' : 'problems'} from players</a>`);
   if (can('moderator') && d.review.namesWaiting) review.push(`<a href="#names">${fmt(d.review.namesWaiting)} new or changed screen ${d.review.namesWaiting === 1 ? 'name' : 'names'}</a>`);
   $('#ov-body').innerHTML = `
+    ${alertsHtml(al)}
     ${review.length ? `<div class="note">${review.join(' · ')}</div>` : ''}
     <h2>Players</h2>
     <div class="tiles">
@@ -722,6 +773,94 @@ $('#search-refresh').onclick = async (e) => {
 
 $('#ov-days').onchange = () => show('overview');
 
+// ---- Daily puzzles: preview the coming days and plan changes.
+let dailyData = null;
+views.daily = async () => {
+  const d = dailyData = await api('daily');
+  const plan = new Map(d.plan.map((p) => [p.date, p]));
+  const theme = (id) => (d.themes.find((t) => t.id === id) || {}).name || id;
+  const tier = (id) => (d.tiers.find((t) => t.id === id) || {}).name || id;
+  const days = (d.upcoming && d.upcoming.days) || [];
+  const built = d.upcoming ? `Preview from the site build of ${when(Date.parse(d.upcoming.built))}.` : '';
+  const rows = days.map((u) => {
+    const p = plan.get(u.date);
+    const changed = p && (!u.planned || (p.updatedAt && Date.parse(d.upcoming.built) < p.updatedAt));
+    const want = p ? [p.theme && theme(p.theme), p.difficulty && tier(p.difficulty), p.categories && `${p.categories} × ${p.items}`, p.reroll && `new story ${p.reroll}`].filter(Boolean).join(', ') : '';
+    return `<tr><td><b>${esc(new Date(`${u.date}T12:00:00Z`).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' }))}</b></td>
+      <td><b>${esc(u.title)}</b><br><span class="muted">${esc(u.opening)}</span>${p && p.note ? `<br><span class="badge">${esc(p.note)}</span>` : ''}${changed ? `<br><span class="badge warn">Changes after the next build</span>${want ? ` <span class="muted">(${esc(want)})</span>` : ''}` : p ? ' <span class="badge ok">Planned</span>' : ''}</td>
+      <td>${esc(u.themeName)}</td><td>${esc(u.difficultyName)}</td><td class="num">${u.categories} × ${u.items}</td>
+      <td>${can('admin') ? `<div class="row"><button class="btn small" data-plan="${esc(u.date)}">Change</button><button class="btn small" data-plan-new="${esc(u.date)}">New story</button>${p ? `<button class="btn small" data-plan-reset="${esc(u.date)}">Back to automatic</button>` : ''}</div>` : ''}</td></tr>`;
+  }).join('');
+  // Changes for days past the preview are listed too.
+  const later = d.plan.filter((p) => !days.some((u) => u.date === p.date));
+  $('#daily-body').innerHTML = `
+    ${d.siteError ? `<p class="error">The preview could not be loaded: ${esc(d.siteError)}</p>` : `<p class="muted">${built}</p>`}
+    ${days.length ? `<div class="table-wrap"><table class="table"><thead><tr><th scope="col">Day (UTC)</th><th scope="col">Puzzle</th><th scope="col">Theme</th><th scope="col">Difficulty</th><th scope="col" class="num">Size</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody>${rows}</tbody></table></div>` : ''}
+    ${later.length ? `<h2>Planned further ahead</h2>${table([{ label: 'Day' }, { label: 'Change' }, { label: 'Note' }, { label: '' }], later.map((p) => [esc(p.date), esc([p.theme && theme(p.theme), p.difficulty && tier(p.difficulty), p.categories && `${p.categories} × ${p.items}`, p.reroll && `new story ${p.reroll}`].filter(Boolean).join(', ') || 'automatic'), esc(p.note || ''), can('admin') ? `<button class="btn small" data-plan="${esc(p.date)}">Change</button> <button class="btn small" data-plan-reset="${esc(p.date)}">Back to automatic</button>` : '']), '', { csv: false })}` : ''}
+    ${can('admin') ? `<form id="daily-other" class="row card" novalidate><div class="field"><label for="daily-date">Plan another day (up to ${d.aheadDays} days ahead)</label><input id="daily-date" type="date" min="${esc(d.today)}"></div><button class="btn" type="submit">Plan this day</button></form>` : ''}`;
+};
+function sizesFor(tierId) {
+  const t = dailyData.tiers.find((x) => x.id === tierId);
+  if (!t) return [];
+  const out = [];
+  for (let k = t.categories[0]; k <= t.categories[1]; k++) for (let n = t.items[0]; n <= t.items[1]; n++) out.push(`${k}x${n}`);
+  return out;
+}
+async function planDay(date, button) {
+  const p = dailyData.plan.find((x) => x.date === date) || {};
+  const sizes = ['3x3', '3x4', '3x5', '4x4', '4x5', '5x5', '5x6', '6x6', '6x7', '6x8'];
+  const v = await ask({
+    title: `Plan ${new Date(`${date}T12:00:00Z`).toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'UTC' })}`,
+    text: 'Leave a choice on Automatic to keep that day\'s usual pick.',
+    fields: [
+      { name: 'theme', label: 'Theme', type: 'select', value: p.theme || '', options: [['', 'Automatic'], ...dailyData.themes.map((t) => [t.id, t.name])] },
+      { name: 'difficulty', label: 'Difficulty', type: 'select', value: p.difficulty || '', options: [['', 'Automatic (by weekday)'], ...dailyData.tiers.map((t) => [t.id, t.name])] },
+      { name: 'size', label: 'Size (categories × items)', type: 'select', value: p.categories ? `${p.categories}x${p.items}` : 'auto', options: [['auto', 'Automatic (the level\'s usual size)'], ...sizes.map((x) => [x, x.replace('x', ' × ')])] },
+      { name: 'note', label: 'Note for other admins (optional)', value: p.note || '' },
+    ],
+    ok: 'Save the plan',
+    check: (x) => {
+      if (x.size !== 'auto' && x.difficulty && !sizesFor(x.difficulty).includes(x.size)) return `That size is outside ${dailyData.tiers.find((t) => t.id === x.difficulty).name}'s usual sizes (${sizesFor(x.difficulty).map((z) => z.replace('x', ' × ')).join(', ')}). It still works, but the puzzle may feel harder or easier than the level says. Choose Automatic or one of those sizes.`;
+      return null;
+    },
+  });
+  if (!v) return;
+  if (await act(button, () => api(`daily/${date}`, { method: 'POST', body: v }), 'Saved. It shows after the next site build.')) show('daily', { keepFocus: true });
+}
+$('#daily-body').addEventListener('click', async (e) => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  if (b.dataset.plan) planDay(b.dataset.plan, b);
+  else if (b.dataset.planNew) {
+    const date = b.dataset.planNew;
+    const p = dailyData.plan.find((x) => x.date === date) || {};
+    const body = { theme: p.theme || '', difficulty: p.difficulty || '', size: p.categories ? `${p.categories}x${p.items}` : 'auto', note: p.note || '', newStory: true };
+    if (await act(b, () => api(`daily/${date}`, { method: 'POST', body }), 'A different story will be picked at the next site build.')) show('daily', { keepFocus: true });
+  } else if (b.dataset.planReset) {
+    if (await act(b, () => api(`daily/${b.dataset.planReset}/reset`, { method: 'POST', body: {} }), 'Back to automatic.')) show('daily', { keepFocus: true });
+  }
+});
+$('#daily-body').addEventListener('submit', (e) => {
+  if (e.target.id !== 'daily-other') return;
+  e.preventDefault();
+  const date = $('#daily-date').value;
+  if (!date) { toast('Pick a day first.'); return; }
+  planDay(date, e.target.querySelector('button'));
+});
+
+// ---- Puzzle quality: what to fix first.
+views.quality = async () => {
+  const q = await api(`quality?days=${$('#q-days').value}`);
+  setCount('#count-quality', q.flagged);
+  const p = (v) => (v == null ? '–' : `${Math.round(v * 100)}%`);
+  $('#quality-body').innerHTML = `
+    <div class="tiles">${tile('Groups to look at', fmt(q.flagged), `of ${fmt(q.rows.length)} theme and level groups`)}${tile('Games', fmt(q.rows.reduce((s, r) => s + r.games, 0)), `since ${esc(q.since)}`)}</div>
+    ${table([{ label: 'Theme' }, { label: 'Difficulty' }, { label: 'What players say' }, { label: 'Games', num: 1 }, { label: 'Solved', num: 1 }, { label: 'Gave up', num: 1 }, { label: 'Too hard', num: 1 }, { label: 'Too easy', num: 1 }, { label: 'Rating', num: 1 }, { label: 'Minutes', num: 1 }, { label: 'Hints', num: 1 }],
+      q.rows.map((r) => [esc(r.theme), esc(TIER_NAMES[r.tier] || r.tier), r.issues.length ? r.issues.map((x) => `<span class="badge warn">${esc(x.text)}</span>`).join(' ') : (r.games < q.minGames ? '<span class="muted">Too few games yet</span>' : '<span class="badge ok">Fine</span>'),
+        fmt(r.games), p(r.solveRate), p(r.quitRate), p(r.tooHard), p(r.tooEasy), r.rating ?? '–', r.minutes ?? '–', r.hints ?? '–']), 'No games shared in this period.')}`;
+};
+$('#q-days').onchange = () => show('quality');
+
 // ------------------------------------------------------------- navigation
 const MIN_ROLE = Object.fromEntries($$('#nav-list a').map((a) => [a.hash.slice(1), a.dataset.min]));
 
@@ -758,6 +897,7 @@ async function enter() {
   $('#who-email').textContent = me.email;
   $('#who-role').textContent = me.role;
   $$('#nav-list a').forEach((a) => { a.parentElement.hidden = !can(a.dataset.min); });
+  $$('main [data-min]').forEach((el) => { el.hidden = !can(el.dataset.min); });
   show(location.hash.slice(1) || 'overview');
 }
 

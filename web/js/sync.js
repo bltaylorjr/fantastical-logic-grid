@@ -12,7 +12,8 @@
 //                 Progress beats a deletion. The open puzzle always wins
 //                 while it is being played.
 //   used stories  both lists are combined, so a story is never reused.
-//   history       both lists are combined.
+//   history       both lists are combined (also the solve log for stats and streaks).
+//   badges        every badge from both, with the earliest time it was earned.
 //   settings      the most recent change wins. Keys stay on each device.
 import { CLOUD } from './cloud-config.js';
 import * as store from './store.js';
@@ -20,7 +21,10 @@ import * as account from './account.js';
 
 const STATE_KEY = 'syncState';
 // Meta records that sync, and how two copies combine.
-const SYNC_META = { usedStories: { merge: 'union', limit: 5000 }, history: { merge: 'history', limit: 50 } };
+const SYNC_META = {
+  usedStories: { merge: 'union', limit: 5000 }, history: { merge: 'history', limit: 50 },
+  solves: { merge: 'history', limit: 2000 }, badges: { merge: 'earliest' },
+};
 // Settings that stay on each device: API keys and download state.
 const DEVICE_ONLY = new Set(['aiKey', 'geminiKey', 'kokoroReady']);
 const MAX_CHANGES = 100;
@@ -353,6 +357,11 @@ function ownProgress(loser, winner) {
 
 function mergeMeta(key, local, remote) {
   const rule = SYNC_META[key];
+  if (rule && rule.merge === 'earliest') {
+    const out = { ...(remote && typeof remote === 'object' ? remote : {}) };
+    for (const [k, t] of Object.entries(local && typeof local === 'object' ? local : {})) out[k] = out[k] ? Math.min(out[k], t) : t;
+    return out;
+  }
   const a = Array.isArray(remote) ? remote : [];
   const b = Array.isArray(local) ? local : [];
   if (!rule) return remote ?? local;
