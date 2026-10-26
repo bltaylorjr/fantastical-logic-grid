@@ -40,7 +40,7 @@ jobs:
           FLG_SITE_URL: ${{ vars.FLG_SITE_URL }}
           FLG_GOOGLE_SITE_VERIFICATION: ${{ vars.FLG_GOOGLE_SITE_VERIFICATION }}
           FLG_BING_SITE_VERIFICATION: ${{ vars.FLG_BING_SITE_VERIFICATION }}
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: dist/site
       - id: deploy
