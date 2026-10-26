@@ -1,6 +1,6 @@
 // End-to-end check of supporter extra themes: marked and closed for everyone
 // else, with the Get the extras link; open for a premium supporter; and the
-// Supporter badge on the scoreboard. The game's server is stood in for.
+// Bronze to Platinum supporter badges on the scoreboard. The game's server is stood in for.
 const { chromium } = require('playwright');
 const { spawn } = require('child_process');
 const path = require('path');
@@ -52,6 +52,11 @@ export const CLOUD_URL = CLOUD.learnUrl;` }));
     const { ctx, page, errors } = await open(true);
     assert(!(await page.locator('input[name=theme][value=mystery]').isDisabled()), 'a premium supporter can pick the extra theme');
     assert(await page.isHidden('#extras-note'), 'no extras note for a premium supporter');
+    const pills = await page.evaluate(async () => {
+      const m = await import('/js/compete-ui.js');
+      return [1, 2, 3, 4, true].map((t) => { const d = document.createElement('div'); d.innerHTML = m.supporterPill(t); return [d.textContent.trim(), d.firstElementChild.className]; });
+    });
+    assert(JSON.stringify(pills) === JSON.stringify([['★ Bronze supporter', 'pill supporter tier-1'], ['★ Silver supporter', 'pill supporter tier-2'], ['★ Gold supporter', 'pill supporter tier-3'], ['★ Platinum supporter', 'pill supporter tier-4'], ['★ Bronze supporter', 'pill supporter tier-1']]), `scoreboard badges by tier ${JSON.stringify(pills)}`);
     assert(!errors.length, `no page errors ${errors.join(' | ')}`);
     await ctx.close();
   }

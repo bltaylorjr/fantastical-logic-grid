@@ -1,5 +1,5 @@
 // The signed-in player's supporter perks (server/src/supporters.js): a badge
-// on the scoreboard, and for premium supporters the themes the admin marks as
+// on the scoreboard (Bronze, Silver, Gold or Platinum), and for premium supporters the themes the admin marks as
 // supporter extras. Kept on this device, so the extras stay open offline.
 import { CLOUD, cloudEnabled } from './cloud-config.js';
 import * as account from './account.js';
@@ -20,6 +20,8 @@ const live = (p) => !!p && (p.until == null || p.until > Date.now());
 
 export const isSupporter = () => live(perks) && !!perks.supporter;
 export const isPremium = () => live(perks) && !!perks.premium;
+export const tier = () => (isSupporter() ? perks.tier || 1 : 0);
+export const TIER_NAMES = ['', 'Bronze', 'Silver', 'Gold', 'Platinum'];
 export function onChange(fn) { listeners.add(fn); return () => listeners.delete(fn); }
 
 export async function refresh() {
@@ -29,7 +31,7 @@ export async function refresh() {
     const res = await fetch(`${CLOUD.syncUrl.replace(/\/$/, '')}/v1/perks`, { headers: { Authorization: `Bearer ${await account.getIdToken()}` } });
     if (!res.ok) return;
     const body = await res.json();
-    const next = { uid: user.uid, supporter: !!body.supporter, premium: !!body.premium, until: body.until ?? null };
+    const next = { uid: user.uid, supporter: !!body.supporter, premium: !!body.premium, tier: Number(body.tier) || 0, until: body.until ?? null };
     if (JSON.stringify(next) === JSON.stringify(perks)) return;
     perks = next;
     store.setLocal(KEY, next);

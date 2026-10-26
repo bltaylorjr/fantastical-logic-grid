@@ -208,10 +208,11 @@ const SHOTS = process.env.SHOTS;
     await page.waitForSelector('#sup-rows td');
     await page.fill('#sup-who', 'fan@example.com');
     await page.selectOption('#sup-kind', 'premium');
+    await page.selectOption('#sup-tier', '3');
     await page.fill('#sup-note', 'Ko-fi tip');
     await page.click('#sup-form button[type=submit]');
     await page.waitForSelector('#sup-rows button[data-sup-end]');
-    assert(/fan@example\.com/.test(await page.textContent('#sup-rows')) && /Premium/.test(await page.textContent('#sup-rows')), 'an admin adds a premium supporter by email');
+    assert(/fan@example\.com/.test(await page.textContent('#sup-rows')) && /Premium/.test(await page.textContent('#sup-rows')) && /Gold/.test(await page.textContent('#sup-rows')), 'an admin adds a Gold premium supporter by email');
 
     await page.click('a[href="#search"]');
     await page.waitForSelector('#search-body .tile');

@@ -48,7 +48,7 @@ const admin = (path, body) => call(`/admin/v1/${path}`, { auth: TOKEN, body });
 
 test('perks need a signed-in player', async () => {
   assert.equal((await call('/v1/perks')).status, 401);
-  assert.deepEqual((await call('/v1/perks', { auth: player('nobody') })).body, { supporter: false, premium: false, until: null });
+  assert.deepEqual((await call('/v1/perks', { auth: player('nobody') })).body, { supporter: false, premium: false, tier: 0, until: null });
 });
 
 test('an admin grant by email reaches the player with that confirmed email', async () => {
@@ -58,7 +58,7 @@ test('an admin grant by email reaches the player with that confirmed email', asy
   // Not confirmed yet: no link, no badge.
   assert.equal((await call('/v1/perks', { auth: player('p-a', 'a@example.com', false) })).body.supporter, false);
   const perks = (await call('/v1/perks', { auth: player('p-a', 'a@example.com') })).body;
-  assert.deepEqual(perks, { supporter: true, premium: false, until: null });
+  assert.deepEqual(perks, { supporter: true, premium: false, tier: 1, until: null });
   // Linked: still a supporter after changing email.
   assert.equal((await call('/v1/perks', { auth: player('p-a', 'new@example.com') })).body.supporter, true);
   const list = (await admin('supporters')).body.supporters;
@@ -69,8 +69,9 @@ test('an admin grant by email reaches the player with that confirmed email', asy
 test('premium with an end date, and ending it early', async () => {
   const until = Date.now() + 30 * 86400_000;
   assert.equal((await admin('supporters', { kind: 'premium', uid: 'p-b', until: Date.now() - 1000 })).status, 400);
-  assert.equal((await admin('supporters', { kind: 'premium', uid: 'p-b', until })).status, 200);
-  assert.deepEqual((await call('/v1/perks', { auth: player('p-b') })).body, { supporter: true, premium: true, until });
+  assert.equal((await admin('supporters', { kind: 'premium', uid: 'p-b', tier: 5, until })).status, 400);
+  assert.equal((await admin('supporters', { kind: 'premium', uid: 'p-b', tier: 3, until })).status, 200);
+  assert.deepEqual((await call('/v1/perks', { auth: player('p-b') })).body, { supporter: true, premium: true, tier: 3, until });
   const row = (await admin('supporters')).body.supporters.find((s) => s.uid === 'p-b');
   assert.equal((await admin(`supporters/${row.id}/remove`, {})).body.ended, 1);
   assert.equal((await call('/v1/perks', { auth: player('p-b') })).body.premium, false);
@@ -82,10 +83,31 @@ test('supporters get a badge on the scoreboard', async () => {
     await db.prepare('INSERT INTO players (user_id, screen_name, name_key, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?4)').bind(uid, name, name.toLowerCase(), now).run();
     await db.prepare("INSERT INTO scores (user_id, story_id, kind, tier, cells, elapsed_ms, hints, checks, points, created_at) VALUES (?1, ?2, 'solo', 'easy', 48, 60000, 0, 0, ?3, ?4)").bind(uid, `s-${uid}`, points, now).run();
   }
+  // The highest running tier shows: Ada has Bronze, then Silver until yesterday, then Gold.
+  await db.prepare("INSERT INTO supporters (user_id, kind, tier, source, ref, created_at, until) VALUES ('p-a', 'supporter', 2, 'admin', 'old', ?1, ?1)").bind(now - 86400_000).run();
+  assert.equal((await admin('supporters', { kind: 'supporter', uid: 'p-a', tier: 3 })).status, 200);
   const rows = (await call('/v1/scoreboard?period=all')).body.rows;
-  assert.equal(rows.find((r) => r.name === 'Ada Sleuth').supporter, true);
+  assert.equal(rows.find((r) => r.name === 'Ada Sleuth').supporter, 3);
   assert.equal(rows.find((r) => r.name === 'Cy Clue').supporter, undefined);
   assert.ok(rows.every((r) => !('uid' in r)), 'player ids stay private');
+});
+
+test('payments get a badge tier from the tier name or the amount', async () => {
+  const { tierFor } = await import('../src/supporters.js');
+  const { clearSettingsCache } = await import('../src/settings.js');
+  const env = { DB: db };
+  clearSettingsCache();
+  assert.equal(await tierFor(env, { amount: 3 }), 1);
+  assert.equal(await tierFor(env, { amount: 5 }), 2);
+  assert.equal(await tierFor(env, { amount: '15.00' }), 3);
+  assert.equal(await tierFor(env, { amount: 100 }), 4);
+  assert.equal(await tierFor(env, { amount: 1, name: 'Gold supporters' }), 3);
+  assert.equal(await tierFor(env, { amount: 100, name: 'Bronze club' }), 1);
+  await db.prepare("INSERT INTO settings (key, value, updated_at, updated_by) VALUES ('tier_silver_from', '2', 0, 'test')").run();
+  clearSettingsCache();
+  assert.equal(await tierFor(env, { amount: 3 }), 2);
+  await db.prepare("DELETE FROM settings WHERE key = 'tier_silver_from'").run();
+  clearSettingsCache();
 });
 
 test('supporter extra themes and the extras link reach the game config', async () => {
