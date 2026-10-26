@@ -91,6 +91,7 @@ function builder() {
       <div class="field"><label for="mk-b-s">Channel (source)</label><input id="mk-b-s" list="mk-sources" value="reddit" autocomplete="off"><datalist id="mk-sources">${data.sources.map((s) => `<option value="${h.esc(s)}">`).join('')}</datalist></div>
       <div class="field"><label for="mk-b-m">Kind (medium)</label><select id="mk-b-m">${data.mediums.map((m) => `<option value="${m}">${h.esc(MEDIUM_NAMES[m] || m)}</option>`).join('')}</select></div>
       <div class="field"><label for="mk-b-k">Ad name (content, optional)</label><input id="mk-b-k" autocomplete="off"></div>
+      <div class="field"><label for="mk-b-l">Opens</label><select id="mk-b-l"><option value="/?play=now">A quick Easy puzzle</option><option value="/">The home screen</option></select></div>
     </div>
     <div class="field"><label for="mk-b-out">Link</label><input id="mk-b-out" type="text" readonly></div>
     <button class="btn small" type="button" id="mk-b-copy">Copy the link</button></section>`;
@@ -99,10 +100,14 @@ const slugify = (v) => String(v || '').trim().toLowerCase().replace(/[^a-z0-9_-]
 function buildLink() {
   const out = $('#mk-b-out');
   if (!out) return;
-  const q = new URLSearchParams({ utm_source: slugify($('#mk-b-s').value) || 'other', utm_medium: $('#mk-b-m').value, utm_campaign: $('#mk-b-c').value });
+  const [path, query] = $('#mk-b-l').value.split('?');
+  const q = new URLSearchParams(query || '');
+  q.set('utm_source', slugify($('#mk-b-s').value) || 'other');
+  q.set('utm_medium', $('#mk-b-m').value);
+  q.set('utm_campaign', $('#mk-b-c').value);
   const k = slugify($('#mk-b-k').value);
   if (k) q.set('utm_content', k);
-  out.value = `${data.site.replace(/\/+$/, '')}/?${q}`;
+  out.value = `${data.site.replace(/\/+$/, '')}${path}?${q}`;
 }
 
 async function render() {
@@ -196,6 +201,7 @@ async function editAd(a) {
     { name: 'content', label: 'Ad name in the link (utm_content)', value: a.content, help: 'Tells two ads on the same channel apart. Made from the title if left empty.' },
     { name: 'body', label: 'Words to post', type: 'textarea', rows: 8, value: a.body, help: 'Write {link} where the tracked link goes.' },
     { name: 'media', label: 'Media', type: 'checks', value: a.media || [], options: data.media.map((m) => [m.id, `${m.title} (${m.size || m.kind})`]) },
+    { name: 'landing', label: 'Opens this page', value: a.landing || '/?play=now', help: '/?play=now starts a quick Easy puzzle straight away; / opens the home screen; /daily/ the daily puzzle page.' },
     { name: 'where', label: 'Where to post it', value: a.where },
     { name: 'status', label: 'Status', type: 'select', value: a.status || 'draft', options: opts(data.adStatus, STATUS_NAMES) },
     { name: 'postUrl', label: 'Live post link (once posted)', type: 'url', value: a.postUrl || '' },
