@@ -91,7 +91,7 @@ test('the ratings report groups, spreads and trends ratings, and says what to im
   const ins = db.prepare(`INSERT INTO plays (day, platform, tier, theme, size, clue_types, outcome, rating, feel, parts, topic, version, mode, whatif)
     VALUES (?1, 'web', ?2, ?3, '4x5', ?4, ?5, ?6, ?7, '{"o":"3"}', ?8, ?9, 'free', ?10)`);
   const rows = [];
-  // MENSA Fantasy: low, often given up, too hard, lots of what-if steps.
+  // Quantum Physicist Fantasy: low, often given up, too hard, lots of what-if steps.
   for (let i = 0; i < 8; i++) rows.push(ins.bind(late, 'mensa', 'fantasy', '{"ifthen":3,"less":2}', i < 4 ? 'abandoned' : 'solved', i < 6 ? 1 : 3, 'hard', 'dragons', '1.8.0', 9));
   // Easy Mystery: loved.
   for (let i = 0; i < 10; i++) rows.push(ins.bind(i < 5 ? early : late, 'easy', 'mystery', '{"not":3,"is":1}', 'solved', 5, 'right', 'whodunit', i < 5 ? '1.7.1' : '1.8.0', 0));
@@ -110,12 +110,12 @@ test('the ratings report groups, spreads and trends ratings, and says what to im
   assert.equal(r.body.trend.length, 30);
   assert.equal(r.body.trend.at(-3).rated, 13);
   const mensa = r.body.groups.find((g) => g.id === 'mensa fantasy');
-  assert.equal(mensa.name, 'MENSA Fantasy');
+  assert.equal(mensa.name, 'Quantum Physicist Fantasy');
   assert.equal(mensa.avg, 1.5);
   assert.equal(mensa.quitRate, 0.5);
 
   const improve = r.body.improve.map((f) => f.text).join('\n');
-  assert.match(improve, /MENSA Fantasy puzzles average 1\.5 stars from 8 ratings/);
+  assert.match(improve, /Quantum Physicist Fantasy puzzles average 1\.5 stars from 8 ratings/);
   assert.match(improve, /50% gave up/);
   assert.match(r.body.improve.find((f) => f.dim === 'themeTier').advice, /what-if/);
   assert.ok(!r.body.improve.some((f) => f.dim === 'theme' || f.dim === 'tier'), 'the same games are not called out three times');
@@ -139,7 +139,7 @@ test('the ratings report groups, spreads and trends ratings, and says what to im
   assert.equal(brief.body.summary.usedToday, 1, 'the nightly report reuses the day\'s summary');
   assert.ok(!brief.body.groups && brief.body.improve.length);
   assert.match(brief.body.headline, /^24 ratings in the last 30 days, average 3\.6 of 5 stars/);
-  assert.ok(brief.body.actionNeeded.some((x) => /MENSA Fantasy/.test(x)));
+  assert.ok(brief.body.actionNeeded.some((x) => /Quantum Physicist Fantasy/.test(x)));
   assert.equal((await call('/admin/v1/ratings/summary', { auth: viewer(), body: { days: 30 } })).status, 403, 'viewers cannot spend the AI allowance');
   const again = await call('/admin/v1/ratings/summary', { auth: owner(), body: { days: 30 } });
   assert.equal(again.body.summary.usedToday, 2);

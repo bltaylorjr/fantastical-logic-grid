@@ -33,13 +33,13 @@ export const SEEDS = [{
     {
       channel: 'reddit', medium: 'forum', content: 'webgames-launch', media: ['wide'], where: 'https://www.reddit.com/r/WebGames/',
       title: 'r/WebGames: launch post',
-      body: 'The Fantastical Logic Grid: logic grid puzzles where every puzzle comes with its own short story (free, plays in the browser)\n\n{link}\n\nPick a theme (mystery, fantasy, sci-fi, national parks and more), a difficulty from Basic to MENSA and a grid size, and it writes a new story with a cast and clues to match. Every puzzle has exactly one answer, and the hints explain the next step instead of just giving it away.\n\nNo sign-up needed. It saves your progress, prints with an answer key, and works offline once loaded. Feedback welcome!',
+      body: 'The Fantastical Logic Grid: logic grid puzzles where every puzzle comes with its own short story (free, plays in the browser)\n\n{link}\n\nPick a theme (mystery, fantasy, sci-fi, national parks and more), a difficulty from Basic to Quantum Physicist and a grid size, and it writes a new story with a cast and clues to match. Every puzzle has exactly one answer, and the hints explain the next step instead of just giving it away.\n\nNo sign-up needed. It saves your progress, prints with an answer key, and works offline once loaded. Feedback welcome!',
       notes: 'Post as a link post with the title above. Reply to comments in the first hour.',
     },
     {
       channel: 'reddit', medium: 'forum', content: 'logicpuzzles-daily', media: ['wide'], where: 'https://www.reddit.com/r/logicpuzzles/',
       title: 'r/logicpuzzles: daily puzzle',
-      body: 'I made a free logic grid game with a new daily puzzle every day (same puzzle for everyone)\n\nEach puzzle has a little story and a cast of characters, and the grid fills in as you mark it. Difficulty runs from Basic to MENSA, and every hint shows the reasoning step instead of revealing the answer.\n\nToday\'s puzzle: {link}\n\nI would love to hear whether the harder levels feel fair.',
+      body: 'I made a free logic grid game with a new daily puzzle every day (same puzzle for everyone)\n\nEach puzzle has a little story and a cast of characters, and the grid fills in as you mark it. Difficulty runs from Basic to Quantum Physicist, and every hint shows the reasoning step instead of revealing the answer.\n\nToday\'s puzzle: {link}\n\nI would love to hear whether the harder levels feel fair.',
       notes: 'Read the sidebar rules first; some puzzle subreddits want the puzzle itself in the post. If so, post a printed page as a picture with the link in a comment.',
     },
     {
@@ -63,7 +63,7 @@ export const SEEDS = [{
     {
       channel: 'facebook', medium: 'community', content: 'groups-printable', media: ['square'], where: 'Puzzle, brain-teaser, homeschool and activity-idea groups that allow sharing free resources',
       title: 'Facebook groups: free printable puzzles',
-      body: 'Free printable logic puzzles, made fresh every time 🧩\n\nYou pick the theme (pets, cooking, sports, holidays and more) and the level, from Basic for beginners to MENSA. Each one prints with the story, the clues, the grid and an answer key on its own page. Great for brain breaks, puzzle night or a quiet afternoon.\n\nMake one here: {link}',
+      body: 'Free printable logic puzzles, made fresh every time 🧩\n\nYou pick the theme (pets, cooking, sports, holidays and more) and the level, from Basic for beginners to Quantum Physicist. Each one prints with the story, the clues, the grid and an answer key on its own page. Great for brain breaks, puzzle night or a quiet afternoon.\n\nMake one here: {link}',
       notes: 'Only post where the group rules allow it, and no more than one group a day.',
     },
     {
@@ -75,19 +75,19 @@ export const SEEDS = [{
     {
       channel: 'instagram', medium: 'social', content: 'post-square', media: ['square'], where: 'Instagram account for the game',
       title: 'Instagram post: square picture',
-      body: 'Who borrowed the lighthouse keeper\'s lantern? Only the clues know. 🔦\n\nThe Fantastical Logic Grid writes a brand-new story for every puzzle, from Basic to MENSA. Free to play in your browser, link in bio.\n\n#logicpuzzles #puzzlelover #brainteasers #puzzletime #gamenight',
+      body: 'Who borrowed the lighthouse keeper\'s lantern? Only the clues know. 🔦\n\nThe Fantastical Logic Grid writes a brand-new story for every puzzle, from Basic to Quantum Physicist. Free to play in your browser, link in bio.\n\n#logicpuzzles #puzzlelover #brainteasers #puzzletime #gamenight',
       notes: '',
     },
     {
       channel: 'tiktok', medium: 'video', content: 'launch-30s', media: ['promoTall'], where: 'TikTok account for the game',
       title: 'TikTok: 30 second launch',
-      body: 'Every logic puzzle comes with its own story 🧩 Which level would you try first: Easy or MENSA? Free to play, link in bio. #logicpuzzle #puzzle #braingames #brainteaser #puzzlegame',
+      body: 'Every logic puzzle comes with its own story 🧩 Which level would you try first: Easy or Quantum Physicist? Free to play, link in bio. #logicpuzzle #puzzle #braingames #brainteaser #puzzlegame',
       notes: 'Links in bio need a set follower count on some accounts; until then say "search The Fantastical Logic Grid".',
     },
     {
       channel: 'youtube', medium: 'video', content: 'promo-90s', media: ['promoWide'], where: 'YouTube channel for the game',
       title: 'YouTube: 90 second promo',
-      body: 'Title: The Fantastical Logic Grid: logic puzzles with a story (free browser game)\n\nDescription:\nEvery puzzle in The Fantastical Logic Grid comes with its own story and cast. Choose a theme and a level from Basic to MENSA, then use the clues to work out who did what. A new daily puzzle, races against other players, hints that explain each step, and printing with answer keys.\n\nPlay free: {link}\n\nChapters\n0:00 Pick a theme and level\n0:20 A new story every time\n0:40 Hints that teach\n1:00 Races and the scoreboard\n1:15 Print, save and install',
+      body: 'Title: The Fantastical Logic Grid: logic puzzles with a story (free browser game)\n\nDescription:\nEvery puzzle in The Fantastical Logic Grid comes with its own story and cast. Choose a theme and a level from Basic to Quantum Physicist, then use the clues to work out who did what. A new daily puzzle, races against other players, hints that explain each step, and printing with answer keys.\n\nPlay free: {link}\n\nChapters\n0:00 Pick a theme and level\n0:20 A new story every time\n0:40 Hints that teach\n1:00 Races and the scoreboard\n1:15 Print, save and install',
       notes: 'Upload the clean video with the 16x9 .srt captions. Check the chapter times against the video before posting.',
     },
     {
@@ -99,7 +99,7 @@ export const SEEDS = [{
     {
       channel: 'x', medium: 'social', content: 'launch-video', media: ['promoWideCap'], where: 'X account for the game',
       title: 'X: launch post',
-      body: 'Logic grid puzzles, but every one comes with its own story. 🧩\n\nPick a theme, pick a level (Basic to MENSA), solve. Free in your browser, with a new daily puzzle every day.\n\n{link}',
+      body: 'Logic grid puzzles, but every one comes with its own story. 🧩\n\nPick a theme, pick a level (Basic to Quantum Physicist), solve. Free in your browser, with a new daily puzzle every day.\n\n{link}',
       notes: '',
     },
     {
@@ -111,7 +111,7 @@ export const SEEDS = [{
     {
       channel: 'threads', medium: 'social', content: 'launch', media: ['square'], where: 'Threads account for the game',
       title: 'Threads: launch post',
-      body: 'Puzzle people: would you rather start on Easy or jump straight to MENSA? 🧩\n\nThe Fantastical Logic Grid writes a new story for every logic puzzle. Free in your browser: {link}',
+      body: 'Puzzle people: would you rather start on Easy or jump straight to Quantum Physicist? 🧩\n\nThe Fantastical Logic Grid writes a new story for every logic puzzle. Free in your browser: {link}',
       notes: '',
     },
     {
@@ -123,7 +123,7 @@ export const SEEDS = [{
     {
       channel: 'pinterest', medium: 'social', content: 'printable-pin', media: ['pin'], where: 'Pinterest business account (free), boards: Printable Logic Puzzles, Brain Games, Puzzle Night',
       title: 'Pinterest: printable puzzles pin',
-      body: 'Pin title: Free Printable Logic Puzzles with Answer Keys\n\nDescription: Make a new logic grid puzzle in seconds: choose a theme (pets, sports, holidays, cooking, mysteries) and a level from beginner to MENSA. Each one prints with a story, clues, the grid and an answer key on a separate page. Great for brain breaks, classrooms and puzzle night.\n\nLink: {link}',
+      body: 'Pin title: Free Printable Logic Puzzles with Answer Keys\n\nDescription: Make a new logic grid puzzle in seconds: choose a theme (pets, sports, holidays, cooking, mysteries) and a level from beginner to Quantum Physicist. Each one prints with a story, clues, the grid and an answer key on a separate page. Great for brain breaks, classrooms and puzzle night.\n\nLink: {link}',
       notes: 'Pinterest pins keep bringing visits for months; add one new pin a week with a different theme.',
     },
     {
@@ -135,19 +135,19 @@ export const SEEDS = [{
     {
       channel: 'hackernews', medium: 'community', content: 'show-hn', media: [], where: 'https://news.ycombinator.com/submit',
       title: 'Show HN',
-      body: 'Title: Show HN: A logic grid puzzle generator that writes a story for each puzzle\n\nURL: {link}\n\nFirst comment: Hi HN. This builds classic logic grid ("Einstein") puzzles from a theme, a size and a difficulty. A solver checks each one has a single solution and grades it by the techniques needed, from simple elimination up to what-if reasoning for the MENSA level. A story engine then writes the setting, cast and clue wording around the answer, and never reuses a story. It is a static PWA plus one Cloudflare Worker for accounts and races, all on free tiers. Happy to talk about the generator.',
+      body: 'Title: Show HN: A logic grid puzzle generator that writes a story for each puzzle\n\nURL: {link}\n\nFirst comment: Hi HN. This builds classic logic grid ("Einstein") puzzles from a theme, a size and a difficulty. A solver checks each one has a single solution and grades it by the techniques needed, from simple elimination up to what-if reasoning for the Quantum Physicist level. A story engine then writes the setting, cast and clue wording around the answer, and never reuses a story. It is a static PWA plus one Cloudflare Worker for accounts and races, all on free tiers. Happy to talk about the generator.',
       notes: 'Post on a weekday morning US Eastern and stay around to answer comments.',
     },
     {
       channel: 'producthunt', medium: 'directory', content: 'launch', media: ['gallery', 'promoWide'], where: 'https://www.producthunt.com/posts/new',
       title: 'Product Hunt launch',
-      body: 'Name: The Fantastical Logic Grid\nTagline: Logic grid puzzles with a new story every time\n\nDescription: Pick a theme and a level from Basic to MENSA, and get a brand-new logic puzzle with its own story and cast. Hints teach each step, there is a daily puzzle for everyone, races and a scoreboard, and every puzzle prints with an answer key. Free in the browser, with a Windows app.\n\nLink: {link}\n\nMaker comment: I built this because I loved logic grid puzzle books but always ran out of puzzles. Now there is a fresh one whenever you want it.',
+      body: 'Name: The Fantastical Logic Grid\nTagline: Logic grid puzzles with a new story every time\n\nDescription: Pick a theme and a level from Basic to Quantum Physicist, and get a brand-new logic puzzle with its own story and cast. Hints teach each step, there is a daily puzzle for everyone, races and a scoreboard, and every puzzle prints with an answer key. Free in the browser, with a Windows app.\n\nLink: {link}\n\nMaker comment: I built this because I loved logic grid puzzle books but always ran out of puzzles. Now there is a fresh one whenever you want it.',
       notes: 'Launch at 12:01 am Pacific on a Tuesday to Thursday. Free to list.',
     },
     {
       channel: 'itch', medium: 'store', content: 'game-page', media: ['cover', 'gallery'], where: 'https://itch.io/game/new',
       title: 'itch.io game page',
-      body: 'Kind: HTML (played in the browser) or an external link to the website\n\nShort description: Logic grid puzzles with a new story every time.\n\nPage text: The Fantastical Logic Grid builds a brand-new logic puzzle whenever you want one, with its own story, cast and clues. Choose from 14 themes and six levels, from Basic to MENSA. Every puzzle has exactly one answer, the hints explain each step, and you can print any puzzle with an answer key.\n\nPlay the full version on the website: {link}\n\nTags: puzzle, logic, deduction, mystery, casual, singleplayer, accessibility',
+      body: 'Kind: HTML (played in the browser) or an external link to the website\n\nShort description: Logic grid puzzles with a new story every time.\n\nPage text: The Fantastical Logic Grid builds a brand-new logic puzzle whenever you want one, with its own story, cast and clues. Choose from 14 themes and six levels, from Basic to Quantum Physicist. Every puzzle has exactly one answer, the hints explain each step, and you can print any puzzle with an answer key.\n\nPlay the full version on the website: {link}\n\nTags: puzzle, logic, deduction, mystery, casual, singleplayer, accessibility',
       notes: 'Set the price to "No payments" (free). Genre: Puzzle.',
     },
     {
@@ -165,7 +165,7 @@ export const SEEDS = [{
     {
       channel: 'microsoftstore', medium: 'store', content: 'pwa-listing', media: ['gallery', 'square'], where: 'https://www.pwabuilder.com/ then https://partner.microsoft.com/dashboard (individual developer accounts are free)',
       title: 'Microsoft Store listing (the web app)',
-      body: 'Store name: The Fantastical Logic Grid\nShort description: Logic grid puzzles with a new story every time.\nDescription: Choose a theme and a level from Basic to MENSA and get a brand-new logic puzzle with its own story and cast. Every puzzle has exactly one answer, hints explain each step, a new daily puzzle arrives every day, and every puzzle prints with an answer key. Works offline.\nWebsite: {link}',
+      body: 'Store name: The Fantastical Logic Grid\nShort description: Logic grid puzzles with a new story every time.\nDescription: Choose a theme and a level from Basic to Quantum Physicist and get a brand-new logic puzzle with its own story and cast. Every puzzle has exactly one answer, hints explain each step, a new daily puzzle arrives every day, and every puzzle prints with an answer key. Works offline.\nWebsite: {link}',
       notes: 'Package the website with PWABuilder (free). The store listing links back with the tracked link above.',
     },
     {
@@ -175,4 +175,17 @@ export const SEEDS = [{
       notes: 'The quickest first players. Send from your own address, a few people at a time.',
     },
   ],
+}, {
+  // Built into the game: the daily puzzle email's Play button is tagged with
+  // this code (scripts/daily-email.py), so its visits, plays and solves show
+  // here. Nothing to post.
+  id: 'daily-email',
+  campaign: {
+    code: 'daily-email',
+    name: 'Daily puzzle email',
+    status: 'active',
+    goal: 'Players who asked for each day\'s puzzle by email, coming back to play it.',
+    notes: 'Sent automatically every morning (server/DAILY-EMAIL.md). Nothing to post or approve.',
+  },
+  ads: [],
 }];

@@ -6,9 +6,13 @@ import * as remote from './remote-config.js';
 
 export const available = () => !!CLOUD_URL && remote.feature('dailyResults');
 
+// Resolves once the Worker has the count (or it could not be sent), so the
+// numbers read afterwards include it.
 function post(date, what, body = {}) {
-  if (!available()) return;
-  try { fetch(`${CLOUD_URL}/v1/daily/${date}/${what}`, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(body), keepalive: true }).catch(() => {}); } catch (e) { /* offline */ }
+  if (!available()) return Promise.resolve();
+  try {
+    return fetch(`${CLOUD_URL}/v1/daily/${date}/${what}`, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(body), keepalive: true }).then(() => {}, () => {});
+  } catch (e) { return Promise.resolve(); /* offline */ }
 }
 export const started = (date) => post(date, 'start');
 export const finished = (date, elapsedMs, revealed) => post(date, 'result', { elapsedMs: Math.max(5000, Math.round(elapsedMs)), revealed: !!revealed });

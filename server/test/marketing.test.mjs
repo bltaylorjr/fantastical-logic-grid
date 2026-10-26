@@ -75,7 +75,7 @@ test('the starter campaign arrives once with its ads, media and tracked links', 
   const contents = ads.map((a) => `${a.channel}|${a.content}`);
   assert.equal(new Set(contents).size, contents.length, 'each ad has its own link');
   const reddit = ads.find((a) => a.content === 'webgames-launch');
-  assert.equal(reddit.link, 'https://thelogicgrid.com/?utm_source=reddit&utm_medium=forum&utm_campaign=launch-2026&utm_content=webgames-launch');
+  assert.equal(reddit.link, 'https://thelogicgrid.com/?play=now&utm_source=reddit&utm_medium=forum&utm_campaign=launch-2026&utm_content=webgames-launch', 'ads open a quick puzzle');
   assert.match(reddit.body, /\{link\}/);
   assert.ok(reddit.media.length && reddit.media.every((id) => r.body.media.some((m) => m.id === id)), 'ads point at listed media');
   assert.ok(r.body.media.some((m) => /promo-9x16-captioned\.mp4$/.test(m.url)), 'promo video listed');
@@ -102,12 +102,12 @@ test('the game counts campaign visits anonymously, and made-up codes fold into o
   assert.equal(rows.length, 5);
 
   const r = await call('/admin/v1/marketing?days=7', { auth: viewer() });
-  assert.deepEqual(r.body.totals, { visit: 5, play: 1, solve: 1, install: 0, download: 0 });
+  assert.deepEqual(r.body.totals, { visit: 5, play: 1, solve: 1, return: 0, install: 0, download: 0 });
   assert.equal(r.body.trend.length, 7);
   assert.equal(r.body.trend.at(-1).visit, 5);
   assert.equal(r.body.bySource[0].source, 'reddit');
   const ad = r.body.ads.find((a) => a.content === 'webgames-launch');
-  assert.deepEqual(ad.stats, { visit: 3, play: 1, solve: 1, install: 0, download: 0 });
+  assert.deepEqual(ad.stats, { visit: 3, play: 1, solve: 1, return: 0, install: 0, download: 0 });
   assert.equal(r.body.byCampaign.find((x) => x.campaign === '(none)').name, 'No campaign (links from other sites)');
 });
 
@@ -130,7 +130,7 @@ test('admins add and change campaigns, ads and media; viewers only look', async 
   assert.equal(ad.channel, 'print-shop');
   assert.equal(ad.content, 'library-flyer');
   assert.deepEqual(ad.media, [m.body.id]);
-  assert.equal(ad.link, 'https://thelogicgrid.com/?utm_source=print-shop&utm_medium=print&utm_campaign=spring-puzzle-week&utm_content=library-flyer');
+  assert.equal(ad.link, 'https://thelogicgrid.com/?play=now&utm_source=print-shop&utm_medium=print&utm_campaign=spring-puzzle-week&utm_content=library-flyer');
 
   // Its channel now counts, so a visit from it is kept as itself.
   await send({ e: 'visit', c: 'spring-puzzle-week', s: 'print-shop', m: 'print', k: 'library-flyer', p: 'web' });
@@ -139,6 +139,7 @@ test('admins add and change campaigns, ads and media; viewers only look', async 
   // Posting it records when, and keeps the first time.
   const posted = await call('/admin/v1/marketing/ads', { auth: admin(), body: { ...ad, status: 'posted', postUrl: 'https://example.com/post/1' } });
   assert.equal(posted.status, 200);
+  assert.equal((await call('/admin/v1/marketing/ads', { auth: admin(), body: { ...ad, landing: 'https://evil.example/' } })).status, 400, 'landing pages stay on the site');
   r = await call('/admin/v1/marketing', { auth: admin() });
   ad = r.body.ads.find((x) => x.id === a.body.id);
   assert.equal(ad.status, 'posted');
@@ -164,4 +165,5 @@ test('event cleaning and links', () => {
   assert.deepEqual(cleanEvent({ e: 'visit', c: 'Launch-2026', s: 'Reddit', m: 'forum', k: 'nope', p: 'ios' }, known), { campaign: 'launch-2026', source: 'reddit', medium: 'forum', content: 'other', event: 'visit', platform: 'ios' });
   assert.equal(cleanEvent({ e: 'drop table' }, known), null);
   assert.equal(trackedLink('https://thelogicgrid.com/', { channel: 'x', medium: 'social', content: '', landing: 'javascript:' }, 'c1'), 'https://thelogicgrid.com/?utm_source=x&utm_medium=social&utm_campaign=c1');
+  assert.equal(trackedLink('https://thelogicgrid.com', { channel: 'x', medium: 'social', content: 'a', landing: '/daily/?play=now' }, 'c1'), 'https://thelogicgrid.com/daily/?play=now&utm_source=x&utm_medium=social&utm_campaign=c1&utm_content=a');
 });

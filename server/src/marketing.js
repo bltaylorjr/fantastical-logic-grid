@@ -3,8 +3,9 @@
 //
 //   POST /v1/m                          one anonymous event from the game: a visit
 //                                       from a campaign link or another site, and
-//                                       later plays, solves, installs and Windows
-//                                       downloads from that visit (web/js/campaign.js)
+//                                       later plays, solves, returns within a week,
+//                                       installs and Windows downloads from that
+//                                       visit (web/js/campaign.js)
 //   GET  /admin/v1/marketing?days=      campaigns, ads, media and their numbers (viewer)
 //   POST /admin/v1/marketing/campaigns  add or change a campaign (admin)
 //   POST /admin/v1/marketing/campaigns/:id/delete   with its ads (admin)
@@ -24,7 +25,7 @@ import { SEEDS } from './marketing-seed.js';
 
 const DAY = 24 * 3600_000;
 const isoDay = (ms) => new Date(ms).toISOString().slice(0, 10);
-export const EVENTS = ['visit', 'play', 'solve', 'install', 'download'];
+export const EVENTS = ['visit', 'play', 'solve', 'return', 'install', 'download'];
 export const MEDIUMS = ['social', 'video', 'forum', 'community', 'directory', 'store', 'email', 'referral', 'search', 'print', 'qr', 'other'];
 export const CAMPAIGN_STATUS = ['draft', 'active', 'paused', 'ended'];
 export const AD_STATUS = ['draft', 'approved', 'posted', 'removed'];
@@ -35,6 +36,10 @@ const PLATFORMS = new Set(['web', 'desktop', 'android', 'ios']);
 export const KNOWN_SOURCES = ['google', 'bing', 'duckduckgo', 'yahoo', 'ecosia', 'brave', 'reddit', 'facebook', 'instagram', 'x', 'threads', 'bluesky', 'mastodon',
   'youtube', 'tiktok', 'pinterest', 'linkedin', 'discord', 'itch', 'producthunt', 'hackernews', 'indiehackers', 'alternativeto', 'microsoftstore', 'github', 'quora', 'email', 'other'];
 const SLUG = /^[a-z0-9][a-z0-9_-]{0,39}$/;
+// A page on the website, optionally with simple settings such as ?play=now
+// (the game opens a quick Easy puzzle straight away).
+const LANDING = /^\/[\w\-./]{0,100}(\?[\w-]+=[\w-]*(&[\w-]+=[\w-]*){0,4})?$/;
+export const DEFAULT_LANDING = '/?play=now';
 const CODES_CACHE_MS = 300_000;
 let codes = null; // { at, campaigns: Map(code -> Set(content)), sources: Set }
 
@@ -112,7 +117,7 @@ export async function applySeeds(env, now = Date.now()) {
         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'starter plan', ?8, ?8) RETURNING id`).bind(c.code, c.name, c.goal || '', c.notes || '', c.status || 'draft', c.starts || null, c.ends || null, now).first();
       const stmts = (seed.ads || []).map((a) => env.DB.prepare(`INSERT INTO campaign_ads (campaign_id, channel, medium, content, title, body, media, landing, status, where_to, notes, created_by, created_at, updated_at)
         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 'draft', ?9, ?10, 'starter plan', ?11, ?11)`)
-        .bind(id, a.channel, a.medium, a.content, a.title, a.body, JSON.stringify((a.media || []).map((k) => mediaIds[k]).filter(Boolean)), a.landing || '/', a.where || '', a.notes || '', now));
+        .bind(id, a.channel, a.medium, a.content, a.title, a.body, JSON.stringify((a.media || []).map((k) => mediaIds[k]).filter(Boolean)), a.landing || DEFAULT_LANDING, a.where || '', a.notes || '', now));
       if (stmts.length) await env.DB.batch(stmts);
     }
     await env.DB.prepare('INSERT OR IGNORE INTO marketing_seeds (id, at) VALUES (?1, ?2)').bind(seed.id, now).run();
@@ -125,8 +130,11 @@ export async function applySeeds(env, now = Date.now()) {
 // ------------------------------------------------------------- links
 export function trackedLink(site, ad, code) {
   const base = String(site || 'https://thelogicgrid.com').replace(/\/+$/, '');
-  const path = /^\/[\w\-./]*$/.test(ad.landing || '') ? ad.landing : '/';
-  const q = new URLSearchParams({ utm_source: ad.channel, utm_medium: ad.medium, utm_campaign: code });
+  const [path, query] = LANDING.test(ad.landing || '') ? ad.landing.split('?') : ['/', ''];
+  const q = new URLSearchParams(query || '');
+  q.set('utm_source', ad.channel);
+  q.set('utm_medium', ad.medium);
+  q.set('utm_campaign', code);
   if (ad.content) q.set('utm_content', ad.content);
   return `${base}${path}?${q}`;
 }
@@ -250,7 +258,8 @@ export function marketingRoutes(Refusal) {
       const content = slug(body.content || title);
       const medium = MEDIUMS.includes(body.medium) ? body.medium : 'social';
       const status = AD_STATUS.includes(body.status) ? body.status : 'draft';
-      const landing = /^\/[\w\-./]{0,100}$/.test(String(body.landing || '/')) ? String(body.landing || '/') : '/';
+      const landing = body.landing == null || body.landing === '' ? DEFAULT_LANDING : LANDING.test(String(body.landing)) && !/utm_/.test(body.landing) ? String(body.landing) : null;
+      if (!landing) throw new Refusal(400, 'bad_landing', 'The page must start with / (for example /?play=now or /daily/).');
       const media = (Array.isArray(body.media) ? body.media : []).map(Number).filter((n) => Number.isInteger(n) && n > 0).slice(0, 20);
       const postUrl = checkUrl(body.postUrl, Refusal, 'The post link') || null;
       const text = str(body.body, 5000), where = str(body.where, 500), notes = str(body.notes, 2000);
