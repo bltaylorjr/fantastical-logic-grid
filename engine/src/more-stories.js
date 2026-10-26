@@ -120,7 +120,7 @@ export const MORE_STORIES = {
     openings: [
       '{N} {many} met at the skating rink for a Valentine\'s skate.',
       'The library held a card-making morning, and {n} {many} came.',
-      '{N} {many} baked heart-shaped treats for the neighbors.',
+      '{N} {many} baked heart-shaped treats for the whole street.',
       'Paper hearts hung in every window as {n} {many} walked to school.',
     ],
     incidents: [
