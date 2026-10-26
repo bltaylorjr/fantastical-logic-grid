@@ -739,6 +739,14 @@ async function show(name, { keepFocus = false } = {}) {
 }
 $$('[data-view] h1').forEach((h) => h.setAttribute('tabindex', '-1'));
 addEventListener('hashchange', () => { if (me) show(location.hash.slice(1)); });
+// Home: back to the Overview from anywhere. Already on #overview there is no
+// hashchange, so reload it and go back to the top here.
+$('#home').onclick = (e) => {
+  if (location.hash !== '#overview') return;
+  e.preventDefault();
+  scrollTo(0, 0);
+  show('overview');
+};
 
 // ------------------------------------------------------------- sign-in
 async function enter() {
