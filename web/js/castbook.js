@@ -196,22 +196,22 @@ export const PERSONALITY_IDS = Object.keys(PERSONALITIES);
 
 // Every built-in character, by personality.
 const CAST = {
-  cheerful: 'Clara Diego Annie Julia Bella Bea Abby Owen Rosa Arlo Nico Comet Bluebell',
-  grumpy: 'Basil Hawk Bruno Frank George Grant Dolores Fred Marta Gideon Frost Flint Moss',
-  nervous: 'Felix Jonah Brian Fenwick Flux Eli Cassie Mina Jonas Percival',
-  dramatic: 'Hugo Blaze Chloe Delphine Electra Carlos Antonio Rafael Bianca Vortex Hook Lancel',
-  scholarly: 'Ada Elsa Isaac Galen Helix Chen Nadia Maren Imani Rowena',
-  boastful: 'Jasper Ace Hector Jack Juno Andre Harry Wyatt Enzo Titan Drake Cedric',
-  dreamy: 'Iris Isla Elowen Cosmo Willa Kai Celeste Zephyr Tristan',
-  blunt: 'Greta Falcon Gwen David Dax Dina Josh Wade Rhea Vera Quake Morgan Gareth',
-  gossipy: 'Gemma Carly Emma Holly Harriet Lena Daphne Barnaby',
-  sly: 'Dorian Cobra Cassius Jules Reed Ezra Calico Thistle',
-  kind: 'Ivy Ella Hannah Hazel Gaia Indira Eva Opal Abel Flora Fern Elaine',
-  brave: 'Dash Amara Brynn Astra Fatima Freya Tessa Leon Nova Anne Brienne',
-  shy: 'Ghost Isolde Ivan Nell Soren Dewdrop',
-  silly: 'Jett Finn Ben Kevin Bix Jada Gus Bo Theo Cody Milo Spark Clover',
-  formal: 'Edith Henry Alice Alaric Emile Grace Simon Omar Hugh Arthur',
-  curious: 'Echo Cora Danny Juniper Ion Dylan Paige Leila Noor Esme Pip',
+  cheerful: 'Clara Diego Annie Julia Bella Bea Abby Owen Rosa Arlo Nico Comet Bluebell Sloane Ravi',
+  grumpy: 'Basil Hawk Bruno Frank George Grant Dolores Fred Marta Gideon Frost Flint Moss Ronan Lottie Muriel',
+  nervous: 'Felix Jonah Brian Fenwick Flux Eli Cassie Mina Jonas Percival Wesley Otis',
+  dramatic: 'Hugo Blaze Chloe Delphine Electra Carlos Antonio Rafael Bianca Vortex Hook Lancel Greer Boone',
+  scholarly: 'Ada Elsa Isaac Galen Helix Chen Nadia Maren Imani Rowena Tamsin Tucker Delphina',
+  boastful: 'Jasper Ace Hector Jack Juno Andre Harry Wyatt Enzo Titan Drake Cedric Hattie Hedy',
+  dreamy: 'Iris Isla Elowen Cosmo Willa Kai Celeste Zephyr Tristan Lyra Callum Marina',
+  blunt: 'Greta Falcon Gwen David Dax Dina Josh Wade Rhea Vera Quake Morgan Gareth Linnea Priya',
+  gossipy: 'Gemma Carly Emma Holly Harriet Lena Daphne Barnaby Yara Mabel Serena',
+  sly: 'Dorian Cobra Cassius Jules Reed Ezra Calico Thistle Selena Rory Ondine',
+  kind: 'Ivy Ella Hannah Hazel Gaia Indira Eva Opal Abel Flora Fern Elaine Tobias Clem',
+  brave: 'Dash Amara Brynn Astra Fatima Freya Tessa Leon Nova Anne Brienne Beckett Josie Finnian',
+  shy: 'Ghost Isolde Ivan Nell Soren Dewdrop Thea Sam',
+  silly: 'Jett Finn Ben Kevin Bix Jada Gus Bo Theo Cody Milo Spark Clover Silas Amos Oceane',
+  formal: 'Edith Henry Alice Alaric Emile Grace Simon Omar Hugh Arthur Odette Murray Nerissa',
+  curious: 'Echo Cora Danny Juniper Ion Dylan Paige Leila Noor Esme Pip Angus Coralie',
 };
 const BY_NAME = new Map();
 for (const [p, names] of Object.entries(CAST)) for (const n of names.split(' ')) BY_NAME.set(n, p);
@@ -223,6 +223,7 @@ const SERVER_VOICE = {
   Henry: 'Rasalgethi', Jack: 'Fenrir', Jada: 'Leda', Harriet: 'Callirrhoe', Eva: 'Sulafat', Harry: 'Alnilam',
   Rosa: 'Laomedeia', Nell: 'Vindemiatrix', Gideon: 'Algenib', Milo: 'Zubenelgenubi', Nova: 'Zephyr',
   Quake: 'Schedar', Vortex: 'Sadachbia', Morgan: 'Kore', Bluebell: 'Laomedeia', Fern: 'Zephyr', Tristan: 'Umbriel',
+  Hattie: 'Zephyr', Murray: 'Puck', Rory: 'Charon', Silas: 'Puck', Priya: 'Zephyr', Sam: 'Charon',
 };
 
 // Kokoro voices that ship with the game. Others download once from the same
