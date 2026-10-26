@@ -74,6 +74,7 @@
       <li><a href="#search" data-min="viewer">Search (Google and Bing)</a></li>
       <li><a href="#daily" data-min="moderator">Daily puzzles</a></li>
       <li><a href="#quality" data-min="viewer">Puzzle quality <span class="count" id="count-quality" hidden></span></a></li>
+      <li><a href="#ratings" data-min="viewer">Ratings and insights <span class="count" id="count-ratings" hidden></span></a></li>
       <li><a href="#stories" data-min="moderator">Story workshop and review <span class="count" id="count-parts" hidden></span></a></li>
       <li><a href="#feedback" data-min="moderator">Ideas and problems <span class="count" id="count-feedback" hidden></span></a></li>
       <li><a href="#names" data-min="moderator">Screen names <span class="count" id="count-names" hidden></span></a></li>
@@ -121,6 +122,17 @@
       </div>
       <p class="muted">Themes and levels that players give up on, rate low, or say are too hard or too easy, worst first. From the anonymous play summaries; a group needs at least 5 games before it is flagged. Fix ideas: add story parts in the Story workshop, switch a theme off for a while, or plan easier daily puzzles.</p>
       <div id="quality-body"><p class="muted">Loading…</p></div>
+    </section>
+
+    <section data-view="ratings" hidden aria-labelledby="h-ratings">
+      <div class="head"><h1 id="h-ratings">Ratings and insights</h1>
+        <div class="row">
+          <div class="field inline"><label for="rt-days">Period</label><select id="rt-days"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option><option value="365">Last year</option></select></div>
+          <div class="field inline"><label for="rt-by">Group by</label><select id="rt-by"><option value="themeTier">Theme and difficulty</option><option value="theme">Theme</option><option value="topic">Topic</option><option value="tier">Difficulty</option><option value="size">Size</option><option value="clue">Clue type</option><option value="whatif">What-if reasoning</option><option value="part">Story part</option><option value="story">Story</option><option value="character">Character</option><option value="version">App version</option><option value="platform">Platform</option><option value="mode">Play mode</option></select></div>
+        </div>
+      </div>
+      <p class="muted">The optional 1 to 5 stars players give after solving a puzzle (5 is excellent), with how often they solve it, give up, or find it too hard or too easy. From the anonymous play summaries of players who keep "Learn from how I play" on; never linked to accounts. A group needs at least 5 ratings before it is called out.</p>
+      <div id="ratings-body"><p class="muted">Loading…</p></div>
     </section>
 
     <section data-view="stories" hidden aria-labelledby="h-stories">

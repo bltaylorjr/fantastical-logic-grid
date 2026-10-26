@@ -1,6 +1,6 @@
 [package]
 name = "fantastical-logic-grid"
-version = "1.9.0"
+version = "1.9.1"
 description = "The Fantastical Logic Grid"
 edition = "2021"
 

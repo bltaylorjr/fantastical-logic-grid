@@ -25,7 +25,7 @@ Races and their entries 45 days after the race was made, voice usage counters
 after 60 days, rejected story parts 90 days after review, deleted-account
 markers after 30 days, error reports after 30 days, anonymous play summaries
 after 400 days (tuning only reads the last 90), its own log after 90 days,
-the admin audit log after a year, ended bans, and announcements 90 days after
+the admin audit log after a year, kept rating summaries after 90 days, ended bans, and announcements 90 days after
 they end.
 Scores, saves, accounts and approved story parts are never removed (an admin
 can reset a player's scores or delete an account from the admin dashboard).

@@ -245,6 +245,16 @@ const SHOTS = process.env.SHOTS;
     const [dl] = await Promise.all([page.waitForEvent('download'), page.click('#quality-body [data-csv]')]);
     const csvFile = fs.readFileSync(await dl.path(), 'utf8');
     assert(/^\uFEFF?Theme,Difficulty/.test(csvFile) && /\.csv$/.test(dl.suggestedFilename()), `a table downloads as a CSV file (${dl.suggestedFilename()})`);
+    // Ratings and insights.
+    await page.click('a[href="#ratings"]');
+    await page.waitForSelector('#ratings-body .tile');
+    const rt = await page.textContent('#ratings-body');
+    assert(/Average rating/.test(rt) && /What's working/.test(rt) && /What to improve/.test(rt) && /In a few words/.test(rt), 'Ratings and insights shows the numbers and the plain-words analysis');
+    assert(await page.locator('#ratings-body .spread-list li').count() === 5 && await page.locator('#ratings-body table tbody tr').count() >= 1, 'it shows the 1 to 5 spread and a table by theme and difficulty');
+    await page.selectOption('#rt-by', 'clue');
+    await page.waitForFunction(() => /By clue type/.test(document.querySelector('#ratings-body').textContent));
+    assert(true, 'Group by changes the table');
+    await shot(page, '4b-ratings');
     await page.click('a[href="#players"]');
     const [dl2] = await Promise.all([page.waitForEvent('download'), page.click('[data-export=scores]')]);
     assert(/Screen name/.test(fs.readFileSync(await dl2.path(), 'utf8')) && /logic-grid-scores-/.test(dl2.suggestedFilename()), 'all scores download as a CSV file');
