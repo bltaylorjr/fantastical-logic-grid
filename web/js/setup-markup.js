@@ -17,9 +17,13 @@ export const tierChoicesHtml = (difficulties, selected) => difficulties.map((d, 
     <label class="choice"><input type="radio" name="tier" value="${d.id}"${d.id === selected ? ' checked' : ''}>
     <span><span class="pips" aria-hidden="true">${'<i class="on"></i>'.repeat(i + 1)}${'<i></i>'.repeat(difficulties.length - i - 1)}</span><b>${esc(d.name)}</b><small>${esc(d.summary)}</small></span></label>`).join('');
 
-export const themeChoicesHtml = (themes, selected) => themes.map((t) => `
-    <label class="choice" title="${esc(t.description || '')}"><input type="radio" name="theme" value="${t.id}"${t.id === selected ? ' checked' : ''} aria-describedby="theme-d-${t.id}">
-    <span class="tile" data-world="${t.id}">${icon(t.id, 'glyph')}<b>${esc(t.name)}</b></span><span class="sr-only" id="theme-d-${t.id}">${esc(t.description || '')}</span></label>`).join('');
+// Supporter extras (locked) show to everyone but open only for premium supporters.
+export const themeChoicesHtml = (themes, selected, locked = new Set()) => themes.map((t) => {
+  const lock = locked.has(t.id);
+  return `
+    <label class="choice${lock ? ' locked' : ''}" title="${esc(t.description || '')}"><input type="radio" name="theme" value="${t.id}"${t.id === selected ? ' checked' : ''}${lock ? ' disabled' : ''} aria-describedby="theme-d-${t.id}">
+    <span class="tile" data-world="${t.id}">${icon(t.id, 'glyph')}<b>${esc(t.name)}</b>${lock ? '<small class="extra-tag">Supporter extra</small>' : ''}</span><span class="sr-only" id="theme-d-${t.id}">${esc(t.description || '')}${lock ? '. Supporter extra: open to premium supporters.' : ''}</span></label>`;
+}).join('');
 
 export const sizeChoicesHtml = (sizes, selected) => [...sizes, 'custom'].map((s) => {
   const [k, n] = s.split('x');

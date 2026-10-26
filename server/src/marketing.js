@@ -116,8 +116,8 @@ export async function applySeeds(env, now = Date.now()) {
       const { id } = await env.DB.prepare(`INSERT INTO campaigns (code, name, goal, notes, status, starts, ends, created_by, created_at, updated_at)
         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'starter plan', ?8, ?8) RETURNING id`).bind(c.code, c.name, c.goal || '', c.notes || '', c.status || 'draft', c.starts || null, c.ends || null, now).first();
       const stmts = (seed.ads || []).map((a) => env.DB.prepare(`INSERT INTO campaign_ads (campaign_id, channel, medium, content, title, body, media, landing, status, where_to, notes, created_by, created_at, updated_at)
-        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 'draft', ?9, ?10, 'starter plan', ?11, ?11)`)
-        .bind(id, a.channel, a.medium, a.content, a.title, a.body, JSON.stringify((a.media || []).map((k) => mediaIds[k]).filter(Boolean)), a.landing || DEFAULT_LANDING, a.where || '', a.notes || '', now));
+        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?12, ?9, ?10, 'starter plan', ?11, ?11)`)
+        .bind(id, a.channel, a.medium, a.content, a.title, a.body, JSON.stringify((a.media || []).map((k) => mediaIds[k]).filter(Boolean)), a.landing || DEFAULT_LANDING, a.where || '', a.notes || '', now, AD_STATUS.includes(seed.adStatus) ? seed.adStatus : 'draft'));
       if (stmts.length) await env.DB.batch(stmts);
     }
     await env.DB.prepare('INSERT OR IGNORE INTO marketing_seeds (id, at) VALUES (?1, ?2)').bind(seed.id, now).run();

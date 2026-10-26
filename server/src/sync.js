@@ -122,6 +122,8 @@ export async function handleDeleteAccount(req, env, user) {
     ...deleteMessageStatements(env, user.uid),
     ...(await deleteReplyStatements(env, user.uid)),
     deleteDailyEmailStatement(env, user.uid),
+    // Payment records stay (by email); only the link to the account goes.
+    env.DB.prepare('UPDATE supporters SET user_id = NULL WHERE user_id = ?1').bind(user.uid),
     env.DB.prepare('INSERT OR REPLACE INTO sync_deleted_users (user_id, deleted_at) VALUES (?1, ?2)').bind(user.uid, Date.now()),
   ]);
   return json(req, env, { deleted: true });

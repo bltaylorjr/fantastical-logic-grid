@@ -24,6 +24,7 @@ import * as campaign from './campaign.js';
 import { initAccounts, openAccount, onHome as accountsOnHome, signedIn } from './account-ui.js';
 import * as competeUi from './compete-ui.js';
 import * as remote from './remote-config.js';
+import * as perks from './perks.js';
 import { initPullRefresh } from './pull-refresh.js';
 import * as daily from './daily.js';
 import * as stats from './stats.js';
@@ -214,10 +215,16 @@ function renderSetup() {
   if (!TIERS[setup.tier]) setup.tier = 'easy';
 
   $('#tier-choices').innerHTML = tierChoicesHtml(OPTIONS.difficulties, setup.tier);
-  // Themes switched off in the admin dashboard are left out.
+  // Themes switched off in the admin dashboard are left out; supporter extras
+  // show to everyone but open only for premium supporters.
   const off = remote.disabledThemes();
-  if (off.has(setup.theme)) { setup.theme = 'random'; setup.topic = 'any'; }
-  $('#theme-choices').innerHTML = themeChoicesHtml([SURPRISE_THEME, ...OPTIONS.themes.filter((t) => !off.has(t.id))], setup.theme);
+  const locked = lockedThemes();
+  if (off.has(setup.theme) || locked.has(setup.theme)) { setup.theme = 'random'; setup.topic = 'any'; }
+  $('#theme-choices').innerHTML = themeChoicesHtml([SURPRISE_THEME, ...OPTIONS.themes.filter((t) => !off.has(t.id))], setup.theme, locked);
+  const extras = remote.extrasUrl();
+  $('#extras-note').hidden = !locked.size;
+  $('#extras-link').hidden = !extras;
+  if (extras) $('#extras-link').href = extrasLink(extras);
   if (!$('input[name=theme]:checked')) $('input[name=theme]').checked = true;
   renderTopics();
   renderSizes();
@@ -236,6 +243,14 @@ function renderSetup() {
   $('#style-choices').onchange = () => { settings.silent = $('input[name=playstyle]:checked').value === 'silent'; store.saveSettings(settings); applyMode(); };
   updatePreview();
 }
+
+// Supporter extra themes this player can't pick yet (none for premium supporters).
+function lockedThemes() {
+  return perks.isPremium() ? new Set() : remote.premiumThemes();
+}
+// The page where players get the extras. Hook for payment pages that need to
+// know who is buying.
+function extrasLink(url) { return url; }
 
 // Topics narrow a theme, for example which holiday or which kind of mystery.
 // "Surprise me" has none, so the picker hides.
@@ -329,8 +344,10 @@ async function makePuzzle(override = null) {
   // Learning only picks between puzzles the engine has fully checked.
   let tuned = {};
   if (settings.learn) { try { tuned = await learn.tuning(options.difficulty, { useShared: share.available() && remote.feature('learning') }); } catch (e) { tuned = {}; } }
-  // Surprise me never picks a theme that is switched off.
-  const off = remote.disabledThemes();
+  // Surprise me never picks a theme that is switched off, or a supporter extra
+  // this player can't open.
+  const off = new Set([...remote.disabledThemes(), ...lockedThemes()]);
+  if (off.has(options.theme)) options.theme = 'random';
   // Surprise me is decided here when the game's own characters might join,
   // since they depend on the theme.
   if (options.theme === 'random' && (off.size || characters.anyFor())) {
@@ -2389,12 +2406,14 @@ async function init() {
   applyMode();
   applyLanguage();
   matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', applyColorTheme);
+  perks.init();
   renderSetup();
   characters.init({ onCharactersChanged: applyFeatures });
   remote.init({
     onThemesChanged: () => { if (!$('#screen-home').hidden) renderSetup(); },
     onConfigChanged: () => { settings = store.loadSettings(); applyFeatures(); applyMode(); languageNote(); },
   });
+  perks.onChange(() => { if (!$('#screen-home').hidden) renderSetup(); });
   await renderSaved();
   renderSuggestion();
   renderDaily();

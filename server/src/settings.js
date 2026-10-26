@@ -130,6 +130,13 @@ export const SETTINGS = {
   // payments or locks any part of the game.
   support_link_enabled: { type: 'bool', default: false, group: 'Support and premium', label: 'Support the game link', help: 'On: the game\'s Menu shows "Support the game", which opens the page below in a new window. Needs a link below. Nothing in the game is locked either way.' },
   support_url: { type: 'url', default: '', group: 'Support and premium', label: 'Support page link', help: 'An https link to your tip, sponsor or membership page, such as a GitHub Sponsors, Ko-fi or Paddle page. Leave empty for none.' },
+  supporter_badges_enabled: { type: 'bool', default: false, group: 'Support and premium', label: 'Show supporter badges', help: 'On: Bronze, Silver, Gold and Platinum supporter badges show next to names on the scoreboard. Off: no badges anywhere, even for people already added under Supporters. Leave off until you launch.' },
+  premium_extras_enabled: { type: 'bool', default: false, group: 'Support and premium', label: 'Supporter extras', help: 'On: the themes ticked below open only for premium supporters, and the Get extras link shows. Off: every theme is open to everyone and nothing about extras shows in the game, so you can set them up before you launch.' },
+  premium_themes: { type: 'themes', default: [], group: 'Support and premium', label: 'Supporter extra themes', help: 'Themes only premium supporters can pick (bonus themes or early access). Everyone else sees them marked "Supporter extra". None ticked: nothing is locked. The daily puzzle, races and shared puzzles stay open to everyone.' },
+  tier_silver_from: { type: 'int', min: 1, max: 10000, default: 5, group: 'Support and premium', label: 'Silver supporter badge from (amount)', help: 'Badge tiers for payments that come in through a payment service: Bronze below this amount, Silver from it. In the payment\'s currency, whole units (5 means $5). A membership tier whose name says Bronze, Silver, Gold or Platinum gets that badge whatever the amount. People you add by hand get the tier you choose.' },
+  tier_gold_from: { type: 'int', min: 1, max: 10000, default: 15, group: 'Support and premium', label: 'Gold supporter badge from (amount)', help: 'Gold from this amount. Keep it above the Silver amount.' },
+  tier_platinum_from: { type: 'int', min: 1, max: 10000, default: 50, group: 'Support and premium', label: 'Platinum supporter badge from (amount)', help: 'Platinum from this amount. Keep it above the Gold amount.' },
+  extras_url: { type: 'url', default: '', group: 'Support and premium', label: 'Get extras page link', help: 'Where a player goes to get the supporter extras: your membership or checkout page. Shown next to locked themes. Leave empty to hide the button.' },
   blocked_words: { type: 'words', default: [], group: 'Moderation', label: 'Extra blocked words in screen names', help: 'Added to the built-in word filter. Letters only, 3 to 30 each.' },
   archive_email_enabled: {
     type: 'bool', default: false, group: 'Backups', label: 'Weekly archive email',
@@ -236,7 +243,8 @@ export async function publicConfig(req, env) {
     // Chosen here for every player.
     game: { voiceSource: s.voice_source, readAloud: s.read_aloud, portraitStyle: s.portrait_style, confetti: s.confetti, aiPictures: s.ai_pictures,
       celebrations: CELEBRATIONS.filter((k) => s[k]), celebrateRandom: s.celebrate_random,
-      supportUrl: s.support_link_enabled && s.support_url ? s.support_url : '' },
+      supportUrl: s.support_link_enabled && s.support_url ? s.support_url : '',
+      premiumThemes: s.premium_extras_enabled ? s.premium_themes : [], extrasUrl: s.premium_extras_enabled ? s.extras_url : '' },
     // Starting values; a player's own choice wins.
     defaults: { sound: s.default_sound, volume: s.default_volume, music: s.default_music, musicVolume: s.default_music_volume },
   }, 200, { 'Cache-Control': 'public, max-age=60' });

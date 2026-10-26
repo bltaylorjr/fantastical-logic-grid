@@ -16,6 +16,7 @@
 //   POST /v1/translate                   the game's text in another language (translate.js)
 //   POST /v1/m                           anonymous counts of visits from campaign links (marketing.js)
 //   /v1/challenges[/:code[/result]]       Challenge a friend links, no account (challenges.js)
+//   GET /v1/perks                        a signed-in player's supporter perks (supporters.js)
 //   /admin/*                             the admin dashboard and its API (admin.js)
 //   GET /v1/health[?deep=1]              a quick check that the Worker (and with
 //                                        deep=1, the database and daily cleanup) is up
@@ -39,6 +40,7 @@ import { handleTranslate } from './translate.js';
 import { handleAdmin } from './admin.js';
 import { NIGHTLY_CRONS, isMaintenanceHour, runNightly } from './nightly.js';
 import { handleMarketing } from './marketing.js';
+import { handlePerks } from './supporters.js';
 import { publicConfig } from './settings.js';
 import { deepHealth } from './upkeep.js';
 import { runArchive } from './archive.js';
@@ -73,6 +75,9 @@ async function route(req, env, ctx) {
 
   const challenge = await handleChallenges(req, env, url);
   if (challenge) return challenge;
+
+  const perks = await handlePerks(req, env, url, signedIn);
+  if (perks) return perks;
 
   const compete = await handleCompete(req, env, ctx, url, signedIn);
   if (compete) return compete;

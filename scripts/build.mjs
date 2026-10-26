@@ -84,8 +84,8 @@ if (!process.env.FLG_NO_MINIFY) {
 // Content Security Policy for the game page (a <meta> tag, because GitHub
 // Pages cannot send headers). Scripts run only from the game's own files and
 // the one inline theme script (allowed by its hash); the page may talk only to
-// its own Worker, Firebase sign-in, GitHub releases and the desktop app's
-// bridge. No plugins, no <base> tricks, and forms post nowhere else.
+// its own Worker, Firebase sign-in, GitHub releases, the leaked-password
+// check and the desktop app's bridge. No plugins, no <base> tricks, and forms post nowhere else.
 // Without a cloud address (tests and offline builds) the page may also reach
 // localhost, where the tests run their stand-in servers.
 const origin = (u) => { try { return u ? new URL(u).origin : null; } catch (e) { return null; } };
@@ -95,7 +95,7 @@ const inlineHashes = [...indexHtml.matchAll(/<script>([\s\S]*?)<\/script>/g)].ma
 const cloudOrigins = [...new Set([cloudEnv.syncUrl, cloudEnv.learnUrl].map(origin).filter(Boolean))];
 // The desktop app reads the daily puzzle from the public website (js/daily.js).
 const siteOrigin = origin(cloudEnv.siteUrl || 'https://thelogicgrid.com');
-const connect = ["'self'", 'blob:', 'data:', ...cloudOrigins, siteOrigin, 'https://identitytoolkit.googleapis.com', 'https://securetoken.googleapis.com', 'https://api.github.com',
+const connect = ["'self'", 'blob:', 'data:', ...cloudOrigins, siteOrigin, 'https://identitytoolkit.googleapis.com', 'https://securetoken.googleapis.com', 'https://api.github.com', 'https://api.pwnedpasswords.com',
   'ipc:', 'http://ipc.localhost', ...(cloudOrigins.length ? [] : ['http://localhost:*', 'http://127.0.0.1:*'])];
 const CSP = [
   "default-src 'self'",
