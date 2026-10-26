@@ -1,13 +1,17 @@
 // The game's "Ideas and problems" boxes: two separate forms, one for story
 // and other ideas and one for problems a player wants to report.
 //
-//   POST /v1/feedback   { kind: idea|problem, topic, text, platform, version }
+//   POST /v1/feedback   { kind: idea|problem, topic, text, platform, version, reply }
 //
 // Anonymous: nothing about the player or device is stored. Email addresses,
 // web addresses and long numbers are blanked before saving. The admin
 // dashboard lists them (admin.js) and the daily cleanup removes done ones.
+// With reply: true and a signed-in player's token, a thank-you email is
+// queued for the account's own confirmed address (replies.js), kept apart
+// from the message itself.
 import { json, readText, TooLarge } from './http.js';
 import { getSettings } from './settings.js';
+import { queueReply } from './replies.js';
 
 export const TOPICS = {
   idea: ['story', 'theme', 'feature', 'other'],
@@ -48,7 +52,9 @@ async function postFeedback(req, env) {
   if (n >= MAX_NEW_PER_DAY) return json(req, env, { error: 'busy', message: 'The boxes are full for today. Please try again tomorrow.' }, 429);
   await env.DB.prepare('INSERT INTO feedback (kind, topic, text, platform, version, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)')
     .bind(kind, topic, text, platform, version, Date.now()).run();
-  return json(req, env, { ok: true });
+  let reply = 'none';
+  try { reply = await queueReply(req, env, kind, body.reply === true); } catch (e) { console.error(e); reply = 'error'; }
+  return json(req, env, { ok: true, reply });
 }
 
 // Returns a Response for this module's routes, or null for anything else.
