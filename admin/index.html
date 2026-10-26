@@ -74,6 +74,7 @@
       <li><a href="#usage" data-min="viewer">Usage and free limits</a></li>
       <li><a href="#search" data-min="viewer">Search (Google and Bing)</a></li>
       <li><a href="#daily" data-min="moderator">Daily puzzles</a></li>
+      <li><a href="#characters" data-min="moderator">Characters <span class="count" id="count-characters" hidden></span></a></li>
       <li><a href="#quality" data-min="viewer">Puzzle quality <span class="count" id="count-quality" hidden></span></a></li>
       <li><a href="#ratings" data-min="viewer">Ratings and insights <span class="count" id="count-ratings" hidden></span></a></li>
       <li><a href="#marketing" data-min="viewer">Marketing</a></li>
@@ -116,6 +117,18 @@
       <p class="muted">Everyone gets the same daily puzzle. Change a coming day's theme, difficulty or size, or ask for a new story. Past days and today never change, and no story is ever used twice. The site is rebuilt every night at 00:17 UTC, so a change shows in the preview and the game after the next build.</p>
       <p class="muted" data-min="admin">To publish a change sooner, run <a href="https://github.com/bltaylorjr/fantastical-logic-grid/actions/workflows/pages.yml" target="_blank" rel="noopener">Publish web version</a> on GitHub (Run workflow).</p>
       <div id="daily-body"><p class="muted">Loading…</p></div>
+    </section>
+
+    <section data-view="characters" hidden aria-labelledby="h-characters">
+      <div class="head"><h1 id="h-characters">Characters</h1><button class="btn primary" type="button" id="ch-new">New character</button></div>
+      <p class="muted">The game's own characters. A published character joins new puzzles as one of the cast or tells the story, with the face, voice and lines you give them, in every theme or only the ones you choose. Names and lines are checked against the story rules and the word filter before publishing, so puzzles stay fair and stories never repeat. Portraits and line drafts use Cloudflare Workers AI's free daily allowance; drawn faces are free and work offline.</p>
+      <p class="muted" id="ch-today" role="status"></p>
+      <section class="card stack" id="ch-editor" hidden aria-labelledby="ch-editor-h"></section>
+      <h2>Your characters</h2>
+      <ul class="cards" id="ch-list"></ul>
+      <h2>Suggested by players</h2>
+      <p class="muted">From Menu &gt; Suggest a character in the game. Anonymous. Nobody else sees a suggestion until you review it, save it and publish it.</p>
+      <ul class="cards" id="ch-ideas"></ul>
     </section>
 
     <section data-view="quality" hidden aria-labelledby="h-quality">

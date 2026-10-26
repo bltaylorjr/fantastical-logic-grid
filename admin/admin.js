@@ -4,6 +4,7 @@
 // lives only in this tab (sessionStorage) and ends after 30 idle minutes.
 
 import { initPullRefresh } from './pull-refresh.js';
+import { characterView } from './characters.js';
 import { ratingsView, initRatings } from './ratings.js';
 import { marketingView, initMarketing } from './marketing.js';
 
@@ -879,6 +880,9 @@ $('#daily-body').addEventListener('submit', (e) => {
   if (!date) { toast('Pick a day first.'); return; }
   planDay(date, e.target.querySelector('button'));
 });
+
+// ---- Characters (characters.js): the game's own cast and narrators.
+views.characters = () => characterView({ api, esc, toast, announce, act, can, setCount });
 
 // ---- Puzzle quality: what to fix first.
 views.quality = async () => {
