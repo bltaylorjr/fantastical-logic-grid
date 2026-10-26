@@ -1,0 +1,39 @@
+The Fantastical Logic Grid
+Copyright (c) 2026 Bobby Taylor. All rights reserved.
+
+This repository and everything in it (the game, its puzzle and story engine,
+storylines, topics, characters, text, artwork, music, sound, video, the
+admin app, the server code, the website, and the name and logo "The
+Fantastical Logic Grid") are proprietary. They are NOT open source.
+
+The source is visible on GitHub so the game can be built and hosted, and so
+security researchers can review it. Being able to see it does not give anyone
+a license to use it. Without written permission from the copyright owner you
+may not:
+
+  - copy, republish, sell, rent or sublicense any part of it;
+  - make or distribute a modified or derived version, or host your own copy
+    of the game, website, engine or server;
+  - copy or republish its puzzles, storylines, topics, characters, text,
+    artwork, audio or video, including by scraping or other automated means;
+  - use any of it to train, fine-tune or test a machine-learning or AI model,
+    or to build a dataset;
+  - use the name "The Fantastical Logic Grid", the logo or a confusingly
+    similar name for another game, app or service.
+
+Players may use the game as described in the Terms of use at
+https://thelogicgrid.com/terms/ (for example, printing puzzles for personal
+or classroom use). GitHub's own Terms of Service also let GitHub users view
+and fork public repositories on GitHub; that is the only extra permission
+given, and a fork may not be used for any of the things listed above.
+
+Third-party components keep their own licenses. They are listed in
+web/THIRD-PARTY-NOTICES.txt, with full license texts next to each component
+under web/vendor/ (and in node_modules for build tools). Nothing here changes
+those licenses.
+
+To ask for permission or report a copy: fantasticallogicgrid@gmail.com
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED. IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM,
+DAMAGES OR OTHER LIABILITY ARISING FROM ITS USE.

@@ -80,6 +80,20 @@ const SITE = `http://localhost:${PORT}`;
     const txt = await (await fetch(`${SITE}/.well-known/security.txt`)).text();
     const exp = new Date((txt.match(/^Expires: (.+)$/m) || [])[1]);
     assert(/^Contact: /m.test(txt) && exp > Date.now() + 300 * 24 * 3600_000, 'security.txt lists a contact and expires about a year ahead');
+
+    // Copying protection: AI training crawlers are refused, search stays open,
+    // text and data mining is reserved, and every page links the terms.
+    const robots = await (await fetch(`${SITE}/robots.txt`)).text();
+    const groups = robots.split(/\n\s*\n/);
+    const trainGroup = groups.find((g) => /^User-agent: GPTBot$/m.test(g)) || '';
+    assert(/^Disallow: \/$/m.test(trainGroup) && /^User-agent: ClaudeBot$/m.test(trainGroup) && /^User-agent: Google-Extended$/m.test(trainGroup), 'robots.txt refuses AI training crawlers');
+    assert(/User-agent: \*\nAllow: \//.test(robots) && !/Googlebot|OAI-SearchBot|Claude-SearchBot|Bingbot/i.test(robots), 'search engines and AI search assistants may still crawl');
+    const tdm = await (await fetch(`${SITE}/.well-known/tdmrep.json`)).json();
+    assert(tdm[0]['tdm-reservation'] === 1 && /\/terms\/$/.test(tdm[0]['tdm-policy']), 'tdmrep.json reserves text and data mining');
+    const terms = await (await fetch(`${SITE}/terms/`)).text();
+    assert(/All rights reserved/.test(terms) && /train/.test(terms) && /classroom/.test(terms), 'the terms of use page is published');
+    const howTo = await (await fetch(`${SITE}/how-to-play/`)).text();
+    assert(/©.*All rights reserved/.test(howTo) && /href="\.\.\/terms\/"/.test(howTo) && /tdm-reservation" content="1"/.test(howTo), 'site pages carry the copyright, terms link and mining reservation');
   } finally {
     await browser.close();
     server.kill();
