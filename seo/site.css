@@ -54,7 +54,28 @@ dt { font-weight: 700; margin-top: 10px; }
 dd { margin: 0 0 0 1rem; }
 .archive li { margin: 4px 0; }
 .foot { max-width: 860px; margin: 0 auto; padding: 20px; border-top: 1px solid var(--edge); color: var(--muted); }
-@media print { .top, .foot, .crumbs, .btn { display: none; } details { border: 0; } }
+/* Printable worksheets (printables/): a staircase grid and the answer key on its own page. */
+.lgrid { width: auto; border-collapse: collapse; margin: 8px 0 16px; }
+.lgrid th, .lgrid td { padding: 0; text-align: center; vertical-align: middle; }
+.lgrid td { width: 1.9rem; height: 1.9rem; min-width: 1.9rem; border: 1px solid #555; background: #fff; }
+.lgrid .corner { border: 0; background: transparent; }
+.lgrid .cat { padding: 4px 6px; font-weight: 700; background: var(--bg); }
+.lgrid thead .item { height: 7.5rem; vertical-align: bottom; padding: 4px 2px; }
+.lgrid thead .item span { writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap; font-weight: 400; }
+.lgrid .side span { writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap; }
+.lgrid tbody .item { text-align: right; padding: 0 8px; white-space: nowrap; font-weight: 400; }
+.lgrid td.l { border-left: 3px solid #222; }
+.lgrid tr.t > * { border-top: 3px solid #222; }
+.name-line { margin: 12px 0 18px; }
+.qs li { margin: 10px 0; }
+.sheet .key { margin-top: 32px; padding-top: 16px; border-top: 2px dashed var(--edge); }
+@media print {
+  .top, .foot, .crumbs, .btn, .noprint, .skip { display: none !important; }
+  details { border: 0; }
+  body { background: #fff; color: #000; font-size: 11pt; }
+  .sheet .key { break-before: page; page-break-before: always; border: 0; margin: 0; }
+  .lgrid td { width: 0.75cm; height: 0.75cm; }
+}
 @media (max-width: 720px) {
   .top { justify-content: space-between; }
   .top nav { order: 3; flex-basis: 100%; }
