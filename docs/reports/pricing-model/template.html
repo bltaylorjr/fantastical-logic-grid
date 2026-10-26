@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<title>Pricing and Costs Report</title>
+<style>
+@font-face{font-family:Atkinson;src:url(atkinson-400.woff2) format('woff2');font-weight:400}
+@font-face{font-family:Atkinson;src:url(atkinson-700.woff2) format('woff2');font-weight:700}
+@font-face{font-family:Atkinson;src:url(atkinson-400-italic.woff2) format('woff2');font-style:italic}
+@font-face{font-family:Cinzel;src:url(cinzel-700.woff2) format('woff2');font-weight:700}
+@page{size:Letter;margin:0.7in 0.7in 0.75in}
+*{box-sizing:border-box}
+body{font-family:Atkinson,Arial,sans-serif;color:{{C.ink}};font-size:10.6pt;line-height:1.45;margin:0;background:#fff}
+h1,h2{font-family:Cinzel,Georgia,serif;color:{{C.brand}};letter-spacing:.01em}
+h1{font-size:25pt;margin:0 0 6pt;line-height:1.15}
+h2{font-size:15pt;margin:0 0 8pt;padding-bottom:4pt;border-bottom:2px solid {{C.line}}}
+h3{font-size:11.5pt;margin:14pt 0 4pt;color:{{C.brand}}}
+p{margin:0 0 7pt}
+section{break-before:page}
+.cover{height:9.4in;display:flex;flex-direction:column;justify-content:space-between}
+.kicker{font-size:10pt;letter-spacing:.14em;text-transform:uppercase;color:{{C.gold}};font-weight:700;margin-bottom:10pt}
+.sub{color:{{C.muted}}}
+.lede{font-size:12.5pt;max-width:6.2in;color:{{C.ink}}}
+.meta{font-size:9.5pt;color:{{C.muted}};border-top:1px solid {{C.line}};padding-top:8pt}
+.box{background:{{C.soft}};border-left:4px solid {{C.brand}};padding:9pt 12pt;margin:8pt 0 10pt;border-radius:0 6px 6px 0}
+.box.warn{border-left-color:{{C.s5}};background:#fbf0f3}
+.box.good{border-left-color:{{C.s2}};background:#eef7f4}
+.box p:last-child,.box ul:last-child{margin-bottom:0}
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:9pt;margin:10pt 0 12pt}
+.kpi{border:1px solid {{C.line}};border-radius:8px;padding:8pt 10pt}
+.kpi b{display:block;font-size:17pt;color:{{C.brand}};line-height:1.15}
+.kpi span{font-size:9pt;color:{{C.muted}}}
+ul,ol{margin:0 0 8pt;padding-left:16pt}
+li{margin:2pt 0}
+table{border-collapse:collapse;width:100%;font-size:8.8pt;margin:6pt 0 10pt;break-inside:avoid}
+th,td{padding:3pt 5pt;border-bottom:1px solid {{C.line}};text-align:left;vertical-align:top}
+thead th{background:{{C.brand}};color:#fff;font-weight:700}
+table.num td:not(:first-child),table.num th:not(:first-child){text-align:right;white-space:nowrap}
+tr.grp td{background:{{C.soft}};font-weight:700;color:{{C.brand}};padding-top:5pt}
+tr.tot td{border-top:1.5px solid {{C.ink}}}
+tr.sub td{color:{{C.muted}};font-size:8.6pt}
+td.neg{color:{{C.s5}}} td.pos{color:{{C.s2}}}
+.price td:nth-child(2){font-weight:700}.price th:nth-child(1){width:13%}.price th:nth-child(2){width:17%}.price th:nth-child(3){width:42%}
+.fig{break-inside:avoid;margin:6pt 0 10pt}
+.cap{font-size:8.8pt;color:{{C.muted}};margin-top:2pt}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:14pt}
+.tag{display:inline-block;font-size:8pt;font-weight:700;padding:0 5pt;border-radius:9px;background:#fbf0f3;color:{{C.s5}};border:1px solid #efc6d1}
+.tag.free{background:#eef7f4;color:{{C.s2}};border-color:#c3e3da}
+small,.small{font-size:8.8pt;color:{{C.muted}}}
+a{color:{{C.brand}}}
+</style></head><body>
+
+<div class="cover">
+  <div>
+    <div class="kicker">The Fantastical Logic Grid · Market analysis</div>
+    <h1>Pricing and fee structure as the player base grows</h1>
+    <p class="lede">What it costs to run the game at each size, the player count at which each free limit runs out, what similar puzzle games charge, and the prices that keep the game free for most players while covering every cost.</p>
+    <div class="kpis" style="margin-top:22pt">
+      <div class="kpi"><b>$0</b><span>running cost today, up to about 10,000 monthly players</span></div>
+      <div class="kpi"><b>{{INFRA50}}</b><span>running cost a month at 50,000 players, after free fixes</span></div>
+      <div class="kpi"><b>{{INFRA500}}</b><span>running cost a month at 500,000 players</span></div>
+      <div class="kpi"><b>$2.99</b><span>recommended Supporter price a month ($19.99 a year)</span></div>
+      <div class="kpi"><b>{{BE50}}</b><span>supporters cover every cost at 50,000 players (under 0.5%)</span></div>
+      <div class="kpi"><b>1.5%</b><span>expected share who pay, based on similar games</span></div>
+    </div>
+  </div>
+  <div class="meta">Prepared for Bobby Taylor, owner · October 26, 2026 · Prices checked on the vendors' own pricing pages on this date (sources on the last page). Player counts are estimates from a usage model, not measurements: the live dashboard numbers should replace them once real players arrive. This is a business analysis, not tax or legal advice.</div>
+</div>
+
+<section>
+<h2>1. The short answer</h2>
+<div class="box good"><p><b>Keep the whole game free, and add an optional Supporter tier at $2.99 a month or $19.99 a year, a one-time $4.99 Founder unlock for the first year, and $1.99–$3.99 puzzle packs.</b> At every size modeled, fewer than 1 player in 200 needs to pay for the game to cover all of its costs, including your build tools and help.</p></div>
+<h3>Why</h3>
+<ul>
+<li><b>Running costs stay tiny.</b> The servers cost nothing until about 10,000 monthly players, $5 a month until about 50,000, and about {{INFRA500}} a month at 500,000. That is about $1.30 per 1,000 players.</li>
+<li><b>People and tools are the real cost.</b> Your design and build tools, art, help with name approvals and reports, and security are about 70–99% of the total at every size. Pricing should be set to cover those, not just servers.</li>
+<li><b>Two costs could explode if they are not kept capped: server voices and sign-ins.</b> Uncapped premium voices would cost thousands a month at 100,000 players. The game already caps them and uses the free on-device voice for everyone else; keep it that way and make premium voices a Supporter perk with a monthly allowance. Firebase sign-ins start charging at about 167,000 monthly players.</li>
+<li><b>The market sits between $2.99 and $4.99.</b> Puzzle Baron charges $4.99 a month, Logic Daily sells $1.99 packs and a $4.49 option, Penny Dell sells 30 puzzles for $3.99, and Everyday Grids charges $14.99 a year to remove ads. $2.99 a month is a friendly step below the leader, with no ads anywhere.</li>
+</ul>
+<h3>Three things to do before the game grows past 10,000 players (all free or nearly free)</h3>
+<ol>
+<li><b>Move the big files off GitHub Pages.</b> The intro video (25 MB) and the voice engine (21 MB) will use up the Pages 100 GB a month allowance at about 10,000 players. Serving them from the Cloudflare Worker's static files is free with no limit. GitHub's rules also say Pages is not for running an online business, so once money is involved, the whole site is safer on Cloudflare Pages (free, commercial use allowed, works with your domain without moving it to Cloudflare).</li>
+<li><b>Move player emails off Gmail before the daily email passes about 500 a day.</b> Amazon SES costs about $0.10 per 1,000 emails. <span class="tag">costs money</span></li>
+<li><b>Switch Cloudflare to the $5 Workers Paid plan at about 10,000 monthly players.</b> One plan covers the Worker, the database and higher limits. <span class="tag">costs money</span> The admin dashboard's free-limit alerts already warn at 70%.</li>
+</ol>
+<p class="small">Everything marked <span class="tag">costs money</span> needs your OK first, under the free-only rule. Nothing in this report has been bought or switched on.</p>
+</section>
+
+<section>
+<h2>2. What the game uses today, and what is free</h2>
+<p>Every service below is on a free tier now. The game already has caps on the services that bill past their free amount.</p>
+<table>
+<thead><tr><th>Service</th><th>What it does</th><th>Free amount</th><th>Price after the free amount</th></tr></thead>
+<tbody>
+<tr><td>Cloudflare Workers</td><td>The game's server (sign-in checks, saves, races, daily puzzle, admin)</td><td>100,000 requests a day</td><td>$5 a month plan: 10 million requests and 30 million CPU-ms a month included, then $0.30 per million requests</td></tr>
+<tr><td>Cloudflare D1</td><td>The database</td><td>5 million rows read and 100,000 written a day; 500 MB per database, 5 GB in all</td><td>On the $5 plan: 25 billion reads and 50 million writes a month included, then $1 per million writes; 5 GB included, then $0.75 per GB</td></tr>
+<tr><td>Cloudflare Workers AI</td><td>Story pictures, translation, rating summaries</td><td>10,000 "neurons" a day</td><td>$0.011 per 1,000 neurons. Pictures are cached, so each one is made once.</td></tr>
+<tr><td>Cloudflare static files and R2</td><td>Not used for the game yet; recommended for big files</td><td>Static files: free and unlimited. R2: 10 GB stored, no download fees</td><td>R2: $0.015 per GB a month</td></tr>
+<tr><td>Firebase Authentication</td><td>Optional player accounts</td><td>50,000 monthly signed-in players</td><td>$0.0055 each up to 100,000, then $0.0046 up to 1 million</td></tr>
+<tr><td>Gemini voices (Google AI Studio)</td><td>Natural character voices, first choice</td><td>Free tier with daily request limits; the game caps new clips at 300 a day</td><td>Paid tier about $9 per million audio tokens (about $0.81 an hour of speech) until December 31, 2026; it doubles on January 1, 2027</td></tr>
+<tr><td>Google Cloud Chirp 3 HD</td><td>Backup natural voice</td><td>1 million characters a month; the game stops at 900,000</td><td>$30 per million characters</td></tr>
+<tr><td>Kokoro (on the player's device)</td><td>Natural voice when server voices are capped</td><td>Free, runs in the browser</td><td>None. Costs only download bandwidth.</td></tr>
+<tr><td>GitHub Pages</td><td>The website at thelogicgrid.com</td><td>100 GB a month download (soft limit), 1 GB site</td><td>No paid tier; you move to another host. Not meant for online businesses.</td></tr>
+<tr><td>GitHub Actions</td><td>Builds, nightly checks, reports, owner emails</td><td>Unlimited on a public repository</td><td>Private repository: 2,000 minutes a month free, then about $0.006 a minute (prices cut about 40% in January 2026)</td></tr>
+<tr><td>Gmail (sending)</td><td>Archive, reports, player emails</td><td>About 500 recipients a day</td><td>Move to Amazon SES ($0.10 per 1,000) or Resend ($20 a month for 50,000)</td></tr>
+<tr><td>Domain thelogicgrid.com</td><td>The web address</td><td>None</td><td>About $12–$15 a year at renewal</td></tr>
+</tbody></table>
+<p class="small">The game does not use the paid parts of any service. The admin dashboard tracks Cloudflare and Firebase use against these limits (server/src/usage.js), and the nightly run emails you when something needs attention.</p>
+</section>
+
+<section>
+<h2>3. When each free limit runs out</h2>
+<p>The chart shows the number of <b>monthly active players</b> at which each free limit is reached. The model assumes a quarter of monthly players play on a given day (normal for a daily-puzzle game), 25 server requests and 15 database writes per daily player, about 10 MB of website download per monthly player, and 30% of players signing in. Busy days are counted at 1.5 times a normal day, so the limits are reached a little before the averages say.</p>
+<div class="fig">{{LIMITS}}<div class="cap">Green: a free fix exists. Orange: covered by one $5 a month plan or pennies. Red: starts billing per player. Log scale.</div></div>
+<h3>What happens at each limit</h3>
+<ul>
+<li><b>About 10,000 players: website bandwidth and Gmail.</b> Both have a free or nearly free fix (see section 1). These come first because the video and voice engine are large downloads.</li>
+<li><b>11,000–50,000 players: Cloudflare's daily limits.</b> Requests, database writes, database size and reads all move to the same $5 a month Workers Paid plan. Without it, the server starts refusing requests on busy days.</li>
+<li><b>About 40,000 players: Workers AI.</b> New pictures and translations start to cost cents a month.</li>
+<li><b>About 53,000 players: the $5 plan's included requests.</b> Each extra million requests costs $0.30, which is about $1.90 for every extra 10,000 players.</li>
+<li><b>About 167,000 players: Firebase sign-ins.</b> This is the first cost that grows by the player: about $137 a month at 250,000 players and $505 at 500,000. A sign-in system built into the Worker (email links or passkeys) would make this free again; it is worth building at around 100,000 players.</li>
+<li><b>Server voices never run out, because they are capped.</b> When the caps are reached, players hear the free on-device voice instead.</li>
+</ul>
+</section>
+
+<section>
+<h2>4. Monthly cost at each stage of growth</h2>
+<div class="fig" style="width:62%;margin:0 auto">{{STACK}}<div class="cap">Running costs only (servers, sign-ins, email, domain), after the free fixes in section 1.</div></div>
+{{STAGES}}
+<p class="small">People, tools and safety lines are planning estimates, not bills. "Design and build tools" assumes an AI coding plan at $100 a month, rising to $200 for heavier use. "Help" is part-time paid help with screen-name approvals, player reports and support, which grows with players because typed names wait for admin approval. "Security" covers an outside review and small-business cyber insurance once money is taken. Supporters needed assumes $2.10 left over a month per paying supporter after fees (section 6).</p>
+</section>
+
+<section>
+<h2>5. The costs to keep capped</h2>
+<h3>Server voices</h3>
+<p>The natural server voices are the one feature that could cost real money fast. The table shows the monthly bill if the caps were removed and 1 in 10 daily players heard a new half puzzle read aloud each day (about 750 characters or 50 seconds of speech).</p>
+{{VOICES}}
+<div class="box warn"><p><b>Keep the caps on.</b> Today the game spends $0 on voices: it uses Gemini's free tier up to 300 new clips a day, Chirp up to 900,000 characters a month, and the free Kokoro voice on the player's device after that. Clips are saved and reused, so the daily puzzle is voiced once for everyone. If you want more premium voice time, give it to Supporters with a monthly allowance, and raise the caps only by what supporter income pays for. Gemini's price doubles on January 1, 2027, so revisit then.</p></div>
+<h3>Other costs that grow with success</h3>
+<ul>
+<li><b>Sign-ins past 167,000 players</b> (section 3). Plan a free Worker-based sign-in around 100,000 players.</li>
+<li><b>Making the repository private</b> (being weighed in "Protect the game from copying"): GitHub Pages from a private repository needs GitHub Pro at $4 a month, and Actions get 2,000 free minutes a month. The nightly checks, video builds and reports can use more than that, about $5–$20 a month extra. Moving the website to Cloudflare Pages avoids the $4. <span class="tag">costs money</span></li>
+<li><b>Code scanning</b> is free on a public repository. On a private one, GitHub's code scanning costs $30 per person a month; free tools such as Semgrep Community can replace it.</li>
+<li><b>Mobile apps</b> (paused): Apple charges $99 a year and takes 15% of sales for small businesses; Google Play is $25 once and 15%. The Microsoft Store is free for individual developers.</li>
+<li><b>Moderation time</b> grows with players because typed screen names wait for approval. Suggested names auto-approve, so steering players toward them keeps this cost down.</li>
+</ul>
+</section>
+
+<section>
+<h2>6. What players pay for similar games</h2>
+<table>
+<thead><tr><th>Game</th><th>Free part</th><th>Paid</th><th>Model</th></tr></thead>
+<tbody>
+<tr><td>Puzzle Baron's Logic Puzzles</td><td>About 100 free puzzles</td><td>$2.99 volumes; $4.99 a month</td><td>Packs plus subscription</td></tr>
+<tr><td>Logic Daily</td><td>Daily puzzle</td><td>$1.99 packs; $4.49 option</td><td>Packs</td></tr>
+<tr><td>Penny Dell Logic Puzzles</td><td>A few samples</td><td>$3.99 for 30 puzzles</td><td>Packs</td></tr>
+<tr><td>Everyday Grids</td><td>Everything, with ads</td><td>$14.99 a year to remove ads</td><td>Ads plus yearly</td></tr>
+<tr><td><b>The Fantastical Logic Grid (now)</b></td><td>Everything, endless new puzzles, no ads</td><td>Nothing yet</td><td>Free</td></tr>
+</tbody></table>
+<p class="small">Competitor prices from the App Store on October 26, 2026 (market test).</p>
+<h3>What that means</h3>
+<ul>
+<li>Players of logic puzzles are used to paying <b>$2–$5 for a pack</b> and <b>about $5 a month</b> at the top end. A yearly price of $15–$20 is normal.</li>
+<li>This game's edge is that every puzzle is new and nothing is locked. Locking puzzles behind a paywall would throw that away. Selling <b>extras and thanks</b> keeps it.</li>
+<li>For free games with an optional paid tier, 1–3% of monthly players usually pay; tip jars alone usually get under 0.5%. This report uses 0.5%, 1.5% and 3%.</li>
+</ul>
+<h3>What you keep from each sale</h3>
+<table class="num">
+<thead><tr><th>Sale</th><th>Lemon Squeezy (handles sales tax)</th><th>Ko-fi free plan</th><th>GitHub Sponsors</th></tr></thead>
+<tbody>
+<tr><td style="text-align:left">$2.99 a month</td><td>$2.33</td><td>$2.45</td><td>$2.99</td></tr>
+<tr><td style="text-align:left">$19.99 a year</td><td>$18.39 ($1.53 a month)</td><td>$18.11</td><td>$19.99</td></tr>
+<tr><td style="text-align:left">$4.99 one time</td><td>$4.24</td><td>$4.30</td><td>$4.99</td></tr>
+<tr><td style="text-align:left">$1.99 pack</td><td>$1.39</td><td>$1.53</td><td>n/a (no shop)</td></tr>
+</tbody></table>
+<p class="small">Lemon Squeezy: 5% + 50¢, plus 0.5% on subscriptions and 1.5% for buyers outside the US. Ko-fi: 5% on memberships and shop on the free plan (0% on Ko-fi Gold at $12 a month), plus Stripe or PayPal at about 2.9% + 30¢. GitHub Sponsors: no fee on personal accounts. A blend of monthly, yearly and one-time supporters leaves about $2.10 a month per supporter, which the break-even numbers use.</p>
+</section>
+
+<section>
+<h2>7. Recommended fee structure</h2>
+<table class="price">
+<thead><tr><th>Tier</th><th>Price</th><th>What it includes</th><th>Why this price</th></tr></thead>
+<tbody>
+<tr><td><b>Free</b></td><td>$0, forever</td><td>Every puzzle, theme, size and difficulty; daily puzzle and streaks; races and scoreboard; hints, saving, printing, notes; on-device voices; accounts and sync; every language and accessibility feature. No ads.</td><td>The free game is the marketing. It is what makes people share it.</td></tr>
+<tr><td><b>Tip jar</b></td><td>Any amount ($3 suggested)</td><td>A thank-you and, if signed in, the Supporter badge for a month.</td><td>Costs nothing to run. GitHub Sponsors takes no fee.</td></tr>
+<tr><td><b>Supporter</b></td><td>$2.99 a month or $19.99 a year</td><td>Supporter badge on the scoreboard; a monthly allowance of premium server voices; early access to new themes; longer stats history and extra badges; a monthly printable puzzle book.</td><td>A step under Puzzle Baron's $4.99, and the yearly price sits with Everyday Grids. The voice allowance is a perk that costs little because it is capped.</td></tr>
+<tr><td><b>Founder</b> (first 12 months only)</td><td>$4.99 one time</td><td>Lifetime Supporter badge and all bonus packs released in year one. Premium voices not included beyond a small monthly allowance.</td><td>Rewards early fans without a lifetime promise of costs that grow.</td></tr>
+<tr><td><b>Puzzle packs and books</b></td><td>$1.99 (25 puzzles) or $3.99 (60-puzzle printable book)</td><td>Hand-picked themed sets with answer keys, as print-ready PDFs.</td><td>Matches Logic Daily's $1.99 and Penny Dell's $3.99. Costs nothing to deliver.</td></tr>
+</tbody></table>
+<h3>Rules that protect players and the budget</h3>
+<ul>
+<li>Never lock a core feature or puzzle. Paid things are extras, thanks, and convenience.</li>
+<li>No ads before 50,000 monthly players, and only if supporter income falls short. Ads earn about $1–$5 per 1,000 visits and hurt a calm puzzle game.</li>
+<li>Use a seller that handles sales tax for you (Lemon Squeezy or Paddle) for anything sold. Tips can go through GitHub Sponsors.</li>
+<li>Check prices once a year and when a vendor changes prices (next: Gemini voices on January 1, 2027).</li>
+<li>Keep one switch for each paid extra in the admin Settings, as with the Support link, so anything can be turned off without a release.</li>
+</ul>
+<div class="box"><p><b>How this fits the work in progress.</b> The "Prepare freemium launch package" work is building three money options for you to choose from: a tip jar with a Supporter badge, a Ko-fi membership, and a Lemon Squeezy one-time unlock. This report recommends starting with the tip jar and Supporter badge (no cost, no code beyond the badge), then adding the $2.99 / $19.99 Supporter tier and the $4.99 Founder unlock through Lemon Squeezy once there are about 2,000 monthly players to sell to. The Support the game switch from the freemium launch is already in the admin dashboard.</p></div>
+</section>
+
+<section>
+<h2>8. Will it pay for itself?</h2>
+<div class="fig" style="width:86%;margin:0 auto">{{BREAKEVEN}}<div class="cap">Revenue at three shares of paying players (at $2.10 net each a month) against the total monthly cost from section 4. Players on a log scale; the dollar scale is cut at $33k.</div></div>
+{{REVENUE}}
+<ul>
+<li><b>Below about 3,000 players</b> supporters will not cover your build tools, even at 3%. That is normal for a new game, and running costs are $0, so nothing is lost while it grows.</li>
+<li><b>From about 3,200 players</b> the expected case (1.5%) covers every cost in the model, and from about 25,000 players even the low case (0.5%) does, including paid help and security.</li>
+<li><b>At 50,000 players</b> only {{BE50}} supporters are needed; at 500,000, {{BE500}} (about 0.2%).</li>
+</ul>
+</section>
+<section>
+<h2>9. Plan by stage</h2>
+<table>
+<thead><tr><th>Stage</th><th>Do this</th><th>New monthly cost</th></tr></thead>
+<tbody>
+<tr><td>Now to 2,000 players</td><td>Launch free. Turn on the Support the game link with a tip jar (GitHub Sponsors). Move the big files to Cloudflare. Watch the free-limit alerts.</td><td>$0 <span class="tag free">free</span></td></tr>
+<tr><td>2,000 to 10,000</td><td>Add the Supporter tier and Founder unlock through Lemon Squeezy. Release the first puzzle book. Move player email to Amazon SES.</td><td>About $1 <span class="tag">costs money</span></td></tr>
+<tr><td>10,000 to 50,000</td><td>Switch to Cloudflare Workers Paid. Move the website to Cloudflare Pages. Budget for occasional art and part-time help with name approvals.</td><td>$5 to $15 running <span class="tag">costs money</span></td></tr>
+<tr><td>50,000 to 150,000</td><td>Build a free sign-in in the Worker to avoid Firebase charges. Add a security review and cyber insurance. Consider premium voice allowance increases paid by supporters.</td><td>$15 to $50 running</td></tr>
+<tr><td>150,000 and up</td><td>Review prices. Consider the mobile apps (resume only on your word). Consider a small team for support.</td><td>$200 to $700 running</td></tr>
+</tbody></table>
+</section>
+
+<section>
+<h2>10. Assumptions and sources</h2>
+<h3>Usage model</h3>
+<table>
+<tbody>
+<tr><td>Daily players</td><td>25% of monthly players</td><td>Server requests</td><td>25 per daily player a day (config, saves, daily puzzle, scores, events), 2 ms CPU each</td></tr>
+<tr><td>Database writes</td><td>15 per daily player a day</td><td>Database reads</td><td>400 per daily player a day</td></tr>
+<tr><td>Database size</td><td>15 KB per monthly player, kept small by the weekly archive</td><td>Busy-day factor</td><td>1.5 times an average day</td></tr>
+<tr><td>Signed in</td><td>30% of monthly players</td><td>Website download</td><td>10 MB per monthly player a month (first visits, updates, video and voice engine)</td></tr>
+<tr><td>Daily email</td><td>5% of monthly players subscribe</td><td>Workers AI</td><td>1 neuron per daily player a day (pictures are cached)</td></tr>
+<tr><td>Paying supporters</td><td>0.5%, 1.5% or 3% of monthly players</td><td>Net per supporter</td><td>$2.10 a month after fees, a blend of monthly, yearly and one-time</td></tr>
+</tbody></table>
+<p class="small">Replace these with real numbers after the first month: the admin dashboard shows requests, database rows, Firebase users and email counts. The model's source is kept with this report so it can be re-run.</p>
+<h3>Sources (checked October 26, 2026)</h3>
+<ul class="small">
+<li>Cloudflare Workers pricing: developers.cloudflare.com/workers/platform/pricing/ ($5 minimum, 10M requests and 30M CPU-ms included, static assets free and unlimited)</li>
+<li>Cloudflare D1 pricing: developers.cloudflare.com/d1/platform/pricing/</li>
+<li>Cloudflare R2, Workers AI and KV pricing: cloudflare.com/pricing/</li>
+<li>Firebase Authentication tiers: firebase.google.com/pricing (as summarized by rapidnative.com, 2026)</li>
+<li>Google Cloud Text-to-Speech pricing (Chirp 3 HD $30 per million characters, 1 million free): cloud.google.com/text-to-speech/pricing</li>
+<li>Gemini Flash TTS pricing and the January 2027 increase: ai.google.dev/pricing (as summarized by eesel.ai, 2026)</li>
+<li>GitHub Pages limits and commercial use: docs.github.com/en/pages/getting-started-with-github-pages/github-pages-limits</li>
+<li>GitHub Actions 2026 price changes: heise.de (December 2025)</li>
+<li>Gmail sending limits: support.google.com/mail/answer/22839</li>
+<li>Resend pricing: resend.com/pricing · Amazon SES pricing: aws.amazon.com/ses/pricing</li>
+<li>Lemon Squeezy fees: lemonsqueezy.com/pricing (as summarized by swell.is) · Ko-fi Gold $12 a month: ko-fi.com (as summarized by schoolmaker.com)</li>
+<li>Competitor prices: App Store listings, October 26, 2026 (project market test)</li>
+<li>Game limits and caps: server/src/usage.js (FREE_LIMITS), server/wrangler.toml (DAILY_TTS_CAP, GCLOUD_TTS_MONTH_CAP), docs/launch/FREEMIUM.md</li>
+</ul>
+</section>
+</body></html>
