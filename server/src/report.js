@@ -2,7 +2,8 @@
 //   quality()  which themes and levels players give up on, rate low or find
 //              too hard or too easy (from the anonymous play summaries)
 //   alerts()   free allowances that are close to running out
-//   summary()  the week in numbers, for the Monday email (scripts/summary-email.py)
+//   summary()  the week in numbers, for the Monday email (scripts/summary-email.py),
+//              with where players came from and the market test's pass marks
 //   csv()      players, scores and ideas/problems as spreadsheet files
 import { getSettings } from './settings.js';
 import { FREE_LIMITS, cloudflareUsage } from './usage.js';
@@ -80,6 +81,58 @@ export async function alerts(env, now = Date.now()) {
 }
 
 // The week in numbers, for the Monday summary email.
+// The market test's pass marks, over the last MARKET_DAYS days. Visits,
+// first puzzles and returns come from campaign links and other sites
+// (marketing.js); solves and ratings from every game's play summary. A mark
+// with less data than `min` is "too early" rather than pass or below.
+const MARKET_DAYS = 28;
+const PASS_MARKS = [
+  { id: 'start', label: 'Visitors who start a puzzle', mark: 40, min: 100, unit: 'visitors' },
+  { id: 'solve', label: 'Games that end solved', mark: 50, min: 30, unit: 'games' },
+  { id: 'rating', label: 'Average rating', mark: 4.0, min: 30, unit: 'ratings' },
+  { id: 'return', label: 'Visitors who come back within a week', mark: 15, min: 100, unit: 'visitors' },
+  { id: 'support', label: 'Visitors who press Support', mark: 2, min: 100, unit: 'visitors' },
+];
+
+export async function marketTest(env, days = 7, now = Date.now()) {
+  const db = env.DB;
+  const since = isoDay(now - (MARKET_DAYS - 1) * DAY);
+  const week = isoDay(now - (days - 1) * DAY);
+  const [events, games, sources] = await db.batch([
+    db.prepare('SELECT event, SUM(n) AS n FROM campaign_stats WHERE day >= ?1 GROUP BY event').bind(since),
+    db.prepare("SELECT COUNT(*) AS games, COALESCE(SUM(outcome = 'solved'), 0) AS solved, AVG(rating) AS rating, COUNT(rating) AS rated FROM plays WHERE day >= ?1").bind(since),
+    db.prepare('SELECT source, medium, event, SUM(n) AS n FROM campaign_stats WHERE day >= ?1 GROUP BY source, medium, event').bind(week),
+  ]);
+  const ev = Object.fromEntries(events.results.map((r) => [r.event, r.n]));
+  const g = games.results[0] || {};
+  const visits = ev.visit || 0;
+  const pctOf = (a, b) => (b ? Math.round((100 * a) / b) : null);
+  const values = {
+    start: [pctOf(ev.play || 0, visits), visits],
+    solve: [pctOf(g.solved || 0, g.games || 0), g.games || 0],
+    rating: [round(g.rating, 1), g.rated || 0],
+    return: [pctOf(ev.return || 0, visits), visits],
+    support: [null, 0],
+  };
+  const marks = PASS_MARKS.map((m) => {
+    const [value, n] = values[m.id];
+    let status;
+    if (m.id === 'support') status = 'not_measured';
+    else if (n < m.min || value == null) status = 'too_early';
+    else status = value >= m.mark ? 'pass' : 'below';
+    return { ...m, value, n, status };
+  });
+  const bySource = new Map();
+  for (const r of sources.results) {
+    const key = `${r.source}|${r.medium}`;
+    if (!bySource.has(key)) bySource.set(key, { source: r.source, medium: r.medium, visit: 0, play: 0, solve: 0, return: 0, install: 0, download: 0 });
+    if (r.event in bySource.get(key)) bySource.get(key)[r.event] += r.n;
+  }
+  const funnel = [...bySource.values()].sort((a, b) => b.visit - a.visit || b.solve - a.solve).slice(0, 10)
+    .map((x) => ({ ...x, startPct: pctOf(x.play, x.visit), returnPct: pctOf(x.return, x.visit) }));
+  return { days: MARKET_DAYS, since, marks, funnel };
+}
+
 export async function summary(env, days = 7, now = Date.now()) {
   const db = env.DB;
   const since = now - days * DAY;
@@ -103,7 +156,7 @@ export async function summary(env, days = 7, now = Date.now()) {
   const r = q.map((x) => x.results);
   const one = (i, f = 'n') => (r[i][0] ? r[i][0][f] || 0 : 0);
   const games = r[4][0] || {};
-  const [qual, al, rated] = await Promise.all([quality(env, 30, now), alerts(env, now), ratingInsights(env, days, { brief: true, now }).catch(() => null)]);
+  const [qual, al, rated, market] = await Promise.all([quality(env, 30, now), alerts(env, now), ratingInsights(env, days, { brief: true, now }).catch(() => null), marketTest(env, days, now)]);
   return {
     days, from: sinceDay, to: isoDay(now), generatedAt: now,
     players: { accounts: one(0), newAccounts: one(1), newScreenNames: one(2), scoringPlayers: one(3) },
@@ -118,6 +171,9 @@ export async function summary(env, days = 7, now = Date.now()) {
     // Puzzle ratings: the numbers, what is working, what to improve (ratings.js).
     ratings: rated && { average: rated.overall.avg, rated: rated.overall.rated, spread: rated.overall.spread, change: rated.overall.change,
       good: rated.good.slice(0, 3), improve: rated.improve.slice(0, 3), summary: rated.summary.status === 'ok' ? rated.summary.text : null },
+    // Where this week's visitors came from, and the market test's pass marks.
+    funnel: market.funnel,
+    marketTest: { days: market.days, since: market.since, marks: market.marks },
   };
 }
 

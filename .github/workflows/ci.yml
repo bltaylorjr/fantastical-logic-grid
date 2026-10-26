@@ -27,7 +27,7 @@ jobs:
         run: node scripts/connections.mjs check
 
   app:
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork && '"ubuntu-latest"') || vars.FLG_RUNNER || '"ubuntu-latest"') }}
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
@@ -52,12 +52,14 @@ jobs:
           npm --prefix server ci --no-audit --no-fund
           node scripts/e2e-accounts.cjs
           node scripts/e2e-compete.cjs
+          node scripts/e2e-challenge.cjs
+          node scripts/e2e-daily-results.cjs
           node scripts/e2e-errors.cjs
           node scripts/e2e-admin.cjs
           node scripts/e2e-archive.cjs
 
   server:
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork && '"ubuntu-latest"') || vars.FLG_RUNNER || '"ubuntu-latest"') }}
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
@@ -78,7 +80,7 @@ jobs:
   dependabot-merge:
     needs: [app, server]
     if: github.event_name == 'pull_request' && github.event.pull_request.user.login == 'dependabot[bot]'
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork && '"ubuntu-latest"') || vars.FLG_RUNNER || '"ubuntu-latest"') }}
     permissions:
       contents: write
       pull-requests: write

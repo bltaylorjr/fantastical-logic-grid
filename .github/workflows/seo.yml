@@ -22,7 +22,7 @@ concurrency:
 jobs:
   lighthouse:
     if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork && '"ubuntu-latest"') || vars.FLG_RUNNER || '"ubuntu-latest"') }}
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
@@ -43,7 +43,7 @@ jobs:
 
   live:
     if: github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork && '"ubuntu-latest"') || vars.FLG_RUNNER || '"ubuntu-latest"') }}
     timeout-minutes: 15
     env:
       SITE: ${{ vars.FLG_SITE_URL || 'https://thelogicgrid.com' }}

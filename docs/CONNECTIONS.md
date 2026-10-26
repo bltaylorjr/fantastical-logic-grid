@@ -46,7 +46,7 @@ uses a secret, variable or binding that is not listed there.
 
 ### GitHub Pages (the website)
 
-**Why:** Hosts the game at <https://thelogicgrid.com>. The "Publish web version" workflow builds and publishes it on every push to main and every night at 00:17 UTC (the daily puzzle page).
+**Why:** Hosts the game at <https://thelogicgrid.com>. The "Publish web version" workflow builds and publishes it on every push to main and every night at 00:17 UTC (the daily puzzle page). Once the source goes private (see "Private source"), Pages is served from the public repo bltaylorjr/thelogicgrid instead, so the Pages checks here become optional.
 
 **Cost:** Free for public repositories.
 
@@ -122,6 +122,31 @@ uses a secret, variable or binding that is not listed there.
 3. GitHub pauses scheduled workflows after 60 days without commits. If the health check or nightly publish stops, open the **Actions** tab and re-enable the workflow.
 
 **Links:** [Actions settings](https://github.com/bltaylorjr/fantastical-logic-grid/settings/actions) · [All workflows](https://github.com/bltaylorjr/fantastical-logic-grid/actions) · [Full guide (MAINTENANCE.md)](https://github.com/bltaylorjr/fantastical-logic-grid/blob/main/MAINTENANCE.md)
+
+### Private source: build server and public site repo
+
+**Why:** Keeps the source code private while players still get the website and desktop updates from a public, built-files-only repo (bltaylorjr/thelogicgrid). Builds run on a free Oracle Cloud server, because private repos get only 2,000 free Actions minutes a month. Everything stays off until these variables are set, and removing them goes back to the old way.
+
+**Cost:** Free: Oracle Cloud Always Free VM, a public GitHub repo and a fine-grained token. Oracle may reclaim a VM that stays idle for 7 days.
+
+| Name | Where | Notes |
+| --- | --- | --- |
+| `FLG_RUNNER` | GitHub repository variable | Value: `["self-hosted","flg"]` Runs Linux jobs on the Oracle build server. Optional. |
+| `FLG_SITE_REPO` | GitHub repository variable | Value: `bltaylorjr/thelogicgrid` Publishes the site and mirrors releases to the public repo. Optional. |
+| `SITE_REPO_TOKEN` | GitHub repository secret | Fine-grained token with Contents: read and write on bltaylorjr/thelogicgrid only. Optional. |
+
+**Steps:**
+
+1. Create the public repository `bltaylorjr/thelogicgrid` at <https://github.com/new> (Public, no files).
+2. Create a token at <https://github.com/settings/personal-access-tokens/new:> **Only select repositories** > `bltaylorjr/thelogicgrid`, **Contents: Read and write**. Copy it.
+3. Open <https://github.com/bltaylorjr/fantastical-logic-grid/settings/secrets/actions> and click **New repository secret** (or the pencil next to `SITE_REPO_TOKEN`).
+4. Name: `SITE_REPO_TOKEN`. Secret: the token. Click **Add secret**.
+5. Set up the Oracle Cloud Always Free VM with `scripts/runner/oracle-cloud-init.sh` (steps in docs/PRIVATE-REPO.md).
+6. Add the variable `FLG_RUNNER` = `["self-hosted","flg"]` at <https://github.com/bltaylorjr/fantastical-logic-grid/settings/variables/actions> and watch a few runs pass.
+7. Add the variable `FLG_SITE_REPO` = `bltaylorjr/thelogicgrid`, run **Publish web version** and **Release desktop app**, then move the Pages custom domain to the public repo.
+8. Only after a desktop release with the new update address has shipped: **Settings** > **General** > **Danger Zone** > **Change visibility** > **Private**.
+
+**Links:** [GitHub variables](https://github.com/bltaylorjr/fantastical-logic-grid/settings/variables/actions) · [Fine-grained tokens](https://github.com/settings/personal-access-tokens) · [Full guide (docs/PRIVATE-REPO.md)](https://github.com/bltaylorjr/fantastical-logic-grid/blob/main/docs/PRIVATE-REPO.md)
 
 ### Dependabot and GitHub security
 

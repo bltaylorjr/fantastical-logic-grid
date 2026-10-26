@@ -88,7 +88,7 @@ export const CONNECTIONS = [
     id: 'github-pages',
     group: 'website',
     title: 'GitHub Pages (the website)',
-    why: 'Hosts the game at https://thelogicgrid.com. The "Publish web version" workflow builds and publishes it on every push to main and every night at 00:17 UTC (the daily puzzle page).',
+    why: 'Hosts the game at https://thelogicgrid.com. The "Publish web version" workflow builds and publishes it on every push to main and every night at 00:17 UTC (the daily puzzle page). Once the source goes private (see "Private source"), Pages is served from the public repo bltaylorjr/thelogicgrid instead, so the Pages checks here become optional.',
     cost: 'Free for public repositories.',
     docs: 'hosting/DEPLOY.md',
     names: [
@@ -109,9 +109,9 @@ export const CONNECTIONS = [
     links: [{ label: 'Pages settings', url: `${REPO}/settings/pages` }, { label: 'Publish web version workflow', url: `${REPO}/actions/workflows/pages.yml` }],
     checks: [
       { type: 'http', url: `${SITE}/`, label: 'The website answers' },
-      { type: 'pages', field: 'build_type', value: 'workflow', label: 'Source is GitHub Actions' },
-      { type: 'pages', field: 'cname', value: 'thelogicgrid.com', label: 'Custom domain is thelogicgrid.com' },
-      { type: 'pages', field: 'https_enforced', value: true, label: 'Enforce HTTPS is on' },
+      { type: 'pages', field: 'build_type', value: 'workflow', label: 'Source is GitHub Actions', optional: true },
+      { type: 'pages', field: 'cname', value: 'thelogicgrid.com', label: 'Custom domain is thelogicgrid.com', optional: true },
+      { type: 'pages', field: 'https_enforced', value: true, label: 'Enforce HTTPS is on', optional: true },
     ],
   },
   {
@@ -163,6 +163,30 @@ export const CONNECTIONS = [
       'GitHub pauses scheduled workflows after 60 days without commits. If the health check or nightly publish stops, open the **Actions** tab and re-enable the workflow.',
     ],
     links: [{ label: 'Actions settings', url: `${REPO}/settings/actions` }, { label: 'All workflows', url: `${REPO}/actions` }],
+  },
+  {
+    id: 'private-source',
+    group: 'github',
+    title: 'Private source: build server and public site repo',
+    why: 'Keeps the source code private while players still get the website and desktop updates from a public, built-files-only repo (bltaylorjr/thelogicgrid). Builds run on a free Oracle Cloud server, because private repos get only 2,000 free Actions minutes a month. Everything stays off until these variables are set, and removing them goes back to the old way.',
+    cost: 'Free: Oracle Cloud Always Free VM, a public GitHub repo and a fine-grained token. Oracle may reclaim a VM that stays idle for 7 days.',
+    docs: 'docs/PRIVATE-REPO.md',
+    names: [
+      { name: 'FLG_RUNNER', where: 'github-variable', optional: true, value: '["self-hosted","flg"]', note: 'Runs Linux jobs on the Oracle build server.' },
+      { name: 'FLG_SITE_REPO', where: 'github-variable', optional: true, value: 'bltaylorjr/thelogicgrid', note: 'Publishes the site and mirrors releases to the public repo.' },
+      { name: 'SITE_REPO_TOKEN', where: 'github-secret', optional: true, note: 'Fine-grained token with Contents: read and write on bltaylorjr/thelogicgrid only.' },
+    ],
+    steps: [
+      'Create the public repository `bltaylorjr/thelogicgrid` at https://github.com/new (Public, no files).',
+      'Create a token at https://github.com/settings/personal-access-tokens/new: **Only select repositories** > `bltaylorjr/thelogicgrid`, **Contents: Read and write**. Copy it.',
+      ...GH_SECRET_STEPS('SITE_REPO_TOKEN', 'the token'),
+      'Set up the Oracle Cloud Always Free VM with `scripts/runner/oracle-cloud-init.sh` (steps in docs/PRIVATE-REPO.md).',
+      `Add the variable \`FLG_RUNNER\` = \`["self-hosted","flg"]\` at ${REPO}/settings/variables/actions and watch a few runs pass.`,
+      'Add the variable `FLG_SITE_REPO` = `bltaylorjr/thelogicgrid`, run **Publish web version** and **Release desktop app**, then move the Pages custom domain to the public repo.',
+      'Only after a desktop release with the new update address has shipped: **Settings** > **General** > **Danger Zone** > **Change visibility** > **Private**.',
+    ],
+    links: [{ label: 'GitHub variables', url: `${REPO}/settings/variables/actions` }, { label: 'Fine-grained tokens', url: 'https://github.com/settings/personal-access-tokens' }],
+    checks: [{ type: 'http', url: 'https://github.com/bltaylorjr/thelogicgrid', label: 'The public site repo exists', optional: true }],
   },
   {
     id: 'github-security',
