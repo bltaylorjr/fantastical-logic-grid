@@ -1882,6 +1882,8 @@ document.addEventListener('click', (e) => {
 document.addEventListener('keydown', (e) => {
   if (document.querySelector('dialog[open]')) return;
   const mod = e.ctrlKey || e.metaKey;
+  // Browser autofill and some extensions send keydown events with no key.
+  if (typeof e.key !== 'string') return;
   const k = e.key.toLowerCase();
   const typing = /^(input|select|textarea)$/i.test(e.target.tagName) && e.target.type !== 'checkbox' && e.target.type !== 'radio';
   if (S && !$('#screen-play').hidden) {

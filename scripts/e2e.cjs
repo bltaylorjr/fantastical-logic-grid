@@ -217,8 +217,19 @@ const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`o
     assert(sw <= 360, `no horizontal page scroll at 360px (scrollWidth ${sw})`);
     await page.screenshot({ path: process.env.SHOTS + '/6-mobile.png', fullPage: true });
 
-    // dark + high contrast
+    // tablet portrait: the clues move under the grid, so the grid is not squeezed into a sideways scroll
+    await page.setViewportSize({ width: 820, height: 1180 });
+    const tab = await page.evaluate(() => { const f = document.querySelector('#gridframe'); return [f.scrollWidth, f.clientWidth]; });
+    assert(tab[0] <= tab[1] + 1, `easy grid fits at 820px without sideways scrolling (${tab.join('/')})`);
+
+    // a grid that fits on screen does not scroll inside the page as well (player report: "extra scrolling")
     await page.setViewportSize({ width: 1280, height: 900 });
+    const fit = await page.evaluate(() => { const f = document.querySelector('#gridframe'); return [f.scrollHeight, f.clientHeight, parseFloat(getComputedStyle(f).maxHeight), innerHeight - document.querySelector('.appbar').offsetHeight - 16]; });
+    assert(fit[0] <= fit[1] + 1 && Math.abs(fit[2] - fit[3]) <= 1, `grid frame is as tall as the screen below the app bar, no inner scroll (${fit.join('/')})`);
+    // Browser autofill sends keydown events with no key (player error report: reading 'toLowerCase').
+    await page.evaluate(() => { document.dispatchEvent(new Event('keydown')); document.dispatchEvent(new KeyboardEvent('keydown')); });
+
+    // dark + high contrast
     await page.evaluate(() => { document.documentElement.dataset.theme = 'dark'; });
     await page.screenshot({ path: process.env.SHOTS + '/7-dark.png' });
     await page.evaluate(() => { document.documentElement.dataset.theme = 'contrast'; });

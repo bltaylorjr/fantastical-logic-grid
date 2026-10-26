@@ -177,9 +177,18 @@ the story that shares the fewest parts (opening, incident, ending...) with the
 last 300 used stories of the same topic, so back-to-back puzzles feel
 different, not just technically different.
 
-A story sets the scene in under 150 words and ends with the goal question
-("Can you work out who was in the Library?"). The ending in `story.ending` is
-the reward, shown on solve.
+A story sets the scene in under 150 words and ends with the goal question,
+which ties the grid answer to the story's event ("The suspect who was in the
+Library is the one behind the golden mask. Can you work out who was in the
+Library?"). The ending in `story.ending` is the reward, shown on solve.
+
+A category can carry a `note`, one sentence the story adds just before the
+goal question (also in `puzzle.categories[].note` and `story.notes`). Notes
+explain columns a reader might not expect ("each guest gave one toast, each at
+a different time") and say which way numbers run ("rank 1 is the lowest rank,
+and the bigger the number, the higher the rank"). Any numbered category whose
+clues say higher/lower or above/below must have one; the tests check this.
+Notes are not counted in the 150 words.
 
 To add a theme, add its categories to `src/themes.js`, its story parts to
 `src/storylines.js` and at least one topic to `src/topics.js`.
