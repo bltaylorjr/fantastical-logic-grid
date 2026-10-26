@@ -1320,7 +1320,11 @@ async function renderChallenge(save) {
   box.hidden = true;
   const c = save.challenge;
   if (!c || !save.solved || save.revealed) return;
-  if (!c.result) {
+  // Counted once: the mark is saved before the result is sent, so reopening
+  // the puzzle (even straight away) never counts it again.
+  if (!c.sent) {
+    c.sent = true;
+    await flushSave({ manual: true });
     try { c.result = await challenge.sendResult(c.code, save.elapsedMs, save.hintsUsed); scheduleSave(); } catch (e) { c.result = null; }
   }
   if (!S || S.save !== save) return;
