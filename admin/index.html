@@ -83,8 +83,9 @@
       <li><a href="#stories" data-min="moderator">Story workshop and review <span class="count" id="count-parts" hidden></span></a></li>
       <li><a href="#communication" data-min="viewer">Communication <span class="count" id="count-comm" hidden></span></a></li>
       <li><a href="#names" data-min="moderator">Screen names <span class="count" id="count-names" hidden></span></a></li>
-      <li><a href="#players" data-min="moderator">Players</a></li>
+      <li><a href="#players" data-min="viewer">Players</a></li>
       <li><a href="#settings" data-min="viewer">Settings and switches</a></li>
+      <li><a href="#connections" data-min="viewer">Connections and setup</a></li>
       <li><a href="#backups" data-min="admin">Backups and archive</a></li>
       <li><a href="#audit" data-min="admin">Audit log</a></li>
       <li><a href="#admins" data-min="owner">Admins</a></li>
@@ -254,7 +255,7 @@
 
     <section data-view="names" hidden aria-labelledby="h-names">
       <div class="head"><h1 id="h-names">Screen names</h1>
-        <div class="field inline"><label for="names-status">Show</label><select id="names-status"><option value="pending">New or changed</option><option value="reviewed">Looked at</option><option value="all">All</option></select></div>
+        <div class="field inline"><label for="names-status">Show</label><select id="names-status"><option value="pending">New or changed</option><option value="reviewed">Approved</option><option value="all">All</option></select></div>
       </div>
       <p class="muted">Names other players can see. Names the word filter would refuse today are marked <span class="badge warn">Check</span> and listed first.</p>
       <div class="table-wrap"><table class="table"><thead><tr><th scope="col">Screen name</th><th scope="col">Since</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody id="names-rows"></tbody></table></div>
@@ -264,11 +265,29 @@
       <div class="head"><h1 id="h-players">Players</h1></div>
       <form id="players-form" class="row" role="search">
         <div class="field grow"><label for="players-q">Screen name or player id</label><input id="players-q" type="search" autocomplete="off"></div>
-        <div class="field"><label for="players-filter">Who</label><select id="players-filter"><option value="all">Everyone</option><option value="banned">Banned</option></select></div>
+        <div class="field"><label for="players-sort">Sort by</label><select id="players-sort"><option value="seen">Last seen</option><option value="name">Screen name (A to Z)</option><option value="joined">Signed up</option><option value="solves">Solves</option><option value="races">Races</option><option value="points">Points</option></select></div>
+        <div class="field"><label for="players-per">Per page</label><select id="players-per"><option>25</option><option selected>50</option><option>100</option></select></div>
         <button class="btn primary" type="submit">Search</button>
       </form>
-      <p class="muted">Players are listed by screen name. Emails stay in Firebase and are not shown here; saved puzzles are only counted.</p>
-      <div class="table-wrap"><table class="table"><thead><tr><th scope="col">Screen name</th><th scope="col">Points</th><th scope="col">Solves</th><th scope="col">Last score</th><th scope="col">Status</th></tr></thead><tbody id="players-rows"></tbody></table></div>
+      <div class="sections" role="group" aria-label="Show players" id="players-sections">
+        <button type="button" class="btn small" data-section="pending" aria-pressed="false">Needs approval <span class="n"></span></button>
+        <button type="button" class="btn small" data-section="active" aria-pressed="false">Approved, active <span class="n"></span></button>
+        <button type="button" class="btn small" data-section="inactive" aria-pressed="false">Approved, inactive 30+ days <span class="n"></span></button>
+        <button type="button" class="btn small" data-section="blocked" aria-pressed="false">Blocked <span class="n"></span></button>
+        <button type="button" class="btn small" data-section="account" aria-pressed="false">No screen name yet <span class="n"></span></button>
+        <button type="button" class="btn small" data-section="all" aria-pressed="true">Everyone <span class="n"></span></button>
+      </div>
+      <p class="muted">Every player who has an account, by section. <b>Needs approval</b>: new or changed screen names nobody has approved yet. <b>Approved, active</b>: approved names that played, synced or changed something in the last 30 days. <b>Approved, inactive</b>: approved names with nothing for over 30 days. <b>Blocked</b>: banned players. <b>No screen name yet</b>: accounts that only sync saves. Emails stay in Firebase and are not shown here; saved puzzles are only counted. <span data-min="moderator">Pick a name to see that player's page.</span> Select a column heading to sort by it.</p>
+      <p id="players-count" class="muted" role="status"></p>
+      <div class="table-wrap"><table class="table" id="players-table"><thead><tr>
+        <th scope="col" data-sort="name"><button type="button" class="sort">Screen name</button></th>
+        <th scope="col" data-sort="joined"><button type="button" class="sort">Signed up</button></th>
+        <th scope="col" data-sort="seen"><button type="button" class="sort">Last seen</button></th>
+        <th scope="col" class="num" data-sort="solves"><button type="button" class="sort">Solves</button></th>
+        <th scope="col" class="num" data-sort="races"><button type="button" class="sort">Races</button></th>
+        <th scope="col" class="num" data-sort="points"><button type="button" class="sort">Points</button></th>
+        <th scope="col">Section</th><th scope="col" data-min="moderator"><span class="sr-only">Actions</span></th></tr></thead><tbody id="players-rows"></tbody></table></div>
+      <nav class="row pager" aria-label="Player pages"><button class="btn small" type="button" id="players-prev">Previous page</button><span id="players-page" class="muted"></span><button class="btn small" type="button" id="players-next">Next page</button></nav>
       <div class="row" data-min="admin"><button class="btn" type="button" data-export="players">Download all players (CSV)</button><button class="btn" type="button" data-export="scores">Download all scores (CSV)</button></div>
       <div id="player-detail"></div>
     </section>
@@ -277,6 +296,22 @@
       <div class="head"><h1 id="h-settings">Settings and switches</h1></div>
       <p class="muted">Changes reach every copy of the game within about a minute, with no new release.</p>
       <div id="settings-body"></div>
+    </section>
+
+    <section data-view="connections" hidden aria-labelledby="h-connections" id="connections-view">
+      <div class="head"><h1 id="h-connections">Connections and setup</h1>
+        <button class="btn" type="button" id="conn-refresh">Check again</button>
+      </div>
+      <p class="muted">Every outside service the game uses: why it is needed, the exact names and settings, step-by-step instructions and links. Secret values are never shown or typed here, only whether each name is set. This guide is made from <code>admin/connections.js</code>, and the tests make sure every new secret, variable or binding in the code is added to it.</p>
+      <div id="conn-summary"></div>
+      <div class="row" role="search">
+        <div class="field grow"><label for="conn-q">Search</label><input id="conn-q" type="search" autocomplete="off" placeholder="For example Resend, DNS or GMAIL_APP_PASSWORD"></div>
+        <div class="field"><label for="conn-show">Show</label><select id="conn-show"><option value="all">Everything</option><option value="attention">Needs attention</option><option value="connected">Connected</option><option value="other">Optional or by hand</option></select></div>
+        <button class="btn" type="button" id="conn-expand">Open all</button>
+        <button class="btn" type="button" id="conn-collapse">Close all</button>
+      </div>
+      <p class="muted" id="conn-none" hidden>Nothing matches. Try another word.</p>
+      <div id="conn-list"></div>
     </section>
 
             <section data-view="backups" hidden aria-labelledby="h-backups">
@@ -302,7 +337,7 @@
         <dt>Owner</dt><dd>Everything, including this list. Set by the Worker's <code>OWNER_EMAIL</code> secret.</dd>
         <dt>Admin</dt><dd>Settings, announcements, news, writing to a player first, deleting conversations, resetting scores, deleting accounts and the audit log, plus everything a moderator can do.</dd>
         <dt>Moderator</dt><dd>Story review, screen names, players, bans, reading and answering messages, ideas and problems, plus everything a viewer can do.</dd>
-        <dt>Viewer</dt><dd>Read-only: overview, usage, settings, announcements, news, error reports and the email log. Viewers cannot read what players wrote.</dd>
+        <dt>Viewer</dt><dd>Read-only: overview, usage, settings, announcements, news, error reports, the email log and the list of screen names (no player ids or player pages). Viewers cannot read what players wrote.</dd>
       </dl>
       <form id="admin-form" class="row card" novalidate>
         <div class="field grow"><label for="admin-email">Email of their game account</label><input id="admin-email" type="email" autocomplete="off" required></div>

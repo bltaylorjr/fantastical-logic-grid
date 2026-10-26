@@ -101,7 +101,12 @@ test('roles: the owner adds admins; each role only reaches its own tools', async
   const viewer = idToken('view-uid', 'view@example.com');
   assert.equal((await call('/admin/v1/me', { auth: mod })).body.role, 'moderator');
   assert.equal((await call('/admin/v1/analytics', { auth: viewer })).status, 200);
-  assert.equal((await call('/admin/v1/players', { auth: viewer })).status, 403);
+  // Viewers see the player list, but only names, dates and counts.
+  const seen = await call('/admin/v1/players', { auth: viewer });
+  assert.equal(seen.status, 200);
+  assert.equal(seen.body.ids, false);
+  assert.ok(seen.body.players.every((p) => !('uid' in p)));
+  assert.equal((await call('/admin/v1/players/someone', { auth: viewer })).status, 403);
   assert.equal((await call('/admin/v1/players', { auth: mod })).status, 200);
   assert.equal((await call('/admin/v1/settings', { auth: mod, body: { key: 'races_enabled', value: false } })).status, 403);
   assert.equal((await call('/admin/v1/admins', { auth: mod })).status, 403);
@@ -434,6 +439,58 @@ test('announcements show in the game between their start and end', async () => {
   assert.equal((await call('/admin/v1/announcements', { auth: owner(), body: { text: 'x' } })).status, 400);
 });
 
+test('players: every player in sections, searchable, sortable, a page at a time', async () => {
+  // A moderator from the roles test, so these calls do not use up the owner's rate limit.
+  const mod = idToken('mod-uid', 'mod@example.com');
+  const now = Date.now();
+  const add = async (uid, name, { seen = now, approved = false, banned = false, synced = false } = {}) => {
+    if (name) await db.prepare('INSERT INTO players (user_id, screen_name, name_key, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?4)').bind(uid, name, name.toLowerCase().replace(/[^a-z0-9]/g, ''), seen).run();
+    if (synced) await db.prepare('INSERT INTO sync_users (user_id, rev, created_at) VALUES (?1, 1, ?2)').bind(uid, seen).run();
+    if (approved) await db.prepare('INSERT INTO name_reviews (user_id, name_key, reviewed_by, reviewed_at) VALUES (?1, ?2, ?3, ?4)').bind(uid, name.toLowerCase().replace(/[^a-z0-9]/g, ''), 'test', now).run();
+    if (banned) await db.prepare('INSERT INTO bans (user_id, reason, banned_by, banned_at, until) VALUES (?1, ?2, ?3, ?4, NULL)').bind(uid, 'rude', 'test', now).run();
+  };
+  await add('sec-new', 'Zed Newcomer');
+  await add('sec-active', 'Amy Active', { approved: true });
+  await add('sec-old', 'Olly Oldtimer', { approved: true, seen: now - 45 * 24 * 3600_000 });
+  await add('sec-ban', 'Bart Blocked', { approved: true, banned: true });
+  await add('sec-sync-only', null, { synced: true });
+  // Recent play keeps an approved name active even when the name is old.
+  await add('sec-racer', 'Rita Racer', { approved: true, seen: now - 60 * 24 * 3600_000 });
+  await db.prepare("INSERT INTO scores (user_id, story_id, kind, tier, cells, elapsed_ms, hints, checks, points, created_at) VALUES ('sec-racer', 's-r', 'solo', 'easy', 48, 60000, 0, 0, 25, ?1)").bind(now).run();
+
+  const all = (await call('/admin/v1/players?per=100', { auth: mod })).body;
+  const section = (uid) => all.players.find((p) => p.uid === uid).section;
+  assert.equal(section('sec-new'), 'pending');
+  assert.equal(section('sec-active'), 'active');
+  assert.equal(section('sec-old'), 'inactive');
+  assert.equal(section('sec-ban'), 'blocked');
+  assert.equal(section('sec-sync-only'), 'account');
+  assert.equal(section('sec-racer'), 'active');
+  assert.equal(all.players.find((p) => p.uid === 'sec-sync-only').name, null);
+  assert.equal(all.sections.all, all.total);
+  for (const s of ['pending', 'active', 'inactive', 'blocked', 'account']) assert.ok(all.sections[s] >= 1, s);
+
+  const inactive = (await call('/admin/v1/players?filter=inactive', { auth: mod })).body;
+  assert.ok(inactive.players.every((p) => p.section === 'inactive'));
+  assert.ok(inactive.players.some((p) => p.uid === 'sec-old'));
+
+  const byName = (await call('/admin/v1/players?filter=named&sort=name&per=100', { auth: mod })).body;
+  const names = byName.players.map((p) => p.name);
+  assert.deepEqual(names, [...names].sort((a, b) => a.toLowerCase().replace(/[^a-z0-9]/g, '').localeCompare(b.toLowerCase().replace(/[^a-z0-9]/g, ''))));
+  const top = (await call('/admin/v1/players?sort=points&dir=desc', { auth: mod })).body.players[0];
+  assert.ok(top.points >= 25);
+
+  const page1 = (await call('/admin/v1/players?per=25&page=1', { auth: mod })).body;
+  assert.equal(page1.per, 25);
+  assert.equal(page1.pages, Math.ceil(page1.total / 25));
+  assert.equal((await call('/admin/v1/players?q=oldtim', { auth: mod })).body.players[0].uid, 'sec-old');
+  assert.equal((await call('/admin/v1/players?q=sec-sync', { auth: mod })).body.players[0].uid, 'sec-sync-only');
+
+  const csvText = (await call('/admin/v1/export/players.csv', { auth: owner() })).text;
+  assert.match(csvText, /Last seen/);
+  assert.match(csvText, /sec-sync-only/);
+});
+
 test('players: rename, ban, reset scores and delete', async () => {
   const uid = 'p-bad';
   assert.equal((await call('/v1/profile', { auth: player(uid), method: 'PUT', body: { screenName: 'Meanie' } })).status, 200);
@@ -458,7 +515,7 @@ test('players: rename, ban, reset scores and delete', async () => {
   const blocked = await call('/v1/scores', { auth: player(uid), body: { storyId: 's2', tier: 'easy', categories: 3, items: 4, elapsedMs: 60000, hints: 0, checks: 0 } });
   assert.equal(blocked.body.error, 'banned');
   assert.ok(!(await call('/v1/scoreboard?period=all')).body.rows.some((r) => r.name === renamed.body.screenName));
-  assert.equal((await call('/admin/v1/players?filter=banned', { auth: owner() })).body.players[0].banned, 1);
+  assert.equal((await call('/admin/v1/players?filter=banned', { auth: owner() })).body.players.find((p) => p.uid === uid).banned, true);
   await call(`/admin/v1/players/${uid}/unban`, { auth: owner(), body: {} });
 
   const reset = await call(`/admin/v1/players/${uid}/reset-scores`, { auth: owner(), body: { period: 'all' } });

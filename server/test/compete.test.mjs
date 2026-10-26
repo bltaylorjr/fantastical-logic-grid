@@ -6,7 +6,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Miniflare } from 'miniflare';
 import { makeSigner } from './signer.mjs';
-import { checkName, nameKey, hasBlockedWords } from '../src/names.js';
+import { checkName, nameKey, hasBlockedWords, isSuggestedName, SUGGEST_ADJ, SUGGEST_NOUN } from '../src/names.js';
 import { pointsFor } from '../src/compete.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -42,7 +42,15 @@ const call = async (path, { as, method = 'POST', body } = {}) => {
   });
   return { status: r.status, body: await r.json() };
 };
-const name = (as, screenName) => call('/v1/profile', { as, method: 'PUT', body: { screenName } });
+// Sets a screen name and, unless asked not to, approves it the way an admin
+// does, so other players see it.
+const name = async (as, screenName, { approve = true } = {}) => {
+  const r = await call('/v1/profile', { as, method: 'PUT', body: { screenName } });
+  if (approve && r.status === 200) {
+    await db.prepare("INSERT OR REPLACE INTO name_reviews (user_id, name_key, reviewed_by, reviewed_at) SELECT user_id, name_key, 'test', 1 FROM players WHERE user_id = ?1").bind(as).run();
+  }
+  return r;
+};
 
 // A small 3 x 3 puzzle in the engine's shape.
 function puzzle(storyId, extra = {}) {
@@ -115,6 +123,43 @@ test('scores need a screen name, count once, and fill the scoreboard', async () 
   const mine = await call('/v1/scoreboard?period=all', { as: 'ann', method: 'GET' });
   assert.equal(mine.body.me.rank, 2);
   assert.equal(mine.body.rows.find((r) => r.me).name, 'Sky Fox II');
+});
+
+test('new and changed names show as New player to others until approved', async () => {
+  const s = { storyId: 'st-new-1', tier: 'easy', categories: 3, items: 3, elapsedMs: 300_000, hints: 0, checks: 0 };
+  const saved = await name('newbie', 'Quiet Otter', { approve: false });
+  assert.equal(saved.body.nameApproved, false, 'the player is told their name waits for approval');
+  await call('/v1/scores', { as: 'newbie', body: s });
+  const others = await call('/v1/scoreboard?period=all', { as: 'ann', method: 'GET' });
+  assert.ok(others.body.rows.some((r) => r.name === 'New player'));
+  assert.ok(!others.body.rows.some((r) => r.name === 'Quiet Otter'), 'other players do not see a name before approval');
+  const self = await call('/v1/scoreboard?period=all', { as: 'newbie', method: 'GET' });
+  assert.equal(self.body.rows.find((r) => r.me).name, 'Quiet Otter', 'a player always sees their own name');
+  assert.equal((await call('/v1/profile', { as: 'newbie', method: 'GET' })).body.nameApproved, false);
+
+  await db.prepare("INSERT OR REPLACE INTO name_reviews (user_id, name_key, reviewed_by, reviewed_at) VALUES ('newbie', 'quietotter', 'test', 1)").run();
+  assert.equal((await call('/v1/profile', { as: 'newbie', method: 'GET' })).body.nameApproved, true, 'approved by an admin');
+
+  // Changing an approved name sends it back for approval.
+  assert.equal((await name('newbie', 'Loud Otter', { approve: false })).body.nameApproved, false);
+
+  // A name from Suggest a name is approved straight away; a look-alike typed
+  // with other words is not.
+  assert.equal((await name('newbie', 'SwiftOwl42', { approve: false })).body.nameApproved, true);
+  assert.equal((await name('newbie', 'SwiftOwl4', { approve: false })).body.nameApproved, false);
+  assert.equal((await name('newbie', 'SwiftGoblin42', { approve: false })).body.nameApproved, false);
+
+});
+
+test('the server knows the same suggested-name words as the game', () => {
+  const src = readFileSync(join(root, '..', 'web', 'js', 'compete.js'), 'utf8');
+  const list = (n) => JSON.parse(src.match(new RegExp(`const ${n} = (\\[[^\\]]*\\]);`))[1].replace(/'/g, '"'));
+  assert.deepEqual(list('NAME_ADJ'), SUGGEST_ADJ);
+  assert.deepEqual(list('NAME_NOUN'), SUGGEST_NOUN);
+  for (let i = 0; i < 50; i++) {
+    const n = `${SUGGEST_ADJ[i % 20]}${SUGGEST_NOUN[(i * 7) % 20]}${10 + i}`;
+    assert.ok(isSuggestedName(n) && !checkName(n), n);
+  }
 });
 
 test('a race: host and rival solve the same puzzle, fastest wins', async () => {

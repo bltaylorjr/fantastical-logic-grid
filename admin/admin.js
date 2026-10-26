@@ -4,6 +4,7 @@
 // lives only in this tab (sessionStorage) and ends after 30 idle minutes.
 
 import { initPullRefresh } from './pull-refresh.js';
+import { renderConnections } from './connections-view.js';
 import { characterView } from './characters.js';
 import { ratingsView, initRatings } from './ratings.js';
 import { marketingView, initMarketing } from './marketing.js';
@@ -405,7 +406,7 @@ $('#parts-list').onclick = async (e) => {
 
 // ---- Communication: one inbox for messages, ideas, problems, error reports
 // and emails to players, and sending messages, news and banners to players.
-const FB_TOPICS = { story: 'Storyline idea', other: 'Other', play: 'Playing', sound: 'Sound and voices', pictures: 'Pictures', saving: 'Saving and sync' };
+const FB_TOPICS = { story: 'Storyline idea', theme: 'Theme or topic idea', feature: 'Game feature idea', other: 'Other', play: 'Playing', sound: 'Sound and voices', pictures: 'Pictures', saving: 'Saving and sync' };
 const MSG_TOPICS = { question: 'Question', idea: 'Idea', problem: 'Problem', team: 'Started by the team' };
 const TYPE_NAMES = { message: 'Message', idea: 'Idea', problem: 'Problem', error: 'Error report', email: 'Email' };
 const commTab = () => $('input[name=comm-tab]:checked').value;
@@ -656,9 +657,9 @@ views.names = async () => {
   $('#names-rows').innerHTML = d.names.length ? d.names.map((n) => `<tr>
       <td><b>${esc(n.name)}</b> ${n.flagged ? '<span class="badge warn">Check</span>' : ''}</td>
       <td>${day(n.updatedAt)}</td>
-      <td>${n.banned ? '<span class="badge bad">Banned</span>' : n.reviewed ? `<span class="badge ok">Looked at</span>` : '<span class="badge">New</span>'}</td>
+      <td>${n.banned ? '<span class="badge bad">Banned</span>' : n.reviewed ? `<span class="badge ok">Approved</span>` : '<span class="badge">New</span>'}</td>
       <td><div class="actions">
-        ${!n.reviewed ? `<button class="btn small primary" data-act="approve" data-uid="${esc(n.uid)}" aria-label="Name ${esc(n.name)} is fine">Fine</button>` : ''}
+        ${!n.reviewed ? `<button class="btn small primary" data-act="approve" data-uid="${esc(n.uid)}" aria-label="Approve ${esc(n.name)}">Approve</button>` : ''}
         <button class="btn small" data-act="rename" data-uid="${esc(n.uid)}" data-name="${esc(n.name)}">Rename</button>
         <button class="btn small" data-act="reset" data-uid="${esc(n.uid)}" data-name="${esc(n.name)}">Reset name</button>
         ${n.banned ? '' : `<button class="btn small danger" data-act="ban" data-uid="${esc(n.uid)}" data-name="${esc(n.name)}">Ban</button>`}
@@ -670,7 +671,7 @@ $('#names-rows').onclick = async (e) => {
   const b = e.target.closest('button[data-act]');
   if (!b) return;
   const { uid, name } = b.dataset;
-  if (b.dataset.act === 'open') { location.hash = 'players'; await show('players'); openPlayer(uid); return; }
+  if (b.dataset.act === 'open') { location.hash = `players/${encodeURIComponent(uid)}`; return; }
   const done = await playerAction(b.dataset.act, uid, name, b);
   if (done) show('names', { keepFocus: true });
 };
@@ -710,18 +711,90 @@ async function playerAction(kind, uid, name, button) {
   return false;
 }
 
-views.players = async () => {
-  const q = $('#players-q').value.trim();
-  const d = await api(`players?q=${encodeURIComponent(q)}&filter=${$('#players-filter').value}`);
-  $('#players-rows').innerHTML = d.players.length ? d.players.map((p) => `<tr>
-      <td><button class="rowlink" data-uid="${esc(p.uid)}">${p.name ? esc(p.name) : `<i>No screen name</i> <code>${esc(p.uid)}</code>`}</button></td>
-      <td class="num">${fmt(p.points)}</td><td class="num">${fmt(p.solves)}</td><td>${day(p.lastScore)}</td>
-      <td>${p.banned ? '<span class="badge bad">Banned</span>' : ''}</td></tr>`).join('')
-    : '<tr><td colspan="5" class="muted">No players found.</td></tr>';
+const SECTION_BADGES = {
+  pending: '<span class="badge warn">Needs approval</span>',
+  active: '<span class="badge ok">Approved, active</span>',
+  inactive: '<span class="badge">Approved, inactive</span>',
+  blocked: '<span class="badge bad">Blocked</span>',
+  account: '<span class="badge">No screen name yet</span>',
 };
-$('#players-form').onsubmit = (e) => { e.preventDefault(); $('#player-detail').innerHTML = ''; show('players'); };
-$('#players-filter').onchange = () => show('players');
-$('#players-rows').onclick = (e) => { const b = e.target.closest('button[data-uid]'); if (b) openPlayer(b.dataset.uid); };
+const playerList = { section: 'all', page: 1, dir: '' };
+views.players = async ({ arg } = {}) => {
+  const sort = $('#players-sort').value;
+  const qs = new URLSearchParams({ q: $('#players-q').value.trim(), filter: playerList.section, sort, page: playerList.page, per: $('#players-per').value });
+  if (playerList.dir) qs.set('dir', playerList.dir);
+  const d = await api(`players?${qs}`);
+  playerList.page = d.page;
+  $$('#players-sections [data-section]').forEach((b) => {
+    b.setAttribute('aria-pressed', String(b.dataset.section === d.filter));
+    $('.n', b).textContent = `(${fmt(d.sections[b.dataset.section])})`;
+  });
+  $$('#players-table th[data-sort]').forEach((th) => (th.dataset.sort === d.sort ? th.setAttribute('aria-sort', d.dir === 'asc' ? 'ascending' : 'descending') : th.removeAttribute('aria-sort')));
+  const moderator = can('moderator') && d.ids;
+  const nameCell = (p) => {
+    const label = p.name ? esc(p.name) : `<i>No screen name</i>${moderator ? ` <code>${esc(p.uid)}</code>` : ''}`;
+    return moderator ? `<a class="rowlink" href="#players/${encodeURIComponent(p.uid)}">${label}</a>` : label;
+  };
+  const actions = (p) => {
+    if (!moderator) return '';
+    const n = esc(p.name || '');
+    return `<td><div class="actions">
+      ${p.section === 'pending' ? `<button class="btn small primary" data-act="approve" data-uid="${esc(p.uid)}" data-name="${n}" aria-label="Approve ${n}">Approve</button>` : ''}
+      ${p.banned ? `<button class="btn small" data-act="unban" data-uid="${esc(p.uid)}" data-name="${n}" aria-label="Unblock ${n || 'this player'}">Unblock</button>`
+        : `<button class="btn small danger" data-act="ban" data-uid="${esc(p.uid)}" data-name="${n}" aria-label="Block ${n || 'this player'}">Block</button>`}
+    </div></td>`;
+  };
+  const cols = moderator ? 8 : 7;
+  $('#players-rows').innerHTML = d.players.length ? d.players.map((p) => `<tr>
+      <td>${nameCell(p)}</td><td>${day(p.joined)}</td><td>${day(p.seen)}</td>
+      <td class="num">${fmt(p.solves)}</td><td class="num">${fmt(p.races)}</td><td class="num">${fmt(p.points)}</td>
+      <td>${SECTION_BADGES[p.section] || ''}</td>${actions(p)}</tr>`).join('')
+    : `<tr><td colspan="${cols}" class="muted">No players here.</td></tr>`;
+  const from = d.total ? (d.page - 1) * d.per + 1 : 0;
+  const to = Math.min(d.total, d.page * d.per);
+  $('#players-count').textContent = d.total ? `Showing ${fmt(from)} to ${fmt(to)} of ${fmt(d.total)} players.` : 'No players here.';
+  $('#players-page').textContent = `Page ${fmt(d.page)} of ${fmt(d.pages)}`;
+  $('#players-prev').disabled = d.page <= 1;
+  $('#players-next').disabled = d.page >= d.pages;
+  if (arg && moderator) openPlayer(arg);
+  else if (!arg) $('#player-detail').innerHTML = '';
+};
+// Changing the list closes any open player page, so the address goes back to #players.
+const reloadPlayers = () => {
+  if (location.hash !== '#players') history.replaceState(null, '', '#players');
+  return show('players', { keepFocus: true });
+};
+$('#players-form').onsubmit = (e) => { e.preventDefault(); playerList.page = 1; if (location.hash !== '#players') location.hash = 'players'; else reloadPlayers(); };
+$('#players-sort').onchange = () => { playerList.page = 1; playerList.dir = ''; reloadPlayers(); };
+$('#players-per').onchange = () => { playerList.page = 1; reloadPlayers(); };
+$('#players-prev').onclick = () => { playerList.page -= 1; reloadPlayers(); };
+$('#players-next').onclick = () => { playerList.page += 1; reloadPlayers(); };
+$('#players-sections').onclick = (e) => {
+  const b = e.target.closest('[data-section]');
+  if (!b) return;
+  playerList.section = b.dataset.section;
+  playerList.page = 1;
+  reloadPlayers();
+};
+// A column heading sorts by that column; a second press turns the order round.
+$('#players-table thead').onclick = (e) => {
+  const th = e.target.closest('th[data-sort]');
+  if (!th || !e.target.closest('button')) return;
+  const cur = th.getAttribute('aria-sort');
+  playerList.dir = cur === 'descending' ? 'asc' : cur === 'ascending' ? 'desc' : (th.dataset.sort === 'name' ? 'asc' : 'desc');
+  $('#players-sort').value = th.dataset.sort;
+  playerList.page = 1;
+  reloadPlayers();
+};
+$('#players-rows').onclick = async (e) => {
+  const b = e.target.closest('button[data-act]');
+  if (!b) return;
+  const { uid, name } = b.dataset;
+  const done = b.dataset.act === 'approve'
+    ? await act(b, () => api(`names/${uid}/approve`, { method: 'POST' }), `${name} approved.`)
+    : await playerAction(b.dataset.act, uid, name, b);
+  if (done) reloadPlayers();
+};
 
 async function openPlayer(uid) {
   const box = $('#player-detail');
@@ -740,7 +813,7 @@ async function openPlayer(uid) {
       ${tile('Scored solves', fmt((sc.solo?.solves || 0) + (sc.race?.solves || 0)))}
       ${tile('Races', fmt(p.races.entered), `${fmt(p.races.solved)} solved · ${fmt(p.races.hosted)} hosted`)}
       ${p.account ? tile('Synced account', `${fmt(p.account.saves)} saves`, `${bytes(p.account.bytes)} · since ${day(p.account.createdAt)} · last sync ${day(p.account.lastSync)}`) : tile('Synced account', 'None')}
-      ${tile('Screen name', p.screenName ? (p.nameReviewed ? 'Looked at' : 'Not looked at') : '–', p.nameSince ? `since ${day(p.nameSince)}` : '')}
+      ${tile('Screen name', p.screenName ? (p.nameReviewed ? 'Approved' : 'Needs approval') : '–', p.nameSince ? `since ${day(p.nameSince)}` : '')}
     </div>
     <div class="row">
       ${can('admin') && !p.deletedAt ? '<button class="btn primary" type="button" data-act="message">Send a message</button>' : ''}
@@ -789,7 +862,8 @@ views.settings = async () => {
   const services = `<div class="card"><h2>Keys and services</h2><div class="services">
     ${keyLine(d.services.gemini, 'GEMINI_API_KEY', 'server voices and the Story workshop\'s AI writer (Google\'s free tier).')}
     ${keyLine(d.services.pictures, 'Workers AI', 'AI pictures (the AI binding in wrangler.toml, on Cloudflare\'s free allowance).')}
-    <p class="muted">Keys are never typed here or kept in the game. Add or change them in Cloudflare: Workers &amp; Pages &gt; flg-api &gt; Settings &gt; Variables and Secrets, as type Secret.</p></div></div>`;
+    <p class="muted">Keys are never typed here or kept in the game. Add or change them in Cloudflare: Workers &amp; Pages &gt; flg-api &gt; Settings &gt; Variables and Secrets, as type Secret.</p>
+    <p><a href="#connections">Every key, service and setting, with steps: Connections and setup</a></p></div></div>`;
   $('#settings-body').innerHTML = services + (editable ? '' : '<p class="note">You can see the settings. Changing them needs the admin role.</p>')
     + Object.entries(groups).map(([g, list]) => `<div class="card"><h2>${esc(g)}</h2>${list.map((s) => `<div class="setting">
       <div><b id="lbl-${s.key}">${esc(s.label)}</b><p class="help">${esc(s.help)}</p>${s.updatedBy ? `<p class="meta">Changed by ${esc(s.updatedBy)} on ${when(s.updatedAt)}</p>` : ''}</div>
@@ -813,6 +887,8 @@ $('#settings-body').onclick = (e) => {
   else if ($(`#set-${key}`).type === 'number') saveSettingValue(key, Number($(`#set-${key}`).value), b);
   else saveSettingValue(key, $(`#set-${key}`).value.trim(), b);
 };
+
+views.connections = () => renderConnections($('#connections-view'), { api, esc, when, toast, announce });
 
 $('#ann-form').onsubmit = async (e) => {
   e.preventDefault();
@@ -1095,7 +1171,10 @@ const MIN_ROLE = Object.fromEntries($$('#nav-list a').map((a) => [a.hash.slice(1
 // Older links: the idea and problem inbox, error reports and announcements now live in Communication.
 const ALIASES = { feedback: { type: 'idea' }, errors: { type: 'error' }, announcements: { tab: 'send' } };
 
-async function show(name, { keepFocus = false } = {}) {
+async function show(route, { keepFocus = false } = {}) {
+  // #players/<id> opens a player's page under the list.
+  let [name, ...rest] = String(route || '').split('/');
+  const arg = rest.length ? decodeURIComponent(rest.join('/')) : undefined;
   const alias = ALIASES[name];
   if (alias) {
     if (alias.type) { $('input[name=comm-tab][value=inbox]').checked = true; $('#comm-type').value = alias.type; }
@@ -1106,13 +1185,13 @@ async function show(name, { keepFocus = false } = {}) {
   if (!views[name] || !can(MIN_ROLE[name])) name = 'overview';
   $$('[data-view]').forEach((s) => { s.hidden = s.dataset.view !== name; });
   $$('#nav-list a').forEach((a) => (a.hash === `#${name}` ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current')));
-  try { await views[name](); } catch (e) {
+  try { await views[name]({ arg }); } catch (e) {
     if (e.code === 'sign_in') return;
     const sec = $(`[data-view="${name}"]`);
     $('.load-error', sec)?.remove();
     sec.insertAdjacentHTML('beforeend', `<p class="error load-error">${esc(e.message)}</p>`);
   }
-  if (!keepFocus) $(`[data-view="${name}"] h1`)?.focus?.();
+  if (!keepFocus && !arg) $(`[data-view="${name}"] h1`)?.focus?.();
 }
 $$('[data-view] h1').forEach((h) => h.setAttribute('tabindex', '-1'));
 addEventListener('hashchange', () => { if (me) show(location.hash.slice(1)); });

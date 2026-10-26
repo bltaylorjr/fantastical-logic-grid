@@ -84,3 +84,27 @@ player text into issues, commits or pull requests.
 - To ship a desktop release, bump the version in `package.json`,
   `desktop/src-tauri/tauri.conf.json` and `desktop/src-tauri/Cargo.toml`
   (the Tests workflow checks they match) and merge to main.
+
+## Connections and setup guide
+
+Every outside connection (GitHub, Cloudflare, Firebase, Google, Bing, Gmail,
+Resend, the domain, the desktop update key) is listed once, in
+`admin/connections.js`: what it is for, the exact secret, variable and binding
+names (never values), settings, steps and links.
+
+- **Admin dashboard > Connections and setup** shows it, searchable, with live
+  Connected or Missing status: Worker names from the Worker itself, website and
+  DNS checks, dashboard switches, and GitHub secret and variable names from the
+  daily **Connections status** Action (`.github/workflows/connections-status.yml`,
+  names only, never values).
+- `docs/CONNECTIONS.md` is the same guide for reading on GitHub, made with
+  `node scripts/connections.mjs md > docs/CONNECTIONS.md`.
+- **Kept up to date by the tests**: `node scripts/connections.mjs check` (the
+  `connections` job in the Tests workflow) fails when the Worker code,
+  `server/wrangler.toml` or a workflow uses a secret, variable or binding that
+  `admin/connections.js` does not list, when docs/CONNECTIONS.md is out of date,
+  or when an entry looks like it holds a real key.
+- **Owner task emails from the same list**: `node scripts/connections.mjs email
+  <id> [<id> ...] --title "..." > docs/owner-tasks/YYYY-MM-DD-name.md` writes
+  the email for those connections (`--missing` lists the ids), so an email and
+  the dashboard always give the same steps.

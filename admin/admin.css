@@ -87,6 +87,23 @@ main:focus { outline: none; }
 #ch-form fieldset { border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; margin: 0; }
 #ch-form fieldset.field .check { display: inline-flex; margin-right: 18px; }
 
+/* Connections and setup */
+.conn > summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; list-style-position: outside; }
+.conn > summary .conn-title { display: inline-flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.conn[open] > summary { margin-bottom: 8px; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
+.conn-steps { padding-left: 1.5rem; }
+.conn-steps li { margin: 4px 0; }
+.conn-steps .check { align-items: flex-start; min-height: 0; }
+.conn-steps .check input { flex: none; margin-top: 2px; }
+.conn-steps input:checked + span { color: var(--muted); text-decoration: line-through; }
+.conn-settings { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 4px 16px; margin: 0; }
+.conn-settings dt { font-weight: 600; }
+.conn-settings dd { margin: 0; overflow-wrap: anywhere; }
+.conn-checks { list-style: none; padding: 0; }
+.conn-checks li { margin: 4px 0; }
+.conn a { overflow-wrap: anywhere; }
+@media (max-width: 760px) { .conn-settings { grid-template-columns: minmax(0, 1fr); } }
+
 .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px; margin: 12px 0; }
 .tile { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
 .tile .label { color: var(--muted); font-size: .9rem; }
@@ -185,6 +202,17 @@ ul.plain { list-style: none; padding: 0; display: flex; flex-direction: column; 
 .alerts li { margin: 4px 0; }
 .csv-btn { float: right; margin: -4px 0 4px; }
 td.num, th.num { white-space: nowrap; }
+
+/* Players: section buttons, sortable headings, pages */
+.sections { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 4px; }
+.sections .btn[aria-pressed="true"] { background: var(--accent); color: var(--accent-text); }
+.sections .n { font-weight: 700; }
+.table th button.sort { font: inherit; font-weight: inherit; background: none; border: 0; color: inherit; cursor: pointer; padding: 0; min-height: 32px; text-align: inherit; }
+.table th button.sort::after { content: ""; display: inline-block; width: 1em; }
+.table th[aria-sort="ascending"] button.sort::after { content: " ▲"; }
+.table th[aria-sort="descending"] button.sort::after { content: " ▼"; }
+.table a.rowlink { color: var(--accent); }
+.pager { align-items: center; justify-content: flex-start; gap: 12px; }
 /* Communication: a conversation with a player */
 .thread { border-color: var(--accent); }
 .thread .head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }

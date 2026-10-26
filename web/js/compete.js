@@ -54,15 +54,21 @@ function remember(screenName) {
   return screenName;
 }
 let acceptInvites = true;
+// False while an admin has not approved a new or changed name yet: other
+// players see "New player" until then.
+let nameApproved = true;
+export const isNameApproved = () => nameApproved;
 export const acceptsInvites = () => acceptInvites;
 export async function loadName() {
   const r = await call('/v1/profile');
   acceptInvites = r.acceptInvites !== false;
+  nameApproved = r.nameApproved !== false;
   return remember(r.screenName);
 }
 export async function setName(screenName, accept = acceptInvites) {
   const r = await call('/v1/profile', { method: 'PUT', body: { screenName, acceptInvites: !!accept } });
   acceptInvites = r.acceptInvites !== false;
+  nameApproved = r.nameApproved !== false;
   return remember(r.screenName);
 }
 export async function setAcceptInvites(accept) {
