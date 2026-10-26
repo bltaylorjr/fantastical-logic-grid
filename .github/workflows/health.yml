@@ -4,6 +4,9 @@
 # owner); when it is back up the issue closes itself with a note.
 # Once a day it also opens or updates an issue listing errors players hit,
 # when the repository secret FLG_ADMIN_TOKEN (the Worker's ADMIN_TOKEN) is set.
+# With that secret it also opens an issue when a free allowance passes the
+# alert level set in the admin dashboard (Alerts and reports), and closes it
+# when usage drops back.
 # Free: scheduled GitHub Actions on a public repo cost nothing.
 name: Health check
 on:
@@ -122,4 +125,41 @@ jobs:
             else {
               await github.rest.issues.createLabel({ ...context.repo, name: label, color: 'fbca04', description: 'Error reports from players' }).catch(() => {});
               await github.rest.issues.create({ ...context.repo, title: 'Players are hitting errors', labels: [label], body });
+            }
+
+  limits:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      API: ${{ vars.FLG_CLOUD_URL || 'https://flg-api.btay74.workers.dev' }}
+      TOKEN: ${{ secrets.FLG_ADMIN_TOKEN }}
+    steps:
+      - name: Fetch the free-limit alerts
+        id: fetch
+        run: |
+          if [ -z "$TOKEN" ]; then echo "FLG_ADMIN_TOKEN is not set; skipping the free-limit check."; echo 'json={"alerts":[],"skip":true}' >> "$GITHUB_OUTPUT"; exit 0; fi
+          json=$(curl -fsS --max-time 20 -H "Authorization: Bearer $TOKEN" "$API/admin/v1/alerts")
+          echo "json=$(jq -c . <<<"$json")" >> "$GITHUB_OUTPUT"
+      - name: Open, update or close the free-limit issue
+        uses: actions/github-script@v9
+        env:
+          ALERTS: ${{ steps.fetch.outputs.json }}
+        with:
+          script: |
+            const label = 'free-limits';
+            const data = JSON.parse(process.env.ALERTS);
+            if (data.skip) return;
+            const { data: open } = await github.rest.issues.listForRepo({ ...context.repo, state: 'open', labels: label });
+            if (data.alerts.length) {
+              const body = `A free allowance is at or above ${data.alertPercent}% (the level set in the admin dashboard under Alerts and reports):\n\n${data.alerts.map((a) => `- **${a.label}: ${a.percent}%.** ${a.text}`).join('\n')}\n\nNothing is ever billed: when a free allowance runs out, that service stops until it resets. Checked ${new Date().toUTCString()}. This issue closes itself when usage drops back.`;
+              if (open.length) await github.rest.issues.update({ ...context.repo, issue_number: open[0].number, body });
+              else {
+                await github.rest.issues.createLabel({ ...context.repo, name: label, color: 'e99695', description: 'A free allowance is nearly used' }).catch(() => {});
+                await github.rest.issues.create({ ...context.repo, title: 'A free limit is nearly used', labels: [label], body });
+              }
+            } else {
+              for (const issue of open) {
+                await github.rest.issues.createComment({ ...context.repo, issue_number: issue.number, body: `Usage is back under ${data.alertPercent}% (${new Date().toUTCString()}). Closing.` });
+                await github.rest.issues.update({ ...context.repo, issue_number: issue.number, state: 'closed', state_reason: 'completed' });
+              }
             }

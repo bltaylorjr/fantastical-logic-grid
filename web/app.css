@@ -742,3 +742,9 @@ dialog.rules table.board td { font-variant-numeric: tabular-nums; }
 .stats-table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
 .stats-table th, .stats-table td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--edge-hi); }
 #dlg-stats h3 { margin: 18px 0 8px; }
+
+/* Smarter hints */
+.hint-clue { display: block; margin-top: 4px; padding-left: 10px; border-left: 3px solid var(--hint); font-style: italic; quotes: "“" "”"; }
+.hint-lesson { color: var(--muted); }
+.hint-chain summary { cursor: pointer; font-weight: 700; }
+.hint-chain ol { margin: 6px 0 0; padding-left: 1.4em; }
