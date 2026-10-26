@@ -161,13 +161,14 @@ export function requestPersistence() {
 export const DEFAULT_SETTINGS = {
   colorTheme: 'system', autoX: false, singleKeys: true, showTimer: true, coach: true, sound: true, volume: 60,
   silent: false, music: true, musicVolume: 40, instant: false,
-  readAloud: true, aiPictures: 'scene', voiceProvider: 'server', kokoroReady: false, portraitStyle: 'notionists', confetti: true, introOffered: false,
+  readAloud: true, aiPictures: 'scene', voiceProvider: 'server', kokoroReady: false, portraitStyle: 'notionists', confetti: true, celebrations: ['confetti'], celebrateRandom: false, introOffered: false,
   learn: true, shareNoticeShown: false, language: 'en-US', languageOffered: false,
 };
 
 // Chosen in the admin dashboard for every player (GET /v1/config, kept by
 // remote-config.js): setting name -> its name in the config's `game`.
-const ADMIN_SET = { voiceProvider: 'voiceSource', readAloud: 'readAloud', portraitStyle: 'portraitStyle', confetti: 'confetti', aiPictures: 'aiPictures' };
+const ADMIN_SET = { voiceProvider: 'voiceSource', readAloud: 'readAloud', portraitStyle: 'portraitStyle', confetti: 'confetti', aiPictures: 'aiPictures',
+  celebrations: 'celebrations', celebrateRandom: 'celebrateRandom' };
 // Starting values the dashboard can change. They apply until the player
 // changes that setting; the keys a player changed are listed in settings.chosen.
 const ADMIN_DEFAULTS = ['sound', 'volume', 'music', 'musicVolume'];
@@ -189,6 +190,8 @@ export function loadSettings() {
   for (const k of ADMIN_DEFAULTS) if (!s.chosen.includes(k) && defaults[k] !== undefined) s[k] = defaults[k];
   const game = config.game || {};
   for (const [k, from] of Object.entries(ADMIN_SET)) s[k] = game[from] !== undefined ? game[from] : DEFAULT_SETTINGS[k];
+  // A config from before the effect list: confetti or nothing.
+  if (game.celebrations === undefined && game.confetti !== undefined) s.celebrations = game.confetti ? ['confetti'] : [];
   return s;
 }
 
