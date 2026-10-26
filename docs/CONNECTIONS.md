@@ -474,7 +474,7 @@ uses a secret, variable or binding that is not listed there.
 
 ### Gmail app password (the game's outgoing email)
 
-**Why:** GitHub Actions send the weekly archive and summary emails, owner task emails and the backup thank-you notes from fantasticallogicgrid@gmail.com.
+**Why:** GitHub Actions send the weekly archive and summary emails, the daily player report, owner task emails and the backup thank-you notes from fantasticallogicgrid@gmail.com.
 
 **Cost:** Free. Gmail allows about 500 emails a day.
 
@@ -485,6 +485,8 @@ uses a secret, variable or binding that is not listed there.
 | `ARCHIVE_TO` | GitHub repository secret | Value: `fantasticallogicgrid@gmail.com` Where archive zips go. |
 | `SUMMARY_TO` | GitHub repository secret | Weekly summary to another address (otherwise ARCHIVE_TO). Optional. |
 | `OWNER_TASKS_TO` | GitHub repository secret | Owner task emails to another address (otherwise GMAIL_USER). Optional. |
+| `REPORTS_TO` | GitHub repository secret | Daily player report to another address (otherwise ARCHIVE_TO). Optional. |
+| `PLAYER_REPORTS` | GitHub repository variable | Value: `off` Only to stop the daily player report email. Optional. |
 
 **Settings:**
 
@@ -554,7 +556,7 @@ uses a secret, variable or binding that is not listed there.
 7. Name: `RESEND_API_KEY`. Secret: the key. Click **Add secret**.
 8. Test: in the game, signed in with a confirmed account, send an idea with "Email me a thank-you note" ticked.
 
-**Links:** [Resend domains](https://resend.com/domains) · [Resend API keys](https://resend.com/api-keys)
+**Links:** [Resend domains](https://resend.com/domains) · [Resend API keys](https://resend.com/api-keys) · [Full guide (server/FEEDBACK-EMAILS.md)](https://github.com/bltaylorjr/fantastical-logic-grid/blob/main/server/FEEDBACK-EMAILS.md)
 
 ## Desktop and mobile apps
 

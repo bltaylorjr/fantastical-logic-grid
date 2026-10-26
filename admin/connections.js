@@ -455,7 +455,7 @@ export const CONNECTIONS = [
     id: 'gmail',
     group: 'email',
     title: 'Gmail app password (the game\'s outgoing email)',
-    why: 'GitHub Actions send the weekly archive and summary emails, owner task emails and the backup thank-you notes from fantasticallogicgrid@gmail.com.',
+    why: 'GitHub Actions send the weekly archive and summary emails, the daily player report, owner task emails and the backup thank-you notes from fantasticallogicgrid@gmail.com.',
     cost: 'Free. Gmail allows about 500 emails a day.',
     docs: 'server/ARCHIVE.md',
     names: [
@@ -464,6 +464,8 @@ export const CONNECTIONS = [
       { name: 'ARCHIVE_TO', where: 'github-secret', value: 'fantasticallogicgrid@gmail.com', note: 'Where archive zips go.' },
       { name: 'SUMMARY_TO', where: 'github-secret', optional: true, note: 'Weekly summary to another address (otherwise ARCHIVE_TO).' },
       { name: 'OWNER_TASKS_TO', where: 'github-secret', optional: true, note: 'Owner task emails to another address (otherwise GMAIL_USER).' },
+      { name: 'REPORTS_TO', where: 'github-secret', optional: true, note: 'Daily player report to another address (otherwise ARCHIVE_TO).' },
+      { name: 'PLAYER_REPORTS', where: 'github-variable', optional: true, value: 'off', note: 'Only to stop the daily player report email.' },
     ],
     settings: [{ label: 'Google account > Security > 2-Step Verification', value: 'On (needed for app passwords)' }],
     steps: [
@@ -507,6 +509,7 @@ export const CONNECTIONS = [
     id: 'resend',
     group: 'email',
     title: 'Resend: player emails from noreply@thelogicgrid.com',
+    docs: 'server/FEEDBACK-EMAILS.md',
     why: 'Sends the thank-you notes for ideas and problems from noreply@thelogicgrid.com instead of the Gmail address. Until it is set up, notes go from Gmail, so nothing is lost.',
     cost: 'Free plan: 3,000 emails a month, 100 a day, no card. Past that Resend refuses and Gmail takes over.',
     names: [
