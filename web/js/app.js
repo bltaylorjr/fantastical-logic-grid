@@ -25,6 +25,7 @@ import * as daily from './daily.js';
 import * as stats from './stats.js';
 import { shareResult } from './share-result.js';
 import * as challenge from './challenge.js';
+import * as dailyResults from './daily-results.js';
 import * as i18n from './i18n.js';
 import { CLOUD_URL } from './cloud-config.js';
 
@@ -1256,6 +1257,15 @@ async function renderSolvedExtras(save) {
   box.innerHTML = fresh.length ? `<h3>New badge${fresh.length > 1 ? 's' : ''}</h3><ul class="badges">${fresh.map(badgeHtml).join('')}</ul>` : '';
   const line = $('#solved-streak');
   line.hidden = true;
+  const nums = $('#solved-daily-numbers');
+  nums.hidden = true;
+  // Counted once: the mark is saved before the time is sent.
+  if (save.daily && !save.dailySent) {
+    save.dailySent = true;
+    await flushSave({ manual: true });
+    dailyResults.finished(save.daily, save.elapsedMs, save.revealed);
+  }
+  if (save.daily) showDailyNumbers(save);
   if (!save.daily || save.revealed) return;
   const st = daily.streak(await stats.solveLog().catch(() => []), save.daily);
   if (!S || S.save !== save) return;
@@ -1263,6 +1273,15 @@ async function renderSolvedExtras(save) {
   line.textContent = st.days.has(save.daily)
     ? (st.current > 1 ? `Daily streak: ${st.current} days in a row. Come back tomorrow for the next one.` : 'Your daily streak has started. Come back tomorrow for the next puzzle.')
     : 'This daily puzzle was finished after its day, so it does not add to your streak.';
+}
+// Everyone's numbers for this daily puzzle, under the streak.
+async function showDailyNumbers(save) {
+  const st = await dailyResults.statsFor(save.daily);
+  if (!st || !st.started || !S || S.save !== save) return;
+  const quicker = save.revealed ? null : dailyResults.quickerThan(st, save.elapsedMs);
+  const nums = $('#solved-daily-numbers');
+  nums.textContent = `Everyone on this puzzle: ${dailyResults.summaryLine(st)}.${quicker !== null ? ` You were quicker than ${quicker}% of the other solvers.` : ''}`;
+  nums.hidden = false;
 }
 function badgeHtml(b) {
   return `<li class="badge-item${b.at === null ? ' locked' : ''}"><span class="badge-mark" aria-hidden="true">${b.at === null ? '◇' : '◆'}</span><span><b>${esc(b.name)}</b><small>${esc(b.text)}${b.at ? ` Earned ${esc(new Date(b.at).toLocaleDateString())}.` : ''}</small></span>${b.at === null ? '<span class="sr-only">Not earned yet.</span>' : ''}</li>`;
@@ -1404,7 +1423,14 @@ async function renderDaily() {
   box.innerHTML = `<p class="daily-title"><b>${esc(l.title)}</b></p>
     <p class="daily-meta"><span class="pill">${esc(daily.longDate(l.date))}</span> <span class="pill">${esc(l.difficultyName)}</span> <span class="pill">${esc(l.themeName)}</span> <span class="pill">${l.categories} × ${l.items}</span>${state ? ` <span class="pill">${esc(state)}</span>` : ''}</p>
     ${l.offline ? '<p class="help">Offline: showing the last daily puzzle this device saw.</p>' : ''}
+    <p class="daily-numbers muted" id="daily-numbers" hidden></p>
     <button class="btn primary" type="button" data-daily="${esc(l.date)}">${todays ? (todays.solved ? "Open today's puzzle" : "Continue today's puzzle") : "Play today's puzzle"}</button>`;
+  if (!l.offline) dailyResults.statsFor(l.date).then((st) => {
+    const el = $('#daily-numbers');
+    if (!st || !el || dailyLatest !== l) return;
+    el.textContent = dailyResults.summaryLine(st);
+    el.hidden = !el.textContent;
+  });
   const earlier = (l.days || []).filter((d) => d < l.date).slice(0, 7);
   $('#daily-earlier').hidden = !earlier.length;
   $('#daily-list').innerHTML = earlier.map((d) => {
@@ -1426,6 +1452,7 @@ async function openDaily(date, btn) {
     const save = newSave(puzzle);
     save.daily = date;
     await store.putSave(save);
+    dailyResults.started(date);
     openGame(save, { fresh: true });
   } catch (e) {
     toast(`The daily puzzle could not be opened. ${e.message || ''}`.trim(), { label: 'Try again', run: () => openDaily(date) });
