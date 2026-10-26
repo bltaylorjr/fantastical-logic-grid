@@ -186,9 +186,9 @@ test('ideas and problems arrive in separate boxes', async () => {
   assert.equal((await call(`/admin/v1/feedback/${id}`, { auth: TOKEN, body: { status: 'done' } })).status, 200);
   assert.equal((await call('/admin/v1/feedback?kind=problem', { auth: TOKEN })).body.items.length, 0);
   assert.equal((await call('/admin/v1/feedback?kind=problem&status=done', { auth: TOKEN })).body.items.length, 1);
-  assert.equal((await call(`/admin/v1/feedback/${id}`, { auth: TOKEN, body: { status: 'addressed' } })).status, 400, 'addressed needs a note');
-  assert.equal((await call(`/admin/v1/feedback/${id}`, { auth: TOKEN, body: { status: 'addressed', note: '  Fixed the music   loop in 1.7.1. ' } })).status, 200);
-  const addressed = (await call('/admin/v1/feedback?kind=problem&status=addressed', { auth: TOKEN })).body;
+  assert.equal((await call(`/admin/v1/feedback/${id}`, { auth: idToken('owner-addr-uid', OWNER), body: { status: 'addressed' } })).status, 400, 'addressed needs a note');
+  assert.equal((await call(`/admin/v1/feedback/${id}`, { auth: idToken('owner-addr-uid', OWNER), body: { status: 'addressed', note: '  Fixed the music   loop in 1.7.1. ' } })).status, 200);
+  const addressed = (await call('/admin/v1/feedback?kind=problem&status=addressed', { auth: idToken('owner-addr-uid', OWNER) })).body;
   assert.deepEqual(addressed.items.map((x) => [x.status, x.note]), [['addressed', 'Fixed the music loop in 1.7.1.']]);
   assert.equal(addressed.waiting.problem, undefined, 'addressed is not waiting');
   assert.equal((await call(`/admin/v1/feedback/${id}`, { auth: TOKEN, body: { status: 'delete' } })).status, 200);
@@ -359,20 +359,22 @@ test('backups: the archive page, a download, and the viewer page', async () => {
 });
 
 test('errors can be marked addressed with the version that fixed them', async () => {
+  // The owner on another device (its own rate limit), so the other tests keep theirs. (its own rate limit), so the other tests keep theirs.
+  const owner = idToken('owner-fix-uid', OWNER);
   const report = (version) => ({ kind: 'error', message: "Cannot read properties of undefined (reading 'toLowerCase')", stack: 'at h (https://x.test/js/app.js:1882:9)', platform: 'web', version });
   await call('/v1/errors', { body: { errors: [report('1.6.0'), report('1.7.1')] } });
-  const before = (await call('/admin/v1/errors', { auth: TOKEN })).body.errors.filter((x) => /toLowerCase/.test(x.message));
+  const before = (await call('/admin/v1/errors', { auth: owner })).body.errors.filter((x) => /toLowerCase/.test(x.message));
   assert.equal(before.length, 2);
   assert.ok(before.every((x) => !x.fix));
   const mark = { message: before[0].message, place: before[0].place, fixedIn: '1.7.1', note: 'Ignore key presses with no key (autofill).' };
-  assert.equal((await call('/admin/v1/errors/fix', { auth: TOKEN, body: { ...mark, fixedIn: 'soon' } })).status, 400);
-  assert.equal((await call('/admin/v1/errors/fix', { auth: TOKEN, body: mark })).status, 200);
-  const after = (await call('/admin/v1/errors', { auth: TOKEN })).body.errors.filter((x) => /toLowerCase/.test(x.message));
+  assert.equal((await call('/admin/v1/errors/fix', { auth: owner, body: { ...mark, fixedIn: 'soon' } })).status, 400);
+  assert.equal((await call('/admin/v1/errors/fix', { auth: owner, body: mark })).status, 200);
+  const after = (await call('/admin/v1/errors', { auth: owner })).body.errors.filter((x) => /toLowerCase/.test(x.message));
   const byVersion = Object.fromEntries(after.map((x) => [x.version, x.fix]));
   assert.equal(byVersion['1.6.0'].missed, false, 'an older version counts as fixed');
   assert.equal(byVersion['1.7.1'].missed, true, 'the fixed version or later shows the fix missed it');
   assert.equal(byVersion['1.6.0'].note, mark.note);
-  assert.equal((await call(`/admin/v1/errors/fix/${byVersion['1.6.0'].id}/delete`, { auth: TOKEN, body: {} })).status, 200);
+  assert.equal((await call(`/admin/v1/errors/fix/${byVersion['1.6.0'].id}/delete`, { auth: owner, body: {} })).status, 200);
 });
 
 test('the older token pages still work and are audited', async () => {
