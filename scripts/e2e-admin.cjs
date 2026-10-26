@@ -166,7 +166,13 @@ const SHOTS = process.env.SHOTS;
     await page.locator('input[name=theme-off]').first().check();
     await page.click('button[data-save=disabled_themes]');
     await page.waitForFunction(() => /Changed by/.test(document.querySelector('#settings-body').textContent));
-    const saved = JSON.parse((await db.prepare("SELECT value FROM settings WHERE key = 'disabled_themes'").first()).value);
+    // "Changed by" can already show from an earlier save, so wait for the row itself.
+    let saved = [];
+    for (let i = 0; i < 50 && saved.length !== 1; i++) {
+      const row = await db.prepare("SELECT value FROM settings WHERE key = 'disabled_themes'").first();
+      saved = row ? JSON.parse(row.value) : [];
+      if (saved.length !== 1) await new Promise((r) => setTimeout(r, 100));
+    }
     assert(saved.length === 1 && saved[0] === theme, `theme "${theme}" is switched off`);
     // Settings that moved out of the game.
     const dbValue = async (key) => { const r = await db.prepare('SELECT value FROM settings WHERE key = ?').bind(key).first(); return r && JSON.parse(r.value); };
