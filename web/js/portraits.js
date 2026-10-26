@@ -2,11 +2,18 @@
 // Peeps artwork CC0). The same name in the same theme always gets the same
 // face. Animal casts and the "Built-in" choice use the game's own art.
 // Each face is drawn as a woman or a man to match the character's voice.
-import { createAvatar, notionists, lorelei, openPeeps } from '../vendor/dicebear/dicebear.js';
+// DiceBear is large (about 770 KB), so it loads after the first screen is up
+// (loadPortraits); until then portrait() draws the game's own art.
 import { portraitSvg } from './art.js';
 import { genderOf } from './gender.js';
 
-const STYLES = { notionists, lorelei, openPeeps };
+let lib = null;
+let loading = null;
+export function loadPortraits() {
+  loading ||= import('../vendor/dicebear/dicebear.js').then((m) => { lib = m; }).catch((e) => { loading = null; throw e; });
+  return loading;
+}
+export const portraitsReady = () => !!lib;
 const v = (nums) => nums.map((n) => `variant${String(n).padStart(2, '0')}`);
 // Hair and features that read clearly as a woman's or a man's in each set.
 // Ones that could pass for either are left out.
@@ -28,11 +35,11 @@ const BACKGROUNDS = ['b6e3f4', 'c0aede', 'd1d4f9', 'ffd5dc', 'ffdfbf', 'c7f0d8']
 
 export function portrait(puzzle, name, { size = 72, style = 'notionists' } = {}) {
   const isPet = puzzle.theme.id === 'pets' && /pet|animal|dog|cat/i.test(`${puzzle.cast && puzzle.cast.many}`);
-  const st = STYLES[style];
+  const st = lib && { notionists: lib.notionists, lorelei: lib.lorelei, openPeeps: lib.openPeeps }[style];
   if (!st || isPet) return portraitSvg(puzzle, name, { size });
   const g = genderOf(name);
   try {
-    return createAvatar(st, {
+    return lib.createAvatar(st, {
       seed: `${puzzle.theme.id}:${name}`, size, radius: 50, randomizeIds: true,
       backgroundColor: BACKGROUNDS, backgroundType: ['solid'], ...LOOKS[style][g],
     }).toString().replace('<svg ', `<svg class="portrait-svg" data-gender="${g}" aria-hidden="true" focusable="false" `);

@@ -124,7 +124,7 @@ are never stored on the phone. Icons: `node scripts/admin-icons.cjs admin`.
    - **Bing.** https://www.bing.com/webmasters > Settings (gear) > **API access**
      > **API Key** > Generate. Add it as the Worker secret `BING_WEBMASTER_KEY`.
    - Open the dashboard's **Search** section and press **Refresh now**. After
-     that it updates by itself every day at 06:41 UTC. If your property is a
+     that it updates by itself every night at 2 am Eastern. If your property is a
      domain property, set the Worker variable `SEARCH_SITE_URL` in
      `server/wrangler.toml` to `sc-domain:thelogicgrid.com`.
 8. Optional: add helpers under **Admins** with the email of their game account.

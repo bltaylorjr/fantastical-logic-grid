@@ -100,7 +100,19 @@ export async function buildSeo({ root, site }) {
   // Inlined so the page paints without waiting for a stylesheet.
   const css = readFileSync(join(root, 'seo', 'site.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\s*\n\s*/g, '\n');
   const NAV = [['how-to-play/', 'How to play'], ['daily/', 'Daily puzzle'], ['themes/', 'Themes'], ['difficulty-levels/', 'Difficulty levels']];
-  const page = ({ path, title, description, body, crumbs = [], schema = [], lastmod = updated, priority = 0.6, type, listed = true }) => {
+  // Search results show about 60 characters of a title and 160 of a
+  // description: a title that would be cut loses the site name (it is still in
+  // og:site_name), and a description is shortened at a sentence or word.
+  const fitTitle = (t) => (t.length > 65 && t.endsWith(` | ${name}`) ? t.slice(0, -name.length - 3) : t);
+  const fitDescription = (d) => {
+    if (d.length <= 160) return d;
+    const cut = d.slice(0, 160);
+    const end = cut.lastIndexOf('. ');
+    return end > 80 ? cut.slice(0, end + 1) : `${cut.slice(0, cut.lastIndexOf(' ')).replace(/[,;:]$/, '')}…`;
+  };
+  const page = ({ path, title: fullTitle, description: fullDescription, body, crumbs = [], schema = [], lastmod = updated, priority = 0.6, type, listed = true }) => {
+    const title = fitTitle(fullTitle);
+    const description = fitDescription(fullDescription);
     const file = path.endsWith('.html') ? path : `${path}index.html`;
     const up = '../'.repeat(file.split('/').length - 1);
     const trail = [['', 'Home'], ...crumbs];
@@ -150,6 +162,7 @@ ${body(up)}
   const playBtn = (up, text = 'Play a new puzzle now') => `<p><a class="btn big" href="${up}">${text}</a></p>`;
 
   // ---------- the game page (index.html) ----------
+  const GAME_TITLE = `Free logic grid puzzles with stories | ${name}`;
   const appDescription = 'Free story logic grid puzzles. Pick a difficulty, theme and size, then solve, save, resume and print. Every puzzle is a brand new story with exactly one answer.';
   const game = {
     '@context': 'https://schema.org', '@type': ['VideoGame', 'WebApplication'], name, url: url(''),
@@ -160,7 +173,9 @@ ${body(up)}
     accessibilityFeature: ['highContrastDisplay', 'largePrint', 'captions', 'transcript', 'fullKeyboardControl', 'screenReaderSupport'],
     trailer: { '@id': url('how-to-play/#video') },
   };
-  const website = { '@context': 'https://schema.org', '@type': 'WebSite', name, url: url(''), description: appDescription };
+  const publisher = { '@type': 'Organization', name, url: url(''), logo: { '@type': 'ImageObject', url: url('icons/icon-512.png') } };
+  game.publisher = publisher;
+  const website = { '@context': 'https://schema.org', '@type': 'WebSite', name, url: url(''), description: appDescription, inLanguage: 'en', publisher };
   const head = `<meta name="description" content="${esc(appDescription)}">
 <meta name="robots" content="index, follow, max-image-preview:large">
 ${social({ title: `${name}: free story logic grid puzzles`, description: appDescription, path: '' })}
@@ -170,8 +185,12 @@ ${verification}
 <meta name="flg-daily" content="daily/">`;
   // Shown when scripts are off, and read by crawlers that do not run them.
   const noscript = `<noscript><div class="card" style="margin:1rem"><p><strong>${name}</strong> is a free logic grid puzzle game where every puzzle is a brand new story. Turn on JavaScript to play.</p><p>${NAV.map(([p, n]) => `<a href="${p}">${n}</a>`).join(' · ')}</p></div></noscript>`;
+  // Crawlable links to the search pages at the foot of the home screen (website only).
+  const siteLinks = `<nav class="site-links" aria-label="More about the game"><ul>${NAV.map(([p, n]) => `<li><a href="${p}">${n}</a></li>`).join('')}</ul></nav>`;
   const game_html = appHtml
+    .replace('<title>The Fantastical Logic Grid</title>', `<title>${esc(GAME_TITLE)}</title>`)
     .replace(/<meta name="description"[^>]*>/, head)
+    .replace(/(<main id="screen-home"[\s\S]*?)(<\/main>)/, (_, home, end) => `${home}${siteLinks}\n${end}`)
     .replace(/<body>/, `<body>\n${noscript}`);
   writeFileSync(join(site, 'index.html'), game_html);
   pages.push({ path: '', lastmod: updated, priority: 1 });
@@ -236,6 +255,7 @@ ${playBtn(up, 'Start a new case')}`,
     title: `Logic puzzle difficulty levels, from Basic to MENSA | ${name}`,
     description: `${tiers.length} difficulty levels of logic grid puzzles: ${tiers.map((t) => t.name).join(', ')}. See the grid sizes and the kinds of clues each level uses.`,
     crumbs: [['difficulty-levels/', 'Difficulty levels']],
+    schema: [{ '@context': 'https://schema.org', '@type': 'ItemList', name: 'Logic puzzle difficulty levels', numberOfItems: tiers.length, itemListElement: tiers.map((t, i) => ({ '@type': 'ListItem', position: i + 1, name: t.name, description: t.summary })) }],
     body: (up) => `<h1>Difficulty levels</h1>
 <p class="lede">Start easy and work up. Each level adds categories, items and harder kinds of clues, and every puzzle can still be solved by deduction alone.</p>
 <div class="table-wrap"><table>
@@ -254,6 +274,7 @@ ${playBtn(up)}`,
     title: `Logic puzzle themes: mystery, fantasy, sci-fi and more | ${name}`,
     description: `${THEMES.length} story themes for logic grid puzzles: ${THEMES.map((t) => t.name).join(', ')}. Each has its own topics, characters and categories.`,
     crumbs: [['themes/', 'Themes']],
+    schema: [{ '@context': 'https://schema.org', '@type': 'ItemList', name: 'Logic puzzle themes', numberOfItems: THEMES.length, itemListElement: THEMES.map((t, i) => ({ '@type': 'ListItem', position: i + 1, name: `${t.name} logic puzzles`, url: url(`themes/${t.id}/`) })) }],
     body: (up) => `<h1>Puzzle themes</h1>
 <p class="lede">Pick a theme and the game writes a brand new story for it. Most themes also have topics, like which holiday or which kind of mystery.</p>
 <ul class="cards">${THEMES.map((t) => `<li><h2><a href="${up}themes/${t.id}/">${esc(t.name)} logic puzzles</a></h2><p>${esc(t.description)}</p><p class="muted">${getTopics(t.id).length} topics</p></li>`).join('')}</ul>
@@ -274,7 +295,9 @@ ${playBtn(up, `Play a ${t.name.toLowerCase()} puzzle`)}
 <ul class="cards">${topics.map((p) => `<li><h3>${esc(p.name)}</h3><p>${esc(p.description)}</p></li>`).join('')}</ul>
 <h2>What you match</h2>
 <p>Each puzzle matches the ${esc(t.cast.many)} with things like ${t.categories.slice(0, 4).map((c) => esc(c.name.toLowerCase())).join(', ')}.${count ? ` The ${esc(t.name)} theme alone can tell more than ${(Math.floor(count / 1000) * 1000).toLocaleString('en-US')} different stories.` : ''}</p>
-<p><a href="${up}themes/">All themes</a> · <a href="${up}how-to-play/">How to play</a></p>`,
+<h2>More themes</h2>
+<ul class="inline-links">${THEMES.filter((o) => o.id !== t.id).map((o) => `<li><a href="${up}themes/${o.id}/">${esc(o.name)} puzzles</a></li>`).join('')}</ul>
+<p><a href="${up}themes/">All themes</a> · <a href="${up}daily/">Today's daily puzzle</a> · <a href="${up}difficulty-levels/">Difficulty levels</a> · <a href="${up}how-to-play/">How to play</a></p>`,
     });
   }
 

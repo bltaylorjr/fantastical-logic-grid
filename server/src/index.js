@@ -12,9 +12,9 @@
 //   /admin/*                             the admin dashboard and its API (admin.js)
 //   GET /v1/health[?deep=1]              a quick check that the Worker (and with
 //                                        deep=1, the database and daily cleanup) is up
-// scheduled(): the daily cleanup of old data (upkeep.js), the weekly archive
-// email (archive.js) and the daily fetch of Google and Bing search numbers
-// (search.js), on the crons in wrangler.toml.
+// scheduled(): the nightly maintenance at 2 am Eastern (nightly.js: cleanup of
+// old data, database tidy-up, Google and Bing search numbers) and the weekly
+// archive email (archive.js), on the crons in wrangler.toml.
 
 import { handleLearn } from './learn.js';
 import { handleCompete } from './compete.js';
@@ -24,9 +24,9 @@ import { handlePictures } from './pictures.js';
 import { handleDaily } from './daily.js';
 import { handleTranslate } from './translate.js';
 import { handleAdmin } from './admin.js';
-import { refreshSearch, SEARCH_CRON } from './search.js';
+import { NIGHTLY_CRONS, isMaintenanceHour, runNightly } from './nightly.js';
 import { publicConfig } from './settings.js';
-import { runUpkeep, deepHealth } from './upkeep.js';
+import { deepHealth } from './upkeep.js';
 import { runArchive } from './archive.js';
 import { handleSync, handleDeleteAccount, isDeleted } from './sync.js';
 import { verifyIdToken, AuthError } from './auth.js';
@@ -109,15 +109,15 @@ export default {
     }
   },
   async scheduled(controller, env, ctx) {
-    if (controller.cron === SEARCH_CRON) {
-      ctx.waitUntil(refreshSearch(env).then((r) => console.log('search', JSON.stringify(r))));
-      return;
-    }
     if (controller.cron === WEEKLY_ARCHIVE_CRON) {
       // Only when Cloudflare email is connected; otherwise the GitHub Action sends it.
       ctx.waitUntil(runArchive(env).then((r) => console.log('archive', r.status, JSON.stringify(r.rows || {}))));
       return;
     }
-    ctx.waitUntil(runUpkeep(env).then((removed) => console.log('upkeep', JSON.stringify(removed))));
+    // The nightly maintenance (nightly.js): of the two UTC crons, only the one
+    // that falls at 2 am Eastern runs it.
+    const at = controller.scheduledTime || Date.now();
+    if (NIGHTLY_CRONS.includes(controller.cron) && !isMaintenanceHour(at)) return;
+    ctx.waitUntil(runNightly(env).then((r) => console.log('nightly', JSON.stringify(r))));
   },
 };

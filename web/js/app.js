@@ -7,11 +7,11 @@ import { printPuzzle } from './print.js';
 import { sceneSvg } from './art.js';
 import * as sfx from './audio.js';
 import * as ai from './ai.js';
-import { portrait } from './portraits.js';
+import { portrait, loadPortraits, portraitsReady } from './portraits.js';
+import { SURPRISE_THEME, sizesFor as tierSizes, tierChoicesHtml, themeChoicesHtml, sizeChoicesHtml, clueTypesHtml } from './setup-markup.js';
 import * as wake from './wakelock.js';
 import * as updates from './updates.js';
 import { celebrate as confettiBurst } from './effects.js';
-import { icon } from './icons.js';
 import * as learn from './learn.js';
 import * as feedbackBox from './feedback.js';
 import * as share from './share.js';
@@ -156,14 +156,18 @@ function applyColorTheme() {
 // The backdrop and accents take the colors of the chosen theme's world.
 function setWorld(id) { document.documentElement.dataset.world = id || 'random'; }
 
+// The website's game page has a longer title for search results (scripts/seo.mjs).
+const HOME_TITLE = document.title;
 function showScreen(name) {
   $('#screen-home').hidden = name !== 'home';
   $('#screen-play').hidden = name !== 'play';
   const scr = $(`#screen-${name}`);
-  scr.classList.remove('enter'); void scr.offsetWidth; scr.classList.add('enter');
+  // The entrance animation plays on screen changes, not for the first screen
+  // at start (it would hold back the first paint).
+  if (document.documentElement.classList.contains('ready')) { scr.classList.remove('enter'); void scr.offsetWidth; scr.classList.add('enter'); }
   setWorld(name === 'play' && S ? S.puzzle.theme.id : setup.theme);
   $('#skip-link').hidden = name !== 'play';
-  document.title = name === 'play' && S ? `${S.save.name} · The Fantastical Logic Grid` : 'The Fantastical Logic Grid';
+  document.title = name === 'play' && S ? `${S.save.name} · The Fantastical Logic Grid` : HOME_TITLE;
   if (name === 'home') { closeGame(); renderSaved(); renderSuggestion(); renderDaily(); accountsOnHome(); competeUi.onHome(); setTimeout(offerUpdate, 500); }
   wake.setPlaying(name === 'play' && S && !S.save.solved);
   updateMusic();
@@ -185,29 +189,18 @@ const setup = {
   tier: 'easy', theme: 'random', topic: 'any', size: null, custom: [4, 4],
 };
 
-function sizesFor(tierId) {
-  const t = TIERS[tierId];
-  const out = [];
-  for (let k = t.categories[0]; k <= t.categories[1]; k++) for (let n = t.items[0]; n <= t.items[1]; n++) out.push(`${k}x${n}`);
-  return out;
-}
+const sizesFor = (tierId) => tierSizes(TIERS[tierId]);
 
 function renderSetup() {
   const saved = store.loadSetupChoices();
   if (saved) Object.assign(setup, saved);
   if (!TIERS[setup.tier]) setup.tier = 'easy';
 
-  const levels = OPTIONS.difficulties.length;
-  $('#tier-choices').innerHTML = OPTIONS.difficulties.map((d, i) => `
-    <label class="choice"><input type="radio" name="tier" value="${d.id}"${d.id === setup.tier ? ' checked' : ''}>
-    <span><span class="pips" aria-hidden="true">${'<i class="on"></i>'.repeat(i + 1)}${'<i></i>'.repeat(levels - i - 1)}</span><b>${esc(d.name)}</b><small>${esc(d.summary)}</small></span></label>`).join('');
+  $('#tier-choices').innerHTML = tierChoicesHtml(OPTIONS.difficulties, setup.tier);
   // Themes switched off in the admin dashboard are left out.
   const off = remote.disabledThemes();
   if (off.has(setup.theme)) { setup.theme = 'random'; setup.topic = 'any'; }
-  const themes = [{ id: 'random', name: 'Surprise me', description: 'Any theme' }, ...OPTIONS.themes.filter((t) => !off.has(t.id))];
-  $('#theme-choices').innerHTML = themes.map((t) => `
-    <label class="choice" title="${esc(t.description || '')}"><input type="radio" name="theme" value="${t.id}"${t.id === setup.theme ? ' checked' : ''} aria-describedby="theme-d-${t.id}">
-    <span class="tile" data-world="${t.id}">${icon(t.id, 'glyph')}<b>${esc(t.name)}</b></span><span class="sr-only" id="theme-d-${t.id}">${esc(t.description || '')}</span></label>`).join('');
+  $('#theme-choices').innerHTML = themeChoicesHtml([SURPRISE_THEME, ...OPTIONS.themes.filter((t) => !off.has(t.id))], setup.theme);
   if (!$('input[name=theme]:checked')) $('input[name=theme]').checked = true;
   renderTopics();
   renderSizes();
@@ -242,18 +235,13 @@ function renderTopics() {
 function renderSizes() {
   const sizes = sizesFor(setup.tier);
   if (!setup.size || (setup.size !== 'custom' && !sizes.includes(setup.size))) setup.size = sizes[0];
-  $('#size-choices').innerHTML = [...sizes, 'custom'].map((s) => {
-    const [k, n] = s.split('x');
-    const text = s === 'custom' ? '<b>Custom</b><small>Any size</small>' : `<b>${k} × ${n}</b><small>${k} categories, ${n} items</small>`;
-    return `<label class="choice"><input type="radio" name="size" value="${s}"${s === setup.size ? ' checked' : ''}><span>${text}</span></label>`;
-  }).join('');
+  $('#size-choices').innerHTML = sizeChoicesHtml(sizes, setup.size);
   $('#custom-size').hidden = setup.size !== 'custom';
 }
 
 function renderClueTypes() {
   const tierTypes = TIERS[setup.tier].clueTypes;
-  $('#clue-type-choices').innerHTML = OPTIONS.clueTypes.map((c) => `
-    <label class="check"><input type="checkbox" value="${c.id}"${tierTypes.includes(c.id) ? ' checked' : ''}> ${esc(c.name)}</label>`).join('');
+  $('#clue-type-choices').innerHTML = clueTypesHtml(OPTIONS.clueTypes, tierTypes);
 }
 
 function currentSize() {
@@ -1453,6 +1441,18 @@ function renderMedia() {
     const count = Object.values(S.witness).filter((w) => w === n).length;
     return `<button class="cast-btn" type="button" data-who="${esc(n)}" aria-pressed="false">${portrait(p, n, { style: settings.portraitStyle })}<span>${esc(n)}</span><small>${count} clue${count === 1 ? '' : 's'}</small></button>`;
   }).join('');
+  // The DiceBear faces load after the first screen; if they are not here yet,
+  // the game's own faces show and are swapped in place when they arrive.
+  if (!portraitsReady()) {
+    const game = S;
+    loadPortraits().then(() => {
+      if (S !== game || S.portraitUrls && Object.keys(S.portraitUrls).length) return;
+      $$('#cast-row .cast-btn').forEach((b) => {
+        const old = b.querySelector('svg');
+        if (old) old.outerHTML = portrait(p, b.dataset.who, { style: settings.portraitStyle });
+      });
+    }).catch(() => {});
+  }
   $('#bubble').hidden = true;
   S.sceneUrl = null;
   S.portraitUrls = {};
@@ -2056,7 +2056,15 @@ async function init() {
   offerIntro();
   offerLanguage();
   setTimeout(checkUpdates, 4000);
-  if (!isPreview) setTimeout(ensureNaturalVoices, 1500);
+  // Heavy extras wait until the first screen is drawn and the page is idle, so
+  // they never slow the first load: the DiceBear faces, then the natural voices
+  // (a 90 MB download the first time, read from the browser's cache after that).
+  afterLoad(() => loadPortraits().catch(() => {}), 500);
+  if (!isPreview) afterLoad(ensureNaturalVoices, settings.kokoroReady ? 1500 : 8000);
+}
+function afterLoad(fn, delay) {
+  const go = () => setTimeout(() => (window.requestIdleCallback || setTimeout)(fn, { timeout: 4000 }), delay);
+  if (document.readyState === 'complete') go(); else window.addEventListener('load', go, { once: true });
 }
 init();
 

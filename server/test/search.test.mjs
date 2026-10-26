@@ -3,6 +3,7 @@
 // and the refresh button. Google and Bing are mocked. Run with `npm test`.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { isMaintenanceHour } from '../src/nightly.js';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -98,9 +99,10 @@ test('before the first fetch the dashboard says so', async () => {
   assert.equal(r.body.sources.google.data, null);
 });
 
-test('the daily cron fetches Google and Bing and stores the numbers', async () => {
+test('the nightly 2 am cron fetches Google and Bing and stores the numbers', async () => {
   const worker = await mf.getWorker();
-  await worker.scheduled({ cron: '41 6 * * *' });
+  const onHour = [6, 7].map((h) => { const d = new Date(); d.setUTCHours(h, 0, 0, 0); return d; }).find((d) => isMaintenanceHour(d.getTime()));
+  await worker.scheduled({ cron: `0 ${onHour.getUTCHours()} * * *`, scheduledTime: onHour });
   const { sources } = (await call('/admin/v1/search')).body;
   const g = sources.google.data;
   assert.deepEqual(g.totals, { clicks: 40, impressions: 900, ctr: 4.4, position: 7.3 });
@@ -114,9 +116,10 @@ test('the daily cron fetches Google and Bing and stores the numbers', async () =
   assert.deepEqual([b.queries[0].clicks, b.queries[0].impressions], [6, 100]);
   assert.equal(b.crawl.inIndex, 7);
   assert.equal(b.sitemaps[0].status, 'Success');
-  // The cleanup cron does not fetch search numbers.
+  // Of the two nightly crons, the one that is not 2 am in New York does nothing.
   const before = seen.length;
-  await worker.scheduled({ cron: '17 3 * * *' });
+  const offHour = [6, 7].map((h) => { const d = new Date(); d.setUTCHours(h, 0, 0, 0); return d; }).find((d) => !isMaintenanceHour(d.getTime()));
+  await worker.scheduled({ cron: `0 ${offHour.getUTCHours()} * * *`, scheduledTime: offHour });
   assert.equal(seen.length, before);
 });
 

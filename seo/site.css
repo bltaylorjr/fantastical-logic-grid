@@ -60,3 +60,5 @@ dd { margin: 0 0 0 1rem; }
   .top nav { order: 3; flex-basis: 100%; }
   .top nav a { padding: 10px 0; }
 }
+.inline-links { display: flex; flex-wrap: wrap; gap: 8px 18px; padding: 0; list-style: none; }
+.inline-links a { display: inline-block; padding: 6px 0; }

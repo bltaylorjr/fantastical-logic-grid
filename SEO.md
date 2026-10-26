@@ -14,8 +14,9 @@ find, read and rank, keep it fresh, and catch problems early. That is what this 
 | Search tags on every page: description, canonical address, Open Graph and X/Twitter cards (share picture `seo/og-image.jpg`), and structured data (VideoGame, WebSite, HowTo, VideoObject, FAQ, Article, breadcrumbs) | every build | `scripts/seo.mjs` |
 | `sitemap.xml` (with real "last changed" dates), `robots.txt`, `llms.txt` (for AI assistants), a friendly `404.html` | every build | `scripts/seo.mjs` |
 | **IndexNow**: tells Bing, Yandex, Seznam, Naver and other IndexNow engines which pages changed, right after each publish | after every publish | `pages.yml`, job `indexnow` |
-| **Lighthouse** on every pull request: SEO and accessibility must score 90 or more (95 for SEO), speed is a warning | each pull request | `.github/workflows/seo.yml`, `lighthouserc.json` |
-| **Weekly live check**: robots.txt, sitemap, every page answers and names itself as canonical, the daily page is fresh, Lighthouse on the live site. Opens a `search-check` GitHub issue if anything is wrong, and closes it when fixed | Mondays | `seo.yml`, `lighthouserc.live.json` |
+| **Site check** on every pull request: every page has a title, description, canonical address and one h1; every structured-data block has the fields Google needs; every link on the site works; the sitemap lists only real pages | each pull request | `scripts/check-site.mjs` (in `npm test`) |
+| **Lighthouse** on every pull request: SEO (95+), accessibility (90+), layout shift (under 0.1) and the script-size budget must pass; the speed score (90), largest paint (2.5 s) and blocking time (300 ms) are warnings | each pull request | `.github/workflows/seo.yml`, `lighthouserc.json` |
+| **Nightly live check** at 2 am Eastern: robots.txt, sitemap, every page answers and names itself as canonical, the daily page is fresh (published again if not), the IndexNow key, links to other sites, Lighthouse with the same budgets on the live site, and the Google and Bing numbers refresh. Anything wrong goes in the `nightly-maintenance` issue (and an email if it needs you) | nightly | `.github/workflows/nightly.yml`, `lighthouserc.live.json` |
 
 Google does not use IndexNow and retired its sitemap "ping" in 2023. Google finds changes
 through the sitemap you submit in Search Console (below), which it re-reads on its own.
@@ -67,7 +68,7 @@ from it at build time, so it stays in step with the video.
 
 - In Search Console: **Performance** shows the searches people found the site with and
   its average position. **Pages** shows anything Google could not index, and why.
-- The weekly `search-check` issue, if one opens.
+- The `nightly-maintenance` issue, if one opens (it closes itself on a clean night).
 - The first results usually take a few days to a few weeks to appear for a new domain.
 
 ## Settings
