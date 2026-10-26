@@ -28,6 +28,8 @@ const DAILY_START = '2026-10-25';
 const DAILY_ARCHIVE_DAYS = 30;
 // Days ahead the admin dashboard's daily planner can preview.
 const DAILY_AHEAD_DAYS = 14;
+// How many puzzles the Hand-picked collection shows.
+const PICKS_MAX = 12;
 // One difficulty per weekday (Sunday first). Expert and MENSA take seconds
 // to make, and the daily chain is rebuilt from the start on every build.
 const DAILY_TIERS = ['hard', 'easy', 'medium', 'basic', 'easy', 'medium', 'hard'];
@@ -72,6 +74,23 @@ async function readDailyPlan(base) {
   if (process.env.FLG_DAILY_PLAN_REQUIRED === '1') throw new Error('The daily puzzle plan could not be read, so the site was not rebuilt (past daily puzzles must not change).');
   return new Map();
 }
+// Ratings and the best-rated daily puzzles (server/src/quality.js), for the
+// Hand-picked page and the line at the foot of every page. If the Worker
+// cannot be reached, the copy the live site published last time is used.
+async function readQuality(base) {
+  const sources = [process.env.FLG_CLOUD_URL && `${process.env.FLG_CLOUD_URL.replace(/\/+$/, '')}/v1/quality`, `${base}/daily/picks.json`].filter(Boolean);
+  for (const u of sources) {
+    try {
+      const res = await fetch(u, { signal: AbortSignal.timeout(15000) });
+      if (!res.ok) throw new Error(`${u} answered ${res.status}`);
+      const body = await res.json();
+      const q = body.quality || body;
+      if (!Array.isArray(q.daily)) throw new Error(`${u} has no ratings`);
+      return { rating: q.rating || null, daily: q.daily, handPicked: Array.isArray(q.handPicked) ? q.handPicked : [] };
+    } catch (e) { console.warn(`Ratings: ${e.message}`); }
+  }
+  return { rating: null, daily: [], handPicked: [] };
+}
 const longDate = (s) => new Date(`${s}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
 
 // Google flags any VideoObject without these fields, even a bare {"@id"} pointer to one on
@@ -107,6 +126,7 @@ export async function buildSeo({ root, site }) {
   try { updated = execFileSync('git', ['log', '-1', '--format=%cs'], { cwd: root, encoding: 'utf8' }).trim() || today; } catch {}
   const name = 'The Fantastical Logic Grid';
   const pages = []; // { path, lastmod, priority }
+  const quality = await readQuality(base);
 
   // ---------- shared layout ----------
   const verification = [
@@ -177,6 +197,7 @@ ${body(up)}
 </main>
 <footer class="foot">
   <p><a href="${up}">Play ${name}</a> · free in your browser, offline-ready, and on Windows.</p>
+  <p>Every puzzle has exactly one answer, checked by our solver${quality.rating ? `, and players rate them ${quality.rating.average} out of 5 stars` : ''}. <a href="${up}picks/">Hand-picked puzzles</a></p>
   <p>${NAV.map(([p, n]) => `<a href="${up}${p}">${n}</a>`).join(' · ')} · <a href="${up}privacy/">Privacy</a></p>
   <p class="muted">${copyright} <a href="${up}terms/">Terms of use</a></p>
 </footer>
@@ -340,6 +361,7 @@ ${playBtn(up, `Play a ${t.name.toLowerCase()} puzzle`, false)}
   const used = new Set();
   const dailyStories = []; // [date, story id], in date order, for the printables below
   const daily = new Map();
+  const allPast = new Map(); // every daily puzzle up to today, for the Hand-picked collection
   const upcoming = [];
   for (let d = DAILY_START, i = 0; d <= addDays(today, DAILY_AHEAD_DAYS); d = addDays(d, 1), i++) {
     const o = plan.get(d) || {};
@@ -357,6 +379,7 @@ ${playBtn(up, `Play a ${t.name.toLowerCase()} puzzle`, false)}
     }
     used.add(p.story.id);
     dailyStories.push([d, p.story.id]);
+    if (d <= today) allPast.set(d, p);
     if (d > today) upcoming.push(dailySummary(p, d, plan.has(d)));
     else if (d > addDays(today, -DAILY_ARCHIVE_DAYS - 1)) daily.set(d, p);
   }
@@ -450,6 +473,39 @@ ${puzzleBody(p, d, up)}
 <p>We may update these terms; the date above shows the latest version. To ask for permission, report a copy of the game, or ask a question, email <a href="mailto:fantasticallogicgrid@gmail.com">fantasticallogicgrid@gmail.com</a>.</p>
 ${playBtn(up)}`,
   });
+  // ---------- Hand-picked: the best daily puzzles, and how every puzzle is checked ----------
+  // Days an admin picked come first, then the best-rated daily puzzles
+  // (never today's). The game lists the same ones from daily/picks.json.
+  const storyDate = new Map(dailyStories.map(([d, id]) => [id, d]));
+  const picked = new Map();
+  for (const d of quality.handPicked) if (d < today && allPast.has(d) && !picked.has(d)) picked.set(d, { hand: true });
+  for (const r of quality.daily) {
+    const d = storyDate.get(r.story);
+    if (d && d < today && !picked.has(d)) picked.set(d, { average: r.average, rated: r.rated });
+  }
+  const picks = [...picked].slice(0, PICKS_MAX).map(([d, why]) => ({ ...dailySummary(allPast.get(d), d, plan.has(d)), ...why }));
+  for (const x of picks) writeFileSync(join(site, 'daily', 'puzzles', `${x.date}.json`), JSON.stringify({ date: x.date, puzzle: allPast.get(x.date) }));
+  writeFileSync(join(site, 'daily', 'picks.json'), JSON.stringify({ built: today, quality, picks }));
+  const pickWhy = (x) => (x.hand ? 'Picked by the team' : `Rated ${x.average} out of 5 by ${x.rated} players`);
+  page({
+    path: 'picks/', priority: 0.7, lastmod: today,
+    title: `Hand-picked logic grid puzzles | ${name}`,
+    description: 'The best daily logic grid puzzles, picked by the team and rated highest by players. Every puzzle has exactly one answer, checked by a solver that reasons like a person.',
+    crumbs: [['picks/', 'Hand-picked puzzles']],
+    body: (up) => `<h1>Hand-picked puzzles</h1>
+<p class="lede">The daily puzzles players liked best, and ones the team picked. Each opens in the game with the grid, hints and saves.</p>
+${picks.length ? `<ul class="picks">${picks.map((x) => `<li><a href="${up}?play=daily&amp;day=${x.date}" rel="nofollow"><strong>${esc(x.title)}</strong></a><br><span class="meta">${esc(longDate(x.date))} · ${esc(x.difficultyName)} · ${esc(x.themeName)} · ${x.categories} × ${x.items} · ${esc(pickWhy(x))}</span>${daily.has(x.date) ? ` · <a href="${up}daily/${x.date}/">clues and answer key</a>` : ''}</li>`).join('')}</ul>`
+    : `<p>The first picks appear here once players have rated a few daily puzzles. Until then, try <a href="${up}daily/">today's daily puzzle</a>.</p>`}
+<h2>How every puzzle is checked</h2>
+<ul>
+<li><strong>Exactly one answer.</strong> Before a puzzle is shown, a solver works it out using only the steps a person can make from the clues. A puzzle is used only if the solver fills in every cell, which proves there is one answer and that it can be reached without guessing.</li>
+<li><strong>No extra clues.</strong> Clues that are not needed are taken out, so each one matters.</li>
+<li><strong>The right difficulty.</strong> The solver records the hardest step each puzzle needs, and the puzzle is kept only if that matches the level you chose, from Basic to MENSA. The hints use the same steps, so they explain the next deduction instead of giving the answer away.</li>
+<li><strong>Players have the last word.</strong> After solving, players can rate a puzzle from 1 to 5 stars.${quality.rating ? ` Over the last ${quality.rating.days} days, ${quality.rating.rated.toLocaleString('en-US')} ratings average <strong>${quality.rating.average} out of 5</strong>.` : ''} Low ratings for a theme or level are reviewed every week.</li>
+</ul>
+${playBtn(up)}`,
+  });
+
   // ---------- Privacy (also the app stores' privacy policy link) ----------
   page({
     path: 'privacy/', priority: 0.3,
@@ -634,6 +690,7 @@ Sitemap: ${url('sitemap.xml')}
 - [How to play](${url('how-to-play/')}): rules, a narrated video and FAQ
 - [Daily puzzle](${url('daily/')}): a new free puzzle every day, with the answer key
 - [Printables](${url('printables/')}): free printable logic puzzles for classrooms and home, a new set every week, with answer keys
+- [Hand-picked puzzles](${url('picks/')}): the best-rated daily puzzles, and how every puzzle is checked for exactly one answer
 - [Themes](${url('themes/')})
 - [Difficulty levels](${url('difficulty-levels/')})
 - [Terms of use](${url('terms/')})
