@@ -82,10 +82,11 @@ decrypted only inside the session.
 
 ## 2. The weekly Claude task
 
-A Claude scheduled task (claude.ai, owner's account) starts a fresh session
-every Monday at 5:41 am Eastern with the prompt below. It reads the latest
-report issue and makes up to three small PRs. To change it, edit it in
-claude.ai under scheduled tasks, or ask Claude in the project.
+A Claude scheduled task ("Weekly game improvement", owner's account) wakes
+the project thread "Set up continuous game improvement" every Monday at 5:41
+am Eastern with a prompt like the one below. It reads the latest report issue
+and makes up to three small PRs. To change or stop it, ask Claude in the
+project, or edit it in claude.ai under scheduled tasks.
 
 The task follows these rules:
 
