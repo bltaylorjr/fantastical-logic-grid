@@ -9,6 +9,7 @@ public repositories) and a Cloudflare Workers cron trigger (free plan allows 5).
 | Library updates, each one tested; passing patch and minor updates merge themselves and republish the website, major updates wait for you | `.github/dependabot.yml`, `dependabot-merge` in `ci.yml` | weekly; security fixes right away |
 | Health check of the website, Worker, database, daily cleanup and desktop update file. Opens a `health-check` issue when something is down and closes it when it is back up | `.github/workflows/health.yml` | every 3 hours |
 | Daily digest of errors players hit, as a `player-errors` issue | `.github/workflows/health.yml` | daily, once `FLG_ADMIN_TOKEN` is set |
+| Daily player report email: new errors (grouped, already-fixed ones listed apart) and new problems and ideas, only when something is new. See "Player reports" below | `.github/workflows/player-reports.yml`, `scripts/player-reports.py` | daily at 07:13 UTC |
 | Daily puzzle page and sitemap refresh, then IndexNow notice to Bing and other engines | `.github/workflows/pages.yml` | nightly, 00:17 UTC |
 | Weekly live search check (sitemap, every page, canonical links, Lighthouse). Opens a `search-check` issue when something is wrong. See [SEO.md](SEO.md) | `.github/workflows/seo.yml` | Mondays |
 | Cleanup of data the game no longer needs, so the free D1 database never fills up | `server/src/upkeep.js` | daily at 03:17 UTC |
@@ -46,6 +47,25 @@ shorter ages: play summaries and the audit log after 90 days). See
    `https://flg-api.btay74.workers.dev/admin/errors` with that token.
 3. **Issue emails**: GitHub emails the repository owner about new issues by
    default (Settings > Notifications on github.com).
+
+## Player reports
+
+The daily player report emails the game's Gmail (`REPORTS_TO`, else
+`ARCHIVE_TO`) using the archive email's secrets. Errors are grouped by message
+and file across versions. When a fix ships, add it to
+`scripts/known-errors.json` (`match`, `place`, `fixedIn`): reports of that
+error from older versions then show under "Already fixed", and one from the
+fixed version or later shows under "Needs a look" with a note that the fix
+missed it. To stop the email, set the repository variable `PLAYER_REPORTS` to
+`off`.
+
+The repository is public, so its Actions logs are too: the job prints counts
+only. To read the full reports for fixing without making them public, make a
+one-off key pair, run **Daily player report** from the Actions tab with
+`send` off and `public_key` set to the base64 of the PEM public key, then
+decrypt the log's KEY (RSA-OAEP) and DATA (`openssl enc -d -aes-256-cbc
+-pbkdf2 -pass file:<key>`, then gunzip) with the private key. Never paste
+player text into issues, commits or pull requests.
 
 ## Things to know
 

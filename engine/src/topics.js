@@ -36,6 +36,13 @@ const timeOrd = (verb, startMin, step) => ({
   gap: (s) => ((s * step) % 60 === 0 ? plural((s * step) / 60, 'hour', 'hours') : plural(s * step, 'minute', 'minutes')),
 });
 
+// Parties where couples dance: guests ask the band for songs instead of
+// giving timed toasts (a player found toast times out of place in a story
+// about song requests).
+const songRequest = ord('request', 'Song Request', 'requested a song at {x}', 'did not request a song at {x}',
+  timeOrd('requested a song', 20 * 60, 10),
+  { noun: 'song request time', note: 'The band took one song request from each {one}, each at a different time.' });
+
 export const TOPICS = {
   mystery: [
     { id: 'whodunit', name: 'Classic Whodunit', description: 'A stolen treasure at an old country house.',
@@ -879,6 +886,7 @@ export const TOPICS = {
       },
       art: { setting: 'a backyard birthday party with balloons, streamers and a big cake', mood: 'bright and cheerful' } },
     { id: 'wedding', name: 'Wedding', description: 'Vows, dancing and a beautiful reception.',
+      categories: ['present', 'dish', 'table', 'dance', songRequest, 'cost'],
       story: {
         adjs: ['Perfect', 'Golden', 'Lakeside', 'Starry', 'Lovely', 'Elegant'],
         openings: [
@@ -914,7 +922,7 @@ export const TOPICS = {
           dish: ['A plate of {x} was left right beside {prize}.', 'The {x} gives it away.'],
           table: ['Look at the {x} table.', 'Someone at the {x} table knows about {prize}.'],
           dance: ['It happened right after the {x}.', 'The answer was on the dance floor during the {x}.'],
-          toast: ['It all happened at {x}.', 'The clock said {x} when it happened.'],
+          request: ['The band\'s request list shows a song asked for at {x}.', 'It happened just as the band played the song requested at {x}.'],
           cost: ['The gift receipt shows {x}.', 'Whoever it was spent {x} on a wedding gift.'],
         },
       },
@@ -925,7 +933,8 @@ export const TOPICS = {
         cat('major', 'Subject', 'studied {x}', 'did not study {x}', ['Biology', 'Music', 'History', 'Art', 'Math', 'Engineering', 'Drama', 'Computer Science']),
         cat('plan', 'Next Step', 'plans to {x}', 'does not plan to {x}', ['Travel', 'Start a Business', 'Teach', 'Write a Book', 'Join a Band', 'Become a Vet', 'Study More', 'Build Robots'], { noun: 'next step' }),
         'present', 'dish', 'toast',
-        ord('gpa', 'Grade', 'earned {x}', 'did not earn {x}', countOrd(80, 2, (v) => `${v}%`, 'earned a lower grade than', 'earned a higher grade than', 'earned {d} less than', 'earned {d} more than', (s) => `${s * 2} points`), { noun: 'final grade' })],
+        ord('gpa', 'Grade', 'earned {x}', 'did not earn {x}', countOrd(80, 2, (v) => `${v}%`, 'earned a lower grade than', 'earned a higher grade than', 'earned {d} less than', 'earned {d} more than', (s) => `${s * 2} points`),
+          { noun: 'final grade', note: 'About grades: a higher percentage is a better grade.' })],
       story: {
         adjs: ['Bright', 'Golden', 'Proud', 'Big', 'Shining', 'Grand'],
         openings: [
@@ -967,6 +976,7 @@ export const TOPICS = {
       },
       art: { setting: 'a school courtyard on graduation day with caps flying, gowns and balloons', mood: 'navy and gold, proud' } },
     { id: 'anniversary', name: 'Anniversary', description: 'Celebrating many happy years together.',
+      categories: ['present', 'dish', 'table', 'dance', songRequest, 'cost'],
       story: {
         adjs: ['Golden', 'Silver', 'Ruby', 'Lovely', 'Happy', 'Sweet'],
         openings: [
@@ -1002,7 +1012,7 @@ export const TOPICS = {
           dish: ['A plate of {x} was left right beside {prize}.', 'The {x} gives it away.'],
           table: ['Look at the {x} table.', 'Someone at the {x} table knows about {prize}.'],
           dance: ['It happened right after the {x}.', 'The couple was dancing the {x} when it happened.'],
-          toast: ['It all happened at {x}.', 'The clock said {x} when it happened.'],
+          request: ['The band\'s request list shows a song asked for at {x}.', 'It happened just as the band played the song requested at {x}.'],
           cost: ['The gift receipt shows {x}.', 'Whoever it was spent {x} on an anniversary gift.'],
         },
       },
@@ -1110,7 +1120,8 @@ export const TOPICS = {
         cat('subject', 'Best Subject', 'is best at {x}', 'is not best at {x}', ['Potions', 'Charms', 'Broom Flying', 'Herbology', 'Star Reading', 'Transfiguration', 'Magical Creatures', 'Runes'], { noun: 'best subject' }),
         'familiar',
         cat('wand', 'Wand', 'carries the {x} wand', 'does not carry the {x} wand', ['Oak', 'Holly', 'Willow', 'Ash', 'Cherry', 'Birch', 'Elder', 'Rowan']),
-        ord('year', 'School Year', 'is in year {x}', 'is not in year {x}', countOrd(1, 1, null, 'is in an earlier year than', 'is in a later year than', 'is {d} below', 'is {d} above', (s) => plural(s, 'year', 'years')), { noun: 'school year' }),
+        ord('year', 'School Year', 'is in year {x}', 'is not in year {x}', countOrd(1, 1, null, 'is in an earlier year than', 'is in a later year than', 'is {d} behind', 'is {d} ahead of', (s) => plural(s, 'year', 'years')),
+          { noun: 'school year', note: 'About school years: year 1 is the first year at the school, and a bigger number means a later year.' }),
         'level'],
       story: {
         adjs: ['Enchanted', 'Bewitched', 'Starlit', 'Secret', 'Moonlit', 'Mischievous'],
@@ -1502,7 +1513,8 @@ export const TOPICS = {
         cat('team', 'Team', 'is on the {x} team', 'is not on the {x} team', ['Red', 'Blue', 'Green', 'Yellow', 'Orange', 'Purple', 'Pink', 'Black']),
         'snack',
         cat('teacher', 'Teacher', 'is in {x}\'s class', 'is not in {x}\'s class', ['Ms. Park', 'Mr. Diaz', 'Mrs. Hall', 'Mr. Okafor', 'Ms. Russo', 'Mrs. Chen', 'Mr. Brown', 'Ms. Patel']),
-        ord('grade', 'Grade', 'is in grade {x}', 'is not in grade {x}', countOrd(1, 1, null, 'is in a lower grade than', 'is in a higher grade than', 'is {d} below', 'is {d} above', (s) => plural(s, 'grade', 'grades'))),
+        ord('grade', 'Grade', 'is in grade {x}', 'is not in grade {x}', countOrd(1, 1, null, 'is in a lower grade (a smaller number) than', 'is in a higher grade (a bigger number) than', 'is {d} below', 'is {d} above', (s) => plural(s, 'grade', 'grades')),
+          { note: 'About grades: grade 1 is the youngest class, and a bigger number means an older class.' }),
         'points'],
       story: {
         adjs: ['Sunny', 'Big', 'Wild', 'Happy', 'Golden', 'Great'],
@@ -1941,8 +1953,8 @@ export const TOPICS = {
         cat('groceries', 'Groceries', 'bought the {x}', 'did not buy the {x}', ['Watermelon', 'Cheddar', 'Frozen Pizza', 'Sourdough', 'Ice Cream', 'Salmon Fillet', 'Corn Flakes', 'Avocados']),
         cat('bag', 'Bag', 'used the {x}', 'did not use the {x}', ['Paper Bag', 'Cloth Tote', 'Backpack', 'Basket', 'Wagon', 'Mesh Bag', 'Box', 'Cooler']),
         ord('lane', 'Checkout Lane', 'paid in lane {x}', 'did not pay in lane {x}',
-          countOrd(1, 1, null, 'paid in a lower lane than', 'paid in a higher lane than', 'paid {d} below', 'paid {d} above', (s) => plural(s, 'lane', 'lanes')),
-          { noun: 'checkout lane' }),
+          countOrd(1, 1, null, 'paid in a lower-numbered lane than', 'paid in a higher-numbered lane than', 'paid {d} below', 'paid {d} above', (s) => plural(s, 'lane', 'lanes')),
+          { noun: 'checkout lane', note: 'About checkout lanes: lane 1 is the first lane by the door, and the numbers go up from there.' }),
         'spent', 'arrival'],
       story: {
         adjs: ['Big', 'Crazy', 'Mixed-Up', 'Fresh', 'Lucky', 'Speedy'],
@@ -2152,7 +2164,7 @@ export const TOPICS = {
         ord('age', 'Age', 'is {x} years old', 'is not {x} years old', ageOrd(7, 1)),
         ord('quiz', 'Quiz Score', 'scored {x} on the quiz', 'did not score {x} on the quiz',
           countOrd(3, 1, null, 'scored lower than', 'scored higher than', 'scored {d} lower than', 'scored {d} higher than', (s) => plural(s, 'point', 'points')),
-          { noun: 'quiz score' })],
+          { noun: 'quiz score', note: 'About quiz scores: a higher score (a bigger number) is better.' })],
       story: {
         adjs: ['Brave', 'Busy', 'Young', 'Clever', 'Proud', 'Eager'],
         openings: [
