@@ -16,6 +16,7 @@ import * as learn from './learn.js';
 import * as feedbackBox from './feedback.js';
 import * as share from './share.js';
 import * as errorReports from './errors.js';
+import * as campaign from './campaign.js';
 import { initAccounts, openAccount, onHome as accountsOnHome, signedIn } from './account-ui.js';
 import * as competeUi from './compete-ui.js';
 import * as remote from './remote-config.js';
@@ -27,6 +28,7 @@ import * as i18n from './i18n.js';
 import { CLOUD_URL } from './cloud-config.js';
 
 errorReports.init();
+campaign.init();
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const OPTIONS = describeOptions();
@@ -534,6 +536,7 @@ $('#import-file').onchange = async (e) => {
 // ====================================================================
 function openGame(save, { fresh = false } = {}) {
   closeGame();
+  campaign.played();
   const puzzle = save.puzzle;
   const ix = puzzleIndex(puzzle);
   S = {
@@ -1087,6 +1090,7 @@ function checkSolved() {
     if (!S.save.race && !S.save.daily && !S.save.revealed && !S.save.restarted) S.save.scorePending = true;
     tickTimer();
     recordSolve(S.save);
+    if (!S.save.revealed) campaign.solved();
     if (settings.learn) learn.record(S.save, S.save.revealed ? 'revealed' : 'solved').then(() => share.soon(), () => {});
     stopTimer();
     showSolved(true);
@@ -1931,7 +1935,7 @@ window.addEventListener('beforeinstallprompt', (e) => {
   installEvent = e;
   if ($('#dlg-install').open) renderInstall();
 });
-window.addEventListener('appinstalled', () => { installEvent = null; if ($('#dlg-install').open) renderInstall(); });
+window.addEventListener('appinstalled', () => { campaign.installed(); installEvent = null; if ($('#dlg-install').open) renderInstall(); });
 
 function renderInstall() {
   const standalone = isStandalone();
@@ -1973,6 +1977,7 @@ function installApp() {
   openDialog($('#dlg-install'), $('#install-h'));
 }
 $('#install-close').onclick = () => $('#dlg-install').close();
+$('#install-desktop-btn').addEventListener('click', () => campaign.downloaded());
 $('#install-phone-btn').onclick = async () => {
   if (!installEvent) return;
   installEvent.prompt();
