@@ -15,7 +15,7 @@ import { json } from './http.js';
 const CACHE_MS = 30_000;
 const THEME_IDS = THEMES.map((t) => t.id);
 // Solve effects, in the order the game knows them (web/js/effects.js).
-const CELEBRATIONS = ['confetti', 'fireworks', 'stars', 'balloons', 'sparkles', 'theme_emoji'];
+const CELEBRATIONS = ['confetti', 'fireworks', 'stars', 'balloons', 'sparkles', 'theme_emoji', 'bubbles', 'falling', 'shooting_stars', 'ribbons', 'light_rays', 'emoji_burst'];
 
 // type: bool, int (with min/max), choice (one of options), model (an AI
 // model name), themes (list of theme ids) or words.
@@ -74,6 +74,12 @@ export const SETTINGS = {
   balloons: { type: 'bool', default: false, group: 'Celebrations', label: 'Balloons', help: 'Balloons float up from the bottom of the screen.' },
   sparkles: { type: 'bool', default: false, group: 'Celebrations', label: 'Sparkles', help: 'Small twinkling sparkles drift down.' },
   theme_emoji: { type: 'bool', default: false, group: 'Celebrations', label: 'Theme pictures', help: 'Little pictures that match the puzzle\'s theme, such as magnifying glasses for Mystery or paw prints for Pets.' },
+  bubbles: { type: 'bool', default: false, group: 'Celebrations', label: 'Bubbles', help: 'Soft bubbles float up from the bottom of the screen.' },
+  falling: { type: 'bool', default: false, group: 'Celebrations', label: 'Falling snow, leaves or petals', help: 'Matches the theme, such as snow for Holidays or leaves for National Parks. Other themes follow the season.' },
+  shooting_stars: { type: 'bool', default: false, group: 'Celebrations', label: 'Shooting stars', help: 'A few stars glide across the top of the screen with a trail.' },
+  ribbons: { type: 'bool', default: false, group: 'Celebrations', label: 'Ribbons', help: 'Curly streamers shoot up from the bottom corners.' },
+  light_rays: { type: 'bool', default: false, group: 'Celebrations', label: 'Light rays', help: 'A soft golden glow with slowly turning rays that fades in and out. Never bright and never flashing.' },
+  emoji_burst: { type: 'bool', default: false, group: 'Celebrations', label: 'Party emoji', help: 'Party pictures, such as party poppers, trophies and stars, burst from the sides.' },
   celebrate_random: { type: 'bool', default: false, group: 'Celebrations', label: 'Random', help: 'On: each solve shows one of the checked effects, picked at random. Off: every checked effect plays together.' },
   // ---- Languages
   translate_enabled: { type: 'bool', default: true, group: 'Languages', label: 'Translations for other languages', help: 'Players can choose any of 100 languages (US English is the default). Browsers that can translate on the device do it themselves; for everyone else Cloudflare Workers AI translates on its free daily allowance and each text is kept, so it is translated once for everyone. Off: only players whose browser translates on the device get other languages.' },
