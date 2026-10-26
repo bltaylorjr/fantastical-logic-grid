@@ -7,13 +7,15 @@
 // Cloudflare secret), then:
 //   Subscription  a membership payment: Premium for 35 days from the payment,
 //                 so each monthly payment extends it and a cancelled
-//                 membership runs out by itself
-//   Donation      a one-off tip: the Supporter badge, with no end
+//                 membership runs out by itself. The badge tier follows the
+//                 membership tier's name or the amount (supporters.js tierFor)
+//   Donation      a one-off tip: the supporter badge, with no end, at the tier
+//                 of the largest tip
 //   Shop Order, Commission and anything else: nothing
 // Grants are made out to the payer's email (supporters.js) and reach the
 // player when they sign in to the game with that confirmed email.
 import { json, readText, TooLarge } from './http.js';
-import { grant, cleanEmail, secretMatches } from './supporters.js';
+import { grant, cleanEmail, secretMatches, tierFor } from './supporters.js';
 
 const MAX_BODY = 32_000;
 const MEMBERSHIP_DAYS = 35;
@@ -45,13 +47,14 @@ export async function handleKofi(req, env, url) {
   if (!email) return done(req, env, 'ignored: no email');
   if (data.type === 'Subscription') {
     await grant(env, {
-      email, kind: 'premium', source: 'kofi', ref: `member:${email}`,
+      email, kind: 'premium', source: 'kofi', ref: `member:${email}`, replaceTier: true,
+      tier: await tierFor(env, { amount: data.amount, name: data.tier_name }),
       until: paidAt + MEMBERSHIP_DAYS * 24 * 3600_000, note: data.tier_name ? `Ko-fi membership: ${String(data.tier_name).slice(0, 80)}` : 'Ko-fi membership',
     });
     return done(req, env, 'premium');
   }
   if (data.type === 'Donation') {
-    await grant(env, { email, kind: 'supporter', source: 'kofi', ref: `tip:${email}`, note: 'Ko-fi tip' });
+    await grant(env, { email, kind: 'supporter', tier: await tierFor(env, { amount: data.amount }), source: 'kofi', ref: `tip:${email}`, note: 'Ko-fi tip' });
     return done(req, env, 'supporter');
   }
   return done(req, env, `ignored: ${String(data.type || 'unknown').slice(0, 40)}`);

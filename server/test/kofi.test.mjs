@@ -58,7 +58,11 @@ test('a tip gives the Supporter badge once', async () => {
   assert.equal((await kofi({ type: 'Donation', email: 'Fan@Example.com' })).body.result, 'supporter');
   assert.equal((await kofi({ type: 'Donation', email: 'fan@example.com' })).body.result, 'supporter');
   assert.equal((await db.prepare("SELECT COUNT(*) AS n FROM supporters WHERE source = 'kofi'").first()).n, 1);
-  assert.deepEqual(await perks('p-fan', 'fan@example.com'), { supporter: true, premium: false, until: null });
+  assert.deepEqual(await perks('p-fan', 'fan@example.com'), { supporter: true, premium: false, tier: 1, until: null });
+  // A bigger tip raises the badge; a smaller one after it doesn't lower it.
+  await kofi({ type: 'Donation', email: 'fan@example.com', amount: '20.00' });
+  await kofi({ type: 'Donation', email: 'fan@example.com', amount: '1.00' });
+  assert.equal((await perks('p-fan', 'fan@example.com')).tier, 3);
 });
 
 test('a membership gives Premium for 35 days, and each payment extends it', async () => {
@@ -70,7 +74,13 @@ test('a membership gives Premium for 35 days, and each payment extends it', asyn
   const p = await perks('p-member', 'member@example.com');
   assert.equal(p.premium, true);
   assert.equal(p.until, Date.parse(new Date(second).toISOString()) + 35 * DAY);
+  assert.equal(p.tier, 1, 'a $3 membership with no badge in its name is Bronze');
   assert.equal((await db.prepare("SELECT COUNT(*) AS n FROM supporters WHERE email = 'member@example.com'").first()).n, 1, 'one row per member');
+  // Moving to a tier named after a badge gives that badge, and moving back down lowers it.
+  await kofi({ type: 'Subscription', email: 'member@example.com', amount: '15.00', tier_name: 'Gold supporters' });
+  assert.equal((await perks('p-member', 'member@example.com')).tier, 3);
+  await kofi({ type: 'Subscription', email: 'member@example.com', amount: '5.00', tier_name: 'Silver supporters' });
+  assert.equal((await perks('p-member', 'member@example.com')).tier, 2);
 });
 
 test('shop orders and payments without an email change nothing', async () => {
