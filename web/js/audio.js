@@ -109,6 +109,9 @@ const MOODS = {
   parks: { root: 130.81, scale: [0, 2, 4, 7, 9], tempo: 0.58, wave: 'sine' },
   travel: { root: 196, scale: [0, 2, 4, 5, 7, 9, 11], tempo: 0.38, wave: 'triangle' },
   wonders: { root: 146.83, scale: [0, 2, 3, 5, 7, 9, 10], tempo: 0.6, wave: 'sine' },
+  // farm and science themes
+  farm: { root: 196, scale: [0, 2, 4, 7, 9], tempo: 0.4, wave: 'triangle' },
+  science: { root: 164.81, scale: [0, 2, 4, 6, 7, 9, 11], tempo: 0.42, wave: 'square' },
 };
 
 export function startMusic(themeId) {

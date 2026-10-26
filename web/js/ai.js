@@ -31,6 +31,9 @@ const THEME_SETTING = {
   parks: 'a grand national park with snowy peaks, pine forest and a lake',
   travel: 'a sunny tropical vacation spot with palm trees, a beach and a plane overhead',
   wonders: 'famous world landmarks at golden hour, towers, domes and bridges',
+  // farm and science themes
+  farm: 'a sunny family farm with a red barn, a silo, green fields and animals in the pasture',
+  science: 'a bright science lab with bubbling beakers, a microscope and colorful experiments',
 };
 
 // The server adds the picture style; this says what to paint.
