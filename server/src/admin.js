@@ -39,6 +39,8 @@
 //   GET  /admin/v1/summary?days=       the week in numbers, for the Monday summary email
 //   GET  /admin/v1/export/(players|scores|feedback).csv   spreadsheet downloads
 //   GET/POST /admin/v1/admins          who may sign in (owner only); POST /admin/v1/admins/remove
+//   GET  /admin/v1/connections[?refresh=1]  live status for the Connections and setup guide (connections.js)
+//   POST /admin/v1/connections/github  the Connections status Action's report: names that are set, never values
 //   GET  /admin/v1/archive             the weekly archive: setup, what goes, past runs (archive.js)
 //   POST /admin/v1/archive/run         send the archive email now (owner)
 //   GET  /admin/v1/archive/download    the same zip as a download, nothing removed (owner)
@@ -69,6 +71,7 @@ import { archiveStatus, runArchive, buildArchive, exportArchive, confirmArchive 
 import { FREE_LIMITS, cloudflareUsage } from './usage.js';
 import { plannerView, checkPlan, savePlan, resetPlan } from './daily.js';
 import { quality, alerts, summary, csv, CSV_KINDS } from './report.js';
+import { connectionStatus, checkGithubReport, saveGithubReport } from './connections.js';
 import { withFixes, errorFile } from './errors.js';
 import { ratingRoutes } from './ratings.js';
 import { marketingRoutes } from './marketing.js';
@@ -335,6 +338,13 @@ const ROUTES = [
 
   ['GET', /^analytics$/, 'viewer', 'analytics.view', async ({ env, url }) => ({ body: await analytics(env, daysParam(url)) })],
   ['GET', /^search$/, 'viewer', 'search.view', async ({ env }) => ({ body: { sources: await searchSnapshots(env) } })],
+  ['GET', /^connections$/, 'viewer', 'connections.view', async ({ env, url, now }) => ({ body: await connectionStatus(env, now, { force: url.searchParams.get('refresh') === '1' }) })],
+  ['POST', /^connections\/github$/, 'admin', 'connections.github', async ({ env, body, now }) => {
+    const { value, error } = checkGithubReport(body);
+    if (error) throw new Refusal(400, 'bad_report', error);
+    await saveGithubReport(env, value, now);
+    return { body: { ok: true }, detail: { secrets: value.secrets.length, variables: value.variables.length } };
+  }],
   ['POST', /^search\/refresh$/, 'admin', 'search.refresh', async ({ env, now }) => {
     // Google and Bing are only asked again after a short gap, whoever presses.
     if (now - (await lastTry(env)) < REFRESH_GAP_MS) throw new Refusal(429, 'too_soon', 'The search numbers were fetched a few minutes ago. Try again in 10 minutes.');
