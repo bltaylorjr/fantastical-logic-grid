@@ -80,17 +80,17 @@ Each tier has fixed lever ranges, so a tier means the same thing every time.
 | Medium | 4 | 4-5 | + more/less, all different | at least one advanced step |
 | Hard | 4-5 | 5 | + exact gap, one of each | 4+ advanced steps |
 | Expert | 5 | 5-6 | + if/then | 6+ advanced steps, up to 2 short what-if chains |
-| MENSA | 5-6 | 6-7 | every type | 8+ advanced steps and at least one what-if chain |
+| Quantum Physicist | 5-6 | 6-7 | every type | 8+ advanced steps and at least one what-if chain |
 
 Deduction levels used by the solver and in hints:
 
 - **Direct**: read a clue and mark it. One O in a row rules out the rest of that row. The last open cell is the match.
 - **Cross-grid**: carry a known match or mismatch from one grid into another.
 - **Advanced**: ordering and exact gaps, if/then, and "these two share no possible option, so they cannot match".
-- **What-if**: "If Ada were in the Library, clue 5 would break within a few steps, so she was not." The chain length is capped (3 passes for Expert, 5 for MENSA), so this stays reasoning, not guessing.
+- **What-if**: "If Ada were in the Library, clue 5 would break within a few steps, so she was not." The chain length is capped (3 passes for Expert, 5 for Quantum Physicist), so this stays reasoning, not guessing.
 
 Custom sizes outside a tier's range are allowed and noted. Large custom grids
-(6 x 8 at MENSA) can take 10 to 20 seconds, so in the app run `generatePuzzle`
+(6 x 8 at Quantum Physicist) can take 10 to 20 seconds, so in the app run `generatePuzzle`
 in a Web Worker and show the "Writing your story..." message.
 
 ## Clue types

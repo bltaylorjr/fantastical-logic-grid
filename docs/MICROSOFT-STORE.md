@@ -43,7 +43,7 @@ Story logic grid puzzles where every case is a brand new story. Free, no ads, wi
 **Description**
 Every case in The Fantastical Logic Grid is a brand new story. Read the clues, fill the grid with X and O, and close the case. Every puzzle has exactly one answer you can reach without guessing.
 
-- Six difficulty levels, from Basic to MENSA, and almost any size
+- Six difficulty levels, from Basic to Quantum Physicist, and almost any size
 - More than 40 themes, from mysteries and holidays to national parks
 - A new daily puzzle for everyone, with streaks and badges
 - Hints that explain the reasoning, unlimited undo, and autosave

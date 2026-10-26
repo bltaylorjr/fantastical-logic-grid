@@ -63,7 +63,7 @@ export const TIERS = {
     removeFirst: ['is', 'not', 'neither', 'allDiff', 'either', 'less', 'pairs', 'diff', 'ifthen'],
   },
   mensa: {
-    id: 'mensa', name: 'MENSA', order: 5,
+    id: 'mensa', name: 'Quantum Physicist', order: 5,
     summary: '5 to 6 categories, 6 to 7 items, every clue type, what-if chains',
     categories: [5, 6], items: [6, 7], defaultSize: [5, 6],
     weights: { is: 0.2, not: 2, neither: 1.5, either: 2, pairs: 2, allDiff: 1.5, less: 3, diff: 2.5, ifthen: 2 },

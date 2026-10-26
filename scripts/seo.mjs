@@ -30,7 +30,7 @@ const DAILY_ARCHIVE_DAYS = 30;
 const DAILY_AHEAD_DAYS = 14;
 // How many puzzles the Hand-picked collection shows.
 const PICKS_MAX = 12;
-// One difficulty per weekday (Sunday first). Expert and MENSA take seconds
+// One difficulty per weekday (Sunday first). Expert and Quantum Physicist take seconds
 // to make, and the daily chain is rebuilt from the start on every build.
 const DAILY_TIERS = ['hard', 'easy', 'medium', 'basic', 'easy', 'medium', 'hard'];
 // Printable worksheets for teachers and parents: a new set every week (weeks
@@ -261,7 +261,7 @@ ${verification}
     ['Are the stories ever repeated?', 'No. Every puzzle has a brand new story, built from the theme, topic and size you pick, and the game never gives you the same story twice.'],
     ['Can I save, resume or print a puzzle?', 'Yes. Your progress saves automatically, so you can come back any time from Saved puzzles. You can print any puzzle, blank or with your marks, with the answer key on its own page.'],
     ['Does it work offline?', 'Yes. After your first visit the game works without an internet connection, and you can install it from your browser like an app.'],
-    ['How hard are the puzzles?', `There are ${Object.keys(TIERS).length} difficulty levels, from Basic for beginners to MENSA for true masterminds. Each level adds categories, items and harder kinds of clues.`],
+    ['How hard are the puzzles?', `There are ${Object.keys(TIERS).length} difficulty levels, from Basic for beginners to Quantum Physicist for true masterminds. Each level adds categories, items and harder kinds of clues.`],
     ['Is it accessible?', 'The game works fully by keyboard and with a screen reader, has a List view instead of the grid, light, dark and high-contrast colors, captions on the video, and a Silent mode with no pictures, sound or animation.'],
   ];
   page({
@@ -308,7 +308,7 @@ ${playBtn(up, 'Start a new case')}`,
   const tiers = Object.values(TIERS).sort((a, b) => a.order - b.order);
   page({
     path: 'difficulty-levels/', priority: 0.7,
-    title: `Logic puzzle difficulty levels, from Basic to MENSA | ${name}`,
+    title: `Logic puzzle difficulty levels, from Basic to Quantum Physicist | ${name}`,
     description: `${tiers.length} difficulty levels of logic grid puzzles: ${tiers.map((t) => t.name).join(', ')}. See the grid sizes and the kinds of clues each level uses.`,
     crumbs: [['difficulty-levels/', 'Difficulty levels']],
     body: (up) => `<h1>Difficulty levels</h1>
@@ -500,7 +500,7 @@ ${picks.length ? `<ul class="picks">${picks.map((x) => `<li><a href="${up}?play=
 <ul>
 <li><strong>Exactly one answer.</strong> Before a puzzle is shown, a solver works it out using only the steps a person can make from the clues. A puzzle is used only if the solver fills in every cell, which proves there is one answer and that it can be reached without guessing.</li>
 <li><strong>No extra clues.</strong> Clues that are not needed are taken out, so each one matters.</li>
-<li><strong>The right difficulty.</strong> The solver records the hardest step each puzzle needs, and the puzzle is kept only if that matches the level you chose, from Basic to MENSA. The hints use the same steps, so they explain the next deduction instead of giving the answer away.</li>
+<li><strong>The right difficulty.</strong> The solver records the hardest step each puzzle needs, and the puzzle is kept only if that matches the level you chose, from Basic to Quantum Physicist. The hints use the same steps, so they explain the next deduction instead of giving the answer away.</li>
 <li><strong>Players have the last word.</strong> After solving, players can rate a puzzle from 1 to 5 stars.${quality.rating ? ` Over the last ${quality.rating.days} days, ${quality.rating.rated.toLocaleString('en-US')} ratings average <strong>${quality.rating.average} out of 5</strong>.` : ''} Low ratings for a theme or level are reviewed every week.</li>
 </ul>
 ${playBtn(up)}`,

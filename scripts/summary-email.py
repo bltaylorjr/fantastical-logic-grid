@@ -31,7 +31,7 @@ GMAIL_PASSWORD = ''.join(os.environ.get('GMAIL_APP_PASSWORD', '').split())
 TO = os.environ.get('SUMMARY_TO', '').strip() or os.environ.get('ARCHIVE_TO', '').strip()
 TEST = os.environ.get('TEST', '').lower() == 'true'
 DASHBOARD = f'{API}/admin/'
-TIERS = {'basic': 'Basic', 'easy': 'Easy', 'medium': 'Medium', 'hard': 'Hard', 'expert': 'Expert', 'mensa': 'MENSA'}
+TIERS = {'basic': 'Basic', 'easy': 'Easy', 'medium': 'Medium', 'hard': 'Hard', 'expert': 'Expert', 'mensa': 'Quantum Physicist'}
 TOPICS = {'story': 'Story idea', 'other': 'Idea', 'play': 'Playing', 'sound': 'Sound', 'pictures': 'Pictures', 'saving': 'Saving', }
 
 
