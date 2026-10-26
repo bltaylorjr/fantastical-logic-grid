@@ -4,6 +4,7 @@
 // lives only in this tab (sessionStorage) and ends after 30 idle minutes.
 
 import { initPullRefresh } from './pull-refresh.js';
+import { renderConnections } from './connections-view.js';
 import { characterView } from './characters.js';
 import { ratingsView, initRatings } from './ratings.js';
 import { marketingView, initMarketing } from './marketing.js';
@@ -405,7 +406,7 @@ $('#parts-list').onclick = async (e) => {
 
 // ---- Communication: one inbox for messages, ideas, problems, error reports
 // and emails to players, and sending messages, news and banners to players.
-const FB_TOPICS = { story: 'Storyline idea', other: 'Other', play: 'Playing', sound: 'Sound and voices', pictures: 'Pictures', saving: 'Saving and sync' };
+const FB_TOPICS = { story: 'Storyline idea', theme: 'Theme or topic idea', feature: 'Game feature idea', other: 'Other', play: 'Playing', sound: 'Sound and voices', pictures: 'Pictures', saving: 'Saving and sync' };
 const MSG_TOPICS = { question: 'Question', idea: 'Idea', problem: 'Problem', team: 'Started by the team' };
 const TYPE_NAMES = { message: 'Message', idea: 'Idea', problem: 'Problem', error: 'Error report', email: 'Email' };
 const commTab = () => $('input[name=comm-tab]:checked').value;
@@ -805,7 +806,8 @@ views.settings = async () => {
   const services = `<div class="card"><h2>Keys and services</h2><div class="services">
     ${keyLine(d.services.gemini, 'GEMINI_API_KEY', 'server voices and the Story workshop\'s AI writer (Google\'s free tier).')}
     ${keyLine(d.services.pictures, 'Workers AI', 'AI pictures (the AI binding in wrangler.toml, on Cloudflare\'s free allowance).')}
-    <p class="muted">Keys are never typed here or kept in the game. Add or change them in Cloudflare: Workers &amp; Pages &gt; flg-api &gt; Settings &gt; Variables and Secrets, as type Secret.</p></div></div>`;
+    <p class="muted">Keys are never typed here or kept in the game. Add or change them in Cloudflare: Workers &amp; Pages &gt; flg-api &gt; Settings &gt; Variables and Secrets, as type Secret.</p>
+    <p><a href="#connections">Every key, service and setting, with steps: Connections and setup</a></p></div></div>`;
   $('#settings-body').innerHTML = services + (editable ? '' : '<p class="note">You can see the settings. Changing them needs the admin role.</p>')
     + Object.entries(groups).map(([g, list]) => `<div class="card"><h2>${esc(g)}</h2>${list.map((s) => `<div class="setting">
       <div><b id="lbl-${s.key}">${esc(s.label)}</b><p class="help">${esc(s.help)}</p>${s.updatedBy ? `<p class="meta">Changed by ${esc(s.updatedBy)} on ${when(s.updatedAt)}</p>` : ''}</div>
@@ -829,6 +831,8 @@ $('#settings-body').onclick = (e) => {
   else if ($(`#set-${key}`).type === 'number') saveSettingValue(key, Number($(`#set-${key}`).value), b);
   else saveSettingValue(key, $(`#set-${key}`).value.trim(), b);
 };
+
+views.connections = () => renderConnections($('#connections-view'), { api, esc, when, toast, announce });
 
 $('#ann-form').onsubmit = async (e) => {
   e.preventDefault();

@@ -23,7 +23,7 @@ import { talkAboutFeedback } from './messages.js';
 import { verifyIdToken } from './auth.js';
 
 export const TOPICS = {
-  idea: ['story', 'other'],
+  idea: ['story', 'theme', 'feature', 'other'],
   problem: ['play', 'sound', 'pictures', 'saving', 'other'],
 };
 const PLATFORMS = new Set(['web', 'desktop', 'android', 'ios']);
