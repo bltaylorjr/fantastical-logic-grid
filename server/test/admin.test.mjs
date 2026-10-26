@@ -162,7 +162,8 @@ test('sound, voice and picture choices reach the game', async () => {
   assert.equal(cfg.defaults.music, false);
   const listed = await call('/admin/v1/settings', { auth: TOKEN });
   assert.deepEqual(listed.body.settings.find((x) => x.key === 'ai_pictures').options.map((o) => o.value), ['none', 'scene', 'all']);
-  assert.deepEqual(listed.body.services, { gemini: false, pictures: false });
+  assert.equal(listed.body.services.gemini, false);
+  assert.equal(listed.body.services.pictures, false);
   // No Workers AI binding here: the game is told to use its built-in art.
   assert.equal((await call('/v1/picture', { body: { prompt: 'A lighthouse at dusk', kind: 'scene' } })).body.error, 'not_set_up');
   await call('/admin/v1/settings', { auth: TOKEN, body: { key: 'ai_pictures', value: 'none' } });

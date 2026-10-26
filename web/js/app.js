@@ -21,6 +21,7 @@ import { initAccounts, openAccount, onHome as accountsOnHome, signedIn } from '.
 import * as competeUi from './compete-ui.js';
 import * as remote from './remote-config.js';
 import * as perks from './perks.js';
+import * as account from './account.js';
 import { initPullRefresh } from './pull-refresh.js';
 import * as daily from './daily.js';
 import * as stats from './stats.js';
@@ -245,9 +246,18 @@ function renderSetup() {
 function lockedThemes() {
   return perks.isPremium() ? new Set() : remote.premiumThemes();
 }
-// The page where players get the extras. Hook for payment pages that need to
-// know who is buying.
-function extrasLink(url) { return url; }
+// The page where players get the extras. A Lemon Squeezy checkout link
+// carries the signed-in player's id and email, so the purchase reaches their
+// account even if they pay with another email (server/src/lemonsqueezy.js).
+function extrasLink(url) {
+  const user = account.current();
+  let u;
+  try { u = new URL(url); } catch (e) { return url; }
+  if (!user || !/(^|\.)lemonsqueezy\.com$/.test(u.hostname)) return url;
+  u.searchParams.set('checkout[custom][uid]', user.uid);
+  if (user.email) u.searchParams.set('checkout[email]', user.email);
+  return u.toString();
+}
 
 // Topics narrow a theme, for example which holiday or which kind of mystery.
 // "Surprise me" has none, so the picker hides.

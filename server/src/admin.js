@@ -482,7 +482,7 @@ const ROUTES = [
       body: {
         themes: themeList(),
         // Keys stay in Cloudflare secrets; the dashboard only shows whether they are set.
-        services: { gemini: !!env.GEMINI_API_KEY, pictures: !!env.AI },
+        services: { gemini: !!env.GEMINI_API_KEY, pictures: !!env.AI, lemonsqueezy: !!String(env.LEMONSQUEEZY_SIGNING_SECRET || '').trim() },
         settings: Object.entries(SETTINGS).map(([key, s]) => ({
           key, type: s.type, group: s.group, label: s.label, help: s.help, min: s.min, max: s.max, options: s.options, value: values[key],
           updatedAt: meta.get(key)?.updated_at || null, updatedBy: meta.get(key)?.updated_by || null,
