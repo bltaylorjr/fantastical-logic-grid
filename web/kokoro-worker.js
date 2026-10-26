@@ -3,6 +3,7 @@
 // app; only the model itself downloads once from Hugging Face, after which the
 // browser keeps it and voices work offline.
 import { KokoroTTS, env } from './vendor/kokoro/kokoro.web.js';
+import { fixPhonemes } from './js/kokoro-words.js';
 
 const MODEL = 'onnx-community/Kokoro-82M-v1.0-ONNX';
 const VOICES = ['af_heart', 'af_bella', 'af_nicole', 'af_aoede', 'am_michael', 'am_fenrir', 'am_puck'];
@@ -25,11 +26,16 @@ function load() {
   if (!loading) {
     loading = (async () => {
       await seedVoices().catch(() => {});
-      return KokoroTTS.from_pretrained(MODEL, {
+      const tts = await KokoroTTS.from_pretrained(MODEL, {
         dtype: 'q8',
         device: 'wasm',
         progress_callback: (p) => { if (p.status === 'progress') postMessage({ type: 'progress', file: p.file, loaded: p.loaded, total: p.total }); },
       });
+      // The library turns text into sounds, then hands them to the tokenizer;
+      // the sounds are corrected on the way (js/kokoro-words.js).
+      const tokenize = tts.tokenizer;
+      tts.tokenizer = (phonemes, opts) => tokenize(fixPhonemes(phonemes), opts);
+      return tts;
     })().catch((e) => { loading = null; throw e; });
   }
   return loading;
