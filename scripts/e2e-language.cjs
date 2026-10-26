@@ -7,7 +7,8 @@ const { chromium } = require('playwright');
 const { spawn } = require('child_process');
 const path = require('path');
 const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`ok  ${m}`); };
-const API = 'https://api.example.test';
+// A localhost address: test builds' content policy allows localhost (scripts/build.mjs).
+const API = 'http://localhost:8139';
 const mark = (to, t) => `‹${to}› ${t}`;
 
 (async () => {

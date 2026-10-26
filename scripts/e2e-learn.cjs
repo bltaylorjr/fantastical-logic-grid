@@ -41,6 +41,15 @@ const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`o
     await page.waitForFunction(() => document.querySelector('#feedback-thanks').textContent.length > 0);
     L = await learning();
     assert(L.plays[0].rating === 5 && L.plays[0].feel === 'easy', 'rating and feel are saved');
+    assert(/Rate this puzzle \(optional\)/.test(await page.textContent('#feedback .stars legend')), 'the rating is clearly labelled as optional');
+    assert(/5 stars is excellent/.test(await page.textContent('#rate-help')), 'the scale is explained (5 is excellent)');
+    assert(await page.locator('#feedback .stars input[value="5"]').getAttribute('aria-describedby') === null && (await page.getAttribute('#feedback .stars', 'aria-describedby')) === 'rate-help', 'the stars point to the scale for screen readers');
+    assert(L.plays[0].pid && /^[A-Za-z0-9]{12}$/.test(L.plays[0].pid) && L.plays[0].mode === 'free' && L.plays[0].topic, 'the summary has a one-off key, mode and topic for the ratings report');
+    await page.click('#rating-clear');
+    L = await learning();
+    assert(L.plays[0].rating === null && L.plays[0].feel === 'easy' && !(await page.isChecked('#feedback .stars input[value="5"]')), 'Clear my rating takes the stars back');
+    await page.locator('#feedback .stars label').nth(4).click();
+    await page.waitForFunction(async () => (await (await import('./js/learn.js')).getState()).plays[0].rating === 5);
 
     await page.click('#next-btn');
     await page.waitForSelector('#screen-home:not([hidden])');
@@ -61,7 +70,19 @@ const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`o
     const learnInputs = await page.$$eval('#dlg-settings fieldset.learning input', (els) => els.map((e) => e.name));
     assert(learnInputs.join() === 'learn', 'Learning in Settings has only "Learn from how I play"');
     assert(!(await page.locator('#learn-workshop, #dlg-workshop').count()), 'the Story workshop is no longer in the game');
+    // With "Learn from how I play" off the stars still show, and the rating stays on the device.
+    await page.uncheck('#dlg-settings input[name=learn]');
     await page.keyboard.press('Escape');
+    await solve();
+    await page.waitForSelector('#solved:not([hidden])');
+    assert(await page.isVisible('#feedback .stars'), 'the stars show with learning off too');
+    await page.evaluate(() => document.documentElement.classList.add('silent'));
+    assert(await page.isVisible('#feedback .stars') && await page.isVisible('#next-btn'), 'Silent mode keeps the stars, and nothing waits on them');
+    await page.evaluate(() => document.documentElement.classList.remove('silent'));
+    await page.locator('#feedback .stars label').nth(1).click();
+    await page.waitForFunction(() => /stays on your device/.test(document.querySelector('#feedback-thanks').textContent));
+    const local = (await learning()).plays.find((x) => x.storyId === now);
+    assert(local && local.rating === 2 && local.sent === 3, 'a rating with learning off is kept on the device and never shared');
     // Story parts (from the dashboard's workshop, through shared tuning) still reach new stories.
     await page.evaluate(async () => (await import('./js/learn.js')).addPart('mystery', 'openings', 'Moonlight filled the old observatory, where {n} {many} waited for the comet.', 'mine'));
     const tuned = await page.evaluate(async () => (await import('./js/learn.js')).tuning('basic'));

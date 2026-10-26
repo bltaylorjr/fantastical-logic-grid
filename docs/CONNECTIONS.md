@@ -487,6 +487,7 @@ uses a secret, variable or binding that is not listed there.
 | `OWNER_TASKS_TO` | GitHub repository secret | Owner task emails to another address (otherwise GMAIL_USER). Optional. |
 | `REPORTS_TO` | GitHub repository secret | Daily player report to another address (otherwise ARCHIVE_TO). Optional. |
 | `PLAYER_REPORTS` | GitHub repository variable | Value: `off` Only to stop the daily player report email. Optional. |
+| `IMPROVE` | GitHub repository variable | Weekly improvement run: off stops it; report emails the report but never changes the tuning. Optional. |
 
 **Settings:**
 

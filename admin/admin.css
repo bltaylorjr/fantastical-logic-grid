@@ -191,3 +191,18 @@ ul.plain { list-style: none; padding: 0; display: flex; flex-direction: column; 
 .alerts li { margin: 4px 0; }
 .csv-btn { float: right; margin: -4px 0 4px; }
 td.num, th.num { white-space: nowrap; }
+
+/* Ratings and insights */
+.spread { width: 60px; height: 21px; display: block; }
+.spread .b1, .spread-list .b1 { fill: var(--bar); }
+.spread-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }
+.spread-list li { display: grid; grid-template-columns: 3em 1fr 7em; align-items: center; gap: 8px; }
+.chart .spread-list svg { height: 16px; }
+.spread-list .num { font-variant-numeric: tabular-nums; color: var(--muted); font-size: .9rem; }
+.chart .trend { fill: none; stroke: var(--bar); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.chart .dot { fill: var(--bar2); }
+.insights { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+.findings { margin: 0; padding-left: 20px; }
+.findings li { margin: 0 0 10px; }
+.findings p { margin: 0 0 2px; }
+.ai-text { font-size: 1.05rem; }

@@ -466,6 +466,7 @@ export const CONNECTIONS = [
       { name: 'OWNER_TASKS_TO', where: 'github-secret', optional: true, note: 'Owner task emails to another address (otherwise GMAIL_USER).' },
       { name: 'REPORTS_TO', where: 'github-secret', optional: true, note: 'Daily player report to another address (otherwise ARCHIVE_TO).' },
       { name: 'PLAYER_REPORTS', where: 'github-variable', optional: true, value: 'off', note: 'Only to stop the daily player report email.' },
+      { name: 'IMPROVE', where: 'github-variable', optional: true, note: 'Weekly improvement run: off stops it; report emails the report but never changes the tuning.' },
     ],
     settings: [{ label: 'Google account > Security > 2-Step Verification', value: 'On (needed for app passwords)' }],
     steps: [
