@@ -71,6 +71,7 @@ export async function buildSeo({ root, site }) {
   // The same engine the site ships.
   const engine = await import(pathToFileURL(join(site, 'engine', 'index.js')).href);
   const { THEMES, TIERS, CLUE_TYPES, getTopics, storylineCount, generatePuzzle } = engine;
+  const { houseDailyOptions } = await import(pathToFileURL(join(site, 'engine', 'house-tuning.js')).href);
   const today = process.env.FLG_TODAY || day(new Date());
   const appHtml = readFileSync(join(site, 'index.html'), 'utf8');
   // Pages that come from code change when the code does; the date of the last
@@ -296,10 +297,13 @@ ${playBtn(up, `Play a ${t.name.toLowerCase()} puzzle`)}
     const theme = THEMES.some((t) => t.id === o.theme) ? o.theme : THEMES[i % THEMES.length].id;
     const difficulty = TIERS[o.difficulty] ? o.difficulty : DAILY_TIERS[new Date(`${d}T00:00:00Z`).getUTCDay()];
     const size = o.categories && o.items ? { categories: o.categories, items: o.items } : {};
+    // The weekly improvement run's nudges, from their start date on; days
+    // planned by hand in the admin dashboard are built exactly as planned.
+    const house = plan.has(d) ? {} : houseDailyOptions(d, difficulty);
     const seed = `daily-${d}${o.reroll ? `-r${o.reroll}` : ''}`;
     let p;
     for (let n = 0; n < 20; n++) {
-      p = generatePuzzle({ difficulty, theme, ...size, seed: `${seed}${n ? `-${n}` : ''}` });
+      p = generatePuzzle({ difficulty, theme, ...size, ...house, seed: `${seed}${n ? `-${n}` : ''}` });
       if (!used.has(p.story.id)) break;
     }
     used.add(p.story.id);
