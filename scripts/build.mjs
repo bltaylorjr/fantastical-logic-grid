@@ -132,6 +132,23 @@ html = head.replace('<title>The Fantastical Logic Grid</title>', '<title>The Fan
 writeFileSync(join(prev, 'index.html'), html);
 console.log('Built dist/preview for the claude.ai page.');
 
+// 4b. dist/portal: the copy to upload to game sites such as itch.io, which
+// show it inside their own frame. It is served from their domain, so letting
+// it be framed puts nothing of thelogicgrid.com at risk; the website keeps
+// its anti-framing. No service worker (game sites serve each version at its
+// own address) and no web-app manifest. Zip it with npm run build:portal.
+const portal = join(root, 'dist', 'portal');
+rmSync(portal, { recursive: true, force: true });
+cpSync(out, portal, { recursive: true });
+rmSync(join(portal, 'sw.js'));
+rmSync(join(portal, 'manifest.webmanifest'), { force: true });
+let portalHtml = readFileSync(join(portal, 'index.html'), 'utf8')
+  .replace(/<link rel="manifest"[^>]*>\s*/, '')
+  .replace('<title>The Fantastical Logic Grid</title>', '<title>The Fantastical Logic Grid</title>\n<meta name="flg-mode" content="portal">');
+if (!portalHtml.includes('content="portal"')) throw new Error('Could not mark the portal build');
+writeFileSync(join(portal, 'index.html'), portalHtml);
+console.log('Built dist/portal for game sites such as itch.io.');
+
 // 5. dist/site: the web build plus host settings files and a deploy guide,
 // ready to upload to any static host (see hosting/DEPLOY.md).
 const site = join(root, 'dist', 'site');
