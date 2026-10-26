@@ -812,3 +812,44 @@ dialog.rules table.board td { font-variant-numeric: tabular-nums; }
 .daily-numbers { margin: 0 0 12px; }
 .daily-email { margin-top: 10px; }
 .daily-email p.help { margin: 0; }
+
+/* ---- Learn to solve: tutorial and tips ---- */
+.hero-learn { margin: 14px 0 0; color: var(--muted); }
+.help-learn { border: 1px solid var(--edge, var(--hairline)); border-radius: 10px; padding: 12px 16px; margin: 12px 0; }
+.help-learn p { margin: 0 0 8px; }
+.help-learn .row-inline { margin: 0; }
+.learn-top { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 20px; }
+.learn-top h1 { margin: 0; }
+.learn-top .lede { margin-bottom: 8px; }
+#step-progress { display: block; width: min(420px, 100%); height: 10px; margin-top: 10px; accent-color: var(--accent); }
+.lesson-list { list-style: none; margin: 0 0 24px; padding: 0; display: grid; gap: 12px; }
+.lesson-list .lesson { display: grid; grid-template-columns: 2.6em minmax(0, 1fr) auto auto; gap: 12px 16px; align-items: center; padding: 16px 20px;
+  background: var(--surface, var(--bg)); border: 1px solid var(--edge, var(--hairline)); border-radius: var(--radius, 12px); }
+.lesson-list .num { display: grid; place-items: center; width: 2.2em; height: 2.2em; border-radius: 50%; border: 2px solid var(--accent); font-weight: 700; color: var(--accent); }
+.lesson-list .done .num { background: var(--accent); color: var(--bg); }
+.lesson-list .what { display: grid; gap: 2px; }
+.lesson-list .what small { color: var(--muted); font-size: .95rem; }
+.lesson-list .state { color: var(--muted); font-size: .9rem; white-space: nowrap; }
+@media (max-width: 640px) { .lesson-list .lesson { grid-template-columns: 2.6em minmax(0, 1fr); } .lesson-list .state { grid-column: 2; } .lesson-list .lesson .btn { grid-column: 1 / -1; } }
+.tips-card h2 { margin-top: 0; }
+.learn-main { display: grid; gap: 24px; min-width: 0; }
+.step-card h2 { margin: 0 0 8px; }
+.step-text { font-size: 1.0625rem; max-width: 68ch; }
+.step-text p, .step-text ul, .step-text ol { margin: 0 0 10px; }
+.step-task { margin: 4px 0 0; font-weight: 700; color: var(--accent); }
+.step-feedback { margin: 8px 0 0; min-height: 1.5em; font-weight: 700; }
+.step-feedback:empty { min-height: 0; margin: 0; }
+.step-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+.step-actions #step-next { margin-left: auto; }
+#step-next.ready { outline: 3px solid var(--focus); outline-offset: 2px; }
+@media (prefers-reduced-motion: no-preference) { :root:not(.silent) #step-next.ready { animation: learn-ready 1.6s var(--ease, ease) 2; } }
+@keyframes learn-ready { 50% { transform: scale(1.06); } }
+.learn-tools { display: flex; flex-wrap: wrap; gap: 6px; }
+.learn-clues li { grid-template-columns: 2.2em minmax(0, 1fr); }
+.learn-clues li p { margin: 0; padding: 8px 6px; border-radius: 8px; font-size: 1.0625rem; display: grid; gap: 2px; }
+.learn-clues li.spot p { background: var(--accent-soft); outline: 2px solid var(--accent); outline-offset: -2px; }
+.learn-clues .kind { color: var(--muted); font-size: .85rem; }
+.tips-body { display: grid; gap: 8px 32px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); }
+.tips-body h3 { margin: 8px 0 6px; }
+.tips-body ul { margin: 0 0 8px; padding-left: 1.2em; display: grid; gap: 6px; }
+@media print { #screen-learn { display: none !important; } }
