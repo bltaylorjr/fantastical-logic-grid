@@ -1823,6 +1823,9 @@ function applyFeatures() {
   $('#music-settings').hidden = !remote.feature('music');
   $('[data-cmd=feedback]').hidden = !feedbackBox.available();
   $('#feedback-idea').hidden = !feedbackBox.available();
+  const support = remote.supportUrl();
+  $('#support-link').hidden = !support;
+  if (support) $('#support-link').href = support;
   competeUi.refreshMiniBoard();
 }
 applyFeatures();
@@ -1911,7 +1914,7 @@ function toggleMenu(open) {
 }
 $('#menu-btn').onclick = () => toggleMenu();
 $('#app-menu').addEventListener('keydown', (e) => {
-  const items = $$('#app-menu button:not([hidden])');
+  const items = $$('#app-menu [role=menuitem]:not([hidden])');
   const i = items.indexOf(document.activeElement);
   if (e.key === 'Escape') { e.preventDefault(); toggleMenu(false); $('#menu-btn').focus(); }
   else if (e.key === 'ArrowDown') { e.preventDefault(); items[(i + 1) % items.length].focus(); }
@@ -1920,6 +1923,7 @@ $('#app-menu').addEventListener('keydown', (e) => {
 });
 document.addEventListener('pointerdown', (e) => { if (!$('#app-menu').hidden && !e.target.closest('#app-menu, #menu-btn')) toggleMenu(false); });
 $('#app-menu').addEventListener('click', async (e) => {
+  if (e.target.closest('#support-link')) { toggleMenu(false); return; }
   const b = e.target.closest('button[data-cmd]');
   if (!b) return;
   toggleMenu(false);
