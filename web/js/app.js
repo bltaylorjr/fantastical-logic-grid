@@ -1297,12 +1297,13 @@ async function renderSolvedExtras(save) {
   const nums = $('#solved-daily-numbers');
   nums.hidden = true;
   // Counted once: the mark is saved before the time is sent.
+  let sent = null;
   if (save.daily && !save.dailySent) {
     save.dailySent = true;
     await flushSave({ manual: true });
-    dailyResults.finished(save.daily, save.elapsedMs, save.revealed);
+    sent = dailyResults.finished(save.daily, save.elapsedMs, save.revealed);
   }
-  if (save.daily) showDailyNumbers(save);
+  if (save.daily) showDailyNumbers(save, sent);
   if (!save.daily || save.revealed) return;
   const st = daily.streak(await stats.solveLog().catch(() => []), save.daily);
   if (!S || S.save !== save) return;
@@ -1312,7 +1313,9 @@ async function renderSolvedExtras(save) {
     : 'This daily puzzle was finished after its day, so it does not add to your streak.';
 }
 // Everyone's numbers for this daily puzzle, under the streak.
-async function showDailyNumbers(save) {
+async function showDailyNumbers(save, sent) {
+  // Wait for this solve to be counted (at most a few seconds), so it is in the numbers.
+  if (sent) await Promise.race([sent, new Promise((r) => setTimeout(r, 4000))]);
   const st = await dailyResults.statsFor(save.daily);
   if (!st || !st.started || !S || S.save !== save) return;
   const quicker = save.revealed ? null : dailyResults.quickerThan(st, save.elapsedMs);
