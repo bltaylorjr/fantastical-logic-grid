@@ -95,6 +95,16 @@ const SITE = path.join(__dirname, '..', 'dist', 'site');
       await page.click(`#daily-list [data-daily="${earlier[0]}"]`);
       await page.waitForSelector('#screen-play:not([hidden])');
       assert(await page.evaluate((d) => window.__flg.state.save.daily === d, earlier[0]), 'an earlier daily puzzle opens');
+      // Smarter hints on a fresh grid: the clue, the technique, then why and how it works.
+      await page.click('[data-act=hint]');
+      await page.waitForSelector('#hintbox:not([hidden]) .hint-tech .pill');
+      const first = await page.textContent('#hintbox');
+      const clueNo = await page.evaluate(() => window.__flg.state.hint.res.clue);
+      assert(!clueNo || await page.locator('#hintbox q.hint-clue').count() === 1, `the first hint step names the technique${clueNo ? ' and quotes the clue' : ''} (${first.slice(0, 90)})`);
+      await page.click('#hint-more');
+      await page.click('#hint-more');
+      const last = await page.textContent('#hintbox');
+      assert(/Why:/.test(last) && /How this works:/.test(last), 'the last hint step explains why and how the technique works');
       await page.click('#home-btn');
     }
     assert(!errors.length, `no page errors ${errors.join(' | ')}`);

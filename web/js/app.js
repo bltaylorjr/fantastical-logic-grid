@@ -902,18 +902,48 @@ async function hint() {
   sound('hint');
 }
 
+// Smarter hints teach the reasoning: the clue that cracks the next cell is
+// quoted, the kind of reasoning is named, and the last step explains why,
+// with a short lesson on that technique (and the chain for a what-if step).
+const TECHNIQUE_LESSONS = {
+  clue: 'Some clues say straight out that two things go together (an O) or do not (an X). Mark those first.',
+  onlyOne: 'Each row and column of a grid section has exactly one O. Once you place it, every other cell in that row and column is an X.',
+  lastLeft: 'When every cell but one in a row or column is an X, the one left must be the O.',
+  crossGrid: 'Facts carry between grid sections. If A goes with B and B goes with C, then A goes with C. If A goes with B but B does not go with C, then A does not go with C either.',
+  noShared: 'If two items have no option left that they could share, they cannot be a match.',
+  ordering: 'A more-or-less clue puts things in order: the one that is more cannot have the smallest value, and the one that is less cannot have the largest.',
+  gap: 'An exact gap, like "2 more than", only fits pairs of values that far apart. Rule out every value with no partner at that distance.',
+  conditional: 'An if/then clue: whenever the "if" part is true, the "then" part must be true as well. Rule out anything that would break it.',
+  whatIf: 'Try a cell as an O in your head and follow the clues. If that leads to something impossible, the cell must be an X.',
+};
+function hintLines(res, level) {
+  const out = [];
+  const clue = res.clue ? S.puzzle.clues.find((c) => c.number === res.clue) : null;
+  out.push(`<p><b>Hint:</b> ${esc(res.levels[0])}${clue ? ` <q class="hint-clue">${esc(clue.text)}</q>` : ''}</p>`);
+  if (res.kind === 'step' && res.techniqueName) out.push(`<p class="hint-tech"><span class="pill">${esc(res.techniqueName)}</span></p>`);
+  if (level >= 1) out.push(`<p>${esc(res.levels[1])}</p>`);
+  if (level >= 2) {
+    out.push(`<p><b>Why:</b> ${esc(res.levels[2])}</p>`);
+    if (res.chain && res.chain.length) out.push(`<details class="hint-chain"><summary>Follow the chain of reasoning</summary><ol>${res.chain.map((c) => `<li>${esc(c)}</li>`).join('')}</ol></details>`);
+    const lesson = TECHNIQUE_LESSONS[res.technique];
+    if (lesson) out.push(`<p class="hint-lesson"><b>How this works:</b> ${esc(lesson)}</p>`);
+  }
+  return out.join('');
+}
+
 function renderHint() {
   const { res, level } = S.hint;
   const box = $('#hintbox');
-  const lines = res.levels.slice(0, level + 1).map((t, i) => `<p>${i === 0 ? '<b>Hint:</b> ' : ''}${esc(t)}</p>`).join('');
-  const more = level < 2 ? '<button class="btn small" type="button" id="hint-more">Show more</button>' : '';
+  const lines = hintLines(res, level);
+  const more = level < 2 ? `<button class="btn small" type="button" id="hint-more">${level === 0 ? 'Which cell?' : 'Explain why'}</button>` : '';
   const apply = level === 2 && res.kind !== 'done' ? `<button class="btn small" type="button" id="hint-apply">${res.kind === 'mistake' ? 'Fix it for me' : 'Mark it for me'}</button>` : '';
   box.innerHTML = `${lines}<div class="row">${more}${apply}<button class="btn quiet small" type="button" id="hint-close">Close hint</button></div>`;
   box.hidden = false;
   $$('#clue-list li.hinted').forEach((li) => li.classList.remove('hinted'));
   if (res.clue) $(`#clue-list li[data-n="${res.clue}"]`)?.classList.add('hinted');
   for (const k of S.hint.targets) paintCell(k);
-  announce(res.levels[level]);
+  const clue = level === 0 && res.clue ? S.puzzle.clues.find((c) => c.number === res.clue) : null;
+  announce(level === 2 && TECHNIQUE_LESSONS[res.technique] ? `${res.levels[2]} ${TECHNIQUE_LESSONS[res.technique]}` : clue ? `${res.levels[0]} ${clue.text}` : res.levels[level]);
   $('#hint-more')?.addEventListener('click', hint);
   $('#hint-close').onclick = () => { clearHint(); S.grid.focusKey(S.save.focus); };
   $('#hint-apply')?.addEventListener('click', () => {
