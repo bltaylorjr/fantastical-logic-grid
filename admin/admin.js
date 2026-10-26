@@ -4,6 +4,9 @@
 // lives only in this tab (sessionStorage) and ends after 30 idle minutes.
 
 import { initPullRefresh } from './pull-refresh.js';
+import { characterView } from './characters.js';
+import { ratingsView, initRatings } from './ratings.js';
+import { marketingView, initMarketing } from './marketing.js';
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -19,7 +22,7 @@ const TOKEN_URL = 'https://securetoken.googleapis.com/v1';
 const SESSION_KEY = 'flg-admin-session';
 const IDLE_MS = 30 * 60_000;
 const ROLES = { viewer: 1, moderator: 2, admin: 3, owner: 4 };
-const TIER_NAMES = { basic: 'Basic', easy: 'Easy', medium: 'Medium', hard: 'Hard', expert: 'Expert', mensa: 'MENSA' };
+const TIER_NAMES = { basic: 'Basic', easy: 'Easy', medium: 'Medium', hard: 'Hard', expert: 'Expert', mensa: 'Quantum Physicist' };
 
 let session = null; // { mode: 'firebase'|'token', key?, refreshToken?, idToken?, exp?, email? }
 let me = null; // { email, role }
@@ -233,8 +236,10 @@ views.overview = async () => {
   const review = [];
   if (can('moderator') && d.review.parts.pending) review.push(`<a href="#stories">${fmt(d.review.parts.pending)} story ${d.review.parts.pending === 1 ? 'part' : 'parts'} waiting for review</a>`);
   const fb = d.review.feedback || {};
-  setCount('#count-feedback', (fb.idea || 0) + (fb.problem || 0));
-  if (can('moderator') && (fb.idea || fb.problem)) review.push(`<a href="#feedback">${fmt(fb.idea || 0)} new ${fb.idea === 1 ? 'idea' : 'ideas'} and ${fmt(fb.problem || 0)} new ${fb.problem === 1 ? 'problem' : 'problems'} from players</a>`);
+  const unread = d.review.messages || 0;
+  setCount('#count-comm', can('moderator') ? (fb.idea || 0) + (fb.problem || 0) + unread : 0);
+  if (can('moderator') && unread) review.push(`<a href="#communication">${fmt(unread)} unread ${unread === 1 ? 'message' : 'messages'} from players</a>`);
+  if (can('moderator') && (fb.idea || fb.problem)) review.push(`<a href="#communication">${fmt(fb.idea || 0)} new ${fb.idea === 1 ? 'idea' : 'ideas'} and ${fmt(fb.problem || 0)} new ${fb.problem === 1 ? 'problem' : 'problems'} from players</a>`);
   if (can('moderator') && d.review.namesWaiting) review.push(`<a href="#names">${fmt(d.review.namesWaiting)} new or changed screen ${d.review.namesWaiting === 1 ? 'name' : 'names'}</a>`);
   $('#ov-body').innerHTML = `
     ${alertsHtml(al)}
@@ -398,34 +403,253 @@ $('#parts-list').onclick = async (e) => {
   if (await act(b, () => api('parts/review', { method: 'POST', body: { key: b.dataset.key, status: b.dataset.status } }), words[b.dataset.status])) show('stories', { keepFocus: true });
 };
 
-// ---- Ideas and problems players sent.
+// ---- Communication: one inbox for messages, ideas, problems, error reports
+// and emails to players, and sending messages, news and banners to players.
 const FB_TOPICS = { story: 'Storyline idea', other: 'Other', play: 'Playing', sound: 'Sound and voices', pictures: 'Pictures', saving: 'Saving and sync' };
-const fbKind = () => $('input[name=fb-kind]:checked').value;
-views.feedback = async () => {
-  const d = await api(`feedback?kind=${fbKind()}&status=${$('#fb-status').value}`);
-  setCount('#count-ideas', d.waiting.idea || 0);
-  setCount('#count-problems', d.waiting.problem || 0);
-  setCount('#count-feedback', (d.waiting.idea || 0) + (d.waiting.problem || 0));
+const MSG_TOPICS = { question: 'Question', idea: 'Idea', problem: 'Problem', team: 'Started by the team' };
+const TYPE_NAMES = { message: 'Message', idea: 'Idea', problem: 'Problem', error: 'Error report', email: 'Email' };
+const commTab = () => $('input[name=comm-tab]:checked').value;
+let openThread = null;
+const plural = (n, one, many) => `${fmt(n)} ${n === 1 ? one : many}`;
+
+function commCounts(c) {
+  const waiting = (c.unread || 0) + (c.idea || 0) + (c.problem || 0);
+  setCount('#count-comm', waiting);
+  setCount('#count-inbox', waiting);
+  const parts = [];
+  if ('message' in c) parts.push(`${plural(c.message, 'open conversation', 'open conversations')}${c.unread ? ` (${fmt(c.unread)} unread)` : ''}`, plural(c.idea, 'new idea', 'new ideas'), plural(c.problem, 'new problem', 'new problems'));
+  parts.push(`${plural(c.error, 'error report', 'different error reports')} in the last 7 days`, plural(c.email, 'email waiting to go out', 'emails waiting to go out'));
+  return `Waiting: ${parts.join(', ')}.`;
+}
+
+const FB_BADGES = { new: '<span class="badge">New</span>', addressed: '<span class="badge ok">Addressed</span>', done: '<span class="badge ok">Done</span>' };
+// An error report the team marked addressed (fixed in a version), or a button to mark it.
+let errItems = [];
+const errFix = (i) => { const f = i.meta.fix; return !f ? (can('admin') ? `<div class="row"><button class="btn small" type="button" data-err="${errItems.indexOf(i)}">Mark addressed</button></div>` : '')
+  : f.missed ? `<p class="fb-note"><span class="badge warn">Still happening</span> Marked fixed in ${esc(f.fixedIn)}, but this report is from ${esc(i.meta.version)}. ${esc(f.note)}</p>`
+  : `<p class="fb-note"><span class="badge ok">Addressed</span> Fixed in ${esc(f.fixedIn)}: ${esc(f.note)}</p>`; };
+
+function itemHtml(i) {
+  const type = `<span class="badge${i.type === 'error' ? ' bad' : i.type === 'problem' ? ' warn' : ''}">${TYPE_NAMES[i.type]}</span>`;
+  const state = i.type === 'message'
+    ? (i.status === 'done' ? '<span class="badge ok">Done</span>' : i.meta.unread ? '<span class="badge warn">Unread</span>' : '<span class="badge">Open</span>')
+    : i.type === 'error' || i.type === 'email' ? '' : FB_BADGES[i.status] || FB_BADGES.new;
+  if (i.type === 'message') {
+    const m = i.meta;
+    return `<li>${type} ${state} <b>${esc(i.title)}</b>
+      <p class="muted">${esc(m.name || 'A signed-in player')} · ${esc(MSG_TOPICS[m.topic] || m.topic)} · ${plural(m.count, 'message', 'messages')} · last from ${m.lastFrom === 'team' ? 'the team' : 'the player'} ${when(i.at)}</p>
+      <p class="fb-text">${esc(i.text)}</p>
+      <div class="row"><button class="btn primary small" type="button" data-open="${i.id}">Open and reply</button></div></li>`;
+  }
+  if (i.type === 'idea' || i.type === 'problem') {
+    const m = i.meta;
+    return `<li>${type} ${state} <b>${esc(FB_TOPICS[m.topic] || m.topic)}</b>
+      <span class="muted">${when(i.at)} · ${esc(m.platform)} ${esc(m.version)}${m.conversationId ? ' · the player asked for a reply' : ''}</span>
+      <p class="fb-text">${esc(i.text)}</p>
+      ${i.status === 'addressed' && m.note ? `<p class="fb-note"><b>What we did:</b> ${esc(m.note)} <span class="muted">${when(m.doneAt)}</span></p>` : ''}
+      <div class="row">${m.conversationId ? `<button class="btn primary small" type="button" data-open="${m.conversationId}">Reply</button>` : ''}
+      ${i.status === 'new' ? `<button class="btn${m.conversationId ? '' : ' primary'} small" type="button" data-fb="${i.id}" data-status="addressed">Mark addressed</button>
+        <button class="btn small" type="button" data-fb="${i.id}" data-status="done">Mark done</button>` : `<button class="btn small" type="button" data-fb="${i.id}" data-status="new">Mark new</button>`}
+      <button class="btn small" type="button" data-fb="${i.id}" data-status="delete">Delete</button></div></li>`;
+  }
+  if (i.type === 'error') {
+    const m = i.meta;
+    return `<li>${type} <b>${esc(i.text)}</b> <span class="badge">${esc(i.title)}</span>
+      <p class="muted">Seen ${plural(m.count, 'time', 'times')} · <code>${esc(m.place || '–')}</code> · ${esc(m.platform)} ${esc(m.version)} · ${esc(m.first)}${m.last !== m.first ? ` to ${esc(m.last)}` : ''}</p>${errFix(i)}</li>`;
+  }
+  return `<li>${type} <b>${esc(i.title)}</b> <span class="badge${i.meta.state === 'sent' ? ' ok' : i.meta.state === 'failed' ? ' bad' : ''}">${esc(i.text)}</span>
+    <span class="muted">${when(i.at)}${i.meta.sentAt ? ` · sent ${when(i.meta.sentAt)}` : ''}</span></li>`;
+}
+
+views.communication = async () => {
+  const tab = commTab();
+  $('#comm-inbox').hidden = tab !== 'inbox';
+  $('#comm-send').hidden = tab !== 'send';
+  if (tab === 'send') { await sendView(); return; }
+  const q = $('#comm-q').value.trim();
+  const d = await api(`inbox?type=${$('#comm-type').value}&status=${$('#comm-status').value}&q=${encodeURIComponent(q)}`);
+  for (const o of $('#comm-type').options) o.hidden = o.value !== 'all' && !d.types.includes(o.value);
+  $('#comm-summary').textContent = `${commCounts(d.counts)} Showing ${plural(d.items.length, 'item', 'items')}${q ? ` with "${q}"` : ''}.`;
   const r = d.replies;
   $('#fb-replies').textContent = !r ? '' : r.enabled
-    ? `Thank-you emails (players who were signed in and ticked the box): ${fmt(r.sentToday)} sent in the last 24 hours, ${fmt(r.waiting)} waiting${r.failedToday ? `, ${fmt(r.failedToday)} could not be sent` : ''}. Limit ${fmt(r.cap)} a day. They go out every 15 minutes from noreply@thelogicgrid.com (or the game's Gmail as a backup); the address is removed once sent and is never kept with the message.`
-    : 'Thank-you emails are switched off (Settings and switches > Ideas and problems).';
-  $('#fb-list').innerHTML = d.items.length ? d.items.map((f) => `<li>
-      <b>${esc(FB_TOPICS[f.topic] || f.topic)}</b> ${f.status === 'done' ? '<span class="badge ok">Done</span>' : '<span class="badge">New</span>'}
-      <span class="muted">${when(f.createdAt)} · ${esc(f.platform)} ${esc(f.version)}</span>
-      <p class="fb-text">${esc(f.text)}</p>
-      <div class="row">${f.status === 'new' ? `<button class="btn primary small" data-fb="${f.id}" data-status="done">Mark done</button>` : `<button class="btn small" data-fb="${f.id}" data-status="new">Mark new</button>`}
-      <button class="btn small" data-fb="${f.id}" data-status="delete">Delete</button></div></li>`).join('')
-    : '<li class="muted">Nothing here.</li>';
+    ? `Emails to players (thank-you notes, and notices of a team message for players who turned them on): ${fmt(r.sentToday)} sent in the last 24 hours, ${fmt(r.waiting)} waiting${r.failedToday ? `, ${fmt(r.failedToday)} could not be sent` : ''}. Limit ${fmt(r.cap)} a day. They go out every 15 minutes from noreply@thelogicgrid.com (or the game's Gmail as a backup); addresses are removed once sent.`
+    : 'Emails to players are switched off (Settings and switches > Ideas and problems).';
+  errItems = d.items;
+  $('#comm-list').innerHTML = d.items.length ? d.items.map(itemHtml).join('') : '<li class="muted">Nothing here.</li>';
+  if (openThread) await showThread(openThread, { keepFocus: true }).catch(() => closeThread());
 };
-$('#fb-status').onchange = () => show('feedback', { keepFocus: true });
-$$('input[name=fb-kind]').forEach((r) => { r.onchange = () => show('feedback', { keepFocus: true }); });
-$('#fb-list').onclick = async (e) => {
+
+async function showThread(id, { keepFocus = false } = {}) {
+  const c = await api(`conversations/${id}`);
+  openThread = id;
+  const who = c.name ? esc(c.name) : 'The player';
+  const panel = $('#comm-thread');
+  panel.innerHTML = `<div class="head"><h2 id="thread-h" tabindex="-1">${esc(c.subject)}</h2><button class="btn small" type="button" data-thread="close">Back to the inbox</button></div>
+    <p class="muted">${who}${c.name ? '' : ` (player id <code>${esc(c.uid)}</code>)`} · ${esc(MSG_TOPICS[c.topic] || c.topic)}${c.feedback ? ` from their ${c.feedback.kind === 'idea' ? 'idea' : 'problem report'}` : ''} · started ${when(c.createdAt)} ·
+      ${c.status === 'done' ? '<span class="badge ok">Done</span>' : '<span class="badge">Open</span>'}${c.playerUnread ? ' · the player has not read the latest reply yet' : ''}</p>
+    <ol class="messages">${c.messages.map((m) => `<li class="msg ${m.sender === 'team' ? 'team' : 'player'}">
+      <p><b>${m.sender === 'team' ? `The team <span class="muted">(${esc(m.author || 'admin')})</span>` : who}</b> <span class="muted">${when(m.at)}</span></p>
+      <p class="fb-text">${esc(m.text)}</p></li>`).join('')}</ol>
+    <form id="reply-form" class="stack" novalidate>
+      <div class="field"><label for="reply-text">Your reply (up to 2,000 characters). The player sees it signed "The team".</label><textarea id="reply-text" rows="4" maxlength="2000"></textarea></div>
+      ${c.emailOn ? '<label class="check"><input type="checkbox" id="reply-email" checked> Also email them a notice (at most one a day; it never includes the message)</label>' : '<p class="muted">This player has not turned on email notices, so they will see the reply the next time they open Messages.</p>'}
+      <label class="check"><input type="checkbox" id="reply-done"> Mark the conversation done after sending</label>
+      <p class="error" id="reply-error" role="alert" hidden></p>
+      <div class="row"><button class="btn primary" type="submit">Send reply</button>
+        ${c.status === 'done' ? '<button class="btn" type="button" data-thread="open">Reopen</button>' : '<button class="btn" type="button" data-thread="done">Mark done</button>'}
+        ${can('admin') ? '<button class="btn danger" type="button" data-thread="delete">Delete conversation</button>' : ''}</div>
+    </form>`;
+  panel.hidden = false;
+  if (!keepFocus) { panel.scrollIntoView({ block: 'start' }); $('#thread-h').focus(); }
+}
+function closeThread() {
+  openThread = null;
+  $('#comm-thread').hidden = true;
+  $('#comm-thread').innerHTML = '';
+}
+
+async function sendView() {
+  const [n, a] = await Promise.all([api('news'), api('announcements')]);
+  $('#news-list').innerHTML = n.news.length ? n.news.map((x) => `<li>
+      ${x.live ? '<span class="badge ok">Showing now</span>' : '<span class="badge">Ended</span>'} <b>${esc(x.title)}</b>
+      <p class="fb-text">${esc(x.text)}</p>
+      <p class="muted">Since ${when(x.createdAt)} ${x.endsAt ? `until ${when(x.endsAt)}` : 'until ended'} · by ${esc(x.createdBy)}</p>
+      ${can('admin') ? `<div class="row">${x.live ? `<button class="btn small" type="button" data-news="end" data-id="${x.id}">End now</button>` : ''}<button class="btn small danger" type="button" data-news="delete" data-id="${x.id}">Delete</button></div>` : ''}
+    </li>`).join('') : '<li class="muted">No news yet.</li>';
+  $('#ann-list').innerHTML = a.announcements.length ? a.announcements.map((x) => `<li>
+      ${x.live ? '<span class="badge ok">Showing now</span>' : x.startsAt > Date.now() ? '<span class="badge">Scheduled</span>' : '<span class="badge">Ended</span>'}
+      ${x.level === 'warning' ? '<span class="badge warn">Warning</span>' : ''}
+      <p>${esc(x.text)}</p>
+      <p class="muted">From ${when(x.startsAt)} ${x.endsAt ? `to ${when(x.endsAt)}` : 'until ended'} · by ${esc(x.createdBy)}</p>
+      ${can('admin') ? `<div class="row">${x.live || x.startsAt > Date.now() ? `<button class="btn small" type="button" data-act="end" data-id="${x.id}">End now</button>` : ''}<button class="btn small danger" type="button" data-act="delete" data-id="${x.id}">Delete</button></div>` : ''}
+    </li>`).join('') : '<li class="muted">No announcements yet.</li>';
+}
+
+$$('input[name=comm-tab]').forEach((r) => { r.onchange = () => show('communication', { keepFocus: true }); });
+$('#comm-filter').onsubmit = (e) => { e.preventDefault(); closeThread(); show('communication', { keepFocus: true }); };
+$('#comm-type').onchange = () => { closeThread(); show('communication', { keepFocus: true }); };
+$('#comm-status').onchange = () => { closeThread(); show('communication', { keepFocus: true }); };
+$('#comm-list').onclick = async (e) => {
+  const o = e.target.closest('button[data-open]');
+  if (o) { await act(o, () => showThread(Number(o.dataset.open))); return; }
+  const eb = e.target.closest('button[data-err]');
+  const x = eb && errItems[Number(eb.dataset.err)];
+  if (x) {
+    const m = x.meta;
+    const v = await ask({ title: 'Mark this error addressed', text: `Every report of this error from ${esc(m.place ? m.place.split(':')[0] : 'this place')} counts as fixed for versions older than the one below.`, ok: 'Mark addressed',
+      fields: [{ name: 'fixedIn', label: 'Fixed in version', value: '', help: 'The game version the fix shipped in, like 1.7.1.' }, { name: 'note', label: 'What was done', type: 'textarea' }],
+      check: (y) => (!/^\d+(\.\d+){1,3}$/.test(y.fixedIn.trim()) ? 'Give a version like 1.7.1.' : y.note.trim() ? '' : 'Write a short note.') });
+    if (!v) return;
+    if (await act(eb, () => api('errors/fix', { method: 'POST', body: { message: x.text, place: m.place, fixedIn: v.fixedIn.trim(), note: v.note } }), 'Marked addressed.')) show('communication', { keepFocus: true });
+    return;
+  }
   const b = e.target.closest('button[data-fb]');
   if (!b) return;
-  const words = { done: 'Marked done.', new: 'Marked new.', delete: 'Deleted.' };
-  if (await act(b, () => api(`feedback/${b.dataset.fb}`, { method: 'POST', body: { status: b.dataset.status } }), words[b.dataset.status])) show('feedback', { keepFocus: true });
+  if (b.dataset.status === 'delete' && !(await ask({ title: 'Delete this message?', text: 'It cannot be brought back.', ok: 'Delete', danger: true }))) return;
+  const words = { addressed: 'Marked addressed.', done: 'Marked done.', new: 'Marked new.', delete: 'Deleted.' };
+  const body = { status: b.dataset.status };
+  if (body.status === 'addressed') {
+    const v = await ask({ title: 'Mark addressed', text: 'Say what was done in plain, everyday words a player would understand, like "Fixed: the grid no longer scrolls twice on tablets." If the player ticked "Email me an update", they get this note by email, with what they wrote.', ok: 'Mark addressed',
+      fields: [{ name: 'note', label: 'What was done (plain words for the player)', type: 'textarea' }], check: (x) => (x.note.trim() ? plainWords(x.note) : 'Write a short note.') });
+    if (!v) return;
+    body.note = v.note;
+  }
+  let emailed = 0;
+  if (await act(b, async () => { emailed = (await api(`feedback/${b.dataset.fb}`, { method: 'POST', body }))?.emailed || 0; }, '')) {
+    const done = words[b.dataset.status] + (emailed ? ' The player gets an email update with your note.' : '');
+    toast(done);
+    announce(done);
+    show('communication', { keepFocus: true });
+  }
 };
+// The "What was done" note can go to the player by email, so it should read
+// in everyday words: this catches the usual technical giveaways.
+const TECH_WORDS = /\b[\w-]+\.(?:js|mjs|cjs|css|html|py|json|sql|yml)\b|\bPR\s*#?\d+|\b(?:commit|merged?|refactor(?:ed)?|regex|CSS|DOM|API|endpoint|null|undefined|stack trace|exception|D1|Worker|CI|repo|branch|viewport|z-index|async|callback|deploy(?:ed)?)\b/i;
+function plainWords(note) {
+  const m = note.match(TECH_WORDS);
+  return m ? `"${m[0]}" is a technical word. Say what changed for the player in everyday words instead.` : '';
+}
+$('#comm-thread').onclick = async (e) => {
+  const b = e.target.closest('button[data-thread]');
+  if (!b) return;
+  const kind = b.dataset.thread;
+  if (kind === 'close') { closeThread(); $('#comm-list button, #comm-list')?.focus?.(); return; }
+  if (kind === 'delete' && !(await ask({ title: 'Delete this conversation?', text: 'It goes from the player\'s Messages too, and cannot be brought back.', ok: 'Delete', danger: true }))) return;
+  const id = openThread;
+  const words = { done: 'Marked done.', open: 'Reopened.', delete: 'Deleted.' };
+  if (await act(b, () => api(`conversations/${id}/status`, { method: 'POST', body: { status: kind } }), words[kind])) {
+    if (kind === 'delete') closeThread();
+    show('communication', { keepFocus: true });
+  }
+};
+$('#comm-thread').addEventListener('submit', async (e) => {
+  if (e.target.id !== 'reply-form') return;
+  e.preventDefault();
+  const text = $('#reply-text').value.trim();
+  const err = $('#reply-error');
+  err.hidden = true;
+  if (text.length < 2) { err.textContent = 'Write the reply first.'; err.hidden = false; $('#reply-text').focus(); return; }
+  const btn = $('button[type=submit]', e.target);
+  btn.disabled = true;
+  try {
+    const r = await api(`conversations/${openThread}/reply`, { method: 'POST', body: { text, email: $('#reply-email') ? $('#reply-email').checked : false, done: $('#reply-done').checked } });
+    const note = { queued: ' An email notice will go out within 15 minutes.', limit: ' No email notice: they already got one today.', off: ' No email notice: emails to players are switched off.' }[r.email] || '';
+    toast(`Reply sent.${note}`);
+    announce(`Reply sent.${note}`);
+    await show('communication', { keepFocus: true });
+    $('#thread-h')?.focus();
+  } catch (ex) { err.textContent = ex.message; err.hidden = false; btn.disabled = false; }
+});
+
+$('#msg-form').onsubmit = async (e) => {
+  e.preventDefault();
+  const err = $('#msg-error');
+  err.hidden = true;
+  const to = $('#msg-to').value.trim();
+  const text = $('#msg-text').value.trim();
+  if (!to) { err.textContent = 'Write their screen name or player id.'; err.hidden = false; $('#msg-to').focus(); return; }
+  if (text.length < 2) { err.textContent = 'Write the message first.'; err.hidden = false; $('#msg-text').focus(); return; }
+  try {
+    const r = await api('conversations', { method: 'POST', body: { to, subject: $('#msg-subject').value.trim(), text, email: $('#msg-email').checked } });
+    $('#msg-form').reset();
+    toast('Sent. It shows in their Messages, and in the inbox here.');
+    announce('Message sent.');
+    openThread = r.id;
+    $('input[name=comm-tab][value=inbox]').checked = true;
+    $('#comm-status').value = 'all';
+    await show('communication', { keepFocus: true });
+    $('#thread-h')?.focus();
+  } catch (ex) { err.textContent = ex.message; err.hidden = false; }
+};
+$('#news-form').onsubmit = async (e) => {
+  e.preventDefault();
+  const err = $('#news-error');
+  err.hidden = true;
+  const title = $('#news-title').value.trim();
+  const text = $('#news-text').value.trim();
+  if (title.length < 3) { err.textContent = 'Write a title of at least 3 characters.'; err.hidden = false; $('#news-title').focus(); return; }
+  if (text.length < 3) { err.textContent = 'Write the news first.'; err.hidden = false; $('#news-text').focus(); return; }
+  const end = $('#news-end').value ? new Date($('#news-end').value).getTime() : undefined;
+  try {
+    await api('news', { method: 'POST', body: { title, text, endsAt: end } });
+    $('#news-form').reset();
+    toast('Published. Players see it in Messages within about a minute.');
+    show('communication', { keepFocus: true });
+  } catch (ex) { err.textContent = ex.message; err.hidden = false; }
+};
+$('#news-list').onclick = async (e) => {
+  const b = e.target.closest('button[data-news]');
+  if (!b) return;
+  if (b.dataset.news === 'delete' && !(await ask({ title: 'Delete this news?', ok: 'Delete', danger: true }))) return;
+  if (await act(b, () => api(`news/${b.dataset.id}/${b.dataset.news}`, { method: 'POST' }), b.dataset.news === 'end' ? 'Ended.' : 'Deleted.')) show('communication', { keepFocus: true });
+};
+// Write to a player from their page under Players.
+function messagePlayer(uid) {
+  $('input[name=comm-tab][value=send]').checked = true;
+  location.hash = 'communication';
+  $('#msg-to').value = uid;
+  setTimeout(() => $('#msg-subject').focus(), 50);
+}
 
 views.names = async () => {
   const d = await api(`names?status=${$('#names-status').value}`);
@@ -591,6 +815,7 @@ async function openPlayer(uid) {
       ${tile('Screen name', p.screenName ? (p.nameReviewed ? 'Approved' : 'Needs approval') : '–', p.nameSince ? `since ${day(p.nameSince)}` : '')}
     </div>
     <div class="row">
+      ${can('admin') && !p.deletedAt ? '<button class="btn primary" type="button" data-act="message">Send a message</button>' : ''}
       ${p.screenName ? `<button class="btn" data-act="rename">Rename</button><button class="btn" data-act="reset">Reset name</button>` : ''}
       ${p.ban ? '<button class="btn" data-act="unban">Lift ban</button>' : '<button class="btn danger" data-act="ban">Ban</button>'}
       ${can('admin') ? '<button class="btn danger" data-act="reset-scores">Reset scores</button><button class="btn danger" data-act="delete">Delete account data</button>' : ''}
@@ -603,6 +828,7 @@ async function openPlayer(uid) {
   $('#player-card').onclick = async (e) => {
     const b = e.target.closest('button[data-act]');
     if (!b) return;
+    if (b.dataset.act === 'message') { messagePlayer(uid); return; }
     if (await playerAction(b.dataset.act, uid, name, b)) { if (b.dataset.act === 'delete') show('players'); openPlayer(uid); }
   };
 }
@@ -620,11 +846,14 @@ views.settings = async () => {
     if (s.type === 'int') return `<div class="row"><div class="field">${label}<input id="set-${s.key}" type="number" min="${s.min}" max="${s.max}" value="${s.value}" inputmode="numeric"${dis}></div>${save}</div>`;
     if (s.type === 'choice') return `<div class="row"><div class="field">${label}<select id="set-${s.key}"${dis}>${s.options.map((o) => `<option value="${esc(o.value)}"${o.value === s.value ? ' selected' : ''}>${esc(o.label)}</option>`).join('')}</select></div>${save}</div>`;
     if (s.type === 'model') return `<div class="row"><div class="field">${label}<input id="set-${s.key}" type="text" value="${esc(s.value)}" autocomplete="off" spellcheck="false"${dis}></div>${save}</div>`;
+    if (s.type === 'url') return `<div class="row"><div class="field">${label}<input id="set-${s.key}" type="url" value="${esc(s.value)}" placeholder="https://" autocomplete="off" spellcheck="false"${dis}></div>${save}</div>`;
     if (s.type === 'themes') return `${editable ? `<button class="btn small" data-save="${s.key}">Save themes</button>` : ''}`;
+    if (s.type === 'days') return `${editable ? `<button class="btn small" data-save="${s.key}">Save dates</button>` : ''}`;
     return `${editable ? `<button class="btn small" data-save="${s.key}">Save words</button>` : ''}`;
   };
   const extra = (s) => {
     if (s.type === 'themes') return `<fieldset class="themes"><legend class="sr-only">${esc(s.label)}</legend>${d.themes.map((t) => `<label class="check"><input type="checkbox" name="theme-off" value="${esc(t.id)}"${s.value.includes(t.id) ? ' checked' : ''}${editable ? '' : ' disabled'}> ${esc(t.name)} off</label>`).join('')}</fieldset>`;
+    if (s.type === 'days') return `<div class="field words"><label for="set-${s.key}">One date per line, like 2026-11-03</label><textarea id="set-${s.key}" rows="4"${editable ? '' : ' disabled'}>${esc(s.value.join('\n'))}</textarea></div>`;
     if (s.type === 'words') return `<div class="field words"><label for="set-${s.key}">One word per line</label><textarea id="set-${s.key}" rows="4"${editable ? '' : ' disabled'}>${esc(s.value.join('\n'))}</textarea></div>`;
     return '';
   };
@@ -652,22 +881,11 @@ $('#settings-body').onclick = (e) => {
   if (!b) return;
   const key = b.dataset.save;
   if (key === 'disabled_themes') saveSettingValue(key, $$('input[name=theme-off]:checked').map((x) => x.value), b);
-  else if (key === 'blocked_words') saveSettingValue(key, $(`#set-${key}`).value.split(/[\s,]+/).filter(Boolean), b);
+  else if (key === 'blocked_words' || key === 'hand_picked_days') saveSettingValue(key, $(`#set-${key}`).value.split(/[\s,]+/).filter(Boolean), b);
   else if ($(`#set-${key}`).type === 'number') saveSettingValue(key, Number($(`#set-${key}`).value), b);
   else saveSettingValue(key, $(`#set-${key}`).value.trim(), b);
 };
 
-views.announcements = async () => {
-  const d = await api('announcements');
-  $('#ann-form').hidden = !can('admin');
-  $('#ann-list').innerHTML = d.announcements.length ? d.announcements.map((a) => `<li>
-      ${a.live ? '<span class="badge ok">Showing now</span>' : a.startsAt > Date.now() ? '<span class="badge">Scheduled</span>' : '<span class="badge">Ended</span>'}
-      ${a.level === 'warning' ? '<span class="badge warn">Warning</span>' : ''}
-      <p>${esc(a.text)}</p>
-      <p class="muted">From ${when(a.startsAt)} ${a.endsAt ? `to ${when(a.endsAt)}` : 'until ended'} · by ${esc(a.createdBy)}</p>
-      ${can('admin') ? `<div class="row">${a.live || a.startsAt > Date.now() ? `<button class="btn small" data-act="end" data-id="${a.id}">End now</button>` : ''}<button class="btn small danger" data-act="delete" data-id="${a.id}">Delete</button></div>` : ''}
-    </li>`).join('') : '<li class="muted">No announcements yet.</li>';
-};
 $('#ann-form').onsubmit = async (e) => {
   e.preventDefault();
   const text = $('#ann-text').value.trim();
@@ -680,23 +898,16 @@ $('#ann-form').onsubmit = async (e) => {
     await api('announcements', { method: 'POST', body: { text, level: $('#ann-level').value, startsAt: start, endsAt: end } });
     $('#ann-form').reset();
     toast('Published. Players see it within about a minute.');
-    show('announcements', { keepFocus: true });
+    show('communication', { keepFocus: true });
   } catch (ex) { err.textContent = ex.message; err.hidden = false; }
 };
 $('#ann-list').onclick = async (e) => {
   const b = e.target.closest('button[data-act]');
   if (!b) return;
   if (b.dataset.act === 'delete' && !(await ask({ title: 'Delete this announcement?', ok: 'Delete', danger: true }))) return;
-  if (await act(b, () => api(`announcements/${b.dataset.id}/${b.dataset.act}`, { method: 'POST' }), b.dataset.act === 'end' ? 'Ended.' : 'Deleted.')) show('announcements', { keepFocus: true });
+  if (await act(b, () => api(`announcements/${b.dataset.id}/${b.dataset.act}`, { method: 'POST' }), b.dataset.act === 'end' ? 'Ended.' : 'Deleted.')) show('communication', { keepFocus: true });
 };
 
-views.errors = async () => {
-  const d = await api(`errors?days=${$('#err-days').value}`);
-  $('#err-rows').innerHTML = d.errors.length ? d.errors.map((x) => `<tr><td class="num">${fmt(x.count)}</td><td>${esc(x.message)} <span class="badge">${esc(x.kind)}</span></td>
-      <td><code>${esc(x.place || '–')}</code></td><td>${esc(x.platform)} ${esc(x.version)}</td><td>${esc(x.first)}${x.last !== x.first ? ` to ${esc(x.last)}` : ''}</td></tr>`).join('')
-    : '<tr><td colspan="5" class="muted">No error reports in this period.</td></tr>';
-};
-$('#err-days').onchange = () => show('errors');
 
 let auditBefore = null;
 views.audit = async ({ more } = {}) => {
@@ -924,6 +1135,9 @@ $('#daily-body').addEventListener('submit', (e) => {
   planDay(date, e.target.querySelector('button'));
 });
 
+// ---- Characters (characters.js): the game's own cast and narrators.
+views.characters = () => characterView({ api, esc, toast, announce, act, can, setCount });
+
 // ---- Puzzle quality: what to fix first.
 views.quality = async () => {
   const q = await api(`quality?days=${$('#q-days').value}`);
@@ -937,13 +1151,33 @@ views.quality = async () => {
 };
 $('#q-days').onchange = () => show('quality');
 
+// ---- Ratings and insights (ratings.js): stars after each solve, and what they say.
+const ratingHelpers = { api, esc, fmt, when, tile, table, can, act, setCount };
+views.ratings = () => ratingsView(ratingHelpers);
+initRatings(ratingHelpers, (name, o) => show(name, o));
+
+// ---- Marketing (marketing.js): campaigns, ads, media, tracked links and their numbers.
+const marketingHelpers = { api, esc, fmt, when, tile, table, can, act, ask, toast };
+views.marketing = () => marketingView(marketingHelpers);
+initMarketing(marketingHelpers, (name, o) => show(name, o));
+
 // ------------------------------------------------------------- navigation
 const MIN_ROLE = Object.fromEntries($$('#nav-list a').map((a) => [a.hash.slice(1), a.dataset.min]));
+
+// Older links: the idea and problem inbox, error reports and announcements now live in Communication.
+const ALIASES = { feedback: { type: 'idea' }, errors: { type: 'error' }, announcements: { tab: 'send' } };
 
 async function show(route, { keepFocus = false } = {}) {
   // #players/<id> opens a player's page under the list.
   let [name, ...rest] = String(route || '').split('/');
   const arg = rest.length ? decodeURIComponent(rest.join('/')) : undefined;
+  const alias = ALIASES[name];
+  if (alias) {
+    if (alias.type) { $('input[name=comm-tab][value=inbox]').checked = true; $('#comm-type').value = alias.type; }
+    if (alias.tab) $(`input[name=comm-tab][value=${alias.tab}]`).checked = true;
+    history.replaceState(null, '', '#communication');
+    name = 'communication';
+  }
   if (!views[name] || !can(MIN_ROLE[name])) name = 'overview';
   $$('[data-view]').forEach((s) => { s.hidden = s.dataset.view !== name; });
   $$('#nav-list a').forEach((a) => (a.hash === `#${name}` ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current')));
@@ -1072,7 +1306,7 @@ else $('#login').hidden = false;
 // it from Safari's Share menu (steps on the sign-in page).
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/admin/sw.js', { scope: '/admin/' }).catch(() => {});
 let installPrompt = null;
-window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installPrompt = e; $('#install').hidden = false; });
+window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); if (window.__FLG_ADMIN_DESKTOP__) return; installPrompt = e; $('#install').hidden = false; });
 window.addEventListener('appinstalled', () => { installPrompt = null; $('#install').hidden = true; toast('Installed. Open Grid Admin from your home screen or apps.'); });
 $('#install').onclick = async () => {
   if (!installPrompt) return;
@@ -1081,4 +1315,8 @@ $('#install').onclick = async () => {
   installPrompt = null;
   $('#install').hidden = true;
 };
-if (matchMedia('(display-mode: standalone)').matches || navigator.standalone) $('#phone-help').hidden = true;
+// The Windows app (desktop-admin/) opens this same page and marks itself with
+// __FLG_ADMIN_DESKTOP__, so neither the download nor the install steps show there.
+const installed = matchMedia('(display-mode: standalone)').matches || navigator.standalone || window.__FLG_ADMIN_DESKTOP__;
+if (installed) $('#phone-help').hidden = true;
+$('#get-windows').hidden = installed || !/Windows/.test(navigator.userAgent);

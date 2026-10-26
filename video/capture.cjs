@@ -244,17 +244,38 @@ const CSS = `
     await top();
     await scene('home', ['Each puzzle is a logic grid wrapped in a story.', 'The story sets up a mystery, the clues give you the facts, and the grid is where you work out the answer.']);
     await scene('home-2', ['Every story is written fresh for you and never repeated.', 'And every puzzle has exactly one answer you can reach without guessing.']);
+    if (await p.isVisible('#quick-btn')) {
+      await hl('#quick-btn'); await point('#quick-btn');
+      await scene('quick', ['In a hurry? Play a quick puzzle starts a small Easy case straight away, with no choices to make.']);
+      await clearFx();
+    }
     if (await p.isVisible('#daily-today [data-daily]')) {
       await scrollTo('#daily-section'); await hl('#daily-section');
       await scene('daily', ['Every day there is also a new Daily puzzle, the same one for everyone.', 'Solve it each day to build a streak.']);
-      await clearFx(); await top();
+      await clearFx();
+      if (await p.isVisible('#daily-numbers')) {
+        await hl('#daily-numbers');
+        await scene('daily-numbers', ['Under it, you see how many people have played today\'s puzzle, how many solved it, and the typical time.']);
+        await clearFx();
+      }
+      if (await p.isVisible('#daily-email-signin')) {
+        await hl('#daily-email'); await point('#daily-email-signin');
+        await scene('daily-email', ['With a free sign-in, you can get each day\'s puzzle by email.']);
+        await clearFx();
+      }
+      if (await p.isVisible('#daily-picks')) {
+        await hl('#daily-picks');
+        await scene('daily-picks', ['And Hand-picked puzzles lists the daily puzzles players liked best.']);
+        await clearFx();
+      }
+      await top();
     }
     card('howto', ["Here's how to play."]);
 
     // =================== Set up
     await p.check('input[name=tier][value=easy]', { force: true });
     await scrollTo('#tier-choices'); await hl('#tier-choices'); await point('input[name=tier][value=easy] + *');
-    await scene('tiers', ['Start on the New puzzle screen and pick a difficulty.', 'Basic and Easy are perfect for beginners.', ['MENSA is for true masterminds.', 'Mensa is for true masterminds.']]);
+    await scene('tiers', ['Start on the New puzzle screen and pick a difficulty.', 'Basic and Easy are perfect for beginners.', 'Quantum Physicist is for true masterminds.']);
     await clearFx();
     await scrollTo('#theme-choices'); await clickShown('input[name=theme][value=mystery] + *'); await hl('#theme-choices');
     await scene('themes', [['Next, choose a theme, like Mystery, Fantasy, Sci-Fi, Around Town, National Parks or Vacation Destinations.', 'Next, choose a theme, like Mystery, Fantasy, Sci Fi, Around Town, National Parks, or Vacation Destinations.'], 'Or pick Surprise me.']);
@@ -267,10 +288,13 @@ const CSS = `
     await scrollTo('#size-choices'); await hl('#size-choices');
     await scene('sizes', ['Then pick a size.', 'More categories and more items make a bigger, harder grid.']);
     await clearFx();
-    await scrollTo('#gen-btn'); await hl(['label:has(> input[name=playstyle])']);
-    await scene('playstyle', ['Full experience adds scenes, characters and sound.', 'Silent mode keeps only the story, the grid, the clues and the answer key.']);
+    // Play style sits under More options.
+    await p.evaluate(() => { document.querySelector('#more-options').open = true; }); await p.waitForTimeout(200);
+    await scrollTo('#style-field'); await hl(['label:has(> input[name=playstyle])']);
+    await scene('playstyle', ['Under More options, Full experience adds scenes, characters and sound.', 'Silent mode keeps only the story, the grid, the clues and the answer key.']);
     await clearFx();
-    await hl('#gen-btn'); await point('#gen-btn');
+    await p.evaluate(() => { document.querySelector('#more-options').open = false; });
+    await scrollTo('#gen-btn'); await hl('#gen-btn'); await point('#gen-btn');
     await scene('generate', ['Press Generate puzzle, and your story is written in a moment.']);
     await clearFx();
     await p.click('#gen-btn');
@@ -287,10 +311,10 @@ const CSS = `
     await scene('story', ['Read the story first.', 'It tells you who is involved, and it ends with the question you need to answer.', `Here, it's: ${P.goal}`, 'You can also press Read the story aloud to hear it.']);
     await clearFx();
     await scrollTo('#cast-row');
-    const who = await p.evaluate(() => [...document.querySelectorAll('.cast-btn')].find((b) => !/^0 /.test(b.querySelector('small').textContent)).dataset.who);
+    const who = await p.evaluate(() => [...document.querySelectorAll('.cast-btn')].find((b) => !/^0 /.test(b.querySelector('small:last-of-type').textContent)).dataset.who);
     await clickShown(`.cast-btn[data-who="${who}"]`); await p.waitForTimeout(200);
     await hl(['#cast-row', '#bubble']);
-    await scene('cast', ["Select a character's portrait to hear the clues they remember.", 'Every clue is also in the clue list.']);
+    await scene('cast', ['Every character has a personality, shown under their name, and a voice of their own.', "Select a character's portrait to hear the clues they remember, in their own words.", 'Every clue is also in the clue list.']);
     await clearFx(); await spotClues([]); await p.evaluate(() => { document.querySelector('#bubble').hidden = true; });
     await scrollTo('#read-clues'); await hl(['#read-clues']);
     await scene('read-clues', ['To hear every clue in order, press Read the clues aloud.', 'Each character tells their own clue, and the clue being read lights up.']);
@@ -400,11 +424,16 @@ const CSS = `
       await scene('share', ['Solving puzzles earns badges, like First case closed.', 'Press Share my result to send friends a picture of your win. It never gives the answers away.']);
       await clearFx();
     }
+    if (await p.isVisible('#challenge-btn')) {
+      await scrollTo('#challenge-btn'); await hl('#challenge-btn'); await point('#challenge-btn');
+      await scene('challenge-link', ['Challenge a friend makes a link to this very puzzle, with your time to beat.', 'Your friend needs no account, and you both see who was quicker.']);
+      await clearFx();
+    }
     if (await p.isVisible('#feedback')) {
       await scrollTo('#feedback'); await p.locator('#feedback .stars label').nth(4).click();
       await p.locator('#feedback .feel label').nth(1).click().catch(() => {});
       await hl('#feedback');
-      await scene('rating', ['Then rate the puzzle, and say whether it felt too easy, just right or too hard.', 'The game learns from your answers and tunes your next puzzle to suit you.']);
+      await scene('rating', ['If you like, rate the puzzle from 1 to 5 stars, where 5 is excellent, and say whether it felt too easy, just right or too hard.', 'It is optional. The game learns from your answers and tunes your next puzzle to suit you.']);
       await clearFx();
     }
 
@@ -550,8 +579,39 @@ const CSS = `
       await p.click('#menu-btn'); await p.click('[data-cmd=feedback]'); await p.waitForSelector('#dlg-feedback[open]'); await prep();
       await p.fill('#idea-text', 'A pirate ship lost in the fog, where the crew mixed up the treasure maps.');
       const replyOffered = await p.isVisible('#idea-form .fb-reply');
+      const talkOffered = await p.isVisible('#idea-form .fb-talk');
       await scene('feedback', ['Have an idea for a story, or found a problem?', 'Ideas and problems, in the menu, has a separate box for each, and they go straight to the game\'s team.',
-        ...(replyOffered ? ['Signed in with a confirmed email? Leave the box ticked, and the game emails you a short thank-you note.'] : [])]);
+        ...(replyOffered ? ['Signed in with a confirmed email? Leave Email me an update ticked. The game emails you a thank-you, and again when the team acts on it.'] : []),
+        ...(talkOffered ? ['Want an answer? Tick Let the team reply to me.'] : [])]);
+      await p.keyboard.press('Escape');
+    }
+    // Messages: news from the team, and (signed in) a conversation with a reply.
+    if (!(await p.$eval('[data-cmd=messages]', (b) => b.hidden))) {
+      const now = Date.now();
+      await db.prepare("INSERT INTO news (title, text, created_by, created_at) VALUES ('Three new worlds to explore', 'The sunken city, the cloud market and the clockwork forest are open. Happy sleuthing!', 'video', ?1)").bind(now - 3600_000).run();
+      const me = await p.evaluate(async () => (await import('./js/account.js')).current());
+      if (me) {
+        const c = await db.prepare("INSERT INTO conversations (user_id, topic, subject, status, player_unread, created_at, updated_at) VALUES (?1, 'question', 'Can I print a puzzle for my class?', 'open', 1, ?2, ?2) RETURNING id").bind(me.uid, now - 600_000).first();
+        await db.prepare("INSERT INTO conversation_messages (conversation_id, sender, text, created_at) VALUES (?1, 'player', 'Can I print a puzzle for my class?', ?2)").bind(c.id, now - 900_000).run();
+        await db.prepare("INSERT INTO conversation_messages (conversation_id, sender, author, text, created_at) VALUES (?1, 'team', 'video', 'Yes! Open the puzzle and press Print. The answer key prints on its own page.', ?2)").bind(c.id, now - 600_000).run();
+      }
+      await p.evaluate(async () => { await (await import('./js/remote-config.js')).refreshNow(); await (await import('./js/messages.js')).refresh(); });
+      await p.click('#menu-btn'); await p.waitForTimeout(300); await prep();
+      await scene('messages-menu', ['When the team writes to you, or posts news, the Menu button shows a number.']);
+      await p.click('[data-cmd=messages]'); await p.waitForSelector('#dlg-messages[open]');
+      if (me) { await p.click('#msg-convs summary'); await p.waitForTimeout(300); }
+      await prep();
+      await scene('messages', ['Messages, in the menu, has news from the game\'s team for everyone.',
+        ...(me ? ['Signed in, you can write to the team with a question, an idea or a problem, and read their replies right here.', 'Tick Email me, and you get a short email when the team writes back.'] : ['Sign in to write to the team and read their replies.'])]);
+      await p.keyboard.press('Escape');
+    }
+    if (!(await p.$eval('[data-cmd=suggest]', (b) => b.hidden))) {
+      await p.click('#menu-btn'); await p.click('[data-cmd=suggest]'); await p.waitForSelector('#dlg-suggest[open]'); await prep();
+      await p.fill('#suggest-name', 'Captain Mo');
+      await p.check('#suggest-form input[name=gender][value=m]');
+      await p.fill('#suggest-look', 'A blue sea captain\'s coat and a white beard');
+      await p.fill('#suggest-personality', 'Cheerful, a little forgetful, and loves a good riddle');
+      await scene('suggest', ['Dream up a character of your own with Suggest a character, in the menu.', 'Answer a few questions about their name, look, personality and voice.', 'The game\'s team reviews every suggestion, and you might meet yours in a puzzle.']);
       await p.keyboard.press('Escape');
     }
     card('outro', [["That's all you need: read the story, follow the clues, and mark your X's and O's.", "That's all you need. Read the story, follow the clues, and mark your exes and ohs."], 'Welcome to The Fantastical Logic Grid. Happy sleuthing!']);

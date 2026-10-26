@@ -11,6 +11,7 @@
 // every player within about a minute.
 import { THEMES } from '../../engine/src/themes.js';
 import { json } from './http.js';
+import { publicNews } from './messages.js';
 
 const CACHE_MS = 30_000;
 const THEME_IDS = THEMES.map((t) => t.id);
@@ -18,7 +19,8 @@ const THEME_IDS = THEMES.map((t) => t.id);
 const CELEBRATIONS = ['confetti', 'fireworks', 'stars', 'balloons', 'sparkles', 'theme_emoji', 'bubbles', 'falling', 'shooting_stars', 'ribbons', 'light_rays', 'emoji_burst'];
 
 // type: bool, int (with min/max), choice (one of options), model (an AI
-// model name), themes (list of theme ids) or words.
+// model name), url (an https link, or empty), themes (list of theme ids),
+// words or days (YYYY-MM-DD dates).
 export const SETTINGS = {
   // ---- Sounds: the player can still turn their own effects and music off,
   // and the one-tap mute and Silent mode always work.
@@ -85,11 +87,25 @@ export const SETTINGS = {
   translate_enabled: { type: 'bool', default: true, group: 'Languages', label: 'Translations for other languages', help: 'Players can choose any of 100 languages (US English is the default). Browsers that can translate on the device do it themselves; for everyone else Cloudflare Workers AI translates on its free daily allowance and each text is kept, so it is translated once for everyone. Off: only players whose browser translates on the device get other languages.' },
   daily_translate_cap: { type: 'int', min: 0, max: 20000, default: 3000, group: 'Languages', label: 'New translations a day', help: 'Texts sent to Workers AI each day (a menu label or a story sentence is one). Shares the free daily allowance with AI pictures. Texts already translated do not count.' },
   translate_model: { type: 'model', default: '@cf/meta/m2m100-1.2b', group: 'Languages', label: 'Workers AI translation model', help: 'Change it here when Cloudflare retires a model.' },
+  // ---- Characters (characters.js and the Characters section)
+  characters_enabled: { type: 'bool', default: true, group: 'Characters', label: 'The game\'s own characters', help: 'Published characters from the Characters section join new puzzles as cast or narrator. Off: puzzles use only the built-in cast, and suggestions close.' },
+  character_cast_chance: { type: 'int', min: 0, max: 100, default: 60, group: 'Characters', label: 'How often a new puzzle includes a character (percent)', help: 'When a character fits the theme. Players who type their own names always get those instead.' },
+  character_narrator_chance: { type: 'int', min: 0, max: 100, default: 50, group: 'Characters', label: 'How often a character tells the story (percent)', help: 'Only for characters set as narrator, in their themes.' },
+  character_model: { type: 'model', default: '@cf/meta/llama-3.1-8b-instruct-fast', group: 'Characters', label: 'Workers AI model that drafts character lines', help: 'Free on Workers AI\'s daily allowance, shared with AI pictures and translations. Change it here when Cloudflare retires a model.' },
+  character_draft_cap: { type: 'int', min: 0, max: 200, default: 40, group: 'Characters', label: 'AI line drafts a day', help: 'Each press of Draft lines counts one. AI portraits count toward New AI pictures a day.' },
+  character_suggest_enabled: { type: 'bool', default: true, group: 'Characters', label: 'Players can suggest characters', help: 'Menu > Suggest a character in the game asks a few questions. Suggestions wait in the Characters section and nobody sees them until you publish.' },
+  character_suggest_cap: { type: 'int', min: 0, max: 500, default: 50, group: 'Characters', label: 'Character suggestions a day', help: 'For everyone together; each connection can also send only a few a minute.' },
   // ---- Play
   races_enabled: { type: 'bool', default: true, group: 'Play', label: 'Races', help: 'Off: nobody can start, find or join a race. Players already in one can still finish.' },
   scores_enabled: { type: 'bool', default: true, group: 'Play', label: 'Solo scores', help: 'Off: solo solves stop counting for the scoreboard. Race points still count.' },
   names_enabled: { type: 'bool', default: true, group: 'Play', label: 'New and changed screen names', help: 'Off: players keep their names but cannot choose new ones.' },
   names_need_approval: { type: 'bool', default: true, group: 'Play', label: 'New screen names wait for approval', help: 'On: other players see a name a player typed only after an admin approves it in Players or Screen names; until then it shows as "New player". Names from Suggest a name are approved automatically. The player always sees their own name. Off: names show straight away.' },
+  challenges_enabled: { type: 'bool', default: true, group: 'Play', label: 'Challenge a friend links', help: 'After solving, players can share a link that opens the same puzzle for anyone, with their time to beat. No account needed. Off: no new links; links already shared still open.' },
+  challenges_daily_cap: { type: 'int', min: 0, max: 5000, default: 500, group: 'Play', label: 'New challenge links a day', help: 'Keeps the database inside Cloudflare\'s free limits. Each link is kept for 60 days.' },
+  daily_results_enabled: { type: 'bool', default: true, group: 'Play', label: 'Daily puzzle numbers for everyone', help: 'Shows how many played today\'s puzzle, how many solved it and the typical time, on the home screen and after solving. Only counts are kept. Off: the numbers are hidden.' },
+  hand_picked_days: { type: 'days', default: [], group: 'Play', label: 'Hand-picked daily puzzles', help: 'Past daily puzzles to put first in the Hand-picked collection on the website and in the game, one date per line (like 2026-11-03), up to 30. The rest of the collection is the best-rated daily puzzles. Shows after the next website build (every night).' },
+  daily_email_enabled: { type: 'bool', default: true, group: 'Play', label: 'Daily puzzle by email', help: 'Signed-in players with a confirmed email can get each day\'s puzzle by email, sent at about 7 am Eastern from noreply@thelogicgrid.com through Resend, or from the game\'s Gmail as a backup (server/DAILY-EMAIL.md). Every email has a one-click unsubscribe link. Off: no emails and no new sign-ups; the list is kept.' },
+  daily_email_daily_cap: { type: 'int', min: 0, max: 450, default: 300, group: 'Play', label: 'Daily emails a day', help: 'The most people on the daily email list. New sign-ups stop at this number, so everyone on the list gets the email. Resend\'s free plan sends 100 a day, then Gmail (about 500 a day, shared with the other emails) takes over.' },
   disabled_themes: { type: 'themes', default: [], group: 'Play', label: 'Themes switched off', help: 'Hidden from the theme picker and never picked by Surprise me.' },
   // ---- Learning and stories
   learning_enabled: { type: 'bool', default: true, group: 'Learning', label: 'Learn from everyone', help: 'On: anonymous play summaries from players who keep "Learn from how I play" on tune puzzles, clue mix and story parts for all. Off: nothing is sent and summaries are dropped.' },
@@ -97,12 +113,23 @@ export const SETTINGS = {
   story_model: { type: 'model', default: 'gemini-flash-latest', group: 'Learning', label: 'Story workshop AI writer (Gemini model)', help: 'Drafts story parts in the Story workshop with the GEMINI_API_KEY secret, on Google\'s free tier.' },
   // ---- Ideas, problems and upkeep
   feedback_enabled: { type: 'bool', default: true, group: 'Ideas and problems', label: 'Idea and problem boxes', help: 'Off: the game hides its Ideas and problems boxes.' },
-  feedback_replies_enabled: { type: 'bool', default: true, group: 'Ideas and problems', label: 'Thank-you emails', help: 'Signed-in players with a confirmed email can ask for a short no-reply note: a thank-you for an idea, or an apology and thank-you for a problem report. Sent every 15 minutes from noreply@thelogicgrid.com through Resend, or from the game\'s Gmail as a backup (server/FEEDBACK-EMAILS.md). Off: no new notes, and waiting ones are dropped.' },
+  feedback_replies_enabled: { type: 'bool', default: true, group: 'Ideas and problems', label: 'Thank-you emails', help: 'Signed-in players with a confirmed email can tick "Email me an update": a short no-reply note quoting what they wrote (a thank-you for an idea, or an apology and thank-you for a problem report), and a second one with your "What was done" note when you mark it addressed. Sent every 15 minutes from noreply@thelogicgrid.com through Resend, or from the game\'s Gmail as a backup (server/FEEDBACK-EMAILS.md). Off: no new notes, and waiting ones are dropped.' },
   feedback_reply_daily_cap: { type: 'int', min: 0, max: 400, default: 100, group: 'Ideas and problems', label: 'Thank-you emails a day', help: 'For everyone together. Resend\'s free plan sends 100 a day, then Gmail (about 500 a day, shared with the archive and summary emails) takes over. Each player gets at most one note a day for ideas and one for problems.' },
+  // ---- Messages
+  messages_enabled: { type: 'bool', default: true, group: 'Messages', label: 'Messages between players and the team', help: 'Signed-in players can write to the team from Menu > Messages, ask for a reply on an idea or problem, and read the team\'s answers and news there. Answer them in Communication. Off: the game hides Messages and nothing new can be sent.' },
+  message_emails_enabled: { type: 'bool', default: true, group: 'Messages', label: 'Email players when the team writes', help: 'Only players who turned it on in Messages, at most one a day each. The email says there is a new message in the game, never what it says. Counts toward Thank-you emails a day and needs Thank-you emails on.' },
   error_reports_enabled: { type: 'bool', default: true, group: 'Ideas and problems', label: 'Automatic error reports', help: 'Anonymous reports the apps send when something breaks. Off: nothing is sent.' },
   // ---- Alerts and reports
   alert_percent: { type: 'int', min: 50, max: 100, default: 80, group: 'Alerts and reports', label: 'Warn when a free allowance reaches (percent)', help: 'The dashboard shows a warning, and the health check opens a GitHub issue (which GitHub emails you), when a daily free allowance or the database passes this level.' },
   summary_email_enabled: { type: 'bool', default: true, group: 'Alerts and reports', label: 'Weekly summary email', help: 'Every Monday: new players, games, top themes, new ideas and problems, errors, puzzles that need attention and free-limit warnings. Sent from the game\'s Gmail with the same setup as the archive email (server/ARCHIVE.md).' },
+  ratings_ai_enabled: { type: 'bool', default: true, group: 'Alerts and reports', label: 'AI summary of puzzle ratings', help: 'Ratings and insights: a few plain sentences on what is working and what to improve, written by a free Cloudflare Workers AI text model from the rating numbers only (never player text). Off: only the rule-based findings show.' },
+  ratings_ai_daily_cap: { type: 'int', min: 0, max: 20, default: 3, group: 'Alerts and reports', label: 'AI rating summaries a day', help: 'Each one is kept for the day and shared by the dashboard, the nightly report and the emails. Shares Workers AI\'s free daily allowance with pictures and translations; a summary uses very little.' },
+  ratings_model: { type: 'model', default: '@cf/meta/llama-3.1-8b-instruct-fast', group: 'Alerts and reports', label: 'Workers AI model for rating summaries', help: 'Change it here when Cloudflare retires a model.' },
+  // ---- Support and premium: the game is free. These only add an optional
+  // link out to a page the owner sets up elsewhere; nothing here takes
+  // payments or locks any part of the game.
+  support_link_enabled: { type: 'bool', default: false, group: 'Support and premium', label: 'Support the game link', help: 'On: the game\'s Menu shows "Support the game", which opens the page below in a new window. Needs a link below. Nothing in the game is locked either way.' },
+  support_url: { type: 'url', default: '', group: 'Support and premium', label: 'Support page link', help: 'An https link to your tip, sponsor or membership page, such as a GitHub Sponsors, Ko-fi or Paddle page. Leave empty for none.' },
   blocked_words: { type: 'words', default: [], group: 'Moderation', label: 'Extra blocked words in screen names', help: 'Added to the built-in word filter. Letters only, 3 to 30 each.' },
   archive_email_enabled: {
     type: 'bool', default: false, group: 'Backups', label: 'Weekly archive email',
@@ -147,6 +174,7 @@ export function checkSetting(key, value) {
     const v = typeof value === 'string' ? value.trim() : null;
     return v && /^@?[a-z0-9][a-z0-9.:_/-]{1,99}$/i.test(v) ? { value: v } : { error: 'Use a model name such as gemini-flash-latest: letters, numbers, dots, dashes and slashes.' };
   }
+  if (s.type === 'url') return checkUrl(value);
   if (!Array.isArray(value)) return { error: 'Use a list.' };
   if (s.type === 'themes') {
     const list = [...new Set(value)];
@@ -154,9 +182,24 @@ export function checkSetting(key, value) {
     if (list.length >= THEME_IDS.length) return { error: 'Keep at least one theme on.' };
     return { value: list };
   }
+  if (s.type === 'days') {
+    const days = [...new Set(value.map((d) => String(d).trim()).filter(Boolean))];
+    if (days.length > 30 || days.some((d) => !/^\d{4}-\d{2}-\d{2}$/.test(d) || Number.isNaN(Date.parse(`${d}T00:00:00Z`)))) return { error: 'Use up to 30 dates like 2026-11-03, one per line.' };
+    return { value: days.sort() };
+  }
   const words = [...new Set(value.map((w) => String(w).trim().toLowerCase()).filter(Boolean))];
   if (words.length > 200 || words.some((w) => !/^[a-z]{3,30}$/.test(w))) return { error: 'Use up to 200 words of 3 to 30 letters.' };
   return { value: words };
+}
+
+function checkUrl(value) {
+  const v = typeof value === 'string' ? value.trim() : null;
+  if (v === '') return { value: '' };
+  try {
+    const u = new URL(v);
+    if (u.protocol === 'https:' && !u.username && !u.password && v.length <= 300) return { value: u.href };
+  } catch (e) { /* not a link */ }
+  return { error: 'Use a full https:// link of up to 300 characters, or leave it empty.' };
 }
 
 export async function saveSetting(env, key, value, by) {
@@ -187,11 +230,13 @@ export async function publicConfig(req, env) {
       races: s.races_enabled, scores: s.scores_enabled, names: s.names_enabled, nameApproval: s.names_need_approval, voices: s.tts_enabled,
       storySharing: s.story_sharing_enabled, learning: s.learning_enabled, errorReports: s.error_reports_enabled,
       feedback: s.feedback_enabled, feedbackReplies: s.feedback_replies_enabled, soundEffects: s.sound_effects_enabled, music: s.theme_music_enabled, pictures: s.ai_pictures !== 'none',
-      translate: s.translate_enabled,
+      translate: s.translate_enabled, messages: s.messages_enabled, challenges: s.challenges_enabled, dailyResults: s.daily_results_enabled, dailyEmail: s.daily_email_enabled,
     },
+    news: s.messages_enabled ? await publicNews(env) : [],
     // Chosen here for every player.
     game: { voiceSource: s.voice_source, readAloud: s.read_aloud, portraitStyle: s.portrait_style, confetti: s.confetti, aiPictures: s.ai_pictures,
-      celebrations: CELEBRATIONS.filter((k) => s[k]), celebrateRandom: s.celebrate_random },
+      celebrations: CELEBRATIONS.filter((k) => s[k]), celebrateRandom: s.celebrate_random,
+      supportUrl: s.support_link_enabled && s.support_url ? s.support_url : '' },
     // Starting values; a player's own choice wins.
     defaults: { sound: s.default_sound, volume: s.default_volume, music: s.default_music, musicVolume: s.default_music_volume },
   }, 200, { 'Cache-Control': 'public, max-age=60' });

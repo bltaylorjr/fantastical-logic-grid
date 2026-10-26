@@ -1,0 +1,71 @@
+# Emails the owner (fantasticallogicgrid@gmail.com) whenever something needs
+# doing outside the code: DNS records, secrets, dashboard switches, settings.
+# - Automatic: merge a pull request that adds or changes a Markdown file in
+#   docs/owner-tasks/. Each such file is emailed once (see its README.md).
+# - By hand: Actions > Owner task email > Run workflow, with a file path, or
+#   with a subject and body (Markdown). Optional: attach a PDF from
+#   docs/reports/, and send to another address ("to"; masked in the log).
+# Uses the Gmail secrets the archive email already has (server/ARCHIVE.md);
+# OWNER_TASKS_TO is optional (defaults to the Gmail address itself).
+# Free: GitHub Actions on a public repo and Gmail cost nothing.
+name: Owner task email
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/owner-tasks/**.md'
+  workflow_dispatch:
+    inputs:
+      file:
+        description: File to email, e.g. docs/owner-tasks/2026-10-26-outstanding-setup-tasks.md
+        required: false
+      subject:
+        description: Or a subject...
+        required: false
+      body:
+        description: ...and a body (Markdown, \n for new lines)
+        required: false
+      attach:
+        description: Optional PDF to attach, e.g. docs/reports/2026-10-26-pricing-and-fee-structure.pdf
+        required: false
+      to:
+        description: Optional address to send to instead of the owner inbox (hidden in the log)
+        required: false
+permissions:
+  contents: read
+concurrency:
+  group: owner-email
+jobs:
+  send:
+    runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork && '"ubuntu-latest"') || vars.FLG_RUNNER || '"ubuntu-latest"') }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
+          sparse-checkout: |
+            docs/owner-tasks
+            docs/reports
+            scripts/owner-email.py
+          sparse-checkout-cone-mode: false
+      - name: Pick the files
+        id: files
+        env:
+          INPUT_FILE: ${{ inputs.file }}
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            files=$(git diff --name-only --diff-filter=AM HEAD~1 HEAD -- 'docs/owner-tasks/*.md' | tr '\n' ' ')
+          else
+            files="$INPUT_FILE"
+          fi
+          echo "list=$files" >> "$GITHUB_OUTPUT"
+      - name: Email
+        env:
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          OWNER_TO: ${{ secrets.OWNER_TASKS_TO }}
+          FILES: ${{ steps.files.outputs.list }}
+          SUBJECT: ${{ inputs.subject }}
+          BODY: ${{ inputs.body }}
+          ATTACH: ${{ inputs.attach }}
+        run: python3 -I scripts/owner-email.py

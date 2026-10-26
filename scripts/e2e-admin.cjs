@@ -103,6 +103,22 @@ const SHOTS = process.env.SHOTS;
     const sw = await page.evaluate(async () => { const reg = await navigator.serviceWorker.ready; return reg.scope; });
     assert(/\/admin\/$/.test(sw), 'the service worker is installed for /admin/');
     assert(await page.locator('#phone-help summary').isVisible(), 'the sign-in page explains how to put it on a phone');
+    const winApp = /\/releases\/download\/admin-desktop\/The-Fantastical-Logic-Grid-Admin-Setup\.exe$/;
+    assert(winApp.test(await page.locator('#phone-help a').first().getAttribute('href')), 'the install steps link the Windows admin app');
+    assert(await page.locator('#get-windows').isHidden(), 'Download for Windows is hidden off Windows');
+    {
+      // On Windows the header offers the download; inside the Windows app
+      // (which sets __FLG_ADMIN_DESKTOP__) neither it nor the steps show.
+      const win = await browser.newContext({ userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0' });
+      const w = await win.newPage();
+      await w.goto(`${API}/admin/`);
+      assert(await w.locator('#get-windows').isVisible(), 'Windows visitors see Download for Windows');
+      assert(winApp.test(await w.locator('#get-windows').getAttribute('href')), 'Download for Windows links the admin installer');
+      await w.addInitScript(() => { window.__FLG_ADMIN_DESKTOP__ = true; });
+      await w.reload();
+      assert(await w.locator('#get-windows').isHidden() && await w.locator('#phone-help').isHidden(), 'the Windows app hides the download and install steps');
+      await win.close();
+    }
     await page.fill('#login-email', OWNER);
     await page.fill('#login-password', 'wrong');
     await page.click('#login-form button[type=submit]');
@@ -150,7 +166,13 @@ const SHOTS = process.env.SHOTS;
     await page.locator('input[name=theme-off]').first().check();
     await page.click('button[data-save=disabled_themes]');
     await page.waitForFunction(() => /Changed by/.test(document.querySelector('#settings-body').textContent));
-    const saved = JSON.parse((await db.prepare("SELECT value FROM settings WHERE key = 'disabled_themes'").first()).value);
+    // "Changed by" can already show from an earlier save, so wait for the row itself.
+    let saved = [];
+    for (let i = 0; i < 50 && saved.length !== 1; i++) {
+      const row = await db.prepare("SELECT value FROM settings WHERE key = 'disabled_themes'").first();
+      saved = row ? JSON.parse(row.value) : [];
+      if (saved.length !== 1) await new Promise((r) => setTimeout(r, 100));
+    }
     assert(saved.length === 1 && saved[0] === theme, `theme "${theme}" is switched off`);
     // Settings that moved out of the game.
     const dbValue = async (key) => { const r = await db.prepare('SELECT value FROM settings WHERE key = ?').bind(key).first(); return r && JSON.parse(r.value); };
@@ -182,11 +204,18 @@ const SHOTS = process.env.SHOTS;
     assert(await pick('voice_source', 'device'), 'where voices come from is chosen for everyone');
     await shot(page, '2-settings');
 
-    await page.click('a[href="#announcements"]');
+    await page.click('a[href="#communication"]');
+    await page.check('input[name=comm-tab][value=send]');
+    await page.waitForSelector('#comm-send:not([hidden])');
     await page.fill('#ann-text', 'Double points this weekend!');
     await page.click('#ann-form button[type=submit]');
     await page.waitForSelector('#ann-list .badge.ok');
     assert(/Double points/.test(await page.textContent('#ann-list')), 'an announcement is published');
+    await page.fill('#news-title', 'Three new worlds');
+    await page.fill('#news-text', 'Explore the sunken city, the cloud market and the clockwork forest.');
+    await page.click('#news-form button[type=submit]');
+    await page.waitForSelector('#news-list .badge.ok');
+    assert(/Three new worlds/.test(await page.textContent('#news-list')), 'news for every player\'s Messages is published');
 
     await page.click('a[href="#names"]');
     await page.waitForSelector('#names-rows button[data-act=reset]');
@@ -262,6 +291,45 @@ const SHOTS = process.env.SHOTS;
     const [dl] = await Promise.all([page.waitForEvent('download'), page.click('#quality-body [data-csv]')]);
     const csvFile = fs.readFileSync(await dl.path(), 'utf8');
     assert(/^\uFEFF?Theme,Difficulty/.test(csvFile) && /\.csv$/.test(dl.suggestedFilename()), `a table downloads as a CSV file (${dl.suggestedFilename()})`);
+    // Ratings and insights.
+    await page.click('a[href="#ratings"]');
+    await page.waitForSelector('#ratings-body .tile');
+    const rt = await page.textContent('#ratings-body');
+    assert(/Average rating/.test(rt) && /What's working/.test(rt) && /What to improve/.test(rt) && /In a few words/.test(rt), 'Ratings and insights shows the numbers and the plain-words analysis');
+    assert(await page.locator('#ratings-body .spread-list li').count() === 5 && await page.locator('#ratings-body table tbody tr').count() >= 1, 'it shows the 1 to 5 spread and a table by theme and difficulty');
+    await page.selectOption('#rt-by', 'clue');
+    await page.waitForFunction(() => /By clue type/.test(document.querySelector('#ratings-body').textContent));
+    assert(true, 'Group by changes the table');
+    await shot(page, '4b-ratings');
+    // Marketing: the starter campaign, ad words with their tracked link, media and numbers.
+    await db.prepare("INSERT INTO campaign_stats (day, campaign, source, medium, content, event, platform, n) VALUES (?1, 'launch-2026', 'pinterest', 'social', 'printable-pin', 'visit', 'web', 12), (?1, 'launch-2026', 'pinterest', 'social', 'printable-pin', 'solve', 'web', 5)").bind(new Date(now).toISOString().slice(0, 10)).run();
+    await page.click('a[href="#marketing"]');
+    await page.waitForSelector('#marketing-body .tile');
+    const mk = await page.textContent('#marketing-body');
+    assert(/Launch on free channels/.test(mk) && /Visits/.test(mk) && /By channel/.test(mk), 'Marketing shows the launch campaign and its numbers');
+    assert(await page.locator('#marketing-body .mk-ad').count() >= 20, 'every starter ad is listed');
+    assert(await page.locator('#marketing-body .mk-media img').count() >= 5, 'media show their previews');
+    const pin = page.locator('#marketing-body details:has-text("Pinterest: printable puzzles pin")');
+    await pin.locator('summary').click();
+    const words = await pin.locator('textarea').inputValue();
+    assert(/utm_campaign=launch-2026&utm_content=printable-pin/.test(words) && !/\{link\}/.test(words), 'an ad\'s words carry its tracked link');
+    assert(/12 visits/.test(await pin.locator('summary').textContent()), 'each ad shows what it brought in');
+    await pin.locator('[data-ad-posted]').click();
+    await page.waitForSelector('#mk-dialog[open]');
+    await page.fill('#mk-dialog input[name=postUrl]', 'https://www.pinterest.com/pin/1234/');
+    await page.click('#mk-dialog-ok');
+    await page.waitForFunction(() => /Live post/.test(document.querySelector('#marketing-body').textContent));
+    assert(true, 'an ad is marked as posted with its live link');
+    await page.click('#mk-c-new');
+    await page.waitForSelector('#mk-dialog[open]');
+    await page.fill('#mk-dialog input[name=name]', 'Library flyers');
+    await page.click('#mk-dialog-ok');
+    await page.waitForFunction(() => /Library flyers/.test(document.querySelector('#marketing-body').textContent));
+    await page.selectOption('#mk-b-c', 'library-flyers');
+    await page.fill('#mk-b-s', 'library');
+    await page.selectOption('#mk-b-m', 'print');
+    assert(/utm_source=library&utm_medium=print&utm_campaign=library-flyers/.test(await page.inputValue('#mk-b-out')), 'a new campaign and a tracked link from the link maker');
+    await shot(page, '4c-marketing');
     await page.click('a[href="#players"]');
     const [dl2] = await Promise.all([page.waitForEvent('download'), page.click('[data-export=scores]')]);
     assert(/Screen name/.test(fs.readFileSync(await dl2.path(), 'utf8')) && /logic-grid-scores-/.test(dl2.suggestedFilename()), 'all scores download as a CSV file');
@@ -306,9 +374,14 @@ const SHOTS = process.env.SHOTS;
     await game.route('**/v1/learn/**', (r) => r.fulfill({ status: 204, body: '' }));
     await game.addInitScript(() => { if (!localStorage.getItem('flg.settings')) localStorage.setItem('flg.settings', JSON.stringify({ introOffered: true, voiceProvider: 'device', silent: true })); });
     const p = await game.newPage();
-    await p.goto(`${APP}/`);
+    // Arriving on a campaign link: the visit is counted and the address cleaned.
+    await p.goto(`${APP}/?utm_source=reddit&utm_medium=forum&utm_campaign=launch-2026&utm_content=webgames-launch`);
     await p.waitForSelector('#announcements:not([hidden]) .announcement');
     assert(/Double points/.test(await p.textContent('#announcements')), 'the game shows the announcement');
+    assert(!/utm_/.test(p.url()), 'the campaign tags leave the address bar');
+    let visit = null;
+    for (let i = 0; i < 20 && !visit; i++) { visit = await db.prepare("SELECT n FROM campaign_stats WHERE campaign = 'launch-2026' AND source = 'reddit' AND content = 'webgames-launch' AND event = 'visit'").first(); if (!visit) await p.waitForTimeout(200); }
+    assert(visit && visit.n === 1, 'a visit from a campaign link is counted');
     await p.waitForFunction((t) => !document.querySelector(`input[name=theme][value="${t}"]`), theme);
     assert(await p.locator('input[name=theme][value=random]').count() === 1, 'the switched-off theme is gone from the picker');
     await shot(p, '6-game');
@@ -337,11 +410,22 @@ const SHOTS = process.env.SHOTS;
     assert(await p.isChecked('input[name=music]'), 'a player\'s own choice wins over the dashboard\'s starting value');
     await p.keyboard.press('Escape');
 
+    // News shows in Messages, for guests too, with a badge until seen.
+    await p.waitForSelector('#menu-count:not([hidden])');
+    await p.click('#menu-btn');
+    await p.click('#app-menu [data-cmd=messages]');
+    await p.waitForSelector('#dlg-messages[open]');
+    assert(/Three new worlds/.test(await p.textContent('#msg-news')), 'the game shows the news in Messages');
+    assert(await p.isVisible('#msg-signin'), 'a guest is asked to sign in to write to the team');
+    await p.keyboard.press('Escape');
+    await p.waitForFunction(() => document.querySelector('#menu-count').hidden, null, { timeout: 3000 }).catch(() => {});
+    assert(await p.locator('#menu-count').isHidden(), 'seen news is no longer counted as new');
+
     // The two boxes: an idea and a problem report arrive separately.
     await p.click('#menu-btn');
     await p.click('#app-menu [data-cmd=feedback]');
     await p.waitForSelector('#dlg-feedback[open]');
-    assert(await p.$eval('#idea-form .fb-reply', (el) => el.hidden), 'a guest is not offered a thank-you email');
+    assert(await p.$eval('#idea-form .fb-reply', (el) => el.hidden), 'a guest is not offered email updates');
     await p.fill('#idea-text', 'A pirate ship lost in the fog where the crew swapped maps.');
     await p.click('#idea-form button[type=submit]');
     await p.waitForFunction(() => /sent/.test(document.querySelector('#idea-form .acct-done').textContent));
@@ -352,7 +436,9 @@ const SHOTS = process.env.SHOTS;
     const fb = (await db.prepare('SELECT kind, topic FROM feedback ORDER BY id').all()).results.map((r) => `${r.kind}:${r.topic}`);
     assert(fb.join() === 'idea:story,problem:sound', `an idea and a problem arrive in separate boxes (${fb.join()})`);
 
-    // ...and show up in the dashboard, each in its own list.
+    // ...and show up in the dashboard's one inbox (the old #feedback link still works).
+    await db.prepare("INSERT INTO conversations (id, user_id, topic, subject, status, admin_unread, created_at, updated_at) VALUES (900, 'player-1', 'question', 'Can I print puzzles?', 'open', 1, ?1, ?1)").bind(Date.now()).run();
+    await db.prepare("INSERT INTO conversation_messages (conversation_id, sender, text, created_at) VALUES (900, 'player', 'Can I print puzzles for my class?', ?1)").bind(Date.now()).run();
     const look = await browser.newContext();
     const q = await look.newPage();
     watch(q);
@@ -360,15 +446,48 @@ const SHOTS = process.env.SHOTS;
     await q.click('.break-glass summary');
     await q.fill('#token-input', TOKEN);
     await q.click('#token-form button[type=submit]');
-    await q.waitForSelector('#fb-list button[data-status=done]');
-    assert(/pirate ship/.test(await q.textContent('#fb-list')) && !/music stopped/.test(await q.textContent('#fb-list')), 'the dashboard lists ideas on their own');
-    assert(/Thank-you emails/.test(await q.textContent('#fb-replies')), 'the dashboard shows the thank-you email counts');
-    await q.check('input[name=fb-kind][value=problem]');
-    await q.waitForFunction(() => /music stopped/.test(document.querySelector('#fb-list').textContent));
-    await q.click('#fb-list button[data-status=done]');
-    await q.waitForFunction(() => /Nothing here/.test(document.querySelector('#fb-list').textContent));
+    await q.waitForSelector('#comm-list button[data-status=done]');
+    assert(/#communication$/.test(q.url()) && (await q.inputValue('#comm-type')) === 'idea', 'the old ideas link opens Communication on ideas');
+    assert(/pirate ship/.test(await q.textContent('#comm-list')) && !/music stopped/.test(await q.textContent('#comm-list')), 'the inbox can show ideas on their own');
+    assert(/Emails to players/.test(await q.textContent('#fb-replies')), 'the dashboard shows the email counts');
+    await q.selectOption('#comm-type', 'problem');
+    await q.waitForFunction(() => /music stopped/.test(document.querySelector('#comm-list').textContent));
+    await q.click('#comm-list button[data-status=addressed]');
+    await q.waitForSelector('#dialog[open]');
+    await q.fill('#dialog-body textarea[name=note]', 'The music now loops without stopping (1.7.1).');
+    await q.click('#dialog-ok');
+    await q.waitForFunction(() => /Nothing here/.test(document.querySelector('#comm-list').textContent));
+    const marked = await db.prepare("SELECT status, note FROM feedback WHERE kind = 'problem'").first();
+    assert(marked.status === 'addressed' && /loops/.test(marked.note), 'a problem can be marked addressed with a note');
+    await q.selectOption('#comm-status', 'addressed');
+    await q.waitForFunction(() => /What we did:.*loops/.test(document.querySelector('#comm-list').textContent));
+    await q.click('#comm-list button[data-status=new]');
+    await q.waitForFunction(() => /Nothing here/.test(document.querySelector('#comm-list').textContent));
+    await q.selectOption('#comm-status', 'new');
+    await q.waitForSelector('#comm-list button[data-status=done]');
+    await q.click('#comm-list button[data-status=done]');
+    await q.waitForFunction(() => /Nothing here/.test(document.querySelector('#comm-list').textContent));
     assert((await db.prepare("SELECT status FROM feedback WHERE kind = 'problem'").first()).status === 'done', 'a problem can be marked done');
-    await shot(q, '7-feedback');
+    await q.selectOption('#comm-type', 'all');
+    await q.waitForFunction(() => /Can I print/.test(document.querySelector('#comm-list').textContent));
+    assert(/pirate ship/.test(await q.textContent('#comm-list')), 'Everything lists messages and ideas together');
+    assert(/unread/.test(await q.textContent('#comm-summary')), 'the inbox says what is waiting');
+    await q.fill('#comm-q', 'pirate');
+    await q.click('#comm-filter button[type=submit]');
+    await q.waitForFunction(() => !/Can I print/.test(document.querySelector('#comm-list').textContent));
+    await q.fill('#comm-q', '');
+    await q.click('#comm-filter button[type=submit]');
+    await q.waitForSelector('#comm-list button[data-open="900"]');
+    await q.click('#comm-list button[data-open="900"]');
+    await q.waitForSelector('#comm-thread:not([hidden]) #reply-text');
+    assert(await q.evaluate(() => document.activeElement && document.activeElement.id === 'thread-h'), 'opening a conversation moves focus to it');
+    await q.fill('#reply-text', 'Yes! Open the puzzle and press Print.');
+    await q.click('#reply-form button[type=submit]');
+    await q.waitForFunction(() => document.querySelectorAll('#comm-thread .msg.team').length === 1);
+    const sentRow = await db.prepare("SELECT sender, author FROM conversation_messages WHERE conversation_id = 900 AND sender = 'team'").first();
+    assert(sentRow && sentRow.author === 'break-glass token', 'the reply is saved with who sent it');
+    assert((await db.prepare('SELECT player_unread FROM conversations WHERE id = 900').first()).player_unread === 1, 'the player will see a new reply');
+    await shot(q, '7-communication');
     await look.close();
     await game.close();
 

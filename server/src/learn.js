@@ -17,6 +17,7 @@ import { getTopics, storyKey } from '../../engine/src/topics.js';
 import { TIER_ORDER, CLUE_TYPES } from '../../engine/src/tiers.js';
 import { getSettings } from './settings.js';
 import { readText } from './http.js';
+import { GEMINI_VOICES } from './voices.js';
 
 // The edge-cache key of the tuning reply; the admin dashboard clears it after a review.
 export const TUNING_CACHE_KEY = 'https://flg-cloud.internal/v1/learn/tuning';
@@ -28,7 +29,8 @@ const TIERS = new Set(TIER_ORDER);
 const PLATFORMS = new Set(['web', 'desktop', 'android', 'ios']);
 const OUTCOMES = new Set(['solved', 'revealed', 'abandoned']);
 const FEELS = new Set(['easy', 'right', 'hard']);
-const VOICES = new Set(['Kore', 'Puck', 'Charon', 'Fenrir', 'Aoede', 'Leda', 'Orus', 'Zephyr', 'Callirrhoe', 'Enceladus', 'Iapetus', 'Umbriel']);
+const MODES = new Set(['free', 'daily', 'race']);
+const TOPIC_KEYS = new Set(THEMES.flatMap((t) => getTopics(t.id).map((p) => `${t.id}/${p.id}`)));
 const TUNING_DAYS = 90;
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -81,6 +83,15 @@ function cleanPlay(p) {
     outcome: p.outcome, rating: Number.isInteger(p.rating) && p.rating >= 1 && p.rating <= 5 ? p.rating : null,
     feel: FEELS.has(p.feel) ? p.feel : null, parts: JSON.stringify(parts),
     minutes: num(p.minutes, 0, 600, null), hints: Math.round(num(p.hints, 0, 999)), mistakes: Math.round(num(p.mistakes, 0, 999)),
+    // For the ratings report (ratings.js). pid is a random key for this one
+    // puzzle, so a rating sent later updates the row instead of adding a game.
+    pid: /^[A-Za-z0-9]{12,32}$/.test(p.pid || '') ? p.pid : null,
+    topic: TOPIC_KEYS.has(`${p.theme}/${p.topic}`) ? p.topic : null,
+    story: /^[\w.|:/-]{1,160}$/.test(p.story || '') ? p.story : null,
+    chars: Array.isArray(p.chars) && p.chars.length ? JSON.stringify([...new Set(p.chars.filter((c) => /^[a-z0-9-]{1,40}$/.test(String(c))))].slice(0, 4)) : null,
+    version: /^\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(p.version || '') ? p.version : null,
+    mode: MODES.has(p.mode) ? p.mode : null,
+    whatif: Number.isFinite(+p.whatif) ? Math.round(num(p.whatif, 0, 999)) : null,
   };
 }
 
@@ -91,8 +102,15 @@ async function postPlays(req, env) {
   const rows = (Array.isArray(body.plays) ? body.plays : []).slice(0, 50).map(cleanPlay).filter(Boolean);
   if (!rows.length) return json({ saved: 0 });
   const day = today();
-  const stmt = env.DB.prepare('INSERT INTO plays (day, platform, tier, theme, size, clue_types, effort, signal, outcome, rating, feel, parts, minutes, hints, mistakes) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
-  await env.DB.batch(rows.map((r) => stmt.bind(day, r.platform, r.tier, r.theme, r.size, r.clueTypes, r.effort, r.signal, r.outcome, r.rating, r.feel, r.parts, r.minutes, r.hints, r.mistakes)));
+  // A row sent again with the same pid (a rating given after the game was
+  // sent) updates it; a solve never turns back into a quit.
+  const stmt = env.DB.prepare(`INSERT INTO plays (day, platform, tier, theme, size, clue_types, effort, signal, outcome, rating, feel, parts, minutes, hints, mistakes,
+      pid, topic, story, chars, version, mode, whatif) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    ON CONFLICT (pid) WHERE pid IS NOT NULL DO UPDATE SET rating = excluded.rating, feel = excluded.feel, signal = excluded.signal,
+      outcome = CASE WHEN plays.outcome IN ('solved', 'revealed') AND excluded.outcome = 'abandoned' THEN plays.outcome ELSE excluded.outcome END,
+      minutes = COALESCE(excluded.minutes, plays.minutes), hints = excluded.hints, mistakes = excluded.mistakes`);
+  await env.DB.batch(rows.map((r) => stmt.bind(day, r.platform, r.tier, r.theme, r.size, r.clueTypes, r.effort, r.signal, r.outcome, r.rating, r.feel, r.parts, r.minutes, r.hints, r.mistakes,
+    r.pid, r.topic, r.story, r.chars, r.version, r.mode, r.whatif)));
   return json({ saved: rows.length });
 }
 
@@ -251,7 +269,7 @@ async function postTts(req, env, ctx, headers) {
   }
   const body = await bodyJson(req, 2_000);
   const text = String(body.text || '').trim();
-  const voice = VOICES.has(body.voice) ? body.voice : 'Charon';
+  const voice = GEMINI_VOICES.has(body.voice) ? body.voice : 'Charon';
   const lang = /^[a-z]{2,3}-[A-Z]{2}$/.test(body.lang || '') ? body.lang : 'en-US';
   if (!text || text.length > 400) return json({ error: 'Text must be 1 to 400 characters.' }, 400, headers);
   const model = settings.gemini_voice_model;

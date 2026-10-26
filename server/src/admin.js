@@ -10,20 +10,30 @@
 //   GET  /admin/v1/storage             rows per table, database size, free limits
 //   GET  /admin/v1/usage?days=         Cloudflare's own request and D1 counts (optional token)
 //   GET  /admin/v1/search              Google and Bing search numbers (search.js); POST .../refresh
-//   GET  /admin/v1/errors?days=        error reports, most frequent first
+//   GET  /admin/v1/errors?days=        error reports, most frequent first, with the fixes marked addressed
+//   POST /admin/v1/errors/fix          mark an error addressed { message, place, fixedIn, note }; POST .../fix/:id/delete
 //   GET  /admin/v1/parts?status=       shared story parts; POST /admin/v1/parts/review
 //   GET  /admin/v1/workshop            Story workshop choices; POST .../draft (AI writer), .../add
-//   GET  /admin/v1/feedback?kind=&status=  ideas and problems from the game; POST .../:id (done|new|delete)
+//   GET  /admin/v1/characters[/:id]    the Characters section; POST .../save, .../:id/(portrait|lines|publish|unpublish|delete) (characters.js)
+//   GET  /admin/v1/feedback?kind=&status=  ideas and problems from the game; POST .../:id (addressed + note|done|new|delete)
 //   POST /admin/v1/replies/claim       thank-you emails waiting, for the GitHub Action to send (owner, replies.js)
 //   POST /admin/v1/replies/done        that Action says which went out; their addresses are removed (owner)
+//   POST /admin/v1/daily-email/claim   the day's daily puzzle email list, for the GitHub Action (owner, daily-email.js)
+//   POST /admin/v1/daily-email/done    which of those failed (tried again) or were refused (removed) (owner)
 //   GET  /admin/v1/names?status=       screen names to moderate; POST /admin/v1/names/:uid/approve
 //   GET  /admin/v1/players?q=&filter=&sort=&dir=&page=&per=  every player, a page at a time; GET /admin/v1/players/:uid
 //   POST /admin/v1/players/:uid/(rename|ban|unban|reset-scores|delete)
 //   GET/POST /admin/v1/settings        feature switches and limits (settings.js)
 //   GET/POST /admin/v1/announcements   messages in the game; POST .../:id/(end|delete)
+//   GET  /admin/v1/inbox?type=&status=&q=  Communication: messages, ideas, problems, errors and emails in one list (messages.js)
+//   GET  /admin/v1/conversations/:id   one conversation; POST .../:id/reply, .../:id/status (open|done|delete)
+//   POST /admin/v1/conversations       write to one player first
+//   GET/POST /admin/v1/news            news in every player's Messages; POST .../:id/(end|delete)
 //   GET  /admin/v1/audit               the audit log
 //   GET  /admin/v1/daily               the daily puzzle planner; POST .../:date (change), .../:date/reset (daily.js)
 //   GET  /admin/v1/quality?days=       puzzles players give up on, rate low or find too hard or easy (report.js)
+//   GET  /admin/v1/ratings?days=&by=[&brief=1]  puzzle ratings, trends and the plain-words analysis; POST .../summary (ratings.js)
+//   GET  /admin/v1/marketing?days=     campaigns, ads, media, tracked links and their numbers (marketing.js)
 //   GET  /admin/v1/alerts              free allowances close to running out
 //   GET  /admin/v1/summary?days=       the week in numbers, for the Monday summary email
 //   GET  /admin/v1/export/(players|scores|feedback).csv   spreadsheet downloads
@@ -49,12 +59,18 @@ import { SETTINGS, getSettings, checkSetting, saveSetting, themeList } from './s
 import { TUNING_CACHE_KEY } from './learn.js';
 import { refreshSearch, searchSnapshots, lastTry, REFRESH_GAP_MS } from './search.js';
 import { workshopOptions, addPart, draftParts } from './workshop.js';
+import { characterRoutes } from './characters.js';
 import { TOPICS as FEEDBACK_TOPICS } from './feedback.js';
-import { claimReplies, finishReplies, replyCounts } from './replies.js';
+import { claimReplies, finishReplies, replyCounts, releaseUpdate, dropUpdate, deleteReplyStatements } from './replies.js';
+import { inbox, INBOX_TYPES, conversationView, teamReply, setConversationStatus, startConversation, listNews, addNews, endNews, deleteNews, deleteMessageStatements, MessageRefusal } from './messages.js';
+import { claimDailyEmail, finishDailyEmail } from './daily-email.js';
 import { archiveStatus, runArchive, buildArchive, exportArchive, confirmArchive } from './archive.js';
 import { FREE_LIMITS, cloudflareUsage } from './usage.js';
 import { plannerView, checkPlan, savePlan, resetPlan } from './daily.js';
 import { quality, alerts, summary, csv, CSV_KINDS } from './report.js';
+import { withFixes, errorFile } from './errors.js';
+import { ratingRoutes } from './ratings.js';
+import { marketingRoutes } from './marketing.js';
 
 const DAY = 24 * 3600_000;
 const ROLES = { viewer: 1, moderator: 2, admin: 3, owner: 4 };
@@ -67,9 +83,9 @@ const SESSION_MAX_S = 12 * 3600;
 const DENIED_PER_DAY = 500; // refused requests written to the audit log, so a flood cannot fill it
 const ANALYTICS_CACHE_MS = 120_000;
 const TABLES = ['sync_users', 'sync_records', 'sync_deleted_users', 'players', 'scores', 'races', 'race_entries', 'race_invites', 'plays', 'parts', 'usage',
-  'app_errors', 'upkeep_log', 'admins', 'admin_audit', 'settings', 'announcements', 'bans', 'name_reviews', 'archive_log', 'feedback', 'feedback_replies', 'search_snapshots', 'daily_plan', 'translations'];
+  'app_errors', 'upkeep_log', 'admins', 'admin_audit', 'settings', 'announcements', 'bans', 'name_reviews', 'archive_log', 'feedback', 'feedback_replies', 'error_fixes', 'conversations', 'conversation_messages', 'message_contacts', 'news', 'search_snapshots', 'daily_plan', 'translations', 'rating_insights', 'campaigns', 'campaign_ads', 'marketing_media', 'campaign_stats', 'challenges', 'daily_results', 'daily_email'];
 const SECURITY_HEADERS = {
-  'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+  'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; media-src 'self' blob:; connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
   'X-Content-Type-Options': 'nosniff',
   'X-Frame-Options': 'DENY',
   'Referrer-Policy': 'no-referrer',
@@ -85,6 +101,9 @@ const isoDay = (ms) => new Date(ms).toISOString().slice(0, 10);
 const weekStart = (now) => { const d = new Date(now); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - ((d.getUTCDay() + 6) % 7)); };
 const dayStart = (now) => { const d = new Date(now); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()); };
 const daysParam = (url, max = 90) => Math.min(max, Math.max(1, Number(url.searchParams.get('days')) || 30));
+
+// A short plain-language note on what was done about a player's report.
+const cleanNote = (text) => String(text || '').replace(/\s+/g, ' ').trim().slice(0, 500);
 
 class Refusal extends Error {
   constructor(status, error, message) { super(message || error); this.status = status; this.error = error; }
@@ -180,6 +199,7 @@ async function analytics(env, days, now = Date.now()) {
     errorsByDay: db.prepare('SELECT day, SUM(count) AS n FROM app_errors WHERE day >= ?1 GROUP BY day').bind(sinceDay),
     parts: db.prepare('SELECT status AS id, COUNT(*) AS n FROM parts GROUP BY status'),
     feedbackNew: db.prepare("SELECT kind AS id, COUNT(*) AS n FROM feedback WHERE status = 'new' GROUP BY kind"),
+    messagesUnread: db.prepare("SELECT COUNT(*) AS n FROM conversations WHERE status = 'open' AND admin_unread > 0"),
     picturesByDay: db.prepare("SELECT day, count AS n FROM usage WHERE name = 'pictures' AND day >= ?1").bind(sinceDay),
     namesWaiting: db.prepare('SELECT COUNT(*) AS n FROM players p LEFT JOIN name_reviews r ON r.user_id = p.user_id WHERE r.name_key IS NULL OR r.name_key != p.name_key'),
   };
@@ -208,7 +228,7 @@ async function analytics(env, days, now = Date.now()) {
     voices: { byDay: series(r.voicesByDay), cap: settings.daily_tts_cap, enabled: settings.tts_enabled, today: series(r.voicesByDay).at(-1) },
     pictures: { byDay: series(r.picturesByDay), cap: settings.daily_picture_cap, mode: settings.ai_pictures, today: series(r.picturesByDay).at(-1) },
     errors: { byDay: series(r.errorsByDay) },
-    review: { parts: Object.fromEntries(r.parts.map((x) => [x.id, x.n])), namesWaiting: one('namesWaiting'), feedback: Object.fromEntries(r.feedbackNew.map((x) => [x.id, x.n])) },
+    review: { parts: Object.fromEntries(r.parts.map((x) => [x.id, x.n])), namesWaiting: one('namesWaiting'), feedback: Object.fromEntries(r.feedbackNew.map((x) => [x.id, x.n])), messages: one('messagesUnread') },
   };
   analyticsCache.set(days, { at: now, body });
   return body;
@@ -372,7 +392,24 @@ const ROUTES = [
     const since = isoDay(Date.now() - (days - 1) * DAY);
     const { results } = await env.DB.prepare(`SELECT kind, platform, version, message, place, SUM(count) AS count, MIN(day) AS first, MAX(day) AS last
       FROM app_errors WHERE day >= ?1 GROUP BY fingerprint ORDER BY count DESC LIMIT 100`).bind(since).all();
-    return { body: { since, errors: results } };
+    return { body: { since, errors: await withFixes(env, results) } };
+  }],
+  ['POST', /^errors\/fix$/, 'admin', 'errors.fix', async ({ env, body, now }) => {
+    const message = String(body.message || '').slice(0, 300);
+    const fixedIn = String(body.fixedIn || '').trim();
+    const note = cleanNote(body.note);
+    if (!message) throw new Refusal(400, 'bad_message', 'Which error was fixed?');
+    if (!/^\d+(\.\d+){1,3}$/.test(fixedIn)) throw new Refusal(400, 'bad_version', 'Give the version the fix shipped in, like 1.7.1.');
+    if (!note) throw new Refusal(400, 'bad_note', 'Write a short note on what was done.');
+    const file = errorFile(body.place);
+    await env.DB.prepare(`INSERT INTO error_fixes (message, file, fixed_in, note, created_at) VALUES (?1, ?2, ?3, ?4, ?5)
+      ON CONFLICT (message, file) DO UPDATE SET fixed_in = ?3, note = ?4, created_at = ?5`).bind(message, file, fixedIn, note, now).run();
+    return { body: { ok: true }, target: `${file} ${message}`.slice(0, 120), detail: { fixedIn, note } };
+  }],
+  ['POST', /^errors\/fix\/(\d+)\/delete$/, 'admin', 'errors.unfix', async ({ env, params: [id] }) => {
+    const r = await env.DB.prepare('DELETE FROM error_fixes WHERE id = ?1').bind(Number(id)).run();
+    if (!r.meta.changes) throw new Refusal(404, 'gone', 'That mark is gone.');
+    return { body: { ok: true }, target: id };
   }],
 
   ['GET', /^parts$/, 'moderator', 'parts.view', async ({ env, url }) => {
@@ -401,10 +438,13 @@ const ROUTES = [
     return { body: { ok: true, key: r.key }, target: r.key };
   }],
 
+  // ---- Characters: the game's own cast and narrators (characters.js).
+  ...characterRoutes(Refusal),
+
   ['GET', /^feedback$/, 'moderator', 'feedback.view', async ({ env, url }) => {
     const kind = FEEDBACK_TOPICS[url.searchParams.get('kind')] ? url.searchParams.get('kind') : 'idea';
-    const status = ['new', 'done', 'all'].includes(url.searchParams.get('status')) ? url.searchParams.get('status') : 'new';
-    const { results } = await env.DB.prepare(`SELECT id, kind, topic, text, platform, version, status, created_at AS createdAt, done_at AS doneAt FROM feedback
+    const status = ['new', 'addressed', 'done', 'all'].includes(url.searchParams.get('status')) ? url.searchParams.get('status') : 'new';
+    const { results } = await env.DB.prepare(`SELECT id, kind, topic, text, platform, version, status, note, created_at AS createdAt, done_at AS doneAt FROM feedback
       WHERE kind = ?1 AND (?2 = 'all' OR status = ?2) ORDER BY created_at DESC LIMIT 200`).bind(kind, status).all();
     const counts = (await env.DB.prepare("SELECT kind, COUNT(*) AS n FROM feedback WHERE status = 'new' GROUP BY kind").all()).results;
     return { body: { kind, status, items: results, waiting: Object.fromEntries(counts.map((x) => [x.kind, x.n])), replies: await replyCounts(env) } };
@@ -418,14 +458,32 @@ const ROUTES = [
     const r = await finishReplies(env, body.sent, body.failed, now);
     return { body: r, detail: r };
   }],
+  // Called once a day by the daily email Action; addresses are never written to the audit log.
+  ['POST', /^daily-email\/claim$/, 'owner', 'daily-email.claim', async ({ env, body, now }) => {
+    const r = await claimDailyEmail(env, String(body.day || ''), body.limit, now);
+    if (r.error) throw new Refusal(400, r.error);
+    return { body: r, quiet: !r.list.length, detail: { claimed: r.list.length, off: !!r.off } };
+  }],
+  ['POST', /^daily-email\/done$/, 'owner', 'daily-email.done', async ({ env, body }) => {
+    const r = await finishDailyEmail(env, body.failed, body.refused);
+    return { body: r, detail: r };
+  }],
   ['POST', /^feedback\/(\d+)$/, 'moderator', 'feedback.update', async ({ env, params: [id], body, now }) => {
     let r;
+    let emailed = 0;
     if (body.status === 'delete') r = await env.DB.prepare('DELETE FROM feedback WHERE id = ?1').bind(Number(id)).run();
-    else if (['new', 'done'].includes(body.status)) r = await env.DB.prepare('UPDATE feedback SET status = ?1, done_at = ?2 WHERE id = ?3').bind(body.status, body.status === 'done' ? now : null, Number(id)).run();
+    else if (body.status === 'addressed') {
+      const note = cleanNote(body.note);
+      if (!note) throw new Refusal(400, 'bad_note', 'Write a short note on what was done.');
+      r = await env.DB.prepare("UPDATE feedback SET status = 'addressed', note = ?1, done_at = ?2 WHERE id = ?3").bind(note, now, Number(id)).run();
+    } else if (['new', 'done'].includes(body.status)) r = await env.DB.prepare('UPDATE feedback SET status = ?1, done_at = ?2, note = NULL WHERE id = ?3').bind(body.status, body.status === 'done' ? now : null, Number(id)).run();
     else throw new Refusal(400, 'bad_status');
     if (!r.meta.changes) throw new Refusal(404, 'gone', 'That message is gone.');
+    // A player who ticked "Email me an update" hears about it, with the note.
+    if (body.status === 'addressed') emailed = await releaseUpdate(env, id, cleanNote(body.note));
+    else if (body.status !== 'new') await dropUpdate(env, id);
     analyticsCache.clear();
-    return { body: { ok: true }, target: id, detail: { status: body.status } };
+    return { body: { ok: true, emailed }, target: id, detail: { status: body.status, note: body.status === 'addressed' ? cleanNote(body.note) : undefined } };
   }],
 
   ['GET', /^names$/, 'moderator', 'names.view', async ({ env, url, now }) => {
@@ -480,6 +538,8 @@ const ROUTES = [
       env.DB.prepare('DELETE FROM sync_records WHERE user_id = ?1').bind(uid),
       env.DB.prepare('DELETE FROM sync_users WHERE user_id = ?1').bind(uid),
       ...deleteCompeteStatements(env, uid),
+      ...deleteMessageStatements(env, uid),
+      ...(await deleteReplyStatements(env, uid)),
       env.DB.prepare('DELETE FROM name_reviews WHERE user_id = ?1').bind(uid),
       env.DB.prepare('INSERT OR REPLACE INTO sync_deleted_users (user_id, deleted_at) VALUES (?1, ?2)').bind(uid, now),
     ]);
@@ -537,6 +597,38 @@ const ROUTES = [
     return { body: { ok: true }, target: id };
   }],
 
+  // ---- Communication (messages.js). Viewers see error reports and the email
+  // log only; reading and answering what players wrote needs a moderator.
+  ['GET', /^inbox$/, 'viewer', 'inbox.view', async ({ env, url, who, now }) => {
+    const type = INBOX_TYPES.includes(url.searchParams.get('type')) ? url.searchParams.get('type') : 'all';
+    const status = ['new', 'addressed', 'done', 'all'].includes(url.searchParams.get('status')) ? url.searchParams.get('status') : 'new';
+    const q = str(url.searchParams.get('q') || '', 100);
+    const body = await inbox(env, who.role, { type, status, q }, now);
+    return { body: { ...body, replies: await replyCounts(env) }, detail: { type, status } };
+  }],
+  ['GET', /^conversations\/(\d{1,12})$/, 'moderator', 'conversations.view', async ({ env, params: [id] }) => ({ body: await conversationView(env, Number(id)), target: id })],
+  ['POST', /^conversations\/(\d{1,12})\/reply$/, 'moderator', 'conversations.reply', async ({ env, params: [id], body, who, now }) => {
+    const r = await teamReply(env, Number(id), body, who, now);
+    analyticsCache.clear();
+    return { body: r, target: id, detail: { length: r.length, email: r.email, done: r.done } };
+  }],
+  ['POST', /^conversations\/(\d{1,12})\/status$/, 'moderator', 'conversations.status', async ({ env, params: [id], body, who, now }) => {
+    if (body.status === 'delete' && ROLES[who.role] < ROLES.admin) throw new Refusal(403, 'role', 'Deleting a conversation needs the admin role.');
+    analyticsCache.clear();
+    return { body: await setConversationStatus(env, Number(id), body.status, now), target: id, detail: { status: body.status } };
+  }],
+  ['POST', /^conversations$/, 'admin', 'conversations.start', async ({ env, body, who, now }) => {
+    const r = await startConversation(env, body, who, now);
+    return { body: r, target: r.uid, detail: { conversation: r.id, email: r.email } };
+  }],
+  ['GET', /^news$/, 'viewer', 'news.view', async ({ env, now }) => ({ body: { news: await listNews(env, now) } })],
+  ['POST', /^news$/, 'admin', 'news.create', async ({ env, body, who, now }) => {
+    const r = await addNews(env, body, who, now);
+    return { body: r, target: r.id, detail: { title: r.title, endsAt: r.endsAt } };
+  }],
+  ['POST', /^news\/(\d{1,12})\/end$/, 'admin', 'news.end', async ({ env, params: [id], now }) => { await endNews(env, Number(id), now); return { body: { ok: true }, target: id }; }],
+  ['POST', /^news\/(\d{1,12})\/delete$/, 'admin', 'news.delete', async ({ env, params: [id] }) => { await deleteNews(env, Number(id)); return { body: { ok: true }, target: id }; }],
+
   ['GET', /^audit$/, 'admin', 'audit.view', async ({ env, url }) => {
     const before = Number(url.searchParams.get('before')) || Number.MAX_SAFE_INTEGER;
     const actor = str(url.searchParams.get('actor'), 200);
@@ -586,6 +678,10 @@ const ROUTES = [
   }],
 
   ['GET', /^quality$/, 'viewer', 'quality.view', async ({ env, url }) => ({ body: await quality(env, daysParam(url, 90)) })],
+  // ---- Puzzle ratings and insights (ratings.js).
+  ...ratingRoutes(Refusal),
+  // ---- Marketing: campaigns, ads, media and what each link brought in (marketing.js).
+  ...marketingRoutes(Refusal),
   ['GET', /^alerts$/, 'viewer', 'alerts.view', async ({ env }) => ({ body: await alerts(env) })],
   ['GET', /^summary$/, 'admin', 'summary.view', async ({ env, url }) => {
     const s = await summary(env, daysParam(url, 31));
@@ -658,7 +754,11 @@ async function api(req, env, url, path) {
     if (!route) throw new Refusal(404, 'not_found');
     if (ROLES[who.role] < ROLES[route[2]]) throw new Refusal(403, 'role', `This needs the ${route[2]} role.`);
     const body = await readBody(req);
-    const out = await route[4]({ req, env, url, who, params, body, now: Date.now() });
+    let out;
+    try { out = await route[4]({ req, env, url, who, params, body, now: Date.now() }); } catch (e) {
+      if (e instanceof MessageRefusal) throw new Refusal(e.status, e.error, e.message);
+      throw e;
+    }
     if (!out.quiet) await audit(env, { actor: who.actor, role: who.role, action, target: out.target, detail: out.detail, status: 200 });
     if (out.file) {
       return new Response(out.file, {

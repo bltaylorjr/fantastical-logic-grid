@@ -64,7 +64,7 @@ const weekStart = (now) => {
 const dayStart = (now) => { const d = new Date(now); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()); };
 const int = (v, lo, hi) => (Number.isInteger(v) && v >= lo && v <= hi ? v : null);
 
-function newCode() {
+export function newCode() {
   const bytes = crypto.getRandomValues(new Uint8Array(6));
   return [...bytes].map((b) => CODE_CHARS[b % CODE_CHARS.length]).join('');
 }
@@ -83,7 +83,7 @@ export function deleteCompeteStatements(env, uid) {
 // ------------------------------------------------------------- puzzles
 // The puzzle a host shares: checked for shape and size, and its text for
 // blocked words, because other players will read it.
-function checkPuzzle(p) {
+export function checkPuzzle(p) {
   if (!p || typeof p !== 'object') return 'bad_puzzle';
   const cats = p.categories;
   if (!Array.isArray(cats) || cats.length < 3 || cats.length > 6) return 'bad_puzzle';
