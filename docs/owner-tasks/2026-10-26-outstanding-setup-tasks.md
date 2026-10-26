@@ -1,20 +1,12 @@
 # Outstanding setup tasks for The Fantastical Logic Grid (26 Oct 2026)
 
-These are the things only you can do outside the code, checked against the project on 26 October 2026. They're in order of importance. Each one says what it's for and how to do it. If you've already done one, skip it. Mobile app tasks are left out while the apps are paused.
+These are the things only you can do outside the code, checked against the project on 26 October 2026. They're in order of importance, and number 1 is already done. Each one says what it's for and how to do it. If you've already done one, skip it. Mobile app tasks are left out while the apps are paused.
 
 Everything here is free. Nothing in this list will be billed.
 
-## 1. Let GitHub Actions open pull requests (needed for the how-to-play video)
+## 1. Done: GitHub Actions can open pull requests
 
-**Why:** The workflow that re-records the how-to-play video after each game change can't open its pull request. Its last run failed with "GitHub Actions is not permitted to create or approve pull requests", so the video in the game is now behind the latest features.
-
-**Steps:**
-
-1. Open https://github.com/bltaylorjr/fantastical-logic-grid/settings/actions
-2. Scroll down to **Workflow permissions**.
-3. Tick **Allow GitHub Actions to create and approve pull requests**. Leave the rest as it is.
-4. Click **Save**.
-5. Open https://github.com/bltaylorjr/fantastical-logic-grid/actions/workflows/video.yml, click **Run workflow**, then **Run workflow** again. In about 20 minutes it opens a video pull request, and that pull request merges itself once its checks pass.
+You turned on **Allow GitHub Actions to create and approve pull requests** on 26 October, so there's nothing left to do here. The how-to-play video workflow has been started again, and its pull request merges itself once its checks pass.
 
 ## 2. Send player emails from noreply@thelogicgrid.com (DNS records and a Resend key)
 
