@@ -5,6 +5,7 @@
 
 import { initPullRefresh } from './pull-refresh.js';
 import { characterView } from './characters.js';
+import { ratingsView, initRatings } from './ratings.js';
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -868,6 +869,11 @@ views.quality = async () => {
         fmt(r.games), p(r.solveRate), p(r.quitRate), p(r.tooHard), p(r.tooEasy), r.rating ?? '–', r.minutes ?? '–', r.hints ?? '–']), 'No games shared in this period.')}`;
 };
 $('#q-days').onchange = () => show('quality');
+
+// ---- Ratings and insights (ratings.js): stars after each solve, and what they say.
+const ratingHelpers = { api, esc, fmt, when, tile, table, can, act, setCount };
+views.ratings = () => ratingsView(ratingHelpers);
+initRatings(ratingHelpers, (name, o) => show(name, o));
 
 // ------------------------------------------------------------- navigation
 const MIN_ROLE = Object.fromEntries($$('#nav-list a').map((a) => [a.hash.slice(1), a.dataset.min]));

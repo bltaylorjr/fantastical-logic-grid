@@ -622,6 +622,11 @@ dialog::backdrop { background: rgb(5 7 16 / .6); backdrop-filter: blur(6px); -we
 .stars:has(input:checked) label { color: var(--accent); }
 .stars label:has(input:checked) ~ label { color: var(--muted); }
 .stars label:has(input:focus-visible) { outline: 3px solid var(--accent); outline-offset: 2px; border-radius: 8px; }
+.stars:hover label { color: var(--accent); }
+.stars label:hover ~ label { color: var(--muted); }
+.feedback .optional { font-weight: 400; color: var(--muted); }
+.feedback .rate-help { margin: 0 0 10px; }
+@media (forced-colors: active) { .stars label { color: GrayText; } .stars:has(input:checked) label { color: Highlight; } .stars label:has(input:checked) ~ label { color: GrayText; } }
 .feel { display: flex; flex-wrap: wrap; gap: 8px; }
 .feel legend { width: 100%; }
 .chip { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 14px; border: 2px solid var(--border); border-radius: 999px; cursor: pointer; }

@@ -6,6 +6,7 @@
 //   csv()      players, scores and ideas/problems as spreadsheet files
 import { getSettings } from './settings.js';
 import { FREE_LIMITS, cloudflareUsage } from './usage.js';
+import { ratingInsights } from './ratings.js';
 
 const DAY = 24 * 3600_000;
 const isoDay = (ms) => new Date(ms).toISOString().slice(0, 10);
@@ -102,7 +103,7 @@ export async function summary(env, days = 7, now = Date.now()) {
   const r = q.map((x) => x.results);
   const one = (i, f = 'n') => (r[i][0] ? r[i][0][f] || 0 : 0);
   const games = r[4][0] || {};
-  const [qual, al] = await Promise.all([quality(env, 30, now), alerts(env, now)]);
+  const [qual, al, rated] = await Promise.all([quality(env, 30, now), alerts(env, now), ratingInsights(env, days, { brief: true, now }).catch(() => null)]);
   return {
     days, from: sinceDay, to: isoDay(now), generatedAt: now,
     players: { accounts: one(0), newAccounts: one(1), newScreenNames: one(2), scoringPlayers: one(3) },
@@ -114,6 +115,9 @@ export async function summary(env, days = 7, now = Date.now()) {
     usage: Object.fromEntries(r[13].map((x) => [x.name, x.n])),
     quality: qual.rows.filter((x) => x.issues.length).slice(0, 5),
     alerts: al.alerts,
+    // Puzzle ratings: the numbers, what is working, what to improve (ratings.js).
+    ratings: rated && { average: rated.overall.avg, rated: rated.overall.rated, spread: rated.overall.spread, change: rated.overall.change,
+      good: rated.good.slice(0, 3), improve: rated.improve.slice(0, 3), summary: rated.summary.status === 'ok' ? rated.summary.text : null },
   };
 }
 

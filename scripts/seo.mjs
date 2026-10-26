@@ -17,6 +17,10 @@ import { join, dirname } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { execFileSync } from 'node:child_process';
 
+// Search pages are plain HTML: only the site's own files may load, inline
+// <style> is allowed, and no inline script ever runs (JSON-LD is data, not code).
+const PAGE_CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self'; object-src 'none'; frame-src 'none'; base-uri 'self'; form-action 'self'";
+
 export const INDEXNOW_KEY = process.env.FLG_INDEXNOW_KEY || 'fae88a004ad87116c0e93df007b2de7e';
 // The first daily puzzle. Every later day is checked against all earlier days,
 // so a daily story is never used twice.
@@ -61,12 +65,31 @@ async function readDailyPlan(base) {
 }
 const longDate = (s) => new Date(`${s}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
 
+// Google flags any VideoObject without these fields, even a bare {"@id"} pointer to one on
+// another page, so fail the build instead of shipping one.
+function checkVideos(data, where) {
+  const check = (v) => {
+    const missing = ['name', 'description', 'thumbnailUrl', 'uploadDate'].filter((k) => !v?.[k]);
+    if (!v?.contentUrl && !v?.embedUrl) missing.push('contentUrl or embedUrl');
+    if (missing.length) throw new Error(`VideoObject on /${where} is missing ${missing.join(', ')}`);
+  };
+  const visit = (o) => {
+    if (!o || typeof o !== 'object') return;
+    if ([].concat(o['@type'] || []).includes('VideoObject')) check(o);
+    for (const k of ['trailer', 'video']) if (o[k]) check(o[k]);
+    Object.values(o).forEach(visit);
+  };
+  visit(data);
+  return data;
+}
+
 export async function buildSeo({ root, site }) {
   const base = (process.env.FLG_SITE_URL || 'https://thelogicgrid.com').replace(/\/+$/, '');
   const url = (path) => `${base}/${path}`;
   // The same engine the site ships.
   const engine = await import(pathToFileURL(join(site, 'engine', 'index.js')).href);
   const { THEMES, TIERS, CLUE_TYPES, getTopics, storylineCount, generatePuzzle } = engine;
+  const { houseDailyOptions } = await import(pathToFileURL(join(site, 'engine', 'house-tuning.js')).href);
   const today = process.env.FLG_TODAY || day(new Date());
   const appHtml = readFileSync(join(site, 'index.html'), 'utf8');
   // Pages that come from code change when the code does; the date of the last
@@ -109,6 +132,7 @@ export async function buildSeo({ root, site }) {
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="${PAGE_CSP}">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(title)}</title>
 <meta name="description" content="${esc(description)}">
@@ -121,7 +145,7 @@ ${verification}
 <link rel="preload" href="${up}fonts/atkinson-400.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="${up}fonts/cinzel-700.woff2" as="font" type="font/woff2" crossorigin>
 <style>${css.replaceAll('url(fonts/', `url(${up}fonts/`)}</style>
-${[breadcrumb, ...schema].map((s) => `<script type="application/ld+json">${json(s)}</script>`).join('\n')}
+${[breadcrumb, ...schema].map((s) => `<script type="application/ld+json">${json(checkVideos(s, path))}</script>`).join('\n')}
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
@@ -149,6 +173,17 @@ ${body(up)}
   };
   const playBtn = (up, text = 'Play a new puzzle now') => `<p><a class="btn big" href="${up}">${text}</a></p>`;
 
+  // The how-to-play video. Google does not follow an @id to another page, so every page
+  // that mentions it (the game's trailer and the how-to-play page) carries the full object.
+  const minutes = (appHtml.match(/An (\d+)-minute narrated video/) || [])[1];
+  const video = {
+    '@type': 'VideoObject', '@id': url('how-to-play/#video'), name: `How to play ${name}`,
+    description: 'A narrated, captioned walkthrough of a full puzzle, from picking a theme to closing the case.',
+    thumbnailUrl: [url('og-image.jpg')], uploadDate: '2026-10-25T00:00:00-04:00',
+    contentUrl: url('media/intro.mp4'), embedUrl: url('how-to-play/'), inLanguage: 'en',
+    ...(minutes ? { duration: `PT${minutes}M` } : {}),
+  };
+
   // ---------- the game page (index.html) ----------
   const appDescription = 'Free story logic grid puzzles. Pick a difficulty, theme and size, then solve, save, resume and print. Every puzzle is a brand new story with exactly one answer.';
   const game = {
@@ -158,7 +193,7 @@ ${body(up)}
     applicationCategory: 'GameApplication', operatingSystem: 'Any (web browser), Windows 10 and 11', browserRequirements: 'Requires JavaScript',
     playMode: ['SinglePlayer', 'MultiPlayer'], isAccessibleForFree: true, offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
     accessibilityFeature: ['highContrastDisplay', 'largePrint', 'captions', 'transcript', 'fullKeyboardControl', 'screenReaderSupport'],
-    trailer: { '@id': url('how-to-play/#video') },
+    trailer: video,
   };
   const website = { '@context': 'https://schema.org', '@type': 'WebSite', name, url: url(''), description: appDescription };
   const head = `<meta name="description" content="${esc(appDescription)}">
@@ -166,7 +201,7 @@ ${body(up)}
 ${social({ title: `${name}: free story logic grid puzzles`, description: appDescription, path: '' })}
 ${verification}
 <script type="application/ld+json">${json(website)}</script>
-<script type="application/ld+json">${json(game)}</script>
+<script type="application/ld+json">${json(checkVideos(game, ''))}</script>
 <meta name="flg-daily" content="daily/">`;
   // Shown when scripts are off, and read by crawlers that do not run them.
   const noscript = `<noscript><div class="card" style="margin:1rem"><p><strong>${name}</strong> is a free logic grid puzzle game where every puzzle is a brand new story. Turn on JavaScript to play.</p><p>${NAV.map(([p, n]) => `<a href="${p}">${n}</a>`).join(' · ')}</p></div></noscript>`;
@@ -178,7 +213,6 @@ ${verification}
 
   // ---------- how to play ----------
   const transcript = (appHtml.match(/<details class="transcript">[\s\S]*?<\/summary>([\s\S]*?)<\/details>/) || [])[1] || '';
-  const minutes = (appHtml.match(/An (\d+)-minute narrated video/) || [])[1];
   const faq = [
     ['What is a logic grid puzzle?', 'A logic grid puzzle gives you a few categories, such as people, places and times, and a list of clues. You use the grid to mark which items go together until every match is known. There is no guessing: the clues lead to exactly one answer.'],
     ['Is The Fantastical Logic Grid free?', 'Yes. It is free to play in any modern web browser, with no account and no ads. A free Windows app is also available, and a free account is optional for syncing saves between devices.'],
@@ -202,7 +236,7 @@ ${verification}
         ['Confirm matches', 'Tap again for O when two things must go together, then rule out the rest of that row and column.'],
         ['Answer the questions', 'When the grid is full, answer the story questions and press Check answers.'],
       ].map(([n, t], i) => ({ '@type': 'HowToStep', position: i + 1, name: n, text: t })) },
-      { '@context': 'https://schema.org', '@type': 'VideoObject', '@id': url('how-to-play/#video'), name: `How to play ${name}`, description: 'A narrated, captioned walkthrough of a full puzzle, from picking a theme to closing the case.', thumbnailUrl: [url('og-image.jpg')], uploadDate: '2026-10-25', contentUrl: url('media/intro.mp4'), embedUrl: url('how-to-play/'), inLanguage: 'en', ...(minutes ? { duration: `PT${minutes}M` } : {}), transcript: transcript.replace(/<[^>]+>/g, ' ').replace(/&#x27;/g, "'").replace(/\s+/g, ' ').trim() },
+      { '@context': 'https://schema.org', ...video, transcript: transcript.replace(/<[^>]+>/g, ' ').replace(/&#x27;/g, "'").replace(/\s+/g, ' ').trim() },
       { '@context': 'https://schema.org', '@type': 'FAQPage', mainEntity: faq.map(([q, a]) => ({ '@type': 'Question', name: q, acceptedAnswer: { '@type': 'Answer', text: a } })) },
     ],
     body: (up) => `<h1>How to play logic grid puzzles</h1>
@@ -291,10 +325,13 @@ ${playBtn(up, `Play a ${t.name.toLowerCase()} puzzle`)}
     const theme = THEMES.some((t) => t.id === o.theme) ? o.theme : THEMES[i % THEMES.length].id;
     const difficulty = TIERS[o.difficulty] ? o.difficulty : DAILY_TIERS[new Date(`${d}T00:00:00Z`).getUTCDay()];
     const size = o.categories && o.items ? { categories: o.categories, items: o.items } : {};
+    // The weekly improvement run's nudges, from their start date on; days
+    // planned by hand in the admin dashboard are built exactly as planned.
+    const house = plan.has(d) ? {} : houseDailyOptions(d, difficulty);
     const seed = `daily-${d}${o.reroll ? `-r${o.reroll}` : ''}`;
     let p;
     for (let n = 0; n < 20; n++) {
-      p = generatePuzzle({ difficulty, theme, ...size, seed: `${seed}${n ? `-${n}` : ''}` });
+      p = generatePuzzle({ difficulty, theme, ...size, ...house, seed: `${seed}${n ? `-${n}` : ''}` });
       if (!used.has(p.story.id)) break;
     }
     used.add(p.story.id);
