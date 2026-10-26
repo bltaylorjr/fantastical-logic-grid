@@ -83,16 +83,17 @@ test('supporters get a badge on the scoreboard', async () => {
     await db.prepare('INSERT INTO players (user_id, screen_name, name_key, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?4)').bind(uid, name, name.toLowerCase(), now).run();
     await db.prepare("INSERT INTO scores (user_id, story_id, kind, tier, cells, elapsed_ms, hints, checks, points, created_at) VALUES (?1, ?2, 'solo', 'easy', 48, 60000, 0, 0, ?3, ?4)").bind(uid, `s-${uid}`, points, now).run();
   }
+  // Rows are found by points: typed screen names show as a new player until approved.
   // The highest running tier shows: Ada has Bronze, then Silver until yesterday, then Gold.
   await db.prepare("INSERT INTO supporters (user_id, kind, tier, source, ref, created_at, until) VALUES ('p-a', 'supporter', 2, 'admin', 'old', ?1, ?1)").bind(now - 86400_000).run();
   assert.equal((await admin('supporters', { kind: 'supporter', uid: 'p-a', tier: 3 })).status, 200);
   // Hidden until the owner switches badges on.
   let rows = (await call('/v1/scoreboard?period=all')).body.rows;
-  assert.equal(rows.find((r) => r.name === 'Ada Sleuth').supporter, undefined, 'no badges while switched off');
+  assert.equal(rows.find((r) => r.points === 50).supporter, undefined, 'no badges while switched off');
   assert.equal((await admin('settings', { key: 'supporter_badges_enabled', value: true })).status, 200);
   rows = (await call('/v1/scoreboard?period=week')).body.rows; // a fresh board, not the cached one
-  assert.equal(rows.find((r) => r.name === 'Ada Sleuth').supporter, 3);
-  assert.equal(rows.find((r) => r.name === 'Cy Clue').supporter, undefined);
+  assert.equal(rows.find((r) => r.points === 50).supporter, 3);
+  assert.equal(rows.find((r) => r.points === 40).supporter, undefined);
   assert.ok(rows.every((r) => !('uid' in r)), 'player ids stay private');
 });
 

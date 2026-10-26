@@ -4,6 +4,7 @@
 import * as account from './account.js';
 import * as compete from './compete.js';
 import { esc } from './grid.js';
+import { feature } from './remote-config.js';
 import { TIER_NAMES as BADGE_NAMES } from './perks.js';
 
 // The scoreboard badge for a supporter: tier 1 Bronze up to 4 Platinum
@@ -218,6 +219,7 @@ function openName() {
   $('#name-suggested').textContent = '';
   $('#name-post').checked = ui.getSetting('postScores') !== false;
   $('#name-invites').checked = compete.acceptsInvites();
+  $('#name-approval').hidden = !feature('nameApproval');
   $('.error-box', form).hidden = true;
   $('#name-leave').hidden = !name;
   $('#name-leave').open = false;
@@ -255,7 +257,8 @@ function wireName() {
       afterName = null;
       d.close();
       renderCard();
-      ui.toast(`You are now ${name} on the scoreboard and in races.`);
+      ui.toast(compete.isNameApproved() ? `You are now ${name} on the scoreboard and in races.`
+        : `Saved. You see yourself as ${name}; other players see "New player" until the game's team approves your name. A suggested name shows straight away.`);
       if (next) next();
     } catch (err) { fail(err.message); } finally { btn.disabled = false; }
   };
