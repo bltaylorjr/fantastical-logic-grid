@@ -3,8 +3,8 @@
 Signed-in players with a confirmed email can tick **Email me each day's puzzle**
 on the Daily puzzle card. Once a day, at about 7 am Eastern, they get the day's
 puzzle: its title, difficulty, theme and opening paragraph, and a **Play
-today's puzzle** button that opens it in the game (`/?play=daily`, tagged
-`utm_source=daily-email` so the weekly report can count it).
+today's puzzle** button that opens it in the game (`/?play=daily`, tagged `utm_source=email` and
+`utm_campaign=daily-email`, so the admin Marketing numbers count it).
 
 ## How it works
 

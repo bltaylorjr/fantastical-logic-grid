@@ -60,7 +60,7 @@ def todays_puzzle():
 
 
 def play_link(day):
-    q = urllib.parse.urlencode({'play': 'daily', 'utm_source': 'daily-email', 'utm_medium': 'email', 'utm_campaign': f'daily-{day}'})
+    q = urllib.parse.urlencode({'play': 'daily', 'utm_source': 'email', 'utm_medium': 'email', 'utm_campaign': 'daily-email'})
     return f'{SITE}/?{q}'
 
 

@@ -4,6 +4,7 @@ email (server/ARCHIVE.md).
 
 It asks the Worker for the week in numbers (GET /admin/v1/summary?days=7):
 new players, games, top themes, races, new ideas and problems, errors,
+where visitors came from, the market test's pass marks,
 puzzles that need attention and free-limit warnings, and emails them.
 
 The repository is public, so its Actions logs are too: this prints nothing
@@ -59,6 +60,28 @@ def build(s):
         'By level: ' + (', '.join(f"{TIERS.get(t['id'], t['id'])} ({n(t['n'])})" for t in g['byTier']) or 'none yet'),
         f"{n(s['races'])} races, {n(s['scores']['solves'])} scored solves",
     ]))
+    mt = s.get('marketTest')
+    if mt:
+        words = {'pass': 'PASS', 'below': 'BELOW', 'too_early': 'TOO EARLY', 'not_measured': 'NOT MEASURED'}
+        lines = []
+        for m in mt['marks']:
+            unit = ' of 5' if m['id'] == 'rating' else '%'
+            mark = f"{m['mark']}{unit}" if m['id'] == 'rating' else f"{m['mark']}%"
+            if m['status'] == 'not_measured':
+                got = 'there is no Support button yet'
+            elif m['value'] is None:
+                got = f"no {m['unit']} yet"
+            else:
+                got = f"{m['value']}{unit} from {n(m['n'])} {m['unit']}"
+            extra = f" (needs {n(m['min'])} {m['unit']} to judge)" if m['status'] == 'too_early' else ''
+            lines.append(f"{words.get(m['status'], m['status'])}: {m['label']}: {got}, pass mark {mark}{extra}")
+        sections.append((f"Market test, last {mt['days']} days", lines))
+    fun = s.get('funnel')
+    if fun:
+        pc = lambda v: '-' if v is None else f'{v}%'
+        sections.append(('Where visitors came from this week', [
+            f"{f['source']} ({f['medium']}): {n(f['visit'])} visits, {n(f['play'])} started a puzzle ({pc(f['startPct'])}), {n(f['solve'])} solves, {n(f['return'])} came back ({pc(f['returnPct'])})"
+            for f in fun]))
     if s['alerts']:
         sections.append(('Free limits to watch', [f"{a['label']}: {a['percent']}%. {a['text']}" for a in s['alerts']]))
     r = s.get('ratings')
