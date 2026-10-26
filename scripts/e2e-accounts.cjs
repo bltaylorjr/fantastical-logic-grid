@@ -184,6 +184,24 @@ function startAuth(signer) {
     const usedB = await meta(B.page, 'usedStories');
     assert(usedA.length > 0 && usedA.every((id) => usedB.includes(id)), 'used-story list synced, so stories are not reused on the other device');
 
+    // ---- A signed-in player is offered a thank-you email for an idea; the
+    // stand-in's accounts are not confirmed, so the game says to confirm first.
+    // (A second tab, with the idea boxes pointed at the same local Worker.)
+    const F = await B.page.context().newPage();
+    await F.route('**/js/cloud-config.js', (r) => r.fulfill({ contentType: 'text/javascript', body: config.replace("learnUrl: ''", `learnUrl: 'http://localhost:${API_PORT}'`).replace("CLOUD_URL = ''", `CLOUD_URL = 'http://localhost:${API_PORT}'`) }));
+    await F.goto(APP);
+    await F.waitForSelector('#tier-choices input');
+    await F.click('#menu-btn');
+    await F.click('#app-menu [data-cmd=feedback]');
+    await F.waitForSelector('#dlg-feedback[open]');
+    assert(await F.isVisible('#idea-form .fb-reply') && /bobby@example\.com/.test(await F.textContent('#idea-form .fb-reply')), 'a signed-in player is offered a thank-you email at their address');
+    await F.fill('#idea-text', 'A clockwork carnival where the tickets got mixed up.');
+    await F.click('#idea-form button[type=submit]');
+    await F.waitForFunction(() => /confirm your email/i.test(document.querySelector('#idea-form .acct-done').textContent));
+    assert((await db.prepare('SELECT COUNT(*) AS n FROM feedback').first()).n === 1, 'the idea itself arrives');
+    assert((await db.prepare('SELECT COUNT(*) AS n FROM feedback_replies').first()).n === 0, 'no email is queued for an unconfirmed address');
+    await F.close();
+
     // ---- Progress made on B shows on A.
     await B.page.click(`#saved-list li:has(.name:text-is("${title}")) [data-do=resume]`);
     await B.page.waitForSelector('#screen-play:not([hidden])');

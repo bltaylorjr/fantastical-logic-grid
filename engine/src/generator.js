@@ -82,10 +82,10 @@ export function buildModel(o) {
       const offset = rng.int(od.count - N + 1);
       const values = Array.from({ length: N }, (_, i) => od.start + (offset + i) * od.step);
       const gaps = Array.from({ length: N }, (_, d) => (d ? od.gap(d) : ''));
-      cats.push({ id: c.id, name: c.name, noun: c.noun, labels: values.map(od.label), values, pos: c.pos, neg: c.neg,
+      cats.push({ id: c.id, name: c.name, noun: c.noun, note: c.note, labels: values.map(od.label), values, pos: c.pos, neg: c.neg,
         ordinal: { less: od.less, more: od.more, lessBy: od.lessBy, moreBy: od.moreBy, gaps } });
     } else {
-      cats.push({ id: c.id, name: c.name, noun: c.noun, labels: rng.sample(c.items, N).sort((p, q) => p.localeCompare(q)), pos: c.pos, neg: c.neg, ordinal: null });
+      cats.push({ id: c.id, name: c.name, noun: c.noun, note: c.note, labels: rng.sample(c.items, N).sort((p, q) => p.localeCompare(q)), pos: c.pos, neg: c.neg, ordinal: null });
     }
   }
   return {
@@ -258,6 +258,7 @@ function finalize(o, best, elapsedMs) {
       id: c.id, name: c.name, noun: c.noun || c.name.toLowerCase(), ordinal: !!c.ordinal,
       items: c.labels.map((label, i) => ({ id: `${c.id}:${i}`, label, ...(c.values ? { value: c.values[i] } : {}) })),
       pos: c.pos, neg: c.neg, ...(c.ordinal ? { phrases: c.ordinal } : {}),
+      ...(c.note ? { note: c.note.replace(/\{one\}/g, scenario.cast.one).replace(/\{many\}/g, scenario.cast.many) } : {}),
     })),
     grid: gridLayout(cats),
     story: { id: story.id, parts: story.parts, title: story.title, paragraphs: story.paragraphs, text: story.text, goal: story.goalQuestion, ending: story.ending, wordCount: story.wordCount },

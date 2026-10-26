@@ -137,6 +137,7 @@ legend { font-weight: 700; font-size: 1.05rem; padding: 0; margin-bottom: 8px; }
 .checks { display: flex; flex-wrap: wrap; gap: 4px 16px; }
 .check, .radio { display: flex; align-items: center; gap: 10px; min-height: 44px; cursor: pointer; }
 .check input, .radio input { width: 22px; height: 22px; accent-color: var(--accent); flex: none; margin: 0; }
+.fb-reply span { overflow-wrap: anywhere; }
 .clue-types { margin: 0; }
 .preview { font-size: 1.05rem; margin: 0 0 8px; }
 .warn { border-left: 4px solid var(--hint); padding: 6px 12px; margin: 0 0 16px; }
@@ -175,7 +176,9 @@ legend { font-weight: 700; font-size: 1.05rem; padding: 0; margin-bottom: 8px; }
 .notes { border-left: 4px solid var(--hint); padding: 8px 12px; margin-bottom: 16px; background: var(--bg); }
 .play { display: grid; grid-template-columns: minmax(0, auto) minmax(300px, 1fr); gap: 24px; align-items: start; }
 @media (max-width: 1199px) { .play { grid-template-columns: minmax(0, 1fr) minmax(280px, 340px); } }
-@media (max-width: 767px) { .play { grid-template-columns: minmax(0, 1fr); } }
+/* Tablets in portrait: the clues go under the grid, so the grid gets the full width
+   instead of scrolling sideways in a narrow column. */
+@media (max-width: 1023px) { .play { grid-template-columns: minmax(0, 1fr); } }
 .play > * { min-width: 0; }
 .side { display: grid; gap: 24px; min-width: 0; }
 .grid-card { padding: 16px; outline: none; }
@@ -194,6 +197,9 @@ legend { font-weight: 700; font-size: 1.05rem; padding: 0; margin-bottom: 8px; }
 
 /* The grid: scrolls inside its own frame with pinned headers. */
 .gridframe { overflow: auto; max-height: 80vh; max-width: 100%; border-radius: 4px; overscroll-behavior: contain; }
+/* As tall as the screen below the sticky app bar, so a grid that fits on screen never
+   scrolls inside the page as well (a player reported "extra scrolling"). */
+.gridframe { max-height: calc(100vh - var(--appbar-h, 72px) - 16px); max-height: calc(100dvh - var(--appbar-h, 72px) - 16px); }
 /* The lines between categories, a little heavier than the 1px lines between cells. */
 table.lg { --cat-line: 3px; border-collapse: separate; border-spacing: 0; font-size: 14px; }
 table.lg th { background: var(--bg); font-weight: 400; }
