@@ -748,3 +748,10 @@ dialog.rules table.board td { font-variant-numeric: tabular-nums; }
 .hint-lesson { color: var(--muted); }
 .hint-chain summary { cursor: pointer; font-weight: 700; }
 .hint-chain ol { margin: 6px 0 0; padding-left: 1.4em; }
+
+/* Right-to-left languages: the page reads right to left, but the logic grid
+   and its printed copy keep their columns in the same order as the clues
+   about them, left to right. */
+[dir=rtl] #gridframe, [dir=rtl] #print-root .pg { direction: ltr; }
+[dir=rtl] #gridframe th, [dir=rtl] #print-root .pg th { direction: rtl; unicode-bidi: plaintext; }
+#language { max-width: 100%; }

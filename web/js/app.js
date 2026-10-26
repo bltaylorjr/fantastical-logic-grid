@@ -23,6 +23,8 @@ import { initPullRefresh } from './pull-refresh.js';
 import * as daily from './daily.js';
 import * as stats from './stats.js';
 import { shareResult } from './share-result.js';
+import * as i18n from './i18n.js';
+import { CLOUD_URL } from './cloud-config.js';
 
 errorReports.init();
 const $ = (s, el = document) => el.querySelector(s);
@@ -42,12 +44,20 @@ let S = null; // the open game: { save, puzzle, ix, marks, grid, wrong, hint, ..
 // ====================================================================
 // Small UI services: announcements, toasts, confirm dialogs, sound
 // ====================================================================
+// Both speak the player's language: the text is translated before it is shown.
+let announceSeq = 0;
+let statusSeq = 0;
 function announce(text) {
   const el = $('#announcer');
+  const n = ++announceSeq;
   el.textContent = '';
-  setTimeout(() => { el.textContent = text; }, 30);
+  i18n.t(text).then((t) => setTimeout(() => { if (n === announceSeq) el.textContent = t; }, 30));
 }
-function status(text) { $('#status').textContent = text; }
+function status(text) {
+  const n = ++statusSeq;
+  if (i18n.isEnglish()) { $('#status').textContent = text; return; }
+  i18n.t(text).then((t) => { if (n === statusSeq) $('#status').textContent = t; });
+}
 
 function toast(text, action, { ms = 6000 } = {}) {
   const el = document.createElement('div');
@@ -1686,6 +1696,7 @@ function openSettings() {
     else if (el.type === 'checkbox') el.checked = !!settings[el.name];
     else if (el.type === 'range' || el.type === 'password' || el.type === 'text') el.value = settings[el.name] ?? '';
   }
+  fillLanguages();
   openDialog($('#dlg-settings'), f.querySelector('input:checked') || f.querySelector('input'));
 }
 $('#settings-form').addEventListener('change', (e) => {
@@ -1694,6 +1705,7 @@ $('#settings-form').addEventListener('change', (e) => {
   settings[el.name] = el.type === 'checkbox' ? el.checked : el.type === 'range' ? +el.value : el.type === 'password' ? el.value.trim() : el.value;
   store.markChosen(settings, el.name);
   if (el.name === 'learn') { store.saveSettings(settings); share.refresh(true); }
+  if (el.name === 'language') { settings.languageOffered = true; applyLanguage({ tapped: true }); }
   store.saveSettings(settings);
   applyColorTheme();
   applyMode();
@@ -1701,6 +1713,51 @@ $('#settings-form').addEventListener('change', (e) => {
   if (el.name === 'coach' && S && el.checked && !S.save.solved) { S.save.coach = true; updateCoach(); }
   if ((el.name === 'sound' && el.checked) || el.name === 'volume') sound('tick');
 });
+
+// ---- Language
+function fillLanguages() {
+  const sel = $('#language');
+  if (!sel.options.length) sel.innerHTML = i18n.languages().map((l) => `<option value="${l.code}" lang="${i18n.tagOf(l.code)}">${esc(l.name === l.english ? l.name : `${l.name} (${l.english})`)}</option>`).join('');
+  sel.value = i18n.known(settings.language) ? settings.language : i18n.DEFAULT;
+  languageNote();
+}
+function languageNote() {
+  const note = $('#language-note');
+  if (!note) return;
+  const other = settings.language && settings.language !== i18n.DEFAULT;
+  const canServer = !!(CLOUD_URL && remote.feature('translate'));
+  note.textContent = !other ? '' : canServer || ('Translator' in self)
+    ? `The game is in ${i18n.nameOf(settings.language)}. Translations are kept on this device, so pages you have seen work offline.`
+    : 'Translations are not available right now, so the game stays in English. Try again later.';
+}
+function applyLanguage({ tapped = false } = {}) {
+  const code = i18n.known(settings.language) ? settings.language : i18n.DEFAULT;
+  i18n.setLanguage(code, { tapped });
+  languageNote();
+}
+function renderLangButton() {
+  const btn = $('#lang-btn');
+  btn.hidden = i18n.current() === i18n.DEFAULT;
+  btn.setAttribute('aria-pressed', String(i18n.showingEnglish()));
+  btn.textContent = i18n.showingEnglish() ? i18n.nameOf(i18n.current()) : 'English';
+  btn.title = i18n.showingEnglish() ? `Back to ${i18n.nameOf(i18n.current())}` : 'Show the original English for now';
+}
+i18n.onChange(renderLangButton);
+$('#lang-btn').onclick = () => { i18n.showEnglish(!i18n.showingEnglish()); renderLangButton(); };
+// Players whose device is set to another language are offered it once.
+function offerLanguage() {
+  if (settings.languageOffered || settings.language !== i18n.DEFAULT) return;
+  const mine = (navigator.language || '').toLowerCase();
+  const base = mine.split('-')[0];
+  if (!base || base === 'en') return;
+  const code = i18n.languages().find((l) => l.code !== i18n.DEFAULT && (i18n.tagOf(l.code) === base || l.code === base));
+  if (!code) return;
+  settings.languageOffered = true;
+  store.saveSettings(settings);
+  toast(`Play in ${code.name}? The game can translate itself. You can change this any time in Settings > Language.`, {
+    label: code.name, run: () => { settings.language = code.code; store.saveSettings(settings); applyLanguage({ tapped: true }); },
+  }, { ms: 15000 });
+}
 
 function toggleMenu(open) {
   const menu = $('#app-menu');
@@ -1963,11 +2020,12 @@ async function init() {
   }
   applyColorTheme();
   applyMode();
+  applyLanguage();
   matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', applyColorTheme);
   renderSetup();
   remote.init({
     onThemesChanged: () => { if (!$('#screen-home').hidden) renderSetup(); },
-    onConfigChanged: () => { settings = store.loadSettings(); applyFeatures(); applyMode(); },
+    onConfigChanged: () => { settings = store.loadSettings(); applyFeatures(); applyMode(); languageNote(); },
   });
   await renderSaved();
   renderSuggestion();
@@ -1978,7 +2036,7 @@ async function init() {
     // The open puzzle is never replaced underneath the player.
     isBusy: (kind, key) => kind === 'save' && !!S && S.save.id === key,
     onSavesChanged: () => { if (!$('#screen-home').hidden) renderSaved(); },
-    onSettingsChanged: () => { settings = store.loadSettings(); applyColorTheme(); applyMode(); },
+    onSettingsChanged: () => { settings = store.loadSettings(); applyColorTheme(); applyMode(); applyLanguage(); },
   }).catch(() => { /* accounts are optional */ });
   competeUi.initCompete({
     openDialog, toast, announce, confirmDialog, openAccount, fmtTime, makePuzzle, setupSummary, openRace, findRaceSave,
@@ -1994,6 +2052,7 @@ async function init() {
   window.addEventListener('resize', () => { if (!$('#screen-home').hidden) updatePreview(); });
   document.documentElement.classList.add('ready');
   offerIntro();
+  offerLanguage();
   setTimeout(checkUpdates, 4000);
   if (!isPreview) setTimeout(ensureNaturalVoices, 1500);
 }

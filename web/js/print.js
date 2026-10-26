@@ -1,5 +1,6 @@
 // Print layout: black-and-white safe puzzle pages, and the answer key on its own page.
 import { esc, puzzleIndex } from './grid.js';
+import { settle } from './i18n.js';
 
 // Page width in points, minus margins, for sizing grid cells.
 const PAGE_WIDTH_PT = { letter: 612 - 72, A4: 595 - 72 };
@@ -44,7 +45,7 @@ export function buildPrint(puzzle, options) {
   const story = `<h2>The story</h2>${puzzle.story.paragraphs.map((p) => `<p>${esc(p)}</p>`).join('')}`;
   const grid = gridTable(puzzle, ix, state, cellPt);
   const clues = `<h2>Clues</h2><ol>${puzzle.clues.map((c) => `<li>${esc(c.text)}</li>`).join('')}</ol>`;
-  const myNotes = (options.myNotes || '').trim() ? `<h2>My notes</h2><p class="pnotes">${esc(options.myNotes.trim())}</p>` : '';
+  const myNotes = (options.myNotes || '').trim() ? `<h2>My notes</h2><p class="pnotes" translate="no">${esc(options.myNotes.trim())}</p>` : '';
   const questions = `<h2>Questions</h2><ol>${puzzle.questions.map((q) => `<li>${esc(q.text)} <span class="qline"></span></li>`).join('')}</ol>${myNotes}`;
 
   // Small puzzles fit on one page; otherwise the grid goes on page 1 and the clues on page 2.
@@ -69,9 +70,11 @@ export function buildPrint(puzzle, options) {
 }
 
 // Fills the print area, sets the page size and document title, and prints.
-export function printPuzzle(puzzle, options, { pdf } = {}) {
+export async function printPuzzle(puzzle, options, { pdf } = {}) {
   const root = document.getElementById('print-root');
   root.innerHTML = buildPrint(puzzle, options);
+  // In another language, wait for the page's translations first.
+  await settle(root);
   let pageStyle = document.getElementById('page-style');
   if (!pageStyle) { pageStyle = document.createElement('style'); pageStyle.id = 'page-style'; document.head.append(pageStyle); }
   pageStyle.textContent = `@page { size: ${options.paper === 'A4' ? 'A4' : 'letter'}; margin: 0.5in; }`;
@@ -82,5 +85,4 @@ export function printPuzzle(puzzle, options, { pdf } = {}) {
   if (pdf) return pdf().finally(restore);
   window.print();
   setTimeout(restore, 1000);
-  return Promise.resolve();
 }

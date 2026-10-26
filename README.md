@@ -33,6 +33,14 @@ and badges shows totals, times by difficulty, favorite themes and 19 badges, all
 solve log (meta `solves`) that syncs with an account. Share my result (on the solved panel) sends a
 spoiler-free picture and message through the device's share sheet, or shows them to copy.
 
+**Any language** (`web/js/i18n.js`, `server/src/translate.js`): US English is the default; Settings >
+Language offers 100 languages. The page translates itself as it shows (menus, stories, clues, hints,
+messages, printing, the shared result and read-aloud), using the browser's own on-device translator
+when it has the language, otherwise the Worker's `POST /v1/translate` (Cloudflare Workers AI's free
+allowance, each text translated once for everyone and kept in D1). Each device keeps the translations
+it has seen. The English button at the top shows the original at any time. Names, notes and anything a
+player types are never translated. Right-to-left languages read right to left (the grid keeps its order).
+
 Multimedia layer (all built in, works offline): a themed scene for every story that reveals a
 new layer as each grid section is finished, a portrait for every character that tells the
 clues they remember (each clue is also always in the clue list), synthesized sound effects

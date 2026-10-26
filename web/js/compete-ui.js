@@ -61,7 +61,7 @@ export async function refreshMiniBoard({ force = false } = {}) {
   miniAt = Date.now();
   try {
     const b = await compete.scoreboard('week');
-    const top = b.rows.slice(0, 3).map((r) => `<li${r.me ? ' class="me"' : ''}><b>${r.rank}.</b> ${esc(r.name)} <span>${r.points}</span></li>`);
+    const top = b.rows.slice(0, 3).map((r) => `<li${r.me ? ' class="me"' : ''}><b>${r.rank}.</b> <bdi translate="no">${esc(r.name)}</bdi> <span>${r.points}</span></li>`);
     if (b.me && b.me.rank > 3) top.push(`<li class="me"><b>${b.me.rank}.</b> You <span>${b.me.points}</span></li>`);
     $('#miniboard-list').innerHTML = top.length ? top.join('') : '<li class="empty">No scores yet this week. Solve a puzzle to lead!</li>';
     box.hidden = false;
@@ -443,7 +443,7 @@ const STATUS = { solved: 'Solved', solving: 'Still solving', gave_up: 'Revealed 
 function renderStandingsInto(el, race) {
   const rows = race.players.map((p) => `<tr${p.me ? ' class="me"' : ''}>
       <td>${p.place ? `<b>${p.place}</b>` : '–'}</td>
-      <th scope="row">${esc(p.name)}${p.me ? ' <span class="pill">You</span>' : ''}${p.host ? ' <span class="pill">Host</span>' : ''}</th>
+      <th scope="row"><bdi translate="no">${esc(p.name)}</bdi>${p.me ? ' <span class="pill">You</span>' : ''}${p.host ? ' <span class="pill">Host</span>' : ''}</th>
       <td>${STATUS[p.status]}</td>
       <td>${p.raceMs != null ? ui.fmtTime(p.raceMs) : ''}</td>
       <td>${p.elapsedMs != null ? `${ui.fmtTime(p.elapsedMs)}, ${p.hints} hint${p.hints === 1 ? '' : 's'}, ${p.checks} check${p.checks === 1 ? '' : 's'}` : ''}</td></tr>`).join('');
@@ -495,7 +495,7 @@ export async function onSolved(save, pairs) {
     delete save.scorePending;
     save.points = res.points;
     ui.saveGame();
-    box.innerHTML = `<p><b>+${res.points} points</b> on the scoreboard as ${esc(name)}. <button class="btn small" type="button" data-compete="board">See the scoreboard</button></p>`;
+    box.innerHTML = `<p><b>+${res.points} points</b> on the scoreboard as <bdi translate="no">${esc(name)}</bdi>. <button class="btn small" type="button" data-compete="board">See the scoreboard</button></p>`;
   } catch (err) {
     if (err.code === 'OFFLINE') { box.innerHTML = '<p class="muted">You are offline. Your points will be added when you open this puzzle again online.</p>'; return; }
     delete save.scorePending;
@@ -548,13 +548,13 @@ async function loadBoard() {
   $('#board-name').textContent = user ? 'Choose a screen name' : 'Sign in to take part';
   try {
     const b = await compete.scoreboard(period);
-    if (b.me && b.me.rank) $('#board-me').innerHTML = `You (${esc(b.me.name)}) are <b>number ${b.me.rank}</b> with ${b.me.points} points from ${b.me.solved} solved puzzle${b.me.solved === 1 ? '' : 's'}.`;
+    if (b.me && b.me.rank) $('#board-me').innerHTML = `You (<bdi translate="no">${esc(b.me.name)}</bdi>) are <b>number ${b.me.rank}</b> with ${b.me.points} points from ${b.me.solved} solved puzzle${b.me.solved === 1 ? '' : 's'}.`;
     else if (!user || !name) $('#board-me').innerHTML = `You are playing as <b>${GUEST}</b>. ${user ? 'Choose a screen name' : 'Sign in and choose a screen name'} to get on the scoreboard.`;
     else if (b.me) $('#board-me').textContent = `You (${b.me.name}) have no points ${period === 'week' ? 'this week' : 'yet'}. Solve a puzzle to get on the board.`;
     if (!b.rows.length) { body.innerHTML = `<p class="muted">No one is on the scoreboard ${period === 'week' ? 'this week' : ''} yet. Solve a puzzle to be the first!</p>`; return; }
     body.innerHTML = `<div class="table-wrap"><table class="board"><caption class="sr-only">Scoreboard, ${period === 'week' ? 'this week' : 'all time'}</caption>
       <thead><tr><th scope="col">Rank</th><th scope="col">Player</th><th scope="col">Points</th><th scope="col">Solved</th><th scope="col">Race wins</th></tr></thead>
-      <tbody>${b.rows.map((r) => `<tr${r.me ? ' class="me"' : ''}><td><b>${r.rank}</b></td><th scope="row">${esc(r.name)}${r.me ? ' <span class="pill">You</span>' : ''}</th><td>${r.points}</td><td>${r.solved}</td><td>${r.wins}</td></tr>`).join('')}</tbody></table></div>`;
+      <tbody>${b.rows.map((r) => `<tr${r.me ? ' class="me"' : ''}><td><b>${r.rank}</b></td><th scope="row"><bdi translate="no">${esc(r.name)}</bdi>${r.me ? ' <span class="pill">You</span>' : ''}</th><td>${r.points}</td><td>${r.solved}</td><td>${r.wins}</td></tr>`).join('')}</tbody></table></div>`;
   } catch (err) { body.innerHTML = `<p class="error-box">${esc(err.message)}</p>`; }
 }
 
