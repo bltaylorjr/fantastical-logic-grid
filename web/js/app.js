@@ -31,7 +31,7 @@ import { shareResult } from './share-result.js';
 import * as challenge from './challenge.js';
 import * as dailyResults from './daily-results.js';
 import * as i18n from './i18n.js';
-import { CLOUD_URL } from './cloud-config.js';
+import { CLOUD, CLOUD_URL } from './cloud-config.js';
 
 errorReports.init();
 campaign.init();
@@ -45,6 +45,10 @@ const USED_STORY_LIMIT = 5000;
 const isDesktop = !!(window.__TAURI_INTERNALS__ || window.__TAURI__);
 // The claude.ai preview build cannot print or download files, so those controls are hidden there.
 const isPreview = !!document.querySelector('meta[name="flg-mode"][content="preview"]');
+// The copy uploaded to game sites such as itch.io (dist/portal): it runs inside
+// their frame, so it has no service worker or home-screen install, and the
+// menu links to the full website instead.
+const isPortal = !!document.querySelector('meta[name="flg-mode"][content="portal"]');
 
 let settings = store.loadSettings();
 let S = null; // the open game: { save, puzzle, ix, marks, grid, wrong, hint, ... }
@@ -2043,6 +2047,7 @@ $('#app-menu').addEventListener('click', async (e) => {
   else if (cmd === 'account') openAccount();
   else if (cmd === 'board') competeUi.openBoard();
   else if (cmd === 'install') installApp();
+  else if (cmd === 'site') window.open(`${(CLOUD.siteUrl || 'https://thelogicgrid.com').replace(/\/+$/, '')}/?utm_source=portal&utm_medium=store&utm_campaign=portal`, '_blank', 'noopener');
 });
 $('#home-btn').onclick = () => goHome();
 $('#help-btn').onclick = () => openDialog($('#dlg-help'), $('#help-close'));
@@ -2162,7 +2167,8 @@ const isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' 
 const isAndroid = /Android/i.test(ua);
 const isStandalone = () => !!(window.matchMedia?.('(display-mode: standalone)').matches || window.matchMedia?.('(display-mode: window-controls-overlay)').matches || navigator.standalone);
 let installEvent = null;
-if (!isDesktop) $('[data-cmd=install]').hidden = false;
+if (!isDesktop && !isPortal) $('[data-cmd=install]').hidden = false;
+$('[data-cmd=site]').hidden = !isPortal;
 window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault();
   installEvent = e;
@@ -2219,7 +2225,7 @@ $('#install-phone-btn').onclick = async () => {
   if (choice.outcome === 'accepted') { $('#dlg-install').close(); toast('Installed. Open the game from its icon on your home screen, Start menu or dock.'); }
   else renderInstall();
 };
-if ('serviceWorker' in navigator && !isDesktop && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
+if ('serviceWorker' in navigator && !isDesktop && !isPortal && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
   watchWebUpdates();
 }
 

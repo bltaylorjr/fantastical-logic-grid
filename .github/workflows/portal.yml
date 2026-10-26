@@ -1,0 +1,44 @@
+# The copy of the game for game sites such as itch.io (dist/portal, see
+# scripts/build.mjs and docs/PORTALS.md). After every push to main that changes
+# the game, it builds the zip and puts it on the GitHub release "web-portal"
+# (a pre-release, never "latest", so the desktop app's updater never sees it).
+# Bobby uploads that zip to the game site: docs/PORTALS.md.
+name: Game site zip
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['web/**', 'engine/**', 'scripts/build.mjs', 'package.json', '.github/workflows/portal.yml']
+permissions:
+  contents: write
+concurrency:
+  group: portal
+  cancel-in-progress: true
+jobs:
+  zip:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+        env:
+          FLG_FIREBASE_API_KEY: ${{ vars.FLG_FIREBASE_API_KEY }}
+          FLG_CLOUD_URL: ${{ vars.FLG_CLOUD_URL }}
+          FLG_SITE_URL: ${{ vars.FLG_SITE_URL }}
+      - name: Zip the game for game sites
+        run: cd dist/portal && zip -qr ../the-fantastical-logic-grid-web-game.zip . && ls -l ../the-fantastical-logic-grid-web-game.zip
+      - name: Put it on the web-portal release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          v=$(node -p "require('./package.json').version")
+          if ! gh release view web-portal >/dev/null 2>&1; then
+            gh release create web-portal --prerelease --latest=false --title "Web game for itch.io and other game sites" \
+              --notes "The zip to upload to itch.io and similar sites as an HTML5 game. Rebuilt after every game change. Steps: docs/PORTALS.md."
+          fi
+          gh release upload web-portal dist/the-fantastical-logic-grid-web-game.zip --clobber
+          gh release edit web-portal --notes "Version $v, built $(date -u +%Y-%m-%d). Upload the zip to itch.io (Kind of project: HTML, This file will be played in the browser). Steps: docs/PORTALS.md."
