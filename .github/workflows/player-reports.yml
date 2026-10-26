@@ -1,0 +1,55 @@
+# The daily player report: errors players hit and the problems and ideas they
+# sent, grouped (already-fixed errors listed apart) and emailed from the game's
+# Gmail account. No email when nothing is new. Same secrets as the weekly
+# archive email (server/ARCHIVE.md); REPORTS_TO is optional (defaults to
+# ARCHIVE_TO). Stop it with the repository variable PLAYER_REPORTS=off.
+# Run by hand with a public key to get the full details encrypted in the log,
+# for fixing (MAINTENANCE.md, "Player reports").
+# The repository is public, so this job prints only counts in plain text.
+# Free: scheduled GitHub Actions on a public repo and Gmail cost nothing.
+name: Daily player report
+on:
+  schedule:
+    - cron: '13 7 * * *'   # every day 07:13 UTC
+  workflow_dispatch:
+    inputs:
+      test:
+        description: Email even when nothing is new
+        type: boolean
+        default: true
+      send:
+        description: Send the email
+        type: boolean
+        default: true
+      public_key:
+        description: Optional base64 RSA public key (PEM); prints the details encrypted to it
+        type: string
+        default: ''
+permissions:
+  contents: read
+concurrency:
+  group: player-reports
+jobs:
+  report:
+    if: github.event_name == 'workflow_dispatch' || vars.PLAYER_REPORTS != 'off'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: |
+            scripts/player-reports.py
+            scripts/known-errors.json
+          sparse-checkout-cone-mode: false
+      - name: Fetch the reports, group them and email them
+        env:
+          FLG_CLOUD_URL: ${{ vars.FLG_CLOUD_URL || 'https://flg-api.btay74.workers.dev' }}
+          FLG_ADMIN_TOKEN: ${{ secrets.FLG_ADMIN_TOKEN }}
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          ARCHIVE_TO: ${{ secrets.ARCHIVE_TO }}
+          REPORTS_TO: ${{ secrets.REPORTS_TO }}
+          TEST: ${{ github.event_name == 'workflow_dispatch' && inputs.test }}
+          SEND: ${{ github.event_name != 'workflow_dispatch' || inputs.send }}
+          PUBLIC_KEY: ${{ inputs.public_key }}
+        run: python3 -I scripts/player-reports.py

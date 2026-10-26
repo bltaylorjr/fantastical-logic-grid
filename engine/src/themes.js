@@ -13,6 +13,10 @@
 //     less / more        - comparison phrases ("arrived earlier than")
 //     lessBy / moreBy    - with an exact gap, {d} is the formatted gap
 //     gap(steps)         - formats a gap of `steps` scale steps
+//   note       - optional; one sentence the story adds so the category makes
+//                sense ({one}/{many} are the cast words). A numbered category
+//                compared with "higher"/"lower"/"above"/"below" must say which
+//                way its numbers run (players asked: is rank 1 the top?).
 
 export const clock = (startMin) => (v) => {
   const m = startMin + v;
@@ -150,6 +154,7 @@ export const THEMES = [
       { id: 'dance', name: 'Dance', pos: 'danced the {x}', neg: 'did not dance the {x}',
         items: ['Waltz', 'Tango', 'Salsa', 'Swing', 'Foxtrot', 'Cha-Cha', 'Polka', 'Twist'] },
       { id: 'toast', name: 'Toast', noun: "toast time", pos: 'gave a toast at {x}', neg: 'did not give a toast at {x}',
+        note: 'During the evening, each {one} stood up once to give a short toast, each at a different time.',
         ordinal: { start: 0, step: 10, count: 8, label: clock(19 * 60),
           less: 'gave a toast earlier than', more: 'gave a toast later than',
           lessBy: 'gave a toast {d} earlier than', moreBy: 'gave a toast {d} later than',
@@ -182,10 +187,11 @@ export const THEMES = [
           lessBy: 'is {d} younger than', moreBy: 'is {d} older than',
           gap: (s) => plural(s * 50, 'year', 'years') } },
       { id: 'level', name: 'Rank', noun: "rank", pos: 'holds rank {x}', neg: 'does not hold rank {x}',
+        note: 'About ranks: rank 1 is the lowest rank, and the bigger the number, the higher the rank.',
         ordinal: { start: 1, step: 1, count: 8, label: (v) => String(v),
-          less: 'holds a lower rank than', more: 'holds a higher rank than',
-          lessBy: 'is {d} below', moreBy: 'is {d} above',
-          gap: (s) => plural(s, 'rank', 'ranks') } },
+          less: 'holds a lower rank (a smaller number) than', more: 'holds a higher rank (a bigger number) than',
+          lessBy: 'holds a rank {d} lower than', moreBy: 'holds a rank {d} higher than',
+          gap: (s) => plural(s, 'step', 'steps') } },
     ],
   },
   {
@@ -236,6 +242,7 @@ export const THEMES = [
           lessBy: 'scored {d} fewer than', moreBy: 'scored {d} more than',
           gap: (s) => plural(s * 5, 'point', 'points') } },
       { id: 'place', name: 'Finish', noun: "finishing place", pos: 'finished in place {x}', neg: 'did not finish in place {x}',
+        note: 'About finishing places: place 1 is first place (the winner), and a bigger number means finishing further back.',
         ordinal: { start: 1, step: 1, count: 8, label: (v) => String(v),
           less: 'finished ahead of', more: 'finished behind',
           lessBy: 'finished {d} ahead of', moreBy: 'finished {d} behind',
@@ -263,6 +270,7 @@ export const THEMES = [
           lessBy: 'cooked {d} less than', moreBy: 'cooked {d} longer than',
           gap: (s) => plural(s * 5, 'minute', 'minutes') } },
       { id: 'score', name: 'Score', pos: 'scored {x}', neg: 'did not score {x}',
+        note: 'About scores: the judges score from low to high, so a higher score (a bigger number) is better.',
         ordinal: { start: 3, step: 1, count: 8, label: (v) => String(v),
           less: 'scored lower than', more: 'scored higher than',
           lessBy: 'scored {d} lower than', moreBy: 'scored {d} higher than',
