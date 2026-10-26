@@ -149,6 +149,7 @@ dialog h2 { margin: 0; }
 
 /* Backups and the archive viewer */
 a.btn { display: inline-flex; align-items: center; text-decoration: none; }
+a.btn[hidden] { display: none; }
 ul.plain { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .viewer { margin: 0 auto; }
 .drop { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; border: 2px dashed var(--muted); border-radius: 12px; padding: 20px; margin: 16px 0; background: var(--panel); cursor: pointer; }

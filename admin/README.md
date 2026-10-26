@@ -44,7 +44,7 @@ mode, colors, play aids, "Learn from how I play", and their sound effects and
 theme music switches and volumes. The Sound button on a puzzle mutes
 everything in one tap.
 
-## On your phone
+## On your phone or computer
 
 The dashboard installs like an app, free and with no app store:
 
@@ -52,7 +52,14 @@ The dashboard installs like an app, free and with no app store:
   tap Share, then **Add to Home Screen**.
 - **Android:** open it in Chrome, tap the menu (three dots), then **Install app**
   (or **Add to Home screen**).
-- **Windows or Mac:** in Chrome or Edge, press **Install the app** at the top.
+- **Windows app:** press **Download for Windows** at the top (shown to Windows
+  visitors) or use the link in "Put the dashboard on your phone or computer" on
+  the sign-in page. It is a free installer that updates itself; see
+  [desktop-admin/README.md](../desktop-admin/README.md). Windows may show
+  "Windows protected your PC" because it is not signed with a paid certificate:
+  click **More info**, then **Run anyway**.
+- **Windows or Mac in Chrome or Edge:** press **Install the app** at the top, or
+  the install icon at the right end of the address bar.
 
 It opens full screen as "Grid Admin". You sign in each time you open it. The
 service worker (`sw.js`) keeps only the app's own files; admin data and sign-in

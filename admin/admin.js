@@ -993,7 +993,7 @@ else $('#login').hidden = false;
 // it from Safari's Share menu (steps on the sign-in page).
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/admin/sw.js', { scope: '/admin/' }).catch(() => {});
 let installPrompt = null;
-window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installPrompt = e; $('#install').hidden = false; });
+window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); if (window.__FLG_ADMIN_DESKTOP__) return; installPrompt = e; $('#install').hidden = false; });
 window.addEventListener('appinstalled', () => { installPrompt = null; $('#install').hidden = true; toast('Installed. Open Grid Admin from your home screen or apps.'); });
 $('#install').onclick = async () => {
   if (!installPrompt) return;
@@ -1002,4 +1002,8 @@ $('#install').onclick = async () => {
   installPrompt = null;
   $('#install').hidden = true;
 };
-if (matchMedia('(display-mode: standalone)').matches || navigator.standalone) $('#phone-help').hidden = true;
+// The Windows app (desktop-admin/) opens this same page and marks itself with
+// __FLG_ADMIN_DESKTOP__, so neither the download nor the install steps show there.
+const installed = matchMedia('(display-mode: standalone)').matches || navigator.standalone || window.__FLG_ADMIN_DESKTOP__;
+if (installed) $('#phone-help').hidden = true;
+$('#get-windows').hidden = installed || !/Windows/.test(navigator.userAgent);

@@ -103,6 +103,22 @@ const SHOTS = process.env.SHOTS;
     const sw = await page.evaluate(async () => { const reg = await navigator.serviceWorker.ready; return reg.scope; });
     assert(/\/admin\/$/.test(sw), 'the service worker is installed for /admin/');
     assert(await page.locator('#phone-help summary').isVisible(), 'the sign-in page explains how to put it on a phone');
+    const winApp = /\/releases\/download\/admin-desktop\/The-Fantastical-Logic-Grid-Admin-Setup\.exe$/;
+    assert(winApp.test(await page.locator('#phone-help a').first().getAttribute('href')), 'the install steps link the Windows admin app');
+    assert(await page.locator('#get-windows').isHidden(), 'Download for Windows is hidden off Windows');
+    {
+      // On Windows the header offers the download; inside the Windows app
+      // (which sets __FLG_ADMIN_DESKTOP__) neither it nor the steps show.
+      const win = await browser.newContext({ userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0' });
+      const w = await win.newPage();
+      await w.goto(`${API}/admin/`);
+      assert(await w.locator('#get-windows').isVisible(), 'Windows visitors see Download for Windows');
+      assert(winApp.test(await w.locator('#get-windows').getAttribute('href')), 'Download for Windows links the admin installer');
+      await w.addInitScript(() => { window.__FLG_ADMIN_DESKTOP__ = true; });
+      await w.reload();
+      assert(await w.locator('#get-windows').isHidden() && await w.locator('#phone-help').isHidden(), 'the Windows app hides the download and install steps');
+      await win.close();
+    }
     await page.fill('#login-email', OWNER);
     await page.fill('#login-password', 'wrong');
     await page.click('#login-form button[type=submit]');
