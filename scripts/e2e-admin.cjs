@@ -190,10 +190,27 @@ const SHOTS = process.env.SHOTS;
     const renamed = (await db.prepare("SELECT screen_name FROM players WHERE user_id = 'player-1'").first()).screen_name;
     assert(/^Player [A-Z2-9]{4}$/.test(renamed), `a screen name is reset (${renamed})`);
 
+    // Players: every account in sections, with Approve and Block on each name.
+    await db.prepare('INSERT INTO players (user_id, screen_name, name_key, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?4)').bind('player-2', 'Fresh Face', 'freshface', Date.now()).run();
+    await db.prepare('INSERT INTO sync_users (user_id, rev, created_at) VALUES (?1, 1, ?2)').bind('sync-only-1', Date.now()).run();
     await page.click('a[href="#players"]');
-    await page.click('#players-form button[type=submit]');
-    await page.waitForSelector('#players-rows button[data-uid]');
-    await page.click('#players-rows button[data-uid]');
+    await page.waitForFunction(() => /Fresh Face/.test(document.querySelector('#players-rows').textContent) && /No screen name/.test(document.querySelector('#players-rows').textContent));
+    await page.click('#players-sections [data-section=pending]');
+    await page.waitForFunction(() => document.querySelector('#players-sections [data-section=pending]').getAttribute('aria-pressed') === 'true'
+      && !/No screen name/.test(document.querySelector('#players-rows').textContent));
+    assert(/Fresh Face/.test(await page.textContent('#players-rows')), 'Needs approval lists the new name');
+    await page.click('#players-rows button[data-act=approve]');
+    await page.waitForFunction(() => /No players here/.test(document.querySelector('#players-rows').textContent));
+    assert((await db.prepare("SELECT 1 FROM name_reviews WHERE user_id = 'player-2'").first()), 'Approve approves the name');
+    await page.click('#players-sections [data-section=active]');
+    await page.waitForFunction(() => /Fresh Face/.test(document.querySelector('#players-rows').textContent));
+    await page.click('#players-table th[data-sort=name] button');
+    await page.waitForSelector('#players-table th[data-sort=name][aria-sort=ascending]');
+    await page.click('#players-sections [data-section=all]');
+    await page.waitForFunction(() => /No screen name/.test(document.querySelector('#players-rows').textContent));
+    assert(/Showing 1 to 3 of 3 players/.test(await page.textContent('#players-count')), 'Everyone counts every account');
+    await shot(page, '3-players');
+    await page.click('#players-rows a.rowlink[href="#players/player-1"]');
     await page.waitForSelector('#player-card');
     assert(/Latest scores/.test(await page.textContent('#player-card')), 'a player opens with their scores');
     await shot(page, '3-player');
