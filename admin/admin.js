@@ -9,6 +9,7 @@ import { characterView } from './characters.js';
 import { ratingsView, initRatings } from './ratings.js';
 import { marketingView, initMarketing } from './marketing.js';
 import { puzzleMailView, initPuzzleMail } from './puzzle-mail.js';
+import { educatorsView, initEducators } from './educators.js';
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -235,6 +236,7 @@ views.overview = async () => {
   const labels = d.dayList;
   setCount('#count-parts', d.review.parts.pending || 0);
   setCount('#count-names', d.review.namesWaiting || 0);
+  setCount('#count-educators', d.review.educators || 0);
   const review = [];
   if (can('moderator') && d.review.parts.pending) review.push(`<a href="#stories">${fmt(d.review.parts.pending)} story ${d.review.parts.pending === 1 ? 'part' : 'parts'} waiting for review</a>`);
   const fb = d.review.feedback || {};
@@ -242,6 +244,7 @@ views.overview = async () => {
   setCount('#count-comm', can('moderator') ? (fb.idea || 0) + (fb.problem || 0) + unread : 0);
   if (can('moderator') && unread) review.push(`<a href="#communication">${fmt(unread)} unread ${unread === 1 ? 'message' : 'messages'} from players</a>`);
   if (can('moderator') && (fb.idea || fb.problem)) review.push(`<a href="#communication">${fmt(fb.idea || 0)} new ${fb.idea === 1 ? 'idea' : 'ideas'} and ${fmt(fb.problem || 0)} new ${fb.problem === 1 ? 'problem' : 'problems'} from players</a>`);
+  if (can('moderator') && d.review.educators) review.push(`<a href="#educators">${fmt(d.review.educators)} educator ${d.review.educators === 1 ? 'request' : 'requests'} waiting for review</a>`);
   if (can('moderator') && d.review.namesWaiting) review.push(`<a href="#names">${fmt(d.review.namesWaiting)} new or changed screen ${d.review.namesWaiting === 1 ? 'name' : 'names'}</a>`);
   $('#ov-body').innerHTML = `
     ${alertsHtml(al)}
@@ -1200,6 +1203,9 @@ initRatings(ratingHelpers, (name, o) => show(name, o));
 const marketingHelpers = { api, esc, fmt, when, tile, table, can, act, ask, toast };
 views.marketing = () => marketingView(marketingHelpers);
 initMarketing(marketingHelpers, (name, o) => show(name, o));
+const educatorHelpers = { api, esc, fmt, when, can, act, ask, setCount };
+views.educators = () => educatorsView(educatorHelpers);
+initEducators(educatorHelpers, (name, o) => show(name, o));
 
 // ---- Puzzle emails (puzzle-mail.js): the weekly and special edition lists, sends and planner.
 views.mail = () => puzzleMailView();

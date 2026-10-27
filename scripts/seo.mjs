@@ -12,10 +12,12 @@
 //                                daily puzzle changes made in the admin dashboard
 //   FLG_DAILY_PLAN_REQUIRED      1 to stop the build when no plan can be read
 //                                (the publish workflow), so past days never change
-import { cpSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { execFileSync } from 'node:child_process';
+import { gridTable, answerKey } from './worksheet.mjs';
+import { educatorsBody, EDUCATORS_CSS } from './educators-page.mjs';
 
 // Search pages are plain HTML: only the site's own files may load, inline
 // <style> is allowed, and no inline script ever runs (JSON-LD is data, not code).
@@ -195,7 +197,7 @@ export async function buildSeo({ root, site }) {
   const owner = 'Bobby Taylor';
   const copyright = `© 2026${year > 2026 ? `–${year}` : ''} ${owner}. All rights reserved.`;
   const tdmMeta = `<meta name="tdm-reservation" content="1">\n<meta name="tdm-policy" content="${url('terms/')}">`;
-  const NAV = [['how-to-play/', 'How to play'], ['daily/', 'Daily puzzle'], ['printables/', 'Printables'], ['themes/', 'Themes'], ['difficulty-levels/', 'Difficulty levels']];
+  const NAV = [['how-to-play/', 'How to play'], ['daily/', 'Daily puzzle'], ['printables/', 'Printables'], ['themes/', 'Themes'], ['difficulty-levels/', 'Difficulty levels'], ['educators/', 'For educators']];
   // Search results show about 60 characters of a title and 160 of a
   // description: a title that would be cut loses the site name (it is still in
   // og:site_name), and a description is shortened at a sentence or word.
@@ -206,7 +208,7 @@ export async function buildSeo({ root, site }) {
     const end = cut.lastIndexOf('. ');
     return end > 80 ? cut.slice(0, end + 1) : `${cut.slice(0, cut.lastIndexOf(' ')).replace(/[,;:]$/, '')}…`;
   };
-  const page = ({ path, title: fullTitle, description: fullDescription, body, crumbs = [], schema = [], lastmod = updated, priority = 0.6, type, listed = true }) => {
+  const page = ({ path, title: fullTitle, description: fullDescription, body, crumbs = [], schema = [], lastmod = updated, priority = 0.6, type, listed = true, csp = PAGE_CSP, style = '', script = '' }) => {
     const title = fitTitle(fullTitle);
     const description = fitDescription(fullDescription);
     const file = path.endsWith('.html') ? path : `${path}index.html`;
@@ -217,7 +219,7 @@ export async function buildSeo({ root, site }) {
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="${PAGE_CSP}">
+<meta http-equiv="Content-Security-Policy" content="${csp}">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(title)}</title>
 <meta name="description" content="${esc(description)}">
@@ -230,7 +232,8 @@ ${verification}
 <link rel="apple-touch-icon" href="${up}icons/icon-192.png">
 <link rel="preload" href="${up}fonts/atkinson-400.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="${up}fonts/cinzel-700.woff2" as="font" type="font/woff2" crossorigin>
-<style>${css.replaceAll('url(fonts/', `url(${up}fonts/`)}</style>
+<style>${css.replaceAll('url(fonts/', `url(${up}fonts/`)}${style}</style>
+${script ? `<script type="module" src="${script}"></script>` : ''}
 ${[breadcrumb, ...schema].map((s) => `<script type="application/ld+json">${json(checkVideos(s, path))}</script>`).join('\n')}
 </head>
 <body>
@@ -611,6 +614,36 @@ ${picks.length ? `<ul class="picks">${picks.map((x) => `<li><a href="${up}?play=
 ${playBtn(up)}`,
   });
 
+  // ---------- For educators: free printable puzzle packages (website only) ----------
+  // The form talks to the game's Worker (server/src/educators.js), so this
+  // page alone may connect to it. Without a cloud address (tests) it may reach localhost.
+  {
+    const { classroomOptions } = await import(pathToFileURL(join(site, 'engine', 'classroom.js')).href);
+    const cloud = (process.env.FLG_CLOUD_URL || '').replace(/\/+$/, '');
+    const cloudOrigin = (() => { try { return cloud ? new URL(cloud).origin : ''; } catch { return ''; } })();
+    const csp = PAGE_CSP.replace("default-src 'self';", `default-src 'self'; connect-src 'self' ${cloudOrigin || 'http://localhost:* http://127.0.0.1:*'};`);
+    mkdirSync(join(site, 'educators'), { recursive: true });
+    cpSync(join(root, 'seo', 'educators.js'), join(site, 'educators', 'form.js'));
+    // The how-to video (video/educators.cjs + video/build.py), when it has been made.
+    const media = join(root, 'seo', 'media');
+    let video = null;
+    if (existsSync(join(media, 'educators.mp4'))) {
+      for (const f of ['educators.mp4', 'educators.en.vtt', 'educators-poster.jpg']) if (existsSync(join(media, f))) cpSync(join(media, f), join(site, 'educators', f));
+      const meta = existsSync(join(media, 'educators.json')) ? JSON.parse(readFileSync(join(media, 'educators.json'), 'utf8')) : {};
+      video = { minutes: meta.minutes || 3, transcript: meta.transcript || [], seconds: meta.seconds || 180 };
+    }
+    const videoSchema = video ? [{ '@context': 'https://schema.org', '@type': 'VideoObject', name: 'How to request a free puzzle package for your class', description: 'From filling in the request form and confirming your school email to the printable PDFs arriving by email.',
+      thumbnailUrl: url('educators/educators-poster.jpg'), uploadDate: updated, contentUrl: url('educators/educators.mp4'), embedUrl: url('educators/'), duration: `PT${Math.floor(video.seconds / 60)}M${Math.round(video.seconds % 60)}S`, inLanguage: 'en' }] : [];
+    page({
+      path: 'educators/', priority: 0.8, csp, style: EDUCATORS_CSS, script: 'form.js',
+      title: `Free printable logic puzzle packages for teachers | ${name}`,
+      description: 'Teachers can request free printable logic grid puzzle packages for their grade: choose difficulty, themes or your own theme, and how many puzzles. PDFs with answer keys, by email.',
+      crumbs: [['educators/', 'For educators']],
+      schema: videoSchema,
+      body: (up) => educatorsBody(up, { options: classroomOptions(), api: cloud, video }),
+    });
+  }
+
   // ---------- Privacy (also the app stores' privacy policy link) ----------
   page({
     path: 'privacy/', priority: 0.3,
@@ -637,6 +670,7 @@ ${playBtn(up)}`,
 <p>Ideas, problem reports and story suggestions you write go to the team. If you are signed in and ask for a reply, the team may answer by email or in Messages.</p>
 <p><strong>Daily puzzle by email:</strong> if you are signed in and tick <strong>Email me each day's puzzle</strong>, the game keeps your account's email address to send it, once a day. Every email has a one-click unsubscribe link, and unticking the box or deleting your account removes the address.</p>
 <p><strong>Weekly and special edition puzzles by email:</strong> anyone can sign up in <strong>Menu &gt; Puzzle emails</strong>, with or without an account. The game keeps the email address and which emails you picked. If you are not signed in, we first email you a link to confirm, and nothing else is sent until you press Confirm; an address that is never confirmed is removed after 7 days. Every email has a one-click unsubscribe link and a link to change which emails you get. Unsubscribing from both, or deleting your account, removes the address.</p>
+<p><strong>Educator puzzle packages:</strong> when a teacher asks for a package on the <a href="../educators/">Educators page</a>, we keep the name, school, school email and the choices on the form to confirm the address, review the request and email the puzzles. Requests that are never confirmed or are declined are removed after 30 days.</p>
 <h2>Services the game uses</h2>
 <ul>
 <li><strong>Natural voices:</strong> the words being read aloud are sent to Google (Gemini or Google Cloud text-to-speech) through the game's server. Google may use text sent to its free services to improve them. Choose the device's own voices in Settings to keep speech on your device.</li>
@@ -678,24 +712,6 @@ ${playBtn(up)}`,
       return { ...lv, puzzle: p };
     });
   }
-  // The classic staircase grid: the first category down the side against every
-  // other, then the last against the rest, and so on, ready to fill with X and O.
-  const gridTable = (p) => {
-    const cats = p.categories;
-    const K = cats.length;
-    const cols = cats.slice(1);
-    const rowCats = [cats[0], ...cats.slice(2).reverse()];
-    const span = (rc) => (rc === cats[0] ? cols.length : cats.indexOf(rc) - 1);
-    const head = `<tr><td class="corner" colspan="2" rowspan="2"></td>${cols.map((c) => `<th scope="colgroup" colspan="${c.items.length}" class="cat">${esc(c.name)}</th>`).join('')}</tr>
-<tr>${cols.map((c) => c.items.map((it) => `<th scope="col" class="item"><span>${esc(it.label)}</span></th>`).join('')).join('')}</tr>`;
-    const body = rowCats.map((rc) => rc.items.map((it, r) => `<tr${r === 0 ? ' class="t"' : ''}>${r === 0 ? `<th scope="rowgroup" rowspan="${rc.items.length}" class="cat side"><span>${esc(rc.name)}</span></th>` : ''}<th scope="row" class="item">${esc(it.label)}</th>${cols.slice(0, span(rc)).map((c) => c.items.map((x, ci) => `<td${ci === 0 ? ' class="l"' : ''}></td>`).join('')).join('')}</tr>`).join('')).join('');
-    return `<div class="table-wrap"><table class="lgrid" aria-label="Blank logic grid with ${K} categories"><thead>${head}</thead><tbody>${body}</tbody></table></div>`;
-  };
-  const answerKey = (p) => `<section class="key"><h2>Answer key: ${esc(p.title)}</h2>
-<div class="table-wrap"><table><thead><tr>${p.answerKey.columns.map((c) => `<th scope="col">${esc(c)}</th>`).join('')}</tr></thead>
-<tbody>${p.answerKey.rows.map((r) => `<tr>${r.map((v, i) => i ? `<td>${esc(v)}</td>` : `<th scope="row">${esc(v)}</th>`).join('')}</tr>`).join('')}</tbody></table></div>
-<ol>${p.answerKey.questions.map((q) => `<li>${esc(q.question)} <strong>${esc(q.answer)}</strong></li>`).join('')}</ol>
-<p>${esc(p.story.ending)}</p></section>`;
   const weekLabel = new Date(`${thisWeek}T12:00:00Z`).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
   page({
     path: 'printables/', priority: 0.8, lastmod: thisWeek,
