@@ -109,7 +109,8 @@ for (const f of pngs) {
   if (!s || s.w < 1366 || s.h < 768) problem(`media/store/${f} is ${s ? `${s.w}x${s.h}` : 'unreadable'}; Store desktop screenshots must be at least 1366x768.`);
   if (statSync(join(storeShots, f)).size > 50 * 1024 * 1024) problem(`media/store/${f} is over 50 MB.`);
 }
-if (!doc.includes('https://thelogicgrid.com/privacy/')) problem('docs/MICROSOFT-STORE.md does not give the privacy policy address.');
+const docUrls = (doc.match(/https:\/\/[^\s)`>]+/g) || []).map((u) => { try { return new URL(u); } catch { return null; } });
+if (!docUrls.some((u) => u && u.hostname === 'thelogicgrid.com' && u.pathname === '/privacy/')) problem('docs/MICROSOFT-STORE.md does not give the privacy policy address.');
 
 // --- Windows desktop apps (WACK desktop tests) ---
 const appManifestFile = join(root, 'desktop', 'windows', 'app.manifest');
