@@ -8,6 +8,7 @@
 import { getSettings } from './settings.js';
 import { FREE_LIMITS, cloudflareUsage } from './usage.js';
 import { ratingInsights } from './ratings.js';
+import { printPackTotals } from './print-packs.js';
 
 const DAY = 24 * 3600_000;
 const isoDay = (ms) => new Date(ms).toISOString().slice(0, 10);
@@ -190,6 +191,8 @@ export async function summary(env, days = 7, now = Date.now()) {
       good: rated.good.slice(0, 3), improve: rated.improve.slice(0, 3), summary: rated.summary.status === 'ok' ? rated.summary.text : null },
     // Tip jar and Supporter grants (supporters.js): running now, added and ended this week.
     supporters,
+    // Printable puzzle packs printed (print-packs.js).
+    printPacks: await printPackTotals(env, days, now).catch(() => null),
     // Where this week's visitors came from, and the market test's pass marks.
     funnel: market.funnel,
     marketTest: { days: market.days, since: market.since, marks: market.marks },

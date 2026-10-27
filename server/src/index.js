@@ -16,6 +16,7 @@
 //   POST /v1/translate                   the game's text in another language (translate.js)
 //   POST /v1/m                           anonymous counts of visits from campaign links (marketing.js)
 //   /v1/challenges[/:code[/result]]       Challenge a friend links, no account (challenges.js)
+//   GET|POST /v1/print-packs             printable puzzle packs for signed-in players (print-packs.js)
 //   GET /v1/perks                        a signed-in player's supporter perks (supporters.js)
 //   /admin/*                             the admin dashboard and its API (admin.js)
 //   GET /v1/health[?deep=1]              a quick check that the Worker (and with
@@ -36,6 +37,7 @@ import { handleDaily } from './daily.js';
 import { handleDailyResults } from './daily-results.js';
 import { handleQuality } from './quality.js';
 import { handleDailyEmail } from './daily-email.js';
+import { handlePrintPacks } from './print-packs.js';
 import { handleTranslate } from './translate.js';
 import { handleAdmin } from './admin.js';
 import { NIGHTLY_CRONS, isMaintenanceHour, runNightly } from './nightly.js';
@@ -102,6 +104,9 @@ async function route(req, env, ctx) {
 
   const dailyEmail = await handleDailyEmail(req, env, url);
   if (dailyEmail) return dailyEmail;
+
+  const printPacks = await handlePrintPacks(req, env, url);
+  if (printPacks) return printPacks;
 
   const quality = await handleQuality(req, env, url);
   if (quality) return quality;
