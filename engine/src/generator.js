@@ -12,6 +12,7 @@ import { candidateStream, clueHolds } from './clues.js';
 import { isSolvable, solveWithTrace, TECHNIQUE_NAMES } from './solver.js';
 import { makeLanguage, clueText } from './language.js';
 import { buildStory, buildQuestions } from './story.js';
+import { customWorld, customStory } from './classroom.js';
 
 export const ENGINE_NAME = 'The Fantastical Logic Grid';
 export const ENGINE_VERSION = '1.0.0';
@@ -23,15 +24,22 @@ function resolveOptions(opts = {}) {
   const seed = opts.seed != null ? String(opts.seed) : Math.floor(Math.random() * 2 ** 32).toString(36);
   const rng = makeRng(`${seed}|${tier.id}|${opts.theme || ''}|${opts.topic || ''}|${opts.categories || ''}x${opts.items || ''}`);
   const learn = opts.learning || {};
+  // custom: an educator's own theme, cast and categories (classroom.js).
+  const world = opts.custom ? customWorld(opts.custom) : null;
   // A "random" theme leans toward themes the player enjoys (learning.themeWeights).
   const themeWeights = learn.themeWeights && Object.fromEntries(THEMES.map((t) => [t.id, clamp(Number(learn.themeWeights[t.id]) || 1, [0.3, 3])]));
-  const theme = opts.theme && opts.theme !== 'random' ? getTheme(opts.theme) : themeWeights ? getTheme(rng.weighted(themeWeights)) : rng.pick(THEMES);
+  const theme = world ? world.theme : opts.theme && opts.theme !== 'random' ? getTheme(opts.theme) : themeWeights ? getTheme(rng.weighted(themeWeights)) : rng.pick(THEMES);
   if (!theme) throw new Error(`Unknown theme "${opts.theme}". Try one of: ${THEMES.map((t) => t.id).join(', ')}`);
   // A topic only makes sense within a chosen theme; a random theme gets a random topic.
-  const topic = resolveTopic(theme, opts.theme && opts.theme !== 'random' ? opts.topic : null, rng);
-  const scenario = buildScenario(theme, topic);
-  const K = clamp(opts.categories || tier.defaultSize[0], SIZE_LIMITS.categories);
-  const N = clamp(opts.items || tier.defaultSize[1], SIZE_LIMITS.items);
+  const topic = world ? world.topic : resolveTopic(theme, opts.theme && opts.theme !== 'random' ? opts.topic : null, rng);
+  const scenario = world ? world.scenario : buildScenario(theme, topic);
+  let K = clamp(opts.categories || tier.defaultSize[0], SIZE_LIMITS.categories);
+  let N = clamp(opts.items || tier.defaultSize[1], SIZE_LIMITS.items);
+  // A custom world has only the categories and items the educator wrote.
+  if (world) {
+    K = Math.max(SIZE_LIMITS.categories[0], Math.min(K, scenario.categories.length + 1));
+    N = Math.max(SIZE_LIMITS.items[0], Math.min(N, world.maxItems));
+  }
   const customSize = K < tier.categories[0] || K > tier.categories[1] || N < tier.items[0] || N > tier.items[1];
 
   let weights = { ...tier.weights };
@@ -43,6 +51,9 @@ function resolveOptions(opts = {}) {
   // Learning only re-weights the tier's own clue types, within limits, so a
   // tier always keeps its character.
   if (learn.clueWeights) for (const t in weights) weights[t] *= clamp(Number(learn.clueWeights[t]) || 1, [0.5, 2]);
+  // Exact gaps in an educator's own ordered list ("2 places earlier") read
+  // awkwardly, so custom worlds use plain earlier/later clues instead.
+  if (world && Object.keys(weights).length > 1) delete weights.diff;
   // effort -1 (gentler) to 1 (tougher): which of several puzzles that all meet
   // the tier is kept.
   const effort = clamp(Number(learn.effort) || 0, [-1, 1]);
@@ -224,8 +235,10 @@ function finalize(o, best, elapsedMs) {
   const itemId = (gl) => `${cats[Math.floor(gl / N)].id}:${gl % N}`;
   const ref = (gl) => ({ category: cats[Math.floor(gl / N)].id, item: gl % N, id: itemId(gl), label: L.label(gl) });
 
-  const story = buildStory({ rng, scenario, goal: { cat: model.goal.cat, item: rng.int(N) }, model, L, customTitle: o.customTitle, usedStories: o.usedStories,
-    extraParts: o.extraParts, storyPrefs: prefsFor(o.storyPrefs, theme.id, scenario.key) });
+  const goal = { cat: model.goal.cat, item: rng.int(N) };
+  const story = scenario.custom ? customStory({ scenario, goal, model, L, customTitle: o.customTitle, seed: o.seed })
+    : buildStory({ rng, scenario, goal, model, L, customTitle: o.customTitle, usedStories: o.usedStories,
+      extraParts: o.extraParts, storyPrefs: prefsFor(o.storyPrefs, theme.id, scenario.key) });
   const goalAbout = { cat: model.goal.cat, item: null };
   // buildStory picked the goal item; recover it from the answer for questions.
   goalAbout.item = sol[model.goal.cat][story.goalAnswer.item];
@@ -247,7 +260,7 @@ function finalize(o, best, elapsedMs) {
     version: ENGINE_VERSION,
     id: `${theme.id}-${topic.id}-${tier.id}-${K}x${N}-${o.seed}`,
     seed: o.seed,
-    options: { difficulty: tier.id, theme: theme.id, topic: topic.id, categories: K, items: N, clueCount: o.clueCount, clueTypes: Object.keys(o.weights), questions: o.questions },
+    options: { difficulty: tier.id, theme: theme.id, topic: topic.id, categories: K, items: N, clueCount: o.clueCount, clueTypes: Object.keys(o.weights), questions: o.questions, ...(scenario.custom ? { custom: scenario.custom } : {}) },
     title: story.title,
     theme: { id: theme.id, name: theme.name },
     topic: { id: topic.id, name: topic.name, description: topic.description },
