@@ -1,5 +1,5 @@
 // Google Search Console and Bing Webmaster numbers for thelogicgrid.com, for
-// the admin dashboard. Fetched once a day by the cron in wrangler.toml (and on
+// the admin dashboard. Fetched every night at 2 am Eastern (nightly.js) (and on
 // demand from the dashboard), then kept in D1 (`search_snapshots`) so viewing
 // the dashboard never calls Google or Bing. Both APIs are free.
 //
@@ -12,7 +12,6 @@
 const DAY = 24 * 3600_000;
 const RANGE_DAYS = 28;
 const TOP = 25;
-export const SEARCH_CRON = '41 6 * * *';
 export const REFRESH_GAP_MS = 10 * 60_000;
 
 const isoDay = (ms) => new Date(ms).toISOString().slice(0, 10);

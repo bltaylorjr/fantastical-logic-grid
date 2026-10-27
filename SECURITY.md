@@ -41,5 +41,10 @@ GitHub themselves (please report those to them).
   rate limits and size limits; admins need a confirmed email, are signed out
   after 30 idle minutes and must sign in again every 12 hours, and every admin
   action is written to an audit log.
-- Each change runs the full test suite before it can merge, and Dependabot
-  keeps libraries patched.
+- New passwords are checked against known data leaks (Have I Been Pwned's
+  free Pwned Passwords list); only the first 5 characters of the password's
+  SHA-1 hash ever leave the device.
+- Each change runs the full test suite, CodeQL code scanning and a dependency
+  review before it can merge, third-party workflow actions are pinned to exact
+  commits, OpenSSF Scorecard checks the repository weekly, and Dependabot keeps
+  libraries and actions patched.

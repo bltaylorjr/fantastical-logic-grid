@@ -22,6 +22,7 @@
 // A topic with no story parts uses the theme's own (the theme's "classic" topic).
 import { clock, plural, money } from './themes.js';
 import { STORYLINES } from './storylines.js';
+import { MORE_STORIES } from './more-stories.js';
 
 const cat = (id, name, pos, neg, items, extra = {}) => ({ id, name, pos, neg, items, ...extra });
 const ord = (id, name, pos, neg, o, extra = {}) => ({ id, name, pos, neg, ordinal: o, ...extra });
@@ -4577,6 +4578,15 @@ export const TOPICS = {
       art: { setting: 'a surreal clock tower town where giant gears turn in the sky and the same sunrise repeats in rings', mood: 'brass and shifting dawn colors' } },
   ],
 };
+
+// Add the extra story parts from more-stories.js to the end of each list, so
+// the parts already there keep their places (saved story ids point at them).
+for (const [key, more] of Object.entries(MORE_STORIES)) {
+  const [themeId, topicId] = key.split('/');
+  const target = topicId ? (TOPICS[themeId] || []).find((t) => t.id === topicId)?.story : STORYLINES[themeId];
+  if (!target) throw new Error(`more-stories.js names an unknown story "${key}"`);
+  for (const [kind, parts] of Object.entries(more)) target[kind].push(...parts);
+}
 
 export function getTopics(themeId) {
   return TOPICS[themeId] || [];

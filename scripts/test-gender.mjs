@@ -3,9 +3,11 @@
 import { THEMES } from '../engine/src/themes.js';
 import { TOPICS } from '../engine/src/topics.js';
 import { genderOf, KNOWN_NAMES } from '../web/js/gender.js';
-import { portrait, LOOKS } from '../web/js/portraits.js';
+import { portrait, LOOKS, loadPortraits } from '../web/js/portraits.js';
 import { portraitSvg } from '../web/js/art.js';
 import * as dicebear from '../web/vendor/dicebear/dicebear.js';
+
+await loadPortraits();
 
 let failed = 0;
 const assert = (c, m) => { if (!c) { failed++; console.error(`FAIL: ${m}`); } };

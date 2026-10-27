@@ -244,6 +244,18 @@ const CSS = `
     await top();
     await scene('home', ['Each puzzle is a logic grid wrapped in a story.', 'The story sets up a mystery, the clues give you the facts, and the grid is where you work out the answer.']);
     await scene('home-2', ['Every story is written fresh for you and never repeated.', 'And every puzzle has exactly one answer you can reach without guessing.']);
+    // How to play: the step-by-step tutorial.
+    await hl('#howto-btn');
+    await scene('learn-btn', ['New to logic puzzles? Press How to play, at the top of every page.', 'It teaches you to solve them step by step, on real grids.']);
+    await clearFx();
+    await p.click('#howto-btn'); await p.waitForSelector('#learn-overview:not([hidden])'); await prep(); await top();
+    await scene('learn', ['Five short lessons take you from your very first mark to solving a whole puzzle on your own.', 'They cover every kind of clue, carrying facts across the grid, what-if thinking, and hints.']);
+    await p.click('#lesson-list button[data-lesson="1"]'); await p.waitForSelector('#learn-lesson:not([hidden])');
+    await p.click('#step-next'); await p.click('#step-show'); await p.waitForTimeout(200); await top();
+    await scene('learn-step', ['Each step explains one idea, then you make the marks yourself.', 'The game tells you when a mark does not fit, and Show me makes the marks for you if you are stuck.']);
+    await p.click('#learn-back'); await p.click('#learn-tips-btn'); await p.waitForSelector('#learn-tips:not([hidden])'); await top();
+    await scene('tips', ['Tips and tricks puts the moves that solve most puzzles on one page.']);
+    await p.click('#tips-back'); await p.click('#learn-exit'); await p.waitForSelector('#screen-home:not([hidden])'); await prep(); await top();
     if (await p.isVisible('#quick-btn')) {
       await hl('#quick-btn'); await point('#quick-btn');
       await scene('quick', ['In a hurry? Play a quick puzzle starts a small Easy case straight away, with no choices to make.']);
@@ -451,8 +463,8 @@ const CSS = `
     await p.click('#help-btn'); await p.waitForTimeout(300);
     await scene('help', ['Press Help to see every keyboard shortcut.']);
     await p.keyboard.press('Escape');
-    await top(); await hl('#howto-btn');
-    await scene('howto', ['And How to play, at the top of every page, plays this video again.']);
+    await top(); await hl('#intro-btn');
+    await scene('howto', ['And Introduction, at the top of every page, plays this video again.']);
     await clearFx();
     await p.click('.saved-item [data-do=resume]'); await p.waitForSelector('#screen-play:not([hidden])'); await prep(); await top();
     await p.evaluate(() => { document.documentElement.dataset.theme = 'dark'; }); await p.waitForTimeout(300);
@@ -577,10 +589,12 @@ const CSS = `
     await p.keyboard.press('Escape');
     if (!(await p.$eval('[data-cmd=feedback]', (b) => b.hidden))) {
       await p.click('#menu-btn'); await p.click('[data-cmd=feedback]'); await p.waitForSelector('#dlg-feedback[open]'); await prep();
+      await p.selectOption('#idea-theme', 'adventure').catch(() => {});
       await p.fill('#idea-text', 'A pirate ship lost in the fog, where the crew mixed up the treasure maps.');
       const replyOffered = await p.isVisible('#idea-form .fb-reply');
       const talkOffered = await p.isVisible('#idea-form .fb-talk');
       await scene('feedback', ['Have an idea for a story, or found a problem?', 'Ideas and problems, in the menu, has a separate box for each, and they go straight to the game\'s team.',
+        'For a storyline idea, pick which theme it is for from the list.',
         ...(replyOffered ? ['Signed in with a confirmed email? Leave Email me an update ticked. The game emails you a thank-you, and again when the team acts on it.'] : []),
         ...(talkOffered ? ['Want an answer? Tick Let the team reply to me.'] : [])]);
       await p.keyboard.press('Escape');

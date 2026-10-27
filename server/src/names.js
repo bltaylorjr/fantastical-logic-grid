@@ -68,3 +68,12 @@ export function checkName(raw, { extra = [] } = {}) {
   if (hasBlockedWords(name, { extra })) return { code: 'name_blocked', message: 'That name is not allowed. Please choose a friendly one.' };
   return null;
 }
+
+// Names made by the game's "Suggest a name" button (web/js/compete.js
+// suggestName): one word from each list and a number from 10 to 99. The lists
+// are friendly by design, so these names are approved without waiting for an
+// admin. A test keeps both copies of the lists the same.
+export const SUGGEST_ADJ = ['Swift', 'Clever', 'Bright', 'Quiet', 'Lucky', 'Brave', 'Keen', 'Sly', 'Sunny', 'Misty', 'Golden', 'Silver', 'Cosmic', 'Witty', 'Nimble', 'Merry', 'Bold', 'Calm', 'Starry', 'Sharp'];
+export const SUGGEST_NOUN = ['Owl', 'Fox', 'Sleuth', 'Riddler', 'Wizard', 'Falcon', 'Badger', 'Comet', 'Dragon', 'Otter', 'Raven', 'Sphinx', 'Lynx', 'Puzzler', 'Gryphon', 'Hawk', 'Seeker', 'Pixie', 'Tiger', 'Scout'];
+const SUGGESTED = new RegExp(`^(${SUGGEST_ADJ.join('|')})(${SUGGEST_NOUN.join('|')})([1-9][0-9])$`);
+export function isSuggestedName(name) { return SUGGESTED.test(String(name ?? '')); }

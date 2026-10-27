@@ -9,6 +9,9 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
+<!-- The two text fonts are needed for the first paint; fetch them with the stylesheet. -->
+<link rel="preload" href="fonts/atkinson-400.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/atkinson-700.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="app.css">
 <script>
   // Apply the saved color theme before first paint.
@@ -28,6 +31,8 @@
     <span>The Fantastical Logic Grid</span>
   </button>
   <div class="appbar-actions">
+    <!-- Website only: build.mjs shows it in dist/site (not the desktop app or game portals). -->
+    <a class="btn quiet educators-link" id="educators-link" href="educators/" hidden>For educators</a>
     <button class="btn quiet player-chip" type="button" id="player-chip" hidden><span class="sr-only">Playing as </span><span id="player-chip-name" translate="no">Guest</span></button>
     <button class="btn quiet" type="button" id="lang-btn" translate="no" aria-pressed="false" hidden>English</button>
     <button class="btn quiet" type="button" id="help-btn" aria-keyshortcuts="Shift+?">Help</button>
@@ -48,9 +53,10 @@
     <a role="menuitem" id="support-link" href="#" target="_blank" rel="noopener" hidden>Support the game</a>
     <button role="menuitem" type="button" data-cmd="site" hidden>Play on thelogicgrid.com</button>
   </div>
-  <!-- Always visible: How to play and a small scoreboard. -->
+  <!-- Always visible: How to play (the tutorial), the Introduction video and a small scoreboard. -->
   <div class="topstrip">
-    <button class="btn quiet small" type="button" id="howto-btn"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 9.003a1 1 0 0 1 1.517-.859l4.997 2.997a1 1 0 0 1 0 1.718l-4.997 2.997A1 1 0 0 1 9 14.996z"/><circle cx="12" cy="12" r="10"/></svg> How to play</button>
+    <button class="btn quiet small" type="button" id="howto-btn"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg> How to play</button>
+    <button class="btn quiet small" type="button" id="intro-btn"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 9.003a1 1 0 0 1 1.517-.859l4.997 2.997a1 1 0 0 1 0 1.718l-4.997 2.997A1 1 0 0 1 9 14.996z"/><circle cx="12" cy="12" r="10"/></svg> Introduction</button>
     <section class="miniboard" id="miniboard" aria-labelledby="miniboard-h" hidden>
       <h2 class="sr-only" id="miniboard-h">Scoreboard this week</h2>
       <ol id="miniboard-list"></ol>
@@ -77,6 +83,7 @@
       </div>
       <p class="gen-status" id="quick-status" role="status" aria-live="polite"></p>
       <div class="error-box" id="quick-error" role="alert" hidden></div>
+      <p class="hero-learn">New to logic puzzles? <button class="btn quiet small" type="button" id="home-learn">How to play, step by step</button></p>
     </div>
   </section>
   <div class="home">
@@ -91,6 +98,7 @@
         <fieldset>
           <legend>Theme</legend>
           <div class="theme-groups" id="theme-choices"></div>
+          <p class="extras-note" id="extras-note" hidden>Themes marked <b>Supporter extra</b> open for premium supporters. Everything else stays free. <a class="btn small" id="extras-link" href="#" target="_blank" rel="noopener" hidden>Get the extras</a></p>
         </fieldset>
         <fieldset id="topic-field" hidden>
           <legend>Topic</legend>
@@ -278,6 +286,10 @@
     <p class="streak-line" id="solved-streak" hidden></p>
     <p class="streak-line" id="solved-daily-numbers" hidden></p>
     <div class="new-badges" id="solved-badges" hidden></div>
+    <div class="support-ask" id="support-ask" role="region" aria-label="Support the game" hidden>
+      <p id="support-ask-text"></p>
+      <div class="row-inline"><a class="btn primary" id="support-ask-go" href="#" target="_blank" rel="noopener">Support the game</a><button class="btn primary" type="button" id="support-ask-how" hidden>See how</button><button class="btn" type="button" id="support-ask-later">Maybe later</button><button class="btn quiet" type="button" id="support-ask-never">Don't ask again</button></div>
+    </div>
     <div class="row-inline share-row"><button class="btn" type="button" id="share-result"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.59 13.51 6.83 3.98"/><path d="m15.41 6.51-6.82 3.98"/></svg> Share my result</button><button class="btn" type="button" id="challenge-btn" hidden>Challenge a friend</button><span class="help" id="share-note" role="status"></span></div>
     <div class="compete-result" id="challenge-result" hidden></div>
     <div class="compete-result" id="compete-result" hidden></div>
@@ -295,7 +307,7 @@
         <label class="chip"><input type="radio" name="feel" value="right"> Just right</label>
         <label class="chip"><input type="radio" name="feel" value="hard"> Too hard</label>
       </fieldset>
-      <p class="help"><span id="feedback-thanks" role="status"></span> <button class="btn quiet small" type="button" id="feedback-idea">Add a story idea</button></p>
+      <p class="help"><span id="feedback-thanks" role="status"></span> <button class="btn quiet small" type="button" id="feedback-idea">Share an idea</button></p>
     </div>
     <p id="next-tip"></p>
     <div class="solved-actions">
@@ -306,12 +318,98 @@
   </section>
 </main>
 
+<!-- ============ How to play: the tutorial and tips ============ -->
+<main id="screen-learn" class="screen learn" tabindex="-1" hidden>
+  <section id="learn-overview" aria-labelledby="learn-h">
+    <div class="learn-top">
+      <div>
+        <p class="eyebrow">How to play</p>
+        <h1 id="learn-h">Learn to solve logic puzzles</h1>
+        <p class="lede">Never solved a logic grid puzzle before? These lessons teach you step by step, on real grids, from your very first mark to solving a whole puzzle on your own. Nothing here is saved or scored, so take your time.</p>
+        <p class="muted" id="learn-summary"></p>
+      </div>
+      <div class="row-inline"><button class="btn" type="button" id="learn-intro">Watch the introduction</button><button class="btn" type="button" id="learn-exit">Back to the game</button></div>
+    </div>
+    <ol class="lesson-list" id="lesson-list"></ol>
+    <div class="card tips-card">
+      <h2>Tips and tricks</h2>
+      <p>A one-page guide to the moves that solve most puzzles, how to read every kind of clue, and what to do when you are stuck.</p>
+      <button class="btn" type="button" id="learn-tips-btn">Read the tips and tricks</button>
+    </div>
+  </section>
+
+  <section id="learn-lesson" aria-labelledby="lesson-h" hidden>
+    <div class="learn-top">
+      <div>
+        <p class="eyebrow" id="step-count"></p>
+        <h1 id="lesson-h"></h1>
+        <progress id="step-progress" max="1" value="0" aria-label="Lesson progress"></progress>
+      </div>
+      <button class="btn" type="button" id="learn-back">All lessons</button>
+    </div>
+    <div class="play learn-play">
+      <div class="learn-main">
+        <section class="card step-card" aria-labelledby="step-h">
+          <h2 id="step-h"></h2>
+          <div class="step-text" id="step-text"></div>
+          <p class="step-task" id="step-task" hidden></p>
+          <p class="step-feedback" id="step-feedback" role="status" aria-live="polite"></p>
+          <div class="step-actions">
+            <button class="btn" type="button" id="step-prev">Back</button>
+            <button class="btn" type="button" id="step-show">Show me</button>
+            <button class="btn primary" type="button" id="step-next">Next</button>
+          </div>
+        </section>
+        <section class="card grid-card" aria-labelledby="learn-grid-h">
+          <div class="grid-head">
+            <h2 id="learn-grid-h">The grid</h2>
+            <div class="learn-tools" role="toolbar" aria-label="Grid tools">
+              <button class="btn small" type="button" id="learn-hint-btn" hidden>Hint</button>
+              <button class="btn small" type="button" id="learn-check" hidden>Check</button>
+              <button class="btn small" type="button" id="learn-undo" aria-keyshortcuts="Control+Z">Undo</button>
+              <button class="btn small" type="button" id="learn-redo" aria-keyshortcuts="Control+Shift+Z">Redo</button>
+              <button class="btn small quiet" type="button" id="learn-restart">Start this step again</button>
+            </div>
+          </div>
+          <div class="hintbox" id="learn-hint" hidden></div>
+          <div class="gridframe" id="learn-grid"></div>
+          <p class="help legend"><span class="sym-x" aria-hidden="true"></span> X: no, ruled out &nbsp; <span class="sym-o" aria-hidden="true"></span> O: yes, a match &nbsp;·&nbsp; Tap a square to cycle blank, X, O. Right-click or long-press to choose. Keys: arrows move, X or Space rules out, O or Enter confirms.</p>
+        </section>
+      </div>
+      <aside class="side">
+        <section class="card clues" aria-labelledby="learn-clues-h">
+          <h2 id="learn-clues-h">Clues</h2>
+          <ol class="clue-list learn-clues" id="learn-clues"></ol>
+        </section>
+      </aside>
+    </div>
+  </section>
+
+  <section id="learn-tips" aria-labelledby="tips-h" hidden>
+    <div class="learn-top">
+      <div>
+        <p class="eyebrow">How to play</p>
+        <h1 id="tips-h">Tips and tricks</h1>
+      </div>
+      <button class="btn" type="button" id="tips-back">All lessons</button>
+    </div>
+    <div class="card tips-body" id="tips-body"></div>
+    <p><button class="btn primary" type="button" id="tips-start">Try a lesson</button></p>
+  </section>
+</main>
+
 <!-- ============ Dialogs ============ -->
 <dialog id="dlg-confirm" aria-labelledby="confirm-h">
   <h2 id="confirm-h"></h2>
   <p id="confirm-text"></p>
   <label class="check" id="confirm-check-row" hidden><input type="checkbox" id="confirm-check"> <span id="confirm-check-label"></span></label>
   <div class="dlg-actions"><button class="btn" type="button" id="confirm-no"></button><button class="btn primary" type="button" id="confirm-yes"></button></div>
+</dialog>
+
+<dialog id="dlg-supporters" aria-labelledby="supporters-h">
+  <h2 id="supporters-h">Supporters</h2>
+  <p id="supporters-text"></p>
+  <div class="dlg-actions"><button class="btn" type="button" id="supporters-close">Close</button><a class="btn primary" id="supporters-go" href="#" target="_blank" rel="noopener">Support the game</a></div>
 </dialog>
 
 <dialog id="dlg-stats" class="wide" aria-labelledby="stats-h">
@@ -440,9 +538,12 @@
   <form class="feedback-box" id="idea-form" data-kind="idea" novalidate>
     <h3>Share an idea</h3>
     <fieldset><legend>What is it about?</legend>
-      <label class="radio"><input type="radio" name="idea-topic" value="story" checked> A storyline or theme idea</label>
+      <label class="radio"><input type="radio" name="idea-topic" value="story" checked> A storyline idea</label>
+      <label class="radio"><input type="radio" name="idea-topic" value="theme"> A new theme or topic</label>
+      <label class="radio"><input type="radio" name="idea-topic" value="feature"> A new game feature</label>
       <label class="radio"><input type="radio" name="idea-topic" value="other"> Something else</label>
     </fieldset>
+    <div class="field" id="idea-theme-field"><label for="idea-theme">Which theme is it for?</label><select id="idea-theme"></select></div>
     <div class="field"><label for="idea-text">Your idea</label><textarea id="idea-text" rows="4" maxlength="1000" placeholder="A pirate ship lost in the fog, where the crew mixed up the treasure maps…"></textarea></div>
     <label class="check fb-reply" hidden><input type="checkbox" data-reply checked> <span>Email me an update<span class="fb-reply-to"></span></span></label>
     <label class="check fb-talk" hidden><input type="checkbox" data-talk> <span>Let the team reply to me in Messages</span></label>
@@ -581,7 +682,7 @@
 </dialog>
 
 <dialog id="dlg-video" class="wide" aria-labelledby="video-h">
-  <h2 id="video-h">How to play The Fantastical Logic Grid</h2>
+  <h2 id="video-h">Introduction to The Fantastical Logic Grid</h2>
   <video id="intro-video" controls preload="metadata" playsinline aria-describedby="video-note">
     <source src="media/intro.mp4" type="video/mp4">
     <track kind="captions" srclang="en" label="English" src="media/intro.en.vtt" default>
@@ -590,29 +691,31 @@
   <details class="transcript">
     <summary>Read the transcript</summary>
       <p>Welcome to The Fantastical Logic Grid. Every case is a brand new story, and you are the detective. Each puzzle is a logic grid wrapped in a story. The story sets up a mystery, the clues give you the facts, and the grid is where you work out the answer. Every story is written fresh for you and never repeated. And every puzzle has exactly one answer you can reach without guessing.</p>
-      <p>Every day there is also a new Daily puzzle, the same one for everyone. Solve it each day to build a streak. Here&#x27;s how to play. Start on the New puzzle screen and pick a difficulty. Basic and Easy are perfect for beginners. Quantum Physicist is for true masterminds.</p>
-      <p>Next, choose a theme. Themes are grouped, like Mystery and Action, Imagination, or Science and Learning. Or pick Surprise me. Most themes also have topics, like which holiday or which kind of mystery. Pick one, or leave it on Any. Then pick a size. More categories and more items make a bigger, harder grid.</p>
-      <p>Full experience adds scenes, characters and sound. Silent mode keeps only the story, the grid, the clues and the answer key. Press Generate puzzle, and your story is written in a moment. Here&#x27;s our case: The Great Diamond. The buttons along the top help you as you play. Read the story first. It tells you who is involved, and it ends with the question you need to answer. Here, it&#x27;s: Who works as the Restorer? You can also press Read the story aloud to hear it.</p>
-      <p>Every character has a personality, shown under their name, and a voice of their own. Select a character&#x27;s portrait to hear the clues they remember, in their own words. Every clue is also in the clue list. To hear every clue in order, press Read the clues aloud. Each character tells their own clue, and the clue being read lights up. On your first Easy puzzle, coach tips appear above the grid to guide your first moves.</p>
-      <p>Now the grid. Each square is where two things meet, like a suspect and an age. Your job is to decide whether they go together. Click or tap a square once to mark an X. X means ruled out: these two don&#x27;t go together. Tap again for an O. O means confirmed: these two are a match. Tap a third time to clear the square.</p>
-      <p>Let&#x27;s solve it together, starting with the simplest clues. Clues 1, 2 and 3 each rule out pairs directly. Mark an X for each one. Clue 4 says the suspect who is 40 years old works as the Restorer or Tour Guide, so no other job is possible. Clue 5 says the suspect who works as the Janitor is 45 or 40 years old, so no other age is possible. Clue 6 says Ada works as the Janitor or Restorer, so no other job is possible.</p>
-      <p>Clue 7 says the suspect who works as the Tour Guide is not 50 years old, and the suspect who works as the Tour Guide is not 35 years old. Mark an X there. 45 is the only age left for Janitor. Mark an O there. When only one square is left in a row or column, it must be the answer. In the full experience, each finished section also reveals more of the scene.</p>
+      <p>New to logic puzzles? Press How to play, at the top of every page. It teaches you to solve them step by step, on real grids. Five short lessons take you from your very first mark to solving a whole puzzle on your own. They cover every kind of clue, carrying facts across the grid, what-if thinking, and hints. Each step explains one idea, then you make the marks yourself. The game tells you when a mark does not fit, and Show me makes the marks for you if you are stuck.</p>
+      <p>Tips and tricks puts the moves that solve most puzzles on one page. In a hurry? Play a quick puzzle starts a small Easy case straight away, with no choices to make. Every day there is also a new Daily puzzle, the same one for everyone. Solve it each day to build a streak. With a free sign-in, you can get each day&#x27;s puzzle by email. Here&#x27;s how to play.</p>
+      <p>Start on the New puzzle screen and pick a difficulty. Basic and Easy are perfect for beginners. Quantum Physicist is for true masterminds. Next, choose a theme, like Mystery, Fantasy, Sci-Fi, Around Town, National Parks or Vacation Destinations. Or pick Surprise me. Most themes also have topics, like which holiday or which kind of mystery. Pick one, or leave it on Any.</p>
+      <p>Then pick a size. More categories and more items make a bigger, harder grid. Under More options, Full experience adds scenes, characters and sound. Silent mode keeps only the story, the grid, the clues and the answer key. Press Generate puzzle, and your story is written in a moment. Here&#x27;s our case: The Crimson Portrait. The buttons along the top help you as you play.</p>
+      <p>Read the story first. It tells you who is involved, and it ends with the question you need to answer. Here, it&#x27;s: Who brought the Ferret? You can also press Read the story aloud to hear it. Every character has a personality, shown under their name, and a voice of their own. Select a character&#x27;s portrait to hear the clues they remember, in their own words. Every clue is also in the clue list.</p>
+      <p>To hear every clue in order, press Read the clues aloud. Each character tells their own clue, and the clue being read lights up. On your first Easy puzzle, coach tips appear above the grid to guide your first moves. Now the grid. Each square is where two things meet, like a suspect and a pet. Your job is to decide whether they go together.</p>
+      <p>Click or tap a square once to mark an X. X means ruled out: these two don&#x27;t go together. Tap again for an O. O means confirmed: these two are a match. Tap a third time to clear the square. Let&#x27;s solve it together, starting with the simplest clues. Clue 1 says Jasper brought the Cockatoo or Siamese Cat, so no other pet is possible.</p>
+      <p>Clue 2 says the suspect who was drinking Apple Cider brought the Canary. Mark an O there. Clues 3, 4 and 5 each rule out pairs directly. Mark an X for each one. Clue 6 says the suspect who brought the Cockatoo is Felix or Greta, so no other suspect is possible. Clues 7 and 8 each rule out pairs directly. Mark an X for each one.</p>
+      <p>The suspect who was drinking Apple Cider brought the Canary, so Apple Cider cannot go with any other pet, and no other drink can go with Canary. Each row and each column in a section has exactly one match, so everything else in that line is an X. Ginger Ale is the only drink left for Felix. Mark an O there. When only one square is left in a row or column, it must be the answer. In the full experience, each finished section also reveals more of the scene.</p>
       <p>Stuck? Press Hint. The first hint shows you which clue to use, and names the trick that cracks it. Press Which cell? for the exact square, then Explain why for the full reasoning. It ends with a short lesson on how that trick works, so you can spot it yourself next time. You can even let it mark the square for you. Press Check at any time to see whether any of your marks are wrong.</p>
       <p>Made a mistake? Undo and Redo take back any move, as many times as you like. Want a fresh start? Press Start over. It clears your marks and resets the timer, hints and checks. Your notes stay unless you choose to clear them, and Undo can bring everything back. Prefer words to grids? List view lets you choose each match from a menu. The game also works fully by keyboard and with a screen reader.</p>
-      <p>When you think you know, answer the questions under the clues, and press Check answers. Want to jot something down? Press My notes and type. Press Save to keep them, or Close to get back to the puzzle. Only you can see your notes, even in a race. Keep going the same way, clue by clue, until the whole grid is filled in. Case closed! Ada works as the Restorer, so Ada pulled off the heist! The Star of Cairo was hidden in a mop bucket. You also see your time and a suggestion for your next puzzle.</p>
-      <p>Every solve ends with a celebration, like confetti, fireworks, ribbons, balloons or shooting stars. Silent mode and your device&#x27;s reduce motion setting turn it off. Solving puzzles earns badges, like First case closed. Press Share my result to send friends a picture of your win. It never gives the answers away. If you like, rate the puzzle from 1 to 5 stars, where 5 is excellent, and say whether it felt too easy, just right or too hard. It is optional. The game learns from your answers and tunes your next puzzle to suit you.</p>
-      <p>You can print any puzzle, blank or with your marks, with the answer key on its own page. Your progress saves automatically. Come back any time and pick up where you left off, from Saved puzzles. My stats and badges, in the Menu, shows your totals, best times, favorite themes, your daily streak and every badge to earn. Press Help to see every keyboard shortcut. And How to play, at the top of every page, plays this video again.</p>
-      <p>Play in light or dark colors, or in high contrast. And Silent mode is always there when you just want the puzzle. To play without opening a browser, choose Install the app from the Menu. Download the Windows desktop app, which keeps itself up to date. Or add the game&#x27;s icon to your phone&#x27;s home screen. On your phone, the same menu shows you how. On a phone, pull down from the top of the page to refresh. Your progress is saved first.</p>
+      <p>When you think you know, answer the questions under the clues, and press Check answers. Want to jot something down? Press My notes and type. Press Save to keep them, or Close to get back to the puzzle. Only you can see your notes, even in a race. Keep going the same way, clue by clue, until the whole grid is filled in. Case closed! The mystery is solved! Greta brought the Ferret, and the portrait is found hidden in a flowerpot. You also see your time and a suggestion for your next puzzle.</p>
+      <p>Every solve ends with a celebration, like confetti, fireworks, ribbons, balloons or shooting stars. Silent mode and your device&#x27;s reduce motion setting turn it off. Solving puzzles earns badges, like First case closed. Press Share my result to send friends a picture of your win. It never gives the answers away. Challenge a friend makes a link to this very puzzle, with your time to beat. Your friend needs no account, and you both see who was quicker.</p>
+      <p>If you like, rate the puzzle from 1 to 5 stars, where 5 is excellent, and say whether it felt too easy, just right or too hard. It is optional. The game learns from your answers and tunes your next puzzle to suit you. You can print any puzzle, blank or with your marks, with the answer key on its own page. Your progress saves automatically. Come back any time and pick up where you left off, from Saved puzzles. My stats and badges, in the Menu, shows your totals, best times, favorite themes, your daily streak and every badge to earn.</p>
+      <p>Press Help to see every keyboard shortcut. And Introduction, at the top of every page, plays this video again. Play in light or dark colors, or in high contrast. And Silent mode is always there when you just want the puzzle. To play without opening a browser, choose Install the app from the Menu. Download the Windows desktop app, which keeps itself up to date. Or add the game&#x27;s icon to your phone&#x27;s home screen. On your phone, the same menu shows you how. On a phone, pull down from the top of the page to refresh. Your progress is saved first.</p>
       <p>You can also play with other detectives. You never need an account to play. But a free account keeps your puzzles, progress and settings in step on the website, the desktop app and your phone. The name at the top shows who you are playing as. Until you sign in, you play as Guest. Create one with your email and a password. Keep me signed in is ticked, so you stay signed in on this device. Untick it on a shared computer. If you ever forget your password, Forgot password sends you a reset link.</p>
       <p>Once you are signed in, your puzzles sync on their own. Sign in on another device and they are waiting for you. Once you are signed in, you pick a screen name. Type your own, or press Suggest a name and the game makes one up for you. It is the only thing other players see, and rude names are turned away. Don&#x27;t want one? Sign out instead, and you play as Guest.</p>
       <p>Your screen name now shows at the top. Play against others lets you race other players on the very same puzzle, and climb the scoreboard. To race, press Start a race. It uses the difficulty, theme and size you picked on the New puzzle screen. Share the race code or link with a friend. Or anyone can press Find a race to join an open race.</p>
       <p>Everyone gets the very same puzzle. The race bar shows the code, and Standings shows who is still solving. When you finish, you see your place. Fastest solve wins, and each hint adds time. The scoreboard ranks players this week and of all time. Every solve earns points, even when you play on your own. Press Scoring and race rules to see exactly how points are awarded.</p>
       <p>This week&#x27;s leaders are always in view at the top of the page. Select Scoreboard there to see the full board. To race one particular player, press Challenge a player and type their screen name. They see your challenge under Play against others, the next time they open the game. Accept starts the race on the very same puzzle. No thanks turns it down. Finally, make the game your own.</p>
-      <p>In Settings, sound effects and theme music start on, and you can turn either one off. Learn from how I play tunes your next puzzles to suit you. And play in your own language. US English is the default, and you can choose any of 100 languages under Language. The game translates itself as you play, and the English button at the top shows the original at any time. Have an idea for a story, or found a problem? Ideas and problems, in the menu, has a separate box for each, and they go straight to the game&#x27;s team. Signed in with a confirmed email? Leave the box ticked, and the game emails you a short thank-you note. Want an answer? Tick Let the team reply to me.</p>
+      <p>In Settings, sound effects and theme music start on, and you can turn either one off. Learn from how I play tunes your next puzzles to suit you. And play in your own language. US English is the default, and you can choose any of 100 languages under Language. The game translates itself as you play, and the English button at the top shows the original at any time. Have an idea for a story, or found a problem? Ideas and problems, in the menu, has a separate box for each, and they go straight to the game&#x27;s team. Signed in with a confirmed email? Leave Email me an update ticked. The game emails you a thank-you, and again when the team acts on it. Want an answer? Tick Let the team reply to me.</p>
       <p>When the team writes to you, or posts news, the Menu button shows a number. Messages, in the menu, has news from the game&#x27;s team for everyone. Signed in, you can write to the team with a question, an idea or a problem, and read their replies right here. Tick Email me, and you get a short email when the team writes back. Dream up a character of your own with Suggest a character, in the menu. Answer a few questions about their name, look, personality and voice. The game&#x27;s team reviews every suggestion, and you might meet yours in a puzzle.</p>
       <p>That&#x27;s all you need: read the story, follow the clues, and mark your X&#x27;s and O&#x27;s. Welcome to The Fantastical Logic Grid. Happy sleuthing!</p>
   </details>
-  <div class="dlg-actions"><button class="btn primary" type="button" id="video-close">Close</button></div>
+  <div class="dlg-actions"><button class="btn" type="button" id="video-learn">How to play, step by step</button><button class="btn primary" type="button" id="video-close">Close</button></div>
 </dialog>
 
 <dialog id="dlg-update" aria-labelledby="update-h">
@@ -626,9 +729,10 @@
 
 <dialog id="dlg-welcome" aria-labelledby="welcome-h">
   <h2 id="welcome-h">Welcome, detective!</h2>
-  <p>New to The Fantastical Logic Grid? An 11-minute narrated video shows how to play, with examples. It has captions.</p>
-  <p class="muted">You can watch it any time with How to play at the top of the page.</p>
-  <div class="dlg-actions"><button class="btn" type="button" id="welcome-skip">Play a quick puzzle</button><button class="btn primary" type="button" id="welcome-watch"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 9.003a1 1 0 0 1 1.517-.859l4.997 2.997a1 1 0 0 1 0 1.718l-4.997 2.997A1 1 0 0 1 9 14.996z"/><circle cx="12" cy="12" r="10"/></svg> Watch the video</button></div>
+  <p>Never solved a logic grid puzzle? <b>How to play</b> teaches you step by step on real grids, with tips and tricks, in about 15 minutes.</p>
+  <p>Or watch the <b>Introduction</b>, an 11-minute narrated video with captions, to see everything the game can do.</p>
+  <p class="muted">Both are always at the top of the page.</p>
+  <div class="dlg-actions"><button class="btn" type="button" id="welcome-skip">Play a quick puzzle</button><button class="btn primary" type="button" id="welcome-learn">How to play</button><button class="btn" type="button" id="welcome-watch"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 9.003a1 1 0 0 1 1.517-.859l4.997 2.997a1 1 0 0 1 0 1.718l-4.997 2.997A1 1 0 0 1 9 14.996z"/><circle cx="12" cy="12" r="10"/></svg> Watch the video</button></div>
 </dialog>
 
 <dialog id="dlg-name" aria-labelledby="name-h">
@@ -638,7 +742,7 @@
     <p class="help">Other players see only this name, on the scoreboard and in races. Never your email.</p>
     <div class="field"><label for="name-input">Screen name</label>
       <div class="name-row"><input type="text" id="name-input" maxlength="20" autocomplete="nickname" spellcheck="false" aria-describedby="name-rules" required><button class="btn" type="button" id="name-suggest">Suggest a name</button></div></div>
-    <p class="help" id="name-rules">Type your own, or press Suggest a name for one made up for you (press again for another). 3 to 20 letters or numbers. Spaces, dots, dashes and underscores are fine. Names must be friendly and not already taken.</p>
+    <p class="help" id="name-rules">Type your own, or press Suggest a name for one made up for you (press again for another). 3 to 20 letters or numbers. Spaces, dots, dashes and underscores are fine. Names must be friendly and not already taken. <span id="name-approval">A name you type yourself is checked by the game's team first, and until then other players see you as "New player". A suggested name shows straight away.</span></p>
     <p class="sr-only" id="name-suggested" aria-live="polite"></p>
     <label class="check"><input type="checkbox" id="name-post"> Put my solved puzzles on the scoreboard</label>
     <label class="check"><input type="checkbox" id="name-invites"> Let other players challenge me by my screen name</label>
@@ -792,7 +896,10 @@
 
 <dialog id="dlg-help" aria-labelledby="help-h">
   <h2 id="help-h">Help</h2>
-  <p class="muted">For the narrated how-to-play video, choose <b>How to play</b> at the top of the page.</p>
+  <div class="help-learn">
+    <p><b>New to logic puzzles?</b> How to play teaches you step by step on real grids: X and O, every kind of clue, carrying facts across the grid, what-if thinking, hints and notes. For a narrated tour of the whole game, watch the Introduction. Both are also at the top of every page.</p>
+    <p class="row-inline"><button class="btn primary small" type="button" id="help-tutorial">How to play</button> <button class="btn small" type="button" id="help-tips">Tips and tricks</button> <button class="btn small" type="button" id="help-intro">Introduction video</button></p>
+  </div>
   <p>Read a clue, then mark the grid. <b>X</b> means two things do not go together. <b>O</b> means they do. Each row in a sub-grid has exactly one O. When the grid is full, answer the story questions. To begin a puzzle again, press <b>Start over</b>: it clears your marks, clue ticks and answers and resets the timer, hints and checks (in a race the race clock keeps running). Your notes stay unless you choose to clear them, and Undo brings it all back.</p>
   <p>Select a character's portrait to hear the clues they remember. Each finished section of the grid reveals more of the scene. Want fewer distractions? Choose <b>Silent mode</b> under More options on the New puzzle screen, or in Settings, to see only the story, the grid, the clues and the answer key.</p>
   <p id="help-compete" hidden>Want company? Under <b>Play against others</b> on the home screen, sign in and choose a screen name (until you sign in you play as Guest), then start a race (everyone gets the same puzzle, fastest solve wins), challenge a player by screen name, join one with a code, or find an open race. Your solved puzzles earn points on the <b>Scoreboard</b>. <button class="btn quiet small" type="button" data-rules>Scoring and race rules</button></p>

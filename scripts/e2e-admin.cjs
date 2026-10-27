@@ -103,6 +103,22 @@ const SHOTS = process.env.SHOTS;
     const sw = await page.evaluate(async () => { const reg = await navigator.serviceWorker.ready; return reg.scope; });
     assert(/\/admin\/$/.test(sw), 'the service worker is installed for /admin/');
     assert(await page.locator('#phone-help summary').isVisible(), 'the sign-in page explains how to put it on a phone');
+    const winApp = /\/releases\/download\/admin-desktop\/The-Fantastical-Logic-Grid-Admin-Setup\.exe$/;
+    assert(winApp.test(await page.locator('#phone-help a').first().getAttribute('href')), 'the install steps link the Windows admin app');
+    assert(await page.locator('#get-windows').isHidden(), 'Download for Windows is hidden off Windows');
+    {
+      // On Windows the header offers the download; inside the Windows app
+      // (which sets __FLG_ADMIN_DESKTOP__) neither it nor the steps show.
+      const win = await browser.newContext({ userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0' });
+      const w = await win.newPage();
+      await w.goto(`${API}/admin/`);
+      assert(await w.locator('#get-windows').isVisible(), 'Windows visitors see Download for Windows');
+      assert(winApp.test(await w.locator('#get-windows').getAttribute('href')), 'Download for Windows links the admin installer');
+      await w.addInitScript(() => { window.__FLG_ADMIN_DESKTOP__ = true; });
+      await w.reload();
+      assert(await w.locator('#get-windows').isHidden() && await w.locator('#phone-help').isHidden(), 'the Windows app hides the download and install steps');
+      await win.close();
+    }
     await page.fill('#login-email', OWNER);
     await page.fill('#login-password', 'wrong');
     await page.click('#login-form button[type=submit]');
@@ -145,17 +161,41 @@ const SHOTS = process.env.SHOTS;
     assert(added && added.status === 'approved' && added.source === 'admin', 'a story part written in the workshop goes straight to every player');
 
     await page.click('a[href="#settings"]');
-    await page.waitForSelector('input[name=theme-off]');
-    const theme = await page.getAttribute('input[name=theme-off]:nth-of-type(1)', 'value');
-    await page.locator('input[name=theme-off]').first().check();
+    await page.waitForSelector('input[name=theme-disabled_themes]');
+    const theme = await page.getAttribute('input[name=theme-disabled_themes]:nth-of-type(1)', 'value');
+    await page.locator('input[name=theme-disabled_themes]').first().check();
     await page.click('button[data-save=disabled_themes]');
     await page.waitForFunction(() => /Changed by/.test(document.querySelector('#settings-body').textContent));
-    const saved = JSON.parse((await db.prepare("SELECT value FROM settings WHERE key = 'disabled_themes'").first()).value);
+    // "Changed by" can already show from an earlier save, so wait for the row itself.
+    let saved = [];
+    for (let i = 0; i < 50 && saved.length !== 1; i++) {
+      const row = await db.prepare("SELECT value FROM settings WHERE key = 'disabled_themes'").first();
+      saved = row ? JSON.parse(row.value) : [];
+      if (saved.length !== 1) await new Promise((r) => setTimeout(r, 100));
+    }
     assert(saved.length === 1 && saved[0] === theme, `theme "${theme}" is switched off`);
     // Settings that moved out of the game.
     const dbValue = async (key) => { const r = await db.prepare('SELECT value FROM settings WHERE key = ?').bind(key).first(); return r && JSON.parse(r.value); };
     const until = async (key, want) => { for (let i = 0; i < 50 && (await dbValue(key)) !== want; i++) await new Promise((r) => setTimeout(r, 100)); return (await dbValue(key)) === want; };
     assert(/GEMINI_API_KEY/.test(await page.textContent('#settings-body')), 'the dashboard shows which keys are set, without the keys');
+    // The Connections and setup guide, from admin/connections.js, with live status.
+    await page.click('#settings-body a[href="#connections"]');
+    await page.waitForSelector('#conn-list details.conn[data-id=admin-sign-in][data-state=connected]', { state: 'attached' });
+    assert(await page.locator('#conn-list details.conn').count() > 15, 'the setup guide lists every connection');
+    assert((await page.getAttribute('details.conn[data-id=admin-sign-in]', 'data-state')) === 'connected', 'a connection whose Worker secrets are set shows Connected');
+    assert((await page.getAttribute('details.conn[data-id=github-security]', 'data-state')) === 'manual', 'one with nothing to check says to check it by hand');
+    await page.fill('#conn-q', 'GMAIL_APP_PASSWORD');
+    await page.waitForFunction(() => [...document.querySelectorAll('details.conn')].filter((d) => !d.hidden).length === 1);
+    assert(await page.locator('details.conn[data-id=gmail]').evaluate((d) => d.open && !d.hidden), 'searching a secret name finds and opens its connection');
+    assert(/myaccount\.google\.com\/apppasswords/.test(await page.textContent('details.conn[data-id=gmail]')), 'its steps link to the settings page');
+    await page.check('details.conn[data-id=gmail] input[data-tick=gmail-0]');
+    await page.fill('#conn-q', '');
+    await page.selectOption('#conn-show', 'attention');
+    assert(await page.locator('details.conn[data-id=github-security]').isHidden(), 'Needs attention hides the rest');
+    await page.selectOption('#conn-show', 'all');
+    await shot(page, '8-connections');
+    await page.click('a[href="#settings"]');
+    await page.waitForSelector('input[data-key=default_music]');
     await page.uncheck('input[data-key=default_music]');
     assert(await until('default_music', false), 'theme music starts off for players who have not chosen');
     await page.waitForSelector('input[data-key=confetti]:not([disabled])');
@@ -203,13 +243,40 @@ const SHOTS = process.env.SHOTS;
     const renamed = (await db.prepare("SELECT screen_name FROM players WHERE user_id = 'player-1'").first()).screen_name;
     assert(/^Player [A-Z2-9]{4}$/.test(renamed), `a screen name is reset (${renamed})`);
 
+    // Players: every account in sections, with Approve and Block on each name.
+    await db.prepare('INSERT INTO players (user_id, screen_name, name_key, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?4)').bind('player-2', 'Fresh Face', 'freshface', Date.now()).run();
+    await db.prepare('INSERT INTO sync_users (user_id, rev, created_at) VALUES (?1, 1, ?2)').bind('sync-only-1', Date.now()).run();
     await page.click('a[href="#players"]');
-    await page.click('#players-form button[type=submit]');
-    await page.waitForSelector('#players-rows button[data-uid]');
-    await page.click('#players-rows button[data-uid]');
+    await page.waitForFunction(() => /Fresh Face/.test(document.querySelector('#players-rows').textContent) && /No screen name/.test(document.querySelector('#players-rows').textContent));
+    await page.click('#players-sections [data-section=pending]');
+    await page.waitForFunction(() => document.querySelector('#players-sections [data-section=pending]').getAttribute('aria-pressed') === 'true'
+      && !/No screen name/.test(document.querySelector('#players-rows').textContent));
+    assert(/Fresh Face/.test(await page.textContent('#players-rows')), 'Needs approval lists the new name');
+    await page.click('#players-rows button[data-act=approve]');
+    await page.waitForFunction(() => /No players here/.test(document.querySelector('#players-rows').textContent));
+    assert((await db.prepare("SELECT 1 FROM name_reviews WHERE user_id = 'player-2'").first()), 'Approve approves the name');
+    await page.click('#players-sections [data-section=active]');
+    await page.waitForFunction(() => /Fresh Face/.test(document.querySelector('#players-rows').textContent));
+    await page.click('#players-table th[data-sort=name] button');
+    await page.waitForSelector('#players-table th[data-sort=name][aria-sort=ascending]');
+    await page.click('#players-sections [data-section=all]');
+    await page.waitForFunction(() => /No screen name/.test(document.querySelector('#players-rows').textContent));
+    assert(/Showing 1 to 3 of 3 players/.test(await page.textContent('#players-count')), 'Everyone counts every account');
+    await shot(page, '3-players');
+    await page.click('#players-rows a.rowlink[href="#players/player-1"]');
     await page.waitForSelector('#player-card');
     assert(/Latest scores/.test(await page.textContent('#player-card')), 'a player opens with their scores');
     await shot(page, '3-player');
+
+    await page.click('a[href="#supporters"]');
+    await page.waitForSelector('#sup-rows td');
+    await page.fill('#sup-who', 'fan@example.com');
+    await page.selectOption('#sup-kind', 'premium');
+    await page.selectOption('#sup-tier', '3');
+    await page.fill('#sup-note', 'Ko-fi tip');
+    await page.click('#sup-form button[type=submit]');
+    await page.waitForSelector('#sup-rows button[data-sup-end]');
+    assert(/fan@example\.com/.test(await page.textContent('#sup-rows')) && /Premium/.test(await page.textContent('#sup-rows')) && /Gold/.test(await page.textContent('#sup-rows')), 'an admin adds a Gold premium supporter by email');
 
     await page.click('a[href="#search"]');
     await page.waitForSelector('#search-body .tile');
@@ -387,6 +454,13 @@ const SHOTS = process.env.SHOTS;
     await p.click('#app-menu [data-cmd=feedback]');
     await p.waitForSelector('#dlg-feedback[open]');
     assert(await p.$eval('#idea-form .fb-reply', (el) => el.hidden), 'a guest is not offered email updates');
+    assert(await p.isVisible('#idea-theme'), 'a storyline idea asks which theme it is for');
+    assert(await p.$$eval('#idea-theme option', (o) => o.length) > 10, 'the theme list holds the game themes');
+    assert(await p.locator(`#idea-theme option[value="${theme}"]`).count() === 0, 'a switched-off theme is not in the idea theme list');
+    await p.check('#idea-form input[value=feature]');
+    assert(await p.locator('#idea-theme').isHidden(), 'the theme list hides for other kinds of idea');
+    await p.check('#idea-form input[value=story]');
+    await p.selectOption('#idea-theme', 'adventure');
     await p.fill('#idea-text', 'A pirate ship lost in the fog where the crew swapped maps.');
     await p.click('#idea-form button[type=submit]');
     await p.waitForFunction(() => /sent/.test(document.querySelector('#idea-form .acct-done').textContent));
@@ -394,8 +468,8 @@ const SHOTS = process.env.SHOTS;
     await p.fill('#problem-text', 'The music stopped after the second puzzle.');
     await p.click('#problem-form button[type=submit]');
     await p.waitForFunction(() => /sent/.test(document.querySelector('#problem-form .acct-done').textContent));
-    const fb = (await db.prepare('SELECT kind, topic FROM feedback ORDER BY id').all()).results.map((r) => `${r.kind}:${r.topic}`);
-    assert(fb.join() === 'idea:story,problem:sound', `an idea and a problem arrive in separate boxes (${fb.join()})`);
+    const fb = (await db.prepare('SELECT kind, topic, theme FROM feedback ORDER BY id').all()).results.map((r) => `${r.kind}:${r.topic}${r.theme ? `:${r.theme}` : ''}`);
+    assert(fb.join() === 'idea:story:adventure,problem:sound', `an idea and a problem arrive in separate boxes (${fb.join()})`);
 
     // ...and show up in the dashboard's one inbox (the old #feedback link still works).
     await db.prepare("INSERT INTO conversations (id, user_id, topic, subject, status, admin_unread, created_at, updated_at) VALUES (900, 'player-1', 'question', 'Can I print puzzles?', 'open', 1, ?1, ?1)").bind(Date.now()).run();
@@ -409,6 +483,7 @@ const SHOTS = process.env.SHOTS;
     await q.click('#token-form button[type=submit]');
     await q.waitForSelector('#comm-list button[data-status=done]');
     assert(/#communication$/.test(q.url()) && (await q.inputValue('#comm-type')) === 'idea', 'the old ideas link opens Communication on ideas');
+    assert(/Theme: Adventure/.test(await q.textContent('#comm-list')), 'the inbox shows which theme a storyline idea is for');
     assert(/pirate ship/.test(await q.textContent('#comm-list')) && !/music stopped/.test(await q.textContent('#comm-list')), 'the inbox can show ideas on their own');
     assert(/Emails to players/.test(await q.textContent('#fb-replies')), 'the dashboard shows the email counts');
     await q.selectOption('#comm-type', 'problem');
