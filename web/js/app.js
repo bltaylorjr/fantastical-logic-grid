@@ -1577,21 +1577,34 @@ async function renderPicks(saves) {
 // the Puzzle emails invite (anyone can sign up, no account needed).
 async function renderEditions(saves) {
   const [w, list] = await Promise.all([editions.weeklyLatest(), editions.specials()]);
+  // Built with text nodes: titles and dates come from the website's files.
+  const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+  const pill = (text) => el('span', 'pill', text);
+  const editionButton = (key, cls, text) => { const b = el('button', cls, text); b.type = 'button'; b.dataset.edition = key; return b; };
   const box = $('#weekly-box');
   box.hidden = !w;
+  box.replaceChildren();
   if (w) {
     const key = editions.weeklyKey(w.week);
     const sv = saves.find((x) => x.edition === key);
-    box.innerHTML = `<h3>Puzzle of the week</h3><p class="daily-title"><b>${esc(w.title)}</b></p>
-      <p class="daily-meta"><span class="pill">Week of ${esc(daily.longDate(w.week))}</span> <span class="pill">${esc(w.difficultyName)}</span> <span class="pill">${esc(w.themeName)}</span> <span class="pill">${w.categories} × ${w.items}</span>${sv ? ` <span class="pill">${sv.solved ? 'Finished' : `${sv.percent || 0}% done`}</span>` : ''}</p>
-      <button class="btn" type="button" data-edition="${esc(key)}">${sv ? (sv.solved ? 'Open the puzzle of the week' : 'Continue the puzzle of the week') : 'Play the puzzle of the week'}</button>`;
+    const title = el('p', 'daily-title');
+    title.append(el('b', null, w.title));
+    const meta = el('p', 'daily-meta');
+    const pills = [`Week of ${daily.longDate(w.week)}`, w.difficultyName, w.themeName, `${Number(w.categories) || 0} × ${Number(w.items) || 0}`];
+    if (sv) pills.push(sv.solved ? 'Finished' : `${Number(sv.percent) || 0}% done`);
+    pills.forEach((t, i) => { if (i) meta.append(' '); meta.append(pill(t)); });
+    box.append(el('h3', null, 'Puzzle of the week'), title, meta,
+      editionButton(key, 'btn', sv ? (sv.solved ? 'Open the puzzle of the week' : 'Continue the puzzle of the week') : 'Play the puzzle of the week'));
   }
   $('#specials-box').hidden = !list.length;
-  $('#specials-list').innerHTML = list.map((x) => {
+  $('#specials-list').replaceChildren(...list.map((x) => {
     const key = editions.specialKey(x.id);
     const sv = saves.find((s) => s.edition === key);
-    return `<li><button class="btn quiet small" type="button" data-edition="${esc(key)}">${esc(x.editionTitle)}</button> <span class="muted">${esc(daily.longDate(x.date))} · ${esc(x.difficultyName)} · ${esc(x.themeName)}${sv ? (sv.solved ? ' · finished' : ` · ${sv.percent || 0}% done`) : ''}</span></li>`;
-  }).join('');
+    const li = el('li');
+    li.append(editionButton(key, 'btn quiet small', x.editionTitle), ' ',
+      el('span', 'muted', `${daily.longDate(x.date)} · ${x.difficultyName} · ${x.themeName}${sv ? (sv.solved ? ' · finished' : ` · ${Number(sv.percent) || 0}% done`) : ''}`));
+    return li;
+  }));
   $('#mail-invite').hidden = isPortal || !puzzleMail.available();
   $('#mail-invite-btn').textContent = remote.feature('weeklyMail') ? 'Get the weekly puzzle by email' : 'Get special edition puzzles by email';
 }
