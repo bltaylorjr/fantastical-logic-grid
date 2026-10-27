@@ -112,12 +112,15 @@ export async function marketTest(env, days = 7, now = Date.now()) {
     solve: [pctOf(g.solved || 0, g.games || 0), g.games || 0],
     rating: [round(g.rating, 1), g.rated || 0],
     return: [pctOf(ev.return || 0, visits), visits],
-    support: [null, 0],
+    support: [pctOf(ev.support || 0, visits), visits],
   };
+  // Support presses are counted only while the Support the game link shows.
+  const s = await getSettings(env, now);
+  const supportShown = !!(s.support_link_enabled && s.support_url);
   const marks = PASS_MARKS.map((m) => {
     const [value, n] = values[m.id];
     let status;
-    if (m.id === 'support') status = 'not_measured';
+    if (m.id === 'support' && !supportShown) status = 'not_measured';
     else if (n < m.min || value == null) status = 'too_early';
     else status = value >= m.mark ? 'pass' : 'below';
     return { ...m, value, n, status };
@@ -125,12 +128,25 @@ export async function marketTest(env, days = 7, now = Date.now()) {
   const bySource = new Map();
   for (const r of sources.results) {
     const key = `${r.source}|${r.medium}`;
-    if (!bySource.has(key)) bySource.set(key, { source: r.source, medium: r.medium, visit: 0, play: 0, solve: 0, return: 0, install: 0, download: 0 });
+    if (!bySource.has(key)) bySource.set(key, { source: r.source, medium: r.medium, visit: 0, play: 0, solve: 0, return: 0, install: 0, download: 0, support: 0 });
     if (r.event in bySource.get(key)) bySource.get(key)[r.event] += r.n;
   }
   const funnel = [...bySource.values()].sort((a, b) => b.visit - a.visit || b.solve - a.solve).slice(0, 10)
     .map((x) => ({ ...x, startPct: pctOf(x.play, x.visit), returnPct: pctOf(x.return, x.visit) }));
   return { days: MARKET_DAYS, since, marks, funnel };
+}
+
+// Supporters for the weekly summary: running now, new this week, renewed this
+// week (a Ko-fi membership payment, which sets the end 35 days after it), and
+// ended this week.
+async function supporterNumbers(env, since, now) {
+  const r = await env.DB.prepare(`SELECT
+      COUNT(DISTINCT CASE WHEN until IS NULL OR until > ?2 THEN COALESCE(user_id, email) END) AS active,
+      SUM(created_at >= ?1) AS added,
+      SUM(source = 'kofi' AND created_at < ?1 AND until IS NOT NULL AND until - ?3 >= ?1) AS renewed,
+      SUM(until IS NOT NULL AND until >= ?1 AND until <= ?2) AS ended
+    FROM supporters`).bind(since, now, 35 * DAY).first();
+  return { active: r.active || 0, added: r.added || 0, renewed: r.renewed || 0, ended: r.ended || 0 };
 }
 
 export async function summary(env, days = 7, now = Date.now()) {
@@ -156,6 +172,7 @@ export async function summary(env, days = 7, now = Date.now()) {
   const r = q.map((x) => x.results);
   const one = (i, f = 'n') => (r[i][0] ? r[i][0][f] || 0 : 0);
   const games = r[4][0] || {};
+  const supporters = await supporterNumbers(env, since, now).catch(() => null);
   const [qual, al, rated, market] = await Promise.all([quality(env, 30, now), alerts(env, now), ratingInsights(env, days, { brief: true, now }).catch(() => null), marketTest(env, days, now)]);
   return {
     days, from: sinceDay, to: isoDay(now), generatedAt: now,
@@ -171,6 +188,8 @@ export async function summary(env, days = 7, now = Date.now()) {
     // Puzzle ratings: the numbers, what is working, what to improve (ratings.js).
     ratings: rated && { average: rated.overall.avg, rated: rated.overall.rated, spread: rated.overall.spread, change: rated.overall.change,
       good: rated.good.slice(0, 3), improve: rated.improve.slice(0, 3), summary: rated.summary.status === 'ok' ? rated.summary.text : null },
+    // Tip jar and Supporter grants (supporters.js): running now, added and ended this week.
+    supporters,
     // Where this week's visitors came from, and the market test's pass marks.
     funnel: market.funnel,
     marketTest: { days: market.days, since: market.since, marks: market.marks },

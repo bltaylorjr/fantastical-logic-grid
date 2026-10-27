@@ -1,7 +1,8 @@
 # Keeps the how-to-play video in step with the game. After a change to the game
 # lands on main, this re-records the video from the real app, re-voices it with
 # the game's narrator (Kokoro, free and local) and opens a pull request that
-# updates web/media/intro.mp4, the captions and the transcript.
+# updates web/media/intro.mp4, the captions and the transcript, plus the
+# Educators page's how-to video (seo/media/educators.*).
 # Free: runs on GitHub's hosted runners (free for public repositories).
 # One-time setup: Settings > Actions > General > Workflow permissions >
 # "Allow GitHub Actions to create and approve pull requests".
@@ -15,6 +16,9 @@ on:
       - 'engine/**'
       - 'server/src/**'
       - 'video/**'
+      - 'seo/educators.js'
+      - 'scripts/educators-page.mjs'
+      - 'admin/educators.js'
       - '!web/media/**'
       - '!video/README.md'
 permissions:
@@ -57,6 +61,10 @@ jobs:
         run: node video/capture.cjs
       - name: Voice, captions and video
         run: python video/build.py --install
+      - name: Educators how-to video (record, voice, install)
+        run: |
+          node video/educators.cjs
+          VIDEO=educators python video/build.py --install
       - uses: actions/upload-artifact@v4
         with:
           name: how-to-play-video
@@ -65,7 +73,7 @@ jobs:
             video/out/captions.srt
             video/out/transcript.txt
           retention-days: 30
-      - uses: peter-evans/create-pull-request@v7
+      - uses: peter-evans/create-pull-request@22a9089034f40e5a961c8808d113e2c98fb63676 # v7.0.11
         with:
           branch: video/auto-update
           delete-branch: true
@@ -73,6 +81,10 @@ jobs:
             web/media/intro.mp4
             web/media/intro.en.vtt
             web/index.html
+            seo/media/educators.mp4
+            seo/media/educators.en.vtt
+            seo/media/educators-poster.jpg
+            seo/media/educators.json
           commit-message: 'Update the how-to-play video [video]'
           title: 'Update the how-to-play video [video]'
           body: |

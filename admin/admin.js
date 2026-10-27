@@ -8,6 +8,7 @@ import { renderConnections } from './connections-view.js';
 import { characterView } from './characters.js';
 import { ratingsView, initRatings } from './ratings.js';
 import { marketingView, initMarketing } from './marketing.js';
+import { educatorsView, initEducators } from './educators.js';
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -234,6 +235,7 @@ views.overview = async () => {
   const labels = d.dayList;
   setCount('#count-parts', d.review.parts.pending || 0);
   setCount('#count-names', d.review.namesWaiting || 0);
+  setCount('#count-educators', d.review.educators || 0);
   const review = [];
   if (can('moderator') && d.review.parts.pending) review.push(`<a href="#stories">${fmt(d.review.parts.pending)} story ${d.review.parts.pending === 1 ? 'part' : 'parts'} waiting for review</a>`);
   const fb = d.review.feedback || {};
@@ -241,6 +243,7 @@ views.overview = async () => {
   setCount('#count-comm', can('moderator') ? (fb.idea || 0) + (fb.problem || 0) + unread : 0);
   if (can('moderator') && unread) review.push(`<a href="#communication">${fmt(unread)} unread ${unread === 1 ? 'message' : 'messages'} from players</a>`);
   if (can('moderator') && (fb.idea || fb.problem)) review.push(`<a href="#communication">${fmt(fb.idea || 0)} new ${fb.idea === 1 ? 'idea' : 'ideas'} and ${fmt(fb.problem || 0)} new ${fb.problem === 1 ? 'problem' : 'problems'} from players</a>`);
+  if (can('moderator') && d.review.educators) review.push(`<a href="#educators">${fmt(d.review.educators)} educator ${d.review.educators === 1 ? 'request' : 'requests'} waiting for review</a>`);
   if (can('moderator') && d.review.namesWaiting) review.push(`<a href="#names">${fmt(d.review.namesWaiting)} new or changed screen ${d.review.namesWaiting === 1 ? 'name' : 'names'}</a>`);
   $('#ov-body').innerHTML = `
     ${alertsHtml(al)}
@@ -853,7 +856,7 @@ views.settings = async () => {
     return `${editable ? `<button class="btn small" data-save="${s.key}">Save words</button>` : ''}`;
   };
   const extra = (s) => {
-    if (s.type === 'themes') return `<fieldset class="themes"><legend class="sr-only">${esc(s.label)}</legend>${d.themes.map((t) => `<label class="check"><input type="checkbox" name="theme-off" value="${esc(t.id)}"${s.value.includes(t.id) ? ' checked' : ''}${editable ? '' : ' disabled'}> ${esc(t.name)} off</label>`).join('')}</fieldset>`;
+    if (s.type === 'themes') return `<fieldset class="themes"><legend class="sr-only">${esc(s.label)}</legend>${d.themes.map((t) => `<label class="check"><input type="checkbox" name="theme-${s.key}" value="${esc(t.id)}"${s.value.includes(t.id) ? ' checked' : ''}${editable ? '' : ' disabled'}> ${esc(t.name)}${s.key === 'disabled_themes' ? ' off' : ''}</label>`).join('')}</fieldset>`;
     if (s.type === 'days') return `<div class="field words"><label for="set-${s.key}">One date per line, like 2026-11-03</label><textarea id="set-${s.key}" rows="4"${editable ? '' : ' disabled'}>${esc(s.value.join('\n'))}</textarea></div>`;
     if (s.type === 'words') return `<div class="field words"><label for="set-${s.key}">One word per line</label><textarea id="set-${s.key}" rows="4"${editable ? '' : ' disabled'}>${esc(s.value.join('\n'))}</textarea></div>`;
     return '';
@@ -882,12 +885,47 @@ $('#settings-body').onclick = (e) => {
   const b = e.target.closest('button[data-save]');
   if (!b) return;
   const key = b.dataset.save;
-  if (key === 'disabled_themes') saveSettingValue(key, $$('input[name=theme-off]:checked').map((x) => x.value), b);
+  if (key === 'disabled_themes' || key === 'premium_themes') saveSettingValue(key, $$(`input[name=theme-${key}]:checked`).map((x) => x.value), b);
   else if (key === 'blocked_words' || key === 'hand_picked_days') saveSettingValue(key, $(`#set-${key}`).value.split(/[\s,]+/).filter(Boolean), b);
   else if ($(`#set-${key}`).type === 'number') saveSettingValue(key, Number($(`#set-${key}`).value), b);
   else saveSettingValue(key, $(`#set-${key}`).value.trim(), b);
 };
 
+const SUP_TIER = ['', 'Bronze', 'Silver', 'Gold', 'Platinum'];
+const SUP_SOURCE = { admin: 'Added here', kofi: 'Ko-fi', lemonsqueezy: 'Lemon Squeezy' };
+views.supporters = async () => {
+  const d = await api('supporters');
+  $('#sup-rows').innerHTML = d.supporters.length ? d.supporters.map((s) => `<tr>
+      <td>${s.name ? `<bdi>${esc(s.name)}</bdi><br>` : ''}<span class="muted">${esc(s.email || s.uid || '')}</span>${s.note ? `<br><small>${esc(s.note)}</small>` : ''}</td>
+      <td>${s.kind === 'premium' ? 'Premium' : 'Supporter'}${s.active ? '' : ' <span class="badge">Ended</span>'}</td>
+      <td>${SUP_TIER[s.tier] || 'Bronze'}</td>
+      <td>${esc(SUP_SOURCE[s.source] || s.source)}${s.createdBy ? `<br><small class="muted">${esc(s.createdBy)}</small>` : ''}</td>
+      <td>${when(s.createdAt)}</td>
+      <td>${s.until ? when(s.until) : 'Never'}</td>
+      <td>${s.active ? `<button class="btn small danger" data-sup-end="${s.id}">End now</button>` : ''}</td>
+    </tr>`).join('') : '<tr><td colspan="7" class="muted">No supporters yet.</td></tr>';
+};
+$('#sup-form').onsubmit = async (e) => {
+  e.preventDefault();
+  const who = $('#sup-who').value.trim();
+  const err = $('#sup-error');
+  err.hidden = true;
+  if (!who) { err.textContent = 'Give the player\'s email or player id.'; err.hidden = false; $('#sup-who').focus(); return; }
+  const day = $('#sup-until').value;
+  const body = { kind: $('#sup-kind').value, tier: Number($('#sup-tier').value), note: $('#sup-note').value.trim(), until: day ? new Date(`${day}T23:59:59`).getTime() : null, ...(who.includes('@') ? { email: who } : { uid: who }) };
+  try {
+    await api('supporters', { method: 'POST', body });
+    $('#sup-form').reset();
+    toast('Added. They see it the next time the game checks, within a few minutes.');
+    show('supporters', { keepFocus: true });
+  } catch (ex) { err.textContent = ex.message; err.hidden = false; }
+};
+$('#sup-rows').onclick = async (e) => {
+  const b = e.target.closest('button[data-sup-end]');
+  if (!b) return;
+  if (!(await ask({ title: 'End this grant now?', text: 'The badge and any extras stop for this player. A payment service may add a new grant if they pay again.', ok: 'End now', danger: true }))) return;
+  if (await act(b, () => api(`supporters/${b.dataset.supEnd}/remove`, { method: 'POST' }), 'Ended.')) show('supporters', { keepFocus: true });
+};
 views.connections = () => renderConnections($('#connections-view'), { api, esc, when, toast, announce });
 
 $('#ann-form').onsubmit = async (e) => {
@@ -1036,7 +1074,7 @@ function searchSource(title, key, s) {
   if (!s.connected && !s.data) return `<div class="card">${head}<p class="note">Not connected yet. ${SEARCH_SETUP[key]}</p></div>`;
   const status = s.error
     ? `<p class="error">The last fetch (${when(s.triedAt)}) failed: ${esc(s.error)}${s.data ? ' The numbers below are from the last good fetch.' : ''}</p>`
-    : s.fetchedAt ? `<p class="muted">Fetched ${when(s.fetchedAt)}.</p>` : '<p class="muted">Not fetched yet: it runs daily at 06:41 UTC, or press Refresh now.</p>';
+    : s.fetchedAt ? `<p class="muted">Fetched ${when(s.fetchedAt)}.</p>` : '<p class="muted">Not fetched yet: it runs every night at 2 am Eastern, or press Refresh now.</p>';
   const x = s.data;
   if (!x) return `<div class="card">${head}${status}</div>`;
   const t = x.totals;
@@ -1164,6 +1202,9 @@ initRatings(ratingHelpers, (name, o) => show(name, o));
 const marketingHelpers = { api, esc, fmt, when, tile, table, can, act, ask, toast };
 views.marketing = () => marketingView(marketingHelpers);
 initMarketing(marketingHelpers, (name, o) => show(name, o));
+const educatorHelpers = { api, esc, fmt, when, can, act, ask, setCount };
+views.educators = () => educatorsView(educatorHelpers);
+initEducators(educatorHelpers, (name, o) => show(name, o));
 
 // ------------------------------------------------------------- navigation
 const MIN_ROLE = Object.fromEntries($$('#nav-list a').map((a) => [a.hash.slice(1), a.dataset.min]));

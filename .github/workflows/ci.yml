@@ -59,6 +59,7 @@ jobs:
           node scripts/e2e-errors.cjs
           node scripts/e2e-admin.cjs
           node scripts/e2e-archive.cjs
+          node scripts/e2e-educators.cjs
       # The screenshots from every size the layout test checks, to look at when
       # a layout check fails (kept 14 days, free).
       - name: Keep the screenshots
@@ -99,7 +100,7 @@ jobs:
       actions: write
     steps:
       - id: meta
-        uses: dependabot/fetch-metadata@v3
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
       - name: Merge a passing patch or minor update
         if: steps.meta.outputs.update-type == 'version-update:semver-patch' || steps.meta.outputs.update-type == 'version-update:semver-minor'
         env:

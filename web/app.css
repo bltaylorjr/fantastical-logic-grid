@@ -84,6 +84,7 @@ button, input, select { font: inherit; color: inherit; }
 .brand { display: flex; align-items: center; gap: 10px; background: none; border: 0; padding: 6px 4px; min-height: 44px; cursor: pointer; font-weight: 700; font-size: 1.05rem; color: var(--text); border-radius: 8px; text-align: left; }
 .brand-mark { width: 30px; height: 30px; color: var(--accent); flex: none; }
 .appbar-actions { display: flex; gap: 8px; }
+.appbar-actions .educators-link { text-decoration: none; display: inline-flex; align-items: center; }
 .player-chip { max-width: 11em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 .player-chip::before { content: ""; display: inline-block; width: .6em; height: .6em; margin-right: .4em; border-radius: 50%; background: var(--edge); vertical-align: .05em; }
 .player-chip.named::before { background: currentColor; }
@@ -136,6 +137,18 @@ legend { font-weight: 700; font-size: 1.05rem; padding: 0; margin-bottom: 8px; }
 .chips .choice > span { padding: 10px 14px; font-weight: 700; }
 .chips .choice input:checked + span { padding: 9px 13px; }
 .chips .choice input:checked + span:not(:has(b))::before { content: "✓ "; color: var(--accent); }
+.choice.locked > span { cursor: not-allowed; border-style: dashed; }
+.choice.locked .extra-tag { display: block; font-weight: 400; font-size: .8em; }
+.extras-note { margin: 8px 0 0; font-size: .95em; color: var(--muted); }
+.extras-note .btn { margin-left: 6px; }
+.pill.supporter { background: var(--accent-soft); color: inherit; }
+.support-ask { margin: 16px 0; padding: 12px 16px; border-radius: 10px; background: var(--accent-soft); }
+.support-ask p { margin: 0 0 10px; }
+/* Supporter badge tiers: the star's colour and a matching edge. */
+.pill.supporter.tier-1 { box-shadow: inset 0 0 0 2px #b0703a; } .pill.supporter.tier-1 > span { color: #b0703a; }
+.pill.supporter.tier-2 { box-shadow: inset 0 0 0 2px #8a929e; } .pill.supporter.tier-2 > span { color: #8a929e; }
+.pill.supporter.tier-3 { box-shadow: inset 0 0 0 2px #c9a227; } .pill.supporter.tier-3 > span { color: #c9a227; }
+.pill.supporter.tier-4 { box-shadow: inset 0 0 0 2px #7d8fb3; background: linear-gradient(135deg, var(--accent-soft), transparent); } .pill.supporter.tier-4 > span { color: #7d8fb3; }
 .custom-size { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 12px; max-width: 480px; }
 .more { margin-bottom: 24px; border-top: 1px solid var(--hairline); padding-top: 8px; }
 .more summary { cursor: pointer; font-weight: 700; min-height: 44px; display: flex; align-items: center; }
@@ -606,6 +619,7 @@ dialog::backdrop { background: rgb(5 7 16 / .6); backdrop-filter: blur(6px); -we
   .pp li { break-inside: avoid; margin-bottom: 3pt; }
   .pp .qline { display: inline-block; min-width: 140pt; border-bottom: .5pt solid #000; margin-left: 6pt; }
   .pp .pnotes { white-space: pre-wrap; overflow-wrap: anywhere; }
+  .pp .psupport { font-size: 9pt; margin: 12pt 0 0; }
   table.pg { border-collapse: collapse; font-size: 10pt; break-inside: avoid; margin: 6pt 0 10pt; }
   table.pg tr { break-inside: avoid; }
   table.pg td.c { width: var(--pcell); height: var(--pcell); min-width: var(--pcell); border: .5pt solid #000; text-align: center; vertical-align: middle; padding: 0; font-size: calc(var(--pcell) * .6); line-height: 1; }
@@ -853,6 +867,10 @@ dialog.rules table.board td { font-variant-numeric: tabular-nums; }
 .tips-body h3 { margin: 8px 0 6px; }
 .tips-body ul { margin: 0 0 8px; padding-left: 1.2em; display: grid; gap: 6px; }
 @media print { #screen-learn { display: none !important; } }
+/* Links to the website's guide pages, at the foot of the home screen (added by scripts/seo.mjs, website only). */
+.site-links { margin: 24px auto 8px; max-width: 1100px; padding: 0 16px; }
+.site-links ul { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 20px; margin: 0; padding: 0; list-style: none; }
+.site-links a { display: inline-block; padding: 10px 4px; min-height: 44px; color: var(--text); }
 /* ---------- Responsive layout (checked at 320 px phones up to 2560 px monitors,
    and at 200% zoom, by scripts/e2e-responsive.cjs) ---------- */
 /* A visually hidden label inside a scrolling table is placed against the page,
