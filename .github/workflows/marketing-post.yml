@@ -1,0 +1,61 @@
+# Marketing autopilot: every morning at about 10 am Eastern, the approved ads
+# whose posting day has come are posted to the sites whose free official API
+# allows it (Bluesky, Mastodon, X, the game's Facebook Page, Instagram and
+# Threads), and the owner's inbox gets the rest to post by hand, with the
+# words and link ready (scripts/marketing-post.py).
+# Each site's key is a GitHub secret (admin > Connections and setup >
+# Marketing); a site without its key is emailed instead. Switch either part
+# off in admin > Settings and switches > Marketing.
+# By hand: Run workflow with mode "check" to test the keys, or "dry-run" to
+# see what a day would post (and get the email marked Preview).
+# The repository is public: the log shows ad titles and counts, never keys.
+# Free: scheduled GitHub Actions on a public repo, the sites' free APIs and Gmail.
+name: Marketing autopilot
+on:
+  schedule:
+    - cron: '7 15 * * *'   # 15:07 UTC = 10:07 am Eastern (11:07 in summer time)
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: post, check (test the keys) or dry-run (post nothing)
+        required: false
+        default: post
+      day:
+        description: Optional day to act as (YYYY-MM-DD), for a dry run
+        required: false
+permissions:
+  contents: read
+concurrency:
+  group: marketing-post
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: scripts/marketing-post.py
+          sparse-checkout-cone-mode: false
+      - name: Post today's approved ads
+        env:
+          MODE: ${{ inputs.mode }}
+          DAY: ${{ inputs.day }}
+          FLG_CLOUD_URL: ${{ vars.FLG_CLOUD_URL || 'https://flg-api.btay74.workers.dev' }}
+          FLG_ADMIN_TOKEN: ${{ secrets.FLG_ADMIN_TOKEN }}
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          OWNER_TASKS_TO: ${{ secrets.OWNER_TASKS_TO }}
+          BLUESKY_HANDLE: ${{ secrets.BLUESKY_HANDLE }}
+          BLUESKY_APP_PASSWORD: ${{ secrets.BLUESKY_APP_PASSWORD }}
+          MASTODON_URL: ${{ vars.MASTODON_URL }}
+          MASTODON_TOKEN: ${{ secrets.MASTODON_TOKEN }}
+          X_API_KEY: ${{ secrets.X_API_KEY }}
+          X_API_SECRET: ${{ secrets.X_API_SECRET }}
+          X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
+          X_ACCESS_SECRET: ${{ secrets.X_ACCESS_SECRET }}
+          META_PAGE_ID: ${{ secrets.META_PAGE_ID }}
+          META_PAGE_TOKEN: ${{ secrets.META_PAGE_TOKEN }}
+          INSTAGRAM_ACCOUNT_ID: ${{ secrets.INSTAGRAM_ACCOUNT_ID }}
+          THREADS_USER_ID: ${{ secrets.THREADS_USER_ID }}
+          THREADS_TOKEN: ${{ secrets.THREADS_TOKEN }}
+        run: python3 -I scripts/marketing-post.py

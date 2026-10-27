@@ -160,6 +160,9 @@ function startAuth(signer) {
     await B.page.fill('#name-input', 'Bold Badger');
     await B.page.click('#name-form button[type=submit]');
     await B.page.waitForSelector('#dlg-name[open]', { state: 'detached' });
+    await B.page.waitForFunction(() => /New player/.test(document.querySelector('#toasts').textContent));
+    // An admin approves both typed names, so each player sees the other's name.
+    await db.prepare("INSERT OR REPLACE INTO name_reviews (user_id, name_key, reviewed_by, reviewed_at) SELECT user_id, name_key, 'test', 1 FROM players").run();
 
     // ---- A starts a race.
     await pickSmall(A.page);

@@ -112,12 +112,15 @@ export async function marketTest(env, days = 7, now = Date.now()) {
     solve: [pctOf(g.solved || 0, g.games || 0), g.games || 0],
     rating: [round(g.rating, 1), g.rated || 0],
     return: [pctOf(ev.return || 0, visits), visits],
-    support: [null, 0],
+    support: [pctOf(ev.support || 0, visits), visits],
   };
+  // Support presses are counted only while the Support the game link shows.
+  const s = await getSettings(env, now);
+  const supportShown = !!(s.support_link_enabled && s.support_url);
   const marks = PASS_MARKS.map((m) => {
     const [value, n] = values[m.id];
     let status;
-    if (m.id === 'support') status = 'not_measured';
+    if (m.id === 'support' && !supportShown) status = 'not_measured';
     else if (n < m.min || value == null) status = 'too_early';
     else status = value >= m.mark ? 'pass' : 'below';
     return { ...m, value, n, status };
@@ -125,12 +128,25 @@ export async function marketTest(env, days = 7, now = Date.now()) {
   const bySource = new Map();
   for (const r of sources.results) {
     const key = `${r.source}|${r.medium}`;
-    if (!bySource.has(key)) bySource.set(key, { source: r.source, medium: r.medium, visit: 0, play: 0, solve: 0, return: 0, install: 0, download: 0 });
+    if (!bySource.has(key)) bySource.set(key, { source: r.source, medium: r.medium, visit: 0, play: 0, solve: 0, return: 0, install: 0, download: 0, support: 0 });
     if (r.event in bySource.get(key)) bySource.get(key)[r.event] += r.n;
   }
   const funnel = [...bySource.values()].sort((a, b) => b.visit - a.visit || b.solve - a.solve).slice(0, 10)
     .map((x) => ({ ...x, startPct: pctOf(x.play, x.visit), returnPct: pctOf(x.return, x.visit) }));
   return { days: MARKET_DAYS, since, marks, funnel };
+}
+
+// Supporters for the weekly summary: running now, new this week, renewed this
+// week (a Ko-fi membership payment, which sets the end 35 days after it), and
+// ended this week.
+async function supporterNumbers(env, since, now) {
+  const r = await env.DB.prepare(`SELECT
+      COUNT(DISTINCT CASE WHEN until IS NULL OR until > ?2 THEN COALESCE(user_id, email) END) AS active,
+      SUM(created_at >= ?1) AS added,
+      SUM(source = 'kofi' AND created_at < ?1 AND until IS NOT NULL AND until - ?3 >= ?1) AS renewed,
+      SUM(until IS NOT NULL AND until >= ?1 AND until <= ?2) AS ended
+    FROM supporters`).bind(since, now, 35 * DAY).first();
+  return { active: r.active || 0, added: r.added || 0, renewed: r.renewed || 0, ended: r.ended || 0 };
 }
 
 export async function summary(env, days = 7, now = Date.now()) {
@@ -156,6 +172,7 @@ export async function summary(env, days = 7, now = Date.now()) {
   const r = q.map((x) => x.results);
   const one = (i, f = 'n') => (r[i][0] ? r[i][0][f] || 0 : 0);
   const games = r[4][0] || {};
+  const supporters = await supporterNumbers(env, since, now).catch(() => null);
   const [qual, al, rated, market] = await Promise.all([quality(env, 30, now), alerts(env, now), ratingInsights(env, days, { brief: true, now }).catch(() => null), marketTest(env, days, now)]);
   return {
     days, from: sinceDay, to: isoDay(now), generatedAt: now,
@@ -171,6 +188,8 @@ export async function summary(env, days = 7, now = Date.now()) {
     // Puzzle ratings: the numbers, what is working, what to improve (ratings.js).
     ratings: rated && { average: rated.overall.avg, rated: rated.overall.rated, spread: rated.overall.spread, change: rated.overall.change,
       good: rated.good.slice(0, 3), improve: rated.improve.slice(0, 3), summary: rated.summary.status === 'ok' ? rated.summary.text : null },
+    // Tip jar and Supporter grants (supporters.js): running now, added and ended this week.
+    supporters,
     // Where this week's visitors came from, and the market test's pass marks.
     funnel: market.funnel,
     marketTest: { days: market.days, since: market.since, marks: market.marks },
@@ -192,12 +211,22 @@ export const CSV_KINDS = ['players', 'scores', 'feedback'];
 
 export async function csv(env, kind, now = Date.now()) {
   if (kind === 'players') {
-    const { results } = await env.DB.prepare(`SELECT p.user_id, p.screen_name, p.created_at, p.updated_at,
-        COALESCE(SUM(s.points), 0) AS points, COUNT(s.user_id) AS solves, MAX(s.created_at) AS last_score,
-        EXISTS (SELECT 1 FROM bans b WHERE b.user_id = p.user_id AND (b.until IS NULL OR b.until > ?1)) AS banned
-      FROM players p LEFT JOIN scores s ON s.user_id = p.user_id GROUP BY p.user_id ORDER BY points DESC LIMIT 50000`).bind(now).all();
-    return toCsv(['Player id', 'Screen name', 'Name since', 'Name changed', 'Points', 'Solves', 'Last score', 'Banned'],
-      results.map((x) => [x.user_id, x.screen_name, iso(x.created_at), iso(x.updated_at), x.points, x.solves, iso(x.last_score), x.banned ? 'yes' : 'no']));
+    // Everyone: screen names and accounts that only sync (no screen name yet).
+    const { results } = await env.DB.prepare(`WITH ids AS (SELECT user_id FROM players UNION SELECT user_id FROM sync_users)
+      SELECT i.user_id, p.screen_name, p.created_at, p.updated_at, u.created_at AS synced_since,
+        (SELECT COALESCE(SUM(points), 0) FROM scores s WHERE s.user_id = i.user_id) AS points,
+        (SELECT COUNT(*) FROM scores s WHERE s.user_id = i.user_id) AS solves,
+        (SELECT COUNT(*) FROM race_entries e WHERE e.user_id = i.user_id) AS races,
+        (SELECT MAX(created_at) FROM scores s WHERE s.user_id = i.user_id) AS last_score,
+        MAX(COALESCE(p.updated_at, 0), COALESCE(u.created_at, 0),
+          COALESCE((SELECT MAX(updated_at) FROM sync_records r WHERE r.user_id = i.user_id), 0),
+          COALESCE((SELECT MAX(created_at) FROM scores s WHERE s.user_id = i.user_id), 0),
+          COALESCE((SELECT MAX(joined_at) FROM race_entries e WHERE e.user_id = i.user_id), 0)) AS last_seen,
+        EXISTS (SELECT 1 FROM bans b WHERE b.user_id = i.user_id AND (b.until IS NULL OR b.until > ?1)) AS banned
+      FROM ids i LEFT JOIN players p ON p.user_id = i.user_id LEFT JOIN sync_users u ON u.user_id = i.user_id
+      ORDER BY p.screen_name IS NULL, points DESC LIMIT 50000`).bind(now).all();
+    return toCsv(['Player id', 'Screen name', 'Name since', 'Name changed', 'Synced account since', 'Last seen', 'Points', 'Solves', 'Races', 'Last score', 'Banned'],
+      results.map((x) => [x.user_id, x.screen_name || '', iso(x.created_at), iso(x.updated_at), iso(x.synced_since), iso(x.last_seen), x.points, x.solves, x.races, iso(x.last_score), x.banned ? 'yes' : 'no']));
   }
   if (kind === 'scores') {
     const { results } = await env.DB.prepare(`SELECT s.created_at, p.screen_name, s.kind, s.tier, s.cells, s.elapsed_ms, s.hints, s.checks, s.points

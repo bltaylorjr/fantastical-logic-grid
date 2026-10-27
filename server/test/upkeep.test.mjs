@@ -2,6 +2,7 @@
 // and anonymous error reports. Run with `npm test` in server/.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { isMaintenanceHour, NIGHTLY_CRONS } from '../src/nightly.js';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -101,4 +102,13 @@ test('error reports are cleaned, counted and kept free of personal details', asy
   assert.equal(list.errors[0].count, 3);
   assert.equal(list.errors[0].platform, 'android');
   assert.equal((await (await call('/v1/health?deep=1')).json()).errorsToday, 3);
+});
+
+test('nightly maintenance runs at 2 am Eastern in winter and in summer', async () => {
+  assert.equal(isMaintenanceHour(Date.parse('2026-01-15T07:00:00Z')), true, 'EST: 07:00 UTC is 2 am');
+  assert.equal(isMaintenanceHour(Date.parse('2026-01-15T06:00:00Z')), false, 'EST: 06:00 UTC is 1 am');
+  assert.equal(isMaintenanceHour(Date.parse('2026-07-15T06:00:00Z')), true, 'EDT: 06:00 UTC is 2 am');
+  assert.equal(isMaintenanceHour(Date.parse('2026-07-15T07:05:00Z')), false, 'EDT: 07:00 UTC is 3 am');
+  const toml = readFileSync(join(root, 'wrangler.toml'), 'utf8');
+  for (const c of NIGHTLY_CRONS) assert.ok(toml.includes(`"${c}"`), `wrangler.toml has the cron ${c}`);
 });
