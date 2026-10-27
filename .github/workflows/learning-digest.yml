@@ -1,0 +1,49 @@
+# The owner's learning emails (docs/learning/README.md):
+# - every morning: the to-do list (open "learning" issues, pull requests to
+#   review, tasks finished yesterday);
+# - when a "learning" issue is closed as completed: its build sheet.
+# Uses the Gmail secrets the other owner emails use; OWNER_TASKS_TO is optional.
+# Free: GitHub Actions on a public repo and Gmail cost nothing.
+name: Learning emails
+on:
+  schedule:
+    # 11:13 UTC = 7:13 am EDT / 6:13 am EST.
+    - cron: '13 11 * * *'
+  issues:
+    types: [closed]
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: daily (the to-do list) or done (one task's build sheet)
+        default: daily
+      issue:
+        description: For "done", the issue number
+        required: false
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+concurrency:
+  group: learning-emails-${{ github.event_name }}-${{ github.event.issue.number || inputs.issue || 'daily' }}
+jobs:
+  send:
+    # Only learning issues trigger the "done" email.
+    if: github.event_name != 'issues' || contains(github.event.issue.labels.*.name, 'learning')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: |
+            docs/learning
+            scripts/learning-digest.py
+          sparse-checkout-cone-mode: false
+      - name: Email
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          OWNER_TO: ${{ secrets.OWNER_TASKS_TO }}
+          MODE: ${{ github.event_name == 'issues' && 'done' || inputs.mode || 'daily' }}
+          ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue }}
+        run: python3 -I scripts/learning-digest.py
