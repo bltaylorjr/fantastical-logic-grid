@@ -25,6 +25,7 @@ import { initAccounts, openAccount, onHome as accountsOnHome, signedIn } from '.
 import * as competeUi from './compete-ui.js';
 import * as remote from './remote-config.js';
 import * as perks from './perks.js';
+import * as contributor from './contributor.js';
 import * as support from './support.js';
 import { initPullRefresh } from './pull-refresh.js';
 import * as daily from './daily.js';
@@ -33,7 +34,7 @@ import { shareResult } from './share-result.js';
 import * as challenge from './challenge.js';
 import * as dailyResults from './daily-results.js';
 import * as dailyEmail from './daily-email.js';
-import { onChange as onAccountChange } from './account.js';
+import { onChange as onAccountChange, current as currentAccount } from './account.js';
 import * as i18n from './i18n.js';
 import { CLOUD, CLOUD_URL } from './cloud-config.js';
 import * as tutorial from './tutorial.js';
@@ -1648,8 +1649,20 @@ async function openStats() {
     ${sm.themes.length ? `<h3>Favorite themes</h3><p>${sm.themes.slice(0, 5).map(([id, n]) => `${esc(themeName(id))} (${n})`).join(', ')}</p>` : ''}
     ${sm.revealed ? `<p class="help">${sm.revealed} puzzle${sm.revealed > 1 ? 's' : ''} ended with the solution revealed; those don't count above.</p>` : ''}
     <h3>Badges <span class="muted">${earned.length} of ${sm.badges.length}</span></h3>
-    <ul class="badges">${[...earned, ...sm.badges.filter((b) => !b.at)].map(badgeHtml).join('')}</ul>`;
+    <ul class="badges">${[...earned, ...sm.badges.filter((b) => !b.at)].map(badgeHtml).join('')}</ul>
+    <div id="stats-contributor"></div>`;
+  renderContributor();
+  contributor.refresh();
 }
+// The Contributor badge: ideas and suggestions the team used (signed in only).
+function renderContributor() {
+  const box = $('#stats-contributor');
+  if (!box) return;
+  const c = currentAccount() && remote.featureOn('contributors') ? contributor.current() : null;
+  box.innerHTML = c && c.enabled ? `<h3>Contributor badge</h3>
+    <p>${c.tier ? `${competeUi.contributorPill(c.tier)} ` : ''}${esc(contributor.describe(c))}</p>` : '';
+}
+contributor.onChange(() => { if ($('#dlg-stats').open) renderContributor(); });
 $('#stats-close').onclick = () => $('#dlg-stats').close();
 
 let coachBusy = false;
@@ -2463,6 +2476,7 @@ async function init() {
   applyLanguage();
   matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', applyColorTheme);
   perks.init();
+  contributor.init();
   renderSetup();
   characters.init({ onCharactersChanged: applyFeatures });
   remote.init({

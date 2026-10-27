@@ -17,6 +17,7 @@
 //   POST /v1/m                           anonymous counts of visits from campaign links (marketing.js)
 //   /v1/challenges[/:code[/result]]       Challenge a friend links, no account (challenges.js)
 //   GET /v1/perks                        a signed-in player's supporter perks (supporters.js)
+//   GET /v1/contributor                  a signed-in player's contributor badge (contributors.js)
 //   /admin/*                             the admin dashboard and its API (admin.js)
 //   GET /v1/health[?deep=1]              a quick check that the Worker (and with
 //                                        deep=1, the database and daily cleanup) is up
@@ -29,6 +30,7 @@ import { handleCompete } from './compete.js';
 import { handleChallenges } from './challenges.js';
 import { handleErrors } from './errors.js';
 import { handleFeedback } from './feedback.js';
+import { handleContributor } from './contributors.js';
 import { handleMessages } from './messages.js';
 import { handlePictures } from './pictures.js';
 import { handleCharacters } from './characters.js';
@@ -78,6 +80,9 @@ async function route(req, env, ctx) {
 
   const perks = await handlePerks(req, env, url, signedIn);
   if (perks) return perks;
+
+  const contributor = await handleContributor(req, env, url, signedIn);
+  if (contributor) return contributor;
 
   const compete = await handleCompete(req, env, ctx, url, signedIn);
   if (compete) return compete;

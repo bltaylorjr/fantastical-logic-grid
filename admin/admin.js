@@ -923,6 +923,40 @@ $('#sup-rows').onclick = async (e) => {
   if (!(await ask({ title: 'End this grant now?', text: 'The badge and any extras stop for this player. A payment service may add a new grant if they pay again.', ok: 'End now', danger: true }))) return;
   if (await act(b, () => api(`supporters/${b.dataset.supEnd}/remove`, { method: 'POST' }), 'Ended.')) show('supporters', { keepFocus: true });
 };
+views.contributors = async () => {
+  const d = await api('contributors');
+  $('#con-off').hidden = d.enabled;
+  const who = (r) => `${r.name ? `<bdi>${esc(r.name)}</bdi><br>` : ''}<span class="muted">${esc(r.uid)}</span>`;
+  $('#con-rows').innerHTML = d.players.length ? d.players.map((r) => `<tr>
+      <td>${who(r)}</td><td>${r.tier ? `${SUP_TIER[r.tier]}` : '<span class="muted">Not yet</span>'}</td><td><b>${r.counted || 0}</b></td>
+      <td>${r.ideas || 0}</td><td>${r.problems || 0}</td><td>${r.characters || 0}</td><td>${r.byHand || 0}</td><td>${r.waiting || 0}</td>
+    </tr>`).join('') : '<tr><td colspan="8" class="muted">No contributions yet.</td></tr>';
+  $('#con-credits').innerHTML = d.credits.length ? d.credits.map((c) => `<tr>
+      <td>${who(c)}</td><td>${esc(c.note || '')}</td><td>${when(c.createdAt)}${c.createdBy ? `<br><small class="muted">${esc(c.createdBy)}</small>` : ''}</td>
+      <td data-min="admin"><button class="btn small danger" data-con-remove="${c.id}">Remove</button></td>
+    </tr>`).join('') : '<tr><td colspan="4" class="muted">None yet.</td></tr>';
+};
+$('#con-form').onsubmit = async (e) => {
+  e.preventDefault();
+  const who = $('#con-who').value.trim();
+  const note = $('#con-note').value.trim();
+  const err = $('#con-error');
+  err.hidden = true;
+  if (!who) { err.textContent = 'Give the player\'s screen name or player id.'; err.hidden = false; $('#con-who').focus(); return; }
+  if (!note) { err.textContent = 'Write a few words on what it is for.'; err.hidden = false; $('#con-note').focus(); return; }
+  try {
+    await api('contributors', { method: 'POST', body: { note, ...(/^[\w-]{24,128}$/.test(who) ? { uid: who } : { name: who }) } });
+    $('#con-form').reset();
+    toast('Added. The player sees it the next time the game checks.');
+    show('contributors', { keepFocus: true });
+  } catch (ex) { err.textContent = ex.message; err.hidden = false; }
+};
+$('#con-credits').onclick = async (e) => {
+  const b = e.target.closest('button[data-con-remove]');
+  if (!b) return;
+  if (!(await ask({ title: 'Remove this credit?', text: 'It stops counting toward the player\'s Contributor badge.', ok: 'Remove', danger: true }))) return;
+  if (await act(b, () => api(`contributors/${b.dataset.conRemove}/remove`, { method: 'POST' }), 'Removed.')) show('contributors', { keepFocus: true });
+};
 views.connections = () => renderConnections($('#connections-view'), { api, esc, when, toast, announce });
 
 $('#ann-form').onsubmit = async (e) => {

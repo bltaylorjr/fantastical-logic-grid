@@ -19,6 +19,9 @@ let onChange = () => {};
 export const disabledThemes = () => new Set((config && config.disabledThemes) || []);
 // A shared feature is on unless the dashboard switched it off.
 export const feature = (name) => !(config && config.features && config.features[name] === false);
+// For newer features: off until the server says it is on, so an older server
+// never shows something it cannot do.
+export const featureOn = (name) => !!(config && config.features && config.features[name] === true);
 // Themes only premium supporters can pick (web/js/perks.js), and the page
 // where players get them ('' for none).
 export const premiumThemes = () => new Set((config && config.game && config.game.premiumThemes) || []);

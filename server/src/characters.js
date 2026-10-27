@@ -29,6 +29,7 @@ import { json, corsHeaders, readText, TooLarge } from './http.js';
 import { getSettings } from './settings.js';
 import { hasBlockedWords } from './names.js';
 import { bump } from './learn.js';
+import { playerOf, recordContribution, countContribution, dropContribution } from './contributors.js';
 
 export const CHARACTER_LIMIT = 40;
 const SUGGESTED_LIMIT = 200;
@@ -367,6 +368,7 @@ export function characterRoutes(Refusal) {
       const problems = await storyRuleProblems(env, c, (await listAll(env)).filter((o) => o.status === 'published'), { extra: (await getSettings(env)).blocked_words });
       if (problems.length) throw new Refusal(400, 'story_rules', problems.join(' '));
       await env.DB.prepare("UPDATE characters SET status = 'published', version = version + 1, updated_at = ?1, updated_by = ?2 WHERE id = ?3").bind(now, who.actor, c.id).run();
+      await countContribution(env, 'character', c.id, now);
       return changed({ body: { character: await need(env, c.id) }, target: c.id });
     }],
     ['POST', /^characters\/([\w-]{1,40})\/unpublish$/, 'admin', 'characters.unpublish', async ({ env, params, who, now }) => {
@@ -377,6 +379,7 @@ export function characterRoutes(Refusal) {
     ['POST', /^characters\/([\w-]{1,40})\/delete$/, 'admin', 'characters.delete', async ({ env, params }) => {
       const c = await need(env, params[0]);
       await env.DB.prepare('DELETE FROM characters WHERE id = ?1').bind(c.id).run();
+      await dropContribution(env, 'character', c.id);
       return changed({ body: { ok: true }, target: c.id, detail: { name: c.name } });
     }],
   ];
@@ -419,7 +422,10 @@ async function postSuggestion(req, env) {
   await env.DB.prepare(`INSERT INTO characters (id, name, gender, personality, look, role, themes, style, seed, voice, lines, status, source, voice_style, updated_at, updated_by)
     VALUES (?1, ?2, ?3, ?4, ?5, 'cast', ?6, 'notionists', ?7, ?8, '{"clue":[],"hint":[],"solve":[]}', 'suggested', 'player', ?9, ?10, 'a player')`)
     .bind(id, c.name, c.gender, c.personality, c.look, JSON.stringify(c.themes), c.seed, JSON.stringify(c.voice), c.voiceStyle, Date.now()).run();
-  return json(req, env, { ok: true }, 201);
+  // Ticked "Count this toward my Contributor badge": counts once published.
+  let credit = 'none';
+  if (body.credit === true) { try { credit = await recordContribution(env, await playerOf(req, env), 'character', id); } catch (e) { console.error(e); credit = 'error'; } }
+  return json(req, env, { ok: true, credit }, 201);
 }
 
 const PORTRAIT_PATH = /^\/v1\/characters\/([\w-]{1,40})\/portrait$/;

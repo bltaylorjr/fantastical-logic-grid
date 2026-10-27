@@ -7,6 +7,9 @@
 // Also the Menu's "Suggest a character" questions: the answers go to the
 // Worker as a suggestion that waits for the team's review.
 import { CLOUD_URL } from './cloud-config.js';
+import * as account from './account.js';
+import { featureOn } from './remote-config.js';
+import * as contributor from './contributor.js';
 import * as store from './store.js';
 import { setChosenGenders } from './gender.js';
 
@@ -87,11 +90,19 @@ async function sendSuggestion(form) {
   if (problem) { err.textContent = problem; err.hidden = false; return; }
   btn.disabled = true;
   try {
-    const res = await fetch(`${CLOUD_URL}/v1/characters/suggest`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    // Ticked "Count this toward my Contributor badge": the sign-in token goes
+    // along, so it counts once the team publishes the character.
+    const creditBox = $('.fb-credit', form);
+    let token = null;
+    if (!creditBox.hidden && $('[data-credit]', creditBox).checked && account.current()) { try { token = await account.getIdToken(); } catch (e) { /* sent without it */ } }
+    const res = await fetch(`${CLOUD_URL}/v1/characters/suggest`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ ...body, credit: !!token }),
+    });
     const d = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(d.message || 'It could not be sent right now. Please try again later.');
     form.reset();
-    done.textContent = `Thank you! ${body.name} was sent to the game's team. If they join the game, you may meet them in a puzzle soon.`;
+    done.textContent = `Thank you! ${body.name} was sent to the game's team. If they join the game, you may meet them in a puzzle soon.${d.credit === 'waiting' ? ' If they do, it counts toward your Contributor badge.' : ''}`;
+    if (d.credit === 'waiting') contributor.refresh();
   } catch (e) {
     err.textContent = navigator.onLine === false ? 'You seem to be offline. Connect to the internet and try again.' : e.message;
     err.hidden = false;
@@ -111,5 +122,6 @@ export function openSuggest(openDialog, themes) {
   $('#suggest-themes').innerHTML = themes.map((t) => `<label class="check"><input type="checkbox" name="themes" value="${t.id}"> ${t.name.replace(/[<>&"]/g, '')}</label>`).join('');
   $('.error-box', form).hidden = true;
   $('.acct-done', form).textContent = '';
+  $('.fb-credit', form).hidden = !account.current() || !featureOn('contributors');
   openDialog(dlg, $('#suggest-name'));
 }

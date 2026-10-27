@@ -1,7 +1,7 @@
 // The game's "Ideas and problems" boxes: two separate forms, one for story
 // and other ideas and one for problems a player wants to report.
 //
-//   POST /v1/feedback   { kind: idea|problem, topic, text, platform, version, reply, talk }
+//   POST /v1/feedback   { kind: idea|problem, topic, text, platform, version, reply, talk, credit }
 //
 // Anonymous: nothing about the player or device is stored. Email addresses,
 // web addresses and long numbers are blanked before saving. The admin
@@ -11,12 +11,14 @@
 // update email waits for the team to mark it addressed (replies.js); the
 // address is kept apart from the message itself. With talk: true and a token, the player asks the
 // team to answer in the game's Messages: only then is the row linked to the
-// account, through a new conversation (messages.js).
+// account, through a new conversation (messages.js). With credit: true and a
+// token, it counts toward the player's Contributor badge once the team marks
+// it addressed (contributors.js).
 import { json, readText, TooLarge } from './http.js';
 import { getSettings } from './settings.js';
 import { queueReply } from './replies.js';
 import { talkAboutFeedback } from './messages.js';
-import { verifyIdToken } from './auth.js';
+import { playerOf, recordContribution } from './contributors.js';
 
 export const TOPICS = {
   idea: ['story', 'theme', 'feature', 'other'],
@@ -61,14 +63,14 @@ async function postFeedback(req, env) {
   let update = false;
   try { ({ reply, update } = await queueReply(req, env, kind, body.reply === true, text, row.id)); } catch (e) { console.error(e); reply = 'error'; }
   let talk = 'none';
+  let credit = 'none';
+  const user = body.talk === true || body.credit === true ? await playerOf(req, env) : null;
   if (body.talk === true) {
-    const token = (req.headers.get('Authorization') || '').match(/^Bearer\s+(.+)$/)?.[1];
-    let user = null;
-    if (token) { try { user = await verifyIdToken(token, env); } catch (e) { /* signed out */ } }
     if (!user) talk = 'signed_out';
     else { try { talk = await talkAboutFeedback(env, user, kind, text, row.id); } catch (e) { console.error(e); talk = 'error'; } }
   }
-  return json(req, env, { ok: true, reply, update, talk });
+  if (body.credit === true) { try { credit = await recordContribution(env, user, kind, row.id); } catch (e) { console.error(e); credit = 'error'; } }
+  return json(req, env, { ok: true, reply, update, talk, credit });
 }
 
 // Returns a Response for this module's routes, or null for anything else.

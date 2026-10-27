@@ -85,6 +85,7 @@
       <li><a href="#names" data-min="moderator">Screen names <span class="count" id="count-names" hidden></span></a></li>
       <li><a href="#players" data-min="viewer">Players</a></li>
       <li><a href="#supporters" data-min="admin">Supporters</a></li>
+      <li><a href="#contributors" data-min="moderator">Contributors</a></li>
       <li><a href="#settings" data-min="viewer">Settings and switches</a></li>
       <li><a href="#connections" data-min="viewer">Connections and setup</a></li>
       <li><a href="#backups" data-min="admin">Backups and archive</a></li>
@@ -308,6 +309,26 @@
         <div class="row"><button class="btn primary" type="submit">Add</button></div>
       </form>
       <div class="table-wrap"><table class="table"><thead><tr><th scope="col">Who</th><th scope="col">Gets</th><th scope="col">Badge</th><th scope="col">From</th><th scope="col">Since</th><th scope="col">Ends</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody id="sup-rows"></tbody></table></div>
+    </section>
+
+    <section data-view="contributors" hidden aria-labelledby="h-contributors">
+      <div class="head"><h1 id="h-contributors">Contributors</h1></div>
+      <p class="muted">Signed-in players can tick <b>Count this toward my Contributor badge</b> when they send an idea, report a problem or suggest a character. It counts once you use it: when you mark the idea or problem <b>addressed</b> in Communication, or publish the character. The badge goes up as the count grows: Bronze, Silver, Gold and Platinum. You choose the numbers, and whether fixed problem reports count, under Settings and switches &gt; Contributors. The badge shows in the player's My stats and next to their name on the scoreboard. The ideas themselves stay anonymous in Communication; only this page knows who sent what was used.</p>
+      <p class="error" id="con-off" hidden>Contributor badges are switched off under Settings and switches &gt; Contributors, so players see nothing and nothing new is counted.</p>
+      <form id="con-form" class="stack card" novalidate data-min="admin">
+        <h2>Add a credit by hand</h2>
+        <p class="muted">For help given outside the game, for example a story idea sent by email or testing a new level. It counts straight away.</p>
+        <div class="row">
+          <div class="field grow"><label for="con-who">Player's screen name or player id</label><input id="con-who" type="text" autocomplete="off" spellcheck="false" required></div>
+          <div class="field grow"><label for="con-note">What it is for</label><input id="con-note" type="text" maxlength="200" autocomplete="off" required></div>
+        </div>
+        <p class="error" id="con-error" role="alert" hidden></p>
+        <div class="row"><button class="btn primary" type="submit">Add</button></div>
+      </form>
+      <h2>Players</h2>
+      <div class="table-wrap"><table class="table"><thead><tr><th scope="col">Player</th><th scope="col">Badge</th><th scope="col">Used</th><th scope="col">Ideas</th><th scope="col">Problems fixed</th><th scope="col">Characters</th><th scope="col">By hand</th><th scope="col">Waiting</th></tr></thead><tbody id="con-rows"></tbody></table></div>
+      <h2>Credits added by hand</h2>
+      <div class="table-wrap"><table class="table"><thead><tr><th scope="col">Player</th><th scope="col">For</th><th scope="col">Added</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody id="con-credits"></tbody></table></div>
     </section>
 
     <section data-view="settings" hidden aria-labelledby="h-settings">

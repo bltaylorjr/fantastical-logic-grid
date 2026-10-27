@@ -148,6 +148,11 @@ legend { font-weight: 700; font-size: 1.05rem; padding: 0; margin-bottom: 8px; }
 .pill.supporter.tier-2 { box-shadow: inset 0 0 0 2px #8a929e; } .pill.supporter.tier-2 > span { color: #8a929e; }
 .pill.supporter.tier-3 { box-shadow: inset 0 0 0 2px #c9a227; } .pill.supporter.tier-3 > span { color: #c9a227; }
 .pill.supporter.tier-4 { box-shadow: inset 0 0 0 2px #7d8fb3; background: linear-gradient(135deg, var(--accent-soft), transparent); } .pill.supporter.tier-4 > span { color: #7d8fb3; }
+.pill.contributor { background: var(--surface-2); color: inherit; }
+.pill.contributor.tier-1 { box-shadow: inset 0 0 0 2px #b0703a; } .pill.contributor.tier-1 > span { color: #b0703a; }
+.pill.contributor.tier-2 { box-shadow: inset 0 0 0 2px #8a929e; } .pill.contributor.tier-2 > span { color: #8a929e; }
+.pill.contributor.tier-3 { box-shadow: inset 0 0 0 2px #c9a227; } .pill.contributor.tier-3 > span { color: #c9a227; }
+.pill.contributor.tier-4 { box-shadow: inset 0 0 0 2px #7d8fb3; } .pill.contributor.tier-4 > span { color: #7d8fb3; }
 .custom-size { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 12px; max-width: 480px; }
 .more { margin-bottom: 24px; border-top: 1px solid var(--hairline); padding-top: 8px; }
 .more summary { cursor: pointer; font-weight: 700; min-height: 44px; display: flex; align-items: center; }

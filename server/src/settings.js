@@ -115,6 +115,13 @@ export const SETTINGS = {
   feedback_enabled: { type: 'bool', default: true, group: 'Ideas and problems', label: 'Idea and problem boxes', help: 'Off: the game hides its Ideas and problems boxes.' },
   feedback_replies_enabled: { type: 'bool', default: true, group: 'Ideas and problems', label: 'Thank-you emails', help: 'Signed-in players with a confirmed email can tick "Email me an update": a short no-reply note quoting what they wrote (a thank-you for an idea, or an apology and thank-you for a problem report), and a second one with your "What was done" note when you mark it addressed. Sent every 15 minutes from noreply@thelogicgrid.com through Resend, or from the game\'s Gmail as a backup (server/FEEDBACK-EMAILS.md). Off: no new notes, and waiting ones are dropped.' },
   feedback_reply_daily_cap: { type: 'int', min: 0, max: 400, default: 100, group: 'Ideas and problems', label: 'Thank-you emails a day', help: 'For everyone together. Resend\'s free plan sends 100 a day, then Gmail (about 500 a day, shared with the archive and summary emails) takes over. Each player gets at most one note a day for ideas and one for problems.' },
+  // ---- Contributors: a badge for players whose ideas and suggestions the team uses.
+  contributor_badges_enabled: { type: 'bool', default: true, group: 'Contributors', label: 'Contributor badges', help: 'Signed-in players can tick "Count this toward my Contributor badge" when they send an idea, a problem report or a character suggestion. It counts once you use it: an idea or problem marked addressed, or a suggested character published. The badge shows in their My stats and next to their name on the scoreboard. Off: no tick box, no badges and nothing new is counted; counts already earned are kept.' },
+  contributor_bronze_from: { type: 'int', min: 1, max: 1000, default: 2, group: 'Contributors', label: 'Bronze contributor badge from (used ideas and suggestions)', help: 'How many of a player\'s ideas, fixed problem reports and characters the team has used before they get the first badge. Credits you add by hand under Contributors count too.' },
+  contributor_silver_from: { type: 'int', min: 1, max: 1000, default: 5, group: 'Contributors', label: 'Silver contributor badge from', help: 'Keep it above the Bronze number.' },
+  contributor_gold_from: { type: 'int', min: 1, max: 1000, default: 10, group: 'Contributors', label: 'Gold contributor badge from', help: 'Keep it above the Silver number.' },
+  contributor_platinum_from: { type: 'int', min: 1, max: 1000, default: 25, group: 'Contributors', label: 'Platinum contributor badge from', help: 'Keep it above the Gold number.' },
+  contributor_problems_count: { type: 'bool', default: true, group: 'Contributors', label: 'Fixed problem reports count too', help: 'On: a problem report you mark addressed counts toward the badge, like an idea. Off: only ideas, characters and credits you add by hand count.' },
   // ---- Messages
   messages_enabled: { type: 'bool', default: true, group: 'Messages', label: 'Messages between players and the team', help: 'Signed-in players can write to the team from Menu > Messages, ask for a reply on an idea or problem, and read the team\'s answers and news there. Answer them in Communication. Off: the game hides Messages and nothing new can be sent.' },
   message_emails_enabled: { type: 'bool', default: true, group: 'Messages', label: 'Email players when the team writes', help: 'Only players who turned it on in Messages, at most one a day each. The email says there is a new message in the game, never what it says. Counts toward Thank-you emails a day and needs Thank-you emails on.' },
@@ -239,6 +246,7 @@ export async function publicConfig(req, env) {
       storySharing: s.story_sharing_enabled, learning: s.learning_enabled, errorReports: s.error_reports_enabled,
       feedback: s.feedback_enabled, feedbackReplies: s.feedback_replies_enabled, soundEffects: s.sound_effects_enabled, music: s.theme_music_enabled, pictures: s.ai_pictures !== 'none',
       translate: s.translate_enabled, messages: s.messages_enabled, challenges: s.challenges_enabled, dailyResults: s.daily_results_enabled, dailyEmail: s.daily_email_enabled,
+      contributors: s.contributor_badges_enabled,
     },
     news: s.messages_enabled ? await publicNews(env) : [],
     // Chosen here for every player.

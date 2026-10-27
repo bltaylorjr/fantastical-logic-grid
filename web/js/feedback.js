@@ -9,10 +9,13 @@
 // account's confirmed address (server/src/replies.js), which is never stored
 // with the message. Ticking
 // "Let the team reply to me" links this one message to the account, so the
-// team can answer it in Menu > Messages (server/src/messages.js).
+// team can answer it in Menu > Messages (server/src/messages.js). Ticking
+// "Count this toward my Contributor badge" links it to the account too, so it
+// counts once the team marks it addressed (server/src/contributors.js).
 import { CLOUD, CLOUD_URL } from './cloud-config.js';
 import * as account from './account.js';
-import { feature } from './remote-config.js';
+import { feature, featureOn } from './remote-config.js';
+import * as contributor from './contributor.js';
 import { platform } from './errors.js';
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -22,6 +25,7 @@ const REPLY_WORDS = {
   unverified: 'To get email updates, confirm your email address first (Account).',
   limit: 'You already got a thank-you email today, so we won\'t send another.',
 };
+const CREDIT_WORDS = 'If the team uses it, it counts toward your Contributor badge.';
 const UPDATE_WORDS = 'We\'ll email you again when the team acts on it.';
 const TALK_WORDS = {
   linked: 'The team can reply to you in Menu > Messages.',
@@ -46,16 +50,19 @@ async function send(form) {
     const reply = !box.hidden && $('[data-reply]', box).checked && !!account.current();
     const talkBox = $('.fb-talk', form);
     const talk = !talkBox.hidden && $('[data-talk]', talkBox).checked && !!account.current();
+    const creditBox = $('.fb-credit', form);
+    const credit = !creditBox.hidden && $('[data-credit]', creditBox).checked && !!account.current();
     let token = null;
-    if (reply || talk) { try { token = await account.getIdToken(); } catch (e) { /* sent without a note */ } }
+    if (reply || talk || credit) { try { token = await account.getIdToken(); } catch (e) { /* sent without a note */ } }
     const res = await fetch(`${CLOUD_URL}/v1/feedback`, {
       method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-      body: JSON.stringify({ kind, topic, text, platform: platform(), version: CLOUD.appVersion || 'dev', reply: !!token && reply, talk: !!token && talk }),
+      body: JSON.stringify({ kind, topic, text, platform: platform(), version: CLOUD.appVersion || 'dev', reply: !!token && reply, talk: !!token && talk, credit: !!token && credit }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.message || 'It could not be sent right now. Please try again later.');
     $('textarea', form).value = '';
-    done.textContent = (kind === 'idea' ? 'Thank you! Your idea was sent.' : 'Thank you! Your report was sent.') + (REPLY_WORDS[data.reply] ? ` ${REPLY_WORDS[data.reply]}` : '') + (data.update ? ` ${UPDATE_WORDS}` : '') + (TALK_WORDS[data.talk] ? ` ${TALK_WORDS[data.talk]}` : '');
+    done.textContent = (kind === 'idea' ? 'Thank you! Your idea was sent.' : 'Thank you! Your report was sent.') + (REPLY_WORDS[data.reply] ? ` ${REPLY_WORDS[data.reply]}` : '') + (data.update ? ` ${UPDATE_WORDS}` : '') + (TALK_WORDS[data.talk] ? ` ${TALK_WORDS[data.talk]}` : '') + (data.credit === 'waiting' ? ` ${CREDIT_WORDS}` : '');
+    if (data.credit === 'waiting') contributor.refresh();
   } catch (e) {
     err.textContent = navigator.onLine === false ? 'You seem to be offline. Connect to the internet and try again.' : e.message;
     err.hidden = false;
@@ -80,6 +87,7 @@ export function open(openDialog, { kind = 'idea' } = {}) {
     $('.fb-reply', form).hidden = !me || !feature('feedbackReplies');
     $('.fb-reply-to', form).textContent = me?.email ? ` at ${me.email}` : '';
     $('.fb-talk', form).hidden = !me || !feature('messages');
+    $('.fb-credit', form).hidden = !me || !featureOn('contributors');
   }
   if (kind === 'idea') $('input[name=idea-topic][value=story]').checked = true;
   openDialog(dlg, kind === 'problem' ? $('#problem-topic') : $('#idea-text'));
