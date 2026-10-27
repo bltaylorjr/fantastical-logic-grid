@@ -556,9 +556,9 @@ uses a secret, variable or binding that is not listed there.
 
 **Links:** [ARCHIVE.md](https://github.com/bltaylorjr/fantastical-logic-grid/blob/main/server/ARCHIVE.md) · [Full guide (server/ARCHIVE.md)](https://github.com/bltaylorjr/fantastical-logic-grid/blob/main/server/ARCHIVE.md)
 
-### Resend: player emails from noreply@thelogicgrid.com
+### Resend: player emails from support@thelogicgrid.com
 
-**Why:** Sends the thank-you notes for ideas and problems from noreply@thelogicgrid.com instead of the Gmail address. Until it is set up, notes go from Gmail, so nothing is lost.
+**Why:** Sends the thank-you notes for ideas and problems from support@thelogicgrid.com instead of the Gmail address. Until it is set up, notes go from Gmail, so nothing is lost.
 
 **Cost:** Free plan: 3,000 emails a month, 100 a day, no card. Past that Resend refuses and Gmail takes over.
 

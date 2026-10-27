@@ -11,9 +11,9 @@ cannot send email itself (server/EDUCATORS.md).
    educator's verified school address.
 4. Tell the Worker what went out (POST /admin/v1/educators/done).
 
-Email goes from noreply@thelogicgrid.com through Resend (free plan) when
+Email goes from support@thelogicgrid.com through Resend (free plan) when
 RESEND_API_KEY is set and the domain is verified there, otherwise from the
-game's Gmail with a "(no-reply)" sender name. The repository is public, so its
+game's Gmail. Replies go to MAIL_REPLY_TO. The repository is public, so its
 Actions logs are too: this prints only counts and request references, never
 an email address, name or code. Python standard library only.
 """
@@ -37,13 +37,14 @@ TOKEN = os.environ.get('FLG_ADMIN_TOKEN', '').strip()
 GMAIL_USER = os.environ.get('GMAIL_USER', '').strip()
 GMAIL_PASSWORD = ''.join(os.environ.get('GMAIL_APP_PASSWORD', '').split())
 RESEND_KEY = os.environ.get('RESEND_API_KEY', '').strip()
-MAIL_FROM = os.environ.get('MAIL_FROM', '').strip() or 'noreply@thelogicgrid.com'
+MAIL_FROM = os.environ.get('MAIL_FROM', '').strip() or 'support@thelogicgrid.com'
+# Replies to player emails land here until support@ has its own inbox (MAIL_REPLY_TO overrides).
+REPLY_TO = os.environ.get('MAIL_REPLY_TO', '').strip() or 'fantasticallogicgrid@gmail.com'
 SITE = (os.environ.get('FLG_SITE_URL', '').strip() or 'https://thelogicgrid.com').rstrip('/')
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SENDER_NAME = 'The Fantastical Logic Grid (no-reply)'
+SENDER_NAME = 'The Fantastical Logic Grid'
 CONTACT = 'fantasticallogicgrid@gmail.com'
-NO_REPLY = ('This is an automatic message from a no-reply address, so replies are not read. '
-            f'Questions? Write to {CONTACT}.')
+NO_REPLY = 'Questions? Just reply to this email.'
 SIGN_OFF = 'The Fantastical Logic Grid team\n' + SITE
 
 
@@ -166,7 +167,7 @@ class Mailer:
         return False
 
     def _resend(self, to, mail, attachments):
-        payload = {'from': formataddr(('The Fantastical Logic Grid', MAIL_FROM)), 'to': [to], 'subject': mail['subject'],
+        payload = {'from': formataddr(('The Fantastical Logic Grid', MAIL_FROM)), 'to': [to], 'reply_to': REPLY_TO, 'subject': mail['subject'],
                    'text': text_version(mail), 'html': html_version(mail),
                    'headers': {'Auto-Submitted': 'auto-generated', 'X-Auto-Response-Suppress': 'All'}}
         if attachments:
@@ -189,6 +190,7 @@ class Mailer:
         msg = EmailMessage()
         msg['From'] = formataddr((SENDER_NAME, GMAIL_USER))
         msg['To'] = to
+        msg['Reply-To'] = REPLY_TO
         msg['Subject'] = mail['subject']
         msg['Message-ID'] = make_msgid(domain='thelogicgrid.com')
         msg['Auto-Submitted'] = 'auto-generated'

@@ -3,11 +3,10 @@ GitHub Action .github/workflows/feedback-replies.yml every 15 minutes (the
 domain's DNS is not on Cloudflare, so the Worker cannot send email itself).
 
 1. Ask the Worker for the notes waiting (POST /admin/v1/replies/claim).
-2. Send each one from noreply@thelogicgrid.com through Resend (free plan:
+2. Send each one from support@thelogicgrid.com through Resend (free plan:
    100 a day, 3,000 a month) when RESEND_API_KEY is set and the domain is
    verified there. Anything Resend does not take goes from the game's Gmail
-   (smtp.gmail.com, an app password) with a "(no-reply)" sender name
-   instead. The wording is fixed; thank-you and update emails also quote
+   (smtp.gmail.com, an app password) instead. Replies go to MAIL_REPLY_TO. The wording is fixed; thank-you and update emails also quote
    what the player wrote (and, for an update, the team's note on what was
    done). They only ever go to the player's own confirmed address.
 3. Tell the Worker which went out (POST /admin/v1/replies/done), which
@@ -35,11 +34,13 @@ TOKEN = os.environ.get('FLG_ADMIN_TOKEN', '').strip()
 GMAIL_USER = os.environ.get('GMAIL_USER', '').strip()
 GMAIL_PASSWORD = ''.join(os.environ.get('GMAIL_APP_PASSWORD', '').split())
 RESEND_KEY = os.environ.get('RESEND_API_KEY', '').strip()
-MAIL_FROM = os.environ.get('MAIL_FROM', '').strip() or 'noreply@thelogicgrid.com'
+MAIL_FROM = os.environ.get('MAIL_FROM', '').strip() or 'support@thelogicgrid.com'
+# Replies to player emails land here until support@ has its own inbox (MAIL_REPLY_TO overrides).
+REPLY_TO = os.environ.get('MAIL_REPLY_TO', '').strip() or 'fantasticallogicgrid@gmail.com'
 GAME_URL = 'https://thelogicgrid.com'
-SENDER_NAME = 'The Fantastical Logic Grid (no-reply)'
-NO_REPLY = ('This is an automatic message from a no-reply address. Please do not reply to it: '
-            'replies are not read. To share another idea or report a problem, use Menu > Ideas and problems in the game.')
+SENDER_NAME = 'The Fantastical Logic Grid'
+NO_REPLY = ('Questions? Just reply to this email. To share another idea or report a problem, '
+            'use Menu > Ideas and problems in the game.')
 
 SIGN_OFF = 'The Fantastical Logic Grid team\n' + GAME_URL
 
@@ -154,6 +155,7 @@ def message(r):
     msg = EmailMessage()
     msg['From'] = formataddr((SENDER_NAME, GMAIL_USER))
     msg['To'] = r['email']
+    msg['Reply-To'] = REPLY_TO
     msg['Subject'] = NOTES[r['kind']]['subject']
     msg['Message-ID'] = make_msgid(domain='thelogicgrid.com')
     # An automatic message: mail programs should not send out-of-office answers to it.
@@ -169,7 +171,7 @@ def send_resend(replies):
     anything in neither list is left for Gmail."""
     sent, refused = [], []
     for r in replies:
-        payload = {'from': formataddr(('The Fantastical Logic Grid', MAIL_FROM)), 'to': [r['email']], 'subject': NOTES[r['kind']]['subject'],
+        payload = {'from': formataddr(('The Fantastical Logic Grid', MAIL_FROM)), 'to': [r['email']], 'reply_to': REPLY_TO, 'subject': NOTES[r['kind']]['subject'],
                    'text': text_version(r), 'html': html_version(r),
                    'headers': {'Auto-Submitted': 'auto-replied', 'X-Auto-Response-Suppress': 'All'}}
         req = urllib.request.Request('https://api.resend.com/emails', method='POST', data=json.dumps(payload).encode(),

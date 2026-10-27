@@ -647,9 +647,9 @@ export const CONNECTIONS = [
   {
     id: 'resend',
     group: 'email',
-    title: 'Resend: player emails from noreply@thelogicgrid.com',
+    title: 'Resend: player emails from support@thelogicgrid.com',
     docs: 'server/FEEDBACK-EMAILS.md',
-    why: 'Sends the thank-you notes for ideas and problems from noreply@thelogicgrid.com instead of the Gmail address. Until it is set up, notes go from Gmail, so nothing is lost.',
+    why: 'Sends the thank-you notes for ideas and problems from support@thelogicgrid.com instead of the Gmail address. Until it is set up, notes go from Gmail, so nothing is lost.',
     cost: 'Free plan: 3,000 emails a month, 100 a day, no card. Past that Resend refuses and Gmail takes over.',
     names: [
       { name: 'RESEND_API_KEY', where: 'github-secret', optional: true, note: 'Starts re_. Sending access, domain thelogicgrid.com only.' },

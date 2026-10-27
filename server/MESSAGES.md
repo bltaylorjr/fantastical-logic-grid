@@ -14,7 +14,7 @@ optional email notices use the same free sender as the thank-you emails
 - **You and the team** (signed in): write to the team (a question, an idea or
   a problem), read the team's replies and answer. Replies are signed
   "The team"; players never see which admin wrote.
-- **Email me when the team writes**: a short no-reply notice, at most one a
+- **Email me when the team writes**: a short notice, at most one a
   day, never with the message itself. Needs a confirmed email. Turning it off
   removes the stored address.
 - **Ideas and problems**: signed-in players can tick "Let the team reply to

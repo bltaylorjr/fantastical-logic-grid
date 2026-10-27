@@ -51,7 +51,7 @@ body{margin:0;font-family:Arial,Helvetica,sans-serif;background:#e8eaf0}
 .att{display:flex;gap:12px;padding:12px 24px;border-bottom:1px solid #eee}.att div{border:1px solid #ccc;border-radius:8px;padding:8px 14px;font-size:14px}.att b{color:#c62828}
 .mail{transform:scale(.92);transform-origin:top center}</style></head><body>
 <div class="bar">Inbox · Lincoln Elementary School Mail</div><div class="wrap"><div class="head"><h1>${esc(subject)}</h1>
-<p><b>From:</b> The Fantastical Logic Grid &lt;noreply@thelogicgrid.com&gt;</p><p><b>To:</b> rivera@lincoln.k12.ca.us</p></div>
+<p><b>From:</b> The Fantastical Logic Grid &lt;support@thelogicgrid.com&gt;</p><p><b>To:</b> rivera@lincoln.k12.ca.us</p></div>
 ${attachments.length ? `<div class="att">${attachments.map((a) => `<div><b>PDF</b> ${esc(a)}</div>`).join('')}</div>` : ''}
 <div class="mail"><iframe srcdoc="${esc(html)}" style="width:100%;height:900px;border:0"></iframe></div></div></body></html>`;
 }
