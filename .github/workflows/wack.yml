@@ -1,8 +1,10 @@
 # Runs Microsoft's Windows App Certification Kit (WACK), the same test kit the
 # Microsoft Store uses, on both Windows apps: the game (desktop/) and the admin
-# app (desktop-admin/). It builds each installer, lets the kit install, start,
-# check and uninstall it, then lists every test with Pass or Fail on the run's
-# summary page and keeps the full report as a download (wack-report-*).
+# app (desktop-admin/). Today's kit only tests MSIX packages (the Store format),
+# so scripts/wack-msix.ps1 packages each app as an MSIX signed with a throwaway
+# test certificate; the kit installs, starts, checks and removes it. Every test
+# is listed with Pass or Fail on the run's summary page, and the full report is
+# kept as a download (wack-report-*).
 # Runs on pull requests that change the desktop apps, and from the Actions tab.
 # The website checks the Store also looks at run in every test run
 # (scripts/check-store.mjs). Free: GitHub Actions minutes are free for public repos,
@@ -11,7 +13,7 @@ name: Windows app certification
 on:
   workflow_dispatch:
   pull_request:
-    paths: ['desktop/**', 'desktop-admin/**', '.cargo/**', '.github/workflows/wack.yml', 'scripts/wack-summary.mjs']
+    paths: ['desktop/**', 'desktop-admin/**', '.cargo/**', '.github/workflows/wack.yml', 'scripts/wack-summary.mjs', 'scripts/wack-msix.ps1']
 permissions:
   contents: read
 concurrency:
@@ -56,18 +58,10 @@ jobs:
             Start-Process "$env:RUNNER_TEMP\winsdksetup.exe" -ArgumentList '/features OptionId.WindowsSoftwareLogoToolkit /quiet /norestart /ceip off' -Wait
           }
           if (-not (Test-Path $kit)) { Write-Error "appcert.exe was not found after installing the kit."; exit 1 }
-          "APPCERT=$kit" >> $env:GITHUB_ENV
-          & $kit /? | Select-Object -First 60
-      - name: Run the certification tests (install, start, check, uninstall)
+      - name: Package as MSIX and run the certification tests (install, start, check, remove)
         run: |
-          $setup = Get-ChildItem "${{ matrix.app }}\src-tauri\target\release\bundle\nsis\*_x64-setup.exe" | Select-Object -First 1
-          Write-Host "Testing $($setup.FullName)"
-          $report = "$env:RUNNER_TEMP\wack-${{ matrix.app }}.xml"
-          "REPORT=$report" >> $env:GITHUB_ENV
-          & $env:APPCERT reset
-          & $env:APPCERT test -apptype desktop -setuppath $setup.FullName -setupcommandline "/S" -appusage peruser -reportoutputpath $report
-          Write-Host "appcert exit code $LASTEXITCODE"
-          if (-not (Test-Path $report)) { Write-Error "The kit wrote no report."; exit 1 }
+          "REPORT=$env:RUNNER_TEMP\wack-${{ matrix.app }}.xml" >> $env:GITHUB_ENV
+          ./scripts/wack-msix.ps1 -App ${{ matrix.app }} -Out $env:RUNNER_TEMP
       - name: Results
         if: always() && env.REPORT != ''
         run: node scripts/wack-summary.mjs "$env:REPORT" "${{ matrix.app }}"
