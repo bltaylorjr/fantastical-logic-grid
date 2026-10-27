@@ -8,6 +8,18 @@ createServer(async (req, res) => {
   let p = decodeURIComponent(new URL(req.url, 'http://x').pathname);
   if (p.endsWith('/')) p += 'index.html';
   const file = join(dir, normalize(p).replace(/^(\.\.[/\\])+/, ''));
-  try { const body = await readFile(file); res.writeHead(200, { 'content-type': types[extname(file)] || 'application/octet-stream' }); res.end(body); }
+  try {
+    const body = await readFile(file);
+    const type = types[extname(file)] || 'application/octet-stream';
+    // Range requests, as real hosts serve them, so the video streams and seeks.
+    const r = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range || '');
+    if (r) {
+      const start = r[1] ? +r[1] : Math.max(0, body.length - +r[2]);
+      const end = r[1] && r[2] ? Math.min(+r[2], body.length - 1) : body.length - 1;
+      res.writeHead(206, { 'content-type': type, 'accept-ranges': 'bytes', 'content-range': `bytes ${start}-${end}/${body.length}` });
+      return res.end(body.subarray(start, end + 1));
+    }
+    res.writeHead(200, { 'content-type': type, 'accept-ranges': 'bytes' }); res.end(body);
+  }
   catch { res.writeHead(404); res.end('Not found'); }
 }).listen(port, () => console.log(`http://localhost:${port}/`));

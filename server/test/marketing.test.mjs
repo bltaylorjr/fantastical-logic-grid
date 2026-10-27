@@ -87,6 +87,30 @@ test('the starter campaign arrives once with its ads, media and tracked links', 
   assert.equal((await db.prepare('SELECT COUNT(*) AS n FROM marketing_media').first()).n, before);
 });
 
+test('the daily poster gets the approved ads due by a day, and reports each one', async () => {
+  assert.equal((await call('/admin/v1/marketing/due?day=2026-11-03', { auth: viewer() })).status, 403, 'admins only');
+  const r = await call('/admin/v1/marketing/due?day=2026-11-03', { auth: admin() });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.autopost, true);
+  assert.deepEqual(r.body.ads.map((a) => `${a.postOn} ${a.channel}`).sort(), ['2026-11-02 email', '2026-11-03 bluesky', '2026-11-03 linkedin']);
+  const sky = r.body.ads.find((a) => a.channel === 'bluesky');
+  assert.ok(sky.words.includes('utm_source=bluesky') && !sky.words.includes('{link}'), 'link filled in');
+  assert.ok(sky.media.length && sky.media.every((m) => /^https:/.test(m.url)), 'files listed with their links');
+  assert.equal((await call(`/admin/v1/marketing/ads/${sky.id}/auto`, { auth: admin(), body: { ok: false, note: 'Bluesky: sign-in refused' } })).status, 200);
+  let row = await db.prepare('SELECT status, auto_note FROM campaign_ads WHERE id = ?1').bind(sky.id).first();
+  assert.deepEqual({ ...row }, { status: 'approved', auto_note: 'Bluesky: sign-in refused' }, 'a failure stays approved to try again');
+  assert.equal((await call(`/admin/v1/marketing/ads/${sky.id}/auto`, { auth: admin(), body: { ok: true, postUrl: 'https://bsky.app/profile/x/post/1' } })).status, 200);
+  row = await db.prepare('SELECT status, post_url, posted_at FROM campaign_ads WHERE id = ?1').bind(sky.id).first();
+  assert.equal(row.status, 'posted');
+  assert.equal(row.post_url, 'https://bsky.app/profile/x/post/1');
+  assert.ok(row.posted_at > 0);
+  assert.equal((await call(`/admin/v1/marketing/ads/${sky.id}/auto`, { auth: admin(), body: { ok: true } })).status, 409, 'never posted twice');
+  const after = await call('/admin/v1/marketing/due?day=2026-11-03', { auth: admin() });
+  assert.equal(after.body.ads.length, 2, 'posted ads leave the list');
+  // Back to approved for the tests below.
+  await db.prepare("UPDATE campaign_ads SET status = 'approved', post_url = NULL, posted_at = NULL, auto_note = NULL WHERE id = ?1").bind(sky.id).run();
+});
+
 test('the game counts campaign visits anonymously, and made-up codes fold into other', async () => {
   for (let i = 0; i < 3; i++) assert.equal((await send({ e: 'visit', c: 'launch-2026', s: 'reddit', m: 'forum', k: 'webgames-launch', p: 'web' })).status, 200);
   await send({ e: 'solve', c: 'launch-2026', s: 'reddit', m: 'forum', k: 'webgames-launch', p: 'web' });
