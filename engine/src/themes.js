@@ -573,7 +573,7 @@ export const THEMES = [
   {
     id: 'science',
     name: 'Science',
-    description: 'Science fairs, fossils and fizzing experiments with curious scientists.',
+    description: 'Science fairs, weather watching, rock shows and how-things-move experiments with curious scientists.',
     cast: { one: 'scientist', many: 'scientists' },
     names: ['Ada', 'Grace', 'Hedy', 'Lena', 'Priya', 'Theo', 'Ravi', 'Owen', 'Felix', 'Sam'],
     categories: [

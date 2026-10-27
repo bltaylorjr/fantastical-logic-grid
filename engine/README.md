@@ -139,7 +139,7 @@ player can pick a topic or leave it on **Any**, which picks one at random.
 | Music | Big Concert (`concert`), Battle of the Bands (`bands`), Music Lessons (`lessons`), Karaoke Night (`karaoke`) |
 | Nautical | Sailing Regatta (`regatta`), Lighthouse Keepers (`lighthouse`), Harbor Festival (`harbor`), Deep-Sea Fishing (`fishing`), Cruise Ship (`cruise`) |
 | Farm Life | Busy Farm Day (`farmday`), County Fair (`countyfair`), Apple Orchard (`orchard`), Farmers Market (`market`), Riding Stables (`stables`) |
-| Science | Science Fair (`sciencefair`), Weather Watch (`weather`), Physics Playground (`physics`) |
+| Science | Science Fair (`sciencefair`), Weather Watch (`weather`), Physics Playground (`physics`), Rock and Mineral Show (`rocks`) |
 | Math | Math Contest (`contest`), Code Breakers (`codebreakers`), Escape Room (`escaperoom`), Pi Day Party (`piday`) |
 | Biology | Field Trip (`fieldtrip`), Dinosaur Dig (`dinosaurs`), Tide Pool Survey (`tidepools`), Bird Count (`birdcount`) |
 | Chemistry | Lab Day (`labday`), Chemistry Lab (`lab`), Fireworks Show (`fireworks`), Crystal Garden (`crystals`) |
