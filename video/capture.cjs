@@ -589,10 +589,12 @@ const CSS = `
     await p.keyboard.press('Escape');
     if (!(await p.$eval('[data-cmd=feedback]', (b) => b.hidden))) {
       await p.click('#menu-btn'); await p.click('[data-cmd=feedback]'); await p.waitForSelector('#dlg-feedback[open]'); await prep();
+      await p.selectOption('#idea-theme', 'adventure').catch(() => {});
       await p.fill('#idea-text', 'A pirate ship lost in the fog, where the crew mixed up the treasure maps.');
       const replyOffered = await p.isVisible('#idea-form .fb-reply');
       const talkOffered = await p.isVisible('#idea-form .fb-talk');
       await scene('feedback', ['Have an idea for a story, or found a problem?', 'Ideas and problems, in the menu, has a separate box for each, and they go straight to the game\'s team.',
+        'For a storyline idea, pick which theme it is for from the list.',
         ...(replyOffered ? ['Signed in with a confirmed email? Leave Email me an update ticked. The game emails you a thank-you, and again when the team acts on it.'] : []),
         ...(talkOffered ? ['Want an answer? Tick Let the team reply to me.'] : [])]);
       await p.keyboard.press('Escape');

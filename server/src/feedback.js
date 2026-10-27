@@ -1,7 +1,10 @@
 // The game's "Ideas and problems" boxes: two separate forms, one for story
 // and other ideas and one for problems a player wants to report.
 //
-//   POST /v1/feedback   { kind: idea|problem, topic, text, platform, version, reply, talk }
+//   POST /v1/feedback   { kind: idea|problem, topic, text, platform, version, reply, talk, theme }
+//
+// theme: for a storyline idea, the engine theme id the player picked it for
+// (optional; anything else is dropped).
 //
 // Anonymous: nothing about the player or device is stored. Email addresses,
 // web addresses and long numbers are blanked before saving. The admin
@@ -17,11 +20,14 @@ import { getSettings } from './settings.js';
 import { queueReply } from './replies.js';
 import { talkAboutFeedback } from './messages.js';
 import { verifyIdToken } from './auth.js';
+import { THEMES } from '../../engine/src/themes.js';
 
 export const TOPICS = {
   idea: ['story', 'theme', 'feature', 'other'],
   problem: ['play', 'sound', 'pictures', 'saving', 'other'],
 };
+const THEME_IDS = new Set(THEMES.map((t) => t.id));
+export const themeName = (id) => (THEMES.find((t) => t.id === id) || {}).name || id || '';
 const PLATFORMS = new Set(['web', 'desktop', 'android', 'ios']);
 const MAX_NEW_PER_DAY = 500;
 
@@ -48,6 +54,7 @@ async function postFeedback(req, env) {
   const kind = TOPICS[body?.kind] ? body.kind : null;
   if (!kind) return json(req, env, { error: 'bad_request' }, 400);
   const topic = TOPICS[kind].includes(body.topic) ? body.topic : 'other';
+  const theme = kind === 'idea' && topic === 'story' && THEME_IDS.has(body.theme) ? body.theme : null;
   const text = cleanText(body.text);
   if (text.length < 5) return json(req, env, { error: 'too_short', message: 'Write a little more (at least 5 characters).' }, 400);
   const platform = PLATFORMS.has(body.platform) ? body.platform : 'web';
@@ -55,8 +62,8 @@ async function postFeedback(req, env) {
   const since = Date.now() - 24 * 3600_000;
   const { n } = await env.DB.prepare('SELECT COUNT(*) AS n FROM feedback WHERE created_at > ?1').bind(since).first();
   if (n >= MAX_NEW_PER_DAY) return json(req, env, { error: 'busy', message: 'The boxes are full for today. Please try again tomorrow.' }, 429);
-  const row = await env.DB.prepare('INSERT INTO feedback (kind, topic, text, platform, version, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6) RETURNING id')
-    .bind(kind, topic, text, platform, version, Date.now()).first();
+  const row = await env.DB.prepare('INSERT INTO feedback (kind, topic, text, platform, version, theme, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7) RETURNING id')
+    .bind(kind, topic, text, platform, version, theme, Date.now()).first();
   let reply = 'none';
   let update = false;
   try { ({ reply, update } = await queueReply(req, env, kind, body.reply === true, text, row.id)); } catch (e) { console.error(e); reply = 'error'; }
