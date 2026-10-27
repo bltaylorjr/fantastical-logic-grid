@@ -99,7 +99,11 @@ async function readSpecials(base) {
     try {
       const rows = await get(u);
       if (!rows) { missing++; continue; }
+      // Only the known fields, checked, so nothing else from the network is kept or written.
+      const str = (v, max) => String(v ?? '').slice(0, max);
+      const num = (v) => (Number.isInteger(v) && v >= 3 && v <= 8 ? v : null);
       return rows.filter((r) => r && /^\d{4}-\d{2}-\d{2}$/.test(r.date) && /^se-[\w-]{1,40}$/.test(r.id) && r.title)
+        .map((r) => ({ id: r.id, date: r.date, title: str(r.title, 80), note: str(r.note, 400), theme: r.theme ? str(r.theme, 40) : null, difficulty: r.difficulty ? str(r.difficulty, 20) : null, categories: num(r.categories), items: num(r.items) }))
         .sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
     } catch (e) { console.warn(`Special editions: ${e.message}`); }
   }
