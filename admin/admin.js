@@ -9,6 +9,7 @@ import { characterView } from './characters.js';
 import { ratingsView, initRatings } from './ratings.js';
 import { marketingView, initMarketing } from './marketing.js';
 import { educatorsView, initEducators } from './educators.js';
+import { licensesView, initLicenses } from './licenses.js';
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -1205,6 +1206,10 @@ initMarketing(marketingHelpers, (name, o) => show(name, o));
 const educatorHelpers = { api, esc, fmt, when, can, act, ask, setCount };
 views.educators = () => educatorsView(educatorHelpers);
 initEducators(educatorHelpers, (name, o) => show(name, o));
+// ---- App keys for the Windows and Android apps (licenses.js).
+const licenseHelpers = { api, esc, fmt, when, tile, act, ask, toast };
+views.licenses = () => licensesView(licenseHelpers);
+initLicenses(licenseHelpers, (name, o) => show(name, o));
 
 // ------------------------------------------------------------- navigation
 const MIN_ROLE = Object.fromEntries($$('#nav-list a').map((a) => [a.hash.slice(1), a.dataset.min]));

@@ -42,6 +42,7 @@ import { handleAdmin } from './admin.js';
 import { NIGHTLY_CRONS, isMaintenanceHour, runNightly } from './nightly.js';
 import { handleMarketing } from './marketing.js';
 import { handlePerks } from './supporters.js';
+import { handleLicenses } from './licenses.js';
 import { handleEducators } from './educators.js';
 import { publicConfig } from './settings.js';
 import { deepHealth } from './upkeep.js';
@@ -80,6 +81,9 @@ async function route(req, env, ctx) {
 
   const perks = await handlePerks(req, env, url, signedIn);
   if (perks) return perks;
+
+  const license = await handleLicenses(req, env, url, signedIn);
+  if (license) return license;
 
   const compete = await handleCompete(req, env, ctx, url, signedIn);
   if (compete) return compete;

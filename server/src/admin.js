@@ -37,6 +37,7 @@
 //   GET  /admin/v1/ratings?days=&by=[&brief=1]  puzzle ratings, trends and the plain-words analysis; POST .../summary (ratings.js)
 //   GET  /admin/v1/marketing?days=     campaigns, ads, media, tracked links and their numbers (marketing.js)
 //   GET/POST /admin/v1/supporters      supporters and premium grants; POST .../:id/remove (supporters.js)
+//   GET/POST /admin/v1/licenses        app keys for the Windows and Android apps; GET .../:id, POST .../:id/(revoke|restore), .../:id/devices/:device/remove (licenses.js)
 //   GET  /admin/v1/alerts              free allowances close to running out
 //   GET  /admin/v1/summary?days=       the week in numbers, for the Monday summary email
 //   GET  /admin/v1/export/(players|scores|feedback).csv   spreadsheet downloads
@@ -78,6 +79,7 @@ import { withFixes, errorFile } from './errors.js';
 import { ratingRoutes } from './ratings.js';
 import { marketingRoutes } from './marketing.js';
 import { supporterRoutes } from './supporters.js';
+import { licenseRoutes } from './licenses.js';
 import { educatorRoutes } from './educators.js';
 
 const DAY = 24 * 3600_000;
@@ -701,6 +703,8 @@ const ROUTES = [
   ...marketingRoutes(Refusal),
   // ---- Supporters and premium extras (supporters.js).
   ...supporterRoutes(Refusal),
+  // ---- App keys for the Windows and Android apps (licenses.js).
+  ...licenseRoutes(Refusal),
   ...educatorRoutes(Refusal),
   ['GET', /^alerts$/, 'viewer', 'alerts.view', async ({ env }) => ({ body: await alerts(env) })],
   ['GET', /^summary$/, 'admin', 'summary.view', async ({ env, url }) => {

@@ -236,3 +236,9 @@ td.num, th.num { white-space: nowrap; }
 .findings li { margin: 0 0 10px; }
 .findings p { margin: 0 0 2px; }
 .ai-text { font-size: 1.05rem; }
+
+/* App keys */
+.lic-key { font-size: 0.95em; white-space: nowrap; user-select: all; }
+.lic-made-list { white-space: pre-wrap; user-select: all; font-family: ui-monospace, monospace; margin: 0; }
+.lic-dev-list { margin: 0; padding-left: 1.2em; }
+.lic-dev-list li { margin: 0.25em 0; }

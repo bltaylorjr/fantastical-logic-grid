@@ -871,3 +871,8 @@ dialog.rules table.board td { font-variant-numeric: tabular-nums; }
 .site-links { margin: 24px auto 8px; max-width: 1100px; padding: 0 16px; }
 .site-links ul { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 20px; margin: 0; padding: 0; list-style: none; }
 .site-links a { display: inline-block; padding: 10px 4px; min-height: 44px; color: var(--text); }
+
+/* App key window (license.js): the Windows and Android apps, first launch */
+.dlg-license #license-key { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; letter-spacing: .04em; text-transform: uppercase; }
+.dlg-license::backdrop { background: rgb(0 0 0 / .75); }
+.license-code { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; user-select: all; }

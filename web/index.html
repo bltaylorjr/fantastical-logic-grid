@@ -858,6 +858,18 @@
   <div class="dlg-actions"><button class="btn primary" type="button" data-close>Close</button></div>
 </dialog>
 
+<dialog id="dlg-license" class="dlg-license" aria-labelledby="license-h" aria-describedby="license-intro">
+  <h2 id="license-h">Enter your app key</h2>
+  <p id="license-intro">This app needs an app key the first time it opens. You only need to be online for this once; after that the game works offline. Each key installs on one computer or phone.</p>
+  <form id="license-form" novalidate>
+    <div class="field"><label for="license-key">App key</label><input id="license-key" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="FLG-ABCDE-FGHJK-LMNPQ-RSTUV" maxlength="40" required></div>
+    <div class="error-box" id="license-error" role="alert" hidden></div>
+    <p class="muted" id="license-busy" role="status" hidden>Checking your key…</p>
+    <div class="dlg-actions"><button class="btn primary" type="submit" id="license-go">Use this key</button></div>
+  </form>
+  <p class="muted">No key yet? Sign in at <a href="https://thelogicgrid.com/" target="_blank" rel="noopener">thelogicgrid.com</a> and open <b>Menu</b> &gt; <b>Install the app</b>, or write to <a href="mailto:fantasticallogicgrid@gmail.com">fantasticallogicgrid@gmail.com</a>. You can always play free in your browser at thelogicgrid.com.</p>
+</dialog>
+
 <dialog id="dlg-install" aria-labelledby="install-h">
   <h2 id="install-h" tabindex="-1">Install the app</h2>
   <p>Play without opening a browser first. Your saved puzzles come with you when you sign in.</p>
@@ -884,11 +896,28 @@
       </ol>
     </div>
   </section>
+  <section class="install-opt" id="install-key" aria-labelledby="install-key-h" hidden>
+    <h3 id="install-key-h">Your app key</h3>
+    <p>The Windows and Android apps need an app key. Each key installs on one computer or phone and can be used for 2 downloads. Playing here in the browser never needs one.</p>
+    <p id="install-key-get-row" hidden><button class="btn primary" type="button" id="install-key-get">Get my free key</button></p>
+    <p id="install-key-signin" hidden>Sign in to get your free key. <button class="btn small" type="button" id="install-key-signin-btn">Sign in</button></p>
+    <p id="install-key-confirm" class="muted" hidden>Confirm your email (Menu &gt; Account) to get your free key.</p>
+    <p id="install-key-supporters" class="muted" hidden>Free keys are for Supporters right now. Write to fantasticallogicgrid@gmail.com for a key.</p>
+    <p id="install-key-mine" hidden>Your key: <code id="install-key-code" class="license-code"></code> <button class="btn small" type="button" id="install-key-copy">Copy</button><br><span class="muted" id="install-key-left"></span></p>
+    <div class="field"><label for="install-key-input">App key for the download</label><input id="install-key-input" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="FLG-ABCDE-FGHJK-LMNPQ-RSTUV" maxlength="40"></div>
+    <div class="error-box" id="install-key-error" role="alert" hidden></div>
+  </section>
   <section class="install-opt" id="install-desktop" aria-labelledby="install-desktop-h">
     <h3 id="install-desktop-h">Download the Windows desktop app</h3>
     <p>A free app for Windows 10 and 11 computers. It works offline and keeps itself up to date.</p>
     <p><a class="btn" id="install-desktop-btn" href="https://github.com/bltaylorjr/fantastical-logic-grid/releases/latest" target="_blank" rel="noopener">Download for Windows</a> <span class="muted" id="install-desktop-size"></span></p>
     <p class="muted">Windows may say it protected your PC because the app is new. Choose <b>More info</b>, then <b>Run anyway</b>.</p>
+  </section>
+  <section class="install-opt" id="install-apk" aria-labelledby="install-apk-h" hidden>
+    <h3 id="install-apk-h">Download the Android app</h3>
+    <p>A free app for Android phones and tablets. It works offline.</p>
+    <p><a class="btn" id="install-apk-btn" href="https://github.com/bltaylorjr/fantastical-logic-grid/releases/latest" target="_blank" rel="noopener">Download for Android</a> <span class="muted" id="install-apk-size"></span></p>
+    <p class="muted">Open the downloaded file on your phone. Android may ask you to allow installs from your browser first.</p>
   </section>
   <div class="dlg-actions"><button class="btn primary" type="button" id="install-close">Close</button></div>
 </dialog>
@@ -922,6 +951,7 @@
     </tbody>
   </table>
   <p class="muted">Single keys (X, O, H, C, R) can be turned off in Settings, under More play settings. On a Mac, use Cmd instead of Ctrl.</p>
+  <p class="muted small" id="help-license" hidden>This app uses the app key <bdi id="help-license-key"></bdi>.</p>
   <p class="muted small" id="help-legal">© 2026 Bobby Taylor. All rights reserved. Free to play, and to print for personal or classroom use. Copying, scraping or using the puzzles, stories or art to train AI is not allowed. <a href="https://thelogicgrid.com/terms/" target="_blank" rel="noopener">Terms of use</a></p>
   <div class="dlg-actions"><button class="btn primary" type="button" id="help-close">Close</button></div>
 </dialog>
