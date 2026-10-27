@@ -4,6 +4,9 @@
 // was emailed to the school address. A link in that email (?ref=&code=)
 // fills the code in; the Worker alone decides whether it is right. Talks only to the game's Worker (server/src/educators.js).
 import { classroomOptions, checkRequest, bandOf, gradeById, CUSTOM_STARTERS } from '../engine/classroom.js';
+// The campaign link this teacher came from, if any, so the admin Marketing
+// numbers can show which ads bring requests (only the campaign tags are sent).
+import { attribution } from '../js/campaign.js';
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -146,7 +149,7 @@ form.addEventListener('submit', async (e) => {
   btn.disabled = true;
   btn.textContent = 'Sending…';
   try {
-    const r = await call('request', req);
+    const r = await call('request', { ...req, campaign: attribution() || undefined });
     remember({ ref: r.ref, email: r.email });
     step('verify', { email: r.email });
   } catch (ex) {
