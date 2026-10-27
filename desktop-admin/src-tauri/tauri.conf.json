@@ -20,6 +20,8 @@
     ],
     "publisher": "The Fantastical Logic Grid",
     "shortDescription": "Admin dashboard for The Fantastical Logic Grid",
+    "copyright": "© 2026 Bobby Taylor. All rights reserved.",
+    "homepage": "https://thelogicgrid.com",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
