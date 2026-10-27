@@ -110,3 +110,79 @@ export function initEducators(helpers, show) {
     }
   };
 }
+
+// ---------------------------------------------------------------- Educator feedback
+// Ideas, problems and feedback from educators, sent from the private section
+// that opens with the link in their package email, plus the survey results.
+// Answering emails the educator your answer (plain, kind words).
+let fbStatus = 'new';
+const FB_TABS = [['new', 'New'], ['addressed', 'Answered'], ['all', 'All'], ['survey', 'Survey results']];
+const KIND = { idea: ['Idea', 'ok'], problem: ['Problem', 'bad'], feedback: ['Feedback', 'warn'] };
+
+function feedbackCard(f) {
+  const e = h.esc;
+  const [kw, kcls] = KIND[f.kind] || [f.kind, ''];
+  const actions = [
+    f.status === 'new' && h.can('moderator') && `<button class="btn small primary" type="button" data-efb-answer="${f.id}">Answer</button>`,
+    f.status === 'addressed' && h.can('moderator') && `<button class="btn small" type="button" data-efb-answer="${f.id}">Change answer</button>`,
+    h.can('admin') && `<button class="btn small danger" type="button" data-efb-delete="${f.id}">Delete</button>`,
+  ].filter(Boolean).join('');
+  return `<article class="card stack" aria-labelledby="efb-${f.id}">
+    <div class="row"><h2 id="efb-${f.id}" class="grow">${e(f.name)}, ${e(f.school)}</h2><span class="badge ${kcls}">${e(kw)}</span>${f.status === 'addressed' ? '<span class="badge ok">Answered</span>' : ''}</div>
+    <p><bdi>${e(f.email)}</bdi> · ${e(GRADE(f.grade))} · package ${e(f.ref)} (${h.fmt(f.puzzles || 0)} puzzles) · sent ${h.when(f.createdAt)}</p>
+    <blockquote>${e(f.text).replace(/\n/g, '<br>')}</blockquote>
+    ${f.status === 'addressed' ? `<p class="muted">Answered by ${e(f.addressedBy || '')} ${h.when(f.addressedAt)}${f.replyMail ? ' (email waiting to go)' : ''}:</p><blockquote>${e(f.note || '')}</blockquote>` : ''}
+    ${actions ? `<div class="row">${actions}</div>` : ''}
+  </article>`;
+}
+
+function surveyHtml(d) {
+  const e = h.esc;
+  if (!d.responses) return '<p class="muted">No survey answers yet. Educators get the survey link with their package.</p>';
+  const qs = d.questions.map((q) => {
+    const max = Math.max(1, ...q.counts);
+    const base = q.type === 'many' ? d.responses : Math.max(1, q.answered);
+    return `<article class="card stack"><h2>${e(q.q)}</h2><p class="muted">${h.fmt(q.answered)} of ${h.fmt(d.responses)} answered${q.type === 'many' ? ' (more than one allowed)' : ''}</p>
+      <table class="efb-table"><tbody>${q.options.map((o, i) => `<tr><td>${e(o)}</td><td class="num">${h.fmt(q.counts[i])}</td><td class="num">${Math.round((100 * q.counts[i]) / base)}%</td>
+      <td class="bar-cell"><span class="efb-bar" style="width:${Math.round((100 * q.counts[i]) / max)}%"></span></td></tr>`).join('')}</tbody></table></article>`;
+  }).join('');
+  const comments = d.comments.length ? `<article class="card stack"><h2>Comments</h2>${d.comments.map((c) => `<blockquote>${e(c.text).replace(/\n/g, '<br>')}</blockquote><p class="muted">${e(c.name)}, ${e(c.school)} · ${e(GRADE(c.grade))} · ${h.when(c.at)}</p>`).join('')}</article>` : '';
+  return `<p><b>${h.fmt(d.responses)}</b> ${d.responses === 1 ? 'educator has' : 'educators have'} answered the survey.</p>${qs}${comments}`;
+}
+
+export async function educatorFeedbackView(helpers) {
+  h = helpers;
+  const d = await h.api(`educators/feedback?status=${fbStatus === 'survey' ? 'new' : fbStatus}`);
+  const c = d.counts || {};
+  const n = { new: c.new || 0, addressed: c.addressed || 0, all: (c.new || 0) + (c.addressed || 0), survey: d.surveys || 0 };
+  h.setCount('#count-edu-feedback', c.new || 0);
+  $('#efb-tabs').innerHTML = FB_TABS.map(([k, label]) => `<button type="button" class="btn small" data-efb-tab="${k}" aria-pressed="${k === fbStatus}">${label} <span class="n">${h.fmt(n[k])}</span></button>`).join('');
+  if (fbStatus === 'survey') { $('#efb-list').innerHTML = surveyHtml(await h.api('educators/survey')); return; }
+  $('#efb-list').innerHTML = d.items.length ? d.items.map(feedbackCard).join('') : '<p class="muted">Nothing here.</p>';
+}
+
+export function initEducatorFeedback(helpers, show) {
+  h = helpers;
+  $('#efb-tabs').onclick = (e) => {
+    const b = e.target.closest('[data-efb-tab]');
+    if (!b) return;
+    fbStatus = b.dataset.efbTab;
+    show('edu-feedback', { keepFocus: true });
+  };
+  $('#efb-list').onclick = async (e) => {
+    const an = e.target.closest('[data-efb-answer]');
+    const del = e.target.closest('[data-efb-delete]');
+    if (an) {
+      const v = await h.ask({
+        title: 'Answer this educator',
+        text: 'Write in plain, everyday words: what you did about it, and the version if something changed. The educator sees it in their section.',
+        fields: [{ name: 'note', label: 'Your answer', type: 'textarea' }, { name: 'email', label: 'Email them the answer', type: 'select', value: 'yes', options: [['yes', 'Yes, email it'], ['no', 'No email']] }],
+        ok: 'Save answer',
+      });
+      if (v && (await h.act(an, () => h.api(`educators/feedback/${an.dataset.efbAnswer}/address`, { method: 'POST', body: { note: v.note, email: v.email === 'yes' } }), 'Answered.'))) show('edu-feedback', { keepFocus: true });
+    } else if (del) {
+      if (!(await h.ask({ title: 'Delete this note?', text: 'It is removed for good.', ok: 'Delete', danger: true }))) return;
+      if (await h.act(del, () => h.api(`educators/feedback/${del.dataset.efbDelete}/delete`, { method: 'POST' }), 'Deleted.')) show('edu-feedback', { keepFocus: true });
+    }
+  };
+}

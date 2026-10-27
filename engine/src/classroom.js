@@ -406,3 +406,53 @@ export function gradeStory(p, band) {
   // goal line names the story's event, which their version leaves out.
   return band.reading === 'early' ? [castLine, task, ...notes, p.story.goal] : [all[0], castLine, task, ...notes, all[all.length - 1]];
 }
+
+// ---------------------------------------------------------------- after the package
+// Educators open a private ideas, problems and feedback section (and this
+// survey) with the link in the email that carries their PDFs. One list for
+// the page, the Worker and the admin results.
+export const FEEDBACK_KINDS = { idea: 'An idea', problem: 'A problem', feedback: 'Feedback' };
+export const FEEDBACK_TEXT = [5, 2000];
+export const EDUCATOR_SURVEY = [
+  { id: 'use', type: 'many', q: 'How did you use the puzzles?', options: ['Whole-class lesson', 'Small groups', 'Independent work', 'Homework', 'Early finishers or enrichment', 'Test prep or review', 'Substitute plans', 'Club or after school'] },
+  { id: 'fit', type: 'one', required: true, q: 'How well did the puzzles fit your students\' level?', options: ['Much too easy', 'A bit easy', 'Just right', 'A bit hard', 'Much too hard'] },
+  { id: 'engage', type: 'one', required: true, q: 'How engaged were your students?', options: ['Not at all', 'A little', 'Somewhat', 'Very', 'Extremely'] },
+  { id: 'time', type: 'one', q: 'How long did one puzzle take most students?', options: ['Under 10 minutes', '10 to 20 minutes', '20 to 30 minutes', 'Over 30 minutes'] },
+  { id: 'skills', type: 'many', q: 'Which skills did the puzzles help with?', options: ['Logical reasoning', 'Reading carefully', 'Following directions', 'Persistence', 'Working together', 'Vocabulary'] },
+  { id: 'wants', type: 'many', q: 'What would make our tools more helpful for you?', options: ['More themes', 'Notes on learning standards', 'Ready-made lesson plans', 'A version students play on screens', 'Mixed levels in one package', 'Other languages', 'Hint sheets', 'Tracking class progress'] },
+  { id: 'again', type: 'one', required: true, q: 'How likely are you to ask for another package?', options: ['Not likely', 'Maybe', 'Likely', 'Very likely'] },
+  { id: 'comment', type: 'text', max: 1500, q: 'Anything else you would like us to know? (optional)' },
+];
+
+const plain = (v, max) => (typeof v === 'string' ? v.replace(/\r\n?/g, '\n').replace(/[\u0000-\u0009\u000b-\u001f\u007f]/g, '').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim().slice(0, max) : '');
+
+// { kind, text } -> { value } or { errors }
+export function checkFeedback(raw) {
+  const kind = Object.hasOwn(FEEDBACK_KINDS, raw?.kind) ? raw.kind : null;
+  const text = plain(raw?.text, FEEDBACK_TEXT[1] + 1);
+  const errors = [];
+  if (!kind) errors.push('Choose whether this is an idea, a problem or feedback.');
+  if (text.length < FEEDBACK_TEXT[0]) errors.push('Please write a few words.');
+  else if (text.length > FEEDBACK_TEXT[1]) errors.push(`Please keep it under ${FEEDBACK_TEXT[1]} characters.`);
+  return errors.length ? { errors } : { value: { kind, text } };
+}
+
+// Survey answers keyed by question id -> { value } or { errors }. Options are
+// stored by their index, so the wording can be polished later.
+export function checkSurvey(raw) {
+  const value = {};
+  const errors = [];
+  for (const q of EDUCATOR_SURVEY) {
+    const a = raw?.[q.id];
+    if (q.type === 'text') { const t = plain(a, q.max); if (t) value[q.id] = t; continue; }
+    if (q.type === 'many') {
+      const picked = [...new Set((Array.isArray(a) ? a : []).map(Number).filter((i) => Number.isInteger(i) && i >= 0 && i < q.options.length))].sort((x, y) => x - y);
+      if (picked.length) value[q.id] = picked;
+      continue;
+    }
+    const i = a === '' || a == null ? NaN : Number(a);
+    if (Number.isInteger(i) && i >= 0 && i < q.options.length) value[q.id] = i;
+    else if (q.required) errors.push(`Please answer: ${q.q}`);
+  }
+  return errors.length ? { errors } : { value };
+}

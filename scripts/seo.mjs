@@ -17,7 +17,7 @@ import { join, dirname } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { gridTable, answerKey } from './worksheet.mjs';
-import { educatorsBody, EDUCATORS_CSS } from './educators-page.mjs';
+import { educatorsBody, EDUCATORS_CSS, educatorFeedbackBody, FEEDBACK_CSS } from './educators-page.mjs';
 
 // Search pages are plain HTML: only the site's own files may load, inline
 // <style> is allowed, and no inline script ever runs (JSON-LD is data, not code).
@@ -537,7 +537,7 @@ ${playBtn(up)}`,
   // The form talks to the game's Worker (server/src/educators.js), so this
   // page alone may connect to it. Without a cloud address (tests) it may reach localhost.
   {
-    const { classroomOptions } = await import(pathToFileURL(join(site, 'engine', 'classroom.js')).href);
+    const { classroomOptions, EDUCATOR_SURVEY, FEEDBACK_KINDS, FEEDBACK_TEXT } = await import(pathToFileURL(join(site, 'engine', 'classroom.js')).href);
     const cloud = (process.env.FLG_CLOUD_URL || '').replace(/\/+$/, '');
     const cloudOrigin = (() => { try { return cloud ? new URL(cloud).origin : ''; } catch { return ''; } })();
     const csp = PAGE_CSP.replace("default-src 'self';", `default-src 'self'; connect-src 'self' ${cloudOrigin || 'http://localhost:* http://127.0.0.1:*'};`);
@@ -560,6 +560,17 @@ ${playBtn(up)}`,
       crumbs: [['educators/', 'For educators']],
       schema: videoSchema,
       body: (up) => educatorsBody(up, { options: classroomOptions(), api: cloud, video }),
+    });
+    // The private ideas, problems and feedback section, opened by the link in
+    // the package email. Not listed in search.
+    mkdirSync(join(site, 'educators', 'feedback'), { recursive: true });
+    cpSync(join(root, 'seo', 'educator-feedback.js'), join(site, 'educators', 'feedback', 'feedback.js'));
+    page({
+      path: 'educators/feedback/', listed: false, csp, style: EDUCATORS_CSS + FEEDBACK_CSS, script: 'feedback.js',
+      title: `Ideas, problems and feedback for educators | ${name}`,
+      description: 'A private section for educators who received a puzzle package: send ideas, problems and feedback, and answer a short survey.',
+      crumbs: [['educators/', 'For educators'], ['educators/feedback/', 'Ideas and feedback']],
+      body: (up) => educatorFeedbackBody(up, { survey: EDUCATOR_SURVEY, kinds: FEEDBACK_KINDS, textMax: FEEDBACK_TEXT[1], api: cloud }),
     });
   }
 
@@ -588,7 +599,7 @@ ${playBtn(up)}`,
 <h2>Things you choose to send</h2>
 <p>Ideas, problem reports and story suggestions you write go to the team. If you are signed in and ask for a reply, the team may answer by email or in Messages.</p>
 <p><strong>Daily puzzle by email:</strong> if you are signed in and tick <strong>Email me each day's puzzle</strong>, the game keeps your account's email address to send it, once a day. Every email has a one-click unsubscribe link, and unticking the box or deleting your account removes the address.</p>
-<p><strong>Educator puzzle packages:</strong> when a teacher asks for a package on the <a href="../educators/">Educators page</a>, we keep the name, school, school email and the choices on the form to confirm the address, review the request and email the puzzles. Requests that are never confirmed or are declined are removed after 30 days.</p>
+<p><strong>Educator puzzle packages:</strong> when a teacher asks for a package on the <a href="../educators/">Educators page</a>, we keep the name, school, school email and the choices on the form to confirm the address, review the request and email the puzzles. Requests that are never confirmed or are declined are removed after 30 days. After a package is emailed, the educator may send ideas, problems, feedback and survey answers through a private link; we keep those with the request to improve our tools and to answer them by email.</p>
 <h2>Services the game uses</h2>
 <ul>
 <li><strong>Natural voices:</strong> the words being read aloud are sent to Google (Gemini or Google Cloud text-to-speech) through the game's server. Google may use text sent to its free services to improve them. Choose the device's own voices in Settings to keep speech on your device.</li>

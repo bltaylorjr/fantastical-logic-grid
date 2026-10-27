@@ -6,12 +6,20 @@
 //   POST /v1/educators/verify    { ref, code } the code emailed to the school address
 //   POST /v1/educators/resend    { ref } a new code (up to 3 times)
 //   GET  /v1/educators/status?ref=  where a request is (no personal details)
+//   POST /v1/educators/feedback/open    { ref, key } the private ideas, problems
+//                                       and feedback section (link in the package email)
+//   POST /v1/educators/feedback/send    { ref, key, kind, text } an idea, problem or feedback
+//   POST /v1/educators/feedback/survey  { ref, key, answers } the short survey (one per package)
 //
 // Admin (educatorRoutes, under /admin/v1/):
 //   GET  educators?status=       requests, newest first, with counts
 //   POST educators/:id/approve   the package is made and emailed
 //   POST educators/:id/decline   { note } the educator gets a polite email with the note
 //   POST educators/:id/delete    remove a request (admin)
+//   GET  educators/feedback?status=   educators' ideas, problems and feedback
+//   POST educators/feedback/:id/address  { note, email } answered; the educator is emailed the note
+//   POST educators/feedback/:id/delete   remove one (admin)
+//   GET  educators/survey        survey results: answer counts and comments
 //   POST educators/claim         for the GitHub Action: emails to send and packages to build (owner)
 //   POST educators/done          that Action reports what went out (owner)
 //
@@ -28,7 +36,7 @@
 // requests per address a day and educator_daily_cap for everyone.
 import { json, readText, TooLarge } from './http.js';
 import { getSettings } from './settings.js';
-import { checkRequest, schoolEmail } from '../../engine/src/classroom.js';
+import { checkRequest, schoolEmail, checkFeedback, checkSurvey, EDUCATOR_SURVEY } from '../../engine/src/classroom.js';
 
 const DAY = 24 * 3600_000;
 const CODE_TTL = 2 * DAY;
@@ -42,6 +50,7 @@ const MAX_BUILD_TRIES = 3;
 const BUILDS_PER_RUN = 3;
 const USED_STORIES_MAX = 5000;
 const MAX_BODY = 16_000;
+const FEEDBACK_PER_DAY = 20;
 export const STATUSES = ['unverified', 'pending', 'approved', 'building', 'sent', 'declined', 'failed', 'expired'];
 // The workflow the Worker can start when GITHUB_DISPATCH_TOKEN is set.
 const DISPATCH_URL = 'https://api.github.com/repos/bltaylorjr/fantastical-logic-grid/actions/workflows/educator-packages.yml/dispatches';
@@ -67,6 +76,8 @@ function newCode() {
   return code;
 }
 const codeHash = (ref, code) => sha256(`flg-educator|${ref}|${code}`);
+const newKey = () => [...crypto.getRandomValues(new Uint8Array(24))].map((x) => REF_ALPHABET[x & 31]).join('');
+const keyHash = (ref, key) => sha256(`flg-edu-feedback|${ref}|${key}`);
 const cleanRef = (v) => (typeof v === 'string' && /^[A-Z2-9]{10}$/.test(v.trim().toUpperCase()) ? v.trim().toUpperCase() : null);
 
 // Starts the GitHub Action now, so codes and packages go out within a minute
@@ -163,6 +174,54 @@ async function postResend(req, env, ctx, now) {
   return json(req, env, { status: 'unverified', resent: true });
 }
 
+// ---------------------------------------------------------------- after the package
+// The section opens only for a package that was emailed, with the key from
+// that email's link. Answers what the page needs: who it is, their survey
+// answers and what they sent, with the team's replies.
+async function feedbackRequest(env, body) {
+  const ref = cleanRef(body?.ref);
+  const key = typeof body?.key === 'string' && /^[A-Z2-9]{24}$/.test(body.key) ? body.key : null;
+  if (!ref || !key) return null;
+  const row = await env.DB.prepare("SELECT id, ref, name, school, grade, puzzles, sent_at, feedback_hash FROM educator_requests WHERE ref = ?1 AND status = 'sent'").bind(ref).first();
+  return row && row.feedback_hash && row.feedback_hash === (await keyHash(ref, key)) ? row : null;
+}
+const LOCKED = { error: 'locked', message: 'This section opens with the link in the email that brought your puzzles. Please use that link.' };
+
+async function feedbackState(env, r) {
+  const { results } = await env.DB.prepare('SELECT id, kind, body, status, note, addressed_at, created_at FROM educator_feedback WHERE request_id = ?1 ORDER BY created_at DESC LIMIT 50').bind(r.id).all();
+  const survey = results.find((x) => x.kind === 'survey');
+  return {
+    unlocked: true, name: r.name, school: r.school, grade: r.grade, puzzles: r.puzzles, sentAt: r.sent_at,
+    survey: survey ? { answers: JSON.parse(survey.body), at: survey.created_at } : null,
+    items: results.filter((x) => x.kind !== 'survey').map((x) => ({ kind: x.kind, text: x.body, status: x.status, reply: x.status === 'addressed' ? x.note : null, at: x.created_at, answeredAt: x.addressed_at })),
+  };
+}
+
+async function postFeedback(req, env, path, now) {
+  const body = await readJson(req);
+  if (body === 'too_large') return json(req, env, { error: 'too_large', message: 'That is too long. Please shorten it.' }, 413);
+  const r = await feedbackRequest(env, body);
+  if (!r) return json(req, env, LOCKED, 403);
+  if (path === 'open') return json(req, env, await feedbackState(env, r));
+  if (path === 'survey') {
+    const checked = checkSurvey(body.answers);
+    if (checked.errors) return json(req, env, { error: 'invalid', message: checked.errors[0], errors: checked.errors }, 400);
+    const old = await env.DB.prepare("SELECT id FROM educator_feedback WHERE request_id = ?1 AND kind = 'survey'").bind(r.id).first();
+    if (old) await env.DB.prepare('UPDATE educator_feedback SET body = ?2, updated_at = ?3 WHERE id = ?1').bind(old.id, JSON.stringify(checked.value), now).run();
+    else await env.DB.prepare("INSERT INTO educator_feedback (request_id, kind, body, created_at, updated_at) VALUES (?1, 'survey', ?2, ?3, ?3)").bind(r.id, JSON.stringify(checked.value), now).run();
+    return json(req, env, await feedbackState(env, r));
+  }
+  if (path === 'send') {
+    const checked = checkFeedback(body);
+    if (checked.errors) return json(req, env, { error: 'invalid', message: checked.errors[0], errors: checked.errors }, 400);
+    const today = await env.DB.prepare("SELECT COUNT(*) AS n FROM educator_feedback WHERE request_id = ?1 AND kind != 'survey' AND created_at > ?2").bind(r.id, now - DAY).first();
+    if (today.n >= FEEDBACK_PER_DAY) return json(req, env, { error: 'limit', message: 'Thank you for all your notes today! Please send more tomorrow.' }, 429);
+    await env.DB.prepare('INSERT INTO educator_feedback (request_id, kind, body, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?4)').bind(r.id, checked.value.kind, checked.value.text, now).run();
+    return json(req, env, await feedbackState(env, r));
+  }
+  return json(req, env, { error: 'not_found' }, 404);
+}
+
 export async function handleEducators(req, env, ctx, url) {
   if (!url.pathname.startsWith('/v1/educators/')) return null;
   const path = url.pathname.slice('/v1/educators/'.length);
@@ -181,6 +240,7 @@ export async function handleEducators(req, env, ctx, url) {
   if (path === 'request') return postRequest(req, env, ctx, now);
   if (path === 'verify') return postVerify(req, env, now);
   if (path === 'resend') return postResend(req, env, ctx, now);
+  if (path.startsWith('feedback/')) return postFeedback(req, env, path.slice('feedback/'.length), now);
   return json(req, env, { error: 'not_found' }, 404);
 }
 
@@ -194,15 +254,22 @@ export async function claimWork(env, limit, now = Date.now()) {
     db.prepare("UPDATE educator_requests SET mail = NULL, mail_code = NULL WHERE mail IS NOT NULL AND mail_tries >= ?1 AND mail_claimed_at < ?2").bind(MAX_MAIL_TRIES, now - MAIL_TIMEOUT),
     db.prepare("UPDATE educator_requests SET status = 'failed' WHERE status = 'building' AND build_claimed_at < ?1 AND build_tries >= ?2").bind(now - BUILD_TIMEOUT, MAX_BUILD_TRIES),
     db.prepare("UPDATE educator_requests SET status = 'approved' WHERE status = 'building' AND build_claimed_at < ?1").bind(now - BUILD_TIMEOUT),
+    db.prepare('UPDATE educator_feedback SET reply_mail = 0 WHERE reply_mail = 1 AND mail_tries >= ?1 AND mail_claimed_at < ?2').bind(MAX_MAIL_TRIES, now - MAIL_TIMEOUT),
   ]);
   const n = Math.min(50, Math.max(1, Number(limit) || 50));
   const mails = (await db.prepare(`SELECT id, ref, mail AS kind, email, name, school, mail_code AS code, note, grade, count FROM educator_requests
     WHERE mail IS NOT NULL AND (mail_claimed_at IS NULL OR mail_claimed_at < ?1) ORDER BY created_at LIMIT ?2`).bind(now - MAIL_TIMEOUT, n).all()).results;
-  const builds = (await db.prepare(`SELECT id, ref, email, name, school, role, grade, count, request FROM educator_requests
+  const builds = (await db.prepare(`SELECT id, ref, email, name, school, role, grade, count, request, feedback_key FROM educator_requests
     WHERE status = 'approved' ORDER BY reviewed_at LIMIT ?1`).bind(BUILDS_PER_RUN).all()).results;
+  // The key for the feedback link in the package email. Kept the same if the
+  // build runs again, so an email that did go out still opens the section.
+  for (const b of builds) b.feedback_key ||= newKey();
+  const replies = (await db.prepare(`SELECT f.id, f.kind, f.body AS text, f.note, r.ref, r.email, r.name FROM educator_feedback f JOIN educator_requests r ON r.id = f.request_id
+    WHERE f.reply_mail = 1 AND (f.mail_claimed_at IS NULL OR f.mail_claimed_at < ?1) ORDER BY f.addressed_at LIMIT ?2`).bind(now - MAIL_TIMEOUT, n).all()).results;
   const stmts = [
+    ...replies.map((m) => db.prepare('UPDATE educator_feedback SET mail_claimed_at = ?1, mail_tries = mail_tries + 1 WHERE id = ?2').bind(now, m.id)),
     ...mails.map((m) => db.prepare('UPDATE educator_requests SET mail_claimed_at = ?1, mail_tries = mail_tries + 1 WHERE id = ?2').bind(now, m.id)),
-    ...builds.map((b) => db.prepare("UPDATE educator_requests SET status = 'building', build_claimed_at = ?1, build_tries = build_tries + 1 WHERE id = ?2 AND status = 'approved'").bind(now, b.id)),
+    ...builds.map((b) => db.prepare("UPDATE educator_requests SET status = 'building', build_claimed_at = ?1, build_tries = build_tries + 1, feedback_key = ?3 WHERE id = ?2 AND status = 'approved'").bind(now, b.id, b.feedback_key)),
   ];
   if (stmts.length) await db.batch(stmts);
   let usedStories = [];
@@ -213,7 +280,8 @@ export async function claimWork(env, limit, now = Date.now()) {
   }
   return {
     mails: mails.map((m) => ({ ...m, code: m.kind === 'verify' ? m.code : undefined })),
-    builds: builds.map((b) => ({ ...b, request: JSON.parse(b.request) })),
+    builds: builds.map(({ feedback_key: feedbackKey, ...b }) => ({ ...b, request: JSON.parse(b.request), feedbackKey })),
+    replies,
     usedStories,
   };
 }
@@ -225,14 +293,19 @@ export async function finishWork(env, body, now = Date.now()) {
   const stmts = [];
   for (const id of ids(body?.mails?.sent)) stmts.push(db.prepare('UPDATE educator_requests SET mail = NULL, mail_code = NULL WHERE id = ?1').bind(id));
   for (const id of ids(body?.mails?.failed)) stmts.push(db.prepare('UPDATE educator_requests SET mail_claimed_at = NULL, mail = CASE WHEN mail_tries >= ?2 THEN NULL ELSE mail END, mail_code = CASE WHEN mail_tries >= ?2 THEN NULL ELSE mail_code END WHERE id = ?1').bind(id, MAX_MAIL_TRIES));
+  for (const id of ids(body?.replies?.sent)) stmts.push(db.prepare('UPDATE educator_feedback SET reply_mail = 0 WHERE id = ?1').bind(id));
+  for (const id of ids(body?.replies?.failed)) stmts.push(db.prepare('UPDATE educator_feedback SET mail_claimed_at = NULL, reply_mail = CASE WHEN mail_tries >= ?2 THEN 0 ELSE 1 END WHERE id = ?1').bind(id, MAX_MAIL_TRIES));
   let sent = 0, failed = 0;
   for (const b of (Array.isArray(body?.builds) ? body.builds : []).slice(0, BUILDS_PER_RUN * 2)) {
     const id = Number(b?.id);
     if (!Number.isInteger(id)) continue;
     if (b.ok) {
       const stories = (Array.isArray(b.storyIds) ? b.storyIds : []).map(String).filter((x) => x.length <= 200).slice(0, 60);
-      stmts.push(db.prepare("UPDATE educator_requests SET status = 'sent', sent_at = ?2, puzzles = ?3, story_ids = ?4 WHERE id = ?1 AND status = 'building'")
-        .bind(id, now, Math.max(0, Number(b.puzzles) || stories.length), JSON.stringify(stories)));
+      // The feedback section opens now; only the key's hash is kept from here on.
+      const k = await db.prepare("SELECT ref, feedback_key FROM educator_requests WHERE id = ?1 AND status = 'building'").bind(id).first();
+      const hash = k?.feedback_key ? await keyHash(k.ref, k.feedback_key) : null;
+      stmts.push(db.prepare("UPDATE educator_requests SET status = 'sent', sent_at = ?2, puzzles = ?3, story_ids = ?4, feedback_hash = COALESCE(?5, feedback_hash), feedback_key = NULL WHERE id = ?1 AND status = 'building'")
+        .bind(id, now, Math.max(0, Number(b.puzzles) || stories.length), JSON.stringify(stories), hash));
       sent++;
     } else {
       stmts.push(db.prepare("UPDATE educator_requests SET status = CASE WHEN build_tries >= ?2 THEN 'failed' ELSE 'approved' END, note = COALESCE(note, ?3) WHERE id = ?1 AND status = 'building'")
@@ -241,12 +314,32 @@ export async function finishWork(env, body, now = Date.now()) {
     }
   }
   if (stmts.length) await db.batch(stmts);
-  return { mails: ids(body?.mails?.sent).length, sent, failed };
+  return { mails: ids(body?.mails?.sent).length, replies: ids(body?.replies?.sent).length, sent, failed };
 }
 
 // ---------------------------------------------------------------- admin
 const PUBLIC_FIELDS = `id, ref, email, name, school, role, grade, count, request, domain_kind AS domainKind, status, created_at AS createdAt, verified_at AS verifiedAt,
   reviewed_at AS reviewedAt, reviewed_by AS reviewedBy, note, sent_at AS sentAt, puzzles, mail, build_tries AS buildTries`;
+
+// Survey results: how many answered, how often each option was picked, and the comments.
+export async function surveyResults(env) {
+  const { results } = await env.DB.prepare(`SELECT f.body, f.updated_at AS at, r.name, r.school, r.grade FROM educator_feedback f JOIN educator_requests r ON r.id = f.request_id
+    WHERE f.kind = 'survey' ORDER BY f.updated_at DESC LIMIT 2000`).all();
+  const questions = EDUCATOR_SURVEY.filter((q) => q.type !== 'text').map((q) => ({ id: q.id, q: q.q, type: q.type, options: q.options, counts: q.options.map(() => 0), answered: 0 }));
+  const comments = [];
+  for (const row of results) {
+    let a;
+    try { a = JSON.parse(row.body); } catch (e) { continue; }
+    for (const q of questions) {
+      const v = a[q.id];
+      if (v == null) continue;
+      q.answered++;
+      for (const i of q.type === 'many' ? v : [v]) if (q.counts[i] != null) q.counts[i]++;
+    }
+    if (a.comment) comments.push({ text: a.comment, name: row.name, school: row.school, grade: row.grade, at: row.at });
+  }
+  return { responses: results.length, questions, comments: comments.slice(0, 200) };
+}
 
 export async function educatorCounts(env) {
   const { results } = await env.DB.prepare('SELECT status, COUNT(*) AS n FROM educator_requests GROUP BY status').all();
@@ -290,17 +383,45 @@ export function educatorRoutes(Refusal) {
     }],
     ['POST', /^educators\/(\d{1,12})\/delete$/, 'admin', 'educators.delete', async ({ env, params: [id] }) => {
       const r = await row(env, id);
-      await env.DB.prepare('DELETE FROM educator_requests WHERE id = ?1').bind(r.id).run();
+      await env.DB.batch([
+        env.DB.prepare('DELETE FROM educator_feedback WHERE request_id = ?1').bind(r.id),
+        env.DB.prepare('DELETE FROM educator_requests WHERE id = ?1').bind(r.id),
+      ]);
       return { body: { ok: true }, target: r.ref };
     }],
+    ['GET', /^educators\/feedback$/, 'moderator', 'educators.feedback', async ({ env, url }) => {
+      const status = ['new', 'addressed', 'all'].includes(url.searchParams.get('status')) ? url.searchParams.get('status') : 'new';
+      const { results } = await env.DB.prepare(`SELECT f.id, f.kind, f.body AS text, f.status, f.note, f.addressed_at AS addressedAt, f.addressed_by AS addressedBy, f.reply_mail AS replyMail, f.created_at AS createdAt,
+          r.ref, r.name, r.school, r.email, r.grade, r.puzzles FROM educator_feedback f JOIN educator_requests r ON r.id = f.request_id
+        WHERE f.kind != 'survey' AND (?1 = 'all' OR f.status = ?1) ORDER BY f.created_at DESC LIMIT 200`).bind(status).all();
+      const counts = Object.fromEntries((await env.DB.prepare("SELECT status, COUNT(*) AS n FROM educator_feedback WHERE kind != 'survey' GROUP BY status").all()).results.map((x) => [x.status, x.n]));
+      const surveys = (await env.DB.prepare("SELECT COUNT(*) AS n FROM educator_feedback WHERE kind = 'survey'").first()).n;
+      return { body: { status, counts, surveys, items: results }, quiet: true };
+    }],
+    ['POST', /^educators\/feedback\/(\d{1,12})\/address$/, 'moderator', 'educators.feedback.address', async ({ env, ctx, params: [id], body, who, now }) => {
+      const f = await env.DB.prepare("SELECT f.id, r.ref FROM educator_feedback f JOIN educator_requests r ON r.id = f.request_id WHERE f.id = ?1 AND f.kind != 'survey'").bind(Number(id)).first();
+      if (!f) throw new Refusal(404, 'gone', 'That message is gone.');
+      const note = typeof body.note === 'string' ? body.note.replace(/[ \t]+/g, ' ').trim().slice(0, 1000) : '';
+      if (note.length < 3) throw new Refusal(400, 'note', 'Write a short answer in plain words: it is shown to the educator.');
+      const email = body.email !== false;
+      await env.DB.prepare("UPDATE educator_feedback SET status = 'addressed', note = ?2, addressed_at = ?3, addressed_by = ?4, reply_mail = ?5, mail_tries = 0, mail_claimed_at = NULL, updated_at = ?3 WHERE id = ?1")
+        .bind(f.id, note, now, who.actor, email ? 1 : 0).run();
+      if (email) ctx?.waitUntil?.(kick(env));
+      return { body: { ok: true }, target: f.ref, detail: { emailed: email } };
+    }],
+    ['POST', /^educators\/feedback\/(\d{1,12})\/delete$/, 'admin', 'educators.feedback.delete', async ({ env, params: [id] }) => {
+      await env.DB.prepare('DELETE FROM educator_feedback WHERE id = ?1').bind(Number(id)).run();
+      return { body: { ok: true } };
+    }],
+    ['GET', /^educators\/survey$/, 'moderator', 'educators.survey', async ({ env }) => ({ body: await surveyResults(env), quiet: true })],
     // Called every 5 minutes; a call with nothing to do is not written to the audit log.
     ['POST', /^educators\/claim$/, 'owner', 'educators.claim', async ({ env, body, now }) => {
       const w = await claimWork(env, body.limit, now);
-      return { body: w, quiet: !w.mails.length && !w.builds.length, detail: { mails: w.mails.length, builds: w.builds.map((b) => b.ref) } };
+      return { body: w, quiet: !w.mails.length && !w.builds.length && !w.replies.length, detail: { mails: w.mails.length, replies: w.replies.length, builds: w.builds.map((b) => b.ref) } };
     }],
     ['POST', /^educators\/done$/, 'owner', 'educators.done', async ({ env, body, now }) => {
       const r = await finishWork(env, body, now);
-      return { body: r, quiet: !r.mails && !r.sent && !r.failed, detail: r };
+      return { body: r, quiet: !r.mails && !r.replies && !r.sent && !r.failed, detail: r };
     }],
   ];
 }

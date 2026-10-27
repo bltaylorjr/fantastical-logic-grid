@@ -124,6 +124,66 @@ test('a teacher confirms the school email with the code, and the team approves',
   assert.equal((await call(`/v1/educators/status?ref=${next.body.ref}`)).body.status, 'approved');
 });
 
+test('the feedback section opens with the package email link: survey, ideas and the team\'s answer', async () => {
+  const sent = await call('/v1/educators/request', { body: form({ educator: { email: 'park@maple.k12.or.us', name: 'Mr Park', school: 'Maple Middle' } }) });
+  const { ref } = sent.body;
+  const m = await codeFor(ref);
+  await admin('educators/done', { mails: { sent: [m.id] } });
+  await call('/v1/educators/verify', { body: { ref, code: m.code } });
+  await admin(`educators/${m.id}/approve`, {});
+  const build = (await admin('educators/claim', {})).body.builds.find((b) => b.ref === ref);
+  const key = build.feedbackKey;
+  assert.match(key, /^[A-Z2-9]{24}$/);
+  // Locked until the package has been emailed.
+  assert.equal((await call('/v1/educators/feedback/open', { body: { ref, key } })).status, 403);
+  // A build that runs again keeps the same key.
+  await admin('educators/done', { builds: [{ id: build.id, ok: false, error: 'email' }] });
+  const again = (await admin('educators/claim', {})).body.builds.find((b) => b.ref === ref);
+  assert.equal(again.feedbackKey, key);
+  await admin('educators/done', { builds: [{ id: build.id, ok: true, puzzles: 3, storyIds: ['x|1'] }] });
+  const row = await db.prepare('SELECT feedback_key, feedback_hash FROM educator_requests WHERE ref = ?1').bind(ref).first();
+  assert.equal(row.feedback_key, null);
+  assert.ok(row.feedback_hash && row.feedback_hash !== key);
+
+  assert.equal((await call('/v1/educators/feedback/open', { body: { ref, key: key.replace(/^./, (c) => (c === 'A' ? 'B' : 'A')) } })).status, 403);
+  const open = (await call('/v1/educators/feedback/open', { body: { ref, key } })).body;
+  assert.equal(open.unlocked, true);
+  assert.equal(open.name, 'Mr Park');
+  assert.equal(open.survey, null);
+  assert.equal((await call('/v1/educators/feedback/survey', { body: { ref, key, answers: { fit: 2 } } })).status, 400);
+  const sv = (await call('/v1/educators/feedback/survey', { body: { ref, key, answers: { fit: 2, engage: 3, again: 3, use: [0, 3], wants: [1], comment: 'My class loved it.' } } })).body;
+  assert.deepEqual(sv.survey.answers.use, [0, 3]);
+  // Answering again replaces the earlier answers.
+  await call('/v1/educators/feedback/survey', { body: { ref, key, answers: { fit: 1, engage: 4, again: 3, comment: 'My class loved it.' } } });
+  assert.equal((await call('/v1/educators/feedback/send', { body: { ref, key, kind: 'wish', text: 'More space puzzles' } })).status, 400);
+  const fb = (await call('/v1/educators/feedback/send', { body: { ref, key, kind: 'idea', text: 'More space puzzles, please!' } })).body;
+  assert.equal(fb.items.length, 1);
+  assert.equal(fb.items[0].status, 'new');
+
+  const list = (await admin('educators/feedback?status=new')).body;
+  const item = list.items.find((x) => x.ref === ref);
+  assert.equal(item.kind, 'idea');
+  assert.equal(item.school, 'Maple Middle');
+  assert.equal(list.surveys, 1);
+  assert.equal((await admin(`educators/feedback/${item.id}/address`, { note: '' })).status, 400);
+  assert.equal((await admin(`educators/feedback/${item.id}/address`, { note: 'We added a space theme in version 1.12.' })).status, 200);
+  const work = (await admin('educators/claim', {})).body;
+  const reply = work.replies.find((r) => r.ref === ref);
+  assert.equal(reply.email, 'park@maple.k12.or.us');
+  assert.equal(reply.note, 'We added a space theme in version 1.12.');
+  await admin('educators/done', { replies: { sent: [reply.id] } });
+  assert.equal((await admin('educators/claim', {})).body.replies.length, 0);
+  const after = (await call('/v1/educators/feedback/open', { body: { ref, key } })).body;
+  assert.equal(after.items[0].reply, 'We added a space theme in version 1.12.');
+  assert.equal(after.survey.answers.fit, 1);
+
+  const results = (await admin('educators/survey')).body;
+  assert.equal(results.responses, 1);
+  const fit = results.questions.find((q) => q.id === 'fit');
+  assert.equal(fit.counts[1], 1);
+  assert.equal(results.comments[0].text, 'My class loved it.');
+});
+
 test('declining emails the educator the note; wrong codes lock; resend gives a new code', async () => {
   const sent = await call('/v1/educators/request', { body: form({ educator: { email: 'lee@hillside.edu' } }) });
   const { ref } = sent.body;
