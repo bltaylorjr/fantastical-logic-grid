@@ -56,6 +56,9 @@ export async function runUpkeep(env, now = Date.now()) {
     daily_results: db.prepare('DELETE FROM daily_results WHERE day < ?1').bind(isoDay(now - 120 * DAY)),
     print_packs: db.prepare('DELETE FROM print_packs WHERE at < ?1').bind(now - 400 * DAY),
     print_pack_stories: db.prepare('DELETE FROM print_pack_stories WHERE at < ?1').bind(now - 400 * DAY),
+    // Educator requests never confirmed, or declined, go after 30 days. Sent
+    // ones stay: their story ids keep every later package's stories new.
+    educator_requests: db.prepare("DELETE FROM educator_requests WHERE status IN ('expired', 'declined', 'unverified') AND created_at < ?1").bind(now - 30 * DAY),
   };
   if ((await getSettings(env, now)).archive_email_enabled) {
     for (const name of ARCHIVED_UPKEEP_JOBS) delete jobs[name];

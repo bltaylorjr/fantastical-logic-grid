@@ -82,6 +82,7 @@
       <li><a href="#marketing" data-min="viewer">Marketing</a></li>
       <li><a href="#stories" data-min="moderator">Story workshop and review <span class="count" id="count-parts" hidden></span></a></li>
       <li><a href="#communication" data-min="viewer">Communication <span class="count" id="count-comm" hidden></span></a></li>
+      <li><a href="#educators" data-min="moderator">Educator requests <span class="count" id="count-educators" hidden></span></a></li>
       <li><a href="#names" data-min="moderator">Screen names <span class="count" id="count-names" hidden></span></a></li>
       <li><a href="#players" data-min="viewer">Players</a></li>
       <li><a href="#supporters" data-min="admin">Supporters</a></li>
@@ -252,6 +253,14 @@
       </form>
       <ul class="cards" id="ann-list"></ul>
       </div>
+    </section>
+
+    <section data-view="educators" hidden aria-labelledby="h-educators">
+      <div class="head"><h1 id="h-educators">Educator requests</h1></div>
+      <p class="muted">Free printable puzzle packages asked for on the website's <a href="https://thelogicgrid.com/educators/" target="_blank" rel="noopener">Educators page</a>. A request shows as waiting once the educator has typed the code we emailed to their school address. <b>Approve and send</b> makes the puzzles with the game's engine and emails them as PDFs to that address; <b>Decline</b> sends a polite email with your note. Check the badge next to the address: "Check the school" means it is not a known school domain. Switches and limits: Settings and switches &gt; Educators.</p>
+      <p class="muted" id="edu-speed"></p>
+      <div class="sections" id="edu-tabs" role="group" aria-label="Show requests"></div>
+      <div id="edu-list"></div>
     </section>
 
     <section data-view="names" hidden aria-labelledby="h-names">

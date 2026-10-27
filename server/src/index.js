@@ -18,6 +18,7 @@
 //   /v1/challenges[/:code[/result]]       Challenge a friend links, no account (challenges.js)
 //   GET|POST /v1/print-packs             printable puzzle packs for signed-in players (print-packs.js)
 //   GET /v1/perks                        a signed-in player's supporter perks (supporters.js)
+//   /v1/educators/*                      free printable puzzle packages for educators (educators.js)
 //   /admin/*                             the admin dashboard and its API (admin.js)
 //   GET /v1/health[?deep=1]              a quick check that the Worker (and with
 //                                        deep=1, the database and daily cleanup) is up
@@ -43,6 +44,7 @@ import { handleAdmin } from './admin.js';
 import { NIGHTLY_CRONS, isMaintenanceHour, runNightly } from './nightly.js';
 import { handleMarketing } from './marketing.js';
 import { handlePerks } from './supporters.js';
+import { handleEducators } from './educators.js';
 import { publicConfig } from './settings.js';
 import { deepHealth } from './upkeep.js';
 import { runArchive } from './archive.js';
@@ -89,6 +91,9 @@ async function route(req, env, ctx) {
 
   const feedback = await handleFeedback(req, env, url);
   if (feedback) return feedback;
+
+  const educators = await handleEducators(req, env, ctx, url);
+  if (educators) return educators;
 
   const messages = await handleMessages(req, env, url, signedIn, isDeleted);
   if (messages) return messages;
