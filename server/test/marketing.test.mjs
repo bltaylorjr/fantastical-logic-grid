@@ -111,6 +111,26 @@ test('the daily poster gets the approved ads due by a day, and reports each one'
   await db.prepare("UPDATE campaign_ads SET status = 'approved', post_url = NULL, posted_at = NULL, auto_note = NULL WHERE id = ?1").bind(sky.id).run();
 });
 
+test('the educator campaign arrives as drafts, every ad of every campaign carries its tracked link', async () => {
+  const r = await call('/admin/v1/marketing', { auth: viewer() });
+  const c = r.body.campaigns.find((x) => x.code === 'educators-2026');
+  assert.ok(c, 'educator campaign seeded');
+  assert.equal(c.status, 'draft', 'nothing runs until Bobby approves');
+  const ads = r.body.ads.filter((a) => a.campaignId === c.id);
+  assert.ok(ads.length >= 15, `${ads.length} educator ads`);
+  assert.ok(ads.every((a) => a.status === 'draft'), 'every educator ad is a draft');
+  assert.ok(ads.every((a) => a.landing === '/educators/' && a.link.startsWith('https://thelogicgrid.com/educators/?utm_source=')), 'every educator ad opens the Educators page');
+  const flyer = ads.find((a) => a.content === 'staff-room');
+  assert.equal(flyer.link, 'https://thelogicgrid.com/educators/?utm_source=flyer&utm_medium=qr&utm_campaign=educators-2026&utm_content=staff-room');
+  for (const a of r.body.ads) assert.match(`${a.body}\n${a.notes}`, /\{link\}/, `${a.title} carries its tracked link`);
+  for (const code of ['launch-2026', 'educators-2026']) {
+    const keys = r.body.ads.filter((a) => a.campaignId === r.body.campaigns.find((x) => x.code === code).id).map((a) => `${a.channel}|${a.content}`);
+    assert.equal(new Set(keys).size, keys.length, `${code}: each ad has its own link`);
+  }
+  assert.ok(r.body.campaigns.some((x) => x.code === 'portal'), 'the game-site link has its campaign');
+  for (const a of ads) for (const id of a.media) assert.ok(r.body.media.some((m) => m.id === id), `${a.title}: media listed`);
+});
+
 test('the game counts campaign visits anonymously, and made-up codes fold into other', async () => {
   for (let i = 0; i < 3; i++) assert.equal((await send({ e: 'visit', c: 'launch-2026', s: 'reddit', m: 'forum', k: 'webgames-launch', p: 'web' })).status, 200);
   await send({ e: 'solve', c: 'launch-2026', s: 'reddit', m: 'forum', k: 'webgames-launch', p: 'web' });
@@ -118,6 +138,7 @@ test('the game counts campaign visits anonymously, and made-up codes fold into o
   await send({ e: 'visit', c: 'made-up-campaign', s: 'my-spam-site', m: 'banner', k: 'zzz', p: 'toaster' });
   await send({ e: 'visit', c: '', s: 'pinterest', m: 'social', p: 'web' });
   assert.equal((await send({ e: 'hack' })).status, 400, 'unknown events refused');
+  assert.equal((await send({ e: 'edu_request', c: 'educators-2026', s: 'x', m: 'social', k: 'edchat' })).status, 400, 'educator requests are counted by the Worker only');
   assert.equal((await mf.dispatchFetch('https://api.test/v1/m', { method: 'POST', body: 'not json' })).status, 400, 'junk refused');
   const rows = (await db.prepare('SELECT campaign, source, medium, content, event, platform, n FROM campaign_stats ORDER BY campaign, event').all()).results;
   assert.deepEqual(rows.find((x) => x.event === 'visit' && x.campaign === 'launch-2026'), { campaign: 'launch-2026', source: 'reddit', medium: 'forum', content: 'webgames-launch', event: 'visit', platform: 'web', n: 3 });
@@ -126,12 +147,12 @@ test('the game counts campaign visits anonymously, and made-up codes fold into o
   assert.equal(rows.length, 5);
 
   const r = await call('/admin/v1/marketing?days=7', { auth: viewer() });
-  assert.deepEqual(r.body.totals, { visit: 5, play: 1, solve: 1, return: 0, install: 0, download: 0, support: 0 });
+  assert.deepEqual(r.body.totals, { visit: 5, play: 1, solve: 1, return: 0, install: 0, download: 0, support: 0, edu_request: 0, edu_confirm: 0, edu_sent: 0 });
   assert.equal(r.body.trend.length, 7);
   assert.equal(r.body.trend.at(-1).visit, 5);
   assert.equal(r.body.bySource[0].source, 'reddit');
   const ad = r.body.ads.find((a) => a.content === 'webgames-launch');
-  assert.deepEqual(ad.stats, { visit: 3, play: 1, solve: 1, return: 0, install: 0, download: 0, support: 0 });
+  assert.deepEqual(ad.stats, { visit: 3, play: 1, solve: 1, return: 0, install: 0, download: 0, support: 0, edu_request: 0, edu_confirm: 0, edu_sent: 0 });
   assert.equal(r.body.byCampaign.find((x) => x.campaign === '(none)').name, 'No campaign (links from other sites)');
 });
 
