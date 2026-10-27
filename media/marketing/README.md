@@ -30,3 +30,28 @@ of the grid, the clues and the story scene, and lays them out on the game's
 colours with its fonts and logo. It also writes the small previews the admin
 dashboard shows (`admin/marketing-*.png`). Everything is free and made here,
 so there is nothing to license.
+
+## Educator campaign
+
+Pictures and a printable flyer for the `educators-2026` campaign (free
+puzzle packages for teachers, schools and districts on the website's
+Educators page). Each picture has a `.jpg` twin for Instagram and the
+automatic poster.
+
+| File | Size | For |
+| --- | --- | --- |
+| `educators-wide-1600x900.png` | 1600 x 900 | X, Bluesky, Mastodon, LinkedIn, Reddit, Facebook Page, OER Commons |
+| `educators-square-1080.png` | 1080 x 1080 | Instagram, Threads, Facebook groups, newsletters |
+| `educators-pin-1000x1500.png` | 1000 x 1500 | Pinterest teacher boards |
+| `educators-flyer-letter.pdf` | US Letter | Staff rooms, school offices, district emails (with a `.png` copy) |
+
+The flyer's QR code is the tracked link of the "Printable flyer with QR
+code" ad (`utm_source=flyer&utm_medium=qr&utm_campaign=educators-2026&utm_content=staff-room`),
+so every scan shows in the admin Marketing numbers. They are made from a
+real sample Grade 4 package (`scripts/educator-package.mjs`):
+
+```
+npm ci && npm run build
+pip install segno   # free QR code maker
+node media/marketing/tools/make-educator-images.cjs
+```
