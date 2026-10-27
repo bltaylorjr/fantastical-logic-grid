@@ -1,16 +1,28 @@
-# Builds the Android app (APK, plus an AAB for Google Play) and checks that the
-# iPhone/iPad app compiles. After "Release desktop app" succeeds, the APK is
-# added to that GitHub Release.
+# Builds the Android app (APK, plus an AAB for Google Play) on every change to
+# the game. After "Release desktop app" succeeds, the APK is added to that
+# GitHub Release. Started by hand with "Add the APK to the current release"
+# ticked, it adds the APK to the release for the current version.
 # Android release signing needs these repository secrets (otherwise a debug APK
 # is built): ANDROID_KEYSTORE_BASE64 (the .p12, base64) and ANDROID_KEYSTORE_PASSWORD.
 #
-# PAUSED (Bobby, 2026-10-25): runs only when started by hand from the Actions
-# tab. To resume, put back the pull_request, push and workflow_run triggers:
-#   pull_request / push (main): paths ['mobile/**', 'web/**', 'engine/**', 'scripts/build.mjs', '.github/workflows/mobile.yml']
-#   workflow_run: workflows ['Release desktop app'], types [completed]
+# Android resumed (Bobby, 2026-10-27). iOS is still PAUSED: the iOS job runs
+# only when this workflow is started by hand from the Actions tab.
 name: Mobile apps
 on:
   workflow_dispatch:
+    inputs:
+      attach_to_release:
+        description: Add the APK to the current release (signed builds only)
+        type: boolean
+        default: false
+  pull_request:
+    paths: ['mobile/**', 'web/**', 'engine/**', 'scripts/build.mjs', '.github/workflows/mobile.yml']
+  push:
+    branches: [main]
+    paths: ['mobile/**', 'web/**', 'engine/**', 'scripts/build.mjs', '.github/workflows/mobile.yml']
+  workflow_run:
+    workflows: ['Release desktop app']
+    types: [completed]
 permissions:
   contents: write
 jobs:
@@ -64,7 +76,7 @@ jobs:
             ${{ runner.temp }}/*.apk
             ${{ runner.temp }}/*.aab
       - name: Add the APK to the release
-        if: github.event_name == 'workflow_run'
+        if: github.event_name == 'workflow_run' || (github.event_name == 'workflow_dispatch' && inputs.attach_to_release)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -73,7 +85,8 @@ jobs:
           gh release upload "v${{ steps.v.outputs.version }}" "$RUNNER_TEMP/The-Fantastical-Logic-Grid-${{ steps.v.outputs.version }}.apk" --clobber --repo "$GITHUB_REPOSITORY"
 
   ios:
-    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    # Paused (Bobby, 2026-10-25): only when started by hand.
+    if: github.event_name == 'workflow_dispatch'
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v7
