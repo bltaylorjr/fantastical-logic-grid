@@ -153,7 +153,7 @@ function applyMode() {
   updateMusic();
 }
 function updateMusic() {
-  const want = !!(S && settings.music && settings.sound && !settings.silent && remote.feature('music') && !$('#screen-play').hidden);
+  const want = !!(S && settings.music && settings.sound && !settings.silent && remote.feature('music') && !$('#screen-play').hidden && !$('#dlg-video').open);
   try {
     if (want && !sfx.musicPlaying()) { sfx.setVolumes({ sfx: settings.volume / 100, music: settings.musicVolume / 100 }); sfx.startMusic(S.puzzle.theme.id); sfx.setMood((S.save.percent || 0) / 100); }
     else if (!want && sfx.musicPlaying()) sfx.stopMusic();
@@ -1969,7 +1969,11 @@ $('#read-clues').addEventListener('click', async () => {
 // Natural voices are the default for all speech. On first launch they download
 // in the background; later launches load them from the browser's cache early,
 // so the first Read aloud starts promptly.
+// While the Introduction plays, the voice engine waits: its download and
+// start-up compete with the video and can make the narration stall.
+let voicesHeld = false;
 async function ensureNaturalVoices() {
+  if ($('#dlg-video').open) { voicesHeld = true; return; }
   if (!['server', 'kokoro'].includes(settings.voiceProvider) || settings.silent || ai.kokoroLoading()) return;
   const first = !ai.kokoroReady(settings);
   if (first && (navigator.onLine === false || navigator.connection?.saveData)) return;
@@ -2246,7 +2250,13 @@ $('#help-close').onclick = () => $('#dlg-help').close();
 // The Introduction (narrated video): offered once on first launch, always at the top.
 function openVideo() {
   if ($('#dlg-help').open) $('#dlg-help').close();
-  openDialog($('#dlg-video'), $('#intro-video'));
+  // The Introduction has the floor: game speech and music stop while it plays,
+  // and the whole video buffers ahead so the narration doesn't stall.
+  try { ai.stopSpeaking(); } catch (e) { /* ignore */ }
+  const v = $('#intro-video');
+  v.preload = 'auto';
+  openDialog($('#dlg-video'), v);
+  updateMusic();
 }
 // The app bar (with How to play, the Introduction and the small scoreboard) stays at the top;
 // its height keeps scrolled-to items from hiding under it.
@@ -2258,7 +2268,30 @@ $('#howto-btn').onclick = () => openTutorial();
 $('#intro-btn').onclick = openVideo;
 $('#miniboard-open').onclick = () => competeUi.openBoard();
 $('#video-close').onclick = () => $('#dlg-video').close();
-$('#dlg-video').addEventListener('close', () => { $('#intro-video').pause(); });
+$('#dlg-video').addEventListener('close', () => {
+  $('#intro-video').pause();
+  updateMusic();
+  if (voicesHeld) { voicesHeld = false; afterLoad(ensureNaturalVoices, 1000); }
+});
+// If the picture or narration gets stuck while playing (a browser media hiccup
+// after a slow moment), nudge the player on from where it stopped, then reload
+// the video at that point if the nudge isn't enough.
+{
+  const v = $('#intro-video');
+  let last = -1, still = 0;
+  setInterval(() => {
+    if (!$('#dlg-video').open || v.paused || v.ended || v.seeking) { last = -1; still = 0; return; }
+    if (Math.abs(v.currentTime - last) > 0.05) { last = v.currentTime; still = 0; return; }
+    still += 1;
+    if (still === 3) v.currentTime = Math.min(v.currentTime + 0.05, v.duration || v.currentTime);
+    else if (still === 8 && navigator.onLine !== false && (v.readyState >= 3 || v.networkState !== 2)) {
+      const at = v.currentTime;
+      v.addEventListener('loadedmetadata', () => { v.currentTime = at; v.play().catch(() => {}); }, { once: true });
+      v.load();
+      still = 0;
+    }
+  }, 1000);
+}
 function offerIntro() {
   if (settings.introOffered) return;
   settings.introOffered = true;

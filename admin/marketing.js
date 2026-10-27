@@ -41,12 +41,19 @@ function mediaName(id) {
   return m ? `<a href="${h.esc(m.url)}" target="_blank" rel="noopener">${h.esc(m.title)}</a>` : '<span class="muted">(removed)</span>';
 }
 
+// Channels scripts/marketing-post.py can post to by itself (the rest are emailed).
+// Facebook posts go to the game's Page; group posts are always by hand.
+const AUTO_CHANNELS = ['bluesky', 'mastodon', 'x', 'facebook', 'instagram', 'threads'];
+const isAuto = (a) => AUTO_CHANNELS.includes(a.channel) && !(a.channel === 'facebook' && a.medium === 'community');
+
 function adCard(a, admin) {
   const text = fillLink(a.body, a.link);
   const s = a.stats;
   return `<details class="mk-ad" data-ad="${a.id}">
     <summary><span class="mk-ad-title">${h.esc(a.title)}</span> ${badge(a.status)} <span class="muted">${h.esc(a.channel)} · ${h.esc(MEDIUM_NAMES[a.medium] || a.medium)} · ${h.fmt(s.visit)} visits · ${h.fmt(s.solve)} solves</span></summary>
     <div class="stack">
+      ${a.postOn ? `<p><b>Posting day:</b> ${h.esc(a.postOn)}${isAuto(a) ? ' (posted automatically once its key is saved)' : ' (emailed to you that morning to post by hand)'}</p>` : ''}
+      ${a.autoNote ? `<p class="note"><b>Automatic posting:</b> ${h.esc(a.autoNote)}</p>` : ''}
       ${a.where ? `<p><b>Where:</b> ${/^https:\/\//.test(a.where) ? `<a href="${h.esc(a.where)}" target="_blank" rel="noopener">${h.esc(a.where)}</a>` : h.esc(a.where)}</p>` : ''}
       <div class="field"><label for="mk-text-${a.id}">Words to post (the tracked link is filled in)</label><textarea id="mk-text-${a.id}" rows="8" readonly>${h.esc(text)}</textarea></div>
       <div class="field"><label for="mk-link-${a.id}">Tracked link</label><input id="mk-link-${a.id}" type="text" readonly value="${h.esc(a.link)}"></div>
@@ -204,6 +211,7 @@ async function editAd(a) {
     { name: 'media', label: 'Media', type: 'checks', value: a.media || [], options: data.media.map((m) => [m.id, `${m.title} (${m.size || m.kind})`]) },
     { name: 'landing', label: 'Opens this page', value: a.landing || '/?play=now', help: '/?play=now starts a quick Easy puzzle straight away; / opens the home screen; /daily/ the daily puzzle page.' },
     { name: 'where', label: 'Where to post it', value: a.where },
+    { name: 'postOn', label: 'Posting day', type: 'date', value: a.postOn || '', help: 'Approved ads go out on this day: automatically on Bluesky, Mastodon, X, the Facebook Page, Instagram and Threads, and by an email to you for the rest.' },
     { name: 'status', label: 'Status', type: 'select', value: a.status || 'draft', options: opts(data.adStatus, STATUS_NAMES) },
     { name: 'postUrl', label: 'Live post link (once posted)', type: 'url', value: a.postUrl || '' },
     { name: 'notes', label: 'Notes', type: 'textarea', rows: 2, value: a.notes },
