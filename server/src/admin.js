@@ -18,6 +18,8 @@
 //   GET  /admin/v1/feedback?kind=&status=  ideas and problems from the game; POST .../:id (addressed + note|done|new|delete)
 //   POST /admin/v1/replies/claim       thank-you emails waiting, for the GitHub Action to send (owner, replies.js)
 //   POST /admin/v1/replies/done        that Action says which went out; their addresses are removed (owner)
+//   GET  /admin/v1/educators?status=   educator puzzle package requests; POST .../:id/(approve|decline|delete) (educators.js)
+//   POST /admin/v1/educators/claim     code emails and approved packages, for the GitHub Action (owner); POST .../done
 //   POST /admin/v1/daily-email/claim   the day's daily puzzle email list, for the GitHub Action (owner, daily-email.js)
 //   POST /admin/v1/daily-email/done    which of those failed (tried again) or were refused (removed) (owner)
 //   GET  /admin/v1/names?status=       screen names to moderate; POST /admin/v1/names/:uid/approve
@@ -78,6 +80,7 @@ import { ratingRoutes } from './ratings.js';
 import { marketingRoutes } from './marketing.js';
 import { supporterRoutes } from './supporters.js';
 import { contributorRoutes, deleteContributionStatements, countContribution, uncountContribution, dropContribution } from './contributors.js';
+import { educatorRoutes } from './educators.js';
 
 const DAY = 24 * 3600_000;
 const ROLES = { viewer: 1, moderator: 2, admin: 3, owner: 4 };
@@ -90,7 +93,7 @@ const SESSION_MAX_S = 12 * 3600;
 const DENIED_PER_DAY = 500; // refused requests written to the audit log, so a flood cannot fill it
 const ANALYTICS_CACHE_MS = 120_000;
 const TABLES = ['sync_users', 'sync_records', 'sync_deleted_users', 'players', 'scores', 'races', 'race_entries', 'race_invites', 'plays', 'parts', 'usage',
-  'app_errors', 'upkeep_log', 'admins', 'admin_audit', 'settings', 'announcements', 'bans', 'name_reviews', 'archive_log', 'feedback', 'feedback_replies', 'error_fixes', 'conversations', 'conversation_messages', 'message_contacts', 'news', 'search_snapshots', 'daily_plan', 'translations', 'rating_insights', 'campaigns', 'campaign_ads', 'marketing_media', 'campaign_stats', 'challenges', 'daily_results', 'daily_email', 'supporters', 'contributions'];
+  'app_errors', 'upkeep_log', 'admins', 'admin_audit', 'settings', 'announcements', 'bans', 'name_reviews', 'archive_log', 'feedback', 'feedback_replies', 'error_fixes', 'conversations', 'conversation_messages', 'message_contacts', 'news', 'search_snapshots', 'daily_plan', 'translations', 'rating_insights', 'campaigns', 'campaign_ads', 'marketing_media', 'campaign_stats', 'challenges', 'daily_results', 'daily_email', 'supporters', 'educator_requests', 'contributions'];
 const SECURITY_HEADERS = {
   'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; media-src 'self' blob:; connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
   'X-Content-Type-Options': 'nosniff',
@@ -209,6 +212,7 @@ async function analytics(env, days, now = Date.now()) {
     messagesUnread: db.prepare("SELECT COUNT(*) AS n FROM conversations WHERE status = 'open' AND admin_unread > 0"),
     picturesByDay: db.prepare("SELECT day, count AS n FROM usage WHERE name = 'pictures' AND day >= ?1").bind(sinceDay),
     namesWaiting: db.prepare('SELECT COUNT(*) AS n FROM players p LEFT JOIN name_reviews r ON r.user_id = p.user_id WHERE r.name_key IS NULL OR r.name_key != p.name_key'),
+    educatorsWaiting: db.prepare("SELECT COUNT(*) AS n FROM educator_requests WHERE status = 'pending'"),
   };
   const names = Object.keys(q);
   const res = await db.batch(Object.values(q));
@@ -235,7 +239,7 @@ async function analytics(env, days, now = Date.now()) {
     voices: { byDay: series(r.voicesByDay), cap: settings.daily_tts_cap, enabled: settings.tts_enabled, today: series(r.voicesByDay).at(-1) },
     pictures: { byDay: series(r.picturesByDay), cap: settings.daily_picture_cap, mode: settings.ai_pictures, today: series(r.picturesByDay).at(-1) },
     errors: { byDay: series(r.errorsByDay) },
-    review: { parts: Object.fromEntries(r.parts.map((x) => [x.id, x.n])), namesWaiting: one('namesWaiting'), feedback: Object.fromEntries(r.feedbackNew.map((x) => [x.id, x.n])), messages: one('messagesUnread') },
+    review: { parts: Object.fromEntries(r.parts.map((x) => [x.id, x.n])), namesWaiting: one('namesWaiting'), feedback: Object.fromEntries(r.feedbackNew.map((x) => [x.id, x.n])), messages: one('messagesUnread'), educators: one('educatorsWaiting') },
   };
   analyticsCache.set(days, { at: now, body });
   return body;
@@ -706,6 +710,7 @@ const ROUTES = [
   // ---- Supporters and premium extras (supporters.js).
   ...supporterRoutes(Refusal),
   ...contributorRoutes(Refusal),
+  ...educatorRoutes(Refusal),
   ['GET', /^alerts$/, 'viewer', 'alerts.view', async ({ env }) => ({ body: await alerts(env) })],
   ['GET', /^summary$/, 'admin', 'summary.view', async ({ env, url }) => {
     const s = await summary(env, daysParam(url, 31));
@@ -759,7 +764,7 @@ const reply = (body, status = 200, extra = {}) => new Response(JSON.stringify(bo
   status, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', ...extra },
 });
 
-async function api(req, env, url, path) {
+async function api(req, env, ctx, url, path) {
   if (path === 'client-config' && req.method === 'GET') {
     // Public by design (it only names the Firebase project), but kept out of the repo.
     return reply({ firebaseApiKey: env.FIREBASE_WEB_API_KEY || null, projectId: env.FIREBASE_PROJECT_ID || null, tokenSignIn: true });
@@ -779,7 +784,7 @@ async function api(req, env, url, path) {
     if (ROLES[who.role] < ROLES[route[2]]) throw new Refusal(403, 'role', `This needs the ${route[2]} role.`);
     const body = await readBody(req);
     let out;
-    try { out = await route[4]({ req, env, url, who, params, body, now: Date.now() }); } catch (e) {
+    try { out = await route[4]({ req, env, ctx, url, who, params, body, now: Date.now() }); } catch (e) {
       if (e instanceof MessageRefusal) throw new Refusal(e.status, e.error, e.message);
       throw e;
     }
@@ -829,7 +834,7 @@ export async function handleAdmin(req, env, ctx, url, legacy) {
   if (path === '/admin') return Response.redirect(new URL('/admin/', url).toString(), 301);
   // The old token-only story review page moved into the dashboard.
   if (path === '/admin/learn' && req.method === 'GET') return Response.redirect(new URL('/admin/#stories', url).toString(), 301);
-  if (path.startsWith('/admin/v1/')) return api(req, env, url, path.slice('/admin/v1/'.length));
+  if (path.startsWith('/admin/v1/')) return api(req, env, ctx, url, path.slice('/admin/v1/'.length));
   const file = req.method === 'GET' && path.match(APP_FILE);
   if (file) return appFile(env, url, file[1] || 'index.html');
   if (LEGACY.test(path)) {
