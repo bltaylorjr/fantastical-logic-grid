@@ -10,7 +10,8 @@
   reference sheet.
 
 Build sheets are Markdown with images and tables; this file turns them into
-simple HTML email (images load from the public repository on GitHub).
+simple HTML email. Pictures from the repository are attached inside the email,
+so they keep working when the repository is private.
 Set DRY_RUN=1 to write the email to learning-email.html instead of sending.
 Needs: GITHUB_TOKEN; GMAIL_USER and GMAIL_APP_PASSWORD (not for a dry run);
 OWNER_TO (optional, defaults to GMAIL_USER). Python standard library only.
@@ -143,8 +144,23 @@ def send(subject, markdown, base_dir='.'):
     msg['From'] = f'The Fantastical Logic Grid <{GMAIL_USER}>'
     msg['To'] = TO
     msg['Subject'] = subject
+    # Pictures from the repository travel inside the email (cid: links), so
+    # they still show once the repository is private.
+    images = []
+    def embed(m):
+        local = m.group(1)[len(RAW):]
+        if not os.path.isfile(local):
+            return m.group(0)
+        images.append(local)
+        return f'src="cid:pic{len(images) - 1}@flg"'
+    body_html = re.sub(r'src="(' + re.escape(RAW) + r'[^"]+)"', embed, body_html)
     msg.set_content(markdown + footer)
     msg.add_alternative(body_html, subtype='html')
+    html_part = msg.get_body(('html',))
+    for i, path in enumerate(images):
+        with open(path, 'rb') as f:
+            kind = 'jpeg' if path.lower().endswith(('.jpg', '.jpeg')) else 'png'
+            html_part.add_related(f.read(), 'image', kind, cid=f'<pic{i}@flg>', filename=os.path.basename(path))
     try:
         with smtplib.SMTP_SSL('smtp.gmail.com', 465, context=ssl.create_default_context(), timeout=120) as smtp:
             smtp.login(GMAIL_USER, GMAIL_PASSWORD)
