@@ -45,6 +45,7 @@ export const GROUPS = [
   { id: 'search', title: 'Search engines' },
   { id: 'email', title: 'Email' },
   { id: 'apps', title: 'Desktop and mobile apps' },
+  { id: 'marketing', title: 'Marketing autopilot (posting the approved ads)' },
 ];
 
 const CF_SECRET_STEPS = (name, what) => [
@@ -474,6 +475,118 @@ export const CONNECTIONS = [
     checks: [{ type: 'http', url: `${SITE}/fae88a004ad87116c0e93df007b2de7e.txt`, contains: 'fae88a004ad87116c0e93df007b2de7e', label: 'IndexNow key file is published' }],
   },
 
+  // ------------------------------------------------------------- marketing
+  // scripts/marketing-post.py posts approved ads on their day with these keys;
+  // a site without its key is emailed to the owner to post by hand instead.
+  {
+    id: 'bluesky',
+    group: 'marketing',
+    title: 'Bluesky (automatic posts)',
+    why: 'Lets the marketing autopilot post approved Bluesky ads on their day. Without it, the Bluesky ad is emailed to you to post by hand.',
+    cost: 'Free. An app password can only post; it cannot change the account password or settings.',
+    docs: 'scripts/marketing-post.py',
+    names: [
+      { name: 'BLUESKY_HANDLE', where: 'github-secret', note: 'The game account\'s handle, for example thelogicgrid.bsky.social.' },
+      { name: 'BLUESKY_APP_PASSWORD', where: 'github-secret', note: 'An app password, never the account password.' },
+    ],
+    steps: [
+      'Sign in to https://bsky.app as the game\'s account, then open **Settings** > **Privacy and security** > **App passwords** > **Add App Password**. Name it `Logic Grid autopilot` and copy the password it shows.',
+      ...GH_SECRET_STEPS('BLUESKY_APP_PASSWORD', 'that app password'),
+      'Add `BLUESKY_HANDLE` the same way: the handle without the @.',
+      `Test: ${REPO}/actions/workflows/marketing-post.yml > **Run workflow** with mode \`check\`. It should say Bluesky: connected.`,
+    ],
+    links: [{ label: 'Bluesky app passwords', url: 'https://bsky.app/settings/app-passwords' }],
+  },
+  {
+    id: 'mastodon',
+    group: 'marketing',
+    title: 'Mastodon (automatic posts)',
+    why: 'Lets the marketing autopilot post approved Mastodon ads on their day.',
+    cost: 'Free.',
+    docs: 'scripts/marketing-post.py',
+    names: [
+      { name: 'MASTODON_URL', where: 'github-variable', note: 'The server the account is on, for example https://mastodon.social.' },
+      { name: 'MASTODON_TOKEN', where: 'github-secret', note: 'An access token that can only post.' },
+    ],
+    steps: [
+      'Sign in to your Mastodon server, open **Preferences** > **Development** > **New application**. Name it `Logic Grid autopilot`. Under scopes, untick everything except `read:accounts`, `write:statuses` and `write:media`. Click **Submit**.',
+      'Open the new application and copy **Your access token**.',
+      ...GH_SECRET_STEPS('MASTODON_TOKEN', 'that access token'),
+      `Open ${REPO}/settings/variables/actions, click **New repository variable**, name \`MASTODON_URL\`, value your server address (for example \`https://mastodon.social\`).`,
+      `Test: ${REPO}/actions/workflows/marketing-post.yml > **Run workflow** with mode \`check\`.`,
+    ],
+    links: [{ label: 'Mastodon servers', url: 'https://joinmastodon.org/servers' }],
+  },
+  {
+    id: 'x',
+    group: 'marketing',
+    title: 'X (automatic posts)',
+    why: 'Lets the marketing autopilot post approved X ads on their day (text and link; the link shows the game\'s picture card).',
+    cost: 'Free on the X API Free plan, which allows far more posts a month than this campaign needs. Do not pick a paid plan.',
+    docs: 'scripts/marketing-post.py',
+    names: [
+      { name: 'X_API_KEY', where: 'github-secret', note: 'API Key (consumer key).' },
+      { name: 'X_API_SECRET', where: 'github-secret', note: 'API Key Secret.' },
+      { name: 'X_ACCESS_TOKEN', where: 'github-secret', note: 'Access Token for the game\'s X account, made after setting Read and write.' },
+      { name: 'X_ACCESS_SECRET', where: 'github-secret', note: 'Access Token Secret.' },
+    ],
+    steps: [
+      'Signed in as the game\'s X account, open https://developer.x.com/en/portal/dashboard and sign up for the **Free** plan. Describe the use as: posting the game\'s own scheduled announcements.',
+      'Open your app > **User authentication settings** > **Set up**. App permissions: **Read and write**. Type: **Web App, Automated App or Bot**. Callback URI and website: `https://thelogicgrid.com`. Save.',
+      'Open **Keys and tokens**. Regenerate the **API Key and Secret** and copy both. Then generate the **Access Token and Secret** (after setting Read and write) and copy both.',
+      ...GH_SECRET_STEPS('X_API_KEY', 'the API Key'),
+      'Add `X_API_SECRET`, `X_ACCESS_TOKEN` and `X_ACCESS_SECRET` the same way.',
+      `Test: ${REPO}/actions/workflows/marketing-post.yml > **Run workflow** with mode \`check\`.`,
+    ],
+    links: [{ label: 'X developer portal', url: 'https://developer.x.com/en/portal/dashboard' }],
+  },
+  {
+    id: 'meta',
+    group: 'marketing',
+    title: 'Facebook Page and Instagram (automatic posts)',
+    why: 'Lets the marketing autopilot post approved ads to the game\'s Facebook Page and Instagram (pictures and Reels) on their day. Posts in Facebook groups are always by hand: Facebook no longer lets apps post in groups.',
+    cost: 'Free. The app stays in development mode, which is enough to post to Pages and accounts you manage.',
+    docs: 'scripts/marketing-post.py',
+    names: [
+      { name: 'META_PAGE_ID', where: 'github-secret', note: 'The Facebook Page\'s id (a number).' },
+      { name: 'META_PAGE_TOKEN', where: 'github-secret', note: 'A Page access token made from a long-lived user token, so it does not expire. Also used for Instagram.' },
+      { name: 'INSTAGRAM_ACCOUNT_ID', where: 'github-secret', note: 'The Instagram business account id linked to the Page (a number).' },
+    ],
+    steps: [
+      'In the Instagram app, make the game\'s account a free **Business** or **Creator** account (**Settings** > **Account type and tools**). Link it to the game\'s Facebook Page (Page **Settings** > **Linked accounts** > **Instagram**).',
+      'Open https://developers.facebook.com/apps, click **Create app**, choose **Other**, then type **Business**. Name it `Logic Grid autopilot`.',
+      'Open https://developers.facebook.com/tools/explorer, choose that app, and click **Generate Access Token** with these permissions: `pages_show_list`, `pages_read_engagement`, `pages_manage_posts`, `instagram_basic`, `instagram_content_publish`, `business_management`. Allow it for the game\'s Page and Instagram account.',
+      'Open https://developers.facebook.com/tools/debug/accesstoken, paste that token, click **Debug**, then **Extend Access Token** and copy the long-lived token.',
+      'Back in the Explorer, paste the long-lived token and run `me/accounts`. Copy the game Page\'s `access_token` and `id`.',
+      ...GH_SECRET_STEPS('META_PAGE_TOKEN', 'the Page access_token'),
+      'Add `META_PAGE_ID` the same way: the Page `id`.',
+      'In the Explorer, run `<page id>?fields=instagram_business_account` and add its `id` as the secret `INSTAGRAM_ACCOUNT_ID`.',
+      `Test: ${REPO}/actions/workflows/marketing-post.yml > **Run workflow** with mode \`check\`. Facebook Page and Instagram should say connected.`,
+    ],
+    links: [{ label: 'Meta apps', url: 'https://developers.facebook.com/apps' }, { label: 'Graph API Explorer', url: 'https://developers.facebook.com/tools/explorer' }],
+  },
+  {
+    id: 'threads',
+    group: 'marketing',
+    title: 'Threads (automatic posts)',
+    why: 'Lets the marketing autopilot post approved Threads ads on their day.',
+    cost: 'Free. The token lasts 60 days; make a new one when the check says it stopped working.',
+    docs: 'scripts/marketing-post.py',
+    names: [
+      { name: 'THREADS_USER_ID', where: 'github-secret', note: 'The Threads account id (a number).' },
+      { name: 'THREADS_TOKEN', where: 'github-secret', note: 'A long-lived Threads token (60 days).' },
+    ],
+    steps: [
+      'Open https://developers.facebook.com/apps, click **Create app**, and choose the use case **Access the Threads API**. Name it `Logic Grid Threads`.',
+      'In the app, open **App roles** > **Roles** > **Add people** > **Threads testers** and add the game\'s Threads account. Accept the invite in Threads (**Settings** > **Account** > **Website permissions** > **Invites**).',
+      'Open **Use cases** > **Access the Threads API** > **Settings**. Tick `threads_basic` and `threads_content_publish`, then use **User Token Generator** to make a token for the game account and copy it.',
+      ...GH_SECRET_STEPS('THREADS_TOKEN', 'that token'),
+      'Open `https://graph.threads.net/v1.0/me?fields=id&access_token=` followed by the token in your browser, and add the `id` it shows as the secret `THREADS_USER_ID`.',
+      `Test: ${REPO}/actions/workflows/marketing-post.yml > **Run workflow** with mode \`check\`.`,
+    ],
+    links: [{ label: 'Threads API', url: 'https://developers.facebook.com/docs/threads' }],
+  },
+
   // ------------------------------------------------------------- email
   {
     id: 'gmail',
@@ -560,6 +673,28 @@ export const CONNECTIONS = [
       { type: 'dns', name: 'resend._domainkey.thelogicgrid.com', rr: 'TXT', contains: 'p=', label: 'Resend DKIM record (resend._domainkey)' },
       { type: 'dns', name: 'send.thelogicgrid.com', rr: 'MX', label: 'Resend MX record (send)' },
     ],
+  },
+
+  {
+    id: 'educator-dispatch',
+    group: 'email',
+    title: 'Educator emails straight away',
+    docs: 'server/EDUCATORS.md',
+    why: 'Educators who ask for a puzzle package on the Educators page get a code email, and later their PDFs. The "Educator packages" GitHub Action sends them every 5 minutes, which GitHub sometimes starts 10 or more minutes late. With this token the Worker starts that Action the moment a teacher sends the form or you approve, so the code arrives in a minute or two. Optional: without it everything still goes out, just a little later.',
+    cost: 'Free (a GitHub fine-grained token; Actions on a public repository are free).',
+    names: [
+      { name: 'GITHUB_DISPATCH_TOKEN', where: 'worker-secret', optional: true, note: 'Fine-grained token, this repository only, Actions: Read and write. Starts github_pat_.' },
+    ],
+    steps: [
+      'Open https://github.com/settings/personal-access-tokens/new (signed in as bltaylorjr).',
+      'Token name `flg-educator-emails`, Expiration **1 year** (put a reminder in your calendar), Resource owner **bltaylorjr**.',
+      'Repository access: **Only select repositories** > `fantastical-logic-grid`.',
+      'Repository permissions: **Actions** > **Read and write**. Leave everything else as No access. **Generate token** and copy it.',
+      ...CF_SECRET_STEPS('GITHUB_DISPATCH_TOKEN', 'the token'),
+      'Test: in the admin dashboard, Educator requests should say "within about 2 minutes".',
+    ],
+    links: [{ label: 'New fine-grained token', url: 'https://github.com/settings/personal-access-tokens/new' }, { label: 'Educator packages runs', url: `${REPO}/actions/workflows/educator-packages.yml` }],
+    checks: [],
   },
 
   // ------------------------------------------------------------- apps
