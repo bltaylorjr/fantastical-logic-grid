@@ -156,7 +156,7 @@ export const THEMES = [
   },
   {
     id: 'occasion',
-    name: 'Special Occasion',
+    name: 'Parties & Milestones',
     description: 'Birthdays, weddings and parties where everything must go just right.',
     cast: { one: 'guest', many: 'guests' },
     names: ['Alice', 'Brian', 'Chloe', 'David', 'Emma', 'George', 'Hannah', 'Isaac', 'Julia', 'Kevin'],
@@ -573,7 +573,7 @@ export const THEMES = [
   {
     id: 'science',
     name: 'Science',
-    description: 'Science fairs, fossils and fizzing experiments with curious scientists.',
+    description: 'Science fairs, weather watching, rock shows and how-things-move experiments with curious scientists.',
     cast: { one: 'scientist', many: 'scientists' },
     names: ['Ada', 'Grace', 'Hedy', 'Lena', 'Priya', 'Theo', 'Ravi', 'Owen', 'Felix', 'Sam'],
     categories: [
