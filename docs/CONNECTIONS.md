@@ -585,6 +585,29 @@ uses a secret, variable or binding that is not listed there.
 
 **Links:** [Resend domains](https://resend.com/domains) · [Resend API keys](https://resend.com/api-keys) · [Full guide (server/FEEDBACK-EMAILS.md)](https://github.com/bltaylorjr/fantastical-logic-grid/blob/main/server/FEEDBACK-EMAILS.md)
 
+### Educator emails straight away
+
+**Why:** Educators who ask for a puzzle package on the Educators page get a code email, and later their PDFs. The "Educator packages" GitHub Action sends them every 5 minutes, which GitHub sometimes starts 10 or more minutes late. With this token the Worker starts that Action the moment a teacher sends the form or you approve, so the code arrives in a minute or two. Optional: without it everything still goes out, just a little later.
+
+**Cost:** Free (a GitHub fine-grained token; Actions on a public repository are free).
+
+| Name | Where | Notes |
+| --- | --- | --- |
+| `GITHUB_DISPATCH_TOKEN` | Cloudflare Worker secret | Fine-grained token, this repository only, Actions: Read and write. Starts github_pat_. Optional. |
+
+**Steps:**
+
+1. Open <https://github.com/settings/personal-access-tokens/new> (signed in as bltaylorjr).
+2. Token name `flg-educator-emails`, Expiration **1 year** (put a reminder in your calendar), Resource owner **bltaylorjr**.
+3. Repository access: **Only select repositories** > `fantastical-logic-grid`.
+4. Repository permissions: **Actions** > **Read and write**. Leave everything else as No access. **Generate token** and copy it.
+5. Open <https://dash.cloudflare.com/?to=/:account/workers/services/view/flg-api/production/settings> (Cloudflare > **Workers & Pages** > **flg-api** > **Settings** > **Variables and Secrets**).
+6. Click **Add** (or **Edit** next to `GITHUB_DISPATCH_TOKEN` if it is already there).
+7. Choose type **Secret**, enter the name `GITHUB_DISPATCH_TOKEN`, paste the token as the value, and click **Deploy**.
+8. Test: in the admin dashboard, Educator requests should say "within about 2 minutes".
+
+**Links:** [New fine-grained token](https://github.com/settings/personal-access-tokens/new) · [Educator packages runs](https://github.com/bltaylorjr/fantastical-logic-grid/actions/workflows/educator-packages.yml) · [Full guide (server/EDUCATORS.md)](https://github.com/bltaylorjr/fantastical-logic-grid/blob/main/server/EDUCATORS.md)
+
 ## Desktop and mobile apps
 
 ### Desktop app updates (Tauri updater key)

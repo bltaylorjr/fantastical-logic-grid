@@ -182,6 +182,14 @@ writeFileSync(join(site, '.well-known', 'security.txt'), [
 // repository may be private).
 cpSync(join(root, 'LICENSE'), join(site, 'LICENSE.txt'));
 cpSync(join(root, 'SECURITY.md'), join(site, 'security-policy.txt'));
+// The "For educators" link in the game's top corner is for the website only.
+{
+  const f = join(site, 'index.html');
+  const html = readFileSync(f, 'utf8');
+  const shown = html.replace('id="educators-link" href="educators/" hidden>', 'id="educators-link" href="educators/">');
+  if (shown === html) throw new Error('Could not show the For educators link in dist/site/index.html');
+  writeFileSync(f, shown);
+}
 // Search pages, daily puzzle, sitemap and search tags (website only).
 const seo = await buildSeo({ root, site });
 console.log(`Built dist/site for web hosting (${seo.pages.length} pages in the sitemap).`);
