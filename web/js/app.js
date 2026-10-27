@@ -33,6 +33,8 @@ import { shareResult } from './share-result.js';
 import * as challenge from './challenge.js';
 import * as dailyResults from './daily-results.js';
 import * as dailyEmail from './daily-email.js';
+import * as puzzleMail from './puzzle-mail.js';
+import * as editions from './editions.js';
 import { onChange as onAccountChange } from './account.js';
 import * as i18n from './i18n.js';
 import { CLOUD, CLOUD_URL } from './cloud-config.js';
@@ -453,9 +455,20 @@ async function startQuick() {
 $('#quick-btn').onclick = startQuick;
 // ?play=now in a link (ads, the website) starts a quick puzzle straight away.
 // ?play=daily (the daily email) opens today's daily puzzle, or with &day= that day's.
+// ?play=weekly[&week=] and ?play=special&id= (the puzzle emails) open those.
 function handlePlayLink() {
   const url = new URL(location.href);
   const play = url.searchParams.get('play');
+  if (play === 'weekly' || play === 'special') {
+    const week = /^\d{4}-\d{2}-\d{2}$/.test(url.searchParams.get('week') || '') ? url.searchParams.get('week') : null;
+    const id = /^se-[\w-]{1,40}$/.test(url.searchParams.get('id') || '') ? url.searchParams.get('id') : null;
+    for (const k of ['play', 'week', 'id']) url.searchParams.delete(k);
+    try { history.replaceState(history.state, '', url.pathname + url.search + url.hash); } catch (e) { /* framed preview */ }
+    if (!daily.available() || isPreview || (play === 'special' && !id)) { startQuick(); return true; }
+    (play === 'special' ? Promise.resolve(editions.specialKey(id)) : (week ? Promise.resolve(editions.weeklyKey(week)) : editions.weeklyLatest().then((l) => { if (!l) throw new Error('none'); return editions.weeklyKey(l.week); })))
+      .then((key) => openEdition(key)).catch(() => startQuick());
+    return true;
+  }
   if (play !== 'now' && play !== 'daily') return false;
   // A Hand-picked link names its day: ?play=daily&day=2026-11-03.
   const day = /^\d{4}-\d{2}-\d{2}$/.test(url.searchParams.get('day') || '') ? url.searchParams.get('day') : null;
@@ -514,7 +527,7 @@ async function renderSaved() {
     const state = s.solved ? (s.revealed ? 'Solution revealed' : 'Solved') : `${pct}% complete`;
     return `<li class="saved-item" data-id="${s.id}">
       <h3 class="name">${esc(s.name)}</h3>
-      <div class="info">${s.race ? `<span class="pill">Race ${esc(s.race.code)}</span> ` : ''}${s.daily ? `<span class="pill">Daily ${esc(daily.longDate(s.daily))}</span> ` : ''}${(s.myNotes || '').trim() ? '<span class="pill">Has notes</span> ' : ''}${esc(p.theme.name)} · ${esc(p.difficulty.name)} · ${p.categories.length} × ${p.categories[0].items.length} · ${state}<br>Last played ${esc(fmt.format(new Date(s.lastPlayed)))}</div>
+      <div class="info">${s.race ? `<span class="pill">Race ${esc(s.race.code)}</span> ` : ''}${s.daily ? `<span class="pill">Daily ${esc(daily.longDate(s.daily))}</span> ` : ''}${s.editionLabel ? `<span class="pill">${esc(s.editionLabel)}</span> ` : ''}${(s.myNotes || '').trim() ? '<span class="pill">Has notes</span> ' : ''}${esc(p.theme.name)} · ${esc(p.difficulty.name)} · ${p.categories.length} × ${p.categories[0].items.length} · ${state}<br>Last played ${esc(fmt.format(new Date(s.lastPlayed)))}</div>
       <div class="bar" role="img" aria-label="${state}"><i style="width:${pct}%"></i></div>
       <div class="row">
         <button class="btn primary small" type="button" data-do="resume">${s.solved ? 'Open' : 'Resume'}<span class="sr-only"> ${esc(s.name)}</span></button>
@@ -632,7 +645,7 @@ function openGame(save, { fresh = false } = {}) {
 
   $('#p-title').textContent = save.name;
   const K = ix.K, N = ix.N;
-  $('#p-meta').innerHTML = [...(save.daily ? [`Daily puzzle · ${daily.longDate(save.daily)}`] : []), puzzle.difficulty.name, puzzle.theme.name, ...(puzzle.topic && puzzle.topic.id !== 'any' ? [puzzle.topic.name] : []), `${K} categories × ${N} items`, `${puzzle.clues.length} clues`].map((t) => `<span class="pill">${esc(t)}</span>`).join('');
+  $('#p-meta').innerHTML = [...(save.daily ? [`Daily puzzle · ${daily.longDate(save.daily)}`] : []), ...(save.editionLabel ? [save.editionLabel] : []), puzzle.difficulty.name, puzzle.theme.name, ...(puzzle.topic && puzzle.topic.id !== 'any' ? [puzzle.topic.name] : []), `${K} categories × ${N} items`, `${puzzle.clues.length} clues`].map((t) => `<span class="pill">${esc(t)}</span>`).join('');
   const paras = puzzle.story.paragraphs;
   $('#p-story').innerHTML = paras.map((p, i) => `<p${i === paras.length - 1 ? ' class="goal"' : ''}>${esc(p)}</p>`).join('');
   characters.useFor(puzzle);
@@ -1175,8 +1188,8 @@ function checkSolved() {
   if (solved && !S.save.solved) {
     S.save.solved = true;
     S.save.completedAt = Date.now();
-    // The daily puzzle's answers are on the website, so it earns no scoreboard points.
-    if (!S.save.race && !S.save.daily && !S.save.challenge && !S.save.revealed && !S.save.restarted) S.save.scorePending = true;
+    // The daily, weekly and special puzzles' answers are on the website, so they earn no scoreboard points.
+    if (!S.save.race && !S.save.daily && !S.save.edition && !S.save.challenge && !S.save.revealed && !S.save.restarted) S.save.scorePending = true;
     tickTimer();
     recordSolve(S.save);
     if (!S.save.revealed) campaign.solved();
@@ -1538,6 +1551,7 @@ async function renderDaily() {
     el.hidden = !el.textContent;
   });
   renderPicks(saves);
+  renderEditions(saves);
   const earlier = (l.days || []).filter((d) => d < l.date).slice(0, 7);
   $('#daily-earlier').hidden = !earlier.length;
   $('#daily-list').innerHTML = earlier.map((d) => {
@@ -1557,6 +1571,47 @@ async function renderPicks(saves) {
     const why = x.hand ? 'picked by the team' : `rated ${x.average} of 5`;
     return `<li><button class="btn quiet small" type="button" data-daily="${esc(x.date)}">${esc(x.title)}</button> <span class="muted">${esc(x.difficultyName)} · ${esc(x.themeName)} · ${esc(why)}${sv ? (sv.solved ? ' · finished' : ` · ${sv.percent || 0}% done`) : ''}</span></li>`;
   }).join('');
+}
+
+// The puzzle of the week and special editions, under the daily puzzle, and
+// the Puzzle emails invite (anyone can sign up, no account needed).
+async function renderEditions(saves) {
+  const [w, list] = await Promise.all([editions.weeklyLatest(), editions.specials()]);
+  const box = $('#weekly-box');
+  box.hidden = !w;
+  if (w) {
+    const key = editions.weeklyKey(w.week);
+    const sv = saves.find((x) => x.edition === key);
+    box.innerHTML = `<h3>Puzzle of the week</h3><p class="daily-title"><b>${esc(w.title)}</b></p>
+      <p class="daily-meta"><span class="pill">Week of ${esc(daily.longDate(w.week))}</span> <span class="pill">${esc(w.difficultyName)}</span> <span class="pill">${esc(w.themeName)}</span> <span class="pill">${w.categories} × ${w.items}</span>${sv ? ` <span class="pill">${sv.solved ? 'Finished' : `${sv.percent || 0}% done`}</span>` : ''}</p>
+      <button class="btn" type="button" data-edition="${esc(key)}">${sv ? (sv.solved ? 'Open the puzzle of the week' : 'Continue the puzzle of the week') : 'Play the puzzle of the week'}</button>`;
+  }
+  $('#specials-box').hidden = !list.length;
+  $('#specials-list').innerHTML = list.map((x) => {
+    const key = editions.specialKey(x.id);
+    const sv = saves.find((s) => s.edition === key);
+    return `<li><button class="btn quiet small" type="button" data-edition="${esc(key)}">${esc(x.editionTitle)}</button> <span class="muted">${esc(daily.longDate(x.date))} · ${esc(x.difficultyName)} · ${esc(x.themeName)}${sv ? (sv.solved ? ' · finished' : ` · ${sv.percent || 0}% done`) : ''}</span></li>`;
+  }).join('');
+  $('#mail-invite').hidden = isPortal || !puzzleMail.available();
+  $('#mail-invite-btn').textContent = remote.feature('weeklyMail') ? 'Get the weekly puzzle by email' : 'Get special edition puzzles by email';
+}
+$('#mail-invite-btn').onclick = () => puzzleMail.open(openDialog);
+
+async function openEdition(key, btn) {
+  const existing = (await store.listSaves()).find((x) => x.edition === key);
+  if (existing) { openGame(existing); return; }
+  if (btn) btn.disabled = true;
+  try {
+    const { puzzle, label } = await editions.puzzleFor(key);
+    await rememberStory(storyIdOf(puzzle));
+    const save = newSave(puzzle);
+    save.edition = key;
+    save.editionLabel = label;
+    await store.putSave(save);
+    openGame(save, { fresh: true });
+  } catch (e) {
+    toast(`That puzzle could not be opened. ${e.message || ''}`.trim(), { label: 'Try again', run: () => openEdition(key) });
+  } finally { if (btn) btn.disabled = false; }
 }
 
 // The daily email switch under today's puzzle: signed-in players with a
@@ -1599,6 +1654,8 @@ onAccountChange(() => renderDailyEmail());
 $('#daily-section').addEventListener('click', (e) => {
   const b = e.target.closest('[data-daily]');
   if (b) openDaily(b.dataset.daily, b);
+  const ed = e.target.closest('[data-edition]');
+  if (ed) openEdition(ed.dataset.edition, ed);
 });
 async function openDaily(date, btn) {
   const existing = (await store.listSaves()).find((x) => x.daily === date);
@@ -2066,6 +2123,8 @@ function applyFeatures() {
   for (const el of $$('.needs-cloud')) el.hidden = !share.available() || (!!el.dataset.feature && !remote.feature(el.dataset.feature));
   $('#music-settings').hidden = !remote.feature('music');
   $('[data-cmd=feedback]').hidden = !feedbackBox.available();
+  $('[data-cmd=mail]').hidden = isPortal || !puzzleMail.available();
+  $('#mail-invite').hidden = isPortal || !puzzleMail.available();
   $('[data-cmd=suggest]').hidden = !characters.suggestionsOpen();
   $('#feedback-idea').hidden = !feedbackBox.available();
   messages.configChanged();
@@ -2185,6 +2244,7 @@ $('#app-menu').addEventListener('click', async (e) => {
   else if (cmd === 'stats') openStats();
   else if (cmd === 'suggest') characters.openSuggest(openDialog, OPTIONS.themes.filter((t) => !remote.disabledThemes().has(t.id)));
   else if (cmd === 'daily') openTodaysDaily();
+  else if (cmd === 'mail') puzzleMail.open(openDialog);
   else if (cmd === 'feedback') feedbackBox.open(openDialog);
   else if (cmd === 'messages') messages.open();
   else if (cmd === 'account') openAccount();

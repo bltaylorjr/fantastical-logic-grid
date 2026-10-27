@@ -479,7 +479,7 @@ export const CONNECTIONS = [
     id: 'gmail',
     group: 'email',
     title: 'Gmail app password (the game\'s outgoing email)',
-    why: 'GitHub Actions send the weekly archive and summary emails, the daily player report, owner task emails and the backup thank-you notes from fantasticallogicgrid@gmail.com.',
+    why: 'GitHub Actions send the weekly archive and summary emails, the daily player report, owner task emails and the backup thank-you notes, daily puzzle emails and weekly and special edition puzzle emails from fantasticallogicgrid@gmail.com.',
     cost: 'Free. Gmail allows about 500 emails a day.',
     docs: 'server/ARCHIVE.md',
     names: [
@@ -536,7 +536,7 @@ export const CONNECTIONS = [
     group: 'email',
     title: 'Resend: player emails from noreply@thelogicgrid.com',
     docs: 'server/FEEDBACK-EMAILS.md',
-    why: 'Sends the thank-you notes for ideas and problems from noreply@thelogicgrid.com instead of the Gmail address. Until it is set up, notes go from Gmail, so nothing is lost.',
+    why: 'Sends the thank-you notes for ideas and problems, the daily puzzle emails and the weekly and special edition puzzle emails (with their confirm links) from noreply@thelogicgrid.com instead of the Gmail address. Until it is set up, they go from Gmail, so nothing is lost.',
     cost: 'Free plan: 3,000 emails a month, 100 a day, no card. Past that Resend refuses and Gmail takes over.',
     names: [
       { name: 'RESEND_API_KEY', where: 'github-secret', optional: true, note: 'Starts re_. Sending access, domain thelogicgrid.com only.' },

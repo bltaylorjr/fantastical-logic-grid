@@ -825,6 +825,14 @@ dialog.rules table.board td { font-variant-numeric: tabular-nums; }
 .daily-numbers { margin: 0 0 12px; }
 .daily-email { margin-top: 10px; }
 .daily-email p.help { margin: 0; }
+/* Puzzle of the week, special editions and Puzzle emails */
+.weekly-box { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--edge-hi); }
+.weekly-box h3 { margin: 0 0 6px; font-size: 1rem; }
+.mail-invite { margin: 12px 0 0; }
+#mail-form fieldset { border: 0; padding: 0; margin: 0 0 12px; display: grid; gap: 8px; }
+#mail-form legend { font-weight: 700; margin-bottom: 6px; }
+#mail-email { width: 100%; }
+.edition-note { margin: 0 0 12px; font-style: italic; }
 
 /* ---- Learn to solve: tutorial and tips ---- */
 .hero-learn { margin: 14px 0 0; color: var(--muted); }

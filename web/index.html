@@ -40,6 +40,7 @@
     <button role="menuitem" type="button" data-cmd="new">New puzzle</button>
     <button role="menuitem" type="button" data-cmd="saved">Saved puzzles</button>
     <button role="menuitem" type="button" data-cmd="daily">Daily puzzle</button>
+    <button role="menuitem" type="button" data-cmd="mail" hidden>Puzzle emails</button>
     <button role="menuitem" type="button" data-cmd="stats">My stats and badges</button>
     <button role="menuitem" type="button" data-cmd="suggest" hidden>Suggest a character</button>
     <button role="menuitem" type="button" data-cmd="settings">Settings</button>
@@ -149,6 +150,13 @@
       </div>
       <p class="lede" id="daily-intro">A new puzzle every day, the same for everyone. Solve it each day to build a streak.</p>
       <div class="daily-today" id="daily-today" aria-live="polite"><p class="muted">Looking for today's puzzle…</p></div>
+      <div class="weekly-box" id="weekly-box" hidden></div>
+      <details class="daily-earlier" id="specials-box" hidden>
+        <summary>Special editions</summary>
+        <p class="help">One-off puzzles from the team, each with a story nobody has played before.</p>
+        <ul class="daily-list" id="specials-list"></ul>
+      </details>
+      <p class="mail-invite" id="mail-invite" hidden><button class="btn quiet small" type="button" id="mail-invite-btn">Get the weekly puzzle by email</button> <span class="help">Free, no account needed.</span></p>
       <details class="daily-earlier" id="daily-earlier" hidden>
         <summary>Earlier days</summary>
         <p class="help">Earlier puzzles are fun to play, but only today's puzzle adds to your streak.</p>
@@ -561,6 +569,22 @@
     <div class="row-inline"><button class="btn primary" type="submit">Send problem report</button></div>
   </form>
   <div class="dlg-actions"><button class="btn" type="button" data-close>Close</button></div>
+</dialog>
+
+<dialog id="dlg-mail" aria-labelledby="mail-h">
+  <h2 id="mail-h">Puzzle emails</h2>
+  <p class="help">Free puzzles in your inbox. You don't need an account. Every email has a one-click unsubscribe link, and we never share your address.</p>
+  <form id="mail-form" novalidate>
+    <fieldset><legend>Send me</legend>
+      <label class="check" id="mail-weekly-row"><input type="checkbox" name="weekly" checked> <span>The puzzle of the week, every Monday: a bigger Expert puzzle with a brand-new story</span></label>
+      <label class="check" id="mail-special-row"><input type="checkbox" name="special" checked> <span>Special edition puzzles, a few times a year</span></label>
+    </fieldset>
+    <div class="field" id="mail-email-row"><label for="mail-email">Your email address</label><input id="mail-email" name="email" type="email" autocomplete="email" maxlength="254" spellcheck="false" placeholder="name@example.com"><span class="help">We'll email you a link to confirm. Nothing else comes until you press Confirm in that email.</span></div>
+    <p class="help" id="mail-to" hidden>They go to your account's address, <b id="mail-to-addr"></b>.</p>
+    <div class="error-box" id="mail-error" role="alert" hidden></div>
+    <p class="acct-done" id="mail-done" role="status"></p>
+    <div class="dlg-actions"><button class="btn" type="button" id="mail-close">Close</button><button class="btn primary" type="submit" id="mail-submit">Sign up</button></div>
+  </form>
 </dialog>
 
 <dialog id="dlg-messages" class="wide" aria-labelledby="messages-h">
