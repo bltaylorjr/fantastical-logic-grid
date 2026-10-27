@@ -61,11 +61,14 @@ cd mobile/ios && xcodegen && open LogicGrid.xcodeproj
 Pick your team under Signing & Capabilities, then run on a device or archive
 for TestFlight and the App Store.
 
-**On GitHub**, the "Mobile apps" workflow builds both on every change. With the
+**On GitHub**, the "Mobile apps" workflow builds Android on every change. With the
 repository secrets `ANDROID_KEYSTORE_BASE64` and `ANDROID_KEYSTORE_PASSWORD`
 it makes the signed APK and AAB, and after each "Release desktop app" run it
-adds the APK to that release. Without them it makes a debug APK. The iOS job
-compiles the app for the Simulator, which needs no Apple account.
+adds the APK to that release (or start it by hand with "Add the APK to the
+current release" ticked). Without them it makes a debug APK. The iOS job is
+paused and runs only when the workflow is started by hand; it compiles the app
+for the Simulator, which needs no Apple account. Google Play steps and listing:
+`docs/GOOGLE-PLAY.md`.
 
 **Phone check**: `node mobile/scripts/mobile-e2e.cjs` (needs Playwright)
 serves `dist/web` the way the Android app does, stands in for the Android side
