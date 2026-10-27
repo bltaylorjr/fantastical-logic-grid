@@ -277,6 +277,13 @@ const SHOTS = process.env.SHOTS;
     await page.click('#sup-form button[type=submit]');
     await page.waitForSelector('#sup-rows button[data-sup-end]');
     assert(/fan@example\.com/.test(await page.textContent('#sup-rows')) && /Premium/.test(await page.textContent('#sup-rows')) && /Gold/.test(await page.textContent('#sup-rows')), 'an admin adds a Gold premium supporter by email');
+    await page.click('#sup-rows button[data-reason=chargeback]');
+    await page.waitForSelector('#dialog[open]');
+    await page.fill('#dialog-body input[name=note]', 'Dispute dp_123');
+    await page.click('#dialog-ok');
+    await page.waitForSelector('#sup-blocks button[data-sup-unblock]');
+    assert(/Chargeback/.test(await page.textContent('#sup-rows')) && !(await page.locator('#sup-rows button[data-sup-end]').count()), 'a chargeback ends the grant and marks it');
+    assert(/fan@example\.com/.test(await page.textContent('#sup-blocks')) && /dp_123/.test(await page.textContent('#sup-blocks')), 'the player is listed as blocked, with the note');
 
     await page.click('a[href="#search"]');
     await page.waitForSelector('#search-body .tile');
