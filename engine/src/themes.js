@@ -156,7 +156,7 @@ export const THEMES = [
   },
   {
     id: 'occasion',
-    name: 'Special Occasion',
+    name: 'Parties & Milestones',
     description: 'Birthdays, weddings and parties where everything must go just right.',
     cast: { one: 'guest', many: 'guests' },
     names: ['Alice', 'Brian', 'Chloe', 'David', 'Emma', 'George', 'Hannah', 'Isaac', 'Julia', 'Kevin'],

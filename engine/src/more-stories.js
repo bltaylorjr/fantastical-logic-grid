@@ -1,5 +1,5 @@
 // More story parts, added in the October 2026 player upgrade for the two
-// themes players pick most (Holiday and Special Occasion), so their stories
+// themes players pick most (Holiday and Parties & Milestones), so their stories
 // keep feeling new. Keyed by story key: a theme id for its classic topic, or
 // "theme/topic". topics.js appends these to the end of each list when it
 // loads; appending (never inserting) keeps every saved story id pointing at

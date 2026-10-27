@@ -16,7 +16,7 @@ const THEME_EMOJI = {
   occasion: ['🎂', '🎉', '🥳'], fantasy: ['🐉', '🪄', '🏰'], scifi: ['🚀', '🪐', '👽'], sports: ['🏆', '⚽', '🏅'],
   cooking: ['🍰', '🍕', '🧁'], pets: ['🐾', '🐶', '🐱'], town: ['🏘️', '🌳', '🚲'], parks: ['🌲', '🦋', '🌻'],
   travel: ['✈️', '🧳', '🌍'], wonders: ['🗿', '🏛️', '🌋'], music: ['🎵', '🎸', '🎤'], nautical: ['⛵', '⚓', '🌊'],
-  farm: ['🚜', '🐄', '🌽'], science: ['🔬', '🧪', '🦕'],
+  farm: ['🚜', '🐄', '🌽'], science: ['🔬', '🧪', '⚛️'],
   math: ['➗', '📐', '🧮'], biology: ['🦋', '🐸', '🌿'], chemistry: ['⚗️', '🧪', '💥'], paradox: ['🌀', '🪞', '⏳'],
 };
 // What falls for Falling snow, leaves or petals: by theme, else by season.
