@@ -8,7 +8,7 @@ import { sceneSvg } from './art.js';
 import * as sfx from './audio.js';
 import * as ai from './ai.js';
 import { portrait, characterFace, loadPortraits, portraitsReady } from './portraits.js';
-import { SURPRISE_THEME, sizesFor as tierSizes, tierChoicesHtml, themeChoicesHtml, sizeChoicesHtml, clueTypesHtml } from './setup-markup.js';
+import { sizesFor as tierSizes, tierChoicesHtml, themeGroupsHtml, sizeChoicesHtml, clueTypesHtml } from './setup-markup.js';
 import * as characters from './characters.js';
 import { characterOf, narratorOf, lineOf } from './cast.js';
 import { profileOf, sayingOf } from './castbook.js';
@@ -233,7 +233,7 @@ function renderSetup() {
   const off = remote.disabledThemes();
   const locked = lockedThemes();
   if (off.has(setup.theme) || locked.has(setup.theme)) { setup.theme = 'random'; setup.topic = 'any'; }
-  $('#theme-choices').innerHTML = themeChoicesHtml([SURPRISE_THEME, ...OPTIONS.themes.filter((t) => !off.has(t.id))], setup.theme, locked);
+  $('#theme-choices').innerHTML = themeGroupsHtml(OPTIONS.themes.filter((t) => !off.has(t.id)), OPTIONS.themeGroups, setup.theme, locked);
   const extras = remote.extrasUrl();
   $('#extras-note').hidden = !locked.size;
   $('#extras-link').hidden = !extras;
@@ -669,7 +669,8 @@ function openGame(save, { fresh = false } = {}) {
   updateNotesButton();
 
   S.grid = createGrid($('#gridframe'), puzzle, ix, {
-    onCycle: (k) => { const cur = S.marks.get(k) || ''; setCell(k, cur === '' ? 'X' : cur === 'O' ? '' : 'O'); },
+    // Tapping an automatic X clears it (it never turns into an O).
+    onCycle: (k) => { const cur = S.marks.get(k) || ''; setCell(k, cur === '' ? 'X' : cur === 'X' ? 'O' : ''); },
     onMark: (k, v) => setCell(k, v),
     onDescribeRow: describeRow,
     onFocus: (k) => { save.focus = k; },
@@ -742,15 +743,37 @@ function applyChanges(changes, dir) {
   }
 }
 
+// An automatic X ('A') belongs to the O that placed it. When an O is cleared
+// or changed, its automatic Xs go with it in the same undo step, unless another
+// O still rules that cell out. Hand-placed Xs ('X') are never touched. Nothing
+// extra is stored, so this works the same after save, resume and sync.
+function dropOrphanAutoX(changes) {
+  const gone = changes.filter((c) => c.t === 'm' && c.b === 'O' && c.a !== 'O');
+  if (!gone.length) return changes;
+  const after = new Map(S.marks);
+  const touched = new Set();
+  for (const c of changes) if (c.t === 'm') { touched.add(c.k); if (c.a) after.set(c.k, c.a); else after.delete(c.k); }
+  for (const c of gone) {
+    for (const m of lineMates(c.k)) {
+      if (touched.has(m) || after.get(m) !== 'A') continue;
+      if (lineMates(m).some((n) => after.get(n) === 'O')) continue;
+      changes.push({ t: 'm', k: m, b: 'A', a: '' });
+      touched.add(m);
+      after.delete(m);
+    }
+  }
+  return changes;
+}
+
 function commit(changes, label) {
-  changes = changes.filter((c) => (c.b || '') !== (c.a || ''));
+  changes = dropOrphanAutoX(changes.filter((c) => (c.b || '') !== (c.a || '')));
   if (!changes.length) return false;
   applyChanges(changes, 1);
   S.save.undo.push({ label, changes });
   if (S.save.undo.length > 5000) S.save.undo.shift();
   S.save.redo = [];
   afterChange();
-  return true;
+  return changes;
 }
 
 function afterChange() {
@@ -805,7 +828,8 @@ function setCell(k, v) {
   }
   const [a, b] = k.split('|');
   const what = `${S.ix.label(a)} and ${S.ix.label(b)} ${v === 'O' ? 'confirmed' : v ? 'ruled out' : 'cleared'}`;
-  commit(changes, what);
+  const done = commit(changes, what) || [];
+  const autoGone = done.filter((c) => c.b === 'A' && c.a === '' && c.k !== k).length;
   let wrongNow = false;
   if (v) {
     const [mk] = checkMarks(S.puzzle, [{ a, b, mark: v === 'O' ? 'O' : 'X' }]);
@@ -816,7 +840,7 @@ function setCell(k, v) {
   }
   sound(wrongNow ? 'error' : v === 'O' ? 'O' : v ? 'X' : 'clear');
   const td = S.grid.cells.get(k);
-  announce(`${td ? `${S.ix.label(td.dataset.row)}, ${S.ix.label(td.dataset.col)}` : what}, ${STATE_WORDS[v]}${wrongNow ? ', conflicts with the solution' : ''}${autoCount ? `. Also ruled out ${autoCount} other cell${autoCount > 1 ? 's' : ''}` : ''}.`);
+  announce(`${td ? `${S.ix.label(td.dataset.row)}, ${S.ix.label(td.dataset.col)}` : what}, ${STATE_WORDS[v]}${wrongNow ? ', conflicts with the solution' : ''}${autoCount ? `. Also ruled out ${autoCount} other cell${autoCount > 1 ? 's' : ''}` : ''}${autoGone ? `. Also removed ${autoGone} automatic X${autoGone > 1 ? 's' : ''}` : ''}.`);
 }
 
 function describeRow(rowItem) {
@@ -1315,7 +1339,7 @@ $('#rating-clear').onclick = async () => {
   await saveRating({ rating: null });
   $('#feedback-thanks').textContent = 'Rating cleared.';
 };
-$('#feedback-idea').onclick = () => feedbackBox.open(openDialog, { kind: 'idea' });
+$('#feedback-idea').onclick = () => feedbackBox.open(openDialog, { kind: 'idea', themes: OPTIONS.themes });
 
 // Streak, new badges and Share my result on the solved panel.
 async function renderSolvedExtras(save) {
@@ -2201,7 +2225,7 @@ $('#app-menu').addEventListener('click', async (e) => {
   else if (cmd === 'stats') openStats();
   else if (cmd === 'suggest') characters.openSuggest(openDialog, OPTIONS.themes.filter((t) => !remote.disabledThemes().has(t.id)));
   else if (cmd === 'daily') openTodaysDaily();
-  else if (cmd === 'feedback') feedbackBox.open(openDialog);
+  else if (cmd === 'feedback') feedbackBox.open(openDialog, { themes: OPTIONS.themes });
   else if (cmd === 'messages') messages.open();
   else if (cmd === 'account') openAccount();
   else if (cmd === 'board') competeUi.openBoard();

@@ -48,7 +48,7 @@ This follows the design process step by step:
 | Option | Values | Default |
 | --- | --- | --- |
 | `difficulty` | `basic`, `easy`, `medium`, `hard`, `expert`, `mensa` | `easy` |
-| `theme` | `mystery`, `action`, `adventure`, `holiday`, `occasion` (Special Occasion), `fantasy`, `scifi`, `sports`, `cooking`, `pets`, `town` (Around Town), `parks` (National Parks), `travel` (Vacation Destinations), `wonders` (Architectural Wonders), `music`, `nautical`, `farm` (Farm Life), `science`, `random` | `random` |
+| `theme` | `mystery`, `action`, `adventure`, `holiday`, `occasion` (Special Occasion), `fantasy`, `scifi`, `sports`, `cooking`, `pets`, `town` (Around Town), `parks` (National Parks), `travel` (Vacation Destinations), `wonders` (Architectural Wonders), `music`, `nautical`, `farm` (Farm Life), `science`, `math`, `biology`, `chemistry`, `paradox` (Surreal Paradox), `random` | `random` |
 | `topic` | a topic id from the theme (see Themes, topics and stories), or `any`. Ignored when the theme is `random` | `any` (a random topic in the theme) |
 | `categories` | 3 to 6 (number of categories, including the cast) | tier default |
 | `items` | 3 to 8 (items per category) | tier default |
@@ -122,13 +122,13 @@ player can pick a topic or leave it on **Any**, which picks one at random.
 
 | Theme | Topics |
 | --- | --- |
-| Mystery | Classic Whodunit (`whodunit`), Museum Heist (`heist`), Missing Person (`missing`), Cozy Village Mystery (`cozy`), Haunted House (`haunted`) |
+| Mystery | Classic Whodunit (`whodunit`), Museum Heist (`heist`), Missing Person (`missing`), Cozy Village Mystery (`cozy`), Haunted House (`haunted`), Mystery Noir (`noir`) |
 | Action | Spy Mission (`spy`), Bank Heist Chase (`chase`), Disaster Rescue (`rescue`), Superhero Showdown (`heroes`), Runaway Train (`train`) |
 | Adventure | Jungle Treasure (`jungle`), Pirate Voyage (`pirates`), Polar Expedition (`polar`), Desert Ruins (`desert`), Mountain Summit (`mountain`) |
 | Holiday | Christmas (`christmas`), Halloween (`halloween`), Thanksgiving (`thanksgiving`), Fourth of July (`july4`), Valentine's Day (`valentines`), New Year's Eve (`newyear`), Easter (`easter`) |
 | Special Occasion | Birthday Party (`birthday`), Wedding (`wedding`), Graduation (`graduation`), Anniversary (`anniversary`), Baby Shower (`babyshower`), Retirement Party (`retirement`) |
-| Fantasy | Dragon Kingdom (`dragons`), Wizard School (`school`), Fairy Forest (`fairy`), Knights' Quest (`knights`), Mermaid Lagoon (`mermaids`) |
-| Sci-Fi | Space Station (`starbase`), Alien Contact (`contact`), Robot Lab (`robots`), Time Travel (`timetravel`), Mars Colony (`mars`) |
+| Fantasy | Dragon Kingdom (`dragons`), Wizard School (`school`), Fairy Forest (`fairy`), Knights' Quest (`knights`), Mermaid Lagoon (`mermaids`), Cozy Magic (`cozymagic`) |
+| Sci-Fi | Space Station (`starbase`), Alien Contact (`contact`), Robot Lab (`robots`), Time Travel (`timetravel`), Mars Colony (`mars`), High-Tech City (`cybercity`) |
 | Sports | World Games (`games`), Soccer Tournament (`soccer`), City Marathon (`marathon`), School Field Day (`fieldday`), Basketball Tournament (`basketball`) |
 | Cooking | Cook-Off (`cookoff`), Bake Sale (`bakesale`), Restaurant Kitchen (`restaurant`), Food Truck Rally (`foodtrucks`), Pizza Night (`pizza`) |
 | Pets | Pet Show (`show`), Pet Hotel (`hotel`), Dog Park (`dogpark`), Animal Shelter (`shelter`), Riding Stables (`stables`) |
@@ -139,7 +139,13 @@ player can pick a topic or leave it on **Any**, which picks one at random.
 | Music | Big Concert (`concert`), Battle of the Bands (`bands`), Music Lessons (`lessons`), Karaoke Night (`karaoke`) |
 | Nautical | Sailing Regatta (`regatta`), Lighthouse Keepers (`lighthouse`), Harbor Festival (`harbor`), Deep-Sea Fishing (`fishing`) |
 | Farm Life | Busy Farm Day (`farmday`), County Fair (`countyfair`), Apple Orchard (`orchard`), Farmers Market (`market`) |
-| Science | Science Fair (`sciencefair`), Dinosaur Dig (`dinosaurs`), Chemistry Lab (`lab`), Weather Watch (`weather`), Space Camp (`spacecamp`) |
+| Science | Science Fair (`sciencefair`), Weather Watch (`weather`), Space Camp (`spacecamp`), Physics Playground (`physics`) |
+| Math | Math Contest (`contest`), Code Breakers (`codebreakers`), Escape Room (`escaperoom`), Pi Day Party (`piday`) |
+| Biology | Field Trip (`fieldtrip`), Dinosaur Dig (`dinosaurs`), Tide Pool Survey (`tidepools`), Bird Count (`birdcount`) |
+| Chemistry | Lab Day (`labday`), Chemistry Lab (`lab`), Fireworks Show (`fireworks`), Crystal Garden (`crystals`) |
+| Surreal Paradox | Dream City (`dreamcity`), Mirror Maze (`mirrormaze`), Living Gallery (`livinggallery`), Clockwork Loop (`clockwork`) |
+
+The setup screen shows themes in groups (`THEME_GROUPS` in `src/themes.js`, returned as `themeGroups` by `describeOptions()`): Mystery & Action, Imagination, Science & Learning, Celebrations & Fun, and Places & Everyday Life. Every theme belongs to exactly one group.
 
 The first topic of most themes is its classic setting (Classic Whodunit, Spy
 Mission...), which uses the theme's own categories and story parts. A puzzle

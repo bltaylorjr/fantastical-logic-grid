@@ -176,16 +176,18 @@ test('sound, voice and picture choices reach the game', async () => {
 });
 
 test('ideas and problems arrive in separate boxes', async () => {
-  assert.equal((await call('/v1/feedback', { body: { kind: 'idea', topic: 'story', text: 'A pirate ship lost in the fog! Write me at a@b.co', platform: 'web', version: '1.6.0' } })).status, 200);
-  assert.equal((await call('/v1/feedback', { body: { kind: 'problem', topic: 'sound', text: 'The music stops after a while.' } })).status, 200);
+  assert.equal((await call('/v1/feedback', { body: { kind: 'idea', topic: 'story', text: 'A pirate ship lost in the fog! Write me at a@b.co', platform: 'web', version: '1.6.0', theme: 'adventure' } })).status, 200);
+  assert.equal((await call('/v1/feedback', { body: { kind: 'problem', topic: 'sound', text: 'The music stops after a while.', theme: 'mystery' } })).status, 200);
   assert.equal((await call('/v1/feedback', { body: { kind: 'problem', text: 'hi' } })).status, 400);
   assert.equal((await call('/v1/feedback', { body: { kind: 'spam', text: 'Buy things now' } })).status, 400);
   const ideas = await call('/admin/v1/feedback?kind=idea', { auth: TOKEN });
   assert.equal(ideas.body.items.length, 1);
   assert.equal(ideas.body.items[0].topic, 'story');
+  assert.equal(ideas.body.items[0].theme, 'adventure', 'a storyline idea keeps the theme it is for');
   assert.match(ideas.body.items[0].text, /<email>/);
   assert.deepEqual(ideas.body.waiting, { idea: 1, problem: 1 });
   const problems = await call('/admin/v1/feedback?kind=problem', { auth: TOKEN });
+  assert.equal(problems.body.items[0].theme, null, 'only storyline ideas keep a theme');
   assert.equal(problems.body.items[0].topic, 'sound');
   const id = problems.body.items[0].id;
   assert.equal((await call(`/admin/v1/feedback/${id}`, { auth: TOKEN, body: { status: 'done' } })).status, 200);

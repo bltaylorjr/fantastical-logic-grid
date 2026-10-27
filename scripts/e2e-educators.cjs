@@ -57,7 +57,10 @@ const TOKEN = 'e2e-educators-token';
     assert(box.y < 80, 'it sits in the top bar');
     assert(fs.readFileSync(path.join(ROOT, 'dist/web/index.html'), 'utf8').includes('id="educators-link" href="educators/" hidden'), 'the app build keeps it hidden (desktop app)');
     assert(new URL(await link.getAttribute('href'), `${SITE}/`).pathname === '/educators/', 'and opens the Educators page');
-    await page.goto(`${SITE}/educators/`);
+    // Arriving by an educator ad: the page counts it like the game does and tidies the address.
+    await page.goto(`${SITE}/educators/?utm_source=facebook&utm_medium=community&utm_campaign=educators-2026&utm_content=teacher-groups`);
+    await page.waitForFunction(() => !location.search.includes('utm_'));
+    assert(true, 'an ad link opens the Educators page and its tags leave the address bar');
     await page.waitForSelector('#edu-form');
 
     // ---- The page's own checks, before anything is sent.
@@ -96,6 +99,9 @@ const TOKEN = 'e2e-educators-token';
     const row = (await admin('educators?status=pending')).requests[0];
     assert(row.grade === '2' && row.count === 3 && row.request.themes.length === 2 && row.request.themes.includes('pets/any') && row.request.themes.some((t) => t.startsWith('mystery/') && t !== 'mystery/any'), 'the team sees the grade, count and themes');
     assert(row.request.largePrint === true, 'and the print choices');
+    assert(row.campaign && row.campaign.c === 'educators-2026' && row.campaign.s === 'facebook' && row.campaign.k === 'teacher-groups', 'the request remembers the ad that brought the teacher');
+    const edu = (await db.prepare("SELECT event, SUM(n) AS n FROM campaign_stats WHERE campaign = 'educators-2026' GROUP BY event ORDER BY event").all()).results;
+    assert(edu.some((x) => x.event === 'edu_request' && x.n === 1) && edu.some((x) => x.event === 'edu_confirm' && x.n === 1), 'and the Marketing numbers count the request and the confirmed address for that ad');
 
     // ---- A teacher's own theme, confirmed with the link in the email.
     const ctx2 = await browser.newContext({ serviceWorkers: 'block' });

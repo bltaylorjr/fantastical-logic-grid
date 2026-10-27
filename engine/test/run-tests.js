@@ -196,7 +196,11 @@ for (const diff of ['easy', 'medium', 'expert']) {
   const r = generatePuzzle({ difficulty: 'basic', theme: 'random', seed: 'rnd' });
   check('random theme works', THEMES.some((t) => t.id === r.theme.id));
   check('print text includes answer key', formatPuzzleText(r).includes('Answer key'));
-  check('describeOptions lists 6 tiers and 18 themes', describeOptions().difficulties.length === 6 && describeOptions().themes.length === 18);
+  check('describeOptions lists 6 tiers and 22 themes', describeOptions().difficulties.length === 6 && describeOptions().themes.length === 22);
+  {
+    const grouped = describeOptions().themeGroups.flatMap((g) => g.themes);
+    check('every theme is in exactly one picker group', grouped.length === THEMES.length && THEMES.every((t) => grouped.filter((x) => x === t.id).length === 1), grouped.join(','));
+  }
 }
 
 // Stories are never reused: pass back every story id and none repeats, and

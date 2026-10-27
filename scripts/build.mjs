@@ -230,7 +230,7 @@ async function speedUpFirstLoad(dir) {
     page = page.replace(re, (_, open, close) => `${open}${inner}${close}`);
   };
   fill('tier-choices', m.tierChoicesHtml(o.difficulties, tier.id));
-  fill('theme-choices', m.themeChoicesHtml([m.SURPRISE_THEME, ...o.themes], m.SURPRISE_THEME.id));
+  fill('theme-choices', m.themeGroupsHtml(o.themes, o.themeGroups, m.SURPRISE_THEME.id));
   fill('size-choices', m.sizeChoicesHtml(m.sizesFor(tier), m.sizesFor(tier)[0]));
   fill('clue-type-choices', m.clueTypesHtml(o.clueTypes, tier.clueTypes));
 
