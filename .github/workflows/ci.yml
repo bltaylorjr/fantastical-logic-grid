@@ -57,6 +57,7 @@ jobs:
           node scripts/e2e-errors.cjs
           node scripts/e2e-admin.cjs
           node scripts/e2e-archive.cjs
+          node scripts/e2e-educators.cjs
 
   server:
     runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork && '"ubuntu-latest"') || vars.FLG_RUNNER || '"ubuntu-latest"') }}

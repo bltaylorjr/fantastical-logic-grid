@@ -1,4 +1,6 @@
-"""Builds the how-to-play video from video/out/scenes.json (written by capture.cjs).
+"""Builds the how-to-play video from video/out/scenes.json (written by capture.cjs),
+or with VIDEO=educators the Educators page video from video/out-educators/scenes.json
+(written by educators.cjs).
 
 Voice: Kokoro-82M, American male voice am_michael (the game's own narrator),
 run locally through kokoro-onnx. Captions: one sentence per cue, as WebVTT for
@@ -7,6 +9,7 @@ the game's player and SRT for video sites, plus a copy with burned-in captions.
   pip install -r video/requirements.txt
   python3 video/build.py            # writes video/out/
   python3 video/build.py --install  # also updates web/media and the transcript
+  VIDEO=educators python3 video/build.py --install  # seo/media/educators.* for the Educators page
 
 Free tools only: Kokoro (Apache-2.0), ffmpeg, Atkinson Hyperlegible (OFL).
 """
@@ -15,7 +18,8 @@ import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
-OUT = os.path.join(HERE, 'out')
+VIDEO = os.environ.get('VIDEO', 'intro')
+OUT = os.path.join(HERE, 'out' if VIDEO == 'intro' else f'out-{VIDEO}')
 KDIR = os.environ.get('KOKORO_DIR', os.path.join(HERE, '.kokoro'))
 KURL = 'https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/'
 VOICE = os.environ.get('VOICE', 'am_michael')
@@ -192,8 +196,8 @@ def main():
     enc = ['-c:v', 'libx264', '-preset', 'medium', '-pix_fmt', 'yuv420p', '-r', '30', '-c:a', 'aac', '-b:a', '128k', '-movflags', '+faststart']
     subprocess.run(['ffmpeg', '-y', '-v', 'error', *inputs, '-i', voice, '-filter_complex',
                     ';'.join(filt) + f';[{n}:a]loudnorm=I=-16:TP=-1.5:LRA=11,aresample=48000,asplit[a1][a2]',
-                    '-map', '[clean]', '-map', '[a1]', '-crf', '26', *enc, os.path.join(OUT, 'intro.mp4'),
-                    '-map', '[cap]', '-map', '[a2]', '-crf', '22', *enc, os.path.join(OUT, 'intro-captioned.mp4')], check=True)
+                    '-map', '[clean]', '-map', '[a1]', '-crf', '26', *enc, os.path.join(OUT, f'{VIDEO}.mp4'),
+                    '-map', '[cap]', '-map', '[a2]', '-crf', '22', *enc, os.path.join(OUT, f'{VIDEO}-captioned.mp4')], check=True)
 
     # Transcript, a paragraph per few scenes, for the game's video window.
     paras, cur = [], []
@@ -206,7 +210,19 @@ def main():
     minutes = max(1, round(total / 60))
     print(f'{total:.1f} s ({minutes} min), {len(scenes)} scenes, {len(final)} captions')
 
-    if INSTALL:
+    if INSTALL and VIDEO == 'educators':
+        # The Educators page (scripts/seo.mjs reads these): website only.
+        media = os.path.join(ROOT, 'seo', 'media')
+        os.makedirs(media, exist_ok=True)
+        os.replace(os.path.join(OUT, 'educators.mp4'), os.path.join(media, 'educators.mp4'))
+        with open(os.path.join(OUT, 'captions.vtt')) as src, open(os.path.join(media, 'educators.en.vtt'), 'w') as dst:
+            dst.write(src.read())
+        subprocess.run(['ffmpeg', '-y', '-v', 'error', '-i', os.path.join(OUT, scenes[0]['shot']), '-vf', 'scale=1280:-2', '-q:v', '4',
+                        os.path.join(media, 'educators-poster.jpg')], check=True)
+        with open(os.path.join(media, 'educators.json'), 'w') as f:
+            json.dump({'seconds': round(total, 1), 'minutes': minutes, 'transcript': paras}, f, indent=1)
+        print('updated seo/media/educators.mp4, captions, poster and transcript')
+    elif INSTALL:
         media = os.path.join(ROOT, 'web', 'media')
         os.makedirs(media, exist_ok=True)
         os.replace(os.path.join(OUT, 'intro.mp4'), os.path.join(media, 'intro.mp4'))
