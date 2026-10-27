@@ -13,14 +13,15 @@ const xml = readFileSync(file, 'utf8').replace(/^﻿/, '');
 const ACCEPTED = [/digitally signed/i, /signed file/i];
 
 const attr = (tag, name) => (tag.match(new RegExp(`\\b${name}="([^"]*)"`)) || [])[1] || '';
-const text = (s) => s.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').replace(/<[^>]+>/g, '').trim();
+// A RESULT is one word (PASS, FAIL, WARNING...), usually inside CDATA; keep its letters only.
+const word = (s) => ((s.match(/<!\[CDATA\[([\s\S]*?)\]\]>/) || [])[1] ?? s).replace(/[^A-Za-z]/g, '');
 const unescape = (s) => s.replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
 
 const overall = attr((xml.match(/<REPORT\b[^>]*>/) || [''])[0], 'OVERALL_RESULT');
 const rows = [];
 for (const m of xml.matchAll(/<TEST\b([^>]*)>([\s\S]*?)<\/TEST>/g)) {
   const name = unescape(attr(m[1], 'NAME') || attr(m[1], 'DESCRIPTION'));
-  const result = text((m[2].match(/<RESULT\b[^>]*>([\s\S]*?)<\/RESULT>/) || ['', ''])[1]).toUpperCase() || '?';
+  const result = word((m[2].match(/<RESULT\b[^>]*>([\s\S]*?)<\/RESULT>/) || ['', ''])[1]).toUpperCase() || '?';
   const messages = [...m[2].matchAll(/<MESSAGE\b([^>]*)\/?>/g)].map((x) => unescape(attr(x[1], 'TEXT'))).filter(Boolean);
   rows.push({ name, result, optional: /TRUE/i.test(attr(m[1], 'OPTIONAL')), messages });
 }
