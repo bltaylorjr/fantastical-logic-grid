@@ -678,7 +678,8 @@
   <div class="dlg-actions"><button class="btn" type="button" data-close>Close</button></div>
 </dialog>
 
-<dialog id="dlg-video" class="wide" aria-labelledby="video-h">
+<dialog id="dlg-video" class="wide" aria-labelledby="video-h" data-light-dismiss>
+  <button class="dlg-x" type="button" aria-label="Close" title="Close (Esc)"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
   <h2 id="video-h">Introduction to The Fantastical Logic Grid</h2>
   <video id="intro-video" controls preload="metadata" playsinline aria-describedby="video-note">
     <source src="media/intro.mp4" type="video/mp4">
@@ -724,7 +725,8 @@
   <div class="dlg-actions"><button class="btn" type="button" id="update-later">Later</button><button class="btn primary" type="button" id="update-install">Install and restart</button></div>
 </dialog>
 
-<dialog id="dlg-welcome" aria-labelledby="welcome-h">
+<dialog id="dlg-welcome" aria-labelledby="welcome-h" data-light-dismiss>
+  <button class="dlg-x" type="button" aria-label="Close" title="Close (Esc)"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
   <h2 id="welcome-h">Welcome, detective!</h2>
   <p>Never solved a logic grid puzzle? <b>How to play</b> teaches you step by step on real grids, with tips and tricks, in about 15 minutes.</p>
   <p>Or watch the <b>Introduction</b>, an 11-minute narrated video with captions, to see everything the game can do.</p>
