@@ -8,7 +8,7 @@ import { sceneSvg } from './art.js';
 import * as sfx from './audio.js';
 import * as ai from './ai.js';
 import { portrait, characterFace, loadPortraits, portraitsReady } from './portraits.js';
-import { SURPRISE_THEME, sizesFor as tierSizes, tierChoicesHtml, themeChoicesHtml, sizeChoicesHtml, clueTypesHtml } from './setup-markup.js';
+import { sizesFor as tierSizes, tierChoicesHtml, themeGroupsHtml, sizeChoicesHtml, clueTypesHtml } from './setup-markup.js';
 import * as characters from './characters.js';
 import { characterOf, narratorOf, lineOf } from './cast.js';
 import { profileOf, sayingOf } from './castbook.js';
@@ -221,7 +221,7 @@ function renderSetup() {
   const off = remote.disabledThemes();
   const locked = lockedThemes();
   if (off.has(setup.theme) || locked.has(setup.theme)) { setup.theme = 'random'; setup.topic = 'any'; }
-  $('#theme-choices').innerHTML = themeChoicesHtml([SURPRISE_THEME, ...OPTIONS.themes.filter((t) => !off.has(t.id))], setup.theme, locked);
+  $('#theme-choices').innerHTML = themeGroupsHtml(OPTIONS.themes.filter((t) => !off.has(t.id)), OPTIONS.themeGroups, setup.theme, locked);
   const extras = remote.extrasUrl();
   $('#extras-note').hidden = !locked.size;
   $('#extras-link').hidden = !extras;

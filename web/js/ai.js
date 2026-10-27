@@ -35,6 +35,10 @@ const THEME_SETTING = {
   nautical: 'sailboats racing on a sparkling bay with a lighthouse, colorful flags and gulls',
   farm: 'a sunny family farm with a red barn, a silo, green fields and animals in the pasture',
   science: 'a bright science lab with bubbling beakers, a microscope and colorful experiments',
+  math: 'a chalkboard classroom covered in equations, shapes and number puzzles, warm lamplight',
+  biology: 'a lush nature field station by a pond with butterflies, frogs, microscopes and field notebooks',
+  chemistry: 'a gleaming chemistry lab with colorful flasks, flame tests and a periodic table on the wall',
+  paradox: 'a surreal dreamscape of impossible staircases, floating doors and melting clocks under morphing gradient skies',
 };
 
 // The server adds the picture style; this says what to paint.
