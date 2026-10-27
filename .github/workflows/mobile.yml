@@ -23,6 +23,7 @@ on:
   workflow_run:
     workflows: ['Release desktop app']
     types: [completed]
+    branches: [main]
 permissions:
   contents: write
 jobs:
@@ -30,9 +31,8 @@ jobs:
     if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
+      # The default ref: for a workflow_run that is the latest main, never code from the triggering run.
       - uses: actions/checkout@v7
-        with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -90,8 +90,6 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v7
-        with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: 20
