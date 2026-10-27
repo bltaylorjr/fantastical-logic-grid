@@ -23,6 +23,7 @@
 import { clock, plural, money } from './themes.js';
 import { STORYLINES } from './storylines.js';
 import { MORE_STORIES } from './more-stories.js';
+import { HISTORY_TOPICS } from './history.js';
 
 const cat = (id, name, pos, neg, items, extra = {}) => ({ id, name, pos, neg, items, ...extra });
 const ord = (id, name, pos, neg, o, extra = {}) => ({ id, name, pos, neg, ordinal: o, ...extra });
@@ -3815,6 +3816,7 @@ export const TOPICS = {
       },
       art: { setting: 'a space camp with a tall rocket on display, astronaut training gear and a starry dome', mood: 'deep blue and rocket bright' } },
   ],
+  history: HISTORY_TOPICS,
 };
 
 // Add the extra story parts from more-stories.js to the end of each list, so

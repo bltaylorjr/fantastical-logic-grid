@@ -18,6 +18,8 @@
 //                compared with "higher"/"lower"/"above"/"below" must say which
 //                way its numbers run (players asked: is rank 1 the top?).
 
+import { HISTORY_THEME } from './history.js';
+
 export const clock = (startMin) => (v) => {
   const m = startMin + v;
   let h = Math.floor(m / 60) % 24;
@@ -604,6 +606,7 @@ export const THEMES = [
           gap: (s) => (s % 4 === 0 ? plural(s / 4, 'hour', 'hours') : plural(s * 15, 'minute', 'minutes')) } },
     ],
   },
+  HISTORY_THEME,
 ];
 
 export function getTheme(id) {

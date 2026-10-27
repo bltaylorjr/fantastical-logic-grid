@@ -4,7 +4,7 @@
 // first, write a mix of true clues, then test for a single solution with the
 // human-style solver, adding clues while it gets stuck and removing any it
 // does not need. The result is graded against the chosen difficulty tier.
-import { makeRng } from './rng.js';
+import { makeRng, hashString } from './rng.js';
 import { THEMES, getTheme } from './themes.js';
 import { resolveTopic, buildScenario } from './topics.js';
 import { TIERS, CLUE_TYPES, SIZE_LIMITS } from './tiers.js';
@@ -187,7 +187,34 @@ function selectClues(o, model, sol) {
   return isSolvable(K, N, kept, tier.maxLevel, tier.whatIfDepth) ? kept : null;
 }
 
+// A puzzle is never repeated for a player: pass the fingerprints of puzzles
+// they have played as `usedPuzzles` and the engine tries fresh answer tables
+// until it finds one they have not seen. A puzzle asked for by its seed (a
+// race, the daily puzzle, a shared link) is meant to be the same for
+// everyone, so it is returned as is.
 export function generatePuzzle(options = {}) {
+  const used = new Set(options.usedPuzzles || []);
+  if (options.seed != null || !used.size) return makePuzzle(options);
+  const base = Math.floor(Math.random() * 2 ** 32).toString(36);
+  let p = null;
+  for (let i = 0; i < 6; i++) {
+    p = makePuzzle({ ...options, seed: i ? `${base}~${i}` : base });
+    if (!used.has(p.fingerprint)) return p;
+  }
+  p.notes.push('Could not find a puzzle this player has not seen; this one repeats an earlier grid.');
+  return p;
+}
+
+// What makes two puzzles the same for a player: the same grid, answers and
+// clues (the story is checked separately through usedStories).
+export function puzzleFingerprint(p) {
+  const grid = p.categories.map((c) => `${c.id}:${c.items.map((i) => i.label).join(',')}`).join(';');
+  const answers = p.solution.map((row) => Object.values(row).join(',')).join(';');
+  const clues = p.clues.map((c) => c.text).join('|');
+  return `${p.theme.id}/${p.topic.id}-${hashString(`${grid}#${answers}#${clues}`).toString(36)}`;
+}
+
+function makePuzzle(options = {}) {
   const o = resolveOptions(options);
   const started = Date.now();
   let best = null;
@@ -255,7 +282,7 @@ function finalize(o, best, elapsedMs) {
 
   const toRowCol = (x, y) => (Math.floor(x / N) < Math.floor(y / N) ? [x, y] : [y, x]);
 
-  return {
+  const puzzle = {
     engine: ENGINE_NAME,
     version: ENGINE_VERSION,
     id: `${theme.id}-${topic.id}-${tier.id}-${K}x${N}-${o.seed}`,
@@ -264,6 +291,8 @@ function finalize(o, best, elapsedMs) {
     title: story.title,
     theme: { id: theme.id, name: theme.name },
     topic: { id: topic.id, name: topic.name, description: topic.description },
+    // A true event behind the story (Echoes of History): shown on solve.
+    ...(topic.history ? { history: { ...topic.history, source: { ...topic.history.source } } } : {}),
     art: { setting: scenario.art.setting, mood: scenario.art.mood },
     difficulty: { id: tier.id, name: tier.name, summary: tier.summary },
     cast: scenario.cast,
@@ -308,6 +337,8 @@ function finalize(o, best, elapsedMs) {
     },
     notes,
   };
+  puzzle.fingerprint = puzzleFingerprint(puzzle);
+  return puzzle;
 }
 
 // Standard staircase layout: every pair of categories appears exactly once.

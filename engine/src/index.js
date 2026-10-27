@@ -3,7 +3,8 @@ import { THEMES } from './themes.js';
 import { getTopics, buildScenario } from './topics.js';
 import { TIERS, TIER_ORDER, CLUE_TYPES, SIZE_LIMITS } from './tiers.js';
 
-export { generatePuzzle, gridLayout, ENGINE_NAME, ENGINE_VERSION } from './generator.js';
+export { generatePuzzle, gridLayout, puzzleFingerprint, ENGINE_NAME, ENGINE_VERSION } from './generator.js';
+export { HISTORY_TOPICS } from './history.js';
 export { getHint, checkMarks, checkAnswers, isSolved, formatPuzzleText } from './play.js';
 export { THEMES, TIERS, CLUE_TYPES, SIZE_LIMITS };
 export { STORYLINES } from './storylines.js';

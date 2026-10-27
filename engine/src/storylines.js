@@ -15,6 +15,8 @@
 // Change a part's words in place rather than reordering, so saved story ids
 // keep pointing at the same slot.
 
+import { HISTORY_STORYLINES } from './history.js';
+
 export const STORYLINES = {
   mystery: {
     adjs: ['Missing', 'Midnight', 'Silent', 'Crimson', 'Hidden', 'Vanishing', 'Locked', 'Whispering'],
@@ -898,6 +900,7 @@ export const STORYLINES = {
       '{Fact}, so {winner} wins {prize} and a tour of a real lab.',
     ],
   },
+  history: HISTORY_STORYLINES,
 };
 
 // Number of distinct storylines for a theme with a given goal category.
