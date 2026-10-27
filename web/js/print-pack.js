@@ -64,7 +64,7 @@ export async function open() {
   if (!out) {
     $('#pack-tier').innerHTML = deps.tiers().map((t) => `<option value="${esc(t.id)}"${t.id === (deps.lastTier?.() || 'easy') ? ' selected' : ''}>${esc(t.name)}</option>`).join('');
     $('#pack-theme').innerHTML = `<option value="random">Surprise me (a mix)</option>${deps.themes().map((t) => `<option value="${esc(t.id)}">${esc(t.name)}</option>`).join('')}`;
-    const paper = /^en-(US|CA)|es-(MX|US)|fil|-PH$/.test(navigator.language || '') ? 'letter' : 'A4';
+    const paper = /^(?:en-(?:US|CA)|es-(?:MX|US)|fil)(?:-|$)|-PH$/.test(navigator.language || '') ? 'letter' : 'A4';
     document.querySelectorAll('input[name=pkpaper]').forEach((r) => { r.checked = r.value === paper; });
     $('#pack-pdf').hidden = !(window.desktop && window.desktop.savePdf);
     setButtons(false);
