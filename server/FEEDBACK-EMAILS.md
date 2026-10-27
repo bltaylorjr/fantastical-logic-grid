@@ -51,7 +51,13 @@ Gmail can only send from its own address. Players can reply: every email sets
 `Reply-To` to the `MAIL_REPLY_TO` repository variable, or to
 fantasticallogicgrid@gmail.com when that is not set. Once support@thelogicgrid.com
 receives mail itself (email forwarding at the domain), set the GitHub variable
-`MAIL_REPLY_TO` to `support@thelogicgrid.com`. It also carries
+`MAIL_REPLY_TO` to `support@thelogicgrid.com`.
+
+One-way emails (the daily puzzle, "the team sent you a message" notices and
+educator code emails) go from **noreply@thelogicgrid.com** instead, with no
+`Reply-To` and a footer saying replies are not read. Set the `MAIL_NOREPLY`
+variable to use a different address. Any address on the verified domain works
+in Resend with no extra DNS records. It also carries
 `Auto-Submitted: auto-replied`, so mail programs do not answer it with
 out-of-office replies.
 

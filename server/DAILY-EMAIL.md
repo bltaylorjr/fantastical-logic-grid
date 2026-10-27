@@ -16,7 +16,7 @@ today's puzzle** button that opens it in the game (`/?play=daily`, tagged `utm_s
   not had that day's email yet (`POST /admin/v1/daily-email/claim`, which marks
   them so nobody gets two), sends, and reports back which failed (tried again
   at the second run) or were refused (taken off the list).
-- It sends from `support@thelogicgrid.com` through Resend when `RESEND_API_KEY`
+- It sends from `noreply@thelogicgrid.com` through Resend when `RESEND_API_KEY`
   is set and the domain is verified there, and from the game's Gmail otherwise.
   These are the same secrets as the thank-you emails (FEEDBACK-EMAILS.md), so
   there is nothing new to set up. The job prints only counts, never addresses.

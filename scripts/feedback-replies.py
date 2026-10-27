@@ -3,7 +3,8 @@ GitHub Action .github/workflows/feedback-replies.yml every 15 minutes (the
 domain's DNS is not on Cloudflare, so the Worker cannot send email itself).
 
 1. Ask the Worker for the notes waiting (POST /admin/v1/replies/claim).
-2. Send each one from support@thelogicgrid.com through Resend (free plan:
+2. Send each one from support@thelogicgrid.com (team-message notices from
+   noreply@thelogicgrid.com, since players answer those in the game) through Resend (free plan:
    100 a day, 3,000 a month) when RESEND_API_KEY is set and the domain is
    verified there. Anything Resend does not take goes from the game's Gmail
    (smtp.gmail.com, an app password) instead. Replies go to MAIL_REPLY_TO. The wording is fixed; thank-you and update emails also quote
@@ -37,10 +38,19 @@ RESEND_KEY = os.environ.get('RESEND_API_KEY', '').strip()
 MAIL_FROM = os.environ.get('MAIL_FROM', '').strip() or 'support@thelogicgrid.com'
 # Replies to player emails land here until support@ has its own inbox (MAIL_REPLY_TO overrides).
 REPLY_TO = os.environ.get('MAIL_REPLY_TO', '').strip() or 'fantasticallogicgrid@gmail.com'
+# One-way emails (nothing to answer) go from here, with no Reply-To.
+MAIL_NOREPLY = os.environ.get('MAIL_NOREPLY', '').strip() or 'noreply@thelogicgrid.com'
 GAME_URL = 'https://thelogicgrid.com'
 SENDER_NAME = 'The Fantastical Logic Grid'
 NO_REPLY = ('Questions? Just reply to this email. To share another idea or report a problem, '
             'use Menu > Ideas and problems in the game.')
+ONE_WAY = ('This is an automatic message from a no-reply address, so replies are not read. '
+           'To answer the team, open the game and choose Menu > Messages.')
+ONE_WAY_KINDS = {'message'}  # sent from MAIL_NOREPLY; everything else from MAIL_FROM
+
+
+def footer(r):
+    return ONE_WAY if r['kind'] in ONE_WAY_KINDS else NO_REPLY
 
 SIGN_OFF = 'The Fantastical Logic Grid team\n' + GAME_URL
 
@@ -138,7 +148,7 @@ def html_version(r):
     return ('<!doctype html><html><body style="margin:0;padding:24px;background:#f6f1e7;font-family:Arial,Helvetica,sans-serif;'
             'font-size:16px;line-height:1.5;color:#1f1a14"><div style="max-width:560px;margin:0 auto;background:#fffdf8;'
             'border-radius:10px;padding:24px">' + ''.join(parts) +
-            f'<p style="margin:20px 0 0;font-size:13px;color:#5c5246">{html.escape(NO_REPLY)}</p></div></body></html>')
+            f'<p style="margin:20px 0 0;font-size:13px;color:#5c5246">{html.escape(footer(r))}</p></div></body></html>')
 
 
 def text_version(r):
@@ -148,14 +158,16 @@ def text_version(r):
             out.append(b)
         else:
             out.append(b[1] + ':\n' + '\n'.join('> ' + line for line in b[2].strip().split('\n')))
-    return '\n\n'.join(out) + '\n\n--\n' + NO_REPLY + '\n'
+    return '\n\n'.join(out) + '\n\n--\n' + footer(r) + '\n'
 
 
 def message(r):
     msg = EmailMessage()
-    msg['From'] = formataddr((SENDER_NAME, GMAIL_USER))
+    one_way = r['kind'] in ONE_WAY_KINDS
+    msg['From'] = formataddr((SENDER_NAME + (' (no-reply)' if one_way else ''), GMAIL_USER))
     msg['To'] = r['email']
-    msg['Reply-To'] = REPLY_TO
+    if not one_way:
+        msg['Reply-To'] = REPLY_TO
     msg['Subject'] = NOTES[r['kind']]['subject']
     msg['Message-ID'] = make_msgid(domain='thelogicgrid.com')
     # An automatic message: mail programs should not send out-of-office answers to it.
@@ -171,9 +183,12 @@ def send_resend(replies):
     anything in neither list is left for Gmail."""
     sent, refused = [], []
     for r in replies:
-        payload = {'from': formataddr(('The Fantastical Logic Grid', MAIL_FROM)), 'to': [r['email']], 'reply_to': REPLY_TO, 'subject': NOTES[r['kind']]['subject'],
+        one_way = r['kind'] in ONE_WAY_KINDS
+        payload = {'from': formataddr((SENDER_NAME, MAIL_NOREPLY if one_way else MAIL_FROM)), 'to': [r['email']], 'subject': NOTES[r['kind']]['subject'],
                    'text': text_version(r), 'html': html_version(r),
                    'headers': {'Auto-Submitted': 'auto-replied', 'X-Auto-Response-Suppress': 'All'}}
+        if not one_way:
+            payload['reply_to'] = REPLY_TO
         req = urllib.request.Request('https://api.resend.com/emails', method='POST', data=json.dumps(payload).encode(),
                                      headers={'Authorization': f'Bearer {RESEND_KEY}', 'Content-Type': 'application/json', 'User-Agent': 'flg-feedback-replies'})
         try:

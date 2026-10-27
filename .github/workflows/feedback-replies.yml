@@ -33,4 +33,5 @@ jobs:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           MAIL_FROM: ${{ vars.MAIL_FROM }}
           MAIL_REPLY_TO: ${{ vars.MAIL_REPLY_TO }}
+          MAIL_NOREPLY: ${{ vars.MAIL_NOREPLY }}
         run: python3 -I scripts/feedback-replies.py

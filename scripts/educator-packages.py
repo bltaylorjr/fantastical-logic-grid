@@ -11,7 +11,7 @@ cannot send email itself (server/EDUCATORS.md).
    educator's verified school address.
 4. Tell the Worker what went out (POST /admin/v1/educators/done).
 
-Email goes from support@thelogicgrid.com through Resend (free plan) when
+Code emails go from noreply@thelogicgrid.com and the rest from support@thelogicgrid.com through Resend (free plan) when
 RESEND_API_KEY is set and the domain is verified there, otherwise from the
 game's Gmail. Replies go to MAIL_REPLY_TO. The repository is public, so its
 Actions logs are too: this prints only counts and request references, never
@@ -40,17 +40,21 @@ RESEND_KEY = os.environ.get('RESEND_API_KEY', '').strip()
 MAIL_FROM = os.environ.get('MAIL_FROM', '').strip() or 'support@thelogicgrid.com'
 # Replies to player emails land here until support@ has its own inbox (MAIL_REPLY_TO overrides).
 REPLY_TO = os.environ.get('MAIL_REPLY_TO', '').strip() or 'fantasticallogicgrid@gmail.com'
+# One-way emails (nothing to answer) go from here, with no Reply-To.
+MAIL_NOREPLY = os.environ.get('MAIL_NOREPLY', '').strip() or 'noreply@thelogicgrid.com'
 SITE = (os.environ.get('FLG_SITE_URL', '').strip() or 'https://thelogicgrid.com').rstrip('/')
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SENDER_NAME = 'The Fantastical Logic Grid'
 CONTACT = 'fantasticallogicgrid@gmail.com'
 NO_REPLY = 'Questions? Just reply to this email.'
+ONE_WAY = 'This is an automatic message from a no-reply address, so replies are not read. Questions? Write to support@thelogicgrid.com.'
 SIGN_OFF = 'The Fantastical Logic Grid team\n' + SITE
 
 
 def verify_mail(m):
     link = f'{SITE}/educators/?' + urllib.parse.urlencode({'ref': m['ref'], 'code': m['code']})
     return {
+        'one_way': True,
         'subject': f'Your code: {m["code"]} (The Fantastical Logic Grid for educators)',
         'blocks': [
             f'Hello {m["name"]},',
@@ -123,7 +127,7 @@ def html_version(mail):
     return ('<!doctype html><html><body style="margin:0;padding:24px;background:#f3f0fb;font-family:Arial,Helvetica,sans-serif;'
             'font-size:16px;line-height:1.5;color:#1f1a14"><div style="max-width:560px;margin:0 auto;background:#fff;'
             'border-radius:10px;padding:24px">' + ''.join(parts) +
-            f'<p style="margin:20px 0 0;font-size:13px;color:#5c5246">{html.escape(NO_REPLY)}</p></div></body></html>')
+            f'<p style="margin:20px 0 0;font-size:13px;color:#5c5246">{html.escape(ONE_WAY if mail.get("one_way") else NO_REPLY)}</p></div></body></html>')
 
 
 def text_version(mail):
@@ -139,7 +143,7 @@ def text_version(mail):
             out.append('\n'.join('- ' + x for x in b[1]))
         else:
             out.append(b[1] + ':\n> ' + b[2].strip())
-    return '\n\n'.join(out) + '\n\n--\n' + NO_REPLY + '\n'
+    return '\n\n'.join(out) + '\n\n--\n' + (ONE_WAY if mail.get('one_way') else NO_REPLY) + '\n'
 
 
 def call(path, body):
@@ -167,9 +171,12 @@ class Mailer:
         return False
 
     def _resend(self, to, mail, attachments):
-        payload = {'from': formataddr(('The Fantastical Logic Grid', MAIL_FROM)), 'to': [to], 'reply_to': REPLY_TO, 'subject': mail['subject'],
+        one_way = mail.get('one_way')
+        payload = {'from': formataddr((SENDER_NAME, MAIL_NOREPLY if one_way else MAIL_FROM)), 'to': [to], 'subject': mail['subject'],
                    'text': text_version(mail), 'html': html_version(mail),
                    'headers': {'Auto-Submitted': 'auto-generated', 'X-Auto-Response-Suppress': 'All'}}
+        if not one_way:
+            payload['reply_to'] = REPLY_TO
         if attachments:
             payload['attachments'] = [{'filename': name, 'content': base64.b64encode(data).decode()} for name, data in attachments]
         req = urllib.request.Request('https://api.resend.com/emails', method='POST', data=json.dumps(payload).encode(),
@@ -188,9 +195,10 @@ class Mailer:
 
     def _gmail(self, to, mail, attachments):
         msg = EmailMessage()
-        msg['From'] = formataddr((SENDER_NAME, GMAIL_USER))
+        msg['From'] = formataddr((SENDER_NAME + (' (no-reply)' if mail.get('one_way') else ''), GMAIL_USER))
         msg['To'] = to
-        msg['Reply-To'] = REPLY_TO
+        if not mail.get('one_way'):
+            msg['Reply-To'] = REPLY_TO
         msg['Subject'] = mail['subject']
         msg['Message-ID'] = make_msgid(domain='thelogicgrid.com')
         msg['Auto-Submitted'] = 'auto-generated'
