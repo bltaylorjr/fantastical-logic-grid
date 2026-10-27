@@ -1303,7 +1303,7 @@ $('#rating-clear').onclick = async () => {
   await saveRating({ rating: null });
   $('#feedback-thanks').textContent = 'Rating cleared.';
 };
-$('#feedback-idea').onclick = () => feedbackBox.open(openDialog, { kind: 'idea' });
+$('#feedback-idea').onclick = () => feedbackBox.open(openDialog, { kind: 'idea', themes: OPTIONS.themes });
 
 // Streak, new badges and Share my result on the solved panel.
 async function renderSolvedExtras(save) {
@@ -2185,7 +2185,7 @@ $('#app-menu').addEventListener('click', async (e) => {
   else if (cmd === 'stats') openStats();
   else if (cmd === 'suggest') characters.openSuggest(openDialog, OPTIONS.themes.filter((t) => !remote.disabledThemes().has(t.id)));
   else if (cmd === 'daily') openTodaysDaily();
-  else if (cmd === 'feedback') feedbackBox.open(openDialog);
+  else if (cmd === 'feedback') feedbackBox.open(openDialog, { themes: OPTIONS.themes });
   else if (cmd === 'messages') messages.open();
   else if (cmd === 'account') openAccount();
   else if (cmd === 'board') competeUi.openBoard();
