@@ -102,7 +102,7 @@ export function play(kind) {
 // prog: scale degrees of the chord roots, one per chord. chord: seconds each
 // chord is held. chime: chance of a chime every few seconds. bright: Hz the
 // pad's soft filter starts at.
-const MOODS = {
+export const MOODS = {
   mystery: { root: 146.83, scale: [0, 2, 3, 5, 7, 9, 10], prog: [0, 3, 5, 3], chord: 12, chime: 0.3, bright: 620 },
   action: { root: 110, scale: [0, 3, 5, 7, 10], prog: [0, 3, 1, 2], chord: 10, chime: 0.4, bright: 700 },
   adventure: { root: 130.81, scale: [0, 2, 4, 7, 9], prog: [0, 3, 4, 2], chord: 11, chime: 0.38, bright: 700 },
