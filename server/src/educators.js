@@ -52,12 +52,19 @@ async function sha256(text) {
 }
 const REF_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 function newRef() {
+  // 32 letters, so the low 5 bits pick one evenly.
   const b = crypto.getRandomValues(new Uint8Array(10));
-  return [...b].map((x) => REF_ALPHABET[x % REF_ALPHABET.length]).join('');
+  return [...b].map((x) => REF_ALPHABET[x & 31]).join('');
 }
+// Six even digits: take 4 random bits at a time and keep only 0 to 9.
 function newCode() {
-  const b = crypto.getRandomValues(new Uint32Array(1));
-  return String(b[0] % 1_000_000).padStart(6, '0');
+  let code = '';
+  while (code.length < 6) {
+    for (const x of crypto.getRandomValues(new Uint8Array(8))) {
+      for (const d of [x & 15, x >> 4]) if (d < 10 && code.length < 6) code += d;
+    }
+  }
+  return code;
 }
 const codeHash = (ref, code) => sha256(`flg-educator|${ref}|${code}`);
 const cleanRef = (v) => (typeof v === 'string' && /^[A-Z2-9]{10}$/.test(v.trim().toUpperCase()) ? v.trim().toUpperCase() : null);

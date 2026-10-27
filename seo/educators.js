@@ -2,7 +2,7 @@
 // choices, checks them with the same rules the Worker uses
 // (engine/classroom.js), sends the request, then takes the 6-digit code that
 // was emailed to the school address. A link in that email (?ref=&code=)
-// confirms it in one click. Talks only to the game's Worker (server/src/educators.js).
+// fills the code in; the Worker alone decides whether it is right. Talks only to the game's Worker (server/src/educators.js).
 import { classroomOptions, checkRequest, bandOf, gradeById, CUSTOM_STARTERS } from '../engine/classroom.js';
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -11,7 +11,8 @@ const form = $('#edu-form');
 const O = classroomOptions();
 const KEY = 'flg.educatorRequest';
 const local = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
-const API = (form.dataset.api || (local ? new URLSearchParams(location.search).get('api') || '' : '')).replace(/\/+$/, '');
+// Local test copies (no cloud URL at build) get the server from the test itself.
+const API = (form.dataset.api || (local && typeof window.FLG_EDUCATORS_API === 'string' ? window.FLG_EDUCATORS_API : '')).replace(/\/+$/, '');
 const TIER = Object.fromEntries(O.difficulties.map((d) => [d.id, d.name]));
 const v = (name) => form.elements[name];
 
@@ -122,7 +123,7 @@ function step(name, data = {}) {
   if (name === 'form') $('#form-h').scrollIntoView({ block: 'start' });
 }
 
-async function verify(ref, code) {
+async function sendCode(ref, code) {
   const err = $('#verify-error');
   err.hidden = true;
   try {
@@ -161,7 +162,7 @@ $('#verify-form').addEventListener('submit', (e) => {
   const saved = recall();
   const code = e.target.elements.code.value.replace(/\D/g, '');
   if (code.length !== 6) { $('#verify-error').textContent = 'Enter the 6-digit code from the email.'; $('#verify-error').hidden = false; return; }
-  if (saved) verify(saved.ref, code);
+  if (saved) sendCode(saved.ref, code);
 });
 $('#verify-resend').addEventListener('click', async (e) => {
   const saved = recall();
@@ -188,13 +189,14 @@ sourceChanged();
 // ---------------------------------------------------------------- start
 (async () => {
   const q = new URLSearchParams(location.search);
-  if (q.get('ref') && q.get('code')) {
-    // The link in the code email.
-    const ref = q.get('ref');
-    remember({ ref, email: '' });
-    history.replaceState(null, '', location.pathname + (local && q.get('api') ? `?api=${encodeURIComponent(q.get('api'))}` : ''));
+  const linkRef = q.get('ref') || '';
+  const linkCode = (q.get('code') || '').replace(/\D/g, '');
+  if (linkRef && linkCode) {
+    // The link in the code email: send the code for the Worker to check.
+    remember({ ref: linkRef, email: '' });
+    history.replaceState(null, '', location.pathname);
     step('verify', { email: 'your school address' });
-    await verify(ref, q.get('code'));
+    await sendCode(linkRef, linkCode);
     return;
   }
   const saved = recall();

@@ -84,6 +84,7 @@ ${attachments.length ? `<div class="att">${attachments.map((a) => `<div><b>PDF</
   let p;
   const ctx = await browser.newContext({ viewport: VIEW, deviceScaleFactor: SCALE, reducedMotion: 'reduce', serviceWorkers: 'block' });
   await ctx.addInitScript(() => { if (!localStorage.getItem('flg.settings')) localStorage.setItem('flg.settings', JSON.stringify({ introOffered: true, welcomed: true, voiceProvider: 'device', silent: true })); });
+  await ctx.addInitScript((api) => { window.FLG_EDUCATORS_API = api; }, API);
   p = await ctx.newPage();
   p.on('pageerror', (e) => console.log('page error:', e.message));
 
@@ -123,7 +124,7 @@ ${attachments.length ? `<div class="att">${attachments.map((a) => `<div><b>PDF</
     await hl('#educators-link', 8);
     await scene('link', ['On thelogicgrid.com, choose For educators, at the top of the game page.']);
 
-    await p.goto(`${SITE}/educators/?api=${encodeURIComponent(API)}`);
+    await p.goto(`${SITE}/educators/`);
     await p.waitForSelector('#edu-form');
     await hl(['main h1', '.how']);
     await scene('page', ['The Educators page explains the four steps.', 'Fill in the form, confirm your school email, our team reviews your request, and your puzzles arrive by email.']);
@@ -216,8 +217,7 @@ ${attachments.length ? `<div class="att">${attachments.map((a) => `<div><b>PDF</
     const w2 = await admin('educators/claim', {});
     const job = w2.builds[0];
     const tmp = path.join(OUT, 'package');
-    fs.writeFileSync(path.join(OUT, 'job.json'), JSON.stringify({ ...job, usedStories: [] }));
-    execFileSync('node', [path.join(ROOT, 'scripts/educator-package.mjs'), path.join(OUT, 'job.json'), tmp], { stdio: 'inherit', env: { ...process.env, FLG_PDF_HTML_ONLY: '1' } });
+    execFileSync('node', [path.join(ROOT, 'scripts/educator-package.mjs'), '-', tmp], { input: JSON.stringify({ ...job, usedStories: [] }), stdio: ['pipe', 'inherit', 'inherit'], env: { ...process.env, FLG_PDF_HTML_ONLY: '1' } });
     const manifest = JSON.parse(fs.readFileSync(path.join(tmp, 'manifest.json'), 'utf8'));
     await admin('educators/done', { builds: [{ id: job.id, ok: true, puzzles: manifest.puzzles, storyIds: manifest.storyIds }] });
     const pm = mailHtml('package', { ...job, manifest });

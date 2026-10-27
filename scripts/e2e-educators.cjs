@@ -44,6 +44,9 @@ const TOKEN = 'e2e-educators-token';
   try {
     // ---- The link in the game's top corner: the website has it, the desktop build does not.
     const ctx = await browser.newContext({ serviceWorkers: 'block', viewport: { width: 1280, height: 900 } });
+    // The test copy of the site has no cloud URL built in, so point the page at the local Worker.
+    const useApi = (c) => c.addInitScript((api) => { window.FLG_EDUCATORS_API = api; }, API);
+    await useApi(ctx);
     const page = await ctx.newPage();
     page.on('pageerror', (e) => errors.push(e.message));
     page.on('console', (m) => { if (m.type() === 'error' && /Content Security Policy|Refused/.test(m.text())) errors.push(m.text()); });
@@ -54,7 +57,7 @@ const TOKEN = 'e2e-educators-token';
     assert(box.y < 80, 'it sits in the top bar');
     assert(fs.readFileSync(path.join(ROOT, 'dist/web/index.html'), 'utf8').includes('id="educators-link" href="educators/" hidden'), 'the app build keeps it hidden (desktop app)');
     assert(new URL(await link.getAttribute('href'), `${SITE}/`).pathname === '/educators/', 'and opens the Educators page');
-    await page.goto(`${SITE}/educators/?api=${encodeURIComponent(API)}`);
+    await page.goto(`${SITE}/educators/`);
     await page.waitForSelector('#edu-form');
 
     // ---- The page's own checks, before anything is sent.
@@ -95,9 +98,11 @@ const TOKEN = 'e2e-educators-token';
     assert(row.request.largePrint === true, 'and the print choices');
 
     // ---- A teacher's own theme, confirmed with the link in the email.
-    const p2 = await (await browser.newContext({ serviceWorkers: 'block' })).newPage();
+    const ctx2 = await browser.newContext({ serviceWorkers: 'block' });
+    await useApi(ctx2);
+    const p2 = await ctx2.newPage();
     p2.on('pageerror', (e) => errors.push(e.message));
-    await p2.goto(`${SITE}/educators/?api=${encodeURIComponent(API)}`);
+    await p2.goto(`${SITE}/educators/`);
     await p2.fill('[name=name]', 'Mr Okafor');
     await p2.fill('[name=email]', 'okafor@hillside.edu');
     await p2.fill('[name=school]', 'Hillside Middle School');
@@ -120,7 +125,7 @@ const TOKEN = 'e2e-educators-token';
     work = await admin('educators/claim', {});
     const second = work.mails.find((m) => m.email === 'okafor@hillside.edu');
     await admin('educators/done', { mails: { sent: [second.id] } });
-    await p2.goto(`${SITE}/educators/?ref=${second.ref}&code=${second.code}&api=${encodeURIComponent(API)}`);
+    await p2.goto(`${SITE}/educators/?ref=${second.ref}&code=${second.code}`);
     await p2.waitForSelector('#edu-done:not([hidden])');
     assert(true, 'the link in the email confirms the address in one click');
     assert(!p2.url().includes('code='), 'and the code is taken out of the address bar');
@@ -133,8 +138,7 @@ const TOKEN = 'e2e-educators-token';
     const job = work.builds.find((b) => b.ref === second.ref);
     assert(job, 'the approved package is handed to the builder');
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'flg-edu-'));
-    fs.writeFileSync(path.join(tmp, 'job.json'), JSON.stringify({ ...job, usedStories: work.usedStories }));
-    execFileSync('node', [path.join(ROOT, 'scripts/educator-package.mjs'), path.join(tmp, 'job.json'), path.join(tmp, 'out')], { stdio: 'inherit', env: { ...process.env, FLG_PDF_HTML_ONLY: '1' } });
+    execFileSync('node', [path.join(ROOT, 'scripts/educator-package.mjs'), '-', path.join(tmp, 'out')], { input: JSON.stringify({ ...job, usedStories: work.usedStories }), stdio: ['pipe', 'inherit', 'inherit'], env: { ...process.env, FLG_PDF_HTML_ONLY: '1' } });
     const manifest = JSON.parse(fs.readFileSync(path.join(tmp, 'out', 'manifest.json'), 'utf8'));
     const html = fs.readFileSync(path.join(tmp, 'out', 'puzzles.html'), 'utf8');
     assert(manifest.puzzles === job.count && manifest.files.length === 1, 'answer keys after each puzzle: one file');

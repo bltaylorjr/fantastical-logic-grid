@@ -4,7 +4,7 @@
 //                    reading level, clues, the blank grid and the questions
 //   answer-keys.pdf  the answers (and, if asked, the worked solution), unless
 //                    the educator chose keys after each puzzle or no keys
-// Usage: node scripts/educator-package.mjs <job.json> <out dir>
+// Usage: node scripts/educator-package.mjs <job.json | - for stdin> <out dir>
 //   job.json: one build from POST /admin/v1/educators/claim plus usedStories.
 // Writes <out dir>/manifest.json: { files, storyIds, puzzles, title }.
 // The PDFs are printed by Chromium through Playwright (free, open source):
@@ -167,8 +167,8 @@ export async function printPdfs(pkg, outDir) {
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const [jobFile, outDir] = process.argv.slice(2);
-  if (!jobFile || !outDir) { console.error('Usage: node scripts/educator-package.mjs <job.json> <out dir>'); process.exit(2); }
-  const job = JSON.parse(readFileSync(jobFile, 'utf8'));
+  if (!jobFile || !outDir) { console.error('Usage: node scripts/educator-package.mjs <job.json | - for stdin> <out dir>'); process.exit(2); }
+  const job = JSON.parse(readFileSync(jobFile === '-' ? 0 : jobFile, 'utf8'));
   const t0 = Date.now();
   const pkg = buildPackage(job);
   mkdirSync(outDir, { recursive: true });
