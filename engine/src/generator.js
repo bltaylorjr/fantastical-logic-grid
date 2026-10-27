@@ -12,6 +12,7 @@ import { candidateStream, clueHolds } from './clues.js';
 import { isSolvable, solveWithTrace, TECHNIQUE_NAMES } from './solver.js';
 import { makeLanguage, clueText } from './language.js';
 import { buildStory, buildQuestions } from './story.js';
+import { orderItems } from './order.js';
 
 export const ENGINE_NAME = 'The Fantastical Logic Grid';
 export const ENGINE_VERSION = '1.0.0';
@@ -73,7 +74,7 @@ export function buildModel(o) {
   let names = Array.isArray(o.customNames) ? [...new Set(o.customNames.map((s) => String(s).trim()).filter(Boolean))] : [];
   if (names.length < N) names = names.concat(rng.sample(scenario.names.filter((n) => !names.includes(n)), N - names.length));
   else names = names.slice(0, N);
-  names.sort((p, q) => p.localeCompare(q));
+  names = orderItems(names);
 
   const cats = [{ id: 'name', name: cap(scenario.cast.one), labels: names, pos: 'is {x}', neg: 'is not {x}', ordinal: null }];
   for (const c of chosen) {
@@ -85,7 +86,7 @@ export function buildModel(o) {
       cats.push({ id: c.id, name: c.name, noun: c.noun, note: c.note, labels: values.map(od.label), values, pos: c.pos, neg: c.neg,
         ordinal: { less: od.less, more: od.more, lessBy: od.lessBy, moreBy: od.moreBy, gaps } });
     } else {
-      cats.push({ id: c.id, name: c.name, noun: c.noun, note: c.note, labels: rng.sample(c.items, N).sort((p, q) => p.localeCompare(q)), pos: c.pos, neg: c.neg, ordinal: null });
+      cats.push({ id: c.id, name: c.name, noun: c.noun, note: c.note, labels: orderItems(rng.sample(c.items, N), { order: c.order, listed: c.items }), pos: c.pos, neg: c.neg, ordinal: null });
     }
   }
   return {

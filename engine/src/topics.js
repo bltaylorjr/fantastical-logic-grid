@@ -1524,7 +1524,7 @@ export const TOPICS = {
     { id: 'timetravel', name: 'Time Travel', description: 'Time machines and trips to the past and future.',
       cast: { one: 'time traveler', many: 'time travelers' },
       categories: [
-        cat('era', 'Era Visited', 'visited the {x}', 'did not visit the {x}', ['Dinosaur Age', 'Ice Age', 'Ancient Egypt', 'Roman Empire', 'Middle Ages', 'Wild West', 'Roaring Twenties', 'Year 3000'], { noun: 'era visited' }),
+        cat('era', 'Era Visited', 'visited the {x}', 'did not visit the {x}', ['Dinosaur Age', 'Ice Age', 'Ancient Egypt', 'Roman Empire', 'Middle Ages', 'Wild West', 'Roaring Twenties', 'Year 3000'], { noun: 'era visited', order: 'listed' }),
         cat('souvenir', 'Souvenir', 'brought back the {x}', 'did not bring back the {x}', ['Fossil', 'Gold Coin', 'Feather Pen', 'Pocket Watch', 'Clay Pot', 'Cowboy Hat', 'Jazz Record', 'Hover Shoe']),
         cat('machine', 'Time Machine', 'flew the {x}', 'did not fly the {x}', ['Chrono Pod', 'Tick Tock', 'Paradox', 'Hourglass', 'Rewind', 'Sundial', 'Clockwork', 'Warp Wagon']),
         cat('gadget', 'Gadget', 'carried the {x}', 'did not carry the {x}', ['Time Compass', 'Paradox Meter', 'Era Guidebook', 'Translator', 'Chrono Key', 'Spare Battery', 'Anchor Beacon', 'Pocket Radar']),

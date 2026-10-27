@@ -13,6 +13,7 @@ import { makeLanguage } from '../src/language.js';
 import { makeRng } from '../src/rng.js';
 import { SIZE_LIMITS } from '../src/tiers.js';
 import { TIER_ORDER } from '../src/tiers.js';
+import { orderItems, inOrder } from '../src/order.js';
 
 const quick = process.argv.includes('--quick');
 let passed = 0, failed = 0;
@@ -142,12 +143,55 @@ for (const opt of sizes) {
     check(`${name} art comes from the topic`, p.art.setting === topic.art.setting && p.art.mood === topic.art.mood);
     check(`${name} story id has the topic key`, parseStoryId(p.story.id).key === sc.key);
     check(`${name} story uses a topic incident`, sc.story.incidents.some((i) => p.title.endsWith(i.name)));
+    // Item order rule: every category's items in a sensible order.
+    const bad = p.categories.filter((c) => {
+      const labels = c.items.map((i) => i.label);
+      if (c.ordinal) return c.items.some((it, k) => k && it.value <= c.items[k - 1].value);
+      const def = sc.categories.find((x) => x.id === c.id) || {};
+      return !inOrder(labels, { order: def.order, listed: def.items });
+    });
+    check(`${name} grid items in order`, bad.length === 0, bad.map((c) => `${c.name}: ${c.items.map((i) => i.label).join(', ')}`).join(' / '));
+    check(`${name} answer key rows follow the grid`, p.answerKey.rows.every((r, k) => r[0] === p.categories[0].items[k].label));
   }
 
   // Independent uniqueness check.
   const n = countSolutions(p, 2, quick ? 3000 : 20000);
   if (n === -1) bruteSkipped++;
   else { bruteChecked++; check(`${name} exactly one solution (brute force)`, n === 1, `found ${n}`); }
+}
+
+// Item order rule (Bobby, 2026-10-27): numbers, times and other sequences in
+// natural order, a written order kept when a category asks for it, otherwise
+// alphabetical. Checked on the rule itself, then on every category of every
+// topic at the largest size over several seeds.
+{
+  const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  check('order: numbers in number order', same(orderItems(['10', '3', '21', '7']), ['3', '7', '10', '21']));
+  check('order: numbers inside words', same(orderItems(['Table 10', 'Table 2', 'Apollo 11']), ['Apollo 11', 'Table 2', 'Table 10']));
+  check('order: clock times', same(orderItems(['1:00 pm', '11:30 am', '9:00 am', '12:15 pm']), ['9:00 am', '11:30 am', '12:15 pm', '1:00 pm']));
+  check('order: days of the week', same(orderItems(['Friday', 'Monday', 'Sunday', 'Wednesday']), ['Monday', 'Wednesday', 'Friday', 'Sunday']));
+  check('order: ordinal words', same(orderItems(['Third', 'First', 'Second']), ['First', 'Second', 'Third']));
+  check('order: sizes', same(orderItems(['Large', 'Small', 'Medium']), ['Small', 'Medium', 'Large']));
+  check('order: alphabetical, "The" ignored', same(orderItems(['Zebra', 'The Lion', 'apple']), ['apple', 'The Lion', 'Zebra']));
+  check('order: written order kept', same(orderItems(['Year 3000', 'Ice Age', 'Wild West'], { order: 'listed', listed: ['Ice Age', 'Wild West', 'Year 3000'] }), ['Ice Age', 'Wild West', 'Year 3000']));
+  const bad = [];
+  for (const theme of THEMES) {
+    for (const topic of getTopics(theme.id)) {
+      const scenario = buildScenario(theme, topic);
+      for (let s = 0; s < (quick ? 3 : 10); s++) {
+        const rng = makeRng(`order-${theme.id}-${topic.id}-${s}`);
+        const K = Math.min(SIZE_LIMITS.categories[1], scenario.categories.length + 1);
+        const model = buildModel({ rng, scenario, K, N: SIZE_LIMITS.items[1], weights: { is: 1, less: 1 } });
+        for (const c of model.cats) {
+          const def = scenario.categories.find((x) => x.id === c.id) || {};
+          const ok = c.ordinal ? c.values.every((v, k) => !k || v > c.values[k - 1]) : inOrder(c.labels, { order: def.order, listed: def.items });
+          if (!ok) bad.push(`${theme.id}/${topic.id} ${c.name}: ${c.labels.join(', ')}`);
+        }
+      }
+    }
+  }
+  for (const b of bad.slice(0, 10)) console.log(`  ${b}`);
+  check('every topic lists grid items in order', bad.length === 0, `${bad.length} categories out of order`);
 }
 
 // Same seed and options give the same puzzle.
