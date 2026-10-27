@@ -20,7 +20,7 @@
 // addresses, web addresses and long numbers blanked, like the idea boxes.
 import { json, readText, TooLarge } from './http.js';
 import { getSettings } from './settings.js';
-import { cleanText } from './feedback.js';
+import { cleanText, themeName } from './feedback.js';
 import { withFixes } from './errors.js';
 import { queueNotice } from './replies.js';
 import { AuthError } from './auth.js';
@@ -303,10 +303,10 @@ export async function inbox(env, role, { type = 'all', status = 'new', q = '' } 
   }
   for (const kind of ['idea', 'problem']) {
     if (!has(kind)) continue;
-    const { results } = await db.prepare(`SELECT id, topic, text, platform, version, status, note, created_at AS at, done_at AS doneAt, conversation_id AS conversationId FROM feedback
+    const { results } = await db.prepare(`SELECT id, topic, theme, text, platform, version, status, note, created_at AS at, done_at AS doneAt, conversation_id AS conversationId FROM feedback
       WHERE kind = ?1 AND (?2 = 'all' OR status = ?2) AND (?3 IS NULL OR text LIKE ?3 ESCAPE '\\') ORDER BY created_at DESC LIMIT ?4`).bind(kind, status, search, PER_TYPE).all();
     for (const f of results) {
-      items.push({ type: kind, id: f.id, at: f.at, status: f.status, title: f.topic, text: f.text, meta: { topic: f.topic, platform: f.platform, version: f.version, conversationId: f.conversationId, note: f.note, doneAt: f.doneAt } });
+      items.push({ type: kind, id: f.id, at: f.at, status: f.status, title: f.topic, text: f.text, meta: { topic: f.topic, theme: f.theme || null, themeName: f.theme ? themeName(f.theme) : null, platform: f.platform, version: f.version, conversationId: f.conversationId, note: f.note, doneAt: f.doneAt } });
     }
   }
   // Error reports have no done state: "new" is the last 7 days, "all" and

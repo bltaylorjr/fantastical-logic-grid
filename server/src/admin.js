@@ -461,7 +461,7 @@ const ROUTES = [
   ['GET', /^feedback$/, 'moderator', 'feedback.view', async ({ env, url }) => {
     const kind = FEEDBACK_TOPICS[url.searchParams.get('kind')] ? url.searchParams.get('kind') : 'idea';
     const status = ['new', 'addressed', 'done', 'all'].includes(url.searchParams.get('status')) ? url.searchParams.get('status') : 'new';
-    const { results } = await env.DB.prepare(`SELECT id, kind, topic, text, platform, version, status, note, created_at AS createdAt, done_at AS doneAt FROM feedback
+    const { results } = await env.DB.prepare(`SELECT id, kind, topic, theme, text, platform, version, status, note, created_at AS createdAt, done_at AS doneAt FROM feedback
       WHERE kind = ?1 AND (?2 = 'all' OR status = ?2) ORDER BY created_at DESC LIMIT 200`).bind(kind, status).all();
     const counts = (await env.DB.prepare("SELECT kind, COUNT(*) AS n FROM feedback WHERE status = 'new' GROUP BY kind").all()).results;
     return { body: { kind, status, items: results, waiting: Object.fromEntries(counts.map((x) => [x.kind, x.n])), replies: await replyCounts(env) } };

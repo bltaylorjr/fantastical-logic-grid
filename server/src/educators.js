@@ -34,8 +34,14 @@
 // address (personal mailboxes only when the admin allows them); the code is
 // stored only as a hash, expires after 2 days and allows 6 tries; at most 3
 // requests per address a day and educator_daily_cap for everyone.
+//
+// Marketing: the page sends the campaign tags the teacher arrived with (if
+// any). They are kept on the request (campaign) and counted in the admin
+// Marketing numbers as edu_request, edu_confirm (address confirmed) and
+// edu_sent (package emailed) for that campaign, channel and ad.
 import { json, readText, TooLarge } from './http.js';
 import { getSettings } from './settings.js';
+import { cleanTags, countServerEvent } from './marketing.js';
 import { checkRequest, schoolEmail, checkFeedback, checkSurvey, EDUCATOR_SURVEY } from '../../engine/src/classroom.js';
 
 const DAY = 24 * 3600_000;
@@ -125,16 +131,18 @@ async function postRequest(req, env, ctx, now) {
   const code = newCode();
   const ip = req.headers.get('CF-Connecting-IP') || 'local';
   const { educator, ...pkg } = r;
-  await env.DB.prepare(`INSERT INTO educator_requests (ref, email, name, school, role, grade, count, request, domain_kind, status, code_hash, mail, mail_code, ip_hash, created_at)
-    VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 'unverified', ?10, 'verify', ?11, ?12, ?13)`)
+  const tags = await cleanTags(env, body.campaign);
+  await env.DB.prepare(`INSERT INTO educator_requests (ref, email, name, school, role, grade, count, request, domain_kind, status, code_hash, mail, mail_code, ip_hash, created_at, campaign)
+    VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 'unverified', ?10, 'verify', ?11, ?12, ?13, ?14)`)
     .bind(ref, educator.email, educator.name, educator.school, educator.role, r.grade, r.count, JSON.stringify({ ...pkg, district: educator.district }), domain.kind,
-      await codeHash(ref, code), code, (await sha256(`flg-edu-ip|${ip}`)).slice(0, 16), now).run();
+      await codeHash(ref, code), code, (await sha256(`flg-edu-ip|${ip}`)).slice(0, 16), now, tags ? JSON.stringify(tags) : null).run();
+  if (tags) await countServerEvent(env, 'edu_request', tags, now);
   ctx?.waitUntil?.(kick(env));
   return json(req, env, { ref, email: educator.email, status: 'unverified', expiresAt: now + CODE_TTL });
 }
 
 async function findRef(env, ref) {
-  return env.DB.prepare('SELECT id, ref, status, code_hash, verify_tries, resends, created_at FROM educator_requests WHERE ref = ?1').bind(ref).first();
+  return env.DB.prepare('SELECT id, ref, status, code_hash, verify_tries, resends, created_at, campaign FROM educator_requests WHERE ref = ?1').bind(ref).first();
 }
 
 async function postVerify(req, env, now) {
@@ -155,7 +163,8 @@ async function postVerify(req, env, now) {
     const left = MAX_TRIES - row.verify_tries - 1;
     return json(req, env, { error: 'wrong_code', message: left > 0 ? `That code is not right. ${left} ${left === 1 ? 'try' : 'tries'} left.` : 'Too many wrong codes. Choose "Send a new code".' }, 400);
   }
-  await env.DB.prepare("UPDATE educator_requests SET status = 'pending', verified_at = ?2, code_hash = NULL, mail = NULL, mail_code = NULL WHERE id = ?1 AND status = 'unverified'").bind(row.id, now).run();
+  const done = await env.DB.prepare("UPDATE educator_requests SET status = 'pending', verified_at = ?2, code_hash = NULL, mail = NULL, mail_code = NULL WHERE id = ?1 AND status = 'unverified'").bind(row.id, now).run();
+  if (done.meta?.changes && row.campaign) await countServerEvent(env, 'edu_confirm', row.campaign, now);
   return json(req, env, { status: 'pending' });
 }
 
@@ -296,6 +305,7 @@ export async function finishWork(env, body, now = Date.now()) {
   for (const id of ids(body?.replies?.sent)) stmts.push(db.prepare('UPDATE educator_feedback SET reply_mail = 0 WHERE id = ?1').bind(id));
   for (const id of ids(body?.replies?.failed)) stmts.push(db.prepare('UPDATE educator_feedback SET mail_claimed_at = NULL, reply_mail = CASE WHEN mail_tries >= ?2 THEN 0 ELSE 1 END WHERE id = ?1').bind(id, MAX_MAIL_TRIES));
   let sent = 0, failed = 0;
+  const sentIds = [];
   for (const b of (Array.isArray(body?.builds) ? body.builds : []).slice(0, BUILDS_PER_RUN * 2)) {
     const id = Number(b?.id);
     if (!Number.isInteger(id)) continue;
@@ -306,6 +316,7 @@ export async function finishWork(env, body, now = Date.now()) {
       const hash = k?.feedback_key ? await keyHash(k.ref, k.feedback_key) : null;
       stmts.push(db.prepare("UPDATE educator_requests SET status = 'sent', sent_at = ?2, puzzles = ?3, story_ids = ?4, feedback_hash = COALESCE(?5, feedback_hash), feedback_key = NULL WHERE id = ?1 AND status = 'building'")
         .bind(id, now, Math.max(0, Number(b.puzzles) || stories.length), JSON.stringify(stories), hash));
+      sentIds.push(id);
       sent++;
     } else {
       stmts.push(db.prepare("UPDATE educator_requests SET status = CASE WHEN build_tries >= ?2 THEN 'failed' ELSE 'approved' END, note = COALESCE(note, ?3) WHERE id = ?1 AND status = 'building'")
@@ -313,13 +324,16 @@ export async function finishWork(env, body, now = Date.now()) {
       failed++;
     }
   }
+  // The campaigns of packages about to be marked sent (only those still building).
+  const tagged = sentIds.length ? (await db.prepare(`SELECT campaign FROM educator_requests WHERE status = 'building' AND campaign IS NOT NULL AND id IN (${sentIds.map(() => '?').join(',')})`).bind(...sentIds).all()).results : [];
   if (stmts.length) await db.batch(stmts);
+  for (const t of tagged) await countServerEvent(env, 'edu_sent', t.campaign, now);
   return { mails: ids(body?.mails?.sent).length, replies: ids(body?.replies?.sent).length, sent, failed };
 }
 
 // ---------------------------------------------------------------- admin
 const PUBLIC_FIELDS = `id, ref, email, name, school, role, grade, count, request, domain_kind AS domainKind, status, created_at AS createdAt, verified_at AS verifiedAt,
-  reviewed_at AS reviewedAt, reviewed_by AS reviewedBy, note, sent_at AS sentAt, puzzles, mail, build_tries AS buildTries`;
+  reviewed_at AS reviewedAt, reviewed_by AS reviewedBy, note, sent_at AS sentAt, puzzles, mail, build_tries AS buildTries, campaign`;
 
 // Survey results: how many answered, how often each option was picked, and the comments.
 export async function surveyResults(env) {
@@ -358,7 +372,7 @@ export function educatorRoutes(Refusal) {
       const where = status === 'all' ? '1 = 1' : status === 'open' ? "status IN ('approved', 'building', 'failed')" : 'status = ?1';
       const { results } = await env.DB.prepare(`SELECT ${PUBLIC_FIELDS} FROM educator_requests WHERE ${where} ORDER BY created_at DESC LIMIT 200`).bind(...(where.includes('?1') ? [status] : [])).all();
       return {
-        body: { status, counts: await educatorCounts(env), dispatch: !!env.GITHUB_DISPATCH_TOKEN, requests: results.map((r) => ({ ...r, request: JSON.parse(r.request) })) },
+        body: { status, counts: await educatorCounts(env), dispatch: !!env.GITHUB_DISPATCH_TOKEN, requests: results.map((r) => ({ ...r, request: JSON.parse(r.request), campaign: r.campaign ? JSON.parse(r.campaign) : null })) },
         quiet: true,
       };
     }],

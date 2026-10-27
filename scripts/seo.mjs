@@ -114,6 +114,12 @@ function checkVideos(data, where) {
 }
 
 export async function buildSeo({ root, site }) {
+  // The game's Worker. Every page counts visits from campaign links with the
+  // game's own campaign.js (js/page-visit.js), so every page may send those
+  // counts to it; the Educators form also sends its requests there.
+  const cloud = (process.env.FLG_CLOUD_URL || '').replace(/\/+$/, '');
+  const cloudOrigin = (() => { try { return cloud ? new URL(cloud).origin : ''; } catch { return ''; } })();
+  const SITE_CSP = cloudOrigin ? PAGE_CSP.replace("default-src 'self';", `default-src 'self'; connect-src 'self' ${cloudOrigin};`) : PAGE_CSP;
   const base = (process.env.FLG_SITE_URL || 'https://thelogicgrid.com').replace(/\/+$/, '');
   const url = (path) => `${base}/${path}`;
   // The same engine the site ships.
@@ -169,7 +175,7 @@ export async function buildSeo({ root, site }) {
     const end = cut.lastIndexOf('. ');
     return end > 80 ? cut.slice(0, end + 1) : `${cut.slice(0, cut.lastIndexOf(' ')).replace(/[,;:]$/, '')}…`;
   };
-  const page = ({ path, title: fullTitle, description: fullDescription, body, crumbs = [], schema = [], lastmod = updated, priority = 0.6, type, listed = true, csp = PAGE_CSP, style = '', script = '' }) => {
+  const page = ({ path, title: fullTitle, description: fullDescription, body, crumbs = [], schema = [], lastmod = updated, priority = 0.6, type, listed = true, csp = SITE_CSP, style = '', script = '' }) => {
     const title = fitTitle(fullTitle);
     const description = fitDescription(fullDescription);
     const file = path.endsWith('.html') ? path : `${path}index.html`;
@@ -194,6 +200,7 @@ ${verification}
 <link rel="preload" href="${up}fonts/atkinson-400.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="${up}fonts/cinzel-700.woff2" as="font" type="font/woff2" crossorigin>
 <style>${css.replaceAll('url(fonts/', `url(${up}fonts/`)}${style}</style>
+<script type="module" src="${up}js/page-visit.js"></script>
 ${script ? `<script type="module" src="${script}"></script>` : ''}
 ${[breadcrumb, ...schema].map((s) => `<script type="application/ld+json">${json(checkVideos(s, path))}</script>`).join('\n')}
 </head>
@@ -534,12 +541,10 @@ ${playBtn(up)}`,
   });
 
   // ---------- For educators: free printable puzzle packages (website only) ----------
-  // The form talks to the game's Worker (server/src/educators.js), so this
-  // page alone may connect to it. Without a cloud address (tests) it may reach localhost.
+  // The form talks to the game's Worker (server/src/educators.js). Without a
+  // cloud address (tests) this page may reach localhost.
   {
     const { classroomOptions, EDUCATOR_SURVEY, FEEDBACK_KINDS, FEEDBACK_TEXT } = await import(pathToFileURL(join(site, 'engine', 'classroom.js')).href);
-    const cloud = (process.env.FLG_CLOUD_URL || '').replace(/\/+$/, '');
-    const cloudOrigin = (() => { try { return cloud ? new URL(cloud).origin : ''; } catch { return ''; } })();
     const csp = PAGE_CSP.replace("default-src 'self';", `default-src 'self'; connect-src 'self' ${cloudOrigin || 'http://localhost:* http://127.0.0.1:*'};`);
     mkdirSync(join(site, 'educators'), { recursive: true });
     cpSync(join(root, 'seo', 'educators.js'), join(site, 'educators', 'form.js'));

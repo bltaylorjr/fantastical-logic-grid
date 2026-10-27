@@ -449,7 +449,7 @@ function itemHtml(i) {
   }
   if (i.type === 'idea' || i.type === 'problem') {
     const m = i.meta;
-    return `<li>${type} ${state} <b>${esc(FB_TOPICS[m.topic] || m.topic)}</b>
+    return `<li>${type} ${state} <b>${esc(FB_TOPICS[m.topic] || m.topic)}</b>${m.themeName ? ` <span class="badge">Theme: ${esc(m.themeName)}</span>` : ''}
       <span class="muted">${when(i.at)} · ${esc(m.platform)} ${esc(m.version)}${m.conversationId ? ' · the player asked for a reply' : ''}</span>
       <p class="fb-text">${esc(i.text)}</p>
       ${i.status === 'addressed' && m.note ? `<p class="fb-note"><b>What we did:</b> ${esc(m.note)} <span class="muted">${when(m.doneAt)}</span></p>` : ''}

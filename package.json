@@ -1,6 +1,6 @@
 {
   "name": "fantastical-logic-grid-app",
-  "version": "1.11.0",
+  "version": "1.11.1",
   "private": true,
   "license": "UNLICENSED",
   "description": "The Fantastical Logic Grid: browser (PWA) and desktop app.",
@@ -24,6 +24,7 @@
     "@fontsource/atkinson-hyperlegible": "^5.2.5",
     "@fontsource/cinzel": "^5.3.0",
     "@tauri-apps/cli": "^2.12.4",
-    "esbuild": "^0.28.2"
+    "esbuild": "^0.28.2",
+    "javascript-obfuscator": "^5.9.0"
   }
 }

@@ -69,7 +69,9 @@ test('requests are checked: agreement, puzzle count, school email', async () => 
 });
 
 test('a teacher confirms the school email with the code, and the team approves', async () => {
-  const sent = await call('/v1/educators/request', { body: form() });
+  // The teacher came by the educator campaign's Facebook group post.
+  const tags = { c: 'educators-2026', s: 'facebook', m: 'community', k: 'teacher-groups' };
+  const sent = await call('/v1/educators/request', { body: { ...form(), campaign: tags } });
   assert.equal(sent.status, 200);
   const { ref } = sent.body;
   assert.match(ref, /^[A-Z2-9]{10}$/);
@@ -110,6 +112,10 @@ test('a teacher confirms the school email with the code, and the team approves',
   assert.equal((await admin('educators/claim', {})).body.builds.length, 0);
   await admin('educators/done', { builds: [{ id: build.id, ok: true, puzzles: 3, storyIds: ['pets|a', 'sports|b', 'pets|c'] }] });
   assert.equal((await call(`/v1/educators/status?ref=${ref}`)).body.status, 'sent');
+  // Each step is counted for the ad the teacher came from, and only for that ad.
+  const counts = (await db.prepare("SELECT campaign, source, medium, content, event, SUM(n) AS n FROM campaign_stats WHERE event LIKE 'edu_%' GROUP BY campaign, source, medium, content, event ORDER BY event").all()).results;
+  assert.deepEqual(counts, ['edu_confirm', 'edu_request', 'edu_sent'].map((event) => ({ campaign: 'educators-2026', source: 'facebook', medium: 'community', content: 'teacher-groups', event, n: 1 })));
+  assert.equal(JSON.parse((await db.prepare('SELECT campaign FROM educator_requests WHERE ref = ?1').bind(ref).first()).campaign).k, 'teacher-groups');
 
   // The next package is told which stories were used.
   const next = await call('/v1/educators/request', { body: form({ educator: { email: 'kim@lincoln.k12.ca.us' } }) });
@@ -122,6 +128,11 @@ test('a teacher confirms the school email with the code, and the team approves',
   const id2 = w2.builds[0].id;
   await admin('educators/done', { builds: [{ id: id2, ok: false, error: 'timeout' }] });
   assert.equal((await call(`/v1/educators/status?ref=${next.body.ref}`)).body.status, 'approved');
+  // A request without campaign tags is not counted; made-up tags fold into (other).
+  assert.equal((await db.prepare("SELECT SUM(n) AS n FROM campaign_stats WHERE event = 'edu_request'").first()).n, 1);
+  const odd = await call('/v1/educators/request', { body: { ...form({ educator: { email: 'pat@lincoln.k12.ca.us' } }), campaign: { c: 'my-own-thing', s: 'spam', m: 'x', k: 'y' } } });
+  assert.equal(odd.status, 200);
+  assert.equal((await db.prepare("SELECT campaign FROM campaign_stats WHERE event = 'edu_request' AND campaign != 'educators-2026'").first()).campaign, '(other)');
 });
 
 test('the feedback section opens with the package email link: survey, ideas and the team\'s answer', async () => {
