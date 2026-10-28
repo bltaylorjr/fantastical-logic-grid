@@ -18,6 +18,7 @@ export const SEEDS = [{
     wide: { title: 'Wide post picture', kind: 'image', url: `${RAW}/media/marketing/wide-1600x900.png`, preview: '/admin/marketing-wide.png', size: '1600x900', notes: 'X, Bluesky, Threads, Mastodon, LinkedIn, Reddit.' },
     pin: { title: 'Pinterest pin (printable puzzles)', kind: 'image', url: `${RAW}/media/marketing/pin-1000x1500.png`, preview: '/admin/marketing-pin.png', size: '1000x1500', notes: 'Tall pins get the most room in Pinterest feeds.' },
     gallery: { title: 'Gallery picture (Product Hunt, itch.io, directories)', kind: 'image', url: `${RAW}/media/marketing/gallery-1270x760.png`, preview: '/admin/marketing-gallery.png', size: '1270x760', notes: '' },
+    fbCover: { title: 'Facebook Page cover', kind: 'image', url: `${RAW}/media/marketing/facebook-cover-1640x624.png`, preview: '/admin/marketing-fbcover.png', size: '1640x624', notes: 'The Page\'s cover photo. Phones crop the sides, so the words stay in the middle.' },
     cover: { title: 'itch.io cover', kind: 'image', url: `${RAW}/media/marketing/itch-cover-630x500.png`, preview: '/admin/marketing-cover.png', size: '630x500', notes: '' },
   },
   campaign: {

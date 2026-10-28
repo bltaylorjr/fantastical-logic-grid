@@ -53,7 +53,7 @@ Do these once, in the payment service's dashboard. They are all free.
 
 1. **Statement name.** Stripe Dashboard > Settings > Business > Public
    details. Set the **statement descriptor** to `THELOGICGRID.COM`. Add a
-   support email (fantasticallogicgrid@gmail.com) and the website
+   support email (support@thelogicgrid.com) and the website
    (https://thelogicgrid.com). Payers then see a name they recognize.
 2. **Radar fraud rules.** Stripe Dashboard > Radar > Rules. Radar's built-in
    rules are free with standard Stripe pricing. Make sure these are on:

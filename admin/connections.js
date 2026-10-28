@@ -657,7 +657,7 @@ export const CONNECTIONS = [
     ],
     settings: [
       { label: 'Resend domain', value: 'thelogicgrid.com, region US East' },
-      { label: 'DNS records (copy exactly from Resend)', value: 'MX and TXT for send, TXT for resend._domainkey, optional TXT for _dmarc' },
+      { label: 'DNS records (copy exactly from Resend)', value: 'TXT for resend._domainkey, CNAME for send and rsend, optional TXT for _dmarc (or use Resend\'s Go to Namecheap button)' },
     ],
     steps: [
       'Sign up at https://resend.com with fantasticallogicgrid@gmail.com.',
@@ -671,7 +671,32 @@ export const CONNECTIONS = [
     links: [{ label: 'Resend domains', url: 'https://resend.com/domains' }, { label: 'Resend API keys', url: 'https://resend.com/api-keys' }],
     checks: [
       { type: 'dns', name: 'resend._domainkey.thelogicgrid.com', rr: 'TXT', contains: 'p=', label: 'Resend DKIM record (resend._domainkey)' },
-      { type: 'dns', name: 'send.thelogicgrid.com', rr: 'MX', label: 'Resend MX record (send)' },
+      { type: 'dns', name: 'send.thelogicgrid.com', rr: 'CNAME', label: 'Resend CNAME record (send)' },
+    ],
+  },
+  {
+    id: 'support-email',
+    group: 'email',
+    title: 'support@thelogicgrid.com: support inbox (ImprovMX forwarding + Gmail Send mail as)',
+    docs: 'docs/owner-tasks/2026-10-28-resend-namecheap.md',
+    why: 'Mail to support@thelogicgrid.com is forwarded by ImprovMX to the game\'s Gmail, and Gmail can answer as support@ by sending through Resend. Nothing in the code needs it; it is the address players can write to.',
+    cost: 'ImprovMX free plan (forwarding, no card). Replies use the Resend free plan (shared 100 a day).',
+    names: [],
+    settings: [
+      { label: 'Namecheap Mail Settings', value: 'Custom MX: @ mx1.improvmx.com (10), @ mx2.improvmx.com (20)' },
+      { label: 'Root SPF TXT (@)', value: 'v=spf1 include:spf.improvmx.com ~all' },
+      { label: 'ImprovMX alias', value: 'support -> fantasticallogicgrid@gmail.com' },
+      { label: 'Gmail Send mail as', value: 'smtp.resend.com, port 465 SSL, user resend, password = a Resend Sending access key' },
+    ],
+    steps: [
+      'Sign up at https://app.improvmx.com with fantasticallogicgrid@gmail.com, add `thelogicgrid.com`, and make the alias `support` forward to fantasticallogicgrid@gmail.com.',
+      'Namecheap > **Domain List** > **Manage** > **Advanced DNS**: under **Mail Settings** (Custom MX) add MX `@` `mx1.improvmx.com` priority 10 and MX `@` `mx2.improvmx.com` priority 20; under **Host Records** add TXT `@` `v=spf1 include:spf.improvmx.com ~all`.',
+      'In ImprovMX click **Check again** until it says **Email forwarding active**.',
+      'Gmail > **Settings** > **Accounts and Import** > **Send mail as** > **Add another email address**: `support@thelogicgrid.com`, SMTP `smtp.resend.com`, port 465 (SSL), user `resend`, password = a new Resend **Sending access** key. Confirm with the code Gmail sends.',
+    ],
+    links: [{ label: 'ImprovMX', url: 'https://app.improvmx.com' }, { label: 'ImprovMX Namecheap guide', url: 'https://improvmx.com/guides/namecheap' }],
+    checks: [
+      { type: 'dns', name: 'thelogicgrid.com', rr: 'MX', contains: 'improvmx', label: 'Support inbox MX records (ImprovMX)', optional: true },
     ],
   },
 
