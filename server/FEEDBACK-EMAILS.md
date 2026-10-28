@@ -86,16 +86,13 @@ at whoever runs its DNS today.
 
 1. Sign up at https://resend.com (free, use fantasticallogicgrid@gmail.com).
 2. **Domains > Add domain**: enter `thelogicgrid.com`, region US East.
-3. Resend lists 3 or 4 records (an **MX** and a **TXT** for `send`, a **TXT**
-   for `resend._domainkey`, and an optional **TXT** for `_dmarc`). Add each
-   one at your domain's DNS settings, copying the name and value exactly.
-   The domain's DNS is at Namecheap (Domain List > Manage > Advanced DNS):
-   the MX goes under **Mail Settings > Custom MX**, the TXT records under
-   **Host Records**, and the Host box takes only `send` or
-   `resend._domainkey`. Full click-by-click steps:
+3. Resend lists 4 records: a **TXT** for `resend._domainkey`, **CNAME**s for
+   `send` and `rsend`, and an optional **TXT** for `_dmarc`. The domain's DNS
+   is at Namecheap: Resend's **Go to Namecheap** button adds them for you, or
+   add each under **Advanced DNS > Host Records** with only the short name
+   (`send`, not `send.thelogicgrid.com`). They do not touch the website or any
+   other email. Full click-by-click steps:
    `docs/owner-tasks/2026-10-28-resend-namecheap.md`.
-   They only cover the `send` and `resend._domainkey` names, so they do not
-   touch the website or any other email.
 4. Back in Resend, press **Verify DNS records** (it can take from a few
    minutes to a few hours).
 5. **API Keys > Create API key**: name `logic-grid`, permission **Sending
