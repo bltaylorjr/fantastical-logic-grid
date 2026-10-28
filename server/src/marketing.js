@@ -5,7 +5,11 @@
 //                                       from a campaign link or another site, and
 //                                       later plays, solves, returns within a week,
 //                                       installs and Windows downloads from that
-//                                       visit (web/js/campaign.js)
+//                                       visit (web/js/campaign.js); the website's own pages
+//                                       count visits the same way (web/js/page-visit.js).
+//                                       Educator requests, confirmed school emails and
+//                                       packages sent are counted by the Worker
+//                                       (educators.js, SERVER_EVENTS), never from here
 //   GET  /admin/v1/marketing?days=      campaigns, ads, media and their numbers (viewer)
 //   POST /admin/v1/marketing/campaigns  add or change a campaign (admin)
 //   POST /admin/v1/marketing/campaigns/:id/delete   with its ads (admin)
@@ -27,7 +31,13 @@ import { getSettings } from './settings.js';
 const DAY = 24 * 3600_000;
 const isoDay = (ms) => new Date(ms).toISOString().slice(0, 10);
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
-export const EVENTS = ['visit', 'play', 'solve', 'return', 'install', 'download', 'support'];
+// Sent by the game (POST /v1/m).
+export const CLIENT_EVENTS = ['visit', 'play', 'solve', 'return', 'install', 'download', 'support'];
+// Counted by the Worker itself, never accepted from /v1/m: an educator's
+// package request, the school address confirmed, and the package emailed
+// (educators.js), for the campaign the educator came from.
+export const SERVER_EVENTS = ['edu_request', 'edu_confirm', 'edu_sent'];
+export const EVENTS = [...CLIENT_EVENTS, ...SERVER_EVENTS];
 export const MEDIUMS = ['social', 'video', 'forum', 'community', 'directory', 'store', 'email', 'referral', 'search', 'print', 'qr', 'other'];
 export const CAMPAIGN_STATUS = ['draft', 'active', 'paused', 'ended'];
 export const AD_STATUS = ['draft', 'approved', 'posted', 'removed'];
@@ -35,7 +45,7 @@ export const MEDIA_KINDS = ['video', 'image', 'text', 'other'];
 const PLATFORMS = new Set(['web', 'desktop', 'android', 'ios']);
 // Sources the game names from the page a visitor came from (campaign.js),
 // always accepted. Ads add their own channels.
-export const KNOWN_SOURCES = ['google', 'bing', 'duckduckgo', 'yahoo', 'ecosia', 'brave', 'reddit', 'facebook', 'instagram', 'x', 'threads', 'bluesky', 'mastodon',
+export const KNOWN_SOURCES = ['portal', 'google', 'bing', 'duckduckgo', 'yahoo', 'ecosia', 'brave', 'reddit', 'facebook', 'instagram', 'x', 'threads', 'bluesky', 'mastodon',
   'youtube', 'tiktok', 'pinterest', 'linkedin', 'discord', 'itch', 'producthunt', 'hackernews', 'indiehackers', 'alternativeto', 'microsoftstore', 'github', 'quora', 'email', 'other'];
 const SLUG = /^[a-z0-9][a-z0-9_-]{0,39}$/;
 // A page on the website, optionally with simple settings such as ?play=now
@@ -51,6 +61,8 @@ const dateOrNull = (v) => (/^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) ? String(
 
 async function knownCodes(env, now = Date.now()) {
   if (codes && now - codes.at < CODES_CACHE_MS) return codes;
+  // Starter campaigns count from the first visit, even before anyone opens the dashboard.
+  await applySeeds(env, now);
   const { results } = await env.DB.prepare('SELECT c.code, a.channel, a.content FROM campaigns c LEFT JOIN campaign_ads a ON a.campaign_id = c.id').all();
   const campaigns = new Map();
   const sources = new Set(KNOWN_SOURCES);
@@ -65,8 +77,8 @@ async function knownCodes(env, now = Date.now()) {
 const forgetCodes = () => { codes = null; };
 
 // Turns what the game sent into one stats row, or null if it is not an event.
-export function cleanEvent(body, known) {
-  const event = EVENTS.includes(body?.e) ? body.e : null;
+export function cleanEvent(body, known, allowed = CLIENT_EVENTS) {
+  const event = allowed.includes(body?.e) ? body.e : null;
   if (!event) return null;
   let campaign = slug(body.c);
   let content = slug(body.k);
@@ -92,10 +104,32 @@ export async function handleMarketing(req, env, url) {
   try { body = JSON.parse(await readText(req, 1_000)); } catch (e) { return json(req, env, { error: e instanceof TooLarge ? 'too_large' : 'bad_request' }, e instanceof TooLarge ? 413 : 400); }
   const row = cleanEvent(body, await knownCodes(env));
   if (!row) return json(req, env, { error: 'bad_request' }, 400);
-  await env.DB.prepare(`INSERT INTO campaign_stats (day, campaign, source, medium, content, event, platform, n) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 1)
-    ON CONFLICT (day, campaign, source, medium, content, event, platform) DO UPDATE SET n = n + 1`)
-    .bind(isoDay(Date.now()), row.campaign, row.source, row.medium, row.content, row.event, row.platform).run();
+  await addCount(env, row);
   return json(req, env, { ok: true });
+}
+
+function addCount(env, row, now = Date.now()) {
+  return env.DB.prepare(`INSERT INTO campaign_stats (day, campaign, source, medium, content, event, platform, n) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 1)
+    ON CONFLICT (day, campaign, source, medium, content, event, platform) DO UPDATE SET n = n + 1`)
+    .bind(isoDay(now), row.campaign, row.source, row.medium, row.content, row.event, row.platform).run();
+}
+
+// The campaign tags a form sent with its own request ({ c, s, m, k } from
+// campaign.js attribution()), cleaned like a game event so only known codes
+// are kept. Returns null when the visitor came from no campaign or site.
+export async function cleanTags(env, tags) {
+  if (!tags || typeof tags !== 'object' || !(tags.c || tags.s)) return null;
+  const row = cleanEvent({ ...tags, e: 'edu_request', p: 'web' }, await knownCodes(env), SERVER_EVENTS);
+  return row && { c: row.campaign, s: row.source, m: row.medium, k: row.content };
+}
+
+// One server-side event (SERVER_EVENTS) for tags from cleanTags(), stored as JSON.
+export async function countServerEvent(env, event, tags, now = Date.now()) {
+  if (!SERVER_EVENTS.includes(event)) return;
+  let t = tags;
+  if (typeof t === 'string') { try { t = JSON.parse(t); } catch (e) { return; } }
+  if (!t || typeof t !== 'object' || !t.c) return;
+  await addCount(env, { campaign: String(t.c).slice(0, 40), source: String(t.s || 'other').slice(0, 40), medium: MEDIUMS.includes(t.m) ? t.m : 'other', content: String(t.k || '').slice(0, 40), event, platform: 'web' }, now);
 }
 
 // ------------------------------------------------------------- starter campaigns

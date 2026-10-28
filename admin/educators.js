@@ -63,6 +63,7 @@ function card(r) {
   return `<article class="card stack edu-card" aria-labelledby="edu-${r.id}">
     <div class="row"><h2 id="edu-${r.id}" class="grow">${e(r.name)}, ${e(r.school)}</h2><span class="badge ${scls}">${e(sw)}</span></div>
     <p><bdi>${e(r.email)}</bdi> <span class="badge ${dcls}" title="${e(dwhy)}">${e(dw)}</span> · ${e(r.role)}${r.request.district ? ` · ${e(r.request.district)}` : ''}</p>
+    ${r.campaign ? `<p class="muted">Came from: ${e(r.campaign.s)}${r.campaign.c && !r.campaign.c.startsWith('(') ? ` · campaign <code>${e(r.campaign.c)}</code>${r.campaign.k ? `, ad <code>${e(r.campaign.k)}</code>` : ''}` : ''}</p>` : ''}
     <p><b>${e(GRADE(r.grade))}</b> · <b>${h.fmt(r.count)} ${r.count === 1 ? 'puzzle' : 'puzzles'}</b> · request ${e(r.ref)} · asked ${h.when(r.createdAt)}${r.verifiedAt ? ` · email confirmed ${h.when(r.verifiedAt)}` : ''}</p>
     ${details(r)}
     ${r.reviewedBy ? `<p class="muted">${r.status === 'declined' ? 'Declined' : 'Approved'} by ${e(r.reviewedBy)} ${h.when(r.reviewedAt)}${r.note ? `: ${e(r.note)}` : ''}</p>` : ''}

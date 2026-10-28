@@ -70,3 +70,18 @@ Connections and setup, "Educator emails straight away".
 
 Free throughout: GitHub Actions on a public repository, Resend's free plan or
 Gmail, and Cloudflare's free Worker and D1.
+
+## Marketing and tracking
+
+The `educators-2026` campaign (server/src/marketing-seed.js) holds 20 draft
+ads for teachers, schools and districts, all opening `/educators/` with
+their own tracked link. Every page of the website counts a visit from a
+campaign link the same way the game does (web/js/page-visit.js), and the
+Educators form sends the campaign tags the teacher arrived with. The Worker
+keeps them on the request (`educator_requests.campaign`, migration 1915) and
+counts three steps for that campaign, channel and ad in the Marketing
+numbers: `edu_request` (form sent), `edu_confirm` (school email confirmed)
+and `edu_sent` (package emailed). These can only be counted by the Worker,
+never sent to `/v1/m`. Requests with no campaign or referring site are not
+counted there, but are all listed in Educator requests, where each request
+also says which channel and ad it came from.

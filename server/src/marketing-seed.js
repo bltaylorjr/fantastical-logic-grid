@@ -18,6 +18,7 @@ export const SEEDS = [{
     wide: { title: 'Wide post picture', kind: 'image', url: `${RAW}/media/marketing/wide-1600x900.png`, preview: '/admin/marketing-wide.png', size: '1600x900', notes: 'X, Bluesky, Threads, Mastodon, LinkedIn, Reddit.' },
     pin: { title: 'Pinterest pin (printable puzzles)', kind: 'image', url: `${RAW}/media/marketing/pin-1000x1500.png`, preview: '/admin/marketing-pin.png', size: '1000x1500', notes: 'Tall pins get the most room in Pinterest feeds.' },
     gallery: { title: 'Gallery picture (Product Hunt, itch.io, directories)', kind: 'image', url: `${RAW}/media/marketing/gallery-1270x760.png`, preview: '/admin/marketing-gallery.png', size: '1270x760', notes: '' },
+    fbCover: { title: 'Facebook Page cover', kind: 'image', url: `${RAW}/media/marketing/facebook-cover-1640x624.png`, preview: '/admin/marketing-fbcover.png', size: '1640x624', notes: 'The Page\'s cover photo. Phones crop the sides, so the words stay in the middle.' },
     cover: { title: 'itch.io cover', kind: 'image', url: `${RAW}/media/marketing/itch-cover-630x500.png`, preview: '/admin/marketing-cover.png', size: '630x500', notes: '' },
   },
   campaign: {
@@ -78,13 +79,13 @@ export const SEEDS = [{
       channel: 'instagram', medium: 'social', content: 'post-square', postOn: '2026-11-12', media: ['square'], where: 'Instagram account for the game',
       title: 'Instagram post: square picture',
       body: 'Who borrowed the lighthouse keeper\'s lantern? Only the clues know. 🔦\n\nThe Fantastical Logic Grid writes a brand-new story for every puzzle, from Basic to Quantum Physicist. Free to play in your browser, link in bio.\n\n#logicpuzzles #puzzlelover #brainteasers #puzzletime #gamenight',
-      notes: '',
+      notes: 'Instagram does not make links in captions clickable: put {link} in the profile bio while this is the newest post, so visits from the bio count for it.',
     },
     {
       channel: 'tiktok', medium: 'video', content: 'launch-30s', postOn: '2026-11-10', media: ['promoTall'], where: 'TikTok account for the game',
       title: 'TikTok: 30 second launch',
       body: 'Every logic puzzle comes with its own story 🧩 Which level would you try first: Easy or Quantum Physicist? Free to play, link in bio. #logicpuzzle #puzzle #braingames #brainteaser #puzzlegame',
-      notes: 'Links in bio need a set follower count on some accounts; until then say "search The Fantastical Logic Grid".',
+      notes: 'Put {link} in the profile bio while this is the newest video (TikTok shows bio links once the account is allowed one. Until then say "search The Fantastical Logic Grid").',
     },
     {
       channel: 'youtube', medium: 'video', content: 'promo-90s', postOn: '2026-11-09', media: ['promoWide'], where: 'YouTube channel for the game',
@@ -177,6 +178,164 @@ export const SEEDS = [{
       notes: 'The quickest first players. Send from your own address, a few people at a time.',
     },
   ],
+}, {
+  // Free printable puzzle packages for teachers, schools and districts (the
+  // website's Educators page, server/src/educators.js). Every ad opens
+  // /educators/, and the page counts requests, confirmed school addresses and
+  // packages sent for the ad that brought the teacher (edu_request,
+  // edu_confirm, edu_sent). Drafts until Bobby approves them in admin.
+  id: 'educators-2026',
+  media: {
+    eduWide: { title: 'Educators: wide post picture', kind: 'image', url: `${RAW}/media/marketing/educators-wide-1600x900.png`, preview: '/admin/marketing-educators-wide.png', size: '1600x900', notes: 'X, Bluesky, Threads, Mastodon, LinkedIn, Reddit, Facebook.' },
+    eduSquare: { title: 'Educators: square post picture', kind: 'image', url: `${RAW}/media/marketing/educators-square-1080.png`, preview: '/admin/marketing-educators-square.png', size: '1080x1080', notes: 'Instagram and Facebook feed posts.' },
+    eduPin: { title: 'Educators: Pinterest pin', kind: 'image', url: `${RAW}/media/marketing/educators-pin-1000x1500.png`, preview: '/admin/marketing-educators-pin.png', size: '1000x1500', notes: 'Teacher and classroom boards.' },
+    eduFlyer: { title: 'Educators: printable flyer with QR code (PDF)', kind: 'other', url: `${RAW}/media/marketing/educators-flyer-letter.pdf`, preview: '/admin/marketing-educators-flyer.png', size: 'US Letter, 1 page', notes: 'Staff rooms, school offices, conferences, district mailings. The QR code is the flyer ad\'s tracked link.' },
+    eduVideo: { title: 'Educators: how-to video (form to PDF)', kind: 'video', url: `${RAW}/seo/media/educators.mp4`, preview: '/admin/marketing-educators-video.png', size: '1920x1080, about 3 min', notes: 'Captions: seo/media/educators.en.vtt.' },
+  },
+  campaign: {
+    code: 'educators-2026',
+    name: 'Free puzzle packages for educators',
+    status: 'draft',
+    starts: '2026-11-09',
+    ends: '2027-01-31',
+    goal: 'Teachers, schools and districts who know the free printable puzzle packages exist and ask for one. The numbers to watch are educator requests, confirmed school addresses and packages sent, per channel and ad.',
+    notes: 'Free channels only. Every ad is a draft until Bobby approves it; set the campaign to Running once the ads are approved. Teacher groups and subreddits often limit self-promotion: read the rules first and post the free resource, not the game. Timed for the weeks before winter break and the January return.',
+  },
+  ads: [
+    {
+      channel: 'facebook', medium: 'social', content: 'page-educators', landing: '/educators/', postOn: '2026-11-09', media: ['eduWide'], where: 'The game\'s Facebook Page',
+      title: 'Facebook Page: free packages for teachers',
+      body: 'Teachers: free printable logic puzzle packages for your class 🍎🧩\n\nTell us the grade, the level and the themes (or write your own, like your science fair or class book), and we email you a set of story logic puzzles with a separate answer key. Up to 30 puzzles, every one with a new story and exactly one answer.\n\nFree for schools. Ask with your school email: {link}',
+      notes: 'Pin it to the top of the Page for a week.',
+    },
+    {
+      channel: 'facebook', medium: 'community', content: 'teacher-groups', landing: '/educators/', postOn: '2026-11-10', media: ['eduSquare'], where: 'Teacher, homeschool co-op, gifted education and school librarian Facebook groups that allow sharing free resources',
+      title: 'Facebook teacher groups: free resource',
+      body: 'Free resource for anyone teaching grades K to 12 🧩\n\nI make a free logic puzzle site, and I now build printable puzzle packages for teachers at no cost. You pick the grade, difficulty, themes and how many (up to 30), or write a theme of your own. Every puzzle has a short story, a grid and exactly one answer, and the answer keys come in their own PDF.\n\nGreat for early finishers, brain breaks, sub plans and the week before break. Request one with your school email here: {link}\n\nHappy to answer questions!',
+      notes: 'One group a day at most, and only where the rules allow free resources. Answer comments the same day.',
+    },
+    {
+      channel: 'x', medium: 'social', content: 'edchat', landing: '/educators/', postOn: '2026-11-11', media: ['eduWide'], where: 'The game\'s X account',
+      title: 'X: #edchat free packages',
+      body: 'Teachers: free printable logic puzzle packs, made for your grade. 🍎🧩\n\nPick the level and themes (or write your own), and get up to 30 story puzzles with a separate answer key by email.\n\nFree for schools: {link}\n\n#edchat #teachers #iteachmath #criticalthinking',
+      notes: '',
+    },
+    {
+      channel: 'bluesky', medium: 'social', content: 'edusky', landing: '/educators/', postOn: '2026-11-09', media: ['eduWide'], where: 'The game\'s Bluesky account',
+      title: 'Bluesky: #EduSky free packages',
+      body: 'Teachers: free printable logic puzzle packs for your grade 🧩 Choose the level and themes, or write your own, and we email up to 30 story puzzles plus answer keys. Free for schools. #EduSky\n\n{link}',
+      notes: 'Bluesky allows 300 characters; this fits with the link. Add alt text to the picture.',
+    },
+    {
+      channel: 'mastodon', medium: 'social', content: 'edutooters', landing: '/educators/', postOn: '2026-11-12', media: ['eduWide'], where: 'The game\'s Mastodon account',
+      title: 'Mastodon: free packages for teachers',
+      body: 'Free for teachers: printable logic grid puzzle packages made to order. Choose the grade, difficulty, themes (or your own theme) and how many, up to 30. Every puzzle has a short story and exactly one answer; the answer keys come as a separate PDF. Large print for the youngest grades.\n\n{link}\n\n#Education #Teachers #EduTooters #CriticalThinking',
+      notes: 'Describe the picture in the alt text.',
+    },
+    {
+      channel: 'threads', medium: 'social', content: 'teachers', landing: '/educators/', postOn: '2026-11-13', media: ['eduSquare'], where: 'The game\'s Threads account',
+      title: 'Threads: teachers',
+      body: 'Teacher friends: what do your early finishers do? 🧩\n\nWe now make free printable logic puzzle packages for classes: your grade, your level, your themes, up to 30 puzzles with an answer key. Free for schools: {link}',
+      notes: '',
+    },
+    {
+      channel: 'instagram', medium: 'social', content: 'teacher-square', landing: '/educators/', postOn: '2026-11-16', media: ['eduSquare'], where: 'The game\'s Instagram account',
+      title: 'Instagram post: free packages for teachers',
+      body: 'Free printable logic puzzles for your classroom 🍎🧩\n\nPick the grade, the level and the themes (or write your own), and we email a package of story logic puzzles with a separate answer key. Up to 30 puzzles, free for schools. Request yours with your school email, link in bio.\n\n#teachersofinstagram #iteach #teacherresources #freeprintables #logicpuzzles #criticalthinking #earlyfinishers',
+      notes: 'Instagram does not make links in captions clickable: put {link} in the profile bio while this post is the newest.',
+    },
+    {
+      channel: 'linkedin', medium: 'social', content: 'district-leaders', landing: '/educators/', postOn: '2026-11-12', media: ['eduWide'], where: 'Bobby\'s LinkedIn profile',
+      title: 'LinkedIn: principals and district leaders',
+      body: 'For principals, curriculum coordinators and district leaders: free printable logic puzzle packages for your teachers.\n\nA teacher fills in a short form with their school email: grade, difficulty, themes or their own theme, and how many puzzles (up to 30). After a quick review we email print-ready PDFs: a short story, a logic grid and clues for each puzzle, and the answer keys in a separate file. Every puzzle is checked by a solver to have exactly one answer, and difficulty is matched to the grade.\n\nThere is no cost and no account. If it would help your schools, please pass it on: {link}',
+      notes: 'Tag nobody you have not asked. Reply to every comment.',
+    },
+    {
+      channel: 'pinterest', medium: 'social', content: 'classroom-pin', landing: '/educators/', postOn: '2026-11-17', media: ['eduPin'], where: 'Pinterest boards: Classroom Logic Puzzles, Early Finishers, Free Teacher Printables',
+      title: 'Pinterest: free classroom puzzle packages',
+      body: 'Pin title: Free Printable Logic Puzzle Packages for Teachers (K-12)\n\nDescription: Get a free set of story logic grid puzzles made for your class: choose the grade, the difficulty, the themes or your own theme, and up to 30 puzzles. Print-ready PDFs with a separate answer key. Great for early finishers, brain breaks, sub plans and critical thinking practice.\n\nLink: {link}',
+      notes: 'Teachers save pins for months. Add a fresh pin every couple of weeks with a different theme picture.',
+    },
+    {
+      channel: 'reddit', medium: 'forum', content: 'teachingresources', landing: '/educators/', postOn: '2026-11-18', media: ['eduWide'], where: 'https://www.reddit.com/r/teachingresources/',
+      title: 'r/teachingresources: free packages',
+      body: 'Free printable logic puzzle packages, made to order for your grade (K-12)\n\n{link}\n\nI make a free logic puzzle site and built a way for teachers to get classroom packages at no cost. You choose the grade, the level, the themes (or type your own theme, such as your class novel or field trip) and how many puzzles, up to 30. Each puzzle has a short story, a grid and clues, and exactly one answer. The answer keys come in their own PDF.\n\nYou confirm a school email so the packages go to educators. Feedback from teachers is very welcome.',
+      notes: 'Read the sidebar first. Answer questions in the first hour.',
+    },
+    {
+      channel: 'reddit', medium: 'forum', content: 'homeschool', landing: '/educators/', postOn: '2026-12-02', media: ['eduWide'], where: 'https://www.reddit.com/r/homeschool/ (check the weekly resource thread rules)',
+      title: 'r/homeschool: printable puzzles',
+      body: 'Free printable story logic puzzles with answer keys, any level\n\nOur site makes a new logic grid puzzle whenever you want one, with its own short story and an answer key you can print on a separate page. Co-ops and homeschool groups with an organization email can also ask for a free package of up to 30 puzzles made for a grade level: {link}',
+      notes: 'Many homeschool parents will not have a school email; the packages need one (or the admin "accept personal email" setting). Post in the weekly resources thread if the subreddit has one.',
+    },
+    {
+      channel: 'youtube', medium: 'video', content: 'educators-how-to', landing: '/educators/', postOn: '2026-11-20', media: ['eduVideo'], where: 'The game\'s YouTube channel',
+      title: 'YouTube: how teachers get a free package',
+      body: 'Title: Free printable logic puzzle packages for teachers: how to ask for one\n\nDescription:\nA short walk-through of the Educators page of The Fantastical Logic Grid: fill in the form with your school email, confirm the code, and get print-ready PDFs of story logic puzzles made for your grade, with the answer keys in a separate file. Free for schools.\n\nRequest a package: {link}',
+      notes: 'Upload with the captions file (seo/media/educators.en.vtt). Add it to a playlist named For teachers.',
+    },
+    {
+      channel: 'flyer', medium: 'qr', content: 'staff-room', landing: '/educators/', postOn: '2026-11-23', media: ['eduFlyer'], where: 'Print and pin up: staff rooms, school offices, libraries, teacher conferences and PTA meetings',
+      title: 'Printable flyer with QR code',
+      body: 'Print the flyer (PDF in the media list). Its QR code opens this ad\'s tracked link:\n{link}\n\nWords on the flyer: Free logic puzzle packages for your class. Choose the grade, level and themes. Up to 30 printable story puzzles with answer keys, emailed to you. Free for schools. Scan to ask for yours.',
+      notes: 'If you change this ad\'s link name (content), rebuild the flyer so the QR code still counts: node media/marketing/tools/make-educator-images.cjs.',
+    },
+    {
+      channel: 'email', medium: 'email', content: 'district-coordinators', landing: '/educators/', postOn: '2026-11-30', media: ['eduFlyer'], where: 'Bobby\'s own email, one district at a time: curriculum or instruction coordinators, gifted and talented coordinators, library media coordinators (addresses from the district\'s public staff directory)',
+      title: 'Email to district coordinators',
+      body: 'Subject: Free printable logic puzzle packages for your teachers\n\nHello,\n\nI run a free logic puzzle website, The Fantastical Logic Grid, and I make free printable puzzle packages for teachers. A teacher fills in a short form with their school email: the grade, difficulty, themes (or their own theme) and how many puzzles, up to 30. After a quick review, we email print-ready PDFs with a separate answer key. Each puzzle has a short story and exactly one answer, and the difficulty is matched to the grade.\n\nThere is no cost and no account to create. If you think it would help, please share it with your teachers: {link}\n\nI have attached a one-page flyer. Thank you for your time.\n\nBobby Taylor\nThe Fantastical Logic Grid',
+      notes: 'Personal, one-to-one emails only (no bulk lists), a few a day. Attach the flyer PDF. If someone asks not to be contacted, note it here and do not email them again.',
+    },
+    {
+      channel: 'newsletter', medium: 'email', content: 'school-newsletter', landing: '/educators/', postOn: '2026-12-01', media: ['eduSquare'], where: 'A short blurb to offer school librarians, PTA/PTO newsletters and teacher association bulletins',
+      title: 'Blurb for school and PTA newsletters',
+      body: 'Free logic puzzles for our classrooms\n\nThe Fantastical Logic Grid makes free printable puzzle packages for teachers: story logic puzzles chosen by grade, level and theme, with answer keys. Teachers can ask for one with their school email at {link}',
+      notes: 'Send to people who edit a newsletter and ask whether it fits; never ask parents to sign up for anything.',
+    },
+    {
+      channel: 'oercommons', medium: 'directory', content: 'listing', landing: '/educators/', postOn: '2026-11-25', media: ['eduWide'], where: 'https://oercommons.org/ (free account, Add OER)',
+      title: 'OER Commons listing',
+      body: 'Title: Free printable story logic puzzle packages (made to order)\n\nURL: {link}\n\nDescription: Teachers request a free package of logic grid puzzles for their grade (K-12 and adult learners): choose the difficulty, themes or a custom theme, and up to 30 puzzles. Each puzzle has a short story, clues and a grid with exactly one solution; answer keys come as a separate PDF. Builds deductive reasoning and close reading.\n\nSubjects: Mathematics, English Language Arts, Critical thinking\nMaterial type: Activity/Lab, Assessment, Game\nCost: Free',
+      notes: 'Choose the most accurate licence the form offers for "free to use" (the puzzles are free for classroom use; the game itself stays all rights reserved).',
+    },
+    {
+      channel: 'facebook', medium: 'social', content: 'winter-break', landing: '/educators/', postOn: '2026-12-14', media: ['eduSquare'], where: 'The game\'s Facebook Page',
+      title: 'Facebook Page: week before winter break',
+      body: 'The week before winter break calls for puzzles ❄️🧩\n\nTeachers can still get a free printable logic puzzle package made for their grade: holiday and winter themes, or a theme of your own, with answer keys. Requests are reviewed in a day or two: {link}',
+      notes: '',
+    },
+    {
+      channel: 'bluesky', medium: 'social', content: 'winter-break', landing: '/educators/', postOn: '2026-12-14', media: ['eduSquare'], where: 'The game\'s Bluesky account',
+      title: 'Bluesky: week before winter break',
+      body: 'The week before winter break calls for puzzles ❄️🧩 Teachers: free printable logic puzzle packs for your grade, with answer keys. Reviewed in a day or two. #EduSky\n\n{link}',
+      notes: '',
+    },
+    {
+      channel: 'x', medium: 'social', content: 'new-semester', landing: '/educators/', postOn: '2027-01-04', media: ['eduWide'], where: 'The game\'s X account',
+      title: 'X: back to school in January',
+      body: 'New semester, new brain warm-ups. 🧩\n\nTeachers: ask for a free printable logic puzzle package made for your grade, with answer keys, at {link}\n\n#edchat #teachers #bellringer',
+      notes: '',
+    },
+    {
+      channel: 'facebook', medium: 'social', content: 'new-semester', landing: '/educators/', postOn: '2027-01-05', media: ['eduWide'], where: 'The game\'s Facebook Page',
+      title: 'Facebook Page: back to school in January',
+      body: 'Back to school in January? Start the semester with a brain warm-up 🧩\n\nTeachers can ask for a free package of printable story logic puzzles made for their grade, with a separate answer key. Free for schools: {link}',
+      notes: '',
+    },
+  ],
+}, {
+  // Built into the game: the copy for game sites (dist/portal) has a menu
+  // link to the full website tagged with this code (web/js/app.js), so
+  // players who come over from a game site show here. Nothing to post.
+  id: 'portal',
+  campaign: {
+    code: 'portal',
+    name: 'Game sites link to the full website',
+    status: 'active',
+    goal: 'Players on game sites (the portal copy) who open the full website from its menu.',
+    notes: 'Built into the portal copy of the game. Nothing to post or approve.',
+  },
+  ads: [],
 }, {
   // Built into the game: the daily puzzle email's Play button is tagged with
   // this code (scripts/daily-email.py), so its visits, plays and solves show
