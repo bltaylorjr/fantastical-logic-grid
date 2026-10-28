@@ -50,9 +50,11 @@ export function cleanKey(v) {
   return `FLG-${s.match(new RegExp(`.{${GROUP}}`, 'g')).join('-')}`;
 }
 
+// Each character is the top 5 bits of a random byte: exactly one of the 32
+// letters, each equally likely.
 export function newKey() {
   const bytes = crypto.getRandomValues(new Uint8Array(GROUPS * GROUP));
-  return cleanKey([...bytes].map((b) => ALPHABET[b % ALPHABET.length]).join(''));
+  return cleanKey([...bytes].map((b) => ALPHABET[b >> 3]).join(''));
 }
 
 // Shown in lists where the whole key is not needed.
