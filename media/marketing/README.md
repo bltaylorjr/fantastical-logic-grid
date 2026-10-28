@@ -11,6 +11,7 @@ listed with the promo videos (`media/promo`) in the admin dashboard's
 | `pin-1000x1500.png` | 1000 x 1500 | Pinterest |
 | `gallery-1270x760.png` | 1270 x 760 | Product Hunt, itch.io, AlternativeTo, Microsoft Store |
 | `itch-cover-630x500.png` | 630 x 500 | itch.io cover |
+| `facebook-cover-1640x624.png` | 1640 x 624 | Facebook Page cover photo |
 
 Each picture also has a `.jpg` twin, because Instagram's posting tool takes JPEG only
 (`scripts/marketing-post.py` swaps `.png` for `.jpg` for Instagram). After a rebuild,
