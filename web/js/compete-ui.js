@@ -227,6 +227,8 @@ function openName() {
   $('#name-required').hidden = !required;
   $('#name-cancel').hidden = required;
   $('#name-signout').hidden = !required;
+  const x = $('.dlg-x', d);
+  if (x) x.hidden = required;
   ui.openDialog(d, $('#name-input'));
 }
 

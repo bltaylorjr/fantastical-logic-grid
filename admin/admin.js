@@ -111,9 +111,10 @@ function ask({ title, text = '', fields = [], ok = 'OK', danger = false, check }
   $('#dialog-ok').textContent = ok;
   $('#dialog-ok').className = `btn primary${danger ? ' danger' : ''}`;
   $('#dialog-error').hidden = true;
+  const back = document.activeElement;
   return new Promise((resolve) => {
     const values = () => Object.fromEntries(fields.map((f) => [f.name, $(`[name="${f.name}"]`, dlg).value]));
-    const done = (v) => { dlg.close(); $('#dialog-form').onsubmit = null; $('#dialog-cancel').onclick = null; dlg.oncancel = null; resolve(v); };
+    const done = (v) => { dlg.close(); $('#dialog-form').onsubmit = null; $('#dialog-cancel').onclick = null; $('#dialog-x').onclick = null; dlg.oncancel = null; resolve(v); back?.focus?.(); };
     $('#dialog-form').onsubmit = (e) => {
       e.preventDefault();
       const v = values();
@@ -122,6 +123,7 @@ function ask({ title, text = '', fields = [], ok = 'OK', danger = false, check }
       done(v);
     };
     $('#dialog-cancel').onclick = () => done(null);
+    $('#dialog-x').onclick = () => done(null);
     dlg.oncancel = () => done(null);
     dlg.showModal();
     ($('input, select, textarea', $('#dialog-body')) || $('#dialog-ok')).focus();

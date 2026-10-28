@@ -39,6 +39,9 @@ import { onChange as onAccountChange } from './account.js';
 import * as i18n from './i18n.js';
 import { CLOUD, CLOUD_URL } from './cloud-config.js';
 import * as tutorial from './tutorial.js';
+import { addCloseButtons, closeDialog } from './dialog-close.js';
+
+addCloseButtons();
 
 errorReports.init();
 campaign.init();
@@ -121,12 +124,12 @@ function confirmDialog({ title, text, yes, no, check }) {
   });
 }
 
-// Every dialog with a close (X) button closes from it, and the welcome and the
+// Every dialog's close (X) button closes it the way Escape does, and the welcome and the
 // Introduction also close with a click on the dimmed page around them, so a
 // first-visit window can never trap anyone (Escape closes dialogs too).
 document.addEventListener('click', (e) => {
   const x = e.target.closest?.('dialog .dlg-x');
-  if (x) { x.closest('dialog').close(); return; }
+  if (x) { closeDialog(x.closest('dialog')); return; }
   const d = e.target;
   if (d instanceof HTMLDialogElement && d.open && d.hasAttribute('data-light-dismiss')) {
     const r = d.getBoundingClientRect();
@@ -2290,6 +2293,8 @@ $('#app-menu').addEventListener('click', async (e) => {
   const b = e.target.closest('button[data-cmd]');
   if (!b) return;
   toggleMenu(false);
+  // A dialog opened from the menu gives focus back to the Menu button, not a hidden item.
+  $('#menu-btn').focus();
   const cmd = b.dataset.cmd;
   if (cmd === 'new') goHome();
   else if (cmd === 'saved') { await goHome({ focusSaved: true }); $('#saved-section').scrollIntoView(); }

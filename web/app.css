@@ -325,6 +325,7 @@ dialog.wide { max-width: min(1000px, calc(100vw - 32px)); }
 .dlg-x:hover { background: var(--surface, var(--bg)); }
 .dlg-x:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 .dlg-x .ico { width: 20px; height: 20px; }
+.dlg-x[hidden] { display: none; }
 /* The Introduction's buttons stay reachable at the bottom while the transcript is open. */
 #dlg-video .dlg-actions { position: sticky; bottom: -24px; margin: 16px -24px -24px; padding: 12px 24px 24px; background: var(--surface, var(--bg)); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); border-top: 1px solid var(--hairline, var(--border)); }
 .transcript { margin-top: 12px; }
@@ -612,7 +613,7 @@ dialog::backdrop { background: rgb(5 7 16 / .6); backdrop-filter: blur(6px); -we
 :root[data-theme="contrast"] body::before { background: #000; }
 :root[data-theme="contrast"] .appbar::after, :root[data-theme="contrast"] .banner::before { display: none; }
 :root[data-theme="contrast"] .card, :root[data-theme="contrast"] .banner, :root[data-theme="contrast"] .play-head, :root[data-theme="contrast"] dialog,
-:root[data-theme="contrast"] .btn, :root[data-theme="contrast"] .choice > span { background: #000; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; filter: none; }
+:root[data-theme="contrast"] .btn, :root[data-theme="contrast"] .dlg-x, :root[data-theme="contrast"] .choice > span { background: #000; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; filter: none; }
 :root[data-theme="contrast"] .btn.primary, :root[data-theme="contrast"] .seg input:checked + span { background: var(--accent); }
 :root[data-theme="contrast"] .tile .glyph { background: #000; border: 2px solid #fff; box-shadow: none; }
 :root[data-theme="contrast"] td.c.cross, :root[data-theme="contrast"] table.lg th.hl { background: var(--cross); }
