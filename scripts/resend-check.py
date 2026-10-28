@@ -2,7 +2,8 @@
 
 1. Looks up the public DNS records Resend needs for thelogicgrid.com
    (MX + SPF TXT on send, DKIM TXT on resend._domainkey, DMARC TXT on _dmarc)
-   using Google's public DNS, and says which are found.
+   using Google's public DNS, plus the ImprovMX MX + SPF that forward
+   support@thelogicgrid.com, and says which are found.
 2. If RESEND_API_KEY is set, sends one test email from MAIL_FROM
    (default noreply@thelogicgrid.com) to GMAIL_USER, the game's own inbox,
    and prints Resend's answer. Exits 1 if a required record is missing or
@@ -26,6 +27,8 @@ CHECKS = [
     ('TXT', f'send.{DOMAIN}', 'v=spf1', True, 'SPF TXT for send'),
     ('TXT', f'resend._domainkey.{DOMAIN}', 'p=', True, 'DKIM TXT for resend._domainkey'),
     ('TXT', f'_dmarc.{DOMAIN}', 'v=DMARC1', False, 'DMARC TXT for _dmarc (optional)'),
+    ('MX', DOMAIN, 'improvmx.com', False, 'MX for support@ (ImprovMX forwarding)'),
+    ('TXT', DOMAIN, 'spf.improvmx.com', False, 'SPF TXT for the domain (ImprovMX)'),
 ]
 
 

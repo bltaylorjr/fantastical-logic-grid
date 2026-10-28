@@ -585,6 +585,28 @@ uses a secret, variable or binding that is not listed there.
 
 **Links:** [Resend domains](https://resend.com/domains) · [Resend API keys](https://resend.com/api-keys) · [Full guide (server/FEEDBACK-EMAILS.md)](https://github.com/bltaylorjr/fantastical-logic-grid/blob/main/server/FEEDBACK-EMAILS.md)
 
+### support@thelogicgrid.com: support inbox (ImprovMX forwarding + Gmail Send mail as)
+
+**Why:** Mail to support@thelogicgrid.com is forwarded by ImprovMX to the game's Gmail, and Gmail can answer as support@ by sending through Resend. Nothing in the code needs it; it is the address players can write to.
+
+**Cost:** ImprovMX free plan (forwarding, no card). Replies use the Resend free plan (shared 100 a day).
+
+**Settings:**
+
+- Namecheap Mail Settings: Custom MX: @ mx1.improvmx.com (10), @ mx2.improvmx.com (20)
+- Root SPF TXT (@): v=spf1 include:spf.improvmx.com ~all
+- ImprovMX alias: support -> fantasticallogicgrid@gmail.com
+- Gmail Send mail as: smtp.resend.com, port 465 SSL, user resend, password = a Resend Sending access key
+
+**Steps:**
+
+1. Sign up at <https://app.improvmx.com> with fantasticallogicgrid@gmail.com, add `thelogicgrid.com`, and make the alias `support` forward to fantasticallogicgrid@gmail.com.
+2. Namecheap > **Domain List** > **Manage** > **Advanced DNS**: under **Mail Settings** (Custom MX) add MX `@` `mx1.improvmx.com` priority 10 and MX `@` `mx2.improvmx.com` priority 20; under **Host Records** add TXT `@` `v=spf1 include:spf.improvmx.com ~all`.
+3. In ImprovMX click **Check again** until it says **Email forwarding active**.
+4. Gmail > **Settings** > **Accounts and Import** > **Send mail as** > **Add another email address**: `support@thelogicgrid.com`, SMTP `smtp.resend.com`, port 465 (SSL), user `resend`, password = a new Resend **Sending access** key. Confirm with the code Gmail sends.
+
+**Links:** [ImprovMX](https://app.improvmx.com) · [ImprovMX Namecheap guide](https://improvmx.com/guides/namecheap) · [Full guide (docs/owner-tasks/2026-10-28-resend-namecheap.md)](https://github.com/bltaylorjr/fantastical-logic-grid/blob/main/docs/owner-tasks/2026-10-28-resend-namecheap.md)
+
 ### Educator emails straight away
 
 **Why:** Educators who ask for a puzzle package on the Educators page get a code email, and later their PDFs. The "Educator packages" GitHub Action sends them every 5 minutes, which GitHub sometimes starts 10 or more minutes late. With this token the Worker starts that Action the moment a teacher sends the form or you approve, so the code arrives in a minute or two. Optional: without it everything still goes out, just a little later.
