@@ -237,6 +237,7 @@ views.overview = async () => {
   setCount('#count-parts', d.review.parts.pending || 0);
   setCount('#count-names', d.review.namesWaiting || 0);
   setCount('#count-educators', d.review.educators || 0);
+  if (can('admin')) setCount('#count-licenses', d.review.keys || 0);
   const review = [];
   if (can('moderator') && d.review.parts.pending) review.push(`<a href="#stories">${fmt(d.review.parts.pending)} story ${d.review.parts.pending === 1 ? 'part' : 'parts'} waiting for review</a>`);
   const fb = d.review.feedback || {};
@@ -244,6 +245,7 @@ views.overview = async () => {
   setCount('#count-comm', can('moderator') ? (fb.idea || 0) + (fb.problem || 0) + unread : 0);
   if (can('moderator') && unread) review.push(`<a href="#communication">${fmt(unread)} unread ${unread === 1 ? 'message' : 'messages'} from players</a>`);
   if (can('moderator') && (fb.idea || fb.problem)) review.push(`<a href="#communication">${fmt(fb.idea || 0)} new ${fb.idea === 1 ? 'idea' : 'ideas'} and ${fmt(fb.problem || 0)} new ${fb.problem === 1 ? 'problem' : 'problems'} from players</a>`);
+  if (can('admin') && d.review.keys) review.push(`<a href="#licenses">${fmt(d.review.keys)} free app ${d.review.keys === 1 ? 'key' : 'keys'} waiting for approval</a>`);
   if (can('moderator') && d.review.educators) review.push(`<a href="#educators">${fmt(d.review.educators)} educator ${d.review.educators === 1 ? 'request' : 'requests'} waiting for review</a>`);
   if (can('moderator') && d.review.namesWaiting) review.push(`<a href="#names">${fmt(d.review.namesWaiting)} new or changed screen ${d.review.namesWaiting === 1 ? 'name' : 'names'}</a>`);
   $('#ov-body').innerHTML = `
@@ -448,7 +450,7 @@ function itemHtml(i) {
   }
   if (i.type === 'idea' || i.type === 'problem') {
     const m = i.meta;
-    return `<li>${type} ${state} <b>${esc(FB_TOPICS[m.topic] || m.topic)}</b>
+    return `<li>${type} ${state} <b>${esc(FB_TOPICS[m.topic] || m.topic)}</b>${m.themeName ? ` <span class="badge">Theme: ${esc(m.themeName)}</span>` : ''}
       <span class="muted">${when(i.at)} · ${esc(m.platform)} ${esc(m.version)}${m.conversationId ? ' · the player asked for a reply' : ''}</span>
       <p class="fb-text">${esc(i.text)}</p>
       ${i.status === 'addressed' && m.note ? `<p class="fb-note"><b>What we did:</b> ${esc(m.note)} <span class="muted">${when(m.doneAt)}</span></p>` : ''}
@@ -894,17 +896,31 @@ $('#settings-body').onclick = (e) => {
 
 const SUP_TIER = ['', 'Bronze', 'Silver', 'Gold', 'Platinum'];
 const SUP_SOURCE = { admin: 'Added here', kofi: 'Ko-fi', lemonsqueezy: 'Lemon Squeezy' };
+const SUP_ENDED = { ended: 'Ended', refund: 'Refunded', chargeback: 'Chargeback', blocked: 'Blocked' };
 views.supporters = async () => {
-  const d = await api('supporters');
+  const [d, b] = await Promise.all([api('supporters'), api('supporters/blocks')]);
   $('#sup-rows').innerHTML = d.supporters.length ? d.supporters.map((s) => `<tr>
       <td>${s.name ? `<bdi>${esc(s.name)}</bdi><br>` : ''}<span class="muted">${esc(s.email || s.uid || '')}</span>${s.note ? `<br><small>${esc(s.note)}</small>` : ''}</td>
-      <td>${s.kind === 'premium' ? 'Premium' : 'Supporter'}${s.active ? '' : ' <span class="badge">Ended</span>'}</td>
+      <td>${s.kind === 'premium' ? 'Premium' : 'Supporter'}${s.active ? '' : ` <span class="badge${s.endedReason === 'chargeback' || s.endedReason === 'blocked' ? ' warn' : ''}">${SUP_ENDED[s.endedReason] || 'Ended'}</span>`}</td>
       <td>${SUP_TIER[s.tier] || 'Bronze'}</td>
       <td>${esc(SUP_SOURCE[s.source] || s.source)}${s.createdBy ? `<br><small class="muted">${esc(s.createdBy)}</small>` : ''}</td>
       <td>${when(s.createdAt)}</td>
       <td>${s.until ? when(s.until) : 'Never'}</td>
-      <td>${s.active ? `<button class="btn small danger" data-sup-end="${s.id}">End now</button>` : ''}</td>
+      <td><div class="row">${s.active ? `<button class="btn small" data-sup-end="${s.id}" data-reason="refund">Refunded</button>
+        <button class="btn small danger" data-sup-end="${s.id}" data-reason="chargeback">Chargeback</button>
+        <button class="btn small" data-sup-end="${s.id}" data-reason="ended">End now</button>` : ''}
+        ${s.source === 'admin' ? '' : `<button class="btn small" data-sup-evidence="${s.id}">Dispute evidence</button>`}</div></td>
     </tr>`).join('') : '<tr><td colspan="7" class="muted">No supporters yet.</td></tr>';
+  $('#sup-blocks').innerHTML = b.blocks.length ? b.blocks.map((x) => `<tr>
+      <td><span class="muted">${esc(x.email || x.uid || '')}</span>${x.note ? `<br><small>${esc(x.note)}</small>` : ''}</td>
+      <td>${when(x.createdAt)}${x.createdBy ? `<br><small class="muted">${esc(x.createdBy)}</small>` : ''}</td>
+      <td><button class="btn small" data-sup-unblock="${x.id}">Lift the block</button></td>
+    </tr>`).join('') : '<tr><td colspan="3" class="muted">No one is blocked.</td></tr>';
+};
+const SUP_ASK = {
+  refund: { title: 'Mark as refunded?', text: 'Use this after you refund the payment in the payment service. The badge and any extras for this payment stop now. The record stays here.', ok: 'Mark refunded' },
+  chargeback: { title: 'Mark as a chargeback?', text: 'Use this when the payment service tells you about a dispute or chargeback. Every badge and extra this player has stops now, the records stay here for the dispute, and new payments from them add nothing until you lift the block. Download the dispute evidence to answer the payment service.', ok: 'Mark chargeback', danger: true, fields: [{ name: 'note', label: 'Dispute id or note (optional, for you)' }] },
+  ended: { title: 'End this grant now?', text: 'The badge and any extras stop for this player. A payment service may add a new grant if they pay again.', ok: 'End now', danger: true },
 };
 $('#sup-form').onsubmit = async (e) => {
   e.preventDefault();
@@ -922,10 +938,29 @@ $('#sup-form').onsubmit = async (e) => {
   } catch (ex) { err.textContent = ex.message; err.hidden = false; }
 };
 $('#sup-rows').onclick = async (e) => {
+  const ev = e.target.closest('button[data-sup-evidence]');
+  if (ev) {
+    await act(ev, async () => {
+      const res = await fetch(`/admin/v1/supporters/${ev.dataset.supEvidence}/evidence`, { headers: { Authorization: `Bearer ${await bearer()}` } });
+      if (!res.ok) throw new ApiError('evidence', `The download failed (${res.status}).`);
+      const name = (res.headers.get('Content-Disposition') || '').match(/filename="([^"]+)"/)?.[1] || 'payment-evidence.txt';
+      saveFile(await res.blob(), name);
+    }, 'Download ready.');
+    return;
+  }
   const b = e.target.closest('button[data-sup-end]');
   if (!b) return;
-  if (!(await ask({ title: 'End this grant now?', text: 'The badge and any extras stop for this player. A payment service may add a new grant if they pay again.', ok: 'End now', danger: true }))) return;
-  if (await act(b, () => api(`supporters/${b.dataset.supEnd}/remove`, { method: 'POST' }), 'Ended.')) show('supporters', { keepFocus: true });
+  const reason = b.dataset.reason || 'ended';
+  const v = await ask(SUP_ASK[reason]);
+  if (!v) return;
+  const done = { refund: 'Marked refunded.', chargeback: 'Marked as a chargeback. Their perks stopped and new payments are blocked.', ended: 'Ended.' }[reason];
+  if (await act(b, () => api(`supporters/${b.dataset.supEnd}/remove`, { method: 'POST', body: { reason, note: (v.note || '').trim() } }), done)) show('supporters', { keepFocus: true });
+};
+$('#sup-blocks').onclick = async (e) => {
+  const b = e.target.closest('button[data-sup-unblock]');
+  if (!b) return;
+  if (!(await ask({ title: 'Lift this block?', text: 'New payments from this player will add a badge and extras again. Do this once the dispute is settled in your favor or the player has paid it back.', ok: 'Lift the block' }))) return;
+  if (await act(b, () => api(`supporters/blocks/${b.dataset.supUnblock}/remove`, { method: 'POST' }), 'Block lifted.')) show('supporters', { keepFocus: true });
 };
 views.connections = () => renderConnections($('#connections-view'), { api, esc, when, toast, announce });
 
@@ -1207,7 +1242,7 @@ const educatorHelpers = { api, esc, fmt, when, can, act, ask, setCount };
 views.educators = () => educatorsView(educatorHelpers);
 initEducators(educatorHelpers, (name, o) => show(name, o));
 // ---- App keys for the Windows and Android apps (licenses.js).
-const licenseHelpers = { api, esc, fmt, when, tile, act, ask, toast };
+const licenseHelpers = { api, esc, fmt, when, tile, act, ask, toast, setCount };
 views.licenses = () => licensesView(licenseHelpers);
 initLicenses(licenseHelpers, (name, o) => show(name, o));
 

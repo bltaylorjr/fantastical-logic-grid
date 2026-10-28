@@ -29,8 +29,12 @@ they open. The website at thelogicgrid.com never needs a key.
    without a key.
 
 Players allowed under **Settings and switches > App keys > Who can get a key
-for themselves** see **Get my free key** on the website (one key each, ever,
-from `/v1/license/mine`). Everyone else gets keys an admin makes under
+for themselves** see **Ask for a free key** on the website (one key each, ever,
+from `/v1/license/mine`). Bobby (2026-10-28): a free key needs an admin's
+approval. It waits at the top of **App keys** (and in the Overview's to-do
+list) until an admin clicks **Approve**; only then is it shown to the player
+and does it work. **Decline** tells the player it was not approved, and they
+cannot ask again on their own. Everyone else gets keys an admin makes under
 **App keys > Make keys**.
 
 ## Switches (Settings and switches > App keys)
@@ -40,6 +44,7 @@ from `/v1/license/mine`). Everyone else gets keys an admin makes under
 | The apps need a key | On | Off: the apps open without a key. |
 | Downloads on the website ask for a key | On | Off: downloads start straight away. |
 | Who can get a key for themselves | Any signed-in player | Or only Supporters, or nobody. |
+| Free keys wait for your approval | On | Off: a free key works straight away. |
 | Computers or phones each new key installs on | 1 | 1 or 2. |
 
 Nothing is asked until the `LICENSE_SIGNING_KEY` secret is set, so nobody is

@@ -11,23 +11,24 @@ let q = '';
 let made = []; // keys made in this visit, shown in full until you leave
 
 const PLATFORM = { desktop: 'Windows', android: 'Android', ios: 'iPhone' };
-const SOURCE = { admin: 'Made here', self: 'Got it themselves' };
+const SOURCE = { admin: 'Made here', self: 'Asked for it on the website' };
 
 function row(k) {
   const e = h.esc;
-  const state = k.revokedAt ? '<span class="badge bad">Cancelled</span>' : k.works ? '<span class="badge ok">Works</span>' : '<span class="badge">Ended</span>';
+  const state = k.revokedAt ? `<span class="badge bad">${k.source === 'self' && !k.approvedAt ? 'Declined' : 'Cancelled'}</span>` : k.waiting ? '<span class="badge warn">Waiting for your approval</span>' : k.works ? '<span class="badge ok">Works</span>' : '<span class="badge">Ended</span>';
   const who = [k.label && `<b>${e(k.label)}</b>`, k.name && `<bdi>${e(k.name)}</bdi>`, k.email && `<span class="muted">${e(k.email)}</span>`].filter(Boolean).join('<br>');
   return `<tr>
     <td><code class="lic-key">${e(k.key)}</code> <button class="btn small" type="button" data-lic-copy="${e(k.key)}">Copy</button><br>${state}</td>
-    <td>${who || '<span class="muted">No name</span>'}<br><small class="muted">${e(SOURCE[k.source] || k.source)}${k.createdBy && k.source === 'admin' ? `, ${e(k.createdBy)}` : ''}, ${h.when(k.createdAt)}</small></td>
+    <td>${who || '<span class="muted">No name</span>'}<br><small class="muted">${e(SOURCE[k.source] || k.source)}${k.createdBy && k.source === 'admin' ? `, ${e(k.createdBy)}` : ''}, ${h.when(k.createdAt)}${k.approvedBy ? `<br>approved by ${e(k.approvedBy)}, ${h.when(k.approvedAt)}` : ''}</small></td>
     <td>${h.fmt(k.devices)} of ${h.fmt(k.maxDevices)}${k.lastSeen ? `<br><small class="muted">last seen ${h.when(k.lastSeen)}</small>` : ''}</td>
     <td>${h.fmt(k.downloads)} of ${h.fmt(k.maxDownloads)}${k.lastDownloadAt ? `<br><small class="muted">last ${h.when(k.lastDownloadAt)}</small>` : ''}</td>
     <td>${k.expiresAt ? h.when(k.expiresAt) : 'Never'}</td>
     <td class="row">
+      ${k.waiting ? `<button class="btn small primary" type="button" data-lic-approve="${k.id}">Approve</button><button class="btn small danger" type="button" data-lic-decline="${k.id}">Decline</button>` : ''}
       <button class="btn small" type="button" data-lic-devices="${k.id}" aria-expanded="false">Installs</button>
       ${k.maxDevices < 2 && !k.revokedAt ? `<button class="btn small" type="button" data-lic-two="${k.id}">Allow a 2nd install</button>` : ''}
       ${k.maxDevices > 1 && !k.revokedAt ? `<button class="btn small" type="button" data-lic-one="${k.id}">Back to 1 install</button>` : ''}
-      ${k.revokedAt ? `<button class="btn small" type="button" data-lic-restore="${k.id}">Turn back on</button>` : `<button class="btn small danger" type="button" data-lic-revoke="${k.id}">Cancel key</button>`}
+      ${k.waiting ? '' : k.revokedAt ? `<button class="btn small" type="button" data-lic-restore="${k.id}">Turn back on</button>` : `<button class="btn small danger" type="button" data-lic-revoke="${k.id}">Cancel key</button>`}
     </td>
   </tr><tr class="lic-devices" id="lic-dev-${k.id}" hidden><td colspan="6"></td></tr>`;
 }
@@ -37,7 +38,8 @@ function banner(d) {
     return '<p class="badge warn">Not switched on yet: the LICENSE_SIGNING_KEY Cloudflare secret is not set, so the apps open without a key. Steps: <a href="#connections">Connections and setup</a> &gt; App keys. You can make keys now; they work as soon as the secret is set.</p>';
   }
   if (!d.required) return '<p class="badge warn">The apps open without a key, because <b>The apps need a key</b> is off under <a href="#settings">Settings and switches</a> &gt; App keys.</p>';
-  const own = { signed_in: 'Any signed-in player with a confirmed email can also get one free key for themselves on the website.', supporters: 'Supporters can also get one key for themselves on the website.', off: 'Players get keys only from you.' }[d.own] || '';
+  const wait = d.approval ? ' Each one waits here until you approve it.' : ' It works straight away (Free keys wait for your approval is off).';
+  const own = { signed_in: `Any signed-in player with a confirmed email can also ask for one free key on the website.${wait}`, supporters: `Supporters can also ask for one key on the website.${wait}`, off: 'Players get keys only from you.' }[d.own] || '';
   return `<p class="badge ok">On: the Windows and Android apps ask for a key the first time they open. ${own}</p>`;
 }
 
@@ -45,7 +47,8 @@ export async function licensesView(helpers) {
   h = helpers;
   const d = await h.api(`licenses?status=${status}&q=${encodeURIComponent(q)}`);
   $('#lic-banner').innerHTML = banner(d);
-  $('#lic-tiles').innerHTML = h.tile('Keys', h.fmt(d.totals.keys)) + h.tile('Working', h.fmt(d.totals.working)) + h.tile('Installs', h.fmt(d.totals.devices));
+  $('#lic-tiles').innerHTML = h.tile('Waiting for approval', h.fmt(d.totals.waiting)) + h.tile('Keys', h.fmt(d.totals.keys)) + h.tile('Working', h.fmt(d.totals.working)) + h.tile('Installs', h.fmt(d.totals.devices));
+  h.setCount('#count-licenses', d.totals.waiting);
   $('#lic-made').hidden = !made.length;
   $('#lic-made-list').textContent = made.join('\n');
   $('#lic-rows').innerHTML = d.keys.length ? d.keys.map(row).join('') : '<tr><td colspan="6" class="muted">No keys here yet. Make one above.</td></tr>';
@@ -97,6 +100,11 @@ export function initLicenses(helpers, show) {
     } else if ((b = t('two')) || (b = t('one'))) {
       const two = !!b.dataset.licTwo;
       if (await h.act(b, () => h.api(`licenses/${b.dataset.licTwo || b.dataset.licOne}/devices`, { method: 'POST', body: { maxDevices: two ? 2 : 1 } }), two ? 'This key can now install on a second computer or phone.' : 'Back to one install. A second install already made keeps working until you remove it.')) again();
+    } else if ((b = t('approve'))) {
+      if (await h.act(b, () => h.api(`licenses/${b.dataset.licApprove}/approve`, { method: 'POST' }), 'Approved. The player now sees the key under Menu > Install the app on the website.')) again();
+    } else if ((b = t('decline'))) {
+      if (!(await h.ask({ title: 'Decline this free key?', text: 'The player sees that it was not approved, and cannot ask again on their own. You can still make them a key here.', ok: 'Decline', danger: true }))) return;
+      if (await h.act(b, () => h.api(`licenses/${b.dataset.licDecline}/decline`, { method: 'POST' }), 'Declined.')) again();
     } else if ((b = t('revoke'))) {
       if (!(await h.ask({ title: 'Cancel this key?', text: 'Every app using it stops the next time it goes online (within about a day), and it cannot be used for downloads. You can turn it back on later.', ok: 'Cancel key', danger: true }))) return;
       if (await h.act(b, () => h.api(`licenses/${b.dataset.licRevoke}/revoke`, { method: 'POST' }), 'Key cancelled.')) again();

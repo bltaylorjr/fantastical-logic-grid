@@ -74,11 +74,27 @@ if (!process.env.FLG_NO_MINIFY) {
   const own = [];
   const walkOwn = (d) => { for (const n of readdirSync(d)) { const p = join(d, n); if (statSync(p).isDirectory()) { if (n !== 'vendor') walkOwn(p); } else if (/\.(js|css)$/.test(n) && n !== 'sw.js') own.push(p); } };
   walkOwn(out);
+  // The story and puzzle content (storylines, topics, cast, clue wording) is
+  // also obfuscated: its words move into an encoded table, so it cannot be
+  // read or copied out of the files. Only these data modules, because the
+  // solver and generator run thousands of times per puzzle and obfuscating
+  // them would make puzzles about 65% slower to make; these cost nothing.
+  const OBFUSCATE = new Set(['engine/storylines.js', 'engine/more-stories.js', 'engine/topics.js', 'engine/story.js', 'engine/themes.js',
+    'engine/language.js', 'engine/clues.js', 'engine/house-tuning.js', 'js/castbook.js'].map((f) => join(out, f)));
+  const { default: JavaScriptObfuscator } = await import('javascript-obfuscator');
   for (const p of own) {
     const loader = p.endsWith('.css') ? 'css' : 'js';
-    const { code } = transformSync(readFileSync(p, 'utf8'), { loader, minify: true, legalComments: 'none', target: 'es2022', charset: 'utf8' });
+    let { code } = transformSync(readFileSync(p, 'utf8'), { loader, minify: true, legalComments: 'none', target: 'es2022', charset: 'utf8' });
+    if (OBFUSCATE.has(p)) {
+      code = JavaScriptObfuscator.obfuscate(code, {
+        compact: true, sourceType: 'module', target: 'browser', identifierNamesGenerator: 'mangled', renameGlobals: false,
+        stringArray: true, stringArrayEncoding: ['base64'], stringArrayThreshold: 1, stringArrayRotate: true, stringArrayShuffle: true,
+        controlFlowFlattening: false, deadCodeInjection: false, selfDefending: false, debugProtection: false, unicodeEscapeSequence: false,
+      }).getObfuscatedCode();
+    }
     writeFileSync(p, `${banner}\n${code}`);
   }
+  for (const p of OBFUSCATE) if (!own.includes(p)) throw new Error(`Build: ${p} to obfuscate is missing`);
 }
 
 // Content Security Policy for the game page (a <meta> tag, because GitHub
@@ -171,7 +187,7 @@ cpSync(join(root, 'hosting'), site, { recursive: true });
 // night, so the expiry date always stays a year ahead.
 mkdirSync(join(site, '.well-known'), { recursive: true });
 writeFileSync(join(site, '.well-known', 'security.txt'), [
-  'Contact: mailto:fantasticallogicgrid@gmail.com',
+  'Contact: mailto:support@thelogicgrid.com',
   `Expires: ${new Date(Date.now() + 365 * 24 * 3600_000).toISOString().slice(0, 19)}Z`,
   'Preferred-Languages: en',
   `Canonical: ${(process.env.FLG_SITE_URL || 'https://thelogicgrid.com').replace(/\/+$/, '')}/.well-known/security.txt`,
@@ -214,7 +230,7 @@ async function speedUpFirstLoad(dir) {
     page = page.replace(re, (_, open, close) => `${open}${inner}${close}`);
   };
   fill('tier-choices', m.tierChoicesHtml(o.difficulties, tier.id));
-  fill('theme-choices', m.themeChoicesHtml([m.SURPRISE_THEME, ...o.themes], m.SURPRISE_THEME.id));
+  fill('theme-choices', m.themeGroupsHtml(o.themes, o.themeGroups, m.SURPRISE_THEME.id));
   fill('size-choices', m.sizeChoicesHtml(m.sizesFor(tier), m.sizesFor(tier)[0]));
   fill('clue-type-choices', m.clueTypesHtml(o.clueTypes, tier.clueTypes));
 

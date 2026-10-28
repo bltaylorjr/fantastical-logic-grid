@@ -1,6 +1,6 @@
 -- App keys for the Windows and Android apps (licenses.js). One row per key,
 -- made by an admin or, when the admin allows it, by a signed-in player for
--- themselves. Each key installs on max_devices devices (1, or 2 when an admin
+-- themselves (that key waits for an admin's approval before it works). Each key installs on max_devices devices (1, or 2 when an admin
 -- allows it) and can be used for max_downloads website downloads (2); after
 -- that a new key is needed. A device is a random id the app makes once.
 -- revoked_at set means the key no longer works.
@@ -18,7 +18,10 @@ CREATE TABLE IF NOT EXISTS licenses (
   created_at INTEGER NOT NULL,
   created_by TEXT,
   expires_at INTEGER,
-  revoked_at INTEGER
+  revoked_at INTEGER,
+  waiting INTEGER NOT NULL DEFAULT 0, -- 1: a player asked for it and an admin has not approved it yet
+  approved_at INTEGER,
+  approved_by TEXT
 );
 CREATE INDEX IF NOT EXISTS licenses_user ON licenses (user_id);
 

@@ -74,6 +74,7 @@ const WHY = {
   unknown: 'That key was not found. Check it and try again. Keys look like FLG-ABCDE-FGHJK-LMNPQ-RSTUV.',
   revoked: 'This key has been cancelled. Ask the team for a new key.',
   expired: 'This key has ended. Ask the team for a new key.',
+  waiting: 'This key is waiting for the team to approve it. Try again once it is approved.',
   full: 'This key is already installed on its computer or phone. Each key installs on one device. To use the game here too, ask the team to allow a second install, or get a new key.',
   removed: 'This install was removed from your key. Type your key again, or ask the team for a new one.',
   not_ready: 'Keys cannot be checked right now. Try again in a few minutes.',

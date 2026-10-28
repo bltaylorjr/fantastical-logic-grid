@@ -27,6 +27,7 @@
   "bundle": {
     "active": true,
     "copyright": "© 2026 Bobby Taylor. All rights reserved.",
+    "licenseFile": "../../LICENSE",
     "targets": [
       "nsis"
     ],

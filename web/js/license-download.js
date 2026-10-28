@@ -1,8 +1,9 @@
 // App keys on the website's Menu > Install the app (server/src/licenses.js).
 // When the team switches app keys on, the Windows and Android downloads ask
 // for a key first, and each key allows 2 downloads. Players the team allows
-// (Settings > App keys) can get one free key of their own here once signed
-// in with a confirmed email. The website itself never needs a key.
+// (Settings > App keys) can ask for one free key of their own here once signed
+// in with a confirmed email; it is shown here once the team approves it. The
+// website itself never needs a key.
 import { CLOUD, CLOUD_URL } from './cloud-config.js';
 import * as account from './account.js';
 import * as store from './store.js';
@@ -15,6 +16,7 @@ const WHY = {
   unknown: 'That key was not found. Check it and try again. Keys look like FLG-ABCDE-FGHJK-LMNPQ-RSTUV.',
   revoked: 'This key has been cancelled. Ask the team for a new key.',
   expired: 'This key has ended. Ask the team for a new key.',
+  waiting: 'This key is waiting for the team to approve it. It shows here once it is approved.',
   downloads_used: 'This key has been used for its 2 downloads. Ask the team for a new key at fantasticallogicgrid@gmail.com.',
   slow_down: 'Too many tries. Wait a minute, then try again.',
   offline: 'The key could not be checked. Check your internet connection and try again.',
@@ -53,7 +55,9 @@ function paint() {
       : `${mine.downloadsLeft ?? 0} of 2 downloads left. Installs on ${mine.maxDevices === 1 ? 'one computer or phone' : `${mine.maxDevices} computers or phones`}.`;
     if (!$('#install-key-input').value) $('#install-key-input').value = mine.key;
   }
-  const canOwn = own !== 'off' && !has;
+  $('#install-key-waiting').hidden = !(mine && mine.waiting);
+  $('#install-key-declined').hidden = !(mine && mine.declined);
+  const canOwn = own !== 'off' && !has && !(mine && (mine.waiting || mine.declined));
   $('#install-key-get-row').hidden = !(canOwn && who && who.verified && (!mine || mine.allowed));
   $('#install-key-signin').hidden = !(canOwn && !who && account.enabled());
   $('#install-key-confirm').hidden = !(canOwn && who && !who.verified);
@@ -106,6 +110,7 @@ export function init(opts) {
     try {
       const res = await fetch(api('/v1/license/mine'), { method: 'POST', headers: { Authorization: `Bearer ${await account.getIdToken()}`, 'Content-Type': 'text/plain' }, body: '{}' });
       const r = await res.json().catch(() => ({}));
+      if (res.ok && r.waiting) { mine = r; paint(); deps.toast('Asked. The team approves free keys by hand; your key shows here once it is approved.'); return; }
       if (res.ok && r.key) { mine = r; $('#install-key-input').value = r.key; paint(); deps.toast('Here is your app key. It is saved with your account, so you can find it here again.'); return; }
       showError(r.error === 'confirm_email' ? 'Confirm your email first (Menu > Account), then try again.' : r.error === 'not_allowed' ? 'Free keys are for Supporters right now. Ask the team for a key.' : WHY.offline);
     } catch (e) {

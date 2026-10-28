@@ -152,13 +152,14 @@ export const SETTINGS = {
   license_required: { type: 'bool', default: true, group: 'App keys', label: 'The apps need a key', help: 'On: the Windows and Android apps ask for an app key the first time they open, check it once online, then work offline. About once a day when online they check the key still works, so a key you cancel under App keys stops working. Only works once the LICENSE_SIGNING_KEY Cloudflare secret is set; until then the apps open without a key. Off: the apps open without a key. The website never needs one.' },
   license_download_needs_key: { type: 'bool', default: true, group: 'App keys', label: 'Downloads on the website ask for a key', help: 'On (with The apps need a key on): Menu > Install the app on the website asks for an app key before the Windows or Android download starts, and each key allows 2 downloads. The files on GitHub can still be reached directly, but they will not open without a key.' },
   license_self_serve: {
-    type: 'choice', default: 'signed_in', group: 'App keys', label: 'Who can get a key for themselves', help: 'On the website, Menu > Install the app shows a Get my free key button to these players (one key each, which installs on the number of devices below). You can always make keys yourself under App keys.',
+    type: 'choice', default: 'signed_in', group: 'App keys', label: 'Who can get a key for themselves', help: 'On the website, Menu > Install the app shows a Ask for a free key button to these players (one key each, which installs on the number of devices below; it waits for your approval while the next switch is on). You can always make keys yourself under App keys.',
     options: [
       { value: 'signed_in', label: 'Any signed-in player with a confirmed email' },
       { value: 'supporters', label: 'Only Supporters (Supporters section)' },
       { value: 'off', label: 'Nobody: only keys you make under App keys' },
     ],
   },
+  license_self_approval: { type: 'bool', default: true, group: 'App keys', label: 'Free keys wait for your approval', help: 'On: a free key a player asks for shows under App keys as waiting, and works (and is shown to the player) only after you click Approve. Off: it works straight away.' },
   license_default_devices: { type: 'int', min: 1, max: 2, default: 1, group: 'App keys', label: 'Computers or phones each new key installs on (1 or 2)', help: 'For keys players get themselves and the starting number when you make keys. Keep it at 1; when a player asks for a second computer, raise that one key to 2 under App keys. Each key can also be used for 2 downloads from the website; after that the player needs a new key.' },
   blocked_words: { type: 'words', default: [], group: 'Moderation', label: 'Extra blocked words in screen names', help: 'Added to the built-in word filter. Letters only, 3 to 30 each.' },
   archive_email_enabled: {

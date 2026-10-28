@@ -97,7 +97,7 @@
         </fieldset>
         <fieldset>
           <legend>Theme</legend>
-          <div class="choices chips" id="theme-choices"></div>
+          <div class="theme-groups" id="theme-choices"></div>
           <p class="extras-note" id="extras-note" hidden>Themes marked <b>Supporter extra</b> open for premium supporters. Everything else stays free. <a class="btn small" id="extras-link" href="#" target="_blank" rel="noopener" hidden>Get the extras</a></p>
         </fieldset>
         <fieldset id="topic-field" hidden>
@@ -409,6 +409,7 @@
 <dialog id="dlg-supporters" aria-labelledby="supporters-h">
   <h2 id="supporters-h">Supporters</h2>
   <p id="supporters-text"></p>
+  <p class="muted small" id="supporters-terms">Tips are a voluntary gift, and nothing in the game is locked. Changed your mind? Email us within 30 days for a full refund. <a href="https://thelogicgrid.com/terms/#tips" target="_blank" rel="noopener">Tips and refunds</a></p>
   <div class="dlg-actions"><button class="btn" type="button" id="supporters-close">Close</button><a class="btn primary" id="supporters-go" href="#" target="_blank" rel="noopener">Support the game</a></div>
 </dialog>
 
@@ -499,7 +500,8 @@
     <details class="more" id="more-settings">
       <summary>More play settings</summary>
       <fieldset><legend class="sr-only">Play</legend>
-        <label class="check"><input type="checkbox" name="autoX"> Auto-X: when I place an O, rule out the rest of its row and column</label>
+        <label class="check"><input type="checkbox" name="autoX" aria-describedby="autox-help"> Auto-X: when I place an O, rule out the rest of its row and column</label>
+        <p class="help" id="autox-help">Automatic Xs are drawn smaller. Clearing or changing the O removes them again, Undo takes back the O and its Xs together, and tapping an automatic X clears it. Xs you placed yourself always stay.</p>
         <label class="check"><input type="checkbox" name="singleKeys"> Single-key shortcuts (X, O, H, C, R)</label>
         <label class="check"><input type="checkbox" name="showTimer"> Show the timer</label>
         <label class="check"><input type="checkbox" name="coach"> Coach tips on my next Easy puzzle</label>
@@ -543,6 +545,7 @@
       <label class="radio"><input type="radio" name="idea-topic" value="feature"> A new game feature</label>
       <label class="radio"><input type="radio" name="idea-topic" value="other"> Something else</label>
     </fieldset>
+    <div class="field" id="idea-theme-field"><label for="idea-theme">Which theme is it for?</label><select id="idea-theme"></select></div>
     <div class="field"><label for="idea-text">Your idea</label><textarea id="idea-text" rows="4" maxlength="1000" placeholder="A pirate ship lost in the fog, where the crew mixed up the treasure maps…"></textarea></div>
     <label class="check fb-reply" hidden><input type="checkbox" data-reply checked> <span>Email me an update<span class="fb-reply-to"></span></span></label>
     <label class="check fb-talk" hidden><input type="checkbox" data-talk> <span>Let the team reply to me in Messages</span></label>
@@ -899,9 +902,11 @@
   <section class="install-opt" id="install-key" aria-labelledby="install-key-h" hidden>
     <h3 id="install-key-h">Your app key</h3>
     <p>The Windows and Android apps need an app key. Each key installs on one computer or phone and can be used for 2 downloads. Playing here in the browser never needs one.</p>
-    <p id="install-key-get-row" hidden><button class="btn primary" type="button" id="install-key-get">Get my free key</button></p>
-    <p id="install-key-signin" hidden>Sign in to get your free key. <button class="btn small" type="button" id="install-key-signin-btn">Sign in</button></p>
-    <p id="install-key-confirm" class="muted" hidden>Confirm your email (Menu &gt; Account) to get your free key.</p>
+    <p id="install-key-get-row" hidden><button class="btn primary" type="button" id="install-key-get">Ask for a free key</button> <span class="muted">The team approves each free key, usually within a day.</span></p>
+    <p id="install-key-waiting" hidden>You asked for a free key. It shows here as soon as the team approves it.</p>
+    <p id="install-key-declined" class="muted" hidden>Your free key request was not approved. Write to fantasticallogicgrid@gmail.com if you have a question.</p>
+    <p id="install-key-signin" hidden>Sign in to ask for a free key. <button class="btn small" type="button" id="install-key-signin-btn">Sign in</button></p>
+    <p id="install-key-confirm" class="muted" hidden>Confirm your email (Menu &gt; Account) to ask for a free key.</p>
     <p id="install-key-supporters" class="muted" hidden>Free keys are for Supporters right now. Write to fantasticallogicgrid@gmail.com for a key.</p>
     <p id="install-key-mine" hidden>Your key: <code id="install-key-code" class="license-code"></code> <button class="btn small" type="button" id="install-key-copy">Copy</button><br><span class="muted" id="install-key-left"></span></p>
     <div class="field"><label for="install-key-input">App key for the download</label><input id="install-key-input" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="FLG-ABCDE-FGHJK-LMNPQ-RSTUV" maxlength="40"></div>

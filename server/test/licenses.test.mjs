@@ -149,23 +149,53 @@ test('a key with an end date stops working after it', async () => {
   assert.equal((await admin('licenses', { until: Date.now() - 1 })).status, 400);
 });
 
-test('signed-in players with a confirmed email get one key of their own', async () => {
+test('signed-in players ask for one free key, and it works only once an admin approves it', async () => {
   assert.equal((await call('/v1/license/mine')).status, 401);
   assert.equal((await call('/v1/license/mine', { auth: player('p-x', 'x@example.com', false), body: {} })).body.error, 'confirm_email');
   const p = player('p-me', 'me@example.com');
   assert.equal((await call('/v1/license/mine', { auth: p })).body.key, null);
-  const made = await call('/v1/license/mine', { auth: p, body: {} });
-  assert.equal(made.status, 200);
-  assert.equal(made.body.maxDevices, 1);
-  assert.equal(made.body.downloadsLeft, 2);
-  assert.equal((await call('/v1/license/mine', { auth: p, body: {} })).body.key, made.body.key);
-  assert.equal((await call('/v1/license/mine', { auth: p })).body.key, made.body.key);
+  const asked = await call('/v1/license/mine', { auth: p, body: {} });
+  assert.equal(asked.status, 200);
+  assert.equal(asked.body.waiting, true);
+  assert.equal(asked.body.key, null, 'the key is not shown before approval');
+  assert.equal((await call('/v1/license/mine', { auth: p, body: {} })).body.waiting, true, 'asking again makes no second key');
+
+  const list = (await admin('licenses?status=waiting')).body;
+  assert.equal(list.totals.waiting, 1);
+  const row = list.keys.find((k) => k.email === 'me@example.com');
+  assert.equal(row.waiting, true);
+  assert.equal(row.works, false);
+  assert.equal((await call('/v1/license/activate', { body: { key: row.key, device: device(40), platform: 'desktop' } })).body.error, 'waiting');
+  assert.equal((await call('/v1/license/download', { body: { key: row.key } })).body.reason, 'waiting');
+  assert.equal((await admin(`licenses/${row.id}/approve`, {})).status, 200);
+
+  const mine = (await call('/v1/license/mine', { auth: p })).body;
+  assert.equal(mine.key, row.key);
+  assert.equal(mine.maxDevices, 1);
+  assert.equal(mine.downloadsLeft, 2);
+  assert.equal((await call('/v1/license/activate', { body: { key: row.key, device: device(40), platform: 'desktop' } })).status, 200);
+  const approved = (await admin('licenses')).body.keys.find((k) => k.id === row.id);
+  assert.equal(approved.approvedBy, 'break-glass token');
+
+  // Declined: the player is told, and cannot ask again by themselves.
+  const q = player('p-no', 'no@example.com');
+  await call('/v1/license/mine', { auth: q, body: {} });
+  const r2 = (await admin('licenses?status=waiting')).body.keys.find((k) => k.email === 'no@example.com');
+  assert.equal((await admin(`licenses/${r2.id}/decline`, {})).status, 200);
+  assert.equal((await call('/v1/license/mine', { auth: q })).body.declined, true);
+  assert.equal((await call('/v1/license/mine', { auth: q, body: {} })).body.declined, true);
+
+  // With approval off, a free key works straight away.
+  assert.equal((await admin('settings', { key: 'license_self_approval', value: false })).status, 200);
+  const now = (await call('/v1/license/mine', { auth: player('p-fast', 'fast@example.com'), body: {} })).body;
+  assert.match(now.key, /^FLG-/);
+  assert.equal((await admin('settings', { key: 'license_self_approval', value: true })).status, 200);
 
   // Only Supporters: someone without a grant is refused.
   assert.equal((await admin('settings', { key: 'license_self_serve', value: 'supporters' })).status, 200);
   assert.equal((await call('/v1/license/mine', { auth: player('p-other', 'o@example.com'), body: {} })).body.error, 'not_allowed');
   assert.equal((await admin('supporters', { kind: 'supporter', email: 'o@example.com' })).status, 200);
-  assert.equal((await call('/v1/license/mine', { auth: player('p-other', 'o@example.com'), body: {} })).status, 200);
+  assert.equal((await call('/v1/license/mine', { auth: player('p-other', 'o@example.com'), body: {} })).body.waiting, true);
   assert.equal((await admin('settings', { key: 'license_self_serve', value: 'off' })).status, 200);
   assert.equal((await call('/v1/license/mine', { auth: player('p-3', 't@example.com'), body: {} })).body.error, 'not_allowed');
 });

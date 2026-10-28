@@ -5,6 +5,8 @@
 // when an admin allows it on request, and it can be used for at most two
 // downloads from the website; after that the player needs a new key. Every key,
 // its installs and its downloads are listed in the admin's App keys section.
+// A free key a player asks for on the website works only once an admin
+// approves it there (Bobby, 2026-10-28).
 // The app checks that pass's signature itself with the public key built into
 // it, so it keeps working offline; when online it asks here about once a day
 // whether the key still works, so a key an admin cancels stops working.
@@ -17,10 +19,10 @@
 //   POST /v1/license/check     { pass }   does the key behind this pass still work
 //   POST /v1/license/download  { key }    a website download (counts toward the key's 2 downloads)
 //   GET  /v1/license/mine                 the signed-in player's own key, if they have one
-//   POST /v1/license/mine                 makes it, when Settings > App keys allows
+//   POST /v1/license/mine                 asks for one, when Settings > App keys allows; it waits for an admin's approval
 //   GET  /admin/v1/licenses?q=&status=    every key with its devices (admin)
 //   POST /admin/v1/licenses               { count, label?, email?, maxDevices?, until? } (admin)
-//   POST /admin/v1/licenses/:id/(revoke|restore|devices) (admin; devices sets 1 or 2)
+//   POST /admin/v1/licenses/:id/(approve|decline|revoke|restore|devices) (admin; devices sets 1 or 2)
 //   POST /admin/v1/licenses/:id/devices/:device/remove   frees a seat (admin)
 import { json, readText, TooLarge } from './http.js';
 import { AuthError } from './auth.js';
@@ -107,14 +109,14 @@ async function findKey(env, key) {
 }
 
 // Why a key does not work right now, or null when it does.
-const problem = (row, now) => (!row ? 'unknown' : row.revoked_at ? 'revoked' : row.expires_at && row.expires_at <= now ? 'expired' : null);
+const problem = (row, now) => (!row ? 'unknown' : row.revoked_at ? 'revoked' : row.waiting ? 'waiting' : row.expires_at && row.expires_at <= now ? 'expired' : null);
 
-export async function createKeys(env, { count = 1, label = null, email = null, userId = null, maxDevices = 1, until = null, source = 'admin', by = null }, now = Date.now()) {
+export async function createKeys(env, { count = 1, label = null, email = null, userId = null, maxDevices = 1, until = null, source = 'admin', by = null, waiting = false }, now = Date.now()) {
   const made = [];
   for (let i = 0; i < count; i++) {
     const key = newKey();
-    await env.DB.prepare(`INSERT INTO licenses (key, label, email, user_id, max_devices, max_downloads, source, created_at, created_by, expires_at)
-      VALUES (?1, ?2, ?3, ?4, ?5, ?10, ?6, ?7, ?8, ?9)`).bind(key, label, email, userId, Math.min(maxDevices, MOST_DEVICES), source, now, by, until, MOST_DOWNLOADS).run();
+    await env.DB.prepare(`INSERT INTO licenses (key, label, email, user_id, max_devices, max_downloads, source, created_at, created_by, expires_at, waiting)
+      VALUES (?1, ?2, ?3, ?4, ?5, ?10, ?6, ?7, ?8, ?9, ?11)`).bind(key, label, email, userId, Math.min(maxDevices, MOST_DEVICES), source, now, by, until, MOST_DOWNLOADS, waiting ? 1 : 0).run();
     made.push(key);
   }
   return made;
@@ -191,10 +193,13 @@ export async function handleLicenses(req, env, url, signedIn) {
     if (!row && req.method === 'POST') {
       if (!(user.email && user.emailVerified)) return json(req, env, { error: 'confirm_email' }, 403);
       if (!allowed) return json(req, env, { error: 'not_allowed', who: s.license_self_serve }, 403);
-      const [key] = await createKeys(env, { userId: user.uid, email: cleanEmail(user.email), label: 'Got it themselves', maxDevices: s.license_default_devices, source: 'self', by: 'player' }, now);
+      const [key] = await createKeys(env, { userId: user.uid, email: cleanEmail(user.email), label: 'Asked for it on the website', maxDevices: s.license_default_devices, source: 'self', by: 'player', waiting: s.license_self_approval }, now);
       row = await findKey(env, key);
     }
     if (!row) return json(req, env, { key: null, allowed, who: s.license_self_serve, confirmed: !!user.emailVerified });
+    // The key itself is shown only once an admin has approved it.
+    if (row.waiting && !row.revoked_at) return json(req, env, { key: null, waiting: true, askedAt: row.created_at, allowed });
+    if (row.waiting) return json(req, env, { key: null, declined: true, allowed });
     const { n } = await env.DB.prepare('SELECT COUNT(*) AS n FROM license_devices WHERE license_id = ?1 AND removed_at IS NULL').bind(row.id).first();
     return json(req, env, { key: row.key, works: !problem(row, now), devices: n, maxDevices: row.max_devices, downloadsLeft: Math.max(0, row.max_downloads - row.downloads), expiresAt: row.expires_at || null, allowed });
   }
@@ -253,23 +258,25 @@ export function licenseRoutes(Refusal) {
       const status = url.searchParams.get('status') || 'all';
       // ?1 and ?2 are always used, so the bindings match whatever is filtered.
       const where = ['?2 > 0'];
-      if (status === 'active') where.push('l.revoked_at IS NULL AND (l.expires_at IS NULL OR l.expires_at > ?2)');
+      if (status === 'waiting') where.push('l.waiting = 1 AND l.revoked_at IS NULL');
+      if (status === 'active') where.push('l.revoked_at IS NULL AND l.waiting = 0 AND (l.expires_at IS NULL OR l.expires_at > ?2)');
       if (status === 'revoked') where.push('(l.revoked_at IS NOT NULL OR (l.expires_at IS NOT NULL AND l.expires_at <= ?2))');
       where.push(q ? "(lower(l.key) LIKE ?1 OR lower(coalesce(l.label, '')) LIKE ?1 OR lower(coalesce(l.email, '')) LIKE ?1)" : '?1 IS NOT NULL');
       const { results } = await env.DB.prepare(`SELECT l.id, l.key, l.label, l.email, l.user_id AS uid, l.max_devices AS maxDevices, l.max_downloads AS maxDownloads, l.downloads, l.last_download_at AS lastDownloadAt, l.source, l.created_at AS createdAt,
-          l.created_by AS createdBy, l.expires_at AS expiresAt, l.revoked_at AS revokedAt, p.screen_name AS name,
+          l.created_by AS createdBy, l.expires_at AS expiresAt, l.revoked_at AS revokedAt, l.waiting, l.approved_at AS approvedAt, l.approved_by AS approvedBy, p.screen_name AS name,
           (SELECT COUNT(*) FROM license_devices d WHERE d.license_id = l.id AND d.removed_at IS NULL) AS devices,
           (SELECT MAX(last_seen) FROM license_devices d WHERE d.license_id = l.id) AS lastSeen
         FROM licenses l LEFT JOIN players p ON p.user_id = l.user_id
-        WHERE ${where.join(' AND ')} ORDER BY l.created_at DESC, l.id DESC LIMIT 500`).bind(`%${q}%`, now).all();
-      const totals = await env.DB.prepare(`SELECT COUNT(*) AS keys, SUM(CASE WHEN revoked_at IS NULL AND (expires_at IS NULL OR expires_at > ?1) THEN 1 ELSE 0 END) AS working,
+        WHERE ${where.join(' AND ')} ORDER BY (l.waiting = 1 AND l.revoked_at IS NULL) DESC, l.created_at DESC, l.id DESC LIMIT 500`).bind(`%${q}%`, now).all();
+      const totals = await env.DB.prepare(`SELECT COUNT(*) AS keys, SUM(CASE WHEN revoked_at IS NULL AND waiting = 0 AND (expires_at IS NULL OR expires_at > ?1) THEN 1 ELSE 0 END) AS working,
+          SUM(CASE WHEN revoked_at IS NULL AND waiting = 1 THEN 1 ELSE 0 END) AS waiting,
           (SELECT COUNT(*) FROM license_devices WHERE removed_at IS NULL) AS devices FROM licenses`).bind(now).first();
       const s = await getSettings(env);
       return {
         body: {
           now, ready: await signingReady(env), required: s.license_required, own: s.license_self_serve, defaultDevices: s.license_default_devices,
-          totals: { keys: totals.keys || 0, working: totals.working || 0, devices: totals.devices || 0 },
-          keys: results.map((r) => ({ ...r, works: !r.revokedAt && !(r.expiresAt && r.expiresAt <= now) })),
+          totals: { keys: totals.keys || 0, working: totals.working || 0, waiting: totals.waiting || 0, devices: totals.devices || 0 }, approval: s.license_self_approval,
+          keys: results.map((r) => ({ ...r, waiting: !!r.waiting && !r.revokedAt, works: !r.revokedAt && !r.waiting && !(r.expiresAt && r.expiresAt <= now) })),
         },
         quiet: true,
       };
@@ -292,6 +299,15 @@ export function licenseRoutes(Refusal) {
       const label = str(body.label, 200) || null;
       const made = await createKeys(env, { count, label, email, maxDevices, until, by: who.actor }, now);
       return { body: { keys: made }, target: label || email || `${count} keys`, detail: { count, maxDevices, until } };
+    }],
+    ['POST', /^licenses\/(\d{1,12})\/approve$/, 'admin', 'licenses.approve', async ({ env, params: [id], who, now }) => {
+      const r = await env.DB.prepare('UPDATE licenses SET waiting = 0, approved_at = ?2, approved_by = ?3 WHERE id = ?1 AND waiting = 1 AND revoked_at IS NULL').bind(Number(id), now, who.actor).run();
+      return { body: { changed: r.meta.changes }, target: id };
+    }],
+    // Declined: the player sees "not approved" and cannot ask again on their own.
+    ['POST', /^licenses\/(\d{1,12})\/decline$/, 'admin', 'licenses.decline', async ({ env, params: [id], now }) => {
+      const r = await env.DB.prepare('UPDATE licenses SET revoked_at = ?2 WHERE id = ?1 AND waiting = 1 AND revoked_at IS NULL').bind(Number(id), now).run();
+      return { body: { changed: r.meta.changes }, target: id };
     }],
     ['POST', /^licenses\/(\d{1,12})\/revoke$/, 'admin', 'licenses.revoke', async ({ env, params: [id], now }) => {
       const r = await env.DB.prepare('UPDATE licenses SET revoked_at = ?2 WHERE id = ?1 AND revoked_at IS NULL').bind(Number(id), now).run();

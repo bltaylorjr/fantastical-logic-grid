@@ -6,7 +6,7 @@ const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 
 let h = null; // helpers from admin.js
 let data = null; // the last GET /admin/v1/marketing
-const EVENT_NAMES = { visit: 'Visits', play: 'First puzzles', solve: 'Solves', return: 'Came back within a week', install: 'Installs', download: 'Windows downloads', support: 'Support presses' };
+const EVENT_NAMES = { visit: 'Visits', play: 'First puzzles', solve: 'Solves', return: 'Came back within a week', install: 'Installs', download: 'Windows downloads', support: 'Support presses', edu_request: 'Educator requests', edu_confirm: 'School emails confirmed', edu_sent: 'Educator packages sent' };
 const STATUS_BADGE = { draft: '', approved: 'warn', posted: 'ok', removed: 'bad', active: 'ok', paused: 'warn', ended: '' };
 const STATUS_NAMES = { draft: 'Draft', approved: 'Approved to post', posted: 'Posted', removed: 'Taken down', active: 'Running', paused: 'Paused', ended: 'Ended' };
 const MEDIUM_NAMES = { social: 'Social post', video: 'Video', forum: 'Forum', community: 'Community', directory: 'Directory', store: 'Store or game site', email: 'Email', referral: 'Link from a site', search: 'Search engine', print: 'Print', qr: 'QR code', other: 'Other' };
@@ -36,6 +36,11 @@ function trendChart(trend) {
 const numberCells = (s) => [h.fmt(s.visit), h.fmt(s.play), h.fmt(s.solve), h.fmt(s.return || 0), h.fmt(s.install), h.fmt(s.download), pct(s.play, s.visit), pct(s.solve, s.visit), pct(s.return || 0, s.visit)];
 const numberHead = [{ label: 'Visits', num: 1 }, { label: 'First puzzles', num: 1 }, { label: 'Solves', num: 1 }, { label: 'Came back', num: 1 }, { label: 'Installs', num: 1 }, { label: 'Downloads', num: 1 }, { label: 'Visit to play', num: 1 }, { label: 'Solves per visit', num: 1 }, { label: 'Came back within a week', num: 1 }];
 
+// Educator package requests from the Educators page (server/src/educators.js), counted for the ad the teacher came from.
+const eduCells = (s) => [h.fmt(s.visit), h.fmt(s.edu_request || 0), h.fmt(s.edu_confirm || 0), h.fmt(s.edu_sent || 0), pct(s.edu_request || 0, s.visit)];
+const eduHead = [{ label: 'Visits', num: 1 }, { label: 'Requests', num: 1 }, { label: 'Confirmed', num: 1 }, { label: 'Packages sent', num: 1 }, { label: 'Visit to request', num: 1 }];
+const hasEdu = (s) => (s.edu_request || 0) + (s.edu_confirm || 0) + (s.edu_sent || 0) > 0;
+
 function mediaName(id) {
   const m = data.media.find((x) => x.id === id);
   return m ? `<a href="${h.esc(m.url)}" target="_blank" rel="noopener">${h.esc(m.title)}</a>` : '<span class="muted">(removed)</span>';
@@ -50,7 +55,7 @@ function adCard(a, admin) {
   const text = fillLink(a.body, a.link);
   const s = a.stats;
   return `<details class="mk-ad" data-ad="${a.id}">
-    <summary><span class="mk-ad-title">${h.esc(a.title)}</span> ${badge(a.status)} <span class="muted">${h.esc(a.channel)} · ${h.esc(MEDIUM_NAMES[a.medium] || a.medium)} · ${h.fmt(s.visit)} visits · ${h.fmt(s.solve)} solves</span></summary>
+    <summary><span class="mk-ad-title">${h.esc(a.title)}</span> ${badge(a.status)} <span class="muted">${h.esc(a.channel)} · ${h.esc(MEDIUM_NAMES[a.medium] || a.medium)} · ${h.fmt(s.visit)} visits · ${/^\/educators\//.test(a.landing || '') ? `${h.fmt(s.edu_request || 0)} educator requests` : `${h.fmt(s.solve)} solves`}</span></summary>
     <div class="stack">
       ${a.postOn ? `<p><b>Posting day:</b> ${h.esc(a.postOn)}${isAuto(a) ? ' (posted automatically once its key is saved)' : ' (emailed to you that morning to post by hand)'}</p>` : ''}
       ${a.autoNote ? `<p class="note"><b>Automatic posting:</b> ${h.esc(a.autoNote)}</p>` : ''}
@@ -59,7 +64,7 @@ function adCard(a, admin) {
       <div class="field"><label for="mk-link-${a.id}">Tracked link</label><input id="mk-link-${a.id}" type="text" readonly value="${h.esc(a.link)}"></div>
       <div class="row"><button class="btn small" type="button" data-copy-text="${a.id}">Copy the words</button><button class="btn small" type="button" data-copy-link="${a.id}">Copy the link</button></div>
       ${a.media.length ? `<p><b>Media:</b> ${a.media.map(mediaName).join(', ')}</p>` : ''}
-      ${a.notes ? `<p class="note">${h.esc(a.notes)}</p>` : ''}
+      ${a.notes ? `<p class="note">${h.esc(fillLink(a.notes, a.link))}</p>` : ''}
       ${a.postUrl ? `<p><b>Live post:</b> <a href="${h.esc(a.postUrl)}" target="_blank" rel="noopener">${h.esc(a.postUrl)}</a>${a.postedAt ? ` (posted ${h.esc(h.when(a.postedAt))})` : ''}</p>` : ''}
       <p class="muted">${Object.entries(EVENT_NAMES).map(([k, v]) => `${v}: ${h.fmt(s[k])}`).join(' · ')}</p>
       ${admin ? `<div class="row">${a.status !== 'posted' ? `<button class="btn small primary" type="button" data-ad-posted="${a.id}">Mark as posted</button>` : ''}<button class="btn small" type="button" data-ad-edit="${a.id}">Edit</button><button class="btn small danger" type="button" data-ad-delete="${a.id}">Delete</button></div>` : ''}
@@ -126,6 +131,10 @@ async function render() {
   const campaigns = data.byCampaign.map((s) => [h.esc(s.name), `<code>${h.esc(s.campaign)}</code>`, ...numberCells(s)]);
   const adRows = data.ads.filter((a) => a.stats.visit || a.stats.solve || a.status === 'posted')
     .map((a) => [h.esc(a.title), h.esc(adCampaign(a)?.name || ''), badge(a.status), ...numberCells(a.stats)]);
+  const eduAds = data.ads.filter((a) => /^\/educators\//.test(a.landing || '') || hasEdu(a.stats));
+  const eduRows = eduAds.filter((a) => a.stats.visit || hasEdu(a.stats) || a.status === 'posted')
+    .map((a) => [h.esc(a.title), h.esc(a.channel), badge(a.status), ...eduCells(a.stats)]);
+  const eduSources = data.bySource.filter(hasEdu).map((s) => [h.esc(s.source), h.esc(MEDIUM_NAMES[s.medium] || s.medium), ...eduCells(s)]);
   const posted = data.ads.filter((a) => a.status === 'posted').length;
   const waiting = data.ads.filter((a) => a.status === 'approved').length;
   $('#marketing-body').innerHTML = `
@@ -134,7 +143,8 @@ async function render() {
       ${h.tile('Solves', h.fmt(t.solve), 'by those visitors, within 30 days')}
       ${h.tile('Came back', h.fmt(t.return || 0), `${pct(t.return || 0, t.visit)} of visits, on a later day within a week`)}
       ${h.tile('Installs and downloads', h.fmt(t.install + t.download), `${h.fmt(t.install)} app installs, ${h.fmt(t.download)} Windows downloads`)}
-      ${h.tile('Ads posted', h.fmt(posted), `${h.fmt(waiting)} approved and waiting, ${h.fmt(data.ads.length)} in all`)}</div>
+      ${h.tile('Ads posted', h.fmt(posted), `${h.fmt(waiting)} approved and waiting, ${h.fmt(data.ads.length)} in all`)}
+      ${h.tile('Educator requests', h.fmt(t.edu_request || 0), `${h.fmt(t.edu_confirm || 0)} school emails confirmed, ${h.fmt(t.edu_sent || 0)} packages sent, from campaign links and other sites`)}</div>
     <div class="charts">${trendChart(data.trend)}</div>
     <h2 id="mk-src-h">By channel</h2>
     ${h.table([{ label: 'Channel' }, { label: 'Kind' }, ...numberHead], sources, 'No visits from campaign links or other sites in this period yet.')}
@@ -142,6 +152,12 @@ async function render() {
     ${h.table([{ label: 'Campaign' }, { label: 'Code' }, ...numberHead], campaigns, 'No campaign visits in this period yet.')}
     <h2 id="mk-ads-h">By ad</h2>
     ${h.table([{ label: 'Ad' }, { label: 'Campaign' }, { label: 'Status' }, ...numberHead], adRows, 'No ad has been posted or brought a visit yet.')}
+    ${eduAds.length || eduSources.length ? `<h2 id="mk-edu-h">Educator requests</h2>
+    <p class="muted">Requests on the Educators page from teachers who came by a campaign link or another site, then confirmed school emails and packages emailed. Every request, tracked or not, is in Educator requests.</p>
+    <h3>By ad</h3>
+    ${h.table([{ label: 'Ad' }, { label: 'Channel' }, { label: 'Status' }, ...eduHead], eduRows, 'No educator ad has been posted or brought a visit yet.')}
+    <h3>By channel</h3>
+    ${h.table([{ label: 'Channel' }, { label: 'Kind' }, ...eduHead], eduSources, 'No educator requests from campaign links or other sites in this period yet.')}` : ''}
     ${admin ? '<p><button class="btn small" type="button" data-export="marketing">Download every number (CSV)</button></p>' : ''}
     <div class="head"><h2 id="mk-list-h">Campaigns and ads</h2>${admin ? '<button class="btn small primary" type="button" id="mk-c-new">New campaign</button>' : ''}</div>
     <p class="muted">Every ad keeps the exact words to post, its media, where it goes and its tracked link. Mark an ad as posted with the live link so the numbers can be checked against it.</p>
