@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { Miniflare } from 'miniflare';
 import { makeSigner } from './signer.mjs';
 import { partKey } from '../../engine/src/story.js';
+import { nameKey } from '../src/names.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const ORIGIN = 'https://thelogicgrid.com';
@@ -33,8 +34,9 @@ before(async () => {
     const sql = readFileSync(join(root, 'migrations', f), 'utf8').replace(/--.*$/gm, '');
     for (const stmt of sql.split(';').map((s) => s.trim()).filter(Boolean)) await db.prepare(stmt).run();
   }
-  await db.prepare("INSERT INTO players (user_id, screen_name, name_key, created_at, updated_at) VALUES ('monkey-uid', 'ColbaltSockMonkey18', 'colbaltsockmonkey18', 1, 1)").run();
-  await db.prepare("INSERT INTO players (user_id, screen_name, name_key, created_at, updated_at) VALUES ('writer-uid', 'StoryWriter', 'storywriter', 1, 1)").run();
+  const player = db.prepare('INSERT INTO players (user_id, screen_name, name_key, created_at, updated_at) VALUES (?1, ?2, ?3, 1, 1)');
+  await player.bind('monkey-uid', 'ColbaltSockMonkey18', nameKey('ColbaltSockMonkey18')).run();
+  await player.bind('writer-uid', 'StoryWriter', nameKey('StoryWriter')).run();
 });
 after(() => mf.dispose());
 
