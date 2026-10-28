@@ -13,6 +13,8 @@ import { makeLanguage } from '../src/language.js';
 import { makeRng } from '../src/rng.js';
 import { SIZE_LIMITS } from '../src/tiers.js';
 import { TIER_ORDER } from '../src/tiers.js';
+import { orderItems, inOrder } from '../src/order.js';
+import { CUSTOM_STARTERS, checkCustom, checkRequest, packagePlan, gradeStory, bandOf, schoolEmail, GRADES, BANDS, PRINT_LIMITS } from '../src/classroom.js';
 
 const quick = process.argv.includes('--quick');
 let passed = 0, failed = 0;
@@ -142,12 +144,55 @@ for (const opt of sizes) {
     check(`${name} art comes from the topic`, p.art.setting === topic.art.setting && p.art.mood === topic.art.mood);
     check(`${name} story id has the topic key`, parseStoryId(p.story.id).key === sc.key);
     check(`${name} story uses a topic incident`, sc.story.incidents.some((i) => p.title.endsWith(i.name)));
+    // Item order rule: every category's items in a sensible order.
+    const bad = p.categories.filter((c) => {
+      const labels = c.items.map((i) => i.label);
+      if (c.ordinal) return c.items.some((it, k) => k && it.value <= c.items[k - 1].value);
+      const def = sc.categories.find((x) => x.id === c.id) || {};
+      return !inOrder(labels, { order: def.order, listed: def.items });
+    });
+    check(`${name} grid items in order`, bad.length === 0, bad.map((c) => `${c.name}: ${c.items.map((i) => i.label).join(', ')}`).join(' / '));
+    check(`${name} answer key rows follow the grid`, p.answerKey.rows.every((r, k) => r[0] === p.categories[0].items[k].label));
   }
 
   // Independent uniqueness check.
   const n = countSolutions(p, 2, quick ? 3000 : 20000);
   if (n === -1) bruteSkipped++;
   else { bruteChecked++; check(`${name} exactly one solution (brute force)`, n === 1, `found ${n}`); }
+}
+
+// Item order rule (Bobby, 2026-10-27): numbers, times and other sequences in
+// natural order, a written order kept when a category asks for it, otherwise
+// alphabetical. Checked on the rule itself, then on every category of every
+// topic at the largest size over several seeds.
+{
+  const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  check('order: numbers in number order', same(orderItems(['10', '3', '21', '7']), ['3', '7', '10', '21']));
+  check('order: numbers inside words', same(orderItems(['Table 10', 'Table 2', 'Apollo 11']), ['Apollo 11', 'Table 2', 'Table 10']));
+  check('order: clock times', same(orderItems(['1:00 pm', '11:30 am', '9:00 am', '12:15 pm']), ['9:00 am', '11:30 am', '12:15 pm', '1:00 pm']));
+  check('order: days of the week', same(orderItems(['Friday', 'Monday', 'Sunday', 'Wednesday']), ['Monday', 'Wednesday', 'Friday', 'Sunday']));
+  check('order: ordinal words', same(orderItems(['Third', 'First', 'Second']), ['First', 'Second', 'Third']));
+  check('order: sizes', same(orderItems(['Large', 'Small', 'Medium']), ['Small', 'Medium', 'Large']));
+  check('order: alphabetical, "The" ignored', same(orderItems(['Zebra', 'The Lion', 'apple']), ['apple', 'The Lion', 'Zebra']));
+  check('order: written order kept', same(orderItems(['Year 3000', 'Ice Age', 'Wild West'], { order: 'listed', listed: ['Ice Age', 'Wild West', 'Year 3000'] }), ['Ice Age', 'Wild West', 'Year 3000']));
+  const bad = [];
+  for (const theme of THEMES) {
+    for (const topic of getTopics(theme.id)) {
+      const scenario = buildScenario(theme, topic);
+      for (let s = 0; s < (quick ? 3 : 10); s++) {
+        const rng = makeRng(`order-${theme.id}-${topic.id}-${s}`);
+        const K = Math.min(SIZE_LIMITS.categories[1], scenario.categories.length + 1);
+        const model = buildModel({ rng, scenario, K, N: SIZE_LIMITS.items[1], weights: { is: 1, less: 1 } });
+        for (const c of model.cats) {
+          const def = scenario.categories.find((x) => x.id === c.id) || {};
+          const ok = c.ordinal ? c.values.every((v, k) => !k || v > c.values[k - 1]) : inOrder(c.labels, { order: def.order, listed: def.items });
+          if (!ok) bad.push(`${theme.id}/${topic.id} ${c.name}: ${c.labels.join(', ')}`);
+        }
+      }
+    }
+  }
+  for (const b of bad.slice(0, 10)) console.log(`  ${b}`);
+  check('every topic lists grid items in order', bad.length === 0, `${bad.length} categories out of order`);
 }
 
 // Same seed and options give the same puzzle.
@@ -195,7 +240,11 @@ for (const diff of ['easy', 'medium', 'expert']) {
   const r = generatePuzzle({ difficulty: 'basic', theme: 'random', seed: 'rnd' });
   check('random theme works', THEMES.some((t) => t.id === r.theme.id));
   check('print text includes answer key', formatPuzzleText(r).includes('Answer key'));
-  check('describeOptions lists 6 tiers and 18 themes', describeOptions().difficulties.length === 6 && describeOptions().themes.length === 18);
+  check('describeOptions lists 6 tiers and 22 themes', describeOptions().difficulties.length === 6 && describeOptions().themes.length === 22);
+  {
+    const grouped = describeOptions().themeGroups.flatMap((g) => g.themes);
+    check('every theme is in exactly one picker group', grouped.length === THEMES.length && THEMES.every((t) => grouped.filter((x) => x === t.id).length === 1), grouped.join(','));
+  }
 }
 
 // Stories are never reused: pass back every story id and none repeats, and
@@ -427,6 +476,50 @@ for (const diff of ['easy', 'medium', 'expert']) {
   }
   for (const b of bad.slice(0, 20)) console.log(`  ${b}`);
   check(`built stories match their grids (${built} stories, every topic and size)`, bad.length === 0, `${bad.length} problems`);
+}
+
+// ---------- classroom packages (classroom.js): custom worlds, grade plans, school emails ----------
+{
+  for (const st of CUSTOM_STARTERS) {
+    const c = checkCustom(st);
+    check(`starter ${st.id} is a valid custom theme`, !c.errors, (c.errors || []).join(' '));
+    if (c.errors) continue;
+    for (const tier of ['basic', 'easy', 'medium', 'hard', 'expert']) {
+      const p = generatePuzzle({ custom: c.value, difficulty: tier, categories: 4, items: 5, seed: `class-${st.id}-${tier}` });
+      check(`custom ${st.id} ${tier}: unique solution`, countSolutions(p) === 1);
+      check(`custom ${st.id} ${tier}: uses only the educator's items`, p.categories.slice(1).every((cat, i) => cat.items.every((it) => c.value.categories[i].items.includes(it.label))));
+      check(`custom ${st.id} ${tier}: story opens with the educator's scene`, p.story.paragraphs[0] === c.value.story && p.theme.id === 'custom');
+      check(`custom ${st.id} ${tier}: no exact-gap clues`, p.clues.every((x) => x.type !== 'diff'));
+    }
+  }
+  const named = checkCustom({ theme: 'Class pets', names: ['Ann', 'Bo', 'Cy'], categories: [{ name: 'Pet', items: 'Fish, Frog, Hamster' }, { name: 'Food', items: ['Pellets', 'Flies', 'Seeds'] }] });
+  check('custom theme with 3 names and 3 items makes a 3 x 3 puzzle', !named.errors && generatePuzzle({ custom: named.value, difficulty: 'basic', categories: 5, items: 6, seed: 'pets' }).categories.map((x) => x.items.length).join() === '3,3,3');
+  check('custom theme needs 2 categories of 3 items', !!checkCustom({ theme: 'X', categories: [{ name: 'A', items: ['1', '2'] }] }).errors);
+  check('custom match words need the "not" words too', !!checkCustom({ theme: 'X', categories: [{ name: 'A', items: 'a,b,c', pos: 'likes' }, { name: 'B', items: 'd,e,f' }] }).errors);
+  const ok = { educator: { name: 'Ms Lee', email: 'lee@springfield.k12.il.us', school: 'Springfield Elementary', role: 'Classroom teacher' }, agree: true };
+  check('a request needs the classroom-use agreement', !!checkRequest({ ...ok, agree: false, grade: '4', count: 2 }).errors);
+  check('a request is limited to the most puzzles allowed', !!checkRequest({ ...ok, grade: '4', count: 31 }).errors && !!checkRequest({ ...ok, grade: '4', count: 11 }, { maxPuzzles: 10 }).errors);
+  check('grid sizes must fit on paper', !!checkRequest({ ...ok, grade: '4', count: 1, size: '6x7' }).errors);
+  for (const g of GRADES) {
+    const band = BANDS[g.band];
+    const r = checkRequest({ ...ok, grade: g.id, count: band.tiers.length * 2, difficulty: 'progressive', themes: ['pets', 'sports/any'] });
+    check(`grade ${g.id}: request is valid`, !r.errors, (r.errors || []).join(' '));
+    const plan = packagePlan(r.value, `grade-${g.id}`);
+    check(`grade ${g.id}: difficulty builds up within the grade`, plan.every((o) => band.tiers.includes(o.difficulty)) && plan[0].difficulty === band.tiers[0] && plan.at(-1).difficulty === band.tiers.at(-1));
+    check(`grade ${g.id}: every grid fits on paper`, plan.every((o) => o.categories <= PRINT_LIMITS.categories[1] && o.items <= PRINT_LIMITS.items[1]));
+    if (quick && g.band !== 'k2') continue;
+    const used = [];
+    for (const o of plan.slice(0, 2)) {
+      const p = generatePuzzle({ ...o, usedStories: used });
+      check(`grade ${g.id}: package stories never repeat`, !used.includes(p.story.id));
+      used.push(p.story.id);
+      const story = gradeStory(p, band);
+      check(`grade ${g.id}: story ends with the question`, /\?$/.test(story.at(-1)));
+      if (band.reading === 'early') check(`grade ${g.id}: early readers get a short story`, story.join(' ').split(/\s+/).length < 60, story.join(' '));
+    }
+  }
+  const kinds = Object.fromEntries(['t@lincoln.edu', 'u@stmarys.k12.mn.us', 'v@austinisd.org', 'w@ox.ac.uk', 'x@gmail.com', 'y@acme.com'].map((e) => [e, schoolEmail(e).kind]));
+  check('school emails are recognized and personal ones are not', JSON.stringify(Object.values(kinds)) === JSON.stringify(['school', 'school', 'school', 'school', 'personal', 'unknown']), JSON.stringify(kinds));
 }
 
 console.log('\nGeneration time per tier (ms, avg / max):');

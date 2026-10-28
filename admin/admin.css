@@ -87,6 +87,23 @@ main:focus { outline: none; }
 #ch-form fieldset { border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; margin: 0; }
 #ch-form fieldset.field .check { display: inline-flex; margin-right: 18px; }
 
+/* Connections and setup */
+.conn > summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; list-style-position: outside; }
+.conn > summary .conn-title { display: inline-flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.conn[open] > summary { margin-bottom: 8px; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
+.conn-steps { padding-left: 1.5rem; }
+.conn-steps li { margin: 4px 0; }
+.conn-steps .check { align-items: flex-start; min-height: 0; }
+.conn-steps .check input { flex: none; margin-top: 2px; }
+.conn-steps input:checked + span { color: var(--muted); text-decoration: line-through; }
+.conn-settings { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 4px 16px; margin: 0; }
+.conn-settings dt { font-weight: 600; }
+.conn-settings dd { margin: 0; overflow-wrap: anywhere; }
+.conn-checks { list-style: none; padding: 0; }
+.conn-checks li { margin: 4px 0; }
+.conn a { overflow-wrap: anywhere; }
+@media (max-width: 760px) { .conn-settings { grid-template-columns: minmax(0, 1fr); } }
+
 .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px; margin: 12px 0; }
 .tile { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
 .tile .label { color: var(--muted); font-size: .9rem; }
@@ -162,6 +179,7 @@ dialog h2 { margin: 0; }
 
 /* Backups and the archive viewer */
 a.btn { display: inline-flex; align-items: center; text-decoration: none; }
+a.btn[hidden] { display: none; }
 ul.plain { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .viewer { margin: 0 auto; }
 .drop { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; border: 2px dashed var(--muted); border-radius: 12px; padding: 20px; margin: 16px 0; background: var(--panel); cursor: pointer; }
@@ -187,6 +205,17 @@ ul.plain { list-style: none; padding: 0; display: flex; flex-direction: column; 
 .alerts li { margin: 4px 0; }
 .csv-btn { float: right; margin: -4px 0 4px; }
 td.num, th.num { white-space: nowrap; }
+
+/* Players: section buttons, sortable headings, pages */
+.sections { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 4px; }
+.sections .btn[aria-pressed="true"] { background: var(--accent); color: var(--accent-text); }
+.sections .n { font-weight: 700; }
+.table th button.sort { font: inherit; font-weight: inherit; background: none; border: 0; color: inherit; cursor: pointer; padding: 0; min-height: 32px; text-align: inherit; }
+.table th button.sort::after { content: ""; display: inline-block; width: 1em; }
+.table th[aria-sort="ascending"] button.sort::after { content: " ▲"; }
+.table th[aria-sort="descending"] button.sort::after { content: " ▼"; }
+.table a.rowlink { color: var(--accent); }
+.pager { align-items: center; justify-content: flex-start; gap: 12px; }
 /* Communication: a conversation with a player */
 .thread { border-color: var(--accent); }
 .thread .head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
@@ -210,3 +239,19 @@ td.num, th.num { white-space: nowrap; }
 .findings li { margin: 0 0 10px; }
 .findings p { margin: 0 0 2px; }
 .ai-text { font-size: 1.05rem; }
+
+/* Responsive layout (checked from 320 px phones to 2560 px monitors and at
+   200% zoom by scripts/e2e-responsive.cjs). */
+/* Every button and link-button is at least 44 px, also the compact ones. */
+.btn.small, .table button.rowlink, .table th button.sort, .tab, .skip { min-height: 44px; }
+/* Setup steps: a 44 px tick target, and long setting names and links wrap instead of widening the page. */
+.conn-steps .check { min-height: 44px; }
+.conn-steps .check > * { min-width: 0; overflow-wrap: anywhere; }
+.skip { display: inline-flex; align-items: center; }
+/* A visually hidden column label is placed against the page unless the
+   scroller is its containing block; without this a phone scrolls sideways. */
+.table-wrap { position: relative; clear: both; }
+/* The CSV button sits above its table instead of squeezing it from the side. */
+.csv-btn { float: none; display: flex; margin: 0 0 4px auto; }
+@media (min-width: 761px) and (max-width: 1100px) { .shell { grid-template-columns: 200px minmax(0, 1fr); } }
+@media (min-width: 1600px) { main { max-width: 1560px; } .shell { grid-template-columns: 260px minmax(0, 1fr); } }

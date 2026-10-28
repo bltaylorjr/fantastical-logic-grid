@@ -51,6 +51,7 @@ for (const [field, value] of Object.entries(cloudEnv)) {
 const appVersion = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version;
 cloud = cloud.replace(/appVersion: '[^']*'/, `appVersion: ${JSON.stringify(appVersion)}`);
 writeFileSync(cloudFile, cloud);
+await speedUpFirstLoad(out);
 // Windows downloads come from the public site repository once the source is
 // private (FLG_SITE_REPO, docs/PRIVATE-REPO.md); players cannot reach releases
 // in a private repository.
@@ -73,18 +74,34 @@ if (!process.env.FLG_NO_MINIFY) {
   const own = [];
   const walkOwn = (d) => { for (const n of readdirSync(d)) { const p = join(d, n); if (statSync(p).isDirectory()) { if (n !== 'vendor') walkOwn(p); } else if (/\.(js|css)$/.test(n) && n !== 'sw.js') own.push(p); } };
   walkOwn(out);
+  // The story and puzzle content (storylines, topics, cast, clue wording) is
+  // also obfuscated: its words move into an encoded table, so it cannot be
+  // read or copied out of the files. Only these data modules, because the
+  // solver and generator run thousands of times per puzzle and obfuscating
+  // them would make puzzles about 65% slower to make; these cost nothing.
+  const OBFUSCATE = new Set(['engine/storylines.js', 'engine/more-stories.js', 'engine/topics.js', 'engine/story.js', 'engine/themes.js',
+    'engine/language.js', 'engine/clues.js', 'engine/house-tuning.js', 'js/castbook.js'].map((f) => join(out, f)));
+  const { default: JavaScriptObfuscator } = await import('javascript-obfuscator');
   for (const p of own) {
     const loader = p.endsWith('.css') ? 'css' : 'js';
-    const { code } = transformSync(readFileSync(p, 'utf8'), { loader, minify: true, legalComments: 'none', target: 'es2022', charset: 'utf8' });
+    let { code } = transformSync(readFileSync(p, 'utf8'), { loader, minify: true, legalComments: 'none', target: 'es2022', charset: 'utf8' });
+    if (OBFUSCATE.has(p)) {
+      code = JavaScriptObfuscator.obfuscate(code, {
+        compact: true, sourceType: 'module', target: 'browser', identifierNamesGenerator: 'mangled', renameGlobals: false,
+        stringArray: true, stringArrayEncoding: ['base64'], stringArrayThreshold: 1, stringArrayRotate: true, stringArrayShuffle: true,
+        controlFlowFlattening: false, deadCodeInjection: false, selfDefending: false, debugProtection: false, unicodeEscapeSequence: false,
+      }).getObfuscatedCode();
+    }
     writeFileSync(p, `${banner}\n${code}`);
   }
+  for (const p of OBFUSCATE) if (!own.includes(p)) throw new Error(`Build: ${p} to obfuscate is missing`);
 }
 
 // Content Security Policy for the game page (a <meta> tag, because GitHub
 // Pages cannot send headers). Scripts run only from the game's own files and
 // the one inline theme script (allowed by its hash); the page may talk only to
-// its own Worker, Firebase sign-in, GitHub releases and the desktop app's
-// bridge. No plugins, no <base> tricks, and forms post nowhere else.
+// its own Worker, Firebase sign-in, GitHub releases, the leaked-password
+// check and the desktop app's bridge. No plugins, no <base> tricks, and forms post nowhere else.
 // Without a cloud address (tests and offline builds) the page may also reach
 // localhost, where the tests run their stand-in servers.
 const origin = (u) => { try { return u ? new URL(u).origin : null; } catch (e) { return null; } };
@@ -94,7 +111,7 @@ const inlineHashes = [...indexHtml.matchAll(/<script>([\s\S]*?)<\/script>/g)].ma
 const cloudOrigins = [...new Set([cloudEnv.syncUrl, cloudEnv.learnUrl].map(origin).filter(Boolean))];
 // The desktop app reads the daily puzzle from the public website (js/daily.js).
 const siteOrigin = origin(cloudEnv.siteUrl || 'https://thelogicgrid.com');
-const connect = ["'self'", 'blob:', 'data:', ...cloudOrigins, siteOrigin, 'https://identitytoolkit.googleapis.com', 'https://securetoken.googleapis.com', 'https://api.github.com',
+const connect = ["'self'", 'blob:', 'data:', ...cloudOrigins, siteOrigin, 'https://identitytoolkit.googleapis.com', 'https://securetoken.googleapis.com', 'https://api.github.com', 'https://api.pwnedpasswords.com',
   'ipc:', 'http://ipc.localhost', ...(cloudOrigins.length ? [] : ['http://localhost:*', 'http://127.0.0.1:*'])];
 const CSP = [
   "default-src 'self'",
@@ -135,7 +152,7 @@ const prev = join(root, 'dist', 'preview');
 rmSync(prev, { recursive: true, force: true });
 cpSync(out, prev, { recursive: true });
 rmSync(join(prev, 'sw.js'));
-let html = readFileSync(join(web, 'index.html'), 'utf8');
+let html = readFileSync(join(out, 'index.html'), 'utf8');
 const head = html.match(/<head>([\s\S]*?)<\/head>/)[1]
   .replace(/<meta charset[^>]*>\s*/, '').replace(/<meta name="viewport"[^>]*>\s*/, '').replace(/<link rel="manifest"[^>]*>\s*/, '');
 const body = html.match(/<body>([\s\S]*?)<\/body>/)[1];
@@ -170,7 +187,7 @@ cpSync(join(root, 'hosting'), site, { recursive: true });
 // night, so the expiry date always stays a year ahead.
 mkdirSync(join(site, '.well-known'), { recursive: true });
 writeFileSync(join(site, '.well-known', 'security.txt'), [
-  'Contact: mailto:fantasticallogicgrid@gmail.com',
+  'Contact: mailto:support@thelogicgrid.com',
   `Expires: ${new Date(Date.now() + 365 * 24 * 3600_000).toISOString().slice(0, 19)}Z`,
   'Preferred-Languages: en',
   `Canonical: ${(process.env.FLG_SITE_URL || 'https://thelogicgrid.com').replace(/\/+$/, '')}/.well-known/security.txt`,
@@ -181,6 +198,41 @@ writeFileSync(join(site, '.well-known', 'security.txt'), [
 // repository may be private).
 cpSync(join(root, 'LICENSE'), join(site, 'LICENSE.txt'));
 cpSync(join(root, 'SECURITY.md'), join(site, 'security-policy.txt'));
+// The "For educators" link in the game's top corner is for the website only.
+{
+  const f = join(site, 'index.html');
+  const html = readFileSync(f, 'utf8');
+  const shown = html.replace('id="educators-link" href="educators/" hidden>', 'id="educators-link" href="educators/">');
+  if (shown === html) throw new Error('Could not show the For educators link in dist/site/index.html');
+  writeFileSync(f, shown);
+}
 // Search pages, daily puzzle, sitemap and search tags (website only).
 const seo = await buildSeo({ root, site });
 console.log(`Built dist/site for web hosting (${seo.pages.length} pages in the sitemap).`);
+
+// The game page's first load (see MAINTENANCE.md, "Speed"):
+// - The setup screen's choice lists are drawn into index.html here, with the
+//   default choices, so the page is complete before any script runs and does
+//   not jump when app.js redraws them with the player's saved choices.
+// (modulepreload links for app.js's imports were tried and made the first
+// paint later, because they compete with the stylesheet and fonts.)
+async function speedUpFirstLoad(dir) {
+  const file = join(dir, 'index.html');
+  let page = readFileSync(file, 'utf8');
+  const url = (p) => new URL(`file://${join(dir, p)}`).href;
+  const { describeOptions } = await import(url('engine/index.js'));
+  const m = await import(url('js/setup-markup.js'));
+  const o = describeOptions();
+  const tier = o.difficulties.find((d) => d.id === 'easy') || o.difficulties[0];
+  const fill = (id, inner) => {
+    const re = new RegExp(`(<div[^>]*id="${id}"[^>]*>)(</div>)`);
+    if (!re.test(page)) throw new Error(`index.html has no empty #${id} to fill`);
+    page = page.replace(re, (_, open, close) => `${open}${inner}${close}`);
+  };
+  fill('tier-choices', m.tierChoicesHtml(o.difficulties, tier.id));
+  fill('theme-choices', m.themeGroupsHtml(o.themes, o.themeGroups, m.SURPRISE_THEME.id));
+  fill('size-choices', m.sizeChoicesHtml(m.sizesFor(tier), m.sizesFor(tier)[0]));
+  fill('clue-type-choices', m.clueTypesHtml(o.clueTypes, tier.clueTypes));
+
+  writeFileSync(file, page);
+}

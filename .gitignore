@@ -8,5 +8,8 @@ undefined/
 *.key
 .private/
 .lighthouseci/
+desktop-admin/src-tauri/target/
+desktop-admin/src-tauri/gen/
+screenshots/
 __pycache__/
 media/marketing/out/

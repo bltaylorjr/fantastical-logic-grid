@@ -52,12 +52,13 @@ binding = "ASSETS"
 run_worker_first = true
 html_handling = "none"
 
-# The daily cleanup of old data (src/upkeep.js), at 03:17 UTC, the weekly
-# archive email (src/archive.js), Mondays at 04:47 UTC, and the daily fetch of
-# Google and Bing search numbers (src/search.js), at 06:41 UTC. Free plans
-# allow up to 5 cron triggers.
+# The nightly maintenance at 2 am US Eastern (src/nightly.js): cleanup of old
+# data, database tidy-up and the Google and Bing search numbers. Crons are UTC,
+# so both 06:00 (summer) and 07:00 (winter) are listed and the code runs only
+# the one that is 2 am in New York. Also the weekly archive email
+# (src/archive.js), Mondays at 04:47 UTC. Free plans allow up to 5 cron triggers.
 [triggers]
-crons = ["17 3 * * *", "47 4 * * 1", "41 6 * * *"]
+crons = ["0 6 * * *", "0 7 * * *", "47 4 * * 1"]
 
 # The weekly archive email is sent from Gmail by a GitHub Action, because the
 # domain's DNS is not on Cloudflare (ARCHIVE.md). Only if it moves there and

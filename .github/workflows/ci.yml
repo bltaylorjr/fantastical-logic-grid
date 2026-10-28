@@ -13,6 +13,31 @@ concurrency:
   group: tests-${{ github.ref }}
   cancel-in-progress: true
 jobs:
+  # Every secret, variable and binding the code uses must be in the setup guide
+  # (admin/connections.js), and docs/CONNECTIONS.md must match it.
+  connections:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Setup guide lists every connection (admin/connections.js)
+        run: node scripts/connections.mjs check
+
+  # Puzzle engine: unique solutions, stories match grids, items in order.
+  engine:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Engine tests (quick run)
+        run: node engine/test/run-tests.js --quick
+
   app:
     runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork && '"ubuntu-latest"') || vars.FLG_RUNNER || '"ubuntu-latest"') }}
     timeout-minutes: 30
@@ -32,8 +57,10 @@ jobs:
       - run: npm ci
       - name: Install the test browser
         run: npm install --no-save --no-audit --no-fund playwright@1.63.0 && npx playwright install --with-deps chromium
-      - name: App tests (generate, play, save, print, voices, topics, learning)
-        run: npm test
+      - name: App tests (generate, play, save, print, voices, topics, learning, responsive layout)
+        run: mkdir -p screenshots && npm test
+        env:
+          SHOTS: screenshots
       - name: Accounts, races, error reports and the admin dashboard against the real Worker
         run: |
           npm --prefix server ci --no-audit --no-fund
@@ -44,6 +71,17 @@ jobs:
           node scripts/e2e-errors.cjs
           node scripts/e2e-admin.cjs
           node scripts/e2e-archive.cjs
+          node scripts/e2e-educators.cjs
+      # The screenshots from every size the layout test checks, to look at when
+      # a layout check fails (kept 14 days, free).
+      - name: Keep the screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: screenshots/
+          retention-days: 14
+          if-no-files-found: ignore
 
   server:
     runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork && '"ubuntu-latest"') || vars.FLG_RUNNER || '"ubuntu-latest"') }}
@@ -74,7 +112,7 @@ jobs:
       actions: write
     steps:
       - id: meta
-        uses: dependabot/fetch-metadata@v3
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
       - name: Merge a passing patch or minor update
         if: steps.meta.outputs.update-type == 'version-update:semver-patch' || steps.meta.outputs.update-type == 'version-update:semver-minor'
         env:

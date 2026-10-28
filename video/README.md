@@ -35,3 +35,18 @@ free runners.
 - A word the voice says oddly can be given as `['Caption text.', 'Spoken text.']`.
 - `SPEED` (default 0.94) and `VOICE` (default `am_michael`) are environment
   variables for `build.py`.
+
+## The Educators page video
+
+A second video shows teachers how to ask for a puzzle package, from the form
+and the school email code to the admin approval and the emailed PDFs. It plays
+on https://thelogicgrid.com/educators/.
+
+```
+npm run build && npm --prefix server ci
+node video/educators.cjs                       # records into video/out-educators
+VIDEO=educators python3 video/build.py --install   # writes seo/media/educators.*
+```
+
+`video.yml` rebuilds it with the how-to-play video whenever the game, the
+Educators page or its admin screen changes.

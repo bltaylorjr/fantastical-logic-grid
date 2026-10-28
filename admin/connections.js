@@ -1,0 +1,768 @@
+// Every outside connection the game's build and servers use: what it is, why
+// it is needed, the exact names and settings (never a secret's value), steps
+// and links. This one file is the single source for:
+//   - the admin dashboard's "Connections and setup" guide (admin/connections-view.js),
+//   - its live Connected / Missing status (server/src/connections.js),
+//   - docs/CONNECTIONS.md (node scripts/connections.mjs md),
+//   - owner task emails (node scripts/connections.mjs email <id> ...).
+// The Tests workflow (node scripts/connections.mjs check) fails when code uses a
+// secret, variable or binding that is not listed here, so add new ones here in
+// the same pull request.
+//
+// Shape of an entry:
+//   id, group, title, why, cost, docs (repo path), paused (mobile)
+//   names:    [{ name, where, optional, note, value }]  where is one of WHERE
+//   settings: [{ label, value }]  non-secret settings to set by hand
+//   steps:    ['text', ...]  **bold**, `code` and https:// links are formatted
+//   links:    [{ label, url }]
+//   checks:   live checks the Worker runs (see server/src/connections.js):
+//             { type: 'http', url, label, contains? }
+//             { type: 'dns', name, rr, contains?, label }
+//             { type: 'setting', key, value, label }
+//             { type: 'pages', field, value, label }  (reported by the Connections status Action)
+// Never put a secret's value in this file: the repository is public.
+
+const REPO = 'https://github.com/bltaylorjr/fantastical-logic-grid';
+const CF_WORKER = 'https://dash.cloudflare.com/?to=/:account/workers/services/view/flg-api/production/settings';
+const FIREBASE = 'https://console.firebase.google.com/project/the-fantastical-logic-grid';
+const ADMIN = 'https://flg-api.btay74.workers.dev/admin/';
+const SITE = 'https://thelogicgrid.com';
+
+export const WHERE = {
+  'worker-secret': { label: 'Cloudflare Worker secret', place: 'Cloudflare > Workers & Pages > flg-api > Settings > Variables and Secrets (type Secret)', url: CF_WORKER },
+  'worker-var': { label: 'Worker variable (server/wrangler.toml [vars])', place: 'server/wrangler.toml, under [vars]. Change it in the file, not the dashboard: a deploy resets dashboard values.', url: `${REPO}/blob/main/server/wrangler.toml` },
+  'worker-binding': { label: 'Worker binding (server/wrangler.toml)', place: 'server/wrangler.toml. Nothing to type in the dashboard.', url: `${REPO}/blob/main/server/wrangler.toml` },
+  'github-secret': { label: 'GitHub repository secret', place: 'GitHub > Settings > Secrets and variables > Actions > Secrets', url: `${REPO}/settings/secrets/actions` },
+  'github-variable': { label: 'GitHub repository variable', place: 'GitHub > Settings > Secrets and variables > Actions > Variables', url: `${REPO}/settings/variables/actions` },
+  'private-file': { label: 'Private file (never in the repository)', place: 'The project files folder .private/, and your own safe backup', url: null },
+};
+
+export const GROUPS = [
+  { id: 'website', title: 'Website and domain' },
+  { id: 'github', title: 'GitHub' },
+  { id: 'cloudflare', title: 'Cloudflare (the game server)' },
+  { id: 'google', title: 'Google and Firebase' },
+  { id: 'search', title: 'Search engines' },
+  { id: 'email', title: 'Email' },
+  { id: 'apps', title: 'Desktop and mobile apps' },
+  { id: 'marketing', title: 'Marketing autopilot (posting the approved ads)' },
+];
+
+const CF_SECRET_STEPS = (name, what) => [
+  `Open ${CF_WORKER} (Cloudflare > **Workers & Pages** > **flg-api** > **Settings** > **Variables and Secrets**).`,
+  `Click **Add** (or **Edit** next to \`${name}\` if it is already there).`,
+  `Choose type **Secret**, enter the name \`${name}\`, paste ${what} as the value, and click **Deploy**.`,
+];
+const GH_SECRET_STEPS = (name, what) => [
+  `Open ${REPO}/settings/secrets/actions and click **New repository secret** (or the pencil next to \`${name}\`).`,
+  `Name: \`${name}\`. Secret: ${what}. Click **Add secret**.`,
+];
+
+export const CONNECTIONS = [
+  // ------------------------------------------------------------- website
+  {
+    id: 'domain-dns',
+    group: 'website',
+    title: 'Domain and DNS (thelogicgrid.com)',
+    why: 'Points thelogicgrid.com and www at the GitHub Pages website. The same DNS settings hold the records for Resend (player emails) and, if you use it, Google\'s TXT verification. The domain stays off Cloudflare.',
+    cost: 'The domain renewal is paid at your registrar (yearly). DNS records themselves are free.',
+    docs: 'hosting/DEPLOY.md',
+    settings: [
+      { label: 'A records for @', value: '185.199.108.153, 185.199.109.153, 185.199.110.153, 185.199.111.153' },
+      { label: 'AAAA records for @', value: '2606:50c0:8000::153, 2606:50c0:8001::153, 2606:50c0:8002::153, 2606:50c0:8003::153' },
+      { label: 'CNAME for www', value: 'bltaylorjr.github.io' },
+    ],
+    steps: [
+      'Sign in at your domain registrar (where you bought thelogicgrid.com) and open the **DNS settings** for thelogicgrid.com.',
+      'Delete any parking-page `A`, `AAAA` or `CNAME` records for `@` and `www`.',
+      'Add the four `A` records, the four `AAAA` records and the `www` `CNAME` listed under Settings above.',
+      'Optional, protects the domain from takeover: open https://github.com/settings/pages, click **Add a domain**, enter `thelogicgrid.com`, and add the `TXT` record GitHub shows at the registrar. Then click **Verify**.',
+      'DNS changes take a few minutes to a day. The status here turns Connected when the records are seen.',
+    ],
+    links: [{ label: 'GitHub Pages domain verification', url: 'https://github.com/settings/pages' }, { label: 'DNS guide (hosting/DEPLOY.md)', url: `${REPO}/blob/main/hosting/DEPLOY.md` }],
+    checks: [
+      { type: 'dns', name: 'thelogicgrid.com', rr: 'A', contains: '185.199.', label: 'thelogicgrid.com points at GitHub Pages' },
+      { type: 'dns', name: 'www.thelogicgrid.com', rr: 'CNAME', contains: 'bltaylorjr.github.io', label: 'www points at GitHub Pages' },
+    ],
+  },
+  {
+    id: 'github-pages',
+    group: 'website',
+    title: 'GitHub Pages (the website)',
+    why: 'Hosts the game at https://thelogicgrid.com. The "Publish web version" workflow builds and publishes it on every push to main and every night at 00:17 UTC (the daily puzzle page). Once the source goes private (see "Private source"), Pages is served from the public repo bltaylorjr/thelogicgrid instead, so the Pages checks here become optional.',
+    cost: 'Free for public repositories.',
+    docs: 'hosting/DEPLOY.md',
+    names: [
+      { name: 'FLG_SITE_URL', where: 'github-variable', optional: true, note: 'Only if the site ever moves from https://thelogicgrid.com.' },
+    ],
+    settings: [
+      { label: 'Settings > Pages > Source', value: 'GitHub Actions' },
+      { label: 'Settings > Pages > Custom domain', value: 'thelogicgrid.com' },
+      { label: 'Settings > Pages > Enforce HTTPS', value: 'On' },
+    ],
+    steps: [
+      `Open ${REPO}/settings/pages.`,
+      'Under **Build and deployment**, set **Source** to **GitHub Actions**.',
+      'Under **Custom domain**, enter `thelogicgrid.com` and click **Save**. Wait for the DNS check to pass.',
+      'Tick **Enforce HTTPS** once GitHub has issued the certificate (it is greyed out until then).',
+      `To publish now, open ${REPO}/actions/workflows/pages.yml and click **Run workflow**.`,
+    ],
+    links: [{ label: 'Pages settings', url: `${REPO}/settings/pages` }, { label: 'Publish web version workflow', url: `${REPO}/actions/workflows/pages.yml` }],
+    checks: [
+      { type: 'http', url: `${SITE}/`, label: 'The website answers' },
+      { type: 'pages', field: 'build_type', value: 'workflow', label: 'Source is GitHub Actions', optional: true },
+      { type: 'pages', field: 'cname', value: 'thelogicgrid.com', label: 'Custom domain is thelogicgrid.com', optional: true },
+      { type: 'pages', field: 'https_enforced', value: true, label: 'Enforce HTTPS is on', optional: true },
+    ],
+  },
+  {
+    id: 'other-hosts',
+    group: 'website',
+    title: 'Extra web hosts (optional)',
+    why: 'Each push to main can also copy the website to other hosts. A host is skipped unless its secrets are set. None are needed: GitHub Pages already serves the site.',
+    cost: 'Free tiers exist for Netlify and Cloudflare Pages. Your own FTP or SSH hosting may cost money; check before adding it.',
+    docs: 'hosting/DEPLOY.md',
+    names: [
+      { name: 'NETLIFY_AUTH_TOKEN', where: 'github-secret', optional: true, note: 'Netlify: User settings > Applications > Personal access tokens.' },
+      { name: 'NETLIFY_SITE_ID', where: 'github-secret', optional: true, note: 'Netlify: Site configuration > Site ID.' },
+      { name: 'CLOUDFLARE_API_TOKEN', where: 'github-secret', optional: true, note: 'Cloudflare Pages (template "Edit Cloudflare Workers", or Cloudflare Pages: Edit).' },
+      { name: 'CLOUDFLARE_ACCOUNT_ID', where: 'github-secret', optional: true, note: 'Cloudflare Pages: the account ID on the dashboard sidebar.' },
+      { name: 'CLOUDFLARE_PROJECT', where: 'github-secret', optional: true, note: 'Cloudflare Pages project name.' },
+      { name: 'FTP_SERVER', where: 'github-secret', optional: true, note: 'FTP or FTPS host, e.g. ftps://host.' },
+      { name: 'FTP_USERNAME', where: 'github-secret', optional: true },
+      { name: 'FTP_PASSWORD', where: 'github-secret', optional: true },
+      { name: 'FTP_DIR', where: 'github-secret', optional: true, note: 'For example /public_html/.' },
+      { name: 'SSH_HOST', where: 'github-secret', optional: true },
+      { name: 'SSH_PORT', where: 'github-secret', optional: true },
+      { name: 'SSH_USER', where: 'github-secret', optional: true },
+      { name: 'SSH_PRIVATE_KEY', where: 'github-secret', optional: true, note: 'A key made only for deploying (ssh-keygen -t ed25519).' },
+      { name: 'SSH_PATH', where: 'github-secret', optional: true, note: 'For example /var/www/logic-grid.' },
+      { name: 'DEPLOY_HOOK_URL', where: 'github-secret', optional: true, note: 'A host\'s deploy or build hook (Vercel, Render, Netlify build hooks).' },
+    ],
+    steps: [
+      'Pick the host you want and find its values (see each name\'s note).',
+      ...GH_SECRET_STEPS('<NAME>', 'the value for that name'),
+      `The next push to main (or ${REPO}/actions/workflows/pages.yml > **Run workflow**) also deploys there.`,
+    ],
+    links: [{ label: 'Hosts table (hosting/DEPLOY.md)', url: `${REPO}/blob/main/hosting/DEPLOY.md#updating` }, { label: 'Netlify tokens', url: 'https://app.netlify.com/user/applications#personal-access-tokens' }],
+  },
+
+  // ------------------------------------------------------------- GitHub
+  {
+    id: 'github-actions',
+    group: 'github',
+    title: 'GitHub Actions settings',
+    why: 'Actions run the tests, publish the website, send the emails and make the how-to-play video. The video and Dependabot workflows open and merge their own pull requests, which needs this permission.',
+    cost: 'Free for public repositories.',
+    docs: 'MAINTENANCE.md',
+    settings: [
+      { label: 'Settings > Actions > General > Workflow permissions', value: 'Allow GitHub Actions to create and approve pull requests: ticked (done 26 Oct 2026)' },
+    ],
+    steps: [
+      `Open ${REPO}/settings/actions.`,
+      'Scroll to **Workflow permissions** and tick **Allow GitHub Actions to create and approve pull requests**. Click **Save**.',
+      'GitHub pauses scheduled workflows after 60 days without commits. If the health check or nightly publish stops, open the **Actions** tab and re-enable the workflow.',
+    ],
+    links: [{ label: 'Actions settings', url: `${REPO}/settings/actions` }, { label: 'All workflows', url: `${REPO}/actions` }],
+  },
+  {
+    id: 'private-source',
+    group: 'github',
+    title: 'Private source: build server and public site repo',
+    why: 'Keeps the source code private while players still get the website and desktop updates from a public, built-files-only repo (bltaylorjr/thelogicgrid). Builds run on a free Oracle Cloud server, because private repos get only 2,000 free Actions minutes a month. Everything stays off until these variables are set, and removing them goes back to the old way.',
+    cost: 'Free: Oracle Cloud Always Free VM, a public GitHub repo and a fine-grained token. Oracle may reclaim a VM that stays idle for 7 days.',
+    docs: 'docs/PRIVATE-REPO.md',
+    names: [
+      { name: 'FLG_RUNNER', where: 'github-variable', optional: true, value: '["self-hosted","flg"]', note: 'Runs Linux jobs on the Oracle build server.' },
+      { name: 'FLG_SITE_REPO', where: 'github-variable', optional: true, value: 'bltaylorjr/thelogicgrid', note: 'Publishes the site and mirrors releases to the public repo.' },
+      { name: 'SITE_REPO_TOKEN', where: 'github-secret', optional: true, note: 'Fine-grained token with Contents: read and write on bltaylorjr/thelogicgrid only.' },
+    ],
+    steps: [
+      'Create the public repository `bltaylorjr/thelogicgrid` at https://github.com/new (Public, no files).',
+      'Create a token at https://github.com/settings/personal-access-tokens/new: **Only select repositories** > `bltaylorjr/thelogicgrid`, **Contents: Read and write**. Copy it.',
+      ...GH_SECRET_STEPS('SITE_REPO_TOKEN', 'the token'),
+      'Set up the Oracle Cloud Always Free VM with `scripts/runner/oracle-cloud-init.sh` (steps in docs/PRIVATE-REPO.md).',
+      `Add the variable \`FLG_RUNNER\` = \`["self-hosted","flg"]\` at ${REPO}/settings/variables/actions and watch a few runs pass.`,
+      'Add the variable `FLG_SITE_REPO` = `bltaylorjr/thelogicgrid`, run **Publish web version** and **Release desktop app**, then move the Pages custom domain to the public repo.',
+      'Only after a desktop release with the new update address has shipped: **Settings** > **General** > **Danger Zone** > **Change visibility** > **Private**.',
+    ],
+    links: [{ label: 'GitHub variables', url: `${REPO}/settings/variables/actions` }, { label: 'Fine-grained tokens', url: 'https://github.com/settings/personal-access-tokens' }],
+    checks: [{ type: 'http', url: 'https://github.com/bltaylorjr/thelogicgrid', label: 'The public site repo exists', optional: true }],
+  },
+  {
+    id: 'github-security',
+    group: 'github',
+    title: 'Dependabot and GitHub security',
+    why: 'Dependabot opens a tested pull request when a library has an update (patch and minor updates merge themselves). Secret scanning and push protection stop a key from being pushed by mistake.',
+    cost: 'Free for public repositories.',
+    docs: 'MAINTENANCE.md',
+    settings: [
+      { label: 'Dependabot alerts', value: 'Enabled' },
+      { label: 'Dependabot security updates', value: 'Enabled' },
+      { label: 'Private vulnerability reporting', value: 'Enabled' },
+      { label: 'Secret scanning and Push protection', value: 'Enabled' },
+      { label: 'Branch ruleset "main" (optional)', value: 'Restrict deletions + Block force pushes. Do not require pull requests or approvals (that stops automatic merges).' },
+    ],
+    steps: [
+      `Open ${REPO}/settings/security_analysis and click **Enable** for each item under Settings above that is still off.`,
+      `Look through open alerts at ${REPO}/security/dependabot. Most have a Dependabot pull request already. A major update waits for a person: tell the project chat.`,
+      `Optional: ${REPO}/settings/rules > **New ruleset** > **New branch ruleset**, name \`main\`, Enforcement **Active**, **Add target** > **Include default branch**, keep **Restrict deletions** and **Block force pushes**, click **Create**.`,
+      'Turn on two-factor sign-in for GitHub (https://github.com/settings/security), Cloudflare (My Profile > Authentication) and Google (https://myaccount.google.com/security), for btay74@outlook.com and fantasticallogicgrid@gmail.com.',
+    ],
+    links: [{ label: 'Security settings', url: `${REPO}/settings/security_analysis` }, { label: 'Dependabot alerts', url: `${REPO}/security/dependabot` }, { label: 'Rulesets', url: `${REPO}/settings/rules` }],
+  },
+  {
+    id: 'admin-token',
+    group: 'github',
+    title: 'Break-glass key and the Actions admin key',
+    why: 'ADMIN_TOKEN opens the admin dashboard with the owner\'s rights when sign-in is down. GitHub Actions use the same value, as FLG_ADMIN_TOKEN, to fetch the error digest and free-limit alerts, send the weekly archive and summary emails, and report this page\'s GitHub status.',
+    cost: 'Free.',
+    docs: 'MAINTENANCE.md',
+    names: [
+      { name: 'ADMIN_TOKEN', where: 'worker-secret', note: 'A long random password, 16 characters or more. Keep it to yourself.' },
+      { name: 'FLG_ADMIN_TOKEN', where: 'github-secret', note: 'Exactly the same value as ADMIN_TOKEN.' },
+      { name: 'ARCHIVE_KEY', where: 'worker-secret', optional: true, note: 'Optional key for the coded player ids in archive zips. Without it ADMIN_TOKEN is used, so changing ADMIN_TOKEN changes the codes.' },
+    ],
+    steps: [
+      'Make a long random password (for example from a password manager, 32 characters).',
+      ...CF_SECRET_STEPS('ADMIN_TOKEN', 'that password'),
+      ...GH_SECRET_STEPS('FLG_ADMIN_TOKEN', 'the same password'),
+      'Cloudflare cannot show a secret again. If you lose it, make a new one and set it in both places.',
+    ],
+    links: [{ label: 'Worker variables and secrets', url: CF_WORKER }, { label: 'GitHub secrets', url: `${REPO}/settings/secrets/actions` }],
+  },
+
+  // ------------------------------------------------------------- Cloudflare
+  {
+    id: 'cloudflare-worker',
+    group: 'cloudflare',
+    title: 'Cloudflare Worker flg-api and Workers Builds',
+    why: 'The game server: accounts and sync, races and the scoreboard, voices, pictures, translations and this admin dashboard. Workers Builds deploys it and runs the database migrations on every push to main.',
+    cost: 'Free plan: 100,000 requests a day. Past that Cloudflare refuses requests; it never bills on the free plan.',
+    docs: 'server/README.md',
+    names: [
+      { name: 'FLG_CLOUD_URL', where: 'github-variable', value: 'https://flg-api.btay74.workers.dev', note: 'Tells the website and desktop builds where the server is.' },
+      { name: 'ALLOWED_ORIGINS', where: 'worker-var', note: 'The website and apps allowed to call the server.' },
+      { name: 'SITE_URL', where: 'worker-var', value: SITE },
+      { name: 'WORKER_NAME', where: 'worker-var', optional: true, note: 'Only if the Worker is renamed (default flg-api); used for usage numbers.' },
+      { name: 'ASSETS', where: 'worker-binding', note: 'Serves these admin dashboard files.' },
+    ],
+    settings: [
+      { label: 'Workers Builds > Root directory', value: 'server' },
+      { label: 'Workers Builds > Deploy command', value: 'npx wrangler d1 migrations apply flg --remote && npx wrangler deploy' },
+      { label: 'Workers Builds > Production branch', value: 'main' },
+      { label: 'Workers Builds > Builds for non-production branches', value: 'Off (stops the harmless red "Workers Builds: flg-api" check on pull requests)' },
+    ],
+    steps: [
+      'Open https://dash.cloudflare.com and choose **Workers & Pages** > **flg-api** > **Settings** > **Build**.',
+      `Check the Git repository is \`bltaylorjr/fantastical-logic-grid\`, root directory \`server\` and the deploy command shown under Settings.`,
+      'Under **Branch control**, untick **Builds for non-production branches** (or **Enable non-production branch builds**) and click **Save**.',
+      `In GitHub, ${REPO}/settings/variables/actions, check the variable \`FLG_CLOUD_URL\` is \`https://flg-api.btay74.workers.dev\`.`,
+      'If a build shows success but the old code stays live, open **Deployments** and click **Retry build**.',
+    ],
+    links: [{ label: 'Worker settings', url: CF_WORKER }, { label: 'GitHub variables', url: `${REPO}/settings/variables/actions` }, { label: 'Admin dashboard', url: ADMIN }],
+  },
+  {
+    id: 'cloudflare-d1',
+    group: 'cloudflare',
+    title: 'Cloudflare D1 database "flg"',
+    why: 'Stores accounts\' synced saves, screen names, scores, races, settings, story parts, feedback and the audit log.',
+    cost: 'Free: 5 GB, 5 million row reads and 100,000 row writes a day. It stops, never bills, on the free plan.',
+    docs: 'server/README.md',
+    names: [{ name: 'DB', where: 'worker-binding', note: 'database_name "flg", database_id in server/wrangler.toml.' }],
+    settings: [{ label: 'database_id', value: '7285197a-aadd-4e07-ba53-0af8268cf794' }],
+    steps: [
+      'Nothing to do while it works. The database already exists and Workers Builds applies new tables (server/migrations) before each deploy.',
+      'To look at it: Cloudflare > **Storage & Databases** > **D1** > **flg**.',
+      'If it is ever re-made, put its new id in `server/wrangler.toml` (`database_id`).',
+    ],
+    links: [{ label: 'D1 databases', url: 'https://dash.cloudflare.com/?to=/:account/workers/d1' }],
+  },
+  {
+    id: 'cloudflare-ai',
+    group: 'cloudflare',
+    title: 'Cloudflare Workers AI (pictures and translations)',
+    why: 'Paints the AI scene pictures and portraits, and translates the game for players who pick another language.',
+    cost: 'Free daily allowance. On the free plan Cloudflare refuses requests past it; it never bills.',
+    docs: 'server/README.md',
+    names: [{ name: 'AI', where: 'worker-binding', note: 'The [ai] binding in server/wrangler.toml. No key needed.' }],
+    steps: ['Nothing to set up. Switch pictures and translations on or off in **Settings and switches** (Pictures, Languages).'],
+    links: [{ label: 'Workers AI', url: 'https://dash.cloudflare.com/?to=/:account/ai/workers-ai' }],
+  },
+  {
+    id: 'cloudflare-limits',
+    group: 'cloudflare',
+    title: 'Cloudflare rate limits',
+    why: 'Per-player and per-connection request limits that keep the free allowances safe from floods.',
+    cost: 'Free.',
+    docs: 'server/wrangler.toml',
+    names: ['LIMIT_SYNC', 'LIMIT_AUTHLESS', 'LIMIT_COMPETE', 'LIMIT_PLAYS', 'LIMIT_PARTS', 'LIMIT_TTS', 'LIMIT_FEEDBACK', 'LIMIT_PICTURES', 'LIMIT_TRANSLATE', 'LIMIT_ERRORS', 'LIMIT_ADMIN_IP', 'LIMIT_ADMIN', 'LIMIT_MESSAGES']
+      .map((name) => ({ name, where: 'worker-binding' })),
+    steps: ['Nothing to set up: each limit is a [[ratelimits]] block in `server/wrangler.toml`. Change the numbers there.'],
+    links: [{ label: 'wrangler.toml', url: `${REPO}/blob/main/server/wrangler.toml` }],
+  },
+  {
+    id: 'cloudflare-usage',
+    group: 'cloudflare',
+    title: 'Cloudflare usage numbers and free-limit alerts (optional)',
+    why: 'Lets Overview and Usage show daily Worker requests and D1 reads and writes against the free limits, and warn at the alert level (80%).',
+    cost: 'Free.',
+    docs: 'admin/README.md',
+    names: [
+      { name: 'CF_API_TOKEN', where: 'worker-secret', optional: true, note: 'A Custom token with Account > Account Analytics > Read only.' },
+      { name: 'CF_ACCOUNT_ID', where: 'worker-secret', optional: true, note: 'Shown on the right of the Workers & Pages overview.' },
+    ],
+    steps: [
+      'Open https://dash.cloudflare.com/profile/api-tokens, click **Create Token**, and under **Custom token** click **Get started**.',
+      'Name it `logic-grid-usage`. Permissions: **Account** > **Account Analytics** > **Read**. Click **Continue to summary**, then **Create Token**, and copy it.',
+      ...CF_SECRET_STEPS('CF_API_TOKEN', 'the token'),
+      'Add a second secret, `CF_ACCOUNT_ID`, with your Account ID, and click **Deploy**.',
+      'Check **Usage and free limits** in this dashboard.',
+    ],
+    links: [{ label: 'Cloudflare API tokens', url: 'https://dash.cloudflare.com/profile/api-tokens' }, { label: 'Worker variables and secrets', url: CF_WORKER }],
+  },
+
+  // ------------------------------------------------------------- Google
+  {
+    id: 'firebase-auth',
+    group: 'google',
+    title: 'Firebase Authentication (player and admin sign-in)',
+    why: 'Email and password accounts, password reset and email confirmation. The website needs the web API key to show sign-in; the Worker checks Firebase\'s signed tokens with the project id.',
+    cost: 'Free on the Spark plan (50,000 monthly active players). Spark never bills.',
+    docs: 'server/README.md',
+    names: [
+      { name: 'FLG_FIREBASE_API_KEY', where: 'github-variable', note: 'The Firebase Web API key (starts AIza). A variable, not a secret: it is public by design, but GitHub\'s scanner flags it in code.' },
+      { name: 'FIREBASE_PROJECT_ID', where: 'worker-var', value: 'the-fantastical-logic-grid' },
+    ],
+    settings: [
+      { label: 'Authentication > Sign-in method', value: 'Email/Password: Enabled (Email link off)' },
+      { label: 'Authentication > Templates > Reply to', value: 'fantasticallogicgrid@gmail.com (optional)' },
+      { label: 'Google Cloud > Credentials > Browser key > API restrictions', value: 'Identity Toolkit API and Token Service API only. Application restrictions: None (a website restriction breaks the desktop app).' },
+    ],
+    steps: [
+      `Open ${FIREBASE}/authentication/providers and check **Email/Password** is **Enabled**.`,
+      `Open ${FIREBASE}/settings/general and copy the **Web API key** (starts \`AIza\`).`,
+      `In GitHub, ${REPO}/settings/variables/actions: the variable \`FLG_FIREBASE_API_KEY\` must hold that key. Then run **Publish web version**.`,
+      'Optional: https://console.cloud.google.com/apis/credentials (project the-fantastical-logic-grid) > **Browser key (auto created by Firebase)** > **API restrictions** > **Restrict key**, allow only Identity Toolkit API and Token Service API, **Save**.',
+      `Optional: ${FIREBASE}/authentication/emails, edit each template, set **Reply to** to fantasticallogicgrid@gmail.com, and save.`,
+    ],
+    links: [{ label: 'Firebase sign-in methods', url: `${FIREBASE}/authentication/providers` }, { label: 'Firebase project settings', url: `${FIREBASE}/settings/general` }, { label: 'Google Cloud credentials', url: 'https://console.cloud.google.com/apis/credentials' }],
+  },
+  {
+    id: 'admin-sign-in',
+    group: 'google',
+    title: 'Admin dashboard sign-in',
+    why: 'Who owns this dashboard. The owner signs in with a confirmed game account whose email matches OWNER_EMAIL; the Worker needs the Firebase web API key to sign admins in.',
+    cost: 'Free.',
+    docs: 'admin/README.md',
+    names: [
+      { name: 'OWNER_EMAIL', where: 'worker-secret', value: 'fantasticallogicgrid@gmail.com', note: 'The owner\'s game account email.' },
+      { name: 'FIREBASE_WEB_API_KEY', where: 'worker-secret', note: 'The same AIza key as the GitHub variable FLG_FIREBASE_API_KEY. A value starting AQ. is wrong.' },
+    ],
+    steps: [
+      'In the game (https://thelogicgrid.com), **Menu** > **Account and sync**: make an account with fantasticallogicgrid@gmail.com and click the link in the confirmation email.',
+      ...CF_SECRET_STEPS('OWNER_EMAIL', '`fantasticallogicgrid@gmail.com`'),
+      `Copy the **Web API key** from ${FIREBASE}/settings/general and set it the same way as the secret \`FIREBASE_WEB_API_KEY\`.`,
+      `Open ${ADMIN} and sign in with that game account. Add helpers under **Admins**.`,
+    ],
+    links: [{ label: 'Worker variables and secrets', url: CF_WORKER }, { label: 'Firebase project settings', url: `${FIREBASE}/settings/general` }],
+  },
+  {
+    id: 'gemini',
+    group: 'google',
+    title: 'Google Gemini (server voices and the AI story writer)',
+    why: 'Gives characters natural server voices and drafts story parts in the Story workshop.',
+    cost: 'Free tier from Google AI Studio (no card). The daily voice cap keeps it inside the free limit.',
+    docs: 'server/LEARNING.md',
+    names: [
+      { name: 'GEMINI_API_KEY', where: 'worker-secret', note: 'A key from Google AI Studio. Never one that was posted anywhere.' },
+      { name: 'TTS_MODEL', where: 'worker-var', note: 'The Gemini voice model (the dashboard setting can override it).' },
+      { name: 'DAILY_TTS_CAP', where: 'worker-var', value: '300', note: 'Default daily voice clips; the dashboard setting replaces it.' },
+    ],
+    steps: [
+      'Open https://aistudio.google.com/app/apikey and click **Create API key**. Copy it.',
+      ...CF_SECRET_STEPS('GEMINI_API_KEY', 'the key'),
+      'Voices, the cap and the model can be changed in **Settings and switches** > **Voices**.',
+    ],
+    links: [{ label: 'Google AI Studio keys', url: 'https://aistudio.google.com/app/apikey' }, { label: 'Worker variables and secrets', url: CF_WORKER }],
+  },
+  {
+    id: 'google-tts',
+    group: 'google',
+    title: 'Google Cloud Text-to-Speech, Chirp 3 HD (backup voices)',
+    why: 'Speaks when Gemini\'s free voices are off or used up, with the same voice for each character.',
+    cost: 'COST WARNING: Google Cloud needs a billing account with a card and bills past 1,000,000 characters a month. The Worker stops at GCLOUD_TTS_MONTH_CAP (900,000). Keep the $1 budget alert.',
+    docs: 'server/LEARNING.md',
+    names: [
+      { name: 'GOOGLE_TTS_KEY', where: 'worker-secret', optional: true, note: 'An API key restricted to the Cloud Text-to-Speech API only.' },
+      { name: 'GCLOUD_TTS_MONTH_CAP', where: 'worker-var', value: '900000', note: 'Keep it under Google\'s free 1,000,000.' },
+    ],
+    settings: [{ label: 'Billing > Budgets & alerts', value: 'A $1 budget that emails you (set up 26 Oct 2026)' }],
+    steps: [
+      'In https://console.cloud.google.com, pick (or make) a project and link a billing account.',
+      'Turn on the API: https://console.cloud.google.com/apis/library/texttospeech.googleapis.com > **Enable**.',
+      'https://console.cloud.google.com/apis/credentials > **Create credentials** > **API key**. Edit it: **API restrictions** > **Restrict key** > **Cloud Text-to-Speech API** only. **Save** and copy it.',
+      'https://console.cloud.google.com/billing/budgets > **Create budget**: amount $1, email alerts on.',
+      ...CF_SECRET_STEPS('GOOGLE_TTS_KEY', 'the key'),
+      'Switch: **Settings and switches** > **Voices** > **Backup server voices**.',
+    ],
+    links: [{ label: 'Text-to-Speech API', url: 'https://console.cloud.google.com/apis/library/texttospeech.googleapis.com' }, { label: 'Credentials', url: 'https://console.cloud.google.com/apis/credentials' }, { label: 'Budgets & alerts', url: 'https://console.cloud.google.com/billing/budgets' }],
+    checks: [{ type: 'setting', key: 'gcloud_tts_enabled', value: true, label: 'Backup voices switch is on' }],
+  },
+
+  // ------------------------------------------------------------- search
+  {
+    id: 'search-console',
+    group: 'search',
+    title: 'Google Search Console',
+    why: 'Gets the site into Google, shows what people searched, and feeds the dashboard\'s Search section.',
+    cost: 'Free.',
+    docs: 'SEO.md',
+    names: [
+      { name: 'GSC_SERVICE_ACCOUNT', where: 'worker-secret', optional: true, note: 'The whole JSON key of a Google Cloud service account that is a Restricted user on the property.' },
+      { name: 'SEARCH_SITE_URL', where: 'worker-var', value: `${SITE}/`, note: 'Use sc-domain:thelogicgrid.com for a domain property.' },
+      { name: 'FLG_GOOGLE_SITE_VERIFICATION', where: 'github-variable', optional: true, note: 'Only for the "HTML tag" method. The site uses the HTML file method.' },
+    ],
+    settings: [
+      { label: 'Property', value: `${SITE}/ (verified with the HTML file hosting/google42317eab27119d46.html; keep it)` },
+      { label: 'Sitemaps', value: 'sitemap.xml' },
+    ],
+    steps: [
+      'Open https://search.google.com/search-console and pick `https://thelogicgrid.com/`.',
+      'Go to **Sitemaps**, enter `sitemap.xml`, and click **Submit** (skip if already listed).',
+      'For dashboard numbers, go to https://console.cloud.google.com and make a project named `logic-grid-search`.',
+      'Turn on https://console.cloud.google.com/apis/library/searchconsole.googleapis.com > **Enable**.',
+      'https://console.cloud.google.com/iam-admin/serviceaccounts > **Create service account**, name `search-reader`, **Done** (no roles).',
+      'Open it > **Keys** > **Add key** > **Create new key** > **JSON** > **Create**. Copy its `client_email`.',
+      'In Search Console, **Settings** > **Users and permissions** > **Add user**, paste that email, choose **Restricted**, **Add**.',
+      ...CF_SECRET_STEPS('GSC_SERVICE_ACCOUNT', 'everything in the downloaded .json file (open it in Notepad)'),
+      'Delete the downloaded file. In this dashboard open **Search** and click **Refresh now**.',
+    ],
+    links: [{ label: 'Search Console', url: 'https://search.google.com/search-console' }, { label: 'Service accounts', url: 'https://console.cloud.google.com/iam-admin/serviceaccounts' }, { label: 'SEO.md', url: `${REPO}/blob/main/SEO.md` }],
+    checks: [{ type: 'http', url: `${SITE}/google42317eab27119d46.html`, label: 'Google verification file is published' }],
+  },
+  {
+    id: 'bing-webmaster',
+    group: 'search',
+    title: 'Bing Webmaster Tools',
+    why: 'Gets the site into Bing (which also feeds DuckDuckGo, Yahoo and Ecosia) and feeds the dashboard\'s Search section.',
+    cost: 'Free.',
+    docs: 'SEO.md',
+    names: [
+      { name: 'BING_WEBMASTER_KEY', where: 'worker-secret', optional: true, note: 'Bing Webmaster > Settings > API access > API Key.' },
+      { name: 'FLG_BING_SITE_VERIFICATION', where: 'github-variable', optional: true, note: 'Only for the meta tag method. The site uses the XML file method.' },
+    ],
+    settings: [{ label: 'Verification', value: 'XML file hosting/BingSiteAuth.xml at the site root (keep it)' }],
+    steps: [
+      'Open https://www.bing.com/webmasters and pick thelogicgrid.com (or **Import from Google Search Console**).',
+      '**Sitemaps** > **Submit sitemap**: `https://thelogicgrid.com/sitemap.xml` (skip if listed).',
+      'For dashboard numbers: **Settings** (gear) > **API access** > **API Key** > **Generate**. Copy it.',
+      ...CF_SECRET_STEPS('BING_WEBMASTER_KEY', 'the key'),
+    ],
+    links: [{ label: 'Bing Webmaster Tools', url: 'https://www.bing.com/webmasters' }],
+    checks: [{ type: 'http', url: `${SITE}/BingSiteAuth.xml`, label: 'Bing verification file is published' }],
+  },
+  {
+    id: 'indexnow',
+    group: 'search',
+    title: 'IndexNow (tell Bing and others about changed pages)',
+    why: 'After each publish, the website workflow tells Bing, Yandex, Seznam and Naver which pages changed. The key file on the site proves it is ours.',
+    cost: 'Free.',
+    docs: 'SEO.md',
+    names: [{ name: 'FLG_INDEXNOW_KEY', where: 'github-variable', optional: true, note: 'Only to use a different key; also change INDEXNOW_KEY in scripts/seo.mjs.' }],
+    steps: ['Nothing to set up. The key file is published with every build.'],
+    links: [{ label: 'IndexNow', url: 'https://www.indexnow.org/documentation' }],
+    checks: [{ type: 'http', url: `${SITE}/fae88a004ad87116c0e93df007b2de7e.txt`, contains: 'fae88a004ad87116c0e93df007b2de7e', label: 'IndexNow key file is published' }],
+  },
+
+  // ------------------------------------------------------------- marketing
+  // scripts/marketing-post.py posts approved ads on their day with these keys;
+  // a site without its key is emailed to the owner to post by hand instead.
+  {
+    id: 'bluesky',
+    group: 'marketing',
+    title: 'Bluesky (automatic posts)',
+    why: 'Lets the marketing autopilot post approved Bluesky ads on their day. Without it, the Bluesky ad is emailed to you to post by hand.',
+    cost: 'Free. An app password can only post; it cannot change the account password or settings.',
+    docs: 'scripts/marketing-post.py',
+    names: [
+      { name: 'BLUESKY_HANDLE', where: 'github-secret', note: 'The game account\'s handle, for example thelogicgrid.bsky.social.' },
+      { name: 'BLUESKY_APP_PASSWORD', where: 'github-secret', note: 'An app password, never the account password.' },
+    ],
+    steps: [
+      'Sign in to https://bsky.app as the game\'s account, then open **Settings** > **Privacy and security** > **App passwords** > **Add App Password**. Name it `Logic Grid autopilot` and copy the password it shows.',
+      ...GH_SECRET_STEPS('BLUESKY_APP_PASSWORD', 'that app password'),
+      'Add `BLUESKY_HANDLE` the same way: the handle without the @.',
+      `Test: ${REPO}/actions/workflows/marketing-post.yml > **Run workflow** with mode \`check\`. It should say Bluesky: connected.`,
+    ],
+    links: [{ label: 'Bluesky app passwords', url: 'https://bsky.app/settings/app-passwords' }],
+  },
+  {
+    id: 'mastodon',
+    group: 'marketing',
+    title: 'Mastodon (automatic posts)',
+    why: 'Lets the marketing autopilot post approved Mastodon ads on their day.',
+    cost: 'Free.',
+    docs: 'scripts/marketing-post.py',
+    names: [
+      { name: 'MASTODON_URL', where: 'github-variable', note: 'The server the account is on, for example https://mastodon.social.' },
+      { name: 'MASTODON_TOKEN', where: 'github-secret', note: 'An access token that can only post.' },
+    ],
+    steps: [
+      'Sign in to your Mastodon server, open **Preferences** > **Development** > **New application**. Name it `Logic Grid autopilot`. Under scopes, untick everything except `read:accounts`, `write:statuses` and `write:media`. Click **Submit**.',
+      'Open the new application and copy **Your access token**.',
+      ...GH_SECRET_STEPS('MASTODON_TOKEN', 'that access token'),
+      `Open ${REPO}/settings/variables/actions, click **New repository variable**, name \`MASTODON_URL\`, value your server address (for example \`https://mastodon.social\`).`,
+      `Test: ${REPO}/actions/workflows/marketing-post.yml > **Run workflow** with mode \`check\`.`,
+    ],
+    links: [{ label: 'Mastodon servers', url: 'https://joinmastodon.org/servers' }],
+  },
+  {
+    id: 'x',
+    group: 'marketing',
+    title: 'X (automatic posts)',
+    why: 'Lets the marketing autopilot post approved X ads on their day (text and link; the link shows the game\'s picture card).',
+    cost: 'Free on the X API Free plan, which allows far more posts a month than this campaign needs. Do not pick a paid plan.',
+    docs: 'scripts/marketing-post.py',
+    names: [
+      { name: 'X_API_KEY', where: 'github-secret', note: 'API Key (consumer key).' },
+      { name: 'X_API_SECRET', where: 'github-secret', note: 'API Key Secret.' },
+      { name: 'X_ACCESS_TOKEN', where: 'github-secret', note: 'Access Token for the game\'s X account, made after setting Read and write.' },
+      { name: 'X_ACCESS_SECRET', where: 'github-secret', note: 'Access Token Secret.' },
+    ],
+    steps: [
+      'Signed in as the game\'s X account, open https://developer.x.com/en/portal/dashboard and sign up for the **Free** plan. Describe the use as: posting the game\'s own scheduled announcements.',
+      'Open your app > **User authentication settings** > **Set up**. App permissions: **Read and write**. Type: **Web App, Automated App or Bot**. Callback URI and website: `https://thelogicgrid.com`. Save.',
+      'Open **Keys and tokens**. Regenerate the **API Key and Secret** and copy both. Then generate the **Access Token and Secret** (after setting Read and write) and copy both.',
+      ...GH_SECRET_STEPS('X_API_KEY', 'the API Key'),
+      'Add `X_API_SECRET`, `X_ACCESS_TOKEN` and `X_ACCESS_SECRET` the same way.',
+      `Test: ${REPO}/actions/workflows/marketing-post.yml > **Run workflow** with mode \`check\`.`,
+    ],
+    links: [{ label: 'X developer portal', url: 'https://developer.x.com/en/portal/dashboard' }],
+  },
+  {
+    id: 'meta',
+    group: 'marketing',
+    title: 'Facebook Page and Instagram (automatic posts)',
+    why: 'Lets the marketing autopilot post approved ads to the game\'s Facebook Page and Instagram (pictures and Reels) on their day. Posts in Facebook groups are always by hand: Facebook no longer lets apps post in groups.',
+    cost: 'Free. The app stays in development mode, which is enough to post to Pages and accounts you manage.',
+    docs: 'scripts/marketing-post.py',
+    names: [
+      { name: 'META_PAGE_ID', where: 'github-secret', note: 'The Facebook Page\'s id (a number).' },
+      { name: 'META_PAGE_TOKEN', where: 'github-secret', note: 'A Page access token made from a long-lived user token, so it does not expire. Also used for Instagram.' },
+      { name: 'INSTAGRAM_ACCOUNT_ID', where: 'github-secret', note: 'The Instagram business account id linked to the Page (a number).' },
+    ],
+    steps: [
+      'In the Instagram app, make the game\'s account a free **Business** or **Creator** account (**Settings** > **Account type and tools**). Link it to the game\'s Facebook Page (Page **Settings** > **Linked accounts** > **Instagram**).',
+      'Open https://developers.facebook.com/apps, click **Create app**, choose **Other**, then type **Business**. Name it `Logic Grid autopilot`.',
+      'Open https://developers.facebook.com/tools/explorer, choose that app, and click **Generate Access Token** with these permissions: `pages_show_list`, `pages_read_engagement`, `pages_manage_posts`, `instagram_basic`, `instagram_content_publish`, `business_management`. Allow it for the game\'s Page and Instagram account.',
+      'Open https://developers.facebook.com/tools/debug/accesstoken, paste that token, click **Debug**, then **Extend Access Token** and copy the long-lived token.',
+      'Back in the Explorer, paste the long-lived token and run `me/accounts`. Copy the game Page\'s `access_token` and `id`.',
+      ...GH_SECRET_STEPS('META_PAGE_TOKEN', 'the Page access_token'),
+      'Add `META_PAGE_ID` the same way: the Page `id`.',
+      'In the Explorer, run `<page id>?fields=instagram_business_account` and add its `id` as the secret `INSTAGRAM_ACCOUNT_ID`.',
+      `Test: ${REPO}/actions/workflows/marketing-post.yml > **Run workflow** with mode \`check\`. Facebook Page and Instagram should say connected.`,
+    ],
+    links: [{ label: 'Meta apps', url: 'https://developers.facebook.com/apps' }, { label: 'Graph API Explorer', url: 'https://developers.facebook.com/tools/explorer' }],
+  },
+  {
+    id: 'threads',
+    group: 'marketing',
+    title: 'Threads (automatic posts)',
+    why: 'Lets the marketing autopilot post approved Threads ads on their day.',
+    cost: 'Free. The token lasts 60 days; make a new one when the check says it stopped working.',
+    docs: 'scripts/marketing-post.py',
+    names: [
+      { name: 'THREADS_USER_ID', where: 'github-secret', note: 'The Threads account id (a number).' },
+      { name: 'THREADS_TOKEN', where: 'github-secret', note: 'A long-lived Threads token (60 days).' },
+    ],
+    steps: [
+      'Open https://developers.facebook.com/apps, click **Create app**, and choose the use case **Access the Threads API**. Name it `Logic Grid Threads`.',
+      'In the app, open **App roles** > **Roles** > **Add people** > **Threads testers** and add the game\'s Threads account. Accept the invite in Threads (**Settings** > **Account** > **Website permissions** > **Invites**).',
+      'Open **Use cases** > **Access the Threads API** > **Settings**. Tick `threads_basic` and `threads_content_publish`, then use **User Token Generator** to make a token for the game account and copy it.',
+      ...GH_SECRET_STEPS('THREADS_TOKEN', 'that token'),
+      'Open `https://graph.threads.net/v1.0/me?fields=id&access_token=` followed by the token in your browser, and add the `id` it shows as the secret `THREADS_USER_ID`.',
+      `Test: ${REPO}/actions/workflows/marketing-post.yml > **Run workflow** with mode \`check\`.`,
+    ],
+    links: [{ label: 'Threads API', url: 'https://developers.facebook.com/docs/threads' }],
+  },
+
+  // ------------------------------------------------------------- email
+  {
+    id: 'gmail',
+    group: 'email',
+    title: 'Gmail app password (the game\'s outgoing email)',
+    why: 'GitHub Actions send the weekly archive and summary emails, the daily player report, owner task emails and the backup thank-you notes from fantasticallogicgrid@gmail.com.',
+    cost: 'Free. Gmail allows about 500 emails a day.',
+    docs: 'server/ARCHIVE.md',
+    names: [
+      { name: 'GMAIL_USER', where: 'github-secret', value: 'fantasticallogicgrid@gmail.com' },
+      { name: 'GMAIL_APP_PASSWORD', where: 'github-secret', note: 'The 16-letter app password (spaces are fine).' },
+      { name: 'ARCHIVE_TO', where: 'github-secret', value: 'fantasticallogicgrid@gmail.com', note: 'Where archive zips go.' },
+      { name: 'SUMMARY_TO', where: 'github-secret', optional: true, note: 'Weekly summary to another address (otherwise ARCHIVE_TO).' },
+      { name: 'OWNER_TASKS_TO', where: 'github-secret', optional: true, note: 'Owner task emails to another address (otherwise GMAIL_USER).' },
+      { name: 'NIGHTLY_TO', where: 'github-secret', optional: true, note: 'Nightly maintenance problem emails to another address (otherwise ARCHIVE_TO).' },
+      { name: 'REPORTS_TO', where: 'github-secret', optional: true, note: 'Daily player report to another address (otherwise ARCHIVE_TO).' },
+      { name: 'PLAYER_REPORTS', where: 'github-variable', optional: true, value: 'off', note: 'Only to stop the daily player report email.' },
+      { name: 'IMPROVE', where: 'github-variable', optional: true, note: 'Weekly improvement run: off stops it; report emails the report but never changes the tuning.' },
+    ],
+    settings: [{ label: 'Google account > Security > 2-Step Verification', value: 'On (needed for app passwords)' }],
+    steps: [
+      'Sign in to fantasticallogicgrid@gmail.com and turn on 2-Step Verification: https://myaccount.google.com/signinoptions/twosv',
+      'Open https://myaccount.google.com/apppasswords, type `Logic Grid archive`, click **Create**, and copy the 16-letter password.',
+      ...GH_SECRET_STEPS('GMAIL_APP_PASSWORD', 'the app password'),
+      'Add `GMAIL_USER` and `ARCHIVE_TO` the same way, both `fantasticallogicgrid@gmail.com`.',
+      `Test: ${REPO}/actions/workflows/archive-email.yml > **Run workflow** with **Test send** ticked. Check Junk the first time.`,
+    ],
+    links: [{ label: 'App passwords', url: 'https://myaccount.google.com/apppasswords' }, { label: 'GitHub secrets', url: `${REPO}/settings/secrets/actions` }],
+  },
+  {
+    id: 'weekly-archive',
+    group: 'email',
+    title: 'Weekly archive email and removal',
+    why: 'Every Monday old rows are zipped and emailed, then (once you allow it) removed so the free database never fills.',
+    cost: 'Free.',
+    docs: 'server/ARCHIVE.md',
+    names: [
+      { name: 'ARCHIVE_TO', where: 'worker-secret', optional: true, note: 'Only for the Cloudflare Email Routing path (domain DNS on Cloudflare). Not used today.' },
+      { name: 'ARCHIVE_FROM', where: 'worker-var', value: 'backups@thelogicgrid.com', note: 'Only for the Cloudflare Email Routing path.' },
+      { name: 'ARCHIVE_EMAIL', where: 'worker-binding', optional: true, note: 'The commented [[send_email]] binding, only if DNS moves to Cloudflare.' },
+    ],
+    settings: [
+      { label: 'Settings and switches > Backups > Weekly archive email', value: 'On' },
+      { label: 'Settings and switches > Backups > Remove archived rows after the email is sent', value: 'On, once you agree with the list in Backups and archive' },
+    ],
+    steps: [
+      'Set up the Gmail app password first (the connection above).',
+      'In this dashboard, **Settings and switches** > **Backups**: turn on **Weekly archive email**.',
+      'Read **Backups and archive**: what goes and how long each kind is kept.',
+      'If you agree, turn on **Remove archived rows after the email is sent**. Keep the emails: they are then the only copy.',
+    ],
+    links: [{ label: 'ARCHIVE.md', url: `${REPO}/blob/main/server/ARCHIVE.md` }],
+    checks: [
+      { type: 'setting', key: 'archive_email_enabled', value: true, label: 'Weekly archive email is on' },
+      { type: 'setting', key: 'archive_delete_enabled', value: true, label: 'Removal after the email is on', optional: true },
+    ],
+  },
+  {
+    id: 'resend',
+    group: 'email',
+    title: 'Resend: player emails from noreply@thelogicgrid.com',
+    docs: 'server/FEEDBACK-EMAILS.md',
+    why: 'Sends the thank-you notes for ideas and problems from noreply@thelogicgrid.com instead of the Gmail address. Until it is set up, notes go from Gmail, so nothing is lost.',
+    cost: 'Free plan: 3,000 emails a month, 100 a day, no card. Past that Resend refuses and Gmail takes over.',
+    names: [
+      { name: 'RESEND_API_KEY', where: 'github-secret', optional: true, note: 'Starts re_. Sending access, domain thelogicgrid.com only.' },
+      { name: 'MAIL_FROM', where: 'github-variable', optional: true, note: 'Another sender on the domain, e.g. hello@thelogicgrid.com.' },
+    ],
+    settings: [
+      { label: 'Resend domain', value: 'thelogicgrid.com, region US East' },
+      { label: 'DNS records (copy exactly from Resend)', value: 'TXT for resend._domainkey, CNAME for send and rsend, optional TXT for _dmarc (or use Resend\'s Go to Namecheap button)' },
+    ],
+    steps: [
+      'Sign up at https://resend.com with fantasticallogicgrid@gmail.com.',
+      'https://resend.com/domains > **Add domain** > `thelogicgrid.com`, region US East, **Add**.',
+      'At your registrar\'s DNS settings for thelogicgrid.com, add each record Resend shows with the same type, name, value and priority. If your DNS host adds `.thelogicgrid.com` itself, enter only `send` or `resend._domainkey` as the name.',
+      'Back in Resend, click **Verify DNS records** and wait for **Verified** (minutes to hours).',
+      'https://resend.com/api-keys > **Create API key**, name `logic-grid`, **Sending access**, domain `thelogicgrid.com`. Copy the key.',
+      ...GH_SECRET_STEPS('RESEND_API_KEY', 'the key'),
+      'Test: in the game, signed in with a confirmed account, send an idea with "Email me a thank-you note" ticked.',
+    ],
+    links: [{ label: 'Resend domains', url: 'https://resend.com/domains' }, { label: 'Resend API keys', url: 'https://resend.com/api-keys' }],
+    checks: [
+      { type: 'dns', name: 'resend._domainkey.thelogicgrid.com', rr: 'TXT', contains: 'p=', label: 'Resend DKIM record (resend._domainkey)' },
+      { type: 'dns', name: 'send.thelogicgrid.com', rr: 'CNAME', label: 'Resend CNAME record (send)' },
+    ],
+  },
+  {
+    id: 'support-email',
+    group: 'email',
+    title: 'support@thelogicgrid.com: support inbox (ImprovMX forwarding + Gmail Send mail as)',
+    docs: 'docs/owner-tasks/2026-10-28-resend-namecheap.md',
+    why: 'Mail to support@thelogicgrid.com is forwarded by ImprovMX to the game\'s Gmail, and Gmail can answer as support@ by sending through Resend. Nothing in the code needs it; it is the address players can write to.',
+    cost: 'ImprovMX free plan (forwarding, no card). Replies use the Resend free plan (shared 100 a day).',
+    names: [],
+    settings: [
+      { label: 'Namecheap Mail Settings', value: 'Custom MX: @ mx1.improvmx.com (10), @ mx2.improvmx.com (20)' },
+      { label: 'Root SPF TXT (@)', value: 'v=spf1 include:spf.improvmx.com ~all' },
+      { label: 'ImprovMX alias', value: 'support -> fantasticallogicgrid@gmail.com' },
+      { label: 'Gmail Send mail as', value: 'smtp.resend.com, port 465 SSL, user resend, password = a Resend Sending access key' },
+    ],
+    steps: [
+      'Sign up at https://app.improvmx.com with fantasticallogicgrid@gmail.com, add `thelogicgrid.com`, and make the alias `support` forward to fantasticallogicgrid@gmail.com.',
+      'Namecheap > **Domain List** > **Manage** > **Advanced DNS**: under **Mail Settings** (Custom MX) add MX `@` `mx1.improvmx.com` priority 10 and MX `@` `mx2.improvmx.com` priority 20; under **Host Records** add TXT `@` `v=spf1 include:spf.improvmx.com ~all`.',
+      'In ImprovMX click **Check again** until it says **Email forwarding active**.',
+      'Gmail > **Settings** > **Accounts and Import** > **Send mail as** > **Add another email address**: `support@thelogicgrid.com`, SMTP `smtp.resend.com`, port 465 (SSL), user `resend`, password = a new Resend **Sending access** key. Confirm with the code Gmail sends.',
+    ],
+    links: [{ label: 'ImprovMX', url: 'https://app.improvmx.com' }, { label: 'ImprovMX Namecheap guide', url: 'https://improvmx.com/guides/namecheap' }],
+    checks: [
+      { type: 'dns', name: 'thelogicgrid.com', rr: 'MX', contains: 'improvmx', label: 'Support inbox MX records (ImprovMX)', optional: true },
+    ],
+  },
+
+  {
+    id: 'educator-dispatch',
+    group: 'email',
+    title: 'Educator emails straight away',
+    docs: 'server/EDUCATORS.md',
+    why: 'Educators who ask for a puzzle package on the Educators page get a code email, and later their PDFs. The "Educator packages" GitHub Action sends them every 5 minutes, which GitHub sometimes starts 10 or more minutes late. With this token the Worker starts that Action the moment a teacher sends the form or you approve, so the code arrives in a minute or two. Optional: without it everything still goes out, just a little later.',
+    cost: 'Free (a GitHub fine-grained token; Actions on a public repository are free).',
+    names: [
+      { name: 'GITHUB_DISPATCH_TOKEN', where: 'worker-secret', optional: true, note: 'Fine-grained token, this repository only, Actions: Read and write. Starts github_pat_.' },
+    ],
+    steps: [
+      'Open https://github.com/settings/personal-access-tokens/new (signed in as bltaylorjr).',
+      'Token name `flg-educator-emails`, Expiration **1 year** (put a reminder in your calendar), Resource owner **bltaylorjr**.',
+      'Repository access: **Only select repositories** > `fantastical-logic-grid`.',
+      'Repository permissions: **Actions** > **Read and write**. Leave everything else as No access. **Generate token** and copy it.',
+      ...CF_SECRET_STEPS('GITHUB_DISPATCH_TOKEN', 'the token'),
+      'Test: in the admin dashboard, Educator requests should say "within about 2 minutes".',
+    ],
+    links: [{ label: 'New fine-grained token', url: 'https://github.com/settings/personal-access-tokens/new' }, { label: 'Educator packages runs', url: `${REPO}/actions/workflows/educator-packages.yml` }],
+    checks: [],
+  },
+
+  // ------------------------------------------------------------- apps
+  {
+    id: 'tauri-updater',
+    group: 'apps',
+    title: 'Desktop app updates (Tauri updater key)',
+    why: 'Each Windows release is signed so installed copies trust and install updates. Losing the private key ends updates for everyone who installed the app.',
+    cost: 'Free.',
+    docs: 'MAINTENANCE.md',
+    names: [
+      { name: 'TAURI_SIGNING_PRIVATE_KEY', where: 'github-secret', note: 'The whole contents of .private/updater.key (no password).' },
+      { name: 'updater.key', where: 'private-file', note: 'Project files: fantastical-logic-grid-app/.private/updater.key. Keep a backup somewhere safe. Its public half is in desktop/src-tauri/tauri.conf.json.' },
+    ],
+    steps: [
+      'Open the private file `updater.key` and copy everything in it.',
+      ...GH_SECRET_STEPS('TAURI_SIGNING_PRIVATE_KEY', 'the file\'s contents'),
+      'Releases start by themselves when a new version number reaches main ("Release desktop app" workflow).',
+    ],
+    links: [{ label: 'Release workflow', url: `${REPO}/actions/workflows/release.yml` }, { label: 'Releases', url: `${REPO}/releases` }],
+    checks: [{ type: 'http', url: `${REPO}/releases/latest/download/latest.json`, label: 'The update file is published' }],
+  },
+  {
+    id: 'android-signing',
+    group: 'apps',
+    title: 'Android app signing (paused)',
+    why: 'Signs the Android app. Mobile apps are paused, so nothing to do now.',
+    cost: 'Free. A Google Play account costs a one-time fee, only when the apps resume.',
+    paused: true,
+    docs: 'mobile/README.md',
+    names: [
+      { name: 'ANDROID_KEYSTORE_BASE64', where: 'github-secret', optional: true, note: 'Base64 of .private/android-release.p12.' },
+      { name: 'ANDROID_KEYSTORE_PASSWORD', where: 'github-secret', optional: true, note: 'From .private/android-release.password.' },
+    ],
+    steps: ['Paused. When the mobile apps resume, add both secrets from the private files.'],
+    links: [{ label: 'GitHub secrets', url: `${REPO}/settings/secrets/actions` }],
+  },
+];
+
+// Names the check ignores: provided by GitHub or only used by tests (any TEST_* name too).
+export const IGNORED = ['GITHUB_TOKEN', 'TEST_JWKS', 'TEST_TRANSLATE'];
+
+// Every (name, where) pair, for the Worker's live checks and the CI check.
+export function allNames() {
+  return CONNECTIONS.flatMap((c) => (c.names || []).map((n) => ({ ...n, connection: c.id })));
+}

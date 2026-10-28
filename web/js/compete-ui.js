@@ -4,6 +4,15 @@
 import * as account from './account.js';
 import * as compete from './compete.js';
 import { esc } from './grid.js';
+import { feature } from './remote-config.js';
+import { TIER_NAMES as BADGE_NAMES } from './perks.js';
+
+// The scoreboard badge for a supporter: tier 1 Bronze up to 4 Platinum
+// (server/src/supporters.js). Older servers send true, shown as Bronze.
+export const supporterPill = (t) => {
+  const n = Math.min(4, Math.max(1, Number(t) || 1));
+  return ` <span class="pill supporter tier-${n}" title="Supports the game"><span aria-hidden="true">★</span> ${BADGE_NAMES[n]} supporter</span>`;
+};
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -210,6 +219,7 @@ function openName() {
   $('#name-suggested').textContent = '';
   $('#name-post').checked = ui.getSetting('postScores') !== false;
   $('#name-invites').checked = compete.acceptsInvites();
+  $('#name-approval').hidden = !feature('nameApproval');
   $('.error-box', form).hidden = true;
   $('#name-leave').hidden = !name;
   $('#name-leave').open = false;
@@ -249,7 +259,8 @@ function wireName() {
       afterName = null;
       d.close();
       renderCard();
-      ui.toast(`You are now ${name} on the scoreboard and in races.`);
+      ui.toast(compete.isNameApproved() ? `You are now ${name} on the scoreboard and in races.`
+        : `Saved. You see yourself as ${name}; other players see "New player" until the game's team approves your name. A suggested name shows straight away.`);
       if (next) next();
     } catch (err) { fail(err.message); } finally { btn.disabled = false; }
   };
@@ -556,7 +567,7 @@ async function loadBoard() {
     if (!b.rows.length) { body.innerHTML = `<p class="muted">No one is on the scoreboard ${period === 'week' ? 'this week' : ''} yet. Solve a puzzle to be the first!</p>`; return; }
     body.innerHTML = `<div class="table-wrap"><table class="board"><caption class="sr-only">Scoreboard, ${period === 'week' ? 'this week' : 'all time'}</caption>
       <thead><tr><th scope="col">Rank</th><th scope="col">Player</th><th scope="col">Points</th><th scope="col">Solved</th><th scope="col">Race wins</th></tr></thead>
-      <tbody>${b.rows.map((r) => `<tr${r.me ? ' class="me"' : ''}><td><b>${r.rank}</b></td><th scope="row"><bdi translate="no">${esc(r.name)}</bdi>${r.me ? ' <span class="pill">You</span>' : ''}</th><td>${r.points}</td><td>${r.solved}</td><td>${r.wins}</td></tr>`).join('')}</tbody></table></div>`;
+      <tbody>${b.rows.map((r) => `<tr${r.me ? ' class="me"' : ''}><td><b>${r.rank}</b></td><th scope="row"><bdi translate="no">${esc(r.name)}</bdi>${r.supporter ? supporterPill(r.supporter) : ''}${r.me ? ' <span class="pill">You</span>' : ''}</th><td>${r.points}</td><td>${r.solved}</td><td>${r.wins}</td></tr>`).join('')}</tbody></table></div>`;
   } catch (err) { body.innerHTML = `<p class="error-box">${esc(err.message)}</p>`; }
 }
 

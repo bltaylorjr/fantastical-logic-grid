@@ -50,11 +50,7 @@ website and in the desktop app, with no new release. The setting only accepts
 `publicConfig`), `web/js/remote-config.js` (`supportUrl`) and `web/js/app.js`
 (`applyFeatures`).
 
-## Next steps once the owner picks
+## The four options
 
-- **Tip jar (GitHub Sponsors or Ko-fi):** set up the page, paste its link in
-  the setting above, switch it on. No code needed. A Supporter badge needs a
-  small change to mark supporters by hand in the admin Players page.
-- **Paid extras (Ko-fi membership, Paddle or Lemon Squeezy):** needs a
-  webhook in the Worker that marks an account as premium, and the extras
-  themselves. That is a separate piece of work.
+Built as separate pull requests to review side by side. Steps to go live with
+each, and what to check before taking any money, are in [GO-LIVE.md](GO-LIVE.md).

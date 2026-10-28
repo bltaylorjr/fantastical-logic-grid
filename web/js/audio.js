@@ -91,56 +91,148 @@ export function play(kind) {
 }
 
 // ---------------------------------------------------------------------------
-// Ambient music: a slow chord pad and a soft arpeggio in a mode chosen per
-// theme. The mood brightens as the grid fills (setMood 0..1).
+// Ambient music, made to help players relax and concentrate: long, soft chord
+// pads that fade slowly from one chord to the next, a quiet low drone, and an
+// occasional gentle chime that echoes away. No beat, no sharp attacks and no
+// busy melody, so it can loop for hours without getting tiring. Each theme
+// has its own key, mode and pace. As the grid fills (setMood 0..1) the pads
+// open up a little and the chimes come slightly more often; it never speeds up.
 // ---------------------------------------------------------------------------
+// root: Hz of the pad's lowest chord note. scale: semitones of the mode.
+// prog: scale degrees of the chord roots, one per chord. chord: seconds each
+// chord is held. chime: chance of a chime every few seconds. bright: Hz the
+// pad's soft filter starts at.
 const MOODS = {
-  mystery: { root: 146.83, scale: [0, 2, 3, 5, 7, 8, 10], tempo: 0.62, wave: 'triangle' },
-  action: { root: 110, scale: [0, 3, 5, 7, 10], tempo: 0.32, wave: 'sawtooth' },
-  adventure: { root: 130.81, scale: [0, 2, 4, 7, 9], tempo: 0.45, wave: 'triangle' },
-  holiday: { root: 174.61, scale: [0, 2, 4, 5, 7, 9, 11], tempo: 0.5, wave: 'sine' },
-  occasion: { root: 196, scale: [0, 2, 4, 7, 9], tempo: 0.4, wave: 'triangle' },
-  fantasy: { root: 146.83, scale: [0, 2, 4, 6, 7, 9, 11], tempo: 0.55, wave: 'sine' },
-  scifi: { root: 98, scale: [0, 2, 3, 7, 8], tempo: 0.5, wave: 'sawtooth' },
-  sports: { root: 130.81, scale: [0, 2, 4, 5, 7, 9, 11], tempo: 0.34, wave: 'square' },
-  cooking: { root: 164.81, scale: [0, 2, 4, 7, 9], tempo: 0.46, wave: 'triangle' },
-  pets: { root: 196, scale: [0, 2, 4, 7, 9], tempo: 0.42, wave: 'sine' },
-  town: { root: 174.61, scale: [0, 2, 4, 5, 7, 9], tempo: 0.44, wave: 'triangle' },
-  parks: { root: 130.81, scale: [0, 2, 4, 7, 9], tempo: 0.58, wave: 'sine' },
-  travel: { root: 196, scale: [0, 2, 4, 5, 7, 9, 11], tempo: 0.38, wave: 'triangle' },
-  wonders: { root: 146.83, scale: [0, 2, 3, 5, 7, 9, 10], tempo: 0.6, wave: 'sine' },
-  music: { root: 164.81, scale: [0, 3, 5, 6, 7, 10], tempo: 0.36, wave: 'square' },
-  nautical: { root: 130.81, scale: [0, 2, 4, 5, 7, 9], tempo: 0.52, wave: 'triangle' },
-  farm: { root: 196, scale: [0, 2, 4, 7, 9], tempo: 0.4, wave: 'triangle' },
-  science: { root: 164.81, scale: [0, 2, 4, 6, 7, 9, 11], tempo: 0.42, wave: 'square' },
+  mystery: { root: 146.83, scale: [0, 2, 3, 5, 7, 9, 10], prog: [0, 3, 5, 3], chord: 12, chime: 0.3, bright: 620 },
+  action: { root: 110, scale: [0, 3, 5, 7, 10], prog: [0, 3, 1, 2], chord: 10, chime: 0.4, bright: 700 },
+  adventure: { root: 130.81, scale: [0, 2, 4, 7, 9], prog: [0, 3, 4, 2], chord: 11, chime: 0.38, bright: 700 },
+  holiday: { root: 174.61, scale: [0, 2, 4, 5, 7, 9, 11], prog: [0, 3, 5, 4], chord: 11, chime: 0.4, bright: 680 },
+  occasion: { root: 196, scale: [0, 2, 4, 7, 9], prog: [0, 3, 4, 1], chord: 11, chime: 0.38, bright: 650 },
+  fantasy: { root: 146.83, scale: [0, 2, 4, 6, 7, 9, 11], prog: [0, 1, 5, 4], chord: 13, chime: 0.35, bright: 640 },
+  scifi: { root: 98, scale: [0, 2, 3, 7, 8], prog: [0, 2, 4, 3], chord: 14, chime: 0.3, bright: 600 },
+  sports: { root: 130.81, scale: [0, 2, 4, 5, 7, 9, 11], prog: [0, 4, 5, 3], chord: 10, chime: 0.4, bright: 700 },
+  cooking: { root: 164.81, scale: [0, 2, 4, 7, 9], prog: [0, 2, 3, 4], chord: 11, chime: 0.38, bright: 680 },
+  pets: { root: 196, scale: [0, 2, 4, 7, 9], prog: [0, 3, 1, 4], chord: 11, chime: 0.4, bright: 650 },
+  town: { root: 174.61, scale: [0, 2, 4, 5, 7, 9], prog: [0, 3, 5, 4], chord: 11, chime: 0.36, bright: 660 },
+  parks: { root: 130.81, scale: [0, 2, 4, 7, 9], prog: [0, 4, 3, 2], chord: 13, chime: 0.35, bright: 640 },
+  travel: { root: 196, scale: [0, 2, 4, 5, 7, 9, 11], prog: [0, 5, 3, 4], chord: 12, chime: 0.36, bright: 650 },
+  wonders: { root: 146.83, scale: [0, 2, 3, 5, 7, 9, 10], prog: [0, 6, 3, 4], chord: 14, chime: 0.3, bright: 620 },
+  music: { root: 164.81, scale: [0, 2, 3, 5, 7, 9, 10], prog: [0, 3, 1, 4], chord: 11, chime: 0.4, bright: 660 },
+  nautical: { root: 130.81, scale: [0, 2, 4, 5, 7, 9], prog: [0, 3, 4, 2], chord: 13, chime: 0.34, bright: 640 },
+  farm: { root: 196, scale: [0, 2, 4, 7, 9], prog: [0, 3, 4, 1], chord: 11, chime: 0.38, bright: 650 },
+  science: { root: 164.81, scale: [0, 2, 4, 6, 7, 9, 11], prog: [0, 1, 4, 5], chord: 13, chime: 0.34, bright: 640 },
+  math: { root: 146.83, scale: [0, 2, 4, 5, 7, 9, 11], prog: [0, 4, 5, 3], chord: 11, chime: 0.38, bright: 660 },
+  biology: { root: 196, scale: [0, 2, 4, 7, 9], prog: [0, 3, 4, 2], chord: 12, chime: 0.36, bright: 650 },
+  chemistry: { root: 174.61, scale: [0, 2, 3, 5, 7, 9, 10], prog: [0, 2, 4, 3], chord: 13, chime: 0.34, bright: 640 },
+  paradox: { root: 130.81, scale: [0, 2, 4, 6, 8, 10], prog: [0, 1, 5, 2], chord: 14, chime: 0.3, bright: 600 },
 };
+
+// A soft swell: rises over `attack`, holds, then fades over `release`.
+function swell(freq, start, hold, { attack = 3, release = 4, vol = 0.07, type = 'sine', detune = 0, out }) {
+  const o = ctx.createOscillator(), g = ctx.createGain();
+  o.type = type;
+  o.frequency.value = freq;
+  o.detune.value = detune;
+  g.gain.setValueAtTime(0.0001, start);
+  g.gain.linearRampToValueAtTime(vol, start + attack);
+  g.gain.setValueAtTime(vol, start + Math.max(attack, hold));
+  g.gain.linearRampToValueAtTime(0.0001, start + Math.max(attack, hold) + release);
+  o.connect(g).connect(out);
+  o.start(start);
+  o.stop(start + Math.max(attack, hold) + release + 0.1);
+}
 
 export function startMusic(themeId) {
   if (!audio()) return;
   stopMusic();
   const m = MOODS[themeId] || MOODS.mystery;
+  const now = ctx.currentTime;
+  // out: fades the whole piece in and out, so starting and stopping never clicks.
+  const out = ctx.createGain();
+  out.gain.setValueAtTime(0.0001, now);
+  out.gain.linearRampToValueAtTime(1, now + 4);
+  out.connect(musicGain);
+  // space: two soft echoes that give the sound a calm, roomy feel.
+  const space = ctx.createGain();
+  space.gain.value = 0.32;
+  space.connect(out);
+  for (const [sec, pan] of [[0.83, -0.5], [1.27, 0.5]]) {
+    const d = ctx.createDelay(2), fb = ctx.createGain(), lp = ctx.createBiquadFilter();
+    d.delayTime.value = sec;
+    fb.gain.value = 0.42;
+    lp.type = 'lowpass';
+    lp.frequency.value = 1600;
+    space.connect(d);
+    d.connect(lp).connect(fb).connect(d);
+    const p = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
+    if (p) { p.pan.value = pan; lp.connect(p).connect(out); } else lp.connect(out);
+  }
+  // filter: a warm low-pass on the pads, with a very slow drift for movement.
   const filter = ctx.createBiquadFilter();
   filter.type = 'lowpass';
-  filter.frequency.value = 900;
-  filter.connect(musicGain);
-  const state = { m, filter, step: 0, mood: 0, timer: null, next: ctx.currentTime + 0.1 };
-  const note = (deg, oct = 0) => m.root * 2 ** ((m.scale[((deg % m.scale.length) + m.scale.length) % m.scale.length] + 12 * (oct + Math.floor(deg / m.scale.length))) / 12);
-  const progression = [0, 5, 3, 4];
+  filter.frequency.value = m.bright;
+  filter.Q.value = 0.5;
+  filter.connect(out);
+  filter.connect(space);
+  const lfo = ctx.createOscillator(), lfoDepth = ctx.createGain();
+  lfo.frequency.value = 0.05;
+  lfoDepth.gain.value = 110;
+  lfo.connect(lfoDepth).connect(filter.frequency);
+  lfo.start(now);
+  // chimes: brighter than the pads but still rounded off.
+  const chimes = ctx.createBiquadFilter();
+  chimes.type = 'lowpass';
+  chimes.frequency.value = 1800;
+  chimes.connect(out);
+  chimes.connect(space);
+  const drone = ctx.createOscillator(), droneGain = ctx.createGain();
+  drone.frequency.value = m.root / 2;
+  droneGain.gain.setValueAtTime(0.0001, now);
+  droneGain.gain.linearRampToValueAtTime(0.035, now + 6);
+  drone.connect(droneGain).connect(filter);
+  drone.start(now);
+
+  const n = m.scale.length;
+  const note = (deg, oct = 0) => m.root * 2 ** ((m.scale[((deg % n) + n) % n] + 12 * (oct + Math.floor(deg / n))) / 12);
+  const state = { m, filter, out, extras: [lfo, drone], chord: 0, mood: 0, timer: null, nextChord: now + 0.1, nextChime: now + 5, lastChime: -1 };
   const schedule = () => {
-    while (state.next < ctx.currentTime + 0.6) {
-      const t = state.next;
-      const bar = Math.floor(state.step / 8) % progression.length;
-      const chord = progression[bar];
-      if (state.step % 8 === 0) {
-        for (const d of [chord, chord + 2, chord + 4]) tone(note(d), t, m.tempo * 8, { type: 'sine', vol: 0.25, out: filter });
+    const ahead = ctx.currentTime + 1.5;
+    while (state.nextChord < ahead) {
+      const t = state.nextChord;
+      const c = m.prog[state.chord % m.prog.length];
+      // An open voicing (root, fifth, the third an octave up) sounds calmer than
+      // a close chord. Two slightly detuned sines per note give a gentle shimmer.
+      for (const [deg, oct] of [[c, -1], [c + 4, -1], [c + 2, 0], [c + 4, 0]]) {
+        const f = note(deg, oct);
+        swell(f, t, m.chord, { vol: 0.03, detune: -4, out: filter });
+        swell(f, t, m.chord, { vol: 0.03, detune: 4, out: filter });
       }
-      const arp = [0, 2, 4, 2, 4, 6, 4, 2][state.step % 8];
-      if (state.mood > 0.15 || state.step % 2 === 0) tone(note(chord + arp, 1), t, m.tempo * 1.6, { type: m.wave, vol: 0.12 + state.mood * 0.1, out: filter });
-      state.step++;
-      state.next += m.tempo * (1 - state.mood * 0.25);
+      state.chord++;
+      state.nextChord += m.chord;
+    }
+    while (state.nextChime < ahead) {
+      const t = state.nextChime;
+      if (Math.random() < m.chime + state.mood * 0.2) {
+        const c = m.prog[(state.chord - 1 + m.prog.length) % m.prog.length];
+        // Chimes keep to the current chord and avoid repeating the last note.
+        let deg;
+        do deg = c + [0, 2, 4, 7][Math.floor(Math.random() * 4)]; while (deg === state.lastChime);
+        state.lastChime = deg;
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.frequency.value = note(deg, 1);
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.linearRampToValueAtTime(0.045, t + 0.12);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 4.5);
+        let dest = chimes;
+        if (ctx.createStereoPanner) { const p = ctx.createStereoPanner(); p.pan.value = Math.random() * 0.8 - 0.4; p.connect(chimes); dest = p; }
+        o.connect(g).connect(dest);
+        o.start(t);
+        o.stop(t + 4.6);
+      }
+      state.nextChime += 2.5 + Math.random() * 3;
     }
   };
-  state.timer = setInterval(schedule, 150);
+  state.timer = setInterval(schedule, 250);
   schedule();
   music = state;
 }
@@ -148,14 +240,19 @@ export function startMusic(themeId) {
 export function setMood(x) {
   if (!music) return;
   music.mood = Math.max(0, Math.min(1, x));
-  music.filter.frequency.setTargetAtTime(900 + music.mood * 2400, ctx.currentTime, 1);
+  music.filter.frequency.setTargetAtTime(music.m.bright + music.mood * 500, ctx.currentTime, 3);
 }
 
 export function stopMusic() {
   if (!music) return;
-  clearInterval(music.timer);
-  const f = music.filter;
-  setTimeout(() => f.disconnect(), 3000);
+  const { timer, out, extras } = music;
+  clearInterval(timer);
+  const t = ctx.currentTime;
+  out.gain.cancelScheduledValues(t);
+  out.gain.setValueAtTime(Math.max(out.gain.value, 0.0001), t);
+  out.gain.linearRampToValueAtTime(0.0001, t + 1.5);
+  for (const o of extras) o.stop(t + 1.6);
+  setTimeout(() => out.disconnect(), 2000);
   music = null;
 }
 

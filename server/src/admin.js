@@ -18,10 +18,12 @@
 //   GET  /admin/v1/feedback?kind=&status=  ideas and problems from the game; POST .../:id (addressed + note|done|new|delete)
 //   POST /admin/v1/replies/claim       thank-you emails waiting, for the GitHub Action to send (owner, replies.js)
 //   POST /admin/v1/replies/done        that Action says which went out; their addresses are removed (owner)
+//   GET  /admin/v1/educators?status=   educator puzzle package requests; POST .../:id/(approve|decline|delete) (educators.js)
+//   POST /admin/v1/educators/claim     code emails and approved packages, for the GitHub Action (owner); POST .../done
 //   POST /admin/v1/daily-email/claim   the day's daily puzzle email list, for the GitHub Action (owner, daily-email.js)
 //   POST /admin/v1/daily-email/done    which of those failed (tried again) or were refused (removed) (owner)
 //   GET  /admin/v1/names?status=       screen names to moderate; POST /admin/v1/names/:uid/approve
-//   GET  /admin/v1/players?q=&filter=  players with screen names; GET /admin/v1/players/:uid
+//   GET  /admin/v1/players?q=&filter=&sort=&dir=&page=&per=  every player, a page at a time; GET /admin/v1/players/:uid
 //   POST /admin/v1/players/:uid/(rename|ban|unban|reset-scores|delete)
 //   GET/POST /admin/v1/settings        feature switches and limits (settings.js)
 //   GET/POST /admin/v1/announcements   messages in the game; POST .../:id/(end|delete)
@@ -34,10 +36,13 @@
 //   GET  /admin/v1/quality?days=       puzzles players give up on, rate low or find too hard or easy (report.js)
 //   GET  /admin/v1/ratings?days=&by=[&brief=1]  puzzle ratings, trends and the plain-words analysis; POST .../summary (ratings.js)
 //   GET  /admin/v1/marketing?days=     campaigns, ads, media, tracked links and their numbers (marketing.js)
+//   GET/POST /admin/v1/supporters      supporters and premium grants; POST .../:id/remove (supporters.js)
 //   GET  /admin/v1/alerts              free allowances close to running out
 //   GET  /admin/v1/summary?days=       the week in numbers, for the Monday summary email
 //   GET  /admin/v1/export/(players|scores|feedback).csv   spreadsheet downloads
 //   GET/POST /admin/v1/admins          who may sign in (owner only); POST /admin/v1/admins/remove
+//   GET  /admin/v1/connections[?refresh=1]  live status for the Connections and setup guide (connections.js)
+//   POST /admin/v1/connections/github  the Connections status Action's report: names that are set, never values
 //   GET  /admin/v1/archive             the weekly archive: setup, what goes, past runs (archive.js)
 //   POST /admin/v1/archive/run         send the archive email now (owner)
 //   GET  /admin/v1/archive/download    the same zip as a download, nothing removed (owner)
@@ -68,9 +73,12 @@ import { archiveStatus, runArchive, buildArchive, exportArchive, confirmArchive 
 import { FREE_LIMITS, cloudflareUsage } from './usage.js';
 import { plannerView, checkPlan, savePlan, resetPlan } from './daily.js';
 import { quality, alerts, summary, csv, CSV_KINDS } from './report.js';
+import { connectionStatus, checkGithubReport, saveGithubReport } from './connections.js';
 import { withFixes, errorFile } from './errors.js';
 import { ratingRoutes } from './ratings.js';
 import { marketingRoutes } from './marketing.js';
+import { supporterRoutes } from './supporters.js';
+import { educatorRoutes } from './educators.js';
 
 const DAY = 24 * 3600_000;
 const ROLES = { viewer: 1, moderator: 2, admin: 3, owner: 4 };
@@ -83,7 +91,7 @@ const SESSION_MAX_S = 12 * 3600;
 const DENIED_PER_DAY = 500; // refused requests written to the audit log, so a flood cannot fill it
 const ANALYTICS_CACHE_MS = 120_000;
 const TABLES = ['sync_users', 'sync_records', 'sync_deleted_users', 'players', 'scores', 'races', 'race_entries', 'race_invites', 'plays', 'parts', 'usage',
-  'app_errors', 'upkeep_log', 'admins', 'admin_audit', 'settings', 'announcements', 'bans', 'name_reviews', 'archive_log', 'feedback', 'feedback_replies', 'error_fixes', 'conversations', 'conversation_messages', 'message_contacts', 'news', 'search_snapshots', 'daily_plan', 'translations', 'rating_insights', 'campaigns', 'campaign_ads', 'marketing_media', 'campaign_stats', 'challenges', 'daily_results', 'daily_email'];
+  'app_errors', 'upkeep_log', 'admins', 'admin_audit', 'settings', 'announcements', 'bans', 'name_reviews', 'archive_log', 'feedback', 'feedback_replies', 'error_fixes', 'conversations', 'conversation_messages', 'message_contacts', 'news', 'search_snapshots', 'daily_plan', 'translations', 'rating_insights', 'campaigns', 'campaign_ads', 'marketing_media', 'campaign_stats', 'challenges', 'daily_results', 'daily_email', 'supporters', 'payment_blocks', 'educator_requests'];
 const SECURITY_HEADERS = {
   'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; media-src 'self' blob:; connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
   'X-Content-Type-Options': 'nosniff',
@@ -202,6 +210,7 @@ async function analytics(env, days, now = Date.now()) {
     messagesUnread: db.prepare("SELECT COUNT(*) AS n FROM conversations WHERE status = 'open' AND admin_unread > 0"),
     picturesByDay: db.prepare("SELECT day, count AS n FROM usage WHERE name = 'pictures' AND day >= ?1").bind(sinceDay),
     namesWaiting: db.prepare('SELECT COUNT(*) AS n FROM players p LEFT JOIN name_reviews r ON r.user_id = p.user_id WHERE r.name_key IS NULL OR r.name_key != p.name_key'),
+    educatorsWaiting: db.prepare("SELECT COUNT(*) AS n FROM educator_requests WHERE status = 'pending'"),
   };
   const names = Object.keys(q);
   const res = await db.batch(Object.values(q));
@@ -228,7 +237,7 @@ async function analytics(env, days, now = Date.now()) {
     voices: { byDay: series(r.voicesByDay), cap: settings.daily_tts_cap, enabled: settings.tts_enabled, today: series(r.voicesByDay).at(-1) },
     pictures: { byDay: series(r.picturesByDay), cap: settings.daily_picture_cap, mode: settings.ai_pictures, today: series(r.picturesByDay).at(-1) },
     errors: { byDay: series(r.errorsByDay) },
-    review: { parts: Object.fromEntries(r.parts.map((x) => [x.id, x.n])), namesWaiting: one('namesWaiting'), feedback: Object.fromEntries(r.feedbackNew.map((x) => [x.id, x.n])), messages: one('messagesUnread') },
+    review: { parts: Object.fromEntries(r.parts.map((x) => [x.id, x.n])), namesWaiting: one('namesWaiting'), feedback: Object.fromEntries(r.feedbackNew.map((x) => [x.id, x.n])), messages: one('messagesUnread'), educators: one('educatorsWaiting') },
   };
   analyticsCache.set(days, { at: now, body });
   return body;
@@ -248,23 +257,68 @@ async function storage(env) {
 }
 
 // ------------------------------------------------------------- players
-async function findPlayers(env, url, now) {
-  const q = String(url.searchParams.get('q') || '').trim().slice(0, 128);
-  const filter = url.searchParams.get('filter') === 'banned' ? 'banned' : 'all';
-  const { results } = await env.DB.prepare(`SELECT p.user_id AS uid, p.screen_name AS name, p.created_at AS createdAt, p.updated_at AS updatedAt,
-      (SELECT COALESCE(SUM(points), 0) FROM scores s WHERE s.user_id = p.user_id) AS points,
-      (SELECT COUNT(*) FROM scores s WHERE s.user_id = p.user_id) AS solves,
-      (SELECT MAX(created_at) FROM scores s WHERE s.user_id = p.user_id) AS lastScore,
-      b.user_id IS NOT NULL AS banned, b.reason AS banReason, b.until AS banUntil
-    FROM players p LEFT JOIN bans b ON b.user_id = p.user_id AND (b.until IS NULL OR b.until > ?1)
-    WHERE (?2 = '' OR p.name_key LIKE ?3 OR p.user_id = ?2) AND (?4 = 'all' OR b.user_id IS NOT NULL)
-    ORDER BY p.updated_at DESC LIMIT 100`).bind(now, q, `%${nameKey(q)}%`, filter).all();
-  // A player id with no screen name (an account that only syncs) is still found.
-  if (!results.length && /^[\w-]{6,128}$/.test(q)) {
-    const acct = await env.DB.prepare('SELECT created_at FROM sync_users WHERE user_id = ?1').bind(q).first();
-    if (acct) return { players: [{ uid: q, name: null, createdAt: acct.created_at, points: 0, solves: 0 }] };
-  }
-  return { players: results };
+// Every player in one list, in sections: names that need approval, approved
+// names seen in the last 30 days, approved names not seen for longer, blocked
+// (banned) players, and accounts that only sync saves (no screen name yet).
+// Searchable, sortable and a page at a time. Viewers see names, dates and
+// counts only: no player ids, ban reasons or links.
+const INACTIVE_MS = 30 * DAY;
+const PLAYER_SORTS = {
+  seen: 'seen', name: 'name IS NULL, name_key', joined: 'joined', solves: 'solves', races: 'races', points: 'points',
+};
+const PLAYER_SECTIONS = ['pending', 'active', 'inactive', 'blocked', 'account'];
+const PAGE_SIZES = [25, 50, 100];
+const PLAYER_ROWS = `WITH ids AS (SELECT user_id FROM players UNION SELECT user_id FROM sync_users),
+  base AS (SELECT i.user_id AS uid, pl.screen_name AS name, pl.name_key,
+    CASE WHEN pl.created_at IS NULL THEN u.created_at WHEN u.created_at IS NULL THEN pl.created_at ELSE MIN(pl.created_at, u.created_at) END AS joined,
+    u.user_id IS NOT NULL AS synced,
+    (r.name_key IS NOT NULL AND r.name_key = pl.name_key) AS approved, r.reviewed_by AS approvedBy,
+    (SELECT COALESCE(SUM(points), 0) FROM scores s WHERE s.user_id = i.user_id) AS points,
+    (SELECT COUNT(*) FROM scores s WHERE s.user_id = i.user_id) AS solves,
+    (SELECT COUNT(*) FROM race_entries e WHERE e.user_id = i.user_id) AS races,
+    MAX(COALESCE(pl.updated_at, 0), COALESCE(u.created_at, 0),
+      COALESCE((SELECT MAX(updated_at) FROM sync_records x WHERE x.user_id = i.user_id), 0),
+      COALESCE((SELECT MAX(created_at) FROM scores s WHERE s.user_id = i.user_id), 0),
+      COALESCE((SELECT MAX(joined_at) FROM race_entries e WHERE e.user_id = i.user_id), 0)) AS seen,
+    b.user_id IS NOT NULL AS banned, b.reason AS banReason, b.until AS banUntil
+    FROM ids i LEFT JOIN players pl ON pl.user_id = i.user_id LEFT JOIN sync_users u ON u.user_id = i.user_id
+    LEFT JOIN name_reviews r ON r.user_id = i.user_id
+    LEFT JOIN bans b ON b.user_id = i.user_id AND (b.until IS NULL OR b.until > ?1)),
+  rows AS (SELECT *, CASE WHEN banned THEN 'blocked' WHEN name IS NULL THEN 'account' WHEN NOT approved THEN 'pending'
+    WHEN seen < ?1 - ${INACTIVE_MS} THEN 'inactive' ELSE 'active' END AS section FROM base)`;
+
+async function findPlayers(env, url, now, role = 'owner') {
+  const p = url.searchParams;
+  const q = String(p.get('q') || '').trim().slice(0, 128);
+  let filter = p.get('filter') === 'banned' ? 'blocked' : p.get('filter');
+  if (![...PLAYER_SECTIONS, 'named', 'all'].includes(filter)) filter = 'all';
+  const sort = PLAYER_SORTS[p.get('sort')] ? p.get('sort') : 'seen';
+  const dir = p.get('dir') === 'asc' || (!p.get('dir') && sort === 'name') ? 'ASC' : 'DESC';
+  const per = PAGE_SIZES.includes(Number(p.get('per'))) ? Number(p.get('per')) : 50;
+  const page = Math.min(Math.max(1, Math.floor(Number(p.get('page')) || 1)), 10_000);
+  const key = q ? nameKey(q) : '';
+  const order = PLAYER_SORTS[sort].split(', ').map((c) => (c.endsWith('IS NULL') ? c : `${c} ${dir}`)).join(', ');
+  const db = env.DB;
+  const [list, counts] = (await db.batch([
+    db.prepare(`${PLAYER_ROWS}
+      SELECT *, COUNT(*) OVER () AS total FROM rows
+      WHERE (?2 = '' OR (?3 != '' AND name_key LIKE ?4) OR uid = ?2 OR (length(?2) >= 6 AND uid LIKE ?5))
+        AND (?6 = 'all' OR section = ?6 OR (?6 = 'named' AND name IS NOT NULL))
+      ORDER BY ${order}, uid LIMIT ?7 OFFSET ?8`)
+      .bind(now, q, key, `%${key}%`, `${q.replace(/[%_]/g, '')}%`, filter, per, (page - 1) * per),
+    db.prepare(`${PLAYER_ROWS} SELECT section, COUNT(*) AS n FROM rows GROUP BY section`).bind(now),
+  ])).map((x) => x.results);
+  const total = list.length ? list[0].total : 0;
+  const full = ROLES[role] >= ROLES.moderator;
+  const sections = Object.fromEntries(PLAYER_SECTIONS.map((s) => [s, 0]));
+  for (const c of counts) sections[c.section] = c.n;
+  sections.all = PLAYER_SECTIONS.reduce((n, s) => n + sections[s], 0);
+  const players = list.map((x) => ({
+    ...(full ? { uid: x.uid, banReason: x.banReason, banUntil: x.banUntil, approvedBy: x.approvedBy } : {}),
+    name: x.name, section: x.section, joined: x.joined, seen: x.seen || null, synced: !!x.synced,
+    points: x.points, solves: x.solves, races: x.races, banned: !!x.banned, approved: !!x.approved,
+  }));
+  return { players, total, page, per, pages: Math.max(1, Math.ceil(total / per)), sort, dir: dir.toLowerCase(), filter, sections, ids: full };
 }
 
 async function playerDetail(env, uid, now) {
@@ -333,6 +387,13 @@ const ROUTES = [
 
   ['GET', /^analytics$/, 'viewer', 'analytics.view', async ({ env, url }) => ({ body: await analytics(env, daysParam(url)) })],
   ['GET', /^search$/, 'viewer', 'search.view', async ({ env }) => ({ body: { sources: await searchSnapshots(env) } })],
+  ['GET', /^connections$/, 'viewer', 'connections.view', async ({ env, url, now }) => ({ body: await connectionStatus(env, now, { force: url.searchParams.get('refresh') === '1' }) })],
+  ['POST', /^connections\/github$/, 'admin', 'connections.github', async ({ env, body, now }) => {
+    const { value, error } = checkGithubReport(body);
+    if (error) throw new Refusal(400, 'bad_report', error);
+    await saveGithubReport(env, value, now);
+    return { body: { ok: true }, detail: { secrets: value.secrets.length, variables: value.variables.length } };
+  }],
   ['POST', /^search\/refresh$/, 'admin', 'search.refresh', async ({ env, now }) => {
     // Google and Bing are only asked again after a short gap, whoever presses.
     if (now - (await lastTry(env)) < REFRESH_GAP_MS) throw new Refusal(429, 'too_soon', 'The search numbers were fetched a few minutes ago. Try again in 10 minutes.');
@@ -399,7 +460,7 @@ const ROUTES = [
   ['GET', /^feedback$/, 'moderator', 'feedback.view', async ({ env, url }) => {
     const kind = FEEDBACK_TOPICS[url.searchParams.get('kind')] ? url.searchParams.get('kind') : 'idea';
     const status = ['new', 'addressed', 'done', 'all'].includes(url.searchParams.get('status')) ? url.searchParams.get('status') : 'new';
-    const { results } = await env.DB.prepare(`SELECT id, kind, topic, text, platform, version, status, note, created_at AS createdAt, done_at AS doneAt FROM feedback
+    const { results } = await env.DB.prepare(`SELECT id, kind, topic, theme, text, platform, version, status, note, created_at AS createdAt, done_at AS doneAt FROM feedback
       WHERE kind = ?1 AND (?2 = 'all' OR status = ?2) ORDER BY created_at DESC LIMIT 200`).bind(kind, status).all();
     const counts = (await env.DB.prepare("SELECT kind, COUNT(*) AS n FROM feedback WHERE status = 'new' GROUP BY kind").all()).results;
     return { body: { kind, status, items: results, waiting: Object.fromEntries(counts.map((x) => [x.kind, x.n])), replies: await replyCounts(env) } };
@@ -460,10 +521,11 @@ const ROUTES = [
     const p = await env.DB.prepare('SELECT name_key, screen_name FROM players WHERE user_id = ?1').bind(uid).first();
     if (!p) throw new Refusal(404, 'no_player', 'That player has no screen name.');
     await env.DB.prepare('INSERT OR REPLACE INTO name_reviews (user_id, name_key, reviewed_by, reviewed_at) VALUES (?1, ?2, ?3, ?4)').bind(uid, p.name_key, who.actor, now).run();
+    clearBoardCache();
     return { body: { ok: true }, target: uid, detail: { name: p.screen_name } };
   }],
 
-  ['GET', /^players$/, 'moderator', 'players.search', async ({ env, url, now }) => ({ body: await findPlayers(env, url, now), detail: { q: url.searchParams.get('q') || '' } })],
+  ['GET', /^players$/, 'viewer', 'players.search', async ({ env, url, now, who }) => ({ body: await findPlayers(env, url, now, who.role), detail: { q: url.searchParams.get('q') || '' } })],
   ['GET', /^players\/([\w-]{1,128})$/, 'moderator', 'players.view', async ({ env, params: [uid], now }) => ({ body: await playerDetail(env, uid, now), target: uid })],
   ['POST', /^players\/([\w-]{1,128})\/rename$/, 'moderator', 'players.rename', async ({ env, params: [uid], body, who, now }) => ({ target: uid, ...(await renamePlayer(env, uid, body, who, now)) })],
   ['POST', /^players\/([\w-]{1,128})\/ban$/, 'moderator', 'players.ban', async ({ env, params: [uid], body, who, now }) => {
@@ -495,6 +557,8 @@ const ROUTES = [
       ...deleteMessageStatements(env, uid),
       ...(await deleteReplyStatements(env, uid)),
       env.DB.prepare('DELETE FROM name_reviews WHERE user_id = ?1').bind(uid),
+      env.DB.prepare('UPDATE supporters SET user_id = NULL WHERE user_id = ?1').bind(uid),
+      env.DB.prepare('UPDATE payment_blocks SET user_id = NULL WHERE user_id = ?1').bind(uid),
       env.DB.prepare('INSERT OR REPLACE INTO sync_deleted_users (user_id, deleted_at) VALUES (?1, ?2)').bind(uid, now),
     ]);
     clearBoardCache();
@@ -636,6 +700,9 @@ const ROUTES = [
   ...ratingRoutes(Refusal),
   // ---- Marketing: campaigns, ads, media and what each link brought in (marketing.js).
   ...marketingRoutes(Refusal),
+  // ---- Supporters and premium extras (supporters.js).
+  ...supporterRoutes(Refusal),
+  ...educatorRoutes(Refusal),
   ['GET', /^alerts$/, 'viewer', 'alerts.view', async ({ env }) => ({ body: await alerts(env) })],
   ['GET', /^summary$/, 'admin', 'summary.view', async ({ env, url }) => {
     const s = await summary(env, daysParam(url, 31));
@@ -689,7 +756,7 @@ const reply = (body, status = 200, extra = {}) => new Response(JSON.stringify(bo
   status, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', ...extra },
 });
 
-async function api(req, env, url, path) {
+async function api(req, env, ctx, url, path) {
   if (path === 'client-config' && req.method === 'GET') {
     // Public by design (it only names the Firebase project), but kept out of the repo.
     return reply({ firebaseApiKey: env.FIREBASE_WEB_API_KEY || null, projectId: env.FIREBASE_PROJECT_ID || null, tokenSignIn: true });
@@ -709,7 +776,7 @@ async function api(req, env, url, path) {
     if (ROLES[who.role] < ROLES[route[2]]) throw new Refusal(403, 'role', `This needs the ${route[2]} role.`);
     const body = await readBody(req);
     let out;
-    try { out = await route[4]({ req, env, url, who, params, body, now: Date.now() }); } catch (e) {
+    try { out = await route[4]({ req, env, ctx, url, who, params, body, now: Date.now() }); } catch (e) {
       if (e instanceof MessageRefusal) throw new Refusal(e.status, e.error, e.message);
       throw e;
     }
@@ -759,7 +826,7 @@ export async function handleAdmin(req, env, ctx, url, legacy) {
   if (path === '/admin') return Response.redirect(new URL('/admin/', url).toString(), 301);
   // The old token-only story review page moved into the dashboard.
   if (path === '/admin/learn' && req.method === 'GET') return Response.redirect(new URL('/admin/#stories', url).toString(), 301);
-  if (path.startsWith('/admin/v1/')) return api(req, env, url, path.slice('/admin/v1/'.length));
+  if (path.startsWith('/admin/v1/')) return api(req, env, ctx, url, path.slice('/admin/v1/'.length));
   const file = req.method === 'GET' && path.match(APP_FILE);
   if (file) return appFile(env, url, file[1] || 'index.html');
   if (LEGACY.test(path)) {

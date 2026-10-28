@@ -108,6 +108,12 @@ function card({ w, h, layout }) {
       <p class="sub">Pick a theme and a level, from beginner to Quantum Physicist. A brand-new story every time.</p>
       <div style="flex:1; position:relative">${frame(shot('grid'), 'position:absolute; left:0; right:0; top:0; height:58%')}${frame(shot('clues'), 'position:absolute; left:8%; right:8%; bottom:0; height:38%')}</div>
       <div style="display:flex; justify-content:space-between; align-items:center"><span class="cta">Make one free</span><span class="url">thelogicgrid.com</span></div></div>`;
+  } else if (layout === 'cover') {
+    // Facebook Page cover: phones crop the sides, so the words stay in the middle 1200 px.
+    body = `<div class="wrap" style="align-items:center; padding-left:${Math.round(w * 0.14)}px; padding-right:${Math.round(w * 0.14)}px">
+      <div class="col" style="flex: 0 0 52%">${brand}<h1 style="font-size:${Math.round(big * 0.95)}px">Logic puzzles with <em>a new story</em> every time</h1>
+        <div><span class="cta">Play free</span> &nbsp; <span class="url">thelogicgrid.com</span></div></div>
+      <div style="flex:1; position:relative; height: 86%">${frame(shot('grid'), 'position:absolute; inset:0')}</div></div>`;
   } else {
     body = `<div class="wrap" style="flex-direction:column; justify-content:space-between">
       ${brand}<h1 style="font-size:${Math.round(big * 0.85)}px">Logic puzzles with <em>a new story</em> every time</h1>
@@ -122,6 +128,7 @@ const CARDS = [
   { name: 'pin-1000x1500', w: 1000, h: 1500, layout: 'tall', preview: 'marketing-pin' },
   { name: 'gallery-1270x760', w: 1270, h: 760, layout: 'wide', preview: 'marketing-gallery' },
   { name: 'itch-cover-630x500', w: 630, h: 500, layout: 'small', preview: 'marketing-cover' },
+  { name: 'facebook-cover-1640x624', w: 1640, h: 624, layout: 'cover', preview: 'marketing-fbcover' },
 ];
 
 (async () => {
@@ -137,6 +144,8 @@ const CARDS = [
       await page.setContent(card(c));
       await page.evaluate(() => document.fonts.ready);
       await page.screenshot({ path: path.join(OUT, `${c.name}.png`) });
+      // Instagram's posting tool takes JPEG only (scripts/marketing-post.py).
+      await page.screenshot({ path: path.join(OUT, `${c.name}.jpg`), type: 'jpeg', quality: 90 });
       // The admin preview: the same card at 480 px wide.
       const s = 480 / c.w;
       await page.setViewportSize({ width: 480, height: Math.round(c.h * s) });

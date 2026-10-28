@@ -24,8 +24,9 @@ const { spawn } = require('child_process');
   });
   await page.goto('http://localhost:8131/');
   await page.waitForSelector('#dlg-welcome[open]'); await page.keyboard.press('Escape');
-  await page.waitForTimeout(1700);
-  assert(/natural voices ready/.test(await page.locator('#toasts').innerText()), 'natural voices start downloading on first launch');
+  // The first download waits until the page has loaded and is idle (about 8 s), so it never slows the first screen.
+  const started = await page.waitForFunction(() => /natural voices ready/.test(document.querySelector('#toasts').innerText), null, { timeout: 15000 }).then(() => true, () => false);
+  assert(started, 'natural voices start downloading on first launch');
   await page.check('input[name=tier][value=easy]', { force: true });
   await page.check('input[name=theme][value=mystery]', { force: true });
   await page.click('#gen-btn'); await page.waitForSelector('#screen-play:not([hidden])', { timeout: 30000 });

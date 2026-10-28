@@ -1,0 +1,52 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "The Fantastical Logic Grid Admin",
+  "version": "1.0.0",
+  "identifier": "com.fantasticallogicgrid.admin",
+  "build": {
+    "frontendDist": "https://flg-api.btay74.workers.dev/admin/"
+  },
+  "app": {
+    "windows": [],
+    "security": {
+      "csp": null
+    },
+    "withGlobalTauri": false
+  },
+  "bundle": {
+    "active": true,
+    "licenseFile": "../../LICENSE",
+    "targets": [
+      "nsis"
+    ],
+    "publisher": "The Fantastical Logic Grid",
+    "shortDescription": "Admin dashboard for The Fantastical Logic Grid",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.ico",
+      "icons/icon.png"
+    ],
+    "windows": {
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper"
+      },
+      "nsis": {
+        "installMode": "currentUser"
+      }
+    },
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDYzQzQzNTc0N0QwQkFBMTcKUldRWHFndDlkRFhFWTRHWURra1huSzlXckpvU2cxNjlhODNBL0FockNjQ0hWVncxYmU3NzlPajUK",
+      "endpoints": [
+        "https://github.com/bltaylorjr/fantastical-logic-grid/releases/download/admin-desktop/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  }
+}
