@@ -119,6 +119,18 @@ function confirmDialog({ title, text, yes, no, check }) {
   });
 }
 
+// Every dialog with a close (X) button closes from it, and the welcome and the
+// Introduction also close with a click on the dimmed page around them, so a
+// first-visit window can never trap anyone (Escape closes dialogs too).
+document.addEventListener('click', (e) => {
+  const x = e.target.closest?.('dialog .dlg-x');
+  if (x) { x.closest('dialog').close(); return; }
+  const d = e.target;
+  if (d instanceof HTMLDialogElement && d.open && d.hasAttribute('data-light-dismiss')) {
+    const r = d.getBoundingClientRect();
+    if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) d.close();
+  }
+});
 function openDialog(dlg, focusEl) {
   const back = document.activeElement;
   dlg.addEventListener('close', () => back?.focus?.(), { once: true });
