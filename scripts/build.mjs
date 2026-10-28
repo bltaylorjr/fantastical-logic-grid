@@ -75,10 +75,14 @@ if (!process.env.FLG_NO_MINIFY) {
   const walkOwn = (d) => { for (const n of readdirSync(d)) { const p = join(d, n); if (statSync(p).isDirectory()) { if (n !== 'vendor') walkOwn(p); } else if (/\.(js|css)$/.test(n) && n !== 'sw.js') own.push(p); } };
   walkOwn(out);
   // The story and puzzle content (storylines, topics, cast, clue wording) is
-  // also obfuscated: its words move into an encoded table, so it cannot be
-  // read or copied out of the files. Only these data modules, because the
-  // solver and generator run thousands of times per puzzle and obfuscating
-  // them would make puzzles about 65% slower to make; these cost nothing.
+  // also obfuscated: its words move out of the code into one shuffled table,
+  // so the stories cannot be lifted out of the files in one piece. Only these
+  // data modules, because the solver and generator run thousands of times per
+  // puzzle and obfuscating them would make puzzles about 65% slower to make.
+  // The table is not base64-encoded or rotated: decoding every word as the
+  // page opened tripled the home page's blocking time (Lighthouse speed 94
+  // fell to about 50 on the live site), and plain table entries cost almost
+  // nothing.
   const OBFUSCATE = new Set(['engine/storylines.js', 'engine/more-stories.js', 'engine/topics.js', 'engine/story.js', 'engine/themes.js',
     'engine/language.js', 'engine/clues.js', 'engine/house-tuning.js', 'js/castbook.js'].map((f) => join(out, f)));
   const { default: JavaScriptObfuscator } = await import('javascript-obfuscator');
@@ -88,7 +92,7 @@ if (!process.env.FLG_NO_MINIFY) {
     if (OBFUSCATE.has(p)) {
       code = JavaScriptObfuscator.obfuscate(code, {
         compact: true, sourceType: 'module', target: 'browser', identifierNamesGenerator: 'mangled', renameGlobals: false,
-        stringArray: true, stringArrayEncoding: ['base64'], stringArrayThreshold: 1, stringArrayRotate: true, stringArrayShuffle: true,
+        stringArray: true, stringArrayEncoding: [], stringArrayThreshold: 1, stringArrayRotate: false, stringArrayShuffle: true, stringArrayWrappersCount: 0, stringArrayCallsTransform: false,
         controlFlowFlattening: false, deadCodeInjection: false, selfDefending: false, debugProtection: false, unicodeEscapeSequence: false,
       }).getObfuscatedCode();
     }
