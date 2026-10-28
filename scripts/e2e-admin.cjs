@@ -198,7 +198,7 @@ const SHOTS = process.env.SHOTS;
     // secret is typed on return, never stored), and coming back takes the
     // code off the address bar.
     await page.click('details.conn[data-id=reddit] summary');
-    await page.click('details.conn[data-id=reddit] button[data-oauth=reddit]');
+    await page.click('details.conn[data-id=reddit] button[data-key-site=reddit]');
     await page.fill('#dialog [name=clientId]', 'test-app');
     await page.route('https://www.reddit.com/**', (r) => r.fulfill({ body: '<p>reddit</p>', contentType: 'text/html' }));
     await Promise.all([page.waitForURL((u) => u.hostname === 'www.reddit.com'), page.click('#dialog-ok')]);
