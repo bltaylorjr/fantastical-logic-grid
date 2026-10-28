@@ -686,13 +686,13 @@ export const CONNECTIONS = [
       { label: 'Namecheap Mail Settings', value: 'Custom MX: @ mx1.improvmx.com (10), @ mx2.improvmx.com (20)' },
       { label: 'Root SPF TXT (@)', value: 'v=spf1 include:spf.improvmx.com ~all' },
       { label: 'ImprovMX alias', value: 'support -> fantasticallogicgrid@gmail.com' },
-      { label: 'Gmail Send mail as', value: 'smtp.resend.com, port 465 SSL, user resend, password = a Resend Sending access key' },
+      { label: 'Gmail Send mail as', value: 'smtp.resend.com, port 587 TLS, user resend, password = a Resend Sending access key' },
     ],
     steps: [
       'Sign up at https://app.improvmx.com with fantasticallogicgrid@gmail.com, add `thelogicgrid.com`, and make the alias `support` forward to fantasticallogicgrid@gmail.com.',
       'Namecheap > **Domain List** > **Manage** > **Advanced DNS**: under **Mail Settings** (Custom MX) add MX `@` `mx1.improvmx.com` priority 10 and MX `@` `mx2.improvmx.com` priority 20; under **Host Records** add TXT `@` `v=spf1 include:spf.improvmx.com ~all`.',
       'In ImprovMX click **Check again** until it says **Email forwarding active**.',
-      'Gmail > **Settings** > **Accounts and Import** > **Send mail as** > **Add another email address**: `support@thelogicgrid.com`, SMTP `smtp.resend.com`, port 465 (SSL), user `resend`, password = a new Resend **Sending access** key. Confirm with the code Gmail sends.',
+      'Gmail > **Settings** > **Accounts and Import** > **Send mail as** > **Add another email address**: `support@thelogicgrid.com`, SMTP `smtp.resend.com`, port 587 (TLS; 465 SSL fails from Gmail), user `resend`, password = a new Resend **Sending access** key. Confirm with the code Gmail sends.',
     ],
     links: [{ label: 'ImprovMX', url: 'https://app.improvmx.com' }, { label: 'ImprovMX Namecheap guide', url: 'https://improvmx.com/guides/namecheap' }],
     checks: [
