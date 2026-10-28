@@ -28,6 +28,12 @@ export const INDEXNOW_KEY = process.env.FLG_INDEXNOW_KEY || 'fae88a004ad87116c0e
 // so a daily story is never used twice.
 const DAILY_START = '2026-10-25';
 const DAILY_ARCHIVE_DAYS = 30;
+// The first puzzle of the week (a Monday): a bigger Expert puzzle, emailed to
+// the weekly list (server/src/puzzle-mail.js). Weekly and special edition
+// stories come from the same chain as the daily ones, so none is ever reused.
+const WEEKLY_START = '2026-11-02';
+const WEEKLY_TIER = 'expert';
+const WEEKLY_ARCHIVE = 8;
 // Days ahead the admin dashboard's daily planner can preview.
 const DAILY_AHEAD_DAYS = 14;
 // How many puzzles the Hand-picked collection shows.
@@ -76,6 +82,39 @@ async function readDailyPlan(base) {
   if (process.env.FLG_DAILY_PLAN_REQUIRED === '1') throw new Error('The daily puzzle plan could not be read, so the site was not rebuilt (past daily puzzles must not change).');
   return new Map();
 }
+// Special edition puzzles planned in the admin dashboard (server/src/editions.js).
+// Like the daily plan: the Worker first, then the copy the live site
+// published, and with FLG_DAILY_PLAN_REQUIRED=1 no rebuild without one of them,
+// because a missing edition would change the stories of later days.
+async function readSpecials(base) {
+  const get = async (u) => {
+    const res = await fetch(u, { signal: AbortSignal.timeout(15000) });
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error(`${u} answered ${res.status}`);
+    const body = await res.json();
+    if (!Array.isArray(body.specials)) throw new Error(`${u} has no special editions`);
+    return body.specials;
+  };
+  const sources = [process.env.FLG_CLOUD_URL && `${process.env.FLG_CLOUD_URL.replace(/\/+$/, '')}/v1/specials`, `${base}/specials/list.json`].filter(Boolean);
+  let missing = 0;
+  for (const u of sources) {
+    try {
+      const rows = await get(u);
+      if (!rows) { missing++; continue; }
+      // Only the known fields, checked, so nothing else from the network is kept or written.
+      const str = (v, max) => String(v ?? '').slice(0, max);
+      const num = (v) => (Number.isInteger(v) && v >= 3 && v <= 8 ? v : null);
+      return rows.filter((r) => r && /^\d{4}-\d{2}-\d{2}$/.test(r.date) && /^se-[\w-]{1,40}$/.test(r.id) && r.title)
+        .map((r) => ({ id: r.id, date: r.date, title: str(r.title, 80), note: str(r.note, 400), theme: r.theme ? str(r.theme, 40) : null, difficulty: r.difficulty ? str(r.difficulty, 20) : null, categories: num(r.categories), items: num(r.items) }))
+        .sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
+    } catch (e) { console.warn(`Special editions: ${e.message}`); }
+  }
+  // Both answered "not found": no editions yet (before the first one is planned).
+  if (missing === sources.length) return [];
+  if (process.env.FLG_DAILY_PLAN_REQUIRED === '1') throw new Error('The special edition list could not be read, so the site was not rebuilt (past puzzles must not change).');
+  return [];
+}
+
 // Ratings and the best-rated daily puzzles (server/src/quality.js), for the
 // Hand-picked page and the line at the foot of every page. If the Worker
 // cannot be reached, the copy the live site published last time is used.
@@ -398,7 +437,35 @@ ${playBtn(up, `Play a ${t.name.toLowerCase()} puzzle`, false)}
   const daily = new Map();
   const allPast = new Map(); // every daily puzzle up to today, for the Hand-picked collection
   const upcoming = [];
+  // Weekly and special edition puzzles join the chain on their day, before
+  // that day's daily puzzle, so every story stays new.
+  const specials = await readSpecials(base);
+  const weekly = new Map(); // Monday -> puzzle
+  const specialPuzzles = new Map(); // edition id -> { edition, puzzle }
+  const extraStories = []; // [date, story id] of weekly and special puzzles, for the printables below
+  const fresh = (opts, seed) => {
+    let p;
+    for (let n = 0; n < 20; n++) {
+      p = generatePuzzle({ ...opts, seed: `${seed}${n ? `-${n}` : ''}` });
+      if (!used.has(p.story.id)) break;
+    }
+    used.add(p.story.id);
+    return p;
+  };
   for (let d = DAILY_START, i = 0; d <= addDays(today, DAILY_AHEAD_DAYS); d = addDays(d, 1), i++) {
+    if (d >= WEEKLY_START && new Date(`${d}T00:00:00Z`).getUTCDay() === 1) {
+      const p = fresh({ difficulty: WEEKLY_TIER, theme: THEMES[(i + 3) % THEMES.length].id }, `weekly-${d}`);
+      weekly.set(d, p);
+      extraStories.push([d, p.story.id]);
+    }
+    for (const e of specials.filter((x) => x.date === d)) {
+      const theme = THEMES.some((t) => t.id === e.theme) ? e.theme : THEMES[(i + 5) % THEMES.length].id;
+      const difficulty = TIERS[e.difficulty] ? e.difficulty : 'hard';
+      const size = e.categories && e.items ? { categories: e.categories, items: e.items } : {};
+      const p = fresh({ difficulty, theme, ...size }, `special-${e.id}`);
+      specialPuzzles.set(e.id, { edition: e, puzzle: p });
+      extraStories.push([d, p.story.id]);
+    }
     const o = plan.get(d) || {};
     const theme = THEMES.some((t) => t.id === o.theme) ? o.theme : THEMES[i % THEMES.length].id;
     const difficulty = TIERS[o.difficulty] ? o.difficulty : DAILY_TIERS[new Date(`${d}T00:00:00Z`).getUTCDay()];
@@ -407,12 +474,7 @@ ${playBtn(up, `Play a ${t.name.toLowerCase()} puzzle`, false)}
     // planned by hand in the admin dashboard are built exactly as planned.
     const house = plan.has(d) ? {} : houseDailyOptions(d, difficulty);
     const seed = `daily-${d}${o.reroll ? `-r${o.reroll}` : ''}`;
-    let p;
-    for (let n = 0; n < 20; n++) {
-      p = generatePuzzle({ difficulty, theme, ...size, ...house, seed: `${seed}${n ? `-${n}` : ''}` });
-      if (!used.has(p.story.id)) break;
-    }
-    used.add(p.story.id);
+    const p = fresh({ difficulty, theme, ...size, ...house }, seed);
     dailyStories.push([d, p.story.id]);
     if (d <= today) allPast.set(d, p);
     if (d > today) upcoming.push(dailySummary(p, d, plan.has(d)));
@@ -427,6 +489,25 @@ ${playBtn(up, `Play a ${t.name.toLowerCase()} puzzle`, false)}
   writeFileSync(join(site, 'daily', 'upcoming.json'), JSON.stringify({ built: new Date().toISOString(), today, days: upcoming }));
   // Every change ever made, so a later build can rebuild past days the same way.
   writeFileSync(join(site, 'daily', 'plan.json'), JSON.stringify({ plan: [...plan.values()] }));
+
+  // The puzzle of the week (weekly/latest.json and weekly/puzzles/<Monday>.json)
+  // and the special editions whose day has come (specials/index.json and
+  // specials/<id>.json), for the game and the puzzle emails.
+  const thisMonday = addDays(today, -((new Date(`${today}T00:00:00Z`).getUTCDay() + 6) % 7));
+  const weeks = [...weekly.keys()].filter((w) => w <= thisMonday).sort().reverse().slice(0, WEEKLY_ARCHIVE);
+  mkdirSync(join(site, 'weekly', 'puzzles'), { recursive: true });
+  for (const w of weeks) writeFileSync(join(site, 'weekly', 'puzzles', `${w}.json`), JSON.stringify({ week: w, puzzle: weekly.get(w) }));
+  // Before the first week, an empty one, so the game's request is not an error.
+  writeFileSync(join(site, 'weekly', 'latest.json'), JSON.stringify(weeks.length ? { week: weeks[0], ...dailySummary(weekly.get(weeks[0]), weeks[0], false), weeks } : { week: null, weeks: [] }));
+  const specialSummary = ({ edition: e, puzzle: p }) => ({ id: e.id, date: e.date, editionTitle: e.title, note: e.note, ...dailySummary(p, e.date, true) });
+  const outNow = [...specialPuzzles.values()].filter((x) => x.edition.date <= today).reverse();
+  mkdirSync(join(site, 'specials'), { recursive: true });
+  for (const x of outNow) writeFileSync(join(site, 'specials', `${x.edition.id}.json`), JSON.stringify({ id: x.edition.id, date: x.edition.date, title: x.edition.title, note: x.edition.note, puzzle: x.puzzle }));
+  writeFileSync(join(site, 'specials', 'index.json'), JSON.stringify({ specials: outNow.slice(0, 20).map(specialSummary) }));
+  // For the dashboard: the coming editions, without clues or answers.
+  writeFileSync(join(site, 'specials', 'upcoming.json'), JSON.stringify({ built: new Date().toISOString(), specials: [...specialPuzzles.values()].filter((x) => x.edition.date > today).map(specialSummary) }));
+  // Every edition, so a later build can rebuild the chain the same way.
+  writeFileSync(join(site, 'specials', 'list.json'), JSON.stringify({ specials }));
   const puzzleBody = (p, d, up) => `<p class="meta">${esc(longDate(d))} · ${esc(p.theme.name)}${p.topic ? ` (${esc(p.topic.name)})` : ''} · ${esc(p.difficulty.name)} · ${p.categories.length} categories × ${p.categories[0].items.length} items</p>
 <h2>The story</h2>
 ${p.story.paragraphs.map((t) => `<p>${esc(t)}</p>`).join('\n')}
@@ -603,6 +684,7 @@ ${playBtn(up)}`,
 <h2>Things you choose to send</h2>
 <p>Ideas, problem reports and story suggestions you write go to the team. If you are signed in and ask for a reply, the team may answer by email or in Messages.</p>
 <p><strong>Daily puzzle by email:</strong> if you are signed in and tick <strong>Email me each day's puzzle</strong>, the game keeps your account's email address to send it, once a day. Every email has a one-click unsubscribe link, and unticking the box or deleting your account removes the address.</p>
+<p><strong>Weekly and special edition puzzles by email:</strong> anyone can sign up in <strong>Menu &gt; Puzzle emails</strong>, with or without an account. The game keeps the email address and which emails you picked. If you are not signed in, we first email you a link to confirm, and nothing else is sent until you press Confirm; an address that is never confirmed is removed after 7 days. Every email has a one-click unsubscribe link and a link to change which emails you get. Unsubscribing from both, or deleting your account, removes the address.</p>
 <p><strong>Educator puzzle packages:</strong> when a teacher asks for a package on the <a href="../educators/">Educators page</a>, we keep the name, school, school email and the choices on the form to confirm the address, review the request and email the puzzles. Requests that are never confirmed or are declined are removed after 30 days.</p>
 <h2>Services the game uses</h2>
 <ul>
@@ -634,6 +716,7 @@ ${playBtn(up)}`,
   let sheets = [];
   for (let w = monday(PRINT_START), i = 0; w <= thisWeek; w = addDays(w, 7), i++) {
     for (const [d, id] of dailyStories) if (d < w) printUsed.add(id);
+    for (const [d, id] of extraStories) if (d <= w) printUsed.add(id);
     sheets = PRINT_LEVELS.map((lv, j) => {
       let p;
       for (let n = 0; n < 20; n++) {

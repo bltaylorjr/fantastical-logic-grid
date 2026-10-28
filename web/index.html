@@ -42,6 +42,7 @@
     <button role="menuitem" type="button" data-cmd="new">New puzzle</button>
     <button role="menuitem" type="button" data-cmd="saved">Saved puzzles</button>
     <button role="menuitem" type="button" data-cmd="daily">Daily puzzle</button>
+    <button role="menuitem" type="button" data-cmd="mail" hidden>Puzzle emails</button>
     <button role="menuitem" type="button" data-cmd="stats">My stats and badges</button>
     <button role="menuitem" type="button" data-cmd="suggest" hidden>Suggest a character</button>
     <button role="menuitem" type="button" data-cmd="settings">Settings</button>
@@ -151,6 +152,13 @@
       </div>
       <p class="lede" id="daily-intro">A new puzzle every day, the same for everyone. Solve it each day to build a streak.</p>
       <div class="daily-today" id="daily-today" aria-live="polite"><p class="muted">Looking for today's puzzle…</p></div>
+      <div class="weekly-box" id="weekly-box" hidden></div>
+      <details class="daily-earlier" id="specials-box" hidden>
+        <summary>Special editions</summary>
+        <p class="help">One-off puzzles from the team, each with a story nobody has played before.</p>
+        <ul class="daily-list" id="specials-list"></ul>
+      </details>
+      <p class="mail-invite" id="mail-invite" hidden><button class="btn quiet small" type="button" id="mail-invite-btn">Get the weekly puzzle by email</button> <span class="help">Free, no account needed.</span></p>
       <details class="daily-earlier" id="daily-earlier" hidden>
         <summary>Earlier days</summary>
         <p class="help">Earlier puzzles are fun to play, but only today's puzzle adds to your streak.</p>
@@ -568,6 +576,22 @@
   <div class="dlg-actions"><button class="btn" type="button" data-close>Close</button></div>
 </dialog>
 
+<dialog id="dlg-mail" aria-labelledby="mail-h">
+  <h2 id="mail-h">Puzzle emails</h2>
+  <p class="help">Free puzzles in your inbox. You don't need an account. Every email has a one-click unsubscribe link, and we never share your address.</p>
+  <form id="mail-form" novalidate>
+    <fieldset><legend>Send me</legend>
+      <label class="check" id="mail-weekly-row"><input type="checkbox" name="weekly" checked> <span>The puzzle of the week, every Monday: a bigger Expert puzzle with a brand-new story</span></label>
+      <label class="check" id="mail-special-row"><input type="checkbox" name="special" checked> <span>Special edition puzzles, a few times a year</span></label>
+    </fieldset>
+    <div class="field" id="mail-email-row"><label for="mail-email">Your email address</label><input id="mail-email" name="email" type="email" autocomplete="email" maxlength="254" spellcheck="false" placeholder="name@example.com"><span class="help">We'll email you a link to confirm. Nothing else comes until you press Confirm in that email.</span></div>
+    <p class="help" id="mail-to" hidden>They go to your account's address, <b id="mail-to-addr"></b>.</p>
+    <div class="error-box" id="mail-error" role="alert" hidden></div>
+    <p class="acct-done" id="mail-done" role="status"></p>
+    <div class="dlg-actions"><button class="btn" type="button" id="mail-close">Close</button><button class="btn primary" type="submit" id="mail-submit">Sign up</button></div>
+  </form>
+</dialog>
+
 <dialog id="dlg-messages" class="wide" aria-labelledby="messages-h">
   <h2 id="messages-h">Messages</h2>
   <section id="msg-news-box" aria-labelledby="msg-news-h" hidden>
@@ -683,7 +707,8 @@
   <div class="dlg-actions"><button class="btn" type="button" data-close>Close</button></div>
 </dialog>
 
-<dialog id="dlg-video" class="wide" aria-labelledby="video-h">
+<dialog id="dlg-video" class="wide" aria-labelledby="video-h" data-light-dismiss>
+  <button class="dlg-x" type="button" aria-label="Close" title="Close (Esc)"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
   <h2 id="video-h">Introduction to The Fantastical Logic Grid</h2>
   <video id="intro-video" controls preload="metadata" playsinline aria-describedby="video-note">
     <source src="media/intro.mp4" type="video/mp4">
@@ -729,7 +754,8 @@
   <div class="dlg-actions"><button class="btn" type="button" id="update-later">Later</button><button class="btn primary" type="button" id="update-install">Install and restart</button></div>
 </dialog>
 
-<dialog id="dlg-welcome" aria-labelledby="welcome-h">
+<dialog id="dlg-welcome" aria-labelledby="welcome-h" data-light-dismiss>
+  <button class="dlg-x" type="button" aria-label="Close" title="Close (Esc)"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
   <h2 id="welcome-h">Welcome, detective!</h2>
   <p>Never solved a logic grid puzzle? <b>How to play</b> teaches you step by step on real grids, with tips and tricks, in about 15 minutes.</p>
   <p>Or watch the <b>Introduction</b>, an 11-minute narrated video with captions, to see everything the game can do.</p>

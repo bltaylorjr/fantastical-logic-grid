@@ -12,6 +12,8 @@
 //   GET /v1/daily/plan                   daily puzzle changes for the website build (daily.js)
 //   /v1/daily/:date/(start|result|stats) everyone's numbers for a daily puzzle (daily-results.js)
 //   /v1/daily-email[/unsubscribe]       daily puzzle by email for signed-in players (daily-email.js)
+//   /v1/mail[/signup|confirm|unsubscribe|settings]  weekly and special edition puzzle emails, players and guests (puzzle-mail.js)
+//   GET /v1/specials                     special edition puzzles for the website build (editions.js)
 //   GET /v1/quality                      average rating and best-rated daily puzzles (quality.js)
 //   POST /v1/translate                   the game's text in another language (translate.js)
 //   POST /v1/m                           anonymous counts of visits from campaign links (marketing.js)
@@ -37,6 +39,8 @@ import { handleDaily } from './daily.js';
 import { handleDailyResults } from './daily-results.js';
 import { handleQuality } from './quality.js';
 import { handleDailyEmail } from './daily-email.js';
+import { handlePuzzleMail } from './puzzle-mail.js';
+import { handleSpecials } from './editions.js';
 import { handleTranslate } from './translate.js';
 import { handleAdmin } from './admin.js';
 import { NIGHTLY_CRONS, isMaintenanceHour, runNightly } from './nightly.js';
@@ -107,6 +111,12 @@ async function route(req, env, ctx) {
 
   const dailyEmail = await handleDailyEmail(req, env, url);
   if (dailyEmail) return dailyEmail;
+
+  const puzzleMail = await handlePuzzleMail(req, env, url);
+  if (puzzleMail) return puzzleMail;
+
+  const specials = await handleSpecials(req, env, url);
+  if (specials) return specials;
 
   const quality = await handleQuality(req, env, url);
   if (quality) return quality;
