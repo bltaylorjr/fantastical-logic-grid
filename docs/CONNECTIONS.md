@@ -804,7 +804,7 @@ uses a secret, variable or binding that is not listed there.
 1. Open <https://www.linkedin.com/developers/apps> and click **Create app**. Name: `Logic Grid autopilot`. LinkedIn asks for a Company Page: pick or create a free Page for the game. Upload the game icon and tick the agreement.
 2. In the app, open **Products** and click **Request access** on **Share on LinkedIn** and on **Sign In with LinkedIn using OpenID Connect**. Both are instant and free.
 3. Open **Auth**. Under **Authorized redirect URLs** add `https://flg-api.btay74.workers.dev/admin/` exactly, and copy the **Client ID** and **Primary Client Secret**.
-4. In admin, **Connections and setup** > this card > **Get the key**. Paste the two, sign in to LinkedIn and click **Allow**.
+4. In admin, **Connections and setup** > this card > **Get the key**. Paste the id, sign in to LinkedIn and click **Allow**, then paste the secret when admin asks.
 5. Open <https://github.com/bltaylorjr/fantastical-logic-grid/settings/secrets/actions> and click **New repository secret** (or the pencil next to `LINKEDIN_TOKEN`).
 6. Name: `LINKEDIN_TOKEN`. Secret: the key admin shows. Click **Add secret**.
 7. Test: <https://github.com/bltaylorjr/fantastical-logic-grid/actions/workflows/marketing-post.yml> > **Run workflow** with mode `check`.
@@ -830,7 +830,7 @@ uses a secret, variable or binding that is not listed there.
 2. Open <https://developers.pinterest.com/apps> and click **Connect app**. Name: `Logic Grid autopilot`, website `https://thelogicgrid.com`, privacy policy `https://thelogicgrid.com/privacy/`.
 3. In the app's settings add the redirect URI `https://flg-api.btay74.workers.dev/admin/` exactly, and copy the **App id** and **App secret key**.
 4. Ask for **Standard access** from the app page (free). Wait for the approval email before the next step, so pins are public.
-5. In admin, **Connections and setup** > this card > **Get the key**. Paste the two, sign in to Pinterest and allow it.
+5. In admin, **Connections and setup** > this card > **Get the key**. Paste the id, sign in to Pinterest and allow it, then paste the secret when admin asks.
 6. Open <https://github.com/bltaylorjr/fantastical-logic-grid/settings/secrets/actions> and click **New repository secret** (or the pencil next to `PINTEREST_REFRESH_TOKEN`).
 7. Name: `PINTEREST_REFRESH_TOKEN`. Secret: the refresh key admin shows. Click **Add secret**.
 8. Add `PINTEREST_APP_ID` and `PINTEREST_APP_SECRET` the same way.
@@ -857,7 +857,7 @@ uses a secret, variable or binding that is not listed there.
 3. Open **Google Auth Platform** > **Branding**: app name `Logic Grid autopilot`, support email fantasticallogicgrid@gmail.com, home page `https://thelogicgrid.com`, privacy `https://thelogicgrid.com/privacy/`. Then **Audience** > **Publish app** (In production), so the key does not stop after 7 days.
 4. Open **Clients** > **Create client** > **Web application**. Under **Authorized redirect URIs** add `https://flg-api.btay74.workers.dev/admin/` exactly. Copy the **Client ID** and **Client secret**.
 5. Fill in the free YouTube API audit form at <https://support.google.com/youtube/contact/yt_api_form> so uploads can be public. Wait for the approval before the next step.
-6. In admin, **Connections and setup** > this card > **Get the key**. Paste the two, sign in as the channel's Google account and allow it (click **Advanced** > **Go to Logic Grid autopilot** if Google warns the app is unverified: it is your own app).
+6. In admin, **Connections and setup** > this card > **Get the key**. Paste the id, sign in as the channel's Google account and allow it (click **Advanced** > **Go to Logic Grid autopilot** if Google warns the app is unverified: it is your own app), then paste the secret when admin asks.
 7. Open <https://github.com/bltaylorjr/fantastical-logic-grid/settings/secrets/actions> and click **New repository secret** (or the pencil next to `YOUTUBE_REFRESH_TOKEN`).
 8. Name: `YOUTUBE_REFRESH_TOKEN`. Secret: the refresh key admin shows. Click **Add secret**.
 9. Add `YOUTUBE_CLIENT_ID` and `YOUTUBE_CLIENT_SECRET` the same way.
@@ -882,7 +882,7 @@ uses a secret, variable or binding that is not listed there.
 1. Open <https://developers.tiktok.com>, sign in with the game's TikTok account, and **Manage apps** > **Connect an app**. Name: `Logic Grid autopilot`, website `https://thelogicgrid.com`, terms `https://thelogicgrid.com/terms/`, privacy `https://thelogicgrid.com/privacy/`.
 2. Add the products **Login Kit** (redirect URI `https://flg-api.btay74.workers.dev/admin/` exactly) and **Content Posting API** (turn on **Direct Post**). Copy the **Client key** and **Client secret**.
 3. Click **Submit for review**. Say it posts the game's own scheduled videos to its own account. Wait for the approval email.
-4. In admin, **Connections and setup** > this card > **Get the key**. Paste the two, sign in to TikTok and allow it.
+4. In admin, **Connections and setup** > this card > **Get the key**. Paste the id, sign in to TikTok and allow it, then paste the secret when admin asks.
 5. Open <https://github.com/bltaylorjr/fantastical-logic-grid/settings/secrets/actions> and click **New repository secret** (or the pencil next to `TIKTOK_REFRESH_TOKEN`).
 6. Name: `TIKTOK_REFRESH_TOKEN`. Secret: the refresh key admin shows. Click **Add secret**.
 7. Add `TIKTOK_CLIENT_KEY` and `TIKTOK_CLIENT_SECRET` the same way.
@@ -907,7 +907,7 @@ uses a secret, variable or binding that is not listed there.
 1. Sign in to Reddit as the account you post from. Comment around the subreddits for a week or two first: many hide posts from brand-new accounts.
 2. Open <https://www.reddit.com/prefs/apps> and click **create another app**. Name: `Logic Grid autopilot`, type **web app**, redirect uri `https://flg-api.btay74.workers.dev/admin/` exactly. If Reddit asks you to request API access, fill in that form first (free).
 3. Copy the id under the app name and the **secret**.
-4. In admin, **Connections and setup** > this card > **Get the key**. Paste the two, then click **Allow** on Reddit.
+4. In admin, **Connections and setup** > this card > **Get the key**. Paste the id, then click **Allow** on Reddit, then paste the secret when admin asks.
 5. Open <https://github.com/bltaylorjr/fantastical-logic-grid/settings/secrets/actions> and click **New repository secret** (or the pencil next to `REDDIT_REFRESH_TOKEN`).
 6. Name: `REDDIT_REFRESH_TOKEN`. Secret: the refresh key admin shows. Click **Add secret**.
 7. Add `REDDIT_CLIENT_ID` and `REDDIT_CLIENT_SECRET` the same way.

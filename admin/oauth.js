@@ -2,8 +2,9 @@
 // types the app id and secret from the site's developer page, allows the app
 // on the site, and comes back here with a one-time code; the Worker swaps it
 // for the key (server/src/marketing-oauth.js), which is shown once to be saved
-// as a GitHub secret. The app secret waits in this tab only (sessionStorage)
-// while the owner is on the site, and is gone as soon as they are back.
+// as a GitHub secret. Only the app id and a random check word wait in this tab
+// (sessionStorage) while the owner is on the site; the app secret is typed
+// when they are back, so it is never stored in the browser.
 
 const PENDING = 'flg-oauth';
 
@@ -51,16 +52,16 @@ export async function startOAuth(site, { ask, esc, toast }) {
   const s = OAUTH[site];
   const v = await ask({
     title: `Get the ${s.name} key`,
-    text: `Copy these two from the app you made on ${esc(s.name)}'s developer page. Its redirect address must be exactly <code>${esc(redirectUri())}</code>. You then sign in to ${esc(s.name)} and allow the app, and come straight back here.`,
-    fields: [{ name: 'clientId', label: s.idLabel }, { name: 'clientSecret', label: s.secretLabel, type: 'password' }],
+    text: `Copy the ${esc(s.idLabel.toLowerCase())} from the app you made on ${esc(s.name)}'s developer page. Its redirect address must be exactly <code>${esc(redirectUri())}</code>. You then sign in to ${esc(s.name)} and allow the app, and come straight back here, where you paste the ${esc(s.secretLabel.toLowerCase())}.`,
+    fields: [{ name: 'clientId', label: s.idLabel }],
     ok: `Go to ${s.name}`,
-    check: (x) => (!x.clientId.trim() || !x.clientSecret.trim() ? 'Both are needed.' : ''),
+    check: (x) => (!x.clientId.trim() ? 'The app id is needed.' : ''),
   });
   if (!v) return;
   const state = `flg-${site}-${crypto.randomUUID()}`;
   try {
-    sessionStorage.setItem(PENDING, JSON.stringify({ site, state, clientId: v.clientId.trim(), clientSecret: v.clientSecret.trim(), at: Date.now() }));
-  } catch (e) { toast('This browser window cannot keep the app secret for the trip. Try a normal (not private) window.'); return; }
+    sessionStorage.setItem(PENDING, JSON.stringify({ site, state, clientId: v.clientId.trim(), at: Date.now() }));
+  } catch (e) { toast('This browser window cannot remember the sign-in for the trip. Try a normal (not private) window.'); return; }
   const q = new URLSearchParams({ ...s.params, [s.idParam || 'client_id']: v.clientId.trim(), redirect_uri: redirectUri(), state });
   location.assign(`${s.authorize}?${q}`);
 }
@@ -82,9 +83,17 @@ export async function finishOAuth(back, { api, ask, esc, toast }) {
   if (!p || p.state !== back.state || Date.now() - p.at > 30 * 60_000) { toast('That sign-in could not be matched to this window. Press Get the key again.'); return; }
   const s = OAUTH[p.site];
   if (back.error || !back.code) { toast(`${s.name} did not allow the app${back.error ? `: ${back.error}` : ''}.`); return; }
+  const typed = await ask({
+    title: `Finish the ${s.name} key`,
+    text: `${esc(s.name)} allowed the app. Paste its ${esc(s.secretLabel.toLowerCase())} to finish (within a few minutes: the code from ${esc(s.name)} runs out).`,
+    fields: [{ name: 'clientSecret', label: s.secretLabel, type: 'password' }],
+    ok: 'Get the key',
+    check: (x) => (!x.clientSecret.trim() ? 'The secret is needed.' : ''),
+  });
+  if (!typed) return;
   let r;
   try {
-    r = await api('marketing/oauth', { method: 'POST', body: { site: p.site, code: back.code, clientId: p.clientId, clientSecret: p.clientSecret } });
+    r = await api('marketing/oauth', { method: 'POST', body: { site: p.site, code: back.code, clientId: p.clientId, clientSecret: typed.clientSecret.trim() } });
   } catch (e) { toast(e.message); return; }
   const rows = [
     s.secrets.id && { name: s.secrets.id, value: p.clientId },
