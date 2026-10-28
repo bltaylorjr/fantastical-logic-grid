@@ -79,7 +79,7 @@ if (!process.env.FLG_NO_MINIFY) {
   // read or copied out of the files. Only these data modules, because the
   // solver and generator run thousands of times per puzzle and obfuscating
   // them would make puzzles about 65% slower to make; these cost nothing.
-  const OBFUSCATE = new Set(['engine/storylines.js', 'engine/more-stories.js', 'engine/topics.js', 'engine/story.js', 'engine/themes.js',
+  const OBFUSCATE = new Set(['engine/storylines.js', 'engine/more-stories.js', 'engine/player-stories.js', 'engine/topics.js', 'engine/story.js', 'engine/themes.js',
     'engine/language.js', 'engine/clues.js', 'engine/house-tuning.js', 'js/castbook.js'].map((f) => join(out, f)));
   const { default: JavaScriptObfuscator } = await import('javascript-obfuscator');
   for (const p of own) {

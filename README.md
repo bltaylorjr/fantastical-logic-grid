@@ -33,8 +33,9 @@ home screen offers one new puzzle a day, the same for everyone. The website buil
 publishes it as `daily/latest.json` and `daily/puzzles/<date>.json` (UTC days; the desktop app reads
 them from the public site). Solving the day's puzzle within 48 hours of the day starting builds a
 streak. Daily puzzles earn no scoreboard points (their answers are on the website). Menu > My stats
-and badges shows totals, times by difficulty, favorite themes and 19 badges, all worked out from a
-solve log (meta `solves`) that syncs with an account. Share my result (on the solved panel) sends a
+and badges shows totals, times by difficulty, favorite themes and 20 badges, all worked out from a
+solve log (meta `solves`) that syncs with an account, except the Contributor badge, which the team
+awards (`server/src/contributors.js`) and which also shows on the scoreboard. Share my result (on the solved panel) sends a
 spoiler-free picture and message through the device's share sheet, or shows them to copy.
 
 **Any language** (`web/js/i18n.js`, `server/src/translate.js`): US English is the default; Settings >
