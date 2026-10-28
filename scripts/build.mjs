@@ -187,7 +187,7 @@ cpSync(join(root, 'hosting'), site, { recursive: true });
 // night, so the expiry date always stays a year ahead.
 mkdirSync(join(site, '.well-known'), { recursive: true });
 writeFileSync(join(site, '.well-known', 'security.txt'), [
-  'Contact: mailto:fantasticallogicgrid@gmail.com',
+  'Contact: mailto:support@thelogicgrid.com',
   `Expires: ${new Date(Date.now() + 365 * 24 * 3600_000).toISOString().slice(0, 19)}Z`,
   'Preferred-Languages: en',
   `Canonical: ${(process.env.FLG_SITE_URL || 'https://thelogicgrid.com').replace(/\/+$/, '')}/.well-known/security.txt`,
