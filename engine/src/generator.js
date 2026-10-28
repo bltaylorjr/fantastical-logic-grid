@@ -14,6 +14,7 @@ import { makeLanguage, clueText } from './language.js';
 import { buildStory, buildQuestions } from './story.js';
 import { orderItems } from './order.js';
 import { customWorld, customStory } from './classroom.js';
+import { PLAYER_STORIES, PLAYER_STORIES_THEME, getPlayerStory } from './player-stories.js';
 
 export const ENGINE_NAME = 'The Fantastical Logic Grid';
 export const ENGINE_VERSION = '1.0.0';
@@ -21,12 +22,25 @@ export const ENGINE_VERSION = '1.0.0';
 const clamp = (v, [lo, hi]) => Math.max(lo, Math.min(hi, v));
 
 function resolveOptions(opts = {}) {
-  const tier = TIERS[opts.difficulty] || TIERS.easy;
   const seed = opts.seed != null ? String(opts.seed) : Math.floor(Math.random() * 2 ** 32).toString(36);
+  // theme "stories": a player-written story (player-stories.js) plays exactly
+  // as written, at its own difficulty and full size, with its own cast.
+  const playerStory = opts.theme === PLAYER_STORIES_THEME.id
+    ? getPlayerStory(opts.topic) || makeRng(`${seed}|stories`).pick(PLAYER_STORIES) : null;
+  if (playerStory) opts = { ...opts, difficulty: playerStory.difficulty, custom: playerStory.def, customNames: null,
+    categories: playerStory.def.categories.length + 1, items: playerStory.def.names.length };
+  const tier = TIERS[opts.difficulty] || TIERS.easy;
   const rng = makeRng(`${seed}|${tier.id}|${opts.theme || ''}|${opts.topic || ''}|${opts.categories || ''}x${opts.items || ''}`);
   const learn = opts.learning || {};
   // custom: an educator's own theme, cast and categories (classroom.js).
   const world = opts.custom ? customWorld(opts.custom) : null;
+  // A player story takes its look (colors, pictures, music) from an existing theme.
+  if (playerStory) {
+    world.theme = { id: playerStory.look, name: PLAYER_STORIES_THEME.name };
+    world.topic = { id: playerStory.id, name: playerStory.def.title, description: world.topic.description };
+    world.scenario.theme = world.theme;
+    world.scenario.topic = world.topic;
+  }
   // A "random" theme leans toward themes the player enjoys (learning.themeWeights).
   const themeWeights = learn.themeWeights && Object.fromEntries(THEMES.map((t) => [t.id, clamp(Number(learn.themeWeights[t.id]) || 1, [0.3, 3])]));
   const theme = world ? world.theme : opts.theme && opts.theme !== 'random' ? getTheme(opts.theme) : themeWeights ? getTheme(rng.weighted(themeWeights)) : rng.pick(THEMES);
@@ -41,7 +55,7 @@ function resolveOptions(opts = {}) {
     K = Math.max(SIZE_LIMITS.categories[0], Math.min(K, scenario.categories.length + 1));
     N = Math.max(SIZE_LIMITS.items[0], Math.min(N, world.maxItems));
   }
-  const customSize = K < tier.categories[0] || K > tier.categories[1] || N < tier.items[0] || N > tier.items[1];
+  const customSize = !playerStory && (K < tier.categories[0] || K > tier.categories[1] || N < tier.items[0] || N > tier.items[1]);
 
   let weights = { ...tier.weights };
   if (Array.isArray(opts.clueTypes) && opts.clueTypes.length) {

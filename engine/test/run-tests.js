@@ -4,7 +4,7 @@
 // counts every grid that satisfies the clues and must find exactly one.
 import {
   generatePuzzle, getHint, checkMarks, isSolved, checkAnswers, describeOptions, formatPuzzleText, THEMES, TIERS, parseStoryId, checkStoryPart, partKey,
-  getTopics,
+  getTopics, PLAYER_STORIES,
 } from '../src/index.js';
 import { buildScenario } from '../src/topics.js';
 import { buildModel, randomSolution } from '../src/generator.js';
@@ -240,10 +240,10 @@ for (const diff of ['easy', 'medium', 'expert']) {
   const r = generatePuzzle({ difficulty: 'basic', theme: 'random', seed: 'rnd' });
   check('random theme works', THEMES.some((t) => t.id === r.theme.id));
   check('print text includes answer key', formatPuzzleText(r).includes('Answer key'));
-  check('describeOptions lists 6 tiers and 22 themes', describeOptions().difficulties.length === 6 && describeOptions().themes.length === 22);
+  check('describeOptions lists 6 tiers, 22 themes and Player Stories', describeOptions().difficulties.length === 6 && describeOptions().themes.length === 23 && describeOptions().themes.at(-1).id === 'stories');
   {
     const grouped = describeOptions().themeGroups.flatMap((g) => g.themes);
-    check('every theme is in exactly one picker group', grouped.length === THEMES.length && THEMES.every((t) => grouped.filter((x) => x === t.id).length === 1), grouped.join(','));
+    check('every theme is in exactly one picker group', grouped.length === THEMES.length + 1 && THEMES.every((t) => grouped.filter((x) => x === t.id).length === 1), grouped.join(','));
   }
 }
 
@@ -520,6 +520,30 @@ for (const diff of ['easy', 'medium', 'expert']) {
   }
   const kinds = Object.fromEntries(['t@lincoln.edu', 'u@stmarys.k12.mn.us', 'v@austinisd.org', 'w@ox.ac.uk', 'x@gmail.com', 'y@acme.com'].map((e) => [e, schoolEmail(e).kind]));
   check('school emails are recognized and personal ones are not', JSON.stringify(Object.values(kinds)) === JSON.stringify(['school', 'school', 'school', 'school', 'personal', 'unknown']), JSON.stringify(kinds));
+}
+
+// ---------- Player Stories: written by players, played exactly as written ----------
+{
+  const opts = describeOptions();
+  const theme = opts.themes.find((t) => t.id === 'stories');
+  check('Player Stories theme lists every story', theme && theme.topics.length === PLAYER_STORIES.length + 1);
+  check('Player Stories has its own theme group', opts.themeGroups.some((g) => g.themes.includes('stories')));
+  for (const s of PLAYER_STORIES) {
+    for (const seed of quick ? ['a'] : ['a', 'b', 'c']) {
+      const p = generatePuzzle({ theme: 'stories', topic: s.id, seed, difficulty: 'basic', categories: 3, items: 3, customNames: ['Zed', 'Yan', 'Xu'] });
+      const label = `player story ${s.id}/${seed}`;
+      check(`${label}: plays at the writer's difficulty`, p.options.difficulty === s.difficulty, p.options.difficulty);
+      check(`${label}: keeps the writer's cast`, JSON.stringify([...p.categories[0].items.map((i) => i.label)].sort()) === JSON.stringify([...s.def.names].sort()));
+      check(`${label}: uses every list in full`, p.categories.length === s.def.categories.length + 1 && p.categories.every((c) => c.items.length === s.def.names.length));
+      check(`${label}: keeps the writer's items`, s.def.categories.every((c) => p.categories.some((pc) => pc.name === c.name && c.items.every((x) => pc.items.some((i) => i.label === x)))));
+      check(`${label}: keeps the writer's title and scene`, p.story.title === s.def.title && p.story.text.startsWith(s.def.story.slice(0, 40)));
+      check(`${label}: takes its look from a real theme`, THEMES.some((t) => t.id === p.theme.id));
+      check(`${label}: has no size note`, !p.notes.some((n) => /Custom size/.test(n)), p.notes.join(' | '));
+      const sol = countSolutions(p);
+      if (sol !== null) check(`${label}: exactly one solution`, sol === 1, `found ${sol}`);
+    }
+  }
+  check('Any player story picks one of them', PLAYER_STORIES.some((s) => s.def.title === generatePuzzle({ theme: 'stories', seed: 'any' }).story.title));
 }
 
 console.log('\nGeneration time per tier (ms, avg / max):');
