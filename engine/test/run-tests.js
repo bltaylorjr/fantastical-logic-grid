@@ -11,6 +11,7 @@ import { buildModel, randomSolution } from '../src/generator.js';
 import { buildStory } from '../src/story.js';
 import { makeLanguage } from '../src/language.js';
 import { makeRng } from '../src/rng.js';
+import { storyBeats } from '../src/beats.js';
 import { SIZE_LIMITS } from '../src/tiers.js';
 import { TIER_ORDER } from '../src/tiers.js';
 import { orderItems, inOrder } from '../src/order.js';
@@ -520,6 +521,19 @@ for (const diff of ['easy', 'medium', 'expert']) {
   }
   const kinds = Object.fromEntries(['t@lincoln.edu', 'u@stmarys.k12.mn.us', 'v@austinisd.org', 'w@ox.ac.uk', 'x@gmail.com', 'y@acme.com'].map((e) => [e, schoolEmail(e).kind]));
   check('school emails are recognized and personal ones are not', JSON.stringify(Object.values(kinds)) === JSON.stringify(['school', 'school', 'school', 'school', 'personal', 'unknown']), JSON.stringify(kinds));
+}
+
+// Story beats (experimental): no spoilers, steady triggers, same every time.
+{
+  for (const [theme, cats] of [['mystery', 3], ['pets', 4], ['scifi', 5]]) {
+    const p = generatePuzzle({ theme, categories: cats, seed: `beats-${theme}` });
+    const beats = storyBeats(p);
+    const sections = p.grid.blocks.length;
+    check(`beats (${theme}): ${Math.min(3, sections - 1)} beats`, beats.length === Math.min(3, sections - 1), JSON.stringify(beats));
+    check(`beats (${theme}): shown in order before the last section`, beats.every((b, i) => b.after >= 1 && b.after < sections && (i === 0 || b.after > beats[i - 1].after)), JSON.stringify(beats.map((b) => b.after)));
+    check(`beats (${theme}): every slot filled`, beats.every((b) => !/[{}]/.test(b.text)), JSON.stringify(beats));
+    check(`beats (${theme}): same puzzle, same beats`, JSON.stringify(storyBeats(p)) === JSON.stringify(beats));
+  }
 }
 
 console.log('\nGeneration time per tier (ms, avg / max):');
