@@ -15,6 +15,7 @@
 // address is kept apart from the message itself. With talk: true and a token, the player asks the
 // team to answer in the game's Messages: only then is the row linked to the
 // account, through a new conversation (messages.js).
+import { alert } from './alerts.js';
 import { json, readText, TooLarge } from './http.js';
 import { getSettings } from './settings.js';
 import { queueReply } from './replies.js';
@@ -47,7 +48,7 @@ export function cleanText(text) {
     .slice(0, 1000);
 }
 
-async function postFeedback(req, env) {
+async function postFeedback(req, env, ctx) {
   let body;
   try { body = JSON.parse(await readText(req, 6_000)); } catch (e) { return json(req, env, { error: e instanceof TooLarge ? 'too_large' : 'bad_request' }, e instanceof TooLarge ? 413 : 400); }
   if (!(await getSettings(env)).feedback_enabled) return json(req, env, { error: 'switched_off', message: 'The idea and problem boxes are closed for now.' }, 503);
@@ -64,6 +65,7 @@ async function postFeedback(req, env) {
   if (n >= MAX_NEW_PER_DAY) return json(req, env, { error: 'busy', message: 'The boxes are full for today. Please try again tomorrow.' }, 429);
   const row = await env.DB.prepare('INSERT INTO feedback (kind, topic, text, platform, version, theme, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7) RETURNING id')
     .bind(kind, topic, text, platform, version, theme, Date.now()).first();
+  await alert(env, ctx, { category: 'messages', title: kind === 'problem' ? 'New problem report' : 'New idea', body: text.slice(0, 160), link: 'communication' });
   let reply = 'none';
   let update = false;
   try { ({ reply, update } = await queueReply(req, env, kind, body.reply === true, text, row.id)); } catch (e) { console.error(e); reply = 'error'; }
@@ -79,11 +81,11 @@ async function postFeedback(req, env) {
 }
 
 // Returns a Response for this module's routes, or null for anything else.
-export async function handleFeedback(req, env, url) {
+export async function handleFeedback(req, env, url, ctx) {
   if (url.pathname !== '/v1/feedback' || req.method !== 'POST') return null;
   const ip = req.headers.get('CF-Connecting-IP') || 'local';
   if (env.LIMIT_FEEDBACK && !(await env.LIMIT_FEEDBACK.limit({ key: (await sha256(`flg|${ip}`)).slice(0, 32) })).success) {
     return json(req, env, { error: 'slow_down', message: 'That was quick! Wait a minute before sending another.' }, 429, { 'Retry-After': '60' });
   }
-  return postFeedback(req, env);
+  return postFeedback(req, env, ctx);
 }

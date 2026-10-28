@@ -267,3 +267,9 @@ td.num, th.num { white-space: nowrap; }
 .player-badges li > span:nth-child(2) { flex: 1; }
 #badge-editor .field[hidden], .badge-list [hidden] { display: none; }
 .badge-list .badge-title { font-size: 1.05rem; display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+
+/* My alerts (Settings) */
+#alerts-card h3 { margin: 16px 0 6px; font-size: 1rem; }
+.alert-devices { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.alert-devices li { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
+.alert-devices li .btn { margin-left: auto; }

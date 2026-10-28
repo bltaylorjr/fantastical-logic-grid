@@ -24,6 +24,7 @@
 // address is kept, so numbers can never be tied to a person. Codes the
 // dashboard does not know are counted as '(other)' or 'other', so nobody can
 // fill the table with made-up names.
+import { alert } from './alerts.js';
 import { json, readText, TooLarge } from './http.js';
 import { SEEDS } from './marketing-seed.js';
 import { getSettings } from './settings.js';
@@ -338,6 +339,8 @@ export function marketingRoutes(Refusal) {
         const r = await env.DB.prepare(`INSERT INTO campaign_ads (campaign_id, channel, medium, content, title, body, media, landing, status, where_to, post_url, posted_at, notes, created_by, created_at, updated_at, post_on)
           VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?15, ?16) RETURNING id`)
           .bind(campaignId, channel, medium, content, title, text, JSON.stringify(media), landing, status, where, postUrl, status === 'posted' ? now : null, notes, who.actor, now, postOn).first();
+        // Ads the marketing autopilot writes (with the break-glass key) wait for approval.
+        if (status === 'draft' && who.role === 'owner' && !who.uid) await alert(env, null, { category: 'approvals', instant: false, title: 'New ads to approve', body: `"${title}" for ${channel} is waiting in Marketing.`, link: 'marketing', dedupe: `ads-${new Date(now).toISOString().slice(0, 10)}` });
         out = { body: { id: r.id }, target: r.id, detail: { title, channel, status } };
       }
       forgetCodes();

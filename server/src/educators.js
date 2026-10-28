@@ -31,6 +31,7 @@
 // any). They are kept on the request (campaign) and counted in the admin
 // Marketing numbers as edu_request, edu_confirm (address confirmed) and
 // edu_sent (package emailed) for that campaign, channel and ad.
+import { alert } from './alerts.js';
 import { json, readText, TooLarge } from './http.js';
 import { getSettings } from './settings.js';
 import { cleanTags, countServerEvent } from './marketing.js';
@@ -134,7 +135,7 @@ async function findRef(env, ref) {
   return env.DB.prepare('SELECT id, ref, status, code_hash, verify_tries, resends, created_at, campaign FROM educator_requests WHERE ref = ?1').bind(ref).first();
 }
 
-async function postVerify(req, env, now) {
+async function postVerify(req, env, ctx, now) {
   const body = await readJson(req);
   const ref = cleanRef(body?.ref);
   const code = String(body?.code ?? '').replace(/\D/g, '');
@@ -154,6 +155,7 @@ async function postVerify(req, env, now) {
   }
   const done = await env.DB.prepare("UPDATE educator_requests SET status = 'pending', verified_at = ?2, code_hash = NULL, mail = NULL, mail_code = NULL WHERE id = ?1 AND status = 'unverified'").bind(row.id, now).run();
   if (done.meta?.changes && row.campaign) await countServerEvent(env, 'edu_confirm', row.campaign, now);
+  if (done.meta?.changes) await alert(env, ctx, { category: 'approvals', title: 'An educator request is waiting', body: 'An educator confirmed their email and is waiting for you to approve or decline their puzzle package.', link: 'educators' });
   return json(req, env, { status: 'pending' });
 }
 
@@ -188,7 +190,7 @@ export async function handleEducators(req, env, ctx, url) {
   }
   if (req.method !== 'POST') return json(req, env, { error: 'not_found' }, 404);
   if (path === 'request') return postRequest(req, env, ctx, now);
-  if (path === 'verify') return postVerify(req, env, now);
+  if (path === 'verify') return postVerify(req, env, ctx, now);
   if (path === 'resend') return postResend(req, env, ctx, now);
   return json(req, env, { error: 'not_found' }, 404);
 }

@@ -558,13 +558,14 @@ uses a secret, variable or binding that is not listed there.
 
 ### Resend: player emails from noreply@thelogicgrid.com
 
-**Why:** Sends the thank-you notes for ideas and problems, the daily puzzle emails and the weekly and special edition puzzle emails (with their confirm links) from noreply@thelogicgrid.com instead of the Gmail address. Until it is set up, they go from Gmail, so nothing is lost.
+**Why:** Sends the thank-you notes for ideas and problems, the daily puzzle emails, the weekly and special edition puzzle emails (with their confirm links) and your own alert emails from noreply@thelogicgrid.com instead of the Gmail address. Until it is set up, they go from Gmail, so nothing is lost.
 
 **Cost:** Free plan: 3,000 emails a month, 100 a day, no card. Past that Resend refuses and Gmail takes over.
 
 | Name | Where | Notes |
 | --- | --- | --- |
 | `RESEND_API_KEY` | GitHub repository secret | Starts re_. Sending access, domain thelogicgrid.com only. Optional. |
+| `RESEND_API_KEY` | Cloudflare Worker secret | The same key again, so the Worker can email your alerts (Settings > My alerts). Optional. |
 | `MAIL_FROM` | GitHub repository variable | Another sender on the domain, e.g. hello@thelogicgrid.com. Optional. |
 
 **Settings:**
@@ -581,7 +582,10 @@ uses a secret, variable or binding that is not listed there.
 5. <https://resend.com/api-keys> > **Create API key**, name `logic-grid`, **Sending access**, domain `thelogicgrid.com`. Copy the key.
 6. Open <https://github.com/bltaylorjr/fantastical-logic-grid/settings/secrets/actions> and click **New repository secret** (or the pencil next to `RESEND_API_KEY`).
 7. Name: `RESEND_API_KEY`. Secret: the key. Click **Add secret**.
-8. Test: in the game, signed in with a confirmed account, send an idea with "Email me a thank-you note" ticked.
+8. Open <https://dash.cloudflare.com/?to=/:account/workers/services/view/flg-api/production/settings> (Cloudflare > **Workers & Pages** > **flg-api** > **Settings** > **Variables and Secrets**).
+9. Click **Add** (or **Edit** next to `RESEND_API_KEY` if it is already there).
+10. Choose type **Secret**, enter the name `RESEND_API_KEY`, paste the same key (for your alert emails) as the value, and click **Deploy**.
+11. Test: in the game, signed in with a confirmed account, send an idea with "Email me a thank-you note" ticked.
 
 **Links:** [Resend domains](https://resend.com/domains) · [Resend API keys](https://resend.com/api-keys) · [Full guide (server/FEEDBACK-EMAILS.md)](https://github.com/bltaylorjr/fantastical-logic-grid/blob/main/server/FEEDBACK-EMAILS.md)
 

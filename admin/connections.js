@@ -771,10 +771,11 @@ export const CONNECTIONS = [
     group: 'email',
     title: 'Resend: player emails from noreply@thelogicgrid.com',
     docs: 'server/FEEDBACK-EMAILS.md',
-    why: 'Sends the thank-you notes for ideas and problems, the daily puzzle emails and the weekly and special edition puzzle emails (with their confirm links) from noreply@thelogicgrid.com instead of the Gmail address. Until it is set up, they go from Gmail, so nothing is lost.',
+    why: 'Sends the thank-you notes for ideas and problems, the daily puzzle emails, the weekly and special edition puzzle emails (with their confirm links) and your own alert emails from noreply@thelogicgrid.com instead of the Gmail address. Until it is set up, they go from Gmail, so nothing is lost.',
     cost: 'Free plan: 3,000 emails a month, 100 a day, no card. Past that Resend refuses and Gmail takes over.',
     names: [
       { name: 'RESEND_API_KEY', where: 'github-secret', optional: true, note: 'Starts re_. Sending access, domain thelogicgrid.com only.' },
+      { name: 'RESEND_API_KEY', where: 'worker-secret', optional: true, note: 'The same key again, so the Worker can email your alerts (Settings > My alerts).' },
       { name: 'MAIL_FROM', where: 'github-variable', optional: true, note: 'Another sender on the domain, e.g. hello@thelogicgrid.com.' },
     ],
     settings: [
@@ -788,6 +789,7 @@ export const CONNECTIONS = [
       'Back in Resend, click **Verify DNS records** and wait for **Verified** (minutes to hours).',
       'https://resend.com/api-keys > **Create API key**, name `logic-grid`, **Sending access**, domain `thelogicgrid.com`. Copy the key.',
       ...GH_SECRET_STEPS('RESEND_API_KEY', 'the key'),
+      ...CF_SECRET_STEPS('RESEND_API_KEY', 'the same key (for your alert emails)'),
       'Test: in the game, signed in with a confirmed account, send an idea with "Email me a thank-you note" ticked.',
     ],
     links: [{ label: 'Resend domains', url: 'https://resend.com/domains' }, { label: 'Resend API keys', url: 'https://resend.com/api-keys' }],

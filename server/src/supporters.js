@@ -22,6 +22,7 @@
 // has at once (the record is kept, for the payment service's dispute) and
 // blocks them, so a later payment webhook records the payment but adds no
 // perks until an admin lifts the block. A refund ends only that grant.
+import { alert } from './alerts.js';
 import { json } from './http.js';
 import { AuthError } from './auth.js';
 import { isDeleted } from './sync.js';
@@ -91,7 +92,7 @@ export async function revoke(env, source, ref, now = Date.now(), reason = 'refun
 // keeps the records, and blocks payments from adding perks for them again.
 // Payment webhooks that report a dispute call this with the grant's source and
 // ref; the admin dashboard calls it with the grant's id.
-export async function chargeback(env, { id = null, source = null, ref = null, note = null, by = null }, now = Date.now()) {
+export async function chargeback(env, { id = null, source = null, ref = null, note = null, by = null, ctx = null }, now = Date.now()) {
   const row = id != null
     ? await env.DB.prepare('SELECT id, user_id, email FROM supporters WHERE id = ?1').bind(Number(id)).first()
     : await env.DB.prepare('SELECT id, user_id, email FROM supporters WHERE source = ?1 AND ref = ?2').bind(source, String(ref)).first();
@@ -105,6 +106,8 @@ export async function chargeback(env, { id = null, source = null, ref = null, no
       SELECT ?1, ?2, 'chargeback', ?3, ?4, ?5, ?6 WHERE NOT EXISTS (SELECT 1 FROM payment_blocks WHERE supporter_id = ?4)`)
       .bind(row.user_id, row.email, note ? String(note).slice(0, 200) : null, row.id, now, by),
   ]);
+  // A dispute reported by a payment service (not one an admin entered).
+  if (!by) await alert(env, ctx, { category: 'problems', title: 'A payment was disputed', body: 'A supporter\'s payment was disputed (a chargeback). Their perks were ended and payments from them are blocked.', link: 'supporters' });
   return { ended: mark.meta.changes + ended.meta.changes, uid: row.user_id, email: row.email };
 }
 
