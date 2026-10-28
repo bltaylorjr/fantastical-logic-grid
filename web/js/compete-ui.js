@@ -9,6 +9,9 @@ import { TIER_NAMES as BADGE_NAMES } from './perks.js';
 
 // The scoreboard badge for a supporter: tier 1 Bronze up to 4 Platinum
 // (server/src/supporters.js). Older servers send true, shown as Bronze.
+// The scoreboard badge for a player the team thanked (server/src/contributors.js).
+export const contributorPill = () => ' <span class="pill contributor" title="Contributed to the game"><span aria-hidden="true">✎</span> Contributor</span>';
+
 export const supporterPill = (t) => {
   const n = Math.min(4, Math.max(1, Number(t) || 1));
   return ` <span class="pill supporter tier-${n}" title="Supports the game"><span aria-hidden="true">★</span> ${BADGE_NAMES[n]} supporter</span>`;
@@ -567,7 +570,7 @@ async function loadBoard() {
     if (!b.rows.length) { body.innerHTML = `<p class="muted">No one is on the scoreboard ${period === 'week' ? 'this week' : ''} yet. Solve a puzzle to be the first!</p>`; return; }
     body.innerHTML = `<div class="table-wrap"><table class="board"><caption class="sr-only">Scoreboard, ${period === 'week' ? 'this week' : 'all time'}</caption>
       <thead><tr><th scope="col">Rank</th><th scope="col">Player</th><th scope="col">Points</th><th scope="col">Solved</th><th scope="col">Race wins</th></tr></thead>
-      <tbody>${b.rows.map((r) => `<tr${r.me ? ' class="me"' : ''}><td><b>${r.rank}</b></td><th scope="row"><bdi translate="no">${esc(r.name)}</bdi>${r.supporter ? supporterPill(r.supporter) : ''}${r.me ? ' <span class="pill">You</span>' : ''}</th><td>${r.points}</td><td>${r.solved}</td><td>${r.wins}</td></tr>`).join('')}</tbody></table></div>`;
+      <tbody>${b.rows.map((r) => `<tr${r.me ? ' class="me"' : ''}><td><b>${r.rank}</b></td><th scope="row"><bdi translate="no">${esc(r.name)}</bdi>${r.contributor ? contributorPill() : ''}${r.supporter ? supporterPill(r.supporter) : ''}${r.me ? ' <span class="pill">You</span>' : ''}</th><td>${r.points}</td><td>${r.solved}</td><td>${r.wins}</td></tr>`).join('')}</tbody></table></div>`;
   } catch (err) { body.innerHTML = `<p class="error-box">${esc(err.message)}</p>`; }
 }
 

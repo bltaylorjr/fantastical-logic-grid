@@ -26,6 +26,7 @@ import { json } from './http.js';
 import { AuthError } from './auth.js';
 import { isDeleted } from './sync.js';
 import { getSettings } from './settings.js';
+import { isContributor } from './contributors.js';
 
 export const KINDS = ['supporter', 'premium'];
 export const TIERS = [null, 'Bronze', 'Silver', 'Gold', 'Platinum'];
@@ -164,6 +165,7 @@ export async function perksFor(env, user, now = Date.now()) {
     premium: premium.length > 0,
     tier: results.length ? Math.max(...results.map((r) => r.tier || 1)) : 0,
     until: premium.length ? endOf(premium) : results.length ? endOf(results) : null,
+    contributor: await isContributor(env, user.uid),
   };
 }
 

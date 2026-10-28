@@ -685,7 +685,7 @@ $('#names-rows').onclick = async (e) => {
   if (done) show('names', { keepFocus: true });
 };
 
-// Rename, reset name, ban, unban, reset scores, delete. Returns true when done.
+// Rename, reset name, ban, unban, contributor badge, reset scores, delete. Returns true when done.
 async function playerAction(kind, uid, name, button) {
   if (kind === 'approve') return act(button, () => api(`names/${uid}/approve`, { method: 'POST' }), 'Marked as looked at.');
   if (kind === 'rename') {
@@ -705,6 +705,15 @@ async function playerAction(kind, uid, name, button) {
     return v && act(button, () => api(`players/${uid}/ban`, { method: 'POST', body: { days: v.days ? Number(v.days) : null, reason: v.reason } }), 'Banned.');
   }
   if (kind === 'unban') return act(button, () => api(`players/${uid}/unban`, { method: 'POST' }), 'Ban lifted.');
+  if (kind === 'contributor') {
+    const v = await ask({ title: `Award ${name || uid} the Contributor badge?`, text: 'It shows among their badges and next to their name on the scoreboard. It never ends unless you take it back.',
+      fields: [{ name: 'note', label: 'What they contributed (only the team sees it)', type: 'textarea' }], ok: 'Award badge' });
+    return v && act(button, () => api(`players/${uid}/contributor`, { method: 'POST', body: { note: v.note } }), 'Contributor badge awarded.');
+  }
+  if (kind === 'contributor-remove') {
+    const v = await ask({ title: `Take back ${name || uid}'s Contributor badge?`, text: 'It disappears from their badges and the scoreboard.', ok: 'Take back', danger: true });
+    return v && act(button, () => api(`players/${uid}/contributor/remove`, { method: 'POST' }), 'Contributor badge taken back.');
+  }
   if (kind === 'reset-scores') {
     const v = await ask({ title: `Reset scores for ${name || uid}?`, text: 'This removes their points from the scoreboard. It cannot be undone.', fields: [{ name: 'period', label: 'Which scores', type: 'select', value: 'week', options: [['week', 'This week only'], ['all', 'All time']] }], ok: 'Reset scores', danger: true });
     return v && act(button, () => api(`players/${uid}/reset-scores`, { method: 'POST', body: { period: v.period } }), 'Scores reset.');
@@ -813,9 +822,10 @@ async function openPlayer(uid) {
   const sc = p.scores;
   const name = p.screenName || 'this player';
   box.innerHTML = `<div class="card" tabindex="-1" id="player-card">
-    <h2>${p.screenName ? esc(p.screenName) : 'No screen name'} ${p.ban ? '<span class="badge bad">Banned</span>' : ''}</h2>
+    <h2>${p.screenName ? esc(p.screenName) : 'No screen name'} ${p.ban ? '<span class="badge bad">Banned</span>' : ''}${p.contributor ? ' <span class="badge ok">Contributor</span>' : ''}</h2>
     <p class="muted">Player id <code>${esc(p.uid)}</code></p>
     ${p.deletedAt ? `<p class="note">This account's data was deleted on ${when(p.deletedAt)}.</p>` : ''}
+    ${p.contributor ? `<p class="note">Contributor badge awarded by ${esc(p.contributor.createdBy || 'admin')} on ${when(p.contributor.createdAt)}.${p.contributor.note ? ` For: ${esc(p.contributor.note)}` : ''}</p>` : ''}
     ${p.ban ? `<p class="note">Banned by ${esc(p.ban.banned_by)} on ${when(p.ban.banned_at)}, ${p.ban.until ? `until ${when(p.ban.until)}` : 'with no end'}.${p.ban.reason ? ` Reason: ${esc(p.ban.reason)}` : ''}</p>` : ''}
     <div class="tiles">
       ${tile('Points', fmt((sc.solo?.points || 0) + (sc.race?.points || 0)), `solo ${fmt(sc.solo?.points || 0)} · races ${fmt(sc.race?.points || 0)}`)}
@@ -827,6 +837,7 @@ async function openPlayer(uid) {
     <div class="row">
       ${can('admin') && !p.deletedAt ? '<button class="btn primary" type="button" data-act="message">Send a message</button>' : ''}
       ${p.screenName ? `<button class="btn" data-act="rename">Rename</button><button class="btn" data-act="reset">Reset name</button>` : ''}
+      ${can('admin') && !p.deletedAt ? (p.contributor ? '<button class="btn" data-act="contributor-remove">Take back Contributor badge</button>' : '<button class="btn" data-act="contributor">Award Contributor badge</button>') : ''}
       ${p.ban ? '<button class="btn" data-act="unban">Lift ban</button>' : '<button class="btn danger" data-act="ban">Ban</button>'}
       ${can('admin') ? '<button class="btn danger" data-act="reset-scores">Reset scores</button><button class="btn danger" data-act="delete">Delete account data</button>' : ''}
     </div>

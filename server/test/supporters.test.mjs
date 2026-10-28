@@ -48,7 +48,7 @@ const admin = (path, body) => call(`/admin/v1/${path}`, { auth: TOKEN, body });
 
 test('perks need a signed-in player', async () => {
   assert.equal((await call('/v1/perks')).status, 401);
-  assert.deepEqual((await call('/v1/perks', { auth: player('nobody') })).body, { supporter: false, premium: false, tier: 0, until: null });
+  assert.deepEqual((await call('/v1/perks', { auth: player('nobody') })).body, { supporter: false, premium: false, tier: 0, until: null, contributor: false });
 });
 
 test('an admin grant by email reaches the player with that confirmed email', async () => {
@@ -58,7 +58,7 @@ test('an admin grant by email reaches the player with that confirmed email', asy
   // Not confirmed yet: no link, no badge.
   assert.equal((await call('/v1/perks', { auth: player('p-a', 'a@example.com', false) })).body.supporter, false);
   const perks = (await call('/v1/perks', { auth: player('p-a', 'a@example.com') })).body;
-  assert.deepEqual(perks, { supporter: true, premium: false, tier: 1, until: null });
+  assert.deepEqual(perks, { supporter: true, premium: false, tier: 1, until: null, contributor: false });
   // Linked: still a supporter after changing email.
   assert.equal((await call('/v1/perks', { auth: player('p-a', 'new@example.com') })).body.supporter, true);
   const list = (await admin('supporters')).body.supporters;
@@ -71,7 +71,7 @@ test('premium with an end date, and ending it early', async () => {
   assert.equal((await admin('supporters', { kind: 'premium', uid: 'p-b', until: Date.now() - 1000 })).status, 400);
   assert.equal((await admin('supporters', { kind: 'premium', uid: 'p-b', tier: 5, until })).status, 400);
   assert.equal((await admin('supporters', { kind: 'premium', uid: 'p-b', tier: 3, until })).status, 200);
-  assert.deepEqual((await call('/v1/perks', { auth: player('p-b') })).body, { supporter: true, premium: true, tier: 3, until });
+  assert.deepEqual((await call('/v1/perks', { auth: player('p-b') })).body, { supporter: true, premium: true, tier: 3, until, contributor: false });
   const row = (await admin('supporters')).body.supporters.find((s) => s.uid === 'p-b');
   assert.equal((await admin(`supporters/${row.id}/remove`, {})).body.ended, 1);
   assert.equal((await call('/v1/perks', { auth: player('p-b') })).body.premium, false);
@@ -170,7 +170,7 @@ test('refunds and chargebacks end perks, a chargeback blocks new payments, and t
   // A chargeback ends everything this player has, keeps the records, and blocks them.
   const cb = await admin(`supporters/${k1.id}/remove`, { reason: 'chargeback' });
   assert.deepEqual(cb.body, { ended: 2, blocked: true });
-  assert.deepEqual(await perks(), { supporter: false, premium: false, tier: 0, until: null });
+  assert.deepEqual(await perks(), { supporter: false, premium: false, tier: 0, until: null, contributor: false });
   assert.deepEqual((await rows()).map((x) => x.endedReason).sort(), ['chargeback', 'chargeback']);
   const blocks = (await admin('supporters/blocks')).body.blocks;
   assert.equal(blocks.length, 1);

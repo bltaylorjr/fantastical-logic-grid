@@ -41,6 +41,7 @@
 //   GET  /admin/v1/ratings?days=&by=[&brief=1]  puzzle ratings, trends and the plain-words analysis; POST .../summary (ratings.js)
 //   GET  /admin/v1/marketing?days=     campaigns, ads, media, tracked links and their numbers (marketing.js)
 //   GET/POST /admin/v1/supporters      supporters and premium grants; POST .../:id/remove (supporters.js)
+//   GET /admin/v1/contributors, POST /admin/v1/players/:uid/contributor[/remove]   Contributor badges (contributors.js)
 //   GET  /admin/v1/alerts              free allowances close to running out
 //   GET  /admin/v1/summary?days=       the week in numbers, for the Monday summary email
 //   GET  /admin/v1/export/(players|scores|feedback).csv   spreadsheet downloads
@@ -83,6 +84,7 @@ import { ratingRoutes } from './ratings.js';
 import { marketingRoutes } from './marketing.js';
 import { oauthRoutes } from './marketing-oauth.js';
 import { supporterRoutes } from './supporters.js';
+import { contributorRoutes, contributorInfo, deleteContributorStatement } from './contributors.js';
 import { puzzleMailRoutes } from './puzzle-mail.js';
 import { editionRoutes } from './editions.js';
 import { educatorRoutes } from './educators.js';
@@ -98,7 +100,7 @@ const SESSION_MAX_S = 12 * 3600;
 const DENIED_PER_DAY = 500; // refused requests written to the audit log, so a flood cannot fill it
 const ANALYTICS_CACHE_MS = 120_000;
 const TABLES = ['sync_users', 'sync_records', 'sync_deleted_users', 'players', 'scores', 'races', 'race_entries', 'race_invites', 'plays', 'parts', 'usage',
-  'app_errors', 'upkeep_log', 'admins', 'admin_audit', 'settings', 'announcements', 'bans', 'name_reviews', 'archive_log', 'feedback', 'feedback_replies', 'error_fixes', 'conversations', 'conversation_messages', 'message_contacts', 'news', 'search_snapshots', 'daily_plan', 'translations', 'rating_insights', 'campaigns', 'campaign_ads', 'marketing_media', 'campaign_stats', 'challenges', 'daily_results', 'daily_email', 'supporters', 'payment_blocks', 'puzzle_mail', 'puzzle_mail_got', 'puzzle_mail_days', 'special_editions', 'educator_requests'];
+  'app_errors', 'upkeep_log', 'admins', 'admin_audit', 'settings', 'announcements', 'bans', 'name_reviews', 'archive_log', 'feedback', 'feedback_replies', 'error_fixes', 'conversations', 'conversation_messages', 'message_contacts', 'news', 'search_snapshots', 'daily_plan', 'translations', 'rating_insights', 'campaigns', 'campaign_ads', 'marketing_media', 'campaign_stats', 'challenges', 'daily_results', 'daily_email', 'supporters', 'payment_blocks', 'contributors', 'puzzle_mail', 'puzzle_mail_got', 'puzzle_mail_days', 'special_editions', 'educator_requests'];
 const SECURITY_HEADERS = {
   'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; media-src 'self' blob:; connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
   'X-Content-Type-Options': 'nosniff',
@@ -355,6 +357,7 @@ async function playerDetail(env, uid, now) {
     scores: Object.fromEntries(byKind.map((x) => [x.kind, { solves: x.n, points: x.points }])),
     recentScores: recent,
     races: { hosted: hosted[0].n, entered: entered[0].n, solved: entered[0].solved },
+    contributor: await contributorInfo(env, uid),
   };
 }
 
@@ -565,6 +568,7 @@ const ROUTES = [
       ...(await deleteReplyStatements(env, uid)),
       env.DB.prepare('DELETE FROM name_reviews WHERE user_id = ?1').bind(uid),
       env.DB.prepare('UPDATE supporters SET user_id = NULL WHERE user_id = ?1').bind(uid),
+      deleteContributorStatement(env, uid),
       env.DB.prepare('UPDATE payment_blocks SET user_id = NULL WHERE user_id = ?1').bind(uid),
       env.DB.prepare('INSERT OR REPLACE INTO sync_deleted_users (user_id, deleted_at) VALUES (?1, ?2)').bind(uid, now),
     ]);
@@ -713,6 +717,8 @@ const ROUTES = [
   ...editionRoutes(Refusal),
   // ---- Supporters and premium extras (supporters.js).
   ...supporterRoutes(Refusal),
+  // ---- Contributor badges (contributors.js).
+  ...contributorRoutes(Refusal, clearBoardCache),
   ...educatorRoutes(Refusal),
   ['GET', /^alerts$/, 'viewer', 'alerts.view', async ({ env }) => ({ body: await alerts(env) })],
   ['GET', /^summary$/, 'admin', 'summary.view', async ({ env, url }) => {

@@ -537,6 +537,7 @@ for (const diff of ['easy', 'medium', 'expert']) {
       check(`${label}: uses every list in full`, p.categories.length === s.def.categories.length + 1 && p.categories.every((c) => c.items.length === s.def.names.length));
       check(`${label}: keeps the writer's items`, s.def.categories.every((c) => p.categories.some((pc) => pc.name === c.name && c.items.every((x) => pc.items.some((i) => i.label === x)))));
       check(`${label}: keeps the writer's title and scene`, p.story.title === s.def.title && p.story.text.startsWith(s.def.story.slice(0, 40)));
+      if (s.by) check(`${label}: credits the writer`, p.story.text.includes(`Story by ${s.by}.`));
       check(`${label}: takes its look from a real theme`, THEMES.some((t) => t.id === p.theme.id));
       check(`${label}: has no size note`, !p.notes.some((n) => /Custom size/.test(n)), p.notes.join(' | '));
       const sol = countSolutions(p);

@@ -9,6 +9,7 @@
 //   Removes all of the player's synced data, screen name and scores. Needs a sign-in from the last
 //   10 minutes, so a stolen old token cannot erase an account.
 
+import { deleteContributorStatement } from './contributors.js';
 import { json, readText, TooLarge } from './http.js';
 import { deleteCompeteStatements } from './compete.js';
 import { deleteMessageStatements } from './messages.js';
@@ -126,6 +127,7 @@ export async function handleDeleteAccount(req, env, user) {
     deletePuzzleMailStatement(env, user.uid),
     // Payment records stay (by email); only the link to the account goes.
     env.DB.prepare('UPDATE supporters SET user_id = NULL WHERE user_id = ?1').bind(user.uid),
+    deleteContributorStatement(env, user.uid),
     env.DB.prepare('INSERT OR REPLACE INTO sync_deleted_users (user_id, deleted_at) VALUES (?1, ?2)').bind(user.uid, Date.now()),
   ]);
   return json(req, env, { deleted: true });

@@ -27,7 +27,9 @@ function resolveOptions(opts = {}) {
   // as written, at its own difficulty and full size, with its own cast.
   const playerStory = opts.theme === PLAYER_STORIES_THEME.id
     ? getPlayerStory(opts.topic) || makeRng(`${seed}|stories`).pick(PLAYER_STORIES) : null;
-  if (playerStory) opts = { ...opts, difficulty: playerStory.difficulty, custom: playerStory.def, customNames: null,
+  // The writer's credit closes the scene.
+  const credited = playerStory && playerStory.by ? { ...playerStory.def, story: `${playerStory.def.story}\n\nStory by ${playerStory.by}.` } : playerStory && playerStory.def;
+  if (playerStory) opts = { ...opts, difficulty: playerStory.difficulty, custom: credited, customNames: null,
     categories: playerStory.def.categories.length + 1, items: playerStory.def.names.length };
   const tier = TIERS[opts.difficulty] || TIERS.easy;
   const rng = makeRng(`${seed}|${tier.id}|${opts.theme || ''}|${opts.topic || ''}|${opts.categories || ''}x${opts.items || ''}`);

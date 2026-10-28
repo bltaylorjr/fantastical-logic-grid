@@ -4,6 +4,7 @@
 // Badges keep the time they were first earned (meta `badges`).
 import * as store from './store.js';
 import { streak } from './daily.js';
+import * as perks from './perks.js';
 
 const LOG_LIMIT = 2000;
 const TIER_ORDER = ['basic', 'easy', 'medium', 'hard', 'expert', 'mensa'];
@@ -76,7 +77,15 @@ export const BADGES = [
   { id: 'streak7', name: 'Week of wonders', text: 'Solve the daily puzzle 7 days in a row.', test: (f) => f.streak.best >= 7 },
   { id: 'streak30', name: 'Month of mysteries', text: 'Solve the daily puzzle 30 days in a row.', test: (f) => f.streak.best >= 30 },
   { id: 'racer', name: 'Racer', text: 'Finish a race against other players.', test: (f) => f.solved.some((x) => x.race) },
+  // Awarded by the team (server/src/contributors.js), for example for a story idea that became a Player Story.
+  { id: 'contributor', name: 'Contributor', text: 'Send a story or idea the team adds to the game.', test: () => perks.isContributor() },
 ];
+
+// A badge the team awarded (the Contributor badge) arrives with the player's
+// perks, not with a solve. Returns the badges newly earned.
+export async function checkAwarded() {
+  return awardBadges(await solveLog());
+}
 
 // Numbers for the stats page.
 export async function summary(today) {

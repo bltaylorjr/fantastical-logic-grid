@@ -10,6 +10,7 @@
 //   look        - an existing theme id for colors, pictures and music
 //   interests   - the writer's interest categories, shown on the setup screen
 //   submitted   - when the idea arrived (UTC date)
+//   by          - the writer's screen name, for the story credit (only with their OK)
 //
 // Edit with care: the story text, names and items are the writer's words.
 // Only fix clear typos, and never reorder an ordered list.
@@ -24,7 +25,7 @@ const seniorContest = 'The results of the annual senior photography contest are 
 
 export const PLAYER_STORIES = [
   {
-    id: 'capturing-spring', difficulty: 'easy', look: 'town', submitted: '2026-10-27',
+    id: 'capturing-spring', difficulty: 'easy', look: 'town', submitted: '2026-10-27', by: 'CobaltSockMonkey18',
     interests: ['Hobbies', 'Spring', 'Around Town', 'Country'],
     def: {
       theme: 'Spring photography contest', title: 'Capturing Spring', story: seniorContest,
@@ -33,7 +34,7 @@ export const PLAYER_STORIES = [
     },
   },
   {
-    id: 'capturing-summer', difficulty: 'easy', look: 'town', submitted: '2026-10-27',
+    id: 'capturing-summer', difficulty: 'easy', look: 'town', submitted: '2026-10-27', by: 'CobaltSockMonkey18',
     interests: ['Hobbies', 'Seasonal', 'Summer'],
     def: {
       theme: 'Summer photography contest', title: 'Capturing Summer', story: seniorContest,
@@ -42,7 +43,7 @@ export const PLAYER_STORIES = [
     },
   },
   {
-    id: 'capturing-fall', difficulty: 'easy', look: 'town', submitted: '2026-10-27',
+    id: 'capturing-fall', difficulty: 'easy', look: 'town', submitted: '2026-10-27', by: 'CobaltSockMonkey18',
     interests: ['Hobbies', 'Fall', 'Around Town', 'Country'],
     def: {
       theme: 'Fall photography contest', title: 'Capturing Fall', story: seniorContest,
@@ -51,7 +52,7 @@ export const PLAYER_STORIES = [
     },
   },
   {
-    id: 'capturing-winter', difficulty: 'medium', look: 'town', submitted: '2026-10-27',
+    id: 'capturing-winter', difficulty: 'medium', look: 'town', submitted: '2026-10-27', by: 'CobaltSockMonkey18',
     interests: ['Hobbies', 'Winter', 'Around Town', 'Seasonal'],
     def: {
       theme: 'Winter photography contest', title: 'Capturing Winter',
@@ -65,7 +66,7 @@ export const PLAYER_STORIES = [
     },
   },
   {
-    id: 'spring-storefront', difficulty: 'hard', look: 'town', submitted: '2026-10-27',
+    id: 'spring-storefront', difficulty: 'hard', look: 'town', submitted: '2026-10-27', by: 'CobaltSockMonkey18',
     interests: ['Hobbies', 'Spring', 'Easter', 'Around Town', 'Seasonal'],
     def: {
       theme: 'Spring storefront contest', title: 'Spring Storefront Contest',
@@ -80,7 +81,7 @@ export const PLAYER_STORIES = [
     },
   },
   {
-    id: 'couples-orchard', difficulty: 'medium', look: 'farm', submitted: '2026-10-27',
+    id: 'couples-orchard', difficulty: 'medium', look: 'farm', submitted: '2026-10-27', by: 'CobaltSockMonkey18',
     interests: ['Romance', 'Destinations', 'Fall'],
     def: {
       theme: 'Couples\' hour at the orchard', title: 'Couples\' Hour at the Orchard',
@@ -94,7 +95,7 @@ export const PLAYER_STORIES = [
     },
   },
   {
-    id: 'late-spring-vineyards', difficulty: 'medium', look: 'travel', submitted: '2026-10-27',
+    id: 'late-spring-vineyards', difficulty: 'medium', look: 'travel', submitted: '2026-10-27', by: 'CobaltSockMonkey18',
     interests: ['Travel', 'Romance', 'Food & Wine', 'Destinations', 'Spring'],
     def: {
       theme: 'Vineyard tasting', title: 'Late Spring Vineyards',
@@ -117,5 +118,5 @@ export const PLAYER_STORIES_THEME = {
   id: 'stories', name: 'Player Stories', description: 'Puzzles written by players, with their own scene, cast and lists.',
   defaultTopic: 'any',
   topics: [{ id: 'any', name: 'Any', description: 'A surprise player-written story each time.' },
-    ...PLAYER_STORIES.map((s) => ({ id: s.id, name: s.def.title, description: `${s.difficulty[0].toUpperCase()}${s.difficulty.slice(1)} · ${SIZE_WORDS(s)} · ${s.interests.join(', ')}` }))],
+    ...PLAYER_STORIES.map((s) => ({ id: s.id, name: s.def.title, description: `${s.by ? `By ${s.by} · ` : ''}${s.difficulty[0].toUpperCase()}${s.difficulty.slice(1)} · ${SIZE_WORDS(s)} · ${s.interests.join(', ')}` }))],
 };

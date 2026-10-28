@@ -2624,6 +2624,12 @@ async function init() {
     onConfigChanged: () => { settings = store.loadSettings(); applyFeatures(); applyMode(); languageNote(); },
   });
   perks.onChange(() => { if (!$('#screen-home').hidden) renderSetup(); });
+  // The Contributor badge comes from the team, so announce it when it arrives.
+  perks.onChange(async () => {
+    let fresh = [];
+    try { fresh = await stats.checkAwarded(); } catch (e) { /* stats are optional */ }
+    if (fresh.length) toast(`Badge earned: ${fresh.map((b) => b.name).join(', ')}. Thank you for helping make the game!`, { label: 'My badges', run: openStats });
+  });
   await renderSaved();
   renderSuggestion();
   renderDaily();
