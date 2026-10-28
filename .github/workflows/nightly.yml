@@ -1,0 +1,183 @@
+# Nightly maintenance at 2 am US Eastern time. The Worker does its part at
+# 2:00 (server/src/nightly.js: cleans out old data, tidies the database and
+# refreshes the Google and Bing search numbers); this run follows at 2:20 and
+# checks everything else, then reports:
+#   - the Worker, its database and tonight's cleanup
+#   - search numbers, puzzle ratings and free limits (with FLG_ADMIN_TOKEN)
+#   - security advisories and outdated libraries (npm audit, npm outdated)
+#   - the built website: every link, page tag and structured-data block
+#     (scripts/check-site.mjs), plus every link to other sites
+#   - the live site: robots.txt, sitemap, canonical addresses, the daily page
+#     and the IndexNow key; if the daily page is stale it publishes again,
+#     which also tells IndexNow
+#   - Lighthouse on the live site with speed budgets (lighthouserc.live.json)
+#   - housekeeping: removes GitHub Actions caches unused for 7 days and run
+#     files (artifacts) older than 14 days
+# The report is the run summary. Problems and warnings go in one GitHub issue
+# labelled nightly-maintenance, which closes itself on a clean night. Problems
+# (things the owner must act on) are also emailed from the game's Gmail; quiet
+# nights send nothing. Checks and commands are in scripts/nightly-checks.sh.
+#
+# Time zone: crons are UTC, so 2:20 am Eastern is 06:20 UTC in summer (EDT)
+# and 07:20 UTC in winter (EST). Both are listed and the "when" job lets only
+# the one that is 2 am in New York go on. To move the time, change both crons
+# and MAINTENANCE_TZ / MAINTENANCE_HOUR below, and the same in
+# server/src/nightly.js and server/wrangler.toml.
+# Free: scheduled GitHub Actions on a public repo, npm, Lighthouse and Gmail cost nothing.
+name: Nightly maintenance
+on:
+  schedule:
+    - cron: '20 6 * * *'   # 2:20 am EDT (summer)
+    - cron: '20 7 * * *'   # 2:20 am EST (winter)
+  workflow_dispatch:
+    inputs:
+      email:
+        description: Send the email even if nothing needs attention (a test)
+        type: boolean
+        default: false
+permissions:
+  contents: read
+  issues: write
+  actions: write
+concurrency:
+  group: nightly
+env:
+  MAINTENANCE_TZ: America/New_York
+  MAINTENANCE_HOUR: '2'
+jobs:
+  when:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      run: ${{ steps.when.outputs.run }}
+    steps:
+      - id: when
+        env:
+          CRON: ${{ github.event.schedule }}
+        run: |
+          if [ "${{ github.event_name }}" != schedule ]; then echo run=true >> "$GITHUB_OUTPUT"; exit 0; fi
+          utc_hour=$(awk '{print $2}' <<<"$CRON")
+          local_hour=$(TZ="$MAINTENANCE_TZ" date -d "$(date -u +%F) ${utc_hour}:00 UTC" +%-H)
+          echo "This cron is ${local_hour}:20 in $MAINTENANCE_TZ."
+          echo "run=$([ "$local_hour" = "$MAINTENANCE_HOUR" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+  maintain:
+    needs: when
+    if: needs.when.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      SITE: ${{ vars.FLG_SITE_URL || 'https://thelogicgrid.com' }}
+      API: ${{ vars.FLG_CLOUD_URL || 'https://flg-api.btay74.workers.dev' }}
+      INDEXNOW_KEY: ${{ vars.FLG_INDEXNOW_KEY || 'fae88a004ad87116c0e93df007b2de7e' }}
+      REPORT_DIR: ${{ github.workspace }}/nightly-report
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm --prefix server ci --no-audit --no-fund
+      - name: Build the website
+        run: npm run build
+        env:
+          FLG_FIREBASE_API_KEY: ${{ vars.FLG_FIREBASE_API_KEY }}
+          FLG_CLOUD_URL: ${{ vars.FLG_CLOUD_URL }}
+          FLG_SITE_URL: ${{ vars.FLG_SITE_URL }}
+      - name: Run the nightly checks
+        env:
+          FLG_ADMIN_TOKEN: ${{ secrets.FLG_ADMIN_TOKEN }}
+        run: bash scripts/nightly-checks.sh
+
+      - name: Publish the website again if the daily page is stale
+        if: hashFiles('nightly-report/actions.txt') != ''
+        uses: actions/github-script@v9
+        with:
+          script: |
+            await github.rest.actions.createWorkflowDispatch({ ...context.repo, workflow_id: 'pages.yml', ref: context.payload.repository?.default_branch || 'main' });
+
+      - name: Housekeeping (old caches and run files)
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const fs = require('fs');
+            const note = (s) => fs.appendFileSync(`${process.env.REPORT_DIR}/notes.txt`, `${s}\n`);
+            const DAY = 24 * 3600_000;
+            let caches = 0, artifacts = 0, freed = 0;
+            const allCaches = await github.paginate(github.rest.actions.getActionsCacheList, { ...context.repo, per_page: 100 }, (r) => r.data.actions_caches || r.data);
+            for (const c of allCaches) {
+              if (Date.now() - Date.parse(c.last_accessed_at) > 7 * DAY) {
+                await github.rest.actions.deleteActionsCacheById({ ...context.repo, cache_id: c.id }).then(() => { caches++; freed += c.size_in_bytes || 0; }).catch(() => {});
+              }
+            }
+            const allArtifacts = await github.paginate(github.rest.actions.listArtifactsForRepo, { ...context.repo, per_page: 100 }, (r) => r.data.artifacts || r.data);
+            for (const a of allArtifacts) {
+              if (!a.expired && Date.now() - Date.parse(a.created_at) > 14 * DAY) {
+                await github.rest.actions.deleteArtifact({ ...context.repo, artifact_id: a.id }).then(() => { artifacts++; freed += a.size_in_bytes || 0; }).catch(() => {});
+              }
+            }
+            note(`Housekeeping: removed ${caches} old GitHub Actions caches and ${artifacts} old run files (${Math.round(freed / 1048576)} MB).`);
+
+      - name: Open, update or close the nightly issue
+        id: issue
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const fs = require('fs');
+            const read = (n) => { try { return fs.readFileSync(`${process.env.REPORT_DIR}/${n}`, 'utf8').split('\n').filter(Boolean); } catch { return []; } };
+            const problems = read('problems.txt'), warnings = read('warnings.txt');
+            const label = 'nightly-maintenance';
+            const run = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const when = new Date().toLocaleString('en-US', { timeZone: process.env.MAINTENANCE_TZ, dateStyle: 'full', timeStyle: 'short' });
+            const { data: open } = await github.rest.issues.listForRepo({ ...context.repo, state: 'open', labels: label });
+            if (problems.length || warnings.length) {
+              const body = [`The nightly maintenance run (${when}, [report](${run})) found:`,
+                problems.length ? `\n**Needs attention** (also emailed to the owner)\n\n${problems.map((p) => `- ${p}`).join('\n')}` : '',
+                warnings.length ? `\n**Worth fixing soon**\n\n${warnings.map((w) => `- ${w}`).join('\n')}` : '',
+                '\nThis issue is updated every night and closes itself on a night with nothing to report.'].join('\n');
+              let number;
+              if (open.length) { number = open[0].number; await github.rest.issues.update({ ...context.repo, issue_number: number, body }); }
+              else {
+                await github.rest.issues.createLabel({ ...context.repo, name: label, color: '1f5fad', description: 'Opened by the nightly maintenance run' }).catch(() => {});
+                ({ data: { number } } = await github.rest.issues.create({ ...context.repo, title: 'Nightly maintenance: things to look at', labels: [label], body }));
+              }
+              core.setOutput('url', `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/issues/${number}`);
+            } else {
+              for (const issue of open) {
+                await github.rest.issues.createComment({ ...context.repo, issue_number: issue.number, body: `A clean night: nothing to report (${when}, [report](${run})). Closing.` });
+                await github.rest.issues.update({ ...context.repo, issue_number: issue.number, state: 'closed', state_reason: 'completed' });
+              }
+            }
+
+      - name: Email the owner if something needs attention
+        env:
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          ARCHIVE_TO: ${{ secrets.ARCHIVE_TO }}
+          NIGHTLY_TO: ${{ secrets.NIGHTLY_TO }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          ISSUE_URL: ${{ steps.issue.outputs.url }}
+          TEST: ${{ github.event_name == 'workflow_dispatch' && inputs.email }}
+        run: python3 -I scripts/nightly-email.py
+
+      - name: Write the report
+        if: always()
+        run: |
+          section() { [ -s "$REPORT_DIR/$1" ] || return 0; echo "### $2"; echo; sed 's/^/- /' "$REPORT_DIR/$1"; echo; }
+          {
+            echo "## Nightly maintenance, $(TZ="$MAINTENANCE_TZ" date '+%A %B %-d, %Y, %-I:%M %p %Z')"
+            echo
+            if [ ! -s "$REPORT_DIR/problems.txt" ] && [ ! -s "$REPORT_DIR/warnings.txt" ]; then echo "All clear: nothing needs attention."; echo; fi
+            section problems.txt "Needs attention (emailed)"
+            section warnings.txt "Worth fixing soon"
+            section notes.txt "Done and checked"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-lighthouse
+          path: .lighthouseci
+          retention-days: 14
+          if-no-files-found: ignore

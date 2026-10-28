@@ -43,6 +43,7 @@ const MESSAGES = {
   INVALID_EMAIL: 'That email address does not look right. Check it and try again.',
   MISSING_PASSWORD: 'Enter your password.',
   WEAK_PASSWORD: 'Choose a longer password: at least 8 characters.',
+  BREACHED_PASSWORD: 'That password has turned up in a data leak on another website, so it is easy to guess. Please choose a different one.',
   PASSWORD_DOES_NOT_MEET_REQUIREMENTS: 'Choose a longer password: at least 8 characters.',
   USER_DISABLED: 'This account has been turned off. Contact support if you think this is a mistake.',
   TOO_MANY_ATTEMPTS_TRY_LATER: 'Too many tries. Wait a few minutes, then try again.',
@@ -84,8 +85,24 @@ function begin(data, verified, remember = true) {
   emit();
 }
 
+// Checks a new password against the hundreds of millions already leaked from
+// other websites (Have I Been Pwned's free Pwned Passwords list). Only the
+// first 5 characters of the password's SHA-1 hash leave the device, so the
+// service never learns the password. If the check cannot run (offline, slow),
+// sign-up goes ahead.
+export async function leakedPassword(password) {
+  try {
+    const hex = [...new Uint8Array(await crypto.subtle.digest('SHA-1', new TextEncoder().encode(password)))].map((b) => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+    const res = await fetch(`https://api.pwnedpasswords.com/range/${hex.slice(0, 5)}`, { headers: { 'Add-Padding': 'true' }, signal: AbortSignal.timeout(4000) });
+    if (!res.ok) return false;
+    const rest = hex.slice(5);
+    return (await res.text()).split('\n').some((line) => { const [suffix, count] = line.trim().split(':'); return suffix === rest && Number(count) > 0; });
+  } catch (e) { return false; }
+}
+
 export async function signUp(email, password, { remember = true } = {}) {
   if (String(password).length < 8) throw new AccountError('WEAK_PASSWORD', MESSAGES.WEAK_PASSWORD);
+  if (await leakedPassword(String(password))) throw new AccountError('BREACHED_PASSWORD', MESSAGES.BREACHED_PASSWORD);
   const data = await auth('accounts:signUp', { email, password, returnSecureToken: true });
   begin(data, false, remember);
   // A confirmation email helps the player spot a typo before they need a reset.

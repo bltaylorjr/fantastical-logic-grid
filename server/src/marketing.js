@@ -5,7 +5,11 @@
 //                                       from a campaign link or another site, and
 //                                       later plays, solves, returns within a week,
 //                                       installs and Windows downloads from that
-//                                       visit (web/js/campaign.js)
+//                                       visit (web/js/campaign.js); the website's own pages
+//                                       count visits the same way (web/js/page-visit.js).
+//                                       Educator requests, confirmed school emails and
+//                                       packages sent are counted by the Worker
+//                                       (educators.js, SERVER_EVENTS), never from here
 //   GET  /admin/v1/marketing?days=      campaigns, ads, media and their numbers (viewer)
 //   POST /admin/v1/marketing/campaigns  add or change a campaign (admin)
 //   POST /admin/v1/marketing/campaigns/:id/delete   with its ads (admin)
@@ -22,10 +26,18 @@
 // fill the table with made-up names.
 import { json, readText, TooLarge } from './http.js';
 import { SEEDS } from './marketing-seed.js';
+import { getSettings } from './settings.js';
 
 const DAY = 24 * 3600_000;
 const isoDay = (ms) => new Date(ms).toISOString().slice(0, 10);
-export const EVENTS = ['visit', 'play', 'solve', 'return', 'install', 'download'];
+const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+// Sent by the game (POST /v1/m).
+export const CLIENT_EVENTS = ['visit', 'play', 'solve', 'return', 'install', 'download', 'support'];
+// Counted by the Worker itself, never accepted from /v1/m: an educator's
+// package request, the school address confirmed, and the package emailed
+// (educators.js), for the campaign the educator came from.
+export const SERVER_EVENTS = ['edu_request', 'edu_confirm', 'edu_sent'];
+export const EVENTS = [...CLIENT_EVENTS, ...SERVER_EVENTS];
 export const MEDIUMS = ['social', 'video', 'forum', 'community', 'directory', 'store', 'email', 'referral', 'search', 'print', 'qr', 'other'];
 export const CAMPAIGN_STATUS = ['draft', 'active', 'paused', 'ended'];
 export const AD_STATUS = ['draft', 'approved', 'posted', 'removed'];
@@ -33,7 +45,7 @@ export const MEDIA_KINDS = ['video', 'image', 'text', 'other'];
 const PLATFORMS = new Set(['web', 'desktop', 'android', 'ios']);
 // Sources the game names from the page a visitor came from (campaign.js),
 // always accepted. Ads add their own channels.
-export const KNOWN_SOURCES = ['google', 'bing', 'duckduckgo', 'yahoo', 'ecosia', 'brave', 'reddit', 'facebook', 'instagram', 'x', 'threads', 'bluesky', 'mastodon',
+export const KNOWN_SOURCES = ['portal', 'google', 'bing', 'duckduckgo', 'yahoo', 'ecosia', 'brave', 'reddit', 'facebook', 'instagram', 'x', 'threads', 'bluesky', 'mastodon',
   'youtube', 'tiktok', 'pinterest', 'linkedin', 'discord', 'itch', 'producthunt', 'hackernews', 'indiehackers', 'alternativeto', 'microsoftstore', 'github', 'quora', 'email', 'other'];
 const SLUG = /^[a-z0-9][a-z0-9_-]{0,39}$/;
 // A page on the website, optionally with simple settings such as ?play=now
@@ -49,6 +61,8 @@ const dateOrNull = (v) => (/^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) ? String(
 
 async function knownCodes(env, now = Date.now()) {
   if (codes && now - codes.at < CODES_CACHE_MS) return codes;
+  // Starter campaigns count from the first visit, even before anyone opens the dashboard.
+  await applySeeds(env, now);
   const { results } = await env.DB.prepare('SELECT c.code, a.channel, a.content FROM campaigns c LEFT JOIN campaign_ads a ON a.campaign_id = c.id').all();
   const campaigns = new Map();
   const sources = new Set(KNOWN_SOURCES);
@@ -63,8 +77,8 @@ async function knownCodes(env, now = Date.now()) {
 const forgetCodes = () => { codes = null; };
 
 // Turns what the game sent into one stats row, or null if it is not an event.
-export function cleanEvent(body, known) {
-  const event = EVENTS.includes(body?.e) ? body.e : null;
+export function cleanEvent(body, known, allowed = CLIENT_EVENTS) {
+  const event = allowed.includes(body?.e) ? body.e : null;
   if (!event) return null;
   let campaign = slug(body.c);
   let content = slug(body.k);
@@ -90,10 +104,32 @@ export async function handleMarketing(req, env, url) {
   try { body = JSON.parse(await readText(req, 1_000)); } catch (e) { return json(req, env, { error: e instanceof TooLarge ? 'too_large' : 'bad_request' }, e instanceof TooLarge ? 413 : 400); }
   const row = cleanEvent(body, await knownCodes(env));
   if (!row) return json(req, env, { error: 'bad_request' }, 400);
-  await env.DB.prepare(`INSERT INTO campaign_stats (day, campaign, source, medium, content, event, platform, n) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 1)
-    ON CONFLICT (day, campaign, source, medium, content, event, platform) DO UPDATE SET n = n + 1`)
-    .bind(isoDay(Date.now()), row.campaign, row.source, row.medium, row.content, row.event, row.platform).run();
+  await addCount(env, row);
   return json(req, env, { ok: true });
+}
+
+function addCount(env, row, now = Date.now()) {
+  return env.DB.prepare(`INSERT INTO campaign_stats (day, campaign, source, medium, content, event, platform, n) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 1)
+    ON CONFLICT (day, campaign, source, medium, content, event, platform) DO UPDATE SET n = n + 1`)
+    .bind(isoDay(now), row.campaign, row.source, row.medium, row.content, row.event, row.platform).run();
+}
+
+// The campaign tags a form sent with its own request ({ c, s, m, k } from
+// campaign.js attribution()), cleaned like a game event so only known codes
+// are kept. Returns null when the visitor came from no campaign or site.
+export async function cleanTags(env, tags) {
+  if (!tags || typeof tags !== 'object' || !(tags.c || tags.s)) return null;
+  const row = cleanEvent({ ...tags, e: 'edu_request', p: 'web' }, await knownCodes(env), SERVER_EVENTS);
+  return row && { c: row.campaign, s: row.source, m: row.medium, k: row.content };
+}
+
+// One server-side event (SERVER_EVENTS) for tags from cleanTags(), stored as JSON.
+export async function countServerEvent(env, event, tags, now = Date.now()) {
+  if (!SERVER_EVENTS.includes(event)) return;
+  let t = tags;
+  if (typeof t === 'string') { try { t = JSON.parse(t); } catch (e) { return; } }
+  if (!t || typeof t !== 'object' || !t.c) return;
+  await addCount(env, { campaign: String(t.c).slice(0, 40), source: String(t.s || 'other').slice(0, 40), medium: MEDIUMS.includes(t.m) ? t.m : 'other', content: String(t.k || '').slice(0, 40), event, platform: 'web' }, now);
 }
 
 // ------------------------------------------------------------- starter campaigns
@@ -115,9 +151,9 @@ export async function applySeeds(env, now = Date.now()) {
     if (!exists) {
       const { id } = await env.DB.prepare(`INSERT INTO campaigns (code, name, goal, notes, status, starts, ends, created_by, created_at, updated_at)
         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'starter plan', ?8, ?8) RETURNING id`).bind(c.code, c.name, c.goal || '', c.notes || '', c.status || 'draft', c.starts || null, c.ends || null, now).first();
-      const stmts = (seed.ads || []).map((a) => env.DB.prepare(`INSERT INTO campaign_ads (campaign_id, channel, medium, content, title, body, media, landing, status, where_to, notes, created_by, created_at, updated_at)
-        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 'draft', ?9, ?10, 'starter plan', ?11, ?11)`)
-        .bind(id, a.channel, a.medium, a.content, a.title, a.body, JSON.stringify((a.media || []).map((k) => mediaIds[k]).filter(Boolean)), a.landing || DEFAULT_LANDING, a.where || '', a.notes || '', now));
+      const stmts = (seed.ads || []).map((a) => env.DB.prepare(`INSERT INTO campaign_ads (campaign_id, channel, medium, content, title, body, media, landing, status, where_to, notes, post_on, created_by, created_at, updated_at)
+        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?12, ?9, ?10, ?13, 'starter plan', ?11, ?11)`)
+        .bind(id, a.channel, a.medium, a.content, a.title, a.body, JSON.stringify((a.media || []).map((k) => mediaIds[k]).filter(Boolean)), a.landing || DEFAULT_LANDING, a.where || '', a.notes || '', now, AD_STATUS.includes(seed.adStatus) ? seed.adStatus : 'draft', a.postOn || null));
       if (stmts.length) await env.DB.batch(stmts);
     }
     await env.DB.prepare('INSERT OR IGNORE INTO marketing_seeds (id, at) VALUES (?1, ?2)').bind(seed.id, now).run();
@@ -152,7 +188,7 @@ export async function overview(env, days, now = Date.now()) {
   const [campaigns, ads, media, stats] = await Promise.all([
     env.DB.prepare('SELECT id, code, name, goal, notes, status, starts, ends, created_by AS createdBy, created_at AS createdAt, updated_at AS updatedAt FROM campaigns ORDER BY created_at DESC').all(),
     env.DB.prepare(`SELECT id, campaign_id AS campaignId, channel, medium, content, title, body, media, landing, status, where_to AS "where", post_url AS postUrl, posted_at AS postedAt, notes,
-      created_at AS createdAt, updated_at AS updatedAt FROM campaign_ads ORDER BY campaign_id, channel, id`).all(),
+      post_on AS postOn, auto_note AS autoNote, created_at AS createdAt, updated_at AS updatedAt FROM campaign_ads ORDER BY campaign_id, channel, id`).all(),
     env.DB.prepare('SELECT id, title, kind, url, preview, size, notes, created_at AS createdAt FROM marketing_media ORDER BY id').all(),
     env.DB.prepare('SELECT day, campaign, source, medium, content, event, platform, SUM(n) AS n FROM campaign_stats WHERE day >= ?1 GROUP BY day, campaign, source, medium, content, event, platform').bind(since).all(),
   ]);
@@ -184,6 +220,29 @@ export async function overview(env, days, now = Date.now()) {
       return { ...a, media: JSON.parse(a.media || '[]'), link: trackedLink(site, a, code), stats: s ? Object.fromEntries(EVENTS.map((e) => [e, s[e]])) : blank() };
     }),
     media: media.results,
+  };
+}
+
+// Approved ads of active campaigns whose posting day has come, ready to post:
+// the words with the tracked link filled in, and the files they use.
+export async function due(env, day, now = Date.now()) {
+  await applySeeds(env, now);
+  const settings = await getSettings(env, now);
+  const site = env.SITE_URL || 'https://thelogicgrid.com';
+  const [ads, media] = await Promise.all([
+    env.DB.prepare(`SELECT a.id, a.channel, a.medium, a.content, a.title, a.body, a.media, a.landing, a.where_to AS "where", a.notes, a.post_on AS postOn, a.auto_note AS autoNote, c.code
+      FROM campaign_ads a JOIN campaigns c ON c.id = a.campaign_id
+      WHERE a.status = 'approved' AND c.status = 'active' AND a.post_on IS NOT NULL AND a.post_on <= ?1 ORDER BY a.post_on, a.id`).bind(day).all(),
+    env.DB.prepare('SELECT id, title, kind, url FROM marketing_media').all(),
+  ]);
+  const files = new Map(media.results.map((m) => [m.id, m]));
+  return {
+    day, autopost: settings.marketing_autopost !== false, reminders: settings.marketing_reminders !== false,
+    ads: ads.results.map((a) => {
+      const link = trackedLink(site, a, a.code);
+      const { body, media: ids, code, ...rest } = a;
+      return { ...rest, campaign: code, link, words: String(body || '').replaceAll('{link}', link), media: JSON.parse(ids || '[]').map((id) => files.get(id)).filter(Boolean) };
+    }),
   };
 }
 
@@ -263,6 +322,8 @@ export function marketingRoutes(Refusal) {
       const media = (Array.isArray(body.media) ? body.media : []).map(Number).filter((n) => Number.isInteger(n) && n > 0).slice(0, 20);
       const postUrl = checkUrl(body.postUrl, Refusal, 'The post link') || null;
       const text = str(body.body, 5000), where = str(body.where, 500), notes = str(body.notes, 2000);
+      const postOn = body.postOn ? String(body.postOn) : null;
+      if (postOn && !DAY_RE.test(postOn)) throw new Refusal(400, 'bad_day', 'The posting day must be a date (YYYY-MM-DD).');
       const id = Number(body.id) || null;
       let out;
       if (id) {
@@ -270,13 +331,13 @@ export function marketingRoutes(Refusal) {
         if (!old) throw new Refusal(404, 'gone', 'That ad is gone.');
         const postedAt = status === 'posted' ? (old.posted_at || now) : old.posted_at;
         await env.DB.prepare(`UPDATE campaign_ads SET campaign_id = ?2, channel = ?3, medium = ?4, content = ?5, title = ?6, body = ?7, media = ?8, landing = ?9, status = ?10,
-          where_to = ?11, post_url = ?12, posted_at = ?13, notes = ?14, updated_at = ?15 WHERE id = ?1`)
-          .bind(id, campaignId, channel, medium, content, title, text, JSON.stringify(media), landing, status, where, postUrl, postedAt, notes, now).run();
+          where_to = ?11, post_url = ?12, posted_at = ?13, notes = ?14, updated_at = ?15, post_on = ?16 WHERE id = ?1`)
+          .bind(id, campaignId, channel, medium, content, title, text, JSON.stringify(media), landing, status, where, postUrl, postedAt, notes, now, postOn).run();
         out = { body: { id }, target: id, detail: { title, channel, status, ...(old.status !== status ? { from: old.status } : {}) } };
       } else {
-        const r = await env.DB.prepare(`INSERT INTO campaign_ads (campaign_id, channel, medium, content, title, body, media, landing, status, where_to, post_url, posted_at, notes, created_by, created_at, updated_at)
-          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?15) RETURNING id`)
-          .bind(campaignId, channel, medium, content, title, text, JSON.stringify(media), landing, status, where, postUrl, status === 'posted' ? now : null, notes, who.actor, now).first();
+        const r = await env.DB.prepare(`INSERT INTO campaign_ads (campaign_id, channel, medium, content, title, body, media, landing, status, where_to, post_url, posted_at, notes, created_by, created_at, updated_at, post_on)
+          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?15, ?16) RETURNING id`)
+          .bind(campaignId, channel, medium, content, title, text, JSON.stringify(media), landing, status, where, postUrl, status === 'posted' ? now : null, notes, who.actor, now, postOn).first();
         out = { body: { id: r.id }, target: r.id, detail: { title, channel, status } };
       }
       forgetCodes();
@@ -287,6 +348,28 @@ export function marketingRoutes(Refusal) {
       if (!r.meta.changes) throw new Refusal(404, 'gone', 'That ad is gone.');
       forgetCodes();
       return { body: { ok: true }, target: id };
+    }],
+
+    // The automatic poster (scripts/marketing-post.py, a daily GitHub Action):
+    // the approved ads due by a day, with their words, link and files ready,
+    // and where it reports each result.
+    ['GET', /^marketing\/due$/, 'admin', 'marketing.due', async ({ env, url, now }) => {
+      const day = DAY_RE.test(url.searchParams.get('day') || '') ? url.searchParams.get('day') : isoDay(now);
+      return { body: await due(env, day, now) };
+    }],
+    ['POST', /^marketing\/ads\/(\d+)\/auto$/, 'admin', 'marketing.ad_auto', async ({ env, body, now, params: [id] }) => {
+      const ad = await env.DB.prepare('SELECT id, status, title FROM campaign_ads WHERE id = ?1').bind(Number(id)).first();
+      if (!ad) throw new Refusal(404, 'gone', 'That ad is gone.');
+      const note = str(body.note, 300);
+      if (body.ok) {
+        if (ad.status !== 'approved') throw new Refusal(409, 'not_approved', 'Only approved ads are posted automatically.');
+        const postUrl = checkUrl(body.postUrl, Refusal, 'The post link') || null;
+        await env.DB.prepare("UPDATE campaign_ads SET status = 'posted', post_url = ?2, posted_at = ?3, auto_note = ?4, updated_at = ?3 WHERE id = ?1")
+          .bind(ad.id, postUrl, now, note || 'Posted automatically').run();
+        return { body: { ok: true }, target: ad.id, detail: { title: ad.title, posted: 'automatically' } };
+      }
+      await env.DB.prepare('UPDATE campaign_ads SET auto_note = ?2, updated_at = ?3 WHERE id = ?1').bind(ad.id, note || 'Automatic posting failed', now).run();
+      return { body: { ok: true }, target: ad.id, detail: { title: ad.title, note } };
     }],
 
     ['POST', /^marketing\/media$/, 'admin', 'marketing.media', async ({ env, body, who, now }) => {

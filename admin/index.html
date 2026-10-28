@@ -82,8 +82,10 @@
       <li><a href="#marketing" data-min="viewer">Marketing</a></li>
       <li><a href="#stories" data-min="moderator">Story workshop and review <span class="count" id="count-parts" hidden></span></a></li>
       <li><a href="#communication" data-min="viewer">Communication <span class="count" id="count-comm" hidden></span></a></li>
+      <li><a href="#educators" data-min="moderator">Educator requests <span class="count" id="count-educators" hidden></span></a></li>
       <li><a href="#names" data-min="moderator">Screen names <span class="count" id="count-names" hidden></span></a></li>
-      <li><a href="#players" data-min="moderator">Players</a></li>
+      <li><a href="#players" data-min="viewer">Players</a></li>
+      <li><a href="#supporters" data-min="admin">Supporters</a></li>
       <li><a href="#settings" data-min="viewer">Settings and switches</a></li>
       <li><a href="#connections" data-min="viewer">Connections and setup</a></li>
       <li><a href="#backups" data-min="admin">Backups and archive</a></li>
@@ -109,7 +111,7 @@
       <div class="head"><h1 id="h-search">Search (Google and Bing)</h1>
         <button class="btn" type="button" id="search-refresh" data-min="admin">Refresh now</button>
       </div>
-      <p class="muted">How people find thelogicgrid.com in Google and Bing over the last 28 days. Fetched once a day (06:41 UTC) and kept on the game's server. Google's numbers arrive two or three days late.</p>
+      <p class="muted">How people find thelogicgrid.com in Google and Bing over the last 28 days. Fetched every night at 2 am Eastern and kept on the game's server. Google's numbers arrive two or three days late.</p>
       <div id="search-body"><p class="muted">Loading…</p></div>
     </section>
 
@@ -253,9 +255,17 @@
       </div>
     </section>
 
+    <section data-view="educators" hidden aria-labelledby="h-educators">
+      <div class="head"><h1 id="h-educators">Educator requests</h1></div>
+      <p class="muted">Free printable puzzle packages asked for on the website's <a href="https://thelogicgrid.com/educators/" target="_blank" rel="noopener">Educators page</a>. A request shows as waiting once the educator has typed the code we emailed to their school address. <b>Approve and send</b> makes the puzzles with the game's engine and emails them as PDFs to that address; <b>Decline</b> sends a polite email with your note. Check the badge next to the address: "Check the school" means it is not a known school domain. Switches and limits: Settings and switches &gt; Educators.</p>
+      <p class="muted" id="edu-speed"></p>
+      <div class="sections" id="edu-tabs" role="group" aria-label="Show requests"></div>
+      <div id="edu-list"></div>
+    </section>
+
     <section data-view="names" hidden aria-labelledby="h-names">
       <div class="head"><h1 id="h-names">Screen names</h1>
-        <div class="field inline"><label for="names-status">Show</label><select id="names-status"><option value="pending">New or changed</option><option value="reviewed">Looked at</option><option value="all">All</option></select></div>
+        <div class="field inline"><label for="names-status">Show</label><select id="names-status"><option value="pending">New or changed</option><option value="reviewed">Approved</option><option value="all">All</option></select></div>
       </div>
       <p class="muted">Names other players can see. Names the word filter would refuse today are marked <span class="badge warn">Check</span> and listed first.</p>
       <div class="table-wrap"><table class="table"><thead><tr><th scope="col">Screen name</th><th scope="col">Since</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody id="names-rows"></tbody></table></div>
@@ -265,13 +275,51 @@
       <div class="head"><h1 id="h-players">Players</h1></div>
       <form id="players-form" class="row" role="search">
         <div class="field grow"><label for="players-q">Screen name or player id</label><input id="players-q" type="search" autocomplete="off"></div>
-        <div class="field"><label for="players-filter">Who</label><select id="players-filter"><option value="all">Everyone</option><option value="banned">Banned</option></select></div>
+        <div class="field"><label for="players-sort">Sort by</label><select id="players-sort"><option value="seen">Last seen</option><option value="name">Screen name (A to Z)</option><option value="joined">Signed up</option><option value="solves">Solves</option><option value="races">Races</option><option value="points">Points</option></select></div>
+        <div class="field"><label for="players-per">Per page</label><select id="players-per"><option>25</option><option selected>50</option><option>100</option></select></div>
         <button class="btn primary" type="submit">Search</button>
       </form>
-      <p class="muted">Players are listed by screen name. Emails stay in Firebase and are not shown here; saved puzzles are only counted.</p>
-      <div class="table-wrap"><table class="table"><thead><tr><th scope="col">Screen name</th><th scope="col">Points</th><th scope="col">Solves</th><th scope="col">Last score</th><th scope="col">Status</th></tr></thead><tbody id="players-rows"></tbody></table></div>
+      <div class="sections" role="group" aria-label="Show players" id="players-sections">
+        <button type="button" class="btn small" data-section="pending" aria-pressed="false">Needs approval <span class="n"></span></button>
+        <button type="button" class="btn small" data-section="active" aria-pressed="false">Approved, active <span class="n"></span></button>
+        <button type="button" class="btn small" data-section="inactive" aria-pressed="false">Approved, inactive 30+ days <span class="n"></span></button>
+        <button type="button" class="btn small" data-section="blocked" aria-pressed="false">Blocked <span class="n"></span></button>
+        <button type="button" class="btn small" data-section="account" aria-pressed="false">No screen name yet <span class="n"></span></button>
+        <button type="button" class="btn small" data-section="all" aria-pressed="true">Everyone <span class="n"></span></button>
+      </div>
+      <p class="muted">Every player who has an account, by section. <b>Needs approval</b>: new or changed screen names nobody has approved yet. <b>Approved, active</b>: approved names that played, synced or changed something in the last 30 days. <b>Approved, inactive</b>: approved names with nothing for over 30 days. <b>Blocked</b>: banned players. <b>No screen name yet</b>: accounts that only sync saves. Emails stay in Firebase and are not shown here; saved puzzles are only counted. <span data-min="moderator">Pick a name to see that player's page.</span> Select a column heading to sort by it.</p>
+      <p id="players-count" class="muted" role="status"></p>
+      <div class="table-wrap"><table class="table" id="players-table"><thead><tr>
+        <th scope="col" data-sort="name"><button type="button" class="sort">Screen name</button></th>
+        <th scope="col" data-sort="joined"><button type="button" class="sort">Signed up</button></th>
+        <th scope="col" data-sort="seen"><button type="button" class="sort">Last seen</button></th>
+        <th scope="col" class="num" data-sort="solves"><button type="button" class="sort">Solves</button></th>
+        <th scope="col" class="num" data-sort="races"><button type="button" class="sort">Races</button></th>
+        <th scope="col" class="num" data-sort="points"><button type="button" class="sort">Points</button></th>
+        <th scope="col">Section</th><th scope="col" data-min="moderator"><span class="sr-only">Actions</span></th></tr></thead><tbody id="players-rows"></tbody></table></div>
+      <nav class="row pager" aria-label="Player pages"><button class="btn small" type="button" id="players-prev">Previous page</button><span id="players-page" class="muted"></span><button class="btn small" type="button" id="players-next">Next page</button></nav>
       <div class="row" data-min="admin"><button class="btn" type="button" data-export="players">Download all players (CSV)</button><button class="btn" type="button" data-export="scores">Download all scores (CSV)</button></div>
       <div id="player-detail"></div>
+    </section>
+
+    <section data-view="supporters" hidden aria-labelledby="h-supporters">
+      <div class="head"><h1 id="h-supporters">Supporters</h1></div>
+      <p class="muted">The game is free. A <b>Supporter</b> gets a badge next to their name on the scoreboard: Bronze, Silver, Gold or Platinum. Payment services pick the badge from the membership tier's name or the amount paid (the tier amounts are under Settings and switches &gt; Support and premium); a player shows their highest running badge. Nothing from this page shows in the game until you turn on <b>Show supporter badges</b> and <b>Supporter extras</b> under Settings and switches &gt; Support and premium. <b>Premium</b> also opens the themes ticked under Settings and switches &gt; Support and premium. Payment services add people here by themselves once connected; you can also add someone by hand, for example a GitHub Sponsors or Ko-fi tipper. A grant made out to an email reaches the player the next time they sign in with that confirmed email.</p>
+      <form id="sup-form" class="stack card" novalidate>
+        <div class="row">
+          <div class="field grow"><label for="sup-who">Player's email or player id</label><input id="sup-who" type="text" autocomplete="off" spellcheck="false" required></div>
+          <div class="field"><label for="sup-kind">Gets</label><select id="sup-kind"><option value="supporter">Supporter badge</option><option value="premium">Premium (badge and extras)</option></select></div>
+          <div class="field"><label for="sup-tier">Badge</label><select id="sup-tier"><option value="1">Bronze</option><option value="2">Silver</option><option value="3">Gold</option><option value="4">Platinum</option></select></div>
+          <div class="field"><label for="sup-until">Ends (optional)</label><input id="sup-until" type="date"></div>
+        </div>
+        <div class="field"><label for="sup-note">Note (optional, for you)</label><input id="sup-note" type="text" maxlength="200" autocomplete="off"></div>
+        <p class="error" id="sup-error" role="alert" hidden></p>
+        <div class="row"><button class="btn primary" type="submit">Add</button></div>
+      </form>
+      <div class="table-wrap"><table class="table"><thead><tr><th scope="col">Who</th><th scope="col">Gets</th><th scope="col">Badge</th><th scope="col">From</th><th scope="col">Since</th><th scope="col">Ends</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody id="sup-rows"></tbody></table></div>
+      <h2>Refunds and chargebacks</h2>
+      <p class="muted">If a player asks for their money back, refund them in the payment service and press <b>Refunded</b>: a quick refund costs less than a chargeback and its fee. If the payment service tells you about a dispute or chargeback, press <b>Chargeback</b>, then <b>Dispute evidence</b> to download a summary to send them. Players blocked after a chargeback are listed here; their new payments add nothing until you lift the block. The full guide is docs/launch/CHARGEBACKS.md.</p>
+      <div class="table-wrap"><table class="table"><thead><tr><th scope="col">Blocked player</th><th scope="col">Since</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody id="sup-blocks"></tbody></table></div>
     </section>
 
     <section data-view="settings" hidden aria-labelledby="h-settings">
@@ -319,7 +367,7 @@
         <dt>Owner</dt><dd>Everything, including this list. Set by the Worker's <code>OWNER_EMAIL</code> secret.</dd>
         <dt>Admin</dt><dd>Settings, announcements, news, writing to a player first, deleting conversations, resetting scores, deleting accounts and the audit log, plus everything a moderator can do.</dd>
         <dt>Moderator</dt><dd>Story review, screen names, players, bans, reading and answering messages, ideas and problems, plus everything a viewer can do.</dd>
-        <dt>Viewer</dt><dd>Read-only: overview, usage, settings, announcements, news, error reports and the email log. Viewers cannot read what players wrote.</dd>
+        <dt>Viewer</dt><dd>Read-only: overview, usage, settings, announcements, news, error reports, the email log and the list of screen names (no player ids or player pages). Viewers cannot read what players wrote.</dd>
       </dl>
       <form id="admin-form" class="row card" novalidate>
         <div class="field grow"><label for="admin-email">Email of their game account</label><input id="admin-email" type="email" autocomplete="off" required></div>

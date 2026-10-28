@@ -19,6 +19,13 @@ let onChange = () => {};
 export const disabledThemes = () => new Set((config && config.disabledThemes) || []);
 // A shared feature is on unless the dashboard switched it off.
 export const feature = (name) => !(config && config.features && config.features[name] === false);
+// Themes only premium supporters can pick (web/js/perks.js), and the page
+// where players get them ('' for none).
+export const premiumThemes = () => new Set((config && config.game && config.game.premiumThemes) || []);
+export const extrasUrl = () => {
+  const u = config && config.game && config.game.extrasUrl;
+  return typeof u === 'string' && u.startsWith('https://') ? u : '';
+};
 // News from the team for everyone, shown in Messages (messages.js).
 export const news = () => (config && config.news) || [];
 // The owner's optional "Support the game" page (an https link), or ''.
@@ -26,6 +33,9 @@ export const supportUrl = () => {
   const u = config && config.game && config.game.supportUrl;
   return typeof u === 'string' && u.startsWith('https://') ? u : '';
 };
+
+// Gentle support asks (web/js/support.js): on only with the Support page link.
+export const supportAsks = () => !!(config && config.game && config.game.supportAsks) && !!supportUrl();
 
 function renderAnnouncements() {
   const box = document.getElementById('announcements');
@@ -43,7 +53,8 @@ async function refresh() {
     const res = await fetch(`${CLOUD_URL}/v1/config`);
     if (!res.ok) return;
     const next = await res.json();
-    const themesChanged = JSON.stringify((config && config.disabledThemes) || []) !== JSON.stringify(next.disabledThemes || []);
+    const themeLists = (c) => JSON.stringify([(c && c.disabledThemes) || [], (c && c.game && c.game.premiumThemes) || [], (c && c.game && c.game.extrasUrl) || '']);
+    const themesChanged = themeLists(config) !== themeLists(next);
     const before = JSON.stringify(config && [config.features, config.defaults, config.game, config.news]);
     config = {
       announcements: next.announcements || [], disabledThemes: next.disabledThemes || [], features: next.features || {},

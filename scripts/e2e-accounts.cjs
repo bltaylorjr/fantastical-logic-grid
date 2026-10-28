@@ -15,6 +15,7 @@ const PROJECT = 'flg-e2e';
 const AUTH_PORT = 8131;
 const API_PORT = 8132;
 const APP_PORT = 8133;
+const LEAKED = crypto.createHash('sha1').update('password123').digest('hex').toUpperCase();
 const APP = `http://localhost:${APP_PORT}`;
 
 // ------------------------------------------------ stand-in for Firebase Auth
@@ -96,6 +97,8 @@ function startAuth(signer) {
   async function device(name) {
     const ctx = await browser.newContext({ viewport: { width: 1200, height: 900 }, serviceWorkers: 'block' });
     await ctx.route('**/js/cloud-config.js', (r) => r.fulfill({ contentType: 'text/javascript', body: config }));
+    // Stand-in for Have I Been Pwned: "password123" is a leaked password.
+    await ctx.route('https://api.pwnedpasswords.com/range/**', (r) => r.fulfill({ contentType: 'text/plain', body: r.request().url().endsWith(LEAKED.slice(0, 5)) ? `0000000000000000000000000000000000A:0\r\n${LEAKED.slice(5)}:251682\r\n` : '0000000000000000000000000000000000B:0\r\n' }));
     await ctx.addInitScript(() => { if (!localStorage.getItem('flg.settings')) localStorage.setItem('flg.settings', JSON.stringify({ introOffered: true, voiceProvider: 'device' })); });
     const page = await ctx.newPage();
     // Service workers are blocked here so the test config is not cached.
@@ -145,6 +148,10 @@ function startAuth(signer) {
     assert(await A.page.getAttribute('#su-pass', 'aria-invalid') === 'true', 'password field marked invalid');
     await A.page.check('[data-view=signup] [data-show-pass]');
     assert(await A.page.getAttribute('#su-pass', 'type') === 'text', 'show password works');
+    await A.page.fill('#su-pass', 'password123');
+    await A.page.click('[data-view=signup] button[type=submit]');
+    await A.page.waitForFunction(() => /data leak/.test(document.querySelector('[data-view=signup] .error-box')?.textContent || ''));
+    assert(true, 'a password from a known data leak is refused');
     await A.page.fill('#su-pass', 'correct horse battery');
     await A.page.click('[data-view=signup] button[type=submit]');
     await A.page.waitForSelector('[data-view=account]:not([hidden])');

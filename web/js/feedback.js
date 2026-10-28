@@ -11,13 +11,16 @@
 // "Let the team reply to me" links this one message to the account, so the
 // team can answer it in Menu > Messages (server/src/messages.js), and once
 // it is addressed the team's note of what was fixed arrives there
-// (server/src/followups.js). Sent from an open puzzle, the puzzle's
-// own details come along unless the player unticks the box: story id,
-// title, theme, topic, difficulty, seed, size and clue texts. Never the
+// (server/src/followups.js).
+// "A storyline idea" also shows a "Which theme is it for?" list of the themes
+// players can pick (admin-switched-off ones are left out); the chosen theme
+// id goes along and shows in the admin inbox. Sent from an open puzzle, the
+// puzzle's own details come along unless the player unticks the box: story
+// id, title, theme, topic, difficulty, seed, size and clue texts. Never the
 // player's marks or notes.
 import { CLOUD, CLOUD_URL } from './cloud-config.js';
 import * as account from './account.js';
-import { feature } from './remote-config.js';
+import { feature, disabledThemes } from './remote-config.js';
 import { platform } from './errors.js';
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -54,6 +57,7 @@ async function send(form) {
   const kind = form.dataset.kind;
   const text = $('textarea', form).value.trim();
   const topic = kind === 'idea' ? $('input[name=idea-topic]:checked', form).value : $('#problem-topic').value;
+  const theme = kind === 'idea' && topic === 'story' ? $('#idea-theme').value || undefined : undefined;
   const err = $('.error-box', form);
   const done = $('.acct-done', form);
   const btn = $('button[type=submit]', form);
@@ -72,7 +76,7 @@ async function send(form) {
     const puzzle = !pBox.hidden && $('[data-puzzle]', pBox).checked ? form._puzzle : null;
     const res = await fetch(`${CLOUD_URL}/v1/feedback`, {
       method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-      body: JSON.stringify({ kind, topic, text, platform: platform(), version: CLOUD.appVersion || 'dev', reply: !!token && reply, talk: !!token && talk, ...(puzzle ? { puzzle } : {}) }),
+      body: JSON.stringify({ kind, topic, text, platform: platform(), version: CLOUD.appVersion || 'dev', reply: !!token && reply, talk: !!token && talk, theme, ...(puzzle ? { puzzle } : {}) }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.message || 'It could not be sent right now. Please try again later.');
@@ -86,13 +90,18 @@ async function send(form) {
   }
 }
 
+// The theme list only shows while "A storyline idea" is picked.
+const showThemes = () => { $('#idea-theme-field').hidden = $('input[name=idea-topic]:checked').value !== 'story'; };
+
 let wired = false;
-// kind: 'idea' or 'problem' picks the box that gets focus.
-export function open(openDialog, { kind = 'idea' } = {}) {
+// kind: 'idea' or 'problem' picks the box that gets focus. themes: the
+// engine's theme list ({ id, name }), for the storyline idea's theme picker.
+export function open(openDialog, { kind = 'idea', themes = [] } = {}) {
   const dlg = $('#dlg-feedback');
   if (!wired) {
     wired = true;
     for (const form of dlg.querySelectorAll('form')) form.addEventListener('submit', (e) => { e.preventDefault(); send(form); });
+    $('#idea-form fieldset').addEventListener('change', showThemes);
     $('[data-close]', dlg).onclick = () => dlg.close();
   }
   const me = account.current();
@@ -108,6 +117,13 @@ export function open(openDialog, { kind = 'idea' } = {}) {
     $('[data-puzzle]', form).checked = true;
     $('.fb-puzzle-name', form).textContent = form._puzzle && form._puzzle.title ? `, "${form._puzzle.title}"` : '';
   }
+  const off = disabledThemes();
+  const pick = $('#idea-theme');
+  const was = pick.value;
+  pick.innerHTML = '<option value="">Any theme / not sure</option>' + themes.filter((t) => !off.has(t.id))
+    .map((t) => `<option value="${t.id}">${t.name.replace(/[<>&"]/g, '')}</option>`).join('');
+  pick.value = [...pick.options].some((o) => o.value === was) ? was : '';
   if (kind === 'idea') $('input[name=idea-topic][value=story]').checked = true;
+  showThemes();
   openDialog(dlg, kind === 'problem' ? $('#problem-topic') : $('#idea-text'));
 }

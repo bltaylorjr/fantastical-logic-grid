@@ -7,14 +7,14 @@ import { printPuzzle } from './print.js';
 import { sceneSvg } from './art.js';
 import * as sfx from './audio.js';
 import * as ai from './ai.js';
-import { portrait, characterFace } from './portraits.js';
+import { portrait, characterFace, loadPortraits, portraitsReady } from './portraits.js';
+import { sizesFor as tierSizes, tierChoicesHtml, themeGroupsHtml, sizeChoicesHtml, clueTypesHtml } from './setup-markup.js';
 import * as characters from './characters.js';
 import { characterOf, narratorOf, lineOf } from './cast.js';
 import { profileOf, sayingOf } from './castbook.js';
 import * as wake from './wakelock.js';
 import * as updates from './updates.js';
 import { celebrate as celebrateSolve } from './effects.js';
-import { icon } from './icons.js';
 import * as learn from './learn.js';
 import * as feedbackBox from './feedback.js';
 import * as messages from './messages.js';
@@ -24,6 +24,8 @@ import * as campaign from './campaign.js';
 import { initAccounts, openAccount, onHome as accountsOnHome, signedIn } from './account-ui.js';
 import * as competeUi from './compete-ui.js';
 import * as remote from './remote-config.js';
+import * as perks from './perks.js';
+import * as support from './support.js';
 import { initPullRefresh } from './pull-refresh.js';
 import * as daily from './daily.js';
 import * as stats from './stats.js';
@@ -139,7 +141,7 @@ function applyMode() {
   updateMusic();
 }
 function updateMusic() {
-  const want = !!(S && settings.music && settings.sound && !settings.silent && remote.feature('music') && !$('#screen-play').hidden);
+  const want = !!(S && settings.music && settings.sound && !settings.silent && remote.feature('music') && !$('#screen-play').hidden && !$('#dlg-video').open);
   try {
     if (want && !sfx.musicPlaying()) { sfx.setVolumes({ sfx: settings.volume / 100, music: settings.musicVolume / 100 }); sfx.startMusic(S.puzzle.theme.id); sfx.setMood((S.save.percent || 0) / 100); }
     else if (!want && sfx.musicPlaying()) sfx.stopMusic();
@@ -171,16 +173,20 @@ function applyColorTheme() {
 // The backdrop and accents take the colors of the chosen theme's world.
 function setWorld(id) { document.documentElement.dataset.world = id || 'random'; }
 
+// The website's game page has a longer title for search results (scripts/seo.mjs).
+const HOME_TITLE = document.title;
 function showScreen(name) {
   $('#screen-home').hidden = name !== 'home';
   $('#screen-play').hidden = name !== 'play';
   $('#screen-learn').hidden = name !== 'learn';
   if (name !== 'learn') tutorial.close();
   const scr = $(`#screen-${name}`);
-  scr.classList.remove('enter'); void scr.offsetWidth; scr.classList.add('enter');
+  // The entrance animation plays on screen changes, not for the first screen
+  // at start (it would hold back the first paint).
+  if (document.documentElement.classList.contains('ready')) { scr.classList.remove('enter'); void scr.offsetWidth; scr.classList.add('enter'); }
   setWorld(name === 'play' && S ? S.puzzle.theme.id : setup.theme);
   $('#skip-link').hidden = name !== 'play';
-  document.title = name === 'play' && S ? `${S.save.name} · The Fantastical Logic Grid` : name === 'learn' ? 'How to play · The Fantastical Logic Grid' : 'The Fantastical Logic Grid';
+  document.title = name === 'play' && S ? `${S.save.name} · The Fantastical Logic Grid` : name === 'learn' ? 'How to play · The Fantastical Logic Grid' : HOME_TITLE;
   if (name === 'home') { closeGame(); renderSaved(); renderSuggestion(); renderDaily(); accountsOnHome(); competeUi.onHome(); setTimeout(offerUpdate, 500); }
   wake.setPlaying(name === 'play' && S && !S.save.solved);
   updateMusic();
@@ -202,29 +208,24 @@ const setup = {
   tier: 'easy', theme: 'random', topic: 'any', size: null, custom: [4, 4],
 };
 
-function sizesFor(tierId) {
-  const t = TIERS[tierId];
-  const out = [];
-  for (let k = t.categories[0]; k <= t.categories[1]; k++) for (let n = t.items[0]; n <= t.items[1]; n++) out.push(`${k}x${n}`);
-  return out;
-}
+const sizesFor = (tierId) => tierSizes(TIERS[tierId]);
 
 function renderSetup() {
   const saved = store.loadSetupChoices();
   if (saved) Object.assign(setup, saved);
   if (!TIERS[setup.tier]) setup.tier = 'easy';
 
-  const levels = OPTIONS.difficulties.length;
-  $('#tier-choices').innerHTML = OPTIONS.difficulties.map((d, i) => `
-    <label class="choice"><input type="radio" name="tier" value="${d.id}"${d.id === setup.tier ? ' checked' : ''}>
-    <span><span class="pips" aria-hidden="true">${'<i class="on"></i>'.repeat(i + 1)}${'<i></i>'.repeat(levels - i - 1)}</span><b>${esc(d.name)}</b><small>${esc(d.summary)}</small></span></label>`).join('');
-  // Themes switched off in the admin dashboard are left out.
+  $('#tier-choices').innerHTML = tierChoicesHtml(OPTIONS.difficulties, setup.tier);
+  // Themes switched off in the admin dashboard are left out; supporter extras
+  // show to everyone but open only for premium supporters.
   const off = remote.disabledThemes();
-  if (off.has(setup.theme)) { setup.theme = 'random'; setup.topic = 'any'; }
-  const themes = [{ id: 'random', name: 'Surprise me', description: 'Any theme' }, ...OPTIONS.themes.filter((t) => !off.has(t.id))];
-  $('#theme-choices').innerHTML = themes.map((t) => `
-    <label class="choice" title="${esc(t.description || '')}"><input type="radio" name="theme" value="${t.id}"${t.id === setup.theme ? ' checked' : ''} aria-describedby="theme-d-${t.id}">
-    <span class="tile" data-world="${t.id}">${icon(t.id, 'glyph')}<b>${esc(t.name)}</b></span><span class="sr-only" id="theme-d-${t.id}">${esc(t.description || '')}</span></label>`).join('');
+  const locked = lockedThemes();
+  if (off.has(setup.theme) || locked.has(setup.theme)) { setup.theme = 'random'; setup.topic = 'any'; }
+  $('#theme-choices').innerHTML = themeGroupsHtml(OPTIONS.themes.filter((t) => !off.has(t.id)), OPTIONS.themeGroups, setup.theme, locked);
+  const extras = remote.extrasUrl();
+  $('#extras-note').hidden = !locked.size;
+  $('#extras-link').hidden = !extras;
+  if (extras) $('#extras-link').href = extrasLink(extras);
   if (!$('input[name=theme]:checked')) $('input[name=theme]').checked = true;
   renderTopics();
   renderSizes();
@@ -244,6 +245,14 @@ function renderSetup() {
   updatePreview();
 }
 
+// Supporter extra themes this player can't pick yet (none for premium supporters).
+function lockedThemes() {
+  return perks.isPremium() ? new Set() : remote.premiumThemes();
+}
+// The page where players get the extras. Hook for payment pages that need to
+// know who is buying.
+function extrasLink(url) { return url; }
+
 // Topics narrow a theme, for example which holiday or which kind of mystery.
 // "Surprise me" has none, so the picker hides.
 function renderTopics() {
@@ -259,18 +268,13 @@ function renderTopics() {
 function renderSizes() {
   const sizes = sizesFor(setup.tier);
   if (!setup.size || (setup.size !== 'custom' && !sizes.includes(setup.size))) setup.size = sizes[0];
-  $('#size-choices').innerHTML = [...sizes, 'custom'].map((s) => {
-    const [k, n] = s.split('x');
-    const text = s === 'custom' ? '<b>Custom</b><small>Any size</small>' : `<b>${k} × ${n}</b><small>${k} categories, ${n} items</small>`;
-    return `<label class="choice"><input type="radio" name="size" value="${s}"${s === setup.size ? ' checked' : ''}><span>${text}</span></label>`;
-  }).join('');
+  $('#size-choices').innerHTML = sizeChoicesHtml(sizes, setup.size);
   $('#custom-size').hidden = setup.size !== 'custom';
 }
 
 function renderClueTypes() {
   const tierTypes = TIERS[setup.tier].clueTypes;
-  $('#clue-type-choices').innerHTML = OPTIONS.clueTypes.map((c) => `
-    <label class="check"><input type="checkbox" value="${c.id}"${tierTypes.includes(c.id) ? ' checked' : ''}> ${esc(c.name)}</label>`).join('');
+  $('#clue-type-choices').innerHTML = clueTypesHtml(OPTIONS.clueTypes, tierTypes);
 }
 
 function currentSize() {
@@ -341,8 +345,10 @@ async function makePuzzle(override = null) {
   // Learning only picks between puzzles the engine has fully checked.
   let tuned = {};
   if (settings.learn) { try { tuned = await learn.tuning(options.difficulty, { useShared: share.available() && remote.feature('learning') }); } catch (e) { tuned = {}; } }
-  // Surprise me never picks a theme that is switched off.
-  const off = remote.disabledThemes();
+  // Surprise me never picks a theme that is switched off, or a supporter extra
+  // this player can't open.
+  const off = new Set([...remote.disabledThemes(), ...lockedThemes()]);
+  if (off.has(options.theme)) options.theme = 'random';
   // Surprise me is decided here when the game's own characters might join,
   // since they depend on the theme.
   if (options.theme === 'random' && (off.size || characters.anyFor())) {
@@ -651,7 +657,8 @@ function openGame(save, { fresh = false } = {}) {
   updateNotesButton();
 
   S.grid = createGrid($('#gridframe'), puzzle, ix, {
-    onCycle: (k) => { const cur = S.marks.get(k) || ''; setCell(k, cur === '' ? 'X' : cur === 'O' ? '' : 'O'); },
+    // Tapping an automatic X clears it (it never turns into an O).
+    onCycle: (k) => { const cur = S.marks.get(k) || ''; setCell(k, cur === '' ? 'X' : cur === 'X' ? 'O' : ''); },
     onMark: (k, v) => setCell(k, v),
     onDescribeRow: describeRow,
     onFocus: (k) => { save.focus = k; },
@@ -724,15 +731,37 @@ function applyChanges(changes, dir) {
   }
 }
 
+// An automatic X ('A') belongs to the O that placed it. When an O is cleared
+// or changed, its automatic Xs go with it in the same undo step, unless another
+// O still rules that cell out. Hand-placed Xs ('X') are never touched. Nothing
+// extra is stored, so this works the same after save, resume and sync.
+function dropOrphanAutoX(changes) {
+  const gone = changes.filter((c) => c.t === 'm' && c.b === 'O' && c.a !== 'O');
+  if (!gone.length) return changes;
+  const after = new Map(S.marks);
+  const touched = new Set();
+  for (const c of changes) if (c.t === 'm') { touched.add(c.k); if (c.a) after.set(c.k, c.a); else after.delete(c.k); }
+  for (const c of gone) {
+    for (const m of lineMates(c.k)) {
+      if (touched.has(m) || after.get(m) !== 'A') continue;
+      if (lineMates(m).some((n) => after.get(n) === 'O')) continue;
+      changes.push({ t: 'm', k: m, b: 'A', a: '' });
+      touched.add(m);
+      after.delete(m);
+    }
+  }
+  return changes;
+}
+
 function commit(changes, label) {
-  changes = changes.filter((c) => (c.b || '') !== (c.a || ''));
+  changes = dropOrphanAutoX(changes.filter((c) => (c.b || '') !== (c.a || '')));
   if (!changes.length) return false;
   applyChanges(changes, 1);
   S.save.undo.push({ label, changes });
   if (S.save.undo.length > 5000) S.save.undo.shift();
   S.save.redo = [];
   afterChange();
-  return true;
+  return changes;
 }
 
 function afterChange() {
@@ -787,7 +816,8 @@ function setCell(k, v) {
   }
   const [a, b] = k.split('|');
   const what = `${S.ix.label(a)} and ${S.ix.label(b)} ${v === 'O' ? 'confirmed' : v ? 'ruled out' : 'cleared'}`;
-  commit(changes, what);
+  const done = commit(changes, what) || [];
+  const autoGone = done.filter((c) => c.b === 'A' && c.a === '' && c.k !== k).length;
   let wrongNow = false;
   if (v) {
     const [mk] = checkMarks(S.puzzle, [{ a, b, mark: v === 'O' ? 'O' : 'X' }]);
@@ -798,7 +828,7 @@ function setCell(k, v) {
   }
   sound(wrongNow ? 'error' : v === 'O' ? 'O' : v ? 'X' : 'clear');
   const td = S.grid.cells.get(k);
-  announce(`${td ? `${S.ix.label(td.dataset.row)}, ${S.ix.label(td.dataset.col)}` : what}, ${STATE_WORDS[v]}${wrongNow ? ', conflicts with the solution' : ''}${autoCount ? `. Also ruled out ${autoCount} other cell${autoCount > 1 ? 's' : ''}` : ''}.`);
+  announce(`${td ? `${S.ix.label(td.dataset.row)}, ${S.ix.label(td.dataset.col)}` : what}, ${STATE_WORDS[v]}${wrongNow ? ', conflicts with the solution' : ''}${autoCount ? `. Also ruled out ${autoCount} other cell${autoCount > 1 ? 's' : ''}` : ''}${autoGone ? `. Also removed ${autoGone} automatic X${autoGone > 1 ? 's' : ''}` : ''}.`);
 }
 
 function describeRow(rowItem) {
@@ -1211,6 +1241,7 @@ function showSolved(celebrate) {
   $('#next-tip').textContent = tip;
   renderFeedback(save);
   renderSolvedExtras(save);
+  $('#support-ask').hidden = true;
   $('#next-btn').textContent = next === tier ? `New ${TIERS[tier].name} puzzle` : `Try ${TIERS[next].name}`;
   $('#next-btn').onclick = () => {
     setup.tier = next;
@@ -1296,7 +1327,7 @@ $('#rating-clear').onclick = async () => {
   await saveRating({ rating: null });
   $('#feedback-thanks').textContent = 'Rating cleared.';
 };
-$('#feedback-idea').onclick = () => feedbackBox.open(openDialog, { kind: 'idea' });
+$('#feedback-idea').onclick = () => feedbackBox.open(openDialog, { kind: 'idea', themes: OPTIONS.themes });
 feedbackBox.setPuzzleSource(() => (S ? feedbackBox.puzzleDetails(S.puzzle, S.save.daily ? { daily: true } : {}) : null));
 
 // Streak, new badges and Share my result on the solved panel.
@@ -1329,6 +1360,47 @@ async function renderSolvedExtras(save) {
     ? (st.current > 1 ? `Daily streak: ${st.current} days in a row. Come back tomorrow for the next one.` : 'Your daily streak has started. Come back tomorrow for the next puzzle.')
     : 'This daily puzzle was finished after its day, so it does not add to your streak.';
 }
+// A gentle support ask on the solved panel (support.js), right after a fresh
+// solve: never after a revealed answer or in a race, at most once a week.
+async function renderSupportAsk(save) {
+  const box = $('#support-ask');
+  box.hidden = true;
+  if (!support.on() || save.revealed || save.race) return;
+  const log = await stats.solveLog().catch(() => []);
+  if (!S || S.save !== save) return;
+  const solvedCount = log.filter((x) => !x.revealed).length;
+  let streak = 0;
+  if (save.daily) {
+    const st = daily.streak(log, save.daily);
+    if (st.days.has(save.daily)) streak = st.current;
+  }
+  const ask = support.pick({ solvedCount, streak, revealed: save.revealed, race: !!save.race });
+  if (!ask) return;
+  $('#support-ask-text').textContent = ask.text;
+  $('#support-ask-go').href = support.url();
+  $('#support-ask-go').hidden = ask.kind === 'streak';
+  $('#support-ask-how').hidden = ask.kind !== 'streak';
+  box.dataset.kind = ask.kind;
+  box.hidden = false;
+}
+const closeSupportAsk = () => { $('#support-ask').hidden = true; $('#next-btn').focus(); };
+$('#support-ask-go').onclick = () => { campaign.supportPressed(); $('#support-ask').hidden = true; };
+$('#support-ask-how').onclick = () => openSupporters();
+$('#support-ask-later').onclick = closeSupportAsk;
+$('#support-ask-never').onclick = () => {
+  support.neverAgain();
+  closeSupportAsk();
+  toast('Got it. The game will not ask again.');
+};
+// The Supporters window: where the money goes, and the Support page link.
+function openSupporters() {
+  $('#supporters-text').textContent = support.TEXT.page;
+  $('#supporters-go').href = support.url();
+  openDialog($('#dlg-supporters'), $('#supporters-close'));
+}
+$('#supporters-close').onclick = () => $('#dlg-supporters').close();
+$('#supporters-go').onclick = () => { campaign.supportPressed(); $('#dlg-supporters').close(); };
+
 // Everyone's numbers for this daily puzzle, under the streak.
 async function showDailyNumbers(save, sent) {
   // Wait for this solve to be counted (at most a few seconds), so it is in the numbers.
@@ -1738,11 +1810,34 @@ function renderMedia() {
   S.sceneLayers = -1;
   $('#scene').innerHTML = sceneSvg(p, 0);
   const names = S.ix.cats[0].items.map((i) => i.label);
+  const drawCastRow = () => {
   $('#cast-row').innerHTML = names.map((n) => {
     const count = Object.values(S.witness).filter((w) => w === n).length;
     const who = aboutOf(n);
     return `<button class="cast-btn" type="button" data-who="${esc(n)}" aria-pressed="false" title="${esc(who.about)}">${portrait(p, n, { style: settings.portraitStyle })}<span>${esc(n)}</span><small class="trait">${esc(who.label)}</small><small>${count} clue${count === 1 ? '' : 's'}</small></button>`;
   }).join('');
+  };
+  drawCastRow();
+  // The DiceBear faces load after the first screen; if they are not here yet,
+  // the game's own faces show and the row is drawn again when they arrive.
+  if (!portraitsReady()) {
+    const game = S;
+    loadPortraits().then(() => {
+      if (S !== game) return;
+      // AI-painted faces (img) and pressed buttons carry over to the new row.
+      const before = $$('#cast-row .cast-btn').map((b) => ({ img: b.querySelector('img'), pressed: b.getAttribute('aria-pressed') }));
+      drawCastRow();
+      $$('#cast-row .cast-btn').forEach((b, i) => {
+        const was = before[i];
+        if (!was) return;
+        b.setAttribute('aria-pressed', was.pressed || 'false');
+        if (was.img) b.querySelector('svg')?.replaceWith(was.img);
+      });
+      const teller = narratorOf(p);
+      const told = $('#told-by .told-face');
+      if (teller && told && !told.querySelector('img')) told.innerHTML = characterFace(teller, { size: 40 });
+    }).catch(() => {});
+  }
   $('#bubble').hidden = true;
   S.sceneUrl = null;
   S.portraitUrls = {};
@@ -1887,7 +1982,11 @@ $('#read-clues').addEventListener('click', async () => {
 // Natural voices are the default for all speech. On first launch they download
 // in the background; later launches load them from the browser's cache early,
 // so the first Read aloud starts promptly.
+// While the Introduction plays, the voice engine waits: its download and
+// start-up compete with the video and can make the narration stall.
+let voicesHeld = false;
 async function ensureNaturalVoices() {
+  if ($('#dlg-video').open) { voicesHeld = true; return; }
   if (!['server', 'kokoro'].includes(settings.voiceProvider) || settings.silent || ai.kokoroLoading()) return;
   const first = !ai.kokoroReady(settings);
   if (first && (navigator.onLine === false || navigator.connection?.saveData)) return;
@@ -1918,7 +2017,7 @@ async function recordSolve(save) {
   const hist = await store.getMeta('history', []);
   hist.push({ tier: save.puzzle.difficulty.id, ms: save.elapsedMs, hints: save.hintsUsed, revealed: !!save.revealed, cells: (K * (K - 1) / 2) * N * N, at: Date.now() });
   await store.setMeta('history', hist.slice(-50));
-  if (S && S.save === save) { S.newBadges = fresh; renderSolvedExtras(save); }
+  if (S && S.save === save) { S.newBadges = fresh; renderSolvedExtras(save); renderSupportAsk(save); }
   if (fresh.length) {
     sound('section');
     toast(fresh.length === 1 ? `Badge earned: ${fresh[0].name}` : `${fresh.length} badges earned: ${fresh.map((b) => b.name).join(', ')}`, { label: 'My badges', run: openStats });
@@ -1971,6 +2070,7 @@ function printOptions() {
     paper: $('input[name=ppaper]:checked').value,
     marks: S.marks,
     myNotes: $('#p-mynotes').checked && !$('#p-notes-row').hidden ? S.save.myNotes : '',
+    supportLine: support.printLine(),
   };
 }
 $('#print-go').onclick = () => {
@@ -2098,7 +2198,12 @@ $('#app-menu').addEventListener('keydown', (e) => {
 });
 document.addEventListener('pointerdown', (e) => { if (!$('#app-menu').hidden && !e.target.closest('#app-menu, #menu-btn')) toggleMenu(false); });
 $('#app-menu').addEventListener('click', async (e) => {
-  if (e.target.closest('#support-link')) { toggleMenu(false); return; }
+  if (e.target.closest('#support-link')) {
+    toggleMenu(false);
+    // With support asks on, the menu opens the Supporters window first.
+    if (support.on()) { e.preventDefault(); openSupporters(); } else campaign.supportPressed();
+    return;
+  }
   const b = e.target.closest('button[data-cmd]');
   if (!b) return;
   toggleMenu(false);
@@ -2109,7 +2214,7 @@ $('#app-menu').addEventListener('click', async (e) => {
   else if (cmd === 'stats') openStats();
   else if (cmd === 'suggest') characters.openSuggest(openDialog, OPTIONS.themes.filter((t) => !remote.disabledThemes().has(t.id)));
   else if (cmd === 'daily') openTodaysDaily();
-  else if (cmd === 'feedback') feedbackBox.open(openDialog);
+  else if (cmd === 'feedback') feedbackBox.open(openDialog, { themes: OPTIONS.themes });
   else if (cmd === 'messages') messages.open();
   else if (cmd === 'account') openAccount();
   else if (cmd === 'board') competeUi.openBoard();
@@ -2158,7 +2263,13 @@ $('#help-close').onclick = () => $('#dlg-help').close();
 // The Introduction (narrated video): offered once on first launch, always at the top.
 function openVideo() {
   if ($('#dlg-help').open) $('#dlg-help').close();
-  openDialog($('#dlg-video'), $('#intro-video'));
+  // The Introduction has the floor: game speech and music stop while it plays,
+  // and the whole video buffers ahead so the narration doesn't stall.
+  try { ai.stopSpeaking(); } catch (e) { /* ignore */ }
+  const v = $('#intro-video');
+  v.preload = 'auto';
+  openDialog($('#dlg-video'), v);
+  updateMusic();
 }
 // The app bar (with How to play, the Introduction and the small scoreboard) stays at the top;
 // its height keeps scrolled-to items from hiding under it.
@@ -2170,7 +2281,30 @@ $('#howto-btn').onclick = () => openTutorial();
 $('#intro-btn').onclick = openVideo;
 $('#miniboard-open').onclick = () => competeUi.openBoard();
 $('#video-close').onclick = () => $('#dlg-video').close();
-$('#dlg-video').addEventListener('close', () => { $('#intro-video').pause(); });
+$('#dlg-video').addEventListener('close', () => {
+  $('#intro-video').pause();
+  updateMusic();
+  if (voicesHeld) { voicesHeld = false; afterLoad(ensureNaturalVoices, 1000); }
+});
+// If the picture or narration gets stuck while playing (a browser media hiccup
+// after a slow moment), nudge the player on from where it stopped, then reload
+// the video at that point if the nudge isn't enough.
+{
+  const v = $('#intro-video');
+  let last = -1, still = 0;
+  setInterval(() => {
+    if (!$('#dlg-video').open || v.paused || v.ended || v.seeking) { last = -1; still = 0; return; }
+    if (Math.abs(v.currentTime - last) > 0.05) { last = v.currentTime; still = 0; return; }
+    still += 1;
+    if (still === 3) v.currentTime = Math.min(v.currentTime + 0.05, v.duration || v.currentTime);
+    else if (still === 8 && navigator.onLine !== false && (v.readyState >= 3 || v.networkState !== 2)) {
+      const at = v.currentTime;
+      v.addEventListener('loadedmetadata', () => { v.currentTime = at; v.play().catch(() => {}); }, { once: true });
+      v.load();
+      still = 0;
+    }
+  }, 1000);
+}
 function offerIntro() {
   if (settings.introOffered) return;
   settings.introOffered = true;
@@ -2386,12 +2520,14 @@ async function init() {
   applyMode();
   applyLanguage();
   matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', applyColorTheme);
+  perks.init();
   renderSetup();
   characters.init({ onCharactersChanged: applyFeatures });
   remote.init({
     onThemesChanged: () => { if (!$('#screen-home').hidden) renderSetup(); },
     onConfigChanged: () => { settings = store.loadSettings(); applyFeatures(); applyMode(); languageNote(); },
   });
+  perks.onChange(() => { if (!$('#screen-home').hidden) renderSetup(); });
   await renderSaved();
   renderSuggestion();
   renderDaily();
@@ -2422,7 +2558,15 @@ async function init() {
   if (new URLSearchParams(location.search).has('learn')) { settings.introOffered = true; store.saveSettings(settings); openTutorial(); } else if (!handleChallengeLink() && !handlePlayLink()) offerIntro();
   offerLanguage();
   setTimeout(checkUpdates, 4000);
-  if (!isPreview) setTimeout(ensureNaturalVoices, 1500);
+  // Heavy extras wait until the first screen is drawn and the page is idle, so
+  // they never slow the first load: the DiceBear faces, then the natural voices
+  // (a 90 MB download the first time, read from the browser's cache after that).
+  afterLoad(() => loadPortraits().catch(() => {}), 500);
+  if (!isPreview) afterLoad(ensureNaturalVoices, settings.kokoroReady ? 1500 : 8000);
+}
+function afterLoad(fn, delay) {
+  const go = () => setTimeout(() => (window.requestIdleCallback || setTimeout)(fn, { timeout: 4000 }), delay);
+  if (document.readyState === 'complete') go(); else window.addEventListener('load', go, { once: true });
 }
 init();
 

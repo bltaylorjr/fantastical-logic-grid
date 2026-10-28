@@ -20,10 +20,11 @@
 // when the submitted answers match the puzzle's solution.
 
 import { json, readText, TooLarge } from './http.js';
-import { checkName, cleanName, nameKey, hasBlockedWords } from './names.js';
+import { checkName, cleanName, nameKey, hasBlockedWords, isSuggestedName } from './names.js';
 import { isDeleted } from './sync.js';
 import { AuthError } from './auth.js';
 import { getSettings } from './settings.js';
+import { supporterTiers } from './supporters.js';
 
 export const TIERS = { basic: 10, easy: 20, medium: 35, hard: 55, expert: 80, mensa: 110 };
 // Minutes a typical player needs per grid cell (the same as the app's estimate).
@@ -160,15 +161,17 @@ async function scoreboard(env, period, now) {
     ), wins AS (
       SELECT user_id, COUNT(*) AS wins FROM fin WHERE place = 1 AND finishers >= 2 AND finished_at >= ?1 GROUP BY user_id
     )
-    SELECT p.screen_name AS name, p.user_id AS uid, pts.points, pts.solved, COALESCE(wins.wins, 0) AS wins
+    SELECT p.screen_name AS name, p.user_id AS uid, pts.points, pts.solved, COALESCE(wins.wins, 0) AS wins, ${APPROVED('p')} AS approved
     FROM pts JOIN players p ON p.user_id = pts.user_id LEFT JOIN wins ON wins.user_id = pts.user_id
     WHERE NOT EXISTS (SELECT 1 FROM bans b WHERE b.user_id = pts.user_id AND (b.until IS NULL OR b.until > ?3))
     ORDER BY pts.points DESC, wins DESC, pts.first ASC LIMIT ?2`).bind(since, BOARD_ROWS, now).all();
   let rank = 0;
   let prev = null;
+  // Supporter badges show only once the owner switches them on (Settings > Support and premium).
+  const supporters = (await getSettings(env, now)).supporter_badges_enabled ? await supporterTiers(env, results.map((r) => r.uid), now) : new Map();
   const rows = results.map((r, i) => {
     if (r.points !== prev) { rank = i + 1; prev = r.points; }
-    return { rank, name: r.name, points: r.points, solved: r.solved, wins: r.wins, uid: r.uid };
+    return { rank, name: r.name, points: r.points, solved: r.solved, wins: r.wins, uid: r.uid, approved: !!r.approved, ...(supporters.has(r.uid) ? { supporter: supporters.get(r.uid) } : {}) };
   });
   const body = { period, since, rows };
   boardCache.set(period, { at: now, since, body });
@@ -185,9 +188,26 @@ async function myStanding(env, uid, period, now) {
   return { rank: above.n + 1, points: mine.points, solved: mine.solved };
 }
 
+// ------------------------------------------------------------- name approval
+// With the names_need_approval switch on, other players see a new or changed
+// screen name only after an admin approves it (a name_reviews row for the
+// current name_key); until then it shows as NEW_PLAYER. A player always sees
+// their own name.
+export const NEW_PLAYER = 'New player';
+const APPROVED = (p) => `EXISTS (SELECT 1 FROM name_reviews nr WHERE nr.user_id = ${p}.user_id AND nr.name_key = ${p}.name_key)`;
+async function nameShown(env, uid, now) {
+  const { names_need_approval: on } = await getSettings(env, now);
+  return (id, name, approved) => (!on || approved || (uid && id === uid) ? name : NEW_PLAYER);
+}
+async function isApproved(env, uid, settings) {
+  if (!settings.names_need_approval) return true;
+  return !!(await env.DB.prepare(`SELECT ${APPROVED('p')} AS a FROM players p WHERE p.user_id = ?1`).bind(uid).first('a'));
+}
+
 // ------------------------------------------------------------- races
 async function standings(env, race, uid, now) {
-  const { results } = await env.DB.prepare(`SELECT e.user_id, e.joined_at, e.finished_at, e.solved, e.elapsed_ms, e.hints, e.checks, e.adjusted_ms, p.screen_name
+  const shown = await nameShown(env, uid, now);
+  const { results } = await env.DB.prepare(`SELECT e.user_id, e.joined_at, e.finished_at, e.solved, e.elapsed_ms, e.hints, e.checks, e.adjusted_ms, p.screen_name, ${APPROVED('p')} AS approved
     FROM race_entries e LEFT JOIN players p ON p.user_id = e.user_id WHERE e.code = ?1`).bind(race.code).all();
   const done = results.filter((r) => r.solved).sort((a, b) => a.adjusted_ms - b.adjusted_ms || a.finished_at - b.finished_at);
   const rest = results.filter((r) => !r.solved).sort((a, b) => (a.finished_at ? 1 : 0) - (b.finished_at ? 1 : 0) || a.joined_at - b.joined_at);
@@ -196,7 +216,7 @@ async function standings(env, race, uid, now) {
   const players = [...done, ...rest].map((r, i) => {
     if (r.solved && r.adjusted_ms !== prev) { place = i + 1; prev = r.adjusted_ms; }
     return {
-      name: r.screen_name || 'A former player',
+      name: r.screen_name ? shown(r.user_id, r.screen_name, r.approved) : 'A former player',
       me: r.user_id === uid,
       host: r.user_id === race.host_id,
       status: r.solved ? 'solved' : r.finished_at ? 'gave_up' : 'solving',
@@ -208,11 +228,11 @@ async function standings(env, race, uid, now) {
     };
   });
   // Players challenged to this race who have not joined yet.
-  const { results: asked } = await env.DB.prepare(`SELECT i.to_id, i.status, p.screen_name FROM race_invites i JOIN players p ON p.user_id = i.to_id
+  const { results: asked } = await env.DB.prepare(`SELECT i.to_id, i.status, p.screen_name, ${APPROVED('p')} AS approved FROM race_invites i JOIN players p ON p.user_id = i.to_id
     WHERE i.code = ?1 AND i.status != 'accepted' AND NOT EXISTS (SELECT 1 FROM race_entries e WHERE e.code = i.code AND e.user_id = i.to_id)
     ORDER BY i.created_at`).bind(race.code).all();
   for (const a of asked) {
-    players.push({ name: a.screen_name, me: a.to_id === uid, host: false, status: a.status === 'declined' ? 'declined' : 'invited', place: null, elapsedMs: null, hints: null, checks: null, raceMs: null });
+    players.push({ name: shown(a.to_id, a.screen_name, a.approved), me: a.to_id === uid, host: false, status: a.status === 'declined' ? 'declined' : 'invited', place: null, elapsedMs: null, hints: null, checks: null, raceMs: null });
   }
   return {
     code: race.code, title: race.title, tier: race.tier, cells: race.cells,
@@ -261,7 +281,8 @@ export async function handleCompete(req, env, ctx, url, signedIn) {
         const profile = await db.prepare('SELECT screen_name FROM players WHERE user_id = ?1').bind(uid).first();
         if (profile) me = { name: profile.screen_name, ...(await myStanding(env, uid, period, now)) };
       }
-      return json(req, env, { period: board.period, since: board.since, rows: board.rows.map(({ uid: id, ...r }) => ({ ...r, me: !!uid && id === uid })), me });
+      const shown = await nameShown(env, uid, now);
+      return json(req, env, { period: board.period, since: board.since, rows: board.rows.map(({ uid: id, approved, ...r }) => ({ ...r, name: shown(id, r.name, approved), me: !!uid && id === uid })), me });
     }
 
     const user = await who();
@@ -278,7 +299,7 @@ export async function handleCompete(req, env, ctx, url, signedIn) {
     const off = (what) => fail('switched_off', 503, { message: `${what} are switched off for now. Please try again later.` });
 
     if (area === 'profile' && !sub) {
-      if (method === 'GET') return json(req, env, { screenName: profile ? profile.screen_name : null, acceptInvites: profile ? !!profile.accept_invites : true });
+      if (method === 'GET') return json(req, env, { screenName: profile ? profile.screen_name : null, acceptInvites: profile ? !!profile.accept_invites : true, nameApproved: profile ? await isApproved(env, uid, settings) : null });
       if (method === 'DELETE') {
         await db.batch(deleteCompeteStatements(env, uid));
         boardCache.clear();
@@ -302,8 +323,12 @@ export async function handleCompete(req, env, ctx, url, signedIn) {
         await db.prepare(`INSERT INTO players (user_id, screen_name, name_key, created_at, updated_at, accept_invites) VALUES (?1, ?2, ?3, ?4, ?4, ?5)
           ON CONFLICT (user_id) DO UPDATE SET screen_name = excluded.screen_name, name_key = excluded.name_key, updated_at = excluded.updated_at,
             accept_invites = excluded.accept_invites`).bind(uid, name, key, now, accept).run();
+        // Names from Suggest a name are approved straight away; typed names wait for an admin.
+        if (isSuggestedName(name)) {
+          await db.prepare("INSERT OR REPLACE INTO name_reviews (user_id, name_key, reviewed_by, reviewed_at) VALUES (?1, ?2, 'automatic (suggested name)', ?3)").bind(uid, key, now).run();
+        }
         boardCache.clear();
-        return json(req, env, { screenName: name, acceptInvites: !!accept });
+        return json(req, env, { screenName: name, acceptInvites: !!accept, nameApproved: await isApproved(env, uid, settings) });
       }
       return fail('not_found', 404);
     }
@@ -332,13 +357,13 @@ export async function handleCompete(req, env, ctx, url, signedIn) {
 
     if (area === 'invites') {
       if (!sub && method === 'GET') {
-        const { results } = await db.prepare(`SELECT i.id, i.code, i.created_at, r.title, r.tier, r.cells, p.screen_name AS from_name
+        const { results } = await db.prepare(`SELECT i.id, i.code, i.created_at, r.title, r.tier, r.cells, p.screen_name AS from_name, ${APPROVED('p')} AS approved
           FROM race_invites i JOIN races r ON r.code = i.code LEFT JOIN players p ON p.user_id = i.from_id
           WHERE i.to_id = ?1 AND i.status = 'pending' AND r.closes_at > ?2
             AND NOT EXISTS (SELECT 1 FROM race_entries e WHERE e.code = i.code AND e.user_id = ?1)
           ORDER BY i.created_at DESC LIMIT 20`).bind(uid, now).all();
         return json(req, env, {
-          invites: results.map((r) => ({ id: r.id, code: r.code, title: r.title, tier: r.tier, cells: r.cells, from: r.from_name || 'A former player', at: r.created_at })),
+          invites: results.map((r) => ({ id: r.id, code: r.code, title: r.title, tier: r.tier, cells: r.cells, from: r.from_name ? (r.approved || !settings.names_need_approval ? r.from_name : NEW_PLAYER) : 'A former player', at: r.created_at })),
         });
       }
       if (sub && /^\d+$/.test(sub) && action === 'decline' && method === 'POST') {

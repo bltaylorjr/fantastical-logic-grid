@@ -64,3 +64,13 @@ go('https://thelogicgrid.com/');
 campaign.init();
 assert.deepEqual(sent, ['visit']);
 ok('coming back after more than a week is not counted');
+
+mem.clear();
+go('https://thelogicgrid.com/educators/?utm_source=flyer&utm_medium=qr&utm_campaign=educators-2026&utm_content=staff-room');
+campaign.init();
+assert.deepEqual(campaign.attribution(), { c: 'educators-2026', s: 'flyer', m: 'qr', k: 'staff-room' });
+assert.equal(globalThis.location.href, 'https://thelogicgrid.com/educators/');
+ok('a page reached by an ad remembers it for its own forms, and tidies the address');
+mem.clear();
+assert.equal(campaign.attribution(), null);
+ok('no campaign, nothing to report');

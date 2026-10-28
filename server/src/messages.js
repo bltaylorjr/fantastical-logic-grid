@@ -20,7 +20,7 @@
 // addresses, web addresses and long numbers blanked, like the idea boxes.
 import { json, readText, TooLarge } from './http.js';
 import { getSettings } from './settings.js';
-import { cleanText } from './feedback.js';
+import { cleanText, themeName } from './feedback.js';
 import { withFixes } from './errors.js';
 import { queueNotice } from './replies.js';
 import { parsePuzzle } from './followups.js';
@@ -304,12 +304,12 @@ export async function inbox(env, role, { type = 'all', status = 'new', q = '' } 
   }
   for (const kind of ['idea', 'problem']) {
     if (!has(kind)) continue;
-    const { results } = await db.prepare(`SELECT id, topic, text, platform, version, status, note, fixed_in AS fixedIn, puzzle, created_at AS at, done_at AS doneAt, conversation_id AS conversationId,
+    const { results } = await db.prepare(`SELECT id, topic, theme, text, platform, version, status, note, fixed_in AS fixedIn, puzzle, created_at AS at, done_at AS doneAt, conversation_id AS conversationId,
         EXISTS (SELECT 1 FROM feedback_replies u WHERE u.feedback_id = feedback.id AND u.status = 'held') AS canEmail FROM feedback
       WHERE kind = ?1 AND (?2 = 'all' OR status = ?2) AND (?3 IS NULL OR text LIKE ?3 ESCAPE '\\') ORDER BY created_at DESC LIMIT ?4`).bind(kind, status, search, PER_TYPE).all();
     for (const f of results) {
       items.push({ type: kind, id: f.id, at: f.at, status: f.status, title: f.topic, text: f.text, meta: {
-        topic: f.topic, platform: f.platform, version: f.version, conversationId: f.conversationId, note: f.note, doneAt: f.doneAt,
+        topic: f.topic, theme: f.theme || null, themeName: f.theme ? themeName(f.theme) : null, platform: f.platform, version: f.version, conversationId: f.conversationId, note: f.note, doneAt: f.doneAt,
         fixedIn: f.fixedIn, canEmail: !!f.canEmail, puzzle: parsePuzzle(f.puzzle) } });
     }
   }

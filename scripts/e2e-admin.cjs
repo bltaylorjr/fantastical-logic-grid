@@ -161,9 +161,9 @@ const SHOTS = process.env.SHOTS;
     assert(added && added.status === 'approved' && added.source === 'admin', 'a story part written in the workshop goes straight to every player');
 
     await page.click('a[href="#settings"]');
-    await page.waitForSelector('input[name=theme-off]');
-    const theme = await page.getAttribute('input[name=theme-off]:nth-of-type(1)', 'value');
-    await page.locator('input[name=theme-off]').first().check();
+    await page.waitForSelector('input[name=theme-disabled_themes]');
+    const theme = await page.getAttribute('input[name=theme-disabled_themes]:nth-of-type(1)', 'value');
+    await page.locator('input[name=theme-disabled_themes]').first().check();
     await page.click('button[data-save=disabled_themes]');
     await page.waitForFunction(() => /Changed by/.test(document.querySelector('#settings-body').textContent));
     // "Changed by" can already show from an earlier save, so wait for the row itself.
@@ -243,13 +243,47 @@ const SHOTS = process.env.SHOTS;
     const renamed = (await db.prepare("SELECT screen_name FROM players WHERE user_id = 'player-1'").first()).screen_name;
     assert(/^Player [A-Z2-9]{4}$/.test(renamed), `a screen name is reset (${renamed})`);
 
+    // Players: every account in sections, with Approve and Block on each name.
+    await db.prepare('INSERT INTO players (user_id, screen_name, name_key, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?4)').bind('player-2', 'Fresh Face', 'freshface', Date.now()).run();
+    await db.prepare('INSERT INTO sync_users (user_id, rev, created_at) VALUES (?1, 1, ?2)').bind('sync-only-1', Date.now()).run();
     await page.click('a[href="#players"]');
-    await page.click('#players-form button[type=submit]');
-    await page.waitForSelector('#players-rows button[data-uid]');
-    await page.click('#players-rows button[data-uid]');
+    await page.waitForFunction(() => /Fresh Face/.test(document.querySelector('#players-rows').textContent) && /No screen name/.test(document.querySelector('#players-rows').textContent));
+    await page.click('#players-sections [data-section=pending]');
+    await page.waitForFunction(() => document.querySelector('#players-sections [data-section=pending]').getAttribute('aria-pressed') === 'true'
+      && !/No screen name/.test(document.querySelector('#players-rows').textContent));
+    assert(/Fresh Face/.test(await page.textContent('#players-rows')), 'Needs approval lists the new name');
+    await page.click('#players-rows button[data-act=approve]');
+    await page.waitForFunction(() => /No players here/.test(document.querySelector('#players-rows').textContent));
+    assert((await db.prepare("SELECT 1 FROM name_reviews WHERE user_id = 'player-2'").first()), 'Approve approves the name');
+    await page.click('#players-sections [data-section=active]');
+    await page.waitForFunction(() => /Fresh Face/.test(document.querySelector('#players-rows').textContent));
+    await page.click('#players-table th[data-sort=name] button');
+    await page.waitForSelector('#players-table th[data-sort=name][aria-sort=ascending]');
+    await page.click('#players-sections [data-section=all]');
+    await page.waitForFunction(() => /No screen name/.test(document.querySelector('#players-rows').textContent));
+    assert(/Showing 1 to 3 of 3 players/.test(await page.textContent('#players-count')), 'Everyone counts every account');
+    await shot(page, '3-players');
+    await page.click('#players-rows a.rowlink[href="#players/player-1"]');
     await page.waitForSelector('#player-card');
     assert(/Latest scores/.test(await page.textContent('#player-card')), 'a player opens with their scores');
     await shot(page, '3-player');
+
+    await page.click('a[href="#supporters"]');
+    await page.waitForSelector('#sup-rows td');
+    await page.fill('#sup-who', 'fan@example.com');
+    await page.selectOption('#sup-kind', 'premium');
+    await page.selectOption('#sup-tier', '3');
+    await page.fill('#sup-note', 'Ko-fi tip');
+    await page.click('#sup-form button[type=submit]');
+    await page.waitForSelector('#sup-rows button[data-sup-end]');
+    assert(/fan@example\.com/.test(await page.textContent('#sup-rows')) && /Premium/.test(await page.textContent('#sup-rows')) && /Gold/.test(await page.textContent('#sup-rows')), 'an admin adds a Gold premium supporter by email');
+    await page.click('#sup-rows button[data-reason=chargeback]');
+    await page.waitForSelector('#dialog[open]');
+    await page.fill('#dialog-body input[name=note]', 'Dispute dp_123');
+    await page.click('#dialog-ok');
+    await page.waitForSelector('#sup-blocks button[data-sup-unblock]');
+    assert(/Chargeback/.test(await page.textContent('#sup-rows')) && !(await page.locator('#sup-rows button[data-sup-end]').count()), 'a chargeback ends the grant and marks it');
+    assert(/fan@example\.com/.test(await page.textContent('#sup-blocks')) && /dp_123/.test(await page.textContent('#sup-blocks')), 'the player is listed as blocked, with the note');
 
     await page.click('a[href="#search"]');
     await page.waitForSelector('#search-body .tile');
@@ -347,11 +381,41 @@ const SHOTS = process.env.SHOTS;
     assert(/settings\.change/.test(log) && /players\.rename/.test(log) && /parts\.review/.test(log), 'the audit log shows what was done');
     await shot(page, '4-audit');
 
+    // Responsive: every page at phone, tablet, 200% zoom and monitor sizes, with
+    // no sideways scrolling and no button or field under 44 px.
+    const pages = await page.$$eval('#nav-list a:not([hidden])', (as) => as.map((a) => a.getAttribute('href').slice(1)));
+    for (const [label, width, height] of [['a phone', 360, 780], ['a portrait tablet', 768, 1024], ['200% zoom', 640, 400], ['a large monitor', 1920, 1080]]) {
+      await page.setViewportSize({ width, height });
+      const bad = [];
+      for (const view of pages) {
+        await page.evaluate((v) => { location.hash = v; }, view);
+        await page.waitForSelector(`[data-view="${view}"]:not([hidden])`);
+        await page.waitForTimeout(250);
+        const r = await page.evaluate(() => {
+          const small = [];
+          for (const el of document.querySelectorAll('#app button, #app a[href], #app input, #app select, #app textarea, #app summary')) {
+            if (el.closest('[hidden], .sr-only') || el.matches('.skip')) continue;
+            let b = el.getBoundingClientRect();
+            if (!b.width || !b.height || (el.tagName === 'A' && getComputedStyle(el).display === 'inline')) continue;
+            if (el.matches('input[type=checkbox], input[type=radio]') && el.closest('label')) b = el.closest('label').getBoundingClientRect();
+            if (Math.round(Math.min(b.width, b.height)) < 44) small.push(`${el.id || el.tagName} "${el.textContent.trim().slice(0, 20)}"`);
+          }
+          // The first element that sticks out past the screen, to name in a failure.
+          const out = [...document.querySelectorAll('#app *')].find((el) => {
+            if (el.getBoundingClientRect().right <= innerWidth + 1) return false;
+            for (let a = el.parentElement; a && a !== document.body; a = a.parentElement) if (getComputedStyle(a).overflowX !== 'visible') return false;
+            return true;
+          });
+          return { sideways: document.documentElement.scrollWidth > innerWidth + 1 && (out ? `${out.tagName}.${out.className} "${out.textContent.trim().slice(0, 30)}"` : 'yes'), small };
+        });
+        if (r.sideways) bad.push(`${view} scrolls sideways (${r.sideways})`);
+        if (r.small.length) bad.push(`${view}: ${r.small.join(', ')} under 44 px`);
+      }
+      assert(!bad.length, `every dashboard page fits ${label} (${width} x ${height}) with 44 px targets${bad.length ? `: ${bad.join('; ')}` : ''}`);
+    }
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.click('a[href="#overview"]');
+    await page.evaluate(() => { location.hash = 'overview'; });
     await page.waitForSelector('#ov-body .tile');
-    const wide = await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1);
-    assert(wide, 'the dashboard fits a phone screen without sideways scrolling');
     await shot(page, '5-phone');
     await page.click('#sign-out');
     assert(await page.locator('#login').isVisible(), 'signing out returns to the sign-in form');
@@ -427,6 +491,13 @@ const SHOTS = process.env.SHOTS;
     await p.click('#app-menu [data-cmd=feedback]');
     await p.waitForSelector('#dlg-feedback[open]');
     assert(await p.$eval('#idea-form .fb-reply', (el) => el.hidden), 'a guest is not offered email updates');
+    assert(await p.isVisible('#idea-theme'), 'a storyline idea asks which theme it is for');
+    assert(await p.$$eval('#idea-theme option', (o) => o.length) > 10, 'the theme list holds the game themes');
+    assert(await p.locator(`#idea-theme option[value="${theme}"]`).count() === 0, 'a switched-off theme is not in the idea theme list');
+    await p.check('#idea-form input[value=feature]');
+    assert(await p.locator('#idea-theme').isHidden(), 'the theme list hides for other kinds of idea');
+    await p.check('#idea-form input[value=story]');
+    await p.selectOption('#idea-theme', 'adventure');
     await p.fill('#idea-text', 'A pirate ship lost in the fog where the crew swapped maps.');
     await p.click('#idea-form button[type=submit]');
     await p.waitForFunction(() => /sent/.test(document.querySelector('#idea-form .acct-done').textContent));
@@ -434,8 +505,8 @@ const SHOTS = process.env.SHOTS;
     await p.fill('#problem-text', 'The music stopped after the second puzzle.');
     await p.click('#problem-form button[type=submit]');
     await p.waitForFunction(() => /sent/.test(document.querySelector('#problem-form .acct-done').textContent));
-    const fb = (await db.prepare('SELECT kind, topic FROM feedback ORDER BY id').all()).results.map((r) => `${r.kind}:${r.topic}`);
-    assert(fb.join() === 'idea:story,problem:sound', `an idea and a problem arrive in separate boxes (${fb.join()})`);
+    const fb = (await db.prepare('SELECT kind, topic, theme FROM feedback ORDER BY id').all()).results.map((r) => `${r.kind}:${r.topic}${r.theme ? `:${r.theme}` : ''}`);
+    assert(fb.join() === 'idea:story:adventure,problem:sound', `an idea and a problem arrive in separate boxes (${fb.join()})`);
 
     // ...and show up in the dashboard's one inbox (the old #feedback link still works).
     await db.prepare("INSERT INTO conversations (id, user_id, topic, subject, status, admin_unread, created_at, updated_at) VALUES (900, 'player-1', 'question', 'Can I print puzzles?', 'open', 1, ?1, ?1)").bind(Date.now()).run();
@@ -449,6 +520,7 @@ const SHOTS = process.env.SHOTS;
     await q.click('#token-form button[type=submit]');
     await q.waitForSelector('#comm-list button[data-status=done]');
     assert(/#communication$/.test(q.url()) && (await q.inputValue('#comm-type')) === 'idea', 'the old ideas link opens Communication on ideas');
+    assert(/Theme: Adventure/.test(await q.textContent('#comm-list')), 'the inbox shows which theme a storyline idea is for');
     assert(/pirate ship/.test(await q.textContent('#comm-list')) && !/music stopped/.test(await q.textContent('#comm-list')), 'the inbox can show ideas on their own');
     assert(/Emails to players/.test(await q.textContent('#fb-replies')), 'the dashboard shows the email counts');
     await q.selectOption('#comm-type', 'problem');
