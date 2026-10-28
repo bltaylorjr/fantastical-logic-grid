@@ -499,7 +499,7 @@ uses a secret, variable or binding that is not listed there.
 
 ### Gmail app password (the game's outgoing email)
 
-**Why:** GitHub Actions send the weekly archive and summary emails, the daily player report, owner task emails and the backup thank-you notes from fantasticallogicgrid@gmail.com.
+**Why:** GitHub Actions send the weekly archive and summary emails, the daily player report, owner task emails and the backup thank-you notes, daily puzzle emails and weekly and special edition puzzle emails from fantasticallogicgrid@gmail.com.
 
 **Cost:** Free. Gmail allows about 500 emails a day.
 
@@ -558,7 +558,7 @@ uses a secret, variable or binding that is not listed there.
 
 ### Resend: player emails from noreply@thelogicgrid.com
 
-**Why:** Sends the thank-you notes for ideas and problems from noreply@thelogicgrid.com instead of the Gmail address. Until it is set up, notes go from Gmail, so nothing is lost.
+**Why:** Sends the thank-you notes for ideas and problems, the daily puzzle emails and the weekly and special edition puzzle emails (with their confirm links) from noreply@thelogicgrid.com instead of the Gmail address. Until it is set up, they go from Gmail, so nothing is lost.
 
 **Cost:** Free plan: 3,000 emails a month, 100 a day, no card. Past that Resend refuses and Gmail takes over.
 

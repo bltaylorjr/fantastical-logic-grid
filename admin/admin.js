@@ -8,6 +8,7 @@ import { renderConnections } from './connections-view.js';
 import { characterView } from './characters.js';
 import { ratingsView, initRatings } from './ratings.js';
 import { marketingView, initMarketing } from './marketing.js';
+import { puzzleMailView, initPuzzleMail } from './puzzle-mail.js';
 import { educatorsView, initEducators } from './educators.js';
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -1238,6 +1239,10 @@ initMarketing(marketingHelpers, (name, o) => show(name, o));
 const educatorHelpers = { api, esc, fmt, when, can, act, ask, setCount };
 views.educators = () => educatorsView(educatorHelpers);
 initEducators(educatorHelpers, (name, o) => show(name, o));
+
+// ---- Puzzle emails (puzzle-mail.js): the weekly and special edition lists, sends and planner.
+views.mail = () => puzzleMailView();
+initPuzzleMail({ api, esc, fmt, when, tile, table, can, act, ask, toast, show });
 
 // ------------------------------------------------------------- navigation
 const MIN_ROLE = Object.fromEntries($$('#nav-list a').map((a) => [a.hash.slice(1), a.dataset.min]));
