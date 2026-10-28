@@ -29,7 +29,10 @@ export function makeLanguage(model) {
     return `${subj(x)} ${v > 0 ? pos(y) : neg(y)}`;
   }
   // Same category list in one predicate: "was in the Library or Study"
+  // Items of one category are listed in the grid's order (ids follow it).
+  const inGridOrder = (gs) => [...gs].sort((p, q) => p - q);
   function listPred(tplKey, x, ys, conj) {
+    ys = inGridOrder(ys);
     const c = catOf(ys[0]);
     if (c === 0) {
       const names = joinList(ys.map(label), conj);
@@ -43,7 +46,8 @@ export function makeLanguage(model) {
     name: label,
     cast: () => cast.many,
     catName: (c) => (c === 0 ? cast.one : cats[c].name.toLowerCase()),
-    list: (gs, conj = 'and') => joinList(gs.map(label), conj),
+    list: (gs, conj = 'and') => joinList(inGridOrder(gs).map(label), conj),
+    inGridOrder,
     posList: (x, ys) => listPred('pos', x, ys, 'or'),
     negList: (x, ys) => listPred('neg', x, ys, 'or'),
     gap: (c, d) => cats[c].ordinal.gaps[d],
@@ -60,14 +64,19 @@ export function clueText(L, c, rng) {
     case 'not':
       return cap(L.pair(c.a, c.b, -1)) + '.';
     case 'neither': {
+      c = { ...c, xs: L.inGridOrder(c.xs) };
       if (L.isKey(c.b)) return cap(L.negList(c.b, c.xs)) + '.';
       return `Neither ${L.subj(c.xs[0])} nor ${L.subj(c.xs[1])} ${L.pos(c.b)}.`;
     }
     case 'either': {
+      const [b1, b2] = L.inGridOrder([c.b1, c.b2]);
+      c = { ...c, b1, b2 };
       if (L.isKey(c.b1)) return `${cap(L.subj(c.a))} is either ${L.label(c.b1)} or ${L.label(c.b2)}.`;
       return `${cap(L.subj(c.a))} either ${L.pos(c.b1)} or ${L.pos(c.b2)}.`;
     }
     case 'pairs':
+      [c.x1, c.x2] = L.inGridOrder([c.x1, c.x2]);
+      [c.y1, c.y2] = L.inGridOrder([c.y1, c.y2]);
       return `Of ${L.subj(c.x1)} and ${L.subj(c.x2)}, one ${L.pos(c.y1)} and the other ${L.pos(c.y2)}.`;
     case 'allDiff': {
       // Three different people. A plain list ("Ada, the suspect who...") reads
