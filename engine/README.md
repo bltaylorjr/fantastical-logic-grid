@@ -29,7 +29,13 @@ This follows the design process step by step:
    category (time, age, score...) whenever the tier uses ordering clues.
 2. **Build the solution first.** A random, complete answer table is made before any clue.
 3. **Set up the grid.** A standard staircase layout where every pair of categories
-   meets exactly once (`puzzle.grid`).
+   meets exactly once (`puzzle.grid`). Every category lists its items in a
+   sensible order (`src/order.js`): numbers, clock times and other sequences
+   (days, months, seasons, first/second, sizes, medals, meals) in natural order;
+   a category written in a natural order keeps it (`order: 'listed'`, such as
+   eras oldest to newest); everything else alphabetical with numbers in number
+   order ("Table 2" before "Table 10"). The grid, answer key, printouts and
+   lists inside clues all follow this order. The tests enforce it.
 4. **Write clues.** True clues of mixed types are drawn from the answer table,
    weighted by tier (direct matches, eliminations, either/or, ordering, conditional links...).
 5. **Test for a single solution.** A solver that only makes human deductions tries
@@ -264,6 +270,7 @@ src/topics.js      topics under each theme: categories, story parts, art
 src/storylines.js  story parts per theme
 src/more-stories.js extra story parts, appended to the lists above on load
 src/tiers.js       difficulty tiers and clue types
+src/order.js       the item order rule for every grid category
 src/play.js        hints, checking and print text
 cli.js             command line generator
 dist/              single-file browser build
