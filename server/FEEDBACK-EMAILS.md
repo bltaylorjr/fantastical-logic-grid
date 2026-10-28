@@ -89,6 +89,11 @@ at whoever runs its DNS today.
 3. Resend lists 3 or 4 records (an **MX** and a **TXT** for `send`, a **TXT**
    for `resend._domainkey`, and an optional **TXT** for `_dmarc`). Add each
    one at your domain's DNS settings, copying the name and value exactly.
+   The domain's DNS is at Namecheap (Domain List > Manage > Advanced DNS):
+   the MX goes under **Mail Settings > Custom MX**, the TXT records under
+   **Host Records**, and the Host box takes only `send` or
+   `resend._domainkey`. Full click-by-click steps:
+   `docs/owner-tasks/2026-10-28-resend-namecheap.md`.
    They only cover the `send` and `resend._domainkey` names, so they do not
    touch the website or any other email.
 4. Back in Resend, press **Verify DNS records** (it can take from a few
@@ -97,7 +102,9 @@ at whoever runs its DNS today.
    access**, domain `thelogicgrid.com`. Copy the key (it starts with `re_`).
 6. In GitHub: repository **Settings > Secrets and variables > Actions > New
    repository secret**, name `RESEND_API_KEY`, paste the key.
-7. Test: sign in to the game with a confirmed account, send an idea with the
+7. Quick test: **Actions > Resend check > Run workflow** looks up the
+   records and sends one test email to the game's Gmail through Resend.
+8. Full test: sign in to the game with a confirmed account, send an idea with the
    box ticked, then **Actions > Thank-you emails > Run workflow**. The log
    says how many went through Resend and how many through Gmail.
 
