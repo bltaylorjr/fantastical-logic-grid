@@ -81,6 +81,7 @@ import { connectionStatus, checkGithubReport, saveGithubReport } from './connect
 import { withFixes, errorFile } from './errors.js';
 import { ratingRoutes } from './ratings.js';
 import { marketingRoutes } from './marketing.js';
+import { oauthRoutes } from './marketing-oauth.js';
 import { supporterRoutes } from './supporters.js';
 import { puzzleMailRoutes } from './puzzle-mail.js';
 import { editionRoutes } from './editions.js';
@@ -706,6 +707,7 @@ const ROUTES = [
   ...ratingRoutes(Refusal),
   // ---- Marketing: campaigns, ads, media and what each link brought in (marketing.js).
   ...marketingRoutes(Refusal),
+  ...oauthRoutes(Refusal),
   // ---- Puzzle emails: the weekly puzzle and special editions (puzzle-mail.js, editions.js).
   ...puzzleMailRoutes(Refusal),
   ...editionRoutes(Refusal),

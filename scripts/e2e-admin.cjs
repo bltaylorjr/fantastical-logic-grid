@@ -194,6 +194,21 @@ const SHOTS = process.env.SHOTS;
     assert(await page.locator('details.conn[data-id=github-security]').isHidden(), 'Needs attention hides the rest');
     await page.selectOption('#conn-show', 'all');
     await shot(page, '8-connections');
+    // Get the key: the owner goes to the site with the app id only (the app
+    // secret is typed on return, never stored), and coming back takes the
+    // code off the address bar.
+    await page.click('details.conn[data-id=reddit] summary');
+    await page.click('details.conn[data-id=reddit] button[data-key-site=reddit]');
+    await page.fill('#dialog [name=clientId]', 'test-app');
+    await page.route('https://www.reddit.com/**', (r) => r.fulfill({ body: '<p>reddit</p>', contentType: 'text/html' }));
+    await Promise.all([page.waitForURL((u) => u.hostname === 'www.reddit.com'), page.click('#dialog-ok')]);
+    const sent = new URL(page.url());
+    assert(sent.searchParams.get('client_id') === 'test-app' && sent.searchParams.get('redirect_uri') === `${API}/admin/`
+      && sent.searchParams.get('duration') === 'permanent', 'Get the key sends the app id to the site');
+    await page.goto(`${API}/admin/?state=${encodeURIComponent(sent.searchParams.get('state'))}&error=access_denied`);
+    await page.waitForFunction(() => /did not allow/.test(document.querySelector('#toast')?.textContent || ''));
+    assert(!page.url().includes('state=') && page.url().endsWith('#connections'), 'the code is taken off the address bar');
+    assert(await page.evaluate(() => !sessionStorage.getItem('flg-oauth')), 'the pending sign-in is cleared from the tab');
     await page.click('a[href="#settings"]');
     await page.waitForSelector('input[data-key=default_music]');
     await page.uncheck('input[data-key=default_music]');

@@ -5,6 +5,7 @@
 
 import { initPullRefresh } from './pull-refresh.js';
 import { renderConnections } from './connections-view.js';
+import { takeOAuthReturn, finishOAuth } from './oauth.js';
 import { characterView } from './characters.js';
 import { ratingsView, initRatings } from './ratings.js';
 import { marketingView, initMarketing } from './marketing.js';
@@ -31,6 +32,8 @@ let session = null; // { mode: 'firebase'|'token', key?, refreshToken?, idToken?
 let me = null; // { email, role }
 let firebaseKey = null;
 let lastActive = Date.now();
+// Back from a marketing site's sign-in (Connections and setup > Get the key).
+let oauthBack = takeOAuthReturn();
 
 // ------------------------------------------------------------- helpers
 function announce(text) { $('#live').textContent = ''; setTimeout(() => { $('#live').textContent = text; }, 30); }
@@ -960,7 +963,7 @@ $('#sup-blocks').onclick = async (e) => {
   if (!(await ask({ title: 'Lift this block?', text: 'New payments from this player will add a badge and extras again. Do this once the dispute is settled in your favor or the player has paid it back.', ok: 'Lift the block' }))) return;
   if (await act(b, () => api(`supporters/blocks/${b.dataset.supUnblock}/remove`, { method: 'POST' }), 'Block lifted.')) show('supporters', { keepFocus: true });
 };
-views.connections = () => renderConnections($('#connections-view'), { api, esc, when, toast, announce });
+views.connections = () => renderConnections($('#connections-view'), { api, esc, when, toast, announce, ask });
 
 $('#ann-form').onsubmit = async (e) => {
   e.preventDefault();
@@ -1295,6 +1298,7 @@ async function enter() {
   $$('#nav-list a').forEach((a) => { a.parentElement.hidden = !can(a.dataset.min); });
   $$('main [data-min]').forEach((el) => { el.hidden = !can(el.dataset.min); });
   show(location.hash.slice(1) || 'overview');
+  if (oauthBack) { const back = oauthBack; oauthBack = null; finishOAuth(back, { api, ask, esc, toast }); }
 }
 
 function signOut(message) {
