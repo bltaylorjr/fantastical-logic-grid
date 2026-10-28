@@ -10,6 +10,7 @@ import { printPuzzle } from './print.js';
 import { sceneSvg } from './art.js';
 import * as sfx from './audio.js';
 import * as ai from './ai.js';
+import * as pictureClues from './picture-clue.js';
 import { portrait, characterFace, loadPortraits, portraitsReady } from './portraits.js';
 import { sizesFor as tierSizes, tierChoicesHtml, themeGroupsHtml, sizeChoicesHtml, clueTypesHtml } from './setup-markup.js';
 import * as characters from './characters.js';
@@ -732,6 +733,7 @@ function openGame(save, { fresh = false } = {}) {
   $('#clue-list').innerHTML = puzzle.clues.map((c) => `
     <li data-n="${c.number}"${save.ticked.includes(c.number) ? ' class="used"' : ''}><span class="num" aria-hidden="true">${c.number}</span>
     <label><input type="checkbox" data-n="${c.number}"${save.ticked.includes(c.number) ? ' checked' : ''} aria-label="Clue ${c.number}, used"><span><span class="txt">${esc(c.text)}</span><span class="from media">From ${esc(S.witness[c.number])}</span></span></label></li>`).join('');
+  pictureClues.start(puzzle, { onSolved: () => sound('section') });
   renderMedia();
   $('#q-list').innerHTML = puzzle.questions.map((q) => `
     <li><label for="q-${q.number}">${esc(q.text)}</label>
