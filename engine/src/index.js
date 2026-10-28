@@ -10,6 +10,7 @@ export { THEMES, THEME_GROUPS, TIERS, CLUE_TYPES, SIZE_LIMITS };
 export { STORYLINES } from './storylines.js';
 export { PLAYER_STORIES, PLAYER_STORIES_THEME, getPlayerStory } from './player-stories.js';
 export { TOPICS, getTopics, storyKey } from './topics.js';
+export { storyBeats, BEATS } from './beats.js';
 export { pictureClue, solvePicture, lineClues, PICTURES } from './picture.js';
 export { parseStoryId, checkStoryPart, partKey, PART_KINDS } from './story.js';
 

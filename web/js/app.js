@@ -10,6 +10,7 @@ import { printPuzzle } from './print.js';
 import { sceneSvg } from './art.js';
 import * as sfx from './audio.js';
 import * as ai from './ai.js';
+import * as director from './director.js';
 import * as pictureClues from './picture-clue.js';
 import { portrait, characterFace, loadPortraits, portraitsReady } from './portraits.js';
 import { sizesFor as tierSizes, tierChoicesHtml, themeGroupsHtml, sizeChoicesHtml, clueTypesHtml } from './setup-markup.js';
@@ -970,6 +971,7 @@ function updateProgress() {
   }
   S.doneBlocks = newDone;
   revealScene(done / S.puzzle.grid.blocks.length);
+  director.progress(done);
   try { sfx.setMood(pct / 100); } catch (e) { /* ignore */ }
   $('#progress').textContent = `${pct}% filled · ${done} of ${S.puzzle.grid.blocks.length} sections done`;
   $('#progress-fill').style.width = `${pct}%`;
@@ -1996,6 +1998,7 @@ function renderMedia() {
   const p = S.puzzle;
   S.sceneLayers = -1;
   $('#scene').innerHTML = sceneSvg(p, 0);
+  director.start(p, { silent: settings.silent, speak: (text) => { if (voiceOn()) ai.speak(settings, p, 'narrator', text, { volume: settings.volume / 100 }); } });
   const names = S.ix.cats[0].items.map((i) => i.label);
   const drawCastRow = () => {
   $('#cast-row').innerHTML = names.map((n) => {
