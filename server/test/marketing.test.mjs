@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { Miniflare } from 'miniflare';
 import { makeSigner } from './signer.mjs';
 import { cleanEvent, trackedLink } from '../src/marketing.js';
+import { exchange } from '../src/marketing-oauth.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const PROJECT = 'flg-test';
@@ -109,6 +110,27 @@ test('the daily poster gets the approved ads due by a day, and reports each one'
   assert.equal(after.body.ads.length, 2, 'posted ads leave the list');
   // Back to approved for the tests below.
   await db.prepare("UPDATE campaign_ads SET status = 'approved', post_url = NULL, posted_at = NULL, auto_note = NULL WHERE id = ?1").bind(sky.id).run();
+});
+
+test('the Get the key helper refuses unknown sites and missing parts, admins only', async () => {
+  const body = { site: 'reddit', code: 'abc', clientId: 'id', clientSecret: 'secret' };
+  assert.equal((await call('/admin/v1/marketing/oauth', { auth: viewer(), body })).status, 403);
+  assert.equal((await call('/admin/v1/marketing/oauth', { auth: admin(), body: { ...body, site: 'example' } })).status, 400);
+  assert.equal((await call('/admin/v1/marketing/oauth', { auth: admin(), body: { ...body, clientSecret: '' } })).status, 400);
+});
+
+test('the key exchange sends each site the right sign-in and keeps only the key', async () => {
+  const seen = [];
+  const fake = (answer) => async (url, init) => { seen.push({ url, init }); return new Response(JSON.stringify(answer), { status: 200 }); };
+  const r = await exchange('reddit', { code: 'c1', clientId: 'app', clientSecret: 'shh', redirectUri: 'https://w.example/admin/' }, fake({ access_token: 'a', refresh_token: 'r', expires_in: 3600 }));
+  assert.deepEqual(r, { ok: true, accessToken: 'a', refreshToken: 'r', expiresIn: 3600, refreshExpiresIn: null });
+  assert.equal(seen[0].url, 'https://www.reddit.com/api/v1/access_token');
+  assert.equal(seen[0].init.headers.Authorization, `Basic ${btoa('app:shh')}`);
+  assert.ok(!seen[0].init.body.includes('shh'), 'basic-auth sites never get the secret in the form');
+  await exchange('tiktok', { code: 'c2', clientId: 'key', clientSecret: 'shh', redirectUri: 'https://w.example/admin/' }, fake({ access_token: 'a', refresh_token: 'r' }));
+  assert.match(seen[1].init.body, /client_key=key/);
+  const bad = await exchange('youtube', { code: 'c3', clientId: 'id', clientSecret: 's', redirectUri: 'x' }, async () => new Response(JSON.stringify({ error: 'invalid_grant' }), { status: 400 }));
+  assert.deepEqual(bad, { ok: false, why: 'invalid_grant' });
 });
 
 test('the educator campaign arrives as drafts, every ad of every campaign carries its tracked link', async () => {

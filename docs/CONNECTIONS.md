@@ -788,3 +788,129 @@ uses a secret, variable or binding that is not listed there.
 7. Test: <https://github.com/bltaylorjr/fantastical-logic-grid/actions/workflows/marketing-post.yml> > **Run workflow** with mode `check`.
 
 **Links:** [Threads API](https://developers.facebook.com/docs/threads) · [Full guide (scripts/marketing-post.py)](https://github.com/bltaylorjr/fantastical-logic-grid/blob/main/scripts/marketing-post.py)
+
+### LinkedIn (automatic posts)
+
+**Why:** Lets the marketing autopilot share approved LinkedIn ads on your profile on their day, with the link's picture card.
+
+**Cost:** Free (the Share on LinkedIn product). LinkedIn keys last 60 days: when the check says LinkedIn stopped working, press **Get the key** again.
+
+| Name | Where | Notes |
+| --- | --- | --- |
+| `LINKEDIN_TOKEN` | GitHub repository secret | A member key that can post for you (60 days). |
+
+**Steps:**
+
+1. Open <https://www.linkedin.com/developers/apps> and click **Create app**. Name: `Logic Grid autopilot`. LinkedIn asks for a Company Page: pick or create a free Page for the game. Upload the game icon and tick the agreement.
+2. In the app, open **Products** and click **Request access** on **Share on LinkedIn** and on **Sign In with LinkedIn using OpenID Connect**. Both are instant and free.
+3. Open **Auth**. Under **Authorized redirect URLs** add `https://flg-api.btay74.workers.dev/admin/` exactly, and copy the **Client ID** and **Primary Client Secret**.
+4. In admin, **Connections and setup** > this card > **Get the key**. Paste the two, sign in to LinkedIn and click **Allow**.
+5. Open <https://github.com/bltaylorjr/fantastical-logic-grid/settings/secrets/actions> and click **New repository secret** (or the pencil next to `LINKEDIN_TOKEN`).
+6. Name: `LINKEDIN_TOKEN`. Secret: the key admin shows. Click **Add secret**.
+7. Test: <https://github.com/bltaylorjr/fantastical-logic-grid/actions/workflows/marketing-post.yml> > **Run workflow** with mode `check`.
+
+**Links:** [LinkedIn developer apps](https://www.linkedin.com/developers/apps) · [Full guide (scripts/marketing-post.py)](https://github.com/bltaylorjr/fantastical-logic-grid/blob/main/scripts/marketing-post.py)
+
+### Pinterest (automatic pins)
+
+**Why:** Lets the marketing autopilot pin approved Pinterest ads on their day, with the picture and the tracked link, to the board named in the ad.
+
+**Cost:** Free. A new Pinterest app starts with Trial access, where pins are visible only to you. Ask for **Standard access** (free, a short form) and add the keys once it is approved.
+
+| Name | Where | Notes |
+| --- | --- | --- |
+| `PINTEREST_APP_ID` | GitHub repository secret | The app id. |
+| `PINTEREST_APP_SECRET` | GitHub repository secret | The app secret key. |
+| `PINTEREST_REFRESH_TOKEN` | GitHub repository secret | Made by Get the key; lasts a year. |
+| `PINTEREST_BOARD_ID` | GitHub repository secret | Only if no board name matches the ad: the board to pin to. Optional. |
+
+**Steps:**
+
+1. With the game's free Pinterest business account, make the boards the ads name (for example Printable Logic Puzzles and Classroom Logic Puzzles).
+2. Open <https://developers.pinterest.com/apps> and click **Connect app**. Name: `Logic Grid autopilot`, website `https://thelogicgrid.com`, privacy policy `https://thelogicgrid.com/privacy/`.
+3. In the app's settings add the redirect URI `https://flg-api.btay74.workers.dev/admin/` exactly, and copy the **App id** and **App secret key**.
+4. Ask for **Standard access** from the app page (free). Wait for the approval email before the next step, so pins are public.
+5. In admin, **Connections and setup** > this card > **Get the key**. Paste the two, sign in to Pinterest and allow it.
+6. Open <https://github.com/bltaylorjr/fantastical-logic-grid/settings/secrets/actions> and click **New repository secret** (or the pencil next to `PINTEREST_REFRESH_TOKEN`).
+7. Name: `PINTEREST_REFRESH_TOKEN`. Secret: the refresh key admin shows. Click **Add secret**.
+8. Add `PINTEREST_APP_ID` and `PINTEREST_APP_SECRET` the same way.
+9. Test: <https://github.com/bltaylorjr/fantastical-logic-grid/actions/workflows/marketing-post.yml> > **Run workflow** with mode `check`.
+
+**Links:** [Pinterest developer apps](https://developers.pinterest.com/apps) · [Full guide (scripts/marketing-post.py)](https://github.com/bltaylorjr/fantastical-logic-grid/blob/main/scripts/marketing-post.py)
+
+### YouTube (automatic uploads)
+
+**Why:** Lets the marketing autopilot upload approved YouTube videos and Shorts on their day, with the title and description from the ad. Captions and playlists stay by hand: the email says so.
+
+**Cost:** Free (the YouTube Data API allows about 6 uploads a day). Google keeps videos from a new app private until the app passes a free audit, so add the keys once it is approved.
+
+| Name | Where | Notes |
+| --- | --- | --- |
+| `YOUTUBE_CLIENT_ID` | GitHub repository secret | OAuth client ID (Web application). |
+| `YOUTUBE_CLIENT_SECRET` | GitHub repository secret | OAuth client secret. |
+| `YOUTUBE_REFRESH_TOKEN` | GitHub repository secret | Made by Get the key. |
+
+**Steps:**
+
+1. Make the game's YouTube channel at <https://www.youtube.com/create_channel> (signed in as fantasticallogicgrid@gmail.com).
+2. Open <https://console.cloud.google.com/apis/library/youtube.googleapis.com> in the project `the-fantastical-logic-grid` and click **Enable**.
+3. Open **Google Auth Platform** > **Branding**: app name `Logic Grid autopilot`, support email fantasticallogicgrid@gmail.com, home page `https://thelogicgrid.com`, privacy `https://thelogicgrid.com/privacy/`. Then **Audience** > **Publish app** (In production), so the key does not stop after 7 days.
+4. Open **Clients** > **Create client** > **Web application**. Under **Authorized redirect URIs** add `https://flg-api.btay74.workers.dev/admin/` exactly. Copy the **Client ID** and **Client secret**.
+5. Fill in the free YouTube API audit form at <https://support.google.com/youtube/contact/yt_api_form> so uploads can be public. Wait for the approval before the next step.
+6. In admin, **Connections and setup** > this card > **Get the key**. Paste the two, sign in as the channel's Google account and allow it (click **Advanced** > **Go to Logic Grid autopilot** if Google warns the app is unverified: it is your own app).
+7. Open <https://github.com/bltaylorjr/fantastical-logic-grid/settings/secrets/actions> and click **New repository secret** (or the pencil next to `YOUTUBE_REFRESH_TOKEN`).
+8. Name: `YOUTUBE_REFRESH_TOKEN`. Secret: the refresh key admin shows. Click **Add secret**.
+9. Add `YOUTUBE_CLIENT_ID` and `YOUTUBE_CLIENT_SECRET` the same way.
+10. Test: <https://github.com/bltaylorjr/fantastical-logic-grid/actions/workflows/marketing-post.yml> > **Run workflow** with mode `check`.
+
+**Links:** [Google Cloud console](https://console.cloud.google.com/) · [YouTube API audit form](https://support.google.com/youtube/contact/yt_api_form) · [Full guide (scripts/marketing-post.py)](https://github.com/bltaylorjr/fantastical-logic-grid/blob/main/scripts/marketing-post.py)
+
+### TikTok (automatic videos)
+
+**Why:** Lets the marketing autopilot post approved TikTok videos on their day, with the caption from the ad.
+
+**Cost:** Free. TikTok reviews every app before it may post publicly (free, about a week); until then posts would be private, so add the keys once it is approved.
+
+| Name | Where | Notes |
+| --- | --- | --- |
+| `TIKTOK_CLIENT_KEY` | GitHub repository secret | The app's client key. |
+| `TIKTOK_CLIENT_SECRET` | GitHub repository secret | The app's client secret. |
+| `TIKTOK_REFRESH_TOKEN` | GitHub repository secret | Made by Get the key; lasts a year. |
+
+**Steps:**
+
+1. Open <https://developers.tiktok.com>, sign in with the game's TikTok account, and **Manage apps** > **Connect an app**. Name: `Logic Grid autopilot`, website `https://thelogicgrid.com`, terms `https://thelogicgrid.com/terms/`, privacy `https://thelogicgrid.com/privacy/`.
+2. Add the products **Login Kit** (redirect URI `https://flg-api.btay74.workers.dev/admin/` exactly) and **Content Posting API** (turn on **Direct Post**). Copy the **Client key** and **Client secret**.
+3. Click **Submit for review**. Say it posts the game's own scheduled videos to its own account. Wait for the approval email.
+4. In admin, **Connections and setup** > this card > **Get the key**. Paste the two, sign in to TikTok and allow it.
+5. Open <https://github.com/bltaylorjr/fantastical-logic-grid/settings/secrets/actions> and click **New repository secret** (or the pencil next to `TIKTOK_REFRESH_TOKEN`).
+6. Name: `TIKTOK_REFRESH_TOKEN`. Secret: the refresh key admin shows. Click **Add secret**.
+7. Add `TIKTOK_CLIENT_KEY` and `TIKTOK_CLIENT_SECRET` the same way.
+8. Test: <https://github.com/bltaylorjr/fantastical-logic-grid/actions/workflows/marketing-post.yml> > **Run workflow** with mode `check`.
+
+**Links:** [TikTok for Developers](https://developers.tiktok.com/) · [Full guide (scripts/marketing-post.py)](https://github.com/bltaylorjr/fantastical-logic-grid/blob/main/scripts/marketing-post.py)
+
+### Reddit (automatic posts)
+
+**Why:** Lets the marketing autopilot post approved Reddit ads in the subreddit named in the ad on their day. Ads that point at a weekly thread or need a judgement call stay by hand. Replying to comments is always yours.
+
+**Cost:** Free. Reddit may ask you to fill in a short form for API access first.
+
+| Name | Where | Notes |
+| --- | --- | --- |
+| `REDDIT_CLIENT_ID` | GitHub repository secret | The id shown under the app name. |
+| `REDDIT_CLIENT_SECRET` | GitHub repository secret | The app secret. |
+| `REDDIT_REFRESH_TOKEN` | GitHub repository secret | Made by Get the key; does not expire. |
+
+**Steps:**
+
+1. Sign in to Reddit as the account you post from. Comment around the subreddits for a week or two first: many hide posts from brand-new accounts.
+2. Open <https://www.reddit.com/prefs/apps> and click **create another app**. Name: `Logic Grid autopilot`, type **web app**, redirect uri `https://flg-api.btay74.workers.dev/admin/` exactly. If Reddit asks you to request API access, fill in that form first (free).
+3. Copy the id under the app name and the **secret**.
+4. In admin, **Connections and setup** > this card > **Get the key**. Paste the two, then click **Allow** on Reddit.
+5. Open <https://github.com/bltaylorjr/fantastical-logic-grid/settings/secrets/actions> and click **New repository secret** (or the pencil next to `REDDIT_REFRESH_TOKEN`).
+6. Name: `REDDIT_REFRESH_TOKEN`. Secret: the refresh key admin shows. Click **Add secret**.
+7. Add `REDDIT_CLIENT_ID` and `REDDIT_CLIENT_SECRET` the same way.
+8. Test: <https://github.com/bltaylorjr/fantastical-logic-grid/actions/workflows/marketing-post.yml> > **Run workflow** with mode `check`.
+
+**Links:** [Reddit apps](https://www.reddit.com/prefs/apps) · [Full guide (scripts/marketing-post.py)](https://github.com/bltaylorjr/fantastical-logic-grid/blob/main/scripts/marketing-post.py)

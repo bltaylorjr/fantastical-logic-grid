@@ -77,6 +77,7 @@ import { connectionStatus, checkGithubReport, saveGithubReport } from './connect
 import { withFixes, errorFile } from './errors.js';
 import { ratingRoutes } from './ratings.js';
 import { marketingRoutes } from './marketing.js';
+import { oauthRoutes } from './marketing-oauth.js';
 import { supporterRoutes } from './supporters.js';
 import { educatorRoutes } from './educators.js';
 
@@ -700,6 +701,7 @@ const ROUTES = [
   ...ratingRoutes(Refusal),
   // ---- Marketing: campaigns, ads, media and what each link brought in (marketing.js).
   ...marketingRoutes(Refusal),
+  ...oauthRoutes(Refusal),
   // ---- Supporters and premium extras (supporters.js).
   ...supporterRoutes(Refusal),
   ...educatorRoutes(Refusal),
