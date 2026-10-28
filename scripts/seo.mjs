@@ -24,6 +24,8 @@ import { educatorsBody, EDUCATORS_CSS } from './educators-page.mjs';
 const PAGE_CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self'; object-src 'none'; frame-src 'none'; base-uri 'self'; form-action 'self'";
 
 export const INDEXNOW_KEY = process.env.FLG_INDEXNOW_KEY || 'fae88a004ad87116c0e93df007b2de7e';
+// The game's Facebook Page. Swap in facebook.com/<username> once the Page has one.
+const FACEBOOK = 'https://www.facebook.com/share/19pDDj5Ppf/';
 // The first daily puzzle. Every later day is checked against all earlier days,
 // so a daily story is never used twice.
 const DAILY_START = '2026-10-25';
@@ -261,6 +263,7 @@ ${body(up)}
   <p><a href="${up}">Play ${name}</a> · free in your browser, offline-ready, and on Windows.</p>
   <p>Every puzzle has exactly one answer, checked by our solver${quality.rating ? `, and players rate them ${quality.rating.average} out of 5 stars` : ''}. <a href="${up}picks/">Hand-picked puzzles</a></p>
   <p>${NAV.map(([p, n]) => `<a href="${up}${p}">${n}</a>`).join(' · ')} · <a href="${up}privacy/">Privacy</a></p>
+  <p><a href="${FACEBOOK}" rel="me noopener" target="_blank">Follow us on Facebook</a></p>
   <p class="muted">${copyright} ${trademark} <a href="${up}terms/">Terms of use</a></p>
 </footer>
 </body>
@@ -298,7 +301,7 @@ ${body(up)}
     trailer: video,
     copyrightHolder: { '@type': 'Person', name: owner }, copyrightYear: 2026,
   };
-  const publisher = { '@type': 'Organization', name, url: url(''), logo: { '@type': 'ImageObject', url: url('icons/icon-512.png') } };
+  const publisher = { '@type': 'Organization', name, url: url(''), logo: { '@type': 'ImageObject', url: url('icons/icon-512.png') }, sameAs: [FACEBOOK] };
   game.publisher = publisher;
   const website = { '@context': 'https://schema.org', '@type': 'WebSite', name, url: url(''), description: appDescription, inLanguage: 'en', publisher };
   const head = `<meta name="description" content="${esc(appDescription)}">
