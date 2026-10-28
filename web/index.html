@@ -97,7 +97,7 @@
         </fieldset>
         <fieldset>
           <legend>Theme</legend>
-          <div class="choices chips" id="theme-choices"></div>
+          <div class="theme-groups" id="theme-choices"></div>
           <p class="extras-note" id="extras-note" hidden>Themes marked <b>Supporter extra</b> open for premium supporters. Everything else stays free. <a class="btn small" id="extras-link" href="#" target="_blank" rel="noopener" hidden>Get the extras</a></p>
         </fieldset>
         <fieldset id="topic-field" hidden>
@@ -409,6 +409,7 @@
 <dialog id="dlg-supporters" aria-labelledby="supporters-h">
   <h2 id="supporters-h">Supporters</h2>
   <p id="supporters-text"></p>
+  <p class="muted small" id="supporters-terms">Tips are a voluntary gift, and nothing in the game is locked. Changed your mind? Email us within 30 days for a full refund. <a href="https://thelogicgrid.com/terms/#tips" target="_blank" rel="noopener">Tips and refunds</a></p>
   <div class="dlg-actions"><button class="btn" type="button" id="supporters-close">Close</button><a class="btn primary" id="supporters-go" href="#" target="_blank" rel="noopener">Support the game</a></div>
 </dialog>
 
@@ -499,7 +500,8 @@
     <details class="more" id="more-settings">
       <summary>More play settings</summary>
       <fieldset><legend class="sr-only">Play</legend>
-        <label class="check"><input type="checkbox" name="autoX"> Auto-X: when I place an O, rule out the rest of its row and column</label>
+        <label class="check"><input type="checkbox" name="autoX" aria-describedby="autox-help"> Auto-X: when I place an O, rule out the rest of its row and column</label>
+        <p class="help" id="autox-help">Automatic Xs are drawn smaller. Clearing or changing the O removes them again, Undo takes back the O and its Xs together, and tapping an automatic X clears it. Xs you placed yourself always stay.</p>
         <label class="check"><input type="checkbox" name="singleKeys"> Single-key shortcuts (X, O, H, C, R)</label>
         <label class="check"><input type="checkbox" name="showTimer"> Show the timer</label>
         <label class="check"><input type="checkbox" name="coach"> Coach tips on my next Easy puzzle</label>

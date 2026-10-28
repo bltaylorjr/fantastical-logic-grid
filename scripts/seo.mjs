@@ -163,6 +163,7 @@ export async function buildSeo({ root, site }) {
   const year = Number(today.slice(0, 4));
   const owner = 'Bobby Taylor';
   const copyright = `© 2026${year > 2026 ? `–${year}` : ''} ${owner}. All rights reserved.`;
+  const trademark = `${name}™ is a trademark of ${owner}.`;
   const tdmMeta = `<meta name="tdm-reservation" content="1">\n<meta name="tdm-policy" content="${url('terms/')}">`;
   const NAV = [['how-to-play/', 'How to play'], ['daily/', 'Daily puzzle'], ['printables/', 'Printables'], ['themes/', 'Themes'], ['difficulty-levels/', 'Difficulty levels'], ['educators/', 'For educators']];
   // Search results show about 60 characters of a title and 160 of a
@@ -221,7 +222,7 @@ ${body(up)}
   <p><a href="${up}">Play ${name}</a> · free in your browser, offline-ready, and on Windows.</p>
   <p>Every puzzle has exactly one answer, checked by our solver${quality.rating ? `, and players rate them ${quality.rating.average} out of 5 stars` : ''}. <a href="${up}picks/">Hand-picked puzzles</a></p>
   <p>${NAV.map(([p, n]) => `<a href="${up}${p}">${n}</a>`).join(' · ')} · <a href="${up}privacy/">Privacy</a></p>
-  <p class="muted">${copyright} <a href="${up}terms/">Terms of use</a></p>
+  <p class="muted">${copyright} ${trademark} <a href="${up}terms/">Terms of use</a></p>
 </footer>
 </body>
 </html>
@@ -479,9 +480,9 @@ ${puzzleBody(p, d, up)}
     crumbs: [['terms/', 'Terms of use']],
     body: (up) => `<h1>Terms of use</h1>
 <p class="lede">${name} is free to play. The game and everything in it belong to its owner. These terms say what you may do with it. By playing or using this website you agree to them.</p>
-<p class="muted">Last updated 26 October 2026.</p>
+<p class="muted">Last updated 28 October 2026.</p>
 <h2>Who owns it</h2>
-<p>${copyright} The game, its puzzle and story engine, storylines, topics, characters, text, pictures, music, sounds, videos, website and app code, and the name and logo "${name}" are protected by copyright and other laws. The code is visible on GitHub, but it is not open source: see the <a href="${up}LICENSE.txt">license</a>. A few free, open-source parts keep their own licenses (listed in <a href="${up}THIRD-PARTY-NOTICES.txt">third-party notices</a>).</p>
+<p>${copyright} The game, its puzzle and story engine, storylines, topics, characters, text, pictures, music, sounds, videos, website and app code, and the name and logo "${name}" are protected by copyright and other laws. ${trademark} The code is visible on GitHub, but it is not open source: see the <a href="${up}LICENSE.txt">license</a>. A few free, open-source parts keep their own licenses (listed in <a href="${up}THIRD-PARTY-NOTICES.txt">third-party notices</a>).</p>
 <h2>What you may do</h2>
 <ul>
 <li>Play the game in your browser, the Windows app or an installed copy, as much as you like, for free.</li>
@@ -501,10 +502,19 @@ ${puzzleBody(p, d, up)}
 </ul>
 <h2>Accounts, screen names and races</h2>
 <p>Accounts are optional. Be kind: screen names, ideas and reports must not be rude, hateful or pretend to be someone else. We may remove a screen name, a score or an account that breaks these terms or cheats in races.</p>
+<h2 id="tips">Tips and supporter thank-yous</h2>
+<p>The whole game is free. If the "Support the game" link is shown, you can choose to leave a tip or a membership payment through an outside payment service (such as Ko-fi or Lemon Squeezy), which handles your card or PayPal details; we never see them.</p>
+<ul>
+<li>A tip is a voluntary gift to help keep a free game running. It does not buy the game, a puzzle or anything you could not already use.</li>
+<li>As a thank-you, a tip may add a Supporter badge next to your screen name on the scoreboard, and a membership may also open supporter extra themes. These are added to your account straight away and last as long as the payment page says (a membership: while it is active).</li>
+<li>Changed your mind, or paid by mistake? Email <a href="mailto:support@thelogicgrid.com">support@thelogicgrid.com</a> within 30 days of the payment and we will refund it in full, no questions asked. This is quicker for you than asking your bank.</li>
+<li>If a payment is refunded or disputed with your bank or card company (a chargeback), the badge and extras from it stop. After a chargeback, new payments add no badge or extras until it is settled. We keep a record of the payment and of the thank-yous it gave, and may share it with the payment service to answer the dispute.</li>
+<li>You must be allowed to use the card or account you pay with. Payments made with someone else's card without their permission are refunded and the badge removed.</li>
+</ul>
 <h2>No guarantees</h2>
 <p>The game is provided as it is, without any warranty. We do our best to keep it working and your saves safe, but we are not responsible for lost progress or for any loss from using it, as far as the law allows.</p>
 <h2>Changes and contact</h2>
-<p>We may update these terms; the date above shows the latest version. To ask for permission, report a copy of the game, or ask a question, email <a href="mailto:fantasticallogicgrid@gmail.com">fantasticallogicgrid@gmail.com</a>.</p>
+<p>We may update these terms; the date above shows the latest version. To ask for permission, report a copy of the game, or ask a question, email <a href="mailto:support@thelogicgrid.com">support@thelogicgrid.com</a>.</p>
 ${playBtn(up)}`,
   });
   // ---------- Hand-picked: the best daily puzzles, and how every puzzle is checked ----------
@@ -610,8 +620,8 @@ ${playBtn(up)}`,
 <h2>Children</h2>
 <p>Everything except races and the scoreboard can be played with no account and no personal details. An account needs an email address, so for a younger child a parent or teacher should make it, or simply play without one.</p>
 <h2>Questions</h2>
-<p>Email <strong>fantasticallogicgrid@gmail.com</strong>. To report a security problem, see <a href="https://github.com/bltaylorjr/fantastical-logic-grid/security/advisories/new">the security page</a>.</p>
-<p class="meta">Last changed: 26 October 2026.</p>`,
+<p>Email <strong>support@thelogicgrid.com</strong>. To report a security problem, see <a href="https://github.com/bltaylorjr/fantastical-logic-grid/security/advisories/new">the security page</a>.</p>
+<p class="meta">Last changed: 28 October 2026.</p>`,
   });
 
   // ---------- Printable worksheets (teachers and parents) ----------

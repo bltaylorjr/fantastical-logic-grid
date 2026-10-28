@@ -86,18 +86,22 @@ at whoever runs its DNS today.
 
 1. Sign up at https://resend.com (free, use fantasticallogicgrid@gmail.com).
 2. **Domains > Add domain**: enter `thelogicgrid.com`, region US East.
-3. Resend lists 3 or 4 records (an **MX** and a **TXT** for `send`, a **TXT**
-   for `resend._domainkey`, and an optional **TXT** for `_dmarc`). Add each
-   one at your domain's DNS settings, copying the name and value exactly.
-   They only cover the `send` and `resend._domainkey` names, so they do not
-   touch the website or any other email.
+3. Resend lists 4 records: a **TXT** for `resend._domainkey`, **CNAME**s for
+   `send` and `rsend`, and an optional **TXT** for `_dmarc`. The domain's DNS
+   is at Namecheap: Resend's **Go to Namecheap** button adds them for you, or
+   add each under **Advanced DNS > Host Records** with only the short name
+   (`send`, not `send.thelogicgrid.com`). They do not touch the website or any
+   other email. Full click-by-click steps:
+   `docs/owner-tasks/2026-10-28-resend-namecheap.md`.
 4. Back in Resend, press **Verify DNS records** (it can take from a few
    minutes to a few hours).
 5. **API Keys > Create API key**: name `logic-grid`, permission **Sending
    access**, domain `thelogicgrid.com`. Copy the key (it starts with `re_`).
 6. In GitHub: repository **Settings > Secrets and variables > Actions > New
    repository secret**, name `RESEND_API_KEY`, paste the key.
-7. Test: sign in to the game with a confirmed account, send an idea with the
+7. Quick test: **Actions > Resend check > Run workflow** looks up the
+   records and sends one test email to the game's Gmail through Resend.
+8. Full test: sign in to the game with a confirmed account, send an idea with the
    box ticked, then **Actions > Thank-you emails > Run workflow**. The log
    says how many went through Resend and how many through Gmail.
 

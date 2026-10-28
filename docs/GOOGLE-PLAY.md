@@ -79,7 +79,7 @@ Every case in The Fantastical Logic Grid is a brand new story. Read the clues, f
 Free, with no ads. An account is optional and only needed to sync between devices.
 
 **Category:** Game > Puzzle. **Tags:** Logic, Puzzle, Brain games (pick what Play offers).
-**Contact email:** fantasticallogicgrid@gmail.com. **Website:** https://thelogicgrid.com
+**Contact email:** support@thelogicgrid.com. **Website:** https://thelogicgrid.com
 
 ## App content answers
 

@@ -26,7 +26,7 @@ Microsoft has not charged individual developers to register since September
 4. Open https://www.pwabuilder.com, enter `https://thelogicgrid.com`, press **Start**, then **Package for stores** > **Windows** > **Generate package**. Paste the three values from step 3 into **Package ID**, **Publisher ID** and **Publisher display name**, keep the rest, and download the zip.
 5. Back in Partner Center, **Start your submission**:
    - **Pricing and availability:** Free, all markets.
-   - **Properties:** category **Games > Puzzle & trivia**. Privacy policy URL `https://thelogicgrid.com/privacy/`. Website `https://thelogicgrid.com`. Support contact `fantasticallogicgrid@gmail.com`.
+   - **Properties:** category **Games > Puzzle & trivia**. Privacy policy URL `https://thelogicgrid.com/privacy/`. Website `https://thelogicgrid.com`. Support contact `support@thelogicgrid.com`.
    - **Age ratings:** answer the free questionnaire (no violence, no purchases, players can chat only through screen names in races; there is no free text chat).
    - **Packages:** upload the `.msixbundle` from the PWABuilder zip.
    - **Store listings > English (United States):** paste the text below and upload the two PNGs from `media/store/`.
