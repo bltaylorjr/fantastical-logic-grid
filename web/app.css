@@ -944,3 +944,25 @@ dialog.rules table.board td { font-variant-numeric: tabular-nums; }
   .gridframe { max-height: calc(100vh - 16px); max-height: calc(100dvh - 16px); }
   .screen { padding-top: 12px; }
 }
+
+/* Picture clues (experimental, web/js/picture-clue.js) */
+.clue-list li.pic-locked > label { display: none; }
+.pic-clue { grid-column: 2; padding: 4px 6px 8px; }
+.pic-open { text-align: left; }
+.pic-body { margin-top: 8px; }
+.pic-help { margin: 0 0 8px; max-width: 60ch; }
+.pic-grid { border-collapse: collapse; }
+.pic-grid th { font-size: 0.8rem; color: var(--muted); font-weight: 600; font-variant-numeric: tabular-nums; }
+.pic-grid thead th { vertical-align: bottom; padding: 0 0 4px; line-height: 1.1; }
+.pic-grid tbody th { text-align: right; padding: 0 6px 0 0; white-space: nowrap; }
+.pic-grid td { padding: 0; }
+.pic-cell { display: block; width: 30px; height: 30px; margin: 0; padding: 0; border: 1px solid var(--muted); background: var(--bg); cursor: pointer; }
+.pic-cell.f { background: var(--text); }
+.pic-cell.x { background: var(--cross); }
+.pic-cell.x::after { content: '×'; color: var(--muted); }
+.pic-cell:focus-visible { outline: 3px solid var(--accent); outline-offset: -3px; }
+.pic-grid.done .pic-cell { cursor: default; border-color: transparent; }
+.pic-grid.done .pic-cell.x { background: var(--bg); }
+.pic-grid.done .pic-cell.x::after { content: none; }
+.pic-grid.done .pic-cell.f { background: var(--accent); }
+.pic-status { min-height: 1.4em; margin: 6px 0; font-weight: 600; }

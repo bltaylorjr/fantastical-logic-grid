@@ -8,6 +8,7 @@ export { getHint, checkMarks, checkAnswers, isSolved, formatPuzzleText } from '.
 export { THEMES, THEME_GROUPS, TIERS, CLUE_TYPES, SIZE_LIMITS };
 export { STORYLINES } from './storylines.js';
 export { TOPICS, getTopics, storyKey } from './topics.js';
+export { pictureClue, solvePicture, lineClues, PICTURES } from './picture.js';
 export { parseStoryId, checkStoryPart, partKey, PART_KINDS } from './story.js';
 
 // The id to save once a player starts a puzzle; pass saved ids back as

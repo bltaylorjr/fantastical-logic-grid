@@ -11,6 +11,7 @@ import { buildModel, randomSolution } from '../src/generator.js';
 import { buildStory } from '../src/story.js';
 import { makeLanguage } from '../src/language.js';
 import { makeRng } from '../src/rng.js';
+import { pictureClue, solvePicture, lineClues, PICTURES } from '../src/picture.js';
 import { SIZE_LIMITS } from '../src/tiers.js';
 import { TIER_ORDER } from '../src/tiers.js';
 import { orderItems, inOrder } from '../src/order.js';
@@ -520,6 +521,26 @@ for (const diff of ['easy', 'medium', 'expert']) {
   }
   const kinds = Object.fromEntries(['t@lincoln.edu', 'u@stmarys.k12.mn.us', 'v@austinisd.org', 'w@ox.ac.uk', 'x@gmail.com', 'y@acme.com'].map((e) => [e, schoolEmail(e).kind]));
   check('school emails are recognized and personal ones are not', JSON.stringify(Object.values(kinds)) === JSON.stringify(['school', 'school', 'school', 'school', 'personal', 'unknown']), JSON.stringify(kinds));
+}
+
+// Picture clues (experimental): every picture solves by logic, and the
+// locked clue is a real clue of the puzzle.
+{
+  for (const [theme, list] of Object.entries(PICTURES)) {
+    for (const pic of list) {
+      const widths = new Set(pic.rows.map((r) => r.length));
+      check(`picture "${pic.name}" (${theme}): rows all the same width`, widths.size === 1);
+      check(`picture "${pic.name}" (${theme}): only # and .`, pic.rows.every((r) => /^[#.]+$/.test(r)));
+      const g = solvePicture(lineClues(pic.rows));
+      check(`picture "${pic.name}" (${theme}): solvable by logic alone`, !!g && g.every((r, y) => r.every((v, x) => (v === 1) === (pic.rows[y][x] === '#'))));
+    }
+  }
+  for (const theme of ['mystery', 'pets', 'scifi']) {
+    const p = generatePuzzle({ theme, seed: `picture-${theme}` });
+    const pc = pictureClue(p);
+    check(`picture clue (${theme}): locks one of the puzzle's clues`, !!pc && p.clues.some((c) => c.number === pc.locked), JSON.stringify(pc && pc.locked));
+    check(`picture clue (${theme}): same puzzle, same picture`, JSON.stringify(pictureClue(p)) === JSON.stringify(pc));
+  }
 }
 
 console.log('\nGeneration time per tier (ms, avg / max):');
