@@ -86,6 +86,7 @@
       <li><a href="#educators" data-min="moderator">Educator requests <span class="count" id="count-educators" hidden></span></a></li>
       <li><a href="#names" data-min="moderator">Screen names <span class="count" id="count-names" hidden></span></a></li>
       <li><a href="#players" data-min="viewer">Players</a></li>
+      <li><a href="#badges" data-min="viewer">Badges</a></li>
       <li><a href="#supporters" data-min="admin">Supporters</a></li>
       <li><a href="#settings" data-min="viewer">Settings and switches</a></li>
       <li><a href="#connections" data-min="viewer">Connections and setup</a></li>
@@ -307,6 +308,46 @@
       <nav class="row pager" aria-label="Player pages"><button class="btn small" type="button" id="players-prev">Previous page</button><span id="players-page" class="muted"></span><button class="btn small" type="button" id="players-next">Next page</button></nav>
       <div class="row" data-min="admin"><button class="btn" type="button" data-export="players">Download all players (CSV)</button><button class="btn" type="button" data-export="scores">Download all scores (CSV)</button></div>
       <div id="player-detail"></div>
+    </section>
+
+    <section data-view="badges" hidden aria-labelledby="h-badges">
+      <div class="head"><h1 id="h-badges">Badges</h1></div>
+      <p class="muted">Special badges show on the player's <b>My stats and badges</b> page and next to their name on the scoreboard. A badge is <b>given by hand</b> (like Tester or Contributor) or <b>earned automatically</b> when a player reaches a milestone you set, like 250 puzzles solved or a 7-day daily streak. Automatic badges need a game account, and are checked whenever the game opens or every few minutes while it is open. The game's own badges (First case closed, Flawless and the rest) are earned on each device and are not listed here.</p>
+      <p class="note" id="badges-off" hidden>Special badges are switched off, so players see none and none are given out. Turn on <b>Special badges</b> under <a href="#settings">Settings and switches</a> &gt; Play.</p>
+      <form id="award-form" class="stack card" novalidate data-min="moderator">
+        <h2>Give a badge</h2>
+        <div class="row">
+          <div class="field"><label for="award-badge">Badge</label><select id="award-badge"></select></div>
+          <div class="field grow"><label for="award-who">Player's email, screen name or player id</label><input id="award-who" type="text" autocomplete="off" spellcheck="false" required></div>
+        </div>
+        <div class="field"><label for="award-note">Note (optional, for you)</label><input id="award-note" type="text" maxlength="200" autocomplete="off"></div>
+        <p class="muted">Given to an email, it reaches the player the next time they sign in with that confirmed email.</p>
+        <p class="error" id="award-error" role="alert" hidden></p>
+        <div class="row"><button class="btn primary" type="submit">Give badge</button></div>
+      </form>
+      <h2>All badges</h2>
+      <ul class="cards badge-list" id="badge-rows"></ul>
+      <div id="badge-holders"></div>
+      <details class="card" id="badge-editor" data-min="admin">
+        <summary><h2 id="badge-editor-h">Make a new badge</h2></summary>
+        <form id="badge-form" class="stack" novalidate>
+          <div class="row">
+            <div class="field grow"><label for="badge-name">Name</label><input id="badge-name" type="text" maxlength="40" autocomplete="off" required></div>
+            <div class="field"><label for="badge-icon">Icon</label><input id="badge-icon" type="text" maxlength="16" autocomplete="off" spellcheck="false" required size="6"></div>
+          </div>
+          <div class="row emoji-picks" role="group" aria-label="Pick an icon" id="badge-picks"></div>
+          <div class="field"><label for="badge-desc">What players read (optional)</label><input id="badge-desc" type="text" maxlength="200" autocomplete="off"><span class="muted">Left empty, an automatic badge shows how it is earned.</span></div>
+          <div class="row">
+            <div class="field"><label for="badge-kind">How it is earned</label><select id="badge-kind"></select></div>
+            <div class="field" id="badge-count-field" hidden><label for="badge-count">Number</label><input id="badge-count" type="number" min="1" max="100000" inputmode="numeric"></div>
+            <div class="field" id="badge-tier-field" hidden><label for="badge-tier">Difficulty</label><select id="badge-tier"></select></div>
+          </div>
+          <label class="check"><input type="checkbox" id="badge-active" checked> <span>Show and give out this badge (off: paused, hidden from players)</span></label>
+          <p class="muted" id="badge-preview" aria-live="polite"></p>
+          <p class="error" id="badge-error" role="alert" hidden></p>
+          <div class="row"><button class="btn primary" type="submit" id="badge-save">Add badge</button><button class="btn" type="button" id="badge-cancel" hidden>Cancel changes</button></div>
+        </form>
+      </details>
     </section>
 
     <section data-view="supporters" hidden aria-labelledby="h-supporters">

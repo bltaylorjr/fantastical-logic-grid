@@ -25,6 +25,7 @@ import { initAccounts, openAccount, onHome as accountsOnHome, signedIn } from '.
 import * as competeUi from './compete-ui.js';
 import * as remote from './remote-config.js';
 import * as perks from './perks.js';
+import * as specialBadges from './special-badges.js';
 import * as support from './support.js';
 import { initPullRefresh } from './pull-refresh.js';
 import * as daily from './daily.js';
@@ -1735,6 +1736,9 @@ async function openTodaysDaily() {
 // ====================================================================
 async function openStats() {
   openDialog($('#dlg-stats'), $('#stats-close'));
+  await renderStats();
+}
+async function renderStats() {
   const body = $('#stats-body');
   let sm;
   try { sm = await stats.summary(dailyLatest ? dailyLatest.date : daily.utcDay()); } catch (e) { body.innerHTML = '<p>Your stats could not be loaded on this device.</p>'; return; }
@@ -1756,10 +1760,23 @@ async function openStats() {
     </tbody></table></div>` : ''}
     ${sm.themes.length ? `<h3>Favorite themes</h3><p>${sm.themes.slice(0, 5).map(([id, n]) => `${esc(themeName(id))} (${n})`).join(', ')}</p>` : ''}
     ${sm.revealed ? `<p class="help">${sm.revealed} puzzle${sm.revealed > 1 ? 's' : ''} ended with the solution revealed; those don't count above.</p>` : ''}
+    ${specialBadgesHtml()}
     <h3>Badges <span class="muted">${earned.length} of ${sm.badges.length}</span></h3>
     <ul class="badges">${[...earned, ...sm.badges.filter((b) => !b.at)].map(badgeHtml).join('')}</ul>`;
 }
 $('#stats-close').onclick = () => $('#dlg-stats').close();
+
+// Special badges from the team (special-badges.js): given by hand, like
+// Tester, or earned at a milestone the team sets. Earned ones first, then the
+// milestones still to reach with how far along the player is.
+function specialBadgesHtml() {
+  const have = specialBadges.earned();
+  const next = specialBadges.goals();
+  if (!have.length && !next.length) return '';
+  const item = (b, locked) => `<li class="badge-item special${locked ? ' locked' : ''}"><span class="badge-mark badge-emoji" aria-hidden="true">${esc(b.icon)}</span><span><b>${esc(b.name)}</b><small>${esc(b.description)}${b.at ? ` Earned ${esc(new Date(b.at).toLocaleDateString())}.` : ''}${locked && b.need ? ` ${b.have} of ${b.need} so far.` : ''}</small>${locked && b.need ? `<progress max="${b.need}" value="${b.have}" aria-label="${esc(`${b.name}: ${b.have} of ${b.need}`)}"></progress>` : ''}</span>${locked ? '<span class="sr-only">Not earned yet.</span>' : ''}</li>`;
+  return `<h3>Special badges${have.length ? ` <span class="muted">${have.length}</span>` : ''}</h3>
+    <ul class="badges">${have.map((b) => item(b, false)).join('')}${next.map((b) => item(b, true)).join('')}</ul>`;
+}
 
 let coachBusy = false;
 async function updateCoach() {
@@ -2106,6 +2123,9 @@ async function recordSolve(save) {
     sound('section');
     toast(fresh.length === 1 ? `Badge earned: ${fresh[0].name}` : `${fresh.length} badges earned: ${fresh.map((b) => b.name).join(', ')}`, { label: 'My badges', run: openStats });
   }
+  // Special badges for milestones are checked on the server against the
+  // synced solve log, so look again once this solve has had time to sync.
+  setTimeout(() => specialBadges.refresh(), 20_000);
 }
 
 function suggestTier(hist) {
@@ -2617,6 +2637,14 @@ async function init() {
     onConfigChanged: () => { settings = store.loadSettings(); applyFeatures(); applyMode(); languageNote(); },
   });
   perks.onChange(() => { if (!$('#screen-home').hidden) renderSetup(); });
+  specialBadges.init();
+  specialBadges.onChange((fresh) => {
+    if (fresh.length && !(S && !S.save.solved)) {
+      sound('section');
+      toast(fresh.length === 1 ? `Special badge: ${fresh[0].icon} ${fresh[0].name}` : `${fresh.length} special badges: ${fresh.map((b) => `${b.icon} ${b.name}`).join(', ')}`, { label: 'My badges', run: openStats });
+    }
+    if ($('#dlg-stats').open) renderStats();
+  });
   await renderSaved();
   renderSuggestion();
   renderDaily();

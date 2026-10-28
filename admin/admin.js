@@ -11,6 +11,7 @@ import { ratingsView, initRatings } from './ratings.js';
 import { marketingView, initMarketing } from './marketing.js';
 import { puzzleMailView, initPuzzleMail } from './puzzle-mail.js';
 import { educatorsView, initEducators } from './educators.js';
+import { badgesView, initBadges, playerBadgesHtml, playerBadgeClick } from './badges.js';
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -830,12 +831,14 @@ async function openPlayer(uid) {
       ${p.ban ? '<button class="btn" data-act="unban">Lift ban</button>' : '<button class="btn danger" data-act="ban">Ban</button>'}
       ${can('admin') ? '<button class="btn danger" data-act="reset-scores">Reset scores</button><button class="btn danger" data-act="delete">Delete account data</button>' : ''}
     </div>
+    ${playerBadgesHtml(badgeHelpers, p)}
     <h3>Latest scores</h3>
     ${table([{ label: 'When' }, { label: 'Kind' }, { label: 'Difficulty' }, { label: 'Cells', num: 1 }, { label: 'Time', num: 1 }, { label: 'Hints', num: 1 }, { label: 'Points', num: 1 }],
       p.recentScores.map((s) => [when(s.at), s.kind === 'race' ? 'Race' : 'Solo', esc(TIER_NAMES[s.tier] || s.tier), fmt(s.cells), `${Math.round(s.elapsedMs / 60000)} min`, fmt(s.hints), fmt(s.points)]), 'No scores.')}
   </div>`;
   $('#player-card').focus();
   $('#player-card').onclick = async (e) => {
+    if (await playerBadgeClick(badgeHelpers, e, p, () => openPlayer(uid))) return;
     const b = e.target.closest('button[data-act]');
     if (!b) return;
     if (b.dataset.act === 'message') { messagePlayer(uid); return; }
@@ -1244,6 +1247,10 @@ initMarketing(marketingHelpers, (name, o) => show(name, o));
 const educatorHelpers = { api, esc, fmt, when, can, act, ask, setCount };
 views.educators = () => educatorsView(educatorHelpers);
 initEducators(educatorHelpers, (name, o) => show(name, o));
+// ---- Badges (badges.js): special badges by hand and for milestones.
+const badgeHelpers = { api, esc, fmt, when, day, table, can, act, ask, toast, announce };
+views.badges = () => badgesView(badgeHelpers);
+initBadges(badgeHelpers, (name, o) => show(name, o));
 
 // ---- Puzzle emails (puzzle-mail.js): the weekly and special edition lists, sends and planner.
 views.mail = () => puzzleMailView();
