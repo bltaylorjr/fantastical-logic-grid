@@ -38,7 +38,10 @@ async function sha256(text) {
   return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-export function cleanText(text) {
+// Storyline and theme ideas may be longer (IDEA_MAX) than other messages.
+export const TEXT_MAX = 1000;
+export const IDEA_MAX = 2000;
+export function cleanText(text, max = TEXT_MAX) {
   return String(text || '')
     .replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, '<email>')
     .replace(/\b[a-z][a-z0-9+.-]*:\/\/\S+/gi, '<link>')
@@ -46,18 +49,18 @@ export function cleanText(text) {
     .replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, '')
     .replace(/\n{3,}/g, '\n\n')
     .trim()
-    .slice(0, 1000);
+    .slice(0, max);
 }
 
 async function postFeedback(req, env, ctx) {
   let body;
-  try { body = JSON.parse(await readText(req, 6_000)); } catch (e) { return json(req, env, { error: e instanceof TooLarge ? 'too_large' : 'bad_request' }, e instanceof TooLarge ? 413 : 400); }
+  try { body = JSON.parse(await readText(req, 12_000)); } catch (e) { return json(req, env, { error: e instanceof TooLarge ? 'too_large' : 'bad_request' }, e instanceof TooLarge ? 413 : 400); }
   if (!(await getSettings(env)).feedback_enabled) return json(req, env, { error: 'switched_off', message: 'The idea and problem boxes are closed for now.' }, 503);
   const kind = TOPICS[body?.kind] ? body.kind : null;
   if (!kind) return json(req, env, { error: 'bad_request' }, 400);
   const topic = TOPICS[kind].includes(body.topic) ? body.topic : 'other';
   const theme = kind === 'idea' && topic === 'story' && THEME_IDS.has(body.theme) ? body.theme : null;
-  const text = cleanText(body.text);
+  const text = cleanText(body.text, kind === 'idea' && (topic === 'story' || topic === 'theme') ? IDEA_MAX : TEXT_MAX);
   if (text.length < 5) return json(req, env, { error: 'too_short', message: 'Write a little more (at least 5 characters).' }, 400);
   const platform = PLATFORMS.has(body.platform) ? body.platform : 'web';
   const version = /^[\w.-]{1,24}$/.test(String(body.version)) ? String(body.version) : 'unknown';

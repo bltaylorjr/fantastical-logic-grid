@@ -114,7 +114,7 @@ export async function draftStoryline(env, model, key, idea) {
     `"endings": ${PART_HELP.endings}`,
     'Rules: friendly for all ages; no numbers or head counts in words or digits (the game fills in {n}); no names of people (the game names the cast); use only the fill-ins named above, in curly brackets; 6 to 28 words each; each ends with a full stop or exclamation mark.',
     `Examples from the game: ${JSON.stringify({ openings: sample(S.openings), incidents: sample(S.incidents), mishaps: sample(S.mishaps), endings: sample(S.endings) })}`,
-    `The player's storyline: "${String(idea).slice(0, 1000)}"`,
+    `The player's storyline: "${String(idea).slice(0, 2000)}"`,
     'Reply with JSON only: {"openings":"...","incidents":{"name":"...","text":"...","prize":"..."},"mishaps":"...","endings":"..."}',
   ].join('\n');
   const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {

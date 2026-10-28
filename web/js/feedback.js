@@ -84,6 +84,10 @@ const showThemes = () => {
   const story = $('input[name=idea-topic]:checked').value === 'story';
   $('#idea-theme-field').hidden = !story;
   $('#idea-form .fb-puzzle').hidden = !story || !account.current();
+  // Storyline and theme ideas can be longer than other messages (server/src/feedback.js IDEA_MAX).
+  const long = story || $('input[name=idea-topic]:checked').value === 'theme';
+  $('#idea-text').maxLength = long ? 2000 : 1000;
+  $('#idea-count').textContent = `${$('#idea-text').value.length} of ${$('#idea-text').maxLength} characters`;
 };
 
 let wired = false;
@@ -95,6 +99,7 @@ export function open(openDialog, { kind = 'idea', themes = [] } = {}) {
     wired = true;
     for (const form of dlg.querySelectorAll('form')) form.addEventListener('submit', (e) => { e.preventDefault(); send(form); });
     $('#idea-form fieldset').addEventListener('change', showThemes);
+    $('#idea-text').addEventListener('input', () => { $('#idea-count').textContent = `${$('#idea-text').value.length} of ${$('#idea-text').maxLength} characters`; });
     $('[data-close]', dlg).onclick = () => dlg.close();
   }
   const me = account.current();

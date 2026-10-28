@@ -126,3 +126,12 @@ test('the Action builds the gifts and the puzzle lands in the saved puzzles', as
   const mod = signer.token({ sub: 'x', email: 'someone@example.com', email_verified: true });
   assert.equal((await call('/admin/v1/gifts/claim', { auth: mod, body: {} })).status, 403);
 });
+
+test('storyline and theme ideas can be up to 2000 characters; other messages up to 1000', async () => {
+  const long = `A long storyline. ${'The fog rolled over the harbor and the lanterns flickered. '.repeat(40)}`.slice(0, 2400);
+  for (const [topic, max] of [['story', 2000], ['theme', 2000], ['feature', 1000]]) {
+    assert.equal((await call('/v1/feedback', { body: { kind: 'idea', topic, text: `${topic}: ${long}` } })).status, 200);
+    const row = await db.prepare('SELECT text FROM feedback WHERE text LIKE ?1').bind(`${topic}: A long storyline.%`).first();
+    assert.equal(row.text.length, max, topic);
+  }
+});
