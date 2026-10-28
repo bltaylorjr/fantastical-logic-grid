@@ -290,7 +290,7 @@ const CSS = `
     await scene('tiers', ['Start on the New puzzle screen and pick a difficulty.', 'Basic and Easy are perfect for beginners.', 'Quantum Physicist is for true masterminds.']);
     await clearFx();
     await scrollTo('#theme-choices'); await clickShown('input[name=theme][value=mystery] + *'); await hl('#theme-choices');
-    await scene('themes', [['Next, choose a theme, like Mystery, Fantasy, Sci-Fi, Around Town, National Parks or Vacation Destinations.', 'Next, choose a theme, like Mystery, Fantasy, Sci Fi, Around Town, National Parks, or Vacation Destinations.'], 'Or pick Surprise me.']);
+    await scene('themes', [['Next, choose a theme. Themes are grouped, like Mystery and Action, Imagination, or Science and Learning.', 'Next, choose a theme. Themes are grouped, like Mystery and Action, Imagination, or Science and Learning.'], 'Or pick Surprise me.']);
     await clearFx();
     if (await p.isVisible('#topic-field')) {
       await scrollTo('#topic-field'); await hl('#topic-field');

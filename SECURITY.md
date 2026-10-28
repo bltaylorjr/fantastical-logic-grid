@@ -8,7 +8,7 @@ the safety of players and their saves seriously.
 
 Please report security problems privately, not in a public issue:
 
-- Email **fantasticallogicgrid@gmail.com** with "Security" in the subject.
+- Email **support@thelogicgrid.com** with "Security" in the subject.
 
 Tell us what you found, how to see it happen, and what it could let someone
 do. We will reply within 3 days, keep you told about the fix, and credit you

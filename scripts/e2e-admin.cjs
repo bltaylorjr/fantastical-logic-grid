@@ -277,6 +277,13 @@ const SHOTS = process.env.SHOTS;
     await page.click('#sup-form button[type=submit]');
     await page.waitForSelector('#sup-rows button[data-sup-end]');
     assert(/fan@example\.com/.test(await page.textContent('#sup-rows')) && /Premium/.test(await page.textContent('#sup-rows')) && /Gold/.test(await page.textContent('#sup-rows')), 'an admin adds a Gold premium supporter by email');
+    await page.click('#sup-rows button[data-reason=chargeback]');
+    await page.waitForSelector('#dialog[open]');
+    await page.fill('#dialog-body input[name=note]', 'Dispute dp_123');
+    await page.click('#dialog-ok');
+    await page.waitForSelector('#sup-blocks button[data-sup-unblock]');
+    assert(/Chargeback/.test(await page.textContent('#sup-rows')) && !(await page.locator('#sup-rows button[data-sup-end]').count()), 'a chargeback ends the grant and marks it');
+    assert(/fan@example\.com/.test(await page.textContent('#sup-blocks')) && /dp_123/.test(await page.textContent('#sup-blocks')), 'the player is listed as blocked, with the note');
 
     await page.click('a[href="#search"]');
     await page.waitForSelector('#search-body .tile');
@@ -374,11 +381,41 @@ const SHOTS = process.env.SHOTS;
     assert(/settings\.change/.test(log) && /players\.rename/.test(log) && /parts\.review/.test(log), 'the audit log shows what was done');
     await shot(page, '4-audit');
 
+    // Responsive: every page at phone, tablet, 200% zoom and monitor sizes, with
+    // no sideways scrolling and no button or field under 44 px.
+    const pages = await page.$$eval('#nav-list a:not([hidden])', (as) => as.map((a) => a.getAttribute('href').slice(1)));
+    for (const [label, width, height] of [['a phone', 360, 780], ['a portrait tablet', 768, 1024], ['200% zoom', 640, 400], ['a large monitor', 1920, 1080]]) {
+      await page.setViewportSize({ width, height });
+      const bad = [];
+      for (const view of pages) {
+        await page.evaluate((v) => { location.hash = v; }, view);
+        await page.waitForSelector(`[data-view="${view}"]:not([hidden])`);
+        await page.waitForTimeout(250);
+        const r = await page.evaluate(() => {
+          const small = [];
+          for (const el of document.querySelectorAll('#app button, #app a[href], #app input, #app select, #app textarea, #app summary')) {
+            if (el.closest('[hidden], .sr-only') || el.matches('.skip')) continue;
+            let b = el.getBoundingClientRect();
+            if (!b.width || !b.height || (el.tagName === 'A' && getComputedStyle(el).display === 'inline')) continue;
+            if (el.matches('input[type=checkbox], input[type=radio]') && el.closest('label')) b = el.closest('label').getBoundingClientRect();
+            if (Math.round(Math.min(b.width, b.height)) < 44) small.push(`${el.id || el.tagName} "${el.textContent.trim().slice(0, 20)}"`);
+          }
+          // The first element that sticks out past the screen, to name in a failure.
+          const out = [...document.querySelectorAll('#app *')].find((el) => {
+            if (el.getBoundingClientRect().right <= innerWidth + 1) return false;
+            for (let a = el.parentElement; a && a !== document.body; a = a.parentElement) if (getComputedStyle(a).overflowX !== 'visible') return false;
+            return true;
+          });
+          return { sideways: document.documentElement.scrollWidth > innerWidth + 1 && (out ? `${out.tagName}.${out.className} "${out.textContent.trim().slice(0, 30)}"` : 'yes'), small };
+        });
+        if (r.sideways) bad.push(`${view} scrolls sideways (${r.sideways})`);
+        if (r.small.length) bad.push(`${view}: ${r.small.join(', ')} under 44 px`);
+      }
+      assert(!bad.length, `every dashboard page fits ${label} (${width} x ${height}) with 44 px targets${bad.length ? `: ${bad.join('; ')}` : ''}`);
+    }
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.click('a[href="#overview"]');
+    await page.evaluate(() => { location.hash = 'overview'; });
     await page.waitForSelector('#ov-body .tile');
-    const wide = await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1);
-    assert(wide, 'the dashboard fits a phone screen without sideways scrolling');
     await shot(page, '5-phone');
     await page.click('#sign-out');
     assert(await page.locator('#login').isVisible(), 'signing out returns to the sign-in form');

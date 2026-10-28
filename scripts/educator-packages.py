@@ -43,7 +43,7 @@ MAIL_FROM = os.environ.get('MAIL_FROM', '').strip() or 'noreply@thelogicgrid.com
 SITE = (os.environ.get('FLG_SITE_URL', '').strip() or 'https://thelogicgrid.com').rstrip('/')
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SENDER_NAME = 'The Fantastical Logic Grid (no-reply)'
-CONTACT = 'fantasticallogicgrid@gmail.com'
+CONTACT = 'support@thelogicgrid.com'
 NO_REPLY = ('This is an automatic message from a no-reply address, so replies are not read. '
             f'Questions? Write to {CONTACT}.')
 SIGN_OFF = 'The Fantastical Logic Grid team\n' + SITE

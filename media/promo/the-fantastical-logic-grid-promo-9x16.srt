@@ -9,30 +9,31 @@ This is The Fantastical Logic
 Grid!
 
 3
-00:00:07,250 --> 00:00:11,028
+00:00:07,250 --> 00:00:11,762
 Fourteen worlds, six levels,
-from Basic to Quantum Physicist.
+from Basic to Quantum
+Physicist.
 
 4
-00:00:11,750 --> 00:00:14,651
+00:00:12,250 --> 00:00:15,151
 And every case is written
 fresh, just for you.
 
 5
-00:00:15,250 --> 00:00:18,094
+00:00:15,750 --> 00:00:18,594
 Follow the clues, mark your
 X's and O's,
 
 6
-00:00:18,750 --> 00:00:20,106
+00:00:19,250 --> 00:00:20,606
 and crack the case!
 
 7
-00:00:21,750 --> 00:00:24,350
+00:00:22,250 --> 00:00:24,850
 Race your friends, and climb
 the scoreboard.
 
 8
-00:00:25,750 --> 00:00:28,551
+00:00:26,250 --> 00:00:29,051
 Play free at thelogicgrid.com!
 
