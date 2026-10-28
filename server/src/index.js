@@ -19,6 +19,7 @@
 //   POST /v1/m                           anonymous counts of visits from campaign links (marketing.js)
 //   /v1/challenges[/:code[/result]]       Challenge a friend links, no account (challenges.js)
 //   GET /v1/perks                        a signed-in player's supporter perks (supporters.js)
+//   GET /v1/badges                       a signed-in player's special badges (special-badges.js)
 //   /v1/educators/*                      free printable puzzle packages for educators (educators.js)
 //   /admin/*                             the admin dashboard and its API (admin.js)
 //   GET /v1/health[?deep=1]              a quick check that the Worker (and with
@@ -46,6 +47,7 @@ import { handleAdmin } from './admin.js';
 import { NIGHTLY_CRONS, isMaintenanceHour, runNightly } from './nightly.js';
 import { handleMarketing } from './marketing.js';
 import { handlePerks } from './supporters.js';
+import { handleBadges } from './special-badges.js';
 import { handleEducators } from './educators.js';
 import { publicConfig } from './settings.js';
 import { deepHealth } from './upkeep.js';
@@ -84,6 +86,9 @@ async function route(req, env, ctx) {
 
   const perks = await handlePerks(req, env, url, signedIn);
   if (perks) return perks;
+
+  const badges = await handleBadges(req, env, url, signedIn);
+  if (badges) return badges;
 
   const compete = await handleCompete(req, env, ctx, url, signedIn);
   if (compete) return compete;

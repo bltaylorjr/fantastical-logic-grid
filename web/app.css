@@ -819,6 +819,11 @@ dialog.rules table.board td { font-variant-numeric: tabular-nums; }
 .badge-mark { font-size: 1.4rem; line-height: 1; color: var(--accent); }
 .badge-item.locked { opacity: .62; }
 .badge-item.locked .badge-mark { color: var(--muted); }
+.badge-mark.badge-emoji { font-size: 1.5rem; color: inherit; min-width: 1.6em; text-align: center; }
+.badge-item.locked .badge-mark.badge-emoji { filter: grayscale(1); }
+.badge-item progress { display: block; width: 100%; max-width: 220px; height: 8px; margin-top: 6px; accent-color: var(--accent); }
+.special-badges { white-space: nowrap; margin-left: 4px; }
+.special-badges > span { display: inline-block; font-size: 1.05em; margin-left: 2px; cursor: default; }
 .share-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 8px 0 12px; }
 .share-img { width: 100%; height: auto; border-radius: 12px; border: 1px solid var(--edge-hi); margin-bottom: 12px; }
 #share-text { width: 100%; }

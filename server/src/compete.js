@@ -25,6 +25,7 @@ import { isDeleted } from './sync.js';
 import { AuthError } from './auth.js';
 import { getSettings } from './settings.js';
 import { supporterTiers } from './supporters.js';
+import { specialBadgesFor } from './special-badges.js';
 
 export const TIERS = { basic: 10, easy: 20, medium: 35, hard: 55, expert: 80, mensa: 110 };
 // Minutes a typical player needs per grid cell (the same as the app's estimate).
@@ -168,10 +169,13 @@ async function scoreboard(env, period, now) {
   let rank = 0;
   let prev = null;
   // Supporter badges show only once the owner switches them on (Settings > Support and premium).
-  const supporters = (await getSettings(env, now)).supporter_badges_enabled ? await supporterTiers(env, results.map((r) => r.uid), now) : new Map();
+  const settings = await getSettings(env, now);
+  const supporters = settings.supporter_badges_enabled ? await supporterTiers(env, results.map((r) => r.uid), now) : new Map();
+  // Special badges (Tester, Contributor, milestones) show while that switch is on (Settings > Play).
+  const special = settings.special_badges_enabled ? await specialBadgesFor(env, results.map((r) => r.uid)) : new Map();
   const rows = results.map((r, i) => {
     if (r.points !== prev) { rank = i + 1; prev = r.points; }
-    return { rank, name: r.name, points: r.points, solved: r.solved, wins: r.wins, uid: r.uid, approved: !!r.approved, ...(supporters.has(r.uid) ? { supporter: supporters.get(r.uid) } : {}) };
+    return { rank, name: r.name, points: r.points, solved: r.solved, wins: r.wins, uid: r.uid, approved: !!r.approved, ...(supporters.has(r.uid) ? { supporter: supporters.get(r.uid) } : {}), ...(special.has(r.uid) ? { badges: special.get(r.uid) } : {}) };
   });
   const body = { period, since, rows };
   boardCache.set(period, { at: now, since, body });
