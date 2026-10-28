@@ -743,7 +743,7 @@ uses a secret, variable or binding that is not listed there.
 
 **Why:** Lets the marketing autopilot post approved ads to the game's Facebook Page and Instagram (pictures and Reels) on their day. Posts in Facebook groups are always by hand: Facebook no longer lets apps post in groups.
 
-**Cost:** Free. The app stays in development mode, which is enough to post to Pages and accounts you manage.
+**Cost:** Free. The app is switched to Live mode so posts are public; it only posts to the Page and Instagram account you allow.
 
 | Name | Where | Notes |
 | --- | --- | --- |
@@ -753,16 +753,18 @@ uses a secret, variable or binding that is not listed there.
 
 **Steps:**
 
-1. In the Instagram app, make the game's account a free **Business** or **Creator** account (**Settings** > **Account type and tools**). Link it to the game's Facebook Page (Page **Settings** > **Linked accounts** > **Instagram**).
-2. Open <https://developers.facebook.com/apps>, click **Create app**, choose **Other**, then type **Business**. Name it `Logic Grid autopilot`.
-3. Open <https://developers.facebook.com/tools/explorer>, choose that app, and click **Generate Access Token** with these permissions: `pages_show_list`, `pages_read_engagement`, `pages_manage_posts`, `instagram_basic`, `instagram_content_publish`, `business_management`. Allow it for the game's Page and Instagram account.
-4. Open <https://developers.facebook.com/tools/debug/accesstoken>, paste that token, click **Debug**, then **Extend Access Token** and copy the long-lived token.
-5. Back in the Explorer, paste the long-lived token and run `me/accounts`. Copy the game Page's `access_token` and `id`.
-6. Open <https://github.com/bltaylorjr/fantastical-logic-grid/settings/secrets/actions> and click **New repository secret** (or the pencil next to `META_PAGE_TOKEN`).
-7. Name: `META_PAGE_TOKEN`. Secret: the Page access_token. Click **Add secret**.
-8. Add `META_PAGE_ID` the same way: the Page `id`.
-9. In the Explorer, run `<page id>?fields=instagram_business_account` and add its `id` as the secret `INSTAGRAM_ACCOUNT_ID`.
-10. Test: <https://github.com/bltaylorjr/fantastical-logic-grid/actions/workflows/marketing-post.yml> > **Run workflow** with mode `check`. Facebook Page and Instagram should say connected.
+1. Make the Facebook Page for the game (<https://www.facebook.com/pages/create>).
+2. Open <https://developers.facebook.com/apps> (click **Get started** first if Meta asks you to register as a developer). Click **Create app**, name it `Logic Grid autopilot`, pick the use case **Manage everything on your Page** (and **Manage messaging & content on Instagram** for Instagram), and choose **I don't want to connect a business portfolio yet**.
+3. In the app, open **Use cases** > **Customize** next to each use case and click **Add** on `pages_show_list`, `pages_read_engagement` and `pages_manage_posts` (for Instagram also `instagram_basic` and `instagram_content_publish`).
+4. In **App settings** > **Basic**, set the privacy policy to `https://thelogicgrid.com/privacy/` and terms to `https://thelogicgrid.com/terms/`, save, then switch **App Mode** to **Live** so posts are public.
+5. Open <https://developers.facebook.com/tools/explorer>, choose the app, set **User or Page** to **Get User Access Token**, add the permissions above, click **Generate Access Token** and allow it for the game's Page (and Instagram account).
+6. Click the **i** in the token box > **Open in Access Token Tool** > **Extend Access Token**, and copy the long-lived token.
+7. Back in the Explorer, paste the long-lived token and run `me/accounts`. Copy the game Page's `access_token` and `id`.
+8. Open <https://github.com/bltaylorjr/fantastical-logic-grid/settings/secrets/actions> and click **New repository secret** (or the pencil next to `META_PAGE_TOKEN`).
+9. Name: `META_PAGE_TOKEN`. Secret: the Page access_token. Click **Add secret**.
+10. Add `META_PAGE_ID` the same way: the Page `id`.
+11. For Instagram: make the game's Instagram a free **Business** or **Creator** account (**Settings** > **Account type and tools**) and link it to the Page (Page **Settings** > **Linked accounts** > **Instagram**). Make the token again with the Instagram permissions ticked and update `META_PAGE_TOKEN`. Then in the Explorer run `<page id>?fields=instagram_business_account` and add its `id` as the secret `INSTAGRAM_ACCOUNT_ID`.
+12. Test: <https://github.com/bltaylorjr/fantastical-logic-grid/actions/workflows/marketing-post.yml> > **Run workflow** with mode `check`. Facebook Page (and Instagram) should say connected.
 
 **Links:** [Meta apps](https://developers.facebook.com/apps) · [Graph API Explorer](https://developers.facebook.com/tools/explorer) · [Full guide (scripts/marketing-post.py)](https://github.com/bltaylorjr/fantastical-logic-grid/blob/main/scripts/marketing-post.py)
 
