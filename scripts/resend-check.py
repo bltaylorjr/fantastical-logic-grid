@@ -1,7 +1,7 @@
 """Resend check (.github/workflows/resend-check.yml).
 
 1. Looks up the public DNS records Resend needs for thelogicgrid.com
-   (MX + SPF TXT on send, DKIM TXT on resend._domainkey, DMARC TXT on _dmarc)
+   (DKIM TXT on resend._domainkey, CNAMEs on send and rsend, DMARC TXT on _dmarc)
    using Google's public DNS, plus the ImprovMX MX + SPF that forward
    support@thelogicgrid.com, and says which are found.
 2. If RESEND_API_KEY is set, sends one test email from MAIL_FROM
@@ -23,20 +23,28 @@ KEY = os.environ.get('RESEND_API_KEY', '').strip()
 TO = os.environ.get('GMAIL_USER', '').strip()
 
 CHECKS = [
-    ('MX', f'send.{DOMAIN}', 'amazonses.com', True, 'MX for send (bounces)'),
-    ('TXT', f'send.{DOMAIN}', 'v=spf1', True, 'SPF TXT for send'),
+    # Resend's current setup: DKIM TXT plus CNAMEs on send and rsend (older
+    # domains got an MX + SPF TXT on send instead; either passes).
     ('TXT', f'resend._domainkey.{DOMAIN}', 'p=', True, 'DKIM TXT for resend._domainkey'),
+    ('CNAME|MX', f'send.{DOMAIN}', '', True, 'CNAME (or MX) for send'),
+    ('CNAME', f'rsend.{DOMAIN}', '', False, 'CNAME for rsend'),
     ('TXT', f'_dmarc.{DOMAIN}', 'v=DMARC1', False, 'DMARC TXT for _dmarc (optional)'),
     ('MX', DOMAIN, 'improvmx.com', False, 'MX for support@ (ImprovMX forwarding)'),
     ('TXT', DOMAIN, 'spf.improvmx.com', False, 'SPF TXT for the domain (ImprovMX)'),
 ]
 
 
+TYPES = {'CNAME': 5, 'MX': 15, 'TXT': 16}
+
+
 def lookup(rr, name):
-    url = 'https://dns.google/resolve?' + urllib.parse.urlencode({'name': name, 'type': rr})
-    with urllib.request.urlopen(url, timeout=20) as r:
-        data = json.load(r)
-    return [a['data'].replace('" "', '').strip('"') for a in data.get('Answer', []) if a.get('type') in (15, 16)]
+    values = []
+    for one in rr.split('|'):
+        url = 'https://dns.google/resolve?' + urllib.parse.urlencode({'name': name, 'type': one})
+        with urllib.request.urlopen(url, timeout=20) as r:
+            data = json.load(r)
+        values += [a['data'].replace('" "', '').strip('"') for a in data.get('Answer', []) if a.get('type') == TYPES[one]]
+    return values
 
 
 def main():

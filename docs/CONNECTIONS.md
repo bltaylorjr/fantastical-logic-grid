@@ -570,7 +570,7 @@ uses a secret, variable or binding that is not listed there.
 **Settings:**
 
 - Resend domain: thelogicgrid.com, region US East
-- DNS records (copy exactly from Resend): MX and TXT for send, TXT for resend._domainkey, optional TXT for _dmarc
+- DNS records (copy exactly from Resend): TXT for resend._domainkey, CNAME for send and rsend, optional TXT for _dmarc (or use Resend's Go to Namecheap button)
 
 **Steps:**
 

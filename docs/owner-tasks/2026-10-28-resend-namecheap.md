@@ -11,35 +11,25 @@
 1. Go to https://resend.com/signup and sign up with **fantasticallogicgrid@gmail.com** (free plan; no card).
 2. Open https://resend.com/domains and click **Add domain**.
 3. Type `thelogicgrid.com`, pick region **North Virginia (us-east-1)**, click **Add**.
-4. Leave that page open. It lists the records to add: one **MX** and one **TXT** named `send`, and one **TXT** named `resend._domainkey` (a long value starting with `p=`). Each has a copy button.
+4. Leave that page open. It lists 4 records: **TXT** `resend._domainkey` (a long value starting with `p=`), **CNAME** `rsend`, **CNAME** `send`, and the optional **TXT** `_dmarc`. Each has a copy button. (Updated 2026-10-28: Resend no longer asks for an MX or SPF record for sending.)
 
 ## Part 2: Namecheap Advanced DNS (5 minutes)
 
+**Easiest:** at the bottom of the Resend records page click **Go to Namecheap**, sign in, and approve. Resend adds its 4 records for you. Then skip to Part 3.
+
+**By hand, if that button doesn't work:**
+
 1. Go to https://ap.www.namecheap.com/domains/list/ and sign in.
 2. Next to **thelogicgrid.com** click **Manage**, then the **Advanced DNS** tab.
-3. **MX record.** Scroll to **Mail Settings**. In its dropdown choose **Custom MX**. (If it currently says **Email Forwarding** and you actually use forwarding addresses on thelogicgrid.com, stop and reply to this email first, because Custom MX turns forwarding off.) Click **Add New Record** in that section and fill in:
-   - Type: **MX Record**
-   - Host: `send`
-   - Value: the MX value from Resend (it looks like `feedback-smtp.us-east-1.amazonses.com`)
-   - Priority (the unlabeled box after Value): `10`
-   - TTL: **Automatic**
-   - Click the green check mark to save.
-4. **SPF record.** Scroll up to **Host Records** and click **Add New Record**:
-   - Type: **TXT Record**
-   - Host: `send`
-   - Value: `v=spf1 include:amazonses.com ~all` (or copy it from Resend)
-   - TTL: **Automatic**, then the green check mark.
-5. **DKIM record.** **Add New Record** again:
-   - Type: **TXT Record**
-   - Host: `resend._domainkey`
-   - Value: copy the long `p=...` value from Resend exactly (use its copy button)
-   - TTL: **Automatic**, then the green check mark.
-6. **DMARC record (recommended; Gmail and Yahoo trust it more).** **Add New Record** again:
-   - Type: **TXT Record**
-   - Host: `_dmarc`
-   - Value: `v=DMARC1; p=none;`
-   - TTL: **Automatic**, then the green check mark.
-7. Click **Save All Changes** if Namecheap shows that button.
+3. Under **Host Records**, click **Add New Record** for each record Resend lists, then the green check mark:
+   - **TXT Record**, Host `resend._domainkey`, Value: the long `p=...` value (use Resend's copy button)
+   - **CNAME Record**, Host `rsend`, Value: Resend's value for rsend
+   - **CNAME Record**, Host `send`, Value: Resend's value for send
+   - **TXT Record**, Host `_dmarc`, Value `v=DMARC1; p=none;` (recommended; Gmail and Yahoo trust it more)
+   - TTL **Automatic** for all.
+4. Click **Save All Changes** if Namecheap shows that button.
+
+Do not add an MX or `v=spf1 include:amazonses.com` record on `send`; a CNAME can't share its name with other records.
 
 Tip (all parts): in the Host box type only `send` or `resend._domainkey`, never the full `send.thelogicgrid.com`; Namecheap adds the domain itself.
 
@@ -56,7 +46,7 @@ Tip (all parts): in the Host box type only `send` or `resend._domainkey`, never 
 
 1. Go to https://app.improvmx.com, type `thelogicgrid.com`, and sign up with **fantasticallogicgrid@gmail.com** (free plan).
 2. It makes an alias `*` (catch-all). Change it, or add one, so **`support`** forwards to **fantasticallogicgrid@gmail.com**.
-3. Back in Namecheap **Advanced DNS**, in the same **Mail Settings (Custom MX)** section as the `send` record, add two more:
+3. Back in Namecheap **Advanced DNS**, scroll to **Mail Settings** and choose **Custom MX** in its dropdown (if it says **Email Forwarding** and you use forwarding addresses on thelogicgrid.com, reply to this email first, because Custom MX turns that off). Add two records there:
    - Type **MX Record**, Host `@`, Value `mx1.improvmx.com`, Priority `10`, TTL Automatic, green check mark.
    - Type **MX Record**, Host `@`, Value `mx2.improvmx.com`, Priority `20`, TTL Automatic, green check mark.
 4. Under **Host Records**, **Add New Record**: Type **TXT Record**, Host `@`, Value `v=spf1 include:spf.improvmx.com ~all`, TTL Automatic, green check mark. (If a TXT record on `@` already starts with `v=spf1`, edit that one instead of adding a second; reply to this email if unsure.)

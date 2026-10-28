@@ -657,7 +657,7 @@ export const CONNECTIONS = [
     ],
     settings: [
       { label: 'Resend domain', value: 'thelogicgrid.com, region US East' },
-      { label: 'DNS records (copy exactly from Resend)', value: 'MX and TXT for send, TXT for resend._domainkey, optional TXT for _dmarc' },
+      { label: 'DNS records (copy exactly from Resend)', value: 'TXT for resend._domainkey, CNAME for send and rsend, optional TXT for _dmarc (or use Resend\'s Go to Namecheap button)' },
     ],
     steps: [
       'Sign up at https://resend.com with fantasticallogicgrid@gmail.com.',
@@ -671,7 +671,7 @@ export const CONNECTIONS = [
     links: [{ label: 'Resend domains', url: 'https://resend.com/domains' }, { label: 'Resend API keys', url: 'https://resend.com/api-keys' }],
     checks: [
       { type: 'dns', name: 'resend._domainkey.thelogicgrid.com', rr: 'TXT', contains: 'p=', label: 'Resend DKIM record (resend._domainkey)' },
-      { type: 'dns', name: 'send.thelogicgrid.com', rr: 'MX', label: 'Resend MX record (send)' },
+      { type: 'dns', name: 'send.thelogicgrid.com', rr: 'CNAME', label: 'Resend CNAME record (send)' },
     ],
   },
   {
