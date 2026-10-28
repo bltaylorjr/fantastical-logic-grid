@@ -663,7 +663,8 @@ function openGame(save, { fresh = false } = {}) {
   const K = ix.K, N = ix.N;
   $('#p-meta').innerHTML = [...(save.daily ? [`Daily puzzle · ${daily.longDate(save.daily)}`] : []), ...(save.editionLabel ? [save.editionLabel] : []), puzzle.difficulty.name, puzzle.theme.name, ...(puzzle.topic && puzzle.topic.id !== 'any' ? [puzzle.topic.name] : []), `${K} categories × ${N} items`, `${puzzle.clues.length} clues`].map((t) => `<span class="pill">${esc(t)}</span>`).join('');
   const paras = puzzle.story.paragraphs;
-  $('#p-story').innerHTML = paras.map((p, i) => `<p${i === paras.length - 1 ? ' class="goal"' : ''}>${esc(p)}</p>`).join('');
+  $('#p-story').innerHTML = paras.map((p, i) => `<p${i === paras.length - 1 ? ' class="goal"' : ''}>${esc(p)}</p>`).join('')
+    + (puzzle.story.credit ? `<p class="credit">Storyline by <b>${esc(puzzle.story.credit)}</b></p>` : '');
   characters.useFor(puzzle);
   const teller = narratorOf(puzzle);
   $('#told-by').hidden = !teller;

@@ -29,7 +29,7 @@ const FONTS = [['400', 'atkinson-hyperlegible-latin-400-normal.woff2'], ['700', 
   .map(([w, f]) => [w, font(f)]).filter(([, src]) => src)
   .map(([w, src]) => `@font-face{font-family:"Atkinson Hyperlegible";font-weight:${w};src:${src}}`).join('');
 
-const css = (large) => `${FONTS}
+export const css = (large) => `${FONTS}
 *{box-sizing:border-box}
 html{font-family:"Atkinson Hyperlegible",Arial,Helvetica,sans-serif;font-size:${large ? '14pt' : '11pt'};line-height:1.45;color:#111}
 body{margin:0}
@@ -123,7 +123,7 @@ function cover(job, puzzles, req, band, keysWhere) {
 </section>`;
 }
 
-const doc = (title, body, large) => `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${esc(title)}</title><style>${css(large)}</style></head><body>${body}</body></html>`;
+export const doc = (title, body, large) => `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${esc(title)}</title><style>${css(large)}</style></head><body>${body}</body></html>`;
 
 export function buildPackage(job) {
   const req = job.request;

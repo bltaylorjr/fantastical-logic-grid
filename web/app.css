@@ -944,3 +944,6 @@ dialog.rules table.board td { font-variant-numeric: tabular-nums; }
   .gridframe { max-height: calc(100vh - 16px); max-height: calc(100dvh - 16px); }
   .screen { padding-top: 12px; }
 }
+
+/* A player's storyline, credited (server/src/story-gifts.js) */
+.story-body .credit { color: var(--muted); font-size: .95rem; font-style: italic; }

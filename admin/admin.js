@@ -416,7 +416,8 @@ $('#parts-list').onclick = async (e) => {
 
 // ---- Communication: one inbox for messages, ideas, problems, error reports
 // and emails to players, and sending messages, news and banners to players.
-const FB_TOPICS = { story: 'Storyline idea', theme: 'Theme or topic idea', feature: 'Game feature idea', other: 'Other', play: 'Playing', sound: 'Sound and voices', pictures: 'Pictures', saving: 'Saving and sync' };
+const GIFT_WORDS = { asked: 'Wants a puzzle from it', approved: 'Puzzle waiting to be made', building: 'Puzzle being made', sent: 'Puzzle sent', failed: 'Puzzle failed', declined: 'No puzzle' };
+const FB_TOPICS = { story: 'Storyline idea', theme: 'Theme idea', feature: 'Game feature idea', other: 'Other', play: 'Playing', sound: 'Sound and voices', pictures: 'Pictures', saving: 'Saving and sync' };
 const MSG_TOPICS = { question: 'Question', idea: 'Idea', problem: 'Problem', team: 'Started by the team' };
 const TYPE_NAMES = { message: 'Message', idea: 'Idea', problem: 'Problem', error: 'Error report', email: 'Email' };
 const commTab = () => $('input[name=comm-tab]:checked').value;
@@ -454,11 +455,16 @@ function itemHtml(i) {
   }
   if (i.type === 'idea' || i.type === 'problem') {
     const m = i.meta;
-    return `<li>${type} ${state} <b>${esc(FB_TOPICS[m.topic] || m.topic)}</b>${m.themeName ? ` <span class="badge">Theme: ${esc(m.themeName)}</span>` : ''}
+    const g = m.gift;
+    const giftBadge = g ? ` <span class="badge${g.status === 'sent' ? ' ok' : g.status === 'failed' ? ' bad' : ''}">${esc(GIFT_WORDS[g.status] || g.status)}${g.credit ? `: ${esc(g.credit)}` : ''}</span>` : '';
+    const storyBtn = m.topic === 'story' && i.type === 'idea' && (!g || !['approved', 'building', 'sent'].includes(g.status))
+      ? `<button class="btn${g && g.status === 'asked' ? ' primary' : ''} small" type="button" data-storyline="${i.id}" data-theme="${esc(m.theme || '')}" data-credit="${esc(g?.credit || '')}">Approve storyline…</button>` : '';
+    return `<li>${type} ${state} <b>${esc(FB_TOPICS[m.topic] || m.topic)}</b>${m.themeName ? ` <span class="badge">Theme: ${esc(m.themeName)}</span>` : ''}${giftBadge}
       <span class="muted">${when(i.at)} · ${esc(m.platform)} ${esc(m.version)}${m.conversationId ? ' · the player asked for a reply' : ''}</span>
       <p class="fb-text">${esc(i.text)}</p>
       ${i.status === 'addressed' && m.note ? `<p class="fb-note"><b>What we did:</b> ${esc(m.note)} <span class="muted">${when(m.doneAt)}</span></p>` : ''}
       <div class="row">${m.conversationId ? `<button class="btn primary small" type="button" data-open="${m.conversationId}">Reply</button>` : ''}
+      ${storyBtn}
       ${i.status === 'new' ? `<button class="btn${m.conversationId ? '' : ' primary'} small" type="button" data-fb="${i.id}" data-status="addressed">Mark addressed</button>
         <button class="btn small" type="button" data-fb="${i.id}" data-status="done">Mark done</button>` : `<button class="btn small" type="button" data-fb="${i.id}" data-status="new">Mark new</button>`}
       <button class="btn small" type="button" data-fb="${i.id}" data-status="delete">Delete</button></div></li>`;
@@ -472,6 +478,61 @@ function itemHtml(i) {
     <span class="muted">${when(i.at)}${i.meta.sentAt ? ` · sent ${when(i.meta.sentAt)}` : ''}</span></li>`;
 }
 
+// A storyline idea into the game (server/src/story-gifts.js): the AI writer
+// drafts the four story parts from the player's words, the team edits them,
+// and on approval they join the theme for everyone. With a player (the one who
+// asked, or a screen name typed here), a puzzle told with it goes to their
+// saved puzzles and, with an email address, as a PDF with the answer key.
+async function approveStoryline(button) {
+  const id = button.dataset.storyline;
+  const themes = (await api('settings')).themes;
+  let theme = button.dataset.theme;
+  if (!theme) {
+    const t = await ask({ title: 'Which theme is this storyline for?', ok: 'Next', fields: [{ name: 'theme', label: 'Theme', type: 'select', value: themes[0].id, options: themes.map((x) => [x.id, x.name]) }] });
+    if (!t) return;
+    theme = t.theme;
+  }
+  let draft = { openings: '', incidents: { name: '', text: '', prize: '' }, mishaps: '', endings: '' };
+  let note = '';
+  toast('Asking the AI writer for a draft…');
+  try { draft = (await api(`feedback/${id}/storyline/draft`, { method: 'POST', body: { theme } })).draft; } catch (e) { note = `${e.message} `; }
+  let values = { opening: draft.openings, eventName: draft.incidents.name, eventText: draft.incidents.text, prize: draft.incidents.prize, mixup: draft.mishaps, ending: draft.endings,
+    difficulty: 'medium', credit: button.dataset.credit || '', email: '' };
+  let error = '';
+  for (;;) {
+    const v = await ask({
+      title: `Approve this ${themes.find((x) => x.id === theme)?.name || ''} storyline`,
+      text: `${esc(note)}${error ? `<strong>${esc(error)}</strong><br>` : ''}Edit the parts so they tell the player's story. They join the theme for every player. Fill-ins: {N} or {n} how many, {many} who they are, {Fact} the answer, {winner} and {prize}.`,
+      ok: 'Approve and add to the game',
+      fields: [
+        { name: 'opening', label: 'Opening: where everyone is (use {N} or {n} and {many})', type: 'textarea', value: values.opening },
+        { name: 'eventName', label: 'Event name, 1 to 3 words (it becomes the title)', value: values.eventName },
+        { name: 'eventText', label: 'Event: what happened', type: 'textarea', value: values.eventText },
+        { name: 'prize', label: 'What is at stake (like "the golden key")', value: values.prize },
+        { name: 'mixup', label: 'Mix-up: why the facts got scrambled', type: 'textarea', value: values.mixup },
+        { name: 'ending', label: 'Ending (must use {Fact}; may use {winner} and {prize})', type: 'textarea', value: values.ending },
+        { name: 'difficulty', label: 'Difficulty of the player\'s puzzle', type: 'select', value: values.difficulty, options: [['easy', 'Easy'], ['medium', 'Medium'], ['hard', 'Hard'], ['expert', 'Expert']] },
+        { name: 'credit', label: 'Credit and send the puzzle to (screen name)', value: values.credit, help: 'Leave empty to add the storyline with no credit and no puzzle.' },
+        { name: 'email', label: 'Email the PDF to (optional)', type: 'email', value: values.email, help: 'Leave empty to use the address the player gave the game, if any.' },
+      ],
+    });
+    if (!v) return;
+    values = v;
+    try {
+      const r = await api(`feedback/${id}/storyline/approve`, { method: 'POST', body: {
+        theme, difficulty: v.difficulty, credit: v.credit.trim(), email: v.email.trim(),
+        parts: { openings: v.opening, incidents: { name: v.eventName, text: v.eventText, prize: v.prize }, mishaps: v.mixup, endings: v.ending },
+      } });
+      const done = `Storyline added to the game.${r.gift ? ` A puzzle for ${r.gift.credit} is on its way to their saved puzzles${r.gift.email ? ' and their email' : ' (no email address, so no PDF)'}.` : ''}`;
+      toast(done); announce(done);
+      show('communication', { keepFocus: true });
+      return;
+    } catch (e) {
+      if (e.code === 'sign_in') return;
+      error = e.message;
+    }
+  }
+}
 views.communication = async () => {
   const tab = commTab();
   $('#comm-inbox').hidden = tab !== 'inbox';
@@ -554,6 +615,8 @@ $('#comm-list').onclick = async (e) => {
     if (await act(eb, () => api('errors/fix', { method: 'POST', body: { message: x.text, place: m.place, fixedIn: v.fixedIn.trim(), note: v.note } }), 'Marked addressed.')) show('communication', { keepFocus: true });
     return;
   }
+  const sl = e.target.closest('button[data-storyline]');
+  if (sl) return approveStoryline(sl);
   const b = e.target.closest('button[data-fb]');
   if (!b) return;
   if (b.dataset.status === 'delete' && !(await ask({ title: 'Delete this message?', text: 'It cannot be brought back.', ok: 'Delete', danger: true }))) return;

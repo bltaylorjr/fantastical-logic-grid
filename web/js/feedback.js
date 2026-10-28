@@ -10,9 +10,12 @@
 // with the message. Ticking
 // "Let the team reply to me" links this one message to the account, so the
 // team can answer it in Menu > Messages (server/src/messages.js).
-// "A storyline idea" also shows a "Which theme is it for?" list of the themes
+// "Suggest a storyline" also shows a "Which theme is it for?" list of the themes
 // players can pick (admin-switched-off ones are left out); the chosen theme
-// id goes along and shows in the admin inbox.
+// id goes along and shows in the admin inbox. Signed in, it also offers "make
+// me a puzzle from it": once the team approves the storyline, a puzzle told
+// with it lands in the player's saved puzzles and arrives as a PDF by email
+// (server/src/story-gifts.js).
 import { CLOUD, CLOUD_URL } from './cloud-config.js';
 import * as account from './account.js';
 import { feature, disabledThemes } from './remote-config.js';
@@ -26,6 +29,11 @@ const REPLY_WORDS = {
   limit: 'You already got a thank-you email today, so we won\'t send another.',
 };
 const UPDATE_WORDS = 'We\'ll email you again when the team acts on it.';
+const GIFT_WORDS = {
+  queued: 'If the team approves your storyline, your puzzle will appear in your saved puzzles and arrive by email.',
+  unverified: 'To get a puzzle made from your storyline, confirm your email address first (Account).',
+  limit: 'You asked for several storyline puzzles today already, so this one can\'t get its own puzzle.',
+};
 const TALK_WORDS = {
   linked: 'The team can reply to you in Menu > Messages.',
   limit: 'You have many messages waiting for the team already, so this one can\'t get a reply in Messages.',
@@ -50,16 +58,18 @@ async function send(form) {
     const reply = !box.hidden && $('[data-reply]', box).checked && !!account.current();
     const talkBox = $('.fb-talk', form);
     const talk = !talkBox.hidden && $('[data-talk]', talkBox).checked && !!account.current();
+    const giftBox = $('.fb-puzzle', form);
+    const puzzle = !!giftBox && !giftBox.hidden && $('[data-puzzle]', giftBox).checked && topic === 'story' && !!account.current();
     let token = null;
-    if (reply || talk) { try { token = await account.getIdToken(); } catch (e) { /* sent without a note */ } }
+    if (reply || talk || puzzle) { try { token = await account.getIdToken(); } catch (e) { /* sent without a note */ } }
     const res = await fetch(`${CLOUD_URL}/v1/feedback`, {
       method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-      body: JSON.stringify({ kind, topic, text, platform: platform(), version: CLOUD.appVersion || 'dev', reply: !!token && reply, talk: !!token && talk, theme }),
+      body: JSON.stringify({ kind, topic, text, platform: platform(), version: CLOUD.appVersion || 'dev', reply: !!token && reply, talk: !!token && talk, puzzle: !!token && puzzle, theme }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.message || 'It could not be sent right now. Please try again later.');
     $('textarea', form).value = '';
-    done.textContent = (kind === 'idea' ? 'Thank you! Your idea was sent.' : 'Thank you! Your report was sent.') + (REPLY_WORDS[data.reply] ? ` ${REPLY_WORDS[data.reply]}` : '') + (data.update ? ` ${UPDATE_WORDS}` : '') + (TALK_WORDS[data.talk] ? ` ${TALK_WORDS[data.talk]}` : '');
+    done.textContent = (kind === 'idea' ? 'Thank you! Your idea was sent.' : 'Thank you! Your report was sent.') + (REPLY_WORDS[data.reply] ? ` ${REPLY_WORDS[data.reply]}` : '') + (data.update ? ` ${UPDATE_WORDS}` : '') + (TALK_WORDS[data.talk] ? ` ${TALK_WORDS[data.talk]}` : '') + (GIFT_WORDS[data.gift] ? ` ${GIFT_WORDS[data.gift]}` : '');
   } catch (e) {
     err.textContent = navigator.onLine === false ? 'You seem to be offline. Connect to the internet and try again.' : e.message;
     err.hidden = false;
@@ -68,8 +78,13 @@ async function send(form) {
   }
 }
 
-// The theme list only shows while "A storyline idea" is picked.
-const showThemes = () => { $('#idea-theme-field').hidden = $('input[name=idea-topic]:checked').value !== 'story'; };
+// The theme list, and for signed-in players the "make me a puzzle" box, only
+// show while "Suggest a storyline" is picked.
+const showThemes = () => {
+  const story = $('input[name=idea-topic]:checked').value === 'story';
+  $('#idea-theme-field').hidden = !story;
+  $('#idea-form .fb-puzzle').hidden = !story || !account.current();
+};
 
 let wired = false;
 // kind: 'idea' or 'problem' picks the box that gets focus. themes: the
@@ -90,6 +105,7 @@ export function open(openDialog, { kind = 'idea', themes = [] } = {}) {
     $('.fb-reply-to', form).textContent = me?.email ? ` at ${me.email}` : '';
     $('.fb-talk', form).hidden = !me || !feature('messages');
   }
+  $('#idea-form .fb-puzzle-to').textContent = me?.email ? ` (to ${me.email})` : '';
   const off = disabledThemes();
   const pick = $('#idea-theme');
   const was = pick.value;

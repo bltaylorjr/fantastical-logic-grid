@@ -48,7 +48,7 @@ export async function addPart(env, key, kind, value, source) {
   const res = checkPart(key, kind, value);
   if (!res.ok) return res;
   // A story must never name one of the cast, and published characters can be cast.
-  const who = namesCharacter(typeof value === 'string' ? value : Object.values(value || {}).join(' '), await characterNamesFor(env, key.split('/')[0]));
+  const who = namesCharacter(typeof value === 'string' ? value : [value?.name, value?.text, value?.prize].join(' '), await characterNamesFor(env, key.split('/')[0]));
   if (who) return { ok: false, errors: [`It names the character ${who}, who can be in these puzzles. Stories never name the cast.`] };
   const id = `${key}|${kind}|${partKey(kind, value)}`;
   const now = new Date().toISOString();
@@ -90,4 +90,49 @@ export async function draftParts(env, model, key, kind, idea) {
   try { parts = JSON.parse(text.replace(/^```(json)?|```$/g, '').trim()).parts; } catch (e) { return { error: 'The AI reply could not be read. Try again.' }; }
   if (!Array.isArray(parts)) return { error: 'The AI reply had no story parts. Try again.' };
   return { drafts: parts.slice(0, 6).map((value) => ({ value, ...checkStoryPart(kind, value) })) };
+}
+
+// A player's storyline idea turned into one whole storyline: an opening, an
+// event, a mix-up and an ending that tell the player's story together, for
+// the admin to edit and approve (story-gifts.js). Returns
+// { draft: { openings, incidents, mishaps, endings }, checks } or { error }.
+export async function draftStoryline(env, model, key, idea) {
+  const story = STORIES.get(key);
+  if (!story) return { error: 'Unknown theme.' };
+  if (!env.GEMINI_API_KEY) return { error: 'The AI writer needs the GEMINI_API_KEY Cloudflare secret. You can still type the parts yourself.' };
+  if (!String(idea || '').trim()) return { error: 'There is no storyline to work from.' };
+  const { theme, topic } = story;
+  const cast = topic.cast || theme.cast;
+  const S = STORYLINES[theme.id];
+  const sample = (list) => list.slice().sort(() => Math.random() - 0.5).slice(0, 2);
+  const text = [
+    `You adapt a player's storyline for "The Fantastical Logic Grid", a family-friendly logic puzzle game. Theme: ${story.name} (${topic.description || theme.description}). The cast are called "${cast.many}" (one is a "${cast.one}").`,
+    'Keep the player\'s own idea, places and events as closely as you can, and write four parts that tell it as one story:',
+    `"openings": ${PART_HELP.openings}`,
+    `"incidents": ${PART_HELP.incidents}`,
+    `"mishaps": ${PART_HELP.mishaps}`,
+    `"endings": ${PART_HELP.endings}`,
+    'Rules: friendly for all ages; no numbers or head counts in words or digits (the game fills in {n}); no names of people (the game names the cast); use only the fill-ins named above, in curly brackets; 6 to 28 words each; each ends with a full stop or exclamation mark.',
+    `Examples from the game: ${JSON.stringify({ openings: sample(S.openings), incidents: sample(S.incidents), mishaps: sample(S.mishaps), endings: sample(S.endings) })}`,
+    `The player's storyline: "${String(idea).slice(0, 1000)}"`,
+    'Reply with JSON only: {"openings":"...","incidents":{"name":"...","text":"...","prize":"..."},"mishaps":"...","endings":"..."}',
+  ].join('\n');
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': env.GEMINI_API_KEY },
+    body: JSON.stringify({ contents: [{ parts: [{ text }] }], generationConfig: { responseMimeType: 'application/json', temperature: 0.7 } }),
+  });
+  if (!res.ok) return { error: res.status === 429 ? 'Google\'s free limit is used up for now. Try again later, or type the parts yourself.' : 'The AI writer did not answer. Try again.' };
+  const j = await res.json();
+  const reply = j.candidates?.[0]?.content?.parts?.map((p) => p.text || '').join('') || '';
+  let d;
+  try { d = JSON.parse(reply.replace(/^```(json)?|```$/g, '').trim()); } catch (e) { return { error: 'The AI reply could not be read. Try again.' }; }
+  const inc = d && typeof d.incidents === 'object' && d.incidents ? d.incidents : {};
+  const draft = {
+    openings: String(d?.openings || ''),
+    incidents: { name: String(inc.name || ''), text: String(inc.text || ''), prize: String(inc.prize || '') },
+    mishaps: String(d?.mishaps || ''),
+    endings: String(d?.endings || ''),
+  };
+  return { draft, checks: Object.fromEntries(Object.keys(draft).map((k) => [k, checkStoryPart(k, draft[k])])) };
 }

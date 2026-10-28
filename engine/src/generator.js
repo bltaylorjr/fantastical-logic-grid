@@ -61,7 +61,7 @@ function resolveOptions(opts = {}) {
   const clueCount = opts.clueCount ? Math.max(1, Math.floor(opts.clueCount)) : null;
   const questions = clamp(opts.questions ?? 3, [1, 6]);
   return { tier, seed, rng, theme, topic, scenario, K, N, customSize, weights, clueCount, questions, effort,
-    extraParts: opts.storyParts, storyPrefs: opts.storyPrefs,
+    extraParts: opts.storyParts, storyPrefs: opts.storyPrefs, forceStory: opts.forceStory || null,
     customNames: opts.customNames, customTitle: opts.title, usedStories: opts.usedStories || [], timeLimitMs: opts.timeLimitMs ?? 15000,
     maxAttempts: opts.maxAttempts ?? 60 };
 }
@@ -239,7 +239,7 @@ function finalize(o, best, elapsedMs) {
   const goal = { cat: model.goal.cat, item: rng.int(N) };
   const story = scenario.custom ? customStory({ scenario, goal, model, L, customTitle: o.customTitle, seed: o.seed })
     : buildStory({ rng, scenario, goal, model, L, customTitle: o.customTitle, usedStories: o.usedStories,
-      extraParts: o.extraParts, storyPrefs: prefsFor(o.storyPrefs, theme.id, scenario.key) });
+      extraParts: o.extraParts, storyPrefs: prefsFor(o.storyPrefs, theme.id, scenario.key), forceStory: o.forceStory });
   const goalAbout = { cat: model.goal.cat, item: null };
   // buildStory picked the goal item; recover it from the answer for questions.
   goalAbout.item = sol[model.goal.cat][story.goalAnswer.item];
@@ -275,7 +275,7 @@ function finalize(o, best, elapsedMs) {
       ...(c.note ? { note: c.note.replace(/\{one\}/g, scenario.cast.one).replace(/\{many\}/g, scenario.cast.many) } : {}),
     })),
     grid: gridLayout(cats),
-    story: { id: story.id, parts: story.parts, title: story.title, paragraphs: story.paragraphs, text: story.text, goal: story.goalQuestion, ending: story.ending, wordCount: story.wordCount },
+    story: { id: story.id, parts: story.parts, title: story.title, paragraphs: story.paragraphs, text: story.text, goal: story.goalQuestion, ending: story.ending, wordCount: story.wordCount, ...(story.credit ? { credit: story.credit } : {}) },
     clues: clues.map((c, i) => ({ number: i + 1, text: clueText(L, c, rng), type: c.type, typeName: CLUE_TYPES[c.type], logic: encodeClue(c, itemId) })),
     questions: questions.map((q, i) => ({
       number: i + 1, text: q.text, category: cats[q.askCat].id,

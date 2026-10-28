@@ -522,6 +522,31 @@ for (const diff of ['easy', 'medium', 'expert']) {
   check('school emails are recognized and personal ones are not', JSON.stringify(Object.values(kinds)) === JSON.stringify(['school', 'school', 'school', 'school', 'personal', 'unknown']), JSON.stringify(kinds));
 }
 
+// A player's approved storyline: forceStory makes the puzzle use exactly
+// those parts, even when the storyline was used before.
+{
+  const parts = {
+    openings: ['{N} {many} met by the old lighthouse on a stormy night.'],
+    incidents: [{ name: 'Lantern', text: 'Someone switched off the great lantern just as a ship came near.', prize: 'the lighthouse lantern', by: 'ColbaltSockMonkey18' }],
+    mishaps: ['The wind blew everyone\'s notes into the sea, so nobody agrees on what they saw.'],
+    endings: ['{Fact}, so {winner} owns up and lights {prize} again.'],
+  };
+  for (const [kind, list] of Object.entries(parts)) check(`gift storyline: the ${kind} part is valid`, checkStoryPart(kind, list[0]).ok, JSON.stringify(checkStoryPart(kind, list[0]).errors));
+  const force = { o: partKey('openings', parts.openings[0]), i: partKey('incidents', parts.incidents[0]), m: partKey('mishaps', parts.mishaps[0]), e: partKey('endings', parts.endings[0]) };
+  const topic = getTopics('mystery').find((t) => !t.story);
+  const opts = { theme: 'mystery', topic: topic.id, difficulty: 'easy', storyParts: { mystery: parts }, forceStory: force, seed: 'gift' };
+  const p = generatePuzzle(opts);
+  check('gift storyline: the puzzle tells the player\'s story', /old lighthouse/.test(p.story.text) && /great lantern/.test(p.story.text) && /blew everyone/.test(p.story.text) && /owns up/.test(p.story.ending), p.story.text);
+  check('gift storyline: titled after it', /Lantern/.test(p.title), p.title);
+  check('gift storyline: credits the player', p.story.credit === 'ColbaltSockMonkey18', p.story.credit);
+  check('other storylines carry no credit', !('credit' in generatePuzzle({ theme: 'pets', seed: 'nocredit' }).story));
+  const again = generatePuzzle({ ...opts, seed: 'gift2', usedStories: [p.story.id] });
+  check('gift storyline: still used when the storyline was played before', /old lighthouse/.test(again.story.text));
+  let refused = false;
+  try { generatePuzzle({ ...opts, forceStory: { o: 'xnotapart' } }); } catch (e) { refused = true; }
+  check('gift storyline: an unknown part is refused', refused);
+}
+
 console.log('\nGeneration time per tier (ms, avg / max):');
 for (const [t, arr] of Object.entries(timing)) console.log(`  ${t.padEnd(7)} ${Math.round(arr.reduce((s, x) => s + x, 0) / arr.length)} / ${Math.max(...arr)}`);
 console.log(`Brute-force uniqueness: ${bruteChecked} checked, ${bruteSkipped} too large to enumerate in time`);

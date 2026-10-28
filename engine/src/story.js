@@ -63,16 +63,24 @@ function scenarioParts(scenario, extra) {
 // Pick a storyline that has never been used, preferring ones that share the
 // fewest parts with recently used storylines. prefs ({ o: { key: weight } },
 // weights -1 to 1) leans toward parts the player liked and away from ones they
-// did not; it never brings back a used storyline.
-export function pickStoryline(rng, scenario, leadCat, usedStories = [], { extraParts, prefs } = {}) {
+// did not; it never brings back a used storyline. force ({ o, i, m, e }:
+// part keys, any of them) always uses those parts, e.g. a player's approved
+// storyline for the puzzle made for them; a used storyline is then allowed.
+export function pickStoryline(rng, scenario, leadCat, usedStories = [], { extraParts, prefs, force } = {}) {
   const S = scenarioParts(scenario, extraParts);
+  if (force) {
+    for (const [k, kind] of [['o', 'openings'], ['i', 'incidents'], ['m', 'mishaps'], ['e', 'endings']]) {
+      if (force[k] != null && !S[kind].some((p) => p.key === String(force[k]))) throw new Error(`The chosen ${kind.slice(0, -1)} is not one of this theme's story parts.`);
+    }
+  }
   const key = scenario.key;
   const used = new Set(usedStories);
   const recent = usedStories.slice(-300).map(parseStoryId).filter((u) => u.key === key);
+  const pin = (k, kind) => (force && force[k] != null ? String(force[k]) : rng.pick(S[kind]).key);
   const random = () => ({
-    adj: rng.int(S.adjs.length), o: rng.pick(S.openings).key,
-    i: rng.pick(S.incidents).key, m: rng.pick(S.mishaps).key, leadCat, lead: rng.int(S.leads[leadCat].length),
-    e: rng.pick(S.endings).key,
+    adj: rng.int(S.adjs.length), o: pin('o', 'openings'),
+    i: pin('i', 'incidents'), m: pin('m', 'mishaps'), leadCat, lead: rng.int(S.leads[leadCat].length),
+    e: pin('e', 'endings'),
   });
   const liking = prefs && Object.keys(prefs).length ? prefs : null;
   const overlap = (c) => {
@@ -91,7 +99,7 @@ export function pickStoryline(rng, scenario, leadCat, usedStories = [], { extraP
   for (let n = 0; n < 400; n++) {
     const c = random();
     const id = makeId(key, c);
-    if (used.has(id)) continue;
+    if (used.has(id) && !force) continue;
     const sc = overlap(c);
     if (sc < bestScore) { best = { ...c, id }; bestScore = sc; }
     if (sc === 0 && !liking) break;
@@ -117,7 +125,7 @@ function finish(S, c) {
 }
 
 // model: built puzzle model (see generator); goal: { cat, item }.
-export function buildStory({ rng, scenario, goal, model, L, customTitle, usedStories, extraParts, storyPrefs }) {
+export function buildStory({ rng, scenario, goal, model, L, customTitle, usedStories, extraParts, storyPrefs, forceStory }) {
   const { N, cats } = model;
   const S = scenario.story;
   const cast = scenario.cast;
@@ -126,7 +134,7 @@ export function buildStory({ rng, scenario, goal, model, L, customTitle, usedSto
   // Capitalize the start of every sentence (a part may begin with {prize}).
   const capFirst = (t) => t.replace(/(^\W*|[.!?]\s+)([a-z])/g, (m, p, c) => p + c.toUpperCase());
 
-  const pick = pickStoryline(rng, scenario, cats[goal.cat].id, usedStories, { extraParts, prefs: storyPrefs });
+  const pick = pickStoryline(rng, scenario, cats[goal.cat].id, usedStories, { extraParts, prefs: storyPrefs, force: forceStory });
   const incident = pick.parts.incident;
   const goalItem = goal.cat * N + goal.item;
   const winnerEntity = model.sol[goal.cat].indexOf(goal.item);
@@ -171,6 +179,8 @@ export function buildStory({ rng, scenario, goal, model, L, customTitle, usedSto
     notes,
     wordCount,
     parts: { t: String(pick.adj), o: pick.o, i: pick.i, m: pick.m, l: `${pick.leadCat}.${pick.lead}`, e: pick.e },
+    // A storyline a player suggested, credited by their screen name.
+    ...(typeof incident.by === 'string' && incident.by.trim() ? { credit: incident.by.trim().slice(0, 40) } : {}),
   };
 }
 

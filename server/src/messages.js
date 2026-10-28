@@ -19,6 +19,7 @@
 // both the game and the dashboard escape it. Player text has email
 // addresses, web addresses and long numbers blanked, like the idea boxes.
 import { alert } from './alerts.js';
+import { giftsFor } from './story-gifts.js';
 import { json, readText, TooLarge } from './http.js';
 import { getSettings } from './settings.js';
 import { cleanText, themeName } from './feedback.js';
@@ -309,8 +310,10 @@ export async function inbox(env, role, { type = 'all', status = 'new', q = '' } 
     if (!has(kind)) continue;
     const { results } = await db.prepare(`SELECT id, topic, theme, text, platform, version, status, note, created_at AS at, done_at AS doneAt, conversation_id AS conversationId FROM feedback
       WHERE kind = ?1 AND (?2 = 'all' OR status = ?2) AND (?3 IS NULL OR text LIKE ?3 ESCAPE '\\') ORDER BY created_at DESC LIMIT ?4`).bind(kind, status, search, PER_TYPE).all();
+    // Storyline gifts: whether the player asked for a puzzle, and how it went (story-gifts.js).
+    const gifts = kind === 'idea' ? await giftsFor(env, results.filter((f) => f.topic === 'story').map((f) => f.id)) : {};
     for (const f of results) {
-      items.push({ type: kind, id: f.id, at: f.at, status: f.status, title: f.topic, text: f.text, meta: { topic: f.topic, theme: f.theme || null, themeName: f.theme ? themeName(f.theme) : null, platform: f.platform, version: f.version, conversationId: f.conversationId, note: f.note, doneAt: f.doneAt } });
+      items.push({ type: kind, id: f.id, at: f.at, status: f.status, title: f.topic, text: f.text, meta: { topic: f.topic, theme: f.theme || null, themeName: f.theme ? themeName(f.theme) : null, platform: f.platform, version: f.version, conversationId: f.conversationId, note: f.note, doneAt: f.doneAt, gift: gifts[f.id] || null } });
     }
   }
   // Error reports have no done state: "new" is the last 7 days, "all" and

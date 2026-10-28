@@ -522,6 +522,8 @@ const SHOTS = process.env.SHOTS;
     await p.click('#app-menu [data-cmd=feedback]');
     await p.waitForSelector('#dlg-feedback[open]');
     assert(await p.$eval('#idea-form .fb-reply', (el) => el.hidden), 'a guest is not offered email updates');
+    assert(await p.$eval('#idea-form .fb-puzzle', (el) => el.hidden), 'a guest is not offered a puzzle from their storyline');
+    assert(await p.isVisible('#idea-form input[value=story]') && await p.isVisible('#idea-form input[value=theme]'), 'Suggest a storyline and Suggest a theme are separate choices');
     assert(await p.isVisible('#idea-theme'), 'a storyline idea asks which theme it is for');
     assert(await p.$$eval('#idea-theme option', (o) => o.length) > 10, 'the theme list holds the game themes');
     assert(await p.locator(`#idea-theme option[value="${theme}"]`).count() === 0, 'a switched-off theme is not in the idea theme list');

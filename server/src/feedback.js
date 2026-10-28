@@ -20,6 +20,7 @@ import { json, readText, TooLarge } from './http.js';
 import { getSettings } from './settings.js';
 import { queueReply } from './replies.js';
 import { talkAboutFeedback } from './messages.js';
+import { askGift } from './story-gifts.js';
 import { verifyIdToken } from './auth.js';
 import { THEMES } from '../../engine/src/themes.js';
 
@@ -77,7 +78,16 @@ async function postFeedback(req, env, ctx) {
     if (!user) talk = 'signed_out';
     else { try { talk = await talkAboutFeedback(env, user, kind, text, row.id); } catch (e) { console.error(e); talk = 'error'; } }
   }
-  return json(req, env, { ok: true, reply, update, talk });
+  // "Make me a puzzle from my storyline": kept with the account until the team decides (story-gifts.js).
+  let gift = 'none';
+  if (body.puzzle === true && kind === 'idea' && topic === 'story') {
+    const token = (req.headers.get('Authorization') || '').match(/^Bearer\s+(.+)$/)?.[1];
+    let user = null;
+    if (token) { try { user = await verifyIdToken(token, env); } catch (e) { /* signed out */ } }
+    if (!user) gift = 'signed_out';
+    else { try { gift = await askGift(env, user, row.id); } catch (e) { console.error(e); gift = 'error'; } }
+  }
+  return json(req, env, { ok: true, reply, update, talk, gift });
 }
 
 // Returns a Response for this module's routes, or null for anything else.

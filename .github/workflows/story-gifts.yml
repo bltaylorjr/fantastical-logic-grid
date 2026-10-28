@@ -1,0 +1,37 @@
+# Storyline gifts (server/src/story-gifts.js): every 15 minutes, and straight
+# away when the Worker starts it (optional GITHUB_DISPATCH_TOKEN Worker secret),
+# this makes a puzzle from each storyline the team approved in the admin
+# dashboard, emails the player a thank-you with the puzzle and its answer key
+# as a PDF, and hands the puzzle back to the Worker for the player's saved
+# puzzles. Email goes from noreply@thelogicgrid.com through Resend (secret
+# RESEND_API_KEY) or the game's Gmail as the backup, like the educator packages.
+# The repository is public, so this job prints only counts and gift numbers.
+# Free: GitHub Actions on a public repo, Resend's free plan and Gmail cost nothing.
+name: Story gifts
+on:
+  schedule:
+    - cron: '7,22,37,52 * * * *'   # GitHub may start it a few minutes late
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: story-gifts
+jobs:
+  send:
+    runs-on: ${{ fromJSON(vars.FLG_RUNNER || '"ubuntu-latest"') }}
+    timeout-minutes: 20
+    env:
+      FLG_CLOUD_URL: ${{ vars.FLG_CLOUD_URL || 'https://flg-api.btay74.workers.dev' }}
+      FLG_ADMIN_TOKEN: ${{ secrets.FLG_ADMIN_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+      # Most runs find nothing to do. Only when a gift is waiting does the
+      # script install the fonts and the PDF printer (Playwright's Chromium).
+      - name: Make, email and save storyline gifts
+        env:
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          MAIL_FROM: ${{ vars.MAIL_FROM }}
+          FLG_SITE_URL: ${{ vars.FLG_SITE_URL }}
+        run: python3 -I scripts/story-gifts.py
