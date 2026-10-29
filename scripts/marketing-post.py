@@ -262,8 +262,25 @@ def meta(url, method='GET', form=None, token=''):
     return request(url, method=method, form=form, headers={'Authorization': f'Bearer {token}'})
 
 
+_PAGE_TOKEN = None
+
+
+def page_token():
+    """The key to post as the game's Page. META_PAGE_TOKEN may be the Page's own
+    key, or a person's key for an admin of the Page (with pages_manage_posts);
+    then the Page's key is fetched with it, which Facebook allows for Page admins."""
+    global _PAGE_TOKEN
+    if _PAGE_TOKEN is None:
+        token = env('META_PAGE_TOKEN')
+        try:
+            _PAGE_TOKEN = meta(f"{GRAPH}/{env('META_PAGE_ID')}?fields=access_token", token=token).get('access_token') or token
+        except Exception:  # noqa: BLE001 - a Page key may not list itself; use it as it is
+            _PAGE_TOKEN = token
+    return _PAGE_TOKEN
+
+
 def post_facebook(ad):
-    page, token = env('META_PAGE_ID'), env('META_PAGE_TOKEN')
+    page, token = env('META_PAGE_ID'), page_token()
     videos, images = files(ad, 'video'), files(ad, 'image')
     if videos:
         r = meta(f'{GRAPH}/{page}/videos', 'POST', {'file_url': videos[0], 'description': ad['words']}, token)
@@ -287,7 +304,7 @@ def wait_ready(url, token, field='status_code'):
 
 
 def post_instagram(ad):
-    ig, token = env('INSTAGRAM_ACCOUNT_ID'), env('META_PAGE_TOKEN')
+    ig, token = env('INSTAGRAM_ACCOUNT_ID'), page_token()
     videos, images = files(ad, 'video'), files(ad, 'image')
     if videos:
         form = {'media_type': 'REELS', 'video_url': videos[0], 'caption': ad['words'], 'share_to_feed': 'true'}
@@ -498,8 +515,17 @@ def facebook_token_report():
     expires = 'never expires' if not d.get('expires_at') else 'expires ' + datetime.fromtimestamp(d['expires_at']).date().isoformat()
     whose = "the game's Page" if same else ('another Page' if same is False else 'a person, not a Page')
     print(f'::notice::Facebook key: a {kind} key, {expires}, for {whose}; may: {", ".join(scopes) or "nothing listed"}')
-    if kind != 'PAGE' or same is False or 'pages_manage_posts' not in scopes:
-        print('::warning::Facebook Page: this key can read the Page but cannot post. Save the Page access_token from me/accounts (Part C, step 5 of the Facebook launch kit) as META_PAGE_TOKEN, made with pages_manage_posts.')
+    if 'pages_manage_posts' not in scopes or same is False:
+        print('::warning::Facebook Page: this key cannot post to the game\'s Page. Make a new one with pages_manage_posts (Part C of the Facebook launch kit) and save it as META_PAGE_TOKEN.')
+    elif kind != 'PAGE':
+        try:
+            ok = page_token() != token
+        except Exception:  # noqa: BLE001
+            ok = False
+        print('::notice::Facebook Page: posting uses the Page key fetched with this key.' if ok else
+              '::warning::Facebook Page: the Page key could not be fetched with this key. Save the Page access_token from me/accounts as META_PAGE_TOKEN.')
+        if d.get('expires_at'):
+            print(f'::warning::Facebook key {expires}. Before then, save the Page access_token from me/accounts (it never expires) as META_PAGE_TOKEN.')
 
 
 def check_keys():
