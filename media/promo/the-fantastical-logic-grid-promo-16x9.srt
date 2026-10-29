@@ -25,16 +25,16 @@ Then choose your challenge, from Basic all the way
 up to Quantum Physicist.
 
 7
-00:00:24,250 --> 00:00:28,332
+00:00:24,250 --> 00:00:28,331
 Press Generate, and a one-of-a-kind story is written
 just for you.
 
 8
-00:00:28,352 --> 00:00:30,712
+00:00:28,351 --> 00:00:30,711
 No two cases are ever the same.
 
 9
-00:00:31,250 --> 00:00:35,279
+00:00:31,250 --> 00:00:34,993
 Meet the characters, and hear the clues they
 remember, read aloud.
 

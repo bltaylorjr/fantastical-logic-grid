@@ -64,9 +64,10 @@ WIDE = [
     dict(kind='clip', part='full', kicker='Press Generate', head='A brand new story', sub='Written for you in seconds, and never repeated',
          shots=[('generate', 3.0, 6.3, 0.8, 0.6), ('generate', 6.4, 99, 0.85, 0.3)],
          lines=['Press Generate, and a one-of-a-kind story is written just for you.', 'No two cases are ever the same.']),
+    # Spoken as "red aloud": Kokoro reads this "read" like "reed".
     dict(kind='clip', part='full', kicker='Talk to the cast', head='Every character has a clue',
          shots=[('cast', 4.5, 17.5, 0.72, 0.8)],
-         lines=['Meet the characters, and hear the clues they remember, read aloud.']),
+         lines=[['Meet the characters, and hear the clues they remember, read aloud.', 'Meet the characters, and hear the clues they remember, red aloud.']]),
     dict(kind='clip', part='full', kicker='Solve the grid', head="Mark X's and O's",
          shots=[('grid', 1.5, 25, 0.68, 0.6)],
          lines=[["Then dive into the grid. Mark an X to rule something out, and an O to lock in a match.", 'Then dive into the grid. Mark an ex to rule something out, and an oh to lock in a match.']]),
@@ -387,13 +388,25 @@ def tts():
     return _tts
 
 
+# Words Kokoro says wrongly, fixed in its phonemes (respelling can't reach them).
+# "Generate": the default /dʒˈɛnɚɹˌeɪt/ comes out mumbled, so say "jen-uh-rate".
+SAY = {'dʒˈɛnɚɹˌeɪt': 'dʒˈɛnəɹˌeɪt'}
+
+
 def voice(text):
-    key = hashlib.sha1(f'{VOICE}|{SPEED}|{text}'.encode()).hexdigest()[:16]
+    ph = tts().tokenizer.phonemize(text, 'en-us')
+    fixed = ph
+    for a, b in SAY.items():
+        fixed = fixed.replace(a, b)
+    key = hashlib.sha1((f'{VOICE}|{SPEED}|{text}' + (f'|{fixed}' if fixed != ph else '')).encode()).hexdigest()[:16]
     p = os.path.join(OUT, 'vo', key + '.npy')
     if os.path.exists(p):
         return np.load(p)
     os.makedirs(os.path.dirname(p), exist_ok=True)
-    samples, sr = tts().create(text, voice=VOICE, speed=SPEED, lang='en-us')
+    if fixed != ph:
+        samples, sr = tts().create(fixed, voice=VOICE, speed=SPEED, is_phonemes=True)
+    else:
+        samples, sr = tts().create(text, voice=VOICE, speed=SPEED, lang='en-us')
     a = signal.resample_poly(np.asarray(samples, np.float64), SR, sr)
     # Trim the model's leading and trailing silence so lines sit tight on the beat.
     nz = np.where(np.abs(a) > 0.01)[0]
