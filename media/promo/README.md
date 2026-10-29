@@ -27,8 +27,10 @@ Reels, YouTube Shorts and TikTok:
 
 They are cut from the same footage and voice as the promo (`TIP_GRID`,
 `TIP_CLUES` and `TIP_HINTS` in `tools/build.py`; `build.py tips` makes all
-three). The workflow `.github/workflows/tip-videos.yml` films and builds them
-on GitHub and opens a pull request that adds them here. The Marketing
+three). The workflow `.github/workflows/tip-videos.yml` (Marketing videos)
+films the game and builds the promo in both cuts and the three tips on GitHub,
+then opens a pull request that adds them here. Run it by hand after the game
+changes to refresh every video. The Marketing
 autopilot posts them on the days set in the **how-to-play-tips** campaign
 (admin > Marketing).
 

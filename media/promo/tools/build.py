@@ -15,7 +15,7 @@ the voice), and writes, into media/promo/out/:
 Free tools only: Kokoro-82M (Apache-2.0), ffmpeg, Pillow, numpy/scipy, and the
 game's own fonts (Cinzel and Atkinson Hyperlegible, both OFL).
 """
-import bisect, hashlib, json, math, os, subprocess, sys, textwrap, urllib.request, wave
+import bisect, hashlib, json, math, os, re, subprocess, sys, textwrap, urllib.request, wave
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 from scipy import signal
@@ -55,18 +55,19 @@ WIDE = [
          lines=['Every puzzle tells a story.', 'And every story is brand new.']),
     dict(kind='logo', part='drop', min=4.0,
          lines=['Welcome to The Fantastical Logic Grid!']),
-    dict(kind='clip', part='full', kicker='Pick a world', head='14 themes', sub='New: Around Town, National Parks, Vacation Destinations and Architectural Wonders',
-         shots=[('themes', 2.0, 24.5, 0.8, 0.55)],
-         lines=['Pick from fourteen worlds.', 'Spooky mysteries, secret agents, fantasy and sci-fi, Around Town, National Parks, and more.']),
-    dict(kind='clip', part='full', kicker='Choose your challenge', head='Basic to Quantum Physicist', sub='Six levels, from first-timers to masterminds',
-         shots=[('tiers', 9.5, 24.8, 0.8, 0.5)],
-         lines=[['Then choose your challenge, from Basic all the way up to Quantum Physicist.', 'Then choose your challenge, from Basic, all the way up to Quantum Physicist.']]),
+    dict(kind='clip', part='full', kicker='Pick a world', head='22 themes', sub='New: Astronomy, Music, Science, Math, Nautical and more',
+         shots=[('themes', 2.0, 99, 0.8, 0.55)],
+         lines=['Pick from twenty-two worlds.', 'Spooky mysteries, fantasy and sci-fi, astronomy, music, science, the high seas, and more.']),
+    dict(kind='clip', part='full', kicker='Choose your challenge', head='Basic to Theoretical Physicist', sub='Seven levels, from first-timers to true masterminds',
+         shots=[('tiers', 9.5, 99, 0.8, 0.5)],
+         lines=[['Then choose your challenge, from Basic all the way up to the brand new Theoretical Physicist.', 'Then choose your challenge, from Basic, all the way up to the brand new Theoretical Physicist.']]),
     dict(kind='clip', part='full', kicker='Press Generate', head='A brand new story', sub='Written for you in seconds, and never repeated',
          shots=[('generate', 3.0, 6.3, 0.8, 0.6), ('generate', 6.4, 99, 0.85, 0.3)],
          lines=['Press Generate, and a one-of-a-kind story is written just for you.', 'No two cases are ever the same.']),
+    # Spoken as "red aloud": Kokoro reads this "read" like "reed".
     dict(kind='clip', part='full', kicker='Talk to the cast', head='Every character has a clue',
          shots=[('cast', 4.5, 17.5, 0.72, 0.8)],
-         lines=['Meet the characters, and hear the clues they remember, read aloud.']),
+         lines=[['Meet the characters, and hear the clues they remember, read aloud.', 'Meet the characters, and hear the clues they remember, red aloud.']]),
     dict(kind='clip', part='full', kicker='Solve the grid', head="Mark X's and O's",
          shots=[('grid', 1.5, 25, 0.68, 0.6)],
          lines=[["Then dive into the grid. Mark an X to rule something out, and an O to lock in a match.", 'Then dive into the grid. Mark an ex to rule something out, and an oh to lock in a match.']]),
@@ -82,6 +83,12 @@ WIDE = [
     dict(kind='clip', part='full', kicker='Every solve earns points', head='Climb the scoreboard',
          shots=[('board', 6.0, 99, 0.72, 0.5)],
          lines=['Every solve earns points, so climb the weekly scoreboard and claim the top spot!']),
+    dict(kind='clip', part='full', kicker='Keep coming back', head='Stats and badges', sub='A new daily puzzle, your streak, best times and badges to earn',
+         shots=[('stats', 0.4, 99, 0.75, 0.4)],
+         lines=['Play the daily puzzle, keep your streak alive, and collect badges along the way.']),
+    dict(kind='clip', part='full', kicker='Your story, your puzzle', head='Suggest a storyline', sub='Approved storylines join the game, and you get the first puzzle made from yours',
+         shots=[('idea', 0.4, 99, 0.75, 0.6)],
+         lines=['Got a story of your own? Suggest it.', "If it's approved, it joins the game, and you get the very first puzzle made from it."]),
     dict(kind='clip', part='light', kicker='Yours to keep', head='Print it. Save it. Sync it.',
          shots=[('print', 3.5, 99, 0.8, 0.5), ('saved', 0.3, 99, 0.8, 0.6)],
          lines=['Print any puzzle with its answer key.', 'Your progress saves automatically, and a free account syncs it across your devices.']),
@@ -101,9 +108,9 @@ TALL = [
          lines=['Every puzzle tells a brand new story.']),
     dict(kind='logo', part='drop', min=3.0,
          lines=['This is The Fantastical Logic Grid!']),
-    dict(kind='clip', part='full', kicker='14 themes, 6 levels', head='Pick your world',
-         shots=[('themes', 2.0, 24.5, 0.6, 0.9)],
-         lines=[['Fourteen worlds, six levels, from Basic to Quantum Physicist.', 'Fourteen worlds. Six levels, from Basic, to Quantum Physicist.']]),
+    dict(kind='clip', part='full', kicker='22 themes, 7 levels', head='Pick your world',
+         shots=[('themes', 2.0, 99, 0.6, 0.9)],
+         lines=[['Twenty-two worlds, seven levels, from Basic to Theoretical Physicist.', 'Twenty-two worlds. Seven levels, from Basic, to Theoretical Physicist.']]),
     dict(kind='clip', part='full', kicker='Never repeated', head='A story written for you',
          shots=[('generate', 6.4, 99, 0.6, 0.5)],
          lines=['And every case is written fresh, just for you.']),
@@ -114,8 +121,11 @@ TALL = [
          shots=[('solve', 14.5, 99, 0.62, 0.8)],
          lines=['and crack the case!']),
     dict(kind='clip', part='full', kicker='Play against others', head='Race your friends',
-         shots=[('race-play', 12, 30, 0.5, 0.9), ('board', 6.0, 99, 0.6, 0.5)], snap='bar',
+         shots=[('race-play', 12, 30, 0.5, 0.9), ('board', 6.0, 99, 0.6, 0.5)],
          lines=['Race your friends, and climb the scoreboard.']),
+    dict(kind='clip', part='full', kicker='Your story, your puzzle', head='Suggest a storyline',
+         shots=[('idea', 0.4, 99, 0.55, 0.9)], snap='bar',
+         lines=['Then suggest a storyline of your own!']),
     dict(kind='cta', part='outro', min=5.0,
          lines=[['Play free at thelogicgrid.com!', 'Play free, at the logic grid dot com!']]),
 ]
@@ -387,13 +397,29 @@ def tts():
     return _tts
 
 
+# Same sound fixes as web/js/kokoro-words.js and video/build.py: eSpeak gives
+# "story" a heavy "or" and doubles the r in "Generate" and "categories".
+SAY = [
+    (r'kˈæɾɪɡɚɹ', 'kˈæɾəɡˌɔɹ'),
+    (r'[oɔ]ːɹ', 'ɔɹ'),
+    (r'ɚɹ', 'əɹ'),
+]
+
+
 def voice(text):
-    key = hashlib.sha1(f'{VOICE}|{SPEED}|{text}'.encode()).hexdigest()[:16]
+    ph = tts().tokenizer.phonemize(text, 'en-us')
+    fixed = ph
+    for a, b in SAY:
+        fixed = re.sub(a, b, fixed)
+    key = hashlib.sha1((f'{VOICE}|{SPEED}|{text}' + (f'|{fixed}' if fixed != ph else '')).encode()).hexdigest()[:16]
     p = os.path.join(OUT, 'vo', key + '.npy')
     if os.path.exists(p):
         return np.load(p)
     os.makedirs(os.path.dirname(p), exist_ok=True)
-    samples, sr = tts().create(text, voice=VOICE, speed=SPEED, lang='en-us')
+    if fixed != ph:
+        samples, sr = tts().create(fixed, voice=VOICE, speed=SPEED, is_phonemes=True)
+    else:
+        samples, sr = tts().create(text, voice=VOICE, speed=SPEED, lang='en-us')
     a = signal.resample_poly(np.asarray(samples, np.float64), SR, sr)
     # Trim the model's leading and trailing silence so lines sit tight on the beat.
     nz = np.where(np.abs(a) > 0.01)[0]
