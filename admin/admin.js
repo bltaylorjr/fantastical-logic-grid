@@ -27,7 +27,7 @@ const TOKEN_URL = 'https://securetoken.googleapis.com/v1';
 const SESSION_KEY = 'flg-admin-session';
 const IDLE_MS = 30 * 60_000;
 const ROLES = { viewer: 1, moderator: 2, admin: 3, owner: 4 };
-const TIER_NAMES = { basic: 'Basic', easy: 'Easy', medium: 'Medium', hard: 'Hard', expert: 'Expert', mensa: 'Quantum Physicist' };
+const TIER_NAMES = { basic: 'Basic', easy: 'Easy', medium: 'Medium', hard: 'Hard', expert: 'Expert', mensa: 'Quantum Physicist', theorist: 'Theoretical Physicist' };
 
 let session = null; // { mode: 'firebase'|'token', key?, refreshToken?, idToken?, exp?, email? }
 let me = null; // { email, role }

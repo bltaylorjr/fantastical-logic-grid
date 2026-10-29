@@ -94,7 +94,7 @@ function renderConversations() {
   </details></li>`).join('');
 }
 
-const TIERS = { basic: 'Basic', easy: 'Easy', medium: 'Medium', hard: 'Hard', expert: 'Expert', mensa: 'Quantum Physicist' };
+const TIERS = { basic: 'Basic', easy: 'Easy', medium: 'Medium', hard: 'Hard', expert: 'Expert', mensa: 'Quantum Physicist', theorist: 'Theoretical Physicist' };
 const day = (ms) => new Date(ms).toLocaleDateString([], { dateStyle: 'medium' });
 
 function renderPuzzles() {
