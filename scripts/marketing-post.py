@@ -569,14 +569,14 @@ def main():
         if (date.fromisoformat(DAY) - date.fromisoformat(ad['postOn'])).days > RETRY_DAYS:
             continue  # gave up: its note in admin says why
         if dry:
-            print(f'Would post: {ad["title"]}')
+            print(f'::notice::Would post ad {ad["id"]}: {ad["title"]} ({NAMES.get(ad["channel"], ad["channel"])}, due {ad["postOn"]})')
             posted.append((ad, '(preview)'))
             continue
         try:
             url = POST[ad['channel']](ad)
             worker(f'marketing/ads/{ad["id"]}/auto', {'ok': True, 'postUrl': url, 'note': f'Posted automatically on {DAY}'})
             posted.append((ad, url))
-            print(f'Posted: {ad["title"]}')
+            print(f'::notice::Posted ad {ad["id"]}: {ad["title"]} {url}')  # the live post's public link
         except Exception as e:  # noqa: BLE001 - one site failing must not stop the others
             note = f'{DAY}: {scrub(e)}'
             failed.append((ad, note))
