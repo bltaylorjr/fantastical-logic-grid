@@ -3,6 +3,7 @@
 // Every name in every theme and topic is listed (scripts/test-gender.mjs
 // checks); names a player types in get a steady guess from how they end.
 const FEMALE = new Set(`
+  Ariel Clio Gigi Gracie Hope Inga Iona Harbor Cypress
   Addie Adelaide Adele Agna Agnes Aiko Alba Alina Alma Amelia Amelie Anika
   Anouk Ansley Anya Aoife Aria Asha Aspen Aster Astrid Avery Ayana Beatrice
   Beatrix Bellamy Beryl Bess Bettina Birdie Bisa Blair Blythe Bonnie Bree
@@ -49,6 +50,7 @@ const FEMALE = new Set(`
   Coralie Marina Nerissa Ondine Delphina Serena Muriel Oceane
 `.trim().split(/\s+/));
 const MALE = new Set(`
+  Archie Cliff Dag Eddy Ernest Fletcher Forrest Franco Grove Igor
   Aarav Abe Abner Akira Alder Alfie Alfredo Ambrose Amir Anders Ansel Anton
   Ari Arjun Asa Ash August Aurelio Avi Axel Ayo Bao Baraka Bastian Bastien
   Beau Benedict Benji Benny Bertram Beto Bixby Bjorn Blaise Blip Bodhi Bodie
