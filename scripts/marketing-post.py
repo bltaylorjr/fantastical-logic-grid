@@ -483,13 +483,31 @@ POST = {'bluesky': post_bluesky, 'mastodon': post_mastodon, 'x': post_x, 'facebo
         'linkedin': post_linkedin, 'pinterest': post_pinterest, 'youtube': post_youtube, 'tiktok': post_tiktok, 'reddit': post_reddit}
 
 
+def facebook_token_report():
+    """Says what kind of key META_PAGE_TOKEN is and what it may do (never the key
+    itself): posting needs a Page key for the game's Page with pages_manage_posts."""
+    token = env('META_PAGE_TOKEN')
+    try:
+        d = meta(f'{GRAPH}/debug_token?' + urllib.parse.urlencode({'input_token': token, 'access_token': token}), token=token).get('data', {})
+    except Exception as e:  # noqa: BLE001
+        print(f'::warning::Facebook Page: could not read what the key may do: {scrub(e)}')
+        return
+    kind = d.get('type', '?')
+    scopes = sorted(set(d.get('scopes', [])))
+    same = str(d.get('profile_id', '')) == env('META_PAGE_ID') if kind == 'PAGE' else None
+    expires = 'never expires' if not d.get('expires_at') else 'expires ' + datetime.fromtimestamp(d['expires_at']).date().isoformat()
+    print(f'::notice::Facebook key: a {kind} key, {expires}, for {"the game\'s Page" if same else ("another Page" if same is False else "a person, not a Page")}; may: {", ".join(scopes) or "nothing listed"}')
+    if kind != 'PAGE' or same is False or 'pages_manage_posts' not in scopes:
+        print('::warning::Facebook Page: this key can read the Page but cannot post. Save the Page access_token from me/accounts (Part C, step 5 of the Facebook launch kit) as META_PAGE_TOKEN, made with pages_manage_posts.')
+
+
 def check_keys():
     tests = {
         'bluesky': lambda: bluesky_session()[2],
         'mastodon': lambda: request(f"{('https://' + env('MASTODON_URL')) if not env('MASTODON_URL').startswith('https://') else env('MASTODON_URL').rstrip('/')}/api/v1/accounts/verify_credentials",
                                     headers={'Authorization': f"Bearer {env('MASTODON_TOKEN')}"})['acct'],
         'x': lambda: request('https://api.x.com/2/users/me', headers={'Authorization': oauth1('GET', 'https://api.x.com/2/users/me')})['data']['username'],
-        'facebook': lambda: meta(f"{GRAPH}/{env('META_PAGE_ID')}?fields=name", token=env('META_PAGE_TOKEN'))['name'],
+        'facebook': lambda: (meta(f"{GRAPH}/{env('META_PAGE_ID')}?fields=name", token=env('META_PAGE_TOKEN'))['name'], facebook_token_report())[0],
         'instagram': lambda: meta(f"{GRAPH}/{env('INSTAGRAM_ACCOUNT_ID')}?fields=username", token=env('META_PAGE_TOKEN'))['username'],
         'threads': lambda: meta(f'{THREADS}/me?fields=username', token=env('THREADS_TOKEN'))['username'],
         'linkedin': lambda: linkedin_me()[1]['sub'],
