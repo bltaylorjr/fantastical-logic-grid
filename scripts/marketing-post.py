@@ -27,7 +27,7 @@ and sends the email marked Preview, posting and changing nothing).
 ONLY_ADS (ad numbers, comma separated) limits a run to those ads: the admin
 app's Post now and Launch campaign buttons start a run like that.
 Mode message posts one message (MESSAGE, with an optional picture link
-IMAGE_URL) to the game's Facebook Page straight away, for a one-off post the
+IMAGE_URL or video link VIDEO_URL) to the game's Facebook Page straight away, for a one-off post the
 owner approved that is not in the Marketing list.
 Python standard library only.
 """
@@ -614,6 +614,14 @@ def post_message():
         print('::error::IMAGE_URL must be an https:// link.')
         return 1
     page, token = page_key()
+    video = os.environ.get('VIDEO_URL', '').strip()
+    if video:
+        if not video.startswith('https://'):
+            print('::error::VIDEO_URL must be an https:// link.')
+            return 1
+        r = meta(f'{GRAPH}/{page}/videos', 'POST', {'file_url': video, 'description': text}, token)
+        print(f"::notice::Posted the video to the Facebook Page: https://www.facebook.com/{page}/videos/{r['id']}")
+        return 0
     if image:
         r = meta(f'{GRAPH}/{page}/photos', 'POST', {'url': image, 'caption': text}, token)
         url = f"https://www.facebook.com/{r.get('post_id') or r['id']}"

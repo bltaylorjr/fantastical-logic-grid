@@ -33,6 +33,9 @@ on:
       image:
         description: For mode message only, an optional https link to a picture to post with it
         required: false
+      video:
+        description: For mode message only, an optional https link to a video to post (the words become its description)
+        required: false
 permissions:
   contents: read
 concurrency:
@@ -53,6 +56,7 @@ jobs:
           ONLY_ADS: ${{ inputs.ads }}
           MESSAGE: ${{ inputs.message }}
           IMAGE_URL: ${{ inputs.image }}
+          VIDEO_URL: ${{ inputs.video }}
           FLG_CLOUD_URL: ${{ vars.FLG_CLOUD_URL || 'https://flg-api.btay74.workers.dev' }}
           FLG_ADMIN_TOKEN: ${{ secrets.FLG_ADMIN_TOKEN }}
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
