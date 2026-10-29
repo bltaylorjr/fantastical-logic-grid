@@ -24,6 +24,7 @@ import * as campaign from './campaign.js';
 import { initAccounts, openAccount, onHome as accountsOnHome, signedIn } from './account-ui.js';
 import * as competeUi from './compete-ui.js';
 import * as remote from './remote-config.js';
+import { socialLinks, socialHtml } from './social.js';
 import * as perks from './perks.js';
 import * as specialBadges from './special-badges.js';
 import * as support from './support.js';
@@ -2207,7 +2208,27 @@ $('#print-cancel').onclick = () => $('#dlg-print').close();
 // ====================================================================
 // Choices that use the game's server show only when it is set up and the
 // admin dashboard has not switched that feature off for everyone.
+// The game's social pages under the home screen, as soon as a link is set in
+// the admin dashboard (Settings and switches > Social links). A network's own
+// icon shows when icons/social/<id>.svg is there.
+function renderSocial() {
+  const box = $('#home-social');
+  if (!box) return;
+  const list = socialLinks(Object.fromEntries(remote.social().map((s) => [s.id, s.url])));
+  box.innerHTML = list.length ? `<p class="muted small">Follow the game</p>${socialHtml(list)}` : '';
+  box.hidden = !list.length;
+  for (const a of box.querySelectorAll('.social-link')) {
+    const id = [...a.classList].find((c) => c.startsWith('social-') && c !== 'social-link')?.slice(7);
+    if (!id) continue;
+    const img = new Image(20, 20);
+    img.alt = '';
+    img.onload = () => a.prepend(img);
+    img.src = `icons/social/${id}.svg`;
+  }
+}
+
 function applyFeatures() {
+  renderSocial();
   for (const el of $$('.needs-cloud')) el.hidden = !share.available() || (!!el.dataset.feature && !remote.feature(el.dataset.feature));
   $('#music-settings').hidden = !remote.feature('music');
   $('[data-cmd=feedback]').hidden = !feedbackBox.available();

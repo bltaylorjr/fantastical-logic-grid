@@ -55,6 +55,13 @@ dd { margin: 0 0 0 1rem; }
 .archive li { margin: 4px 0; }
 .picks { padding-left: 1.2em; }
 .picks li { margin: 0 0 14px; }
+.foot-social { margin: 12px 0; }
+.foot-social p { margin: 0 0 6px; }
+.social { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.social-link { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 8px 14px; border: 1px solid var(--edge); border-radius: 999px; color: var(--text); text-decoration: none; font-weight: 600; }
+.social-link:hover { border-color: var(--accent); color: var(--accent); }
+.social-link:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.social-link img { width: 20px; height: 20px; }
 .foot { max-width: 860px; margin: 0 auto; padding: 20px; border-top: 1px solid var(--edge); color: var(--muted); }
 /* Printable worksheets (printables/): a staircase grid and the answer key on its own page. */
 .lgrid { width: auto; border-collapse: collapse; margin: 8px 0 16px; }
