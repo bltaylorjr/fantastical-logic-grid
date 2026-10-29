@@ -151,11 +151,11 @@ test('when Bing throttles, the dashboard keeps the numbers and Bing is left alon
   bingThrottled = false;
   await db.prepare('UPDATE search_snapshots SET tried_at = ?1 WHERE source = ?2').bind(Date.now() - 20 * 60_000, 'google').run();
   await db.prepare('UPDATE search_snapshots SET tried_at = ?1 WHERE source = ?2').bind(Date.now() - 20 * 60_000, 'bing').run();
-  const before = seen.filter((x) => x.includes('ssl.bing.com')).length;
+  const before = seen.filter((x) => x.split(' ')[1].split('/')[0] === 'ssl.bing.com').length;
   const again = await call('/admin/v1/search/refresh', 'POST');
   assert.equal(again.status, 200);
   assert.deepEqual([again.body.result.google, again.body.result.bing], ['ok', 'waiting']);
-  assert.equal(seen.filter((x) => x.includes('ssl.bing.com')).length, before);
+  assert.equal(seen.filter((x) => x.split(' ')[1].split('/')[0] === 'ssl.bing.com').length, before);
   // Once the wait is over, Bing is asked again and the error clears.
   await db.prepare('UPDATE search_snapshots SET tried_at = ?1').bind(Date.now() - 7 * 3600_000).run();
   const later = await call('/admin/v1/search/refresh', 'POST');
