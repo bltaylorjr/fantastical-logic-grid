@@ -607,6 +607,11 @@ def email(subject, parts):
 def post_message():
     text = os.environ.get('MESSAGE', '').replace('\\n', '\n').strip()
     image = os.environ.get('IMAGE_URL', '').strip()
+    # REPLACE: the id of a Page video this post replaces. Its words are reused
+    # when MESSAGE is empty, and it is deleted once the new one is posted.
+    replace = re.sub(r'\D', '', os.environ.get('REPLACE', ''))
+    if replace and not text and has_keys('facebook'):
+        text = meta(f'{GRAPH}/{replace}?fields=description', token=page_key()[1]).get('description', '').strip()
     if not text or not has_keys('facebook'):
         print('::error::Nothing to post: MESSAGE is empty or the Facebook keys are not saved.')
         return 1
@@ -621,6 +626,18 @@ def post_message():
             return 1
         r = meta(f'{GRAPH}/{page}/videos', 'POST', {'file_url': video, 'description': text}, token)
         print(f"::notice::Posted the video to the Facebook Page: https://www.facebook.com/{page}/videos/{r['id']}")
+        if replace:
+            # Keep the old one until the new one has finished processing.
+            for _ in range(60):
+                st = meta(f"{GRAPH}/{r['id']}?fields=status", token=token).get('status', {}).get('video_status')
+                if st in ('ready', 'error'):
+                    break
+                time.sleep(10)
+            if st != 'ready':
+                print(f'::error::The new video is not ready ({st}), so the old one was kept.')
+                return 1
+            meta(f'{GRAPH}/{replace}', 'DELETE', token=token)
+            print(f'::notice::Deleted the video it replaces ({replace}).')
         return 0
     if image:
         r = meta(f'{GRAPH}/{page}/photos', 'POST', {'url': image, 'caption': text}, token)

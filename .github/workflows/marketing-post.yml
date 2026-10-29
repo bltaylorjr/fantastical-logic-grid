@@ -36,6 +36,9 @@ on:
       video:
         description: For mode message only, an optional https link to a video to post (the words become its description)
         required: false
+      replace:
+        description: For mode message with a video only, the id of a Page video it replaces (its words are reused if message is empty; it is deleted after the new one posts)
+        required: false
 permissions:
   contents: read
 concurrency:
@@ -57,6 +60,7 @@ jobs:
           MESSAGE: ${{ inputs.message }}
           IMAGE_URL: ${{ inputs.image }}
           VIDEO_URL: ${{ inputs.video }}
+          REPLACE: ${{ inputs.replace }}
           FLG_CLOUD_URL: ${{ vars.FLG_CLOUD_URL || 'https://flg-api.btay74.workers.dev' }}
           FLG_ADMIN_TOKEN: ${{ secrets.FLG_ADMIN_TOKEN }}
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
