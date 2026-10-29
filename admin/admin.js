@@ -171,7 +171,14 @@ function meter(used, limit) {
   return `<div class="meter" role="img" aria-label="${pct(used, limit)} of the free limit"><svg viewBox="0 0 100 10" preserveAspectRatio="none"><rect class="fill ${cls}" x="0" y="0" height="10" width="${(f * 100).toFixed(1)}"></rect></svg></div>`;
 }
 
-const tile = (label, value, sub = '') => `<div class="tile"><div class="label">${esc(label)}</div><div class="value">${value}</div>${sub ? `<div class="sub">${sub}</div>` : ''}</div>`;
+// A tile with a link opens that figure's details; extra data-* attributes ride on the link.
+const tile = (label, value, sub = '', link = null) => {
+  const inner = `<div class="label">${esc(label)}</div><div class="value">${value}</div>${sub ? `<div class="sub">${sub}</div>` : ''}`;
+  if (!link) return `<div class="tile">${inner}</div>`;
+  const { href, data = {} } = typeof link === 'string' ? { href: link } : link;
+  const attrs = Object.entries(data).map(([k, v]) => ` data-${k}="${esc(v)}"`).join('');
+  return `<a class="tile go" href="${esc(href)}"${attrs}>${inner}<span class="more">See details<span aria-hidden="true"> ›</span></span></a>`;
+};
 
 function table(head, rows, empty = 'Nothing yet.', { csv = true } = {}) {
   if (!rows.length) return `<p class="muted">${esc(empty)}</p>`;
@@ -256,23 +263,24 @@ views.overview = async () => {
     ${alertsHtml(al)}
     ${review.length ? `<div class="note">${review.join(' · ')}</div>` : ''}
     <h2>Players</h2>
+    <p class="muted">Select a card to see the details behind it.</p>
     <div class="tiles">
-      ${tile('Accounts', fmt(p.accounts), `${fmt(p.newAccounts.reduce((s, v) => s + v, 0))} new in this period`)}
-      ${tile('Screen names', fmt(p.screenNames), `${fmt(p.newScreenNames)} new in this period`)}
-      ${tile('Scoring players', fmt(p.active7), `last 7 days · ${fmt(p.activePeriod)} in this period`)}
-      ${tile('Banned', fmt(p.banned))}
-      ${tile('Accounts deleted', fmt(p.deletedAccounts), 'in this period')}
+      ${tile('Accounts', fmt(p.accounts), `${fmt(p.newAccounts.reduce((s, v) => s + v, 0))} new in this period`, { href: '#players', data: { 'players-section': 'all' } })}
+      ${tile('Screen names', fmt(p.screenNames), `${fmt(p.newScreenNames)} new in this period`, can('moderator') ? '#names' : { href: '#players', data: { 'players-section': 'all' } })}
+      ${tile('Scoring players', fmt(p.active7), `last 7 days · ${fmt(p.activePeriod)} in this period`, '#details/scoring')}
+      ${tile('Banned', fmt(p.banned), '', { href: '#players', data: { 'players-section': 'blocked' } })}
+      ${tile('Accounts deleted', fmt(p.deletedAccounts), 'in this period', '#details/accounts')}
     </div>
     <h2>Games</h2>
     <p class="muted">${esc(g.note)}</p>
     <div class="tiles">
-      ${tile('Games finished', fmt(plays))}
-      ${tile('Solved', fmt(solved), `${pct(solved, plays)} of games`)}
-      ${tile('Races started', fmt(races), `${fmt(d.races.open)} open now`)}
-      ${tile('Race entries', fmt(d.races.entries), `${fmt(d.races.solved)} solved`)}
-      ${tile('Free voices today', `${fmt(d.voices.today)} <span class="muted">/ ${fmt(d.voices.cap)}</span>`, d.voices.enabled ? meter(d.voices.today, d.voices.cap) : 'Switched off')}
-      ${tile('AI pictures today', `${fmt(d.pictures.today)} <span class="muted">/ ${fmt(d.pictures.cap)}</span>`, d.pictures.mode !== 'none' ? meter(d.pictures.today, d.pictures.cap) : 'Switched off')}
-      ${tile('Error reports', fmt(errors), 'in this period')}
+      ${tile('Games finished', fmt(plays), '', '#details/games')}
+      ${tile('Solved', fmt(solved), `${pct(solved, plays)} of games`, '#details/solved')}
+      ${tile('Races started', fmt(races), `${fmt(d.races.open)} open now`, '#details/races')}
+      ${tile('Race entries', fmt(d.races.entries), `${fmt(d.races.solved)} solved`, '#details/races')}
+      ${tile('Free voices today', `${fmt(d.voices.today)} <span class="muted">/ ${fmt(d.voices.cap)}</span>`, d.voices.enabled ? meter(d.voices.today, d.voices.cap) : 'Switched off', '#details/voices')}
+      ${tile('AI pictures today', `${fmt(d.pictures.today)} <span class="muted">/ ${fmt(d.pictures.cap)}</span>`, d.pictures.mode !== 'none' ? meter(d.pictures.today, d.pictures.cap) : 'Switched off', '#details/pictures')}
+      ${tile('Error reports', fmt(errors), 'in this period', can('moderator') ? '#errortracking' : '#errors')}
     </div>
     <div class="charts">
       ${bars('Games finished per day', g.byDay, { second: g.solvedByDay, labels, names: ['Finished', 'Solved'] })}
@@ -302,6 +310,138 @@ views.overview = async () => {
 const TIER_ORDER = Object.keys(TIER_NAMES);
 const sortTiers = (rows) => [...rows].sort((a, b) => TIER_ORDER.indexOf(a.id) - TIER_ORDER.indexOf(b.id) || String(a.kind).localeCompare(String(b.kind)));
 function setCount(sel, n) { const el = $(sel); el.textContent = n; el.hidden = !n; el.setAttribute('aria-label', `${n} waiting`); }
+
+// ---- Details: what sits behind one Overview card, from the same figures.
+const dayRows = (labels, cols) => [...labels.keys()].reverse().map((i) => [esc(labels[i]), ...cols.map((c) => c(i))]);
+const DETAILS = {
+  games: {
+    title: 'Games finished',
+    intro: 'Every game players shared, solved or not, per day, theme, device and ending.',
+    links: [['#quality', 'Puzzle quality', 'viewer'], ['#ratings', 'Ratings and insights', 'viewer']],
+    render: (d) => {
+      const g = d.games;
+      const plays = g.byDay.reduce((s, v) => s + v, 0);
+      return `<p class="muted">${esc(g.note)}</p>
+        <div class="tiles">${tile('Games finished', fmt(plays))}${tile('Busiest day', fmt(Math.max(0, ...g.byDay)))}${tile('Themes played', fmt(g.byTheme.length))}</div>
+        ${bars('Games finished per day', g.byDay, { second: g.solvedByDay, labels: d.dayList, names: ['Finished', 'Solved'] })}
+        <h2>By theme</h2>
+        ${table([{ label: 'Theme' }, { label: 'Games', num: 1 }, { label: 'Solved', num: 1 }, { label: 'Solve rate', num: 1 }], g.byTheme.map((t) => [esc(t.id), fmt(t.n), fmt(t.solved), pct(t.solved, t.n)]), 'No games shared in this period.')}
+        <div class="charts">
+          <div class="chart"><h3>Platforms</h3>${table([{ label: 'Platform' }, { label: 'Games', num: 1 }], g.byPlatform.map((x) => [esc(x.id), fmt(x.n)]))}</div>
+          <div class="chart"><h3>How games ended</h3>${table([{ label: 'Outcome' }, { label: 'Games', num: 1 }], g.outcomes.map((x) => [esc(x.id), fmt(x.n)]))}</div>
+        </div>
+        <h2>Day by day</h2>
+        ${table([{ label: 'Day (UTC)' }, { label: 'Finished', num: 1 }, { label: 'Solved', num: 1 }], dayRows(d.dayList, [(i) => fmt(g.byDay[i]), (i) => fmt(g.solvedByDay[i])]))}`;
+    },
+  },
+  solved: {
+    title: 'Solved games',
+    intro: 'How many shared games ended solved, how hard each difficulty was, and how hard it felt to players.',
+    links: [['#quality', 'Puzzle quality', 'viewer'], ['#ratings', 'Ratings and insights', 'viewer']],
+    render: (d) => {
+      const g = d.games;
+      const plays = g.byDay.reduce((s, v) => s + v, 0);
+      const solved = g.solvedByDay.reduce((s, v) => s + v, 0);
+      return `<div class="tiles">${tile('Solved', fmt(solved))}${tile('Solve rate', pct(solved, plays), `of ${fmt(plays)} games`)}</div>
+        ${bars('Solved games per day', g.solvedByDay, { labels: d.dayList })}
+        <h2>By difficulty</h2>
+        ${table([{ label: 'Difficulty' }, { label: 'Games', num: 1 }, { label: 'Solved', num: 1 }, { label: 'Solve rate', num: 1 }, { label: 'Minutes', num: 1 }, { label: 'Hints', num: 1 }],
+          sortTiers(g.byTier).map((t) => [esc(TIER_NAMES[t.id] || t.id), fmt(t.n), fmt(t.solved), pct(t.solved, t.n), t.minutes ?? '–', t.hints ?? '–']), 'No games shared in this period.')}
+        <h2>How hard it felt</h2>
+        ${table([{ label: 'Answer' }, { label: 'Games', num: 1 }], g.feel.map((x) => [esc({ easy: 'Too easy', right: 'Just right', hard: 'Too hard' }[x.id] || x.id), fmt(x.n)]), 'No answers in this period.')}
+        <h2>Day by day</h2>
+        ${table([{ label: 'Day (UTC)' }, { label: 'Finished', num: 1 }, { label: 'Solved', num: 1 }, { label: 'Solve rate', num: 1 }], dayRows(d.dayList, [(i) => fmt(g.byDay[i]), (i) => fmt(g.solvedByDay[i]), (i) => pct(g.solvedByDay[i], g.byDay[i])]))}`;
+    },
+  },
+  races: {
+    title: 'Races',
+    intro: 'Races players started in this period, who joined them and how many finished solved.',
+    links: [['#players', 'Players', 'viewer'], ['#settings', 'Settings and switches (races on or off)', 'viewer']],
+    render: (d) => {
+      const r = d.races;
+      return `<div class="tiles">${tile('Races started', fmt(r.byDay.reduce((s, v) => s + v, 0)))}${tile('Open now', fmt(r.open))}${tile('Race entries', fmt(r.entries))}${tile('Entries finished', fmt(r.finished), pct(r.finished, r.entries) + ' of entries')}${tile('Entries solved', fmt(r.solved), pct(r.solved, r.entries) + ' of entries')}</div>
+        ${bars('Races started per day', r.byDay, { labels: d.dayList })}
+        <h2>Race solves by difficulty</h2>
+        ${table([{ label: 'Difficulty' }, { label: 'Solves', num: 1 }, { label: 'Average points', num: 1 }], sortTiers(d.scores.byTier.filter((t) => t.kind === 'race')).map((t) => [esc(TIER_NAMES[t.id] || t.id), fmt(t.n), fmt(t.points)]), 'No race scores in this period.')}
+        <h2>Day by day</h2>
+        ${table([{ label: 'Day (UTC)' }, { label: 'Races started', num: 1 }], dayRows(d.dayList, [(i) => fmt(r.byDay[i])]))}`;
+    },
+  },
+  scoring: {
+    title: 'Scoring players',
+    intro: 'Signed-in players who posted a score to the scoreboard, with scores and points per day.',
+    links: [['#players', 'Players', 'viewer'], ['#badges', 'Badges', 'viewer']],
+    render: (d) => {
+      const p = d.players;
+      const s = d.scores;
+      return `<div class="tiles">${tile('Last 7 days', fmt(p.active7), 'players who scored')}${tile('This period', fmt(p.activePeriod), 'players who scored')}${tile('Scores posted', fmt(s.byDay.reduce((a, v) => a + v, 0)))}${tile('Points earned', fmt(s.pointsByDay.reduce((a, v) => a + v, 0)))}</div>
+        ${bars('Scores posted per day', s.byDay, { labels: d.dayList })}
+        <h2>Scoreboard solves by difficulty</h2>
+        ${table([{ label: 'Difficulty' }, { label: 'Kind' }, { label: 'Solves', num: 1 }, { label: 'Average points', num: 1 }],
+          sortTiers(s.byTier).map((t) => [esc(TIER_NAMES[t.id] || t.id), t.kind === 'race' ? 'Race' : 'Solo', fmt(t.n), fmt(t.points)]), 'No scores in this period.')}
+        <h2>Day by day</h2>
+        ${table([{ label: 'Day (UTC)' }, { label: 'Scores', num: 1 }, { label: 'Points', num: 1 }], dayRows(d.dayList, [(i) => fmt(s.byDay[i]), (i) => fmt(s.pointsByDay[i])]))}`;
+    },
+  },
+  accounts: {
+    title: 'Accounts',
+    intro: 'Accounts made and deleted in this period. A deleted account is only counted: its saves, screen name and scores are removed, and nobody can look it up afterwards.',
+    links: [['#players', 'Players', 'viewer'], ['#visitors', 'Visitors', 'viewer']],
+    render: (d) => {
+      const p = d.players;
+      const made = p.newAccounts.reduce((s, v) => s + v, 0);
+      return `<div class="tiles">${tile('Accounts now', fmt(p.accounts))}${tile('New in this period', fmt(made))}${tile('Deleted in this period', fmt(p.deletedAccounts))}${tile('Change', `${made - p.deletedAccounts >= 0 ? '+' : ''}${fmt(made - p.deletedAccounts)}`, 'new minus deleted')}</div>
+        ${bars('New accounts per day', p.newAccounts, { labels: d.dayList })}
+        <h2>Day by day</h2>
+        ${table([{ label: 'Day (UTC)' }, { label: 'New accounts', num: 1 }], dayRows(d.dayList, [(i) => fmt(p.newAccounts[i])]))}`;
+    },
+  },
+  voices: {
+    title: 'Free voices',
+    intro: 'Voice clips the game\'s server made for players each day, against the daily cap. Past the cap, players hear the offline voices instead.',
+    links: [['#settings', 'Settings and switches (voice cap)', 'viewer'], ['#usage', 'Usage and free limits', 'viewer']],
+    render: (d) => {
+      const v = d.voices;
+      return `<div class="tiles">${tile('Today', `${fmt(v.today)} <span class="muted">/ ${fmt(v.cap)}</span>`, v.enabled ? meter(v.today, v.cap) : 'Switched off')}${tile('This period', fmt(v.byDay.reduce((s, x) => s + x, 0)))}${tile('Days at the cap', fmt(v.byDay.filter((x) => v.cap && x >= v.cap).length))}</div>
+        ${bars('Free voice clips per day', v.byDay, { cap: v.cap, labels: d.dayList, names: ['Clips made'] })}
+        <h2>Day by day</h2>
+        ${table([{ label: 'Day (UTC)' }, { label: 'Clips', num: 1 }, { label: 'Of the cap' }], dayRows(d.dayList, [(i) => fmt(v.byDay[i]), (i) => meter(v.byDay[i], v.cap)]))}`;
+    },
+  },
+  pictures: {
+    title: 'AI pictures',
+    intro: 'Pictures drawn with Cloudflare Workers AI\'s free allowance each day, against the daily cap.',
+    links: [['#settings', 'Settings and switches (picture cap)', 'viewer'], ['#usage', 'Usage and free limits', 'viewer']],
+    render: (d) => {
+      const v = d.pictures;
+      return `<div class="tiles">${tile('Today', `${fmt(v.today)} <span class="muted">/ ${fmt(v.cap)}</span>`, v.mode !== 'none' ? meter(v.today, v.cap) : 'Switched off')}${tile('This period', fmt(v.byDay.reduce((s, x) => s + x, 0)))}${tile('Days at the cap', fmt(v.byDay.filter((x) => v.cap && x >= v.cap).length))}</div>
+        ${bars('AI pictures per day', v.byDay, { cap: v.cap, labels: d.dayList, names: ['Pictures made'] })}
+        <h2>Day by day</h2>
+        ${table([{ label: 'Day (UTC)' }, { label: 'Pictures', num: 1 }, { label: 'Of the cap' }], dayRows(d.dayList, [(i) => fmt(v.byDay[i]), (i) => meter(v.byDay[i], v.cap)]))}`;
+    },
+  },
+};
+views.details = async ({ arg } = {}) => {
+  const def = DETAILS[arg];
+  if (!def) { location.hash = 'overview'; return; }
+  $('#h-details').textContent = def.title;
+  $('#dt-intro').textContent = def.intro;
+  $('#dt-body').innerHTML = '<p class="muted">Loading…</p>';
+  if (document.activeElement !== $('#dt-days')) $('#h-details').focus();
+  const d = await api(`analytics?days=${$('#dt-days').value}`);
+  const links = def.links.filter(([, , role]) => can(role)).map(([href, label]) => `<a href="${href}">${esc(label)}</a>`);
+  $('#dt-body').innerHTML = `${def.render(d)}
+    ${links.length ? `<p>More: ${links.join(' · ')}</p>` : ''}
+    <p class="muted">Updated ${when(d.generatedAt)}.</p>`;
+};
+$('#dt-days').onchange = () => { $('#ov-days').value = $('#dt-days').value; show(location.hash.slice(1), { keepFocus: true }); };
+// Players cards open Players on the matching section.
+document.addEventListener('click', (e) => {
+  const a = e.target.closest('a[data-players-section]');
+  if (!a) return;
+  playerList.section = a.dataset.playersSection;
+  playerList.page = 1;
+});
 
 // ---- Visitors: anonymous daily counts of people opening the game (visits.js).
 const VIS_NAMES = {
@@ -1392,7 +1532,7 @@ $('#search-refresh').onclick = async (e) => {
   if (await act(e.currentTarget, () => api('search/refresh', { method: 'POST' }), 'Fetched the latest numbers.')) show('search', { keepFocus: true });
 };
 
-$('#ov-days').onchange = () => show('overview');
+$('#ov-days').onchange = () => { $('#dt-days').value = $('#ov-days').value; show('overview'); };
 $('#vis-days').onchange = () => show('visitors');
 
 // ---- Daily puzzles: preview the coming days and plan changes.
@@ -1508,7 +1648,7 @@ views.mail = () => puzzleMailView();
 initPuzzleMail({ api, esc, fmt, when, tile, table, can, act, ask, toast, show });
 
 // ------------------------------------------------------------- navigation
-const MIN_ROLE = Object.fromEntries($$('#nav-list a').map((a) => [a.hash.slice(1), a.dataset.min]));
+const MIN_ROLE = { ...Object.fromEntries($$('#nav-list a').map((a) => [a.hash.slice(1), a.dataset.min])), details: 'viewer' };
 
 // Older links: the idea and problem inbox, error reports and announcements now live in Communication.
 const ALIASES = { feedback: { type: 'idea' }, errors: { type: 'error' }, announcements: { tab: 'send' } };
@@ -1526,7 +1666,9 @@ async function show(route, { keepFocus = false } = {}) {
   }
   if (!views[name] || !can(MIN_ROLE[name])) name = 'overview';
   $$('[data-view]').forEach((s) => { s.hidden = s.dataset.view !== name; });
-  $$('#nav-list a').forEach((a) => (a.hash === `#${name}` ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current')));
+  // Details pages belong under Overview in the menu.
+  const navName = name === 'details' ? 'overview' : name;
+  $$('#nav-list a').forEach((a) => (a.hash === `#${navName}` ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current')));
   try { await views[name]({ arg }); } catch (e) {
     if (e.code === 'sign_in') return;
     const sec = $(`[data-view="${name}"]`);

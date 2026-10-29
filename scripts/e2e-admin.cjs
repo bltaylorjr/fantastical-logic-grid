@@ -142,6 +142,39 @@ const SHOTS = process.env.SHOTS;
     assert(await page.locator('[data-view="overview"]').isVisible() && page.url().endsWith('#overview'), 'Home on the overview stays on the overview');
     await shot(page, '1-overview');
 
+    // Every Overview card opens the details for that figure, by mouse or keyboard.
+    const cards = await page.locator('#ov-body a.tile').count();
+    assert(cards === (await page.locator('#ov-body .tile').count()) && cards >= 12, 'every Overview card is a link');
+    await page.click('#ov-body a.tile[href="#details/voices"]');
+    await page.waitForSelector('[data-view="details"]:not([hidden]) #dt-body svg[role=img]');
+    await shot(page, '1b-details');
+    assert((await page.textContent('#h-details')) === 'Free voices' && /140/.test(await page.textContent('#dt-body')), 'the voices card opens the voice details');
+    assert(await page.evaluate(() => document.activeElement.id === 'h-details'), 'the details heading takes focus');
+    assert((await page.getAttribute('#nav-list a[href="#overview"]', 'aria-current')) === 'page', 'Overview stays marked in the menu on a details page');
+    await page.selectOption('#dt-days', '7');
+    await page.waitForFunction(() => /Day by day/.test(document.querySelector('#dt-body').textContent) && document.querySelectorAll('#dt-body tbody tr').length === 7);
+    await page.click('[data-view="details"] a[href="#overview"]');
+    await page.waitForSelector('[data-view="overview"]:not([hidden]) a.tile');
+    assert((await page.inputValue('#ov-days')) === '7', 'the period carries back to the Overview');
+    await page.selectOption('#ov-days', '30');
+    await page.waitForSelector('#ov-body a.tile[href="#details/games"]');
+    await page.focus('#ov-body a.tile[href="#details/games"]');
+    await page.keyboard.press('Enter');
+    await page.waitForFunction(() => document.querySelector('#h-details').textContent === 'Games finished' && /Day by day/.test(document.querySelector('#dt-body').textContent));
+    assert(/mystery/.test(await page.textContent('#dt-body')), 'Enter on a card opens its details');
+    for (const key of ['solved', 'races', 'scoring', 'accounts', 'pictures']) {
+      await page.evaluate((k) => { location.hash = `details/${k}`; }, key);
+      await page.waitForFunction(() => /Day by day/.test(document.querySelector('#dt-body').textContent));
+    }
+    await page.click('#home');
+    await page.waitForSelector('#ov-body a.tile[data-players-section="blocked"]');
+    await page.click('#ov-body a.tile[data-players-section="blocked"]');
+    await page.waitForSelector('[data-view="players"]:not([hidden])');
+    await page.waitForFunction(() => document.querySelector('#players-sections [data-section="blocked"]').getAttribute('aria-pressed') === 'true');
+    await page.click('#players-sections [data-section="all"]');
+    await page.click('#home');
+    await page.waitForSelector('[data-view="overview"]:not([hidden]) a.tile');
+
     await page.click('a[href="#stories"]');
     await page.waitForSelector('#parts-list button[data-status=approved]');
     await page.click('#parts-list button[data-status=approved]');
