@@ -40,7 +40,7 @@
   </div>
   <div class="menu" id="app-menu" role="menu" hidden>
     <button role="menuitem" type="button" data-cmd="new">New puzzle</button>
-    <button role="menuitem" type="button" data-cmd="saved">Saved puzzles</button>
+    <button role="menuitem" type="button" data-cmd="saved">Saved Puzzles</button>
     <button role="menuitem" type="button" data-cmd="daily">Daily puzzle</button>
     <button role="menuitem" type="button" data-cmd="mail" hidden>Puzzle emails</button>
     <button role="menuitem" type="button" data-cmd="stats">My stats and badges</button>
@@ -183,7 +183,7 @@
 
     <section class="card saved-card" id="saved-section" aria-labelledby="saved-h">
       <div class="saved-head">
-        <h2 id="saved-h">Saved puzzles</h2>
+        <h2 id="saved-h">Saved Puzzles <span class="new-count" id="saved-new" hidden></span></h2>
         <div class="saved-tools">
           <button class="btn quiet small" type="button" id="import-btn">Open a puzzle file</button>
           <input type="file" id="import-file" accept=".json,.flg.json,application/json" hidden>
@@ -195,6 +195,10 @@
       </div>
       <p class="muted" id="saved-empty">Your puzzles save automatically on this device. Start one and it will appear here.</p>
       <ul class="saved-list" id="saved-list"></ul>
+      <details class="saved-done" id="saved-done" hidden>
+        <summary><span>Completed puzzles (<span id="saved-done-count">0</span>)</span></summary>
+        <ul class="saved-list" id="saved-done-list"></ul>
+      </details>
     </section>
 
     </div>
@@ -321,7 +325,7 @@
     <div class="solved-actions">
       <button class="btn primary" type="button" id="next-btn">New puzzle</button>
       <button class="btn" type="button" data-act="print"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg> Print</button>
-      <button class="btn" type="button" id="back-saved">Saved puzzles</button>
+      <button class="btn" type="button" id="back-saved">Saved Puzzles</button>
     </div>
   </section>
 </main>

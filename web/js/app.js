@@ -522,11 +522,43 @@ function newSave(puzzle) {
 // ====================================================================
 // Saved puzzles
 // ====================================================================
+// Saved Puzzles: puzzles in progress, newest first, with a count of new ones
+// (a puzzle someone sent, like the one made from a player's approved storyline,
+// that has not been opened yet). Finished puzzles leave the list for
+// "Completed puzzles" below it, where they can still be opened or deleted.
+// Puzzles in progress, and the one made from the player's own storyline, can
+// be downloaded; other finished puzzles can only be opened or deleted.
+const isNewSave = (s) => !!(s.gift || s.unread) && !s.openedAt && !s.solved;
+function savedItem(s, fmt) {
+  const p = s.puzzle;
+  const pct = s.solved ? 100 : s.percent || 0;
+  const state = s.solved ? (s.revealed ? 'Solution revealed' : 'Solved') : `${pct}% complete`;
+  const pills = [
+    isNewSave(s) ? '<span class="pill new">New</span>' : '',
+    s.gift ? '<span class="pill">From your storyline</span>' : '',
+    s.race ? `<span class="pill">Race ${esc(s.race.code)}</span>` : '',
+    s.daily ? `<span class="pill">Daily ${esc(daily.longDate(s.daily))}</span>` : '',
+    s.editionLabel ? `<span class="pill">${esc(s.editionLabel)}</span>` : '',
+    (s.myNotes || '').trim() ? '<span class="pill">Has notes</span>' : '',
+  ].filter(Boolean).join(' ');
+  return `<li class="saved-item${isNewSave(s) ? ' is-new' : ''}" data-id="${s.id}">
+      <h3 class="name">${esc(s.name)}</h3>
+      <div class="info">${pills ? `${pills} ` : ''}${esc(p.theme.name)} · ${esc(p.difficulty.name)} · ${p.categories.length} × ${p.categories[0].items.length} · ${state}<br>${s.openedAt || !isNewSave(s) ? `Last played ${esc(fmt.format(new Date(s.lastPlayed)))}` : `Arrived ${esc(fmt.format(new Date(s.created || s.lastPlayed)))}`}</div>
+      <div class="bar" role="img" aria-label="${state}"><i style="width:${pct}%"></i></div>
+      <div class="row">
+        <button class="btn primary small" type="button" data-do="resume">Open<span class="sr-only"> ${esc(s.name)}</span></button>
+        ${(s.gift || !s.solved) && !isPreview ? `<button class="btn small" type="button" data-do="export">Download<span class="sr-only"> ${esc(s.name)}</span></button>` : ''}
+        <button class="btn small" type="button" data-do="delete">Delete<span class="sr-only"> ${esc(s.name)}</span></button>
+      </div></li>`;
+}
+
 async function renderSaved() {
   let saves = [];
   try { saves = await store.listSaves(); } catch (e) { $('#saved-empty').textContent = 'Saved puzzles could not be loaded on this device.'; }
-  saves.sort((a, b) => b.lastPlayed - a.lastPlayed);
-  const last = saves.find((x) => !x.solved);
+  saves.sort((a, b) => (isNewSave(b) - isNewSave(a)) || b.lastPlayed - a.lastPlayed);
+  const active = saves.filter((x) => !x.solved);
+  const done = saves.filter((x) => x.solved).sort((a, b) => (b.completedAt || b.lastPlayed) - (a.completedAt || a.lastPlayed));
+  const last = active.find((x) => !isNewSave(x)) || active[0];
   $('#continue-btn').hidden = !last;
   // With nothing to continue, the quick puzzle is the main way in.
   $('#quick-btn').classList.toggle('primary', !last);
@@ -534,24 +566,20 @@ async function renderSaved() {
     $('#continue-btn').dataset.id = last.id;
     $('#continue-name').textContent = `${last.name} · ${last.percent || 0}%`;
   }
-  $('#saved-empty').hidden = saves.length > 0;
-  $('#saved-empty').textContent = signedIn() ? 'Your puzzles save automatically and sync to your account. Start one and it will appear here.' : 'Your puzzles save automatically on this device. Start one and it will appear here.';
+  const fresh = active.filter(isNewSave).length;
+  $('#saved-new').hidden = !fresh;
+  $('#saved-new').textContent = `${fresh} new`;
+  const menuItem = $('#app-menu [data-cmd=saved]');
+  if (menuItem) menuItem.textContent = fresh ? `Saved Puzzles (${fresh} new)` : 'Saved Puzzles';
+  $('#saved-empty').hidden = active.length > 0;
+  $('#saved-empty').textContent = done.length
+    ? 'No puzzles in progress. Finished ones are under Completed puzzles below.'
+    : signedIn() ? 'Your puzzles save automatically and sync to your account. Start one and it will appear here.' : 'Your puzzles save automatically on this device. Start one and it will appear here.';
   const fmt = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' });
-  $('#saved-list').innerHTML = saves.map((s) => {
-    const p = s.puzzle;
-    const pct = s.solved ? 100 : s.percent || 0;
-    const state = s.solved ? (s.revealed ? 'Solution revealed' : 'Solved') : `${pct}% complete`;
-    return `<li class="saved-item" data-id="${s.id}">
-      <h3 class="name">${esc(s.name)}</h3>
-      <div class="info">${s.race ? `<span class="pill">Race ${esc(s.race.code)}</span> ` : ''}${s.daily ? `<span class="pill">Daily ${esc(daily.longDate(s.daily))}</span> ` : ''}${s.editionLabel ? `<span class="pill">${esc(s.editionLabel)}</span> ` : ''}${(s.myNotes || '').trim() ? '<span class="pill">Has notes</span> ' : ''}${esc(p.theme.name)} · ${esc(p.difficulty.name)} · ${p.categories.length} × ${p.categories[0].items.length} · ${state}<br>Last played ${esc(fmt.format(new Date(s.lastPlayed)))}</div>
-      <div class="bar" role="img" aria-label="${state}"><i style="width:${pct}%"></i></div>
-      <div class="row">
-        <button class="btn primary small" type="button" data-do="resume">${s.solved ? 'Open' : 'Resume'}<span class="sr-only"> ${esc(s.name)}</span></button>
-        <button class="btn small" type="button" data-do="rename">Rename<span class="sr-only"> ${esc(s.name)}</span></button>
-        ${isPreview ? '' : `<button class="btn small" type="button" data-do="export">Save to file<span class="sr-only"> ${esc(s.name)}</span></button>`}
-        <button class="btn small" type="button" data-do="delete">Delete<span class="sr-only"> ${esc(s.name)}</span></button>
-      </div></li>`;
-  }).join('');
+  $('#saved-list').innerHTML = active.map((s) => savedItem(s, fmt)).join('');
+  $('#saved-done').hidden = !done.length;
+  $('#saved-done-count').textContent = String(done.length);
+  $('#saved-done-list').innerHTML = done.map((s) => savedItem(s, fmt)).join('');
 }
 
 $('#continue-btn').onclick = async () => {
@@ -560,8 +588,8 @@ $('#continue-btn').onclick = async () => {
 };
 $('#hero-new').onclick = () => { $('#setup-h').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); $('#setup-h').tabIndex = -1; $('#setup-h').focus({ preventScroll: true }); };
 
-$('#saved-list').addEventListener('click', async (e) => {
-  const b = e.target.closest('button[data-do]');
+$('#saved-section').addEventListener('click', async (e) => {
+  const b = e.target.closest('.saved-item button[data-do]');
   if (!b) return;
   const li = b.closest('li');
   const id = li.dataset.id;
@@ -643,6 +671,8 @@ $('#import-file').onchange = async (e) => {
 // ====================================================================
 function openGame(save, { fresh = false } = {}) {
   closeGame();
+  // A new puzzle in Saved Puzzles stops counting as new once it is opened.
+  if (!save.openedAt) { save.openedAt = Date.now(); store.putSave(save).catch(() => {}); }
   campaign.played();
   const puzzle = save.puzzle;
   const ix = puzzleIndex(puzzle);
