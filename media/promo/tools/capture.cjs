@@ -336,7 +336,10 @@ const INIT = (Z) => {
       await p.evaluate(() => { const b = document.querySelector('#stats-body'); b.scrollTo({ top: b.scrollHeight, behavior: 'smooth' }); });
       await wait(1600);
     });
-    await p.click('#stats-close').catch(() => {}); await wait(300);
+    // Close it for sure before printing (a dialog left open would block the next clip).
+    await p.evaluate(() => { const d = document.querySelector('#dlg-stats'); if (d && d.open) d.close(); });
+    await p.waitForFunction(() => !document.querySelector('dialog[open]'), null, { timeout: 5000 }).catch(() => {});
+    await prep(); await wait(300);
 
     // ---------- Print
     await top();
@@ -453,7 +456,7 @@ const INIT = (Z) => {
       await p.locator('#idea-text').pressSequentially('A lighthouse keeper finds the great lantern switched off on the stormiest night of the year...', { delay: 38 });
       await wait(1500);
     });
-    await p.keyboard.press('Escape');
+    await p.evaluate(() => { const d = document.querySelector('#dlg-feedback'); if (d && d.open) d.close(); });
     await top(); await wait(500);
     await film('home-signed-in', async () => { await wait(2200); });
 
