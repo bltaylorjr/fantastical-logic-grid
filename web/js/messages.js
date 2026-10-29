@@ -4,6 +4,10 @@
 // Communication section and is always shown as "The team". Talks to the
 // shared Worker (server/src/messages.js); news comes with GET /v1/config.
 //
+// Puzzles for you: puzzles the team made for this player (usually from their
+// suggestion), kept on the server for 30 days. Play opens one as a saved
+// puzzle on this device; Download saves it as a puzzle file.
+//
 // The Menu button and the Messages item show how many things are new: team
 // replies the player has not opened, and news not seen on this device.
 import { CLOUD_URL } from './cloud-config.js';
@@ -17,8 +21,8 @@ const SEEN_NEWS = 'seenNews';
 const EVERY_MS = 10 * 60_000;
 const TOPICS = { question: 'A question', idea: 'An idea', problem: 'A problem', team: 'From the team' };
 
-let state = { conversations: [], unread: 0, email: false, banned: false, loaded: false };
-let deps = { openDialog: () => {}, openAccount: () => {}, announce: () => {} };
+let state = { conversations: [], puzzles: [], unread: 0, email: false, banned: false, loaded: false };
+let deps = { openDialog: () => {}, openAccount: () => {}, announce: () => {}, playPuzzle: async () => {}, downloadPuzzle: () => {} };
 let lastFetch = 0;
 
 export const available = () => !!CLOUD_URL && feature('messages');
@@ -60,10 +64,10 @@ function renderBadges() {
 }
 
 export async function refresh({ quiet = true } = {}) {
-  if (!available() || !account.current()) { state = { conversations: [], unread: 0, email: false, banned: false, loaded: false }; renderBadges(); return; }
+  if (!available() || !account.current()) { state = { conversations: [], puzzles: [], unread: 0, email: false, banned: false, loaded: false }; renderBadges(); return; }
   try {
     const d = await call('');
-    state = { conversations: d.conversations || [], unread: d.unread || 0, email: !!d.email, banned: !!d.banned, loaded: true, off: !!d.off };
+    state = { conversations: d.conversations || [], puzzles: d.puzzles || [], unread: d.unread || 0, email: !!d.email, banned: !!d.banned, loaded: true, off: !!d.off };
     lastFetch = Date.now();
   } catch (e) {
     if (!quiet) throw e;
@@ -90,6 +94,38 @@ function renderConversations() {
   </details></li>`).join('');
 }
 
+const TIERS = { basic: 'Basic', easy: 'Easy', medium: 'Medium', hard: 'Hard', expert: 'Expert', mensa: 'Quantum Physicist' };
+const day = (ms) => new Date(ms).toLocaleDateString([], { dateStyle: 'medium' });
+
+function renderPuzzles() {
+  const box = $('#msg-puzzles-box');
+  if (!box) return;
+  box.hidden = !state.puzzles.length;
+  $('#msg-puzzles').innerHTML = state.puzzles.map((p) => `<li data-puzzle="${Number(p.id)}">
+    <p><b>${esc(p.title)}</b> ${p.openedAt ? '' : '<span class="pill new">New</span>'}</p>
+    <p class="help">${esc(TIERS[p.tier] || '')}${p.tier ? ' · ' : ''}From the team on ${esc(day(p.at))} · kept until ${esc(day(p.expiresAt))}</p>
+    <div class="row-inline"><button class="btn primary small" type="button" data-pz="play">Play</button><button class="btn small" type="button" data-pz="download">Download</button></div>
+    <div class="error-box" role="alert" hidden></div>
+  </li>`).join('');
+}
+
+async function usePuzzle(btn) {
+  const li = btn.closest('[data-puzzle]');
+  const id = Number(li.dataset.puzzle);
+  const err = $('.error-box', li);
+  err.hidden = true;
+  btn.disabled = true;
+  try {
+    const d = await call(`/puzzles/${id}`);
+    if (btn.dataset.pz === 'play') { $('#dlg-messages').close(); await deps.playPuzzle(d.puzzle, id); } else deps.downloadPuzzle(d.puzzle);
+    const p = state.puzzles.find((x) => x.id === id);
+    if (p && !p.openedAt) { p.openedAt = Date.now(); $('.pill.new', li)?.remove(); call(`/puzzles/${id}/opened`, {}).catch(() => {}); }
+  } catch (e) {
+    err.textContent = navigator.onLine === false ? 'You seem to be offline. Connect to the internet and try again.' : e.message;
+    err.hidden = false;
+  } finally { btn.disabled = false; }
+}
+
 function renderNews() {
   const items = news();
   const seen = seenNews();
@@ -103,7 +139,8 @@ function render() {
   const me = account.current();
   $('#msg-signed-out').hidden = !!me;
   $('#msg-signed-in').hidden = !me;
-  if (!me) return;
+  if (!me) { $('#msg-puzzles-box').hidden = true; return; }
+  renderPuzzles();
   renderConversations();
   const box = $('#msg-email-on');
   box.checked = state.email;
@@ -190,6 +227,7 @@ function wire(dlg) {
   $('#msg-convs').addEventListener('submit', (e) => { if (e.target.matches('.msg-reply')) { e.preventDefault(); sendReply(e.target); } });
   $('#msg-convs').addEventListener('toggle', (e) => { if (e.target.matches('details')) markRead(e.target); }, true);
   $('#msg-email-on').onchange = (e) => setEmail(e.target);
+  $('#msg-puzzles').addEventListener('click', (e) => { const b = e.target.closest('button[data-pz]'); if (b) usePuzzle(b); });
   // News counts as seen once the player has had Messages open.
   dlg.addEventListener('close', () => { store.setLocal(SEEN_NEWS, news().map((n) => n.id)); renderBadges(); });
 }
