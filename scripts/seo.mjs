@@ -211,7 +211,6 @@ export async function buildSeo({ root, site }) {
   const pages = []; // { path, lastmod, priority }
   const quality = await readQuality(base);
   const socialList = await readSocial();
-  const socialIcon = (id) => existsSync(join(root, 'web', 'icons', 'social', `${id}.svg`));
 
   // ---------- shared layout ----------
   const verification = [
@@ -300,7 +299,7 @@ ${body(up)}
   <p><a href="${up}">Play ${name}</a> · free in your browser, offline-ready, and on Windows.</p>
   <p>Every puzzle has exactly one answer, checked by our solver${quality.rating ? `, and players rate them ${quality.rating.average} out of 5 stars` : ''}. <a href="${up}picks/">Hand-picked puzzles</a></p>
   <p>${NAV.map(([p, n]) => `<a href="${up}${p}">${n}</a>`).join(' · ')} · <a href="${up}privacy/">Privacy</a></p>
-  ${socialList.length ? `<div class="foot-social"><p>Follow the game</p>${socialPages.socialHtml(socialList, { iconBase: `${up}icons/social/`, hasIcon: socialIcon })}</div>` : ''}
+  ${socialList.length ? `<div class="foot-social"><p>Follow the game</p>${socialPages.socialHtml(socialList)}</div>` : ''}
   <p><button class="btn quiet report-btn" type="button" data-report-problem hidden>Report a Problem</button></p>
   <p class="muted">${copyright} ${trademark} <a href="${up}terms/">Terms of use</a></p>
 </footer>

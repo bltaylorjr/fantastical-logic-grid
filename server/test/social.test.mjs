@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { SETTINGS, checkSetting } from '../src/settings.js';
-import { socialLinks, socialHtml, DEFAULT_LINKS } from '../../web/js/social.js';
+import { socialLinks, socialHtml, DEFAULT_LINKS, NETWORKS, ICONS } from '../../web/js/social.js';
 
 test('each network has a setting; Facebook starts with the launch page', () => {
   assert.equal(SETTINGS.social_facebook.default, DEFAULT_LINKS.facebook);
@@ -24,6 +24,12 @@ test('the footers show only networks with a link, in a fixed order', () => {
   assert.deepEqual(list.map((s) => s.id), ['facebook', 'youtube']);
   const html = socialHtml(list);
   assert.match(html, /rel="me noopener" target="_blank"/);
-  assert.doesNotMatch(html, /<img/, 'names only until an icon file is added');
+  assert.doesNotMatch(html, /<img/, 'icons are drawn inline, no extra files');
+  assert.match(html, /<svg [^>]*aria-hidden="true"/);
+  assert.match(html, /<span class="sr-only">Facebook \(opens in a new tab\)<\/span>/);
   assert.equal(socialHtml([]), '');
+});
+
+test('every network has an inline icon', () => {
+  for (const n of NETWORKS) assert.match(ICONS[n.id] || '', /^M/, n.id);
 });
