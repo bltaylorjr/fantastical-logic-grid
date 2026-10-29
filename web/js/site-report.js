@@ -27,13 +27,14 @@ function build() {
     <p class="help" id="site-report-count" aria-live="polite">0 of 1,000 characters</p>
     <p class="error" role="alert" hidden></p>
     <p class="done" role="status"></p>
-    <div class="report-actions"><button class="btn" type="submit">Send report</button> <button class="btn quiet" type="button" data-close>Close</button></div>
+    <div class="report-actions"><button class="btn" type="submit">Submit</button> <button class="btn quiet" type="button" data-close>Cancel</button></div>
   </form>`;
   document.body.append(dlg);
   const text = dlg.querySelector('textarea');
   const count = () => { dlg.querySelector('#site-report-count').textContent = `${text.value.length.toLocaleString()} of ${MAX.toLocaleString()} characters`; };
   text.addEventListener('input', count);
-  dlg.querySelector('[data-close]').addEventListener('click', () => dlg.close());
+  // Cancel: close without sending, and drop what was typed.
+  dlg.querySelector('[data-close]').addEventListener('click', () => { text.value = ''; count(); dlg.close(); });
   dlg.querySelector('form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const err = dlg.querySelector('.error');

@@ -90,7 +90,8 @@ export function open(ctx = {}) {
     $('#report-form').addEventListener('submit', (e) => { e.preventDefault(); send(e.currentTarget); });
     $('.report-kind').addEventListener('change', about);
     $('#report-text').addEventListener('input', count);
-    $('[data-close]', dlg).onclick = () => dlg.close();
+    // Cancel: close without sending, and drop what was typed.
+    $('[data-close]', dlg).onclick = () => { $('#report-text').value = ''; count(); dlg.close(); };
     $('#report-signin-btn').onclick = () => { dlg.close(); deps.openAccount(); };
   }
   const me = account.current();
