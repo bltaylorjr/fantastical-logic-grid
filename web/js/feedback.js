@@ -22,6 +22,7 @@ const $ = (s, el = document) => el.querySelector(s);
 
 const REPLY_WORDS = {
   queued: 'We\'ll email you a thank-you note soon.',
+  story: 'We\'ll email you once the team has read your storyline. If we use it, the email brings the first puzzle made from it.',
   unverified: 'To get email updates, confirm your email address first (Account).',
   limit: 'You already got a thank-you email today, so we won\'t send another.',
 };
@@ -59,7 +60,7 @@ async function send(form) {
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.message || 'It could not be sent right now. Please try again later.');
     $('textarea', form).value = '';
-    done.textContent = (kind === 'idea' ? 'Thank you! Your idea was sent.' : 'Thank you! Your report was sent.') + (REPLY_WORDS[data.reply] ? ` ${REPLY_WORDS[data.reply]}` : '') + (data.update ? ` ${UPDATE_WORDS}` : '') + (TALK_WORDS[data.talk] ? ` ${TALK_WORDS[data.talk]}` : '');
+    done.textContent = (kind === 'idea' ? 'Thank you! Your idea was sent.' : 'Thank you! Your report was sent.') + (REPLY_WORDS[data.reply] ? ` ${REPLY_WORDS[data.reply]}` : '') + (data.update && data.reply !== 'story' ? ` ${UPDATE_WORDS}` : '') + (TALK_WORDS[data.talk] ? ` ${TALK_WORDS[data.talk]}` : '');
   } catch (e) {
     err.textContent = navigator.onLine === false ? 'You seem to be offline. Connect to the internet and try again.' : e.message;
     err.hidden = false;

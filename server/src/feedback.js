@@ -66,7 +66,7 @@ async function postFeedback(req, env) {
     .bind(kind, topic, text, platform, version, theme, Date.now()).first();
   let reply = 'none';
   let update = false;
-  try { ({ reply, update } = await queueReply(req, env, kind, body.reply === true, text, row.id)); } catch (e) { console.error(e); reply = 'error'; }
+  try { ({ reply, update } = await queueReply(req, env, kind, body.reply === true, text, row.id, Date.now(), { topic })); } catch (e) { console.error(e); reply = 'error'; }
   let talk = 'none';
   if (body.talk === true) {
     const token = (req.headers.get('Authorization') || '').match(/^Bearer\s+(.+)$/)?.[1];
