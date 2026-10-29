@@ -1,5 +1,9 @@
 // The interactive staircase grid: rendering, roving focus, keyboard, pointer
-// and the long-press / right-click cell menu. Game rules live in app.js; this
+// and the long-press / right-click cell menu. A small red "?" in a cell's top
+// right corner is the player's own reminder ("come back to this"): tap the
+// corner of an empty cell, press Q, or choose it in the cell menu (the ? key
+// itself opens the list of keys). It
+// never counts as a mark and only empty cells can have one. Game rules live in app.js; this
 // module only reports what the player asked for through the handlers.
 
 export const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -70,13 +74,16 @@ export function createGrid(frame, puzzle, ix, handlers) {
   function paint(k, state, flags = {}) {
     const td = cells.get(k);
     if (!td) return;
-    td.innerHTML = (state === 'O' ? SVG_O : state === 'X' || state === 'A' ? SVG_X(state === 'A') : '') + (flags.wrong ? '<span class="warn-ico" aria-hidden="true">⚠</span>' : '');
+    const query = !!flags.query && !state;
+    td.innerHTML = (state === 'O' ? SVG_O : state === 'X' || state === 'A' ? SVG_X(state === 'A') : '') + (flags.wrong ? '<span class="warn-ico" aria-hidden="true">⚠</span>' : '')
+      + (query ? '<span class="q-mark" aria-hidden="true">?</span>' : '');
+    td.classList.toggle('m-q', query);
     td.classList.toggle('m-x', state === 'X' || state === 'A');
     td.classList.toggle('m-o', state === 'O');
     td.classList.toggle('auto', state === 'A');
     td.classList.toggle('wrong', !!flags.wrong);
     td.classList.toggle('target', !!flags.target);
-    td.setAttribute('aria-label', nameOf(td, state, (flags.wrong ? ', conflicts with the solution' : '') + (flags.target ? ', hint: look here' : '')));
+    td.setAttribute('aria-label', nameOf(td, state, (query ? ', marked with a question mark' : '') + (flags.wrong ? ', conflicts with the solution' : '') + (flags.target ? ', hint: look here' : '')));
   }
 
   function crosshair(td) {
@@ -130,6 +137,7 @@ export function createGrid(frame, puzzle, ix, handlers) {
     else if (lower === 'o' || k === 'Enter') { e.preventDefault(); handlers.onMark(td.dataset.k, 'O', 'key'); }
     else if (k === 'Delete' || k === 'Backspace') { e.preventDefault(); handlers.onMark(td.dataset.k, '', 'key'); }
     else if (lower === 'r') { e.preventDefault(); handlers.onDescribeRow(td.dataset.row); }
+    else if (lower === 'q') { e.preventDefault(); handlers.onQuery?.(td.dataset.k); }
     else if (k === 'ContextMenu' || (k === 'F10' && e.shiftKey)) { e.preventDefault(); const b = td.getBoundingClientRect(); openMenu(td, b.left + b.width / 2, b.bottom); }
   });
 
@@ -198,7 +206,8 @@ export function createGrid(frame, puzzle, ix, handlers) {
     if (!b || !menuFor) return;
     const k = menuFor.dataset.k;
     closeMenu();
-    handlers.onMark(k, b.dataset.mark, 'menu');
+    if (b.dataset.mark === '?') handlers.onQuery?.(k);
+    else handlers.onMark(k, b.dataset.mark, 'menu');
   };
   menu.onkeydown = (e) => {
     const items = [...menu.querySelectorAll('button')];
