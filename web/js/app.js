@@ -531,7 +531,9 @@ function newSave(puzzle) {
 const isNewSave = (s) => !!(s.gift || s.unread) && !s.openedAt && !s.solved;
 function savedItem(s, fmt) {
   const p = s.puzzle;
-  const pct = s.solved ? 100 : s.percent || 0;
+  // A save can come from a puzzle file, so every value is escaped or made a number.
+  const pct = s.solved ? 100 : Math.max(0, Math.min(100, Math.round(Number(s.percent) || 0)));
+  const size = `${Number(p.categories.length) || 0} × ${Number(p.categories[0].items.length) || 0}`;
   const state = s.solved ? (s.revealed ? 'Solution revealed' : 'Solved') : `${pct}% complete`;
   const pills = [
     isNewSave(s) ? '<span class="pill new">New</span>' : '',
@@ -541,9 +543,9 @@ function savedItem(s, fmt) {
     s.editionLabel ? `<span class="pill">${esc(s.editionLabel)}</span>` : '',
     (s.myNotes || '').trim() ? '<span class="pill">Has notes</span>' : '',
   ].filter(Boolean).join(' ');
-  return `<li class="saved-item${isNewSave(s) ? ' is-new' : ''}" data-id="${s.id}">
+  return `<li class="saved-item${isNewSave(s) ? ' is-new' : ''}" data-id="${esc(s.id)}">
       <h3 class="name">${esc(s.name)}</h3>
-      <div class="info">${pills ? `${pills} ` : ''}${esc(p.theme.name)} · ${esc(p.difficulty.name)} · ${p.categories.length} × ${p.categories[0].items.length} · ${state}<br>${s.openedAt || !isNewSave(s) ? `Last played ${esc(fmt.format(new Date(s.lastPlayed)))}` : `Arrived ${esc(fmt.format(new Date(s.created || s.lastPlayed)))}`}</div>
+      <div class="info">${pills ? `${pills} ` : ''}${esc(p.theme.name)} · ${esc(p.difficulty.name)} · ${size} · ${state}<br>${s.openedAt || !isNewSave(s) ? `Last played ${esc(fmt.format(new Date(Number(s.lastPlayed) || 0)))}` : `Arrived ${esc(fmt.format(new Date(Number(s.created || s.lastPlayed) || 0)))}`}</div>
       <div class="bar" role="img" aria-label="${state}"><i style="width:${pct}%"></i></div>
       <div class="row">
         <button class="btn primary small" type="button" data-do="resume">Open<span class="sr-only"> ${esc(s.name)}</span></button>
