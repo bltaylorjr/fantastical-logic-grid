@@ -303,6 +303,58 @@ const TIER_ORDER = Object.keys(TIER_NAMES);
 const sortTiers = (rows) => [...rows].sort((a, b) => TIER_ORDER.indexOf(a.id) - TIER_ORDER.indexOf(b.id) || String(a.kind).localeCompare(String(b.kind)));
 function setCount(sel, n) { const el = $(sel); el.textContent = n; el.hidden = !n; el.setAttribute('aria-label', `${n} waiting`); }
 
+// ---- Visitors: anonymous daily counts of people opening the game (visits.js).
+const VIS_NAMES = {
+  guest: 'Guests', player: 'Players',
+  web: 'Website', desktop: 'Desktop app', android: 'Android app', ios: 'iPhone and iPad app',
+  windows: 'Windows', mac: 'Mac', linux: 'Linux', chromeos: 'ChromeOS', other: 'Other',
+  mobile: 'Mobile', tablet: 'Tablet',
+};
+let countryNames = null;
+try { countryNames = new Intl.DisplayNames(['en'], { type: 'region' }); } catch (e) { /* older browser */ }
+const countryName = (c) => (c === 'XX' ? 'Unknown' : (countryNames && countryNames.of(c)) || c);
+const visCount = (list, id) => (list.find((x) => x.id === id) || { n: 0 }).n;
+
+views.visitors = async () => {
+  const d = await api(`visitors?days=${$('#vis-days').value}`);
+  const share = (n) => pct(n, d.total);
+  const visTile = (label, n) => tile(label, fmt(n), d.total ? `${share(n)} of visits` : '');
+  const rows = (list) => list.map((x) => [esc(VIS_NAMES[x.id] || x.id), fmt(x.n), share(x.n)]);
+  const head = (first) => [{ label: first }, { label: 'Visits', num: 1 }, { label: 'Share', num: 1 }];
+  $('#vis-body').innerHTML = `
+    <div class="tiles">
+      ${tile('Visits', fmt(d.total), d.days === 1 ? 'today' : `last ${fmt(d.days)} days`)}
+      ${d.days > 1 ? tile('Today', fmt(d.today)) : ''}
+      ${visTile('Guests', visCount(d.who, 'guest'))}
+      ${visTile('Players', visCount(d.who, 'player'))}
+    </div>
+    <h2>Device</h2>
+    <div class="tiles">
+      ${visTile('Mobile', visCount(d.device, 'mobile'))}
+      ${visTile('Tablet', visCount(d.device, 'tablet'))}
+      ${visTile('Desktop', visCount(d.device, 'desktop'))}
+    </div>
+    <h2>System</h2>
+    <div class="tiles">
+      ${visTile('Android', visCount(d.os, 'android'))}
+      ${visTile('iOS', visCount(d.os, 'ios'))}
+      ${visTile('Mac', visCount(d.os, 'mac'))}
+      ${visTile('Windows', visCount(d.os, 'windows'))}
+    </div>
+    ${d.days > 1 ? `<div class="charts">${bars('Visits per day', d.dayList.map((_, i) => d.byDay.guest[i] + d.byDay.player[i]), { second: d.byDay.player, labels: d.dayList, names: ['All visits', 'Players'] })}</div>` : ''}
+    <h2>Location</h2>
+    <div class="charts">
+      <div class="chart"><h3>Countries</h3>${table(head('Country'), d.country.map((x) => [esc(countryName(x.id)), fmt(x.n), share(x.n)]), 'No visits in this period.')}</div>
+      <div class="chart"><h3>States and provinces</h3>${table(head('Place'), d.region.map((x) => [esc(x.id), fmt(x.n), share(x.n)]), 'None yet. Shown for the US, Canada and Australia.')}</div>
+    </div>
+    <h2>Details</h2>
+    <div class="charts">
+      <div class="chart"><h3>Which app</h3>${table(head('App'), rows(d.app), 'No visits in this period.')}</div>
+      <div class="chart"><h3>Every system</h3>${table(head('System'), rows(d.os), 'No visits in this period.')}</div>
+    </div>
+    <p class="muted">Updated ${when(d.generatedAt)}.</p>`;
+};
+
 views.usage = async () => {
   const [s, u] = await Promise.all([api('storage'), api('usage?days=14')]);
   const L = s.limits;
@@ -1210,6 +1262,7 @@ $('#search-refresh').onclick = async (e) => {
 };
 
 $('#ov-days').onchange = () => show('overview');
+$('#vis-days').onchange = () => show('visitors');
 
 // ---- Daily puzzles: preview the coming days and plan changes.
 let dailyData = null;
