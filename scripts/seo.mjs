@@ -339,7 +339,8 @@ ${body(up)}
     trailer: video,
     copyrightHolder: { '@type': 'Person', name: owner }, copyrightYear: 2026,
   };
-  const publisher = { '@type': 'Organization', name, url: url(''), logo: { '@type': 'ImageObject', url: url('icons/icon-512.png') }, sameAs: socialList.map((s) => s.url) };
+  const publisher = { '@type': 'Organization', name, url: url(''), logo: { '@type': 'ImageObject', url: url('icons/icon-512.png') }, sameAs: socialList.map((s) => s.url),
+    email: 'support@thelogicgrid.com', contactPoint: { '@type': 'ContactPoint', contactType: 'customer support', email: 'support@thelogicgrid.com', availableLanguage: 'en' } };
   game.publisher = publisher;
   const website = { '@context': 'https://schema.org', '@type': 'WebSite', name, url: url(''), description: appDescription, inLanguage: 'en', publisher };
   const head = `<meta name="description" content="${esc(appDescription)}">
@@ -428,7 +429,7 @@ ${playBtn(up, 'Start a new case')}`,
 <div class="table-wrap"><table>
 <caption>The ${tiers.length} levels</caption>
 <thead><tr><th scope="col">Level</th><th scope="col">Grid size</th><th scope="col">Kinds of clues</th></tr></thead>
-<tbody>${tiers.map((t) => `<tr><th scope="row">${esc(t.name)}</th><td>${esc(t.summary.split(',').slice(0, 2).join(','))}</td><td>${Object.keys(t.weights).map((k) => esc(CLUE_TYPES[k] || k)).join(', ')}</td></tr>`).join('')}</tbody>
+<tbody>${tiers.map((t) => `<tr><th scope="row">${PRINT_LEVELS.some((l) => l.tier === t.id) ? `<a href="${up}printables/${t.id}/" title="Free printable ${esc(t.name.toLowerCase())} worksheet">${esc(t.name)}</a>` : esc(t.name)}</th><td>${esc(t.summary.split(',').slice(0, 2).join(','))}</td><td>${Object.keys(t.weights).map((k) => esc(CLUE_TYPES[k] || k)).join(', ')}</td></tr>`).join('')}</tbody>
 </table></div>
 <h2>The kinds of clues</h2>
 <dl>${Object.entries(CLUE_TYPES).map(([k, n]) => `<dt>${esc(n)}</dt><dd>${esc({ is: 'Two things go together.', not: 'Two things do not go together.', neither: 'Something matches neither of two choices.', either: 'Something matches one of two choices.', pairs: 'Of two people, one matches each of two things.', allDiff: 'A group of things are all different people.', less: 'One value is more or less than another.', diff: 'Two values are an exact amount apart.', ifthen: 'If one match is true, another is too.' }[k] || '')}</dd>`).join('')}</dl>
@@ -439,7 +440,7 @@ ${playBtn(up)}`,
   page({
     path: 'themes/', priority: 0.8,
     title: `Logic puzzle themes: mystery, fantasy, sci-fi and more | ${name}`,
-    description: `${THEMES.length} story themes for logic grid puzzles: ${THEMES.map((t) => t.name).join(', ')}. Each has its own topics, characters and categories.`,
+    description: `${THEMES.length} story themes for logic grid puzzles, including ${THEMES.slice(0, 5).map((t) => t.name).join(", ")} and more. Each has its own topics, characters and categories.`,
     crumbs: [['themes/', 'Themes']],
     schema: [{ '@context': 'https://schema.org', '@type': 'ItemList', name: 'Logic puzzle themes', numberOfItems: THEMES.length, itemListElement: THEMES.map((t, i) => ({ '@type': 'ListItem', position: i + 1, name: `${t.name} logic puzzles`, url: url(`themes/${t.id}/`) })) }],
     body: (up) => `<h1>Puzzle themes</h1>
@@ -789,6 +790,7 @@ ${playBtn(up)}`,
     title: `Free printable logic puzzles with answer keys | ${name}`,
     description: 'Free printable logic grid puzzles for classrooms and home, from age 7 up. A new worksheet set every week, each with a story, a blank grid and an answer key on its own page.',
     crumbs: [['printables/', 'Printables']],
+    schema: [{ '@context': 'https://schema.org', '@type': 'ItemList', name: "This week's printable logic puzzles", numberOfItems: sheets.length, itemListElement: sheets.map((sh, i) => ({ '@type': 'ListItem', position: i + 1, name: `${TIERS[sh.tier].name}: ${sh.puzzle.title}`, url: url(`printables/${sh.tier}/`) })) }],
     body: (up) => `<h1>Free printable logic puzzles</h1>
 <p class="lede">Story logic grid puzzles to print for the classroom, homeschool or the kitchen table. A new set every Monday, from age 7 up, each with a blank grid and an answer key on its own page.</p>
 <h2>This week's worksheets</h2>
@@ -823,6 +825,9 @@ ${playBtn(up, 'Make a puzzle to print', false)}
       title: `Printable ${level.toLowerCase()} logic puzzle: ${p.title} | ${name}`,
       description: `A free printable ${level.toLowerCase()} logic grid puzzle (${sh.ages}): ${p.title}, with a story, a blank grid and the answer key on its own page.`,
       crumbs: [['printables/', 'Printables'], [`printables/${sh.tier}/`, level]],
+      schema: [{ '@context': 'https://schema.org', '@type': 'LearningResource', name: p.title, description: `A logic grid puzzle worksheet at the ${level} level, with a story, a blank grid and an answer key.`, url: url(`printables/${sh.tier}/`),
+        learningResourceType: 'Worksheet', educationalLevel: level, typicalAgeRange: `${sh.ages.match(/\d+/)[0]}-`, teaches: ['Deductive reasoning', 'Close reading', 'Logical thinking'],
+        isAccessibleForFree: true, inLanguage: 'en', datePublished: thisWeek, publisher, image: url('og-image.jpg') }],
       body: (up) => `<article class="sheet">
 <h1>${esc(p.title)}</h1>
 <p class="meta">${esc(level)} · ${esc(sh.ages)} · ${esc(p.theme.name)} · ${p.categories.length} categories × ${p.categories[0].items.length} items · week of ${esc(weekLabel)}</p>
@@ -887,7 +892,11 @@ Sitemap: ${url('sitemap.xml')}
 - [Hand-picked puzzles](${url('picks/')}): the best-rated daily puzzles, and how every puzzle is checked for exactly one answer
 - [Themes](${url('themes/')})
 - [Difficulty levels](${url('difficulty-levels/')})
+- [For educators](${url('educators/')}): free printable puzzle packages for a class, made to order and sent by email
+- [Privacy](${url('privacy/')}): no ads, no tracking cookies, no selling data
 - [Terms of use](${url('terms/')})
+
+Contact: support@thelogicgrid.com
 
 ## Use of this content
 
