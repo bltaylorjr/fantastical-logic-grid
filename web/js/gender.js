@@ -3,6 +3,7 @@
 // Every name in every theme and topic is listed (scripts/test-gender.mjs
 // checks); names a player types in get a steady guess from how they end.
 const FEMALE = new Set(`
+  Elena Ingrid
   Ada Clara Edith Greta Iris
   Dash Echo Ivy
   Amara Cora Elsa Gemma Isla
@@ -27,6 +28,7 @@ const FEMALE = new Set(`
   Coralie Marina Nerissa Ondine Delphina Serena Muriel Oceane
 `.trim().split(/\s+/));
 const MALE = new Set(`
+  Desmond
   Amos Clem Otis Boone Ravi Sam Finnian
   Basil Dorian Felix Hugo Jasper
   Ace Blaze Cobra Falcon Ghost Hawk Jett
