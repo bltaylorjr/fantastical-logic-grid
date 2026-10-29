@@ -143,7 +143,7 @@ export const MORE = {
       art: { setting: 'a wooden jungle field station under giant rainforest trees, rope walkways in the misty canopy', mood: 'deep emerald green and misty' } },
 
     // ---------------------------------------------------------------- Reef
-    { id: 'reef', name: 'Coral Reef Dive', description: 'Snorkels, slates and a reef full of color.',
+    { id: 'reef', name: 'Coral Reef Survey', description: 'Snorkels, slates and a reef full of color.',
       cast: { one: 'reef diver', many: 'reef divers' },
       names: ['Ari', 'Bodie', 'Marina', 'Dune', 'Eden', 'Fritz', 'Gwen', 'Hiro', 'Ilona', 'Jett'],
       categories: [
