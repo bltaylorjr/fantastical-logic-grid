@@ -3,6 +3,7 @@
 // GET /admin/v1/connections (server/src/connections.js). Ticked steps are kept
 // only in this browser, as a reminder of where you got to.
 import { CONNECTIONS, GROUPS, WHERE } from './connections.js';
+import { startOAuth } from './oauth.js';
 
 const TICKS_KEY = 'flg-admin-connection-steps';
 const STATUS = {
@@ -37,7 +38,7 @@ export function connectionState(c, live) {
   return all.length ? 'unknown' : 'manual';
 }
 
-export function renderConnections(root, { api, esc, when, toast, announce }) {
+export function renderConnections(root, { api, esc, when, toast, announce, ask }) {
   const text = (s) => esc(s)
     .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
     .replace(/`(.+?)`/g, '<code>$1</code>')
@@ -77,7 +78,7 @@ export function renderConnections(root, { api, esc, when, toast, announce }) {
       <p class="muted"><b>Cost:</b> ${text(c.cost)}</p>
       ${names}${settings}${checks}${steps}
       ${links.length ? `<h3>Links</h3><ul>${links.map((l) => `<li><a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.label)}</a></li>`).join('')}</ul>` : ''}
-      <div class="row"><button class="btn small" type="button" data-copy="${c.id}">Copy these steps</button></div>
+      <div class="row">${c.oauth ? `<button class="btn small primary" type="button" data-key-site="${c.oauth}">Get the key</button>` : ''}<button class="btn small" type="button" data-copy="${c.id}">Copy these steps</button></div>
     </details>`;
   }
 
@@ -157,6 +158,7 @@ export function renderConnections(root, { api, esc, when, toast, announce }) {
       saveTicks(ticks);
     };
     root.querySelector('#conn-list').onclick = async (e) => {
+      if (e.target.dataset?.keySite) return startOAuth(e.target.dataset.keySite, { ask, esc, toast });
       const id = e.target.dataset?.copy;
       if (!id) return;
       const c = CONNECTIONS.find((x) => x.id === id);

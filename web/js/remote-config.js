@@ -26,6 +26,8 @@ export const extrasUrl = () => {
   const u = config && config.game && config.game.extrasUrl;
   return typeof u === 'string' && u.startsWith('https://') ? u : '';
 };
+// The game's social pages with a link set (social.js), for the home footer.
+export const social = () => (config && Array.isArray(config.social) ? config.social : []);
 // News from the team for everyone, shown in Messages (messages.js).
 export const news = () => (config && config.news) || [];
 // The owner's optional "Support the game" page (an https link), or ''.

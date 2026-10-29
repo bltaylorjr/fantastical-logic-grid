@@ -12,6 +12,7 @@
 import { THEMES } from '../../engine/src/themes.js';
 import { json } from './http.js';
 import { publicNews } from './messages.js';
+import { NETWORKS, DEFAULT_LINKS, socialLinks } from '../../web/js/social.js';
 
 const CACHE_MS = 30_000;
 const THEME_IDS = THEMES.map((t) => t.id);
@@ -99,6 +100,7 @@ export const SETTINGS = {
   races_enabled: { type: 'bool', default: true, group: 'Play', label: 'Races', help: 'Off: nobody can start, find or join a race. Players already in one can still finish.' },
   scores_enabled: { type: 'bool', default: true, group: 'Play', label: 'Solo scores', help: 'Off: solo solves stop counting for the scoreboard. Race points still count.' },
   names_enabled: { type: 'bool', default: true, group: 'Play', label: 'New and changed screen names', help: 'Off: players keep their names but cannot choose new ones.' },
+  special_badges_enabled: { type: 'bool', default: true, group: 'Play', label: 'Special badges', help: 'On: players see their special badges (Tester, Contributor and the ones made under Badges) on My stats and badges and next to their name on the scoreboard, and badges for milestones are given out automatically. Off: none show and none are given out; awards are kept for when you turn it back on.' },
   names_need_approval: { type: 'bool', default: true, group: 'Play', label: 'New screen names wait for approval', help: 'On: other players see a name a player typed only after an admin approves it in Players or Screen names; until then it shows as "New player". Names from Suggest a name are approved automatically. The player always sees their own name. Off: names show straight away.' },
   challenges_enabled: { type: 'bool', default: true, group: 'Play', label: 'Challenge a friend links', help: 'After solving, players can share a link that opens the same puzzle for anyone, with their time to beat. No account needed. Off: no new links; links already shared still open.' },
   challenges_daily_cap: { type: 'int', min: 0, max: 5000, default: 500, group: 'Play', label: 'New challenge links a day', help: 'Keeps the database inside Cloudflare\'s free limits. Each link is kept for 60 days.' },
@@ -106,6 +108,11 @@ export const SETTINGS = {
   hand_picked_days: { type: 'days', default: [], group: 'Play', label: 'Hand-picked daily puzzles', help: 'Past daily puzzles to put first in the Hand-picked collection on the website and in the game, one date per line (like 2026-11-03), up to 30. The rest of the collection is the best-rated daily puzzles. Shows after the next website build (every night).' },
   daily_email_enabled: { type: 'bool', default: true, group: 'Play', label: 'Daily puzzle by email', help: 'Signed-in players with a confirmed email can get each day\'s puzzle by email, sent at about 7 am Eastern from noreply@thelogicgrid.com through Resend, or from the game\'s Gmail as a backup (server/DAILY-EMAIL.md). Every email has a one-click unsubscribe link. Off: no emails and no new sign-ups; the list is kept.' },
   daily_email_daily_cap: { type: 'int', min: 0, max: 450, default: 300, group: 'Play', label: 'Daily emails a day', help: 'The most people on the daily email list. New sign-ups stop at this number, so everyone on the list gets the email. Resend\'s free plan sends 100 a day, then Gmail (about 500 a day, shared with the other emails) takes over.' },
+  // ---- Puzzle emails (puzzle-mail.js): the weekly puzzle and special editions, for players and guests.
+  puzzle_mail_enabled: { type: 'bool', default: true, group: 'Puzzle emails', label: 'Puzzle email sign-ups', help: 'Players and guests can sign up in the game (Menu > Puzzle emails) for the weekly puzzle and special edition puzzles. A guest gets a confirm link first; nothing else is sent until they open it. Every email has a one-click unsubscribe link. Sent from noreply@thelogicgrid.com through Resend, or from the game\'s Gmail as a backup. Off: no sign-ups and no puzzle emails at all; the list is kept.' },
+  weekly_mail_enabled: { type: 'bool', default: true, group: 'Puzzle emails', label: 'Weekly puzzle email', help: 'Every Monday from about 7 am Eastern: the puzzle of the week (a bigger Expert puzzle with a new story) to everyone on the weekly list. Off: no weekly email and the weekly choice is hidden in the game; the list is kept.' },
+  special_mail_enabled: { type: 'bool', default: true, group: 'Puzzle emails', label: 'Special edition emails', help: 'The special editions you plan in Puzzle emails go out on their day from about 7 am Eastern. Off: none are sent and the choice is hidden in the game; the list is kept.' },
+  puzzle_mail_daily_cap: { type: 'int', min: 0, max: 450, default: 150, group: 'Puzzle emails', label: 'Puzzle emails a day', help: 'Confirm links, weekly and special edition emails together. Over this number, the rest go out the next day (a weekly or special send keeps going for up to a week). Resend\'s free plan sends 100 a day, then Gmail (about 500 a day, shared with the other emails) takes over.' },
   disabled_themes: { type: 'themes', default: [], group: 'Play', label: 'Themes switched off', help: 'Hidden from the theme picker and never picked by Surprise me.' },
   // ---- Learning and stories
   learning_enabled: { type: 'bool', default: true, group: 'Learning', label: 'Learn from everyone', help: 'On: anonymous play summaries from players who keep "Learn from how I play" on tune puzzles, clue mix and story parts for all. Off: nothing is sent and summaries are dropped.' },
@@ -137,6 +144,12 @@ export const SETTINGS = {
   // link out to a page the owner sets up elsewhere; nothing here takes
   // payments or locks any part of the game.
   support_link_enabled: { type: 'bool', default: false, group: 'Support and premium', label: 'Support the game link', help: 'On: the game\'s Menu shows "Support the game", which opens the page below in a new window. Needs a link below. Nothing in the game is locked either way.' },
+  // ---- Social links: each page set here shows in the website's page footer
+  // (after the next nightly build) and the game's home screen footer.
+  ...Object.fromEntries(NETWORKS.map((n) => [`social_${n.id}`, {
+    type: 'url', network: n.id, default: DEFAULT_LINKS[n.id] || '', group: 'Social links', label: `${n.name} page`,
+    help: `The full https link to the game's ${n.name} page. It shows in the website and game footers. Leave empty to hide it.`,
+  }])),
   support_url: { type: 'url', default: '', group: 'Support and premium', label: 'Support page link', help: 'An https link to your tip, sponsor or membership page, such as a GitHub Sponsors, Ko-fi or Paddle page. Leave empty for none.' },
   support_asks_enabled: { type: 'bool', default: false, group: 'Support and premium', label: 'Support asks in the game', help: 'On (with the Support the game link on): a short thank-you after a player\'s 3rd, 10th and 25th solved puzzle, a note at a 7- and 30-day daily streak, a Supporters window, one line on printed puzzles and one line in the daily puzzle email. At most one ask a week per player, never during a puzzle or a race, never after a revealed solution, and "Don\'t ask again" stops them for good. Off: none of these show.' },
   supporter_badges_enabled: { type: 'bool', default: false, group: 'Support and premium', label: 'Show supporter badges', help: 'On: Bronze, Silver, Gold and Platinum supporter badges show next to names on the scoreboard. Off: no badges anywhere, even for people already added under Supporters. Leave off until you launch.' },
@@ -190,7 +203,11 @@ export function checkSetting(key, value) {
     const v = typeof value === 'string' ? value.trim() : null;
     return v && /^@?[a-z0-9][a-z0-9.:_/-]{1,99}$/i.test(v) ? { value: v } : { error: 'Use a model name such as gemini-flash-latest: letters, numbers, dots, dashes and slashes.' };
   }
-  if (s.type === 'url') return checkUrl(value);
+  if (s.type === 'url') {
+    const r = checkUrl(value);
+    if (!r.error && r.value && s.network && !socialLinks({ [s.network]: r.value }).length) return { error: `That link is not on ${NETWORKS.find((n) => n.id === s.network).name}.` };
+    return r;
+  }
   if (!Array.isArray(value)) return { error: 'Use a list.' };
   if (s.type === 'themes') {
     const list = [...new Set(value)];
@@ -247,8 +264,11 @@ export async function publicConfig(req, env) {
       storySharing: s.story_sharing_enabled, learning: s.learning_enabled, errorReports: s.error_reports_enabled,
       feedback: s.feedback_enabled, feedbackReplies: s.feedback_replies_enabled, soundEffects: s.sound_effects_enabled, music: s.theme_music_enabled, pictures: s.ai_pictures !== 'none',
       translate: s.translate_enabled, messages: s.messages_enabled, challenges: s.challenges_enabled, dailyResults: s.daily_results_enabled, dailyEmail: s.daily_email_enabled,
+      puzzleMail: s.puzzle_mail_enabled && (s.weekly_mail_enabled || s.special_mail_enabled), weeklyMail: s.puzzle_mail_enabled && s.weekly_mail_enabled, specialMail: s.puzzle_mail_enabled && s.special_mail_enabled,
     },
     news: s.messages_enabled ? await publicNews(env) : [],
+    // The game's social pages that have a link, for the footers.
+    social: socialLinks(Object.fromEntries(NETWORKS.map((n) => [n.id, s[`social_${n.id}`]]))),
     // Chosen here for every player.
     game: { voiceSource: s.voice_source, readAloud: s.read_aloud, portraitStyle: s.portrait_style, confetti: s.confetti, aiPictures: s.ai_pictures,
       celebrations: CELEBRATIONS.filter((k) => s[k]), celebrateRandom: s.celebrate_random,

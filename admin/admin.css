@@ -152,6 +152,9 @@ main:focus { outline: none; }
 dialog { border: 1px solid var(--line); border-radius: 12px; background: var(--panel); color: var(--text); padding: 20px; width: min(520px, calc(100% - 32px)); }
 dialog::backdrop { background: rgb(0 0 0 / .5); }
 dialog h2 { margin: 0; }
+.dlg-x { float: right; display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; margin: -10px -10px 4px 8px; padding: 0; border: 1px solid var(--line); border-radius: 50%; background: var(--panel); color: var(--text); cursor: pointer; }
+.dlg-x:hover { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.dlg-x svg { width: 22px; height: 22px; }
 
 @media (max-width: 760px) {
   .shell { grid-template-columns: minmax(0, 1fr); }
@@ -252,3 +255,18 @@ td.num, th.num { white-space: nowrap; }
 .csv-btn { float: none; display: flex; margin: 0 0 4px auto; }
 @media (min-width: 761px) and (max-width: 1100px) { .shell { grid-template-columns: 200px minmax(0, 1fr); } }
 @media (min-width: 1600px) { main { max-width: 1560px; } .shell { grid-template-columns: 260px minmax(0, 1fr); } }
+
+/* Badges (badges.js) */
+.badge-icon { font-size: 1.4rem; line-height: 1; margin-right: 6px; vertical-align: middle; }
+.emoji-picks { gap: 6px; align-items: center; }
+.emoji-picks .btn { min-width: 44px; font-size: 1.2rem; padding: 0 8px; }
+#badge-editor > summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; }
+#badge-editor > summary h2 { margin: 0; font-size: 1.1rem; }
+.player-badges { list-style: none; padding: 0; margin: 8px 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.player-badges li { display: flex; gap: 8px; align-items: center; border: 1px solid var(--line); border-radius: 12px; padding: 8px 8px 8px 12px; background: var(--bg); flex: 1 1 260px; }
+.player-badges li > span:nth-child(2) { flex: 1; }
+#badge-editor .field[hidden], .badge-list [hidden] { display: none; }
+.badge-list .badge-title { font-size: 1.05rem; display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+
+/* Error tracking: the puzzle's picture */
+.et-picture { max-width: 100%; width: 480px; height: auto; border: 1px solid var(--line, #ccc); border-radius: 8px; }

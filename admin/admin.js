@@ -5,10 +5,13 @@
 
 import { initPullRefresh } from './pull-refresh.js';
 import { renderConnections } from './connections-view.js';
+import { takeOAuthReturn, finishOAuth } from './oauth.js';
 import { characterView } from './characters.js';
 import { ratingsView, initRatings } from './ratings.js';
 import { marketingView, initMarketing } from './marketing.js';
+import { puzzleMailView, initPuzzleMail } from './puzzle-mail.js';
 import { educatorsView, initEducators } from './educators.js';
+import { badgesView, initBadges, playerBadgesHtml, playerBadgeClick } from './badges.js';
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -24,12 +27,14 @@ const TOKEN_URL = 'https://securetoken.googleapis.com/v1';
 const SESSION_KEY = 'flg-admin-session';
 const IDLE_MS = 30 * 60_000;
 const ROLES = { viewer: 1, moderator: 2, admin: 3, owner: 4 };
-const TIER_NAMES = { basic: 'Basic', easy: 'Easy', medium: 'Medium', hard: 'Hard', expert: 'Expert', mensa: 'Quantum Physicist' };
+const TIER_NAMES = { basic: 'Basic', easy: 'Easy', medium: 'Medium', hard: 'Hard', expert: 'Expert', mensa: 'Quantum Physicist', theorist: 'Theoretical Physicist' };
 
 let session = null; // { mode: 'firebase'|'token', key?, refreshToken?, idToken?, exp?, email? }
 let me = null; // { email, role }
 let firebaseKey = null;
 let lastActive = Date.now();
+// Back from a marketing site's sign-in (Connections and setup > Get the key).
+let oauthBack = takeOAuthReturn();
 
 // ------------------------------------------------------------- helpers
 function announce(text) { $('#live').textContent = ''; setTimeout(() => { $('#live').textContent = text; }, 30); }
@@ -107,9 +112,10 @@ function ask({ title, text = '', fields = [], ok = 'OK', danger = false, check }
   $('#dialog-ok').textContent = ok;
   $('#dialog-ok').className = `btn primary${danger ? ' danger' : ''}`;
   $('#dialog-error').hidden = true;
+  const back = document.activeElement;
   return new Promise((resolve) => {
     const values = () => Object.fromEntries(fields.map((f) => [f.name, $(`[name="${f.name}"]`, dlg).value]));
-    const done = (v) => { dlg.close(); $('#dialog-form').onsubmit = null; $('#dialog-cancel').onclick = null; dlg.oncancel = null; resolve(v); };
+    const done = (v) => { dlg.close(); $('#dialog-form').onsubmit = null; $('#dialog-cancel').onclick = null; $('#dialog-x').onclick = null; dlg.oncancel = null; resolve(v); back?.focus?.(); };
     $('#dialog-form').onsubmit = (e) => {
       e.preventDefault();
       const v = values();
@@ -118,6 +124,7 @@ function ask({ title, text = '', fields = [], ok = 'OK', danger = false, check }
       done(v);
     };
     $('#dialog-cancel').onclick = () => done(null);
+    $('#dialog-x').onclick = () => done(null);
     dlg.oncancel = () => done(null);
     dlg.showModal();
     ($('input, select, textarea', $('#dialog-body')) || $('#dialog-ok')).focus();
@@ -296,6 +303,58 @@ const TIER_ORDER = Object.keys(TIER_NAMES);
 const sortTiers = (rows) => [...rows].sort((a, b) => TIER_ORDER.indexOf(a.id) - TIER_ORDER.indexOf(b.id) || String(a.kind).localeCompare(String(b.kind)));
 function setCount(sel, n) { const el = $(sel); el.textContent = n; el.hidden = !n; el.setAttribute('aria-label', `${n} waiting`); }
 
+// ---- Visitors: anonymous daily counts of people opening the game (visits.js).
+const VIS_NAMES = {
+  guest: 'Guests', player: 'Players',
+  web: 'Website', desktop: 'Desktop app', android: 'Android app', ios: 'iPhone and iPad app',
+  windows: 'Windows', mac: 'Mac', linux: 'Linux', chromeos: 'ChromeOS', other: 'Other',
+  mobile: 'Mobile', tablet: 'Tablet',
+};
+let countryNames = null;
+try { countryNames = new Intl.DisplayNames(['en'], { type: 'region' }); } catch (e) { /* older browser */ }
+const countryName = (c) => (c === 'XX' ? 'Unknown' : (countryNames && countryNames.of(c)) || c);
+const visCount = (list, id) => (list.find((x) => x.id === id) || { n: 0 }).n;
+
+views.visitors = async () => {
+  const d = await api(`visitors?days=${$('#vis-days').value}`);
+  const share = (n) => pct(n, d.total);
+  const visTile = (label, n) => tile(label, fmt(n), d.total ? `${share(n)} of visits` : '');
+  const rows = (list) => list.map((x) => [esc(VIS_NAMES[x.id] || x.id), fmt(x.n), share(x.n)]);
+  const head = (first) => [{ label: first }, { label: 'Visits', num: 1 }, { label: 'Share', num: 1 }];
+  $('#vis-body').innerHTML = `
+    <div class="tiles">
+      ${tile('Visits', fmt(d.total), d.days === 1 ? 'today' : `last ${fmt(d.days)} days`)}
+      ${d.days > 1 ? tile('Today', fmt(d.today)) : ''}
+      ${visTile('Guests', visCount(d.who, 'guest'))}
+      ${visTile('Players', visCount(d.who, 'player'))}
+    </div>
+    <h2>Device</h2>
+    <div class="tiles">
+      ${visTile('Mobile', visCount(d.device, 'mobile'))}
+      ${visTile('Tablet', visCount(d.device, 'tablet'))}
+      ${visTile('Desktop', visCount(d.device, 'desktop'))}
+    </div>
+    <h2>System</h2>
+    <div class="tiles">
+      ${visTile('Android', visCount(d.os, 'android'))}
+      ${visTile('iOS', visCount(d.os, 'ios'))}
+      ${visTile('Mac', visCount(d.os, 'mac'))}
+      ${visTile('Windows', visCount(d.os, 'windows'))}
+    </div>
+    ${d.days > 1 ? `<div class="charts">${bars('Visits per day', d.dayList.map((_, i) => d.byDay.guest[i] + d.byDay.player[i]), { second: d.byDay.player, labels: d.dayList, names: ['All visits', 'Players'] })}</div>` : ''}
+    <h2>Location</h2>
+    <div class="charts">
+      <div class="chart"><h3>Countries</h3>${table(head('Country'), d.country.map((x) => [esc(countryName(x.id)), fmt(x.n), share(x.n)]), 'No visits in this period.')}</div>
+      <div class="chart"><h3>States and provinces</h3>${table(head('Place'), d.region.map((x) => [esc(x.id), fmt(x.n), share(x.n)]), 'None yet. Shown for the US, Canada and Australia.')}</div>
+    </div>
+    <h2>Details</h2>
+    <div class="charts">
+      <div class="chart"><h3>Which app</h3>${table(head('App'), rows(d.app), 'No visits in this period.')}</div>
+      <div class="chart"><h3>Every system</h3>${table(head('System'), rows(d.os), 'No visits in this period.')}</div>
+    </div>
+    <p class="muted">Updated ${when(d.generatedAt)}.</p>`;
+};
+
 views.usage = async () => {
   const [s, u] = await Promise.all([api('storage'), api('usage?days=14')]);
   const L = s.limits;
@@ -409,7 +468,7 @@ $('#parts-list').onclick = async (e) => {
 
 // ---- Communication: one inbox for messages, ideas, problems, error reports
 // and emails to players, and sending messages, news and banners to players.
-const FB_TOPICS = { story: 'Storyline idea', theme: 'Theme or topic idea', feature: 'Game feature idea', other: 'Other', play: 'Playing', sound: 'Sound and voices', pictures: 'Pictures', saving: 'Saving and sync' };
+const FB_TOPICS = { story: 'Storyline idea', theme: 'Theme or topic idea', feature: 'Game feature idea', other: 'Other', play: 'Playing', sound: 'Sound and voices', pictures: 'Pictures', saving: 'Saving and sync', puzzle: 'Puzzle Problem (Report a Problem)', page: 'Web Page Issue (Report a Problem)' };
 const MSG_TOPICS = { question: 'Question', idea: 'Idea', problem: 'Problem', team: 'Started by the team' };
 const TYPE_NAMES = { message: 'Message', idea: 'Idea', problem: 'Problem', error: 'Error report', email: 'Email' };
 const commTab = () => $('input[name=comm-tab]:checked').value;
@@ -433,6 +492,185 @@ const errFix = (i) => { const f = i.meta.fix; return !f ? (can('admin') ? `<div 
   : f.missed ? `<p class="fb-note"><span class="badge warn">Still happening</span> Marked fixed in ${esc(f.fixedIn)}, but this report is from ${esc(i.meta.version)}. ${esc(f.note)}</p>`
   : `<p class="fb-note"><span class="badge ok">Addressed</span> Fixed in ${esc(f.fixedIn)}: ${esc(f.note)}</p>`; };
 
+// A puzzle problem's report: its tracking id and what the puzzle doctor found
+// (scripts/puzzle-doctor.mjs, run every 15 minutes by the puzzle-reports Action).
+const REPORT_STATES = {
+  new: ['', 'Waiting for the puzzle doctor'], checking: ['', 'Being checked'],
+  repaired: ['ok', 'Repaired automatically'], needs_fix: ['bad', 'Needs a fix in the code'], no_fault: ['', 'No fault in the puzzle'],
+  manual: ['warn', 'Needs the team (no puzzle attached)'], page: ['warn', 'Web page issue'], done: ['ok', 'Done'],
+};
+const CATEGORY_NAMES = { puzzle: 'Puzzle', webstructure: 'Web structure' };
+function reportHtml(r) {
+  const [cls, words] = REPORT_STATES[r.status] || ['', r.status];
+  return `<div class="fb-note"><p><b>Report ${esc(r.tracking)}</b> · ${esc(CATEGORY_NAMES[r.category] || 'Puzzle')} · ${esc(r.title || r.page || 'Untitled')}${r.tier ? ` · ${esc(TIER_NAMES[r.tier] || r.tier)}` : ''} <span class="badge ${cls}">${esc(words)}</span> <a href="#errortracking/${Number(r.id)}">Open in Error tracking</a></p>
+    ${r.findings.length ? `<ul>${r.findings.map((f) => `<li>${esc(f.text)}</li>`).join('')}</ul>` : ''}
+    ${r.status === 'repaired' ? `<p class="muted">${esc(r.note || '')} ${r.openedAt ? 'The player opened the repaired puzzle.' : 'The player has not opened the repaired puzzle yet.'}</p>` : ''}
+    ${r.status === 'needs_fix' ? '<p class="muted">Today\'s puzzle maker still gets this wrong. Download the puzzle to reproduce it; once a fix is published, press Check again and the player is emailed the repaired puzzle automatically.</p>' : ''}
+    <div class="row">${r.category !== 'webstructure' ? `<button class="btn small" type="button" data-report-file="${Number(r.id)}" data-tracking="${esc(r.tracking)}">Download the reported puzzle</button>` : ''}
+    ${['needs_fix', 'no_fault'].includes(r.status) && can('admin') ? `<button class="btn small" type="button" data-report-retry="${Number(r.id)}">Check again</button>` : ''}</div></div>`;
+}
+document.addEventListener('click', async (e) => {
+  const f = e.target.closest('button[data-report-file]');
+  if (f) {
+    await act(f, async () => {
+      const res = await fetch(`/admin/v1/puzzle-reports/${Number(f.dataset.reportFile)}/puzzle`, { headers: { Authorization: `Bearer ${await bearer()}` } });
+      if (!res.ok) throw new ApiError('download', `Download failed (${res.status}).`);
+      saveFile(await res.blob(), `${f.dataset.tracking}.flg.json`);
+    }, 'Puzzle file saved. Open it in the game with Saved puzzles > Open a puzzle file.');
+    return;
+  }
+  const r = e.target.closest('button[data-report-retry]');
+  if (r && await act(r, () => api(`puzzle-reports/${Number(r.dataset.reportRetry)}/retry`, { method: 'POST' }), 'It will be checked again within 15 minutes.')) show('communication', { keepFocus: true });
+});
+
+// ---- Error tracking: every Report a Problem, in its two categories, and what
+// the puzzle doctor has learned (server/src/puzzle-reports.js).
+const FAULT_NAMES = { false_clue: 'A clue was not true', not_unique: 'More than one answer', contradiction: 'Clues disagreed', wrong_answer: 'Checked against the wrong answer',
+  answer_key: 'Wrong answer key', solution: 'Mixed-up answer', blank_clue: 'Blank clue', blank_label: 'Blank name', question: 'Question answer missing', unreadable: 'Damaged puzzle', display: 'Display problem', page_issue: 'Web page issue' };
+const STRATEGY_NAMES = { 'same-settings': 'Same story, rebuilt', 'same-theme': 'Same theme, rebuilt', 'all-options': 'All settings, rebuilt', 'new-seed': 'New story, same theme' };
+let etMore = null;
+const svgUrl = (svg) => `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`;
+
+function etRowHtml(r) {
+  const [cls, words] = REPORT_STATES[r.status] || ['', r.status];
+  return `<tr>
+    <td><button class="btn small link" type="button" data-et-open="${Number(r.id)}">${esc(r.tracking)}</button></td>
+    <td>${esc(CATEGORY_NAMES[r.category] || r.category)}</td>
+    <td>${when(r.createdAt)}</td>
+    <td>${esc(r.title || r.page || '–')}${r.theme ? `<br><span class="muted">${esc(r.theme)} · ${esc(TIER_NAMES[r.tier] || r.tier)} · ${esc(r.size)}</span>` : ''}</td>
+    <td class="fb-text">${esc(r.text)}</td>
+    <td>${r.findings.length ? r.findings.map((f) => esc(FAULT_NAMES[f.code] || f.code)).join(', ') : '–'}</td>
+    <td>${esc(r.note || (r.strategy ? STRATEGY_NAMES[r.strategy] || r.strategy : '–'))}</td>
+    <td><span class="badge ${cls}">${esc(words)}</span>${r.related.length ? `<br><span class="muted">${fmt(r.related.length)} related</span>` : ''}</td></tr>`;
+}
+
+views.errortracking = async ({ arg } = {}) => {
+  const qs = new URLSearchParams();
+  if ($('#et-category').value) qs.set('category', $('#et-category').value);
+  if ($('#et-status').value) qs.set('status', $('#et-status').value);
+  if ($('#et-q').value.trim()) qs.set('q', $('#et-q').value.trim());
+  const [d, p] = await Promise.all([api(`error-tracking?${qs}`), api('fault-patterns')]);
+  etMore = d.more;
+  const waiting = d.counts.filter((c) => ['needs_fix', 'manual', 'page'].includes(c.status)).reduce((s, c) => s + c.n, 0);
+  setCount('#count-errors', waiting);
+  const total = (cat) => d.counts.filter((c) => c.category === cat).reduce((s, c) => s + c.n, 0);
+  const st = (s) => d.counts.filter((c) => c.status === s).reduce((a, c) => a + c.n, 0);
+  $('#et-body').innerHTML = `<div class="tiles">
+      ${tile('Puzzle reports', fmt(total('puzzle')))}${tile('Web structure reports', fmt(total('webstructure')))}
+      ${tile('Repaired automatically', fmt(st('repaired')))}${tile('Need a fix in the code', fmt(st('needs_fix')))}${tile('Waiting for the team', fmt(st('manual') + st('page')))}
+    </div>
+    ${d.reports.length ? `<button class="btn small link csv-btn" type="button" data-csv>Download this table (CSV)</button><div class="table-wrap"><table class="table"><thead><tr><th scope="col">Report</th><th scope="col">Category</th><th scope="col">When</th><th scope="col">Puzzle or page</th><th scope="col">The error</th><th scope="col">Reason for failure</th><th scope="col">Correction made</th><th scope="col">Status</th></tr></thead>
+      <tbody id="et-rows">${d.reports.map(etRowHtml).join('')}</tbody></table></div>
+      ${etMore ? '<div class="row"><button class="btn small" type="button" id="et-more">Show older reports</button></div>' : ''}` : '<p class="muted">No reports match.</p>'}
+    <section class="card stack" id="et-detail" hidden aria-labelledby="et-detail-h"></section>`;
+  $('#et-patterns').innerHTML = table([{ label: 'Category' }, { label: 'Fault' }, { label: 'Where' }, { label: 'Seen', num: 1 }, { label: 'Repaired', num: 1 }, { label: 'Needed a fix', num: 1 }, { label: 'Best repair' }, { label: 'False clue types' }, { label: 'Latest self-check' }],
+    p.patterns.map((x) => {
+      const best = Object.entries(x.strategies).filter(([, s]) => s.worked).sort((a, b) => b[1].worked / b[1].tried - a[1].worked / a[1].tried)[0];
+      const check = x.probe_at ? `${x.probe_faults ? `<span class="badge bad">Still happening</span> ${fmt(x.probe_faults)} of ${fmt(x.probe_tested)}` : '<span class="badge ok">Gone</span>'} with engine ${esc(x.probe_engine || '?')} · ${when(x.probe_at)}` : x.category === 'puzzle' ? 'Not checked yet' : '–';
+      return [esc(CATEGORY_NAMES[x.category] || x.category), esc(FAULT_NAMES[x.code] || x.code),
+        esc(x.category === 'puzzle' ? `${x.theme || 'any theme'} · ${TIER_NAMES[x.tier] || x.tier || 'any level'}${x.size ? ` · ${x.size}` : ''}` : `${x.page} · version ${x.version}`),
+        fmt(x.seen), fmt(x.repaired), fmt(x.needs_fix), best ? `${esc(STRATEGY_NAMES[best[0]] || best[0])} (${fmt(best[1].worked)} of ${fmt(best[1].tried)})` : '–',
+        esc(Object.entries(x.clue_types).map(([t, n]) => `${t} ${n}`).join(', ') || '–'), check];
+    }), 'Nothing learned yet. Patterns appear as reports are checked.');
+  if (arg) await etOpen(Number(arg));
+};
+
+async function etOpen(id) {
+  const r = await api(`error-tracking/${id}`);
+  const [cls, words] = REPORT_STATES[r.status] || ['', r.status];
+  const storyHtml = (s, label) => (s ? `<h3>${esc(label)}</h3><p><b>${esc(s.title)}</b> <span class="muted">${esc([s.theme, s.topic].filter(Boolean).join(' · '))}</span></p>
+    ${s.paragraphs.map((t) => `<p>${esc(t)}</p>`).join('')}<details><summary>Clues (${fmt(s.clues.length)})</summary><ol>${s.clues.map((c) => `<li>${esc(c)}</li>`).join('')}</ol></details>` : '');
+  const panel = $('#et-detail');
+  panel.innerHTML = `<div class="head"><h2 id="et-detail-h" tabindex="-1">${esc(r.tracking)} · ${esc(CATEGORY_NAMES[r.category])}</h2><button class="btn small" type="button" data-et-close>Close</button></div>
+    <p><span class="badge ${cls}">${esc(words)}</span> Reported ${when(r.createdAt)} on <b>${esc(r.page || '–')}</b> · ${esc(r.platform)} ${esc(r.version)}${r.screen ? ` · window ${esc(r.screen)}` : ''}${r.engine ? ` · checked with engine ${esc(r.engine)}` : ''}</p>
+    <h3>The error (the player's words)</h3><p class="fb-text">${esc(r.text)}</p>
+    <h3>Reason for failure</h3>${r.findings.length ? `<ul>${r.findings.map((f) => `<li><b>${esc(FAULT_NAMES[f.code] || f.code)}:</b> ${esc(f.text)}</li>`).join('')}</ul>` : `<p class="muted">${r.category === 'puzzle' && r.hasPuzzle ? (r.status === 'new' || r.status === 'checking' ? 'Not checked yet.' : 'Nothing wrong was found in the puzzle.') : 'Not checked automatically: read the player\'s words.'}</p>`}
+    <h3>Correction made</h3><p>${esc(r.note || '–')}${r.strategy ? ` <span class="muted">(${esc(STRATEGY_NAMES[r.strategy] || r.strategy)})</span>` : ''}${r.status === 'repaired' ? ` ${r.openedAt ? 'The player opened the repaired puzzle.' : 'The player has not opened the repaired puzzle yet.'}` : ''}</p>
+    ${r.related.length ? `<h3>Related reports in the other category</h3><p>${r.related.map((t) => `<code>${esc(t)}</code>`).join(' ')} <span class="muted">(same screen and app version)</span></p>` : ''}
+    ${r.hasImage ? `<h3>Picture</h3><img class="et-picture" src="${svgUrl(r.image)}" alt="The puzzle's picture as the player saw it">` : ''}
+    ${storyHtml(r.story, 'Storyline as reported')}${storyHtml(r.repairedStory, 'Storyline as repaired')}
+    <div class="row">${r.hasPuzzle ? `<button class="btn small" type="button" data-report-file="${Number(r.id)}" data-tracking="${esc(r.tracking)}">Download the reported puzzle</button>` : ''}
+      ${['needs_fix', 'no_fault'].includes(r.status) && r.hasPuzzle && can('admin') ? `<button class="btn small" type="button" data-report-retry="${Number(r.id)}">Check again</button>` : ''}
+      ${['needs_fix', 'no_fault', 'manual', 'page'].includes(r.status) ? `<button class="btn small primary" type="button" data-et-done="${Number(r.id)}">Mark done with a note</button>` : ''}</div>`;
+  panel.hidden = false;
+  panel.scrollIntoView({ block: 'start' });
+  $('#et-detail-h').focus();
+}
+
+$('#et-filter').onsubmit = (e) => { e.preventDefault(); show('errortracking', { keepFocus: true }); };
+$('#et-category').onchange = () => show('errortracking', { keepFocus: true });
+$('#et-status').onchange = () => show('errortracking', { keepFocus: true });
+document.addEventListener('click', async (e) => {
+  const o = e.target.closest('[data-et-open]');
+  if (o) { await act(o, () => etOpen(Number(o.dataset.etOpen))); return; }
+  if (e.target.closest('[data-et-close]')) { $('#et-detail').hidden = true; return; }
+  if (e.target.closest('#et-more')) {
+    const qs = new URLSearchParams({ before: etMore });
+    if ($('#et-category').value) qs.set('category', $('#et-category').value);
+    if ($('#et-status').value) qs.set('status', $('#et-status').value);
+    const d = await api(`error-tracking?${qs}`);
+    $('#et-rows').insertAdjacentHTML('beforeend', d.reports.map(etRowHtml).join(''));
+    etMore = d.more;
+    if (!etMore) $('#et-more').remove();
+    return;
+  }
+  const done = e.target.closest('[data-et-done]');
+  if (done) {
+    const v = await ask({ title: 'Mark done', text: 'Say what was done in plain, everyday words. A player who asked to hear back gets this note by email.', ok: 'Mark done',
+      fields: [{ name: 'note', label: 'What was done', type: 'textarea' }], check: (x) => (x.note.trim() ? plainWords(x.note) : 'Write a short note.') });
+    if (!v) return;
+    if (await act(done, () => api(`error-tracking/${Number(done.dataset.etDone)}/done`, { method: 'POST', body: { note: v.note.trim() } }), 'Marked done.')) show('errortracking', { keepFocus: true });
+  }
+});
+
+// Approve a storyline: the note and the first puzzle made with it. The player
+// gets one email (with the puzzle as a PDF and its answer key) only if they
+// ticked "Email me an update"; the puzzle waits in their game for 30 days.
+function storyApproveHtml(i) {
+  const id = Number(i.id);
+  return `<details class="story-approve"><summary>Approve storyline</summary>
+    <form class="stack" data-approve="${id}" novalidate>
+      ${i.meta.storyEmail
+    ? '<p class="muted">This player asked for an email. They get one email: your note, plus the puzzle below as a PDF with its answer key. The puzzle also waits in their game (Messages &gt; Puzzles for you) for 30 days.</p>'
+    : '<p class="muted">This player did not ask for an email (or was not signed in), so nothing is sent and no puzzle can be stored for them. Approving marks it addressed.</p>'}
+      <div class="field"><label for="ap-note-${id}">Note for the player (everyday words)</label><textarea id="ap-note-${id}" rows="3" maxlength="500"></textarea></div>
+      ${i.meta.storyEmail ? `<div class="field"><label for="ap-file-${id}">First puzzle made with this storyline</label><input type="file" id="ap-file-${id}" accept=".json,application/json">
+        <p class="muted">Make it in the game, then Saved puzzles &gt; Save to a file. Optional, but without it the email has no puzzle.</p></div>` : ''}
+      <p class="error" role="alert" hidden></p>
+      <div class="row"><button class="btn primary small" type="submit">Approve${i.meta.storyEmail ? ' and email' : ''}</button></div>
+    </form></details>`;
+}
+document.addEventListener('submit', async (e) => {
+  const form = e.target.closest('form[data-approve]');
+  if (!form) return;
+  e.preventDefault();
+  const id = Number(form.dataset.approve);
+  const err = $('.error', form);
+  err.hidden = true;
+  const note = $(`#ap-note-${id}`).value.trim();
+  const fail = (t, el) => { err.textContent = t; err.hidden = false; el?.focus(); };
+  if (!note) return fail('Write a short note for the player.', $(`#ap-note-${id}`));
+  const tech = plainWords(note);
+  if (tech) return fail(tech, $(`#ap-note-${id}`));
+  const fileEl = $(`#ap-file-${id}`);
+  let puzzle = null;
+  if (fileEl && fileEl.files[0]) {
+    try {
+      if (fileEl.files[0].size > 450_000) throw new Error('big');
+      puzzle = JSON.parse(await fileEl.files[0].text());
+    } catch (ex) { return fail('That file could not be read as a puzzle file. Use a file saved from the game.', fileEl); }
+  }
+  const btn = $('button[type=submit]', form);
+  btn.disabled = true;
+  try {
+    const r = await api(`feedback/${id}/approve`, { method: 'POST', body: { note, ...(puzzle ? { puzzle } : {}) } });
+    const words = `Storyline approved.${r.emailed ? ` One email goes out within 15 minutes${r.stored ? ', with the puzzle attached as a PDF. The puzzle is in their game for 30 days.' : ' (no puzzle attached).'}` : ' No email: the player did not ask for one.'}`;
+    toast(words);
+    announce(words);
+    show('communication', { keepFocus: true });
+  } catch (ex) { fail(ex.message); btn.disabled = false; }
+});
+
 function itemHtml(i) {
   const type = `<span class="badge${i.type === 'error' ? ' bad' : i.type === 'problem' ? ' warn' : ''}">${TYPE_NAMES[i.type]}</span>`;
   const state = i.type === 'message'
@@ -454,7 +692,8 @@ function itemHtml(i) {
       <div class="row">${m.conversationId ? `<button class="btn primary small" type="button" data-open="${m.conversationId}">Reply</button>` : ''}
       ${i.status === 'new' ? `<button class="btn${m.conversationId ? '' : ' primary'} small" type="button" data-fb="${i.id}" data-status="addressed">Mark addressed</button>
         <button class="btn small" type="button" data-fb="${i.id}" data-status="done">Mark done</button>` : `<button class="btn small" type="button" data-fb="${i.id}" data-status="new">Mark new</button>`}
-      <button class="btn small" type="button" data-fb="${i.id}" data-status="delete">Delete</button></div></li>`;
+      <button class="btn small" type="button" data-fb="${i.id}" data-status="delete">Delete</button></div>
+      ${i.report ? reportHtml(i.report) : ''}${i.type === 'idea' && m.topic === 'story' && i.status === 'new' && can('moderator') ? storyApproveHtml(i) : ''}</li>`;
   }
   if (i.type === 'error') {
     const m = i.meta;
@@ -494,8 +733,12 @@ async function showThread(id, { keepFocus = false } = {}) {
     <ol class="messages">${c.messages.map((m) => `<li class="msg ${m.sender === 'team' ? 'team' : 'player'}">
       <p><b>${m.sender === 'team' ? `The team <span class="muted">(${esc(m.author || 'admin')})</span>` : who}</b> <span class="muted">${when(m.at)}</span></p>
       <p class="fb-text">${esc(m.text)}</p></li>`).join('')}</ol>
+    ${c.puzzles && c.puzzles.length ? `<h3>Puzzles stored for this player</h3><ul class="plain">${c.puzzles.map((p) => `<li><b>${esc(p.title)}</b> <span class="muted">${esc(TIER_NAMES[p.tier] || p.tier)} · sent ${when(p.at)} · deleted ${when(p.expiresAt)} · ${p.openedAt ? 'opened' : 'not opened yet'}</span>
+      <button class="btn small danger" type="button" data-thread="unpuzzle" data-pid="${Number(p.id)}">Remove</button></li>`).join('')}</ul>` : ''}
     <form id="reply-form" class="stack" novalidate>
       <div class="field"><label for="reply-text">Your reply (up to 2,000 characters). The player sees it signed "The team".</label><textarea id="reply-text" rows="4" maxlength="2000"></textarea></div>
+      <div class="field"><label for="reply-puzzle">Attach a puzzle (optional)</label><input type="file" id="reply-puzzle" accept=".json,application/json">
+        <p class="muted">A puzzle file saved from the game (Saved puzzles &gt; Save to a file), such as one made from this player's suggestion. They can play or download it from Messages &gt; Puzzles for you for 30 days, then it is deleted.</p></div>
       ${c.emailOn ? '<label class="check"><input type="checkbox" id="reply-email" checked> Also email them a notice (at most one a day; it never includes the message)</label>' : '<p class="muted">This player has not turned on email notices, so they will see the reply the next time they open Messages.</p>'}
       <label class="check"><input type="checkbox" id="reply-done"> Mark the conversation done after sending</label>
       <p class="error" id="reply-error" role="alert" hidden></p>
@@ -578,6 +821,11 @@ $('#comm-thread').onclick = async (e) => {
   if (!b) return;
   const kind = b.dataset.thread;
   if (kind === 'close') { closeThread(); $('#comm-list button, #comm-list')?.focus?.(); return; }
+  if (kind === 'unpuzzle') {
+    if (!(await ask({ title: 'Remove this puzzle?', text: 'The player will no longer see it under Puzzles for you. A copy they already saved stays on their device.', ok: 'Remove', danger: true }))) return;
+    if (await act(b, () => api(`conversations/${openThread}/puzzles/${Number(b.dataset.pid)}/delete`, { method: 'POST' }), 'Puzzle removed.')) await showThread(openThread, { keepFocus: true });
+    return;
+  }
   if (kind === 'delete' && !(await ask({ title: 'Delete this conversation?', text: 'It goes from the player\'s Messages too, and cannot be brought back.', ok: 'Delete', danger: true }))) return;
   const id = openThread;
   const words = { done: 'Marked done.', open: 'Reopened.', delete: 'Deleted.' };
@@ -593,13 +841,22 @@ $('#comm-thread').addEventListener('submit', async (e) => {
   const err = $('#reply-error');
   err.hidden = true;
   if (text.length < 2) { err.textContent = 'Write the reply first.'; err.hidden = false; $('#reply-text').focus(); return; }
+  const file = $('#reply-puzzle').files[0];
+  let puzzle = null;
+  if (file) {
+    try {
+      if (file.size > 450_000) throw new Error('too big');
+      puzzle = JSON.parse(await file.text());
+    } catch (ex) { err.textContent = 'That file could not be read as a puzzle file. Use a file saved from the game.'; err.hidden = false; $('#reply-puzzle').focus(); return; }
+  }
   const btn = $('button[type=submit]', e.target);
   btn.disabled = true;
   try {
-    const r = await api(`conversations/${openThread}/reply`, { method: 'POST', body: { text, email: $('#reply-email') ? $('#reply-email').checked : false, done: $('#reply-done').checked } });
+    const r = await api(`conversations/${openThread}/reply`, { method: 'POST', body: { text, email: $('#reply-email') ? $('#reply-email').checked : false, done: $('#reply-done').checked, ...(puzzle ? { puzzle } : {}) } });
     const note = { queued: ' An email notice will go out within 15 minutes.', limit: ' No email notice: they already got one today.', off: ' No email notice: emails to players are switched off.' }[r.email] || '';
-    toast(`Reply sent.${note}`);
-    announce(`Reply sent.${note}`);
+    const stored = r.puzzle ? ` "${r.puzzle.title}" is stored for them until ${when(r.puzzle.expiresAt)}.` : '';
+    toast(`Reply sent.${stored}${note}`);
+    announce(`Reply sent.${stored}${note}`);
     await show('communication', { keepFocus: true });
     $('#thread-h')?.focus();
   } catch (ex) { err.textContent = ex.message; err.hidden = false; btn.disabled = false; }
@@ -824,12 +1081,14 @@ async function openPlayer(uid) {
       ${p.ban ? '<button class="btn" data-act="unban">Lift ban</button>' : '<button class="btn danger" data-act="ban">Ban</button>'}
       ${can('admin') ? '<button class="btn danger" data-act="reset-scores">Reset scores</button><button class="btn danger" data-act="delete">Delete account data</button>' : ''}
     </div>
+    ${playerBadgesHtml(badgeHelpers, p)}
     <h3>Latest scores</h3>
     ${table([{ label: 'When' }, { label: 'Kind' }, { label: 'Difficulty' }, { label: 'Cells', num: 1 }, { label: 'Time', num: 1 }, { label: 'Hints', num: 1 }, { label: 'Points', num: 1 }],
       p.recentScores.map((s) => [when(s.at), s.kind === 'race' ? 'Race' : 'Solo', esc(TIER_NAMES[s.tier] || s.tier), fmt(s.cells), `${Math.round(s.elapsedMs / 60000)} min`, fmt(s.hints), fmt(s.points)]), 'No scores.')}
   </div>`;
   $('#player-card').focus();
   $('#player-card').onclick = async (e) => {
+    if (await playerBadgeClick(badgeHelpers, e, p, () => openPlayer(uid))) return;
     const b = e.target.closest('button[data-act]');
     if (!b) return;
     if (b.dataset.act === 'message') { messagePlayer(uid); return; }
@@ -959,7 +1218,7 @@ $('#sup-blocks').onclick = async (e) => {
   if (!(await ask({ title: 'Lift this block?', text: 'New payments from this player will add a badge and extras again. Do this once the dispute is settled in your favor or the player has paid it back.', ok: 'Lift the block' }))) return;
   if (await act(b, () => api(`supporters/blocks/${b.dataset.supUnblock}/remove`, { method: 'POST' }), 'Block lifted.')) show('supporters', { keepFocus: true });
 };
-views.connections = () => renderConnections($('#connections-view'), { api, esc, when, toast, announce });
+views.connections = () => renderConnections($('#connections-view'), { api, esc, when, toast, announce, ask });
 
 $('#ann-form').onsubmit = async (e) => {
   e.preventDefault();
@@ -1134,6 +1393,7 @@ $('#search-refresh').onclick = async (e) => {
 };
 
 $('#ov-days').onchange = () => show('overview');
+$('#vis-days').onchange = () => show('visitors');
 
 // ---- Daily puzzles: preview the coming days and plan changes.
 let dailyData = null;
@@ -1238,6 +1498,14 @@ initMarketing(marketingHelpers, (name, o) => show(name, o));
 const educatorHelpers = { api, esc, fmt, when, can, act, ask, setCount };
 views.educators = () => educatorsView(educatorHelpers);
 initEducators(educatorHelpers, (name, o) => show(name, o));
+// ---- Badges (badges.js): special badges by hand and for milestones.
+const badgeHelpers = { api, esc, fmt, when, day, table, can, act, ask, toast, announce };
+views.badges = () => badgesView(badgeHelpers);
+initBadges(badgeHelpers, (name, o) => show(name, o));
+
+// ---- Puzzle emails (puzzle-mail.js): the weekly and special edition lists, sends and planner.
+views.mail = () => puzzleMailView();
+initPuzzleMail({ api, esc, fmt, when, tile, table, can, act, ask, toast, show });
 
 // ------------------------------------------------------------- navigation
 const MIN_ROLE = Object.fromEntries($$('#nav-list a').map((a) => [a.hash.slice(1), a.dataset.min]));
@@ -1290,6 +1558,7 @@ async function enter() {
   $$('#nav-list a').forEach((a) => { a.parentElement.hidden = !can(a.dataset.min); });
   $$('main [data-min]').forEach((el) => { el.hidden = !can(el.dataset.min); });
   show(location.hash.slice(1) || 'overview');
+  if (oauthBack) { const back = oauthBack; oauthBack = null; finishOAuth(back, { api, ask, esc, toast }); }
 }
 
 function signOut(message) {

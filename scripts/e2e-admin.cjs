@@ -194,6 +194,21 @@ const SHOTS = process.env.SHOTS;
     assert(await page.locator('details.conn[data-id=github-security]').isHidden(), 'Needs attention hides the rest');
     await page.selectOption('#conn-show', 'all');
     await shot(page, '8-connections');
+    // Get the key: the owner goes to the site with the app id only (the app
+    // secret is typed on return, never stored), and coming back takes the
+    // code off the address bar.
+    await page.click('details.conn[data-id=reddit] summary');
+    await page.click('details.conn[data-id=reddit] button[data-key-site=reddit]');
+    await page.fill('#dialog [name=clientId]', 'test-app');
+    await page.route('https://www.reddit.com/**', (r) => r.fulfill({ body: '<p>reddit</p>', contentType: 'text/html' }));
+    await Promise.all([page.waitForURL((u) => u.hostname === 'www.reddit.com'), page.click('#dialog-ok')]);
+    const sent = new URL(page.url());
+    assert(sent.searchParams.get('client_id') === 'test-app' && sent.searchParams.get('redirect_uri') === `${API}/admin/`
+      && sent.searchParams.get('duration') === 'permanent', 'Get the key sends the app id to the site');
+    await page.goto(`${API}/admin/?state=${encodeURIComponent(sent.searchParams.get('state'))}&error=access_denied`);
+    await page.waitForFunction(() => /did not allow/.test(document.querySelector('#toast')?.textContent || ''));
+    assert(!page.url().includes('state=') && page.url().endsWith('#connections'), 'the code is taken off the address bar');
+    assert(await page.evaluate(() => !sessionStorage.getItem('flg-oauth')), 'the pending sign-in is cleared from the tab');
     await page.click('a[href="#settings"]');
     await page.waitForSelector('input[data-key=default_music]');
     await page.uncheck('input[data-key=default_music]');
@@ -501,12 +516,19 @@ const SHOTS = process.env.SHOTS;
     await p.fill('#idea-text', 'A pirate ship lost in the fog where the crew swapped maps.');
     await p.click('#idea-form button[type=submit]');
     await p.waitForFunction(() => /sent/.test(document.querySelector('#idea-form .acct-done').textContent));
-    await p.selectOption('#problem-topic', 'sound');
-    await p.fill('#problem-text', 'The music stopped after the second puzzle.');
-    await p.click('#problem-form button[type=submit]');
-    await p.waitForFunction(() => /sent/.test(document.querySelector('#problem-form .acct-done').textContent));
+    assert(await p.locator('#dlg-feedback #problem-form').count() === 0, 'the idea box has no problem form any more');
+    await p.click('#dlg-feedback [data-close]');
+    // Problems go through Report a Problem in the footer, as a Web Page Issue here.
+    await p.click('#report-problem');
+    await p.waitForSelector('#dlg-report[open]');
+    assert(await p.isChecked('input[name=report-kind][value=page]'), 'away from a puzzle it starts as a Web Page Issue');
+    assert(await p.getAttribute('#report-text', 'maxlength') === '1000', 'the box holds 1,000 characters');
+    await p.fill('#report-text', 'The music stopped after the second puzzle.');
+    await p.click('#report-form button[type=submit]');
+    await p.waitForFunction(() => /WS-[A-Z2-9]{8}/.test(document.querySelector('#report-done').textContent));
+    await p.click('#dlg-report [data-close]');
     const fb = (await db.prepare('SELECT kind, topic, theme FROM feedback ORDER BY id').all()).results.map((r) => `${r.kind}:${r.topic}${r.theme ? `:${r.theme}` : ''}`);
-    assert(fb.join() === 'idea:story:adventure,problem:sound', `an idea and a problem arrive in separate boxes (${fb.join()})`);
+    assert(fb.join() === 'idea:story:adventure,problem:page', `an idea and a web page issue arrive in their own places (${fb.join()})`);
 
     // ...and show up in the dashboard's one inbox (the old #feedback link still works).
     await db.prepare("INSERT INTO conversations (id, user_id, topic, subject, status, admin_unread, created_at, updated_at) VALUES (900, 'player-1', 'question', 'Can I print puzzles?', 'open', 1, ?1, ?1)").bind(Date.now()).run();
