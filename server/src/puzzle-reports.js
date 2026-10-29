@@ -58,9 +58,18 @@ const CODES = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 export const CATEGORIES = { puzzle: { prefix: 'PZ', topic: 'puzzle', name: 'Puzzle' }, webstructure: { prefix: 'WS', topic: 'page', name: 'Web structure' } };
 const LIST_MAX = 50;
 
+// Unbiased: bytes at or above the largest multiple of the alphabet size are
+// skipped, so every character is equally likely.
 function randomCode(n) {
-  const bytes = crypto.getRandomValues(new Uint8Array(n));
-  return [...bytes].map((b) => CODES[b % CODES.length]).join('');
+  const limit = 256 - (256 % CODES.length);
+  let out = '';
+  while (out.length < n) {
+    for (const b of crypto.getRandomValues(new Uint8Array(n * 2))) {
+      if (b < limit) out += CODES[b % CODES.length];
+      if (out.length === n) break;
+    }
+  }
+  return out;
 }
 function randomToken() {
   const bytes = crypto.getRandomValues(new Uint8Array(24));
