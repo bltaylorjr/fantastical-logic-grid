@@ -50,7 +50,9 @@ NO_REPLY = ('This is an automatic message from a no-reply address. Please do not
 
 SIGN_OFF = 'The Fantastical Logic Grid team\n' + GAME_URL
 
-# Each email is a list of blocks: plain paragraphs, and ('quote', label, text)
+# Each email is a list of blocks: plain paragraphs, ('link', words, url) for a
+# button (the URL comes from the Worker and always points at the game's own
+# site), and ('quote', label, text)
 # for the player's own words or the team's note. Those come from the Worker,
 # already cleaned (no email addresses or links), and go only to the player's
 # own address. An email whose words are missing still reads well without them.
@@ -86,6 +88,22 @@ NOTES = {
             ('quote', 'Your idea', r.get('text')),
             ('quote', 'What we did', r.get('note')),
             'Thank you again for helping to make the game better. Open the game to see it, and keep the ideas coming!',
+            SIGN_OFF,
+        ],
+    },
+    'problem_repaired': {
+        'subject': 'We fixed the puzzle you reported',
+        'blocks': lambda r: [
+            'Hello, puzzler!',
+            'We are sorry for the trouble with that puzzle, and thank you for telling us about it. '
+            'We looked into your report and fixed the problem.',
+            ('quote', 'What you reported', r.get('text')),
+            ('quote', 'What we found', r.get('explain')),
+            ('quote', 'What we did', r.get('note')),
+            ('link', 'Add the repaired puzzle to my saved puzzles', r.get('link')),
+            'The button opens the game and puts the repaired puzzle in your Saved puzzles, ready to play again. '
+            'It works on any device for 30 days.',
+            'Thank you for helping us make the game better for every player.',
             SIGN_OFF,
         ],
     },
@@ -133,7 +151,8 @@ NOTES = {
 
 def blocks(r):
     """The email's blocks, without quotes that have no words."""
-    return [b for b in NOTES[r['kind']]['blocks'](r) if isinstance(b, str) or (b[2] or '').strip()]
+    return [b for b in NOTES[r['kind']]['blocks'](r) if isinstance(b, str) or (b[2] or '').strip()
+            and (b[0] != 'link' or str(b[2]).startswith('https://'))]
 
 
 def call(path, body):
@@ -153,6 +172,10 @@ def html_version(r):
     for b in blocks(r):
         if isinstance(b, str):
             parts.append(f'<p style="margin:0 0 14px">{html.escape(b).replace(chr(10), "<br>")}</p>')
+        elif b[0] == 'link':
+            parts.append(f'<p style="margin:6px 0 18px"><a href="{html.escape(b[2], quote=True)}" style="display:inline-block;'
+                         'background:#5B3CC4;color:#ffffff;text-decoration:none;font-weight:bold;padding:12px 20px;border-radius:8px">'
+                         f'{html.escape(b[1])}</a></p>')
         else:
             parts.append(f'<p style="margin:0 0 6px;font-weight:bold">{html.escape(b[1])}:</p>'
                          '<blockquote style="margin:0 0 16px;padding:10px 14px;border-left:4px solid #b08d3c;background:#f6f1e7;'
@@ -168,6 +191,8 @@ def text_version(r):
     for b in blocks(r):
         if isinstance(b, str):
             out.append(b)
+        elif b[0] == 'link':
+            out.append(b[1] + ':\n' + b[2])
         else:
             out.append(b[1] + ':\n' + '\n'.join('> ' + line for line in b[2].strip().split('\n')))
     return '\n\n'.join(out) + '\n\n--\n' + NO_REPLY + '\n'

@@ -24,7 +24,7 @@ import { THEMES } from '../../engine/src/themes.js';
 
 export const TOPICS = {
   idea: ['story', 'theme', 'feature', 'other'],
-  problem: ['play', 'sound', 'pictures', 'saving', 'other'],
+  problem: ['play', 'sound', 'pictures', 'saving', 'puzzle', 'page', 'other'],
 };
 const THEME_IDS = new Set(THEMES.map((t) => t.id));
 export const themeName = (id) => (THEMES.find((t) => t.id === id) || {}).name || id || '';

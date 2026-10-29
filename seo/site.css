@@ -62,6 +62,16 @@ dd { margin: 0 0 0 1rem; }
 .social-link:hover { border-color: var(--accent); color: var(--accent); }
 .social-link:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 .social-link img { width: 20px; height: 20px; }
+.report-btn { font: inherit; cursor: pointer; border: 0; }
+.btn.quiet { background: transparent; color: var(--accent); border: 1px solid var(--edge); }
+.report-dlg { max-width: 560px; width: calc(100% - 32px); border: 1px solid var(--edge); border-radius: 12px; padding: 20px; color: var(--text); background: var(--bg); }
+.report-dlg::backdrop { background: rgb(0 0 0 / .45); }
+.report-dlg h2 { margin-top: 0; }
+.report-dlg textarea { width: 100%; font: inherit; padding: 8px; border: 1px solid var(--edge); border-radius: 8px; }
+.report-dlg .report-kind { border: 0; padding: 0; margin: 0 0 8px; display: flex; flex-wrap: wrap; gap: 4px 20px; }
+.report-dlg .help { color: var(--muted); font-size: .9em; }
+.report-dlg .error { color: #B3261E; }
+.report-dlg .report-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .foot { max-width: 860px; margin: 0 auto; padding: 20px; border-top: 1px solid var(--edge); color: var(--muted); }
 /* Printable worksheets (printables/): a staircase grid and the answer key on its own page. */
 .lgrid { width: auto; border-collapse: collapse; margin: 8px 0 16px; }
