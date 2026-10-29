@@ -227,6 +227,30 @@ test('admins add and change campaigns, ads and media; viewers only look', async 
   assert.ok(audit.includes('marketing.campaign_delete') && audit.includes('marketing.ad'), 'changes are in the audit log');
 });
 
+test('Post now and Launch campaign put approved ads out today, drafts wait', async () => {
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+  const c = await call('/admin/v1/marketing/campaigns', { auth: admin(), body: { name: 'Launch Night', status: 'draft' } });
+  const mk = async (title, status, postOn) => (await call('/admin/v1/marketing/ads', { auth: admin(), body: { campaignId: c.body.id, title, channel: 'bluesky', medium: 'social', body: 'Play {link}', status, ...(postOn ? { postOn } : {}) } })).body.id;
+  const ready = await mk('Ready now', 'approved');
+  const later = await mk('Next month', 'approved', '2099-01-01');
+  const draft = await mk('Still a draft', 'draft');
+  // A draft cannot be posted, and nothing posts while the campaign is not running.
+  assert.equal((await call(`/admin/v1/marketing/ads/${draft}/post-now`, { auth: admin(), body: {} })).status, 409);
+  assert.equal((await call(`/admin/v1/marketing/ads/${ready}/post-now`, { auth: admin(), body: {} })).status, 409);
+  assert.equal((await call(`/admin/v1/marketing/campaigns/${c.body.id}/launch`, { auth: viewer(), body: {} })).status, 403);
+  const r = await call(`/admin/v1/marketing/campaigns/${c.body.id}/launch`, { auth: admin(), body: {} });
+  assert.equal(r.status, 200);
+  assert.deepEqual({ now: r.body.now, later: r.body.later, drafts: r.body.drafts, started: r.body.started, day: r.body.day }, { now: 1, later: 1, drafts: 1, started: false, day: today });
+  assert.equal((await db.prepare('SELECT status FROM campaigns WHERE id = ?1').bind(c.body.id).first()).status, 'active');
+  const due = await call(`/admin/v1/marketing/due?day=${today}`, { auth: TOKEN });
+  const ids = due.body.ads.map((a) => a.id);
+  assert.ok(ids.includes(ready) && !ids.includes(later) && !ids.includes(draft), JSON.stringify(ids));
+  // Post now brings a later ad forward to today.
+  const now = await call(`/admin/v1/marketing/ads/${later}/post-now`, { auth: admin(), body: {} });
+  assert.equal(now.status, 200);
+  assert.equal((await db.prepare('SELECT post_on, auto_note FROM campaign_ads WHERE id = ?1').bind(later).first()).post_on, today);
+});
+
 test('event cleaning and links', () => {
   const known = { campaigns: new Map([['launch-2026', new Set(['a1'])]]), sources: new Set(['reddit', 'other']) };
   assert.deepEqual(cleanEvent({ e: 'visit', c: 'Launch-2026', s: 'Reddit', m: 'forum', k: 'nope', p: 'ios' }, known), { campaign: 'launch-2026', source: 'reddit', medium: 'forum', content: 'other', event: 'visit', platform: 'ios' });
