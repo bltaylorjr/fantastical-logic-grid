@@ -225,7 +225,7 @@ const INIT = (Z) => {
 
     // ---------- Themes
     await jumpTo('#theme-choices', -150);
-    const themes = ['mystery', 'fantasy', 'scifi', 'town', 'parks', 'travel', 'wonders', 'action', 'holiday', 'cooking', 'pets', 'sports'];
+    const themes = ['mystery', 'fantasy', 'scifi', 'astronomy', 'music', 'parks', 'travel', 'science', 'math', 'nautical', 'cooking', 'pets', 'sports'];
     await film('themes', async () => {
       await wait(300);
       for (const t of themes) { await tap(`input[name=theme][value=${t}] + *`, 330); await wait(260); }
@@ -236,7 +236,7 @@ const INIT = (Z) => {
     await jumpTo('#tier-choices', -170);
     await film('tiers', async () => {
       await wait(300);
-      for (const t of ['basic', 'easy', 'medium', 'hard', 'expert', 'mensa']) { await tap(`input[name=tier][value=${t}] + *`, 380); await wait(330); }
+      for (const t of ['basic', 'easy', 'medium', 'hard', 'expert', 'mensa', 'theorist']) { await tap(`input[name=tier][value=${t}] + *`, 380); await wait(330); }
       await wait(500);
     });
 
@@ -323,6 +323,20 @@ const INIT = (Z) => {
       await p.evaluate(() => { document.documentElement.dataset.theme = 'contrast'; }); await wait(1300);
       await p.evaluate(() => { document.documentElement.dataset.theme = 'light'; }); await wait(700);
     });
+
+    // ---------- Stats and badges (the solve above counts)
+    await top();
+    await film('stats', async () => {
+      await wait(200);
+      await tap('#menu-btn', 500); await wait(350);
+      await tap('[data-cmd=stats]', 500);
+      await p.waitForSelector('#dlg-stats[open]');
+      await p.waitForFunction(() => !/Loading/.test(document.querySelector('#stats-body').textContent), null, { timeout: 15000 }).catch(() => {});
+      await wait(1600);
+      await p.evaluate(() => { const b = document.querySelector('#stats-body'); b.scrollTo({ top: b.scrollHeight, behavior: 'smooth' }); });
+      await wait(1600);
+    });
+    await p.click('#stats-close').catch(() => {}); await wait(300);
 
     // ---------- Print
     await top();
@@ -422,6 +436,22 @@ const INIT = (Z) => {
       await p.waitForSelector('#dlg-race[open] [data-view=challenge]:not([hidden])');
       await p.locator('#challenge-name').pressSequentially('Bold Badger', { delay: 70 });
       await wait(1200);
+    });
+    await p.keyboard.press('Escape');
+
+    // ---------- Share a storyline idea (signed in, so the email box shows)
+    await top();
+    await film('idea', async () => {
+      await wait(200);
+      await tap('#menu-btn', 500); await wait(350);
+      await tap('[data-cmd=feedback]', 500);
+      await p.waitForSelector('#dlg-feedback[open]'); await wait(500);
+      await tap('#idea-form input[name=idea-topic][value=story] + *, #idea-form input[name=idea-topic][value=story]', 450).catch(() => {});
+      await p.selectOption('#idea-theme', 'nautical').catch(() => {});
+      await wait(300);
+      await tap('#idea-text', 500);
+      await p.locator('#idea-text').pressSequentially('A lighthouse keeper finds the great lantern switched off on the stormiest night of the year...', { delay: 38 });
+      await wait(1500);
     });
     await p.keyboard.press('Escape');
     await top(); await wait(500);
