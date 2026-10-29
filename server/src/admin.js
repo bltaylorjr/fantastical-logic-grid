@@ -32,7 +32,8 @@
 //   GET/POST /admin/v1/settings        feature switches and limits (settings.js)
 //   GET/POST /admin/v1/announcements   messages in the game; POST .../:id/(end|delete)
 //   GET  /admin/v1/inbox?type=&status=&q=  Communication: messages, ideas, problems, errors and emails in one list (messages.js)
-//   GET  /admin/v1/conversations/:id   one conversation; POST .../:id/reply, .../:id/status (open|done|delete)
+//   GET  /admin/v1/conversations/:id   one conversation; POST .../:id/reply (with an optional puzzle file), .../:id/status (open|done|delete)
+//   POST /admin/v1/conversations/:id/puzzles/:pid/delete   remove a stored puzzle; GET /admin/v1/puzzle-storage  totals
 //   POST /admin/v1/conversations       write to one player first
 //   GET/POST /admin/v1/news            news in every player's Messages; POST .../:id/(end|delete)
 //   GET  /admin/v1/audit               the audit log
@@ -72,7 +73,7 @@ import { workshopOptions, addPart, draftParts } from './workshop.js';
 import { characterRoutes } from './characters.js';
 import { TOPICS as FEEDBACK_TOPICS } from './feedback.js';
 import { claimReplies, finishReplies, replyCounts, releaseUpdate, dropUpdate, deleteReplyStatements } from './replies.js';
-import { inbox, INBOX_TYPES, conversationView, teamReply, setConversationStatus, startConversation, listNews, addNews, endNews, deleteNews, deleteMessageStatements, MessageRefusal } from './messages.js';
+import { inbox, INBOX_TYPES, conversationView, teamReply, removePuzzle, puzzleStorage, PUZZLE_MAX_CHARS, setConversationStatus, startConversation, listNews, addNews, endNews, deleteNews, deleteMessageStatements, MessageRefusal } from './messages.js';
 import { claimDailyEmail, finishDailyEmail } from './daily-email.js';
 import { archiveStatus, runArchive, buildArchive, exportArchive, confirmArchive } from './archive.js';
 import { FREE_LIMITS, cloudflareUsage } from './usage.js';
@@ -100,7 +101,7 @@ const SESSION_MAX_S = 12 * 3600;
 const DENIED_PER_DAY = 500; // refused requests written to the audit log, so a flood cannot fill it
 const ANALYTICS_CACHE_MS = 120_000;
 const TABLES = ['sync_users', 'sync_records', 'sync_deleted_users', 'players', 'scores', 'races', 'race_entries', 'race_invites', 'plays', 'parts', 'usage',
-  'app_errors', 'upkeep_log', 'admins', 'admin_audit', 'settings', 'announcements', 'bans', 'name_reviews', 'archive_log', 'feedback', 'feedback_replies', 'error_fixes', 'conversations', 'conversation_messages', 'message_contacts', 'news', 'search_snapshots', 'daily_plan', 'translations', 'rating_insights', 'campaigns', 'campaign_ads', 'marketing_media', 'campaign_stats', 'challenges', 'daily_results', 'daily_email', 'supporters', 'payment_blocks', 'puzzle_mail', 'puzzle_mail_got', 'puzzle_mail_days', 'special_editions', 'educator_requests', 'special_badges', 'badge_awards'];
+  'app_errors', 'upkeep_log', 'admins', 'admin_audit', 'settings', 'announcements', 'bans', 'name_reviews', 'archive_log', 'feedback', 'feedback_replies', 'error_fixes', 'conversations', 'conversation_messages', 'message_contacts', 'news', 'search_snapshots', 'daily_plan', 'translations', 'rating_insights', 'campaigns', 'campaign_ads', 'marketing_media', 'campaign_stats', 'challenges', 'daily_results', 'daily_email', 'supporters', 'payment_blocks', 'puzzle_mail', 'puzzle_mail_got', 'puzzle_mail_days', 'special_editions', 'educator_requests', 'special_badges', 'badge_awards', 'player_puzzles'];
 const SECURITY_HEADERS = {
   'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; media-src 'self' blob:; connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
   'X-Content-Type-Options': 'nosniff',
@@ -639,8 +640,10 @@ const ROUTES = [
   ['POST', /^conversations\/(\d{1,12})\/reply$/, 'moderator', 'conversations.reply', async ({ env, params: [id], body, who, now }) => {
     const r = await teamReply(env, Number(id), body, who, now);
     analyticsCache.clear();
-    return { body: r, target: id, detail: { length: r.length, email: r.email, done: r.done } };
-  }],
+    return { body: r, target: id, detail: { length: r.length, email: r.email, done: r.done, puzzle: r.puzzle ? r.puzzle.title : undefined } };
+  }, { maxBody: PUZZLE_MAX_CHARS + 20_000 }],
+  ['POST', /^conversations\/(\d{1,12})\/puzzles\/(\d{1,12})\/delete$/, 'moderator', 'puzzles.remove', async ({ env, params: [id, pid] }) => ({ body: await removePuzzle(env, Number(id), Number(pid)), target: `${id}/${pid}` })],
+  ['GET', /^puzzle-storage$/, 'viewer', 'puzzles.storage', async ({ env, now }) => ({ body: await puzzleStorage(env, now), quiet: true })],
   ['POST', /^conversations\/(\d{1,12})\/status$/, 'moderator', 'conversations.status', async ({ env, params: [id], body, who, now }) => {
     if (body.status === 'delete' && ROLES[who.role] < ROLES.admin) throw new Refusal(403, 'role', 'Deleting a conversation needs the admin role.');
     analyticsCache.clear();
@@ -752,10 +755,10 @@ const ROUTES = [
   }],
 ];
 
-async function readBody(req) {
+async function readBody(req, max = MAX_BODY) {
   if (req.method !== 'POST') return {};
   let text;
-  try { text = await readText(req, MAX_BODY); } catch (e) {
+  try { text = await readText(req, max); } catch (e) {
     if (e instanceof TooLarge) throw new Refusal(413, 'too_large');
     throw e;
   }
@@ -791,7 +794,7 @@ async function api(req, env, ctx, url, path) {
     if (env.LIMIT_ADMIN && !(await env.LIMIT_ADMIN.limit({ key: who.key })).success) throw new Refusal(429, 'slow_down', 'Too many requests. Wait a minute.');
     if (!route) throw new Refusal(404, 'not_found');
     if (ROLES[who.role] < ROLES[route[2]]) throw new Refusal(403, 'role', `This needs the ${route[2]} role.`);
-    const body = await readBody(req);
+    const body = await readBody(req, route[5]?.maxBody || MAX_BODY);
     let out;
     try { out = await route[4]({ req, env, ctx, url, who, params, body, now: Date.now() }); } catch (e) {
       if (e instanceof MessageRefusal) throw new Refusal(e.status, e.error, e.message);

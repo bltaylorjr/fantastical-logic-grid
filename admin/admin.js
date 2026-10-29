@@ -501,8 +501,12 @@ async function showThread(id, { keepFocus = false } = {}) {
     <ol class="messages">${c.messages.map((m) => `<li class="msg ${m.sender === 'team' ? 'team' : 'player'}">
       <p><b>${m.sender === 'team' ? `The team <span class="muted">(${esc(m.author || 'admin')})</span>` : who}</b> <span class="muted">${when(m.at)}</span></p>
       <p class="fb-text">${esc(m.text)}</p></li>`).join('')}</ol>
+    ${c.puzzles && c.puzzles.length ? `<h3>Puzzles stored for this player</h3><ul class="plain">${c.puzzles.map((p) => `<li><b>${esc(p.title)}</b> <span class="muted">${esc(TIER_NAMES[p.tier] || p.tier)} · sent ${when(p.at)} · deleted ${when(p.expiresAt)} · ${p.openedAt ? 'opened' : 'not opened yet'}</span>
+      <button class="btn small danger" type="button" data-thread="unpuzzle" data-pid="${Number(p.id)}">Remove</button></li>`).join('')}</ul>` : ''}
     <form id="reply-form" class="stack" novalidate>
       <div class="field"><label for="reply-text">Your reply (up to 2,000 characters). The player sees it signed "The team".</label><textarea id="reply-text" rows="4" maxlength="2000"></textarea></div>
+      <div class="field"><label for="reply-puzzle">Attach a puzzle (optional)</label><input type="file" id="reply-puzzle" accept=".json,application/json">
+        <p class="muted">A puzzle file saved from the game (Saved puzzles &gt; Save to a file), such as one made from this player's suggestion. They can play or download it from Messages &gt; Puzzles for you for 30 days, then it is deleted.</p></div>
       ${c.emailOn ? '<label class="check"><input type="checkbox" id="reply-email" checked> Also email them a notice (at most one a day; it never includes the message)</label>' : '<p class="muted">This player has not turned on email notices, so they will see the reply the next time they open Messages.</p>'}
       <label class="check"><input type="checkbox" id="reply-done"> Mark the conversation done after sending</label>
       <p class="error" id="reply-error" role="alert" hidden></p>
@@ -585,6 +589,11 @@ $('#comm-thread').onclick = async (e) => {
   if (!b) return;
   const kind = b.dataset.thread;
   if (kind === 'close') { closeThread(); $('#comm-list button, #comm-list')?.focus?.(); return; }
+  if (kind === 'unpuzzle') {
+    if (!(await ask({ title: 'Remove this puzzle?', text: 'The player will no longer see it under Puzzles for you. A copy they already saved stays on their device.', ok: 'Remove', danger: true }))) return;
+    if (await act(b, () => api(`conversations/${openThread}/puzzles/${Number(b.dataset.pid)}/delete`, { method: 'POST' }), 'Puzzle removed.')) await showThread(openThread, { keepFocus: true });
+    return;
+  }
   if (kind === 'delete' && !(await ask({ title: 'Delete this conversation?', text: 'It goes from the player\'s Messages too, and cannot be brought back.', ok: 'Delete', danger: true }))) return;
   const id = openThread;
   const words = { done: 'Marked done.', open: 'Reopened.', delete: 'Deleted.' };
@@ -600,13 +609,22 @@ $('#comm-thread').addEventListener('submit', async (e) => {
   const err = $('#reply-error');
   err.hidden = true;
   if (text.length < 2) { err.textContent = 'Write the reply first.'; err.hidden = false; $('#reply-text').focus(); return; }
+  const file = $('#reply-puzzle').files[0];
+  let puzzle = null;
+  if (file) {
+    try {
+      if (file.size > 450_000) throw new Error('too big');
+      puzzle = JSON.parse(await file.text());
+    } catch (ex) { err.textContent = 'That file could not be read as a puzzle file. Use a file saved from the game.'; err.hidden = false; $('#reply-puzzle').focus(); return; }
+  }
   const btn = $('button[type=submit]', e.target);
   btn.disabled = true;
   try {
-    const r = await api(`conversations/${openThread}/reply`, { method: 'POST', body: { text, email: $('#reply-email') ? $('#reply-email').checked : false, done: $('#reply-done').checked } });
+    const r = await api(`conversations/${openThread}/reply`, { method: 'POST', body: { text, email: $('#reply-email') ? $('#reply-email').checked : false, done: $('#reply-done').checked, ...(puzzle ? { puzzle } : {}) } });
     const note = { queued: ' An email notice will go out within 15 minutes.', limit: ' No email notice: they already got one today.', off: ' No email notice: emails to players are switched off.' }[r.email] || '';
-    toast(`Reply sent.${note}`);
-    announce(`Reply sent.${note}`);
+    const stored = r.puzzle ? ` "${r.puzzle.title}" is stored for them until ${when(r.puzzle.expiresAt)}.` : '';
+    toast(`Reply sent.${stored}${note}`);
+    announce(`Reply sent.${stored}${note}`);
     await show('communication', { keepFocus: true });
     $('#thread-h')?.focus();
   } catch (ex) { err.textContent = ex.message; err.hidden = false; btn.disabled = false; }
