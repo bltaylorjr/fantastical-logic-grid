@@ -1364,7 +1364,9 @@ const SEARCH_SETUP = {
 function searchSource(title, key, s) {
   const head = `<h2>${esc(title)}</h2>`;
   if (!s.connected && !s.data) return `<div class="card">${head}<p class="note">Not connected yet. ${SEARCH_SETUP[key]}</p></div>`;
-  const status = s.error
+  const status = s.retryAt
+    ? `<p class="note">Bing asked us to slow down (it limits how often one internet address can ask, and our server shares its address with other sites). Nothing is wrong with the site. ${s.data ? `The numbers below are from ${when(s.fetchedAt)}. ` : ''}It will try again by itself ${s.retryAt > Date.now() ? `after ${when(s.retryAt)}` : 'at the next refresh'}.</p>`
+    : s.error
     ? `<p class="error">The last fetch (${when(s.triedAt)}) failed: ${esc(s.error)}${s.data ? ' The numbers below are from the last good fetch.' : ''}</p>`
     : s.fetchedAt ? `<p class="muted">Fetched ${when(s.fetchedAt)}.</p>` : '<p class="muted">Not fetched yet: it runs every night at 2 am Eastern, or press Refresh now.</p>';
   const x = s.data;

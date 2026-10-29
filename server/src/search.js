@@ -13,6 +13,14 @@ const DAY = 24 * 3600_000;
 const RANGE_DAYS = 28;
 const TOP = 25;
 export const REFRESH_GAP_MS = 10 * 60_000;
+// When Bing says "ThrottleIP" it is limiting the address the request came
+// from. Cloudflare Workers share their outgoing addresses with other sites, so
+// this can happen even when we ask rarely. Leave Bing alone for a while after
+// that instead of asking again, and keep showing the last good numbers.
+export const BING_BACKOFF_MS = 6 * 3600_000;
+const BING_GAP_MS = 1500;
+const isThrottle = (msg) => /throttl|\b429\b/i.test(String(msg || ''));
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const isoDay = (ms) => new Date(ms).toISOString().slice(0, 10);
 const siteOf = (env) => env.SEARCH_SITE_URL || 'https://thelogicgrid.com/';
@@ -115,10 +123,18 @@ export async function fetchBing(env, now = Date.now()) {
     // Bing can echo the key in its error text; never store it.
     .catch((e) => { throw new Error(String(e.message).split(env.BING_WEBMASTER_KEY).join('…')); });
   const errors = [];
-  const soft = (p) => p.catch((e) => { errors.push(e.message); return []; });
-  const [traffic, queries, pages, feeds, crawl] = await Promise.all([
-    call('GetRankAndTrafficStats'), soft(call('GetQueryStats')), soft(call('GetPageStats')), soft(call('GetFeeds')), soft(call('GetCrawlStats')),
-  ]);
+  // One request at a time with a short pause, so a refresh never bursts.
+  const traffic = await call('GetRankAndTrafficStats');
+  const extra = [];
+  for (const method of ['GetQueryStats', 'GetPageStats', 'GetFeeds', 'GetCrawlStats']) {
+    await sleep(Number(env.BING_GAP_MS ?? BING_GAP_MS));
+    try { extra.push(await call(method)); } catch (e) {
+      // Throttled part way: stop asking and keep what arrived.
+      if (isThrottle(e.message)) { errors.push(e.message); break; }
+      errors.push(e.message); extra.push([]);
+    }
+  }
+  const [queries = [], pages = [], feeds = [], crawl = []] = extra;
   const since = now - RANGE_DAYS * DAY;
   const byDay = traffic.map((x) => ({ date: isoDay(bingDate(x.Date) || 0), clicks: x.Clicks || 0, impressions: x.Impressions || 0, ms: bingDate(x.Date) || 0 }))
     .filter((x) => x.ms >= since).sort((a, b) => a.ms - b.ms).map(({ ms, ...x }) => x);
@@ -166,8 +182,12 @@ const SOURCES = {
 // good numbers and records the error next to them.
 export async function refreshSearch(env, now = Date.now()) {
   const out = {};
+  const { results } = await env.DB.prepare('SELECT source, error, tried_at FROM search_snapshots').all();
+  const last = new Map(results.map((r) => [r.source, r]));
   for (const [name, src] of Object.entries(SOURCES)) {
     if (!src.configured(env)) { out[name] = 'not_connected'; continue; }
+    const prev = last.get(name);
+    if (name === 'bing' && isThrottle(prev?.error) && now - (prev.tried_at || 0) < BING_BACKOFF_MS) { out[name] = 'waiting'; continue; }
     try {
       const data = await src.fetch(env, now);
       await env.DB.prepare(`INSERT INTO search_snapshots (source, fetched_at, data, error, tried_at) VALUES (?1, ?2, ?3, NULL, ?2)
@@ -194,6 +214,8 @@ export async function searchSnapshots(env) {
       fetchedAt: r?.fetched_at || null,
       triedAt: r?.tried_at || null,
       error: r?.error || null,
+      // Bing limited us: when the next try will be, so the dashboard can say so calmly.
+      retryAt: name === 'bing' && isThrottle(r?.error) ? (r.tried_at || 0) + BING_BACKOFF_MS : null,
       data: r?.data ? JSON.parse(r.data) : null,
     }];
   }));

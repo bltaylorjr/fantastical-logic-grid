@@ -18,6 +18,7 @@ const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 20
 const SA = { type: 'service_account', client_email: 'reader@logic-grid.iam.gserviceaccount.com', private_key: privateKey.export({ type: 'pkcs8', format: 'pem' }), token_uri: 'https://oauth2.googleapis.com/token' };
 const seen = [];
 let bingFails = false;
+let bingThrottled = false;
 let mf;
 let db;
 
@@ -49,6 +50,7 @@ async function outbound(req) {
   if (url.host === 'ssl.bing.com') {
     if (url.searchParams.get('apikey') !== BING_KEY) return jsonRes({ Message: 'bad key' }, 401);
     if (bingFails) return jsonRes({ Message: `InvalidApiKey ${BING_KEY}` }, 400);
+    if (bingThrottled) return jsonRes({ ErrorCode: 2, Message: 'ERROR!!! ThrottleIP' }, 400);
     const now = Date.now();
     const m = url.pathname.split('/').pop();
     if (m === 'GetRankAndTrafficStats') return jsonRes({ d: [{ Date: msDate(now - 2 * 864e5), Clicks: 3, Impressions: 70 }, { Date: msDate(now - 864e5), Clicks: 5, Impressions: 90 }, { Date: msDate(now - 90 * 864e5), Clicks: 99, Impressions: 999 }] });
@@ -71,7 +73,7 @@ before(async () => {
     outboundService: outbound,
     bindings: {
       FIREBASE_PROJECT_ID: 'flg-test', ALLOWED_ORIGINS: 'https://thelogicgrid.com', ADMIN_TOKEN: TOKEN, SEARCH_SITE_URL: 'https://thelogicgrid.com/',
-      GSC_SERVICE_ACCOUNT: JSON.stringify(SA), BING_WEBMASTER_KEY: BING_KEY,
+      GSC_SERVICE_ACCOUNT: JSON.stringify(SA), BING_WEBMASTER_KEY: BING_KEY, BING_GAP_MS: '0',
     },
   });
   db = await mf.getD1Database('DB');
@@ -136,9 +138,34 @@ test('a failed fetch keeps the last good numbers and hides the key', async () =>
   bingFails = false;
 });
 
+test('when Bing throttles, the dashboard keeps the numbers and Bing is left alone for six hours', async () => {
+  bingThrottled = true;
+  await db.prepare('UPDATE search_snapshots SET tried_at = 0').run();
+  const r = await call('/admin/v1/search/refresh', 'POST');
+  assert.equal(r.body.result.bing, 'error');
+  const bing = r.body.sources.bing;
+  assert.match(bing.error, /ThrottleIP/);
+  assert.equal(bing.data.totals.clicks, 8, 'the last good numbers stay');
+  assert.ok(bing.retryAt > Date.now() + 5 * 3600_000, 'the next try is hours away');
+  // The next refresh asks Google again but does not touch Bing at all.
+  bingThrottled = false;
+  await db.prepare('UPDATE search_snapshots SET tried_at = ?1 WHERE source = ?2').bind(Date.now() - 20 * 60_000, 'google').run();
+  await db.prepare('UPDATE search_snapshots SET tried_at = ?1 WHERE source = ?2').bind(Date.now() - 20 * 60_000, 'bing').run();
+  const before = seen.filter((x) => x.includes('ssl.bing.com')).length;
+  const again = await call('/admin/v1/search/refresh', 'POST');
+  assert.equal(again.status, 200);
+  assert.deepEqual([again.body.result.google, again.body.result.bing], ['ok', 'waiting']);
+  assert.equal(seen.filter((x) => x.includes('ssl.bing.com')).length, before);
+  // Once the wait is over, Bing is asked again and the error clears.
+  await db.prepare('UPDATE search_snapshots SET tried_at = ?1').bind(Date.now() - 7 * 3600_000).run();
+  const later = await call('/admin/v1/search/refresh', 'POST');
+  assert.equal(later.body.result.bing, 'ok');
+  assert.equal(later.body.sources.bing.error, null);
+});
+
 test('refresh waits ten minutes between fetches and is audited', async () => {
   const r = await call('/admin/v1/search/refresh', 'POST');
   assert.deepEqual([r.status, r.body.error], [429, 'too_soon']);
   const row = await db.prepare("SELECT COUNT(*) AS n FROM admin_audit WHERE action = 'search.refresh' AND status = 200").first();
-  assert.equal(row.n, 1);
+  assert.equal(row.n, 4);
 });
