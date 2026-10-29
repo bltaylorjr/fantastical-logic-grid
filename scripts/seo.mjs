@@ -371,7 +371,7 @@ ${verification}
     ['Are the stories ever repeated?', 'No. Every puzzle has a brand new story, built from the theme, topic and size you pick, and the game never gives you the same story twice.'],
     ['Can I save, resume or print a puzzle?', 'Yes. Your progress saves automatically, so you can come back any time from Saved puzzles. You can print any puzzle, blank or with your marks, with the answer key on its own page.'],
     ['Does it work offline?', 'Yes. After your first visit the game works without an internet connection, and you can install it from your browser like an app.'],
-    ['How hard are the puzzles?', `There are ${Object.keys(TIERS).length} difficulty levels, from Basic for beginners to Quantum Physicist for true masterminds. Each level adds categories, items and harder kinds of clues.`],
+    ['How hard are the puzzles?', `There are ${Object.keys(TIERS).length} difficulty levels, from Basic for beginners to Theoretical Physicist for the best of the best. Each level adds categories, items and harder kinds of clues.`],
     ['Is it accessible?', 'The game works fully by keyboard and with a screen reader, has a List view instead of the grid, light, dark and high-contrast colors, captions on the video, and a Silent mode with no pictures, sound or animation.'],
   ];
   page({
@@ -419,7 +419,7 @@ ${playBtn(up, 'Start a new case')}`,
   const tiers = Object.values(TIERS).sort((a, b) => a.order - b.order);
   page({
     path: 'difficulty-levels/', priority: 0.7,
-    title: `Logic puzzle difficulty levels, from Basic to Quantum Physicist | ${name}`,
+    title: `Logic puzzle difficulty levels, from Basic to Theoretical Physicist | ${name}`,
     description: `${tiers.length} difficulty levels of logic grid puzzles: ${tiers.map((t) => t.name).join(', ')}. See the grid sizes and the kinds of clues each level uses.`,
     crumbs: [['difficulty-levels/', 'Difficulty levels']],
     schema: [{ '@context': 'https://schema.org', '@type': 'ItemList', name: 'Logic puzzle difficulty levels', numberOfItems: tiers.length, itemListElement: tiers.map((t, i) => ({ '@type': 'ListItem', position: i + 1, name: t.name, description: t.summary })) }],
@@ -681,7 +681,7 @@ ${picks.length ? `<ul class="picks">${picks.map((x) => `<li><a href="${up}?play=
 <ul>
 <li><strong>Exactly one answer.</strong> Before a puzzle is shown, a solver works it out using only the steps a person can make from the clues. A puzzle is used only if the solver fills in every cell, which proves there is one answer and that it can be reached without guessing.</li>
 <li><strong>No extra clues.</strong> Clues that are not needed are taken out, so each one matters.</li>
-<li><strong>The right difficulty.</strong> The solver records the hardest step each puzzle needs, and the puzzle is kept only if that matches the level you chose, from Basic to Quantum Physicist. The hints use the same steps, so they explain the next deduction instead of giving the answer away.</li>
+<li><strong>The right difficulty.</strong> The solver records the hardest step each puzzle needs, and the puzzle is kept only if that matches the level you chose, from Basic to Theoretical Physicist. The hints use the same steps, so they explain the next deduction instead of giving the answer away.</li>
 <li><strong>Players have the last word.</strong> After solving, players can rate a puzzle from 1 to 5 stars.${quality.rating ? ` Over the last ${quality.rating.days} days, ${quality.rating.rated.toLocaleString('en-US')} ratings average <strong>${quality.rating.average} out of 5</strong>.` : ''} Low ratings for a theme or level are reviewed every week.</li>
 </ul>
 ${playBtn(up)}`,
@@ -811,7 +811,7 @@ ${playBtn(up)}`,
 </ol>
 <p>New to logic grids? <a href="${up}how-to-play/">How to play</a> walks through the rules with a short video.</p>
 <h2>Make as many as you need</h2>
-<p>In the game you can make unlimited puzzles at any of six levels, in more than 40 themes and almost any size, then print them blank or with your marks, on Letter or A4, with the answer key on its own page. Easy puzzles can also print a step-by-step solution. Every puzzle is a new story, in any of 100 languages, so it also works for language learners.</p>
+<p>In the game you can make unlimited puzzles at any of ${Object.keys(TIERS).length} levels, in ${THEMES.length} themes and almost any size, then print them blank or with your marks, on Letter or A4, with the answer key on its own page. Easy puzzles can also print a step-by-step solution. Every puzzle is a new story, in any of 100 languages, so it also works for language learners.</p>
 ${playBtn(up, 'Make a puzzle to print', false)}
 <h2>Free for classroom use</h2>
 <p>You may print and copy these worksheets for your own students or family, free. Please don't sell them or post them elsewhere. Link to this page instead.</p>`,

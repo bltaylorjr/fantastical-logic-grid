@@ -15,7 +15,7 @@ the voice), and writes, into media/promo/out/:
 Free tools only: Kokoro-82M (Apache-2.0), ffmpeg, Pillow, numpy/scipy, and the
 game's own fonts (Cinzel and Atkinson Hyperlegible, both OFL).
 """
-import bisect, hashlib, json, math, os, subprocess, sys, textwrap, urllib.request, wave
+import bisect, hashlib, json, math, os, re, subprocess, sys, textwrap, urllib.request, wave
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 from scipy import signal
@@ -397,16 +397,20 @@ def tts():
     return _tts
 
 
-# Words Kokoro says wrongly, fixed in its phonemes (respelling can't reach them).
-# "Generate": the default /dʒˈɛnɚɹˌeɪt/ comes out mumbled, so say "jen-uh-rate".
-SAY = {'dʒˈɛnɚɹˌeɪt': 'dʒˈɛnəɹˌeɪt'}
+# Same sound fixes as web/js/kokoro-words.js and video/build.py: eSpeak gives
+# "story" a heavy "or" and doubles the r in "Generate" and "categories".
+SAY = [
+    (r'kˈæɾɪɡɚɹ', 'kˈæɾəɡˌɔɹ'),
+    (r'[oɔ]ːɹ', 'ɔɹ'),
+    (r'ɚɹ', 'əɹ'),
+]
 
 
 def voice(text):
     ph = tts().tokenizer.phonemize(text, 'en-us')
     fixed = ph
-    for a, b in SAY.items():
-        fixed = fixed.replace(a, b)
+    for a, b in SAY:
+        fixed = re.sub(a, b, fixed)
     key = hashlib.sha1((f'{VOICE}|{SPEED}|{text}' + (f'|{fixed}' if fixed != ph else '')).encode()).hexdigest()[:16]
     p = os.path.join(OUT, 'vo', key + '.npy')
     if os.path.exists(p):
