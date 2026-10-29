@@ -34,8 +34,9 @@ are set. iOS is paused.
 
 1. Pay the fee only after saying OK in the project. Then sign up at
    https://play.google.com/console/signup as a **Personal** account with
-   `fantasticallogicgrid@gmail.com` as the developer email, and finish the
-   identity and phone checks.
+   `fantasticallogicgrid@gmail.com` as the developer account email (private,
+   for Google only). When it asks for the **contact email** that players see,
+   use `support@thelogicgrid.com`. Finish the identity and phone checks.
 2. **Create app**: name **The Fantastical Logic Grid**, language English (United States),
    **Game**, **Free**. Tick the declarations.
 3. **Set up your app** (the dashboard lists each item). Use the answers below.
