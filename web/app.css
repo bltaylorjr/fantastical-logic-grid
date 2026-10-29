@@ -65,6 +65,7 @@
 :root[data-world="math"] { --w1: #1E40AF; --w2: #F59E0B; }
 :root[data-world="biology"] { --w1: #4D7C0F; --w2: #0D9488; }
 :root[data-world="chemistry"] { --w1: #DB2777; --w2: #0891B2; }
+:root[data-world="astronomy"] { --w1: #4338CA; --w2: #0E7490; }
 :root[data-world="paradox"] { --w1: #7C3AED; --w2: #DB2777; }
 
 * { box-sizing: border-box; }
@@ -524,7 +525,7 @@ h3, legend, .card h3 { font-family: var(--font); }
 .tile[data-world="music"] { --w1: #DB2777; --w2: #6366F1; } .tile[data-world="nautical"] { --w1: #1D4ED8; --w2: #DC2626; }
 .tile[data-world="farm"] { --w1: #65A30D; --w2: #DC2626; } .tile[data-world="science"] { --w1: #2563EB; --w2: #10B981; }
 .tile[data-world="math"] { --w1: #1E40AF; --w2: #F59E0B; } .tile[data-world="biology"] { --w1: #4D7C0F; --w2: #0D9488; }
-.tile[data-world="chemistry"] { --w1: #DB2777; --w2: #0891B2; } .tile[data-world="paradox"] { --w1: #7C3AED; --w2: #DB2777; }
+.tile[data-world="chemistry"] { --w1: #DB2777; --w2: #0891B2; } .tile[data-world="astronomy"] { --w1: #4338CA; --w2: #0E7490; } .tile[data-world="paradox"] { --w1: #7C3AED; --w2: #DB2777; }
 .tile[data-world="random"] { --w1: #7C5CFF; --w2: #22B8CF; }
 .chips .choice > span { border-radius: 999px; padding: 10px 18px; }
 .chips .choice small { font-weight: 400; }

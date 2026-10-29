@@ -149,6 +149,25 @@ async function readSocial() {
   }
   return socialPages.socialLinks(socialPages.DEFAULT_LINKS);
 }
+// Puzzles the live site already published, so past days never change when
+// the engine gains new topics, story parts or levels: a day (or week, or
+// special edition) that is already out is kept exactly as published. Missing
+// ones (a first build, or the site unreachable) are built from their seed.
+async function readPublished(base, paths) {
+  const out = new Map();
+  const list = [...paths];
+  for (let i = 0; i < list.length; i += 20) {
+    await Promise.all(list.slice(i, i + 20).map(async (path) => {
+      try {
+        const res = await fetch(`${base}/${path}`, { signal: AbortSignal.timeout(15000) });
+        if (!res.ok) return;
+        const body = await res.json();
+        if (body && body.puzzle && body.puzzle.story && Array.isArray(body.puzzle.clues)) out.set(path, body.puzzle);
+      } catch (e) { /* built from its seed instead */ }
+    }));
+  }
+  return out;
+}
 const longDate = (s) => new Date(`${s}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
 
 // Google flags any VideoObject without these fields, even a bare {"@id"} pointer to one on
@@ -463,6 +482,21 @@ ${playBtn(up, `Play a ${t.name.toLowerCase()} puzzle`, false)}
   const weekly = new Map(); // Monday -> puzzle
   const specialPuzzles = new Map(); // edition id -> { edition, puzzle }
   const extraStories = []; // [date, story id] of weekly and special puzzles, for the printables below
+  // Already published: past and today's daily puzzles, past weeks' puzzles
+  // and special editions whose day has come.
+  const pastDays = [];
+  for (let d = DAILY_START; d <= today; d = addDays(d, 1)) pastDays.push(d);
+  const published = process.env.FLG_NO_PUBLISHED === '1' ? new Map() : await readPublished(base, [
+    ...pastDays.map((d) => `daily/puzzles/${d}.json`),
+    ...pastDays.filter((d) => d >= WEEKLY_START && new Date(`${d}T00:00:00Z`).getUTCDay() === 1).map((d) => `weekly/puzzles/${d}.json`),
+    ...specials.filter((e) => e.date <= today).map((e) => `specials/${e.id}.json`),
+  ]);
+  if (published.size) console.log(`Kept ${published.size} already published puzzles as they are.`);
+  const kept = (path) => {
+    const p = published.get(path);
+    if (p) used.add(p.story.id);
+    return p;
+  };
   const fresh = (opts, seed) => {
     let p;
     for (let n = 0; n < 20; n++) {
@@ -474,7 +508,7 @@ ${playBtn(up, `Play a ${t.name.toLowerCase()} puzzle`, false)}
   };
   for (let d = DAILY_START, i = 0; d <= addDays(today, DAILY_AHEAD_DAYS); d = addDays(d, 1), i++) {
     if (d >= WEEKLY_START && new Date(`${d}T00:00:00Z`).getUTCDay() === 1) {
-      const p = fresh({ difficulty: WEEKLY_TIER, theme: THEMES[(i + 3) % THEMES.length].id }, `weekly-${d}`);
+      const p = kept(`weekly/puzzles/${d}.json`) || fresh({ difficulty: WEEKLY_TIER, theme: THEMES[(i + 3) % THEMES.length].id }, `weekly-${d}`);
       weekly.set(d, p);
       extraStories.push([d, p.story.id]);
     }
@@ -482,7 +516,7 @@ ${playBtn(up, `Play a ${t.name.toLowerCase()} puzzle`, false)}
       const theme = THEMES.some((t) => t.id === e.theme) ? e.theme : THEMES[(i + 5) % THEMES.length].id;
       const difficulty = TIERS[e.difficulty] ? e.difficulty : 'hard';
       const size = e.categories && e.items ? { categories: e.categories, items: e.items } : {};
-      const p = fresh({ difficulty, theme, ...size }, `special-${e.id}`);
+      const p = kept(`specials/${e.id}.json`) || fresh({ difficulty, theme, ...size }, `special-${e.id}`);
       specialPuzzles.set(e.id, { edition: e, puzzle: p });
       extraStories.push([d, p.story.id]);
     }
@@ -494,7 +528,7 @@ ${playBtn(up, `Play a ${t.name.toLowerCase()} puzzle`, false)}
     // planned by hand in the admin dashboard are built exactly as planned.
     const house = plan.has(d) ? {} : houseDailyOptions(d, difficulty);
     const seed = `daily-${d}${o.reroll ? `-r${o.reroll}` : ''}`;
-    const p = fresh({ difficulty, theme, ...size, ...house }, seed);
+    const p = (d <= today && kept(`daily/puzzles/${d}.json`)) || fresh({ difficulty, theme, ...size, ...house }, seed);
     dailyStories.push([d, p.story.id]);
     if (d <= today) allPast.set(d, p);
     if (d > today) upcoming.push(dailySummary(p, d, plan.has(d)));
