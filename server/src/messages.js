@@ -302,7 +302,8 @@ const EMAIL_KINDS = { idea: 'Thank-you email for an idea', problem: 'Email about
 const EMAIL_STATUS = { held: 'Sent once the team marks it addressed', waiting: 'Waiting to be sent', sending: 'Being sent', sent: 'Sent', failed: 'Could not be sent', dropped: 'Not sent (emails were switched off, or it was closed without being addressed)' };
 
 // One list, newest first, of everything players sent or the game reported.
-// type: one of INBOX_TYPES; status: new (open, waiting), addressed (ideas, problems
+// type: one of INBOX_TYPES; status: new (open, waiting), approved (ideas and problems
+// waiting for the weekly fix run), addressed (ideas, problems
 // and errors the team marked addressed with a note), done or all; q: words to find.
 export async function inbox(env, role, { type = 'all', status = 'new', q = '' } = {}, now = Date.now()) {
   const db = env.DB;
@@ -312,7 +313,7 @@ export async function inbox(env, role, { type = 'all', status = 'new', q = '' } 
   const items = [];
   const has = (t) => want.includes(t);
 
-  if (has('message') && status !== 'addressed') {
+  if (has('message') && status !== 'addressed' && status !== 'approved') {
     const st = status === 'new' ? 'open' : status;
     const { results } = await db.prepare(`SELECT c.id, c.topic, c.subject, c.status, c.admin_unread AS unread, c.updated_at AS at, c.created_at AS createdAt,
         p.screen_name AS name,
@@ -332,18 +333,18 @@ export async function inbox(env, role, { type = 'all', status = 'new', q = '' } 
   }
   for (const kind of ['idea', 'problem']) {
     if (!has(kind)) continue;
-    const { results } = await db.prepare(`SELECT id, topic, theme, text, platform, version, status, note, created_at AS at, done_at AS doneAt, conversation_id AS conversationId FROM feedback
+    const { results } = await db.prepare(`SELECT id, topic, theme, text, platform, version, status, note, created_at AS at, done_at AS doneAt, conversation_id AS conversationId, approved_at AS approvedAt, approved_by AS approvedBy, declined FROM feedback
       WHERE kind = ?1 AND (?2 = 'all' OR status = ?2) AND (?3 IS NULL OR text LIKE ?3 ESCAPE '\\') ORDER BY created_at DESC LIMIT ?4`).bind(kind, status, search, PER_TYPE).all();
     const reports = kind === 'problem' ? await reportsFor(env, results.filter((f) => f.topic === 'puzzle' || f.topic === 'page').map((f) => f.id)).catch(() => new Map()) : new Map();
     const storyEmail = kind === 'idea' ? await storylinesHeld(env, results.filter((f) => f.topic === 'story').map((f) => f.id)).catch(() => new Set()) : new Set();
     for (const f of results) {
-      items.push({ report: reports.get(f.id) || null, type: kind, id: f.id, at: f.at, status: f.status, title: f.topic, text: f.text, meta: { topic: f.topic, theme: f.theme || null, themeName: f.theme ? themeName(f.theme) : null, platform: f.platform, version: f.version, conversationId: f.conversationId, note: f.note, doneAt: f.doneAt, storyEmail: storyEmail.has(f.id) } });
+      items.push({ report: reports.get(f.id) || null, type: kind, id: f.id, at: f.at, status: f.status, title: f.topic, text: f.text, meta: { topic: f.topic, theme: f.theme || null, themeName: f.theme ? themeName(f.theme) : null, platform: f.platform, version: f.version, conversationId: f.conversationId, note: f.note, doneAt: f.doneAt, storyEmail: storyEmail.has(f.id), approvedAt: f.approvedAt, approvedBy: f.approvedBy, declined: !!f.declined } });
     }
   }
   // Error reports have no done state: "new" is the last 7 days, "all" and
   // "addressed" the last 30. An error marked addressed (errors.js withFixes)
   // leaves "new" unless a report comes from the fixed version or later.
-  if (has('error') && status !== 'done') {
+  if (has('error') && status !== 'done' && status !== 'approved') {
     const since = new Date(now - ((status === 'new' ? 7 : 30) - 1) * DAY).toISOString().slice(0, 10);
     const { results } = await db.prepare(`SELECT fingerprint AS id, kind, platform, version, message, place, SUM(count) AS count, MIN(day) AS first, MAX(day) AS last
       FROM app_errors WHERE day >= ?1 AND (?2 IS NULL OR message LIKE ?2 ESCAPE '\\') GROUP BY fingerprint ORDER BY last DESC, count DESC LIMIT ?3`).bind(since, search, PER_TYPE).all();
@@ -354,7 +355,7 @@ export async function inbox(env, role, { type = 'all', status = 'new', q = '' } 
     }
   }
   // The email log: only the kind and state, never the address or the player's words.
-  if (has('email') && !search && status !== 'addressed') {
+  if (has('email') && !search && status !== 'addressed' && status !== 'approved') {
     const st = status === 'new' ? "status IN ('waiting', 'sending')" : status === 'done' ? "status IN ('sent', 'failed', 'dropped')" : '1 = 1';
     try {
       const { results } = await db.prepare(`SELECT id, kind, status, created_at AS at, sent_at AS sentAt FROM feedback_replies WHERE ${st} ORDER BY created_at DESC LIMIT ?1`).bind(PER_TYPE).all();

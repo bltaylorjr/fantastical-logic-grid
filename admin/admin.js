@@ -689,9 +689,18 @@ function itemHtml(i) {
       <span class="muted">${when(i.at)} · ${esc(m.platform)} ${esc(m.version)}${m.conversationId ? ' · the player asked for a reply' : ''}</span>
       <p class="fb-text">${esc(i.text)}</p>
       ${i.status === 'addressed' && m.note ? `<p class="fb-note"><b>What we did:</b> ${esc(m.note)} <span class="muted">${when(m.doneAt)}</span></p>` : ''}
-      <div class="row">${m.conversationId ? `<button class="btn primary small" type="button" data-open="${m.conversationId}">Reply</button>` : ''}
-      ${i.status === 'new' ? `<button class="btn${m.conversationId ? '' : ' primary'} small" type="button" data-fb="${i.id}" data-status="addressed">Mark addressed</button>
-        <button class="btn small" type="button" data-fb="${i.id}" data-status="done">Mark done</button>` : `<button class="btn small" type="button" data-fb="${i.id}" data-status="new">Mark new</button>`}
+      ${i.status === 'approved' ? `<p class="fb-note"><span class="badge ok">Approved</span> Waiting for the weekly fix run${m.approvedBy ? ` · approved by ${esc(m.approvedBy)}` : ''} ${when(m.approvedAt)}. Mark it fixed once the change is live.</p>` : ''}
+      ${i.status === 'done' && m.declined ? '<p class="fb-note"><span class="badge">Disapproved</span> Closed with no change.</p>' : ''}
+      <div class="row">${m.conversationId ? `<button class="btn small" type="button" data-open="${m.conversationId}">Reply</button>` : ''}
+      ${i.status === 'new' ? `${i.type === 'idea' && m.topic === 'story' && can('moderator')
+    ? `<button class="btn primary small" type="button" data-story-open="${i.id}">Approve</button>`
+    : `<button class="btn primary small" type="button" data-fb="${i.id}" data-status="approved">Approve</button>`}
+        <button class="btn small" type="button" data-fb="${i.id}" data-status="declined">Disapprove</button>
+        <button class="btn small" type="button" data-fb="${i.id}" data-status="addressed">Mark addressed</button>`
+    : i.status === 'approved' ? `<button class="btn primary small" type="button" data-fb="${i.id}" data-status="addressed">Mark fixed</button>
+        <button class="btn small" type="button" data-fb="${i.id}" data-status="declined">Disapprove</button>
+        <button class="btn small" type="button" data-fb="${i.id}" data-status="new">Mark new</button>`
+    : `<button class="btn small" type="button" data-fb="${i.id}" data-status="new">Mark new</button>`}
       <button class="btn small" type="button" data-fb="${i.id}" data-status="delete">Delete</button></div>
       ${i.report ? reportHtml(i.report) : ''}${i.type === 'idea' && m.topic === 'story' && i.status === 'new' && can('moderator') ? storyApproveHtml(i) : ''}</li>`;
   }
@@ -790,10 +799,19 @@ $('#comm-list').onclick = async (e) => {
     if (await act(eb, () => api('errors/fix', { method: 'POST', body: { message: x.text, place: m.place, fixedIn: v.fixedIn.trim(), note: v.note } }), 'Marked addressed.')) show('communication', { keepFocus: true });
     return;
   }
+  // Approve on a storyline opens its storyline form (note and first puzzle).
+  const so = e.target.closest('button[data-story-open]');
+  if (so) {
+    const d = so.closest('li')?.querySelector('details.story-approve');
+    if (d) { d.open = true; d.scrollIntoView({ block: 'nearest' }); d.querySelector('textarea')?.focus(); }
+    return;
+  }
   const b = e.target.closest('button[data-fb]');
   if (!b) return;
   if (b.dataset.status === 'delete' && !(await ask({ title: 'Delete this message?', text: 'It cannot be brought back.', ok: 'Delete', danger: true }))) return;
-  const words = { addressed: 'Marked addressed.', done: 'Marked done.', new: 'Marked new.', delete: 'Deleted.' };
+  if (b.dataset.status === 'approved' && !(await ask({ title: 'Approve for processing?', text: 'It joins the queue the weekly improvement run works through: the weekly Claude task reads it privately and makes the fix when it is clear and safe. Nothing is sent to the player yet. Once the change is live, press Mark fixed with a short note, and a player who asked for email gets it.', ok: 'Approve' }))) return;
+  if (b.dataset.status === 'declined' && !(await ask({ title: 'Disapprove?', text: 'It is closed with no change. A player who asked for email gets the plain thank-you. You can mark it new again later.', ok: 'Disapprove' }))) return;
+  const words = { approved: 'Approved. It is queued for the weekly fix run.', declined: 'Disapproved and closed.', addressed: 'Marked addressed.', done: 'Marked done.', new: 'Marked new.', delete: 'Deleted.' };
   const body = { status: b.dataset.status };
   if (body.status === 'addressed') {
     const v = await ask({ title: 'Mark addressed', text: 'Say what was done in plain, everyday words a player would understand, like "Fixed: the grid no longer scrolls twice on tablets." If the player ticked "Email me an update", they get this note by email, with what they wrote.', ok: 'Mark addressed',
