@@ -73,6 +73,7 @@
   <nav class="nav" aria-label="Sections">
     <ul id="nav-list">
       <li><a href="#overview" data-min="viewer">Overview</a></li>
+      <li><a href="#visitors" data-min="viewer">Visitors</a></li>
       <li><a href="#usage" data-min="viewer">Usage and free limits</a></li>
       <li><a href="#search" data-min="viewer">Search (Google and Bing)</a></li>
       <li><a href="#daily" data-min="moderator">Daily puzzles</a></li>
@@ -102,6 +103,14 @@
         <div class="field inline"><label for="ov-days">Period</label><select id="ov-days"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option></select></div>
       </div>
       <div id="ov-body"><p class="muted">Loading…</p></div>
+    </section>
+
+    <section data-view="visitors" hidden aria-labelledby="h-visitors">
+      <div class="head"><h1 id="h-visitors">Visitors</h1>
+        <div class="field inline"><label for="vis-days">Period</label><select id="vis-days"><option value="1">Today</option><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option><option value="365">Last 365 days</option></select></div>
+      </div>
+      <p class="muted">People who opened the game, each device counted once a day. Guests are not signed in; players are signed in to an account. Place comes from the connection and is never stored as an address.</p>
+      <div id="vis-body"><p class="muted">Loading…</p></div>
     </section>
 
     <section data-view="usage" hidden aria-labelledby="h-usage">

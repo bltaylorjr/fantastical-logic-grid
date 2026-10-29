@@ -22,6 +22,7 @@ import * as messages from './messages.js';
 import * as share from './share.js';
 import * as errorReports from './errors.js';
 import * as campaign from './campaign.js';
+import { countVisit } from './visit.js';
 import { initAccounts, openAccount, onHome as accountsOnHome, signedIn } from './account-ui.js';
 import * as competeUi from './compete-ui.js';
 import * as remote from './remote-config.js';
@@ -48,6 +49,7 @@ addCloseButtons();
 
 errorReports.init();
 campaign.init();
+countVisit(signedIn());
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const OPTIONS = describeOptions();

@@ -17,6 +17,7 @@
 //   GET /v1/specials                     special edition puzzles for the website build (editions.js)
 //   GET /v1/quality                      average rating and best-rated daily puzzles (quality.js)
 //   POST /v1/translate                   the game's text in another language (translate.js)
+//   POST /v1/v                           anonymous daily visitor counts (visits.js)
 //   POST /v1/m                           anonymous counts of visits from campaign links (marketing.js)
 //   /v1/challenges[/:code[/result]]       Challenge a friend links, no account (challenges.js)
 //   GET /v1/perks                        a signed-in player's supporter perks (supporters.js)
@@ -48,6 +49,7 @@ import { handleTranslate } from './translate.js';
 import { handleAdmin } from './admin.js';
 import { NIGHTLY_CRONS, isMaintenanceHour, runNightly } from './nightly.js';
 import { handleMarketing } from './marketing.js';
+import { handleVisits } from './visits.js';
 import { handlePerks } from './supporters.js';
 import { handleBadges } from './special-badges.js';
 import { handleEducators } from './educators.js';
@@ -136,6 +138,9 @@ async function route(req, env, ctx) {
 
   const translated = await handleTranslate(req, env, url);
   if (translated) return translated;
+
+  const visit = await handleVisits(req, env, url);
+  if (visit) return visit;
 
   const marketing = await handleMarketing(req, env, url);
   if (marketing) return marketing;

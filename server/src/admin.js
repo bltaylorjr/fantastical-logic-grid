@@ -9,6 +9,7 @@
 //   GET  /admin/v1/analytics?days=     players, games, scores, races, voices, errors
 //   GET  /admin/v1/storage             rows per table, database size, free limits
 //   GET  /admin/v1/usage?days=         Cloudflare's own request and D1 counts (optional token)
+//   GET  /admin/v1/visitors?days=      site visitors: guests and players, apps, systems, devices, places (visits.js)
 //   GET  /admin/v1/search              Google and Bing search numbers (search.js); POST .../refresh
 //   GET  /admin/v1/errors?days=        error reports, most frequent first, with the fixes marked addressed
 //   POST /admin/v1/errors/fix          mark an error addressed { message, place, fixedIn, note }; POST .../fix/:id/delete
@@ -92,6 +93,7 @@ import { puzzleMailRoutes } from './puzzle-mail.js';
 import { editionRoutes } from './editions.js';
 import { educatorRoutes } from './educators.js';
 import { puzzleReportRoutes } from './puzzle-reports.js';
+import { visitorRoutes } from './visits.js';
 
 const DAY = 24 * 3600_000;
 const ROLES = { viewer: 1, moderator: 2, admin: 3, owner: 4 };
@@ -104,7 +106,7 @@ const SESSION_MAX_S = 12 * 3600;
 const DENIED_PER_DAY = 500; // refused requests written to the audit log, so a flood cannot fill it
 const ANALYTICS_CACHE_MS = 120_000;
 const TABLES = ['sync_users', 'sync_records', 'sync_deleted_users', 'players', 'scores', 'races', 'race_entries', 'race_invites', 'plays', 'parts', 'usage',
-  'app_errors', 'upkeep_log', 'admins', 'admin_audit', 'settings', 'announcements', 'bans', 'name_reviews', 'archive_log', 'feedback', 'feedback_replies', 'error_fixes', 'conversations', 'conversation_messages', 'message_contacts', 'news', 'search_snapshots', 'daily_plan', 'translations', 'rating_insights', 'campaigns', 'campaign_ads', 'marketing_media', 'campaign_stats', 'challenges', 'daily_results', 'daily_email', 'supporters', 'payment_blocks', 'puzzle_mail', 'puzzle_mail_got', 'puzzle_mail_days', 'special_editions', 'educator_requests', 'special_badges', 'badge_awards', 'puzzle_reports', 'player_puzzles'];
+  'app_errors', 'upkeep_log', 'admins', 'admin_audit', 'settings', 'announcements', 'bans', 'name_reviews', 'archive_log', 'feedback', 'feedback_replies', 'error_fixes', 'conversations', 'conversation_messages', 'message_contacts', 'news', 'search_snapshots', 'daily_plan', 'translations', 'rating_insights', 'campaigns', 'campaign_ads', 'marketing_media', 'campaign_stats', 'challenges', 'daily_results', 'daily_email', 'supporters', 'payment_blocks', 'puzzle_mail', 'puzzle_mail_got', 'puzzle_mail_days', 'special_editions', 'educator_requests', 'special_badges', 'badge_awards', 'puzzle_reports', 'player_puzzles', 'visit_stats'];
 const SECURITY_HEADERS = {
   'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; media-src 'self' blob:; connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
   'X-Content-Type-Options': 'nosniff',
@@ -750,6 +752,7 @@ const ROUTES = [
   ...badgeRoutes(Refusal, { onChange: clearBoardCache }),
   ...educatorRoutes(Refusal),
   ...puzzleReportRoutes(Refusal),
+  ...visitorRoutes(),
   ['GET', /^alerts$/, 'viewer', 'alerts.view', async ({ env }) => ({ body: await alerts(env) })],
   ['GET', /^summary$/, 'admin', 'summary.view', async ({ env, url }) => {
     const s = await summary(env, daysParam(url, 31));
