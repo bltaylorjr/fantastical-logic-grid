@@ -324,6 +324,9 @@
       <button class="btn" type="button" id="back-saved">Saved puzzles</button>
     </div>
   </section>
+  <div class="puzzle-foot needs-cloud" data-feature="feedback" hidden>
+    <button class="btn quiet small" type="button" id="report-puzzle">Report a problem with this puzzle</button>
+  </div>
 </main>
 
 <!-- ============ How to play: the tutorial and tips ============ -->
@@ -574,6 +577,21 @@
     <div class="row-inline"><button class="btn primary" type="submit">Send problem report</button></div>
   </form>
   <div class="dlg-actions"><button class="btn" type="button" data-close>Close</button></div>
+</dialog>
+
+<dialog id="dlg-report" aria-labelledby="report-h">
+  <h2 id="report-h">Report a problem with this puzzle</h2>
+  <p class="help">A wrong clue, an answer that is marked wrong, a grid that will not solve, or anything else that looks broken. The puzzle itself is sent with your report, so we can check it and fix it.</p>
+  <form id="report-form" novalidate>
+    <div class="field"><label for="report-text">What went wrong?</label>
+      <textarea id="report-text" rows="5" maxlength="1000" aria-describedby="report-count" placeholder="For example: clue 4 says the baker was first, but the answer says she was third."></textarea>
+      <p class="help" id="report-count" aria-live="polite">0 of 1,000 characters</p></div>
+    <label class="check" id="report-reply-box" hidden><input type="checkbox" id="report-reply" checked> <span>Email me when it is fixed<span id="report-reply-to"></span>, with a link to play the repaired puzzle</span></label>
+    <p class="help" id="report-signin" hidden>Want an email when it is fixed? <button class="btn quiet small" type="button" id="report-signin-btn">Sign in</button> with a confirmed email first.</p>
+    <div class="error-box" role="alert" hidden></div>
+    <p class="acct-done" id="report-done" role="status"></p>
+    <div class="row-inline"><button class="btn primary" type="submit">Send report</button><button class="btn" type="button" data-close>Close</button></div>
+  </form>
 </dialog>
 
 <dialog id="dlg-mail" aria-labelledby="mail-h">

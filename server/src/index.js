@@ -5,6 +5,7 @@
 //                                        screen names, races, scoreboard (compete.js)
 //   POST /v1/errors, GET /admin/errors   anonymous error reports from the apps (errors.js)
 //   POST /v1/feedback                    the game's idea and problem boxes (feedback.js)
+//   POST /v1/puzzle-report, GET /v1/repaired/:token   Report a problem on a puzzle, and its repaired copy (puzzle-reports.js)
 //   /v1/messages*                        messages between signed-in players and the team (messages.js)
 //   POST /v1/picture                     AI pictures from Workers AI (pictures.js)
 //   /v1/characters*                      the game's own characters and player suggestions (characters.js)
@@ -33,6 +34,7 @@ import { handleCompete } from './compete.js';
 import { handleChallenges } from './challenges.js';
 import { handleErrors } from './errors.js';
 import { handleFeedback } from './feedback.js';
+import { handlePuzzleReports } from './puzzle-reports.js';
 import { handleMessages } from './messages.js';
 import { handlePictures } from './pictures.js';
 import { handleCharacters } from './characters.js';
@@ -95,6 +97,9 @@ async function route(req, env, ctx) {
 
   const errors = await handleErrors(req, env, url);
   if (errors) return errors;
+
+  const report = await handlePuzzleReports(req, env, url);
+  if (report) return report;
 
   const feedback = await handleFeedback(req, env, url);
   if (feedback) return feedback;

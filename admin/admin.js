@@ -416,7 +416,7 @@ $('#parts-list').onclick = async (e) => {
 
 // ---- Communication: one inbox for messages, ideas, problems, error reports
 // and emails to players, and sending messages, news and banners to players.
-const FB_TOPICS = { story: 'Storyline idea', theme: 'Theme or topic idea', feature: 'Game feature idea', other: 'Other', play: 'Playing', sound: 'Sound and voices', pictures: 'Pictures', saving: 'Saving and sync' };
+const FB_TOPICS = { story: 'Storyline idea', theme: 'Theme or topic idea', feature: 'Game feature idea', other: 'Other', play: 'Playing', sound: 'Sound and voices', pictures: 'Pictures', saving: 'Saving and sync', puzzle: 'A puzzle (Report a problem)' };
 const MSG_TOPICS = { question: 'Question', idea: 'Idea', problem: 'Problem', team: 'Started by the team' };
 const TYPE_NAMES = { message: 'Message', idea: 'Idea', problem: 'Problem', error: 'Error report', email: 'Email' };
 const commTab = () => $('input[name=comm-tab]:checked').value;
@@ -440,6 +440,35 @@ const errFix = (i) => { const f = i.meta.fix; return !f ? (can('admin') ? `<div 
   : f.missed ? `<p class="fb-note"><span class="badge warn">Still happening</span> Marked fixed in ${esc(f.fixedIn)}, but this report is from ${esc(i.meta.version)}. ${esc(f.note)}</p>`
   : `<p class="fb-note"><span class="badge ok">Addressed</span> Fixed in ${esc(f.fixedIn)}: ${esc(f.note)}</p>`; };
 
+// A puzzle problem's report: its tracking id and what the puzzle doctor found
+// (scripts/puzzle-doctor.mjs, run every 15 minutes by the puzzle-reports Action).
+const REPORT_STATES = {
+  new: ['', 'Waiting for the puzzle doctor'], checking: ['', 'Being checked'],
+  repaired: ['ok', 'Repaired automatically'], needs_fix: ['bad', 'Needs a fix in the code'], no_fault: ['', 'No fault found: read the report'],
+};
+function reportHtml(r) {
+  const [cls, words] = REPORT_STATES[r.status] || ['', r.status];
+  return `<div class="fb-note"><p><b>Report ${esc(r.tracking)}</b> · ${esc(r.title || 'Untitled')}${r.tier ? ` · ${esc(TIER_NAMES[r.tier] || r.tier)}` : ''} <span class="badge ${cls}">${esc(words)}</span></p>
+    ${r.findings.length ? `<ul>${r.findings.map((f) => `<li>${esc(f.text)}</li>`).join('')}</ul>` : ''}
+    ${r.status === 'repaired' ? `<p class="muted">${esc(r.note || '')} ${r.openedAt ? 'The player opened the repaired puzzle.' : 'The player has not opened the repaired puzzle yet.'}</p>` : ''}
+    ${r.status === 'needs_fix' ? '<p class="muted">Today\'s puzzle maker still gets this wrong. Download the puzzle to reproduce it; once a fix is published, press Check again and the player is emailed the repaired puzzle automatically.</p>' : ''}
+    <div class="row"><button class="btn small" type="button" data-report-file="${Number(r.id)}" data-tracking="${esc(r.tracking)}">Download the reported puzzle</button>
+    ${['needs_fix', 'no_fault'].includes(r.status) && can('admin') ? `<button class="btn small" type="button" data-report-retry="${Number(r.id)}">Check again</button>` : ''}</div></div>`;
+}
+document.addEventListener('click', async (e) => {
+  const f = e.target.closest('button[data-report-file]');
+  if (f) {
+    await act(f, async () => {
+      const res = await fetch(`/admin/v1/puzzle-reports/${Number(f.dataset.reportFile)}/puzzle`, { headers: { Authorization: `Bearer ${await bearer()}` } });
+      if (!res.ok) throw new ApiError('download', `Download failed (${res.status}).`);
+      saveFile(await res.blob(), `${f.dataset.tracking}.flg.json`);
+    }, 'Puzzle file saved. Open it in the game with Saved puzzles > Open a puzzle file.');
+    return;
+  }
+  const r = e.target.closest('button[data-report-retry]');
+  if (r && await act(r, () => api(`puzzle-reports/${Number(r.dataset.reportRetry)}/retry`, { method: 'POST' }), 'It will be checked again within 15 minutes.')) show('communication', { keepFocus: true });
+});
+
 function itemHtml(i) {
   const type = `<span class="badge${i.type === 'error' ? ' bad' : i.type === 'problem' ? ' warn' : ''}">${TYPE_NAMES[i.type]}</span>`;
   const state = i.type === 'message'
@@ -461,7 +490,8 @@ function itemHtml(i) {
       <div class="row">${m.conversationId ? `<button class="btn primary small" type="button" data-open="${m.conversationId}">Reply</button>` : ''}
       ${i.status === 'new' ? `<button class="btn${m.conversationId ? '' : ' primary'} small" type="button" data-fb="${i.id}" data-status="addressed">Mark addressed</button>
         <button class="btn small" type="button" data-fb="${i.id}" data-status="done">Mark done</button>` : `<button class="btn small" type="button" data-fb="${i.id}" data-status="new">Mark new</button>`}
-      <button class="btn small" type="button" data-fb="${i.id}" data-status="delete">Delete</button></div></li>`;
+      <button class="btn small" type="button" data-fb="${i.id}" data-status="delete">Delete</button></div>
+      ${i.report ? reportHtml(i.report) : ''}</li>`;
   }
   if (i.type === 'error') {
     const m = i.meta;
