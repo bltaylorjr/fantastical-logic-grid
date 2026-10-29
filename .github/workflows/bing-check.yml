@@ -16,9 +16,9 @@ jobs:
         run: |
           set -u
           code=$(curl -sS -o r.json -w '%{http_code}' --max-time 60 -X POST -H "Authorization: Bearer $TOKEN" "$API/admin/v1/search/refresh")
-          echo "refresh HTTP $code"
+          echo "::notice title=Refresh::HTTP $code $(jq -c '{error, message, result}' r.json 2>/dev/null | head -c 400)"
           if [ "$code" != 200 ]; then jq -c '{error, message}' r.json || true; fi
           curl -fsS --max-time 25 -H "Authorization: Bearer $TOKEN" "$API/admin/v1/search" > s.json
           jq -c '.sources | to_entries[] | {source: .key, connected: .value.connected, error: .value.error, fetchedAt: .value.fetchedAt, clicks: .value.data.totals.clicks, impressions: .value.data.totals.impressions}' s.json
-          summary=$(jq -r '.sources.bing | "Bing connected=\(.connected) error=\(.error // "none") fetchedAt=\(.fetchedAt // 0)"' s.json)
+          summary=$(jq -c '.sources.bing | del(.data)' s.json | head -c 600)
           echo "::notice title=Bing check::${summary}"
