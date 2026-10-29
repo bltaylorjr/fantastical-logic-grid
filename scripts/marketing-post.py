@@ -24,6 +24,8 @@ titles and counts, never a key, and error notes are scrubbed of them.
 Modes (MODE): post (default), check (signs in to each site with a key and
 says whether it works, posting nothing), dry-run (says what it would post
 and sends the email marked Preview, posting and changing nothing).
+ONLY_ADS (ad numbers, comma separated) limits a run to those ads: the admin
+app's Post now and Launch campaign buttons start a run like that.
 Python standard library only.
 """
 import base64
@@ -49,6 +51,7 @@ API = os.environ.get('FLG_CLOUD_URL', '').strip().rstrip('/')
 TOKEN = os.environ.get('FLG_ADMIN_TOKEN', '').strip()
 MODE = (os.environ.get('MODE', '').strip() or 'post').lower()
 DAY = os.environ.get('DAY', '').strip() or datetime.now(ZoneInfo('America/New_York')).date().isoformat()
+ONLY_ADS = {int(x) for x in os.environ.get('ONLY_ADS', '').replace(' ', '').split(',') if x.isdigit()}
 GMAIL_USER = os.environ.get('GMAIL_USER', '').strip()
 GMAIL_PASSWORD = ''.join(os.environ.get('GMAIL_APP_PASSWORD', '').split())
 MAIL_TO = os.environ.get('OWNER_TASKS_TO', '').strip() or GMAIL_USER
@@ -502,7 +505,7 @@ def check_keys():
             continue
         try:
             test()
-            print(f'{NAMES[ch]}: connected')
+            print(f'::notice::{NAMES[ch]}: connected')  # shows on the run's summary page
         except Exception as e:  # noqa: BLE001 - report every site
             bad += 1
             print(f'::warning::{NAMES[ch]}: the key did not work: {scrub(e)}')
@@ -550,6 +553,8 @@ def main():
         return
     due = worker(f'marketing/due?day={urllib.parse.quote(DAY)}')
     ads = due.get('ads', [])
+    if ONLY_ADS:
+        ads = [a for a in ads if a['id'] in ONLY_ADS]
     dry = MODE == 'dry-run'
     print(f'{DAY}: {len(ads)} approved ads due (automatic posting {"on" if due.get("autopost") else "off"}).')
     posted, failed, by_hand = [], [], []
@@ -585,7 +590,7 @@ def main():
     if not (by_hand or failed or follow_up or (dry and posted)) or not due.get('reminders'):
         return
     when = datetime.fromisoformat(DAY).strftime('%A, %B %-d')
-    parts = [f'<p>Good morning! Here is the launch campaign for {when}.</p>']
+    parts = [f'<p>Here are the ads you posted now from the admin app ({when}).</p>' if ONLY_ADS else f'<p>Good morning! Here is the launch campaign for {when}.</p>']
     if posted:
         parts.append('<p><b>Posted automatically:</b></p><ul>' + ''.join(
             f'<li>{html.escape(a["title"])}: <a href="{html.escape(u)}">{html.escape(u)}</a></li>' if u.startswith('https://') else f'<li>{html.escape(a["title"])} {html.escape(u)}</li>'
