@@ -1,0 +1,48 @@
+# One-off: delete the old launch video from the Facebook page (owner asked).
+# Prints no keys.
+name: Facebook delete old video
+on:
+  push:
+    branches: [test/fb-delete]
+permissions:
+  contents: read
+jobs:
+  delete:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - env:
+          META_PAGE_ID: ${{ secrets.META_PAGE_ID }}
+          META_PAGE_TOKEN: ${{ secrets.META_PAGE_TOKEN }}
+          VIDEO_ID: '1350539077021541'
+        shell: python
+        run: |
+          import json, os, urllib.request, urllib.parse, urllib.error
+          G = 'https://graph.facebook.com/v21.0'
+          page, tok, vid = os.environ['META_PAGE_ID'].strip(), os.environ['META_PAGE_TOKEN'].strip(), os.environ['VIDEO_ID']
+          def call(path, method='GET', token=tok, q=None):
+              url = f'{G}/{path}' + ('?' + urllib.parse.urlencode(q) if q else '')
+              req = urllib.request.Request(url, method=method, headers={'Authorization': f'Bearer {token}'})
+              try:
+                  with urllib.request.urlopen(req, timeout=60) as r: return json.loads(r.read() or b'{}')
+              except urllib.error.HTTPError as e:
+                  body = e.read().decode('utf-8', 'replace').replace(token, '…')
+                  raise SystemExit(f'::error title=Facebook::{method} {path.split("?")[0]} {e.code} {body[:300]}')
+          # Use the page's own key when the saved key is a user key.
+          key = tok
+          try:
+              for p in call('me/accounts', q={'fields': 'id,access_token'}).get('data', []):
+                  if p.get('id') == page: key = p['access_token']
+          except SystemExit: pass
+          info = call(vid, token=key, q={'fields': 'id,title,description,created_time,from'})
+          owner = (info.get('from') or {}).get('id')
+          print(f"::notice title=Found::{info.get('id')} created {info.get('created_time')} owner {owner} :: {(info.get('description') or info.get('title') or '')[:120]}")
+          if owner != page:
+              raise SystemExit('::error title=Stopped::The video does not belong to this page; nothing deleted.')
+          r = call(vid, 'DELETE', token=key)
+          print(f"::notice title=Deleted::{json.dumps(r)}")
+          try:
+              call(vid, token=key, q={'fields': 'id'})
+              print('::warning title=Check::The video still answers after deleting.')
+          except SystemExit as e:
+              print('::notice title=Check::The video is gone.')
