@@ -1650,6 +1650,18 @@ async function renderEditions(saves) {
 }
 $('#mail-invite-btn').onclick = () => puzzleMail.open(openDialog);
 
+// A puzzle the team made for this player (Messages > Puzzles for you): opened
+// once as a saved puzzle, then continued from Saved puzzles like any other.
+async function openTeamPuzzle(puzzle, id) {
+  const existing = (await store.listSaves()).find((x) => x.teamPuzzle === id);
+  if (existing) { openGame(existing); return; }
+  await rememberStory(storyIdOf(puzzle));
+  const save = newSave(puzzle);
+  save.teamPuzzle = id;
+  await store.putSave(save);
+  openGame(save, { fresh: true });
+}
+
 async function openEdition(key, btn) {
   const existing = (await store.listSaves()).find((x) => x.edition === key);
   if (existing) { openGame(existing); return; }
@@ -2656,7 +2668,7 @@ async function init() {
     onSavesChanged: () => { if (!$('#screen-home').hidden) renderSaved(); },
     onSettingsChanged: () => { settings = store.loadSettings(); applyColorTheme(); applyMode(); applyLanguage(); },
   }).catch(() => { /* accounts are optional */ });
-  messages.init({ openDialog, openAccount, announce });
+  messages.init({ openDialog, openAccount, announce, playPuzzle: openTeamPuzzle, downloadPuzzle: (puzzle) => exportSave(newSave(puzzle)) });
   competeUi.initCompete({
     openDialog, toast, announce, confirmDialog, openAccount, fmtTime, makePuzzle, setupSummary, openRace, findRaceSave,
     openSave: (save) => openGame(save),

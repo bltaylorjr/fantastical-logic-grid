@@ -15,6 +15,7 @@
 //   the weekly archive's log  after 365 days
 //   kept translations         180 days after they were last used
 //   daily puzzle numbers      after 120 days
+//   puzzles for contributors  30 days after they were sent (messages.js)
 // While the weekly archive email is on (archive.js), the rows it covers are
 // left for it instead, so they are emailed before they are removed.
 // Scores are never deleted here: the all-time scoreboard needs them (only an
