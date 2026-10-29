@@ -184,21 +184,25 @@
     <section class="card saved-card" id="saved-section" aria-labelledby="saved-h">
       <div class="saved-head">
         <h2 id="saved-h">Saved Puzzles <span class="new-count" id="saved-new" hidden></span></h2>
+        <button class="btn small" type="button" id="saved-toggle" aria-expanded="false" aria-controls="saved-body">Open</button>
+      </div>
+      <p class="saved-summary muted" id="saved-summary"></p>
+      <div id="saved-body" hidden>
         <div class="saved-tools">
           <button class="btn quiet small" type="button" id="import-btn">Open a puzzle file</button>
           <input type="file" id="import-file" accept=".json,.flg.json,application/json" hidden>
         </div>
+        <div class="sync-line" id="sync-line" hidden>
+          <p id="sync-text" role="status"></p>
+          <button class="btn small" type="button" id="sync-btn">Sign in to sync</button>
+        </div>
+        <p class="muted" id="saved-empty">Your puzzles save automatically on this device. Start one and it will appear here.</p>
+        <ul class="saved-list" id="saved-list"></ul>
+        <details class="saved-done" id="saved-done" hidden>
+          <summary><span>Completed puzzles (<span id="saved-done-count">0</span>)</span></summary>
+          <ul class="saved-list" id="saved-done-list"></ul>
+        </details>
       </div>
-      <div class="sync-line" id="sync-line" hidden>
-        <p id="sync-text" role="status"></p>
-        <button class="btn small" type="button" id="sync-btn">Sign in to sync</button>
-      </div>
-      <p class="muted" id="saved-empty">Your puzzles save automatically on this device. Start one and it will appear here.</p>
-      <ul class="saved-list" id="saved-list"></ul>
-      <details class="saved-done" id="saved-done" hidden>
-        <summary><span>Completed puzzles (<span id="saved-done-count">0</span>)</span></summary>
-        <ul class="saved-list" id="saved-done-list"></ul>
-      </details>
     </section>
 
     </div>

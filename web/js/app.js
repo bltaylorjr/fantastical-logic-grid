@@ -577,10 +577,29 @@ async function renderSaved() {
     : signedIn() ? 'Your puzzles save automatically and sync to your account. Start one and it will appear here.' : 'Your puzzles save automatically on this device. Start one and it will appear here.';
   const fmt = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' });
   $('#saved-list').innerHTML = active.map((s) => savedItem(s, fmt)).join('');
+  const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+  $('#saved-summary').textContent = saves.length
+    ? [active.length ? plural(active.length, 'puzzle in progress', 'puzzles in progress') : 'Nothing in progress', done.length ? `${done.length} completed` : ''].filter(Boolean).join(' · ')
+    : 'Your puzzles save here automatically.';
+  showSavedBody(savedOpen());
   $('#saved-done').hidden = !done.length;
   $('#saved-done-count').textContent = String(done.length);
   $('#saved-done-list').innerHTML = done.map((s) => savedItem(s, fmt)).join('');
 }
+
+// The Saved Puzzles box stays small until opened, to save screen space. Each
+// device remembers whether it was left open.
+const savedOpen = () => { try { return store.getLocal('savedOpen') === true; } catch (e) { return false; } };
+function showSavedBody(open) {
+  $('#saved-body').hidden = !open;
+  $('#saved-toggle').setAttribute('aria-expanded', String(open));
+  $('#saved-toggle').textContent = open ? 'Close' : 'Open';
+}
+function setSavedOpen(open) {
+  try { store.setLocal('savedOpen', open ? true : undefined); } catch (e) { /* this visit only */ }
+  showSavedBody(open);
+}
+$('#saved-toggle').onclick = () => setSavedOpen($('#saved-body').hidden);
 
 $('#continue-btn').onclick = async () => {
   const save = await store.getSave($('#continue-btn').dataset.id);
@@ -2347,7 +2366,7 @@ $('#app-menu').addEventListener('click', async (e) => {
   $('#menu-btn').focus();
   const cmd = b.dataset.cmd;
   if (cmd === 'new') goHome();
-  else if (cmd === 'saved') { await goHome({ focusSaved: true }); $('#saved-section').scrollIntoView(); }
+  else if (cmd === 'saved') { await goHome({ focusSaved: true }); setSavedOpen(true); $('#saved-section').scrollIntoView(); }
   else if (cmd === 'settings') openSettings();
   else if (cmd === 'stats') openStats();
   else if (cmd === 'suggest') characters.openSuggest(openDialog, OPTIONS.themes.filter((t) => !remote.disabledThemes().has(t.id)));
@@ -2495,7 +2514,7 @@ async function checkUpdates() {
 
 $('#welcome-skip').onclick = () => { $('#dlg-welcome').close(); startQuick(); };
 $('#welcome-watch').onclick = () => { $('#dlg-welcome').close(); openVideo(); };
-$('#back-saved').onclick = async () => { await goHome({ focusSaved: true }); $('#saved-section').scrollIntoView(); };
+$('#back-saved').onclick = async () => { await goHome({ focusSaved: true }); setSavedOpen(true); $('#saved-section').scrollIntoView(); };
 
 const ACTIONS = {
   undo, redo, hint, check,
