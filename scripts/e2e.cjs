@@ -40,7 +40,7 @@ const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`o
     await page.reload();
     await page.waitForSelector('#tier-choices input');
     assert(!(await page.locator('#dlg-welcome[open]').count()), 'welcome is offered only once');
-    assert(await page.locator('input[name=tier]').count() === 6, 'six difficulty tiers');
+    assert(await page.locator('input[name=tier]').count() === 7, 'seven difficulty tiers');
     assert(await page.locator('input[name=theme]').count() >= 11, 'themes listed');
     await page.screenshot({ path: process.env.SHOTS + '/1-setup.png', fullPage: true });
 

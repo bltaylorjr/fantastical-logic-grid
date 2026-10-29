@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { esc, gridTable } from './worksheet.mjs';
 import { css, printPdfs } from './educator-package.mjs';
 
-const TIERS = { basic: 'Basic', easy: 'Easy', medium: 'Medium', hard: 'Hard', expert: 'Expert', mensa: 'Quantum Physicist' };
+const TIERS = { basic: 'Basic', easy: 'Easy', medium: 'Medium', hard: 'Hard', expert: 'Expert', mensa: 'Quantum Physicist', theorist: 'Theoretical Physicist' };
 
 export function contributorHtml(p) {
   const level = TIERS[p.difficulty?.id] || '';

@@ -55,7 +55,7 @@ const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const OPTIONS = describeOptions();
 const TIERS = Object.fromEntries(OPTIONS.difficulties.map((d) => [d.id, d]));
 const TIER_IDS = OPTIONS.difficulties.map((d) => d.id);
-const MINUTES_PER_CELL = { basic: 0.12, easy: 0.16, medium: 0.22, hard: 0.3, expert: 0.36, mensa: 0.42 };
+const MINUTES_PER_CELL = { basic: 0.12, easy: 0.16, medium: 0.22, hard: 0.3, expert: 0.36, mensa: 0.42, theorist: 0.63 };
 const USED_STORY_LIMIT = 5000;
 const isDesktop = !!(window.__TAURI_INTERNALS__ || window.__TAURI__);
 // The claude.ai preview build cannot print or download files, so those controls are hidden there.
@@ -424,7 +424,7 @@ async function startGeneration() {
   const err = $('#gen-error');
   err.hidden = true;
   btn.disabled = true;
-  st.textContent = 'Writing your story… Large puzzles can take up to 20 seconds.';
+  st.textContent = $('input[name=tier]:checked')?.value === 'theorist' ? 'Writing your story… Theoretical Physicist puzzles are the hardest to build and can take up to a minute.' : 'Writing your story… Large puzzles can take up to 20 seconds.';
   try {
     const puzzle = await makePuzzle();
     const save = newSave(puzzle);
