@@ -1,0 +1,24 @@
+# One-off check that the Bing Webmaster key works. Prints no secrets.
+name: Bing check
+on:
+  push:
+    branches: [test/bing-check]
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - env:
+          API: ${{ vars.FLG_CLOUD_URL || 'https://flg-api.btay74.workers.dev' }}
+          TOKEN: ${{ secrets.FLG_ADMIN_TOKEN }}
+        run: |
+          set -u
+          code=$(curl -sS -o r.json -w '%{http_code}' --max-time 60 -X POST -H "Authorization: Bearer $TOKEN" "$API/admin/v1/search/refresh")
+          echo "refresh HTTP $code"
+          if [ "$code" != 200 ]; then jq -c '{error, message}' r.json || true; fi
+          curl -fsS --max-time 25 -H "Authorization: Bearer $TOKEN" "$API/admin/v1/search" > s.json
+          jq -c '.sources | to_entries[] | {source: .key, connected: .value.connected, error: .value.error, fetchedAt: .value.fetchedAt, clicks: .value.data.totals.clicks, impressions: .value.data.totals.impressions}' s.json
+          summary=$(jq -r '.sources.bing | "Bing connected=\(.connected) error=\(.error // "none") fetchedAt=\(.fetchedAt // 0)"' s.json)
+          echo "::notice title=Bing check::${summary}"
