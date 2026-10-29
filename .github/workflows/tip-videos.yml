@@ -1,11 +1,13 @@
-# "How to play logic puzzles": three short vertical videos for Facebook and
-# Instagram Reels, YouTube Shorts and TikTok (media/promo/README.md). Films the
-# real game, voices the script with the game's narrator (Kokoro, free and
-# local) and opens a pull request that adds the videos, captions and
-# thumbnails to media/promo/. Once merged, the Marketing autopilot posts them
-# on the days set in the "how-to-play-tips" campaign.
+# The marketing videos (media/promo/README.md): the promo in both cuts (16:9
+# for YouTube and Facebook, 9:16 for Reels, Shorts and TikTok) and the three
+# "How to play logic puzzles" tips. Films the real game, voices the scripts
+# with the game's narrator (Kokoro, free and local) and opens a pull request
+# that adds the videos, captions and thumbnails to media/promo/. Once merged,
+# the Marketing autopilot posts the tips on the days set in the
+# "how-to-play-tips" campaign. Run it by hand (Run workflow) to refresh every
+# video after the game changes.
 # Free: GitHub's hosted runners (free for public repositories).
-name: How-to-play tip videos
+name: Marketing videos (promo and how-to-play tips)
 on:
   workflow_dispatch:
   push:
@@ -47,27 +49,38 @@ jobs:
           path: media/promo/.kokoro
           key: kokoro-v1.0
       - run: npm run build
+      # A failure shows its last lines as an annotation, so it can be read
+      # without downloading the whole log.
       - name: Film the game
-        run: node media/promo/tools/capture.cjs
-      - name: Edit, voice and caption the three tips
-        run: python media/promo/tools/build.py tips
+        shell: bash
+        run: |
+          set -o pipefail
+          if node media/promo/tools/capture.cjs 2>&1 | tee "$RUNNER_TEMP/capture.txt"; then exit 0; fi
+          msg=$(tail -n 40 "$RUNNER_TEMP/capture.txt" | sed -e ':a' -e 'N' -e '$!ba' -e 's/%/%25/g' -e 's/\r//g' -e 's/\n/%0A/g')
+          echo "::error title=Filming failed::${msg}"
+          exit 1
+      - name: Edit, voice and caption the promo (both cuts) and the three tips
+        run: python media/promo/tools/build.py wide tall tips
       - name: Add them to media/promo
         run: |
           cd media/promo/out
-          for f in how-to-play-*-9x16.mp4 how-to-play-*-9x16-captioned.mp4 how-to-play-*-9x16.srt how-to-play-*-9x16-thumbnail.png; do
+          for f in how-to-play-*-9x16.mp4 how-to-play-*-9x16-captioned.mp4 how-to-play-*-9x16.srt how-to-play-*-9x16-thumbnail.png \
+                   the-fantastical-logic-grid-promo-*.mp4 the-fantastical-logic-grid-promo-*.srt the-fantastical-logic-grid-promo-*-thumbnail.png; do
             [ -f "$f" ] && cp "$f" ../
           done
-          ls -la ../how-to-play-*
+          ls -la ../how-to-play-* ../the-fantastical-logic-grid-promo-*
       - uses: peter-evans/create-pull-request@22a9089034f40e5a961c8808d113e2c98fb63676 # v7.0.11
         with:
-          branch: video/how-to-play-tips
+          branch: video/marketing-videos
+          base: main
           delete-branch: true
           add-paths: |
             media/promo/how-to-play-*
-          commit-message: 'How-to-play tip videos [tips]'
-          title: 'How-to-play tip videos [tips]'
+            media/promo/the-fantastical-logic-grid-promo-*
+          commit-message: 'Marketing videos: promo and how-to-play tips [tips]'
+          title: 'Marketing videos: promo and how-to-play tips [tips]'
           body: |
-            Three short vertical "How to play logic puzzles" videos (the grid, reading clues, hints), filmed from the current game and narrated by the game's own voice, with captions and thumbnails.
+            The promo in both cuts (16:9 and 9:16, with captions and thumbnails) and three short vertical "How to play logic puzzles" videos (the grid, reading clues, hints), filmed from the current game and narrated by the game's own voice.
 
             Merge before the first posting day in the how-to-play-tips campaign (admin > Marketing) so the Marketing autopilot can post them.
 

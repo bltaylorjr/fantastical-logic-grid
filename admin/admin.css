@@ -109,6 +109,9 @@ main:focus { outline: none; }
 .tile .label { color: var(--muted); font-size: .9rem; }
 .tile .value { font-size: 1.6rem; font-weight: 700; line-height: 1.2; }
 .tile .sub { color: var(--muted); font-size: .85rem; }
+a.tile.go { display: flex; flex-direction: column; color: var(--text); text-decoration: none; min-height: 44px; cursor: pointer; }
+a.tile.go:hover { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--panel)); }
+a.tile.go .more { margin-top: auto; padding-top: 6px; color: var(--accent); font-size: .85rem; text-decoration: underline; }
 
 .charts { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; }
 .chart { margin: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
