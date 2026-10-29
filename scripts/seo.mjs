@@ -26,7 +26,7 @@ const PAGE_CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsaf
 export const INDEXNOW_KEY = process.env.FLG_INDEXNOW_KEY || 'fae88a004ad87116c0e93df007b2de7e';
 // The game's social pages (web/js/social.js): the links set in the admin
 // dashboard (Settings and switches > Social links), read at build time.
-const social = await import(new URL('../web/js/social.js', import.meta.url).href);
+const socialPages = await import(new URL('../web/js/social.js', import.meta.url).href);
 // The first daily puzzle. Every later day is checked against all earlier days,
 // so a daily story is never used twice.
 const DAILY_START = '2026-10-25';
@@ -144,10 +144,10 @@ async function readSocial() {
       const res = await fetch(`${cloud}/v1/config`, { signal: AbortSignal.timeout(15000) });
       if (!res.ok) throw new Error(`answered ${res.status}`);
       const body = await res.json();
-      if (Array.isArray(body.social)) return social.socialLinks(Object.fromEntries(body.social.map((s) => [s.id, s.url])));
+      if (Array.isArray(body.social)) return socialPages.socialLinks(Object.fromEntries(body.social.map((s) => [s.id, s.url])));
     } catch (e) { console.warn(`Social links: ${e.message}`); }
   }
-  return social.socialLinks(social.DEFAULT_LINKS);
+  return socialPages.socialLinks(socialPages.DEFAULT_LINKS);
 }
 const longDate = (s) => new Date(`${s}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
 
@@ -280,7 +280,7 @@ ${body(up)}
   <p><a href="${up}">Play ${name}</a> · free in your browser, offline-ready, and on Windows.</p>
   <p>Every puzzle has exactly one answer, checked by our solver${quality.rating ? `, and players rate them ${quality.rating.average} out of 5 stars` : ''}. <a href="${up}picks/">Hand-picked puzzles</a></p>
   <p>${NAV.map(([p, n]) => `<a href="${up}${p}">${n}</a>`).join(' · ')} · <a href="${up}privacy/">Privacy</a></p>
-  ${socialList.length ? `<div class="foot-social"><p>Follow the game</p>${social.socialHtml(socialList, { iconBase: `${up}icons/social/`, hasIcon: socialIcon })}</div>` : ''}
+  ${socialList.length ? `<div class="foot-social"><p>Follow the game</p>${socialPages.socialHtml(socialList, { iconBase: `${up}icons/social/`, hasIcon: socialIcon })}</div>` : ''}
   <p class="muted">${copyright} ${trademark} <a href="${up}terms/">Terms of use</a></p>
 </footer>
 </body>
