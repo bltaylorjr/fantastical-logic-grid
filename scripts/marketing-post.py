@@ -496,7 +496,8 @@ def facebook_token_report():
     scopes = sorted(set(d.get('scopes', [])))
     same = str(d.get('profile_id', '')) == env('META_PAGE_ID') if kind == 'PAGE' else None
     expires = 'never expires' if not d.get('expires_at') else 'expires ' + datetime.fromtimestamp(d['expires_at']).date().isoformat()
-    print(f'::notice::Facebook key: a {kind} key, {expires}, for {"the game\'s Page" if same else ("another Page" if same is False else "a person, not a Page")}; may: {", ".join(scopes) or "nothing listed"}')
+    whose = "the game's Page" if same else ('another Page' if same is False else 'a person, not a Page')
+    print(f'::notice::Facebook key: a {kind} key, {expires}, for {whose}; may: {", ".join(scopes) or "nothing listed"}')
     if kind != 'PAGE' or same is False or 'pages_manage_posts' not in scopes:
         print('::warning::Facebook Page: this key can read the Page but cannot post. Save the Page access_token from me/accounts (Part C, step 5 of the Facebook launch kit) as META_PAGE_TOKEN, made with pages_manage_posts.')
 
