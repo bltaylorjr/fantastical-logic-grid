@@ -70,9 +70,24 @@ export const TIERS = {
     maxLevel: 3, requireLevel: 3, minAdvancedSteps: 8, maxWhatIf: Infinity, whatIfDepth: 5,
     removeFirst: ['is', 'not', 'neither', 'allDiff', 'either', 'pairs', 'less', 'diff', 'ifthen'],
   },
+  // Twice as hard as Quantum Physicist: the biggest grids, about twice its
+  // difficulty score (minScore; Quantum Physicist puzzles typically score 450
+  // to 700, around 500 in the middle), twice its advanced steps, and at least
+  // two what-if chains.
+  theorist: {
+    id: 'theorist', name: 'Theoretical Physicist', order: 6,
+    summary: '6 categories, 7 to 8 items, every clue type, long what-if chains, twice as hard as Quantum Physicist',
+    categories: [6, 6], items: [7, 8], defaultSize: [6, 7],
+    weights: { is: 0.1, not: 1.5, neither: 1.5, either: 2, pairs: 2.5, allDiff: 1.5, less: 3, diff: 3, ifthen: 3 },
+    maxLevel: 3, requireLevel: 3, minAdvancedSteps: 16, minWhatIfSteps: 2, minScore: 1000, maxWhatIf: Infinity, whatIfDepth: 5,
+    // Big grids take longer to prove; the hardest puzzle found is kept if none
+    // reaches the bar in time.
+    timeLimitMs: 40000,
+    removeFirst: ['is', 'not', 'neither', 'allDiff', 'either', 'pairs', 'less', 'diff', 'ifthen'],
+  },
 };
 
-export const TIER_ORDER = ['basic', 'easy', 'medium', 'hard', 'expert', 'mensa'];
+export const TIER_ORDER = ['basic', 'easy', 'medium', 'hard', 'expert', 'mensa', 'theorist'];
 
 // Custom sizes (advanced option) may go outside a tier's range, within these limits.
 export const SIZE_LIMITS = { categories: [3, 6], items: [3, 8] };
