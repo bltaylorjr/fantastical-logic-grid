@@ -105,6 +105,15 @@
       <div id="ov-body"><p class="muted">Loading…</p></div>
     </section>
 
+    <section data-view="details" hidden aria-labelledby="h-details">
+      <p><a href="#overview"><span aria-hidden="true">‹ </span>Back to Overview</a></p>
+      <div class="head"><h1 id="h-details">Details</h1>
+        <div class="field inline"><label for="dt-days">Period</label><select id="dt-days"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option></select></div>
+      </div>
+      <p class="muted" id="dt-intro"></p>
+      <div id="dt-body"><p class="muted">Loading…</p></div>
+    </section>
+
     <section data-view="visitors" hidden aria-labelledby="h-visitors">
       <div class="head"><h1 id="h-visitors">Visitors</h1>
         <div class="field inline"><label for="vis-days">Period</label><select id="vis-days"><option value="1">Today</option><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option><option value="365">Last 365 days</option></select></div>
