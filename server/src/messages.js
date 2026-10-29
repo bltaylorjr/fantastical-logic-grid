@@ -30,6 +30,7 @@ import { getSettings } from './settings.js';
 import { cleanText, themeName } from './feedback.js';
 import { withFixes } from './errors.js';
 import { queueNotice, storylinesHeld } from './replies.js';
+import { reportsFor } from './puzzle-reports.js';
 import { AuthError } from './auth.js';
 import { nameKey } from './names.js';
 import { checkPuzzle } from './compete.js';
@@ -297,7 +298,7 @@ const TYPES_FOR = { viewer: ['error', 'email'], moderator: ['message', 'idea', '
 export const typesFor = (role) => (role === 'viewer' ? TYPES_FOR.viewer : TYPES_FOR.moderator);
 const PER_TYPE = 100;
 const like = (q) => `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
-const EMAIL_KINDS = { idea: 'Thank-you email for an idea', problem: 'Email about a problem report', idea_update: 'Update email: idea addressed', story_approved: 'Email: storyline approved, with its puzzle', problem_update: 'Update email: problem addressed', message: 'Email: new message from the team' };
+const EMAIL_KINDS = { idea: 'Thank-you email for an idea', problem: 'Email about a problem report', idea_update: 'Update email: idea addressed', story_approved: 'Email: storyline approved, with its puzzle', problem_repaired: 'Email: puzzle repaired, with the link to play it again', problem_update: 'Update email: problem addressed', message: 'Email: new message from the team' };
 const EMAIL_STATUS = { held: 'Sent once the team marks it addressed', waiting: 'Waiting to be sent', sending: 'Being sent', sent: 'Sent', failed: 'Could not be sent', dropped: 'Not sent (emails were switched off, or it was closed without being addressed)' };
 
 // One list, newest first, of everything players sent or the game reported.
@@ -333,9 +334,10 @@ export async function inbox(env, role, { type = 'all', status = 'new', q = '' } 
     if (!has(kind)) continue;
     const { results } = await db.prepare(`SELECT id, topic, theme, text, platform, version, status, note, created_at AS at, done_at AS doneAt, conversation_id AS conversationId FROM feedback
       WHERE kind = ?1 AND (?2 = 'all' OR status = ?2) AND (?3 IS NULL OR text LIKE ?3 ESCAPE '\\') ORDER BY created_at DESC LIMIT ?4`).bind(kind, status, search, PER_TYPE).all();
+    const reports = kind === 'problem' ? await reportsFor(env, results.filter((f) => f.topic === 'puzzle' || f.topic === 'page').map((f) => f.id)).catch(() => new Map()) : new Map();
     const storyEmail = kind === 'idea' ? await storylinesHeld(env, results.filter((f) => f.topic === 'story').map((f) => f.id)).catch(() => new Set()) : new Set();
     for (const f of results) {
-      items.push({ type: kind, id: f.id, at: f.at, status: f.status, title: f.topic, text: f.text, meta: { topic: f.topic, theme: f.theme || null, themeName: f.theme ? themeName(f.theme) : null, platform: f.platform, version: f.version, conversationId: f.conversationId, note: f.note, doneAt: f.doneAt, storyEmail: storyEmail.has(f.id) } });
+      items.push({ report: reports.get(f.id) || null, type: kind, id: f.id, at: f.at, status: f.status, title: f.topic, text: f.text, meta: { topic: f.topic, theme: f.theme || null, themeName: f.theme ? themeName(f.theme) : null, platform: f.platform, version: f.version, conversationId: f.conversationId, note: f.note, doneAt: f.doneAt, storyEmail: storyEmail.has(f.id) } });
     }
   }
   // Error reports have no done state: "new" is the last 7 days, "all" and

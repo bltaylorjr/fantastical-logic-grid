@@ -88,6 +88,16 @@ export async function releaseUpdate(env, feedbackId, note) {
   return r.meta.changes || 0;
 }
 
+// The puzzle doctor repaired a reported puzzle (puzzle-reports.js): the player
+// who asked to hear about it gets the apology email instead of the plain
+// update, with what was found, what was done and the link to the repaired
+// puzzle. Returns how many were queued (0 or 1).
+export async function releaseRepair(env, feedbackId, note, explain, link) {
+  const r = await env.DB.prepare("UPDATE feedback_replies SET status = 'waiting', kind = 'problem_repaired', note = ?1, explain = ?2, link = ?3 WHERE feedback_id = ?4 AND status = 'held'")
+    .bind(note, explain, link, Number(feedbackId)).run();
+  return r.meta.changes || 0;
+}
+
 // The team closed an idea or problem without a fix, or deleted it: no update
 // will come, so the held address and words go. A storyline closed as done
 // still gets its one email, a plain thank-you (thank = true); a deleted one
@@ -97,7 +107,7 @@ export async function dropUpdate(env, feedbackId, { thank = false } = {}) {
   if (thank) {
     await db.prepare("UPDATE feedback_replies SET status = 'waiting', kind = 'idea', user_id = NULL WHERE feedback_id = ?1 AND status = 'held' AND topic = 'story'").bind(Number(feedbackId)).run();
   }
-  return db.prepare("UPDATE feedback_replies SET status = 'dropped', email = NULL, text = NULL, note = NULL, user_id = NULL WHERE feedback_id = ?1 AND status = 'held'").bind(Number(feedbackId)).run();
+  return db.prepare("UPDATE feedback_replies SET status = 'dropped', email = NULL, text = NULL, note = NULL, explain = NULL, link = NULL, user_id = NULL WHERE feedback_id = ?1 AND status = 'held'").bind(Number(feedbackId)).run();
 }
 
 // The held storyline email for an idea, if the player asked for one: the
@@ -133,15 +143,15 @@ export async function deleteReplyStatements(env, uid) {
 export async function claimReplies(env, limit, now = Date.now()) {
   const db = env.DB;
   if (!(await getSettings(env, now)).feedback_replies_enabled) {
-    const r = await db.prepare("UPDATE feedback_replies SET status = 'dropped', email = NULL, text = NULL, note = NULL, user_id = NULL WHERE status IN ('waiting', 'sending', 'held')").run();
+    const r = await db.prepare("UPDATE feedback_replies SET status = 'dropped', email = NULL, text = NULL, note = NULL, explain = NULL, link = NULL, user_id = NULL WHERE status IN ('waiting', 'sending', 'held')").run();
     return { off: true, dropped: r.meta.changes || 0, replies: [] };
   }
   await db.batch([
-    db.prepare("UPDATE feedback_replies SET status = 'failed', email = NULL, text = NULL, note = NULL WHERE status = 'sending' AND claimed_at < ?1 AND tries >= ?2").bind(now - CLAIM_TIMEOUT, MAX_TRIES),
+    db.prepare("UPDATE feedback_replies SET status = 'failed', email = NULL, text = NULL, note = NULL, explain = NULL, link = NULL WHERE status = 'sending' AND claimed_at < ?1 AND tries >= ?2").bind(now - CLAIM_TIMEOUT, MAX_TRIES),
     db.prepare("UPDATE feedback_replies SET status = 'waiting' WHERE status = 'sending' AND claimed_at < ?1").bind(now - CLAIM_TIMEOUT),
   ]);
   const n = Math.min(CLAIM_MAX, Math.max(1, Number(limit) || CLAIM_MAX));
-  const { results } = await db.prepare(`SELECT r.id, r.kind, r.email, r.text, r.note, p.puzzle, p.expires_at AS puzzleExpiresAt FROM feedback_replies r
+  const { results } = await db.prepare(`SELECT r.id, r.kind, r.email, r.text, r.note, r.explain, r.link, p.puzzle, p.expires_at AS puzzleExpiresAt FROM feedback_replies r
     LEFT JOIN player_puzzles p ON p.id = r.puzzle_id AND p.expires_at > ?2
     WHERE r.status = 'waiting' AND r.email IS NOT NULL ORDER BY r.created_at LIMIT ?1`).bind(n, now).all();
   if (results.length) {
@@ -157,11 +167,11 @@ export async function finishReplies(env, sent, failed, now = Date.now()) {
   const db = env.DB;
   const ids = (list) => (Array.isArray(list) ? list : []).map(Number).filter(Number.isInteger).slice(0, CLAIM_MAX);
   const stmts = [];
-  for (const id of ids(sent)) stmts.push(db.prepare("UPDATE feedback_replies SET status = 'sent', sent_at = ?1, email = NULL, text = NULL, note = NULL WHERE id = ?2 AND status = 'sending'").bind(now, id));
+  for (const id of ids(sent)) stmts.push(db.prepare("UPDATE feedback_replies SET status = 'sent', sent_at = ?1, email = NULL, text = NULL, note = NULL, explain = NULL, link = NULL WHERE id = ?2 AND status = 'sending'").bind(now, id));
   for (const id of ids(failed)) {
     stmts.push(db.prepare(`UPDATE feedback_replies SET status = CASE WHEN tries >= ?1 THEN 'failed' ELSE 'waiting' END,
       email = CASE WHEN tries >= ?1 THEN NULL ELSE email END, text = CASE WHEN tries >= ?1 THEN NULL ELSE text END,
-      note = CASE WHEN tries >= ?1 THEN NULL ELSE note END WHERE id = ?2 AND status = 'sending'`).bind(MAX_TRIES, id));
+      note = CASE WHEN tries >= ?1 THEN NULL ELSE note END, explain = CASE WHEN tries >= ?1 THEN NULL ELSE explain END, link = CASE WHEN tries >= ?1 THEN NULL ELSE link END WHERE id = ?2 AND status = 'sending'`).bind(MAX_TRIES, id));
   }
   const results = stmts.length ? await db.batch(stmts) : [];
   const changed = results.map((r) => r.meta?.changes || 0);

@@ -17,6 +17,7 @@ import * as updates from './updates.js';
 import { celebrate as celebrateSolve } from './effects.js';
 import * as learn from './learn.js';
 import * as feedbackBox from './feedback.js';
+import * as puzzleReport from './puzzle-report.js';
 import * as messages from './messages.js';
 import * as share from './share.js';
 import * as errorReports from './errors.js';
@@ -617,6 +618,35 @@ function exportSave(save) {
   const safe = save.name.replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-') || 'puzzle';
   download(`${safe}.flg.json`, JSON.stringify({ format: 'fantastical-logic-grid', version: 1, save }, null, 1));
   toast(`Saved “${save.name}” to a file in your downloads.`);
+}
+
+// Report a Problem (puzzle-report.js), in the footer under every screen. On a
+// puzzle it starts as a Puzzle Problem with that puzzle and its picture;
+// elsewhere as a Web Page Issue naming the screen.
+const SCREEN_NAMES = { 'screen-home': 'Home screen', 'screen-play': 'Puzzle screen', 'screen-learn': 'How to play' };
+$('#report-problem').onclick = () => {
+  const screen = $$('main.screen').find((m) => !m.hidden);
+  const where = SCREEN_NAMES[screen?.id] || screen?.id || 'Game';
+  const onPuzzle = screen?.id === 'screen-play' && S && S.save;
+  let image = '';
+  if (onPuzzle) { try { image = sceneSvg(S.save.puzzle, 5, { animate: false }); } catch (e) { /* sent without it */ } }
+  puzzleReport.open({ puzzle: onPuzzle ? S.save.puzzle : null, image, where: onPuzzle ? `${where}: ${S.save.name}` : where });
+};
+
+// The link in the "we fixed the puzzle you reported" email: the repaired
+// puzzle joins Saved puzzles (once, however often the link is opened).
+async function addRepairedPuzzle(puzzle, tracking, error) {
+  if (!puzzle) { toast(error || 'The repaired puzzle could not be opened.'); return; }
+  let save = (await store.listSaves()).find((x) => x.repairOf && x.repairOf === tracking);
+  if (!save) {
+    await rememberStory(storyIdOf(puzzle));
+    save = newSave(puzzle);
+    save.name = `${puzzle.title} (repaired)`;
+    save.repairOf = tracking || true;
+    await store.putSave(save);
+  }
+  await renderSaved();
+  toast(`Your repaired puzzle “${save.name}” is in Saved puzzles.`, { label: 'Play it now', run: () => openGame(save) });
 }
 
 $('#import-btn').onclick = () => $('#import-file').click();
@@ -2692,6 +2722,8 @@ async function init() {
     onSettingsChanged: () => { settings = store.loadSettings(); applyColorTheme(); applyMode(); applyLanguage(); },
   }).catch(() => { /* accounts are optional */ });
   messages.init({ openDialog, openAccount, announce, playPuzzle: openTeamPuzzle, downloadPuzzle: (puzzle) => exportSave(newSave(puzzle)) });
+  puzzleReport.init({ openDialog, openAccount, announce });
+  puzzleReport.openRepaired(addRepairedPuzzle);
   competeUi.initCompete({
     openDialog, toast, announce, confirmDialog, openAccount, fmtTime, makePuzzle, setupSummary, openRace, findRaceSave,
     openSave: (save) => openGame(save),
