@@ -76,7 +76,7 @@ export const TIERS = {
   // middle), half again its advanced steps, and at least two what-if chains.
   theorist: {
     id: 'theorist', name: 'Theoretical Physicist', order: 6,
-    summary: '6 categories, 7 to 8 items, every clue type, long what-if chains, at least 50% harder than Quantum Physicist',
+    summary: 'For the best of the best: so complex it takes up to a minute just to build and prove it has one answer. 6 categories, 7 to 8 items, long what-if chains',
     categories: [6, 6], items: [7, 8], defaultSize: [6, 7],
     weights: { is: 0.1, not: 1.5, neither: 1.5, either: 2, pairs: 2.5, allDiff: 1.5, less: 3, diff: 3, ifthen: 3 },
     maxLevel: 3, requireLevel: 3, minAdvancedSteps: 12, minWhatIfSteps: 2, minScore: 750, maxWhatIf: Infinity, whatIfDepth: 5,
