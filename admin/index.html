@@ -84,6 +84,7 @@
       <li><a href="#mail" data-min="viewer">Puzzle emails</a></li>
       <li><a href="#stories" data-min="moderator">Story workshop and review <span class="count" id="count-parts" hidden></span></a></li>
       <li><a href="#communication" data-min="viewer">Communication <span class="count" id="count-comm" hidden></span></a></li>
+      <li><a href="#errortracking" data-min="moderator">Error tracking <span class="count" id="count-errors" hidden></span></a></li>
       <li><a href="#educators" data-min="moderator">Educator requests <span class="count" id="count-educators" hidden></span></a></li>
       <li><a href="#names" data-min="moderator">Screen names <span class="count" id="count-names" hidden></span></a></li>
       <li><a href="#players" data-min="viewer">Players</a></li>
@@ -270,6 +271,21 @@
       </form>
       <ul class="cards" id="ann-list"></ul>
       </div>
+    </section>
+
+    <section data-view="errortracking" hidden aria-labelledby="h-errortracking">
+      <div class="head"><h1 id="h-errortracking">Error tracking</h1></div>
+      <p class="muted">Every Report a Problem, sorted by category as it arrives: <b>Puzzle</b> (PZ-…) or <b>Web structure</b> (WS-…). The puzzle doctor checks Puzzle reports every 15 minutes, rebuilds the broken ones and emails the players who asked. It uses Web structure reports from the same screen and app version to tell a broken puzzle from a display problem, and learns which repairs work for each kind of fault.</p>
+      <form class="row filters" id="et-filter" novalidate>
+        <div class="field inline"><label for="et-category">Category</label><select id="et-category"><option value="">Both</option><option value="puzzle">Puzzle</option><option value="webstructure">Web structure</option></select></div>
+        <div class="field inline"><label for="et-status">Status</label><select id="et-status"><option value="">Any</option><option value="needs_fix">Needs a fix in the code</option><option value="manual">Needs the team</option><option value="page">Web page issue (open)</option><option value="no_fault">No fault in the puzzle</option><option value="repaired">Repaired</option><option value="done">Done</option><option value="new">Waiting for the doctor</option></select></div>
+        <div class="field inline"><label for="et-q">Search</label><input id="et-q" type="search" placeholder="PZ-…, title, words, page"></div>
+        <button class="btn" type="submit">Show</button>
+      </form>
+      <div id="et-body"><p class="muted">Loading…</p></div>
+      <h2>What the doctor has learned</h2>
+      <p class="muted">One row per kind of fault. For puzzles: the fault, theme and difficulty, how often it was seen and repaired, the rebuild that works best, and the doctor's latest self-check with the newest engine. For web pages: the screen and app version. When a self-check shows a fault is gone, its waiting reports are repaired and emailed automatically.</p>
+      <div id="et-patterns"><p class="muted">Loading…</p></div>
     </section>
 
     <section data-view="educators" hidden aria-labelledby="h-educators">

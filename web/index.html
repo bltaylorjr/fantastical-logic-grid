@@ -47,7 +47,7 @@
     <button role="menuitem" type="button" data-cmd="suggest" hidden>Suggest a character</button>
     <button role="menuitem" type="button" data-cmd="settings">Settings</button>
     <button role="menuitem" type="button" data-cmd="messages" hidden>Messages<span class="count"></span></button>
-    <button role="menuitem" type="button" data-cmd="feedback" hidden>Ideas and problems</button>
+    <button role="menuitem" type="button" data-cmd="feedback" hidden>Share an idea</button>
     <button role="menuitem" type="button" data-cmd="board" hidden>Scoreboard</button>
     <button role="menuitem" type="button" data-cmd="account" hidden>Account and sync</button>
     <button role="menuitem" type="button" data-cmd="install" hidden>Install the app</button>
@@ -407,6 +407,11 @@
   </section>
 </main>
 
+<!-- The page footer under every screen: Report a Problem (puzzle-report.js). -->
+<footer class="app-foot needs-cloud" data-feature="feedback" id="app-foot" hidden>
+  <button class="btn quiet small" type="button" id="report-problem">Report a Problem</button>
+</footer>
+
 <!-- ============ Dialogs ============ -->
 <dialog id="dlg-confirm" aria-labelledby="confirm-h">
   <h2 id="confirm-h"></h2>
@@ -544,8 +549,8 @@
 </dialog>
 
 <dialog id="dlg-feedback" class="wide" aria-labelledby="feedback-h">
-  <h2 id="feedback-h">Ideas and problems</h2>
-  <p class="help">Two boxes: one for ideas, one for problems. Both go to the game's team. Don't include your name, email or anything personal: messages are anonymous. Signed in with a confirmed email? Tick "Email me an update" and we'll email you a thank-you with what you wrote, then again with what we did once the team acts on it. Signed in and want an answer? Tick "Let the team reply to me" and the reply shows in Menu &gt; Messages.</p>
+  <h2 id="feedback-h">Share an idea</h2>
+  <p class="help">Ideas for storylines, themes and features go to the game's team. Something not working? Use <b>Report a Problem</b> at the bottom of the page instead, so it reaches the right place. Don't include your name, email or anything personal: ideas are anonymous. Signed in with a confirmed email? Tick "Email me an update" and we'll email you about your idea. Signed in and want an answer? Tick "Let the team reply to me" and the reply shows in Menu &gt; Messages.</p>
   <form class="feedback-box" id="idea-form" data-kind="idea" novalidate>
     <h3>Share an idea</h3>
     <fieldset><legend>What is it about?</legend>
@@ -562,19 +567,26 @@
     <p class="acct-done" role="status"></p>
     <div class="row-inline"><button class="btn primary" type="submit">Send idea</button></div>
   </form>
-  <form class="feedback-box" id="problem-form" data-kind="problem" novalidate>
-    <h3>Report a problem</h3>
-    <div class="field"><label for="problem-topic">Where did it happen?</label><select id="problem-topic">
-      <option value="play">Playing a puzzle</option><option value="sound">Sound, music or voices</option><option value="pictures">Pictures</option>
-      <option value="saving">Saving or signing in</option><option value="other">Somewhere else</option></select></div>
-    <div class="field"><label for="problem-text">What went wrong?</label><textarea id="problem-text" rows="4" maxlength="1000" placeholder="What you did, what you expected, and what happened instead."></textarea></div>
-    <label class="check fb-reply" hidden><input type="checkbox" data-reply checked> <span>Email me an update<span class="fb-reply-to"></span></span></label>
-    <label class="check fb-talk" hidden><input type="checkbox" data-talk> <span>Let the team reply to me in Messages</span></label>
-    <div class="error-box" role="alert" hidden></div>
-    <p class="acct-done" role="status"></p>
-    <div class="row-inline"><button class="btn primary" type="submit">Send problem report</button></div>
-  </form>
   <div class="dlg-actions"><button class="btn" type="button" data-close>Close</button></div>
+</dialog>
+
+<dialog id="dlg-report" aria-labelledby="report-h">
+  <h2 id="report-h">Report a Problem</h2>
+  <form id="report-form" novalidate>
+    <fieldset class="report-kind"><legend>What is the problem with?</legend>
+      <label class="radio"><input type="radio" name="report-kind" value="puzzle" checked> Puzzle Problem</label>
+      <label class="radio"><input type="radio" name="report-kind" value="page"> Web Page Issue</label>
+    </fieldset>
+    <p class="help" id="report-about"></p>
+    <div class="field"><label for="report-text">What went wrong?</label>
+      <textarea id="report-text" rows="5" maxlength="1000" aria-describedby="report-count" placeholder="For example: clue 4 says the baker was first, but the answer says she was third."></textarea>
+      <p class="help" id="report-count" aria-live="polite">0 of 1,000 characters</p></div>
+    <label class="check" id="report-reply-box" hidden><input type="checkbox" id="report-reply" checked> <span>Email me when it is fixed<span id="report-reply-to"></span>, with a link to play the repaired puzzle</span></label>
+    <p class="help" id="report-signin" hidden>Want an email when it is fixed? <button class="btn quiet small" type="button" id="report-signin-btn">Sign in</button> with a confirmed email first.</p>
+    <div class="error-box" role="alert" hidden></div>
+    <p class="acct-done" id="report-done" role="status"></p>
+    <div class="row-inline"><button class="btn primary" type="submit">Submit</button><button class="btn" type="button" data-close>Cancel</button></div>
+  </form>
 </dialog>
 
 <dialog id="dlg-mail" aria-labelledby="mail-h">
@@ -726,7 +738,7 @@
       <p>Welcome to The Fantastical Logic Grid. Every case is a brand new story, and you are the detective. Each puzzle is a logic grid wrapped in a story. The story sets up a mystery, the clues give you the facts, and the grid is where you work out the answer. Every story is written fresh for you and never repeated. And every puzzle has exactly one answer you can reach without guessing.</p>
       <p>New to logic puzzles? Press How to play, at the top of every page. It teaches you to solve them step by step, on real grids. Five short lessons take you from your very first mark to solving a whole puzzle on your own. They cover every kind of clue, carrying facts across the grid, what-if thinking, and hints. Each step explains one idea, then you make the marks yourself. The game tells you when a mark does not fit, and Show me makes the marks for you if you are stuck.</p>
       <p>Tips and tricks puts the moves that solve most puzzles on one page. In a hurry? Play a quick puzzle starts a small Easy case straight away, with no choices to make. Every day there is also a new Daily puzzle, the same one for everyone. Solve it each day to build a streak. With a free sign-in, you can get each day&#x27;s puzzle by email. Here&#x27;s how to play.</p>
-      <p>Start on the New puzzle screen and pick a difficulty. Basic and Easy are perfect for beginners. Quantum Physicist is for true masterminds. Next, choose a theme, like Mystery, Fantasy, Sci-Fi, Around Town, National Parks or Vacation Destinations. Or pick Surprise me. Most themes also have topics, like which holiday or which kind of mystery. Pick one, or leave it on Any.</p>
+      <p>Start on the New puzzle screen and pick a difficulty. Basic and Easy are perfect for beginners. Quantum Physicist is for true masterminds. Theoretical Physicist is for the best of the best: at least half again as hard, and so complex that the game needs up to a minute just to build one. Next, choose a theme, like Mystery, Fantasy, Sci-Fi, Around Town, National Parks or Vacation Destinations. Or pick Surprise me. Most themes also have topics, like which holiday or which kind of mystery. Pick one, or leave it on Any.</p>
       <p>Then pick a size. More categories and more items make a bigger, harder grid. Under More options, Full experience adds scenes, characters and sound. Silent mode keeps only the story, the grid, the clues and the answer key. Press Generate puzzle, and your story is written in a moment. Here&#x27;s our case: The Crimson Portrait. The buttons along the top help you as you play.</p>
       <p>Read the story first. It tells you who is involved, and it ends with the question you need to answer. Here, it&#x27;s: Who brought the Ferret? You can also press Read the story aloud to hear it. Every character has a personality, shown under their name, and a voice of their own. Select a character&#x27;s portrait to hear the clues they remember, in their own words. Every clue is also in the clue list.</p>
       <p>To hear every clue in order, press Read the clues aloud. Each character tells their own clue, and the clue being read lights up. On your first Easy puzzle, coach tips appear above the grid to guide your first moves. Now the grid. Each square is where two things meet, like a suspect and a pet. Your job is to decide whether they go together.</p>
@@ -744,7 +756,7 @@
       <p>Your screen name now shows at the top. Play against others lets you race other players on the very same puzzle, and climb the scoreboard. To race, press Start a race. It uses the difficulty, theme and size you picked on the New puzzle screen. Share the race code or link with a friend. Or anyone can press Find a race to join an open race.</p>
       <p>Everyone gets the very same puzzle. The race bar shows the code, and Standings shows who is still solving. When you finish, you see your place. Fastest solve wins, and each hint adds time. The scoreboard ranks players this week and of all time. Every solve earns points, even when you play on your own. Press Scoring and race rules to see exactly how points are awarded.</p>
       <p>This week&#x27;s leaders are always in view at the top of the page. Select Scoreboard there to see the full board. To race one particular player, press Challenge a player and type their screen name. They see your challenge under Play against others, the next time they open the game. Accept starts the race on the very same puzzle. No thanks turns it down. Finally, make the game your own.</p>
-      <p>In Settings, sound effects and theme music start on, and you can turn either one off. Learn from how I play tunes your next puzzles to suit you. And play in your own language. US English is the default, and you can choose any of 100 languages under Language. The game translates itself as you play, and the English button at the top shows the original at any time. Have an idea for a story, or found a problem? Ideas and problems, in the menu, has a separate box for each, and they go straight to the game&#x27;s team. Signed in with a confirmed email? Leave Email me an update ticked. The game emails you a thank-you, and again when the team acts on it. Want an answer? Tick Let the team reply to me.</p>
+      <p>In Settings, sound effects and theme music start on, and you can turn either one off. Learn from how I play tunes your next puzzles to suit you. And play in your own language. US English is the default, and you can choose any of 100 languages under Language. The game translates itself as you play, and the English button at the top shows the original at any time. Have an idea for a story? Share an idea, in the menu, sends it straight to the game&#x27;s team. Found a problem? Press Report a Problem at the bottom of any page. Signed in with a confirmed email? Leave Email me an update ticked. The game emails you a thank-you, and again when the team acts on it. Want an answer? Tick Let the team reply to me.</p>
       <p>When the team writes to you, or posts news, the Menu button shows a number. Messages, in the menu, has news from the game&#x27;s team for everyone. Signed in, you can write to the team with a question, an idea or a problem, and read their replies right here. Tick Email me, and you get a short email when the team writes back. Dream up a character of your own with Suggest a character, in the menu. Answer a few questions about their name, look, personality and voice. The game&#x27;s team reviews every suggestion, and you might meet yours in a puzzle.</p>
       <p>That&#x27;s all you need: read the story, follow the clues, and mark your X&#x27;s and O&#x27;s. Welcome to The Fantastical Logic Grid. Happy sleuthing!</p>
   </details>
@@ -853,7 +865,7 @@
   <h3>How points are awarded</h3>
   <p>Points = <b>difficulty base</b> × <b>size</b> × <b>speed</b> × <b>help</b>, rounded, and at least 1.</p>
   <ul>
-    <li><b>Difficulty base:</b> Basic 10, Easy 20, Medium 35, Hard 55, Expert 80, Quantum Physicist 110.</li>
+    <li><b>Difficulty base:</b> Basic 10, Easy 20, Medium 35, Hard 55, Expert 80, Quantum Physicist 110, Theoretical Physicist 165.</li>
     <li><b>Size:</b> bigger grids are worth more. A 3 × 4 grid counts as 1, a 4 × 4 grid as 1.4, a 6 × 7 grid as 3.9.</li>
     <li><b>Speed:</b> matching the usual time for the puzzle (shown on the New puzzle screen) counts as 1. Solving in under about half the usual time earns up to 1.5. Very slow solves still get at least 0.6.</li>
     <li><b>Help:</b> each hint takes away 15% and each check 5%, but you always keep at least a quarter of the points. Each step of a hint (the nudge, the clue, the cell) counts as one hint.</li>
@@ -868,6 +880,7 @@
       <tr><th scope="row">Hard 5 × 5</th><td>75 min</td><td>126</td><td>178</td><td>75</td></tr>
       <tr><th scope="row">Expert 5 × 6</th><td>2 h 10 min</td><td>219</td><td>310</td><td>131</td></tr>
       <tr><th scope="row">Quantum Physicist 6 × 7</th><td>5 h 9 min</td><td>430</td><td>609</td><td>258</td></tr>
+      <tr><th scope="row">Theoretical Physicist 6 × 7</th><td>7 h 43 min</td><td>646</td><td>913</td><td>387</td></tr>
     </tbody></table></div>
 
   <h3>Race rules</h3>

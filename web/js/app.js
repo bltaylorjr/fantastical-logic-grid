@@ -17,6 +17,7 @@ import * as updates from './updates.js';
 import { celebrate as celebrateSolve } from './effects.js';
 import * as learn from './learn.js';
 import * as feedbackBox from './feedback.js';
+import * as puzzleReport from './puzzle-report.js';
 import * as messages from './messages.js';
 import * as share from './share.js';
 import * as errorReports from './errors.js';
@@ -54,7 +55,7 @@ const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const OPTIONS = describeOptions();
 const TIERS = Object.fromEntries(OPTIONS.difficulties.map((d) => [d.id, d]));
 const TIER_IDS = OPTIONS.difficulties.map((d) => d.id);
-const MINUTES_PER_CELL = { basic: 0.12, easy: 0.16, medium: 0.22, hard: 0.3, expert: 0.36, mensa: 0.42 };
+const MINUTES_PER_CELL = { basic: 0.12, easy: 0.16, medium: 0.22, hard: 0.3, expert: 0.36, mensa: 0.42, theorist: 0.63 };
 const USED_STORY_LIMIT = 5000;
 const isDesktop = !!(window.__TAURI_INTERNALS__ || window.__TAURI__);
 // The claude.ai preview build cannot print or download files, so those controls are hidden there.
@@ -423,7 +424,7 @@ async function startGeneration() {
   const err = $('#gen-error');
   err.hidden = true;
   btn.disabled = true;
-  st.textContent = 'Writing your story… Large puzzles can take up to 20 seconds.';
+  st.textContent = $('input[name=tier]:checked')?.value === 'theorist' ? 'Building a Theoretical Physicist puzzle… The engine is testing clue after clue until only one answer is possible. The best of the best take up to a minute.' : 'Writing your story… Large puzzles can take up to 20 seconds.';
   try {
     const puzzle = await makePuzzle();
     const save = newSave(puzzle);
@@ -617,6 +618,35 @@ function exportSave(save) {
   const safe = save.name.replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-') || 'puzzle';
   download(`${safe}.flg.json`, JSON.stringify({ format: 'fantastical-logic-grid', version: 1, save }, null, 1));
   toast(`Saved “${save.name}” to a file in your downloads.`);
+}
+
+// Report a Problem (puzzle-report.js), in the footer under every screen. On a
+// puzzle it starts as a Puzzle Problem with that puzzle and its picture;
+// elsewhere as a Web Page Issue naming the screen.
+const SCREEN_NAMES = { 'screen-home': 'Home screen', 'screen-play': 'Puzzle screen', 'screen-learn': 'How to play' };
+$('#report-problem').onclick = () => {
+  const screen = $$('main.screen').find((m) => !m.hidden);
+  const where = SCREEN_NAMES[screen?.id] || screen?.id || 'Game';
+  const onPuzzle = screen?.id === 'screen-play' && S && S.save;
+  let image = '';
+  if (onPuzzle) { try { image = sceneSvg(S.save.puzzle, 5, { animate: false }); } catch (e) { /* sent without it */ } }
+  puzzleReport.open({ puzzle: onPuzzle ? S.save.puzzle : null, image, where: onPuzzle ? `${where}: ${S.save.name}` : where });
+};
+
+// The link in the "we fixed the puzzle you reported" email: the repaired
+// puzzle joins Saved puzzles (once, however often the link is opened).
+async function addRepairedPuzzle(puzzle, tracking, error) {
+  if (!puzzle) { toast(error || 'The repaired puzzle could not be opened.'); return; }
+  let save = (await store.listSaves()).find((x) => x.repairOf && x.repairOf === tracking);
+  if (!save) {
+    await rememberStory(storyIdOf(puzzle));
+    save = newSave(puzzle);
+    save.name = `${puzzle.title} (repaired)`;
+    save.repairOf = tracking || true;
+    await store.putSave(save);
+  }
+  await renderSaved();
+  toast(`Your repaired puzzle “${save.name}” is in Saved puzzles.`, { label: 'Play it now', run: () => openGame(save) });
 }
 
 $('#import-btn').onclick = () => $('#import-file').click();
@@ -827,6 +857,21 @@ function updateUndoButtons() {
   $('[data-act=redo]').disabled = !S.save.redo.length;
 }
 
+// "Try again", spoken by the narrator, when a player is on the last few
+// decisions of a puzzle (a row's worth of cells or fewer left) and marks a
+// cell that does not fit the solution. At most once every few seconds, and
+// only while voices are on.
+let lastTryAgain = 0;
+function tryAgainNearEnd() {
+  if (!S || S.save.solved || S.save.revealed || !voiceOn()) return;
+  const left = [...S.grid.cells.keys()].filter((c) => !S.marks.get(c)).length;
+  const lastDecisions = Math.max(3, S.puzzle.categories[0].items.length);
+  if (left > lastDecisions || Date.now() - lastTryAgain < 4000) return;
+  lastTryAgain = Date.now();
+  status('Try again.');
+  ai.speak(settings, S.puzzle, 'narrator', 'Try again.', { volume: settings.volume / 100 }).catch(() => {});
+}
+
 // Cells in the same sub-grid row and column as k (for auto-X).
 function lineMates(k) {
   const [a, b] = k.split('|');
@@ -858,6 +903,8 @@ function setCell(k, v) {
     if (mk && v === 'O' && !S.save.solved) S.save.mistakes = (S.save.mistakes || 0) + 1;
     if (mk && settings.instant) { S.wrong.add(k); paintCell(k); wrongNow = true; }
   }
+  // A wrong mark near the end, or a finished grid that is not the answer.
+  if (v && (checkMarks(S.puzzle, [{ a, b, mark: v === 'O' ? 'O' : 'X' }])[0] || (!S.save.solved && ![...S.grid.cells.keys()].some((c) => !S.marks.get(c))))) tryAgainNearEnd();
   sound(wrongNow ? 'error' : v === 'O' ? 'O' : v ? 'X' : 'clear');
   const td = S.grid.cells.get(k);
   announce(`${td ? `${S.ix.label(td.dataset.row)}, ${S.ix.label(td.dataset.col)}` : what}, ${STATE_WORDS[v]}${wrongNow ? ', conflicts with the solution' : ''}${autoCount ? `. Also ruled out ${autoCount} other cell${autoCount > 1 ? 's' : ''}` : ''}${autoGone ? `. Also removed ${autoGone} automatic X${autoGone > 1 ? 's' : ''}` : ''}.`);
@@ -2692,6 +2739,8 @@ async function init() {
     onSettingsChanged: () => { settings = store.loadSettings(); applyColorTheme(); applyMode(); applyLanguage(); },
   }).catch(() => { /* accounts are optional */ });
   messages.init({ openDialog, openAccount, announce, playPuzzle: openTeamPuzzle, downloadPuzzle: (puzzle) => exportSave(newSave(puzzle)) });
+  puzzleReport.init({ openDialog, openAccount, announce });
+  puzzleReport.openRepaired(addRepairedPuzzle);
   competeUi.initCompete({
     openDialog, toast, announce, confirmDialog, openAccount, fmtTime, makePuzzle, setupSummary, openRace, findRaceSave,
     openSave: (save) => openGame(save),
