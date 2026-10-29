@@ -73,7 +73,7 @@ before(async () => {
     outboundService: outbound,
     bindings: {
       FIREBASE_PROJECT_ID: 'flg-test', ALLOWED_ORIGINS: 'https://thelogicgrid.com', ADMIN_TOKEN: TOKEN, SEARCH_SITE_URL: 'https://thelogicgrid.com/',
-      GSC_SERVICE_ACCOUNT: JSON.stringify(SA), BING_WEBMASTER_KEY: BING_KEY, BING_GAP_MS: '0',
+      GSC_SERVICE_ACCOUNT: JSON.stringify(SA), BING_WEBMASTER_KEY: BING_KEY,
     },
   });
   db = await mf.getD1Database('DB');

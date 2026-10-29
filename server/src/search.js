@@ -18,6 +18,7 @@ export const REFRESH_GAP_MS = 10 * 60_000;
 // this can happen even when we ask rarely. Leave Bing alone for a while after
 // that instead of asking again, and keep showing the last good numbers.
 export const BING_BACKOFF_MS = 6 * 3600_000;
+// Pause between Bing calls so one refresh never bursts.
 const BING_GAP_MS = 1500;
 const isThrottle = (msg) => /throttl|\b429\b/i.test(String(msg || ''));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -127,7 +128,7 @@ export async function fetchBing(env, now = Date.now()) {
   const traffic = await call('GetRankAndTrafficStats');
   const extra = [];
   for (const method of ['GetQueryStats', 'GetPageStats', 'GetFeeds', 'GetCrawlStats']) {
-    await sleep(Number(env.BING_GAP_MS ?? BING_GAP_MS));
+    await sleep(BING_GAP_MS);
     try { extra.push(await call(method)); } catch (e) {
       // Throttled part way: stop asking and keep what arrived.
       if (isThrottle(e.message)) { errors.push(e.message); break; }
