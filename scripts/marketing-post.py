@@ -26,6 +26,9 @@ says whether it works, posting nothing), dry-run (says what it would post
 and sends the email marked Preview, posting and changing nothing).
 ONLY_ADS (ad numbers, comma separated) limits a run to those ads: the admin
 app's Post now and Launch campaign buttons start a run like that.
+Mode message posts one message (MESSAGE, with an optional picture link
+IMAGE_URL) to the game's Facebook Page straight away, for a one-off post the
+owner approved that is not in the Marketing list.
 Python standard library only.
 """
 import base64
@@ -601,9 +604,31 @@ def email(subject, parts):
     print('Email sent to the owner inbox.')
 
 
+def post_message():
+    text = os.environ.get('MESSAGE', '').replace('\\n', '\n').strip()
+    image = os.environ.get('IMAGE_URL', '').strip()
+    if not text or not has_keys('facebook'):
+        print('::error::Nothing to post: MESSAGE is empty or the Facebook keys are not saved.')
+        return 1
+    if image and not image.startswith('https://'):
+        print('::error::IMAGE_URL must be an https:// link.')
+        return 1
+    page, token = page_key()
+    if image:
+        r = meta(f'{GRAPH}/{page}/photos', 'POST', {'url': image, 'caption': text}, token)
+        url = f"https://www.facebook.com/{r.get('post_id') or r['id']}"
+    else:
+        r = meta(f'{GRAPH}/{page}/feed', 'POST', {'message': text}, token)
+        url = f"https://www.facebook.com/{r['id']}"
+    print(f'::notice::Posted the message to the Facebook Page: {url}')
+    return 0
+
+
 def main():
     if MODE == 'check':
         sys.exit(1 if check_keys() else 0)
+    if MODE == 'message':
+        sys.exit(post_message())
     if not (API and TOKEN):
         print('Not set up: FLG_CLOUD_URL and FLG_ADMIN_TOKEN are needed. Nothing to do.')
         return
