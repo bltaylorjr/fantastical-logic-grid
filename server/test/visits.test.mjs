@@ -61,7 +61,7 @@ test('visits are counted and the Visitors page adds them up', async () => {
     { g: 'player', a: 'ios', o: 'ios', d: 'tablet' },
     { g: 'guest', a: 'web', o: 'mac', d: 'desktop' },
   ]) assert.equal((await send(b)).status, 200);
-  assert.equal((await send('nope')).status, 200, 'a bad body still only counts as a guest');
+  assert.equal((await send('nope')).status, 400, 'something that is not a visit is refused');
   const bad = await mf.dispatchFetch('https://api.test/v1/v', { method: 'POST', headers: { Origin: ORIGIN }, body: '{' });
   assert.equal(bad.status, 400);
 
@@ -70,10 +70,10 @@ test('visits are counted and the Visitors page adds them up', async () => {
   const r = await mf.dispatchFetch('https://api.test/admin/v1/visitors?days=7', { headers: { Authorization: `Bearer ${await owner()}` } });
   assert.equal(r.status, 200);
   const d = await r.json();
-  assert.equal(d.total, 5);
-  assert.equal(d.today, 5);
+  assert.equal(d.total, 4);
+  assert.equal(d.today, 4);
   const n = (list, id) => (list.find((x) => x.id === id) || { n: 0 }).n;
-  assert.equal(n(d.who, 'guest'), 4);
+  assert.equal(n(d.who, 'guest'), 3);
   assert.equal(n(d.who, 'player'), 1);
   assert.equal(n(d.os, 'windows'), 2);
   assert.equal(n(d.os, 'mac'), 1);
@@ -81,7 +81,7 @@ test('visits are counted and the Visitors page adds them up', async () => {
   assert.equal(n(d.device, 'tablet'), 1);
   assert.equal(n(d.app, 'ios'), 1);
   assert.equal(d.dayList.length, 7);
-  assert.equal(d.byDay.guest.at(-1) + d.byDay.player.at(-1), 5);
+  assert.equal(d.byDay.guest.at(-1) + d.byDay.player.at(-1), 4);
 });
 
 test('the game describes the device without sending anything personal', async () => {
