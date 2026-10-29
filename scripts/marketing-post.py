@@ -262,25 +262,31 @@ def meta(url, method='GET', form=None, token=''):
     return request(url, method=method, form=form, headers={'Authorization': f'Bearer {token}'})
 
 
-_PAGE_TOKEN = None
+_PAGE = None
 
 
-def page_token():
-    """The key to post as the game's Page. META_PAGE_TOKEN may be the Page's own
-    key, or a person's key for an admin of the Page (with pages_manage_posts);
-    then the Page's key is fetched with it, which Facebook allows for Page admins."""
-    global _PAGE_TOKEN
-    if _PAGE_TOKEN is None:
-        token = env('META_PAGE_TOKEN')
+def page_key():
+    """(Page id, key to post as the game's Page). META_PAGE_TOKEN may be the
+    Page's own key, or a person's key for an admin of the Page (with
+    pages_manage_posts): then the Page's key comes from the Pages that person
+    manages (me/accounts), matched by META_PAGE_ID or, if that is not one of
+    them, by the game's name."""
+    global _PAGE
+    if _PAGE is None:
+        page, token = env('META_PAGE_ID'), env('META_PAGE_TOKEN')
+        _PAGE = (page, token)
         try:
-            _PAGE_TOKEN = meta(f"{GRAPH}/{env('META_PAGE_ID')}?fields=access_token", token=token).get('access_token') or token
-        except Exception:  # noqa: BLE001 - a Page key may not list itself; use it as it is
-            _PAGE_TOKEN = token
-    return _PAGE_TOKEN
+            pages = meta(f'{GRAPH}/me/accounts?fields=id,name,access_token&limit=100', token=token).get('data', [])
+        except Exception:  # noqa: BLE001 - a Page key has no Pages of its own: use it as it is
+            pages = []
+        match = [p for p in pages if p.get('id') == page] or [p for p in pages if 'logic grid' in p.get('name', '').lower()]
+        if match and match[0].get('access_token'):
+            _PAGE = (match[0]['id'], match[0]['access_token'])
+    return _PAGE
 
 
 def post_facebook(ad):
-    page, token = env('META_PAGE_ID'), page_token()
+    page, token = page_key()
     videos, images = files(ad, 'video'), files(ad, 'image')
     if videos:
         r = meta(f'{GRAPH}/{page}/videos', 'POST', {'file_url': videos[0], 'description': ad['words']}, token)
@@ -304,7 +310,7 @@ def wait_ready(url, token, field='status_code'):
 
 
 def post_instagram(ad):
-    ig, token = env('INSTAGRAM_ACCOUNT_ID'), page_token()
+    ig, token = env('INSTAGRAM_ACCOUNT_ID'), page_key()[1]
     videos, images = files(ad, 'video'), files(ad, 'image')
     if videos:
         form = {'media_type': 'REELS', 'video_url': videos[0], 'caption': ad['words'], 'share_to_feed': 'true'}
@@ -519,11 +525,16 @@ def facebook_token_report():
         print('::warning::Facebook Page: this key cannot post to the game\'s Page. Make a new one with pages_manage_posts (Part C of the Facebook launch kit) and save it as META_PAGE_TOKEN.')
     elif kind != 'PAGE':
         try:
-            ok = page_token() != token
-        except Exception:  # noqa: BLE001
-            ok = False
-        print('::notice::Facebook Page: posting uses the Page key fetched with this key.' if ok else
-              '::warning::Facebook Page: the Page key could not be fetched with this key. Save the Page access_token from me/accounts as META_PAGE_TOKEN.')
+            pages = meta(f'{GRAPH}/me/accounts?fields=id,name&limit=100', token=token).get('data', [])
+        except Exception as e:  # noqa: BLE001
+            pages = []
+            print(f'::warning::Facebook Page: could not list the Pages this key manages: {scrub(e)}')
+        print('::notice::Pages this key manages: ' + ('; '.join(f'{p.get("name")} ({p.get("id")})' for p in pages) or 'none'))
+        page, key = page_key()
+        if key != token:
+            print(f'::notice::Facebook Page: posting as the Page {page}' + ('' if page == env('META_PAGE_ID') else ' (META_PAGE_ID does not match it; update that secret to this number)'))
+        else:
+            print('::warning::Facebook Page: the game\'s Page is not among the Pages this key manages. Make the key again and allow it for the game\'s Page.')
         if d.get('expires_at'):
             print(f'::warning::Facebook key {expires}. Before then, save the Page access_token from me/accounts (it never expires) as META_PAGE_TOKEN.')
 
