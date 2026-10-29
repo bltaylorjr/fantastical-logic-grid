@@ -6,7 +6,7 @@ import {
   generatePuzzle, getHint, checkMarks, isSolved, checkAnswers, describeOptions, formatPuzzleText, THEMES, TIERS, parseStoryId, checkStoryPart, partKey,
   getTopics,
 } from '../src/index.js';
-import { buildScenario } from '../src/topics.js';
+import { buildScenario, TOPICS } from '../src/topics.js';
 import { buildModel, randomSolution } from '../src/generator.js';
 import { buildStory } from '../src/story.js';
 import { makeLanguage } from '../src/language.js';
@@ -246,13 +246,15 @@ for (const diff of ['easy', 'medium', 'expert']) {
   check('describeOptions lists 7 tiers and 22 themes', describeOptions().difficulties.length === 7 && describeOptions().themes.length === 22);
 
   // Theoretical Physicist is at least half again as hard as Quantum Physicist:
-  // the same themes and seeds, compared on the engine's difficulty score.
+  // the same themes, classic topics and seeds, compared on the engine's
+  // difficulty score (pinned topics keep this steady as new topics are added).
   {
     const runs = quick ? [['mystery', 'q1'], ['fantasy', 'q2']] : [['mystery', 'q1'], ['fantasy', 'q2'], ['sports', 'q3'], ['science', 'q4']];
     let quantum = 0, theorist = 0, solved = true;
     for (const [theme, seed] of runs) {
-      const q = generatePuzzle({ difficulty: 'mensa', theme, seed });
-      const t = generatePuzzle({ difficulty: 'theorist', theme, seed });
+      const topic = TOPICS[theme][0].id;
+      const q = generatePuzzle({ difficulty: 'mensa', theme, topic, seed });
+      const t = generatePuzzle({ difficulty: 'theorist', theme, topic, seed });
       quantum += q.stats.difficultyScore;
       theorist += t.stats.difficultyScore;
       if (t.categories.length !== 6 || t.categories[0].items.length < 7) solved = false;
