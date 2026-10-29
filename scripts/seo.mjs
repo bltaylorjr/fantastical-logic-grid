@@ -24,8 +24,9 @@ import { educatorsBody, EDUCATORS_CSS } from './educators-page.mjs';
 const PAGE_CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self'; object-src 'none'; frame-src 'none'; base-uri 'self'; form-action 'self'";
 
 export const INDEXNOW_KEY = process.env.FLG_INDEXNOW_KEY || 'fae88a004ad87116c0e93df007b2de7e';
-// The game's Facebook Page. Swap in facebook.com/<username> once the Page has one.
-const FACEBOOK = 'https://www.facebook.com/share/19pDDj5Ppf/';
+// The game's social pages (web/js/social.js): the links set in the admin
+// dashboard (Settings and switches > Social links), read at build time.
+const social = await import(new URL('../web/js/social.js', import.meta.url).href);
 // The first daily puzzle. Every later day is checked against all earlier days,
 // so a daily story is never used twice.
 const DAILY_START = '2026-10-25';
@@ -134,6 +135,20 @@ async function readQuality(base) {
   }
   return { rating: null, daily: [], handPicked: [] };
 }
+// The game's social pages for the footer and the Organization's sameAs, from
+// the Worker's public config. If it cannot be reached, the launch defaults.
+async function readSocial() {
+  const cloud = (process.env.FLG_CLOUD_URL || '').replace(/\/+$/, '');
+  if (cloud) {
+    try {
+      const res = await fetch(`${cloud}/v1/config`, { signal: AbortSignal.timeout(15000) });
+      if (!res.ok) throw new Error(`answered ${res.status}`);
+      const body = await res.json();
+      if (Array.isArray(body.social)) return social.socialLinks(Object.fromEntries(body.social.map((s) => [s.id, s.url])));
+    } catch (e) { console.warn(`Social links: ${e.message}`); }
+  }
+  return social.socialLinks(social.DEFAULT_LINKS);
+}
 const longDate = (s) => new Date(`${s}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
 
 // Google flags any VideoObject without these fields, even a bare {"@id"} pointer to one on
@@ -176,6 +191,8 @@ export async function buildSeo({ root, site }) {
   const name = 'The Fantastical Logic Grid';
   const pages = []; // { path, lastmod, priority }
   const quality = await readQuality(base);
+  const socialList = await readSocial();
+  const socialIcon = (id) => existsSync(join(root, 'web', 'icons', 'social', `${id}.svg`));
 
   // ---------- shared layout ----------
   const verification = [
@@ -263,7 +280,7 @@ ${body(up)}
   <p><a href="${up}">Play ${name}</a> · free in your browser, offline-ready, and on Windows.</p>
   <p>Every puzzle has exactly one answer, checked by our solver${quality.rating ? `, and players rate them ${quality.rating.average} out of 5 stars` : ''}. <a href="${up}picks/">Hand-picked puzzles</a></p>
   <p>${NAV.map(([p, n]) => `<a href="${up}${p}">${n}</a>`).join(' · ')} · <a href="${up}privacy/">Privacy</a></p>
-  <p><a href="${FACEBOOK}" rel="me noopener" target="_blank">Follow us on Facebook</a></p>
+  ${socialList.length ? `<div class="foot-social"><p>Follow the game</p>${social.socialHtml(socialList, { iconBase: `${up}icons/social/`, hasIcon: socialIcon })}</div>` : ''}
   <p class="muted">${copyright} ${trademark} <a href="${up}terms/">Terms of use</a></p>
 </footer>
 </body>
@@ -301,7 +318,7 @@ ${body(up)}
     trailer: video,
     copyrightHolder: { '@type': 'Person', name: owner }, copyrightYear: 2026,
   };
-  const publisher = { '@type': 'Organization', name, url: url(''), logo: { '@type': 'ImageObject', url: url('icons/icon-512.png') }, sameAs: [FACEBOOK] };
+  const publisher = { '@type': 'Organization', name, url: url(''), logo: { '@type': 'ImageObject', url: url('icons/icon-512.png') }, sameAs: socialList.map((s) => s.url) };
   game.publisher = publisher;
   const website = { '@context': 'https://schema.org', '@type': 'WebSite', name, url: url(''), description: appDescription, inLanguage: 'en', publisher };
   const head = `<meta name="description" content="${esc(appDescription)}">
