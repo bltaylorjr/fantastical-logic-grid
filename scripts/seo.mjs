@@ -243,6 +243,7 @@ ${verification}
 <link rel="preload" href="${up}fonts/cinzel-700.woff2" as="font" type="font/woff2" crossorigin>
 <style>${css.replaceAll('url(fonts/', `url(${up}fonts/`)}${style}</style>
 <script type="module" src="${up}js/page-visit.js"></script>
+<script type="module" src="${up}js/site-report.js"></script>
 ${script ? `<script type="module" src="${script}"></script>` : ''}
 ${[breadcrumb, ...schema].map((s) => `<script type="application/ld+json">${json(checkVideos(s, path))}</script>`).join('\n')}
 </head>
@@ -264,6 +265,7 @@ ${body(up)}
   <p>Every puzzle has exactly one answer, checked by our solver${quality.rating ? `, and players rate them ${quality.rating.average} out of 5 stars` : ''}. <a href="${up}picks/">Hand-picked puzzles</a></p>
   <p>${NAV.map(([p, n]) => `<a href="${up}${p}">${n}</a>`).join(' · ')} · <a href="${up}privacy/">Privacy</a></p>
   <p><a href="${FACEBOOK}" rel="me noopener" target="_blank">Follow us on Facebook</a></p>
+  <p><button class="btn quiet report-btn" type="button" data-report-problem hidden>Report a Problem</button></p>
   <p class="muted">${copyright} ${trademark} <a href="${up}terms/">Terms of use</a></p>
 </footer>
 </body>

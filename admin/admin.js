@@ -416,7 +416,7 @@ $('#parts-list').onclick = async (e) => {
 
 // ---- Communication: one inbox for messages, ideas, problems, error reports
 // and emails to players, and sending messages, news and banners to players.
-const FB_TOPICS = { story: 'Storyline idea', theme: 'Theme or topic idea', feature: 'Game feature idea', other: 'Other', play: 'Playing', sound: 'Sound and voices', pictures: 'Pictures', saving: 'Saving and sync', puzzle: 'A puzzle (Report a problem)' };
+const FB_TOPICS = { story: 'Storyline idea', theme: 'Theme or topic idea', feature: 'Game feature idea', other: 'Other', play: 'Playing', sound: 'Sound and voices', pictures: 'Pictures', saving: 'Saving and sync', puzzle: 'Puzzle Problem (Report a Problem)', page: 'Web Page Issue (Report a Problem)' };
 const MSG_TOPICS = { question: 'Question', idea: 'Idea', problem: 'Problem', team: 'Started by the team' };
 const TYPE_NAMES = { message: 'Message', idea: 'Idea', problem: 'Problem', error: 'Error report', email: 'Email' };
 const commTab = () => $('input[name=comm-tab]:checked').value;
@@ -444,15 +444,17 @@ const errFix = (i) => { const f = i.meta.fix; return !f ? (can('admin') ? `<div 
 // (scripts/puzzle-doctor.mjs, run every 15 minutes by the puzzle-reports Action).
 const REPORT_STATES = {
   new: ['', 'Waiting for the puzzle doctor'], checking: ['', 'Being checked'],
-  repaired: ['ok', 'Repaired automatically'], needs_fix: ['bad', 'Needs a fix in the code'], no_fault: ['', 'No fault found: read the report'],
+  repaired: ['ok', 'Repaired automatically'], needs_fix: ['bad', 'Needs a fix in the code'], no_fault: ['', 'No fault in the puzzle'],
+  manual: ['warn', 'Needs the team (no puzzle attached)'], page: ['warn', 'Web page issue'], done: ['ok', 'Done'],
 };
+const CATEGORY_NAMES = { puzzle: 'Puzzle', webstructure: 'Web structure' };
 function reportHtml(r) {
   const [cls, words] = REPORT_STATES[r.status] || ['', r.status];
-  return `<div class="fb-note"><p><b>Report ${esc(r.tracking)}</b> · ${esc(r.title || 'Untitled')}${r.tier ? ` · ${esc(TIER_NAMES[r.tier] || r.tier)}` : ''} <span class="badge ${cls}">${esc(words)}</span></p>
+  return `<div class="fb-note"><p><b>Report ${esc(r.tracking)}</b> · ${esc(CATEGORY_NAMES[r.category] || 'Puzzle')} · ${esc(r.title || r.page || 'Untitled')}${r.tier ? ` · ${esc(TIER_NAMES[r.tier] || r.tier)}` : ''} <span class="badge ${cls}">${esc(words)}</span> <a href="#errortracking/${Number(r.id)}">Open in Error tracking</a></p>
     ${r.findings.length ? `<ul>${r.findings.map((f) => `<li>${esc(f.text)}</li>`).join('')}</ul>` : ''}
     ${r.status === 'repaired' ? `<p class="muted">${esc(r.note || '')} ${r.openedAt ? 'The player opened the repaired puzzle.' : 'The player has not opened the repaired puzzle yet.'}</p>` : ''}
     ${r.status === 'needs_fix' ? '<p class="muted">Today\'s puzzle maker still gets this wrong. Download the puzzle to reproduce it; once a fix is published, press Check again and the player is emailed the repaired puzzle automatically.</p>' : ''}
-    <div class="row"><button class="btn small" type="button" data-report-file="${Number(r.id)}" data-tracking="${esc(r.tracking)}">Download the reported puzzle</button>
+    <div class="row">${r.category !== 'webstructure' ? `<button class="btn small" type="button" data-report-file="${Number(r.id)}" data-tracking="${esc(r.tracking)}">Download the reported puzzle</button>` : ''}
     ${['needs_fix', 'no_fault'].includes(r.status) && can('admin') ? `<button class="btn small" type="button" data-report-retry="${Number(r.id)}">Check again</button>` : ''}</div></div>`;
 }
 document.addEventListener('click', async (e) => {
@@ -467,6 +469,106 @@ document.addEventListener('click', async (e) => {
   }
   const r = e.target.closest('button[data-report-retry]');
   if (r && await act(r, () => api(`puzzle-reports/${Number(r.dataset.reportRetry)}/retry`, { method: 'POST' }), 'It will be checked again within 15 minutes.')) show('communication', { keepFocus: true });
+});
+
+// ---- Error tracking: every Report a Problem, in its two categories, and what
+// the puzzle doctor has learned (server/src/puzzle-reports.js).
+const FAULT_NAMES = { false_clue: 'A clue was not true', not_unique: 'More than one answer', contradiction: 'Clues disagreed', wrong_answer: 'Checked against the wrong answer',
+  answer_key: 'Wrong answer key', solution: 'Mixed-up answer', blank_clue: 'Blank clue', blank_label: 'Blank name', question: 'Question answer missing', unreadable: 'Damaged puzzle', display: 'Display problem', page_issue: 'Web page issue' };
+const STRATEGY_NAMES = { 'same-settings': 'Same story, rebuilt', 'same-theme': 'Same theme, rebuilt', 'all-options': 'All settings, rebuilt', 'new-seed': 'New story, same theme' };
+let etMore = null;
+const svgUrl = (svg) => `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`;
+
+function etRowHtml(r) {
+  const [cls, words] = REPORT_STATES[r.status] || ['', r.status];
+  return `<tr>
+    <td><button class="btn small link" type="button" data-et-open="${Number(r.id)}">${esc(r.tracking)}</button></td>
+    <td>${esc(CATEGORY_NAMES[r.category] || r.category)}</td>
+    <td>${when(r.createdAt)}</td>
+    <td>${esc(r.title || r.page || '–')}${r.theme ? `<br><span class="muted">${esc(r.theme)} · ${esc(TIER_NAMES[r.tier] || r.tier)} · ${esc(r.size)}</span>` : ''}</td>
+    <td class="fb-text">${esc(r.text)}</td>
+    <td>${r.findings.length ? r.findings.map((f) => esc(FAULT_NAMES[f.code] || f.code)).join(', ') : '–'}</td>
+    <td>${esc(r.note || (r.strategy ? STRATEGY_NAMES[r.strategy] || r.strategy : '–'))}</td>
+    <td><span class="badge ${cls}">${esc(words)}</span>${r.related.length ? `<br><span class="muted">${fmt(r.related.length)} related</span>` : ''}</td></tr>`;
+}
+
+views.errortracking = async ({ arg } = {}) => {
+  const qs = new URLSearchParams();
+  if ($('#et-category').value) qs.set('category', $('#et-category').value);
+  if ($('#et-status').value) qs.set('status', $('#et-status').value);
+  if ($('#et-q').value.trim()) qs.set('q', $('#et-q').value.trim());
+  const [d, p] = await Promise.all([api(`error-tracking?${qs}`), api('fault-patterns')]);
+  etMore = d.more;
+  const waiting = d.counts.filter((c) => ['needs_fix', 'manual', 'page'].includes(c.status)).reduce((s, c) => s + c.n, 0);
+  setCount('#count-errors', waiting);
+  const total = (cat) => d.counts.filter((c) => c.category === cat).reduce((s, c) => s + c.n, 0);
+  const st = (s) => d.counts.filter((c) => c.status === s).reduce((a, c) => a + c.n, 0);
+  $('#et-body').innerHTML = `<div class="tiles">
+      ${tile('Puzzle reports', fmt(total('puzzle')))}${tile('Web structure reports', fmt(total('webstructure')))}
+      ${tile('Repaired automatically', fmt(st('repaired')))}${tile('Need a fix in the code', fmt(st('needs_fix')))}${tile('Waiting for the team', fmt(st('manual') + st('page')))}
+    </div>
+    ${d.reports.length ? `<button class="btn small link csv-btn" type="button" data-csv>Download this table (CSV)</button><div class="table-wrap"><table class="table"><thead><tr><th scope="col">Report</th><th scope="col">Category</th><th scope="col">When</th><th scope="col">Puzzle or page</th><th scope="col">The error</th><th scope="col">Reason for failure</th><th scope="col">Correction made</th><th scope="col">Status</th></tr></thead>
+      <tbody id="et-rows">${d.reports.map(etRowHtml).join('')}</tbody></table></div>
+      ${etMore ? '<div class="row"><button class="btn small" type="button" id="et-more">Show older reports</button></div>' : ''}` : '<p class="muted">No reports match.</p>'}
+    <section class="card stack" id="et-detail" hidden aria-labelledby="et-detail-h"></section>`;
+  $('#et-patterns').innerHTML = table([{ label: 'Category' }, { label: 'Fault' }, { label: 'Where' }, { label: 'Seen', num: 1 }, { label: 'Repaired', num: 1 }, { label: 'Needed a fix', num: 1 }, { label: 'Best repair' }, { label: 'False clue types' }, { label: 'Latest self-check' }],
+    p.patterns.map((x) => {
+      const best = Object.entries(x.strategies).filter(([, s]) => s.worked).sort((a, b) => b[1].worked / b[1].tried - a[1].worked / a[1].tried)[0];
+      const check = x.probe_at ? `${x.probe_faults ? `<span class="badge bad">Still happening</span> ${fmt(x.probe_faults)} of ${fmt(x.probe_tested)}` : '<span class="badge ok">Gone</span>'} with engine ${esc(x.probe_engine || '?')} · ${when(x.probe_at)}` : x.category === 'puzzle' ? 'Not checked yet' : '–';
+      return [esc(CATEGORY_NAMES[x.category] || x.category), esc(FAULT_NAMES[x.code] || x.code),
+        esc(x.category === 'puzzle' ? `${x.theme || 'any theme'} · ${TIER_NAMES[x.tier] || x.tier || 'any level'}${x.size ? ` · ${x.size}` : ''}` : `${x.page} · version ${x.version}`),
+        fmt(x.seen), fmt(x.repaired), fmt(x.needs_fix), best ? `${esc(STRATEGY_NAMES[best[0]] || best[0])} (${fmt(best[1].worked)} of ${fmt(best[1].tried)})` : '–',
+        esc(Object.entries(x.clue_types).map(([t, n]) => `${t} ${n}`).join(', ') || '–'), check];
+    }), 'Nothing learned yet. Patterns appear as reports are checked.');
+  if (arg) await etOpen(Number(arg));
+};
+
+async function etOpen(id) {
+  const r = await api(`error-tracking/${id}`);
+  const [cls, words] = REPORT_STATES[r.status] || ['', r.status];
+  const storyHtml = (s, label) => (s ? `<h3>${esc(label)}</h3><p><b>${esc(s.title)}</b> <span class="muted">${esc([s.theme, s.topic].filter(Boolean).join(' · '))}</span></p>
+    ${s.paragraphs.map((t) => `<p>${esc(t)}</p>`).join('')}<details><summary>Clues (${fmt(s.clues.length)})</summary><ol>${s.clues.map((c) => `<li>${esc(c)}</li>`).join('')}</ol></details>` : '');
+  const panel = $('#et-detail');
+  panel.innerHTML = `<div class="head"><h2 id="et-detail-h" tabindex="-1">${esc(r.tracking)} · ${esc(CATEGORY_NAMES[r.category])}</h2><button class="btn small" type="button" data-et-close>Close</button></div>
+    <p><span class="badge ${cls}">${esc(words)}</span> Reported ${when(r.createdAt)} on <b>${esc(r.page || '–')}</b> · ${esc(r.platform)} ${esc(r.version)}${r.screen ? ` · window ${esc(r.screen)}` : ''}${r.engine ? ` · checked with engine ${esc(r.engine)}` : ''}</p>
+    <h3>The error (the player's words)</h3><p class="fb-text">${esc(r.text)}</p>
+    <h3>Reason for failure</h3>${r.findings.length ? `<ul>${r.findings.map((f) => `<li><b>${esc(FAULT_NAMES[f.code] || f.code)}:</b> ${esc(f.text)}</li>`).join('')}</ul>` : `<p class="muted">${r.category === 'puzzle' && r.hasPuzzle ? (r.status === 'new' || r.status === 'checking' ? 'Not checked yet.' : 'Nothing wrong was found in the puzzle.') : 'Not checked automatically: read the player\'s words.'}</p>`}
+    <h3>Correction made</h3><p>${esc(r.note || '–')}${r.strategy ? ` <span class="muted">(${esc(STRATEGY_NAMES[r.strategy] || r.strategy)})</span>` : ''}${r.status === 'repaired' ? ` ${r.openedAt ? 'The player opened the repaired puzzle.' : 'The player has not opened the repaired puzzle yet.'}` : ''}</p>
+    ${r.related.length ? `<h3>Related reports in the other category</h3><p>${r.related.map((t) => `<code>${esc(t)}</code>`).join(' ')} <span class="muted">(same screen and app version)</span></p>` : ''}
+    ${r.hasImage ? `<h3>Picture</h3><img class="et-picture" src="${svgUrl(r.image)}" alt="The puzzle's picture as the player saw it">` : ''}
+    ${storyHtml(r.story, 'Storyline as reported')}${storyHtml(r.repairedStory, 'Storyline as repaired')}
+    <div class="row">${r.hasPuzzle ? `<button class="btn small" type="button" data-report-file="${Number(r.id)}" data-tracking="${esc(r.tracking)}">Download the reported puzzle</button>` : ''}
+      ${['needs_fix', 'no_fault'].includes(r.status) && r.hasPuzzle && can('admin') ? `<button class="btn small" type="button" data-report-retry="${Number(r.id)}">Check again</button>` : ''}
+      ${['needs_fix', 'no_fault', 'manual', 'page'].includes(r.status) ? `<button class="btn small primary" type="button" data-et-done="${Number(r.id)}">Mark done with a note</button>` : ''}</div>`;
+  panel.hidden = false;
+  panel.scrollIntoView({ block: 'start' });
+  $('#et-detail-h').focus();
+}
+
+$('#et-filter').onsubmit = (e) => { e.preventDefault(); show('errortracking', { keepFocus: true }); };
+$('#et-category').onchange = () => show('errortracking', { keepFocus: true });
+$('#et-status').onchange = () => show('errortracking', { keepFocus: true });
+document.addEventListener('click', async (e) => {
+  const o = e.target.closest('[data-et-open]');
+  if (o) { await act(o, () => etOpen(Number(o.dataset.etOpen))); return; }
+  if (e.target.closest('[data-et-close]')) { $('#et-detail').hidden = true; return; }
+  if (e.target.closest('#et-more')) {
+    const qs = new URLSearchParams({ before: etMore });
+    if ($('#et-category').value) qs.set('category', $('#et-category').value);
+    if ($('#et-status').value) qs.set('status', $('#et-status').value);
+    const d = await api(`error-tracking?${qs}`);
+    $('#et-rows').insertAdjacentHTML('beforeend', d.reports.map(etRowHtml).join(''));
+    etMore = d.more;
+    if (!etMore) $('#et-more').remove();
+    return;
+  }
+  const done = e.target.closest('[data-et-done]');
+  if (done) {
+    const v = await ask({ title: 'Mark done', text: 'Say what was done in plain, everyday words. A player who asked to hear back gets this note by email.', ok: 'Mark done',
+      fields: [{ name: 'note', label: 'What was done', type: 'textarea' }], check: (x) => (x.note.trim() ? plainWords(x.note) : 'Write a short note.') });
+    if (!v) return;
+    if (await act(done, () => api(`error-tracking/${Number(done.dataset.etDone)}/done`, { method: 'POST', body: { note: v.note.trim() } }), 'Marked done.')) show('errortracking', { keepFocus: true });
+  }
 });
 
 function itemHtml(i) {

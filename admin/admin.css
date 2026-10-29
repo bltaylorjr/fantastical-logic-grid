@@ -267,3 +267,6 @@ td.num, th.num { white-space: nowrap; }
 .player-badges li > span:nth-child(2) { flex: 1; }
 #badge-editor .field[hidden], .badge-list [hidden] { display: none; }
 .badge-list .badge-title { font-size: 1.05rem; display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+
+/* Error tracking: the puzzle's picture */
+.et-picture { max-width: 100%; width: 480px; height: auto; border: 1px solid var(--line, #ccc); border-radius: 8px; }

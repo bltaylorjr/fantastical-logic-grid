@@ -2,7 +2,7 @@
 // words and rebuilds them from their seed; sound puzzles pass untouched.
 import assert from 'node:assert/strict';
 import { generatePuzzle } from '../engine/src/index.js';
-import { diagnose, repair, examine } from './puzzle-doctor.mjs';
+import { diagnose, repair, examine, probe } from './puzzle-doctor.mjs';
 
 const clone = (x) => JSON.parse(JSON.stringify(x));
 let checked = 0;
@@ -50,4 +50,16 @@ for (const [difficulty, categories, items] of [['easy', 3, 4], ['medium', 4, 4],
 }
 assert.equal(diagnose(null).findings[0].code, 'unreadable');
 assert.equal(repair({ clues: [] }), null, 'no seed, no rebuild');
+// Learning: a playbook puts its strategy first; probes check fresh puzzles.
+{
+  const p = generatePuzzle({ difficulty: 'easy', categories: 3, items: 4, seed: 'doctor-playbook' });
+  const bad = clone(p); bad.answerKey.rows[0][0] = 'x';
+  const fixed = repair(bad, ['new-seed']);
+  assert.equal(fixed.strategy, 'same-settings', 'a same-story rebuild still wins over the playbook\'s new story');
+  const ex = examine(bad, { answer_key: ['same-theme'] });
+  assert.deepEqual(ex.tried.slice(0, 1), ['same-theme'], 'the playbook order is tried first');
+  const pr = probe({ theme: 'cooking', tier: 'easy', categories: 3, items: 4 }, 3, 't');
+  assert.equal(pr.tested, 3);
+  assert.equal(pr.faults, 0, 'today\'s engine makes sound puzzles');
+}
 console.log(`Puzzle doctor: ${checked} difficulties checked.`);

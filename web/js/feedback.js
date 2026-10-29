@@ -1,6 +1,6 @@
-// The "Ideas and problems" boxes: one form for ideas (a storyline, a new theme
-// or topic, a game feature, or something else), a separate one for reporting
-// a problem. Both go to the game's Worker
+// The "Share an idea" box (problems now go through Report a Problem,
+// puzzle-report.js, at the bottom of every page): ideas for a storyline, a
+// new theme or topic, a game feature, or something else. They go to the game's Worker
 // (server/src/feedback.js) and show up in the admin dashboard. Anonymous:
 // only the text, the topic, the app version and the platform are sent. A
 // signed-in player can also tick "Email me an update": a thank-you email
@@ -36,7 +36,7 @@ export const available = () => !!CLOUD_URL && feature('feedback');
 async function send(form) {
   const kind = form.dataset.kind;
   const text = $('textarea', form).value.trim();
-  const topic = kind === 'idea' ? $('input[name=idea-topic]:checked', form).value : $('#problem-topic').value;
+  const topic = $('input[name=idea-topic]:checked', form).value;
   const theme = kind === 'idea' && topic === 'story' ? $('#idea-theme').value || undefined : undefined;
   const err = $('.error-box', form);
   const done = $('.acct-done', form);
@@ -98,5 +98,5 @@ export function open(openDialog, { kind = 'idea', themes = [] } = {}) {
   pick.value = [...pick.options].some((o) => o.value === was) ? was : '';
   if (kind === 'idea') $('input[name=idea-topic][value=story]').checked = true;
   showThemes();
-  openDialog(dlg, kind === 'problem' ? $('#problem-topic') : $('#idea-text'));
+  openDialog(dlg, $('#idea-text'));
 }

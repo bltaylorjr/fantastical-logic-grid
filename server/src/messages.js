@@ -306,7 +306,7 @@ export async function inbox(env, role, { type = 'all', status = 'new', q = '' } 
     if (!has(kind)) continue;
     const { results } = await db.prepare(`SELECT id, topic, theme, text, platform, version, status, note, created_at AS at, done_at AS doneAt, conversation_id AS conversationId FROM feedback
       WHERE kind = ?1 AND (?2 = 'all' OR status = ?2) AND (?3 IS NULL OR text LIKE ?3 ESCAPE '\\') ORDER BY created_at DESC LIMIT ?4`).bind(kind, status, search, PER_TYPE).all();
-    const reports = kind === 'problem' ? await reportsFor(env, results.filter((f) => f.topic === 'puzzle').map((f) => f.id)).catch(() => new Map()) : new Map();
+    const reports = kind === 'problem' ? await reportsFor(env, results.filter((f) => f.topic === 'puzzle' || f.topic === 'page').map((f) => f.id)).catch(() => new Map()) : new Map();
     for (const f of results) {
       items.push({ report: reports.get(f.id) || null, type: kind, id: f.id, at: f.at, status: f.status, title: f.topic, text: f.text, meta: { topic: f.topic, theme: f.theme || null, themeName: f.theme ? themeName(f.theme) : null, platform: f.platform, version: f.version, conversationId: f.conversationId, note: f.note, doneAt: f.doneAt } });
     }

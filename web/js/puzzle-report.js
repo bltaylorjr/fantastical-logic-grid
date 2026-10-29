@@ -1,5 +1,10 @@
-// Report a problem with this puzzle: the button under every puzzle. The report
-// carries the player's words (up to 1,000 characters) and the puzzle itself, and
+// Report a Problem: the button in the footer under every screen of the game
+// (and every page of the website, scripts/site-report.js). Two kinds:
+//   Puzzle Problem   the report carries the open (or last played) puzzle and
+//                    its picture, so the puzzle doctor can check and repair it
+//   Web Page Issue   the report carries which screen it happened on, the app
+//                    version and the window size, nothing personal
+// Up to 1,000 characters of the player's own words go with either, and
 // the game's Worker answers with a tracking id (PZ-XXXXXXXX) that names this
 // report in the team's dashboard (server/src/puzzle-reports.js). A signed-in
 // player with a confirmed email can ask to be emailed when it is fixed: the
@@ -21,7 +26,7 @@ const REPLY_WORDS = {
 
 export const available = () => !!CLOUD_URL && feature('feedback');
 
-let current = null; // the puzzle being reported
+let current = null; // { puzzle, image, where } for this report
 let deps = { openDialog: () => {}, openAccount: () => {}, announce: () => {} };
 
 function count() {
@@ -42,16 +47,21 @@ async function send(form) {
     const wants = !$('#report-reply-box').hidden && $('#report-reply').checked && !!account.current();
     let token = null;
     if (wants) { try { token = await account.getIdToken(); } catch (e) { /* sent without the email */ } }
+    const kind = kindNow();
     const res = await fetch(`${CLOUD_URL}/v1/puzzle-report`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-      body: JSON.stringify({ text: text.slice(0, MAX), puzzle: current, reply: !!token, platform: platform(), version: CLOUD.appVersion || 'dev' }),
+      body: JSON.stringify({
+        kind, text: text.slice(0, MAX), reply: !!token, platform: platform(), version: CLOUD.appVersion || 'dev',
+        where: current.where, screen: `${innerWidth}x${innerHeight}`,
+        ...(kind === 'puzzle' && current.puzzle ? { puzzle: current.puzzle, image: current.image || undefined } : {}),
+      }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.message || 'The report could not be sent right now. Please try again later.');
     $('#report-text').value = '';
     count();
-    done.textContent = `Thank you! Your report number is ${data.tracking}. We check reported puzzles automatically and fix them as soon as we can.${REPLY_WORDS[data.reply] ? ` ${REPLY_WORDS[data.reply]}` : ''}`;
+    done.textContent = `Thank you! Your report number is ${data.tracking}. ${kind === 'puzzle' && current.puzzle ? 'We check reported puzzles automatically and fix them as soon as we can.' : 'The team will look into it.'}${REPLY_WORDS[data.reply] ? ` ${REPLY_WORDS[data.reply]}` : ''}`;
     deps.announce(`Report sent. Your report number is ${data.tracking}.`);
   } catch (e) {
     err.textContent = navigator.onLine === false ? 'You seem to be offline. Connect to the internet and try again.' : e.message;
@@ -59,14 +69,26 @@ async function send(form) {
   } finally { btn.disabled = false; }
 }
 
+const kindNow = () => $('input[name=report-kind]:checked').value;
+function about() {
+  const p = current.puzzle;
+  $('#report-about').textContent = kindNow() === 'page'
+    ? 'Tell us what looked wrong or did not work on this page. We also send which screen you were on, the app version and the window size, nothing personal.'
+    : p ? `About the puzzle “${p.title}”. The puzzle and its picture are sent with your report, so we can check it and fix it.`
+      : 'Open the puzzle first and report it from there, so it is sent with your report. Or tell us which puzzle it was.';
+}
+
 let wired = false;
-export function open(puzzle) {
-  if (!available() || !puzzle) return;
-  current = puzzle;
+// ctx: { puzzle, image, where }. puzzle is the open or last played puzzle (or
+// null); image the picture drawn for it (SVG text); where the screen's name.
+export function open(ctx = {}) {
+  if (!available()) return;
+  current = { puzzle: ctx.puzzle || null, image: ctx.image || '', where: String(ctx.where || '').slice(0, 200) };
   const dlg = $('#dlg-report');
   if (!wired) {
     wired = true;
     $('#report-form').addEventListener('submit', (e) => { e.preventDefault(); send(e.currentTarget); });
+    $('.report-kind').addEventListener('change', about);
     $('#report-text').addEventListener('input', count);
     $('[data-close]', dlg).onclick = () => dlg.close();
     $('#report-signin-btn').onclick = () => { dlg.close(); deps.openAccount(); };
@@ -78,6 +100,8 @@ export function open(puzzle) {
   $('#report-signin').hidden = !!me || !emails || !account.enabled();
   $('.error-box', dlg).hidden = true;
   $('#report-done').textContent = '';
+  $(`input[name=report-kind][value=${ctx.kind === 'page' || !current.puzzle ? 'page' : 'puzzle'}]`).checked = true;
+  about();
   count();
   deps.openDialog(dlg, $('#report-text'));
 }

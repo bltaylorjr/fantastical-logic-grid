@@ -516,12 +516,19 @@ const SHOTS = process.env.SHOTS;
     await p.fill('#idea-text', 'A pirate ship lost in the fog where the crew swapped maps.');
     await p.click('#idea-form button[type=submit]');
     await p.waitForFunction(() => /sent/.test(document.querySelector('#idea-form .acct-done').textContent));
-    await p.selectOption('#problem-topic', 'sound');
-    await p.fill('#problem-text', 'The music stopped after the second puzzle.');
-    await p.click('#problem-form button[type=submit]');
-    await p.waitForFunction(() => /sent/.test(document.querySelector('#problem-form .acct-done').textContent));
+    assert(await p.locator('#dlg-feedback #problem-form').count() === 0, 'the idea box has no problem form any more');
+    await p.click('#dlg-feedback [data-close]');
+    // Problems go through Report a Problem in the footer, as a Web Page Issue here.
+    await p.click('#report-problem');
+    await p.waitForSelector('#dlg-report[open]');
+    assert(await p.isChecked('input[name=report-kind][value=page]'), 'away from a puzzle it starts as a Web Page Issue');
+    assert(await p.getAttribute('#report-text', 'maxlength') === '1000', 'the box holds 1,000 characters');
+    await p.fill('#report-text', 'The music stopped after the second puzzle.');
+    await p.click('#report-form button[type=submit]');
+    await p.waitForFunction(() => /WS-[A-Z2-9]{8}/.test(document.querySelector('#report-done').textContent));
+    await p.click('#dlg-report [data-close]');
     const fb = (await db.prepare('SELECT kind, topic, theme FROM feedback ORDER BY id').all()).results.map((r) => `${r.kind}:${r.topic}${r.theme ? `:${r.theme}` : ''}`);
-    assert(fb.join() === 'idea:story:adventure,problem:sound', `an idea and a problem arrive in separate boxes (${fb.join()})`);
+    assert(fb.join() === 'idea:story:adventure,problem:page', `an idea and a web page issue arrive in their own places (${fb.join()})`);
 
     // ...and show up in the dashboard's one inbox (the old #feedback link still works).
     await db.prepare("INSERT INTO conversations (id, user_id, topic, subject, status, admin_unread, created_at, updated_at) VALUES (900, 'player-1', 'question', 'Can I print puzzles?', 'open', 1, ?1, ?1)").bind(Date.now()).run();

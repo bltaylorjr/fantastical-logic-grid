@@ -617,8 +617,18 @@ function exportSave(save) {
   toast(`Saved “${save.name}” to a file in your downloads.`);
 }
 
-// Report a problem with this puzzle (puzzle-report.js), under every puzzle.
-$('#report-puzzle').onclick = () => { if (S.save) puzzleReport.open(S.save.puzzle); };
+// Report a Problem (puzzle-report.js), in the footer under every screen. On a
+// puzzle it starts as a Puzzle Problem with that puzzle and its picture;
+// elsewhere as a Web Page Issue naming the screen.
+const SCREEN_NAMES = { 'screen-home': 'Home screen', 'screen-play': 'Puzzle screen', 'screen-learn': 'How to play' };
+$('#report-problem').onclick = () => {
+  const screen = $$('main.screen').find((m) => !m.hidden);
+  const where = SCREEN_NAMES[screen?.id] || screen?.id || 'Game';
+  const onPuzzle = screen?.id === 'screen-play' && S && S.save;
+  let image = '';
+  if (onPuzzle) { try { image = sceneSvg(S.save.puzzle, 5, { animate: false }); } catch (e) { /* sent without it */ } }
+  puzzleReport.open({ puzzle: onPuzzle ? S.save.puzzle : null, image, where: onPuzzle ? `${where}: ${S.save.name}` : where });
+};
 
 // The link in the "we fixed the puzzle you reported" email: the repaired
 // puzzle joins Saved puzzles (once, however often the link is opened).

@@ -9,9 +9,11 @@
 //   guessing); the answer key and the questions match the answer; nothing is
 //   blank.
 // repair(puzzle) -> { puzzle, changed } or null
-//   Builds the puzzle again from its own seed and settings with today's
-//   engine (same story, theme, size and difficulty) and keeps it only if it
-//   passes every check above.
+//   Builds the puzzle again with today's engine, trying the rebuild
+//   strategies in the order the learning table says works best for this kind
+//   of fault, and keeps it only if it passes every check above.
+// probe(pattern) -> { tested, faults, codes }
+//   Self-diagnosis: makes fresh puzzles like the faulty one and checks them.
 //
 // Usage (the GitHub Action .github/workflows/puzzle-reports.yml):
 //   node scripts/puzzle-doctor.mjs <reports.json> <results.json>
@@ -62,7 +64,7 @@ export function diagnose(p) {
     clues.forEach((c, i) => {
       let holds = false;
       try { holds = clueHolds({ N, sol }, c); } catch { holds = false; }
-      if (!holds) out.push(find('false_clue', `Clue ${p.clues[i].number || i + 1} said something that is not true for the real answer, so the puzzle could not be solved correctly.`));
+      if (!holds) out.push({ ...find('false_clue', `Clue ${p.clues[i].number || i + 1} said something that is not true for the real answer, so the puzzle could not be solved correctly.`), clue: String(p.clues[i].type || c.type || '') });
     });
     // The clues must lead to that one answer without guessing.
     if (!out.some((f) => f.code === 'false_clue')) {
@@ -98,48 +100,83 @@ export function diagnose(p) {
 
 const sameClues = (a, b) => JSON.stringify(a.clues.map((c) => [c.text, c.logic])) === JSON.stringify(b.clues.map((c) => [c.text, c.logic]));
 
-export function repair(p) {
+// Ways to rebuild a puzzle, best first by default. The Worker's learning table
+// (fault_patterns, server/src/puzzle-reports.js) counts how often each one
+// works for each kind of fault, and hands the doctor its own order (playbook).
+export const STRATEGIES = {
+  // The settings as first asked with the theme left to chance: usually the very same story.
+  'same-settings': (p, o) => ({ difficulty: o.difficulty, categories: o.categories, items: o.items, questions: o.questions, seed: p.seed }),
+  // The same theme chosen on purpose: the same story when the player picked the theme.
+  'same-theme': (p, o) => ({ difficulty: o.difficulty, theme: o.theme, categories: o.categories, items: o.items, questions: o.questions, seed: p.seed }),
+  // Every recorded setting, topic and clue types included.
+  'all-options': (p, o) => ({ ...o, seed: p.seed }),
+  // A fresh seed in the same theme, topic, size and difficulty: a new story,
+  // for faults the original seed keeps running into.
+  'new-seed': (p, o) => ({ difficulty: o.difficulty, theme: o.theme, topic: o.topic, categories: o.categories, items: o.items, questions: o.questions, seed: `${p.seed}-repair` }),
+};
+export const DEFAULT_ORDER = Object.keys(STRATEGIES);
+
+const changedFrom = (p, fresh) => !sameClues(p, fresh) || JSON.stringify([p.solution, p.answerKey, p.questions]) !== JSON.stringify([fresh.solution, fresh.answerKey, fresh.questions]);
+
+// order: strategy names to try first (the learned playbook); the rest follow.
+// Returns { puzzle, sameStory, changed, strategy, tried } or null.
+export function repair(p, order = DEFAULT_ORDER) {
   if (!p || !p.options || p.seed === undefined) return null;
-  // The puzzle's settings as first asked (theme left to chance or chosen), so
-  // the rebuild usually tells the very same story; failing that, the same
-  // theme, topic, size and difficulty.
-  const o = p.options;
-  const tries = [
-    { difficulty: o.difficulty, categories: o.categories, items: o.items, questions: o.questions, seed: p.seed },
-    { difficulty: o.difficulty, theme: o.theme, categories: o.categories, items: o.items, questions: o.questions, seed: p.seed },
-    { ...o, seed: p.seed },
-  ];
+  const names = [...new Set([...(order || []), ...DEFAULT_ORDER])].filter((n) => STRATEGIES[n]);
+  const tried = [];
   let fallback = null;
-  for (const t of tries) {
+  for (const name of names) {
+    tried.push(name);
     let fresh;
-    try { fresh = generatePuzzle(t); } catch { continue; }
-    if (!diagnose(fresh).ok) continue;
-    if (fresh.theme?.id !== p.theme?.id) continue;
-    const sameStory = fresh.title === p.title;
-    const result = { puzzle: fresh, sameStory, changed: !sameClues(p, fresh) || JSON.stringify([p.solution, p.answerKey, p.questions]) !== JSON.stringify([fresh.solution, fresh.answerKey, fresh.questions]) };
-    if (sameStory) return result;
+    try { fresh = generatePuzzle(STRATEGIES[name](p, p.options)); } catch { continue; }
+    if (!diagnose(fresh).ok || fresh.theme?.id !== p.theme?.id || !changedFrom(p, fresh)) continue;
+    const result = { puzzle: fresh, sameStory: fresh.title === p.title, changed: true, strategy: name, tried: [...tried] };
+    if (result.sameStory) return result;
     fallback ||= result;
   }
-  return fallback;
+  return fallback ? { ...fallback, tried } : null;
 }
 
 // What the team's email says was done, in everyday words.
 export const repairedNote = (sameStory) => (sameStory
   ? 'We rebuilt your puzzle with the same story, size and difficulty using our corrected puzzle maker, then checked that every clue is true and that the clues lead to exactly one answer.'
-  : 'We rebuilt your puzzle with the same theme, size and difficulty using our corrected puzzle maker (the story may read a little differently), then checked that every clue is true and that the clues lead to exactly one answer.');
+  : 'We rebuilt your puzzle with the same theme, size and difficulty using our corrected puzzle maker (the story reads a little differently), then checked that every clue is true and that the clues lead to exactly one answer.');
 
-export function examine(p) {
+// playbook: { [fault code]: [strategy names, most successful first] } from the Worker.
+export function examine(p, playbook = {}) {
   const d = diagnose(p);
-  const fix = d.ok ? null : repair(p);
-  const repaired = fix && fix.changed ? fix.puzzle : null;
-  return { findings: d.findings, repaired, note: repaired ? repairedNote(fix.sameStory) : '', engine: ENGINE_VERSION };
+  const order = d.findings.flatMap((f) => playbook[f.code] || []);
+  const fix = d.ok ? null : repair(p, order);
+  const repaired = fix ? fix.puzzle : null;
+  return {
+    findings: d.findings, repaired, note: repaired ? repairedNote(fix.sameStory) : '', engine: ENGINE_VERSION,
+    strategy: fix ? fix.strategy : null, tried: fix ? fix.tried : d.ok ? [] : [...new Set([...order, ...DEFAULT_ORDER])],
+    clueTypes: [...new Set(d.findings.filter((f) => f.clue).map((f) => f.clue))],
+  };
+}
+
+// Self-diagnosis: build fresh puzzles like the ones a known fault came from,
+// with today's engine, and see whether the fault still happens. A fault that
+// no longer shows lets the Worker send its waiting reports back for repair.
+export function probe({ theme, tier, categories, items }, tested = 6, salt = '') {
+  let faults = 0;
+  const codes = {};
+  let made = 0;
+  for (let i = 0; i < tested; i++) {
+    let p;
+    try { p = generatePuzzle({ difficulty: tier || 'medium', theme: theme || undefined, categories: categories || undefined, items: items || undefined, seed: `probe-${salt}-${i}` }); } catch { continue; }
+    made++;
+    const d = diagnose(p);
+    if (!d.ok) { faults++; for (const f of d.findings) codes[f.code] = (codes[f.code] || 0) + 1; }
+  }
+  return { tested: made, faults, codes, engine: ENGINE_VERSION };
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const [inFile, outFile] = process.argv.slice(2);
   if (!inFile || !outFile) { console.error('Usage: node scripts/puzzle-doctor.mjs <reports.json> <results.json>'); process.exit(2); }
   const reports = JSON.parse(readFileSync(inFile, 'utf8'));
-  const results = reports.map((r) => ({ id: r.id, ...examine(r.puzzle) }));
+  const results = reports.map((r) => ({ id: r.id, ...examine(r.puzzle, r.playbook) }));
   writeFileSync(outFile, JSON.stringify(results));
   const n = (f) => results.filter(f).length;
   console.log(`Examined ${results.length}: ${n((r) => !r.findings.length)} with no fault found, ${n((r) => r.repaired)} repaired, ${n((r) => r.findings.length && !r.repaired)} need a fix in the code.`);
