@@ -120,10 +120,80 @@ TALL = [
          lines=[['Play free at thelogicgrid.com!', 'Play free, at the logic grid dot com!']]),
 ]
 
+# "How to play logic puzzles": a short vertical series for Reels, Shorts and
+# TikTok, from the same footage and voice as the promo. One idea per video.
+TIP_GRID = [
+    dict(kind='clip', part='intro', snap='bar', kicker='How to play, part 1', head='The logic grid',
+         shots=[('grid', 0.5, 12, 0.7, 0.6)],
+         lines=["New to logic grid puzzles? Here's how they work."]),
+    dict(kind='clip', part='full', kicker='Every square', head='is a pair',
+         shots=[('grid', 1.5, 14, 0.5, 0.95)],
+         lines=['Every square in the grid pairs two things from the story.']),
+    dict(kind='clip', part='full', kicker="Can't go together?", head='Mark an X',
+         shots=[('grid', 8, 22, 0.5, 0.95)],
+         lines=[["If a clue says two things can't go together, mark an X.", "If a clue says two things can't go together, mark an ex."]]),
+    dict(kind='clip', part='full', kicker='Must go together?', head='Mark an O',
+         shots=[('grid', 14, 30, 0.5, 0.95)],
+         lines=[['If they must go together, mark an O.', 'If they must go together, mark an oh.']]),
+    dict(kind='clip', part='full', kicker='The golden rule', head='One O per row',
+         shots=[('reveal', 0.5, 99, 0.55, 0.8)],
+         lines=[['Each row has exactly one O, so the rest of that row is all X.', 'Each row has exactly one oh, so the rest of that row is all exes.']]),
+    dict(kind='clip', part='full', kicker='', head='Case closed!', min=3.0,
+         shots=[('solve', 14.5, 99, 0.62, 0.8)],
+         lines=['Fill in every square, and the case is closed!']),
+    dict(kind='cta', part='outro', min=5.0,
+         lines=[['Try one free at thelogicgrid.com!', 'Try one free, at the logic grid dot com!']]),
+]
+
+TIP_CLUES = [
+    dict(kind='clip', part='intro', snap='bar', kicker='How to play, part 2', head='Reading the clues',
+         shots=[('cast', 0.5, 12, 0.6, 0.7)],
+         lines=['Logic puzzle tip number two: reading the clues.']),
+    dict(kind='clip', part='full', kicker='Every clue', head='is a fact',
+         shots=[('cast', 1.0, 99, 0.6, 0.7)],
+         lines=['Every clue is a fact you can mark on the grid.']),
+    dict(kind='clip', part='full', kicker='Start easy', head="The X's come first",
+         shots=[('grid', 1.5, 16, 0.5, 0.95)],
+         lines=[["Start with the clues that say what is NOT true. They give you easy X's.", "Start with the clues that say what is not true. They give you easy exes."]]),
+    dict(kind='clip', part='full', kicker='One square left?', head="It's the O",
+         shots=[('grid', 12, 30, 0.5, 0.95)],
+         lines=[['When only one square is left in a row, it has to be the O.', 'When only one square is left in a row, it has to be the oh.']]),
+    dict(kind='clip', part='full', kicker='Carry it across', head='Grids talk to each other',
+         shots=[('reveal', 0.5, 99, 0.55, 0.8)],
+         lines=['What you learn in one grid carries across to the others.']),
+    dict(kind='cta', part='outro', min=5.0,
+         lines=[['Put it to the test at thelogicgrid.com!', 'Put it to the test, at the logic grid dot com!']]),
+]
+
+TIP_HINTS = [
+    dict(kind='clip', part='intro', snap='bar', kicker='How to play, part 3', head='Stuck? Ask for a hint',
+         shots=[('hint', 0.2, 6, 0.6, 0.6)],
+         lines=["Stuck on a logic puzzle? Here's how to get moving again."]),
+    dict(kind='clip', part='full', kicker='Press Hint', head='A gentle nudge',
+         shots=[('hint', 0.8, 5.5, 0.55, 0.8)],
+         lines=['Press Hint, and first you get a nudge toward the right clue.']),
+    dict(kind='clip', part='full', kicker='Still stuck?', head='The exact square',
+         shots=[('hint', 3.5, 99, 0.55, 0.8)],
+         lines=['Ask again for the exact square, and then the full reasoning.']),
+    dict(kind='clip', part='full', kicker='No guessing', head='Exactly one answer',
+         shots=[('grid', 1.5, 25, 0.5, 0.95)],
+         lines=['Every puzzle has exactly one answer, and you can always reach it by logic. No guessing needed.']),
+    dict(kind='clip', part='full', kicker='', head='Case closed!', min=3.0,
+         shots=[('solve', 14.5, 99, 0.62, 0.8)],
+         lines=['Follow the clues, and crack the case!']),
+    dict(kind='cta', part='outro', min=5.0,
+         lines=[['Play free at thelogicgrid.com!', 'Play free, at the logic grid dot com!']]),
+]
+
 FORMATS = {
     'wide': dict(w=1920, h=1080, edit=WIDE, name='the-fantastical-logic-grid-promo-16x9'),
     'tall': dict(w=1080, h=1920, edit=TALL, name='the-fantastical-logic-grid-promo-9x16'),
+    'tip-grid': dict(w=1080, h=1920, edit=TIP_GRID, name='how-to-play-1-the-grid-9x16'),
+    'tip-clues': dict(w=1080, h=1920, edit=TIP_CLUES, name='how-to-play-2-the-clues-9x16'),
+    'tip-hints': dict(w=1080, h=1920, edit=TIP_HINTS, name='how-to-play-3-hints-9x16'),
 }
+# With no names given, build.py makes the two promo cuts; `build.py tips` makes the series.
+TIPS = ['tip-grid', 'tip-clues', 'tip-hints']
 
 
 # ------------------------------------------------------------------ helpers
@@ -764,6 +834,6 @@ def build(key):
 
 if __name__ == '__main__':
     FONTS = fonts()
-    which = [a for a in sys.argv[1:] if a in FORMATS] or list(FORMATS)
+    which = [n for a in sys.argv[1:] for n in (TIPS if a == 'tips' else [a]) if n in FORMATS] or ['wide', 'tall']
     for k in which:
         build(k)
