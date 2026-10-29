@@ -49,8 +49,16 @@ jobs:
           path: media/promo/.kokoro
           key: kokoro-v1.0
       - run: npm run build
+      # A failure shows its last lines as an annotation, so it can be read
+      # without downloading the whole log.
       - name: Film the game
-        run: node media/promo/tools/capture.cjs
+        shell: bash
+        run: |
+          set -o pipefail
+          if node media/promo/tools/capture.cjs 2>&1 | tee "$RUNNER_TEMP/capture.txt"; then exit 0; fi
+          msg=$(tail -n 40 "$RUNNER_TEMP/capture.txt" | sed -e ':a' -e 'N' -e '$!ba' -e 's/%/%25/g' -e 's/\r//g' -e 's/\n/%0A/g')
+          echo "::error title=Filming failed::${msg}"
+          exit 1
       - name: Edit, voice and caption the promo (both cuts) and the three tips
         run: python media/promo/tools/build.py wide tall tips
       - name: Add them to media/promo
