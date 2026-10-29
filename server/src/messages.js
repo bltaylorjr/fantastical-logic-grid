@@ -29,7 +29,7 @@ import { json, readText, TooLarge } from './http.js';
 import { getSettings } from './settings.js';
 import { cleanText, themeName } from './feedback.js';
 import { withFixes } from './errors.js';
-import { queueNotice } from './replies.js';
+import { queueNotice, storylinesHeld } from './replies.js';
 import { AuthError } from './auth.js';
 import { nameKey } from './names.js';
 import { checkPuzzle } from './compete.js';
@@ -297,7 +297,7 @@ const TYPES_FOR = { viewer: ['error', 'email'], moderator: ['message', 'idea', '
 export const typesFor = (role) => (role === 'viewer' ? TYPES_FOR.viewer : TYPES_FOR.moderator);
 const PER_TYPE = 100;
 const like = (q) => `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
-const EMAIL_KINDS = { idea: 'Thank-you email for an idea', problem: 'Email about a problem report', idea_update: 'Update email: idea addressed', problem_update: 'Update email: problem addressed', message: 'Email: new message from the team' };
+const EMAIL_KINDS = { idea: 'Thank-you email for an idea', problem: 'Email about a problem report', idea_update: 'Update email: idea addressed', story_approved: 'Email: storyline approved, with its puzzle', problem_update: 'Update email: problem addressed', message: 'Email: new message from the team' };
 const EMAIL_STATUS = { held: 'Sent once the team marks it addressed', waiting: 'Waiting to be sent', sending: 'Being sent', sent: 'Sent', failed: 'Could not be sent', dropped: 'Not sent (emails were switched off, or it was closed without being addressed)' };
 
 // One list, newest first, of everything players sent or the game reported.
@@ -333,8 +333,9 @@ export async function inbox(env, role, { type = 'all', status = 'new', q = '' } 
     if (!has(kind)) continue;
     const { results } = await db.prepare(`SELECT id, topic, theme, text, platform, version, status, note, created_at AS at, done_at AS doneAt, conversation_id AS conversationId FROM feedback
       WHERE kind = ?1 AND (?2 = 'all' OR status = ?2) AND (?3 IS NULL OR text LIKE ?3 ESCAPE '\\') ORDER BY created_at DESC LIMIT ?4`).bind(kind, status, search, PER_TYPE).all();
+    const storyEmail = kind === 'idea' ? await storylinesHeld(env, results.filter((f) => f.topic === 'story').map((f) => f.id)).catch(() => new Set()) : new Set();
     for (const f of results) {
-      items.push({ type: kind, id: f.id, at: f.at, status: f.status, title: f.topic, text: f.text, meta: { topic: f.topic, theme: f.theme || null, themeName: f.theme ? themeName(f.theme) : null, platform: f.platform, version: f.version, conversationId: f.conversationId, note: f.note, doneAt: f.doneAt } });
+      items.push({ type: kind, id: f.id, at: f.at, status: f.status, title: f.topic, text: f.text, meta: { topic: f.topic, theme: f.theme || null, themeName: f.theme ? themeName(f.theme) : null, platform: f.platform, version: f.version, conversationId: f.conversationId, note: f.note, doneAt: f.doneAt, storyEmail: storyEmail.has(f.id) } });
     }
   }
   // Error reports have no done state: "new" is the last 7 days, "all" and
@@ -463,6 +464,15 @@ async function attachable(env, uid, value, now) {
   if (mine.results[0].n >= PUZZLES_PER_PLAYER) refuse(429, 'puzzles_full', `This player already has ${PUZZLES_PER_PLAYER} puzzles waiting. Remove one or wait for the oldest to expire.`);
   if (all.results[0].n + text.length > PUZZLES_TOTAL_CHARS) refuse(507, 'storage_full', 'Puzzle storage is full. Remove some puzzles or wait for old ones to expire.');
   return { text, title: String(p.title).slice(0, 120), tier: String(p.difficulty.id) };
+}
+
+// Stores a puzzle for a player outside a conversation (an approved storyline,
+// admin.js). Same checks and limits as an attached puzzle. Returns its id.
+export async function storePuzzle(env, uid, value, actor, now = Date.now()) {
+  const p = await attachable(env, uid, value, now);
+  const row = await env.DB.prepare(`INSERT INTO player_puzzles (user_id, conversation_id, title, tier, puzzle, size, created_by, created_at, expires_at)
+    VALUES (?1, NULL, ?2, ?3, ?4, ?5, ?6, ?7, ?8) RETURNING id`).bind(uid, p.title, p.tier, p.text, p.text.length, actor, now, now + PUZZLE_KEEP_DAYS * DAY).first();
+  return row.id;
 }
 
 // The team removes a stored puzzle before it expires.

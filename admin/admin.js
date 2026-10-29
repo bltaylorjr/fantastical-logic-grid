@@ -440,6 +440,54 @@ const errFix = (i) => { const f = i.meta.fix; return !f ? (can('admin') ? `<div 
   : f.missed ? `<p class="fb-note"><span class="badge warn">Still happening</span> Marked fixed in ${esc(f.fixedIn)}, but this report is from ${esc(i.meta.version)}. ${esc(f.note)}</p>`
   : `<p class="fb-note"><span class="badge ok">Addressed</span> Fixed in ${esc(f.fixedIn)}: ${esc(f.note)}</p>`; };
 
+// Approve a storyline: the note and the first puzzle made with it. The player
+// gets one email (with the puzzle as a PDF and its answer key) only if they
+// ticked "Email me an update"; the puzzle waits in their game for 30 days.
+function storyApproveHtml(i) {
+  const id = Number(i.id);
+  return `<details class="story-approve"><summary>Approve storyline</summary>
+    <form class="stack" data-approve="${id}" novalidate>
+      ${i.meta.storyEmail
+    ? '<p class="muted">This player asked for an email. They get one email: your note, plus the puzzle below as a PDF with its answer key. The puzzle also waits in their game (Messages &gt; Puzzles for you) for 30 days.</p>'
+    : '<p class="muted">This player did not ask for an email (or was not signed in), so nothing is sent and no puzzle can be stored for them. Approving marks it addressed.</p>'}
+      <div class="field"><label for="ap-note-${id}">Note for the player (everyday words)</label><textarea id="ap-note-${id}" rows="3" maxlength="500"></textarea></div>
+      ${i.meta.storyEmail ? `<div class="field"><label for="ap-file-${id}">First puzzle made with this storyline</label><input type="file" id="ap-file-${id}" accept=".json,application/json">
+        <p class="muted">Make it in the game, then Saved puzzles &gt; Save to a file. Optional, but without it the email has no puzzle.</p></div>` : ''}
+      <p class="error" role="alert" hidden></p>
+      <div class="row"><button class="btn primary small" type="submit">Approve${i.meta.storyEmail ? ' and email' : ''}</button></div>
+    </form></details>`;
+}
+document.addEventListener('submit', async (e) => {
+  const form = e.target.closest('form[data-approve]');
+  if (!form) return;
+  e.preventDefault();
+  const id = Number(form.dataset.approve);
+  const err = $('.error', form);
+  err.hidden = true;
+  const note = $(`#ap-note-${id}`).value.trim();
+  const fail = (t, el) => { err.textContent = t; err.hidden = false; el?.focus(); };
+  if (!note) return fail('Write a short note for the player.', $(`#ap-note-${id}`));
+  const tech = plainWords(note);
+  if (tech) return fail(tech, $(`#ap-note-${id}`));
+  const fileEl = $(`#ap-file-${id}`);
+  let puzzle = null;
+  if (fileEl && fileEl.files[0]) {
+    try {
+      if (fileEl.files[0].size > 450_000) throw new Error('big');
+      puzzle = JSON.parse(await fileEl.files[0].text());
+    } catch (ex) { return fail('That file could not be read as a puzzle file. Use a file saved from the game.', fileEl); }
+  }
+  const btn = $('button[type=submit]', form);
+  btn.disabled = true;
+  try {
+    const r = await api(`feedback/${id}/approve`, { method: 'POST', body: { note, ...(puzzle ? { puzzle } : {}) } });
+    const words = `Storyline approved.${r.emailed ? ` One email goes out within 15 minutes${r.stored ? ', with the puzzle attached as a PDF. The puzzle is in their game for 30 days.' : ' (no puzzle attached).'}` : ' No email: the player did not ask for one.'}`;
+    toast(words);
+    announce(words);
+    show('communication', { keepFocus: true });
+  } catch (ex) { fail(ex.message); btn.disabled = false; }
+});
+
 function itemHtml(i) {
   const type = `<span class="badge${i.type === 'error' ? ' bad' : i.type === 'problem' ? ' warn' : ''}">${TYPE_NAMES[i.type]}</span>`;
   const state = i.type === 'message'
@@ -461,7 +509,8 @@ function itemHtml(i) {
       <div class="row">${m.conversationId ? `<button class="btn primary small" type="button" data-open="${m.conversationId}">Reply</button>` : ''}
       ${i.status === 'new' ? `<button class="btn${m.conversationId ? '' : ' primary'} small" type="button" data-fb="${i.id}" data-status="addressed">Mark addressed</button>
         <button class="btn small" type="button" data-fb="${i.id}" data-status="done">Mark done</button>` : `<button class="btn small" type="button" data-fb="${i.id}" data-status="new">Mark new</button>`}
-      <button class="btn small" type="button" data-fb="${i.id}" data-status="delete">Delete</button></div></li>`;
+      <button class="btn small" type="button" data-fb="${i.id}" data-status="delete">Delete</button></div>
+      ${i.type === 'idea' && m.topic === 'story' && i.status === 'new' && can('moderator') ? storyApproveHtml(i) : ''}</li>`;
   }
   if (i.type === 'error') {
     const m = i.meta;
