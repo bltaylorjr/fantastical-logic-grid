@@ -21,21 +21,10 @@
 //                   mood: a few words for color and music
 // A topic with no story parts uses the theme's own (the theme's "classic" topic).
 import { clock, plural, money } from './themes.js';
+import { cat, ord, countOrd, ageOrd, timeOrd } from './topic-kit.js';
+import { MORE_TOPICS } from './more-topics.js';
 import { STORYLINES } from './storylines.js';
 import { MORE_STORIES } from './more-stories.js';
-
-const cat = (id, name, pos, neg, items, extra = {}) => ({ id, name, pos, neg, items, ...extra });
-const ord = (id, name, pos, neg, o, extra = {}) => ({ id, name, pos, neg, ordinal: o, ...extra });
-const countOrd = (start, step, label, less, more, lessBy, moreBy, gap) => ({
-  start, step, count: 8, label: label || ((v) => String(v)), less, more, lessBy, moreBy, gap,
-});
-const ageOrd = (start, step) => countOrd(start, step, null, 'is younger than', 'is older than',
-  'is {d} younger than', 'is {d} older than', (s) => plural(s * step, 'year', 'years'));
-const timeOrd = (verb, startMin, step) => ({
-  start: 0, step, count: 8, label: clock(startMin),
-  less: `${verb} earlier than`, more: `${verb} later than`, lessBy: `${verb} {d} earlier than`, moreBy: `${verb} {d} later than`,
-  gap: (s) => ((s * step) % 60 === 0 ? plural((s * step) / 60, 'hour', 'hours') : plural(s * step, 'minute', 'minutes')),
-});
 
 // Parties where couples dance: guests ask the band for songs instead of
 // giving timed toasts (a player found toast times out of place in a story
@@ -1630,7 +1619,7 @@ export const TOPICS = {
     { id: 'timetravel', name: 'Time Travel', description: 'Time machines and trips to the past and future.',
       cast: { one: 'time traveler', many: 'time travelers' },
       categories: [
-        cat('era', 'Era Visited', 'visited the {x}', 'did not visit the {x}', ['Dinosaur Age', 'Ice Age', 'Ancient Egypt', 'Roman Empire', 'Middle Ages', 'Wild West', 'Roaring Twenties', 'Year 3000'], { noun: 'era visited' }),
+        cat('era', 'Era Visited', 'visited the {x}', 'did not visit the {x}', ['Dinosaur Age', 'Ice Age', 'Ancient Egypt', 'Roman Empire', 'Middle Ages', 'Wild West', 'Roaring Twenties', 'Year 3000'], { noun: 'era visited', order: 'listed' }),
         cat('souvenir', 'Souvenir', 'brought back the {x}', 'did not bring back the {x}', ['Fossil', 'Gold Coin', 'Feather Pen', 'Pocket Watch', 'Clay Pot', 'Cowboy Hat', 'Jazz Record', 'Hover Shoe']),
         cat('machine', 'Time Machine', 'flew the {x}', 'did not fly the {x}', ['Chrono Pod', 'Tick Tock', 'Paradox', 'Hourglass', 'Rewind', 'Sundial', 'Clockwork', 'Warp Wagon']),
         cat('gadget', 'Gadget', 'carried the {x}', 'did not carry the {x}', ['Time Compass', 'Paradox Meter', 'Era Guidebook', 'Translator', 'Chrono Key', 'Spare Battery', 'Anchor Beacon', 'Pocket Radar']),
@@ -4304,172 +4293,9 @@ export const TOPICS = {
       },
       art: { setting: 'birdwatchers with binoculars on a misty forest trail at dawn, birds in the trees', mood: 'soft dawn gold and forest green' } },
   ],
-  chemistry: [
-    { id: 'labday', name: 'Lab Day', description: 'Goggles on for a day of amazing experiments.',
-      art: { setting: 'a bright school chemistry lab with bubbling flasks, colorful flames and a periodic table on the wall', mood: 'bright colors and fizzing bubbles' } },
-    { id: 'lab', name: 'Chemistry Lab', description: 'Fizzing, foaming and color-changing experiments.',
-      cast: { one: 'chemist', many: 'chemists' },
-      categories: [
-        cat('experiment', 'Experiment', 'ran the {x} experiment', 'did not run the {x} experiment', ['Elephant Toothpaste', 'Color Change', 'Rock Candy', 'Glowing Slime', 'Invisible Ink', 'Fizzy Rocket', 'Cabbage Juice', 'Copper Plating']),
-        cat('ingredient', 'Ingredient', 'mixed in {x}', 'did not mix in {x}', ['Baking Soda', 'Vinegar', 'Salt', 'Sugar', 'Iodine', 'Citric Acid', 'Cornstarch', 'Food Coloring']),
-        { from: 'glass', items: ['Beaker', 'Test Tube', 'Flask', 'Pipette', 'Funnel', 'Graduated Cylinder', 'Dropper', 'Petri Dish'] },
-        cat('result', 'Result Color', 'turned it {x}', 'did not turn it {x}', ['Teal', 'Crimson', 'Amber', 'Lime', 'Magenta', 'Silver', 'Indigo', 'Turquoise'], { noun: 'result color' }),
-        cat('element', 'Element', 'drew a poster of {x}', 'did not draw a poster of {x}', ['Hydrogen', 'Oxygen', 'Carbon', 'Helium', 'Neon', 'Gold', 'Iron', 'Calcium'], { noun: 'poster element' }),
-        cat('goggles', 'Goggles', 'wore {x} goggles', 'did not wear {x} goggles', ['Red', 'Orange', 'Yellow', 'Green', 'Blue', 'Purple', 'Pink', 'White'], { noun: 'goggle color' }),
-        ord('start', 'Start Time', 'started at {x}', 'did not start at {x}', timeOrd('started', 9 * 60, 15), { noun: 'start time' }),
-        ord('wait', 'Wait', 'waited {x} minutes', 'did not wait {x} minutes',
-          countOrd(5, 5, null, 'waited less time than', 'waited longer than', 'waited {d} less than', 'waited {d} longer than', (s) => plural(s * 5, 'minute', 'minutes')),
-          { noun: 'wait in minutes' })],
-      story: {
-        adjs: ['Fizzing', 'Foaming', 'Bubbling', 'Sparkling', 'Smoky', 'Dazzling'],
-        openings: [
-          'The chemistry club met after school, and {n} {many} pulled on their lab coats.',
-          '{N} {many} gathered in the lab for Super Science Saturday.',
-          'The lab hummed with bubbling jars as {n} {many} got to work.',
-          '{N} {many} signed up for the university\'s open lab day.',
-          'A big demo show was coming, and {n} {many} were practicing their best tricks.',
-          '{N} {many} lined up at the lab benches, ready to mix and measure.',
-        ],
-        incidents: [
-          { name: 'Demo Show', text: 'One experiment will open the big demo show for the whole school.', prize: 'the opening act' },
-          { name: 'Foam Tower', text: 'One experiment foamed right up to the ceiling.', prize: 'the tallest foam award' },
-          { name: 'Formula', text: 'A page from the teacher\'s secret formula book went missing.', prize: 'the secret formula page' },
-          { name: 'Safety Star', text: 'The lab is giving a prize for the safest, neatest bench.', prize: 'the safety star' },
-          { name: 'Video', text: 'A science show wants to film the coolest experiment.', prize: 'the video spot' },
-          { name: 'Mystery Jar', text: 'An unlabeled jar was found, and someone figured out what was inside.', prize: 'the mystery jar prize' },
-        ],
-        mishaps: [
-          'A foam spill soaked the lab notebook.',
-          'The labels peeled off the jars in the steam.',
-          'Everyone talked at once, so the details got scrambled.',
-          'The smoke alarm went off, and the notes got shuffled in the rush.',
-        ],
-        endings: [
-          '{Fact}, so {winner} wins {prize}! The whole lab applauds.',
-          '{Fact}! {winner} takes a bow in a cloud of harmless fog.',
-          'Mystery solved! {Fact}, and {winner} writes it all up in the lab report.',
-          '{Fact}, and {winner} gets {prize} and a brand-new lab coat.',
-        ],
-        leads: {
-          experiment: ['The chemist you want ran the {x} experiment.', 'It all started with the {x} experiment.'],
-          ingredient: ['The chemist you want mixed in {x}.', 'A spoonful of {x} was the secret.'],
-          glass: ['The chemist you want used the {x}.', 'The {x} gave it away.'],
-          result: ['The chemist you want turned it {x}.', 'A flash of {x} filled the room.'],
-          element: ['The chemist you want drew a poster of {x}.', 'The poster on the wall showed {x}.'],
-          goggles: ['The chemist you want wore {x} goggles.', 'Look for the {x} goggles.'],
-          start: ['The chemist you want started at {x}.', 'The lab sign-in sheet says {x}.'],
-          wait: ['The chemist you want waited {x} minutes.', 'The timer showed {x} minutes.'],
-        },
-      },
-      art: { setting: 'a bright school chemistry lab with bubbling beakers, colorful liquids and safety goggles', mood: 'bright colors and fizzing bubbles' } },
-    { id: 'fireworks', name: 'Fireworks Show', description: 'Bursts of color and a booming night sky.',
-      cast: { one: 'firework maker', many: 'firework makers' },
-      categories: [
-        cat('shell', 'Firework', 'designed the {x}', 'did not design the {x}', ['Peony', 'Chrysanthemum', 'Willow', 'Palm', 'Comet', 'Crossette', 'Ring', 'Strobe']),
-        'flame',
-        { from: 'element', items: ['Strontium', 'Sodium', 'Barium', 'Copper', 'Calcium', 'Lithium', 'Potassium', 'Magnesium'] },
-        cat('launch', 'Launch Spot', 'launched from the {x}', 'did not launch from the {x}', ['North Pier', 'South Pier', 'Barge', 'Hilltop', 'Lighthouse', 'Old Fort', 'Rooftop', 'Riverbank'], { noun: 'launch spot' }),
-        'hero',
-        ord('shells', 'Shells', 'fired {x} shells', 'did not fire {x} shells',
-          countOrd(5, 5, null, 'fired fewer shells than', 'fired more shells than', 'fired {d} fewer than', 'fired {d} more than', (s) => plural(s * 5, 'shell', 'shells')),
-          { noun: 'shells fired' }),
-        ord('launchtime', 'Launch Time', 'launched at {x}', 'did not launch at {x}', timeOrd('launched', 21 * 60, 5), { noun: 'launch time' })],
-      story: {
-        adjs: ['Booming', 'Blazing', 'Starry', 'Dazzling', 'Crackling', 'Midnight'],
-        openings: [
-          'The summer festival was hours away, and {n} {many} were busy at the workshop.',
-          '{N} {many} planned the town\'s big fireworks show by the harbor.',
-          'As the sun went down, {n} {many} checked every fuse twice.',
-          '{N} {many} entered the national fireworks contest.',
-          'Crowds gathered on the beach while {n} {many} got ready.',
-          '{N} {many} spent all year planning one perfect night.',
-        ],
-        incidents: [
-          { name: 'Finale', text: 'One firework stole the show in the grand finale.', prize: 'the finale trophy' },
-          { name: 'Crowd Cheer', text: 'The loudest cheer of the night went to a single burst.', prize: 'the crowd favorite ribbon' },
-          { name: 'Safety', text: 'The fire chief is thanking the most careful crew member.', prize: 'the safety badge' },
-          { name: 'New Shade', text: 'Someone made a shade the judges had never seen in the sky.', prize: 'the new shade award' },
-          { name: 'Mayor', text: 'The mayor wants to shake hands with the star of the show.', prize: 'the mayor\'s handshake' },
-          { name: 'Front Page', text: 'A photo of the show will go on the front page.', prize: 'the front-page photo' },
-        ],
-        mishaps: [
-          'Smoke drifted over the judges\' table, and the notes got mixed up.',
-          'The launch list got soaked by spray from the harbor.',
-          'Everyone was looking up, so nobody wrote things down.',
-          'The radio crackled, so the reports came in broken pieces.',
-        ],
-        endings: [
-          '{Fact}, so {winner} wins {prize}! The sky lights up once more.',
-          '{Fact}! {winner} takes a bow as the crowd roars.',
-          'Mystery solved! {Fact}, and {winner} is already planning next year\'s show.',
-          '{Fact}, and {prize} goes to {winner}. What a night!',
-        ],
-        leads: {
-          shell: ['The firework maker you want designed the {x}.', 'The {x} lit up the whole sky.'],
-          flame: ['The firework maker you want made a {x} flame.', 'A flash of {x} filled the sky.'],
-          element: ['The firework maker you want studied {x}.', 'The secret was {x}.'],
-          launch: ['The firework maker you want launched from the {x}.', 'The big burst came from the {x}.'],
-          hero: ['The firework maker you want looks up to {x}.', 'A poster of {x} hung in the workshop.'],
-          shells: ['The firework maker you want fired {x} shells.', 'The launch log shows {x} shells.'],
-          launchtime: ['The firework maker you want launched at {x}.', 'The clock read {x} at the big burst.'],
-        },
-      },
-      art: { setting: 'a harbor at night with huge colorful fireworks bursting over the water and crowds on the shore', mood: 'deep night blue with bright bursts' } },
-    { id: 'crystals', name: 'Crystal Garden', description: 'Jars, strings and sparkling crystals that grow overnight.',
-      cast: { one: 'crystal grower', many: 'crystal growers' },
-      categories: [
-        cat('crystal', 'Crystal', 'grew {x} crystals', 'did not grow {x} crystals', ['Table Salt', 'Sugar', 'Alum', 'Borax', 'Copper Sulfate', 'Epsom Salt', 'Bismuth', 'Rock Candy']),
-        cat('jar', 'Jar', 'used the {x} jar', 'did not use the {x} jar', ['Mason', 'Pickle', 'Jam', 'Honey', 'Baby Food', 'Spice', 'Salsa', 'Peanut Butter']),
-        cat('string', 'String', 'hung it on {x} string', 'did not hang it on {x} string', ['Cotton', 'Wool', 'Nylon', 'Silk', 'Hemp', 'Jute', 'Linen', 'Kite']),
-        cat('spot', 'Growing Spot', 'kept it on the {x}', 'did not keep it on the {x}', ['Windowsill', 'Bookshelf', 'Fridge Top', 'Desk', 'Closet Shelf', 'Porch', 'Attic Step', 'Garage Bench'], { noun: 'growing spot' }),
-        'hero',
-        ord('days', 'Days', 'waited {x} days', 'did not wait {x} days',
-          countOrd(2, 1, null, 'waited fewer days than', 'waited more days than', 'waited {d} fewer than', 'waited {d} more than', (s) => plural(s, 'day', 'days')),
-          { noun: 'days of growing' }),
-        ord('size', 'Crystal Size', 'grew a crystal {x} centimeters long', 'did not grow a crystal {x} centimeters long',
-          countOrd(1, 1, null, 'grew a smaller crystal than', 'grew a bigger crystal than', 'grew a crystal {d} smaller than', 'grew a crystal {d} bigger than', (s) => plural(s, 'centimeter', 'centimeters')),
-          { noun: 'crystal size in centimeters' })],
-      story: {
-        adjs: ['Sparkling', 'Glittering', 'Frosty', 'Gleaming', 'Shimmering', 'Twinkling'],
-        openings: [
-          '{N} {many} started a crystal-growing contest at the science center.',
-          'Jars lined every table as {n} {many} checked on their crystals.',
-          '{N} {many} spent two weeks waiting for their crystals to grow.',
-          'The chemistry club gave {n} {many} a month to grow the best crystal.',
-          '{N} {many} brought their crystals to the gem and mineral show.',
-          'Every morning, {n} {many} peeked at their jars to see what had grown.',
-        ],
-        incidents: [
-          { name: 'Biggest Crystal', text: 'One crystal grew bigger than anyone thought possible.', prize: 'the biggest crystal trophy' },
-          { name: 'Museum Case', text: 'The mineral museum wants to show one crystal in its case.', prize: 'a spot in the museum case' },
-          { name: 'Perfect Point', text: 'The judges found one crystal with perfect sharp points.', prize: 'the perfect point ribbon' },
-          { name: 'Quick Hands', text: 'A crystal fell off the table and someone caught it just in time.', prize: 'the quick hands award' },
-          { name: 'Rainbow', text: 'One crystal threw a rainbow across the whole room.', prize: 'the rainbow prize' },
-          { name: 'Cover', text: 'A science magazine wants a photo of the prettiest crystal.', prize: 'the magazine cover' },
-        ],
-        mishaps: [
-          'The labels on the jars got switched during cleanup.',
-          'A cat knocked the notebook into the sink.',
-          'Everyone checked their jars at once, so the details got mixed up.',
-          'The growth chart was smudged by sticky fingers.',
-        ],
-        endings: [
-          '{Fact}, so {winner} wins {prize}! Everything sparkles.',
-          '{Fact}! {winner} holds the crystal up to the light.',
-          'Mystery solved! {Fact}, and {winner} starts a new jar right away.',
-          '{Fact}, and {prize} goes to {winner}. Crystal clear!',
-        ],
-        leads: {
-          crystal: ['The crystal grower you want grew {x} crystals.', 'It all began with {x}.'],
-          jar: ['The crystal grower you want used the {x} jar.', 'The {x} jar held the prize.'],
-          string: ['The crystal grower you want hung it on {x} string.', 'A strand of {x} string held it up.'],
-          spot: ['The crystal grower you want kept it on the {x}.', 'It grew best on the {x}.'],
-          hero: ['The crystal grower you want looks up to {x}.', 'A book about {x} sat by the jars.'],
-          days: ['The crystal grower you want waited {x} days.', 'The calendar shows {x} days.'],
-          size: ['The crystal grower you want grew a crystal {x} centimeters long.', 'The ruler showed {x} centimeters.'],
-        },
-      },
-      art: { setting: 'glass jars on a sunny windowsill full of sparkling sugar, salt and purple alum crystals growing on strings', mood: 'icy violet and sparkle' } },
+  astronomy: [
+    { id: 'starparty', name: 'Star Party', description: 'Telescopes on a dark hilltop and a long night under the stars.',
+      art: { setting: 'a dark hilltop star party with telescopes, red flashlights and the Milky Way overhead', mood: 'deep blue night and starlight' } },
   ],
   paradox: [
     { id: 'dreamcity', name: 'Dream City', description: 'A city where up is down and time runs sideways.',
@@ -4634,6 +4460,16 @@ export const TOPICS = {
   ],
 };
 
+// Add the topics from the more-topics-*.js files (more-topics.js) to the end
+// of each theme's list, so topics already there keep their places.
+for (const [themeId, more] of Object.entries(MORE_TOPICS)) {
+  if (!TOPICS[themeId]) throw new Error(`more-topics.js names an unknown theme "${themeId}"`);
+  for (const topic of more.topics || []) {
+    if (TOPICS[themeId].some((t) => t.id === topic.id)) throw new Error(`Topic ${themeId}/${topic.id} is defined twice`);
+    TOPICS[themeId].push(topic);
+  }
+}
+
 // Add the extra story parts from more-stories.js to the end of each list, so
 // the parts already there keep their places (saved story ids point at them).
 for (const [key, more] of Object.entries(MORE_STORIES)) {
@@ -4641,6 +4477,19 @@ for (const [key, more] of Object.entries(MORE_STORIES)) {
   const target = topicId ? (TOPICS[themeId] || []).find((t) => t.id === topicId)?.story : STORYLINES[themeId];
   if (!target) throw new Error(`more-stories.js names an unknown story "${key}"`);
   for (const [kind, parts] of Object.entries(more)) target[kind].push(...parts);
+}
+// And the extra story parts the more-topics-*.js files give existing topics
+// (stories: { 'theme' or 'theme/topic': { openings, incidents, ... } }).
+for (const [themeId, more] of Object.entries(MORE_TOPICS)) {
+  for (const [key, parts] of Object.entries(more.stories || {})) {
+    const [tid, topicId] = key.split('/');
+    if (tid !== themeId) throw new Error(`more-topics-${themeId}.js adds stories to another theme ("${key}")`);
+    const target = topicId ? (TOPICS[tid] || []).find((t) => t.id === topicId)?.story : STORYLINES[tid];
+    if (!target) throw new Error(`more-topics-${themeId}.js names an unknown story "${key}"`);
+    for (const [kind, list] of Object.entries(parts)) {
+      if (kind === 'leads') { for (const [c, l] of Object.entries(list)) (target.leads[c] ||= []).push(...l); } else target[kind].push(...list);
+    }
+  }
 }
 
 export function getTopics(themeId) {

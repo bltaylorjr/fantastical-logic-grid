@@ -25,6 +25,13 @@ if (existsSync(engineSrc)) {
     }
   }
 } else if (!existsSync(join(web, 'engine'))) throw new Error(`Engine not found at ${engineSrc}`);
+// The setup screen's lists (difficulties, themes and their topics), worked out
+// here so the page never loads the story library itself: that is over 800 KB
+// of topics and storylines, and only the puzzle writer (worker.js) needs it.
+{
+  const { describeOptions } = await import(new URL(`file://${join(web, 'engine', 'index.js')}`).href);
+  writeFileSync(join(web, 'engine', 'options.js'), `// Written by scripts/build.mjs from the engine's describeOptions(). Do not edit.\nexport const OPTIONS = ${JSON.stringify(describeOptions())};\n`);
+}
 
 // 2. Fonts.
 const fontDir = join(root, 'node_modules/@fontsource/atkinson-hyperlegible/files');
@@ -84,7 +91,8 @@ if (!process.env.FLG_NO_MINIFY) {
   // fell to about 50 on the live site), and plain table entries cost almost
   // nothing.
   const OBFUSCATE = new Set(['engine/storylines.js', 'engine/more-stories.js', 'engine/topics.js', 'engine/story.js', 'engine/themes.js',
-    'engine/language.js', 'engine/clues.js', 'engine/house-tuning.js', 'js/castbook.js'].map((f) => join(out, f)));
+    'engine/language.js', 'engine/clues.js', 'engine/house-tuning.js', 'js/castbook.js',
+    ...readdirSync(join(out, 'engine')).filter((n) => /^more-topics.*\.js$/.test(n)).map((n) => `engine/${n}`)].map((f) => join(out, f)));
   const { default: JavaScriptObfuscator } = await import('javascript-obfuscator');
   for (const p of own) {
     const loader = p.endsWith('.css') ? 'css' : 'js';
