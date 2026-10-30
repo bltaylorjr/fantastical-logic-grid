@@ -268,7 +268,7 @@ function renderSetup() {
   $('#items').value = setup.custom[1];
 
   $('#tier-choices').onchange = () => { setup.tier = $('input[name=tier]:checked').value; setup.size = null; renderSizes(); renderClueTypes(); updatePreview(); };
-  $('#theme-choices').onchange = (e) => { if (e.target.name !== 'theme') return; setup.theme = $('input[name=theme]:checked').value; setup.topic = 'any'; renderTopics(); setWorld(setup.theme); updatePreview(); };
+  $('#theme-choices').onchange = () => { setup.theme = $('input[name=theme]:checked').value; setup.topic = 'any'; renderTopics(); setWorld(setup.theme); updatePreview(); };
   $('#topic-choices').onchange = () => { setup.topic = $('input[name=topic]:checked').value; updatePreview(); };
   setWorld(setup.theme);
   // Rows reflow when the window resizes, so keep the topics under the chosen theme.
@@ -292,7 +292,14 @@ function extrasLink(url) { return url; }
 // Topics narrow a theme, for example which holiday or which kind of mystery.
 // "Surprise me" has none, so the picker hides.
 let topicEl;
-const topicField = () => (topicEl ||= $('#topic-field'));
+// It sits inside the theme list, so a topic pick must not count as a theme change.
+function topicField() {
+  if (!topicEl) {
+    topicEl = $('#topic-field');
+    topicEl.addEventListener('change', (e) => e.stopPropagation());
+  }
+  return topicEl;
+}
 function renderTopics() {
   const theme = OPTIONS.themes.find((t) => t.id === setup.theme);
   const topics = (theme && theme.topics) || [];
