@@ -39,6 +39,9 @@ importScripts('./vendor/mediapipe/vision_bundle.js');
   }
 
   self.onmessage = async (e) => {
+    // Only the game's own page can reach a dedicated worker (its messages
+    // carry no origin); anything else is ignored.
+    if (e.origin && e.origin !== self.location.origin) return;
     const { id, bitmap } = e.data || {};
     try {
       const marker = await load();
