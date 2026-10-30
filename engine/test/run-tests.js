@@ -6,7 +6,7 @@ import {
   generatePuzzle, getHint, checkMarks, isSolved, checkAnswers, describeOptions, formatPuzzleText, THEMES, TIERS, parseStoryId, checkStoryPart, partKey,
   getTopics,
 } from '../src/index.js';
-import { buildScenario } from '../src/topics.js';
+import { buildScenario, TOPICS } from '../src/topics.js';
 import { buildModel, randomSolution } from '../src/generator.js';
 import { buildStory } from '../src/story.js';
 import { makeLanguage } from '../src/language.js';
@@ -91,7 +91,10 @@ function allMatches(p) {
 // ---------- tests ----------
 const seeds = quick ? ['t1'] : ['t1', 't2', 't3'];
 const sizes = [];
-for (const tier of TIER_ORDER) {
+// Theoretical Physicist puzzles take up to 40 seconds each to build, so they
+// get one focused test below instead of a run for every theme and topic.
+const LOOP_TIERS = TIER_ORDER.filter((t) => t !== 'theorist');
+for (const tier of LOOP_TIERS) {
   for (const theme of THEMES) {
     for (const seed of seeds) sizes.push({ difficulty: tier, theme: theme.id, seed: `${seed}-${theme.id}` });
   }
@@ -101,7 +104,7 @@ for (const tier of TIER_ORDER) {
   let k = 0;
   for (const theme of THEMES) {
     for (const topic of getTopics(theme.id)) {
-      const tiers = quick ? [TIER_ORDER[k++ % TIER_ORDER.length]] : TIER_ORDER;
+      const tiers = quick ? [LOOP_TIERS[k++ % LOOP_TIERS.length]] : LOOP_TIERS;
       for (const tier of tiers) sizes.push({ difficulty: tier, theme: theme.id, topic: topic.id, seed: `topic-${theme.id}-${topic.id}` });
     }
   }
@@ -241,7 +244,25 @@ for (const diff of ['easy', 'medium', 'expert']) {
   const r = generatePuzzle({ difficulty: 'basic', theme: 'random', seed: 'rnd' });
   check('random theme works', THEMES.some((t) => t.id === r.theme.id));
   check('print text includes answer key', formatPuzzleText(r).includes('Answer key'));
-  check('describeOptions lists 6 tiers and 22 themes', describeOptions().difficulties.length === 6 && describeOptions().themes.length === 22);
+  check('describeOptions lists 7 tiers and 22 themes', describeOptions().difficulties.length === 7 && describeOptions().themes.length === 22);
+
+  // Theoretical Physicist is at least half again as hard as Quantum Physicist:
+  // the same themes, classic topics and seeds, compared on the engine's
+  // difficulty score (pinned topics keep this steady as new topics are added).
+  {
+    const runs = quick ? [['mystery', 'q1'], ['fantasy', 'q2']] : [['mystery', 'q1'], ['fantasy', 'q2'], ['sports', 'q3'], ['science', 'q4']];
+    let quantum = 0, theorist = 0, solved = true;
+    for (const [theme, seed] of runs) {
+      const topic = TOPICS[theme][0].id;
+      const q = generatePuzzle({ difficulty: 'mensa', theme, topic, seed });
+      const t = generatePuzzle({ difficulty: 'theorist', theme, topic, seed });
+      quantum += q.stats.difficultyScore;
+      theorist += t.stats.difficultyScore;
+      if (t.categories.length !== 6 || t.categories[0].items.length < 7) solved = false;
+    }
+    check('Theoretical Physicist uses the biggest grids', solved);
+    check('Theoretical Physicist is at least 50% harder than Quantum Physicist', theorist >= quantum * 1.5, `${theorist} vs ${quantum}`);
+  }
   {
     const grouped = describeOptions().themeGroups.flatMap((g) => g.themes);
     check('every theme is in exactly one picker group', grouped.length === THEMES.length && THEMES.every((t) => grouped.filter((x) => x === t.id).length === 1), grouped.join(','));
