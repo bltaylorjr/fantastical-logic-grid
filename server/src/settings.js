@@ -148,6 +148,9 @@ export const SETTINGS = {
   ratings_ai_enabled: { type: 'bool', default: true, group: 'Alerts and reports', label: 'AI summary of puzzle ratings', help: 'Ratings and insights: a few plain sentences on what is working and what to improve, written by a free Cloudflare Workers AI text model from the rating numbers only (never player text). Off: only the rule-based findings show.' },
   ratings_ai_daily_cap: { type: 'int', min: 0, max: 20, default: 3, group: 'Alerts and reports', label: 'AI rating summaries a day', help: 'Each one is kept for the day and shared by the dashboard, the nightly report and the emails. Shares Workers AI\'s free daily allowance with pictures and translations; a summary uses very little.' },
   ratings_model: { type: 'model', default: '@cf/meta/llama-3.1-8b-instruct-fast', group: 'Alerts and reports', label: 'Workers AI model for rating summaries', help: 'Change it here when Cloudflare retires a model.' },
+  // ---- Player sign-in (web/js/idle.js and biometric.js)
+  player_idle_minutes: { type: 'int', min: 0, max: 1440, default: 30, group: 'Player sign-in', label: 'Sign players out after this many idle minutes', help: 'A signed-in player who has not tapped, clicked, typed or scrolled for this long is signed out to keep their account safe. Their progress is saved and synced first, and the puzzle they were on opens again when they sign back in. A warning shows 2 minutes before. 0: never sign out for being idle.' },
+  biometric_signin_enabled: { type: 'bool', default: true, group: 'Player sign-in', label: 'Fingerprint and face sign-in', help: 'Players can turn on sign-in with their device\'s fingerprint reader, face unlock, Windows Hello or screen-lock PIN, as well as their password. The check happens on the device; the game never sees a fingerprint or face. Off: the choice is hidden and every player signs in with their password.' },
   // ---- Support and premium: the game is free. These only add an optional
   // link out to a page the owner sets up elsewhere; nothing here takes
   // payments or locks any part of the game.
@@ -286,7 +289,7 @@ export async function publicConfig(req, env) {
       storySharing: s.story_sharing_enabled, learning: s.learning_enabled, errorReports: s.error_reports_enabled,
       feedback: s.feedback_enabled, feedbackReplies: s.feedback_replies_enabled, soundEffects: s.sound_effects_enabled, music: s.theme_music_enabled, pictures: s.ai_pictures !== 'none',
       translate: s.translate_enabled, messages: s.messages_enabled, challenges: s.challenges_enabled, dailyResults: s.daily_results_enabled, dailyEmail: s.daily_email_enabled,
-      printPacks: s.print_packs_enabled,
+      printPacks: s.print_packs_enabled, biometrics: s.biometric_signin_enabled,
       ...(await licenseConfig(env, s)),
       puzzleMail: s.puzzle_mail_enabled && (s.weekly_mail_enabled || s.special_mail_enabled), weeklyMail: s.puzzle_mail_enabled && s.weekly_mail_enabled, specialMail: s.puzzle_mail_enabled && s.special_mail_enabled,
     },
@@ -298,7 +301,8 @@ export async function publicConfig(req, env) {
       celebrations: CELEBRATIONS.filter((k) => s[k]), celebrateRandom: s.celebrate_random,
       supportUrl: s.support_link_enabled && s.support_url ? s.support_url : '',
       supportAsks: !!(s.support_asks_enabled && s.support_link_enabled && s.support_url),
-      premiumThemes: s.premium_extras_enabled ? s.premium_themes : [], extrasUrl: s.premium_extras_enabled ? s.extras_url : '' },
+      premiumThemes: s.premium_extras_enabled ? s.premium_themes : [], extrasUrl: s.premium_extras_enabled ? s.extras_url : '',
+      idleMinutes: s.player_idle_minutes },
     // Starting values; a player's own choice wins.
     defaults: { sound: s.default_sound, volume: s.default_volume, music: s.default_music, musicVolume: s.default_music_volume },
   }, 200, { 'Cache-Control': 'public, max-age=60' });
