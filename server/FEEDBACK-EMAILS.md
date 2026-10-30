@@ -21,6 +21,18 @@ Menu > Ideas and problems, they can leave "Email me an update" ticked:
   the team writes" in Menu > Messages (see `MESSAGES.md`). At most one a day
   per player, and it only says to open Messages.
 
+- **Storylines (story ideas): one email per submission.** No thank-you goes
+  straight away. When the team presses **Approve storyline** on the idea in
+  the Communication inbox, with a note and the first puzzle made with it (a
+  puzzle file saved from the game), the player gets **"Your storyline is now a
+  puzzle!"**: their storyline, the team's note, and the puzzle attached as a
+  **PDF with its answer key** on the last page. The puzzle also waits in their
+  game for **30 days** (Menu > Messages > Puzzles for you; Play keeps it in
+  Saved puzzles). If the team marks the storyline **Done** instead, the one
+  email is the plain thank-you. Deleting it sends nothing. The PDF is printed
+  by `scripts/contributor-puzzle.mjs` when the email is sent; if printing
+  fails, the email still goes without it.
+
 The wording is fixed (`scripts/feedback-replies.py`). The player's words (with
 email addresses and links already blanked) and the team's note only ever go to
 the player's own confirmed address, so the boxes cannot be used to send

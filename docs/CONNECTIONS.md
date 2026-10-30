@@ -333,7 +333,7 @@ uses a secret, variable or binding that is not listed there.
 **Settings:**
 
 - Authentication > Sign-in method: Email/Password: Enabled (Email link off)
-- Authentication > Templates > Reply to: fantasticallogicgrid@gmail.com (optional)
+- Authentication > Templates > Reply to: support@thelogicgrid.com (optional)
 - Google Cloud > Credentials > Browser key > API restrictions: Identity Toolkit API and Token Service API only. Application restrictions: None (a website restriction breaks the desktop app).
 
 **Steps:**
@@ -342,7 +342,7 @@ uses a secret, variable or binding that is not listed there.
 2. Open <https://console.firebase.google.com/project/the-fantastical-logic-grid/settings/general> and copy the **Web API key** (starts `AIza`).
 3. In GitHub, <https://github.com/bltaylorjr/fantastical-logic-grid/settings/variables/actions:> the variable `FLG_FIREBASE_API_KEY` must hold that key. Then run **Publish web version**.
 4. Optional: <https://console.cloud.google.com/apis/credentials> (project the-fantastical-logic-grid) > **Browser key (auto created by Firebase)** > **API restrictions** > **Restrict key**, allow only Identity Toolkit API and Token Service API, **Save**.
-5. Optional: <https://console.firebase.google.com/project/the-fantastical-logic-grid/authentication/emails>, edit each template, set **Reply to** to fantasticallogicgrid@gmail.com, and save.
+5. Optional: <https://console.firebase.google.com/project/the-fantastical-logic-grid/authentication/emails>, edit each template, set **Reply to** to support@thelogicgrid.com (players see it when they answer a sign-in email), and save.
 
 **Links:** [Firebase sign-in methods](https://console.firebase.google.com/project/the-fantastical-logic-grid/authentication/providers) · [Firebase project settings](https://console.firebase.google.com/project/the-fantastical-logic-grid/settings/general) · [Google Cloud credentials](https://console.cloud.google.com/apis/credentials) · [Full guide (server/README.md)](https://github.com/bltaylorjr/fantastical-logic-grid/blob/main/server/README.md)
 

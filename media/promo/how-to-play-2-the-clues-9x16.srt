@@ -1,0 +1,31 @@
+1
+00:00:00,250 --> 00:00:03,662
+Logic puzzle tip number two:
+reading the clues.
+
+2
+00:00:04,250 --> 00:00:07,218
+Every clue is a fact you can
+mark on the grid.
+
+3
+00:00:07,750 --> 00:00:12,458
+Start with the clues that say
+what is NOT true. They give
+you easy X's.
+
+4
+00:00:13,250 --> 00:00:17,026
+When only one square is left
+in a row, it has to be the O.
+
+5
+00:00:17,750 --> 00:00:21,236
+What you learn in one grid
+carries across to the others.
+
+6
+00:00:21,750 --> 00:00:25,112
+Put it to the test at
+thelogicgrid.com!
+

@@ -336,7 +336,7 @@ export const CONNECTIONS = [
     ],
     settings: [
       { label: 'Authentication > Sign-in method', value: 'Email/Password: Enabled (Email link off)' },
-      { label: 'Authentication > Templates > Reply to', value: 'fantasticallogicgrid@gmail.com (optional)' },
+      { label: 'Authentication > Templates > Reply to', value: 'support@thelogicgrid.com (optional)' },
       { label: 'Google Cloud > Credentials > Browser key > API restrictions', value: 'Identity Toolkit API and Token Service API only. Application restrictions: None (a website restriction breaks the desktop app).' },
     ],
     steps: [
@@ -344,7 +344,7 @@ export const CONNECTIONS = [
       `Open ${FIREBASE}/settings/general and copy the **Web API key** (starts \`AIza\`).`,
       `In GitHub, ${REPO}/settings/variables/actions: the variable \`FLG_FIREBASE_API_KEY\` must hold that key. Then run **Publish web version**.`,
       'Optional: https://console.cloud.google.com/apis/credentials (project the-fantastical-logic-grid) > **Browser key (auto created by Firebase)** > **API restrictions** > **Restrict key**, allow only Identity Toolkit API and Token Service API, **Save**.',
-      `Optional: ${FIREBASE}/authentication/emails, edit each template, set **Reply to** to fantasticallogicgrid@gmail.com, and save.`,
+      `Optional: ${FIREBASE}/authentication/emails, edit each template, set **Reply to** to support@thelogicgrid.com (players see it when they answer a sign-in email), and save.`,
     ],
     links: [{ label: 'Firebase sign-in methods', url: `${FIREBASE}/authentication/providers` }, { label: 'Firebase project settings', url: `${FIREBASE}/settings/general` }, { label: 'Google Cloud credentials', url: 'https://console.cloud.google.com/apis/credentials' }],
   },

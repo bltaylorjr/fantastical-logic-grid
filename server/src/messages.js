@@ -8,12 +8,19 @@
 //   POST /v1/messages/:id          { text } reply in a conversation
 //   POST /v1/messages/:id/read     the player opened it
 //   POST /v1/messages/email        { on } email me (a notice only) when the team writes
+//   GET  /v1/messages/puzzles/:id  a puzzle the team made for this player (see below)
+//   POST /v1/messages/puzzles/:id/opened   the player played or downloaded it
 // News for everyone goes out with GET /v1/config (settings.js, publicNews).
 //
 // For the dashboard (admin.js routes call these):
 //   inbox()             one list: messages, ideas, problems, error reports, emails
 //   conversationView(), teamReply(), setConversationStatus(), startConversation()
 //   listNews(), addNews(), endNews(), deleteNews()
+//
+// Puzzles for contributors: the team can attach a puzzle file to a reply
+// (teamReply, body.puzzle), usually one made from the player's suggestion.
+// The player sees it under Puzzles for you in Messages, can play or download
+// it, and it is removed PUZZLE_KEEP_DAYS after it was sent (player_puzzles).
 //
 // Players only ever see "The team", never which admin wrote. Text is plain:
 // both the game and the dashboard escape it. Player text has email
@@ -23,9 +30,11 @@ import { json, readText, TooLarge } from './http.js';
 import { getSettings } from './settings.js';
 import { cleanText, themeName } from './feedback.js';
 import { withFixes } from './errors.js';
-import { queueNotice } from './replies.js';
+import { queueNotice, storylinesHeld } from './replies.js';
+import { reportsFor } from './puzzle-reports.js';
 import { AuthError } from './auth.js';
 import { nameKey } from './names.js';
+import { checkPuzzle } from './compete.js';
 
 const DAY = 24 * 3600_000;
 export const PLAYER_TOPICS = ['question', 'idea', 'problem'];
@@ -37,6 +46,10 @@ const TEAM_TEXT_MAX = 2000;
 const LIST_MAX = 30;
 const THREAD_MAX = 100;
 const NEWS_LIVE = 5;
+export const PUZZLE_KEEP_DAYS = 30;
+export const PUZZLE_MAX_CHARS = 400_000;
+const PUZZLES_PER_PLAYER = 20; // waiting for one player at a time
+const PUZZLES_TOTAL_CHARS = 50_000_000; // all stored puzzles together, well under the free database size
 
 export class MessageRefusal extends Error {
   constructor(status, error, message) { super(message || error); this.status = status; this.error = error; }
@@ -113,7 +126,10 @@ async function playerView(env, uid, now) {
     for (const m of results) byConv.get(m.c).push({ from: m.sender, text: m.text, at: m.at });
   }
   const contact = await db.prepare('SELECT 1 FROM message_contacts WHERE user_id = ?1').bind(uid).first();
+  const { results: puzzles } = await db.prepare(`SELECT id, conversation_id AS conversationId, title, tier, created_at AS at, expires_at AS expiresAt, opened_at AS openedAt
+    FROM player_puzzles WHERE user_id = ?1 AND expires_at > ?2 ORDER BY created_at DESC LIMIT ?3`).bind(uid, now, PUZZLES_PER_PLAYER).all();
   return {
+    puzzles,
     conversations: convs.map((c) => ({ ...c, unread: c.unread > 0, messages: byConv.get(c.id).slice(-THREAD_MAX) })),
     unread: convs.filter((c) => c.unread > 0).length,
     email: !!contact,
@@ -136,6 +152,17 @@ async function playerRoute(req, env, url, user, now) {
   const db = env.DB;
   const path = url.pathname;
   if (path === '/v1/messages' && req.method === 'GET') return playerView(env, user.uid, now);
+  const pz = path.match(/^\/v1\/messages\/puzzles\/(\d{1,12})(\/opened)?$/);
+  if (pz && (pz[2] ? req.method === 'POST' : req.method === 'GET')) {
+    const row = await db.prepare('SELECT id, title, puzzle, expires_at AS expiresAt FROM player_puzzles WHERE id = ?1 AND user_id = ?2 AND expires_at > ?3')
+      .bind(Number(pz[1]), user.uid, now).first();
+    if (!row) refuse(404, 'gone', 'That puzzle is no longer stored. Puzzles from the team are kept for 30 days.');
+    if (pz[2]) {
+      await db.prepare('UPDATE player_puzzles SET opened_at = COALESCE(opened_at, ?2) WHERE id = ?1').bind(row.id, now).run();
+      return { ok: true };
+    }
+    return { id: row.id, title: row.title, expiresAt: row.expiresAt, puzzle: JSON.parse(row.puzzle) };
+  }
   if (req.method !== 'POST') refuse(404, 'not_found');
   const body = await readJson(req);
   if (path === '/v1/messages') {
@@ -211,6 +238,7 @@ export async function handleMessages(req, env, url, signedIn, isDeleted) {
 export function deleteMessageStatements(env, uid) {
   return [
     env.DB.prepare('DELETE FROM conversation_messages WHERE conversation_id IN (SELECT id FROM conversations WHERE user_id = ?1)').bind(uid),
+    env.DB.prepare('DELETE FROM player_puzzles WHERE user_id = ?1').bind(uid),
     env.DB.prepare('UPDATE feedback SET conversation_id = NULL WHERE conversation_id IN (SELECT id FROM conversations WHERE user_id = ?1)').bind(uid),
     env.DB.prepare('DELETE FROM conversations WHERE user_id = ?1').bind(uid),
     env.DB.prepare('DELETE FROM message_contacts WHERE user_id = ?1').bind(uid),
@@ -221,6 +249,7 @@ export function deleteMessageStatements(env, uid) {
 export function messageUpkeepStatements(env, now) {
   const old = now - 180 * DAY;
   return {
+    player_puzzles: env.DB.prepare('DELETE FROM player_puzzles WHERE expires_at < ?1 OR conversation_id NOT IN (SELECT id FROM conversations)').bind(now),
     conversation_messages: env.DB.prepare(`DELETE FROM conversation_messages WHERE conversation_id IN
       (SELECT id FROM conversations WHERE (status = 'done' AND done_at < ?1) OR updated_at < ?2)`).bind(old, now - 365 * DAY),
     conversations: env.DB.prepare("DELETE FROM conversations WHERE (status = 'done' AND done_at < ?1) OR updated_at < ?2").bind(old, now - 365 * DAY),
@@ -273,7 +302,7 @@ const TYPES_FOR = { viewer: ['error', 'email'], moderator: ['message', 'idea', '
 export const typesFor = (role) => (role === 'viewer' ? TYPES_FOR.viewer : TYPES_FOR.moderator);
 const PER_TYPE = 100;
 const like = (q) => `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
-const EMAIL_KINDS = { idea: 'Thank-you email for an idea', problem: 'Email about a problem report', idea_update: 'Update email: idea addressed', problem_update: 'Update email: problem addressed', message: 'Email: new message from the team' };
+const EMAIL_KINDS = { idea: 'Thank-you email for an idea', problem: 'Email about a problem report', idea_update: 'Update email: idea addressed', story_approved: 'Email: storyline approved, with its puzzle', problem_repaired: 'Email: puzzle repaired, with the link to play it again', problem_update: 'Update email: problem addressed', message: 'Email: new message from the team' };
 const EMAIL_STATUS = { held: 'Sent once the team marks it addressed', waiting: 'Waiting to be sent', sending: 'Being sent', sent: 'Sent', failed: 'Could not be sent', dropped: 'Not sent (emails were switched off, or it was closed without being addressed)' };
 
 // One list, newest first, of everything players sent or the game reported.
@@ -309,8 +338,10 @@ export async function inbox(env, role, { type = 'all', status = 'new', q = '' } 
     if (!has(kind)) continue;
     const { results } = await db.prepare(`SELECT id, topic, theme, text, platform, version, status, note, created_at AS at, done_at AS doneAt, conversation_id AS conversationId FROM feedback
       WHERE kind = ?1 AND (?2 = 'all' OR status = ?2) AND (?3 IS NULL OR text LIKE ?3 ESCAPE '\\') ORDER BY created_at DESC LIMIT ?4`).bind(kind, status, search, PER_TYPE).all();
+    const reports = kind === 'problem' ? await reportsFor(env, results.filter((f) => f.topic === 'puzzle' || f.topic === 'page').map((f) => f.id)).catch(() => new Map()) : new Map();
+    const storyEmail = kind === 'idea' ? await storylinesHeld(env, results.filter((f) => f.topic === 'story').map((f) => f.id)).catch(() => new Set()) : new Set();
     for (const f of results) {
-      items.push({ type: kind, id: f.id, at: f.at, status: f.status, title: f.topic, text: f.text, meta: { topic: f.topic, theme: f.theme || null, themeName: f.theme ? themeName(f.theme) : null, platform: f.platform, version: f.version, conversationId: f.conversationId, note: f.note, doneAt: f.doneAt } });
+      items.push({ report: reports.get(f.id) || null, type: kind, id: f.id, at: f.at, status: f.status, title: f.topic, text: f.text, meta: { topic: f.topic, theme: f.theme || null, themeName: f.theme ? themeName(f.theme) : null, platform: f.platform, version: f.version, conversationId: f.conversationId, note: f.note, doneAt: f.doneAt, storyEmail: storyEmail.has(f.id) } });
     }
   }
   // Error reports have no done state: "new" is the last 7 days, "all" and
@@ -373,13 +404,15 @@ export async function conversationView(env, id) {
       c.player_unread AS playerUnread, p.screen_name AS name
     FROM conversations c LEFT JOIN players p ON p.user_id = c.user_id WHERE c.id = ?1`).bind(id).first();
   if (!c) refuse(404, 'gone', 'That conversation is gone.');
-  const [msgs, fb, contact] = (await db.batch([
+  const [msgs, fb, contact, , puzzles] = (await db.batch([
     db.prepare('SELECT id, sender, author, text, created_at AS at FROM conversation_messages WHERE conversation_id = ?1 ORDER BY created_at, id').bind(id),
     db.prepare('SELECT id, kind, topic, platform, version FROM feedback WHERE conversation_id = ?1').bind(id),
     db.prepare('SELECT 1 AS on_ FROM message_contacts WHERE user_id = ?1').bind(c.uid),
     db.prepare('UPDATE conversations SET admin_unread = 0 WHERE id = ?1').bind(id),
+    db.prepare(`SELECT id, title, tier, size, created_by AS createdBy, created_at AS at, expires_at AS expiresAt, opened_at AS openedAt
+      FROM player_puzzles WHERE conversation_id = ?1 AND expires_at > ?2 ORDER BY created_at`).bind(id, Date.now()),
   ])).map((x) => x.results);
-  return { ...c, messages: msgs, feedback: fb[0] || null, emailOn: !!contact.length };
+  return { ...c, messages: msgs, feedback: fb[0] || null, emailOn: !!contact.length, puzzles };
 }
 
 async function teamLimit(env, now) {
@@ -405,14 +438,60 @@ export async function teamReply(env, id, body, who, now = Date.now()) {
   if (!c) refuse(404, 'gone', 'That conversation is gone.');
   const text = teamText(body);
   await teamLimit(env, now);
+  const puzzle = body.puzzle === undefined || body.puzzle === null ? null : await attachable(env, c.uid, body.puzzle, now);
   // Replying leaves the conversation open unless the admin says it is done.
   const done = body.done === true;
-  await db.batch([
+  const stmts = [
     db.prepare("INSERT INTO conversation_messages (conversation_id, sender, author, text, created_at) VALUES (?1, 'team', ?2, ?3, ?4)").bind(id, who.actor, text, now),
     db.prepare(`UPDATE conversations SET player_unread = player_unread + 1, admin_unread = 0, updated_at = ?2,
       status = CASE WHEN ?3 THEN 'done' ELSE status END, done_at = CASE WHEN ?3 THEN ?2 ELSE done_at END WHERE id = ?1`).bind(id, now, done ? 1 : 0),
+  ];
+  if (puzzle) {
+    stmts.push(db.prepare(`INSERT INTO player_puzzles (user_id, conversation_id, title, tier, puzzle, size, created_by, created_at, expires_at)
+      VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)`).bind(c.uid, id, puzzle.title, puzzle.tier, puzzle.text, puzzle.text.length, who.actor, now, now + PUZZLE_KEEP_DAYS * DAY));
+  }
+  await db.batch(stmts);
+  return { ok: true, email: await notify(env, c.uid, body.email, now), length: text.length, done, puzzle: puzzle ? { title: puzzle.title, expiresAt: now + PUZZLE_KEEP_DAYS * DAY } : null };
+}
+
+// A puzzle file the team attached to a reply: the game's saved puzzle file
+// ({ format: 'fantastical-logic-grid', save: { puzzle } }) or a bare puzzle.
+// Checked like a race puzzle, and within the storage limits.
+async function attachable(env, uid, value, now) {
+  const p = value && value.format === 'fantastical-logic-grid' && value.save ? value.save.puzzle : value;
+  const bad = checkPuzzle(p);
+  if (bad) refuse(400, 'bad_puzzle', bad === 'puzzle_words' ? 'The puzzle has words the game does not allow.' : 'That is not a Fantastical Logic Grid puzzle file. Use a file saved from the game (Saved puzzles > Save to a file).');
+  const text = JSON.stringify(p);
+  if (text.length > PUZZLE_MAX_CHARS) refuse(413, 'too_large', 'That puzzle file is too big.');
+  const [mine, all] = await env.DB.batch([
+    env.DB.prepare('SELECT COUNT(*) AS n FROM player_puzzles WHERE user_id = ?1 AND expires_at > ?2').bind(uid, now),
+    env.DB.prepare('SELECT COALESCE(SUM(size), 0) AS n FROM player_puzzles WHERE expires_at > ?1').bind(now),
   ]);
-  return { ok: true, email: await notify(env, c.uid, body.email, now), length: text.length, done };
+  if (mine.results[0].n >= PUZZLES_PER_PLAYER) refuse(429, 'puzzles_full', `This player already has ${PUZZLES_PER_PLAYER} puzzles waiting. Remove one or wait for the oldest to expire.`);
+  if (all.results[0].n + text.length > PUZZLES_TOTAL_CHARS) refuse(507, 'storage_full', 'Puzzle storage is full. Remove some puzzles or wait for old ones to expire.');
+  return { text, title: String(p.title).slice(0, 120), tier: String(p.difficulty.id) };
+}
+
+// Stores a puzzle for a player outside a conversation (an approved storyline,
+// admin.js). Same checks and limits as an attached puzzle. Returns its id.
+export async function storePuzzle(env, uid, value, actor, now = Date.now()) {
+  const p = await attachable(env, uid, value, now);
+  const row = await env.DB.prepare(`INSERT INTO player_puzzles (user_id, conversation_id, title, tier, puzzle, size, created_by, created_at, expires_at)
+    VALUES (?1, NULL, ?2, ?3, ?4, ?5, ?6, ?7, ?8) RETURNING id`).bind(uid, p.title, p.tier, p.text, p.text.length, actor, now, now + PUZZLE_KEEP_DAYS * DAY).first();
+  return row.id;
+}
+
+// The team removes a stored puzzle before it expires.
+export async function removePuzzle(env, convId, puzzleId) {
+  const r = await env.DB.prepare('DELETE FROM player_puzzles WHERE id = ?1 AND conversation_id = ?2').bind(puzzleId, convId).run();
+  if (!r.meta.changes) refuse(404, 'gone', 'That puzzle is already gone.');
+  return { ok: true };
+}
+
+// Totals for the admin dashboard.
+export async function puzzleStorage(env, now = Date.now()) {
+  const r = await env.DB.prepare('SELECT COUNT(*) AS n, COALESCE(SUM(size), 0) AS chars FROM player_puzzles WHERE expires_at > ?1').bind(now).first();
+  return { puzzles: r.n, chars: r.chars, capChars: PUZZLES_TOTAL_CHARS, keepDays: PUZZLE_KEEP_DAYS, perPlayer: PUZZLES_PER_PLAYER };
 }
 
 export async function setConversationStatus(env, id, status, now = Date.now()) {
@@ -423,6 +502,7 @@ export async function setConversationStatus(env, id, status, now = Date.now()) {
       db.prepare('DELETE FROM conversation_messages WHERE conversation_id = ?1').bind(id),
       db.prepare('UPDATE feedback SET conversation_id = NULL WHERE conversation_id = ?1').bind(id),
       db.prepare('DELETE FROM conversations WHERE id = ?1').bind(id),
+      db.prepare('DELETE FROM player_puzzles WHERE conversation_id = ?1').bind(id),
     ]);
     r = res[2];
   } else if (status === 'done' || status === 'open') {

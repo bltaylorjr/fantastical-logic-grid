@@ -1,0 +1,35 @@
+1
+00:00:00,250 --> 00:00:03,535
+New to logic grid puzzles?
+Here's how they work.
+
+2
+00:00:04,250 --> 00:00:07,702
+Every square in the grid pairs
+two things from the story.
+
+3
+00:00:08,250 --> 00:00:11,934
+If a clue says two things
+can't go together, mark an X.
+
+4
+00:00:12,750 --> 00:00:15,275
+If they must go together, mark
+an O.
+
+5
+00:00:15,750 --> 00:00:20,490
+Each row has exactly one O, so
+the rest of that row is all X.
+
+6
+00:00:21,250 --> 00:00:24,013
+Fill in every square, and the
+case is closed!
+
+7
+00:00:24,750 --> 00:00:27,871
+Try one free at
+thelogicgrid.com!
+

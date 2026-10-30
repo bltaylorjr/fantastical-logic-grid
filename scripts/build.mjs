@@ -80,7 +80,8 @@ if (!process.env.FLG_NO_MINIFY) {
   // solver and generator run thousands of times per puzzle and obfuscating
   // them would make puzzles about 65% slower to make; these cost nothing.
   const OBFUSCATE = new Set(['engine/storylines.js', 'engine/more-stories.js', 'engine/topics.js', 'engine/story.js', 'engine/themes.js',
-    'engine/language.js', 'engine/clues.js', 'engine/house-tuning.js', 'js/castbook.js'].map((f) => join(out, f)));
+    'engine/language.js', 'engine/clues.js', 'engine/house-tuning.js', 'js/castbook.js',
+    ...readdirSync(join(out, 'engine')).filter((n) => /^more-topics.*\.js$/.test(n)).map((n) => `engine/${n}`)].map((f) => join(out, f)));
   const { default: JavaScriptObfuscator } = await import('javascript-obfuscator');
   for (const p of own) {
     const loader = p.endsWith('.css') ? 'css' : 'js';

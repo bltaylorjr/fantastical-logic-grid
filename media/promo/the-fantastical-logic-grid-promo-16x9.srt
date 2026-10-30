@@ -1,9 +1,9 @@
 1
-00:00:00,250 --> 00:00:02,027
+00:00:00,250 --> 00:00:02,020
 Every puzzle tells a story.
 
 2
-00:00:02,047 --> 00:00:04,108
+00:00:02,040 --> 00:00:04,027
 And every story is brand new.
 
 3
@@ -11,89 +11,103 @@ And every story is brand new.
 Welcome to The Fantastical Logic Grid!
 
 4
-00:00:10,250 --> 00:00:11,940
-Pick from fourteen worlds.
+00:00:10,250 --> 00:00:12,007
+Pick from twenty-two worlds.
 
 5
-00:00:11,960 --> 00:00:18,217
-Spooky mysteries, secret agents, fantasy and sci-fi,
-Around Town, National Parks, and more.
+00:00:12,027 --> 00:00:18,014
+Spooky mysteries, fantasy and sci-fi, astronomy,
+music, science, the high seas, and more.
 
 6
-00:00:18,750 --> 00:00:23,537
+00:00:18,750 --> 00:00:24,555
 Then choose your challenge, from Basic all the way
-up to Quantum Physicist.
+up to the brand new Theoretical Physicist.
 
 7
-00:00:24,250 --> 00:00:28,332
+00:00:25,250 --> 00:00:29,275
 Press Generate, and a one-of-a-kind story is written
 just for you.
 
 8
-00:00:28,352 --> 00:00:30,712
+00:00:29,295 --> 00:00:31,655
 No two cases are ever the same.
 
 9
-00:00:31,250 --> 00:00:35,279
+00:00:32,250 --> 00:00:35,993
 Meet the characters, and hear the clues they
 remember, read aloud.
 
 10
-00:00:35,750 --> 00:00:41,583
+00:00:36,750 --> 00:00:42,583
 Then dive into the grid. Mark an X to rule something
 out, and an O to lock in a match.
 
 11
-00:00:42,250 --> 00:00:46,673
+00:00:43,250 --> 00:00:47,673
 Stuck? Smart hints guide you step by step, without
 spoiling the fun.
 
 12
-00:00:47,250 --> 00:00:50,300
+00:00:48,250 --> 00:00:51,300
 Every section you finish brings the scene to life,
 
 13
-00:00:50,320 --> 00:00:51,991
+00:00:51,320 --> 00:00:52,991
 until you crack the case!
 
 14
-00:00:52,750 --> 00:00:55,023
+00:00:53,750 --> 00:00:56,023
 Race friends on the very same puzzle.
 
 15
-00:00:55,043 --> 00:00:58,512
+00:00:56,043 --> 00:00:59,566
 Share a code, or challenge any player by screen
 name.
 
 16
-00:00:59,250 --> 00:01:04,286
+00:01:00,250 --> 00:01:05,212
 Every solve earns points, so climb the weekly
 scoreboard and claim the top spot!
 
 17
-00:01:04,750 --> 00:01:06,809
-Print any puzzle with its answer key.
+00:01:05,750 --> 00:01:10,625
+Play the daily puzzle, keep your streak alive, and
+collect badges along the way.
 
 18
-00:01:06,829 --> 00:01:12,141
+00:01:11,250 --> 00:01:13,485
+Got a story of your own? Suggest it.
+
+19
+00:01:13,505 --> 00:01:18,808
+If it's approved, it joins the game, and you get the
+very first puzzle made from it.
+
+20
+00:01:19,250 --> 00:01:21,309
+Print any puzzle with its answer key.
+
+21
+00:01:21,329 --> 00:01:26,641
 Your progress saves automatically, and a free
 account syncs it across your devices.
 
-19
-00:01:12,750 --> 00:01:18,135
+22
+00:01:27,250 --> 00:01:32,510
 Play in light, dark, or high contrast, with full
 keyboard and screen reader support.
 
-20
-00:01:18,750 --> 00:01:22,922
+23
+00:01:33,250 --> 00:01:37,424
 Play free in your browser, or install the Windows
 desktop app.
 
-21
-00:01:24,750 --> 00:01:26,797
+24
+00:01:39,250 --> 00:01:41,297
 The Fantastical Logic Grid.
 
-22
-00:01:26,817 --> 00:01:30,609
+25
+00:01:41,317 --> 00:01:45,109
 Your next case is waiting at thelogicgrid.com!
 

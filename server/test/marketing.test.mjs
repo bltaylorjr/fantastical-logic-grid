@@ -93,7 +93,7 @@ test('the daily poster gets the approved ads due by a day, and reports each one'
   const r = await call('/admin/v1/marketing/due?day=2026-11-03', { auth: admin() });
   assert.equal(r.status, 200);
   assert.equal(r.body.autopost, true);
-  assert.deepEqual(r.body.ads.map((a) => `${a.postOn} ${a.channel}`).sort(), ['2026-11-02 email', '2026-11-03 bluesky', '2026-11-03 linkedin']);
+  assert.deepEqual(r.body.ads.map((a) => `${a.postOn} ${a.channel}`).sort(), ['2026-11-01 facebook', '2026-11-02 email', '2026-11-02 instagram', '2026-11-02 tiktok', '2026-11-02 youtube', '2026-11-03 bluesky', '2026-11-03 linkedin']);
   const sky = r.body.ads.find((a) => a.channel === 'bluesky');
   assert.ok(sky.words.includes('utm_source=bluesky') && !sky.words.includes('{link}'), 'link filled in');
   assert.ok(sky.media.length && sky.media.every((m) => /^https:/.test(m.url)), 'files listed with their links');
@@ -107,7 +107,7 @@ test('the daily poster gets the approved ads due by a day, and reports each one'
   assert.ok(row.posted_at > 0);
   assert.equal((await call(`/admin/v1/marketing/ads/${sky.id}/auto`, { auth: admin(), body: { ok: true } })).status, 409, 'never posted twice');
   const after = await call('/admin/v1/marketing/due?day=2026-11-03', { auth: admin() });
-  assert.equal(after.body.ads.length, 2, 'posted ads leave the list');
+  assert.equal(after.body.ads.length, 6, 'posted ads leave the list');
   // Back to approved for the tests below.
   await db.prepare("UPDATE campaign_ads SET status = 'approved', post_url = NULL, posted_at = NULL, auto_note = NULL WHERE id = ?1").bind(sky.id).run();
 });
