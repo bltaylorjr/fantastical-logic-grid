@@ -42,7 +42,7 @@ jobs:
           f=$(ls sarif/*.sarif | head -1)
           jq -r '.runs[0].results[] | select(true) |
             "\(.ruleId) SINK \(.locations[0].physicalLocation.artifactLocation.uri):\(.locations[0].physicalLocation.region.startLine) <= " +
-            ([.codeFlows[0].threadFlows[0].locations[] | "\(.location.physicalLocation.artifactLocation.uri):\(.location.physicalLocation.region.startLine)"] | join(" > "))' "$f" > paths.txt || true
+            ([.codeFlows[0].threadFlows[0].locations[] | "\(.location.physicalLocation.artifactLocation.uri):\(.location.physicalLocation.region.startLine)"] | .[-8:] | join(" > "))' "$f" > paths.txt || true
           wc -l paths.txt
           i=0
           while IFS= read -r line; do i=$((i+1)); echo "::notice title=Path $i::${line:0:900}"; done < <(sort -u paths.txt | head -40)

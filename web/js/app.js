@@ -662,7 +662,7 @@ function startRename(li, save) {
   const h = li.querySelector('.name');
   const form = document.createElement('form');
   form.className = 'field';
-  form.innerHTML = `<label for="rn-${save.id}">New name</label><input id="rn-${save.id}" type="text" value="${esc(save.name)}"><div class="row"><button class="btn primary small">Save name</button><button class="btn small" type="button">Keep old name</button></div>`;
+  form.innerHTML = `<label for="rn-${esc(save.id)}">New name</label><input id="rn-${esc(save.id)}" type="text" value="${esc(save.name)}"><div class="row"><button class="btn primary small">Save name</button><button class="btn small" type="button">Keep old name</button></div>`;
   h.replaceWith(form);
   const input = form.querySelector('input');
   input.focus();
