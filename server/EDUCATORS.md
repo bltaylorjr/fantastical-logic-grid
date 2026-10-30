@@ -35,6 +35,18 @@ link sits in the top corner of the game page, "For educators".
    `answer-keys.pdf` to the verified address. Package stories are never used
    twice: the Worker keeps every sent story id and hands them to the builder.
 
+5. **Ideas, problems, feedback and a survey** (`educators/feedback/`, website
+   only, not in search). The package email carries a private link
+   (`?ref=&key=`) that opens the educator's own section once the PDFs are sent:
+   a 2-minute survey on how they used the puzzles and what would help them
+   (questions in `EDUCATOR_SURVEY`, `engine/src/classroom.js`) and a box for
+   an idea, a problem or feedback, with the team's answers shown under it.
+   The key is kept only until the package is marked sent, then only its hash.
+   In the admin dashboard, **Educator feedback** lists the notes apart from
+   players' notes; **Answer** marks one answered and emails the educator the
+   answer (write it in plain, everyday words). **Survey results** counts each
+   answer and lists the comments.
+
 ## What suits each grade
 
 | Grades | Levels offered first | Grid | Story |
