@@ -57,13 +57,14 @@ async function cached(key, make) {
   return p;
 }
 
-let picturesOffUntil = 0;
+// Each kind rests on its own: scenes switched off must not stop the faces.
+const picturesOffUntil = {};
 async function serverPicture(prompt, kind) {
-  if (Date.now() < picturesOffUntil) throw new Error('AI pictures are resting for now.');
+  if (Date.now() < (picturesOffUntil[kind] || 0)) throw new Error('AI pictures are resting for now.');
   const res = await fetch(`${CLOUD_URL}/v1/picture`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt, kind }) });
   if (!res.ok) {
     // Used up for today, switched off or not set up: try again in a few hours.
-    picturesOffUntil = Date.now() + (res.status === 429 || res.status === 503 ? 3 * 3600_000 : 600_000);
+    picturesOffUntil[kind] = Date.now() + (res.status === 429 || res.status === 503 ? 3 * 3600_000 : 600_000);
     let msg = `${res.status}`;
     try { msg = (await res.json()).error || msg; } catch (e) { /* keep status */ }
     throw new Error(msg);
@@ -106,10 +107,41 @@ export function characterImage(c) {
   });
 }
 
+// A lifelike photo of whoever is speaking, for the talking faces
+// (talking-face.js). The same character has the same face in every story, so
+// it is painted once for everyone (the server keeps it) and once per device.
+// Animal casts have no photo.
+const AGES = ['in their twenties', 'in their thirties', 'in their forties', 'in their fifties', 'in their sixties', 'in their seventies'];
+export const facesReady = () => !!CLOUD_URL && feature('talkingFaces');
+export function faceImage(puzzle, who) {
+  if (!facesReady()) return Promise.reject(new Error('Talking faces are off.'));
+  const own = who === 'narrator' ? narratorOf(puzzle) : characterOf(puzzle, who);
+  let prompt;
+  if (own) {
+    prompt = `A ${own.gender === 'f' ? 'woman' : 'man'} named ${own.name}${own.look ? `, ${own.look}` : ''}${own.role ? `, a ${own.role}` : ''}, with a friendly closed-mouth expression.`;
+  } else if (who === 'narrator') {
+    prompt = 'A warm, friendly storyteller, a man in his fifties with kind eyes and a neat beard, with a gentle closed-mouth smile.';
+  } else {
+    if (puzzle.theme.id === 'pets' && /pet|animal|dog|cat/i.test(`${puzzle.cast && puzzle.cast.many}`)) return Promise.reject(new Error('Animals have no photo.'));
+    const p = profileOf(who);
+    const first = String(who).split(/\s+/)[0];
+    const age = AGES[hashOf(`age:${first}`) % AGES.length].replace('their', p.gender === 'f' ? 'her' : 'his');
+    prompt = `A ${p.gender === 'f' ? 'woman' : 'man'} ${age} named ${first}, whose personality is ${p.label.toLowerCase()}: someone who ${p.about}. A closed-mouth expression that suits them.`;
+  }
+  return cached(`face|${hashOf(prompt)}|${prompt.length}`, () => serverPicture(prompt, 'face'));
+}
+
 // ---------------------------------------------------------------------------
 // Voice
 // ---------------------------------------------------------------------------
 let current = null;
+
+// Who is speaking, for the talking faces: listener({ who, blob, audio }) as
+// a natural-voice clip starts, ({ who, device: true }) when a device voice
+// starts, and ({ who, done: true }) when it ends or is stopped.
+let onSpeech = null;
+export const listenToSpeech = (fn) => { onSpeech = fn; };
+const tell = (e) => { try { if (onSpeech) onSpeech(e); } catch (err) { /* talking faces are optional */ } };
 
 function hashOf(text) { let h = 7; for (const c of text) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h; }
 
@@ -280,6 +312,7 @@ export function speechChunks(text) {
 
 export function stopSpeaking() {
   speakToken++;
+  tell({ who: null, done: true });
   if (current) { try { current.pause(); } catch (e) { /* ignore */ } current = null; }
   try { if (window.speechSynthesis) speechSynthesis.cancel(); } catch (e) { /* ignore */ }
 }
@@ -360,30 +393,32 @@ export function warmVoice(settings, puzzle, who, text) {
   if (first) clip(plan, first).catch(() => {});
 }
 
-function playBlob(blob, volume, token) {
+function playBlob(blob, volume, token, who) {
   return new Promise((resolve, reject) => {
     if (token !== speakToken) { resolve(false); return; }
     const url = URL.createObjectURL(blob);
     const audio = new Audio(url);
     audio.volume = volume;
     current = audio;
-    const done = (ok) => { URL.revokeObjectURL(url); if (current === audio) current = null; resolve(ok); };
+    tell({ who, blob, audio });
+    const done = (ok) => { URL.revokeObjectURL(url); if (current === audio) current = null; tell({ who, done: true }); resolve(ok); };
     audio.onended = () => done(true);
     // Browsers fire 'pause' just before 'ended' when a clip finishes, so only
     // a pause before the end means the player stopped it.
     audio.onpause = () => { if (!audio.ended) done(false); };
-    audio.play().catch((e) => { URL.revokeObjectURL(url); reject(e); });
+    audio.play().catch((e) => { URL.revokeObjectURL(url); tell({ who, done: true }); reject(e); });
   });
 }
-function speakDevice(text, seed, who, volume, token) {
+function speakDevice(text, seed, who, volume, token, face = who) {
   if (!window.speechSynthesis || token !== speakToken) return Promise.resolve(false);
   const v = deviceVoice(seed, who === 'narrator', who);
+  tell({ who: face, device: true });
   // One utterance per sentence gives a natural pause between sentences.
   const parts = text.split(/(?<=[.!?]["”’)]?)\s+/).filter(Boolean);
   return new Promise((resolve) => {
     // Some browsers never report the end of speech; don't wait forever.
     const timer = setTimeout(() => resolve(token === speakToken), 4000 + text.length * 120);
-    const end = () => { clearTimeout(timer); resolve(token === speakToken); };
+    const end = () => { clearTimeout(timer); tell({ who: face, done: true }); resolve(token === speakToken); };
     parts.forEach((part, i) => {
       const u = new SpeechSynthesisUtterance(part);
       if (v) u.voice = v;
@@ -432,9 +467,9 @@ async function say(settings, puzzle, who, text, volume, token) {
   }
   const plan = voicePlan(settings, puzzle, who);
   const speaker = plan.speaker || who;
-  if (plan.kind === 'device') return speakDevice(clean, plan.seed, speaker, volume, token);
+  if (plan.kind === 'device') return speakDevice(clean, plan.seed, speaker, volume, token, who);
   if (plan.kind === 'kokoro' && kokoroLoading()) {
-    try { await kokoroDownload(); } catch (e) { return speakDevice(clean, plan.seed, speaker, volume, token); }
+    try { await kokoroDownload(); } catch (e) { return speakDevice(clean, plan.seed, speaker, volume, token, who); }
     if (token !== speakToken) return false;
   }
   const parts = speechChunks(clean);
@@ -452,16 +487,16 @@ async function say(settings, puzzle, who, text, volume, token) {
       if (token !== speakToken) return false;
       if (plan.kind === 'cloud') return say({ ...settings, noServerVoices: true }, puzzle, who, rest(i), volume, token);
       console.warn('Natural voice unavailable, using device voice:', e.message);
-      return speakDevice(rest(i), plan.seed, speaker, volume, token);
+      return speakDevice(rest(i), plan.seed, speaker, volume, token, who);
     }
     try {
-      if (!(await playBlob(blob, volume, token))) return false;
+      if (!(await playBlob(blob, volume, token, who))) return false;
       // A short breath between sentences, as a reader would take.
       if (plan.gap && i < parts.length - 1) await new Promise((r) => setTimeout(r, plan.gap));
     } catch (e) {
       if (token !== speakToken || (e && e.name === 'NotAllowedError')) return false;
       console.warn('Voice clip did not play, using device voice:', e && e.message);
-      return speakDevice(rest(i), plan.seed, speaker, volume, token);
+      return speakDevice(rest(i), plan.seed, speaker, volume, token, who);
     }
   }
   return token === speakToken;

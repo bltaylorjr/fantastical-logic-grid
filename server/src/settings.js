@@ -95,6 +95,7 @@ export const SETTINGS = {
   character_narrator_chance: { type: 'int', min: 0, max: 100, default: 50, group: 'Characters', label: 'How often a character tells the story (percent)', help: 'Only for characters set as narrator, in their themes.' },
   character_model: { type: 'model', default: '@cf/meta/llama-3.1-8b-instruct-fast', group: 'Characters', label: 'Workers AI model that drafts character lines', help: 'Free on Workers AI\'s daily allowance, shared with AI pictures and translations. Change it here when Cloudflare retires a model.' },
   character_draft_cap: { type: 'int', min: 0, max: 200, default: 40, group: 'Characters', label: 'AI line drafts a day', help: 'Each press of Draft lines counts one. AI portraits count toward New AI pictures a day.' },
+  talking_faces: { type: 'bool', default: true, group: 'Characters', label: 'Talking faces', help: 'The character who is speaking appears in a lifelike photo and their lips move with their voice while clues and lines are read aloud. Each face is painted once by Workers AI (free, counts toward New AI pictures a day) and kept for every player; the lip movement runs on the player\'s device. Players can turn it off in Settings.' },
   character_suggest_enabled: { type: 'bool', default: true, group: 'Characters', label: 'Players can suggest characters', help: 'Menu > Suggest a character in the game asks a few questions. Suggestions wait in the Characters section and nobody sees them until you publish.' },
   character_suggest_cap: { type: 'int', min: 0, max: 500, default: 50, group: 'Characters', label: 'Character suggestions a day', help: 'For everyone together; each connection can also send only a few a minute.' },
   // ---- Play
@@ -302,7 +303,7 @@ export async function publicConfig(req, env) {
     features: {
       races: s.races_enabled, scores: s.scores_enabled, names: s.names_enabled, nameApproval: s.names_need_approval, voices: s.tts_enabled,
       storySharing: s.story_sharing_enabled, learning: s.learning_enabled, errorReports: s.error_reports_enabled,
-      feedback: s.feedback_enabled, feedbackReplies: s.feedback_replies_enabled, soundEffects: s.sound_effects_enabled, music: s.theme_music_enabled, pictures: s.ai_pictures !== 'none',
+      feedback: s.feedback_enabled, feedbackReplies: s.feedback_replies_enabled, soundEffects: s.sound_effects_enabled, music: s.theme_music_enabled, pictures: s.ai_pictures !== 'none', talkingFaces: s.talking_faces,
       translate: s.translate_enabled, messages: s.messages_enabled, challenges: s.challenges_enabled, dailyResults: s.daily_results_enabled, dailyEmail: s.daily_email_enabled,
       printPacks: s.print_packs_enabled, biometrics: s.biometric_signin_enabled,
       ...(await licenseConfig(env, s)),
