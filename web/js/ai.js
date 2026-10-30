@@ -40,6 +40,7 @@ const THEME_SETTING = {
   chemistry: 'a gleaming chemistry lab with colorful flasks, flame tests and a periodic table on the wall',
   astronomy: 'a dark hilltop at night with telescopes, a glowing Milky Way, planets and a crescent moon',
   paradox: 'a surreal dreamscape of impossible staircases, floating doors and melting clocks under morphing gradient skies',
+  seasons: 'a mountain valley shown through the four seasons, autumn leaves, winter snow, spring blossoms and a sunny summer lake',
 };
 
 // The server adds the picture style; this says what to paint.

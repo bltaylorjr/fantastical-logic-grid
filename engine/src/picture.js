@@ -586,6 +586,89 @@ export const PICTURES = {
       '...####...',
     ] },
   ],
+  // Seasons: two pictures per season; `topic` keeps a snowflake out of summer.
+  seasons: [
+    { name: 'a maple leaf', topic: 'fall', rows: [
+      '...##...',
+      '.#.##.#.',
+      '.######.',
+      '########',
+      '.######.',
+      '..####..',
+      '...##...',
+      '...##...',
+    ] },
+    { name: 'a pumpkin', topic: 'fall', rows: [
+      '...##...',
+      '....#...',
+      '.######.',
+      '########',
+      '##.##.##',
+      '########',
+      '#.#..#.#',
+      '.######.',
+    ] },
+    { name: 'a snowflake', topic: 'winter', rows: [
+      '...#....',
+      '.#.#.#..',
+      '..###...',
+      '#######.',
+      '..###...',
+      '.#.#.#..',
+      '...#....',
+      '........',
+    ] },
+    { name: 'a snowman', topic: 'winter', rows: [
+      '..###...',
+      '..###...',
+      '.#####..',
+      '..###...',
+      '.#####..',
+      '#######.',
+      '#######.',
+      '.#####..',
+    ] },
+    { name: 'a flower', topic: 'spring', rows: [
+      '..#.#...',
+      '.#####..',
+      '..###...',
+      '.#####..',
+      '..#.#...',
+      '...#....',
+      '.#.#.#..',
+      '..###...',
+    ] },
+    { name: 'an umbrella', topic: 'spring', rows: [
+      '..####..',
+      '.######.',
+      '########',
+      '...#....',
+      '...#....',
+      '...#....',
+      '.#.#....',
+      '..#.....',
+    ] },
+    { name: 'a sailboat', topic: 'summer', rows: [
+      '...#....',
+      '...##...',
+      '...###..',
+      '...####.',
+      '...#....',
+      '########',
+      '.######.',
+      '..####..',
+    ] },
+    { name: 'an ice pop', topic: 'summer', rows: [
+      '..####..',
+      '.######.',
+      '.######.',
+      '.######.',
+      '.######.',
+      '.######.',
+      '...##...',
+      '...##...',
+    ] },
+  ],
 };
 
 // The biggest picture (squares across or down) for each level.
@@ -668,7 +751,10 @@ export function pictureClue(puzzle, pictures = PICTURES) {
   if (!puzzle.clues || puzzle.clues.length < 4) return null;
   const max = TIER_SIZE[puzzle.difficulty && puzzle.difficulty.id] || 12;
   const fits = (list) => (list || []).filter((pic) => sizeOf(pic) <= max);
-  const list = [fits(pictures[puzzle.theme.id]), fits(pictures.default), fits(pictures.small), pictures.small || pictures.default].find((l) => l && l.length);
+  // A picture with a `topic` only shows in that topic's puzzles.
+  const topicId = puzzle.topic && puzzle.topic.id;
+  const own = (pictures[puzzle.theme.id] || []).filter((pic) => !pic.topic || pic.topic === topicId);
+  const list = [fits(own), fits(pictures.default), fits(pictures.small), pictures.small || pictures.default].find((l) => l && l.length);
   const seed = hashString(`picture|${puzzle.story.id}`);
   const picture = list[seed % list.length];
   const firstUse = new Map();
