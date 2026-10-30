@@ -38,6 +38,7 @@ const THEME_SETTING = {
   math: 'a chalkboard classroom covered in equations, shapes and number puzzles, warm lamplight',
   biology: 'a lush nature field station by a pond with butterflies, frogs, microscopes and field notebooks',
   chemistry: 'a gleaming chemistry lab with colorful flasks, flame tests and a periodic table on the wall',
+  astronomy: 'a dark hilltop at night with telescopes, a glowing Milky Way, planets and a crescent moon',
   paradox: 'a surreal dreamscape of impossible staircases, floating doors and melting clocks under morphing gradient skies',
 };
 
