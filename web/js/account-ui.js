@@ -3,6 +3,9 @@
 import * as account from './account.js';
 import * as sync from './sync.js';
 import * as store from './store.js';
+import * as biometric from './biometric.js';
+import * as idle from './idle.js';
+import { feature } from './remote-config.js';
 import { esc } from './grid.js';
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -11,6 +14,12 @@ const dlg = () => $('#dlg-account');
 const TITLES = { signin: 'Sign in', signup: 'Create an account', reset: 'Reset your password', account: 'Your account', signout: 'Sign out?' };
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 let ui = null;
+// Where to pick up after an idle sign-out: { uid, email, saveId }.
+const RESUME = 'resumeAfterSignIn';
+const bioOn = () => feature('biometrics');
+let starting = false;
+let leaving = false;
+let countdown = null;
 
 export function signedIn() { return !!(account.enabled() && account.current()); }
 
@@ -31,14 +40,116 @@ export async function initAccounts(hooks) {
     },
   });
   renderStatus(sync.status());
+  account.onChange((user) => { if (user) resumeIfWaiting(user); });
+  wireIdle();
+  starting = true;
+  try { await idle.init({ onWarn: warnIdle, onIdle: () => idleSignOut() }); } finally { starting = false; }
+}
+
+// ------------------------------------------------------- idle sign-out
+const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+function wireIdle() {
+  const d = $('#dlg-idle');
+  $('#idle-stay').onclick = () => d.close();
+  $('#idle-out').onclick = () => { leaving = true; d.close(); idleSignOut({ byHand: true }); };
+  d.addEventListener('close', () => {
+    clearInterval(countdown);
+    if (!leaving) idle.touch();
+    leaving = false;
+  });
+}
+
+function warnIdle(msLeft) {
+  const d = $('#dlg-idle');
+  const end = Date.now() + msLeft;
+  const tick = () => {
+    const secs = Math.max(0, Math.ceil((end - Date.now()) / 1000));
+    $('#idle-left').textContent = secs > 60 ? plural(Math.ceil(secs / 60), 'minute') : plural(secs, 'second');
+  };
+  tick();
+  clearInterval(countdown);
+  countdown = setInterval(tick, 1000);
+  if (!d.open) ui.openDialog(d, $('#idle-stay'));
+}
+
+// Saves and syncs everything first, then signs out. With fingerprint or face
+// sign-in on, the session is kept locked on this device for the device check.
+async function idleSignOut({ byHand = false } = {}) {
+  const user = account.current();
+  if (!user) return;
+  const d = $('#dlg-idle');
+  if (d.open) { leaving = true; d.close(); }
+  const atStart = starting;
+  const saveId = await ui.leavePuzzle().catch(() => null);
+  await Promise.race([sync.syncNow().catch(() => {}), new Promise((r) => setTimeout(r, 6000))]);
+  if (account.current()?.uid !== user.uid) return; // signed out meanwhile
+  store.setLocal(RESUME, { uid: user.uid, email: user.email, saveId: saveId || (atStart ? 'latest' : null) });
+  account.lock({ keep: bioOn() && biometric.enrolledFor(user.uid) });
+  const mins = idle.minutes();
+  const why = byHand
+    ? 'Signed out. Your progress is saved; sign back in to pick up where you left off.'
+    : `You were signed out after ${plural(mins, 'minute')} without any activity, to keep your account safe. Your progress is saved; sign back in to pick up where you left off.`;
+  if (atStart) { ui.toast(why, { label: 'Sign in', run: () => openAccount() }, { ms: 12000 }); return; }
+  $$('dialog[open]').forEach((x) => { if (x !== dlg()) x.close(); });
+  openAccount({ note: why });
+}
+
+// Opens the puzzle the player was on before an idle sign-out, once the same
+// player is back.
+function resumeIfWaiting(user) {
+  const r = store.getLocal(RESUME);
+  if (!r) return;
+  store.setLocal(RESUME, undefined);
+  if (r.uid !== user.uid || !r.saveId) return;
+  if (dlg().open) dlg().close();
+  ui.resume(r.saveId);
+}
+
+async function renderBio() {
+  const user = account.current();
+  const mins = idle.minutes();
+  $('#acct-idle').hidden = !mins;
+  $('#acct-idle').textContent = `For your safety, you are signed out after ${plural(mins, 'minute')} without any activity. Your progress is saved first, and the puzzle you were on opens again when you sign back in.`;
+  const can = !!(user && bioOn() && await biometric.available());
+  $('#acct-bio').hidden = !can;
+  if (can) $('#acct-bio-on').checked = biometric.enrolledFor(user.uid);
+}
+
+async function turnOnBio(msg) {
+  const user = account.current();
+  try {
+    await biometric.enroll(user);
+    msg('Fingerprint or face sign-in is on for this device. When you are signed out, use it instead of typing your password.');
+    return true;
+  } catch (err) { msg(err.message); return false; }
+}
+
+// After a password sign-in, offer the device check once if it is not on yet.
+async function offerBio() {
+  const user = account.current();
+  if (!user || !bioOn() || biometric.enrolledFor(user.uid) || !(await biometric.available())) return;
+  ui.toast('Sign in faster next time with your fingerprint or face?', { label: 'Turn on', run: () => turnOnBio((t) => ui.toast(t)) }, { ms: 12000 });
+}
+
+function renderSignin() {
+  const lockedAcc = account.lockedAccount();
+  const bio = !!(lockedAcc && bioOn() && biometric.enrolledFor(lockedAcc.uid));
+  $('#si-bio-box').hidden = !bio;
+  $('#si-bio-error').hidden = true;
+  $('#si-bio-who').textContent = bio ? `As ${lockedAcc.email}. Or sign in with your password below.` : '';
+  const email = $('#si-email');
+  const known = (lockedAcc && lockedAcc.email) || (store.getLocal(RESUME) || {}).email;
+  if (known && !email.value) email.value = known;
 }
 
 // Called when the player comes back to the home screen: changes held back
 // while a puzzle was open can now be applied.
 export function onHome() { if (signedIn()) sync.schedule(0); }
 
-export function openAccount() {
+export function openAccount({ note } = {}) {
   show(account.current() ? 'account' : 'signin');
+  if (note && !account.current()) $('#si-idle').textContent = note;
   ui.openDialog(dlg(), null);
   focusView();
 }
@@ -87,13 +198,16 @@ function show(view) {
     $('#del-pass').value = '';
     $('.acct-danger').open = false;
     renderStatus(sync.status());
+    renderBio();
   }
+  if (view === 'signin') renderSignin();
   if (view === 'signout') $('#so-clear').checked = false;
   dlg().dataset.current = view;
 }
 
 function focusView() {
   const v = $(`.acct-view[data-view="${dlg().dataset.current}"]`);
+  if (!$('#si-bio-box').hidden && v.dataset.view === 'signin') { $('#si-bio').focus(); return; }
   const first = $('input:not([type=checkbox])', v);
   (first && !first.value ? first : $('button[type=submit], button', v))?.focus();
 }
@@ -158,11 +272,37 @@ function wireDialog() {
       try {
         await account.signIn(email, pass.value, { remember: $('[data-remember]', signinForm).checked });
         pass.value = '';
-        show('account');
-        focusView();
+        if (dlg().open) { show('account'); focusView(); }
         ui.toast('Signed in. Your puzzles will now sync across your devices.');
+        setTimeout(offerBio, 1500);
       } catch (err) { fail(signinForm, err.message, err.code === 'INVALID_EMAIL' ? $('#si-email') : pass); }
     });
+  };
+
+  $('#si-bio').onclick = async () => {
+    const btn = $('#si-bio');
+    const box = $('#si-bio-error');
+    const lockedAcc = account.lockedAccount();
+    if (!lockedAcc) { renderSignin(); return; }
+    btn.disabled = true;
+    box.hidden = true;
+    try {
+      await biometric.verify(lockedAcc.uid);
+      await account.unlock();
+      if (d.open) d.close();
+      ui.toast('Signed in. Welcome back.');
+    } catch (err) {
+      box.textContent = err.message || 'That did not work. Use your password instead.';
+      box.hidden = false;
+      if (!account.lockedAccount()) { $('#si-bio').hidden = true; $('#si-bio-who').textContent = ''; } // the saved session ran out: password only
+    } finally { btn.disabled = false; }
+  };
+
+  $('#acct-bio-on').onchange = async (e) => {
+    const box = e.target;
+    const msg = (t) => { $('#acct-bio-msg').textContent = t; };
+    if (box.checked) box.checked = await turnOnBio(msg);
+    else { biometric.forget(); msg('Turned off. Sign in with your password on this device.'); }
   };
 
   const signupForm = $('[data-view=signup]', d);
@@ -217,7 +357,9 @@ function wireDialog() {
         return;
       }
       account.signOut();
+      store.setLocal(RESUME, undefined);
       if (clear) {
+        biometric.forget();
         await store.clearSavesOnDevice();
         await sync.forget();
       }
@@ -235,6 +377,8 @@ function wireDialog() {
     busy(delForm, 'Deleting…', async () => {
       try {
         await account.deleteAccount(pass.value, (token) => sync.deleteRemote(token));
+        biometric.forget();
+        store.setLocal(RESUME, undefined);
         await sync.forget();
         d.close();
         ui.onSavesChanged();

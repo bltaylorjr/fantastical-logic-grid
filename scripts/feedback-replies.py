@@ -3,16 +3,19 @@ GitHub Action .github/workflows/feedback-replies.yml every 15 minutes (the
 domain's DNS is not on Cloudflare, so the Worker cannot send email itself).
 
 1. Ask the Worker for the notes waiting (POST /admin/v1/replies/claim).
-2. Send each one from noreply@thelogicgrid.com through Resend (free plan:
+2. Send each one from support@thelogicgrid.com (team-message notices from
+   noreply@thelogicgrid.com, since players answer those in the game) through Resend (free plan:
    100 a day, 3,000 a month) when RESEND_API_KEY is set and the domain is
    verified there. Anything Resend does not take goes from the game's Gmail
-   (smtp.gmail.com, an app password) with a "(no-reply)" sender name
-   instead. The wording is fixed; thank-you and update emails also quote
+   (smtp.gmail.com, an app password) instead. Replies go to MAIL_REPLY_TO. The wording is fixed; thank-you and update emails also quote
    what the player wrote (and, for an update, the team's note on what was
    done). They only ever go to the player's own confirmed address.
-   An approved storyline's email also attaches the first puzzle made with it
-   as a PDF with its answer key (scripts/contributor-puzzle.mjs, printed by
-   Chromium through Playwright, installed only when one is waiting).
+   An approved storyline's email ("Congratulations") first has its puzzle
+   built from the player's storyline (scripts/storyline-puzzle.mjs), stored in
+   their game (POST /admin/v1/replies/puzzle), then attached as a PDF with its
+   answer key (scripts/contributor-puzzle.mjs, printed by Chromium through
+   Playwright, installed only when one is waiting). A disapproved storyline's
+   email thanks the player for their input.
 3. Tell the Worker which went out (POST /admin/v1/replies/done), which
    removes their email addresses.
 
@@ -42,11 +45,22 @@ TOKEN = os.environ.get('FLG_ADMIN_TOKEN', '').strip()
 GMAIL_USER = os.environ.get('GMAIL_USER', '').strip()
 GMAIL_PASSWORD = ''.join(os.environ.get('GMAIL_APP_PASSWORD', '').split())
 RESEND_KEY = os.environ.get('RESEND_API_KEY', '').strip()
-MAIL_FROM = os.environ.get('MAIL_FROM', '').strip() or 'noreply@thelogicgrid.com'
+MAIL_FROM = os.environ.get('MAIL_FROM', '').strip() or 'support@thelogicgrid.com'
+# Replies to player emails land here until support@ has its own inbox (MAIL_REPLY_TO overrides).
+REPLY_TO = os.environ.get('MAIL_REPLY_TO', '').strip() or 'fantasticallogicgrid@gmail.com'
+# One-way emails (nothing to answer) go from here, with no Reply-To.
+MAIL_NOREPLY = os.environ.get('MAIL_NOREPLY', '').strip() or 'noreply@thelogicgrid.com'
 GAME_URL = 'https://thelogicgrid.com'
-SENDER_NAME = 'The Fantastical Logic Grid (no-reply)'
-NO_REPLY = ('This is an automatic message from a no-reply address. Please do not reply to it: '
-            'replies are not read. To share another idea or report a problem, use Menu > Ideas and problems in the game.')
+SENDER_NAME = 'The Fantastical Logic Grid'
+NO_REPLY = ('Questions? Just reply to this email. To share another idea or report a problem, '
+            'use Menu > Ideas and problems in the game.')
+ONE_WAY = ('This is an automatic message from a no-reply address, so replies are not read. '
+           'To answer the team, open the game and choose Menu > Messages.')
+ONE_WAY_KINDS = {'message'}  # sent from MAIL_NOREPLY; everything else from MAIL_FROM
+
+
+def footer(r):
+    return ONE_WAY if r['kind'] in ONE_WAY_KINDS else NO_REPLY
 
 SIGN_OFF = 'The Fantastical Logic Grid team\n' + GAME_URL
 
@@ -108,18 +122,31 @@ NOTES = {
         ],
     },
     'story_approved': {
-        'subject': 'Your storyline is now a puzzle!',
+        'subject': 'Congratulations! Your storyline has been approved',
         'blocks': lambda r: [
             'Hello, puzzler!',
-            'Thank you for the storyline you sent us for The Fantastical Logic Grid. The team approved it, '
-            'and it is now part of the game.',
+            'Congratulations! Your storyline has been approved. Thank you for sending it to The Fantastical Logic Grid: '
+            'the team enjoyed it and it is now part of the game.',
             ('quote', 'Your storyline', r.get('text')),
-            ('quote', 'From the team', r.get('note')),
-            ('The first puzzle made with your storyline is attached as a PDF, with its answer key on the last page. '
-             'It is also waiting for you in the game for 30 days: sign in and open Menu > Messages > Puzzles for you, '
-             'then press Play to keep it in your saved puzzles.') if r.get('puzzle') else
-            'Open the game to find your storyline in new puzzles.',
+            ('We built the first puzzle from your storyline. It is attached as a PDF, with its answer key on the last page, '
+             'so you can print it and solve it on paper.') if r.get('_files') else '',
+            ('The same puzzle is waiting in your game, ready to play: sign in with this email address and open Saved puzzles. '
+             'It is also in Menu > Messages > Puzzles for you for 30 days.') if r.get('stored') else '',
+            '' if r.get('_files') or r.get('stored') else 'The team will use it in new puzzles. Open the game to find it.',
             'Thank you for contributing to the game\'s stories!',
+            SIGN_OFF,
+        ],
+    },
+    'story_declined': {
+        'subject': 'Thank you for your storyline',
+        'blocks': lambda r: [
+            'Hello, puzzler!',
+            'Thank you for taking the time to send us a storyline for The Fantastical Logic Grid. '
+            'We read every one, and we truly appreciate your input.',
+            ('quote', 'Your storyline', r.get('text')),
+            'This one will not be made into a puzzle, but please keep the ideas coming: '
+            'every storyline helps us shape the stories in the game.',
+            'Thank you for contributing!',
             SIGN_OFF,
         ],
     },
@@ -151,7 +178,7 @@ NOTES = {
 
 def blocks(r):
     """The email's blocks, without quotes that have no words."""
-    return [b for b in NOTES[r['kind']]['blocks'](r) if isinstance(b, str) or (b[2] or '').strip()
+    return [b for b in NOTES[r['kind']]['blocks'](r) if (isinstance(b, str) and b) or not isinstance(b, str) and (b[2] or '').strip()
             and (b[0] != 'link' or str(b[2]).startswith('https://'))]
 
 
@@ -183,7 +210,7 @@ def html_version(r):
     return ('<!doctype html><html><body style="margin:0;padding:24px;background:#f6f1e7;font-family:Arial,Helvetica,sans-serif;'
             'font-size:16px;line-height:1.5;color:#1f1a14"><div style="max-width:560px;margin:0 auto;background:#fffdf8;'
             'border-radius:10px;padding:24px">' + ''.join(parts) +
-            f'<p style="margin:20px 0 0;font-size:13px;color:#5c5246">{html.escape(NO_REPLY)}</p></div></body></html>')
+            f'<p style="margin:20px 0 0;font-size:13px;color:#5c5246">{html.escape(footer(r))}</p></div></body></html>')
 
 
 def text_version(r):
@@ -195,7 +222,7 @@ def text_version(r):
             out.append(b[1] + ':\n' + b[2])
         else:
             out.append(b[1] + ':\n' + '\n'.join('> ' + line for line in b[2].strip().split('\n')))
-    return '\n\n'.join(out) + '\n\n--\n' + NO_REPLY + '\n'
+    return '\n\n'.join(out) + '\n\n--\n' + footer(r) + '\n'
 
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -214,6 +241,40 @@ def ensure_printer():
         run('npm', 'install', '--no-save', '--no-audit', '--no-fund', 'playwright@1.63.0')
         run('npx', 'playwright', 'install', '--with-deps', 'chromium')
     PRINTER_READY = True
+
+
+def build_puzzle(r):
+    """An approved storyline that has no puzzle yet: build the first puzzle from
+    the player's words with the game's engine (scripts/storyline-puzzle.mjs),
+    store it for the player (POST /admin/v1/replies/puzzle) and keep it for the
+    PDF. If the storyline has no lists the game can read, or anything fails,
+    the email still goes, without a puzzle."""
+    if r.get('kind') != 'story_approved':
+        return
+    if isinstance(r.get('puzzle'), dict):
+        r['stored'] = True  # built and stored on an earlier try
+        return
+    if not isinstance(r.get('build'), dict) or not r.get('text'):
+        return
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            src, out = os.path.join(tmp, 'storyline.json'), os.path.join(tmp, 'puzzle.json')
+            with open(src, 'w', encoding='utf-8') as f:
+                json.dump({'text': r['text'], 'theme': r['build'].get('theme') or '', 'seed': f'story-{r["id"]}'}, f)
+            done = subprocess.run(['node', os.path.join(ROOT, 'scripts', 'storyline-puzzle.mjs'), src, out], timeout=300, cwd=ROOT,
+                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            if done.returncode != 0:
+                print('A storyline had no lists the game could read; that email goes without a puzzle.')
+                return
+            with open(out, encoding='utf-8') as f:
+                puzzle = json.load(f)
+        r['puzzle'] = puzzle
+        r['stored'] = bool(call('replies/puzzle', {'id': r['id'], 'puzzle': puzzle}).get('stored'))
+    except urllib.error.HTTPError as e:
+        print(f'A storyline puzzle could not be stored in the game (HTTP {e.code}); the email still has the PDF.')
+    except Exception as e:  # noqa: BLE001 - send without the puzzle rather than not at all
+        print(f'A storyline puzzle could not be built ({type(e).__name__}); that email goes without it.')
+        r['puzzle'] = None
 
 
 def attachments(r):
@@ -241,8 +302,11 @@ def attachments(r):
 
 def message(r):
     msg = EmailMessage()
-    msg['From'] = formataddr((SENDER_NAME, GMAIL_USER))
+    one_way = r['kind'] in ONE_WAY_KINDS
+    msg['From'] = formataddr((SENDER_NAME + (' (no-reply)' if one_way else ''), GMAIL_USER))
     msg['To'] = r['email']
+    if not one_way:
+        msg['Reply-To'] = REPLY_TO
     msg['Subject'] = NOTES[r['kind']]['subject']
     msg['Message-ID'] = make_msgid(domain='thelogicgrid.com')
     # An automatic message: mail programs should not send out-of-office answers to it.
@@ -260,9 +324,12 @@ def send_resend(replies):
     anything in neither list is left for Gmail."""
     sent, refused = [], []
     for r in replies:
-        payload = {'from': formataddr(('The Fantastical Logic Grid', MAIL_FROM)), 'to': [r['email']], 'subject': NOTES[r['kind']]['subject'],
+        one_way = r['kind'] in ONE_WAY_KINDS
+        payload = {'from': formataddr((SENDER_NAME, MAIL_NOREPLY if one_way else MAIL_FROM)), 'to': [r['email']], 'subject': NOTES[r['kind']]['subject'],
                    'text': text_version(r), 'html': html_version(r),
                    'headers': {'Auto-Submitted': 'auto-replied', 'X-Auto-Response-Suppress': 'All'}}
+        if not one_way:
+            payload['reply_to'] = REPLY_TO
         if r.get('_files'):
             payload['attachments'] = [{'filename': name, 'content': base64.b64encode(data).decode()} for name, data in r['_files']]
         req = urllib.request.Request('https://api.resend.com/emails', method='POST', data=json.dumps(payload).encode(),
@@ -327,6 +394,7 @@ def main():
         return
 
     for r in replies:
+        build_puzzle(r)
         r['_files'] = attachments(r)
 
     sent, failed, via = [], [], {'Resend': 0, 'Gmail': 0}

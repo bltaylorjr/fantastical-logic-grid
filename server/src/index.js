@@ -19,7 +19,9 @@
 //   POST /v1/translate                   the game's text in another language (translate.js)
 //   POST /v1/v                           anonymous daily visitor counts (visits.js)
 //   POST /v1/m                           anonymous counts of visits from campaign links (marketing.js)
+//   GET /v1/links                        the newest posts for the link-in-bio page (marketing.js)
 //   /v1/challenges[/:code[/result]]       Challenge a friend links, no account (challenges.js)
+//   GET|POST /v1/print-packs             printable puzzle packs for signed-in players (print-packs.js)
 //   GET /v1/perks                        a signed-in player's supporter perks (supporters.js)
 //   GET /v1/badges                       a signed-in player's special badges (special-badges.js)
 //   /v1/educators/*                      free printable puzzle packages for educators (educators.js)
@@ -43,6 +45,7 @@ import { handleDaily } from './daily.js';
 import { handleDailyResults } from './daily-results.js';
 import { handleQuality } from './quality.js';
 import { handleDailyEmail } from './daily-email.js';
+import { handlePrintPacks } from './print-packs.js';
 import { handlePuzzleMail } from './puzzle-mail.js';
 import { handleSpecials } from './editions.js';
 import { handleTranslate } from './translate.js';
@@ -51,6 +54,7 @@ import { NIGHTLY_CRONS, isMaintenanceHour, runNightly } from './nightly.js';
 import { handleMarketing } from './marketing.js';
 import { handleVisits } from './visits.js';
 import { handlePerks } from './supporters.js';
+import { handleLicenses } from './licenses.js';
 import { handleBadges } from './special-badges.js';
 import { handleEducators } from './educators.js';
 import { publicConfig } from './settings.js';
@@ -91,6 +95,8 @@ async function route(req, env, ctx) {
   const perks = await handlePerks(req, env, url, signedIn);
   if (perks) return perks;
 
+  const license = await handleLicenses(req, env, url, signedIn);
+  if (license) return license;
   const badges = await handleBadges(req, env, url, signedIn);
   if (badges) return badges;
 
@@ -123,6 +129,9 @@ async function route(req, env, ctx) {
 
   const dailyEmail = await handleDailyEmail(req, env, url);
   if (dailyEmail) return dailyEmail;
+
+  const printPacks = await handlePrintPacks(req, env, url);
+  if (printPacks) return printPacks;
 
   const puzzleMail = await handlePuzzleMail(req, env, url);
   if (puzzleMail) return puzzleMail;

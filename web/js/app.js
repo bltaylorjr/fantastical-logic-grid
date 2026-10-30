@@ -41,12 +41,15 @@ import { shareResult } from './share-result.js';
 import * as challenge from './challenge.js';
 import * as dailyResults from './daily-results.js';
 import * as dailyEmail from './daily-email.js';
+import * as printPack from './print-pack.js';
 import * as puzzleMail from './puzzle-mail.js';
 import * as editions from './editions.js';
 import { onChange as onAccountChange } from './account.js';
 import * as i18n from './i18n.js';
 import { CLOUD, CLOUD_URL } from './cloud-config.js';
 import * as tutorial from './tutorial.js';
+import * as license from './license.js';
+import * as licenseDownload from './license-download.js';
 import { addCloseButtons, closeDialog } from './dialog-close.js';
 
 addCloseButtons();
@@ -327,6 +330,8 @@ function updatePreview() {
     $('#preview').textContent += ` That is outside the usual ${t.name} size, which is fine.`;
   }
   if (k >= 6 && n >= 7) $('#preview').textContent += ' Puzzles this big can take up to 20 seconds to write.';
+  // A player-written story plays at the level and size its writer chose.
+  if (setup.theme === 'stories') $('#preview').textContent = 'Player Stories play at the level and size their writer chose, with their own cast. Each story lists both under its name.';
 }
 
 function gatherOptions() {
@@ -386,7 +391,8 @@ async function makePuzzle(override = null) {
   }
   // The game's own characters (made in the admin dashboard) may join the
   // cast or tell the story. Names the player typed always win.
-  const picked = options.customNames || options.theme === 'random' ? {} : characters.pick(options.theme, options.items);
+  // Player Stories keep their writer's own cast, so no characters join.
+  const picked = options.customNames || options.theme === 'random' || options.theme === 'stories' ? {} : characters.pick(options.theme, options.items);
   if (picked.cast && picked.cast.length) options.customNames = picked.cast.map((c) => c.name);
   let puzzle = null;
   // The engine skips used stories itself; the loop is a safety net.
@@ -403,6 +409,10 @@ async function makePuzzle(override = null) {
 function setupSummary() {
   const [k, n] = currentSize();
   const theme = OPTIONS.themes.find((t) => t.id === setup.theme);
+  if (setup.theme === 'stories') {
+    const story = theme.topics.find((t) => t.id === setup.topic);
+    return [theme.name, story && story.id !== 'any' ? story.name : 'Any story'].join(' · ');
+  }
   return [TIERS[setup.tier].name, theme ? theme.name : 'Any theme', `${k} × ${n}`].join(' · ');
 }
 
@@ -514,7 +524,7 @@ function expectedMsFor(puzzle) {
 function newSave(puzzle) {
   const now = Date.now();
   return {
-    id: (crypto.randomUUID && crypto.randomUUID()) || `s${now}${Math.random().toString(36).slice(2)}`,
+    id: (crypto.randomUUID && crypto.randomUUID()) || `s${now}${Array.from(crypto.getRandomValues(new Uint8Array(8)), (b) => b.toString(16).padStart(2, '0')).join('')}`,
     name: puzzle.title,
     storyId: storyIdOf(puzzle),
     puzzle,
@@ -640,6 +650,19 @@ $('#report-problem').onclick = () => {
 
 // The link in the "we fixed the puzzle you reported" email: the repaired
 // puzzle joins Saved puzzles (once, however often the link is opened).
+// The first puzzle built from the player's approved storyline (messages.js):
+// put in Saved puzzles, ready to play, once per device.
+async function keepStorylinePuzzle(puzzle, id) {
+  if ((await store.listSaves()).some((x) => x.teamPuzzle === id)) return false;
+  await rememberStory(storyIdOf(puzzle));
+  const save = newSave(puzzle);
+  save.teamPuzzle = id;
+  await store.putSave(save);
+  if (!$('#screen-home').hidden) await renderSaved();
+  toast(`Your storyline was approved! Its puzzle “${save.name}” is in Saved puzzles.`, { label: 'Play it now', run: () => openGame(save) }, { ms: 10000 });
+  return true;
+}
+
 async function addRepairedPuzzle(puzzle, tracking, error) {
   if (!puzzle) { toast(error || 'The repaired puzzle could not be opened.'); return; }
   let save = (await store.listSaves()).find((x) => x.repairOf && x.repairOf === tracking);
@@ -2257,6 +2280,19 @@ $('#print-pdf').onclick = () => {
 };
 $('#print-cancel').onclick = () => $('#dlg-print').close();
 
+// Printable puzzle packs for signed-in players (print-pack.js): new puzzles
+// from the same writer as New puzzle, so stories are never reused.
+printPack.initPrintPack({
+  openDialog, openAccount, signedIn, toast, newSave,
+  makePuzzle: (o) => makePuzzle(o),
+  putSave: (s) => store.putSave(s),
+  refreshSaved: () => { if (!$('#screen-home').hidden) renderSaved(); },
+  tiers: () => OPTIONS.difficulties,
+  lastTier: () => setup.tier,
+  themes: () => { const off = new Set([...remote.disabledThemes(), ...lockedThemes()]); return OPTIONS.themes.filter((t) => !off.has(t.id)); },
+  supportLine: () => support.printLine(),
+});
+
 // ====================================================================
 // Settings, help, menu, keyboard
 // ====================================================================
@@ -2283,6 +2319,7 @@ function applyFeatures() {
   $('#mail-invite').hidden = isPortal || !puzzleMail.available();
   $('[data-cmd=suggest]').hidden = !characters.suggestionsOpen();
   $('[data-cmd=numberplace]').hidden = !numberPlace.enabled();
+  $('[data-cmd=pack]').hidden = isPreview || !printPack.available();
   $('#feedback-idea').hidden = !feedbackBox.available();
   messages.configChanged();
   const support = remote.supportUrl();
@@ -2401,6 +2438,7 @@ $('#app-menu').addEventListener('click', async (e) => {
   else if (cmd === 'saved') { await goHome({ focusSaved: true }); $('#saved-section').scrollIntoView(); }
   else if (cmd === 'settings') openSettings();
   else if (cmd === 'stats') openStats();
+  else if (cmd === 'pack') printPack.open();
   else if (cmd === 'suggest') characters.openSuggest(openDialog, OPTIONS.themes.filter((t) => !remote.disabledThemes().has(t.id)));
   else if (cmd === 'daily') openTodaysDaily();
   else if (cmd === 'mail') puzzleMail.open(openDialog);
@@ -2458,7 +2496,12 @@ $('#help-tips').onclick = () => openTutorial({ tips: true });
 $('#video-learn').onclick = () => openTutorial();
 $('#help-intro').onclick = () => openVideo();
 $('#welcome-learn').onclick = () => openTutorial({ lesson: 0 });
-$('#help-btn').onclick = () => openDialog($('#dlg-help'), $('#help-close'));
+$('#help-btn').onclick = () => {
+  const k = license.shownKey();
+  $('#help-license').hidden = !k;
+  $('#help-license-key').textContent = k;
+  openDialog($('#dlg-help'), $('#help-close'));
+};
 $('#help-close').onclick = () => $('#dlg-help').close();
 
 // The Introduction (narrated video): offered once on first launch, always at the top.
@@ -2516,7 +2559,8 @@ function offerIntro() {
 let pendingUpdate = null;
 let shownUpdate = null;
 function offerUpdate() {
-  if (!pendingUpdate || $('#screen-home').hidden || document.querySelector('dialog[open]')) return;
+  // A desktop update may show over the app key window, so a fix can always arrive.
+  if (!pendingUpdate || $('#screen-home').hidden || document.querySelector('dialog[open]:not(#dlg-license)')) return;
   const u = pendingUpdate;
   pendingUpdate = null;
   shownUpdate = u;
@@ -2625,10 +2669,11 @@ function renderInstall() {
   $('#install-other').hidden = standalone || mobile;
   $('#install-here-note').hidden = standalone || mobile || !installEvent;
   $('#install-phone-h').textContent = mobile ? 'Add an icon to your home screen' : "Add an icon to your phone's home screen";
-  // The desktop app is for Windows; on a phone it goes last.
-  const desk = $('#install-desktop');
-  if (mobile) desk.parentNode.insertBefore(desk, $('#install-close').closest('.dlg-actions'));
-  else desk.parentNode.insertBefore(desk, $('#install-phone'));
+  // The desktop app is for Windows; on a phone it goes last, after the Android
+  // app. The app key (when downloads need one) comes before the downloads.
+  const end = $('#install-close').closest('.dlg-actions');
+  const order = mobile ? ['#install-phone', '#install-key', '#install-apk', '#install-desktop'] : ['#install-key', '#install-desktop', '#install-apk', '#install-phone'];
+  for (const id of order) end.parentNode.insertBefore($(id), end);
 }
 
 // Points the Windows button straight at the newest installer when GitHub
@@ -2641,20 +2686,29 @@ async function findInstaller() {
     const res = await fetch(RELEASE_API, { headers: { Accept: 'application/vnd.github+json' } });
     if (!res.ok) return;
     const rel = await res.json();
+    const version = String(rel.tag_name || '').replace(/^v/, '');
+    const apk = (rel.assets || []).find((a) => /\.apk$/i.test(a.name) && !/debug/i.test(a.name));
+    if (apk) {
+      $('#install-apk-btn').href = apk.browser_download_url;
+      $('#install-apk-size').textContent = `Version ${version}, ${Math.round(apk.size / 1048576)} MB`;
+      $('#install-apk').hidden = false;
+    }
     const exe = (rel.assets || []).find((a) => /x64-setup\.exe$/i.test(a.name));
     if (!exe) return;
     $('#install-desktop-btn').href = exe.browser_download_url;
-    $('#install-desktop-size').textContent = `Version ${String(rel.tag_name || '').replace(/^v/, '')}, ${Math.round(exe.size / 1048576)} MB`;
+    $('#install-desktop-size').textContent = `Version ${version}, ${Math.round(exe.size / 1048576)} MB`;
   } catch (e) { /* the release page link still works */ }
 }
 
 function installApp() {
   renderInstall();
   findInstaller();
+  licenseDownload.render();
   openDialog($('#dlg-install'), $('#install-h'));
 }
 $('#install-close').onclick = () => $('#dlg-install').close();
 $('#install-desktop-btn').addEventListener('click', () => campaign.downloaded());
+licenseDownload.init({ toast, openAccount: () => openAccount() });
 $('#install-phone-btn').onclick = async () => {
   if (!installEvent) return;
   installEvent.prompt();
@@ -2753,8 +2807,20 @@ async function init() {
     isBusy: (kind, key) => kind === 'save' && !!S && S.save.id === key,
     onSavesChanged: () => { if (!$('#screen-home').hidden) renderSaved(); },
     onSettingsChanged: () => { settings = store.loadSettings(); applyColorTheme(); applyMode(); applyLanguage(); },
+    // Idle sign-out (idle.js): save the open puzzle and go home; after the
+    // player signs back in, open it again ('latest' = the newest unfinished one).
+    leavePuzzle: async () => { const id = S ? S.save.id : null; if (S) await goHome(); else await flushSave(); return id; },
+    resume: async (id) => {
+      if (S || !id) return;
+      const save = id === 'latest'
+        ? (await store.listSaves().catch(() => [])).filter((v) => v && !v.solved).sort((a, b) => (b.lastPlayed || 0) - (a.lastPlayed || 0))[0]
+        : await store.getSave(id).catch(() => null);
+      if (!save || save.solved || S) return;
+      openGame(save);
+      toast(`Welcome back. “${save.name}” is open where you left off.`);
+    },
   }).catch(() => { /* accounts are optional */ });
-  messages.init({ openDialog, openAccount, announce, playPuzzle: openTeamPuzzle, downloadPuzzle: (puzzle) => exportSave(newSave(puzzle)) });
+  messages.init({ openDialog, openAccount, announce, playPuzzle: openTeamPuzzle, keepPuzzle: keepStorylinePuzzle, downloadPuzzle: (puzzle) => exportSave(newSave(puzzle)) });
   puzzleReport.init({ openDialog, openAccount, announce });
   puzzleReport.openRepaired(addRepairedPuzzle);
   competeUi.initCompete({
@@ -2770,11 +2836,13 @@ async function init() {
   competeUi.handleRaceLink();
   window.addEventListener('resize', () => { if (!$('#screen-home').hidden) updatePreview(); });
   document.documentElement.classList.add('ready');
+  setTimeout(checkUpdates, 4000);
+  // The Windows and Android apps wait here for an app key that works (license.js).
+  await license.gate({ announce });
   // thelogicgrid.com/?learn opens How to play straight away; a ?play=now link
   // goes straight into a puzzle; otherwise first-time players get the welcome.
   if (new URLSearchParams(location.search).has('learn')) { settings.introOffered = true; store.saveSettings(settings); openTutorial(); } else if (!handleChallengeLink() && !handlePlayLink()) offerIntro();
   offerLanguage();
-  setTimeout(checkUpdates, 4000);
   // Heavy extras wait until the first screen is drawn and the page is idle, so
   // they never slow the first load: the DiceBear faces (270 KB), then the
   // natural voices (a 90 MB download the first time, read from the browser's

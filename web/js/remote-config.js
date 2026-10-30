@@ -41,6 +41,13 @@ export const supportUrl = () => {
 // or {} before the server has said: the game then uses the module's defaults.
 export const numberPlace = () => (config && config.numberPlace) || {};
 
+// Minutes without activity before a signed-in player is signed out (idle.js);
+// 0 means never. 30 until the dashboard says otherwise.
+export const idleMinutes = () => {
+  const m = config && config.game && config.game.idleMinutes;
+  return Number.isFinite(m) && m >= 0 ? m : 30;
+};
+
 // Gentle support asks (web/js/support.js): on only with the Support page link.
 export const supportAsks = () => !!(config && config.game && config.game.supportAsks) && !!supportUrl();
 

@@ -284,6 +284,40 @@ const SHOTS = process.env.SHOTS;
     assert(await pick('voice_source', 'device'), 'where voices come from is chosen for everyone');
     await shot(page, '2-settings');
 
+    // Media library: every sound and picture, by group, from the game's own code.
+    await page.click('#nav-list a[href="#media"]');
+    await page.waitForSelector('#media-body [data-music=mystery]');
+    assert(await page.locator('#media-body [data-music]').count() >= 18, 'Background music: one piece for each theme');
+    await page.click('#media-body [data-music=mystery]');
+    assert((await page.getAttribute('#media-body [data-music=mystery]', 'aria-pressed')) === 'true', 'a theme\'s music plays');
+    assert(await page.evaluate(() => new Promise((r) => setTimeout(() => r(true), 300))), 'the music keeps playing without errors');
+    await page.click('#media-body [data-music=mystery]');
+    assert((await page.getAttribute('#media-body [data-music=mystery]', 'aria-pressed')) === 'false', 'and stops again');
+    await page.click('#media-tabs [data-tab=sfx]');
+    await page.click('#media-body [data-sfx=solve]');
+    assert(await page.locator('#media-body [data-sfx]').count() === 10, 'Sound effects: every sound players hear');
+    await page.click('#media-tabs [data-tab=voices]');
+    assert(await page.locator('#media-body [data-voice=Kore][disabled]').count() > 0, 'Voices: server voices say they are not set up yet');
+    await page.click('#media-tabs [data-tab=celebrations]');
+    assert(await page.isChecked('#media-body [data-fx-on=fireworks]'), 'Celebrations show which effects are on for players');
+    await page.click('#media-body [data-fx=confetti]');
+    await page.waitForSelector('body > canvas', { state: 'attached' });
+    assert(true, 'a celebration plays here');
+    await page.check('#media-body [data-fx-on=bubbles]');
+    assert(await until('bubbles', true), 'a celebration can be switched on from the Media library');
+    await page.uncheck('#media-body [data-fx-on=bubbles]');
+    assert(await until('bubbles', false), 'and off again');
+    await page.click('#media-tabs [data-tab=scenes]');
+    assert(await page.locator('#media-body .scene-svg').count() >= 18, 'Theme scenes: one for each theme');
+    await page.fill('#media-layers', '0');
+    assert(await page.locator('#media-body .scene-svg .layer.on').count() === 0, 'the scene shows how it grows as the grid fills');
+    await shot(page, '10-media-scenes');
+    await page.click('#media-tabs [data-tab=faces]');
+    assert(await page.locator('#media-body .media-faces img').count() === 24 && await page.locator('#media-body .media-faces svg').count() >= 72, 'Character faces: every style, women and men');
+    await shot(page, '11-media-faces');
+    await page.click('#media-tabs [data-tab=pictures]');
+    assert(/🔍/.test(await page.textContent('#media-body')), 'Theme pictures: the little pictures for each theme');
+
     await page.click('a[href="#communication"]');
     await page.check('input[name=comm-tab][value=send]');
     await page.waitForSelector('#comm-send:not([hidden])');
@@ -346,6 +380,21 @@ const SHOTS = process.env.SHOTS;
     await page.waitForSelector('#sup-blocks button[data-sup-unblock]');
     assert(/Chargeback/.test(await page.textContent('#sup-rows')) && !(await page.locator('#sup-rows button[data-sup-end]').count()), 'a chargeback ends the grant and marks it');
     assert(/fan@example\.com/.test(await page.textContent('#sup-blocks')) && /dp_123/.test(await page.textContent('#sup-blocks')), 'the player is listed as blocked, with the note');
+
+    // App keys: make a key, see it listed, allow a second install.
+    await page.click('a[href="#licenses"]');
+    await page.waitForSelector('#lic-rows td');
+    assert(/LICENSE_SIGNING_KEY/.test(await page.textContent('#lic-banner')), 'App keys says the signing secret is not set yet');
+    await page.fill('#lic-label', 'Test player');
+    await page.click('#lic-form button[type=submit]');
+    await page.waitForSelector('#lic-rows code.lic-key');
+    const made = await page.textContent('#lic-made-list');
+    assert(/^FLG(-[2-9A-HJ-NP-Z]{5}){4}$/.test(made.trim()) && (await page.textContent('#lic-rows')).includes(made.trim()), 'an admin makes an app key and it is listed');
+    assert(/0 of 1/.test(await page.textContent('#lic-rows')) && /0 of 2/.test(await page.textContent('#lic-rows')), 'the key shows its installs (0 of 1) and downloads (0 of 2)');
+    await page.click('#lic-rows button[data-lic-two]');
+    await page.waitForSelector('#lic-rows button[data-lic-one]');
+    assert(/0 of 2[\s\S]*0 of 2/.test(await page.textContent('#lic-rows')), 'an admin allows a second install');
+    await shot(page, '3-app-keys');
 
     await page.click('a[href="#search"]');
     await page.waitForSelector('#search-body .tile');
@@ -587,7 +636,9 @@ const SHOTS = process.env.SHOTS;
     await q.click('.break-glass summary');
     await q.fill('#token-input', TOKEN);
     await q.click('#token-form button[type=submit]');
-    await q.waitForSelector('#comm-list button[data-status=done]');
+    await q.waitForSelector('#comm-list button[data-story-act=approve]');
+    assert(await q.isVisible('#comm-list button[data-story-act=decline]') && !(await q.isVisible('#comm-list button[data-status=done]')),
+      'a new storyline is decided with Approve or Disapprove, not Mark addressed or Mark done');
     assert(/#communication$/.test(q.url()) && (await q.inputValue('#comm-type')) === 'idea', 'the old ideas link opens Communication on ideas');
     assert(/Theme: Adventure/.test(await q.textContent('#comm-list')), 'the inbox shows which theme a storyline idea is for');
     assert(/pirate ship/.test(await q.textContent('#comm-list')) && !/music stopped/.test(await q.textContent('#comm-list')), 'the inbox can show ideas on their own');

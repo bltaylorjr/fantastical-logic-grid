@@ -145,6 +145,7 @@ ${[0, 1, 2, 3].map(catBlock).join('\n')}
 <details><summary>What grade levels does it suit?</summary><p>Kindergarten to Grade 12, college and adult learners. Younger grades get small grids, simple "is" and "is not" clues, a short story and large print; older students get bigger grids and harder clues such as "two years older than" and "if, then".</p></details>
 <details><summary>Can I use my own theme or my students' names?</summary><p>Yes. Choose <strong>Create my own theme</strong> to write the story, the characters and up to four categories with their items, or type your students' first names under our themes. We check every puzzle has exactly one answer.</p></details>
 <details><summary>How long does it take?</summary><p>The code arrives within minutes. A person reviews each request, usually within a day or two, and the PDFs are emailed within minutes of approval.</p></details>
+<details><summary>Can I tell you how it went?</summary><p>Please do! The email with your puzzles has a private link to your own <strong>ideas, problems and feedback</strong> section, with a 2-minute survey about how our tools can help your class. A person on our team reads every note and emails you an answer.</p></details>
 <details><summary>Can I share the puzzles?</summary><p>Print and copy them for your own students. Please don't sell them or post them online; send other teachers to this page instead.</p></details>`;
 }
 
@@ -178,4 +179,65 @@ button.btn{border:0;font:inherit;font-weight:700;cursor:pointer}
 button.btn[disabled]{opacity:.6;cursor:progress}
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .how li{margin:8px 0}
+`;
+
+// The private ideas, problems and feedback section (educators/feedback/),
+// opened by the link in the email that carries an educator's PDFs. Not listed
+// in search. The survey questions come from engine/src/classroom.js;
+// seo/educator-feedback.js runs it against the game's Worker.
+export function educatorFeedbackBody(up, { survey, kinds, textMax, api }) {
+  const question = (q, i) => {
+    const name = `q-${q.id}`;
+    if (q.type === 'text') return `<label>${esc(q.q)}<textarea name="${name}" rows="4" maxlength="${q.max}"></textarea></label>`;
+    const type = q.type === 'many' ? 'checkbox' : 'radio';
+    return `<fieldset class="choice"><legend>${i + 1}. ${esc(q.q)}${q.required ? ' *' : ''}${q.type === 'many' ? ' <span class="muted">(choose any)</span>' : ''}</legend>
+<ul class="checks">${q.options.map((o, j) => `<li><label class="check"><input type="${type}" name="${name}" value="${j}"> <span>${esc(o)}</span></label></li>`).join('')}</ul></fieldset>`;
+  };
+  return `<h1>Ideas, problems and feedback</h1>
+<div id="fb-app" class="edu" data-api="${esc(api || '')}">
+<section id="fb-locked" class="panel" aria-labelledby="locked-h">
+<h2 id="locked-h">This section is for educators who received a puzzle package</h2>
+<p id="fb-locked-why">It opens with the private link in the email that brought your puzzles. Please use the <strong>Share ideas and feedback</strong> button in that email.</p>
+<p>No package yet? <a href="${up}educators/">Ask for a free puzzle package</a>. Questions? Write to <a href="mailto:support@thelogicgrid.com">support@thelogicgrid.com</a>.</p>
+</section>
+
+<div id="fb-open" hidden>
+<p class="lede" id="fb-hello"></p>
+<p>Thank you for using our puzzles with your students. Tell us how it went: a person on our team reads every note, and your answers help us decide what to build next for classrooms. We only use them to improve our tools.</p>
+
+<section class="panel" aria-labelledby="survey-h">
+<h2 id="survey-h" tabindex="-1">A 2-minute survey</h2>
+<p class="muted" id="survey-state">Questions marked * are needed. You can change your answers later.</p>
+<form id="survey-form" novalidate>
+${survey.map(question).join('\n')}
+<div id="survey-errors" class="errors" role="alert" tabindex="-1" hidden></div>
+<p><button class="btn" type="submit" id="survey-send">Send my answers</button> <span id="survey-done" class="ok" role="status"></span></p>
+</form>
+</section>
+
+<section class="panel" aria-labelledby="note-h">
+<h2 id="note-h">Send an idea, a problem or feedback</h2>
+<form id="note-form" novalidate>
+<fieldset class="choice"><legend>What is it?</legend>
+<div class="row">${Object.entries(kinds).map(([k, w], i) => `<label class="check"><input type="radio" name="kind" value="${k}"${i === 0 ? ' checked' : ''}> <span>${esc(w)}</span></label>`).join('')}</div></fieldset>
+<label>Your note<textarea name="text" rows="5" maxlength="${textMax}" required placeholder="For example: a theme your class would love, something that did not print well, or how your students got on."></textarea></label>
+<div id="note-errors" class="errors" role="alert" hidden></div>
+<p><button class="btn" type="submit" id="note-send">Send</button> <span id="note-done" class="ok" role="status"></span></p>
+</form>
+</section>
+
+<section aria-labelledby="mine-h">
+<h2 id="mine-h">Your notes and our answers</h2>
+<div id="fb-items"><p class="muted">Nothing sent yet.</p></div>
+</section>
+</div>
+</div>`;
+}
+
+export const FEEDBACK_CSS = `
+.ok{color:#1B6B2F;font-weight:700}
+@media (prefers-color-scheme:dark){.ok{color:#8BD99B}}
+.fb-item{border-top:1px solid var(--edge);padding:10px 0}
+.fb-item blockquote{margin:6px 0;padding:8px 14px;border-left:4px solid var(--accent);background:var(--bg);border-radius:6px}
+.fb-item .kind{font-weight:700}
 `;
