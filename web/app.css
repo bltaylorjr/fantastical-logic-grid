@@ -960,13 +960,16 @@ dialog.rules table.board td { font-variant-numeric: tabular-nums; }
 @media (prefers-reduced-motion: reduce) { .story-beat.new { animation: none; } }
 /* Picture clues (experimental, web/js/picture-clue.js) */
 .clue-list li.pic-locked > label { display: none; }
-.pic-clue { grid-column: 2; min-width: 0; padding: 4px 6px 8px; }
+.pic-clue { grid-column: 1 / -1; min-width: 0; padding: 4px 0 8px; }
 .pic-open { text-align: left; }
-.pic-body { margin-top: 8px; max-width: 100%; overflow-x: auto; }
+.pic-body { margin-top: 8px; max-width: 100%; }
+.pic-scroll { max-width: 100%; overflow-x: auto; padding-bottom: 4px; }
+.pic-scroll-hint { margin: 0 0 6px; font-size: 0.9rem; color: var(--muted); }
 /* Squares are easy to tap (44 px, like the main grid); on a narrow phone the
    picture scrolls sideways inside its box instead of the page. */
 .pic-grid { --pic-cell: 44px; }
 .pic-help { margin: 0 0 8px; max-width: 60ch; }
+.pic-grid tbody th { min-width: 0; }
 .pic-grid { border-collapse: collapse; }
 .pic-grid th { font-size: 0.8rem; color: var(--muted); font-weight: 600; font-variant-numeric: tabular-nums; }
 .pic-grid thead th { vertical-align: bottom; padding: 0 0 4px; line-height: 1.1; }
