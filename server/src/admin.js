@@ -60,10 +60,14 @@
 //   GET  /admin/v1/archive/download    the same zip as a download, nothing removed (owner)
 //   POST /admin/v1/archive/export[?test=1]  the zip for the weekly GitHub Action to email (owner)
 //   POST /admin/v1/archive/confirm     that Action says the email went out; rows may now go (owner)
+//   POST /admin/v1/passkeys/sign-in[/options]  Face ID or fingerprint sign-in (no sign-in needed, passkeys.js)
+//   GET  /admin/v1/passkeys            this admin's devices; POST .../options, .../register, .../:id/remove
+//   POST /admin/v1/session/end         sign out a passkey session
 //
 // Sign-in: a Firebase ID token from a game account with a confirmed email that
-// is the OWNER_EMAIL secret or listed in the admins table. The ADMIN_TOKEN
-// secret still works as a break-glass key with the owner's rights.
+// is the OWNER_EMAIL secret or listed in the admins table, or a session key
+// from a passkey that admin set up (passkeys.js). The ADMIN_TOKEN secret still
+// works as a break-glass key with the owner's rights.
 //
 // Privacy: anonymous learning data (plays, parts) is only ever counted on its
 // own. Nothing here joins it to accounts, and saved puzzles are only counted,
@@ -98,6 +102,7 @@ import { editionRoutes } from './editions.js';
 import { educatorRoutes } from './educators.js';
 import { puzzleReportRoutes } from './puzzle-reports.js';
 import { visitorRoutes } from './visits.js';
+import { SESSION_PREFIX, PasskeyError, signInOptions, checkSignIn, startSession, checkSession, endSessionStatement, forgetAdminStatements, registerOptions, register, listPasskeys, removePasskey } from './passkeys.js';
 
 const DAY = 24 * 3600_000;
 const ROLES = { viewer: 1, moderator: 2, admin: 3, owner: 4 };
@@ -110,7 +115,7 @@ const SESSION_MAX_S = 12 * 3600;
 const DENIED_PER_DAY = 500; // refused requests written to the audit log, so a flood cannot fill it
 const ANALYTICS_CACHE_MS = 120_000;
 const TABLES = ['sync_users', 'sync_records', 'sync_deleted_users', 'players', 'scores', 'races', 'race_entries', 'race_invites', 'plays', 'parts', 'usage',
-  'app_errors', 'upkeep_log', 'admins', 'admin_audit', 'settings', 'announcements', 'bans', 'name_reviews', 'archive_log', 'feedback', 'feedback_replies', 'error_fixes', 'conversations', 'conversation_messages', 'message_contacts', 'news', 'search_snapshots', 'daily_plan', 'translations', 'rating_insights', 'campaigns', 'campaign_ads', 'marketing_media', 'campaign_stats', 'challenges', 'daily_results', 'daily_email', 'supporters', 'payment_blocks', 'puzzle_mail', 'puzzle_mail_got', 'puzzle_mail_days', 'special_editions', 'educator_requests', 'special_badges', 'badge_awards', 'puzzle_reports', 'player_puzzles', 'visit_stats', 'educator_feedback', 'print_packs', 'print_pack_stories'];
+  'app_errors', 'upkeep_log', 'admins', 'admin_audit', 'settings', 'announcements', 'bans', 'name_reviews', 'archive_log', 'feedback', 'feedback_replies', 'error_fixes', 'conversations', 'conversation_messages', 'message_contacts', 'news', 'search_snapshots', 'daily_plan', 'translations', 'rating_insights', 'campaigns', 'campaign_ads', 'marketing_media', 'campaign_stats', 'challenges', 'daily_results', 'daily_email', 'supporters', 'payment_blocks', 'puzzle_mail', 'puzzle_mail_got', 'puzzle_mail_days', 'special_editions', 'educator_requests', 'special_badges', 'badge_awards', 'puzzle_reports', 'player_puzzles', 'visit_stats', 'educator_feedback', 'print_packs', 'print_pack_stories', 'admin_passkeys', 'admin_sessions'];
 // worker-src blob: lets the Media library's celebrations draw off the main
 // thread, as they do in the game (canvas-confetti makes its own small worker).
 const SECURITY_HEADERS = {
@@ -155,10 +160,30 @@ const bearer = (req) => (req.headers.get('Authorization') || '').match(/^Bearer\
 const tokenMatches = (env, token) => { const want = String(env.ADMIN_TOKEN || '').trim(); return want.length >= 16 && safeEqual(token.trim(), want); };
 
 // ------------------------------------------------------------- identity
+async function roleOf(env, email) {
+  const owner = String(env.OWNER_EMAIL || '').trim().toLowerCase();
+  if (owner && email === owner) return 'owner';
+  const row = await env.DB.prepare('SELECT role FROM admins WHERE email = ?1').bind(email).first();
+  if (!row || !STORED_ROLES.includes(row.role)) throw new Refusal(403, 'not_admin', 'This account is not an admin.');
+  return row.role;
+}
+
+// who: { actor, role, key (rate limit), signedInAt (ms, when the admin last
+// proved who they are), session (a passkey session's hash) }.
 async function identify(req, env) {
   const token = bearer(req);
   if (!token) throw new Refusal(401, 'sign_in', 'Please sign in.');
-  if (tokenMatches(env, token)) return { actor: 'break-glass token', role: 'owner', key: 'token' };
+  if (tokenMatches(env, token)) return { actor: 'break-glass token', role: 'owner', key: 'token', signedInAt: 0 };
+  if (token.startsWith(SESSION_PREFIX)) {
+    let s;
+    try { s = await checkSession(env, token); } catch (e) {
+      if (e instanceof PasskeyError) throw new Refusal(e.status, e.error, e.message);
+      throw e;
+    }
+    // Checked on every request, so a removed admin is out at once.
+    const role = await roleOf(env, s.email);
+    return { actor: s.email, role, key: `pk:${s.hash.slice(0, 24)}`, signedInAt: s.createdAt, session: s.hash };
+  }
   if (token.split('.').length !== 3) throw new Refusal(401, 'sign_in', 'That key is not right.');
   let user;
   try { user = await verifyIdToken(token, env); } catch (e) {
@@ -168,17 +193,11 @@ async function identify(req, env) {
   if (Date.now() / 1000 - user.authTime > SESSION_MAX_S) throw new Refusal(401, 'sign_in', 'For safety, please sign in again.');
   const email = String(user.email || '').trim().toLowerCase();
   if (!email) throw new Refusal(403, 'not_admin', 'This account is not an admin.');
-  const owner = String(env.OWNER_EMAIL || '').trim().toLowerCase();
-  let role = owner && email === owner ? 'owner' : null;
-  if (!role) {
-    const row = await env.DB.prepare('SELECT role FROM admins WHERE email = ?1').bind(email).first();
-    if (!row || !STORED_ROLES.includes(row.role)) throw new Refusal(403, 'not_admin', 'This account is not an admin.');
-    role = row.role;
-  }
+  const role = await roleOf(env, email);
   // Anyone can make a Firebase account with an email they do not own, so an
   // admin's email must be confirmed.
   if (!user.emailVerified) throw new Refusal(403, 'verify_email', 'Confirm your email address first.');
-  return { actor: email, role, key: user.uid, uid: user.uid };
+  return { actor: email, role, key: user.uid, uid: user.uid, signedInAt: user.authTime * 1000 };
 }
 
 async function audit(env, entry) {
@@ -821,8 +840,24 @@ const ROUTES = [
   }],
   ['POST', /^admins\/remove$/, 'owner', 'admins.remove', async ({ env, body }) => {
     const email = str(body.email, 254).toLowerCase();
-    await env.DB.prepare('DELETE FROM admins WHERE email = ?1').bind(email).run();
+    await env.DB.batch([env.DB.prepare('DELETE FROM admins WHERE email = ?1').bind(email), ...forgetAdminStatements(env, email)]);
     return { body: { ok: true }, target: email };
+  }],
+
+  // Face ID and fingerprint sign-in on this admin's own devices (passkeys.js).
+  ['GET', /^passkeys$/, 'viewer', 'passkeys.view', async ({ env, who }) => ({ body: { passkeys: String(who.actor).includes('@') ? await listPasskeys(env, who.actor) : [] }, quiet: true })],
+  ['POST', /^passkeys\/options$/, 'viewer', 'passkeys.options', async ({ env, url, who, now }) => ({ body: await registerOptions(env, url, who, now), quiet: true })],
+  ['POST', /^passkeys\/register$/, 'viewer', 'passkeys.add', async ({ env, url, who, body, now }) => {
+    const added = await register(env, url, who, body, now);
+    return { body: added, target: added.device };
+  }, { maxBody: 6_000 }],
+  ['POST', /^passkeys\/([\w-]{1,1400})\/remove$/, 'viewer', 'passkeys.remove', async ({ env, who, params }) => {
+    await removePasskey(env, who.actor, params[0]);
+    return { body: { ok: true }, target: params[0].slice(0, 16) };
+  }],
+  ['POST', /^session\/end$/, 'viewer', 'sign-out', async ({ env, who }) => {
+    if (who.session) await endSessionStatement(env, who.session).run();
+    return { body: { ok: true } };
   }],
 ];
 
@@ -847,11 +882,35 @@ const reply = (body, status = 200, extra = {}) => new Response(JSON.stringify(bo
   status, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', ...extra },
 });
 
+// Face ID or fingerprint sign-in. Nobody is signed in yet, so these two run
+// before identify(); the per-connection limit in handleAdmin() still applies.
+async function passkeySignIn(req, env, url, path) {
+  let email = null;
+  try {
+    if (path.endsWith('/options')) return reply(await signInOptions(env, url));
+    const { email: who, passkeyId } = await checkSignIn(env, url, await readBody(req, 6_000));
+    email = who;
+    await roleOf(env, email);
+    const session = await startSession(env, email, passkeyId);
+    await audit(env, { actor: email, action: 'passkeys.sign-in', status: 200 });
+    return reply(session);
+  } catch (e) {
+    const refusal = e instanceof PasskeyError ? new Refusal(e.status, e.error, e.message) : e;
+    if (!(refusal instanceof Refusal)) {
+      console.error(e);
+      return reply({ error: 'server' }, 500);
+    }
+    await audit(env, { actor: email || 'unknown', action: 'passkeys.sign-in', detail: { error: refusal.error }, status: refusal.status }).catch(() => {});
+    return reply({ error: refusal.error, message: refusal.message }, refusal.status);
+  }
+}
+
 async function api(req, env, ctx, url, path) {
   if (path === 'client-config' && req.method === 'GET') {
     // Public by design (it only names the Firebase project), but kept out of the repo.
     return reply({ firebaseApiKey: env.FIREBASE_WEB_API_KEY || null, projectId: env.FIREBASE_PROJECT_ID || null, tokenSignIn: true });
   }
+  if (req.method === 'POST' && (path === 'passkeys/sign-in/options' || path === 'passkeys/sign-in')) return passkeySignIn(req, env, url, path);
   let who = null;
   let action = `${req.method} ${path}`;
   let route = null;
@@ -868,7 +927,7 @@ async function api(req, env, ctx, url, path) {
     const body = await readBody(req, route[5]?.maxBody || MAX_BODY);
     let out;
     try { out = await route[4]({ req, env, ctx, url, who, params, body, now: Date.now() }); } catch (e) {
-      if (e instanceof MessageRefusal) throw new Refusal(e.status, e.error, e.message);
+      if (e instanceof MessageRefusal || e instanceof PasskeyError) throw new Refusal(e.status, e.error, e.message);
       throw e;
     }
     if (!out.quiet) await audit(env, { actor: who.actor, role: who.role, action, target: out.target, detail: out.detail, status: 200 });

@@ -36,10 +36,15 @@
 <!-- Sign-in -->
 <section id="login" class="login" hidden aria-labelledby="login-h">
   <h1 id="login-h">Sign in</h1>
-  <p class="muted">Use your game account. Only emails on the admin list can open the dashboard, and the email must be confirmed.</p>
+  <p class="muted" id="login-intro">Use your game account. Only emails on the admin list can open the dashboard, and the email must be confirmed.</p>
+  <div id="passkey-signin-box" class="stack" hidden>
+    <button class="btn primary" type="button" id="passkey-signin">Sign in with Face ID or fingerprint</button>
+    <p class="muted" id="passkey-or">Or use your password:</p>
+  </div>
   <form id="login-form" class="stack" novalidate>
     <div class="field"><label for="login-email">Email</label><input id="login-email" type="email" autocomplete="username" required></div>
     <div class="field"><label for="login-password">Password</label><input id="login-password" type="password" autocomplete="current-password" required></div>
+    <label class="check"><input type="checkbox" id="login-keep" checked> Keep me signed in on this device</label>
     <p class="error" id="login-error" role="alert" hidden></p>
     <div class="row"><button class="btn primary" type="submit">Sign in</button><button class="btn link" type="button" id="forgot">Forgot password?</button></div>
   </form>
@@ -56,7 +61,7 @@
       <li><b>iPhone or iPad:</b> open this page in Safari, tap the Share button, then <b>Add to Home Screen</b>.</li>
       <li><b>Android:</b> open this page in Chrome, tap the menu (three dots), then <b>Install app</b> or <b>Add to Home screen</b>.</li>
     </ul>
-    <p class="muted">You sign in each time you open it, as on the web.</p>
+    <p class="muted">With <b>Keep me signed in on this device</b> ticked, it stays signed in while you use other apps. After 30 minutes without use it locks, and Face ID or your fingerprint opens it again (set that up under <b>Face ID and fingerprint</b> once you are in).</p>
   </details>
   <details class="break-glass">
     <summary>Use the break-glass key</summary>
@@ -95,12 +100,17 @@
       <li><a href="#licenses" data-min="admin">App keys <span class="count" id="count-licenses" hidden></span></a></li>
       <li><a href="#settings" data-min="viewer">Settings and switches</a></li>
       <li><a href="#connections" data-min="viewer">Connections and setup</a></li>
+      <li><a href="#signin" data-min="viewer">Face ID and fingerprint</a></li>
       <li><a href="#backups" data-min="admin">Backups and archive</a></li>
       <li><a href="#audit" data-min="admin">Audit log</a></li>
       <li><a href="#admins" data-min="owner">Admins</a></li>
     </ul>
   </nav>
   <main id="main" tabindex="-1">
+    <div id="passkey-offer" class="note" role="region" aria-label="Faster sign-in" hidden>
+      <p><b>Sign in faster on this device.</b> Use Face ID, your fingerprint or Windows Hello instead of your password, and unlock the dashboard the same way after a break.</p>
+      <div class="row"><button class="btn primary" type="button" id="passkey-offer-yes">Set it up</button><button class="btn" type="button" id="passkey-offer-no">Not now</button></div>
+    </div>
     <section data-view="overview" hidden aria-labelledby="h-overview">
       <div class="head"><h1 id="h-overview">Overview</h1>
         <div class="field inline"><label for="ov-days">Period</label><select id="ov-days"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option></select></div>
@@ -503,6 +513,16 @@
       <p class="muted">Every admin request, allowed or refused, kept for a year.</p>
       <div class="table-wrap"><table class="table"><thead><tr><th scope="col">When</th><th scope="col">Who</th><th scope="col">What</th><th scope="col">Target</th><th scope="col">Result</th></tr></thead><tbody id="audit-rows"></tbody></table></div>
       <div class="row"><button class="btn" type="button" id="audit-more" hidden>Show older</button></div>
+    </section>
+
+    <section data-view="signin" hidden aria-labelledby="h-signin">
+      <div class="head"><h1 id="h-signin">Face ID and fingerprint</h1></div>
+      <p class="muted">Sign in with your face, fingerprint or device PIN instead of your password. Your face and fingerprint never leave your device: it keeps a passkey that only opens for you, and the dashboard checks it. The dashboard stays signed in while you use other apps, locks after 30 minutes without use, and asks for Face ID or your fingerprint again to open. Once every 12 hours it asks again even if you keep using it.</p>
+      <div id="pk-status"></div>
+      <div class="row"><button class="btn primary" type="button" id="pk-add" hidden>Set up this device</button></div>
+      <h2>Your devices</h2>
+      <div class="table-wrap"><table class="table"><thead><tr><th scope="col">Device</th><th scope="col">Set up</th><th scope="col">Last used</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody id="pk-rows"></tbody></table></div>
+      <p class="muted">Lost a phone? Remove it here, or ask the owner to remove you as an admin, which removes all your devices.</p>
     </section>
 
     <section data-view="admins" hidden aria-labelledby="h-admins">
