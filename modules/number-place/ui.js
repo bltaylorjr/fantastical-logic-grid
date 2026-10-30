@@ -134,11 +134,19 @@ function migrate() {
   const old = load(K.old, null);
   if (old && old.p) {
     const games = load(K.games, {});
-    const id = old.id || `g${Date.now()}`;
+    const id = `g${Date.now().toString(36)}`;
     games[id] = { ...old, id, name: old.name || old.p.story?.title || `${old.p.difficulty.name} puzzle`, updated: Date.now(), mode: old.daily ? 'daily' : 'free' };
     keep(K.games, games);
     try { localStorage.removeItem(K.old); } catch (e) { /* ignore */ }
   }
+}
+
+// Writes one cell. Cell numbers are always whole numbers inside the grid.
+function setCell(i, v, n) {
+  const c = Number(i);
+  if (!Number.isInteger(c) || c < 0 || c >= G.v.length) return;
+  G.v[c] = Number(v) || 0;
+  G.n[c] = Number(n) || 0;
 }
 
 function savePrefs() { keep(K.prefs, prefs); }
@@ -198,7 +206,15 @@ function readSetup() {
 }
 
 const games = () => load(K.games, {});
-function putGame(g) { const all = games(); all[g.id] = g; trimGames(all); keep(K.games, all); }
+function putGame(g) {
+  // Ids are made by this module (g + letters and digits); anything else is not saved.
+  const id = /^g[a-z0-9]{1,40}$/.test(g.id) ? g.id : null;
+  if (!id) return;
+  const all = games();
+  all[`${id}`] = g;
+  trimGames(all);
+  keep(K.games, all);
+}
 function trimGames(all) {
   const ids = Object.keys(all).sort((a, b) => (all[b].updated || 0) - (all[a].updated || 0));
   for (const id of ids.slice(60)) delete all[id];
@@ -479,7 +495,7 @@ function render() {
 function apply(changes, { record = true } = {}) {
   const real = changes.filter(([, ov, on, nv, nn]) => ov !== nv || on !== nn);
   if (!real.length) return;
-  for (const [i, , , nv, nn] of real) { G.v[i] = nv; G.n[i] = nn; }
+  for (const [i, , , nv, nn] of real) setCell(i, nv, nn);
   if (record) { G.undo.push(real); G.redo = []; }
   G.checked = null;
   G.hint = null;
@@ -546,7 +562,7 @@ function undo() {
   if (G.solved) return;
   const ch = G.undo.pop();
   if (!ch) return;
-  for (const [i, ov, on] of ch) { G.v[i] = ov; G.n[i] = on; }
+  for (const [i, ov, on] of ch) setCell(i, ov, on);
   G.redo.push(ch);
   G.sel = ch[0][0];
   G.hint = null;
@@ -557,7 +573,7 @@ function redo() {
   if (G.solved) return;
   const ch = G.redo.pop();
   if (!ch) return;
-  for (const [i, , , nv, nn] of ch) { G.v[i] = nv; G.n[i] = nn; }
+  for (const [i, , , nv, nn] of ch) setCell(i, nv, nn);
   G.undo.push(ch);
   G.sel = ch[0][0];
   afterChange();
@@ -683,7 +699,7 @@ function reveal() {
   $('#np-reveal-confirm').hidden = true;
   const changes = [];
   for (let i = 0; i < G.p.size ** 2; i++) if (!G.p.givens[i] && G.v[i] !== G.p.solution[i]) changes.push([i, G.v[i], G.n[i], G.p.solution[i], 0]);
-  for (const [i, , , nv, nn] of changes) { G.v[i] = nv; G.n[i] = nn; }
+  for (const [i, , , nv, nn] of changes) setCell(i, nv, nn);
   G.revealed = true;
   G.solved = true;
   tick();
@@ -742,7 +758,7 @@ function openSteps() {
 function drawStep() {
   const p = G.p, path = p.solvePath, N = p.size;
   const vals = p.givens.slice();
-  for (let k = 0; k < stepAt; k++) if (path[k].place) vals[path[k].place[0]] = path[k].place[1];
+  for (let k = 0; k < stepAt; k++) if (path[k].place) vals[Number(path[k].place[0])] = Number(path[k].place[1]);
   const s = path[Math.max(0, stepAt - 1)];
   const focus = new Set(stepAt && s ? (s.place ? [s.place[0]] : (s.remove || []).map(([c]) => c)) : []);
   for (const el of $('#np-steps-board').querySelectorAll('.np-cell')) {
