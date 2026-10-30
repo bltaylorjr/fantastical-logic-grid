@@ -566,6 +566,8 @@ uses a secret, variable or binding that is not listed there.
 | --- | --- | --- |
 | `RESEND_API_KEY` | GitHub repository secret | Starts re_. Sending access, domain thelogicgrid.com only. Optional. |
 | `MAIL_FROM` | GitHub repository variable | Another sender on the domain, e.g. hello@thelogicgrid.com. Optional. |
+| `MAIL_REPLY_TO` | GitHub repository variable | Where replies to support@ emails go. Default fantasticallogicgrid@gmail.com, until support@ has its own inbox. Optional. |
+| `MAIL_NOREPLY` | GitHub repository variable | The one-way sender (daily puzzle, team-message notices). Default noreply@thelogicgrid.com. Optional. |
 
 **Settings:**
 
@@ -582,6 +584,7 @@ uses a secret, variable or binding that is not listed there.
 6. Open <https://github.com/bltaylorjr/fantastical-logic-grid/settings/secrets/actions> and click **New repository secret** (or the pencil next to `RESEND_API_KEY`).
 7. Name: `RESEND_API_KEY`. Secret: the key. Click **Add secret**.
 8. Test: in the game, signed in with a confirmed account, send an idea with "Email me a thank-you note" ticked.
+9. Optional, once support@thelogicgrid.com has its own inbox: open <https://github.com/bltaylorjr/fantastical-logic-grid/settings/variables/actions>, click **New repository variable**, name `MAIL_REPLY_TO`, value `support@thelogicgrid.com`. (`MAIL_NOREPLY` only needs setting to use a sender other than noreply@thelogicgrid.com.)
 
 **Links:** [Resend domains](https://resend.com/domains) · [Resend API keys](https://resend.com/api-keys) · [Full guide (server/FEEDBACK-EMAILS.md)](https://github.com/bltaylorjr/fantastical-logic-grid/blob/main/server/FEEDBACK-EMAILS.md)
 
