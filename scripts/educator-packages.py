@@ -4,11 +4,13 @@ the Worker starts it). The domain's DNS is not on Cloudflare, so the Worker
 cannot send email itself (server/EDUCATORS.md).
 
 1. Ask the Worker for the work waiting (POST /admin/v1/educators/claim):
-   code emails for new requests, decline emails, and approved packages.
-2. Send the code and decline emails.
+   code emails for new requests, decline emails, answers to educators' ideas
+   and problems, and approved packages.
+2. Send the code, decline and answer emails.
 3. Build each approved package with scripts/educator-package.mjs (the game's
    own puzzle engine, printed to PDF by Chromium) and email the PDFs to the
-   educator's verified school address.
+   educator's verified school address, with the private link to their ideas,
+   problems and feedback section and the short survey.
 4. Tell the Worker what went out (POST /admin/v1/educators/done).
 
 Code emails go from noreply@thelogicgrid.com and the rest from support@thelogicgrid.com through Resend (free plan) when
@@ -102,7 +104,33 @@ def package_mail(b, manifest):
             ('list', files),
             'Print them with any PDF reader. You may copy them for your own students; please do not sell them or post them online.',
             f'Your students can also play free in their browser at {SITE}, and you can ask for another package any time at {SITE}/educators/.',
+            *([
+                'Once you have tried them, we would love to hear how it went. This private link opens your own ideas, problems and '
+                'feedback section and a 2-minute survey about how our tools can help you:',
+                ('link', 'Share ideas and feedback', feedback_link(b['ref'], b['feedbackKey'])),
+            ] if b.get('feedbackKey') else []),
             'Happy puzzling!',
+            SIGN_OFF,
+        ],
+    }
+
+
+def feedback_link(ref, key):
+    return f'{SITE}/educators/feedback/?' + urllib.parse.urlencode({'ref': ref, 'key': key})
+
+
+KIND_WORDS = {'idea': 'idea', 'problem': 'problem report', 'feedback': 'feedback'}
+
+
+def reply_mail(m):
+    return {
+        'subject': 'We answered your note (The Fantastical Logic Grid for educators)',
+        'blocks': [
+            f'Hello {m["name"]},',
+            f'Thank you for your {KIND_WORDS.get(m.get("kind"), "note")}. Our team has looked at it.',
+            ('quote', 'You wrote', m['text']),
+            ('quote', 'Our answer', m['note']),
+            'You can see all your notes and our answers, and send more, with the link in the email that brought your puzzles.',
             SIGN_OFF,
         ],
     }
@@ -250,11 +278,10 @@ def build(b, used):
     """Builds one package. Returns (manifest, attachments) or raises."""
     ensure_printer()
     with tempfile.TemporaryDirectory() as tmp:
-        job = os.path.join(tmp, 'job.json')
         out = os.path.join(tmp, 'out')
-        with open(job, 'w', encoding='utf-8') as f:
-            json.dump({**b, 'usedStories': used}, f)
-        subprocess.run(['node', os.path.join(ROOT, 'scripts', 'educator-package.mjs'), job, out], check=True, timeout=900, cwd=ROOT)
+        job = {k: v for k, v in b.items() if k != 'feedbackKey'}
+        subprocess.run(['node', os.path.join(ROOT, 'scripts', 'educator-package.mjs'), '-', out], input=json.dumps({**job, 'usedStories': used}).encode(),
+                       check=True, timeout=900, cwd=ROOT)
         with open(os.path.join(out, 'manifest.json'), encoding='utf-8') as f:
             manifest = json.load(f)
         attachments = []
@@ -277,12 +304,12 @@ def main():
     except urllib.error.URLError as e:
         print(f'::error::The Worker did not answer: {e.reason}')
         sys.exit(1)
-    mails, builds = work.get('mails', []), work.get('builds', [])
-    if not mails and not builds:
+    mails, builds, replies = work.get('mails', []), work.get('builds', []), work.get('replies', [])
+    if not mails and not builds and not replies:
         print('Nothing waiting.')
         return
     mailer = Mailer()
-    report = {'mails': {'sent': [], 'failed': []}, 'builds': []}
+    report = {'mails': {'sent': [], 'failed': []}, 'replies': {'sent': [], 'failed': []}, 'builds': []}
     for m in mails:
         maker = {'verify': verify_mail, 'declined': declined_mail}.get(m.get('kind'))
         if not maker or not m.get('email') or (m['kind'] == 'verify' and not m.get('code')):
@@ -290,6 +317,11 @@ def main():
             continue
         ok = mailer.send(m['email'], maker(m))
         report['mails']['sent' if ok else 'failed'].append(m['id'])
+    for m in replies:
+        if not m.get('email') or not (m.get('note') or '').strip():
+            report['replies']['sent'].append(m['id'])  # nothing to send; clear it
+            continue
+        report['replies']['sent' if mailer.send(m['email'], reply_mail(m)) else 'failed'].append(m['id'])
     used = list(work.get('usedStories', []))
     for b in builds:
         try:
@@ -311,9 +343,9 @@ def main():
     except (urllib.error.HTTPError, urllib.error.URLError):
         print('::error::The Worker did not take the report; some emails may go again.')
         sys.exit(1)
-    print(f'Sent {len(report["mails"]["sent"])} code or decline emails and {sum(1 for x in report["builds"] if x["ok"])} packages '
+    print(f'Sent {len(report["mails"]["sent"])} code or decline emails, {len(report["replies"]["sent"])} answers and {sum(1 for x in report["builds"] if x["ok"])} packages '
           f'(Resend {mailer.via["Resend"]}, Gmail {mailer.via["Gmail"]}); '
-          f'{len(report["mails"]["failed"]) + sum(1 for x in report["builds"] if not x["ok"])} will be tried again.')
+          f'{len(report["mails"]["failed"]) + len(report["replies"]["failed"]) + sum(1 for x in report["builds"] if not x["ok"])} will be tried again.')
 
 
 if __name__ == '__main__':
