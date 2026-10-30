@@ -521,6 +521,13 @@ h3, legend, .card h3 { font-family: var(--font); }
 #theme-choices { display: grid; grid-template-columns: 1fr; gap: 16px; }
 #theme-choices .theme-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 10px; }
 .theme-group { display: grid; gap: 8px; }
+/* Topics open under the chosen theme tile, across the whole row */
+#theme-choices #topic-field { grid-column: 1 / -1; position: relative; margin: 4px 0 6px; padding: 14px; border: 1px solid var(--accent); border-radius: 12px;
+  background: color-mix(in srgb, var(--accent) 7%, var(--bg)); }
+#theme-choices #topic-field::before { content: ""; position: absolute; top: -8px; left: calc(var(--pointer-x, 50%) - 8px); width: 14px; height: 14px;
+  background: inherit; border: 1px solid var(--accent); border-right: 0; border-bottom: 0; transform: rotate(45deg); }
+#theme-choices #topic-field > legend { float: left; width: 100%; margin: 0 0 10px; padding: 0; font-weight: 700; }
+#theme-choices #topic-field > .choices { clear: both; }
 .theme-group-name { margin: 0; font-size: .8rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted, inherit); }
 #theme-choices .choice > .tile { display: grid; justify-items: center; gap: 8px; padding: 14px 8px 12px; text-align: center; height: 100%; }
 #theme-choices .choice input:checked + .tile { padding: 13px 7px 11px; }
