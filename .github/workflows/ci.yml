@@ -64,15 +64,15 @@ jobs:
       - name: Accounts, races, error reports and the admin dashboard against the real Worker
         run: |
           npm --prefix server ci --no-audit --no-fund
-          node scripts/e2e-accounts.cjs
-          node scripts/e2e-compete.cjs
-          node scripts/e2e-challenge.cjs
-          node scripts/e2e-daily-results.cjs
-          node scripts/e2e-puzzle-mail.cjs
-          node scripts/e2e-errors.cjs
-          node scripts/e2e-admin.cjs
-          node scripts/e2e-archive.cjs
-          node scripts/e2e-educators.cjs
+          fail=0
+          for t in e2e-accounts e2e-compete e2e-challenge e2e-daily-results e2e-puzzle-mail e2e-errors e2e-admin e2e-archive e2e-educators; do
+            if ! node scripts/$t.cjs > /tmp/$t.log 2>&1; then
+              fail=1; msg=$(grep -v '^\s*at ' /tmp/$t.log | tail -25 | tr '\n' ' ' | head -c 1800)
+              echo "::error title=$t failed::${msg}"
+            fi
+            cat /tmp/$t.log
+          done
+          exit $fail
       # The screenshots from every size the layout test checks, to look at when
       # a layout check fails (kept 14 days, free).
       - name: Keep the screenshots
