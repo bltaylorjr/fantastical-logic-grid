@@ -48,7 +48,11 @@ from zoneinfo import ZoneInfo
 API = os.environ.get('FLG_CLOUD_URL', '').strip().rstrip('/')
 TOKEN = os.environ.get('FLG_ADMIN_TOKEN', '').strip()
 MODE = (os.environ.get('MODE', '').strip() or 'post').lower()
-DAY = os.environ.get('DAY', '').strip() or datetime.now(ZoneInfo('America/New_York')).date().isoformat()
+TODAY = datetime.now(ZoneInfo('America/New_York')).date().isoformat()
+DAY = os.environ.get('DAY', '').strip() or TODAY
+# ONLY (optional, by hand): post just these ads early, as channel:content, comma separated
+# (for example instagram:reel-launch). Use with DAY set to the ads' posting day.
+ONLY = {x.strip() for x in os.environ.get('ONLY', '').split(',') if x.strip()}
 GMAIL_USER = os.environ.get('GMAIL_USER', '').strip()
 GMAIL_PASSWORD = ''.join(os.environ.get('GMAIL_APP_PASSWORD', '').split())
 MAIL_TO = os.environ.get('OWNER_TASKS_TO', '').strip() or GMAIL_USER
@@ -573,6 +577,8 @@ def main():
         return
     due = worker(f'marketing/due?day={urllib.parse.quote(DAY)}')
     ads = due.get('ads', [])
+    if ONLY:
+        ads = [a for a in ads if f"{a['channel']}:{a.get('content', '')}" in ONLY]
     dry = MODE == 'dry-run'
     print(f'{DAY}: {len(ads)} approved ads due (automatic posting {"on" if due.get("autopost") else "off"}).')
     posted, failed, by_hand = [], [], []
@@ -592,7 +598,7 @@ def main():
             continue
         try:
             url = POST[ad['channel']](ad)
-            worker(f'marketing/ads/{ad["id"]}/auto', {'ok': True, 'postUrl': url, 'note': f'Posted automatically on {DAY}'})
+            worker(f'marketing/ads/{ad["id"]}/auto', {'ok': True, 'postUrl': url, 'note': f'Posted automatically on {TODAY if ONLY else DAY}'})
             posted.append((ad, url))
             print(f'Posted: {ad["title"]}')
         except Exception as e:  # noqa: BLE001 - one site failing must not stop the others
