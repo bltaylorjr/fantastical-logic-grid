@@ -324,6 +324,8 @@ function updatePreview() {
     $('#preview').textContent += ` That is outside the usual ${t.name} size, which is fine.`;
   }
   if (k >= 6 && n >= 7) $('#preview').textContent += ' Puzzles this big can take up to 20 seconds to write.';
+  // A player-written story plays at the level and size its writer chose.
+  if (setup.theme === 'stories') $('#preview').textContent = 'Player Stories play at the level and size their writer chose, with their own cast. Each story lists both under its name.';
 }
 
 function gatherOptions() {
@@ -383,7 +385,8 @@ async function makePuzzle(override = null) {
   }
   // The game's own characters (made in the admin dashboard) may join the
   // cast or tell the story. Names the player typed always win.
-  const picked = options.customNames || options.theme === 'random' ? {} : characters.pick(options.theme, options.items);
+  // Player Stories keep their writer's own cast, so no characters join.
+  const picked = options.customNames || options.theme === 'random' || options.theme === 'stories' ? {} : characters.pick(options.theme, options.items);
   if (picked.cast && picked.cast.length) options.customNames = picked.cast.map((c) => c.name);
   let puzzle = null;
   // The engine skips used stories itself; the loop is a safety net.
@@ -400,6 +403,10 @@ async function makePuzzle(override = null) {
 function setupSummary() {
   const [k, n] = currentSize();
   const theme = OPTIONS.themes.find((t) => t.id === setup.theme);
+  if (setup.theme === 'stories') {
+    const story = theme.topics.find((t) => t.id === setup.topic);
+    return [theme.name, story && story.id !== 'any' ? story.name : 'Any story'].join(' · ');
+  }
   return [TIERS[setup.tier].name, theme ? theme.name : 'Any theme', `${k} × ${n}`].join(' · ');
 }
 
