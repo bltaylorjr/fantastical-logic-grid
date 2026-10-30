@@ -91,7 +91,7 @@ export const MORE = {
           { noun: 'number of rows planted' }),
         ord('arrive', 'Arrival', 'arrived at {x}', 'did not arrive at {x}', timeOrd('arrived', 7 * 60, 10), { noun: 'arrival time' })],
       story: {
-        adjs: ['Blooming', 'Budding', 'Dewy', 'Fresh', 'Sprouting', 'Rainy', 'Greening', 'Sunlit', 'Fragrant', 'Breezy'],
+        adjs: ['Blooming', 'Budding', 'Dewy', 'Fresh', 'Misty', 'Rainy', 'Greening', 'Sunlit', 'Fragrant', 'Breezy'],
         openings: [
           'The community garden unlocked its gates for the season, and {n} {many} were waiting with seed trays.',
           '{N} {many} showed up for planting day just as an April shower cleared.',
@@ -186,7 +186,7 @@ export const MORE = {
           { name: 'Fish Story', text: 'Someone caught and released the biggest fish of the week, and there is a photo to prove it.', prize: 'the big catch plaque' },
           { name: 'Sunrise Photo', text: 'One sunrise photo is going on the camp\'s brochure.', prize: 'the brochure cover' },
           { name: 'Runaway Raft', text: 'The swim raft broke loose in the storm, and one person towed it back.', prize: 'the raft rescue ribbon' },
-          { name: 'Pie Eating', text: 'The berry pie eating contest left one very purple champion.', prize: 'the pie eating belt' },
+          { name: 'Pie Contest', text: 'The berry pie eating contest left one very purple champion.', prize: 'the pie eating belt' },
           { name: 'Firefly Jar', text: 'The camp counselors want to thank whoever helped the youngest kids catch and release fireflies.', prize: 'the firefly lantern' },
           { name: 'Cabin Prank', text: 'Someone filled a cabin with beach balls overnight, and one person finally confessed.', prize: 'the prankster\'s crown' },
           { name: 'Lifesaver', text: 'A floating cooler drifted toward the dam, and one person swam out and saved the snacks.', prize: 'the lifesaver medal' },
