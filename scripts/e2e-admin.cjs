@@ -220,6 +220,8 @@ const SHOTS = process.env.SHOTS;
     assert(/Number Place settings/.test(await page.textContent('#np-body')) && /Games since/.test(await page.textContent('#np-body')), 'the Number Place section shows its games and settings');
     await page.locator('#np-body input[data-np-key=np_daily_enabled]').uncheck();
     assert(await until('np_daily_enabled', false), 'a Number Place setting is saved from its own section');
+    // Saving re-draws the section; wait for it (the switch then reads Off) so the next change is not drawn over.
+    await page.waitForFunction(() => document.querySelector('#np-body input[data-np-key=np_daily_enabled]')?.nextElementSibling?.textContent === 'Off');
     await page.selectOption('#npset-np_max_level', 'expert');
     await page.click('button[data-np-save=np_max_level]');
     assert(await until('np_max_level', 'expert'), 'the hardest Number Place level is saved');
