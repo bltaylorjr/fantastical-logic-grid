@@ -162,7 +162,7 @@ export const DEFAULT_SETTINGS = {
   colorTheme: 'system', autoX: false, singleKeys: true, showTimer: true, coach: true, sound: true, volume: 60,
   silent: false, music: true, musicVolume: 40, instant: false,
   readAloud: true, aiPictures: 'scene', voiceProvider: 'server', kokoroReady: false, portraitStyle: 'notionists', confetti: true, celebrations: ['confetti'], celebrateRandom: false, introOffered: false,
-  learn: true, shareNoticeShown: false, language: 'en-US', languageOffered: false,
+  learn: true, shareNoticeShown: false, pictureClues: true, pictureIntroSeen: false, storyBeats: true, language: 'en-US', languageOffered: false,
 };
 
 // Chosen in the admin dashboard for every player (GET /v1/config, kept by

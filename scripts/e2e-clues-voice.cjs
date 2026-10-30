@@ -50,7 +50,8 @@ const path = require('path');
     };
     speechSynthesis.speak = (u) => { window.__device.push(u.text); setTimeout(() => u.onend && u.onend(), 5); };
   });
-  await page.goto('http://localhost:8133/');
+  // Picture clues keep one clue locked; this test checks that every clue is read.
+  await page.goto('http://localhost:8133/?pictures=0');
   await page.waitForSelector('#dlg-welcome[open]'); await page.keyboard.press('Escape');
   // A plain (not async) check: waitForFunction treats a returned promise as already true.
   await page.waitForFunction(() => (JSON.parse(localStorage.getItem('flg.settings') || '{}')).kokoroReady === true, null, { timeout: 15000 });

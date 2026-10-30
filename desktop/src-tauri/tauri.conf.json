@@ -61,7 +61,7 @@
         "https://github.com/bltaylorjr/fantastical-logic-grid/releases/latest/download/latest.json"
       ],
       "windows": {
-        "installMode": "passive"
+        "installMode": "quiet"
       }
     }
   }
