@@ -545,7 +545,7 @@ for (const diff of ['easy', 'medium', 'expert']) {
   check('school emails are recognized and personal ones are not', JSON.stringify(Object.values(kinds)) === JSON.stringify(['school', 'school', 'school', 'school', 'personal', 'unknown']), JSON.stringify(kinds));
 }
 
-// Picture clues (experimental): every picture solves by logic, and the
+// Picture clues: every picture solves by logic, and the
 // locked clue is a real clue of the puzzle.
 {
   for (const [theme, list] of Object.entries(PICTURES)) {
@@ -555,6 +555,19 @@ for (const diff of ['easy', 'medium', 'expert']) {
       check(`picture "${pic.name}" (${theme}): only # and .`, pic.rows.every((r) => /^[#.]+$/.test(r)));
       const g = solvePicture(lineClues(pic.rows));
       check(`picture "${pic.name}" (${theme}): solvable by logic alone`, !!g && g.every((r, y) => r.every((v, x) => (v === 1) === (pic.rows[y][x] === '#'))));
+    }
+  }
+  for (const t of THEMES) {
+    if (t.id === 'mystery') continue; // Bobby's to draw; uses the default pictures meanwhile
+    check(`pictures: theme ${t.id} has its own pictures`, (PICTURES[t.id] || []).length >= 2);
+  }
+  for (const [tier, max] of [['basic', 6], ['easy', 6], ['medium', 8], ['expert', 12]]) {
+    for (const theme of ['pets', 'music', 'mystery']) {
+      const p = generatePuzzle({ theme, difficulty: tier, seed: `picture-size-${tier}-${theme}` });
+      const pc = pictureClue(p);
+      if (!pc) continue;
+      const size = Math.max(pc.picture.rows.length, pc.picture.rows[0].length);
+      check(`picture clue (${tier}, ${theme}): picture fits the level (${size} <= ${max})`, size <= max, pc.picture.name);
     }
   }
   for (const theme of ['mystery', 'pets', 'scifi']) {

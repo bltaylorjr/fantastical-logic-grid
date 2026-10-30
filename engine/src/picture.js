@@ -1,18 +1,22 @@
 // Picture clues: a small picture puzzle (a nonogram) whose hidden picture is
 // a piece of evidence. Solving it unlocks one of the puzzle's written clues.
 //
-// EXPERIMENTAL: the game only uses picture clues when they are switched on
-// for the player (web/js/picture-clue.js). Generated puzzles do not change:
-// the picture and the locked clue are worked out from a finished puzzle.
+// Players can turn picture clues off in Settings (web/js/picture-clue.js).
+// Generated puzzles do not change: the picture and the locked clue are worked
+// out from a finished puzzle, so the same puzzle always gets the same picture.
+//
+// Balance: easier levels get smaller pictures (TIER_SIZE), and the locked
+// clue is one the solving path first needs about halfway through, so the
+// player always makes a start before the picture matters.
 //
 // HOW TO DRAW A PICTURE (a good task): each picture is rows of the same
-// length, "#" for a filled square and "." for an empty one. Keep it 8 to 12
-// squares wide. The tests check that every picture can be solved by logic
+// length, "#" for a filled square and "." for an empty one. Theme pictures
+// are 8 to 12 squares each way; "small" ones (for Basic and Easy) 6 or fewer. The tests check that every picture can be solved by logic
 // alone, with no guessing; if one cannot, add or remove a few squares.
 import { hashString } from './rng.js';
 
 export const PICTURES = {
-  // Placeholder pictures so the feature can be tested. Replace or add to them.
+  // Used when a theme has no picture that fits the level.
   default: [
     {
       name: 'a key',
@@ -79,9 +83,514 @@ export const PICTURES = {
       ],
     },
   ],
-  // Bobby's pictures for the Mystery theme go here.
+  // Bobby's pictures for the Mystery theme go here (until then it uses the
+  // default pictures above, which already suit a mystery).
   mystery: [],
+  // Small pictures (6 squares or fewer each way) for Basic and Easy.
+  small: [
+    { name: 'a heart', rows: [
+      '.##.##.',
+      '#######',
+      '#######',
+      '.#####.',
+      '..###..',
+      '...#...',
+    ] },
+    { name: 'an arrow', rows: [
+      '...#..',
+      '...##.',
+      '######',
+      '######',
+      '...##.',
+      '...#..',
+    ] },
+    { name: 'a cup', rows: [
+      '####..',
+      '#..###',
+      '#..#.#',
+      '#..###',
+      '.##...',
+    ] },
+    { name: 'a house', rows: [
+      '..##..',
+      '.####.',
+      '######',
+      '#.##.#',
+      '#.##.#',
+      '######',
+    ] },
+    { name: 'a flag', rows: [
+      '#####',
+      '####.',
+      '#####',
+      '#....',
+      '#....',
+      '#....',
+    ] },
+  ],
+  action: [
+    { name: 'a lightning bolt', rows: [
+      '....###.',
+      '...###..',
+      '..###...',
+      '.######.',
+      '...###..',
+      '..###...',
+      '.##.....',
+      '##......',
+    ] },
+    { name: 'a parachute', rows: [
+      '..####..',
+      '.######.',
+      '########',
+      '#..#..#.',
+      '.#.#.#..',
+      '..###...',
+      '..###...',
+      '...#....',
+    ] },
+  ],
+  adventure: [
+    { name: 'a tent', rows: [
+      '...##...',
+      '..####..',
+      '..#..#..',
+      '.##..##.',
+      '.#....#.',
+      '##....##',
+      '#......#',
+      '########',
+    ] },
+    { name: 'a backpack', rows: [
+      '..####..',
+      '.#....#.',
+      '.######.',
+      '##....##',
+      '##.##.##',
+      '##.##.##',
+      '##....##',
+      '.######.',
+    ] },
+  ],
+  holiday: [
+    { name: 'a gift box', rows: [
+      '..#..#..',
+      '...##...',
+      '########',
+      '#..##..#',
+      '########',
+      '.#.##.#.',
+      '.#.##.#.',
+      '.######.',
+    ] },
+    { name: 'a snowman', rows: [
+      '...##...',
+      '..####..',
+      '...##...',
+      '..####..',
+      '.##..##.',
+      '.######.',
+      '########',
+      '.######.',
+    ] },
+  ],
+  occasion: [
+    { name: 'a balloon', rows: [
+      '..####..',
+      '.######.',
+      '.######.',
+      '.######.',
+      '..####..',
+      '...##...',
+      '....#...',
+      '...#....',
+    ] },
+    { name: 'a cake', rows: [
+      '.#.#.#..',
+      '.#.#.#..',
+      '########',
+      '#......#',
+      '########',
+      '#......#',
+      '########',
+      '........',
+    ] },
+  ],
+  fantasy: [
+    { name: 'a sword', rows: [
+      '......##',
+      '.....###',
+      '....###.',
+      '#.####..',
+      '.####...',
+      '..##....',
+      '.####...',
+      '#..#....',
+    ] },
+    { name: 'a crown', rows: [
+      '#..##..#',
+      '##.##.##',
+      '########',
+      '########',
+      '#.#..#.#',
+      '########',
+      '........',
+      '........',
+    ] },
+  ],
+  scifi: [
+    { name: 'a rocket', rows: [
+      '...#....',
+      '..###...',
+      '..#.#...',
+      '..###...',
+      '.#####..',
+      '.#####..',
+      '##.#.##.',
+      '#..#..#.',
+    ] },
+    { name: 'a flying saucer', rows: [
+      '...##...',
+      '..####..',
+      '.#....#.',
+      '########',
+      '#.#.#.##',
+      '.######.',
+      '..#..#..',
+      '.#....#.',
+    ] },
+  ],
+  sports: [
+    { name: 'a trophy', rows: [
+      '########',
+      '#.####.#',
+      '#.####.#',
+      '.######.',
+      '..####..',
+      '...##...',
+      '..####..',
+      '.######.',
+    ] },
+    { name: 'a ball', rows: [
+      '..####..',
+      '.##..##.',
+      '##.##.##',
+      '#.####.#',
+      '#.####.#',
+      '##.##.##',
+      '.##..##.',
+      '..####..',
+    ] },
+  ],
+  cooking: [
+    { name: 'a teacup', rows: [
+      '...###..',
+      '..#.#...',
+      '........',
+      '######..',
+      '#....###',
+      '#....#.#',
+      '.####.##',
+      '########',
+    ] },
+    { name: 'a frying pan', rows: [
+      '..###.....',
+      '######....',
+      '######....',
+      '######....',
+      '.#########',
+      '..####..##',
+    ] },
+  ],
+  pets: [
+    { name: 'a paw print', rows: [
+      '.#....#.',
+      '###..###',
+      '.##...#.',
+      '...##...',
+      '..####..',
+      '.######.',
+      '.######.',
+      '..#..#..',
+    ] },
+    { name: 'a fish', rows: [
+      '....###.',
+      '#..#####',
+      '##.##.##',
+      '#######.',
+      '##.#####',
+      '#..#####',
+      '....###.',
+      '........',
+    ] },
+  ],
+  town: [
+    { name: 'a traffic light', rows: [
+      '..####..',
+      '.##..##.',
+      '.#.##.#.',
+      '.######.',
+      '.#.##.#.',
+      '.######.',
+      '.#.##.#.',
+      '..####..',
+    ] },
+    { name: 'a street lamp', rows: [
+      '.####...',
+      '.#..#...',
+      '.####...',
+      '..##....',
+      '..##....',
+      '..##....',
+      '..##....',
+      '.####...',
+    ] },
+  ],
+  parks: [
+    { name: 'a pine tree', rows: [
+      '...##...',
+      '..####..',
+      '.######.',
+      '..####..',
+      '.######.',
+      '########',
+      '...##...',
+      '...##...',
+    ] },
+    { name: 'a mountain', rows: [
+      '....#...',
+      '...###..',
+      '..##.##.',
+      '..#####.',
+      '.#######',
+      '########',
+      '........',
+      '........',
+    ] },
+  ],
+  travel: [
+    { name: 'a suitcase', rows: [
+      '..####..',
+      '..#..#..',
+      '########',
+      '#.#..#.#',
+      '#.#..#.#',
+      '#.#..#.#',
+      '########',
+      '.#....#.',
+    ] },
+    { name: 'a palm tree', rows: [
+      '.##..##.',
+      '###..###',
+      '#.####.#',
+      '...##...',
+      '....#...',
+      '....#...',
+      '...##...',
+      '.######.',
+    ] },
+  ],
+  wonders: [
+    { name: 'a pyramid', rows: [
+      '....#...',
+      '...###..',
+      '..#.###.',
+      '.#.#####',
+      '#.######',
+      '########',
+      '........',
+      '........',
+    ] },
+    { name: 'an arch', rows: [
+      '########',
+      '########',
+      '###..###',
+      '##....##',
+      '##....##',
+      '##....##',
+      '##....##',
+      '###..###',
+    ] },
+  ],
+  music: [
+    { name: 'a music note', rows: [
+      '...#####',
+      '...#####',
+      '...#...#',
+      '...#...#',
+      '.###.###',
+      '####.###',
+      '####....',
+      '.##.....',
+    ] },
+    { name: 'a bell', rows: [
+      '...##...',
+      '..####..',
+      '.######.',
+      '.######.',
+      '.######.',
+      '########',
+      '########',
+      '...##...',
+    ] },
+  ],
+  nautical: [
+    { name: 'an anchor', rows: [
+      '...##...',
+      '..####..',
+      '...##...',
+      '.######.',
+      '#..##.#.',
+      '#..##..#',
+      '.#.##.#.',
+      '..####..',
+    ] },
+    { name: 'a sailboat', rows: [
+      '...#....',
+      '...##...',
+      '...###..',
+      '...####.',
+      '...#....',
+      '########',
+      '.######.',
+      '..####..',
+    ] },
+  ],
+  farm: [
+    { name: 'a barn', rows: [
+      '...##...',
+      '..####..',
+      '.######.',
+      '########',
+      '#.####.#',
+      '#.#..#.#',
+      '#.#..#.#',
+      '########',
+    ] },
+    { name: 'a carrot', rows: [
+      '....###.',
+      '.....#..',
+      '..####..',
+      '..####..',
+      '..###...',
+      '.###....',
+      '.##.....',
+      '#.......',
+    ] },
+  ],
+  science: [
+    { name: 'a flask', rows: [
+      '..####..',
+      '...##...',
+      '...##...',
+      '..####..',
+      '.##..##.',
+      '.#.##.#.',
+      '##.##.##',
+      '########',
+    ] },
+    { name: 'a magnet', rows: [
+      '###..###',
+      '###..###',
+      '#.#..#.#',
+      '#.#..#.#',
+      '#.#..#.#',
+      '#.####.#',
+      '##....##',
+      '.######.',
+    ] },
+  ],
+  math: [
+    { name: 'a pi sign', rows: [
+      '########',
+      '########',
+      '.##..##.',
+      '.##..##.',
+      '.##..##.',
+      '.##..##.',
+      '.##..###',
+      '##...##.',
+    ] },
+    { name: 'a calculator', rows: [
+      '########',
+      '#......#',
+      '########',
+      '#.#.#.##',
+      '########',
+      '#.#.#.##',
+      '########',
+      '........',
+    ] },
+  ],
+  biology: [
+    { name: 'a leaf', rows: [
+      '....####',
+      '...#####',
+      '..###.##',
+      '.###.###',
+      '.##.####',
+      '.#.####.',
+      '#.####..',
+      '#.......',
+    ] },
+    { name: 'a mushroom', rows: [
+      '..####..',
+      '.##.###.',
+      '###.####',
+      '########',
+      '...##...',
+      '...##...',
+      '..####..',
+      '........',
+    ] },
+  ],
+  astronomy: [
+    { name: 'a crescent moon', rows: [
+      '..###...',
+      '.###....',
+      '###.....',
+      '###.....',
+      '###.....',
+      '####...#',
+      '.#######',
+      '..#####.',
+    ] },
+    { name: 'a star', rows: [
+      '...##...',
+      '...##...',
+      '########',
+      '.######.',
+      '..####..',
+      '.######.',
+      '.##..##.',
+      '.#....#.',
+    ] },
+  ],
+  paradox: [
+    { name: 'an hourglass', rows: [
+      '########',
+      '.######.',
+      '..####..',
+      '...##...',
+      '...##...',
+      '..#..#..',
+      '.#.##.#.',
+      '########',
+    ] },
+    { name: 'an eye', rows: [
+      '...####...',
+      '.##....##.',
+      '#...##...#',
+      '#..####..#',
+      '.##.##.##.',
+      '...####...',
+    ] },
+  ],
 };
+
+// The biggest picture (squares across or down) for each level.
+export const TIER_SIZE = { basic: 6, easy: 6, medium: 8, hard: 10, expert: 12, mensa: 12, theorist: 12 };
+const sizeOf = (pic) => Math.max(pic.rows.length, pic.rows[0].length);
 
 // Run lengths of filled squares in one line: '.##..#' -> [2, 1]; empty -> [].
 export function runs(line) {
@@ -157,8 +666,9 @@ export function solvePicture({ rows, cols }) {
 // start before the picture matters.
 export function pictureClue(puzzle, pictures = PICTURES) {
   if (!puzzle.clues || puzzle.clues.length < 4) return null;
-  const own = pictures[puzzle.theme.id] || [];
-  const list = own.length ? own : pictures.default;
+  const max = TIER_SIZE[puzzle.difficulty && puzzle.difficulty.id] || 12;
+  const fits = (list) => (list || []).filter((pic) => sizeOf(pic) <= max);
+  const list = [fits(pictures[puzzle.theme.id]), fits(pictures.default), fits(pictures.small), pictures.small || pictures.default].find((l) => l && l.length);
   const seed = hashString(`picture|${puzzle.story.id}`);
   const picture = list[seed % list.length];
   const firstUse = new Map();
