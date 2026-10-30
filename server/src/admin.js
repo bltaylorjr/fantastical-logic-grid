@@ -18,7 +18,9 @@
 //   GET  /admin/v1/characters[/:id]    the Characters section; POST .../save, .../:id/(portrait|lines|publish|unpublish|delete) (characters.js)
 //   GET  /admin/v1/feedback?kind=&status=  ideas and problems from the game; POST .../:id (approved|declined|addressed + note|done|new|delete)
 //   GET  /admin/v1/feedback/queue      approved ideas and problems waiting for the weekly fix run (ids and topics only)
-//   POST /admin/v1/feedback/:id/approve  { note, puzzle } approve a storyline: addressed, the puzzle stored for the player 30 days, one email with it as a PDF
+//   POST /admin/v1/feedback/:id/approve  approve a storyline: addressed; the email sender builds its first puzzle, stores it for the player and emails "Congratulations" with it as a PDF
+//   POST /admin/v1/feedback/:id/decline  disapprove a storyline: done; the player gets a thank-you for their input
+//   POST /admin/v1/replies/puzzle      { id, puzzle } the sender built an approved storyline's puzzle: store it for the player (owner)
 //   POST /admin/v1/replies/claim       thank-you emails waiting, for the GitHub Action to send (owner, replies.js)
 //   POST /admin/v1/replies/done        that Action says which went out; their addresses are removed (owner)
 //   GET  /admin/v1/educators?status=   educator puzzle package requests; POST .../:id/(approve|decline|delete) (educators.js)
@@ -33,6 +35,7 @@
 //   GET  /admin/v1/players?q=&filter=&sort=&dir=&page=&per=  every player, a page at a time; GET /admin/v1/players/:uid
 //   POST /admin/v1/players/:uid/(rename|ban|unban|reset-scores|delete)
 //   GET/POST /admin/v1/settings        feature switches and limits (settings.js)
+//   GET  /admin/v1/number-place        Number Place games by level (number-place.js)
 //   GET/POST /admin/v1/announcements   messages in the game; POST .../:id/(end|delete)
 //   GET  /admin/v1/inbox?type=&status=&q=  Communication: messages, ideas, problems, errors and emails in one list (messages.js)
 //   GET  /admin/v1/conversations/:id   one conversation; POST .../:id/reply (with an optional puzzle file), .../:id/status (open|done|delete)
@@ -45,6 +48,7 @@
 //   GET  /admin/v1/ratings?days=&by=[&brief=1]  puzzle ratings, trends and the plain-words analysis; POST .../summary (ratings.js)
 //   GET  /admin/v1/marketing?days=     campaigns, ads, media, tracked links and their numbers (marketing.js)
 //   GET/POST /admin/v1/supporters      supporters and premium grants; POST .../:id/remove (supporters.js)
+//   GET/POST /admin/v1/licenses        app keys for the Windows and Android apps; GET .../:id, POST .../:id/(approve|decline|revoke|restore|devices), .../:id/devices/:device/remove (licenses.js)
 //   GET/POST /admin/v1/badges          special badges; POST .../:id, .../:id/(delete|award), .../awards/:id/remove; GET .../:id/holders (special-badges.js)
 //   POST /admin/v1/puzzle-reports/(claim|done)  the puzzle doctor Action (owner); GET .../:id/puzzle, POST .../:id/retry (puzzle-reports.js)
 //   GET  /admin/v1/alerts              free allowances close to running out
@@ -58,10 +62,14 @@
 //   GET  /admin/v1/archive/download    the same zip as a download, nothing removed (owner)
 //   POST /admin/v1/archive/export[?test=1]  the zip for the weekly GitHub Action to email (owner)
 //   POST /admin/v1/archive/confirm     that Action says the email went out; rows may now go (owner)
+//   POST /admin/v1/passkeys/sign-in[/options]  Face ID or fingerprint sign-in (no sign-in needed, passkeys.js)
+//   GET  /admin/v1/passkeys            this admin's devices; POST .../options, .../register, .../:id/remove
+//   POST /admin/v1/session/end         sign out a passkey session
 //
 // Sign-in: a Firebase ID token from a game account with a confirmed email that
-// is the OWNER_EMAIL secret or listed in the admins table. The ADMIN_TOKEN
-// secret still works as a break-glass key with the owner's rights.
+// is the OWNER_EMAIL secret or listed in the admins table, or a session key
+// from a passkey that admin set up (passkeys.js). The ADMIN_TOKEN secret still
+// works as a break-glass key with the owner's rights.
 //
 // Privacy: anonymous learning data (plays, parts) is only ever counted on its
 // own. Nothing here joins it to accounts, and saved puzzles are only counted,
@@ -70,14 +78,15 @@ import { json, readText, TooLarge } from './http.js';
 import { verifyIdToken, AuthError } from './auth.js';
 import { checkName, cleanName, nameKey, hasBlockedWords } from './names.js';
 import { deleteCompeteStatements, clearBoardCache } from './compete.js';
-import { SETTINGS, getSettings, checkSetting, saveSetting, themeList } from './settings.js';
+import { SETTINGS, CELEBRATIONS, getSettings, checkSetting, saveSetting, themeList } from './settings.js';
+import { npSummary, NP_TUNING_CACHE_KEY } from './number-place.js';
 import { TUNING_CACHE_KEY } from './learn.js';
 import { refreshSearch, searchSnapshots, lastTry, REFRESH_GAP_MS } from './search.js';
 import { workshopOptions, addPart, draftParts } from './workshop.js';
-import { characterRoutes } from './characters.js';
+import { characterRoutes, VOICES, VOICE_STYLES } from './characters.js';
 import { TOPICS as FEEDBACK_TOPICS } from './feedback.js';
-import { claimReplies, finishReplies, replyCounts, releaseUpdate, dropUpdate, deleteReplyStatements, heldStoryline, approveStoryline } from './replies.js';
-import { inbox, INBOX_TYPES, conversationView, teamReply, removePuzzle, puzzleStorage, storePuzzle, PUZZLE_MAX_CHARS, setConversationStatus, startConversation, listNews, addNews, endNews, deleteNews, deleteMessageStatements, MessageRefusal } from './messages.js';
+import { claimReplies, finishReplies, replyCounts, releaseUpdate, dropUpdate, deleteReplyStatements, heldStoryline, approveStoryline, declineStoryline, storeBuiltPuzzle } from './replies.js';
+import { inbox, INBOX_TYPES, conversationView, teamReply, removePuzzle, puzzleStorage, PUZZLE_MAX_CHARS, setConversationStatus, startConversation, listNews, addNews, endNews, deleteNews, deleteMessageStatements, MessageRefusal } from './messages.js';
 import { claimDailyEmail, finishDailyEmail } from './daily-email.js';
 import { archiveStatus, runArchive, buildArchive, exportArchive, confirmArchive } from './archive.js';
 import { FREE_LIMITS, cloudflareUsage } from './usage.js';
@@ -89,12 +98,14 @@ import { ratingRoutes } from './ratings.js';
 import { marketingRoutes } from './marketing.js';
 import { oauthRoutes } from './marketing-oauth.js';
 import { supporterRoutes } from './supporters.js';
+import { licenseRoutes } from './licenses.js';
 import { badgeRoutes, playerBadges, deleteBadgeStatements } from './special-badges.js';
 import { puzzleMailRoutes } from './puzzle-mail.js';
 import { editionRoutes } from './editions.js';
 import { educatorRoutes } from './educators.js';
 import { puzzleReportRoutes } from './puzzle-reports.js';
 import { visitorRoutes } from './visits.js';
+import { SESSION_PREFIX, PasskeyError, signInOptions, checkSignIn, startSession, checkSession, endSessionStatement, forgetAdminStatements, registerOptions, register, listPasskeys, removePasskey } from './passkeys.js';
 
 const DAY = 24 * 3600_000;
 const ROLES = { viewer: 1, moderator: 2, admin: 3, owner: 4 };
@@ -107,9 +118,11 @@ const SESSION_MAX_S = 12 * 3600;
 const DENIED_PER_DAY = 500; // refused requests written to the audit log, so a flood cannot fill it
 const ANALYTICS_CACHE_MS = 120_000;
 const TABLES = ['sync_users', 'sync_records', 'sync_deleted_users', 'players', 'scores', 'races', 'race_entries', 'race_invites', 'plays', 'parts', 'usage',
-  'app_errors', 'upkeep_log', 'admins', 'admin_audit', 'settings', 'announcements', 'bans', 'name_reviews', 'archive_log', 'feedback', 'feedback_replies', 'error_fixes', 'conversations', 'conversation_messages', 'message_contacts', 'news', 'search_snapshots', 'daily_plan', 'translations', 'rating_insights', 'campaigns', 'campaign_ads', 'marketing_media', 'campaign_stats', 'challenges', 'daily_results', 'daily_email', 'supporters', 'payment_blocks', 'puzzle_mail', 'puzzle_mail_got', 'puzzle_mail_days', 'special_editions', 'educator_requests', 'special_badges', 'badge_awards', 'puzzle_reports', 'player_puzzles', 'visit_stats'];
+  'app_errors', 'upkeep_log', 'admins', 'admin_audit', 'settings', 'announcements', 'bans', 'name_reviews', 'archive_log', 'feedback', 'feedback_replies', 'error_fixes', 'conversations', 'conversation_messages', 'message_contacts', 'news', 'search_snapshots', 'daily_plan', 'translations', 'rating_insights', 'campaigns', 'campaign_ads', 'marketing_media', 'campaign_stats', 'challenges', 'daily_results', 'daily_email', 'supporters', 'payment_blocks', 'puzzle_mail', 'puzzle_mail_got', 'puzzle_mail_days', 'special_editions', 'educator_requests', 'special_badges', 'badge_awards', 'puzzle_reports', 'player_puzzles', 'visit_stats', 'educator_feedback', 'print_packs', 'print_pack_stories', 'admin_passkeys', 'admin_sessions', 'np_plays'];
+// worker-src blob: lets the Media library's celebrations draw off the main
+// thread, as they do in the game (canvas-confetti makes its own small worker).
 const SECURITY_HEADERS = {
-  'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; media-src 'self' blob:; connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+  'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; media-src 'self' blob:; connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com; manifest-src 'self'; worker-src 'self' blob:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
   'X-Content-Type-Options': 'nosniff',
   'X-Frame-Options': 'DENY',
   'Referrer-Policy': 'no-referrer',
@@ -150,10 +163,30 @@ const bearer = (req) => (req.headers.get('Authorization') || '').match(/^Bearer\
 const tokenMatches = (env, token) => { const want = String(env.ADMIN_TOKEN || '').trim(); return want.length >= 16 && safeEqual(token.trim(), want); };
 
 // ------------------------------------------------------------- identity
+async function roleOf(env, email) {
+  const owner = String(env.OWNER_EMAIL || '').trim().toLowerCase();
+  if (owner && email === owner) return 'owner';
+  const row = await env.DB.prepare('SELECT role FROM admins WHERE email = ?1').bind(email).first();
+  if (!row || !STORED_ROLES.includes(row.role)) throw new Refusal(403, 'not_admin', 'This account is not an admin.');
+  return row.role;
+}
+
+// who: { actor, role, key (rate limit), signedInAt (ms, when the admin last
+// proved who they are), session (a passkey session's hash) }.
 async function identify(req, env) {
   const token = bearer(req);
   if (!token) throw new Refusal(401, 'sign_in', 'Please sign in.');
-  if (tokenMatches(env, token)) return { actor: 'break-glass token', role: 'owner', key: 'token' };
+  if (tokenMatches(env, token)) return { actor: 'break-glass token', role: 'owner', key: 'token', signedInAt: 0 };
+  if (token.startsWith(SESSION_PREFIX)) {
+    let s;
+    try { s = await checkSession(env, token); } catch (e) {
+      if (e instanceof PasskeyError) throw new Refusal(e.status, e.error, e.message);
+      throw e;
+    }
+    // Checked on every request, so a removed admin is out at once.
+    const role = await roleOf(env, s.email);
+    return { actor: s.email, role, key: `pk:${s.hash.slice(0, 24)}`, signedInAt: s.createdAt, session: s.hash };
+  }
   if (token.split('.').length !== 3) throw new Refusal(401, 'sign_in', 'That key is not right.');
   let user;
   try { user = await verifyIdToken(token, env); } catch (e) {
@@ -163,17 +196,11 @@ async function identify(req, env) {
   if (Date.now() / 1000 - user.authTime > SESSION_MAX_S) throw new Refusal(401, 'sign_in', 'For safety, please sign in again.');
   const email = String(user.email || '').trim().toLowerCase();
   if (!email) throw new Refusal(403, 'not_admin', 'This account is not an admin.');
-  const owner = String(env.OWNER_EMAIL || '').trim().toLowerCase();
-  let role = owner && email === owner ? 'owner' : null;
-  if (!role) {
-    const row = await env.DB.prepare('SELECT role FROM admins WHERE email = ?1').bind(email).first();
-    if (!row || !STORED_ROLES.includes(row.role)) throw new Refusal(403, 'not_admin', 'This account is not an admin.');
-    role = row.role;
-  }
+  const role = await roleOf(env, email);
   // Anyone can make a Firebase account with an email they do not own, so an
   // admin's email must be confirmed.
   if (!user.emailVerified) throw new Refusal(403, 'verify_email', 'Confirm your email address first.');
-  return { actor: email, role, key: user.uid, uid: user.uid };
+  return { actor: email, role, key: user.uid, uid: user.uid, signedInAt: user.authTime * 1000 };
 }
 
 async function audit(env, entry) {
@@ -227,6 +254,8 @@ async function analytics(env, days, now = Date.now()) {
     picturesByDay: db.prepare("SELECT day, count AS n FROM usage WHERE name = 'pictures' AND day >= ?1").bind(sinceDay),
     namesWaiting: db.prepare('SELECT COUNT(*) AS n FROM players p LEFT JOIN name_reviews r ON r.user_id = p.user_id WHERE r.name_key IS NULL OR r.name_key != p.name_key'),
     educatorsWaiting: db.prepare("SELECT COUNT(*) AS n FROM educator_requests WHERE status = 'pending'"),
+    keysWaiting: db.prepare('SELECT COUNT(*) AS n FROM licenses WHERE waiting = 1 AND revoked_at IS NULL'),
+    educatorFeedbackNew: db.prepare("SELECT COUNT(*) AS n FROM educator_feedback WHERE status = 'new' AND kind != 'survey'"),
   };
   const names = Object.keys(q);
   const res = await db.batch(Object.values(q));
@@ -253,7 +282,7 @@ async function analytics(env, days, now = Date.now()) {
     voices: { byDay: series(r.voicesByDay), cap: settings.daily_tts_cap, enabled: settings.tts_enabled, today: series(r.voicesByDay).at(-1) },
     pictures: { byDay: series(r.picturesByDay), cap: settings.daily_picture_cap, mode: settings.ai_pictures, today: series(r.picturesByDay).at(-1) },
     errors: { byDay: series(r.errorsByDay) },
-    review: { parts: Object.fromEntries(r.parts.map((x) => [x.id, x.n])), namesWaiting: one('namesWaiting'), feedback: Object.fromEntries(r.feedbackNew.map((x) => [x.id, x.n])), messages: one('messagesUnread'), educators: one('educatorsWaiting') },
+    review: { parts: Object.fromEntries(r.parts.map((x) => [x.id, x.n])), namesWaiting: one('namesWaiting'), feedback: Object.fromEntries(r.feedbackNew.map((x) => [x.id, x.n])), messages: one('messagesUnread'), educators: one('educatorsWaiting'), educatorFeedback: one('educatorFeedbackNew'), keys: one('keysWaiting') },
   };
   analyticsCache.set(days, { at: now, body });
   return body;
@@ -487,6 +516,15 @@ const ROUTES = [
     const r = await claimReplies(env, body.limit, now);
     return { body: r, quiet: !r.replies.length && !r.dropped, detail: { claimed: r.replies.length, dropped: r.dropped || 0 } };
   }],
+  // The sender built an approved storyline's first puzzle: stored for the player (30 days; their game keeps it in Saved puzzles).
+  ['POST', /^replies\/puzzle$/, 'owner', 'replies.puzzle', async ({ env, body, now }) => {
+    let puzzleId = null;
+    try { puzzleId = await storeBuiltPuzzle(env, body.id, body.puzzle, now); } catch (e) {
+      if (e instanceof MessageRefusal) throw new Refusal(e.status, e.error, e.message);
+      throw e;
+    }
+    return { body: { ok: true, stored: !!puzzleId }, target: body.id, detail: { stored: !!puzzleId } };
+  }, { maxBody: PUZZLE_MAX_CHARS + 20_000 }],
   ['POST', /^replies\/done$/, 'owner', 'replies.done', async ({ env, body, now }) => {
     const r = await finishReplies(env, body.sent, body.failed, now);
     return { body: r, detail: r };
@@ -532,29 +570,29 @@ const ROUTES = [
     return { body: { approved: results }, quiet: true };
   }],
 
-  // Approve a storyline (a story idea): marked addressed with the note; the
-  // first puzzle made with it is stored in the player's game for 30 days and
-  // goes, as a PDF with its answer key, in the one email for this submission.
-  ['POST', /^feedback\/(\d+)\/approve$/, 'moderator', 'feedback.approve', async ({ env, params: [id], body, who, now }) => {
-    const note = cleanNote(body.note);
-    if (!note) throw new Refusal(400, 'bad_note', 'Write a short note for the player on how their storyline is used.');
-    const f = await env.DB.prepare("SELECT kind, topic, status FROM feedback WHERE id = ?1").bind(Number(id)).first();
+  // Approve or disapprove a storyline (a story idea): one button each, no
+  // note. Approved: marked addressed, and the player who asked for an email
+  // gets "Congratulations" with the first puzzle built from their storyline
+  // (built and stored for them by the email sender, see replies/puzzle).
+  // Disapproved: marked done, and that player gets a thank-you for their input.
+  ['POST', /^feedback\/(\d+)\/(approve|decline)$/, 'moderator', 'feedback.storyline', async ({ env, params: [id, action], now }) => {
+    const f = await env.DB.prepare('SELECT kind, topic, status FROM feedback WHERE id = ?1').bind(Number(id)).first();
     if (!f) throw new Refusal(404, 'gone', 'That idea is gone.');
-    if (f.kind !== 'idea' || f.topic !== 'story') throw new Refusal(400, 'not_story', 'Only story ideas can be approved as storylines.');
-    if (f.status === 'addressed') throw new Refusal(409, 'already', 'This storyline was already approved or addressed.');
-    const held = await heldStoryline(env, id);
-    let puzzleId = null;
-    if (body.puzzle && held && held.uid) {
-      try { puzzleId = await storePuzzle(env, held.uid, body.puzzle, who.actor, now); } catch (e) {
-        if (e instanceof MessageRefusal) throw new Refusal(e.status, e.error, e.message);
-        throw e;
-      }
+    if (f.kind !== 'idea' || f.topic !== 'story') throw new Refusal(400, 'not_story', 'Only story ideas can be approved or disapproved as storylines.');
+    if (f.status !== 'new') throw new Refusal(409, 'already', 'This storyline was already approved or closed.');
+    let emailed = 0;
+    if (action === 'approve') {
+      const note = 'Storyline approved. Its first puzzle is built from it and sent to the player.';
+      await env.DB.prepare("UPDATE feedback SET status = 'addressed', note = ?1, done_at = ?2 WHERE id = ?3").bind(note, now, Number(id)).run();
+      const held = await heldStoryline(env, id);
+      emailed = held ? await approveStoryline(env, held.id) : 0;
+    } else {
+      await env.DB.prepare("UPDATE feedback SET status = 'done', note = NULL, done_at = ?1 WHERE id = ?2").bind(now, Number(id)).run();
+      emailed = await declineStoryline(env, id);
     }
-    await env.DB.prepare("UPDATE feedback SET status = 'addressed', note = ?1, done_at = ?2 WHERE id = ?3").bind(note, now, Number(id)).run();
-    const emailed = held ? await approveStoryline(env, held.id, note, puzzleId) : 0;
     analyticsCache.clear();
-    return { body: { ok: true, emailed, stored: !!puzzleId }, target: id, detail: { note, emailed, stored: !!puzzleId } };
-  }, { maxBody: PUZZLE_MAX_CHARS + 20_000 }],
+    return { body: { ok: true, emailed }, target: id, detail: { action, emailed } };
+  }],
   ['GET', /^names$/, 'moderator', 'names.view', async ({ env, url, now }) => {
     const status = ['pending', 'reviewed', 'all'].includes(url.searchParams.get('status')) ? url.searchParams.get('status') : 'pending';
     const { results } = await env.DB.prepare(`SELECT p.user_id AS uid, p.screen_name AS name, p.created_at AS createdAt, p.updated_at AS updatedAt,
@@ -635,14 +673,40 @@ const ROUTES = [
       },
     };
   }],
+  // The Media library: every sound and picture in the game, to try out. The
+  // sounds and pictures themselves are made in the browser (admin/media.js);
+  // this sends the names, the voices and the switches that sit beside them.
+  ['GET', /^media$/, 'viewer', 'media.view', async ({ env }) => {
+    const s = await getSettings(env);
+    const one = (key) => ({ key, label: SETTINGS[key].label, help: SETTINGS[key].help, value: s[key] });
+    return {
+      body: {
+        themes: themeList(),
+        voices: VOICES,
+        voiceStyles: Object.entries(VOICE_STYLES).map(([id, v]) => ({ id, name: v.name, gemini: v.gemini, kokoro: v.kokoro, speed: v.speed })),
+        celebrations: CELEBRATIONS.map(one),
+        random: one('celebrate_random'),
+        switches: {
+          soundEffects: s.sound_effects_enabled, themeMusic: s.theme_music_enabled, voices: s.tts_enabled, voiceCap: s.daily_tts_cap,
+          voiceSource: (SETTINGS.voice_source.options.find((o) => o.value === s.voice_source) || {}).label || s.voice_source,
+          portraitStyle: s.portrait_style, aiPictures: s.ai_pictures,
+        },
+        serverVoices: !!(env.GEMINI_API_KEY || env.GOOGLE_TTS_KEY),
+      },
+    };
+  }],
   ['POST', /^settings$/, 'admin', 'settings.change', async ({ env, body, who }) => {
     const { value, error } = checkSetting(body.key, body.value);
     if (error) throw new Refusal(400, 'bad_value', error);
     const before = (await getSettings(env))[body.key];
     await saveSetting(env, body.key, value, who.actor);
     analyticsCache.clear();
+    if (String(body.key).startsWith('np_')) await caches.default.delete(new Request(NP_TUNING_CACHE_KEY));
     return { body: { key: body.key, value }, target: body.key, detail: { from: before, to: value } };
   }],
+
+  // Number Place's own section: how each level is going and what players get stuck on.
+  ['GET', /^number-place$/, 'viewer', 'numberplace.view', async ({ env, url }) => ({ body: await npSummary(env, daysParam(url, 90)) })],
 
   ['GET', /^announcements$/, 'viewer', 'announcements.view', async ({ env, now }) => {
     const { results } = await env.DB.prepare(`SELECT id, text, level, starts_at AS startsAt, ends_at AS endsAt, created_by AS createdBy, created_at AS createdAt
@@ -762,6 +826,8 @@ const ROUTES = [
   ...editionRoutes(Refusal),
   // ---- Supporters and premium extras (supporters.js).
   ...supporterRoutes(Refusal),
+  // ---- App keys for the Windows and Android apps (licenses.js).
+  ...licenseRoutes(Refusal),
   // ---- Special badges: Tester, Contributor and badges for milestones (special-badges.js).
   ...badgeRoutes(Refusal, { onChange: clearBoardCache }),
   ...educatorRoutes(Refusal),
@@ -794,8 +860,24 @@ const ROUTES = [
   }],
   ['POST', /^admins\/remove$/, 'owner', 'admins.remove', async ({ env, body }) => {
     const email = str(body.email, 254).toLowerCase();
-    await env.DB.prepare('DELETE FROM admins WHERE email = ?1').bind(email).run();
+    await env.DB.batch([env.DB.prepare('DELETE FROM admins WHERE email = ?1').bind(email), ...forgetAdminStatements(env, email)]);
     return { body: { ok: true }, target: email };
+  }],
+
+  // Face ID and fingerprint sign-in on this admin's own devices (passkeys.js).
+  ['GET', /^passkeys$/, 'viewer', 'passkeys.view', async ({ env, who }) => ({ body: { passkeys: String(who.actor).includes('@') ? await listPasskeys(env, who.actor) : [] }, quiet: true })],
+  ['POST', /^passkeys\/options$/, 'viewer', 'passkeys.options', async ({ env, url, who, now }) => ({ body: await registerOptions(env, url, who, now), quiet: true })],
+  ['POST', /^passkeys\/register$/, 'viewer', 'passkeys.add', async ({ env, url, who, body, now }) => {
+    const added = await register(env, url, who, body, now);
+    return { body: added, target: added.device };
+  }, { maxBody: 6_000 }],
+  ['POST', /^passkeys\/([\w-]{1,1400})\/remove$/, 'viewer', 'passkeys.remove', async ({ env, who, params }) => {
+    await removePasskey(env, who.actor, params[0]);
+    return { body: { ok: true }, target: params[0].slice(0, 16) };
+  }],
+  ['POST', /^session\/end$/, 'viewer', 'sign-out', async ({ env, who }) => {
+    if (who.session) await endSessionStatement(env, who.session).run();
+    return { body: { ok: true } };
   }],
 ];
 
@@ -820,11 +902,35 @@ const reply = (body, status = 200, extra = {}) => new Response(JSON.stringify(bo
   status, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', ...extra },
 });
 
+// Face ID or fingerprint sign-in. Nobody is signed in yet, so these two run
+// before identify(); the per-connection limit in handleAdmin() still applies.
+async function passkeySignIn(req, env, url, path) {
+  let email = null;
+  try {
+    if (path.endsWith('/options')) return reply(await signInOptions(env, url));
+    const { email: who, passkeyId } = await checkSignIn(env, url, await readBody(req, 6_000));
+    email = who;
+    await roleOf(env, email);
+    const session = await startSession(env, email, passkeyId);
+    await audit(env, { actor: email, action: 'passkeys.sign-in', status: 200 });
+    return reply(session);
+  } catch (e) {
+    const refusal = e instanceof PasskeyError ? new Refusal(e.status, e.error, e.message) : e;
+    if (!(refusal instanceof Refusal)) {
+      console.error(e);
+      return reply({ error: 'server' }, 500);
+    }
+    await audit(env, { actor: email || 'unknown', action: 'passkeys.sign-in', detail: { error: refusal.error }, status: refusal.status }).catch(() => {});
+    return reply({ error: refusal.error, message: refusal.message }, refusal.status);
+  }
+}
+
 async function api(req, env, ctx, url, path) {
   if (path === 'client-config' && req.method === 'GET') {
     // Public by design (it only names the Firebase project), but kept out of the repo.
     return reply({ firebaseApiKey: env.FIREBASE_WEB_API_KEY || null, projectId: env.FIREBASE_PROJECT_ID || null, tokenSignIn: true });
   }
+  if (req.method === 'POST' && (path === 'passkeys/sign-in/options' || path === 'passkeys/sign-in')) return passkeySignIn(req, env, url, path);
   let who = null;
   let action = `${req.method} ${path}`;
   let route = null;
@@ -841,7 +947,7 @@ async function api(req, env, ctx, url, path) {
     const body = await readBody(req, route[5]?.maxBody || MAX_BODY);
     let out;
     try { out = await route[4]({ req, env, ctx, url, who, params, body, now: Date.now() }); } catch (e) {
-      if (e instanceof MessageRefusal) throw new Refusal(e.status, e.error, e.message);
+      if (e instanceof MessageRefusal || e instanceof PasskeyError) throw new Refusal(e.status, e.error, e.message);
       throw e;
     }
     if (!out.quiet) await audit(env, { actor: who.actor, role: who.role, action, target: out.target, detail: out.detail, status: 200 });

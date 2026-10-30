@@ -17,6 +17,10 @@ export const CLOUD = {
   siteUrl: 'https://thelogicgrid.com',
   // The app version (package.json), stamped in at build time for error reports.
   appVersion: '',
+  // The public half of the key that signs app keys (web/js/license.js). Not a
+  // secret: it can only check a signature, never make one. The private half is
+  // the LICENSE_SIGNING_KEY Cloudflare secret.
+  licenseKey: { kty: 'EC', crv: 'P-256', x: 'Qv4J2JvfbXxBkWQHtXeAZGgBoUW6LtAkXjsfcSYxg_U', y: 'Sq8rwhJriq_2WUTQDcEhwAObKUvK8YIHNB47UWaOt_4' },
 };
 
 export const cloudEnabled = () => !!(CLOUD.firebaseApiKey && CLOUD.syncUrl);

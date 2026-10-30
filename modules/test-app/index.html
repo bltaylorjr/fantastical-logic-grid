@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Number Place Preview</title>
+<link rel="stylesheet" href="app.css">
+<link rel="stylesheet" href="modules/number-place/ui.css">
+<style>
+  .test-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; padding-block: 10px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); border-bottom: 1px solid var(--hairline); background: var(--surface-2); }
+  .test-bar p { margin: 0; font-weight: 700; }
+  .test-bar small { font-weight: 400; color: var(--muted); }
+  .test-bar select { min-height: 40px; font: inherit; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); padding: 0 8px; }
+  main.screen { padding-top: 24px; }
+</style>
+<script type="module" src="modules/test-app/main.js"></script>
+</head>
+<body>
+<header class="test-bar">
+  <p>Puzzle module test <small>Private preview. Not part of the live game yet.</small></p>
+  <label>Look <select id="theme"><option value="system">Match device</option><option value="light">Light</option><option value="dark">Dark</option><option value="contrast">High contrast</option></select></label>
+</header>
+<main class="screen"><div id="np"></div></main>
+</body>
+</html>

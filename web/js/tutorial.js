@@ -35,6 +35,8 @@ export function initTutorial(d) {
   $('#screen-learn').addEventListener('keydown', (e) => {
     if (!T || document.querySelector('dialog[open]')) return;
     const mod = e.ctrlKey || e.metaKey;
+    // Browser autofill and some extensions send keydown events with no key.
+    if (typeof e.key !== 'string') return;
     const k = e.key.toLowerCase();
     if (mod && k === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); }
     else if (mod && k === 'y') { e.preventDefault(); redo(); }

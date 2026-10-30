@@ -6,9 +6,12 @@ import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.res.AssetFileDescriptor;
 import android.graphics.Color;
+import android.hardware.biometrics.BiometricManager;
+import android.hardware.biometrics.BiometricPrompt;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.CancellationSignal;
 import android.print.PrintAttributes;
 import android.print.PrintManager;
 import android.speech.tts.TextToSpeech;
@@ -55,7 +58,8 @@ import java.util.Map;
  * https://appassets.androidplatform.net so the game gets a secure origin
  * (IndexedDB, module workers and WebAssembly all work offline). The native
  * bridge (assets/native-bridge.js) adds printing, saving files, keeping the
- * screen on, the device voice and the back button.
+ * screen on, the device voice, the back button and the fingerprint or face
+ * check for signing in (Android's BiometricPrompt, Android 10 and newer).
  */
 public class MainActivity extends Activity {
     private static final String HOST = "appassets.androidplatform.net";
@@ -484,9 +488,65 @@ public class MainActivity extends Activity {
                     // Ignore a colour Android cannot read.
                 }
                 break;
+            case "biometricCheck":
+                biometricResult(o.optString("id"), biometricAvailable() ? "ok" : "none");
+                break;
+            case "biometric":
+                askBiometric(o);
+                break;
             default:
                 break;
         }
+    }
+
+    // ---- Fingerprint, face or screen-lock check (sign in) ----
+
+    // Android 11+: a fingerprint or face, or the screen-lock PIN, pattern or password.
+    private static final int AUTHENTICATORS = BiometricManager.Authenticators.BIOMETRIC_WEAK
+            | BiometricManager.Authenticators.DEVICE_CREDENTIAL;
+
+    private boolean biometricAvailable() {
+        if (Build.VERSION.SDK_INT < 29) return false;
+        BiometricManager bm = getSystemService(BiometricManager.class);
+        if (bm == null) return false;
+        if (Build.VERSION.SDK_INT >= 30) return bm.canAuthenticate(AUTHENTICATORS) == BiometricManager.BIOMETRIC_SUCCESS;
+        return bm.canAuthenticate() == BiometricManager.BIOMETRIC_SUCCESS;
+    }
+
+    @SuppressWarnings("deprecation")
+    private void askBiometric(JSONObject o) {
+        final String id = o.optString("id");
+        if (Build.VERSION.SDK_INT < 29 || !biometricAvailable()) {
+            biometricResult(id, "none");
+            return;
+        }
+        BiometricPrompt.Builder b = new BiometricPrompt.Builder(this)
+                .setTitle(o.optString("title", getString(R.string.app_name)));
+        String sub = o.optString("subtitle", "");
+        if (!sub.isEmpty()) b.setSubtitle(sub);
+        if (Build.VERSION.SDK_INT >= 30) b.setAllowedAuthenticators(AUTHENTICATORS);
+        else b.setDeviceCredentialAllowed(true);
+        b.build().authenticate(new CancellationSignal(), getMainExecutor(), new BiometricPrompt.AuthenticationCallback() {
+            @Override
+            public void onAuthenticationSucceeded(BiometricPrompt.AuthenticationResult result) {
+                biometricResult(id, "ok");
+            }
+
+            @Override
+            public void onAuthenticationError(int code, CharSequence message) {
+                biometricResult(id, "cancel");
+            }
+            // onAuthenticationFailed is one wrong try; the prompt stays open for another.
+        });
+    }
+
+    private void biometricResult(final String id, final String result) {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                web.evaluateJavascript("window.__flgBiometric && window.__flgBiometric(" + JSONObject.quote(id) + "," + JSONObject.quote(result) + ")", null);
+            }
+        });
     }
 
     // ---- Device voice (Android text-to-speech) ----

@@ -38,9 +38,10 @@ GitHub themselves (please report those to them).
   repository or the apps.
 - Every page carries a strict Content Security Policy; the API and admin
   dashboard send HSTS, anti-framing and no-sniff headers; every API route has
-  rate limits and size limits; admins need a confirmed email, are signed out
-  after 30 idle minutes and must sign in again every 12 hours, and every admin
-  action is written to an audit log.
+  rate limits and size limits; admins need a confirmed email, are locked out
+  after 30 idle minutes and must sign in again every 12 hours (with a password
+  or a passkey that needs Face ID, a fingerprint or the device PIN), and every
+  admin action is written to an audit log.
 - New passwords are checked against known data leaks (Have I Been Pwned's
   free Pwned Passwords list); only the first 5 characters of the password's
   SHA-1 hash ever leave the device.

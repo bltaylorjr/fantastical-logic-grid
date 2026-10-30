@@ -98,6 +98,10 @@ button, input, select { font: inherit; color: inherit; }
 .menu a:hover, .menu a:focus-visible { background: var(--accent-soft); }
 .menu button, .cellmenu button { background: none; border: 0; text-align: left; padding: 10px 12px; min-height: 44px; border-radius: 6px; cursor: pointer; }
 .menu button:hover, .menu button:focus-visible, .cellmenu button:hover, .cellmenu button:focus-visible { background: var(--accent-soft); }
+/* The small Number Place link at the foot of the menu. */
+.menu .menu-small { font-size: .85em; font-weight: 400; border-top: 1px solid var(--border); border-radius: 0 0 6px 6px; margin-top: 4px; }
+.menu .menu-tag { font-size: .8em; font-weight: 700; margin-left: 6px; padding: 1px 6px; border-radius: 999px; background: var(--accent-soft); }
+.np-back { margin: 0 0 8px; }
 
 /* ---------- Buttons and fields ---------- */
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; min-width: 44px; padding: 8px 16px; border-radius: 8px;
@@ -167,7 +171,7 @@ legend { font-weight: 700; font-size: 1.05rem; padding: 0; margin-bottom: 8px; }
 .warn { border-left: 4px solid var(--hint); padding: 6px 12px; margin: 0 0 16px; }
 .gen-row { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; }
 .gen-status { margin: 0; color: var(--muted); }
-.error-box { margin-top: 16px; border: 2px solid var(--error); background: var(--error-soft); border-radius: 10px; padding: 12px 16px; }
+.error-box, .bio-error { margin-top: 16px; border: 2px solid var(--error); background: var(--error-soft); border-radius: 10px; padding: 12px 16px; }
 .error-box p { margin: 0 0 8px; }
 
 /* Saved list */
@@ -421,6 +425,10 @@ input[type=range] { width: 100%; min-height: 44px; accent-color: var(--accent); 
 #dlg-suggest .field { margin-bottom: 12px; }
 #dlg-suggest fieldset { border: 0; padding: 0; margin: 0 0 12px; }
 #dlg-suggest legend { font-weight: 700; padding: 0; }
+#dlg-pack select { box-sizing: border-box; min-height: 44px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); color: var(--text); font: inherit; }
+#dlg-pack label[for] { font-weight: 700; display: block; margin-bottom: 4px; }
+#dlg-pack fieldset { border: 0; padding: 0; margin: 0 0 12px; }
+#dlg-pack legend { font-weight: 700; padding: 0; }
 .check-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0 12px; }
 #read-story { margin-top: 12px; }
 #read-clues { margin-bottom: 10px; }
@@ -455,6 +463,12 @@ h3, legend, .card h3 { font-family: var(--font); }
 .menu, .cellmenu { background: var(--surface); border: 1px solid var(--edge-hi); border-radius: 14px; box-shadow: var(--shadow);
   backdrop-filter: blur(20px) saturate(1.3); -webkit-backdrop-filter: blur(20px) saturate(1.3); }
 .menu button, .menu a, .cellmenu button { border-radius: 10px; font-weight: 700; }
+/* Game menu: solid so text behind never shows through (nested blur is ignored inside the blurred app bar on phones),
+   and never taller than the screen below the app bar; it scrolls inside itself instead. */
+.menu { background: var(--surface-2); backdrop-filter: none; -webkit-backdrop-filter: none;
+  max-height: calc(100vh - var(--appbar-h, 72px) - 12px - env(safe-area-inset-bottom, 0px));
+  max-height: calc(100dvh - var(--appbar-h, 72px) - 12px - env(safe-area-inset-bottom, 0px));
+  overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; align-content: start; }
 
 /* Panels */
 .card { background: var(--surface); border: 1px solid var(--edge); border-radius: var(--radius); box-shadow: inset 0 1px 0 var(--edge), var(--shadow);
@@ -507,6 +521,13 @@ h3, legend, .card h3 { font-family: var(--font); }
 #theme-choices { display: grid; grid-template-columns: 1fr; gap: 16px; }
 #theme-choices .theme-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 10px; }
 .theme-group { display: grid; gap: 8px; }
+/* Topics open under the chosen theme tile, across the whole row */
+#theme-choices #topic-field { grid-column: 1 / -1; position: relative; margin: 4px 0 6px; padding: 14px; border: 1px solid var(--accent); border-radius: 12px;
+  background: color-mix(in srgb, var(--accent) 7%, var(--bg)); }
+#theme-choices #topic-field::before { content: ""; position: absolute; top: -8px; left: calc(var(--pointer-x, 50%) - 8px); width: 14px; height: 14px;
+  background: inherit; border: 1px solid var(--accent); border-right: 0; border-bottom: 0; transform: rotate(45deg); }
+#theme-choices #topic-field > legend { float: left; width: 100%; margin: 0 0 10px; padding: 0; font-weight: 700; }
+#theme-choices #topic-field > .choices { clear: both; }
 .theme-group-name { margin: 0; font-size: .8rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted, inherit); }
 #theme-choices .choice > .tile { display: grid; justify-items: center; gap: 8px; padding: 14px 8px 12px; text-align: center; height: 100%; }
 #theme-choices .choice input:checked + .tile { padding: 13px 7px 11px; }
@@ -638,6 +659,7 @@ dialog::backdrop { background: rgb(5 7 16 / .6); backdrop-filter: blur(6px); -we
   .pp .qline { display: inline-block; min-width: 140pt; border-bottom: .5pt solid #000; margin-left: 6pt; }
   .pp .pnotes { white-space: pre-wrap; overflow-wrap: anywhere; }
   .pp .psupport { font-size: 9pt; margin: 12pt 0 0; }
+  .pcover li .pmeta { display: inline; margin: 0 0 0 6pt; }
   table.pg { border-collapse: collapse; font-size: 10pt; break-inside: avoid; margin: 6pt 0 10pt; }
   table.pg tr { break-inside: avoid; }
   table.pg td.c { width: var(--pcell); height: var(--pcell); min-width: var(--pcell); border: .5pt solid #000; text-align: center; vertical-align: middle; padding: 0; font-size: calc(var(--pcell) * .6); line-height: 1; }
@@ -902,6 +924,11 @@ dialog.rules table.board td { font-variant-numeric: tabular-nums; }
 .site-links { margin: 24px auto 8px; max-width: 1100px; padding: 0 16px; }
 .site-links ul { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 20px; margin: 0; padding: 0; list-style: none; }
 .site-links a { display: inline-block; padding: 10px 4px; min-height: 44px; color: var(--text); }
+
+/* App key window (license.js): the Windows and Android apps, first launch */
+.dlg-license #license-key { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; letter-spacing: .04em; text-transform: uppercase; }
+.dlg-license::backdrop { background: rgb(0 0 0 / .75); }
+.license-code { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; user-select: all; }
 /* ---------- Responsive layout (checked at 320 px phones up to 2560 px monitors,
    and at 200% zoom, by scripts/e2e-responsive.cjs) ---------- */
 /* A visually hidden label inside a scrolling table is placed against the page,
@@ -958,3 +985,30 @@ dialog.rules table.board td { font-variant-numeric: tabular-nums; }
 .app-foot { display: flex; justify-content: center; padding: 16px; margin-top: 8px; border-top: 1px solid var(--border); }
 .report-kind { display: flex; flex-wrap: wrap; gap: 4px 20px; border: 0; padding: 0; margin: 0 0 8px; }
 .report-kind legend { padding: 0; margin-bottom: 4px; font-weight: 600; }
+
+/* Fingerprint or face sign-in (biometric.js) */
+.acct-bio-signin { display: grid; gap: 8px; padding-bottom: 12px; border-bottom: 1px solid var(--hairline); }
+.acct-bio-signin .help:empty { display: none; }
+.acct-bio { display: grid; gap: 6px; border-top: 1px solid var(--hairline); padding-top: 12px; }
+/* Grid / List switch in the sticky app bar (shown only while a puzzle is open),
+   so it can be reached without scrolling back up to the grid. Icon plus word on
+   wider screens; icons only on phones, where the word stays for screen readers. */
+.view-seg { flex: none; margin-left: auto; }
+.view-seg[hidden] { display: none; }
+.view-seg > label > span { gap: 6px; min-width: 44px; justify-content: center; padding: 0 12px; }
+.view-seg .ico { width: 20px; height: 20px; flex: none; }
+/* While a puzzle is open the scoreboard strip shares its row with the switch:
+   it gives up room first and cuts long screen names short with an ellipsis. */
+body:has(#view-seg:not([hidden])) .topstrip { min-width: 0; }
+body:has(#view-seg:not([hidden])) .miniboard { flex: 1 1 0; flex-wrap: nowrap; }
+@media (max-width: 599px) {
+  /* Phones: How to play and Introduction keep the first row to themselves. */
+  body:has(#view-seg:not([hidden])) .miniboard { flex-basis: 55%; }
+}
+body:has(#view-seg:not([hidden])) .miniboard ol { flex: 0 1 auto; flex-wrap: nowrap; min-width: 0; overflow: hidden; }
+body:has(#view-seg:not([hidden])) .miniboard li { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+body:has(#view-seg:not([hidden])) #miniboard-open { flex: none; }
+@media (max-width: 599px) {
+  .view-seg > label > span { padding: 0 10px; }
+  .view-seg .seg-text { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+}
