@@ -1,6 +1,6 @@
 {
   "name": "fantastical-logic-grid-app",
-  "version": "1.11.3",
+  "version": "1.12.0",
   "private": true,
   "license": "UNLICENSED",
   "description": "The Fantastical Logic Grid: browser (PWA) and desktop app.",
@@ -17,6 +17,7 @@
     "test:server": "npm --prefix server install --no-audit --no-fund && npm --prefix server test",
     "test:errors": "npm --prefix server install --no-audit --no-fund && npm run build && node scripts/e2e-errors.cjs",
     "test:admin": "npm --prefix server install --no-audit --no-fund && npm run build && node scripts/e2e-admin.cjs && node scripts/e2e-archive.cjs && node scripts/e2e-admin-characters.cjs",
+    "test:license": "npm --prefix server install --no-audit --no-fund && npm run build && node scripts/e2e-license.cjs",
     "test:educators": "npm --prefix server install --no-audit --no-fund && npm run build && node scripts/e2e-educators.cjs",
     "check:site": "node scripts/check-site.mjs"
   },

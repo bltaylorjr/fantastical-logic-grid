@@ -46,6 +46,8 @@ import { onChange as onAccountChange } from './account.js';
 import * as i18n from './i18n.js';
 import { CLOUD, CLOUD_URL } from './cloud-config.js';
 import * as tutorial from './tutorial.js';
+import * as license from './license.js';
+import * as licenseDownload from './license-download.js';
 import { addCloseButtons, closeDialog } from './dialog-close.js';
 
 addCloseButtons();
@@ -2463,7 +2465,12 @@ $('#help-tips').onclick = () => openTutorial({ tips: true });
 $('#video-learn').onclick = () => openTutorial();
 $('#help-intro').onclick = () => openVideo();
 $('#welcome-learn').onclick = () => openTutorial({ lesson: 0 });
-$('#help-btn').onclick = () => openDialog($('#dlg-help'), $('#help-close'));
+$('#help-btn').onclick = () => {
+  const k = license.shownKey();
+  $('#help-license').hidden = !k;
+  $('#help-license-key').textContent = k;
+  openDialog($('#dlg-help'), $('#help-close'));
+};
 $('#help-close').onclick = () => $('#dlg-help').close();
 
 // The Introduction (narrated video): offered once on first launch, always at the top.
@@ -2521,7 +2528,8 @@ function offerIntro() {
 let pendingUpdate = null;
 let shownUpdate = null;
 function offerUpdate() {
-  if (!pendingUpdate || $('#screen-home').hidden || document.querySelector('dialog[open]')) return;
+  // A desktop update may show over the app key window, so a fix can always arrive.
+  if (!pendingUpdate || $('#screen-home').hidden || document.querySelector('dialog[open]:not(#dlg-license)')) return;
   const u = pendingUpdate;
   pendingUpdate = null;
   shownUpdate = u;
@@ -2630,10 +2638,11 @@ function renderInstall() {
   $('#install-other').hidden = standalone || mobile;
   $('#install-here-note').hidden = standalone || mobile || !installEvent;
   $('#install-phone-h').textContent = mobile ? 'Add an icon to your home screen' : "Add an icon to your phone's home screen";
-  // The desktop app is for Windows; on a phone it goes last.
-  const desk = $('#install-desktop');
-  if (mobile) desk.parentNode.insertBefore(desk, $('#install-close').closest('.dlg-actions'));
-  else desk.parentNode.insertBefore(desk, $('#install-phone'));
+  // The desktop app is for Windows; on a phone it goes last, after the Android
+  // app. The app key (when downloads need one) comes before the downloads.
+  const end = $('#install-close').closest('.dlg-actions');
+  const order = mobile ? ['#install-phone', '#install-key', '#install-apk', '#install-desktop'] : ['#install-key', '#install-desktop', '#install-apk', '#install-phone'];
+  for (const id of order) end.parentNode.insertBefore($(id), end);
 }
 
 // Points the Windows button straight at the newest installer when GitHub
@@ -2646,20 +2655,29 @@ async function findInstaller() {
     const res = await fetch(RELEASE_API, { headers: { Accept: 'application/vnd.github+json' } });
     if (!res.ok) return;
     const rel = await res.json();
+    const version = String(rel.tag_name || '').replace(/^v/, '');
+    const apk = (rel.assets || []).find((a) => /\.apk$/i.test(a.name) && !/debug/i.test(a.name));
+    if (apk) {
+      $('#install-apk-btn').href = apk.browser_download_url;
+      $('#install-apk-size').textContent = `Version ${version}, ${Math.round(apk.size / 1048576)} MB`;
+      $('#install-apk').hidden = false;
+    }
     const exe = (rel.assets || []).find((a) => /x64-setup\.exe$/i.test(a.name));
     if (!exe) return;
     $('#install-desktop-btn').href = exe.browser_download_url;
-    $('#install-desktop-size').textContent = `Version ${String(rel.tag_name || '').replace(/^v/, '')}, ${Math.round(exe.size / 1048576)} MB`;
+    $('#install-desktop-size').textContent = `Version ${version}, ${Math.round(exe.size / 1048576)} MB`;
   } catch (e) { /* the release page link still works */ }
 }
 
 function installApp() {
   renderInstall();
   findInstaller();
+  licenseDownload.render();
   openDialog($('#dlg-install'), $('#install-h'));
 }
 $('#install-close').onclick = () => $('#dlg-install').close();
 $('#install-desktop-btn').addEventListener('click', () => campaign.downloaded());
+licenseDownload.init({ toast, openAccount: () => openAccount() });
 $('#install-phone-btn').onclick = async () => {
   if (!installEvent) return;
   installEvent.prompt();
@@ -2775,11 +2793,13 @@ async function init() {
   competeUi.handleRaceLink();
   window.addEventListener('resize', () => { if (!$('#screen-home').hidden) updatePreview(); });
   document.documentElement.classList.add('ready');
+  setTimeout(checkUpdates, 4000);
+  // The Windows and Android apps wait here for an app key that works (license.js).
+  await license.gate({ announce });
   // thelogicgrid.com/?learn opens How to play straight away; a ?play=now link
   // goes straight into a puzzle; otherwise first-time players get the welcome.
   if (new URLSearchParams(location.search).has('learn')) { settings.introOffered = true; store.saveSettings(settings); openTutorial(); } else if (!handleChallengeLink() && !handlePlayLink()) offerIntro();
   offerLanguage();
-  setTimeout(checkUpdates, 4000);
   // Heavy extras wait until the first screen is drawn and the page is idle, so
   // they never slow the first load: the DiceBear faces (270 KB), then the
   // natural voices (a 90 MB download the first time, read from the browser's

@@ -61,7 +61,7 @@ jobs:
         run: mkdir -p screenshots && npm test
         env:
           SHOTS: screenshots
-      - name: Accounts, races, error reports and the admin dashboard against the real Worker
+      - name: Accounts, races, error reports, app keys and the admin dashboard against the real Worker
         run: |
           npm --prefix server ci --no-audit --no-fund
           node scripts/e2e-accounts.cjs
@@ -73,6 +73,7 @@ jobs:
           node scripts/e2e-admin.cjs
           node scripts/e2e-archive.cjs
           node scripts/e2e-educators.cjs
+          node scripts/e2e-license.cjs
       # The screenshots from every size the layout test checks, to look at when
       # a layout check fails (kept 14 days, free).
       - name: Keep the screenshots

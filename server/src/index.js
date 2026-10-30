@@ -51,6 +51,7 @@ import { NIGHTLY_CRONS, isMaintenanceHour, runNightly } from './nightly.js';
 import { handleMarketing } from './marketing.js';
 import { handleVisits } from './visits.js';
 import { handlePerks } from './supporters.js';
+import { handleLicenses } from './licenses.js';
 import { handleBadges } from './special-badges.js';
 import { handleEducators } from './educators.js';
 import { publicConfig } from './settings.js';
@@ -91,6 +92,8 @@ async function route(req, env, ctx) {
   const perks = await handlePerks(req, env, url, signedIn);
   if (perks) return perks;
 
+  const license = await handleLicenses(req, env, url, signedIn);
+  if (license) return license;
   const badges = await handleBadges(req, env, url, signedIn);
   if (badges) return badges;
 

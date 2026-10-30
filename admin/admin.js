@@ -12,6 +12,7 @@ import { ratingsView, initRatings } from './ratings.js';
 import { marketingView, initMarketing } from './marketing.js';
 import { puzzleMailView, initPuzzleMail } from './puzzle-mail.js';
 import { educatorsView, initEducators, educatorFeedbackView, initEducatorFeedback } from './educators.js';
+import { licensesView, initLicenses } from './licenses.js';
 import { mediaView } from './media.js';
 import { badgesView, initBadges, playerBadgesHtml, playerBadgeClick } from './badges.js';
 
@@ -252,6 +253,7 @@ views.overview = async () => {
   setCount('#count-parts', d.review.parts.pending || 0);
   setCount('#count-names', d.review.namesWaiting || 0);
   setCount('#count-educators', d.review.educators || 0);
+  if (can('admin')) setCount('#count-licenses', d.review.keys || 0);
   setCount('#count-edu-feedback', can('moderator') ? d.review.educatorFeedback || 0 : 0);
   const review = [];
   if (can('moderator') && d.review.parts.pending) review.push(`<a href="#stories">${fmt(d.review.parts.pending)} story ${d.review.parts.pending === 1 ? 'part' : 'parts'} waiting for review</a>`);
@@ -260,6 +262,7 @@ views.overview = async () => {
   setCount('#count-comm', can('moderator') ? (fb.idea || 0) + (fb.problem || 0) + unread : 0);
   if (can('moderator') && unread) review.push(`<a href="#communication">${fmt(unread)} unread ${unread === 1 ? 'message' : 'messages'} from players</a>`);
   if (can('moderator') && (fb.idea || fb.problem)) review.push(`<a href="#communication">${fmt(fb.idea || 0)} new ${fb.idea === 1 ? 'idea' : 'ideas'} and ${fmt(fb.problem || 0)} new ${fb.problem === 1 ? 'problem' : 'problems'} from players</a>`);
+  if (can('admin') && d.review.keys) review.push(`<a href="#licenses">${fmt(d.review.keys)} free app ${d.review.keys === 1 ? 'key' : 'keys'} waiting for approval</a>`);
   if (can('moderator') && d.review.educators) review.push(`<a href="#educators">${fmt(d.review.educators)} educator ${d.review.educators === 1 ? 'request' : 'requests'} waiting for review</a>`);
   if (can('moderator') && d.review.educatorFeedback) review.push(`<a href="#edu-feedback">${fmt(d.review.educatorFeedback)} new ${d.review.educatorFeedback === 1 ? 'note' : 'notes'} from educators</a>`);
   if (can('moderator') && d.review.namesWaiting) review.push(`<a href="#names">${fmt(d.review.namesWaiting)} new or changed screen ${d.review.namesWaiting === 1 ? 'name' : 'names'}</a>`);
@@ -1643,6 +1646,10 @@ initMarketing(marketingHelpers, (name, o) => show(name, o));
 const educatorHelpers = { api, esc, fmt, when, can, act, ask, setCount };
 views.educators = () => educatorsView(educatorHelpers);
 initEducators(educatorHelpers, (name, o) => show(name, o));
+// ---- App keys for the Windows and Android apps (licenses.js).
+const licenseHelpers = { api, esc, fmt, when, tile, act, ask, toast, setCount };
+views.licenses = () => licensesView(licenseHelpers);
+initLicenses(licenseHelpers, (name, o) => show(name, o));
 views['edu-feedback'] = () => educatorFeedbackView(educatorHelpers);
 initEducatorFeedback(educatorHelpers, (name, o) => show(name, o));
 // ---- Badges (badges.js): special badges by hand and for milestones.

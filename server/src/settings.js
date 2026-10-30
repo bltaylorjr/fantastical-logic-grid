@@ -12,6 +12,7 @@
 import { THEMES } from '../../engine/src/themes.js';
 import { json } from './http.js';
 import { publicNews } from './messages.js';
+import { licenseConfig } from './licenses.js';
 import { NETWORKS, DEFAULT_LINKS, socialLinks } from '../../web/js/social.js';
 
 const CACHE_MS = 30_000;
@@ -159,6 +160,20 @@ export const SETTINGS = {
   tier_gold_from: { type: 'int', min: 1, max: 10000, default: 15, group: 'Support and premium', label: 'Gold supporter badge from (amount)', help: 'Gold from this amount. Keep it above the Silver amount.' },
   tier_platinum_from: { type: 'int', min: 1, max: 10000, default: 50, group: 'Support and premium', label: 'Platinum supporter badge from (amount)', help: 'Platinum from this amount. Keep it above the Gold amount.' },
   extras_url: { type: 'url', default: '', group: 'Support and premium', label: 'Get extras page link', help: 'Where a player goes to get the supporter extras: your membership or checkout page. Shown next to locked themes. Leave empty to hide the button.' },
+  // ---- App keys (licenses.js): the Windows and Android apps ask for a key the
+  // first time they open. The website never needs one.
+  license_required: { type: 'bool', default: true, group: 'App keys', label: 'The apps need a key', help: 'On: the Windows and Android apps ask for an app key the first time they open, check it once online, then work offline. About once a day when online they check the key still works, so a key you cancel under App keys stops working. Only works once the LICENSE_SIGNING_KEY Cloudflare secret is set; until then the apps open without a key. Off: the apps open without a key. The website never needs one.' },
+  license_download_needs_key: { type: 'bool', default: true, group: 'App keys', label: 'Downloads on the website ask for a key', help: 'On (with The apps need a key on): Menu > Install the app on the website asks for an app key before the Windows or Android download starts, and each key allows 2 downloads. The files on GitHub can still be reached directly, but they will not open without a key.' },
+  license_self_serve: {
+    type: 'choice', default: 'signed_in', group: 'App keys', label: 'Who can get a key for themselves', help: 'On the website, Menu > Install the app shows a Ask for a free key button to these players (one key each, which installs on the number of devices below; it waits for your approval while the next switch is on). You can always make keys yourself under App keys.',
+    options: [
+      { value: 'signed_in', label: 'Any signed-in player with a confirmed email' },
+      { value: 'supporters', label: 'Only Supporters (Supporters section)' },
+      { value: 'off', label: 'Nobody: only keys you make under App keys' },
+    ],
+  },
+  license_self_approval: { type: 'bool', default: true, group: 'App keys', label: 'Free keys wait for your approval', help: 'On: a free key a player asks for shows under App keys as waiting, and works (and is shown to the player) only after you click Approve. Off: it works straight away.' },
+  license_default_devices: { type: 'int', min: 1, max: 2, default: 1, group: 'App keys', label: 'Computers or phones each new key installs on (1 or 2)', help: 'For keys players get themselves and the starting number when you make keys. Keep it at 1; when a player asks for a second computer, raise that one key to 2 under App keys. Each key can also be used for 2 downloads from the website; after that the player needs a new key.' },
   blocked_words: { type: 'words', default: [], group: 'Moderation', label: 'Extra blocked words in screen names', help: 'Added to the built-in word filter. Letters only, 3 to 30 each.' },
   archive_email_enabled: {
     type: 'bool', default: false, group: 'Backups', label: 'Weekly archive email',
@@ -264,6 +279,7 @@ export async function publicConfig(req, env) {
       storySharing: s.story_sharing_enabled, learning: s.learning_enabled, errorReports: s.error_reports_enabled,
       feedback: s.feedback_enabled, feedbackReplies: s.feedback_replies_enabled, soundEffects: s.sound_effects_enabled, music: s.theme_music_enabled, pictures: s.ai_pictures !== 'none',
       translate: s.translate_enabled, messages: s.messages_enabled, challenges: s.challenges_enabled, dailyResults: s.daily_results_enabled, dailyEmail: s.daily_email_enabled,
+      ...(await licenseConfig(env, s)),
       puzzleMail: s.puzzle_mail_enabled && (s.weekly_mail_enabled || s.special_mail_enabled), weeklyMail: s.puzzle_mail_enabled && s.weekly_mail_enabled, specialMail: s.puzzle_mail_enabled && s.special_mail_enabled,
     },
     news: s.messages_enabled ? await publicNews(env) : [],
