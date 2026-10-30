@@ -17,7 +17,9 @@
 //   GET  /admin/v1/workshop            Story workshop choices; POST .../draft (AI writer), .../add
 //   GET  /admin/v1/characters[/:id]    the Characters section; POST .../save, .../:id/(portrait|lines|publish|unpublish|delete) (characters.js)
 //   GET  /admin/v1/feedback?kind=&status=  ideas and problems from the game; POST .../:id (addressed + note|done|new|delete)
-//   POST /admin/v1/feedback/:id/approve  { note, puzzle } approve a storyline: addressed, the puzzle stored for the player 30 days, one email with it as a PDF
+//   POST /admin/v1/feedback/:id/approve  approve a storyline: addressed; the email sender builds its first puzzle, stores it for the player and emails "Congratulations" with it as a PDF
+//   POST /admin/v1/feedback/:id/decline  disapprove a storyline: done; the player gets a thank-you for their input
+//   POST /admin/v1/replies/puzzle      { id, puzzle } the sender built an approved storyline's puzzle: store it for the player (owner)
 //   POST /admin/v1/replies/claim       thank-you emails waiting, for the GitHub Action to send (owner, replies.js)
 //   POST /admin/v1/replies/done        that Action says which went out; their addresses are removed (owner)
 //   GET  /admin/v1/educators?status=   educator puzzle package requests; POST .../:id/(approve|decline|delete) (educators.js)
@@ -75,8 +77,8 @@ import { refreshSearch, searchSnapshots, lastTry, REFRESH_GAP_MS } from './searc
 import { workshopOptions, addPart, draftParts } from './workshop.js';
 import { characterRoutes } from './characters.js';
 import { TOPICS as FEEDBACK_TOPICS } from './feedback.js';
-import { claimReplies, finishReplies, replyCounts, releaseUpdate, dropUpdate, deleteReplyStatements, heldStoryline, approveStoryline } from './replies.js';
-import { inbox, INBOX_TYPES, conversationView, teamReply, removePuzzle, puzzleStorage, storePuzzle, PUZZLE_MAX_CHARS, setConversationStatus, startConversation, listNews, addNews, endNews, deleteNews, deleteMessageStatements, MessageRefusal } from './messages.js';
+import { claimReplies, finishReplies, replyCounts, releaseUpdate, dropUpdate, deleteReplyStatements, heldStoryline, approveStoryline, declineStoryline, storeBuiltPuzzle } from './replies.js';
+import { inbox, INBOX_TYPES, conversationView, teamReply, removePuzzle, puzzleStorage, PUZZLE_MAX_CHARS, setConversationStatus, startConversation, listNews, addNews, endNews, deleteNews, deleteMessageStatements, MessageRefusal } from './messages.js';
 import { claimDailyEmail, finishDailyEmail } from './daily-email.js';
 import { archiveStatus, runArchive, buildArchive, exportArchive, confirmArchive } from './archive.js';
 import { FREE_LIMITS, cloudflareUsage } from './usage.js';
@@ -106,7 +108,7 @@ const SESSION_MAX_S = 12 * 3600;
 const DENIED_PER_DAY = 500; // refused requests written to the audit log, so a flood cannot fill it
 const ANALYTICS_CACHE_MS = 120_000;
 const TABLES = ['sync_users', 'sync_records', 'sync_deleted_users', 'players', 'scores', 'races', 'race_entries', 'race_invites', 'plays', 'parts', 'usage',
-  'app_errors', 'upkeep_log', 'admins', 'admin_audit', 'settings', 'announcements', 'bans', 'name_reviews', 'archive_log', 'feedback', 'feedback_replies', 'error_fixes', 'conversations', 'conversation_messages', 'message_contacts', 'news', 'search_snapshots', 'daily_plan', 'translations', 'rating_insights', 'campaigns', 'campaign_ads', 'marketing_media', 'campaign_stats', 'challenges', 'daily_results', 'daily_email', 'supporters', 'payment_blocks', 'puzzle_mail', 'puzzle_mail_got', 'puzzle_mail_days', 'special_editions', 'educator_requests', 'special_badges', 'badge_awards', 'puzzle_reports', 'player_puzzles', 'visit_stats', 'print_packs', 'print_pack_stories'];
+  'app_errors', 'upkeep_log', 'admins', 'admin_audit', 'settings', 'announcements', 'bans', 'name_reviews', 'archive_log', 'feedback', 'feedback_replies', 'error_fixes', 'conversations', 'conversation_messages', 'message_contacts', 'news', 'search_snapshots', 'daily_plan', 'translations', 'rating_insights', 'campaigns', 'campaign_ads', 'marketing_media', 'campaign_stats', 'challenges', 'daily_results', 'daily_email', 'supporters', 'payment_blocks', 'puzzle_mail', 'puzzle_mail_got', 'puzzle_mail_days', 'special_editions', 'educator_requests', 'special_badges', 'badge_awards', 'puzzle_reports', 'player_puzzles', 'visit_stats', 'educator_feedback', 'print_packs', 'print_pack_stories'];
 const SECURITY_HEADERS = {
   'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; media-src 'self' blob:; connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
   'X-Content-Type-Options': 'nosniff',
@@ -226,6 +228,7 @@ async function analytics(env, days, now = Date.now()) {
     picturesByDay: db.prepare("SELECT day, count AS n FROM usage WHERE name = 'pictures' AND day >= ?1").bind(sinceDay),
     namesWaiting: db.prepare('SELECT COUNT(*) AS n FROM players p LEFT JOIN name_reviews r ON r.user_id = p.user_id WHERE r.name_key IS NULL OR r.name_key != p.name_key'),
     educatorsWaiting: db.prepare("SELECT COUNT(*) AS n FROM educator_requests WHERE status = 'pending'"),
+    educatorFeedbackNew: db.prepare("SELECT COUNT(*) AS n FROM educator_feedback WHERE status = 'new' AND kind != 'survey'"),
   };
   const names = Object.keys(q);
   const res = await db.batch(Object.values(q));
@@ -252,7 +255,7 @@ async function analytics(env, days, now = Date.now()) {
     voices: { byDay: series(r.voicesByDay), cap: settings.daily_tts_cap, enabled: settings.tts_enabled, today: series(r.voicesByDay).at(-1) },
     pictures: { byDay: series(r.picturesByDay), cap: settings.daily_picture_cap, mode: settings.ai_pictures, today: series(r.picturesByDay).at(-1) },
     errors: { byDay: series(r.errorsByDay) },
-    review: { parts: Object.fromEntries(r.parts.map((x) => [x.id, x.n])), namesWaiting: one('namesWaiting'), feedback: Object.fromEntries(r.feedbackNew.map((x) => [x.id, x.n])), messages: one('messagesUnread'), educators: one('educatorsWaiting') },
+    review: { parts: Object.fromEntries(r.parts.map((x) => [x.id, x.n])), namesWaiting: one('namesWaiting'), feedback: Object.fromEntries(r.feedbackNew.map((x) => [x.id, x.n])), messages: one('messagesUnread'), educators: one('educatorsWaiting'), educatorFeedback: one('educatorFeedbackNew') },
   };
   analyticsCache.set(days, { at: now, body });
   return body;
@@ -486,6 +489,15 @@ const ROUTES = [
     const r = await claimReplies(env, body.limit, now);
     return { body: r, quiet: !r.replies.length && !r.dropped, detail: { claimed: r.replies.length, dropped: r.dropped || 0 } };
   }],
+  // The sender built an approved storyline's first puzzle: stored for the player (30 days; their game keeps it in Saved puzzles).
+  ['POST', /^replies\/puzzle$/, 'owner', 'replies.puzzle', async ({ env, body, now }) => {
+    let puzzleId = null;
+    try { puzzleId = await storeBuiltPuzzle(env, body.id, body.puzzle, now); } catch (e) {
+      if (e instanceof MessageRefusal) throw new Refusal(e.status, e.error, e.message);
+      throw e;
+    }
+    return { body: { ok: true, stored: !!puzzleId }, target: body.id, detail: { stored: !!puzzleId } };
+  }, { maxBody: PUZZLE_MAX_CHARS + 20_000 }],
   ['POST', /^replies\/done$/, 'owner', 'replies.done', async ({ env, body, now }) => {
     const r = await finishReplies(env, body.sent, body.failed, now);
     return { body: r, detail: r };
@@ -518,29 +530,29 @@ const ROUTES = [
     return { body: { ok: true, emailed }, target: id, detail: { status: body.status, note: body.status === 'addressed' ? cleanNote(body.note) : undefined } };
   }],
 
-  // Approve a storyline (a story idea): marked addressed with the note; the
-  // first puzzle made with it is stored in the player's game for 30 days and
-  // goes, as a PDF with its answer key, in the one email for this submission.
-  ['POST', /^feedback\/(\d+)\/approve$/, 'moderator', 'feedback.approve', async ({ env, params: [id], body, who, now }) => {
-    const note = cleanNote(body.note);
-    if (!note) throw new Refusal(400, 'bad_note', 'Write a short note for the player on how their storyline is used.');
-    const f = await env.DB.prepare("SELECT kind, topic, status FROM feedback WHERE id = ?1").bind(Number(id)).first();
+  // Approve or disapprove a storyline (a story idea): one button each, no
+  // note. Approved: marked addressed, and the player who asked for an email
+  // gets "Congratulations" with the first puzzle built from their storyline
+  // (built and stored for them by the email sender, see replies/puzzle).
+  // Disapproved: marked done, and that player gets a thank-you for their input.
+  ['POST', /^feedback\/(\d+)\/(approve|decline)$/, 'moderator', 'feedback.storyline', async ({ env, params: [id, action], now }) => {
+    const f = await env.DB.prepare('SELECT kind, topic, status FROM feedback WHERE id = ?1').bind(Number(id)).first();
     if (!f) throw new Refusal(404, 'gone', 'That idea is gone.');
-    if (f.kind !== 'idea' || f.topic !== 'story') throw new Refusal(400, 'not_story', 'Only story ideas can be approved as storylines.');
-    if (f.status === 'addressed') throw new Refusal(409, 'already', 'This storyline was already approved or addressed.');
-    const held = await heldStoryline(env, id);
-    let puzzleId = null;
-    if (body.puzzle && held && held.uid) {
-      try { puzzleId = await storePuzzle(env, held.uid, body.puzzle, who.actor, now); } catch (e) {
-        if (e instanceof MessageRefusal) throw new Refusal(e.status, e.error, e.message);
-        throw e;
-      }
+    if (f.kind !== 'idea' || f.topic !== 'story') throw new Refusal(400, 'not_story', 'Only story ideas can be approved or disapproved as storylines.');
+    if (f.status !== 'new') throw new Refusal(409, 'already', 'This storyline was already approved or closed.');
+    let emailed = 0;
+    if (action === 'approve') {
+      const note = 'Storyline approved. Its first puzzle is built from it and sent to the player.';
+      await env.DB.prepare("UPDATE feedback SET status = 'addressed', note = ?1, done_at = ?2 WHERE id = ?3").bind(note, now, Number(id)).run();
+      const held = await heldStoryline(env, id);
+      emailed = held ? await approveStoryline(env, held.id) : 0;
+    } else {
+      await env.DB.prepare("UPDATE feedback SET status = 'done', note = NULL, done_at = ?1 WHERE id = ?2").bind(now, Number(id)).run();
+      emailed = await declineStoryline(env, id);
     }
-    await env.DB.prepare("UPDATE feedback SET status = 'addressed', note = ?1, done_at = ?2 WHERE id = ?3").bind(note, now, Number(id)).run();
-    const emailed = held ? await approveStoryline(env, held.id, note, puzzleId) : 0;
     analyticsCache.clear();
-    return { body: { ok: true, emailed, stored: !!puzzleId }, target: id, detail: { note, emailed, stored: !!puzzleId } };
-  }, { maxBody: PUZZLE_MAX_CHARS + 20_000 }],
+    return { body: { ok: true, emailed }, target: id, detail: { action, emailed } };
+  }],
   ['GET', /^names$/, 'moderator', 'names.view', async ({ env, url, now }) => {
     const status = ['pending', 'reviewed', 'all'].includes(url.searchParams.get('status')) ? url.searchParams.get('status') : 'pending';
     const { results } = await env.DB.prepare(`SELECT p.user_id AS uid, p.screen_name AS name, p.created_at AS createdAt, p.updated_at AS updatedAt,
