@@ -283,8 +283,22 @@ def wait_ready(url, token, field='status_code'):
     raise Failed('the site took more than 10 minutes to process the file')
 
 
+def instagram_id():
+    """The Instagram business account linked to the Facebook Page. INSTAGRAM_ACCOUNT_ID is used
+    when it is an id of its own; when it is empty or holds the Page id (an easy mix-up), the
+    account is read from the Page."""
+    ig, page = env('INSTAGRAM_ACCOUNT_ID').strip().strip('"'), env('META_PAGE_ID')
+    if ig.isdigit() and ig != page:
+        return ig
+    linked = meta(f'{GRAPH}/{page}?fields=instagram_business_account', token=env('META_PAGE_TOKEN')).get('instagram_business_account')
+    if not linked:
+        raise Failed('the Facebook Page has no Instagram account linked that this key can see: link it on the Page, '
+                     'and make the key with instagram_basic, ticking the Instagram account in the pop-up.')
+    return linked['id']
+
+
 def post_instagram(ad):
-    ig, token = env('INSTAGRAM_ACCOUNT_ID'), env('META_PAGE_TOKEN')
+    ig, token = instagram_id(), env('META_PAGE_TOKEN')
     videos, images = files(ad, 'video'), files(ad, 'image')
     if videos:
         form = {'media_type': 'REELS', 'video_url': videos[0], 'caption': ad['words'], 'share_to_feed': 'true'}
@@ -480,6 +494,15 @@ POST = {'bluesky': post_bluesky, 'mastodon': post_mastodon, 'x': post_x, 'facebo
         'linkedin': post_linkedin, 'pinterest': post_pinterest, 'youtube': post_youtube, 'tiktok': post_tiktok, 'reddit': post_reddit}
 
 
+def check_instagram():
+    ig = instagram_id()
+    r = meta(f'{GRAPH}/{ig}?fields=username', token=env('META_PAGE_TOKEN'))
+    if not r.get('username'):
+        raise Failed('Meta shows no username for the Instagram account: make the key again with instagram_basic, '
+                     'ticking the Instagram account in the pop-up.')
+    return r['username']
+
+
 def check_keys():
     tests = {
         'bluesky': lambda: bluesky_session()[2],
@@ -487,7 +510,7 @@ def check_keys():
                                     headers={'Authorization': f"Bearer {env('MASTODON_TOKEN')}"})['acct'],
         'x': lambda: request('https://api.x.com/2/users/me', headers={'Authorization': oauth1('GET', 'https://api.x.com/2/users/me')})['data']['username'],
         'facebook': lambda: meta(f"{GRAPH}/{env('META_PAGE_ID')}?fields=name", token=env('META_PAGE_TOKEN'))['name'],
-        'instagram': lambda: meta(f"{GRAPH}/{env('INSTAGRAM_ACCOUNT_ID')}?fields=username", token=env('META_PAGE_TOKEN'))['username'],
+        'instagram': check_instagram,
         'threads': lambda: meta(f'{THREADS}/me?fields=username', token=env('THREADS_TOKEN'))['username'],
         'linkedin': lambda: linkedin_me()[1]['sub'],
         'pinterest': lambda: request('https://api.pinterest.com/v5/user_account', headers={'Authorization': f'Bearer {pinterest_token()}'})['username'],
