@@ -209,6 +209,22 @@ const SHOTS = process.env.SHOTS;
       if (saved.length !== 1) await new Promise((r) => setTimeout(r, 100));
     }
     assert(saved.length === 1 && saved[0] === theme, `theme "${theme}" is switched off`);
+    // My alerts: push on this device, and email to an address typed in by hand.
+    await page.waitForSelector('#alerts-card');
+    assert(await page.locator('#alert-on, #alerts-card .note').count() > 0, 'My alerts offers push on this device (or says why it cannot)');
+    await page.fill('#alert-email', 'not an email');
+    await page.check('[name=alert-emailOn]');
+    await page.click('#alert-save');
+    await page.waitForFunction(() => /does not look right/.test(document.body.textContent));
+    assert(true, 'a mistyped alert email is refused');
+    await page.fill('#alert-email', 'alerts@example.org');
+    await page.uncheck('[name=alert-messages]');
+    await page.click('#alert-save');
+    let prefs = null;
+    for (let i = 0; i < 50 && !prefs; i++) { prefs = await db.prepare('SELECT email_to, email_on, messages FROM alert_prefs').first(); if (!prefs) await new Promise((r) => setTimeout(r, 100)); }
+    assert(prefs && prefs.email_to === 'alerts@example.org' && prefs.email_on === 1 && prefs.messages === 0, 'alert email and choices are saved for this admin');
+    await page.waitForSelector('#alert-email');
+    assert(await page.inputValue('#alert-email') === 'alerts@example.org', 'the saved alert email shows again');
     // Settings that moved out of the game.
     const dbValue = async (key) => { const r = await db.prepare('SELECT value FROM settings WHERE key = ?').bind(key).first(); return r && JSON.parse(r.value); };
     const until = async (key, want) => { for (let i = 0; i < 50 && (await dbValue(key)) !== want; i++) await new Promise((r) => setTimeout(r, 100)); return (await dbValue(key)) === want; };
@@ -659,10 +675,24 @@ const SHOTS = process.env.SHOTS;
     await q.click('#comm-list button[data-status=new]');
     await q.waitForFunction(() => /Nothing here/.test(document.querySelector('#comm-list').textContent));
     await q.selectOption('#comm-status', 'new');
-    await q.waitForSelector('#comm-list button[data-status=done]');
-    await q.click('#comm-list button[data-status=done]');
+    // Approve: into the weekly fix queue, with its own list.
+    await q.waitForSelector('#comm-list button[data-status=approved]');
+    await q.click('#comm-list button[data-status=approved]');
+    await q.waitForSelector('#dialog[open]');
+    await q.click('#dialog-ok');
     await q.waitForFunction(() => /Nothing here/.test(document.querySelector('#comm-list').textContent));
-    assert((await db.prepare("SELECT status FROM feedback WHERE kind = 'problem'").first()).status === 'done', 'a problem can be marked done');
+    assert((await db.prepare("SELECT status FROM feedback WHERE kind = 'problem'").first()).status === 'approved', 'Approve sends a problem to the fix queue');
+    await q.selectOption('#comm-status', 'approved');
+    await q.waitForFunction(() => /Waiting for the weekly fix run/.test(document.querySelector('#comm-list').textContent));
+    assert(await q.locator('#comm-list button[data-status=addressed]').count() === 1, 'an approved problem can be marked fixed');
+    // Disapprove: closed with no change.
+    await q.click('#comm-list button[data-status=declined]');
+    await q.waitForSelector('#dialog[open]');
+    await q.click('#dialog-ok');
+    await q.waitForFunction(() => /Nothing here/.test(document.querySelector('#comm-list').textContent));
+    const closed = await db.prepare("SELECT status, declined FROM feedback WHERE kind = 'problem'").first();
+    assert(closed.status === 'done' && closed.declined === 1, 'Disapprove closes a problem');
+    await q.selectOption('#comm-status', 'new');
     await q.selectOption('#comm-type', 'all');
     await q.waitForFunction(() => /Can I print/.test(document.querySelector('#comm-list').textContent));
     assert(/pirate ship/.test(await q.textContent('#comm-list')), 'Everything lists messages and ideas together');

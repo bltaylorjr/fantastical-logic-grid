@@ -133,4 +133,13 @@ await test('the reason line of a PR skips attribution and headings', () => {
   assert.equal(whyLine(''), '');
 });
 
+await test('ideas and problems approved in Communication come first for the Claude task, with no player text', async () => {
+  const s = { ...signals(), queue: { approved: [{ id: 41, kind: 'problem', topic: 'puzzle', approvedAt: 1 }, { id: 42, kind: 'idea', topic: 'feature<b>', text: 'secret words' }] } };
+  const r = await analyze(s, { today: '2026-11-02', current: [], engine });
+  const md = renderReport(r);
+  const first = md.split('## For the weekly Claude task')[1].split('\n').find((l) => /^1\. /.test(l));
+  assert.match(first, /2 player ideas and problems approved for processing: #41 \(problem, puzzle\), #42 \(idea, featureb\)/);
+  assert.doesNotMatch(md, /secret words|<b>/);
+});
+
 console.log(`${passed} improve tests passed`);
