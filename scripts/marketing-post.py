@@ -523,6 +523,7 @@ def check_keys():
         'reddit': lambda: request('https://oauth.reddit.com/api/v1/me', headers={'Authorization': f'Bearer {reddit_token()}', 'User-Agent': REDDIT_UA})['name'],
     }
     bad = 0
+    problems = []
     for ch, test in tests.items():
         if not has_keys(ch):
             print(f'{NAMES[ch]}: not set up (add {", ".join(KEYS[ch])})')
@@ -532,7 +533,16 @@ def check_keys():
             print(f'{NAMES[ch]}: connected')
         except Exception as e:  # noqa: BLE001 - report every site
             bad += 1
+            problems.append((NAMES[ch], scrub(e)))
             print(f'::warning::{NAMES[ch]}: the key did not work: {scrub(e)}')
+    # The weekly check (KEY_ALERT) emails the owner only when a key stopped
+    # working, so it can be fixed before that site's next posting day.
+    if problems and os.environ.get('KEY_ALERT'):
+        email(f'Marketing autopilot: {len(problems)} site key{"s" if len(problems) > 1 else ""} stopped working',
+              ['<p>The weekly key check found keys that no longer work. Until they are fixed, that site\'s ads are emailed to you to post by hand.</p>',
+               '<ul>' + ''.join(f'<li><b>{html.escape(n)}:</b> {html.escape(why)}</li>' for n, why in problems) + '</ul>',
+               '<p>Fix them in admin > <a href="https://flg-api.btay74.workers.dev/admin/#connections">Connections and setup</a> (each site\'s card has the steps), '
+               'then run the check again: <a href="https://github.com/bltaylorjr/fantastical-logic-grid/actions/workflows/marketing-post.yml">Marketing autopilot</a> > Run workflow, mode <code>check</code>.</p>'])
     return bad
 
 

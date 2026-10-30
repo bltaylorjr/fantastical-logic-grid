@@ -726,6 +726,34 @@ ${playBtn(up)}`,
     });
   }
 
+  // ---------- Link in bio (links/): for Instagram and TikTok, whose captions
+  // cannot hold a clickable link. Fixed buttons, then the newest posts from
+  // the Worker (seo/links.js), each with its own tracked link. Not listed in search.
+  {
+    const csp = PAGE_CSP.replace("default-src 'self';", `default-src 'self'; connect-src 'self' ${cloudOrigin || 'http://localhost:* http://127.0.0.1:*'};`);
+    mkdirSync(join(site, 'links'), { recursive: true });
+    cpSync(join(root, 'seo', 'links.js'), join(site, 'links', 'links.js'));
+    page({
+      path: 'links/', listed: false, csp, script: 'links.js',
+      style: '.links{list-style:none;padding:0;margin:16px 0;display:grid;gap:12px;max-width:520px}.links .btn{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:52px;width:100%;box-sizing:border-box;text-align:center}.links small{font-weight:400;opacity:.8}',
+      title: `Links | ${name}`,
+      description: `Play ${name}, today's daily puzzle, free printable puzzles for teachers, and our newest posts.`,
+      crumbs: [['links/', 'Links']],
+      body: (up) => `<h1>${name}</h1>
+<p class="lede">Story logic puzzles, free to play in your browser.</p>
+<ul class="links">
+<li><a class="btn big" href="${up}?play=now" rel="nofollow">Play a new puzzle now</a></li>
+<li><a class="btn link-btn" href="${up}daily/">Today's daily puzzle</a></li>
+<li><a class="btn link-btn" href="${up}how-to-play/">How to play</a></li>
+<li><a class="btn link-btn" href="${up}educators/">Free printable puzzles for teachers</a></li>
+</ul>
+<section id="latest" data-api="${cloud || ''}" hidden aria-labelledby="latest-h">
+<h2 id="latest-h">From our latest posts</h2>
+<ul class="links"></ul>
+</section>`,
+    });
+  }
+
   // ---------- Privacy (also the app stores' privacy policy link) ----------
   page({
     path: 'privacy/', priority: 0.3,

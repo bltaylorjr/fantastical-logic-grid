@@ -19,6 +19,7 @@
 //   POST /v1/translate                   the game's text in another language (translate.js)
 //   POST /v1/v                           anonymous daily visitor counts (visits.js)
 //   POST /v1/m                           anonymous counts of visits from campaign links (marketing.js)
+//   GET /v1/links                        the newest posts for the link-in-bio page (marketing.js)
 //   /v1/challenges[/:code[/result]]       Challenge a friend links, no account (challenges.js)
 //   GET|POST /v1/print-packs             printable puzzle packs for signed-in players (print-packs.js)
 //   GET /v1/perks                        a signed-in player's supporter perks (supporters.js)
