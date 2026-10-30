@@ -521,12 +521,24 @@ $('#quick-btn').onclick = startQuick;
 // ?play=now in a link (ads, the website) starts a quick puzzle straight away.
 // ?play=daily (the daily email) opens today's daily puzzle, or with &day= that day's.
 // ?play=weekly[&week=] and ?play=special&id= (the puzzle emails) open those.
+// A value from the address is read once and kept only if it matches its exact
+// pattern (a date, or a special edition's id), so nothing else gets through.
+function linkDay(url, name) {
+  const raw = url.searchParams.get(name);
+  if (typeof raw === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  return null;
+}
+function linkEditionId(url) {
+  const raw = url.searchParams.get('id');
+  if (typeof raw === 'string' && /^se-[\w-]{1,40}$/.test(raw)) return raw;
+  return null;
+}
 function handlePlayLink() {
   const url = new URL(location.href);
   const play = url.searchParams.get('play');
   if (play === 'weekly' || play === 'special') {
-    const week = /^\d{4}-\d{2}-\d{2}$/.test(url.searchParams.get('week') || '') ? url.searchParams.get('week') : null;
-    const id = /^se-[\w-]{1,40}$/.test(url.searchParams.get('id') || '') ? url.searchParams.get('id') : null;
+    const week = linkDay(url, 'week');
+    const id = linkEditionId(url);
     for (const k of ['play', 'week', 'id']) url.searchParams.delete(k);
     try { history.replaceState(history.state, '', url.pathname + url.search + url.hash); } catch (e) { /* framed preview */ }
     if (!daily.available() || isPreview || (play === 'special' && !id)) { startQuick(); return true; }
@@ -536,7 +548,7 @@ function handlePlayLink() {
   }
   if (play !== 'now' && play !== 'daily') return false;
   // A Hand-picked link names its day: ?play=daily&day=2026-11-03.
-  const day = /^\d{4}-\d{2}-\d{2}$/.test(url.searchParams.get('day') || '') ? url.searchParams.get('day') : null;
+  const day = linkDay(url, 'day');
   url.searchParams.delete('play');
   url.searchParams.delete('day');
   try { history.replaceState(history.state, '', url.pathname + url.search + url.hash); } catch (e) { /* framed preview */ }
