@@ -54,6 +54,7 @@ const inspect = () => {
       if (await page.locator('#dlg-welcome[open]').count()) await page.keyboard.press('Escape');
 
       let p = await page.evaluate(inspect);
+      assert(await page.evaluate(() => document.querySelector('#view-seg').hidden), `${name}: the Grid / List switch is hidden on the home screen`);
       if (SHOTS) await page.screenshot({ path: file('home'), fullPage: true });
       assert(p.sideways <= 0, `${name} (${width} x ${height}): the home screen does not scroll sideways`);
       assert(!p.small.length, `${name}: every target on the home screen is at least 44 px${p.small.length ? ` (${p.small.join(', ')})` : ''}`);
@@ -92,6 +93,18 @@ const inspect = () => {
         const top = await page.evaluate(() => document.querySelector('#grid-region').getBoundingClientRect().top + scrollY);
         const scene = await page.evaluate(() => { const s = document.querySelector('#scene').getBoundingClientRect(), t = document.querySelector('#story').getBoundingClientRect(); return { beside: s.left >= t.right, top: Math.abs(s.top - t.top) }; });
         assert(scene.beside && scene.top < 2, `${name}: the scene sits beside the story, so the grid starts at ${Math.round(top)} px`);
+      }
+      // The Grid / List switch sits in the app bar, so it stays in reach after scrolling down.
+      if (height > 560) {
+        await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+        await page.waitForTimeout(100);
+        const seg = await page.evaluate(() => { const r = document.querySelector('#view-seg').getBoundingClientRect(); return { top: r.top, bottom: r.bottom, w: r.width }; });
+        assert(seg.w > 0 && seg.top >= 0 && seg.bottom <= height, `${name}: the Grid / List switch stays on screen after scrolling down`);
+        await page.click('#view-seg label:nth-child(2)');
+        assert(await page.evaluate(() => !document.querySelector('#listview').hidden && document.querySelector('#gridframe').hidden), `${name}: the switch in the app bar shows the list`);
+        if (SHOTS) await page.screenshot({ path: file('play-scrolled') });
+        await page.click('#view-seg label:nth-child(1)');
+        await page.evaluate(() => window.scrollTo(0, 0));
       }
       if (height <= 560) {
         assert(await page.evaluate(() => getComputedStyle(document.querySelector('.appbar')).position !== 'sticky'), `${name}: the app bar scrolls away on a short screen`);
