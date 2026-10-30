@@ -2648,8 +2648,14 @@ $('#install-phone-btn').onclick = async () => {
   if (choice.outcome === 'accepted') { $('#dlg-install').close(); toast('Installed. Open the game from its icon on your home screen, Start menu or dock.'); }
   else renderInstall();
 };
+// Offline support starts after the first screen: the first install downloads
+// the whole game (about 1.4 MB), so it waits for the player's first tap or key,
+// or 10 seconds after the page is idle, and never slows the first load.
 if ('serviceWorker' in navigator && !isDesktop && !isPortal && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
-  watchWebUpdates();
+  let started = false;
+  const start = () => { if (!started) { started = true; watchWebUpdates(); } };
+  if (navigator.serviceWorker.controller) start();
+  else { afterFirstUse(start); afterLoad(start, 10000); }
 }
 
 // Website updates: a new version installs in the background; the player is
@@ -2755,11 +2761,12 @@ async function init() {
   offerLanguage();
   setTimeout(checkUpdates, 4000);
   // Heavy extras wait until the first screen is drawn and the page is idle, so
-  // they never slow the first load: the DiceBear faces, then the natural voices
-  // (a 90 MB download the first time, read from the browser's cache after that).
-  // The first download also waits for the player's first tap, click or key, so
-  // a visit that only looks (or a speed test) never pulls 90 MB.
-  afterLoad(() => loadPortraits().catch(() => {}), 500);
+  // they never slow the first load: the DiceBear faces (270 KB), then the
+  // natural voices (a 90 MB download the first time, read from the browser's
+  // cache after that). The faces and the first voice download also wait for
+  // the player's first tap, click or key, so a visit that only looks (or a
+  // speed test) never pulls them; a new puzzle loads the faces if needed.
+  afterFirstUse(() => afterLoad(() => loadPortraits().catch(() => {}), 0));
   if (!isPreview) {
     if (settings.kokoroReady) afterLoad(ensureNaturalVoices, 1500);
     else afterFirstUse(() => afterLoad(ensureNaturalVoices, 8000));
