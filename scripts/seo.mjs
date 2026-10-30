@@ -24,8 +24,9 @@ import { educatorsBody, EDUCATORS_CSS } from './educators-page.mjs';
 const PAGE_CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self'; object-src 'none'; frame-src 'none'; base-uri 'self'; form-action 'self'";
 
 export const INDEXNOW_KEY = process.env.FLG_INDEXNOW_KEY || 'fae88a004ad87116c0e93df007b2de7e';
-// The game's Facebook Page. Swap in facebook.com/<username> once the Page has one.
-const FACEBOOK = 'https://www.facebook.com/share/19pDDj5Ppf/';
+// The game's social pages (web/js/social.js): the links set in the admin
+// dashboard (Settings and switches > Social links), read at build time.
+const socialPages = await import(new URL('../web/js/social.js', import.meta.url).href);
 // The first daily puzzle. Every later day is checked against all earlier days,
 // so a daily story is never used twice.
 const DAILY_START = '2026-10-25';
@@ -134,6 +135,39 @@ async function readQuality(base) {
   }
   return { rating: null, daily: [], handPicked: [] };
 }
+// The game's social pages for the footer and the Organization's sameAs, from
+// the Worker's public config. If it cannot be reached, the launch defaults.
+async function readSocial() {
+  const cloud = (process.env.FLG_CLOUD_URL || '').replace(/\/+$/, '');
+  if (cloud) {
+    try {
+      const res = await fetch(`${cloud}/v1/config`, { signal: AbortSignal.timeout(15000) });
+      if (!res.ok) throw new Error(`answered ${res.status}`);
+      const body = await res.json();
+      if (Array.isArray(body.social)) return socialPages.socialLinks(Object.fromEntries(body.social.map((s) => [s.id, s.url])));
+    } catch (e) { console.warn(`Social links: ${e.message}`); }
+  }
+  return socialPages.socialLinks(socialPages.DEFAULT_LINKS);
+}
+// Puzzles the live site already published, so past days never change when
+// the engine gains new topics, story parts or levels: a day (or week, or
+// special edition) that is already out is kept exactly as published. Missing
+// ones (a first build, or the site unreachable) are built from their seed.
+async function readPublished(base, paths) {
+  const out = new Map();
+  const list = [...paths];
+  for (let i = 0; i < list.length; i += 20) {
+    await Promise.all(list.slice(i, i + 20).map(async (path) => {
+      try {
+        const res = await fetch(`${base}/${path}`, { signal: AbortSignal.timeout(15000) });
+        if (!res.ok) return;
+        const body = await res.json();
+        if (body && body.puzzle && body.puzzle.story && Array.isArray(body.puzzle.clues)) out.set(path, body.puzzle);
+      } catch (e) { /* built from its seed instead */ }
+    }));
+  }
+  return out;
+}
 const longDate = (s) => new Date(`${s}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
 
 // Google flags any VideoObject without these fields, even a bare {"@id"} pointer to one on
@@ -176,6 +210,7 @@ export async function buildSeo({ root, site }) {
   const name = 'The Fantastical Logic Grid';
   const pages = []; // { path, lastmod, priority }
   const quality = await readQuality(base);
+  const socialList = await readSocial();
 
   // ---------- shared layout ----------
   const verification = [
@@ -243,6 +278,7 @@ ${verification}
 <link rel="preload" href="${up}fonts/cinzel-700.woff2" as="font" type="font/woff2" crossorigin>
 <style>${css.replaceAll('url(fonts/', `url(${up}fonts/`)}${style}</style>
 <script type="module" src="${up}js/page-visit.js"></script>
+<script type="module" src="${up}js/site-report.js"></script>
 ${script ? `<script type="module" src="${script}"></script>` : ''}
 ${[breadcrumb, ...schema].map((s) => `<script type="application/ld+json">${json(checkVideos(s, path))}</script>`).join('\n')}
 </head>
@@ -263,7 +299,8 @@ ${body(up)}
   <p><a href="${up}">Play ${name}</a> · free in your browser, offline-ready, and on Windows.</p>
   <p>Every puzzle has exactly one answer, checked by our solver${quality.rating ? `, and players rate them ${quality.rating.average} out of 5 stars` : ''}. <a href="${up}picks/">Hand-picked puzzles</a></p>
   <p>${NAV.map(([p, n]) => `<a href="${up}${p}">${n}</a>`).join(' · ')} · <a href="${up}privacy/">Privacy</a></p>
-  <p><a href="${FACEBOOK}" rel="me noopener" target="_blank">Follow us on Facebook</a></p>
+  ${socialList.length ? `<div class="foot-social"><p>Follow the game</p>${socialPages.socialHtml(socialList)}</div>` : ''}
+  <p><button class="btn quiet report-btn" type="button" data-report-problem hidden>Report a Problem</button></p>
   <p class="muted">${copyright} ${trademark} <a href="${up}terms/">Terms of use</a></p>
 </footer>
 </body>
@@ -301,7 +338,8 @@ ${body(up)}
     trailer: video,
     copyrightHolder: { '@type': 'Person', name: owner }, copyrightYear: 2026,
   };
-  const publisher = { '@type': 'Organization', name, url: url(''), logo: { '@type': 'ImageObject', url: url('icons/icon-512.png') }, sameAs: [FACEBOOK] };
+  const publisher = { '@type': 'Organization', name, url: url(''), logo: { '@type': 'ImageObject', url: url('icons/icon-512.png') }, sameAs: socialList.map((s) => s.url),
+    email: 'support@thelogicgrid.com', contactPoint: { '@type': 'ContactPoint', contactType: 'customer support', email: 'support@thelogicgrid.com', availableLanguage: 'en' } };
   game.publisher = publisher;
   const website = { '@context': 'https://schema.org', '@type': 'WebSite', name, url: url(''), description: appDescription, inLanguage: 'en', publisher };
   const head = `<meta name="description" content="${esc(appDescription)}">
@@ -333,7 +371,7 @@ ${verification}
     ['Are the stories ever repeated?', 'No. Every puzzle has a brand new story, built from the theme, topic and size you pick, and the game never gives you the same story twice.'],
     ['Can I save, resume or print a puzzle?', 'Yes. Your progress saves automatically, so you can come back any time from Saved puzzles. You can print any puzzle, blank or with your marks, with the answer key on its own page.'],
     ['Does it work offline?', 'Yes. After your first visit the game works without an internet connection, and you can install it from your browser like an app.'],
-    ['How hard are the puzzles?', `There are ${Object.keys(TIERS).length} difficulty levels, from Basic for beginners to Quantum Physicist for true masterminds. Each level adds categories, items and harder kinds of clues.`],
+    ['How hard are the puzzles?', `There are ${Object.keys(TIERS).length} difficulty levels, from Basic for beginners to Theoretical Physicist for the best of the best. Each level adds categories, items and harder kinds of clues.`],
     ['Is it accessible?', 'The game works fully by keyboard and with a screen reader, has a List view instead of the grid, light, dark and high-contrast colors, captions on the video, and a Silent mode with no pictures, sound or animation.'],
   ];
   page({
@@ -381,7 +419,7 @@ ${playBtn(up, 'Start a new case')}`,
   const tiers = Object.values(TIERS).sort((a, b) => a.order - b.order);
   page({
     path: 'difficulty-levels/', priority: 0.7,
-    title: `Logic puzzle difficulty levels, from Basic to Quantum Physicist | ${name}`,
+    title: `Logic puzzle difficulty levels, from Basic to Theoretical Physicist | ${name}`,
     description: `${tiers.length} difficulty levels of logic grid puzzles: ${tiers.map((t) => t.name).join(', ')}. See the grid sizes and the kinds of clues each level uses.`,
     crumbs: [['difficulty-levels/', 'Difficulty levels']],
     schema: [{ '@context': 'https://schema.org', '@type': 'ItemList', name: 'Logic puzzle difficulty levels', numberOfItems: tiers.length, itemListElement: tiers.map((t, i) => ({ '@type': 'ListItem', position: i + 1, name: t.name, description: t.summary })) }],
@@ -390,7 +428,7 @@ ${playBtn(up, 'Start a new case')}`,
 <div class="table-wrap"><table>
 <caption>The ${tiers.length} levels</caption>
 <thead><tr><th scope="col">Level</th><th scope="col">Grid size</th><th scope="col">Kinds of clues</th></tr></thead>
-<tbody>${tiers.map((t) => `<tr><th scope="row">${esc(t.name)}</th><td>${esc(t.summary.split(',').slice(0, 2).join(','))}</td><td>${Object.keys(t.weights).map((k) => esc(CLUE_TYPES[k] || k)).join(', ')}</td></tr>`).join('')}</tbody>
+<tbody>${tiers.map((t) => `<tr><th scope="row">${PRINT_LEVELS.some((l) => l.tier === t.id) ? `<a href="${up}printables/${t.id}/" title="Free printable ${esc(t.name.toLowerCase())} worksheet">${esc(t.name)}</a>` : esc(t.name)}</th><td>${esc(t.summary.split(',').slice(0, 2).join(','))}</td><td>${Object.keys(t.weights).map((k) => esc(CLUE_TYPES[k] || k)).join(', ')}</td></tr>`).join('')}</tbody>
 </table></div>
 <h2>The kinds of clues</h2>
 <dl>${Object.entries(CLUE_TYPES).map(([k, n]) => `<dt>${esc(n)}</dt><dd>${esc({ is: 'Two things go together.', not: 'Two things do not go together.', neither: 'Something matches neither of two choices.', either: 'Something matches one of two choices.', pairs: 'Of two people, one matches each of two things.', allDiff: 'A group of things are all different people.', less: 'One value is more or less than another.', diff: 'Two values are an exact amount apart.', ifthen: 'If one match is true, another is too.' }[k] || '')}</dd>`).join('')}</dl>
@@ -401,7 +439,7 @@ ${playBtn(up)}`,
   page({
     path: 'themes/', priority: 0.8,
     title: `Logic puzzle themes: mystery, fantasy, sci-fi and more | ${name}`,
-    description: `${THEMES.length} story themes for logic grid puzzles: ${THEMES.map((t) => t.name).join(', ')}. Each has its own topics, characters and categories.`,
+    description: `${THEMES.length} story themes for logic grid puzzles, including ${THEMES.slice(0, 5).map((t) => t.name).join(", ")} and more. Each has its own topics, characters and categories.`,
     crumbs: [['themes/', 'Themes']],
     schema: [{ '@context': 'https://schema.org', '@type': 'ItemList', name: 'Logic puzzle themes', numberOfItems: THEMES.length, itemListElement: THEMES.map((t, i) => ({ '@type': 'ListItem', position: i + 1, name: `${t.name} logic puzzles`, url: url(`themes/${t.id}/`) })) }],
     body: (up) => `<h1>Puzzle themes</h1>
@@ -446,6 +484,21 @@ ${playBtn(up, `Play a ${t.name.toLowerCase()} puzzle`, false)}
   const weekly = new Map(); // Monday -> puzzle
   const specialPuzzles = new Map(); // edition id -> { edition, puzzle }
   const extraStories = []; // [date, story id] of weekly and special puzzles, for the printables below
+  // Already published: past and today's daily puzzles, past weeks' puzzles
+  // and special editions whose day has come.
+  const pastDays = [];
+  for (let d = DAILY_START; d <= today; d = addDays(d, 1)) pastDays.push(d);
+  const published = process.env.FLG_NO_PUBLISHED === '1' ? new Map() : await readPublished(base, [
+    ...pastDays.map((d) => `daily/puzzles/${d}.json`),
+    ...pastDays.filter((d) => d >= WEEKLY_START && new Date(`${d}T00:00:00Z`).getUTCDay() === 1).map((d) => `weekly/puzzles/${d}.json`),
+    ...specials.filter((e) => e.date <= today).map((e) => `specials/${e.id}.json`),
+  ]);
+  if (published.size) console.log(`Kept ${published.size} already published puzzles as they are.`);
+  const kept = (path) => {
+    const p = published.get(path);
+    if (p) used.add(p.story.id);
+    return p;
+  };
   const fresh = (opts, seed) => {
     let p;
     for (let n = 0; n < 20; n++) {
@@ -457,7 +510,7 @@ ${playBtn(up, `Play a ${t.name.toLowerCase()} puzzle`, false)}
   };
   for (let d = DAILY_START, i = 0; d <= addDays(today, DAILY_AHEAD_DAYS); d = addDays(d, 1), i++) {
     if (d >= WEEKLY_START && new Date(`${d}T00:00:00Z`).getUTCDay() === 1) {
-      const p = fresh({ difficulty: WEEKLY_TIER, theme: THEMES[(i + 3) % THEMES.length].id }, `weekly-${d}`);
+      const p = kept(`weekly/puzzles/${d}.json`) || fresh({ difficulty: WEEKLY_TIER, theme: THEMES[(i + 3) % THEMES.length].id }, `weekly-${d}`);
       weekly.set(d, p);
       extraStories.push([d, p.story.id]);
     }
@@ -465,7 +518,7 @@ ${playBtn(up, `Play a ${t.name.toLowerCase()} puzzle`, false)}
       const theme = THEMES.some((t) => t.id === e.theme) ? e.theme : THEMES[(i + 5) % THEMES.length].id;
       const difficulty = TIERS[e.difficulty] ? e.difficulty : 'hard';
       const size = e.categories && e.items ? { categories: e.categories, items: e.items } : {};
-      const p = fresh({ difficulty, theme, ...size }, `special-${e.id}`);
+      const p = kept(`specials/${e.id}.json`) || fresh({ difficulty, theme, ...size }, `special-${e.id}`);
       specialPuzzles.set(e.id, { edition: e, puzzle: p });
       extraStories.push([d, p.story.id]);
     }
@@ -477,7 +530,7 @@ ${playBtn(up, `Play a ${t.name.toLowerCase()} puzzle`, false)}
     // planned by hand in the admin dashboard are built exactly as planned.
     const house = plan.has(d) ? {} : houseDailyOptions(d, difficulty);
     const seed = `daily-${d}${o.reroll ? `-r${o.reroll}` : ''}`;
-    const p = fresh({ difficulty, theme, ...size, ...house }, seed);
+    const p = (d <= today && kept(`daily/puzzles/${d}.json`)) || fresh({ difficulty, theme, ...size, ...house }, seed);
     dailyStories.push([d, p.story.id]);
     if (d <= today) allPast.set(d, p);
     if (d > today) upcoming.push(dailySummary(p, d, plan.has(d)));
@@ -628,7 +681,7 @@ ${picks.length ? `<ul class="picks">${picks.map((x) => `<li><a href="${up}?play=
 <ul>
 <li><strong>Exactly one answer.</strong> Before a puzzle is shown, a solver works it out using only the steps a person can make from the clues. A puzzle is used only if the solver fills in every cell, which proves there is one answer and that it can be reached without guessing.</li>
 <li><strong>No extra clues.</strong> Clues that are not needed are taken out, so each one matters.</li>
-<li><strong>The right difficulty.</strong> The solver records the hardest step each puzzle needs, and the puzzle is kept only if that matches the level you chose, from Basic to Quantum Physicist. The hints use the same steps, so they explain the next deduction instead of giving the answer away.</li>
+<li><strong>The right difficulty.</strong> The solver records the hardest step each puzzle needs, and the puzzle is kept only if that matches the level you chose, from Basic to Theoretical Physicist. The hints use the same steps, so they explain the next deduction instead of giving the answer away.</li>
 <li><strong>Players have the last word.</strong> After solving, players can rate a puzzle from 1 to 5 stars.${quality.rating ? ` Over the last ${quality.rating.days} days, ${quality.rating.rated.toLocaleString('en-US')} ratings average <strong>${quality.rating.average} out of 5</strong>.` : ''} Low ratings for a theme or level are reviewed every week.</li>
 </ul>
 ${playBtn(up)}`,
@@ -736,6 +789,7 @@ ${playBtn(up)}`,
     title: `Free printable logic puzzles with answer keys | ${name}`,
     description: 'Free printable logic grid puzzles for classrooms and home, from age 7 up. A new worksheet set every week, each with a story, a blank grid and an answer key on its own page.',
     crumbs: [['printables/', 'Printables']],
+    schema: [{ '@context': 'https://schema.org', '@type': 'ItemList', name: "This week's printable logic puzzles", numberOfItems: sheets.length, itemListElement: sheets.map((sh, i) => ({ '@type': 'ListItem', position: i + 1, name: `${TIERS[sh.tier].name}: ${sh.puzzle.title}`, url: url(`printables/${sh.tier}/`) })) }],
     body: (up) => `<h1>Free printable logic puzzles</h1>
 <p class="lede">Story logic grid puzzles to print for the classroom, homeschool or the kitchen table. A new set every Monday, from age 7 up, each with a blank grid and an answer key on its own page.</p>
 <h2>This week's worksheets</h2>
@@ -757,7 +811,7 @@ ${playBtn(up)}`,
 </ol>
 <p>New to logic grids? <a href="${up}how-to-play/">How to play</a> walks through the rules with a short video.</p>
 <h2>Make as many as you need</h2>
-<p>In the game you can make unlimited puzzles at any of six levels, in more than 40 themes and almost any size, then print them blank or with your marks, on Letter or A4, with the answer key on its own page. Easy puzzles can also print a step-by-step solution. Every puzzle is a new story, in any of 100 languages, so it also works for language learners.</p>
+<p>In the game you can make unlimited puzzles at any of ${Object.keys(TIERS).length} levels, in ${THEMES.length} themes and almost any size, then print them blank or with your marks, on Letter or A4, with the answer key on its own page. Easy puzzles can also print a step-by-step solution. Every puzzle is a new story, in any of 100 languages, so it also works for language learners.</p>
 ${playBtn(up, 'Make a puzzle to print', false)}
 <h2>Free for classroom use</h2>
 <p>You may print and copy these worksheets for your own students or family, free. Please don't sell them or post them elsewhere. Link to this page instead.</p>`,
@@ -770,6 +824,9 @@ ${playBtn(up, 'Make a puzzle to print', false)}
       title: `Printable ${level.toLowerCase()} logic puzzle: ${p.title} | ${name}`,
       description: `A free printable ${level.toLowerCase()} logic grid puzzle (${sh.ages}): ${p.title}, with a story, a blank grid and the answer key on its own page.`,
       crumbs: [['printables/', 'Printables'], [`printables/${sh.tier}/`, level]],
+      schema: [{ '@context': 'https://schema.org', '@type': 'LearningResource', name: p.title, description: `A logic grid puzzle worksheet at the ${level} level, with a story, a blank grid and an answer key.`, url: url(`printables/${sh.tier}/`),
+        learningResourceType: 'Worksheet', educationalLevel: level, typicalAgeRange: `${sh.ages.match(/\d+/)[0]}-`, teaches: ['Deductive reasoning', 'Close reading', 'Logical thinking'],
+        isAccessibleForFree: true, inLanguage: 'en', datePublished: thisWeek, publisher, image: url('og-image.jpg') }],
       body: (up) => `<article class="sheet">
 <h1>${esc(p.title)}</h1>
 <p class="meta">${esc(level)} · ${esc(sh.ages)} · ${esc(p.theme.name)} · ${p.categories.length} categories × ${p.categories[0].items.length} items · week of ${esc(weekLabel)}</p>
@@ -834,7 +891,11 @@ Sitemap: ${url('sitemap.xml')}
 - [Hand-picked puzzles](${url('picks/')}): the best-rated daily puzzles, and how every puzzle is checked for exactly one answer
 - [Themes](${url('themes/')})
 - [Difficulty levels](${url('difficulty-levels/')})
+- [For educators](${url('educators/')}): free printable puzzle packages for a class, made to order and sent by email
+- [Privacy](${url('privacy/')}): no ads, no tracking cookies, no selling data
 - [Terms of use](${url('terms/')})
+
+Contact: support@thelogicgrid.com
 
 ## Use of this content
 

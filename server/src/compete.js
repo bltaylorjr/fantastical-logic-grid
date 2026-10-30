@@ -27,9 +27,9 @@ import { getSettings } from './settings.js';
 import { supporterTiers } from './supporters.js';
 import { specialBadgesFor } from './special-badges.js';
 
-export const TIERS = { basic: 10, easy: 20, medium: 35, hard: 55, expert: 80, mensa: 110 };
+export const TIERS = { basic: 10, easy: 20, medium: 35, hard: 55, expert: 80, mensa: 110, theorist: 165 };
 // Minutes a typical player needs per grid cell (the same as the app's estimate).
-const PAR_MIN_PER_CELL = { basic: 0.12, easy: 0.16, medium: 0.22, hard: 0.3, expert: 0.36, mensa: 0.42 };
+const PAR_MIN_PER_CELL = { basic: 0.12, easy: 0.16, medium: 0.22, hard: 0.3, expert: 0.36, mensa: 0.42, theorist: 0.63 };
 const HINT_PENALTY_MS = 60_000;
 const CHECK_PENALTY_MS = 15_000;
 const MIN_SOLVE_MS = 5_000;

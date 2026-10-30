@@ -12,6 +12,7 @@
 import { THEMES } from '../../engine/src/themes.js';
 import { json } from './http.js';
 import { publicNews } from './messages.js';
+import { NETWORKS, DEFAULT_LINKS, socialLinks } from '../../web/js/social.js';
 
 const CACHE_MS = 30_000;
 const THEME_IDS = THEMES.map((t) => t.id);
@@ -143,6 +144,12 @@ export const SETTINGS = {
   // link out to a page the owner sets up elsewhere; nothing here takes
   // payments or locks any part of the game.
   support_link_enabled: { type: 'bool', default: false, group: 'Support and premium', label: 'Support the game link', help: 'On: the game\'s Menu shows "Support the game", which opens the page below in a new window. Needs a link below. Nothing in the game is locked either way.' },
+  // ---- Social links: each page set here shows in the website's page footer
+  // (after the next nightly build) and the game's home screen footer.
+  ...Object.fromEntries(NETWORKS.map((n) => [`social_${n.id}`, {
+    type: 'url', network: n.id, default: DEFAULT_LINKS[n.id] || '', group: 'Social links', label: `${n.name} page`,
+    help: `The full https link to the game's ${n.name} page. It shows in the website and game footers. Leave empty to hide it.`,
+  }])),
   support_url: { type: 'url', default: '', group: 'Support and premium', label: 'Support page link', help: 'An https link to your tip, sponsor or membership page, such as a GitHub Sponsors, Ko-fi or Paddle page. Leave empty for none.' },
   support_asks_enabled: { type: 'bool', default: false, group: 'Support and premium', label: 'Support asks in the game', help: 'On (with the Support the game link on): a short thank-you after a player\'s 3rd, 10th and 25th solved puzzle, a note at a 7- and 30-day daily streak, a Supporters window, one line on printed puzzles and one line in the daily puzzle email. At most one ask a week per player, never during a puzzle or a race, never after a revealed solution, and "Don\'t ask again" stops them for good. Off: none of these show.' },
   supporter_badges_enabled: { type: 'bool', default: false, group: 'Support and premium', label: 'Show supporter badges', help: 'On: Bronze, Silver, Gold and Platinum supporter badges show next to names on the scoreboard. Off: no badges anywhere, even for people already added under Supporters. Leave off until you launch.' },
@@ -196,7 +203,11 @@ export function checkSetting(key, value) {
     const v = typeof value === 'string' ? value.trim() : null;
     return v && /^@?[a-z0-9][a-z0-9.:_/-]{1,99}$/i.test(v) ? { value: v } : { error: 'Use a model name such as gemini-flash-latest: letters, numbers, dots, dashes and slashes.' };
   }
-  if (s.type === 'url') return checkUrl(value);
+  if (s.type === 'url') {
+    const r = checkUrl(value);
+    if (!r.error && r.value && s.network && !socialLinks({ [s.network]: r.value }).length) return { error: `That link is not on ${NETWORKS.find((n) => n.id === s.network).name}.` };
+    return r;
+  }
   if (!Array.isArray(value)) return { error: 'Use a list.' };
   if (s.type === 'themes') {
     const list = [...new Set(value)];
@@ -256,6 +267,8 @@ export async function publicConfig(req, env) {
       puzzleMail: s.puzzle_mail_enabled && (s.weekly_mail_enabled || s.special_mail_enabled), weeklyMail: s.puzzle_mail_enabled && s.weekly_mail_enabled, specialMail: s.puzzle_mail_enabled && s.special_mail_enabled,
     },
     news: s.messages_enabled ? await publicNews(env) : [],
+    // The game's social pages that have a link, for the footers.
+    social: socialLinks(Object.fromEntries(NETWORKS.map((n) => [n.id, s[`social_${n.id}`]]))),
     // Chosen here for every player.
     game: { voiceSource: s.voice_source, readAloud: s.read_aloud, portraitStyle: s.portrait_style, confetti: s.confetti, aiPictures: s.ai_pictures,
       celebrations: CELEBRATIONS.filter((k) => s[k]), celebrateRandom: s.celebrate_random,
