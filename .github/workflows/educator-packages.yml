@@ -3,7 +3,7 @@
 # this sends the code emails for new requests from the website's Educators page
 # and decline emails, then builds each package the team approved in the admin
 # dashboard as PDFs with the game's own puzzle engine and emails them to the
-# educator's verified school address. Email goes from noreply@thelogicgrid.com
+# educator's verified school address. Email goes from support@thelogicgrid.com
 # through Resend (secret RESEND_API_KEY) or the game's Gmail as the backup
 # (the same secrets as the thank-you emails).
 # The repository is public, so this job prints only counts and request numbers.
@@ -34,5 +34,7 @@ jobs:
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           MAIL_FROM: ${{ vars.MAIL_FROM }}
+          MAIL_REPLY_TO: ${{ vars.MAIL_REPLY_TO }}
+          MAIL_NOREPLY: ${{ vars.MAIL_NOREPLY }}
           FLG_SITE_URL: ${{ vars.FLG_SITE_URL }}
         run: python3 -I scripts/educator-packages.py

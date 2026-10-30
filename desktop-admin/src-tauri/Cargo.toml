@@ -1,6 +1,6 @@
 [package]
 name = "fantastical-logic-grid-admin"
-version = "1.0.0"
+version = "1.0.1"
 description = "The Fantastical Logic Grid Admin"
 edition = "2021"
 

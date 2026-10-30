@@ -61,14 +61,24 @@ email is sent.
 2. Every 15 minutes the GitHub Action **Thank-you emails**
    (`.github/workflows/feedback-replies.yml`) collects the waiting notes
    (`POST /admin/v1/replies/claim`), sends them from
-   **noreply@thelogicgrid.com** through Resend (or, as a backup, from the
+   **support@thelogicgrid.com** through Resend (or, as a backup, from the
    game's Gmail) and reports back (`POST /admin/v1/replies/done`). The address is removed as
    soon as a note is sent, or after 3 failed tries. Rows go after 30 days.
 
 Through Resend the sender is **The Fantastical Logic Grid
-&lt;noreply@thelogicgrid.com&gt;**. Through the Gmail backup it shows as **The
-Fantastical Logic Grid (no-reply)** from fantasticallogicgrid@gmail.com, because
-Gmail can only send from its own address. Every email ends with a note asking people not to reply. It also carries
+&lt;support@thelogicgrid.com&gt;**. Through the Gmail backup it shows as **The
+Fantastical Logic Grid** from fantasticallogicgrid@gmail.com, because
+Gmail can only send from its own address. Players can reply: every email sets
+`Reply-To` to the `MAIL_REPLY_TO` repository variable, or to
+fantasticallogicgrid@gmail.com when that is not set. Once support@thelogicgrid.com
+receives mail itself (email forwarding at the domain), set the GitHub variable
+`MAIL_REPLY_TO` to `support@thelogicgrid.com`.
+
+One-way emails (the daily puzzle, "the team sent you a message" notices and
+educator code emails) go from **noreply@thelogicgrid.com** instead, with no
+`Reply-To` and a footer saying replies are not read. Set the `MAIL_NOREPLY`
+variable to use a different address. Any address on the verified domain works
+in Resend with no extra DNS records. It also carries
 `Auto-Submitted: auto-replied`, so mail programs do not answer it with
 out-of-office replies.
 
@@ -98,7 +108,7 @@ The Gmail backup uses the repository secrets the weekly archive email already
 has (`server/ARCHIVE.md`): `GMAIL_USER`, `GMAIL_APP_PASSWORD` and
 `FLG_ADMIN_TOKEN`. With only those, notes go from the Gmail address.
 
-### Sending from noreply@thelogicgrid.com (Resend, free)
+### Sending from support@thelogicgrid.com (Resend, free)
 
 Resend's free plan (3,000 emails a month, 100 a day, one domain, no card)
 costs nothing. Past the free limits Resend refuses rather than bills, and the

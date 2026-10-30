@@ -1,0 +1,5 @@
+# Windows builds of both desktop apps (desktop/ and desktop-admin/) opt into
+# Control Flow Guard, a Windows security feature the Windows App Certification
+# Kit's binary analyzer looks for. DEP, ASLR and high-entropy ASLR are already on.
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "control-flow-guard"]
