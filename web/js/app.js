@@ -268,13 +268,14 @@ function renderSetup() {
   $('#items').value = setup.custom[1];
 
   $('#tier-choices').onchange = () => { setup.tier = $('input[name=tier]:checked').value; setup.size = null; renderSizes(); renderClueTypes(); updatePreview(); };
-  $('#theme-choices').onchange = () => { setup.theme = $('input[name=theme]:checked').value; setup.topic = 'any'; topicsClosed = false; renderTopics(); setWorld(setup.theme); updatePreview(); };
+  chosenTheme = $('input[name=theme]:checked');
+  $('#theme-choices').onchange = () => { chosenTheme = $('input[name=theme]:checked'); setup.theme = chosenTheme.value; setup.topic = 'any'; topicsClosed = false; renderTopics(); setWorld(setup.theme); updatePreview(); };
   // Tapping the theme that is already chosen folds its topic list away, and
   // tapping it again opens it. (The click comes before the change, so a new
-  // theme still has the old value in setup.theme here.)
+  // theme is not yet chosenTheme here.)
   const toggleTopics = (e) => {
     const input = e.target.closest('input[name=theme]');
-    if (!input || input.value !== setup.theme || input.closest('#topic-field')) return false;
+    if (!input || input !== chosenTheme) return false;
     const theme = OPTIONS.themes.find((t) => t.id === setup.theme);
     if (!theme || (theme.topics || []).length < 2) return false;
     topicsClosed = !topicsClosed;
@@ -312,6 +313,7 @@ function extrasLink(url) { return url; }
 // "Surprise me" has none, so the picker hides.
 let topicEl;
 let topicsClosed = false; // folded away by tapping the chosen theme again
+let chosenTheme = null;    // the chosen theme's radio button
 // It sits inside the theme list, so a topic pick must not count as a theme change.
 function topicField() {
   if (!topicEl) {
