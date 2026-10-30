@@ -337,6 +337,12 @@
       <button class="btn" type="button" id="back-saved">Saved Puzzles</button>
     </div>
   </section>
+  <!-- The talking face of whoever is speaking (talker.js). Pictures only:
+       their words are already on the screen. -->
+  <aside class="talker" id="talker" aria-hidden="true" hidden>
+    <div class="talker-frame"><canvas width="320" height="320"></canvas><div class="talker-still"></div></div>
+    <p class="talker-name"></p>
+  </aside>
 </main>
 
 <!-- ============ Number Place: its own numbers game (modules/number-place) ============ -->
@@ -539,6 +545,7 @@
         <label class="check"><input type="checkbox" name="music"> Theme music</label>
         <div class="field"><label for="musicVolume">Music volume</label><input type="range" id="musicVolume" name="musicVolume" min="0" max="100" step="5"></div>
       </div>
+      <label class="check" id="talking-faces-row"><input type="checkbox" name="talkingFaces"> Talking faces: the character who is speaking appears, and their lips move with their voice</label>
       <p class="help">The Sound button at the top of a puzzle turns all sound off and on in one tap.</p>
     </fieldset>
     <fieldset><legend>Colors</legend>
