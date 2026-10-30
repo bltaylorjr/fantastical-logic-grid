@@ -1,0 +1,52 @@
+# Deletes a pull request's branch once it is merged, so finished work does not
+# pile up as old branches. Branches of open, closed-unmerged or draft pull
+# requests, and branches with no pull request, are never touched.
+# By hand: Run workflow to clear out every branch whose pull request was merged
+# before this was added (shown first with mode "list", then "delete"). A
+# branch with commits added after its merge is kept.
+# Free: GitHub Actions on a public repo.
+name: Delete merged branches
+on:
+  pull_request:
+    types: [closed]
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: list (show what would go) or delete
+        required: false
+        default: list
+permissions:
+  contents: write
+  pull-requests: read
+jobs:
+  delete:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: github.event_name == 'workflow_dispatch' || (github.event.pull_request.merged == true && github.event.pull_request.head.repo.full_name == github.repository)
+    steps:
+      - name: Delete the merged branch(es)
+        uses: actions/github-script@v9
+        env:
+          MODE: ${{ inputs.mode }}
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const keep = new Set(['main', 'gh-pages']);
+            const remove = async (ref) => {
+              if (keep.has(ref)) return;
+              try { await github.rest.git.deleteRef({ owner, repo, ref: `heads/${ref}` }); core.notice(`Deleted ${ref}`); }
+              catch (e) { if (e.status !== 422 && e.status !== 404) throw e; }
+            };
+            if (context.eventName === 'pull_request') return remove(context.payload.pull_request.head.ref);
+            // By hand: every branch with no open pull request whose last commit
+            // is exactly what a merged pull request merged. A branch that got
+            // new commits after its merge is kept, so no work is lost.
+            const pulls = await github.paginate(github.rest.pulls.list, { owner, repo, state: 'all', per_page: 100 });
+            const open = new Set(pulls.filter((p) => p.state === 'open').map((p) => p.head.ref));
+            const mergedHeads = new Set(pulls.filter((p) => p.merged_at && p.head.repo && p.head.repo.full_name === `${owner}/${repo}`).map((p) => `${p.head.ref}@${p.head.sha}`));
+            const branches = await github.paginate(github.rest.repos.listBranches, { owner, repo, per_page: 100 });
+            const gone = branches.filter((b) => mergedHeads.has(`${b.name}@${b.commit.sha}`) && !open.has(b.name) && !keep.has(b.name)).map((b) => b.name);
+            const later = branches.filter((b) => !gone.includes(b.name) && pulls.some((p) => p.merged_at && p.head.ref === b.name) && !open.has(b.name)).map((b) => b.name);
+            if (later.length) core.notice(`${later.length} merged branches kept because they have commits after the merge: ${later.join(', ')}`);
+            core.notice(`${gone.length} merged branches${process.env.MODE === 'delete' ? ' deleted' : ' would be deleted (run again with mode delete)'}: ${gone.join(', ') || 'none'}`);
+            if (process.env.MODE === 'delete') for (const b of gone) await remove(b);

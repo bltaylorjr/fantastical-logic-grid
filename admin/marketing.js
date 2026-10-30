@@ -137,6 +137,18 @@ async function render() {
   const eduAds = data.ads.filter((a) => /^\/educators\//.test(a.landing || '') || hasEdu(a.stats));
   const eduRows = eduAds.filter((a) => a.stats.visit || hasEdu(a.stats) || a.status === 'posted')
     .map((a) => [h.esc(a.title), h.esc(a.channel), badge(a.status), ...eduCells(a.stats)]);
+  // Worth your time: for each site you post on, visits and solves per post, so
+  // the sites that bring players stand out from the ones that only take time.
+  // Posts are the ads marked posted; visits are everything from that site in the period.
+  const worth = [...new Set(data.ads.filter((a) => a.status === 'posted').map((a) => a.channel))].map((ch) => {
+    const posts = data.ads.filter((a) => a.status === 'posted' && a.channel === ch).length;
+    const sum = (e) => data.bySource.filter((x) => x.source === ch).reduce((n, x) => n + (x[e] || 0), 0);
+    return { ch, posts, visit: sum('visit'), solve: sum('solve') };
+  }).sort((a, b) => b.visit / b.posts - a.visit / a.posts || b.solve - a.solve);
+  const worthRows = worth.map((w) => [h.esc(w.ch), h.fmt(w.posts), h.fmt(w.visit), (w.visit / w.posts).toFixed(1), h.fmt(w.solve), (w.solve / w.posts).toFixed(1)]);
+  const worthNote = worth.length >= 2 && worth[0].visit > 0
+    ? `<p>Over the last ${h.fmt(data.days)} days, <b>${h.esc(worth[0].ch)}</b> brought the most visits per post (${(worth[0].visit / worth[0].posts).toFixed(1)}), and <b>${h.esc(worth.at(-1).ch)}</b> the fewest (${(worth.at(-1).visit / worth.at(-1).posts).toFixed(1)}).</p>`
+    : '<p class="muted">Once two or more sites have posts and visits, this compares them.</p>';
   const eduSources = data.bySource.filter(hasEdu).map((s) => [h.esc(s.source), h.esc(MEDIUM_NAMES[s.medium] || s.medium), ...eduCells(s)]);
   const posted = data.ads.filter((a) => a.status === 'posted').length;
   const waiting = data.ads.filter((a) => a.status === 'approved').length;
@@ -149,6 +161,9 @@ async function render() {
       ${h.tile('Ads posted', h.fmt(posted), `${h.fmt(waiting)} approved and waiting, ${h.fmt(data.ads.length)} in all`)}
       ${h.tile('Educator requests', h.fmt(t.edu_request || 0), `${h.fmt(t.edu_confirm || 0)} school emails confirmed, ${h.fmt(t.edu_sent || 0)} packages sent, from campaign links and other sites`)}</div>
     <div class="charts">${trendChart(data.trend)}</div>
+    <h2 id="mk-worth-h">Worth your time</h2>
+    ${worthNote}
+    ${h.table([{ label: 'Site' }, { label: 'Posts', num: true }, { label: 'Visits', num: true }, { label: 'Visits per post', num: true }, { label: 'Solves', num: true }, { label: 'Solves per post', num: true }], worthRows, 'No ad is marked posted yet.')}
     <h2 id="mk-src-h">By channel</h2>
     ${h.table([{ label: 'Channel' }, { label: 'Kind' }, ...numberHead], sources, 'No visits from campaign links or other sites in this period yet.')}
     <h2 id="mk-camp-h">By campaign</h2>

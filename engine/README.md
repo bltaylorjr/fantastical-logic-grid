@@ -49,6 +49,16 @@ This follows the design process step by step:
    fit, the engine tries again with a fresh answer table (up to 60 tries or 15 seconds)
    and returns the closest match, with a note saying how it differs.
 
+## Player Stories
+
+`theme: 'stories'` plays a story a player wrote and sent through the game's
+Ideas box (`src/player-stories.js`). Pass a story id as `topic`, or leave it
+out for a random one. The writer's scene, cast, categories and items are kept
+exactly, and the story plays at the writer's difficulty and full size
+(`difficulty`, `categories`, `items` and `customNames` are ignored). Colors,
+pictures and music come from the story's `look` theme. To add one, append an
+entry to `PLAYER_STORIES`; the tests check every story has one solution.
+
 ## Options
 
 | Option | Values | Default |

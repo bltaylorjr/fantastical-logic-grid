@@ -1,17 +1,25 @@
 // The admin dashboard for The Fantastical Logic Grid. Served by the game's
 // Worker at /admin/ and talks only to its /admin/v1 API (server/src/admin.js).
-// Sign-in uses Firebase's REST API with the admin's game account; the session
-// lives only in this tab (sessionStorage) and ends after 30 idle minutes.
+// Sign-in uses Firebase's REST API with the admin's game account, or Face ID
+// or a fingerprint (passkeys.js). With "Keep me signed in on this device" the
+// session is kept in localStorage, so it survives the phone closing the app
+// while the admin uses other apps; otherwise it lives only in this tab
+// (sessionStorage). Either way it locks after 30 idle minutes, and Face ID or
+// a fingerprint opens it again.
 
 import { initPullRefresh } from './pull-refresh.js';
+import { readStoryline } from './storyline-parse.js';
 import { renderConnections } from './connections-view.js';
 import { takeOAuthReturn, finishOAuth } from './oauth.js';
 import { characterView } from './characters.js';
 import { ratingsView, initRatings } from './ratings.js';
 import { marketingView, initMarketing } from './marketing.js';
 import { puzzleMailView, initPuzzleMail } from './puzzle-mail.js';
-import { educatorsView, initEducators } from './educators.js';
+import { educatorsView, initEducators, educatorFeedbackView, initEducatorFeedback } from './educators.js';
+import { licensesView, initLicenses } from './licenses.js';
+import { mediaView } from './media.js';
 import { badgesView, initBadges, playerBadgesHtml, playerBadgeClick } from './badges.js';
+import { passkeysSupported, platformReady, rememberedPasskey, passkeySignIn, offerPasskey, passkeysView, initPasskeys } from './passkeys.js';
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -29,7 +37,7 @@ const IDLE_MS = 30 * 60_000;
 const ROLES = { viewer: 1, moderator: 2, admin: 3, owner: 4 };
 const TIER_NAMES = { basic: 'Basic', easy: 'Easy', medium: 'Medium', hard: 'Hard', expert: 'Expert', mensa: 'Quantum Physicist', theorist: 'Theoretical Physicist' };
 
-let session = null; // { mode: 'firebase'|'token', key?, refreshToken?, idToken?, exp?, email? }
+let session = null; // { mode: 'firebase'|'passkey'|'token', key?, refreshToken?, idToken?, exp?, email?, keep?, seen? }
 let me = null; // { email, role }
 let firebaseKey = null;
 let lastActive = Date.now();
@@ -48,8 +56,24 @@ function toast(text) {
 }
 const can = (role) => me && ROLES[me.role] >= ROLES[role];
 
-function saveSession() { try { sessionStorage.setItem(SESSION_KEY, JSON.stringify(session)); } catch (e) { /* private window */ } }
-function loadSession() { try { return JSON.parse(sessionStorage.getItem(SESSION_KEY) || 'null'); } catch (e) { return null; } }
+// seen: the last tap or key press, so a dashboard reopened after a long break locks.
+function saveSession() {
+  try {
+    if (session) session.seen = lastActive;
+    const keep = !!session?.keep;
+    (keep ? localStorage : sessionStorage).setItem(SESSION_KEY, JSON.stringify(session));
+    (keep ? sessionStorage : localStorage).removeItem(SESSION_KEY);
+  } catch (e) { /* private window */ }
+}
+function loadSession() {
+  try { return JSON.parse(sessionStorage.getItem(SESSION_KEY) || localStorage.getItem(SESSION_KEY) || 'null'); } catch (e) { return null; }
+}
+function clearSession() {
+  try { sessionStorage.removeItem(SESSION_KEY); localStorage.removeItem(SESSION_KEY); } catch (e) { /* ignore */ }
+}
+const lockWords = () => (rememberedPasskey()
+  ? 'Locked after 30 minutes without use. Use Face ID or your fingerprint to open it again.'
+  : 'Locked after 30 minutes without use. Sign in again to open it.');
 
 class ApiError extends Error { constructor(code, message, status) { super(message || code); this.code = code; this.status = status; } }
 
@@ -74,7 +98,7 @@ async function firebase(path, body, base = AUTH_URL) {
 
 async function bearer(force = false) {
   if (!session) throw new ApiError('sign_in', 'Please sign in.');
-  if (session.mode === 'token') return session.key;
+  if (session.mode === 'token' || session.mode === 'passkey') return session.key;
   if (!force && session.idToken && Date.now() < session.exp - 60_000) return session.idToken;
   const data = await firebase('token', { grant_type: 'refresh_token', refresh_token: session.refreshToken }, TOKEN_URL);
   session.idToken = data.id_token;
@@ -85,7 +109,7 @@ async function bearer(force = false) {
 }
 
 async function api(path, { method = 'GET', body } = {}) {
-  if (session && Date.now() - lastActive > IDLE_MS) { signOut('You were signed out after 30 minutes without activity.'); throw new ApiError('sign_in', 'Signed out.'); }
+  if (session && Date.now() - lastActive > IDLE_MS) { signOut(lockWords()); throw new ApiError('sign_in', 'Signed out.'); }
   const res = await fetch(`/admin/v1/${path}`, {
     method,
     headers: { Authorization: `Bearer ${await bearer()}`, ...(body ? { 'Content-Type': 'application/json' } : {}) },
@@ -93,7 +117,7 @@ async function api(path, { method = 'GET', body } = {}) {
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    if (res.status === 401) signOut('Please sign in again.');
+    if (res.status === 401) signOut(data.error === 'locked' ? lockWords() : 'Please sign in again.');
     throw new ApiError(data.error || `http_${res.status}`, data.message || `Request failed (${res.status}).`, res.status);
   }
   return data;
@@ -250,6 +274,8 @@ views.overview = async () => {
   setCount('#count-parts', d.review.parts.pending || 0);
   setCount('#count-names', d.review.namesWaiting || 0);
   setCount('#count-educators', d.review.educators || 0);
+  if (can('admin')) setCount('#count-licenses', d.review.keys || 0);
+  setCount('#count-edu-feedback', can('moderator') ? d.review.educatorFeedback || 0 : 0);
   const review = [];
   if (can('moderator') && d.review.parts.pending) review.push(`<a href="#stories">${fmt(d.review.parts.pending)} story ${d.review.parts.pending === 1 ? 'part' : 'parts'} waiting for review</a>`);
   const fb = d.review.feedback || {};
@@ -257,7 +283,9 @@ views.overview = async () => {
   setCount('#count-comm', can('moderator') ? (fb.idea || 0) + (fb.problem || 0) + unread : 0);
   if (can('moderator') && unread) review.push(`<a href="#communication">${fmt(unread)} unread ${unread === 1 ? 'message' : 'messages'} from players</a>`);
   if (can('moderator') && (fb.idea || fb.problem)) review.push(`<a href="#communication">${fmt(fb.idea || 0)} new ${fb.idea === 1 ? 'idea' : 'ideas'} and ${fmt(fb.problem || 0)} new ${fb.problem === 1 ? 'problem' : 'problems'} from players</a>`);
+  if (can('admin') && d.review.keys) review.push(`<a href="#licenses">${fmt(d.review.keys)} free app ${d.review.keys === 1 ? 'key' : 'keys'} waiting for approval</a>`);
   if (can('moderator') && d.review.educators) review.push(`<a href="#educators">${fmt(d.review.educators)} educator ${d.review.educators === 1 ? 'request' : 'requests'} waiting for review</a>`);
+  if (can('moderator') && d.review.educatorFeedback) review.push(`<a href="#edu-feedback">${fmt(d.review.educatorFeedback)} new ${d.review.educatorFeedback === 1 ? 'note' : 'notes'} from educators</a>`);
   if (can('moderator') && d.review.namesWaiting) review.push(`<a href="#names">${fmt(d.review.namesWaiting)} new or changed screen ${d.review.namesWaiting === 1 ? 'name' : 'names'}</a>`);
   $('#ov-body').innerHTML = `
     ${alertsHtml(al)}
@@ -645,7 +673,7 @@ function reportHtml(r) {
   return `<div class="fb-note"><p><b>Report ${esc(r.tracking)}</b> · ${esc(CATEGORY_NAMES[r.category] || 'Puzzle')} · ${esc(r.title || r.page || 'Untitled')}${r.tier ? ` · ${esc(TIER_NAMES[r.tier] || r.tier)}` : ''} <span class="badge ${cls}">${esc(words)}</span> <a href="#errortracking/${Number(r.id)}">Open in Error tracking</a></p>
     ${r.findings.length ? `<ul>${r.findings.map((f) => `<li>${esc(f.text)}</li>`).join('')}</ul>` : ''}
     ${r.status === 'repaired' ? `<p class="muted">${esc(r.note || '')} ${r.openedAt ? 'The player opened the repaired puzzle.' : 'The player has not opened the repaired puzzle yet.'}</p>` : ''}
-    ${r.status === 'needs_fix' ? '<p class="muted">Today\'s puzzle maker still gets this wrong. Download the puzzle to reproduce it; once a fix is published, press Check again and the player is emailed the repaired puzzle automatically.</p>' : ''}
+    ${r.status === 'needs_fix' ? '<p class="muted">Today\'s puzzle maker still gets this wrong. The puzzle doctor\'s daily code-fix task picks it up; when its fix merges, the puzzle goes back to the doctor and the player is emailed the repaired puzzle automatically.</p>' : ''}
     <div class="row">${r.category !== 'webstructure' ? `<button class="btn small" type="button" data-report-file="${Number(r.id)}" data-tracking="${esc(r.tracking)}">Download the reported puzzle</button>` : ''}
     ${['needs_fix', 'no_fault'].includes(r.status) && can('admin') ? `<button class="btn small" type="button" data-report-retry="${Number(r.id)}">Check again</button>` : ''}</div></div>`;
 }
@@ -725,6 +753,7 @@ async function etOpen(id) {
     <p><span class="badge ${cls}">${esc(words)}</span> Reported ${when(r.createdAt)} on <b>${esc(r.page || '–')}</b> · ${esc(r.platform)} ${esc(r.version)}${r.screen ? ` · window ${esc(r.screen)}` : ''}${r.engine ? ` · checked with engine ${esc(r.engine)}` : ''}</p>
     <h3>The error (the player's words)</h3><p class="fb-text">${esc(r.text)}</p>
     <h3>Reason for failure</h3>${r.findings.length ? `<ul>${r.findings.map((f) => `<li><b>${esc(FAULT_NAMES[f.code] || f.code)}:</b> ${esc(f.text)}</li>`).join('')}</ul>` : `<p class="muted">${r.category === 'puzzle' && r.hasPuzzle ? (r.status === 'new' || r.status === 'checking' ? 'Not checked yet.' : 'Nothing wrong was found in the puzzle.') : 'Not checked automatically: read the player\'s words.'}</p>`}
+    ${['needs_fix', 'no_fault', 'manual', 'page'].includes(r.status) ? '<p class="muted">The puzzle doctor\'s daily code-fix task looks at reports waiting here. When its fix merges, this report is marked done with a plain note and the version, and the player who asked is emailed. Mark done by hand only if you fixed it yourself.</p>' : ''}
     <h3>Correction made</h3><p>${esc(r.note || '–')}${r.strategy ? ` <span class="muted">(${esc(STRATEGY_NAMES[r.strategy] || r.strategy)})</span>` : ''}${r.status === 'repaired' ? ` ${r.openedAt ? 'The player opened the repaired puzzle.' : 'The player has not opened the repaired puzzle yet.'}` : ''}</p>
     ${r.related.length ? `<h3>Related reports in the other category</h3><p>${r.related.map((t) => `<code>${esc(t)}</code>`).join(' ')} <span class="muted">(same screen and app version)</span></p>` : ''}
     ${r.hasImage ? `<h3>Picture</h3><img class="et-picture" src="${svgUrl(r.image)}" alt="The puzzle's picture as the player saw it">` : ''}
@@ -763,52 +792,48 @@ document.addEventListener('click', async (e) => {
   }
 });
 
-// Approve a storyline: the note and the first puzzle made with it. The player
-// gets one email (with the puzzle as a PDF and its answer key) only if they
-// ticked "Email me an update"; the puzzle waits in their game for 30 days.
+// A storyline (story idea): Approve or Disapprove, nothing to type. The player
+// gets one email only if they ticked "Email me an update": approved, a
+// congratulations with the first puzzle built from their storyline (a PDF with
+// its answer key; the puzzle also goes into their Saved puzzles); disapproved,
+// a thank-you for their input. The puzzle is built from the lists in the
+// storyline (storyline-parse.js), shown here before approving.
 function storyApproveHtml(i) {
   const id = Number(i.id);
-  return `<details class="story-approve"><summary>Approve storyline</summary>
-    <form class="stack" data-approve="${id}" novalidate>
-      ${i.meta.storyEmail
-    ? '<p class="muted">This player asked for an email. They get one email: your note, plus the puzzle below as a PDF with its answer key. The puzzle also waits in their game (Messages &gt; Puzzles for you) for 30 days.</p>'
-    : '<p class="muted">This player did not ask for an email (or was not signed in), so nothing is sent and no puzzle can be stored for them. Approving marks it addressed.</p>'}
-      <div class="field"><label for="ap-note-${id}">Note for the player (everyday words)</label><textarea id="ap-note-${id}" rows="3" maxlength="500"></textarea></div>
-      ${i.meta.storyEmail ? `<div class="field"><label for="ap-file-${id}">First puzzle made with this storyline</label><input type="file" id="ap-file-${id}" accept=".json,application/json">
-        <p class="muted">Make it in the game, then Saved puzzles &gt; Save to a file. Optional, but without it the email has no puzzle.</p></div>` : ''}
-      <p class="error" role="alert" hidden></p>
-      <div class="row"><button class="btn primary small" type="submit">Approve${i.meta.storyEmail ? ' and email' : ''}</button></div>
-    </form></details>`;
+  const read = readStoryline(i.text, i.meta.themeName || '');
+  const built = read.def
+    ? `<b>Puzzle:</b> built from ${esc(read.summary)}.`
+    : `<span class="badge warn">No puzzle</span> ${esc(read.reason)} Approving still sends the congratulations, without a puzzle.`;
+  const mail = i.meta.storyEmail
+    ? '<b>Approve:</b> they get a congratulations email with the puzzle (PDF and answer key), and it goes into their Saved puzzles. <b>Disapprove:</b> they get a thank-you for their input.'
+    : 'This player did not ask for an email, so nothing is sent either way.';
+  return `<p class="muted">${mail}${i.meta.storyEmail ? ` ${built}` : ''}</p>
+    <p class="error" role="alert" hidden data-story-error="${id}"></p>`;
 }
-document.addEventListener('submit', async (e) => {
-  const form = e.target.closest('form[data-approve]');
-  if (!form) return;
-  e.preventDefault();
-  const id = Number(form.dataset.approve);
-  const err = $('.error', form);
+const storyButtons = (id) => `<button class="btn primary small" type="button" data-story-act="approve" data-story="${Number(id)}">Approve</button>
+  <button class="btn small" type="button" data-story-act="decline" data-story="${Number(id)}">Disapprove</button>`;
+document.addEventListener('click', async (e) => {
+  const btn = e.target.closest('[data-story-act]');
+  if (!btn) return;
+  const id = Number(btn.dataset.story);
+  const approve = btn.dataset.storyAct === 'approve';
+  const err = $(`[data-story-error="${id}"]`);
   err.hidden = true;
-  const note = $(`#ap-note-${id}`).value.trim();
-  const fail = (t, el) => { err.textContent = t; err.hidden = false; el?.focus(); };
-  if (!note) return fail('Write a short note for the player.', $(`#ap-note-${id}`));
-  const tech = plainWords(note);
-  if (tech) return fail(tech, $(`#ap-note-${id}`));
-  const fileEl = $(`#ap-file-${id}`);
-  let puzzle = null;
-  if (fileEl && fileEl.files[0]) {
-    try {
-      if (fileEl.files[0].size > 450_000) throw new Error('big');
-      puzzle = JSON.parse(await fileEl.files[0].text());
-    } catch (ex) { return fail('That file could not be read as a puzzle file. Use a file saved from the game.', fileEl); }
-  }
-  const btn = $('button[type=submit]', form);
-  btn.disabled = true;
+  const buttons = [...document.querySelectorAll(`[data-story-act][data-story="${id}"]`)];
+  buttons.forEach((b) => { b.disabled = true; });
   try {
-    const r = await api(`feedback/${id}/approve`, { method: 'POST', body: { note, ...(puzzle ? { puzzle } : {}) } });
-    const words = `Storyline approved.${r.emailed ? ` One email goes out within 15 minutes${r.stored ? ', with the puzzle attached as a PDF. The puzzle is in their game for 30 days.' : ' (no puzzle attached).'}` : ' No email: the player did not ask for one.'}`;
+    const r = await api(`feedback/${id}/${approve ? 'approve' : 'decline'}`, { method: 'POST', body: {} });
+    const words = approve
+      ? `Storyline approved.${r.emailed ? ' Within 15 minutes the player gets the congratulations email with their puzzle, and the puzzle goes into their Saved puzzles.' : ' No email: the player did not ask for one.'}`
+      : `Storyline disapproved.${r.emailed ? ' The player gets a thank-you for their input within 15 minutes.' : ' No email: the player did not ask for one.'}`;
     toast(words);
     announce(words);
     show('communication', { keepFocus: true });
-  } catch (ex) { fail(ex.message); btn.disabled = false; }
+  } catch (ex) {
+    err.textContent = ex.message;
+    err.hidden = false;
+    buttons.forEach((b) => { b.disabled = false; });
+  }
 });
 
 function itemHtml(i) {
@@ -825,15 +850,17 @@ function itemHtml(i) {
   }
   if (i.type === 'idea' || i.type === 'problem') {
     const m = i.meta;
+    // A new storyline is decided with Approve or Disapprove (storyApproveHtml) instead of Mark addressed / Mark done.
+    const storyline = i.type === 'idea' && m.topic === 'story' && i.status === 'new' && can('moderator');
     return `<li>${type} ${state} <b>${esc(FB_TOPICS[m.topic] || m.topic)}</b>${m.themeName ? ` <span class="badge">Theme: ${esc(m.themeName)}</span>` : ''}
       <span class="muted">${when(i.at)} · ${esc(m.platform)} ${esc(m.version)}${m.conversationId ? ' · the player asked for a reply' : ''}</span>
       <p class="fb-text">${esc(i.text)}</p>
       ${i.status === 'addressed' && m.note ? `<p class="fb-note"><b>What we did:</b> ${esc(m.note)} <span class="muted">${when(m.doneAt)}</span></p>` : ''}
-      <div class="row">${m.conversationId ? `<button class="btn primary small" type="button" data-open="${m.conversationId}">Reply</button>` : ''}
-      ${i.status === 'new' ? `<button class="btn${m.conversationId ? '' : ' primary'} small" type="button" data-fb="${i.id}" data-status="addressed">Mark addressed</button>
+      ${storyline ? storyApproveHtml(i) : ''}<div class="row">${m.conversationId ? `<button class="btn primary small" type="button" data-open="${m.conversationId}">Reply</button>` : ''}
+      ${storyline ? storyButtons(i.id) : i.status === 'new' ? `<button class="btn${m.conversationId ? '' : ' primary'} small" type="button" data-fb="${i.id}" data-status="addressed">Mark addressed</button>
         <button class="btn small" type="button" data-fb="${i.id}" data-status="done">Mark done</button>` : `<button class="btn small" type="button" data-fb="${i.id}" data-status="new">Mark new</button>`}
       <button class="btn small" type="button" data-fb="${i.id}" data-status="delete">Delete</button></div>
-      ${i.report ? reportHtml(i.report) : ''}${i.type === 'idea' && m.topic === 'story' && i.status === 'new' && can('moderator') ? storyApproveHtml(i) : ''}</li>`;
+      ${i.report ? reportHtml(i.report) : ''}</li>`;
   }
   if (i.type === 'error') {
     const m = i.meta;
@@ -855,7 +882,7 @@ views.communication = async () => {
   $('#comm-summary').textContent = `${commCounts(d.counts)} Showing ${plural(d.items.length, 'item', 'items')}${q ? ` with "${q}"` : ''}.`;
   const r = d.replies;
   $('#fb-replies').textContent = !r ? '' : r.enabled
-    ? `Emails to players (thank-you notes, and notices of a team message for players who turned them on): ${fmt(r.sentToday)} sent in the last 24 hours, ${fmt(r.waiting)} waiting${r.failedToday ? `, ${fmt(r.failedToday)} could not be sent` : ''}. Limit ${fmt(r.cap)} a day. They go out every 15 minutes from noreply@thelogicgrid.com (or the game's Gmail as a backup); addresses are removed once sent.`
+    ? `Emails to players (thank-you notes, and notices of a team message for players who turned them on): ${fmt(r.sentToday)} sent in the last 24 hours, ${fmt(r.waiting)} waiting${r.failedToday ? `, ${fmt(r.failedToday)} could not be sent` : ''}. Limit ${fmt(r.cap)} a day. They go out every 15 minutes from support@thelogicgrid.com (or the game's Gmail as a backup); addresses are removed once sent.`
     : 'Emails to players are switched off (Settings and switches > Ideas and problems).';
   errItems = d.items;
   $('#comm-list').innerHTML = d.items.length ? d.items.map(itemHtml).join('') : '<li class="muted">Nothing here.</li>';
@@ -1236,10 +1263,64 @@ async function openPlayer(uid) {
   };
 }
 
+const NP_GROUP = 'Number Place';
+const NP_LEVEL_NAMES = { basic: 'Basic', easy: 'Easy', medium: 'Medium', hard: 'Hard', expert: 'Expert', master: 'Master' };
+const NP_TECH_NAMES = { nakedSingle: 'Only number left', hiddenSingle: 'Only place left', intersection: 'Line and box overlap', nakedPair: 'Matching pair', hiddenPair: 'Hidden pair', nakedTriple: 'Matching three', hiddenTriple: 'Hidden three', xWing: 'Rectangle', swordfish: 'Three-line pattern', xyWing: 'Bent triple' };
+views.numberplace = async () => {
+  const [d, st] = await Promise.all([api(`number-place?days=${$('#np-days').value}`), api('settings')]);
+  const editable = can('admin');
+  const list = st.settings.filter((s) => s.group === NP_GROUP);
+  const pct = (a, b) => (b ? `${Math.round((a / b) * 100)}%` : '–');
+  const tuned = (t) => (t == null ? '–' : t > 0.58 ? `${t} (tougher)` : t < 0.42 ? `${t} (gentler)` : `${t} (middle)`);
+  const levelRows = d.levels.filter((l) => l.games).map((l) => [
+    `<b>${esc(NP_LEVEL_NAMES[l.level])}</b>`, l.games, pct(l.solved, l.games), l.revealed, l.abandoned,
+    l.medianMinutes == null ? '–' : `${Math.round(l.medianMinutes * 10) / 10} min`, l.avgHints ?? '–',
+    `${l.feels.easy} / ${l.feels.right} / ${l.feels.hard}`, esc(tuned(d.tuning.toughness[l.level] ?? null)),
+  ]);
+  const control = (s) => {
+    const dis = editable ? '' : ' disabled';
+    if (s.type === 'bool') return `<label class="check"><input type="checkbox" data-np-key="${s.key}"${s.value ? ' checked' : ''}${dis}> <span>${s.value ? 'On' : 'Off'}</span></label>`;
+    const save = editable ? `<button class="btn small" data-np-save="${s.key}">Save</button>` : '';
+    const label = `<label class="sr-only" for="npset-${s.key}">${esc(s.label)}</label>`;
+    if (s.type === 'int') return `<div class="row"><div class="field">${label}<input id="npset-${s.key}" type="number" min="${s.min}" max="${s.max}" value="${s.value}" inputmode="numeric"${dis}></div>${save}</div>`;
+    return `<div class="row"><div class="field">${label}<select id="npset-${s.key}"${dis}>${s.options.map((o) => `<option value="${esc(o.value)}"${o.value === s.value ? ' selected' : ''}>${esc(o.label)}</option>`).join('')}</select></div>${save}</div>`;
+  };
+  $('#np-body').innerHTML = `
+    <div class="card"><h2>Games since ${esc(d.since)}</h2>
+      <p><b>${d.games}</b> finished Number Place games${d.games ? `: ${Object.entries(d.modes).map(([m, n]) => `${n} ${esc({ free: 'free play', daily: 'daily', race: 'race', file: 'from a file' }[m] || m)}`).join(', ')}` : ''}.
+      Shared tuning uses ${d.tuning.games} games from the last 90 days; a level needs 10 before it moves.</p>
+      ${levelRows.length ? table([{ label: 'Level' }, { label: 'Games', num: true }, { label: 'Solved', num: true }, { label: 'Answer shown', num: true }, { label: 'Given up', num: true }, { label: 'Typical time', num: true }, { label: 'Hints a game', num: true }, { label: 'Felt easy / right / hard' }, { label: 'Shared tuning' }], levelRows) : '<p class="muted">No Number Place games yet in this period.</p>'}
+    </div>
+    <div class="card"><h2>Where players ask for help</h2>
+      ${d.stuck.length ? table([{ label: 'Technique' }, { label: 'Hints asked', num: true }], d.stuck.map((s) => [esc(NP_TECH_NAMES[s.technique] || s.technique), s.count])) : '<p class="muted">No hints asked yet.</p>'}
+      <p class="muted">Players who keep asking about a technique get practice puzzles that need it (Practice puzzles, below).</p>
+    </div>
+    <div class="card"><h2>Number Place settings</h2>${editable ? '' : '<p class="note">You can see the settings. Changing them needs the admin role.</p>'}
+      ${list.map((s) => `<div class="setting"><div><b id="lbl-${s.key}">${esc(s.label)}</b><p class="help">${esc(s.help)}</p>${s.updatedBy ? `<p class="meta">Changed by ${esc(s.updatedBy)} on ${when(s.updatedAt)}</p>` : ''}</div><div>${control(s)}</div></div>`).join('')}
+    </div>`;
+  $$('#np-body input[type=checkbox][data-np-key]').forEach((c) => c.setAttribute('aria-labelledby', `lbl-${c.dataset.npKey}`));
+};
+async function saveNpSetting(key, value, button) {
+  await act(button, () => api('settings', { method: 'POST', body: { key, value } }), 'Saved. Players get it within about a minute.');
+  show('numberplace', { keepFocus: true });
+}
+$('#np-body').onchange = (e) => {
+  const c = e.target.closest('input[type=checkbox][data-np-key]');
+  if (c) saveNpSetting(c.dataset.npKey, c.checked, c);
+};
+$('#np-body').onclick = (e) => {
+  const b = e.target.closest('button[data-np-save]');
+  if (!b) return;
+  const input = $(`#npset-${b.dataset.npSave}`);
+  saveNpSetting(b.dataset.npSave, input.type === 'number' ? Number(input.value) : input.value, b);
+};
+$('#np-days').onchange = () => show('numberplace', { keepFocus: true });
+
 views.settings = async () => {
   const d = await api('settings');
   const groups = {};
-  for (const s of d.settings) (groups[s.group] ||= []).push(s);
+  // Number Place's settings have their own section.
+  for (const s of d.settings) if (s.group !== NP_GROUP) (groups[s.group] ||= []).push(s);
   const editable = can('admin');
   const control = (s) => {
     const dis = editable ? '' : ' disabled';
@@ -1614,6 +1695,7 @@ $('#daily-body').addEventListener('submit', (e) => {
 
 // ---- Characters (characters.js): the game's own cast and narrators.
 views.characters = () => characterView({ api, esc, toast, announce, act, can, setCount });
+views.media = () => mediaView({ api, esc, toast, announce, act, can, table });
 
 // ---- Puzzle quality: what to fix first.
 views.quality = async () => {
@@ -1640,6 +1722,12 @@ initMarketing(marketingHelpers, (name, o) => show(name, o));
 const educatorHelpers = { api, esc, fmt, when, can, act, ask, setCount };
 views.educators = () => educatorsView(educatorHelpers);
 initEducators(educatorHelpers, (name, o) => show(name, o));
+// ---- App keys for the Windows and Android apps (licenses.js).
+const licenseHelpers = { api, esc, fmt, when, tile, act, ask, toast, setCount };
+views.licenses = () => licensesView(licenseHelpers);
+initLicenses(licenseHelpers, (name, o) => show(name, o));
+views['edu-feedback'] = () => educatorFeedbackView(educatorHelpers);
+initEducatorFeedback(educatorHelpers, (name, o) => show(name, o));
 // ---- Badges (badges.js): special badges by hand and for milestones.
 const badgeHelpers = { api, esc, fmt, when, day, table, can, act, ask, toast, announce };
 views.badges = () => badgesView(badgeHelpers);
@@ -1647,6 +1735,10 @@ initBadges(badgeHelpers, (name, o) => show(name, o));
 
 // ---- Puzzle emails (puzzle-mail.js): the weekly and special edition lists, sends and planner.
 views.mail = () => puzzleMailView();
+
+// ---- Face ID and fingerprint (passkeys.js): this admin's devices.
+views.signin = () => passkeysView();
+initPasskeys({ api, esc, when, toast, act, ask, show, me: () => me, mode: () => session?.mode });
 initPuzzleMail({ api, esc, fmt, when, tile, table, can, act, ask, toast, show });
 
 // ------------------------------------------------------------- navigation
@@ -1702,18 +1794,32 @@ async function enter() {
   $$('#nav-list a').forEach((a) => { a.parentElement.hidden = !can(a.dataset.min); });
   $$('main [data-min]').forEach((el) => { el.hidden = !can(el.dataset.min); });
   show(location.hash.slice(1) || 'overview');
+  offerPasskey();
   if (oauthBack) { const back = oauthBack; oauthBack = null; finishOAuth(back, { api, ask, esc, toast }); }
 }
 
 function signOut(message) {
+  // A passkey session also ends on the server, so its key is useless if copied.
+  if (session?.mode === 'passkey') fetch('/admin/v1/session/end', { method: 'POST', headers: { Authorization: `Bearer ${session.key}` }, keepalive: true }).catch(() => {});
+  const email = session?.email || me?.email;
   session = null;
   me = null;
-  try { sessionStorage.removeItem(SESSION_KEY); } catch (e) { /* ignore */ }
+  clearSession();
   $('#app').hidden = true;
   $('#who').hidden = true;
   $('#login').hidden = false;
+  if (email && email.includes('@') && !$('#login-email').value) $('#login-email').value = email;
   if (message) { const err = $('#login-error'); err.textContent = message; err.hidden = false; }
-  $('#login-email').focus();
+  showPasskeyButton();
+}
+
+// "Sign in with Face ID or fingerprint" shows when this device has a passkey
+// for the dashboard, or could have one (Face ID, a fingerprint reader or
+// Windows Hello). Focus goes to it, so a locked phone opens with one tap.
+async function showPasskeyButton() {
+  const box = $('#passkey-signin-box');
+  box.hidden = !passkeysSupported() || !(rememberedPasskey() || (await platformReady()));
+  if (!$('#login').hidden) (box.hidden ? $('#login-email') : $('#passkey-signin')).focus();
 }
 
 async function tryEnter() {
@@ -1727,7 +1833,8 @@ async function tryEnter() {
       $('#verify-done').focus();
       return;
     }
-    if (e.code !== 'sign_in') { session = null; saveSession(); }
+    if (e.status === 401) return; // signOut() has said why
+    if (e.code !== 'sign_in') { session = null; clearSession(); }
     err.textContent = e.message;
     err.hidden = false;
   }
@@ -1742,21 +1849,37 @@ $('#login-form').onsubmit = async (e) => {
   if (!email || !password) { err.textContent = 'Enter your email and password.'; err.hidden = false; return; }
   try {
     const d = await firebase('accounts:signInWithPassword', { email, password, returnSecureToken: true });
-    session = { mode: 'firebase', email: d.email, idToken: d.idToken, refreshToken: d.refreshToken, exp: Date.now() + Number(d.expiresIn || 3600) * 1000 };
+    lastActive = Date.now();
+    session = { mode: 'firebase', email: d.email, idToken: d.idToken, refreshToken: d.refreshToken, exp: Date.now() + Number(d.expiresIn || 3600) * 1000, keep: $('#login-keep').checked };
     saveSession();
     $('#login-password').value = '';
-    lastActive = Date.now();
     await tryEnter();
   } catch (ex) { err.textContent = ex.message; err.hidden = false; }
+};
+$('#passkey-signin').onclick = async (e) => {
+  const err = $('#login-error');
+  err.hidden = true;
+  const b = e.currentTarget;
+  b.disabled = true;
+  try {
+    const d = await passkeySignIn();
+    lastActive = Date.now();
+    session = { mode: 'passkey', key: d.token, email: d.email, exp: d.expiresAt, keep: $('#login-keep').checked };
+    saveSession();
+    await tryEnter();
+  } catch (ex) {
+    if (ex.code !== 'cancelled') { err.textContent = ex.message; err.hidden = false; }
+    if (ex.code === 'unknown_passkey') showPasskeyButton();
+  } finally { b.disabled = false; }
 };
 $('#token-form').onsubmit = async (e) => {
   e.preventDefault();
   const key = $('#token-input').value.trim();
   if (!key) return;
+  lastActive = Date.now();
   session = { mode: 'token', key };
   saveSession();
   $('#token-input').value = '';
-  lastActive = Date.now();
   await tryEnter();
 };
 $('#forgot').onclick = async () => {
@@ -1774,10 +1897,22 @@ $('#verify-done').onclick = async (e) => {
 };
 $('#sign-out').onclick = () => signOut();
 
-for (const ev of ['pointerdown', 'keydown']) addEventListener(ev, () => { lastActive = Date.now(); }, { passive: true });
-setInterval(() => { if (session && Date.now() - lastActive > IDLE_MS) signOut('You were signed out after 30 minutes without activity.'); }, 60_000);
+// Activity keeps the dashboard open; the time is saved now and then so a
+// reopened app knows how long it was away.
+let savedSeen = 0;
+for (const ev of ['pointerdown', 'keydown']) {
+  addEventListener(ev, () => {
+    lastActive = Date.now();
+    if (session && lastActive - savedSeen > 30_000) { savedSeen = lastActive; saveSession(); }
+  }, { passive: true });
+}
+const idleCheck = () => { if (session && Date.now() - lastActive > IDLE_MS) signOut(lockWords()); };
+setInterval(idleCheck, 60_000);
+// Back from another app: lock at once if the break was long, otherwise carry on.
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') idleCheck(); });
+addEventListener('pageshow', idleCheck);
 
-// Pull down to refresh on a phone. The session lives in sessionStorage, so a
+// Pull down to refresh on a phone. The session is kept in storage, so a
 // refresh keeps the admin signed in; typed text that is not saved yet is lost,
 // so ask first.
 initPullRefresh({
@@ -1788,8 +1923,10 @@ initPullRefresh({
 });
 
 session = loadSession();
-if (session) tryEnter();
-else $('#login').hidden = false;
+if (session?.seen) lastActive = session.seen;
+if (session && Date.now() - lastActive > IDLE_MS) signOut(lockWords());
+else if (session) tryEnter();
+else { $('#login').hidden = false; showPasskeyButton(); }
 
 // ------------------------------------------------------------- install
 // The dashboard installs as an app (manifest.webmanifest, sw.js). Chrome and

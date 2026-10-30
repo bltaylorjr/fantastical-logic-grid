@@ -12,11 +12,15 @@
 //       An owner task email (docs/owner-tasks/, see its README.md) made from
 //       those entries, so emails and the dashboard say the same thing. Use
 //       --missing to list every entry, and pick from there.
+//   node scripts/connections.mjs workflow
+//       Rewrites the HAS_SECRETS list in .github/workflows/connections-status.yml
+//       from this list. GitHub holds back a run that reads every secret at
+//       once (toJSON(secrets)), so the Action names each one it asks about.
 //   node scripts/connections.mjs report
-//       For the Connections status Action: reads SECRETS_JSON and VARS_JSON
-//       (toJSON(secrets) and toJSON(vars)), sends only the NAMES that have a
-//       value, plus the Pages settings, to the Worker. Never prints a value.
-import { readFileSync, readdirSync, existsSync } from 'node:fs';
+//       For the Connections status Action: reads HAS_SECRETS (the names whose
+//       secret has a value) and VARS_JSON (toJSON(vars)), sends only the NAMES
+//       that have a value, plus the Pages settings, to the Worker. Never prints a value.
+import { readFileSync, readdirSync, existsSync, writeFileSync } from 'node:fs';
 import { join, dirname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CONNECTIONS, GROUPS, WHERE, IGNORED, allNames } from '../admin/connections.js';
@@ -24,6 +28,7 @@ import { CONNECTIONS, GROUPS, WHERE, IGNORED, allNames } from '../admin/connecti
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const MD_PATH = join(root, 'docs', 'CONNECTIONS.md');
 const REPO = 'https://github.com/bltaylorjr/fantastical-logic-grid';
+const STATUS_WORKFLOW = join(root, '.github', 'workflows', 'connections-status.yml');
 
 const walk = (dir, ext) => readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
   const p = join(dir, e.name);
@@ -52,6 +57,7 @@ export function usedNames() {
     else if (kv[1] === 'binding' || (kv[1] === 'name' && ['ratelimits', 'send_email'].includes(section))) add(kv[2], 'worker', toml);
   }
   for (const f of walk(join(root, '.github', 'workflows'), ['.yml', '.yaml'])) {
+    if (f === STATUS_WORKFLOW) continue; // it names every secret on purpose, to report which are set
     const text = readFileSync(f, 'utf8');
     for (const m of text.matchAll(/\bsecrets\.([A-Za-z_][A-Za-z0-9_]*)/g)) add(m[1], 'github-secret', f);
     for (const m of text.matchAll(/\bvars\.([A-Za-z_][A-Za-z0-9_]*)/g)) add(m[1], 'github-variable', f);
@@ -109,6 +115,8 @@ function check() {
     if (n.where === 'private-file') continue;
     if (!used.has(`${family(n.where)}:${n.name}`)) warnings.push(`${n.name} (${n.where}, ${n.connection}) is listed but not used in the code. Remove it if it is gone for good.`);
   }
+
+  if (readFileSync(STATUS_WORKFLOW, 'utf8') !== statusWorkflow()) errors.push('The secret list in .github/workflows/connections-status.yml is out of date. Run: node scripts/connections.mjs workflow');
 
   const md = markdown();
   if (!existsSync(MD_PATH) || readFileSync(MD_PATH, 'utf8') !== md) errors.push('docs/CONNECTIONS.md is out of date. Run: node scripts/connections.mjs md > docs/CONNECTIONS.md');
@@ -192,13 +200,24 @@ function email(args) {
 }
 
 // ------------------------------------------------------------- GitHub status report
+// The Action's HAS_SECRETS env: one line per listed secret that becomes its
+// name when the secret has a value, so only names ever reach the step.
+export function statusWorkflow() {
+  const secrets = [...new Set(allNames().filter((n) => n.where === 'github-secret').map((n) => n.name))].sort();
+  const lines = secrets.map((n) => `            \${{ secrets.${n} != '' && '${n}' || '' }}`);
+  const text = readFileSync(STATUS_WORKFLOW, 'utf8');
+  const re = /(          # names:start[^\n]*\n          HAS_SECRETS: >-)[\s\S]*?(\n          # names:end)/;
+  if (!re.test(text)) throw new Error('connections-status.yml has no "# names:start" ... "# names:end" block');
+  return text.replace(re, (m, a, b) => `${a}\n${lines.join('\n')}${b}`);
+}
+
 async function report() {
   const names = (json) => {
     let all = {};
     try { all = JSON.parse(json || '{}') || {}; } catch (e) { /* none */ }
     return Object.entries(all).filter(([k, v]) => /^[A-Z][A-Z0-9_]*$/.test(k) && !IGNORED.includes(k) && typeof v === 'string' && v.trim() !== '').map(([k]) => k).sort();
   };
-  const secrets = names(process.env.SECRETS_JSON);
+  const secrets = (process.env.HAS_SECRETS || '').split(/\s+/).filter((k) => /^[A-Z][A-Z0-9_]*$/.test(k) && !IGNORED.includes(k)).sort();
   const variables = names(process.env.VARS_JSON);
   let pages = null;
   const repo = process.env.GITHUB_REPOSITORY;
@@ -229,5 +248,6 @@ const [cmd, ...rest] = process.argv.slice(2);
 if (cmd === 'check') check();
 else if (cmd === 'md') process.stdout.write(markdown());
 else if (cmd === 'email') email(rest);
+else if (cmd === 'workflow') writeFileSync(STATUS_WORKFLOW, statusWorkflow());
 else if (cmd === 'report') await report();
-else { console.error('Use: check | md | email <id>... | report'); process.exit(2); }
+else { console.error('Use: check | md | email <id>... | workflow | report'); process.exit(2); }

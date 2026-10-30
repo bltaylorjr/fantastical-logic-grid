@@ -308,7 +308,7 @@ const CSS = `
     await clearFx();
     if (await p.isVisible('#topic-field')) {
       await scrollTo('#topic-field'); await hl('#topic-field');
-      await scene('topics', ['Most themes also have topics, like which holiday or which kind of mystery.', 'Pick one, or leave it on Any.']);
+      await scene('topics', ['Most themes also open a list of topics right under them, like which holiday or which kind of mystery.', 'Pick one, or leave it on Any.']);
       await clearFx();
     }
     await scrollTo('#size-choices'); await hl('#size-choices');
@@ -513,6 +513,16 @@ const CSS = `
       await p.waitForTimeout(1500);
       await scene('account', ['Once you are signed in, your puzzles sync on their own.', 'Sign in on another device and they are waiting for you.']);
       await p.click('#dlg-account .dlg-actions:last-child [data-close]').catch(() => p.keyboard.press('Escape'));
+      await p.waitForTimeout(300);
+      // Printable puzzle packs: signed-in players print a few new puzzles at once.
+      await p.evaluate(() => document.querySelectorAll('dialog[open]').forEach((d) => d.close()));
+      await p.click('#menu-btn');
+      if (await p.isVisible('[data-cmd=pack]')) {
+        await p.click('[data-cmd=pack]');
+        await p.waitForFunction(() => /left right now|used them all/.test(document.querySelector('#pack-intro').textContent), null, { timeout: 15000 }).catch(() => {});
+        await scene('print-pack', ['Signed in, Printable puzzle pack in the Menu prints a few brand-new puzzles at once, with their answer keys.', 'Pick how many, the difficulty and the theme. Each player gets a set number of packs a week.']);
+        await p.click('#pack-cancel');
+      } else await p.keyboard.press('Escape');
       await p.waitForTimeout(300);
     }
     if (await p.isVisible('#compete-section')) {
