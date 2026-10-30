@@ -18,6 +18,23 @@ Microsoft has not charged individual developers to register since September
 - Privacy policy: https://thelogicgrid.com/privacy/
 - The listing text is below.
 
+## Certification tests
+
+- `npm test` runs `scripts/check-store.mjs`, which checks the manifest, icons,
+  screenshots, privacy and terms pages, the listing text below and both
+  Windows desktop apps.
+- The **Windows app certification** workflow (`.github/workflows/wack.yml`)
+  runs Microsoft's own Windows App Certification Kit on both Windows apps on
+  every pull request that changes them. Today's kit only tests Store (MSIX)
+  packages, so each app is packaged as an MSIX with a throwaway test
+  certificate for the test. The game and the admin app both pass (October
+  2026). The only note is the optional "Blocked executables" test, which
+  flags that the app can open links in the browser. That is advice, not a
+  failure.
+- The setup.exe downloads on the website are not code-signed, because a
+  certificate costs money. Windows shows "More info > Run anyway" for them.
+  The Store version is signed by Microsoft for free.
+
 ## Steps (owner)
 
 1. Free account: https://storedeveloper.microsoft.com, choose **Individual developer**.

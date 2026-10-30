@@ -37,6 +37,17 @@ export const supportUrl = () => {
   return typeof u === 'string' && u.startsWith('https://') ? u : '';
 };
 
+// The dashboard's Number Place choices (server/src/settings.js publicConfig),
+// or {} before the server has said: the game then uses the module's defaults.
+export const numberPlace = () => (config && config.numberPlace) || {};
+
+// Minutes without activity before a signed-in player is signed out (idle.js);
+// 0 means never. 30 until the dashboard says otherwise.
+export const idleMinutes = () => {
+  const m = config && config.game && config.game.idleMinutes;
+  return Number.isFinite(m) && m >= 0 ? m : 30;
+};
+
 // Gentle support asks (web/js/support.js): on only with the Support page link.
 export const supportAsks = () => !!(config && config.game && config.game.supportAsks) && !!supportUrl();
 
@@ -58,15 +69,15 @@ async function refresh() {
     const next = await res.json();
     const themeLists = (c) => JSON.stringify([(c && c.disabledThemes) || [], (c && c.game && c.game.premiumThemes) || [], (c && c.game && c.game.extrasUrl) || '']);
     const themesChanged = themeLists(config) !== themeLists(next);
-    const before = JSON.stringify(config && [config.features, config.defaults, config.game, config.news]);
+    const before = JSON.stringify(config && [config.features, config.defaults, config.game, config.news, config.numberPlace]);
     config = {
       announcements: next.announcements || [], disabledThemes: next.disabledThemes || [], features: next.features || {},
-      defaults: next.defaults || {}, game: next.game || {}, news: next.news || [], fetchedAt: Date.now(),
+      defaults: next.defaults || {}, game: next.game || {}, news: next.news || [], numberPlace: next.numberPlace || null, fetchedAt: Date.now(),
     };
     store.setLocal(KEY, config);
     renderAnnouncements();
     if (themesChanged) onThemes();
-    if (before !== JSON.stringify([config.features, config.defaults, config.game, config.news])) onChange();
+    if (before !== JSON.stringify([config.features, config.defaults, config.game, config.news, config.numberPlace])) onChange();
   } catch (e) { /* offline: keep the last copy */ }
 }
 

@@ -287,6 +287,7 @@ uses a secret, variable or binding that is not listed there.
 | `LIMIT_ADMIN_IP` | Worker binding (server/wrangler.toml) |  |
 | `LIMIT_ADMIN` | Worker binding (server/wrangler.toml) |  |
 | `LIMIT_MESSAGES` | Worker binding (server/wrangler.toml) |  |
+| `LIMIT_LICENSE` | Worker binding (server/wrangler.toml) |  |
 
 **Steps:**
 
@@ -556,9 +557,9 @@ uses a secret, variable or binding that is not listed there.
 
 **Links:** [ARCHIVE.md](https://github.com/bltaylorjr/fantastical-logic-grid/blob/main/server/ARCHIVE.md) · [Full guide (server/ARCHIVE.md)](https://github.com/bltaylorjr/fantastical-logic-grid/blob/main/server/ARCHIVE.md)
 
-### Resend: player emails from noreply@thelogicgrid.com
+### Resend: player emails from support@thelogicgrid.com
 
-**Why:** Sends the thank-you notes for ideas and problems, the daily puzzle emails, the weekly and special edition puzzle emails (with their confirm links) and your own alert emails from noreply@thelogicgrid.com instead of the Gmail address. Until it is set up, they go from Gmail, so nothing is lost.
+**Why:** Sends the thank-you notes for ideas and problems from support@thelogicgrid.com (replies welcome), and the daily puzzle emails and the weekly and special edition puzzle emails (with their confirm links) from noreply@thelogicgrid.com, instead of the Gmail address. Your own alert emails (Settings > My alerts) also go from noreply@thelogicgrid.com. Until it is set up, they go from Gmail, so nothing is lost.
 
 **Cost:** Free plan: 3,000 emails a month, 100 a day, no card. Past that Resend refuses and Gmail takes over.
 
@@ -567,6 +568,8 @@ uses a secret, variable or binding that is not listed there.
 | `RESEND_API_KEY` | GitHub repository secret | Starts re_. Sending access, domain thelogicgrid.com only. Optional. |
 | `RESEND_API_KEY` | Cloudflare Worker secret | The same key again, so the Worker can email your alerts (Settings > My alerts). Optional. |
 | `MAIL_FROM` | GitHub repository variable | Another sender on the domain, e.g. hello@thelogicgrid.com. Optional. |
+| `MAIL_REPLY_TO` | GitHub repository variable | Where replies to support@ emails go. Default fantasticallogicgrid@gmail.com, until support@ has its own inbox. Optional. |
+| `MAIL_NOREPLY` | GitHub repository variable | The one-way sender (daily puzzle, team-message notices). Default noreply@thelogicgrid.com. Optional. |
 
 **Settings:**
 
@@ -586,6 +589,7 @@ uses a secret, variable or binding that is not listed there.
 9. Click **Add** (or **Edit** next to `RESEND_API_KEY` if it is already there).
 10. Choose type **Secret**, enter the name `RESEND_API_KEY`, paste the same key (for your alert emails) as the value, and click **Deploy**.
 11. Test: in the game, signed in with a confirmed account, send an idea with "Email me a thank-you note" ticked.
+12. Optional, once support@thelogicgrid.com has its own inbox: open <https://github.com/bltaylorjr/fantastical-logic-grid/settings/variables/actions>, click **New repository variable**, name `MAIL_REPLY_TO`, value `support@thelogicgrid.com`. (`MAIL_NOREPLY` only needs setting to use a sender other than noreply@thelogicgrid.com.)
 
 **Links:** [Resend domains](https://resend.com/domains) · [Resend API keys](https://resend.com/api-keys) · [Full guide (server/FEEDBACK-EMAILS.md)](https://github.com/bltaylorjr/fantastical-logic-grid/blob/main/server/FEEDBACK-EMAILS.md)
 
@@ -600,14 +604,14 @@ uses a secret, variable or binding that is not listed there.
 - Namecheap Mail Settings: Custom MX: @ mx1.improvmx.com (10), @ mx2.improvmx.com (20)
 - Root SPF TXT (@): v=spf1 include:spf.improvmx.com ~all
 - ImprovMX alias: support -> fantasticallogicgrid@gmail.com
-- Gmail Send mail as: smtp.resend.com, port 465 SSL, user resend, password = a Resend Sending access key
+- Gmail Send mail as: smtp.resend.com, port 587 TLS, user resend, password = a Resend Sending access key
 
 **Steps:**
 
 1. Sign up at <https://app.improvmx.com> with fantasticallogicgrid@gmail.com, add `thelogicgrid.com`, and make the alias `support` forward to fantasticallogicgrid@gmail.com.
 2. Namecheap > **Domain List** > **Manage** > **Advanced DNS**: under **Mail Settings** (Custom MX) add MX `@` `mx1.improvmx.com` priority 10 and MX `@` `mx2.improvmx.com` priority 20; under **Host Records** add TXT `@` `v=spf1 include:spf.improvmx.com ~all`.
 3. In ImprovMX click **Check again** until it says **Email forwarding active**.
-4. Gmail > **Settings** > **Accounts and Import** > **Send mail as** > **Add another email address**: `support@thelogicgrid.com`, SMTP `smtp.resend.com`, port 465 (SSL), user `resend`, password = a new Resend **Sending access** key. Confirm with the code Gmail sends.
+4. Gmail > **Settings** > **Accounts and Import** > **Send mail as** > **Add another email address**: `support@thelogicgrid.com`, SMTP `smtp.resend.com`, port 587 (TLS; 465 SSL fails from Gmail), user `resend`, password = a new Resend **Sending access** key. Confirm with the code Gmail sends.
 
 **Links:** [ImprovMX](https://app.improvmx.com) · [ImprovMX Namecheap guide](https://improvmx.com/guides/namecheap) · [Full guide (docs/owner-tasks/2026-10-28-resend-namecheap.md)](https://github.com/bltaylorjr/fantastical-logic-grid/blob/main/docs/owner-tasks/2026-10-28-resend-namecheap.md)
 
@@ -635,6 +639,27 @@ uses a secret, variable or binding that is not listed there.
 **Links:** [New fine-grained token](https://github.com/settings/personal-access-tokens/new) · [Educator packages runs](https://github.com/bltaylorjr/fantastical-logic-grid/actions/workflows/educator-packages.yml) · [Full guide (server/EDUCATORS.md)](https://github.com/bltaylorjr/fantastical-logic-grid/blob/main/server/EDUCATORS.md)
 
 ## Desktop and mobile apps
+
+### App keys for the Windows and Android apps
+
+**Why:** The apps ask for an app key the first time they open. The Worker signs each activated key with this private key, and the apps check that signature with the matching public key built into them, so they keep working offline. Until this secret is set the apps open without a key.
+
+**Cost:** Free.
+
+| Name | Where | Notes |
+| --- | --- | --- |
+| `LICENSE_SIGNING_KEY` | Cloudflare Worker secret | The whole one-line text of license-signing.jwk from the private folder (project files, fantastical-logic-grid-app/.private). It starts {"kty":"EC". Never paste it anywhere else. |
+
+**Steps:**
+
+1. Open the file **license-signing.jwk** (sent to you separately, or in the project files under fantastical-logic-grid-app/.private) in Notepad and copy all of its one line.
+2. Open <https://dash.cloudflare.com/?to=/:account/workers/services/view/flg-api/production/settings> (Cloudflare > **Workers & Pages** > **flg-api** > **Settings** > **Variables and Secrets**).
+3. Click **Add** (or **Edit** next to `LICENSE_SIGNING_KEY` if it is already there).
+4. Choose type **Secret**, enter the name `LICENSE_SIGNING_KEY`, paste that line as the value, and click **Deploy**.
+5. Open <https://flg-api.btay74.workers.dev/admin/#licenses> (**App keys**). The banner should now say keys are ready. Click **Make keys** to make one for yourself and type it into the app.
+6. Who can get a key for themselves, and how many devices each key works on, are under **Settings and switches** > **App keys**.
+
+**Links:** [Worker variables and secrets](https://dash.cloudflare.com/?to=/:account/workers/services/view/flg-api/production/settings) · [App keys in the dashboard](https://flg-api.btay74.workers.dev/admin/#licenses) · [Full guide (server/LICENSES.md)](https://github.com/bltaylorjr/fantastical-logic-grid/blob/main/server/LICENSES.md)
 
 ### Desktop app updates (Tauri updater key)
 

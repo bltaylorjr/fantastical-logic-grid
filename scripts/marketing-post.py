@@ -48,7 +48,11 @@ from zoneinfo import ZoneInfo
 API = os.environ.get('FLG_CLOUD_URL', '').strip().rstrip('/')
 TOKEN = os.environ.get('FLG_ADMIN_TOKEN', '').strip()
 MODE = (os.environ.get('MODE', '').strip() or 'post').lower()
-DAY = os.environ.get('DAY', '').strip() or datetime.now(ZoneInfo('America/New_York')).date().isoformat()
+TODAY = datetime.now(ZoneInfo('America/New_York')).date().isoformat()
+DAY = os.environ.get('DAY', '').strip() or TODAY
+# ONLY (optional, by hand): post just these ads early, as channel:content, comma separated
+# (for example instagram:reel-launch). Use with DAY set to the ads' posting day.
+ONLY = {x.strip() for x in os.environ.get('ONLY', '').split(',') if x.strip()}
 GMAIL_USER = os.environ.get('GMAIL_USER', '').strip()
 GMAIL_PASSWORD = ''.join(os.environ.get('GMAIL_APP_PASSWORD', '').split())
 MAIL_TO = os.environ.get('OWNER_TASKS_TO', '').strip() or GMAIL_USER
@@ -283,8 +287,22 @@ def wait_ready(url, token, field='status_code'):
     raise Failed('the site took more than 10 minutes to process the file')
 
 
+def instagram_id():
+    """The Instagram business account linked to the Facebook Page. INSTAGRAM_ACCOUNT_ID is used
+    when it is an id of its own; when it is empty or holds the Page id (an easy mix-up), the
+    account is read from the Page."""
+    ig, page = env('INSTAGRAM_ACCOUNT_ID').strip().strip('"'), env('META_PAGE_ID')
+    if ig.isdigit() and ig != page:
+        return ig
+    linked = meta(f'{GRAPH}/{page}?fields=instagram_business_account', token=env('META_PAGE_TOKEN')).get('instagram_business_account')
+    if not linked:
+        raise Failed('the Facebook Page has no Instagram account linked that this key can see: link it on the Page, '
+                     'and make the key with instagram_basic, ticking the Instagram account in the pop-up.')
+    return linked['id']
+
+
 def post_instagram(ad):
-    ig, token = env('INSTAGRAM_ACCOUNT_ID'), env('META_PAGE_TOKEN')
+    ig, token = instagram_id(), env('META_PAGE_TOKEN')
     videos, images = files(ad, 'video'), files(ad, 'image')
     if videos:
         form = {'media_type': 'REELS', 'video_url': videos[0], 'caption': ad['words'], 'share_to_feed': 'true'}
@@ -480,6 +498,15 @@ POST = {'bluesky': post_bluesky, 'mastodon': post_mastodon, 'x': post_x, 'facebo
         'linkedin': post_linkedin, 'pinterest': post_pinterest, 'youtube': post_youtube, 'tiktok': post_tiktok, 'reddit': post_reddit}
 
 
+def check_instagram():
+    ig = instagram_id()
+    r = meta(f'{GRAPH}/{ig}?fields=username', token=env('META_PAGE_TOKEN'))
+    if not r.get('username'):
+        raise Failed('Meta shows no username for the Instagram account: make the key again with instagram_basic, '
+                     'ticking the Instagram account in the pop-up.')
+    return r['username']
+
+
 def check_keys():
     tests = {
         'bluesky': lambda: bluesky_session()[2],
@@ -487,7 +514,7 @@ def check_keys():
                                     headers={'Authorization': f"Bearer {env('MASTODON_TOKEN')}"})['acct'],
         'x': lambda: request('https://api.x.com/2/users/me', headers={'Authorization': oauth1('GET', 'https://api.x.com/2/users/me')})['data']['username'],
         'facebook': lambda: meta(f"{GRAPH}/{env('META_PAGE_ID')}?fields=name", token=env('META_PAGE_TOKEN'))['name'],
-        'instagram': lambda: meta(f"{GRAPH}/{env('INSTAGRAM_ACCOUNT_ID')}?fields=username", token=env('META_PAGE_TOKEN'))['username'],
+        'instagram': check_instagram,
         'threads': lambda: meta(f'{THREADS}/me?fields=username', token=env('THREADS_TOKEN'))['username'],
         'linkedin': lambda: linkedin_me()[1]['sub'],
         'pinterest': lambda: request('https://api.pinterest.com/v5/user_account', headers={'Authorization': f'Bearer {pinterest_token()}'})['username'],
@@ -496,6 +523,7 @@ def check_keys():
         'reddit': lambda: request('https://oauth.reddit.com/api/v1/me', headers={'Authorization': f'Bearer {reddit_token()}', 'User-Agent': REDDIT_UA})['name'],
     }
     bad = 0
+    problems = []
     for ch, test in tests.items():
         if not has_keys(ch):
             print(f'{NAMES[ch]}: not set up (add {", ".join(KEYS[ch])})')
@@ -505,7 +533,16 @@ def check_keys():
             print(f'{NAMES[ch]}: connected')
         except Exception as e:  # noqa: BLE001 - report every site
             bad += 1
+            problems.append((NAMES[ch], scrub(e)))
             print(f'::warning::{NAMES[ch]}: the key did not work: {scrub(e)}')
+    # The weekly check (KEY_ALERT) emails the owner only when a key stopped
+    # working, so it can be fixed before that site's next posting day.
+    if problems and os.environ.get('KEY_ALERT'):
+        email(f'Marketing autopilot: {len(problems)} site key{"s" if len(problems) > 1 else ""} stopped working',
+              ['<p>The weekly key check found keys that no longer work. Until they are fixed, that site\'s ads are emailed to you to post by hand.</p>',
+               '<ul>' + ''.join(f'<li><b>{html.escape(n)}:</b> {html.escape(why)}</li>' for n, why in problems) + '</ul>',
+               '<p>Fix them in admin > <a href="https://flg-api.btay74.workers.dev/admin/#connections">Connections and setup</a> (each site\'s card has the steps), '
+               'then run the check again: <a href="https://github.com/bltaylorjr/fantastical-logic-grid/actions/workflows/marketing-post.yml">Marketing autopilot</a> > Run workflow, mode <code>check</code>.</p>'])
     return bad
 
 
@@ -550,6 +587,9 @@ def main():
         return
     due = worker(f'marketing/due?day={urllib.parse.quote(DAY)}')
     ads = due.get('ads', [])
+    if ONLY:
+        ads = [a for a in ads if f"{a['channel']}:{a.get('content', '')}" in ONLY]
+        print(f"::notice::Chosen ads found: {', '.join(a['title'] for a in ads) or 'none (check the day and that the ad is approved)'}")
     dry = MODE == 'dry-run'
     print(f'{DAY}: {len(ads)} approved ads due (automatic posting {"on" if due.get("autopost") else "off"}).')
     posted, failed, by_hand = [], [], []
@@ -569,9 +609,9 @@ def main():
             continue
         try:
             url = POST[ad['channel']](ad)
-            worker(f'marketing/ads/{ad["id"]}/auto', {'ok': True, 'postUrl': url, 'note': f'Posted automatically on {DAY}'})
+            worker(f'marketing/ads/{ad["id"]}/auto', {'ok': True, 'postUrl': url, 'note': f'Posted automatically on {TODAY if ONLY else DAY}'})
             posted.append((ad, url))
-            print(f'Posted: {ad["title"]}')
+            print(f'::notice::Posted: {ad["title"]}')
         except Exception as e:  # noqa: BLE001 - one site failing must not stop the others
             note = f'{DAY}: {scrub(e)}'
             failed.append((ad, note))

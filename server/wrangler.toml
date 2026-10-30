@@ -118,6 +118,12 @@ name = "LIMIT_MESSAGES"
 namespace_id = "41060"
 simple = { limit = 30, period = 60 }
 
+# Tries of an app key (licenses.js), so keys cannot be guessed.
+[[ratelimits]]
+name = "LIMIT_LICENSE"
+namespace_id = "41070"
+simple = { limit = 10, period = 60 }
+
 [[ratelimits]]
 name = "LIMIT_ERRORS"
 namespace_id = "41030"

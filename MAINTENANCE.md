@@ -16,6 +16,7 @@ public repositories) and a Cloudflare Workers cron trigger (free plan allows 5).
 | Weekly archive email: old rows zipped, emailed to the owner from Gmail, then removed (off until switched on). See [server/ARCHIVE.md](server/ARCHIVE.md) | `.github/workflows/archive-email.yml`, `server/src/archive.js` | Mondays at 05:07 UTC |
 | Owner task email: anything only the owner can do (DNS, secrets, switches) is emailed to fantasticallogicgrid@gmail.com. See [docs/owner-tasks/README.md](docs/owner-tasks/README.md) | `.github/workflows/owner-email.yml`, `docs/owner-tasks/` | when a task file reaches main |
 | Weekly improvement: reads every signal (ratings, quit rates, the daily puzzle, story parts, errors, feedback counts, free limits, the nightly checks and speed scores), writes a ranked `weekly-improvement` issue, tunes the daily puzzles and story choices in a PR that merges itself when the tests pass, and emails what changed and why. A weekly Claude task then makes small fixes for the bigger items. See [IMPROVE.md](IMPROVE.md) | `.github/workflows/improve.yml`, `scripts/improve.mjs` | Mondays at 08:23 UTC |
+| Puzzle doctor code fixes: a daily Claude task fixes reported problems the doctor cannot rebuild (and app errors) in small PRs that merge when green; Report fixes then marks them Addressed with a plain note and version and emails the players. See [server/PUZZLE-REPORTS.md](server/PUZZLE-REPORTS.md) | Claude scheduled task, `.github/workflows/report-fixes.yml`, `scripts/report-fixes.mjs` | daily 6:47 am ET; on each merge |
 | Anonymous error reports from the apps (players can turn them off in Settings) | `web/js/errors.js`, `server/src/errors.js` | when an error happens |
 | Website publish | `.github/workflows/pages.yml` | each push to main |
 | Worker deploy and database migrations | Cloudflare Workers Builds | each push to main |
@@ -100,7 +101,9 @@ The daily player report emails the game's Gmail (`REPORTS_TO`, else
 `ARCHIVE_TO`) using the archive email's secrets. Errors are grouped by message
 and file across versions. When a fix ships, mark it in the admin dashboard
 (Error reports > Mark addressed, with the version it shipped in and a short
-note): reports of that error from older versions then show under "Already
+note), or put `Fixes reports:` / `Fixes error:` and `Player note:` lines in the
+pull request so the Report fixes Action marks it on merge
+(server/PUZZLE-REPORTS.md, "Code fixes"): reports of that error from older versions then show under "Already
 fixed", and one from the fixed version or later shows under "Needs a look"
 with a note that the fix missed it. Problems and ideas get the same Mark
 addressed button with a note. To stop the email, set the repository variable `PLAYER_REPORTS` to

@@ -22,16 +22,25 @@ Menu > Ideas and problems, they can leave "Email me an update" ticked:
   per player, and it only says to open Messages.
 
 - **Storylines (story ideas): one email per submission.** No thank-you goes
-  straight away. When the team presses **Approve storyline** on the idea in
-  the Communication inbox, with a note and the first puzzle made with it (a
-  puzzle file saved from the game), the player gets **"Your storyline is now a
-  puzzle!"**: their storyline, the team's note, and the puzzle attached as a
-  **PDF with its answer key** on the last page. The puzzle also waits in their
-  game for **30 days** (Menu > Messages > Puzzles for you; Play keeps it in
-  Saved puzzles). If the team marks the storyline **Done** instead, the one
-  email is the plain thank-you. Deleting it sends nothing. The PDF is printed
-  by `scripts/contributor-puzzle.mjs` when the email is sent; if printing
-  fails, the email still goes without it.
+  straight away. In the admin Communication inbox a new storyline has just two
+  buttons, **Approve** and **Disapprove** (nothing to type):
+  - **Approve:** the player gets **"Congratulations! Your storyline has been
+    approved"**. Before it is sent, `scripts/storyline-puzzle.mjs` builds the
+    first puzzle from the storyline with the game's engine, the Worker stores
+    it for the player (`POST /admin/v1/replies/puzzle`), and the email carries
+    it as a **PDF with its answer key** on the last page. The game puts the
+    puzzle straight into the player's **Saved puzzles**, ready to play (it is
+    also in Menu > Messages > Puzzles for you for 30 days).
+  - **Disapprove:** the player gets **"Thank you for your storyline"**,
+    thanking them for their input.
+  The puzzle is built from the lists in the storyline, written like
+  `Companies: A, B, C. Price: $60, $69, $75. Accessories: X, Y, Z`
+  (`admin/storyline-parse.js`): the first list of names is who is in it, a
+  list of numbers or prices is ordered, and the text before the lists is the
+  scene. The dashboard shows what it found before you press Approve. With 4
+  lists the puzzle is Medium, with 3 it is Easy. A storyline without lists
+  still gets the congratulations, without a puzzle. If printing the PDF fails,
+  the email still goes without it. Deleting a storyline sends nothing.
 
 The wording is fixed (`scripts/feedback-replies.py`). The player's words (with
 email addresses and links already blanked) and the team's note only ever go to
@@ -52,14 +61,24 @@ email is sent.
 2. Every 15 minutes the GitHub Action **Thank-you emails**
    (`.github/workflows/feedback-replies.yml`) collects the waiting notes
    (`POST /admin/v1/replies/claim`), sends them from
-   **noreply@thelogicgrid.com** through Resend (or, as a backup, from the
+   **support@thelogicgrid.com** through Resend (or, as a backup, from the
    game's Gmail) and reports back (`POST /admin/v1/replies/done`). The address is removed as
    soon as a note is sent, or after 3 failed tries. Rows go after 30 days.
 
 Through Resend the sender is **The Fantastical Logic Grid
-&lt;noreply@thelogicgrid.com&gt;**. Through the Gmail backup it shows as **The
-Fantastical Logic Grid (no-reply)** from fantasticallogicgrid@gmail.com, because
-Gmail can only send from its own address. Every email ends with a note asking people not to reply. It also carries
+&lt;support@thelogicgrid.com&gt;**. Through the Gmail backup it shows as **The
+Fantastical Logic Grid** from fantasticallogicgrid@gmail.com, because
+Gmail can only send from its own address. Players can reply: every email sets
+`Reply-To` to the `MAIL_REPLY_TO` repository variable, or to
+fantasticallogicgrid@gmail.com when that is not set. Once support@thelogicgrid.com
+receives mail itself (email forwarding at the domain), set the GitHub variable
+`MAIL_REPLY_TO` to `support@thelogicgrid.com`.
+
+One-way emails (the daily puzzle, "the team sent you a message" notices and
+educator code emails) go from **noreply@thelogicgrid.com** instead, with no
+`Reply-To` and a footer saying replies are not read. Set the `MAIL_NOREPLY`
+variable to use a different address. Any address on the verified domain works
+in Resend with no extra DNS records. It also carries
 `Auto-Submitted: auto-replied`, so mail programs do not answer it with
 out-of-office replies.
 
@@ -89,7 +108,7 @@ The Gmail backup uses the repository secrets the weekly archive email already
 has (`server/ARCHIVE.md`): `GMAIL_USER`, `GMAIL_APP_PASSWORD` and
 `FLG_ADMIN_TOKEN`. With only those, notes go from the Gmail address.
 
-### Sending from noreply@thelogicgrid.com (Resend, free)
+### Sending from support@thelogicgrid.com (Resend, free)
 
 Resend's free plan (3,000 emails a month, 100 a day, one domain, no card)
 costs nothing. Past the free limits Resend refuses rather than bills, and the

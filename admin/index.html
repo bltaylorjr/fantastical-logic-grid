@@ -36,10 +36,15 @@
 <!-- Sign-in -->
 <section id="login" class="login" hidden aria-labelledby="login-h">
   <h1 id="login-h">Sign in</h1>
-  <p class="muted">Use your game account. Only emails on the admin list can open the dashboard, and the email must be confirmed.</p>
+  <p class="muted" id="login-intro">Use your game account. Only emails on the admin list can open the dashboard, and the email must be confirmed.</p>
+  <div id="passkey-signin-box" class="stack" hidden>
+    <button class="btn primary" type="button" id="passkey-signin">Sign in with Face ID or fingerprint</button>
+    <p class="muted" id="passkey-or">Or use your password:</p>
+  </div>
   <form id="login-form" class="stack" novalidate>
     <div class="field"><label for="login-email">Email</label><input id="login-email" type="email" autocomplete="username" required></div>
     <div class="field"><label for="login-password">Password</label><input id="login-password" type="password" autocomplete="current-password" required></div>
+    <label class="check"><input type="checkbox" id="login-keep" checked> Keep me signed in on this device</label>
     <p class="error" id="login-error" role="alert" hidden></p>
     <div class="row"><button class="btn primary" type="submit">Sign in</button><button class="btn link" type="button" id="forgot">Forgot password?</button></div>
   </form>
@@ -56,7 +61,7 @@
       <li><b>iPhone or iPad:</b> open this page in Safari, tap the Share button, then <b>Add to Home Screen</b>.</li>
       <li><b>Android:</b> open this page in Chrome, tap the menu (three dots), then <b>Install app</b> or <b>Add to Home screen</b>.</li>
     </ul>
-    <p class="muted">You sign in each time you open it, as on the web.</p>
+    <p class="muted">With <b>Keep me signed in on this device</b> ticked, it stays signed in while you use other apps. After 30 minutes without use it locks, and Face ID or your fingerprint opens it again (set that up under <b>Face ID and fingerprint</b> once you are in).</p>
   </details>
   <details class="break-glass">
     <summary>Use the break-glass key</summary>
@@ -78,6 +83,7 @@
       <li><a href="#search" data-min="viewer">Search (Google and Bing)</a></li>
       <li><a href="#daily" data-min="moderator">Daily puzzles</a></li>
       <li><a href="#characters" data-min="moderator">Characters <span class="count" id="count-characters" hidden></span></a></li>
+      <li><a href="#media" data-min="viewer">Media library (sounds and pictures)</a></li>
       <li><a href="#quality" data-min="viewer">Puzzle quality <span class="count" id="count-quality" hidden></span></a></li>
       <li><a href="#ratings" data-min="viewer">Ratings and insights <span class="count" id="count-ratings" hidden></span></a></li>
       <li><a href="#marketing" data-min="viewer">Marketing</a></li>
@@ -86,18 +92,26 @@
       <li><a href="#communication" data-min="viewer">Communication <span class="count" id="count-comm" hidden></span></a></li>
       <li><a href="#errortracking" data-min="moderator">Error tracking <span class="count" id="count-errors" hidden></span></a></li>
       <li><a href="#educators" data-min="moderator">Educator requests <span class="count" id="count-educators" hidden></span></a></li>
+      <li><a href="#edu-feedback" data-min="moderator">Educator feedback <span class="count" id="count-edu-feedback" hidden></span></a></li>
       <li><a href="#names" data-min="moderator">Screen names <span class="count" id="count-names" hidden></span></a></li>
       <li><a href="#players" data-min="viewer">Players</a></li>
       <li><a href="#badges" data-min="viewer">Badges</a></li>
       <li><a href="#supporters" data-min="admin">Supporters</a></li>
+      <li><a href="#numberplace" data-min="viewer">Number Place</a></li>
+      <li><a href="#licenses" data-min="admin">App keys <span class="count" id="count-licenses" hidden></span></a></li>
       <li><a href="#settings" data-min="viewer">Settings and switches</a></li>
       <li><a href="#connections" data-min="viewer">Connections and setup</a></li>
+      <li><a href="#signin" data-min="viewer">Face ID and fingerprint</a></li>
       <li><a href="#backups" data-min="admin">Backups and archive</a></li>
       <li><a href="#audit" data-min="admin">Audit log</a></li>
       <li><a href="#admins" data-min="owner">Admins</a></li>
     </ul>
   </nav>
   <main id="main" tabindex="-1">
+    <div id="passkey-offer" class="note" role="region" aria-label="Faster sign-in" hidden>
+      <p><b>Sign in faster on this device.</b> Use Face ID, your fingerprint or Windows Hello instead of your password, and unlock the dashboard the same way after a break.</p>
+      <div class="row"><button class="btn primary" type="button" id="passkey-offer-yes">Set it up</button><button class="btn" type="button" id="passkey-offer-no">Not now</button></div>
+    </div>
     <section data-view="overview" hidden aria-labelledby="h-overview">
       <div class="head"><h1 id="h-overview">Overview</h1>
         <div class="field inline"><label for="ov-days">Period</label><select id="ov-days"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option></select></div>
@@ -153,6 +167,25 @@
       <h2>Suggested by players</h2>
       <p class="muted">From Menu &gt; Suggest a character in the game. Anonymous. Nobody else sees a suggestion until you review it, save it and publish it.</p>
       <ul class="cards" id="ch-ideas"></ul>
+    </section>
+
+    <section data-view="media" hidden aria-labelledby="h-media">
+      <h1 id="h-media">Media library</h1>
+      <p class="muted">Every sound and picture in the game, sorted into groups, to try out here. They are made by the same code the game uses, so what you see and hear is what players get. Nothing here changes the game except the Celebrations switches, which are the same switches as in Settings and switches.</p>
+      <div class="sections" role="group" aria-label="Show media" id="media-tabs">
+        <button type="button" class="btn small" data-tab="music" aria-pressed="true">Background music</button>
+        <button type="button" class="btn small" data-tab="sfx" aria-pressed="false">Sound effects</button>
+        <button type="button" class="btn small" data-tab="voices" aria-pressed="false">Voices</button>
+        <button type="button" class="btn small" data-tab="celebrations" aria-pressed="false">Celebrations</button>
+        <button type="button" class="btn small" data-tab="scenes" aria-pressed="false">Theme scenes</button>
+        <button type="button" class="btn small" data-tab="faces" aria-pressed="false">Character faces</button>
+        <button type="button" class="btn small" data-tab="pictures" aria-pressed="false">Theme pictures</button>
+      </div>
+      <div class="row media-bar">
+        <div class="field inline"><label for="media-volume">Volume here</label><input id="media-volume" type="range" min="0" max="100" value="60"></div>
+        <button type="button" class="btn small" id="media-stop">Stop all sound</button>
+      </div>
+      <div id="media-body"><p class="muted">Loading…</p></div>
     </section>
 
     <section data-view="quality" hidden aria-labelledby="h-quality">
@@ -305,6 +338,13 @@
       <div id="edu-list"></div>
     </section>
 
+    <section data-view="edu-feedback" hidden aria-labelledby="h-edu-feedback">
+      <div class="head"><h1 id="h-edu-feedback">Educator feedback</h1></div>
+      <p class="muted">Ideas, problems and feedback from educators, kept apart from players' notes. The section opens for an educator once their puzzle package is emailed, through a private link in that email, along with a short survey on how our tools can help them. <b>Answer</b> to mark a note answered and email the educator your answer; write it in plain, everyday words. <b>Survey results</b> shows how often each answer was picked, and the comments.</p>
+      <div class="sections" id="efb-tabs" role="group" aria-label="Show"></div>
+      <div id="efb-list"></div>
+    </section>
+
     <section data-view="names" hidden aria-labelledby="h-names">
       <div class="head"><h1 id="h-names">Screen names</h1>
         <div class="field inline"><label for="names-status">Show</label><select id="names-status"><option value="pending">New or changed</option><option value="reviewed">Approved</option><option value="all">All</option></select></div>
@@ -404,6 +444,47 @@
       <div class="table-wrap"><table class="table"><thead><tr><th scope="col">Blocked player</th><th scope="col">Since</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody id="sup-blocks"></tbody></table></div>
     </section>
 
+    <section data-view="numberplace" hidden aria-labelledby="h-numberplace">
+      <div class="head"><h1 id="h-numberplace">Number Place</h1>
+        <div class="field inline"><label for="np-days">Period</label><select id="np-days"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option></select></div>
+      </div>
+      <p class="muted">The numbers game's own switches and numbers. It shares only anonymous play summaries with the rest of the game, for learning. Logic Grid settings are under Settings and switches.</p>
+      <div id="np-body"><p class="muted">Loading…</p></div>
+    </section>
+
+    <section data-view="licenses" hidden aria-labelledby="h-licenses">
+      <div class="head"><h1 id="h-licenses">App keys</h1></div>
+      <p class="muted">The Windows and Android apps ask for an app key the first time they open. A key installs on <b>one</b> computer or phone; when a player asks, you can allow a <b>second</b> install with <b>Allow a 2nd install</b>. Each key can also be used for <b>2 downloads</b> from the website (Menu &gt; Install the app); after that the player needs a new key. After the first check online the app works offline, and about once a day when online it checks the key still works, so <b>Cancel key</b> or <b>Remove this install</b> stops it there. The website itself never needs a key. Free keys players ask for on the website wait at the top of this list until you click <b>Approve</b> (or <b>Decline</b>). Who can ask, and whether approval is needed: Settings and switches &gt; App keys.</p>
+      <div id="lic-banner"></div>
+      <div class="tiles" id="lic-tiles"></div>
+      <form id="lic-form" class="stack card" novalidate>
+        <h2>Make keys</h2>
+        <div class="row">
+          <div class="field grow"><label for="lic-label">Who it is for (optional, for you)</label><input id="lic-label" type="text" maxlength="200" autocomplete="off"></div>
+          <div class="field grow"><label for="lic-email">Their email (optional)</label><input id="lic-email" type="email" maxlength="254" autocomplete="off" spellcheck="false"></div>
+        </div>
+        <div class="row">
+          <div class="field"><label for="lic-count">How many keys</label><input id="lic-count" type="number" min="1" max="100" value="1"></div>
+          <div class="field"><label for="lic-max">Installs per key</label><select id="lic-max"><option value="1">1 computer or phone</option><option value="2">2 (the player asked)</option></select></div>
+          <div class="field"><label for="lic-until">Stops working on (optional)</label><input id="lic-until" type="date"></div>
+        </div>
+        <p class="error" id="lic-error" role="alert" hidden></p>
+        <div class="row"><button class="btn primary" type="submit">Make keys</button></div>
+      </form>
+      <div class="card stack" id="lic-made" hidden>
+        <h2>Keys you just made</h2>
+        <p class="muted">Send each player their key, for example by email. The keys stay in the list below too.</p>
+        <pre id="lic-made-list" class="lic-made-list"></pre>
+        <div class="row"><button class="btn" type="button" id="lic-copy-made">Copy all</button></div>
+      </div>
+      <form id="lic-filter" class="row" role="search">
+        <div class="field grow"><label for="lic-q">Search keys, names or emails</label><input id="lic-q" type="search" autocomplete="off" spellcheck="false"></div>
+        <div class="field"><label for="lic-status">Show</label><select id="lic-status"><option value="all">All keys</option><option value="waiting">Waiting for approval</option><option value="active">Working</option><option value="revoked">Cancelled or ended</option></select></div>
+        <button class="btn" type="submit">Search</button>
+      </form>
+      <div class="table-wrap"><table class="table"><thead><tr><th scope="col">Key</th><th scope="col">For</th><th scope="col">Installs</th><th scope="col">Downloads</th><th scope="col">Stops</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody id="lic-rows"></tbody></table></div>
+    </section>
+
     <section data-view="settings" hidden aria-labelledby="h-settings">
       <div class="head"><h1 id="h-settings">Settings and switches</h1></div>
       <p class="muted">Changes reach every copy of the game within about a minute, with no new release.</p>
@@ -442,6 +523,16 @@
       <p class="muted">Every admin request, allowed or refused, kept for a year.</p>
       <div class="table-wrap"><table class="table"><thead><tr><th scope="col">When</th><th scope="col">Who</th><th scope="col">What</th><th scope="col">Target</th><th scope="col">Result</th></tr></thead><tbody id="audit-rows"></tbody></table></div>
       <div class="row"><button class="btn" type="button" id="audit-more" hidden>Show older</button></div>
+    </section>
+
+    <section data-view="signin" hidden aria-labelledby="h-signin">
+      <div class="head"><h1 id="h-signin">Face ID and fingerprint</h1></div>
+      <p class="muted">Sign in with your face, fingerprint or device PIN instead of your password. Your face and fingerprint never leave your device: it keeps a passkey that only opens for you, and the dashboard checks it. The dashboard stays signed in while you use other apps, locks after 30 minutes without use, and asks for Face ID or your fingerprint again to open. Once every 12 hours it asks again even if you keep using it.</p>
+      <div id="pk-status"></div>
+      <div class="row"><button class="btn primary" type="button" id="pk-add" hidden>Set up this device</button></div>
+      <h2>Your devices</h2>
+      <div class="table-wrap"><table class="table"><thead><tr><th scope="col">Device</th><th scope="col">Set up</th><th scope="col">Last used</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody id="pk-rows"></tbody></table></div>
+      <p class="muted">Lost a phone? Remove it here, or ask the owner to remove you as an admin, which removes all your devices.</p>
     </section>
 
     <section data-view="admins" hidden aria-labelledby="h-admins">

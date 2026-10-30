@@ -229,7 +229,7 @@ export function supporterRoutes(Refusal) {
       if (!tier) throw new Refusal(400, 'bad_tier', 'Choose Bronze, Silver, Gold or Platinum.');
       const until = body.until == null || body.until === '' ? null : Number(body.until);
       if (until != null && !(Number.isFinite(until) && until > now)) throw new Refusal(400, 'until', 'The end date must be in the future, or left empty.');
-      const ref = `admin-${now}-${Math.random().toString(36).slice(2, 8)}`;
+      const ref = `admin-${now}-${crypto.randomUUID().slice(0, 8)}`;
       await grant(env, { uid, email, kind, tier, source: 'admin', ref, until, note: typeof body.note === 'string' ? body.note.trim() : null, by: who.actor }, now);
       return { body: { ok: true }, target: email || uid, detail: { kind, tier, until } };
     }],

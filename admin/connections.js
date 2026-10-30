@@ -296,7 +296,7 @@ export const CONNECTIONS = [
     why: 'Per-player and per-connection request limits that keep the free allowances safe from floods.',
     cost: 'Free.',
     docs: 'server/wrangler.toml',
-    names: ['LIMIT_SYNC', 'LIMIT_AUTHLESS', 'LIMIT_COMPETE', 'LIMIT_PLAYS', 'LIMIT_PARTS', 'LIMIT_TTS', 'LIMIT_FEEDBACK', 'LIMIT_PICTURES', 'LIMIT_TRANSLATE', 'LIMIT_ERRORS', 'LIMIT_ADMIN_IP', 'LIMIT_ADMIN', 'LIMIT_MESSAGES']
+    names: ['LIMIT_SYNC', 'LIMIT_AUTHLESS', 'LIMIT_COMPETE', 'LIMIT_PLAYS', 'LIMIT_PARTS', 'LIMIT_TTS', 'LIMIT_FEEDBACK', 'LIMIT_PICTURES', 'LIMIT_TRANSLATE', 'LIMIT_ERRORS', 'LIMIT_ADMIN_IP', 'LIMIT_ADMIN', 'LIMIT_MESSAGES', 'LIMIT_LICENSE']
       .map((name) => ({ name, where: 'worker-binding' })),
     steps: ['Nothing to set up: each limit is a [[ratelimits]] block in `server/wrangler.toml`. Change the numbers there.'],
     links: [{ label: 'wrangler.toml', url: `${REPO}/blob/main/server/wrangler.toml` }],
@@ -769,14 +769,16 @@ export const CONNECTIONS = [
   {
     id: 'resend',
     group: 'email',
-    title: 'Resend: player emails from noreply@thelogicgrid.com',
+    title: 'Resend: player emails from support@thelogicgrid.com',
     docs: 'server/FEEDBACK-EMAILS.md',
-    why: 'Sends the thank-you notes for ideas and problems, the daily puzzle emails, the weekly and special edition puzzle emails (with their confirm links) and your own alert emails from noreply@thelogicgrid.com instead of the Gmail address. Until it is set up, they go from Gmail, so nothing is lost.',
+    why: 'Sends the thank-you notes for ideas and problems from support@thelogicgrid.com (replies welcome), and the daily puzzle emails and the weekly and special edition puzzle emails (with their confirm links) from noreply@thelogicgrid.com, instead of the Gmail address. Your own alert emails (Settings > My alerts) also go from noreply@thelogicgrid.com. Until it is set up, they go from Gmail, so nothing is lost.',
     cost: 'Free plan: 3,000 emails a month, 100 a day, no card. Past that Resend refuses and Gmail takes over.',
     names: [
       { name: 'RESEND_API_KEY', where: 'github-secret', optional: true, note: 'Starts re_. Sending access, domain thelogicgrid.com only.' },
       { name: 'RESEND_API_KEY', where: 'worker-secret', optional: true, note: 'The same key again, so the Worker can email your alerts (Settings > My alerts).' },
       { name: 'MAIL_FROM', where: 'github-variable', optional: true, note: 'Another sender on the domain, e.g. hello@thelogicgrid.com.' },
+      { name: 'MAIL_REPLY_TO', where: 'github-variable', optional: true, note: 'Where replies to support@ emails go. Default fantasticallogicgrid@gmail.com, until support@ has its own inbox.' },
+      { name: 'MAIL_NOREPLY', where: 'github-variable', optional: true, note: 'The one-way sender (daily puzzle, team-message notices). Default noreply@thelogicgrid.com.' },
     ],
     settings: [
       { label: 'Resend domain', value: 'thelogicgrid.com, region US East' },
@@ -791,6 +793,7 @@ export const CONNECTIONS = [
       ...GH_SECRET_STEPS('RESEND_API_KEY', 'the key'),
       ...CF_SECRET_STEPS('RESEND_API_KEY', 'the same key (for your alert emails)'),
       'Test: in the game, signed in with a confirmed account, send an idea with "Email me a thank-you note" ticked.',
+      'Optional, once support@thelogicgrid.com has its own inbox: open https://github.com/bltaylorjr/fantastical-logic-grid/settings/variables/actions, click **New repository variable**, name `MAIL_REPLY_TO`, value `support@thelogicgrid.com`. (`MAIL_NOREPLY` only needs setting to use a sender other than noreply@thelogicgrid.com.)',
     ],
     links: [{ label: 'Resend domains', url: 'https://resend.com/domains' }, { label: 'Resend API keys', url: 'https://resend.com/api-keys' }],
     checks: [
@@ -810,13 +813,13 @@ export const CONNECTIONS = [
       { label: 'Namecheap Mail Settings', value: 'Custom MX: @ mx1.improvmx.com (10), @ mx2.improvmx.com (20)' },
       { label: 'Root SPF TXT (@)', value: 'v=spf1 include:spf.improvmx.com ~all' },
       { label: 'ImprovMX alias', value: 'support -> fantasticallogicgrid@gmail.com' },
-      { label: 'Gmail Send mail as', value: 'smtp.resend.com, port 465 SSL, user resend, password = a Resend Sending access key' },
+      { label: 'Gmail Send mail as', value: 'smtp.resend.com, port 587 TLS, user resend, password = a Resend Sending access key' },
     ],
     steps: [
       'Sign up at https://app.improvmx.com with fantasticallogicgrid@gmail.com, add `thelogicgrid.com`, and make the alias `support` forward to fantasticallogicgrid@gmail.com.',
       'Namecheap > **Domain List** > **Manage** > **Advanced DNS**: under **Mail Settings** (Custom MX) add MX `@` `mx1.improvmx.com` priority 10 and MX `@` `mx2.improvmx.com` priority 20; under **Host Records** add TXT `@` `v=spf1 include:spf.improvmx.com ~all`.',
       'In ImprovMX click **Check again** until it says **Email forwarding active**.',
-      'Gmail > **Settings** > **Accounts and Import** > **Send mail as** > **Add another email address**: `support@thelogicgrid.com`, SMTP `smtp.resend.com`, port 465 (SSL), user `resend`, password = a new Resend **Sending access** key. Confirm with the code Gmail sends.',
+      'Gmail > **Settings** > **Accounts and Import** > **Send mail as** > **Add another email address**: `support@thelogicgrid.com`, SMTP `smtp.resend.com`, port 587 (TLS; 465 SSL fails from Gmail), user `resend`, password = a new Resend **Sending access** key. Confirm with the code Gmail sends.',
     ],
     links: [{ label: 'ImprovMX', url: 'https://app.improvmx.com' }, { label: 'ImprovMX Namecheap guide', url: 'https://improvmx.com/guides/namecheap' }],
     checks: [
@@ -847,6 +850,25 @@ export const CONNECTIONS = [
   },
 
   // ------------------------------------------------------------- apps
+  {
+    id: 'app-keys',
+    group: 'apps',
+    title: 'App keys for the Windows and Android apps',
+    why: 'The apps ask for an app key the first time they open. The Worker signs each activated key with this private key, and the apps check that signature with the matching public key built into them, so they keep working offline. Until this secret is set the apps open without a key.',
+    cost: 'Free.',
+    docs: 'server/LICENSES.md',
+    names: [
+      { name: 'LICENSE_SIGNING_KEY', where: 'worker-secret', note: 'The whole one-line text of license-signing.jwk from the private folder (project files, fantastical-logic-grid-app/.private). It starts {"kty":"EC". Never paste it anywhere else.' },
+    ],
+    steps: [
+      'Open the file **license-signing.jwk** (sent to you separately, or in the project files under fantastical-logic-grid-app/.private) in Notepad and copy all of its one line.',
+      ...CF_SECRET_STEPS('LICENSE_SIGNING_KEY', 'that line'),
+      `Open ${ADMIN}#licenses (**App keys**). The banner should now say keys are ready. Click **Make keys** to make one for yourself and type it into the app.`,
+      'Who can get a key for themselves, and how many devices each key works on, are under **Settings and switches** > **App keys**.',
+    ],
+    checks: [{ type: 'setting', key: 'license_required', value: true, label: 'The apps need a key (Settings > App keys)' }],
+    links: [{ label: 'Worker variables and secrets', url: CF_WORKER }, { label: 'App keys in the dashboard', url: `${ADMIN}#licenses` }],
+  },
   {
     id: 'tauri-updater',
     group: 'apps',

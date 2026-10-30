@@ -1,5 +1,5 @@
 # Thank-you emails for the game's Ideas and Problems boxes: every 15 minutes
-# the notes signed-in players asked for are sent from noreply@thelogicgrid.com
+# the notes signed-in players asked for are sent from support@thelogicgrid.com
 # through Resend's free plan (secret RESEND_API_KEY), with the game's Gmail as
 # the backup (same secrets as the weekly archive email, server/ARCHIVE.md).
 # Without either, each run just says "not set up" (server/FEEDBACK-EMAILS.md). Switch it off in the admin dashboard (Ideas and problems).
@@ -32,4 +32,6 @@ jobs:
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           MAIL_FROM: ${{ vars.MAIL_FROM }}
+          MAIL_REPLY_TO: ${{ vars.MAIL_REPLY_TO }}
+          MAIL_NOREPLY: ${{ vars.MAIL_NOREPLY }}
         run: python3 -I scripts/feedback-replies.py

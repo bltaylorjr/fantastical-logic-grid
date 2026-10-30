@@ -5,6 +5,7 @@
 //   GET  /v1/learn/tuning  what every player's games taught: toughness per level,
 //                          clue mix, theme lean, and approved story parts
 //   POST /v1/learn/parts   a story part a player chose to share; waits for review
+//   POST /v1/learn/np/plays, GET /v1/learn/np/tuning   the same for Number Place (number-place.js)
 //   POST /v1/tts           Gemini voice clips for players without their own key,
 //                          cached, rate limited and capped per day
 //
@@ -18,6 +19,7 @@ import { TIER_ORDER, CLUE_TYPES } from '../../engine/src/tiers.js';
 import { getSettings } from './settings.js';
 import { readText } from './http.js';
 import { GEMINI_VOICES } from './voices.js';
+import { postNpPlays, getNpTuning } from './number-place.js';
 
 // The edge-cache key of the tuning reply; the admin dashboard clears it after a review.
 export const TUNING_CACHE_KEY = 'https://flg-cloud.internal/v1/learn/tuning';
@@ -343,6 +345,9 @@ export async function handleLearn(req, env, ctx, url = new URL(req.url)) {
     }
     let res;
     if (url.pathname === '/v1/learn/tuning' && req.method === 'GET') res = await getTuning(req, env, ctx);
+    // Number Place shares only these: its play summaries and its tuning (number-place.js).
+    else if (url.pathname === '/v1/learn/np/tuning' && req.method === 'GET') res = await getNpTuning(req, env, ctx, json);
+    else if (url.pathname === '/v1/learn/np/plays' && req.method === 'POST') res = (await limited(env.LIMIT_PLAYS, req)) ? json({ error: 'Slow down.' }, 429) : await postNpPlays(req, env, await bodyJson(req, 64_000), json);
     else if (url.pathname === '/v1/learn/plays' && req.method === 'POST') res = (await limited(env.LIMIT_PLAYS, req)) ? json({ error: 'Slow down.' }, 429) : await postPlays(req, env);
     else if (url.pathname === '/v1/learn/parts' && req.method === 'POST') res = (await limited(env.LIMIT_PARTS, req)) ? json({ error: 'Slow down.' }, 429) : await postPart(req, env);
     else res = json({ error: 'Not found.' }, 404);
