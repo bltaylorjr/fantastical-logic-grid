@@ -100,7 +100,17 @@ jobs:
           cache-dependency-path: server/package-lock.json
       - run: npm --prefix server ci --no-audit --no-fund
       - name: Worker tests (sync, races, learning, cleanup, error reports, admin)
-        run: npm --prefix server test
+        run: |
+          cd server
+          fail=0
+          for f in test/*.test.mjs; do
+            if ! node --test "$f" > /tmp/t.log 2>&1; then
+              fail=1
+              msg=$(grep -E "not ok|Error|expected|actual|AssertionError|message:" /tmp/t.log | head -12 | tr '\n' ' ' | head -c 1500)
+              echo "::error title=$f::${msg}"
+            fi
+          done
+          exit $fail
       - name: Worker config is valid (dry run, nothing is deployed)
         working-directory: server
         run: npx wrangler deploy --dry-run --outdir "$RUNNER_TEMP/worker"
