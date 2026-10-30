@@ -13,7 +13,15 @@
 //   GET  /v1/perks                       the signed-in player's perks
 //   GET  /admin/v1/supporters            every grant (admin: it shows emails)
 //   POST /admin/v1/supporters            { email | uid, kind, tier?, until?, note? } (admin)
-//   POST /admin/v1/supporters/:id/remove (admin)
+//   POST /admin/v1/supporters/:id/remove { reason?: ended | refund | chargeback } (admin)
+//   GET  /admin/v1/supporters/:id/evidence   a dispute evidence summary to download (admin)
+//   GET  /admin/v1/supporters/blocks         payment blocks after chargebacks (admin)
+//   POST /admin/v1/supporters/blocks/:id/remove   lift a block (admin)
+//
+// Chargebacks: marking a grant as charged back ends every perk that player
+// has at once (the record is kept, for the payment service's dispute) and
+// blocks them, so a later payment webhook records the payment but adds no
+// perks until an admin lifts the block. A refund ends only that grant.
 import { json } from './http.js';
 import { AuthError } from './auth.js';
 import { isDeleted } from './sync.js';
@@ -34,14 +42,29 @@ export const cleanEmail = (v) => {
 // that a later end date replaces an earlier one (a monthly renewal), and the
 // tier rises to the higher of the two, or with replaceTier becomes the new
 // one (a membership moved to another tier).
+// A payment from a blocked player (after a chargeback) is recorded, ended at
+// once, so it adds no perks. Returns { blocked }.
 export async function grant(env, { uid = null, email = null, kind, tier = 1, replaceTier = false, source, ref, until = null, note = null, by = null }, now = Date.now()) {
   if (!KINDS.includes(kind)) throw new Error('bad kind');
-  await env.DB.prepare(`INSERT INTO supporters (user_id, email, kind, tier, source, ref, note, created_at, until, created_by)
-    VALUES (?1, ?2, ?3, ?10, ?4, ?5, ?6, ?7, ?8, ?9)
+  const blocked = source !== 'admin' && await isBlocked(env, { uid, email });
+  if (blocked) { until = now; replaceTier = false; }
+  await env.DB.prepare(`INSERT INTO supporters (user_id, email, kind, tier, source, ref, note, created_at, until, created_by, ended_reason)
+    VALUES (?1, ?2, ?3, ?10, ?4, ?5, ?6, ?7, ?8, ?9, ?12)
     ON CONFLICT (source, ref) DO UPDATE SET tier = CASE WHEN ?11 THEN excluded.tier ELSE MAX(supporters.tier, excluded.tier) END, until = CASE
       WHEN excluded.until IS NULL OR supporters.until IS NULL THEN NULL
-      ELSE MAX(supporters.until, excluded.until) END`)
-    .bind(uid, cleanEmail(email), kind, source, String(ref).slice(0, 200), note ? String(note).slice(0, 200) : null, now, until, by, cleanTier(tier) || 1, replaceTier ? 1 : 0).run();
+      ELSE MAX(supporters.until, excluded.until) END
+    WHERE supporters.ended_reason IS NULL OR supporters.ended_reason = 'ended'`)
+    .bind(uid, cleanEmail(email), kind, source, String(ref).slice(0, 200), note ? String(note).slice(0, 200) : null, now, until, by, cleanTier(tier) || 1, replaceTier ? 1 : 0, blocked ? 'blocked' : null).run();
+  return { blocked };
+}
+
+// Whether payments from this player add no perks (a chargeback block on their
+// account or their email).
+export async function isBlocked(env, { uid = null, email = null }) {
+  const e = cleanEmail(email);
+  if (!uid && !e) return false;
+  const row = await env.DB.prepare('SELECT 1 FROM payment_blocks WHERE (?1 IS NOT NULL AND user_id = ?1) OR (?2 IS NOT NULL AND email = ?2) LIMIT 1').bind(uid, e).first();
+  return !!row;
 }
 
 // The badge tier for a payment: a membership tier named "Gold supporters"
@@ -59,9 +82,72 @@ export async function tierFor(env, { amount = 0, name = '' } = {}) {
 }
 
 // Ends a grant early, for a refund or a cancelled membership.
-export async function revoke(env, source, ref, now = Date.now()) {
-  const r = await env.DB.prepare('UPDATE supporters SET until = ?3 WHERE source = ?1 AND ref = ?2 AND (until IS NULL OR until > ?3)').bind(source, String(ref), now).run();
+export async function revoke(env, source, ref, now = Date.now(), reason = 'refund') {
+  const r = await env.DB.prepare('UPDATE supporters SET until = ?3, ended_reason = COALESCE(ended_reason, ?4) WHERE source = ?1 AND ref = ?2 AND (until IS NULL OR until > ?3)').bind(source, String(ref), now, reason).run();
   return r.meta.changes;
+}
+
+// A chargeback (a disputed payment): ends every running grant for that player,
+// keeps the records, and blocks payments from adding perks for them again.
+// Payment webhooks that report a dispute call this with the grant's source and
+// ref; the admin dashboard calls it with the grant's id.
+export async function chargeback(env, { id = null, source = null, ref = null, note = null, by = null }, now = Date.now()) {
+  const row = id != null
+    ? await env.DB.prepare('SELECT id, user_id, email FROM supporters WHERE id = ?1').bind(Number(id)).first()
+    : await env.DB.prepare('SELECT id, user_id, email FROM supporters WHERE source = ?1 AND ref = ?2').bind(source, String(ref)).first();
+  if (!row) return null;
+  const db = env.DB;
+  const [mark, ended] = await db.batch([
+    db.prepare("UPDATE supporters SET ended_reason = 'chargeback', until = CASE WHEN until IS NULL OR until > ?2 THEN ?2 ELSE until END WHERE id = ?1").bind(row.id, now),
+    db.prepare(`UPDATE supporters SET until = ?3, ended_reason = COALESCE(ended_reason, 'chargeback')
+      WHERE id != ?4 AND (until IS NULL OR until > ?3) AND ((?1 IS NOT NULL AND user_id = ?1) OR (?2 IS NOT NULL AND email = ?2))`).bind(row.user_id, row.email, now, row.id),
+    db.prepare(`INSERT INTO payment_blocks (user_id, email, reason, note, supporter_id, created_at, created_by)
+      SELECT ?1, ?2, 'chargeback', ?3, ?4, ?5, ?6 WHERE NOT EXISTS (SELECT 1 FROM payment_blocks WHERE supporter_id = ?4)`)
+      .bind(row.user_id, row.email, note ? String(note).slice(0, 200) : null, row.id, now, by),
+  ]);
+  return { ended: mark.meta.changes + ended.meta.changes, uid: row.user_id, email: row.email };
+}
+
+const day = (t) => (t ? new Date(t).toISOString().replace('T', ' ').slice(0, 16) + ' UTC' : 'never');
+
+// A plain-text summary for answering a payment dispute: what the player paid
+// for, that it was delivered at once, and that they kept using it. Payment
+// services ask for exactly this ("proof of delivery or use").
+export async function evidence(env, id, now = Date.now()) {
+  const g = await env.DB.prepare(`SELECT s.*, p.screen_name AS name, u.created_at AS joined FROM supporters s
+    LEFT JOIN players p ON p.user_id = s.user_id LEFT JOIN sync_users u ON u.user_id = s.user_id WHERE s.id = ?1`).bind(Number(id)).first();
+  if (!g) return null;
+  const [scores, others] = await env.DB.batch([
+    env.DB.prepare('SELECT COUNT(*) AS n, MAX(created_at) AS last FROM scores WHERE user_id = ?1 AND created_at >= ?2').bind(g.user_id, g.created_at),
+    env.DB.prepare('SELECT source, ref, kind, created_at, until, ended_reason FROM supporters WHERE id != ?1 AND ((?2 IS NOT NULL AND user_id = ?2) OR (?3 IS NOT NULL AND email = ?3)) ORDER BY created_at').bind(g.id, g.user_id, g.email),
+  ]);
+  const sc = scores.results[0] || {};
+  const what = g.kind === 'premium' ? 'a Supporter badge on the scoreboard and the supporter extra themes' : 'a Supporter badge on the scoreboard';
+  const lines = [
+    'The Fantastical Logic Grid (thelogicgrid.com): supporter payment record',
+    `Prepared ${day(now)} for a payment dispute.`,
+    '',
+    'The payment',
+    `- Payment service: ${g.source}`,
+    `- Payment id: ${g.ref}`,
+    `- Received: ${day(g.created_at)}`,
+    `- Email on the payment: ${g.email || '(none given)'}`,
+    `- What it gave: ${what} (${TIERS[g.tier] || 'Bronze'} level), a thank-you for a voluntary tip. The game itself is free; nothing was sold that the player could not already use.`,
+    `- Delivered: automatically, at once, to the player's account when the payment arrived.`,
+    `- Ends: ${g.until == null ? 'never' : day(g.until)}${g.ended_reason ? ` (ended: ${g.ended_reason})` : ''}`,
+    '',
+    'The player',
+    `- Game account: ${g.user_id ? 'yes' : 'not linked to an account'}${g.joined ? `, created ${day(g.joined)}` : ''}`,
+    `- Screen name: ${g.name || '(none)'}`,
+    `- Puzzles finished on the scoreboard since the payment: ${sc.n || 0}${sc.last ? `, the latest ${day(sc.last)}` : ''}`,
+    `- Other payments from this player: ${others.results.length ? others.results.map((o) => `${o.source} ${o.ref} on ${day(o.created_at)}${o.ended_reason ? ` (${o.ended_reason})` : ''}`).join('; ') : 'none'}`,
+    '',
+    'Terms the player agreed to',
+    '- https://thelogicgrid.com/terms/#tips: tips are voluntary gifts to support a free game; the badge and extras are thank-yous; refunds are given on request by email within 30 days.',
+    '- Contact: support@thelogicgrid.com',
+    '',
+  ];
+  return lines.join('\n');
 }
 
 // A player's perks. Grants made out to their confirmed email are linked to
@@ -126,7 +212,7 @@ export function supporterRoutes(Refusal) {
   return [
     ['GET', /^supporters$/, 'admin', 'supporters.view', async ({ env, now }) => {
       const { results } = await env.DB.prepare(`SELECT s.id, s.user_id AS uid, s.email, s.kind, s.tier, s.source, s.ref, s.note, s.created_at AS createdAt,
-          s.until, s.created_by AS createdBy, p.screen_name AS name
+          s.until, s.ended_reason AS endedReason, s.created_by AS createdBy, p.screen_name AS name
         FROM supporters s LEFT JOIN players p ON p.user_id = s.user_id ORDER BY s.created_at DESC LIMIT 500`).all();
       return { body: { now, supporters: results.map((r) => ({ ...r, active: r.until == null || r.until > now })) }, quiet: true };
     }],
@@ -144,9 +230,28 @@ export function supporterRoutes(Refusal) {
       await grant(env, { uid, email, kind, tier, source: 'admin', ref, until, note: typeof body.note === 'string' ? body.note.trim() : null, by: who.actor }, now);
       return { body: { ok: true }, target: email || uid, detail: { kind, tier, until } };
     }],
-    ['POST', /^supporters\/(\d{1,12})\/remove$/, 'admin', 'supporters.remove', async ({ env, params: [id], now }) => {
-      const r = await env.DB.prepare('UPDATE supporters SET until = ?2 WHERE id = ?1 AND (until IS NULL OR until > ?2)').bind(Number(id), now).run();
-      return { body: { ended: r.meta.changes }, target: id };
+    ['POST', /^supporters\/(\d{1,12})\/remove$/, 'admin', 'supporters.remove', async ({ env, params: [id], body, who, now }) => {
+      const reason = ['ended', 'refund', 'chargeback'].includes(body?.reason) ? body.reason : 'ended';
+      if (reason === 'chargeback') {
+        const r = await chargeback(env, { id, note: typeof body.note === 'string' ? body.note.trim() : null, by: who.actor }, now);
+        if (!r) throw new Refusal(404, 'not_found');
+        return { body: { ended: r.ended, blocked: true }, target: r.email || r.uid || id, detail: { reason } };
+      }
+      const r = await env.DB.prepare('UPDATE supporters SET until = ?2, ended_reason = ?3 WHERE id = ?1 AND (until IS NULL OR until > ?2)').bind(Number(id), now, reason).run();
+      return { body: { ended: r.meta.changes }, target: id, detail: { reason } };
+    }],
+    ['GET', /^supporters\/(\d{1,12})\/evidence$/, 'admin', 'supporters.evidence', async ({ env, params: [id], now }) => {
+      const text = await evidence(env, id, now);
+      if (!text) throw new Refusal(404, 'not_found');
+      return { file: text, type: 'text/plain; charset=utf-8', name: `logic-grid-payment-${id}-evidence.txt`, target: id };
+    }],
+    ['GET', /^supporters\/blocks$/, 'admin', 'supporters.view', async ({ env }) => {
+      const { results } = await env.DB.prepare('SELECT id, user_id AS uid, email, reason, note, supporter_id AS supporterId, created_at AS createdAt, created_by AS createdBy FROM payment_blocks ORDER BY created_at DESC LIMIT 500').all();
+      return { body: { blocks: results }, quiet: true };
+    }],
+    ['POST', /^supporters\/blocks\/(\d{1,12})\/remove$/, 'admin', 'supporters.unblock', async ({ env, params: [id] }) => {
+      const r = await env.DB.prepare('DELETE FROM payment_blocks WHERE id = ?1').bind(Number(id)).run();
+      return { body: { lifted: r.meta.changes }, target: id };
     }],
   ];
 }

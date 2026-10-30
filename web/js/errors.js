@@ -6,6 +6,7 @@
 // without CLOUD_URL.
 import { CLOUD_URL, CLOUD } from './cloud-config.js';
 import { feature } from './remote-config.js';
+import { platform } from './platform.js';
 
 const MAX_PER_SESSION = 10;
 const seen = new Set();
@@ -15,13 +16,8 @@ let sent = 0;
 
 const on = () => { try { return !!CLOUD_URL && feature('errorReports'); } catch (e) { return false; } };
 
-export function platform() {
-  if (window.__TAURI_INTERNALS__ || window.__TAURI__) return 'desktop';
-  const ua = navigator.userAgent || '';
-  if (/Android/i.test(ua) && window.NativeBridge) return 'android';
-  if (/iPhone|iPad/i.test(ua) && window.webkit?.messageHandlers) return 'ios';
-  return 'web';
-}
+// Which app this is (platform.js), kept here for the files that import it from errors.js.
+export { platform };
 
 function flush() {
   timer = null;

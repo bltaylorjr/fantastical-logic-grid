@@ -40,6 +40,11 @@ export const THEME_LOOKS = {
   nautical: { sky: ['#5fb4e6', '#e3f3fb'], ground: '#e9d8a6', shape: '#1d3557', glow: '#fff4c2', accent: '#e63946' },
   farm: { sky: ['#7cc6ee', '#fbe7b5'], ground: '#6a9a3a', shape: '#b23a2e', glow: '#fff3b0', accent: '#f2c14e' },
   science: { sky: ['#dfeaf7', '#f5f8fc'], ground: '#9aa7b8', shape: '#2f4a6b', glow: '#7df9c0', accent: '#2563eb' },
+  math: { sky: ['#1e3a5f', '#3b6ea5'], ground: '#23394f', shape: '#1a2b3c', glow: '#ffd166', accent: '#f4f1de' },
+  biology: { sky: ['#a8dadc', '#e9f5db'], ground: '#4f772d', shape: '#31572c', glow: '#fff3b0', accent: '#e76f51' },
+  chemistry: { sky: ['#e6ecf5', '#f8fafc'], ground: '#8d99ae', shape: '#2b2d42', glow: '#7df9c0', accent: '#ef476f' },
+  astronomy: { sky: ['#0b1026', '#1b2a5c'], ground: '#1d2238', shape: '#0e1428', glow: '#ffe08a', accent: '#8ecae6' },
+  paradox: { sky: ['#3a0ca3', '#f72585'], ground: '#4361ee', shape: '#240046', glow: '#4cc9f0', accent: '#ffbe0b' },
 };
 const lookFor = (themeId) => THEME_LOOKS[themeId] || THEME_LOOKS.mystery;
 
@@ -258,6 +263,62 @@ const SCENES = {
       `<g><ellipse cx="520" cy="232" rx="30" ry="15" fill="#fff"/><circle cx="508" cy="228" r="6" fill="#222"/><circle cx="530" cy="236" r="5" fill="#222"/><ellipse cx="552" cy="226" rx="11" ry="9" fill="#fff"/><rect x="500" y="242" width="5" height="12" fill="#fff"/><rect x="536" y="242" width="5" height="12" fill="#fff"/></g><g><rect x="620" y="222" width="54" height="22" rx="3" fill="${L.accent}"/><rect x="650" y="204" width="22" height="20" fill="${L.accent}"/><circle cx="632" cy="248" r="9" fill="#333"/><circle cx="664" cy="246" r="13" fill="#333"/></g><ellipse cx="380" cy="240" rx="10" ry="8" fill="#c0392b"/><path d="M372 234 l8 -6 l8 6" fill="#e9c46a"/>`,
     ];
   },
+  math(r, L) {
+    const sym = ['π', '∑', '√', '∞', '÷', '×', '=', '%', 'Δ', '+'];
+    return [
+      `<rect x="40" y="24" width="720" height="150" rx="6" fill="#20352b" stroke="#8b6b3e" stroke-width="8"/>`,
+      `<g fill="none" stroke="#f4f1de" stroke-width="2.4" opacity=".85"><path d="M90 140 L150 60 L210 140 Z"/><circle cx="300" cy="100" r="40"/><path d="M260 100 h80 M300 60 v80"/><path d="M400 140 q60 -150 120 0"/></g>`,
+      `<g fill="#f4f1de" font-family="Georgia, serif" font-size="26" opacity=".9">${Array.from({ length: 8 }, (_, i) => `<text x="${560 + (i % 4) * 44}" y="${70 + Math.floor(i / 4) * 50}">${pick(r, sym)}</text>`).join('')}</g>`,
+      `<rect x="0" y="182" width="${W}" height="78" fill="${L.ground}"/><rect x="40" y="174" width="720" height="10" fill="#8b6b3e"/>${Array.from({ length: 6 }, (_, i) => `<rect x="${80 + i * 115}" y="200" width="80" height="44" rx="3" fill="${L.shape}"/>`).join('')}`,
+      `<g transform="translate(640 196)"><rect width="70" height="10" rx="2" fill="#c49a6c"/>${Array.from({ length: 4 }, (_, i) => `<line x1="${8 + i * 18}" y1="0" x2="${8 + i * 18}" y2="10" stroke="#5a3a22"/>`).join('')}</g><path d="M120 196 l70 -6" stroke="${L.glow}" stroke-width="6" stroke-linecap="round"/>`,
+      `<g transform="translate(380 150)"><path d="M0 40 h46 l-5 22 h-36z" fill="${L.glow}"/><path d="M8 40 q-16 -2 -14 12 M38 40 q16 -2 14 12" stroke="${L.glow}" stroke-width="4" fill="none"/></g>`,
+    ];
+  },
+  biology(r, L) {
+    return [
+      `<circle cx="680" cy="56" r="30" fill="${L.glow}"/><g fill="#fff" opacity=".85"><ellipse cx="180" cy="50" rx="50" ry="13"/><ellipse cx="420" cy="38" rx="38" ry="11"/></g>`,
+      hills(r, '#90a955', 185, 40),
+      `<path d="M0 ${H} L0 205 Q400 192 ${W} 210 L${W} ${H} Z" fill="${L.ground}"/><ellipse cx="560" cy="226" rx="140" ry="22" fill="#5fa8d3" opacity=".85"/>`,
+      `${tree(80, 210, 110, L.shape)}${tree(150, 214, 80, '#3a5a40')}${tree(740, 212, 96, L.shape)}<g fill="#3a5a40"><path d="M470 226 q6 -30 2 -50" stroke="#3a5a40" stroke-width="3" fill="none"/><path d="M640 228 q-4 -26 4 -44" stroke="#3a5a40" stroke-width="3" fill="none"/></g>`,
+      `<g transform="translate(300 160)"><rect x="-6" y="40" width="44" height="8" rx="2" fill="#2b2d42"/><rect x="10" y="0" width="12" height="40" rx="3" fill="#2b2d42" transform="rotate(-18 16 20)"/><circle cx="8" cy="2" r="8" fill="#2b2d42"/></g><g transform="translate(220 196)"><path d="M0 0 q20 -40 40 0" stroke="#8b6b3e" stroke-width="3" fill="none"/><ellipse cx="20" cy="2" rx="22" ry="6" fill="none" stroke="#fff" stroke-width="2"/></g>`,
+      `<g><path d="M520 120 q-14 -16 -2 -24 q8 -4 12 8 q4 -12 12 -8 q12 8 -2 24 q-10 8 -10 8 q0 0 -10 -8z" fill="${L.accent}"/><path d="M530 104 v24" stroke="#2b2d42" stroke-width="2"/></g><g fill="#2a9d8f"><ellipse cx="610" cy="232" rx="10" ry="6"/><circle cx="604" cy="228" r="3" fill="#fff"/><circle cx="616" cy="228" r="3" fill="#fff"/></g>`,
+    ];
+  },
+  chemistry(r, L) {
+    const flask = (x, base, c) => `<path d="M${x - 8} ${base - 60} h16 v20 l18 34 q4 8 -6 8 h-38 q-10 0 -6 -8 l18 -34z" fill="#fff" opacity=".85" stroke="#8d99ae" stroke-width="2"/><path d="M${x - 18} ${base - 22} h36 l8 14 q2 4 -4 4 h-44 q-6 0 -4 -4z" fill="${c}"/>`;
+    const cells = ['H', 'He', 'C', 'N', 'O', 'Ne', 'Na', 'Cu', 'Zn', 'Au', 'Fe', 'Ca'];
+    return [
+      `<g>${cells.map((c, i) => `<g transform="translate(${60 + (i % 6) * 54} ${24 + Math.floor(i / 6) * 50})"><rect width="48" height="44" rx="4" fill="#fff" stroke="#c9d1dd"/><text x="24" y="30" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="700" fill="${L.shape}">${c}</text></g>`).join('')}</g>`,
+      `<rect x="0" y="170" width="${W}" height="90" fill="${L.ground}"/><rect x="0" y="164" width="${W}" height="12" fill="${L.shape}"/>`,
+      `${flask(470, 166, L.glow)}${flask(550, 166, L.accent)}${flask(630, 166, '#ffd166')}`,
+      `<g transform="translate(700 100)"><rect x="-4" y="54" width="40" height="10" rx="3" fill="${L.shape}"/><rect x="12" y="20" width="8" height="36" fill="#8d99ae"/><path d="M16 20 q-12 -14 0 -30 q12 16 0 30z" fill="#4cc9f0" opacity=".9"/></g>`,
+      `<g fill="#fff" opacity=".85">${Array.from({ length: 10 }, () => `<circle cx="${(450 + r() * 200).toFixed(0)}" cy="${(30 + r() * 70).toFixed(0)}" r="${(3 + r() * 6).toFixed(1)}"/>`).join('')}</g>`,
+      `<g stroke="${L.shape}" stroke-width="3" fill="${L.accent}"><line x1="420" y1="230" x2="460" y2="210"/><line x1="460" y1="210" x2="500" y2="232"/><circle cx="420" cy="230" r="9"/><circle cx="460" cy="210" r="12" fill="${L.glow}"/><circle cx="500" cy="232" r="9"/></g>`,
+    ];
+  },
+  astronomy(r, L) {
+    const scope = (x, y, a, c) => `<g transform="translate(${x} ${y}) rotate(${a})"><rect x="-6" y="-46" width="16" height="58" rx="4" fill="${c}"/><rect x="-9" y="-50" width="22" height="10" rx="3" fill="#cfd8e3"/></g><path d="M${x - 2} ${y + 10} l-18 40 M${x + 2} ${y + 10} l0 42 M${x + 6} ${y + 10} l18 40" stroke="#cfd8e3" stroke-width="3" stroke-linecap="round"/>`;
+    return [
+      `${stars(r, 160, '#fff', 200)}`,
+      `<path d="M0 120 Q200 60 400 110 T800 90" stroke="#c8d6ff" stroke-width="38" fill="none" opacity=".12"/><circle cx="660" cy="62" r="30" fill="#fdf0c4"/><circle cx="672" cy="56" r="27" fill="${L.sky[0]}"/>`,
+      `<path d="M0 ${H} L0 200 Q200 178 420 196 T${W} 186 L${W} ${H} Z" fill="${L.ground}"/>`,
+      `${scope(250, 186, -28, '#e0e6ef')}${scope(560, 190, -40, L.accent)}`,
+      `<circle cx="140" cy="64" r="16" fill="#e9c46a"/><ellipse cx="140" cy="64" rx="28" ry="6" fill="none" stroke="#f4dfa2" stroke-width="3"/><path d="M700 150 l60 -22" stroke="${L.glow}" stroke-width="2.5" stroke-linecap="round"/>`,
+      `<g fill="#ff6b6b" opacity=".85"><circle cx="330" cy="226" r="4"/><circle cx="480" cy="232" r="4"/><circle cx="620" cy="228" r="4"/></g>`,
+    ];
+  },
+  paradox(r, L) {
+    const id = `pg${Math.floor(r() * 1e6)}`;
+    const stairs = (x, y, n, dx, dy, c) => Array.from({ length: n }, (_, i) => `<rect x="${x + i * dx}" y="${y + i * dy}" width="${Math.abs(dx) + 2}" height="16" fill="${c}"/>`).join('');
+    return [
+      `<defs><radialGradient id="${id}" cx="30%" cy="30%" r="80%"><stop offset="0" stop-color="${L.glow}" stop-opacity=".7"/><stop offset="1" stop-color="${L.glow}" stop-opacity="0"/></radialGradient></defs><rect width="${W}" height="${H}" fill="url(#${id})"/><g fill="none" stroke="#fff" stroke-opacity=".25" stroke-width="2">${Array.from({ length: 6 }, (_, i) => `<circle cx="400" cy="130" r="${30 + i * 34}"/>`).join('')}</g>`,
+      `<path d="M0 ${H} L0 210 Q200 180 400 214 T${W} 200 L${W} ${H} Z" fill="${L.ground}" opacity=".9"/>`,
+      `<g>${stairs(120, 190, 6, 22, -14, L.shape)}${stairs(252, 106, 6, 22, 14, '#5a189a')}<g transform="rotate(180 600 70)">${stairs(540, 60, 5, 24, -12, L.shape)}</g></g>`,
+      `<g transform="translate(470 70)"><rect width="46" height="76" rx="3" fill="${L.accent}" transform="rotate(-12)"/><circle cx="34" cy="40" r="3" fill="${L.shape}" transform="rotate(-12)"/></g><g transform="translate(680 150)"><rect width="40" height="66" rx="3" fill="#4cc9f0" opacity=".85" transform="rotate(14)"/></g>`,
+      `<g transform="translate(330 170)"><path d="M0 0 h60 v18 q-6 30 -14 36 q-4 -18 -10 -14 q-6 4 -8 20 q-10 -18 -28 -40z" fill="#fff" opacity=".9"/><circle cx="30" cy="10" r="2" fill="${L.shape}"/><path d="M30 10 l10 -4 M30 10 v-8" stroke="${L.shape}" stroke-width="2"/></g>`,
+      `<g fill="${L.glow}">${Array.from({ length: 6 }, () => { const x = 60 + r() * 680, y = 30 + r() * 90, s = 6 + r() * 10; return `<path d="M${x.toFixed(0)} ${(y - s).toFixed(0)} L${(x + s).toFixed(0)} ${y.toFixed(0)} L${x.toFixed(0)} ${(y + s).toFixed(0)} L${(x - s).toFixed(0)} ${y.toFixed(0)}z" opacity=".8"/>`; }).join('')}</g><circle cx="140" cy="60" r="18" fill="${L.accent}"/><circle cx="148" cy="54" r="16" fill="${L.sky[0]}" opacity=".9"/>`,
+    ];
+  },
   science(r, L) {
     const flask = (x, base, c) => `<path d="M${x - 8} ${base - 60} h16 v20 l18 34 q4 8 -6 8 h-38 q-10 0 -6 -8 l18 -34z" fill="#fff" opacity=".85" stroke="#9aa7b8" stroke-width="2"/><path d="M${x - 18} ${base - 22} h36 l8 14 q2 4 -4 4 h-44 q-6 0 -4 -4z" fill="${c}"/>`;
     return [
@@ -316,6 +377,11 @@ function hat(themeId, r, L) {
     case 'music': return pick(r, [`<path d="M24 50 q0 -32 26 -32 q26 0 26 32" stroke="#222" stroke-width="4" fill="none"/><rect x="18" y="44" width="10" height="16" rx="4" fill="${L.accent}"/><rect x="72" y="44" width="10" height="16" rx="4" fill="${L.accent}"/>`, `<rect x="30" y="44" width="16" height="9" rx="3" fill="#1d1d1d"/><rect x="54" y="44" width="16" height="9" rx="3" fill="#1d1d1d"/><path d="M46 47 h8" stroke="#1d1d1d" stroke-width="2"/>`, '']);
     case 'nautical': return `<path d="M26 32 q24 -18 48 0z" fill="#fff" stroke="#ccc"/><rect x="24" y="30" width="52" height="6" rx="2" fill="#1d3557"/><path d="M74 34 h12 v3 h-12z" fill="#1d3557"/><circle cx="50" cy="26" r="3" fill="#c9a227"/>`;
     case 'farm': return pick(r, [`<path d="M14 36 q36 -10 72 0 l-10 -4 q-4 -16 -26 -16 q-22 0 -26 16z" fill="#e9c46a"/><rect x="26" y="29" width="48" height="4" fill="#b23a2e"/>`, `<path d="M26 34 q24 -22 48 0z" fill="#b23a2e"/><path d="M70 34 h14 v4 h-14z" fill="#b23a2e"/>`]);
+    case 'math': return pick(r, [`<path d="M20 30 L50 16 L80 30 L50 42z" fill="#1a2b3c"/><path d="M76 31 v14" stroke="#ffd166" stroke-width="2"/><circle cx="76" cy="47" r="3" fill="#ffd166"/>`, `<circle cx="38" cy="48" r="9" fill="none" stroke="#1a2b3c" stroke-width="2.5"/><circle cx="62" cy="48" r="9" fill="none" stroke="#1a2b3c" stroke-width="2.5"/><path d="M47 48 h6" stroke="#1a2b3c" stroke-width="2.5"/>`]);
+    case 'biology': return pick(r, [`<path d="M14 34 q36 -10 72 0 l-10 -4 q-4 -16 -26 -16 q-22 0 -26 16z" fill="#90a955"/><rect x="26" y="29" width="48" height="4" fill="#31572c"/>`, `<path d="M58 14 q14 -8 22 2 q-10 6 -22 -2z" fill="#4f772d"/>`]);
+    case 'chemistry': return `<rect x="24" y="40" width="22" height="12" rx="5" fill="#7df9c0" opacity=".75" stroke="#2b2d42" stroke-width="2"/><rect x="54" y="40" width="22" height="12" rx="5" fill="#7df9c0" opacity=".75" stroke="#2b2d42" stroke-width="2"/><path d="M46 46 h8" stroke="#2b2d42" stroke-width="2"/>`;
+    case 'astronomy': return `<path d="M24 38 q26 -30 52 0z" fill="#1b2a5c"/><rect x="22" y="36" width="56" height="6" rx="3" fill="#0e1428"/><circle cx="40" cy="26" r="2" fill="#ffe08a"/><circle cx="54" cy="20" r="2.5" fill="#fff"/><circle cx="62" cy="30" r="1.8" fill="#ffe08a"/>`;
+    case 'paradox': return pick(r, [`<rect x="32" y="10" width="36" height="22" rx="2" fill="#240046"/><rect x="24" y="30" width="52" height="5" rx="2" fill="#240046"/><rect x="32" y="24" width="36" height="4" fill="#ffbe0b"/>`, `<path d="M30 30 q20 -30 40 0" stroke="#4cc9f0" stroke-width="3" fill="none"/><circle cx="50" cy="12" r="5" fill="#ffbe0b"/>`]);
     case 'science': return `<rect x="24" y="40" width="22" height="12" rx="5" fill="${L.glow}" opacity=".75" stroke="#2f4a6b" stroke-width="2"/><rect x="54" y="40" width="22" height="12" rx="5" fill="${L.glow}" opacity=".75" stroke="#2f4a6b" stroke-width="2"/><path d="M46 46 h8" stroke="#2f4a6b" stroke-width="2"/>`;
     default: return '';
   }

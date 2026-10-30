@@ -11,6 +11,7 @@ DiceBear 9.4.2 (avatar code)                     MIT          vendor/dicebear/
   Open Peeps artwork by Pablo Stanley            CC0 1.0
 canvas-confetti 1.9.4 by Kiril Vatev             ISC          vendor/confetti/
 Lucide icons 1.61.0                              ISC          vendor/lucide/
+Simple Icons 13.21.0 (social media icons)        CC0 1.0      js/social.js
 Atkinson Hyperlegible font (Braille Institute)   SIL OFL 1.1  fonts/
 Cinzel font by Natanael Gama                     SIL OFL 1.1  fonts/
 

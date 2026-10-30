@@ -69,6 +69,8 @@ export const CLOUD_URL = CLOUD.learnUrl;` }));
     await page.selectOption('#language', 'es');
     await page.waitForFunction(() => document.documentElement.lang === 'es');
     await page.waitForFunction(() => /‹es› Language/.test(document.querySelector('#language-settings legend').textContent));
+    // The page has many strings, so the note may arrive in a later batch.
+    await page.waitForFunction(() => /‹es›/.test(document.querySelector('#language-note').textContent), null, { timeout: 10000 }).catch(() => {});
     assert(/‹es›/.test(await page.textContent('#language-note')), 'the settings window explains the translation, in Spanish');
     assert(!/‹es›/.test(await page.textContent('#language')), 'the language names are not translated');
     await page.click('#dlg-settings button[value=close]');

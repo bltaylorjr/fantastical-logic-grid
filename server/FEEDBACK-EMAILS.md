@@ -21,6 +21,18 @@ Menu > Ideas and problems, they can leave "Email me an update" ticked:
   the team writes" in Menu > Messages (see `MESSAGES.md`). At most one a day
   per player, and it only says to open Messages.
 
+- **Storylines (story ideas): one email per submission.** No thank-you goes
+  straight away. When the team presses **Approve storyline** on the idea in
+  the Communication inbox, with a note and the first puzzle made with it (a
+  puzzle file saved from the game), the player gets **"Your storyline is now a
+  puzzle!"**: their storyline, the team's note, and the puzzle attached as a
+  **PDF with its answer key** on the last page. The puzzle also waits in their
+  game for **30 days** (Menu > Messages > Puzzles for you; Play keeps it in
+  Saved puzzles). If the team marks the storyline **Done** instead, the one
+  email is the plain thank-you. Deleting it sends nothing. The PDF is printed
+  by `scripts/contributor-puzzle.mjs` when the email is sent; if printing
+  fails, the email still goes without it.
+
 The wording is fixed (`scripts/feedback-replies.py`). The player's words (with
 email addresses and links already blanked) and the team's note only ever go to
 the player's own confirmed address, so the boxes cannot be used to send
@@ -86,18 +98,22 @@ at whoever runs its DNS today.
 
 1. Sign up at https://resend.com (free, use fantasticallogicgrid@gmail.com).
 2. **Domains > Add domain**: enter `thelogicgrid.com`, region US East.
-3. Resend lists 3 or 4 records (an **MX** and a **TXT** for `send`, a **TXT**
-   for `resend._domainkey`, and an optional **TXT** for `_dmarc`). Add each
-   one at your domain's DNS settings, copying the name and value exactly.
-   They only cover the `send` and `resend._domainkey` names, so they do not
-   touch the website or any other email.
+3. Resend lists 4 records: a **TXT** for `resend._domainkey`, **CNAME**s for
+   `send` and `rsend`, and an optional **TXT** for `_dmarc`. The domain's DNS
+   is at Namecheap: Resend's **Go to Namecheap** button adds them for you, or
+   add each under **Advanced DNS > Host Records** with only the short name
+   (`send`, not `send.thelogicgrid.com`). They do not touch the website or any
+   other email. Full click-by-click steps:
+   `docs/owner-tasks/2026-10-28-resend-namecheap.md`.
 4. Back in Resend, press **Verify DNS records** (it can take from a few
    minutes to a few hours).
 5. **API Keys > Create API key**: name `logic-grid`, permission **Sending
    access**, domain `thelogicgrid.com`. Copy the key (it starts with `re_`).
 6. In GitHub: repository **Settings > Secrets and variables > Actions > New
    repository secret**, name `RESEND_API_KEY`, paste the key.
-7. Test: sign in to the game with a confirmed account, send an idea with the
+7. Quick test: **Actions > Resend check > Run workflow** looks up the
+   records and sends one test email to the game's Gmail through Resend.
+8. Full test: sign in to the game with a confirmed account, send an idea with the
    box ticked, then **Actions > Thank-you emails > Run workflow**. The log
    says how many went through Resend and how many through Gmail.
 

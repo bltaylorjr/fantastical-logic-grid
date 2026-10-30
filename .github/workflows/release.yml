@@ -75,6 +75,15 @@ jobs:
           releaseBody: Download the setup .exe below to install. Installed copies update themselves.
           releaseDraft: false
           prerelease: false
+      - name: Publish SHA-256 checksums so players can check a download is genuine
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="v$(node -p "require('./package.json').version")"
+          mkdir -p sums && gh release download "$tag" --repo "$GITHUB_REPOSITORY" --dir sums --pattern '*.exe' --pattern '*.zip' --pattern '*.msi'
+          (cd sums && sha256sum * > ../SHA256SUMS.txt) && cat SHA256SUMS.txt
+          gh release upload "$tag" SHA256SUMS.txt --repo "$GITHUB_REPOSITORY" --clobber
 
   mirror:
     needs: [new-version, windows]

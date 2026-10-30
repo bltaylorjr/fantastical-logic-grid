@@ -94,4 +94,5 @@ Not legal or tax advice; check anything you are unsure of with an accountant or 
 - **Taxes.** Payment services report payouts to the IRS (Form 1099-K) above their thresholds. Keep payouts in a separate bank account if you can, and keep the monthly statements.
 - **Sales tax.** Lemon Squeezy handles it. With Ko-fi and GitHub Sponsors tips you are the seller; sales of digital goods can owe sales tax in some states, which is another reason the paid unlock goes through Lemon Squeezy.
 - **Business.** You can sell as an individual (sole proprietor). An LLC separates personal and business money but has state fees.
+- **Refunds and chargebacks.** Before you turn on payments, follow [CHARGEBACKS.md](CHARGEBACKS.md): set the statement name and the free fraud checks in Stripe or PayPal, set a $3 minimum tip in Ko-fi, and learn the Refunded, Chargeback and Dispute evidence buttons under Admin > Supporters.
 - **Security.** The webhook secrets live only in Cloudflare as Secrets, never in the repo. Check that two-step sign-in is on for GitHub, Cloudflare, Google, Ko-fi and Lemon Squeezy.
