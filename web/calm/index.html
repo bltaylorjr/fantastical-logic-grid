@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en-US">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Logic Grid Calm</title>
+<meta name="description" content="A quiet, simple way to play The Fantastical Logic Grid: pick a difficulty, theme and size, and just solve.">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#F4F1EA">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="../icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="../icons/icon-192.png">
+<link rel="stylesheet" href="calm.css">
+<script type="module" src="calm.js"></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="bar">
+  <a class="brand" href="./" id="brand"><img src="../icons/icon.svg" alt="" width="28" height="28"><span>Logic Grid <b>Calm</b></span></a>
+  <button class="btn quiet" type="button" id="settings-btn" aria-haspopup="dialog">Settings</button>
+</header>
+
+<main id="main" tabindex="-1">
+  <!-- Home: start a puzzle, or pick one up again. -->
+  <div id="home">
+    <p class="lede">Choose a puzzle and take your time. Your place is saved as you go.</p>
+
+    <section class="card" id="continue" hidden aria-labelledby="continue-h">
+      <h2 id="continue-h">Pick up where you left off</h2>
+      <p id="continue-what"></p>
+      <button class="btn" type="button" id="continue-btn">Continue</button>
+    </section>
+
+    <section class="card" aria-labelledby="new-h">
+      <h2 id="new-h">New puzzle</h2>
+      <fieldset>
+        <legend>Difficulty</legend>
+        <div class="chips" id="tiers"></div>
+        <p class="hint-text" id="tier-about"></p>
+      </fieldset>
+      <div class="field">
+        <label for="theme">Theme</label>
+        <select id="theme"></select>
+        <p class="hint-text" id="theme-about"></p>
+      </div>
+      <fieldset>
+        <legend>Size</legend>
+        <div class="chips" id="sizes"></div>
+      </fieldset>
+      <p class="hint-text" id="size-about"></p>
+      <button class="btn big" type="button" id="start">Start puzzle</button>
+      <p class="status" id="gen-status" role="status"></p>
+      <p class="error" id="gen-error" role="alert" hidden></p>
+    </section>
+
+    <section class="card" aria-labelledby="saved-h">
+      <h2 id="saved-h">Your puzzles</h2>
+      <p class="hint-text" id="saved-empty">Puzzles you start are kept here on this device.</p>
+      <ul class="saved" id="saved"></ul>
+    </section>
+
+    <p class="foot">Looking for races, voices and badges? <a href="../">Open the full game</a>.</p>
+  </div>
+
+  <!-- Play: story, grid and clues. -->
+  <div id="play" hidden>
+    <div class="toolbar" role="toolbar" aria-label="Puzzle tools">
+      <button class="btn quiet" type="button" data-act="home">Back</button>
+      <span class="spacer"></span>
+      <button class="btn quiet" type="button" data-act="undo">Undo</button>
+      <button class="btn quiet" type="button" data-act="redo">Redo</button>
+      <button class="btn quiet" type="button" data-act="hint">Hint</button>
+      <button class="btn quiet" type="button" data-act="check">Check</button>
+      <button class="btn quiet" type="button" data-act="print">Print</button>
+      <button class="btn quiet" type="button" data-act="restart">Start over</button>
+    </div>
+
+    <h1 id="p-title" tabindex="-1"></h1>
+    <p class="meta" id="p-meta"></p>
+
+    <details class="card story" id="story" open>
+      <summary>The story</summary>
+      <div id="story-text"></div>
+    </details>
+
+    <div class="board">
+      <section class="card gridcard" aria-labelledby="grid-h">
+        <h2 id="grid-h" class="sr-only">Grid</h2>
+        <p class="hint-text legend">Tap a square once for <span class="sym-x" aria-hidden="true"></span> (not a match), twice for <span class="sym-o" aria-hidden="true"></span> (a match), and again to clear it. Keyboard: arrows to move, X, O, Delete.</p>
+        <div class="gridframe" id="gridframe"></div>
+        <div class="hintbox" id="hintbox" hidden></div>
+      </section>
+      <section class="card clues" aria-labelledby="clues-h">
+        <h2 id="clues-h">Clues</h2>
+        <p class="hint-text">Tick a clue off once you have used it.</p>
+        <ol id="clue-list"></ol>
+        <h2>Questions</h2>
+        <ol id="question-list"></ol>
+      </section>
+    </div>
+
+    <section class="card solved" id="solved" hidden tabindex="-1" aria-labelledby="solved-h">
+      <h2 id="solved-h">All done</h2>
+      <p id="ending"></p>
+      <ol id="answers"></ol>
+      <div class="row">
+        <button class="btn" type="button" id="again">Another puzzle like this</button>
+        <button class="btn quiet" type="button" data-act="home">Back to puzzles</button>
+      </div>
+    </section>
+  </div>
+</main>
+
+<div class="cellmenu" id="cellmenu" role="menu" aria-label="Mark this square" hidden>
+  <button type="button" role="menuitem" data-mark="X">X: not a match</button>
+  <button type="button" role="menuitem" data-mark="O">O: a match</button>
+  <button type="button" role="menuitem" data-mark="">Clear</button>
+</div>
+
+<dialog id="dlg-settings" aria-labelledby="settings-h">
+  <form method="dialog">
+    <h2 id="settings-h">Settings</h2>
+    <fieldset>
+      <legend>Colors</legend>
+      <div class="chips">
+        <label class="chip"><input type="radio" name="look" value="auto"><span>Match my device</span></label>
+        <label class="chip"><input type="radio" name="look" value="light"><span>Light</span></label>
+        <label class="chip"><input type="radio" name="look" value="dark"><span>Dark</span></label>
+        <label class="chip"><input type="radio" name="look" value="contrast"><span>High contrast</span></label>
+      </div>
+    </fieldset>
+    <fieldset>
+      <legend>Text size</legend>
+      <div class="chips">
+        <label class="chip"><input type="radio" name="text" value="1"><span>Normal</span></label>
+        <label class="chip"><input type="radio" name="text" value="1.15"><span>Large</span></label>
+        <label class="chip"><input type="radio" name="text" value="1.3"><span>Extra large</span></label>
+      </div>
+    </fieldset>
+    <label class="check"><input type="checkbox" id="set-autox"> Fill in the other Xs for me when I place an O</label>
+    <label class="check"><input type="checkbox" id="set-instant"> Show a mark that doesn't fit right away</label>
+    <div class="row"><button class="btn" value="close">Done</button></div>
+  </form>
+</dialog>
+
+<dialog id="dlg-confirm" aria-labelledby="confirm-h">
+  <form method="dialog">
+    <h2 id="confirm-h"></h2>
+    <p id="confirm-text"></p>
+    <div class="row"><button class="btn" value="yes" id="confirm-yes"></button><button class="btn quiet" value="no" id="confirm-no"></button></div>
+  </form>
+</dialog>
+
+<dialog id="dlg-print" aria-labelledby="print-h">
+  <form method="dialog">
+    <h2 id="print-h">Print this puzzle</h2>
+    <label class="check"><input type="checkbox" id="print-marks"> Include my marks</label>
+    <label class="check"><input type="checkbox" id="print-key"> Add the answer key on its own page</label>
+    <fieldset>
+      <legend>Paper</legend>
+      <div class="chips">
+        <label class="chip"><input type="radio" name="paper" value="letter" checked><span>Letter</span></label>
+        <label class="chip"><input type="radio" name="paper" value="A4"><span>A4</span></label>
+      </div>
+    </fieldset>
+    <p class="hint-text" id="print-note" hidden>Printing works in the installed app and on the website. It is turned off in this preview.</p>
+    <div class="row"><button class="btn" value="print" id="print-go">Print</button><button class="btn quiet" value="close">Cancel</button></div>
+  </form>
+</dialog>
+
+<div class="print-root" id="print-root"></div>
+<div class="sr-only" id="live" aria-live="polite"></div>
+<div class="toast" id="toast" role="status" hidden></div>
+</body>
+</html>

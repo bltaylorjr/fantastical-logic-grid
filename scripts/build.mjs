@@ -157,11 +157,22 @@ if (!indexHtml.includes('http-equiv="Content-Security-Policy"')) {
   if (!indexHtml.includes('Content-Security-Policy')) throw new Error('Could not add the security policy to index.html');
   writeFileSync(indexFile, indexHtml);
 }
+// Logic Grid Calm (web/calm/) gets the same policy, minus the sign-in and
+// release hosts it never talks to. It has no inline scripts.
+{
+  const calmFile = join(out, 'calm', 'index.html');
+  const calmHtml = readFileSync(calmFile, 'utf8');
+  if (/<script>/.test(calmHtml)) throw new Error('calm/index.html must not have inline scripts');
+  const calmCsp = CSP.replace(/script-src [^;]*/, "script-src 'self'").replace(/connect-src [^;]*/, `connect-src 'self' blob: data: ${cloudOrigins.join(' ')}`.trim());
+  const withCsp = calmHtml.replace(/(<meta charset="utf-8">)/, `$1\n<meta http-equiv="Content-Security-Policy" content="${calmCsp}">\n<meta name="referrer" content="strict-origin-when-cross-origin">`);
+  if (withCsp === calmHtml) throw new Error('Could not add the security policy to calm/index.html');
+  writeFileSync(calmFile, withCsp);
+}
 const files = [];
 const walk = (d) => { for (const n of readdirSync(d)) { const p = join(d, n); if (statSync(p).isDirectory()) walk(p); else files.push(relative(out, p).split('\\').join('/')); } };
 walk(out);
 // The Kokoro voice engine (about 28 MB) is cached when first used, not on install.
-const shell = ['./', ...files.filter((f) => f !== 'sw.js' && !f.endsWith('icon-1024.png') && !f.startsWith('icons/screens/') && !/^vendor\/(ort|kokoro)\//.test(f) && f !== 'kokoro-worker.js' && !f.startsWith('media/'))];
+const shell = ['./', 'calm/', ...files.filter((f) => f !== 'sw.js' && !f.endsWith('icon-1024.png') && !f.startsWith('icons/screens/') && !/^vendor\/(ort|kokoro)\//.test(f) && f !== 'kokoro-worker.js' && !f.startsWith('media/'))];
 const hash = createHash('sha256');
 for (const f of files.sort()) hash.update(f).update(readFileSync(join(out, f)));
 const version = hash.digest('hex').slice(0, 10);
