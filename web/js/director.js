@@ -1,24 +1,26 @@
-// Story beat director (EXPERIMENTAL, off unless switched on on this device).
+// Story beat director.
 //
 // While the player solves, it shows short story moments (engine/src/beats.js)
 // under the scene as grid sections are finished, and reads them aloud when
-// read-aloud is on. Later it will also tell the scene animation what to do.
+// read-aloud is on.
 //
-// Switch on for this device: open the game with ?beats=1 in the address.
-// Switch off again: ?beats=0. Players never see it unless they do this.
-// Silent mode always hides it.
+// On for everyone; Settings > "Story moments" turns it off (settings.storyBeats).
+// ?beats=0 or ?beats=1 in the address switches it for testing. Silent mode
+// always hides it.
 import { storyBeats } from '../engine/index.js';
 import * as store from './store.js';
 
 const KEY = 'storyBeats';
 
+let override = null;
 try {
   const flag = new URLSearchParams(location.search).get('beats');
-  if (flag === '1') store.setLocal(KEY, true);
-  else if (flag === '0') store.setLocal(KEY, undefined);
-} catch (e) { /* no address or storage: stays off */ }
+  if (flag === '1' || flag === '0') store.setLocal(KEY, flag === '1');
+  const v = store.getLocal(KEY);
+  if (v === true || v === false) override = v;
+} catch (e) { /* no address or storage */ }
 
-export const enabled = () => { try { return store.getLocal(KEY) === true; } catch (e) { return false; } };
+export const enabled = (settings) => (override !== null ? override : !settings || settings.storyBeats !== false);
 
 let beats = [];
 let shown = -1;      // sections done when the last beat was checked (-1 = not yet)
@@ -26,12 +28,12 @@ let box = null;
 let speakFn = null;
 
 // A new or reopened puzzle. `speak(text)` reads a beat aloud (or does nothing).
-export function start(puzzle, { silent = false, speak = null } = {}) {
+export function start(puzzle, { on = true, speak = null } = {}) {
   beats = [];
   shown = -1;
   speakFn = speak;
   if (box) { box.remove(); box = null; }
-  if (!enabled() || silent) return;
+  if (!on) return;
   try { beats = storyBeats(puzzle); } catch (e) { console.warn('Story beats not made:', e.message); return; }
   const scene = document.getElementById('scene');
   if (!scene || !beats.length) return;

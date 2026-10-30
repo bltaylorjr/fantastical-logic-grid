@@ -2,8 +2,8 @@
 // one after another as grid sections are finished. They move the story along
 // between the opening (shown at the start) and the ending (shown on solve).
 //
-// EXPERIMENTAL: the game only shows beats when they are switched on for the
-// player (web/js/director.js). Generated puzzles do not change: beats are
+// Players can turn beats off in Settings (web/js/director.js). Generated
+// puzzles do not change: beats are
 // worked out from a finished puzzle, so the same puzzle always gets the same
 // beats.
 //
@@ -22,19 +22,25 @@
 import { hashString } from './rng.js';
 
 export const BEATS = {
-  // Placeholder lines so the feature can be tested. Replace or add to them.
+  // Lines for every theme. A theme can have its own lists (see mystery below).
   default: {
     early: [
-      'The first pieces fall into place. Somewhere, a door creaks.',
-      '{name} looks around the room, as if counting who is still here.',
+      'The first pieces fall into place. {name} seems to relax, just a little.',
+      '{name} looks around, as if counting who is still here.',
+      'A few facts are settled. The {many} trade quick glances.',
+      '{name} starts to say something, then thinks better of it.',
     ],
     middle: [
       'Halfway there. The {many} start to watch each other more closely.',
       '{name} clears their throat and changes the subject, a little too fast.',
+      'The story is coming together. {name} leans in to listen.',
+      'Someone laughs a bit too loudly. {name} does not join in.',
     ],
     late: [
-      'Only one part of the puzzle is left. Everyone goes quiet.',
+      'Only one part is left. Everyone goes quiet.',
       'The {many} gather together. The answer is close now.',
+      '{name} holds their breath. One last piece to place.',
+      'All eyes turn to you. Just one more part to go.',
     ],
   },
   // Bobby's beats for the Mystery theme go here.

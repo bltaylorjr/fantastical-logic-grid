@@ -679,3 +679,18 @@ export function pictureClue(puzzle, pictures = PICTURES) {
   const locked = used.length ? used[Math.floor(used.length / 2)] : puzzle.clues[Math.floor(puzzle.clues.length / 2)].number;
   return { picture, clues: lineClues(picture.rows), locked };
 }
+
+// Printed version of a picture clue (game printouts and storyline PDFs).
+// The puzzle page shows the empty picture puzzle with its numbers and the
+// locked clue printed upside down underneath, to read once the picture is
+// drawn. The answer key shows the finished picture. Styles: .pic-print*.
+const escHtml = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+export function picturePrintHtml(pc, clueText, { answer = false } = {}) {
+  const { rows, cols } = pc.clues;
+  const W = cols.length;
+  const head = cols.map((c) => `<th>${(c.length ? c : [0]).join('<br>')}</th>`).join('');
+  const body = rows.map((r, y) => `<tr><th>${(r.length ? r : [0]).join(' ')}</th>${Array.from({ length: W }, (_, x) => `<td${answer && pc.picture.rows[y][x] === '#' ? ' class="f"' : ''}></td>`).join('')}</tr>`).join('');
+  const table = `<table class="pic-print"><thead><tr><td></td>${head}</tr></thead><tbody>${body}</tbody></table>`;
+  if (answer) return `<div class="pic-print-box"><h2>The evidence</h2><p>Clue ${pc.locked}'s picture is ${escHtml(pc.picture.name)}.</p>${table}</div>`;
+  return `<div class="pic-print-box"><h2>Locked evidence</h2><p>Clue ${pc.locked} is locked. Fill in the squares to uncover the evidence: the numbers tell you how many filled squares sit together in each row and column, in order. Then turn the page around to read the clue.</p>${table}<p class="pic-print-flip">Clue ${pc.locked}: ${escHtml(clueText)}</p></div>`;
+}

@@ -1,6 +1,7 @@
 // Print layout: black-and-white safe puzzle pages, and the answer key on its own page.
 import { esc, puzzleIndex } from './grid.js';
 import { settle } from './i18n.js';
+import { picturePrintHtml } from '../engine/index.js';
 
 // Page width in points, minus margins, for sizing grid cells.
 const PAGE_WIDTH_PT = { letter: 612 - 72, A4: 595 - 72 };
@@ -29,7 +30,8 @@ function gridTable(puzzle, ix, stateOf, cellPt) {
   return `${h}</tbody></table>`;
 }
 
-// options: { withMarks, answerKey, steps, paper, marks: Map, myNotes, supportLine }
+// options: { withMarks, answerKey, steps, paper, marks: Map, myNotes, supportLine, picture }
+// picture: the picture clue ({ locked, picture, clues, solved }) when picture clues are on.
 export function buildPrint(puzzle, options) {
   const ix = puzzleIndex(puzzle);
   const { N, K } = ix;
@@ -44,7 +46,10 @@ export function buildPrint(puzzle, options) {
 
   const story = `<h2>The story</h2>${puzzle.story.paragraphs.map((p) => `<p>${esc(p)}</p>`).join('')}`;
   const grid = gridTable(puzzle, ix, state, cellPt);
-  const clues = `<h2>Clues</h2><ol>${puzzle.clues.map((c) => `<li>${esc(c.text)}</li>`).join('')}</ol>`;
+  // A locked clue prints as a picture puzzle, with the clue upside down under it.
+  const pic = options.picture && !(options.picture.solved && options.withMarks) ? options.picture : null;
+  const lockedText = pic ? (puzzle.clues.find((c) => c.number === pic.locked) || {}).text || '' : '';
+  const clues = `<h2>Clues</h2><ol>${puzzle.clues.map((c) => `<li>${pic && c.number === pic.locked ? '<i>Locked evidence: solve the picture puzzle to read this clue.</i>' : esc(c.text)}</li>`).join('')}</ol>${pic ? picturePrintHtml(pic, lockedText) : ''}`;
   const myNotes = (options.myNotes || '').trim() ? `<h2>My notes</h2><p class="pnotes" translate="no">${esc(options.myNotes.trim())}</p>` : '';
   // One short line at the bottom of the puzzle, only once support asks are on (support.js).
   const supportLine = options.supportLine ? `<p class="psupport" translate="no">${esc(options.supportLine)}</p>` : '';
@@ -52,7 +57,7 @@ export function buildPrint(puzzle, options) {
 
   // Small puzzles fit on one page; otherwise the grid goes on page 1 and the clues on page 2.
   const gridHeightPt = (K - 1) * N * cellPt + labelPt;
-  const fitsOnePage = gridHeightPt + puzzle.clues.length * 16 + puzzle.story.paragraphs.length * 40 < 620;
+  const fitsOnePage = gridHeightPt + puzzle.clues.length * 16 + puzzle.story.paragraphs.length * 40 + (pic ? 220 : 0) < 620;
   let html = fitsOnePage
     ? `<section class="pp">${head()}${story}${grid}${clues}${questions}</section>`
     : `<section class="pp">${head()}${story}${grid}</section><section class="pp">${head(' (continued)')}${clues}${questions}</section>`;
@@ -66,7 +71,7 @@ export function buildPrint(puzzle, options) {
     const table = `<table class="ptab"><thead><tr>${puzzle.answerKey.columns.map((c) => `<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>${puzzle.answerKey.rows.map((r) => `<tr>${r.map((v) => `<td>${esc(v)}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
     const answers = `<h2>Questions</h2><ol>${puzzle.answerKey.questions.map((q) => `<li>${esc(q.question)} <b>${esc(q.answer)}</b></li>`).join('')}</ol>`;
     const steps = options.steps ? `<h2>Step by step</h2><ol class="psteps">${puzzle.solvePath.map((s) => `<li>${esc(s.explanation)}</li>`).join('')}</ol>` : '';
-    html += `<section class="pp"><h1>Answer key</h1><p class="pmeta">${esc(puzzle.title)} · ${meta}</p>${gridTable(puzzle, ix, solvedState, cellPt)}<h2>Solution</h2>${table}${answers}<h2>How it ends</h2><p>${esc(puzzle.story.ending)}</p>${steps}</section>`;
+    html += `<section class="pp"><h1>Answer key</h1><p class="pmeta">${esc(puzzle.title)} · ${meta}</p>${gridTable(puzzle, ix, solvedState, cellPt)}<h2>Solution</h2>${table}${answers}${pic ? picturePrintHtml(pic, lockedText, { answer: true }) : ''}<h2>How it ends</h2><p>${esc(puzzle.story.ending)}</p>${steps}</section>`;
   }
   return html;
 }
