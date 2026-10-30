@@ -156,8 +156,10 @@ const SHOTS = process.env.SHOTS;
     await page.click('[data-view="details"] a[href="#overview"]');
     await page.waitForSelector('[data-view="overview"]:not([hidden]) a.tile');
     assert((await page.inputValue('#ov-days')) === '7', 'the period carries back to the Overview');
+    // The 7-day cards stay on screen until the 30-day numbers arrive and redraw them.
+    await page.evaluate(() => { document.querySelector('#ov-body a.tile[href="#details/games"]').dataset.stale = '1'; });
     await page.selectOption('#ov-days', '30');
-    await page.waitForSelector('#ov-body a.tile[href="#details/games"]');
+    await page.waitForFunction(() => { const t = document.querySelector('#ov-body a.tile[href="#details/games"]'); return t && !t.dataset.stale; });
     await page.focus('#ov-body a.tile[href="#details/games"]');
     await page.keyboard.press('Enter');
     await page.waitForFunction(() => document.querySelector('#h-details').textContent === 'Games finished' && /Day by day/.test(document.querySelector('#dt-body').textContent));

@@ -14,6 +14,10 @@ import { makeLanguage, clueText } from './language.js';
 import { buildStory, buildQuestions } from './story.js';
 import { orderItems } from './order.js';
 import { customWorld, customStory } from './classroom.js';
+// The grid's shape lives in layout.js so the page can use it without loading
+// the story library; it is still exported from here as before.
+import { gridLayout } from './layout.js';
+export { gridLayout };
 
 export const ENGINE_NAME = 'The Fantastical Logic Grid';
 export const ENGINE_VERSION = '1.0.0';
@@ -314,20 +318,6 @@ function finalize(o, best, elapsedMs) {
     },
     notes,
   };
-}
-
-// Standard staircase layout: every pair of categories appears exactly once.
-// Columns: categories 1..K-1. Rows: category 0, then K-1 down to 2.
-export function gridLayout(cats) {
-  const K = cats.length;
-  const columns = cats.slice(1).map((c) => c.id);
-  const rowIdx = [0, ...Array.from({ length: K - 2 }, (_, i) => K - 1 - i)];
-  const rows = rowIdx.map((i) => cats[i].id);
-  const blocks = [];
-  rowIdx.forEach((r, ri) => {
-    for (let c = 1; c <= K - 1 - ri; c++) blocks.push({ row: cats[r].id, column: cats[c].id });
-  });
-  return { columns, rows, blocks };
 }
 
 // Part preferences are kept per story key; a theme's own entry (player-added

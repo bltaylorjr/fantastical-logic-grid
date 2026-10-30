@@ -1,5 +1,8 @@
 // The Fantastical Logic Grid: app controller (setup, play, saves, hints, print).
-import { describeOptions, checkMarks, isSolved, checkAnswers } from '../engine/index.js';
+// Only the light parts of the engine load on the page; the story library
+// stays in the puzzle writer (worker.js). options.js is written by the build.
+import { checkMarks, isSolved, checkAnswers } from '../engine/play.js';
+import { OPTIONS } from '../engine/options.js';
 import * as engine from './engine-client.js';
 import * as store from './store.js';
 import { createGrid, puzzleIndex, esc, STATE_WORDS } from './grid.js';
@@ -52,7 +55,6 @@ campaign.init();
 countVisit(signedIn());
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
-const OPTIONS = describeOptions();
 const TIERS = Object.fromEntries(OPTIONS.difficulties.map((d) => [d.id, d]));
 const TIER_IDS = OPTIONS.difficulties.map((d) => d.id);
 const MINUTES_PER_CELL = { basic: 0.12, easy: 0.16, medium: 0.22, hard: 0.3, expert: 0.36, mensa: 0.42, theorist: 0.63 };
@@ -2755,8 +2757,18 @@ async function init() {
   // Heavy extras wait until the first screen is drawn and the page is idle, so
   // they never slow the first load: the DiceBear faces, then the natural voices
   // (a 90 MB download the first time, read from the browser's cache after that).
+  // The first download also waits for the player's first tap, click or key, so
+  // a visit that only looks (or a speed test) never pulls 90 MB.
   afterLoad(() => loadPortraits().catch(() => {}), 500);
-  if (!isPreview) afterLoad(ensureNaturalVoices, settings.kokoroReady ? 1500 : 8000);
+  if (!isPreview) {
+    if (settings.kokoroReady) afterLoad(ensureNaturalVoices, 1500);
+    else afterFirstUse(() => afterLoad(ensureNaturalVoices, 8000));
+  }
+}
+function afterFirstUse(fn) {
+  const kinds = ['pointerdown', 'keydown'];
+  const once = () => { kinds.forEach((k) => window.removeEventListener(k, once, true)); fn(); };
+  kinds.forEach((k) => window.addEventListener(k, once, { capture: true, passive: true }));
 }
 function afterLoad(fn, delay) {
   const go = () => setTimeout(() => (window.requestIdleCallback || setTimeout)(fn, { timeout: 4000 }), delay);
