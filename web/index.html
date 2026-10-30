@@ -66,6 +66,11 @@
       <ol id="miniboard-list"></ol>
       <button class="btn quiet small" type="button" id="miniboard-open">Scoreboard</button>
     </section>
+    <!-- Grid or List, in the sticky bar so it never scrolls away while a puzzle is open. -->
+    <div class="seg view-seg" id="view-seg" role="radiogroup" aria-label="Show the puzzle as" hidden>
+      <label title="Grid view"><input type="radio" name="view" value="grid" checked><span><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/></svg><span class="seg-text">Grid</span></span></label>
+      <label title="List view"><input type="radio" name="view" value="list"><span><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h.01M3 12h.01M3 19h.01M8 5h13M8 12h13M8 19h13"/></svg><span class="seg-text">List</span></span></label>
+    </div>
   </div>
 </header>
 
@@ -260,10 +265,6 @@
     <section class="card grid-card" id="grid-region" tabindex="-1" aria-labelledby="grid-h">
       <div class="grid-head">
         <h2 id="grid-h">The grid</h2>
-        <div class="seg" role="radiogroup" aria-label="Grid view">
-          <label><input type="radio" name="view" value="grid" checked><span>Grid</span></label>
-          <label><input type="radio" name="view" value="list"><span>List</span></label>
-        </div>
       </div>
       <div class="coach" id="coach" hidden>
         <p id="coach-text"></p>
