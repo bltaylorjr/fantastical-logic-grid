@@ -2,9 +2,9 @@
 
 The full health check on October 28 found the game ready to launch. The
 website, game, API, database and Windows app are all up, every automatic test
-passes, and no player has hit an error in the last two days. Fixes from the
-check (a faster home page, the Connections status report, a keyboard guard in
-the tutorial and the security alerts in build tools) are in pull request #149.
+passes, and no player has hit an error in recent days. The fixes it found (a
+faster home page, the security alerts in build tools, the Connections status
+report and a keyboard guard in the tutorial) are all in the game now.
 
 The website is already public at https://thelogicgrid.com, and the approved
 ads start posting on Monday, November 2, as planned. These are the launch steps
@@ -37,17 +37,16 @@ So you have seen launch-day behaviour with your own eyes.
 
 ## 5. Decide which sites the ads post to by themselves
 
-The Connections report now works, and it shows the Facebook Page keys are set
-but no keys for Bluesky, Mastodon, X, Instagram or Threads. That's fine: on
-each ad's day, ads for those sites are emailed to you ready to paste. If you
-want any of them to post by themselves, follow its steps in the admin
-dashboard under **Connections and setup > Marketing autopilot**.
+The admin dashboard's **Connections and setup > Marketing autopilot** page
+now shows which sites have their keys set. For any site without keys, each
+ad is emailed to you on its day, ready to paste. If you want a site to post by
+itself, follow its steps on that page.
 
 ## 6. Android (only when you are ready)
 
 The Android signing secrets `ANDROID_KEYSTORE_BASE64` and
-`ANDROID_KEYSTORE_PASSWORD` are not in GitHub yet, so Android builds are not
-signed for the store. The steps are in the earlier email "To do: Add the 2
+`ANDROID_KEYSTORE_PASSWORD` were not in GitHub on October 28; until they are,
+Android builds are not signed for the store. The steps are in the earlier email "To do: Add the 2
 Android signing secrets". Publishing on Google Play has a one-time **$25** fee, which
 needs your OK first.
 
