@@ -13,7 +13,8 @@ since yesterday means no email.
 The repository is public, so its Actions logs are too: this prints counts
 only, never what players wrote. With PUBLIC_KEY (a base64 RSA public key in
 PEM form) it also prints everything it fetched encrypted to that key, so a
-triage session holding the private key can read the details from the log.
+triage session holding the private key can read the details from the log,
+including the Error tracking reports still waiting for a fix in the code.
 
 Needs: FLG_CLOUD_URL, FLG_ADMIN_TOKEN, and to email: GMAIL_USER,
 GMAIL_APP_PASSWORD, REPORTS_TO or ARCHIVE_TO. TEST=true emails even when
@@ -176,7 +177,15 @@ def main():
     problems = get('/admin/v1/feedback?kind=problem&status=all').get('items', [])
     ideas = get('/admin/v1/feedback?kind=idea&status=all').get('items', [])
     if PUBLIC_KEY:
-        print_encrypted({'errors': errors, 'problems': problems, 'ideas': ideas})
+        # The Error tracking reports the puzzle doctor could not repair by
+        # itself, for the doctor's code-fix task (server/PUZZLE-REPORTS.md).
+        waiting = []
+        for status in ('needs_fix', 'page', 'manual', 'no_fault'):
+            waiting += get(f'/admin/v1/error-tracking?status={status}').get('reports', [])
+        # The puzzles themselves for the ones the puzzle maker gets wrong, to reproduce them.
+        for r in [w for w in waiting if w.get('status') == 'needs_fix' and w.get('hasPuzzle')][:10]:
+            r['puzzle'] = get(f'/admin/v1/puzzle-reports/{int(r["id"])}/puzzle').get('save', {}).get('puzzle')
+        print_encrypted({'errors': errors, 'problems': problems, 'ideas': ideas, 'waiting': waiting})
 
     since_day = (datetime.now(timezone.utc) - timedelta(days=1)).strftime('%Y-%m-%d')
     since_ms = time.time() * 1000 - DAY_MS - 3600_000  # a little overlap with yesterday's run

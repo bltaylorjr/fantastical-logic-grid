@@ -26,7 +26,7 @@ if (!API || !TOKEN) {
   console.log('The puzzle doctor is not set up yet (needs FLG_CLOUD_URL and FLG_ADMIN_TOKEN). See server/PUZZLE-REPORTS.md.');
 } else {
   let rounds = 0;
-  const total = { examined: 0, repaired: 0, needsFix: 0, noFault: 0, display: 0, emailed: 0, probed: 0, requeued: 0 };
+  const total = { examined: 0, repaired: 0, needsFix: 0, noFault: 0, display: 0, emailed: 0, probed: 0, requeued: 0, closed: 0 };
   const salt = new Date().toISOString().slice(0, 13);
   // A few rounds of up to 5, so a busy day is cleared quickly. The first round
   // also runs the self-diagnosis probes the Worker asks for.
@@ -39,9 +39,9 @@ if (!API || !TOKEN) {
     });
     const done = await call('puzzle-reports/done', { results, probes: probeResults });
     total.examined += reports.length;
-    for (const k of ['repaired', 'needsFix', 'noFault', 'display', 'emailed', 'probed', 'requeued']) total[k] += done[k] || 0;
+    for (const k of ['repaired', 'needsFix', 'noFault', 'display', 'emailed', 'probed', 'requeued', 'closed']) total[k] += done[k] || 0;
     if (!reports.length) break;
   }
   console.log(`Examined ${total.examined}: ${total.repaired} repaired (${total.emailed} emails queued), ${total.needsFix} need a fix in the code, `
-    + `${total.noFault} with no fault in the puzzle (${total.display} likely display problems). Self-checks: ${total.probed} known faults probed, ${total.requeued} reports sent back for repair.`);
+    + `${total.noFault} with no fault in the puzzle (${total.display} likely display problems), ${total.closed} closed by a code fix. Self-checks: ${total.probed} known faults probed, ${total.requeued} reports sent back for repair.`);
 }
