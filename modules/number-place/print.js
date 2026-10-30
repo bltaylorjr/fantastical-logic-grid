@@ -1,11 +1,11 @@
 // Printable pages for a Number Place puzzle: blank or with the player's
 // numbers, Letter or A4, an answer key on its own page, and the step-by-step
 // solution for the smaller levels. Returns HTML; the host prints it.
-const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const cellName = (N, c) => `row ${Math.floor(c / N) + 1}, column ${(c % N) + 1}`;
 
 function table(p, values, given) {
-  const N = p.size, [br, bc] = p.box;
+  const N = Number(p.size), br = Number(p.box[0]), bc = Number(p.box[1]);
   let rows = '';
   for (let r = 0; r < N; r++) {
     rows += '<tr>';
@@ -38,7 +38,7 @@ export function printableHtml(game, { marks = false, paper = 'letter', answers =
     ol.steps { font-size: 10pt; columns: 2; column-gap: 8mm; padding-left: 6mm; } ol.steps li { break-inside: avoid; margin-bottom: 1.5mm; }
     @media print { * { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
   </style><body>`;
-  html += `<section class="page"><h1>${esc(title)}</h1><p class="meta">Number Place · ${esc(p.difficulty.name)} · ${p.size}×${p.size}${game.daily ? ` · Daily ${esc(game.daily)}` : ''}</p>`;
+  html += `<section class="page"><h1>${esc(title)}</h1><p class="meta">Number Place · ${esc(p.difficulty.name)} · ${Number(p.size)}×${Number(p.size)}${game.daily ? ` · Daily ${esc(game.daily)}` : ''}</p>`;
   if (p.story?.intro) html += `<p class="intro">${esc(p.story.intro)}</p>`;
   html += `<ul>${p.rules.map((r) => `<li>${esc(r)}</li>`).join('')}</ul>${table(p, values, p.givens)}</section>`;
   if (answers) html += `<section class="page"><h2>Answer key</h2>${table(p, p.solution, p.givens)}${p.story?.ending ? `<p class="intro" style="margin-top:5mm">${esc(p.story.ending)}</p>` : ''}</section>`;
