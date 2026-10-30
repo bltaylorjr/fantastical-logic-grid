@@ -90,6 +90,9 @@ jobs:
           # The installer first, then latest.json, so the updater never points at a file that is not there yet.
           gh release upload "$TAG" "$SETUP" --repo "$GITHUB_REPOSITORY" --clobber
           gh release upload "$TAG" latest.json --repo "$GITHUB_REPOSITORY" --clobber
+          # Checksums so anyone can check the installer is the genuine one.
+          sha256sum "$SETUP" > SHA256SUMS-admin.txt && cat SHA256SUMS-admin.txt
+          gh release upload "$TAG" SHA256SUMS-admin.txt --repo "$GITHUB_REPOSITORY" --clobber
       - uses: actions/upload-artifact@v4
         with:
           name: admin-windows-installer

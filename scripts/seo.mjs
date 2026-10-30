@@ -24,10 +24,19 @@ import { educatorsBody, EDUCATORS_CSS } from './educators-page.mjs';
 const PAGE_CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self'; object-src 'none'; frame-src 'none'; base-uri 'self'; form-action 'self'";
 
 export const INDEXNOW_KEY = process.env.FLG_INDEXNOW_KEY || 'fae88a004ad87116c0e93df007b2de7e';
+// The game's social pages (web/js/social.js): the links set in the admin
+// dashboard (Settings and switches > Social links), read at build time.
+const socialPages = await import(new URL('../web/js/social.js', import.meta.url).href);
 // The first daily puzzle. Every later day is checked against all earlier days,
 // so a daily story is never used twice.
 const DAILY_START = '2026-10-25';
 const DAILY_ARCHIVE_DAYS = 30;
+// The first puzzle of the week (a Monday): a bigger Expert puzzle, emailed to
+// the weekly list (server/src/puzzle-mail.js). Weekly and special edition
+// stories come from the same chain as the daily ones, so none is ever reused.
+const WEEKLY_START = '2026-11-02';
+const WEEKLY_TIER = 'expert';
+const WEEKLY_ARCHIVE = 8;
 // Days ahead the admin dashboard's daily planner can preview.
 const DAILY_AHEAD_DAYS = 14;
 // How many puzzles the Hand-picked collection shows.
@@ -76,6 +85,39 @@ async function readDailyPlan(base) {
   if (process.env.FLG_DAILY_PLAN_REQUIRED === '1') throw new Error('The daily puzzle plan could not be read, so the site was not rebuilt (past daily puzzles must not change).');
   return new Map();
 }
+// Special edition puzzles planned in the admin dashboard (server/src/editions.js).
+// Like the daily plan: the Worker first, then the copy the live site
+// published, and with FLG_DAILY_PLAN_REQUIRED=1 no rebuild without one of them,
+// because a missing edition would change the stories of later days.
+async function readSpecials(base) {
+  const get = async (u) => {
+    const res = await fetch(u, { signal: AbortSignal.timeout(15000) });
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error(`${u} answered ${res.status}`);
+    const body = await res.json();
+    if (!Array.isArray(body.specials)) throw new Error(`${u} has no special editions`);
+    return body.specials;
+  };
+  const sources = [process.env.FLG_CLOUD_URL && `${process.env.FLG_CLOUD_URL.replace(/\/+$/, '')}/v1/specials`, `${base}/specials/list.json`].filter(Boolean);
+  let missing = 0;
+  for (const u of sources) {
+    try {
+      const rows = await get(u);
+      if (!rows) { missing++; continue; }
+      // Only the known fields, checked, so nothing else from the network is kept or written.
+      const str = (v, max) => String(v ?? '').slice(0, max);
+      const num = (v) => (Number.isInteger(v) && v >= 3 && v <= 8 ? v : null);
+      return rows.filter((r) => r && /^\d{4}-\d{2}-\d{2}$/.test(r.date) && /^se-[\w-]{1,40}$/.test(r.id) && r.title)
+        .map((r) => ({ id: r.id, date: r.date, title: str(r.title, 80), note: str(r.note, 400), theme: r.theme ? str(r.theme, 40) : null, difficulty: r.difficulty ? str(r.difficulty, 20) : null, categories: num(r.categories), items: num(r.items) }))
+        .sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
+    } catch (e) { console.warn(`Special editions: ${e.message}`); }
+  }
+  // Both answered "not found": no editions yet (before the first one is planned).
+  if (missing === sources.length) return [];
+  if (process.env.FLG_DAILY_PLAN_REQUIRED === '1') throw new Error('The special edition list could not be read, so the site was not rebuilt (past puzzles must not change).');
+  return [];
+}
+
 // Ratings and the best-rated daily puzzles (server/src/quality.js), for the
 // Hand-picked page and the line at the foot of every page. If the Worker
 // cannot be reached, the copy the live site published last time is used.
@@ -92,6 +134,39 @@ async function readQuality(base) {
     } catch (e) { console.warn(`Ratings: ${e.message}`); }
   }
   return { rating: null, daily: [], handPicked: [] };
+}
+// The game's social pages for the footer and the Organization's sameAs, from
+// the Worker's public config. If it cannot be reached, the launch defaults.
+async function readSocial() {
+  const cloud = (process.env.FLG_CLOUD_URL || '').replace(/\/+$/, '');
+  if (cloud) {
+    try {
+      const res = await fetch(`${cloud}/v1/config`, { signal: AbortSignal.timeout(15000) });
+      if (!res.ok) throw new Error(`answered ${res.status}`);
+      const body = await res.json();
+      if (Array.isArray(body.social)) return socialPages.socialLinks(Object.fromEntries(body.social.map((s) => [s.id, s.url])));
+    } catch (e) { console.warn(`Social links: ${e.message}`); }
+  }
+  return socialPages.socialLinks(socialPages.DEFAULT_LINKS);
+}
+// Puzzles the live site already published, so past days never change when
+// the engine gains new topics, story parts or levels: a day (or week, or
+// special edition) that is already out is kept exactly as published. Missing
+// ones (a first build, or the site unreachable) are built from their seed.
+async function readPublished(base, paths) {
+  const out = new Map();
+  const list = [...paths];
+  for (let i = 0; i < list.length; i += 20) {
+    await Promise.all(list.slice(i, i + 20).map(async (path) => {
+      try {
+        const res = await fetch(`${base}/${path}`, { signal: AbortSignal.timeout(15000) });
+        if (!res.ok) return;
+        const body = await res.json();
+        if (body && body.puzzle && body.puzzle.story && Array.isArray(body.puzzle.clues)) out.set(path, body.puzzle);
+      } catch (e) { /* built from its seed instead */ }
+    }));
+  }
+  return out;
 }
 const longDate = (s) => new Date(`${s}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
 
@@ -135,6 +210,7 @@ export async function buildSeo({ root, site }) {
   const name = 'The Fantastical Logic Grid';
   const pages = []; // { path, lastmod, priority }
   const quality = await readQuality(base);
+  const socialList = await readSocial();
 
   // ---------- shared layout ----------
   const verification = [
@@ -163,6 +239,7 @@ export async function buildSeo({ root, site }) {
   const year = Number(today.slice(0, 4));
   const owner = 'Bobby Taylor';
   const copyright = `© 2026${year > 2026 ? `–${year}` : ''} ${owner}. All rights reserved.`;
+  const trademark = `${name}™ is a trademark of ${owner}.`;
   const tdmMeta = `<meta name="tdm-reservation" content="1">\n<meta name="tdm-policy" content="${url('terms/')}">`;
   const NAV = [['how-to-play/', 'How to play'], ['daily/', 'Daily puzzle'], ['printables/', 'Printables'], ['themes/', 'Themes'], ['difficulty-levels/', 'Difficulty levels'], ['educators/', 'For educators']];
   // Search results show about 60 characters of a title and 160 of a
@@ -201,6 +278,7 @@ ${verification}
 <link rel="preload" href="${up}fonts/cinzel-700.woff2" as="font" type="font/woff2" crossorigin>
 <style>${css.replaceAll('url(fonts/', `url(${up}fonts/`)}${style}</style>
 <script type="module" src="${up}js/page-visit.js"></script>
+<script type="module" src="${up}js/site-report.js"></script>
 ${script ? `<script type="module" src="${script}"></script>` : ''}
 ${[breadcrumb, ...schema].map((s) => `<script type="application/ld+json">${json(checkVideos(s, path))}</script>`).join('\n')}
 </head>
@@ -221,7 +299,9 @@ ${body(up)}
   <p><a href="${up}">Play ${name}</a> · free in your browser, offline-ready, and on Windows.</p>
   <p>Every puzzle has exactly one answer, checked by our solver${quality.rating ? `, and players rate them ${quality.rating.average} out of 5 stars` : ''}. <a href="${up}picks/">Hand-picked puzzles</a></p>
   <p>${NAV.map(([p, n]) => `<a href="${up}${p}">${n}</a>`).join(' · ')} · <a href="${up}privacy/">Privacy</a></p>
-  <p class="muted">${copyright} <a href="${up}terms/">Terms of use</a></p>
+  ${socialList.length ? `<div class="foot-social"><p>Follow the game</p>${socialPages.socialHtml(socialList)}</div>` : ''}
+  <p><button class="btn quiet report-btn" type="button" data-report-problem hidden>Report a Problem</button></p>
+  <p class="muted">${copyright} ${trademark} <a href="${up}terms/">Terms of use</a></p>
 </footer>
 </body>
 </html>
@@ -258,7 +338,8 @@ ${body(up)}
     trailer: video,
     copyrightHolder: { '@type': 'Person', name: owner }, copyrightYear: 2026,
   };
-  const publisher = { '@type': 'Organization', name, url: url(''), logo: { '@type': 'ImageObject', url: url('icons/icon-512.png') } };
+  const publisher = { '@type': 'Organization', name, url: url(''), logo: { '@type': 'ImageObject', url: url('icons/icon-512.png') }, sameAs: socialList.map((s) => s.url),
+    email: 'support@thelogicgrid.com', contactPoint: { '@type': 'ContactPoint', contactType: 'customer support', email: 'support@thelogicgrid.com', availableLanguage: 'en' } };
   game.publisher = publisher;
   const website = { '@context': 'https://schema.org', '@type': 'WebSite', name, url: url(''), description: appDescription, inLanguage: 'en', publisher };
   const head = `<meta name="description" content="${esc(appDescription)}">
@@ -290,7 +371,7 @@ ${verification}
     ['Are the stories ever repeated?', 'No. Every puzzle has a brand new story, built from the theme, topic and size you pick, and the game never gives you the same story twice.'],
     ['Can I save, resume or print a puzzle?', 'Yes. Your progress saves automatically, so you can come back any time from Saved puzzles. You can print any puzzle, blank or with your marks, with the answer key on its own page.'],
     ['Does it work offline?', 'Yes. After your first visit the game works without an internet connection, and you can install it from your browser like an app.'],
-    ['How hard are the puzzles?', `There are ${Object.keys(TIERS).length} difficulty levels, from Basic for beginners to Quantum Physicist for true masterminds. Each level adds categories, items and harder kinds of clues.`],
+    ['How hard are the puzzles?', `There are ${Object.keys(TIERS).length} difficulty levels, from Basic for beginners to Theoretical Physicist for the best of the best. Each level adds categories, items and harder kinds of clues.`],
     ['Is it accessible?', 'The game works fully by keyboard and with a screen reader, has a List view instead of the grid, light, dark and high-contrast colors, captions on the video, and a Silent mode with no pictures, sound or animation.'],
   ];
   page({
@@ -338,7 +419,7 @@ ${playBtn(up, 'Start a new case')}`,
   const tiers = Object.values(TIERS).sort((a, b) => a.order - b.order);
   page({
     path: 'difficulty-levels/', priority: 0.7,
-    title: `Logic puzzle difficulty levels, from Basic to Quantum Physicist | ${name}`,
+    title: `Logic puzzle difficulty levels, from Basic to Theoretical Physicist | ${name}`,
     description: `${tiers.length} difficulty levels of logic grid puzzles: ${tiers.map((t) => t.name).join(', ')}. See the grid sizes and the kinds of clues each level uses.`,
     crumbs: [['difficulty-levels/', 'Difficulty levels']],
     schema: [{ '@context': 'https://schema.org', '@type': 'ItemList', name: 'Logic puzzle difficulty levels', numberOfItems: tiers.length, itemListElement: tiers.map((t, i) => ({ '@type': 'ListItem', position: i + 1, name: t.name, description: t.summary })) }],
@@ -347,7 +428,7 @@ ${playBtn(up, 'Start a new case')}`,
 <div class="table-wrap"><table>
 <caption>The ${tiers.length} levels</caption>
 <thead><tr><th scope="col">Level</th><th scope="col">Grid size</th><th scope="col">Kinds of clues</th></tr></thead>
-<tbody>${tiers.map((t) => `<tr><th scope="row">${esc(t.name)}</th><td>${esc(t.summary.split(',').slice(0, 2).join(','))}</td><td>${Object.keys(t.weights).map((k) => esc(CLUE_TYPES[k] || k)).join(', ')}</td></tr>`).join('')}</tbody>
+<tbody>${tiers.map((t) => `<tr><th scope="row">${PRINT_LEVELS.some((l) => l.tier === t.id) ? `<a href="${up}printables/${t.id}/" title="Free printable ${esc(t.name.toLowerCase())} worksheet">${esc(t.name)}</a>` : esc(t.name)}</th><td>${esc(t.summary.split(',').slice(0, 2).join(','))}</td><td>${Object.keys(t.weights).map((k) => esc(CLUE_TYPES[k] || k)).join(', ')}</td></tr>`).join('')}</tbody>
 </table></div>
 <h2>The kinds of clues</h2>
 <dl>${Object.entries(CLUE_TYPES).map(([k, n]) => `<dt>${esc(n)}</dt><dd>${esc({ is: 'Two things go together.', not: 'Two things do not go together.', neither: 'Something matches neither of two choices.', either: 'Something matches one of two choices.', pairs: 'Of two people, one matches each of two things.', allDiff: 'A group of things are all different people.', less: 'One value is more or less than another.', diff: 'Two values are an exact amount apart.', ifthen: 'If one match is true, another is too.' }[k] || '')}</dd>`).join('')}</dl>
@@ -358,7 +439,7 @@ ${playBtn(up)}`,
   page({
     path: 'themes/', priority: 0.8,
     title: `Logic puzzle themes: mystery, fantasy, sci-fi and more | ${name}`,
-    description: `${THEMES.length} story themes for logic grid puzzles: ${THEMES.map((t) => t.name).join(', ')}. Each has its own topics, characters and categories.`,
+    description: `${THEMES.length} story themes for logic grid puzzles, including ${THEMES.slice(0, 5).map((t) => t.name).join(", ")} and more. Each has its own topics, characters and categories.`,
     crumbs: [['themes/', 'Themes']],
     schema: [{ '@context': 'https://schema.org', '@type': 'ItemList', name: 'Logic puzzle themes', numberOfItems: THEMES.length, itemListElement: THEMES.map((t, i) => ({ '@type': 'ListItem', position: i + 1, name: `${t.name} logic puzzles`, url: url(`themes/${t.id}/`) })) }],
     body: (up) => `<h1>Puzzle themes</h1>
@@ -397,7 +478,50 @@ ${playBtn(up, `Play a ${t.name.toLowerCase()} puzzle`, false)}
   const daily = new Map();
   const allPast = new Map(); // every daily puzzle up to today, for the Hand-picked collection
   const upcoming = [];
+  // Weekly and special edition puzzles join the chain on their day, before
+  // that day's daily puzzle, so every story stays new.
+  const specials = await readSpecials(base);
+  const weekly = new Map(); // Monday -> puzzle
+  const specialPuzzles = new Map(); // edition id -> { edition, puzzle }
+  const extraStories = []; // [date, story id] of weekly and special puzzles, for the printables below
+  // Already published: past and today's daily puzzles, past weeks' puzzles
+  // and special editions whose day has come.
+  const pastDays = [];
+  for (let d = DAILY_START; d <= today; d = addDays(d, 1)) pastDays.push(d);
+  const published = process.env.FLG_NO_PUBLISHED === '1' ? new Map() : await readPublished(base, [
+    ...pastDays.map((d) => `daily/puzzles/${d}.json`),
+    ...pastDays.filter((d) => d >= WEEKLY_START && new Date(`${d}T00:00:00Z`).getUTCDay() === 1).map((d) => `weekly/puzzles/${d}.json`),
+    ...specials.filter((e) => e.date <= today).map((e) => `specials/${e.id}.json`),
+  ]);
+  if (published.size) console.log(`Kept ${published.size} already published puzzles as they are.`);
+  const kept = (path) => {
+    const p = published.get(path);
+    if (p) used.add(p.story.id);
+    return p;
+  };
+  const fresh = (opts, seed) => {
+    let p;
+    for (let n = 0; n < 20; n++) {
+      p = generatePuzzle({ ...opts, seed: `${seed}${n ? `-${n}` : ''}` });
+      if (!used.has(p.story.id)) break;
+    }
+    used.add(p.story.id);
+    return p;
+  };
   for (let d = DAILY_START, i = 0; d <= addDays(today, DAILY_AHEAD_DAYS); d = addDays(d, 1), i++) {
+    if (d >= WEEKLY_START && new Date(`${d}T00:00:00Z`).getUTCDay() === 1) {
+      const p = kept(`weekly/puzzles/${d}.json`) || fresh({ difficulty: WEEKLY_TIER, theme: THEMES[(i + 3) % THEMES.length].id }, `weekly-${d}`);
+      weekly.set(d, p);
+      extraStories.push([d, p.story.id]);
+    }
+    for (const e of specials.filter((x) => x.date === d)) {
+      const theme = THEMES.some((t) => t.id === e.theme) ? e.theme : THEMES[(i + 5) % THEMES.length].id;
+      const difficulty = TIERS[e.difficulty] ? e.difficulty : 'hard';
+      const size = e.categories && e.items ? { categories: e.categories, items: e.items } : {};
+      const p = kept(`specials/${e.id}.json`) || fresh({ difficulty, theme, ...size }, `special-${e.id}`);
+      specialPuzzles.set(e.id, { edition: e, puzzle: p });
+      extraStories.push([d, p.story.id]);
+    }
     const o = plan.get(d) || {};
     const theme = THEMES.some((t) => t.id === o.theme) ? o.theme : THEMES[i % THEMES.length].id;
     const difficulty = TIERS[o.difficulty] ? o.difficulty : DAILY_TIERS[new Date(`${d}T00:00:00Z`).getUTCDay()];
@@ -406,12 +530,7 @@ ${playBtn(up, `Play a ${t.name.toLowerCase()} puzzle`, false)}
     // planned by hand in the admin dashboard are built exactly as planned.
     const house = plan.has(d) ? {} : houseDailyOptions(d, difficulty);
     const seed = `daily-${d}${o.reroll ? `-r${o.reroll}` : ''}`;
-    let p;
-    for (let n = 0; n < 20; n++) {
-      p = generatePuzzle({ difficulty, theme, ...size, ...house, seed: `${seed}${n ? `-${n}` : ''}` });
-      if (!used.has(p.story.id)) break;
-    }
-    used.add(p.story.id);
+    const p = (d <= today && kept(`daily/puzzles/${d}.json`)) || fresh({ difficulty, theme, ...size, ...house }, seed);
     dailyStories.push([d, p.story.id]);
     if (d <= today) allPast.set(d, p);
     if (d > today) upcoming.push(dailySummary(p, d, plan.has(d)));
@@ -426,6 +545,25 @@ ${playBtn(up, `Play a ${t.name.toLowerCase()} puzzle`, false)}
   writeFileSync(join(site, 'daily', 'upcoming.json'), JSON.stringify({ built: new Date().toISOString(), today, days: upcoming }));
   // Every change ever made, so a later build can rebuild past days the same way.
   writeFileSync(join(site, 'daily', 'plan.json'), JSON.stringify({ plan: [...plan.values()] }));
+
+  // The puzzle of the week (weekly/latest.json and weekly/puzzles/<Monday>.json)
+  // and the special editions whose day has come (specials/index.json and
+  // specials/<id>.json), for the game and the puzzle emails.
+  const thisMonday = addDays(today, -((new Date(`${today}T00:00:00Z`).getUTCDay() + 6) % 7));
+  const weeks = [...weekly.keys()].filter((w) => w <= thisMonday).sort().reverse().slice(0, WEEKLY_ARCHIVE);
+  mkdirSync(join(site, 'weekly', 'puzzles'), { recursive: true });
+  for (const w of weeks) writeFileSync(join(site, 'weekly', 'puzzles', `${w}.json`), JSON.stringify({ week: w, puzzle: weekly.get(w) }));
+  // Before the first week, an empty one, so the game's request is not an error.
+  writeFileSync(join(site, 'weekly', 'latest.json'), JSON.stringify(weeks.length ? { week: weeks[0], ...dailySummary(weekly.get(weeks[0]), weeks[0], false), weeks } : { week: null, weeks: [] }));
+  const specialSummary = ({ edition: e, puzzle: p }) => ({ id: e.id, date: e.date, editionTitle: e.title, note: e.note, ...dailySummary(p, e.date, true) });
+  const outNow = [...specialPuzzles.values()].filter((x) => x.edition.date <= today).reverse();
+  mkdirSync(join(site, 'specials'), { recursive: true });
+  for (const x of outNow) writeFileSync(join(site, 'specials', `${x.edition.id}.json`), JSON.stringify({ id: x.edition.id, date: x.edition.date, title: x.edition.title, note: x.edition.note, puzzle: x.puzzle }));
+  writeFileSync(join(site, 'specials', 'index.json'), JSON.stringify({ specials: outNow.slice(0, 20).map(specialSummary) }));
+  // For the dashboard: the coming editions, without clues or answers.
+  writeFileSync(join(site, 'specials', 'upcoming.json'), JSON.stringify({ built: new Date().toISOString(), specials: [...specialPuzzles.values()].filter((x) => x.edition.date > today).map(specialSummary) }));
+  // Every edition, so a later build can rebuild the chain the same way.
+  writeFileSync(join(site, 'specials', 'list.json'), JSON.stringify({ specials }));
   const puzzleBody = (p, d, up) => `<p class="meta">${esc(longDate(d))} · ${esc(p.theme.name)}${p.topic ? ` (${esc(p.topic.name)})` : ''} · ${esc(p.difficulty.name)} · ${p.categories.length} categories × ${p.categories[0].items.length} items</p>
 <h2>The story</h2>
 ${p.story.paragraphs.map((t) => `<p>${esc(t)}</p>`).join('\n')}
@@ -479,9 +617,9 @@ ${puzzleBody(p, d, up)}
     crumbs: [['terms/', 'Terms of use']],
     body: (up) => `<h1>Terms of use</h1>
 <p class="lede">${name} is free to play. The game and everything in it belong to its owner. These terms say what you may do with it. By playing or using this website you agree to them.</p>
-<p class="muted">Last updated 27 October 2026.</p>
+<p class="muted">Last updated 28 October 2026.</p>
 <h2>Who owns it</h2>
-<p>${copyright} The game, its puzzle and story engine, storylines, topics, characters, text, pictures, music, sounds, videos, website and app code, and the name and logo "${name}" are protected by copyright and other laws. The code is visible on GitHub, but it is not open source: see the <a href="${up}LICENSE.txt">license</a>. A few free, open-source parts keep their own licenses (listed in <a href="${up}THIRD-PARTY-NOTICES.txt">third-party notices</a>).</p>
+<p>${copyright} The game, its puzzle and story engine, storylines, topics, characters, text, pictures, music, sounds, videos, website and app code, and the name and logo "${name}" are protected by copyright and other laws. ${trademark} The code is visible on GitHub, but it is not open source: see the <a href="${up}LICENSE.txt">license</a>. A few free, open-source parts keep their own licenses (listed in <a href="${up}THIRD-PARTY-NOTICES.txt">third-party notices</a>).</p>
 <h2>What you may do</h2>
 <ul>
 <li>Play the game in your browser, the Windows app or an installed copy, as much as you like, for free.</li>
@@ -506,14 +644,14 @@ ${puzzleBody(p, d, up)}
 <ul>
 <li>A tip is a voluntary gift to help keep a free game running. It does not buy the game, a puzzle or anything you could not already use.</li>
 <li>As a thank-you, a tip may add a Supporter badge next to your screen name on the scoreboard, and a membership may also open supporter extra themes. These are added to your account straight away and last as long as the payment page says (a membership: while it is active).</li>
-<li>Changed your mind, or paid by mistake? Email <a href="mailto:fantasticallogicgrid@gmail.com">fantasticallogicgrid@gmail.com</a> within 30 days of the payment and we will refund it in full, no questions asked. This is quicker for you than asking your bank.</li>
+<li>Changed your mind, or paid by mistake? Email <a href="mailto:support@thelogicgrid.com">support@thelogicgrid.com</a> within 30 days of the payment and we will refund it in full, no questions asked. This is quicker for you than asking your bank.</li>
 <li>If a payment is refunded or disputed with your bank or card company (a chargeback), the badge and extras from it stop. After a chargeback, new payments add no badge or extras until it is settled. We keep a record of the payment and of the thank-yous it gave, and may share it with the payment service to answer the dispute.</li>
 <li>You must be allowed to use the card or account you pay with. Payments made with someone else's card without their permission are refunded and the badge removed.</li>
 </ul>
 <h2>No guarantees</h2>
 <p>The game is provided as it is, without any warranty. We do our best to keep it working and your saves safe, but we are not responsible for lost progress or for any loss from using it, as far as the law allows.</p>
 <h2>Changes and contact</h2>
-<p>We may update these terms; the date above shows the latest version. To ask for permission, report a copy of the game, or ask a question, email <a href="mailto:fantasticallogicgrid@gmail.com">fantasticallogicgrid@gmail.com</a>.</p>
+<p>We may update these terms; the date above shows the latest version. To ask for permission, report a copy of the game, or ask a question, email <a href="mailto:support@thelogicgrid.com">support@thelogicgrid.com</a>.</p>
 ${playBtn(up)}`,
   });
   // ---------- Hand-picked: the best daily puzzles, and how every puzzle is checked ----------
@@ -543,7 +681,7 @@ ${picks.length ? `<ul class="picks">${picks.map((x) => `<li><a href="${up}?play=
 <ul>
 <li><strong>Exactly one answer.</strong> Before a puzzle is shown, a solver works it out using only the steps a person can make from the clues. A puzzle is used only if the solver fills in every cell, which proves there is one answer and that it can be reached without guessing.</li>
 <li><strong>No extra clues.</strong> Clues that are not needed are taken out, so each one matters.</li>
-<li><strong>The right difficulty.</strong> The solver records the hardest step each puzzle needs, and the puzzle is kept only if that matches the level you chose, from Basic to Quantum Physicist. The hints use the same steps, so they explain the next deduction instead of giving the answer away.</li>
+<li><strong>The right difficulty.</strong> The solver records the hardest step each puzzle needs, and the puzzle is kept only if that matches the level you chose, from Basic to Theoretical Physicist. The hints use the same steps, so they explain the next deduction instead of giving the answer away.</li>
 <li><strong>Players have the last word.</strong> After solving, players can rate a puzzle from 1 to 5 stars.${quality.rating ? ` Over the last ${quality.rating.days} days, ${quality.rating.rated.toLocaleString('en-US')} ratings average <strong>${quality.rating.average} out of 5</strong>.` : ''} Low ratings for a theme or level are reviewed every week.</li>
 </ul>
 ${playBtn(up)}`,
@@ -602,6 +740,7 @@ ${playBtn(up)}`,
 <h2>Things you choose to send</h2>
 <p>Ideas, problem reports and story suggestions you write go to the team. If you are signed in and ask for a reply, the team may answer by email or in Messages.</p>
 <p><strong>Daily puzzle by email:</strong> if you are signed in and tick <strong>Email me each day's puzzle</strong>, the game keeps your account's email address to send it, once a day. Every email has a one-click unsubscribe link, and unticking the box or deleting your account removes the address.</p>
+<p><strong>Weekly and special edition puzzles by email:</strong> anyone can sign up in <strong>Menu &gt; Puzzle emails</strong>, with or without an account. The game keeps the email address and which emails you picked. If you are not signed in, we first email you a link to confirm, and nothing else is sent until you press Confirm; an address that is never confirmed is removed after 7 days. Every email has a one-click unsubscribe link and a link to change which emails you get. Unsubscribing from both, or deleting your account, removes the address.</p>
 <p><strong>Educator puzzle packages:</strong> when a teacher asks for a package on the <a href="../educators/">Educators page</a>, we keep the name, school, school email and the choices on the form to confirm the address, review the request and email the puzzles. Requests that are never confirmed or are declined are removed after 30 days.</p>
 <h2>Services the game uses</h2>
 <ul>
@@ -619,8 +758,8 @@ ${playBtn(up)}`,
 <h2>Children</h2>
 <p>Everything except races and the scoreboard can be played with no account and no personal details. An account needs an email address, so for a younger child a parent or teacher should make it, or simply play without one.</p>
 <h2>Questions</h2>
-<p>Email <strong>fantasticallogicgrid@gmail.com</strong>. To report a security problem, see <a href="https://github.com/bltaylorjr/fantastical-logic-grid/security/advisories/new">the security page</a>.</p>
-<p class="meta">Last changed: 26 October 2026.</p>`,
+<p>Email <strong>support@thelogicgrid.com</strong>. To report a security problem, see <a href="https://github.com/bltaylorjr/fantastical-logic-grid/security/advisories/new">the security page</a>.</p>
+<p class="meta">Last changed: 28 October 2026.</p>`,
   });
 
   // ---------- Printable worksheets (teachers and parents) ----------
@@ -633,6 +772,7 @@ ${playBtn(up)}`,
   let sheets = [];
   for (let w = monday(PRINT_START), i = 0; w <= thisWeek; w = addDays(w, 7), i++) {
     for (const [d, id] of dailyStories) if (d < w) printUsed.add(id);
+    for (const [d, id] of extraStories) if (d <= w) printUsed.add(id);
     sheets = PRINT_LEVELS.map((lv, j) => {
       let p;
       for (let n = 0; n < 20; n++) {
@@ -649,6 +789,7 @@ ${playBtn(up)}`,
     title: `Free printable logic puzzles with answer keys | ${name}`,
     description: 'Free printable logic grid puzzles for classrooms and home, from age 7 up. A new worksheet set every week, each with a story, a blank grid and an answer key on its own page.',
     crumbs: [['printables/', 'Printables']],
+    schema: [{ '@context': 'https://schema.org', '@type': 'ItemList', name: "This week's printable logic puzzles", numberOfItems: sheets.length, itemListElement: sheets.map((sh, i) => ({ '@type': 'ListItem', position: i + 1, name: `${TIERS[sh.tier].name}: ${sh.puzzle.title}`, url: url(`printables/${sh.tier}/`) })) }],
     body: (up) => `<h1>Free printable logic puzzles</h1>
 <p class="lede">Story logic grid puzzles to print for the classroom, homeschool or the kitchen table. A new set every Monday, from age 7 up, each with a blank grid and an answer key on its own page.</p>
 <h2>This week's worksheets</h2>
@@ -670,7 +811,7 @@ ${playBtn(up)}`,
 </ol>
 <p>New to logic grids? <a href="${up}how-to-play/">How to play</a> walks through the rules with a short video.</p>
 <h2>Make as many as you need</h2>
-<p>In the game you can make unlimited puzzles at any of six levels, in more than 40 themes and almost any size, then print them blank or with your marks, on Letter or A4, with the answer key on its own page. Easy puzzles can also print a step-by-step solution. Every puzzle is a new story, in any of 100 languages, so it also works for language learners.</p>
+<p>In the game you can make unlimited puzzles at any of ${Object.keys(TIERS).length} levels, in ${THEMES.length} themes and almost any size, then print them blank or with your marks, on Letter or A4, with the answer key on its own page. Easy puzzles can also print a step-by-step solution. Every puzzle is a new story, in any of 100 languages, so it also works for language learners.</p>
 ${playBtn(up, 'Make a puzzle to print', false)}
 <h2>Free for classroom use</h2>
 <p>You may print and copy these worksheets for your own students or family, free. Please don't sell them or post them elsewhere. Link to this page instead.</p>`,
@@ -683,6 +824,9 @@ ${playBtn(up, 'Make a puzzle to print', false)}
       title: `Printable ${level.toLowerCase()} logic puzzle: ${p.title} | ${name}`,
       description: `A free printable ${level.toLowerCase()} logic grid puzzle (${sh.ages}): ${p.title}, with a story, a blank grid and the answer key on its own page.`,
       crumbs: [['printables/', 'Printables'], [`printables/${sh.tier}/`, level]],
+      schema: [{ '@context': 'https://schema.org', '@type': 'LearningResource', name: p.title, description: `A logic grid puzzle worksheet at the ${level} level, with a story, a blank grid and an answer key.`, url: url(`printables/${sh.tier}/`),
+        learningResourceType: 'Worksheet', educationalLevel: level, typicalAgeRange: `${sh.ages.match(/\d+/)[0]}-`, teaches: ['Deductive reasoning', 'Close reading', 'Logical thinking'],
+        isAccessibleForFree: true, inLanguage: 'en', datePublished: thisWeek, publisher, image: url('og-image.jpg') }],
       body: (up) => `<article class="sheet">
 <h1>${esc(p.title)}</h1>
 <p class="meta">${esc(level)} · ${esc(sh.ages)} · ${esc(p.theme.name)} · ${p.categories.length} categories × ${p.categories[0].items.length} items · week of ${esc(weekLabel)}</p>
@@ -747,7 +891,11 @@ Sitemap: ${url('sitemap.xml')}
 - [Hand-picked puzzles](${url('picks/')}): the best-rated daily puzzles, and how every puzzle is checked for exactly one answer
 - [Themes](${url('themes/')})
 - [Difficulty levels](${url('difficulty-levels/')})
+- [For educators](${url('educators/')}): free printable puzzle packages for a class, made to order and sent by email
+- [Privacy](${url('privacy/')}): no ads, no tracking cookies, no selling data
 - [Terms of use](${url('terms/')})
+
+Contact: support@thelogicgrid.com
 
 ## Use of this content
 

@@ -21,21 +21,10 @@
 //                   mood: a few words for color and music
 // A topic with no story parts uses the theme's own (the theme's "classic" topic).
 import { clock, plural, money } from './themes.js';
+import { cat, ord, countOrd, ageOrd, timeOrd } from './topic-kit.js';
+import { MORE_TOPICS } from './more-topics.js';
 import { STORYLINES } from './storylines.js';
 import { MORE_STORIES } from './more-stories.js';
-
-const cat = (id, name, pos, neg, items, extra = {}) => ({ id, name, pos, neg, items, ...extra });
-const ord = (id, name, pos, neg, o, extra = {}) => ({ id, name, pos, neg, ordinal: o, ...extra });
-const countOrd = (start, step, label, less, more, lessBy, moreBy, gap) => ({
-  start, step, count: 8, label: label || ((v) => String(v)), less, more, lessBy, moreBy, gap,
-});
-const ageOrd = (start, step) => countOrd(start, step, null, 'is younger than', 'is older than',
-  'is {d} younger than', 'is {d} older than', (s) => plural(s * step, 'year', 'years'));
-const timeOrd = (verb, startMin, step) => ({
-  start: 0, step, count: 8, label: clock(startMin),
-  less: `${verb} earlier than`, more: `${verb} later than`, lessBy: `${verb} {d} earlier than`, moreBy: `${verb} {d} later than`,
-  gap: (s) => ((s * step) % 60 === 0 ? plural((s * step) / 60, 'hour', 'hours') : plural(s * step, 'minute', 'minutes')),
-});
 
 // Parties where couples dance: guests ask the band for songs instead of
 // giving timed toasts (a player found toast times out of place in a story
@@ -1630,7 +1619,7 @@ export const TOPICS = {
     { id: 'timetravel', name: 'Time Travel', description: 'Time machines and trips to the past and future.',
       cast: { one: 'time traveler', many: 'time travelers' },
       categories: [
-        cat('era', 'Era Visited', 'visited the {x}', 'did not visit the {x}', ['Dinosaur Age', 'Ice Age', 'Ancient Egypt', 'Roman Empire', 'Middle Ages', 'Wild West', 'Roaring Twenties', 'Year 3000'], { noun: 'era visited' }),
+        cat('era', 'Era Visited', 'visited the {x}', 'did not visit the {x}', ['Dinosaur Age', 'Ice Age', 'Ancient Egypt', 'Roman Empire', 'Middle Ages', 'Wild West', 'Roaring Twenties', 'Year 3000'], { noun: 'era visited', order: 'listed' }),
         cat('souvenir', 'Souvenir', 'brought back the {x}', 'did not bring back the {x}', ['Fossil', 'Gold Coin', 'Feather Pen', 'Pocket Watch', 'Clay Pot', 'Cowboy Hat', 'Jazz Record', 'Hover Shoe']),
         cat('machine', 'Time Machine', 'flew the {x}', 'did not fly the {x}', ['Chrono Pod', 'Tick Tock', 'Paradox', 'Hourglass', 'Rewind', 'Sundial', 'Clockwork', 'Warp Wagon']),
         cat('gadget', 'Gadget', 'carried the {x}', 'did not carry the {x}', ['Time Compass', 'Paradox Meter', 'Era Guidebook', 'Translator', 'Chrono Key', 'Spare Battery', 'Anchor Beacon', 'Pocket Radar']),
@@ -1782,6 +1771,61 @@ export const TOPICS = {
         },
       },
       art: { setting: 'a futuristic neon city at night with glowing screens, terminal text, drones and a dark-mode control room', mood: 'neon cyan, magenta and black' } },
+    { id: 'spacecamp', name: 'Space Camp', description: 'Real rockets, planets and astronaut training.',
+      cast: { one: 'camper', many: 'campers' },
+      categories: [
+        cat('planet', 'Planet', 'did a report on {x}', 'did not do a report on {x}', ['Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune', 'Pluto'], { noun: 'report planet' }),
+        cat('mission', 'Mission', 'studied the {x} mission', 'did not study the {x} mission', ['Apollo 11', 'Hubble', 'Voyager', 'Artemis', 'Gemini', 'Curiosity', 'Webb', 'Skylab']),
+        cat('training', 'Training', 'tried the {x}', 'did not try the {x}', ['Moonwalk Chair', 'Spin Chair', 'Rocket Launch', 'Mission Control', 'Zero-G Wall', 'Space Food Lab', 'Spacesuit Fitting', 'Shuttle Simulator']),
+        cat('patch', 'Patch', 'earned the {x} patch', 'did not earn the {x} patch', ['Comet', 'Crescent', 'Shooting Star', 'Satellite', 'Galaxy', 'Nebula', 'Black Hole', 'Aurora'], { noun: 'patch' }),
+        cat('team', 'Team', 'was on Team {x}', 'was not on Team {x}', ['Orion', 'Atlas', 'Falcon', 'Eagle', 'Discovery', 'Endeavour', 'Pioneer', 'Phoenix']),
+        cat('goggles', 'Goggles', 'wore {x} goggles', 'did not wear {x} goggles', ['Red', 'Orange', 'Yellow', 'Green', 'Blue', 'Purple', 'Pink', 'White'], { noun: 'goggle color' }),
+        ord('age', 'Age', 'is {x} years old', 'is not {x} years old', ageOrd(9, 1)),
+        ord('launch', 'Launch Height', 'launched a rocket {x} feet', 'did not launch a rocket {x} feet',
+          countOrd(100, 50, null, 'launched a rocket lower than', 'launched a rocket higher than', 'launched a rocket {d} lower than', 'launched a rocket {d} higher than', (s) => plural(s * 50, 'foot', 'feet')),
+          { noun: 'rocket height in feet', note: 'Each {one} launched one model rocket, and a bigger number of feet means the rocket flew higher.' })],
+      story: {
+        adjs: ['Cosmic', 'Stellar', 'Blast-Off', 'Galactic', 'Orbiting', 'Launch-Day'],
+        openings: [
+          '{N} {many} arrived at space camp with their bags and big dreams.',
+          'The rocket center welcomed {n} {many} for a week of astronaut training.',
+          '{N} {many} pulled on flight suits for their first day at space camp.',
+          'A real rocket towered over the camp as {n} {many} gathered for the week.',
+          '{N} {many} counted down the days until their space camp adventure.',
+          'The countdown clock started as {n} {many} took their seats in the training center.',
+        ],
+        incidents: [
+          { name: 'Top Cadet', text: 'At the end of the week, one camper will be named top cadet.', prize: 'the top cadet award' },
+          { name: 'Meteorite', text: 'A real meteorite went missing from the display case and was found again.', prize: 'the meteorite finder badge' },
+          { name: 'Astronaut Visit', text: 'A real astronaut is visiting and wants to meet the most curious camper.', prize: 'the astronaut lunch' },
+          { name: 'Splashdown', text: 'One team pulled off a perfect pretend splashdown.', prize: 'the splashdown medal' },
+          { name: 'Moon Rock', text: 'One camper answered the hardest moon rock question.', prize: 'the moon rock ribbon' },
+          { name: 'Launch Button', text: 'One lucky camper gets to press the button for the big launch.', prize: 'the launch button' },
+        ],
+        mishaps: [
+          'The mission logs got scrambled when the computer crashed.',
+          'The counselor\'s clipboard floated away on a gust of wind.',
+          'Everyone was so excited that their stories got mixed up.',
+          'The camp radio crackled, so the reports came in broken pieces.',
+        ],
+        endings: [
+          '{Fact}, so {winner} wins {prize}! Mission accomplished.',
+          '{Fact}! {winner} gets a big cheer from the whole crew.',
+          'Mystery solved! {Fact}, and {winner} dreams of real space tonight.',
+          '{Fact}, and {winner} takes home {prize} and a bag of freeze-dried ice cream.',
+        ],
+        leads: {
+          planet: ['The camper you want did a report on {x}.', 'A drawing of {x} hung over the bunk.'],
+          mission: ['The camper you want studied the {x} mission.', 'It was all inspired by the {x} mission.'],
+          training: ['The camper you want tried the {x}.', 'It happened right after the {x}.'],
+          patch: ['The camper you want earned the {x} patch.', 'Look for the {x} patch.'],
+          team: ['The camper you want was on Team {x}.', 'The cheers came from Team {x}.'],
+          goggles: ['The camper you want wore {x} goggles.', 'A flash of {x} goggles gave it away.'],
+          age: ['The camper you want is {x} years old.', 'The name badge says {x} years old.'],
+          launch: ['The camper you want launched a rocket {x} feet.', 'The tracker showed {x} feet.'],
+        },
+      },
+      art: { setting: 'a space camp with a tall rocket on display, astronaut training gear and a starry dome', mood: 'deep blue and rocket bright' } },
   ],
 
   sports: [
@@ -2323,60 +2367,6 @@ export const TOPICS = {
         },
       },
       art: { setting: 'a bright animal shelter with happy dogs and cats and adoption signs', mood: 'warm and hopeful' } },
-    { id: 'stables', name: 'Riding Stables', description: 'Riders, horses and a ribbon day at the barn.',
-      cast: { one: 'rider', many: 'riders' },
-      categories: [
-        cat('horse', 'Horse', 'rides {x}', 'does not ride {x}', ['Starlight', 'Thunder', 'Daisy', 'Midnight', 'Apollo', 'Duchess', 'Copper', 'Maverick'], { noun: 'horse\'s name' }),
-        cat('coat', 'Coat', 'rides the {x} horse', 'does not ride the {x} horse', ['Chestnut', 'Bay', 'Palomino', 'Gray', 'Black', 'Pinto', 'Appaloosa', 'Buckskin'], { noun: 'horse\'s coat color' }),
-        { from: 'ribbon', items: ['Show Jumping', 'Dressage', 'Barrel Racing', 'Trail Riding', 'Western Pleasure', 'Pole Bending', 'Best Groomed', 'Most Improved'] },
-        cat('treat', 'Treat', 'brought {x} as a treat', 'did not bring {x} as a treat', ['Carrots', 'Apples', 'Sugar Cubes', 'Peppermints', 'Oat Cookies', 'Pears', 'Hay Cubes', 'Watermelon']),
-        cat('stall', 'Stall', 'keeps a horse in the {x} stall', 'does not keep a horse in the {x} stall', ['Clover', 'Meadow', 'Maple', 'Willow', 'Sunny', 'Oak', 'Hilltop', 'Barnside']),
-        ord('age', 'Horse Age', 'rides a horse aged {x}', 'does not ride a horse aged {x}', countOrd(3, 2, null, 'rides a younger horse than', 'rides an older horse than', 'rides a horse {d} younger than', 'rides a horse {d} older than', (s) => plural(s * 2, 'year', 'years')), { noun: 'horse\'s age' }),
-        ord('hands', 'Height', 'rides a horse {x} hands tall', 'does not ride a horse {x} hands tall', countOrd(12, 1, null, 'rides a shorter horse than', 'rides a taller horse than', 'rides a horse {d} shorter than', 'rides a horse {d} taller than', (s) => plural(s, 'hand', 'hands')),
-          { noun: 'horse\'s height in hands', note: 'Horses are measured in hands, and one hand is four inches.' }),
-        ord('lesson', 'Lesson', 'had a lesson at {x}', 'did not have a lesson at {x}', timeOrd('had a lesson', 8 * 60, 30), { noun: 'lesson time' })],
-      story: {
-        adjs: ['Galloping', 'Golden', 'Big', 'Happy', 'Proud', 'Prancing'],
-        openings: [
-          'The riding stables held their summer show, and {n} {many} brushed their horses until they shone.',
-          '{N} {many} arrived at the barn just after sunrise.',
-          'Horse trailers filled the parking lot as {n} {many} got ready.',
-          '{N} {many} saddled up for a day at the riding stables.',
-          'A spring fair came to the stables, and {n} {many} signed up.',
-          '{N} {many} spent the weekend at riding camp.',
-        ],
-        incidents: [
-          { name: 'Trophy', text: 'The stables\' grand trophy is waiting for its winner.', prize: 'the grand trophy' },
-          { name: 'Foal', text: 'A wobbly new foal was born in the night.', prize: 'the naming of the foal' },
-          { name: 'Gate', text: 'Someone left a gate open, and a pony wandered off.', prize: 'the runaway pony' },
-          { name: 'Horseshoe', text: 'A lucky golden horseshoe turned up in the arena sand.', prize: 'the golden horseshoe' },
-          { name: 'Jump', text: 'One horse cleared the highest jump the stables had ever seen.', prize: 'the high jump prize' },
-          { name: 'Saddle', text: 'The founder\'s old saddle went missing from the tack room.', prize: 'the old saddle' },
-        ],
-        mishaps: [
-          'A playful horse knocked the sign-up sheet into the water trough.',
-          'The riders swapped helmets, and nobody is sure who was who.',
-          'Dust from the arena covered the score cards.',
-          'The stable notebook got nibbled by a hungry goat.',
-        ],
-        endings: [
-          '{Fact}, so {winner} wins {prize}! The horses toss their manes.',
-          '{Fact}! {winner} takes a victory lap around the arena.',
-          'Hooray! {Fact}, and every horse gets an extra brushing.',
-          '{Fact}, and {winner}\'s picture goes up on the barn wall.',
-        ],
-        leads: {
-          horse: ['The horse behind it is called {x}.', 'Everyone was cheering for {x}.'],
-          coat: ['Look for the {x} horse.', 'Someone spotted the {x} horse near the barn.'],
-          ribbon: ['The {one} who did it won the {x} ribbon.', 'It happened right after the {x} ribbon was handed out.'],
-          treat: ['A trail of {x} led the way.', 'The horse behind it was munching {x}.'],
-          stall: ['It all started at the {x} stall.', 'The trail leads to the {x} stall.'],
-          age: ['The horse behind it is {x} years old.', 'The horse\'s papers say {x} years old.'],
-          hands: ['The horse behind it stands {x} hands tall.', 'The measuring stick showed {x} hands.'],
-          lesson: ['The {one} who did it had a lesson at {x}.', 'The lesson board shows the key lesson at {x}.'],
-        },
-      },
-      art: { setting: 'a red barn and riding arena with horses, jumps, ribbons and green pastures', mood: 'sunny greens and warm browns, cheerful' } },
   ],
   town: [
     { id: 'errands', name: 'Errand Day', description: 'A busy Saturday of errands at the shops and public places in town.',
@@ -2432,55 +2422,55 @@ export const TOPICS = {
         },
       },
       art: { setting: 'a bright town fitness center with treadmills, weights and a yoga studio', mood: 'energetic, bright and sporty' } },
-    { id: 'church', name: 'Church Bake Sale', description: 'Pies, cookies and kind hearts at the church fundraiser.',
+    { id: 'church', name: 'Church Potluck', description: 'Covered dishes, long tables and good company at the church supper.',
       cast: { one: 'volunteer', many: 'volunteers' },
       categories: [
-        cat('treat', 'Baked Good', 'baked the {x}', 'did not bake the {x}', ['Lemon Bars', 'Pecan Pie', 'Banana Bread', 'Carrot Cake', 'Brownies', 'Oatmeal Cookies', 'Cinnamon Buns', 'Blueberry Muffins'], { noun: 'baked good' }),
-        cat('job', 'Job', 'worked as the {x}', 'did not work as the {x}', ['Cashier', 'Greeter', 'Head Baker', 'Sign Painter', 'Ticket Seller', 'Bag Packer', 'Coffee Pourer', 'Table Setter']),
+        cat('dish', 'Covered Dish', 'brought the {x}', 'did not bring the {x}', ['Mac and Cheese', 'Green Bean Casserole', 'Fried Chicken', 'Deviled Eggs', 'Potato Salad', 'Baked Beans', 'Cornbread', 'Meatballs'], { noun: 'covered dish' }),
+        cat('job', 'Job', 'worked as the {x}', 'did not work as the {x}', ['Greeter', 'Table Setter', 'Dish Washer', 'Tea Pourer', 'Prayer Leader', 'Coat Checker', 'Dessert Server', 'Clean-Up Captain']),
         cat('apron', 'Apron', 'wore the {x} apron', 'did not wear the {x} apron', ['Red', 'Blue', 'Yellow', 'Green', 'Purple', 'Pink', 'Plaid', 'Polka Dot'], { noun: 'apron color' }),
-        ord('raised', 'Raised', 'raised {x}', 'did not raise {x}',
-          countOrd(10, 10, money, 'raised less than', 'raised more than', 'raised {d} less than', 'raised {d} more than', (s) => `$${s * 10}`),
-          { noun: 'amount raised' }),
+        ord('plates', 'Plates Served', 'served {x} plates', 'did not serve {x} plates',
+          countOrd(10, 5, null, 'served fewer plates than', 'served more plates than', 'served {d} fewer than', 'served {d} more than', (s) => plural(s * 5, 'plate', 'plates')),
+          { noun: 'number of plates served' }),
         'arrival'],
       story: {
-        adjs: ['Sweet', 'Golden', 'Kind', 'Busy', 'Sunday', 'Blessed'],
+        adjs: ['Hearty', 'Homemade', 'Friendly', 'Crowded', 'Supper', 'Grateful'],
         openings: [
-          'The church on Elm Street held its spring bake sale, and {n} {many} came to help.',
-          '{N} {many} gathered in the fellowship hall before sunrise to set up tables.',
-          'The smell of fresh baking filled the church as {n} {many} got to work.',
-          '{N} {many} signed up to help raise money for a new church roof.',
-          'Sunshine brought big crowds, and {n} {many} could barely keep up.',
-          '{N} {many} met after the morning service to run the sale.',
+          'The church on Maple Lane held its fall potluck supper, and {n} {many} pitched in.',
+          '{N} {many} pushed the long tables together in the fellowship hall.',
+          'Slow cookers lined the counter as {n} {many} got the supper ready.',
+          '{N} {many} signed up to welcome new families to the church supper.',
+          'A rainy evening drew a full house, and {n} {many} kept the line moving.',
+          '{N} {many} stayed after the evening service to serve the potluck.',
         ],
         incidents: [
-          { name: 'Ribbon', text: 'The pastor will give a ribbon for the best treat of the day.', prize: 'the first-place ribbon' },
-          { name: 'Jar', text: 'The donation jar was found overflowing with coins.', prize: 'the donation mystery' },
-          { name: 'Recipe', text: 'A secret family recipe won everyone over.', prize: 'the secret recipe' },
-          { name: 'Roof', text: 'One sale brought in enough to finish the roof fund.', prize: 'the roof fund thank-you' },
-          { name: 'Bell', text: 'The church bell rang all by itself at noon.', prize: 'the bell mystery' },
-          { name: 'Sellout', text: 'One treat sold out before the doors were even open.', prize: 'the sellout star' },
+          { name: 'Spoon', text: 'The pastor will hand out the golden serving spoon for the dish everyone loved most.', prize: 'the golden serving spoon' },
+          { name: 'Empty', text: 'One serving bowl was scraped clean in the first ten minutes.', prize: 'the empty-dish honor' },
+          { name: 'Card', text: 'A handwritten recipe card turned up with no name on it.', prize: 'the recipe card mystery' },
+          { name: 'Pie', text: 'A mystery pie appeared on the dessert table that nobody admitted to baking.', prize: 'the mystery pie' },
+          { name: 'Hymn', text: 'Someone started a hymn during dessert, and the whole hall joined in.', prize: 'the song leader thanks' },
+          { name: 'Seconds', text: 'The line for seconds stretched all the way to the door.', prize: 'the seconds champion' },
         ],
         mishaps: [
-          'Flour got all over the sign-up sheet.',
-          'The pastor\'s notes were stuck together with frosting.',
-          'In the rush, nobody wrote down who did what.',
-          'The kids shuffled all the price tags as a prank.',
+          'Gravy splashed across the volunteer sign-up sheet.',
+          'Every dish lid got mixed up during the clean-up.',
+          'In the happy noise of supper, nobody kept track of who did what.',
+          'The youth group shuffled the name cards on the tables for fun.',
         ],
         endings: [
-          '{Fact}, so {winner} earns {prize}! Everyone gets a treat.',
-          '{Fact}. {winner} smiles as the choir sings a thank-you song.',
-          'Mystery solved! {Fact}, and the church roof will be fixed by fall.',
-          '{Fact}, and {winner} is invited to lead next year\'s sale.',
+          '{Fact}, so {winner} earns {prize}! Everyone takes home leftovers.',
+          '{Fact}. {winner} grins as the hall gives a warm round of applause.',
+          'Mystery solved! {Fact}, and the next potluck is already on the calendar.',
+          '{Fact}, and {winner} is asked to plan next year\'s supper.',
         ],
         leads: {
-          treat: ['The volunteer you want baked the {x}.', 'It all started with the {x}.'],
+          dish: ['The volunteer you want brought the {x}.', 'It all started with the {x}.'],
           job: ['The volunteer you want worked as the {x}.', 'Only the {x} was there at that moment.'],
           apron: ['The volunteer you want wore the {x} apron.', 'Look for the {x} apron.'],
-          raised: ['The volunteer you want raised {x}.', 'The cash box shows {x}.'],
-          arrival: ['The volunteer you want arrived at {x}.', 'The church clock read {x}.'],
+          plates: ['The volunteer you want served {x} plates.', 'The tally sheet shows {x} plates.'],
+          arrival: ['The volunteer you want arrived at {x}.', 'The hall clock read {x}.'],
         },
       },
-      art: { setting: 'a white country church with a bake sale on the lawn, tables of pies and cakes', mood: 'warm, sunny and kind' } },
+      art: { setting: 'a white country church fellowship hall with long tables of covered dishes and slow cookers', mood: 'warm, cozy and kind' } },
     { id: 'grocery', name: 'Grocery Store', description: 'Carts, coupons and a mix-up in the aisles.',
       cast: { one: 'shopper', many: 'shoppers' },
       categories: [
@@ -2942,55 +2932,6 @@ export const TOPICS = {
         },
       },
       art: { setting: 'a historic European city with a clock tower, cobblestone streets, cafes and a river', mood: 'warm golden afternoon' } },
-    { id: 'cruise', name: 'Cruise Ship', description: 'Ports of call, shows and fine dinners at sea.',
-      cast: { one: 'passenger', many: 'passengers' },
-      categories: [
-        cat('deck', 'Deck', 'slept on the {x} deck', 'did not sleep on the {x} deck', ['Lido', 'Promenade', 'Riviera', 'Atlantic', 'Pacific', 'Coral', 'Starlight', 'Mariner'], { noun: 'cabin deck' }),
-        cat('port', 'Port', 'went ashore in {x}', 'did not go ashore in {x}', ['Nassau', 'Cozumel', 'Juneau', 'Barcelona', 'Santorini', 'Key West', 'Aruba', 'St. Thomas']),
-        cat('show', 'Show', 'went to the {x}', 'did not go to the {x}', ['Magic Show', 'Comedy Night', 'Ice Show', 'Broadway Revue', 'Piano Bar', 'Karaoke', 'Acrobats', 'Trivia Night']),
-        cat('dinner', 'Dinner', 'ordered the {x}', 'did not order the {x}', ['Lobster', 'Prime Rib', 'Lasagna', 'Sushi', 'Paella', 'Crab Legs', 'Roast Duck', 'Ravioli']),
-        'days',
-        ord('boarding', 'Boarding', 'boarded at {x}', 'did not board at {x}', timeOrd('boarded', 11 * 60, 20), { noun: 'boarding time' })],
-      story: {
-        adjs: ['Grand', 'Royal', 'Sunny', 'Starry', 'Stormy', 'Golden'],
-        openings: [
-          'The Ocean Majesty set sail at noon with {n} {many} waving from the rails.',
-          '{N} {many} boarded the cruise ship for a week of sun and sea.',
-          'The ship\'s horn blew as {n} {many} found their cabins.',
-          '{N} {many} met at the captain\'s welcome party on the first night.',
-          'Calm seas and blue skies greeted {n} {many} as the voyage began.',
-          '{N} {many} won tickets for the cruise line\'s anniversary voyage.',
-        ],
-        incidents: [
-          { name: 'Horn', text: 'The captain is choosing someone to blow the ship\'s horn.', prize: 'the honor of the horn' },
-          { name: 'Dolphins', text: 'One passenger spotted a pod of dolphins first.', prize: 'the dolphin spotter pin' },
-          { name: 'Necklace', text: 'A pearl necklace went missing from the jewelry shop.', prize: 'the pearl necklace' },
-          { name: 'Talent', text: 'The talent show had a surprise winner.', prize: 'the talent show trophy' },
-          { name: 'Treasure', text: 'A treasure hunt on board had one clever winner.', prize: 'the treasure chest' },
-          { name: 'Nap', text: 'A sleepy passenger was found napping in a lifeboat.', prize: 'the napping award' },
-        ],
-        mishaps: [
-          'Choppy seas sent the purser\'s papers flying.',
-          'Seasickness has everyone mixing up the details.',
-          'The ship\'s daily newsletter printed all the wrong names.',
-          'The photos from the ship\'s photographer got mixed up.',
-        ],
-        endings: [
-          '{Fact}, so {winner} wins {prize}! Anchors aweigh!',
-          '{Fact}! {winner} dances on deck under the stars.',
-          'Mystery solved! {Fact}, and {winner} dines at the captain\'s table.',
-          '{Fact}, and {winner} gets a free cruise next year.',
-        ],
-        leads: {
-          deck: ['The passenger you want slept on the {x} deck.', 'It all happened on the {x} deck.'],
-          port: ['It happened in {x}.', 'The passenger you want went ashore in {x}.'],
-          show: ['The passenger you want went to the {x}.', 'It happened right after the {x}.'],
-          dinner: ['The passenger you want ordered the {x}.', 'The waiter remembers the {x}.'],
-          days: ['The passenger you want was away {x} days.', 'The ticket says {x} days.'],
-          boarding: ['The passenger you want boarded at {x}.', 'The gangway log shows {x}.'],
-        },
-      },
-      art: { setting: 'a big white cruise ship on a blue sea with a tropical island and seagulls', mood: 'sea blue and sunny' } },
     { id: 'themepark', name: 'Theme Park', description: 'Roller coasters, cotton candy and a day of thrills.',
       cast: { one: 'visitor', many: 'visitors' },
       categories: [
@@ -3580,6 +3521,57 @@ export const TOPICS = {
         },
       },
       art: { setting: 'a deep-sea fishing boat on a sunny blue ocean with rods bent over the side and gulls overhead', mood: 'sunny ocean blue' } },
+    { id: 'cruise', name: 'Cruise Ship', description: 'Ports of call, shows and fine dinners at sea.',
+      cast: { one: 'passenger', many: 'passengers' },
+      categories: [
+        cat('deck', 'Deck', 'slept on the {x} deck', 'did not sleep on the {x} deck', ['Lido', 'Promenade', 'Riviera', 'Atlantic', 'Pacific', 'Coral', 'Starlight', 'Mariner'], { noun: 'cabin deck' }),
+        cat('port', 'Port', 'went ashore in {x}', 'did not go ashore in {x}', ['Nassau', 'Cozumel', 'Juneau', 'Barcelona', 'Santorini', 'Key West', 'Aruba', 'St. Thomas']),
+        cat('show', 'Show', 'went to the {x}', 'did not go to the {x}', ['Magic Show', 'Comedy Night', 'Ice Show', 'Broadway Revue', 'Piano Bar', 'Karaoke', 'Acrobats', 'Trivia Night']),
+        cat('dinner', 'Dinner', 'ordered the {x}', 'did not order the {x}', ['Lobster', 'Prime Rib', 'Lasagna', 'Sushi', 'Paella', 'Crab Legs', 'Roast Duck', 'Ravioli']),
+        ord('days', 'Days Away', 'was away {x} days', 'was not away {x} days',
+          countOrd(3, 1, null, 'was away fewer days than', 'was away more days than', 'was away {d} fewer than', 'was away {d} more than', (s) => plural(s, 'day', 'days')),
+          { noun: 'trip length in days' }),
+        ord('boarding', 'Boarding', 'boarded at {x}', 'did not board at {x}', timeOrd('boarded', 11 * 60, 20), { noun: 'boarding time' })],
+      story: {
+        adjs: ['Grand', 'Royal', 'Sunny', 'Starry', 'Stormy', 'Golden'],
+        openings: [
+          'The Ocean Majesty set sail at noon with {n} {many} waving from the rails.',
+          '{N} {many} boarded the cruise ship for a week of sun and sea.',
+          'The ship\'s horn blew as {n} {many} found their cabins.',
+          '{N} {many} met at the welcome party on the first night at sea.',
+          'Calm seas and blue skies greeted {n} {many} as the voyage began.',
+          '{N} {many} won tickets for the cruise line\'s anniversary voyage.',
+        ],
+        incidents: [
+          { name: 'Horn', text: 'The bridge crew is choosing someone to blow the ship\'s horn.', prize: 'the honor of the horn' },
+          { name: 'Dolphins', text: 'One passenger spotted a pod of dolphins first.', prize: 'the dolphin spotter pin' },
+          { name: 'Necklace', text: 'A pearl necklace went missing from the jewelry shop.', prize: 'the pearl necklace' },
+          { name: 'Talent', text: 'The talent show had a surprise winner.', prize: 'the talent show trophy' },
+          { name: 'Treasure', text: 'A treasure hunt on board had one clever winner.', prize: 'the treasure chest' },
+          { name: 'Nap', text: 'A sleepy passenger was found napping in a lifeboat.', prize: 'the napping award' },
+        ],
+        mishaps: [
+          'Choppy seas sent the purser\'s papers flying.',
+          'Seasickness has everyone mixing up the details.',
+          'The ship\'s daily newsletter printed all the wrong names.',
+          'The photos from the ship\'s photographer got mixed up.',
+        ],
+        endings: [
+          '{Fact}, so {winner} wins {prize}! Anchors aweigh!',
+          '{Fact}! {winner} dances on deck under the stars.',
+          'Mystery solved! {Fact}, and {winner} dines at the head table tonight.',
+          '{Fact}, and {winner} gets a free cruise next year.',
+        ],
+        leads: {
+          deck: ['The passenger you want slept on the {x} deck.', 'It all happened on the {x} deck.'],
+          port: ['It happened in {x}.', 'The passenger you want went ashore in {x}.'],
+          show: ['The passenger you want went to the {x}.', 'It happened right after the {x}.'],
+          dinner: ['The passenger you want ordered the {x}.', 'The waiter remembers the {x}.'],
+          days: ['The passenger you want was away {x} days.', 'The ticket says {x} days.'],
+          boarding: ['The passenger you want boarded at {x}.', 'The gangway log shows {x}.'],
+        },
+      },
+      art: { setting: 'a big white cruise ship on a blue sea with a tropical island and seagulls', mood: 'sea blue and sunny' } },
   ],
   farm: [
     { id: 'farmday', name: 'Busy Farm Day', description: 'Chores, crops and critters from sunrise to supper.',
@@ -3749,6 +3741,60 @@ export const TOPICS = {
         },
       },
       art: { setting: 'a busy outdoor farmers market with colorful tents, crates of fresh produce and homemade goods', mood: 'fresh, colorful and sunny' } },
+    { id: 'stables', name: 'Riding Stables', description: 'Riders, horses and a ribbon day at the barn.',
+      cast: { one: 'rider', many: 'riders' },
+      categories: [
+        cat('horse', 'Horse', 'rides {x}', 'does not ride {x}', ['Starlight', 'Thunder', 'Daisy', 'Midnight', 'Apollo', 'Duchess', 'Copper', 'Maverick'], { noun: 'horse\'s name' }),
+        cat('coat', 'Coat', 'rides the {x} horse', 'does not ride the {x} horse', ['Chestnut', 'Bay', 'Palomino', 'Gray', 'Black', 'Pinto', 'Appaloosa', 'Buckskin'], { noun: 'horse\'s coat color' }),
+        cat('ribbon', 'Ribbon', 'won the {x} ribbon', 'did not win the {x} ribbon', ['Show Jumping', 'Dressage', 'Barrel Racing', 'Trail Riding', 'Western Pleasure', 'Pole Bending', 'Best Groomed', 'Most Improved']),
+        cat('treat', 'Treat', 'brought {x} as a treat', 'did not bring {x} as a treat', ['Carrots', 'Apples', 'Sugar Cubes', 'Peppermints', 'Oat Cookies', 'Pears', 'Hay Cubes', 'Watermelon']),
+        cat('stall', 'Stall', 'keeps a horse in the {x} stall', 'does not keep a horse in the {x} stall', ['Clover', 'Meadow', 'Maple', 'Willow', 'Sunny', 'Oak', 'Hilltop', 'Barnside']),
+        ord('age', 'Horse Age', 'rides a horse aged {x}', 'does not ride a horse aged {x}', countOrd(3, 2, null, 'rides a younger horse than', 'rides an older horse than', 'rides a horse {d} younger than', 'rides a horse {d} older than', (s) => plural(s * 2, 'year', 'years')), { noun: 'horse\'s age' }),
+        ord('hands', 'Height', 'rides a horse {x} hands tall', 'does not ride a horse {x} hands tall', countOrd(12, 1, null, 'rides a shorter horse than', 'rides a taller horse than', 'rides a horse {d} shorter than', 'rides a horse {d} taller than', (s) => plural(s, 'hand', 'hands')),
+          { noun: 'horse\'s height in hands', note: 'Horses are measured in hands, and one hand is four inches.' }),
+        ord('lesson', 'Lesson', 'had a lesson at {x}', 'did not have a lesson at {x}', timeOrd('had a lesson', 8 * 60, 30), { noun: 'lesson time' })],
+      story: {
+        adjs: ['Galloping', 'Golden', 'Big', 'Happy', 'Proud', 'Prancing'],
+        openings: [
+          'The riding stables held their summer show, and {n} {many} brushed their horses until they shone.',
+          '{N} {many} arrived at the barn just after sunrise.',
+          'Horse trailers filled the parking lot as {n} {many} got ready.',
+          '{N} {many} saddled up for a day at the riding stables.',
+          'A spring fair came to the stables, and {n} {many} signed up.',
+          '{N} {many} spent the weekend at riding camp.',
+        ],
+        incidents: [
+          { name: 'Trophy', text: 'The stables\' grand trophy is waiting for its winner.', prize: 'the grand trophy' },
+          { name: 'Foal', text: 'A wobbly new foal was born in the night.', prize: 'the naming of the foal' },
+          { name: 'Gate', text: 'Someone left a gate open, and a pony wandered off.', prize: 'the runaway pony' },
+          { name: 'Horseshoe', text: 'A lucky golden horseshoe turned up in the arena sand.', prize: 'the golden horseshoe' },
+          { name: 'Jump', text: 'One horse cleared the highest jump the stables had ever seen.', prize: 'the high jump prize' },
+          { name: 'Saddle', text: 'The founder\'s old saddle went missing from the tack room.', prize: 'the old saddle' },
+        ],
+        mishaps: [
+          'A playful horse knocked the sign-up sheet into the water trough.',
+          'The riders swapped helmets, and nobody is sure who was who.',
+          'Dust from the arena covered the score cards.',
+          'The stable notebook got nibbled by a hungry goat.',
+        ],
+        endings: [
+          '{Fact}, so {winner} wins {prize}! The horses toss their manes.',
+          '{Fact}! {winner} takes a victory lap around the arena.',
+          'Hooray! {Fact}, and every horse gets an extra brushing.',
+          '{Fact}, and {winner}\'s picture goes up on the barn wall.',
+        ],
+        leads: {
+          horse: ['The horse behind it is called {x}.', 'Everyone was cheering for {x}.'],
+          coat: ['Look for the {x} horse.', 'Someone spotted the {x} horse near the barn.'],
+          ribbon: ['The {one} who did it won the {x} ribbon.', 'It happened right after the {x} ribbon was handed out.'],
+          treat: ['A trail of {x} led the way.', 'The horse behind it was munching {x}.'],
+          stall: ['It all started at the {x} stall.', 'The trail leads to the {x} stall.'],
+          age: ['The horse behind it is {x} years old.', 'The horse\'s papers say {x} years old.'],
+          hands: ['The horse behind it stands {x} hands tall.', 'The measuring stick showed {x} hands.'],
+          lesson: ['The {one} who did it had a lesson at {x}.', 'The lesson board shows the key lesson at {x}.'],
+        },
+      },
+      art: { setting: 'a red barn and riding arena with horses, jumps, ribbons and green pastures', mood: 'sunny greens and warm browns, cheerful' } },
   ],
   science: [
     { id: 'sciencefair', name: 'Science Fair', description: 'Volcanoes, rockets and big ideas on display.',
@@ -3808,61 +3854,6 @@ export const TOPICS = {
         },
       },
       art: { setting: 'young weather watchers on a rooftop with a wind vane, rain gauge and dramatic storm clouds', mood: 'stormy blue and silver' } },
-    { id: 'spacecamp', name: 'Space Camp', description: 'Real rockets, planets and astronaut training.',
-      cast: { one: 'camper', many: 'campers' },
-      categories: [
-        cat('planet', 'Planet', 'did a report on {x}', 'did not do a report on {x}', ['Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune', 'Pluto'], { noun: 'report planet' }),
-        cat('mission', 'Mission', 'studied the {x} mission', 'did not study the {x} mission', ['Apollo 11', 'Hubble', 'Voyager', 'Artemis', 'Gemini', 'Curiosity', 'Webb', 'Skylab']),
-        cat('training', 'Training', 'tried the {x}', 'did not try the {x}', ['Moonwalk Chair', 'Spin Chair', 'Rocket Launch', 'Mission Control', 'Zero-G Wall', 'Space Food Lab', 'Spacesuit Fitting', 'Shuttle Simulator']),
-        cat('patch', 'Patch', 'earned the {x} patch', 'did not earn the {x} patch', ['Comet', 'Crescent', 'Shooting Star', 'Satellite', 'Galaxy', 'Nebula', 'Black Hole', 'Aurora'], { noun: 'patch' }),
-        cat('team', 'Team', 'was on Team {x}', 'was not on Team {x}', ['Orion', 'Atlas', 'Falcon', 'Eagle', 'Discovery', 'Endeavour', 'Pioneer', 'Phoenix']),
-        'goggles',
-        ord('age', 'Age', 'is {x} years old', 'is not {x} years old', ageOrd(9, 1)),
-        ord('launch', 'Launch Height', 'launched a rocket {x} feet', 'did not launch a rocket {x} feet',
-          countOrd(100, 50, null, 'launched a rocket lower than', 'launched a rocket higher than', 'launched a rocket {d} lower than', 'launched a rocket {d} higher than', (s) => plural(s * 50, 'foot', 'feet')),
-          { noun: 'rocket height in feet', note: 'Each {one} launched one model rocket, and a bigger number of feet means the rocket flew higher.' })],
-      story: {
-        adjs: ['Cosmic', 'Stellar', 'Blast-Off', 'Galactic', 'Orbiting', 'Launch-Day'],
-        openings: [
-          '{N} {many} arrived at space camp with their bags and big dreams.',
-          'The rocket center welcomed {n} {many} for a week of astronaut training.',
-          '{N} {many} pulled on flight suits for their first day at space camp.',
-          'A real rocket towered over the camp as {n} {many} gathered for the week.',
-          '{N} {many} counted down the days until their space camp adventure.',
-          'The countdown clock started as {n} {many} took their seats in the training center.',
-        ],
-        incidents: [
-          { name: 'Top Cadet', text: 'At the end of the week, one camper will be named top cadet.', prize: 'the top cadet award' },
-          { name: 'Meteorite', text: 'A real meteorite went missing from the display case and was found again.', prize: 'the meteorite finder badge' },
-          { name: 'Astronaut Visit', text: 'A real astronaut is visiting and wants to meet the most curious camper.', prize: 'the astronaut lunch' },
-          { name: 'Splashdown', text: 'One team pulled off a perfect pretend splashdown.', prize: 'the splashdown medal' },
-          { name: 'Moon Rock', text: 'One camper answered the hardest moon rock question.', prize: 'the moon rock ribbon' },
-          { name: 'Launch Button', text: 'One lucky camper gets to press the button for the big launch.', prize: 'the launch button' },
-        ],
-        mishaps: [
-          'The mission logs got scrambled when the computer crashed.',
-          'The counselor\'s clipboard floated away on a gust of wind.',
-          'Everyone was so excited that their stories got mixed up.',
-          'The camp radio crackled, so the reports came in broken pieces.',
-        ],
-        endings: [
-          '{Fact}, so {winner} wins {prize}! Mission accomplished.',
-          '{Fact}! {winner} gets a big cheer from the whole crew.',
-          'Mystery solved! {Fact}, and {winner} dreams of real space tonight.',
-          '{Fact}, and {winner} takes home {prize} and a bag of freeze-dried ice cream.',
-        ],
-        leads: {
-          planet: ['The camper you want did a report on {x}.', 'A drawing of {x} hung over the bunk.'],
-          mission: ['The camper you want studied the {x} mission.', 'It was all inspired by the {x} mission.'],
-          training: ['The camper you want tried the {x}.', 'It happened right after the {x}.'],
-          patch: ['The camper you want earned the {x} patch.', 'Look for the {x} patch.'],
-          team: ['The camper you want was on Team {x}.', 'The cheers came from Team {x}.'],
-          goggles: ['The camper you want wore {x} goggles.', 'A flash of {x} goggles gave it away.'],
-          age: ['The camper you want is {x} years old.', 'The name badge says {x} years old.'],
-          launch: ['The camper you want launched a rocket {x} feet.', 'The tracker showed {x} feet.'],
-        },
-      },
-      art: { setting: 'a space camp with a tall rocket on display, astronaut training gear and a starry dome', mood: 'deep blue and rocket bright' } },
     { id: 'physics', name: 'Physics Playground', description: 'Ramps, pendulums and launches that show how things move.',
       cast: { one: 'physicist', many: 'physicists' },
       categories: [
@@ -3916,6 +3907,59 @@ export const TOPICS = {
         },
       },
       art: { setting: 'a school playground turned physics lab with ramps, pendulums, balloon cars and a water rocket mid-launch', mood: 'sunny blue and orange' } },
+    { id: 'rocks', name: 'Rock and Mineral Show', description: 'Geodes, gemstones and a sparkling mix-up at the rock show.',
+      cast: { one: 'collector', many: 'collectors' },
+      categories: [
+        cat('mineral', 'Mineral', 'showed the {x}', 'did not show the {x}', ['Amethyst', 'Quartz', 'Pyrite', 'Malachite', 'Obsidian', 'Garnet', 'Turquoise', 'Mica'], { noun: 'mineral' }),
+        cat('rocktype', 'Rock Type', 'brought a {x} rock', 'did not bring a {x} rock', ['Granite', 'Basalt', 'Marble', 'Sandstone', 'Limestone', 'Slate', 'Pumice', 'Shale'], { noun: 'rock type' }),
+        cat('rocktool', 'Tool', 'used the {x}', 'did not use the {x}', ['Rock Hammer', 'Hand Lens', 'Chisel', 'Streak Plate', 'Scratch Kit', 'Brush', 'Sieve', 'Field Map']),
+        cat('state', 'Found In', 'found it in {x}', 'did not find it in {x}', ['Arizona', 'Utah', 'Montana', 'Arkansas', 'Oregon', 'Maine', 'Colorado', 'Nevada'], { noun: 'state where it was found' }),
+        cat('bandana', 'Bandana', 'wore the {x} bandana', 'did not wear the {x} bandana', ['Red', 'Blue', 'Green', 'Orange', 'Purple', 'Yellow', 'Paisley', 'Plaid'], { noun: 'bandana color' }),
+        ord('weight', 'Weight', 'brought a specimen weighing {x} pounds', 'did not bring a specimen weighing {x} pounds',
+          countOrd(1, 1, null, 'brought a lighter specimen than', 'brought a heavier specimen than', 'brought one {d} lighter than', 'brought one {d} heavier than', (s) => plural(s, 'pound', 'pounds')),
+          { noun: 'specimen weight in pounds' }),
+        ord('booth', 'Booth Time', 'opened a booth at {x}', 'did not open a booth at {x}', timeOrd('opened a booth', 9 * 60, 15), { noun: 'booth opening time' })],
+      story: {
+        adjs: ['Sparkling', 'Glittering', 'Rocky', 'Hidden', 'Shining', 'Gleaming'],
+        openings: [
+          'The county rock and mineral show filled the old armory, and {n} {many} set out their finds.',
+          '{N} {many} carried heavy boxes of specimens into the exhibit hall at dawn.',
+          'Glass cases glittered under bright lamps as {n} {many} got their tables ready.',
+          '{N} {many} came from all over the country for the biggest rock show of the year.',
+          'A line of eager visitors wrapped around the hall while {n} {many} unpacked.',
+          '{N} {many} spent the morning polishing their best pieces for the judges.',
+        ],
+        incidents: [
+          { name: 'Best in Show', text: 'The judges will pin a rosette on the finest specimen in the hall.', prize: 'the Best in Show rosette' },
+          { name: 'Geode', text: 'A plain gray geode cracked open to reveal a glittering sparkle inside.', prize: 'the geode surprise prize' },
+          { name: 'Glow', text: 'One specimen glowed brightly under the ultraviolet lamp.', prize: 'the glow-in-the-dark ribbon' },
+          { name: 'Mystery Stone', text: 'A small stone with no label stumped every expert in the room.', prize: 'the mystery stone badge' },
+          { name: 'Kids Pick', text: 'The visiting school group voted for their favorite table.', prize: 'the kids choice award' },
+          { name: 'Rare Find', text: 'One find was so rare that the museum asked to borrow it.', prize: 'the rare find honor' },
+        ],
+        mishaps: [
+          'A table leg gave way and every label slid onto the floor.',
+          'The show program was printed with half the names missing.',
+          'Dust from a rock saw clouded the judges\' notes.',
+          'Everyone swapped tables after lunch, so nobody is sure who was where.',
+        ],
+        endings: [
+          '{Fact}, so {winner} takes home {prize}! The hall bursts into applause.',
+          '{Fact}. {winner} beams as visitors crowd in for a closer look.',
+          'Mystery solved! {Fact}, and {winner} is already planning a summer dig.',
+          '{Fact}, and {winner} is invited to speak at next year\'s show.',
+        ],
+        leads: {
+          mineral: ['The collector you want showed the {x}.', 'It all started with the {x}.'],
+          rocktype: ['The collector you want brought a {x} rock.', 'Look for the {x} rock.'],
+          rocktool: ['The collector you want used the {x}.', 'The {x} gave it away.'],
+          state: ['The collector you want found it in {x}.', 'The trail leads back to {x}.'],
+          bandana: ['The collector you want wore the {x} bandana.', 'Look for the {x} bandana.'],
+          weight: ['The collector you want brought a specimen weighing {x} pounds.', 'The scale read {x} pounds.'],
+          booth: ['The collector you want opened a booth at {x}.', 'The show schedule says {x}.'],
+        },
+      },
+      art: { setting: 'a bright rock and mineral show hall with glass cases of glittering crystals, geodes and gemstones', mood: 'jewel tones and warm lamplight' } },
   ],
   math: [
     { id: 'contest', name: 'Math Contest', description: 'Pencils ready for a big math showdown.',
@@ -4249,172 +4293,9 @@ export const TOPICS = {
       },
       art: { setting: 'birdwatchers with binoculars on a misty forest trail at dawn, birds in the trees', mood: 'soft dawn gold and forest green' } },
   ],
-  chemistry: [
-    { id: 'labday', name: 'Lab Day', description: 'Goggles on for a day of amazing experiments.',
-      art: { setting: 'a bright school chemistry lab with bubbling flasks, colorful flames and a periodic table on the wall', mood: 'bright colors and fizzing bubbles' } },
-    { id: 'lab', name: 'Chemistry Lab', description: 'Fizzing, foaming and color-changing experiments.',
-      cast: { one: 'chemist', many: 'chemists' },
-      categories: [
-        cat('experiment', 'Experiment', 'ran the {x} experiment', 'did not run the {x} experiment', ['Elephant Toothpaste', 'Color Change', 'Rock Candy', 'Glowing Slime', 'Invisible Ink', 'Fizzy Rocket', 'Cabbage Juice', 'Copper Plating']),
-        cat('ingredient', 'Ingredient', 'mixed in {x}', 'did not mix in {x}', ['Baking Soda', 'Vinegar', 'Salt', 'Sugar', 'Iodine', 'Citric Acid', 'Cornstarch', 'Food Coloring']),
-        { from: 'glass', items: ['Beaker', 'Test Tube', 'Flask', 'Pipette', 'Funnel', 'Graduated Cylinder', 'Dropper', 'Petri Dish'] },
-        cat('result', 'Result Color', 'turned it {x}', 'did not turn it {x}', ['Teal', 'Crimson', 'Amber', 'Lime', 'Magenta', 'Silver', 'Indigo', 'Turquoise'], { noun: 'result color' }),
-        cat('element', 'Element', 'drew a poster of {x}', 'did not draw a poster of {x}', ['Hydrogen', 'Oxygen', 'Carbon', 'Helium', 'Neon', 'Gold', 'Iron', 'Calcium'], { noun: 'poster element' }),
-        cat('goggles', 'Goggles', 'wore {x} goggles', 'did not wear {x} goggles', ['Red', 'Orange', 'Yellow', 'Green', 'Blue', 'Purple', 'Pink', 'White'], { noun: 'goggle color' }),
-        ord('start', 'Start Time', 'started at {x}', 'did not start at {x}', timeOrd('started', 9 * 60, 15), { noun: 'start time' }),
-        ord('wait', 'Wait', 'waited {x} minutes', 'did not wait {x} minutes',
-          countOrd(5, 5, null, 'waited less time than', 'waited longer than', 'waited {d} less than', 'waited {d} longer than', (s) => plural(s * 5, 'minute', 'minutes')),
-          { noun: 'wait in minutes' })],
-      story: {
-        adjs: ['Fizzing', 'Foaming', 'Bubbling', 'Sparkling', 'Smoky', 'Dazzling'],
-        openings: [
-          'The chemistry club met after school, and {n} {many} pulled on their lab coats.',
-          '{N} {many} gathered in the lab for Super Science Saturday.',
-          'The lab hummed with bubbling jars as {n} {many} got to work.',
-          '{N} {many} signed up for the university\'s open lab day.',
-          'A big demo show was coming, and {n} {many} were practicing their best tricks.',
-          '{N} {many} lined up at the lab benches, ready to mix and measure.',
-        ],
-        incidents: [
-          { name: 'Demo Show', text: 'One experiment will open the big demo show for the whole school.', prize: 'the opening act' },
-          { name: 'Foam Tower', text: 'One experiment foamed right up to the ceiling.', prize: 'the tallest foam award' },
-          { name: 'Formula', text: 'A page from the teacher\'s secret formula book went missing.', prize: 'the secret formula page' },
-          { name: 'Safety Star', text: 'The lab is giving a prize for the safest, neatest bench.', prize: 'the safety star' },
-          { name: 'Video', text: 'A science show wants to film the coolest experiment.', prize: 'the video spot' },
-          { name: 'Mystery Jar', text: 'An unlabeled jar was found, and someone figured out what was inside.', prize: 'the mystery jar prize' },
-        ],
-        mishaps: [
-          'A foam spill soaked the lab notebook.',
-          'The labels peeled off the jars in the steam.',
-          'Everyone talked at once, so the details got scrambled.',
-          'The smoke alarm went off, and the notes got shuffled in the rush.',
-        ],
-        endings: [
-          '{Fact}, so {winner} wins {prize}! The whole lab applauds.',
-          '{Fact}! {winner} takes a bow in a cloud of harmless fog.',
-          'Mystery solved! {Fact}, and {winner} writes it all up in the lab report.',
-          '{Fact}, and {winner} gets {prize} and a brand-new lab coat.',
-        ],
-        leads: {
-          experiment: ['The chemist you want ran the {x} experiment.', 'It all started with the {x} experiment.'],
-          ingredient: ['The chemist you want mixed in {x}.', 'A spoonful of {x} was the secret.'],
-          glass: ['The chemist you want used the {x}.', 'The {x} gave it away.'],
-          result: ['The chemist you want turned it {x}.', 'A flash of {x} filled the room.'],
-          element: ['The chemist you want drew a poster of {x}.', 'The poster on the wall showed {x}.'],
-          goggles: ['The chemist you want wore {x} goggles.', 'Look for the {x} goggles.'],
-          start: ['The chemist you want started at {x}.', 'The lab sign-in sheet says {x}.'],
-          wait: ['The chemist you want waited {x} minutes.', 'The timer showed {x} minutes.'],
-        },
-      },
-      art: { setting: 'a bright school chemistry lab with bubbling beakers, colorful liquids and safety goggles', mood: 'bright colors and fizzing bubbles' } },
-    { id: 'fireworks', name: 'Fireworks Show', description: 'Bursts of color and a booming night sky.',
-      cast: { one: 'firework maker', many: 'firework makers' },
-      categories: [
-        cat('shell', 'Firework', 'designed the {x}', 'did not design the {x}', ['Peony', 'Chrysanthemum', 'Willow', 'Palm', 'Comet', 'Crossette', 'Ring', 'Strobe']),
-        'flame',
-        { from: 'element', items: ['Strontium', 'Sodium', 'Barium', 'Copper', 'Calcium', 'Lithium', 'Potassium', 'Magnesium'] },
-        cat('launch', 'Launch Spot', 'launched from the {x}', 'did not launch from the {x}', ['North Pier', 'South Pier', 'Barge', 'Hilltop', 'Lighthouse', 'Old Fort', 'Rooftop', 'Riverbank'], { noun: 'launch spot' }),
-        'hero',
-        ord('shells', 'Shells', 'fired {x} shells', 'did not fire {x} shells',
-          countOrd(5, 5, null, 'fired fewer shells than', 'fired more shells than', 'fired {d} fewer than', 'fired {d} more than', (s) => plural(s * 5, 'shell', 'shells')),
-          { noun: 'shells fired' }),
-        ord('launchtime', 'Launch Time', 'launched at {x}', 'did not launch at {x}', timeOrd('launched', 21 * 60, 5), { noun: 'launch time' })],
-      story: {
-        adjs: ['Booming', 'Blazing', 'Starry', 'Dazzling', 'Crackling', 'Midnight'],
-        openings: [
-          'The summer festival was hours away, and {n} {many} were busy at the workshop.',
-          '{N} {many} planned the town\'s big fireworks show by the harbor.',
-          'As the sun went down, {n} {many} checked every fuse twice.',
-          '{N} {many} entered the national fireworks contest.',
-          'Crowds gathered on the beach while {n} {many} got ready.',
-          '{N} {many} spent all year planning one perfect night.',
-        ],
-        incidents: [
-          { name: 'Finale', text: 'One firework stole the show in the grand finale.', prize: 'the finale trophy' },
-          { name: 'Crowd Cheer', text: 'The loudest cheer of the night went to a single burst.', prize: 'the crowd favorite ribbon' },
-          { name: 'Safety', text: 'The fire chief is thanking the most careful crew member.', prize: 'the safety badge' },
-          { name: 'New Shade', text: 'Someone made a shade the judges had never seen in the sky.', prize: 'the new shade award' },
-          { name: 'Mayor', text: 'The mayor wants to shake hands with the star of the show.', prize: 'the mayor\'s handshake' },
-          { name: 'Front Page', text: 'A photo of the show will go on the front page.', prize: 'the front-page photo' },
-        ],
-        mishaps: [
-          'Smoke drifted over the judges\' table, and the notes got mixed up.',
-          'The launch list got soaked by spray from the harbor.',
-          'Everyone was looking up, so nobody wrote things down.',
-          'The radio crackled, so the reports came in broken pieces.',
-        ],
-        endings: [
-          '{Fact}, so {winner} wins {prize}! The sky lights up once more.',
-          '{Fact}! {winner} takes a bow as the crowd roars.',
-          'Mystery solved! {Fact}, and {winner} is already planning next year\'s show.',
-          '{Fact}, and {prize} goes to {winner}. What a night!',
-        ],
-        leads: {
-          shell: ['The firework maker you want designed the {x}.', 'The {x} lit up the whole sky.'],
-          flame: ['The firework maker you want made a {x} flame.', 'A flash of {x} filled the sky.'],
-          element: ['The firework maker you want studied {x}.', 'The secret was {x}.'],
-          launch: ['The firework maker you want launched from the {x}.', 'The big burst came from the {x}.'],
-          hero: ['The firework maker you want looks up to {x}.', 'A poster of {x} hung in the workshop.'],
-          shells: ['The firework maker you want fired {x} shells.', 'The launch log shows {x} shells.'],
-          launchtime: ['The firework maker you want launched at {x}.', 'The clock read {x} at the big burst.'],
-        },
-      },
-      art: { setting: 'a harbor at night with huge colorful fireworks bursting over the water and crowds on the shore', mood: 'deep night blue with bright bursts' } },
-    { id: 'crystals', name: 'Crystal Garden', description: 'Jars, strings and sparkling crystals that grow overnight.',
-      cast: { one: 'crystal grower', many: 'crystal growers' },
-      categories: [
-        cat('crystal', 'Crystal', 'grew {x} crystals', 'did not grow {x} crystals', ['Table Salt', 'Sugar', 'Alum', 'Borax', 'Copper Sulfate', 'Epsom Salt', 'Bismuth', 'Rock Candy']),
-        cat('jar', 'Jar', 'used the {x} jar', 'did not use the {x} jar', ['Mason', 'Pickle', 'Jam', 'Honey', 'Baby Food', 'Spice', 'Salsa', 'Peanut Butter']),
-        cat('string', 'String', 'hung it on {x} string', 'did not hang it on {x} string', ['Cotton', 'Wool', 'Nylon', 'Silk', 'Hemp', 'Jute', 'Linen', 'Kite']),
-        cat('spot', 'Growing Spot', 'kept it on the {x}', 'did not keep it on the {x}', ['Windowsill', 'Bookshelf', 'Fridge Top', 'Desk', 'Closet Shelf', 'Porch', 'Attic Step', 'Garage Bench'], { noun: 'growing spot' }),
-        'hero',
-        ord('days', 'Days', 'waited {x} days', 'did not wait {x} days',
-          countOrd(2, 1, null, 'waited fewer days than', 'waited more days than', 'waited {d} fewer than', 'waited {d} more than', (s) => plural(s, 'day', 'days')),
-          { noun: 'days of growing' }),
-        ord('size', 'Crystal Size', 'grew a crystal {x} centimeters long', 'did not grow a crystal {x} centimeters long',
-          countOrd(1, 1, null, 'grew a smaller crystal than', 'grew a bigger crystal than', 'grew a crystal {d} smaller than', 'grew a crystal {d} bigger than', (s) => plural(s, 'centimeter', 'centimeters')),
-          { noun: 'crystal size in centimeters' })],
-      story: {
-        adjs: ['Sparkling', 'Glittering', 'Frosty', 'Gleaming', 'Shimmering', 'Twinkling'],
-        openings: [
-          '{N} {many} started a crystal-growing contest at the science center.',
-          'Jars lined every table as {n} {many} checked on their crystals.',
-          '{N} {many} spent two weeks waiting for their crystals to grow.',
-          'The chemistry club gave {n} {many} a month to grow the best crystal.',
-          '{N} {many} brought their crystals to the gem and mineral show.',
-          'Every morning, {n} {many} peeked at their jars to see what had grown.',
-        ],
-        incidents: [
-          { name: 'Biggest Crystal', text: 'One crystal grew bigger than anyone thought possible.', prize: 'the biggest crystal trophy' },
-          { name: 'Museum Case', text: 'The mineral museum wants to show one crystal in its case.', prize: 'a spot in the museum case' },
-          { name: 'Perfect Point', text: 'The judges found one crystal with perfect sharp points.', prize: 'the perfect point ribbon' },
-          { name: 'Quick Hands', text: 'A crystal fell off the table and someone caught it just in time.', prize: 'the quick hands award' },
-          { name: 'Rainbow', text: 'One crystal threw a rainbow across the whole room.', prize: 'the rainbow prize' },
-          { name: 'Cover', text: 'A science magazine wants a photo of the prettiest crystal.', prize: 'the magazine cover' },
-        ],
-        mishaps: [
-          'The labels on the jars got switched during cleanup.',
-          'A cat knocked the notebook into the sink.',
-          'Everyone checked their jars at once, so the details got mixed up.',
-          'The growth chart was smudged by sticky fingers.',
-        ],
-        endings: [
-          '{Fact}, so {winner} wins {prize}! Everything sparkles.',
-          '{Fact}! {winner} holds the crystal up to the light.',
-          'Mystery solved! {Fact}, and {winner} starts a new jar right away.',
-          '{Fact}, and {prize} goes to {winner}. Crystal clear!',
-        ],
-        leads: {
-          crystal: ['The crystal grower you want grew {x} crystals.', 'It all began with {x}.'],
-          jar: ['The crystal grower you want used the {x} jar.', 'The {x} jar held the prize.'],
-          string: ['The crystal grower you want hung it on {x} string.', 'A strand of {x} string held it up.'],
-          spot: ['The crystal grower you want kept it on the {x}.', 'It grew best on the {x}.'],
-          hero: ['The crystal grower you want looks up to {x}.', 'A book about {x} sat by the jars.'],
-          days: ['The crystal grower you want waited {x} days.', 'The calendar shows {x} days.'],
-          size: ['The crystal grower you want grew a crystal {x} centimeters long.', 'The ruler showed {x} centimeters.'],
-        },
-      },
-      art: { setting: 'glass jars on a sunny windowsill full of sparkling sugar, salt and purple alum crystals growing on strings', mood: 'icy violet and sparkle' } },
+  astronomy: [
+    { id: 'starparty', name: 'Star Party', description: 'Telescopes on a dark hilltop and a long night under the stars.',
+      art: { setting: 'a dark hilltop star party with telescopes, red flashlights and the Milky Way overhead', mood: 'deep blue night and starlight' } },
   ],
   paradox: [
     { id: 'dreamcity', name: 'Dream City', description: 'A city where up is down and time runs sideways.',
@@ -4579,6 +4460,16 @@ export const TOPICS = {
   ],
 };
 
+// Add the topics from the more-topics-*.js files (more-topics.js) to the end
+// of each theme's list, so topics already there keep their places.
+for (const [themeId, more] of Object.entries(MORE_TOPICS)) {
+  if (!TOPICS[themeId]) throw new Error(`more-topics.js names an unknown theme "${themeId}"`);
+  for (const topic of more.topics || []) {
+    if (TOPICS[themeId].some((t) => t.id === topic.id)) throw new Error(`Topic ${themeId}/${topic.id} is defined twice`);
+    TOPICS[themeId].push(topic);
+  }
+}
+
 // Add the extra story parts from more-stories.js to the end of each list, so
 // the parts already there keep their places (saved story ids point at them).
 for (const [key, more] of Object.entries(MORE_STORIES)) {
@@ -4586,6 +4477,19 @@ for (const [key, more] of Object.entries(MORE_STORIES)) {
   const target = topicId ? (TOPICS[themeId] || []).find((t) => t.id === topicId)?.story : STORYLINES[themeId];
   if (!target) throw new Error(`more-stories.js names an unknown story "${key}"`);
   for (const [kind, parts] of Object.entries(more)) target[kind].push(...parts);
+}
+// And the extra story parts the more-topics-*.js files give existing topics
+// (stories: { 'theme' or 'theme/topic': { openings, incidents, ... } }).
+for (const [themeId, more] of Object.entries(MORE_TOPICS)) {
+  for (const [key, parts] of Object.entries(more.stories || {})) {
+    const [tid, topicId] = key.split('/');
+    if (tid !== themeId) throw new Error(`more-topics-${themeId}.js adds stories to another theme ("${key}")`);
+    const target = topicId ? (TOPICS[tid] || []).find((t) => t.id === topicId)?.story : STORYLINES[tid];
+    if (!target) throw new Error(`more-topics-${themeId}.js names an unknown story "${key}"`);
+    for (const [kind, list] of Object.entries(parts)) {
+      if (kind === 'leads') { for (const [c, l] of Object.entries(list)) (target.leads[c] ||= []).push(...l); } else target[kind].push(...list);
+    }
+  }
 }
 
 export function getTopics(themeId) {

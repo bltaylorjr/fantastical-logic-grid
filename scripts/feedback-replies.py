@@ -10,6 +10,9 @@ domain's DNS is not on Cloudflare, so the Worker cannot send email itself).
    instead. The wording is fixed; thank-you and update emails also quote
    what the player wrote (and, for an update, the team's note on what was
    done). They only ever go to the player's own confirmed address.
+   An approved storyline's email also attaches the first puzzle made with it
+   as a PDF with its answer key (scripts/contributor-puzzle.mjs, printed by
+   Chromium through Playwright, installed only when one is waiting).
 3. Tell the Worker which went out (POST /admin/v1/replies/done), which
    removes their email addresses.
 
@@ -19,10 +22,14 @@ least one of RESEND_API_KEY or GMAIL_USER + GMAIL_APP_PASSWORD; MAIL_FROM is
 optional. Without them it says so and stops (not an error).
 Python standard library only.
 """
+import base64
 import html
 import json
 import os
+import re
 import smtplib
+import subprocess
+import tempfile
 import ssl
 import sys
 import urllib.error
@@ -43,7 +50,9 @@ NO_REPLY = ('This is an automatic message from a no-reply address. Please do not
 
 SIGN_OFF = 'The Fantastical Logic Grid team\n' + GAME_URL
 
-# Each email is a list of blocks: plain paragraphs, and ('quote', label, text)
+# Each email is a list of blocks: plain paragraphs, ('link', words, url) for a
+# button (the URL comes from the Worker and always points at the game's own
+# site), and ('quote', label, text)
 # for the player's own words or the team's note. Those come from the Worker,
 # already cleaned (no email addresses or links), and go only to the player's
 # own address. An email whose words are missing still reads well without them.
@@ -82,6 +91,38 @@ NOTES = {
             SIGN_OFF,
         ],
     },
+    'problem_repaired': {
+        'subject': 'We fixed the puzzle you reported',
+        'blocks': lambda r: [
+            'Hello, puzzler!',
+            'We are sorry for the trouble with that puzzle, and thank you for telling us about it. '
+            'We looked into your report and fixed the problem.',
+            ('quote', 'What you reported', r.get('text')),
+            ('quote', 'What we found', r.get('explain')),
+            ('quote', 'What we did', r.get('note')),
+            ('link', 'Add the repaired puzzle to my saved puzzles', r.get('link')),
+            'The button opens the game and puts the repaired puzzle in your Saved puzzles, ready to play again. '
+            'It works on any device for 30 days.',
+            'Thank you for helping us make the game better for every player.',
+            SIGN_OFF,
+        ],
+    },
+    'story_approved': {
+        'subject': 'Your storyline is now a puzzle!',
+        'blocks': lambda r: [
+            'Hello, puzzler!',
+            'Thank you for the storyline you sent us for The Fantastical Logic Grid. The team approved it, '
+            'and it is now part of the game.',
+            ('quote', 'Your storyline', r.get('text')),
+            ('quote', 'From the team', r.get('note')),
+            ('The first puzzle made with your storyline is attached as a PDF, with its answer key on the last page. '
+             'It is also waiting for you in the game for 30 days: sign in and open Menu > Messages > Puzzles for you, '
+             'then press Play to keep it in your saved puzzles.') if r.get('puzzle') else
+            'Open the game to find your storyline in new puzzles.',
+            'Thank you for contributing to the game\'s stories!',
+            SIGN_OFF,
+        ],
+    },
     'problem_update': {
         'subject': 'The problem you reported has been addressed',
         'blocks': lambda r: [
@@ -110,7 +151,8 @@ NOTES = {
 
 def blocks(r):
     """The email's blocks, without quotes that have no words."""
-    return [b for b in NOTES[r['kind']]['blocks'](r) if isinstance(b, str) or (b[2] or '').strip()]
+    return [b for b in NOTES[r['kind']]['blocks'](r) if isinstance(b, str) or (b[2] or '').strip()
+            and (b[0] != 'link' or str(b[2]).startswith('https://'))]
 
 
 def call(path, body):
@@ -130,6 +172,10 @@ def html_version(r):
     for b in blocks(r):
         if isinstance(b, str):
             parts.append(f'<p style="margin:0 0 14px">{html.escape(b).replace(chr(10), "<br>")}</p>')
+        elif b[0] == 'link':
+            parts.append(f'<p style="margin:6px 0 18px"><a href="{html.escape(b[2], quote=True)}" style="display:inline-block;'
+                         'background:#5B3CC4;color:#ffffff;text-decoration:none;font-weight:bold;padding:12px 20px;border-radius:8px">'
+                         f'{html.escape(b[1])}</a></p>')
         else:
             parts.append(f'<p style="margin:0 0 6px;font-weight:bold">{html.escape(b[1])}:</p>'
                          '<blockquote style="margin:0 0 16px;padding:10px 14px;border-left:4px solid #b08d3c;background:#f6f1e7;'
@@ -145,9 +191,52 @@ def text_version(r):
     for b in blocks(r):
         if isinstance(b, str):
             out.append(b)
+        elif b[0] == 'link':
+            out.append(b[1] + ':\n' + b[2])
         else:
             out.append(b[1] + ':\n' + '\n'.join('> ' + line for line in b[2].strip().split('\n')))
     return '\n\n'.join(out) + '\n\n--\n' + NO_REPLY + '\n'
+
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PRINTER_READY = False
+
+
+def ensure_printer():
+    """Installs the fonts and Chromium the first time a PDF is needed (most runs
+    have none, so they skip this). Already there locally."""
+    global PRINTER_READY
+    if PRINTER_READY:
+        return
+    if os.environ.get('GITHUB_ACTIONS') == 'true':
+        run = lambda *cmd: subprocess.run(list(cmd), check=True, timeout=600, cwd=ROOT, stdout=subprocess.DEVNULL)
+        run('npm', 'ci', '--no-audit', '--no-fund', '--ignore-scripts')
+        run('npm', 'install', '--no-save', '--no-audit', '--no-fund', 'playwright@1.63.0')
+        run('npx', 'playwright', 'install', '--with-deps', 'chromium')
+    PRINTER_READY = True
+
+
+def attachments(r):
+    """The PDF for an approved storyline (puzzle and answer key), or none. If it
+    cannot be built, the email still goes; the puzzle is in the game anyway."""
+    if r.get('kind') != 'story_approved' or not isinstance(r.get('puzzle'), dict):
+        return []
+    try:
+        ensure_printer()
+        with tempfile.TemporaryDirectory() as tmp:
+            src = os.path.join(tmp, 'puzzle.json')
+            with open(src, 'w', encoding='utf-8') as f:
+                json.dump(r['puzzle'], f)
+            name = (re.sub(r'[^A-Za-z0-9]+', '-', str(r['puzzle'].get('title') or 'puzzle')).strip('-')[:60] or 'puzzle') + '.pdf'
+            out = os.path.join(tmp, name)
+            subprocess.run(['node', os.path.join(ROOT, 'scripts', 'contributor-puzzle.mjs'), src, out], check=True, timeout=300, cwd=ROOT,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            with open(out, 'rb') as f:
+                return [(name, f.read())]
+    except Exception as e:  # noqa: BLE001 - send without the PDF rather than not at all
+        print(f'A storyline PDF could not be built ({type(e).__name__}); that email goes without it.')
+        r['puzzle'] = None
+        return []
 
 
 def message(r):
@@ -161,6 +250,8 @@ def message(r):
     msg['X-Auto-Response-Suppress'] = 'All'
     msg.set_content(text_version(r))
     msg.add_alternative(html_version(r), subtype='html')
+    for name, data in r.get('_files', []):
+        msg.add_attachment(data, maintype='application', subtype='pdf', filename=name)
     return msg
 
 
@@ -172,6 +263,8 @@ def send_resend(replies):
         payload = {'from': formataddr(('The Fantastical Logic Grid', MAIL_FROM)), 'to': [r['email']], 'subject': NOTES[r['kind']]['subject'],
                    'text': text_version(r), 'html': html_version(r),
                    'headers': {'Auto-Submitted': 'auto-replied', 'X-Auto-Response-Suppress': 'All'}}
+        if r.get('_files'):
+            payload['attachments'] = [{'filename': name, 'content': base64.b64encode(data).decode()} for name, data in r['_files']]
         req = urllib.request.Request('https://api.resend.com/emails', method='POST', data=json.dumps(payload).encode(),
                                      headers={'Authorization': f'Bearer {RESEND_KEY}', 'Content-Type': 'application/json', 'User-Agent': 'flg-feedback-replies'})
         try:
@@ -232,6 +325,9 @@ def main():
     if not replies:
         print('No thank-you emails waiting.')
         return
+
+    for r in replies:
+        r['_files'] = attachments(r)
 
     sent, failed, via = [], [], {'Resend': 0, 'Gmail': 0}
     if RESEND_KEY:

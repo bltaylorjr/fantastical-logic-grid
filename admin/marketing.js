@@ -48,8 +48,11 @@ function mediaName(id) {
 
 // Channels scripts/marketing-post.py can post to by itself (the rest are emailed).
 // Facebook posts go to the game's Page; group posts are always by hand.
-const AUTO_CHANNELS = ['bluesky', 'mastodon', 'x', 'facebook', 'instagram', 'threads'];
-const isAuto = (a) => AUTO_CHANNELS.includes(a.channel) && !(a.channel === 'facebook' && a.medium === 'community');
+// The same rule as is_auto() in scripts/marketing-post.py.
+const AUTO_CHANNELS = ['bluesky', 'mastodon', 'x', 'facebook', 'instagram', 'threads', 'linkedin', 'pinterest', 'youtube', 'tiktok', 'reddit'];
+const SUBREDDIT = /^https:\/\/www\.reddit\.com\/r\/[A-Za-z0-9_]{2,21}\/?$/;
+const isAuto = (a) => AUTO_CHANNELS.includes(a.channel) && !(a.channel === 'facebook' && a.medium === 'community')
+  && (a.channel !== 'reddit' || SUBREDDIT.test((a.where || '').trim()));
 
 function adCard(a, admin) {
   const text = fillLink(a.body, a.link);
