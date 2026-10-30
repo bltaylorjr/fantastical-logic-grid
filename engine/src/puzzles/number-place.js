@@ -22,6 +22,8 @@ export const NP_TECHNIQUES = {
   nakedTriple: { level: 4, name: 'Matching three' },
   hiddenTriple: { level: 4, name: 'Hidden three' },
   xWing: { level: 4, name: 'Rectangle' },
+  swordfish: { level: 5, name: 'Three-line pattern' },
+  xyWing: { level: 5, name: 'Bent triple' },
 };
 
 export const NP_TIERS = {
@@ -29,7 +31,9 @@ export const NP_TIERS = {
   easy: { name: 'Easy', maxLevel: 1, size: 6, minLevel: 1 },
   medium: { name: 'Medium', maxLevel: 2, size: 9, minLevel: 1 },
   hard: { name: 'Hard', maxLevel: 3, size: 9, minLevel: 2 },
-  expert: { name: 'Expert', maxLevel: 4, size: 9, minLevel: 3 },
+  expert: { name: 'Expert', maxLevel: 5, size: 9, minLevel: 4 },
+  // Master needs the top techniques at least twice.
+  master: { name: 'Master', maxLevel: 5, size: 9, minLevel: 5, minTopSteps: 2 },
 };
 export const NP_TIER_ORDER = Object.keys(NP_TIERS);
 
@@ -156,27 +160,58 @@ const FINDERS = {
   nakedTriple: (shape, st) => nakedSubset(shape, st, 3),
   hiddenPair: (shape, st) => hiddenSubset(shape, st, 2),
   hiddenTriple: (shape, st) => hiddenSubset(shape, st, 3),
-  xWing(shape, st) {
-    const { N, units } = shape;
-    for (const [lineKind, crossKind] of [['row', 'column'], ['column', 'row']]) {
-      const lines = units.filter((u) => u.kind === lineKind);
-      const crosses = units.filter((u) => u.kind === crossKind);
-      const pos = (u, c) => (lineKind === 'row' ? c % N : Math.floor(c / N));
-      for (let d = 1; d <= N; d++) {
-        const sets = lines.map((u) => u.cells.filter((c) => !st.v[c] && st.cand[c] & bit(d)));
-        for (let i = 0; i < N; i++) for (let j = i + 1; j < N; j++) {
-          if (sets[i].length !== 2 || sets[j].length !== 2) continue;
-          const pi = sets[i].map((c) => pos(lines[i], c)), pj = sets[j].map((c) => pos(lines[j], c));
-          if (pi[0] !== pj[0] || pi[1] !== pj[1]) continue;
-          const corners = [...sets[i], ...sets[j]];
-          const remove = pi.flatMap((k) => crosses[k].cells.filter((c) => !corners.includes(c) && !st.v[c] && st.cand[c] & bit(d)).map((c) => [c, d]));
-          if (remove.length) return { remove, focus: { cells: corners }, why: `In ${lineKind}s ${i + 1} and ${j + 1}, ${d} fits only in ${crossKind}s ${pi[0] + 1} and ${pi[1] + 1}. Whichever way it goes, those two ${crossKind}s get their ${d} from these ${lineKind}s, so cross ${d} off the rest of them.` };
-        }
+  xWing: (shape, st) => fish(shape, st, 2),
+  swordfish: (shape, st) => fish(shape, st, 3),
+  xyWing(shape, st) {
+    const { N, peers } = shape;
+    const two = [...Array(N * N).keys()].filter((c) => !st.v[c] && popcount(st.cand[c]) === 2);
+    for (const pivot of two) {
+      const [a, b] = digitsOf(st.cand[pivot]);
+      const seen = new Set(peers[pivot]);
+      const wings = two.filter((c) => c !== pivot && seen.has(c));
+      for (const p of wings) for (const q of wings) {
+        if (p >= q) continue;
+        const mp = st.cand[p], mq = st.cand[q];
+        // p holds a + c, q holds b + c (either way round), c not in the pivot.
+        const c1 = mp & ~bit(a), c2 = mq & ~bit(b), c3 = mp & ~bit(b), c4 = mq & ~bit(a);
+        let z = 0;
+        if (mp & bit(a) && mq & bit(b) && popcount(c1) === 1 && c1 === c2 && !(c1 & st.cand[pivot])) z = c1;
+        else if (mp & bit(b) && mq & bit(a) && popcount(c3) === 1 && c3 === c4 && !(c3 & st.cand[pivot])) z = c3;
+        if (!z) continue;
+        const sq = new Set(peers[q]);
+        const remove = peers[p].filter((c) => c !== pivot && sq.has(c) && !st.v[c] && st.cand[c] & z).map((c) => [c, digitsOf(z)[0]]);
+        const d = digitsOf(z)[0];
+        if (remove.length) return { remove, focus: { cells: [pivot, p, q] }, why: `${cap(cellName(N, pivot))} is ${a} or ${b}. Either way, one of ${cellName(N, p)} and ${cellName(N, q)} must be ${d}, so any cell that sees both of them cannot be ${d}.` };
       }
     }
     return null;
   },
 };
+
+// Rows (or columns) where a number fits only in the same k columns (or rows):
+// those columns get their number from these rows, so it is crossed off elsewhere.
+function fish(shape, st, k) {
+  const { N, units } = shape;
+  const label = k === 2 ? 'rectangle' : 'three-line pattern';
+  for (const [lineKind, crossKind] of [['row', 'column'], ['column', 'row']]) {
+    const lines = units.filter((u) => u.kind === lineKind);
+    const crosses = units.filter((u) => u.kind === crossKind);
+    const pos = (c) => (lineKind === 'row' ? c % N : Math.floor(c / N));
+    for (let d = 1; d <= N; d++) {
+      const sets = lines.map((u) => u.cells.filter((c) => !st.v[c] && st.cand[c] & bit(d)));
+      const usable = [...Array(N).keys()].filter((i) => sets[i].length >= 2 && sets[i].length <= k);
+      for (const pick of combos(usable, k)) {
+        const cols = new Set(pick.flatMap((i) => sets[i].map(pos)));
+        if (cols.size !== k) continue;
+        const corners = pick.flatMap((i) => sets[i]);
+        const remove = [...cols].flatMap((x) => crosses[x].cells.filter((c) => !corners.includes(c) && !st.v[c] && st.cand[c] & bit(d)).map((c) => [c, d]));
+        const ks = [...cols].sort((a, b) => a - b).map((x) => x + 1);
+        if (remove.length) return { remove, focus: { cells: corners }, why: `In ${lineKind}s ${pick.map((i) => i + 1).join(', ')}, ${d} fits only in ${crossKind}s ${ks.join(', ')} (a ${label}). Those ${crossKind}s must get their ${d} from these ${lineKind}s, so cross ${d} off the rest of them.` };
+      }
+    }
+  }
+  return null;
+}
 
 function combos(arr, k, start = 0, acc = [], out = []) {
   if (acc.length === k) { out.push(acc.slice()); return out; }
@@ -219,7 +254,7 @@ const cap = (s) => s[0].toUpperCase() + s.slice(1);
 
 // Solves by deduction only, using techniques up to maxLevel. Returns the steps
 // taken and whether the grid was finished.
-export function solveLogically(shape, grid, { maxLevel = 4, evenMask = null } = {}) {
+export function solveLogically(shape, grid, { maxLevel = 5, evenMask = null } = {}) {
   const st = initCandidates(shape, grid, evenMask);
   const order = Object.keys(NP_TECHNIQUES).filter((t) => NP_TECHNIQUES[t].level <= maxLevel);
   const steps = [];
@@ -289,12 +324,23 @@ export function generateNumberPlace({ difficulty = 'medium', size, variants = []
       const group = symmetric && mirror !== c ? [c, mirror] : [c];
       const saved = group.map((x) => givens[x]);
       group.forEach((x) => { givens[x] = 0; });
+      // Hard tiers remove freely and grade at the end: minimal puzzles are the hard ones.
       const ok = countSolutions(shape, givens, 2, evenMask).count === 1
-        && solveLogically(shape, givens, { maxLevel: tier.maxLevel, evenMask }).solved;
+        && (tier.minLevel >= 4 || solveLogically(shape, givens, { maxLevel: tier.maxLevel, evenMask }).solved);
       if (!ok) group.forEach((x, i) => { givens[x] = saved[i]; });
     }
-    const res = solveLogically(shape, givens, { maxLevel: tier.maxLevel, evenMask });
+    // A minimal puzzle may need more than the tier allows: give back numbers
+    // one (pair) at a time until it doesn't. This lands right at the tier's edge.
+    let res = solveLogically(shape, givens, { maxLevel: tier.maxLevel, evenMask });
+    for (const c of rng.shuffle([...Array(N * N).keys()])) {
+      if (res.solved) break;
+      if (givens[c] || res.values[c]) continue;
+      givens[c] = solution[c];
+      if (symmetric) givens[N * N - 1 - c] = solution[N * N - 1 - c];
+      res = solveLogically(shape, givens, { maxLevel: tier.maxLevel, evenMask });
+    }
     if (!res.solved || res.hardest < tier.minLevel) continue;
+    if (tier.minTopSteps && res.steps.filter((x) => NP_TECHNIQUES[x.technique].level >= tier.minLevel).length < tier.minTopSteps) continue;
     return {
       kind: 'number-place',
       id: `np-${N}-${variants.join('+') || 'classic'}-${difficulty}-${seed}`,
@@ -355,7 +401,7 @@ export function getNumberPlaceHint(p, entries = []) {
   const grid = p.givens.map((d, c) => d || entries[c] || 0);
   if (grid.every(Boolean)) return { kind: 'done', levels: ['Every cell is filled in correctly.'] };
   const shape = shapeOf(p);
-  const res = solveLogically(shape, grid, { maxLevel: 4, evenMask: evenMaskOf(p) });
+  const res = solveLogically(shape, grid, { maxLevel: 5, evenMask: evenMaskOf(p) });
   const placeAt = res.steps.findIndex((s) => s.place);
   if (placeAt < 0) return { kind: 'stuck', levels: ['Try a cell with only two numbers left.'] };
   const step = res.steps[placeAt];
