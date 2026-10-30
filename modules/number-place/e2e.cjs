@@ -208,6 +208,24 @@ const shots = process.env.NP_SHOTS;
     await pg.setInputFiles('#np-file', { name: 'bad.json', mimeType: 'application/json', buffer: Buffer.from('{"format":"number-place","game":{"p":{"size":4,"givens":[1],"solution":[1]}}}') });
     await pg.waitForFunction(() => /not a Number Place puzzle/.test(document.querySelector('#np-status').textContent));
     assert(true, 'a broken file is refused with a clear message');
+    // A shared file can hold anything: markup in its numbers or story never reaches the page as HTML.
+    const evil = JSON.parse(JSON.stringify(g));
+    const firstEmpty = evil.p.givens.findIndex((d) => !d);
+    evil.v[firstEmpty] = '<img src=x onerror="window.__pwned=1">';
+    evil.undo = [[['__proto__', 1, 0, 2, 0]]];
+    evil.p.box = ['<b>', '<i>'];
+    if (evil.p.story) evil.p.story.title = '<img src=x onerror="window.__pwned=1">';
+    await pg.locator('#np-status').evaluate((el) => { el.textContent = ''; });
+    await pg.setInputFiles('#np-file', { name: 'evil.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify({ format: 'number-place', version: 1, game: evil })) });
+    await pg.waitForSelector('#np-play-view:not([hidden])');
+    await pg.waitForTimeout(300);
+    assert(!(await pg.evaluate(() => window.__pwned)) && !(await pg.locator('#np-board img, #np-title img, #np-story img').count()), 'markup in a puzzle file is never run or shown as HTML');
+    await pg.click('#np-home');
+    const bad2 = JSON.parse(JSON.stringify(g));
+    bad2.p.solution[0] = '<img src=x onerror="window.__pwned=1">';
+    await pg.setInputFiles('#np-file', { name: 'bad2.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify({ format: 'number-place', version: 1, game: bad2 })) });
+    await pg.waitForFunction(() => /not a Number Place puzzle/.test(document.querySelector('#np-status').textContent));
+    assert(!(await pg.evaluate(() => window.__pwned)), 'a file whose answer is not all numbers is refused');
 
     // Silent mode: no story or coach.
     await pg.click('#np-more summary');

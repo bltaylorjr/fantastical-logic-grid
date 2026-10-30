@@ -12,7 +12,7 @@ function table(p, values, given) {
     for (let c = 0; c < N; c++) {
       const i = r * N + c;
       const cls = [r % br === 0 ? 'bt' : '', c % bc === 0 ? 'bl' : '', p.evenCells.includes(i) ? 'even' : '', given[i] ? 'g' : 'p'].join(' ');
-      rows += `<td class="${cls}">${values[i] || ''}</td>`;
+      rows += `<td class="${cls}">${Number(values[i]) || ''}</td>`;
     }
     rows += '</tr>';
   }
@@ -43,7 +43,7 @@ export function printableHtml(game, { marks = false, paper = 'letter', answers =
   html += `<ul>${p.rules.map((r) => `<li>${esc(r)}</li>`).join('')}</ul>${table(p, values, p.givens)}</section>`;
   if (answers) html += `<section class="page"><h2>Answer key</h2>${table(p, p.solution, p.givens)}${p.story?.ending ? `<p class="intro" style="margin-top:5mm">${esc(p.story.ending)}</p>` : ''}</section>`;
   if (steps) {
-    const items = p.solvePath.map((s) => `<li>${esc(s.why)}${s.place ? ` <b>${s.place[1]} at ${cellName(p.size, s.place[0])}.</b>` : ''}</li>`).join('');
+    const items = p.solvePath.map((s) => `<li>${esc(s.why)}${s.place ? ` <b>${Number(s.place[1])} at ${cellName(p.size, s.place[0])}.</b>` : ''}</li>`).join('');
     html += `<section class="page"><h2>Step by step</h2><ol class="steps">${items}</ol></section>`;
   }
   return `${html}</body></html>`;

@@ -301,9 +301,10 @@ async function startDaily() {
 }
 
 function resume(id) {
-  const g = games()[id];
+  const saved = games()[id];
+  const g = saved && cleanGame(saved);
   if (!g) return;
-  G = { stuck: [], checks: 0, ...g, undo: g.undo || [], redo: g.redo || [] };
+  G = { ...g, id: saved.id, mode: ['free', 'daily', 'race', 'file'].includes(saved.mode) ? saved.mode : 'free' };
   open();
 }
 
@@ -446,8 +447,8 @@ function render() {
     el.classList.toggle('clash-given', clash.has(i) && !!G.p.givens[i]);
     el.classList.toggle('wrong', G.wrongShown.has(i));
     el.classList.toggle('hinted', hintCells.has(i));
-    if (d) el.innerHTML = `<span class="v">${d}</span>`;
-    else if (G.n[i]) el.innerHTML = `<span class="np-notes" style="--nc:${G.p.box[1]}">${[...Array(N)].map((_, k) => `<i>${G.n[i] & bit(k + 1) ? k + 1 : ''}</i>`).join('')}</span>`;
+    if (d) el.innerHTML = `<span class="v">${Number(d)}</span>`;
+    else if (G.n[i]) el.innerHTML = `<span class="np-notes" style="--nc:${Number(G.p.box[1])}">${[...Array(N)].map((_, k) => `<i>${G.n[i] & bit(k + 1) ? k + 1 : ''}</i>`).join('')}</span>`;
     else el.innerHTML = '';
     el.setAttribute('aria-label', cellLabel(i));
     el.setAttribute('aria-selected', String(i === sel));
@@ -746,7 +747,7 @@ function drawStep() {
   const focus = new Set(stepAt && s ? (s.place ? [s.place[0]] : (s.remove || []).map(([c]) => c)) : []);
   for (const el of $('#np-steps-board').querySelectorAll('.np-cell')) {
     const i = Number(el.dataset.i);
-    el.innerHTML = vals[i] ? `<span class="v">${vals[i]}</span>` : '';
+    el.innerHTML = vals[i] ? `<span class="v">${Number(vals[i])}</span>` : '';
     el.classList.toggle('hinted', focus.has(i));
     el.classList.toggle('elim', !!(stepAt && s && !s.place && focus.has(i)));
   }
@@ -769,20 +770,71 @@ function saveFile() {
   announce('Saved to a file.', true);
 }
 
+// A game from a file or storage, rebuilt from checked fields only: numbers are
+// whole numbers in range, words are plain strings, and nothing else comes
+// along. A shared file can hold anything, and these values reach the page.
+const BOXES = { 4: [2, 2], 6: [2, 3], 9: [3, 3] };
+const DIGIT = (N) => (d) => (Number.isInteger(d) && d >= 0 && d <= N ? d : 0);
+const text = (s, max = 2000) => (typeof s === 'string' ? s.slice(0, max) : '');
+const count = (n) => (Number.isFinite(n) && n >= 0 ? n : 0);
+const cellOk = (N) => (i) => Number.isInteger(i) && i >= 0 && i < N * N;
+const DAY = /^\d{4}-\d{2}-\d{2}$/;
+const NAME_ID = /^[a-z0-9-]{1,40}$/i;
+
+export function cleanGame(g) {
+  const p = g?.p;
+  const N = p?.size;
+  if (!BOXES[N] || !Array.isArray(p.givens) || !Array.isArray(p.solution) || p.givens.length !== N * N || p.solution.length !== N * N) return null;
+  const solution = p.solution.map(DIGIT(N));
+  const givens = p.givens.map(DIGIT(N));
+  const rows = [...Array(N).keys()];
+  if (solution.some((d) => !d) || givens.some((d, i) => d && d !== solution[i])
+    || !rows.every((r) => new Set(solution.slice(r * N, r * N + N)).size === N)
+    || !rows.every((c) => new Set(rows.map((r) => solution[r * N + c])).size === N)) return null;
+  const ok = cellOk(N);
+  const level = NP_LEVELS.find((l) => l.id === p.difficulty?.id) || NP_LEVELS[2];
+  const story = p.story && typeof p.story === 'object' ? {
+    id: text(p.story.id, 80), title: text(p.story.title, 200), intro: text(p.story.intro), ending: text(p.story.ending),
+    theme: { id: NAME_ID.test(p.story.theme?.id) ? p.story.theme.id : '', name: text(p.story.theme?.name, 80), world: NAME_ID.test(p.story.theme?.world) ? p.story.theme.world : '' },
+  } : null;
+  const step = (x) => ({
+    technique: text(x?.technique, 40), techniqueName: text(x?.techniqueName, 80), why: text(x?.why),
+    place: Array.isArray(x?.place) && ok(x.place[0]) && DIGIT(N)(x.place[1]) ? [x.place[0], x.place[1]] : null,
+    remove: Array.isArray(x?.remove) ? x.remove.filter((r) => Array.isArray(r) && ok(r[0]) && DIGIT(N)(r[1])).map((r) => [r[0], r[1]]) : [],
+  });
+  const change = (c) => (Array.isArray(c) && ok(c[0]) ? [c[0], DIGIT(N)(c[1]), count(c[2]) | 0, DIGIT(N)(c[3]), count(c[4]) | 0] : null);
+  // Undo and redo hold groups of changes: [cell, old number, old notes, new number, new notes].
+  const changes = (list) => (Array.isArray(list) ? list.slice(-500).map((grp) => (Array.isArray(grp) ? grp.map(change).filter(Boolean) : [])).filter((grp) => grp.length) : []);
+  const clean = {
+    kind: 'number-place', id: text(p.id, 80), seed: text(p.seed, 80), difficulty: { id: level.id, name: level.name }, size: N, box: BOXES[N],
+    variants: (Array.isArray(p.variants) ? p.variants : []).filter((v) => VARIANTS.some((x) => x.id === v)),
+    givens, solution, evenCells: (Array.isArray(p.evenCells) ? p.evenCells : []).filter(ok),
+    solvePath: (Array.isArray(p.solvePath) ? p.solvePath : []).slice(0, 2000).map(step),
+    hardestTechnique: text(p.hardestTechnique, 40), techniques: (Array.isArray(p.techniques) ? p.techniques : []).map((t) => text(t, 40)),
+    toughness: count(p.toughness), fingerprint: text(p.fingerprint, 80), rules: (Array.isArray(p.rules) ? p.rules : []).slice(0, 10).map((r) => text(r, 400)), story,
+  };
+  return {
+    p: clean, name: text(g.name, 120) || (story?.title || `${level.name} puzzle`),
+    v: Array.isArray(g.v) && g.v.length === N * N ? g.v.map(DIGIT(N)) : Array(N * N).fill(0),
+    n: Array.isArray(g.n) && g.n.length === N * N ? g.n.map((x) => (Number.isInteger(x) && x >= 0 && x < 1 << (N + 1) ? x : 0)) : Array(N * N).fill(0),
+    undo: changes(g.undo), redo: changes(g.redo),
+    ms: count(g.ms), hints: count(g.hints) | 0, mistakes: count(g.mistakes) | 0, checks: count(g.checks) | 0,
+    stuck: (Array.isArray(g.stuck) ? g.stuck : []).map((t) => text(t, 40)).filter((t) => /^[a-zA-Z]+$/.test(t)).slice(0, 50),
+    solved: g.solved === true, revealed: g.revealed === true, recorded: ['solved', 'revealed', 'abandoned'].includes(g.recorded) ? g.recorded : null,
+    daily: DAY.test(g.daily) ? g.daily : null, practice: g.practice ? text(g.practice, 40) : null, tuned: Number.isFinite(g.tuned) ? g.tuned : null,
+    created: count(g.created) || Date.now(), updated: Date.now(), sel: ok(g.sel) ? g.sel : givens.findIndex((d) => !d),
+  };
+}
+
 // Opens a saved file after checking it is a real Number Place game with a valid answer.
 async function openFile(file) {
   const status = $('#np-status');
   try {
     const data = JSON.parse(await file.text());
-    const g = data?.game;
-    const p = g?.p;
-    const N = p?.size;
-    const ok = data.format === 'number-place' && p && [4, 6, 9].includes(N) && Array.isArray(p.givens) && Array.isArray(p.solution)
-      && p.givens.length === N * N && p.solution.length === N * N && p.givens.every((d, i) => !d || d === p.solution[i])
-      && [...Array(N).keys()].every((r) => new Set(p.solution.slice(r * N, r * N + N)).size === N)
-      && [...Array(N).keys()].every((c) => new Set([...Array(N).keys()].map((r) => p.solution[r * N + c])).size === N);
-    if (!ok) throw new Error('That file is not a Number Place puzzle.');
-    G = { ...g, id: `g${Date.now().toString(36)}`, mode: g.mode === 'daily' ? 'daily' : 'file', recorded: g.recorded || null, undo: g.undo || [], redo: g.redo || [], stuck: g.stuck || [], n: g.n || Array(N * N).fill(0), v: (g.v || Array(N * N).fill(0)).map((d) => (Number.isInteger(d) && d >= 0 && d <= N ? d : 0)) };
+    const g = data?.format === 'number-place' ? cleanGame(data.game) : null;
+    if (!g) throw new Error('That file is not a Number Place puzzle.');
+    const p = g.p;
+    G = { ...g, id: `g${Date.now().toString(36)}`, mode: data.game.mode === 'daily' && g.daily ? 'daily' : 'file' };
     learn.started(p);
     open();
   } catch (e) {
