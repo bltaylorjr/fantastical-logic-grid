@@ -483,14 +483,22 @@ POST = {'bluesky': post_bluesky, 'mastodon': post_mastodon, 'x': post_x, 'facebo
 def check_instagram():
     """Say plainly what INSTAGRAM_ACCOUNT_ID points at when it is not an Instagram account."""
     ig, token = env('INSTAGRAM_ACCOUNT_ID'), env('META_PAGE_TOKEN')
+    if not ig.isdigit():
+        raise Failed(f'INSTAGRAM_ACCOUNT_ID should be digits only; it has {len(ig)} characters, '
+                     f'{sum(not c.isdigit() for c in ig)} of them not digits (quotes, spaces or letters?).')
+    if ig == env('META_PAGE_ID'):
+        raise Failed('INSTAGRAM_ACCOUNT_ID is the same number as the Facebook Page id. Use the id inside instagram_business_account instead.')
     r = meta(f'{GRAPH}/{ig}?fields=username', token=token)
     if r.get('username'):
         return r['username']
-    kind = meta(f'{GRAPH}/{ig}?metadata=1&fields=id', token=token).get('metadata', {}).get('type', 'unknown')
-    if kind == 'page':
-        raise Failed('INSTAGRAM_ACCOUNT_ID is the Facebook Page id. Use the id inside instagram_business_account instead (it usually starts with 1784).')
-    raise Failed(f'INSTAGRAM_ACCOUNT_ID is not an Instagram business account (Meta says it is a "{kind}"), '
-                 'or META_PAGE_TOKEN lacks instagram_basic. Use the id inside instagram_business_account.')
+    page = meta(f"{GRAPH}/{env('META_PAGE_ID')}?fields=instagram_business_account", token=token).get('instagram_business_account')
+    if not page:
+        raise Failed('the Facebook Page has no Instagram account linked that this key can see: link it on the Page, '
+                     'and make the key with instagram_basic, ticking the Instagram account in the pop-up.')
+    same = page.get('id') == ig
+    raise Failed(f'Meta shows no username for INSTAGRAM_ACCOUNT_ID ({len(ig)} digits). The Page\'s linked Instagram id '
+                 f'{"is the same number" if same else "is a different number: save that one (it starts " + page.get("id", "")[:4] + ")"}; '
+                 f'fields returned: {", ".join(sorted(r)) or "none"}.')
 
 
 def check_keys():
