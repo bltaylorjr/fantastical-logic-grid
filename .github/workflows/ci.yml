@@ -75,17 +75,11 @@ jobs:
       - name: Accounts, fingerprint sign-in, races, error reports, app keys and the admin dashboard against the real Worker
         run: |
           npm --prefix server ci --no-audit --no-fund
-          node scripts/e2e-accounts.cjs
-          node scripts/e2e-biometric.cjs
-          node scripts/e2e-compete.cjs
-          node scripts/e2e-challenge.cjs
-          node scripts/e2e-daily-results.cjs
-          node scripts/e2e-puzzle-mail.cjs
-          node scripts/e2e-errors.cjs
-          node scripts/e2e-admin.cjs
-          node scripts/e2e-archive.cjs
-          node scripts/e2e-educators.cjs
-          node scripts/e2e-license.cjs
+          fail=0
+          for t in e2e-accounts.cjs e2e-biometric.cjs e2e-compete.cjs e2e-challenge.cjs e2e-daily-results.cjs e2e-puzzle-mail.cjs e2e-errors.cjs e2e-admin.cjs e2e-archive.cjs e2e-educators.cjs e2e-license.cjs; do
+            if ! node scripts/$t > /tmp/$t.log 2>&1; then fail=1; msg=$(grep -v '^\s*at ' /tmp/$t.log | grep -E 'FAIL|Error|Timeout|waiting for' | head -8 | tr '\n' ' ' | head -c 1500); echo "::error title=TEMP $t::${msg}"; fi
+          done
+          exit $fail
       # The screenshots from every size the layout test checks, to look at when
       # a layout check fails (kept 14 days, free).
       - name: Keep the screenshots

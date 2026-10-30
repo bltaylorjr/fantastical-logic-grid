@@ -89,6 +89,8 @@ button, input, select { font: inherit; color: inherit; }
 .brand { display: flex; align-items: center; gap: 10px; background: none; border: 0; padding: 6px 4px; min-height: 44px; cursor: pointer; font-weight: 700; font-size: 1.05rem; color: var(--text); border-radius: 8px; text-align: left; }
 .brand-mark { width: 30px; height: 30px; color: var(--accent); flex: none; }
 .appbar-actions { display: flex; gap: 8px; }
+.back-btn { flex: none; gap: 2px; padding-left: 8px; }
+.back-btn .ico { width: 20px; height: 20px; }
 .appbar-actions .educators-link { text-decoration: none; display: inline-flex; align-items: center; }
 .player-chip { max-width: 11em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 .player-chip::before { content: ""; display: inline-block; width: .6em; height: .6em; margin-right: .4em; border-radius: 50%; background: var(--edge); vertical-align: .05em; }
@@ -310,6 +312,7 @@ td.c.auto { background-image: radial-gradient(circle, var(--border) 1px, transpa
 
 /* Clues and questions */
 .clues h2, .questions h2 { margin-bottom: 12px; }
+.clue-rules { margin: 0 0 12px; padding: 8px 12px; border-left: 4px solid var(--accent, currentColor); border-radius: 6px; background: color-mix(in srgb, currentColor 6%, transparent); font-size: .95em; }
 .clue-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
 .clue-list li { display: grid; grid-template-columns: 2.2em minmax(0, 1fr); gap: 4px; align-items: start; }
 .clue-list .num { font-weight: 700; color: var(--muted); padding-top: 11px; text-align: right; padding-right: 6px; font-variant-numeric: tabular-nums; }
@@ -788,7 +791,7 @@ table.board .pill { font-size: .75rem; margin-left: 4px; }
 
 /* Always-visible strip under the app bar: How to play and a small scoreboard. */
 .appbar { flex-wrap: wrap; }
-.appbar > .brand { flex: 1 1 0; min-width: 0; }
+.appbar > .brand { flex: 1 1 0; min-width: 44px; }
 .topstrip { flex: 1 0 100%; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 8px; padding-top: 4px; border-top: 1px solid var(--edge); }
 .miniboard { display: flex; align-items: center; gap: 8px; min-width: 0; flex-wrap: wrap; }
 .miniboard ol { list-style: none; display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 0; padding: 0; font-size: .92rem; }

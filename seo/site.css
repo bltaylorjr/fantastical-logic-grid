@@ -24,6 +24,9 @@ a:focus-visible, summary:focus-visible { outline: 3px solid var(--focus); outlin
 .skip:focus { left: 8px; }
 .top { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; padding: 12px 20px; background: var(--bg); border-bottom: 1px solid var(--edge); }
 .brand { font: 700 1.15rem var(--display); color: var(--text); text-decoration: none; }
+/* Back: the installed app has no browser back button, so every page has one. */
+.back { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; min-width: 44px; padding: 8px 16px; border: 1px solid var(--edge); border-radius: 999px; color: var(--text); font-weight: 700; text-decoration: none; }
+.back:hover { border-color: var(--accent); }
 .top nav { flex: 1; }
 .top ul { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 0; padding: 0; list-style: none; }
 .top nav a { display: inline-block; padding: 10px 2px; min-height: 44px; }
@@ -90,7 +93,7 @@ dd { margin: 0 0 0 1rem; }
 .qs li { margin: 10px 0; }
 .sheet .key { margin-top: 32px; padding-top: 16px; border-top: 2px dashed var(--edge); }
 @media print {
-  .top, .foot, .crumbs, .btn, .noprint, .skip { display: none !important; }
+  .top, .foot, .crumbs, .btn, .back, .noprint, .skip { display: none !important; }
   details { border: 0; }
   body { background: #fff; color: #000; font-size: 11pt; }
   .sheet .key { break-before: page; page-break-before: always; border: 0; margin: 0; }

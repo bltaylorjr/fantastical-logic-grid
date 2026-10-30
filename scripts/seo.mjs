@@ -279,12 +279,14 @@ ${verification}
 <style>${css.replaceAll('url(fonts/', `url(${up}fonts/`)}${style}</style>
 <script type="module" src="${up}js/page-visit.js"></script>
 <script type="module" src="${up}js/site-report.js"></script>
+<script type="module" src="${up}js/site-nav.js"></script>
 ${script ? `<script type="module" src="${script}"></script>` : ''}
 ${[breadcrumb, ...schema].map((s) => `<script type="application/ld+json">${json(checkVideos(s, path))}</script>`).join('\n')}
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
 <header class="top">
+  <a class="back" href="${up}" data-back><span aria-hidden="true">‹</span> Back</a>
   <a class="brand" href="${up}">${name}</a>
   <nav aria-label="Site">
     <ul>${NAV.map(([p, n]) => `<li><a href="${up}${p}"${p === path ? ' aria-current="page"' : ''}>${n}</a></li>`).join('')}</ul>
@@ -296,6 +298,7 @@ ${crumbs.length ? `<nav class="crumbs" aria-label="Breadcrumb"><ol>${trail.map((
 ${body(up)}
 </main>
 <footer class="foot">
+  <p><a class="btn quiet" href="${up}" data-back><span aria-hidden="true">‹</span> Back</a> <a class="btn quiet" href="${up}">Back to the game</a></p>
   <p><a href="${up}">Play ${name}</a> · free in your browser, offline-ready, and on Windows.</p>
   <p>Every puzzle has exactly one answer, checked by our solver${quality.rating ? `, and players rate them ${quality.rating.average} out of 5 stars` : ''}. <a href="${up}picks/">Hand-picked puzzles</a></p>
   <p>${NAV.map(([p, n]) => `<a href="${up}${p}">${n}</a>`).join(' · ')} · <a href="${up}privacy/">Privacy</a></p>

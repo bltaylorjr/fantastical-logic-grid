@@ -206,7 +206,48 @@ function setWorld(id) { document.documentElement.dataset.world = id || 'random';
 
 // The website's game page has a longer title for search results (scripts/seo.mjs).
 const HOME_TITLE = document.title;
+
+// A way back from every screen. The Back button (top left, on every screen
+// but home), the phone's back gesture or back button, and the Android app's
+// back button all step back: an open window closes first, a lesson goes back
+// to the lesson list, and any other screen goes home.
+let currentScreen = 'home';
+let skipPop = false;
+function trackScreen(name) {
+  try {
+    const here = history.state && history.state.flgScreen;
+    if (name !== 'home') history[here ? 'replaceState' : 'pushState']({ ...(history.state || {}), flgScreen: name }, '');
+    else if (here) { skipPop = true; history.back(); } // home by a button: drop the screen's history entry
+  } catch (e) { /* framed preview */ }
+}
+function screenBack() {
+  if (currentScreen === 'home') return false;
+  if (currentScreen === 'learn' && !$('#learn-lesson').hidden) {
+    $('#learn-back').click();
+    try { if (!(history.state && history.state.flgScreen)) history.pushState({ ...(history.state || {}), flgScreen: 'learn' }, ''); } catch (e) { /* framed preview */ }
+    return true;
+  }
+  goHome();
+  return true;
+}
+window.addEventListener('popstate', () => {
+  if (skipPop) { skipPop = false; return; }
+  const open = [...document.querySelectorAll('dialog[open]')].pop();
+  if (open) {
+    if (open.dispatchEvent(new Event('cancel', { cancelable: true }))) open.close();
+    try { if (currentScreen !== 'home') history.pushState({ ...(history.state || {}), flgScreen: currentScreen }, ''); } catch (e) { /* framed preview */ }
+    return;
+  }
+  screenBack();
+});
+// The Android app's back button (mobile/shared/native-bridge.js) asks here
+// once no window or menu is open.
+window.__flgScreenBack = screenBack;
+
 function showScreen(name) {
+  currentScreen = name;
+  $('#back-btn').hidden = name === 'home';
+  trackScreen(name);
   $('#screen-home').hidden = name !== 'home';
   $('#screen-play').hidden = name !== 'play';
   $('#screen-learn').hidden = name !== 'learn';
@@ -868,6 +909,10 @@ function openGame(save, { fresh = false } = {}) {
   const notes = (puzzle.notes || []).filter((n) => !/Closest match/.test(n));
   $('#p-notes').hidden = !notes.length;
   $('#p-notes').innerHTML = notes.map(esc).join('<br>');
+
+  const rules = clueRules(puzzle);
+  $('#clue-rules').hidden = !rules.length;
+  $('#clue-rules').innerHTML = rules.map((r) => `<span>${esc(r)}</span>`).join(' ');
 
   S.witness = assignWitnesses(puzzle, ix);
   $('#clue-list').innerHTML = puzzle.clues.map((c) => `
@@ -1928,6 +1973,19 @@ $('#mail-invite-btn').onclick = () => puzzleMail.open(openDialog);
 
 // A puzzle the team made for this player (Messages > Puzzles for you): opened
 // once as a saved puzzle, then continued from Saved puzzles like any other.
+// What the numbers in a column mean ("a bigger number is a better rank"),
+// repeated above the clues so it is in view while reading them. Puzzles saved
+// before the rank note named its top and bottom get the new wording here.
+function clueRules(puzzle) {
+  return (puzzle.categories || []).filter((c) => c.note).map((c) => {
+    if (c.id === 'level' && /rank 1 is the lowest rank/.test(c.note) && c.items?.length) {
+      const nums = c.items.map((x) => x.label);
+      return `About ranks: a bigger number is a better rank. In this puzzle rank ${nums.at(-1)} is the top (best) rank and rank ${nums[0]} is the lowest. This is not a race, so a small number is not first place.`;
+    }
+    return c.note;
+  });
+}
+
 async function openTeamPuzzle(puzzle, id) {
   const existing = (await store.listSaves()).find((x) => x.teamPuzzle === id);
   if (existing) { openGame(existing); return; }
@@ -2672,6 +2730,7 @@ $('#app-menu').addEventListener('click', async (e) => {
   else if (cmd === 'site') window.open(`${(CLOUD.siteUrl || 'https://thelogicgrid.com').replace(/\/+$/, '')}/?utm_source=portal&utm_medium=store&utm_campaign=portal`, '_blank', 'noopener');
 });
 $('#home-btn').onclick = () => goHome();
+$('#back-btn').onclick = () => screenBack();
 
 // Number Place: a separate numbers game on its own screen, with the game's look
 // (web/js/number-place.js). It shares only anonymous play data, for learning.

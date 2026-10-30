@@ -185,6 +185,10 @@ dialog h2 { margin: 0; }
 .services { display: grid; gap: 6px; }
 .services p { margin: 0; }
 .fb-text { white-space: pre-wrap; }
+/* A suggestion just approved or disapproved: folded away, buttons greyed (Delete stays). */
+li.settled > .fb-text, li.settled > .fb-story-info, li.settled > .fb-note:not(.settled-note), li.settled > .error { display: none; }
+li.settled { opacity: .85; }
+.settled-note { margin-top: 6px; }
 .fb-note { margin: 6px 0 0; padding: 6px 10px; border-left: 3px solid var(--ok); background: var(--panel); }
 
 /* Backups and the archive viewer */

@@ -207,10 +207,14 @@ export const THEMES = [
           lessBy: 'is {d} younger than', moreBy: 'is {d} older than',
           gap: (s) => plural(s * 50, 'year', 'years') } },
       { id: 'level', name: 'Rank', noun: "rank", pos: 'holds rank {x}', neg: 'does not hold rank {x}',
-        note: 'About ranks: rank 1 is the lowest rank, and the bigger the number, the higher the rank.',
+        // Which end is the top must be plain: "rank 1" often reads as first
+        // place (player reports, 2026-10-26 and 2026-10-30). The note names
+        // this puzzle's own top and bottom ranks ({high}, {low}), and every
+        // comparison says better or worse as well as bigger or smaller.
+        note: 'About ranks: a bigger number is a better rank. In this puzzle rank {high} is the top (best) rank and rank {low} is the lowest. This is not a race, so a small number is not first place.',
         ordinal: { start: 1, step: 1, count: 8, label: (v) => String(v),
-          less: 'holds a lower rank (a smaller number) than', more: 'holds a higher rank (a bigger number) than',
-          lessBy: 'holds a rank {d} lower than', moreBy: 'holds a rank {d} higher than',
+          less: 'holds a worse rank (a smaller number) than', more: 'holds a better rank (a bigger number) than',
+          lessBy: 'holds a rank {d} worse (smaller) than', moreBy: 'holds a rank {d} better (bigger) than',
           gap: (s) => plural(s, 'step', 'steps') } },
       { id: 'wand', name: 'Wand', noun: 'wand wood', pos: 'carries the {x} wand', neg: 'does not carry the {x} wand',
         items: ['Birch', 'Holly', 'Willow', 'Yew', 'Elder', 'Rowan', 'Cherry', 'Ebony'] },

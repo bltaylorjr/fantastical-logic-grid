@@ -212,6 +212,7 @@ function form(title, fields, okText = 'Save') {
       done(v);
     };
     $('#mk-dialog-cancel').onclick = () => done(null);
+    $('#mk-dialog-x').onclick = () => done(null);
     dlg.oncancel = () => done(null);
     dlg.showModal();
     $('input, select, textarea', $('#mk-dialog-body'))?.focus();
