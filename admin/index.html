@@ -78,6 +78,7 @@
       <li><a href="#search" data-min="viewer">Search (Google and Bing)</a></li>
       <li><a href="#daily" data-min="moderator">Daily puzzles</a></li>
       <li><a href="#characters" data-min="moderator">Characters <span class="count" id="count-characters" hidden></span></a></li>
+      <li><a href="#media" data-min="viewer">Media library (sounds and pictures)</a></li>
       <li><a href="#quality" data-min="viewer">Puzzle quality <span class="count" id="count-quality" hidden></span></a></li>
       <li><a href="#ratings" data-min="viewer">Ratings and insights <span class="count" id="count-ratings" hidden></span></a></li>
       <li><a href="#marketing" data-min="viewer">Marketing</a></li>
@@ -154,6 +155,25 @@
       <h2>Suggested by players</h2>
       <p class="muted">From Menu &gt; Suggest a character in the game. Anonymous. Nobody else sees a suggestion until you review it, save it and publish it.</p>
       <ul class="cards" id="ch-ideas"></ul>
+    </section>
+
+    <section data-view="media" hidden aria-labelledby="h-media">
+      <h1 id="h-media">Media library</h1>
+      <p class="muted">Every sound and picture in the game, sorted into groups, to try out here. They are made by the same code the game uses, so what you see and hear is what players get. Nothing here changes the game except the Celebrations switches, which are the same switches as in Settings and switches.</p>
+      <div class="sections" role="group" aria-label="Show media" id="media-tabs">
+        <button type="button" class="btn small" data-tab="music" aria-pressed="true">Background music</button>
+        <button type="button" class="btn small" data-tab="sfx" aria-pressed="false">Sound effects</button>
+        <button type="button" class="btn small" data-tab="voices" aria-pressed="false">Voices</button>
+        <button type="button" class="btn small" data-tab="celebrations" aria-pressed="false">Celebrations</button>
+        <button type="button" class="btn small" data-tab="scenes" aria-pressed="false">Theme scenes</button>
+        <button type="button" class="btn small" data-tab="faces" aria-pressed="false">Character faces</button>
+        <button type="button" class="btn small" data-tab="pictures" aria-pressed="false">Theme pictures</button>
+      </div>
+      <div class="row media-bar">
+        <div class="field inline"><label for="media-volume">Volume here</label><input id="media-volume" type="range" min="0" max="100" value="60"></div>
+        <button type="button" class="btn small" id="media-stop">Stop all sound</button>
+      </div>
+      <div id="media-body"><p class="muted">Loading…</p></div>
     </section>
 
     <section data-view="quality" hidden aria-labelledby="h-quality">

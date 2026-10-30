@@ -12,6 +12,7 @@ import { ratingsView, initRatings } from './ratings.js';
 import { marketingView, initMarketing } from './marketing.js';
 import { puzzleMailView, initPuzzleMail } from './puzzle-mail.js';
 import { educatorsView, initEducators, educatorFeedbackView, initEducatorFeedback } from './educators.js';
+import { mediaView } from './media.js';
 import { badgesView, initBadges, playerBadgesHtml, playerBadgeClick } from './badges.js';
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -1615,6 +1616,7 @@ $('#daily-body').addEventListener('submit', (e) => {
 
 // ---- Characters (characters.js): the game's own cast and narrators.
 views.characters = () => characterView({ api, esc, toast, announce, act, can, setCount });
+views.media = () => mediaView({ api, esc, toast, announce, act, can, table });
 
 // ---- Puzzle quality: what to fix first.
 views.quality = async () => {
