@@ -299,6 +299,11 @@ const MOOD_OF = {
   dreamy: 'dreamy', blunt: 'blunt', gossipy: 'chatty', sly: 'sly', kind: 'kind', brave: 'bold', shy: 'shy', silly: 'playful',
   formal: 'formal', curious: 'curious',
 };
+// How a mood changes a voice: its pace (Kokoro and device voices) and pitch
+// (device voices). The natural voice is told the mood in words instead.
+export const MOOD_PACE = { nervous: 1.08, excited: 1.08, chatty: 1.05, guilty: 0.94, shy: 0.95, dreamy: 0.92, grumpy: 0.96, sly: 0.96 };
+export const MOOD_PITCH = { nervous: 1.08, excited: 1.1, cheerful: 1.05, guilty: 0.94, grumpy: 0.92, shy: 1.04 };
+export const moodPace = (pace, mood) => (MOOD_PACE[mood] ? Math.round(Math.min(1.25, Math.max(0.75, pace * MOOD_PACE[mood])) * 100) / 100 : pace);
 export const moodOf = (name) => MOOD_OF[personalityOf(name)] || 'calm';
 
 // Said by the one behind it all when a mystery is solved. Like every line,

@@ -10,7 +10,7 @@
 import * as store from './store.js';
 import { CLOUD_URL } from './cloud-config.js';
 import { genderOf } from './gender.js';
-import { profileOf } from './castbook.js';
+import { profileOf, MOOD_PACE, MOOD_PITCH, moodPace } from './castbook.js';
 import { feature } from './remote-config.js';
 import * as i18n from './i18n.js';
 import { characterOf, narratorOf } from './cast.js';
@@ -385,13 +385,11 @@ function ownVoicePlan(settings, c) {
 export const voiceKind = (settings, puzzle, who = 'narrator') => voicePlan(settings, puzzle, who).kind;
 // The mood colors the voice: the server's voices are told how to say it, and
 // the device's voices (Kokoro and the device's own) speed up or slow down.
-const MOOD_PACE = { nervous: 1.08, excited: 1.08, chatty: 1.05, guilty: 0.94, shy: 0.95, dreamy: 0.92, grumpy: 0.96, sly: 0.96 };
-const MOOD_PITCH = { nervous: 1.08, excited: 1.1, cheerful: 1.05, guilty: 0.94, grumpy: 0.92, shy: 1.04 };
 function moodPlan(plan, mood) {
   if (!mood || mood === 'calm') return plan;
   if (plan.kind === 'cloud') return { ...plan, key: `${plan.key}|${mood}`, make: (t) => cloudTts(t, plan.voice, mood) };
   if (plan.kind === 'kokoro' && MOOD_PACE[mood]) {
-    const pace = Math.round(Math.min(1.25, Math.max(0.75, plan.pace * MOOD_PACE[mood])) * 100) / 100;
+    const pace = moodPace(plan.pace, mood);
     return { ...plan, key: `${plan.key}|${pace}`, make: (t) => kokoroTts(t, plan.voice, pace, plan.standIn || plan.voice) };
   }
   return plan;
