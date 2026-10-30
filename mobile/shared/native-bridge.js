@@ -152,7 +152,8 @@
       if (top.dispatchEvent(new Event('cancel', { cancelable: true }))) top.close();
       return true;
     }
-    const expanded = document.querySelector('[aria-expanded="true"]');
+    // An open menu or popup; a section the player opened on purpose (data-disclosure) stays.
+    const expanded = document.querySelector('[aria-expanded="true"]:not([data-disclosure])');
     if (expanded) {
       (document.activeElement || document.body).dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
       return true;

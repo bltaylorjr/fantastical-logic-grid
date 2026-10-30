@@ -10,6 +10,7 @@ const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`o
   await new Promise((r) => setTimeout(r, 600));
   const browser = await chromium.launch();
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  await ctx.addInitScript(() => { try { localStorage.setItem('flg.savedOpen', 'true'); } catch (e) { /* none */ } }); // Saved Puzzles box open
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(String(e)));
