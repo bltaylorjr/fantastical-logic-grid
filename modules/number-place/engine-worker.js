@@ -2,6 +2,8 @@
 import { generateNumberPlace, getNumberPlaceHint } from '../../engine/src/number-place.js';
 
 self.onmessage = (e) => {
+  // A worker only hears its own page; a message from anywhere else is ignored.
+  if (e.origin && e.origin !== self.location.origin) return;
   const { id, op, args } = e.data;
   try {
     const result = op === 'generate' ? generateNumberPlace(args) : getNumberPlaceHint(args.puzzle, args.entries);
