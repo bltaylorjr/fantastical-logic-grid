@@ -46,6 +46,7 @@
 //   GET  /admin/v1/ratings?days=&by=[&brief=1]  puzzle ratings, trends and the plain-words analysis; POST .../summary (ratings.js)
 //   GET  /admin/v1/marketing?days=     campaigns, ads, media, tracked links and their numbers (marketing.js)
 //   GET/POST /admin/v1/supporters      supporters and premium grants; POST .../:id/remove (supporters.js)
+//   GET/POST /admin/v1/licenses        app keys for the Windows and Android apps; GET .../:id, POST .../:id/(approve|decline|revoke|restore|devices), .../:id/devices/:device/remove (licenses.js)
 //   GET/POST /admin/v1/badges          special badges; POST .../:id, .../:id/(delete|award), .../awards/:id/remove; GET .../:id/holders (special-badges.js)
 //   POST /admin/v1/puzzle-reports/(claim|done)  the puzzle doctor Action (owner); GET .../:id/puzzle, POST .../:id/retry (puzzle-reports.js)
 //   GET  /admin/v1/alerts              free allowances close to running out
@@ -90,6 +91,7 @@ import { ratingRoutes } from './ratings.js';
 import { marketingRoutes } from './marketing.js';
 import { oauthRoutes } from './marketing-oauth.js';
 import { supporterRoutes } from './supporters.js';
+import { licenseRoutes } from './licenses.js';
 import { badgeRoutes, playerBadges, deleteBadgeStatements } from './special-badges.js';
 import { puzzleMailRoutes } from './puzzle-mail.js';
 import { editionRoutes } from './editions.js';
@@ -230,6 +232,7 @@ async function analytics(env, days, now = Date.now()) {
     picturesByDay: db.prepare("SELECT day, count AS n FROM usage WHERE name = 'pictures' AND day >= ?1").bind(sinceDay),
     namesWaiting: db.prepare('SELECT COUNT(*) AS n FROM players p LEFT JOIN name_reviews r ON r.user_id = p.user_id WHERE r.name_key IS NULL OR r.name_key != p.name_key'),
     educatorsWaiting: db.prepare("SELECT COUNT(*) AS n FROM educator_requests WHERE status = 'pending'"),
+    keysWaiting: db.prepare('SELECT COUNT(*) AS n FROM licenses WHERE waiting = 1 AND revoked_at IS NULL'),
     educatorFeedbackNew: db.prepare("SELECT COUNT(*) AS n FROM educator_feedback WHERE status = 'new' AND kind != 'survey'"),
   };
   const names = Object.keys(q);
@@ -257,7 +260,7 @@ async function analytics(env, days, now = Date.now()) {
     voices: { byDay: series(r.voicesByDay), cap: settings.daily_tts_cap, enabled: settings.tts_enabled, today: series(r.voicesByDay).at(-1) },
     pictures: { byDay: series(r.picturesByDay), cap: settings.daily_picture_cap, mode: settings.ai_pictures, today: series(r.picturesByDay).at(-1) },
     errors: { byDay: series(r.errorsByDay) },
-    review: { parts: Object.fromEntries(r.parts.map((x) => [x.id, x.n])), namesWaiting: one('namesWaiting'), feedback: Object.fromEntries(r.feedbackNew.map((x) => [x.id, x.n])), messages: one('messagesUnread'), educators: one('educatorsWaiting'), educatorFeedback: one('educatorFeedbackNew') },
+    review: { parts: Object.fromEntries(r.parts.map((x) => [x.id, x.n])), namesWaiting: one('namesWaiting'), feedback: Object.fromEntries(r.feedbackNew.map((x) => [x.id, x.n])), messages: one('messagesUnread'), educators: one('educatorsWaiting'), educatorFeedback: one('educatorFeedbackNew'), keys: one('keysWaiting') },
   };
   analyticsCache.set(days, { at: now, body });
   return body;
@@ -784,6 +787,8 @@ const ROUTES = [
   ...editionRoutes(Refusal),
   // ---- Supporters and premium extras (supporters.js).
   ...supporterRoutes(Refusal),
+  // ---- App keys for the Windows and Android apps (licenses.js).
+  ...licenseRoutes(Refusal),
   // ---- Special badges: Tester, Contributor and badges for milestones (special-badges.js).
   ...badgeRoutes(Refusal, { onChange: clearBoardCache }),
   ...educatorRoutes(Refusal),

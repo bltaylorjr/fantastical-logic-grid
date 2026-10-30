@@ -287,6 +287,7 @@ uses a secret, variable or binding that is not listed there.
 | `LIMIT_ADMIN_IP` | Worker binding (server/wrangler.toml) |  |
 | `LIMIT_ADMIN` | Worker binding (server/wrangler.toml) |  |
 | `LIMIT_MESSAGES` | Worker binding (server/wrangler.toml) |  |
+| `LIMIT_LICENSE` | Worker binding (server/wrangler.toml) |  |
 
 **Steps:**
 
@@ -634,6 +635,27 @@ uses a secret, variable or binding that is not listed there.
 **Links:** [New fine-grained token](https://github.com/settings/personal-access-tokens/new) · [Educator packages runs](https://github.com/bltaylorjr/fantastical-logic-grid/actions/workflows/educator-packages.yml) · [Full guide (server/EDUCATORS.md)](https://github.com/bltaylorjr/fantastical-logic-grid/blob/main/server/EDUCATORS.md)
 
 ## Desktop and mobile apps
+
+### App keys for the Windows and Android apps
+
+**Why:** The apps ask for an app key the first time they open. The Worker signs each activated key with this private key, and the apps check that signature with the matching public key built into them, so they keep working offline. Until this secret is set the apps open without a key.
+
+**Cost:** Free.
+
+| Name | Where | Notes |
+| --- | --- | --- |
+| `LICENSE_SIGNING_KEY` | Cloudflare Worker secret | The whole one-line text of license-signing.jwk from the private folder (project files, fantastical-logic-grid-app/.private). It starts {"kty":"EC". Never paste it anywhere else. |
+
+**Steps:**
+
+1. Open the file **license-signing.jwk** (sent to you separately, or in the project files under fantastical-logic-grid-app/.private) in Notepad and copy all of its one line.
+2. Open <https://dash.cloudflare.com/?to=/:account/workers/services/view/flg-api/production/settings> (Cloudflare > **Workers & Pages** > **flg-api** > **Settings** > **Variables and Secrets**).
+3. Click **Add** (or **Edit** next to `LICENSE_SIGNING_KEY` if it is already there).
+4. Choose type **Secret**, enter the name `LICENSE_SIGNING_KEY`, paste that line as the value, and click **Deploy**.
+5. Open <https://flg-api.btay74.workers.dev/admin/#licenses> (**App keys**). The banner should now say keys are ready. Click **Make keys** to make one for yourself and type it into the app.
+6. Who can get a key for themselves, and how many devices each key works on, are under **Settings and switches** > **App keys**.
+
+**Links:** [Worker variables and secrets](https://dash.cloudflare.com/?to=/:account/workers/services/view/flg-api/production/settings) · [App keys in the dashboard](https://flg-api.btay74.workers.dev/admin/#licenses) · [Full guide (server/LICENSES.md)](https://github.com/bltaylorjr/fantastical-logic-grid/blob/main/server/LICENSES.md)
 
 ### Desktop app updates (Tauri updater key)
 
