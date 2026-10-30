@@ -54,9 +54,12 @@ let css = readFileSync(join(web, 'calm', 'calm.css'), 'utf8')
   .replace(/url\(\.\.\/fonts\/([\w-]+\.woff2)\)/g, (_, f) => `url(data:font/woff2;base64,${b64(join(web, 'fonts', f))})`);
 const icon = `data:image/svg+xml;base64,${b64(join(web, 'icons', 'icon.svg'))}`;
 const html = readFileSync(join(web, 'calm', 'index.html'), 'utf8');
+// The page's one script tag is swapped for the inlined bundle below.
+const SCRIPT_TAG = '<script type="module" src="calm.js"></script>';
+if (!html.includes(SCRIPT_TAG)) throw new Error(`calm/index.html no longer has ${SCRIPT_TAG}`);
 const head = html.match(/<head>([\s\S]*?)<\/head>/)[1]
   .replace(/<meta charset[^>]*>\s*/, '').replace(/<meta name="viewport"[^>]*>\s*/, '')
-  .replace(/<link [^>]*>\s*/g, '').replace(/<script [^>]*><\/script>\s*/, '')
+  .replace(/<link [^>]*>\s*/g, '').replace(SCRIPT_TAG, '')
   + `<meta name="flg-mode" content="preview">\n<style>${css}</style>\n`;
 const body = html.match(/<body>([\s\S]*?)<\/body>/)[1]
   .replaceAll('../icons/icon.svg', icon)
