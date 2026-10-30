@@ -579,6 +579,7 @@ def main():
     ads = due.get('ads', [])
     if ONLY:
         ads = [a for a in ads if f"{a['channel']}:{a.get('content', '')}" in ONLY]
+        print(f"::notice::Chosen ads found: {', '.join(a['title'] for a in ads) or 'none (check the day and that the ad is approved)'}")
     dry = MODE == 'dry-run'
     print(f'{DAY}: {len(ads)} approved ads due (automatic posting {"on" if due.get("autopost") else "off"}).')
     posted, failed, by_hand = [], [], []
@@ -600,7 +601,7 @@ def main():
             url = POST[ad['channel']](ad)
             worker(f'marketing/ads/{ad["id"]}/auto', {'ok': True, 'postUrl': url, 'note': f'Posted automatically on {TODAY if ONLY else DAY}'})
             posted.append((ad, url))
-            print(f'Posted: {ad["title"]}')
+            print(f'::notice::Posted: {ad["title"]}')
         except Exception as e:  # noqa: BLE001 - one site failing must not stop the others
             note = f'{DAY}: {scrub(e)}'
             failed.append((ad, note))
