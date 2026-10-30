@@ -32,7 +32,7 @@ async function face(ex) {
     headers: { 'Content-Type': 'application/json', Origin: 'https://thelogicgrid.com' },
     body: JSON.stringify({ kind: 'face', prompt: ex.face }),
   });
-  if (!r.ok) throw new Error(`face for ${ex.name}: ${r.status} ${await r.text()}`);
+  if (!r.ok) { console.error(`face for ${ex.name}: ${r.status} ${await r.text()}`); return null; }
   const b = Buffer.from(await r.arrayBuffer());
   fs.writeFileSync(file, b);
   return b;
@@ -48,7 +48,9 @@ async function face(ex) {
   try {
     for (const ex of lines) {
       if (only && ex.id !== only) continue;
-      const picture = await face(ex);
+      let picture = await face(ex);
+      if (!picture) { await new Promise((r) => setTimeout(r, 5000)); picture = await face(ex); }
+      if (!picture) continue;
       const wav = fs.readFileSync(path.join(OUT, `${ex.id}.wav`));
       const ctx = await browser.newContext({ viewport: { width: W, height: H }, serviceWorkers: 'block' });
       // For a local try-out without a real photo: FACE_STUB=1 stands in the face's points.
