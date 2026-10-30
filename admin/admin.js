@@ -816,6 +816,24 @@ document.addEventListener('click', async (e) => {
 // its answer key; the puzzle also goes into their Saved puzzles); disapproved,
 // a thank-you for their input. The puzzle is built from the lists in the
 // storyline (storyline-parse.js), shown here before approving.
+// After Approve, Disapprove, Mark addressed or Mark done, the item stays
+// where it is so the result is plain to see: its message folds away, a line
+// says what was done and what happens next, and every button except Delete is
+// greyed out. It leaves the list at the next refresh.
+function settleItem(el, { badge, ok = true, text }) {
+  const li = el.closest('li');
+  if (!li) return;
+  li.classList.add('settled');
+  li.querySelector('.settled-note')?.remove();
+  const note = document.createElement('p');
+  note.className = 'fb-note settled-note';
+  note.setAttribute('role', 'status');
+  note.innerHTML = `<span class="badge${ok ? ' ok' : ''}">${esc(badge)}</span> ${esc(text)}`;
+  const head = li.querySelector('.fb-text');
+  if (head) head.before(note); else li.prepend(note);
+  li.querySelectorAll('button').forEach((x) => { if (x.dataset.status !== 'delete') x.disabled = true; });
+}
+
 function storyApproveHtml(i) {
   const id = Number(i.id);
   const read = readStoryline(i.text, i.meta.themeName || '');
@@ -825,7 +843,7 @@ function storyApproveHtml(i) {
   const mail = i.meta.storyEmail
     ? '<b>Approve:</b> they get a congratulations email with the puzzle (PDF and answer key), and it goes into their Saved puzzles. <b>Disapprove:</b> they get a thank-you for their input.'
     : 'This player did not ask for an email, so nothing is sent either way.';
-  return `<p class="muted">${mail}${i.meta.storyEmail ? ` ${built}` : ''}</p>
+  return `<p class="muted fb-story-info">${mail}${i.meta.storyEmail ? ` ${built}` : ''}</p>
     <p class="error" role="alert" hidden data-story-error="${id}"></p>`;
 }
 const storyButtons = (id) => `<button class="btn primary small" type="button" data-story-act="approve" data-story="${Number(id)}">Approve</button>
@@ -844,9 +862,8 @@ document.addEventListener('click', async (e) => {
     const words = approve
       ? `Storyline approved.${r.emailed ? ' Within 15 minutes the player gets the congratulations email with their puzzle, and the puzzle goes into their Saved puzzles.' : ' No email: the player did not ask for one.'}`
       : `Storyline disapproved.${r.emailed ? ' The player gets a thank-you for their input within 15 minutes.' : ' No email: the player did not ask for one.'}`;
-    toast(words);
+    settleItem(btn, { badge: approve ? 'Approved' : 'Disapproved', ok: approve, text: words.replace(/^Storyline (approved|disapproved)\. ?/, '') || 'Done.' });
     announce(words);
-    show('communication', { keepFocus: true });
   } catch (ex) {
     err.textContent = ex.message;
     err.hidden = false;
@@ -999,9 +1016,11 @@ $('#comm-list').onclick = async (e) => {
   let emailed = 0;
   if (await act(b, async () => { emailed = (await api(`feedback/${b.dataset.fb}`, { method: 'POST', body }))?.emailed || 0; }, '')) {
     const done = words[b.dataset.status] + (emailed ? ' The player gets an email update with your note.' : '');
-    toast(done);
     announce(done);
-    show('communication', { keepFocus: true });
+    const badges = { approved: 'Approved', declined: 'Disapproved', addressed: 'Addressed', done: 'Done' };
+    const next = { approved: 'Queued for the weekly fix run. Press Mark fixed (under Approved) once the change is live.', declined: 'Closed with no change.', addressed: 'Closed with your note.', done: 'Closed.' };
+    if (badges[b.dataset.status]) settleItem(b, { badge: badges[b.dataset.status], ok: b.dataset.status !== 'declined', text: `${next[b.dataset.status]}${emailed ? ' The player gets an email update.' : ''}` });
+    else { toast(done); show('communication', { keepFocus: true }); }
   }
 };
 // The "What was done" note can go to the player by email, so it should read

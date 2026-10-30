@@ -295,7 +295,7 @@ function finalize(o, best, elapsedMs) {
       id: c.id, name: c.name, noun: c.noun || c.name.toLowerCase(), ordinal: !!c.ordinal,
       items: c.labels.map((label, i) => ({ id: `${c.id}:${i}`, label, ...(c.values ? { value: c.values[i] } : {}) })),
       pos: c.pos, neg: c.neg, ...(c.ordinal ? { phrases: c.ordinal } : {}),
-      ...(c.note ? { note: c.note.replace(/\{one\}/g, scenario.cast.one).replace(/\{many\}/g, scenario.cast.many) } : {}),
+      ...(c.note ? { note: c.note.replace(/\{one\}/g, scenario.cast.one).replace(/\{many\}/g, scenario.cast.many).replace(/\{low\}/g, c.labels[0]).replace(/\{high\}/g, c.labels.at(-1)) } : {}),
     })),
     grid: gridLayout(cats),
     story: { id: story.id, parts: story.parts, title: story.title, paragraphs: story.paragraphs, text: story.text, goal: story.goalQuestion, ending: story.ending, wordCount: story.wordCount },
