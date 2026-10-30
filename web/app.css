@@ -65,6 +65,7 @@
 :root[data-world="math"] { --w1: #1E40AF; --w2: #F59E0B; }
 :root[data-world="biology"] { --w1: #4D7C0F; --w2: #0D9488; }
 :root[data-world="chemistry"] { --w1: #DB2777; --w2: #0891B2; }
+:root[data-world="astronomy"] { --w1: #4338CA; --w2: #0E7490; }
 :root[data-world="paradox"] { --w1: #7C3AED; --w2: #DB2777; }
 
 * { box-sizing: border-box; }
@@ -325,6 +326,7 @@ dialog.wide { max-width: min(1000px, calc(100vw - 32px)); }
 .dlg-x:hover { background: var(--surface, var(--bg)); }
 .dlg-x:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 .dlg-x .ico { width: 20px; height: 20px; }
+.dlg-x[hidden] { display: none; }
 /* The Introduction's buttons stay reachable at the bottom while the transcript is open. */
 #dlg-video .dlg-actions { position: sticky; bottom: -24px; margin: 16px -24px -24px; padding: 12px 24px 24px; background: var(--surface, var(--bg)); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); border-top: 1px solid var(--hairline, var(--border)); }
 .transcript { margin-top: 12px; }
@@ -523,7 +525,7 @@ h3, legend, .card h3 { font-family: var(--font); }
 .tile[data-world="music"] { --w1: #DB2777; --w2: #6366F1; } .tile[data-world="nautical"] { --w1: #1D4ED8; --w2: #DC2626; }
 .tile[data-world="farm"] { --w1: #65A30D; --w2: #DC2626; } .tile[data-world="science"] { --w1: #2563EB; --w2: #10B981; }
 .tile[data-world="math"] { --w1: #1E40AF; --w2: #F59E0B; } .tile[data-world="biology"] { --w1: #4D7C0F; --w2: #0D9488; }
-.tile[data-world="chemistry"] { --w1: #DB2777; --w2: #0891B2; } .tile[data-world="paradox"] { --w1: #7C3AED; --w2: #DB2777; }
+.tile[data-world="chemistry"] { --w1: #DB2777; --w2: #0891B2; } .tile[data-world="astronomy"] { --w1: #4338CA; --w2: #0E7490; } .tile[data-world="paradox"] { --w1: #7C3AED; --w2: #DB2777; }
 .tile[data-world="random"] { --w1: #7C5CFF; --w2: #22B8CF; }
 .chips .choice > span { border-radius: 999px; padding: 10px 18px; }
 .chips .choice small { font-weight: 400; }
@@ -612,7 +614,7 @@ dialog::backdrop { background: rgb(5 7 16 / .6); backdrop-filter: blur(6px); -we
 :root[data-theme="contrast"] body::before { background: #000; }
 :root[data-theme="contrast"] .appbar::after, :root[data-theme="contrast"] .banner::before { display: none; }
 :root[data-theme="contrast"] .card, :root[data-theme="contrast"] .banner, :root[data-theme="contrast"] .play-head, :root[data-theme="contrast"] dialog,
-:root[data-theme="contrast"] .btn, :root[data-theme="contrast"] .choice > span { background: #000; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; filter: none; }
+:root[data-theme="contrast"] .btn, :root[data-theme="contrast"] .dlg-x, :root[data-theme="contrast"] .choice > span { background: #000; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; filter: none; }
 :root[data-theme="contrast"] .btn.primary, :root[data-theme="contrast"] .seg input:checked + span { background: var(--accent); }
 :root[data-theme="contrast"] .tile .glyph { background: #000; border: 2px solid #fff; box-shadow: none; }
 :root[data-theme="contrast"] td.c.cross, :root[data-theme="contrast"] table.lg th.hl { background: var(--cross); }
@@ -818,6 +820,11 @@ dialog.rules table.board td { font-variant-numeric: tabular-nums; }
 .badge-mark { font-size: 1.4rem; line-height: 1; color: var(--accent); }
 .badge-item.locked { opacity: .62; }
 .badge-item.locked .badge-mark { color: var(--muted); }
+.badge-mark.badge-emoji { font-size: 1.5rem; color: inherit; min-width: 1.6em; text-align: center; }
+.badge-item.locked .badge-mark.badge-emoji { filter: grayscale(1); }
+.badge-item progress { display: block; width: 100%; max-width: 220px; height: 8px; margin-top: 6px; accent-color: var(--accent); }
+.special-badges { white-space: nowrap; margin-left: 4px; }
+.special-badges > span { display: inline-block; font-size: 1.05em; margin-left: 2px; cursor: default; }
 .share-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 8px 0 12px; }
 .share-img { width: 100%; height: auto; border-radius: 12px; border: 1px solid var(--edge-hi); margin-bottom: 12px; }
 #share-text { width: 100%; }
@@ -842,6 +849,14 @@ dialog.rules table.board td { font-variant-numeric: tabular-nums; }
 .daily-numbers { margin: 0 0 12px; }
 .daily-email { margin-top: 10px; }
 .daily-email p.help { margin: 0; }
+/* Puzzle of the week, special editions and Puzzle emails */
+.weekly-box { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--edge-hi); }
+.weekly-box h3 { margin: 0 0 6px; font-size: 1rem; }
+.mail-invite { margin: 12px 0 0; }
+#mail-form fieldset { border: 0; padding: 0; margin: 0 0 12px; display: grid; gap: 8px; }
+#mail-form legend { font-weight: 700; margin-bottom: 6px; }
+#mail-email { width: 100%; }
+.edition-note { margin: 0 0 12px; font-style: italic; }
 
 /* ---- Learn to solve: tutorial and tips ---- */
 .hero-learn { margin: 14px 0 0; color: var(--muted); }
@@ -935,3 +950,16 @@ dialog.rules table.board td { font-variant-numeric: tabular-nums; }
   .gridframe { max-height: calc(100vh - 16px); max-height: calc(100dvh - 16px); }
   .screen { padding-top: 12px; }
 }
+
+/* Social pages under the home screen (social.js) */
+.home-foot { margin: 32px auto 8px; text-align: center; }
+.home-foot p { margin: 0 0 8px; }
+.social { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.social-link { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border: 1px solid var(--border); border-radius: 50%; color: inherit; text-decoration: none; }
+.social-link:hover { background: var(--accent-soft); }
+.social-link:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.social-link svg { width: 22px; height: 22px; }
+/* Report a Problem, in the footer under every screen (puzzle-report.js) */
+.app-foot { display: flex; justify-content: center; padding: 16px; margin-top: 8px; border-top: 1px solid var(--border); }
+.report-kind { display: flex; flex-wrap: wrap; gap: 4px 20px; border: 0; padding: 0; margin: 0 0 8px; }
+.report-kind legend { padding: 0; margin-bottom: 4px; font-weight: 600; }

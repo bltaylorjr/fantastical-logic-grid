@@ -1,5 +1,8 @@
 // The Fantastical Logic Grid: app controller (setup, play, saves, hints, print).
-import { describeOptions, checkMarks, isSolved, checkAnswers } from '../engine/index.js';
+// Only the light parts of the engine load on the page; the story library
+// stays in the puzzle writer (worker.js). options.js is written by the build.
+import { checkMarks, isSolved, checkAnswers } from '../engine/play.js';
+import { OPTIONS } from '../engine/options.js';
 import * as engine from './engine-client.js';
 import * as store from './store.js';
 import { createGrid, puzzleIndex, esc, STATE_WORDS } from './grid.js';
@@ -17,14 +20,18 @@ import * as updates from './updates.js';
 import { celebrate as celebrateSolve } from './effects.js';
 import * as learn from './learn.js';
 import * as feedbackBox from './feedback.js';
+import * as puzzleReport from './puzzle-report.js';
 import * as messages from './messages.js';
 import * as share from './share.js';
 import * as errorReports from './errors.js';
 import * as campaign from './campaign.js';
+import { countVisit } from './visit.js';
 import { initAccounts, openAccount, onHome as accountsOnHome, signedIn } from './account-ui.js';
 import * as competeUi from './compete-ui.js';
 import * as remote from './remote-config.js';
+import { socialLinks, socialHtml, DEFAULT_LINKS } from './social.js';
 import * as perks from './perks.js';
+import * as specialBadges from './special-badges.js';
 import * as support from './support.js';
 import { initPullRefresh } from './pull-refresh.js';
 import * as daily from './daily.js';
@@ -33,21 +40,26 @@ import { shareResult } from './share-result.js';
 import * as challenge from './challenge.js';
 import * as dailyResults from './daily-results.js';
 import * as dailyEmail from './daily-email.js';
+import * as puzzleMail from './puzzle-mail.js';
+import * as editions from './editions.js';
 import { onChange as onAccountChange } from './account.js';
 import * as i18n from './i18n.js';
 import { CLOUD, CLOUD_URL } from './cloud-config.js';
 import * as tutorial from './tutorial.js';
 import * as license from './license.js';
 import * as licenseDownload from './license-download.js';
+import { addCloseButtons, closeDialog } from './dialog-close.js';
+
+addCloseButtons();
 
 errorReports.init();
 campaign.init();
+countVisit(signedIn());
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
-const OPTIONS = describeOptions();
 const TIERS = Object.fromEntries(OPTIONS.difficulties.map((d) => [d.id, d]));
 const TIER_IDS = OPTIONS.difficulties.map((d) => d.id);
-const MINUTES_PER_CELL = { basic: 0.12, easy: 0.16, medium: 0.22, hard: 0.3, expert: 0.36, mensa: 0.42 };
+const MINUTES_PER_CELL = { basic: 0.12, easy: 0.16, medium: 0.22, hard: 0.3, expert: 0.36, mensa: 0.42, theorist: 0.63 };
 const USED_STORY_LIMIT = 5000;
 const isDesktop = !!(window.__TAURI_INTERNALS__ || window.__TAURI__);
 // The claude.ai preview build cannot print or download files, so those controls are hidden there.
@@ -121,12 +133,12 @@ function confirmDialog({ title, text, yes, no, check }) {
   });
 }
 
-// Every dialog with a close (X) button closes from it, and the welcome and the
+// Every dialog's close (X) button closes it the way Escape does, and the welcome and the
 // Introduction also close with a click on the dimmed page around them, so a
 // first-visit window can never trap anyone (Escape closes dialogs too).
 document.addEventListener('click', (e) => {
   const x = e.target.closest?.('dialog .dlg-x');
-  if (x) { x.closest('dialog').close(); return; }
+  if (x) { closeDialog(x.closest('dialog')); return; }
   const d = e.target;
   if (d instanceof HTMLDialogElement && d.open && d.hasAttribute('data-light-dismiss')) {
     const r = d.getBoundingClientRect();
@@ -416,7 +428,7 @@ async function startGeneration() {
   const err = $('#gen-error');
   err.hidden = true;
   btn.disabled = true;
-  st.textContent = 'Writing your story… Large puzzles can take up to 20 seconds.';
+  st.textContent = $('input[name=tier]:checked')?.value === 'theorist' ? 'Building a Theoretical Physicist puzzle… The engine is testing clue after clue until only one answer is possible. The best of the best take up to a minute.' : 'Writing your story… Large puzzles can take up to 20 seconds.';
   try {
     const puzzle = await makePuzzle();
     const save = newSave(puzzle);
@@ -467,9 +479,20 @@ async function startQuick() {
 $('#quick-btn').onclick = startQuick;
 // ?play=now in a link (ads, the website) starts a quick puzzle straight away.
 // ?play=daily (the daily email) opens today's daily puzzle, or with &day= that day's.
+// ?play=weekly[&week=] and ?play=special&id= (the puzzle emails) open those.
 function handlePlayLink() {
   const url = new URL(location.href);
   const play = url.searchParams.get('play');
+  if (play === 'weekly' || play === 'special') {
+    const week = /^\d{4}-\d{2}-\d{2}$/.test(url.searchParams.get('week') || '') ? url.searchParams.get('week') : null;
+    const id = /^se-[\w-]{1,40}$/.test(url.searchParams.get('id') || '') ? url.searchParams.get('id') : null;
+    for (const k of ['play', 'week', 'id']) url.searchParams.delete(k);
+    try { history.replaceState(history.state, '', url.pathname + url.search + url.hash); } catch (e) { /* framed preview */ }
+    if (!daily.available() || isPreview || (play === 'special' && !id)) { startQuick(); return true; }
+    (play === 'special' ? Promise.resolve(editions.specialKey(id)) : (week ? Promise.resolve(editions.weeklyKey(week)) : editions.weeklyLatest().then((l) => { if (!l) throw new Error('none'); return editions.weeklyKey(l.week); })))
+      .then((key) => openEdition(key)).catch(() => startQuick());
+    return true;
+  }
   if (play !== 'now' && play !== 'daily') return false;
   // A Hand-picked link names its day: ?play=daily&day=2026-11-03.
   const day = /^\d{4}-\d{2}-\d{2}$/.test(url.searchParams.get('day') || '') ? url.searchParams.get('day') : null;
@@ -528,7 +551,7 @@ async function renderSaved() {
     const state = s.solved ? (s.revealed ? 'Solution revealed' : 'Solved') : `${pct}% complete`;
     return `<li class="saved-item" data-id="${s.id}">
       <h3 class="name">${esc(s.name)}</h3>
-      <div class="info">${s.race ? `<span class="pill">Race ${esc(s.race.code)}</span> ` : ''}${s.daily ? `<span class="pill">Daily ${esc(daily.longDate(s.daily))}</span> ` : ''}${(s.myNotes || '').trim() ? '<span class="pill">Has notes</span> ' : ''}${esc(p.theme.name)} · ${esc(p.difficulty.name)} · ${p.categories.length} × ${p.categories[0].items.length} · ${state}<br>Last played ${esc(fmt.format(new Date(s.lastPlayed)))}</div>
+      <div class="info">${s.race ? `<span class="pill">Race ${esc(s.race.code)}</span> ` : ''}${s.daily ? `<span class="pill">Daily ${esc(daily.longDate(s.daily))}</span> ` : ''}${s.editionLabel ? `<span class="pill">${esc(s.editionLabel)}</span> ` : ''}${(s.myNotes || '').trim() ? '<span class="pill">Has notes</span> ' : ''}${esc(p.theme.name)} · ${esc(p.difficulty.name)} · ${p.categories.length} × ${p.categories[0].items.length} · ${state}<br>Last played ${esc(fmt.format(new Date(s.lastPlayed)))}</div>
       <div class="bar" role="img" aria-label="${state}"><i style="width:${pct}%"></i></div>
       <div class="row">
         <button class="btn primary small" type="button" data-do="resume">${s.solved ? 'Open' : 'Resume'}<span class="sr-only"> ${esc(s.name)}</span></button>
@@ -601,6 +624,35 @@ function exportSave(save) {
   toast(`Saved “${save.name}” to a file in your downloads.`);
 }
 
+// Report a Problem (puzzle-report.js), in the footer under every screen. On a
+// puzzle it starts as a Puzzle Problem with that puzzle and its picture;
+// elsewhere as a Web Page Issue naming the screen.
+const SCREEN_NAMES = { 'screen-home': 'Home screen', 'screen-play': 'Puzzle screen', 'screen-learn': 'How to play' };
+$('#report-problem').onclick = () => {
+  const screen = $$('main.screen').find((m) => !m.hidden);
+  const where = SCREEN_NAMES[screen?.id] || screen?.id || 'Game';
+  const onPuzzle = screen?.id === 'screen-play' && S && S.save;
+  let image = '';
+  if (onPuzzle) { try { image = sceneSvg(S.save.puzzle, 5, { animate: false }); } catch (e) { /* sent without it */ } }
+  puzzleReport.open({ puzzle: onPuzzle ? S.save.puzzle : null, image, where: onPuzzle ? `${where}: ${S.save.name}` : where });
+};
+
+// The link in the "we fixed the puzzle you reported" email: the repaired
+// puzzle joins Saved puzzles (once, however often the link is opened).
+async function addRepairedPuzzle(puzzle, tracking, error) {
+  if (!puzzle) { toast(error || 'The repaired puzzle could not be opened.'); return; }
+  let save = (await store.listSaves()).find((x) => x.repairOf && x.repairOf === tracking);
+  if (!save) {
+    await rememberStory(storyIdOf(puzzle));
+    save = newSave(puzzle);
+    save.name = `${puzzle.title} (repaired)`;
+    save.repairOf = tracking || true;
+    await store.putSave(save);
+  }
+  await renderSaved();
+  toast(`Your repaired puzzle “${save.name}” is in Saved puzzles.`, { label: 'Play it now', run: () => openGame(save) });
+}
+
 $('#import-btn').onclick = () => $('#import-file').click();
 $('#import-file').onchange = async (e) => {
   const file = e.target.files[0];
@@ -646,7 +698,7 @@ function openGame(save, { fresh = false } = {}) {
 
   $('#p-title').textContent = save.name;
   const K = ix.K, N = ix.N;
-  $('#p-meta').innerHTML = [...(save.daily ? [`Daily puzzle · ${daily.longDate(save.daily)}`] : []), puzzle.difficulty.name, puzzle.theme.name, ...(puzzle.topic && puzzle.topic.id !== 'any' ? [puzzle.topic.name] : []), `${K} categories × ${N} items`, `${puzzle.clues.length} clues`].map((t) => `<span class="pill">${esc(t)}</span>`).join('');
+  $('#p-meta').innerHTML = [...(save.daily ? [`Daily puzzle · ${daily.longDate(save.daily)}`] : []), ...(save.editionLabel ? [save.editionLabel] : []), puzzle.difficulty.name, puzzle.theme.name, ...(puzzle.topic && puzzle.topic.id !== 'any' ? [puzzle.topic.name] : []), `${K} categories × ${N} items`, `${puzzle.clues.length} clues`].map((t) => `<span class="pill">${esc(t)}</span>`).join('');
   const paras = puzzle.story.paragraphs;
   $('#p-story').innerHTML = paras.map((p, i) => `<p${i === paras.length - 1 ? ' class="goal"' : ''}>${esc(p)}</p>`).join('');
   characters.useFor(puzzle);
@@ -809,6 +861,21 @@ function updateUndoButtons() {
   $('[data-act=redo]').disabled = !S.save.redo.length;
 }
 
+// "Try again", spoken by the narrator, when a player is on the last few
+// decisions of a puzzle (a row's worth of cells or fewer left) and marks a
+// cell that does not fit the solution. At most once every few seconds, and
+// only while voices are on.
+let lastTryAgain = 0;
+function tryAgainNearEnd() {
+  if (!S || S.save.solved || S.save.revealed || !voiceOn()) return;
+  const left = [...S.grid.cells.keys()].filter((c) => !S.marks.get(c)).length;
+  const lastDecisions = Math.max(3, S.puzzle.categories[0].items.length);
+  if (left > lastDecisions || Date.now() - lastTryAgain < 4000) return;
+  lastTryAgain = Date.now();
+  status('Try again.');
+  ai.speak(settings, S.puzzle, 'narrator', 'Try again.', { volume: settings.volume / 100 }).catch(() => {});
+}
+
 // Cells in the same sub-grid row and column as k (for auto-X).
 function lineMates(k) {
   const [a, b] = k.split('|');
@@ -840,6 +907,8 @@ function setCell(k, v) {
     if (mk && v === 'O' && !S.save.solved) S.save.mistakes = (S.save.mistakes || 0) + 1;
     if (mk && settings.instant) { S.wrong.add(k); paintCell(k); wrongNow = true; }
   }
+  // A wrong mark near the end, or a finished grid that is not the answer.
+  if (v && (checkMarks(S.puzzle, [{ a, b, mark: v === 'O' ? 'O' : 'X' }])[0] || (!S.save.solved && ![...S.grid.cells.keys()].some((c) => !S.marks.get(c))))) tryAgainNearEnd();
   sound(wrongNow ? 'error' : v === 'O' ? 'O' : v ? 'X' : 'clear');
   const td = S.grid.cells.get(k);
   announce(`${td ? `${S.ix.label(td.dataset.row)}, ${S.ix.label(td.dataset.col)}` : what}, ${STATE_WORDS[v]}${wrongNow ? ', conflicts with the solution' : ''}${autoCount ? `. Also ruled out ${autoCount} other cell${autoCount > 1 ? 's' : ''}` : ''}${autoGone ? `. Also removed ${autoGone} automatic X${autoGone > 1 ? 's' : ''}` : ''}.`);
@@ -1213,8 +1282,8 @@ function checkSolved() {
   if (solved && !S.save.solved) {
     S.save.solved = true;
     S.save.completedAt = Date.now();
-    // The daily puzzle's answers are on the website, so it earns no scoreboard points.
-    if (!S.save.race && !S.save.daily && !S.save.challenge && !S.save.revealed && !S.save.restarted) S.save.scorePending = true;
+    // The daily, weekly and special puzzles' answers are on the website, so they earn no scoreboard points.
+    if (!S.save.race && !S.save.daily && !S.save.edition && !S.save.challenge && !S.save.revealed && !S.save.restarted) S.save.scorePending = true;
     tickTimer();
     recordSolve(S.save);
     if (!S.save.revealed) campaign.solved();
@@ -1576,6 +1645,7 @@ async function renderDaily() {
     el.hidden = !el.textContent;
   });
   renderPicks(saves);
+  renderEditions(saves);
   const earlier = (l.days || []).filter((d) => d < l.date).slice(0, 7);
   $('#daily-earlier').hidden = !earlier.length;
   $('#daily-list').innerHTML = earlier.map((d) => {
@@ -1595,6 +1665,72 @@ async function renderPicks(saves) {
     const why = x.hand ? 'picked by the team' : `rated ${x.average} of 5`;
     return `<li><button class="btn quiet small" type="button" data-daily="${esc(x.date)}">${esc(x.title)}</button> <span class="muted">${esc(x.difficultyName)} · ${esc(x.themeName)} · ${esc(why)}${sv ? (sv.solved ? ' · finished' : ` · ${sv.percent || 0}% done`) : ''}</span></li>`;
   }).join('');
+}
+
+// The puzzle of the week and special editions, under the daily puzzle, and
+// the Puzzle emails invite (anyone can sign up, no account needed).
+async function renderEditions(saves) {
+  const [w, list] = await Promise.all([editions.weeklyLatest(), editions.specials()]);
+  // Built with text nodes: titles and dates come from the website's files.
+  const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+  const pill = (text) => el('span', 'pill', text);
+  const editionButton = (key, cls, text) => { const b = el('button', cls, text); b.type = 'button'; b.dataset.edition = key; return b; };
+  const box = $('#weekly-box');
+  box.hidden = !w;
+  box.replaceChildren();
+  if (w) {
+    const key = editions.weeklyKey(w.week);
+    const sv = saves.find((x) => x.edition === key);
+    const title = el('p', 'daily-title');
+    title.append(el('b', null, w.title));
+    const meta = el('p', 'daily-meta');
+    const pills = [`Week of ${daily.longDate(w.week)}`, w.difficultyName, w.themeName, `${Number(w.categories) || 0} × ${Number(w.items) || 0}`];
+    if (sv) pills.push(sv.solved ? 'Finished' : `${Number(sv.percent) || 0}% done`);
+    pills.forEach((t, i) => { if (i) meta.append(' '); meta.append(pill(t)); });
+    box.append(el('h3', null, 'Puzzle of the week'), title, meta,
+      editionButton(key, 'btn', sv ? (sv.solved ? 'Open the puzzle of the week' : 'Continue the puzzle of the week') : 'Play the puzzle of the week'));
+  }
+  $('#specials-box').hidden = !list.length;
+  $('#specials-list').replaceChildren(...list.map((x) => {
+    const key = editions.specialKey(x.id);
+    const sv = saves.find((s) => s.edition === key);
+    const li = el('li');
+    li.append(editionButton(key, 'btn quiet small', x.editionTitle), ' ',
+      el('span', 'muted', `${daily.longDate(x.date)} · ${x.difficultyName} · ${x.themeName}${sv ? (sv.solved ? ' · finished' : ` · ${Number(sv.percent) || 0}% done`) : ''}`));
+    return li;
+  }));
+  $('#mail-invite').hidden = isPortal || !puzzleMail.available();
+  $('#mail-invite-btn').textContent = remote.feature('weeklyMail') ? 'Get the weekly puzzle by email' : 'Get special edition puzzles by email';
+}
+$('#mail-invite-btn').onclick = () => puzzleMail.open(openDialog);
+
+// A puzzle the team made for this player (Messages > Puzzles for you): opened
+// once as a saved puzzle, then continued from Saved puzzles like any other.
+async function openTeamPuzzle(puzzle, id) {
+  const existing = (await store.listSaves()).find((x) => x.teamPuzzle === id);
+  if (existing) { openGame(existing); return; }
+  await rememberStory(storyIdOf(puzzle));
+  const save = newSave(puzzle);
+  save.teamPuzzle = id;
+  await store.putSave(save);
+  openGame(save, { fresh: true });
+}
+
+async function openEdition(key, btn) {
+  const existing = (await store.listSaves()).find((x) => x.edition === key);
+  if (existing) { openGame(existing); return; }
+  if (btn) btn.disabled = true;
+  try {
+    const { puzzle, label } = await editions.puzzleFor(key);
+    await rememberStory(storyIdOf(puzzle));
+    const save = newSave(puzzle);
+    save.edition = key;
+    save.editionLabel = label;
+    await store.putSave(save);
+    openGame(save, { fresh: true });
+  } catch (e) {
+    toast(`That puzzle could not be opened. ${e.message || ''}`.trim(), { label: 'Try again', run: () => openEdition(key) });
+  } finally { if (btn) btn.disabled = false; }
 }
 
 // The daily email switch under today's puzzle: signed-in players with a
@@ -1637,6 +1773,8 @@ onAccountChange(() => renderDailyEmail());
 $('#daily-section').addEventListener('click', (e) => {
   const b = e.target.closest('[data-daily]');
   if (b) openDaily(b.dataset.daily, b);
+  const ed = e.target.closest('[data-edition]');
+  if (ed) openEdition(ed.dataset.edition, ed);
 });
 async function openDaily(date, btn) {
   const existing = (await store.listSaves()).find((x) => x.daily === date);
@@ -1664,6 +1802,9 @@ async function openTodaysDaily() {
 // ====================================================================
 async function openStats() {
   openDialog($('#dlg-stats'), $('#stats-close'));
+  await renderStats();
+}
+async function renderStats() {
   const body = $('#stats-body');
   let sm;
   try { sm = await stats.summary(dailyLatest ? dailyLatest.date : daily.utcDay()); } catch (e) { body.innerHTML = '<p>Your stats could not be loaded on this device.</p>'; return; }
@@ -1685,10 +1826,23 @@ async function openStats() {
     </tbody></table></div>` : ''}
     ${sm.themes.length ? `<h3>Favorite themes</h3><p>${sm.themes.slice(0, 5).map(([id, n]) => `${esc(themeName(id))} (${n})`).join(', ')}</p>` : ''}
     ${sm.revealed ? `<p class="help">${sm.revealed} puzzle${sm.revealed > 1 ? 's' : ''} ended with the solution revealed; those don't count above.</p>` : ''}
+    ${specialBadgesHtml()}
     <h3>Badges <span class="muted">${earned.length} of ${sm.badges.length}</span></h3>
     <ul class="badges">${[...earned, ...sm.badges.filter((b) => !b.at)].map(badgeHtml).join('')}</ul>`;
 }
 $('#stats-close').onclick = () => $('#dlg-stats').close();
+
+// Special badges from the team (special-badges.js): given by hand, like
+// Tester, or earned at a milestone the team sets. Earned ones first, then the
+// milestones still to reach with how far along the player is.
+function specialBadgesHtml() {
+  const have = specialBadges.earned();
+  const next = specialBadges.goals();
+  if (!have.length && !next.length) return '';
+  const item = (b, locked) => `<li class="badge-item special${locked ? ' locked' : ''}"><span class="badge-mark badge-emoji" aria-hidden="true">${esc(b.icon)}</span><span><b>${esc(b.name)}</b><small>${esc(b.description)}${b.at ? ` Earned ${esc(new Date(b.at).toLocaleDateString())}.` : ''}${locked && b.need ? ` ${b.have} of ${b.need} so far.` : ''}</small>${locked && b.need ? `<progress max="${b.need}" value="${b.have}" aria-label="${esc(`${b.name}: ${b.have} of ${b.need}`)}"></progress>` : ''}</span>${locked ? '<span class="sr-only">Not earned yet.</span>' : ''}</li>`;
+  return `<h3>Special badges${have.length ? ` <span class="muted">${have.length}</span>` : ''}</h3>
+    <ul class="badges">${have.map((b) => item(b, false)).join('')}${next.map((b) => item(b, true)).join('')}</ul>`;
+}
 
 let coachBusy = false;
 async function updateCoach() {
@@ -2035,6 +2189,9 @@ async function recordSolve(save) {
     sound('section');
     toast(fresh.length === 1 ? `Badge earned: ${fresh[0].name}` : `${fresh.length} badges earned: ${fresh.map((b) => b.name).join(', ')}`, { label: 'My badges', run: openStats });
   }
+  // Special badges for milestones are checked on the server against the
+  // synced solve log, so look again once this solve has had time to sync.
+  setTimeout(() => specialBadges.refresh(), 20_000);
 }
 
 function suggestTier(hist) {
@@ -2104,10 +2261,25 @@ $('#print-cancel').onclick = () => $('#dlg-print').close();
 // ====================================================================
 // Choices that use the game's server show only when it is set up and the
 // admin dashboard has not switched that feature off for everyone.
+// The game's social pages under the home screen, as soon as a link is set in
+// the admin dashboard (Settings and switches > Social links). Until the game's
+// server answers (or with no server) it shows the page the game launched with.
+function renderSocial() {
+  const box = $('#home-social');
+  if (!box) return;
+  const set = remote.social();
+  const list = socialLinks(set ? Object.fromEntries(set.map((s) => [s.id, s.url])) : DEFAULT_LINKS);
+  box.innerHTML = list.length ? `<p class="muted small">Follow the game</p>${socialHtml(list)}` : '';
+  box.hidden = !list.length;
+}
+
 function applyFeatures() {
+  renderSocial();
   for (const el of $$('.needs-cloud')) el.hidden = !share.available() || (!!el.dataset.feature && !remote.feature(el.dataset.feature));
   $('#music-settings').hidden = !remote.feature('music');
   $('[data-cmd=feedback]').hidden = !feedbackBox.available();
+  $('[data-cmd=mail]').hidden = isPortal || !puzzleMail.available();
+  $('#mail-invite').hidden = isPortal || !puzzleMail.available();
   $('[data-cmd=suggest]').hidden = !characters.suggestionsOpen();
   $('#feedback-idea').hidden = !feedbackBox.available();
   messages.configChanged();
@@ -2220,6 +2392,8 @@ $('#app-menu').addEventListener('click', async (e) => {
   const b = e.target.closest('button[data-cmd]');
   if (!b) return;
   toggleMenu(false);
+  // A dialog opened from the menu gives focus back to the Menu button, not a hidden item.
+  $('#menu-btn').focus();
   const cmd = b.dataset.cmd;
   if (cmd === 'new') goHome();
   else if (cmd === 'saved') { await goHome({ focusSaved: true }); $('#saved-section').scrollIntoView(); }
@@ -2227,6 +2401,7 @@ $('#app-menu').addEventListener('click', async (e) => {
   else if (cmd === 'stats') openStats();
   else if (cmd === 'suggest') characters.openSuggest(openDialog, OPTIONS.themes.filter((t) => !remote.disabledThemes().has(t.id)));
   else if (cmd === 'daily') openTodaysDaily();
+  else if (cmd === 'mail') puzzleMail.open(openDialog);
   else if (cmd === 'feedback') feedbackBox.open(openDialog, { themes: OPTIONS.themes });
   else if (cmd === 'messages') messages.open();
   else if (cmd === 'account') openAccount();
@@ -2491,8 +2666,14 @@ $('#install-phone-btn').onclick = async () => {
   if (choice.outcome === 'accepted') { $('#dlg-install').close(); toast('Installed. Open the game from its icon on your home screen, Start menu or dock.'); }
   else renderInstall();
 };
+// Offline support starts after the first screen: the first install downloads
+// the whole game (about 1.4 MB), so it waits for the player's first tap or key,
+// or 10 seconds after the page is idle, and never slows the first load.
 if ('serviceWorker' in navigator && !isDesktop && !isPortal && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
-  watchWebUpdates();
+  let started = false;
+  const start = () => { if (!started) { started = true; watchWebUpdates(); } };
+  if (navigator.serviceWorker.controller) start();
+  else { afterFirstUse(start); afterLoad(start, 10000); }
 }
 
 // Website updates: a new version installs in the background; the player is
@@ -2557,6 +2738,14 @@ async function init() {
     onConfigChanged: () => { settings = store.loadSettings(); applyFeatures(); applyMode(); languageNote(); },
   });
   perks.onChange(() => { if (!$('#screen-home').hidden) renderSetup(); });
+  specialBadges.init();
+  specialBadges.onChange((fresh) => {
+    if (fresh.length && !(S && !S.save.solved)) {
+      sound('section');
+      toast(fresh.length === 1 ? `Special badge: ${fresh[0].icon} ${fresh[0].name}` : `${fresh.length} special badges: ${fresh.map((b) => `${b.icon} ${b.name}`).join(', ')}`, { label: 'My badges', run: openStats });
+    }
+    if ($('#dlg-stats').open) renderStats();
+  });
   await renderSaved();
   renderSuggestion();
   renderDaily();
@@ -2568,7 +2757,9 @@ async function init() {
     onSavesChanged: () => { if (!$('#screen-home').hidden) renderSaved(); },
     onSettingsChanged: () => { settings = store.loadSettings(); applyColorTheme(); applyMode(); applyLanguage(); },
   }).catch(() => { /* accounts are optional */ });
-  messages.init({ openDialog, openAccount, announce });
+  messages.init({ openDialog, openAccount, announce, playPuzzle: openTeamPuzzle, downloadPuzzle: (puzzle) => exportSave(newSave(puzzle)) });
+  puzzleReport.init({ openDialog, openAccount, announce });
+  puzzleReport.openRepaired(addRepairedPuzzle);
   competeUi.initCompete({
     openDialog, toast, announce, confirmDialog, openAccount, fmtTime, makePuzzle, setupSummary, openRace, findRaceSave,
     openSave: (save) => openGame(save),
@@ -2590,10 +2781,21 @@ async function init() {
   if (new URLSearchParams(location.search).has('learn')) { settings.introOffered = true; store.saveSettings(settings); openTutorial(); } else if (!handleChallengeLink() && !handlePlayLink()) offerIntro();
   offerLanguage();
   // Heavy extras wait until the first screen is drawn and the page is idle, so
-  // they never slow the first load: the DiceBear faces, then the natural voices
-  // (a 90 MB download the first time, read from the browser's cache after that).
-  afterLoad(() => loadPortraits().catch(() => {}), 500);
-  if (!isPreview) afterLoad(ensureNaturalVoices, settings.kokoroReady ? 1500 : 8000);
+  // they never slow the first load: the DiceBear faces (270 KB), then the
+  // natural voices (a 90 MB download the first time, read from the browser's
+  // cache after that). The faces and the first voice download also wait for
+  // the player's first tap, click or key, so a visit that only looks (or a
+  // speed test) never pulls them; a new puzzle loads the faces if needed.
+  afterFirstUse(() => afterLoad(() => loadPortraits().catch(() => {}), 0));
+  if (!isPreview) {
+    if (settings.kokoroReady) afterLoad(ensureNaturalVoices, 1500);
+    else afterFirstUse(() => afterLoad(ensureNaturalVoices, 8000));
+  }
+}
+function afterFirstUse(fn) {
+  const kinds = ['pointerdown', 'keydown'];
+  const once = () => { kinds.forEach((k) => window.removeEventListener(k, once, true)); fn(); };
+  kinds.forEach((k) => window.addEventListener(k, once, { capture: true, passive: true }));
 }
 function afterLoad(fn, delay) {
   const go = () => setTimeout(() => (window.requestIdleCallback || setTimeout)(fn, { timeout: 4000 }), delay);

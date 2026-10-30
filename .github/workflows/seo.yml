@@ -29,6 +29,23 @@ jobs:
       - run: npm run build
       - name: Lighthouse (SEO, accessibility, speed)
         run: npx --yes @lhci/cli@0.15.1 autorun
+      # Each failed check as an annotation on the run, readable without the log.
+      - name: Show failed Lighthouse checks
+        if: failure()
+        run: |
+          node -e '
+            const fs = require("fs");
+            const f = ".lighthouseci/assertion-results.json";
+            if (!fs.existsSync(f)) { console.log("::error::Lighthouse did not finish (no assertion results)"); process.exit(0); }
+            for (const a of JSON.parse(fs.readFileSync(f, "utf8"))) if (a.level === "error")
+              console.log(`::error::${a.url} ${a.auditProperty || a.auditId}: ${a.actual} (needs ${a.operator} ${a.expected})`);
+            for (const r of fs.readdirSync(".lighthouseci").filter((n) => /^lhr-.*\.json$/.test(n))) {
+              const lhr = JSON.parse(fs.readFileSync(".lighthouseci/" + r, "utf8"));
+              for (const cat of ["seo", "accessibility"]) for (const ref of lhr.categories[cat].auditRefs) {
+                const au = lhr.audits[ref.id];
+                if (ref.weight > 0 && au.score !== null && au.score < 1) console.log(`::warning::${lhr.finalDisplayedUrl} ${cat}/${ref.id}: ${au.title}`);
+              }
+            }'
       - if: always()
         uses: actions/upload-artifact@v4
         with:

@@ -29,7 +29,11 @@ if health=$(fetch "$API/v1/health?deep=1"); then
     age=$(( ($(date +%s) * 1000 - last) / 60000 ))
     if [ "$last" = 0 ]; then warning "The Worker's nightly cleanup has never run. Check Workers > flg-api > Settings > Triggers in the Cloudflare dashboard."
     elif [ "$age" -gt $(( 36 * 60 )) ]; then problem "The Worker's nightly cleanup last ran $(( age / 60 )) hours ago. Check Workers > flg-api > Settings > Triggers in the Cloudflare dashboard."
-    elif [ "$age" -gt 90 ]; then warning "Tonight's Worker cleanup has not run yet (the last one was $(( age / 60 )) hours ago). It runs at 2:00 am Eastern; the next nightly check looks again."
+    # GitHub sometimes starts this run hours late, so compare with the most
+    # recent 2:00 am Eastern (plus 30 minutes for the Worker to finish), not
+    # with "90 minutes ago".
+    elif tz="${MAINTENANCE_TZ:-America/New_York}"; due=$(( $(TZ="$tz" date -d "$(TZ="$tz" date +%F) ${MAINTENANCE_HOUR:-2}:30" +%s) * 1000 ));
+      [ "$due" -gt "$(( $(date +%s) * 1000 ))" ] && due=$(( due - 86400000 )); [ "$last" -lt $(( due - 30 * 60000 )) ]; then warning "Tonight's Worker cleanup has not run yet (the last one was $(( age / 60 )) hours ago). It runs at 2:00 am Eastern; the next nightly check looks again."
     else note "The Worker cleaned out old data and tidied the database $age minutes ago."; fi
     note "Errors players reported today so far: $(jq -r '.errorsToday' <<<"$health"). Server voice clips today: $(jq -r '"\(.voicesToday) of \(.voiceCap)"' <<<"$health")."
   fi
@@ -45,7 +49,12 @@ else
     for src in google bing; do
       name=$([ $src = google ] && echo "Google Search Console" || echo "Bing Webmaster Tools")
       if ! jq -e ".sources.$src.connected" <<<"$s" >/dev/null; then note "$name is not connected to the admin dashboard yet (optional; see SEO.md)."
-      elif [ "$(jq -r ".sources.$src.error // empty" <<<"$s")" != "" ]; then warning "$name numbers could not be refreshed tonight. The admin dashboard's Search section shows the reason."
+      elif [ "$(jq -r ".sources.$src.retryAt // empty" <<<"$s")" != "" ]; then
+        # Bing's "slow down" (ThrottleIP) is expected now and then: the Worker
+        # keeps the last numbers and tries again after a 6-hour pause.
+        retry=$(TZ="${MAINTENANCE_TZ:-America/New_York}" date -d "@$(( $(jq -r ".sources.$src.retryAt" <<<"$s") / 1000 ))" '+%-I:%M %p %Z')
+        note "$name asked us to slow down, so its numbers were kept from the last refresh. The Worker tries again after $retry."
+      elif err=$(jq -r ".sources.$src.error // empty" <<<"$s") && [ -n "$err" ]; then warning "$name numbers could not be refreshed tonight: ${err:0:200}"
       else
         at=$(jq -r ".sources.$src.fetchedAt // 0" <<<"$s")
         hrs=$(( ($(date +%s) * 1000 - at) / 3600000 ))

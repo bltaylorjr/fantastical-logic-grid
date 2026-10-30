@@ -1,6 +1,6 @@
-// The "Ideas and problems" boxes: one form for ideas (a storyline, a new theme
-// or topic, a game feature, or something else), a separate one for reporting
-// a problem. Both go to the game's Worker
+// The "Share an idea" box (problems now go through Report a Problem,
+// puzzle-report.js, at the bottom of every page): ideas for a storyline, a
+// new theme or topic, a game feature, or something else. They go to the game's Worker
 // (server/src/feedback.js) and show up in the admin dashboard. Anonymous:
 // only the text, the topic, the app version and the platform are sent. A
 // signed-in player can also tick "Email me an update": a thank-you email
@@ -22,6 +22,7 @@ const $ = (s, el = document) => el.querySelector(s);
 
 const REPLY_WORDS = {
   queued: 'We\'ll email you a thank-you note soon.',
+  story: 'We\'ll email you once the team has read your storyline. If we use it, the email brings the first puzzle made from it.',
   unverified: 'To get email updates, confirm your email address first (Account).',
   limit: 'You already got a thank-you email today, so we won\'t send another.',
 };
@@ -36,7 +37,7 @@ export const available = () => !!CLOUD_URL && feature('feedback');
 async function send(form) {
   const kind = form.dataset.kind;
   const text = $('textarea', form).value.trim();
-  const topic = kind === 'idea' ? $('input[name=idea-topic]:checked', form).value : $('#problem-topic').value;
+  const topic = $('input[name=idea-topic]:checked', form).value;
   const theme = kind === 'idea' && topic === 'story' ? $('#idea-theme').value || undefined : undefined;
   const err = $('.error-box', form);
   const done = $('.acct-done', form);
@@ -59,7 +60,7 @@ async function send(form) {
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.message || 'It could not be sent right now. Please try again later.');
     $('textarea', form).value = '';
-    done.textContent = (kind === 'idea' ? 'Thank you! Your idea was sent.' : 'Thank you! Your report was sent.') + (REPLY_WORDS[data.reply] ? ` ${REPLY_WORDS[data.reply]}` : '') + (data.update ? ` ${UPDATE_WORDS}` : '') + (TALK_WORDS[data.talk] ? ` ${TALK_WORDS[data.talk]}` : '');
+    done.textContent = (kind === 'idea' ? 'Thank you! Your idea was sent.' : 'Thank you! Your report was sent.') + (REPLY_WORDS[data.reply] ? ` ${REPLY_WORDS[data.reply]}` : '') + (data.update && data.reply !== 'story' ? ` ${UPDATE_WORDS}` : '') + (TALK_WORDS[data.talk] ? ` ${TALK_WORDS[data.talk]}` : '');
   } catch (e) {
     err.textContent = navigator.onLine === false ? 'You seem to be offline. Connect to the internet and try again.' : e.message;
     err.hidden = false;
@@ -98,5 +99,5 @@ export function open(openDialog, { kind = 'idea', themes = [] } = {}) {
   pick.value = [...pick.options].some((o) => o.value === was) ? was : '';
   if (kind === 'idea') $('input[name=idea-topic][value=story]').checked = true;
   showThemes();
-  openDialog(dlg, kind === 'problem' ? $('#problem-topic') : $('#idea-text'));
+  openDialog(dlg, $('#idea-text'));
 }

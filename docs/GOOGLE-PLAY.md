@@ -34,8 +34,9 @@ are set. iOS is paused.
 
 1. Pay the fee only after saying OK in the project. Then sign up at
    https://play.google.com/console/signup as a **Personal** account with
-   `fantasticallogicgrid@gmail.com` as the developer email, and finish the
-   identity and phone checks.
+   `fantasticallogicgrid@gmail.com` as the developer account email (private,
+   for Google only). When it asks for the **contact email** that players see,
+   use `support@thelogicgrid.com`. Finish the identity and phone checks.
 2. **Create app**: name **The Fantastical Logic Grid**, language English (United States),
    **Game**, **Free**. Tick the declarations.
 3. **Set up your app** (the dashboard lists each item). Use the answers below.
@@ -65,7 +66,7 @@ Story logic grid puzzles. Every case is a new story. Free, no ads, works offline
 **Full description**
 Every case in The Fantastical Logic Grid is a brand new story. Read the clues, fill the grid with X and O, and close the case. Every puzzle has exactly one answer you can reach without guessing.
 
-• Six difficulty levels, from Basic to Quantum Physicist, and almost any size
+• Seven difficulty levels, from Basic to Theoretical Physicist, and almost any size
 • More than 40 themes, from mysteries and holidays to national parks
 • A new daily puzzle for everyone, with streaks and badges
 • Hints that explain the reasoning, unlimited undo, and autosave
