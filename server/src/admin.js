@@ -72,11 +72,11 @@ import { json, readText, TooLarge } from './http.js';
 import { verifyIdToken, AuthError } from './auth.js';
 import { checkName, cleanName, nameKey, hasBlockedWords } from './names.js';
 import { deleteCompeteStatements, clearBoardCache } from './compete.js';
-import { SETTINGS, getSettings, checkSetting, saveSetting, themeList } from './settings.js';
+import { SETTINGS, CELEBRATIONS, getSettings, checkSetting, saveSetting, themeList } from './settings.js';
 import { TUNING_CACHE_KEY } from './learn.js';
 import { refreshSearch, searchSnapshots, lastTry, REFRESH_GAP_MS } from './search.js';
 import { workshopOptions, addPart, draftParts } from './workshop.js';
-import { characterRoutes } from './characters.js';
+import { characterRoutes, VOICES, VOICE_STYLES } from './characters.js';
 import { TOPICS as FEEDBACK_TOPICS } from './feedback.js';
 import { claimReplies, finishReplies, replyCounts, releaseUpdate, dropUpdate, deleteReplyStatements, heldStoryline, approveStoryline, declineStoryline, storeBuiltPuzzle } from './replies.js';
 import { inbox, INBOX_TYPES, conversationView, teamReply, removePuzzle, puzzleStorage, PUZZLE_MAX_CHARS, setConversationStatus, startConversation, listNews, addNews, endNews, deleteNews, deleteMessageStatements, MessageRefusal } from './messages.js';
@@ -111,8 +111,10 @@ const DENIED_PER_DAY = 500; // refused requests written to the audit log, so a f
 const ANALYTICS_CACHE_MS = 120_000;
 const TABLES = ['sync_users', 'sync_records', 'sync_deleted_users', 'players', 'scores', 'races', 'race_entries', 'race_invites', 'plays', 'parts', 'usage',
   'app_errors', 'upkeep_log', 'admins', 'admin_audit', 'settings', 'announcements', 'bans', 'name_reviews', 'archive_log', 'feedback', 'feedback_replies', 'error_fixes', 'conversations', 'conversation_messages', 'message_contacts', 'news', 'search_snapshots', 'daily_plan', 'translations', 'rating_insights', 'campaigns', 'campaign_ads', 'marketing_media', 'campaign_stats', 'challenges', 'daily_results', 'daily_email', 'supporters', 'payment_blocks', 'puzzle_mail', 'puzzle_mail_got', 'puzzle_mail_days', 'special_editions', 'educator_requests', 'special_badges', 'badge_awards', 'puzzle_reports', 'player_puzzles', 'visit_stats', 'educator_feedback'];
+// worker-src blob: lets the Media library's celebrations draw off the main
+// thread, as they do in the game (canvas-confetti makes its own small worker).
 const SECURITY_HEADERS = {
-  'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; media-src 'self' blob:; connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+  'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; media-src 'self' blob:; connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com; manifest-src 'self'; worker-src 'self' blob:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
   'X-Content-Type-Options': 'nosniff',
   'X-Frame-Options': 'DENY',
   'Referrer-Policy': 'no-referrer',
@@ -633,6 +635,28 @@ const ROUTES = [
           key, type: s.type, group: s.group, label: s.label, help: s.help, min: s.min, max: s.max, options: s.options, value: values[key],
           updatedAt: meta.get(key)?.updated_at || null, updatedBy: meta.get(key)?.updated_by || null,
         })),
+      },
+    };
+  }],
+  // The Media library: every sound and picture in the game, to try out. The
+  // sounds and pictures themselves are made in the browser (admin/media.js);
+  // this sends the names, the voices and the switches that sit beside them.
+  ['GET', /^media$/, 'viewer', 'media.view', async ({ env }) => {
+    const s = await getSettings(env);
+    const one = (key) => ({ key, label: SETTINGS[key].label, help: SETTINGS[key].help, value: s[key] });
+    return {
+      body: {
+        themes: themeList(),
+        voices: VOICES,
+        voiceStyles: Object.entries(VOICE_STYLES).map(([id, v]) => ({ id, name: v.name, gemini: v.gemini, kokoro: v.kokoro, speed: v.speed })),
+        celebrations: CELEBRATIONS.map(one),
+        random: one('celebrate_random'),
+        switches: {
+          soundEffects: s.sound_effects_enabled, themeMusic: s.theme_music_enabled, voices: s.tts_enabled, voiceCap: s.daily_tts_cap,
+          voiceSource: (SETTINGS.voice_source.options.find((o) => o.value === s.voice_source) || {}).label || s.voice_source,
+          portraitStyle: s.portrait_style, aiPictures: s.ai_pictures,
+        },
+        serverVoices: !!(env.GEMINI_API_KEY || env.GOOGLE_TTS_KEY),
       },
     };
   }],

@@ -18,7 +18,7 @@ import { NETWORKS, DEFAULT_LINKS, socialLinks } from '../../web/js/social.js';
 const CACHE_MS = 30_000;
 const THEME_IDS = THEMES.map((t) => t.id);
 // Solve effects, in the order the game knows them (web/js/effects.js).
-const CELEBRATIONS = ['confetti', 'fireworks', 'stars', 'balloons', 'sparkles', 'theme_emoji', 'bubbles', 'falling', 'shooting_stars', 'ribbons', 'light_rays', 'emoji_burst'];
+export const CELEBRATIONS = ['confetti', 'fireworks', 'stars', 'balloons', 'sparkles', 'theme_emoji', 'bubbles', 'falling', 'shooting_stars', 'ribbons', 'light_rays', 'emoji_burst'];
 
 // type: bool, int (with min/max), choice (one of options), model (an AI
 // model name), url (an https link, or empty), themes (list of theme ids),
