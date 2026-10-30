@@ -24,6 +24,25 @@ optional email notices use the same free sender as the thank-you emails
 - The Menu button and the Messages item show a number for unread replies and
   news not seen on this device. The game checks every 10 minutes while open.
 
+## Puzzles for contributors
+
+When a player's suggestion (an idea, a character, a story) becomes a puzzle,
+the team can send it to them:
+
+1. Make the puzzle in the game and save it with **Saved puzzles > Save to a
+   file** (a `.flg.json` file).
+2. In the dashboard, open the player's conversation under **Communication**,
+   write the reply and choose the file under **Attach a puzzle**.
+3. The player sees it in **Menu > Messages > Puzzles for you** with **Play**
+   (it becomes one of their saved puzzles) and **Download** (the same file).
+
+Stored puzzles live in `player_puzzles` and are deleted **30 days** after they
+were sent by the nightly cleanup, or sooner if the team presses **Remove** in
+the thread, deletes the conversation, or the player deletes their account.
+Limits: 20 waiting per player, about 50 MB for all puzzles together, 400,000
+characters per puzzle (a normal puzzle is 10,000 to 30,000). Each puzzle is
+checked like a race puzzle, including the blocked-words list.
+
 ## In the dashboard: Communication
 
 - **Inbox**: messages, ideas, problems, error reports and the log of emails to
