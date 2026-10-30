@@ -789,6 +789,8 @@ function openGame(save, { fresh = false } = {}) {
   S = {
     save, puzzle, ix,
     marks: new Map(Object.entries(save.marks || {})),
+    // The player's "?" reminders (empty cells only); saved as save.queries.
+    queries: new Set((save.queries || []).filter((k) => !(save.marks || {})[k])),
     wrong: new Set(),
     hint: null,
     dirty: false,
@@ -827,8 +829,10 @@ function openGame(save, { fresh = false } = {}) {
 
   S.grid = createGrid($('#gridframe'), puzzle, ix, {
     // Tapping an automatic X clears it (it never turns into an O).
-    onCycle: (k) => { const cur = S.marks.get(k) || ''; setCell(k, cur === '' ? 'X' : cur === 'X' ? 'O' : ''); },
+    // Tapping cycles blank, X, O, ?, blank. Tapping an automatic X clears it.
+    onCycle: (k) => cycleCell(k),
     onMark: (k, v) => setCell(k, v),
+    onQuery: (k) => toggleQuery(k),
     onDescribeRow: describeRow,
     onFocus: (k) => { save.focus = k; },
   });
@@ -877,17 +881,20 @@ function paintAll() {
 }
 function paintCell(k) {
   const target = S.hint && S.hint.level >= 1 && S.hint.targets.has(k);
-  S.grid.paint(k, S.marks.get(k) || '', { wrong: S.wrong.has(k), target });
+  S.grid.paint(k, S.marks.get(k) || '', { wrong: S.wrong.has(k), target, query: S.queries.has(k) });
 }
 
-// Every change is a list of { t: 'm' (mark) | 't' (clue tick) | 's' (progress,
-// used by Start over), k, b (before), a (after) }.
+// Every change is a list of { t: 'm' (mark) | 'q' (a "?" reminder, 'y' or '') |
+// 't' (clue tick) | 's' (progress, used by Start over), k, b (before), a (after) }.
 function applyChanges(changes, dir) {
   for (const ch of changes) {
     const v = dir > 0 ? ch.a : ch.b;
     if (ch.t === 'm') {
       if (v) S.marks.set(ch.k, v); else S.marks.delete(ch.k);
       S.wrong.delete(ch.k);
+      paintCell(ch.k);
+    } else if (ch.t === 'q') {
+      if (v) S.queries.add(ch.k); else S.queries.delete(ch.k);
       paintCell(ch.k);
     } else if (ch.t === 't') {
       const n = Number(ch.k);
@@ -994,9 +1001,11 @@ function setCell(k, v) {
   const before = S.marks.get(k) || '';
   if (before === v) return;
   const changes = [{ t: 'm', k, b: before, a: v }];
+  // A cell holds a mark or a "?", never both: the mark replaces the "?" (undo brings it back).
+  if (v && S.queries.has(k)) changes.push({ t: 'q', k, b: 'y', a: '' });
   let autoCount = 0;
   if (v === 'O' && settings.autoX) {
-    for (const m of lineMates(k)) if (!S.marks.get(m)) { changes.push({ t: 'm', k: m, b: '', a: 'A' }); autoCount++; }
+    for (const m of lineMates(k)) if (!S.marks.get(m)) { changes.push({ t: 'm', k: m, b: '', a: 'A' }); if (S.queries.has(m)) changes.push({ t: 'q', k: m, b: 'y', a: '' }); autoCount++; }
   }
   const [a, b] = k.split('|');
   const what = `${S.ix.label(a)} and ${S.ix.label(b)} ${v === 'O' ? 'confirmed' : v ? 'ruled out' : 'cleared'}`;
@@ -1015,6 +1024,35 @@ function setCell(k, v) {
   sound(wrongNow ? 'error' : v === 'O' ? 'O' : v ? 'X' : 'clear');
   const td = S.grid.cells.get(k);
   announce(`${td ? `${S.ix.label(td.dataset.row)}, ${S.ix.label(td.dataset.col)}` : what}, ${STATE_WORDS[v]}${wrongNow ? ', conflicts with the solution' : ''}${autoCount ? `. Also ruled out ${autoCount} other cell${autoCount > 1 ? 's' : ''}` : ''}${autoGone ? `. Also removed ${autoGone} automatic X${autoGone > 1 ? 's' : ''}` : ''}.`);
+}
+
+// The "?" reminder: on and off in an empty cell only. It is never a mark, so
+// checks, hints, scoring and the rest of the grid ignore it; undo covers it.
+function toggleQuery(k) {
+  if (!S) return;
+  const td = S.grid.cells.get(k);
+  const where = td ? `${S.ix.label(td.dataset.row)}, ${S.ix.label(td.dataset.col)}` : '';
+  if (S.marks.get(k)) { status('A ? only goes in an empty cell. Clear the X or O first.'); return; }
+  const on = !S.queries.has(k);
+  commit([{ t: 'q', k, b: on ? '' : 'y', a: on ? 'y' : '' }], on ? 'question mark' : 'remove question mark');
+  sound(on ? 'X' : 'clear');
+  announce(`${where}, ${on ? 'marked with a question mark' : 'question mark removed'}.`);
+}
+
+function cycleCell(k) {
+  if (!S) return;
+  const cur = S.marks.get(k) || '';
+  if (cur === '') return S.queries.has(k) ? toggleQuery(k) : setCell(k, 'X');
+  if (cur === 'X') return setCell(k, 'O');
+  if (cur === 'O') {
+    // O to ?: one step (undo brings the O back), its automatic Xs go with it as usual.
+    const td = S.grid.cells.get(k);
+    commit([{ t: 'm', k, b: 'O', a: '' }, { t: 'q', k, b: '', a: 'y' }], 'question mark');
+    sound('clear');
+    announce(`${td ? `${S.ix.label(td.dataset.row)}, ${S.ix.label(td.dataset.col)}` : ''}, marked with a question mark.`);
+    return;
+  }
+  return setCell(k, '');
 }
 
 function describeRow(rowItem) {
@@ -1330,14 +1368,14 @@ function syncSolvedView() {
 async function startOver() {
   const s = S.save;
   const racing = !!(s.race && !s.race.finished);
-  if (!S.marks.size && !s.ticked.length && !Object.values(s.answers).some(Boolean) && !s.elapsedMs && !s.hintsUsed && !s.checksUsed) {
+  if (!S.marks.size && !S.queries.size && !s.ticked.length && !Object.values(s.answers).some(Boolean) && !s.elapsedMs && !s.hintsUsed && !s.checksUsed) {
     status('This puzzle is already at the start.');
     return;
   }
   const notes = (s.myNotes || '').trim() ? { label: 'Also clear my notes', checked: false } : null;
   const text = racing
-    ? 'This removes every X and O, clue tick and answer. The race clock keeps running, and your hints and checks still count. You can undo it.'
-    : `This removes every X and O, clue tick and answer, and resets the timer, hints and checks.${signedIn() && !s.race ? ' A restarted puzzle no longer earns scoreboard points.' : ''} Your notes stay unless you choose to clear them. You can undo it.`;
+    ? 'This removes every X, O and ?, clue tick and answer. The race clock keeps running, and your hints and checks still count. You can undo it.'
+    : `This removes every X, O and ?, clue tick and answer, and resets the timer, hints and checks.${signedIn() && !s.race ? ' A restarted puzzle no longer earns scoreboard points.' : ''} Your notes stay unless you choose to clear them. You can undo it.`;
   const ok = await confirmDialog({ title: 'Start this puzzle over?', text, yes: 'Start over', no: 'Keep playing', check: notes });
   if (!ok || !S || S.save !== s) return;
   tickTimer();
@@ -1352,6 +1390,7 @@ async function startOver() {
   for (const k of old) paintCell(k);
   commit([
     ...[...S.marks].map(([k, v]) => ({ t: 'm', k, b: v, a: '' })),
+    ...[...S.queries].map((k) => ({ t: 'q', k, b: 'y', a: '' })),
     ...s.ticked.map((n) => ({ t: 't', k: String(n), b: 'y', a: '' })),
     { t: 's', k: '', b: before, a: after },
   ], 'start over');
@@ -2016,6 +2055,7 @@ async function flushSave({ manual = false } = {}) {
   if (!S || (!S.dirty && !manual)) return;
   const save = S.save;
   save.marks = Object.fromEntries(S.marks);
+  save.queries = [...S.queries].filter((k) => !S.marks.get(k));
   save.lastPlayed = Date.now();
   try {
     await store.putSave(save);

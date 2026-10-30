@@ -59,8 +59,17 @@ jobs:
       - run: npm ci
       - name: Install the test browser
         run: npm install --no-save --no-audit --no-fund playwright@1.63.0 && npx playwright install --with-deps chromium
+      # A failure is also shown as an annotation (the last lines of output), so
+      # it can be read without downloading the whole log.
       - name: App tests (generate, play, save, print, voices, topics, learning, responsive layout)
-        run: mkdir -p screenshots && npm test
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p screenshots
+          if npm test 2>&1 | tee "$RUNNER_TEMP/app-tests.txt"; then exit 0; fi
+          msg=$(tail -n 60 "$RUNNER_TEMP/app-tests.txt" | sed -e ':a' -e 'N' -e '$!ba' -e 's/%/%25/g' -e 's/\r//g' -e 's/\n/%0A/g')
+          echo "::error title=App tests failed::${msg}"
+          exit 1
         env:
           SHOTS: screenshots
       - name: Accounts, fingerprint sign-in, races, error reports, app keys and the admin dashboard against the real Worker
