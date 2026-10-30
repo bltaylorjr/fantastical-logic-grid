@@ -909,6 +909,10 @@ function openGame(save, { fresh = false } = {}) {
   $('#p-notes').hidden = !notes.length;
   $('#p-notes').innerHTML = notes.map(esc).join('<br>');
 
+  const rules = clueRules(puzzle);
+  $('#clue-rules').hidden = !rules.length;
+  $('#clue-rules').innerHTML = rules.map((r) => `<span>${esc(r)}</span>`).join(' ');
+
   S.witness = assignWitnesses(puzzle, ix);
   $('#clue-list').innerHTML = puzzle.clues.map((c) => `
     <li data-n="${+c.number}"${save.ticked.includes(c.number) ? ' class="used"' : ''}><span class="num" aria-hidden="true">${+c.number}</span>
@@ -1968,6 +1972,19 @@ $('#mail-invite-btn').onclick = () => puzzleMail.open(openDialog);
 
 // A puzzle the team made for this player (Messages > Puzzles for you): opened
 // once as a saved puzzle, then continued from Saved puzzles like any other.
+// What the numbers in a column mean ("a bigger number is a better rank"),
+// repeated above the clues so it is in view while reading them. Puzzles saved
+// before the rank note named its top and bottom get the new wording here.
+function clueRules(puzzle) {
+  return (puzzle.categories || []).filter((c) => c.note).map((c) => {
+    if (c.id === 'level' && /rank 1 is the lowest rank/.test(c.note) && c.items?.length) {
+      const nums = c.items.map((x) => x.label);
+      return `About ranks: a bigger number is a better rank. In this puzzle rank ${nums.at(-1)} is the top (best) rank and rank ${nums[0]} is the lowest. This is not a race, so a small number is not first place.`;
+    }
+    return c.note;
+  });
+}
+
 async function openTeamPuzzle(puzzle, id) {
   const existing = (await store.listSaves()).find((x) => x.teamPuzzle === id);
   if (existing) { openGame(existing); return; }

@@ -667,7 +667,13 @@ const SHOTS = process.env.SHOTS;
     await q.waitForSelector('#dialog[open]');
     await q.fill('#dialog-body textarea[name=note]', 'The music now loops without stopping (1.7.1).');
     await q.click('#dialog-ok');
-    await q.waitForFunction(() => /Nothing here/.test(document.querySelector('#comm-list').textContent));
+    // The item stays in place: its message folds away, a line says what was
+    // done, and every button but Delete is greyed out.
+    await q.waitForSelector('#comm-list li.settled .settled-note');
+    assert(/Addressed/.test(await q.textContent('#comm-list li.settled .settled-note')), 'the item says it was addressed');
+    assert(!(await q.isVisible('#comm-list li.settled .fb-text')), 'the message folds away');
+    assert(await q.isEnabled('#comm-list li.settled button[data-status=delete]') && await q.isDisabled('#comm-list li.settled button[data-status=new], #comm-list li.settled button[data-status=approved], #comm-list li.settled button[data-status=declined]'),
+      'only Delete stays usable');
     const marked = await db.prepare("SELECT status, note FROM feedback WHERE kind = 'problem'").first();
     assert(marked.status === 'addressed' && /loops/.test(marked.note), 'a problem can be marked addressed with a note');
     await q.selectOption('#comm-status', 'addressed');
@@ -680,7 +686,7 @@ const SHOTS = process.env.SHOTS;
     await q.click('#comm-list button[data-status=approved]');
     await q.waitForSelector('#dialog[open]');
     await q.click('#dialog-ok');
-    await q.waitForFunction(() => /Nothing here/.test(document.querySelector('#comm-list').textContent));
+    await q.waitForFunction(() => /Approved/.test(document.querySelector('#comm-list li.settled .settled-note')?.textContent || ''));
     assert((await db.prepare("SELECT status FROM feedback WHERE kind = 'problem'").first()).status === 'approved', 'Approve sends a problem to the fix queue');
     await q.selectOption('#comm-status', 'approved');
     await q.waitForFunction(() => /Waiting for the weekly fix run/.test(document.querySelector('#comm-list').textContent));
@@ -689,7 +695,7 @@ const SHOTS = process.env.SHOTS;
     await q.click('#comm-list button[data-status=declined]');
     await q.waitForSelector('#dialog[open]');
     await q.click('#dialog-ok');
-    await q.waitForFunction(() => /Nothing here/.test(document.querySelector('#comm-list').textContent));
+    await q.waitForFunction(() => /Disapproved/.test(document.querySelector('#comm-list li.settled .settled-note')?.textContent || ''));
     const closed = await db.prepare("SELECT status, declined FROM feedback WHERE kind = 'problem'").first();
     assert(closed.status === 'done' && closed.declined === 1, 'Disapprove closes a problem');
     await q.selectOption('#comm-status', 'new');
