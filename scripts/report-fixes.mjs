@@ -44,7 +44,9 @@ async function main() {
   const API = (process.env.FLG_CLOUD_URL || '').trim().replace(/\/+$/, '');
   const TOKEN = (process.env.FLG_ADMIN_TOKEN || '').trim();
   const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-  const fixedIn = (process.env.FIXED_IN || JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version).trim();
+  // Only a plain version number goes to the Worker (it checks again).
+  const fixedIn = String(process.env.FIXED_IN || JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version).trim().match(/^\d+(?:\.\d+){1,3}$/)?.[0];
+  if (!fixedIn) { console.log('::error::package.json has no plain version number (like 1.7.1), so nothing was closed.'); process.exitCode = 1; return; }
   const fixes = process.env.PR_BODY
     ? parseFixes(process.env.PR_BODY)
     : parseFixes(`Fixes reports: ${process.env.TRACKINGS || ''}\nPlayer note: ${process.env.NOTE || ''}\n${process.env.ERROR ? `Fixes error: ${process.env.ERROR}` : ''}`);
