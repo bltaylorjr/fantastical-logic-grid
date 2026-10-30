@@ -22,6 +22,24 @@ import { badgesView, initBadges, playerBadgesHtml, playerBadgeClick } from './ba
 import { passkeysSupported, platformReady, rememberedPasskey, passkeySignIn, offerPasskey, passkeysView, initPasskeys } from './passkeys.js';
 
 const $ = (s, el = document) => el.querySelector(s);
+
+// The top bar (and, on phones, the section menu under it) stays in place while
+// the page scrolls. Their heights change as they wrap, so they are measured
+// into --top-h and --nav-h for the sticky offsets in admin.css.
+function measureBars() {
+  const root = document.documentElement.style;
+  const top = document.querySelector('.top');
+  const nav = document.querySelector('.nav');
+  root.setProperty('--top-h', `${top ? top.offsetHeight : 0}px`);
+  const navOnTop = nav && matchMedia('(max-width: 760px)').matches && nav.offsetParent !== null;
+  root.setProperty('--nav-h', `${navOnTop ? nav.offsetHeight : 0}px`);
+}
+if (window.ResizeObserver) {
+  const ro = new ResizeObserver(measureBars);
+  for (const el of document.querySelectorAll('.top, .nav')) ro.observe(el);
+}
+window.addEventListener('resize', measureBars);
+measureBars();
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const fmt = (n) => (n == null ? '–' : Number(n).toLocaleString());
