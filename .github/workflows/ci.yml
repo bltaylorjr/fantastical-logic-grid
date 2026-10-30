@@ -61,10 +61,11 @@ jobs:
         run: mkdir -p screenshots && npm test
         env:
           SHOTS: screenshots
-      - name: Accounts, races, error reports, app keys and the admin dashboard against the real Worker
+      - name: Accounts, fingerprint sign-in, races, error reports, app keys and the admin dashboard against the real Worker
         run: |
           npm --prefix server ci --no-audit --no-fund
           node scripts/e2e-accounts.cjs
+          node scripts/e2e-biometric.cjs
           node scripts/e2e-compete.cjs
           node scripts/e2e-challenge.cjs
           node scripts/e2e-daily-results.cjs

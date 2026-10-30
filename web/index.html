@@ -680,6 +680,12 @@
   <h2 id="account-h">Sign in</h2>
 
   <form class="acct-view" data-view="signin" novalidate>
+    <p class="acct-done" id="si-idle" role="status"></p>
+    <div class="acct-bio-signin" id="si-bio-box" hidden>
+      <button class="btn primary" type="button" id="si-bio">Sign in with fingerprint or face</button>
+      <p class="help" id="si-bio-who"></p>
+      <div class="bio-error" id="si-bio-error" role="alert" hidden></div>
+    </div>
     <p class="help">Sign in to keep your saved puzzles, progress and settings on every device: the website, the desktop app and your phone. You never need an account to play.</p>
     <div class="field"><label for="si-email">Email</label><input type="email" id="si-email" name="email" autocomplete="username email" inputmode="email" spellcheck="false" required></div>
     <div class="field"><label for="si-pass">Password</label><input type="password" id="si-pass" name="password" autocomplete="current-password" required></div>
@@ -728,6 +734,12 @@
       <button class="btn small" type="button" id="acct-sync-now">Sync now</button>
     </div>
     <p class="help">Your puzzles always save on this device first, so you can play offline. They sync the next time you're connected.</p>
+    <div class="acct-bio" id="acct-bio" hidden>
+      <label class="check"><input type="checkbox" id="acct-bio-on"> Sign in with fingerprint or face on this device</label>
+      <p class="help">Uses this device's fingerprint reader, face unlock, Windows Hello or screen-lock PIN instead of typing your password. Your fingerprint or face never leaves this device, and the game never sees it. Your password still works too.</p>
+      <p class="acct-done" id="acct-bio-msg" role="status"></p>
+    </div>
+    <p class="help" id="acct-idle" hidden></p>
     <div class="dlg-actions acct-actions">
       <button class="btn" type="button" id="acct-change-pass">Change password</button>
       <button class="btn" type="button" data-go="signout">Sign out</button>
@@ -755,6 +767,15 @@
   </form>
 
   <div class="dlg-actions"><button class="btn" type="button" data-close>Close</button></div>
+</dialog>
+
+<dialog id="dlg-idle" role="alertdialog" aria-labelledby="idle-h" aria-describedby="idle-p">
+  <h2 id="idle-h">Still playing?</h2>
+  <p id="idle-p">To keep your account safe, you will be signed out in <b id="idle-left">2 minutes</b> because nothing has happened for a while. Your progress is saved, and you can pick up where you left off when you sign back in.</p>
+  <div class="dlg-actions">
+    <button class="btn primary" type="button" id="idle-stay">Keep playing</button>
+    <button class="btn" type="button" id="idle-out">Sign out now</button>
+  </div>
 </dialog>
 
 <dialog id="dlg-video" class="wide" aria-labelledby="video-h" data-light-dismiss>

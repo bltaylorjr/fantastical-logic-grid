@@ -2792,6 +2792,18 @@ async function init() {
     isBusy: (kind, key) => kind === 'save' && !!S && S.save.id === key,
     onSavesChanged: () => { if (!$('#screen-home').hidden) renderSaved(); },
     onSettingsChanged: () => { settings = store.loadSettings(); applyColorTheme(); applyMode(); applyLanguage(); },
+    // Idle sign-out (idle.js): save the open puzzle and go home; after the
+    // player signs back in, open it again ('latest' = the newest unfinished one).
+    leavePuzzle: async () => { const id = S ? S.save.id : null; if (S) await goHome(); else await flushSave(); return id; },
+    resume: async (id) => {
+      if (S || !id) return;
+      const save = id === 'latest'
+        ? (await store.listSaves().catch(() => [])).filter((v) => v && !v.solved).sort((a, b) => (b.lastPlayed || 0) - (a.lastPlayed || 0))[0]
+        : await store.getSave(id).catch(() => null);
+      if (!save || save.solved || S) return;
+      openGame(save);
+      toast(`Welcome back. “${save.name}” is open where you left off.`);
+    },
   }).catch(() => { /* accounts are optional */ });
   messages.init({ openDialog, openAccount, announce, playPuzzle: openTeamPuzzle, keepPuzzle: keepStorylinePuzzle, downloadPuzzle: (puzzle) => exportSave(newSave(puzzle)) });
   puzzleReport.init({ openDialog, openAccount, announce });
