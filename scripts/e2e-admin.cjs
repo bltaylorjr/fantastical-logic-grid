@@ -213,6 +213,20 @@ const SHOTS = process.env.SHOTS;
     const dbValue = async (key) => { const r = await db.prepare('SELECT value FROM settings WHERE key = ?').bind(key).first(); return r && JSON.parse(r.value); };
     const until = async (key, want) => { for (let i = 0; i < 50 && (await dbValue(key)) !== want; i++) await new Promise((r) => setTimeout(r, 100)); return (await dbValue(key)) === want; };
     assert(/GEMINI_API_KEY/.test(await page.textContent('#settings-body')), 'the dashboard shows which keys are set, without the keys');
+    // Number Place has its own section: its games and the settings only it uses.
+    assert(!(await page.locator('#settings-body [data-key^=np_]').count()), 'Number Place settings are not in the shared Settings page');
+    await page.click('a[href="#numberplace"]');
+    await page.waitForSelector('#np-body input[data-np-key=np_daily_enabled]');
+    assert(/Number Place settings/.test(await page.textContent('#np-body')) && /Games since/.test(await page.textContent('#np-body')), 'the Number Place section shows its games and settings');
+    await page.locator('#np-body input[data-np-key=np_daily_enabled]').uncheck();
+    assert(await until('np_daily_enabled', false), 'a Number Place setting is saved from its own section');
+    // Saving re-draws the section; wait for it (the switch then reads Off) so the next change is not drawn over.
+    await page.waitForFunction(() => document.querySelector('#np-body input[data-np-key=np_daily_enabled]')?.nextElementSibling?.textContent === 'Off');
+    await page.selectOption('#npset-np_max_level', 'expert');
+    await page.click('button[data-np-save=np_max_level]');
+    assert(await until('np_max_level', 'expert'), 'the hardest Number Place level is saved');
+    await page.click('a[href="#settings"]');
+    await page.waitForSelector('#settings-body a[href="#connections"]');
     // The Connections and setup guide, from admin/connections.js, with live status.
     await page.click('#settings-body a[href="#connections"]');
     await page.waitForSelector('#conn-list details.conn[data-id=admin-sign-in][data-state=connected]', { state: 'attached' });

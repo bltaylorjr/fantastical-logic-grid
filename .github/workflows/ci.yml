@@ -37,6 +37,8 @@ jobs:
           node-version: 22
       - name: Engine tests (quick run)
         run: node engine/test/run-tests.js --quick
+      - name: Number Place engine tests
+        run: node engine/test/number-place-tests.js
 
   app:
     runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork && '"ubuntu-latest"') || vars.FLG_RUNNER || '"ubuntu-latest"') }}

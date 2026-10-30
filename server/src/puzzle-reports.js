@@ -13,6 +13,7 @@
 //   GET  error-tracking?category=&status=&q=&before=   the Error tracking list (moderator)
 //   GET  error-tracking/:id       one report in full: storyline, picture, error, reason, correction (moderator)
 //   POST error-tracking/:id/done  the team has dealt with a report the doctor could not (moderator)
+//   POST error-tracking/close     a merged code fix closes reports by tracking id (owner; Report fixes Action)
 //   GET  fault-patterns           what the doctor has learned (viewer)
 //
 // Categories. The moment a report arrives it gets its tracking id and its
@@ -270,10 +271,10 @@ const cleanFindings = (list) => (Array.isArray(list) ? list : []).slice(0, 12)
 
 export async function finishReports(env, results, site, now = Date.now(), probes = []) {
   const db = env.DB;
-  const out = { repaired: 0, needsFix: 0, noFault: 0, emailed: 0, display: 0, requeued: 0, probed: 0 };
+  const out = { repaired: 0, needsFix: 0, noFault: 0, emailed: 0, display: 0, requeued: 0, probed: 0, closed: 0 };
   for (const res of (Array.isArray(results) ? results : []).slice(0, CLAIM_MAX)) {
     const id = Number(res?.id);
-    const row = Number.isInteger(id) && await db.prepare("SELECT id, tracking, feedback_id AS fid, theme, tier, size, page, version, related FROM puzzle_reports WHERE id = ?1 AND status = 'checking'").bind(id).first();
+    const row = Number.isInteger(id) && await db.prepare("SELECT id, tracking, feedback_id AS fid, theme, tier, size, page, version, related, fix_note, fixed_in FROM puzzle_reports WHERE id = ?1 AND status = 'checking'").bind(id).first();
     if (!row) continue;
     const findings = cleanFindings(res.findings);
     const engine = plain(res.engine, 20);
@@ -282,7 +283,8 @@ export async function finishReports(env, results, site, now = Date.now(), probes
     const repaired = res.repaired && !checkPuzzle(res.repaired) ? JSON.stringify(res.repaired) : null;
     if (findings.length && repaired && repaired.length <= MAX_PUZZLE_CHARS) {
       const token = randomToken();
-      const note = plain(res.note, 500) || 'We rebuilt your puzzle with our corrected puzzle maker and checked it.';
+      const made = plain(res.note, 500) || 'We rebuilt your puzzle with our corrected puzzle maker and checked it.';
+      const note = row.fixed_in ? withVersion(made, row.fixed_in) : made;
       await db.batch([
         db.prepare("UPDATE puzzle_reports SET status = 'repaired', findings = ?2, note = ?3, repaired = ?4, token = ?5, engine = ?6, strategy = ?7, checked_at = ?8, repaired_at = ?8 WHERE id = ?1")
           .bind(id, JSON.stringify(findings), note, repaired, token, engine, strategy, now),
@@ -294,6 +296,16 @@ export async function finishReports(env, results, site, now = Date.now(), probes
     } else if (findings.length) {
       await db.prepare("UPDATE puzzle_reports SET status = 'needs_fix', findings = ?2, engine = ?3, checked_at = ?4 WHERE id = ?1").bind(id, JSON.stringify(findings), engine, now).run();
       out.needsFix++;
+    } else if (row.fix_note) {
+      // Sent back after a code fix, and today's engine finds nothing left to
+      // repair: the fix itself was the answer, so the report closes with its note.
+      const note = withVersion(row.fix_note, row.fixed_in);
+      await db.batch([
+        db.prepare("UPDATE puzzle_reports SET status = 'done', findings = '[]', note = ?2, engine = ?3, checked_at = ?4 WHERE id = ?1").bind(id, note, engine, now),
+        db.prepare("UPDATE feedback SET status = 'addressed', note = ?2, done_at = ?3 WHERE id = ?1").bind(row.fid, note, now),
+      ]);
+      out.emailed += await releaseUpdate(env, row.fid, note);
+      out.closed++;
     } else {
       // Nothing wrong in the puzzle. Web Page Issues from the same screen and
       // app version point at a display problem instead.
@@ -314,6 +326,44 @@ export async function finishReports(env, results, site, now = Date.now(), probes
   return out;
 }
 
+// ------------------------------------------------------------- code fixes
+// A merged pull request that fixes reported problems says so in its body
+// ("Fixes reports: PZ-..., WS-..." and a "Player note:" in everyday words);
+// the Report fixes Action (scripts/report-fixes.mjs) sends them here with the
+// version the fix shipped in. Each waiting report is closed the way the team's
+// Mark done button closes it: addressed, with the note and version, and the
+// player who asked is emailed. A puzzle report that needed a fix in the puzzle
+// maker goes back to the doctor instead, so the player gets the repaired
+// puzzle; its note waits in fix_note in case nothing is left to repair.
+export const TRACKING_RE = /^(PZ|WS)-[A-Z2-9]{8}$/;
+export const withVersion = (note, version) => (version ? `${String(note).replace(/[\s.]*$/, '')}. Fixed in version ${version}.` : String(note));
+
+export async function closeReports(env, { trackings, note, fixedIn }, now = Date.now()) {
+  const db = env.DB;
+  const list = [...new Set((Array.isArray(trackings) ? trackings : []).map((t) => String(t).trim().toUpperCase()).filter((t) => TRACKING_RE.test(t)))].slice(0, 50);
+  const text = plain(note, 400);
+  const version = /^\d+(\.\d+){1,3}$/.test(String(fixedIn || '')) ? String(fixedIn) : '';
+  const out = { closed: 0, requeued: 0, emailed: 0, skipped: [] };
+  if (!text) return out;
+  for (const tracking of list) {
+    const row = await db.prepare("SELECT id, feedback_id AS fid, category, status, (puzzle IS NOT NULL) AS hasPuzzle FROM puzzle_reports WHERE tracking = ?1").bind(tracking).first();
+    if (!row || !['needs_fix', 'no_fault', 'manual', 'page'].includes(row.status)) { out.skipped.push(tracking); continue; }
+    if (row.category === 'puzzle' && row.status === 'needs_fix' && row.hasPuzzle) {
+      await db.prepare("UPDATE puzzle_reports SET status = 'new', tries = 0, fix_note = ?2, fixed_in = ?3 WHERE id = ?1").bind(row.id, text, version || null).run();
+      out.requeued++;
+      continue;
+    }
+    const full = withVersion(text, version);
+    await db.batch([
+      db.prepare("UPDATE puzzle_reports SET status = 'done', note = ?2, fix_note = ?3, fixed_in = ?4, checked_at = ?5 WHERE id = ?1").bind(row.id, full, text, version || null, now),
+      db.prepare("UPDATE feedback SET status = 'addressed', note = ?2, done_at = ?3 WHERE id = ?1").bind(row.fid, full, now),
+    ]);
+    out.emailed += await releaseUpdate(env, row.fid, full);
+    out.closed++;
+  }
+  return out;
+}
+
 // ------------------------------------------------------------- the dashboard
 // For the Communication inbox: the report behind each reported problem.
 export async function reportsFor(env, feedbackIds) {
@@ -324,7 +374,7 @@ export async function reportsFor(env, feedbackIds) {
 }
 
 const SUMMARY = `id, tracking, category, title, tier, theme, size, page, platform, version, text, status, findings, note, strategy, related, engine,
-  created_at AS createdAt, checked_at AS checkedAt, repaired_at AS repairedAt, opened_at AS openedAt, (image IS NOT NULL) AS hasImage, (puzzle IS NOT NULL) AS hasPuzzle`;
+  fixed_in AS fixedIn, created_at AS createdAt, checked_at AS checkedAt, repaired_at AS repairedAt, opened_at AS openedAt, (image IS NOT NULL) AS hasImage, (puzzle IS NOT NULL) AS hasPuzzle`;
 
 export async function errorList(env, url) {
   const category = CATEGORIES[url.searchParams.get('category')] ? url.searchParams.get('category') : null;
@@ -409,6 +459,11 @@ export function puzzleReportRoutes(Refusal) {
       // A player who asked gets the usual "addressed" update with this note.
       const emailed = await releaseUpdate(env, row.fid, note);
       return { body: { ok: true, emailed }, target: id, detail: { note, emailed } };
+    }],
+    ['POST', /^error-tracking\/close$/, 'owner', 'errors.tracking.close', async ({ env, body, now }) => {
+      if (!plain(body.note, 400)) throw new Refusal(400, 'bad_note', 'Write what was done, in everyday words.');
+      const r = await closeReports(env, body, now);
+      return { body: r, detail: { closed: r.closed, requeued: r.requeued, fixedIn: plain(body.fixedIn, 20) } };
     }],
     ['GET', /^fault-patterns$/, 'viewer', 'errors.patterns', async ({ env }) => ({ body: await faultPatterns(env), quiet: true })],
   ];

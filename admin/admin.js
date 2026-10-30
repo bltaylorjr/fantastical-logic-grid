@@ -673,7 +673,7 @@ function reportHtml(r) {
   return `<div class="fb-note"><p><b>Report ${esc(r.tracking)}</b> · ${esc(CATEGORY_NAMES[r.category] || 'Puzzle')} · ${esc(r.title || r.page || 'Untitled')}${r.tier ? ` · ${esc(TIER_NAMES[r.tier] || r.tier)}` : ''} <span class="badge ${cls}">${esc(words)}</span> <a href="#errortracking/${Number(r.id)}">Open in Error tracking</a></p>
     ${r.findings.length ? `<ul>${r.findings.map((f) => `<li>${esc(f.text)}</li>`).join('')}</ul>` : ''}
     ${r.status === 'repaired' ? `<p class="muted">${esc(r.note || '')} ${r.openedAt ? 'The player opened the repaired puzzle.' : 'The player has not opened the repaired puzzle yet.'}</p>` : ''}
-    ${r.status === 'needs_fix' ? '<p class="muted">Today\'s puzzle maker still gets this wrong. Download the puzzle to reproduce it; once a fix is published, press Check again and the player is emailed the repaired puzzle automatically.</p>' : ''}
+    ${r.status === 'needs_fix' ? '<p class="muted">Today\'s puzzle maker still gets this wrong. The puzzle doctor\'s daily code-fix task picks it up; when its fix merges, the puzzle goes back to the doctor and the player is emailed the repaired puzzle automatically.</p>' : ''}
     <div class="row">${r.category !== 'webstructure' ? `<button class="btn small" type="button" data-report-file="${Number(r.id)}" data-tracking="${esc(r.tracking)}">Download the reported puzzle</button>` : ''}
     ${['needs_fix', 'no_fault'].includes(r.status) && can('admin') ? `<button class="btn small" type="button" data-report-retry="${Number(r.id)}">Check again</button>` : ''}</div></div>`;
 }
@@ -753,6 +753,7 @@ async function etOpen(id) {
     <p><span class="badge ${cls}">${esc(words)}</span> Reported ${when(r.createdAt)} on <b>${esc(r.page || '–')}</b> · ${esc(r.platform)} ${esc(r.version)}${r.screen ? ` · window ${esc(r.screen)}` : ''}${r.engine ? ` · checked with engine ${esc(r.engine)}` : ''}</p>
     <h3>The error (the player's words)</h3><p class="fb-text">${esc(r.text)}</p>
     <h3>Reason for failure</h3>${r.findings.length ? `<ul>${r.findings.map((f) => `<li><b>${esc(FAULT_NAMES[f.code] || f.code)}:</b> ${esc(f.text)}</li>`).join('')}</ul>` : `<p class="muted">${r.category === 'puzzle' && r.hasPuzzle ? (r.status === 'new' || r.status === 'checking' ? 'Not checked yet.' : 'Nothing wrong was found in the puzzle.') : 'Not checked automatically: read the player\'s words.'}</p>`}
+    ${['needs_fix', 'no_fault', 'manual', 'page'].includes(r.status) ? '<p class="muted">The puzzle doctor\'s daily code-fix task looks at reports waiting here. When its fix merges, this report is marked done with a plain note and the version, and the player who asked is emailed. Mark done by hand only if you fixed it yourself.</p>' : ''}
     <h3>Correction made</h3><p>${esc(r.note || '–')}${r.strategy ? ` <span class="muted">(${esc(STRATEGY_NAMES[r.strategy] || r.strategy)})</span>` : ''}${r.status === 'repaired' ? ` ${r.openedAt ? 'The player opened the repaired puzzle.' : 'The player has not opened the repaired puzzle yet.'}` : ''}</p>
     ${r.related.length ? `<h3>Related reports in the other category</h3><p>${r.related.map((t) => `<code>${esc(t)}</code>`).join(' ')} <span class="muted">(same screen and app version)</span></p>` : ''}
     ${r.hasImage ? `<h3>Picture</h3><img class="et-picture" src="${svgUrl(r.image)}" alt="The puzzle's picture as the player saw it">` : ''}
@@ -1262,10 +1263,64 @@ async function openPlayer(uid) {
   };
 }
 
+const NP_GROUP = 'Number Place';
+const NP_LEVEL_NAMES = { basic: 'Basic', easy: 'Easy', medium: 'Medium', hard: 'Hard', expert: 'Expert', master: 'Master' };
+const NP_TECH_NAMES = { nakedSingle: 'Only number left', hiddenSingle: 'Only place left', intersection: 'Line and box overlap', nakedPair: 'Matching pair', hiddenPair: 'Hidden pair', nakedTriple: 'Matching three', hiddenTriple: 'Hidden three', xWing: 'Rectangle', swordfish: 'Three-line pattern', xyWing: 'Bent triple' };
+views.numberplace = async () => {
+  const [d, st] = await Promise.all([api(`number-place?days=${$('#np-days').value}`), api('settings')]);
+  const editable = can('admin');
+  const list = st.settings.filter((s) => s.group === NP_GROUP);
+  const pct = (a, b) => (b ? `${Math.round((a / b) * 100)}%` : '–');
+  const tuned = (t) => (t == null ? '–' : t > 0.58 ? `${t} (tougher)` : t < 0.42 ? `${t} (gentler)` : `${t} (middle)`);
+  const levelRows = d.levels.filter((l) => l.games).map((l) => [
+    `<b>${esc(NP_LEVEL_NAMES[l.level])}</b>`, l.games, pct(l.solved, l.games), l.revealed, l.abandoned,
+    l.medianMinutes == null ? '–' : `${Math.round(l.medianMinutes * 10) / 10} min`, l.avgHints ?? '–',
+    `${l.feels.easy} / ${l.feels.right} / ${l.feels.hard}`, esc(tuned(d.tuning.toughness[l.level] ?? null)),
+  ]);
+  const control = (s) => {
+    const dis = editable ? '' : ' disabled';
+    if (s.type === 'bool') return `<label class="check"><input type="checkbox" data-np-key="${s.key}"${s.value ? ' checked' : ''}${dis}> <span>${s.value ? 'On' : 'Off'}</span></label>`;
+    const save = editable ? `<button class="btn small" data-np-save="${s.key}">Save</button>` : '';
+    const label = `<label class="sr-only" for="npset-${s.key}">${esc(s.label)}</label>`;
+    if (s.type === 'int') return `<div class="row"><div class="field">${label}<input id="npset-${s.key}" type="number" min="${s.min}" max="${s.max}" value="${s.value}" inputmode="numeric"${dis}></div>${save}</div>`;
+    return `<div class="row"><div class="field">${label}<select id="npset-${s.key}"${dis}>${s.options.map((o) => `<option value="${esc(o.value)}"${o.value === s.value ? ' selected' : ''}>${esc(o.label)}</option>`).join('')}</select></div>${save}</div>`;
+  };
+  $('#np-body').innerHTML = `
+    <div class="card"><h2>Games since ${esc(d.since)}</h2>
+      <p><b>${d.games}</b> finished Number Place games${d.games ? `: ${Object.entries(d.modes).map(([m, n]) => `${n} ${esc({ free: 'free play', daily: 'daily', race: 'race', file: 'from a file' }[m] || m)}`).join(', ')}` : ''}.
+      Shared tuning uses ${d.tuning.games} games from the last 90 days; a level needs 10 before it moves.</p>
+      ${levelRows.length ? table([{ label: 'Level' }, { label: 'Games', num: true }, { label: 'Solved', num: true }, { label: 'Answer shown', num: true }, { label: 'Given up', num: true }, { label: 'Typical time', num: true }, { label: 'Hints a game', num: true }, { label: 'Felt easy / right / hard' }, { label: 'Shared tuning' }], levelRows) : '<p class="muted">No Number Place games yet in this period.</p>'}
+    </div>
+    <div class="card"><h2>Where players ask for help</h2>
+      ${d.stuck.length ? table([{ label: 'Technique' }, { label: 'Hints asked', num: true }], d.stuck.map((s) => [esc(NP_TECH_NAMES[s.technique] || s.technique), s.count])) : '<p class="muted">No hints asked yet.</p>'}
+      <p class="muted">Players who keep asking about a technique get practice puzzles that need it (Practice puzzles, below).</p>
+    </div>
+    <div class="card"><h2>Number Place settings</h2>${editable ? '' : '<p class="note">You can see the settings. Changing them needs the admin role.</p>'}
+      ${list.map((s) => `<div class="setting"><div><b id="lbl-${s.key}">${esc(s.label)}</b><p class="help">${esc(s.help)}</p>${s.updatedBy ? `<p class="meta">Changed by ${esc(s.updatedBy)} on ${when(s.updatedAt)}</p>` : ''}</div><div>${control(s)}</div></div>`).join('')}
+    </div>`;
+  $$('#np-body input[type=checkbox][data-np-key]').forEach((c) => c.setAttribute('aria-labelledby', `lbl-${c.dataset.npKey}`));
+};
+async function saveNpSetting(key, value, button) {
+  await act(button, () => api('settings', { method: 'POST', body: { key, value } }), 'Saved. Players get it within about a minute.');
+  show('numberplace', { keepFocus: true });
+}
+$('#np-body').onchange = (e) => {
+  const c = e.target.closest('input[type=checkbox][data-np-key]');
+  if (c) saveNpSetting(c.dataset.npKey, c.checked, c);
+};
+$('#np-body').onclick = (e) => {
+  const b = e.target.closest('button[data-np-save]');
+  if (!b) return;
+  const input = $(`#npset-${b.dataset.npSave}`);
+  saveNpSetting(b.dataset.npSave, input.type === 'number' ? Number(input.value) : input.value, b);
+};
+$('#np-days').onchange = () => show('numberplace', { keepFocus: true });
+
 views.settings = async () => {
   const d = await api('settings');
   const groups = {};
-  for (const s of d.settings) (groups[s.group] ||= []).push(s);
+  // Number Place's settings have their own section.
+  for (const s of d.settings) if (s.group !== NP_GROUP) (groups[s.group] ||= []).push(s);
   const editable = can('admin');
   const control = (s) => {
     const dis = editable ? '' : ' disabled';
