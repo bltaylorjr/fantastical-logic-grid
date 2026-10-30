@@ -162,7 +162,8 @@ if (!indexHtml.includes('http-equiv="Content-Security-Policy"')) {
 {
   const calmFile = join(out, 'calm', 'index.html');
   const calmHtml = readFileSync(calmFile, 'utf8');
-  if (/<script>/.test(calmHtml)) throw new Error('calm/index.html must not have inline scripts');
+  // Every <script> tag (any case) must load a file.
+  if ([...calmHtml.matchAll(/<script\b[^>]*>/gi)].some(([tag]) => !/\ssrc\s*=/i.test(tag))) throw new Error('calm/index.html must not have inline scripts');
   const calmCsp = CSP.replace(/script-src [^;]*/, "script-src 'self'").replace(/connect-src [^;]*/, `connect-src 'self' blob: data: ${cloudOrigins.join(' ')}`.trim());
   const withCsp = calmHtml.replace(/(<meta charset="utf-8">)/, `$1\n<meta http-equiv="Content-Security-Policy" content="${calmCsp}">\n<meta name="referrer" content="strict-origin-when-cross-origin">`);
   if (withCsp === calmHtml) throw new Error('Could not add the security policy to calm/index.html');

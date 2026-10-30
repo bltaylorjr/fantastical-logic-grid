@@ -61,5 +61,5 @@ const head = html.match(/<head>([\s\S]*?)<\/head>/)[1]
 const body = html.match(/<body>([\s\S]*?)<\/body>/)[1]
   .replaceAll('../icons/icon.svg', icon)
   .replace('href="../" id="mode-full"', 'href="https://thelogicgrid.com/" target="_blank" rel="noopener" id="mode-full"');
-writeFileSync(join(out, 'index.html'), `${head}${body}<script type="module">${app.outputFiles[0].text.replaceAll('</script', '<\\/script')}</script>\n`);
+writeFileSync(join(out, 'index.html'), `${head}${body}<script type="module">${app.outputFiles[0].text.replace(/<\/(script)/gi, '<\\/$1')}</script>\n`);
 console.log(`Built dist/calm-preview/index.html (${Math.round(readFileSync(join(out, 'index.html')).length / 1024)} KB).`);
