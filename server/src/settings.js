@@ -12,6 +12,7 @@
 import { THEMES } from '../../engine/src/themes.js';
 import { json } from './http.js';
 import { publicNews } from './messages.js';
+import { licenseConfig } from './licenses.js';
 import { NETWORKS, DEFAULT_LINKS, socialLinks } from '../../web/js/social.js';
 
 const CACHE_MS = 30_000;
@@ -108,6 +109,13 @@ export const SETTINGS = {
   hand_picked_days: { type: 'days', default: [], group: 'Play', label: 'Hand-picked daily puzzles', help: 'Past daily puzzles to put first in the Hand-picked collection on the website and in the game, one date per line (like 2026-11-03), up to 30. The rest of the collection is the best-rated daily puzzles. Shows after the next website build (every night).' },
   daily_email_enabled: { type: 'bool', default: true, group: 'Play', label: 'Daily puzzle by email', help: 'Signed-in players with a confirmed email can get each day\'s puzzle by email, sent at about 7 am Eastern from noreply@thelogicgrid.com through Resend, or from the game\'s Gmail as a backup (server/DAILY-EMAIL.md). Every email has a one-click unsubscribe link. Off: no emails and no new sign-ups; the list is kept.' },
   daily_email_daily_cap: { type: 'int', min: 0, max: 450, default: 300, group: 'Play', label: 'Daily emails a day', help: 'The most people on the daily email list. New sign-ups stop at this number, so everyone on the list gets the email. Resend\'s free plan sends 100 a day, then Gmail (about 500 a day, shared with the other emails) takes over.' },
+  // ---- Printable puzzle packs (print-packs.js): signed-in players print a few
+  // brand-new puzzles at a time, with answer keys. The game writes them on the
+  // player's device, so they cost nothing on the server.
+  print_packs_enabled: { type: 'bool', default: true, group: 'Printable puzzle packs', label: 'Printable puzzle packs', help: 'Signed-in players can open Menu > Printable puzzle pack and print a few brand-new puzzles at once, each with its answer key. A story is never in two of the same player\'s packs. Off: the menu item is hidden and nothing new can be printed as a pack. Players can still print the puzzle they are playing.' },
+  print_pack_size: { type: 'int', min: 1, max: 20, default: 5, group: 'Printable puzzle packs', label: 'Puzzles in one pack (most)', help: 'The player picks from 1 up to this number. Bigger packs take longer to write on the player\'s device (a few seconds a puzzle, more for the hardest levels).' },
+  print_packs_per_period: { type: 'int', min: 0, max: 50, default: 2, group: 'Printable puzzle packs', label: 'Packs each player can print per period', help: 'Counted for the account on every device. 0 stops new packs without hiding the menu item.' },
+  print_pack_period_days: { type: 'int', min: 1, max: 90, default: 7, group: 'Printable puzzle packs', label: 'Period length (days)', help: 'A rolling window: a pack counts for this many days after it is printed, then frees up again. 7 with 2 packs above means 2 packs a week.' },
   // ---- Puzzle emails (puzzle-mail.js): the weekly puzzle and special editions, for players and guests.
   puzzle_mail_enabled: { type: 'bool', default: true, group: 'Puzzle emails', label: 'Puzzle email sign-ups', help: 'Players and guests can sign up in the game (Menu > Puzzle emails) for the weekly puzzle and special edition puzzles. A guest gets a confirm link first; nothing else is sent until they open it. Every email has a one-click unsubscribe link. Sent from noreply@thelogicgrid.com through Resend, or from the game\'s Gmail as a backup. Off: no sign-ups and no puzzle emails at all; the list is kept.' },
   weekly_mail_enabled: { type: 'bool', default: true, group: 'Puzzle emails', label: 'Weekly puzzle email', help: 'Every Monday from about 7 am Eastern: the puzzle of the week (a bigger Expert puzzle with a new story) to everyone on the weekly list. Off: no weekly email and the weekly choice is hidden in the game; the list is kept.' },
@@ -140,6 +148,9 @@ export const SETTINGS = {
   ratings_ai_enabled: { type: 'bool', default: true, group: 'Alerts and reports', label: 'AI summary of puzzle ratings', help: 'Ratings and insights: a few plain sentences on what is working and what to improve, written by a free Cloudflare Workers AI text model from the rating numbers only (never player text). Off: only the rule-based findings show.' },
   ratings_ai_daily_cap: { type: 'int', min: 0, max: 20, default: 3, group: 'Alerts and reports', label: 'AI rating summaries a day', help: 'Each one is kept for the day and shared by the dashboard, the nightly report and the emails. Shares Workers AI\'s free daily allowance with pictures and translations; a summary uses very little.' },
   ratings_model: { type: 'model', default: '@cf/meta/llama-3.1-8b-instruct-fast', group: 'Alerts and reports', label: 'Workers AI model for rating summaries', help: 'Change it here when Cloudflare retires a model.' },
+  // ---- Player sign-in (web/js/idle.js and biometric.js)
+  player_idle_minutes: { type: 'int', min: 0, max: 1440, default: 30, group: 'Player sign-in', label: 'Sign players out after this many idle minutes', help: 'A signed-in player who has not tapped, clicked, typed or scrolled for this long is signed out to keep their account safe. Their progress is saved and synced first, and the puzzle they were on opens again when they sign back in. A warning shows 2 minutes before. 0: never sign out for being idle.' },
+  biometric_signin_enabled: { type: 'bool', default: true, group: 'Player sign-in', label: 'Fingerprint and face sign-in', help: 'Players can turn on sign-in with their device\'s fingerprint reader, face unlock, Windows Hello or screen-lock PIN, as well as their password. The check happens on the device; the game never sees a fingerprint or face. Off: the choice is hidden and every player signs in with their password.' },
   // ---- Support and premium: the game is free. These only add an optional
   // link out to a page the owner sets up elsewhere; nothing here takes
   // payments or locks any part of the game.
@@ -159,6 +170,20 @@ export const SETTINGS = {
   tier_gold_from: { type: 'int', min: 1, max: 10000, default: 15, group: 'Support and premium', label: 'Gold supporter badge from (amount)', help: 'Gold from this amount. Keep it above the Silver amount.' },
   tier_platinum_from: { type: 'int', min: 1, max: 10000, default: 50, group: 'Support and premium', label: 'Platinum supporter badge from (amount)', help: 'Platinum from this amount. Keep it above the Gold amount.' },
   extras_url: { type: 'url', default: '', group: 'Support and premium', label: 'Get extras page link', help: 'Where a player goes to get the supporter extras: your membership or checkout page. Shown next to locked themes. Leave empty to hide the button.' },
+  // ---- App keys (licenses.js): the Windows and Android apps ask for a key the
+  // first time they open. The website never needs one.
+  license_required: { type: 'bool', default: true, group: 'App keys', label: 'The apps need a key', help: 'On: the Windows and Android apps ask for an app key the first time they open, check it once online, then work offline. About once a day when online they check the key still works, so a key you cancel under App keys stops working. Only works once the LICENSE_SIGNING_KEY Cloudflare secret is set; until then the apps open without a key. Off: the apps open without a key. The website never needs one.' },
+  license_download_needs_key: { type: 'bool', default: true, group: 'App keys', label: 'Downloads on the website ask for a key', help: 'On (with The apps need a key on): Menu > Install the app on the website asks for an app key before the Windows or Android download starts, and each key allows 2 downloads. The files on GitHub can still be reached directly, but they will not open without a key.' },
+  license_self_serve: {
+    type: 'choice', default: 'signed_in', group: 'App keys', label: 'Who can get a key for themselves', help: 'On the website, Menu > Install the app shows a Ask for a free key button to these players (one key each, which installs on the number of devices below; it waits for your approval while the next switch is on). You can always make keys yourself under App keys.',
+    options: [
+      { value: 'signed_in', label: 'Any signed-in player with a confirmed email' },
+      { value: 'supporters', label: 'Only Supporters (Supporters section)' },
+      { value: 'off', label: 'Nobody: only keys you make under App keys' },
+    ],
+  },
+  license_self_approval: { type: 'bool', default: true, group: 'App keys', label: 'Free keys wait for your approval', help: 'On: a free key a player asks for shows under App keys as waiting, and works (and is shown to the player) only after you click Approve. Off: it works straight away.' },
+  license_default_devices: { type: 'int', min: 1, max: 2, default: 1, group: 'App keys', label: 'Computers or phones each new key installs on (1 or 2)', help: 'For keys players get themselves and the starting number when you make keys. Keep it at 1; when a player asks for a second computer, raise that one key to 2 under App keys. Each key can also be used for 2 downloads from the website; after that the player needs a new key.' },
   blocked_words: { type: 'words', default: [], group: 'Moderation', label: 'Extra blocked words in screen names', help: 'Added to the built-in word filter. Letters only, 3 to 30 each.' },
   archive_email_enabled: {
     type: 'bool', default: false, group: 'Backups', label: 'Weekly archive email',
@@ -264,6 +289,8 @@ export async function publicConfig(req, env) {
       storySharing: s.story_sharing_enabled, learning: s.learning_enabled, errorReports: s.error_reports_enabled,
       feedback: s.feedback_enabled, feedbackReplies: s.feedback_replies_enabled, soundEffects: s.sound_effects_enabled, music: s.theme_music_enabled, pictures: s.ai_pictures !== 'none',
       translate: s.translate_enabled, messages: s.messages_enabled, challenges: s.challenges_enabled, dailyResults: s.daily_results_enabled, dailyEmail: s.daily_email_enabled,
+      printPacks: s.print_packs_enabled, biometrics: s.biometric_signin_enabled,
+      ...(await licenseConfig(env, s)),
       puzzleMail: s.puzzle_mail_enabled && (s.weekly_mail_enabled || s.special_mail_enabled), weeklyMail: s.puzzle_mail_enabled && s.weekly_mail_enabled, specialMail: s.puzzle_mail_enabled && s.special_mail_enabled,
     },
     news: s.messages_enabled ? await publicNews(env) : [],
@@ -274,7 +301,8 @@ export async function publicConfig(req, env) {
       celebrations: CELEBRATIONS.filter((k) => s[k]), celebrateRandom: s.celebrate_random,
       supportUrl: s.support_link_enabled && s.support_url ? s.support_url : '',
       supportAsks: !!(s.support_asks_enabled && s.support_link_enabled && s.support_url),
-      premiumThemes: s.premium_extras_enabled ? s.premium_themes : [], extrasUrl: s.premium_extras_enabled ? s.extras_url : '' },
+      premiumThemes: s.premium_extras_enabled ? s.premium_themes : [], extrasUrl: s.premium_extras_enabled ? s.extras_url : '',
+      idleMinutes: s.player_idle_minutes },
     // Starting values; a player's own choice wins.
     defaults: { sound: s.default_sound, volume: s.default_volume, music: s.default_music, musicVolume: s.default_music_volume },
   }, 200, { 'Cache-Control': 'public, max-age=60' });

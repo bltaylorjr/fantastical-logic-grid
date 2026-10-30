@@ -369,6 +369,21 @@ const SHOTS = process.env.SHOTS;
     assert(/Chargeback/.test(await page.textContent('#sup-rows')) && !(await page.locator('#sup-rows button[data-sup-end]').count()), 'a chargeback ends the grant and marks it');
     assert(/fan@example\.com/.test(await page.textContent('#sup-blocks')) && /dp_123/.test(await page.textContent('#sup-blocks')), 'the player is listed as blocked, with the note');
 
+    // App keys: make a key, see it listed, allow a second install.
+    await page.click('a[href="#licenses"]');
+    await page.waitForSelector('#lic-rows td');
+    assert(/LICENSE_SIGNING_KEY/.test(await page.textContent('#lic-banner')), 'App keys says the signing secret is not set yet');
+    await page.fill('#lic-label', 'Test player');
+    await page.click('#lic-form button[type=submit]');
+    await page.waitForSelector('#lic-rows code.lic-key');
+    const made = await page.textContent('#lic-made-list');
+    assert(/^FLG(-[2-9A-HJ-NP-Z]{5}){4}$/.test(made.trim()) && (await page.textContent('#lic-rows')).includes(made.trim()), 'an admin makes an app key and it is listed');
+    assert(/0 of 1/.test(await page.textContent('#lic-rows')) && /0 of 2/.test(await page.textContent('#lic-rows')), 'the key shows its installs (0 of 1) and downloads (0 of 2)');
+    await page.click('#lic-rows button[data-lic-two]');
+    await page.waitForSelector('#lic-rows button[data-lic-one]');
+    assert(/0 of 2[\s\S]*0 of 2/.test(await page.textContent('#lic-rows')), 'an admin allows a second install');
+    await shot(page, '3-app-keys');
+
     await page.click('a[href="#search"]');
     await page.waitForSelector('#search-body .tile');
     const search = await page.textContent('#search-body');

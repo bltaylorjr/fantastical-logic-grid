@@ -296,7 +296,7 @@ export const CONNECTIONS = [
     why: 'Per-player and per-connection request limits that keep the free allowances safe from floods.',
     cost: 'Free.',
     docs: 'server/wrangler.toml',
-    names: ['LIMIT_SYNC', 'LIMIT_AUTHLESS', 'LIMIT_COMPETE', 'LIMIT_PLAYS', 'LIMIT_PARTS', 'LIMIT_TTS', 'LIMIT_FEEDBACK', 'LIMIT_PICTURES', 'LIMIT_TRANSLATE', 'LIMIT_ERRORS', 'LIMIT_ADMIN_IP', 'LIMIT_ADMIN', 'LIMIT_MESSAGES']
+    names: ['LIMIT_SYNC', 'LIMIT_AUTHLESS', 'LIMIT_COMPETE', 'LIMIT_PLAYS', 'LIMIT_PARTS', 'LIMIT_TTS', 'LIMIT_FEEDBACK', 'LIMIT_PICTURES', 'LIMIT_TRANSLATE', 'LIMIT_ERRORS', 'LIMIT_ADMIN_IP', 'LIMIT_ADMIN', 'LIMIT_MESSAGES', 'LIMIT_LICENSE']
       .map((name) => ({ name, where: 'worker-binding' })),
     steps: ['Nothing to set up: each limit is a [[ratelimits]] block in `server/wrangler.toml`. Change the numbers there.'],
     links: [{ label: 'wrangler.toml', url: `${REPO}/blob/main/server/wrangler.toml` }],
@@ -848,6 +848,25 @@ export const CONNECTIONS = [
   },
 
   // ------------------------------------------------------------- apps
+  {
+    id: 'app-keys',
+    group: 'apps',
+    title: 'App keys for the Windows and Android apps',
+    why: 'The apps ask for an app key the first time they open. The Worker signs each activated key with this private key, and the apps check that signature with the matching public key built into them, so they keep working offline. Until this secret is set the apps open without a key.',
+    cost: 'Free.',
+    docs: 'server/LICENSES.md',
+    names: [
+      { name: 'LICENSE_SIGNING_KEY', where: 'worker-secret', note: 'The whole one-line text of license-signing.jwk from the private folder (project files, fantastical-logic-grid-app/.private). It starts {"kty":"EC". Never paste it anywhere else.' },
+    ],
+    steps: [
+      'Open the file **license-signing.jwk** (sent to you separately, or in the project files under fantastical-logic-grid-app/.private) in Notepad and copy all of its one line.',
+      ...CF_SECRET_STEPS('LICENSE_SIGNING_KEY', 'that line'),
+      `Open ${ADMIN}#licenses (**App keys**). The banner should now say keys are ready. Click **Make keys** to make one for yourself and type it into the app.`,
+      'Who can get a key for themselves, and how many devices each key works on, are under **Settings and switches** > **App keys**.',
+    ],
+    checks: [{ type: 'setting', key: 'license_required', value: true, label: 'The apps need a key (Settings > App keys)' }],
+    links: [{ label: 'Worker variables and secrets', url: CF_WORKER }, { label: 'App keys in the dashboard', url: `${ADMIN}#licenses` }],
+  },
   {
     id: 'tauri-updater',
     group: 'apps',

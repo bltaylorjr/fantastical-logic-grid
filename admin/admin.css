@@ -183,6 +183,8 @@ dialog h2 { margin: 0; }
 /* Backups and the archive viewer */
 a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 a.btn[hidden] { display: none; }
+/* .who, .shell and .stack set display, which would otherwise beat hidden. */
+.who[hidden], .shell[hidden], .stack[hidden] { display: none; }
 ul.plain { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .viewer { margin: 0 auto; }
 .drop { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; border: 2px dashed var(--muted); border-radius: 12px; padding: 20px; margin: 16px 0; background: var(--panel); cursor: pointer; }
@@ -245,6 +247,11 @@ td.num, th.num { white-space: nowrap; }
 .findings p { margin: 0 0 2px; }
 .ai-text { font-size: 1.05rem; }
 
+/* App keys */
+.lic-key { font-size: 0.95em; white-space: nowrap; user-select: all; }
+.lic-made-list { white-space: pre-wrap; user-select: all; font-family: ui-monospace, monospace; margin: 0; }
+.lic-dev-list { margin: 0; padding-left: 1.2em; }
+.lic-dev-list li { margin: 0.25em 0; }
 /* Responsive layout (checked from 320 px phones to 2560 px monitors and at
    200% zoom by scripts/e2e-responsive.cjs). */
 /* Every button and link-button is at least 44 px, also the compact ones. */
