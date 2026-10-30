@@ -240,11 +240,26 @@ const setup = {
 };
 
 const sizesFor = (tierId) => tierSizes(TIERS[tierId]);
+// The setup choices hold only entries from the game's own lists, never text
+// read from the page or from storage: anything unknown becomes the default.
+const knownTier = (v) => (OPTIONS.difficulties.find((d) => d.id === v) || TIERS.easy).id;
+const knownTheme = (v) => (v === 'random' ? 'random' : (OPTIONS.themes.find((t) => t.id === v) || { id: 'random' }).id);
+const knownTopic = (themeId, v) => {
+  const theme = OPTIONS.themes.find((t) => t.id === themeId);
+  return (((theme && theme.topics) || []).find((t) => t.id === v) || { id: 'any' }).id;
+};
+const knownSize = (tierId, v) => (v === 'custom' ? 'custom' : sizesFor(tierId).find((x) => x === v) || null);
+const knownCustom = (c) => (Array.isArray(c) ? [Math.max(3, Math.min(6, Math.round(+c[0]) || 4)), Math.max(3, Math.min(8, Math.round(+c[1]) || 4))] : [4, 4]);
 
 function renderSetup() {
   const saved = store.loadSetupChoices();
-  if (saved) Object.assign(setup, saved);
-  if (!TIERS[setup.tier]) setup.tier = 'easy';
+  if (saved) {
+    setup.tier = knownTier(saved.tier);
+    setup.theme = knownTheme(saved.theme);
+    setup.topic = knownTopic(setup.theme, saved.topic);
+    setup.size = knownSize(setup.tier, saved.size);
+    setup.custom = knownCustom(saved.custom);
+  }
 
   $('#tier-choices').innerHTML = tierChoicesHtml(OPTIONS.difficulties, setup.tier);
   // Themes switched off in the admin dashboard are left out; supporter extras
@@ -267,9 +282,9 @@ function renderSetup() {
   $('#cats').value = setup.custom[0];
   $('#items').value = setup.custom[1];
 
-  $('#tier-choices').onchange = () => { setup.tier = $('input[name=tier]:checked').value; setup.size = null; renderSizes(); renderClueTypes(); updatePreview(); };
+  $('#tier-choices').onchange = () => { setup.tier = knownTier($('input[name=tier]:checked').value); setup.size = null; renderSizes(); renderClueTypes(); updatePreview(); };
   chosenTheme = $('input[name=theme]:checked');
-  $('#theme-choices').onchange = () => { chosenTheme = $('input[name=theme]:checked'); setup.theme = chosenTheme.value; setup.topic = 'any'; topicsClosed = false; renderTopics(); setWorld(setup.theme); updatePreview(); };
+  $('#theme-choices').onchange = () => { chosenTheme = $('input[name=theme]:checked'); setup.theme = knownTheme(chosenTheme.value); setup.topic = 'any'; topicsClosed = false; renderTopics(); setWorld(setup.theme); updatePreview(); };
   // Tapping the theme that is already chosen folds its topic list away, and
   // tapping it again opens it. (The click comes before the change, so a new
   // theme is not yet chosenTheme here.)
@@ -289,12 +304,12 @@ function renderSetup() {
   $('#theme-choices').onkeydown = (e) => {
     if ((e.key === ' ' || e.key === 'Enter') && toggleTopics(e)) e.preventDefault();
   };
-  $('#topic-choices').onchange = () => { setup.topic = $('input[name=topic]:checked').value; updatePreview(); };
+  $('#topic-choices').onchange = () => { setup.topic = knownTopic(setup.theme, $('input[name=topic]:checked').value); updatePreview(); };
   setWorld(setup.theme);
   // Rows reflow when the window resizes, so keep the topics under the chosen theme.
   if (!renderSetup.watching && window.ResizeObserver) { renderSetup.watching = true; new ResizeObserver(placeTopics).observe($('#theme-choices')); }
-  $('#size-choices').onchange = () => { setup.size = $('input[name=size]:checked').value; $('#custom-size').hidden = setup.size !== 'custom'; updatePreview(); };
-  $('#cats').oninput = $('#items').oninput = () => { setup.custom = [+$('#cats').value || 4, +$('#items').value || 4]; updatePreview(); };
+  $('#size-choices').onchange = () => { setup.size = knownSize(setup.tier, $('input[name=size]:checked').value); $('#custom-size').hidden = setup.size !== 'custom'; updatePreview(); };
+  $('#cats').oninput = $('#items').oninput = () => { setup.custom = knownCustom([$('#cats').value, $('#items').value]); updatePreview(); };
   $('#clue-count').oninput = updatePreview;
   $('#setup').onsubmit = (e) => { e.preventDefault(); startGeneration(); };
   $('#style-choices').onchange = () => { settings.silent = $('input[name=playstyle]:checked').value === 'silent'; store.saveSettings(settings); applyMode(); };
@@ -543,12 +558,24 @@ $('#quick-btn').onclick = startQuick;
 // ?play=now in a link (ads, the website) starts a quick puzzle straight away.
 // ?play=daily (the daily email) opens today's daily puzzle, or with &day= that day's.
 // ?play=weekly[&week=] and ?play=special&id= (the puzzle emails) open those.
+// A value from the address is read once and kept only if it matches its exact
+// pattern (a date, or a special edition's id), so nothing else gets through.
+function linkDay(url, name) {
+  const raw = url.searchParams.get(name);
+  if (typeof raw === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  return null;
+}
+function linkEditionId(url) {
+  const raw = url.searchParams.get('id');
+  if (typeof raw === 'string' && /^se-[\w-]{1,40}$/.test(raw)) return raw;
+  return null;
+}
 function handlePlayLink() {
   const url = new URL(location.href);
   const play = url.searchParams.get('play');
   if (play === 'weekly' || play === 'special') {
-    const week = /^\d{4}-\d{2}-\d{2}$/.test(url.searchParams.get('week') || '') ? url.searchParams.get('week') : null;
-    const id = /^se-[\w-]{1,40}$/.test(url.searchParams.get('id') || '') ? url.searchParams.get('id') : null;
+    const week = linkDay(url, 'week');
+    const id = linkEditionId(url);
     for (const k of ['play', 'week', 'id']) url.searchParams.delete(k);
     try { history.replaceState(history.state, '', url.pathname + url.search + url.hash); } catch (e) { /* framed preview */ }
     if (!daily.available() || isPreview || (play === 'special' && !id)) { startQuick(); return true; }
@@ -558,7 +585,7 @@ function handlePlayLink() {
   }
   if (play !== 'now' && play !== 'daily') return false;
   // A Hand-picked link names its day: ?play=daily&day=2026-11-03.
-  const day = /^\d{4}-\d{2}-\d{2}$/.test(url.searchParams.get('day') || '') ? url.searchParams.get('day') : null;
+  const day = linkDay(url, 'day');
   url.searchParams.delete('play');
   url.searchParams.delete('day');
   try { history.replaceState(history.state, '', url.pathname + url.search + url.hash); } catch (e) { /* framed preview */ }
@@ -610,9 +637,9 @@ async function renderSaved() {
   const fmt = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' });
   $('#saved-list').innerHTML = saves.map((s) => {
     const p = s.puzzle;
-    const pct = s.solved ? 100 : s.percent || 0;
+    const pct = s.solved ? 100 : Math.round(Number(s.percent)) || 0;
     const state = s.solved ? (s.revealed ? 'Solution revealed' : 'Solved') : `${pct}% complete`;
-    return `<li class="saved-item" data-id="${s.id}">
+    return `<li class="saved-item" data-id="${esc(s.id)}">
       <h3 class="name">${esc(s.name)}</h3>
       <div class="info">${s.race ? `<span class="pill">Race ${esc(s.race.code)}</span> ` : ''}${s.daily ? `<span class="pill">Daily ${esc(daily.longDate(s.daily))}</span> ` : ''}${s.editionLabel ? `<span class="pill">${esc(s.editionLabel)}</span> ` : ''}${(s.myNotes || '').trim() ? '<span class="pill">Has notes</span> ' : ''}${esc(p.theme.name)} · ${esc(p.difficulty.name)} · ${p.categories.length} × ${p.categories[0].items.length} · ${state}<br>Last played ${esc(fmt.format(new Date(s.lastPlayed)))}</div>
       <div class="bar" role="img" aria-label="${state}"><i style="width:${pct}%"></i></div>
@@ -657,7 +684,7 @@ function startRename(li, save) {
   const h = li.querySelector('.name');
   const form = document.createElement('form');
   form.className = 'field';
-  form.innerHTML = `<label for="rn-${save.id}">New name</label><input id="rn-${save.id}" type="text" value="${esc(save.name)}"><div class="row"><button class="btn primary small">Save name</button><button class="btn small" type="button">Keep old name</button></div>`;
+  form.innerHTML = `<label for="rn-${esc(save.id)}">New name</label><input id="rn-${esc(save.id)}" type="text" value="${esc(save.name)}"><div class="row"><button class="btn primary small">Save name</button><button class="btn small" type="button">Keep old name</button></div>`;
   h.replaceWith(form);
   const input = form.querySelector('input');
   input.focus();
@@ -788,13 +815,13 @@ function openGame(save, { fresh = false } = {}) {
 
   S.witness = assignWitnesses(puzzle, ix);
   $('#clue-list').innerHTML = puzzle.clues.map((c) => `
-    <li data-n="${c.number}"${save.ticked.includes(c.number) ? ' class="used"' : ''}><span class="num" aria-hidden="true">${c.number}</span>
-    <label><input type="checkbox" data-n="${c.number}"${save.ticked.includes(c.number) ? ' checked' : ''} aria-label="Clue ${c.number}, used"><span><span class="txt">${esc(c.text)}</span><span class="from media">From ${esc(S.witness[c.number])}</span></span></label></li>`).join('');
+    <li data-n="${+c.number}"${save.ticked.includes(c.number) ? ' class="used"' : ''}><span class="num" aria-hidden="true">${+c.number}</span>
+    <label><input type="checkbox" data-n="${+c.number}"${save.ticked.includes(c.number) ? ' checked' : ''} aria-label="Clue ${+c.number}, used"><span><span class="txt">${esc(c.text)}</span><span class="from media">From ${esc(S.witness[c.number])}</span></span></label></li>`).join('');
   renderMedia();
   $('#q-list').innerHTML = puzzle.questions.map((q) => `
-    <li><label for="q-${q.number}">${esc(q.text)}</label>
-    <select id="q-${q.number}" data-n="${q.number}"><option value="">Choose an answer</option>${q.options.map((o) => `<option value="${o}"${save.answers[q.number] === o ? ' selected' : ''}>${esc(ix.label(o))}</option>`).join('')}</select>
-    <span class="res" id="qr-${q.number}"></span></li>`).join('');
+    <li><label for="q-${+q.number}">${esc(q.text)}</label>
+    <select id="q-${+q.number}" data-n="${+q.number}"><option value="">Choose an answer</option>${q.options.map((o) => `<option value="${esc(o)}"${save.answers[q.number] === o ? ' selected' : ''}>${esc(ix.label(o))}</option>`).join('')}</select>
+    <span class="res" id="qr-${+q.number}"></span></li>`).join('');
   $('#answer-result').textContent = '';
   updateNotesButton();
 
@@ -1387,8 +1414,8 @@ function showSolved(celebrate) {
   $('#solved-h').textContent = save.revealed ? 'Solution revealed' : 'Case closed!';
   $('#ending').textContent = S.puzzle.story.ending;
   $('#solved-stats').innerHTML = [
-    ['Time', fmtTime(save.elapsedMs)], ['Hints used', save.hintsUsed], ['Checks', save.checksUsed || 0],
-  ].map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('');
+    ['Time', fmtTime(save.elapsedMs)], ['Hints used', Number(save.hintsUsed) || 0], ['Checks', Number(save.checksUsed) || 0],
+  ].map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('');
   let next = tier;
   let tip;
   if (save.revealed || save.hintsUsed >= 5) {
@@ -1638,7 +1665,7 @@ async function renderChallenge(save) {
   const r = c.result;
   box.innerHTML = `<h3>${won ? 'You beat your friend\'s time!' : 'Your friend was quicker this time.'}</h3>
     <p>Your time: <b>${fmtTime(save.elapsedMs)}</b>. Your friend's time: <b>${fmtTime(c.theirMs)}</b>.</p>
-    ${r && r.plays > 1 ? `<p>${r.beat} of ${r.plays} players who took this challenge beat your friend's time.</p>` : ''}
+    ${r && r.plays > 1 ? `<p>${Number(r.beat) || 0} of ${Number(r.plays) || 0} players who took this challenge beat your friend's time.</p>` : ''}
     <p class="help">Press Challenge a friend to send this puzzle on with your own time.</p>`;
   box.hidden = false;
 }
@@ -1726,7 +1753,7 @@ async function renderDaily() {
   $('#daily-earlier').hidden = !earlier.length;
   $('#daily-list').innerHTML = earlier.map((d) => {
     const sv = saves.find((x) => x.daily === d);
-    return `<li><button class="btn quiet small" type="button" data-daily="${esc(d)}">${esc(daily.longDate(d))}</button>${sv ? ` <span class="muted">${sv.solved ? (st.days.has(d) ? 'solved' : 'finished') : `${sv.percent || 0}% done`}</span>` : ''}</li>`;
+    return `<li><button class="btn quiet small" type="button" data-daily="${esc(d)}">${esc(daily.longDate(d))}</button>${sv ? ` <span class="muted">${sv.solved ? (st.days.has(d) ? 'solved' : 'finished') : `${Math.round(Number(sv.percent)) || 0}% done`}</span>` : ''}</li>`;
   }).join('');
 }
 // Hand-picked: the best-rated daily puzzles and ones the team picked
@@ -1738,8 +1765,8 @@ async function renderPicks(saves) {
   if (!list.length) return;
   $('#daily-picks-list').innerHTML = list.map((x) => {
     const sv = saves.find((s) => s.daily === x.date);
-    const why = x.hand ? 'picked by the team' : `rated ${x.average} of 5`;
-    return `<li><button class="btn quiet small" type="button" data-daily="${esc(x.date)}">${esc(x.title)}</button> <span class="muted">${esc(x.difficultyName)} · ${esc(x.themeName)} · ${esc(why)}${sv ? (sv.solved ? ' · finished' : ` · ${sv.percent || 0}% done`) : ''}</span></li>`;
+    const why = x.hand ? 'picked by the team' : `rated ${Number(x.average) || 0} of 5`;
+    return `<li><button class="btn quiet small" type="button" data-daily="${esc(x.date)}">${esc(x.title)}</button> <span class="muted">${esc(x.difficultyName)} · ${esc(x.themeName)} · ${esc(why)}${sv ? (sv.solved ? ' · finished' : ` · ${Math.round(Number(sv.percent)) || 0}% done`) : ''}</span></li>`;
   }).join('');
 }
 
@@ -2177,7 +2204,7 @@ $('#cast-row').addEventListener('click', (e) => {
   clues.forEach((c) => $(`#clue-list li[data-n="${c.number}"]`)?.classList.add('spot'));
   const nothing = characterOf(S.puzzle, who) ? "I didn't see anything, I promise." : sayingOf(who, 'nothing', S.puzzle.clues.length);
   $('#bubble').innerHTML = `<p class="about">${esc(aboutOf(who).about)}.</p>` + (clues.length
-    ? clues.map((c) => `<p><span class="who">${esc(who)}:</span> “${esc(sayingFor(who, c.number))} ${esc(c.text)}” <span class="muted">(clue ${c.number})</span></p>`).join('')
+    ? clues.map((c) => `<p><span class="who">${esc(who)}:</span> “${esc(sayingFor(who, c.number))} ${esc(c.text)}” <span class="muted">(clue ${+c.number})</span></p>`).join('')
     : `<p><span class="who">${esc(who)}:</span> “${esc(nothing)}”</p>`);
   $('#bubble').hidden = false;
   sound('whoosh');

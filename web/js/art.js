@@ -7,6 +7,9 @@
 
 import { genderOf } from './gender.js';
 
+// Letters and digits only, for an id inside the drawing (names can hold anything).
+const safeId = (s) => String(s).replace(/[^A-Za-z0-9]/g, '').replace(/[&<>"']/g, '');
+
 function rngFrom(text) {
   let h = 2166136261;
   for (const ch of String(text)) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); }
@@ -430,5 +433,5 @@ export function portraitSvg(puzzle, name, { size = 72 } = {}) {
       <circle cx="35" cy="60" r="4" fill="#ff8a8a" opacity=".25"/><circle cx="65" cy="60" r="4" fill="#ff8a8a" opacity=".25"/>${hat(themeId, r, L)}`;
   }
   const gender = isPet ? '' : ` data-gender="${genderOf(name)}"`;
-  return `<svg class="portrait-svg"${gender} width="${size}" height="${size}" viewBox="0 0 100 100" aria-hidden="true" focusable="false"><circle cx="50" cy="50" r="50" fill="${bg}"/><clipPath id="pc-${size}-${name.replace(/\W/g, '')}"><circle cx="50" cy="50" r="50"/></clipPath><g clip-path="url(#pc-${size}-${name.replace(/\W/g, '')})">${face}</g></svg>`;
+  return `<svg class="portrait-svg"${gender} width="${size}" height="${size}" viewBox="0 0 100 100" aria-hidden="true" focusable="false"><circle cx="50" cy="50" r="50" fill="${bg}"/><clipPath id="pc-${size}-${safeId(name)}"><circle cx="50" cy="50" r="50"/></clipPath><g clip-path="url(#pc-${size}-${safeId(name)})">${face}</g></svg>`;
 }
