@@ -1,0 +1,22 @@
+# One-off: check that the Oracle build server's runners take jobs.
+name: Oracle runner check
+on:
+  push:
+    branches: [test/oracle-check]
+permissions:
+  contents: read
+jobs:
+  check:
+    strategy:
+      matrix:
+        n: [1, 2, 3]
+    runs-on: [self-hosted, flg]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: package.json
+      - run: |
+          os=$(. /etc/os-release && echo "$PRETTY_NAME")
+          msg="runner=${RUNNER_NAME} arch=$(uname -m) os=${os} cpus=$(nproc) mem=$(free -g | awk '/Mem/{print $2}')G disk_free=$(df -h / | awk 'NR==2{print $4}') node=$(node -v 2>/dev/null || echo none) gh=$(gh --version 2>/dev/null | head -1 | awk '{print $3}') ffmpeg=$(command -v ffmpeg >/dev/null && echo yes || echo no) python=$(python3 -V 2>/dev/null | awk '{print $2}') chrome=${CHROME_PATH:-none}"
+          echo "::notice title=Runner ${{ matrix.n }}::${msg}"
