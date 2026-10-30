@@ -637,6 +637,19 @@ $('#report-problem').onclick = () => {
 
 // The link in the "we fixed the puzzle you reported" email: the repaired
 // puzzle joins Saved puzzles (once, however often the link is opened).
+// The first puzzle built from the player's approved storyline (messages.js):
+// put in Saved puzzles, ready to play, once per device.
+async function keepStorylinePuzzle(puzzle, id) {
+  if ((await store.listSaves()).some((x) => x.teamPuzzle === id)) return false;
+  await rememberStory(storyIdOf(puzzle));
+  const save = newSave(puzzle);
+  save.teamPuzzle = id;
+  await store.putSave(save);
+  if (!$('#screen-home').hidden) await renderSaved();
+  toast(`Your storyline was approved! Its puzzle “${save.name}” is in Saved puzzles.`, { label: 'Play it now', run: () => openGame(save) }, { ms: 10000 });
+  return true;
+}
+
 async function addRepairedPuzzle(puzzle, tracking, error) {
   if (!puzzle) { toast(error || 'The repaired puzzle could not be opened.'); return; }
   let save = (await store.listSaves()).find((x) => x.repairOf && x.repairOf === tracking);
@@ -2739,7 +2752,7 @@ async function init() {
     onSavesChanged: () => { if (!$('#screen-home').hidden) renderSaved(); },
     onSettingsChanged: () => { settings = store.loadSettings(); applyColorTheme(); applyMode(); applyLanguage(); },
   }).catch(() => { /* accounts are optional */ });
-  messages.init({ openDialog, openAccount, announce, playPuzzle: openTeamPuzzle, downloadPuzzle: (puzzle) => exportSave(newSave(puzzle)) });
+  messages.init({ openDialog, openAccount, announce, playPuzzle: openTeamPuzzle, keepPuzzle: keepStorylinePuzzle, downloadPuzzle: (puzzle) => exportSave(newSave(puzzle)) });
   puzzleReport.init({ openDialog, openAccount, announce });
   puzzleReport.openRepaired(addRepairedPuzzle);
   competeUi.initCompete({
