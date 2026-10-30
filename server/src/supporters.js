@@ -144,7 +144,7 @@ export async function evidence(env, id, now = Date.now()) {
     '',
     'Terms the player agreed to',
     '- https://thelogicgrid.com/terms/#tips: tips are voluntary gifts to support a free game; the badge and extras are thank-yous; refunds are given on request by email within 30 days.',
-    '- Contact: fantasticallogicgrid@gmail.com',
+    '- Contact: support@thelogicgrid.com',
     '',
   ];
   return lines.join('\n');

@@ -66,7 +66,7 @@ test('the daily planner changes only days to come, and the build reads the plan'
   assert.equal((await call('/admin/v1/daily', { auth: viewer })).status, 403, 'viewers do not see the planner');
   const view = await call('/admin/v1/daily', { auth: idToken('m-uid', 'mod@example.com') });
   assert.equal(view.status, 200);
-  assert.ok(view.body.themes.length > 5 && view.body.tiers.length === 6);
+  assert.ok(view.body.themes.length > 5 && view.body.tiers.length === 7);
   assert.equal((await call(`/admin/v1/daily/${tomorrow}`, { auth: idToken('m-uid', 'mod@example.com'), body: { theme: 'mystery' } })).status, 403, 'moderators cannot change it');
 
   const past = await call(`/admin/v1/daily/${today}`, { auth: owner(), body: { theme: 'mystery' } });
