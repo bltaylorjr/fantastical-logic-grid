@@ -29,7 +29,7 @@ const FONTS = [['400', 'atkinson-hyperlegible-latin-400-normal.woff2'], ['700', 
   .map(([w, f]) => [w, font(f)]).filter(([, src]) => src)
   .map(([w, src]) => `@font-face{font-family:"Atkinson Hyperlegible";font-weight:${w};src:${src}}`).join('');
 
-const css = (large) => `${FONTS}
+export const css = (large) => `${FONTS}
 *{box-sizing:border-box}
 html{font-family:"Atkinson Hyperlegible",Arial,Helvetica,sans-serif;font-size:${large ? '14pt' : '11pt'};line-height:1.45;color:#111}
 body{margin:0}

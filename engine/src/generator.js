@@ -62,7 +62,7 @@ function resolveOptions(opts = {}) {
   const questions = clamp(opts.questions ?? 3, [1, 6]);
   return { tier, seed, rng, theme, topic, scenario, K, N, customSize, weights, clueCount, questions, effort,
     extraParts: opts.storyParts, storyPrefs: opts.storyPrefs,
-    customNames: opts.customNames, customTitle: opts.title, usedStories: opts.usedStories || [], timeLimitMs: opts.timeLimitMs ?? 15000,
+    customNames: opts.customNames, customTitle: opts.title, usedStories: opts.usedStories || [], timeLimitMs: opts.timeLimitMs ?? tier.timeLimitMs ?? 15000,
     maxAttempts: opts.maxAttempts ?? 60 };
 }
 
@@ -128,7 +128,9 @@ function grade(K, N, clues, tier, L) {
   if (hardest < tier.requireLevel) reasons.push(`too easy (hardest step is level ${hardest}, tier needs ${tier.requireLevel})`);
   if (advanced < tier.minAdvancedSteps) reasons.push(`needs at least ${tier.minAdvancedSteps} advanced steps, has ${advanced}`);
   if (levels[3] > tier.maxWhatIf) reasons.push(`too many what-if steps (${levels[3]})`);
+  if (tier.minWhatIfSteps && levels[3] < tier.minWhatIfSteps) reasons.push(`needs at least ${tier.minWhatIfSteps} what-if steps, has ${levels[3]}`);
   const score = res.steps.reduce((s, st) => s + [1, 2, 5, 12][st.level] + 3 * (st.depth || 0), 0);
+  if (tier.minScore && score < tier.minScore) reasons.push(`not hard enough (score ${score}, tier needs ${tier.minScore})`);
   return { ...res, levels, hardest, advanced, maxDepth, reasons, meets: reasons.length === 0, score };
 }
 
@@ -206,7 +208,10 @@ export function generatePuzzle(options = {}) {
     if (!clues) continue;
     const g = grade(model.K, model.N, clues, o.tier, L);
     const countGap = o.clueCount ? Math.abs(clues.length - o.clueCount) : 0;
-    const fit = (g.meets ? 0 : 1000 + g.reasons.length * 100) + countGap * 10;
+    // A puzzle short of the tier's difficulty score counts as further off the
+    // more it falls short, so the fallback is the hardest one found.
+    const shortfall = o.tier.minScore ? Math.max(0, o.tier.minScore - g.score) / 10 : 0;
+    const fit = (g.meets ? 0 : 1000 + g.reasons.length * 100 + shortfall) + countGap * 10;
     if (!best || fit < best.fit) best = { fit, model, clues, attempt, score: g.score };
     if (fit === 0) pool.push({ fit, model, clues, attempt, score: g.score });
     if (pool.length >= want) break;
