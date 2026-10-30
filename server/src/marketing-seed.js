@@ -349,4 +349,58 @@ export const SEEDS = [{
     notes: 'Sent automatically every morning (server/DAILY-EMAIL.md). Nothing to post or approve.',
   },
   ads: [],
+}, {
+  // "How to play logic puzzles": three short vertical videos (the grid, reading
+  // the clues, hints), made by .github/workflows/tip-videos.yml from the real
+  // game. One tip a week on the Facebook Page, then Instagram, YouTube Shorts
+  // and TikTok a day later. Approved by Bobby on 2026-10-28, after the launch
+  // video passed 100 plays on Facebook.
+  id: 'how-to-play-tips-2026',
+  media: {
+    tipGrid: { title: 'How to play 1: the grid (vertical, captions)', kind: 'video', url: `${RAW}/media/promo/how-to-play-1-the-grid-9x16-captioned.mp4`, preview: '/admin/marketing-promo-9x16.png', size: '1080x1920, about 35 s', notes: 'Reels, Shorts and TikTok. Captions: media/promo/how-to-play-1-the-grid-9x16.srt.' },
+    tipClues: { title: 'How to play 2: reading the clues (vertical, captions)', kind: 'video', url: `${RAW}/media/promo/how-to-play-2-the-clues-9x16-captioned.mp4`, preview: '/admin/marketing-promo-9x16.png', size: '1080x1920, about 35 s', notes: 'Reels, Shorts and TikTok. Captions: media/promo/how-to-play-2-the-clues-9x16.srt.' },
+    tipHints: { title: 'How to play 3: stuck? hints (vertical, captions)', kind: 'video', url: `${RAW}/media/promo/how-to-play-3-hints-9x16-captioned.mp4`, preview: '/admin/marketing-promo-9x16.png', size: '1080x1920, about 35 s', notes: 'Reels, Shorts and TikTok. Captions: media/promo/how-to-play-3-hints-9x16.srt.' },
+  },
+  campaign: {
+    code: 'how-to-play-tips',
+    name: 'How to play logic puzzles (video tips)',
+    status: 'active',
+    starts: '2026-11-01',
+    ends: '2026-12-31',
+    goal: 'New players who learn how logic grid puzzles work from a 35-second video and try one. Watch visits, first puzzles played and returns within a week per tip and channel.',
+    notes: 'Follows the launch video, which passed 100 plays on Facebook. One tip a week so each gets its own attention. Reply to comments the same day; questions about how to play are ideas for the next tip.',
+  },
+  adStatus: 'approved',
+  ads: [
+    ...[
+      ['tipGrid', 'grid', '2026-11-01', '2026-11-02', 'the grid', 'Every square pairs two things from the story: an X when they can\'t go together, an O when they must. One O per row. That\'s the whole idea!'],
+      ['tipClues', 'clues', '2026-11-08', '2026-11-09', 'reading the clues', 'Start with the clues that say what is NOT true, mark the easy X\'s, and when only one square is left in a row, it\'s the O.'],
+      ['tipHints', 'hints', '2026-11-15', '2026-11-16', 'hints', 'Stuck? Press Hint for a nudge, ask again for the exact square, then the full reasoning. Every puzzle has exactly one answer, no guessing.'],
+    ].flatMap(([media, key, day1, day2, topic, lesson], i) => [
+      {
+        channel: 'facebook', medium: 'social', content: `tip-${key}`, postOn: day1, media: [media], where: 'The game\'s Facebook Page',
+        title: `Facebook Page: how to play ${i + 1}, ${topic}`,
+        body: `How to play logic puzzles, part ${i + 1} of 3: ${topic} 🧩\n\n${lesson}\n\nTry a free puzzle with its own story: {link}`,
+        notes: 'Posted as a video; Facebook may also show it as a Reel. Reply to comments the same day.',
+      },
+      {
+        channel: 'instagram', medium: 'social', content: `tip-${key}`, postOn: day2, media: [media], where: 'Instagram account for the game',
+        title: `Instagram Reel: how to play ${i + 1}, ${topic}`,
+        body: `How to play logic puzzles, part ${i + 1}: ${topic} 🧩 ${lesson} Free to play, link in bio.\n\n#logicpuzzle #howtoplay #puzzletips #braingames #brainteaser #puzzles #logicgrid`,
+        notes: 'Put {link} in the profile bio while this is the newest Reel.',
+      },
+      {
+        channel: 'youtube', medium: 'video', content: `tip-${key}-short`, postOn: day2, media: [media], where: 'YouTube channel for the game (Shorts)',
+        title: `YouTube Shorts: how to play ${i + 1}, ${topic}`,
+        body: `Title: How to solve logic puzzles: ${topic} #shorts\n\nDescription: ${lesson} Play free: {link}`,
+        notes: '',
+      },
+      {
+        channel: 'tiktok', medium: 'video', content: `tip-${key}`, postOn: day2, media: [media], where: 'TikTok account for the game',
+        title: `TikTok: how to play ${i + 1}, ${topic}`,
+        body: `How to play logic puzzles, part ${i + 1}: ${topic} 🧩 Free to play, link in bio. #logicpuzzle #puzzletips #braingames #brainteaser #howtoplay`,
+        notes: 'Put {link} in the profile bio while this is the newest video.',
+      },
+    ]),
+  ],
 }];

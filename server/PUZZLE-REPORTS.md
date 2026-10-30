@@ -1,0 +1,89 @@
+# Report a Problem and error tracking
+
+**Report a Problem** sits in the footer of every screen of the game and every
+page of the website. It opens a box with two choices and up to 1,000
+characters:
+
+- **Puzzle Problem**: on a puzzle, the puzzle itself and its picture go with
+  the report, so it can be checked and repaired automatically.
+- **Web Page Issue**: the screen or page, the app version and the window size
+  go with it (nothing personal).
+
+Problems are no longer sent through **Share an idea** (it used to be "Ideas
+and problems"), so that box is only for ideas.
+
+## Tracking ids and the two categories
+
+The moment a report arrives, the Worker (`src/puzzle-reports.js`) gives it its
+tracking id and its category:
+
+| Category | Tracking id | What it holds |
+| --- | --- | --- |
+| Puzzle | `PZ-XXXXXXXX` | the puzzle, its picture, its storyline, the player's words |
+| Web structure | `WS-XXXXXXXX` | the screen or page, version and window size, the player's words |
+
+Both categories live in one table (`puzzle_reports`) and are used together:
+
+- every report lists the reports of the **other** category from the same
+  screen and app version (**related**), both ways;
+- when the doctor finds nothing wrong in a reported puzzle but there are Web
+  Page Issues for that screen and version, the reason given is "most likely a
+  display problem", and it is counted with those page issues;
+- the learning table counts both (below).
+
+A player signed in with a confirmed email who ticks **Email me when it is
+fixed** is linked to the report only through that held email
+(`feedback_replies`). They get "We received your problem report" with the
+report number straight away. The website has no sign-in, so its box says to
+report from the game to get an email.
+
+## The puzzle doctor
+
+Every 15 minutes the GitHub Action **Puzzle doctor**
+(`.github/workflows/puzzle-reports.yml`, `scripts/puzzle-reports.mjs`) checks
+waiting Puzzle reports with the game's own engine (`scripts/puzzle-doctor.mjs`):
+the answer uses every item once, every clue is true, the clues lead to exactly
+one answer without guessing, the answer key matches, nothing is blank. Each
+problem becomes one plain sentence (the **reason for failure**).
+
+It then rebuilds the puzzle, trying its strategies (same story; same theme;
+all settings; a new story in the same theme) **in the order the learning table
+says works best for that fault**, and keeps a rebuild only if it passes every
+check:
+
+- **Repaired**: marked addressed, and the player who asked gets **"We fixed
+  the puzzle you reported"**: an apology, what they reported, what we found,
+  what we did (the **correction made**) and a button that adds the repaired
+  puzzle to their **Saved puzzles** on any device (30 days).
+- **Needs a fix in the code**: today's engine still gets it wrong.
+- **No fault in the puzzle**: see the display rule above.
+
+## Learning: self-diagnosis and self-repair
+
+`fault_patterns` keeps one row per kind of fault: for puzzles, fault +
+theme + difficulty; for web pages, screen + app version. It counts reports,
+repairs, reports that needed a code fix, how often each rebuild strategy
+worked, and which clue types were false. From it:
+
+- **Playbook**: the doctor tries the best strategy for each fault first.
+- **Self-diagnosis**: each round, the doctor makes fresh puzzles like the ones
+  behind up to three known faults (same theme, difficulty and size) with the
+  newest engine, and checks them. The result shows on the Error tracking page
+  ("Still happening" or "Gone", with the engine version).
+- **Self-repair**: when a fault is gone, every report waiting for that fix
+  goes back to the doctor, is repaired and its player emailed automatically.
+  No button needed (**Check again** still works for one report).
+
+## Admin: Error tracking
+
+The **Error tracking** page lists every report, filtered by category, status
+or search, with the puzzle or page, the error (the player's words), the reason
+for failure and the correction made. Opening one shows the storyline as
+reported and as repaired, the clues, the picture, related reports, and
+**Download the reported puzzle**, **Check again** and **Mark done with a
+note** (which emails the update to a player who asked). Below it, **What the
+doctor has learned** shows the learning table.
+
+Reports go after 365 days, repaired copies after 30 (`upkeep.js`); the
+learning table keeps its counts. The Action uses the existing `FLG_ADMIN_TOKEN`
+secret and needs no packages.

@@ -14,6 +14,26 @@ inside the web app, the desktop app or the admin dashboard.
 | `*.srt` | Captions to upload alongside the clean videos. |
 | `*-thumbnail.png` | A still from the end card, for the post's thumbnail. |
 
+## How to play logic puzzles (tip videos)
+
+A short vertical series, about 35 seconds each, for Facebook and Instagram
+Reels, YouTube Shorts and TikTok:
+
+| File | Tip |
+| --- | --- |
+| `how-to-play-1-the-grid-9x16-captioned.mp4` | Every square is a pair; X, O and one O per row |
+| `how-to-play-2-the-clues-9x16-captioned.mp4` | Reading clues: easy X's first, the last square is the O, carry across |
+| `how-to-play-3-hints-9x16-captioned.mp4` | Stuck? Nudge, exact square, full reasoning; exactly one answer |
+
+They are cut from the same footage and voice as the promo (`TIP_GRID`,
+`TIP_CLUES` and `TIP_HINTS` in `tools/build.py`; `build.py tips` makes all
+three). The workflow `.github/workflows/tip-videos.yml` (Marketing videos)
+films the game and builds the promo in both cuts and the three tips on GitHub,
+then opens a pull request that adds them here. Run it by hand after the game
+changes to refresh every video. The Marketing
+autopilot posts them on the days set in the **how-to-play-tips** campaign
+(admin > Marketing).
+
 ## How it is made
 
 Everything is free and runs on your own computer or a cloud machine.

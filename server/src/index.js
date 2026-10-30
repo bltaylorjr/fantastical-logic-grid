@@ -5,6 +5,7 @@
 //                                        screen names, races, scoreboard (compete.js)
 //   POST /v1/errors, GET /admin/errors   anonymous error reports from the apps (errors.js)
 //   POST /v1/feedback                    the game's idea and problem boxes (feedback.js)
+//   POST /v1/puzzle-report, GET /v1/repaired/:token   Report a problem on a puzzle, and its repaired copy (puzzle-reports.js)
 //   /v1/messages*                        messages between signed-in players and the team (messages.js)
 //   POST /v1/picture                     AI pictures from Workers AI (pictures.js)
 //   /v1/characters*                      the game's own characters and player suggestions (characters.js)
@@ -16,9 +17,11 @@
 //   GET /v1/specials                     special edition puzzles for the website build (editions.js)
 //   GET /v1/quality                      average rating and best-rated daily puzzles (quality.js)
 //   POST /v1/translate                   the game's text in another language (translate.js)
+//   POST /v1/v                           anonymous daily visitor counts (visits.js)
 //   POST /v1/m                           anonymous counts of visits from campaign links (marketing.js)
 //   /v1/challenges[/:code[/result]]       Challenge a friend links, no account (challenges.js)
 //   GET /v1/perks                        a signed-in player's supporter perks (supporters.js)
+//   GET /v1/badges                       a signed-in player's special badges (special-badges.js)
 //   /v1/educators/*                      free printable puzzle packages for educators (educators.js)
 //   /admin/*                             the admin dashboard and its API (admin.js)
 //   GET /v1/health[?deep=1]              a quick check that the Worker (and with
@@ -32,6 +35,7 @@ import { handleCompete } from './compete.js';
 import { handleChallenges } from './challenges.js';
 import { handleErrors } from './errors.js';
 import { handleFeedback } from './feedback.js';
+import { handlePuzzleReports } from './puzzle-reports.js';
 import { handleMessages } from './messages.js';
 import { handlePictures } from './pictures.js';
 import { handleCharacters } from './characters.js';
@@ -45,7 +49,9 @@ import { handleTranslate } from './translate.js';
 import { handleAdmin } from './admin.js';
 import { NIGHTLY_CRONS, isMaintenanceHour, runNightly } from './nightly.js';
 import { handleMarketing } from './marketing.js';
+import { handleVisits } from './visits.js';
 import { handlePerks } from './supporters.js';
+import { handleBadges } from './special-badges.js';
 import { handleEducators } from './educators.js';
 import { publicConfig } from './settings.js';
 import { deepHealth } from './upkeep.js';
@@ -85,11 +91,17 @@ async function route(req, env, ctx) {
   const perks = await handlePerks(req, env, url, signedIn);
   if (perks) return perks;
 
+  const badges = await handleBadges(req, env, url, signedIn);
+  if (badges) return badges;
+
   const compete = await handleCompete(req, env, ctx, url, signedIn);
   if (compete) return compete;
 
   const errors = await handleErrors(req, env, url);
   if (errors) return errors;
+
+  const report = await handlePuzzleReports(req, env, url);
+  if (report) return report;
 
   const feedback = await handleFeedback(req, env, url);
   if (feedback) return feedback;
@@ -126,6 +138,9 @@ async function route(req, env, ctx) {
 
   const translated = await handleTranslate(req, env, url);
   if (translated) return translated;
+
+  const visit = await handleVisits(req, env, url);
+  if (visit) return visit;
 
   const marketing = await handleMarketing(req, env, url);
   if (marketing) return marketing;

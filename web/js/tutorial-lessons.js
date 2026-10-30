@@ -7,7 +7,7 @@
 // given: marks already on the grid, clues: clue numbers to light up,
 // spot: squares to point at, free: solve the whole grid, puzzle }.
 import { makeLanguage, clueText } from '../engine/language.js';
-import { gridLayout } from '../engine/generator.js';
+import { gridLayout } from '../engine/layout.js';
 import { CLUE_TYPES } from '../engine/tiers.js';
 
 const N = 3;
@@ -176,7 +176,7 @@ export const LESSONS = [
       { title: 'Back to the clue', clues: [1], expect: ['O Ava Cat', 'X Ava Dog', 'X Ben Cat', 'X Cleo Cat'],
         text: `<p>Clue 1 left Ava the Cat or the Owl. The Owl is out, so Ava brought the Cat: mark it <b>O</b>, and X the rest of its row and column.</p>` },
       { title: 'A shortcut', text: `<p>Many what-ifs have a shortcut. Here: the Owl goes with Green, and Ava does not go with Green, so Ava can't go with the Owl. That's the "carry facts across sections" trick from lesson 2.</p>
-        <p>Reach for what-if last, after every clue and every section. Only Expert and Quantum Physicist puzzles need long what-if chains.</p>` },
+        <p>Reach for what-if last, after every clue and every section. Only Expert, Quantum Physicist and Theoretical Physicist puzzles need long what-if chains.</p>` },
     ],
   },
   {

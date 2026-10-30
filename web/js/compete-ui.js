@@ -9,6 +9,11 @@ import { TIER_NAMES as BADGE_NAMES } from './perks.js';
 
 // The scoreboard badge for a supporter: tier 1 Bronze up to 4 Platinum
 // (server/src/supporters.js). Older servers send true, shown as Bronze.
+// Special badges next to a name (server/src/special-badges.js): at most three
+// icons, each named for screen readers and on hover.
+export const specialIcons = (list) => (Array.isArray(list) && list.length
+  ? ` <span class="special-badges">${list.slice(0, 3).map((b) => `<span role="img" aria-label="${esc(b.name)} badge" title="${esc(b.name)}">${esc(b.icon)}</span>`).join('')}</span>`
+  : '');
 export const supporterPill = (t) => {
   const n = Math.min(4, Math.max(1, Number(t) || 1));
   return ` <span class="pill supporter tier-${n}" title="Supports the game"><span aria-hidden="true">★</span> ${BADGE_NAMES[n]} supporter</span>`;
@@ -17,7 +22,7 @@ export const supporterPill = (t) => {
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const RACE_TITLES = { start: 'Start a race', join: 'Join a race', challenge: 'Challenge a player', share: 'Race started', standings: 'Race standings' };
-const TIER_NAMES = { basic: 'Basic', easy: 'Easy', medium: 'Medium', hard: 'Hard', expert: 'Expert', mensa: 'Quantum Physicist' };
+const TIER_NAMES = { basic: 'Basic', easy: 'Easy', medium: 'Medium', hard: 'Hard', expert: 'Expert', mensa: 'Quantum Physicist', theorist: 'Theoretical Physicist' };
 const INVITE_POLL_MS = 120_000;
 let ui = null;
 let name = null; // the player's screen name, once known
@@ -567,7 +572,7 @@ async function loadBoard() {
     if (!b.rows.length) { body.innerHTML = `<p class="muted">No one is on the scoreboard ${period === 'week' ? 'this week' : ''} yet. Solve a puzzle to be the first!</p>`; return; }
     body.innerHTML = `<div class="table-wrap"><table class="board"><caption class="sr-only">Scoreboard, ${period === 'week' ? 'this week' : 'all time'}</caption>
       <thead><tr><th scope="col">Rank</th><th scope="col">Player</th><th scope="col">Points</th><th scope="col">Solved</th><th scope="col">Race wins</th></tr></thead>
-      <tbody>${b.rows.map((r) => `<tr${r.me ? ' class="me"' : ''}><td><b>${r.rank}</b></td><th scope="row"><bdi translate="no">${esc(r.name)}</bdi>${r.supporter ? supporterPill(r.supporter) : ''}${r.me ? ' <span class="pill">You</span>' : ''}</th><td>${r.points}</td><td>${r.solved}</td><td>${r.wins}</td></tr>`).join('')}</tbody></table></div>`;
+      <tbody>${b.rows.map((r) => `<tr${r.me ? ' class="me"' : ''}><td><b>${r.rank}</b></td><th scope="row"><bdi translate="no">${esc(r.name)}</bdi>${r.supporter ? supporterPill(r.supporter) : ''}${specialIcons(r.badges)}${r.me ? ' <span class="pill">You</span>' : ''}</th><td>${r.points}</td><td>${r.solved}</td><td>${r.wins}</td></tr>`).join('')}</tbody></table></div>`;
   } catch (err) { body.innerHTML = `<p class="error-box">${esc(err.message)}</p>`; }
 }
 
