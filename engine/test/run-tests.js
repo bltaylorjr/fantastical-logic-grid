@@ -481,7 +481,7 @@ for (const diff of ['easy', 'medium', 'expert']) {
             if (!incident || !last.includes(incident.prize)) bad.push(`${where}: the goal question does not link "${goalLabel}" to the story's event`);
             if (!last.endsWith('?') || !has(last, goalLabel)) bad.push(`${where}: the story does not end on its goal question`);
             for (const c of model.cats.slice(1)) {
-              if (c.note && !story.text.includes(c.note.replace(/\{one\}/g, sc.cast.one).replace(/\{many\}/g, sc.cast.many).slice(1))) bad.push(`${where}: the ${c.name} note is missing from the story`);
+              if (c.note && !story.text.includes(c.note.replace(/\{one\}/g, sc.cast.one).replace(/\{many\}/g, sc.cast.many).replace(/\{low\}/g, c.labels[0]).replace(/\{high\}/g, c.labels.at(-1)).slice(1))) bad.push(`${where}: the ${c.name} note is missing from the story`);
             }
             const task = story.paragraphs.find((x) => x.startsWith('Use the clues'));
             for (const c of model.cats.slice(1)) if (!task.toLowerCase().includes(c.name.toLowerCase())) bad.push(`${where}: the task leaves out ${c.name}`);
