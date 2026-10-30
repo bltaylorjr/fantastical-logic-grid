@@ -26,6 +26,18 @@ jobs:
       - name: Setup guide lists every connection (admin/connections.js)
         run: node scripts/connections.mjs check
 
+  # Puzzle engine: unique solutions, stories match grids, items in order.
+  engine:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Engine tests (quick run)
+        run: node engine/test/run-tests.js --quick
+
   app:
     runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork && '"ubuntu-latest"') || vars.FLG_RUNNER || '"ubuntu-latest"') }}
     timeout-minutes: 30
@@ -56,6 +68,7 @@ jobs:
           node scripts/e2e-compete.cjs
           node scripts/e2e-challenge.cjs
           node scripts/e2e-daily-results.cjs
+          node scripts/e2e-puzzle-mail.cjs
           node scripts/e2e-errors.cjs
           node scripts/e2e-admin.cjs
           node scripts/e2e-archive.cjs

@@ -6,7 +6,7 @@ import * as store from './store.js';
 import { streak } from './daily.js';
 
 const LOG_LIMIT = 2000;
-const TIER_ORDER = ['basic', 'easy', 'medium', 'hard', 'expert', 'mensa'];
+const TIER_ORDER = ['basic', 'easy', 'medium', 'hard', 'expert', 'mensa', 'theorist'];
 
 // One entry per finished puzzle: { at, storyId, tier, theme, ms, expectedMs,
 // hints, checks, mistakes, revealed, cells, categories, daily, race }.
@@ -65,6 +65,7 @@ export const BADGES = [
   { id: 'hard', name: 'Hard case', text: 'Solve a Hard puzzle.', test: (f) => has(f, 'hard') },
   { id: 'expert', name: 'Expert detective', text: 'Solve an Expert puzzle.', test: (f) => has(f, 'expert') },
   { id: 'mensa', name: 'Mastermind', text: 'Solve a Quantum Physicist puzzle.', test: (f) => has(f, 'mensa') },
+  { id: 'theorist', name: 'Beyond the quantum', text: 'Solve a Theoretical Physicist puzzle.', test: (f) => has(f, 'theorist') },
   { id: 'big', name: 'Big picture', text: 'Solve a puzzle with 5 or more categories.', test: (f) => f.solved.some((x) => x.categories >= 5) },
   { id: 'ten', name: 'Ten cases', text: 'Solve 10 puzzles.', test: (f) => f.solved.length >= 10 },
   { id: 'fifty', name: 'Fifty cases', text: 'Solve 50 puzzles.', test: (f) => f.solved.length >= 50 },

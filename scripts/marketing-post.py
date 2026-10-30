@@ -5,13 +5,16 @@ the GitHub Action .github/workflows/marketing-post.yml.
    has come (GET /admin/v1/marketing/due).
 2. Post each one to the sites whose official free API allows it, using that
    site's key from the GitHub secrets: Bluesky, Mastodon, X, the game's
-   Facebook Page, Instagram and Threads. Tell the Worker the result, so the
+   Facebook Page, Instagram, Threads, LinkedIn, Pinterest, YouTube, TikTok
+   and Reddit. Tell the Worker the result, so the
    ad shows as posted (with its link) or keeps the error to try again
    tomorrow (POST /admin/v1/marketing/ads/<id>/auto).
 3. Email the owner's inbox the ads that must be posted by hand that day
-   (Reddit, Hacker News, Product Hunt, TikTok, YouTube, LinkedIn, Pinterest,
-   Facebook groups, itch.io and the rest), with the words, the tracked link
-   and the files ready to paste, plus anything that failed.
+   (Hacker News, Product Hunt, Facebook groups, itch.io and the other sites
+   with no posting API or rules against it, and any site whose key is not
+   saved yet), with the words, the tracked link and the files ready to
+   paste, plus anything that failed and the follow-ups an automatic post
+   still needs (captions, replying to comments).
 
 Keys never live in the repository: each is a GitHub secret (see the
 Marketing entries in admin/connections.js). A site without its key is
@@ -45,7 +48,11 @@ from zoneinfo import ZoneInfo
 API = os.environ.get('FLG_CLOUD_URL', '').strip().rstrip('/')
 TOKEN = os.environ.get('FLG_ADMIN_TOKEN', '').strip()
 MODE = (os.environ.get('MODE', '').strip() or 'post').lower()
-DAY = os.environ.get('DAY', '').strip() or datetime.now(ZoneInfo('America/New_York')).date().isoformat()
+TODAY = datetime.now(ZoneInfo('America/New_York')).date().isoformat()
+DAY = os.environ.get('DAY', '').strip() or TODAY
+# ONLY (optional, by hand): post just these ads early, as channel:content, comma separated
+# (for example instagram:reel-launch). Use with DAY set to the ads' posting day.
+ONLY = {x.strip() for x in os.environ.get('ONLY', '').split(',') if x.strip()}
 GMAIL_USER = os.environ.get('GMAIL_USER', '').strip()
 GMAIL_PASSWORD = ''.join(os.environ.get('GMAIL_APP_PASSWORD', '').split())
 MAIL_TO = os.environ.get('OWNER_TASKS_TO', '').strip() or GMAIL_USER
@@ -53,6 +60,7 @@ ADMIN_URL = f'{API}/admin/#marketing'
 UA = 'flg-marketing-post'
 GRAPH = 'https://graph.facebook.com/v21.0'
 THREADS = 'https://graph.threads.net/v1.0'
+REDDIT_UA = 'linux:flg-marketing-post:1.0 (The Fantastical Logic Grid)'
 RETRY_DAYS = 3  # a failed automatic post is tried again on the next 3 mornings
 
 KEYS = {
@@ -62,8 +70,15 @@ KEYS = {
     'facebook': ['META_PAGE_ID', 'META_PAGE_TOKEN'],
     'instagram': ['INSTAGRAM_ACCOUNT_ID', 'META_PAGE_TOKEN'],
     'threads': ['THREADS_USER_ID', 'THREADS_TOKEN'],
+    'linkedin': ['LINKEDIN_TOKEN'],
+    'pinterest': ['PINTEREST_APP_ID', 'PINTEREST_APP_SECRET', 'PINTEREST_REFRESH_TOKEN'],
+    'youtube': ['YOUTUBE_CLIENT_ID', 'YOUTUBE_CLIENT_SECRET', 'YOUTUBE_REFRESH_TOKEN'],
+    'tiktok': ['TIKTOK_CLIENT_KEY', 'TIKTOK_CLIENT_SECRET', 'TIKTOK_REFRESH_TOKEN'],
+    'reddit': ['REDDIT_CLIENT_ID', 'REDDIT_CLIENT_SECRET', 'REDDIT_REFRESH_TOKEN'],
 }
-NAMES = {'bluesky': 'Bluesky', 'mastodon': 'Mastodon', 'x': 'X', 'facebook': 'Facebook Page', 'instagram': 'Instagram', 'threads': 'Threads'}
+NAMES = {'bluesky': 'Bluesky', 'mastodon': 'Mastodon', 'x': 'X', 'facebook': 'Facebook Page', 'instagram': 'Instagram', 'threads': 'Threads',
+         'linkedin': 'LinkedIn', 'pinterest': 'Pinterest', 'youtube': 'YouTube', 'tiktok': 'TikTok', 'reddit': 'Reddit'}
+SUBREDDIT = re.compile(r'^https://www\.reddit\.com/r/([A-Za-z0-9_]{2,21})/?$')
 
 
 def env(name):
@@ -75,18 +90,30 @@ def has_keys(channel):
 
 
 def is_auto(ad):
-    """Facebook ads go to the game's Page; posts in groups are always by hand."""
-    return ad['channel'] in KEYS and not (ad['channel'] == 'facebook' and ad.get('medium') == 'community')
+    """Facebook ads go to the game's Page; posts in groups are always by hand.
+    Reddit posts itself only when the ad names just a subreddit: one pointing
+    at a weekly thread or with a note about it needs a person."""
+    if ad['channel'] == 'facebook' and ad.get('medium') == 'community':
+        return False
+    if ad['channel'] == 'reddit':
+        return bool(SUBREDDIT.match((ad.get('where') or '').strip()))
+    return ad['channel'] in KEYS
+
+
+RUNTIME_KEYS = []  # short-lived keys made from refresh keys during this run
 
 
 def scrub(text):
     out = str(text)
+    for v in RUNTIME_KEYS:
+        out = out.replace(v, '***')
     for names in KEYS.values():
         for k in names:
             v = env(k)
-            if len(v) >= 6 and k not in ('BLUESKY_HANDLE', 'MASTODON_URL'):
+            if len(v) >= 6 and k not in ('BLUESKY_HANDLE', 'MASTODON_URL', 'PINTEREST_BOARD_ID'):
                 out = out.replace(v, '***')
-    out = re.sub(r'(access_token|oauth_[a-z_]+)=[^&\s"]+', r'\1=***', out)
+    out = re.sub(r'(access_token|refresh_token|oauth_[a-z_]+)=[^&\s"]+', r'\1=***', out)
+    out = re.sub(r'"(access_token|refresh_token)"\s*:\s*"[^"]+"', r'"\1": "***"', out)
     return out[:280]
 
 
@@ -94,7 +121,7 @@ class Failed(Exception):
     pass
 
 
-def request(url, method='GET', data=None, headers=None, form=None, timeout=60):
+def request(url, method='GET', data=None, headers=None, form=None, timeout=60, with_headers=False):
     headers = {'User-Agent': UA, **(headers or {})}
     body = None
     if form is not None:
@@ -109,7 +136,8 @@ def request(url, method='GET', data=None, headers=None, form=None, timeout=60):
     try:
         with urllib.request.urlopen(req, timeout=timeout) as res:
             raw = res.read()
-            return json.loads(raw) if raw and raw[:1] in (b'{', b'[') else {}
+            out = json.loads(raw) if raw and raw[:1] in (b'{', b'[') else {}
+            return (out, res.headers) if with_headers else out
     except urllib.error.HTTPError as e:
         detail = e.read().decode('utf-8', 'replace')[:400]
         raise Failed(f'{e.code} {detail}') from None
@@ -259,8 +287,22 @@ def wait_ready(url, token, field='status_code'):
     raise Failed('the site took more than 10 minutes to process the file')
 
 
+def instagram_id():
+    """The Instagram business account linked to the Facebook Page. INSTAGRAM_ACCOUNT_ID is used
+    when it is an id of its own; when it is empty or holds the Page id (an easy mix-up), the
+    account is read from the Page."""
+    ig, page = env('INSTAGRAM_ACCOUNT_ID').strip().strip('"'), env('META_PAGE_ID')
+    if ig.isdigit() and ig != page:
+        return ig
+    linked = meta(f'{GRAPH}/{page}?fields=instagram_business_account', token=env('META_PAGE_TOKEN')).get('instagram_business_account')
+    if not linked:
+        raise Failed('the Facebook Page has no Instagram account linked that this key can see: link it on the Page, '
+                     'and make the key with instagram_basic, ticking the Instagram account in the pop-up.')
+    return linked['id']
+
+
 def post_instagram(ad):
-    ig, token = env('INSTAGRAM_ACCOUNT_ID'), env('META_PAGE_TOKEN')
+    ig, token = instagram_id(), env('META_PAGE_TOKEN')
     videos, images = files(ad, 'video'), files(ad, 'image')
     if videos:
         form = {'media_type': 'REELS', 'video_url': videos[0], 'caption': ad['words'], 'share_to_feed': 'true'}
@@ -291,7 +333,178 @@ def post_threads(ad):
     return meta(f"{THREADS}/{r['id']}?fields=permalink", token=token).get('permalink') or 'https://www.threads.net/'
 
 
-POST = {'bluesky': post_bluesky, 'mastodon': post_mastodon, 'x': post_x, 'facebook': post_facebook, 'instagram': post_instagram, 'threads': post_threads}
+def fields(words, *names):
+    """Ads for video and pin sites hold 'Title: ...' and 'Description: ...'
+    parts. Returns them in order; a missing title falls back to the first line
+    and a missing description to the whole text."""
+    out = {}
+    pattern = '|'.join(re.escape(n) for n in names)
+    for m in re.finditer(rf'^({pattern}):[ \t]*(.*?)(?=^(?:{pattern}):|\Z)', words, re.M | re.S):
+        out[m[1]] = m[2].strip()
+    title = out.get(names[0]) or words.strip().split('\n', 1)[0]
+    return title, out.get(names[1]) or words.strip()
+
+
+def refresh(url, form, basic=None, headers=None):
+    h = dict(headers or {})
+    if basic:
+        h['Authorization'] = 'Basic ' + base64.b64encode(f'{basic[0]}:{basic[1]}'.encode()).decode()
+    r = request(url, method='POST', form=form, headers=h)
+    token = (r['data'] if isinstance(r.get('data'), dict) else r).get('access_token')
+    if not token:
+        raise Failed('the site did not give a fresh key; press Get the key again in admin')
+    RUNTIME_KEYS.append(token)
+    return token
+
+
+def linkedin_me():
+    auth = {'Authorization': f"Bearer {env('LINKEDIN_TOKEN')}"}
+    return auth, request('https://api.linkedin.com/v2/userinfo', headers=auth)
+
+
+def post_linkedin(ad):
+    # Shared as an article, so LinkedIn shows the page's picture card.
+    auth, me = linkedin_me()
+    body = {'author': f"urn:li:person:{me['sub']}", 'lifecycleState': 'PUBLISHED',
+            'specificContent': {'com.linkedin.ugc.ShareContent': {
+                'shareCommentary': {'text': ad['words']}, 'shareMediaCategory': 'ARTICLE',
+                'media': [{'status': 'READY', 'originalUrl': ad['link']}]}},
+            'visibility': {'com.linkedin.ugc.MemberNetworkVisibility': 'PUBLIC'}}
+    r, h = request('https://api.linkedin.com/v2/ugcPosts', method='POST', data=body,
+                   headers={**auth, 'X-Restli-Protocol-Version': '2.0.0'}, with_headers=True)
+    urn = r.get('id') or h.get('x-restli-id') or ''
+    return f'https://www.linkedin.com/feed/update/{urn}/' if urn else 'https://www.linkedin.com/in/me/recent-activity/all/'
+
+
+def pinterest_token():
+    return refresh('https://api.pinterest.com/v5/oauth/token', {'grant_type': 'refresh_token', 'refresh_token': env('PINTEREST_REFRESH_TOKEN')},
+                   basic=(env('PINTEREST_APP_ID'), env('PINTEREST_APP_SECRET')))
+
+
+def pinterest_board(ad, auth):
+    if env('PINTEREST_BOARD_ID'):
+        return env('PINTEREST_BOARD_ID')
+    boards = request('https://api.pinterest.com/v5/boards?page_size=100', headers=auth).get('items', [])
+    if not boards:
+        raise Failed('the Pinterest account has no boards yet; make the boards the ad names')
+    where = (ad.get('where') or '').lower()
+    named = sorted((b for b in boards if b.get('name') and b['name'].lower() in where), key=lambda b: where.index(b['name'].lower()))
+    return (named or boards)[0]['id']  # the first board the ad names
+
+
+def post_pinterest(ad):
+    auth = {'Authorization': f'Bearer {pinterest_token()}'}
+    images = files(ad, 'image')
+    if not images:
+        raise Failed('a pin needs a picture')
+    title, about = fields(ad['words'], 'Pin title', 'Description')
+    r = request('https://api.pinterest.com/v5/pins', method='POST', headers=auth, data={
+        'board_id': pinterest_board(ad, auth), 'title': title[:100], 'description': about[:800], 'link': ad['link'],
+        'alt_text': ALT, 'media_source': {'source_type': 'image_url', 'url': images[0]}})
+    return f"https://www.pinterest.com/pin/{r['id']}/"
+
+
+def youtube_token():
+    return refresh('https://oauth2.googleapis.com/token', {'grant_type': 'refresh_token', 'refresh_token': env('YOUTUBE_REFRESH_TOKEN'),
+                                                          'client_id': env('YOUTUBE_CLIENT_ID'), 'client_secret': env('YOUTUBE_CLIENT_SECRET')})
+
+
+def post_youtube(ad):
+    videos = files(ad, 'video')
+    if not videos:
+        raise Failed('YouTube needs a video')
+    auth = {'Authorization': f'Bearer {youtube_token()}'}
+    title, about = fields(ad['words'], 'Title', 'Description')
+    data, ctype = download(videos[0])
+    meta_body = {'snippet': {'title': title[:100], 'description': about[:5000], 'categoryId': '20', 'defaultLanguage': 'en'},
+                 'status': {'privacyStatus': 'public', 'selfDeclaredMadeForKids': False}}
+    _, h = request('https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status', method='POST', data=meta_body,
+                   headers={**auth, 'X-Upload-Content-Type': ctype, 'X-Upload-Content-Length': str(len(data))}, with_headers=True)
+    r = request(h['Location'], method='PUT', data=data, headers={'Content-Type': ctype}, timeout=600)
+    return f"https://www.youtube.com/watch?v={r['id']}"
+
+
+def tiktok_token():
+    return refresh('https://open.tiktokapis.com/v2/oauth/token/', {'grant_type': 'refresh_token', 'refresh_token': env('TIKTOK_REFRESH_TOKEN'),
+                                                                  'client_key': env('TIKTOK_CLIENT_KEY'), 'client_secret': env('TIKTOK_CLIENT_SECRET')})
+
+
+def tiktok(path, token, body=None):
+    r = request(f'https://open.tiktokapis.com/v2/{path}', method='POST', data=body or {},
+                headers={'Authorization': f'Bearer {token}', 'Content-Type': 'application/json; charset=UTF-8'})
+    if (r.get('error') or {}).get('code', 'ok') != 'ok':
+        raise Failed(f"TikTok said: {r['error'].get('message') or r['error'].get('code')}")
+    return r.get('data') or {}
+
+
+def post_tiktok(ad):
+    videos = files(ad, 'video')
+    if not videos:
+        raise Failed('TikTok needs a video')
+    token = tiktok_token()
+    options = tiktok('post/publish/creator_info/query/', token).get('privacy_level_options') or []
+    if 'PUBLIC_TO_EVERYONE' not in options:
+        raise Failed('TikTok does not let this app post publicly yet (the app review is not finished)')
+    data, ctype = download(videos[0])
+    if len(data) > 64 * 1024 * 1024:
+        raise Failed('the video is over 64 MB')
+    init = tiktok('post/publish/video/init/', token, {
+        'post_info': {'title': ad['words'][:2200], 'privacy_level': 'PUBLIC_TO_EVERYONE', 'disable_comment': False, 'disable_duet': False, 'disable_stitch': False},
+        'source_info': {'source': 'FILE_UPLOAD', 'video_size': len(data), 'chunk_size': len(data), 'total_chunk_count': 1}})
+    request(init['upload_url'], method='PUT', data=data, timeout=600,
+            headers={'Content-Type': ctype, 'Content-Range': f'bytes 0-{len(data) - 1}/{len(data)}'})
+    for _ in range(60):
+        st = tiktok('post/publish/status/fetch/', token, {'publish_id': init['publish_id']})
+        if st.get('status') == 'PUBLISH_COMPLETE':
+            return 'https://www.tiktok.com/'
+        if st.get('status') == 'FAILED':
+            raise Failed(f"TikTok could not publish it ({st.get('fail_reason') or 'no reason given'})")
+        time.sleep(10)
+    raise Failed('TikTok took more than 10 minutes; check the account before posting it again')
+
+
+def reddit_token():
+    return refresh('https://www.reddit.com/api/v1/access_token', {'grant_type': 'refresh_token', 'refresh_token': env('REDDIT_REFRESH_TOKEN')},
+                   basic=(env('REDDIT_CLIENT_ID'), env('REDDIT_CLIENT_SECRET')), headers={'User-Agent': REDDIT_UA})
+
+
+def reddit(path, token, form):
+    r = request(f'https://oauth.reddit.com/{path}', method='POST', form={**form, 'api_type': 'json'},
+                headers={'Authorization': f'Bearer {token}', 'User-Agent': REDDIT_UA})
+    errors = (r.get('json') or {}).get('errors') or []
+    if errors:
+        raise Failed('Reddit said: ' + '; '.join(' '.join(str(x) for x in e[:2]) for e in errors))
+    return (r.get('json') or {}).get('data') or {}
+
+
+def post_reddit(ad):
+    """The first line is the post title. Ads whose tip asks for a link post are
+    posted as one, with the rest of the words as the first comment; the others
+    are text posts that hold the link."""
+    sub = SUBREDDIT.match((ad.get('where') or '').strip())[1]
+    title, _, rest = ad['words'].strip().partition('\n')
+    rest = rest.strip()
+    token = reddit_token()
+    if 'link post' in (ad.get('notes') or '').lower():
+        d = reddit('api/submit', token, {'sr': sub, 'kind': 'link', 'title': title[:300], 'url': ad['link'], 'resubmit': 'true'})
+        if rest and d.get('name'):
+            reddit('api/comment', token, {'thing_id': d['name'], 'text': rest})
+    else:
+        d = reddit('api/submit', token, {'sr': sub, 'kind': 'self', 'title': title[:300], 'text': rest or ad['link']})
+    return d.get('url') or f'https://www.reddit.com/r/{sub}/new/'
+
+
+POST = {'bluesky': post_bluesky, 'mastodon': post_mastodon, 'x': post_x, 'facebook': post_facebook, 'instagram': post_instagram, 'threads': post_threads,
+        'linkedin': post_linkedin, 'pinterest': post_pinterest, 'youtube': post_youtube, 'tiktok': post_tiktok, 'reddit': post_reddit}
+
+
+def check_instagram():
+    ig = instagram_id()
+    r = meta(f'{GRAPH}/{ig}?fields=username', token=env('META_PAGE_TOKEN'))
+    if not r.get('username'):
+        raise Failed('Meta shows no username for the Instagram account: make the key again with instagram_basic, '
+                     'ticking the Instagram account in the pop-up.')
+    return r['username']
 
 
 def check_keys():
@@ -301,8 +514,13 @@ def check_keys():
                                     headers={'Authorization': f"Bearer {env('MASTODON_TOKEN')}"})['acct'],
         'x': lambda: request('https://api.x.com/2/users/me', headers={'Authorization': oauth1('GET', 'https://api.x.com/2/users/me')})['data']['username'],
         'facebook': lambda: meta(f"{GRAPH}/{env('META_PAGE_ID')}?fields=name", token=env('META_PAGE_TOKEN'))['name'],
-        'instagram': lambda: meta(f"{GRAPH}/{env('INSTAGRAM_ACCOUNT_ID')}?fields=username", token=env('META_PAGE_TOKEN'))['username'],
+        'instagram': check_instagram,
         'threads': lambda: meta(f'{THREADS}/me?fields=username', token=env('THREADS_TOKEN'))['username'],
+        'linkedin': lambda: linkedin_me()[1]['sub'],
+        'pinterest': lambda: request('https://api.pinterest.com/v5/user_account', headers={'Authorization': f'Bearer {pinterest_token()}'})['username'],
+        'youtube': lambda: request('https://www.googleapis.com/youtube/v3/channels?part=id&mine=true', headers={'Authorization': f'Bearer {youtube_token()}'})['items'][0]['id'],
+        'tiktok': lambda: tiktok('post/publish/creator_info/query/', tiktok_token())['creator_username'],
+        'reddit': lambda: request('https://oauth.reddit.com/api/v1/me', headers={'Authorization': f'Bearer {reddit_token()}', 'User-Agent': REDDIT_UA})['name'],
     }
     bad = 0
     for ch, test in tests.items():
@@ -359,6 +577,9 @@ def main():
         return
     due = worker(f'marketing/due?day={urllib.parse.quote(DAY)}')
     ads = due.get('ads', [])
+    if ONLY:
+        ads = [a for a in ads if f"{a['channel']}:{a.get('content', '')}" in ONLY]
+        print(f"::notice::Chosen ads found: {', '.join(a['title'] for a in ads) or 'none (check the day and that the ad is approved)'}")
     dry = MODE == 'dry-run'
     print(f'{DAY}: {len(ads)} approved ads due (automatic posting {"on" if due.get("autopost") else "off"}).')
     posted, failed, by_hand = [], [], []
@@ -378,9 +599,9 @@ def main():
             continue
         try:
             url = POST[ad['channel']](ad)
-            worker(f'marketing/ads/{ad["id"]}/auto', {'ok': True, 'postUrl': url, 'note': f'Posted automatically on {DAY}'})
+            worker(f'marketing/ads/{ad["id"]}/auto', {'ok': True, 'postUrl': url, 'note': f'Posted automatically on {TODAY if ONLY else DAY}'})
             posted.append((ad, url))
-            print(f'Posted: {ad["title"]}')
+            print(f'::notice::Posted: {ad["title"]}')
         except Exception as e:  # noqa: BLE001 - one site failing must not stop the others
             note = f'{DAY}: {scrub(e)}'
             failed.append((ad, note))
@@ -390,7 +611,8 @@ def main():
             except Exception as e2:  # noqa: BLE001
                 print(f'::warning::Could not save the note: {scrub(e2)}')
     print(f'Posted {len(posted)}, failed {len(failed)}, to post by hand today {len(by_hand)}.')
-    if not (by_hand or failed or (dry and posted)) or not due.get('reminders'):
+    follow_up = [(a, u) for a, u in posted if a.get('notes')]
+    if not (by_hand or failed or follow_up or (dry and posted)) or not due.get('reminders'):
         return
     when = datetime.fromisoformat(DAY).strftime('%A, %B %-d')
     parts = [f'<p>Good morning! Here is the launch campaign for {when}.</p>']
@@ -398,6 +620,9 @@ def main():
         parts.append('<p><b>Posted automatically:</b></p><ul>' + ''.join(
             f'<li>{html.escape(a["title"])}: <a href="{html.escape(u)}">{html.escape(u)}</a></li>' if u.startswith('https://') else f'<li>{html.escape(a["title"])} {html.escape(u)}</li>'
             for a, u in posted) + '</ul>')
+    if follow_up:
+        parts.append('<p><b>Posted automatically, with a small job left for you:</b></p><ul>' + ''.join(
+            f'<li>{html.escape(a["title"])}: {html.escape(a["notes"])}</li>' for a, _ in follow_up) + '</ul>')
     if failed:
         parts.append('<p><b>Could not post (it tries again tomorrow, or post it by hand):</b></p><ul>' + ''.join(
             f'<li>{html.escape(a["title"])}: {html.escape(n)}</li>' for a, n in failed) + '</ul>')

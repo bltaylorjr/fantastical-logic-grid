@@ -41,6 +41,20 @@ async function getJson(file) {
   throw last || new Error('No website to read the daily puzzle from');
 }
 
+// Any file of the website next to daily/ (the puzzle of the week, special
+// editions: editions.js).
+export async function siteJson(path) {
+  let last;
+  for (const b of bases()) {
+    try {
+      const res = await fetch(new URL(`../${path}`, b).href, { cache: 'no-cache' });
+      if (!res.ok) { last = new Error(`HTTP ${res.status}`); continue; }
+      return await res.json();
+    } catch (e) { last = e; }
+  }
+  throw last || new Error('No website to read the puzzle from');
+}
+
 // { date, title, themeName, difficultyName, days: [dates, newest first] }.
 // Offline, the last one seen is used.
 export async function latest() {
