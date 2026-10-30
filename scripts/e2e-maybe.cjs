@@ -58,6 +58,8 @@ const dir = process.argv[2] || path.join(__dirname, '..', 'dist', 'web');
     assert((await state(second)).q, 'the cell menu offers the ?');
 
     await page.waitForTimeout(1200); // autosave
+    // The welcome only shows on a first visit: mark it seen so it can't cover the page.
+    await page.evaluate(() => { const s = JSON.parse(localStorage.getItem('flg.settings') || '{}'); localStorage.setItem('flg.settings', JSON.stringify({ ...s, introOffered: true })); });
     await page.goto('http://localhost:8149/');
     await page.waitForSelector('#continue-btn:not([hidden])');
     if (await page.locator('#dlg-welcome[open]').count()) await page.keyboard.press('Escape');

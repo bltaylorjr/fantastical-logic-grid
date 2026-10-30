@@ -81,7 +81,10 @@ const dir = process.argv[2] || path.join(__dirname, '..', 'dist', 'web');
     assert(!(await page.locator('#clue-list li.pic-locked').count()), 'the clue stays unlocked after reopening');
 
     // ?pictures=0 switches it off for testing.
+    // The welcome only shows on a first visit: mark it seen so it can't cover the page.
+    await page.evaluate(() => { const s = JSON.parse(localStorage.getItem('flg.settings') || '{}'); localStorage.setItem('flg.settings', JSON.stringify({ ...s, introOffered: true })); });
     await page.goto('http://localhost:8147/?pictures=0');
+    await page.waitForSelector('#continue-btn:not([hidden])');
     if (await page.locator('#dlg-welcome[open]').count()) await page.keyboard.press('Escape');
     await page.click('#continue-btn');
     await page.waitForSelector('#screen-play:not([hidden])');
