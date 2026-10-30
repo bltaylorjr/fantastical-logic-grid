@@ -59,7 +59,7 @@ const APP = `http://localhost:${APP_PORT}`;
         const [a, b] = k.split('|');
         const match = S.puzzle.solution.some((row) => { const v = Object.values(row); return v.includes(a) && v.includes(b); });
         const cur = S.marks.get(k) || '';
-        out.push({ k, clicks: match ? (cur === 'O' ? 0 : cur === 'X' ? 1 : 2) : (cur === 'X' ? 0 : cur === 'O' ? 2 : 1) });
+        out.push({ k, clicks: match ? (cur === 'O' ? 0 : cur === 'X' ? 1 : 2) : (cur === 'X' ? 0 : cur === 'O' ? 3 : 1) });
       }
       return out;
     });

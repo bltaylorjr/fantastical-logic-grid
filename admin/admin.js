@@ -22,6 +22,24 @@ import { badgesView, initBadges, playerBadgesHtml, playerBadgeClick } from './ba
 import { passkeysSupported, platformReady, rememberedPasskey, passkeySignIn, offerPasskey, passkeysView, initPasskeys } from './passkeys.js';
 
 const $ = (s, el = document) => el.querySelector(s);
+
+// The top bar (and, on phones, the section menu under it) stays in place while
+// the page scrolls. Their heights change as they wrap, so they are measured
+// into --top-h and --nav-h for the sticky offsets in admin.css.
+function measureBars() {
+  const root = document.documentElement.style;
+  const top = document.querySelector('.top');
+  const nav = document.querySelector('.nav');
+  root.setProperty('--top-h', `${top ? top.offsetHeight : 0}px`);
+  const navOnTop = nav && matchMedia('(max-width: 760px)').matches && nav.offsetParent !== null;
+  root.setProperty('--nav-h', `${navOnTop ? nav.offsetHeight : 0}px`);
+}
+if (window.ResizeObserver) {
+  const ro = new ResizeObserver(measureBars);
+  for (const el of document.querySelectorAll('.top, .nav')) ro.observe(el);
+}
+window.addEventListener('resize', measureBars);
+measureBars();
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const fmt = (n) => (n == null ? '–' : Number(n).toLocaleString());
@@ -856,9 +874,17 @@ function itemHtml(i) {
       <span class="muted">${when(i.at)} · ${esc(m.platform)} ${esc(m.version)}${m.conversationId ? ' · the player asked for a reply' : ''}</span>
       <p class="fb-text">${esc(i.text)}</p>
       ${i.status === 'addressed' && m.note ? `<p class="fb-note"><b>What we did:</b> ${esc(m.note)} <span class="muted">${when(m.doneAt)}</span></p>` : ''}
-      ${storyline ? storyApproveHtml(i) : ''}<div class="row">${m.conversationId ? `<button class="btn primary small" type="button" data-open="${m.conversationId}">Reply</button>` : ''}
-      ${storyline ? storyButtons(i.id) : i.status === 'new' ? `<button class="btn${m.conversationId ? '' : ' primary'} small" type="button" data-fb="${i.id}" data-status="addressed">Mark addressed</button>
-        <button class="btn small" type="button" data-fb="${i.id}" data-status="done">Mark done</button>` : `<button class="btn small" type="button" data-fb="${i.id}" data-status="new">Mark new</button>`}
+      ${i.status === 'approved' ? `<p class="fb-note"><span class="badge ok">Approved</span> Waiting for the weekly fix run${m.approvedBy ? ` · approved by ${esc(m.approvedBy)}` : ''} ${when(m.approvedAt)}. Mark it fixed once the change is live.</p>` : ''}
+      ${i.status === 'done' && m.declined ? '<p class="fb-note"><span class="badge">Disapproved</span> Closed with no change.</p>' : ''}
+      ${storyline ? storyApproveHtml(i) : ''}<div class="row">${m.conversationId ? `<button class="btn small" type="button" data-open="${m.conversationId}">Reply</button>` : ''}
+      ${storyline ? storyButtons(i.id)
+    : i.status === 'new' ? `<button class="btn primary small" type="button" data-fb="${i.id}" data-status="approved">Approve</button>
+        <button class="btn small" type="button" data-fb="${i.id}" data-status="declined">Disapprove</button>
+        <button class="btn small" type="button" data-fb="${i.id}" data-status="addressed">Mark addressed</button>`
+    : i.status === 'approved' ? `<button class="btn primary small" type="button" data-fb="${i.id}" data-status="addressed">Mark fixed</button>
+        <button class="btn small" type="button" data-fb="${i.id}" data-status="declined">Disapprove</button>
+        <button class="btn small" type="button" data-fb="${i.id}" data-status="new">Mark new</button>`
+    : `<button class="btn small" type="button" data-fb="${i.id}" data-status="new">Mark new</button>`}
       <button class="btn small" type="button" data-fb="${i.id}" data-status="delete">Delete</button></div>
       ${i.report ? reportHtml(i.report) : ''}</li>`;
   }
@@ -960,7 +986,9 @@ $('#comm-list').onclick = async (e) => {
   const b = e.target.closest('button[data-fb]');
   if (!b) return;
   if (b.dataset.status === 'delete' && !(await ask({ title: 'Delete this message?', text: 'It cannot be brought back.', ok: 'Delete', danger: true }))) return;
-  const words = { addressed: 'Marked addressed.', done: 'Marked done.', new: 'Marked new.', delete: 'Deleted.' };
+  if (b.dataset.status === 'approved' && !(await ask({ title: 'Approve for processing?', text: 'It joins the queue the weekly improvement run works through: the weekly Claude task reads it privately and makes the fix when it is clear and safe. Nothing is sent to the player yet. Once the change is live, press Mark fixed with a short note, and a player who asked for email gets it.', ok: 'Approve' }))) return;
+  if (b.dataset.status === 'declined' && !(await ask({ title: 'Disapprove?', text: 'It is closed with no change. A player who asked for email gets the plain thank-you. You can mark it new again later.', ok: 'Disapprove' }))) return;
+  const words = { approved: 'Approved. It is queued for the weekly fix run.', declined: 'Disapproved and closed.', addressed: 'Marked addressed.', done: 'Marked done.', new: 'Marked new.', delete: 'Deleted.' };
   const body = { status: b.dataset.status };
   if (body.status === 'addressed') {
     const v = await ask({ title: 'Mark addressed', text: 'Say what was done in plain, everyday words a player would understand, like "Fixed: the grid no longer scrolls twice on tablets." If the player ticked "Email me an update", they get this note by email, with what they wrote.', ok: 'Mark addressed',
@@ -1317,6 +1345,7 @@ $('#np-body').onclick = (e) => {
 $('#np-days').onchange = () => show('numberplace', { keepFocus: true });
 
 views.settings = async () => {
+  renderAlerts().catch((e) => { $('#alerts-body').innerHTML = `<div class="card"><h2>My alerts</h2><p class="note">${esc(e.message)}</p></div>`; });
   const d = await api('settings');
   const groups = {};
   // Number Place's settings have their own section.
@@ -1352,6 +1381,115 @@ views.settings = async () => {
       <div><b id="lbl-${s.key}">${esc(s.label)}</b><p class="help">${esc(s.help)}</p>${s.updatedBy ? `<p class="meta">Changed by ${esc(s.updatedBy)} on ${when(s.updatedAt)}</p>` : ''}</div>
       <div>${control(s)}</div>${extra(s)}</div>`).join('')}</div>`).join('');
   $$('#settings-body input[type=checkbox][data-key]').forEach((c) => c.setAttribute('aria-labelledby', `lbl-${c.dataset.key}`));
+};
+// ------------------------------------------------------------- my alerts
+// Push alerts on this phone or computer, and email to an address typed in
+// here (server/src/alerts.js). Each admin sets up their own.
+const pushSupported = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+const isIos = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const isStandalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const deviceGuess = () => {
+  const ua = navigator.userAgent;
+  if (/iPhone/.test(ua)) return 'iPhone';
+  if (/iPad/.test(ua) || isIos()) return 'iPad';
+  if (/Android/.test(ua)) return /Mobile/.test(ua) ? 'Android phone' : 'Android tablet';
+  if (/Windows/.test(ua)) return 'Windows computer';
+  if (/Mac/.test(ua)) return 'Mac';
+  return 'This device';
+};
+const keyBytes = (b64) => { const s = b64.replace(/-/g, '+').replace(/_/g, '/'); return Uint8Array.from(atob(s + '='.repeat((4 - (s.length % 4)) % 4)), (c) => c.charCodeAt(0)); };
+async function currentSubscription() {
+  if (!pushSupported()) return null;
+  const reg = await navigator.serviceWorker.getRegistration('/admin/');
+  return reg ? reg.pushManager.getSubscription() : null;
+}
+let alertState = null;
+async function renderAlerts() {
+  const d = await api('notify');
+  const sub = await currentSubscription().catch(() => null);
+  alertState = { ...d, endpoint: sub?.endpoint || null };
+  let saved = null;
+  try { saved = Number(localStorage.getItem('flgAlertDevice')); } catch (e) { /* optional */ }
+  const here = sub ? d.devices.find((x) => x.id === saved) : null;
+  const p = d.prefs;
+  let pushPart;
+  if (!pushSupported() && isIos() && !isStandalone()) {
+    pushPart = '<p class="note">On iPhone and iPad, alerts only work from the installed app: tap Share, then <b>Add to Home Screen</b>, open the dashboard from your Home Screen, and come back here.</p>';
+  } else if (!pushSupported()) {
+    pushPart = '<p class="note">This browser cannot show push alerts. Try Chrome, Edge, Firefox or Safari, or use email below.</p>';
+  } else if (Notification.permission === 'denied') {
+    pushPart = '<p class="note">Notifications are blocked for this site. Allow them in this browser\'s site settings (or the phone\'s Settings &gt; Notifications), then reload.</p>';
+  } else if (here) {
+    pushPart = `<p><span class="badge ok">On</span> Alerts are on for this device (<b>${esc(here.label)}</b>).</p>`;
+  } else {
+    pushPart = `<div class="row"><div class="field grow"><label for="alert-label">Name for this device</label><input id="alert-label" type="text" maxlength="60" value="${esc(deviceGuess())}" autocomplete="off"></div>
+      <button class="btn primary" id="alert-on" type="button">Turn on alerts on this device</button></div>`;
+  }
+  const devices = d.devices.length ? `<ul class="alert-devices">${d.devices.map((x) => `<li><b>${esc(x.label || 'Device')}</b>${here && here.id === x.id ? ' <span class="muted">(this one)</span>' : ''}
+      <span class="muted">· added ${when(x.createdAt)}${x.lastSentAt ? ` · last alert ${when(x.lastSentAt)}` : ''}</span>${x.lastError ? ` <span class="badge warn">Last try failed</span>` : ''}
+      <button class="btn small" type="button" data-alert-remove="${x.id}">Remove</button></li>`).join('')}</ul>` : '<p class="muted">No devices yet.</p>';
+  const box = (name, label, help) => `<label class="check"><input type="checkbox" name="alert-${name}"${p[name] ? ' checked' : ''}> <span><b>${label}</b> <span class="muted">${help}</span></span></label>`;
+  $('#alerts-body').innerHTML = `<div class="card" id="alerts-card"><h2>My alerts</h2>
+    <p class="help">Get a push on your phone or computer, an email, or both, when something needs you. Only you see these choices (${esc(d.signedInAs)}).</p>
+    <h3>Push on this device</h3>${pushPart}
+    <h3>Your devices</h3>${devices}
+    <h3>Email</h3>
+    ${d.emailReady ? '' : '<p class="note">Emails need the <b>RESEND_API_KEY</b> secret on the Worker (Connections and setup). Push alerts work without it.</p>'}
+    <div class="row"><div class="field grow"><label for="alert-email">Send alerts to this email address</label>
+      <input id="alert-email" type="email" maxlength="254" value="${esc(p.emailTo)}" autocomplete="email" spellcheck="false" inputmode="email" placeholder="you@example.com"></div></div>
+    <label class="check"><input type="checkbox" name="alert-emailOn"${p.emailOn ? ' checked' : ''}> <span>Email me alerts too</span></label>
+    <h3>What to alert me about</h3>
+    ${box('problems', 'Problems', 'a new kind of error, a disputed payment, failed maintenance. Sent at once.')}
+    ${box('approvals', 'Waiting for you', 'educator requests and character suggestions at once; screen names and new ads with the hourly round-up.')}
+    ${box('messages', 'Messages', 'player messages, replies, ideas and problem reports, gathered into one alert at most once an hour.')}
+    <div class="row"><button class="btn primary" type="button" id="alert-save">Save my alert choices</button>
+      <button class="btn" type="button" id="alert-test"${d.devices.length || p.emailOn ? '' : ' disabled'}>Send a test alert</button></div></div>`;
+}
+async function turnOnPush(button) {
+  const ok = await act(button, async () => {
+    if (await Notification.requestPermission() !== 'granted') throw new Error('Notifications were not allowed. Allow them for this site, then try again.');
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(alertState.publicKey) });
+    const j = sub.toJSON();
+    const r = await api('notify/devices', { method: 'POST', body: { endpoint: j.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth, label: $('#alert-label')?.value || deviceGuess() } });
+    try { localStorage.setItem('flgAlertDevice', String(r.id)); } catch (e) { /* optional */ }
+  }, 'Alerts are on for this device.');
+  if (ok) renderAlerts();
+}
+$('#alerts-body').onclick = async (e) => {
+  const t = e.target.closest('button');
+  if (!t) return;
+  if (t.id === 'alert-on') return turnOnPush(t);
+  if (t.id === 'alert-save') {
+    const body = { emailTo: $('#alert-email').value.trim(), emailOn: $('[name=alert-emailOn]').checked };
+    for (const k of ['problems', 'approvals', 'messages']) body[k] = $(`[name=alert-${k}]`).checked;
+    if (await act(t, () => api('notify/prefs', { method: 'POST', body }), 'Your alert choices are saved.')) renderAlerts();
+    return;
+  }
+  if (t.id === 'alert-test') {
+    await act(t, async () => {
+      const r = await api('notify/test', { method: 'POST', body: {} });
+      const parts = [r.pushed ? `pushed to ${r.pushed} device${r.pushed === 1 ? '' : 's'}` : '', r.emailed ? 'emailed' : ''].filter(Boolean);
+      if (!parts.length) throw new Error(r.failed ? 'The test could not be delivered. Remove the device and turn alerts on again.' : 'Nothing to send to yet: turn on a device or email first.');
+      toast(`Test alert ${parts.join(' and ')}.`); announce(`Test alert ${parts.join(' and ')}.`);
+    });
+    renderAlerts();
+    return;
+  }
+  if (t.dataset.alertRemove) {
+    const id = Number(t.dataset.alertRemove);
+    const ok = await act(t, async () => {
+      await api(`notify/devices/${id}/remove`, { method: 'POST', body: {} });
+      let mine = null;
+      try { mine = Number(localStorage.getItem('flgAlertDevice')); } catch (err) { /* optional */ }
+      if (mine === id) {
+        try { localStorage.removeItem('flgAlertDevice'); } catch (err) { /* optional */ }
+        await (await currentSubscription())?.unsubscribe();
+      }
+    }, 'Device removed. It gets no more alerts.');
+    if (ok) renderAlerts();
+  }
 };
 async function saveSettingValue(key, value, button) {
   if (await act(button, () => api('settings', { method: 'POST', body: { key, value } }), 'Saved. Players get it within about a minute.')) show('settings', { keepFocus: true });
@@ -1716,7 +1854,7 @@ views.ratings = () => ratingsView(ratingHelpers);
 initRatings(ratingHelpers, (name, o) => show(name, o));
 
 // ---- Marketing (marketing.js): campaigns, ads, media, tracked links and their numbers.
-const marketingHelpers = { api, esc, fmt, when, tile, table, can, act, ask, toast };
+const marketingHelpers = { api, esc, fmt, when, tile, table, can, act, ask, toast, announce };
 views.marketing = () => marketingView(marketingHelpers);
 initMarketing(marketingHelpers, (name, o) => show(name, o));
 const educatorHelpers = { api, esc, fmt, when, can, act, ask, setCount };

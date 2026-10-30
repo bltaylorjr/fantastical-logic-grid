@@ -175,6 +175,31 @@ test('sound, voice and picture choices reach the game', async () => {
   assert.equal((await call('/v1/config')).body.features.pictures, false);
 });
 
+test('Approve sends an idea or problem to the fix queue; Disapprove closes it', async () => {
+  // Its own admin, so these calls do not use up the break-glass key's per-minute allowance.
+  const ME = idToken('owner-approve-uid', OWNER);
+  await call('/v1/feedback', { body: { kind: 'problem', topic: 'play', text: 'The hint button does nothing on my tablet.' } });
+  await call('/v1/feedback', { body: { kind: 'idea', topic: 'feature', text: 'Let me choose the grid colors please.' } });
+  const p = (await call('/admin/v1/feedback?kind=problem', { auth: ME })).body.items.find((x) => /hint button/.test(x.text));
+  const i = (await call('/admin/v1/feedback?kind=idea', { auth: ME })).body.items.find((x) => /grid colors/.test(x.text));
+  assert.equal((await call(`/admin/v1/feedback/${p.id}`, { auth: ME, body: { status: 'approved' } })).status, 200);
+  const approved = (await call('/admin/v1/feedback?kind=problem&status=approved', { auth: ME })).body.items;
+  assert.deepEqual(approved.map((x) => x.id), [p.id], 'approved ones have their own list');
+  const inbox = (await call('/admin/v1/inbox?type=all&status=approved', { auth: ME })).body.items;
+  assert.ok(inbox.every((x) => x.status === 'approved') && inbox.some((x) => x.id === p.id), 'the inbox shows only approved items under Approved');
+  const queue = (await call('/admin/v1/feedback/queue', { auth: ME })).body.approved;
+  assert.deepEqual(queue.map((x) => [x.id, x.kind, x.topic]), [[p.id, 'problem', 'play']]);
+  assert.ok(!('text' in queue[0]), 'the queue never carries what the player wrote');
+  assert.equal((await call(`/admin/v1/feedback/${i.id}`, { auth: ME, body: { status: 'declined' } })).status, 200);
+  const done = (await call('/admin/v1/inbox?type=idea&status=done', { auth: ME })).body.items.find((x) => x.id === i.id);
+  assert.equal(done.meta.declined, true, 'a disapproved idea is closed and marked as such');
+  assert.equal((await call(`/admin/v1/feedback/${p.id}`, { auth: ME, body: { status: 'addressed', note: 'The hint button works on tablets now.' } })).status, 200);
+  assert.equal((await call('/admin/v1/feedback/queue', { auth: ME })).body.approved.length, 0, 'a fixed one leaves the queue');
+  // Leave the boxes as the next test expects them.
+  await call(`/admin/v1/feedback/${p.id}`, { auth: ME, body: { status: 'delete' } });
+  await call(`/admin/v1/feedback/${i.id}`, { auth: ME, body: { status: 'delete' } });
+});
+
 test('ideas and problems arrive in separate boxes', async () => {
   assert.equal((await call('/v1/feedback', { body: { kind: 'idea', topic: 'story', text: 'A pirate ship lost in the fog! Write me at a@b.co', platform: 'web', version: '1.6.0', theme: 'adventure' } })).status, 200);
   assert.equal((await call('/v1/feedback', { body: { kind: 'problem', topic: 'sound', text: 'The music stops after a while.', theme: 'mystery' } })).status, 200);
