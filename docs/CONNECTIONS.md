@@ -596,14 +596,14 @@ uses a secret, variable or binding that is not listed there.
 - Namecheap Mail Settings: Custom MX: @ mx1.improvmx.com (10), @ mx2.improvmx.com (20)
 - Root SPF TXT (@): v=spf1 include:spf.improvmx.com ~all
 - ImprovMX alias: support -> fantasticallogicgrid@gmail.com
-- Gmail Send mail as: smtp.resend.com, port 465 SSL, user resend, password = a Resend Sending access key
+- Gmail Send mail as: smtp.resend.com, port 587 TLS, user resend, password = a Resend Sending access key
 
 **Steps:**
 
 1. Sign up at <https://app.improvmx.com> with fantasticallogicgrid@gmail.com, add `thelogicgrid.com`, and make the alias `support` forward to fantasticallogicgrid@gmail.com.
 2. Namecheap > **Domain List** > **Manage** > **Advanced DNS**: under **Mail Settings** (Custom MX) add MX `@` `mx1.improvmx.com` priority 10 and MX `@` `mx2.improvmx.com` priority 20; under **Host Records** add TXT `@` `v=spf1 include:spf.improvmx.com ~all`.
 3. In ImprovMX click **Check again** until it says **Email forwarding active**.
-4. Gmail > **Settings** > **Accounts and Import** > **Send mail as** > **Add another email address**: `support@thelogicgrid.com`, SMTP `smtp.resend.com`, port 465 (SSL), user `resend`, password = a new Resend **Sending access** key. Confirm with the code Gmail sends.
+4. Gmail > **Settings** > **Accounts and Import** > **Send mail as** > **Add another email address**: `support@thelogicgrid.com`, SMTP `smtp.resend.com`, port 587 (TLS; 465 SSL fails from Gmail), user `resend`, password = a new Resend **Sending access** key. Confirm with the code Gmail sends.
 
 **Links:** [ImprovMX](https://app.improvmx.com) · [ImprovMX Namecheap guide](https://improvmx.com/guides/namecheap) · [Full guide (docs/owner-tasks/2026-10-28-resend-namecheap.md)](https://github.com/bltaylorjr/fantastical-logic-grid/blob/main/docs/owner-tasks/2026-10-28-resend-namecheap.md)
 
