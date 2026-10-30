@@ -45,7 +45,8 @@ export const MOST_DOWNLOADS = 2;
 // (any case, spaces or dashes, with or without FLG), or null.
 export function cleanKey(v) {
   let s = String(v || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-  if (s.startsWith('FLG')) s = s.slice(3);
+  // Only a leading FLG on a full-length key is the prefix: a key can itself start with F, L, G.
+  if (s.length === GROUPS * GROUP + 3 && s.startsWith('FLG')) s = s.slice(3);
   if (s.length !== GROUPS * GROUP || [...s].some((c) => !ALPHABET.includes(c))) return null;
   return `FLG-${s.match(new RegExp(`.{${GROUP}}`, 'g')).join('-')}`;
 }
