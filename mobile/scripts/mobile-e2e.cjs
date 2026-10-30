@@ -42,6 +42,7 @@ const fakeAndroid = () => {
     for (const [name, device] of [['phone', devices['Pixel 7']], ['small', { ...devices['Galaxy S9+'], viewport: { width: 360, height: 740 } }]]) {
       const ctx = await browser.newContext({ ...device });
       await ctx.addInitScript(fakeAndroid);
+      await ctx.addInitScript(() => { try { localStorage.setItem('flg.savedOpen', 'true'); } catch (e) { /* none */ } }); // Saved Puzzles box open
       const page = await ctx.newPage();
       page.on('pageerror', (e) => errors.push(String(e)));
       page.on('console', (m) => { if (m.type() === 'error' && !/404/.test(m.text())) errors.push(m.text()); });
