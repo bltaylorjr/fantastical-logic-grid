@@ -287,3 +287,37 @@ export function sayingOf(name, kind, n = 0) {
   const lines = PERSONALITIES[personalityOf(name)][kind] || [];
   return lines.length ? lines[(Math.abs(n) + hashOf(firstName(name))) % lines.length] : '';
 }
+
+// How a character acts while they speak (talking-face.js and the voice's
+// tone, ai.js). Each personality has its own way of telling a clue; some
+// moments change it: a cheer is excited, and a culprit caught at the end of
+// a mystery is sheepish.
+export const MOODS = ['calm', 'cheerful', 'excited', 'nervous', 'guilty', 'sly', 'grumpy', 'proud', 'kind', 'shy',
+  'dreamy', 'formal', 'dramatic', 'playful', 'curious', 'blunt', 'chatty', 'bookish', 'bold'];
+const MOOD_OF = {
+  cheerful: 'cheerful', grumpy: 'grumpy', nervous: 'nervous', dramatic: 'dramatic', scholarly: 'bookish', boastful: 'proud',
+  dreamy: 'dreamy', blunt: 'blunt', gossipy: 'chatty', sly: 'sly', kind: 'kind', brave: 'bold', shy: 'shy', silly: 'playful',
+  formal: 'formal', curious: 'curious',
+};
+export const moodOf = (name) => MOOD_OF[personalityOf(name)] || 'calm';
+
+// Said by the one behind it all when a mystery is solved. Like every line,
+// they never name anyone or anything in the grid.
+const CAUGHT = [
+  'All right, all right. It was me.',
+  'You got me. I should have known you would work it out.',
+  'Oh dear. I suppose the game is up.',
+  'Fine, I confess. I only meant to borrow it.',
+];
+export const caughtLine = (name, n = 0) => CAUGHT[(Math.abs(n) + hashOf(firstName(name))) % CAUGHT.length];
+// The same for one of the game's own characters (cast.js), whose personality
+// is written in words in the admin dashboard: the first mood or personality
+// it mentions, such as "a nervous baker" or "grumpy but fair".
+export function moodOfPersonality(text) {
+  const words = String(text || '').toLowerCase().match(/[a-z]+/g) || [];
+  for (const w of words) {
+    if (MOOD_OF[w]) return MOOD_OF[w];
+    if (MOODS.includes(w)) return w;
+  }
+  return 'calm';
+}

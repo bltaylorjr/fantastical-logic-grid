@@ -16,7 +16,7 @@ import { portrait, characterFace, loadPortraits, portraitsReady } from './portra
 import { sizesFor as tierSizes, tierChoicesHtml, themeGroupsHtml, sizeChoicesHtml, clueTypesHtml } from './setup-markup.js';
 import * as characters from './characters.js';
 import { characterOf, narratorOf, lineOf } from './cast.js';
-import { profileOf, sayingOf } from './castbook.js';
+import { profileOf, sayingOf, moodOf, moodOfPersonality, caughtLine } from './castbook.js';
 import * as wake from './wakelock.js';
 import * as updates from './updates.js';
 import { celebrate as celebrateSolve } from './effects.js';
@@ -1610,14 +1610,17 @@ function showSolved(celebrate) {
   const admin = [characterOf(S.puzzle, winner), narratorOf(S.puzzle)].find((c) => lineOf(c, 'solve'));
   const plain = !admin && winner && !save.revealed && !settings.silent;
   const cheer = admin || (plain ? { name: winner } : null);
-  const cheerLine = admin ? lineOf(admin, 'solve', S.save.hintsUsed + S.puzzle.clues.length) : plain ? sayingOf(winner, 'solve', save.hintsUsed + S.puzzle.clues.length) : null;
+  const caught = plain && CAUGHT_ENDING.test(S.puzzle.story.ending || '');
+  const cheerLine = admin ? lineOf(admin, 'solve', S.save.hintsUsed + S.puzzle.clues.length)
+    : caught ? caughtLine(winner, save.hintsUsed + S.puzzle.clues.length)
+      : plain ? sayingOf(winner, 'solve', save.hintsUsed + S.puzzle.clues.length) : null;
   res.innerHTML = `${bg}<div class="spot"></div>${winner ? `<div class="hero">${face}<b>${esc(winner)}</b></div>` : ''}${cheerLine ? `<p class="char-line cheer"><b>${esc(cheer.name)}:</b> “${esc(cheerLine)}”</p>` : ''}`;
   // The picture is hidden from screen readers, so the cheer is announced.
   if (celebrate && cheerLine && !settings.silent) setTimeout(() => announce(`${cheer.name} says: ${cheerLine}`), 800);
   if (celebrate && voiceOn()) {
     setTimeout(() => {
       if (!S || !S.save.solved) return;
-      const said = [...(cheerLine ? [{ who: cheer.id && cheer.id === S.puzzle.narrator ? 'narrator' : cheer.name, text: cheerLine }] : []), { who: 'narrator', text: S.puzzle.story.ending }];
+      const said = [...(cheerLine ? [{ who: cheer.id && cheer.id === S.puzzle.narrator ? 'narrator' : cheer.name, text: cheerLine, mood: caught ? 'guilty' : 'excited', gesture: caught ? 'shrug' : 'nod' }] : []), { who: 'narrator', text: S.puzzle.story.ending }];
       ai.speakLines(settings, S.puzzle, said, { volume: settings.volume / 100 });
     }, 1200);
   }
@@ -2297,6 +2300,14 @@ function renderMedia() {
 }
 
 const voiceOn = () => settings.sound && settings.readAloud && !settings.silent;
+// How a character acts and sounds while they speak (castbook.js MOODS).
+const moodFor = (who) => {
+  if (who === 'narrator') return 'calm';
+  const own = characterOf(S.puzzle, who);
+  return own ? moodOfPersonality(own.personality) : moodOf(who);
+};
+// A mystery whose ending catches the one behind it: they own up, sheepishly.
+const CAUGHT_ENDING = /culprit|confess|stole|took|thief|prank|caught|guilty|behind it all|owns? up|admits?/i;
 
 // Talking faces: whoever is speaking appears in the corner of the play screen.
 const talker = initTalker($('#talker'), {
@@ -2405,7 +2416,7 @@ $('#cast-row').addEventListener('click', (e) => {
   if (voiceOn()) {
     const lines = clues.length ? clues.map((c) => (c.number === pictureClues.lockedClue() ? "I found something, but I can't make it out yet." : `${sayingFor(who, c.number)} ${c.text}`)).join(' ') : nothing;
     voiceWaitNote();
-    ai.speak(settings, S.puzzle, who, lines, { volume: settings.volume / 100 });
+    ai.speak(settings, S.puzzle, who, lines, { volume: settings.volume / 100, mood: moodFor(who), gesture: clues.length ? '' : 'shrug' });
   }
 });
 
@@ -2431,7 +2442,7 @@ $('#read-clues').addEventListener('click', async () => {
   const game = S;
   const lines = game.puzzle.clues.map((c) => (c.number === pictureClues.lockedClue()
     ? { who: 'narrator', text: clueWords(c) }
-    : { who: game.witness[c.number] || 'narrator', text: `Clue ${c.number}. ${c.text}` }));
+    : { who: game.witness[c.number] || 'narrator', text: `Clue ${c.number}. ${c.text}`, mood: moodFor(game.witness[c.number] || 'narrator') }));
   b.setAttribute('aria-pressed', 'true');
   b.textContent = 'Stop reading the clues';
   voiceWaitNote();

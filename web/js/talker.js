@@ -22,6 +22,7 @@ export function initTalker(box, { on, game }) {
   let talker = null;
   let showing = null; // who is in the frame
   let speaking = null;
+  let pendingGesture = null;
   let hideTimer = 0;
   let turn = 0;
   const loudness = new WeakMap();
@@ -38,6 +39,7 @@ export function initTalker(box, { on, game }) {
   async function present(who, g) {
     const mine = ++turn;
     showing = who;
+    if (talker) talker.act(speaking ? speaking.mood : 'calm');
     name.textContent = who === 'narrator' ? 'Narrator' : who;
     still.innerHTML = g.fallback(who) || '';
     still.hidden = false;
@@ -52,7 +54,8 @@ export function initTalker(box, { on, game }) {
       if (!(await talker.show(blob, face)) || mine !== turn) return;
       canvas.hidden = false;
       still.hidden = true;
-      if (speaking) talker.speak(speaking.level);
+      if (speaking) talker.speak(speaking.level, speaking.mood);
+      if (pendingGesture) { talker.gesture(pendingGesture); pendingGesture = null; }
     } catch (e) {
       // Their usual portrait stays.
       console.warn('Talking face not shown:', e.message);
@@ -72,6 +75,13 @@ export function initTalker(box, { on, game }) {
     }
     if (!g || !e.who) return;
     clearTimeout(hideTimer);
+    // A shrug or nod as the line starts (before its voice is ready).
+    if (e.gesture) {
+      if (showing === e.who && talker && !canvas.hidden) talker.gesture(e.gesture);
+      else pendingGesture = e.gesture;
+      if (talker && e.mood) talker.act(e.mood);
+      return;
+    }
     let level;
     if (e.audio) {
       // The clip's loudness, measured once; quiet until it is ready.
@@ -82,10 +92,11 @@ export function initTalker(box, { on, game }) {
     } else {
       level = rhythm();
     }
-    speaking = { who: e.who, level };
+    speaking = { who: e.who, level, mood: e.mood || 'calm' };
+    box.dataset.mood = speaking.mood;
     box.classList.add('speaking');
     if (showing !== e.who) present(e.who, g);
-    else { box.hidden = false; if (talker && !canvas.hidden) { talker.resume(); talker.speak(level); } }
+    else { box.hidden = false; if (talker && !canvas.hidden) { talker.resume(); talker.speak(level, speaking.mood); } }
   });
 
   return { hide: () => { turn++; hide(); } };
