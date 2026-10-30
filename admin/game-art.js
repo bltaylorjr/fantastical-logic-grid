@@ -43,6 +43,7 @@ export const THEME_LOOKS = {
   math: { sky: ['#1e3a5f', '#3b6ea5'], ground: '#23394f', shape: '#1a2b3c', glow: '#ffd166', accent: '#f4f1de' },
   biology: { sky: ['#a8dadc', '#e9f5db'], ground: '#4f772d', shape: '#31572c', glow: '#fff3b0', accent: '#e76f51' },
   chemistry: { sky: ['#e6ecf5', '#f8fafc'], ground: '#8d99ae', shape: '#2b2d42', glow: '#7df9c0', accent: '#ef476f' },
+  astronomy: { sky: ['#0b1026', '#1b2a5c'], ground: '#1d2238', shape: '#0e1428', glow: '#ffe08a', accent: '#8ecae6' },
   paradox: { sky: ['#3a0ca3', '#f72585'], ground: '#4361ee', shape: '#240046', glow: '#4cc9f0', accent: '#ffbe0b' },
 };
 const lookFor = (themeId) => THEME_LOOKS[themeId] || THEME_LOOKS.mystery;
@@ -295,6 +296,17 @@ const SCENES = {
       `<g stroke="${L.shape}" stroke-width="3" fill="${L.accent}"><line x1="420" y1="230" x2="460" y2="210"/><line x1="460" y1="210" x2="500" y2="232"/><circle cx="420" cy="230" r="9"/><circle cx="460" cy="210" r="12" fill="${L.glow}"/><circle cx="500" cy="232" r="9"/></g>`,
     ];
   },
+  astronomy(r, L) {
+    const scope = (x, y, a, c) => `<g transform="translate(${x} ${y}) rotate(${a})"><rect x="-6" y="-46" width="16" height="58" rx="4" fill="${c}"/><rect x="-9" y="-50" width="22" height="10" rx="3" fill="#cfd8e3"/></g><path d="M${x - 2} ${y + 10} l-18 40 M${x + 2} ${y + 10} l0 42 M${x + 6} ${y + 10} l18 40" stroke="#cfd8e3" stroke-width="3" stroke-linecap="round"/>`;
+    return [
+      `${stars(r, 160, '#fff', 200)}`,
+      `<path d="M0 120 Q200 60 400 110 T800 90" stroke="#c8d6ff" stroke-width="38" fill="none" opacity=".12"/><circle cx="660" cy="62" r="30" fill="#fdf0c4"/><circle cx="672" cy="56" r="27" fill="${L.sky[0]}"/>`,
+      `<path d="M0 ${H} L0 200 Q200 178 420 196 T${W} 186 L${W} ${H} Z" fill="${L.ground}"/>`,
+      `${scope(250, 186, -28, '#e0e6ef')}${scope(560, 190, -40, L.accent)}`,
+      `<circle cx="140" cy="64" r="16" fill="#e9c46a"/><ellipse cx="140" cy="64" rx="28" ry="6" fill="none" stroke="#f4dfa2" stroke-width="3"/><path d="M700 150 l60 -22" stroke="${L.glow}" stroke-width="2.5" stroke-linecap="round"/>`,
+      `<g fill="#ff6b6b" opacity=".85"><circle cx="330" cy="226" r="4"/><circle cx="480" cy="232" r="4"/><circle cx="620" cy="228" r="4"/></g>`,
+    ];
+  },
   paradox(r, L) {
     const id = `pg${Math.floor(r() * 1e6)}`;
     const stairs = (x, y, n, dx, dy, c) => Array.from({ length: n }, (_, i) => `<rect x="${x + i * dx}" y="${y + i * dy}" width="${Math.abs(dx) + 2}" height="16" fill="${c}"/>`).join('');
@@ -368,6 +380,7 @@ function hat(themeId, r, L) {
     case 'math': return pick(r, [`<path d="M20 30 L50 16 L80 30 L50 42z" fill="#1a2b3c"/><path d="M76 31 v14" stroke="#ffd166" stroke-width="2"/><circle cx="76" cy="47" r="3" fill="#ffd166"/>`, `<circle cx="38" cy="48" r="9" fill="none" stroke="#1a2b3c" stroke-width="2.5"/><circle cx="62" cy="48" r="9" fill="none" stroke="#1a2b3c" stroke-width="2.5"/><path d="M47 48 h6" stroke="#1a2b3c" stroke-width="2.5"/>`]);
     case 'biology': return pick(r, [`<path d="M14 34 q36 -10 72 0 l-10 -4 q-4 -16 -26 -16 q-22 0 -26 16z" fill="#90a955"/><rect x="26" y="29" width="48" height="4" fill="#31572c"/>`, `<path d="M58 14 q14 -8 22 2 q-10 6 -22 -2z" fill="#4f772d"/>`]);
     case 'chemistry': return `<rect x="24" y="40" width="22" height="12" rx="5" fill="#7df9c0" opacity=".75" stroke="#2b2d42" stroke-width="2"/><rect x="54" y="40" width="22" height="12" rx="5" fill="#7df9c0" opacity=".75" stroke="#2b2d42" stroke-width="2"/><path d="M46 46 h8" stroke="#2b2d42" stroke-width="2"/>`;
+    case 'astronomy': return `<path d="M24 38 q26 -30 52 0z" fill="#1b2a5c"/><rect x="22" y="36" width="56" height="6" rx="3" fill="#0e1428"/><circle cx="40" cy="26" r="2" fill="#ffe08a"/><circle cx="54" cy="20" r="2.5" fill="#fff"/><circle cx="62" cy="30" r="1.8" fill="#ffe08a"/>`;
     case 'paradox': return pick(r, [`<rect x="32" y="10" width="36" height="22" rx="2" fill="#240046"/><rect x="24" y="30" width="52" height="5" rx="2" fill="#240046"/><rect x="32" y="24" width="36" height="4" fill="#ffbe0b"/>`, `<path d="M30 30 q20 -30 40 0" stroke="#4cc9f0" stroke-width="3" fill="none"/><circle cx="50" cy="12" r="5" fill="#ffbe0b"/>`]);
     case 'science': return `<rect x="24" y="40" width="22" height="12" rx="5" fill="${L.glow}" opacity=".75" stroke="#2f4a6b" stroke-width="2"/><rect x="54" y="40" width="22" height="12" rx="5" fill="${L.glow}" opacity=".75" stroke="#2f4a6b" stroke-width="2"/><path d="M46 46 h8" stroke="#2f4a6b" stroke-width="2"/>`;
     default: return '';

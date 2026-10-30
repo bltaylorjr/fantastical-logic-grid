@@ -124,6 +124,7 @@ export const MOODS = {
   math: { root: 146.83, scale: [0, 2, 4, 5, 7, 9, 11], prog: [0, 4, 5, 3], chord: 11, chime: 0.38, bright: 660 },
   biology: { root: 196, scale: [0, 2, 4, 7, 9], prog: [0, 3, 4, 2], chord: 12, chime: 0.36, bright: 650 },
   chemistry: { root: 174.61, scale: [0, 2, 3, 5, 7, 9, 10], prog: [0, 2, 4, 3], chord: 13, chime: 0.34, bright: 640 },
+  astronomy: { root: 155.56, scale: [0, 2, 4, 7, 9, 11], prog: [0, 4, 5, 3], chord: 14, chime: 0.45, bright: 520 },
   paradox: { root: 130.81, scale: [0, 2, 4, 6, 8, 10], prog: [0, 1, 5, 2], chord: 14, chime: 0.3, bright: 600 },
 };
 
