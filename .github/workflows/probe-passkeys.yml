@@ -1,0 +1,14 @@
+name: Probe admin passkeys (temporary)
+on: pull_request
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          A=https://flg-api.btay74.workers.dev
+          echo "== passkeys.js"; curl -s -o /dev/null -w "%{http_code}\n" $A/admin/passkeys.js
+          echo "== index has Face ID"; curl -s $A/admin/ | grep -c "Face ID" || true
+          echo "== sign-in options"; curl -s -X POST -H 'Content-Type: application/json' -d '{}' $A/admin/v1/passkeys/sign-in/options | head -c 200; echo
+          echo "== options needs sign-in"; curl -s -X POST -H 'Content-Type: application/json' -d '{}' $A/admin/v1/passkeys/options | head -c 200; echo
