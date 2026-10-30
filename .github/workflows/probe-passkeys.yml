@@ -8,7 +8,8 @@ jobs:
     steps:
       - run: |
           A=https://flg-api.btay74.workers.dev
-          echo "== passkeys.js"; curl -s -o /dev/null -w "%{http_code}\n" $A/admin/passkeys.js
-          echo "== index has Face ID"; curl -s $A/admin/ | grep -c "Face ID" || true
-          echo "== sign-in options"; curl -s -X POST -H 'Content-Type: application/json' -d '{}' $A/admin/v1/passkeys/sign-in/options | head -c 200; echo
-          echo "== options needs sign-in"; curl -s -X POST -H 'Content-Type: application/json' -d '{}' $A/admin/v1/passkeys/options | head -c 200; echo
+          page=$(curl -s $A/admin/)
+          for m in 'href="#visitors"' 'data-view="details"' 'href="#media"' 'href="#licenses"' 'href="#signin"' 'Number Place' 'Approve'; do echo "$m: $(grep -c "$m" <<<"$page")"; done
+          for f in licenses.js media.js passkeys.js; do echo "$f: $(curl -s -o /dev/null -w '%{http_code}' $A/admin/$f)"; done
+          curl -s $A/v1/health | head -c 400; echo
+          curl -sI $A/admin/ | grep -i -E "date|last-modified|etag|cf-" || true
