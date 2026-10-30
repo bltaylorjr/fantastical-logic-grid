@@ -25,7 +25,7 @@ const DOMAIN = {
   unknown: ['Check the school', 'warn', 'The address is not on a known school domain. Look the school up before approving.'],
   personal: ['Personal email', 'bad', 'A personal mailbox (allowed under Settings and switches > Educators). Check before approving.'],
 };
-const TIER = { basic: 'Basic', easy: 'Easy', medium: 'Medium', hard: 'Hard', expert: 'Expert', mensa: 'Quantum Physicist' };
+const TIER = { basic: 'Basic', easy: 'Easy', medium: 'Medium', hard: 'Hard', expert: 'Expert', mensa: 'Quantum Physicist', theorist: 'Theoretical Physicist' };
 const GRADE = (g) => (g === 'k' ? 'Kindergarten' : g === 'college' ? 'College and adult' : `Grade ${g}`);
 const KEYS = { separate: 'Answer keys in a separate file', after: 'Answer key after each puzzle', none: 'No answer keys' };
 

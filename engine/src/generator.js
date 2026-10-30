@@ -12,7 +12,12 @@ import { candidateStream, clueHolds } from './clues.js';
 import { isSolvable, solveWithTrace, TECHNIQUE_NAMES } from './solver.js';
 import { makeLanguage, clueText } from './language.js';
 import { buildStory, buildQuestions } from './story.js';
+import { orderItems } from './order.js';
 import { customWorld, customStory } from './classroom.js';
+// The grid's shape lives in layout.js so the page can use it without loading
+// the story library; it is still exported from here as before.
+import { gridLayout } from './layout.js';
+export { gridLayout };
 
 export const ENGINE_NAME = 'The Fantastical Logic Grid';
 export const ENGINE_VERSION = '1.0.0';
@@ -61,7 +66,7 @@ function resolveOptions(opts = {}) {
   const questions = clamp(opts.questions ?? 3, [1, 6]);
   return { tier, seed, rng, theme, topic, scenario, K, N, customSize, weights, clueCount, questions, effort,
     extraParts: opts.storyParts, storyPrefs: opts.storyPrefs,
-    customNames: opts.customNames, customTitle: opts.title, usedStories: opts.usedStories || [], timeLimitMs: opts.timeLimitMs ?? 15000,
+    customNames: opts.customNames, customTitle: opts.title, usedStories: opts.usedStories || [], timeLimitMs: opts.timeLimitMs ?? tier.timeLimitMs ?? 15000,
     maxAttempts: opts.maxAttempts ?? 60 };
 }
 
@@ -84,7 +89,7 @@ export function buildModel(o) {
   let names = Array.isArray(o.customNames) ? [...new Set(o.customNames.map((s) => String(s).trim()).filter(Boolean))] : [];
   if (names.length < N) names = names.concat(rng.sample(scenario.names.filter((n) => !names.includes(n)), N - names.length));
   else names = names.slice(0, N);
-  names.sort((p, q) => p.localeCompare(q));
+  names = orderItems(names);
 
   const cats = [{ id: 'name', name: cap(scenario.cast.one), labels: names, pos: 'is {x}', neg: 'is not {x}', ordinal: null }];
   for (const c of chosen) {
@@ -96,7 +101,7 @@ export function buildModel(o) {
       cats.push({ id: c.id, name: c.name, noun: c.noun, note: c.note, labels: values.map(od.label), values, pos: c.pos, neg: c.neg,
         ordinal: { less: od.less, more: od.more, lessBy: od.lessBy, moreBy: od.moreBy, gaps } });
     } else {
-      cats.push({ id: c.id, name: c.name, noun: c.noun, note: c.note, labels: rng.sample(c.items, N).sort((p, q) => p.localeCompare(q)), pos: c.pos, neg: c.neg, ordinal: null });
+      cats.push({ id: c.id, name: c.name, noun: c.noun, note: c.note, labels: orderItems(rng.sample(c.items, N), { order: c.order, listed: c.items }), pos: c.pos, neg: c.neg, ordinal: null });
     }
   }
   return {
@@ -127,7 +132,9 @@ function grade(K, N, clues, tier, L) {
   if (hardest < tier.requireLevel) reasons.push(`too easy (hardest step is level ${hardest}, tier needs ${tier.requireLevel})`);
   if (advanced < tier.minAdvancedSteps) reasons.push(`needs at least ${tier.minAdvancedSteps} advanced steps, has ${advanced}`);
   if (levels[3] > tier.maxWhatIf) reasons.push(`too many what-if steps (${levels[3]})`);
+  if (tier.minWhatIfSteps && levels[3] < tier.minWhatIfSteps) reasons.push(`needs at least ${tier.minWhatIfSteps} what-if steps, has ${levels[3]}`);
   const score = res.steps.reduce((s, st) => s + [1, 2, 5, 12][st.level] + 3 * (st.depth || 0), 0);
+  if (tier.minScore && score < tier.minScore) reasons.push(`not hard enough (score ${score}, tier needs ${tier.minScore})`);
   return { ...res, levels, hardest, advanced, maxDepth, reasons, meets: reasons.length === 0, score };
 }
 
@@ -205,7 +212,10 @@ export function generatePuzzle(options = {}) {
     if (!clues) continue;
     const g = grade(model.K, model.N, clues, o.tier, L);
     const countGap = o.clueCount ? Math.abs(clues.length - o.clueCount) : 0;
-    const fit = (g.meets ? 0 : 1000 + g.reasons.length * 100) + countGap * 10;
+    // A puzzle short of the tier's difficulty score counts as further off the
+    // more it falls short, so the fallback is the hardest one found.
+    const shortfall = o.tier.minScore ? Math.max(0, o.tier.minScore - g.score) / 10 : 0;
+    const fit = (g.meets ? 0 : 1000 + g.reasons.length * 100 + shortfall) + countGap * 10;
     if (!best || fit < best.fit) best = { fit, model, clues, attempt, score: g.score };
     if (fit === 0) pool.push({ fit, model, clues, attempt, score: g.score });
     if (pool.length >= want) break;
@@ -308,20 +318,6 @@ function finalize(o, best, elapsedMs) {
     },
     notes,
   };
-}
-
-// Standard staircase layout: every pair of categories appears exactly once.
-// Columns: categories 1..K-1. Rows: category 0, then K-1 down to 2.
-export function gridLayout(cats) {
-  const K = cats.length;
-  const columns = cats.slice(1).map((c) => c.id);
-  const rowIdx = [0, ...Array.from({ length: K - 2 }, (_, i) => K - 1 - i)];
-  const rows = rowIdx.map((i) => cats[i].id);
-  const blocks = [];
-  rowIdx.forEach((r, ri) => {
-    for (let c = 1; c <= K - 1 - ri; c++) blocks.push({ row: cats[r].id, column: cats[c].id });
-  });
-  return { columns, rows, blocks };
 }
 
 // Part preferences are kept per story key; a theme's own entry (player-added

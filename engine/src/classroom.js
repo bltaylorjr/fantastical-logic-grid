@@ -47,7 +47,7 @@ export const BANDS = {
     about: 'Four categories, with ordering clues ("earlier than", "two years older") that need careful reading.' },
   g912: { name: 'Grades 9 to 12', tiers: ['medium', 'hard', 'expert'], recommended: 'hard', size: [4, 5], sizes: [[4, 4], [4, 5], [5, 5], [5, 6]], reading: 'full', questions: 3, largePrint: false,
     about: 'Bigger grids with exact gaps, one-of-each and if/then clues that reward systematic work.' },
-  adult: { name: 'College and adult', tiers: TIER_ORDER.slice(), recommended: 'hard', size: [4, 5], sizes: [[4, 4], [4, 5], [5, 5], [5, 6]], reading: 'full', questions: 3, largePrint: false,
+  adult: { name: 'College and adult', tiers: TIER_ORDER.filter((t) => t !== 'theorist'), recommended: 'hard', size: [4, 5], sizes: [[4, 4], [4, 5], [5, 5], [5, 6]], reading: 'full', questions: 3, largePrint: false,
     about: 'Any level, up to Quantum Physicist.' },
 };
 

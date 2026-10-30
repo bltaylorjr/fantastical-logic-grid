@@ -241,10 +241,10 @@ test('the in-game rules table matches the real points formula', () => {
   const html = readFileSync(join(root, '..', 'web', 'index.html'), 'utf8');
   const table = html.slice(html.indexOf('id="dlg-rules"'), html.indexOf('</table>', html.indexOf('id="dlg-rules"')));
   const rows = [...table.matchAll(/<th scope="row">([\w ]+?) (\d) × (\d)<\/th><td>[^<]*<\/td><td>(\d+)<\/td><td>(\d+)<\/td><td>(\d+)<\/td>/g)];
-  assert.equal(rows.length, 6);
-  const PAR = { basic: 0.12, easy: 0.16, medium: 0.22, hard: 0.3, expert: 0.36, mensa: 0.42 };
+  assert.equal(rows.length, 7);
+  const PAR = { basic: 0.12, easy: 0.16, medium: 0.22, hard: 0.3, expert: 0.36, mensa: 0.42, theorist: 0.63 };
   for (const [, label, k, n, atPar, fast, slow] of rows) {
-    const tier = label === 'Quantum Physicist' ? 'mensa' : label.toLowerCase();
+    const tier = label === 'Quantum Physicist' ? 'mensa' : label === 'Theoretical Physicist' ? 'theorist' : label.toLowerCase();
     const cells = (k * (k - 1) / 2) * n * n;
     const par = cells * PAR[tier] * 60_000;
     const pts = (ms) => pointsFor({ tier, cells, elapsedMs: ms, hints: 0, checks: 0 });
