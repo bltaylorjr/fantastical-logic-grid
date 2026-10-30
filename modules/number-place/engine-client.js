@@ -1,6 +1,6 @@
 // The `engine` object ui.js expects, backed by a worker. Pass the worker's URL
 // (or a Worker) so each host can serve it from wherever its files live.
-export function workerEngine(worker) {
+export function workerEngine(worker, { themes = [] } = {}) {
   const w = worker instanceof Worker ? worker : new Worker(worker, { type: 'module' });
   let seq = 0;
   const pending = new Map();
@@ -15,5 +15,5 @@ export function workerEngine(worker) {
     pending.set(id, { resolve, reject });
     w.postMessage({ id, op, args });
   });
-  return { generate: (options) => call('generate', options), hint: (puzzle, entries) => call('hint', { puzzle, entries }) };
+  return { themes, generate: (options) => call('generate', options), hint: (puzzle, entries) => call('hint', { puzzle, entries }) };
 }

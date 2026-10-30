@@ -32,13 +32,13 @@ const shots = process.env.NP_SHOTS;
     await page.check('input[name=np-level][value=easy]', { force: true });
     await page.click('#np-gen');
     await page.waitForSelector('#np-play-view:not([hidden])', { timeout: 30000 });
-    assert(await page.locator('.np-cell').count() === 36, 'Easy is a 6 x 6 grid');
+    assert(await page.locator('#np-board .np-cell').count() === 36, 'Easy is a 6 x 6 grid');
     assert(await page.locator('#np-digits .np-digit').count() === 6, 'number pad has 1 to 6');
     if (shots) await page.screenshot({ path: `${shots}/np-easy-start.png` });
 
     let s = await npState(page);
     const empty = s.givens.findIndex((d) => !d);
-    await page.locator(`.np-cell[data-i="${empty}"]`).click();
+    await page.locator(`#np-board .np-cell[data-i="${empty}"]`).click();
     const right = s.solution[empty], wrong = (right % 6) + 1;
     await page.keyboard.press(String(wrong));
     s = await npState(page);
@@ -50,15 +50,15 @@ const shots = process.env.NP_SHOTS;
     s = await npState(page);
     assert(s.v[empty] === wrong, 'Ctrl+Y redoes it');
     await page.click('#np-check');
-    assert(await page.locator(`.np-cell[data-i="${empty}"].wrong`).count() === 1, 'Check marks the wrong number');
-    await page.locator(`.np-cell[data-i="${empty}"]`).click();
+    assert(await page.locator(`#np-board .np-cell[data-i="${empty}"].wrong`).count() === 1, 'Check marks the wrong number');
+    await page.locator(`#np-board .np-cell[data-i="${empty}"]`).click();
     await page.keyboard.press('Backspace');
     await page.keyboard.press('n');
     assert(await page.getAttribute('#np-notes-btn', 'aria-pressed') === 'true', 'N turns notes on');
     await page.keyboard.press('1'); await page.keyboard.press('3');
     s = await npState(page);
     assert(s.n[empty] === 0b101 && s.v[empty] === 0, 'notes mode writes notes, not numbers');
-    assert(await page.locator(`.np-cell[data-i="${empty}"] .np-notes i`).count() === 6, 'notes are drawn in the cell');
+    assert(await page.locator(`#np-board .np-cell[data-i="${empty}"] .np-notes i`).count() === 6, 'notes are drawn in the cell');
     await page.keyboard.press('n');
     await page.click('#np-auto');
     s = await npState(page);
@@ -85,7 +85,7 @@ const shots = process.env.NP_SHOTS;
     // Solve the rest with the keyboard.
     for (let i = 0; i < s.size ** 2; i++) {
       if (s.givens[i] || s.v[i] === s.solution[i]) continue;
-      await page.locator(`.np-cell[data-i="${i}"]`).click();
+      await page.locator(`#np-board .np-cell[data-i="${i}"]`).click();
       await page.keyboard.press(String(s.solution[i]));
     }
     await page.waitForSelector('#np-solved:not([hidden])');
@@ -98,10 +98,10 @@ const shots = process.env.NP_SHOTS;
     await page.check('input[name=np-variant][value=diagonal]', { force: true });
     await page.click('#np-gen');
     await page.waitForSelector('#np-play-view:not([hidden]) .np-board.diag', { timeout: 30000 });
-    assert(await page.locator('.np-cell').count() === 81, 'Hard is 9 x 9 with diagonals');
+    assert(await page.locator('#np-board .np-cell').count() === 81, 'Hard is 9 x 9 with diagonals');
     s = await npState(page);
     const e2 = s.givens.findIndex((d) => !d);
-    await page.locator(`.np-cell[data-i="${e2}"]`).click();
+    await page.locator(`#np-board .np-cell[data-i="${e2}"]`).click();
     await page.keyboard.press(String(s.solution[e2]));
     if (shots) await page.screenshot({ path: `${shots}/np-hard-diag.png` });
     await page.reload();
@@ -118,13 +118,110 @@ const shots = process.env.NP_SHOTS;
     await phone.check('input[name=np-variant][value=parity]', { force: true });
     await phone.click('#np-gen');
     await phone.waitForSelector('#np-play-view:not([hidden])', { timeout: 30000 });
-    assert(await phone.locator('.np-cell.even').count() > 0, 'odd/even shades the even cells');
+    assert(await phone.locator('#np-board .np-cell.even').count() > 0, 'odd/even shades the even cells');
     const wide = await phone.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
     assert(wide, 'no sideways scrolling on a phone');
     const boardBox = await phone.locator('#np-board').boundingBox();
     assert(boardBox.width >= 340, `board fills the phone width (${Math.round(boardBox.width)}px)`);
     if (shots) await phone.screenshot({ path: `${shots}/np-phone-dark.png`, fullPage: true });
     await phone.context().close();
+
+    // Learning, stories, saved list, files, reveal and the solution replay.
+    const pg = await open();
+    const logs = [];
+    pg.on('console', (m) => { if (/play record/.test(m.text())) logs.push(m.text()); });
+    await pg.check('input[name=np-level][value=basic]', { force: true });
+    const fps = [];
+    for (let round = 0; round < 3; round++) {
+      await pg.click('#np-gen');
+      await pg.waitForSelector('#np-play-view:not([hidden])', { timeout: 30000 });
+      if (round === 0) {
+        assert(await pg.locator('#np-coach:not([hidden])').count() === 1, 'coach tips show on the first puzzle');
+        assert((await pg.textContent('#np-story')).length > 30, 'the puzzle opens with its story');
+        await pg.click('#np-coach-close');
+      }
+      const st = await pg.evaluate(async () => { const m = await import('./modules/number-place/ui.js'); const G = m.state(); return { fp: G.p.fingerprint, givens: G.p.givens, solution: G.p.solution }; });
+      fps.push(st.fp);
+      for (let i = 0; i < 16; i++) {
+        if (st.givens[i]) continue;
+        await pg.locator(`#np-board .np-cell[data-i="${i}"]`).click();
+        await pg.keyboard.press(String(st.solution[i]));
+      }
+      await pg.waitForSelector('#np-solved:not([hidden])');
+      if (round === 0) {
+        assert((await pg.textContent('#np-ending')).length > 20, 'solving shows the story ending');
+        assert(/First grid/.test(await pg.textContent('#np-new-badges')), 'a new badge is announced');
+        await pg.click('[data-feel=easy]');
+        assert(/tougher/.test(await pg.textContent('#np-feel-done')), 'rating it too easy promises a tougher one');
+        await pg.click('#np-share');
+        await pg.waitForSelector('#np-share-pic img');
+        assert(true, 'Share shows a spoiler-free result picture');
+        await pg.click('#np-steps-btn');
+        await pg.waitForSelector('#np-steps-dlg[open]');
+        await pg.click('#np-step-next');
+        assert(/Step 1 of/.test(await pg.textContent('#np-step-n')), 'the solution replays step by step');
+        await pg.click('#np-step-end');
+        assert(await pg.locator('#np-steps-board .np-cell .v').count() === 16, 'the replay ends on the full answer');
+        await pg.keyboard.press('Escape');
+      }
+      await pg.click('#np-home');
+    }
+    assert(new Set(fps).size === 3, 'three puzzles in a row, all different');
+    const seen = await pg.evaluate(async () => { const m = await import('./modules/number-place/ui.js'); return m.learning().plays().length; });
+    assert(seen === 3, 'each solve leaves a play record');
+    assert(logs.length >= 4, 'records (and the rating) go to the host for the learning service');
+    const t = await pg.evaluate(async () => (await import('./modules/number-place/ui.js')).learning().toughness('basic'));
+    assert(t > 0.5, `quick clean solves and "too easy" raise the toughness (${t.toFixed(2)})`);
+    assert(await pg.locator('#np-saved li').count() === 3, 'saved puzzles lists all three');
+    assert(/3 of 18 badges|[1-9]\d? of 18 badges/.test(await pg.textContent('#np-badges')), 'badges are listed');
+
+    // Rename, delete and undo.
+    await pg.locator('#np-saved li').first().locator('[data-act=rename]').click();
+    await pg.keyboard.press('Control+a');
+    await pg.keyboard.type('My favourite');
+    await pg.keyboard.press('Enter');
+    assert(/My favourite/.test(await pg.textContent('#np-saved')), 'a saved puzzle can be renamed');
+    await pg.locator('#np-saved li').first().locator('[data-act=delete]').click();
+    assert(await pg.locator('#np-saved li').count() === 2, 'delete removes it');
+    await pg.click('#np-undo-delete');
+    assert(await pg.locator('#np-saved li').count() === 3, 'Undo brings it back');
+
+    // Reveal: confirm first, then it doesn't count as solved.
+    await pg.check('input[name=np-level][value=easy]', { force: true });
+    await pg.click('#np-gen');
+    await pg.waitForSelector('#np-play-view:not([hidden])', { timeout: 30000 });
+    await pg.click('#np-reveal');
+    assert(await pg.locator('#np-reveal-confirm:not([hidden])').count() === 1, 'Show the answer asks first');
+    await pg.click('#np-reveal-yes');
+    await pg.waitForSelector('#np-solved:not([hidden])');
+    assert(/The answer/.test(await pg.textContent('#np-solved-h')), 'the answer is shown');
+    const outcome = await pg.evaluate(async () => (await import('./modules/number-place/ui.js')).learning().plays().at(-1).outcome);
+    assert(outcome === 'revealed', 'a revealed puzzle is recorded as revealed, not solved');
+
+    // Print options and a puzzle file round trip.
+    await pg.click('#np-home');
+    const g = await pg.evaluate(() => Object.values(JSON.parse(localStorage.getItem('np-test.games')))[0]);
+    await pg.setInputFiles('#np-file', { name: 'p.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify({ format: 'number-place', version: 1, game: g })) });
+    await pg.waitForSelector('#np-play-view:not([hidden])');
+    assert(await pg.locator('#np-board .np-cell').count() === g.p.size ** 2, 'a saved puzzle file opens');
+    await pg.click('#np-home');
+    await pg.setInputFiles('#np-file', { name: 'bad.json', mimeType: 'application/json', buffer: Buffer.from('{"format":"number-place","game":{"p":{"size":4,"givens":[1],"solution":[1]}}}') });
+    await pg.waitForFunction(() => /not a Number Place puzzle/.test(document.querySelector('#np-status').textContent));
+    assert(true, 'a broken file is refused with a clear message');
+
+    // Silent mode: no story or coach.
+    await pg.click('#np-more summary');
+    await pg.check('#np-silent');
+    await pg.click('#np-gen');
+    await pg.waitForSelector('#np-play-view:not([hidden])', { timeout: 30000 });
+    assert(await pg.locator('#np-story').isHidden(), 'silent mode hides the story');
+    await pg.click('#np-print');
+    await pg.waitForSelector('#np-print-dlg[open]');
+    assert(await pg.locator('#np-print-dlg input[name=np-paper]').count() === 2, 'print offers Letter and A4');
+    await pg.keyboard.press('Escape');
+    if (shots) await pg.click('#np-new');
+    if (shots) await pg.screenshot({ path: `${shots}/np-setup-after.png`, fullPage: true });
+    await pg.context().close();
 
     assert(errors.length === 0, `no page errors ${errors.join(' | ')}`);
   } finally {

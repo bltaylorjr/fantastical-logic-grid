@@ -15,7 +15,61 @@
 .np-app .np-muted { color: var(--np-muted); }
 .np-app fieldset { border: 0; padding: 0; margin: 0 0 20px; min-width: 0; }
 .np-app legend { font-weight: 700; font-size: 1.05rem; padding: 0; margin-bottom: 8px; }
-.np-app .np-setup { max-width: 860px; margin: 0 auto; }
+.np-app .np-setup { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 380px); gap: 24px; align-items: start; max-width: 1240px; margin: 0 auto; }
+.np-app .np-setup-side { display: grid; gap: 24px; min-width: 0; }
+.np-app .np-setup-side h3 { margin: 0 0 8px; font-size: 1.15rem; }
+.np-app .np-row-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.np-app .np-more { margin: 0 0 20px; }
+.np-app .np-more summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; font-weight: 700; }
+.np-app .np-more-body { display: grid; gap: 4px; padding-top: 4px; }
+.np-app .np-field { display: grid; gap: 6px; margin-bottom: 8px; max-width: 360px; }
+.np-app .np-field label { font-weight: 700; }
+.np-app select, .np-app .np-rename { min-height: 44px; font: inherit; color: var(--np-text); background: var(--np-bg); border: 1px solid var(--np-border); border-radius: 8px; padding: 0 10px; }
+.np-app .np-rename { width: 100%; }
+.np-app .np-saved { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.np-app .np-saved li { display: flex; align-items: center; gap: 4px; border-bottom: 1px solid var(--np-line); padding: 4px 0; min-width: 0; }
+.np-app .np-saved-open { flex: 1; min-width: 0; text-align: left; background: none; border: 0; padding: 6px 4px; font: inherit; color: var(--np-text); cursor: pointer; border-radius: 6px; display: grid; }
+.np-app .np-saved-open:hover { background: var(--np-soft); }
+.np-app .np-saved-open b { overflow-wrap: anywhere; }
+.np-app .np-saved-open small { color: var(--np-muted); }
+.np-app .np-saved-tools { display: flex; flex-shrink: 0; }
+.np-app .np-saved-tools .btn { padding: 6px 8px; }
+.np-app .np-undo-bar { display: flex; align-items: center; gap: 8px; margin: 8px 0 0; }
+.np-app .np-table-wrap { overflow-x: auto; }
+.np-app .np-badges { list-style: none; margin: 16px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; }
+.np-app .np-badge-count, .np-app .np-badge-more { grid-column: 1 / -1; font-weight: 700; }
+.np-app .np-badge-more summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; }
+.np-app .np-badge-more .np-badges { margin-top: 4px; font-weight: 400; }
+.np-app .np-badge { display: grid; padding: 8px 10px; border-radius: 8px; border: 1px dashed var(--np-line); color: var(--np-muted); font-size: .85rem; }
+.np-app .np-badge b { font-size: .95rem; }
+.np-app .np-badge.earned { border: 1px solid var(--np-accent); background: var(--np-soft); color: var(--np-text); }
+.np-app .np-story { max-width: 70ch; margin: -6px 0 16px; color: var(--np-muted); font-size: 1.05rem; }
+.np-app .np-coach { max-width: 620px; margin: 0 0 16px; padding: 14px 16px; border: 2px solid var(--np-accent); }
+.np-app .np-coach p { margin: 0 0 8px; }
+.np-app .np-coach-h { font-weight: 700; color: var(--np-accent); }
+.np-app .np-confirm { padding: 14px 16px; border: 2px solid var(--np-error); }
+.np-app .np-confirm p { margin: 0 0 8px; }
+.np-app .np-ending { font-size: 1.1rem; font-style: italic; max-width: 62ch; }
+.np-app .np-feel { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 12px 0; }
+.np-app .np-feel p { margin: 0 8px 0 0; font-weight: 700; }
+.np-app .np-feel [aria-pressed="true"] { background: var(--np-accent); color: var(--on-accent, #fff); border-color: var(--np-accent); }
+.np-app .np-new-badges { font-weight: 700; color: var(--np-accent); }
+.np-app .np-share-box img { max-width: min(100%, 360px); border-radius: 10px; border: 1px solid var(--np-line); }
+.np-app .np-dialog { border: 1px solid var(--np-line); border-radius: 14px; padding: 24px; background: var(--np-bg); color: var(--np-text); max-width: min(520px, calc(100vw - 32px)); }
+.np-app .np-dialog.wide { max-width: min(860px, calc(100vw - 32px)); }
+.np-app .np-dialog::backdrop { background: rgb(0 0 0 / .45); }
+.np-app .np-dialog h2 { margin: 0 0 16px; }
+.np-app .np-dialog fieldset { margin-bottom: 12px; }
+.np-app .np-steps-layout { display: grid; grid-template-columns: minmax(0, 340px) minmax(0, 1fr); gap: 20px; align-items: start; }
+.np-app .np-steps-layout p { margin: 0 0 10px; }
+.np-app .np-step-tech { font-weight: 700; font-size: 1.1rem; color: var(--np-accent); }
+.np-app .np-board.np-mini .np-cell { font-size: clamp(12px, calc(340px / var(--n) * .5), 24px); cursor: default; }
+.np-app .np-cell.elim { box-shadow: inset 0 0 0 3px var(--np-error); }
+.np-app .np-cell.glow { animation: np-glow .9s ease; }
+.np-app .np-board.won .np-cell { animation: np-wave .7s ease calc(var(--d, 0) * 45ms) both; }
+.np-app.np-silent .np-cell, .np-app.np-silent .np-cell .v { animation: none !important; transition: none; }
+@keyframes np-glow { 30% { background: color-mix(in srgb, var(--np-accent) 30%, var(--np-bg)); } }
+@keyframes np-wave { 40% { transform: scale(.86); background: color-mix(in srgb, var(--np-accent) 28%, var(--np-bg)); } }
 .np-app .np-choices { display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
 .np-app .np-choices.chips { display: flex; flex-wrap: wrap; }
 .np-app .choice { position: relative; display: block; }
@@ -87,12 +141,12 @@
 .np-app .np-solved h2 { color: var(--np-accent); }
 @keyframes np-pop { from { transform: scale(.6); opacity: .2; } }
 @keyframes np-pulse { 50% { box-shadow: inset 0 0 0 5px var(--np-hint); } }
-@media (prefers-reduced-motion: reduce) { .np-app .np-cell .v, .np-app .np-cell.hinted, .np-app .np-digit { animation: none; transition: none; } }
+@media (prefers-reduced-motion: reduce) { .np-app .np-cell, .np-app .np-cell .v, .np-app .np-cell.hinted, .np-app .np-digit { animation: none !important; transition: none; } }
 :root[data-theme="contrast"] .np-app .np-cell { border-color: #fff; }
 :root[data-theme="contrast"] .np-app .np-cell.sel { background: #333; }
 :root[data-theme="contrast"] .np-app .np-cell.peer { background: #111; }
 @media (max-width: 900px) {
-  .np-app .np-layout { grid-template-columns: minmax(0, 1fr); }
+  .np-app .np-layout, .np-app .np-setup, .np-app .np-steps-layout { grid-template-columns: minmax(0, 1fr); }
   .np-app .np-digits, .np-app .np-digits[data-cols="4"] { grid-template-columns: repeat(var(--cols), 1fr); gap: 4px; max-width: none; }
   .np-app .np-digit { min-height: 52px; font-size: 1.3rem; }
 }

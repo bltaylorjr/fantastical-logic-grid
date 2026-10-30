@@ -2,14 +2,17 @@
 // outside The Fantastical Logic Grid, so it can be tried before integration.
 import { mount } from '../number-place/ui.js';
 import { workerEngine } from '../number-place/engine-client.js';
+import { NP_STORY_THEMES } from '../../engine/src/number-place-story.js';
+
+const themes = NP_STORY_THEMES.map((t) => ({ id: t.id, name: t.name }));
 
 async function engine() {
   try {
-    return workerEngine(new URL('../number-place/engine-worker.js', import.meta.url));
+    return workerEngine(new URL('../number-place/engine-worker.js', import.meta.url), { themes });
   } catch (e) {
     // No module workers: run the engine on the page.
     const np = await import('../../engine/src/number-place.js');
-    return { generate: async (o) => np.generateNumberPlace(o), hint: async (p, e2) => np.getNumberPlaceHint(p, e2) };
+    return { themes, generate: async (o) => np.generateNumberPlace(o), hint: async (p, e2) => np.getNumberPlaceHint(p, e2) };
   }
 }
 
@@ -18,4 +21,13 @@ const applyTheme = () => { if (theme.value === 'system') delete document.documen
 theme.onchange = applyTheme;
 applyTheme();
 
-mount(document.querySelector('#np'), { engine: await engine(), storagePrefix: 'np-test', canPrint: !document.querySelector('meta[name="np-no-print"]') });
+// The test app has no learning service: records stay on this device and are listed in the console.
+const framed = !!document.querySelector('meta[name="np-no-print"]');
+mount(document.querySelector('#np'), {
+  engine: await engine(),
+  storagePrefix: 'np-test',
+  canPrint: !framed,
+  canDownload: !framed,
+  onPlay: (rec) => console.info('Number Place play record (would go to the learning service):', rec),
+  setWorld: (w) => { document.documentElement.dataset.world = w; },
+});

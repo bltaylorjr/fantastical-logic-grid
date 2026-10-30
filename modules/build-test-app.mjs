@@ -18,7 +18,7 @@ if (existsSync(fonts)) cpSync(fonts, join(out, 'fonts'), { recursive: true });
 for (const dir of ['number-place', 'test-app']) {
   cpSync(join(root, 'modules', dir), join(out, 'modules', dir), { recursive: true, filter: (f) => !f.endsWith('.cjs') && !f.endsWith('.html') });
 }
-for (const f of ['number-place.js', 'rng.js']) cpSync(join(root, 'engine', 'src', f), join(out, 'engine', 'src', f));
+for (const f of ["number-place.js", "number-place-story.js", "rng.js"]) cpSync(join(root, 'engine', 'src', f), join(out, 'engine', 'src', f));
 // The same page without its document wrapper, for the private claude.ai preview
 // (which adds its own wrapper and cannot print).
 const page = readFileSync(join(out, 'index.html'), 'utf8');
