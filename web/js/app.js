@@ -283,7 +283,27 @@ function renderSetup() {
   $('#items').value = setup.custom[1];
 
   $('#tier-choices').onchange = () => { setup.tier = knownTier($('input[name=tier]:checked').value); setup.size = null; renderSizes(); renderClueTypes(); updatePreview(); };
-  $('#theme-choices').onchange = () => { setup.theme = knownTheme($('input[name=theme]:checked').value); setup.topic = 'any'; renderTopics(); setWorld(setup.theme); updatePreview(); };
+  chosenTheme = $('input[name=theme]:checked');
+  $('#theme-choices').onchange = () => { chosenTheme = $('input[name=theme]:checked'); setup.theme = knownTheme(chosenTheme.value); setup.topic = 'any'; topicsClosed = false; renderTopics(); setWorld(setup.theme); updatePreview(); };
+  // Tapping the theme that is already chosen folds its topic list away, and
+  // tapping it again opens it. (The click comes before the change, so a new
+  // theme is not yet chosenTheme here.)
+  const toggleTopics = (e) => {
+    const input = e.target.closest('input[name=theme]');
+    if (!input || input !== chosenTheme) return false;
+    const theme = OPTIONS.themes.find((t) => t.id === setup.theme);
+    if (!theme || (theme.topics || []).length < 2) return false;
+    topicsClosed = !topicsClosed;
+    renderTopics();
+    announce(topicsClosed ? `${theme.name} topics closed.` : `${theme.name} topics open.`);
+    return true;
+  };
+  $('#theme-choices').onclick = (e) => { toggleTopics(e); };
+  // Space or Enter on the chosen theme does the same (browsers send no click
+  // for a radio button that is already chosen).
+  $('#theme-choices').onkeydown = (e) => {
+    if ((e.key === ' ' || e.key === 'Enter') && toggleTopics(e)) e.preventDefault();
+  };
   $('#topic-choices').onchange = () => { setup.topic = knownTopic(setup.theme, $('input[name=topic]:checked').value); updatePreview(); };
   setWorld(setup.theme);
   // Rows reflow when the window resizes, so keep the topics under the chosen theme.
@@ -307,6 +327,8 @@ function extrasLink(url) { return url; }
 // Topics narrow a theme, for example which holiday or which kind of mystery.
 // "Surprise me" has none, so the picker hides.
 let topicEl;
+let topicsClosed = false; // folded away by tapping the chosen theme again
+let chosenTheme = null;    // the chosen theme's radio button
 // It sits inside the theme list, so a topic pick must not count as a theme change.
 function topicField() {
   if (!topicEl) {
@@ -318,7 +340,7 @@ function topicField() {
 function renderTopics() {
   const theme = OPTIONS.themes.find((t) => t.id === setup.theme);
   const topics = (theme && theme.topics) || [];
-  topicField().hidden = topics.length < 2;
+  topicField().hidden = topics.length < 2 || topicsClosed;
   topicField().querySelector('legend').textContent = theme && topics.length > 1 ? `${theme.name} topics` : 'Topic';
   if (!topics.some((t) => t.id === setup.topic)) setup.topic = 'any';
   topicField().querySelector('#topic-choices').innerHTML = topics.map((t) => `
