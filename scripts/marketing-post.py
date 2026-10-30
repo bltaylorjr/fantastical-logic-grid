@@ -283,8 +283,22 @@ def wait_ready(url, token, field='status_code'):
     raise Failed('the site took more than 10 minutes to process the file')
 
 
+def instagram_id():
+    """The Instagram business account linked to the Facebook Page. INSTAGRAM_ACCOUNT_ID is used
+    when it is an id of its own; when it is empty or holds the Page id (an easy mix-up), the
+    account is read from the Page."""
+    ig, page = env('INSTAGRAM_ACCOUNT_ID').strip().strip('"'), env('META_PAGE_ID')
+    if ig.isdigit() and ig != page:
+        return ig
+    linked = meta(f'{GRAPH}/{page}?fields=instagram_business_account', token=env('META_PAGE_TOKEN')).get('instagram_business_account')
+    if not linked:
+        raise Failed('the Facebook Page has no Instagram account linked that this key can see: link it on the Page, '
+                     'and make the key with instagram_basic, ticking the Instagram account in the pop-up.')
+    return linked['id']
+
+
 def post_instagram(ad):
-    ig, token = env('INSTAGRAM_ACCOUNT_ID'), env('META_PAGE_TOKEN')
+    ig, token = instagram_id(), env('META_PAGE_TOKEN')
     videos, images = files(ad, 'video'), files(ad, 'image')
     if videos:
         form = {'media_type': 'REELS', 'video_url': videos[0], 'caption': ad['words'], 'share_to_feed': 'true'}
@@ -481,24 +495,12 @@ POST = {'bluesky': post_bluesky, 'mastodon': post_mastodon, 'x': post_x, 'facebo
 
 
 def check_instagram():
-    """Say plainly what INSTAGRAM_ACCOUNT_ID points at when it is not an Instagram account."""
-    ig, token = env('INSTAGRAM_ACCOUNT_ID'), env('META_PAGE_TOKEN')
-    if not ig.isdigit():
-        raise Failed(f'INSTAGRAM_ACCOUNT_ID should be digits only; it has {len(ig)} characters, '
-                     f'{sum(not c.isdigit() for c in ig)} of them not digits (quotes, spaces or letters?).')
-    if ig == env('META_PAGE_ID'):
-        raise Failed('INSTAGRAM_ACCOUNT_ID is the same number as the Facebook Page id. Use the id inside instagram_business_account instead.')
-    r = meta(f'{GRAPH}/{ig}?fields=username', token=token)
-    if r.get('username'):
-        return r['username']
-    page = meta(f"{GRAPH}/{env('META_PAGE_ID')}?fields=instagram_business_account", token=token).get('instagram_business_account')
-    if not page:
-        raise Failed('the Facebook Page has no Instagram account linked that this key can see: link it on the Page, '
-                     'and make the key with instagram_basic, ticking the Instagram account in the pop-up.')
-    same = page.get('id') == ig
-    raise Failed(f'Meta shows no username for INSTAGRAM_ACCOUNT_ID ({len(ig)} digits). The Page\'s linked Instagram id '
-                 f'{"is the same number" if same else "is a different number: save that one (it starts " + page.get("id", "")[:4] + ")"}; '
-                 f'fields returned: {", ".join(sorted(r)) or "none"}.')
+    ig = instagram_id()
+    r = meta(f'{GRAPH}/{ig}?fields=username', token=env('META_PAGE_TOKEN'))
+    if not r.get('username'):
+        raise Failed('Meta shows no username for the Instagram account: make the key again with instagram_basic, '
+                     'ticking the Instagram account in the pop-up.')
+    return r['username']
 
 
 def check_keys():
