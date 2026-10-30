@@ -188,6 +188,12 @@ def sheet_for(number):
     return found[0] if found else None
 
 
+def age(p, now):
+    """' · waiting 5 days' for a pull request opened 3 or more days ago, else ''."""
+    days = (now - datetime.fromisoformat(p['created_at'].replace('Z', '+00:00'))).days
+    return f' · waiting {days} days' if days >= 3 else ''
+
+
 def daily():
     now = datetime.now(timezone.utc)
     issues = [i for i in api('issues?labels=learning&state=all&per_page=100&sort=created&direction=asc') if 'pull_request' not in i]
@@ -196,8 +202,11 @@ def daily():
     since = now - timedelta(hours=26)
     done = [i for i in issues if i['state'] == 'closed' and i.get('state_reason') == 'completed'
             and datetime.fromisoformat(i['closed_at'].replace('Z', '+00:00')) > since]
-    prs = [p for p in api('pulls?state=open&per_page=50') if not p.get('draft') and not (p.get('user') or {}).get('login', '').startswith('dependabot')]
-    if not open_ and not done and not prs:
+    pulls = [p for p in api('pulls?state=open&per_page=50') if not (p.get('user') or {}).get('login', '').startswith('dependabot')]
+    prs = [p for p in pulls if not p.get('draft')]
+    # Drafts are listed once a week (Mondays), so unfinished work is not forgotten.
+    drafts = [p for p in pulls if p.get('draft')] if now.weekday() == 0 else []
+    if not open_ and not done and not prs and not drafts:
         print('Nothing to send today.')
         return
     try:
@@ -221,7 +230,12 @@ def daily():
             md += ['']
     if prs:
         md += ['## Waiting for your review', '', 'Read each one; merge it when you\'re happy. Nothing reaches players until you do.', '']
-        md += [f'- [#{p["number"]} {p["title"]}]({p["html_url"]})' for p in prs[:10]]
+        md += [f'- [#{p["number"]} {p["title"]}]({p["html_url"]})' + age(p, now) for p in prs[:10]]
+        md += ['']
+    if drafts:
+        md += ['## Drafts not finished yet (weekly reminder)', '',
+               'Unfinished work. Finish or close each one, so it does not drift away from the game and clash with newer changes.', '']
+        md += [f'- [#{p["number"]} {p["title"]}]({p["html_url"]})' + age(p, now) for p in drafts[:15]]
         md += ['']
     if done:
         md += ['## Finished since yesterday', '']
