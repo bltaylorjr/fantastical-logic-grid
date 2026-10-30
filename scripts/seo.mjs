@@ -17,7 +17,7 @@ import { join, dirname } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { gridTable, answerKey } from './worksheet.mjs';
-import { educatorsBody, EDUCATORS_CSS } from './educators-page.mjs';
+import { educatorsBody, EDUCATORS_CSS, educatorFeedbackBody, FEEDBACK_CSS } from './educators-page.mjs';
 
 // Search pages are plain HTML: only the site's own files may load, inline
 // <style> is allowed, and no inline script ever runs (JSON-LD is data, not code).
@@ -691,7 +691,7 @@ ${playBtn(up)}`,
   // The form talks to the game's Worker (server/src/educators.js). Without a
   // cloud address (tests) this page may reach localhost.
   {
-    const { classroomOptions } = await import(pathToFileURL(join(site, 'engine', 'classroom.js')).href);
+    const { classroomOptions, EDUCATOR_SURVEY, FEEDBACK_KINDS, FEEDBACK_TEXT } = await import(pathToFileURL(join(site, 'engine', 'classroom.js')).href);
     const csp = PAGE_CSP.replace("default-src 'self';", `default-src 'self'; connect-src 'self' ${cloudOrigin || 'http://localhost:* http://127.0.0.1:*'};`);
     mkdirSync(join(site, 'educators'), { recursive: true });
     cpSync(join(root, 'seo', 'educators.js'), join(site, 'educators', 'form.js'));
@@ -712,6 +712,45 @@ ${playBtn(up)}`,
       crumbs: [['educators/', 'For educators']],
       schema: videoSchema,
       body: (up) => educatorsBody(up, { options: classroomOptions(), api: cloud, video }),
+    });
+    // The private ideas, problems and feedback section, opened by the link in
+    // the package email. Not listed in search.
+    mkdirSync(join(site, 'educators', 'feedback'), { recursive: true });
+    cpSync(join(root, 'seo', 'educator-feedback.js'), join(site, 'educators', 'feedback', 'feedback.js'));
+    page({
+      path: 'educators/feedback/', listed: false, csp, style: EDUCATORS_CSS + FEEDBACK_CSS, script: 'feedback.js',
+      title: `Ideas, problems and feedback for educators | ${name}`,
+      description: 'A private section for educators who received a puzzle package: send ideas, problems and feedback, and answer a short survey.',
+      crumbs: [['educators/', 'For educators'], ['educators/feedback/', 'Ideas and feedback']],
+      body: (up) => educatorFeedbackBody(up, { survey: EDUCATOR_SURVEY, kinds: FEEDBACK_KINDS, textMax: FEEDBACK_TEXT[1], api: cloud }),
+    });
+  }
+
+  // ---------- Link in bio (links/): for Instagram and TikTok, whose captions
+  // cannot hold a clickable link. Fixed buttons, then the newest posts from
+  // the Worker (seo/links.js), each with its own tracked link. Not listed in search.
+  {
+    const csp = PAGE_CSP.replace("default-src 'self';", `default-src 'self'; connect-src 'self' ${cloudOrigin || 'http://localhost:* http://127.0.0.1:*'};`);
+    mkdirSync(join(site, 'links'), { recursive: true });
+    cpSync(join(root, 'seo', 'links.js'), join(site, 'links', 'links.js'));
+    page({
+      path: 'links/', listed: false, csp, script: 'links.js',
+      style: '.links{list-style:none;padding:0;margin:16px 0;display:grid;gap:12px;max-width:520px}.links .btn{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:52px;width:100%;box-sizing:border-box;text-align:center}.links small{font-weight:400;opacity:.8}',
+      title: `Links | ${name}`,
+      description: `Play ${name}, today's daily puzzle, free printable puzzles for teachers, and our newest posts.`,
+      crumbs: [['links/', 'Links']],
+      body: (up) => `<h1>${name}</h1>
+<p class="lede">Story logic puzzles, free to play in your browser.</p>
+<ul class="links">
+<li><a class="btn big" href="${up}?play=now" rel="nofollow">Play a new puzzle now</a></li>
+<li><a class="btn link-btn" href="${up}daily/">Today's daily puzzle</a></li>
+<li><a class="btn link-btn" href="${up}how-to-play/">How to play</a></li>
+<li><a class="btn link-btn" href="${up}educators/">Free printable puzzles for teachers</a></li>
+</ul>
+<section id="latest" data-api="${cloud || ''}" hidden aria-labelledby="latest-h">
+<h2 id="latest-h">From our latest posts</h2>
+<ul class="links"></ul>
+</section>`,
     });
   }
 
@@ -741,7 +780,7 @@ ${playBtn(up)}`,
 <p>Ideas, problem reports and story suggestions you write go to the team. If you are signed in and ask for a reply, the team may answer by email or in Messages.</p>
 <p><strong>Daily puzzle by email:</strong> if you are signed in and tick <strong>Email me each day's puzzle</strong>, the game keeps your account's email address to send it, once a day. Every email has a one-click unsubscribe link, and unticking the box or deleting your account removes the address.</p>
 <p><strong>Weekly and special edition puzzles by email:</strong> anyone can sign up in <strong>Menu &gt; Puzzle emails</strong>, with or without an account. The game keeps the email address and which emails you picked. If you are not signed in, we first email you a link to confirm, and nothing else is sent until you press Confirm; an address that is never confirmed is removed after 7 days. Every email has a one-click unsubscribe link and a link to change which emails you get. Unsubscribing from both, or deleting your account, removes the address.</p>
-<p><strong>Educator puzzle packages:</strong> when a teacher asks for a package on the <a href="../educators/">Educators page</a>, we keep the name, school, school email and the choices on the form to confirm the address, review the request and email the puzzles. Requests that are never confirmed or are declined are removed after 30 days.</p>
+<p><strong>Educator puzzle packages:</strong> when a teacher asks for a package on the <a href="../educators/">Educators page</a>, we keep the name, school, school email and the choices on the form to confirm the address, review the request and email the puzzles. Requests that are never confirmed or are declined are removed after 30 days. After a package is emailed, the educator may send ideas, problems, feedback and survey answers through a private link; we keep those with the request to improve our tools and to answer them by email.</p>
 <h2>Services the game uses</h2>
 <ul>
 <li><strong>Natural voices:</strong> the words being read aloud are sent to Google (Gemini or Google Cloud text-to-speech) through the game's server. Google may use text sent to its free services to improve them. Choose the device's own voices in Settings to keep speech on your device.</li>

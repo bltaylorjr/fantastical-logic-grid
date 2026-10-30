@@ -250,6 +250,8 @@ const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`o
 
     // a grid that fits on screen does not scroll inside the page as well (player report: "extra scrolling")
     await page.setViewportSize({ width: 1280, height: 900 });
+    // The app bar's height reaches the CSS through a ResizeObserver, which runs after the resize.
+    await page.waitForFunction(() => document.documentElement.style.getPropertyValue('--appbar-h') === `${document.querySelector('.appbar').offsetHeight}px`, null, { timeout: 5000 }).catch(() => {});
     const fit = await page.evaluate(() => { const f = document.querySelector('#gridframe'); return [f.scrollHeight, f.clientHeight, parseFloat(getComputedStyle(f).maxHeight), innerHeight - document.querySelector('.appbar').offsetHeight - 16]; });
     assert(fit[0] <= fit[1] + 1 && Math.abs(fit[2] - fit[3]) <= 1, `grid frame is as tall as the screen below the app bar, no inner scroll (${fit.join('/')})`);
     // Browser autofill sends keydown events with no key (player error report: reading 'toLowerCase').

@@ -1,5 +1,6 @@
 # Tells the admin dashboard's "Connections and setup" guide which GitHub
-# secrets and variables have a value, and how GitHub Pages is set up, so each
+# secrets and variables have a value (secrets are asked about one by one:
+# GitHub holds back a run that reads them all with toJSON(secrets)), and how GitHub Pages is set up, so each
 # connection can show Connected or Missing. Only NAMES are sent, never values,
 # and the log prints only names (scripts/connections.mjs report).
 # Free: GitHub Actions on a public repository cost nothing.
@@ -38,7 +39,64 @@ jobs:
         run: sleep 120
       - name: Report which names are set
         env:
-          SECRETS_JSON: ${{ toJSON(secrets) }}
+          # Generated from admin/connections.js: node scripts/connections.mjs workflow
+          # names:start (each secret's name when it has a value; never the value)
+          HAS_SECRETS: >-
+            ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' && 'ANDROID_KEYSTORE_BASE64' || '' }}
+            ${{ secrets.ANDROID_KEYSTORE_PASSWORD != '' && 'ANDROID_KEYSTORE_PASSWORD' || '' }}
+            ${{ secrets.ARCHIVE_TO != '' && 'ARCHIVE_TO' || '' }}
+            ${{ secrets.BLUESKY_APP_PASSWORD != '' && 'BLUESKY_APP_PASSWORD' || '' }}
+            ${{ secrets.BLUESKY_HANDLE != '' && 'BLUESKY_HANDLE' || '' }}
+            ${{ secrets.CLOUDFLARE_ACCOUNT_ID != '' && 'CLOUDFLARE_ACCOUNT_ID' || '' }}
+            ${{ secrets.CLOUDFLARE_API_TOKEN != '' && 'CLOUDFLARE_API_TOKEN' || '' }}
+            ${{ secrets.CLOUDFLARE_PROJECT != '' && 'CLOUDFLARE_PROJECT' || '' }}
+            ${{ secrets.DEPLOY_HOOK_URL != '' && 'DEPLOY_HOOK_URL' || '' }}
+            ${{ secrets.FLG_ADMIN_TOKEN != '' && 'FLG_ADMIN_TOKEN' || '' }}
+            ${{ secrets.FTP_DIR != '' && 'FTP_DIR' || '' }}
+            ${{ secrets.FTP_PASSWORD != '' && 'FTP_PASSWORD' || '' }}
+            ${{ secrets.FTP_SERVER != '' && 'FTP_SERVER' || '' }}
+            ${{ secrets.FTP_USERNAME != '' && 'FTP_USERNAME' || '' }}
+            ${{ secrets.GMAIL_APP_PASSWORD != '' && 'GMAIL_APP_PASSWORD' || '' }}
+            ${{ secrets.GMAIL_USER != '' && 'GMAIL_USER' || '' }}
+            ${{ secrets.INSTAGRAM_ACCOUNT_ID != '' && 'INSTAGRAM_ACCOUNT_ID' || '' }}
+            ${{ secrets.LINKEDIN_TOKEN != '' && 'LINKEDIN_TOKEN' || '' }}
+            ${{ secrets.MASTODON_TOKEN != '' && 'MASTODON_TOKEN' || '' }}
+            ${{ secrets.META_PAGE_ID != '' && 'META_PAGE_ID' || '' }}
+            ${{ secrets.META_PAGE_TOKEN != '' && 'META_PAGE_TOKEN' || '' }}
+            ${{ secrets.NETLIFY_AUTH_TOKEN != '' && 'NETLIFY_AUTH_TOKEN' || '' }}
+            ${{ secrets.NETLIFY_SITE_ID != '' && 'NETLIFY_SITE_ID' || '' }}
+            ${{ secrets.NIGHTLY_TO != '' && 'NIGHTLY_TO' || '' }}
+            ${{ secrets.OWNER_TASKS_TO != '' && 'OWNER_TASKS_TO' || '' }}
+            ${{ secrets.PINTEREST_APP_ID != '' && 'PINTEREST_APP_ID' || '' }}
+            ${{ secrets.PINTEREST_APP_SECRET != '' && 'PINTEREST_APP_SECRET' || '' }}
+            ${{ secrets.PINTEREST_BOARD_ID != '' && 'PINTEREST_BOARD_ID' || '' }}
+            ${{ secrets.PINTEREST_REFRESH_TOKEN != '' && 'PINTEREST_REFRESH_TOKEN' || '' }}
+            ${{ secrets.REDDIT_CLIENT_ID != '' && 'REDDIT_CLIENT_ID' || '' }}
+            ${{ secrets.REDDIT_CLIENT_SECRET != '' && 'REDDIT_CLIENT_SECRET' || '' }}
+            ${{ secrets.REDDIT_REFRESH_TOKEN != '' && 'REDDIT_REFRESH_TOKEN' || '' }}
+            ${{ secrets.REPORTS_TO != '' && 'REPORTS_TO' || '' }}
+            ${{ secrets.RESEND_API_KEY != '' && 'RESEND_API_KEY' || '' }}
+            ${{ secrets.SITE_REPO_TOKEN != '' && 'SITE_REPO_TOKEN' || '' }}
+            ${{ secrets.SSH_HOST != '' && 'SSH_HOST' || '' }}
+            ${{ secrets.SSH_PATH != '' && 'SSH_PATH' || '' }}
+            ${{ secrets.SSH_PORT != '' && 'SSH_PORT' || '' }}
+            ${{ secrets.SSH_PRIVATE_KEY != '' && 'SSH_PRIVATE_KEY' || '' }}
+            ${{ secrets.SSH_USER != '' && 'SSH_USER' || '' }}
+            ${{ secrets.SUMMARY_TO != '' && 'SUMMARY_TO' || '' }}
+            ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' && 'TAURI_SIGNING_PRIVATE_KEY' || '' }}
+            ${{ secrets.THREADS_TOKEN != '' && 'THREADS_TOKEN' || '' }}
+            ${{ secrets.THREADS_USER_ID != '' && 'THREADS_USER_ID' || '' }}
+            ${{ secrets.TIKTOK_CLIENT_KEY != '' && 'TIKTOK_CLIENT_KEY' || '' }}
+            ${{ secrets.TIKTOK_CLIENT_SECRET != '' && 'TIKTOK_CLIENT_SECRET' || '' }}
+            ${{ secrets.TIKTOK_REFRESH_TOKEN != '' && 'TIKTOK_REFRESH_TOKEN' || '' }}
+            ${{ secrets.X_ACCESS_SECRET != '' && 'X_ACCESS_SECRET' || '' }}
+            ${{ secrets.X_ACCESS_TOKEN != '' && 'X_ACCESS_TOKEN' || '' }}
+            ${{ secrets.X_API_KEY != '' && 'X_API_KEY' || '' }}
+            ${{ secrets.X_API_SECRET != '' && 'X_API_SECRET' || '' }}
+            ${{ secrets.YOUTUBE_CLIENT_ID != '' && 'YOUTUBE_CLIENT_ID' || '' }}
+            ${{ secrets.YOUTUBE_CLIENT_SECRET != '' && 'YOUTUBE_CLIENT_SECRET' || '' }}
+            ${{ secrets.YOUTUBE_REFRESH_TOKEN != '' && 'YOUTUBE_REFRESH_TOKEN' || '' }}
+          # names:end
           VARS_JSON: ${{ toJSON(vars) }}
           GITHUB_TOKEN: ${{ github.token }}
           FLG_CLOUD_URL: ${{ vars.FLG_CLOUD_URL || 'https://flg-api.btay74.workers.dev' }}

@@ -96,7 +96,28 @@ async function sha256(text) {
 }
 
 // Returns a Response for POST /v1/m, or null for anything else.
+// The link-in-bio page (thelogicgrid.com/links/, scripts/seo.mjs) lists the
+// newest posts from the sites whose captions cannot hold a clickable link,
+// each with its own tracked link, so a visit from the bio counts for the post
+// that sent it. Only what is already public: titles, tracked links, post links.
+export const BIO_CHANNELS = ['instagram', 'tiktok', 'youtube', 'pinterest'];
+export async function bioLinks(env, limit = 6) {
+  const site = env.SITE_URL || 'https://thelogicgrid.com';
+  const marks = BIO_CHANNELS.map((_, i) => `?${i + 2}`).join(', ');
+  const { results } = await env.DB.prepare(`SELECT a.channel, a.medium, a.content, a.title, a.landing, a.post_url AS postUrl, a.posted_at AS postedAt, c.code
+    FROM campaign_ads a JOIN campaigns c ON c.id = a.campaign_id
+    WHERE a.status = 'posted' AND a.channel IN (${marks}) ORDER BY a.posted_at DESC, a.id DESC LIMIT ?1`).bind(limit, ...BIO_CHANNELS).all();
+  return results.map((a) => ({
+    // Ad titles read "Instagram Reel: launch"; the page shows the part after the colon.
+    title: ((t) => t.charAt(0).toUpperCase() + t.slice(1))(String(a.title || '').replace(/^[^:]{0,40}:\s*/, '')) || 'Our latest post',
+    channel: a.channel, link: trackedLink(site, a, a.code), postUrl: a.postUrl || null, postedAt: a.postedAt,
+  }));
+}
+
 export async function handleMarketing(req, env, url) {
+  if (url.pathname === '/v1/links' && req.method === 'GET') {
+    return json(req, env, { links: await bioLinks(env) }, 200, { 'Cache-Control': 'public, max-age=300' });
+  }
   if (url.pathname !== '/v1/m' || req.method !== 'POST') return null;
   const ip = req.headers.get('CF-Connecting-IP') || 'local';
   if (env.LIMIT_AUTHLESS && !(await env.LIMIT_AUTHLESS.limit({ key: (await sha256(`flg-m|${ip}`)).slice(0, 32) })).success) return json(req, env, { error: 'slow_down' }, 429, { 'Retry-After': '60' });

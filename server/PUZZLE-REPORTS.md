@@ -55,8 +55,76 @@ check:
   the puzzle you reported"**: an apology, what they reported, what we found,
   what we did (the **correction made**) and a button that adds the repaired
   puzzle to their **Saved puzzles** on any device (30 days).
-- **Needs a fix in the code**: today's engine still gets it wrong.
+- **Needs a fix in the code**: today's engine still gets it wrong. The daily
+  code-fix task picks it up (below).
 - **No fault in the puzzle**: see the display rule above.
+
+## Code fixes: the doctor fixes what it cannot rebuild
+
+Some reports cannot be repaired by rebuilding the puzzle: a fault today's
+puzzle maker still makes (**Needs a fix in the code**), a **Web Page Issue**, a
+puzzle report with no puzzle attached, or a sound puzzle the player still had
+trouble with. App errors the game reports by itself are the same. These are
+fixed in the code, automatically, in two parts.
+
+**1. The daily code-fix task.** A Claude scheduled task ("Puzzle doctor code
+fixes", owner's account) wakes the project thread "Make Puzzle doctor
+auto-fix reported errors" every day at 6:47 am Eastern and follows these rules
+(the same ones as the weekly task in [IMPROVE.md](../IMPROVE.md)):
+
+1. Read the waiting reports without making them public: make a one-off key
+   pair in the session, run **Daily player report** with `send` off and
+   `public_key` set (MAINTENANCE.md, "Player reports"), and decrypt the log.
+   Its `waiting` list holds every report still waiting in Error tracking (with
+   the puzzle for each one that needs a fix in the puzzle maker), and `errors`
+   holds the app errors.
+2. Skip anything an open pull request already covers (search open PRs for the
+   tracking id). Oldest first, pick at most **three** fixes a small, safe code
+   change can make. Reproduce each one first (load the reported puzzle with
+   `scripts/puzzle-doctor.mjs`, or open the screen at the reported window size).
+3. One pull request per fix, on its own `claude/` branch, labelled
+   `report-fix`, with the tests passing (`npm test`, `npm --prefix server test`)
+   and a test that would have caught it. Its body names what it fixes, one item
+   per line:
+
+   ```
+   Fixes reports: PZ-ABCD2345, WS-EFGH6789
+   Player note: The game menu now fits on small phones instead of running off the screen.
+   Fixes error: Cannot read properties of undefined (reading 'toLowerCase') | app.js
+   ```
+
+   The **player note** is what players are told: plain, everyday words, no code
+   names. Tracking ids and app error messages are not personal; the players'
+   own words never go in a pull request, commit, issue or log.
+4. Bump the version (package.json, tauri.conf.json, Cargo.toml) for any change
+   players will see, so the note can say which version has the fix.
+5. Merge each pull request (squash) once its checks pass. The Cloudflare
+   "Workers Builds" check always fails on branches and does not block.
+6. Standing rules: free tools only; never reuse a story; mobile changes only
+   for Android; anything the owner must do outside the code goes in
+   `docs/owner-tasks/`; when the look or features change, merge the "[video]"
+   pull request that follows.
+7. Not fixed automatically: a report that is really a new feature or a change
+   of design, anything that would change past daily puzzles, and anything
+   unclear. The task lists those (by tracking id) in its reply in the project
+   thread for the owner to decide.
+
+**2. Report fixes** (`.github/workflows/report-fixes.yml`,
+`scripts/report-fixes.mjs`). When a pull request merges into main, this
+Action reads those lines and, using the version in package.json:
+
+- marks each listed report **done** and its problem **Addressed** in the admin
+  app, with the player note and "Fixed in version X";
+- emails the player who asked (the usual "addressed" update with that note);
+- sends a puzzle report that needed a fix in the puzzle maker back to the
+  doctor instead, which rebuilds it with the fixed engine and emails the
+  **repaired puzzle**. If nothing is left to repair, the report closes with
+  the note as above;
+- marks each listed app error fixed in that version (Error reports).
+
+It also runs by hand (Actions > Report fixes > Run workflow) with tracking
+ids and a note, for a fix made some other way. A report already done is left
+alone.
 
 ## Learning: self-diagnosis and self-repair
 

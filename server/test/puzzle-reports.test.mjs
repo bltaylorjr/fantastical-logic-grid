@@ -139,3 +139,42 @@ test('reports are filed by category, checked, repaired, cross-referenced and lea
   // The team closes a web page issue with a note.
   assert.equal((await call(`/admin/v1/error-tracking/${ws.id}/done`, { auth: owner, body: { note: 'The grid now fits small tablets.' } })).status, 200);
 });
+
+test('a merged code fix closes its reports with the player note and version', async () => {
+  const owner = token('owner-uid', OWNER);
+  const gus = token('gus-uid', 'gus@example.com');
+  const good = generatePuzzle({ difficulty: 'easy', categories: 3, items: 4, seed: 'close-test' });
+  const page = (await call('/v1/puzzle-report', { auth: gus, body: { kind: 'page', text: 'The menu runs off my phone', page: 'Menu', version: '2.1.0', reply: true } })).body;
+  // A puzzle report the doctor said needs a fix in the puzzle maker.
+  const pz = (await call('/v1/puzzle-report', { auth: gus, body: { kind: 'puzzle', text: 'Two answers seem to work', puzzle: good, page: 'Puzzle screen: X', version: '2.1.0', reply: true } })).body;
+  await db.prepare(`UPDATE puzzle_reports SET status = 'needs_fix', findings = '[{"code":"not_unique","text":"x"}]' WHERE tracking = ?1`).bind(pz.tracking).run();
+
+  assert.equal((await call('/admin/v1/error-tracking/close', { auth: owner, body: { trackings: [page.tracking], note: '' } })).status, 400, 'a note is required');
+  const gusOnly = await call('/admin/v1/error-tracking/close', { auth: gus, body: { trackings: [page.tracking], note: 'x' } });
+  assert.ok(gusOnly.status === 401 || gusOnly.status === 403, 'owner only');
+
+  const r = (await call('/admin/v1/error-tracking/close', { auth: owner, body: { trackings: [page.tracking, pz.tracking, 'WS-NOTAREAL', 'nonsense'], note: 'The menu now fits on small phones', fixedIn: '2.1.1' } })).body;
+  assert.equal(r.closed, 1);
+  assert.equal(r.requeued, 1, 'the puzzle report goes back to the doctor');
+  assert.equal(r.emailed, 1);
+  assert.deepEqual(r.skipped, ['WS-NOTAREAL']);
+  const ws = await db.prepare('SELECT status, note FROM puzzle_reports WHERE tracking = ?1').bind(page.tracking).first();
+  assert.equal(ws.status, 'done');
+  assert.equal(ws.note, 'The menu now fits on small phones. Fixed in version 2.1.1.');
+  const mail = await db.prepare("SELECT r.status, r.note FROM feedback_replies r JOIN puzzle_reports p ON p.feedback_id = r.feedback_id WHERE p.tracking = ?1").bind(page.tracking).first();
+  assert.equal(mail.status, 'waiting', 'the player who asked is emailed');
+  assert.match(mail.note, /Fixed in version 2\.1\.1/);
+  const fb = await db.prepare('SELECT f.status, f.note FROM feedback f JOIN puzzle_reports p ON p.feedback_id = f.id WHERE p.tracking = ?1').bind(page.tracking).first();
+  assert.equal(fb.status, 'addressed', 'marked Addressed in the admin app');
+
+  // The doctor finds nothing left to repair: the report closes with the fix note.
+  const claim = (await call('/admin/v1/puzzle-reports/claim', { auth: owner, body: { limit: 5 } })).body;
+  const mine = claim.reports.filter((x) => x.puzzle.seed === good.seed);
+  assert.equal(mine.length, 1);
+  const done = (await call('/admin/v1/puzzle-reports/done', { auth: owner, body: { results: mine.map((x) => ({ id: x.id, ...examine(x.puzzle, claim.playbook) })) } })).body;
+  assert.equal(done.closed, 1);
+  const p = await db.prepare('SELECT status, note FROM puzzle_reports WHERE tracking = ?1').bind(pz.tracking).first();
+  assert.equal(p.status, 'done');
+  assert.match(p.note, /^The menu now fits on small phones\. Fixed in version 2\.1\.1\.$/);
+  assert.equal((await call('/admin/v1/error-tracking/close', { auth: owner, body: { trackings: [pz.tracking], note: 'again' } })).body.skipped[0], pz.tracking, 'a closed report stays closed');
+});

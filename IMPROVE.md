@@ -111,8 +111,10 @@ The task follows these rules:
 6. Anything that needs the owner outside the code (DNS, secrets, dashboard
    switches) goes in `docs/owner-tasks/YYYY-MM-DD-name.md` in a PR, which
    emails it to the owner.
-7. When a fix addresses a player report, mark it Addressed in the admin app
-   (MAINTENANCE.md, "Player reports").
+7. When a fix addresses a player report, put `Fixes reports:` (tracking
+   ids) and a plain `Player note:` in the PR body so Report fixes marks it
+   Addressed with the version on merge (server/PUZZLE-REPORTS.md, "Code
+   fixes"). Reported problems themselves are the daily code-fix task's job.
 8. Bigger or riskier changes (new features, difficulty plan changes, anything
    that would change past daily puzzles) are not made: they are listed in a
    comment on the report issue for the owner to decide.

@@ -375,5 +375,5 @@ function mergeMeta(key, local, remote) {
 }
 
 function newId() {
-  return (crypto.randomUUID && crypto.randomUUID()) || `s${Date.now()}${Math.random().toString(36).slice(2)}`;
+  return (crypto.randomUUID && crypto.randomUUID()) || `s${Date.now()}${Array.from(crypto.getRandomValues(new Uint8Array(8)), (b) => b.toString(16).padStart(2, '0')).join('')}`;
 }

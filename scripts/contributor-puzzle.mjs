@@ -13,7 +13,7 @@ const TIERS = { basic: 'Basic', easy: 'Easy', medium: 'Medium', hard: 'Hard', ex
 
 export function contributorHtml(p) {
   const level = TIERS[p.difficulty?.id] || '';
-  const theme = p.theme ? `${p.theme.name}${p.topic ? ` (${p.topic.name})` : ''}` : '';
+  const theme = p.theme ? `${p.theme.name}${p.topic && p.topic.name !== p.theme.name ? ` (${p.topic.name})` : ''}` : '';
   const key = p.answerKey;
   const puzzle = `<section class="page">
 <p class="brand">The Fantastical Logic Grid · made with your storyline</p>

@@ -14,6 +14,7 @@ import { deleteCompeteStatements } from './compete.js';
 import { deleteMessageStatements } from './messages.js';
 import { deleteReplyStatements } from './replies.js';
 import { deleteDailyEmailStatement } from './daily-email.js';
+import { deletePrintPackStatements } from './print-packs.js';
 import { deletePuzzleMailStatement } from './puzzle-mail.js';
 import { deleteBadgeStatements } from './special-badges.js';
 
@@ -124,10 +125,13 @@ export async function handleDeleteAccount(req, env, user) {
     ...deleteMessageStatements(env, user.uid),
     ...(await deleteReplyStatements(env, user.uid)),
     deleteDailyEmailStatement(env, user.uid),
+    ...deletePrintPackStatements(env, user.uid),
     deletePuzzleMailStatement(env, user.uid),
     ...deleteBadgeStatements(env, user.uid),
     // Payment records stay (by email); only the link to the account goes.
     env.DB.prepare('UPDATE supporters SET user_id = NULL WHERE user_id = ?1').bind(user.uid),
+    // An app key keeps working on the player's devices, no longer tied to them (licenses.js).
+    env.DB.prepare('UPDATE licenses SET user_id = NULL, email = NULL WHERE user_id = ?1').bind(user.uid),
     env.DB.prepare('INSERT OR REPLACE INTO sync_deleted_users (user_id, deleted_at) VALUES (?1, ?2)').bind(user.uid, Date.now()),
   ]);
   return json(req, env, { deleted: true });

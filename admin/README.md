@@ -12,6 +12,7 @@ needs no extra hosting and stays free. Its API is `server/src/admin.js`.
 | Search (Google and Bing) | Clicks, impressions, average position, top searches and top pages for the last 28 days, sitemaps and whether the home page is indexed; fetched daily, Refresh now for admins | viewer |
 | Daily puzzles | The next 14 days' daily puzzles (title, theme, level, size) as the last site build made them; plan up to 60 days ahead: change a day's theme, level or size, ask for a new story, add a note, or put a day back to automatic. Changes go live with the next site build (daily at 00:17 UTC, or Publish web version now) | moderator to look, admin to change |
 | Characters | The game's own characters: name, woman or man (face and voice both follow it), personality, cast or storyteller, every theme or chosen ones, a drawn face (DiceBear) or an AI portrait (Workers AI, counts toward New AI pictures a day), a server voice and an on-device Kokoro voice with a pace, and lines for clues, hints and solves (drafted free by a Workers AI text model, editable). Names and lines are checked against the story rules and the word filter before publishing. Also reviews characters players suggest from Menu > Suggest a character. Switches and caps are under Settings > Characters | moderator; admin to publish |
+| Media library (sounds and pictures) | Try out every sound and picture in the game, in groups: background music for each theme (with a slider for how full the grid is), sound effects, voices (server voices, voice styles, this device's voices), celebrations (each with its On for players switch, the same as in Settings), theme scenes (with a slider for how much of the grid is finished), character faces in every style, and theme pictures. It runs copies of the game's own files (`game-*.js`, `confetti.js`), made by `node scripts/admin-media.mjs`; run it after changing web/js/audio.js, art.js, gender.js or effects.js (server/test/media.test.mjs fails when a copy is out of date) | viewer; admin to switch celebrations |
 | Puzzle quality | For each theme and level over the last 30 or 90 days: games, solve rate, how many gave up or revealed the answer, ratings and "too hard / too easy", minutes and hints. Groups with 5 or more games that many players give up on, rate under 3 or find too hard or too easy are flagged and come first | viewer |
 | Ratings and insights | The optional 1 to 5 stars players give after solving (5 is excellent): average, how many rate, the spread of stars and the average over time, for the last 7, 30, 90 or 365 days. Group by theme and difficulty, theme, topic, difficulty, size, clue type, what-if reasoning, story part, story, character, app version, platform or play mode, each with solve, give-up, too hard / too easy and trend columns. "What's working" and "What to improve" say in plain words which groups (5 ratings or more) stand out and what to try. "In a few words" is a short summary from the free Workers AI text model, written from the numbers only, at most `ratings_ai_daily_cap` times a day (Settings > Alerts and reports) and kept for the day. The same analysis goes into the weekly summary email and the nightly report (`GET /admin/v1/ratings?brief=1`: `headline` and `actionNeeded`) | viewer (Write it again: admin) |
 | Marketing | Every campaign and ad: the exact words to post, its media (videos and pictures in `media/promo` and `media/marketing`), where it goes, its status (draft, approved, posted with the live link) and its tracked link. Numbers per day, channel, campaign and ad: visits from campaign links and other websites, the first puzzle played, solves, app installs and Windows downloads in the 30 days after the visit. Make a tracked link for anything else, and download every number as CSV. The game sends these as anonymous daily counts (`web/js/campaign.js`, `POST /v1/m`); unknown campaign codes are counted as "(other)". The launch campaign (`server/src/marketing-seed.js`) is added once, as drafts | viewer (change, CSV: admin) |
@@ -86,8 +87,18 @@ are never stored on the phone. Icons: `node scripts/admin-icons.cjs admin`.
   and 60 a minute per signed-in admin.
 - The API sends no CORS headers, so only the dashboard (same address) can call
   it from a browser. The pages have a strict Content-Security-Policy, cannot be
-  framed and are not indexed. The session lives only in the browser tab and
-  ends after 30 idle minutes.
+  framed and are not indexed. With "Keep me signed in on this device" the
+  session survives switching apps (localStorage), otherwise it lives only in
+  the tab; either way it locks after 30 idle minutes.
+- **Face ID and fingerprint** (`server/src/passkeys.js`, `admin/passkeys.js`):
+  each admin can set up passkeys on their phones and computers under Face ID
+  and fingerprint. The device keeps the private key and only unlocks it with
+  the admin's face, finger or PIN; the Worker keeps the public key (D1
+  `admin_passkeys`) and checks each sign-in with WebCrypto. A passkey sign-in
+  gives a session key (only its hash is stored, `admin_sessions`) that locks
+  after 30 idle minutes and ends after 12 hours, on sign-out, or when the
+  device or the admin is removed. Setting up a device needs a password
+  sign-in from the last 15 minutes. Free: no library or service.
 - **Privacy**: anonymous learning data (plays and story parts) is only counted
   on its own and never joined to accounts. Saved puzzles are counted, never
   shown. Emails stay in Firebase; players appear by screen name and id.

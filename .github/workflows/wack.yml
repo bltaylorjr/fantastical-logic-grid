@@ -1,0 +1,74 @@
+# Runs Microsoft's Windows App Certification Kit (WACK), the same test kit the
+# Microsoft Store uses, on both Windows apps: the game (desktop/) and the admin
+# app (desktop-admin/). Today's kit only tests MSIX packages (the Store format),
+# so scripts/wack-msix.ps1 packages each app as an MSIX signed with a throwaway
+# test certificate; the kit installs, starts, checks and removes it. Every test
+# is listed with Pass or Fail on the run's summary page, and the full report is
+# kept as a download (wack-report-*).
+# Runs on pull requests that change the desktop apps, and from the Actions tab.
+# The website checks the Store also looks at run in every test run
+# (scripts/check-store.mjs). Free: GitHub Actions minutes are free for public repos,
+# and the kit is part of Microsoft's free Windows SDK.
+name: Windows app certification
+on:
+  workflow_dispatch:
+  pull_request:
+    paths: ['desktop/**', 'desktop-admin/**', '.cargo/**', '.github/workflows/wack.yml', 'scripts/wack-summary.mjs', 'scripts/wack-msix.ps1']
+permissions:
+  contents: read
+concurrency:
+  group: wack-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  wack:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [desktop, desktop-admin]
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          toolchain: stable
+      - uses: swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: ${{ matrix.app }}/src-tauri -> target
+      - run: npm ci
+      - name: Build the website the game bundles
+        if: matrix.app == 'desktop'
+        run: npm run build
+      - name: Build the installer (no updater signing needed for a test build)
+        working-directory: ${{ matrix.app }}
+        run: npx tauri build --config '{\"bundle\":{\"createUpdaterArtifacts\":false}}'
+      - name: Find or install the Windows App Certification Kit
+        run: |
+          $kit = "${env:ProgramFiles(x86)}\Windows Kits\10\App Certification Kit\appcert.exe"
+          if (-not (Test-Path $kit)) {
+            Write-Host "Installing the kit from the free Windows SDK."
+            Invoke-WebRequest "https://go.microsoft.com/fwlink/?linkid=2286561" -OutFile "$env:RUNNER_TEMP\winsdksetup.exe"
+            Start-Process "$env:RUNNER_TEMP\winsdksetup.exe" -ArgumentList '/features OptionId.WindowsSoftwareLogoToolkit /quiet /norestart /ceip off' -Wait
+          }
+          if (-not (Test-Path $kit)) { Write-Error "appcert.exe was not found after installing the kit."; exit 1 }
+      - name: Package as MSIX and run the certification tests (install, start, check, remove)
+        run: |
+          "REPORT=$env:RUNNER_TEMP\wack-${{ matrix.app }}.xml" >> $env:GITHUB_ENV
+          ./scripts/wack-msix.ps1 -App ${{ matrix.app }} -Out $env:RUNNER_TEMP
+      - name: Results
+        if: always() && env.REPORT != ''
+        run: node scripts/wack-summary.mjs "$env:REPORT" "${{ matrix.app }}"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: wack-report-${{ matrix.app }}
+          path: ${{ runner.temp }}/wack-*.xml
+          retention-days: 30
+          if-no-files-found: ignore

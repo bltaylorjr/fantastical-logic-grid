@@ -51,7 +51,7 @@ body{margin:0;font-family:Arial,Helvetica,sans-serif;background:#e8eaf0}
 .att{display:flex;gap:12px;padding:12px 24px;border-bottom:1px solid #eee}.att div{border:1px solid #ccc;border-radius:8px;padding:8px 14px;font-size:14px}.att b{color:#c62828}
 .mail{transform:scale(.92);transform-origin:top center}</style></head><body>
 <div class="bar">Inbox · Lincoln Elementary School Mail</div><div class="wrap"><div class="head"><h1>${esc(subject)}</h1>
-<p><b>From:</b> The Fantastical Logic Grid &lt;noreply@thelogicgrid.com&gt;</p><p><b>To:</b> rivera@lincoln.k12.ca.us</p></div>
+<p><b>From:</b> The Fantastical Logic Grid &lt;support@thelogicgrid.com&gt;</p><p><b>To:</b> rivera@lincoln.k12.ca.us</p></div>
 ${attachments.length ? `<div class="att">${attachments.map((a) => `<div><b>PDF</b> ${esc(a)}</div>`).join('')}</div>` : ''}
 <div class="mail"><iframe srcdoc="${esc(html)}" style="width:100%;height:900px;border:0"></iframe></div></div></body></html>`;
 }
@@ -248,6 +248,29 @@ ${attachments.length ? `<div class="att">${attachments.map((a) => `<div><b>PDF</
     scenes.push({ shot: 'shots/pdf-puzzle.png', sentences: ['Every puzzle has a brand new story, written at the right level for the grade, with the clues, a blank grid and the questions.'] });
     await pageShot('answer-keys.html', 0, 'pdf-key');
     scenes.push({ shot: 'shots/pdf-key.png', sentences: ['The answer keys come in their own file, so you can keep them back, with a step by step solution if you asked for one.'] });
+
+    // After the package: the private ideas, problems and feedback section.
+    const adminPage = p;
+    p = await ctx.newPage();
+    await p.goto(`${SITE}/educators/feedback/?ref=${job.ref}&key=${job.feedbackKey}`);
+    await p.waitForSelector('#fb-open:not([hidden])');
+    for (const [q, v] of [['use', 0], ['use', 4], ['fit', 2], ['engage', 3]]) await p.check(`[name=q-${q}][value="${v}"]`);
+    await view('#survey-h', -40);
+    await hl('#survey-h', 10);
+    await scene('feedback-survey', ['The email with your puzzles also has a private link to your own ideas, problems and feedback section.', 'It starts with a two-minute survey about how our tools can help your class.']);
+    await p.check('#note-form input[name=kind][value=idea]');
+    await p.fill('#note-form [name=text]', 'My class would love a space theme!');
+    await p.click('#note-send');
+    await p.waitForSelector('.fb-item');
+    await view('#note-h', -40);
+    await hl(['#note-form', '#fb-items'], 10);
+    await scene('feedback-note', ['Send us an idea, a problem or feedback any time, and see our answers right there.']);
+    p = adminPage;
+    await p.goto(`${API}/admin/#edu-feedback`);
+    await p.waitForSelector('#efb-list article');
+    await p.addStyleTag({ content: '#who{visibility:hidden}' });
+    await hl('#efb-list article', 8);
+    await scene('feedback-team', ['Our team reads every note, answers in plain words, and emails you the answer.']);
 
     card('eduoutro', ['Fill in the form, confirm your email, and print. Happy puzzling!']);
     const cp = await browser.newPage({ viewport: VIEW, deviceScaleFactor: SCALE });

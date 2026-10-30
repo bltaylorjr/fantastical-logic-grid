@@ -44,6 +44,7 @@
     <button role="menuitem" type="button" data-cmd="daily">Daily puzzle</button>
     <button role="menuitem" type="button" data-cmd="mail" hidden>Puzzle emails</button>
     <button role="menuitem" type="button" data-cmd="stats">My stats and badges</button>
+    <button role="menuitem" type="button" data-cmd="pack" hidden>Printable puzzle pack</button>
     <button role="menuitem" type="button" data-cmd="suggest" hidden>Suggest a character</button>
     <button role="menuitem" type="button" data-cmd="settings">Settings</button>
     <button role="menuitem" type="button" data-cmd="messages" hidden>Messages<span class="count"></span></button>
@@ -53,6 +54,8 @@
     <button role="menuitem" type="button" data-cmd="install" hidden>Install the app</button>
     <a role="menuitem" id="support-link" href="#" target="_blank" rel="noopener" hidden>Support the game</a>
     <button role="menuitem" type="button" data-cmd="site" hidden>Play on thelogicgrid.com</button>
+    <!-- Number Place: a separate numbers game with its own screen (modules/number-place). -->
+    <button role="menuitem" type="button" data-cmd="numberplace" class="menu-small">Try Number Place <span class="menu-tag">New</span></button>
   </div>
   <!-- Always visible: How to play (the tutorial), the Introduction video and a small scoreboard. -->
   <div class="topstrip">
@@ -63,6 +66,11 @@
       <ol id="miniboard-list"></ol>
       <button class="btn quiet small" type="button" id="miniboard-open">Scoreboard</button>
     </section>
+    <!-- Grid or List, in the sticky bar so it never scrolls away while a puzzle is open. -->
+    <div class="seg view-seg" id="view-seg" role="radiogroup" aria-label="Show the puzzle as" hidden>
+      <label title="Grid view"><input type="radio" name="view" value="grid" checked><span><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/></svg><span class="seg-text">Grid</span></span></label>
+      <label title="List view"><input type="radio" name="view" value="list"><span><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h.01M3 12h.01M3 19h.01M8 5h13M8 12h13M8 19h13"/></svg><span class="seg-text">List</span></span></label>
+    </div>
   </div>
 </header>
 
@@ -102,7 +110,7 @@
           <p class="extras-note" id="extras-note" hidden>Themes marked <b>Supporter extra</b> open for premium supporters. Everything else stays free. <a class="btn small" id="extras-link" href="#" target="_blank" rel="noopener" hidden>Get the extras</a></p>
         </fieldset>
         <fieldset id="topic-field" hidden>
-          <legend>Topic</legend>
+          <legend id="topic-legend">Topic</legend>
           <div class="choices tiers topics" id="topic-choices"></div>
         </fieldset>
         <fieldset>
@@ -265,10 +273,6 @@
     <section class="card grid-card" id="grid-region" tabindex="-1" aria-labelledby="grid-h">
       <div class="grid-head">
         <h2 id="grid-h">The grid</h2>
-        <div class="seg" role="radiogroup" aria-label="Grid view">
-          <label><input type="radio" name="view" value="grid" checked><span>Grid</span></label>
-          <label><input type="radio" name="view" value="list"><span>List</span></label>
-        </div>
       </div>
       <div class="coach" id="coach" hidden>
         <p id="coach-text"></p>
@@ -333,6 +337,12 @@
       <button class="btn" type="button" id="back-saved">Saved Puzzles</button>
     </div>
   </section>
+</main>
+
+<!-- ============ Number Place: its own numbers game (modules/number-place) ============ -->
+<main id="screen-np" class="screen" tabindex="-1" hidden>
+  <p class="np-back"><button class="btn quiet small" type="button" id="np-back">Back to The Fantastical Logic Grid</button></p>
+  <div id="np-root"><p class="muted" id="np-loading">Loading Number Place…</p></div>
 </main>
 
 <!-- ============ How to play: the tutorial and tips ============ -->
@@ -464,6 +474,37 @@
     <button class="btn" type="button" id="notes-close">Close</button>
     <button class="btn primary" type="button" id="notes-save">Save</button>
   </div>
+</dialog>
+
+<dialog id="dlg-pack" aria-labelledby="pack-h">
+  <h2 id="pack-h">Printable puzzle pack</h2>
+  <p>Print a few brand-new puzzles at once, each with a story you have never had, and answer keys for checking.</p>
+  <div id="pack-out" hidden>
+    <p>Packs are free with a game account. Sign in or make one to print them.</p>
+    <div class="dlg-actions"><button class="btn primary" type="button" id="pack-signin">Sign in</button></div>
+  </div>
+  <form method="dialog" id="pack-form">
+    <p class="help" id="pack-intro" aria-live="polite"></p>
+    <p><label for="pack-count">How many puzzles</label> <select id="pack-count"></select></p>
+    <p><label for="pack-tier">Difficulty</label> <select id="pack-tier"></select></p>
+    <p><label for="pack-theme">Theme</label> <select id="pack-theme"></select></p>
+    <fieldset><legend>Answer keys</legend>
+      <label class="radio"><input type="radio" name="pkkeys" value="end" checked> All together at the back</label>
+      <label class="radio"><input type="radio" name="pkkeys" value="each"> Right after each puzzle</label>
+      <label class="radio"><input type="radio" name="pkkeys" value="none"> No answer keys</label>
+    </fieldset>
+    <fieldset><legend>Paper size</legend>
+      <label class="radio"><input type="radio" name="pkpaper" value="letter"> Letter</label>
+      <label class="radio"><input type="radio" name="pkpaper" value="A4"> A4</label>
+    </fieldset>
+    <label class="check"><input type="checkbox" id="pack-save" checked> Also add them to Saved puzzles, to play or check in the game</label>
+    <p class="help" id="pack-status" role="status"></p>
+    <div class="dlg-actions">
+      <button class="btn" type="button" id="pack-cancel">Close</button>
+      <button class="btn" type="button" id="pack-pdf" hidden>Save as PDF</button>
+      <button class="btn primary" type="button" id="pack-go">Make and print</button>
+    </div>
+  </form>
 </dialog>
 
 <dialog id="dlg-print" aria-labelledby="print-h">
@@ -656,6 +697,12 @@
   <h2 id="account-h">Sign in</h2>
 
   <form class="acct-view" data-view="signin" novalidate>
+    <p class="acct-done" id="si-idle" role="status"></p>
+    <div class="acct-bio-signin" id="si-bio-box" hidden>
+      <button class="btn primary" type="button" id="si-bio">Sign in with fingerprint or face</button>
+      <p class="help" id="si-bio-who"></p>
+      <div class="bio-error" id="si-bio-error" role="alert" hidden></div>
+    </div>
     <p class="help">Sign in to keep your saved puzzles, progress and settings on every device: the website, the desktop app and your phone. You never need an account to play.</p>
     <div class="field"><label for="si-email">Email</label><input type="email" id="si-email" name="email" autocomplete="username email" inputmode="email" spellcheck="false" required></div>
     <div class="field"><label for="si-pass">Password</label><input type="password" id="si-pass" name="password" autocomplete="current-password" required></div>
@@ -704,6 +751,12 @@
       <button class="btn small" type="button" id="acct-sync-now">Sync now</button>
     </div>
     <p class="help">Your puzzles always save on this device first, so you can play offline. They sync the next time you're connected.</p>
+    <div class="acct-bio" id="acct-bio" hidden>
+      <label class="check"><input type="checkbox" id="acct-bio-on"> Sign in with fingerprint or face on this device</label>
+      <p class="help">Uses this device's fingerprint reader, face unlock, Windows Hello or screen-lock PIN instead of typing your password. Your fingerprint or face never leaves this device, and the game never sees it. Your password still works too.</p>
+      <p class="acct-done" id="acct-bio-msg" role="status"></p>
+    </div>
+    <p class="help" id="acct-idle" hidden></p>
     <div class="dlg-actions acct-actions">
       <button class="btn" type="button" id="acct-change-pass">Change password</button>
       <button class="btn" type="button" data-go="signout">Sign out</button>
@@ -733,6 +786,15 @@
   <div class="dlg-actions"><button class="btn" type="button" data-close>Close</button></div>
 </dialog>
 
+<dialog id="dlg-idle" role="alertdialog" aria-labelledby="idle-h" aria-describedby="idle-p">
+  <h2 id="idle-h">Still playing?</h2>
+  <p id="idle-p">To keep your account safe, you will be signed out in <b id="idle-left">2 minutes</b> because nothing has happened for a while. Your progress is saved, and you can pick up where you left off when you sign back in.</p>
+  <div class="dlg-actions">
+    <button class="btn primary" type="button" id="idle-stay">Keep playing</button>
+    <button class="btn" type="button" id="idle-out">Sign out now</button>
+  </div>
+</dialog>
+
 <dialog id="dlg-video" class="wide" aria-labelledby="video-h" data-light-dismiss>
   <button class="dlg-x" type="button" aria-label="Close" title="Close (Esc)"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
   <h2 id="video-h">Introduction to The Fantastical Logic Grid</h2>
@@ -748,14 +810,14 @@
       <p>Tips and tricks puts the moves that solve most puzzles on one page. In a hurry? Play a quick puzzle starts a small Easy case straight away, with no choices to make. Every day there is also a new Daily puzzle, the same one for everyone. Solve it each day to build a streak. With a free sign-in, you can get each day&#x27;s puzzle by email. Anyone can get the puzzle of the week and special edition puzzles by email, with no account. Choose Puzzle emails in the Menu, type your address, then press Confirm in the email we send you.</p>
       <p>Here&#x27;s how to play. Start on the New puzzle screen and pick a difficulty. Basic and Easy are perfect for beginners. Quantum Physicist is for true masterminds. And Theoretical Physicist is for the best of the best. Next, choose a theme. Themes are grouped, like Mystery and Action, Imagination, or Science and Learning. Or pick Surprise me.</p>
       <p>Most themes also have topics, like which holiday or which kind of mystery. Pick one, or leave it on Any. Then pick a size. More categories and more items make a bigger, harder grid. Under More options, Full experience adds scenes, characters and sound. Silent mode keeps only the story, the grid, the clues and the answer key.</p>
-      <p>Press Generate puzzle, and your story is written in a moment. Here&#x27;s our case: The Dress Rehearsal Award. The buttons along the top help you as you play. Read the story first. It tells you who is involved, and it ends with the question you need to answer. Here, it&#x27;s: Who carried the Feather Quill? You can also press Read the story aloud to hear it.</p>
+      <p>Press Generate puzzle, and your story is written in a moment. Here&#x27;s our case: The Silent Diamond. The buttons along the top help you as you play. Read the story first. It tells you who is involved, and it ends with the question you need to answer. Here, it&#x27;s: Who was in the Dinosaur wing? You can also press Read the story aloud to hear it.</p>
       <p>Every character has a personality, shown under their name, and a voice of their own. Select a character&#x27;s portrait to hear the clues they remember, in their own words. Every clue is also in the clue list. To hear every clue in order, press Read the clues aloud. Each character tells their own clue, and the clue being read lights up. On your first Easy puzzle, coach tips appear above the grid to guide your first moves.</p>
-      <p>Now the grid. Each square is where two things meet, like an actor and a prop. Your job is to decide whether they go together. Click or tap a square once to mark an X. X means ruled out: these two don&#x27;t go together. Tap again for an O. O means confirmed: these two are a match. Tap a third time to clear the square.</p>
-      <p>Let&#x27;s solve it together, starting with the simplest clues. Clue 1 says Evangeline carried the Glass Slipper. Mark an O there. Clues 2, 3, 4 and 5 each rule out pairs directly. Mark an X for each one. Clues 6 and 7 each rule out pairs directly. Mark an X for each one.</p>
-      <p>Evangeline carried the Glass Slipper, so Evangeline cannot go with any other prop, and no other actor can go with Glass Slipper. Each row and each column in a section has exactly one match, so everything else in that line is an X. Quentin is the only actor left for Queen. Mark an O there. When only one square is left in a row or column, it must be the answer. Quentin plays the Queen, so Quentin cannot go with any other role, and no other actor can go with Queen.</p>
+      <p>Now the grid. Each square is where two things meet, like a suspect and an age. Your job is to decide whether they go together. Click or tap a square once to mark an X. X means ruled out: these two don&#x27;t go together. Tap again for an O. O means confirmed: these two are a match. Tap a third time to clear the square.</p>
+      <p>Let&#x27;s solve it together, starting with the simplest clues. Clue 1 says Jasper was in the Jewel wing. Mark an O there. Clues 2, 3, 4 and 5 each rule out pairs directly. Mark an X for each one. Clue 6 says the suspect who is 60 years old was in the Dinosaur or Ocean wing, so no other wing is possible.</p>
+      <p>Clue 7 says the suspect who was in the Ocean wing is 50 years old. Mark an O there. Jasper was in the Jewel wing, so Jasper cannot go with any other wing, and no other suspect can go with Jewel. Each row and each column in a section has exactly one match, so everything else in that line is an X. The suspect who was in the Ocean wing is 50 years old, so Ocean cannot go with any other age, and no other wing can go with 50. 45 is the only age left for Jewel. Mark an O there. When only one square is left in a row or column, it must be the answer.</p>
       <p>In the full experience, each finished section also reveals more of the scene. Stuck? Press Hint. The first hint shows you which clue to use, and names the trick that cracks it. Press Which cell? for the exact square, then Explain why for the full reasoning. It ends with a short lesson on how that trick works, so you can spot it yourself next time. You can even let it mark the square for you.</p>
       <p>Press Check at any time to see whether any of your marks are wrong. Made a mistake? Undo and Redo take back any move, as many times as you like. Want a fresh start? Press Start over. It clears your marks and resets the timer, hints and checks. Your notes stay unless you choose to clear them, and Undo can bring everything back. Prefer words to grids? List view lets you choose each match from a menu. The game also works fully by keyboard and with a screen reader.</p>
-      <p>When you think you know, answer the questions under the clues, and press Check answers. Want to jot something down? Press My notes and type. Press Save to keep them, or Close to get back to the puzzle. Only you can see your notes, even in a race. Keep going the same way, clue by clue, until the whole grid is filled in. Case closed! Quentin carried the Feather Quill, and Quentin only hid the golden award to add some drama to the night. You also see your time and a suggestion for your next puzzle.</p>
+      <p>When you think you know, answer the questions under the clues, and press Check answers. Want to jot something down? Press My notes and type. Press Save to keep them, or Close to get back to the puzzle. Only you can see your notes, even in a race. Keep going the same way, clue by clue, until the whole grid is filled in. Case closed! Greta was in the Dinosaur wing. Caught on the loading dock, Greta hands back the Star of Cairo. You also see your time and a suggestion for your next puzzle.</p>
       <p>Every solve ends with a celebration, like confetti, fireworks, ribbons, balloons or shooting stars. Silent mode and your device&#x27;s reduce motion setting turn it off. Solving puzzles earns badges, like First case closed. Press Share my result to send friends a picture of your win. It never gives the answers away. Challenge a friend makes a link to this very puzzle, with your time to beat. Your friend needs no account, and you both see who was quicker.</p>
       <p>If you like, rate the puzzle from 1 to 5 stars, where 5 is excellent, and say whether it felt too easy, just right or too hard. It is optional. The game learns from your answers and tunes your next puzzle to suit you. You can print any puzzle, blank or with your marks, with the answer key on its own page. Your progress saves automatically. Come back any time and pick up where you left off, from Saved puzzles. My stats and badges, in the Menu, shows your totals, best times, favorite themes, your daily streak and every badge to earn.</p>
       <p>Press Help to see every keyboard shortcut. And Introduction, at the top of every page, plays this video again. Play in light or dark colors, or in high contrast. And Silent mode is always there when you just want the puzzle. To play without opening a browser, choose Install the app from the Menu. Download the Windows desktop app, which keeps itself up to date. Or add the game&#x27;s icon to your phone&#x27;s home screen. On your phone, the same menu shows you how. On a phone, pull down from the top of the page to refresh. Your progress is saved first.</p>
@@ -914,6 +976,18 @@
   <div class="dlg-actions"><button class="btn primary" type="button" data-close>Close</button></div>
 </dialog>
 
+<dialog id="dlg-license" class="dlg-license" aria-labelledby="license-h" aria-describedby="license-intro">
+  <h2 id="license-h">Enter your app key</h2>
+  <p id="license-intro">This app needs an app key the first time it opens. You only need to be online for this once; after that the game works offline. Each key installs on one computer or phone.</p>
+  <form id="license-form" novalidate>
+    <div class="field"><label for="license-key">App key</label><input id="license-key" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="FLG-ABCDE-FGHJK-LMNPQ-RSTUV" maxlength="40" required></div>
+    <div class="error-box" id="license-error" role="alert" hidden></div>
+    <p class="muted" id="license-busy" role="status" hidden>Checking your key…</p>
+    <div class="dlg-actions"><button class="btn primary" type="submit" id="license-go">Use this key</button></div>
+  </form>
+  <p class="muted">No key yet? Sign in at <a href="https://thelogicgrid.com/" target="_blank" rel="noopener">thelogicgrid.com</a> and open <b>Menu</b> &gt; <b>Install the app</b>, or write to <a href="mailto:fantasticallogicgrid@gmail.com">fantasticallogicgrid@gmail.com</a>. You can always play free in your browser at thelogicgrid.com.</p>
+</dialog>
+
 <dialog id="dlg-install" aria-labelledby="install-h">
   <h2 id="install-h" tabindex="-1">Install the app</h2>
   <p>Play without opening a browser first. Your saved puzzles come with you when you sign in.</p>
@@ -940,11 +1014,30 @@
       </ol>
     </div>
   </section>
+  <section class="install-opt" id="install-key" aria-labelledby="install-key-h" hidden>
+    <h3 id="install-key-h">Your app key</h3>
+    <p>The Windows and Android apps need an app key. Each key installs on one computer or phone and can be used for 2 downloads. Playing here in the browser never needs one.</p>
+    <p id="install-key-get-row" hidden><button class="btn primary" type="button" id="install-key-get">Ask for a free key</button> <span class="muted">The team approves each free key, usually within a day.</span></p>
+    <p id="install-key-waiting" hidden>You asked for a free key. It shows here as soon as the team approves it.</p>
+    <p id="install-key-declined" class="muted" hidden>Your free key request was not approved. Write to fantasticallogicgrid@gmail.com if you have a question.</p>
+    <p id="install-key-signin" hidden>Sign in to ask for a free key. <button class="btn small" type="button" id="install-key-signin-btn">Sign in</button></p>
+    <p id="install-key-confirm" class="muted" hidden>Confirm your email (Menu &gt; Account) to ask for a free key.</p>
+    <p id="install-key-supporters" class="muted" hidden>Free keys are for Supporters right now. Write to fantasticallogicgrid@gmail.com for a key.</p>
+    <p id="install-key-mine" hidden>Your key: <code id="install-key-code" class="license-code"></code> <button class="btn small" type="button" id="install-key-copy">Copy</button><br><span class="muted" id="install-key-left"></span></p>
+    <div class="field"><label for="install-key-input">App key for the download</label><input id="install-key-input" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="FLG-ABCDE-FGHJK-LMNPQ-RSTUV" maxlength="40"></div>
+    <div class="error-box" id="install-key-error" role="alert" hidden></div>
+  </section>
   <section class="install-opt" id="install-desktop" aria-labelledby="install-desktop-h">
     <h3 id="install-desktop-h">Download the Windows desktop app</h3>
     <p>A free app for Windows 10 and 11 computers. It works offline and keeps itself up to date.</p>
     <p><a class="btn" id="install-desktop-btn" href="https://github.com/bltaylorjr/fantastical-logic-grid/releases/latest" target="_blank" rel="noopener">Download for Windows</a> <span class="muted" id="install-desktop-size"></span></p>
     <p class="muted">Windows may say it protected your PC because the app is new. Choose <b>More info</b>, then <b>Run anyway</b>.</p>
+  </section>
+  <section class="install-opt" id="install-apk" aria-labelledby="install-apk-h" hidden>
+    <h3 id="install-apk-h">Download the Android app</h3>
+    <p>A free app for Android phones and tablets. It works offline.</p>
+    <p><a class="btn" id="install-apk-btn" href="https://github.com/bltaylorjr/fantastical-logic-grid/releases/latest" target="_blank" rel="noopener">Download for Android</a> <span class="muted" id="install-apk-size"></span></p>
+    <p class="muted">Open the downloaded file on your phone. Android may ask you to allow installs from your browser first.</p>
   </section>
   <div class="dlg-actions"><button class="btn primary" type="button" id="install-close">Close</button></div>
 </dialog>
@@ -978,6 +1071,7 @@
     </tbody>
   </table>
   <p class="muted">Single keys (X, O, H, C, R) can be turned off in Settings, under More play settings. On a Mac, use Cmd instead of Ctrl.</p>
+  <p class="muted small" id="help-license" hidden>This app uses the app key <bdi id="help-license-key"></bdi>.</p>
   <p class="muted small" id="help-legal">© 2026 Bobby Taylor. All rights reserved. Free to play, and to print for personal or classroom use. Copying, scraping or using the puzzles, stories or art to train AI is not allowed. <a href="https://thelogicgrid.com/terms/" target="_blank" rel="noopener">Terms of use</a></p>
   <div class="dlg-actions"><button class="btn primary" type="button" id="help-close">Close</button></div>
 </dialog>

@@ -38,7 +38,7 @@ const RELEASE = {
     await page.click('[data-cmd=install]');
     await page.waitForSelector('#dlg-install[open]');
   }
-  const order = (page) => page.$$eval('#dlg-install .install-opt', (els) => els.map((e) => e.id));
+  const order = (page) => page.$$eval('#dlg-install .install-opt', (els) => els.filter((e) => !e.hidden).map((e) => e.id));
   try {
     // ---- A Windows computer.
     let { ctx, page } = await open({ viewport: { width: 1280, height: 900 } });
