@@ -4458,6 +4458,10 @@ export const TOPICS = {
       },
       art: { setting: 'a surreal clock tower town where giant gears turn in the sky and the same sunrise repeats in rings', mood: 'brass and shifting dawn colors' } },
   ],
+  seasons: [
+    { id: 'fall', name: 'Fall', description: 'A harvest festival weekend in a mountain town as the leaves turn.',
+      art: { setting: 'a small mountain town harvest festival with hay bales, pumpkins and booths under blazing red and orange trees', mood: 'warm amber, rust and crisp blue sky' } },
+  ],
 };
 
 // Add the topics from the more-topics-*.js files (more-topics.js) to the end

@@ -245,7 +245,7 @@ for (const diff of ['easy', 'medium', 'expert']) {
   const r = generatePuzzle({ difficulty: 'basic', theme: 'random', seed: 'rnd' });
   check('random theme works', THEMES.some((t) => t.id === r.theme.id));
   check('print text includes answer key', formatPuzzleText(r).includes('Answer key'));
-  check('describeOptions lists 7 tiers, 22 themes and Player Stories', describeOptions().difficulties.length === 7 && describeOptions().themes.length === 23 && describeOptions().themes.at(-1).id === 'stories');
+  check('describeOptions lists 7 tiers, 23 themes and Player Stories', describeOptions().difficulties.length === 7 && describeOptions().themes.length === 24 && describeOptions().themes.at(-1).id === 'stories');
 
   // Theoretical Physicist is at least half again as hard as Quantum Physicist:
   // the same themes, classic topics and seeds, compared on the engine's

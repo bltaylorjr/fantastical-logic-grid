@@ -1628,7 +1628,7 @@ function showSolved(celebrate) {
   $('#coach').hidden = true;
   if (celebrate) {
     sound('solve');
-    const shown = save.revealed ? null : celebrateSolve(settings.celebrations, { random: settings.celebrateRandom, theme: S.puzzle.theme.id });
+    const shown = save.revealed ? null : celebrateSolve(settings.celebrations, { random: settings.celebrateRandom, theme: S.puzzle.theme.id, topic: S.puzzle.topic && S.puzzle.topic.id });
     $('#solved').dataset.effects = shown ? shown.join(' ') : '';
     $('#solved').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
     $('#solved').focus({ preventScroll: true });
