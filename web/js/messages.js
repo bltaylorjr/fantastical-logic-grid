@@ -6,7 +6,9 @@
 //
 // Puzzles for you: puzzles the team made for this player (usually from their
 // suggestion), kept on the server for 30 days. Play opens one as a saved
-// puzzle on this device; Download saves it as a puzzle file.
+// puzzle on this device; Download saves it as a puzzle file. The first puzzle
+// built from the player's approved storyline (not part of a conversation) goes
+// into Saved puzzles by itself, once per device (keepStoryPuzzles).
 //
 // The Menu button and the Messages item show how many things are new: team
 // replies the player has not opened, and news not seen on this device.
@@ -22,7 +24,7 @@ const EVERY_MS = 10 * 60_000;
 const TOPICS = { question: 'A question', idea: 'An idea', problem: 'A problem', team: 'From the team' };
 
 let state = { conversations: [], puzzles: [], unread: 0, email: false, banned: false, loaded: false };
-let deps = { openDialog: () => {}, openAccount: () => {}, announce: () => {}, playPuzzle: async () => {}, downloadPuzzle: () => {} };
+let deps = { openDialog: () => {}, openAccount: () => {}, announce: () => {}, playPuzzle: async () => {}, keepPuzzle: async () => false, downloadPuzzle: () => {} };
 let lastFetch = 0;
 
 export const available = () => !!CLOUD_URL && feature('messages');
@@ -73,6 +75,30 @@ export async function refresh({ quiet = true } = {}) {
     if (!quiet) throw e;
   }
   renderBadges();
+  keepStoryPuzzles();
+}
+
+// Approved storylines' puzzles go into Saved puzzles without the player
+// having to find them. Each is added once per device, so deleting it there
+// does not bring it back.
+const KEPT = 'storyPuzzlesKept';
+let keeping = false;
+async function keepStoryPuzzles() {
+  if (keeping) return;
+  const kept = new Set(store.getLocal(KEPT) || []);
+  const todo = state.puzzles.filter((p) => !p.conversationId && !kept.has(p.id));
+  if (!todo.length) return;
+  keeping = true;
+  try {
+    for (const p of todo) {
+      try {
+        const d = await call(`/puzzles/${Number(p.id)}`);
+        await deps.keepPuzzle(d.puzzle, p.id);
+        kept.add(p.id);
+        store.setLocal(KEPT, [...kept].slice(-50));
+      } catch (e) { /* tried again at the next refresh */ }
+    }
+  } finally { keeping = false; }
 }
 
 function messageHtml(m) {

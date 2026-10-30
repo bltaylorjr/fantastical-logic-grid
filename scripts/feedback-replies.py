@@ -10,9 +10,12 @@ domain's DNS is not on Cloudflare, so the Worker cannot send email itself).
    instead. The wording is fixed; thank-you and update emails also quote
    what the player wrote (and, for an update, the team's note on what was
    done). They only ever go to the player's own confirmed address.
-   An approved storyline's email also attaches the first puzzle made with it
-   as a PDF with its answer key (scripts/contributor-puzzle.mjs, printed by
-   Chromium through Playwright, installed only when one is waiting).
+   An approved storyline's email ("Congratulations") first has its puzzle
+   built from the player's storyline (scripts/storyline-puzzle.mjs), stored in
+   their game (POST /admin/v1/replies/puzzle), then attached as a PDF with its
+   answer key (scripts/contributor-puzzle.mjs, printed by Chromium through
+   Playwright, installed only when one is waiting). A disapproved storyline's
+   email thanks the player for their input.
 3. Tell the Worker which went out (POST /admin/v1/replies/done), which
    removes their email addresses.
 
@@ -108,18 +111,31 @@ NOTES = {
         ],
     },
     'story_approved': {
-        'subject': 'Your storyline is now a puzzle!',
+        'subject': 'Congratulations! Your storyline has been approved',
         'blocks': lambda r: [
             'Hello, puzzler!',
-            'Thank you for the storyline you sent us for The Fantastical Logic Grid. The team approved it, '
-            'and it is now part of the game.',
+            'Congratulations! Your storyline has been approved. Thank you for sending it to The Fantastical Logic Grid: '
+            'the team enjoyed it and it is now part of the game.',
             ('quote', 'Your storyline', r.get('text')),
-            ('quote', 'From the team', r.get('note')),
-            ('The first puzzle made with your storyline is attached as a PDF, with its answer key on the last page. '
-             'It is also waiting for you in the game for 30 days: sign in and open Menu > Messages > Puzzles for you, '
-             'then press Play to keep it in your saved puzzles.') if r.get('puzzle') else
-            'Open the game to find your storyline in new puzzles.',
+            ('We built the first puzzle from your storyline. It is attached as a PDF, with its answer key on the last page, '
+             'so you can print it and solve it on paper.') if r.get('_files') else '',
+            ('The same puzzle is waiting in your game, ready to play: sign in with this email address and open Saved puzzles. '
+             'It is also in Menu > Messages > Puzzles for you for 30 days.') if r.get('stored') else '',
+            '' if r.get('_files') or r.get('stored') else 'The team will use it in new puzzles. Open the game to find it.',
             'Thank you for contributing to the game\'s stories!',
+            SIGN_OFF,
+        ],
+    },
+    'story_declined': {
+        'subject': 'Thank you for your storyline',
+        'blocks': lambda r: [
+            'Hello, puzzler!',
+            'Thank you for taking the time to send us a storyline for The Fantastical Logic Grid. '
+            'We read every one, and we truly appreciate your input.',
+            ('quote', 'Your storyline', r.get('text')),
+            'This one will not be made into a puzzle, but please keep the ideas coming: '
+            'every storyline helps us shape the stories in the game.',
+            'Thank you for contributing!',
             SIGN_OFF,
         ],
     },
@@ -151,7 +167,7 @@ NOTES = {
 
 def blocks(r):
     """The email's blocks, without quotes that have no words."""
-    return [b for b in NOTES[r['kind']]['blocks'](r) if isinstance(b, str) or (b[2] or '').strip()
+    return [b for b in NOTES[r['kind']]['blocks'](r) if (isinstance(b, str) and b) or not isinstance(b, str) and (b[2] or '').strip()
             and (b[0] != 'link' or str(b[2]).startswith('https://'))]
 
 
@@ -214,6 +230,40 @@ def ensure_printer():
         run('npm', 'install', '--no-save', '--no-audit', '--no-fund', 'playwright@1.63.0')
         run('npx', 'playwright', 'install', '--with-deps', 'chromium')
     PRINTER_READY = True
+
+
+def build_puzzle(r):
+    """An approved storyline that has no puzzle yet: build the first puzzle from
+    the player's words with the game's engine (scripts/storyline-puzzle.mjs),
+    store it for the player (POST /admin/v1/replies/puzzle) and keep it for the
+    PDF. If the storyline has no lists the game can read, or anything fails,
+    the email still goes, without a puzzle."""
+    if r.get('kind') != 'story_approved':
+        return
+    if isinstance(r.get('puzzle'), dict):
+        r['stored'] = True  # built and stored on an earlier try
+        return
+    if not isinstance(r.get('build'), dict) or not r.get('text'):
+        return
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            src, out = os.path.join(tmp, 'storyline.json'), os.path.join(tmp, 'puzzle.json')
+            with open(src, 'w', encoding='utf-8') as f:
+                json.dump({'text': r['text'], 'theme': r['build'].get('theme') or '', 'seed': f'story-{r["id"]}'}, f)
+            done = subprocess.run(['node', os.path.join(ROOT, 'scripts', 'storyline-puzzle.mjs'), src, out], timeout=300, cwd=ROOT,
+                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            if done.returncode != 0:
+                print('A storyline had no lists the game could read; that email goes without a puzzle.')
+                return
+            with open(out, encoding='utf-8') as f:
+                puzzle = json.load(f)
+        r['puzzle'] = puzzle
+        r['stored'] = bool(call('replies/puzzle', {'id': r['id'], 'puzzle': puzzle}).get('stored'))
+    except urllib.error.HTTPError as e:
+        print(f'A storyline puzzle could not be stored in the game (HTTP {e.code}); the email still has the PDF.')
+    except Exception as e:  # noqa: BLE001 - send without the puzzle rather than not at all
+        print(f'A storyline puzzle could not be built ({type(e).__name__}); that email goes without it.')
+        r['puzzle'] = None
 
 
 def attachments(r):
@@ -327,6 +377,7 @@ def main():
         return
 
     for r in replies:
+        build_puzzle(r)
         r['_files'] = attachments(r)
 
     sent, failed, via = [], [], {'Resend': 0, 'Gmail': 0}

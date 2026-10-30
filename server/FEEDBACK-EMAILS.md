@@ -22,16 +22,25 @@ Menu > Ideas and problems, they can leave "Email me an update" ticked:
   per player, and it only says to open Messages.
 
 - **Storylines (story ideas): one email per submission.** No thank-you goes
-  straight away. When the team presses **Approve storyline** on the idea in
-  the Communication inbox, with a note and the first puzzle made with it (a
-  puzzle file saved from the game), the player gets **"Your storyline is now a
-  puzzle!"**: their storyline, the team's note, and the puzzle attached as a
-  **PDF with its answer key** on the last page. The puzzle also waits in their
-  game for **30 days** (Menu > Messages > Puzzles for you; Play keeps it in
-  Saved puzzles). If the team marks the storyline **Done** instead, the one
-  email is the plain thank-you. Deleting it sends nothing. The PDF is printed
-  by `scripts/contributor-puzzle.mjs` when the email is sent; if printing
-  fails, the email still goes without it.
+  straight away. In the admin Communication inbox a new storyline has just two
+  buttons, **Approve** and **Disapprove** (nothing to type):
+  - **Approve:** the player gets **"Congratulations! Your storyline has been
+    approved"**. Before it is sent, `scripts/storyline-puzzle.mjs` builds the
+    first puzzle from the storyline with the game's engine, the Worker stores
+    it for the player (`POST /admin/v1/replies/puzzle`), and the email carries
+    it as a **PDF with its answer key** on the last page. The game puts the
+    puzzle straight into the player's **Saved puzzles**, ready to play (it is
+    also in Menu > Messages > Puzzles for you for 30 days).
+  - **Disapprove:** the player gets **"Thank you for your storyline"**,
+    thanking them for their input.
+  The puzzle is built from the lists in the storyline, written like
+  `Companies: A, B, C. Price: $60, $69, $75. Accessories: X, Y, Z`
+  (`admin/storyline-parse.js`): the first list of names is who is in it, a
+  list of numbers or prices is ordered, and the text before the lists is the
+  scene. The dashboard shows what it found before you press Approve. With 4
+  lists the puzzle is Medium, with 3 it is Easy. A storyline without lists
+  still gets the congratulations, without a puzzle. If printing the PDF fails,
+  the email still goes without it. Deleting a storyline sends nothing.
 
 The wording is fixed (`scripts/feedback-replies.py`). The player's words (with
 email addresses and links already blanked) and the team's note only ever go to
