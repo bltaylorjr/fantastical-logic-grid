@@ -1,7 +1,11 @@
 // The admin dashboard for The Fantastical Logic Grid. Served by the game's
 // Worker at /admin/ and talks only to its /admin/v1 API (server/src/admin.js).
-// Sign-in uses Firebase's REST API with the admin's game account; the session
-// lives only in this tab (sessionStorage) and ends after 30 idle minutes.
+// Sign-in uses Firebase's REST API with the admin's game account, or Face ID
+// or a fingerprint (passkeys.js). With "Keep me signed in on this device" the
+// session is kept in localStorage, so it survives the phone closing the app
+// while the admin uses other apps; otherwise it lives only in this tab
+// (sessionStorage). Either way it locks after 30 idle minutes, and Face ID or
+// a fingerprint opens it again.
 
 import { initPullRefresh } from './pull-refresh.js';
 import { readStoryline } from './storyline-parse.js';
@@ -15,6 +19,7 @@ import { educatorsView, initEducators, educatorFeedbackView, initEducatorFeedbac
 import { licensesView, initLicenses } from './licenses.js';
 import { mediaView } from './media.js';
 import { badgesView, initBadges, playerBadgesHtml, playerBadgeClick } from './badges.js';
+import { passkeysSupported, platformReady, rememberedPasskey, passkeySignIn, offerPasskey, passkeysView, initPasskeys } from './passkeys.js';
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -32,7 +37,7 @@ const IDLE_MS = 30 * 60_000;
 const ROLES = { viewer: 1, moderator: 2, admin: 3, owner: 4 };
 const TIER_NAMES = { basic: 'Basic', easy: 'Easy', medium: 'Medium', hard: 'Hard', expert: 'Expert', mensa: 'Quantum Physicist', theorist: 'Theoretical Physicist' };
 
-let session = null; // { mode: 'firebase'|'token', key?, refreshToken?, idToken?, exp?, email? }
+let session = null; // { mode: 'firebase'|'passkey'|'token', key?, refreshToken?, idToken?, exp?, email?, keep?, seen? }
 let me = null; // { email, role }
 let firebaseKey = null;
 let lastActive = Date.now();
@@ -51,8 +56,24 @@ function toast(text) {
 }
 const can = (role) => me && ROLES[me.role] >= ROLES[role];
 
-function saveSession() { try { sessionStorage.setItem(SESSION_KEY, JSON.stringify(session)); } catch (e) { /* private window */ } }
-function loadSession() { try { return JSON.parse(sessionStorage.getItem(SESSION_KEY) || 'null'); } catch (e) { return null; } }
+// seen: the last tap or key press, so a dashboard reopened after a long break locks.
+function saveSession() {
+  try {
+    if (session) session.seen = lastActive;
+    const keep = !!session?.keep;
+    (keep ? localStorage : sessionStorage).setItem(SESSION_KEY, JSON.stringify(session));
+    (keep ? sessionStorage : localStorage).removeItem(SESSION_KEY);
+  } catch (e) { /* private window */ }
+}
+function loadSession() {
+  try { return JSON.parse(sessionStorage.getItem(SESSION_KEY) || localStorage.getItem(SESSION_KEY) || 'null'); } catch (e) { return null; }
+}
+function clearSession() {
+  try { sessionStorage.removeItem(SESSION_KEY); localStorage.removeItem(SESSION_KEY); } catch (e) { /* ignore */ }
+}
+const lockWords = () => (rememberedPasskey()
+  ? 'Locked after 30 minutes without use. Use Face ID or your fingerprint to open it again.'
+  : 'Locked after 30 minutes without use. Sign in again to open it.');
 
 class ApiError extends Error { constructor(code, message, status) { super(message || code); this.code = code; this.status = status; } }
 
@@ -77,7 +98,7 @@ async function firebase(path, body, base = AUTH_URL) {
 
 async function bearer(force = false) {
   if (!session) throw new ApiError('sign_in', 'Please sign in.');
-  if (session.mode === 'token') return session.key;
+  if (session.mode === 'token' || session.mode === 'passkey') return session.key;
   if (!force && session.idToken && Date.now() < session.exp - 60_000) return session.idToken;
   const data = await firebase('token', { grant_type: 'refresh_token', refresh_token: session.refreshToken }, TOKEN_URL);
   session.idToken = data.id_token;
@@ -88,7 +109,7 @@ async function bearer(force = false) {
 }
 
 async function api(path, { method = 'GET', body } = {}) {
-  if (session && Date.now() - lastActive > IDLE_MS) { signOut('You were signed out after 30 minutes without activity.'); throw new ApiError('sign_in', 'Signed out.'); }
+  if (session && Date.now() - lastActive > IDLE_MS) { signOut(lockWords()); throw new ApiError('sign_in', 'Signed out.'); }
   const res = await fetch(`/admin/v1/${path}`, {
     method,
     headers: { Authorization: `Bearer ${await bearer()}`, ...(body ? { 'Content-Type': 'application/json' } : {}) },
@@ -96,7 +117,7 @@ async function api(path, { method = 'GET', body } = {}) {
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    if (res.status === 401) signOut('Please sign in again.');
+    if (res.status === 401) signOut(data.error === 'locked' ? lockWords() : 'Please sign in again.');
     throw new ApiError(data.error || `http_${res.status}`, data.message || `Request failed (${res.status}).`, res.status);
   }
   return data;
@@ -1659,6 +1680,10 @@ initBadges(badgeHelpers, (name, o) => show(name, o));
 
 // ---- Puzzle emails (puzzle-mail.js): the weekly and special edition lists, sends and planner.
 views.mail = () => puzzleMailView();
+
+// ---- Face ID and fingerprint (passkeys.js): this admin's devices.
+views.signin = () => passkeysView();
+initPasskeys({ api, esc, when, toast, act, ask, show, me: () => me, mode: () => session?.mode });
 initPuzzleMail({ api, esc, fmt, when, tile, table, can, act, ask, toast, show });
 
 // ------------------------------------------------------------- navigation
@@ -1714,18 +1739,32 @@ async function enter() {
   $$('#nav-list a').forEach((a) => { a.parentElement.hidden = !can(a.dataset.min); });
   $$('main [data-min]').forEach((el) => { el.hidden = !can(el.dataset.min); });
   show(location.hash.slice(1) || 'overview');
+  offerPasskey();
   if (oauthBack) { const back = oauthBack; oauthBack = null; finishOAuth(back, { api, ask, esc, toast }); }
 }
 
 function signOut(message) {
+  // A passkey session also ends on the server, so its key is useless if copied.
+  if (session?.mode === 'passkey') fetch('/admin/v1/session/end', { method: 'POST', headers: { Authorization: `Bearer ${session.key}` }, keepalive: true }).catch(() => {});
+  const email = session?.email || me?.email;
   session = null;
   me = null;
-  try { sessionStorage.removeItem(SESSION_KEY); } catch (e) { /* ignore */ }
+  clearSession();
   $('#app').hidden = true;
   $('#who').hidden = true;
   $('#login').hidden = false;
+  if (email && email.includes('@') && !$('#login-email').value) $('#login-email').value = email;
   if (message) { const err = $('#login-error'); err.textContent = message; err.hidden = false; }
-  $('#login-email').focus();
+  showPasskeyButton();
+}
+
+// "Sign in with Face ID or fingerprint" shows when this device has a passkey
+// for the dashboard, or could have one (Face ID, a fingerprint reader or
+// Windows Hello). Focus goes to it, so a locked phone opens with one tap.
+async function showPasskeyButton() {
+  const box = $('#passkey-signin-box');
+  box.hidden = !passkeysSupported() || !(rememberedPasskey() || (await platformReady()));
+  if (!$('#login').hidden) (box.hidden ? $('#login-email') : $('#passkey-signin')).focus();
 }
 
 async function tryEnter() {
@@ -1739,7 +1778,8 @@ async function tryEnter() {
       $('#verify-done').focus();
       return;
     }
-    if (e.code !== 'sign_in') { session = null; saveSession(); }
+    if (e.status === 401) return; // signOut() has said why
+    if (e.code !== 'sign_in') { session = null; clearSession(); }
     err.textContent = e.message;
     err.hidden = false;
   }
@@ -1754,21 +1794,37 @@ $('#login-form').onsubmit = async (e) => {
   if (!email || !password) { err.textContent = 'Enter your email and password.'; err.hidden = false; return; }
   try {
     const d = await firebase('accounts:signInWithPassword', { email, password, returnSecureToken: true });
-    session = { mode: 'firebase', email: d.email, idToken: d.idToken, refreshToken: d.refreshToken, exp: Date.now() + Number(d.expiresIn || 3600) * 1000 };
+    lastActive = Date.now();
+    session = { mode: 'firebase', email: d.email, idToken: d.idToken, refreshToken: d.refreshToken, exp: Date.now() + Number(d.expiresIn || 3600) * 1000, keep: $('#login-keep').checked };
     saveSession();
     $('#login-password').value = '';
-    lastActive = Date.now();
     await tryEnter();
   } catch (ex) { err.textContent = ex.message; err.hidden = false; }
+};
+$('#passkey-signin').onclick = async (e) => {
+  const err = $('#login-error');
+  err.hidden = true;
+  const b = e.currentTarget;
+  b.disabled = true;
+  try {
+    const d = await passkeySignIn();
+    lastActive = Date.now();
+    session = { mode: 'passkey', key: d.token, email: d.email, exp: d.expiresAt, keep: $('#login-keep').checked };
+    saveSession();
+    await tryEnter();
+  } catch (ex) {
+    if (ex.code !== 'cancelled') { err.textContent = ex.message; err.hidden = false; }
+    if (ex.code === 'unknown_passkey') showPasskeyButton();
+  } finally { b.disabled = false; }
 };
 $('#token-form').onsubmit = async (e) => {
   e.preventDefault();
   const key = $('#token-input').value.trim();
   if (!key) return;
+  lastActive = Date.now();
   session = { mode: 'token', key };
   saveSession();
   $('#token-input').value = '';
-  lastActive = Date.now();
   await tryEnter();
 };
 $('#forgot').onclick = async () => {
@@ -1786,10 +1842,22 @@ $('#verify-done').onclick = async (e) => {
 };
 $('#sign-out').onclick = () => signOut();
 
-for (const ev of ['pointerdown', 'keydown']) addEventListener(ev, () => { lastActive = Date.now(); }, { passive: true });
-setInterval(() => { if (session && Date.now() - lastActive > IDLE_MS) signOut('You were signed out after 30 minutes without activity.'); }, 60_000);
+// Activity keeps the dashboard open; the time is saved now and then so a
+// reopened app knows how long it was away.
+let savedSeen = 0;
+for (const ev of ['pointerdown', 'keydown']) {
+  addEventListener(ev, () => {
+    lastActive = Date.now();
+    if (session && lastActive - savedSeen > 30_000) { savedSeen = lastActive; saveSession(); }
+  }, { passive: true });
+}
+const idleCheck = () => { if (session && Date.now() - lastActive > IDLE_MS) signOut(lockWords()); };
+setInterval(idleCheck, 60_000);
+// Back from another app: lock at once if the break was long, otherwise carry on.
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') idleCheck(); });
+addEventListener('pageshow', idleCheck);
 
-// Pull down to refresh on a phone. The session lives in sessionStorage, so a
+// Pull down to refresh on a phone. The session is kept in storage, so a
 // refresh keeps the admin signed in; typed text that is not saved yet is lost,
 // so ask first.
 initPullRefresh({
@@ -1800,8 +1868,10 @@ initPullRefresh({
 });
 
 session = loadSession();
-if (session) tryEnter();
-else $('#login').hidden = false;
+if (session?.seen) lastActive = session.seen;
+if (session && Date.now() - lastActive > IDLE_MS) signOut(lockWords());
+else if (session) tryEnter();
+else { $('#login').hidden = false; showPasskeyButton(); }
 
 // ------------------------------------------------------------- install
 // The dashboard installs as an app (manifest.webmanifest, sw.js). Chrome and
