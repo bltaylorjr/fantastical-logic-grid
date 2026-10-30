@@ -1,4 +1,4 @@
-// Logic Grid Calm as one self-contained page for a private claude.ai preview
+// Logic Grid Basic as one self-contained page for a private claude.ai preview
 // (dist/calm-preview/index.html). Run after npm run build:
 //   node scripts/build-calm-preview.mjs
 // The page cannot load other files there, so scripts, styles, fonts and the
@@ -60,6 +60,6 @@ const head = html.match(/<head>([\s\S]*?)<\/head>/)[1]
   + `<meta name="flg-mode" content="preview">\n<style>${css}</style>\n`;
 const body = html.match(/<body>([\s\S]*?)<\/body>/)[1]
   .replaceAll('../icons/icon.svg', icon)
-  .replace('href="../"', 'href="https://thelogicgrid.com/" target="_blank" rel="noopener"');
+  .replace('href="../" id="mode-full"', 'href="https://thelogicgrid.com/" target="_blank" rel="noopener" id="mode-full"');
 writeFileSync(join(out, 'index.html'), `${head}${body}<script type="module">${app.outputFiles[0].text.replaceAll('</script', '<\\/script')}</script>\n`);
 console.log(`Built dist/calm-preview/index.html (${Math.round(readFileSync(join(out, 'index.html')).length / 1024)} KB).`);

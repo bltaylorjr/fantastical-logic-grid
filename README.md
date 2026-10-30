@@ -83,7 +83,7 @@ sentence plays while the rest is made; the story opening is pre-made when a puzz
 
 `releases/The-Fantastical-Logic-Grid.zip` holds the installer, a portable .exe and the web build.
 
-## Logic Grid Calm (web/calm/)
+## Logic Grid Basic (web/calm/)
 
 A second, quieter app for people who just want to relax with a puzzle. It
 offers the basics only: difficulty, theme and size, then the story, grid,

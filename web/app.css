@@ -1073,3 +1073,10 @@ body:has(#view-seg:not([hidden])) #miniboard-open { flex: none; }
   .view-seg > label > span { padding: 0 10px; }
   .view-seg .seg-text { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 }
+
+/* Basic / Interactive switch in the app bar (the Basic version is web/calm/). */
+.mode-switch { display: inline-flex; align-items: center; border: 1px solid var(--border); border-radius: 999px; padding: 2px; background: var(--bg); flex: none; }
+.mode-switch a, .mode-switch span { display: inline-flex; align-items: center; min-height: 44px; padding: 0 12px; border-radius: 999px; font-weight: 700; font-size: .9rem; color: var(--text); text-decoration: none; }
+.mode-switch a:hover { background: var(--accent-soft); }
+.mode-switch [aria-current] { background: var(--accent); color: var(--on-accent); }
+@media (max-width: 420px) { .mode-switch a, .mode-switch span { padding: 0 8px; font-size: .85rem; } }

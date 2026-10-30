@@ -1,4 +1,4 @@
-// Logic Grid Calm (web/calm/): set up, play, save, come back, solve, print
+// Logic Grid Basic (web/calm/): set up, play, save, come back, solve, print
 // markup, settings, and text contrast of its color tokens in every look.
 const { chromium } = require('playwright');
 const { spawn } = require('child_process');
@@ -29,12 +29,15 @@ function contrast(a, b) {
 
     // 1. Setup: the basic choices only.
     assert(await page.locator('#tiers input').count() >= 5, 'difficulty choices are listed');
-    assert(await page.locator('#theme option[value=random]').count() === 1, 'Surprise me is a theme choice');
-    assert(await page.locator('#theme option[value=stories]').count() === 0, 'Player Stories are not offered');
+    assert(await page.locator('#themes input[value=random]').count() === 1, 'Surprise me is a theme choice');
+    assert(await page.locator('#themes input[value=stories]').count() === 0, 'Player Stories are not offered');
+    assert(await page.locator('#themes input').count() >= 20, 'every added theme is offered');
+    assert(await page.locator('.mode-switch a[href="../"]').count() === 1, 'the Interactive switch links to the full game');
     await page.check('#tiers input[value=basic]', { force: true });
     assert(await page.locator('#sizes input').count() >= 1, 'sizes follow the difficulty');
     await page.check('#sizes input[value="3x3"]', { force: true });
-    await page.selectOption('#theme', 'pets');
+    await page.check('#themes input[value=pets]', { force: true });
+    assert(await page.locator('#topic-set').isVisible() && await page.locator('#topics input').count() >= 2, 'a theme shows its topics');
     for (const extra of ['#screen-compete', '.scoreboard', '#talking-face', 'audio']) assert(await page.locator(extra).count() === 0, `no ${extra} on the page`);
 
     // 2. Play.

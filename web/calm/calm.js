@@ -1,4 +1,4 @@
-// Logic Grid Calm: the same puzzles as The Fantastical Logic Grid, with only
+// Logic Grid Basic: the same puzzles as The Fantastical Logic Grid, with only
 // the basics. Pick a difficulty, theme and size, solve, save, print. No
 // sound, voices, pictures, races, scores or badges. It reuses the game's
 // engine (generation and hints in worker.js), grid (js/grid.js) and print
@@ -101,37 +101,45 @@ function wireSettings() {
 function renderSetup() {
   const tier = TIERS[setup.tier] || TIERS.easy;
   setup.tier = tier.id;
-  $('#tiers').innerHTML = OPTIONS.difficulties.map((d) => `<label class="chip"><input type="radio" name="tier" value="${d.id}"${d.id === tier.id ? ' checked' : ''}><span>${esc(d.name)}</span></label>`).join('');
-  $('#tier-about').textContent = tier.summary;
+  $('#tiers').innerHTML = OPTIONS.difficulties.map((d) => `<label class="choice"><input type="radio" name="tier" value="${d.id}"${d.id === tier.id ? ' checked' : ''}><span><b>${esc(d.name)}</b><small>${esc(d.summary)}</small></span></label>`).join('');
 
+  // Every theme, in the full game's groups; "Surprise me" leads on its own.
   const list = themes();
   if (setup.theme !== SURPRISE && !list.some((t) => t.id === setup.theme)) setup.theme = SURPRISE;
-  const groups = OPTIONS.themeGroups.map((g) => ({ name: g.name, list: g.themes.map((id) => list.find((t) => t.id === id)).filter(Boolean) })).filter((g) => g.list.length);
+  const groups = OPTIONS.themeGroups.map((g) => ({ id: g.id, name: g.name, list: g.themes.map((id) => list.find((t) => t.id === id)).filter(Boolean) })).filter((g) => g.list.length);
   const loose = list.filter((t) => !groups.some((g) => g.list.includes(t)));
-  if (loose.length) groups.push({ name: 'More themes', list: loose });
-  const opt = (t) => `<option value="${t.id}"${t.id === setup.theme ? ' selected' : ''}>${esc(t.name)}</option>`;
-  $('#theme').innerHTML = `<option value="${SURPRISE}"${setup.theme === SURPRISE ? ' selected' : ''}>Surprise me</option>`
-    + groups.map((g) => `<optgroup label="${esc(g.name)}">${g.list.map(opt).join('')}</optgroup>`).join('');
-  renderThemeAbout();
+  if (loose.length) groups.push({ id: 'more', name: 'More themes', list: loose });
+  const chip = (t) => `<label class="choice" title="${esc(t.description || '')}"><input type="radio" name="theme" value="${t.id}"${t.id === setup.theme ? ' checked' : ''}><span>${esc(t.name)}</span></label>`;
+  $('#themes').innerHTML = `<div class="choices chips">${chip({ id: SURPRISE, name: 'Surprise me', description: 'A different theme each time' })}</div>`
+    + groups.map((g) => `<div class="theme-group" role="group" aria-labelledby="tg-${g.id}"><p class="theme-group-name" id="tg-${g.id}">${esc(g.name)}</p><div class="choices chips">${g.list.map(chip).join('')}</div></div>`).join('');
+  renderTopics();
 
   const sizes = sizesFor(tier);
   if (!sizes.includes(setup.size)) setup.size = (tier.defaultSize || []).join('x');
   if (!sizes.includes(setup.size)) setup.size = sizes[0];
-  $('#sizes').innerHTML = sizes.map((s) => { const [k, n] = sizeOf(s); return `<label class="chip"><input type="radio" name="size" value="${s}"${s === setup.size ? ' checked' : ''}><span>${k} × ${n}</span></label>`; }).join('');
+  $('#sizes').innerHTML = sizes.map((s) => { const [k, n] = sizeOf(s); return `<label class="choice"><input type="radio" name="size" value="${s}"${s === setup.size ? ' checked' : ''}><span><b>${k} × ${n}</b><small>${k} categories, ${n} items</small></span></label>`; }).join('');
   renderSizeAbout();
 }
-function renderThemeAbout() {
+// Topics narrow a theme (which holiday, which kind of mystery). Surprise me has none.
+function renderTopics() {
   const t = themes().find((x) => x.id === setup.theme);
-  $('#theme-about').textContent = t ? t.description || '' : 'A different theme each time.';
+  const topics = (t && t.topics) || [];
+  $('#topic-set').hidden = topics.length < 2;
+  if (topics.length < 2) { setup.topic = null; return; }
+  if (!topics.some((x) => x.id === setup.topic)) setup.topic = t.defaultTopic || topics[0].id;
+  $('#topic-legend').textContent = `${t.name} topic`;
+  $('#topics').innerHTML = topics.map((x) => `<label class="choice" title="${esc(x.description || '')}"><input type="radio" name="topic" value="${x.id}"${x.id === setup.topic ? ' checked' : ''}><span>${esc(x.name)}</span></label>`).join('');
 }
 function renderSizeAbout() {
   const [k, n] = sizeOf(setup.size);
   const big = k >= 6 && n >= 7 ? ' Puzzles this big can take up to 20 seconds to write.' : '';
-  $('#size-about').textContent = `${k} categories with ${n} items each.${big}`;
+  const name = TIERS[setup.tier].name;
+  $('#size-about').textContent = `${/^[AEIOU]/.test(name) ? 'An' : 'A'} ${name} puzzle with ${k} categories of ${n} items each.${big}`;
 }
 function wireSetup() {
   $('#tiers').addEventListener('change', (e) => { setup.tier = e.target.value; setup.size = null; renderSetup(); store.saveSetup(setup); });
-  $('#theme').addEventListener('change', (e) => { setup.theme = e.target.value; renderThemeAbout(); store.saveSetup(setup); });
+  $('#themes').addEventListener('change', (e) => { setup.theme = e.target.value; setup.topic = null; renderTopics(); store.saveSetup(setup); });
+  $('#topics').addEventListener('change', (e) => { setup.topic = e.target.value; store.saveSetup(setup); });
   $('#sizes').addEventListener('change', (e) => { setup.size = e.target.value; renderSizeAbout(); store.saveSetup(setup); });
   $('#start').onclick = () => startPuzzle();
 }
@@ -148,7 +156,7 @@ async function renderSaved() {
   $('#saved').innerHTML = saves.map((s) => {
     const p = s.puzzle;
     const state = s.solved ? (s.revealed ? 'Answer shown' : 'Solved') : `${Math.max(0, Math.min(100, Number(s.percent) || 0))}% marked`;
-    return `<li><button class="saved-open" type="button" data-open="${esc(s.id)}"><b>${esc(p.title)}</b><small>${esc(p.theme.name)} · ${esc(p.difficulty.name)} · ${esc(state)} · ${esc(fmtDate(s.lastPlayed))}</small></button>
+    return `<li><button class="saved-open" type="button" data-open="${esc(s.id)}"><b>${esc(p.title)}</b><small>${esc(p.theme.name)} · ${esc(p.difficulty.name)} · ${esc(state)} · ${esc(fmtDate(s.lastPlayed))}</small><span class="pbar" aria-hidden="true"><i style="width:${s.solved ? 100 : Math.max(0, Math.min(100, Number(s.percent) || 0))}%"></i></span></button>
       <button class="btn quiet small" type="button" data-del="${esc(s.id)}" aria-label="Delete ${esc(p.title)}">Delete</button></li>`;
   }).join('');
 }
@@ -170,7 +178,7 @@ function showHome() {
   if (S) { saveNow(); S.grid.destroy(); S = null; }
   $('#play').hidden = true;
   $('#home').hidden = false;
-  document.title = 'Logic Grid Calm';
+  document.title = 'Logic Grid Basic';
   renderSaved();
   scrollTo(0, 0);
 }
@@ -196,13 +204,15 @@ async function startPuzzle() {
     let puzzle = null;
     // The engine skips used stories itself; the loop is a safety net.
     for (let i = 0; i < 4 && !puzzle; i++) {
-      const p = await engine.generate({ difficulty: setup.tier, theme, categories, items, usedStories: used });
+      const options = { difficulty: setup.tier, theme, categories, items, usedStories: used };
+      if (setup.theme !== SURPRISE && setup.topic && setup.topic !== 'any') options.topic = setup.topic;
+      const p = await engine.generate(options);
       if (!usedSet.has(storyIdOf(p))) puzzle = p;
     }
     if (!puzzle) throw new Error('Every story we tried has already been used. Try another theme.');
     await store.rememberStory(storyIdOf(puzzle));
     const now = Date.now();
-    const save = { id: newId(), puzzle, marks: {}, ticked: [], undo: [], redo: [], hintsUsed: 0, solved: false, revealed: false, percent: 0, created: now, lastPlayed: now, chosenTheme: setup.theme };
+    const save = { id: newId(), puzzle, marks: {}, ticked: [], undo: [], redo: [], hintsUsed: 0, solved: false, revealed: false, percent: 0, created: now, lastPlayed: now, chosenTheme: setup.theme, chosenTopic: setup.topic || null };
     await store.putSave(save);
     $('#gen-status').textContent = '';
     openPuzzle(save);
@@ -240,7 +250,7 @@ function openPuzzle(save) {
   $('#play').hidden = false;
   $('#solved').hidden = true;
   $('#hintbox').hidden = true;
-  document.title = `${puzzle.title} · Logic Grid Calm`;
+  document.title = `${puzzle.title} · Logic Grid Basic`;
   $('#p-title').textContent = puzzle.title;
   $('#p-meta').textContent = `${puzzle.theme.name} · ${puzzle.difficulty.name} · ${ix.K} × ${ix.N}`;
   $('#story-text').innerHTML = puzzle.story.paragraphs.map((p) => `<p>${esc(p)}</p>`).join('');
@@ -498,7 +508,7 @@ function wirePlay() {
   $('#clue-list').addEventListener('change', scheduleSave);
   $('#again').onclick = () => {
     const p = S.puzzle;
-    setup = { tier: p.difficulty.id, theme: S.save.chosenTheme || p.theme.id, size: `${S.ix.K}x${S.ix.N}` };
+    setup = { tier: p.difficulty.id, theme: S.save.chosenTheme || p.theme.id, topic: S.save.chosenTopic || null, size: `${S.ix.K}x${S.ix.N}` };
     store.saveSetup(setup);
     showHome();
     renderSetup();
