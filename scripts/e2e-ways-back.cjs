@@ -55,6 +55,20 @@ const BASE = `http://localhost:${PORT}`;
     await page.waitForSelector('#screen-home:not([hidden])');
     assert(await androidBack() === false, 'and on the home screen it leaves the app to Android');
 
+    // A reload keeps the browser's history entries; going home afterwards
+    // must not step back into the earlier load (that would reload the page).
+    await page.click('#continue-btn');
+    await page.waitForSelector('#screen-play:not([hidden])');
+    await page.reload();
+    await page.waitForSelector('#tier-choices input');
+    await page.evaluate(() => { window.__sameLoad = true; });
+    await page.click('#continue-btn');
+    await page.waitForSelector('#screen-play:not([hidden])');
+    await page.click('#back-btn');
+    await page.waitForSelector('#screen-home:not([hidden])');
+    await page.waitForTimeout(500);
+    assert(await page.evaluate(() => window.__sameLoad === true), 'after a reload, Back goes home without reloading the page');
+
     // ---- Website pages (opened from the links at the foot of the home screen)
     await page.click('.site-links a[href="how-to-play/"]');
     await page.waitForURL(/how-to-play\/$/);

@@ -213,18 +213,30 @@ const HOME_TITLE = document.title;
 // to the lesson list, and any other screen goes home.
 let currentScreen = 'home';
 let skipPop = false;
+// Only an entry this page added (since it last loaded) is ever stepped back
+// over: one left from before a reload belongs to an earlier load, and going
+// back to it would reload the page.
+let pushedHere = false;
+try {
+  if (history.state && history.state.flgScreen) {
+    const { flgScreen, ...rest } = history.state;
+    history.replaceState(Object.keys(rest).length ? rest : null, '');
+  }
+} catch (e) { /* framed preview */ }
 function trackScreen(name) {
   try {
-    const here = history.state && history.state.flgScreen;
-    if (name !== 'home') history[here ? 'replaceState' : 'pushState']({ ...(history.state || {}), flgScreen: name }, '');
-    else if (here) { skipPop = true; history.back(); } // home by a button: drop the screen's history entry
+    const here = pushedHere && history.state && history.state.flgScreen;
+    if (name !== 'home') {
+      history[here ? 'replaceState' : 'pushState']({ ...(history.state || {}), flgScreen: name }, '');
+      pushedHere = true;
+    } else if (here) { pushedHere = false; skipPop = true; history.back(); } // home by a button: drop the screen's history entry
   } catch (e) { /* framed preview */ }
 }
 function screenBack() {
   if (currentScreen === 'home') return false;
   if (currentScreen === 'learn' && !$('#learn-lesson').hidden) {
     $('#learn-back').click();
-    try { if (!(history.state && history.state.flgScreen)) history.pushState({ ...(history.state || {}), flgScreen: 'learn' }, ''); } catch (e) { /* framed preview */ }
+    try { if (!(history.state && history.state.flgScreen)) { history.pushState({ ...(history.state || {}), flgScreen: 'learn' }, ''); pushedHere = true; } } catch (e) { /* framed preview */ }
     return true;
   }
   goHome();
@@ -232,10 +244,11 @@ function screenBack() {
 }
 window.addEventListener('popstate', () => {
   if (skipPop) { skipPop = false; return; }
+  pushedHere = !!(history.state && history.state.flgScreen);
   const open = [...document.querySelectorAll('dialog[open]')].pop();
   if (open) {
     if (open.dispatchEvent(new Event('cancel', { cancelable: true }))) open.close();
-    try { if (currentScreen !== 'home') history.pushState({ ...(history.state || {}), flgScreen: currentScreen }, ''); } catch (e) { /* framed preview */ }
+    try { if (currentScreen !== 'home') { history.pushState({ ...(history.state || {}), flgScreen: currentScreen }, ''); pushedHere = true; } } catch (e) { /* framed preview */ }
     return;
   }
   screenBack();
