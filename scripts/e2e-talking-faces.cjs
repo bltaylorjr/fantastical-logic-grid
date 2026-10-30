@@ -112,6 +112,9 @@ const POINTS = {
     await page.click('#read-clues');
     await page.waitForSelector('#talker:not([hidden])', { timeout: 10000 });
     const first = await page.evaluate(() => window.__flg.state.witness[window.__flg.state.puzzle.clues[0].number] || 'narrator');
+    // Something said just before (a story moment) may still be on screen for a moment.
+    const want = first === 'narrator' ? 'Narrator' : first;
+    await page.waitForFunction((w) => document.querySelector('#talker .talker-name').textContent.trim() === w, want, { timeout: 10000 }).catch(() => {});
     const shown = (await page.textContent('#talker .talker-name')).trim();
     assert(shown === (first === 'narrator' ? 'Narrator' : first), `the first clue's reader appears with their name (${shown})`);
     await page.waitForSelector('#talker canvas:not([hidden])', { timeout: 15000 });
