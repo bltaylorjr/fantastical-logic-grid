@@ -590,7 +590,9 @@ const SHOTS = process.env.SHOTS;
     await q.click('.break-glass summary');
     await q.fill('#token-input', TOKEN);
     await q.click('#token-form button[type=submit]');
-    await q.waitForSelector('#comm-list button[data-status=done]');
+    await q.waitForSelector('#comm-list button[data-story-act=approve]');
+    assert(await q.isVisible('#comm-list button[data-story-act=decline]') && !(await q.isVisible('#comm-list button[data-status=done]')),
+      'a new storyline is decided with Approve or Disapprove, not Mark addressed or Mark done');
     assert(/#communication$/.test(q.url()) && (await q.inputValue('#comm-type')) === 'idea', 'the old ideas link opens Communication on ideas');
     assert(/Theme: Adventure/.test(await q.textContent('#comm-list')), 'the inbox shows which theme a storyline idea is for');
     assert(/pirate ship/.test(await q.textContent('#comm-list')) && !/music stopped/.test(await q.textContent('#comm-list')), 'the inbox can show ideas on their own');
