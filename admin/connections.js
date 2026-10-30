@@ -769,13 +769,15 @@ export const CONNECTIONS = [
   {
     id: 'resend',
     group: 'email',
-    title: 'Resend: player emails from noreply@thelogicgrid.com',
+    title: 'Resend: player emails from support@thelogicgrid.com',
     docs: 'server/FEEDBACK-EMAILS.md',
-    why: 'Sends the thank-you notes for ideas and problems, the daily puzzle emails and the weekly and special edition puzzle emails (with their confirm links) from noreply@thelogicgrid.com instead of the Gmail address. Until it is set up, they go from Gmail, so nothing is lost.',
+    why: 'Sends the thank-you notes for ideas and problems from support@thelogicgrid.com (replies welcome), and the daily puzzle emails and the weekly and special edition puzzle emails (with their confirm links) from noreply@thelogicgrid.com, instead of the Gmail address. Until it is set up, they go from Gmail, so nothing is lost.',
     cost: 'Free plan: 3,000 emails a month, 100 a day, no card. Past that Resend refuses and Gmail takes over.',
     names: [
       { name: 'RESEND_API_KEY', where: 'github-secret', optional: true, note: 'Starts re_. Sending access, domain thelogicgrid.com only.' },
       { name: 'MAIL_FROM', where: 'github-variable', optional: true, note: 'Another sender on the domain, e.g. hello@thelogicgrid.com.' },
+      { name: 'MAIL_REPLY_TO', where: 'github-variable', optional: true, note: 'Where replies to support@ emails go. Default fantasticallogicgrid@gmail.com, until support@ has its own inbox.' },
+      { name: 'MAIL_NOREPLY', where: 'github-variable', optional: true, note: 'The one-way sender (daily puzzle, team-message notices). Default noreply@thelogicgrid.com.' },
     ],
     settings: [
       { label: 'Resend domain', value: 'thelogicgrid.com, region US East' },
@@ -789,6 +791,7 @@ export const CONNECTIONS = [
       'https://resend.com/api-keys > **Create API key**, name `logic-grid`, **Sending access**, domain `thelogicgrid.com`. Copy the key.',
       ...GH_SECRET_STEPS('RESEND_API_KEY', 'the key'),
       'Test: in the game, signed in with a confirmed account, send an idea with "Email me a thank-you note" ticked.',
+      'Optional, once support@thelogicgrid.com has its own inbox: open https://github.com/bltaylorjr/fantastical-logic-grid/settings/variables/actions, click **New repository variable**, name `MAIL_REPLY_TO`, value `support@thelogicgrid.com`. (`MAIL_NOREPLY` only needs setting to use a sender other than noreply@thelogicgrid.com.)',
     ],
     links: [{ label: 'Resend domains', url: 'https://resend.com/domains' }, { label: 'Resend API keys', url: 'https://resend.com/api-keys' }],
     checks: [

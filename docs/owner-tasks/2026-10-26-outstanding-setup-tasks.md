@@ -8,9 +8,9 @@ Everything here is free. Nothing in this list will be billed.
 
 You turned on **Allow GitHub Actions to create and approve pull requests** on 26 October, so there's nothing left to do here. The how-to-play video workflow has been started again, and its pull request merges itself once its checks pass.
 
-## 2. Send player emails from noreply@thelogicgrid.com (DNS records and a Resend key)
+## 2. Send player emails from support@thelogicgrid.com (DNS records and a Resend key)
 
-**Why:** The thank-you emails for ideas and problem reports go out from the game's Gmail with "(no-reply)" in the name. With Resend's free plan they come from the real address noreply@thelogicgrid.com instead. The free plan gives 3,000 emails a month and 100 a day, and it needs no card. Until you do this, emails still go out from Gmail, so nothing is lost. These records don't touch the website or the domain's other email.
+**Why:** The thank-you emails for ideas and problem reports go out from the game's Gmail. With Resend's free plan they come from the real address support@thelogicgrid.com instead. The free plan gives 3,000 emails a month and 100 a day, and it needs no card. Until you do this, emails still go out from Gmail, so nothing is lost. These records don't touch the website or the domain's other email.
 
 **Steps:**
 

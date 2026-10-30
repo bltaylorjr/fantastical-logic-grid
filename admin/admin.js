@@ -859,7 +859,7 @@ views.communication = async () => {
   $('#comm-summary').textContent = `${commCounts(d.counts)} Showing ${plural(d.items.length, 'item', 'items')}${q ? ` with "${q}"` : ''}.`;
   const r = d.replies;
   $('#fb-replies').textContent = !r ? '' : r.enabled
-    ? `Emails to players (thank-you notes, and notices of a team message for players who turned them on): ${fmt(r.sentToday)} sent in the last 24 hours, ${fmt(r.waiting)} waiting${r.failedToday ? `, ${fmt(r.failedToday)} could not be sent` : ''}. Limit ${fmt(r.cap)} a day. They go out every 15 minutes from noreply@thelogicgrid.com (or the game's Gmail as a backup); addresses are removed once sent.`
+    ? `Emails to players (thank-you notes, and notices of a team message for players who turned them on): ${fmt(r.sentToday)} sent in the last 24 hours, ${fmt(r.waiting)} waiting${r.failedToday ? `, ${fmt(r.failedToday)} could not be sent` : ''}. Limit ${fmt(r.cap)} a day. They go out every 15 minutes from support@thelogicgrid.com (or the game's Gmail as a backup); addresses are removed once sent.`
     : 'Emails to players are switched off (Settings and switches > Ideas and problems).';
   errItems = d.items;
   $('#comm-list').innerHTML = d.items.length ? d.items.map(itemHtml).join('') : '<li class="muted">Nothing here.</li>';
