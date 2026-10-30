@@ -25,6 +25,19 @@ export const themeChoicesHtml = (themes, selected, locked = new Set()) => themes
     <span class="tile" data-world="${t.id}">${icon(t.id, 'glyph')}<b>${esc(t.name)}</b>${lock ? '<small class="extra-tag">Supporter extra</small>' : ''}</span><span class="sr-only" id="theme-d-${t.id}">${esc(t.description || '')}${lock ? '. Supporter extra: open to premium supporters.' : ''}</span></label>`;
 }).join('');
 
+// Themes in labeled groups (Mystery & Action, Science & Learning ...) so the
+// long list is easy to scan. "Surprise me" leads on its own; a theme missing
+// from every group lands under "More themes".
+export function themeGroupsHtml(themes, groups = [], selected, locked = new Set()) {
+  const list = groups.map((g) => ({ ...g, list: g.themes.map((id) => themes.find((t) => t.id === id)).filter(Boolean) }));
+  const ungrouped = themes.filter((t) => !list.some((g) => g.list.includes(t)));
+  if (ungrouped.length) list.push({ id: 'more', name: 'More themes', list: ungrouped });
+  return `<div class="choices chips theme-row">${themeChoicesHtml([SURPRISE_THEME], selected)}</div>`
+    + list.filter((g) => g.list.length).map((g) => `
+    <div class="theme-group" role="group" aria-labelledby="tg-${g.id}"><p class="theme-group-name" id="tg-${g.id}">${esc(g.name)}</p>
+    <div class="choices chips theme-row">${themeChoicesHtml(g.list, selected, locked)}</div></div>`).join('');
+}
+
 export const sizeChoicesHtml = (sizes, selected) => [...sizes, 'custom'].map((s) => {
   const [k, n] = s.split('x');
   const text = s === 'custom' ? '<b>Custom</b><small>Any size</small>' : `<b>${k} × ${n}</b><small>${k} categories, ${n} items</small>`;

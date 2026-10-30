@@ -11,7 +11,7 @@
 // saves or anything else about the player. Visits without a campaign or
 // another website (typed in, bookmarks, the installed app) send nothing.
 import { CLOUD_URL } from './cloud-config.js';
-import { platform } from './errors.js';
+import { platform } from './platform.js';
 
 const KEY = 'flg-campaign';
 const KEEP_MS = 30 * 24 * 3600 * 1000;
@@ -124,3 +124,10 @@ export function installed() { send('install', load()); }
 // A press of Support the game (the market test's support pass mark).
 export function supportPressed() { const c = load(); if (c) send('support', c); }
 export function downloaded() { send('download', load()); }
+// The campaign this device arrived from (within 30 days), for forms that
+// report their own result, such as an educator's package request: the
+// Worker counts it for this campaign (server/src/educators.js).
+export function attribution() {
+  const c = load();
+  return c ? { c: c.c, s: c.s, m: c.m, k: c.k } : null;
+}

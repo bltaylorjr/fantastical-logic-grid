@@ -16,6 +16,9 @@
 //   kept translations         180 days after they were last used
 //   daily puzzle numbers      after 120 days
 //   printable pack counts     after 400 days
+//   puzzle problem reports    after 365 days (repaired copies after 30)
+//   site visitor counts       after 400 days
+//   puzzles for contributors  30 days after they were sent (messages.js)
 // While the weekly archive email is on (archive.js), the rows it covers are
 // left for it instead, so they are emailed before they are removed.
 // Scores are never deleted here: the all-time scoreboard needs them (only an
@@ -25,6 +28,7 @@
 // last ran and how close the free voice quota is, for the GitHub health check.
 
 import { messageUpkeepStatements } from './messages.js';
+import { upkeepStatements as reportUpkeep } from './puzzle-reports.js';
 import { getSettings } from './settings.js';
 import { ARCHIVED_UPKEEP_JOBS } from './archive.js';
 
@@ -52,7 +56,9 @@ export async function runUpkeep(env, now = Date.now()) {
     feedback_replies: db.prepare("DELETE FROM feedback_replies WHERE (status != 'held' AND created_at < ?1) OR created_at < ?2").bind(now - 30 * DAY, now - 180 * DAY),
     translations: db.prepare('DELETE FROM translations WHERE day < ?1').bind(isoDay(now - 180 * DAY)),
     ...messageUpkeepStatements(env, now),
+    ...reportUpkeep(env, now),
     rating_insights: db.prepare('DELETE FROM rating_insights WHERE day < ?1').bind(isoDay(now - 90 * DAY)),
+    visit_stats: db.prepare('DELETE FROM visit_stats WHERE day < ?1').bind(isoDay(now - 400 * DAY)),
     daily_results: db.prepare('DELETE FROM daily_results WHERE day < ?1').bind(isoDay(now - 120 * DAY)),
     print_packs: db.prepare('DELETE FROM print_packs WHERE at < ?1').bind(now - 400 * DAY),
     print_pack_stories: db.prepare('DELETE FROM print_pack_stories WHERE at < ?1').bind(now - 400 * DAY),

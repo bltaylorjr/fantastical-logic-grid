@@ -135,10 +135,14 @@ const CSS = `
           document.head.prepend(m); o.disconnect();
         }).observe(document, { childList: true, subtree: true });
       });
-      await ctx.route('**/daily/**', (r) => {
-        const f = path.join(DAILY, decodeURIComponent(new URL(r.request().url()).pathname.replace(/^\/daily\//, '')));
-        return f.startsWith(DAILY) && fs.existsSync(f) ? r.fulfill({ path: f, contentType: 'application/json' }) : r.fulfill({ status: 404, body: '' });
-      });
+      // The puzzle of the week and special editions sit next to daily/.
+      const SITE = path.dirname(DAILY);
+      for (const dir of ['daily', 'weekly', 'specials']) {
+        await ctx.route(`**/${dir}/**`, (r) => {
+          const f = path.join(SITE, decodeURIComponent(new URL(r.request().url()).pathname));
+          return f.startsWith(path.join(SITE, dir)) && fs.existsSync(f) ? r.fulfill({ path: f, contentType: 'application/json' }) : r.fulfill({ status: 404, body: '' });
+        });
+      }
     }
     await ctx.addInitScript((s) => { if (!localStorage.getItem('flg.settings')) localStorage.setItem('flg.settings', JSON.stringify({ introOffered: true, voiceProvider: 'device', silent: s })); }, silent);
     const page = await ctx.newPage();
@@ -275,6 +279,16 @@ const CSS = `
         await scene('daily-email', ['With a free sign-in, you can get each day\'s puzzle by email.']);
         await clearFx();
       }
+      if (await p.isVisible('#weekly-box')) {
+        await scrollTo('#weekly-box'); await hl('#weekly-box');
+        await scene('weekly', ['Every Monday there is also a Puzzle of the week: a bigger Expert puzzle with a brand-new story.']);
+        await clearFx();
+      }
+      if (await p.isVisible('#mail-invite-btn')) {
+        await hl('#mail-invite'); await point('#mail-invite-btn');
+        await scene('puzzle-mail', ['Anyone can get the puzzle of the week and special edition puzzles by email, with no account.', 'Choose Puzzle emails in the Menu, type your address, then press Confirm in the email we send you.']);
+        await clearFx();
+      }
       if (await p.isVisible('#daily-picks')) {
         await hl('#daily-picks');
         await scene('daily-picks', ['And Hand-picked puzzles lists the daily puzzles players liked best.']);
@@ -287,10 +301,10 @@ const CSS = `
     // =================== Set up
     await p.check('input[name=tier][value=easy]', { force: true });
     await scrollTo('#tier-choices'); await hl('#tier-choices'); await point('input[name=tier][value=easy] + *');
-    await scene('tiers', ['Start on the New puzzle screen and pick a difficulty.', 'Basic and Easy are perfect for beginners.', 'Quantum Physicist is for true masterminds.']);
+    await scene('tiers', ['Start on the New puzzle screen and pick a difficulty.', 'Basic and Easy are perfect for beginners.', 'Quantum Physicist is for true masterminds.', 'And Theoretical Physicist is for the best of the best.']);
     await clearFx();
     await scrollTo('#theme-choices'); await clickShown('input[name=theme][value=mystery] + *'); await hl('#theme-choices');
-    await scene('themes', [['Next, choose a theme, like Mystery, Fantasy, Sci-Fi, Around Town, National Parks or Vacation Destinations.', 'Next, choose a theme, like Mystery, Fantasy, Sci Fi, Around Town, National Parks, or Vacation Destinations.'], 'Or pick Surprise me.']);
+    await scene('themes', [['Next, choose a theme. Themes are grouped, like Mystery and Action, Imagination, or Science and Learning.', 'Next, choose a theme. Themes are grouped, like Mystery and Action, Imagination, or Science and Learning.'], 'Or pick Surprise me.']);
     await clearFx();
     if (await p.isVisible('#topic-field')) {
       await scrollTo('#topic-field'); await hl('#topic-field');
@@ -599,10 +613,12 @@ const CSS = `
     await p.keyboard.press('Escape');
     if (!(await p.$eval('[data-cmd=feedback]', (b) => b.hidden))) {
       await p.click('#menu-btn'); await p.click('[data-cmd=feedback]'); await p.waitForSelector('#dlg-feedback[open]'); await prep();
+      await p.selectOption('#idea-theme', 'adventure').catch(() => {});
       await p.fill('#idea-text', 'A pirate ship lost in the fog, where the crew mixed up the treasure maps.');
       const replyOffered = await p.isVisible('#idea-form .fb-reply');
       const talkOffered = await p.isVisible('#idea-form .fb-talk');
       await scene('feedback', ['Have an idea for a story, or found a problem?', 'Ideas and problems, in the menu, has a separate box for each, and they go straight to the game\'s team.',
+        'For a storyline idea, pick which theme it is for from the list.',
         ...(replyOffered ? ['Signed in with a confirmed email? Leave Email me an update ticked. The game emails you a thank-you, and again when the team acts on it.'] : []),
         ...(talkOffered ? ['Want an answer? Tick Let the team reply to me.'] : [])]);
       await p.keyboard.press('Escape');

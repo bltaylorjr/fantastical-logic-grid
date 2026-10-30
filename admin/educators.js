@@ -25,7 +25,7 @@ const DOMAIN = {
   unknown: ['Check the school', 'warn', 'The address is not on a known school domain. Look the school up before approving.'],
   personal: ['Personal email', 'bad', 'A personal mailbox (allowed under Settings and switches > Educators). Check before approving.'],
 };
-const TIER = { basic: 'Basic', easy: 'Easy', medium: 'Medium', hard: 'Hard', expert: 'Expert', mensa: 'Quantum Physicist' };
+const TIER = { basic: 'Basic', easy: 'Easy', medium: 'Medium', hard: 'Hard', expert: 'Expert', mensa: 'Quantum Physicist', theorist: 'Theoretical Physicist' };
 const GRADE = (g) => (g === 'k' ? 'Kindergarten' : g === 'college' ? 'College and adult' : `Grade ${g}`);
 const KEYS = { separate: 'Answer keys in a separate file', after: 'Answer key after each puzzle', none: 'No answer keys' };
 
@@ -63,6 +63,7 @@ function card(r) {
   return `<article class="card stack edu-card" aria-labelledby="edu-${r.id}">
     <div class="row"><h2 id="edu-${r.id}" class="grow">${e(r.name)}, ${e(r.school)}</h2><span class="badge ${scls}">${e(sw)}</span></div>
     <p><bdi>${e(r.email)}</bdi> <span class="badge ${dcls}" title="${e(dwhy)}">${e(dw)}</span> · ${e(r.role)}${r.request.district ? ` · ${e(r.request.district)}` : ''}</p>
+    ${r.campaign ? `<p class="muted">Came from: ${e(r.campaign.s)}${r.campaign.c && !r.campaign.c.startsWith('(') ? ` · campaign <code>${e(r.campaign.c)}</code>${r.campaign.k ? `, ad <code>${e(r.campaign.k)}</code>` : ''}` : ''}</p>` : ''}
     <p><b>${e(GRADE(r.grade))}</b> · <b>${h.fmt(r.count)} ${r.count === 1 ? 'puzzle' : 'puzzles'}</b> · request ${e(r.ref)} · asked ${h.when(r.createdAt)}${r.verifiedAt ? ` · email confirmed ${h.when(r.verifiedAt)}` : ''}</p>
     ${details(r)}
     ${r.reviewedBy ? `<p class="muted">${r.status === 'declined' ? 'Declined' : 'Approved'} by ${e(r.reviewedBy)} ${h.when(r.reviewedAt)}${r.note ? `: ${e(r.note)}` : ''}</p>` : ''}
