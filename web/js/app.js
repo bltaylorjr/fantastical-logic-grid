@@ -521,7 +521,7 @@ function expectedMsFor(puzzle) {
 function newSave(puzzle) {
   const now = Date.now();
   return {
-    id: (crypto.randomUUID && crypto.randomUUID()) || `s${now}${Math.random().toString(36).slice(2)}`,
+    id: (crypto.randomUUID && crypto.randomUUID()) || `s${now}${Array.from(crypto.getRandomValues(new Uint8Array(8)), (b) => b.toString(16).padStart(2, '0')).join('')}`,
     name: puzzle.title,
     storyId: storyIdOf(puzzle),
     puzzle,

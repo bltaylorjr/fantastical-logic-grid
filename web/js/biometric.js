@@ -79,7 +79,9 @@ export async function enroll(user) {
   const r = cred.response;
   const key = typeof r.getPublicKey === 'function' ? r.getPublicKey() : null;
   const alg = typeof r.getPublicKeyAlgorithm === 'function' ? r.getPublicKeyAlgorithm() : null;
-  store.setLocal(KEY, { uid: user.uid, email: user.email, id: cred.id, key: key ? b64u(key) : null, alg });
+  // Without the public key the answer could not be checked, so do not turn it on.
+  if (!key || !IMPORT[alg]) throw new BiometricError('UNAVAILABLE', 'This browser cannot use fingerprint or face sign-in. Try an up-to-date Chrome, Edge, Safari or Firefox.');
+  store.setLocal(KEY, { uid: user.uid, email: user.email, id: cred.id, key: b64u(key), alg });
 }
 
 const IMPORT = {
@@ -106,7 +108,7 @@ async function check(v, cred, challenge) {
   if (client.type !== 'webauthn.get' || client.challenge !== b64u(challenge) || client.origin !== location.origin) return false;
   const auth = new Uint8Array(r.authenticatorData);
   if (!(auth[32] & 0x04)) return false; // UV: the fingerprint, face or PIN was checked
-  if (!v.key || !IMPORT[v.alg]) return true; // older browsers do not hand out the key
+  if (!v.key || !IMPORT[v.alg]) return false;
   const [importAlg, verifyAlg] = IMPORT[v.alg];
   const pub = await crypto.subtle.importKey('spki', unb64u(v.key), importAlg, false, ['verify']);
   const hash = new Uint8Array(await crypto.subtle.digest('SHA-256', r.clientDataJSON));
@@ -121,11 +123,13 @@ async function check(v, cred, challenge) {
 export async function verify(uid) {
   const v = saved();
   if (!v || (uid && v.uid !== uid)) throw new BiometricError('NOT_SET_UP', 'Fingerprint or face sign-in is not on for this account on this device.');
-  if (v.native) {
-    if (!native()) throw new BiometricError('UNAVAILABLE', 'This device cannot check a fingerprint or face.');
+  // The platform decides the check, never the stored record.
+  if (native()) {
+    if (!v.native) throw new BiometricError('NOT_SET_UP', 'Fingerprint or face sign-in is not on for this account on this device.');
     if (!(await native().verify({ title: 'Sign in to The Fantastical Logic Grid', subtitle: v.email }))) throw new BiometricError('CANCELLED', CANCELLED);
     return true;
   }
+  if (v.native || !v.id) throw new BiometricError('NOT_SET_UP', 'Fingerprint or face sign-in is not on for this account on this device.');
   const challenge = random(32);
   let cred;
   try {
