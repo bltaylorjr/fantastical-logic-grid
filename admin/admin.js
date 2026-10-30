@@ -1836,7 +1836,7 @@ views.ratings = () => ratingsView(ratingHelpers);
 initRatings(ratingHelpers, (name, o) => show(name, o));
 
 // ---- Marketing (marketing.js): campaigns, ads, media, tracked links and their numbers.
-const marketingHelpers = { api, esc, fmt, when, tile, table, can, act, ask, toast };
+const marketingHelpers = { api, esc, fmt, when, tile, table, can, act, ask, toast, announce };
 views.marketing = () => marketingView(marketingHelpers);
 initMarketing(marketingHelpers, (name, o) => show(name, o));
 const educatorHelpers = { api, esc, fmt, when, can, act, ask, setCount };

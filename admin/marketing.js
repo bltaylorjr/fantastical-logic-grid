@@ -70,7 +70,7 @@ function adCard(a, admin) {
       ${a.notes ? `<p class="note">${h.esc(fillLink(a.notes, a.link))}</p>` : ''}
       ${a.postUrl ? `<p><b>Live post:</b> <a href="${h.esc(a.postUrl)}" target="_blank" rel="noopener">${h.esc(a.postUrl)}</a>${a.postedAt ? ` (posted ${h.esc(h.when(a.postedAt))})` : ''}</p>` : ''}
       <p class="muted">${Object.entries(EVENT_NAMES).map(([k, v]) => `${v}: ${h.fmt(s[k])}`).join(' · ')}</p>
-      ${admin ? `<div class="row">${a.status !== 'posted' ? `<button class="btn small primary" type="button" data-ad-posted="${a.id}">Mark as posted</button>` : ''}<button class="btn small" type="button" data-ad-edit="${a.id}">Edit</button><button class="btn small danger" type="button" data-ad-delete="${a.id}">Delete</button></div>` : ''}
+      ${admin ? `<div class="row">${a.status === 'approved' ? `<button class="btn small primary" type="button" data-ad-now="${a.id}">Post now</button>` : ''}${a.status !== 'posted' ? `<button class="btn small${a.status === 'approved' ? '' : ' primary'}" type="button" data-ad-posted="${a.id}">Mark as posted</button>` : ''}<button class="btn small" type="button" data-ad-edit="${a.id}">Edit</button><button class="btn small danger" type="button" data-ad-delete="${a.id}">Delete</button></div>` : ''}
     </div></details>`;
 }
 
@@ -80,7 +80,7 @@ function campaignCard(c, admin) {
   const counts = ['draft', 'approved', 'posted'].map((k) => `${ads.filter((a) => a.status === k).length} ${STATUS_NAMES[k].toLowerCase()}`).join(', ');
   return `<section class="card mk-campaign" aria-labelledby="mk-c-${c.id}">
     <div class="head"><h3 id="mk-c-${c.id}">${h.esc(c.name)} ${badge(c.status)}</h3>
-      ${admin ? `<div class="row"><button class="btn small" type="button" data-ad-new="${c.id}">Add an ad</button><button class="btn small" type="button" data-c-edit="${c.id}">Edit</button><button class="btn small danger" type="button" data-c-delete="${c.id}">Delete</button></div>` : ''}</div>
+      ${admin ? `<div class="row">${c.status !== 'ended' ? `<button class="btn small primary" type="button" data-c-launch="${c.id}">${c.status === 'active' ? 'Post due ads now' : 'Launch campaign'}</button>` : ''}<button class="btn small" type="button" data-ad-new="${c.id}">Add an ad</button><button class="btn small" type="button" data-c-edit="${c.id}">Edit</button><button class="btn small danger" type="button" data-c-delete="${c.id}">Delete</button></div>` : ''}</div>
     <p class="muted">Link code <code>${h.esc(c.code)}</code>${c.starts ? ` · ${h.esc(c.starts)}` : ''}${c.ends ? ` to ${h.esc(c.ends)}` : ''} · ${ads.length} ads (${counts})${s ? ` · ${h.fmt(s.visit)} visits, ${h.fmt(s.solve)} solves` : ''}</p>
     ${c.goal ? `<p><b>Goal:</b> ${h.esc(c.goal)}</p>` : ''}
     ${c.notes ? `<p class="note">${h.esc(c.notes)}</p>` : ''}
@@ -297,6 +297,32 @@ export function initMarketing(helpers, show) {
     if (d.adNew) return editAd({ campaignId: Number(d.adNew), medium: 'social', status: 'draft', media: [] });
     if (d.adEdit) return editAd(ad(d.adEdit));
     if (d.adPosted) return markPosted(ad(d.adPosted));
+    // Post now / Launch campaign (server/src/marketing.js): the poster runs within a couple of minutes.
+    if (d.adNow) {
+      const a = ad(d.adNow);
+      const auto = isAuto(a);
+      if (!(await h.ask({ title: 'Post this ad now?', text: `"${h.esc(a.title)}" goes out on ${h.esc(a.channel)} within a couple of minutes${auto ? ', publicly' : ' (this site is posted by hand, so you get an email with the words to paste)'}. This cannot be undone from here.`, ok: 'Post now' }))) return;
+      let r;
+      if (await h.act(t, async () => { r = await h.api(`marketing/ads/${a.id}/post-now`, { method: 'POST', body: {} }); }, '')) {
+        const msg = r.started ? 'Posting now. Its result shows here in a few minutes.' : 'Set to post today, at the next 10:07 am run. (Add the GITHUB_DISPATCH_TOKEN Worker secret to post straight away.)';
+        h.toast(msg); h.announce(msg); await render();
+      }
+      return;
+    }
+    if (d.cLaunch) {
+      const c = data.campaigns.find((x) => x.id === Number(d.cLaunch));
+      const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+      const due = data.ads.filter((a) => a.campaignId === c.id && a.status === 'approved' && (!a.postOn || a.postOn <= today));
+      const drafts = data.ads.filter((a) => a.campaignId === c.id && a.status === 'draft').length;
+      const list = due.length ? `<ul>${due.map((a) => `<li>${h.esc(a.title)} (${h.esc(a.channel)})</li>`).join('')}</ul>` : '<p>No approved ads are due yet, so nothing is posted now.</p>';
+      if (!(await h.ask({ title: c.status === 'active' ? 'Post the due ads now?' : 'Launch this campaign?', text: `${c.status === 'active' ? '' : `"${h.esc(c.name)}" becomes Active. `}These approved ads go out now (sites posted by hand come to you by email):${list}${drafts ? `<p>${drafts} draft ${drafts === 1 ? 'ad waits' : 'ads wait'} for your approval and ${drafts === 1 ? 'is' : 'are'} not posted.</p>` : ''}<p>Later ads keep their posting days.</p>`, ok: c.status === 'active' ? 'Post now' : 'Launch' }))) return;
+      let r;
+      if (await h.act(t, async () => { r = await h.api(`marketing/campaigns/${c.id}/launch`, { method: 'POST', body: {} }); }, '')) {
+        const msg = `${c.status === 'active' ? '' : 'Campaign launched. '}${r.now ? `${r.now} ${r.now === 1 ? 'ad is' : 'ads are'} ${r.started ? 'posting now' : 'set to post at the next 10:07 am run'}.` : 'No ads were due yet.'}${r.later ? ` ${r.later} more on their posting days.` : ''}`;
+        h.toast(msg); h.announce(msg); await render();
+      }
+      return;
+    }
     if (d.mEdit) return editMedia(data.media.find((m) => m.id === Number(d.mEdit)));
     if (d.cDelete) {
       const c = data.campaigns.find((x) => x.id === Number(d.cDelete));

@@ -24,6 +24,11 @@ titles and counts, never a key, and error notes are scrubbed of them.
 Modes (MODE): post (default), check (signs in to each site with a key and
 says whether it works, posting nothing), dry-run (says what it would post
 and sends the email marked Preview, posting and changing nothing).
+ONLY_ADS (ad numbers, comma separated) limits a run to those ads: the admin
+app's Post now and Launch campaign buttons start a run like that.
+Mode message posts one message (MESSAGE, with an optional picture link
+IMAGE_URL or video link VIDEO_URL) to the game's Facebook Page straight away, for a one-off post the
+owner approved that is not in the Marketing list.
 Python standard library only.
 """
 import base64
@@ -53,6 +58,7 @@ DAY = os.environ.get('DAY', '').strip() or TODAY
 # ONLY (optional, by hand): post just these ads early, as channel:content, comma separated
 # (for example instagram:reel-launch). Use with DAY set to the ads' posting day.
 ONLY = {x.strip() for x in os.environ.get('ONLY', '').split(',') if x.strip()}
+ONLY_ADS = {int(x) for x in os.environ.get('ONLY_ADS', '').replace(' ', '').split(',') if x.isdigit()}
 GMAIL_USER = os.environ.get('GMAIL_USER', '').strip()
 GMAIL_PASSWORD = ''.join(os.environ.get('GMAIL_APP_PASSWORD', '').split())
 MAIL_TO = os.environ.get('OWNER_TASKS_TO', '').strip() or GMAIL_USER
@@ -263,8 +269,31 @@ def meta(url, method='GET', form=None, token=''):
     return request(url, method=method, form=form, headers={'Authorization': f'Bearer {token}'})
 
 
+_PAGE = None
+
+
+def page_key():
+    """(Page id, key to post as the game's Page). META_PAGE_TOKEN may be the
+    Page's own key, or a person's key for an admin of the Page (with
+    pages_manage_posts): then the Page's key comes from the Pages that person
+    manages (me/accounts), matched by META_PAGE_ID or, if that is not one of
+    them, by the game's name."""
+    global _PAGE
+    if _PAGE is None:
+        page, token = env('META_PAGE_ID'), env('META_PAGE_TOKEN')
+        _PAGE = (page, token)
+        try:
+            pages = meta(f'{GRAPH}/me/accounts?fields=id,name,access_token&limit=100', token=token).get('data', [])
+        except Exception:  # noqa: BLE001 - a Page key has no Pages of its own: use it as it is
+            pages = []
+        match = [p for p in pages if p.get('id') == page] or [p for p in pages if 'logic grid' in p.get('name', '').lower()]
+        if match and match[0].get('access_token'):
+            _PAGE = (match[0]['id'], match[0]['access_token'])
+    return _PAGE
+
+
 def post_facebook(ad):
-    page, token = env('META_PAGE_ID'), env('META_PAGE_TOKEN')
+    page, token = page_key()
     videos, images = files(ad, 'video'), files(ad, 'image')
     if videos:
         r = meta(f'{GRAPH}/{page}/videos', 'POST', {'file_url': videos[0], 'description': ad['words']}, token)
@@ -302,7 +331,7 @@ def instagram_id():
 
 
 def post_instagram(ad):
-    ig, token = instagram_id(), env('META_PAGE_TOKEN')
+    ig, token = instagram_id(), page_key()[1]
     videos, images = files(ad, 'video'), files(ad, 'image')
     if videos:
         form = {'media_type': 'REELS', 'video_url': videos[0], 'caption': ad['words'], 'share_to_feed': 'true'}
@@ -498,6 +527,39 @@ POST = {'bluesky': post_bluesky, 'mastodon': post_mastodon, 'x': post_x, 'facebo
         'linkedin': post_linkedin, 'pinterest': post_pinterest, 'youtube': post_youtube, 'tiktok': post_tiktok, 'reddit': post_reddit}
 
 
+def facebook_token_report():
+    """Says what kind of key META_PAGE_TOKEN is and what it may do (never the key
+    itself): posting needs a Page key for the game's Page with pages_manage_posts."""
+    token = env('META_PAGE_TOKEN')
+    try:
+        d = meta(f'{GRAPH}/debug_token?' + urllib.parse.urlencode({'input_token': token, 'access_token': token}), token=token).get('data', {})
+    except Exception as e:  # noqa: BLE001
+        print(f'::warning::Facebook Page: could not read what the key may do: {scrub(e)}')
+        return
+    kind = d.get('type', '?')
+    scopes = sorted(set(d.get('scopes', [])))
+    same = str(d.get('profile_id', '')) == env('META_PAGE_ID') if kind == 'PAGE' else None
+    expires = 'never expires' if not d.get('expires_at') else 'expires ' + datetime.fromtimestamp(d['expires_at']).date().isoformat()
+    whose = "the game's Page" if same else ('another Page' if same is False else 'a person, not a Page')
+    print(f'::notice::Facebook key: a {kind} key, {expires}, for {whose}; may: {", ".join(scopes) or "nothing listed"}')
+    if 'pages_manage_posts' not in scopes or same is False:
+        print('::warning::Facebook Page: this key cannot post to the game\'s Page. Make a new one with pages_manage_posts (Part C of the Facebook launch kit) and save it as META_PAGE_TOKEN.')
+    elif kind != 'PAGE':
+        try:
+            pages = meta(f'{GRAPH}/me/accounts?fields=id,name&limit=100', token=token).get('data', [])
+        except Exception as e:  # noqa: BLE001
+            pages = []
+            print(f'::warning::Facebook Page: could not list the Pages this key manages: {scrub(e)}')
+        print('::notice::Pages this key manages: ' + ('; '.join(f'{p.get("name")} ({p.get("id")})' for p in pages) or 'none'))
+        page, key = page_key()
+        if key != token:
+            print(f'::notice::Facebook Page: posting as the Page {page}' + ('' if page == env('META_PAGE_ID') else ' (META_PAGE_ID does not match it; update that secret to this number)'))
+        else:
+            print('::warning::Facebook Page: the game\'s Page is not among the Pages this key manages. Make the key again and allow it for the game\'s Page.')
+        if d.get('expires_at'):
+            print(f'::warning::Facebook key {expires}. Before then, save the Page access_token from me/accounts (it never expires) as META_PAGE_TOKEN.')
+
+
 def check_instagram():
     ig = instagram_id()
     r = meta(f'{GRAPH}/{ig}?fields=username', token=env('META_PAGE_TOKEN'))
@@ -513,7 +575,7 @@ def check_keys():
         'mastodon': lambda: request(f"{('https://' + env('MASTODON_URL')) if not env('MASTODON_URL').startswith('https://') else env('MASTODON_URL').rstrip('/')}/api/v1/accounts/verify_credentials",
                                     headers={'Authorization': f"Bearer {env('MASTODON_TOKEN')}"})['acct'],
         'x': lambda: request('https://api.x.com/2/users/me', headers={'Authorization': oauth1('GET', 'https://api.x.com/2/users/me')})['data']['username'],
-        'facebook': lambda: meta(f"{GRAPH}/{env('META_PAGE_ID')}?fields=name", token=env('META_PAGE_TOKEN'))['name'],
+        'facebook': lambda: (meta(f"{GRAPH}/{env('META_PAGE_ID')}?fields=name", token=env('META_PAGE_TOKEN'))['name'], facebook_token_report())[0],
         'instagram': check_instagram,
         'threads': lambda: meta(f'{THREADS}/me?fields=username', token=env('THREADS_TOKEN'))['username'],
         'linkedin': lambda: linkedin_me()[1]['sub'],
@@ -530,7 +592,7 @@ def check_keys():
             continue
         try:
             test()
-            print(f'{NAMES[ch]}: connected')
+            print(f'::notice::{NAMES[ch]}: connected')  # shows on the run's summary page
         except Exception as e:  # noqa: BLE001 - report every site
             bad += 1
             problems.append((NAMES[ch], scrub(e)))
@@ -579,9 +641,39 @@ def email(subject, parts):
     print('Email sent to the owner inbox.')
 
 
+def post_message():
+    text = os.environ.get('MESSAGE', '').replace('\\n', '\n').strip()
+    image = os.environ.get('IMAGE_URL', '').strip()
+    if not text or not has_keys('facebook'):
+        print('::error::Nothing to post: MESSAGE is empty or the Facebook keys are not saved.')
+        return 1
+    if image and not image.startswith('https://'):
+        print('::error::IMAGE_URL must be an https:// link.')
+        return 1
+    page, token = page_key()
+    video = os.environ.get('VIDEO_URL', '').strip()
+    if video:
+        if not video.startswith('https://'):
+            print('::error::VIDEO_URL must be an https:// link.')
+            return 1
+        r = meta(f'{GRAPH}/{page}/videos', 'POST', {'file_url': video, 'description': text}, token)
+        print(f"::notice::Posted the video to the Facebook Page: https://www.facebook.com/{page}/videos/{r['id']}")
+        return 0
+    if image:
+        r = meta(f'{GRAPH}/{page}/photos', 'POST', {'url': image, 'caption': text}, token)
+        url = f"https://www.facebook.com/{r.get('post_id') or r['id']}"
+    else:
+        r = meta(f'{GRAPH}/{page}/feed', 'POST', {'message': text}, token)
+        url = f"https://www.facebook.com/{r['id']}"
+    print(f'::notice::Posted the message to the Facebook Page: {url}')
+    return 0
+
+
 def main():
     if MODE == 'check':
         sys.exit(1 if check_keys() else 0)
+    if MODE == 'message':
+        sys.exit(post_message())
     if not (API and TOKEN):
         print('Not set up: FLG_CLOUD_URL and FLG_ADMIN_TOKEN are needed. Nothing to do.')
         return
@@ -590,6 +682,8 @@ def main():
     if ONLY:
         ads = [a for a in ads if f"{a['channel']}:{a.get('content', '')}" in ONLY]
         print(f"::notice::Chosen ads found: {', '.join(a['title'] for a in ads) or 'none (check the day and that the ad is approved)'}")
+    if ONLY_ADS:
+        ads = [a for a in ads if a['id'] in ONLY_ADS]
     dry = MODE == 'dry-run'
     print(f'{DAY}: {len(ads)} approved ads due (automatic posting {"on" if due.get("autopost") else "off"}).')
     posted, failed, by_hand = [], [], []
@@ -604,14 +698,14 @@ def main():
         if (date.fromisoformat(DAY) - date.fromisoformat(ad['postOn'])).days > RETRY_DAYS:
             continue  # gave up: its note in admin says why
         if dry:
-            print(f'Would post: {ad["title"]}')
+            print(f'::notice::Would post ad {ad["id"]}: {ad["title"]} ({NAMES.get(ad["channel"], ad["channel"])}, due {ad["postOn"]})')
             posted.append((ad, '(preview)'))
             continue
         try:
             url = POST[ad['channel']](ad)
             worker(f'marketing/ads/{ad["id"]}/auto', {'ok': True, 'postUrl': url, 'note': f'Posted automatically on {TODAY if ONLY else DAY}'})
             posted.append((ad, url))
-            print(f'::notice::Posted: {ad["title"]}')
+            print(f'::notice::Posted ad {ad["id"]}: {ad["title"]} {url}')  # the live post's public link
         except Exception as e:  # noqa: BLE001 - one site failing must not stop the others
             note = f'{DAY}: {scrub(e)}'
             failed.append((ad, note))
@@ -625,7 +719,7 @@ def main():
     if not (by_hand or failed or follow_up or (dry and posted)) or not due.get('reminders'):
         return
     when = datetime.fromisoformat(DAY).strftime('%A, %B %-d')
-    parts = [f'<p>Good morning! Here is the launch campaign for {when}.</p>']
+    parts = [f'<p>Here are the ads you posted now from the admin app ({when}).</p>' if ONLY_ADS else f'<p>Good morning! Here is the launch campaign for {when}.</p>']
     if posted:
         parts.append('<p><b>Posted automatically:</b></p><ul>' + ''.join(
             f'<li>{html.escape(a["title"])}: <a href="{html.escape(u)}">{html.escape(u)}</a></li>' if u.startswith('https://') else f'<li>{html.escape(a["title"])} {html.escape(u)}</li>'

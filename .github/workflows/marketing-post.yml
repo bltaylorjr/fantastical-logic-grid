@@ -21,7 +21,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: post, check (test the keys) or dry-run (post nothing)
+        description: post, check (test the keys), dry-run (post nothing) or message (post the words below to the Facebook Page)
         required: false
         default: post
       day:
@@ -29,6 +29,18 @@ on:
         required: false
       only:
         description: Optional, to post chosen ads early (channel:content, e.g. instagram:reel-launch); set day to their posting day
+        required: false
+      ads:
+        description: Optional ad numbers (comma separated) to post now; the admin app's Post now and Launch campaign buttons fill this in
+        required: false
+      message:
+        description: For mode message only, the words to post on the Facebook Page now
+        required: false
+      image:
+        description: For mode message only, an optional https link to a picture to post with it
+        required: false
+      video:
+        description: For mode message only, an optional https link to a video to post (the words become its description)
         required: false
 permissions:
   contents: read
@@ -48,6 +60,10 @@ jobs:
           MODE: ${{ github.event.schedule == '23 12 * * 1' && 'check' || inputs.mode }}
           KEY_ALERT: ${{ github.event.schedule == '23 12 * * 1' && '1' || '' }}
           DAY: ${{ inputs.day }}
+          ONLY_ADS: ${{ inputs.ads }}
+          MESSAGE: ${{ inputs.message }}
+          IMAGE_URL: ${{ inputs.image }}
+          VIDEO_URL: ${{ inputs.video }}
           ONLY: ${{ inputs.only }}
           FLG_CLOUD_URL: ${{ vars.FLG_CLOUD_URL || 'https://flg-api.btay74.workers.dev' }}
           FLG_ADMIN_TOKEN: ${{ secrets.FLG_ADMIN_TOKEN }}
