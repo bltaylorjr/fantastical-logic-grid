@@ -126,8 +126,10 @@ const POINTS = {
 
     // Stop reading: the mouth closes and the face leaves.
     await page.click('#read-clues');
-    await page.waitForTimeout(400);
-    assert(await darkPixels() <= 0, 'the mouth closes when the voice stops');
+    // The jaw eases shut over a few frames, which a slow test machine draws slowly.
+    let left = await darkPixels();
+    for (let i = 0; i < 30 && left > 0; i++) { await page.waitForTimeout(100); left = await darkPixels(); }
+    assert(left <= 0, `the mouth closes when the voice stops (${left} dark pixels left)`);
     await page.waitForSelector('#talker', { state: 'hidden', timeout: 5000 });
     assert(true, 'the face leaves soon after');
 
