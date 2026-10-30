@@ -3,7 +3,7 @@
 import {
   generateNumberPlace, makeShape, countSolutions, solveLogically, getNumberPlaceHint,
   isNumberPlaceSolved, formatNumberPlaceText, NP_TIERS, NP_TECHNIQUES,
-} from '../src/puzzles/number-place.js';
+} from '../src/number-place.js';
 
 let passed = 0, failed = 0;
 function check(name, cond, detail = '') {

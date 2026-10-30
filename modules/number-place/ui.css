@@ -1,0 +1,98 @@
+/* Number Place module. Everything is scoped to .np-app and uses the host
+   app's color tokens (--accent, --bg, --text...), with fallbacks so it also
+   works on a plain page. The host supplies .btn and .card. */
+.np-app { --np-accent: var(--accent, #5B3CC4); --np-bg: var(--bg, #fff); --np-text: var(--text, #121626); --np-muted: var(--muted, #4A5168);
+  --np-line: var(--edge-hi, rgb(18 22 38 / .24)); --np-thick: var(--rule, #121626); --np-focus: var(--focus, #5B3CC4); --np-hint: var(--hint, #7A4D00);
+  --np-error: var(--error, #B3261E); --np-error-soft: var(--error-soft, #FBE9E7); --np-border: var(--border, #858BA2); --np-soft: var(--accent-soft, rgb(91 60 196 / .1));
+  --np-fast: var(--fast, 140ms); --np-mid: var(--mid, 220ms); display: block; }
+.np-app [hidden] { display: none !important; }
+.np-app .np-sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.np-app .np-eyebrow { margin: 0 0 6px; text-transform: uppercase; letter-spacing: .18em; font-size: .8rem; font-weight: 700; color: var(--np-muted); }
+.np-app .np-h { font-size: clamp(1.5rem, 3vw, 2rem); margin: 0; }
+.np-app .np-lede { color: var(--np-muted); max-width: 62ch; margin: 8px 0 16px; }
+.np-app .np-help { color: var(--np-muted); font-size: .9rem; margin: 4px 0 0; }
+.np-app #np-daily-note { margin-bottom: 16px; }
+.np-app .np-muted { color: var(--np-muted); }
+.np-app fieldset { border: 0; padding: 0; margin: 0 0 20px; min-width: 0; }
+.np-app legend { font-weight: 700; font-size: 1.05rem; padding: 0; margin-bottom: 8px; }
+.np-app .np-setup { max-width: 860px; margin: 0 auto; }
+.np-app .np-choices { display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
+.np-app .np-choices.chips { display: flex; flex-wrap: wrap; }
+.np-app .choice { position: relative; display: block; }
+.np-app .choice input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; width: 100%; height: 100%; }
+.np-app .choice > span { display: block; min-height: 44px; padding: 10px 14px; border: 1px solid var(--np-border); border-radius: 10px; background: var(--np-bg); transition: background-color var(--np-fast), border-color var(--np-fast); }
+.np-app .choice b { display: block; }
+.np-app .choice small { color: var(--np-muted); }
+.np-app .choice input:checked + span { border-color: var(--np-accent); background: var(--np-soft); box-shadow: inset 0 0 0 1px var(--np-accent); }
+.np-app .choice input:focus-visible + span { outline: 3px solid var(--np-focus); outline-offset: 2px; }
+.np-app .np-gen-row { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; }
+.np-app .np-status { margin: 0; color: var(--np-muted); }
+.np-app .np-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 4px; }
+.np-app .np-stats { margin-top: 20px; }
+.np-app .np-stats table { border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.np-app .np-stats th, .np-app .np-stats td { text-align: left; padding: 4px 16px 4px 0; border-bottom: 1px solid var(--np-line); }
+
+.np-app .np-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 24px; margin-bottom: 16px; }
+.np-app .np-meta { display: flex; align-items: center; gap: 16px; }
+.np-app .np-time { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 1.25rem; }
+.np-app .np-layout { display: grid; grid-template-columns: minmax(0, 620px) minmax(260px, 360px); gap: 24px; align-items: start; justify-content: center; }
+.np-app .np-board-wrap { position: relative; }
+.np-app .np-board { --n: 9; display: grid; grid-template-rows: repeat(var(--n), 1fr); width: 100%; aspect-ratio: 1; background: var(--np-bg); border-radius: 10px; overflow: hidden; touch-action: manipulation; user-select: none; -webkit-user-select: none; position: relative; box-shadow: var(--shadow, 0 20px 40px -28px rgb(0 0 0 / .5)); }
+.np-app .np-row { display: grid; grid-template-columns: repeat(var(--n), 1fr); }
+.np-app .np-cell { position: relative; display: grid; place-items: center; border-right: 1px solid var(--np-line); border-bottom: 1px solid var(--np-line); cursor: pointer; font-size: clamp(18px, calc(min(92vw, 620px) / var(--n) * .52), 40px); line-height: 1; color: var(--np-accent); transition: background-color var(--np-fast); outline: none; }
+.np-app .np-cell.bt { border-top: 3px solid var(--np-thick); }
+.np-app .np-cell.bl { border-left: 3px solid var(--np-thick); }
+.np-app .np-cell.bb { border-bottom: 3px solid var(--np-thick); }
+.np-app .np-cell.br { border-right: 3px solid var(--np-thick); }
+.np-app .np-cell.given { color: var(--np-text); font-weight: 700; }
+.np-app .np-cell.even { background: color-mix(in srgb, var(--np-text) 13%, var(--np-bg)); }
+.np-app .np-cell.peer { background: color-mix(in srgb, var(--np-accent) 9%, var(--np-bg)); }
+.np-app .np-cell.even.peer { background: color-mix(in srgb, color-mix(in srgb, var(--np-text) 13%, var(--np-bg)) 82%, var(--np-accent)); }
+.np-app .np-cell.same { background: color-mix(in srgb, var(--np-accent) 24%, var(--np-bg)); }
+.np-app .np-cell.sel { background: color-mix(in srgb, var(--np-accent) 16%, var(--np-bg)); box-shadow: inset 0 0 0 3px var(--np-focus); }
+.np-app .np-cell.sel .v { font-weight: 700; }
+.np-app .np-cell.hinted { box-shadow: inset 0 0 0 3px var(--np-hint); animation: np-pulse 1.2s ease 2; }
+.np-app .np-cell.clash .v, .np-app .np-cell.wrong .v { color: var(--np-error); text-decoration: underline wavy; text-decoration-thickness: 1px; text-underline-offset: 4px; }
+.np-app .np-cell.clash-given { background: var(--np-error-soft); }
+.np-app .np-cell .v { font-variant-numeric: tabular-nums; }
+.np-app .np-cell:not(.given) .v { animation: np-pop var(--np-mid) cubic-bezier(.34, 1.56, .64, 1); }
+.np-app .np-notes { --nc: 3; position: absolute; inset: 3px; display: grid; grid-template-columns: repeat(var(--nc), 1fr); font-size: clamp(9px, calc(min(92vw, 620px) / var(--n) * .2), 15px); color: var(--np-muted); font-weight: 700; }
+.np-app .np-notes i { display: grid; place-items: center; font-style: normal; }
+.np-app .np-board.diag::before, .np-app .np-board.diag::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(to bottom right, transparent calc(50% - 1px), var(--np-line) 50%, transparent calc(50% + 1px)); }
+.np-app .np-board.diag::after { background: linear-gradient(to bottom left, transparent calc(50% - 1px), var(--np-line) 50%, transparent calc(50% + 1px)); }
+.np-app .np-board.paused .np-row { filter: blur(14px); opacity: .4; }
+.np-app .np-paused-note { display: none; position: absolute; inset: 0; place-items: center; margin: 0; font-size: 1.6rem; font-weight: 700; pointer-events: none; }
+.np-app .np-board.paused + .np-paused-note { display: grid; }
+.np-app .np-side { display: grid; gap: 14px; }
+.np-app .np-tools { display: flex; flex-wrap: wrap; gap: 6px; }
+.np-app .np-tools [aria-pressed="true"] { background: var(--np-accent); color: var(--on-accent, #fff); border-color: var(--np-accent); }
+.np-app .np-digits { --cols: 9; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; max-width: 300px; }
+.np-app .np-digits[data-cols="4"] { grid-template-columns: repeat(4, 1fr); }
+.np-app .np-digit { position: relative; min-height: 60px; border-radius: 10px; border: 1px solid var(--np-border); background: var(--np-bg); color: var(--np-text); font: inherit; font-size: 1.6rem; font-weight: 700; cursor: pointer; transition: transform var(--np-fast), background-color var(--np-fast); }
+.np-app .np-digit:hover { background: var(--np-soft); }
+.np-app .np-digit:active { transform: scale(.95); }
+.np-app .np-digit .left { position: absolute; right: 6px; bottom: 4px; font-size: .7rem; font-weight: 400; color: var(--np-muted); }
+.np-app .np-digit.done { opacity: .4; }
+.np-app .np-hint { padding: 14px 16px; border: 2px solid var(--np-hint); }
+.np-app .np-hint-h { margin: 0 0 6px; font-weight: 700; color: var(--np-hint); }
+.np-app .np-hint ol { margin: 0 0 10px; padding-left: 20px; }
+.np-app .np-hint ol li + li { margin-top: 4px; }
+.np-app .np-hint-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.np-app .np-switch { display: flex; align-items: center; gap: 8px; min-height: 44px; }
+.np-app .np-switch input { width: 20px; height: 20px; }
+.np-app .np-rules-box summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; font-weight: 700; }
+.np-app .np-rules-box ul { margin: 0 0 8px; padding-left: 20px; }
+.np-app .np-print-row { display: flex; flex-wrap: wrap; gap: 4px; margin: 0; }
+.np-app .np-solved { max-width: 620px; margin-top: 24px; border: 2px solid var(--np-accent); outline: none; }
+.np-app .np-solved h2 { color: var(--np-accent); }
+@keyframes np-pop { from { transform: scale(.6); opacity: .2; } }
+@keyframes np-pulse { 50% { box-shadow: inset 0 0 0 5px var(--np-hint); } }
+@media (prefers-reduced-motion: reduce) { .np-app .np-cell .v, .np-app .np-cell.hinted, .np-app .np-digit { animation: none; transition: none; } }
+:root[data-theme="contrast"] .np-app .np-cell { border-color: #fff; }
+:root[data-theme="contrast"] .np-app .np-cell.sel { background: #333; }
+:root[data-theme="contrast"] .np-app .np-cell.peer { background: #111; }
+@media (max-width: 900px) {
+  .np-app .np-layout { grid-template-columns: minmax(0, 1fr); }
+  .np-app .np-digits, .np-app .np-digits[data-cols="4"] { grid-template-columns: repeat(var(--cols), 1fr); gap: 4px; max-width: none; }
+  .np-app .np-digit { min-height: 52px; font-size: 1.3rem; }
+}

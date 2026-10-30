@@ -4,7 +4,7 @@
 // Like the logic grid, every puzzle has exactly one answer, can be solved by
 // deduction alone, and comes with a full step-by-step solve path and hints.
 
-import { makeRng } from '../rng.js';
+import { makeRng } from './rng.js';
 
 export const NP_SIZES = {
   4: { box: [2, 2] },
