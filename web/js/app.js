@@ -252,6 +252,9 @@ function renderSetup() {
   const off = remote.disabledThemes();
   const locked = lockedThemes();
   if (off.has(setup.theme) || locked.has(setup.theme)) { setup.theme = 'random'; setup.topic = 'any'; }
+  // The topic list sits inside the theme list, so lift it out before the
+  // themes are redrawn.
+  topicField().remove();
   $('#theme-choices').innerHTML = themeGroupsHtml(OPTIONS.themes.filter((t) => !off.has(t.id)), OPTIONS.themeGroups, setup.theme, locked);
   const extras = remote.extrasUrl();
   $('#extras-note').hidden = !locked.size;
@@ -265,9 +268,11 @@ function renderSetup() {
   $('#items').value = setup.custom[1];
 
   $('#tier-choices').onchange = () => { setup.tier = $('input[name=tier]:checked').value; setup.size = null; renderSizes(); renderClueTypes(); updatePreview(); };
-  $('#theme-choices').onchange = () => { setup.theme = $('input[name=theme]:checked').value; setup.topic = 'any'; renderTopics(); setWorld(setup.theme); updatePreview(); };
+  $('#theme-choices').onchange = (e) => { if (e.target.name !== 'theme') return; setup.theme = $('input[name=theme]:checked').value; setup.topic = 'any'; renderTopics(); setWorld(setup.theme); updatePreview(); };
   $('#topic-choices').onchange = () => { setup.topic = $('input[name=topic]:checked').value; updatePreview(); };
   setWorld(setup.theme);
+  // Rows reflow when the window resizes, so keep the topics under the chosen theme.
+  if (!renderSetup.watching && window.ResizeObserver) { renderSetup.watching = true; new ResizeObserver(placeTopics).observe($('#theme-choices')); }
   $('#size-choices').onchange = () => { setup.size = $('input[name=size]:checked').value; $('#custom-size').hidden = setup.size !== 'custom'; updatePreview(); };
   $('#cats').oninput = $('#items').oninput = () => { setup.custom = [+$('#cats').value || 4, +$('#items').value || 4]; updatePreview(); };
   $('#clue-count').oninput = updatePreview;
@@ -286,14 +291,31 @@ function extrasLink(url) { return url; }
 
 // Topics narrow a theme, for example which holiday or which kind of mystery.
 // "Surprise me" has none, so the picker hides.
+let topicEl;
+const topicField = () => (topicEl ||= $('#topic-field'));
 function renderTopics() {
   const theme = OPTIONS.themes.find((t) => t.id === setup.theme);
   const topics = (theme && theme.topics) || [];
-  $('#topic-field').hidden = topics.length < 2;
+  topicField().hidden = topics.length < 2;
+  topicField().querySelector('legend').textContent = theme && topics.length > 1 ? `${theme.name} topics` : 'Topic';
   if (!topics.some((t) => t.id === setup.topic)) setup.topic = 'any';
-  $('#topic-choices').innerHTML = topics.map((t) => `
+  topicField().querySelector('#topic-choices').innerHTML = topics.map((t) => `
     <label class="choice"><input type="radio" name="topic" value="${esc(t.id)}"${t.id === setup.topic ? ' checked' : ''}>
     <span><b>${esc(t.name)}</b><small>${esc(t.description || '')}</small></span></label>`).join('');
+  placeTopics();
+}
+
+// The topics open right under the chosen theme: after the last tile on the
+// chosen tile's row, full width, with a pointer at the chosen tile.
+function placeTopics() {
+  const field = topicField();
+  const chosen = $('input[name=theme]:checked')?.closest('.choice');
+  if (!chosen) return;
+  const tiles = [...chosen.parentElement.children].filter((el) => el !== field);
+  let last = chosen;
+  for (const el of tiles.slice(tiles.indexOf(chosen) + 1)) { if (el.offsetTop !== chosen.offsetTop) break; last = el; }
+  if (last.nextElementSibling !== field) last.after(field);
+  field.style.setProperty('--pointer-x', `${chosen.offsetLeft - field.offsetLeft + chosen.offsetWidth / 2}px`);
 }
 
 function renderSizes() {

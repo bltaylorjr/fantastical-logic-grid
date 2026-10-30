@@ -308,7 +308,7 @@ const CSS = `
     await clearFx();
     if (await p.isVisible('#topic-field')) {
       await scrollTo('#topic-field'); await hl('#topic-field');
-      await scene('topics', ['Most themes also have topics, like which holiday or which kind of mystery.', 'Pick one, or leave it on Any.']);
+      await scene('topics', ['Most themes also open a list of topics right under them, like which holiday or which kind of mystery.', 'Pick one, or leave it on Any.']);
       await clearFx();
     }
     await scrollTo('#size-choices'); await hl('#size-choices');

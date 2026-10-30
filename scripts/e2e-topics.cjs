@@ -22,6 +22,23 @@ const assert = (c, m) => { if (!c) { console.error(`FAIL: ${m}`); process.exitCo
     assert(await page.locator('#topic-field').isVisible(), 'topics appear for Holiday');
     assert(await page.locator('input[name=topic][value=any]').isChecked(), 'Any is picked first');
     assert(/Costumes, candy/.test(await page.textContent('#topic-choices')), 'each topic shows its description');
+    // The topics open right under the chosen theme's row, not after every theme.
+    const under = async () => page.evaluate(() => {
+      const field = document.querySelector('#topic-field');
+      const tile = document.querySelector('input[name=theme]:checked').closest('.choice');
+      const t = tile.getBoundingClientRect(), f = field.getBoundingClientRect();
+      const later = [...tile.parentElement.querySelectorAll(':scope > .choice')].filter((el) => el.getBoundingClientRect().top > f.top);
+      return field.parentElement === tile.parentElement && f.top >= t.bottom && f.top - t.bottom < 30
+        && later.every((el) => el.getBoundingClientRect().top > f.bottom);
+    });
+    assert(await under(), 'topics open under the chosen theme on a wide screen');
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.waitForTimeout(200);
+    assert(await under(), 'topics stay under the chosen theme on a phone');
+    await page.check('input[name=theme][value=science]', { force: true });
+    assert(await under(), 'topics follow a newly chosen theme');
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.check('input[name=theme][value=holiday]', { force: true });
     await page.check('input[name=topic][value=halloween]', { force: true });
     await page.check('input[name=theme][value=mystery]', { force: true });
     assert(await page.locator('input[name=topic][value=any]').isChecked(), 'changing theme resets the topic to Any');
