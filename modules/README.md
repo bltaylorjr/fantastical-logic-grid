@@ -1,12 +1,12 @@
 # Puzzle modules
 
 New puzzle types for The Fantastical Logic Grid, built as self-contained
-modules. They are **not** part of the live game yet: each one is tried in the
-private test app first and joins the game only after the owner approves it.
+modules. Each one is tried in the private test app first and joins the game
+only after the owner approves it.
 
 | Module | Engine | Status |
 |---|---|---|
-| `number-place/` | `engine/src/number-place.js` | In testing |
+| `number-place/` | `engine/src/number-place.js` | In the game (small menu link) |
 
 ## How a module plugs in
 
@@ -26,6 +26,18 @@ The module brings its own markup (`markup.js`) and styles (`ui.css`, scoped to
 `.np-app`). It reads the host's color tokens (`--accent`, `--bg`, `--text`...)
 and uses the host's `.btn` and `.card`, so it matches the game in light, dark
 and high-contrast themes.
+
+## In the game
+
+Number Place is its own screen (`#screen-np`), opened from a small link at the
+foot of the Menu. `scripts/build.mjs` copies this folder to `web/modules/`, and
+`web/js/number-place.js` loads it the first time the player opens it, with the
+engine in `web/np-worker.js`. It keeps its own saves, settings and stats
+(`flg.np.*`). The only thing it shares is anonymous play data:
+`web/js/np-share.js` sends finished games to `POST /v1/learn/np/plays` and
+brings back `GET /v1/learn/np/tuning` (server/src/number-place.js). The admin
+dashboard's **Number Place** section shows how each level is going and holds
+the settings that are Number Place's alone. Test: `node scripts/e2e-number-place.cjs`.
 
 ## Test app
 

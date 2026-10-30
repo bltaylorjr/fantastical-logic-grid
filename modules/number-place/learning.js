@@ -18,7 +18,9 @@ const MAX_PLAYS = 400, MAX_SEEN = 5000, MAX_STORIES = 600;
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
-export function createLearning({ load, keep, key }) {
+// config() gives the admin's Number Place choices: adaptStrength, practiceChance
+// and sharedWeight, each 0 to 1.
+export function createLearning({ load, keep, key, config = () => ({}) }) {
   let data = { v: 1, plays: [], seen: [], stories: [], ...(load(key, {}) || {}) };
   let shared = null;
   const persist = () => keep(key, data);
@@ -36,9 +38,11 @@ export function createLearning({ load, keep, key }) {
   function finished(game, outcome) {
     const p = game.p;
     const rec = {
+      // A random key for this one game, so a rating sent later updates it.
+      pid: Math.random().toString(36).slice(2, 10) + Date.now().toString(36),
       fp: p.fingerprint, d: p.difficulty.id, size: p.size, variants: p.variants, mode: game.mode || 'free',
       outcome, ms: Math.round(game.ms), hints: game.hints, mistakes: game.mistakes, checks: game.checks || 0,
-      toughness: p.toughness ?? null, stuck: game.stuck || [], feel: null, at: Date.now(), daily: game.daily || null,
+      toughness: p.toughness ?? null, tuned: game.tuned ?? null, stuck: game.stuck || [], feel: null, at: Date.now(), daily: game.daily || null,
     };
     data.plays.push(rec);
     data.plays = data.plays.slice(-MAX_PLAYS);
@@ -72,16 +76,19 @@ export function createLearning({ load, keep, key }) {
   // 0 (gentlest) to 1 (toughest) inside a level; 0.5 for a new player.
   function toughness(level) {
     const recent = data.plays.filter((r) => r.d === level && r.mode === 'free').slice(-8);
+    const c = config();
+    const strength = c.adaptStrength ?? 1;
     let local = 0.5;
     if (recent.length) {
       // Newer plays count more.
       let w = 0, sum = 0;
       recent.forEach((r, i) => { const wt = i + 1; w += wt; sum += verdict(r) * wt; });
-      local = clamp(0.5 + (sum / w) * 0.25, 0.05, 0.95);
+      local = clamp(0.5 + (sum / w) * 0.25 * strength, 0.05, 0.95);
     }
     const s = shared?.toughness?.[level];
     if (typeof s !== 'number') return local;
-    return recent.length ? local * 0.75 + s * 0.25 : s;
+    const sw = c.sharedWeight ?? 0.25;
+    return recent.length ? local * (1 - sw) + s * sw : 0.5 + (s - 0.5) * strength;
   }
 
   // The level to suggest next: up after three clean solves, down after struggles.
@@ -111,8 +118,8 @@ export function createLearning({ load, keep, key }) {
       avoid: data.seen.slice(),
       usedStories: data.stories.slice(),
       toughness: toughness(level),
-      // Practice a weak spot in about one puzzle in three.
-      practice: weak && Math.random() < 0.35 ? weak : null,
+      // Practice a weak spot in about one puzzle in three (the admin can change it).
+      practice: weak && Math.random() < (config().practiceChance ?? 0.35) ? weak : null,
     };
   }
 

@@ -33,6 +33,17 @@ if (existsSync(engineSrc)) {
   writeFileSync(join(web, 'engine', 'options.js'), `// Written by scripts/build.mjs from the engine's describeOptions(). Do not edit.\nexport const OPTIONS = ${JSON.stringify(describeOptions())};\n`);
 }
 
+// 1b. Number Place, its own game screen (modules/number-place). Copied in
+// here so the module stays one folder the private test app also uses; the
+// game serves its engine from web/engine and its worker from web/np-worker.js.
+{
+  const src = join(root, 'modules', 'number-place');
+  const dest = join(web, 'modules', 'number-place');
+  rmSync(join(web, 'modules'), { recursive: true, force: true });
+  mkdirSync(dest, { recursive: true });
+  for (const n of readdirSync(src).filter((f) => /\.(js|css)$/.test(f) && f !== 'engine-worker.js')) writeFileSync(join(dest, n), readFileSync(join(src, n)));
+}
+
 // 2. Fonts.
 const fontDir = join(root, 'node_modules/@fontsource/atkinson-hyperlegible/files');
 mkdirSync(join(web, 'fonts'), { recursive: true });

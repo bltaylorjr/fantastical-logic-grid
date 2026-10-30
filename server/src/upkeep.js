@@ -45,6 +45,7 @@ export async function runUpkeep(env, now = Date.now()) {
     sync_deleted_users: db.prepare('DELETE FROM sync_deleted_users WHERE deleted_at < ?1').bind(now - 30 * DAY),
     app_errors: db.prepare('DELETE FROM app_errors WHERE day < ?1').bind(isoDay(now - 30 * DAY)),
     plays: db.prepare('DELETE FROM plays WHERE day < ?1').bind(isoDay(now - 400 * DAY)),
+    np_plays: db.prepare('DELETE FROM np_plays WHERE day < ?1').bind(isoDay(now - 400 * DAY)),
     upkeep_log: db.prepare('DELETE FROM upkeep_log WHERE ran_at < ?1').bind(now - 90 * DAY),
     admin_audit: db.prepare('DELETE FROM admin_audit WHERE at < ?1').bind(now - 365 * DAY),
     bans: db.prepare('DELETE FROM bans WHERE until IS NOT NULL AND until < ?1').bind(now),

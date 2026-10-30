@@ -12,7 +12,12 @@
 //                  the one thing Number Place shares, for the learning service
 //   shared         what every player's games taught ({ toughness: { level: 0..1 } }), optional
 //   celebrate()    the host's solve effect, optional
+//   setWorld(id)   the host's backdrop for a story's world, optional
+// A host with other screens calls suspend() when the player leaves and reopen() on return.
 //   canPrint, canDownload   false where the host frame can't print or save files
+//   config()       the admin's Number Place choices (all optional): stories, coachTips,
+//                  daily, variants (bools), maxLevel (a level id), adaptStrength,
+//                  practiceChance, sharedWeight (0 to 1)
 import { markup } from './markup.js';
 import { createLearning, summary, PAR_MS } from './learning.js';
 import { sounds } from './sound.js';
@@ -76,6 +81,7 @@ const sees = (a, b) => a !== b && (rowOf(a) === rowOf(b) || colOf(a) === colOf(b
 const valueAt = (c) => G.p.givens[c] || G.v[c];
 const bit = (d) => 1 << (d - 1);
 const quiet = () => !!prefs.silent;
+const showStory = () => !quiet() && cfg().stories !== false;
 const play = (name) => { if (prefs.sound && !quiet()) { try { sounds[name](); } catch (e) { /* no audio */ } } };
 
 // ---------- mount ----------
@@ -88,7 +94,7 @@ export function mount(container, host) {
   const pre = deps.storagePrefix || 'flg.np';
   K = { games: `${pre}.games`, cur: `${pre}.cur`, prefs: `${pre}.prefs`, learn: `${pre}.learn`, old: `${pre}.current` };
   prefs = { notes: false, showMistakes: false, autoClean: true, highlight: true, silent: false, sound: true, adapt: true, theme: '', level: null, size: null, variants: [], coachDone: false, ...load(K.prefs, {}) };
-  learn = createLearning({ load, keep, key: K.learn });
+  learn = createLearning({ load, keep, key: K.learn, config: cfg });
   if (deps.shared) learn.setShared(deps.shared);
   migrate();
   root.classList.add('np-app');
@@ -110,6 +116,16 @@ export function unmount() {
 // What every player's games taught, when the host fetches it later.
 export function setShared(shared) { learn?.setShared(shared); }
 
+// Leaving the Number Place screen: stop the clock and save.
+export function suspend() { close(); }
+
+// Coming back to the Number Place screen: the clock runs again if a puzzle is open.
+export function reopen() {
+  if (!playing()) return;
+  if (G.p.story?.theme?.world) deps.setWorld?.(G.p.story.theme.world);
+  if (!G.solved && !G.paused) startTimer();
+}
+
 // A puzzle everyone plays (a race or a shared challenge): never filtered as "seen".
 export function startShared(puzzle, { mode = 'race' } = {}) { begin(puzzle, { mode }); }
 
@@ -126,6 +142,10 @@ function migrate() {
 }
 
 function savePrefs() { keep(K.prefs, prefs); }
+const cfg = () => { try { return deps.config?.() || {}; } catch (e) { return {}; } };
+// Levels up to the admin's top level.
+const levels = () => { const max = NP_LEVELS.findIndex((l) => l.id === cfg().maxLevel); return max >= 0 ? NP_LEVELS.slice(0, max + 1) : NP_LEVELS; };
+const storiesOn = () => cfg().stories !== false;
 
 function showView(name) {
   $('#np-setup-view').hidden = name !== 'setup';
@@ -138,8 +158,10 @@ function showView(name) {
 // ---------- setup ----------
 
 function buildSetup() {
-  const level = prefs.level || learn.suggestLevel();
-  $('#np-levels').innerHTML = NP_LEVELS.map((l) => `<label class="choice"><input type="radio" name="np-level" value="${l.id}"${l.id === level ? ' checked' : ''}><span><b>${l.name}</b><small>${l.note}</small></span></label>`).join('');
+  const list = levels();
+  let level = prefs.level || learn.suggestLevel();
+  if (!list.some((l) => l.id === level)) level = list[list.length - 1].id;
+  $('#np-levels').innerHTML = list.map((l) => `<label class="choice"><input type="radio" name="np-level" value="${l.id}"${l.id === level ? ' checked' : ''}><span><b>${l.name}</b><small>${l.note}</small></span></label>`).join('');
   $('#np-variants').innerHTML = VARIANTS.map((v) => `<label class="choice"><input type="checkbox" name="np-variant" value="${v.id}"${prefs.variants.includes(v.id) ? ' checked' : ''}><span><b>${v.name}</b><small>${v.note}</small></span></label>`).join('');
   const themes = engine.themes || [];
   $('#np-theme').innerHTML = `<option value="">Any, a surprise each time</option>${themes.map((t) => `<option value="${esc(t.id)}">${esc(t.name)}</option>`).join('')}`;
@@ -150,6 +172,9 @@ function buildSetup() {
     $(id).onchange = (e) => { prefs[key] = e.target.checked; savePrefs(); root.classList.toggle('np-silent', quiet()); renderSetup(); };
   }
   $('#np-theme').onchange = (e) => { prefs.theme = e.target.value; savePrefs(); };
+  $('#np-variants').closest('fieldset').dataset.off = cfg().variants === false ? '1' : '';
+  $('#np-daily-btn').hidden = cfg().daily === false;
+  $('#np-theme').closest('.np-field').hidden ||= !storiesOn();
   renderSizes();
   if (deps.canDownload === false) $('#np-save-file').hidden = true;
   if (deps.canPrint === false) $('#np-print').hidden = true;
@@ -160,13 +185,13 @@ function renderSizes() {
   const size = level.sizes.includes(prefs.size) ? prefs.size : level.sizes[0];
   $('#np-sizes').innerHTML = level.sizes.map((n) => `<label class="choice"><input type="radio" name="np-size" value="${n}"${n === size ? ' checked' : ''}><span><b>${n}×${n}</b></span></label>`).join('');
   $('#np-size-field').hidden = level.sizes.length < 2;
-  $('#np-variants').closest('fieldset').hidden = size === 4;
+  $('#np-variants').closest('fieldset').hidden = size === 4 || cfg().variants === false;
 }
 
 function readSetup() {
   const difficulty = $('input[name=np-level]:checked').value;
   const size = Number($('input[name=np-size]:checked')?.value) || NP_LEVELS.find((l) => l.id === difficulty).sizes[0];
-  const variants = size === 4 ? [] : [...root.querySelectorAll('input[name=np-variant]:checked')].map((i) => i.value);
+  const variants = size === 4 || cfg().variants === false ? [] : [...root.querySelectorAll('input[name=np-variant]:checked')].map((i) => i.value);
   prefs.level = difficulty; prefs.size = size; prefs.variants = variants;
   savePrefs();
   return { difficulty, size, variants };
@@ -189,6 +214,7 @@ export function renderSetup() {
   const d = dailyOptions();
   const sum = summary(learn.plays());
   const doneToday = learn.plays().some((r) => r.daily === todayUtc() && r.outcome === 'solved');
+  $('#np-daily-note').hidden = cfg().daily === false;
   $('#np-daily-note').textContent = `${doneToday ? 'You solved today\'s puzzle. ' : ''}Today's puzzle is ${levelName(d.difficulty)}.${sum.streak ? ` Streak: ${sum.streak} day${sum.streak === 1 ? '' : 's'}.` : ''}`;
 
   const suggested = learn.suggestLevel();
@@ -233,9 +259,9 @@ async function startNew(opts, { mode = 'free' } = {}) {
   try {
     const tuned = mode === 'free' ? learn.optionsFor(opts.difficulty) : {};
     if (mode === 'free' && !prefs.adapt) { tuned.toughness = 0.5; tuned.practice = null; }
-    const p = await engine.generate({ seed: Math.random().toString(36).slice(2), theme: prefs.theme || null, ...tuned, ...opts });
+    const p = await engine.generate({ seed: Math.random().toString(36).slice(2), theme: prefs.theme || null, story: storiesOn(), ...tuned, ...opts });
     status.textContent = '';
-    begin(p, { mode, daily: opts.daily || null, practice: tuned.practice || null });
+    begin(p, { mode, daily: opts.daily || null, practice: tuned.practice || null, tuned: tuned.toughness ?? null });
   } catch (e) {
     status.textContent = `Could not build that puzzle: ${e.message}`;
   } finally {
@@ -243,10 +269,10 @@ async function startNew(opts, { mode = 'free' } = {}) {
   }
 }
 
-function begin(p, { mode = 'free', daily = null, practice = null } = {}) {
+function begin(p, { mode = 'free', daily = null, practice = null, tuned = null } = {}) {
   close();
   G = {
-    id: `g${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, p, mode, daily, practice,
+    id: `g${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, p, mode, daily, practice, tuned,
     name: uniqueName(p.story?.title || `${levelName(p.difficulty.id)} puzzle`),
     v: Array(p.size ** 2).fill(0), n: Array(p.size ** 2).fill(0), undo: [], redo: [],
     ms: 0, hints: 0, mistakes: 0, checks: 0, stuck: [], solved: false, revealed: false,
@@ -266,6 +292,7 @@ function uniqueName(base) {
 }
 
 async function startDaily() {
+  if (cfg().daily === false) return;
   const date = todayUtc();
   const existing = Object.values(games()).find((g) => g.mode === 'daily' && g.daily === date);
   if (existing) { resume(existing.id); return; }
@@ -313,9 +340,9 @@ function open() {
   G.hint = null;
   const p = G.p;
   $('#np-kicker').textContent = `Number Place · ${p.difficulty.name} · ${p.size}×${p.size}${G.daily ? ` · Daily ${G.daily}` : ''}${G.practice ? ' · Practice' : ''}`;
-  $('#np-title').textContent = quiet() || !p.story ? `${p.difficulty.name} puzzle` : p.story.title;
-  $('#np-story').textContent = quiet() || !p.story ? '' : p.story.intro;
-  $('#np-story').hidden = quiet() || !p.story;
+  $('#np-title').textContent = !showStory() || !p.story ? `${p.difficulty.name} puzzle` : p.story.title;
+  $('#np-story').textContent = !showStory() || !p.story ? '' : p.story.intro;
+  $('#np-story').hidden = !showStory() || !p.story;
   if (p.story?.theme?.world) deps.setWorld?.(p.story.theme.world);
   $('#np-rules').innerHTML = p.rules.map((r) => `<li>${esc(r)}</li>`).join('');
   $('#np-solved').hidden = true;
@@ -335,7 +362,7 @@ function close() { if (G && root) { tick(); save(); } stopTimer(); }
 
 function coach(step) {
   const box = $('#np-coach');
-  if (prefs.coachDone || quiet() || G.solved) { box.hidden = true; return; }
+  if (prefs.coachDone || quiet() || G.solved || cfg().coachTips === false) { box.hidden = true; return; }
   const i = step ?? 0;
   box.hidden = false;
   box.dataset.i = i;
@@ -631,7 +658,7 @@ function showSolved({ fresh, newBadges = [] }) {
   const p = G.p;
   const box = $('#np-solved');
   $('#np-solved-h').textContent = G.revealed ? 'The answer' : 'Solved!';
-  $('#np-ending').textContent = !quiet() && p.story?.ending && !G.revealed ? p.story.ending : '';
+  $('#np-ending').textContent = showStory() && p.story?.ending && !G.revealed ? p.story.ending : '';
   $('#np-ending').hidden = !$('#np-ending').textContent;
   if (G.revealed) $('#np-solved-text').textContent = 'Here is the whole answer. Watch the solution to see how each number follows from the last.';
   else {
@@ -912,7 +939,8 @@ function wire() {
   window.addEventListener('pagehide', onLeave);
 }
 
-const playing = () => G && root && !$('#np-play-view').hidden;
+// Not while the host shows another screen (the module's root is then inside a hidden one).
+const playing = () => G && root && !$('#np-play-view').hidden && !root.closest('[hidden]');
 function onHide() { if (document.hidden && playing()) { tick(); save(); } }
 function onLeave() { if (G && root) { tick(); save(); } }
 

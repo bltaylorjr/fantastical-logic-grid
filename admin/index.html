@@ -90,6 +90,7 @@
       <li><a href="#players" data-min="viewer">Players</a></li>
       <li><a href="#badges" data-min="viewer">Badges</a></li>
       <li><a href="#supporters" data-min="admin">Supporters</a></li>
+      <li><a href="#numberplace" data-min="viewer">Number Place</a></li>
       <li><a href="#settings" data-min="viewer">Settings and switches</a></li>
       <li><a href="#connections" data-min="viewer">Connections and setup</a></li>
       <li><a href="#backups" data-min="admin">Backups and archive</a></li>
@@ -402,6 +403,14 @@
       <h2>Refunds and chargebacks</h2>
       <p class="muted">If a player asks for their money back, refund them in the payment service and press <b>Refunded</b>: a quick refund costs less than a chargeback and its fee. If the payment service tells you about a dispute or chargeback, press <b>Chargeback</b>, then <b>Dispute evidence</b> to download a summary to send them. Players blocked after a chargeback are listed here; their new payments add nothing until you lift the block. The full guide is docs/launch/CHARGEBACKS.md.</p>
       <div class="table-wrap"><table class="table"><thead><tr><th scope="col">Blocked player</th><th scope="col">Since</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody id="sup-blocks"></tbody></table></div>
+    </section>
+
+    <section data-view="numberplace" hidden aria-labelledby="h-numberplace">
+      <div class="head"><h1 id="h-numberplace">Number Place</h1>
+        <div class="field inline"><label for="np-days">Period</label><select id="np-days"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option></select></div>
+      </div>
+      <p class="muted">The numbers game's own switches and numbers. It shares only anonymous play summaries with the rest of the game, for learning. Logic Grid settings are under Settings and switches.</p>
+      <div id="np-body"><p class="muted">Loading…</p></div>
     </section>
 
     <section data-view="settings" hidden aria-labelledby="h-settings">
