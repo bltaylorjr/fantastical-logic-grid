@@ -15,6 +15,7 @@
 //   the weekly archive's log  after 365 days
 //   kept translations         180 days after they were last used
 //   daily puzzle numbers      after 120 days
+//   printable pack counts     after 400 days
 //   puzzle problem reports    after 365 days (repaired copies after 30)
 //   site visitor counts       after 400 days
 //   puzzles for contributors  30 days after they were sent (messages.js)
@@ -45,8 +46,11 @@ export async function runUpkeep(env, now = Date.now()) {
     sync_deleted_users: db.prepare('DELETE FROM sync_deleted_users WHERE deleted_at < ?1').bind(now - 30 * DAY),
     app_errors: db.prepare('DELETE FROM app_errors WHERE day < ?1').bind(isoDay(now - 30 * DAY)),
     plays: db.prepare('DELETE FROM plays WHERE day < ?1').bind(isoDay(now - 400 * DAY)),
+    np_plays: db.prepare('DELETE FROM np_plays WHERE day < ?1').bind(isoDay(now - 400 * DAY)),
     upkeep_log: db.prepare('DELETE FROM upkeep_log WHERE ran_at < ?1').bind(now - 90 * DAY),
     admin_audit: db.prepare('DELETE FROM admin_audit WHERE at < ?1').bind(now - 365 * DAY),
+    admin_sessions: db.prepare('DELETE FROM admin_sessions WHERE expires_at < ?1').bind(now),
+    admin_challenges: db.prepare('DELETE FROM admin_challenges WHERE expires_at < ?1').bind(now),
     bans: db.prepare('DELETE FROM bans WHERE until IS NOT NULL AND until < ?1').bind(now),
     announcements: db.prepare('DELETE FROM announcements WHERE ends_at IS NOT NULL AND ends_at < ?1').bind(now - 90 * DAY),
     feedback: db.prepare("DELETE FROM feedback WHERE status IN ('done', 'addressed') AND done_at < ?1").bind(now - 180 * DAY),
@@ -59,6 +63,8 @@ export async function runUpkeep(env, now = Date.now()) {
     rating_insights: db.prepare('DELETE FROM rating_insights WHERE day < ?1').bind(isoDay(now - 90 * DAY)),
     visit_stats: db.prepare('DELETE FROM visit_stats WHERE day < ?1').bind(isoDay(now - 400 * DAY)),
     daily_results: db.prepare('DELETE FROM daily_results WHERE day < ?1').bind(isoDay(now - 120 * DAY)),
+    print_packs: db.prepare('DELETE FROM print_packs WHERE at < ?1').bind(now - 400 * DAY),
+    print_pack_stories: db.prepare('DELETE FROM print_pack_stories WHERE at < ?1').bind(now - 400 * DAY),
     // Educator requests never confirmed, or declined, go after 30 days. Sent
     // ones stay: their story ids keep every later package's stories new.
     educator_requests: db.prepare("DELETE FROM educator_requests WHERE status IN ('expired', 'declined', 'unverified') AND created_at < ?1").bind(now - 30 * DAY),

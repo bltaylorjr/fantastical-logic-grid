@@ -1,7 +1,7 @@
 // Storylines get one email per submission: when the team approves a story
-// idea, the player who asked for an email gets one with the first puzzle made
-// from it (as a PDF, built by the sender), and the puzzle waits in their game
-// for 30 days. Closed without being used, the one email is a plain thank-you.
+// idea, the player who asked for an email gets "Congratulations" with the
+// first puzzle built from it (built by the sender, stored in their game, sent
+// as a PDF). Disapproved, the one email thanks them for their input.
 // Run with `npm test` in server/.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -10,7 +10,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Miniflare } from 'miniflare';
 import { makeSigner } from './signer.mjs';
-import { generatePuzzle } from '../../engine/src/index.js';
+import { buildStorylinePuzzle } from '../../scripts/storyline-puzzle.mjs';
 import { runUpkeep } from '../src/upkeep.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -55,47 +55,64 @@ async function call(path, { auth, body } = {}) {
   return { status: r.status, body: await r.json().catch(() => null) };
 }
 
-test('an approved storyline sends one email with its puzzle and stores the puzzle 30 days', async () => {
+const STORY = 'A beach rental day. Umbrella Companies: Shady Summers, In the Shade, Beach Bums, Sunbeams, Gotcha Covered. '
+  + 'Price: $60, $69, $75, $85, $93. Accessories: Cooling fans, Auto Mister, Bluetooth, Wifi Hotspot, Mini cooler';
+
+test('an approved storyline: one congratulations email, its puzzle built by the sender and stored for the player', async () => {
   const owner = token('owner-uid', OWNER);
   const dee = token('dee-uid', 'dee@example.com');
-  const sent = await call('/v1/feedback', { auth: dee, body: { kind: 'idea', topic: 'story', text: 'A lighthouse keeper and a missing ship', reply: true } });
+  const sent = await call('/v1/feedback', { auth: dee, body: { kind: 'idea', topic: 'story', text: STORY, reply: true } });
   assert.equal(sent.status, 200, JSON.stringify(sent.body));
   assert.equal(sent.body.reply, 'story', 'no thank-you yet: one email per storyline');
   const rows0 = (await db.prepare("SELECT kind, status FROM feedback_replies WHERE email = 'dee@example.com'").all()).results;
   assert.deepEqual(rows0, [{ kind: 'idea_update', status: 'held' }]);
 
-  const item = (await call('/admin/v1/inbox?type=idea&status=new', { auth: owner })).body.items.find((i) => i.text.startsWith('A lighthouse'));
+  const item = (await call('/admin/v1/inbox?type=idea&status=new', { auth: owner })).body.items.find((i) => i.text.startsWith('A beach'));
   assert.equal(item.meta.storyEmail, true);
 
-  const puzzle = generatePuzzle({ difficulty: 'easy', categories: 3, items: 4, seed: 'storyline-test' });
-  const file = { format: 'fantastical-logic-grid', version: 1, save: { name: puzzle.title, puzzle } };
-  assert.equal((await call(`/admin/v1/feedback/${item.id}/approve`, { auth: owner, body: { note: '' } })).status, 400, 'a note is needed');
-  const ok = await call(`/admin/v1/feedback/${item.id}/approve`, { auth: owner, body: { note: 'We made it a winter mystery.', puzzle: file } });
+  // Approve is one button: no note, no file.
+  const ok = await call(`/admin/v1/feedback/${item.id}/approve`, { auth: owner, body: {} });
   assert.equal(ok.status, 200, JSON.stringify(ok.body));
-  assert.deepEqual([ok.body.emailed, ok.body.stored], [1, true]);
-  assert.equal((await call(`/admin/v1/feedback/${item.id}/approve`, { auth: owner, body: { note: 'Again' } })).status, 409, 'only once');
+  assert.equal(ok.body.emailed, 1);
+  assert.equal((await call(`/admin/v1/feedback/${item.id}/approve`, { auth: owner, body: {} })).status, 409, 'only once');
+  assert.equal((await call(`/admin/v1/feedback/${item.id}/decline`, { auth: owner, body: {} })).status, 409, 'decided already');
 
-  // Stored in the player's game for 30 days.
-  const mine = (await call('/v1/messages', { auth: dee })).body.puzzles;
-  assert.equal(mine.length, 1);
-  assert.equal(mine[0].title, puzzle.title);
-
-  // The sender gets one email with the puzzle to print; nothing else for this submission.
+  // The sender is asked to build the puzzle from the player's words.
   const claim = (await call('/admin/v1/replies/claim', { auth: owner, body: { limit: 50 } })).body;
   const emails = claim.replies.filter((r) => r.email === 'dee@example.com');
   assert.equal(emails.length, 1);
   assert.equal(emails[0].kind, 'story_approved');
-  assert.equal(emails[0].note, 'We made it a winter mystery.');
-  assert.deepEqual(emails[0].puzzle.answerKey, puzzle.answerKey, 'the answer key goes in the PDF');
-  assert.equal((await db.prepare("SELECT COUNT(*) AS n FROM feedback_replies WHERE user_id IS NOT NULL").first()).n, 0, 'the account id is not kept');
+  assert.ok(emails[0].build, 'the puzzle is to be built');
+  assert.equal(emails[0].puzzle, undefined);
+  assert.equal(emails[0].uid, undefined, 'the account id never leaves the Worker');
+
+  const puzzle = buildStorylinePuzzle({ text: emails[0].text, theme: emails[0].build.theme, seed: 'storyline-test' });
+  assert.equal(puzzle.error, undefined, puzzle.error);
+  assert.deepEqual(puzzle.categories[0].items.map((x) => x.label).every((n) => STORY.includes(n)), true, 'the cast comes from the storyline');
+  const stored = await call('/admin/v1/replies/puzzle', { auth: owner, body: { id: emails[0].id, puzzle } });
+  assert.equal(stored.status, 200, JSON.stringify(stored.body));
+  assert.equal(stored.body.stored, true);
+
+  // In the player's game, outside any conversation (the game keeps it in Saved puzzles).
+  const mine = (await call('/v1/messages', { auth: dee })).body.puzzles;
+  assert.equal(mine.length, 1);
+  assert.equal(mine[0].title, puzzle.title);
+  assert.equal(mine[0].conversationId, null);
+
+  await call('/admin/v1/replies/done', { auth: owner, body: { sent: [emails[0].id], failed: [] } });
+  assert.equal((await db.prepare('SELECT COUNT(*) AS n FROM feedback_replies WHERE user_id IS NOT NULL').first()).n, 0, 'the account id is not kept once sent');
 });
 
-test('a storyline closed without being used still gets one plain thank-you', async () => {
+test('a disapproved storyline gets one thank-you for the player\'s input', async () => {
   const owner = token('owner-uid', OWNER);
   const eve = token('eve-uid', 'eve@example.com');
   await call('/v1/feedback', { auth: eve, body: { kind: 'idea', topic: 'story', text: 'A dragon who runs a bakery', reply: true } });
   const item = (await call('/admin/v1/inbox?type=idea&status=new', { auth: owner })).body.items.find((i) => i.text.startsWith('A dragon'));
-  assert.equal((await call(`/admin/v1/feedback/${item.id}`, { auth: owner, body: { status: 'done' } })).status, 200);
-  const rows = (await db.prepare("SELECT kind, status FROM feedback_replies WHERE email = 'eve@example.com'").all()).results;
-  assert.deepEqual(rows, [{ kind: 'idea', status: 'waiting' }]);
+  const no = await call(`/admin/v1/feedback/${item.id}/decline`, { auth: owner, body: {} });
+  assert.equal(no.status, 200, JSON.stringify(no.body));
+  assert.equal(no.body.emailed, 1);
+  const rows = (await db.prepare("SELECT kind, status, user_id FROM feedback_replies WHERE email = 'eve@example.com'").all()).results;
+  assert.deepEqual(rows, [{ kind: 'story_declined', status: 'waiting', user_id: null }]);
+  const f = await db.prepare('SELECT status FROM feedback WHERE id = ?1').bind(item.id).first();
+  assert.equal(f.status, 'done');
 });

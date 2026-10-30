@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "The Fantastical Logic Grid",
-  "version": "1.11.2",
+  "version": "1.13.3",
   "identifier": "com.fantasticallogicgrid.app",
   "build": {
     "frontendDist": "../../dist/web"
@@ -31,6 +31,11 @@
     "targets": [
       "nsis"
     ],
+    "publisher": "The Fantastical Logic Grid",
+    "homepage": "https://thelogicgrid.com",
+    "category": "PuzzleGame",
+    "shortDescription": "Story logic grid puzzles where every case is a brand new story",
+    "longDescription": "Story logic grid puzzles: pick a difficulty, theme and size, then solve with hints, save, print with an answer key, race friends and play the daily puzzle.",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

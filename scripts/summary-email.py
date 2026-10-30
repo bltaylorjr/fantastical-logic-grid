@@ -105,6 +105,9 @@ def build(s):
     sections.append(('Ideas and problems from players', lines))
     if s['errors']:
         sections.append(('Most common errors', [f"{n(e['count'])} times: {e['message']} ({e['platform']})" for e in s['errors']]))
+    packs = s.get('printPacks') or {}
+    if packs.get('packs'):
+        sections.append(('Printable puzzle packs', [f"{n(packs['packs'])} packs printed ({n(packs['puzzles'])} puzzles) by {n(packs['players'])} players"]))
     if s.get('storyPartsWaiting'):
         sections.append(('Story parts', [f"{n(s['storyPartsWaiting'])} waiting for review"]))
     usage = s.get('usage') or {}

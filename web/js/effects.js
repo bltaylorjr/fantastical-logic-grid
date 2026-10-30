@@ -11,7 +11,7 @@ const later = (ms, fn) => setTimeout(fn, ms);
 const between = (a, b) => a + Math.random() * (b - a);
 
 // Pictures for each theme (engine/src/themes.js ids).
-const THEME_EMOJI = {
+export const THEME_EMOJI = {
   mystery: ['🔍', '🕵️', '🗝️'], action: ['💥', '⚡', '🏁'], adventure: ['🧭', '🗺️', '⛰️'], holiday: ['🎁', '🎄', '❄️'],
   occasion: ['🎂', '🎉', '🥳'], fantasy: ['🐉', '🪄', '🏰'], scifi: ['🚀', '🪐', '👽'], sports: ['🏆', '⚽', '🏅'],
   cooking: ['🍰', '🍕', '🧁'], pets: ['🐾', '🐶', '🐱'], town: ['🏘️', '🌳', '🚲'], parks: ['🌲', '🦋', '🌻'],
@@ -20,7 +20,7 @@ const THEME_EMOJI = {
   math: ['➗', '📐', '🧮'], biology: ['🦋', '🐸', '🌿'], chemistry: ['⚗️', '🧪', '💥'], astronomy: ['🔭', '🪐', '🌠'], paradox: ['🌀', '🪞', '⏳'],
 };
 // What falls for Falling snow, leaves or petals: by theme, else by season.
-const FALLING = {
+export const FALLING = {
   holiday: ['❄️', '❄️', '⛄'], parks: ['🍂', '🍁', '🍃'], adventure: ['🍃', '🍂', '🍁'], fantasy: ['🌸', '✨', '🌸'],
   pets: ['🌸', '🍃', '🐾'], cooking: ['🌸', '🍃', '🍓'], wonders: ['🍂', '🍃', '🌸'], music: ['🎵', '🎶', '✨'],
   nautical: ['🫧', '🐚', '🫧'],

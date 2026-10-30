@@ -7,7 +7,7 @@
 // given: marks already on the grid, clues: clue numbers to light up,
 // spot: squares to point at, free: solve the whole grid, puzzle }.
 import { makeLanguage, clueText } from '../engine/language.js';
-import { gridLayout } from '../engine/generator.js';
+import { gridLayout } from '../engine/layout.js';
 import { CLUE_TYPES } from '../engine/tiers.js';
 
 const N = 3;

@@ -1,8 +1,9 @@
 // Native bridge for the Android and iOS apps. The app shell loads this before
 // the game's own scripts, so the web code stays the same everywhere. It fills
 // the gaps a phone WebView leaves: printing, saving files, keeping the screen
-// on, the device voice (Android), the back button (Android) and the colour of
-// the system bars.
+// on, the device voice (Android), the back button (Android), the colour of
+// the system bars and the fingerprint or face check for signing in (Android,
+// used by web/js/biometric.js).
 (() => {
   const android = window.FLGAndroid;
   const ios = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.flg;
@@ -13,6 +14,19 @@
     else ios.postMessage(Object.assign({ type }, data));
   };
   window.FLGNative = { platform };
+
+  // Fingerprint or face check (Android's BiometricPrompt). The WebView has no
+  // WebAuthn, so biometric.js asks here instead.
+  if (android) {
+    const waiting = new Map();
+    let n = 0;
+    window.__flgBiometric = (id, result) => { const done = waiting.get(id); if (done) { waiting.delete(id); done(result); } };
+    const ask = (type, data = {}) => new Promise((resolve) => { const id = `b${++n}`; waiting.set(id, resolve); send(type, Object.assign({ id }, data)); });
+    window.FLGNative.biometric = {
+      available: () => ask('biometricCheck').then((r) => r === 'ok'),
+      verify: ({ title, subtitle } = {}) => ask('biometric', { title, subtitle }).then((r) => r === 'ok'),
+    };
+  }
   document.documentElement.dataset.native = platform;
 
   // Printing: the WebView has no print dialog of its own, so hand the page to

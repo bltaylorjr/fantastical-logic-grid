@@ -7,6 +7,11 @@
 // signed in. Without it the token lives in sessionStorage, so closing the game
 // signs the player out. The short-lived ID token (one hour) lives only in
 // memory and is renewed when needed.
+//
+// Idle sign-out (idle.js) calls lock(): the player is signed out, and when
+// they turned on fingerprint or face sign-in (biometric.js) the refresh token
+// is put aside on this device (where the session was kept), so unlock() can
+// open it again after the device check. Signing out by hand discards it.
 import { CLOUD, cloudEnabled } from './cloud-config.js';
 import * as store from './store.js';
 
@@ -20,6 +25,14 @@ let session = store.getLocal(SESSION) || readTabSession(); // { uid, email, refr
 function saveSession() {
   if (session && session.remember === false) { store.setLocal(SESSION, undefined); writeTabSession(session); }
   else { writeTabSession(null); store.setLocal(SESSION, session || undefined); }
+}
+const LOCKED = 'authLocked';
+const TAB_LOCKED = 'flg.authLocked';
+function readTabLocked() { try { return JSON.parse(sessionStorage.getItem(TAB_LOCKED)) || null; } catch (e) { return null; } }
+let locked = store.getLocal(LOCKED) || readTabLocked();
+function saveLocked() {
+  try { if (locked && locked.remember === false) sessionStorage.setItem(TAB_LOCKED, JSON.stringify(locked)); else sessionStorage.removeItem(TAB_LOCKED); } catch (e) { /* memory only */ }
+  store.setLocal(LOCKED, locked && locked.remember !== false ? locked : undefined);
 }
 let idToken = null;
 let idTokenExp = 0;
@@ -78,6 +91,8 @@ async function post(url, body, form = false) {
 const auth = (path, body) => post(`${CLOUD.authUrl}/${path}?key=${encodeURIComponent(CLOUD.firebaseApiKey)}`, body);
 
 function begin(data, verified, remember = true) {
+  locked = null;
+  saveLocked();
   session = { uid: data.localId, email: data.email, refreshToken: data.refreshToken, verified: !!verified, remember: remember !== false };
   idToken = data.idToken;
   idTokenExp = Date.now() + (Number(data.expiresIn) || 3600) * 1000;
@@ -123,11 +138,44 @@ export async function sendPasswordReset(email) {
   }
 }
 
-export function signOut() {
+function end() {
   session = null;
   idToken = null;
   idTokenExp = 0;
   saveSession();
+  emit();
+}
+
+export function signOut() {
+  locked = null;
+  saveLocked();
+  end();
+}
+
+// The signed-out account whose session waits for the fingerprint or face check.
+export function lockedAccount() { return locked ? { uid: locked.uid, email: locked.email } : null; }
+
+// Signs the player out after they were idle. keep: put the session aside for
+// unlock() (only when fingerprint or face sign-in is on for this account).
+export function lock({ keep = false } = {}) {
+  if (!session) return;
+  locked = keep ? { ...session } : null;
+  saveLocked();
+  end();
+}
+
+// Opens the locked session again, after biometric.verify() said yes. Offline
+// is fine (the game works offline and the token is renewed later); a session
+// the sign-in service no longer accepts is dropped and needs the password.
+export async function unlock() {
+  if (!locked) throw new AccountError('SIGNED_OUT', 'Please sign in with your password.');
+  session = locked;
+  locked = null;
+  saveLocked();
+  saveSession();
+  try { await getIdToken({ force: true }); } catch (e) {
+    if (!session) throw e; // getIdToken signed out: the session was no longer good
+  }
   emit();
 }
 

@@ -37,6 +37,8 @@ jobs:
           node-version: 22
       - name: Engine tests (quick run)
         run: node engine/test/run-tests.js --quick
+      - name: Number Place engine tests
+        run: node engine/test/number-place-tests.js
 
   app:
     runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork && '"ubuntu-latest"') || vars.FLG_RUNNER || '"ubuntu-latest"') }}
@@ -70,10 +72,11 @@ jobs:
           exit 1
         env:
           SHOTS: screenshots
-      - name: Accounts, races, error reports and the admin dashboard against the real Worker
+      - name: Accounts, fingerprint sign-in, races, error reports, app keys and the admin dashboard against the real Worker
         run: |
           npm --prefix server ci --no-audit --no-fund
           node scripts/e2e-accounts.cjs
+          node scripts/e2e-biometric.cjs
           node scripts/e2e-compete.cjs
           node scripts/e2e-challenge.cjs
           node scripts/e2e-daily-results.cjs
@@ -82,6 +85,7 @@ jobs:
           node scripts/e2e-admin.cjs
           node scripts/e2e-archive.cjs
           node scripts/e2e-educators.cjs
+          node scripts/e2e-license.cjs
       # The screenshots from every size the layout test checks, to look at when
       # a layout check fails (kept 14 days, free).
       - name: Keep the screenshots

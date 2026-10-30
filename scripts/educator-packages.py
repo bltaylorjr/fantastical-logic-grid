@@ -4,16 +4,18 @@ the Worker starts it). The domain's DNS is not on Cloudflare, so the Worker
 cannot send email itself (server/EDUCATORS.md).
 
 1. Ask the Worker for the work waiting (POST /admin/v1/educators/claim):
-   code emails for new requests, decline emails, and approved packages.
-2. Send the code and decline emails.
+   code emails for new requests, decline emails, answers to educators' ideas
+   and problems, and approved packages.
+2. Send the code, decline and answer emails.
 3. Build each approved package with scripts/educator-package.mjs (the game's
    own puzzle engine, printed to PDF by Chromium) and email the PDFs to the
-   educator's verified school address.
+   educator's verified school address, with the private link to their ideas,
+   problems and feedback section and the short survey.
 4. Tell the Worker what went out (POST /admin/v1/educators/done).
 
-Email goes from noreply@thelogicgrid.com through Resend (free plan) when
+Code emails go from noreply@thelogicgrid.com and the rest from support@thelogicgrid.com through Resend (free plan) when
 RESEND_API_KEY is set and the domain is verified there, otherwise from the
-game's Gmail with a "(no-reply)" sender name. The repository is public, so its
+game's Gmail. Replies go to MAIL_REPLY_TO. The repository is public, so its
 Actions logs are too: this prints only counts and request references, never
 an email address, name or code. Python standard library only.
 """
@@ -37,19 +39,24 @@ TOKEN = os.environ.get('FLG_ADMIN_TOKEN', '').strip()
 GMAIL_USER = os.environ.get('GMAIL_USER', '').strip()
 GMAIL_PASSWORD = ''.join(os.environ.get('GMAIL_APP_PASSWORD', '').split())
 RESEND_KEY = os.environ.get('RESEND_API_KEY', '').strip()
-MAIL_FROM = os.environ.get('MAIL_FROM', '').strip() or 'noreply@thelogicgrid.com'
+MAIL_FROM = os.environ.get('MAIL_FROM', '').strip() or 'support@thelogicgrid.com'
+# Replies to player emails land here until support@ has its own inbox (MAIL_REPLY_TO overrides).
+REPLY_TO = os.environ.get('MAIL_REPLY_TO', '').strip() or 'fantasticallogicgrid@gmail.com'
+# One-way emails (nothing to answer) go from here, with no Reply-To.
+MAIL_NOREPLY = os.environ.get('MAIL_NOREPLY', '').strip() or 'noreply@thelogicgrid.com'
 SITE = (os.environ.get('FLG_SITE_URL', '').strip() or 'https://thelogicgrid.com').rstrip('/')
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SENDER_NAME = 'The Fantastical Logic Grid (no-reply)'
+SENDER_NAME = 'The Fantastical Logic Grid'
 CONTACT = 'support@thelogicgrid.com'
-NO_REPLY = ('This is an automatic message from a no-reply address, so replies are not read. '
-            f'Questions? Write to {CONTACT}.')
+NO_REPLY = 'Questions? Just reply to this email.'
+ONE_WAY = 'This is an automatic message from a no-reply address, so replies are not read. Questions? Write to support@thelogicgrid.com.'
 SIGN_OFF = 'The Fantastical Logic Grid team\n' + SITE
 
 
 def verify_mail(m):
     link = f'{SITE}/educators/?' + urllib.parse.urlencode({'ref': m['ref'], 'code': m['code']})
     return {
+        'one_way': True,
         'subject': f'Your code: {m["code"]} (The Fantastical Logic Grid for educators)',
         'blocks': [
             f'Hello {m["name"]},',
@@ -97,7 +104,33 @@ def package_mail(b, manifest):
             ('list', files),
             'Print them with any PDF reader. You may copy them for your own students; please do not sell them or post them online.',
             f'Your students can also play free in their browser at {SITE}, and you can ask for another package any time at {SITE}/educators/.',
+            *([
+                'Once you have tried them, we would love to hear how it went. This private link opens your own ideas, problems and '
+                'feedback section and a 2-minute survey about how our tools can help you:',
+                ('link', 'Share ideas and feedback', feedback_link(b['ref'], b['feedbackKey'])),
+            ] if b.get('feedbackKey') else []),
             'Happy puzzling!',
+            SIGN_OFF,
+        ],
+    }
+
+
+def feedback_link(ref, key):
+    return f'{SITE}/educators/feedback/?' + urllib.parse.urlencode({'ref': ref, 'key': key})
+
+
+KIND_WORDS = {'idea': 'idea', 'problem': 'problem report', 'feedback': 'feedback'}
+
+
+def reply_mail(m):
+    return {
+        'subject': 'We answered your note (The Fantastical Logic Grid for educators)',
+        'blocks': [
+            f'Hello {m["name"]},',
+            f'Thank you for your {KIND_WORDS.get(m.get("kind"), "note")}. Our team has looked at it.',
+            ('quote', 'You wrote', m['text']),
+            ('quote', 'Our answer', m['note']),
+            'You can see all your notes and our answers, and send more, with the link in the email that brought your puzzles.',
             SIGN_OFF,
         ],
     }
@@ -122,7 +155,7 @@ def html_version(mail):
     return ('<!doctype html><html><body style="margin:0;padding:24px;background:#f3f0fb;font-family:Arial,Helvetica,sans-serif;'
             'font-size:16px;line-height:1.5;color:#1f1a14"><div style="max-width:560px;margin:0 auto;background:#fff;'
             'border-radius:10px;padding:24px">' + ''.join(parts) +
-            f'<p style="margin:20px 0 0;font-size:13px;color:#5c5246">{html.escape(NO_REPLY)}</p></div></body></html>')
+            f'<p style="margin:20px 0 0;font-size:13px;color:#5c5246">{html.escape(ONE_WAY if mail.get("one_way") else NO_REPLY)}</p></div></body></html>')
 
 
 def text_version(mail):
@@ -138,7 +171,7 @@ def text_version(mail):
             out.append('\n'.join('- ' + x for x in b[1]))
         else:
             out.append(b[1] + ':\n> ' + b[2].strip())
-    return '\n\n'.join(out) + '\n\n--\n' + NO_REPLY + '\n'
+    return '\n\n'.join(out) + '\n\n--\n' + (ONE_WAY if mail.get('one_way') else NO_REPLY) + '\n'
 
 
 def call(path, body):
@@ -166,9 +199,12 @@ class Mailer:
         return False
 
     def _resend(self, to, mail, attachments):
-        payload = {'from': formataddr(('The Fantastical Logic Grid', MAIL_FROM)), 'to': [to], 'subject': mail['subject'],
+        one_way = mail.get('one_way')
+        payload = {'from': formataddr((SENDER_NAME, MAIL_NOREPLY if one_way else MAIL_FROM)), 'to': [to], 'subject': mail['subject'],
                    'text': text_version(mail), 'html': html_version(mail),
                    'headers': {'Auto-Submitted': 'auto-generated', 'X-Auto-Response-Suppress': 'All'}}
+        if not one_way:
+            payload['reply_to'] = REPLY_TO
         if attachments:
             payload['attachments'] = [{'filename': name, 'content': base64.b64encode(data).decode()} for name, data in attachments]
         req = urllib.request.Request('https://api.resend.com/emails', method='POST', data=json.dumps(payload).encode(),
@@ -187,8 +223,10 @@ class Mailer:
 
     def _gmail(self, to, mail, attachments):
         msg = EmailMessage()
-        msg['From'] = formataddr((SENDER_NAME, GMAIL_USER))
+        msg['From'] = formataddr((SENDER_NAME + (' (no-reply)' if mail.get('one_way') else ''), GMAIL_USER))
         msg['To'] = to
+        if not mail.get('one_way'):
+            msg['Reply-To'] = REPLY_TO
         msg['Subject'] = mail['subject']
         msg['Message-ID'] = make_msgid(domain='thelogicgrid.com')
         msg['Auto-Submitted'] = 'auto-generated'
@@ -240,11 +278,10 @@ def build(b, used):
     """Builds one package. Returns (manifest, attachments) or raises."""
     ensure_printer()
     with tempfile.TemporaryDirectory() as tmp:
-        job = os.path.join(tmp, 'job.json')
         out = os.path.join(tmp, 'out')
-        with open(job, 'w', encoding='utf-8') as f:
-            json.dump({**b, 'usedStories': used}, f)
-        subprocess.run(['node', os.path.join(ROOT, 'scripts', 'educator-package.mjs'), job, out], check=True, timeout=900, cwd=ROOT)
+        job = {k: v for k, v in b.items() if k != 'feedbackKey'}
+        subprocess.run(['node', os.path.join(ROOT, 'scripts', 'educator-package.mjs'), '-', out], input=json.dumps({**job, 'usedStories': used}).encode(),
+                       check=True, timeout=900, cwd=ROOT)
         with open(os.path.join(out, 'manifest.json'), encoding='utf-8') as f:
             manifest = json.load(f)
         attachments = []
@@ -267,12 +304,12 @@ def main():
     except urllib.error.URLError as e:
         print(f'::error::The Worker did not answer: {e.reason}')
         sys.exit(1)
-    mails, builds = work.get('mails', []), work.get('builds', [])
-    if not mails and not builds:
+    mails, builds, replies = work.get('mails', []), work.get('builds', []), work.get('replies', [])
+    if not mails and not builds and not replies:
         print('Nothing waiting.')
         return
     mailer = Mailer()
-    report = {'mails': {'sent': [], 'failed': []}, 'builds': []}
+    report = {'mails': {'sent': [], 'failed': []}, 'replies': {'sent': [], 'failed': []}, 'builds': []}
     for m in mails:
         maker = {'verify': verify_mail, 'declined': declined_mail}.get(m.get('kind'))
         if not maker or not m.get('email') or (m['kind'] == 'verify' and not m.get('code')):
@@ -280,6 +317,11 @@ def main():
             continue
         ok = mailer.send(m['email'], maker(m))
         report['mails']['sent' if ok else 'failed'].append(m['id'])
+    for m in replies:
+        if not m.get('email') or not (m.get('note') or '').strip():
+            report['replies']['sent'].append(m['id'])  # nothing to send; clear it
+            continue
+        report['replies']['sent' if mailer.send(m['email'], reply_mail(m)) else 'failed'].append(m['id'])
     used = list(work.get('usedStories', []))
     for b in builds:
         try:
@@ -301,9 +343,9 @@ def main():
     except (urllib.error.HTTPError, urllib.error.URLError):
         print('::error::The Worker did not take the report; some emails may go again.')
         sys.exit(1)
-    print(f'Sent {len(report["mails"]["sent"])} code or decline emails and {sum(1 for x in report["builds"] if x["ok"])} packages '
+    print(f'Sent {len(report["mails"]["sent"])} code or decline emails, {len(report["replies"]["sent"])} answers and {sum(1 for x in report["builds"] if x["ok"])} packages '
           f'(Resend {mailer.via["Resend"]}, Gmail {mailer.via["Gmail"]}); '
-          f'{len(report["mails"]["failed"]) + sum(1 for x in report["builds"] if not x["ok"])} will be tried again.')
+          f'{len(report["mails"]["failed"]) + len(report["replies"]["failed"]) + sum(1 for x in report["builds"] if not x["ok"])} will be tried again.')
 
 
 if __name__ == '__main__':
