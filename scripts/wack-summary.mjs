@@ -1,16 +1,12 @@
 // Reads a Windows App Certification Kit report (the XML appcert.exe writes),
 // prints every test with its result, adds the same table to the GitHub run's
-// summary page, and exits 1 if a test fails that we have not accepted.
-// Accepted failures (each one is explained in docs/MICROSOFT-STORE.md):
-//   - "Digitally signed file": the installers are not signed, because a code
-//     signing certificate costs money (the free-only rule). The Microsoft Store
-//     version is signed by Microsoft for free, so this does not affect it.
+// summary page, and exits 1 if any required test fails. Optional tests that
+// fail are listed but do not block (the Store treats them as advice).
 // Used by .github/workflows/wack.yml. Run: node scripts/wack-summary.mjs report.xml [app name]
 import { readFileSync, appendFileSync } from 'node:fs';
 
 const [file, app = 'app'] = process.argv.slice(2);
 const xml = readFileSync(file, 'utf8').replace(/^﻿/, '');
-const ACCEPTED = [/digitally signed/i, /signed file/i];
 
 const attr = (tag, name) => (tag.match(new RegExp(`\\b${name}="([^"]*)"`)) || [])[1] || '';
 // A RESULT is one word (PASS, FAIL, WARNING...), usually inside CDATA; keep its letters only.
@@ -27,11 +23,10 @@ for (const m of xml.matchAll(/<TEST\b([^>]*)>([\s\S]*?)<\/TEST>/g)) {
 }
 if (!rows.length) { console.error(`No tests found in ${file}.`); process.exit(1); }
 
-const accepted = (r) => ACCEPTED.some((re) => re.test(r.name));
-const blocking = rows.filter((r) => r.result === 'FAIL' && !r.optional && !accepted(r));
+const blocking = rows.filter((r) => r.result === 'FAIL' && !r.optional);
 const lines = [`### Windows App Certification Kit: ${app}`, '', `Kit overall result: **${overall || 'unknown'}**. Failures that block: **${blocking.length}**.`, '', '| Test | Result | Notes |', '| --- | --- | --- |'];
 for (const r of rows) {
-  const note = r.result === 'FAIL' ? (accepted(r) ? 'Accepted: unsigned (free-only rule). ' : r.optional ? 'Optional test. ' : '') + r.messages.slice(0, 3).join(' / ') : '';
+  const note = r.result === 'FAIL' ? (r.optional ? 'Optional test. ' : '') + r.messages.slice(0, 3).join(' / ') : '';
   lines.push(`| ${r.name} | ${r.result} | ${note.replace(/\|/g, '/').slice(0, 400)} |`);
 }
 const out = lines.join('\n') + '\n';
