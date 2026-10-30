@@ -4,7 +4,8 @@
 // Like the logic grid, every puzzle has exactly one answer, can be solved by
 // deduction alone, and comes with a full step-by-step solve path and hints.
 
-import { makeRng } from './rng.js';
+import { makeRng, hashString } from './rng.js';
+import { buildNpStory } from './number-place-story.js';
 
 export const NP_SIZES = {
   4: { box: [2, 2] },
@@ -301,63 +302,130 @@ function makeEvenMask(shape, solution) {
   return solution.map((d) => d % 2 === 0);
 }
 
-export function generateNumberPlace({ difficulty = 'medium', size, variants = [], seed = Math.random().toString(36).slice(2), symmetric = true } = {}) {
+// Technique weights for the toughness score (singles are free).
+const WEIGHT = { 1: 0, 2: 1, 3: 3, 4: 6, 5: 10 };
+export function toughnessOf(steps, empty) {
+  return Math.round(steps.reduce((t, s) => t + WEIGHT[NP_TECHNIQUES[s.technique].level], 0) + empty * 0.2);
+}
+
+// A short fingerprint of a puzzle (its givens, shading and rules). Players
+// keep a list of the ones they have played so they never get the same one twice.
+export function fingerprintOf(givens, evenCells = [], variants = []) {
+  return `${givens.length}:${hashString(`${variants.join('+')}|${givens.join('')}|${evenCells.join(',')}`).toString(36)}`;
+}
+
+function tierOk(tier, res) {
+  if (!res.solved || res.hardest < tier.minLevel) return false;
+  return !tier.minTopSteps || res.steps.filter((x) => NP_TECHNIQUES[x.technique].level >= tier.minLevel).length >= tier.minTopSteps;
+}
+
+// One puzzle for a tier from one random stream, or null.
+function candidate(shape, tier, rng, { parity, symmetric }) {
+  const { N } = shape;
+  const solution = fullGrid(shape, rng, null);
+  if (!solution) return null;
+  const evenMask = parity ? makeEvenMask(shape, solution) : null;
+  const givens = solution.slice();
+  // Remove numbers (in symmetric pairs) while the answer stays unique and the
+  // puzzle stays solvable within the tier.
+  for (const c of rng.shuffle([...Array(N * N).keys()])) {
+    if (!givens[c]) continue;
+    const mirror = N * N - 1 - c;
+    const group = symmetric && mirror !== c ? [c, mirror] : [c];
+    const saved = group.map((x) => givens[x]);
+    group.forEach((x) => { givens[x] = 0; });
+    // Hard tiers remove freely and grade at the end: minimal puzzles are the hard ones.
+    const ok = countSolutions(shape, givens, 2, evenMask).count === 1
+      && (tier.minLevel >= 4 || solveLogically(shape, givens, { maxLevel: tier.maxLevel, evenMask }).solved);
+    if (!ok) group.forEach((x, i) => { givens[x] = saved[i]; });
+  }
+  // A minimal puzzle may need more than the tier allows: give back numbers
+  // one (pair) at a time until it doesn't. This lands right at the tier's edge.
+  let res = solveLogically(shape, givens, { maxLevel: tier.maxLevel, evenMask });
+  for (const c of rng.shuffle([...Array(N * N).keys()])) {
+    if (res.solved) break;
+    if (givens[c] || res.values[c]) continue;
+    givens[c] = solution[c];
+    if (symmetric) givens[N * N - 1 - c] = solution[N * N - 1 - c];
+    res = solveLogically(shape, givens, { maxLevel: tier.maxLevel, evenMask });
+  }
+  if (!tierOk(tier, res)) return null;
+  return { solution, givens, evenMask, res };
+}
+
+// Gentler inside the tier: give back a few numbers while the tier's own
+// techniques are still needed.
+function soften(shape, tier, rng, c, extra, symmetric) {
+  const { N } = shape;
+  for (const i of rng.shuffle([...Array(N * N).keys()])) {
+    if (extra <= 0) break;
+    if (c.givens[i]) continue;
+    const group = symmetric && N * N - 1 - i !== i ? [i, N * N - 1 - i] : [i];
+    group.forEach((x) => { c.givens[x] = c.solution[x]; });
+    const res = solveLogically(shape, c.givens, { maxLevel: tier.maxLevel, evenMask: c.evenMask });
+    if (tierOk(tier, res)) { c.res = res; extra--; } else group.forEach((x) => { c.givens[x] = 0; });
+  }
+}
+
+// Options:
+//   difficulty, size, variants, seed   as before
+//   avoid      fingerprints the player has already played (never repeated)
+//   toughness  0 (gentlest) to 1 (toughest) inside the tier; 0.5 is neutral
+//   practice   a technique id the puzzle should need, when one can be found
+//   usedStories  story ids already told to this player
+//   theme      a story theme id (number-place-story.js), or null for any
+export function generateNumberPlace({ difficulty = 'medium', size, variants = [], seed = Math.random().toString(36).slice(2), symmetric = true, avoid = [], toughness = 0.5, practice = null, usedStories = [], story = true, theme = null } = {}) {
   const tier = NP_TIERS[difficulty];
   if (!tier) throw new Error(`Unknown difficulty "${difficulty}". Use one of ${NP_TIER_ORDER.join(', ')}.`);
   const N = size || tier.size;
   if (!NP_SIZES[N]) throw new Error(`Size must be one of ${Object.keys(NP_SIZES).join(', ')}.`);
+  if (practice && (!NP_TECHNIQUES[practice] || NP_TECHNIQUES[practice].level > tier.maxLevel)) practice = null;
   const shape = makeShape(N, variants);
   const parity = variants.includes('parity');
-
-  for (let attempt = 0; attempt < 300; attempt++) {
-    const rng = makeRng(`${seed}:${attempt}`);
-    const solution = fullGrid(shape, rng, null);
-    if (!solution) continue;
-    const evenMask = parity ? makeEvenMask(shape, solution) : null;
-    const givens = solution.slice();
-    // Remove numbers (in symmetric pairs) while the answer stays unique and the
-    // puzzle stays solvable within the tier.
-    const cells = rng.shuffle([...Array(N * N).keys()]);
-    for (const c of cells) {
-      if (!givens[c]) continue;
-      const mirror = N * N - 1 - c;
-      const group = symmetric && mirror !== c ? [c, mirror] : [c];
-      const saved = group.map((x) => givens[x]);
-      group.forEach((x) => { givens[x] = 0; });
-      // Hard tiers remove freely and grade at the end: minimal puzzles are the hard ones.
-      const ok = countSolutions(shape, givens, 2, evenMask).count === 1
-        && (tier.minLevel >= 4 || solveLogically(shape, givens, { maxLevel: tier.maxLevel, evenMask }).solved);
-      if (!ok) group.forEach((x, i) => { givens[x] = saved[i]; });
-    }
-    // A minimal puzzle may need more than the tier allows: give back numbers
-    // one (pair) at a time until it doesn't. This lands right at the tier's edge.
-    let res = solveLogically(shape, givens, { maxLevel: tier.maxLevel, evenMask });
-    for (const c of rng.shuffle([...Array(N * N).keys()])) {
-      if (res.solved) break;
-      if (givens[c] || res.values[c]) continue;
-      givens[c] = solution[c];
-      if (symmetric) givens[N * N - 1 - c] = solution[N * N - 1 - c];
-      res = solveLogically(shape, givens, { maxLevel: tier.maxLevel, evenMask });
-    }
-    if (!res.solved || res.hardest < tier.minLevel) continue;
-    if (tier.minTopSteps && res.steps.filter((x) => NP_TECHNIQUES[x.technique].level >= tier.minLevel).length < tier.minTopSteps) continue;
-    return {
-      kind: 'number-place',
-      id: `np-${N}-${variants.join('+') || 'classic'}-${difficulty}-${seed}`,
-      seed,
-      difficulty: { id: difficulty, name: tier.name },
-      size: N,
-      box: NP_SIZES[N].box,
-      variants: variants.slice(),
-      givens,
-      evenCells: evenMask ? evenMask.map((e, i) => (e ? i : -1)).filter((i) => i >= 0) : [],
-      solution,
-      solvePath: res.steps.map((s) => ({ technique: s.technique, techniqueName: NP_TECHNIQUES[s.technique].name, place: s.place || null, remove: s.remove || null, why: s.why })),
-      hardestTechnique: res.hardest,
-      rules: rulesText(N, variants),
-    };
+  const seen = new Set(avoid);
+  const t = Math.max(0, Math.min(1, Number(toughness) || 0));
+  // Tougher picks the hardest of a few candidates; practice looks a little longer for its technique.
+  const want = t > 0.65 ? (N === 9 && tier.minLevel >= 4 ? 2 : 3) : 1;
+  const found = [];
+  let tries = 0;
+  for (let attempt = 0; attempt < 300 && found.length < want; attempt++) {
+    const c = candidate(shape, tier, makeRng(`${seed}:${attempt}`), { parity, symmetric });
+    if (!c) continue;
+    const evenCells = c.evenMask ? c.evenMask.map((e, i) => (e ? i : -1)).filter((i) => i >= 0) : [];
+    if (seen.has(fingerprintOf(c.givens, evenCells, variants))) continue;
+    if (practice && !c.res.steps.some((x) => x.technique === practice) && ++tries < 25) continue;
+    found.push(c);
   }
-  throw new Error('Could not build a puzzle for those options. Try another seed.');
+  if (!found.length) throw new Error('Could not build a puzzle for those options. Try another seed.');
+  for (const c of found) c.score = toughnessOf(c.res.steps, c.givens.filter((d) => !d).length);
+  const pick = found.reduce((a, b) => (b.score > a.score ? b : a));
+  if (t < 0.35) {
+    const maxExtra = N === 9 ? 8 : N === 6 ? 4 : 1;
+    soften(shape, tier, makeRng(`${seed}:soft`), pick, Math.round(((0.35 - t) / 0.35) * maxExtra), symmetric);
+    pick.score = toughnessOf(pick.res.steps, pick.givens.filter((d) => !d).length);
+  }
+  const { givens, solution, evenMask, res } = pick;
+  const evenCells = evenMask ? evenMask.map((e, i) => (e ? i : -1)).filter((i) => i >= 0) : [];
+  const puzzle = {
+    kind: 'number-place',
+    id: `np-${N}-${variants.join('+') || 'classic'}-${difficulty}-${seed}`,
+    seed,
+    difficulty: { id: difficulty, name: tier.name },
+    size: N,
+    box: NP_SIZES[N].box,
+    variants: variants.slice(),
+    givens,
+    evenCells,
+    solution,
+    solvePath: res.steps.map((x) => ({ technique: x.technique, techniqueName: NP_TECHNIQUES[x.technique].name, place: x.place || null, remove: x.remove || null, why: x.why })),
+    hardestTechnique: res.hardest,
+    techniques: [...new Set(res.steps.map((x) => x.technique))],
+    toughness: pick.score,
+    fingerprint: fingerprintOf(givens, evenCells, variants),
+    rules: rulesText(N, variants),
+  };
+  if (story) puzzle.story = buildNpStory(seed, usedStories, N, theme);
+  return puzzle;
 }
 
 function rulesText(N, variants) {
