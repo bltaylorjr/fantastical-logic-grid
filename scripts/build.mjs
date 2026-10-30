@@ -25,6 +25,13 @@ if (existsSync(engineSrc)) {
     }
   }
 } else if (!existsSync(join(web, 'engine'))) throw new Error(`Engine not found at ${engineSrc}`);
+// The setup screen's lists (difficulties, themes and their topics), worked out
+// here so the page never loads the story library itself: that is over 800 KB
+// of topics and storylines, and only the puzzle writer (worker.js) needs it.
+{
+  const { describeOptions } = await import(new URL(`file://${join(web, 'engine', 'index.js')}`).href);
+  writeFileSync(join(web, 'engine', 'options.js'), `// Written by scripts/build.mjs from the engine's describeOptions(). Do not edit.\nexport const OPTIONS = ${JSON.stringify(describeOptions())};\n`);
+}
 
 // 2. Fonts.
 const fontDir = join(root, 'node_modules/@fontsource/atkinson-hyperlegible/files');
@@ -75,12 +82,17 @@ if (!process.env.FLG_NO_MINIFY) {
   const walkOwn = (d) => { for (const n of readdirSync(d)) { const p = join(d, n); if (statSync(p).isDirectory()) { if (n !== 'vendor') walkOwn(p); } else if (/\.(js|css)$/.test(n) && n !== 'sw.js') own.push(p); } };
   walkOwn(out);
   // The story and puzzle content (storylines, topics, cast, clue wording) is
-  // also obfuscated: its words move into an encoded table, so it cannot be
-  // read or copied out of the files. Only these data modules, because the
-  // solver and generator run thousands of times per puzzle and obfuscating
-  // them would make puzzles about 65% slower to make; these cost nothing.
+  // also obfuscated: its words move out of the code into one shuffled table,
+  // so the stories cannot be lifted out of the files in one piece. Only these
+  // data modules, because the solver and generator run thousands of times per
+  // puzzle and obfuscating them would make puzzles about 65% slower to make.
+  // The table is not base64-encoded or rotated: decoding every word as the
+  // page opened tripled the home page's blocking time (Lighthouse speed 94
+  // fell to about 50 on the live site), and plain table entries cost almost
+  // nothing.
   const OBFUSCATE = new Set(['engine/storylines.js', 'engine/more-stories.js', 'engine/topics.js', 'engine/story.js', 'engine/themes.js',
-    'engine/language.js', 'engine/clues.js', 'engine/house-tuning.js', 'js/castbook.js'].map((f) => join(out, f)));
+    'engine/language.js', 'engine/clues.js', 'engine/house-tuning.js', 'js/castbook.js',
+    ...readdirSync(join(out, 'engine')).filter((n) => /^more-topics.*\.js$/.test(n)).map((n) => `engine/${n}`)].map((f) => join(out, f)));
   const { default: JavaScriptObfuscator } = await import('javascript-obfuscator');
   for (const p of own) {
     const loader = p.endsWith('.css') ? 'css' : 'js';
@@ -88,7 +100,7 @@ if (!process.env.FLG_NO_MINIFY) {
     if (OBFUSCATE.has(p)) {
       code = JavaScriptObfuscator.obfuscate(code, {
         compact: true, sourceType: 'module', target: 'browser', identifierNamesGenerator: 'mangled', renameGlobals: false,
-        stringArray: true, stringArrayEncoding: ['base64'], stringArrayThreshold: 1, stringArrayRotate: true, stringArrayShuffle: true,
+        stringArray: true, stringArrayEncoding: [], stringArrayThreshold: 1, stringArrayRotate: false, stringArrayShuffle: true, stringArrayWrappersCount: 0, stringArrayCallsTransform: false,
         controlFlowFlattening: false, deadCodeInjection: false, selfDefending: false, debugProtection: false, unicodeEscapeSequence: false,
       }).getObfuscatedCode();
     }
@@ -187,7 +199,7 @@ cpSync(join(root, 'hosting'), site, { recursive: true });
 // night, so the expiry date always stays a year ahead.
 mkdirSync(join(site, '.well-known'), { recursive: true });
 writeFileSync(join(site, '.well-known', 'security.txt'), [
-  'Contact: mailto:fantasticallogicgrid@gmail.com',
+  'Contact: mailto:support@thelogicgrid.com',
   `Expires: ${new Date(Date.now() + 365 * 24 * 3600_000).toISOString().slice(0, 19)}Z`,
   'Preferred-Languages: en',
   `Canonical: ${(process.env.FLG_SITE_URL || 'https://thelogicgrid.com').replace(/\/+$/, '')}/.well-known/security.txt`,
@@ -230,7 +242,7 @@ async function speedUpFirstLoad(dir) {
     page = page.replace(re, (_, open, close) => `${open}${inner}${close}`);
   };
   fill('tier-choices', m.tierChoicesHtml(o.difficulties, tier.id));
-  fill('theme-choices', m.themeChoicesHtml([m.SURPRISE_THEME, ...o.themes], m.SURPRISE_THEME.id));
+  fill('theme-choices', m.themeGroupsHtml(o.themes, o.themeGroups, m.SURPRISE_THEME.id));
   fill('size-choices', m.sizeChoicesHtml(m.sizesFor(tier), m.sizesFor(tier)[0]));
   fill('clue-type-choices', m.clueTypesHtml(o.clueTypes, tier.clueTypes));
 

@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { Miniflare } from 'miniflare';
 import { makeSigner } from './signer.mjs';
 import { cleanEvent, trackedLink } from '../src/marketing.js';
+import { exchange } from '../src/marketing-oauth.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const PROJECT = 'flg-test';
@@ -92,7 +93,7 @@ test('the daily poster gets the approved ads due by a day, and reports each one'
   const r = await call('/admin/v1/marketing/due?day=2026-11-03', { auth: admin() });
   assert.equal(r.status, 200);
   assert.equal(r.body.autopost, true);
-  assert.deepEqual(r.body.ads.map((a) => `${a.postOn} ${a.channel}`).sort(), ['2026-11-02 email', '2026-11-03 bluesky', '2026-11-03 linkedin']);
+  assert.deepEqual(r.body.ads.map((a) => `${a.postOn} ${a.channel}`).sort(), ['2026-11-01 facebook', '2026-11-02 email', '2026-11-02 instagram', '2026-11-02 tiktok', '2026-11-02 youtube', '2026-11-03 bluesky', '2026-11-03 linkedin']);
   const sky = r.body.ads.find((a) => a.channel === 'bluesky');
   assert.ok(sky.words.includes('utm_source=bluesky') && !sky.words.includes('{link}'), 'link filled in');
   assert.ok(sky.media.length && sky.media.every((m) => /^https:/.test(m.url)), 'files listed with their links');
@@ -106,9 +107,50 @@ test('the daily poster gets the approved ads due by a day, and reports each one'
   assert.ok(row.posted_at > 0);
   assert.equal((await call(`/admin/v1/marketing/ads/${sky.id}/auto`, { auth: admin(), body: { ok: true } })).status, 409, 'never posted twice');
   const after = await call('/admin/v1/marketing/due?day=2026-11-03', { auth: admin() });
-  assert.equal(after.body.ads.length, 2, 'posted ads leave the list');
+  assert.equal(after.body.ads.length, 6, 'posted ads leave the list');
   // Back to approved for the tests below.
   await db.prepare("UPDATE campaign_ads SET status = 'approved', post_url = NULL, posted_at = NULL, auto_note = NULL WHERE id = ?1").bind(sky.id).run();
+});
+
+test('the Get the key helper refuses unknown sites and missing parts, admins only', async () => {
+  const body = { site: 'reddit', code: 'abc', clientId: 'id', clientSecret: 'secret' };
+  assert.equal((await call('/admin/v1/marketing/oauth', { auth: viewer(), body })).status, 403);
+  assert.equal((await call('/admin/v1/marketing/oauth', { auth: admin(), body: { ...body, site: 'example' } })).status, 400);
+  assert.equal((await call('/admin/v1/marketing/oauth', { auth: admin(), body: { ...body, clientSecret: '' } })).status, 400);
+});
+
+test('the key exchange sends each site the right sign-in and keeps only the key', async () => {
+  const seen = [];
+  const fake = (answer) => async (url, init) => { seen.push({ url, init }); return new Response(JSON.stringify(answer), { status: 200 }); };
+  const r = await exchange('reddit', { code: 'c1', clientId: 'app', clientSecret: 'shh', redirectUri: 'https://w.example/admin/' }, fake({ access_token: 'a', refresh_token: 'r', expires_in: 3600 }));
+  assert.deepEqual(r, { ok: true, accessToken: 'a', refreshToken: 'r', expiresIn: 3600, refreshExpiresIn: null });
+  assert.equal(seen[0].url, 'https://www.reddit.com/api/v1/access_token');
+  assert.equal(seen[0].init.headers.Authorization, `Basic ${btoa('app:shh')}`);
+  assert.ok(!seen[0].init.body.includes('shh'), 'basic-auth sites never get the secret in the form');
+  await exchange('tiktok', { code: 'c2', clientId: 'key', clientSecret: 'shh', redirectUri: 'https://w.example/admin/' }, fake({ access_token: 'a', refresh_token: 'r' }));
+  assert.match(seen[1].init.body, /client_key=key/);
+  const bad = await exchange('youtube', { code: 'c3', clientId: 'id', clientSecret: 's', redirectUri: 'x' }, async () => new Response(JSON.stringify({ error: 'invalid_grant' }), { status: 400 }));
+  assert.deepEqual(bad, { ok: false, why: 'invalid_grant' });
+});
+
+test('the educator campaign arrives as drafts, every ad of every campaign carries its tracked link', async () => {
+  const r = await call('/admin/v1/marketing', { auth: viewer() });
+  const c = r.body.campaigns.find((x) => x.code === 'educators-2026');
+  assert.ok(c, 'educator campaign seeded');
+  assert.equal(c.status, 'draft', 'nothing runs until Bobby approves');
+  const ads = r.body.ads.filter((a) => a.campaignId === c.id);
+  assert.ok(ads.length >= 15, `${ads.length} educator ads`);
+  assert.ok(ads.every((a) => a.status === 'draft'), 'every educator ad is a draft');
+  assert.ok(ads.every((a) => a.landing === '/educators/' && a.link.startsWith('https://thelogicgrid.com/educators/?utm_source=')), 'every educator ad opens the Educators page');
+  const flyer = ads.find((a) => a.content === 'staff-room');
+  assert.equal(flyer.link, 'https://thelogicgrid.com/educators/?utm_source=flyer&utm_medium=qr&utm_campaign=educators-2026&utm_content=staff-room');
+  for (const a of r.body.ads) assert.match(`${a.body}\n${a.notes}`, /\{link\}/, `${a.title} carries its tracked link`);
+  for (const code of ['launch-2026', 'educators-2026']) {
+    const keys = r.body.ads.filter((a) => a.campaignId === r.body.campaigns.find((x) => x.code === code).id).map((a) => `${a.channel}|${a.content}`);
+    assert.equal(new Set(keys).size, keys.length, `${code}: each ad has its own link`);
+  }
+  assert.ok(r.body.campaigns.some((x) => x.code === 'portal'), 'the game-site link has its campaign');
+  for (const a of ads) for (const id of a.media) assert.ok(r.body.media.some((m) => m.id === id), `${a.title}: media listed`);
 });
 
 test('the game counts campaign visits anonymously, and made-up codes fold into other', async () => {
@@ -118,6 +160,7 @@ test('the game counts campaign visits anonymously, and made-up codes fold into o
   await send({ e: 'visit', c: 'made-up-campaign', s: 'my-spam-site', m: 'banner', k: 'zzz', p: 'toaster' });
   await send({ e: 'visit', c: '', s: 'pinterest', m: 'social', p: 'web' });
   assert.equal((await send({ e: 'hack' })).status, 400, 'unknown events refused');
+  assert.equal((await send({ e: 'edu_request', c: 'educators-2026', s: 'x', m: 'social', k: 'edchat' })).status, 400, 'educator requests are counted by the Worker only');
   assert.equal((await mf.dispatchFetch('https://api.test/v1/m', { method: 'POST', body: 'not json' })).status, 400, 'junk refused');
   const rows = (await db.prepare('SELECT campaign, source, medium, content, event, platform, n FROM campaign_stats ORDER BY campaign, event').all()).results;
   assert.deepEqual(rows.find((x) => x.event === 'visit' && x.campaign === 'launch-2026'), { campaign: 'launch-2026', source: 'reddit', medium: 'forum', content: 'webgames-launch', event: 'visit', platform: 'web', n: 3 });
@@ -126,12 +169,12 @@ test('the game counts campaign visits anonymously, and made-up codes fold into o
   assert.equal(rows.length, 5);
 
   const r = await call('/admin/v1/marketing?days=7', { auth: viewer() });
-  assert.deepEqual(r.body.totals, { visit: 5, play: 1, solve: 1, return: 0, install: 0, download: 0, support: 0 });
+  assert.deepEqual(r.body.totals, { visit: 5, play: 1, solve: 1, return: 0, install: 0, download: 0, support: 0, edu_request: 0, edu_confirm: 0, edu_sent: 0 });
   assert.equal(r.body.trend.length, 7);
   assert.equal(r.body.trend.at(-1).visit, 5);
   assert.equal(r.body.bySource[0].source, 'reddit');
   const ad = r.body.ads.find((a) => a.content === 'webgames-launch');
-  assert.deepEqual(ad.stats, { visit: 3, play: 1, solve: 1, return: 0, install: 0, download: 0, support: 0 });
+  assert.deepEqual(ad.stats, { visit: 3, play: 1, solve: 1, return: 0, install: 0, download: 0, support: 0, edu_request: 0, edu_confirm: 0, edu_sent: 0 });
   assert.equal(r.body.byCampaign.find((x) => x.campaign === '(none)').name, 'No campaign (links from other sites)');
 });
 

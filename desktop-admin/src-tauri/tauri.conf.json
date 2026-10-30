@@ -15,6 +15,7 @@
   },
   "bundle": {
     "active": true,
+    "licenseFile": "../../LICENSE",
     "targets": [
       "nsis"
     ],

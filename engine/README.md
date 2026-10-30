@@ -29,7 +29,13 @@ This follows the design process step by step:
    category (time, age, score...) whenever the tier uses ordering clues.
 2. **Build the solution first.** A random, complete answer table is made before any clue.
 3. **Set up the grid.** A standard staircase layout where every pair of categories
-   meets exactly once (`puzzle.grid`).
+   meets exactly once (`puzzle.grid`). Every category lists its items in a
+   sensible order (`src/order.js`): numbers, clock times and other sequences
+   (days, months, seasons, first/second, sizes, medals, meals) in natural order;
+   a category written in a natural order keeps it (`order: 'listed'`, such as
+   eras oldest to newest); everything else alphabetical with numbers in number
+   order ("Table 2" before "Table 10"). The grid, answer key, printouts and
+   lists inside clues all follow this order. The tests enforce it.
 4. **Write clues.** True clues of mixed types are drawn from the answer table,
    weighted by tier (direct matches, eliminations, either/or, ordering, conditional links...).
 5. **Test for a single solution.** A solver that only makes human deductions tries
@@ -48,7 +54,7 @@ This follows the design process step by step:
 | Option | Values | Default |
 | --- | --- | --- |
 | `difficulty` | `basic`, `easy`, `medium`, `hard`, `expert`, `mensa` | `easy` |
-| `theme` | `mystery`, `action`, `adventure`, `holiday`, `occasion` (Special Occasion), `fantasy`, `scifi`, `sports`, `cooking`, `pets`, `town` (Around Town), `parks` (National Parks), `travel` (Vacation Destinations), `wonders` (Architectural Wonders), `music`, `nautical`, `farm` (Farm Life), `science`, `random` | `random` |
+| `theme` | `mystery`, `action`, `adventure`, `holiday`, `occasion` (Parties & Milestones), `fantasy`, `scifi`, `sports`, `cooking`, `pets`, `town` (Around Town), `parks` (National Parks), `travel` (Vacation Destinations), `wonders` (Architectural Wonders), `music`, `nautical`, `farm` (Farm Life), `science`, `math`, `biology`, `astronomy`, `paradox` (Surreal Paradox), `random` | `random` |
 | `topic` | a topic id from the theme (see Themes, topics and stories), or `any`. Ignored when the theme is `random` | `any` (a random topic in the theme) |
 | `categories` | 3 to 6 (number of categories, including the cast) | tier default |
 | `items` | 3 to 8 (items per category) | tier default |
@@ -122,24 +128,30 @@ player can pick a topic or leave it on **Any**, which picks one at random.
 
 | Theme | Topics |
 | --- | --- |
-| Mystery | Classic Whodunit (`whodunit`), Museum Heist (`heist`), Missing Person (`missing`), Cozy Village Mystery (`cozy`), Haunted House (`haunted`) |
+| Mystery | Classic Whodunit (`whodunit`), Museum Heist (`heist`), Missing Person (`missing`), Cozy Village Mystery (`cozy`), Haunted House (`haunted`), Mystery Noir (`noir`) |
 | Action | Spy Mission (`spy`), Bank Heist Chase (`chase`), Disaster Rescue (`rescue`), Superhero Showdown (`heroes`), Runaway Train (`train`) |
 | Adventure | Jungle Treasure (`jungle`), Pirate Voyage (`pirates`), Polar Expedition (`polar`), Desert Ruins (`desert`), Mountain Summit (`mountain`) |
 | Holiday | Christmas (`christmas`), Halloween (`halloween`), Thanksgiving (`thanksgiving`), Fourth of July (`july4`), Valentine's Day (`valentines`), New Year's Eve (`newyear`), Easter (`easter`) |
-| Special Occasion | Birthday Party (`birthday`), Wedding (`wedding`), Graduation (`graduation`), Anniversary (`anniversary`), Baby Shower (`babyshower`), Retirement Party (`retirement`) |
-| Fantasy | Dragon Kingdom (`dragons`), Wizard School (`school`), Fairy Forest (`fairy`), Knights' Quest (`knights`), Mermaid Lagoon (`mermaids`) |
-| Sci-Fi | Space Station (`starbase`), Alien Contact (`contact`), Robot Lab (`robots`), Time Travel (`timetravel`), Mars Colony (`mars`) |
+| Parties & Milestones | Birthday Party (`birthday`), Wedding (`wedding`), Graduation (`graduation`), Anniversary (`anniversary`), Baby Shower (`babyshower`), Retirement Party (`retirement`) |
+| Fantasy | Dragon Kingdom (`dragons`), Wizard School (`school`), Fairy Forest (`fairy`), Knights' Quest (`knights`), Mermaid Lagoon (`mermaids`), Cozy Magic (`cozymagic`) |
+| Sci-Fi | Space Station (`starbase`), Alien Contact (`contact`), Robot Lab (`robots`), Time Travel (`timetravel`), Mars Colony (`mars`), High-Tech City (`cybercity`), Space Camp (`spacecamp`) |
 | Sports | World Games (`games`), Soccer Tournament (`soccer`), City Marathon (`marathon`), School Field Day (`fieldday`), Basketball Tournament (`basketball`) |
 | Cooking | Cook-Off (`cookoff`), Bake Sale (`bakesale`), Restaurant Kitchen (`restaurant`), Food Truck Rally (`foodtrucks`), Pizza Night (`pizza`) |
-| Pets | Pet Show (`show`), Pet Hotel (`hotel`), Dog Park (`dogpark`), Animal Shelter (`shelter`), Riding Stables (`stables`) |
-| Around Town | Errand Day (`errands`), Fitness Center (`gym`), Church Bake Sale (`church`), Grocery Store (`grocery`), Public Library (`library`), Town Park (`townpark`) |
+| Pets | Pet Show (`show`), Pet Hotel (`hotel`), Dog Park (`dogpark`), Animal Shelter (`shelter`) |
+| Around Town | Errand Day (`errands`), Fitness Center (`gym`), Church Potluck (`church`), Grocery Store (`grocery`), Public Library (`library`), Town Park (`townpark`) |
 | National Parks | Trail Day (`trails`), Campground (`campground`), Junior Rangers (`juniors`), River Rafting (`rafting`), Stargazing Night (`stargazing`) |
-| Vacation Destinations | Dream Getaways (`getaways`), Beach Resort (`beach`), City Sightseeing (`city`), Cruise Ship (`cruise`), Theme Park (`themepark`) |
+| Vacation Destinations | Dream Getaways (`getaways`), Beach Resort (`beach`), City Sightseeing (`city`), Theme Park (`themepark`) |
 | Architectural Wonders | Model Wonders Fair (`models`), Famous Bridges (`bridges`), Skyscrapers (`skyscrapers`), Ancient Wonders (`ancient`), Castles and Palaces (`castles`) |
 | Music | Big Concert (`concert`), Battle of the Bands (`bands`), Music Lessons (`lessons`), Karaoke Night (`karaoke`) |
-| Nautical | Sailing Regatta (`regatta`), Lighthouse Keepers (`lighthouse`), Harbor Festival (`harbor`), Deep-Sea Fishing (`fishing`) |
-| Farm Life | Busy Farm Day (`farmday`), County Fair (`countyfair`), Apple Orchard (`orchard`), Farmers Market (`market`) |
-| Science | Science Fair (`sciencefair`), Dinosaur Dig (`dinosaurs`), Chemistry Lab (`lab`), Weather Watch (`weather`), Space Camp (`spacecamp`) |
+| Nautical | Sailing Regatta (`regatta`), Lighthouse Keepers (`lighthouse`), Harbor Festival (`harbor`), Deep-Sea Fishing (`fishing`), Cruise Ship (`cruise`) |
+| Farm Life | Busy Farm Day (`farmday`), County Fair (`countyfair`), Apple Orchard (`orchard`), Farmers Market (`market`), Riding Stables (`stables`) |
+| Science | Science Fair (`sciencefair`), Weather Watch (`weather`), Physics Playground (`physics`), Rock and Mineral Show (`rocks`) |
+| Math | Math Contest (`contest`), Code Breakers (`codebreakers`), Escape Room (`escaperoom`), Pi Day Party (`piday`) |
+| Biology | Field Trip (`fieldtrip`), Dinosaur Dig (`dinosaurs`), Tide Pool Survey (`tidepools`), Bird Count (`birdcount`) |
+| Chemistry | Lab Day (`labday`), Chemistry Lab (`lab`), Fireworks Show (`fireworks`), Crystal Garden (`crystals`) |
+| Surreal Paradox | Dream City (`dreamcity`), Mirror Maze (`mirrormaze`), Living Gallery (`livinggallery`), Clockwork Loop (`clockwork`) |
+
+The setup screen shows themes in groups (`THEME_GROUPS` in `src/themes.js`, returned as `themeGroups` by `describeOptions()`): Mystery & Action, Imagination, Science & Learning, Celebrations & Fun, and Places & Everyday Life. Every theme belongs to exactly one group.
 
 The first topic of most themes is its classic setting (Classic Whodunit, Spy
 Mission...), which uses the theme's own categories and story parts. A puzzle
@@ -258,6 +270,7 @@ src/topics.js      topics under each theme: categories, story parts, art
 src/storylines.js  story parts per theme
 src/more-stories.js extra story parts, appended to the lists above on load
 src/tiers.js       difficulty tiers and clue types
+src/order.js       the item order rule for every grid category
 src/play.js        hints, checking and print text
 cli.js             command line generator
 dist/              single-file browser build

@@ -149,6 +149,48 @@ test('support asks stay hidden until the switch, the link and a page are all set
   assert.ok(sup.active >= 1 && sup.added >= 1, JSON.stringify(sup));
 });
 
+test('refunds and chargebacks end perks, a chargeback blocks new payments, and the evidence downloads', async () => {
+  const { grant } = await import('../src/supporters.js');
+  const env = { DB: db };
+  const now = Date.now();
+  await db.prepare("INSERT INTO sync_users (user_id, rev, created_at) VALUES ('p-z', 0, ?1)").bind(now - 5 * 86400_000).run();
+  assert.deepEqual(await grant(env, { uid: 'p-z', email: 'z@example.com', kind: 'premium', tier: 2, source: 'kofi', ref: 'k1' }, now - 86400_000), { blocked: false });
+  assert.equal((await admin('supporters', { kind: 'supporter', email: 'z@example.com', tier: 3 })).status, 200);
+  const perks = () => call('/v1/perks', { auth: player('p-z', 'z@example.com') }).then((r) => r.body);
+  assert.equal((await perks()).premium, true);
+  const rows = () => admin('supporters').then((r) => r.body.supporters.filter((x) => x.email === 'z@example.com'));
+  const k1 = (await rows()).find((x) => x.ref === 'k1');
+  // The evidence for the payment service.
+  const ev = await mf.dispatchFetch(`https://api.test/admin/v1/supporters/${k1.id}/evidence`, { headers: { Authorization: `Bearer ${TOKEN}`, Origin: ORIGIN } });
+  assert.equal(ev.status, 200);
+  assert.match(ev.headers.get('content-type'), /text\/plain/);
+  const text = await ev.text();
+  assert.ok(text.includes('Payment id: k1') && text.includes('Silver level') && text.includes('terms/#tips') && text.includes('created 20'), text);
+  assert.equal((await mf.dispatchFetch('https://api.test/admin/v1/supporters/999999/evidence', { headers: { Authorization: `Bearer ${TOKEN}`, Origin: ORIGIN } })).status, 404);
+  // A chargeback ends everything this player has, keeps the records, and blocks them.
+  const cb = await admin(`supporters/${k1.id}/remove`, { reason: 'chargeback' });
+  assert.deepEqual(cb.body, { ended: 2, blocked: true });
+  assert.deepEqual(await perks(), { supporter: false, premium: false, tier: 0, until: null });
+  assert.deepEqual((await rows()).map((x) => x.endedReason).sort(), ['chargeback', 'chargeback']);
+  const blocks = (await admin('supporters/blocks')).body.blocks;
+  assert.equal(blocks.length, 1);
+  assert.equal(blocks[0].email, 'z@example.com');
+  // The same payment sent again does not bring it back; a new payment is recorded but adds nothing.
+  await grant(env, { uid: 'p-z', email: 'z@example.com', kind: 'premium', source: 'kofi', ref: 'k1', until: now + 30 * 86400_000 }, now);
+  assert.deepEqual(await grant(env, { email: 'Z@example.com', kind: 'premium', source: 'kofi', ref: 'k2' }, now), { blocked: true });
+  assert.equal((await perks()).supporter, false);
+  assert.equal((await rows()).find((x) => x.ref === 'k2').endedReason, 'blocked');
+  // An admin can still add perks by hand, and can lift the block.
+  assert.equal((await admin(`supporters/blocks/${blocks[0].id}/remove`, {})).body.lifted, 1);
+  assert.deepEqual(await grant(env, { uid: 'p-z', kind: 'supporter', source: 'kofi', ref: 'k3' }, now), { blocked: false });
+  assert.equal((await perks()).supporter, true);
+  // A refund ends only that payment and blocks nothing.
+  const k3 = (await admin('supporters')).body.supporters.find((x) => x.ref === 'k3');
+  assert.equal((await admin(`supporters/${k3.id}/remove`, { reason: 'refund' })).body.ended, 1);
+  assert.equal((await admin('supporters/blocks')).body.blocks.length, 0);
+  assert.equal((await admin('supporters')).body.supporters.find((x) => x.ref === 'k3').endedReason, 'refund');
+});
+
 test('deleting an account keeps the payment record but unlinks it', async () => {
   assert.equal((await call('/v1/account', { auth: player('p-a', 'new@example.com'), method: 'DELETE' })).status, 200);
   const row = await db.prepare("SELECT user_id, email FROM supporters WHERE email = 'a@example.com'").first();
