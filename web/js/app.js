@@ -205,7 +205,48 @@ function setWorld(id) { document.documentElement.dataset.world = id || 'random';
 
 // The website's game page has a longer title for search results (scripts/seo.mjs).
 const HOME_TITLE = document.title;
+
+// A way back from every screen. The Back button (top left, on every screen
+// but home), the phone's back gesture or back button, and the Android app's
+// back button all step back: an open window closes first, a lesson goes back
+// to the lesson list, and any other screen goes home.
+let currentScreen = 'home';
+let skipPop = false;
+function trackScreen(name) {
+  try {
+    const here = history.state && history.state.flgScreen;
+    if (name !== 'home') history[here ? 'replaceState' : 'pushState']({ ...(history.state || {}), flgScreen: name }, '');
+    else if (here) { skipPop = true; history.back(); } // home by a button: drop the screen's history entry
+  } catch (e) { /* framed preview */ }
+}
+function screenBack() {
+  if (currentScreen === 'home') return false;
+  if (currentScreen === 'learn' && !$('#learn-lesson').hidden) {
+    $('#learn-back').click();
+    try { if (!(history.state && history.state.flgScreen)) history.pushState({ ...(history.state || {}), flgScreen: 'learn' }, ''); } catch (e) { /* framed preview */ }
+    return true;
+  }
+  goHome();
+  return true;
+}
+window.addEventListener('popstate', () => {
+  if (skipPop) { skipPop = false; return; }
+  const open = [...document.querySelectorAll('dialog[open]')].pop();
+  if (open) {
+    if (open.dispatchEvent(new Event('cancel', { cancelable: true }))) open.close();
+    try { if (currentScreen !== 'home') history.pushState({ ...(history.state || {}), flgScreen: currentScreen }, ''); } catch (e) { /* framed preview */ }
+    return;
+  }
+  screenBack();
+});
+// The Android app's back button (mobile/shared/native-bridge.js) asks here
+// once no window or menu is open.
+window.__flgScreenBack = screenBack;
+
 function showScreen(name) {
+  currentScreen = name;
+  $('#back-btn').hidden = name === 'home';
+  trackScreen(name);
   $('#screen-home').hidden = name !== 'home';
   $('#screen-play').hidden = name !== 'play';
   $('#screen-learn').hidden = name !== 'learn';
@@ -2657,6 +2698,7 @@ $('#app-menu').addEventListener('click', async (e) => {
   else if (cmd === 'site') window.open(`${(CLOUD.siteUrl || 'https://thelogicgrid.com').replace(/\/+$/, '')}/?utm_source=portal&utm_medium=store&utm_campaign=portal`, '_blank', 'noopener');
 });
 $('#home-btn').onclick = () => goHome();
+$('#back-btn').onclick = () => screenBack();
 
 // Number Place: a separate numbers game on its own screen, with the game's look
 // (web/js/number-place.js). It shares only anonymous play data, for learning.
