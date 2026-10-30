@@ -546,6 +546,8 @@ function registerWorker() {
   }).catch(() => {});
 }
 
+// The claude.ai preview frame cannot print, so the button is left out there.
+if (PREVIEW) $('[data-act=print]').hidden = true;
 applySettings();
 wireSettings();
 wireDialogs();
