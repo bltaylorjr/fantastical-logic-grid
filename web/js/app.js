@@ -240,11 +240,26 @@ const setup = {
 };
 
 const sizesFor = (tierId) => tierSizes(TIERS[tierId]);
+// The setup choices hold only entries from the game's own lists, never text
+// read from the page or from storage: anything unknown becomes the default.
+const knownTier = (v) => (OPTIONS.difficulties.find((d) => d.id === v) || TIERS.easy).id;
+const knownTheme = (v) => (v === 'random' ? 'random' : (OPTIONS.themes.find((t) => t.id === v) || { id: 'random' }).id);
+const knownTopic = (themeId, v) => {
+  const theme = OPTIONS.themes.find((t) => t.id === themeId);
+  return (((theme && theme.topics) || []).find((t) => t.id === v) || { id: 'any' }).id;
+};
+const knownSize = (tierId, v) => (v === 'custom' ? 'custom' : sizesFor(tierId).find((x) => x === v) || null);
+const knownCustom = (c) => (Array.isArray(c) ? [Math.max(3, Math.min(6, Math.round(+c[0]) || 4)), Math.max(3, Math.min(8, Math.round(+c[1]) || 4))] : [4, 4]);
 
 function renderSetup() {
   const saved = store.loadSetupChoices();
-  if (saved) Object.assign(setup, saved);
-  if (!TIERS[setup.tier]) setup.tier = 'easy';
+  if (saved) {
+    setup.tier = knownTier(saved.tier);
+    setup.theme = knownTheme(saved.theme);
+    setup.topic = knownTopic(setup.theme, saved.topic);
+    setup.size = knownSize(setup.tier, saved.size);
+    setup.custom = knownCustom(saved.custom);
+  }
 
   $('#tier-choices').innerHTML = tierChoicesHtml(OPTIONS.difficulties, setup.tier);
   // Themes switched off in the admin dashboard are left out; supporter extras
@@ -267,14 +282,14 @@ function renderSetup() {
   $('#cats').value = setup.custom[0];
   $('#items').value = setup.custom[1];
 
-  $('#tier-choices').onchange = () => { setup.tier = $('input[name=tier]:checked').value; setup.size = null; renderSizes(); renderClueTypes(); updatePreview(); };
-  $('#theme-choices').onchange = () => { setup.theme = $('input[name=theme]:checked').value; setup.topic = 'any'; renderTopics(); setWorld(setup.theme); updatePreview(); };
-  $('#topic-choices').onchange = () => { setup.topic = $('input[name=topic]:checked').value; updatePreview(); };
+  $('#tier-choices').onchange = () => { setup.tier = knownTier($('input[name=tier]:checked').value); setup.size = null; renderSizes(); renderClueTypes(); updatePreview(); };
+  $('#theme-choices').onchange = () => { setup.theme = knownTheme($('input[name=theme]:checked').value); setup.topic = 'any'; renderTopics(); setWorld(setup.theme); updatePreview(); };
+  $('#topic-choices').onchange = () => { setup.topic = knownTopic(setup.theme, $('input[name=topic]:checked').value); updatePreview(); };
   setWorld(setup.theme);
   // Rows reflow when the window resizes, so keep the topics under the chosen theme.
   if (!renderSetup.watching && window.ResizeObserver) { renderSetup.watching = true; new ResizeObserver(placeTopics).observe($('#theme-choices')); }
-  $('#size-choices').onchange = () => { setup.size = $('input[name=size]:checked').value; $('#custom-size').hidden = setup.size !== 'custom'; updatePreview(); };
-  $('#cats').oninput = $('#items').oninput = () => { setup.custom = [+$('#cats').value || 4, +$('#items').value || 4]; updatePreview(); };
+  $('#size-choices').onchange = () => { setup.size = knownSize(setup.tier, $('input[name=size]:checked').value); $('#custom-size').hidden = setup.size !== 'custom'; updatePreview(); };
+  $('#cats').oninput = $('#items').oninput = () => { setup.custom = knownCustom([$('#cats').value, $('#items').value]); updatePreview(); };
   $('#clue-count').oninput = updatePreview;
   $('#setup').onsubmit = (e) => { e.preventDefault(); startGeneration(); };
   $('#style-choices').onchange = () => { settings.silent = $('input[name=playstyle]:checked').value === 'silent'; store.saveSettings(settings); applyMode(); };
