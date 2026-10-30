@@ -42,6 +42,21 @@ const assert = (c, m) => { if (!c) { console.error(`FAIL: ${m}`); process.exitCo
     await page.check('input[name=topic][value=halloween]', { force: true });
     await page.check('input[name=theme][value=mystery]', { force: true });
     assert(await page.locator('input[name=topic][value=any]').isChecked(), 'changing theme resets the topic to Any');
+    // Tapping the chosen theme again folds its topics away; again opens them.
+    const tile = page.locator('input[name=theme][value=mystery]').locator('xpath=ancestor::label[1]');
+    await tile.click();
+    assert(await page.locator('#topic-field').isHidden(), 'tapping the chosen theme again closes its topics');
+    assert(await page.locator('input[name=theme][value=mystery]').isChecked(), 'the theme stays chosen when its topics close');
+    await tile.click();
+    assert(await page.locator('#topic-field').isVisible(), 'tapping it once more opens them again');
+    await tile.click();
+    await page.locator('input[name=theme][value=holiday]').locator('xpath=ancestor::label[1]').click();
+    assert(await page.locator('#topic-field').isVisible(), 'choosing another theme opens its topics');
+    await page.locator('input[name=theme][value=holiday]').focus();
+    await page.keyboard.press('Space');
+    assert(await page.locator('#topic-field').isHidden(), 'Space on the chosen theme closes its topics too');
+    await page.keyboard.press('Space');
+    assert(await page.locator('#topic-field').isVisible(), 'and Space again opens them');
     await page.check('input[name=theme][value=holiday]', { force: true });
     await page.check('input[name=topic][value=halloween]', { force: true });
     await page.check('input[name=tier][value=easy]', { force: true });
