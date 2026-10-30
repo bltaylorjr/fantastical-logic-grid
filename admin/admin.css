@@ -300,3 +300,8 @@ td.num, th.num { white-space: nowrap; }
 
 /* Error tracking: the puzzle's picture */
 .et-picture { max-width: 100%; width: 480px; height: auto; border: 1px solid var(--line, #ccc); border-radius: 8px; }
+/* My alerts (Settings) */
+#alerts-card h3 { margin: 16px 0 6px; font-size: 1rem; }
+.alert-devices { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.alert-devices li { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
+.alert-devices li .btn { margin-left: auto; }

@@ -25,6 +25,7 @@
 // Players only ever see "The team", never which admin wrote. Text is plain:
 // both the game and the dashboard escape it. Player text has email
 // addresses, web addresses and long numbers blanked, like the idea boxes.
+import { alert } from './alerts.js';
 import { json, readText, TooLarge } from './http.js';
 import { getSettings } from './settings.js';
 import { cleanText, themeName } from './feedback.js';
@@ -166,7 +167,9 @@ async function playerRoute(req, env, url, user, now) {
   const body = await readJson(req);
   if (path === '/v1/messages') {
     const topic = PLAYER_TOPICS.includes(body?.topic) ? body.topic : 'question';
-    const id = await startPlayerConversation(env, user.uid, topic, playerText(body), now);
+    const text = playerText(body);
+    const id = await startPlayerConversation(env, user.uid, topic, text, now);
+    await alert(env, null, { category: 'messages', title: 'New message from a player', body: text.slice(0, 160), link: 'communication' });
     return { ok: true, id };
   }
   if (path === '/v1/messages/email') {
@@ -196,6 +199,7 @@ async function playerRoute(req, env, url, user, now) {
     db.prepare("INSERT INTO conversation_messages (conversation_id, sender, text, created_at) VALUES (?1, 'player', ?2, ?3)").bind(conv.id, text, now),
     db.prepare("UPDATE conversations SET status = 'open', done_at = NULL, admin_unread = admin_unread + 1, updated_at = ?2 WHERE id = ?1").bind(conv.id, now),
   ]);
+  await alert(env, null, { category: 'messages', title: 'A player replied', body: text.slice(0, 160), link: 'communication' });
   return { ok: true };
 }
 

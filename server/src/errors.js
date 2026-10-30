@@ -13,6 +13,7 @@
 // the same day only raises its count, and a day holds at most
 // MAX_DISTINCT_PER_DAY distinct errors, so a flood cannot fill the database.
 import { json, readText, TooLarge } from './http.js';
+import { alert } from './alerts.js';
 import { getSettings } from './settings.js';
 
 const MAX_DISTINCT_PER_DAY = 300;
@@ -78,7 +79,7 @@ function safeEqual(a, b) {
   return diff === 0;
 }
 
-async function postErrors(req, env) {
+async function postErrors(req, env, ctx) {
   let body;
   try { body = JSON.parse(await readText(req, 8_000)); } catch (e) { return json(req, env, { error: e instanceof TooLarge ? 'too_large' : 'bad_request' }, e instanceof TooLarge ? 413 : 400); }
   // Switched off in the admin dashboard: accept and drop, so apps do not retry.
@@ -99,8 +100,14 @@ async function postErrors(req, env) {
       ? env.DB.prepare(`INSERT INTO app_errors (day, fingerprint, platform, version, kind, message, place) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
           ON CONFLICT (day, fingerprint) DO UPDATE SET count = count + 1`).bind(day, fingerprint, platform, version, kind, message, place)
       : env.DB.prepare('UPDATE app_errors SET count = count + 1 WHERE day = ?1 AND fingerprint = ?2').bind(day, fingerprint);
+    // A kind of error never seen before: tell the owner (at most every 6
+    // hours, since anyone can send reports).
+    const before = await env.DB.prepare('SELECT 1 FROM app_errors WHERE message = ?1 AND place = ?2 LIMIT 1').bind(message, place).first();
     const r = await stmt.run();
     if (r.meta?.changes) saved++;
+    if (!before && r.meta?.changes) {
+      await alert(env, ctx, { category: 'problems', title: 'A new kind of error in the apps', body: `${platform} ${version}: ${message}`.slice(0, 200), link: 'communication', dedupe: 'errors-new' });
+    }
   }
   return json(req, env, { saved });
 }
@@ -117,13 +124,13 @@ async function listErrors(req, env) {
 }
 
 // Returns a Response for this module's routes, or null for anything else.
-export async function handleErrors(req, env, url) {
+export async function handleErrors(req, env, url, ctx) {
   if (url.pathname === '/v1/errors' && req.method === 'POST') {
     const ip = req.headers.get('CF-Connecting-IP') || 'local';
     if (env.LIMIT_ERRORS && !(await env.LIMIT_ERRORS.limit({ key: (await sha256(`flg|${ip}`)).slice(0, 32) })).success) {
       return json(req, env, { error: 'slow_down' }, 429, { 'Retry-After': '60' });
     }
-    return postErrors(req, env);
+    return postErrors(req, env, ctx);
   }
   if (url.pathname === '/admin/errors' && req.method === 'GET') return listErrors(req, env);
   return null;
