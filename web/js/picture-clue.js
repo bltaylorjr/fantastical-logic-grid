@@ -125,7 +125,7 @@ export function start(puzzle, { save, settings, onSolved = null, onChange = null
       : `${intro ? '<b>New: picture clues.</b> One clue in this puzzle is locked evidence. ' : ''}Fill in squares to uncover it. The numbers tell you how many filled squares sit together in each row and column, in order. Tap once to fill, twice to mark empty, three times to clear. You can solve the rest of the puzzle first and come back to it.`;
     body.innerHTML = `
       <p class="pic-help">${help}</p>
-      <table class="pic-grid${self.solved ? ' done' : ''}"><thead><tr><td></td>${head}</tr></thead><tbody>${rows}</tbody></table>
+      <table class="pic-grid${self.solved ? ' done' : ''}" style="--pic-w:${W}"><thead><tr><td></td>${head}</tr></thead><tbody>${rows}</tbody></table>
       <p class="pic-status${self.solved ? ' sr-only' : ''}" role="status" aria-live="polite"></p>
       ${self.solved ? '' : '<button type="button" class="btn small pic-reset">Start the picture again</button>'}`;
   };

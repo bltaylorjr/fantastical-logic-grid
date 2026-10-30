@@ -32,7 +32,8 @@ const path = require('path');
     HTMLMediaElement.prototype.play = function () { setTimeout(() => this.dispatchEvent(new Event('ended')), 5); return Promise.resolve(); };
     speechSynthesis.speak = (u) => setTimeout(() => u.onend && u.onend(), 5);
   });
-  await page.goto('http://localhost:8137/');
+  // Picture clues keep one clue locked; this test checks every witness's lines.
+  await page.goto('http://localhost:8137/?pictures=0');
   await page.waitForSelector('#dlg-welcome[open]'); await page.keyboard.press('Escape');
   await page.waitForFunction(() => (JSON.parse(localStorage.getItem('flg.settings') || '{}')).kokoroReady === true, null, { timeout: 15000 });
   await page.waitForSelector('.toast', { state: 'detached', timeout: 15000 });
