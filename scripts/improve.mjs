@@ -70,6 +70,8 @@ export async function gather(env = process.env) {
     await admin('quality', '/admin/v1/quality?days=30');
     await admin('alerts', '/admin/v1/alerts');
     await admin('summary', '/admin/v1/summary?days=7');
+    // Ideas and problems the owner approved for processing (ids and topics only).
+    await admin('queue', '/admin/v1/feedback/queue');
   } else s.notes.push('FLG_ADMIN_TOKEN or FLG_CLOUD_URL is not set, so player numbers were not read and nothing was tuned.');
   if (api) { try { s.tuning = await getJson(`${api}/v1/learn/tuning`); } catch (e) { s.notes.push(`Could not read the shared learning (${e.message}).`); } }
   // Keep only numbers from the summary: it also carries player-typed text.
@@ -203,6 +205,13 @@ export async function analyze(s, { today, current, engine }) {
   const sm = s.summary;
   if (sm?.errorCount) add({ area: 'players', priority: 30 + Math.min(30, sm.errorCount), text: `${sm.errorCount} error reports this week across ${sm.errorKinds} kinds.`, action: 'The daily player report lists them; fixes are marked Addressed in the admin app.' });
   const waiting = (sm?.feedbackWaiting?.idea || 0) + (sm?.feedbackWaiting?.problem || 0);
+  // Approved by the owner in Communication: these come first.
+  const approved = (s.queue?.approved || []).map((x) => ({ id: Number(x.id), kind: x.kind === 'idea' ? 'idea' : 'problem', topic: String(x.topic || '').replace(/[^\w-]/g, '') }));
+  if (approved.length) {
+    const list = approved.slice(0, 20).map((x) => `#${x.id} (${x.kind}, ${x.topic})`).join(', ');
+    add({ area: 'players', priority: 90, forClaude: true, text: `${approved.length} player ${approved.length === 1 ? 'idea or problem' : 'ideas and problems'} approved for processing: ${list}.`,
+      action: 'Read them privately (the encrypted Player reports method), make the clear, safe fixes, and tell Bobby which ones to Mark fixed in Communication (with a plain note for the player).' });
+  }
   if (waiting) add({ area: 'players', priority: 25 + Math.min(25, waiting * 2), text: `${sm.feedbackWaiting.idea || 0} ideas and ${sm.feedbackWaiting.problem || 0} problems are waiting in the admin app.`, action: 'Read them in Communication; the weekly Claude task can read them privately (encrypted) and fix the clear ones.', forClaude: true });
 
   // Site, SEO and speed: the nightly checks, and the trend across nights.
