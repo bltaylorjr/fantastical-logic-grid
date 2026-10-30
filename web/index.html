@@ -54,6 +54,8 @@
     <button role="menuitem" type="button" data-cmd="install" hidden>Install the app</button>
     <a role="menuitem" id="support-link" href="#" target="_blank" rel="noopener" hidden>Support the game</a>
     <button role="menuitem" type="button" data-cmd="site" hidden>Play on thelogicgrid.com</button>
+    <!-- Number Place: a separate numbers game with its own screen (modules/number-place). -->
+    <button role="menuitem" type="button" data-cmd="numberplace" class="menu-small">Try Number Place <span class="menu-tag">New</span></button>
   </div>
   <!-- Always visible: How to play (the tutorial), the Introduction video and a small scoreboard. -->
   <div class="topstrip">
@@ -326,6 +328,12 @@
       <button class="btn" type="button" id="back-saved">Saved puzzles</button>
     </div>
   </section>
+</main>
+
+<!-- ============ Number Place: its own numbers game (modules/number-place) ============ -->
+<main id="screen-np" class="screen" tabindex="-1" hidden>
+  <p class="np-back"><button class="btn quiet small" type="button" id="np-back">Back to The Fantastical Logic Grid</button></p>
+  <div id="np-root"><p class="muted" id="np-loading">Loading Number Place…</p></div>
 </main>
 
 <!-- ============ How to play: the tutorial and tips ============ -->

@@ -23,6 +23,7 @@ import * as feedbackBox from './feedback.js';
 import * as puzzleReport from './puzzle-report.js';
 import * as messages from './messages.js';
 import * as share from './share.js';
+import * as numberPlace from './number-place.js';
 import * as errorReports from './errors.js';
 import * as campaign from './campaign.js';
 import { countVisit } from './visit.js';
@@ -206,14 +207,16 @@ function showScreen(name) {
   $('#screen-home').hidden = name !== 'home';
   $('#screen-play').hidden = name !== 'play';
   $('#screen-learn').hidden = name !== 'learn';
+  $('#screen-np').hidden = name !== 'np';
   if (name !== 'learn') tutorial.close();
+  if (name !== 'np') numberPlace.leave();
   const scr = $(`#screen-${name}`);
   // The entrance animation plays on screen changes, not for the first screen
   // at start (it would hold back the first paint).
   if (document.documentElement.classList.contains('ready')) { scr.classList.remove('enter'); void scr.offsetWidth; scr.classList.add('enter'); }
-  setWorld(name === 'play' && S ? S.puzzle.theme.id : setup.theme);
+  if (name !== 'np') setWorld(name === 'play' && S ? S.puzzle.theme.id : setup.theme);
   $('#skip-link').hidden = name !== 'play';
-  document.title = name === 'play' && S ? `${S.save.name} · The Fantastical Logic Grid` : name === 'learn' ? 'How to play · The Fantastical Logic Grid' : HOME_TITLE;
+  document.title = name === 'play' && S ? `${S.save.name} · The Fantastical Logic Grid` : name === 'learn' ? 'How to play · The Fantastical Logic Grid' : name === 'np' ? 'Number Place · The Fantastical Logic Grid' : HOME_TITLE;
   if (name === 'home') { closeGame(); renderSaved(); renderSuggestion(); renderDaily(); accountsOnHome(); competeUi.onHome(); setTimeout(offerUpdate, 500); }
   wake.setPlaying(name === 'play' && S && !S.save.solved);
   updateMusic();
@@ -2315,6 +2318,7 @@ function applyFeatures() {
   $('[data-cmd=mail]').hidden = isPortal || !puzzleMail.available();
   $('#mail-invite').hidden = isPortal || !puzzleMail.available();
   $('[data-cmd=suggest]').hidden = !characters.suggestionsOpen();
+  $('[data-cmd=numberplace]').hidden = !numberPlace.enabled();
   $('[data-cmd=pack]').hidden = isPreview || !printPack.available();
   $('#feedback-idea').hidden = !feedbackBox.available();
   messages.configChanged();
@@ -2443,9 +2447,20 @@ $('#app-menu').addEventListener('click', async (e) => {
   else if (cmd === 'account') openAccount();
   else if (cmd === 'board') competeUi.openBoard();
   else if (cmd === 'install') installApp();
+  else if (cmd === 'numberplace') openNumberPlace();
   else if (cmd === 'site') window.open(`${(CLOUD.siteUrl || 'https://thelogicgrid.com').replace(/\/+$/, '')}/?utm_source=portal&utm_medium=store&utm_campaign=portal`, '_blank', 'noopener');
 });
 $('#home-btn').onclick = () => goHome();
+
+// Number Place: a separate numbers game on its own screen, with the game's look
+// (web/js/number-place.js). It shares only anonymous play data, for learning.
+async function openNumberPlace() {
+  if (S) { await flushSave(); closeGame(); }
+  showScreen('np');
+  window.scrollTo(0, 0);
+  await numberPlace.open({ celebrate: () => celebrateSolve(settings.celebrations, { random: settings.celebrateRandom }), setWorld });
+}
+$('#np-back').onclick = () => goHome();
 
 // How to play: the step-by-step tutorial and the tips page (tutorial.js).
 // The narrated video is the Introduction.
