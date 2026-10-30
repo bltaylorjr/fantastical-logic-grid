@@ -15,6 +15,7 @@
 //   the weekly archive's log  after 365 days
 //   kept translations         180 days after they were last used
 //   daily puzzle numbers      after 120 days
+//   printable pack counts     after 400 days
 //   puzzle problem reports    after 365 days (repaired copies after 30)
 //   site visitor counts       after 400 days
 //   puzzles for contributors  30 days after they were sent (messages.js)
@@ -59,6 +60,8 @@ export async function runUpkeep(env, now = Date.now()) {
     rating_insights: db.prepare('DELETE FROM rating_insights WHERE day < ?1').bind(isoDay(now - 90 * DAY)),
     visit_stats: db.prepare('DELETE FROM visit_stats WHERE day < ?1').bind(isoDay(now - 400 * DAY)),
     daily_results: db.prepare('DELETE FROM daily_results WHERE day < ?1').bind(isoDay(now - 120 * DAY)),
+    print_packs: db.prepare('DELETE FROM print_packs WHERE at < ?1').bind(now - 400 * DAY),
+    print_pack_stories: db.prepare('DELETE FROM print_pack_stories WHERE at < ?1').bind(now - 400 * DAY),
     // Educator requests never confirmed, or declined, go after 30 days. Sent
     // ones stay: their story ids keep every later package's stories new.
     educator_requests: db.prepare("DELETE FROM educator_requests WHERE status IN ('expired', 'declined', 'unverified') AND created_at < ?1").bind(now - 30 * DAY),

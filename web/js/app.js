@@ -40,6 +40,7 @@ import { shareResult } from './share-result.js';
 import * as challenge from './challenge.js';
 import * as dailyResults from './daily-results.js';
 import * as dailyEmail from './daily-email.js';
+import * as printPack from './print-pack.js';
 import * as puzzleMail from './puzzle-mail.js';
 import * as editions from './editions.js';
 import { onChange as onAccountChange } from './account.js';
@@ -2276,6 +2277,19 @@ $('#print-pdf').onclick = () => {
 };
 $('#print-cancel').onclick = () => $('#dlg-print').close();
 
+// Printable puzzle packs for signed-in players (print-pack.js): new puzzles
+// from the same writer as New puzzle, so stories are never reused.
+printPack.initPrintPack({
+  openDialog, openAccount, signedIn, toast, newSave,
+  makePuzzle: (o) => makePuzzle(o),
+  putSave: (s) => store.putSave(s),
+  refreshSaved: () => { if (!$('#screen-home').hidden) renderSaved(); },
+  tiers: () => OPTIONS.difficulties,
+  lastTier: () => setup.tier,
+  themes: () => { const off = new Set([...remote.disabledThemes(), ...lockedThemes()]); return OPTIONS.themes.filter((t) => !off.has(t.id)); },
+  supportLine: () => support.printLine(),
+});
+
 // ====================================================================
 // Settings, help, menu, keyboard
 // ====================================================================
@@ -2301,6 +2315,7 @@ function applyFeatures() {
   $('[data-cmd=mail]').hidden = isPortal || !puzzleMail.available();
   $('#mail-invite').hidden = isPortal || !puzzleMail.available();
   $('[data-cmd=suggest]').hidden = !characters.suggestionsOpen();
+  $('[data-cmd=pack]').hidden = isPreview || !printPack.available();
   $('#feedback-idea').hidden = !feedbackBox.available();
   messages.configChanged();
   const support = remote.supportUrl();
@@ -2419,6 +2434,7 @@ $('#app-menu').addEventListener('click', async (e) => {
   else if (cmd === 'saved') { await goHome({ focusSaved: true }); $('#saved-section').scrollIntoView(); }
   else if (cmd === 'settings') openSettings();
   else if (cmd === 'stats') openStats();
+  else if (cmd === 'pack') printPack.open();
   else if (cmd === 'suggest') characters.openSuggest(openDialog, OPTIONS.themes.filter((t) => !remote.disabledThemes().has(t.id)));
   else if (cmd === 'daily') openTodaysDaily();
   else if (cmd === 'mail') puzzleMail.open(openDialog);

@@ -14,6 +14,7 @@ import { deleteCompeteStatements } from './compete.js';
 import { deleteMessageStatements } from './messages.js';
 import { deleteReplyStatements } from './replies.js';
 import { deleteDailyEmailStatement } from './daily-email.js';
+import { deletePrintPackStatements } from './print-packs.js';
 import { deletePuzzleMailStatement } from './puzzle-mail.js';
 import { deleteBadgeStatements } from './special-badges.js';
 
@@ -124,6 +125,7 @@ export async function handleDeleteAccount(req, env, user) {
     ...deleteMessageStatements(env, user.uid),
     ...(await deleteReplyStatements(env, user.uid)),
     deleteDailyEmailStatement(env, user.uid),
+    ...deletePrintPackStatements(env, user.uid),
     deletePuzzleMailStatement(env, user.uid),
     ...deleteBadgeStatements(env, user.uid),
     // Payment records stay (by email); only the link to the account goes.

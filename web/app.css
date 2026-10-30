@@ -421,6 +421,10 @@ input[type=range] { width: 100%; min-height: 44px; accent-color: var(--accent); 
 #dlg-suggest .field { margin-bottom: 12px; }
 #dlg-suggest fieldset { border: 0; padding: 0; margin: 0 0 12px; }
 #dlg-suggest legend { font-weight: 700; padding: 0; }
+#dlg-pack select { box-sizing: border-box; min-height: 44px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); color: var(--text); font: inherit; }
+#dlg-pack label[for] { font-weight: 700; display: block; margin-bottom: 4px; }
+#dlg-pack fieldset { border: 0; padding: 0; margin: 0 0 12px; }
+#dlg-pack legend { font-weight: 700; padding: 0; }
 .check-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0 12px; }
 #read-story { margin-top: 12px; }
 #read-clues { margin-bottom: 10px; }
@@ -638,6 +642,7 @@ dialog::backdrop { background: rgb(5 7 16 / .6); backdrop-filter: blur(6px); -we
   .pp .qline { display: inline-block; min-width: 140pt; border-bottom: .5pt solid #000; margin-left: 6pt; }
   .pp .pnotes { white-space: pre-wrap; overflow-wrap: anywhere; }
   .pp .psupport { font-size: 9pt; margin: 12pt 0 0; }
+  .pcover li .pmeta { display: inline; margin: 0 0 0 6pt; }
   table.pg { border-collapse: collapse; font-size: 10pt; break-inside: avoid; margin: 6pt 0 10pt; }
   table.pg tr { break-inside: avoid; }
   table.pg td.c { width: var(--pcell); height: var(--pcell); min-width: var(--pcell); border: .5pt solid #000; text-align: center; vertical-align: middle; padding: 0; font-size: calc(var(--pcell) * .6); line-height: 1; }

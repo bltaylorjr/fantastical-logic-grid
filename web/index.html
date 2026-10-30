@@ -44,6 +44,7 @@
     <button role="menuitem" type="button" data-cmd="daily">Daily puzzle</button>
     <button role="menuitem" type="button" data-cmd="mail" hidden>Puzzle emails</button>
     <button role="menuitem" type="button" data-cmd="stats">My stats and badges</button>
+    <button role="menuitem" type="button" data-cmd="pack" hidden>Printable puzzle pack</button>
     <button role="menuitem" type="button" data-cmd="suggest" hidden>Suggest a character</button>
     <button role="menuitem" type="button" data-cmd="settings">Settings</button>
     <button role="menuitem" type="button" data-cmd="messages" hidden>Messages<span class="count"></span></button>
@@ -456,6 +457,37 @@
     <button class="btn" type="button" id="notes-close">Close</button>
     <button class="btn primary" type="button" id="notes-save">Save</button>
   </div>
+</dialog>
+
+<dialog id="dlg-pack" aria-labelledby="pack-h">
+  <h2 id="pack-h">Printable puzzle pack</h2>
+  <p>Print a few brand-new puzzles at once, each with a story you have never had, and answer keys for checking.</p>
+  <div id="pack-out" hidden>
+    <p>Packs are free with a game account. Sign in or make one to print them.</p>
+    <div class="dlg-actions"><button class="btn primary" type="button" id="pack-signin">Sign in</button></div>
+  </div>
+  <form method="dialog" id="pack-form">
+    <p class="help" id="pack-intro" aria-live="polite"></p>
+    <p><label for="pack-count">How many puzzles</label> <select id="pack-count"></select></p>
+    <p><label for="pack-tier">Difficulty</label> <select id="pack-tier"></select></p>
+    <p><label for="pack-theme">Theme</label> <select id="pack-theme"></select></p>
+    <fieldset><legend>Answer keys</legend>
+      <label class="radio"><input type="radio" name="pkkeys" value="end" checked> All together at the back</label>
+      <label class="radio"><input type="radio" name="pkkeys" value="each"> Right after each puzzle</label>
+      <label class="radio"><input type="radio" name="pkkeys" value="none"> No answer keys</label>
+    </fieldset>
+    <fieldset><legend>Paper size</legend>
+      <label class="radio"><input type="radio" name="pkpaper" value="letter"> Letter</label>
+      <label class="radio"><input type="radio" name="pkpaper" value="A4"> A4</label>
+    </fieldset>
+    <label class="check"><input type="checkbox" id="pack-save" checked> Also add them to Saved puzzles, to play or check in the game</label>
+    <p class="help" id="pack-status" role="status"></p>
+    <div class="dlg-actions">
+      <button class="btn" type="button" id="pack-cancel">Close</button>
+      <button class="btn" type="button" id="pack-pdf" hidden>Save as PDF</button>
+      <button class="btn primary" type="button" id="pack-go">Make and print</button>
+    </div>
+  </form>
 </dialog>
 
 <dialog id="dlg-print" aria-labelledby="print-h">
