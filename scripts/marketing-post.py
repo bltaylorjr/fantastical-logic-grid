@@ -480,6 +480,19 @@ POST = {'bluesky': post_bluesky, 'mastodon': post_mastodon, 'x': post_x, 'facebo
         'linkedin': post_linkedin, 'pinterest': post_pinterest, 'youtube': post_youtube, 'tiktok': post_tiktok, 'reddit': post_reddit}
 
 
+def check_instagram():
+    """Say plainly what INSTAGRAM_ACCOUNT_ID points at when it is not an Instagram account."""
+    ig, token = env('INSTAGRAM_ACCOUNT_ID'), env('META_PAGE_TOKEN')
+    r = meta(f'{GRAPH}/{ig}?fields=username', token=token)
+    if r.get('username'):
+        return r['username']
+    kind = meta(f'{GRAPH}/{ig}?metadata=1&fields=id', token=token).get('metadata', {}).get('type', 'unknown')
+    if kind == 'page':
+        raise Failed('INSTAGRAM_ACCOUNT_ID is the Facebook Page id. Use the id inside instagram_business_account instead (it usually starts with 1784).')
+    raise Failed(f'INSTAGRAM_ACCOUNT_ID is not an Instagram business account (Meta says it is a "{kind}"), '
+                 'or META_PAGE_TOKEN lacks instagram_basic. Use the id inside instagram_business_account.')
+
+
 def check_keys():
     tests = {
         'bluesky': lambda: bluesky_session()[2],
@@ -487,7 +500,7 @@ def check_keys():
                                     headers={'Authorization': f"Bearer {env('MASTODON_TOKEN')}"})['acct'],
         'x': lambda: request('https://api.x.com/2/users/me', headers={'Authorization': oauth1('GET', 'https://api.x.com/2/users/me')})['data']['username'],
         'facebook': lambda: meta(f"{GRAPH}/{env('META_PAGE_ID')}?fields=name", token=env('META_PAGE_TOKEN'))['name'],
-        'instagram': lambda: meta(f"{GRAPH}/{env('INSTAGRAM_ACCOUNT_ID')}?fields=username", token=env('META_PAGE_TOKEN'))['username'],
+        'instagram': check_instagram,
         'threads': lambda: meta(f'{THREADS}/me?fields=username', token=env('THREADS_TOKEN'))['username'],
         'linkedin': lambda: linkedin_me()[1]['sub'],
         'pinterest': lambda: request('https://api.pinterest.com/v5/user_account', headers={'Authorization': f'Bearer {pinterest_token()}'})['username'],
