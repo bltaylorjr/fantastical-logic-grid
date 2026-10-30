@@ -11,7 +11,7 @@ const value = (name) => { const i = args.indexOf(`--${name}`); return i >= 0 ? a
 
 if (flag('help')) {
   console.log(`Options:
-  --difficulty basic|easy|medium|hard|expert|mensa   (default easy)
+  --difficulty basic|easy|medium|hard|expert|mensa|theorist   (default easy)
   --theme <id>|random                                (default random)
   --topic <id>|any     topic within the theme (see --options)
   --categories <3-6>  --items <3-8>                  (default: the tier's size)

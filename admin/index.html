@@ -73,6 +73,7 @@
   <nav class="nav" aria-label="Sections">
     <ul id="nav-list">
       <li><a href="#overview" data-min="viewer">Overview</a></li>
+      <li><a href="#visitors" data-min="viewer">Visitors</a></li>
       <li><a href="#usage" data-min="viewer">Usage and free limits</a></li>
       <li><a href="#search" data-min="viewer">Search (Google and Bing)</a></li>
       <li><a href="#daily" data-min="moderator">Daily puzzles</a></li>
@@ -81,11 +82,14 @@
       <li><a href="#quality" data-min="viewer">Puzzle quality <span class="count" id="count-quality" hidden></span></a></li>
       <li><a href="#ratings" data-min="viewer">Ratings and insights <span class="count" id="count-ratings" hidden></span></a></li>
       <li><a href="#marketing" data-min="viewer">Marketing</a></li>
+      <li><a href="#mail" data-min="viewer">Puzzle emails</a></li>
       <li><a href="#stories" data-min="moderator">Story workshop and review <span class="count" id="count-parts" hidden></span></a></li>
       <li><a href="#communication" data-min="viewer">Communication <span class="count" id="count-comm" hidden></span></a></li>
+      <li><a href="#errortracking" data-min="moderator">Error tracking <span class="count" id="count-errors" hidden></span></a></li>
       <li><a href="#educators" data-min="moderator">Educator requests <span class="count" id="count-educators" hidden></span></a></li>
       <li><a href="#names" data-min="moderator">Screen names <span class="count" id="count-names" hidden></span></a></li>
       <li><a href="#players" data-min="viewer">Players</a></li>
+      <li><a href="#badges" data-min="viewer">Badges</a></li>
       <li><a href="#supporters" data-min="admin">Supporters</a></li>
       <li><a href="#settings" data-min="viewer">Settings and switches</a></li>
       <li><a href="#connections" data-min="viewer">Connections and setup</a></li>
@@ -100,6 +104,23 @@
         <div class="field inline"><label for="ov-days">Period</label><select id="ov-days"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option></select></div>
       </div>
       <div id="ov-body"><p class="muted">Loading…</p></div>
+    </section>
+
+    <section data-view="details" hidden aria-labelledby="h-details">
+      <p><a href="#overview"><span aria-hidden="true">‹ </span>Back to Overview</a></p>
+      <div class="head"><h1 id="h-details">Details</h1>
+        <div class="field inline"><label for="dt-days">Period</label><select id="dt-days"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option></select></div>
+      </div>
+      <p class="muted" id="dt-intro"></p>
+      <div id="dt-body"><p class="muted">Loading…</p></div>
+    </section>
+
+    <section data-view="visitors" hidden aria-labelledby="h-visitors">
+      <div class="head"><h1 id="h-visitors">Visitors</h1>
+        <div class="field inline"><label for="vis-days">Period</label><select id="vis-days"><option value="1">Today</option><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option><option value="365">Last 365 days</option></select></div>
+      </div>
+      <p class="muted">People who opened the game, each device counted once a day. Guests are not signed in; players are signed in to an account. Place comes from the connection and is never stored as an address.</p>
+      <div id="vis-body"><p class="muted">Loading…</p></div>
     </section>
 
     <section data-view="usage" hidden aria-labelledby="h-usage">
@@ -179,6 +200,12 @@
       </div>
       <p class="muted">Every campaign and ad, the words and media to post, and what each tracked link brought in. The game counts a visit when someone arrives on a campaign link or from another website, and then their first puzzle, solves, app install and Windows download for 30 days. Only anonymous daily totals are kept, never anything about a player. Free channels only: nothing here spends money.</p>
       <div id="marketing-body"><p class="muted">Loading…</p></div>
+    </section>
+
+    <section data-view="mail" hidden aria-labelledby="h-mail">
+      <div class="head"><h1 id="h-mail">Puzzle emails</h1></div>
+      <p class="muted">Players and guests sign up in the game (Menu &gt; Puzzle emails) for the <b>puzzle of the week</b> (Mondays from about 7 am Eastern, a bigger Expert puzzle) and <b>special edition puzzles</b> you plan below. Guests confirm with a link first. Every email has a one-click unsubscribe link. Sent every 15 minutes by the Puzzle emails GitHub Action, from noreply@thelogicgrid.com through Resend, or from the game's Gmail as a backup.</p>
+      <div id="mail-body"><p class="muted">Loading…</p></div>
     </section>
 
     <section data-view="stories" hidden aria-labelledby="h-stories">
@@ -275,6 +302,21 @@
       </div>
     </section>
 
+    <section data-view="errortracking" hidden aria-labelledby="h-errortracking">
+      <div class="head"><h1 id="h-errortracking">Error tracking</h1></div>
+      <p class="muted">Every Report a Problem, sorted by category as it arrives: <b>Puzzle</b> (PZ-…) or <b>Web structure</b> (WS-…). The puzzle doctor checks Puzzle reports every 15 minutes, rebuilds the broken ones and emails the players who asked. It uses Web structure reports from the same screen and app version to tell a broken puzzle from a display problem, and learns which repairs work for each kind of fault.</p>
+      <form class="row filters" id="et-filter" novalidate>
+        <div class="field inline"><label for="et-category">Category</label><select id="et-category"><option value="">Both</option><option value="puzzle">Puzzle</option><option value="webstructure">Web structure</option></select></div>
+        <div class="field inline"><label for="et-status">Status</label><select id="et-status"><option value="">Any</option><option value="needs_fix">Needs a fix in the code</option><option value="manual">Needs the team</option><option value="page">Web page issue (open)</option><option value="no_fault">No fault in the puzzle</option><option value="repaired">Repaired</option><option value="done">Done</option><option value="new">Waiting for the doctor</option></select></div>
+        <div class="field inline"><label for="et-q">Search</label><input id="et-q" type="search" placeholder="PZ-…, title, words, page"></div>
+        <button class="btn" type="submit">Show</button>
+      </form>
+      <div id="et-body"><p class="muted">Loading…</p></div>
+      <h2>What the doctor has learned</h2>
+      <p class="muted">One row per kind of fault. For puzzles: the fault, theme and difficulty, how often it was seen and repaired, the rebuild that works best, and the doctor's latest self-check with the newest engine. For web pages: the screen and app version. When a self-check shows a fault is gone, its waiting reports are repaired and emailed automatically.</p>
+      <div id="et-patterns"><p class="muted">Loading…</p></div>
+    </section>
+
     <section data-view="educators" hidden aria-labelledby="h-educators">
       <div class="head"><h1 id="h-educators">Educator requests</h1></div>
       <p class="muted">Free printable puzzle packages asked for on the website's <a href="https://thelogicgrid.com/educators/" target="_blank" rel="noopener">Educators page</a>. A request shows as waiting once the educator has typed the code we emailed to their school address. <b>Approve and send</b> makes the puzzles with the game's engine and emails them as PDFs to that address; <b>Decline</b> sends a polite email with your note. Check the badge next to the address: "Check the school" means it is not a known school domain. Switches and limits: Settings and switches &gt; Educators.</p>
@@ -320,6 +362,46 @@
       <nav class="row pager" aria-label="Player pages"><button class="btn small" type="button" id="players-prev">Previous page</button><span id="players-page" class="muted"></span><button class="btn small" type="button" id="players-next">Next page</button></nav>
       <div class="row" data-min="admin"><button class="btn" type="button" data-export="players">Download all players (CSV)</button><button class="btn" type="button" data-export="scores">Download all scores (CSV)</button></div>
       <div id="player-detail"></div>
+    </section>
+
+    <section data-view="badges" hidden aria-labelledby="h-badges">
+      <div class="head"><h1 id="h-badges">Badges</h1></div>
+      <p class="muted">Special badges show on the player's <b>My stats and badges</b> page and next to their name on the scoreboard. A badge is <b>given by hand</b> (like Tester or Contributor) or <b>earned automatically</b> when a player reaches a milestone you set, like 250 puzzles solved or a 7-day daily streak. Automatic badges need a game account, and are checked whenever the game opens or every few minutes while it is open. The game's own badges (First case closed, Flawless and the rest) are earned on each device and are not listed here.</p>
+      <p class="note" id="badges-off" hidden>Special badges are switched off, so players see none and none are given out. Turn on <b>Special badges</b> under <a href="#settings">Settings and switches</a> &gt; Play.</p>
+      <form id="award-form" class="stack card" novalidate data-min="moderator">
+        <h2>Give a badge</h2>
+        <div class="row">
+          <div class="field"><label for="award-badge">Badge</label><select id="award-badge"></select></div>
+          <div class="field grow"><label for="award-who">Player's email, screen name or player id</label><input id="award-who" type="text" autocomplete="off" spellcheck="false" required></div>
+        </div>
+        <div class="field"><label for="award-note">Note (optional, for you)</label><input id="award-note" type="text" maxlength="200" autocomplete="off"></div>
+        <p class="muted">Given to an email, it reaches the player the next time they sign in with that confirmed email.</p>
+        <p class="error" id="award-error" role="alert" hidden></p>
+        <div class="row"><button class="btn primary" type="submit">Give badge</button></div>
+      </form>
+      <h2>All badges</h2>
+      <ul class="cards badge-list" id="badge-rows"></ul>
+      <div id="badge-holders"></div>
+      <details class="card" id="badge-editor" data-min="admin">
+        <summary><h2 id="badge-editor-h">Make a new badge</h2></summary>
+        <form id="badge-form" class="stack" novalidate>
+          <div class="row">
+            <div class="field grow"><label for="badge-name">Name</label><input id="badge-name" type="text" maxlength="40" autocomplete="off" required></div>
+            <div class="field"><label for="badge-icon">Icon</label><input id="badge-icon" type="text" maxlength="16" autocomplete="off" spellcheck="false" required size="6"></div>
+          </div>
+          <div class="row emoji-picks" role="group" aria-label="Pick an icon" id="badge-picks"></div>
+          <div class="field"><label for="badge-desc">What players read (optional)</label><input id="badge-desc" type="text" maxlength="200" autocomplete="off"><span class="muted">Left empty, an automatic badge shows how it is earned.</span></div>
+          <div class="row">
+            <div class="field"><label for="badge-kind">How it is earned</label><select id="badge-kind"></select></div>
+            <div class="field" id="badge-count-field" hidden><label for="badge-count">Number</label><input id="badge-count" type="number" min="1" max="100000" inputmode="numeric"></div>
+            <div class="field" id="badge-tier-field" hidden><label for="badge-tier">Difficulty</label><select id="badge-tier"></select></div>
+          </div>
+          <label class="check"><input type="checkbox" id="badge-active" checked> <span>Show and give out this badge (off: paused, hidden from players)</span></label>
+          <p class="muted" id="badge-preview" aria-live="polite"></p>
+          <p class="error" id="badge-error" role="alert" hidden></p>
+          <div class="row"><button class="btn primary" type="submit" id="badge-save">Add badge</button><button class="btn" type="button" id="badge-cancel" hidden>Cancel changes</button></div>
+        </form>
+      </details>
     </section>
 
     <section data-view="supporters" hidden aria-labelledby="h-supporters">
@@ -400,6 +482,7 @@
 </div>
 
 <dialog id="dialog" aria-labelledby="dialog-title">
+  <button class="dlg-x" type="button" id="dialog-x" aria-label="Close" title="Close"><svg aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg></button>
   <form method="dialog" id="dialog-form" class="stack">
     <h2 id="dialog-title"></h2>
     <div id="dialog-body"></div>

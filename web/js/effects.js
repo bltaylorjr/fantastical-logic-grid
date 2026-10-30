@@ -17,7 +17,7 @@ export const THEME_EMOJI = {
   cooking: ['🍰', '🍕', '🧁'], pets: ['🐾', '🐶', '🐱'], town: ['🏘️', '🌳', '🚲'], parks: ['🌲', '🦋', '🌻'],
   travel: ['✈️', '🧳', '🌍'], wonders: ['🗿', '🏛️', '🌋'], music: ['🎵', '🎸', '🎤'], nautical: ['⛵', '⚓', '🌊'],
   farm: ['🚜', '🐄', '🌽'], science: ['🔬', '🧪', '⚛️'],
-  math: ['➗', '📐', '🧮'], biology: ['🦋', '🐸', '🌿'], chemistry: ['⚗️', '🧪', '💥'], paradox: ['🌀', '🪞', '⏳'],
+  math: ['➗', '📐', '🧮'], biology: ['🦋', '🐸', '🌿'], chemistry: ['⚗️', '🧪', '💥'], astronomy: ['🔭', '🪐', '🌠'], paradox: ['🌀', '🪞', '⏳'],
 };
 // What falls for Falling snow, leaves or petals: by theme, else by season.
 export const FALLING = {
@@ -25,7 +25,7 @@ export const FALLING = {
   pets: ['🌸', '🍃', '🐾'], cooking: ['🌸', '🍃', '🍓'], wonders: ['🍂', '🍃', '🌸'], music: ['🎵', '🎶', '✨'],
   nautical: ['🫧', '🐚', '🫧'],
   farm: ['🍂', '🌾', '🍎'], science: ['✨', '🫧', '✨'],
-  math: ['✨', '➕', '✨'], biology: ['🍃', '🌸', '🍃'], chemistry: ['🫧', '✨', '🫧'], paradox: ['🌀', '✨', '🪐'],
+  math: ['✨', '➕', '✨'], biology: ['🍃', '🌸', '🍃'], chemistry: ['🫧', '✨', '🫧'], astronomy: ['✨', '⭐', '🌙'], paradox: ['🌀', '✨', '🪐'],
 };
 const seasonal = () => {
   const m = new Date().getMonth();

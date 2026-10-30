@@ -42,11 +42,12 @@
     <button role="menuitem" type="button" data-cmd="new">New puzzle</button>
     <button role="menuitem" type="button" data-cmd="saved">Saved puzzles</button>
     <button role="menuitem" type="button" data-cmd="daily">Daily puzzle</button>
+    <button role="menuitem" type="button" data-cmd="mail" hidden>Puzzle emails</button>
     <button role="menuitem" type="button" data-cmd="stats">My stats and badges</button>
     <button role="menuitem" type="button" data-cmd="suggest" hidden>Suggest a character</button>
     <button role="menuitem" type="button" data-cmd="settings">Settings</button>
     <button role="menuitem" type="button" data-cmd="messages" hidden>Messages<span class="count"></span></button>
-    <button role="menuitem" type="button" data-cmd="feedback" hidden>Ideas and problems</button>
+    <button role="menuitem" type="button" data-cmd="feedback" hidden>Share an idea</button>
     <button role="menuitem" type="button" data-cmd="board" hidden>Scoreboard</button>
     <button role="menuitem" type="button" data-cmd="account" hidden>Account and sync</button>
     <button role="menuitem" type="button" data-cmd="install" hidden>Install the app</button>
@@ -151,6 +152,13 @@
       </div>
       <p class="lede" id="daily-intro">A new puzzle every day, the same for everyone. Solve it each day to build a streak.</p>
       <div class="daily-today" id="daily-today" aria-live="polite"><p class="muted">Looking for today's puzzle…</p></div>
+      <div class="weekly-box" id="weekly-box" hidden></div>
+      <details class="daily-earlier" id="specials-box" hidden>
+        <summary>Special editions</summary>
+        <p class="help">One-off puzzles from the team, each with a story nobody has played before.</p>
+        <ul class="daily-list" id="specials-list"></ul>
+      </details>
+      <p class="mail-invite" id="mail-invite" hidden><button class="btn quiet small" type="button" id="mail-invite-btn">Get the weekly puzzle by email</button> <span class="help">Free, no account needed.</span></p>
       <details class="daily-earlier" id="daily-earlier" hidden>
         <summary>Earlier days</summary>
         <p class="help">Earlier puzzles are fun to play, but only today's puzzle adds to your streak.</p>
@@ -191,6 +199,7 @@
 
     </div>
   </div>
+  <footer class="home-foot" id="home-social" hidden></footer>
 </main>
 
 <!-- ============ Play ============ -->
@@ -398,6 +407,11 @@
   </section>
 </main>
 
+<!-- The page footer under every screen: Report a Problem (puzzle-report.js). -->
+<footer class="app-foot needs-cloud" data-feature="feedback" id="app-foot" hidden>
+  <button class="btn quiet small" type="button" id="report-problem">Report a Problem</button>
+</footer>
+
 <!-- ============ Dialogs ============ -->
 <dialog id="dlg-confirm" aria-labelledby="confirm-h">
   <h2 id="confirm-h"></h2>
@@ -535,8 +549,8 @@
 </dialog>
 
 <dialog id="dlg-feedback" class="wide" aria-labelledby="feedback-h">
-  <h2 id="feedback-h">Ideas and problems</h2>
-  <p class="help">Two boxes: one for ideas, one for problems. Both go to the game's team. Don't include your name, email or anything personal: messages are anonymous. Signed in with a confirmed email? Tick "Email me an update" and we'll email you a thank-you with what you wrote, then again with what we did once the team acts on it. Signed in and want an answer? Tick "Let the team reply to me" and the reply shows in Menu &gt; Messages.</p>
+  <h2 id="feedback-h">Share an idea</h2>
+  <p class="help">Ideas for storylines, themes and features go to the game's team. Something not working? Use <b>Report a Problem</b> at the bottom of the page instead, so it reaches the right place. Don't include your name, email or anything personal: ideas are anonymous. Signed in with a confirmed email? Tick "Email me an update" and we'll email you about your idea. Signed in and want an answer? Tick "Let the team reply to me" and the reply shows in Menu &gt; Messages.</p>
   <form class="feedback-box" id="idea-form" data-kind="idea" novalidate>
     <h3>Share an idea</h3>
     <fieldset><legend>What is it about?</legend>
@@ -553,19 +567,42 @@
     <p class="acct-done" role="status"></p>
     <div class="row-inline"><button class="btn primary" type="submit">Send idea</button></div>
   </form>
-  <form class="feedback-box" id="problem-form" data-kind="problem" novalidate>
-    <h3>Report a problem</h3>
-    <div class="field"><label for="problem-topic">Where did it happen?</label><select id="problem-topic">
-      <option value="play">Playing a puzzle</option><option value="sound">Sound, music or voices</option><option value="pictures">Pictures</option>
-      <option value="saving">Saving or signing in</option><option value="other">Somewhere else</option></select></div>
-    <div class="field"><label for="problem-text">What went wrong?</label><textarea id="problem-text" rows="4" maxlength="1000" placeholder="What you did, what you expected, and what happened instead."></textarea></div>
-    <label class="check fb-reply" hidden><input type="checkbox" data-reply checked> <span>Email me an update<span class="fb-reply-to"></span></span></label>
-    <label class="check fb-talk" hidden><input type="checkbox" data-talk> <span>Let the team reply to me in Messages</span></label>
-    <div class="error-box" role="alert" hidden></div>
-    <p class="acct-done" role="status"></p>
-    <div class="row-inline"><button class="btn primary" type="submit">Send problem report</button></div>
-  </form>
   <div class="dlg-actions"><button class="btn" type="button" data-close>Close</button></div>
+</dialog>
+
+<dialog id="dlg-report" aria-labelledby="report-h">
+  <h2 id="report-h">Report a Problem</h2>
+  <form id="report-form" novalidate>
+    <fieldset class="report-kind"><legend>What is the problem with?</legend>
+      <label class="radio"><input type="radio" name="report-kind" value="puzzle" checked> Puzzle Problem</label>
+      <label class="radio"><input type="radio" name="report-kind" value="page"> Web Page Issue</label>
+    </fieldset>
+    <p class="help" id="report-about"></p>
+    <div class="field"><label for="report-text">What went wrong?</label>
+      <textarea id="report-text" rows="5" maxlength="1000" aria-describedby="report-count" placeholder="For example: clue 4 says the baker was first, but the answer says she was third."></textarea>
+      <p class="help" id="report-count" aria-live="polite">0 of 1,000 characters</p></div>
+    <label class="check" id="report-reply-box" hidden><input type="checkbox" id="report-reply" checked> <span>Email me when it is fixed<span id="report-reply-to"></span>, with a link to play the repaired puzzle</span></label>
+    <p class="help" id="report-signin" hidden>Want an email when it is fixed? <button class="btn quiet small" type="button" id="report-signin-btn">Sign in</button> with a confirmed email first.</p>
+    <div class="error-box" role="alert" hidden></div>
+    <p class="acct-done" id="report-done" role="status"></p>
+    <div class="row-inline"><button class="btn primary" type="submit">Submit</button><button class="btn" type="button" data-close>Cancel</button></div>
+  </form>
+</dialog>
+
+<dialog id="dlg-mail" aria-labelledby="mail-h">
+  <h2 id="mail-h">Puzzle emails</h2>
+  <p class="help">Free puzzles in your inbox. You don't need an account. Every email has a one-click unsubscribe link, and we never share your address.</p>
+  <form id="mail-form" novalidate>
+    <fieldset><legend>Send me</legend>
+      <label class="check" id="mail-weekly-row"><input type="checkbox" name="weekly" checked> <span>The puzzle of the week, every Monday: a bigger Expert puzzle with a brand-new story</span></label>
+      <label class="check" id="mail-special-row"><input type="checkbox" name="special" checked> <span>Special edition puzzles, a few times a year</span></label>
+    </fieldset>
+    <div class="field" id="mail-email-row"><label for="mail-email">Your email address</label><input id="mail-email" name="email" type="email" autocomplete="email" maxlength="254" spellcheck="false" placeholder="name@example.com"><span class="help">We'll email you a link to confirm. Nothing else comes until you press Confirm in that email.</span></div>
+    <p class="help" id="mail-to" hidden>They go to your account's address, <b id="mail-to-addr"></b>.</p>
+    <div class="error-box" id="mail-error" role="alert" hidden></div>
+    <p class="acct-done" id="mail-done" role="status"></p>
+    <div class="dlg-actions"><button class="btn" type="button" id="mail-close">Close</button><button class="btn primary" type="submit" id="mail-submit">Sign up</button></div>
+  </form>
 </dialog>
 
 <dialog id="dlg-messages" class="wide" aria-labelledby="messages-h">
@@ -573,6 +610,11 @@
   <section id="msg-news-box" aria-labelledby="msg-news-h" hidden>
     <h3 id="msg-news-h">News from the team</h3>
     <ul class="msg-news" id="msg-news"></ul>
+  </section>
+  <section id="msg-puzzles-box" aria-labelledby="msg-puzzles-h" hidden>
+    <h3 id="msg-puzzles-h">Puzzles for you</h3>
+    <p class="help">Made by the team, often from your suggestions. Each is kept here for 30 days; play it to keep it in your saved puzzles, or download the file.</p>
+    <ul class="msg-news" id="msg-puzzles"></ul>
   </section>
   <section aria-labelledby="msg-convs-h">
     <h3 id="msg-convs-h">You and the team</h3>
@@ -683,7 +725,8 @@
   <div class="dlg-actions"><button class="btn" type="button" data-close>Close</button></div>
 </dialog>
 
-<dialog id="dlg-video" class="wide" aria-labelledby="video-h">
+<dialog id="dlg-video" class="wide" aria-labelledby="video-h" data-light-dismiss>
+  <button class="dlg-x" type="button" aria-label="Close" title="Close (Esc)"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
   <h2 id="video-h">Introduction to The Fantastical Logic Grid</h2>
   <video id="intro-video" controls preload="metadata" playsinline aria-describedby="video-note">
     <source src="media/intro.mp4" type="video/mp4">
@@ -694,17 +737,17 @@
     <summary>Read the transcript</summary>
       <p>Welcome to The Fantastical Logic Grid. Every case is a brand new story, and you are the detective. Each puzzle is a logic grid wrapped in a story. The story sets up a mystery, the clues give you the facts, and the grid is where you work out the answer. Every story is written fresh for you and never repeated. And every puzzle has exactly one answer you can reach without guessing.</p>
       <p>New to logic puzzles? Press How to play, at the top of every page. It teaches you to solve them step by step, on real grids. Five short lessons take you from your very first mark to solving a whole puzzle on your own. They cover every kind of clue, carrying facts across the grid, what-if thinking, and hints. Each step explains one idea, then you make the marks yourself. The game tells you when a mark does not fit, and Show me makes the marks for you if you are stuck.</p>
-      <p>Tips and tricks puts the moves that solve most puzzles on one page. In a hurry? Play a quick puzzle starts a small Easy case straight away, with no choices to make. Every day there is also a new Daily puzzle, the same one for everyone. Solve it each day to build a streak. With a free sign-in, you can get each day&#x27;s puzzle by email. Here&#x27;s how to play.</p>
-      <p>Start on the New puzzle screen and pick a difficulty. Basic and Easy are perfect for beginners. Quantum Physicist is for true masterminds. Next, choose a theme, like Mystery, Fantasy, Sci-Fi, Around Town, National Parks or Vacation Destinations. Or pick Surprise me. Most themes also have topics, like which holiday or which kind of mystery. Pick one, or leave it on Any.</p>
-      <p>Then pick a size. More categories and more items make a bigger, harder grid. Under More options, Full experience adds scenes, characters and sound. Silent mode keeps only the story, the grid, the clues and the answer key. Press Generate puzzle, and your story is written in a moment. Here&#x27;s our case: The Crimson Portrait. The buttons along the top help you as you play.</p>
-      <p>Read the story first. It tells you who is involved, and it ends with the question you need to answer. Here, it&#x27;s: Who brought the Ferret? You can also press Read the story aloud to hear it. Every character has a personality, shown under their name, and a voice of their own. Select a character&#x27;s portrait to hear the clues they remember, in their own words. Every clue is also in the clue list.</p>
-      <p>To hear every clue in order, press Read the clues aloud. Each character tells their own clue, and the clue being read lights up. On your first Easy puzzle, coach tips appear above the grid to guide your first moves. Now the grid. Each square is where two things meet, like a suspect and a pet. Your job is to decide whether they go together.</p>
-      <p>Click or tap a square once to mark an X. X means ruled out: these two don&#x27;t go together. Tap again for an O. O means confirmed: these two are a match. Tap a third time to clear the square. Let&#x27;s solve it together, starting with the simplest clues. Clue 1 says Jasper brought the Cockatoo or Siamese Cat, so no other pet is possible.</p>
-      <p>Clue 2 says the suspect who was drinking Apple Cider brought the Canary. Mark an O there. Clues 3, 4 and 5 each rule out pairs directly. Mark an X for each one. Clue 6 says the suspect who brought the Cockatoo is Felix or Greta, so no other suspect is possible. Clues 7 and 8 each rule out pairs directly. Mark an X for each one.</p>
-      <p>The suspect who was drinking Apple Cider brought the Canary, so Apple Cider cannot go with any other pet, and no other drink can go with Canary. Each row and each column in a section has exactly one match, so everything else in that line is an X. Ginger Ale is the only drink left for Felix. Mark an O there. When only one square is left in a row or column, it must be the answer. In the full experience, each finished section also reveals more of the scene.</p>
-      <p>Stuck? Press Hint. The first hint shows you which clue to use, and names the trick that cracks it. Press Which cell? for the exact square, then Explain why for the full reasoning. It ends with a short lesson on how that trick works, so you can spot it yourself next time. You can even let it mark the square for you. Press Check at any time to see whether any of your marks are wrong.</p>
-      <p>Made a mistake? Undo and Redo take back any move, as many times as you like. Want a fresh start? Press Start over. It clears your marks and resets the timer, hints and checks. Your notes stay unless you choose to clear them, and Undo can bring everything back. Prefer words to grids? List view lets you choose each match from a menu. The game also works fully by keyboard and with a screen reader.</p>
-      <p>When you think you know, answer the questions under the clues, and press Check answers. Want to jot something down? Press My notes and type. Press Save to keep them, or Close to get back to the puzzle. Only you can see your notes, even in a race. Keep going the same way, clue by clue, until the whole grid is filled in. Case closed! The mystery is solved! Greta brought the Ferret, and the portrait is found hidden in a flowerpot. You also see your time and a suggestion for your next puzzle.</p>
+      <p>Tips and tricks puts the moves that solve most puzzles on one page. In a hurry? Play a quick puzzle starts a small Easy case straight away, with no choices to make. Every day there is also a new Daily puzzle, the same one for everyone. Solve it each day to build a streak. With a free sign-in, you can get each day&#x27;s puzzle by email. Anyone can get the puzzle of the week and special edition puzzles by email, with no account. Choose Puzzle emails in the Menu, type your address, then press Confirm in the email we send you.</p>
+      <p>Here&#x27;s how to play. Start on the New puzzle screen and pick a difficulty. Basic and Easy are perfect for beginners. Quantum Physicist is for true masterminds. And Theoretical Physicist is for the best of the best. Next, choose a theme. Themes are grouped, like Mystery and Action, Imagination, or Science and Learning. Or pick Surprise me.</p>
+      <p>Most themes also have topics, like which holiday or which kind of mystery. Pick one, or leave it on Any. Then pick a size. More categories and more items make a bigger, harder grid. Under More options, Full experience adds scenes, characters and sound. Silent mode keeps only the story, the grid, the clues and the answer key.</p>
+      <p>Press Generate puzzle, and your story is written in a moment. Here&#x27;s our case: The Silent Diamond. The buttons along the top help you as you play. Read the story first. It tells you who is involved, and it ends with the question you need to answer. Here, it&#x27;s: Who was in the Dinosaur wing? You can also press Read the story aloud to hear it.</p>
+      <p>Every character has a personality, shown under their name, and a voice of their own. Select a character&#x27;s portrait to hear the clues they remember, in their own words. Every clue is also in the clue list. To hear every clue in order, press Read the clues aloud. Each character tells their own clue, and the clue being read lights up. On your first Easy puzzle, coach tips appear above the grid to guide your first moves.</p>
+      <p>Now the grid. Each square is where two things meet, like a suspect and an age. Your job is to decide whether they go together. Click or tap a square once to mark an X. X means ruled out: these two don&#x27;t go together. Tap again for an O. O means confirmed: these two are a match. Tap a third time to clear the square.</p>
+      <p>Let&#x27;s solve it together, starting with the simplest clues. Clue 1 says Jasper was in the Jewel wing. Mark an O there. Clues 2, 3, 4 and 5 each rule out pairs directly. Mark an X for each one. Clue 6 says the suspect who is 60 years old was in the Dinosaur or Ocean wing, so no other wing is possible.</p>
+      <p>Clue 7 says the suspect who was in the Ocean wing is 50 years old. Mark an O there. Jasper was in the Jewel wing, so Jasper cannot go with any other wing, and no other suspect can go with Jewel. Each row and each column in a section has exactly one match, so everything else in that line is an X. The suspect who was in the Ocean wing is 50 years old, so Ocean cannot go with any other age, and no other wing can go with 50. 45 is the only age left for Jewel. Mark an O there. When only one square is left in a row or column, it must be the answer.</p>
+      <p>In the full experience, each finished section also reveals more of the scene. Stuck? Press Hint. The first hint shows you which clue to use, and names the trick that cracks it. Press Which cell? for the exact square, then Explain why for the full reasoning. It ends with a short lesson on how that trick works, so you can spot it yourself next time. You can even let it mark the square for you.</p>
+      <p>Press Check at any time to see whether any of your marks are wrong. Made a mistake? Undo and Redo take back any move, as many times as you like. Want a fresh start? Press Start over. It clears your marks and resets the timer, hints and checks. Your notes stay unless you choose to clear them, and Undo can bring everything back. Prefer words to grids? List view lets you choose each match from a menu. The game also works fully by keyboard and with a screen reader.</p>
+      <p>When you think you know, answer the questions under the clues, and press Check answers. Want to jot something down? Press My notes and type. Press Save to keep them, or Close to get back to the puzzle. Only you can see your notes, even in a race. Keep going the same way, clue by clue, until the whole grid is filled in. Case closed! Greta was in the Dinosaur wing. Caught on the loading dock, Greta hands back the Star of Cairo. You also see your time and a suggestion for your next puzzle.</p>
       <p>Every solve ends with a celebration, like confetti, fireworks, ribbons, balloons or shooting stars. Silent mode and your device&#x27;s reduce motion setting turn it off. Solving puzzles earns badges, like First case closed. Press Share my result to send friends a picture of your win. It never gives the answers away. Challenge a friend makes a link to this very puzzle, with your time to beat. Your friend needs no account, and you both see who was quicker.</p>
       <p>If you like, rate the puzzle from 1 to 5 stars, where 5 is excellent, and say whether it felt too easy, just right or too hard. It is optional. The game learns from your answers and tunes your next puzzle to suit you. You can print any puzzle, blank or with your marks, with the answer key on its own page. Your progress saves automatically. Come back any time and pick up where you left off, from Saved puzzles. My stats and badges, in the Menu, shows your totals, best times, favorite themes, your daily streak and every badge to earn.</p>
       <p>Press Help to see every keyboard shortcut. And Introduction, at the top of every page, plays this video again. Play in light or dark colors, or in high contrast. And Silent mode is always there when you just want the puzzle. To play without opening a browser, choose Install the app from the Menu. Download the Windows desktop app, which keeps itself up to date. Or add the game&#x27;s icon to your phone&#x27;s home screen. On your phone, the same menu shows you how. On a phone, pull down from the top of the page to refresh. Your progress is saved first.</p>
@@ -713,7 +756,7 @@
       <p>Your screen name now shows at the top. Play against others lets you race other players on the very same puzzle, and climb the scoreboard. To race, press Start a race. It uses the difficulty, theme and size you picked on the New puzzle screen. Share the race code or link with a friend. Or anyone can press Find a race to join an open race.</p>
       <p>Everyone gets the very same puzzle. The race bar shows the code, and Standings shows who is still solving. When you finish, you see your place. Fastest solve wins, and each hint adds time. The scoreboard ranks players this week and of all time. Every solve earns points, even when you play on your own. Press Scoring and race rules to see exactly how points are awarded.</p>
       <p>This week&#x27;s leaders are always in view at the top of the page. Select Scoreboard there to see the full board. To race one particular player, press Challenge a player and type their screen name. They see your challenge under Play against others, the next time they open the game. Accept starts the race on the very same puzzle. No thanks turns it down. Finally, make the game your own.</p>
-      <p>In Settings, sound effects and theme music start on, and you can turn either one off. Learn from how I play tunes your next puzzles to suit you. And play in your own language. US English is the default, and you can choose any of 100 languages under Language. The game translates itself as you play, and the English button at the top shows the original at any time. Have an idea for a story, or found a problem? Ideas and problems, in the menu, has a separate box for each, and they go straight to the game&#x27;s team. Signed in with a confirmed email? Leave Email me an update ticked. The game emails you a thank-you, and again when the team acts on it. Want an answer? Tick Let the team reply to me.</p>
+      <p>In Settings, sound effects and theme music start on, and you can turn either one off. Learn from how I play tunes your next puzzles to suit you. And play in your own language. US English is the default, and you can choose any of 100 languages under Language. The game translates itself as you play, and the English button at the top shows the original at any time. Have an idea for a story, or found a problem? Ideas and problems, in the menu, has a separate box for each, and they go straight to the game&#x27;s team. For a storyline idea, pick which theme it is for from the list. Signed in with a confirmed email? Leave Email me an update ticked. The game emails you a thank-you, and again when the team acts on it. Want an answer? Tick Let the team reply to me.</p>
       <p>When the team writes to you, or posts news, the Menu button shows a number. Messages, in the menu, has news from the game&#x27;s team for everyone. Signed in, you can write to the team with a question, an idea or a problem, and read their replies right here. Tick Email me, and you get a short email when the team writes back. Dream up a character of your own with Suggest a character, in the menu. Answer a few questions about their name, look, personality and voice. The game&#x27;s team reviews every suggestion, and you might meet yours in a puzzle.</p>
       <p>That&#x27;s all you need: read the story, follow the clues, and mark your X&#x27;s and O&#x27;s. Welcome to The Fantastical Logic Grid. Happy sleuthing!</p>
   </details>
@@ -729,7 +772,8 @@
   <div class="dlg-actions"><button class="btn" type="button" id="update-later">Later</button><button class="btn primary" type="button" id="update-install">Install and restart</button></div>
 </dialog>
 
-<dialog id="dlg-welcome" aria-labelledby="welcome-h">
+<dialog id="dlg-welcome" aria-labelledby="welcome-h" data-light-dismiss>
+  <button class="dlg-x" type="button" aria-label="Close" title="Close (Esc)"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
   <h2 id="welcome-h">Welcome, detective!</h2>
   <p>Never solved a logic grid puzzle? <b>How to play</b> teaches you step by step on real grids, with tips and tricks, in about 15 minutes.</p>
   <p>Or watch the <b>Introduction</b>, an 11-minute narrated video with captions, to see everything the game can do.</p>
@@ -821,7 +865,7 @@
   <h3>How points are awarded</h3>
   <p>Points = <b>difficulty base</b> × <b>size</b> × <b>speed</b> × <b>help</b>, rounded, and at least 1.</p>
   <ul>
-    <li><b>Difficulty base:</b> Basic 10, Easy 20, Medium 35, Hard 55, Expert 80, Quantum Physicist 110.</li>
+    <li><b>Difficulty base:</b> Basic 10, Easy 20, Medium 35, Hard 55, Expert 80, Quantum Physicist 110, Theoretical Physicist 165.</li>
     <li><b>Size:</b> bigger grids are worth more. A 3 × 4 grid counts as 1, a 4 × 4 grid as 1.4, a 6 × 7 grid as 3.9.</li>
     <li><b>Speed:</b> matching the usual time for the puzzle (shown on the New puzzle screen) counts as 1. Solving in under about half the usual time earns up to 1.5. Very slow solves still get at least 0.6.</li>
     <li><b>Help:</b> each hint takes away 15% and each check 5%, but you always keep at least a quarter of the points. Each step of a hint (the nudge, the clue, the cell) counts as one hint.</li>
@@ -836,6 +880,7 @@
       <tr><th scope="row">Hard 5 × 5</th><td>75 min</td><td>126</td><td>178</td><td>75</td></tr>
       <tr><th scope="row">Expert 5 × 6</th><td>2 h 10 min</td><td>219</td><td>310</td><td>131</td></tr>
       <tr><th scope="row">Quantum Physicist 6 × 7</th><td>5 h 9 min</td><td>430</td><td>609</td><td>258</td></tr>
+      <tr><th scope="row">Theoretical Physicist 6 × 7</th><td>7 h 43 min</td><td>646</td><td>913</td><td>387</td></tr>
     </tbody></table></div>
 
   <h3>Race rules</h3>
