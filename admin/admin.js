@@ -4,6 +4,7 @@
 // lives only in this tab (sessionStorage) and ends after 30 idle minutes.
 
 import { initPullRefresh } from './pull-refresh.js';
+import { readStoryline } from './storyline-parse.js';
 import { renderConnections } from './connections-view.js';
 import { takeOAuthReturn, finishOAuth } from './oauth.js';
 import { characterView } from './characters.js';
@@ -763,52 +764,48 @@ document.addEventListener('click', async (e) => {
   }
 });
 
-// Approve a storyline: the note and the first puzzle made with it. The player
-// gets one email (with the puzzle as a PDF and its answer key) only if they
-// ticked "Email me an update"; the puzzle waits in their game for 30 days.
+// A storyline (story idea): Approve or Disapprove, nothing to type. The player
+// gets one email only if they ticked "Email me an update": approved, a
+// congratulations with the first puzzle built from their storyline (a PDF with
+// its answer key; the puzzle also goes into their Saved puzzles); disapproved,
+// a thank-you for their input. The puzzle is built from the lists in the
+// storyline (storyline-parse.js), shown here before approving.
 function storyApproveHtml(i) {
   const id = Number(i.id);
-  return `<details class="story-approve"><summary>Approve storyline</summary>
-    <form class="stack" data-approve="${id}" novalidate>
-      ${i.meta.storyEmail
-    ? '<p class="muted">This player asked for an email. They get one email: your note, plus the puzzle below as a PDF with its answer key. The puzzle also waits in their game (Messages &gt; Puzzles for you) for 30 days.</p>'
-    : '<p class="muted">This player did not ask for an email (or was not signed in), so nothing is sent and no puzzle can be stored for them. Approving marks it addressed.</p>'}
-      <div class="field"><label for="ap-note-${id}">Note for the player (everyday words)</label><textarea id="ap-note-${id}" rows="3" maxlength="500"></textarea></div>
-      ${i.meta.storyEmail ? `<div class="field"><label for="ap-file-${id}">First puzzle made with this storyline</label><input type="file" id="ap-file-${id}" accept=".json,application/json">
-        <p class="muted">Make it in the game, then Saved puzzles &gt; Save to a file. Optional, but without it the email has no puzzle.</p></div>` : ''}
-      <p class="error" role="alert" hidden></p>
-      <div class="row"><button class="btn primary small" type="submit">Approve${i.meta.storyEmail ? ' and email' : ''}</button></div>
-    </form></details>`;
+  const read = readStoryline(i.text, i.meta.themeName || '');
+  const built = read.def
+    ? `<b>Puzzle:</b> built from ${esc(read.summary)}.`
+    : `<span class="badge warn">No puzzle</span> ${esc(read.reason)} Approving still sends the congratulations, without a puzzle.`;
+  const mail = i.meta.storyEmail
+    ? '<b>Approve:</b> they get a congratulations email with the puzzle (PDF and answer key), and it goes into their Saved puzzles. <b>Disapprove:</b> they get a thank-you for their input.'
+    : 'This player did not ask for an email, so nothing is sent either way.';
+  return `<p class="muted">${mail}${i.meta.storyEmail ? ` ${built}` : ''}</p>
+    <p class="error" role="alert" hidden data-story-error="${id}"></p>`;
 }
-document.addEventListener('submit', async (e) => {
-  const form = e.target.closest('form[data-approve]');
-  if (!form) return;
-  e.preventDefault();
-  const id = Number(form.dataset.approve);
-  const err = $('.error', form);
+const storyButtons = (id) => `<button class="btn primary small" type="button" data-story-act="approve" data-story="${Number(id)}">Approve</button>
+  <button class="btn small" type="button" data-story-act="decline" data-story="${Number(id)}">Disapprove</button>`;
+document.addEventListener('click', async (e) => {
+  const btn = e.target.closest('[data-story-act]');
+  if (!btn) return;
+  const id = Number(btn.dataset.story);
+  const approve = btn.dataset.storyAct === 'approve';
+  const err = $(`[data-story-error="${id}"]`);
   err.hidden = true;
-  const note = $(`#ap-note-${id}`).value.trim();
-  const fail = (t, el) => { err.textContent = t; err.hidden = false; el?.focus(); };
-  if (!note) return fail('Write a short note for the player.', $(`#ap-note-${id}`));
-  const tech = plainWords(note);
-  if (tech) return fail(tech, $(`#ap-note-${id}`));
-  const fileEl = $(`#ap-file-${id}`);
-  let puzzle = null;
-  if (fileEl && fileEl.files[0]) {
-    try {
-      if (fileEl.files[0].size > 450_000) throw new Error('big');
-      puzzle = JSON.parse(await fileEl.files[0].text());
-    } catch (ex) { return fail('That file could not be read as a puzzle file. Use a file saved from the game.', fileEl); }
-  }
-  const btn = $('button[type=submit]', form);
-  btn.disabled = true;
+  const buttons = [...document.querySelectorAll(`[data-story-act][data-story="${id}"]`)];
+  buttons.forEach((b) => { b.disabled = true; });
   try {
-    const r = await api(`feedback/${id}/approve`, { method: 'POST', body: { note, ...(puzzle ? { puzzle } : {}) } });
-    const words = `Storyline approved.${r.emailed ? ` One email goes out within 15 minutes${r.stored ? ', with the puzzle attached as a PDF. The puzzle is in their game for 30 days.' : ' (no puzzle attached).'}` : ' No email: the player did not ask for one.'}`;
+    const r = await api(`feedback/${id}/${approve ? 'approve' : 'decline'}`, { method: 'POST', body: {} });
+    const words = approve
+      ? `Storyline approved.${r.emailed ? ' Within 15 minutes the player gets the congratulations email with their puzzle, and the puzzle goes into their Saved puzzles.' : ' No email: the player did not ask for one.'}`
+      : `Storyline disapproved.${r.emailed ? ' The player gets a thank-you for their input within 15 minutes.' : ' No email: the player did not ask for one.'}`;
     toast(words);
     announce(words);
     show('communication', { keepFocus: true });
-  } catch (ex) { fail(ex.message); btn.disabled = false; }
+  } catch (ex) {
+    err.textContent = ex.message;
+    err.hidden = false;
+    buttons.forEach((b) => { b.disabled = false; });
+  }
 });
 
 function itemHtml(i) {
@@ -825,15 +822,17 @@ function itemHtml(i) {
   }
   if (i.type === 'idea' || i.type === 'problem') {
     const m = i.meta;
+    // A new storyline is decided with Approve or Disapprove (storyApproveHtml) instead of Mark addressed / Mark done.
+    const storyline = i.type === 'idea' && m.topic === 'story' && i.status === 'new' && can('moderator');
     return `<li>${type} ${state} <b>${esc(FB_TOPICS[m.topic] || m.topic)}</b>${m.themeName ? ` <span class="badge">Theme: ${esc(m.themeName)}</span>` : ''}
       <span class="muted">${when(i.at)} · ${esc(m.platform)} ${esc(m.version)}${m.conversationId ? ' · the player asked for a reply' : ''}</span>
       <p class="fb-text">${esc(i.text)}</p>
       ${i.status === 'addressed' && m.note ? `<p class="fb-note"><b>What we did:</b> ${esc(m.note)} <span class="muted">${when(m.doneAt)}</span></p>` : ''}
-      <div class="row">${m.conversationId ? `<button class="btn primary small" type="button" data-open="${m.conversationId}">Reply</button>` : ''}
-      ${i.status === 'new' ? `<button class="btn${m.conversationId ? '' : ' primary'} small" type="button" data-fb="${i.id}" data-status="addressed">Mark addressed</button>
+      ${storyline ? storyApproveHtml(i) : ''}<div class="row">${m.conversationId ? `<button class="btn primary small" type="button" data-open="${m.conversationId}">Reply</button>` : ''}
+      ${storyline ? storyButtons(i.id) : i.status === 'new' ? `<button class="btn${m.conversationId ? '' : ' primary'} small" type="button" data-fb="${i.id}" data-status="addressed">Mark addressed</button>
         <button class="btn small" type="button" data-fb="${i.id}" data-status="done">Mark done</button>` : `<button class="btn small" type="button" data-fb="${i.id}" data-status="new">Mark new</button>`}
       <button class="btn small" type="button" data-fb="${i.id}" data-status="delete">Delete</button></div>
-      ${i.report ? reportHtml(i.report) : ''}${i.type === 'idea' && m.topic === 'story' && i.status === 'new' && can('moderator') ? storyApproveHtml(i) : ''}</li>`;
+      ${i.report ? reportHtml(i.report) : ''}</li>`;
   }
   if (i.type === 'error') {
     const m = i.meta;
