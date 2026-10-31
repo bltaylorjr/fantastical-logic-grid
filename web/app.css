@@ -271,6 +271,11 @@ table.lg.fit th.colh div { max-height: 110px; }
 table.lg.fit td.c svg { width: calc(var(--cell) * .6); height: calc(var(--cell) * .6); }
 table.lg.fit td.c .warn-ico { font-size: 9px; }
 @media (max-width: 480px) { .grid-card { padding: 12px 8px; } }
+/* The legend's sample "?" */
+.sym-q { color: var(--error); font-weight: 700; }
+/* The player's own "?" reminder: red, in the top right corner. */
+/* It fills the top right quarter of the cell. */
+td.c .q-mark { position: absolute; top: 0; right: 0; width: 50%; height: 50%; display: flex; align-items: center; justify-content: center; font-size: calc(var(--cell) * 0.38); font-weight: 700; line-height: 1; color: var(--error); pointer-events: none; }
 td.c .warn-ico { position: absolute; top: 1px; right: 2px; font-size: 11px; line-height: 1; color: var(--error); }
 td.c.target { outline: 3px dashed var(--hint); outline-offset: -5px; }
 td.gap { border: 0; background: transparent; }
