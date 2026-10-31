@@ -288,9 +288,14 @@ function startAuth(signer) {
     const back = await syncNow(A.page);
     assert(back.state === 'synced', 'A syncs once back online');
     await syncNow(B.page);
-    const namesA = await savedNames(A.page);
+    // The saved list redraws after sync finishes (on a busy machine a moment later).
+    let namesA = await savedNames(A.page);
+    for (let i = 0; i < 20 && !namesA.includes(`${title} (from another device)`); i++) {
+      await A.page.waitForTimeout(250);
+      namesA = await savedNames(A.page);
+    }
     assert(namesA.includes(`${title} (from another device)`), `conflict keeps both copies of the progress (${namesA.join(', ')})`);
-    // The saved list redraws after sync finishes, so give B a moment to catch up.
+    // Give B the same moment to catch up.
     let namesB = await savedNames(B.page);
     for (let i = 0; i < 20 && JSON.stringify(namesA) !== JSON.stringify(namesB); i++) {
       await B.page.waitForTimeout(250);

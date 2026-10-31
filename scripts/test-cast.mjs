@@ -6,6 +6,8 @@ import { TOPICS } from '../engine/src/topics.js';
 import { KNOWN_NAMES, genderOf } from '../web/js/gender.js';
 import { PERSONALITIES, CAST_NAMES, KOKORO_BUNDLED, KOKORO_STAND_IN, MOODS, profileOf, personalityOf, sayingOf, moodOf, caughtLine } from '../web/js/castbook.js';
 import { GEMINI_VOICES } from '../server/src/voices.js';
+import { VOICES as CHARACTER_VOICES } from '../server/src/characters.js';
+import { readFileSync } from 'node:fs';
 import * as dicebear from '../web/vendor/dicebear/dicebear.js';
 
 let failed = 0;
@@ -100,6 +102,15 @@ for (const id of Object.keys(PERSONALITIES)) {
 }
 assert(sayingOf('Clara', 'clue', 3) === sayingOf('clara', 'clue', 3), 'lines are steady for a name');
 assert(personalityOf('Zoe Q') === personalityOf('Zoe Q'), 'typed names get a steady personality');
+
+// Characters made in the admin dashboard speak with server voices only if the
+// game knows their voice list (player error report: "GEMINI_F is not defined").
+{
+  const ai = readFileSync(new URL('../web/js/ai.js', import.meta.url), 'utf8');
+  const list = (name) => JSON.parse((ai.match(new RegExp(`const ${name} = (\\[[^\\]]*\\])`)) || [, 'null'])[1].replace(/'/g, '"'));
+  assert(JSON.stringify(list('GEMINI_F')) === JSON.stringify(CHARACTER_VOICES.gemini.f), 'the game knows the women\'s server voices characters can have');
+  assert(JSON.stringify(list('GEMINI_M')) === JSON.stringify(CHARACTER_VOICES.gemini.m), 'the game knows the men\'s server voices characters can have');
+}
 
 console.log(failed ? `${failed} cast check(s) failed.` : `Cast checks passed (${CAST_NAMES.size} characters, ${Object.keys(PERSONALITIES).length} personalities, ${lines} lines, ${words.length} grid items checked).`);
 process.exit(failed ? 1 : 0);

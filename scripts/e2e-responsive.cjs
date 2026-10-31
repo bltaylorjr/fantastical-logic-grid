@@ -4,6 +4,8 @@
 // page must not scroll sideways (the grid may scroll inside its own frame),
 // every button, field and grid cell must be at least 44 px, and on wide
 // screens the scene sits beside the story so the grid comes up into view.
+// On PCs and tablets on their side the grid's squares stay big, and on phones
+// the sticky app bar keeps to two short rows.
 // The Menu (with every item shown) must fit below the app bar, scroll inside
 // itself to its last item, and have a solid background.
 // SHOTS=<folder> saves a screenshot of each (CI keeps them as an artifact).
@@ -93,6 +95,14 @@ const inspect = () => {
       const g = await page.evaluate(() => { const f = document.querySelector('#gridframe'); return { over: f.scrollWidth - f.clientWidth, fit: !!f.querySelector('table.lg.fit'), cell: f.querySelector('td.c').getBoundingClientRect().width }; });
       assert(g.over <= 0, `${name}: the grid fits its frame's width, no sideways scrolling (${Math.round(g.cell)} px squares)`);
       if (!g.fit) assert(g.cell >= 44, `${name}: grid cells are ${Math.round(g.cell)} px`);
+      // PCs and tablets on their side: the grid gets the room it needs, so the
+      // squares stay big (a narrow grid column once shrank them to 12 px).
+      if (width >= 1024) assert(g.cell >= 36, `${name}: the grid's squares stay big on a wide screen (${Math.round(g.cell)} px)`);
+      // Phones: the sticky bar keeps to two short rows on a puzzle.
+      if (width >= 360 && width < 600 && height > 560) {
+        const bar = await page.evaluate(() => document.querySelector('.appbar').getBoundingClientRect().height);
+        assert(bar <= 132, `${name}: the app bar is two short rows on a puzzle (${Math.round(bar)} px)`);
+      }
       if (width >= 1100) {
         const top = await page.evaluate(() => document.querySelector('#grid-region').getBoundingClientRect().top + scrollY);
         const scene = await page.evaluate(() => { const s = document.querySelector('#scene').getBoundingClientRect(), t = document.querySelector('#story').getBoundingClientRect(); return { beside: s.left >= t.right, top: Math.abs(s.top - t.top) }; });
