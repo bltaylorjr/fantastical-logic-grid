@@ -209,6 +209,7 @@ uses a secret, variable or binding that is not listed there.
 | `ALLOWED_ORIGINS` | Worker variable (server/wrangler.toml [vars]) | The website and apps allowed to call the server. |
 | `SITE_URL` | Worker variable (server/wrangler.toml [vars]) | Value: `https://thelogicgrid.com` |
 | `WORKER_NAME` | Worker variable (server/wrangler.toml [vars]) | Only if the Worker is renamed (default flg-api); used for usage numbers. Optional. |
+| `SYNC_MAX_USER_CHARS` | Worker variable (server/wrangler.toml [vars]) | Only to change how much one account may keep in sync (default 20000000 characters, about 20 MB). Optional. |
 | `ASSETS` | Worker binding (server/wrangler.toml) | Serves these admin dashboard files. |
 
 **Settings:**
