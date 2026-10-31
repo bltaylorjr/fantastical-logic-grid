@@ -81,7 +81,9 @@ const CHARACTERS = {
     const moClues = await page.evaluate(() => Object.values(window.__flg.state.witness).filter((w) => w === 'Captain Mo').length);
     await page.click('#cast-row .cast-btn[data-who="Captain Mo"]');
     const bubble = await page.textContent('#bubble');
-    if (moClues) assert(bubble.includes('Mark my words, matey:'), 'Captain Mo says his own line before a clue');
+    // A clue still locked as picture evidence has no line yet, so only count the open ones.
+    const openClues = moClues - (bubble.match(/is locked evidence/g) || []).length;
+    if (openClues) assert(bubble.includes('Mark my words, matey:'), 'Captain Mo says his own line before a clue');
     else assert(bubble.includes('Captain Mo'), 'Captain Mo speaks in the bubble');
 
     // The hint comes with the narrator's line.

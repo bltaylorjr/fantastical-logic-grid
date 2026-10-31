@@ -16,7 +16,7 @@
 //   GET  /admin/v1/parts?status=       shared story parts; POST /admin/v1/parts/review
 //   GET  /admin/v1/workshop            Story workshop choices; POST .../draft (AI writer), .../add
 //   GET  /admin/v1/characters[/:id]    the Characters section; POST .../save, .../:id/(portrait|lines|publish|unpublish|delete) (characters.js)
-//   GET  /admin/v1/feedback?kind=&status=  ideas and problems from the game; POST .../:id (approved|declined|addressed + note|done|new|delete)
+//   GET  /admin/v1/feedback?kind=&status=&game=  ideas and problems from the game; POST .../:id (approved|declined|addressed + note|done|new|delete)
 //   GET  /admin/v1/feedback/queue      approved ideas and problems waiting for the weekly fix run (ids and topics only)
 //   POST /admin/v1/feedback/:id/approve  approve a storyline: addressed; the email sender builds its first puzzle, stores it for the player and emails "Congratulations" with it as a PDF
 //   POST /admin/v1/feedback/:id/decline  disapprove a storyline: done; the player gets a thank-you for their input
@@ -37,7 +37,7 @@
 //   GET/POST /admin/v1/settings        feature switches and limits (settings.js)
 //   GET  /admin/v1/number-place        Number Place games by level (number-place.js)
 //   GET/POST /admin/v1/announcements   messages in the game; POST .../:id/(end|delete)
-//   GET  /admin/v1/inbox?type=&status=&q=  Communication: messages, ideas, problems, errors and emails in one list (messages.js)
+//   GET  /admin/v1/inbox?type=&status=&q=&game=  Communication: messages, ideas, problems, errors and emails in one list (messages.js)
 //   GET  /admin/v1/conversations/:id   one conversation; POST .../:id/reply (with an optional puzzle file), .../:id/status (open|done|delete)
 //   POST /admin/v1/conversations/:id/puzzles/:pid/delete   remove a stored puzzle; GET /admin/v1/puzzle-storage  totals
 //   POST /admin/v1/conversations       write to one player first
@@ -85,7 +85,7 @@ import { TUNING_CACHE_KEY } from './learn.js';
 import { refreshSearch, searchSnapshots, lastTry, REFRESH_GAP_MS } from './search.js';
 import { workshopOptions, addPart, draftParts } from './workshop.js';
 import { characterRoutes, VOICES, VOICE_STYLES } from './characters.js';
-import { TOPICS as FEEDBACK_TOPICS } from './feedback.js';
+import { TOPICS as FEEDBACK_TOPICS, cleanGame } from './feedback.js';
 import { claimReplies, finishReplies, replyCounts, releaseUpdate, dropUpdate, deleteReplyStatements, heldStoryline, approveStoryline, declineStoryline, storeBuiltPuzzle } from './replies.js';
 import { inbox, INBOX_TYPES, conversationView, teamReply, removePuzzle, puzzleStorage, PUZZLE_MAX_CHARS, setConversationStatus, startConversation, listNews, addNews, endNews, deleteNews, deleteMessageStatements, MessageRefusal } from './messages.js';
 import { claimDailyEmail, finishDailyEmail } from './daily-email.js';
@@ -508,8 +508,9 @@ const ROUTES = [
   ['GET', /^feedback$/, 'moderator', 'feedback.view', async ({ env, url }) => {
     const kind = FEEDBACK_TOPICS[url.searchParams.get('kind')] ? url.searchParams.get('kind') : 'idea';
     const status = ['new', 'approved', 'addressed', 'done', 'all'].includes(url.searchParams.get('status')) ? url.searchParams.get('status') : 'new';
-    const { results } = await env.DB.prepare(`SELECT id, kind, topic, theme, text, platform, version, status, note, created_at AS createdAt, done_at AS doneAt FROM feedback
-      WHERE kind = ?1 AND (?2 = 'all' OR status = ?2) ORDER BY created_at DESC LIMIT 200`).bind(kind, status).all();
+    const game = url.searchParams.get('game') ? cleanGame(url.searchParams.get('game')) : null;
+    const { results } = await env.DB.prepare(`SELECT id, kind, game, topic, theme, text, platform, version, status, note, created_at AS createdAt, done_at AS doneAt FROM feedback
+      WHERE kind = ?1 AND (?2 = 'all' OR status = ?2) AND (?3 IS NULL OR game = ?3) ORDER BY created_at DESC LIMIT 200`).bind(kind, status, game).all();
     const counts = (await env.DB.prepare("SELECT kind, COUNT(*) AS n FROM feedback WHERE status = 'new' GROUP BY kind").all()).results;
     return { body: { kind, status, items: results, waiting: Object.fromEntries(counts.map((x) => [x.kind, x.n])), replies: await replyCounts(env) } };
   }],
@@ -568,7 +569,7 @@ const ROUTES = [
   // The approved queue, for the weekly improvement run (scripts/improve.mjs):
   // numbers and topics only, never what players wrote.
   ['GET', /^feedback\/queue$/, 'owner', 'feedback.queue', async ({ env }) => {
-    const { results } = await env.DB.prepare("SELECT id, kind, topic, approved_at AS approvedAt FROM feedback WHERE status = 'approved' ORDER BY approved_at LIMIT 200").all();
+    const { results } = await env.DB.prepare("SELECT id, kind, game, topic, approved_at AS approvedAt FROM feedback WHERE status = 'approved' ORDER BY approved_at LIMIT 200").all();
     return { body: { approved: results }, quiet: true };
   }],
 
@@ -741,8 +742,9 @@ const ROUTES = [
     const type = INBOX_TYPES.includes(url.searchParams.get('type')) ? url.searchParams.get('type') : 'all';
     const status = ['new', 'approved', 'addressed', 'done', 'all'].includes(url.searchParams.get('status')) ? url.searchParams.get('status') : 'new';
     const q = str(url.searchParams.get('q') || '', 100);
-    const body = await inbox(env, who.role, { type, status, q }, now);
-    return { body: { ...body, replies: await replyCounts(env) }, detail: { type, status } };
+    const game = url.searchParams.get('game') || 'all';
+    const body = await inbox(env, who.role, { type, status, q, game }, now);
+    return { body: { ...body, replies: await replyCounts(env) }, detail: { type, status, game: body.game } };
   }],
   ['GET', /^conversations\/(\d{1,12})$/, 'moderator', 'conversations.view', async ({ env, params: [id] }) => ({ body: await conversationView(env, Number(id)), target: id })],
   ['POST', /^conversations\/(\d{1,12})\/reply$/, 'moderator', 'conversations.reply', async ({ env, params: [id], body, who, now }) => {

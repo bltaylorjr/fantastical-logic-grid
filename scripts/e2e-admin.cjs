@@ -241,6 +241,18 @@ const SHOTS = process.env.SHOTS;
     await page.selectOption('#npset-np_max_level', 'expert');
     await page.click('button[data-np-save=np_max_level]');
     assert(await until('np_max_level', 'expert'), 'the hardest Number Place level is saved');
+    // Its own ideas and problems, kept apart from the Logic Grid's, and the learning pooled across games.
+    await db.prepare("INSERT INTO feedback (kind, topic, text, platform, version, game, created_at) VALUES ('idea', 'feature', 'Number Place needs a pencil mode for corners.', 'web', '1.14.0', 'number-place', ?1)").bind(Date.now()).run();
+    await page.click('a[href="#overview"]');
+    await page.click('a[href="#numberplace"]');
+    await page.waitForFunction(() => /Ideas and problems from Number Place/.test(document.querySelector('#np-body').textContent));
+    assert(/Learning from all games/.test(await page.textContent('#np-body')), 'the Number Place section shows its ideas and problems and the learning across games');
+    await page.click('#np-body [data-np-inbox]');
+    await page.waitForFunction(() => /pencil mode/.test(document.querySelector('#comm-list')?.textContent || ''));
+    assert((await page.inputValue('#comm-game')) === 'number-place' && !/clockwork|grid colors/i.test(await page.textContent('#comm-list')), 'Read them in Communication shows only Number Place\'s');
+    assert(await page.locator('#comm-list li .badge', { hasText: 'Number Place' }).count() >= 1, 'each one is labeled with its game');
+    await page.selectOption('#comm-game', 'all');
+    await db.prepare("DELETE FROM feedback WHERE game = 'number-place'").run();
     await page.click('a[href="#settings"]');
     await page.waitForSelector('#settings-body a[href="#connections"]');
     // The Connections and setup guide, from admin/connections.js, with live status.

@@ -1,7 +1,7 @@
 // Report a Problem: the button in the footer of every screen of the game and
 // every page of the website, and the error-tracking database behind it.
 //
-//   POST /v1/puzzle-report        { kind: puzzle|page, text, puzzle?, image?, page, screen, reply, platform, version }
+//   POST /v1/puzzle-report        { kind: puzzle|page, text, puzzle?, image?, page, screen, reply, platform, version, game }
 //                                 -> { tracking, category, reply, update }
 //   GET  /v1/repaired/:token      the repaired puzzle, for the link in the apology email
 //
@@ -10,7 +10,7 @@
 //   POST puzzle-reports/done      its findings, repairs and probe results (owner)
 //   GET  puzzle-reports/:id/puzzle    the reported puzzle as a file (moderator)
 //   POST puzzle-reports/:id/retry     check again with the newest engine (admin)
-//   GET  error-tracking?category=&status=&q=&before=   the Error tracking list (moderator)
+//   GET  error-tracking?category=&status=&game=&q=&before=   the Error tracking list (moderator)
 //   GET  error-tracking/:id       one report in full: storyline, picture, error, reason, correction (moderator)
 //   POST error-tracking/:id/done  the team has dealt with a report the doctor could not (moderator)
 //   POST error-tracking/close     a merged code fix closes reports by tracking id (owner; Report fixes Action)
@@ -37,7 +37,7 @@
 import { json, readText, TooLarge } from './http.js';
 import { getSettings } from './settings.js';
 import { queueReply, releaseRepair, releaseUpdate } from './replies.js';
-import { cleanText } from './feedback.js';
+import { cleanText, cleanGame } from './feedback.js';
 import { checkPuzzle } from './compete.js';
 
 const DAY = 24 * 3600_000;
@@ -125,8 +125,12 @@ async function postReport(req, env) {
   const text = cleanText(body?.text).slice(0, MAX_TEXT);
   if (text.length < 5) return json(req, env, { error: 'too_short', message: 'Tell us a little about the problem (at least 5 characters).' }, 400);
   const category = body.kind === 'page' ? 'webstructure' : 'puzzle';
-  const puzzle = category === 'puzzle' && body.puzzle ? readablePuzzle(body.puzzle) : null;
-  if (category === 'puzzle' && body.puzzle && !puzzle) return json(req, env, { error: 'bad_puzzle', message: 'This puzzle could not be attached to the report.' }, 400);
+  // game: which game it was sent from (feedback.js GAMES). The puzzle doctor
+  // only knows Logic Grid puzzles, so another game's Puzzle Problem is never
+  // given a puzzle to check: the team looks at it (status manual).
+  const game = cleanGame(body.game);
+  const puzzle = game === 'logic-grid' && category === 'puzzle' && body.puzzle ? readablePuzzle(body.puzzle) : null;
+  if (game === 'logic-grid' && category === 'puzzle' && body.puzzle && !puzzle) return json(req, env, { error: 'bad_puzzle', message: 'This puzzle could not be attached to the report.' }, 400);
   const page = plain(body.page ?? body.where, 200);
   if (!puzzle && !page) return json(req, env, { error: 'no_page', message: 'Say which page or puzzle the problem is on.' }, 400);
   const now = Date.now();
@@ -140,12 +144,12 @@ async function postReport(req, env) {
   const tracking = `${cat.prefix}-${randomCode(8)}`;
   const status = category === 'webstructure' ? 'page' : puzzle ? 'new' : 'manual';
   const related = await findRelated(env, category, page, version, now);
-  const fb = await env.DB.prepare("INSERT INTO feedback (kind, topic, text, platform, version, theme, created_at) VALUES ('problem', ?1, ?2, ?3, ?4, NULL, ?5) RETURNING id")
-    .bind(cat.topic, `[${tracking}] ${text}`, platform === 'site' ? 'web' : platform, version, now).first();
-  await env.DB.prepare(`INSERT INTO puzzle_reports (tracking, category, feedback_id, puzzle, image, title, tier, theme, size, page, screen, platform, version, text, status, related, created_at)
-    VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)`)
+  const fb = await env.DB.prepare("INSERT INTO feedback (kind, topic, text, platform, version, theme, game, created_at) VALUES ('problem', ?1, ?2, ?3, ?4, NULL, ?5, ?6) RETURNING id")
+    .bind(cat.topic, `[${tracking}] ${text}`, platform === 'site' ? 'web' : platform, version, game, now).first();
+  await env.DB.prepare(`INSERT INTO puzzle_reports (tracking, category, feedback_id, puzzle, image, title, tier, theme, size, page, screen, platform, version, text, status, related, game, created_at)
+    VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)`)
     .bind(tracking, category, fb.id, puzzle, p ? readableImage(body.image) : null, plain(p?.title, 120), plain(p?.difficulty?.id, 20), plain(p?.theme?.id, 40),
-      p ? `${p.categories.length}x${p.categories[0]?.items?.length || 0}` : '', page, screen, platform, version, text, status, JSON.stringify(related), now).run();
+      p ? `${p.categories.length}x${p.categories[0]?.items?.length || 0}` : '', page, screen, platform, version, text, status, JSON.stringify(related), game, now).run();
   await linkRelated(env, tracking, related);
   if (category === 'webstructure') await learnPage(env, page, version, tracking, now);
   let reply = 'none';
@@ -373,7 +377,7 @@ export async function reportsFor(env, feedbackIds) {
   return new Map(results.map((r) => [r.fid, { ...r, findings: parse(r.findings, []), related: parse(r.related, []) }]));
 }
 
-const SUMMARY = `id, tracking, category, title, tier, theme, size, page, platform, version, text, status, findings, note, strategy, related, engine,
+const SUMMARY = `id, tracking, category, game, title, tier, theme, size, page, platform, version, text, status, findings, note, strategy, related, engine,
   fixed_in AS fixedIn, created_at AS createdAt, checked_at AS checkedAt, repaired_at AS repairedAt, opened_at AS openedAt, (image IS NOT NULL) AS hasImage, (puzzle IS NOT NULL) AS hasPuzzle`;
 
 export async function errorList(env, url) {
@@ -381,12 +385,14 @@ export async function errorList(env, url) {
   const status = /^[a-z_]{2,12}$/.test(url.searchParams.get('status') || '') ? url.searchParams.get('status') : null;
   const q = plain(url.searchParams.get('q'), 60);
   const before = Number(url.searchParams.get('before')) || null;
+  const game = url.searchParams.get('game') ? cleanGame(url.searchParams.get('game')) : null;
   const like = q ? `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%` : null;
   const { results } = await env.DB.prepare(`SELECT ${SUMMARY} FROM puzzle_reports
     WHERE (?1 IS NULL OR category = ?1) AND (?2 IS NULL OR status = ?2) AND (?3 IS NULL OR id < ?3)
       AND (?4 IS NULL OR tracking LIKE ?4 ESCAPE '\\' OR title LIKE ?4 ESCAPE '\\' OR text LIKE ?4 ESCAPE '\\' OR page LIKE ?4 ESCAPE '\\')
-    ORDER BY id DESC LIMIT ?5`).bind(category, status, before, like, LIST_MAX).all();
-  const { results: counts } = await env.DB.prepare('SELECT category, status, COUNT(*) AS n FROM puzzle_reports GROUP BY category, status').all();
+      AND (?6 IS NULL OR game = ?6)
+    ORDER BY id DESC LIMIT ?5`).bind(category, status, before, like, LIST_MAX, game).all();
+  const { results: counts } = await env.DB.prepare('SELECT category, status, COUNT(*) AS n FROM puzzle_reports WHERE (?1 IS NULL OR game = ?1) GROUP BY category, status').bind(game).all();
   return {
     reports: results.map((r) => ({ ...r, findings: parse(r.findings, []), related: parse(r.related, []), hasImage: !!r.hasImage, hasPuzzle: !!r.hasPuzzle })),
     counts, more: results.length === LIST_MAX ? results[results.length - 1].id : null,

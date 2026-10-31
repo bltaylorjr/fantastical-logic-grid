@@ -1,7 +1,11 @@
 // The game's "Ideas and problems" boxes: two separate forms, one for story
 // and other ideas and one for problems a player wants to report.
 //
-//   POST /v1/feedback   { kind: idea|problem, topic, text, platform, version, reply, talk, theme }
+//   POST /v1/feedback   { kind: idea|problem, topic, text, platform, version, reply, talk, theme, game }
+//
+// game: which game the player sent it from (GAMES below; anything else counts
+// as The Fantastical Logic Grid). Each game's ideas and problems are kept
+// apart so the admin dashboard can show them separately.
 //
 // theme: for a storyline idea, the engine theme id the player picked it for
 // (optional; anything else is dropped).
@@ -30,6 +34,9 @@ export const TOPICS = {
 const THEME_IDS = new Set(THEMES.map((t) => t.id));
 export const themeName = (id) => (THEMES.find((t) => t.id === id) || {}).name || id || '';
 const PLATFORMS = new Set(['web', 'desktop', 'android', 'ios']);
+// The games a message can come from, and their names in the dashboard.
+export const GAMES = { 'logic-grid': 'The Fantastical Logic Grid', 'number-place': 'Number Place' };
+export const cleanGame = (g) => (Object.hasOwn(GAMES, g) ? g : 'logic-grid');
 const MAX_NEW_PER_DAY = 500;
 
 async function sha256(text) {
@@ -55,7 +62,9 @@ async function postFeedback(req, env, ctx) {
   const kind = TOPICS[body?.kind] ? body.kind : null;
   if (!kind) return json(req, env, { error: 'bad_request' }, 400);
   const topic = TOPICS[kind].includes(body.topic) ? body.topic : 'other';
-  const theme = kind === 'idea' && topic === 'story' && THEME_IDS.has(body.theme) ? body.theme : null;
+  const game = cleanGame(body.game);
+  // The theme list is the Logic Grid's, so only its storyline ideas keep one.
+  const theme = game === 'logic-grid' && kind === 'idea' && topic === 'story' && THEME_IDS.has(body.theme) ? body.theme : null;
   const text = cleanText(body.text);
   if (text.length < 5) return json(req, env, { error: 'too_short', message: 'Write a little more (at least 5 characters).' }, 400);
   const platform = PLATFORMS.has(body.platform) ? body.platform : 'web';
@@ -63,9 +72,9 @@ async function postFeedback(req, env, ctx) {
   const since = Date.now() - 24 * 3600_000;
   const { n } = await env.DB.prepare('SELECT COUNT(*) AS n FROM feedback WHERE created_at > ?1').bind(since).first();
   if (n >= MAX_NEW_PER_DAY) return json(req, env, { error: 'busy', message: 'The boxes are full for today. Please try again tomorrow.' }, 429);
-  const row = await env.DB.prepare('INSERT INTO feedback (kind, topic, text, platform, version, theme, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7) RETURNING id')
-    .bind(kind, topic, text, platform, version, theme, Date.now()).first();
-  await alert(env, ctx, { category: 'messages', title: kind === 'problem' ? 'New problem report' : 'New idea', body: text.slice(0, 160), link: 'communication' });
+  const row = await env.DB.prepare('INSERT INTO feedback (kind, topic, text, platform, version, theme, game, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8) RETURNING id')
+    .bind(kind, topic, text, platform, version, theme, game, Date.now()).first();
+  await alert(env, ctx, { category: 'messages', title: `${kind === 'problem' ? 'New problem report' : 'New idea'}${game === 'logic-grid' ? '' : ` (${GAMES[game]})`}`, body: text.slice(0, 160), link: 'communication' });
   let reply = 'none';
   let update = false;
   try { ({ reply, update } = await queueReply(req, env, kind, body.reply === true, text, row.id, Date.now(), { topic })); } catch (e) { console.error(e); reply = 'error'; }

@@ -1,7 +1,8 @@
 // Number Place in the game: the small menu link opens its own screen, a puzzle
 // can be played and solved there, the Logic Grid's keys and saves are left
 // alone, and leaving and coming back keeps the puzzle. Only anonymous play
-// data is shared, in the learning service's shape.
+// data is shared, in the learning service's shape. Ideas and problem reports
+// sent from its screen are marked as Number Place's.
 const { chromium } = require('playwright');
 const { spawn } = require('child_process');
 const path = require('path');
@@ -89,6 +90,55 @@ const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`o
     await page.click('#gen-btn');
     await page.waitForSelector('#screen-play:not([hidden])', { timeout: 30000 });
     assert(await page.locator('#screen-np').isHidden(), 'the Logic Grid plays on its own screen again');
+
+    // Ideas and Report a Problem sent from the Number Place screen say so,
+    // so each game's are kept apart. (A second tab, with the game's service
+    // pointed at a stand-in that records what is sent.)
+    const sent = [];
+    const F = await (await browser.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' })).newPage();
+    await F.addInitScript(() => localStorage.setItem('flg.settings', JSON.stringify({ introOffered: true, sound: false })));
+    F.on('pageerror', (e) => errors.push(String(e)));
+    await F.route('**/js/cloud-config.js', async (r) => {
+      const body = (await (await r.fetch()).text()).replace(/learnUrl:\s*(""|'')/, 'learnUrl:"http://localhost:8139"');
+      r.fulfill({ contentType: 'text/javascript', body });
+    });
+    await F.route('http://localhost:8139/**', (r) => {
+      const req = r.request();
+      if (req.method() === 'POST') sent.push({ path: new URL(req.url()).pathname, body: JSON.parse(req.postData() || '{}') });
+      r.fulfill({ contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type, Authorization', 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS' }, body: JSON.stringify(/puzzle-report/.test(req.url()) ? { ok: true, tracking: 'PZ-TEST2345', category: 'puzzle', reply: 'none' } : { ok: true }) });
+    });
+    await F.goto('http://localhost:8136/');
+    await F.waitForSelector('#tier-choices input');
+    await F.click('#menu-btn');
+    await F.click('[data-cmd=numberplace]');
+    await F.waitForSelector('#screen-np:not([hidden])');
+    await F.click('#report-problem');
+    await F.waitForSelector('#dlg-report[open]');
+    assert(await F.isChecked('input[name=report-kind][value=puzzle]') && /Number Place puzzle/.test(await F.textContent('#report-about')), 'Report a Problem on Number Place starts as a Number Place puzzle problem');
+    await F.fill('#report-text', 'The hard puzzle had two answers.');
+    await F.click('#report-form button[type=submit]');
+    await F.waitForFunction(() => /PZ-TEST2345/.test(document.querySelector('#report-done').textContent));
+    const report = sent.find((x) => x.path === '/v1/puzzle-report');
+    assert(report && report.body.game === 'number-place' && !report.body.puzzle && report.body.where === 'Number Place screen', 'the report is marked as Number Place\'s, with no Logic Grid puzzle');
+    await F.click('#dlg-report [data-close]');
+    await F.click('#menu-btn');
+    await F.click('#app-menu [data-cmd=feedback]');
+    await F.waitForSelector('#dlg-feedback[open]');
+    assert(await F.isVisible('#feedback-game') && await F.isHidden('#idea-theme-field'), 'the idea box says it is for Number Place and hides the Logic Grid themes');
+    await F.fill('#idea-text', 'A daily puzzle with a picture inside the numbers.');
+    await F.click('#idea-form button[type=submit]');
+    await F.waitForFunction(() => /idea was sent/.test(document.querySelector('#idea-form .acct-done').textContent));
+    const idea = sent.find((x) => x.path === '/v1/feedback');
+    assert(idea && idea.body.game === 'number-place' && idea.body.theme === undefined, 'the idea is marked as Number Place\'s');
+    await F.click('#dlg-feedback [data-close]');
+    await F.click('#np-back');
+    await F.click('#report-problem');
+    await F.waitForSelector('#dlg-report[open]');
+    await F.fill('#report-text', 'The home screen looks squashed.');
+    await F.click('#report-form button[type=submit]');
+    await F.waitForFunction(() => /PZ-TEST2345/.test(document.querySelector('#report-done').textContent));
+    assert(sent.filter((x) => x.path === '/v1/puzzle-report')[1].body.game === 'logic-grid', 'back on the Logic Grid, reports are the Logic Grid\'s');
+    await F.close();
 
     assert(!errors.length, `no page errors (${errors.join(' | ')})`);
     console.log('Number Place in the game: all checks passed');
