@@ -566,6 +566,11 @@ button.game-card:active { transform: translateY(1px) scale(.99); }
 .game-play { justify-self: start; margin-top: 8px; font-weight: 700; color: var(--accent); }
 .game-cards > li { display: grid; gap: 8px; align-content: start; }
 .game-modes { list-style: none; margin: 0; padding: 0 4px; display: flex; flex-wrap: wrap; gap: 6px; }
+.game-watch { justify-self: start; margin: 0 4px; }
+.game-watch::before { content: "\25B6"; font-size: .8em; margin-right: .45em; }
+.hero-cta { margin: 14px 0 0; }
+.hero-cta .ico { width: 1.2em; height: 1.2em; margin-right: .4em; vertical-align: -.2em; }
+#game-video { display: block; width: min(100%, calc((100vh - 260px) * 16 / 9)); min-width: min(100%, 280px); margin: 0 auto; aspect-ratio: 16 / 9; background: #000; border-radius: 8px; }
 /* Wide screens: the games to play side by side, the ones to come smaller below. */
 @media (min-width: 900px) {
   .game-cards { grid-template-columns: repeat(6, minmax(0, 1fr)); }

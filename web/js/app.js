@@ -2830,8 +2830,24 @@ function renderGameCards() {
   games.renderCards($('#game-cards'), {
     available: (id) => id !== 'ninetimesnine' || numberPlace.enabled(),
     onOpen: (id, mode) => openFromCard(id, mode),
+    onWatch: (video, title) => openGameVideo(video, title),
   });
 }
+// A game card's video (or The Logic Grid intro) in the shared player.
+function openGameVideo(video, title) {
+  const v = $('#game-video');
+  $('#game-video-h').textContent = title;
+  v.poster = `media/games/${video}.jpg`;
+  v.replaceChildren(Object.assign(document.createElement('source'), { src: `media/games/${video}.mp4`, type: 'video/mp4' }),
+    Object.assign(document.createElement('track'), { kind: 'captions', srclang: 'en', label: 'English', src: `media/games/${video}.vtt` }));
+  v.load();
+  try { ai.stopSpeaking(); } catch (e) { /* ignore */ }
+  openDialog($('#dlg-game-video'), v);
+  v.play().catch(() => { /* the player's own Play button */ });
+}
+$('#games-intro-btn').onclick = () => openGameVideo('the-logic-grid', 'Introducing The Logic Grid');
+$('#game-video-close').onclick = () => $('#dlg-game-video').close();
+$('#dlg-game-video').addEventListener('close', () => $('#game-video').pause());
 async function openFromCard(id, mode = null) {
   if (id === 'ninetimesnine') { openNumberPlace(mode); return; }
   await goHome();
