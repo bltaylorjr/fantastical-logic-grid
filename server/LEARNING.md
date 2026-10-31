@@ -21,8 +21,9 @@ own device until the next day. Nothing is charged.
 
 After a puzzle is finished (or a player gives up and deletes it), the game sends:
 level, theme, grid size, clue types, how tough the puzzle was, time, hints, mistakes,
-the star rating and "too easy / just right / too hard" tap, and which story parts the
-story used.
+the star rating and "too easy / just right / too hard" tap, which story parts the
+story used, the color look on screen (light, dark or high contrast) and what happened
+to the picture clue (none, turned off, left unsolved or solved).
 
 It never sends a name, email, account, saved puzzles, AI keys or a device id. The
 server never stores IP addresses: rate limits use a one-way hash that Cloudflare's

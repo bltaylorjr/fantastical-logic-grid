@@ -46,6 +46,9 @@ export const LIMITS = {
   clue: [0.75, 1.4],     // clue type weights
   clueStep: 0.15,
   speedDrop: 0.05,       // Lighthouse speed drop that counts as a regression
+  minLookGames: 20,      // games in a color look or picture-clue group before it is compared
+  lookGap: 0.15,         // how much higher a group's give-up rate must be to count
+  picturesOff: 0.3,      // share of games with picture clues turned off that is worth a look
 };
 
 // ------------------------------------------------------------------ gather
@@ -149,6 +152,48 @@ export function readLighthouse(dir) {
   return nights.sort((a, b) => String(a.at).localeCompare(String(b.at)));
 }
 
+// ------------------------------------------------------------------ looks
+// Compares how games go in each color look (light, dark, high contrast) and
+// with or without the picture clue. Report only: nothing here changes the
+// game by itself, because a look is a taste call for the owner.
+const PIC_NAME = { none: 'no picture clue', off: 'picture clues turned off', locked: 'the picture left unsolved', solved: 'the picture solved' };
+const LOOK_NAME = { light: 'the light look', dark: 'the dark look', contrast: 'the high-contrast look' };
+export function lookFindings(quality, add) {
+  const pics = quality?.pictures || [];
+  const looks = quality?.looks || [];
+  const total = (gs) => gs.reduce((n, g) => n + (g.games || 0), 0);
+  const allQuit = (gs) => { const n = total(gs); return n ? gs.reduce((q, g) => q + (g.quitRate || 0) * g.games, 0) / n : 0; };
+  const big = (g) => g && g.games >= LIMITS.minLookGames;
+
+  const picGames = total(pics);
+  if (picGames >= LIMITS.minLookGames) {
+    const parts = pics.map((g) => `${pct(g.games / picGames)} ${PIC_NAME[g.id] || g.id}`).join(', ');
+    add({ area: 'looks', priority: 15, text: `Picture clues over ${picGames} games: ${parts}.`, action: '' });
+    const off = pics.find((g) => g.id === 'off');
+    if (off && off.games / picGames >= LIMITS.picturesOff) add({ area: 'looks', priority: 45, forClaude: true,
+      text: `${pct(off.games / picGames)} of games had picture clues turned off (${off.games} of ${picGames}).`,
+      action: 'Find out why: check the picture puzzle on a phone-sized screen, its size at each level and how clear the first-time explanation is. Ask Bobby before making picture clues smaller or rarer.' });
+    const solved = pics.find((g) => g.id === 'solved'), locked = pics.find((g) => g.id === 'locked');
+    if (big(solved) && big(locked) && (locked.quitRate || 0) - (solved.quitRate || 0) >= LIMITS.lookGap) add({ area: 'looks', priority: 40,
+      text: `Players who leave the picture unsolved give up more: ${pct(locked.quitRate)} versus ${pct(solved.quitRate)} when they solve it.`,
+      action: 'The locked clue may be one players need: check the hint points to the picture early enough.' });
+    if (big(solved) && solved.rated >= LIMITS.minLookGames / 2 && big(off) && off.rated >= LIMITS.minLookGames / 2 && solved.rating != null && off.rating != null && Math.abs(solved.rating - off.rating) >= 0.4) add({ area: 'looks', priority: 30,
+      text: `Games with the picture solved average ${solved.rating} stars; with picture clues off, ${off.rating}.`,
+      action: solved.rating > off.rating ? 'Picture clues look like a plus: keep them on for everyone.' : 'Picture clues may be pulling ratings down: look at their size and difficulty with Bobby.' });
+  }
+
+  const lookGames = total(looks);
+  if (lookGames >= LIMITS.minLookGames) {
+    const overall = allQuit(looks);
+    for (const g of looks) {
+      if (!big(g) || (g.quitRate || 0) - overall < LIMITS.lookGap) continue;
+      add({ area: 'looks', priority: 42, forClaude: true,
+        text: `Players on ${LOOK_NAME[g.id] || g.id} give up more: ${pct(g.quitRate)} versus ${pct(overall)} overall (${g.games} games).`,
+        action: 'Check that look for hard-to-read text, marks or clue colors (contrast of at least 4.5 to 1) on the grid, clues and picture clue.' });
+    }
+  }
+}
+
 // ------------------------------------------------------------------ analyze
 const median = (xs) => { const s = xs.filter((x) => x != null).sort((a, b) => a - b); return s.length ? s[Math.floor((s.length - 1) / 2)] : null; };
 
@@ -169,6 +214,9 @@ export async function analyze(s, { today, current, engine }) {
       action: q.issues.some((i) => i.code === 'hard' || i.code === 'quit') ? 'Check its clues read clearly and the hints help; the shared learning already eases it for players.' : q.issues.some((i) => i.code === 'easy') ? 'The shared learning already makes it tougher within the level; consider a bigger default size.' : 'Look at its stories.',
       forClaude: q.issues.some((i) => i.code === 'rating') });
   }
+
+  // Color looks and picture clues (report.js quality(): looks, pictures).
+  lookFindings(s.quality, add);
 
   // The daily puzzle.
   const daily = (s.ratingsMode?.groups || []).find((g) => g.id === 'daily');
@@ -291,7 +339,7 @@ export async function analyze(s, { today, current, engine }) {
 }
 
 // ------------------------------------------------------------------ outputs
-const AREA = { game: 'Game', daily: 'Daily puzzle', stories: 'Stories', players: 'Players', limits: 'Free limits', speed: 'Speed', seo: 'Search (SEO)', site: 'Website' };
+const AREA = { game: 'Game', looks: 'Looks and picture clues', daily: 'Daily puzzle', stories: 'Stories', players: 'Players', limits: 'Free limits', speed: 'Speed', seo: 'Search (SEO)', site: 'Website' };
 
 export function renderReport(r, { runUrl = '' } = {}) {
   const out = [`Weekly improvement report for ${r.today}${runUrl ? ` ([run](${runUrl}))` : ''}. Counts and rates only, never player text.`, ''];
