@@ -91,6 +91,7 @@
       <p class="eyebrow">Puzzle games</p>
       <h1 class="hero-title" id="games-h">The Logic Grid</h1>
       <p class="hero-tag">Every puzzle has exactly one answer you can reach without guessing. Choose a game.</p>
+      <p class="hero-cta"><button class="btn" type="button" id="games-intro-btn" data-video="the-logic-grid"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M10 8.5v7l6-3.5z" fill="currentColor"/></svg>Watch the intro</button></p>
     </div>
   </section>
   <h2 class="sr-only" id="games-list-h">Games</h2>
@@ -828,6 +829,14 @@
     <button class="btn primary" type="button" id="idle-stay">Keep playing</button>
     <button class="btn" type="button" id="idle-out">Sign out now</button>
   </div>
+</dialog>
+
+<!-- The game cards' videos (games.js): one player for all of them, in the test build only. -->
+<dialog id="dlg-game-video" class="wide" aria-labelledby="game-video-h" data-light-dismiss>
+  <h2 id="game-video-h">Video</h2>
+  <video id="game-video" controls preload="none" playsinline aria-describedby="game-video-note"></video>
+  <p class="muted" id="game-video-note">The words on screen are part of the video, so it works with the sound off.</p>
+  <div class="dlg-actions"><button class="btn primary" type="button" id="game-video-close">Close</button></div>
 </dialog>
 
 <dialog id="dlg-video" class="wide" aria-labelledby="video-h" data-light-dismiss>

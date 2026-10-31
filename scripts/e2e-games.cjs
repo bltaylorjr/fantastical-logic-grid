@@ -78,6 +78,18 @@ const PREVIEW = /CODE_HASH = '([0-9a-f]{64})'/.exec(require('fs').readFileSync(p
     await page.click('#np-back');
     await page.waitForSelector('#screen-games:not([hidden])');
 
+    // Each game has a video, and The Logic Grid has its own intro.
+    assert(await page.locator('.game-watch').count() === 5 && await page.locator('#games-intro-btn').isVisible(), 'every game card has a video, and so does The Logic Grid');
+    await page.click('.game-watch[data-video=cage-math]');
+    await page.waitForSelector('#dlg-game-video[open]');
+    const vid = await page.evaluate(() => ({ src: document.querySelector('#game-video source').getAttribute('src'), track: document.querySelector('#game-video track').getAttribute('src'), h: document.querySelector('#game-video-h').textContent }));
+    assert(vid.src === 'media/games/cage-math.mp4' && vid.track === 'media/games/cage-math.vtt' && /Cage Math/.test(vid.h), 'a coming-soon card plays the video explaining its idea');
+    const files = await page.evaluate(async () => Promise.all(['the-logic-grid', 'fantastical-logic-grid', 'ninetimesnine', 'cage-math', 'sum-cross', 'picture-grid'].flatMap((n) => ['mp4', 'vtt', 'jpg'].map((x) => fetch(`media/games/${n}.${x}`, { method: 'HEAD' }).then((r) => r.ok)))));
+    assert(files.every(Boolean), 'every video, its captions and its poster are there');
+    await page.click('#game-video-close');
+    await page.waitForFunction(() => !document.querySelector('#dlg-game-video').open && document.querySelector('#game-video').paused);
+    assert(true, 'closing the video stops it');
+
     // Everyone else sees The Fantastical Logic Grid alone.
     const pub = await browser.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' });
     const pp = await pub.newPage();
