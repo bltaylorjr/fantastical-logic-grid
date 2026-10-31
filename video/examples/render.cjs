@@ -74,7 +74,7 @@ async function face(ex) {
         window.__ex = { m, blob, points, env, canvas, out };
         return { frames: env ? env.length : 0 };
       }, { pic: picture.toString('base64'), snd: wav.toString('base64'), ex, W, FACE_H, H });
-      if (ready.error) throw new Error(`${ex.name}: ${ready.error}`);
+      if (ready.error) { console.error(`${ex.name}: ${ready.error}`); await ctx.close(); continue; }
       const speech = ready.frames / 60;
       const total = LEAD + speech + TAIL;
       await page.evaluate(async ({ ex, LEAD, speech }) => {

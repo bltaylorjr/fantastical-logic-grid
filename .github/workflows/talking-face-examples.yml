@@ -10,7 +10,7 @@ on:
       - 'video/examples/**'
       - '.github/workflows/talking-face-examples.yml'
 permissions:
-  contents: read
+  contents: write
 jobs:
   examples:
     runs-on: ubuntu-latest
@@ -52,3 +52,13 @@ jobs:
             video/examples/out/*.mp4
             video/examples/out/*.jpg
           retention-days: 30
+      # Kept on the branch too, for whoever can't download Actions files.
+      - name: Keep the clips on the branch
+        if: always() && github.event_name == 'push' && github.ref_name != 'main'
+        run: |
+          mkdir -p video/examples/clips
+          cp video/examples/out/*.mp4 video/examples/out/*.jpg video/examples/clips/ 2>/dev/null || true
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add video/examples/clips
+          git commit -m 'Talking face example clips [skip ci]' && git push || true
