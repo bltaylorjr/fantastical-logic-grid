@@ -1220,12 +1220,12 @@ html.silent .talker { display: none !important; }
 }
 @media (max-width: 599px) {
   /* Phones: the sticky bar keeps to two short rows so the puzzle gets the screen.
-     Back and the logo shrink to icons (the words stay for screen readers),
-     and on a puzzle the logo steps aside because Back goes home too. */
+     Back and the logo shrink to icons (the words stay for screen readers). */
   .appbar { gap: 6px; padding-left: max(8px, env(safe-area-inset-left)); padding-right: max(8px, env(safe-area-inset-right)); }
   .back-btn { min-width: 44px; justify-content: center; padding: 0 10px; }
   .back-btn .back-text { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
-  body:has(#back-btn:not([hidden])) .appbar > .brand { display: none; }
+  body:has(#back-btn:not([hidden])) .appbar > .brand { flex: none; }
+  body:has(#back-btn:not([hidden])) .brand > span { display: none; }
   .appbar-actions { gap: 4px; margin-left: auto; }
   .appbar-actions .btn { padding-left: 10px; padding-right: 10px; }
   .mode-switch button { padding: 0 8px; font-size: .85rem; }
@@ -1235,7 +1235,8 @@ html.silent .talker { display: none !important; }
 @media (max-width: 479px) {
   .brand > span { display: none; }
 }
-@media (max-width: 359px) {
-  .appbar-actions .btn { padding-left: 8px; padding-right: 8px; }
+@media (max-width: 389px) {
+  .appbar { gap: 4px; }
+  .appbar-actions .btn { padding-left: 6px; padding-right: 6px; }
   .mode-switch button { padding: 0 6px; font-size: .8rem; }
 }
