@@ -345,25 +345,6 @@ const CSS = `
     await scrollTo('#read-clues'); await hl(['#read-clues']);
     await scene('read-clues', ['To hear every clue in order, press Read the clues aloud.', 'Each character tells their own clue, and the clue being read lights up.']);
     await clearFx();
-    // Talking faces (talker.js): shown as they look while a voice reads, since
-    // the recording has no voices or AI pictures.
-    const talked = await p.evaluate((who) => {
-      const box = document.querySelector('#talker');
-      const face = document.querySelector(`.cast-btn[data-who="${CSS.escape(who)}"] svg, .cast-btn[data-who="${CSS.escape(who)}"] img`);
-      if (!box || !face) return false;
-      box.querySelector('.talker-still').innerHTML = face.outerHTML;
-      box.querySelector('canvas').hidden = true;
-      box.querySelector('.talker-name').textContent = who;
-      box.classList.add('speaking');
-      box.hidden = false;
-      return true;
-    }, who);
-    if (talked) {
-      await hl(['#talker']);
-      await scene('talking-face', ['While a voice reads, the character who is speaking appears in the corner.', 'When AI pictures are on, they get a lifelike face, and their lips move with their words.', 'They act the part too: a nervous witness fidgets, a cheerful one smiles, and a caught culprit hangs their head.', 'You can turn Talking faces off in Settings.']);
-      await clearFx();
-      await p.evaluate(() => { const box = document.querySelector('#talker'); box.hidden = true; box.classList.remove('speaking'); });
-    }
 
     // =================== The grid
     await gridView();

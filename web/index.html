@@ -16,8 +16,6 @@
 <script>
   // Apply the saved color theme before first paint.
   try { const s = JSON.parse(localStorage.getItem('flg.settings') || '{}'); if (s.colorTheme && s.colorTheme !== 'system') document.documentElement.dataset.theme = s.colorTheme; } catch (e) {}
-  // Basic look (the first version's layout and colors) if the player picked it; Interactive otherwise.
-  try { if (localStorage.getItem('flg.look') === 'basic') document.documentElement.dataset.look = 'basic'; } catch (e) {}
   // The full Logic Grid package is in private testing (js/package-preview.js):
   // on a tester's device it opens on the game cards unless the player was last
   // in The Fantastical Logic Grid. Everyone else gets The Fantastical Logic Grid.
@@ -38,7 +36,6 @@
     <span id="brand-name">The Fantastical Logic Grid</span>
   </button>
   <div class="appbar-actions">
-    <div class="mode-switch" id="mode-switch" role="group" aria-label="Look"><button type="button" data-look="basic" aria-pressed="false">Basic</button><button type="button" data-look="interactive" aria-pressed="true">Interactive</button></div>
     <!-- Website only: build.mjs shows it in dist/site (not the desktop app or game portals). -->
     <a class="btn quiet educators-link" id="educators-link" href="educators/" hidden>For educators</a>
     <button class="btn quiet player-chip" type="button" id="player-chip" hidden><span class="sr-only">Playing as </span><span id="player-chip-name" translate="no">Guest</span></button>
@@ -363,12 +360,6 @@
       <button class="btn" type="button" id="back-saved">Saved Puzzles</button>
     </div>
   </section>
-  <!-- The talking face of whoever is speaking (talker.js). Pictures only:
-       their words are already on the screen. -->
-  <aside class="talker" id="talker" aria-hidden="true" hidden>
-    <div class="talker-frame"><canvas width="320" height="400"></canvas><div class="talker-still"></div></div>
-    <p class="talker-name"></p>
-  </aside>
 </main>
 
 <!-- ============ NINETIMESNINE: the numbers game (modules/number-place) ============ -->
@@ -571,7 +562,6 @@
         <label class="check"><input type="checkbox" name="music"> Theme music</label>
         <div class="field"><label for="musicVolume">Music volume</label><input type="range" id="musicVolume" name="musicVolume" min="0" max="100" step="5"></div>
       </div>
-      <label class="check" id="talking-faces-row"><input type="checkbox" name="talkingFaces"> Talking faces: the character who is speaking appears, and their lips move with their voice</label>
       <p class="help">The Sound button at the top of a puzzle turns all sound off and on in one tap.</p>
     </fieldset>
     <fieldset><legend>Colors</legend>
@@ -596,9 +586,6 @@
     <details class="more" id="more-settings">
       <summary>More play settings</summary>
       <fieldset><legend class="sr-only">Play</legend>
-        <label class="check"><input type="checkbox" name="pictureClues" aria-describedby="pictureclues-help"> Picture clues: one clue starts locked behind a small picture puzzle</label>
-        <p class="help" id="pictureclues-help">Fill in the picture to uncover the evidence and unlock the clue. Smaller pictures on easier levels. Turning this off shows every clue right away.</p>
-        <label class="check"><input type="checkbox" name="storyBeats"> Story moments: short bits of story appear as I finish each section</label>
         <label class="check"><input type="checkbox" name="autoX" aria-describedby="autox-help"> Auto-X: when I place an O, rule out the rest of its row and column</label>
         <p class="help" id="autox-help">Automatic Xs are drawn smaller. Clearing or changing the O removes them again, Undo takes back the O and its Xs together, and tapping an automatic X clears it. Xs you placed yourself always stay.</p>
         <label class="check"><input type="checkbox" name="singleKeys"> Single-key shortcuts (X, O, H, C, R)</label>

@@ -78,23 +78,6 @@ test('plays: saved without anything personal; bad rows dropped; CORS only for th
   assert.ok(!/a@b\.c|Sam/.test(JSON.stringify(rows)) && rows[0].platform === 'android');
 });
 
-test('plays: the color look and picture clue are kept only from the fixed lists', async () => {
-  const play = { tier: 'easy', theme: 'pets', outcome: 'solved', effort: 0, signal: 0, platform: 'web', minutes: 3, hints: 0, mistakes: 0 };
-  const pid = 'LookPic0123456789';
-  const r = await call('/v1/learn/plays', { body: { plays: [{ ...play, pid, look: 'dark', pic: 'solved' }, { ...play, pid: 'LookPicBad0123456', look: '<b>me</b>', pic: 'everything' }] } });
-  assert.equal((await r.json()).saved, 2);
-  const db = await mf.getD1Database('DB');
-  const good = await db.prepare('SELECT look, pic FROM plays WHERE pid = ?1').bind(pid).first();
-  assert.deepEqual({ ...good }, { look: 'dark', pic: 'solved' });
-  const bad = await db.prepare('SELECT look, pic FROM plays WHERE pid = ?1').bind('LookPicBad0123456').first();
-  assert.deepEqual({ ...bad }, { look: null, pic: null });
-  // A rating sent later without them keeps what was recorded.
-  await call('/v1/learn/plays', { body: { plays: [{ ...play, pid, rating: 5 }] } });
-  assert.deepEqual({ ...(await db.prepare('SELECT look, pic, rating FROM plays WHERE pid = ?1').bind(pid).first()) }, { look: 'dark', pic: 'solved', rating: 5 });
-  // Leave the table as the later tests expect it.
-  await db.prepare('DELETE FROM plays WHERE pid IN (?1, ?2)').bind(pid, 'LookPicBad0123456').run();
-});
-
 test('shared story parts wait for review; approved ones reach every player', async () => {
   assert.equal((await call('/v1/learn/parts', { body: { theme: 'pets', kind: 'openings', value: 'Five dogs met.' } })).status, 400);
   const part = { theme: 'pets', kind: 'openings', value: 'The dog park was muddy, but {n} {many} came anyway.' };

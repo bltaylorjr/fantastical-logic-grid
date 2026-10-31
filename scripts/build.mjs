@@ -161,7 +161,7 @@ const files = [];
 const walk = (d) => { for (const n of readdirSync(d)) { const p = join(d, n); if (statSync(p).isDirectory()) walk(p); else files.push(relative(out, p).split('\\').join('/')); } };
 walk(out);
 // The Kokoro voice engine (about 28 MB) is cached when first used, not on install.
-const shell = ['./', ...files.filter((f) => f !== 'sw.js' && !f.endsWith('icon-1024.png') && !f.startsWith('icons/screens/') && !/^vendor\/(ort|kokoro|mediapipe)\//.test(f) && f !== 'kokoro-worker.js' && !f.startsWith('media/'))];
+const shell = ['./', ...files.filter((f) => f !== 'sw.js' && !f.endsWith('icon-1024.png') && !f.startsWith('icons/screens/') && !/^vendor\/(ort|kokoro)\//.test(f) && f !== 'kokoro-worker.js' && !f.startsWith('media/'))];
 const hash = createHash('sha256');
 for (const f of files.sort()) hash.update(f).update(readFileSync(join(out, f)));
 const version = hash.digest('hex').slice(0, 10);

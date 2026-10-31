@@ -10,13 +10,11 @@ import { printPuzzle } from './print.js';
 import { sceneSvg } from './art.js';
 import * as sfx from './audio.js';
 import * as ai from './ai.js';
-import * as director from './director.js';
-import * as pictureClues from './picture-clue.js';
 import { portrait, characterFace, loadPortraits, portraitsReady } from './portraits.js';
 import { sizesFor as tierSizes, tierChoicesHtml, themeGroupsHtml, sizeChoicesHtml, clueTypesHtml } from './setup-markup.js';
 import * as characters from './characters.js';
 import { characterOf, narratorOf, lineOf } from './cast.js';
-import { profileOf, sayingOf, moodOf, moodOfPersonality, caughtLine } from './castbook.js';
+import { profileOf, sayingOf } from './castbook.js';
 import * as wake from './wakelock.js';
 import * as updates from './updates.js';
 import { celebrate as celebrateSolve } from './effects.js';
@@ -53,7 +51,6 @@ import * as tutorial from './tutorial.js';
 import * as license from './license.js';
 import * as licenseDownload from './license-download.js';
 import { addCloseButtons, closeDialog } from './dialog-close.js';
-import { initTalker } from './talker.js';
 import * as games from './games.js';
 import * as pkg from './package-preview.js';
 
@@ -943,7 +940,6 @@ function openGame(save, { fresh = false } = {}) {
   $('#clue-list').innerHTML = puzzle.clues.map((c) => `
     <li data-n="${+c.number}"${save.ticked.includes(c.number) ? ' class="used"' : ''}><span class="num" aria-hidden="true">${+c.number}</span>
     <label><input type="checkbox" data-n="${+c.number}"${save.ticked.includes(c.number) ? ' checked' : ''} aria-label="Clue ${+c.number}, used"><span><span class="txt">${esc(c.text)}</span><span class="from media">From ${esc(S.witness[c.number])}</span></span></label></li>`).join('');
-  startPictureClue();
   renderMedia();
   $('#q-list').innerHTML = puzzle.questions.map((q) => `
     <li><label for="q-${+q.number}">${esc(q.text)}</label>
@@ -987,41 +983,8 @@ function openGame(save, { fresh = false } = {}) {
   updateMusic();
 }
 
-// The locked clue and its picture (picture-clue.js). Called when a puzzle
-// opens and when the Picture clues setting changes.
-function startPictureClue() {
-  if (!S) return;
-  // Basic leaves out the picture puzzle that unlocks a clue (Bobby, 2026-10-31).
-  if (isBasic()) { pictureClues.stop(); notePicture('none'); return; }
-  pictureClues.start(S.puzzle, {
-    save: S.save, settings,
-    onSolved: (pc) => { notePicture('solved'); sound('section'); announce(`Clue ${pc.locked} unlocked: ${S.puzzle.clues.find((c) => c.number === pc.locked)?.text || ''}`); },
-    onChange: () => scheduleSave(),
-  });
-  const pc = pictureClues.current();
-  notePicture(!pictureClues.enabled(settings) ? 'off' : !pc ? 'none' : pc.solved ? (S.save.pic === 'solved' ? 'solved' : 'locked') : 'locked');
-}
-// What happened to the picture clue, for learning (learn.js): none, off,
-// locked or solved. "Solved" means the player solved the picture themselves
-// (finishing the whole puzzle unlocks it too, which doesn't count), and it
-// sticks, so turning picture clues off afterwards doesn't undo it.
-function notePicture(v) {
-  if (!S || S.save.pic === 'solved' || S.save.pic === v) return;
-  S.save.pic = v;
-  scheduleSave();
-}
-// Short story moments under the scene as sections are finished (director.js).
-function startBeats() {
-  if (!S) return;
-  const p = S.puzzle;
-  director.start(p, { on: director.enabled(settings) && !settings.silent, speak: (text) => { if (voiceOn()) ai.speak(settings, p, 'narrator', text, { volume: settings.volume / 100 }); } });
-}
-// A clue's words, or a note that it is still locked behind its picture.
-const clueWords = (c) => (c.number === pictureClues.lockedClue() ? `Clue ${c.number} is locked evidence: solve its picture to reveal it.` : c.text);
-
 function closeGame() {
   $('#toasts').replaceChildren(); // toast actions belong to the game they came from
-  pictureClues.stop();
   if (!S) return;
   try { sfx.stopMusic(); ai.stopSpeaking(); } catch (e) { /* ignore */ }
   stopTimer();
@@ -1260,7 +1223,6 @@ function updateProgress() {
   }
   S.doneBlocks = newDone;
   revealScene(done / S.puzzle.grid.blocks.length);
-  director.progress(done);
   try { sfx.setMood(pct / 100); } catch (e) { /* ignore */ }
   $('#progress').textContent = `${pct}% filled · ${done} of ${S.puzzle.grid.blocks.length} sections done`;
   $('#progress-fill').style.width = `${pct}%`;
@@ -1432,9 +1394,7 @@ const TECHNIQUE_LESSONS = {
 function hintLines(res, level) {
   const out = [];
   const clue = res.clue ? S.puzzle.clues.find((c) => c.number === res.clue) : null;
-  if (clue && clue.number === pictureClues.lockedClue()) {
-    out.push(`<p><b>Hint:</b> The next step needs clue ${clue.number}, and it is still locked evidence. Solve its picture to reveal it.</p><p><button class="btn small" type="button" id="hint-evidence">Open the evidence</button></p>`);
-  } else out.push(`<p><b>Hint:</b> ${esc(res.levels[0])}${clue ? ` <q class="hint-clue">${esc(clue.text)}</q>` : ''}</p>`);
+  out.push(`<p><b>Hint:</b> ${esc(res.levels[0])}${clue ? ` <q class="hint-clue">${esc(clue.text)}</q>` : ''}</p>`);
   if (res.kind === 'step' && res.techniqueName) out.push(`<p class="hint-tech"><span class="pill">${esc(res.techniqueName)}</span></p>`);
   if (level >= 1) out.push(`<p>${esc(res.levels[1])}</p>`);
   if (level >= 2) {
@@ -1465,9 +1425,8 @@ function renderHint() {
   if (res.clue) $(`#clue-list li[data-n="${res.clue}"]`)?.classList.add('hinted');
   for (const k of S.hint.targets) paintCell(k);
   const clue = level === 0 && res.clue ? S.puzzle.clues.find((c) => c.number === res.clue) : null;
-  announce(level === 2 && TECHNIQUE_LESSONS[res.technique] ? `${res.levels[2]} ${TECHNIQUE_LESSONS[res.technique]}` : clue ? `${res.levels[0]} ${clueWords(clue)}` : res.levels[level]);
+  announce(level === 2 && TECHNIQUE_LESSONS[res.technique] ? `${res.levels[2]} ${TECHNIQUE_LESSONS[res.technique]}` : clue ? `${res.levels[0]} ${clue.text}` : res.levels[level]);
   $('#hint-more')?.addEventListener('click', hint);
-  $('#hint-evidence')?.addEventListener('click', () => pictureClues.open());
   $('#hint-close').onclick = () => { clearHint(); S.grid.focusKey(S.save.focus); };
   $('#hint-apply')?.addEventListener('click', () => {
     const changes = res.kind === 'mistake'
@@ -1601,7 +1560,6 @@ function checkSolved() {
     clearTimeout(tryAgainTimer);
     if (Date.now() - lastTryAgain < 4000) ai.stopSpeaking();
     S.save.completedAt = Date.now();
-    pictureClues.unlock();
     // The daily, weekly and special puzzles' answers are on the website, so they earn no scoreboard points.
     if (!S.save.race && !S.save.daily && !S.save.edition && !S.save.challenge && !S.save.revealed && !S.save.restarted) S.save.scorePending = true;
     tickTimer();
@@ -1663,17 +1621,14 @@ function showSolved(celebrate) {
   const admin = [characterOf(S.puzzle, winner), narratorOf(S.puzzle)].find((c) => lineOf(c, 'solve'));
   const plain = !admin && winner && !save.revealed && !settings.silent;
   const cheer = admin || (plain ? { name: winner } : null);
-  const caught = plain && CAUGHT_ENDING.test(S.puzzle.story.ending || '');
-  const cheerLine = admin ? lineOf(admin, 'solve', S.save.hintsUsed + S.puzzle.clues.length)
-    : caught ? caughtLine(winner, save.hintsUsed + S.puzzle.clues.length)
-      : plain ? sayingOf(winner, 'solve', save.hintsUsed + S.puzzle.clues.length) : null;
+  const cheerLine = admin ? lineOf(admin, 'solve', S.save.hintsUsed + S.puzzle.clues.length) : plain ? sayingOf(winner, 'solve', save.hintsUsed + S.puzzle.clues.length) : null;
   res.innerHTML = `${bg}<div class="spot"></div>${winner ? `<div class="hero">${face}<b>${esc(winner)}</b></div>` : ''}${cheerLine ? `<p class="char-line cheer"><b>${esc(cheer.name)}:</b> “${esc(cheerLine)}”</p>` : ''}`;
   // The picture is hidden from screen readers, so the cheer is announced.
   if (celebrate && cheerLine && !settings.silent) setTimeout(() => announce(`${cheer.name} says: ${cheerLine}`), 800);
   if (celebrate && voiceOn()) {
     setTimeout(() => {
       if (!S || !S.save.solved) return;
-      const said = [...(cheerLine ? [{ who: cheer.id && cheer.id === S.puzzle.narrator ? 'narrator' : cheer.name, text: cheerLine, mood: caught ? 'guilty' : 'excited', gesture: caught ? 'shrug' : 'nod' }] : []), { who: 'narrator', text: S.puzzle.story.ending }];
+      const said = [...(cheerLine ? [{ who: cheer.id && cheer.id === S.puzzle.narrator ? 'narrator' : cheer.name, text: cheerLine }] : []), { who: 'narrator', text: S.puzzle.story.ending }];
       ai.speakLines(settings, S.puzzle, said, { volume: settings.volume / 100 });
     }, 1200);
   }
@@ -2320,7 +2275,6 @@ function renderMedia() {
   const p = S.puzzle;
   S.sceneLayers = -1;
   $('#scene').innerHTML = sceneSvg(p, 0);
-  startBeats();
   const names = S.ix.cats[0].items.map((i) => i.label);
   const drawCastRow = () => {
   $('#cast-row').innerHTML = names.map((n) => {
@@ -2360,51 +2314,6 @@ function renderMedia() {
 }
 
 const voiceOn = () => settings.sound && settings.readAloud && !settings.silent;
-// How a character acts and sounds while they speak (castbook.js MOODS).
-const moodFor = (who) => {
-  if (who === 'narrator') return 'calm';
-  const own = characterOf(S.puzzle, who);
-  return own ? moodOfPersonality(own.personality) : moodOf(who);
-};
-// A mystery whose ending catches the one behind it: they own up, sheepishly.
-const CAUGHT_ENDING = /culprit|confess|stole|took|thief|prank|caught|guilty|behind it all|owns? up|admits?/i;
-
-// Basic / Interactive switch in the app bar. Basic is the first version's
-// layout and colors (app.css "Basic look") with everything else in the game,
-// except the picture puzzle that unlocks a clue and the talking faces.
-// Interactive is the default. The choice stays on this device (index.html
-// applies it before the first paint).
-const isBasic = () => document.documentElement.dataset.look === 'basic';
-function showLook() {
-  for (const b of document.querySelectorAll('#mode-switch [data-look]')) b.setAttribute('aria-pressed', String((b.dataset.look === 'basic') === isBasic()));
-}
-$('#mode-switch').addEventListener('click', (e) => {
-  const b = e.target.closest('[data-look]');
-  if (!b) return;
-  const basic = b.dataset.look === 'basic';
-  if (basic === isBasic()) return;
-  if (basic) document.documentElement.dataset.look = 'basic'; else delete document.documentElement.dataset.look;
-  try { localStorage.setItem('flg.look', basic ? 'basic' : 'interactive'); } catch (err) { /* private mode: this visit only */ }
-  showLook();
-  if (basic) talker.hide?.();
-  // The locked clue comes and goes with the look; a Basic puzzle has every clue open.
-  if (S) startPictureClue();
-  toast(basic ? 'Basic look on. Switch back to Interactive any time at the top.' : 'Interactive look on.');
-});
-showLook();
-
-// Talking faces: whoever is speaking appears in the corner of the play screen.
-const talker = initTalker($('#talker'), {
-  on: () => !!(S && settings.talkingFaces && voiceOn() && !isBasic() && !$('#screen-play').hidden && remote.feature('talkingFaces')),
-  game: () => (S ? {
-    puzzle: S.puzzle,
-    fallback: (who) => {
-      if (who === 'narrator') { const t = narratorOf(S.puzzle); return t ? characterFace(t, { size: 168 }) : ''; }
-      if (S.portraitUrls && S.portraitUrls[who]) return `<img src="${S.portraitUrls[who]}" alt="">`;
-      return portraitsReady() ? portrait(S.puzzle, who, { size: 168, style: settings.portraitStyle }) : '';
-    },
-  } : null),
-});
 
 // Swap in AI pictures from the game's server when the admin dashboard has them
 // on. Built-in art stays until they arrive, and whenever they can't be made.
@@ -2491,16 +2400,14 @@ $('#cast-row').addEventListener('click', (e) => {
   clues.forEach((c) => $(`#clue-list li[data-n="${c.number}"]`)?.classList.add('spot'));
   const nothing = characterOf(S.puzzle, who) ? "I didn't see anything, I promise." : sayingOf(who, 'nothing', S.puzzle.clues.length);
   $('#bubble').innerHTML = `<p class="about">${esc(aboutOf(who).about)}.</p>` + (clues.length
-    ? clues.map((c) => (c.number === pictureClues.lockedClue()
-      ? `<p><span class="who">${esc(who)}:</span> “I found something, but I can't make it out yet.” <span class="muted">(clue ${+c.number} is locked evidence)</span></p>`
-      : `<p><span class="who">${esc(who)}:</span> “${esc(sayingFor(who, c.number))} ${esc(c.text)}” <span class="muted">(clue ${+c.number})</span></p>`)).join('')
+    ? clues.map((c) => `<p><span class="who">${esc(who)}:</span> “${esc(sayingFor(who, c.number))} ${esc(c.text)}” <span class="muted">(clue ${+c.number})</span></p>`).join('')
     : `<p><span class="who">${esc(who)}:</span> “${esc(nothing)}”</p>`);
   $('#bubble').hidden = false;
   sound('whoosh');
   if (voiceOn()) {
-    const lines = clues.length ? clues.map((c) => (c.number === pictureClues.lockedClue() ? "I found something, but I can't make it out yet." : `${sayingFor(who, c.number)} ${c.text}`)).join(' ') : nothing;
+    const lines = clues.length ? clues.map((c) => `${sayingFor(who, c.number)} ${c.text}`).join(' ') : nothing;
     voiceWaitNote();
-    ai.speak(settings, S.puzzle, who, lines, { volume: settings.volume / 100, mood: moodFor(who), gesture: clues.length ? '' : 'shrug' });
+    ai.speak(settings, S.puzzle, who, lines, { volume: settings.volume / 100 });
   }
 });
 
@@ -2524,9 +2431,7 @@ $('#read-clues').addEventListener('click', async () => {
   if (b.getAttribute('aria-pressed') === 'true') { ai.stopSpeaking(); readCluesDone(); return; }
   if (!settings.sound) { status('Sound is off. Turn it on to hear the clues.'); return; }
   const game = S;
-  const lines = game.puzzle.clues.map((c) => (c.number === pictureClues.lockedClue()
-    ? { who: 'narrator', text: clueWords(c) }
-    : { who: game.witness[c.number] || 'narrator', text: `Clue ${c.number}. ${c.text}`, mood: moodFor(game.witness[c.number] || 'narrator') }));
+  const lines = game.puzzle.clues.map((c) => ({ who: game.witness[c.number] || 'narrator', text: `Clue ${c.number}. ${c.text}` }));
   b.setAttribute('aria-pressed', 'true');
   b.textContent = 'Stop reading the clues';
   voiceWaitNote();
@@ -2635,7 +2540,6 @@ function printOptions() {
     marks: S.marks,
     myNotes: $('#p-mynotes').checked && !$('#p-notes-row').hidden ? S.save.myNotes : '',
     supportLine: support.printLine(),
-    picture: pictureClues.current(),
   };
 }
 $('#print-go').onclick = () => {
@@ -2685,7 +2589,6 @@ function applyFeatures() {
   renderSocial();
   for (const el of $$('.needs-cloud')) el.hidden = !share.available() || (!!el.dataset.feature && !remote.feature(el.dataset.feature));
   $('#music-settings').hidden = !remote.feature('music');
-  $('#talking-faces-row').hidden = !remote.feature('talkingFaces') || !CLOUD_URL;
   $('[data-cmd=feedback]').hidden = !feedbackBox.available();
   $('[data-cmd=mail]').hidden = isPortal || !puzzleMail.available();
   $('#mail-invite').hidden = isPortal || !puzzleMail.available();
@@ -2734,8 +2637,6 @@ $('#settings-form').addEventListener('change', (e) => {
   applyMode();
   renderTimer();
   if (el.name === 'coach' && S && el.checked && !S.save.solved) { S.save.coach = true; updateCoach(); }
-  if (el.name === 'pictureClues') startPictureClue();
-  if (el.name === 'storyBeats' && S) { startBeats(); updateProgress(); }
   if ((el.name === 'sound' && el.checked) || el.name === 'volume') sound('tick');
 });
 
