@@ -78,9 +78,8 @@ const CHARACTERS = {
     await shot('game-characters');
 
     // Captain Mo tells his clues with his own line.
-    // A clue that is still locked picture evidence is not told yet, so it does not count.
     const moClues = await page.evaluate(() => Object.entries(window.__flg.state.witness)
-      .filter(([n, w]) => w === 'Captain Mo' && !/Locked evidence/.test(document.querySelector(`#clue-list li[data-n="${n}"]`)?.textContent || '')).length);
+      .filter(([n, w]) => w === 'Captain Mo').length);
     await page.click('#cast-row .cast-btn[data-who="Captain Mo"]');
     const bubble = await page.textContent('#bubble');
     if (moClues) assert(bubble.includes('Mark my words, matey:'), 'Captain Mo says his own line before a clue');

@@ -288,8 +288,7 @@ export function sayingOf(name, kind, n = 0) {
   return lines.length ? lines[(Math.abs(n) + hashOf(firstName(name))) % lines.length] : '';
 }
 
-// How a character acts while they speak (talking-face.js and the voice's
-// tone, ai.js). Each personality has its own way of telling a clue; some
+// How a character sounds while they speak (the voice's tone, ai.js). Each personality has its own way of telling a clue; some
 // moments change it: a cheer is excited, and a culprit caught at the end of
 // a mystery is sheepish.
 export const MOODS = ['calm', 'cheerful', 'excited', 'nervous', 'guilty', 'sly', 'grumpy', 'proud', 'kind', 'shy',

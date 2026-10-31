@@ -1,7 +1,8 @@
 // Picture clues: a small picture puzzle (a nonogram) whose hidden picture is
 // a piece of evidence. Solving it unlocks one of the puzzle's written clues.
 //
-// Players can turn picture clues off in Settings (web/js/picture-clue.js).
+// The game screen no longer uses them (2026-10-31); storyline printouts
+// (scripts/contributor-puzzle.mjs) still do.
 // Generated puzzles do not change: the picture and the locked clue are worked
 // out from a finished puzzle, so the same puzzle always gets the same picture.
 //
