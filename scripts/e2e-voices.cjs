@@ -49,6 +49,10 @@ const { spawn } = require('child_process');
   // Clock times are said as words, never "ten zero zero PM".
   const said = await page.evaluate(async () => (await import('./js/ai.js')).speechText('Ann arrived at 10:00 PM. Bo came at 9:45 p.m., Cy at 7:05 AM and Di at 12:30.'));
   assert(said === 'Ann arrived at ten PM. Bo came at nine forty-five PM, Cy at seven oh five AM and Di at twelve thirty.', `times are spoken as words (${said})`);
+  // A plural possessive's apostrophe is dropped so no voice reads it as a
+  // closing quote and stops mid-sentence (player report: "judges' ... table").
+  const poss = await page.evaluate(async () => (await import('./js/ai.js')).speechText("A red sweater was spotted near the judges' table. It was the judge's call, and she said 'fine' at once."));
+  assert(poss === "A red sweater was spotted near the judges table. It was the judge's call, and she said 'fine' at once.", `a plural possessive loses its apostrophe, nothing else does (${poss})`);
   assert(!errs.length, 'no page errors');
   await b.close(); server.kill();
 })();

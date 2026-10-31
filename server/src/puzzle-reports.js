@@ -42,8 +42,8 @@ import { checkPuzzle } from './compete.js';
 
 const DAY = 24 * 3600_000;
 export const MAX_TEXT = 1000;
-export const MAX_PUZZLE_CHARS = 400_000;
-const MAX_IMAGE_CHARS = 200_000;
+export const MAX_PUZZLE_CHARS = 120_000;
+const MAX_IMAGE_CHARS = 120_000;
 const REPAIR_KEEP_MS = 30 * DAY;
 export const REPORT_KEEP_DAYS = 365;
 const RELATED_DAYS = 14;

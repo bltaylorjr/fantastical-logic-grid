@@ -198,10 +198,11 @@ async function identify(req, env) {
   if (Date.now() / 1000 - user.authTime > SESSION_MAX_S) throw new Refusal(401, 'sign_in', 'For safety, please sign in again.');
   const email = String(user.email || '').trim().toLowerCase();
   if (!email) throw new Refusal(403, 'not_admin', 'This account is not an admin.');
-  const role = await roleOf(env, email);
   // Anyone can make a Firebase account with an email they do not own, so an
-  // admin's email must be confirmed.
+  // admin's email must be confirmed before the role is even looked up (an
+  // unconfirmed account must not learn which addresses are admins).
   if (!user.emailVerified) throw new Refusal(403, 'verify_email', 'Confirm your email address first.');
+  const role = await roleOf(env, email);
   return { actor: email, role, key: user.uid, uid: user.uid, signedInAt: user.authTime * 1000 };
 }
 

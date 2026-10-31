@@ -288,6 +288,10 @@ const SPOKEN = [
   [/\bvs\.?\s/gi, 'versus '],
   [/\b(\w+)\/(\w+)\b/g, '$1 or $2'],
   [/\b(?!(?:AM|PM|TV|DJ|OK|UK|USA|UFO|DNA|VIP|CEO|SOS|FBI|CIA)\b)([A-Z])([A-Z]{2,})\b/g, (m, a, b) => a + b.toLowerCase()],
+  // A plural possessive ("the judges' table") loses its apostrophe: voices
+  // read the trailing mark as a closing quote and stop as if the sentence
+  // ended (player report: "judges'... table"). It sounds the same without it.
+  [/(?<!['‘]\w*)(\ws)['’](?=\s+\w)/g, '$1'],
   [/\(([^)]*)\)/g, ', $1,'],
   [/,\s*([.,!?;:])/g, '$1'],
   [/\s{2,}/g, ' '],

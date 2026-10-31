@@ -158,6 +158,8 @@ async function route(req, env, ctx) {
 
   if (url.pathname === '/v1/health') {
     if (url.searchParams.get('deep') !== '1') return json(req, env, { ok: true });
+    const ip = req.headers.get('CF-Connecting-IP') || 'local';
+    if (env.LIMIT_AUTHLESS && !(await env.LIMIT_AUTHLESS.limit({ key: ip })).success) return json(req, env, { error: 'slow_down' }, 429, { 'Retry-After': '60' });
     const health = await deepHealth(env);
     return json(req, env, health, health.ok ? 200 : 503);
   }
