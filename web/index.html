@@ -16,8 +16,6 @@
 <script>
   // Apply the saved color theme before first paint.
   try { const s = JSON.parse(localStorage.getItem('flg.settings') || '{}'); if (s.colorTheme && s.colorTheme !== 'system') document.documentElement.dataset.theme = s.colorTheme; } catch (e) {}
-  // Basic look (the first version's layout and colors) if the player picked it; Interactive otherwise.
-  try { if (localStorage.getItem('flg.look') === 'basic') document.documentElement.dataset.look = 'basic'; } catch (e) {}
   // The full Logic Grid package is in private testing (js/package-preview.js):
   // on a tester's device it opens on the game cards unless the player was last
   // in The Fantastical Logic Grid. Everyone else gets The Fantastical Logic Grid.
@@ -38,7 +36,6 @@
     <span id="brand-name">The Fantastical Logic Grid</span>
   </button>
   <div class="appbar-actions">
-    <div class="mode-switch" id="mode-switch" role="group" aria-label="Look"><button type="button" data-look="basic" aria-pressed="false">Basic</button><button type="button" data-look="interactive" aria-pressed="true">Interactive</button></div>
     <!-- Website only: build.mjs shows it in dist/site (not the desktop app or game portals). -->
     <a class="btn quiet educators-link" id="educators-link" href="educators/" hidden>For educators</a>
     <button class="btn quiet player-chip" type="button" id="player-chip" hidden><span class="sr-only">Playing as </span><span id="player-chip-name" translate="no">Guest</span></button>

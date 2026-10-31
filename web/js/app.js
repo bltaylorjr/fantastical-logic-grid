@@ -990,8 +990,6 @@ function openGame(save, { fresh = false } = {}) {
 // opens and when the Picture clues setting changes.
 function startPictureClue() {
   if (!S) return;
-  // Basic leaves out the picture puzzle that unlocks a clue (Bobby, 2026-10-31).
-  if (isBasic()) { pictureClues.stop(); return; }
   pictureClues.start(S.puzzle, {
     save: S.save, settings,
     onSolved: (pc) => { sound('section'); announce(`Clue ${pc.locked} unlocked: ${S.puzzle.clues.find((c) => c.number === pc.locked)?.text || ''}`); },
@@ -2345,29 +2343,6 @@ function renderMedia() {
 }
 
 const voiceOn = () => settings.sound && settings.readAloud && !settings.silent;
-
-// Basic / Interactive switch in the app bar. Basic is the first version's
-// layout and colors (app.css "Basic look") with everything else in the game,
-// except the picture puzzle that unlocks a clue and the talking faces.
-// Interactive is the default. The choice stays on this device (index.html
-// applies it before the first paint).
-const isBasic = () => document.documentElement.dataset.look === 'basic';
-function showLook() {
-  for (const b of document.querySelectorAll('#mode-switch [data-look]')) b.setAttribute('aria-pressed', String((b.dataset.look === 'basic') === isBasic()));
-}
-$('#mode-switch').addEventListener('click', (e) => {
-  const b = e.target.closest('[data-look]');
-  if (!b) return;
-  const basic = b.dataset.look === 'basic';
-  if (basic === isBasic()) return;
-  if (basic) document.documentElement.dataset.look = 'basic'; else delete document.documentElement.dataset.look;
-  try { localStorage.setItem('flg.look', basic ? 'basic' : 'interactive'); } catch (err) { /* private mode: this visit only */ }
-  showLook();
-  // The locked clue comes and goes with the look; a Basic puzzle has every clue open.
-  if (S) startPictureClue();
-  toast(basic ? 'Basic look on. Switch back to Interactive any time at the top.' : 'Interactive look on.');
-});
-showLook();
 
 // Swap in AI pictures from the game's server when the admin dashboard has them
 // on. Built-in art stays until they arrive, and whenever they can't be made.
