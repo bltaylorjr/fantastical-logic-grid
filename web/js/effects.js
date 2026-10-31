@@ -18,6 +18,7 @@ export const THEME_EMOJI = {
   travel: ['✈️', '🧳', '🌍'], wonders: ['🗿', '🏛️', '🌋'], music: ['🎵', '🎸', '🎤'], nautical: ['⛵', '⚓', '🌊'],
   farm: ['🚜', '🐄', '🌽'], science: ['🔬', '🧪', '⚛️'],
   math: ['➗', '📐', '🧮'], biology: ['🦋', '🐸', '🌿'], chemistry: ['⚗️', '🧪', '💥'], astronomy: ['🔭', '🪐', '🌠'], paradox: ['🌀', '🪞', '⏳'],
+  seasons: ['🍁', '☃️', '🌷', '☀️'],
 };
 // What falls for Falling snow, leaves or petals: by theme, else by season.
 export const FALLING = {
@@ -26,6 +27,8 @@ export const FALLING = {
   nautical: ['🫧', '🐚', '🫧'],
   farm: ['🍂', '🌾', '🍎'], science: ['✨', '🫧', '✨'],
   math: ['✨', '➕', '✨'], biology: ['🍃', '🌸', '🍃'], chemistry: ['🫧', '✨', '🫧'], astronomy: ['✨', '⭐', '🌙'], paradox: ['🌀', '✨', '🪐'],
+  // Seasons falls by topic ('theme/topic'); with no topic, by today's season.
+  'seasons/fall': ['🍂', '🍁', '🍂'], 'seasons/winter': ['❄️', '❄️', '❅'], 'seasons/spring': ['🌸', '🌷', '🍃'], 'seasons/summer': ['🌼', '☀️', '🫧'],
 };
 const seasonal = () => {
   const m = new Date().getMonth();
@@ -97,8 +100,8 @@ export const EFFECTS = {
       }));
     }
   },
-  falling({ theme } = {}) {
-    const list = (FALLING[theme] || seasonal()).map((t) => textShape(t, 2));
+  falling({ theme, topic } = {}) {
+    const list = (FALLING[`${theme}/${topic}`] || FALLING[theme] || seasonal()).map((t) => textShape(t, 2));
     for (let i = 0; i < 5; i += 1) {
       later(i * 450, () => fire({
         particleCount: 8, shapes: list, scalar: 2, angle: 270, spread: 120, startVelocity: 4, gravity: 0.3, decay: 0.98,
@@ -152,14 +155,15 @@ export const EFFECTS = {
 };
 
 // list: names of the effects that are on. random: play one of them, picked
-// at random, instead of all of them together. theme: the puzzle's theme id.
-export function celebrate(list = ['confetti'], { random = false, theme } = {}) {
+// at random, instead of all of them together. theme, topic: the puzzle's
+// theme and topic ids.
+export function celebrate(list = ['confetti'], { random = false, theme, topic } = {}) {
   if (document.documentElement.classList.contains('silent') || matchMedia('(prefers-reduced-motion: reduce)').matches) return null;
   const on = (Array.isArray(list) ? list : []).filter((k) => EFFECTS[k]);
   if (!on.length) return null;
   const play = random ? [on[Math.floor(Math.random() * on.length)]] : on;
   for (const k of play) {
-    try { EFFECTS[k]({ theme }); } catch (e) { /* an emoji the device cannot draw: skip it */ }
+    try { EFFECTS[k]({ theme, topic }); } catch (e) { /* an emoji the device cannot draw: skip it */ }
   }
   return play;
 }

@@ -29,5 +29,6 @@ import { MORE as math } from './more-topics-math.js';
 import { MORE as biology } from './more-topics-biology.js';
 import { MORE as astronomy } from './more-topics-astronomy.js';
 import { MORE as paradox } from './more-topics-paradox.js';
+import { MORE as seasons } from './more-topics-seasons.js';
 
-export const MORE_TOPICS = { mystery, action, adventure, holiday, occasion, fantasy, scifi, sports, cooking, pets, town, parks, travel, wonders, music, nautical, farm, science, math, biology, astronomy, paradox };
+export const MORE_TOPICS = { mystery, action, adventure, holiday, occasion, fantasy, scifi, sports, cooking, pets, town, parks, travel, wonders, music, nautical, farm, science, math, biology, astronomy, paradox, seasons };

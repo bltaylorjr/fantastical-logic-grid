@@ -134,8 +134,10 @@ const GROUPS = {
   },
   pictures() {
     const row = (list) => `<span class="media-emoji">${list.map(h.esc).join(' ')}</span>`;
+    // Seasons falls by topic: one picture from each topic's list.
+    const bySeason = (id) => { const l = Object.entries(FALLING).filter(([k]) => k.startsWith(`${id}/`)).map(([, v]) => v[0]); return l.length ? l : null; };
     return `<p class="muted">Little pictures used by the Theme pictures and Falling snow, leaves or petals celebrations. Themes without their own falling pictures follow the season (snow in winter, blossom in spring, leaves in summer and autumn).</p>
-      ${h.table(['Theme', 'Theme pictures', 'What falls'], data.themes.map((t) => [h.esc(t.name), row(THEME_EMOJI[t.id] || []), FALLING[t.id] ? row(FALLING[t.id]) : '<span class="muted">Follows the season</span>']), '', { csv: false })}`;
+      ${h.table(['Theme', 'Theme pictures', 'What falls'], data.themes.map((t) => [h.esc(t.name), row(THEME_EMOJI[t.id] || []), FALLING[t.id] ? row(FALLING[t.id]) : bySeason(t.id) ? row(bySeason(t.id)) : '<span class="muted">Follows the season</span>']), '', { csv: false })}`;
   },
 };
 

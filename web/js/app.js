@@ -16,7 +16,7 @@ import { portrait, characterFace, loadPortraits, portraitsReady } from './portra
 import { sizesFor as tierSizes, tierChoicesHtml, themeGroupsHtml, sizeChoicesHtml, clueTypesHtml } from './setup-markup.js';
 import * as characters from './characters.js';
 import { characterOf, narratorOf, lineOf } from './cast.js';
-import { profileOf, sayingOf } from './castbook.js';
+import { profileOf, sayingOf, moodOf, moodOfPersonality, caughtLine } from './castbook.js';
 import * as wake from './wakelock.js';
 import * as updates from './updates.js';
 import { celebrate as celebrateSolve } from './effects.js';
@@ -53,6 +53,7 @@ import * as tutorial from './tutorial.js';
 import * as license from './license.js';
 import * as licenseDownload from './license-download.js';
 import { addCloseButtons, closeDialog } from './dialog-close.js';
+import { initTalker } from './talker.js';
 
 addCloseButtons();
 
@@ -212,18 +213,30 @@ const HOME_TITLE = document.title;
 // to the lesson list, and any other screen goes home.
 let currentScreen = 'home';
 let skipPop = false;
+// Only an entry this page added (since it last loaded) is ever stepped back
+// over: one left from before a reload belongs to an earlier load, and going
+// back to it would reload the page.
+let pushedHere = false;
+try {
+  if (history.state && history.state.flgScreen) {
+    const { flgScreen, ...rest } = history.state;
+    history.replaceState(Object.keys(rest).length ? rest : null, '');
+  }
+} catch (e) { /* framed preview */ }
 function trackScreen(name) {
   try {
-    const here = history.state && history.state.flgScreen;
-    if (name !== 'home') history[here ? 'replaceState' : 'pushState']({ ...(history.state || {}), flgScreen: name }, '');
-    else if (here) { skipPop = true; history.back(); } // home by a button: drop the screen's history entry
+    const here = pushedHere && history.state && history.state.flgScreen;
+    if (name !== 'home') {
+      history[here ? 'replaceState' : 'pushState']({ ...(history.state || {}), flgScreen: name }, '');
+      pushedHere = true;
+    } else if (here) { pushedHere = false; skipPop = true; history.back(); } // home by a button: drop the screen's history entry
   } catch (e) { /* framed preview */ }
 }
 function screenBack() {
   if (currentScreen === 'home') return false;
   if (currentScreen === 'learn' && !$('#learn-lesson').hidden) {
     $('#learn-back').click();
-    try { if (!(history.state && history.state.flgScreen)) history.pushState({ ...(history.state || {}), flgScreen: 'learn' }, ''); } catch (e) { /* framed preview */ }
+    try { if (!(history.state && history.state.flgScreen)) { history.pushState({ ...(history.state || {}), flgScreen: 'learn' }, ''); pushedHere = true; } } catch (e) { /* framed preview */ }
     return true;
   }
   goHome();
@@ -231,10 +244,11 @@ function screenBack() {
 }
 window.addEventListener('popstate', () => {
   if (skipPop) { skipPop = false; return; }
+  pushedHere = !!(history.state && history.state.flgScreen);
   const open = [...document.querySelectorAll('dialog[open]')].pop();
   if (open) {
     if (open.dispatchEvent(new Event('cancel', { cancelable: true }))) open.close();
-    try { if (currentScreen !== 'home') history.pushState({ ...(history.state || {}), flgScreen: currentScreen }, ''); } catch (e) { /* framed preview */ }
+    try { if (currentScreen !== 'home') { history.pushState({ ...(history.state || {}), flgScreen: currentScreen }, ''); pushedHere = true; } } catch (e) { /* framed preview */ }
     return;
   }
   screenBack();
@@ -1609,14 +1623,17 @@ function showSolved(celebrate) {
   const admin = [characterOf(S.puzzle, winner), narratorOf(S.puzzle)].find((c) => lineOf(c, 'solve'));
   const plain = !admin && winner && !save.revealed && !settings.silent;
   const cheer = admin || (plain ? { name: winner } : null);
-  const cheerLine = admin ? lineOf(admin, 'solve', S.save.hintsUsed + S.puzzle.clues.length) : plain ? sayingOf(winner, 'solve', save.hintsUsed + S.puzzle.clues.length) : null;
+  const caught = plain && CAUGHT_ENDING.test(S.puzzle.story.ending || '');
+  const cheerLine = admin ? lineOf(admin, 'solve', S.save.hintsUsed + S.puzzle.clues.length)
+    : caught ? caughtLine(winner, save.hintsUsed + S.puzzle.clues.length)
+      : plain ? sayingOf(winner, 'solve', save.hintsUsed + S.puzzle.clues.length) : null;
   res.innerHTML = `${bg}<div class="spot"></div>${winner ? `<div class="hero">${face}<b>${esc(winner)}</b></div>` : ''}${cheerLine ? `<p class="char-line cheer"><b>${esc(cheer.name)}:</b> “${esc(cheerLine)}”</p>` : ''}`;
   // The picture is hidden from screen readers, so the cheer is announced.
   if (celebrate && cheerLine && !settings.silent) setTimeout(() => announce(`${cheer.name} says: ${cheerLine}`), 800);
   if (celebrate && voiceOn()) {
     setTimeout(() => {
       if (!S || !S.save.solved) return;
-      const said = [...(cheerLine ? [{ who: cheer.id && cheer.id === S.puzzle.narrator ? 'narrator' : cheer.name, text: cheerLine }] : []), { who: 'narrator', text: S.puzzle.story.ending }];
+      const said = [...(cheerLine ? [{ who: cheer.id && cheer.id === S.puzzle.narrator ? 'narrator' : cheer.name, text: cheerLine, mood: caught ? 'guilty' : 'excited', gesture: caught ? 'shrug' : 'nod' }] : []), { who: 'narrator', text: S.puzzle.story.ending }];
       ai.speakLines(settings, S.puzzle, said, { volume: settings.volume / 100 });
     }, 1200);
   }
@@ -1628,7 +1645,7 @@ function showSolved(celebrate) {
   $('#coach').hidden = true;
   if (celebrate) {
     sound('solve');
-    const shown = save.revealed ? null : celebrateSolve(settings.celebrations, { random: settings.celebrateRandom, theme: S.puzzle.theme.id });
+    const shown = save.revealed ? null : celebrateSolve(settings.celebrations, { random: settings.celebrateRandom, theme: S.puzzle.theme.id, topic: S.puzzle.topic && S.puzzle.topic.id });
     $('#solved').dataset.effects = shown ? shown.join(' ') : '';
     $('#solved').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
     $('#solved').focus({ preventScroll: true });
@@ -2296,6 +2313,27 @@ function renderMedia() {
 }
 
 const voiceOn = () => settings.sound && settings.readAloud && !settings.silent;
+// How a character acts and sounds while they speak (castbook.js MOODS).
+const moodFor = (who) => {
+  if (who === 'narrator') return 'calm';
+  const own = characterOf(S.puzzle, who);
+  return own ? moodOfPersonality(own.personality) : moodOf(who);
+};
+// A mystery whose ending catches the one behind it: they own up, sheepishly.
+const CAUGHT_ENDING = /culprit|confess|stole|took|thief|prank|caught|guilty|behind it all|owns? up|admits?/i;
+
+// Talking faces: whoever is speaking appears in the corner of the play screen.
+const talker = initTalker($('#talker'), {
+  on: () => !!(S && settings.talkingFaces && voiceOn() && !$('#screen-play').hidden && remote.feature('talkingFaces')),
+  game: () => (S ? {
+    puzzle: S.puzzle,
+    fallback: (who) => {
+      if (who === 'narrator') { const t = narratorOf(S.puzzle); return t ? characterFace(t, { size: 168 }) : ''; }
+      if (S.portraitUrls && S.portraitUrls[who]) return `<img src="${S.portraitUrls[who]}" alt="">`;
+      return portraitsReady() ? portrait(S.puzzle, who, { size: 168, style: settings.portraitStyle }) : '';
+    },
+  } : null),
+});
 
 // Swap in AI pictures from the game's server when the admin dashboard has them
 // on. Built-in art stays until they arrive, and whenever they can't be made.
@@ -2391,7 +2429,7 @@ $('#cast-row').addEventListener('click', (e) => {
   if (voiceOn()) {
     const lines = clues.length ? clues.map((c) => (c.number === pictureClues.lockedClue() ? "I found something, but I can't make it out yet." : `${sayingFor(who, c.number)} ${c.text}`)).join(' ') : nothing;
     voiceWaitNote();
-    ai.speak(settings, S.puzzle, who, lines, { volume: settings.volume / 100 });
+    ai.speak(settings, S.puzzle, who, lines, { volume: settings.volume / 100, mood: moodFor(who), gesture: clues.length ? '' : 'shrug' });
   }
 });
 
@@ -2417,7 +2455,7 @@ $('#read-clues').addEventListener('click', async () => {
   const game = S;
   const lines = game.puzzle.clues.map((c) => (c.number === pictureClues.lockedClue()
     ? { who: 'narrator', text: clueWords(c) }
-    : { who: game.witness[c.number] || 'narrator', text: `Clue ${c.number}. ${c.text}` }));
+    : { who: game.witness[c.number] || 'narrator', text: `Clue ${c.number}. ${c.text}`, mood: moodFor(game.witness[c.number] || 'narrator') }));
   b.setAttribute('aria-pressed', 'true');
   b.textContent = 'Stop reading the clues';
   voiceWaitNote();
@@ -2576,6 +2614,7 @@ function applyFeatures() {
   renderSocial();
   for (const el of $$('.needs-cloud')) el.hidden = !share.available() || (!!el.dataset.feature && !remote.feature(el.dataset.feature));
   $('#music-settings').hidden = !remote.feature('music');
+  $('#talking-faces-row').hidden = !remote.feature('talkingFaces') || !CLOUD_URL;
   $('[data-cmd=feedback]').hidden = !feedbackBox.available();
   $('[data-cmd=mail]').hidden = isPortal || !puzzleMail.available();
   $('#mail-invite').hidden = isPortal || !puzzleMail.available();
