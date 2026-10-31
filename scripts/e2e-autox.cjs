@@ -12,7 +12,9 @@ const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`o
   const server = spawn('node', [path.join(__dirname, 'serve.mjs'), path.join(__dirname, '..', 'dist', 'web'), '8141'], { stdio: 'ignore' });
   await new Promise((r) => setTimeout(r, 600));
   const browser = await chromium.launch();
-  const page = await (await browser.newContext({ viewport: { width: 1280, height: 900 } })).newPage();
+  const actx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  await actx.addInitScript(() => { try { localStorage.setItem('flg.savedOpen', 'true'); } catch (e) { /* none */ } }); // Saved Puzzles box open
+  const page = await actx.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(String(e)));
   const marks = () => page.evaluate(() => Object.fromEntries(window.__flg.state.marks));

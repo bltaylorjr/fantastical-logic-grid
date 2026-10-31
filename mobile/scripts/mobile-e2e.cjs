@@ -44,6 +44,7 @@ const fakeAndroid = () => {
       await ctx.addInitScript(fakeAndroid);
       // A tester's device, with the full Logic Grid package on (web/js/package-preview.js).
       await ctx.addInitScript((h) => { try { localStorage.setItem('flg.preview', h); } catch (e) { /* none */ } }, /CODE_HASH = '([0-9a-f]{64})'/.exec(require('fs').readFileSync(path.join(__dirname, '..', '..', 'web', 'js', 'package-preview.js'), 'utf8'))[1]);
+      await ctx.addInitScript(() => { try { localStorage.setItem('flg.savedOpen', 'true'); } catch (e) { /* none */ } }); // Saved Puzzles box open
       const page = await ctx.newPage();
       page.on('pageerror', (e) => errors.push(String(e)));
       page.on('console', (m) => { if (m.type() === 'error' && !/404/.test(m.text())) errors.push(m.text()); });

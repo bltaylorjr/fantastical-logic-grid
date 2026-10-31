@@ -96,6 +96,7 @@ function startAuth(signer) {
   const errors = [];
   async function device(name) {
     const ctx = await browser.newContext({ viewport: { width: 1200, height: 900 }, serviceWorkers: 'block' });
+    await ctx.addInitScript(() => { try { localStorage.setItem('flg.savedOpen', 'true'); } catch (e) { /* none */ } }); // Saved Puzzles box open
     await ctx.route('**/js/cloud-config.js', (r) => r.fulfill({ contentType: 'text/javascript', body: config }));
     // Stand-in for Have I Been Pwned: "password123" is a leaked password.
     await ctx.route('https://api.pwnedpasswords.com/range/**', (r) => r.fulfill({ contentType: 'text/plain', body: r.request().url().endsWith(LEAKED.slice(0, 5)) ? `0000000000000000000000000000000000A:0\r\n${LEAKED.slice(5)}:251682\r\n` : '0000000000000000000000000000000000B:0\r\n' }));
