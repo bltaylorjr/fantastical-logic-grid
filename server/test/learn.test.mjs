@@ -91,6 +91,8 @@ test('plays: the color look and picture clue are kept only from the fixed lists'
   // A rating sent later without them keeps what was recorded.
   await call('/v1/learn/plays', { body: { plays: [{ ...play, pid, rating: 5 }] } });
   assert.deepEqual({ ...(await db.prepare('SELECT look, pic, rating FROM plays WHERE pid = ?1').bind(pid).first()) }, { look: 'dark', pic: 'solved', rating: 5 });
+  // Leave the table as the later tests expect it.
+  await db.prepare('DELETE FROM plays WHERE pid IN (?1, ?2)').bind(pid, 'LookPicBad0123456').run();
 });
 
 test('shared story parts wait for review; approved ones reach every player', async () => {
