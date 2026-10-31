@@ -32,14 +32,14 @@ const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`o
 
     await page.click('#menu-btn');
     const link = page.locator('[data-cmd=numberplace]');
-    assert(await link.isVisible() && /Number Place/.test(await link.textContent()), 'the menu has a Number Place link');
+    assert(await link.isVisible() && /NINETIMESNINE/.test(await link.textContent()), 'the menu has a NINETIMESNINE link');
     assert(await link.evaluate((b) => parseFloat(getComputedStyle(b).fontSize) < parseFloat(getComputedStyle(document.querySelector('[data-cmd=new]')).fontSize)), 'the link is small');
     await page.keyboard.press('Escape');
 
     await openNp();
     await page.waitForSelector('#np-setup-view:not([hidden]) #np-levels .choice', { timeout: 15000 });
     assert(await page.locator('#screen-home').isHidden() && await page.locator('#screen-play').isHidden(), 'Number Place has its own screen');
-    assert(/Number Place/.test(await page.title()), 'the page title says Number Place');
+    assert(/NINETIMESNINE/.test(await page.title()), 'the page title says NINETIMESNINE');
     assert(await page.locator('#np-root.np-app').count() === 1 && await page.evaluate(() => getComputedStyle(document.querySelector('#np-root .card')).borderRadius) !== '0px', 'it uses the game\'s cards and look');
 
     await page.check('input[name=np-level][value=basic]', { force: true });
@@ -51,6 +51,8 @@ const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`o
     // Leave for the Logic Grid: number keys there never reach Number Place.
     const first = s.givens.findIndex((d) => !d);
     await page.click('#np-back');
+    await page.waitForSelector('#screen-games:not([hidden])');
+    await page.click('#game-cards [data-game=logic-grid]');
     await page.waitForSelector('#screen-home:not([hidden])');
     await page.locator('body').click({ position: { x: 5, y: 5 } });
     await page.keyboard.press(String(s.solution[first]));
@@ -85,6 +87,7 @@ const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`o
 
     // Back on the Logic Grid, a puzzle still starts as before.
     await page.click('#np-back');
+    await page.click('#game-cards [data-game=logic-grid]');
     await page.check('input[name=tier][value=basic]', { force: true });
     await page.click('#gen-btn');
     await page.waitForSelector('#screen-play:not([hidden])', { timeout: 30000 });

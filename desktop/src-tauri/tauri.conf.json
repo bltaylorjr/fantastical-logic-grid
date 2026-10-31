@@ -9,7 +9,7 @@
   "app": {
     "windows": [
       {
-        "title": "The Fantastical Logic Grid",
+        "title": "The Logic Grid",
         "width": 1280,
         "height": 860,
         "minWidth": 360,

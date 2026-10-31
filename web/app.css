@@ -542,6 +542,38 @@ h3, legend, .card h3 { font-family: var(--font); }
 #continue-btn small { font-size: .85rem; max-width: 30ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 640px) { .banner { grid-template-columns: minmax(0, 1fr); gap: 12px; } .hero-art svg { width: 56px; } .hero-actions .btn { flex: 1 1 100%; } }
 
+/* The Logic Grid: the game cards (games.js). Until app.js picks the first
+   screen, data-start shows the cards in place of The Fantastical Logic Grid's home. */
+[data-start=games] #screen-home { display: none !important; }
+[data-start=games] #screen-games { display: block !important; }
+[data-start=games] #back-btn, [data-start=games] .topstrip { display: none !important; }
+.games-banner { grid-template-columns: minmax(0, 1fr); }
+.game-cards { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 16px; }
+.game-card { width: 100%; height: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 16px; align-items: start; text-align: left; font: inherit; color: inherit;
+  padding: 20px; border-radius: var(--radius, 12px); border: 1px solid var(--edge-hi, var(--border)); background: var(--surface, var(--bg));
+  box-shadow: inset 0 1px 0 var(--edge, transparent), var(--shadow, none); transition: transform var(--fast) var(--ease), border-color var(--fast), box-shadow var(--mid, 200ms) var(--ease); }
+button.game-card { cursor: pointer; }
+button.game-card:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--accent) 60%, var(--edge-hi, var(--border))); box-shadow: inset 0 1px 0 var(--edge, transparent), 0 14px 32px -14px color-mix(in srgb, var(--accent) 80%, transparent); }
+button.game-card:active { transform: translateY(1px) scale(.99); }
+.game-card.soon { opacity: .7; border-style: dashed; box-shadow: none; }
+.game-art svg { width: 64px; height: 64px; display: block; color: var(--accent); }
+.game-card.soon .game-art svg { color: var(--muted); }
+.game-text { display: grid; gap: 4px; }
+.game-kind { text-transform: uppercase; letter-spacing: .14em; font-size: .75rem; font-weight: 700; color: var(--muted); }
+.game-name { font-size: 1.3rem; font-weight: 700; line-height: 1.2; }
+.game-name .menu-tag { font-size: .7rem; vertical-align: middle; padding: 1px 8px; border-radius: 999px; background: var(--accent-soft); }
+.game-blurb { color: var(--muted); }
+.game-play { justify-self: start; margin-top: 8px; font-weight: 700; color: var(--accent); }
+/* Wide screens: the games to play side by side, the ones to come smaller below. */
+@media (min-width: 900px) {
+  .game-cards { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .game-cards li { grid-column: span 3; }
+  .game-cards li:has(.soon) { grid-column: span 2; }
+  .game-card:not(.soon) { padding: 28px; }
+  .game-card:not(.soon) .game-art svg { width: 96px; height: 96px; }
+  .game-card:not(.soon) .game-name { font-size: 1.6rem; }
+}
+
 /* Setup: difficulty cards, theme tiles, size chips */
 .choice > span { border-radius: 14px; border: 1px solid var(--edge-hi); background: var(--surface-2); box-shadow: inset 0 1px 0 var(--edge);
   transition: transform var(--fast) var(--ease), border-color var(--fast), box-shadow var(--mid) var(--ease), background-color var(--fast); }
