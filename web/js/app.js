@@ -53,7 +53,6 @@ import * as tutorial from './tutorial.js';
 import * as license from './license.js';
 import * as licenseDownload from './license-download.js';
 import { addCloseButtons, closeDialog } from './dialog-close.js';
-import { initTalker } from './talker.js';
 import * as games from './games.js';
 import * as pkg from './package-preview.js';
 
@@ -2375,25 +2374,11 @@ $('#mode-switch').addEventListener('click', (e) => {
   if (basic) document.documentElement.dataset.look = 'basic'; else delete document.documentElement.dataset.look;
   try { localStorage.setItem('flg.look', basic ? 'basic' : 'interactive'); } catch (err) { /* private mode: this visit only */ }
   showLook();
-  if (basic) talker.hide?.();
   // The locked clue comes and goes with the look; a Basic puzzle has every clue open.
   if (S) startPictureClue();
   toast(basic ? 'Basic look on. Switch back to Interactive any time at the top.' : 'Interactive look on.');
 });
 showLook();
-
-// Talking faces: whoever is speaking appears in the corner of the play screen.
-const talker = initTalker($('#talker'), {
-  on: () => !!(S && settings.talkingFaces && voiceOn() && !isBasic() && !$('#screen-play').hidden && remote.feature('talkingFaces')),
-  game: () => (S ? {
-    puzzle: S.puzzle,
-    fallback: (who) => {
-      if (who === 'narrator') { const t = narratorOf(S.puzzle); return t ? characterFace(t, { size: 168 }) : ''; }
-      if (S.portraitUrls && S.portraitUrls[who]) return `<img src="${S.portraitUrls[who]}" alt="">`;
-      return portraitsReady() ? portrait(S.puzzle, who, { size: 168, style: settings.portraitStyle }) : '';
-    },
-  } : null),
-});
 
 // Swap in AI pictures from the game's server when the admin dashboard has them
 // on. Built-in art stays until they arrive, and whenever they can't be made.
@@ -2674,7 +2659,6 @@ function applyFeatures() {
   renderSocial();
   for (const el of $$('.needs-cloud')) el.hidden = !share.available() || (!!el.dataset.feature && !remote.feature(el.dataset.feature));
   $('#music-settings').hidden = !remote.feature('music');
-  $('#talking-faces-row').hidden = !remote.feature('talkingFaces') || !CLOUD_URL;
   $('[data-cmd=feedback]').hidden = !feedbackBox.available();
   $('[data-cmd=mail]').hidden = isPortal || !puzzleMail.available();
   $('#mail-invite').hidden = isPortal || !puzzleMail.available();
