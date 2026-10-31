@@ -148,6 +148,8 @@ uniform vec2 uBrow;     // brows up (+) or down (-); inner ends up (worry)
 uniform vec4 uEyeL;     // eye centre (xy), half width, half height
 uniform vec4 uEyeR;
 uniform float uBlink;   // 0 open, 1 shut
+uniform float uRound;   // lips rounded (1) or spread wide (-1) while open
+uniform vec4 uOpenLR;   // each eye's opening: top and bottom (L xy, R zw)
 uniform float uCheek;   // a real smile: cheeks and lower lids lift, eyes crinkle
 
 vec2 ay() { return vec2(-uAx.y, uAx.x); }
@@ -159,25 +161,43 @@ float across(float x, float y) {
 float down(float y) {
   return (1.0 - 0.25 * clamp(y / uChin, 0.0, 1.0)) * (1.0 - smoothstep(uChin, uChin + 1.1, y));
 }
-// A blink: the upper lid (with its lashes) slides down over the eye, and the
-// part of the eye still showing is squeezed below it.
-vec2 eyelid(vec2 p, vec4 eye) {
-  if (uBlink <= 0.01) return p;
-  vec2 d = p - eye.xy;
+// A blink: the upper lid comes down over the eye like a real one. Its edge
+// and lashes move down whole (so they keep their shape), the gap above them
+// is lid skin (taken from just below the eye, so it matches, with a little
+// shade), and the eye below is covered. Nothing higher moves, so brows,
+// folds and glasses keep their shape.
+vec3 eyelid(vec3 col, vec2 q, vec4 eye, vec2 open) {
+  if (uBlink <= 0.01) return col;
+  vec2 d = q - eye.xy;
   float x = dot(d, uAx) / eye.z;
   float y = dot(d, ay()) / eye.z;
-  float reach = smoothstep(1.3, 0.95, abs(x));
-  if (reach <= 0.0) return p;
-  float k = eye.w / eye.z * max(0.2, sqrt(max(0.0, 1.0 - x * x)));
-  float T = -2.4 * k;
-  float O = -k;
-  float B = k;
-  float lid = O + (B - O) * uBlink;
-  float sy = y;
-  if (y >= T && y <= lid) sy = T + (y - T) * (O - T) / max(0.0001, lid - T);
-  else if (y > lid && y <= B) sy = B - lid < 0.001 ? B : O + (y - lid) * (B - O) / (B - lid);
-  sy = mix(y, sy, reach);
-  return eye.xy + (uAx * x + ay() * sy) * eye.z;
+  if (abs(x) > 1.15) return col;
+  float k0 = eye.w / eye.z;
+  float arc = 0.15 + 0.85 * sqrt(max(0.0, 1.0 - min(1.0, x * x)));
+  float top = open.x * arc;             // the lash line, open
+  float bot = open.y * arc;             // the lower lid
+  float band = 0.6 * k0;                // the lid's edge and lashes
+  float drop = (bot - top + 0.12 * k0) * uBlink;   // how far the lid has come
+  if (y < top - band || y > top + drop) return col;
+  float side = 1.0 - smoothstep(0.9, 1.12, abs(x));
+  vec3 lid;
+  if (y >= top - band + drop) {
+    lid = tex(q - ay() * drop * eye.z).rgb;
+    side *= 1.0 - smoothstep(top + drop - 0.06 * k0, top + drop, y);
+  } else {
+    // Lid skin: the skin just above the lashes, or below the eye when that
+    // is darker (lashes, a fold or glasses).
+    float t = (y - (top - band)) / max(0.0001, drop);
+    vec3 above = tex(eye.xy + (uAx * x + ay() * (top - band - 0.12 * k0)) * eye.z).rgb;
+    vec3 below = tex(eye.xy + (uAx * x * 0.9 + ay() * (k0 * 2.0 + t * 0.6 * k0)) * eye.z).rgb;
+    float la = dot(above, vec3(0.299, 0.587, 0.114));
+    float lb = dot(below, vec3(0.299, 0.587, 0.114));
+    lid = mix(below, mix(above, below, 0.35), smoothstep(0.75, 0.9, la / max(0.001, lb)));
+    lid *= 0.96 - 0.08 * t * t;
+    // Blend into the skin above, so the lid has no hard top edge.
+    side *= smoothstep(top - band, top - band + 0.45 * k0, y);
+  }
+  return mix(col, lid, side);
 }
 // A real smile reaches the eyes: the cheek and lower lid below each eye rise,
 // narrowing the eye from below.
@@ -221,11 +241,17 @@ void main() {
   float a = -uHead.x * head;
   vec2 r = p - uNeck;
   p = uNeck + vec2(cos(a) * r.x - sin(a) * r.y, sin(a) * r.x + cos(a) * r.y) - (down2 * uHead.y + uAx * uHead.z) * head;
-  vec2 q = eyelid(eyelid(brow(brow(cheek(cheek(p, uEyeL), uEyeR), uEyeL, 1.0), uEyeR, -1.0), uEyeL), uEyeR);
+  vec2 q = brow(brow(cheek(cheek(p, uEyeL), uEyeR), uEyeL, 1.0), uEyeR, -1.0);
 
   vec2 d = q - uM;
   float lx = dot(d, uAx) / uW;
   float ly = dot(d, ay()) / uW;
+  // Rounded lips ("oh", "you") draw the corners in; wide ones ("ee") spread
+  // them, so the mouth's shape changes with the sounds, not just its opening.
+  float near = exp(-(ly * ly) / 0.5) * (1.0 - smoothstep(1.2, 2.2, abs(lx)));
+  float shape = 1.0 + uRound * uOpen * 0.55 * near;
+  q += uAx * lx * (shape - 1.0) * uW;
+  lx *= shape;
   // Mouth corners lift for a smile, drop for a frown; one lifts for a smirk.
   float corner = smoothstep(0.1, 0.95, abs(lx)) * (1.0 - smoothstep(1.1, 1.9, abs(lx))) * exp(-ly * ly / 0.7);
   float lift = (uSmile.x + uSmile.y * step(0.0, lx)) * 0.42 * corner;
@@ -241,16 +267,22 @@ void main() {
     // Inside the open mouth: dark, upper teeth at the top, a hint of tongue.
     float t = (y + up) / max(0.0001, up + dn);
     float sd = smoothstep(0.85, 0.2, abs(lx));
-    vec3 inner = mix(vec3(0.10, 0.03, 0.04), vec3(0.30, 0.08, 0.09), sd * 0.6);
-    float teeth = step(t, 0.3 + 0.1 * (1.0 - h0)) * smoothstep(0.85, 0.55, abs(lx));
-    inner = mix(inner, vec3(0.86, 0.83, 0.78) * (0.75 + 0.25 * sd), teeth * smoothstep(0.0, 0.08, uOpen));
-    inner = mix(inner, vec3(0.55, 0.22, 0.24), smoothstep(0.7, 1.0, t) * smoothstep(0.15, 0.3, uOpen) * sd);
-    // Soft lip edges.
+    // Darker towards the back and the corners of the mouth.
+    vec3 inner = mix(vec3(0.1, 0.035, 0.04), vec3(0.34, 0.1, 0.11), sd * (0.4 + 0.45 * t));
+    // Upper teeth: softly edged, shaded at the sides and under the lip, with
+    // faint gaps between them.
+    float edge = 0.3 + 0.1 * (1.0 - h0) + 0.015 * sin(lx * 22.0);
+    float teeth = smoothstep(edge + 0.06, edge - 0.02, t) * smoothstep(0.9, 0.5, abs(lx));
+    float gap = 1.0 - 0.12 * pow(abs(cos(lx * 11.0)), 12.0);
+    vec3 tooth = vec3(0.84, 0.81, 0.76) * (0.62 + 0.38 * sd) * (0.8 + 0.2 * smoothstep(0.0, 0.12, t)) * (1.0 - 0.18 * smoothstep(edge - 0.15, edge, t)) * gap;
+    inner = mix(inner, tooth, teeth * smoothstep(0.0, 0.1, uOpen));
+    inner = mix(inner, vec3(0.5, 0.2, 0.22), smoothstep(0.72, 1.0, t) * smoothstep(0.15, 0.3, uOpen) * sd * 0.8);
+    // Soft lip edges, so the opening blends into the lips.
     vec2 upLip = uM + (uAx * lx + ay() * (line - up + 0.02)) * uW;
     vec2 lowLip = uM + (uAx * lx + ay() * (line + 0.02)) * uW;
     col = vec4(inner, 1.0);
-    col = mix(tex(upLip), col, smoothstep(0.0, 0.06, y + up));
-    col = mix(tex(lowLip), col, smoothstep(0.0, 0.06, dn - y));
+    col = mix(tex(upLip), col, smoothstep(0.0, 0.1, y + up));
+    col = mix(tex(lowLip), col, smoothstep(0.0, 0.1, dn - y));
   } else if (y >= dn) {
     // Below the lips: the lower lip, jaw and chin move down.
     float sy = y;
@@ -261,6 +293,7 @@ void main() {
     float sy = y + up * (1.0 - smoothstep(0.0, 0.9, -y));
     col = tex(q + ay() * (sy - y) * uW);
   }
+  col.rgb = eyelid(eyelid(col.rgb, q, uEyeL, uOpenLR.xy), q, uEyeR, uOpenLR.zw);
   gl_FragColor = vec4(col.rgb, 1.0);
 }`;
 
@@ -303,6 +336,13 @@ export function faceGeometry(face, width, height, aspect = 1.25) {
   };
   const eyeL = eye('eyeLOut', 'eyeLIn', 'eyeLTop', 'eyeLBot');
   const eyeR = eye('eyeROut', 'eyeRIn', 'eyeRTop', 'eyeRBot');
+  // Where each eye's opening really is, above and below the line between its
+  // corners (in half-widths): the lids are seldom centred on that line.
+  const opening = (e, top, bot) => {
+    const off = (k) => { const d = sub(px(k), e); return (d[0] * ay[0] + d[1] * ay[1]) / e[2]; };
+    return [Math.min(off(top), -0.05), Math.max(off(bot), 0.05)];
+  };
+  const lids = [...opening(eyeL, 'eyeLTop', 'eyeLBot'), ...opening(eyeR, 'eyeRTop', 'eyeRBot')];
   const eyesMid = [(eyeL[0] + eyeR[0]) / 2, (eyeL[1] + eyeR[1]) / 2];
   const chinP = px('chin');
   const faceH = len(sub(chinP, eyesMid));
@@ -315,7 +355,7 @@ export function faceGeometry(face, width, height, aspect = 1.25) {
   const vh = vw * aspect;
   const centre = [eyesMid[0], eyesMid[1] + vh * 0.2];
   const keep = (c, view, size) => Math.min(Math.max(c, view * 0.51), size - view * 0.51);
-  return { M, ax, w, curve: corners, chin, eyeL, eyeR, neck, faceH, view: [keep(centre[0], vw, width), keep(centre[1], vh, height), vw, vh] };
+  return { M, ax, w, curve: corners, chin, eyeL, eyeR, lids, neck, faceH, view: [keep(centre[0], vw, width), keep(centre[1], vh, height), vw, vh] };
 }
 
 // A canvas that shows one face and makes it talk.
@@ -343,6 +383,9 @@ export function createTalker(canvas, { reducedMotion = false } = {}) {
   let gesture = null;
   let jitterAt = 0;
   let jitter = [0, 0];
+  let round = 0;
+  let roundTo = 0;
+  let wasOpening = false;
   let fidget = [0, 0];
   let last = now0;
   if (gl) {
@@ -370,22 +413,30 @@ export function createTalker(canvas, { reducedMotion = false } = {}) {
     // Jaw: follows the voice, opening a little quicker than it closes, and
     // smoothed so the lips glide between sounds instead of snapping.
     const lv = level();
-    const target = lv == null ? 0 : Math.max(0, Math.min(1, (lv - 0.08) * 1.5)) * 0.42 * m.jaw;
+    const target = lv == null ? 0 : Math.max(0, Math.min(1, (lv - 0.08) * 1.5)) * 0.36 * m.jaw;
     // (Eased by time, not by frame, so a slow machine moves the mouth as fast.)
     open += (target - open) * (1 - Math.pow(target > open ? 0.62 : 0.76, dt * 60));
     if (open < 0.004) open = 0;
+    // Each new syllable shapes the lips a little differently.
+    const opening = target > open + 0.02;
+    if (opening && !wasOpening) roundTo = Math.random() * 1.6 - 0.6;
+    wasOpening = opening;
+    round += (roundTo - round) * (1 - Math.pow(0.82, dt * 60));
     for (const k of Object.keys(ex)) ex[k] += (m[k] - ex[k]) * Math.min(1, dt * 4);
     // Blinks, more often when nervous.
     let blink = 0;
     if (blinkStart < 0 && now > nextBlink) blinkStart = now;
     if (blinkStart >= 0) {
-      const p = Math.max(0, now - blinkStart) / 160;
-      blink = p >= 1 ? 0 : Math.sin(Math.PI * p);
+      // Shut quickly, a moment closed, then open a little slower.
+      const ms = Math.max(0, now - blinkStart);
+      const p = ms / 300;
+      const ease = (v) => v * v * (3 - 2 * v);
+      blink = ms < 90 ? ease(ms / 90) : ms < 130 ? 1 : p >= 1 ? 0 : 1 - ease((ms - 130) / 170);
       if (p >= 1) { blinkStart = -1; nextBlink = now + 1000 * (m.blink[0] + Math.random() * (m.blink[1] - m.blink[0])); }
     }
     if (heldBlink != null) blink = heldBlink;
     // Heavy lids (sly, grumpy, guilty) hang part-way; a blink closes the rest.
-    const lids = heldBlink != null ? 0 : ex.lids;
+    const lids = heldBlink != null ? 0 : ex.lids * 0.5;
     blink = lids + (1 - lids) * blink;
     // A gesture runs for its length, rising and falling.
     let shrug = 0;
@@ -436,6 +487,8 @@ export function createTalker(canvas, { reducedMotion = false } = {}) {
     gl.uniform4f(u('uEyeL'), ...geo.eyeL);
     gl.uniform4f(u('uEyeR'), ...geo.eyeR);
     gl.uniform1f(u('uBlink'), blink);
+    gl.uniform1f(u('uRound'), reducedMotion ? 0 : round);
+    gl.uniform4f(u('uOpenLR'), ...geo.lids);
     gl.uniform1f(u('uCheek'), Math.max(0, Math.min(1, ex.smile * 1.4)));
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     if (!stopped) raf = requestAnimationFrame(frame);
@@ -455,8 +508,8 @@ export function createTalker(canvas, { reducedMotion = false } = {}) {
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, bitmap);
-      if (bitmap.close) bitmap.close();
       geo = faceGeometry(face, img[0], img[1], canvas.height / canvas.width);
+      if (bitmap.close) bitmap.close();
       run();
       return true;
     },
