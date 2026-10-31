@@ -366,6 +366,10 @@ function voicePlan(settings, puzzle, who) {
   }
   return { seed, kind: 'device' };
 }
+// The server voices a character made in the admin dashboard can have
+// (server/src/characters.js VOICES.gemini).
+const GEMINI_F = ['Kore', 'Aoede', 'Leda', 'Zephyr', 'Callirrhoe'];
+const GEMINI_M = ['Puck', 'Charon', 'Fenrir', 'Orus', 'Enceladus', 'Iapetus', 'Umbriel'];
 function ownVoicePlan(settings, c) {
   const seed = hashOf(`character:${c.id}`);
   const v = c.voice || {};
