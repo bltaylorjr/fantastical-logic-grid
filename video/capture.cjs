@@ -486,7 +486,11 @@ const CSS = `
     await top(); await p.click('[data-act=print]'); await p.waitForTimeout(300);
     await scene('print', ['You can print any puzzle, blank or with your marks, with the answer key on its own page.']);
     await p.click('#print-cancel');
-    await p.click('#home-btn'); await p.waitForSelector('.saved-item'); await p.waitForTimeout(400); await prep();
+    await p.click('#home-btn'); await p.waitForSelector('#saved-section .saved-item', { state: 'attached' });
+    // Saved Puzzles folds away, and solved puzzles sit under Completed puzzles (PR #163): open both.
+    if (await p.$eval('#saved-toggle', (b) => b.getAttribute('aria-expanded') !== 'true')) await p.click('#saved-toggle');
+    await p.evaluate(() => { const d = document.getElementById('saved-done'); if (!d.hidden) d.open = true; });
+    await p.waitForSelector('#saved-section .saved-item'); await p.waitForTimeout(400); await prep();
     await scrollTo('#saved-section'); await hl('#saved-section');
     await scene('saved', ['Your progress saves automatically.', 'Come back any time and pick up where you left off, from Saved puzzles.']);
     await clearFx();
@@ -499,7 +503,7 @@ const CSS = `
     await top(); await hl('#intro-btn');
     await scene('howto', ['And Introduction, at the top of every page, plays this video again.']);
     await clearFx();
-    await p.click('.saved-item [data-do=resume]'); await p.waitForSelector('#screen-play:not([hidden])'); await prep(); await top();
+    await p.click('#saved-section .saved-item [data-do=resume]'); await p.waitForSelector('#screen-play:not([hidden])'); await prep(); await top();
     await p.evaluate(() => { document.documentElement.dataset.theme = 'dark'; }); await p.waitForTimeout(300);
     await scene('dark', ['Play in light or dark colors,']);
     await p.evaluate(() => { document.documentElement.dataset.theme = 'contrast'; }); await p.waitForTimeout(300);
@@ -560,6 +564,8 @@ const CSS = `
     }
     if (await p.isVisible('#compete-section')) {
       // Signed in, the game asks for a screen name straight away.
+      // (Closing the print pack window can close it too: then open it from the name at the top.)
+      if (!(await p.waitForSelector('#dlg-name[open]', { timeout: 5000 }).catch(() => null))) { await top(); await p.click('#player-chip'); }
       await p.waitForSelector('#dlg-name[open]', { timeout: 15000 });
       await p.fill('#name-input', 'Sky Fox');
       await scene('screen-name', ['Once you are signed in, you pick a screen name.', 'Type your own, or press Suggest a name and the game makes one up for you.', 'It is the only thing other players see, and rude names are turned away.', 'Don\'t want one? Sign out instead, and you play as Guest.']);
