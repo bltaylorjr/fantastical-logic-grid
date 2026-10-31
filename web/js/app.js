@@ -1109,16 +1109,27 @@ function updateUndoButtons() {
 // "Try again", spoken by the narrator, when a player is on the last few
 // decisions of a puzzle (a row's worth of cells or fewer left) and marks a
 // cell that does not fit the solution. At most once every few seconds, and
-// only while voices are on.
+// only while voices are on. Tapping cycles empty, X, O, so an X on its way to
+// an O is not a mistake yet: an X is only called out if it is still there
+// after a moment (player report: "Try again" on the last correct moves).
+const TRY_AGAIN_X_WAIT_MS = 1500;
 let lastTryAgain = 0;
-function tryAgainNearEnd() {
+let tryAgainTimer = 0;
+function tryAgainNearEnd(k) {
+  clearTimeout(tryAgainTimer);
   if (!S || S.save.solved || S.save.revealed || !voiceOn()) return;
   const left = [...S.grid.cells.keys()].filter((c) => !S.marks.get(c)).length;
   const lastDecisions = Math.max(3, S.puzzle.categories[0].items.length);
-  if (left > lastDecisions || Date.now() - lastTryAgain < 4000) return;
-  lastTryAgain = Date.now();
-  status('Try again.');
-  ai.speak(settings, S.puzzle, 'narrator', 'Try again.', { volume: settings.volume / 100 }).catch(() => {});
+  if (left > lastDecisions) return;
+  const say = () => {
+    if (!S || S.save.solved || S.save.revealed || Date.now() - lastTryAgain < 4000) return;
+    lastTryAgain = Date.now();
+    status('Try again.');
+    ai.speak(settings, S.puzzle, 'narrator', 'Try again.', { volume: settings.volume / 100 }).catch(() => {});
+  };
+  if (S.marks.get(k) !== 'X') { say(); return; }
+  const puzzle = S.puzzle;
+  tryAgainTimer = setTimeout(() => { if (S && S.puzzle === puzzle && S.marks.get(k) === 'X') say(); }, TRY_AGAIN_X_WAIT_MS);
 }
 
 // Cells in the same sub-grid row and column as k (for auto-X).
@@ -1155,7 +1166,7 @@ function setCell(k, v) {
     if (mk && settings.instant) { S.wrong.add(k); paintCell(k); wrongNow = true; }
   }
   // A wrong mark near the end, or a finished grid that is not the answer.
-  if (v && (checkMarks(S.puzzle, [{ a, b, mark: v === 'O' ? 'O' : 'X' }])[0] || (!S.save.solved && ![...S.grid.cells.keys()].some((c) => !S.marks.get(c))))) tryAgainNearEnd();
+  if (v && (checkMarks(S.puzzle, [{ a, b, mark: v === 'O' ? 'O' : 'X' }])[0] || (!S.save.solved && ![...S.grid.cells.keys()].some((c) => !S.marks.get(c))))) tryAgainNearEnd(k);
   sound(wrongNow ? 'error' : v === 'O' ? 'O' : v ? 'X' : 'clear');
   const td = S.grid.cells.get(k);
   announce(`${td ? `${S.ix.label(td.dataset.row)}, ${S.ix.label(td.dataset.col)}` : what}, ${STATE_WORDS[v]}${wrongNow ? ', conflicts with the solution' : ''}${autoCount ? `. Also ruled out ${autoCount} other cell${autoCount > 1 ? 's' : ''}` : ''}${autoGone ? `. Also removed ${autoGone} automatic X${autoGone > 1 ? 's' : ''}` : ''}.`);
