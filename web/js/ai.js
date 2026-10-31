@@ -10,7 +10,7 @@
 import * as store from './store.js';
 import { CLOUD_URL } from './cloud-config.js';
 import { genderOf } from './gender.js';
-import { profileOf } from './castbook.js';
+import { profileOf, MOOD_PACE, MOOD_PITCH, moodPace } from './castbook.js';
 import { feature } from './remote-config.js';
 import * as i18n from './i18n.js';
 import { characterOf, narratorOf } from './cast.js';
@@ -136,9 +136,10 @@ export function faceImage(puzzle, who) {
 // ---------------------------------------------------------------------------
 let current = null;
 
-// Who is speaking, for the talking faces: listener({ who, blob, audio }) as
-// a natural-voice clip starts, ({ who, device: true }) when a device voice
-// starts, and ({ who, done: true }) when it ends or is stopped.
+// Who is speaking, for the talking faces: listener({ who, blob, audio, mood })
+// as a natural-voice clip starts, ({ who, device: true, mood }) when a device
+// voice starts, ({ who, gesture, mood }) as a line with a gesture begins, and
+// ({ who, done: true }) when it ends or is stopped.
 let onSpeech = null;
 export const listenToSpeech = (fn) => { onSpeech = fn; };
 const tell = (e) => { try { if (onSpeech) onSpeech(e); } catch (err) { /* talking faces are optional */ } };
@@ -325,8 +326,8 @@ let speakToken = 0;
 // moves to the Kokoro voices on this device until tomorrow.
 let cloudOffUntil = 0;
 const cloudVoicesReady = () => !!CLOUD_URL && feature('voices') && Date.now() > cloudOffUntil;
-async function cloudTts(text, voice) {
-  const res = await fetch(`${CLOUD_URL}/v1/tts`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, voice, lang: i18n.speechTag() }) });
+async function cloudTts(text, voice, mood) {
+  const res = await fetch(`${CLOUD_URL}/v1/tts`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, voice, lang: i18n.speechTag(), ...(mood ? { mood } : {}) }) });
   if (!res.ok) {
     // Used up for today (or not set up): rest until the next day, or an hour on other errors.
     cloudOffUntil = Date.now() + (res.status === 429 || res.status === 503 ? 3600 * 1000 * 6 : 3600 * 1000);
@@ -357,11 +358,11 @@ function voicePlan(settings, puzzle, who) {
   const other = !i18n.isEnglish();
   if (source === 'server' && !settings.noServerVoices && cloudVoicesReady()) {
     const voice = narr ? 'Charon' : profileOf(who).voice.gemini; // Charon: male, steady
-    return { seed, kind: 'cloud', gap: 80, key: `g2|${voice}`, make: (t) => cloudTts(t, voice) };
+    return { seed, kind: 'cloud', gap: 80, voice, key: `g2|${voice}`, make: (t) => cloudTts(t, voice) };
   }
   if (!other && (kokoroReady(settings) || kokoroLoading())) {
     const v = narr ? { kokoro: KOKORO_NARRATOR, pace: 0.94, standIn: KOKORO_NARRATOR } : profileOf(who).voice;
-    return { seed, kind: 'kokoro', gap: 220, key: `k3|${v.kokoro}|${v.pace}`, make: (t) => kokoroTts(t, v.kokoro, v.pace, v.standIn) };
+    return { seed, kind: 'kokoro', gap: 220, voice: v.kokoro, pace: v.pace, standIn: v.standIn, key: `k3|${v.kokoro}|${v.pace}`, make: (t) => kokoroTts(t, v.kokoro, v.pace, v.standIn) };
   }
   return { seed, kind: 'device' };
 }
@@ -372,16 +373,27 @@ function ownVoicePlan(settings, c) {
   const device = { seed, kind: 'device', speaker: c.name };
   if (source === 'device') return device;
   if (source === 'server' && !settings.noServerVoices && cloudVoicesReady() && GEMINI_F.concat(GEMINI_M, ['Charon']).includes(v.gemini)) {
-    return { seed, kind: 'cloud', gap: 80, speaker: c.name, key: `g2|${v.gemini}`, make: (t) => cloudTts(t, v.gemini) };
+    return { seed, kind: 'cloud', gap: 80, speaker: c.name, voice: v.gemini, key: `g2|${v.gemini}`, make: (t) => cloudTts(t, v.gemini) };
   }
   if (i18n.isEnglish() && (kokoroReady(settings) || kokoroLoading()) && /^a[fm]_[a-z]+$/.test(v.kokoro || '')) {
     const speed = Math.min(1.2, Math.max(0.8, Number(v.speed) || 1));
-    return { seed, kind: 'kokoro', gap: 220, speaker: c.name, key: `k2|${v.kokoro}|${speed}`, make: (t) => kokoroTts(t, v.kokoro, speed) };
+    return { seed, kind: 'kokoro', gap: 220, speaker: c.name, voice: v.kokoro, pace: speed, key: `k2|${v.kokoro}|${speed}`, make: (t) => kokoroTts(t, v.kokoro, speed) };
   }
   return device;
 }
 // Which voice would speak right now: 'cloud', 'kokoro' or 'device'.
 export const voiceKind = (settings, puzzle, who = 'narrator') => voicePlan(settings, puzzle, who).kind;
+// The mood colors the voice: the server's voices are told how to say it, and
+// the device's voices (Kokoro and the device's own) speed up or slow down.
+function moodPlan(plan, mood) {
+  if (!mood || mood === 'calm') return plan;
+  if (plan.kind === 'cloud') return { ...plan, key: `${plan.key}|${mood}`, make: (t) => cloudTts(t, plan.voice, mood) };
+  if (plan.kind === 'kokoro' && MOOD_PACE[mood]) {
+    const pace = moodPace(plan.pace, mood);
+    return { ...plan, key: `${plan.key}|${pace}`, make: (t) => kokoroTts(t, plan.voice, pace, plan.standIn || plan.voice) };
+  }
+  return plan;
+}
 const clip = (plan, text) => cached(`voice|${plan.key}|${hashOf(text)}|${text.length}`, () => plan.make(text));
 
 // Start making the first clip early (for example when a puzzle opens), so
@@ -393,14 +405,14 @@ export function warmVoice(settings, puzzle, who, text) {
   if (first) clip(plan, first).catch(() => {});
 }
 
-function playBlob(blob, volume, token, who) {
+function playBlob(blob, volume, token, who, mood = '') {
   return new Promise((resolve, reject) => {
     if (token !== speakToken) { resolve(false); return; }
     const url = URL.createObjectURL(blob);
     const audio = new Audio(url);
     audio.volume = volume;
     current = audio;
-    tell({ who, blob, audio });
+    tell({ who, blob, audio, mood });
     const done = (ok) => { URL.revokeObjectURL(url); if (current === audio) current = null; tell({ who, done: true }); resolve(ok); };
     audio.onended = () => done(true);
     // Browsers fire 'pause' just before 'ended' when a clip finishes, so only
@@ -409,10 +421,10 @@ function playBlob(blob, volume, token, who) {
     audio.play().catch((e) => { URL.revokeObjectURL(url); tell({ who, done: true }); reject(e); });
   });
 }
-function speakDevice(text, seed, who, volume, token, face = who) {
+function speakDevice(text, seed, who, volume, token, face = who, mood = '') {
   if (!window.speechSynthesis || token !== speakToken) return Promise.resolve(false);
   const v = deviceVoice(seed, who === 'narrator', who);
-  tell({ who: face, device: true });
+  tell({ who: face, device: true, mood });
   // One utterance per sentence gives a natural pause between sentences.
   const parts = text.split(/(?<=[.!?]["”’)]?)\s+/).filter(Boolean);
   return new Promise((resolve) => {
@@ -424,8 +436,8 @@ function speakDevice(text, seed, who, volume, token, face = who) {
       if (v) u.voice = v;
       u.lang = (v && v.lang) || i18n.speechTag();
       const own = who === 'narrator' ? null : profileOf(who).voice;
-      u.rate = own ? own.rate : 0.92;
-      u.pitch = own ? own.pitch : 1;
+      u.rate = (own ? own.rate : 0.92) * (MOOD_PACE[mood] || 1);
+      u.pitch = (own ? own.pitch : 1) * (MOOD_PITCH[mood] || 1);
       u.volume = volume;
       if (i === parts.length - 1) u.onend = u.onerror = end;
       speechSynthesis.speak(u);
@@ -435,13 +447,15 @@ function speakDevice(text, seed, who, volume, token, face = who) {
 }
 
 // who: a character's name, or 'narrator'. Resolves when speech ends.
-export async function speak(settings, puzzle, who, text, { volume = 1 } = {}) {
+// mood: how they say it (castbook.js MOODS), for the voice and the face;
+// gesture: 'shrug', 'nod' or 'shake' as they start.
+export async function speak(settings, puzzle, who, text, { volume = 1, mood = '', gesture = '' } = {}) {
   stopSpeaking();
-  await say(settings, puzzle, who, text, volume, speakToken);
+  await say(settings, puzzle, who, text, volume, speakToken, mood, gesture);
 }
 
 // Several speakers in turn, for example every clue told by its witness.
-// lines: [{ who, text }]. onLine(i) is called as each line starts, and with
+// lines: [{ who, text, mood? }]. onLine(i) is called as each line starts, and with
 // -1 at the end. Resolves true when every line was spoken, false if stopped.
 export async function speakLines(settings, puzzle, lines, { volume = 1, onLine } = {}) {
   stopSpeaking();
@@ -449,7 +463,7 @@ export async function speakLines(settings, puzzle, lines, { volume = 1, onLine }
   for (let i = 0; i < lines.length; i++) {
     if (token !== speakToken) return false;
     if (onLine) onLine(i);
-    if (!(await say(settings, puzzle, lines[i].who, lines[i].text, volume, token))) break;
+    if (!(await say(settings, puzzle, lines[i].who, lines[i].text, volume, token, lines[i].mood || '', lines[i].gesture || ''))) break;
   }
   const finished = token === speakToken;
   if (onLine) onLine(-1);
@@ -459,17 +473,18 @@ export async function speakLines(settings, puzzle, lines, { volume = 1, onLine }
 // Speaks one text with one voice. If a natural voice fails partway, the rest
 // is read by the next voice that works, so no words are skipped.
 // Resolves true when the whole text was spoken, false if stopped.
-async function say(settings, puzzle, who, text, volume, token) {
+async function say(settings, puzzle, who, text, volume, token, mood = '', gesture = '') {
   let clean = speechText(text);
   if (!i18n.isEnglish()) {
     clean = speechText(await i18n.t(clean));
     if (token !== speakToken) return false;
   }
-  const plan = voicePlan(settings, puzzle, who);
+  const plan = moodPlan(voicePlan(settings, puzzle, who), mood);
   const speaker = plan.speaker || who;
-  if (plan.kind === 'device') return speakDevice(clean, plan.seed, speaker, volume, token, who);
+  if (gesture) tell({ who, gesture, mood });
+  if (plan.kind === 'device') return speakDevice(clean, plan.seed, speaker, volume, token, who, mood);
   if (plan.kind === 'kokoro' && kokoroLoading()) {
-    try { await kokoroDownload(); } catch (e) { return speakDevice(clean, plan.seed, speaker, volume, token, who); }
+    try { await kokoroDownload(); } catch (e) { return speakDevice(clean, plan.seed, speaker, volume, token, who, mood); }
     if (token !== speakToken) return false;
   }
   const parts = speechChunks(clean);
@@ -485,18 +500,18 @@ async function say(settings, puzzle, who, text, volume, token) {
       job(i + 1);
     } catch (e) {
       if (token !== speakToken) return false;
-      if (plan.kind === 'cloud') return say({ ...settings, noServerVoices: true }, puzzle, who, rest(i), volume, token);
+      if (plan.kind === 'cloud') return say({ ...settings, noServerVoices: true }, puzzle, who, rest(i), volume, token, mood);
       console.warn('Natural voice unavailable, using device voice:', e.message);
-      return speakDevice(rest(i), plan.seed, speaker, volume, token, who);
+      return speakDevice(rest(i), plan.seed, speaker, volume, token, who, mood);
     }
     try {
-      if (!(await playBlob(blob, volume, token, who))) return false;
+      if (!(await playBlob(blob, volume, token, who, mood))) return false;
       // A short breath between sentences, as a reader would take.
       if (plan.gap && i < parts.length - 1) await new Promise((r) => setTimeout(r, plan.gap));
     } catch (e) {
       if (token !== speakToken || (e && e.name === 'NotAllowedError')) return false;
       console.warn('Voice clip did not play, using device voice:', e && e.message);
-      return speakDevice(rest(i), plan.seed, speaker, volume, token, who);
+      return speakDevice(rest(i), plan.seed, speaker, volume, token, who, mood);
     }
   }
   return token === speakToken;

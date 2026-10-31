@@ -1,7 +1,8 @@
 // Talking faces (web/js/talker.js, talking-face.js): while the clues are read
 // aloud, the witness reading appears in the corner with their name, their
 // photo comes from the game's server (kind 'face'), and their mouth opens and
-// closes with the loudness of the real voice clip. Turning Talking faces off
+// closes with the loudness of the real voice clip, acting in their
+// personality's mood (castbook.js moodOf). Turning Talking faces off
 // in Settings hides it. Also checks that the face finder (face-worker.js,
 // MediaPipe) loads from the built app and answers.
 //
@@ -113,10 +114,13 @@ const POINTS = {
     await page.waitForSelector('#talker:not([hidden])', { timeout: 10000 });
     const first = await page.evaluate(() => window.__flg.state.witness[window.__flg.state.puzzle.clues[0].number] || 'narrator');
     // Something said just before (a story moment) may still be on screen for a moment.
-    const want = first === 'narrator' ? 'Narrator' : first;
-    await page.waitForFunction((w) => document.querySelector('#talker .talker-name').textContent.trim() === w, want, { timeout: 10000 }).catch(() => {});
+    const named = first === 'narrator' ? 'Narrator' : first;
+    await page.waitForFunction((w) => document.querySelector('#talker .talker-name').textContent.trim() === w, named, { timeout: 10000 }).catch(() => {});
     const shown = (await page.textContent('#talker .talker-name')).trim();
     assert(shown === (first === 'narrator' ? 'Narrator' : first), `the first clue's reader appears with their name (${shown})`);
+    const mood = await page.getAttribute('#talker', 'data-mood');
+    const want = await page.evaluate(async (w) => (w === 'narrator' ? 'calm' : (await import('/js/castbook.js')).moodOf(w)), first);
+    assert(mood === want, `they act in their personality's mood (${mood})`);
     await page.waitForSelector('#talker canvas:not([hidden])', { timeout: 15000 });
     assert(faces.length >= 1 && /closed-mouth/.test(faces[0]), 'their lifelike photo is asked of the game\'s server');
     let most = 0;

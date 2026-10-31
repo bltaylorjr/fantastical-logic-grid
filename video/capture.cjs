@@ -360,7 +360,7 @@ const CSS = `
     }, who);
     if (talked) {
       await hl(['#talker']);
-      await scene('talking-face', ['While a voice reads, the character who is speaking appears in the corner.', 'When AI pictures are on, they get a lifelike face, and their lips move with their words.', 'You can turn Talking faces off in Settings.']);
+      await scene('talking-face', ['While a voice reads, the character who is speaking appears in the corner.', 'When AI pictures are on, they get a lifelike face, and their lips move with their words.', 'They act the part too: a nervous witness fidgets, a cheerful one smiles, and a caught culprit hangs their head.', 'You can turn Talking faces off in Settings.']);
       await clearFx();
       await p.evaluate(() => { const box = document.querySelector('#talker'); box.hidden = true; box.classList.remove('speaking'); });
     }

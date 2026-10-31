@@ -4,7 +4,7 @@
 import { THEMES } from '../engine/src/themes.js';
 import { TOPICS } from '../engine/src/topics.js';
 import { KNOWN_NAMES, genderOf } from '../web/js/gender.js';
-import { PERSONALITIES, CAST_NAMES, KOKORO_BUNDLED, KOKORO_STAND_IN, profileOf, personalityOf, sayingOf } from '../web/js/castbook.js';
+import { PERSONALITIES, CAST_NAMES, KOKORO_BUNDLED, KOKORO_STAND_IN, MOODS, profileOf, personalityOf, sayingOf, moodOf, caughtLine } from '../web/js/castbook.js';
 import { GEMINI_VOICES } from '../server/src/voices.js';
 import * as dicebear from '../web/vendor/dicebear/dicebear.js';
 
@@ -85,6 +85,18 @@ for (const [id, p] of Object.entries(PERSONALITIES)) {
       assert(line.length <= 80, `${id} ${kind} line is short: ${line}`);
     }
   }
+}
+// The culprit's owning-up lines follow the same rules.
+for (let n = 0; n < 8; n++) {
+  const line = caughtLine('Clara', n);
+  lines++;
+  for (const w of words) assert(!new RegExp(`\\b${esc(w)}\\b`, 'i').test(line), `caught line names the grid item "${w}": ${line}`);
+  for (const k of KNOWN_NAMES) assert(!new RegExp(`\\b${k}\\b`).test(line), `caught line names ${k}: ${line}`);
+}
+// 6. Every personality acts in a mood the talking faces know.
+for (const id of Object.keys(PERSONALITIES)) {
+  const name = [...CAST_NAMES].find((n) => personalityOf(n) === id);
+  if (name) assert(MOODS.includes(moodOf(name)) && moodOf(name) !== 'calm', `${id} has its own mood (${moodOf(name)})`);
 }
 assert(sayingOf('Clara', 'clue', 3) === sayingOf('clara', 'clue', 3), 'lines are steady for a name');
 assert(personalityOf('Zoe Q') === personalityOf('Zoe Q'), 'typed names get a steady personality');
