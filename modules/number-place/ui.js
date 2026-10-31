@@ -23,6 +23,8 @@ import { createLearning, summary, PAR_MS } from './learning.js';
 import { sounds } from './sound.js';
 import { printableHtml, printHtml } from './print.js';
 import { resultPicture } from './picture.js';
+import { HOWTO, exampleGrid } from './howto.js';
+import { STYLES, styleOf, REALMS, POWERS, rivalSkill, rivalName, rivalPlan, chainGoal, tideDepth, glyphStart, tuningNote, cleanStyle } from './styles.js';
 
 let root = null;
 const $ = (s) => root.querySelector(s);
@@ -49,6 +51,7 @@ const COACH = [
   'Stuck? Hint starts with a nudge. Ask again to see where to look, then why it works.',
   'Each puzzle has exactly one answer, and you never need to guess. Every hint can explain itself.',
 ];
+let rivalTimer = null;
 // The daily puzzle walks up the week: Monday Easy to Sunday Master.
 const DAILY_BY_WEEKDAY = ['master', 'easy', 'medium', 'medium', 'hard', 'hard', 'expert'];
 
@@ -78,7 +81,14 @@ const boxOf = (c) => { const [br, bc] = G.p.box; return Math.floor(rowOf(c) / br
 const onMain = (c) => rowOf(c) === colOf(c), onAnti = (c) => rowOf(c) + colOf(c) === G.p.size - 1;
 const sees = (a, b) => a !== b && (rowOf(a) === rowOf(b) || colOf(a) === colOf(b) || boxOf(a) === boxOf(b)
   || (G.p.variants.includes('diagonal') && ((onMain(a) && onMain(b)) || (onAnti(a) && onAnti(b)))));
-const valueAt = (c) => G.p.givens[c] || G.v[c];
+// Tidewater hides the given numbers under water until they are drained.
+const wet = (c) => !!G.water && G.water.includes(c);
+const isGiven = (c) => !!G.p.givens[c] && !wet(c);
+const valueAt = (c) => (isGiven(c) ? G.p.givens[c] : G.v[c]);
+const styled = (id) => G?.style === id;
+// What a cell shows for a number: the number, or a Glyph Quest glyph.
+const glyph = (d) => (styled('glyph') ? REALMS[G.realm].glyphs[d - 1] : String(d));
+const glyphHtml = (d) => (styled('glyph') ? `${esc(glyph(d))}${prefs.glyphNums ? `<sub class="np-gnum">${Number(d)}</sub>` : ''}` : String(Number(d)));
 const bit = (d) => 1 << (d - 1);
 const quiet = () => !!prefs.silent;
 const showStory = () => !quiet() && cfg().stories !== false;
@@ -93,7 +103,8 @@ export function mount(container, host) {
   engine = deps.engine;
   const pre = deps.storagePrefix || 'flg.np';
   K = { games: `${pre}.games`, cur: `${pre}.cur`, prefs: `${pre}.prefs`, learn: `${pre}.learn`, old: `${pre}.current` };
-  prefs = { notes: false, showMistakes: false, autoClean: true, highlight: true, silent: false, sound: true, adapt: true, theme: '', level: null, size: null, variants: [], coachDone: false, ...load(K.prefs, {}) };
+  prefs = { notes: false, showMistakes: false, autoClean: true, highlight: true, silent: false, sound: true, adapt: true, theme: '', level: null, size: null, variants: [], coachDone: false, style: 'classic', styleTips: {}, glyphNums: false, ...load(K.prefs, {}) };
+  if (!STYLES.some((x) => x.id === prefs.style)) prefs.style = 'classic';
   learn = createLearning({ load, keep, key: K.learn, config: cfg });
   if (deps.shared) learn.setShared(deps.shared);
   migrate();
@@ -124,6 +135,7 @@ export function reopen() {
   if (!playing()) return;
   if (G.p.story?.theme?.world) deps.setWorld?.(G.p.story.theme.world);
   if (!G.solved && !G.paused) startTimer();
+  if (styled('rival') && G.turn === 'rival' && !G.solved) rivalTurn();
 }
 
 // A puzzle everyone plays (a race or a shared challenge): never filtered as "seen".
@@ -166,6 +178,7 @@ function showView(name) {
 // ---------- setup ----------
 
 function buildSetup() {
+  $('#np-styles').innerHTML = STYLES.map((x) => `<label class="choice"><input type="radio" name="np-style" value="${x.id}"${x.id === prefs.style ? ' checked' : ''}><span><b>${x.name}</b><small>${x.note}</small></span></label>`).join('');
   const list = levels();
   let level = prefs.level || learn.suggestLevel();
   if (!list.some((l) => l.id === level)) level = list[list.length - 1].id;
@@ -196,11 +209,28 @@ function renderSizes() {
   $('#np-variants').closest('fieldset').hidden = size === 4 || cfg().variants === false;
 }
 
+const chosenStyle = () => root.querySelector('input[name=np-style]:checked')?.value || 'classic';
+
+function renderStyle() {
+  const id = chosenStyle(), st = styleOf(id);
+  const level = $('input[name=np-level]:checked')?.value;
+  const size = Number($('input[name=np-size]:checked')?.value) || NP_LEVELS.find((l) => l.id === level)?.sizes[0];
+  const tuned = prefs.adapt ? tuningNote(id, learn.plays(), level, size) : '';
+  $('#np-style-about').textContent = `${st.about}${tuned ? ` ${tuned}` : ''}`;
+  const map = $('#np-map');
+  map.hidden = id !== 'glyph';
+  if (id === 'glyph') {
+    const g = glyphStart(learn.plays());
+    map.innerHTML = REALMS.map((r, i) => `<li class="${i < g.realm ? 'done' : i === g.realm ? 'here' : ''}"${i === g.realm ? ' aria-current="step"' : ''}><span class="np-map-glyph" aria-hidden="true">${esc(r.glyphs[0])}</span><span>${esc(r.name)}</span></li>`).join('');
+  }
+  $('#np-gen').textContent = id === 'classic' ? 'Start puzzle' : `Start ${st.short}`;
+}
+
 function readSetup() {
   const difficulty = $('input[name=np-level]:checked').value;
   const size = Number($('input[name=np-size]:checked')?.value) || NP_LEVELS.find((l) => l.id === difficulty).sizes[0];
   const variants = size === 4 || cfg().variants === false ? [] : [...root.querySelectorAll('input[name=np-variant]:checked')].map((i) => i.value);
-  prefs.level = difficulty; prefs.size = size; prefs.variants = variants;
+  prefs.level = difficulty; prefs.size = size; prefs.variants = variants; prefs.style = chosenStyle();
   savePrefs();
   return { difficulty, size, variants };
 }
@@ -242,6 +272,8 @@ export function renderSetup() {
 
   const t = learn.toughness(chosen);
   const weak = learn.weakTechnique();
+  renderStyle();
+  $('#np-tuning-note').hidden = chosenStyle() !== 'classic';
   $('#np-tuning-note').textContent = prefs.adapt && learn.plays().some((r) => r.d === chosen)
     ? `Tuned to you: ${t > 0.62 ? 'a little tougher' : t < 0.38 ? 'a little gentler' : 'right in the middle'} inside ${levelName(chosen)}.${weak ? ' Some puzzles will practice a technique you have asked for help with.' : ''}`
     : '';
@@ -251,7 +283,7 @@ export function renderSetup() {
   $('#np-saved-empty').hidden = all.length > 0;
   list.innerHTML = all.slice(0, 30).map((g) => {
     const status = g.revealed ? 'Answer shown' : g.solved ? `Solved in ${fmtTime(g.ms)}` : `${fmtTime(g.ms)} so far`;
-    return `<li data-id="${esc(g.id)}"><button class="np-saved-open" type="button"><b class="np-saved-name">${esc(g.name)}</b><small>${esc(levelName(g.p.difficulty.id))} · ${g.p.size}×${g.p.size}${g.mode === 'daily' ? ` · Daily ${esc(g.daily)}` : ''} · ${status}</small></button>
+    return `<li data-id="${esc(g.id)}"><button class="np-saved-open" type="button"><b class="np-saved-name">${esc(g.name)}</b><small>${g.style && g.style !== 'classic' ? `${esc(styleOf(g.style).name)} · ` : ''}${esc(levelName(g.p.difficulty.id))} · ${g.p.size}×${g.p.size}${g.mode === 'daily' ? ` · Daily ${esc(g.daily)}` : ''} · ${status}</small></button>
       <span class="np-saved-tools"><button class="btn quiet small" type="button" data-act="rename" aria-label="Rename ${esc(g.name)}">Rename</button><button class="btn quiet small" type="button" data-act="delete" aria-label="Delete ${esc(g.name)}">Delete</button></span></li>`;
   }).join('');
 
@@ -268,7 +300,7 @@ export function renderSetup() {
 
 // ---------- start, resume, save ----------
 
-async function startNew(opts, { mode = 'free' } = {}) {
+async function startNew(opts, { mode = 'free', style = 'classic' } = {}) {
   const status = $('#np-status');
   status.textContent = 'Building a puzzle just for you, with exactly one answer…';
   $('#np-gen').disabled = true;
@@ -276,8 +308,9 @@ async function startNew(opts, { mode = 'free' } = {}) {
     const tuned = mode === 'free' ? learn.optionsFor(opts.difficulty) : {};
     if (mode === 'free' && !prefs.adapt) { tuned.toughness = 0.5; tuned.practice = null; }
     const p = await engine.generate({ seed: Math.random().toString(36).slice(2), theme: prefs.theme || null, story: storiesOn(), ...tuned, ...opts });
+    const extra = await styleStart(style, p);
     status.textContent = '';
-    begin(p, { mode, daily: opts.daily || null, practice: tuned.practice || null, tuned: tuned.toughness ?? null });
+    begin(p, { mode, daily: opts.daily || null, practice: tuned.practice || null, tuned: tuned.toughness ?? null, style, extra });
   } catch (e) {
     status.textContent = `Could not build that puzzle: ${e.message}`;
   } finally {
@@ -285,7 +318,23 @@ async function startNew(opts, { mode = 'free' } = {}) {
   }
 }
 
-function begin(p, { mode = 'free', daily = null, practice = null, tuned = null } = {}) {
+// A style's starting state for a new puzzle, tuned from the player's records of that style.
+async function styleStart(style, p) {
+  const plays = learn.plays(), level = p.difficulty.id, N = p.size;
+  if (style === 'rival') return { owner: Array(N * N).fill(0), turn: 'you', rivalSkill: prefs.adapt ? rivalSkill(plays, level) : 0.45, rivalLast: -1 };
+  if (style === 'chain') return { chain: { last: -1, len: 0, best: 0, score: 0, links: 0, goal: chainGoal(prefs.adapt ? plays : [], N) } };
+  if (style === 'tide') {
+    const depth = prefs.adapt ? tideDepth(plays, level) : 0.4;
+    const { water } = await engine.tide(p, { depth });
+    // The start always has a first move: anything the tide must give up now is never flooded.
+    const dry = await engine.ebb(p, p.givens.map((d, i) => (water.includes(i) ? 0 : d)), water);
+    return { water: water.filter((c) => !dry.includes(c)), ebbs: 0, depth };
+  }
+  if (style === 'glyph') { const g = glyphStart(prefs.adapt ? plays : []); return { realm: g.realm, lap: g.lap, powers: g.powers, used: 0 }; }
+  return {};
+}
+
+function begin(p, { mode = 'free', daily = null, practice = null, tuned = null, style = 'classic', extra = {} } = {}) {
   close();
   G = {
     id: `g${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, p, mode, daily, practice, tuned,
@@ -293,6 +342,7 @@ function begin(p, { mode = 'free', daily = null, practice = null, tuned = null }
     v: Array(p.size ** 2).fill(0), n: Array(p.size ** 2).fill(0), undo: [], redo: [],
     ms: 0, hints: 0, mistakes: 0, checks: 0, stuck: [], solved: false, revealed: false,
     created: Date.now(), updated: Date.now(), sel: p.givens.findIndex((d) => !d),
+    style, ...extra,
   };
   learn.started(p);
   open();
@@ -321,6 +371,7 @@ function resume(id) {
   const g = saved && cleanGame(saved);
   if (!g) return;
   G = { ...g, id: saved.id, mode: ['free', 'daily', 'race', 'file'].includes(saved.mode) ? saved.mode : 'free' };
+  if (styled('glyph') && !REALMS[G.realm]) G.realm = 0;
   open();
 }
 
@@ -328,7 +379,7 @@ function save() {
   if (!G) return;
   G.updated = Date.now();
   // History is capped so a long game still fits in storage.
-  const { hint, checked, wrongShown, paused, ...rest } = G;
+  const { hint, checked, wrongShown, paused, flash, ...rest } = G;
   putGame({ ...rest, undo: G.undo.slice(-400), redo: G.redo.slice(-400) });
   keep(K.cur, G.id);
 }
@@ -356,7 +407,8 @@ function open() {
   G.paused = false;
   G.hint = null;
   const p = G.p;
-  $('#np-kicker').textContent = `Number Place · ${p.difficulty.name} · ${p.size}×${p.size}${G.daily ? ` · Daily ${G.daily}` : ''}${G.practice ? ' · Practice' : ''}`;
+  $('#np-kicker').textContent = `${styleOf(G.style).name} · ${p.difficulty.name} · ${p.size}×${p.size}${G.daily ? ` · Daily ${G.daily}` : ''}${G.practice ? ' · Practice' : ''}`;
+  styleTools();
   $('#np-title').textContent = !showStory() || !p.story ? `${p.difficulty.name} puzzle` : p.story.title;
   $('#np-story').textContent = !showStory() || !p.story ? '' : p.story.intro;
   $('#np-story').hidden = !showStory() || !p.story;
@@ -373,19 +425,24 @@ function open() {
   save();
   coach();
   setTimeout(() => focusCell(G.sel >= 0 ? G.sel : 0), 0);
+  if (styled('tide') && !G.solved) ebb();
+  if (styled('rival') && G.turn === 'rival' && !G.solved) rivalTurn();
 }
 
-function close() { if (G && root) { tick(); save(); } stopTimer(); }
+function close() { clearTimeout(rivalTimer); rivalTimer = null; if (G && root) { tick(); save(); } stopTimer(); }
 
+// Classic shows its tips once; each other style shows its own the first time it is played.
+const tips = () => (G.style === 'classic' ? COACH : styleOf(G.style).tips);
+const tipsDone = () => (G.style === 'classic' ? prefs.coachDone : !!prefs.styleTips[G.style]);
 function coach(step) {
   const box = $('#np-coach');
-  if (prefs.coachDone || quiet() || G.solved || cfg().coachTips === false) { box.hidden = true; return; }
-  const i = step ?? 0;
+  if (tipsDone() || quiet() || G.solved || cfg().coachTips === false) { box.hidden = true; return; }
+  const i = step ?? 0, list = tips();
   box.hidden = false;
   box.dataset.i = i;
-  $('#np-coach-n').textContent = `${i + 1} of ${COACH.length}`;
-  $('#np-coach-text').textContent = COACH[i];
-  $('#np-coach-next').hidden = i >= COACH.length - 1;
+  $('#np-coach-n').textContent = `${i + 1} of ${list.length}`;
+  $('#np-coach-text').textContent = list[i];
+  $('#np-coach-next').hidden = i >= list.length - 1;
 }
 
 function buildBoard() {
@@ -424,17 +481,21 @@ function buildPad() {
   const N = G.p.size;
   $('#np-digits').style.setProperty('--cols', N);
   $('#np-digits').dataset.cols = N;
-  $('#np-digits').innerHTML = [...Array(N)].map((_, k) => `<button type="button" class="np-digit" data-d="${k + 1}" aria-keyshortcuts="${k + 1}"><span class="d">${k + 1}</span><small class="left"></small></button>`).join('');
+  $('#np-digits').classList.toggle('glyphs', styled('glyph'));
+  $('#np-digits').innerHTML = [...Array(N)].map((_, k) => `<button type="button" class="np-digit" data-d="${k + 1}" aria-keyshortcuts="${k + 1}"><span class="d">${esc(glyph(k + 1))}</span>${styled('glyph') ? `<small class="key">${k + 1}</small>` : ''}<small class="left"></small></button>`).join('');
 }
 
 const cellLabel = (i) => {
   const d = valueAt(i);
   const notes = [...Array(G.p.size)].map((_, k) => k + 1).filter((k) => G.n[i] & bit(k));
+  const say = (x) => (styled('glyph') ? `${x} (${glyph(x)})` : String(x));
+  const own = styled('rival') && G.owner[i] ? (G.owner[i] === 1 ? ', yours' : ', the rival\'s') : '';
+  const water = wet(i) ? ', under water' : '';
   const where = `Row ${rowOf(i) + 1}, column ${colOf(i) + 1}`;
   const shade = G.p.evenCells.includes(i) ? ', shaded, even' : G.p.variants.includes('parity') ? ', odd' : '';
-  if (G.p.givens[i]) return `${where}${shade}, given ${d}`;
-  if (d) return `${where}${shade}, ${d}${G.wrongShown?.has(i) ? ', wrong' : ''}`;
-  return `${where}${shade}, empty${notes.length ? `, notes ${notes.join(' ')}` : ''}`;
+  if (isGiven(i)) return `${where}${shade}, given ${say(d)}`;
+  if (d) return `${where}${shade}${water}, ${say(d)}${own}${G.wrongShown?.has(i) ? ', wrong' : ''}`;
+  return `${where}${shade}${water}, empty${notes.length ? `, notes ${notes.map(say).join(' ')}` : ''}`;
 };
 
 function clashes() {
@@ -454,17 +515,26 @@ function render() {
   const clash = clashes();
   G.wrongShown = prefs.showMistakes ? new Set(G.v.map((d, i) => (d && d !== G.p.solution[i] ? i : -1)).filter((i) => i >= 0)) : (G.checked || new Set());
   const hintCells = new Set(G.hint?.show && G.hint.cell != null ? [G.hint.cell] : []);
+  const link = styled('chain') && G.chain.last >= 0 && !G.solved ? G.chain.last : -1;
   for (const el of $('#np-board').querySelectorAll('.np-cell')) {
     const i = Number(el.dataset.i), d = valueAt(i);
+    el.classList.toggle('given', isGiven(i));
+    el.classList.toggle('water', wet(i));
+    el.classList.toggle('mine', styled('rival') && G.owner[i] === 1);
+    el.classList.toggle('theirs', styled('rival') && G.owner[i] === 2);
+    el.classList.toggle('rival-last', styled('rival') && G.rivalLast === i && !G.solved);
+    el.classList.toggle('link', i === link);
+    el.classList.toggle('zone', link >= 0 && !d && sees(i, link));
+    el.classList.toggle('miss', G.flash === i);
     el.classList.toggle('sel', i === sel);
     el.classList.toggle('peer', prefs.highlight && sel >= 0 && i !== sel && sees(i, sel));
     el.classList.toggle('same', prefs.highlight && !!selV && d === selV && i !== sel);
-    el.classList.toggle('clash', clash.has(i) && !G.p.givens[i]);
-    el.classList.toggle('clash-given', clash.has(i) && !!G.p.givens[i]);
+    el.classList.toggle('clash', clash.has(i) && !isGiven(i));
+    el.classList.toggle('clash-given', clash.has(i) && isGiven(i));
     el.classList.toggle('wrong', G.wrongShown.has(i));
     el.classList.toggle('hinted', hintCells.has(i));
-    if (d) el.innerHTML = `<span class="v">${Number(d)}</span>`;
-    else if (G.n[i]) el.innerHTML = `<span class="np-notes" style="--nc:${Number(G.p.box[1])}">${[...Array(N)].map((_, k) => `<i>${G.n[i] & bit(k + 1) ? k + 1 : ''}</i>`).join('')}</span>`;
+    if (d) el.innerHTML = `<span class="v">${glyphHtml(d)}</span>`;
+    else if (G.n[i]) el.innerHTML = `<span class="np-notes" style="--nc:${Number(G.p.box[1])}">${[...Array(N)].map((_, k) => `<i>${G.n[i] & bit(k + 1) ? esc(glyph(k + 1)) : ''}</i>`).join('')}</span>`;
     else el.innerHTML = '';
     el.setAttribute('aria-label', cellLabel(i));
     el.setAttribute('aria-selected', String(i === sel));
@@ -483,11 +553,14 @@ function render() {
   $('#np-undo').disabled = !G.undo.length || G.solved;
   $('#np-redo').disabled = !G.redo.length || G.solved;
   for (const id of ['#np-erase', '#np-auto', '#np-hint-btn', '#np-check', '#np-reveal', '#np-pause']) $(id).disabled = G.solved;
+  // On the rival's turn only notes and pausing work.
+  if (styled('rival') && G.turn === 'rival') for (const id of ['#np-hint-btn', '#np-reveal']) $(id).disabled = true;
   $('#np-mistakes').checked = prefs.showMistakes;
   $('#np-board').classList.toggle('paused', !!G.paused);
   $('#np-pause').textContent = G.paused ? 'Resume' : 'Pause';
   $('#np-time').textContent = fmtTime(G.ms);
-  $('#np-progress').textContent = `${G.p.givens.filter((d, i) => d || G.v[i]).length} of ${N * N} filled`;
+  $('#np-progress').textContent = `${G.p.solution.filter((_, i) => valueAt(i)).length} of ${N * N} filled`;
+  renderHud();
   renderHint();
 }
 
@@ -521,9 +594,11 @@ function unitsOf(i) {
 
 function place(d) {
   const i = G.sel;
-  if (i < 0 || G.p.givens[i] || G.solved || G.paused) return;
+  if (i < 0 || isGiven(i) || G.solved || G.paused) return;
   if (prefs.notes && d) { toggleNote(i, d); return; }
+  if (styled('rival')) { rivalPlace(i, d); return; }
   const nv = G.v[i] === d ? 0 : d;
+  if (styled('chain') && nv) chainStep(i, nv);
   const changes = [[i, G.v[i], G.n[i], nv, nv ? 0 : G.n[i]]];
   if (nv && prefs.autoClean) {
     // Placing a number crosses it off the notes of every cell that sees it.
@@ -531,12 +606,16 @@ function place(d) {
   }
   const before = nv ? unitsOf(i).map((u) => u.every((c) => valueAt(c) === G.p.solution[c])) : [];
   if (nv && nv !== G.p.solution[i]) G.mistakes++;
+  if (styled('tide') && nv === G.p.solution[i]) drain(i, changes);
   apply(changes);
   if (!nv) return;
-  announce(`${nv} placed at row ${rowOf(i) + 1}, column ${colOf(i) + 1}`);
+  announce(`${styled('glyph') ? glyph(nv) : nv} placed at row ${rowOf(i) + 1}, column ${colOf(i) + 1}${styled('chain') ? `. ${G.chain.said}` : ''}`);
   if (G.solved) return;
+  if (styled('tide') && nv === G.p.solution[i]) ebb();
   // A finished row, column or box chimes and glows.
-  const done = unitsOf(i).filter((u, k) => !before[k] && u.every((c) => valueAt(c) === G.p.solution[c]));
+  const kinds = unitsOf(i).map((u, k) => (!before[k] && u.every((c) => valueAt(c) === G.p.solution[c]) ? k : -1)).filter((k) => k >= 0);
+  const done = kinds.map((k) => unitsOf(i)[k]);
+  if (styled('glyph') && kinds.length) earnPowers(kinds);
   if (done.length) {
     play('unit');
     if (!quiet()) for (const u of done) for (const c of u) {
@@ -547,19 +626,23 @@ function place(d) {
 }
 
 function toggleNote(i, d) {
-  if (G.v[i] || G.p.givens[i] || G.solved) return;
+  if (G.v[i] || isGiven(i) || G.solved) return;
   apply([[i, G.v[i], G.n[i], 0, G.n[i] ^ bit(d)]]);
   play('note');
 }
 
 function erase() {
   const i = G.sel;
-  if (i < 0 || G.p.givens[i] || G.solved) return;
+  if (i < 0 || isGiven(i) || G.solved) return;
+  // A claimed Rival Grid cell stays claimed.
+  if (styled('rival') && G.v[i]) return;
   apply([[i, G.v[i], G.n[i], 0, G.v[i] ? G.n[i] : 0]]);
 }
 
+// Rival Grid and Chain Reaction have no undo: every move counts.
+const noUndo = () => styled('rival') || styled('chain');
 function undo() {
-  if (G.solved) return;
+  if (G.solved || noUndo()) return;
   const ch = G.undo.pop();
   if (!ch) return;
   for (const [i, ov, on] of ch) setCell(i, ov, on);
@@ -570,7 +653,7 @@ function undo() {
   focusCell(G.sel);
 }
 function redo() {
-  if (G.solved) return;
+  if (G.solved || noUndo()) return;
   const ch = G.redo.pop();
   if (!ch) return;
   for (const [i, , , nv, nn] of ch) setCell(i, nv, nn);
@@ -581,20 +664,26 @@ function redo() {
 }
 
 // Fills every empty cell's notes with the numbers its row, column and box still allow (one undo step).
-function autoNotes() {
+// The numbers a cell could still hold, as a bit mask, from what is on the grid.
+function allowed(i) {
+  const N = G.p.size;
+  let m = (1 << N) - 1, even = 0;
+  for (let d = 2; d <= N; d += 2) even |= bit(d);
+  if (G.p.variants.includes('parity')) m &= G.p.evenCells.includes(i) ? even : ~even;
+  for (let j = 0; j < N * N; j++) if (valueAt(j) && sees(i, j)) m &= ~bit(valueAt(j));
+  return m;
+}
+
+// Fills notes in the given cells (every empty cell when none are given), as one undo step.
+function autoNotes(cells = null) {
   if (G.solved) return;
   const N = G.p.size, changes = [];
-  let even = 0;
-  for (let d = 2; d <= N; d += 2) even |= bit(d);
-  for (let i = 0; i < N * N; i++) {
+  for (const i of cells || [...Array(N * N).keys()]) {
     if (valueAt(i)) continue;
-    let m = (1 << N) - 1;
-    if (G.p.variants.includes('parity')) m &= G.p.evenCells.includes(i) ? even : ~even;
-    for (let j = 0; j < N * N; j++) if (valueAt(j) && sees(i, j)) m &= ~bit(valueAt(j));
-    changes.push([i, 0, G.n[i], 0, m]);
+    changes.push([i, 0, G.n[i], 0, allowed(i)]);
   }
   apply(changes);
-  announce('Notes filled in for every empty cell.');
+  if (!cells) announce('Notes filled in for every empty cell.');
 }
 
 function check() {
@@ -604,7 +693,7 @@ function check() {
   G.checked = wrong;
   render();
   save();
-  const empty = G.p.givens.filter((d, i) => !d && !G.v[i]).length;
+  const empty = G.p.solution.filter((_, i) => !valueAt(i)).length;
   announce(wrong.size ? `${wrong.size} number${wrong.size === 1 ? ' is' : 's are'} wrong. They are marked in red.` : `Everything so far is right. ${empty} cell${empty === 1 ? '' : 's'} to go.`, true);
 }
 
@@ -614,7 +703,10 @@ async function hint() {
   if (G.solved) return;
   if (G.hint && G.hint.level < G.hint.levels.length - 1) { G.hint.level++; G.hint.show = true; render(); return; }
   if (G.hint) return;
-  const h = await engine.hint(G.p, G.v);
+  if (styled('rival') && G.turn === 'rival') return;
+  // Tidewater hints only know the clues above water.
+  const h = await engine.hint(styled('tide') ? { ...G.p, givens: G.p.givens.map((d, i) => (isGiven(i) ? d : 0)) } : G.p, G.v);
+  if (!G) return;
   G.hints++;
   // The techniques a player needs help with steer future practice puzzles.
   if (h.kind === 'step') G.stuck.push(h.technique);
@@ -632,13 +724,238 @@ function renderHint() {
   box.hidden = false;
   const lines = h.levels.slice(0, h.level + 1).map((l) => `<li>${esc(l)}</li>`).join('');
   const more = h.level < h.levels.length - 1;
-  box.innerHTML = `<p class="np-hint-h">${h.kind === 'step' ? `Hint: ${esc(h.techniqueName)}` : 'Hint'}</p><ol>${lines}</ol>
+  box.innerHTML = `<p class="np-hint-h">${h.kind === 'step' ? `Hint: ${esc(h.techniqueName)}` : 'Hint'}</p><ol>${lines}</ol>${styled('glyph') && h.kind === 'step' && h.level === h.levels.length - 1 ? `<p class="np-help">The number ${Number(h.digit)} is the glyph ${esc(glyph(h.digit))}.</p>` : ''}
     <div class="np-hint-actions">${more ? '<button type="button" class="btn small" id="np-hint-more">Tell me more</button>' : ''}
     ${h.kind === 'step' && !more ? '<button type="button" class="btn small primary" id="np-hint-fill">Fill it in</button>' : ''}
     <button type="button" class="btn quiet small" id="np-hint-close">Close</button></div>`;
   $('#np-hint-more')?.addEventListener('click', hint);
-  $('#np-hint-fill')?.addEventListener('click', () => { const { cell, digit } = G.hint; G.sel = cell; const was = prefs.notes; prefs.notes = false; place(digit); prefs.notes = was; if (G && !G.solved) { render(); focusCell(cell); } });
+  $('#np-hint-fill')?.addEventListener('click', () => { const { cell, digit } = G.hint; G.sel = cell; G.hint = null; const was = prefs.notes; prefs.notes = false; place(digit); prefs.notes = was; if (G && !G.solved) { render(); focusCell(cell); } });
   $('#np-hint-close').addEventListener('click', () => { G.hint = null; render(); focusCell(G.sel); });
+}
+
+// ---------- game styles ----------
+
+// The tools each style uses: no undo where every move counts, powers in place
+// of free hints in Glyph Quest, no checking in Rival Grid (wrong numbers never stay).
+function styleTools() {
+  $('#np-undo').hidden = $('#np-redo').hidden = noUndo();
+  $('#np-auto').hidden = $('#np-hint-btn').hidden = styled('glyph');
+  $('#np-check').hidden = $('#np-mistakes-row').hidden = styled('rival');
+  $('#np-powers').hidden = !styled('glyph');
+  $('#np-glyphnum-row').hidden = !styled('glyph');
+  $('#np-glyphnum').checked = !!prefs.glyphNums;
+  $('#np-board').classList.toggle('glyphs', styled('glyph'));
+  $('#np-board').classList.toggle('tide', styled('tide'));
+}
+
+const owned = (who) => G.owner.filter((o) => o === who).length;
+const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+function renderHud() {
+  const hud = $('#np-hud');
+  hud.hidden = styled('classic') || !G.style;
+  if (hud.hidden) return;
+  if (styled('rival')) {
+    const turn = G.solved ? 'Game over' : G.turn === 'you' ? 'Your turn' : 'Rival is thinking…';
+    hud.innerHTML = `<span class="np-hud-side you">You <b>${owned(1)}</b></span><span class="np-hud-turn${G.turn === 'rival' && !G.solved ? ' busy' : ''}">${turn}</span><span class="np-hud-side rival">${esc(rivalName(G.rivalSkill))} rival <b>${owned(2)}</b></span>`;
+  } else if (styled('chain')) {
+    const c = G.chain;
+    hud.innerHTML = `<span>Chain <b>${c.len}</b></span><span>Score <b>${c.score}</b></span><span>Best chain <b>${c.best}</b></span><span>Goal <b>${c.goal}</b>${c.best >= c.goal ? ' ✓' : ''}</span>`;
+  } else if (styled('tide')) {
+    const hidden = G.water.filter((i) => G.p.givens[i]).length;
+    hud.innerHTML = `<span>Hidden clues <b>${hidden}</b></span><span>Cells under water <b>${G.water.length}</b></span><span>Ebbs <b>${G.ebbs}</b></span>`;
+  } else if (styled('glyph')) {
+    hud.innerHTML = `<span>Realm <b>${G.realm + 1} of ${REALMS.length}</b></span><span>${esc(REALMS[G.realm].name)}${G.lap > 1 ? `, lap ${G.lap}` : ''}</span>`;
+    $('#np-powers').innerHTML = POWERS.map((pw) => `<button class="btn small np-power" type="button" data-power="${pw.id}" title="${esc(pw.note)}" aria-label="${pw.name}: ${esc(pw.note)}. ${G.powers[pw.id]} left. Earn one by finishing a ${pw.from}."${G.solved ? ' disabled' : ''}><span>${pw.name}</span> <b>${G.powers[pw.id]}</b></button>`).join('');
+  }
+}
+
+// Placing a number crosses it off the notes of every cell that sees it.
+function noteClears(i, d) {
+  const out = [];
+  if (prefs.autoClean) for (let j = 0; j < G.p.size ** 2; j++) if (j !== i && sees(i, j) && G.n[j] & bit(d)) out.push([j, G.v[j], G.n[j], G.v[j], G.n[j] & ~bit(d)]);
+  return out;
+}
+
+// --- Rival Grid ---
+
+function rivalPlace(i, d) {
+  if (G.turn !== 'you') { announce('Wait for the rival to move. You can still write notes.', true); return; }
+  if (G.v[i]) return;
+  if (d !== G.p.solution[i]) {
+    // A wrong number is taken back and the turn passes.
+    G.mistakes++;
+    G.flash = i;
+    play('wrong');
+    announce(`${d} does not go there. Your turn passes to the rival.`);
+    setTimeout(() => { if (G && G.flash === i) { G.flash = null; render(); } }, 900);
+    rivalTurn();
+    return;
+  }
+  G.owner[i] = 1;
+  apply([[i, 0, G.n[i], d, 0], ...noteClears(i, d)], { record: false });
+  play('place');
+  announce(`${d} placed. The cell is yours.`);
+  if (!G.solved) rivalTurn();
+}
+
+function rivalTurn() {
+  G.turn = 'rival';
+  G.hint = null;
+  render();
+  save();
+  clearTimeout(rivalTimer);
+  rivalTimer = setTimeout(rivalMove, rivalPlan(G.rivalSkill, G.p.size).delay + Math.random() * 500);
+}
+
+async function rivalMove() {
+  rivalTimer = null;
+  if (!G || !styled('rival') || G.solved || G.turn !== 'rival') return;
+  // The rival waits while the game is paused or out of sight.
+  if (G.paused || document.hidden || !playing()) { rivalTimer = setTimeout(rivalMove, 700); return; }
+  const plan = rivalPlan(G.rivalSkill, G.p.size);
+  const game = G;
+  let m = null;
+  if (Math.random() >= plan.miss) {
+    try { m = await engine.move(G.p, G.p.solution.map((_, i) => valueAt(i)), { maxLevel: plan.maxLevel }); } catch (e) { m = null; }
+  }
+  if (G !== game || G.solved || G.turn !== 'rival') return;
+  if (m && !valueAt(m.cell)) {
+    G.owner[m.cell] = 2;
+    G.rivalLast = m.cell;
+    apply([[m.cell, G.v[m.cell], G.n[m.cell], m.digit, 0], ...noteClears(m.cell, m.digit)], { record: false });
+    play('note');
+    announce(`The rival placed ${m.digit} at row ${rowOf(m.cell) + 1}, column ${colOf(m.cell) + 1}. Your turn.`);
+  } else {
+    G.rivalLast = -1;
+    announce('The rival could not find a move. Your turn.');
+  }
+  if (!G.solved) { G.turn = 'you'; render(); save(); }
+}
+
+// --- Chain Reaction ---
+
+// Whether a number is forced where it goes: the only number the cell can
+// hold, or the only cell in a row, column or box that can hold it.
+function forcedAt(i, d) {
+  if (allowed(i) === bit(d)) return true;
+  return unitsOf(i).some((u) => u.every((c) => c === i || valueAt(c) || !(allowed(c) & bit(d))));
+}
+
+function chainStep(i, d) {
+  const c = G.chain;
+  if (d !== G.p.solution[i]) {
+    c.said = c.len ? `Chain of ${c.len} broken.` : 'Not linked.';
+    c.len = 0; c.last = -1;
+    return;
+  }
+  const linked = c.last >= 0 && sees(c.last, i);
+  const forced = forcedAt(i, d);
+  c.len = linked ? c.len + 1 : 1;
+  const pts = c.len * (forced ? 2 : 1);
+  c.score += pts;
+  if (linked) c.links++;
+  c.best = Math.max(c.best, c.len);
+  c.last = i;
+  c.said = `${linked ? `Chain ${c.len}` : 'New chain'}${forced ? ', forced, double' : ''}: plus ${pts}.`;
+}
+
+// --- Tidewater ---
+
+const touching = (i) => {
+  const N = G.p.size, r = rowOf(i), k = colOf(i), out = [];
+  for (let dr = -1; dr <= 1; dr++) for (let dk = -1; dk <= 1; dk++) {
+    const rr = r + dr, kk = k + dk;
+    if ((dr || dk) && rr >= 0 && rr < N && kk >= 0 && kk < N) out.push(rr * N + kk);
+  }
+  return out;
+};
+
+// A right number drains its own cell and the eight around it. Clues that come
+// up replace anything the player wrote there.
+function drain(i, changes) {
+  const dry = [i, ...touching(i)].filter(wet);
+  if (!dry.length) return;
+  G.water = G.water.filter((c) => !dry.includes(c));
+  for (const c of dry) if (G.p.givens[c] && (G.v[c] || G.n[c])) changes.push([c, G.v[c], G.n[c], 0, 0]);
+  splash(dry);
+}
+
+function splash(cells) {
+  if (quiet()) return;
+  requestAnimationFrame(() => { for (const c of cells) { const el = $(`#np-board [data-i="${c}"]`); if (el) { el.classList.remove('drained'); void el.offsetWidth; el.classList.add('drained'); } } });
+}
+
+// When nothing can be worked out from what is above water, the tide ebbs.
+async function ebb() {
+  if (!G.water.some((i) => G.p.givens[i])) return;
+  const game = G;
+  const grid = G.p.solution.map((d, i) => (isGiven(i) ? G.p.givens[i] : G.v[i] === d ? d : 0));
+  let dry = [];
+  try { dry = await engine.ebb(G.p, grid, G.water); } catch (e) { return; }
+  if (G !== game || !dry.length || G.solved) return;
+  G.water = G.water.filter((c) => !dry.includes(c));
+  for (const c of dry) if (G.p.givens[c]) setCell(c, 0, 0);
+  G.ebbs++;
+  splash(dry);
+  render();
+  save();
+  announce(`The tide ebbs. ${plural(dry.filter((c) => G.p.givens[c]).length, 'clue')} came up.`, true);
+}
+
+// --- Glyph Quest ---
+
+function earnPowers(kinds) {
+  const got = kinds.map((k) => (k === 1 ? 'compass' : k === 2 ? 'key' : 'lantern'));
+  for (const id of got) G.powers[id] = Math.min(99, G.powers[id] + 1);
+  renderHud();
+  save();
+  announce(`Earned: ${got.map((id) => POWERS.find((x) => x.id === id).name).join(', ')}.`, true);
+}
+
+async function usePower(id) {
+  if (!styled('glyph') || G.solved || G.paused) return;
+  const pw = POWERS.find((x) => x.id === id);
+  if (id === 'compass' && G.hint) { hint(); return; }
+  if (!G.powers[id]) { announce(`No ${pw.name} left. Finish a ${pw.from} to earn one.`, true); return; }
+  const i = G.sel;
+  if (id === 'key' && (i < 0 || valueAt(i) === G.p.solution[i] || isGiven(i))) { announce('Select a cell to open first.', true); return; }
+  G.powers[id]--;
+  G.used++;
+  if (id === 'lantern') {
+    const cells = [...new Set(unitsOf(i < 0 ? 0 : i).flat())];
+    autoNotes(cells);
+    announce('The Lantern lights up notes for the row, column and box.', true);
+  } else if (id === 'compass') {
+    await hint();
+  } else {
+    G.hints++;
+    const was = prefs.notes; prefs.notes = false;
+    place(G.p.solution[i]);
+    prefs.notes = was;
+    if (G && !G.solved) focusCell(i);
+  }
+  if (G) { renderHud(); save(); }
+}
+
+// --- results ---
+
+function styleResult() {
+  if (styled('rival')) { const you = owned(1), rival = owned(2); return { you, rival, won: you > rival, tie: you === rival, skill: G.rivalSkill }; }
+  if (styled('chain')) return { best: G.chain.best, score: G.chain.score, goal: G.chain.goal, links: G.chain.links };
+  if (styled('tide')) return { ebbs: G.ebbs, depth: G.depth };
+  if (styled('glyph')) return { realm: G.realm, lap: G.lap, used: G.used };
+  return null;
+}
+
+function styleSolvedText() {
+  const r = G.styleResult || styleResult();
+  if (!r || G.revealed) return '';
+  if (styled('rival')) return `You claimed ${plural(r.you, 'cell')} and the ${rivalName(G.rivalSkill)} rival claimed ${r.rival}. `;
+  if (styled('chain')) return `Best chain ${r.best} (goal ${r.goal}), score ${r.score}.${r.best >= r.goal ? ' Goal reached!' : ''} `;
+  if (styled('tide')) return r.ebbs ? `The tide ebbed ${plural(r.ebbs, 'time')}. ` : 'You drained it all yourself, with no ebbs. ';
+  if (styled('glyph')) return `${REALMS[G.realm].name} cleared. Next stop: ${REALMS[(G.realm + 1) % REALMS.length].name}. `;
+  return '';
 }
 
 // ---------- the end of a puzzle ----------
@@ -646,6 +963,7 @@ function renderHint() {
 function record(outcome) {
   if (G.recorded) return null;
   G.recorded = outcome;
+  G.styleResult = styleResult();
   const rec = learn.finished(G, outcome);
   lastRecord = rec;
   try { deps.onPlay?.(rec); } catch (e) { /* sharing is optional */ }
@@ -674,7 +992,8 @@ function solved() {
 function showSolved({ fresh, newBadges = [] }) {
   const p = G.p;
   const box = $('#np-solved');
-  $('#np-solved-h').textContent = G.revealed ? 'The answer' : 'Solved!';
+  const sr = G.styleResult || styleResult();
+  $('#np-solved-h').textContent = G.revealed ? 'The answer' : styled('rival') ? (sr.won ? 'You win!' : sr.tie ? 'A draw!' : 'The rival wins') : 'Solved!';
   $('#np-ending').textContent = showStory() && p.story?.ending && !G.revealed ? p.story.ending : '';
   $('#np-ending').hidden = !$('#np-ending').textContent;
   if (G.revealed) $('#np-solved-text').textContent = 'Here is the whole answer. Watch the solution to see how each number follows from the last.';
@@ -683,7 +1002,8 @@ function showSolved({ fresh, newBadges = [] }) {
     const best = others.reduce((m, r) => Math.min(m, r.ms), Infinity);
     const record = !G.hints && G.ms < best && best !== Infinity;
     const par = PAR_MS[p.difficulty.id];
-    $('#np-solved-text').textContent = `${p.difficulty.name} solved in ${fmtTime(G.ms)}${G.hints ? ` with ${G.hints} hint${G.hints === 1 ? '' : 's'}` : ' with no hints'}${G.mistakes ? ` and ${G.mistakes} slip${G.mistakes === 1 ? '' : 's'}` : ''}.${record ? ' A new best time!' : G.ms < par * 0.6 && !G.hints ? ' That was quick: the next one will be a little tougher.' : ''}`;
+    const timeNote = styled('rival') ? '' : record ? ' A new best time!' : G.ms < par * 0.6 && !G.hints && styled('classic') ? ' That was quick: the next one will be a little tougher.' : '';
+    $('#np-solved-text').textContent = `${styleSolvedText()}${p.difficulty.name} solved in ${fmtTime(G.ms)}${G.hints ? ` with ${G.hints} hint${G.hints === 1 ? '' : 's'}` : ' with no hints'}${G.mistakes ? ` and ${G.mistakes} slip${G.mistakes === 1 ? '' : 's'}` : ''}.${timeNote}`;
   }
   $('#np-feel').hidden = G.revealed || !fresh;
   $('#np-feel-done').textContent = '';
@@ -698,8 +1018,10 @@ function showSolved({ fresh, newBadges = [] }) {
 function reveal() {
   $('#np-reveal-confirm').hidden = true;
   const changes = [];
-  for (let i = 0; i < G.p.size ** 2; i++) if (!G.p.givens[i] && G.v[i] !== G.p.solution[i]) changes.push([i, G.v[i], G.n[i], G.p.solution[i], 0]);
+  for (let i = 0; i < G.p.size ** 2; i++) if (!isGiven(i) && G.v[i] !== G.p.solution[i]) changes.push([i, G.v[i], G.n[i], G.p.solution[i], 0]);
   for (const [i, , , nv, nn] of changes) setCell(i, nv, nn);
+  clearTimeout(rivalTimer);
+  if (G.water) G.water = [];
   G.revealed = true;
   G.solved = true;
   tick();
@@ -719,14 +1041,14 @@ function rate(feel) {
 }
 
 function shareText() {
-  return `${G.p.story && !quiet() ? `${G.p.story.title}\n` : ''}Number Place · ${G.p.difficulty.name}${G.daily ? ` · Daily ${G.daily}` : ''}\nSolved in ${fmtTime(G.ms)}, ${G.hints ? `${G.hints} hint${G.hints === 1 ? '' : 's'}` : 'no hints'}\nThe Fantastical Logic Grid`;
+  return `${G.p.story && !quiet() ? `${G.p.story.title}\n` : ''}${styleOf(G.style).name} · ${G.p.difficulty.name}${G.daily ? ` · Daily ${G.daily}` : ''}\n${styleSolvedText()}Solved in ${fmtTime(G.ms)}, ${G.hints ? `${G.hints} hint${G.hints === 1 ? '' : 's'}` : 'no hints'}\nThe Logic Grid`;
 }
 
 async function share() {
   const text = shareText();
   const dark = matchMedia('(prefers-color-scheme: dark)').matches && document.documentElement.dataset.theme !== 'light';
   const accent = getComputedStyle(root).getPropertyValue('--np-accent').trim() || '#5B3CC4';
-  const canvas = resultPicture(G, { title: !quiet() && G.p.story ? G.p.story.title : 'Number Place', accent, dark });
+  const canvas = resultPicture({ ...G, styleName: styleOf(G.style).name }, { title: !quiet() && G.p.story ? G.p.story.title : styleOf(G.style).name, accent, dark });
   const box = $('#np-share-box');
   const img = new Image();
   img.alt = `Result picture: ${text.replaceAll('\n', ', ')}`;
@@ -772,6 +1094,38 @@ function drawStep() {
   $('#np-step-why').textContent = stepAt && s ? `${s.why}${s.place ? ` So ${s.place[1]} goes at row ${Math.floor(s.place[0] / N) + 1}, column ${(s.place[0] % N) + 1}.` : ''}` : 'Press Next step to watch every number follow from logic, one at a time.';
   $('#np-step-prev').disabled = stepAt === 0;
   $('#np-step-next').disabled = stepAt >= path.length;
+}
+
+// ---------- how to play ----------
+
+let howto = { id: 'classic', step: 0 };
+function openHowto(id = 'classic') {
+  howto = { id: HOWTO.some((h) => h.id === id) ? id : 'classic', step: 0 };
+  drawHowto();
+  const dlg = $('#np-howto-dlg');
+  if (!dlg.open) dlg.showModal();
+  root.querySelector(`#np-howto-tabs [data-id="${howto.id}"]`)?.focus();
+}
+
+function drawHowto() {
+  const h = HOWTO.find((x) => x.id === howto.id), st = styleOf(h.id), ex = h.example;
+  $('#np-howto-tabs').innerHTML = HOWTO.map((x) => `<button type="button" role="tab" class="np-tab" data-id="${x.id}" id="np-howto-tab-${x.id}" aria-selected="${x.id === h.id}" tabindex="${x.id === h.id ? 0 : -1}">${esc(styleOf(x.id).short)}</button>`).join('');
+  $('#np-howto-body').setAttribute('aria-labelledby', `np-howto-tab-${h.id}`);
+  const s = ex.steps[howto.step];
+  $('#np-howto-body').innerHTML = `<h3>${esc(st.name)}</h3>
+    <p class="np-howto-goal"><b>Goal:</b> ${esc(h.goal)}</p>
+    <div class="np-howto-cols"><section><h4>Rules</h4><ol>${h.rules.map((r) => `<li>${esc(r)}</li>`).join('')}</ol>
+      <h4>Tools and options</h4><ul>${h.tools.map((r) => `<li>${esc(r)}</li>`).join('')}</ul>
+      <h4>Tips</h4><ul>${h.tips.map((r) => `<li>${esc(r)}</li>`).join('')}</ul></section>
+    <section class="np-howto-ex" aria-labelledby="np-howto-ex-h"><h4 id="np-howto-ex-h">Example</h4><p class="np-help">${esc(ex.intro)}</p>
+      ${exampleGrid(s.grid, { glyph: !!h.glyph })}
+      <p class="np-eyebrow">Step ${howto.step + 1} of ${ex.steps.length}</p>
+      <p aria-live="polite">${esc(s.say)}</p>
+      <p class="np-actions"><button class="btn small" type="button" id="np-howto-prev"${howto.step ? '' : ' disabled'}>Back</button><button class="btn small primary" type="button" id="np-howto-next"${howto.step < ex.steps.length - 1 ? '' : ' disabled'}>Next step</button></p>
+      <p class="np-help np-ex-key"><span class="np-ex-cell given">1</span> given <span class="np-ex-cell new">2</span> just placed${h.id === 'rival' ? ' <span class="np-ex-cell mine">2</span> yours <span class="np-ex-cell theirs">3</span> the rival\'s' : ''}${h.id === 'chain' ? ' <span class="np-ex-cell zone"></span> would link' : ''}${h.id === 'tide' ? ' <span class="np-ex-cell water"></span> water' : ''} <span class="np-ex-cell wrong">4</span> wrong</p>
+    </section></div>`;
+  $('#np-howto-prev').onclick = () => { howto.step--; drawHowto(); $('#np-howto-prev').disabled ? $('#np-howto-next').focus() : $('#np-howto-prev').focus(); };
+  $('#np-howto-next').onclick = () => { howto.step++; drawHowto(); $('#np-howto-next').disabled ? $('#np-howto-prev').focus() : $('#np-howto-next').focus(); };
 }
 
 // ---------- files and printing ----------
@@ -839,6 +1193,7 @@ export function cleanGame(g) {
     solved: g.solved === true, revealed: g.revealed === true, recorded: ['solved', 'revealed', 'abandoned'].includes(g.recorded) ? g.recorded : null,
     daily: DAY.test(g.daily) ? g.daily : null, practice: g.practice ? text(g.practice, 40) : null, tuned: Number.isFinite(g.tuned) ? g.tuned : null,
     created: count(g.created) || Date.now(), updated: Date.now(), sel: ok(g.sel) ? g.sel : givens.findIndex((d) => !d),
+    ...cleanStyle(g, N),
   };
 }
 
@@ -848,13 +1203,13 @@ async function openFile(file) {
   try {
     const data = JSON.parse(await file.text());
     const g = data?.format === 'number-place' ? cleanGame(data.game) : null;
-    if (!g) throw new Error('That file is not a Number Place puzzle.');
+    if (!g) throw new Error('That file is not a NINETIMESNINE puzzle.');
     const p = g.p;
     G = { ...g, id: `g${Date.now().toString(36)}`, mode: data.game.mode === 'daily' && g.daily ? 'daily' : 'file' };
     learn.started(p);
     open();
   } catch (e) {
-    status.textContent = e instanceof SyntaxError ? 'That file could not be read. Choose a .json file saved from Number Place.' : e.message;
+    status.textContent = e instanceof SyntaxError ? 'That file could not be read. Choose a .json file saved from NINETIMESNINE.' : e.message;
   }
 }
 
@@ -932,9 +1287,10 @@ function move(dr, dc) {
 
 function wire() {
   // Setup
-  $('#np-setup').addEventListener('submit', (e) => { e.preventDefault(); startNew(readSetup()); });
+  $('#np-setup').addEventListener('submit', (e) => { e.preventDefault(); const o = readSetup(); startNew(o, { style: prefs.style }); });
   $('#np-levels').addEventListener('change', () => { renderSizes(); renderSetup(); });
-  $('#np-sizes').addEventListener('change', (e) => { prefs.size = Number(e.target.value); savePrefs(); renderSizes(); });
+  $('#np-styles').addEventListener('change', () => { prefs.style = chosenStyle(); savePrefs(); renderStyle(); });
+  $('#np-sizes').addEventListener('change', (e) => { prefs.size = Number(e.target.value); savePrefs(); renderSizes(); renderStyle(); });
   $('#np-daily-btn').onclick = startDaily;
   $('#np-continue').onclick = (e) => resume(e.currentTarget.dataset.id);
   $('#np-suggest').onclick = (e) => {
@@ -976,7 +1332,7 @@ function wire() {
   $('#np-undo').onclick = undo;
   $('#np-redo').onclick = redo;
   $('#np-hint-btn').onclick = hint;
-  $('#np-auto').onclick = autoNotes;
+  $('#np-auto').onclick = () => autoNotes();
   $('#np-check').onclick = check;
   $('#np-pause').onclick = () => { G.paused = !G.paused; render(); };
   $('#np-mistakes').onchange = (e) => { prefs.showMistakes = e.target.checked; savePrefs(); render(); };
@@ -985,16 +1341,30 @@ function wire() {
   $('#np-reveal-no').onclick = () => { $('#np-reveal-confirm').hidden = true; focusCell(G.sel); };
   $('#np-reveal-yes').onclick = reveal;
   $('#np-coach-next').onclick = () => coach(Number($('#np-coach').dataset.i) + 1);
-  $('#np-coach-close').onclick = () => { prefs.coachDone = true; savePrefs(); $('#np-coach').hidden = true; focusCell(G.sel); };
+  $('#np-coach-close').onclick = () => { if (G.style === 'classic') prefs.coachDone = true; else prefs.styleTips[G.style] = true; savePrefs(); $('#np-coach').hidden = true; focusCell(G.sel); };
+  $('#np-powers').addEventListener('click', (e) => { const b = e.target.closest('[data-power]'); if (b && G) usePower(b.dataset.power); });
+  $('#np-glyphnum').onchange = (e) => { prefs.glyphNums = e.target.checked; savePrefs(); buildPad(); render(); };
   $('#np-again').onclick = () => {
     if (G.mode === 'daily' || G.mode === 'race') { showView('setup'); return; }
     const p = G.p;
-    startNew({ difficulty: p.difficulty.id, size: p.size, variants: p.variants });
+    startNew({ difficulty: p.difficulty.id, size: p.size, variants: p.variants }, { style: G.style });
   };
   $('#np-share').onclick = share;
   $('#np-home').onclick = () => showView('setup');
   root.querySelectorAll('[data-feel]').forEach((b) => { b.onclick = () => rate(b.dataset.feel); });
   $('#np-steps-btn').onclick = openSteps;
+  $('#np-howto-btn').onclick = () => openHowto(chosenStyle());
+  $('#np-howto-play').onclick = () => openHowto(G?.style);
+  $('#np-howto-tabs').addEventListener('click', (e) => { const b = e.target.closest('[data-id]'); if (b) { howto = { id: b.dataset.id, step: 0 }; drawHowto(); root.querySelector(`#np-howto-tabs [data-id="${b.dataset.id}"]`).focus(); } });
+  $('#np-howto-tabs').addEventListener('keydown', (e) => {
+    const i = HOWTO.findIndex((h) => h.id === howto.id), n = HOWTO.length;
+    const to = { ArrowRight: (i + 1) % n, ArrowLeft: (i + n - 1) % n, Home: 0, End: n - 1 }[e.key];
+    if (to === undefined) return;
+    e.preventDefault();
+    howto = { id: HOWTO[to].id, step: 0 };
+    drawHowto();
+    root.querySelector(`#np-howto-tabs [data-id="${howto.id}"]`).focus();
+  });
   $('#np-step-prev').onclick = () => { stepAt = Math.max(0, stepAt - 1); drawStep(); };
   $('#np-step-next').onclick = () => { stepAt = Math.min(G.p.solvePath.length, stepAt + 1); drawStep(); };
   $('#np-step-end').onclick = () => { stepAt = G.p.solvePath.length; drawStep(); };
@@ -1034,8 +1404,8 @@ function onKey(e) {
   if (k === 'Backspace' || k === 'Delete' || k === '0') { e.preventDefault(); erase(); return; }
   const lk = k.toLowerCase();
   if (lk === 'n') { e.preventDefault(); $('#np-notes-btn').click(); return; }
-  if (lk === 'h') { e.preventDefault(); hint(); return; }
-  if (lk === 'a') { e.preventDefault(); autoNotes(); return; }
+  if (lk === 'h') { e.preventDefault(); if (styled('glyph')) usePower('compass'); else hint(); return; }
+  if (lk === 'a' && !styled('glyph')) { e.preventDefault(); autoNotes(); return; }
   if (lk === 'c') { e.preventDefault(); check(); return; }
   if (lk === 'p') { e.preventDefault(); $('#np-pause').click(); return; }
   if (k === 'Home') { e.preventDefault(); focusCell(rowOf(G.sel) * G.p.size); return; }

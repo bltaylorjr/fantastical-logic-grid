@@ -254,8 +254,9 @@ function hiddenSubset(shape, st, k) {
 const cap = (s) => s[0].toUpperCase() + s.slice(1);
 
 // Solves by deduction only, using techniques up to maxLevel. Returns the steps
-// taken and whether the grid was finished.
-export function solveLogically(shape, grid, { maxLevel = 5, evenMask = null } = {}) {
+// taken and whether the grid was finished. firstPlace stops at the first
+// number placed (the next move, for game styles that only need one).
+export function solveLogically(shape, grid, { maxLevel = 5, evenMask = null, firstPlace = false } = {}) {
   const st = initCandidates(shape, grid, evenMask);
   const order = Object.keys(NP_TECHNIQUES).filter((t) => NP_TECHNIQUES[t].level <= maxLevel);
   const steps = [];
@@ -269,6 +270,7 @@ export function solveLogically(shape, grid, { maxLevel = 5, evenMask = null } = 
     if (step.place) place(shape, st, ...step.place);
     else for (const [c, d] of step.remove) st.cand[c] &= ~bit(d);
     steps.push(step);
+    if (firstPlace && step.place) break;
   }
   return { solved: st.v.every(Boolean), values: st.v, steps, hardest };
 }
