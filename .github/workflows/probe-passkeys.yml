@@ -1,0 +1,13 @@
+name: Probe admin passkeys (temporary)
+on: pull_request
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          A=https://flg-api.btay74.workers.dev
+          echo "passkeys.js: $(curl -s -o /dev/null -w '%{http_code}' $A/admin/passkeys.js)"
+          echo "signin link: $(curl -s $A/admin/ | grep -c 'href="#signin"')"
+          echo "options: $(curl -s -X POST -H 'Content-Type: application/json' -d '{}' $A/admin/v1/passkeys/sign-in/options | head -c 120)"
