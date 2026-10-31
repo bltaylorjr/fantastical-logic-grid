@@ -66,27 +66,37 @@ export function createGrid(frame, puzzle, ix, handlers) {
   // Phones and narrow windows: the whole grid fits the frame's width, so it
   // never scrolls sideways. Names get tighter and the squares smaller, only
   // as much as needed (bigger screens keep the full 44 px squares).
-  let fittedFor = -1;
+  // The room is measured with the full-size grid in place: on a PC or tablet
+  // the grid's column is as wide as the grid, so measuring the shrunk grid
+  // would shrink it again on every resize, down to the smallest squares.
+  let fitted = { avail: -1, cell: 0, rowh: 0 };
+  const setFit = (cell, rowh) => {
+    table.classList.toggle('fit', !!cell);
+    if (cell) { table.style.setProperty('--cell', `${cell}px`); table.style.setProperty('--rowh-w', `${rowh}px`); }
+  };
   function fit() {
-    const avail = frame.clientWidth;
-    if (!avail || !table.isConnected || avail === fittedFor) return;
-    fittedFor = avail;
-    table.classList.remove('fit');
+    if (!frame.clientWidth || !table.isConnected) return;
+    setFit(0);
     for (const n of ['--cell', '--rowh-w']) table.style.removeProperty(n);
+    const avail = frame.clientWidth;
+    if (avail === fitted.avail) { setFit(fitted.cell, fitted.rowh); pin(); return; }
+    let cell = 0, rowh = 0;
     if (table.scrollWidth > avail) {
       // Item names get at most about a fifth of the width (cut short with
       // "…"; the full name is in the tooltip and read out), the squares the rest.
-      const rowh = table.querySelector('th.rowh').offsetWidth;
-      table.classList.add('fit');
-      table.style.setProperty('--rowh-w', `${Math.min(rowh, Math.max(52, Math.round(avail * 0.22)))}px`);
+      rowh = Math.min(table.querySelector('th.rowh').offsetWidth, Math.max(52, Math.round(avail * 0.22)));
+      setFit(44, rowh);
       const head = table.querySelector('th.rcat').offsetWidth + table.querySelector('th.rowh').offsetWidth;
-      let cell = Math.min(44, Math.floor((avail - head - cols.length * 2) / totalCols));
+      cell = Math.min(44, Math.floor((avail - head - cols.length * 2) / totalCols));
       for (let tries = 0; tries < 40; tries++) {
-        table.style.setProperty('--cell', `${Math.max(12, cell)}px`);
+        cell = Math.max(12, cell);
+        setFit(cell, rowh);
         if (table.scrollWidth <= avail || cell <= 12) break;
         cell--;
       }
     }
+    fitted = { avail, cell, rowh };
+    frame.dataset.small = cell && cell < 24 ? 'true' : 'false';
     pin();
   }
   requestAnimationFrame(fit);
