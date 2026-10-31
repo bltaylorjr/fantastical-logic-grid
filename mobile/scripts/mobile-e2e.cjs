@@ -60,7 +60,12 @@ const fakeAndroid = () => {
         assert(await page.evaluate(() => window.__flgBack()) === true, `${name}: back closes the open dialog`);
         assert(!(await page.locator('#dlg-welcome[open]').count()), `${name}: welcome dialog closed`);
       }
-      assert(await page.evaluate(() => window.__flgBack()) === false, `${name}: back with nothing open leaves the app`);
+      // Back from The Fantastical Logic Grid goes to The Logic Grid's game cards, then leaves the app.
+      assert(await page.evaluate(() => window.__flgBack()) === true, `${name}: back on the home screen goes to the game cards`);
+      await page.waitForSelector('#screen-games:not([hidden])');
+      assert(await page.evaluate(() => window.__flgBack()) === false, `${name}: back on the game cards leaves the app`);
+      await page.click('#game-cards [data-game=logic-grid]');
+      await page.waitForSelector('#tier-choices input');
       await noSideScroll('the new puzzle screen');
       if (shots) await page.screenshot({ path: `${shots}/${name}-1-setup.png`, fullPage: true });
 
