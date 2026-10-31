@@ -2926,8 +2926,41 @@ $('#update-install').onclick = async () => {
 async function checkUpdates() {
   if (!updates.available()) return;
   pendingUpdate = await updates.check();
-  offerUpdate();
+  applyUpdate();
 }
+
+// Updates install quietly, with no notice: never mid-puzzle and never with a
+// dialog open. The website switches to the new version while the game is in
+// the background on the home screen (or right after opening, before the
+// player starts). The Windows app downloads in the background and installs
+// while it is minimized or hidden on the home screen, then restarts itself.
+// offerUpdate() (the old "A new version is ready" dialog) is kept for a
+// version that cannot update itself quietly.
+const quietMoment = () => !$('#screen-home').hidden && !document.querySelector('dialog[open]');
+let applying = false;
+async function applyUpdate() {
+  const u = pendingUpdate;
+  if (!u || applying || !quietMoment()) return;
+  const hidden = document.visibilityState === 'hidden';
+  if (u.kind === 'web') {
+    if (!hidden && performance.now() > 8000) return; // the player is looking: wait for the background
+    applying = true;
+    pendingUpdate = null;
+    try { await flushSave(); } catch (e) { /* nothing open */ }
+    webUpdateAccepted = true;
+    u.worker.postMessage({ type: 'skip-waiting' });
+    return;
+  }
+  if (!hidden) return;
+  applying = true;
+  pendingUpdate = null;
+  try { await updates.install(() => {}); } catch (e) {
+    console.warn('Quiet update not installed:', e);
+    applying = false;
+    pendingUpdate = u;
+  }
+}
+document.addEventListener('visibilitychange', () => { applyUpdate(); });
 
 $('#welcome-skip').onclick = () => { $('#dlg-welcome').close(); startQuick(); };
 $('#welcome-watch').onclick = () => { $('#dlg-welcome').close(); openVideo(); };
@@ -3057,8 +3090,8 @@ if ('serviceWorker' in navigator && !isDesktop && !isPortal && (location.protoco
   else { afterFirstUse(start); afterLoad(start, 10000); }
 }
 
-// Website updates: a new version installs in the background; the player is
-// offered a reload on the home screen, never mid-puzzle.
+// Website updates: a new version downloads in the background and switches
+// over quietly (applyUpdate), never mid-puzzle.
 let swReg = null;
 async function watchWebUpdates() {
   let reg;
@@ -3068,7 +3101,7 @@ async function watchWebUpdates() {
   const waiting = () => {
     if (!reg.waiting || !navigator.serviceWorker.controller) return; // first install needs no reload
     pendingUpdate = { kind: 'web', worker: reg.waiting };
-    offerUpdate();
+    applyUpdate();
   };
   waiting();
   reg.addEventListener('updatefound', () => {
