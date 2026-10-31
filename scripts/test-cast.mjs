@@ -95,7 +95,7 @@ for (let n = 0; n < 8; n++) {
   for (const w of words) assert(!new RegExp(`\\b${esc(w)}\\b`, 'i').test(line), `caught line names the grid item "${w}": ${line}`);
   for (const k of KNOWN_NAMES) assert(!new RegExp(`\\b${k}\\b`).test(line), `caught line names ${k}: ${line}`);
 }
-// 6. Every personality acts in a mood the talking faces know.
+// 6. Every personality acts in a mood the voices know.
 for (const id of Object.keys(PERSONALITIES)) {
   const name = [...CAST_NAMES].find((n) => personalityOf(n) === id);
   if (name) assert(MOODS.includes(moodOf(name)) && moodOf(name) !== 'calm', `${id} has its own mood (${moodOf(name)})`);
