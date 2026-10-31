@@ -18,11 +18,11 @@ if (existsSync(fonts)) cpSync(fonts, join(out, 'fonts'), { recursive: true });
 for (const dir of ['number-place', 'test-app']) {
   cpSync(join(root, 'modules', dir), join(out, 'modules', dir), { recursive: true, filter: (f) => !f.endsWith('.cjs') && !f.endsWith('.html') });
 }
-for (const f of ["number-place.js", "number-place-styles.js", "number-place-story.js", "rng.js"]) cpSync(join(root, 'engine', 'src', f), join(out, 'engine', 'src', f));
+for (const f of ["number-place.js", "number-place-story.js", "rng.js"]) cpSync(join(root, 'engine', 'src', f), join(out, 'engine', 'src', f));
 // The same page without its document wrapper, for the private claude.ai preview
 // (which adds its own wrapper and cannot print).
 const page = readFileSync(join(out, 'index.html'), 'utf8');
 const head = page.match(/<head>([\s\S]*)<\/head>/)[1].replace(/<meta charset[^>]*>\n|<meta name="viewport"[^>]*>\n/g, '');
 const body = page.match(/<body>([\s\S]*)<\/body>/)[1];
-writeFileSync(join(out, 'preview.html'), `<!DOCTYPE html>\n${head.replace('<title>', '<meta name="claude:viewport-fit-sides" content="cover">\n<meta name="np-no-print" content="1">\n<title>')}${body}`);
+writeFileSync(join(out, 'preview.html'), `${head.replace('<title>', '<meta name="claude:viewport-fit-sides" content="cover">\n<meta name="np-no-print" content="1">\n<title>')}${body}`);
 console.log(`Built ${out}`);

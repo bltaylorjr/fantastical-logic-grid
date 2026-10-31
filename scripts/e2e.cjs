@@ -10,7 +10,6 @@ const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`o
   await new Promise((r) => setTimeout(r, 600));
   const browser = await chromium.launch();
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
-  await ctx.addInitScript(() => { try { localStorage.setItem('flg.savedOpen', 'true'); } catch (e) { /* none */ } }); // Saved Puzzles box open
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(String(e)));
@@ -218,8 +217,7 @@ const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`o
         return { all: m.celebrate(list, { theme: 'pets' }), one: m.celebrate(list, { random: true, theme: 'mystery' }), none: m.celebrate([], {}) };
       }, all);
       assert(await page.locator('.fx-rays').count() >= 1, 'light rays add their glow');
-      // It lasts 3.6 s; a busy test machine can run its animation a little late.
-      await page.waitForFunction(() => !document.querySelector('.fx-rays'), null, { timeout: 10000 }).catch(() => {});
+      await page.waitForTimeout(4000);
       assert(await page.locator('.fx-rays').count() === 0, 'the light rays glow removes itself');
       assert(fx.all.join() === all.join() && errors.length === 0, `every celebration effect plays without errors (${errors.join('; ')})`);
       assert(fx.one.length === 1 && all.includes(fx.one[0]), 'Random plays one of the checked effects');

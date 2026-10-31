@@ -43,7 +43,7 @@ const ADMIN = 8136;
     await page.waitForSelector('#tier-choices input');
     assert(await page.evaluate(() => getComputedStyle(document.documentElement).overscrollBehaviorY) === 'contain', "the browser's own pull-to-refresh is replaced");
     await tag();
-    let [x, y] = await centre('#hero-h');
+    let [x, y] = await centre('.hero-title');
     await pull(x, y, 60);
     assert(!(await reloaded()), 'a short pull does nothing');
     // The spinner is noted in sessionStorage, which outlives the reload.

@@ -264,7 +264,7 @@
           <div class="field"><label for="comm-type">Show</label><select id="comm-type">
             <option value="all">Everything</option><option value="message">Messages</option><option value="idea">Ideas</option><option value="problem">Problems</option>
             <option value="error">Error reports</option><option value="email">Emails to players</option></select></div>
-          <div class="field"><label for="comm-status">Status</label><select id="comm-status"><option value="new">New and open</option><option value="approved">Approved (being processed)</option><option value="addressed">Addressed</option><option value="done">Done</option><option value="all">All</option></select></div>
+          <div class="field"><label for="comm-status">Status</label><select id="comm-status"><option value="new">New and open</option><option value="addressed">Addressed</option><option value="done">Done</option><option value="all">All</option></select></div>
           <div class="field grow"><label for="comm-q">Find words</label><input id="comm-q" type="search" autocomplete="off" maxlength="100"></div>
           <button class="btn primary" type="submit">Find</button>
         </form>
@@ -488,7 +488,6 @@
     <section data-view="settings" hidden aria-labelledby="h-settings">
       <div class="head"><h1 id="h-settings">Settings and switches</h1></div>
       <p class="muted">Changes reach every copy of the game within about a minute, with no new release.</p>
-      <div id="alerts-body"></div>
       <div id="settings-body"></div>
     </section>
 
@@ -563,7 +562,6 @@
   </form>
 </dialog>
 <dialog id="mk-dialog" class="mk-dialog" aria-labelledby="mk-dialog-title">
-  <button class="dlg-x" type="button" id="mk-dialog-x" aria-label="Close" title="Close"><svg aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg></button>
   <form method="dialog" id="mk-dialog-form" class="stack">
     <h2 id="mk-dialog-title"></h2>
     <div id="mk-dialog-body"></div>

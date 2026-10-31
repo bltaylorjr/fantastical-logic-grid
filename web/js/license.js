@@ -149,6 +149,7 @@ async function recheck(saved) {
 
 // The key this install uses, shown in Help (FLG-…-ABCDE), or ''.
 export const shownKey = () => (store.getLocal(PASS) || {}).key || '';
+export const isLocked = () => locked;
 
 // Resolves once the game may be played: straight away on the website, with a
 // good pass, or when the server does not ask for keys; otherwise after the

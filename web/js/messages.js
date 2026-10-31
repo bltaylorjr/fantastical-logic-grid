@@ -109,11 +109,6 @@ function messageHtml(m) {
 function renderConversations() {
   const list = $('#msg-convs');
   if (!state.conversations.length) { list.innerHTML = '<li class="help">No messages yet. Write to the team below.</li>'; return; }
-  // A fresh copy from the server can arrive while the player is reading or
-  // typing: keep open conversations open, unsent replies and the focus.
-  const opened = new Set([...list.querySelectorAll('details[open]')].map((d) => d.dataset.id));
-  const drafts = new Map([...list.querySelectorAll('textarea')].filter((t) => t.value).map((t) => [t.id, t.value]));
-  const focused = list.contains(document.activeElement) ? document.activeElement.id : '';
   list.innerHTML = state.conversations.map((c) => `<li><details data-id="${Number(c.id)}"${c.unread ? ' data-unread="1"' : ''}>
     <summary><b>${esc(c.subject)}</b> ${c.unread ? '<span class="pill new">New reply</span>' : ''} <span class="help">${esc(TOPICS[c.topic] || '')} · ${esc(when(c.updatedAt))}${c.status === 'done' ? ' · answered' : ''}</span></summary>
     <ol class="msg-list">${c.messages.map(messageHtml).join('')}</ol>
@@ -123,9 +118,6 @@ function renderConversations() {
       <div class="row-inline"><button class="btn primary" type="submit">Send reply</button></div>
     </form>`}
   </details></li>`).join('');
-  for (const d of list.querySelectorAll('details')) if (opened.has(d.dataset.id)) d.open = true;
-  for (const [id, text] of drafts) { const t = document.getElementById(id); if (t) t.value = text; }
-  if (focused) document.getElementById(focused)?.focus();
 }
 
 const TIERS = { basic: 'Basic', easy: 'Easy', medium: 'Medium', hard: 'Hard', expert: 'Expert', mensa: 'Quantum Physicist', theorist: 'Theoretical Physicist' };
@@ -217,7 +209,6 @@ async function sendReply(form) {
   btn.disabled = true;
   try {
     await call(`/${id}`, { text });
-    area.value = '';
     await refresh({ quiet: false });
     render();
     const again = $(`#msg-convs details[data-id="${id}"]`);

@@ -151,8 +151,7 @@ export function buildStory({ rng, scenario, goal, model, L, customTitle, usedSto
   // Category notes explain what a column means and which way its numbers
   // run ("rank 1 is the lowest rank"). They are rules, not scene, so they
   // sit apart from the word count.
-  // {low} and {high} are the smallest and biggest values this puzzle uses.
-  const notes = cats.slice(1).filter((c) => c.note).map((c) => capFirst(fill(c.note, { ...vars, low: c.labels[0], high: c.labels.at(-1) })));
+  const notes = cats.slice(1).filter((c) => c.note).map((c) => capFirst(fill(c.note, vars)));
 
   const withNotes = (ps) => (notes.length ? [...ps.slice(0, -1), notes.join(' '), ps.at(-1)] : ps);
   let paragraphs = [scene, castLine, `${task} ${lead}`, goalLine];

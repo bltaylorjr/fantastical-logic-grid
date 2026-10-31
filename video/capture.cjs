@@ -345,25 +345,6 @@ const CSS = `
     await scrollTo('#read-clues'); await hl(['#read-clues']);
     await scene('read-clues', ['To hear every clue in order, press Read the clues aloud.', 'Each character tells their own clue, and the clue being read lights up.']);
     await clearFx();
-    // Talking faces (talker.js): shown as they look while a voice reads, since
-    // the recording has no voices or AI pictures.
-    const talked = await p.evaluate((who) => {
-      const box = document.querySelector('#talker');
-      const face = document.querySelector(`.cast-btn[data-who="${CSS.escape(who)}"] svg, .cast-btn[data-who="${CSS.escape(who)}"] img`);
-      if (!box || !face) return false;
-      box.querySelector('.talker-still').innerHTML = face.outerHTML;
-      box.querySelector('canvas').hidden = true;
-      box.querySelector('.talker-name').textContent = who;
-      box.classList.add('speaking');
-      box.hidden = false;
-      return true;
-    }, who);
-    if (talked) {
-      await hl(['#talker']);
-      await scene('talking-face', ['While a voice reads, the character who is speaking appears in the corner.', 'When AI pictures are on, they get a lifelike face, and their lips move with their words.', 'They act the part too: a nervous witness fidgets, a cheerful one smiles, and a caught culprit hangs their head.', 'You can turn Talking faces off in Settings.']);
-      await clearFx();
-      await p.evaluate(() => { const box = document.querySelector('#talker'); box.hidden = true; box.classList.remove('speaking'); });
-    }
 
     // =================== The grid
     await gridView();
@@ -486,11 +467,7 @@ const CSS = `
     await top(); await p.click('[data-act=print]'); await p.waitForTimeout(300);
     await scene('print', ['You can print any puzzle, blank or with your marks, with the answer key on its own page.']);
     await p.click('#print-cancel');
-    await p.click('#home-btn'); await p.waitForSelector('#saved-section .saved-item', { state: 'attached' });
-    // Saved Puzzles folds away, and solved puzzles sit under Completed puzzles (PR #163): open both.
-    if (await p.$eval('#saved-toggle', (b) => b.getAttribute('aria-expanded') !== 'true')) await p.click('#saved-toggle');
-    await p.evaluate(() => { const d = document.getElementById('saved-done'); if (!d.hidden) d.open = true; });
-    await p.waitForSelector('#saved-section .saved-item'); await p.waitForTimeout(400); await prep();
+    await p.click('#home-btn'); await p.waitForSelector('.saved-item'); await p.waitForTimeout(400); await prep();
     await scrollTo('#saved-section'); await hl('#saved-section');
     await scene('saved', ['Your progress saves automatically.', 'Come back any time and pick up where you left off, from Saved puzzles.']);
     await clearFx();
@@ -503,7 +480,7 @@ const CSS = `
     await top(); await hl('#intro-btn');
     await scene('howto', ['And Introduction, at the top of every page, plays this video again.']);
     await clearFx();
-    await p.click('#saved-section .saved-item [data-do=resume]'); await p.waitForSelector('#screen-play:not([hidden])'); await prep(); await top();
+    await p.click('.saved-item [data-do=resume]'); await p.waitForSelector('#screen-play:not([hidden])'); await prep(); await top();
     await p.evaluate(() => { document.documentElement.dataset.theme = 'dark'; }); await p.waitForTimeout(300);
     await scene('dark', ['Play in light or dark colors,']);
     await p.evaluate(() => { document.documentElement.dataset.theme = 'contrast'; }); await p.waitForTimeout(300);
@@ -511,20 +488,6 @@ const CSS = `
     await p.evaluate(() => { document.documentElement.dataset.theme = 'light'; document.documentElement.classList.add('silent'); }); await p.waitForTimeout(300);
     await scene('silent', ['And Silent mode is always there when you just want the puzzle.']);
     await p.evaluate(() => { document.documentElement.classList.remove('silent'); });
-    // Logic Grid Basic: the first version's simpler look, one switch away.
-    if (await p.$('#mode-switch [data-look=basic]')) {
-      await top(); await hl('#mode-switch', 8);
-      await scene('look-switch', ['Prefer a simpler screen? Use the Basic and Interactive switch at the top.', 'The game opens on Interactive, the full look you have seen so far.']);
-      await clearFx();
-      await clickShown('#mode-switch [data-look=basic]');
-      await p.waitForFunction(() => document.documentElement.dataset.look === 'basic'); await p.waitForTimeout(400); await prep(); await top();
-      await scene('basic-play', ['Basic is the game\'s first, classic look: flat white panels, a blue accent and a plain, easy-to-read font, with no screen animations.', 'You play exactly the same way, and every clue is open from the start, with no picture puzzles to unlock.']);
-      await clearFx();
-      await p.click('#home-btn'); await p.waitForSelector('#tier-choices input'); await prep(); await top();
-      await scene('basic-home', ['Everything else is here too: every theme and topic, drawn pictures, voices, races and the scoreboard, stats and badges, hints, saves and printing.', 'Only the talking faces stay in Interactive.', 'The game remembers your choice, and Interactive switches you back at any time.']);
-      await clickShown('#mode-switch [data-look=interactive]');
-      await p.waitForFunction(() => document.documentElement.dataset.look !== 'basic'); await p.waitForTimeout(300); await clearFx();
-    }
     await p.click('#home-btn'); await p.waitForSelector('#tier-choices input'); await prep();
     await p.click('#menu-btn'); await p.click('[data-cmd=install]'); await p.waitForSelector('#dlg-install[open]'); await prep();
     await scene('install', ['To play without opening a browser, choose Install the app from the Menu.', 'Download the Windows desktop app, which keeps itself up to date.', 'Or add the game\'s icon to your phone\'s home screen. On your phone, the same menu shows you how.', 'On a phone, pull down from the top of the page to refresh. Your progress is saved first.']);
@@ -564,8 +527,6 @@ const CSS = `
     }
     if (await p.isVisible('#compete-section')) {
       // Signed in, the game asks for a screen name straight away.
-      // (Closing the print pack window can close it too: then open it from the name at the top.)
-      if (!(await p.waitForSelector('#dlg-name[open]', { timeout: 5000 }).catch(() => null))) { await top(); await p.click('#player-chip'); }
       await p.waitForSelector('#dlg-name[open]', { timeout: 15000 });
       await p.fill('#name-input', 'Sky Fox');
       await scene('screen-name', ['Once you are signed in, you pick a screen name.', 'Type your own, or press Suggest a name and the game makes one up for you.', 'It is the only thing other players see, and rude names are turned away.', 'Don\'t want one? Sign out instead, and you play as Guest.']);

@@ -42,9 +42,6 @@ const fakeAndroid = () => {
     for (const [name, device] of [['phone', devices['Pixel 7']], ['small', { ...devices['Galaxy S9+'], viewport: { width: 360, height: 740 } }]]) {
       const ctx = await browser.newContext({ ...device });
       await ctx.addInitScript(fakeAndroid);
-      // A tester's device, with the full Logic Grid package on (web/js/package-preview.js).
-      await ctx.addInitScript((h) => { try { localStorage.setItem('flg.preview', h); } catch (e) { /* none */ } }, /CODE_HASH = '([0-9a-f]{64})'/.exec(require('fs').readFileSync(path.join(__dirname, '..', '..', 'web', 'js', 'package-preview.js'), 'utf8'))[1]);
-      await ctx.addInitScript(() => { try { localStorage.setItem('flg.savedOpen', 'true'); } catch (e) { /* none */ } }); // Saved Puzzles box open
       const page = await ctx.newPage();
       page.on('pageerror', (e) => errors.push(String(e)));
       page.on('console', (m) => { if (m.type() === 'error' && !/404/.test(m.text())) errors.push(m.text()); });
@@ -62,12 +59,7 @@ const fakeAndroid = () => {
         assert(await page.evaluate(() => window.__flgBack()) === true, `${name}: back closes the open dialog`);
         assert(!(await page.locator('#dlg-welcome[open]').count()), `${name}: welcome dialog closed`);
       }
-      // Back from The Fantastical Logic Grid goes to The Logic Grid's game cards, then leaves the app.
-      assert(await page.evaluate(() => window.__flgBack()) === true, `${name}: back on the home screen goes to the game cards`);
-      await page.waitForSelector('#screen-games:not([hidden])');
-      assert(await page.evaluate(() => window.__flgBack()) === false, `${name}: back on the game cards leaves the app`);
-      await page.click('#game-cards [data-game=logic-grid]');
-      await page.waitForSelector('#tier-choices input');
+      assert(await page.evaluate(() => window.__flgBack()) === false, `${name}: back with nothing open leaves the app`);
       await noSideScroll('the new puzzle screen');
       if (shots) await page.screenshot({ path: `${shots}/${name}-1-setup.png`, fullPage: true });
 
@@ -83,12 +75,8 @@ const fakeAndroid = () => {
       await page.evaluate(() => Promise.all(document.getAnimations()
         .filter((a) => a.effect && a.effect.getComputedTiming().iterations !== Infinity)
         .map((a) => a.finished.catch(() => {}))));
-      // The grid fits the screen's width (Bobby, 2026-10-31: no sideways scrolling);
-      // its squares stay 44 px unless they had to shrink to fit.
       const cell = await page.locator('td.c').first().boundingBox();
-      const g = await page.evaluate(() => { const f = document.querySelector('#gridframe'); return { over: f.scrollWidth - f.clientWidth, fit: !!f.querySelector('table.lg.fit') }; });
-      assert(g.over <= 0, `${name}: the grid fits the screen's width (${Math.round(cell.width)} px squares)`);
-      if (!g.fit) assert(cell.width >= 44 && cell.height >= 44, `${name}: grid cells are at least 44 px (${Math.round(cell.width)} x ${Math.round(cell.height)})`);
+      assert(cell.width >= 44 && cell.height >= 44, `${name}: grid cells are at least 44 px (${Math.round(cell.width)} x ${Math.round(cell.height)})`);
       await page.locator('td.c').nth(5).tap();
       assert(await page.evaluate(() => window.__flg.state.marks.size) === 1, `${name}: tapping a cell marks it`);
       if (shots) await page.screenshot({ path: `${shots}/${name}-2-play.png`, fullPage: true });

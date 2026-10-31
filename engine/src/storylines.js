@@ -1098,64 +1098,6 @@ export const STORYLINES = {
       '{Fact}, so {winner} wins {prize} and a cup of tea that never gets cold.',
     ],
   },
-  // Seasons: the classic topic is Fall, a harvest festival weekend in a
-  // mountain town. Winter, Spring and Summer bring their own parts
-  // (more-topics-seasons.js).
-  seasons: {
-    adjs: ['Golden', 'Crisp', 'Amber', 'Rustling', 'Harvest', 'Smoky', 'Frosted', 'Blazing', 'Autumn', 'Crimson'],
-    openings: [
-      'The mountain town closed Main Street for its harvest festival, and {n} {many} came out early.',
-      '{N} {many} met at the town green as the hills turned red and gold.',
-      'A cold snap painted every ridge in color overnight, and {n} {many} headed out to see it.',
-      '{N} {many} signed up to run booths at the fall festival this year.',
-      'Woodsmoke drifted over the fairground as {n} {many} set up folding tables.',
-      '{N} {many} left their porches covered in gourds and walked to the festival together.',
-      'The first frost came on Friday, and by Saturday {n} {many} were bundled up for the big weekend.',
-      '{N} {many} spent the afternoon raking, then ended up at the festival anyway.',
-      'Brass band music echoed off the hills while {n} {many} wandered from booth to booth.',
-      '{N} {many} gathered at the old farm on the edge of town for the last warm weekend of the year.',
-      'Leaves blew across the parking lot like confetti as {n} {many} arrived.',
-    ],
-    incidents: [
-      { name: 'Photo Contest', text: 'The town is picking one photo of the changing leaves for the visitor center wall.', prize: 'the visitor center photo spot' },
-      { name: 'Pie Ribbon', text: 'The judges tasted every homemade pie and could agree on only one.', prize: 'the blue pie ribbon' },
-      { name: 'Lost Wallet', text: 'A wallet went missing near the hay bales, and one neighbor turned it in with every dollar still inside.', prize: 'the honest neighbor plaque' },
-      { name: 'Hidden Gourd', text: 'Someone hid a gourd painted gold somewhere on the grounds, and only one person found it.', prize: 'the painted gourd prize' },
-      { name: 'Weigh-Off', text: 'The giant pumpkin weigh-off ended in an argument over the scale.', prize: 'the weigh-off trophy' },
-      { name: 'Chili Mix-Up', text: 'Two chili pots were swapped before judging, and one cook spotted it just in time.', prize: 'the sharp-eye award' },
-      { name: 'Volunteer Award', text: 'The festival committee wants to thank whoever stayed latest to clean up.', prize: 'the volunteer of the year award' },
-      { name: 'Missing Sign', text: 'The hand-painted festival sign vanished overnight and turned up in an odd place.', prize: 'the sign finder\'s badge' },
-      { name: 'Quilt Raffle', text: 'The raffle ticket for the handmade quilt was drawn, but the winner\'s name had smudged.', prize: 'the handmade quilt' },
-      { name: 'Bird Count', text: 'The nature club counted the hawks flying south, and one tally sheet beat the rest.', prize: 'the hawk watch medal' },
-      { name: 'Recipe Book', text: 'One family recipe is going on the cover of the town cookbook.', prize: 'the cookbook cover' },
-    ],
-    mishaps: [
-      'A gust of wind scattered the sign-up sheets across the field.',
-      'Somebody spilled a full cup of something warm on the judges\' notes.',
-      'The festival map was drawn in pencil, and the rain smeared half of it.',
-      'Everyone was busy talking, so nobody kept a clean record of who did what.',
-      'The loudspeaker crackled through every announcement, so the details got garbled.',
-      'Leaves piled up on the clipboard, and the pages got out of order.',
-    ],
-    leads: {
-      treat: ['The neighbor you want bought the {x}.', 'A napkin from the {x} stand was left by the judges\' table.'],
-      activity: ['The neighbor you want tried the {x}.', 'A ticket stub for the {x} turned up in a coat pocket.'],
-      tree: ['The neighbor you want photographed the {x}.', 'The winning photo was taken under the {x}.'],
-      sweater: ['The neighbor you want wore the {x} sweater.', 'A {x} sweater was spotted near the judges\' table.'],
-      trail: ['The neighbor you want hiked the {x} Trail.', 'Muddy boots from the {x} Trail gave someone away.'],
-      leaves: ['The neighbor you want pressed {x} leaves.', 'The scrapbook page holds {x} leaves.'],
-      pumpkin: ['The neighbor you want grew a {x} pumpkin.', 'The weigh-off ticket was for a {x} pumpkin.'],
-      arrive: ['The neighbor you want arrived at {x}.', 'The parking attendant remembers a car pulling in at {x}.'],
-    },
-    endings: [
-      '{Fact}, so {winner} wins {prize}! The whole town cheers on the green.',
-      '{Fact}! {winner} takes a bow as the band strikes up again.',
-      'Mystery solved! {Fact}, and {winner} celebrates with a warm drink by the fire.',
-      '{Fact}, and {prize} goes to {winner}. What a weekend!',
-      '{Fact}. {winner} grins as {prize} is announced over the loudspeaker.',
-      '{Fact}, so {winner} wins {prize} and a front-row seat for next year\'s festival.',
-    ],
-  },
 };
 
 // Number of distinct storylines for a theme with a given goal category.

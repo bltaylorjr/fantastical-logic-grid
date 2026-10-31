@@ -4,10 +4,8 @@
 import { THEMES } from '../engine/src/themes.js';
 import { TOPICS } from '../engine/src/topics.js';
 import { KNOWN_NAMES, genderOf } from '../web/js/gender.js';
-import { PERSONALITIES, CAST_NAMES, KOKORO_BUNDLED, KOKORO_STAND_IN, MOODS, profileOf, personalityOf, sayingOf, moodOf, caughtLine } from '../web/js/castbook.js';
+import { PERSONALITIES, CAST_NAMES, KOKORO_BUNDLED, KOKORO_STAND_IN, profileOf, personalityOf, sayingOf } from '../web/js/castbook.js';
 import { GEMINI_VOICES } from '../server/src/voices.js';
-import { VOICES as CHARACTER_VOICES } from '../server/src/characters.js';
-import { readFileSync } from 'node:fs';
 import * as dicebear from '../web/vendor/dicebear/dicebear.js';
 
 let failed = 0;
@@ -88,29 +86,8 @@ for (const [id, p] of Object.entries(PERSONALITIES)) {
     }
   }
 }
-// The culprit's owning-up lines follow the same rules.
-for (let n = 0; n < 8; n++) {
-  const line = caughtLine('Clara', n);
-  lines++;
-  for (const w of words) assert(!new RegExp(`\\b${esc(w)}\\b`, 'i').test(line), `caught line names the grid item "${w}": ${line}`);
-  for (const k of KNOWN_NAMES) assert(!new RegExp(`\\b${k}\\b`).test(line), `caught line names ${k}: ${line}`);
-}
-// 6. Every personality acts in a mood the talking faces know.
-for (const id of Object.keys(PERSONALITIES)) {
-  const name = [...CAST_NAMES].find((n) => personalityOf(n) === id);
-  if (name) assert(MOODS.includes(moodOf(name)) && moodOf(name) !== 'calm', `${id} has its own mood (${moodOf(name)})`);
-}
 assert(sayingOf('Clara', 'clue', 3) === sayingOf('clara', 'clue', 3), 'lines are steady for a name');
 assert(personalityOf('Zoe Q') === personalityOf('Zoe Q'), 'typed names get a steady personality');
-
-// Characters made in the admin dashboard speak with server voices only if the
-// game knows their voice list (player error report: "GEMINI_F is not defined").
-{
-  const ai = readFileSync(new URL('../web/js/ai.js', import.meta.url), 'utf8');
-  const list = (name) => JSON.parse((ai.match(new RegExp(`const ${name} = (\\[[^\\]]*\\])`)) || [, 'null'])[1].replace(/'/g, '"'));
-  assert(JSON.stringify(list('GEMINI_F')) === JSON.stringify(CHARACTER_VOICES.gemini.f), 'the game knows the women\'s server voices characters can have');
-  assert(JSON.stringify(list('GEMINI_M')) === JSON.stringify(CHARACTER_VOICES.gemini.m), 'the game knows the men\'s server voices characters can have');
-}
 
 console.log(failed ? `${failed} cast check(s) failed.` : `Cast checks passed (${CAST_NAMES.size} characters, ${Object.keys(PERSONALITIES).length} personalities, ${lines} lines, ${words.length} grid items checked).`);
 process.exit(failed ? 1 : 0);

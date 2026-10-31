@@ -207,14 +207,10 @@ export const THEMES = [
           lessBy: 'is {d} younger than', moreBy: 'is {d} older than',
           gap: (s) => plural(s * 50, 'year', 'years') } },
       { id: 'level', name: 'Rank', noun: "rank", pos: 'holds rank {x}', neg: 'does not hold rank {x}',
-        // Which end is the top must be plain: "rank 1" often reads as first
-        // place (player reports, 2026-10-26 and 2026-10-30). The note names
-        // this puzzle's own top and bottom ranks ({high}, {low}), and every
-        // comparison says better or worse as well as bigger or smaller.
-        note: 'About ranks: a bigger number is a better rank. In this puzzle rank {high} is the top (best) rank and rank {low} is the lowest. This is not a race, so a small number is not first place.',
+        note: 'About ranks: rank 1 is the lowest rank, and the bigger the number, the higher the rank.',
         ordinal: { start: 1, step: 1, count: 8, label: (v) => String(v),
-          less: 'holds a worse rank (a smaller number) than', more: 'holds a better rank (a bigger number) than',
-          lessBy: 'holds a rank {d} worse (smaller) than', moreBy: 'holds a rank {d} better (bigger) than',
+          less: 'holds a lower rank (a smaller number) than', more: 'holds a higher rank (a bigger number) than',
+          lessBy: 'holds a rank {d} lower than', moreBy: 'holds a rank {d} higher than',
           gap: (s) => plural(s, 'step', 'steps') } },
       { id: 'wand', name: 'Wand', noun: 'wand wood', pos: 'carries the {x} wand', neg: 'does not carry the {x} wand',
         items: ['Birch', 'Holly', 'Willow', 'Yew', 'Elder', 'Rowan', 'Cherry', 'Ebony'] },
@@ -741,43 +737,6 @@ export const THEMES = [
           gap: (s) => (s % 4 === 0 ? plural(s / 4, 'hour', 'hours') : plural(s * 15, 'minute', 'minutes')) } },
     ],
   },
-  {
-    // The classic topic is Fall (a harvest festival weekend); Winter, Spring
-    // and Summer are topics in more-topics-seasons.js.
-    id: 'seasons',
-    name: 'Seasons',
-    description: 'Falling leaves, deep snow, spring gardens and long summer days.',
-    cast: { one: 'neighbor', many: 'neighbors' },
-    names: ['Hazel', 'Rowan', 'Ginger', 'Forrest', 'Maren', 'Clem', 'Wren', 'Otis', 'Juniper', 'Basil'],
-    categories: [
-      { id: 'treat', name: 'Treat', noun: 'festival treat', pos: 'bought the {x}', neg: 'did not buy the {x}',
-        items: ['Hot Cider', 'Caramel Popcorn', 'Pumpkin Bread', 'Pecan Pie', 'Sweet Potato Fries', 'Peanut Brittle', 'Butternut Soup', 'Spiced Chai'] },
-      { id: 'activity', name: 'Activity', pos: 'tried the {x}', neg: 'did not try the {x}',
-        items: ['Corn Maze', 'Hayride', 'Gourd Painting', 'Leaf Jumping', 'Scarecrow Contest', 'Apple Picking', 'Bonfire', 'Square Dance'] },
-      { id: 'tree', name: 'Tree', noun: 'favorite tree', pos: 'photographed the {x}', neg: 'did not photograph the {x}',
-        items: ['Sugar Maple', 'Red Oak', 'Sweetgum', 'Sassafras', 'Dogwood', 'Tulip Poplar', 'Sourwood', 'Black Gum'] },
-      { id: 'sweater', name: 'Sweater', noun: 'sweater color', pos: 'wore the {x} sweater', neg: 'did not wear the {x} sweater',
-        items: ['Rust', 'Mustard', 'Plum', 'Olive', 'Cream', 'Burgundy', 'Charcoal', 'Copper'] },
-      { id: 'trail', name: 'Trail', pos: 'hiked the {x} Trail', neg: 'did not hike the {x} Trail',
-        items: ['Lookout', 'Waterfall', 'Rhododendron', 'Bear Den', 'Chestnut', 'Hemlock', 'Laurel', 'Fox Run'] },
-      { id: 'leaves', name: 'Leaves Pressed', noun: 'number of leaves pressed', pos: 'pressed {x} leaves', neg: 'did not press {x} leaves',
-        ordinal: { start: 4, step: 2, count: 8, label: (v) => String(v),
-          less: 'pressed fewer leaves than', more: 'pressed more leaves than',
-          lessBy: 'pressed {d} fewer than', moreBy: 'pressed {d} more than',
-          gap: (s) => plural(s * 2, 'leaf', 'leaves') } },
-      { id: 'pumpkin', name: 'Pumpkin Weight', noun: 'pumpkin weight', pos: 'grew a {x} pumpkin', neg: 'did not grow a {x} pumpkin',
-        note: 'Each {one} entered one pumpkin in the weigh-off, and no two weighed the same.',
-        ordinal: { start: 20, step: 10, count: 8, label: (v) => `${v}-pound`,
-          less: 'grew a lighter pumpkin than', more: 'grew a heavier pumpkin than',
-          lessBy: 'grew a pumpkin {d} lighter than', moreBy: 'grew a pumpkin {d} heavier than',
-          gap: (s) => plural(s * 10, 'pound', 'pounds') } },
-      { id: 'arrive', name: 'Arrival', noun: 'arrival time', pos: 'arrived at {x}', neg: 'did not arrive at {x}',
-        ordinal: { start: 0, step: 15, count: 8, label: clock(9 * 60),
-          less: 'arrived earlier than', more: 'arrived later than',
-          lessBy: 'arrived {d} earlier than', moreBy: 'arrived {d} later than',
-          gap: (s) => (s % 4 === 0 ? plural(s / 4, 'hour', 'hours') : plural(s * 15, 'minute', 'minutes')) } },
-    ],
-  },
 ];
 
 // How the theme picker groups themes, so a long list stays easy to scan.
@@ -787,7 +746,7 @@ export const THEME_GROUPS = [
   { id: 'imagination', name: 'Imagination', themes: ['fantasy', 'scifi', 'paradox'] },
   { id: 'science', name: 'Science & Learning', themes: ['science', 'math', 'biology', 'astronomy'] },
   { id: 'fun', name: 'Celebrations & Fun', themes: ['holiday', 'occasion', 'music', 'sports'] },
-  { id: 'places', name: 'Places & Everyday Life', themes: ['town', 'parks', 'travel', 'wonders', 'nautical', 'farm', 'pets', 'cooking', 'seasons'] },
+  { id: 'places', name: 'Places & Everyday Life', themes: ['town', 'parks', 'travel', 'wonders', 'nautical', 'farm', 'pets', 'cooking'] },
 ];
 
 export function getTheme(id) {

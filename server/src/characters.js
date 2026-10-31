@@ -22,7 +22,6 @@
 // may not be or contain a grid item, and a line may not name any grid item or
 // cast name (that would read like a clue). Names, lines, looks and
 // personalities pass the word filter with the admin's blocked words too.
-import { alert } from './alerts.js';
 import { THEMES } from '../../engine/src/themes.js';
 import { getTopics, buildScenario } from '../../engine/src/topics.js';
 import { KNOWN_NAMES, genderOf } from '../../web/js/gender.js';
@@ -401,7 +400,7 @@ async function sha256(text) {
 // A player's answers to the game's Suggest a character questions. Kept as a
 // suggestion for the creator; nothing reaches other players until an admin
 // reviews, saves and publishes it.
-async function postSuggestion(req, env, ctx) {
+async function postSuggestion(req, env) {
   let body;
   try { body = JSON.parse(await readText(req, 4_000)); } catch (e) { return json(req, env, { error: e instanceof TooLarge ? 'too_large' : 'bad_request' }, e instanceof TooLarge ? 413 : 400); }
   const s = await getSettings(env);
@@ -420,14 +419,13 @@ async function postSuggestion(req, env, ctx) {
   await env.DB.prepare(`INSERT INTO characters (id, name, gender, personality, look, role, themes, style, seed, voice, lines, status, source, voice_style, updated_at, updated_by)
     VALUES (?1, ?2, ?3, ?4, ?5, 'cast', ?6, 'notionists', ?7, ?8, '{"clue":[],"hint":[],"solve":[]}', 'suggested', 'player', ?9, ?10, 'a player')`)
     .bind(id, c.name, c.gender, c.personality, c.look, JSON.stringify(c.themes), c.seed, JSON.stringify(c.voice), c.voiceStyle, Date.now()).run();
-  await alert(env, ctx, { category: 'approvals', title: 'A player suggested a character', body: `${c.name}: ${c.personality}`.slice(0, 200), link: 'characters' });
   return json(req, env, { ok: true }, 201);
 }
 
 const PORTRAIT_PATH = /^\/v1\/characters\/([\w-]{1,40})\/portrait$/;
 
 // Returns a Response for this module's routes, or null for anything else.
-export async function handleCharacters(req, env, url, ctx) {
+export async function handleCharacters(req, env, url) {
   const path = url.pathname;
   if (path !== '/v1/characters' && !path.startsWith('/v1/characters/')) return null;
   const ip = req.headers.get('CF-Connecting-IP') || 'local';
@@ -435,7 +433,7 @@ export async function handleCharacters(req, env, url, ctx) {
     if (env.LIMIT_FEEDBACK && !(await env.LIMIT_FEEDBACK.limit({ key: `character|${(await sha256(`flg|${ip}`)).slice(0, 32)}` })).success) {
       return json(req, env, { error: 'slow_down', message: 'Please wait a minute before suggesting another character.' }, 429, { 'Retry-After': '60' });
     }
-    return postSuggestion(req, env, ctx);
+    return postSuggestion(req, env);
   }
   if (req.method !== 'GET') return json(req, env, { error: 'not_found' }, 404);
   if (env.LIMIT_AUTHLESS && !(await env.LIMIT_AUTHLESS.limit({ key: ip })).success) return json(req, env, { error: 'slow_down' }, 429, { 'Retry-After': '60' });

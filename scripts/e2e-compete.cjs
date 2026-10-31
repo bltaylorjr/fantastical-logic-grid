@@ -74,7 +74,6 @@ function startAuth(signer) {
   const errors = [];
   async function device(name, url = `${APP}/`) {
     const ctx = await browser.newContext({ viewport: { width: 1200, height: 900 }, serviceWorkers: 'block' });
-    await ctx.addInitScript(() => { try { localStorage.setItem('flg.savedOpen', 'true'); } catch (e) { /* none */ } }); // Saved Puzzles box open
     await ctx.route('**/js/cloud-config.js', (r) => r.fulfill({ contentType: 'text/javascript', body: config }));
     await ctx.addInitScript(() => { if (!localStorage.getItem('flg.settings')) localStorage.setItem('flg.settings', JSON.stringify({ introOffered: true, voiceProvider: 'device', silent: true })); });
     const page = await ctx.newPage();
@@ -98,7 +97,7 @@ function startAuth(signer) {
         const [a, b] = k.split('|');
         const match = S.puzzle.solution.some((row) => { const v = Object.values(row); return v.includes(a) && v.includes(b); });
         const cur = S.marks.get(k) || '';
-        out.push({ k, clicks: match ? (cur === 'O' ? 0 : cur === 'X' ? 1 : 2) : (cur === 'X' ? 0 : cur === 'O' ? 3 : 1) });
+        out.push({ k, clicks: match ? (cur === 'O' ? 0 : cur === 'X' ? 1 : 2) : (cur === 'X' ? 0 : cur === 'O' ? 2 : 1) });
       }
       return out;
     });

@@ -67,7 +67,6 @@
 :root[data-world="chemistry"] { --w1: #DB2777; --w2: #0891B2; }
 :root[data-world="astronomy"] { --w1: #4338CA; --w2: #0E7490; }
 :root[data-world="paradox"] { --w1: #7C3AED; --w2: #DB2777; }
-:root[data-world="seasons"] { --w1: #EA580C; --w2: #0EA5E9; }
 
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
@@ -90,8 +89,6 @@ button, input, select { font: inherit; color: inherit; }
 .brand { display: flex; align-items: center; gap: 10px; background: none; border: 0; padding: 6px 4px; min-height: 44px; cursor: pointer; font-weight: 700; font-size: 1.05rem; color: var(--text); border-radius: 8px; text-align: left; }
 .brand-mark { width: 30px; height: 30px; color: var(--accent); flex: none; }
 .appbar-actions { display: flex; gap: 8px; }
-.back-btn { flex: none; gap: 2px; padding-left: 8px; }
-.back-btn .ico { width: 20px; height: 20px; }
 .appbar-actions .educators-link { text-decoration: none; display: inline-flex; align-items: center; }
 .player-chip { max-width: 11em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 .player-chip::before { content: ""; display: inline-block; width: .6em; height: .6em; margin-right: .4em; border-radius: 50%; background: var(--edge); vertical-align: .05em; }
@@ -178,10 +175,7 @@ legend { font-weight: 700; font-size: 1.05rem; padding: 0; margin-bottom: 8px; }
 .error-box p { margin: 0 0 8px; }
 
 /* Saved list */
-.saved-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
-.saved-summary { margin: 0; font-size: .9rem; }
-#saved-body { margin-top: 12px; }
-#saved-body .saved-tools { margin-bottom: 8px; }
+.saved-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
 .saved-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
 .saved-item { border: 1px solid var(--hairline); border-radius: 10px; padding: 12px; display: grid; gap: 8px; }
 .saved-item h3 { font-size: 1.05rem; }
@@ -189,17 +183,6 @@ legend { font-weight: 700; font-size: 1.05rem; padding: 0; margin-bottom: 8px; }
 .saved-item .bar { height: 8px; border-radius: 4px; background: var(--x-fill); border: 1px solid var(--border); overflow: hidden; }
 .saved-item .bar i { display: block; height: 100%; background: var(--accent); }
 .saved-item .row { display: flex; flex-wrap: wrap; gap: 8px; }
-/* Saved Puzzles: new ones stand out, finished ones fold away. */
-.new-count { font-size: .8rem; font-weight: 700; background: var(--accent); color: var(--on-accent); border-radius: 999px; padding: 2px 10px; }
-.saved-item.is-new { border-color: var(--accent); border-width: 2px; }
-.saved-item .pill.new { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
-.saved-done { margin-top: 14px; }
-.saved-done > summary { cursor: pointer; font-weight: 700; padding: 8px 0; min-height: 44px; display: flex; align-items: center; gap: 8px; list-style: none; }
-.saved-done > summary::-webkit-details-marker { display: none; }
-.saved-done > summary::before { content: '▸'; transition: transform .15s; }
-.saved-done[open] > summary::before { transform: rotate(90deg); }
-@media (prefers-reduced-motion: reduce) { .saved-done > summary::before { transition: none; } }
-.saved-done .saved-list { margin-top: 8px; }
 
 /* ---------- Play ---------- */
 .play-head { display: grid; gap: 12px; margin-bottom: 16px; }
@@ -273,23 +256,6 @@ td.c:focus { outline: none; box-shadow: inset 0 0 0 3px var(--focus); z-index: 1
 td.c svg { width: 26px; height: 26px; display: block; margin: auto; pointer-events: none; }
 td.c.wrong { box-shadow: inset 0 0 0 3px var(--error); }
 td.c.wrong:focus { box-shadow: inset 0 0 0 3px var(--error), inset 0 0 0 6px var(--focus); }
-/* A grid made to fit a narrow screen (grid.js fit): names wrap in a narrower
-   column and the marks scale with the squares. */
-table.lg.fit { font-size: 12px; table-layout: auto; }
-table.lg.fit th.rowh { width: var(--rowh-w); min-width: var(--rowh-w); max-width: var(--rowh-w); padding: 0 4px; }
-table.lg.fit th.rcat { min-width: 20px; padding: 2px; }
-table.lg.fit th.colh { overflow: hidden; }
-/* A category name never widens its columns: it is cut short with "…". */
-table.lg.fit th.cath > span { display: block; width: 0; min-width: 100%; overflow: hidden; text-overflow: ellipsis; }
-table.lg.fit th.colh div { max-height: 110px; }
-table.lg.fit td.c svg { width: calc(var(--cell) * .6); height: calc(var(--cell) * .6); }
-table.lg.fit td.c .warn-ico { font-size: 9px; }
-@media (max-width: 480px) { .grid-card { padding: 12px 8px; } }
-/* The legend's sample "?" */
-.sym-q { color: var(--error); font-weight: 700; }
-/* The player's own "?" reminder: red, in the top right corner. */
-/* It fills the top right quarter of the cell. */
-td.c .q-mark { position: absolute; top: 0; right: 0; width: 50%; height: 50%; display: flex; align-items: center; justify-content: center; font-size: calc(var(--cell) * 0.38); font-weight: 700; line-height: 1; color: var(--error); pointer-events: none; }
 td.c .warn-ico { position: absolute; top: 1px; right: 2px; font-size: 11px; line-height: 1; color: var(--error); }
 td.c.target { outline: 3px dashed var(--hint); outline-offset: -5px; }
 td.gap { border: 0; background: transparent; }
@@ -325,7 +291,6 @@ td.c.auto { background-image: radial-gradient(circle, var(--border) 1px, transpa
 
 /* Clues and questions */
 .clues h2, .questions h2 { margin-bottom: 12px; }
-.clue-rules { margin: 0 0 12px; padding: 8px 12px; border-left: 4px solid var(--accent, currentColor); border-radius: 6px; background: color-mix(in srgb, currentColor 6%, transparent); font-size: .95em; }
 .clue-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
 .clue-list li { display: grid; grid-template-columns: 2.2em minmax(0, 1fr); gap: 4px; align-items: start; }
 .clue-list .num { font-weight: 700; color: var(--muted); padding-top: 11px; text-align: right; padding-right: 6px; font-variant-numeric: tabular-nums; }
@@ -542,45 +507,6 @@ h3, legend, .card h3 { font-family: var(--font); }
 #continue-btn small { font-size: .85rem; max-width: 30ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 640px) { .banner { grid-template-columns: minmax(0, 1fr); gap: 12px; } .hero-art svg { width: 56px; } .hero-actions .btn { flex: 1 1 100%; } }
 
-/* The Logic Grid: the game cards (games.js). Until app.js picks the first
-   screen, data-start shows the cards in place of The Fantastical Logic Grid's home. */
-[data-start=games] #screen-home { display: none !important; }
-[data-start=games] #screen-games { display: block !important; }
-[data-start=games] #back-btn, [data-start=games] .topstrip { display: none !important; }
-.games-banner { grid-template-columns: minmax(0, 1fr); }
-.game-cards { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 16px; }
-.game-card { width: 100%; height: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 16px; align-items: start; text-align: left; font: inherit; color: inherit;
-  padding: 20px; border-radius: var(--radius, 12px); border: 1px solid var(--edge-hi, var(--border)); background: var(--surface, var(--bg));
-  box-shadow: inset 0 1px 0 var(--edge, transparent), var(--shadow, none); transition: transform var(--fast) var(--ease), border-color var(--fast), box-shadow var(--mid, 200ms) var(--ease); }
-button.game-card { cursor: pointer; }
-button.game-card:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--accent) 60%, var(--edge-hi, var(--border))); box-shadow: inset 0 1px 0 var(--edge, transparent), 0 14px 32px -14px color-mix(in srgb, var(--accent) 80%, transparent); }
-button.game-card:active { transform: translateY(1px) scale(.99); }
-.game-card.soon { opacity: .7; border-style: dashed; box-shadow: none; }
-.game-art svg { width: 64px; height: 64px; display: block; color: var(--accent); }
-.game-card.soon .game-art svg { color: var(--muted); }
-.game-text { display: grid; gap: 4px; }
-.game-kind { text-transform: uppercase; letter-spacing: .14em; font-size: .75rem; font-weight: 700; color: var(--muted); }
-.game-name { font-size: 1.3rem; font-weight: 700; line-height: 1.2; }
-.game-name .menu-tag { font-size: .7rem; vertical-align: middle; padding: 1px 8px; border-radius: 999px; background: var(--accent-soft); }
-.game-blurb { color: var(--muted); }
-.game-play { justify-self: start; margin-top: 8px; font-weight: 700; color: var(--accent); }
-.game-cards > li { display: grid; gap: 8px; align-content: start; }
-.game-modes { list-style: none; margin: 0; padding: 0 4px; display: flex; flex-wrap: wrap; gap: 6px; }
-.game-watch { justify-self: start; margin: 0 4px; }
-.game-watch::before { content: "\25B6"; font-size: .8em; margin-right: .45em; }
-.hero-cta { margin: 14px 0 0; }
-.hero-cta .ico { width: 1.2em; height: 1.2em; margin-right: .4em; vertical-align: -.2em; }
-#game-video { display: block; width: min(100%, calc((100vh - 260px) * 16 / 9)); min-width: min(100%, 280px); margin: 0 auto; aspect-ratio: 16 / 9; background: #000; border-radius: 8px; }
-/* Wide screens: the games to play side by side, the ones to come smaller below. */
-@media (min-width: 900px) {
-  .game-cards { grid-template-columns: repeat(6, minmax(0, 1fr)); }
-  .game-cards > li { grid-column: span 3; }
-  .game-cards > li:has(.soon) { grid-column: span 2; }
-  .game-card:not(.soon) { padding: 28px; }
-  .game-card:not(.soon) .game-art svg { width: 96px; height: 96px; }
-  .game-card:not(.soon) .game-name { font-size: 1.6rem; }
-}
-
 /* Setup: difficulty cards, theme tiles, size chips */
 .choice > span { border-radius: 14px; border: 1px solid var(--edge-hi); background: var(--surface-2); box-shadow: inset 0 1px 0 var(--edge);
   transition: transform var(--fast) var(--ease), border-color var(--fast), box-shadow var(--mid) var(--ease), background-color var(--fast); }
@@ -621,7 +547,6 @@ button.game-card:active { transform: translateY(1px) scale(.99); }
 .tile[data-world="farm"] { --w1: #65A30D; --w2: #DC2626; } .tile[data-world="science"] { --w1: #2563EB; --w2: #10B981; }
 .tile[data-world="math"] { --w1: #1E40AF; --w2: #F59E0B; } .tile[data-world="biology"] { --w1: #4D7C0F; --w2: #0D9488; }
 .tile[data-world="chemistry"] { --w1: #DB2777; --w2: #0891B2; } .tile[data-world="astronomy"] { --w1: #4338CA; --w2: #0E7490; } .tile[data-world="paradox"] { --w1: #7C3AED; --w2: #DB2777; }
-.tile[data-world="seasons"] { --w1: #EA580C; --w2: #0EA5E9; }
 .tile[data-world="random"] { --w1: #7C5CFF; --w2: #22B8CF; }
 .chips .choice > span { border-radius: 999px; padding: 10px 18px; }
 .chips .choice small { font-weight: 400; }
@@ -688,7 +613,7 @@ dialog::backdrop { background: rgb(5 7 16 / .6); backdrop-filter: blur(6px); -we
   .screen.enter .card, .screen.enter .banner, .screen.enter .play-head { animation: rise-in 520ms var(--ease) both; }
   .screen.enter .card:nth-of-type(2) { animation-delay: 80ms; } .screen.enter .side .card:nth-child(2) { animation-delay: 140ms; }
   @keyframes rise-in { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
-  .banner::before { animation: aurora 18s ease-in-out 2; } /* drifts for a while, then rests to save power */
+  .banner::before { animation: aurora 18s ease-in-out infinite; }
   @keyframes aurora { 50% { transform: translate(6%, -4%) scale(1.08); } }
   dialog[open] { animation: dlg-in 260ms var(--spring); }
   @keyframes dlg-in { from { opacity: 0; transform: translateY(10px) scale(.96); } to { opacity: 1; transform: none; } }
@@ -751,13 +676,6 @@ dialog::backdrop { background: rgb(5 7 16 / .6); backdrop-filter: blur(6px); -we
   table.ptab { border-collapse: collapse; margin: 6pt 0 10pt; font-size: 10.5pt; }
   table.ptab th, table.ptab td { border: .5pt solid #000; padding: 3pt 6pt; text-align: left; }
   .psteps { font-size: 10pt; }
-  .pic-print-box { break-inside: avoid; margin: 8pt 0; }
-  table.pic-print { border-collapse: collapse; font-size: 9pt; margin: 4pt 0; }
-  table.pic-print td { width: 14pt; height: 14pt; border: .5pt solid #000; padding: 0; }
-  table.pic-print td.f { background: #000; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  table.pic-print thead th { vertical-align: bottom; line-height: 1.1; font-weight: 400; padding: 0 0 2pt; }
-  table.pic-print tbody th { text-align: right; white-space: nowrap; font-weight: 400; padding: 0 4pt 0 0; }
-  .pic-print-flip { transform: rotate(180deg); font-size: 9pt; margin-top: 6pt; }
 }
 
 /* ===== Learning: puzzle feedback and the story workshop ===== */
@@ -844,7 +762,7 @@ table.board .pill { font-size: .75rem; margin-left: 4px; }
 
 /* Always-visible strip under the app bar: How to play and a small scoreboard. */
 .appbar { flex-wrap: wrap; }
-.appbar > .brand { flex: 1 1 0; min-width: 44px; }
+.appbar > .brand { flex: 1 1 0; min-width: 0; }
 .topstrip { flex: 1 0 100%; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 8px; padding-top: 4px; border-top: 1px solid var(--edge); }
 .miniboard { display: flex; align-items: center; gap: 8px; min-width: 0; flex-wrap: wrap; }
 .miniboard ol { list-style: none; display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 0; padding: 0; font-size: .92rem; }
@@ -1055,38 +973,6 @@ dialog.rules table.board td { font-variant-numeric: tabular-nums; }
   .screen { padding-top: 12px; }
 }
 
-/* Story beats (experimental, web/js/director.js) */
-.story-beat { margin: 8px auto 0; max-width: 70ch; padding: 10px 14px; border-left: 4px solid var(--accent); border-radius: 8px; background: var(--bg); font-style: italic; }
-.story-beat.new { animation: beat-in 600ms ease-out; }
-@keyframes beat-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: reduce) { .story-beat.new { animation: none; } }
-/* Picture clues (experimental, web/js/picture-clue.js) */
-.clue-list li.pic-locked > label { display: none; }
-.pic-clue { grid-column: 1 / -1; min-width: 0; padding: 4px 0 8px; }
-.pic-open { text-align: left; }
-.pic-body { margin-top: 8px; max-width: 100%; }
-.pic-scroll { max-width: 100%; overflow-x: auto; padding-bottom: 4px; }
-.pic-scroll-hint { margin: 0 0 6px; font-size: 0.9rem; color: var(--muted); }
-/* Squares are easy to tap (44 px, like the main grid); on a narrow phone the
-   picture scrolls sideways inside its box instead of the page. */
-.pic-grid { --pic-cell: 44px; }
-.pic-help { margin: 0 0 8px; max-width: 60ch; }
-.pic-grid tbody th { min-width: 0; }
-.pic-grid { border-collapse: collapse; }
-.pic-grid th { font-size: 0.8rem; color: var(--muted); font-weight: 600; font-variant-numeric: tabular-nums; }
-.pic-grid thead th { vertical-align: bottom; padding: 0 0 4px; line-height: 1.1; }
-.pic-grid tbody th { text-align: right; padding: 0 6px 0 0; white-space: nowrap; }
-.pic-grid td { padding: 0; }
-.pic-cell { display: block; width: var(--pic-cell, 30px); height: var(--pic-cell, 30px); margin: 0; padding: 0; border: 1px solid var(--muted); background: var(--bg); cursor: pointer; }
-.pic-cell.f { background: var(--text); }
-.pic-cell.x { background: var(--cross); }
-.pic-cell.x::after { content: '×'; color: var(--muted); }
-.pic-cell:focus-visible { outline: 3px solid var(--accent); outline-offset: -3px; }
-.pic-grid.done .pic-cell { cursor: default; border-color: transparent; }
-.pic-grid.done .pic-cell.x { background: var(--bg); }
-.pic-grid.done .pic-cell.x::after { content: none; }
-.pic-grid.done .pic-cell.f { background: var(--accent); }
-.pic-status { min-height: 1.4em; margin: 6px 0; font-weight: 600; }
 /* Social pages under the home screen (social.js) */
 .home-foot { margin: 32px auto 8px; text-align: center; }
 .home-foot p { margin: 0 0 8px; }
@@ -1125,157 +1011,4 @@ body:has(#view-seg:not([hidden])) #miniboard-open { flex: none; }
 @media (max-width: 599px) {
   .view-seg > label > span { padding: 0 10px; }
   .view-seg .seg-text { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
-}
-
-/* Talking faces (talker.js): whoever is speaking, in the corner. Never takes
-   taps, so it can't get in the way of the grid. */
-.talker { position: fixed; right: 16px; bottom: 16px; z-index: 40; width: 184px; margin: 0; pointer-events: none; text-align: center; }
-.talker[hidden] { display: none; }
-.talker-frame { position: relative; width: 100%; aspect-ratio: 4 / 5; border-radius: 20px; overflow: hidden; background: var(--surface-2); border: 3px solid var(--edge-hi); box-shadow: var(--shadow); transition: border-color var(--mid) var(--ease), box-shadow var(--mid) var(--ease); }
-.talker.speaking .talker-frame { border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft), var(--shadow); }
-.talker canvas, .talker-still, .talker-still > * { position: absolute; inset: 0; width: 100%; height: 100%; display: block; object-fit: cover; }
-.talker canvas[hidden], .talker-still[hidden] { display: none; }
-.talker-name { display: inline-block; margin: 6px 0 0; padding: 2px 10px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--edge-hi); font-weight: 700; font-size: .9rem; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-@media (max-width: 600px) { .talker { width: 120px; right: 10px; bottom: 10px; } .talker-name { font-size: .8rem; } }
-@media print { .talker { display: none !important; } }
-html.silent .talker { display: none !important; }
-
-/* Basic / Interactive switch in the app bar (app.js showLook). */
-.mode-switch { display: inline-flex; align-items: center; border: 1px solid var(--border); border-radius: 999px; padding: 2px; background: var(--bg); flex: none; }
-.mode-switch button { display: inline-flex; align-items: center; min-height: 44px; padding: 0 12px; border: 0; border-radius: 999px; background: none; font-weight: 700; font-size: .9rem; color: var(--text); cursor: pointer; }
-.mode-switch button:hover { background: var(--accent-soft); }
-.mode-switch button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
-@media (max-width: 420px) { .mode-switch button { padding: 0 8px; font-size: .85rem; } }
-
-/* ---------- Basic look: the first version's layout and colors ----------
-   Turned on by the Basic switch (html[data-look="basic"]). Same pictures,
-   voices, races and badges; it only takes away the Game skin's glass, glow,
-   gradients, display font, title banner art and motion. Contrast as in v1.1. */
-:root[data-look="basic"] {
-  --bg: #FFFFFF; --page: #F3F4F6; --text: #1A1A1A; --muted: #595959; --accent: #1F5FAD; --accent-hi: #1F5FAD; --on-accent: #FFFFFF;
-  --accent-soft: #E3ECF8; --error: #B3261E; --error-soft: #FBE9E7; --border: #8C8C8C; --rule: #1A1A1A;
-  --hairline: #D5D8DD; --x: #3D3D3D; --x-fill: #ECECEC; --cross: #EEF3FA; --hint: #7A4D00; --focus: #1F5FAD;
-  --surface: #FFFFFF; --surface-2: #FFFFFF; --edge: #D5D8DD; --edge-hi: #8C8C8C; --shadow: 0 0 #0000; --glow-a: 0; --grid-line: transparent; --hero-ink: #FFFFFF;
-  --w1: #1F5FAD; --w2: #1F5FAD; --display: var(--font); --spring: var(--ease); --radius: 12px;
-  color-scheme: light;
-}
-@media (prefers-color-scheme: dark) {
-  :root[data-look="basic"]:not([data-theme="light"]):not([data-theme="contrast"]) {
-    --bg: #121212; --page: #0A0A0A; --text: #EDEDED; --muted: #B0B0B0; --accent: #8AB4F8; --accent-hi: #8AB4F8; --on-accent: #0A1A33;
-    --accent-soft: #1B2A40; --error: #F28B82; --error-soft: #3A1715; --border: #6E6E6E; --rule: #EDEDED;
-    --hairline: #2E2E2E; --x: #D0D0D0; --x-fill: #262626; --cross: #1A2433; --hint: #F2C46D; --focus: #8AB4F8;
-    --surface: #121212; --surface-2: #121212; --edge: #2E2E2E; --edge-hi: #6E6E6E; --hero-ink: #121212; --w1: #8AB4F8; --w2: #8AB4F8;
-    color-scheme: dark;
-  }
-}
-:root[data-look="basic"][data-theme="dark"] {
-  --bg: #121212; --page: #0A0A0A; --text: #EDEDED; --muted: #B0B0B0; --accent: #8AB4F8; --accent-hi: #8AB4F8; --on-accent: #0A1A33;
-  --accent-soft: #1B2A40; --error: #F28B82; --error-soft: #3A1715; --border: #6E6E6E; --rule: #EDEDED;
-  --hairline: #2E2E2E; --x: #D0D0D0; --x-fill: #262626; --cross: #1A2433; --hint: #F2C46D; --focus: #8AB4F8;
-  --surface: #121212; --surface-2: #121212; --edge: #2E2E2E; --edge-hi: #6E6E6E; --hero-ink: #121212; --w1: #8AB4F8; --w2: #8AB4F8;
-  color-scheme: dark;
-}
-:root[data-look="basic"][data-theme="contrast"] {
-  --bg: #000000; --page: #000000; --text: #FFFFFF; --muted: #E6E6E6; --accent: #FFD400; --accent-hi: #FFD400; --on-accent: #000000;
-  --accent-soft: #000000; --error: #FF8A80; --error-soft: #000000; --border: #FFFFFF; --rule: #FFFFFF;
-  --hairline: #FFFFFF; --x: #FFFFFF; --x-fill: #000000; --cross: #1F1F1F; --hint: #FFD400; --focus: #FFD400;
-  --surface: #000000; --surface-2: #000000; --edge: #FFFFFF; --edge-hi: #FFFFFF; --hero-ink: #000000; --w1: #FFD400; --w2: #FFD400;
-  color-scheme: dark;
-}
-:root[data-look="basic"] body::before, :root[data-look="basic"] .appbar::after, :root[data-look="basic"] .banner::before,
-:root[data-look="basic"] .hero-art, :root[data-look="basic"] .eyebrow, :root[data-look="basic"] .tile .glyph { display: none; }
-:root[data-look="basic"] :is(h1, h2, .brand > span, .hero-title, .solved h2, dialog h2) { letter-spacing: normal; }
-:root[data-look="basic"] :is(h1, .h1, .hero-title) { font-size: 1.95rem; line-height: 1.2; }
-:root[data-look="basic"] :is(.appbar, .menu, .cellmenu, .card, .play-head, dialog, dialog::backdrop) { backdrop-filter: none; -webkit-backdrop-filter: none; }
-:root[data-look="basic"] .appbar { background: var(--bg); border-bottom: 1px solid var(--hairline); }
-:root[data-look="basic"] .brand-mark, :root[data-look="basic"] td.c svg.mk-o { filter: none; }
-:root[data-look="basic"] :is(.menu, .cellmenu) { background: var(--bg); border-color: var(--border); border-radius: 10px; box-shadow: 0 8px 24px rgb(0 0 0 / .18); }
-:root[data-look="basic"] :is(.menu button, .menu a, .cellmenu button) { border-radius: 6px; font-weight: 400; }
-:root[data-look="basic"] .card { background: var(--bg); border: 1px solid var(--hairline); border-radius: 12px; box-shadow: none; }
-:root[data-look="basic"] :is(.clues h2, .questions h2, .grid-head h2, .saved-head h2, .setup-card > h2)::before { content: none; }
-:root[data-look="basic"] .btn { border-radius: 8px; border: 1px solid var(--border); background: var(--bg); box-shadow: none; transition: background-color var(--fast); }
-:root[data-look="basic"] .btn:hover:not(:disabled) { transform: none; border-color: var(--border); box-shadow: none; }
-:root[data-look="basic"] .btn:active:not(:disabled) { transform: scale(.97); box-shadow: none; }
-:root[data-look="basic"] .btn.primary, :root[data-look="basic"] .btn.primary:hover:not(:disabled) { background: var(--accent); border-color: var(--accent); color: var(--on-accent); box-shadow: none; }
-:root[data-look="basic"] .btn.quiet { background: transparent; border-color: transparent; }
-:root[data-look="basic"] .btn.quiet:hover:not(:disabled) { background: var(--accent-soft); border-color: transparent; }
-:root[data-look="basic"] .btn.big { border-radius: 8px; }
-/* The title banner becomes a plain card, like the first version's panels. */
-:root[data-look="basic"] .banner { display: block; padding: 24px; border-radius: 12px; border: 1px solid var(--hairline); background: var(--bg); box-shadow: none; }
-:root[data-look="basic"] .hero-tag { font-size: 1.05rem; margin: 8px 0 16px; }
-:root[data-look="basic"] .choice > span { border-radius: 10px; border: 1px solid var(--border); background: var(--bg); box-shadow: none; transition: background-color var(--fast), border-color var(--fast); }
-:root[data-look="basic"] .choice:hover > span { transform: none; border-color: var(--border); }
-:root[data-look="basic"] .choice input:checked + span { border: 2px solid var(--accent); background: var(--accent-soft); box-shadow: none; }
-:root[data-look="basic"] .pips i { border-radius: 2px; }
-:root[data-look="basic"] .pips i.on { background: var(--accent); }
-/* Themes as the first version's chips: name only, wrapping in rows. */
-:root[data-look="basic"] #theme-choices .theme-row { display: flex; flex-wrap: wrap; gap: 8px; }
-:root[data-look="basic"] #theme-choices #topic-field { flex: 1 1 100%; }
-:root[data-look="basic"] #theme-choices .choice > .tile { display: block; padding: 10px 14px; text-align: left; height: auto; border-radius: 10px; font-weight: 700; }
-:root[data-look="basic"] #theme-choices .choice input:checked + .tile { padding: 9px 13px; }
-:root[data-look="basic"] #theme-choices .choice input:checked + .tile > b::before { content: "✓ "; color: var(--accent); }
-:root[data-look="basic"] .chips .choice > span, :root[data-look="basic"] #theme-choices .choice > .tile { border-radius: 10px; }
-:root[data-look="basic"] .preview { padding: 0; border: 0; border-radius: 0; background: none; font-size: 1.05rem; }
-:root[data-look="basic"] .saved-item { background: var(--bg); border-color: var(--hairline); border-radius: 10px; box-shadow: none; }
-:root[data-look="basic"] :is(.saved-item .bar, .hud-bar) { border-radius: 4px; border-color: var(--border); }
-:root[data-look="basic"] :is(.saved-item .bar i, .hud-bar i) { border-radius: 0; background: var(--accent); }
-:root[data-look="basic"] .play-head { padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; }
-:root[data-look="basic"] .pill, :root[data-look="basic"] .pill:first-child { border-color: var(--border); background: none; font-weight: 400; padding: 2px 10px; }
-:root[data-look="basic"] :is(.scene, .resolution) { border: 0; border-radius: 12px; box-shadow: none; }
-:root[data-look="basic"] .story { border-left: 1px solid var(--hairline); }
-:root[data-look="basic"] .story-body p.goal { display: block; padding: 0; border-radius: 0; background: none; font-weight: 700; }
-:root[data-look="basic"] :is(.cast-btn svg, .cast-btn img, .cast-btn[aria-pressed="true"] svg, .cast-btn[aria-pressed="true"] img) { box-shadow: none; }
-:root[data-look="basic"] .bubble { background: var(--bg); box-shadow: none; }
-:root[data-look="basic"] .seg { border-color: var(--border); border-radius: 8px; background: none; }
-:root[data-look="basic"] .seg input:checked + span { background: var(--accent); }
-:root[data-look="basic"] .gridframe { border-radius: 4px; }
-:root[data-look="basic"] td.c:hover { background: var(--bg); }
-:root[data-look="basic"] td.c.cross, :root[data-look="basic"] table.lg th.hl { background: var(--cross); }
-:root[data-look="basic"] td.c.m-x { background: var(--x-fill); }
-:root[data-look="basic"] td.c:focus { box-shadow: inset 0 0 0 3px var(--focus); }
-:root[data-look="basic"] .clue-list .num { text-shadow: none; }
-:root[data-look="basic"] .solved { box-shadow: none; }
-:root[data-look="basic"] .solved h2 { font-size: 1.6rem; color: var(--accent); }
-:root[data-look="basic"] .solved-stats div { padding: 0; border: 0; border-radius: 0; background: none; min-width: 0; }
-:root[data-look="basic"] .solved-stats dd { font-size: 1.2rem; color: inherit; }
-:root[data-look="basic"] dialog { background: var(--bg); border-color: var(--border); border-radius: 14px; box-shadow: none; }
-:root[data-look="basic"] dialog::backdrop { background: rgb(0 0 0 / .5); }
-:root[data-look="basic"] .toast { border-radius: 10px; }
-:root[data-look="basic"] :is(.screen.enter, .screen.enter .card, .screen.enter .banner, .screen.enter .play-head, dialog[open], .solved h2) { animation: none; }
-/* The first version's tool row: buttons wrap instead of the swipeable dock. */
-@media (max-width: 640px) {
-  :root[data-look="basic"] .toolbar { flex-wrap: wrap; overflow: visible; margin: 0; padding: 0; }
-  :root[data-look="basic"] .toolbar .btn { flex-direction: row; gap: 6px; min-width: 44px; padding: 8px 12px; font-size: .95rem; }
-}
-
-/* ---------- Device fit: PC, tablet and phone (2026-10-31) ---------- */
-/* Small squares on a phone: a tip under the grid (grid.js sets data-small). */
-.grid-tip { display: none; margin: 8px 0 0; }
-.grid-card:has(#gridframe[data-small="true"]:not([hidden])) .grid-tip { display: block; }
-@media (min-width: 1024px) and (max-width: 1199px) {
-  /* Tablets on their side and small laptops: the grid gets the full width
-     (bigger squares) and the clues follow under it, as on a tablet held upright. */
-  .play { grid-template-columns: minmax(0, 1fr); }
-}
-@media (max-width: 599px) {
-  /* Phones: the sticky bar keeps to two short rows so the puzzle gets the screen.
-     Back and the logo shrink to icons (the words stay for screen readers). */
-  .appbar { gap: 6px; padding-left: max(8px, env(safe-area-inset-left)); padding-right: max(8px, env(safe-area-inset-right)); }
-  .back-btn { min-width: 44px; justify-content: center; padding: 0 10px; }
-  .back-btn .back-text { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
-  body:has(#back-btn:not([hidden])) .appbar > .brand { flex: none; }
-  body:has(#back-btn:not([hidden])) .brand > span { display: none; }
-  .appbar-actions { gap: 4px; margin-left: auto; }
-  .appbar-actions .btn { padding-left: 10px; padding-right: 10px; }
-  .mode-switch button { padding: 0 8px; font-size: .85rem; }
-  .topstrip { gap: 4px; }
-  .topstrip > .btn { padding-left: 8px; padding-right: 8px; font-size: .88rem; }
-}
-@media (max-width: 479px) {
-  .brand > span { display: none; }
-}
-@media (max-width: 389px) {
-  .appbar { gap: 4px; }
-  .appbar-actions .btn { padding-left: 6px; padding-right: 6px; }
-  .mode-switch button { padding: 0 6px; font-size: .8rem; }
 }

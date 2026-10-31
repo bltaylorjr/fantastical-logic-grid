@@ -28,7 +28,7 @@
 //   /admin/*                             the admin dashboard and its API (admin.js)
 //   GET /v1/health[?deep=1]              a quick check that the Worker (and with
 //                                        deep=1, the database and daily cleanup) is up
-// scheduled(): the hourly round-up of owner alerts (alerts.js), the nightly maintenance at 2 am Eastern (nightly.js: cleanup of
+// scheduled(): the nightly maintenance at 2 am Eastern (nightly.js: cleanup of
 // old data, database tidy-up, Google and Bing search numbers) and the weekly
 // archive email (archive.js), on the crons in wrangler.toml.
 
@@ -60,14 +60,12 @@ import { handleEducators } from './educators.js';
 import { publicConfig } from './settings.js';
 import { deepHealth } from './upkeep.js';
 import { runArchive } from './archive.js';
-import { sendWaiting, alert } from './alerts.js';
 import { handleSync, handleDeleteAccount, isDeleted } from './sync.js';
 import { verifyIdToken, AuthError } from './auth.js';
 import { json, corsHeaders, secured } from './http.js';
 
 const MAX_BODY = 4_000_000;
 const WEEKLY_ARCHIVE_CRON = '47 4 * * 1';
-const ALERTS_CRON = '23 * * * *';
 
 async function signedIn(req, env) {
   const m = (req.headers.get('Authorization') || '').match(/^Bearer (.+)$/);
@@ -105,25 +103,25 @@ async function route(req, env, ctx) {
   const compete = await handleCompete(req, env, ctx, url, signedIn);
   if (compete) return compete;
 
-  const errors = await handleErrors(req, env, url, ctx);
+  const errors = await handleErrors(req, env, url);
   if (errors) return errors;
 
   const report = await handlePuzzleReports(req, env, url);
   if (report) return report;
 
-  const feedback = await handleFeedback(req, env, url, ctx);
+  const feedback = await handleFeedback(req, env, url);
   if (feedback) return feedback;
 
   const educators = await handleEducators(req, env, ctx, url);
   if (educators) return educators;
 
-  const messages = await handleMessages(req, env, url, signedIn, isDeleted, ctx);
+  const messages = await handleMessages(req, env, url, signedIn, isDeleted);
   if (messages) return messages;
 
   const picture = await handlePictures(req, env, ctx, url);
   if (picture) return picture;
 
-  const character = await handleCharacters(req, env, url, ctx);
+  const character = await handleCharacters(req, env, url);
   if (character) return character;
 
   const dailyResults = await handleDailyResults(req, env, url);
@@ -158,8 +156,6 @@ async function route(req, env, ctx) {
 
   if (url.pathname === '/v1/health') {
     if (url.searchParams.get('deep') !== '1') return json(req, env, { ok: true });
-    const ip = req.headers.get('CF-Connecting-IP') || 'local';
-    if (env.LIMIT_AUTHLESS && !(await env.LIMIT_AUTHLESS.limit({ key: ip })).success) return json(req, env, { error: 'slow_down' }, 429, { 'Retry-After': '60' });
     const health = await deepHealth(env);
     return json(req, env, health, health.ok ? 200 : 503);
   }
@@ -192,11 +188,6 @@ export default {
     }
   },
   async scheduled(controller, env, ctx) {
-    if (controller.cron === ALERTS_CRON) {
-      // The hourly round-up of owner alerts (alerts.js).
-      ctx.waitUntil(sendWaiting(env).then((r) => { if (r.sent) console.log('alerts', JSON.stringify(r)); }));
-      return;
-    }
     if (controller.cron === WEEKLY_ARCHIVE_CRON) {
       // Only when Cloudflare email is connected; otherwise the GitHub Action sends it.
       ctx.waitUntil(runArchive(env).then((r) => console.log('archive', r.status, JSON.stringify(r.rows || {}))));
@@ -206,9 +197,6 @@ export default {
     // that falls at 2 am Eastern runs it.
     const at = controller.scheduledTime || Date.now();
     if (NIGHTLY_CRONS.includes(controller.cron) && !isMaintenanceHour(at)) return;
-    ctx.waitUntil(runNightly(env).then((r) => console.log('nightly', JSON.stringify(r)), async (e) => {
-      console.error('nightly', e);
-      await alert(env, ctx, { category: 'problems', title: 'The nightly maintenance failed', body: String(e?.message || e).slice(0, 200), link: 'usage', dedupe: 'nightly-failed' });
-    }));
+    ctx.waitUntil(runNightly(env).then((r) => console.log('nightly', JSON.stringify(r))));
   },
 };

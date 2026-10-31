@@ -19,11 +19,6 @@ const SESSION = 'auth';
 const TAB_KEY = 'flg.auth';
 function readTabSession() { try { return JSON.parse(sessionStorage.getItem(TAB_KEY)) || null; } catch (e) { return null; } }
 function writeTabSession(v) { try { if (v) sessionStorage.setItem(TAB_KEY, JSON.stringify(v)); else sessionStorage.removeItem(TAB_KEY); } catch (e) { /* memory only */ } }
-// On a host shared with other people's games (itch.io serves every HTML game
-// from the same origin), any of them could read a sign-in kept on the device,
-// so there it lasts for this visit only.
-const SHARED_ORIGIN = /(^|\.)itch\.zone$/i.test(location.hostname);
-if (SHARED_ORIGIN && store.getLocal(SESSION)) store.setLocal(SESSION, undefined);
 let session = store.getLocal(SESSION) || readTabSession(); // { uid, email, refreshToken, verified, remember }
 
 // Keeps the session where the player chose: on the device, or for this visit only.
@@ -98,7 +93,7 @@ const auth = (path, body) => post(`${CLOUD.authUrl}/${path}?key=${encodeURICompo
 function begin(data, verified, remember = true) {
   locked = null;
   saveLocked();
-  session = { uid: data.localId, email: data.email, refreshToken: data.refreshToken, verified: !!verified, remember: !SHARED_ORIGIN && remember !== false };
+  session = { uid: data.localId, email: data.email, refreshToken: data.refreshToken, verified: !!verified, remember: remember !== false };
   idToken = data.idToken;
   idTokenExp = Date.now() + (Number(data.expiresIn) || 3600) * 1000;
   saveSession();

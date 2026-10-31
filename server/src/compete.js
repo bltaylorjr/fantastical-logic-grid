@@ -19,7 +19,6 @@
 // than the server's own clock since joining, and a race only counts as solved
 // when the submitted answers match the puzzle's solution.
 
-import { alert } from './alerts.js';
 import { json, readText, TooLarge } from './http.js';
 import { checkName, cleanName, nameKey, hasBlockedWords, isSuggestedName } from './names.js';
 import { isDeleted } from './sync.js';
@@ -333,10 +332,7 @@ export async function handleCompete(req, env, ctx, url, signedIn) {
           await db.prepare("INSERT OR REPLACE INTO name_reviews (user_id, name_key, reviewed_by, reviewed_at) VALUES (?1, ?2, 'automatic (suggested name)', ?3)").bind(uid, key, now).run();
         }
         boardCache.clear();
-        const approved = await isApproved(env, uid, settings);
-        // Sent with the hourly round-up, since names come in often.
-        if (!approved) await alert(env, null, { category: 'approvals', instant: false, title: 'A screen name is waiting', body: `A player chose "${name}". Approve it in Screen names.`, link: 'names' });
-        return json(req, env, { screenName: name, acceptInvites: !!accept, nameApproved: approved });
+        return json(req, env, { screenName: name, acceptInvites: !!accept, nameApproved: await isApproved(env, uid, settings) });
       }
       return fail('not_found', 404);
     }

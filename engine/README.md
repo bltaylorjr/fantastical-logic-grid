@@ -64,7 +64,7 @@ entry to `PLAYER_STORIES`; the tests check every story has one solution.
 | Option | Values | Default |
 | --- | --- | --- |
 | `difficulty` | `basic`, `easy`, `medium`, `hard`, `expert`, `mensa` | `easy` |
-| `theme` | `mystery`, `action`, `adventure`, `holiday`, `occasion` (Parties & Milestones), `fantasy`, `scifi`, `sports`, `cooking`, `pets`, `town` (Around Town), `parks` (National Parks), `travel` (Vacation Destinations), `wonders` (Architectural Wonders), `music`, `nautical`, `farm` (Farm Life), `science`, `math`, `biology`, `astronomy`, `paradox` (Surreal Paradox), `seasons`, `random` | `random` |
+| `theme` | `mystery`, `action`, `adventure`, `holiday`, `occasion` (Parties & Milestones), `fantasy`, `scifi`, `sports`, `cooking`, `pets`, `town` (Around Town), `parks` (National Parks), `travel` (Vacation Destinations), `wonders` (Architectural Wonders), `music`, `nautical`, `farm` (Farm Life), `science`, `math`, `biology`, `astronomy`, `paradox` (Surreal Paradox), `random` | `random` |
 | `topic` | a topic id from the theme (see Themes, topics and stories), or `any`. Ignored when the theme is `random` | `any` (a random topic in the theme) |
 | `categories` | 3 to 6 (number of categories, including the cast) | tier default |
 | `items` | 3 to 8 (items per category) | tier default |
@@ -160,7 +160,6 @@ player can pick a topic or leave it on **Any**, which picks one at random.
 | Biology | Field Trip (`fieldtrip`), Dinosaur Dig (`dinosaurs`), Tide Pool Survey (`tidepools`), Bird Count (`birdcount`) |
 | Chemistry | Lab Day (`labday`), Chemistry Lab (`lab`), Fireworks Show (`fireworks`), Crystal Garden (`crystals`) |
 | Surreal Paradox | Dream City (`dreamcity`), Mirror Maze (`mirrormaze`), Living Gallery (`livinggallery`), Clockwork Loop (`clockwork`) |
-| Seasons | Fall (`fall`), Winter (`winter`), Spring (`spring`), Summer (`summer`) |
 
 The setup screen shows themes in groups (`THEME_GROUPS` in `src/themes.js`, returned as `themeGroups` by `describeOptions()`): Mystery & Action, Imagination, Science & Learning, Celebrations & Fun, and Places & Everyday Life. Every theme belongs to exactly one group.
 

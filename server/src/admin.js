@@ -16,8 +16,7 @@
 //   GET  /admin/v1/parts?status=       shared story parts; POST /admin/v1/parts/review
 //   GET  /admin/v1/workshop            Story workshop choices; POST .../draft (AI writer), .../add
 //   GET  /admin/v1/characters[/:id]    the Characters section; POST .../save, .../:id/(portrait|lines|publish|unpublish|delete) (characters.js)
-//   GET  /admin/v1/feedback?kind=&status=  ideas and problems from the game; POST .../:id (approved|declined|addressed + note|done|new|delete)
-//   GET  /admin/v1/feedback/queue      approved ideas and problems waiting for the weekly fix run (ids and topics only)
+//   GET  /admin/v1/feedback?kind=&status=  ideas and problems from the game; POST .../:id (addressed + note|done|new|delete)
 //   POST /admin/v1/feedback/:id/approve  approve a storyline: addressed; the email sender builds its first puzzle, stores it for the player and emails "Congratulations" with it as a PDF
 //   POST /admin/v1/feedback/:id/decline  disapprove a storyline: done; the player gets a thank-you for their input
 //   POST /admin/v1/replies/puzzle      { id, puzzle } the sender built an approved storyline's puzzle: store it for the player (owner)
@@ -52,7 +51,6 @@
 //   GET/POST /admin/v1/badges          special badges; POST .../:id, .../:id/(delete|award), .../awards/:id/remove; GET .../:id/holders (special-badges.js)
 //   POST /admin/v1/puzzle-reports/(claim|done)  the puzzle doctor Action (owner); GET .../:id/puzzle, POST .../:id/retry (puzzle-reports.js)
 //   GET  /admin/v1/alerts              free allowances close to running out
-//   /admin/v1/notify*                  my own push and email alerts (alerts.js)
 //   GET  /admin/v1/summary?days=       the week in numbers, for the Monday summary email
 //   GET  /admin/v1/export/(players|scores|feedback).csv   spreadsheet downloads
 //   GET/POST /admin/v1/admins          who may sign in (owner only); POST /admin/v1/admins/remove
@@ -106,7 +104,6 @@ import { editionRoutes } from './editions.js';
 import { educatorRoutes } from './educators.js';
 import { puzzleReportRoutes } from './puzzle-reports.js';
 import { visitorRoutes } from './visits.js';
-import { alertRoutes } from './alerts.js';
 import { SESSION_PREFIX, PasskeyError, signInOptions, checkSignIn, startSession, checkSession, endSessionStatement, forgetAdminStatements, registerOptions, register, listPasskeys, removePasskey } from './passkeys.js';
 
 const DAY = 24 * 3600_000;
@@ -120,7 +117,7 @@ const SESSION_MAX_S = 12 * 3600;
 const DENIED_PER_DAY = 500; // refused requests written to the audit log, so a flood cannot fill it
 const ANALYTICS_CACHE_MS = 120_000;
 const TABLES = ['sync_users', 'sync_records', 'sync_deleted_users', 'players', 'scores', 'races', 'race_entries', 'race_invites', 'plays', 'parts', 'usage',
-  'app_errors', 'upkeep_log', 'admins', 'admin_audit', 'settings', 'announcements', 'bans', 'name_reviews', 'archive_log', 'feedback', 'feedback_replies', 'error_fixes', 'conversations', 'conversation_messages', 'message_contacts', 'news', 'search_snapshots', 'daily_plan', 'translations', 'rating_insights', 'campaigns', 'campaign_ads', 'marketing_media', 'campaign_stats', 'challenges', 'daily_results', 'daily_email', 'supporters', 'payment_blocks', 'puzzle_mail', 'puzzle_mail_got', 'puzzle_mail_days', 'special_editions', 'educator_requests', 'special_badges', 'badge_awards', 'puzzle_reports', 'player_puzzles', 'visit_stats', 'educator_feedback', 'print_packs', 'print_pack_stories', 'admin_passkeys', 'admin_sessions', 'np_plays', 'alert_prefs', 'alert_devices', 'alert_queue'];
+  'app_errors', 'upkeep_log', 'admins', 'admin_audit', 'settings', 'announcements', 'bans', 'name_reviews', 'archive_log', 'feedback', 'feedback_replies', 'error_fixes', 'conversations', 'conversation_messages', 'message_contacts', 'news', 'search_snapshots', 'daily_plan', 'translations', 'rating_insights', 'campaigns', 'campaign_ads', 'marketing_media', 'campaign_stats', 'challenges', 'daily_results', 'daily_email', 'supporters', 'payment_blocks', 'puzzle_mail', 'puzzle_mail_got', 'puzzle_mail_days', 'special_editions', 'educator_requests', 'special_badges', 'badge_awards', 'puzzle_reports', 'player_puzzles', 'visit_stats', 'educator_feedback', 'print_packs', 'print_pack_stories', 'admin_passkeys', 'admin_sessions', 'np_plays'];
 // worker-src blob: lets the Media library's celebrations draw off the main
 // thread, as they do in the game (canvas-confetti makes its own small worker).
 const SECURITY_HEADERS = {
@@ -198,11 +195,10 @@ async function identify(req, env) {
   if (Date.now() / 1000 - user.authTime > SESSION_MAX_S) throw new Refusal(401, 'sign_in', 'For safety, please sign in again.');
   const email = String(user.email || '').trim().toLowerCase();
   if (!email) throw new Refusal(403, 'not_admin', 'This account is not an admin.');
-  // Anyone can make a Firebase account with an email they do not own, so an
-  // admin's email must be confirmed before the role is even looked up (an
-  // unconfirmed account must not learn which addresses are admins).
-  if (!user.emailVerified) throw new Refusal(403, 'verify_email', 'Confirm your email address first.');
   const role = await roleOf(env, email);
+  // Anyone can make a Firebase account with an email they do not own, so an
+  // admin's email must be confirmed.
+  if (!user.emailVerified) throw new Refusal(403, 'verify_email', 'Confirm your email address first.');
   return { actor: email, role, key: user.uid, uid: user.uid, signedInAt: user.authTime * 1000 };
 }
 
@@ -508,7 +504,7 @@ const ROUTES = [
 
   ['GET', /^feedback$/, 'moderator', 'feedback.view', async ({ env, url }) => {
     const kind = FEEDBACK_TOPICS[url.searchParams.get('kind')] ? url.searchParams.get('kind') : 'idea';
-    const status = ['new', 'approved', 'addressed', 'done', 'all'].includes(url.searchParams.get('status')) ? url.searchParams.get('status') : 'new';
+    const status = ['new', 'addressed', 'done', 'all'].includes(url.searchParams.get('status')) ? url.searchParams.get('status') : 'new';
     const { results } = await env.DB.prepare(`SELECT id, kind, topic, theme, text, platform, version, status, note, created_at AS createdAt, done_at AS doneAt FROM feedback
       WHERE kind = ?1 AND (?2 = 'all' OR status = ?2) ORDER BY created_at DESC LIMIT 200`).bind(kind, status).all();
     const counts = (await env.DB.prepare("SELECT kind, COUNT(*) AS n FROM feedback WHERE status = 'new' GROUP BY kind").all()).results;
@@ -542,16 +538,10 @@ const ROUTES = [
     const r = await finishDailyEmail(env, body.failed, body.refused);
     return { body: r, detail: r };
   }],
-  ['POST', /^feedback\/(\d+)$/, 'moderator', 'feedback.update', async ({ env, params: [id], body, who, now }) => {
+  ['POST', /^feedback\/(\d+)$/, 'moderator', 'feedback.update', async ({ env, params: [id], body, now }) => {
     let r;
     let emailed = 0;
     if (body.status === 'delete') r = await env.DB.prepare('DELETE FROM feedback WHERE id = ?1').bind(Number(id)).run();
-    // Approve: into the queue the weekly improvement run and its Claude task
-    // work through. Nothing is sent to the player yet; Mark addressed sends
-    // the update once the fix ships.
-    else if (body.status === 'approved') r = await env.DB.prepare("UPDATE feedback SET status = 'approved', approved_at = ?2, approved_by = ?3, declined = 0, done_at = NULL, note = NULL WHERE id = ?1").bind(Number(id), now, who.actor).run();
-    // Disapprove: closed with no change. The player gets the plain thank-you (if they asked for email).
-    else if (body.status === 'declined') r = await env.DB.prepare("UPDATE feedback SET status = 'done', declined = 1, done_at = ?2, note = NULL WHERE id = ?1").bind(Number(id), now).run();
     else if (body.status === 'addressed') {
       const note = cleanNote(body.note);
       if (!note) throw new Refusal(400, 'bad_note', 'Write a short note on what was done.');
@@ -561,16 +551,9 @@ const ROUTES = [
     if (!r.meta.changes) throw new Refusal(404, 'gone', 'That message is gone.');
     // A player who ticked "Email me an update" hears about it, with the note.
     if (body.status === 'addressed') emailed = await releaseUpdate(env, id, cleanNote(body.note));
-    else if (!['new', 'approved'].includes(body.status)) await dropUpdate(env, id, { thank: body.status === 'done' || body.status === 'declined' });
+    else if (body.status !== 'new') await dropUpdate(env, id, { thank: body.status === 'done' });
     analyticsCache.clear();
     return { body: { ok: true, emailed }, target: id, detail: { status: body.status, note: body.status === 'addressed' ? cleanNote(body.note) : undefined } };
-  }],
-
-  // The approved queue, for the weekly improvement run (scripts/improve.mjs):
-  // numbers and topics only, never what players wrote.
-  ['GET', /^feedback\/queue$/, 'owner', 'feedback.queue', async ({ env }) => {
-    const { results } = await env.DB.prepare("SELECT id, kind, topic, approved_at AS approvedAt FROM feedback WHERE status = 'approved' ORDER BY approved_at LIMIT 200").all();
-    return { body: { approved: results }, quiet: true };
   }],
 
   // Approve or disapprove a storyline (a story idea): one button each, no
@@ -740,7 +723,7 @@ const ROUTES = [
   // log only; reading and answering what players wrote needs a moderator.
   ['GET', /^inbox$/, 'viewer', 'inbox.view', async ({ env, url, who, now }) => {
     const type = INBOX_TYPES.includes(url.searchParams.get('type')) ? url.searchParams.get('type') : 'all';
-    const status = ['new', 'approved', 'addressed', 'done', 'all'].includes(url.searchParams.get('status')) ? url.searchParams.get('status') : 'new';
+    const status = ['new', 'addressed', 'done', 'all'].includes(url.searchParams.get('status')) ? url.searchParams.get('status') : 'new';
     const q = str(url.searchParams.get('q') || '', 100);
     const body = await inbox(env, who.role, { type, status, q }, now);
     return { body: { ...body, replies: await replyCounts(env) }, detail: { type, status } };
@@ -836,7 +819,6 @@ const ROUTES = [
   ...educatorRoutes(Refusal),
   ...puzzleReportRoutes(Refusal),
   ...visitorRoutes(),
-  ...alertRoutes(Refusal),
   ['GET', /^alerts$/, 'viewer', 'alerts.view', async ({ env }) => ({ body: await alerts(env) })],
   ['GET', /^summary$/, 'admin', 'summary.view', async ({ env, url }) => {
     const s = await summary(env, daysParam(url, 31));

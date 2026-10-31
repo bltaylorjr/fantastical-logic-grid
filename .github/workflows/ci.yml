@@ -59,23 +59,11 @@ jobs:
       - run: npm ci
       - name: Install the test browser
         run: npm install --no-save --no-audit --no-fund playwright@1.63.0 && npx playwright install --with-deps chromium
-      # A failure is also shown as an annotation (the last lines of output), so
-      # it can be read without downloading the whole log.
       - name: App tests (generate, play, save, print, voices, topics, learning, responsive layout)
-        shell: bash
-        run: |
-          set -o pipefail
-          mkdir -p screenshots
-          if npm test 2>&1 | tee "$RUNNER_TEMP/app-tests.txt"; then exit 0; fi
-          msg=$(tail -n 60 "$RUNNER_TEMP/app-tests.txt" | sed -e ':a' -e 'N' -e '$!ba' -e 's/%/%25/g' -e 's/\r//g' -e 's/\n/%0A/g')
-          echo "::error title=App tests failed::${msg}"
-          exit 1
+        run: mkdir -p screenshots && npm test
         env:
           SHOTS: screenshots
       - name: Accounts, fingerprint sign-in, races, error reports, app keys and the admin dashboard against the real Worker
-        # These open The Fantastical Logic Grid straight away (e2e-in-game.cjs), not the game cards.
-        env:
-          NODE_OPTIONS: --require ${{ github.workspace }}/scripts/e2e-in-game.cjs
         run: |
           npm --prefix server ci --no-audit --no-fund
           node scripts/e2e-accounts.cjs
@@ -111,16 +99,8 @@ jobs:
           cache: npm
           cache-dependency-path: server/package-lock.json
       - run: npm --prefix server ci --no-audit --no-fund
-      # A failure is also shown as an annotation (the failing tests and their
-      # messages), so it can be read without downloading the whole log.
       - name: Worker tests (sync, races, learning, cleanup, error reports, admin)
-        shell: bash
-        run: |
-          set -o pipefail
-          if npm --prefix server test 2>&1 | tee "$RUNNER_TEMP/server-tests.txt"; then exit 0; fi
-          msg=$(grep -E -A30 '^\s*not ok' "$RUNNER_TEMP/server-tests.txt" | head -150 | sed -e ':a' -e 'N' -e '$!ba' -e 's/%/%25/g' -e 's/\r//g' -e 's/\n/%0A/g')
-          echo "::error title=Worker tests failed::${msg}"
-          exit 1
+        run: npm --prefix server test
       - name: Worker config is valid (dry run, nothing is deployed)
         working-directory: server
         run: npx wrangler deploy --dry-run --outdir "$RUNNER_TEMP/worker"

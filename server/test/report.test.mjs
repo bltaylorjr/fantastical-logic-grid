@@ -103,22 +103,6 @@ test('the quality report flags themes players give up on or find too hard', asyn
   assert.equal(q.body.rows.find((r) => r.theme === 'fantasy').issues.length, 0, 'too few games are never flagged');
 });
 
-test('the quality report splits games by color look and picture clue', async () => {
-  const day = iso(Date.now());
-  const ins = db.prepare("INSERT INTO plays (day, platform, tier, theme, size, outcome, rating, feel, minutes, hints, look, pic) VALUES (?1, 'web', 'medium', 'farm', '4x4', ?2, ?3, 'right', 8, 1, ?4, ?5)");
-  const rows = [];
-  for (let i = 0; i < 6; i++) rows.push(ins.bind(day, 'solved', 5, 'dark', 'solved'));
-  for (let i = 0; i < 4; i++) rows.push(ins.bind(day, i < 3 ? 'abandoned' : 'solved', 2, 'light', 'off'));
-  await db.batch(rows);
-  const q = await call('/admin/v1/quality?days=30', { auth: owner() });
-  assert.equal(q.status, 200);
-  const dark = q.body.looks.find((g) => g.id === 'dark');
-  assert.deepEqual([dark.games, dark.solveRate, dark.rating], [6, 1, 5]);
-  const off = q.body.pictures.find((g) => g.id === 'off');
-  assert.deepEqual([off.games, off.quitRate], [4, 0.75]);
-  assert.ok(!q.body.looks.some((g) => g.id == null), 'games sent before looks were recorded are left out');
-});
-
 test('free-limit alerts warn near the daily caps', async () => {
   const today = iso(Date.now());
   await db.prepare("INSERT INTO usage (day, name, count) VALUES (?1, 'tts', 290), (?1, 'pictures', 10)").bind(today).run();

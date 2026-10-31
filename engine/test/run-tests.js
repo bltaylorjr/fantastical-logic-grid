@@ -11,8 +11,6 @@ import { buildModel, randomSolution } from '../src/generator.js';
 import { buildStory } from '../src/story.js';
 import { makeLanguage } from '../src/language.js';
 import { makeRng } from '../src/rng.js';
-import { pictureClue, solvePicture, lineClues, PICTURES } from '../src/picture.js';
-import { storyBeats } from '../src/beats.js';
 import { SIZE_LIMITS } from '../src/tiers.js';
 import { TIER_ORDER } from '../src/tiers.js';
 import { orderItems, inOrder } from '../src/order.js';
@@ -245,7 +243,7 @@ for (const diff of ['easy', 'medium', 'expert']) {
   const r = generatePuzzle({ difficulty: 'basic', theme: 'random', seed: 'rnd' });
   check('random theme works', THEMES.some((t) => t.id === r.theme.id));
   check('print text includes answer key', formatPuzzleText(r).includes('Answer key'));
-  check('describeOptions lists 7 tiers, 23 themes and Player Stories', describeOptions().difficulties.length === 7 && describeOptions().themes.length === 24 && describeOptions().themes.at(-1).id === 'stories');
+  check('describeOptions lists 7 tiers, 22 themes and Player Stories', describeOptions().difficulties.length === 7 && describeOptions().themes.length === 23 && describeOptions().themes.at(-1).id === 'stories');
 
   // Theoretical Physicist is at least half again as hard as Quantum Physicist:
   // the same themes, classic topics and seeds, compared on the engine's
@@ -481,7 +479,7 @@ for (const diff of ['easy', 'medium', 'expert']) {
             if (!incident || !last.includes(incident.prize)) bad.push(`${where}: the goal question does not link "${goalLabel}" to the story's event`);
             if (!last.endsWith('?') || !has(last, goalLabel)) bad.push(`${where}: the story does not end on its goal question`);
             for (const c of model.cats.slice(1)) {
-              if (c.note && !story.text.includes(c.note.replace(/\{one\}/g, sc.cast.one).replace(/\{many\}/g, sc.cast.many).replace(/\{low\}/g, c.labels[0]).replace(/\{high\}/g, c.labels.at(-1)).slice(1))) bad.push(`${where}: the ${c.name} note is missing from the story`);
+              if (c.note && !story.text.includes(c.note.replace(/\{one\}/g, sc.cast.one).replace(/\{many\}/g, sc.cast.many).slice(1))) bad.push(`${where}: the ${c.name} note is missing from the story`);
             }
             const task = story.paragraphs.find((x) => x.startsWith('Use the clues'));
             for (const c of model.cats.slice(1)) if (!task.toLowerCase().includes(c.name.toLowerCase())) bad.push(`${where}: the task leaves out ${c.name}`);
@@ -543,52 +541,6 @@ for (const diff of ['easy', 'medium', 'expert']) {
   }
   const kinds = Object.fromEntries(['t@lincoln.edu', 'u@stmarys.k12.mn.us', 'v@austinisd.org', 'w@ox.ac.uk', 'x@gmail.com', 'y@acme.com'].map((e) => [e, schoolEmail(e).kind]));
   check('school emails are recognized and personal ones are not', JSON.stringify(Object.values(kinds)) === JSON.stringify(['school', 'school', 'school', 'school', 'personal', 'unknown']), JSON.stringify(kinds));
-}
-
-// Picture clues: every picture solves by logic, and the
-// locked clue is a real clue of the puzzle.
-{
-  for (const [theme, list] of Object.entries(PICTURES)) {
-    for (const pic of list) {
-      const widths = new Set(pic.rows.map((r) => r.length));
-      check(`picture "${pic.name}" (${theme}): rows all the same width`, widths.size === 1);
-      check(`picture "${pic.name}" (${theme}): only # and .`, pic.rows.every((r) => /^[#.]+$/.test(r)));
-      const g = solvePicture(lineClues(pic.rows));
-      check(`picture "${pic.name}" (${theme}): solvable by logic alone`, !!g && g.every((r, y) => r.every((v, x) => (v === 1) === (pic.rows[y][x] === '#'))));
-    }
-  }
-  for (const t of THEMES) {
-    if (t.id === 'mystery') continue; // Bobby's to draw; uses the default pictures meanwhile
-    check(`pictures: theme ${t.id} has its own pictures`, (PICTURES[t.id] || []).length >= 2);
-  }
-  for (const [tier, max] of [['basic', 6], ['easy', 6], ['medium', 8], ['expert', 12]]) {
-    for (const theme of ['pets', 'music', 'mystery']) {
-      const p = generatePuzzle({ theme, difficulty: tier, seed: `picture-size-${tier}-${theme}` });
-      const pc = pictureClue(p);
-      if (!pc) continue;
-      const size = Math.max(pc.picture.rows.length, pc.picture.rows[0].length);
-      check(`picture clue (${tier}, ${theme}): picture fits the level (${size} <= ${max})`, size <= max, pc.picture.name);
-    }
-  }
-  for (const theme of ['mystery', 'pets', 'scifi']) {
-    const p = generatePuzzle({ theme, seed: `picture-${theme}` });
-    const pc = pictureClue(p);
-    check(`picture clue (${theme}): locks one of the puzzle's clues`, !!pc && p.clues.some((c) => c.number === pc.locked), JSON.stringify(pc && pc.locked));
-    check(`picture clue (${theme}): same puzzle, same picture`, JSON.stringify(pictureClue(p)) === JSON.stringify(pc));
-  }
-}
-
-// Story beats: no spoilers, steady triggers, same every time.
-{
-  for (const [theme, cats] of [['mystery', 3], ['pets', 4], ['scifi', 5]]) {
-    const p = generatePuzzle({ theme, categories: cats, seed: `beats-${theme}` });
-    const beats = storyBeats(p);
-    const sections = p.grid.blocks.length;
-    check(`beats (${theme}): ${Math.min(3, sections - 1)} beats`, beats.length === Math.min(3, sections - 1), JSON.stringify(beats));
-    check(`beats (${theme}): shown in order before the last section`, beats.every((b, i) => b.after >= 1 && b.after < sections && (i === 0 || b.after > beats[i - 1].after)), JSON.stringify(beats.map((b) => b.after)));
-    check(`beats (${theme}): every slot filled`, beats.every((b) => !/[{}]/.test(b.text)), JSON.stringify(beats));
-    check(`beats (${theme}): same puzzle, same beats`, JSON.stringify(storyBeats(p)) === JSON.stringify(beats));
-  }
 }
 
 // ---------- Player Stories: written by players, played exactly as written ----------
