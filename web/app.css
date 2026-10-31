@@ -751,13 +751,6 @@ dialog::backdrop { background: rgb(5 7 16 / .6); backdrop-filter: blur(6px); -we
   table.ptab { border-collapse: collapse; margin: 6pt 0 10pt; font-size: 10.5pt; }
   table.ptab th, table.ptab td { border: .5pt solid #000; padding: 3pt 6pt; text-align: left; }
   .psteps { font-size: 10pt; }
-  .pic-print-box { break-inside: avoid; margin: 8pt 0; }
-  table.pic-print { border-collapse: collapse; font-size: 9pt; margin: 4pt 0; }
-  table.pic-print td { width: 14pt; height: 14pt; border: .5pt solid #000; padding: 0; }
-  table.pic-print td.f { background: #000; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  table.pic-print thead th { vertical-align: bottom; line-height: 1.1; font-weight: 400; padding: 0 0 2pt; }
-  table.pic-print tbody th { text-align: right; white-space: nowrap; font-weight: 400; padding: 0 4pt 0 0; }
-  .pic-print-flip { transform: rotate(180deg); font-size: 9pt; margin-top: 6pt; }
 }
 
 /* ===== Learning: puzzle feedback and the story workshop ===== */
@@ -1055,38 +1048,6 @@ dialog.rules table.board td { font-variant-numeric: tabular-nums; }
   .screen { padding-top: 12px; }
 }
 
-/* Story beats (experimental, web/js/director.js) */
-.story-beat { margin: 8px auto 0; max-width: 70ch; padding: 10px 14px; border-left: 4px solid var(--accent); border-radius: 8px; background: var(--bg); font-style: italic; }
-.story-beat.new { animation: beat-in 600ms ease-out; }
-@keyframes beat-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: reduce) { .story-beat.new { animation: none; } }
-/* Picture clues (experimental, web/js/picture-clue.js) */
-.clue-list li.pic-locked > label { display: none; }
-.pic-clue { grid-column: 1 / -1; min-width: 0; padding: 4px 0 8px; }
-.pic-open { text-align: left; }
-.pic-body { margin-top: 8px; max-width: 100%; }
-.pic-scroll { max-width: 100%; overflow-x: auto; padding-bottom: 4px; }
-.pic-scroll-hint { margin: 0 0 6px; font-size: 0.9rem; color: var(--muted); }
-/* Squares are easy to tap (44 px, like the main grid); on a narrow phone the
-   picture scrolls sideways inside its box instead of the page. */
-.pic-grid { --pic-cell: 44px; }
-.pic-help { margin: 0 0 8px; max-width: 60ch; }
-.pic-grid tbody th { min-width: 0; }
-.pic-grid { border-collapse: collapse; }
-.pic-grid th { font-size: 0.8rem; color: var(--muted); font-weight: 600; font-variant-numeric: tabular-nums; }
-.pic-grid thead th { vertical-align: bottom; padding: 0 0 4px; line-height: 1.1; }
-.pic-grid tbody th { text-align: right; padding: 0 6px 0 0; white-space: nowrap; }
-.pic-grid td { padding: 0; }
-.pic-cell { display: block; width: var(--pic-cell, 30px); height: var(--pic-cell, 30px); margin: 0; padding: 0; border: 1px solid var(--muted); background: var(--bg); cursor: pointer; }
-.pic-cell.f { background: var(--text); }
-.pic-cell.x { background: var(--cross); }
-.pic-cell.x::after { content: '×'; color: var(--muted); }
-.pic-cell:focus-visible { outline: 3px solid var(--accent); outline-offset: -3px; }
-.pic-grid.done .pic-cell { cursor: default; border-color: transparent; }
-.pic-grid.done .pic-cell.x { background: var(--bg); }
-.pic-grid.done .pic-cell.x::after { content: none; }
-.pic-grid.done .pic-cell.f { background: var(--accent); }
-.pic-status { min-height: 1.4em; margin: 6px 0; font-weight: 600; }
 /* Social pages under the home screen (social.js) */
 .home-foot { margin: 32px auto 8px; text-align: center; }
 .home-foot p { margin: 0 0 8px; }
