@@ -22,6 +22,9 @@ const KINDS = new Set(['save', 'meta', 'settings']);
 const MAX_CHANGES = 100;
 const MAX_RECORD_CHARS = 1_000_000;
 const MAX_RECORDS = 5000;
+// All of one player's records together: saves are a few KB each, so this
+// is room for years of play but not for filling the database on purpose.
+const MAX_USER_CHARS = 20_000_000;
 const PULL_ROWS = 500;
 const PULL_CHARS = 1_500_000;
 const RECENT_SIGN_IN = 600;
@@ -51,8 +54,17 @@ export async function handleSync(req, env, user) {
 
   if (changes.length) {
     await db.prepare('INSERT OR IGNORE INTO sync_users (user_id, rev, created_at) VALUES (?1, 0, ?2)').bind(uid, Date.now()).run();
-    const { n } = await db.prepare('SELECT COUNT(*) AS n FROM sync_records WHERE user_id = ?1').bind(uid).first();
+    const { n, used } = await db.prepare('SELECT COUNT(*) AS n, COALESCE(SUM(LENGTH(data)), 0) AS used FROM sync_records WHERE user_id = ?1').bind(uid).first();
     const full = n >= MAX_RECORDS;
+    const incoming = changes.reduce((s, c) => s + (c.deleted ? 0 : c.data.length), 0);
+    const quota = Number(env.SYNC_MAX_USER_CHARS) || MAX_USER_CHARS;
+    if (used + incoming > quota) {
+      // Records this batch replaces or deletes give their room back.
+      const { results: sizes } = await db.prepare('SELECT kind, key, LENGTH(data) AS l FROM sync_records WHERE user_id = ?1 AND data IS NOT NULL').bind(uid).all();
+      const have = new Map(sizes.map((r) => [`${r.kind}|${r.key}`, r.l]));
+      const freed = changes.reduce((s, c) => s + (have.get(`${c.kind}|${c.key}`) || 0), 0);
+      if (used - freed + incoming > quota) return json(req, env, { error: 'quota', max: quota }, 413);
+    }
     const bump = db.prepare('UPDATE sync_users SET rev = rev + 1 WHERE user_id = ?1 RETURNING rev');
     const upsert = db.prepare(`INSERT INTO sync_records (user_id, kind, key, data, deleted, updated_at, rev)
       VALUES (?1, ?2, ?3, ?4, ?5, ?6, (SELECT rev FROM sync_users WHERE user_id = ?1))

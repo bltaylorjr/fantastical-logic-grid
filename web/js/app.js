@@ -1585,6 +1585,10 @@ function checkSolved() {
   const solved = isSolved(S.puzzle, markList());
   if (solved && !S.save.solved) {
     S.save.solved = true;
+    // A "Try again" still waiting, or still being voiced, must not play over
+    // the win (player report: "Try again" over the closing statements).
+    clearTimeout(tryAgainTimer);
+    if (Date.now() - lastTryAgain < 4000) ai.stopSpeaking();
     S.save.completedAt = Date.now();
     pictureClues.unlock();
     // The daily, weekly and special puzzles' answers are on the website, so they earn no scoreboard points.
