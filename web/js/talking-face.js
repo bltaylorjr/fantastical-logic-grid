@@ -62,7 +62,9 @@ let decoder = null;
 export async function loudnessOf(blob) {
   const Ctx = window.AudioContext || window.webkitAudioContext;
   if (!Ctx) return null;
-  decoder ||= new Ctx();
+  // Only decodes, never plays: kept suspended so it doesn't hold the sound
+  // hardware awake.
+  if (!decoder) { decoder = new Ctx(); decoder.suspend?.(); }
   const buf = await decoder.decodeAudioData(await blob.arrayBuffer());
   const data = buf.getChannelData(0);
   const step = Math.max(1, Math.round(buf.sampleRate / FPS));

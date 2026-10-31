@@ -46,8 +46,6 @@ function saved() { const v = store.getLocal(KEY); return v && typeof v === 'obje
 
 // The account that can sign in with the device check here, if any.
 export function enrolledFor(uid) { const v = saved(); return !!(v && (!uid || v.uid === uid)); }
-export function enrolledEmail() { const v = saved(); return v ? v.email : null; }
-
 export function forget() { store.setLocal(KEY, undefined); }
 
 // Turns it on for this account on this device. The device asks for the

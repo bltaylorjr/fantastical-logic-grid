@@ -4,6 +4,7 @@
 import { CLOUD, cloudEnabled } from './cloud-config.js';
 import * as account from './account.js';
 import * as store from './store.js';
+import { whileVisible } from './pace.js';
 
 const KEY = 'perks';
 const EVERY_MS = 15 * 60_000;
@@ -43,6 +44,6 @@ export function init() {
   load();
   account.onChange(() => { load(); emit(); refresh(); });
   refresh();
-  setInterval(refresh, EVERY_MS);
+  whileVisible(refresh, EVERY_MS);
   addEventListener('online', refresh);
 }
