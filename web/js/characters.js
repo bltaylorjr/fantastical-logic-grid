@@ -8,6 +8,7 @@
 // Worker as a suggestion that waits for the team's review.
 import { CLOUD_URL } from './cloud-config.js';
 import * as store from './store.js';
+import { whileVisible } from './pace.js';
 import { setChosenGenders } from './gender.js';
 
 const KEY = 'characters';
@@ -39,7 +40,7 @@ export function init({ onCharactersChanged } = {}) {
   if (onCharactersChanged) onChange = onCharactersChanged;
   if (!CLOUD_URL) return;
   refresh();
-  setInterval(refresh, EVERY_MS);
+  whileVisible(refresh, EVERY_MS);
   addEventListener('online', refresh);
 }
 

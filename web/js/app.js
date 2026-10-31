@@ -2216,7 +2216,14 @@ function renderTimer() {
   $('#timer').hidden = !settings.showTimer;
   if (S) $('#timer').textContent = `Time ${fmtTime(S.save.elapsedMs)}`;
 }
-document.addEventListener('visibilitychange', () => { if (S && timerId) { if (document.hidden) tickTimer(); else S.started = performance.now(); } if (document.hidden) flushSave(); });
+// Out of sight the clock stops ticking (it doesn't count that time anyway).
+document.addEventListener('visibilitychange', () => {
+  if (S && timerId) {
+    if (document.hidden) { tickTimer(); clearInterval(timerId); timerId = -1; }
+    else { S.started = performance.now(); clearInterval(timerId); timerId = setInterval(tickTimer, 1000); }
+  }
+  if (document.hidden) flushSave();
+});
 
 // ====================================================================
 // Autosave
@@ -2923,8 +2930,11 @@ $('#dlg-video').addEventListener('close', () => {
 // the video at that point if the nudge isn't enough.
 {
   const v = $('#intro-video');
-  let last = -1, still = 0;
-  setInterval(() => {
+  let last = -1, still = 0, watch = 0;
+  // Watches only while the video plays.
+  for (const ev of ['play', 'playing']) v.addEventListener(ev, () => { if (!watch) watch = setInterval(nudge, 1000); });
+  for (const ev of ['pause', 'ended', 'emptied']) v.addEventListener(ev, () => { clearInterval(watch); watch = 0; });
+  function nudge() {
     if (!$('#dlg-video').open || v.paused || v.ended || v.seeking) { last = -1; still = 0; return; }
     if (Math.abs(v.currentTime - last) > 0.05) { last = v.currentTime; still = 0; return; }
     still += 1;
@@ -2935,7 +2945,7 @@ $('#dlg-video').addEventListener('close', () => {
       v.load();
       still = 0;
     }
-  }, 1000);
+  }
 }
 function offerIntro() {
   if (settings.introOffered) return;
