@@ -32,4 +32,4 @@ CREATE TABLE IF NOT EXISTS admin_challenges (
   purpose    TEXT NOT NULL,
   email      TEXT,
   expires_at INTEGER NOT NULL
-)
+);
