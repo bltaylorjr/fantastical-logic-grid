@@ -245,6 +245,7 @@ export const CONNECTIONS = [
       { name: 'ALLOWED_ORIGINS', where: 'worker-var', note: 'The website and apps allowed to call the server.' },
       { name: 'SITE_URL', where: 'worker-var', value: SITE },
       { name: 'WORKER_NAME', where: 'worker-var', optional: true, note: 'Only if the Worker is renamed (default flg-api); used for usage numbers.' },
+      { name: 'SYNC_MAX_USER_CHARS', where: 'worker-var', optional: true, note: 'Only to change how much one account may keep in sync (default 20000000 characters, about 20 MB).' },
       { name: 'ASSETS', where: 'worker-binding', note: 'Serves these admin dashboard files.' },
     ],
     settings: [
