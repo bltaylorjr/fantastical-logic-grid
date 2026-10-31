@@ -16,10 +16,6 @@
   Cache-Control: no-cache
 /
   Cache-Control: no-cache
-/calm/
-  Cache-Control: no-cache
-/calm/index.html
-  Cache-Control: no-cache
 
 /*.mjs
   Content-Type: text/javascript

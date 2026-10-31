@@ -83,24 +83,6 @@ sentence plays while the rest is made; the story opening is pre-made when a puzz
 
 `releases/The-Fantastical-Logic-Grid.zip` holds the installer, a portable .exe and the web build.
 
-## Logic Grid Basic (web/calm/)
-
-A second, quieter app for people who just want to relax with a puzzle. It
-offers the basics only: difficulty, theme and size, then the story, grid,
-clues and questions, with undo/redo, hints, Check, Start over, print with an
-answer key, and saves on the device. No sound, voices, pictures, talking
-faces, races, scoreboard, badges or accounts. It is served at `/calm/`.
-
-- Reuses the game's engine and puzzle writer (`worker.js`), grid
-  (`js/grid.js`) and print layout (`js/print.js`); its own code is
-  `web/calm/calm.js`, `calm-store.js` and `calm.css`.
-- Saves go in their own IndexedDB (`flg-calm`). The used-story list is
-  shared with the full game, so a story is never repeated in either app.
-- Offline through the game's service worker; installable on its own
-  (`calm/manifest.webmanifest`). The page is `noindex` until launch.
-- Test: `scripts/e2e-calm.cjs` (in `npm test`). Private preview page:
-  `npm run build:calm-preview` writes `dist/calm-preview/index.html`.
-
 ## Player accounts (optional)
 
 Players can create an account (email and password) so saved puzzles, progress,

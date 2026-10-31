@@ -2322,9 +2322,31 @@ const moodFor = (who) => {
 // A mystery whose ending catches the one behind it: they own up, sheepishly.
 const CAUGHT_ENDING = /culprit|confess|stole|took|thief|prank|caught|guilty|behind it all|owns? up|admits?/i;
 
+// Basic / Interactive switch in the app bar. Basic is the first version's
+// layout and colors (app.css "Basic look"), with the pictures, voices, races
+// and badges; it leaves out the newest extras, such as talking faces.
+// Interactive is the default. The choice stays on this device (index.html
+// applies it before the first paint).
+const isBasic = () => document.documentElement.dataset.look === 'basic';
+function showLook() {
+  for (const b of document.querySelectorAll('#mode-switch [data-look]')) b.setAttribute('aria-pressed', String((b.dataset.look === 'basic') === isBasic()));
+}
+$('#mode-switch').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-look]');
+  if (!b) return;
+  const basic = b.dataset.look === 'basic';
+  if (basic === isBasic()) return;
+  if (basic) document.documentElement.dataset.look = 'basic'; else delete document.documentElement.dataset.look;
+  try { localStorage.setItem('flg.look', basic ? 'basic' : 'interactive'); } catch (err) { /* private mode: this visit only */ }
+  showLook();
+  if (basic) talker.hide?.();
+  toast(basic ? 'Basic look on. Switch back to Interactive any time at the top.' : 'Interactive look on.');
+});
+showLook();
+
 // Talking faces: whoever is speaking appears in the corner of the play screen.
 const talker = initTalker($('#talker'), {
-  on: () => !!(S && settings.talkingFaces && voiceOn() && !$('#screen-play').hidden && remote.feature('talkingFaces')),
+  on: () => !!(S && settings.talkingFaces && voiceOn() && !isBasic() && !$('#screen-play').hidden && remote.feature('talkingFaces')),
   game: () => (S ? {
     puzzle: S.puzzle,
     fallback: (who) => {
