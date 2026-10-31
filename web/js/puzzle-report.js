@@ -11,6 +11,9 @@
 // email apologizes, explains in plain words what was wrong and what was done,
 // and links back here with ?repaired=<token>, which puts the repaired puzzle in
 // Saved puzzles (openRepaired below).
+// The report also says which game it came from (game: 'logic-grid' or
+// 'number-place'), so each game's reports are kept apart in the dashboard.
+// Only Logic Grid puzzles go with a report: the puzzle doctor checks those.
 import { CLOUD, CLOUD_URL } from './cloud-config.js';
 import * as account from './account.js';
 import { feature } from './remote-config.js';
@@ -26,7 +29,7 @@ const REPLY_WORDS = {
 
 export const available = () => !!CLOUD_URL && feature('feedback');
 
-let current = null; // { puzzle, image, where } for this report
+let current = null; // { puzzle, image, where, game } for this report
 let deps = { openDialog: () => {}, openAccount: () => {}, announce: () => {} };
 
 function count() {
@@ -53,7 +56,7 @@ async function send(form) {
       headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       body: JSON.stringify({
         kind, text: text.slice(0, MAX), reply: !!token, platform: platform(), version: CLOUD.appVersion || 'dev',
-        where: current.where, screen: `${innerWidth}x${innerHeight}`,
+        where: current.where, screen: `${innerWidth}x${innerHeight}`, game: current.game,
         ...(kind === 'puzzle' && current.puzzle ? { puzzle: current.puzzle, image: current.image || undefined } : {}),
       }),
     });
@@ -75,15 +78,18 @@ function about() {
   $('#report-about').textContent = kindNow() === 'page'
     ? 'Tell us what looked wrong or did not work on this page. We also send which screen you were on, the app version and the window size, nothing personal.'
     : p ? `About the puzzle “${p.title}”. The puzzle and its picture are sent with your report, so we can check it and fix it.`
-      : 'Open the puzzle first and report it from there, so it is sent with your report. Or tell us which puzzle it was.';
+      : current.game === 'number-place' ? 'About a Number Place puzzle. Tell us its level and what went wrong, and the team will look into it.'
+        : 'Open the puzzle first and report it from there, so it is sent with your report. Or tell us which puzzle it was.';
 }
 
 let wired = false;
-// ctx: { puzzle, image, where }. puzzle is the open or last played puzzle (or
-// null); image the picture drawn for it (SVG text); where the screen's name.
+// ctx: { puzzle, image, where, game }. puzzle is the open or last played puzzle (or
+// null); image the picture drawn for it (SVG text); where the screen's name;
+// game the game it was opened from.
 export function open(ctx = {}) {
   if (!available()) return;
-  current = { puzzle: ctx.puzzle || null, image: ctx.image || '', where: String(ctx.where || '').slice(0, 200) };
+  const game = ctx.game === 'number-place' ? 'number-place' : 'logic-grid';
+  current = { puzzle: game === 'logic-grid' ? ctx.puzzle || null : null, image: game === 'logic-grid' ? ctx.image || '' : '', where: String(ctx.where || '').slice(0, 200), game };
   const dlg = $('#dlg-report');
   if (!wired) {
     wired = true;
@@ -101,7 +107,9 @@ export function open(ctx = {}) {
   $('#report-signin').hidden = !!me || !emails || !account.enabled();
   $('.error-box', dlg).hidden = true;
   $('#report-done').textContent = '';
-  $(`input[name=report-kind][value=${ctx.kind === 'page' || !current.puzzle ? 'page' : 'puzzle'}]`).checked = true;
+  // On Number Place a puzzle problem is the likelier one, even with no puzzle file to send.
+  const puzzleFirst = ctx.kind !== 'page' && (current.puzzle || (game === 'number-place' && ctx.kind === 'puzzle'));
+  $(`input[name=report-kind][value=${puzzleFirst ? 'puzzle' : 'page'}]`).checked = true;
   about();
   count();
   deps.openDialog(dlg, $('#report-text'));

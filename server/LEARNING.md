@@ -32,6 +32,31 @@ Players see a notice the first time results are shared, and can turn sharing off
 **Settings, Learning**. Server voices can be turned off in **Settings, Where voices
 come from**. A player's own Google key is always used first.
 
+## Learning across all games
+
+Each game in the package (the Logic Grid and Number Place so far) also learns from
+the other games' players (`server/src/shared-learning.js`). Both games' anonymous
+play summaries are pooled by how tough a level is, never by its name:
+
+| Band | Logic Grid | Number Place |
+| --- | --- | --- |
+| gentle | Basic, Easy | Basic, Easy |
+| middle | Medium, Hard | Medium, Hard |
+| tough | Expert, Mensa, Theorist | Expert, Master |
+
+For each band the server works out one reading, from -1 (much too hard) to +1 (much
+too easy), once the band has 20 games across all games (race games are left out).
+Each level is then drawn toward its band's reading as if it were 10 games of its
+own: a level with a handful of games follows what everyone found, and one with
+hundreds follows its own games. A level no longer waits for 10 games of its own
+before it moves. The replies of `/v1/learn/tuning` and `/v1/learn/np/tuning` keep
+their shape, so the apps need no update; they gain a `crowd` field with the counts.
+
+The switch is **Settings and switches > Learning > Learn across all games**. Off:
+each game tunes only from its own games, as before. Number Place's games are pooled
+only while **Learn from Number Place games** is on. A new game joins by adding its
+levels to `BANDS` and its plays to `loadCrowd`.
+
 ## Story parts players share
 
 When a player adds a story part in the Story workshop, it can also be sent to you to

@@ -125,6 +125,7 @@ export const SETTINGS = {
   disabled_themes: { type: 'themes', default: [], group: 'Play', label: 'Themes switched off', help: 'Hidden from the theme picker and never picked by Surprise me.' },
   // ---- Learning and stories
   learning_enabled: { type: 'bool', default: true, group: 'Learning', label: 'Learn from everyone', help: 'On: anonymous play summaries from players who keep "Learn from how I play" on tune puzzles, clue mix and story parts for all. Off: nothing is sent and summaries are dropped.' },
+  shared_learning_enabled: { type: 'bool', default: true, group: 'Learning', label: 'Learn across all games', help: 'On: every game also learns from the other games\' players. The Logic Grid\'s and Number Place\'s play summaries are pooled by how tough a level is (gentle, middle, tough), and a level with few games of its own follows what all players found at that band until it has enough of its own. Off: each game tunes only from its own games.' },
   story_sharing_enabled: { type: 'bool', default: true, group: 'Learning', label: 'Accept story parts from older apps', help: 'Older app versions can still send story parts for review. New ones are written in the Story workshop here.' },
   story_model: { type: 'model', default: 'gemini-flash-latest', group: 'Learning', label: 'Story workshop AI writer (Gemini model)', help: 'Drafts story parts in the Story workshop with the GEMINI_API_KEY secret, on Google\'s free tier.' },
   // ---- Number Place: its own game screen (modules/number-place). These show in

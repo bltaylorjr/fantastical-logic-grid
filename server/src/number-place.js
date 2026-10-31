@@ -8,6 +8,7 @@
 // The admin dashboard's Number Place section reads npSummary() and changes the
 // settings in the "Number Place" group (settings.js).
 import { getSettings } from './settings.js';
+import { loadCrowd, priorFor, shrink } from './shared-learning.js';
 
 export const NP_LEVELS = ['basic', 'easy', 'medium', 'hard', 'expert', 'master'];
 export const NP_TECHNIQUES = ['nakedSingle', 'hiddenSingle', 'intersection', 'nakedPair', 'hiddenPair', 'nakedTriple', 'hiddenTriple', 'xWing', 'swordfish', 'xyWing'];
@@ -70,16 +71,22 @@ export function npVerdict(r) {
 }
 
 // Everyone's games, with gentler limits than one device so no single group of
-// players can pull a level too far. A level needs 10 games before it moves.
-export function computeNpTuning(plays) {
+// players can pull a level too far. On its own a level needs 10 games before
+// it moves. crowd (shared-learning.js) is what all games' players found at
+// each band of difficulty: a level is drawn toward it, strongly while it has
+// few games of its own, and moves as soon as its band has enough.
+export function computeNpTuning(plays, crowd = null) {
   const by = {};
-  for (const r of plays) if (r.mode !== 'race') (by[r.level] ||= []).push(npVerdict(r));
+  for (const r of plays) if (r.mode !== 'race') (by[r.level] ||= []).push(npVerdict(r) / 2);
   const toughness = {};
-  for (const [level, list] of Object.entries(by)) {
-    if (list.length < 10) continue;
-    toughness[level] = Math.round(clamp(0.5 + (list.reduce((a, b) => a + b, 0) / list.length) * 0.2, 0.2, 0.8) * 100) / 100;
+  for (const level of NP_LEVELS) {
+    const list = by[level] || [];
+    const prior = priorFor(crowd, level);
+    if (prior == null && list.length < 10) continue;
+    const lean = prior == null ? list.reduce((a, b) => a + b, 0) / list.length : shrink(list, prior);
+    toughness[level] = Math.round(clamp(0.5 + lean * 0.4, 0.2, 0.8) * 100) / 100;
   }
-  return { games: plays.length, toughness, updated: new Date().toISOString() };
+  return { games: plays.length, toughness, ...(crowd ? { crowd: { games: crowd.games, lean: crowd.lean } } : {}), updated: new Date().toISOString() };
 }
 
 export async function getNpTuning(req, env, ctx, json) {
@@ -92,7 +99,9 @@ export async function getNpTuning(req, env, ctx, json) {
   const plays = s.np_learning_enabled
     ? (await env.DB.prepare('SELECT level, mode, outcome, feel, minutes, hints FROM np_plays WHERE day >= ? ORDER BY rowid DESC LIMIT 50000').bind(since).all()).results
     : [];
-  const res = json(computeNpTuning(plays), 200, { 'Cache-Control': 'public, max-age=900' });
+  // Every game's players count too (shared-learning.js).
+  const crowd = s.np_learning_enabled ? await loadCrowd(env, s, npVerdict) : null;
+  const res = json(computeNpTuning(plays, crowd), 200, { 'Cache-Control': 'public, max-age=900' });
   ctx.waitUntil(cache.put(key, res.clone()));
   return res;
 }
@@ -122,10 +131,28 @@ export async function npSummary(env, days = 30) {
   for (const r of results) { const d = (byDay[r.day] ||= { day: r.day, games: 0, solved: 0 }); d.games++; if (r.outcome === 'solved') d.solved++; }
   const modes = {};
   for (const r of results) modes[r.mode] = (modes[r.mode] || 0) + 1;
+  const s = await getSettings(env);
+  const crowd = s.np_learning_enabled ? await loadCrowd(env, s, npVerdict) : null;
   return {
-    since, games: results.length, levels, modes,
+    since, games: results.length, levels, modes, feedback: await npFeedback(env),
     stuck: Object.entries(stuck).sort((a, b) => b[1] - a[1]).map(([technique, count]) => ({ technique, count })),
     byDay: Object.values(byDay).sort((a, b) => a.day.localeCompare(b.day)),
-    tuning: computeNpTuning(results.filter((r) => r.day >= new Date(Date.now() - TUNING_DAYS * 86400000).toISOString().slice(0, 10))),
+    tuning: computeNpTuning(results.filter((r) => r.day >= new Date(Date.now() - TUNING_DAYS * 86400000).toISOString().slice(0, 10)), crowd),
+    sharedLearning: s.shared_learning_enabled !== false,
   };
+}
+
+// How many ideas and problem reports came from Number Place, by state. Counts
+// only, so a viewer can see them; the words are in Communication (moderators).
+export async function npFeedback(env, game = 'number-place') {
+  const out = { idea: { new: 0, approved: 0, addressed: 0, done: 0 }, problem: { new: 0, approved: 0, addressed: 0, done: 0 }, reports: { puzzle: 0, webstructure: 0 } };
+  try {
+    const [fb, pr] = await env.DB.batch([
+      env.DB.prepare('SELECT kind, status, COUNT(*) AS n FROM feedback WHERE game = ?1 GROUP BY kind, status').bind(game),
+      env.DB.prepare('SELECT category, COUNT(*) AS n FROM puzzle_reports WHERE game = ?1 GROUP BY category').bind(game),
+    ]);
+    for (const r of fb.results) if (out[r.kind]) out[r.kind][r.status] = (out[r.kind][r.status] || 0) + r.n;
+    for (const r of pr.results) out.reports[r.category] = r.n;
+  } catch (e) { /* the game column is not set up yet */ }
+  return out;
 }

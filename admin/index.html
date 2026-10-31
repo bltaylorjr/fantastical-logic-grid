@@ -264,6 +264,7 @@
           <div class="field"><label for="comm-type">Show</label><select id="comm-type">
             <option value="all">Everything</option><option value="message">Messages</option><option value="idea">Ideas</option><option value="problem">Problems</option>
             <option value="error">Error reports</option><option value="email">Emails to players</option></select></div>
+          <div class="field"><label for="comm-game">Game</label><select id="comm-game"><option value="all">All games</option><option value="logic-grid">The Fantastical Logic Grid</option><option value="number-place">Number Place</option></select></div>
           <div class="field"><label for="comm-status">Status</label><select id="comm-status"><option value="new">New and open</option><option value="approved">Approved (being processed)</option><option value="addressed">Addressed</option><option value="done">Done</option><option value="all">All</option></select></div>
           <div class="field grow"><label for="comm-q">Find words</label><input id="comm-q" type="search" autocomplete="off" maxlength="100"></div>
           <button class="btn primary" type="submit">Find</button>
@@ -272,7 +273,7 @@
         <p class="muted" id="fb-replies"></p>
         <section class="card thread" id="comm-thread" hidden aria-labelledby="thread-h"></section>
         <ul class="cards" id="comm-list"></ul>
-        <p class="muted">Ideas and problems are anonymous unless the player ticked "Let the team reply to me"; then they show a Reply button. Error reports are anonymous and have no done state: New shows the last 7 days, All the last 30. Done items are deleted after 180 days.</p>
+        <p class="muted">Ideas and problems are anonymous unless the player ticked "Let the team reply to me"; then they show a Reply button. Error reports are anonymous and have no done state: New shows the last 7 days, All the last 30. Done items are deleted after 180 days. Ideas and problems record the game they were sent from; choosing one game shows only those.</p>
         <div class="row" data-min="admin"><button class="btn" type="button" data-export="feedback">Download all ideas and problems (CSV)</button></div>
       </div>
 
@@ -320,6 +321,7 @@
       <p class="muted">Every Report a Problem, sorted by category as it arrives: <b>Puzzle</b> (PZ-…) or <b>Web structure</b> (WS-…). The puzzle doctor checks Puzzle reports every 15 minutes, rebuilds the broken ones and emails the players who asked. It uses Web structure reports from the same screen and app version to tell a broken puzzle from a display problem, and learns which repairs work for each kind of fault.</p>
       <form class="row filters" id="et-filter" novalidate>
         <div class="field inline"><label for="et-category">Category</label><select id="et-category"><option value="">Both</option><option value="puzzle">Puzzle</option><option value="webstructure">Web structure</option></select></div>
+        <div class="field inline"><label for="et-game">Game</label><select id="et-game"><option value="">All games</option><option value="logic-grid">The Fantastical Logic Grid</option><option value="number-place">Number Place</option></select></div>
         <div class="field inline"><label for="et-status">Status</label><select id="et-status"><option value="">Any</option><option value="needs_fix">Needs a fix in the code</option><option value="manual">Needs the team</option><option value="page">Web page issue (open)</option><option value="no_fault">No fault in the puzzle</option><option value="repaired">Repaired</option><option value="done">Done</option><option value="new">Waiting for the doctor</option></select></div>
         <div class="field inline"><label for="et-q">Search</label><input id="et-q" type="search" placeholder="PZ-…, title, words, page"></div>
         <button class="btn" type="submit">Show</button>

@@ -13,12 +13,16 @@
 // "A storyline idea" also shows a "Which theme is it for?" list of the themes
 // players can pick (admin-switched-off ones are left out); the chosen theme
 // id goes along and shows in the admin inbox.
+// game: which game the box was opened from ('logic-grid' or 'number-place'),
+// sent along so each game's ideas are kept apart in the admin dashboard. The
+// theme list is the Logic Grid's, so it is hidden for other games.
 import { CLOUD, CLOUD_URL } from './cloud-config.js';
 import * as account from './account.js';
 import { feature, disabledThemes } from './remote-config.js';
 import { platform } from './errors.js';
 
 const $ = (s, el = document) => el.querySelector(s);
+let game = 'logic-grid';
 
 const REPLY_WORDS = {
   queued: 'We\'ll email you a thank-you note soon.',
@@ -38,7 +42,7 @@ async function send(form) {
   const kind = form.dataset.kind;
   const text = $('textarea', form).value.trim();
   const topic = $('input[name=idea-topic]:checked', form).value;
-  const theme = kind === 'idea' && topic === 'story' ? $('#idea-theme').value || undefined : undefined;
+  const theme = kind === 'idea' && topic === 'story' && game === 'logic-grid' ? $('#idea-theme').value || undefined : undefined;
   const err = $('.error-box', form);
   const done = $('.acct-done', form);
   const btn = $('button[type=submit]', form);
@@ -55,7 +59,7 @@ async function send(form) {
     if (reply || talk) { try { token = await account.getIdToken(); } catch (e) { /* sent without a note */ } }
     const res = await fetch(`${CLOUD_URL}/v1/feedback`, {
       method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-      body: JSON.stringify({ kind, topic, text, platform: platform(), version: CLOUD.appVersion || 'dev', reply: !!token && reply, talk: !!token && talk, theme }),
+      body: JSON.stringify({ kind, topic, text, platform: platform(), version: CLOUD.appVersion || 'dev', reply: !!token && reply, talk: !!token && talk, theme, game }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.message || 'It could not be sent right now. Please try again later.');
@@ -70,13 +74,16 @@ async function send(form) {
 }
 
 // The theme list only shows while "A storyline idea" is picked.
-const showThemes = () => { $('#idea-theme-field').hidden = $('input[name=idea-topic]:checked').value !== 'story'; };
+const showThemes = () => { $('#idea-theme-field').hidden = game !== 'logic-grid' || $('input[name=idea-topic]:checked').value !== 'story'; };
 
 let wired = false;
 // kind: 'idea' or 'problem' picks the box that gets focus. themes: the
 // engine's theme list ({ id, name }), for the storyline idea's theme picker.
-export function open(openDialog, { kind = 'idea', themes = [] } = {}) {
+// from: the game it was opened from.
+export function open(openDialog, { kind = 'idea', themes = [], from = 'logic-grid' } = {}) {
+  game = from === 'number-place' ? 'number-place' : 'logic-grid';
   const dlg = $('#dlg-feedback');
+  $('#feedback-game').hidden = game === 'logic-grid';
   if (!wired) {
     wired = true;
     for (const form of dlg.querySelectorAll('form')) form.addEventListener('submit', (e) => { e.preventDefault(); send(form); });

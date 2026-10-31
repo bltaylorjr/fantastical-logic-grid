@@ -37,6 +37,16 @@ fixed** is linked to the report only through that held email
 report number straight away. The website has no sign-in, so its box says to
 report from the game to get an email.
 
+## Which game a report came from
+
+Every report and every idea records the game it was sent from (`game`:
+`logic-grid` or `number-place`; migration `2080_feedback_game.sql`, older rows are
+`logic-grid`). The game app sends it from the screen the player is on. Communication
+and Error tracking have a **Game** filter, and the Number Place section of the
+dashboard counts its own and links to them. The puzzle doctor only checks Logic Grid
+puzzles, so a Number Place puzzle report never carries a puzzle and waits for the
+team (status `manual`).
+
 ## The puzzle doctor
 
 Every 15 minutes the GitHub Action **Puzzle doctor**
