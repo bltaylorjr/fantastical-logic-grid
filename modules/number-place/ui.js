@@ -138,6 +138,17 @@ export function reopen() {
   if (styled('rival') && G.turn === 'rival' && !G.solved) rivalTurn();
 }
 
+// Opens the setup screen with a game style picked (the host's links to each game).
+export function pickStyle(id) {
+  if (!root || !STYLES.some((x) => x.id === id)) return;
+  prefs.style = id;
+  savePrefs();
+  showView('setup');
+  const r = root.querySelector(`input[name=np-style][value="${id}"]`);
+  if (r) r.checked = true;
+  renderStyle();
+}
+
 // A puzzle everyone plays (a race or a shared challenge): never filtered as "seen".
 export function startShared(puzzle, { mode = 'race' } = {}) { begin(puzzle, { mode }); }
 

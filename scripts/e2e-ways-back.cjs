@@ -20,6 +20,8 @@ const BASE = `http://localhost:${PORT}`;
   const errors = [];
   try {
     const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block' });
+    // A tester's device, with the full package on (web/js/package-preview.js).
+    await ctx.addInitScript((h) => localStorage.setItem('flg.preview', h), /CODE_HASH = '([0-9a-f]{64})'/.exec(require('fs').readFileSync(path.join(__dirname, '..', 'web', 'js', 'package-preview.js'), 'utf8'))[1]);
     await ctx.addInitScript(() => { try { if (!localStorage.getItem('flg.settings')) localStorage.setItem('flg.settings', JSON.stringify({ introOffered: true })); } catch (e) { /* none */ } });
     const page = await ctx.newPage();
     page.on('pageerror', (e) => errors.push(String(e)));
