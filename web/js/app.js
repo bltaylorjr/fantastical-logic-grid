@@ -2593,9 +2593,11 @@ function applyFeatures() {
   $('[data-cmd=mail]').hidden = isPortal || !puzzleMail.available();
   $('#mail-invite').hidden = isPortal || !puzzleMail.available();
   $('[data-cmd=suggest]').hidden = !characters.suggestionsOpen();
-  // The game cards and NINETIMESNINE are for testers of the full package only (package-preview.js).
-  $('[data-cmd=numberplace]').hidden = !pkg.on() || !numberPlace.enabled();
+  // NINETIMESNINE is at the bottom of the menu for everyone (the dashboard can switch it off).
+  // The game cards are for testers of the full package only (package-preview.js).
+  $('[data-cmd=numberplace]').hidden = !numberPlace.enabled();
   $('[data-cmd=games]').hidden = !pkg.on();
+  $('#np-back').textContent = pkg.on() ? 'All games' : 'Back';
   $('[data-cmd=leave-preview]').hidden = !pkg.on();
   if (currentScreen === 'home') $('#back-btn').hidden = !pkg.on();
   $('#brand-name').textContent = pkg.on() ? 'The Logic Grid' : 'The Fantastical Logic Grid';
@@ -2781,13 +2783,13 @@ async function openFromCard(id, mode = null) {
 // (web/js/number-place.js). It shares only anonymous play data, for learning.
 // mode: a NINETIMESNINE game style to pick on its setup screen (from the game card's links).
 async function openNumberPlace(mode = null) {
-  if (!pkg.on()) { goHome(); return; }
+  if (!numberPlace.enabled()) { goHome(); return; }
   if (S) { await flushSave(); closeGame(); }
   showScreen('np');
   window.scrollTo(0, 0);
   await numberPlace.open({ celebrate: () => celebrateSolve(settings.celebrations, { random: settings.celebrateRandom }), setWorld, style: mode });
 }
-$('#np-back').onclick = () => openGames();
+$('#np-back').onclick = () => (pkg.on() ? openGames() : goHome());
 
 // How to play: the step-by-step tutorial and the tips page (tutorial.js).
 // The narrated video is the Introduction.

@@ -100,8 +100,14 @@ const PREVIEW = /CODE_HASH = '([0-9a-f]{64})'/.exec(require('fs').readFileSync(p
     assert((await pp.locator('#home-btn').textContent()).trim() === 'The Fantastical Logic Grid' && await pp.locator('#back-btn').isHidden(), 'the bar says The Fantastical Logic Grid, with no way to the cards');
     if (await pp.locator('#dlg-welcome[open]').count()) { await pp.keyboard.press('Escape'); await pp.waitForFunction(() => !document.querySelector('#dlg-welcome').open); }
     await pp.click('#menu-btn');
-    assert(await pp.locator('[data-cmd=numberplace]').isHidden() && await pp.locator('[data-cmd=games]').isHidden(), 'the menu has no NINETIMESNINE or All games');
-    await pp.keyboard.press('Escape');
+    assert(await pp.locator('[data-cmd=numberplace]').isVisible() && await pp.locator('[data-cmd=games]').isHidden(), 'the menu has NINETIMESNINE but no All games');
+    assert(await pp.evaluate(() => { const m = [...document.querySelectorAll('#app-menu > *')].filter((e) => !e.hidden); return m[m.length - 1].dataset.cmd === 'numberplace'; }), 'NINETIMESNINE is the last menu item');
+    await pp.click('[data-cmd=numberplace]');
+    await pp.waitForSelector('#screen-np:not([hidden])');
+    assert(true, 'a public visitor can open NINETIMESNINE from the menu');
+    await pp.click('#np-back');
+    await pp.waitForSelector('#screen-home:not([hidden])');
+    assert(await pp.locator('#screen-games').isHidden(), 'Back from NINETIMESNINE goes home, not to the game cards');
     assert(!/preview=/.test(pp.url()) && !(await pp.evaluate(() => localStorage.getItem('flg.preview'))), 'a wrong code unlocks nothing and leaves the address');
     await pp.goto('http://localhost:8182/?preview=off');
     await pp.waitForSelector('#screen-home:not([hidden])');
