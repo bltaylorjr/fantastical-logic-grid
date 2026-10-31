@@ -669,7 +669,49 @@ def post_message():
     return 0
 
 
+def delete_posts():
+    """Take down the game's own Facebook Page and Instagram posts named in REMOVE
+    (their public links), for example the old copy after an ad is posted again
+    with a new video. Links to anything else are refused."""
+    links = [x.strip() for x in os.environ.get('REMOVE', '').split(',') if x.strip()]
+    if not links or not has_keys('facebook'):
+        print('::error::Nothing to take down: REMOVE is empty or the Facebook keys are not saved.')
+        return 1
+    page, token = page_key()
+    bad = 0
+    for link in links:
+        try:
+            fb = re.match(r'https://www\.facebook\.com/(\d+)/videos/(\d+)/?$', link) or re.match(r'https://www\.facebook\.com/(\d+)_(\d+)/?$', link)
+            ig = re.match(r'https://www\.instagram\.com/(?:reel|p)/([\w-]+)/?$', link)
+            if fb:
+                if fb.group(1) != page:
+                    raise Failed('that post is not on the game\'s Facebook Page')
+                target = fb.group(2) if '/videos/' in link else f'{fb.group(1)}_{fb.group(2)}'
+            elif ig and has_keys('instagram'):
+                mine, after = None, ''
+                for _ in range(10):  # the account's newest 500 posts
+                    r = meta(f'{GRAPH}/{instagram_id()}/media?fields=id,permalink&limit=50{after}', token=token)
+                    mine = next((m['id'] for m in r.get('data', []) if ig.group(1) in m.get('permalink', '')), None)
+                    nxt = r.get('paging', {}).get('cursors', {}).get('after')
+                    if mine or not nxt or not r.get('paging', {}).get('next'):
+                        break
+                    after = f'&after={nxt}'
+                if not mine:
+                    raise Failed('that post is not on the game\'s Instagram account')
+                target = mine
+            else:
+                raise Failed('only links to the game\'s Facebook Page videos or posts, or its Instagram posts, can be taken down')
+            meta(f'{GRAPH}/{target}', 'DELETE', None, token)
+            print(f'::notice::Took down {link}')
+        except Exception as e:  # noqa: BLE001 - report every link
+            bad += 1
+            print(f'::warning::Could not take down {link}: {scrub(e)}')
+    return 1 if bad else 0
+
+
 def main():
+    if MODE == 'delete':
+        sys.exit(delete_posts())
     if MODE == 'check':
         sys.exit(1 if check_keys() else 0)
     if MODE == 'message':
