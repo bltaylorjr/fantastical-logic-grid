@@ -76,8 +76,12 @@ const fakeAndroid = () => {
       await page.evaluate(() => Promise.all(document.getAnimations()
         .filter((a) => a.effect && a.effect.getComputedTiming().iterations !== Infinity)
         .map((a) => a.finished.catch(() => {}))));
+      // The grid fits the screen's width (Bobby, 2026-10-31: no sideways scrolling);
+      // its squares stay 44 px unless they had to shrink to fit.
       const cell = await page.locator('td.c').first().boundingBox();
-      assert(cell.width >= 44 && cell.height >= 44, `${name}: grid cells are at least 44 px (${Math.round(cell.width)} x ${Math.round(cell.height)})`);
+      const g = await page.evaluate(() => { const f = document.querySelector('#gridframe'); return { over: f.scrollWidth - f.clientWidth, fit: !!f.querySelector('table.lg.fit') }; });
+      assert(g.over <= 0, `${name}: the grid fits the screen's width (${Math.round(cell.width)} px squares)`);
+      if (!g.fit) assert(cell.width >= 44 && cell.height >= 44, `${name}: grid cells are at least 44 px (${Math.round(cell.width)} x ${Math.round(cell.height)})`);
       await page.locator('td.c').nth(5).tap();
       assert(await page.evaluate(() => window.__flg.state.marks.size) === 1, `${name}: tapping a cell marks it`);
       if (shots) await page.screenshot({ path: `${shots}/${name}-2-play.png`, fullPage: true });

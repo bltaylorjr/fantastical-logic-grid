@@ -16,6 +16,8 @@
 <script>
   // Apply the saved color theme before first paint.
   try { const s = JSON.parse(localStorage.getItem('flg.settings') || '{}'); if (s.colorTheme && s.colorTheme !== 'system') document.documentElement.dataset.theme = s.colorTheme; } catch (e) {}
+  // Basic look (the first version's layout and colors) if the player picked it; Interactive otherwise.
+  try { if (localStorage.getItem('flg.look') === 'basic') document.documentElement.dataset.look = 'basic'; } catch (e) {}
   // Never run inside another site's frame, where clicks could be tricked
   // (GitHub Pages cannot send X-Frame-Options). The claude.ai preview is framed on purpose.
   if (window.top !== window.self && !document.querySelector('meta[name="flg-mode"]')) { document.documentElement.hidden = true; try { window.top.location = window.location.href; } catch (e) {} }
@@ -32,6 +34,7 @@
     <span>The Fantastical Logic Grid</span>
   </button>
   <div class="appbar-actions">
+    <div class="mode-switch" id="mode-switch" role="group" aria-label="Look"><button type="button" data-look="basic" aria-pressed="false">Basic</button><button type="button" data-look="interactive" aria-pressed="true">Interactive</button></div>
     <!-- Website only: build.mjs shows it in dist/site (not the desktop app or game portals). -->
     <a class="btn quiet educators-link" id="educators-link" href="educators/" hidden>For educators</a>
     <button class="btn quiet player-chip" type="button" id="player-chip" hidden><span class="sr-only">Playing as </span><span id="player-chip-name" translate="no">Guest</span></button>

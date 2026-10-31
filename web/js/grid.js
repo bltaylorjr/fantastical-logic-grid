@@ -31,7 +31,7 @@ export function createGrid(frame, puzzle, ix, handlers) {
 
   // ---- markup ----
   let h = `<table class="lg" role="grid" aria-label="Logic grid. ${rows.length * N} rows. Arrow keys move, X rules out, O confirms." aria-rowcount="${rows.length * N + 2}">`;
-  h += `<thead><tr role="row"><th class="corner" colspan="2" aria-hidden="true"></th>${cols.map((c) => `<th class="cath" colspan="${N}" scope="colgroup">${esc(c.name)}</th>`).join('')}</tr>`;
+  h += `<thead><tr role="row"><th class="corner" colspan="2" aria-hidden="true"></th>${cols.map((c) => `<th class="cath" colspan="${N}" scope="colgroup"><span>${esc(c.name)}</span></th>`).join('')}</tr>`;
   h += `<tr role="row"><th class="corner" colspan="2" aria-hidden="true"></th>${cols.map((c) => c.items.map((it, j) => `<th class="colh${j === N - 1 ? ' lastcol' : ''}" scope="col" role="columnheader" data-id="${it.id}" title="${esc(it.label)}"><div>${esc(it.label)}</div></th>`).join('')).join('')}</tr></thead><tbody>`;
   const matrix = [];
   rows.forEach((rc, ri) => {
@@ -57,12 +57,40 @@ export function createGrid(frame, puzzle, ix, handlers) {
   const cells = new Map([...table.querySelectorAll('td.c')].map((td) => [td.dataset.k, td]));
   const totalCols = cols.length * N;
   // Sticky offsets for the pinned headers.
-  requestAnimationFrame(() => {
+  function pin() {
     const cath = table.querySelector('th.cath');
     const rcat = table.querySelector('th.rcat');
     if (cath) table.style.setProperty('--cath-h', `${cath.offsetHeight}px`);
     if (rcat) table.style.setProperty('--rcat-w', `${rcat.offsetWidth}px`);
-  });
+  }
+  // Phones and narrow windows: the whole grid fits the frame's width, so it
+  // never scrolls sideways. Names get tighter and the squares smaller, only
+  // as much as needed (bigger screens keep the full 44 px squares).
+  let fittedFor = -1;
+  function fit() {
+    const avail = frame.clientWidth;
+    if (!avail || !table.isConnected || avail === fittedFor) return;
+    fittedFor = avail;
+    table.classList.remove('fit');
+    for (const n of ['--cell', '--rowh-w']) table.style.removeProperty(n);
+    if (table.scrollWidth > avail) {
+      // Item names get at most about a fifth of the width (cut short with
+      // "…"; the full name is in the tooltip and read out), the squares the rest.
+      const rowh = table.querySelector('th.rowh').offsetWidth;
+      table.classList.add('fit');
+      table.style.setProperty('--rowh-w', `${Math.min(rowh, Math.max(52, Math.round(avail * 0.22)))}px`);
+      const head = table.querySelector('th.rcat').offsetWidth + table.querySelector('th.rowh').offsetWidth;
+      let cell = Math.min(44, Math.floor((avail - head - cols.length * 2) / totalCols));
+      for (let tries = 0; tries < 40; tries++) {
+        table.style.setProperty('--cell', `${Math.max(12, cell)}px`);
+        if (table.scrollWidth <= avail || cell <= 12) break;
+        cell--;
+      }
+    }
+    pin();
+  }
+  requestAnimationFrame(fit);
+  if (window.ResizeObserver) new ResizeObserver(() => requestAnimationFrame(fit)).observe(frame);
 
   let focused = null;
   const at = (r, c) => (matrix[r] && matrix[r][c] ? cells.get(matrix[r][c]) : null);
