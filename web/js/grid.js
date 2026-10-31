@@ -1,9 +1,5 @@
 // The interactive staircase grid: rendering, roving focus, keyboard, pointer
-// and the long-press / right-click cell menu. A small red "?" in a cell's top
-// right corner is the player's own reminder ("come back to this"): tap the
-// corner of an empty cell, press Q, or choose it in the cell menu (the ? key
-// itself opens the list of keys). It
-// never counts as a mark and only empty cells can have one. Game rules live in app.js; this
+// and the long-press / right-click cell menu. Game rules live in app.js; this
 // module only reports what the player asked for through the handlers.
 
 export const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -31,7 +27,7 @@ export function createGrid(frame, puzzle, ix, handlers) {
 
   // ---- markup ----
   let h = `<table class="lg" role="grid" aria-label="Logic grid. ${rows.length * N} rows. Arrow keys move, X rules out, O confirms." aria-rowcount="${rows.length * N + 2}">`;
-  h += `<thead><tr role="row"><th class="corner" colspan="2" aria-hidden="true"></th>${cols.map((c) => `<th class="cath" colspan="${N}" scope="colgroup"><span>${esc(c.name)}</span></th>`).join('')}</tr>`;
+  h += `<thead><tr role="row"><th class="corner" colspan="2" aria-hidden="true"></th>${cols.map((c) => `<th class="cath" colspan="${N}" scope="colgroup">${esc(c.name)}</th>`).join('')}</tr>`;
   h += `<tr role="row"><th class="corner" colspan="2" aria-hidden="true"></th>${cols.map((c) => c.items.map((it, j) => `<th class="colh${j === N - 1 ? ' lastcol' : ''}" scope="col" role="columnheader" data-id="${it.id}" title="${esc(it.label)}"><div>${esc(it.label)}</div></th>`).join('')).join('')}</tr></thead><tbody>`;
   const matrix = [];
   rows.forEach((rc, ri) => {
@@ -57,50 +53,12 @@ export function createGrid(frame, puzzle, ix, handlers) {
   const cells = new Map([...table.querySelectorAll('td.c')].map((td) => [td.dataset.k, td]));
   const totalCols = cols.length * N;
   // Sticky offsets for the pinned headers.
-  function pin() {
+  requestAnimationFrame(() => {
     const cath = table.querySelector('th.cath');
     const rcat = table.querySelector('th.rcat');
     if (cath) table.style.setProperty('--cath-h', `${cath.offsetHeight}px`);
     if (rcat) table.style.setProperty('--rcat-w', `${rcat.offsetWidth}px`);
-  }
-  // Phones and narrow windows: the whole grid fits the frame's width, so it
-  // never scrolls sideways. Names get tighter and the squares smaller, only
-  // as much as needed (bigger screens keep the full 44 px squares).
-  // The room is measured with the full-size grid in place: on a PC or tablet
-  // the grid's column is as wide as the grid, so measuring the shrunk grid
-  // would shrink it again on every resize, down to the smallest squares.
-  let fitted = { avail: -1, cell: 0, rowh: 0 };
-  const setFit = (cell, rowh) => {
-    table.classList.toggle('fit', !!cell);
-    if (cell) { table.style.setProperty('--cell', `${cell}px`); table.style.setProperty('--rowh-w', `${rowh}px`); }
-  };
-  function fit() {
-    if (!frame.clientWidth || !table.isConnected) return;
-    setFit(0);
-    for (const n of ['--cell', '--rowh-w']) table.style.removeProperty(n);
-    const avail = frame.clientWidth;
-    if (avail === fitted.avail) { setFit(fitted.cell, fitted.rowh); pin(); return; }
-    let cell = 0, rowh = 0;
-    if (table.scrollWidth > avail) {
-      // Item names get at most about a fifth of the width (cut short with
-      // "…"; the full name is in the tooltip and read out), the squares the rest.
-      rowh = Math.min(table.querySelector('th.rowh').offsetWidth, Math.max(52, Math.round(avail * 0.22)));
-      setFit(44, rowh);
-      const head = table.querySelector('th.rcat').offsetWidth + table.querySelector('th.rowh').offsetWidth;
-      cell = Math.min(44, Math.floor((avail - head - cols.length * 2) / totalCols));
-      for (let tries = 0; tries < 40; tries++) {
-        cell = Math.max(12, cell);
-        setFit(cell, rowh);
-        if (table.scrollWidth <= avail || cell <= 12) break;
-        cell--;
-      }
-    }
-    fitted = { avail, cell, rowh };
-    frame.dataset.small = cell && cell < 24 ? 'true' : 'false';
-    pin();
-  }
-  requestAnimationFrame(fit);
-  if (window.ResizeObserver) new ResizeObserver(() => requestAnimationFrame(fit)).observe(frame);
+  });
 
   let focused = null;
   const at = (r, c) => (matrix[r] && matrix[r][c] ? cells.get(matrix[r][c]) : null);
@@ -112,16 +70,13 @@ export function createGrid(frame, puzzle, ix, handlers) {
   function paint(k, state, flags = {}) {
     const td = cells.get(k);
     if (!td) return;
-    const query = !!flags.query && !state;
-    td.innerHTML = (state === 'O' ? SVG_O : state === 'X' || state === 'A' ? SVG_X(state === 'A') : '') + (flags.wrong ? '<span class="warn-ico" aria-hidden="true">⚠</span>' : '')
-      + (query ? '<span class="q-mark" aria-hidden="true">?</span>' : '');
-    td.classList.toggle('m-q', query);
+    td.innerHTML = (state === 'O' ? SVG_O : state === 'X' || state === 'A' ? SVG_X(state === 'A') : '') + (flags.wrong ? '<span class="warn-ico" aria-hidden="true">⚠</span>' : '');
     td.classList.toggle('m-x', state === 'X' || state === 'A');
     td.classList.toggle('m-o', state === 'O');
     td.classList.toggle('auto', state === 'A');
     td.classList.toggle('wrong', !!flags.wrong);
     td.classList.toggle('target', !!flags.target);
-    td.setAttribute('aria-label', nameOf(td, state, (query ? ', marked with a question mark' : '') + (flags.wrong ? ', conflicts with the solution' : '') + (flags.target ? ', hint: look here' : '')));
+    td.setAttribute('aria-label', nameOf(td, state, (flags.wrong ? ', conflicts with the solution' : '') + (flags.target ? ', hint: look here' : '')));
   }
 
   function crosshair(td) {
@@ -175,7 +130,6 @@ export function createGrid(frame, puzzle, ix, handlers) {
     else if (lower === 'o' || k === 'Enter') { e.preventDefault(); handlers.onMark(td.dataset.k, 'O', 'key'); }
     else if (k === 'Delete' || k === 'Backspace') { e.preventDefault(); handlers.onMark(td.dataset.k, '', 'key'); }
     else if (lower === 'r') { e.preventDefault(); handlers.onDescribeRow(td.dataset.row); }
-    else if (lower === 'q') { e.preventDefault(); handlers.onQuery?.(td.dataset.k); }
     else if (k === 'ContextMenu' || (k === 'F10' && e.shiftKey)) { e.preventDefault(); const b = td.getBoundingClientRect(); openMenu(td, b.left + b.width / 2, b.bottom); }
   });
 
@@ -244,8 +198,7 @@ export function createGrid(frame, puzzle, ix, handlers) {
     if (!b || !menuFor) return;
     const k = menuFor.dataset.k;
     closeMenu();
-    if (b.dataset.mark === '?') handlers.onQuery?.(k);
-    else handlers.onMark(k, b.dataset.mark, 'menu');
+    handlers.onMark(k, b.dataset.mark, 'menu');
   };
   menu.onkeydown = (e) => {
     const items = [...menu.querySelectorAll('button')];

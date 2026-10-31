@@ -10,13 +10,11 @@ import { printPuzzle } from './print.js';
 import { sceneSvg } from './art.js';
 import * as sfx from './audio.js';
 import * as ai from './ai.js';
-import * as director from './director.js';
-import * as pictureClues from './picture-clue.js';
 import { portrait, characterFace, loadPortraits, portraitsReady } from './portraits.js';
 import { sizesFor as tierSizes, tierChoicesHtml, themeGroupsHtml, sizeChoicesHtml, clueTypesHtml } from './setup-markup.js';
 import * as characters from './characters.js';
 import { characterOf, narratorOf, lineOf } from './cast.js';
-import { profileOf, sayingOf, moodOf, moodOfPersonality, caughtLine } from './castbook.js';
+import { profileOf, sayingOf } from './castbook.js';
 import * as wake from './wakelock.js';
 import * as updates from './updates.js';
 import { celebrate as celebrateSolve } from './effects.js';
@@ -53,9 +51,6 @@ import * as tutorial from './tutorial.js';
 import * as license from './license.js';
 import * as licenseDownload from './license-download.js';
 import { addCloseButtons, closeDialog } from './dialog-close.js';
-import { initTalker } from './talker.js';
-import * as games from './games.js';
-import * as pkg from './package-preview.js';
 
 addCloseButtons();
 
@@ -208,68 +203,7 @@ function setWorld(id) { document.documentElement.dataset.world = id || 'random';
 
 // The website's game page has a longer title for search results (scripts/seo.mjs).
 const HOME_TITLE = document.title;
-
-// A way back from every screen. The Back button (top left, on every screen
-// but the game cards), the phone's back gesture or back button, and the Android
-// app's back button all step back: an open window closes first, a lesson goes
-// back to the lesson list, The Fantastical Logic Grid's home goes to the game
-// cards, and any other screen goes home. The cards and the home add no history
-// entry of their own.
-let currentScreen = 'home';
-let skipPop = false;
-// Only an entry this page added (since it last loaded) is ever stepped back
-// over: one left from before a reload belongs to an earlier load, and going
-// back to it would reload the page.
-let pushedHere = false;
-try {
-  if (history.state && history.state.flgScreen) {
-    const { flgScreen, ...rest } = history.state;
-    history.replaceState(Object.keys(rest).length ? rest : null, '');
-  }
-} catch (e) { /* framed preview */ }
-function trackScreen(name) {
-  try {
-    const here = pushedHere && history.state && history.state.flgScreen;
-    if (name !== 'home' && name !== 'games') {
-      history[here ? 'replaceState' : 'pushState']({ ...(history.state || {}), flgScreen: name }, '');
-      pushedHere = true;
-    } else if (here) { pushedHere = false; skipPop = true; history.back(); } // home by a button: drop the screen's history entry
-  } catch (e) { /* framed preview */ }
-}
-function screenBack() {
-  if (currentScreen === 'games') return false;
-  if (currentScreen === 'home') { if (!pkg.on()) return false; openGames(); return true; }
-  if (currentScreen === 'learn' && !$('#learn-lesson').hidden) {
-    $('#learn-back').click();
-    try { if (!(history.state && history.state.flgScreen)) { history.pushState({ ...(history.state || {}), flgScreen: 'learn' }, ''); pushedHere = true; } } catch (e) { /* framed preview */ }
-    return true;
-  }
-  goHome();
-  return true;
-}
-window.addEventListener('popstate', () => {
-  if (skipPop) { skipPop = false; return; }
-  pushedHere = !!(history.state && history.state.flgScreen);
-  const open = [...document.querySelectorAll('dialog[open]')].pop();
-  if (open) {
-    if (open.dispatchEvent(new Event('cancel', { cancelable: true }))) open.close();
-    try { if (currentScreen !== 'home' && currentScreen !== 'games') { history.pushState({ ...(history.state || {}), flgScreen: currentScreen }, ''); pushedHere = true; } } catch (e) { /* framed preview */ }
-    return;
-  }
-  screenBack();
-});
-// The Android app's back button (mobile/shared/native-bridge.js) asks here
-// once no window or menu is open.
-window.__flgScreenBack = screenBack;
-
 function showScreen(name) {
-  currentScreen = name;
-  delete document.documentElement.dataset.start;
-  games.rememberGame(name === 'games' ? 'all' : name === 'np' ? 'ninetimesnine' : 'logic-grid');
-  // Public visitors have only The Fantastical Logic Grid: its home is the first screen.
-  $('#back-btn').hidden = name === 'games' || (name === 'home' && !pkg.on());
-  trackScreen(name);
-  $('#screen-games').hidden = name !== 'games';
   $('#screen-home').hidden = name !== 'home';
   $('#screen-play').hidden = name !== 'play';
   $('#screen-learn').hidden = name !== 'learn';
@@ -280,13 +214,10 @@ function showScreen(name) {
   // The entrance animation plays on screen changes, not for the first screen
   // at start (it would hold back the first paint).
   if (document.documentElement.classList.contains('ready')) { scr.classList.remove('enter'); void scr.offsetWidth; scr.classList.add('enter'); }
-  if (name === 'games') setWorld('random');
-  else if (name !== 'np') setWorld(name === 'play' && S ? S.puzzle.theme.id : setup.theme);
-  // How to play, the Introduction and the scoreboard are The Fantastical Logic Grid's.
-  $('.topstrip').hidden = name === 'games';
+  if (name !== 'np') setWorld(name === 'play' && S ? S.puzzle.theme.id : setup.theme);
   $('#skip-link').hidden = name !== 'play';
   $('#view-seg').hidden = name !== 'play';
-  document.title = name === 'play' && S ? `${S.save.name} · The Fantastical Logic Grid` : name === 'learn' ? 'How to play · The Fantastical Logic Grid' : name === 'np' ? 'NINETIMESNINE · The Logic Grid' : name === 'games' ? 'The Logic Grid' : pkg.on() ? 'The Fantastical Logic Grid · The Logic Grid' : HOME_TITLE;
+  document.title = name === 'play' && S ? `${S.save.name} · The Fantastical Logic Grid` : name === 'learn' ? 'How to play · The Fantastical Logic Grid' : name === 'np' ? 'Number Place · The Fantastical Logic Grid' : HOME_TITLE;
   if (name === 'home') { closeGame(); renderSaved(); renderSuggestion(); renderDaily(); accountsOnHome(); competeUi.onHome(); setTimeout(offerUpdate, 500); }
   wake.setPlaying(name === 'play' && S && !S.save.solved);
   updateMusic();
@@ -309,26 +240,11 @@ const setup = {
 };
 
 const sizesFor = (tierId) => tierSizes(TIERS[tierId]);
-// The setup choices hold only entries from the game's own lists, never text
-// read from the page or from storage: anything unknown becomes the default.
-const knownTier = (v) => (OPTIONS.difficulties.find((d) => d.id === v) || TIERS.easy).id;
-const knownTheme = (v) => (v === 'random' ? 'random' : (OPTIONS.themes.find((t) => t.id === v) || { id: 'random' }).id);
-const knownTopic = (themeId, v) => {
-  const theme = OPTIONS.themes.find((t) => t.id === themeId);
-  return (((theme && theme.topics) || []).find((t) => t.id === v) || { id: 'any' }).id;
-};
-const knownSize = (tierId, v) => (v === 'custom' ? 'custom' : sizesFor(tierId).find((x) => x === v) || null);
-const knownCustom = (c) => (Array.isArray(c) ? [Math.max(3, Math.min(6, Math.round(+c[0]) || 4)), Math.max(3, Math.min(8, Math.round(+c[1]) || 4))] : [4, 4]);
 
 function renderSetup() {
   const saved = store.loadSetupChoices();
-  if (saved) {
-    setup.tier = knownTier(saved.tier);
-    setup.theme = knownTheme(saved.theme);
-    setup.topic = knownTopic(setup.theme, saved.topic);
-    setup.size = knownSize(setup.tier, saved.size);
-    setup.custom = knownCustom(saved.custom);
-  }
+  if (saved) Object.assign(setup, saved);
+  if (!TIERS[setup.tier]) setup.tier = 'easy';
 
   $('#tier-choices').innerHTML = tierChoicesHtml(OPTIONS.difficulties, setup.tier);
   // Themes switched off in the admin dashboard are left out; supporter extras
@@ -351,34 +267,14 @@ function renderSetup() {
   $('#cats').value = setup.custom[0];
   $('#items').value = setup.custom[1];
 
-  $('#tier-choices').onchange = () => { setup.tier = knownTier($('input[name=tier]:checked').value); setup.size = null; renderSizes(); renderClueTypes(); updatePreview(); };
-  chosenTheme = $('input[name=theme]:checked');
-  $('#theme-choices').onchange = () => { chosenTheme = $('input[name=theme]:checked'); setup.theme = knownTheme(chosenTheme.value); setup.topic = 'any'; topicsClosed = false; renderTopics(); setWorld(setup.theme); updatePreview(); };
-  // Tapping the theme that is already chosen folds its topic list away, and
-  // tapping it again opens it. (The click comes before the change, so a new
-  // theme is not yet chosenTheme here.)
-  const toggleTopics = (e) => {
-    const input = e.target.closest('input[name=theme]');
-    if (!input || input !== chosenTheme) return false;
-    const theme = OPTIONS.themes.find((t) => t.id === setup.theme);
-    if (!theme || (theme.topics || []).length < 2) return false;
-    topicsClosed = !topicsClosed;
-    renderTopics();
-    announce(topicsClosed ? `${theme.name} topics closed.` : `${theme.name} topics open.`);
-    return true;
-  };
-  $('#theme-choices').onclick = (e) => { toggleTopics(e); };
-  // Space or Enter on the chosen theme does the same (browsers send no click
-  // for a radio button that is already chosen).
-  $('#theme-choices').onkeydown = (e) => {
-    if ((e.key === ' ' || e.key === 'Enter') && toggleTopics(e)) e.preventDefault();
-  };
-  $('#topic-choices').onchange = () => { setup.topic = knownTopic(setup.theme, $('input[name=topic]:checked').value); updatePreview(); };
+  $('#tier-choices').onchange = () => { setup.tier = $('input[name=tier]:checked').value; setup.size = null; renderSizes(); renderClueTypes(); updatePreview(); };
+  $('#theme-choices').onchange = () => { setup.theme = $('input[name=theme]:checked').value; setup.topic = 'any'; renderTopics(); setWorld(setup.theme); updatePreview(); };
+  $('#topic-choices').onchange = () => { setup.topic = $('input[name=topic]:checked').value; updatePreview(); };
   setWorld(setup.theme);
   // Rows reflow when the window resizes, so keep the topics under the chosen theme.
   if (!renderSetup.watching && window.ResizeObserver) { renderSetup.watching = true; new ResizeObserver(placeTopics).observe($('#theme-choices')); }
-  $('#size-choices').onchange = () => { setup.size = knownSize(setup.tier, $('input[name=size]:checked').value); $('#custom-size').hidden = setup.size !== 'custom'; updatePreview(); };
-  $('#cats').oninput = $('#items').oninput = () => { setup.custom = knownCustom([$('#cats').value, $('#items').value]); updatePreview(); };
+  $('#size-choices').onchange = () => { setup.size = $('input[name=size]:checked').value; $('#custom-size').hidden = setup.size !== 'custom'; updatePreview(); };
+  $('#cats').oninput = $('#items').oninput = () => { setup.custom = [+$('#cats').value || 4, +$('#items').value || 4]; updatePreview(); };
   $('#clue-count').oninput = updatePreview;
   $('#setup').onsubmit = (e) => { e.preventDefault(); startGeneration(); };
   $('#style-choices').onchange = () => { settings.silent = $('input[name=playstyle]:checked').value === 'silent'; store.saveSettings(settings); applyMode(); };
@@ -396,8 +292,6 @@ function extrasLink(url) { return url; }
 // Topics narrow a theme, for example which holiday or which kind of mystery.
 // "Surprise me" has none, so the picker hides.
 let topicEl;
-let topicsClosed = false; // folded away by tapping the chosen theme again
-let chosenTheme = null;    // the chosen theme's radio button
 // It sits inside the theme list, so a topic pick must not count as a theme change.
 function topicField() {
   if (!topicEl) {
@@ -409,7 +303,7 @@ function topicField() {
 function renderTopics() {
   const theme = OPTIONS.themes.find((t) => t.id === setup.theme);
   const topics = (theme && theme.topics) || [];
-  topicField().hidden = topics.length < 2 || topicsClosed;
+  topicField().hidden = topics.length < 2;
   topicField().querySelector('legend').textContent = theme && topics.length > 1 ? `${theme.name} topics` : 'Topic';
   if (!topics.some((t) => t.id === setup.topic)) setup.topic = 'any';
   topicField().querySelector('#topic-choices').innerHTML = topics.map((t) => `
@@ -627,24 +521,12 @@ $('#quick-btn').onclick = startQuick;
 // ?play=now in a link (ads, the website) starts a quick puzzle straight away.
 // ?play=daily (the daily email) opens today's daily puzzle, or with &day= that day's.
 // ?play=weekly[&week=] and ?play=special&id= (the puzzle emails) open those.
-// A value from the address is read once and kept only if it matches its exact
-// pattern (a date, or a special edition's id), so nothing else gets through.
-function linkDay(url, name) {
-  const raw = url.searchParams.get(name);
-  if (typeof raw === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
-  return null;
-}
-function linkEditionId(url) {
-  const raw = url.searchParams.get('id');
-  if (typeof raw === 'string' && /^se-[\w-]{1,40}$/.test(raw)) return raw;
-  return null;
-}
 function handlePlayLink() {
   const url = new URL(location.href);
   const play = url.searchParams.get('play');
   if (play === 'weekly' || play === 'special') {
-    const week = linkDay(url, 'week');
-    const id = linkEditionId(url);
+    const week = /^\d{4}-\d{2}-\d{2}$/.test(url.searchParams.get('week') || '') ? url.searchParams.get('week') : null;
+    const id = /^se-[\w-]{1,40}$/.test(url.searchParams.get('id') || '') ? url.searchParams.get('id') : null;
     for (const k of ['play', 'week', 'id']) url.searchParams.delete(k);
     try { history.replaceState(history.state, '', url.pathname + url.search + url.hash); } catch (e) { /* framed preview */ }
     if (!daily.available() || isPreview || (play === 'special' && !id)) { startQuick(); return true; }
@@ -654,7 +536,7 @@ function handlePlayLink() {
   }
   if (play !== 'now' && play !== 'daily') return false;
   // A Hand-picked link names its day: ?play=daily&day=2026-11-03.
-  const day = linkDay(url, 'day');
+  const day = /^\d{4}-\d{2}-\d{2}$/.test(url.searchParams.get('day') || '') ? url.searchParams.get('day') : null;
   url.searchParams.delete('play');
   url.searchParams.delete('day');
   try { history.replaceState(history.state, '', url.pathname + url.search + url.hash); } catch (e) { /* framed preview */ }
@@ -689,45 +571,11 @@ function newSave(puzzle) {
 // ====================================================================
 // Saved puzzles
 // ====================================================================
-// Saved Puzzles: puzzles in progress, newest first, with a count of new ones
-// (a puzzle someone sent, like the one made from a player's approved storyline,
-// that has not been opened yet). Finished puzzles leave the list for
-// "Completed puzzles" below it, where they can still be opened or deleted.
-// Puzzles in progress, and the one made from the player's own storyline, can
-// be downloaded; other finished puzzles can only be opened or deleted.
-const isNewSave = (s) => !!(s.gift || s.unread) && !s.openedAt && !s.solved;
-function savedItem(s, fmt) {
-  const p = s.puzzle;
-  // A save can come from a puzzle file, so every value is escaped or made a number.
-  const pct = s.solved ? 100 : Math.max(0, Math.min(100, Math.round(Number(s.percent) || 0)));
-  const size = `${Number(p.categories.length) || 0} × ${Number(p.categories[0].items.length) || 0}`;
-  const state = s.solved ? (s.revealed ? 'Solution revealed' : 'Solved') : `${pct}% complete`;
-  const pills = [
-    isNewSave(s) ? '<span class="pill new">New</span>' : '',
-    s.gift ? '<span class="pill">From your storyline</span>' : '',
-    s.race ? `<span class="pill">Race ${esc(s.race.code)}</span>` : '',
-    s.daily ? `<span class="pill">Daily ${esc(daily.longDate(s.daily))}</span>` : '',
-    s.editionLabel ? `<span class="pill">${esc(s.editionLabel)}</span>` : '',
-    (s.myNotes || '').trim() ? '<span class="pill">Has notes</span>' : '',
-  ].filter(Boolean).join(' ');
-  return `<li class="saved-item${isNewSave(s) ? ' is-new' : ''}" data-id="${esc(s.id)}">
-      <h3 class="name">${esc(s.name)}</h3>
-      <div class="info">${pills ? `${pills} ` : ''}${esc(p.theme.name)} · ${esc(p.difficulty.name)} · ${size} · ${state}<br>${s.openedAt || !isNewSave(s) ? `Last played ${esc(fmt.format(new Date(Number(s.lastPlayed) || 0)))}` : `Arrived ${esc(fmt.format(new Date(Number(s.created || s.lastPlayed) || 0)))}`}</div>
-      <div class="bar" role="img" aria-label="${state}"><i style="width:${pct}%"></i></div>
-      <div class="row">
-        <button class="btn primary small" type="button" data-do="resume">Open<span class="sr-only"> ${esc(s.name)}</span></button>
-        ${(s.gift || !s.solved) && !isPreview ? `<button class="btn small" type="button" data-do="export">Download<span class="sr-only"> ${esc(s.name)}</span></button>` : ''}
-        <button class="btn small" type="button" data-do="delete">Delete<span class="sr-only"> ${esc(s.name)}</span></button>
-      </div></li>`;
-}
-
 async function renderSaved() {
   let saves = [];
   try { saves = await store.listSaves(); } catch (e) { $('#saved-empty').textContent = 'Saved puzzles could not be loaded on this device.'; }
-  saves.sort((a, b) => (isNewSave(b) - isNewSave(a)) || b.lastPlayed - a.lastPlayed);
-  const active = saves.filter((x) => !x.solved);
-  const done = saves.filter((x) => x.solved).sort((a, b) => (b.completedAt || b.lastPlayed) - (a.completedAt || a.lastPlayed));
-  const last = active.find((x) => !isNewSave(x)) || active[0];
+  saves.sort((a, b) => b.lastPlayed - a.lastPlayed);
+  const last = saves.find((x) => !x.solved);
   $('#continue-btn').hidden = !last;
   // With nothing to continue, the quick puzzle is the main way in.
   $('#quick-btn').classList.toggle('primary', !last);
@@ -735,40 +583,25 @@ async function renderSaved() {
     $('#continue-btn').dataset.id = last.id;
     $('#continue-name').textContent = `${last.name} · ${last.percent || 0}%`;
   }
-  const fresh = active.filter(isNewSave).length;
-  $('#saved-new').hidden = !fresh;
-  $('#saved-new').textContent = `${fresh} new`;
-  const menuItem = $('#app-menu [data-cmd=saved]');
-  if (menuItem) menuItem.textContent = fresh ? `Saved Puzzles (${fresh} new)` : 'Saved Puzzles';
-  $('#saved-empty').hidden = active.length > 0;
-  $('#saved-empty').textContent = done.length
-    ? 'No puzzles in progress. Finished ones are under Completed puzzles below.'
-    : signedIn() ? 'Your puzzles save automatically and sync to your account. Start one and it will appear here.' : 'Your puzzles save automatically on this device. Start one and it will appear here.';
+  $('#saved-empty').hidden = saves.length > 0;
+  $('#saved-empty').textContent = signedIn() ? 'Your puzzles save automatically and sync to your account. Start one and it will appear here.' : 'Your puzzles save automatically on this device. Start one and it will appear here.';
   const fmt = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' });
-  $('#saved-list').innerHTML = active.map((s) => savedItem(s, fmt)).join('');
-  const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
-  $('#saved-summary').textContent = saves.length
-    ? [active.length ? plural(active.length, 'puzzle in progress', 'puzzles in progress') : 'Nothing in progress', done.length ? `${done.length} completed` : ''].filter(Boolean).join(' · ')
-    : 'Your puzzles save here automatically.';
-  showSavedBody(savedOpen());
-  $('#saved-done').hidden = !done.length;
-  $('#saved-done-count').textContent = String(done.length);
-  $('#saved-done-list').innerHTML = done.map((s) => savedItem(s, fmt)).join('');
+  $('#saved-list').innerHTML = saves.map((s) => {
+    const p = s.puzzle;
+    const pct = s.solved ? 100 : s.percent || 0;
+    const state = s.solved ? (s.revealed ? 'Solution revealed' : 'Solved') : `${pct}% complete`;
+    return `<li class="saved-item" data-id="${s.id}">
+      <h3 class="name">${esc(s.name)}</h3>
+      <div class="info">${s.race ? `<span class="pill">Race ${esc(s.race.code)}</span> ` : ''}${s.daily ? `<span class="pill">Daily ${esc(daily.longDate(s.daily))}</span> ` : ''}${s.editionLabel ? `<span class="pill">${esc(s.editionLabel)}</span> ` : ''}${(s.myNotes || '').trim() ? '<span class="pill">Has notes</span> ' : ''}${esc(p.theme.name)} · ${esc(p.difficulty.name)} · ${p.categories.length} × ${p.categories[0].items.length} · ${state}<br>Last played ${esc(fmt.format(new Date(s.lastPlayed)))}</div>
+      <div class="bar" role="img" aria-label="${state}"><i style="width:${pct}%"></i></div>
+      <div class="row">
+        <button class="btn primary small" type="button" data-do="resume">${s.solved ? 'Open' : 'Resume'}<span class="sr-only"> ${esc(s.name)}</span></button>
+        <button class="btn small" type="button" data-do="rename">Rename<span class="sr-only"> ${esc(s.name)}</span></button>
+        ${isPreview ? '' : `<button class="btn small" type="button" data-do="export">Save to file<span class="sr-only"> ${esc(s.name)}</span></button>`}
+        <button class="btn small" type="button" data-do="delete">Delete<span class="sr-only"> ${esc(s.name)}</span></button>
+      </div></li>`;
+  }).join('');
 }
-
-// The Saved Puzzles box stays small until opened, to save screen space. Each
-// device remembers whether it was left open.
-const savedOpen = () => { try { return store.getLocal('savedOpen') === true; } catch (e) { return false; } };
-function showSavedBody(open) {
-  $('#saved-body').hidden = !open;
-  $('#saved-toggle').setAttribute('aria-expanded', String(open));
-  $('#saved-toggle').textContent = open ? 'Close' : 'Open';
-}
-function setSavedOpen(open) {
-  try { store.setLocal('savedOpen', open ? true : undefined); } catch (e) { /* this visit only */ }
-  showSavedBody(open);
-}
-$('#saved-toggle').onclick = () => setSavedOpen($('#saved-body').hidden);
 
 $('#continue-btn').onclick = async () => {
   const save = await store.getSave($('#continue-btn').dataset.id);
@@ -776,8 +609,8 @@ $('#continue-btn').onclick = async () => {
 };
 $('#hero-new').onclick = () => { $('#setup-h').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); $('#setup-h').tabIndex = -1; $('#setup-h').focus({ preventScroll: true }); };
 
-$('#saved-section').addEventListener('click', async (e) => {
-  const b = e.target.closest('.saved-item button[data-do]');
+$('#saved-list').addEventListener('click', async (e) => {
+  const b = e.target.closest('button[data-do]');
   if (!b) return;
   const li = b.closest('li');
   const id = li.dataset.id;
@@ -802,7 +635,7 @@ function startRename(li, save) {
   const h = li.querySelector('.name');
   const form = document.createElement('form');
   form.className = 'field';
-  form.innerHTML = `<label for="rn-${esc(save.id)}">New name</label><input id="rn-${esc(save.id)}" type="text" value="${esc(save.name)}"><div class="row"><button class="btn primary small">Save name</button><button class="btn small" type="button">Keep old name</button></div>`;
+  form.innerHTML = `<label for="rn-${save.id}">New name</label><input id="rn-${save.id}" type="text" value="${esc(save.name)}"><div class="row"><button class="btn primary small">Save name</button><button class="btn small" type="button">Keep old name</button></div>`;
   h.replaceWith(form);
   const input = form.querySelector('input');
   input.focus();
@@ -901,16 +734,12 @@ $('#import-file').onchange = async (e) => {
 // ====================================================================
 function openGame(save, { fresh = false } = {}) {
   closeGame();
-  // A new puzzle in Saved Puzzles stops counting as new once it is opened.
-  if (!save.openedAt) { save.openedAt = Date.now(); store.putSave(save).catch(() => {}); }
   campaign.played();
   const puzzle = save.puzzle;
   const ix = puzzleIndex(puzzle);
   S = {
     save, puzzle, ix,
     marks: new Map(Object.entries(save.marks || {})),
-    // The player's "?" reminders (empty cells only); saved as save.queries.
-    queries: new Set((save.queries || []).filter((k) => !(save.marks || {})[k])),
     wrong: new Set(),
     hint: null,
     dirty: false,
@@ -935,29 +764,22 @@ function openGame(save, { fresh = false } = {}) {
   $('#p-notes').hidden = !notes.length;
   $('#p-notes').innerHTML = notes.map(esc).join('<br>');
 
-  const rules = clueRules(puzzle);
-  $('#clue-rules').hidden = !rules.length;
-  $('#clue-rules').innerHTML = rules.map((r) => `<span>${esc(r)}</span>`).join(' ');
-
   S.witness = assignWitnesses(puzzle, ix);
   $('#clue-list').innerHTML = puzzle.clues.map((c) => `
-    <li data-n="${+c.number}"${save.ticked.includes(c.number) ? ' class="used"' : ''}><span class="num" aria-hidden="true">${+c.number}</span>
-    <label><input type="checkbox" data-n="${+c.number}"${save.ticked.includes(c.number) ? ' checked' : ''} aria-label="Clue ${+c.number}, used"><span><span class="txt">${esc(c.text)}</span><span class="from media">From ${esc(S.witness[c.number])}</span></span></label></li>`).join('');
-  startPictureClue();
+    <li data-n="${c.number}"${save.ticked.includes(c.number) ? ' class="used"' : ''}><span class="num" aria-hidden="true">${c.number}</span>
+    <label><input type="checkbox" data-n="${c.number}"${save.ticked.includes(c.number) ? ' checked' : ''} aria-label="Clue ${c.number}, used"><span><span class="txt">${esc(c.text)}</span><span class="from media">From ${esc(S.witness[c.number])}</span></span></label></li>`).join('');
   renderMedia();
   $('#q-list').innerHTML = puzzle.questions.map((q) => `
-    <li><label for="q-${+q.number}">${esc(q.text)}</label>
-    <select id="q-${+q.number}" data-n="${+q.number}"><option value="">Choose an answer</option>${q.options.map((o) => `<option value="${esc(o)}"${save.answers[q.number] === o ? ' selected' : ''}>${esc(ix.label(o))}</option>`).join('')}</select>
-    <span class="res" id="qr-${+q.number}"></span></li>`).join('');
+    <li><label for="q-${q.number}">${esc(q.text)}</label>
+    <select id="q-${q.number}" data-n="${q.number}"><option value="">Choose an answer</option>${q.options.map((o) => `<option value="${o}"${save.answers[q.number] === o ? ' selected' : ''}>${esc(ix.label(o))}</option>`).join('')}</select>
+    <span class="res" id="qr-${q.number}"></span></li>`).join('');
   $('#answer-result').textContent = '';
   updateNotesButton();
 
   S.grid = createGrid($('#gridframe'), puzzle, ix, {
     // Tapping an automatic X clears it (it never turns into an O).
-    // Tapping cycles blank, X, O, ?, blank. Tapping an automatic X clears it.
-    onCycle: (k) => cycleCell(k),
+    onCycle: (k) => { const cur = S.marks.get(k) || ''; setCell(k, cur === '' ? 'X' : cur === 'X' ? 'O' : ''); },
     onMark: (k, v) => setCell(k, v),
-    onQuery: (k) => toggleQuery(k),
     onDescribeRow: describeRow,
     onFocus: (k) => { save.focus = k; },
   });
@@ -987,41 +809,8 @@ function openGame(save, { fresh = false } = {}) {
   updateMusic();
 }
 
-// The locked clue and its picture (picture-clue.js). Called when a puzzle
-// opens and when the Picture clues setting changes.
-function startPictureClue() {
-  if (!S) return;
-  // Basic leaves out the picture puzzle that unlocks a clue (Bobby, 2026-10-31).
-  if (isBasic()) { pictureClues.stop(); notePicture('none'); return; }
-  pictureClues.start(S.puzzle, {
-    save: S.save, settings,
-    onSolved: (pc) => { notePicture('solved'); sound('section'); announce(`Clue ${pc.locked} unlocked: ${S.puzzle.clues.find((c) => c.number === pc.locked)?.text || ''}`); },
-    onChange: () => scheduleSave(),
-  });
-  const pc = pictureClues.current();
-  notePicture(!pictureClues.enabled(settings) ? 'off' : !pc ? 'none' : pc.solved ? (S.save.pic === 'solved' ? 'solved' : 'locked') : 'locked');
-}
-// What happened to the picture clue, for learning (learn.js): none, off,
-// locked or solved. "Solved" means the player solved the picture themselves
-// (finishing the whole puzzle unlocks it too, which doesn't count), and it
-// sticks, so turning picture clues off afterwards doesn't undo it.
-function notePicture(v) {
-  if (!S || S.save.pic === 'solved' || S.save.pic === v) return;
-  S.save.pic = v;
-  scheduleSave();
-}
-// Short story moments under the scene as sections are finished (director.js).
-function startBeats() {
-  if (!S) return;
-  const p = S.puzzle;
-  director.start(p, { on: director.enabled(settings) && !settings.silent, speak: (text) => { if (voiceOn()) ai.speak(settings, p, 'narrator', text, { volume: settings.volume / 100 }); } });
-}
-// A clue's words, or a note that it is still locked behind its picture.
-const clueWords = (c) => (c.number === pictureClues.lockedClue() ? `Clue ${c.number} is locked evidence: solve its picture to reveal it.` : c.text);
-
 function closeGame() {
   $('#toasts').replaceChildren(); // toast actions belong to the game they came from
-  pictureClues.stop();
   if (!S) return;
   try { sfx.stopMusic(); ai.stopSpeaking(); } catch (e) { /* ignore */ }
   stopTimer();
@@ -1039,20 +828,17 @@ function paintAll() {
 }
 function paintCell(k) {
   const target = S.hint && S.hint.level >= 1 && S.hint.targets.has(k);
-  S.grid.paint(k, S.marks.get(k) || '', { wrong: S.wrong.has(k), target, query: S.queries.has(k) });
+  S.grid.paint(k, S.marks.get(k) || '', { wrong: S.wrong.has(k), target });
 }
 
-// Every change is a list of { t: 'm' (mark) | 'q' (a "?" reminder, 'y' or '') |
-// 't' (clue tick) | 's' (progress, used by Start over), k, b (before), a (after) }.
+// Every change is a list of { t: 'm' (mark) | 't' (clue tick) | 's' (progress,
+// used by Start over), k, b (before), a (after) }.
 function applyChanges(changes, dir) {
   for (const ch of changes) {
     const v = dir > 0 ? ch.a : ch.b;
     if (ch.t === 'm') {
       if (v) S.marks.set(ch.k, v); else S.marks.delete(ch.k);
       S.wrong.delete(ch.k);
-      paintCell(ch.k);
-    } else if (ch.t === 'q') {
-      if (v) S.queries.add(ch.k); else S.queries.delete(ch.k);
       paintCell(ch.k);
     } else if (ch.t === 't') {
       const n = Number(ch.k);
@@ -1132,27 +918,16 @@ function updateUndoButtons() {
 // "Try again", spoken by the narrator, when a player is on the last few
 // decisions of a puzzle (a row's worth of cells or fewer left) and marks a
 // cell that does not fit the solution. At most once every few seconds, and
-// only while voices are on. Tapping cycles empty, X, O, so an X on its way to
-// an O is not a mistake yet: an X is only called out if it is still there
-// after a moment (player report: "Try again" on the last correct moves).
-const TRY_AGAIN_X_WAIT_MS = 1500;
+// only while voices are on.
 let lastTryAgain = 0;
-let tryAgainTimer = 0;
-function tryAgainNearEnd(k) {
-  clearTimeout(tryAgainTimer);
+function tryAgainNearEnd() {
   if (!S || S.save.solved || S.save.revealed || !voiceOn()) return;
   const left = [...S.grid.cells.keys()].filter((c) => !S.marks.get(c)).length;
   const lastDecisions = Math.max(3, S.puzzle.categories[0].items.length);
-  if (left > lastDecisions) return;
-  const say = () => {
-    if (!S || S.save.solved || S.save.revealed || Date.now() - lastTryAgain < 4000) return;
-    lastTryAgain = Date.now();
-    status('Try again.');
-    ai.speak(settings, S.puzzle, 'narrator', 'Try again.', { volume: settings.volume / 100 }).catch(() => {});
-  };
-  if (S.marks.get(k) !== 'X') { say(); return; }
-  const puzzle = S.puzzle;
-  tryAgainTimer = setTimeout(() => { if (S && S.puzzle === puzzle && S.marks.get(k) === 'X') say(); }, TRY_AGAIN_X_WAIT_MS);
+  if (left > lastDecisions || Date.now() - lastTryAgain < 4000) return;
+  lastTryAgain = Date.now();
+  status('Try again.');
+  ai.speak(settings, S.puzzle, 'narrator', 'Try again.', { volume: settings.volume / 100 }).catch(() => {});
 }
 
 // Cells in the same sub-grid row and column as k (for auto-X).
@@ -1170,11 +945,9 @@ function setCell(k, v) {
   const before = S.marks.get(k) || '';
   if (before === v) return;
   const changes = [{ t: 'm', k, b: before, a: v }];
-  // A cell holds a mark or a "?", never both: the mark replaces the "?" (undo brings it back).
-  if (v && S.queries.has(k)) changes.push({ t: 'q', k, b: 'y', a: '' });
   let autoCount = 0;
   if (v === 'O' && settings.autoX) {
-    for (const m of lineMates(k)) if (!S.marks.get(m)) { changes.push({ t: 'm', k: m, b: '', a: 'A' }); if (S.queries.has(m)) changes.push({ t: 'q', k: m, b: 'y', a: '' }); autoCount++; }
+    for (const m of lineMates(k)) if (!S.marks.get(m)) { changes.push({ t: 'm', k: m, b: '', a: 'A' }); autoCount++; }
   }
   const [a, b] = k.split('|');
   const what = `${S.ix.label(a)} and ${S.ix.label(b)} ${v === 'O' ? 'confirmed' : v ? 'ruled out' : 'cleared'}`;
@@ -1189,39 +962,10 @@ function setCell(k, v) {
     if (mk && settings.instant) { S.wrong.add(k); paintCell(k); wrongNow = true; }
   }
   // A wrong mark near the end, or a finished grid that is not the answer.
-  if (v && (checkMarks(S.puzzle, [{ a, b, mark: v === 'O' ? 'O' : 'X' }])[0] || (!S.save.solved && ![...S.grid.cells.keys()].some((c) => !S.marks.get(c))))) tryAgainNearEnd(k);
+  if (v && (checkMarks(S.puzzle, [{ a, b, mark: v === 'O' ? 'O' : 'X' }])[0] || (!S.save.solved && ![...S.grid.cells.keys()].some((c) => !S.marks.get(c))))) tryAgainNearEnd();
   sound(wrongNow ? 'error' : v === 'O' ? 'O' : v ? 'X' : 'clear');
   const td = S.grid.cells.get(k);
   announce(`${td ? `${S.ix.label(td.dataset.row)}, ${S.ix.label(td.dataset.col)}` : what}, ${STATE_WORDS[v]}${wrongNow ? ', conflicts with the solution' : ''}${autoCount ? `. Also ruled out ${autoCount} other cell${autoCount > 1 ? 's' : ''}` : ''}${autoGone ? `. Also removed ${autoGone} automatic X${autoGone > 1 ? 's' : ''}` : ''}.`);
-}
-
-// The "?" reminder: on and off in an empty cell only. It is never a mark, so
-// checks, hints, scoring and the rest of the grid ignore it; undo covers it.
-function toggleQuery(k) {
-  if (!S) return;
-  const td = S.grid.cells.get(k);
-  const where = td ? `${S.ix.label(td.dataset.row)}, ${S.ix.label(td.dataset.col)}` : '';
-  if (S.marks.get(k)) { status('A ? only goes in an empty cell. Clear the X or O first.'); return; }
-  const on = !S.queries.has(k);
-  commit([{ t: 'q', k, b: on ? '' : 'y', a: on ? 'y' : '' }], on ? 'question mark' : 'remove question mark');
-  sound(on ? 'X' : 'clear');
-  announce(`${where}, ${on ? 'marked with a question mark' : 'question mark removed'}.`);
-}
-
-function cycleCell(k) {
-  if (!S) return;
-  const cur = S.marks.get(k) || '';
-  if (cur === '') return S.queries.has(k) ? toggleQuery(k) : setCell(k, 'X');
-  if (cur === 'X') return setCell(k, 'O');
-  if (cur === 'O') {
-    // O to ?: one step (undo brings the O back), its automatic Xs go with it as usual.
-    const td = S.grid.cells.get(k);
-    commit([{ t: 'm', k, b: 'O', a: '' }, { t: 'q', k, b: '', a: 'y' }], 'question mark');
-    sound('clear');
-    announce(`${td ? `${S.ix.label(td.dataset.row)}, ${S.ix.label(td.dataset.col)}` : ''}, marked with a question mark.`);
-    return;
-  }
-  return setCell(k, '');
 }
 
 function describeRow(rowItem) {
@@ -1260,7 +1004,6 @@ function updateProgress() {
   }
   S.doneBlocks = newDone;
   revealScene(done / S.puzzle.grid.blocks.length);
-  director.progress(done);
   try { sfx.setMood(pct / 100); } catch (e) { /* ignore */ }
   $('#progress').textContent = `${pct}% filled · ${done} of ${S.puzzle.grid.blocks.length} sections done`;
   $('#progress-fill').style.width = `${pct}%`;
@@ -1432,9 +1175,7 @@ const TECHNIQUE_LESSONS = {
 function hintLines(res, level) {
   const out = [];
   const clue = res.clue ? S.puzzle.clues.find((c) => c.number === res.clue) : null;
-  if (clue && clue.number === pictureClues.lockedClue()) {
-    out.push(`<p><b>Hint:</b> The next step needs clue ${clue.number}, and it is still locked evidence. Solve its picture to reveal it.</p><p><button class="btn small" type="button" id="hint-evidence">Open the evidence</button></p>`);
-  } else out.push(`<p><b>Hint:</b> ${esc(res.levels[0])}${clue ? ` <q class="hint-clue">${esc(clue.text)}</q>` : ''}</p>`);
+  out.push(`<p><b>Hint:</b> ${esc(res.levels[0])}${clue ? ` <q class="hint-clue">${esc(clue.text)}</q>` : ''}</p>`);
   if (res.kind === 'step' && res.techniqueName) out.push(`<p class="hint-tech"><span class="pill">${esc(res.techniqueName)}</span></p>`);
   if (level >= 1) out.push(`<p>${esc(res.levels[1])}</p>`);
   if (level >= 2) {
@@ -1465,9 +1206,8 @@ function renderHint() {
   if (res.clue) $(`#clue-list li[data-n="${res.clue}"]`)?.classList.add('hinted');
   for (const k of S.hint.targets) paintCell(k);
   const clue = level === 0 && res.clue ? S.puzzle.clues.find((c) => c.number === res.clue) : null;
-  announce(level === 2 && TECHNIQUE_LESSONS[res.technique] ? `${res.levels[2]} ${TECHNIQUE_LESSONS[res.technique]}` : clue ? `${res.levels[0]} ${clueWords(clue)}` : res.levels[level]);
+  announce(level === 2 && TECHNIQUE_LESSONS[res.technique] ? `${res.levels[2]} ${TECHNIQUE_LESSONS[res.technique]}` : clue ? `${res.levels[0]} ${clue.text}` : res.levels[level]);
   $('#hint-more')?.addEventListener('click', hint);
-  $('#hint-evidence')?.addEventListener('click', () => pictureClues.open());
   $('#hint-close').onclick = () => { clearHint(); S.grid.focusKey(S.save.focus); };
   $('#hint-apply')?.addEventListener('click', () => {
     const changes = res.kind === 'mistake'
@@ -1541,14 +1281,14 @@ function syncSolvedView() {
 async function startOver() {
   const s = S.save;
   const racing = !!(s.race && !s.race.finished);
-  if (!S.marks.size && !S.queries.size && !s.ticked.length && !Object.values(s.answers).some(Boolean) && !s.elapsedMs && !s.hintsUsed && !s.checksUsed) {
+  if (!S.marks.size && !s.ticked.length && !Object.values(s.answers).some(Boolean) && !s.elapsedMs && !s.hintsUsed && !s.checksUsed) {
     status('This puzzle is already at the start.');
     return;
   }
   const notes = (s.myNotes || '').trim() ? { label: 'Also clear my notes', checked: false } : null;
   const text = racing
-    ? 'This removes every X, O and ?, clue tick and answer. The race clock keeps running, and your hints and checks still count. You can undo it.'
-    : `This removes every X, O and ?, clue tick and answer, and resets the timer, hints and checks.${signedIn() && !s.race ? ' A restarted puzzle no longer earns scoreboard points.' : ''} Your notes stay unless you choose to clear them. You can undo it.`;
+    ? 'This removes every X and O, clue tick and answer. The race clock keeps running, and your hints and checks still count. You can undo it.'
+    : `This removes every X and O, clue tick and answer, and resets the timer, hints and checks.${signedIn() && !s.race ? ' A restarted puzzle no longer earns scoreboard points.' : ''} Your notes stay unless you choose to clear them. You can undo it.`;
   const ok = await confirmDialog({ title: 'Start this puzzle over?', text, yes: 'Start over', no: 'Keep playing', check: notes });
   if (!ok || !S || S.save !== s) return;
   tickTimer();
@@ -1563,7 +1303,6 @@ async function startOver() {
   for (const k of old) paintCell(k);
   commit([
     ...[...S.marks].map(([k, v]) => ({ t: 'm', k, b: v, a: '' })),
-    ...[...S.queries].map((k) => ({ t: 'q', k, b: 'y', a: '' })),
     ...s.ticked.map((n) => ({ t: 't', k: String(n), b: 'y', a: '' })),
     { t: 's', k: '', b: before, a: after },
   ], 'start over');
@@ -1596,12 +1335,7 @@ function checkSolved() {
   const solved = isSolved(S.puzzle, markList());
   if (solved && !S.save.solved) {
     S.save.solved = true;
-    // A "Try again" still waiting, or still being voiced, must not play over
-    // the win (player report: "Try again" over the closing statements).
-    clearTimeout(tryAgainTimer);
-    if (Date.now() - lastTryAgain < 4000) ai.stopSpeaking();
     S.save.completedAt = Date.now();
-    pictureClues.unlock();
     // The daily, weekly and special puzzles' answers are on the website, so they earn no scoreboard points.
     if (!S.save.race && !S.save.daily && !S.save.edition && !S.save.challenge && !S.save.revealed && !S.save.restarted) S.save.scorePending = true;
     tickTimer();
@@ -1631,8 +1365,8 @@ function showSolved(celebrate) {
   $('#solved-h').textContent = save.revealed ? 'Solution revealed' : 'Case closed!';
   $('#ending').textContent = S.puzzle.story.ending;
   $('#solved-stats').innerHTML = [
-    ['Time', fmtTime(save.elapsedMs)], ['Hints used', Number(save.hintsUsed) || 0], ['Checks', Number(save.checksUsed) || 0],
-  ].map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('');
+    ['Time', fmtTime(save.elapsedMs)], ['Hints used', save.hintsUsed], ['Checks', save.checksUsed || 0],
+  ].map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('');
   let next = tier;
   let tip;
   if (save.revealed || save.hintsUsed >= 5) {
@@ -1663,17 +1397,14 @@ function showSolved(celebrate) {
   const admin = [characterOf(S.puzzle, winner), narratorOf(S.puzzle)].find((c) => lineOf(c, 'solve'));
   const plain = !admin && winner && !save.revealed && !settings.silent;
   const cheer = admin || (plain ? { name: winner } : null);
-  const caught = plain && CAUGHT_ENDING.test(S.puzzle.story.ending || '');
-  const cheerLine = admin ? lineOf(admin, 'solve', S.save.hintsUsed + S.puzzle.clues.length)
-    : caught ? caughtLine(winner, save.hintsUsed + S.puzzle.clues.length)
-      : plain ? sayingOf(winner, 'solve', save.hintsUsed + S.puzzle.clues.length) : null;
+  const cheerLine = admin ? lineOf(admin, 'solve', S.save.hintsUsed + S.puzzle.clues.length) : plain ? sayingOf(winner, 'solve', save.hintsUsed + S.puzzle.clues.length) : null;
   res.innerHTML = `${bg}<div class="spot"></div>${winner ? `<div class="hero">${face}<b>${esc(winner)}</b></div>` : ''}${cheerLine ? `<p class="char-line cheer"><b>${esc(cheer.name)}:</b> “${esc(cheerLine)}”</p>` : ''}`;
   // The picture is hidden from screen readers, so the cheer is announced.
   if (celebrate && cheerLine && !settings.silent) setTimeout(() => announce(`${cheer.name} says: ${cheerLine}`), 800);
   if (celebrate && voiceOn()) {
     setTimeout(() => {
       if (!S || !S.save.solved) return;
-      const said = [...(cheerLine ? [{ who: cheer.id && cheer.id === S.puzzle.narrator ? 'narrator' : cheer.name, text: cheerLine, mood: caught ? 'guilty' : 'excited', gesture: caught ? 'shrug' : 'nod' }] : []), { who: 'narrator', text: S.puzzle.story.ending }];
+      const said = [...(cheerLine ? [{ who: cheer.id && cheer.id === S.puzzle.narrator ? 'narrator' : cheer.name, text: cheerLine }] : []), { who: 'narrator', text: S.puzzle.story.ending }];
       ai.speakLines(settings, S.puzzle, said, { volume: settings.volume / 100 });
     }, 1200);
   }
@@ -1685,7 +1416,7 @@ function showSolved(celebrate) {
   $('#coach').hidden = true;
   if (celebrate) {
     sound('solve');
-    const shown = save.revealed ? null : celebrateSolve(settings.celebrations, { random: settings.celebrateRandom, theme: S.puzzle.theme.id, topic: S.puzzle.topic && S.puzzle.topic.id });
+    const shown = save.revealed ? null : celebrateSolve(settings.celebrations, { random: settings.celebrateRandom, theme: S.puzzle.theme.id });
     $('#solved').dataset.effects = shown ? shown.join(' ') : '';
     $('#solved').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
     $('#solved').focus({ preventScroll: true });
@@ -1885,7 +1616,7 @@ async function renderChallenge(save) {
   const r = c.result;
   box.innerHTML = `<h3>${won ? 'You beat your friend\'s time!' : 'Your friend was quicker this time.'}</h3>
     <p>Your time: <b>${fmtTime(save.elapsedMs)}</b>. Your friend's time: <b>${fmtTime(c.theirMs)}</b>.</p>
-    ${r && r.plays > 1 ? `<p>${Number(r.beat) || 0} of ${Number(r.plays) || 0} players who took this challenge beat your friend's time.</p>` : ''}
+    ${r && r.plays > 1 ? `<p>${r.beat} of ${r.plays} players who took this challenge beat your friend's time.</p>` : ''}
     <p class="help">Press Challenge a friend to send this puzzle on with your own time.</p>`;
   box.hidden = false;
 }
@@ -1973,7 +1704,7 @@ async function renderDaily() {
   $('#daily-earlier').hidden = !earlier.length;
   $('#daily-list').innerHTML = earlier.map((d) => {
     const sv = saves.find((x) => x.daily === d);
-    return `<li><button class="btn quiet small" type="button" data-daily="${esc(d)}">${esc(daily.longDate(d))}</button>${sv ? ` <span class="muted">${sv.solved ? (st.days.has(d) ? 'solved' : 'finished') : `${Math.round(Number(sv.percent)) || 0}% done`}</span>` : ''}</li>`;
+    return `<li><button class="btn quiet small" type="button" data-daily="${esc(d)}">${esc(daily.longDate(d))}</button>${sv ? ` <span class="muted">${sv.solved ? (st.days.has(d) ? 'solved' : 'finished') : `${sv.percent || 0}% done`}</span>` : ''}</li>`;
   }).join('');
 }
 // Hand-picked: the best-rated daily puzzles and ones the team picked
@@ -1985,8 +1716,8 @@ async function renderPicks(saves) {
   if (!list.length) return;
   $('#daily-picks-list').innerHTML = list.map((x) => {
     const sv = saves.find((s) => s.daily === x.date);
-    const why = x.hand ? 'picked by the team' : `rated ${Number(x.average) || 0} of 5`;
-    return `<li><button class="btn quiet small" type="button" data-daily="${esc(x.date)}">${esc(x.title)}</button> <span class="muted">${esc(x.difficultyName)} · ${esc(x.themeName)} · ${esc(why)}${sv ? (sv.solved ? ' · finished' : ` · ${Math.round(Number(sv.percent)) || 0}% done`) : ''}</span></li>`;
+    const why = x.hand ? 'picked by the team' : `rated ${x.average} of 5`;
+    return `<li><button class="btn quiet small" type="button" data-daily="${esc(x.date)}">${esc(x.title)}</button> <span class="muted">${esc(x.difficultyName)} · ${esc(x.themeName)} · ${esc(why)}${sv ? (sv.solved ? ' · finished' : ` · ${sv.percent || 0}% done`) : ''}</span></li>`;
   }).join('');
 }
 
@@ -2029,19 +1760,6 @@ $('#mail-invite-btn').onclick = () => puzzleMail.open(openDialog);
 
 // A puzzle the team made for this player (Messages > Puzzles for you): opened
 // once as a saved puzzle, then continued from Saved puzzles like any other.
-// What the numbers in a column mean ("a bigger number is a better rank"),
-// repeated above the clues so it is in view while reading them. Puzzles saved
-// before the rank note named its top and bottom get the new wording here.
-function clueRules(puzzle) {
-  return (puzzle.categories || []).filter((c) => c.note).map((c) => {
-    if (c.id === 'level' && /rank 1 is the lowest rank/.test(c.note) && c.items?.length) {
-      const nums = c.items.map((x) => x.label);
-      return `About ranks: a bigger number is a better rank. In this puzzle rank ${nums.at(-1)} is the top (best) rank and rank ${nums[0]} is the lowest. This is not a race, so a small number is not first place.`;
-    }
-    return c.note;
-  });
-}
-
 async function openTeamPuzzle(puzzle, id) {
   const existing = (await store.listSaves()).find((x) => x.teamPuzzle === id);
   if (existing) { openGame(existing); return; }
@@ -2231,14 +1949,7 @@ function renderTimer() {
   $('#timer').hidden = !settings.showTimer;
   if (S) $('#timer').textContent = `Time ${fmtTime(S.save.elapsedMs)}`;
 }
-// Out of sight the clock stops ticking (it doesn't count that time anyway).
-document.addEventListener('visibilitychange', () => {
-  if (S && timerId) {
-    if (document.hidden) { tickTimer(); clearInterval(timerId); timerId = -1; }
-    else { S.started = performance.now(); clearInterval(timerId); timerId = setInterval(tickTimer, 1000); }
-  }
-  if (document.hidden) flushSave();
-});
+document.addEventListener('visibilitychange', () => { if (S && timerId) { if (document.hidden) tickTimer(); else S.started = performance.now(); } if (document.hidden) flushSave(); });
 
 // ====================================================================
 // Autosave
@@ -2256,7 +1967,6 @@ async function flushSave({ manual = false } = {}) {
   if (!S || (!S.dirty && !manual)) return;
   const save = S.save;
   save.marks = Object.fromEntries(S.marks);
-  save.queries = [...S.queries].filter((k) => !S.marks.get(k));
   save.lastPlayed = Date.now();
   try {
     await store.putSave(save);
@@ -2320,7 +2030,6 @@ function renderMedia() {
   const p = S.puzzle;
   S.sceneLayers = -1;
   $('#scene').innerHTML = sceneSvg(p, 0);
-  startBeats();
   const names = S.ix.cats[0].items.map((i) => i.label);
   const drawCastRow = () => {
   $('#cast-row').innerHTML = names.map((n) => {
@@ -2360,51 +2069,6 @@ function renderMedia() {
 }
 
 const voiceOn = () => settings.sound && settings.readAloud && !settings.silent;
-// How a character acts and sounds while they speak (castbook.js MOODS).
-const moodFor = (who) => {
-  if (who === 'narrator') return 'calm';
-  const own = characterOf(S.puzzle, who);
-  return own ? moodOfPersonality(own.personality) : moodOf(who);
-};
-// A mystery whose ending catches the one behind it: they own up, sheepishly.
-const CAUGHT_ENDING = /culprit|confess|stole|took|thief|prank|caught|guilty|behind it all|owns? up|admits?/i;
-
-// Basic / Interactive switch in the app bar. Basic is the first version's
-// layout and colors (app.css "Basic look") with everything else in the game,
-// except the picture puzzle that unlocks a clue and the talking faces.
-// Interactive is the default. The choice stays on this device (index.html
-// applies it before the first paint).
-const isBasic = () => document.documentElement.dataset.look === 'basic';
-function showLook() {
-  for (const b of document.querySelectorAll('#mode-switch [data-look]')) b.setAttribute('aria-pressed', String((b.dataset.look === 'basic') === isBasic()));
-}
-$('#mode-switch').addEventListener('click', (e) => {
-  const b = e.target.closest('[data-look]');
-  if (!b) return;
-  const basic = b.dataset.look === 'basic';
-  if (basic === isBasic()) return;
-  if (basic) document.documentElement.dataset.look = 'basic'; else delete document.documentElement.dataset.look;
-  try { localStorage.setItem('flg.look', basic ? 'basic' : 'interactive'); } catch (err) { /* private mode: this visit only */ }
-  showLook();
-  if (basic) talker.hide?.();
-  // The locked clue comes and goes with the look; a Basic puzzle has every clue open.
-  if (S) startPictureClue();
-  toast(basic ? 'Basic look on. Switch back to Interactive any time at the top.' : 'Interactive look on.');
-});
-showLook();
-
-// Talking faces: whoever is speaking appears in the corner of the play screen.
-const talker = initTalker($('#talker'), {
-  on: () => !!(S && settings.talkingFaces && voiceOn() && !isBasic() && !$('#screen-play').hidden && remote.feature('talkingFaces')),
-  game: () => (S ? {
-    puzzle: S.puzzle,
-    fallback: (who) => {
-      if (who === 'narrator') { const t = narratorOf(S.puzzle); return t ? characterFace(t, { size: 168 }) : ''; }
-      if (S.portraitUrls && S.portraitUrls[who]) return `<img src="${S.portraitUrls[who]}" alt="">`;
-      return portraitsReady() ? portrait(S.puzzle, who, { size: 168, style: settings.portraitStyle }) : '';
-    },
-  } : null),
-});
 
 // Swap in AI pictures from the game's server when the admin dashboard has them
 // on. Built-in art stays until they arrive, and whenever they can't be made.
@@ -2491,16 +2155,14 @@ $('#cast-row').addEventListener('click', (e) => {
   clues.forEach((c) => $(`#clue-list li[data-n="${c.number}"]`)?.classList.add('spot'));
   const nothing = characterOf(S.puzzle, who) ? "I didn't see anything, I promise." : sayingOf(who, 'nothing', S.puzzle.clues.length);
   $('#bubble').innerHTML = `<p class="about">${esc(aboutOf(who).about)}.</p>` + (clues.length
-    ? clues.map((c) => (c.number === pictureClues.lockedClue()
-      ? `<p><span class="who">${esc(who)}:</span> “I found something, but I can't make it out yet.” <span class="muted">(clue ${+c.number} is locked evidence)</span></p>`
-      : `<p><span class="who">${esc(who)}:</span> “${esc(sayingFor(who, c.number))} ${esc(c.text)}” <span class="muted">(clue ${+c.number})</span></p>`)).join('')
+    ? clues.map((c) => `<p><span class="who">${esc(who)}:</span> “${esc(sayingFor(who, c.number))} ${esc(c.text)}” <span class="muted">(clue ${c.number})</span></p>`).join('')
     : `<p><span class="who">${esc(who)}:</span> “${esc(nothing)}”</p>`);
   $('#bubble').hidden = false;
   sound('whoosh');
   if (voiceOn()) {
-    const lines = clues.length ? clues.map((c) => (c.number === pictureClues.lockedClue() ? "I found something, but I can't make it out yet." : `${sayingFor(who, c.number)} ${c.text}`)).join(' ') : nothing;
+    const lines = clues.length ? clues.map((c) => `${sayingFor(who, c.number)} ${c.text}`).join(' ') : nothing;
     voiceWaitNote();
-    ai.speak(settings, S.puzzle, who, lines, { volume: settings.volume / 100, mood: moodFor(who), gesture: clues.length ? '' : 'shrug' });
+    ai.speak(settings, S.puzzle, who, lines, { volume: settings.volume / 100 });
   }
 });
 
@@ -2524,9 +2186,7 @@ $('#read-clues').addEventListener('click', async () => {
   if (b.getAttribute('aria-pressed') === 'true') { ai.stopSpeaking(); readCluesDone(); return; }
   if (!settings.sound) { status('Sound is off. Turn it on to hear the clues.'); return; }
   const game = S;
-  const lines = game.puzzle.clues.map((c) => (c.number === pictureClues.lockedClue()
-    ? { who: 'narrator', text: clueWords(c) }
-    : { who: game.witness[c.number] || 'narrator', text: `Clue ${c.number}. ${c.text}`, mood: moodFor(game.witness[c.number] || 'narrator') }));
+  const lines = game.puzzle.clues.map((c) => ({ who: game.witness[c.number] || 'narrator', text: `Clue ${c.number}. ${c.text}` }));
   b.setAttribute('aria-pressed', 'true');
   b.textContent = 'Stop reading the clues';
   voiceWaitNote();
@@ -2635,7 +2295,6 @@ function printOptions() {
     marks: S.marks,
     myNotes: $('#p-mynotes').checked && !$('#p-notes-row').hidden ? S.save.myNotes : '',
     supportLine: support.printLine(),
-    picture: pictureClues.current(),
   };
 }
 $('#print-go').onclick = () => {
@@ -2685,19 +2344,11 @@ function applyFeatures() {
   renderSocial();
   for (const el of $$('.needs-cloud')) el.hidden = !share.available() || (!!el.dataset.feature && !remote.feature(el.dataset.feature));
   $('#music-settings').hidden = !remote.feature('music');
-  $('#talking-faces-row').hidden = !remote.feature('talkingFaces') || !CLOUD_URL;
   $('[data-cmd=feedback]').hidden = !feedbackBox.available();
   $('[data-cmd=mail]').hidden = isPortal || !puzzleMail.available();
   $('#mail-invite').hidden = isPortal || !puzzleMail.available();
   $('[data-cmd=suggest]').hidden = !characters.suggestionsOpen();
-  // The game cards and NINETIMESNINE are for testers of the full package only (package-preview.js).
-  $('[data-cmd=numberplace]').hidden = !pkg.on() || !numberPlace.enabled();
-  $('[data-cmd=games]').hidden = !pkg.on();
-  $('[data-cmd=leave-preview]').hidden = !pkg.on();
-  if (currentScreen === 'home') $('#back-btn').hidden = !pkg.on();
-  $('#brand-name').textContent = pkg.on() ? 'The Logic Grid' : 'The Fantastical Logic Grid';
-  $('#home-btn').setAttribute('aria-label', `${pkg.on() ? 'The Logic Grid' : 'The Fantastical Logic Grid'}, home`);
-  renderGameCards();
+  $('[data-cmd=numberplace]').hidden = !numberPlace.enabled();
   $('[data-cmd=pack]').hidden = isPreview || !printPack.available();
   $('#feedback-idea').hidden = !feedbackBox.available();
   messages.configChanged();
@@ -2734,8 +2385,6 @@ $('#settings-form').addEventListener('change', (e) => {
   applyMode();
   renderTimer();
   if (el.name === 'coach' && S && el.checked && !S.save.solved) { S.save.coach = true; updateCoach(); }
-  if (el.name === 'pictureClues') startPictureClue();
-  if (el.name === 'storyBeats' && S) { startBeats(); updateProgress(); }
   if ((el.name === 'sound' && el.checked) || el.name === 'volume') sound('tick');
 });
 
@@ -2816,7 +2465,7 @@ $('#app-menu').addEventListener('click', async (e) => {
   $('#menu-btn').focus();
   const cmd = b.dataset.cmd;
   if (cmd === 'new') goHome();
-  else if (cmd === 'saved') { await goHome({ focusSaved: true }); setSavedOpen(true); $('#saved-section').scrollIntoView(); }
+  else if (cmd === 'saved') { await goHome({ focusSaved: true }); $('#saved-section').scrollIntoView(); }
   else if (cmd === 'settings') openSettings();
   else if (cmd === 'stats') openStats();
   else if (cmd === 'pack') printPack.open();
@@ -2829,64 +2478,19 @@ $('#app-menu').addEventListener('click', async (e) => {
   else if (cmd === 'board') competeUi.openBoard();
   else if (cmd === 'install') installApp();
   else if (cmd === 'numberplace') openNumberPlace();
-  else if (cmd === 'games') openGames();
-  else if (cmd === 'leave-preview') { pkg.leave(); games.rememberGame('logic-grid'); location.reload(); }
   else if (cmd === 'site') window.open(`${(CLOUD.siteUrl || 'https://thelogicgrid.com').replace(/\/+$/, '')}/?utm_source=portal&utm_medium=store&utm_campaign=portal`, '_blank', 'noopener');
 });
-// The Logic Grid's name in the bar: from a puzzle or How to play it goes to
-// The Fantastical Logic Grid's home; from there or another game, to the game cards.
-$('#home-btn').onclick = () => (!pkg.on() || currentScreen === 'play' || currentScreen === 'learn' ? goHome() : openGames());
-$('#back-btn').onclick = () => screenBack();
-
-// The Logic Grid's first screen: a card for each game (games.js).
-async function openGames() {
-  if (!pkg.on()) { goHome(); return; }
-  if (S) { await flushSave(); closeGame(); }
-  showScreen('games');
-  window.scrollTo(0, 0);
-  const h = $('#games-h');
-  h.tabIndex = -1;
-  h.focus();
-}
-function renderGameCards() {
-  games.renderCards($('#game-cards'), {
-    available: (id) => id !== 'ninetimesnine' || numberPlace.enabled(),
-    onOpen: (id, mode) => openFromCard(id, mode),
-    onWatch: (video, title) => openGameVideo(video, title),
-  });
-}
-// A game card's video (or The Logic Grid intro) in the shared player.
-function openGameVideo(video, title) {
-  const v = $('#game-video');
-  $('#game-video-h').textContent = title;
-  v.poster = `media/games/${video}.jpg`;
-  v.replaceChildren(Object.assign(document.createElement('source'), { src: `media/games/${video}.mp4`, type: 'video/mp4' }),
-    Object.assign(document.createElement('track'), { kind: 'captions', srclang: 'en', label: 'English', src: `media/games/${video}.vtt` }));
-  v.load();
-  try { ai.stopSpeaking(); } catch (e) { /* ignore */ }
-  openDialog($('#dlg-game-video'), v);
-  v.play().catch(() => { /* the player's own Play button */ });
-}
-$('#games-intro-btn').onclick = () => openGameVideo('the-logic-grid', 'Introducing The Logic Grid');
-$('#game-video-close').onclick = () => $('#dlg-game-video').close();
-$('#dlg-game-video').addEventListener('close', () => $('#game-video').pause());
-async function openFromCard(id, mode = null) {
-  if (id === 'ninetimesnine') { openNumberPlace(mode); return; }
-  await goHome();
-  offerIntro();
-}
+$('#home-btn').onclick = () => goHome();
 
 // Number Place: a separate numbers game on its own screen, with the game's look
 // (web/js/number-place.js). It shares only anonymous play data, for learning.
-// mode: a NINETIMESNINE game style to pick on its setup screen (from the game card's links).
-async function openNumberPlace(mode = null) {
-  if (!pkg.on()) { goHome(); return; }
+async function openNumberPlace() {
   if (S) { await flushSave(); closeGame(); }
   showScreen('np');
   window.scrollTo(0, 0);
-  await numberPlace.open({ celebrate: () => celebrateSolve(settings.celebrations, { random: settings.celebrateRandom }), setWorld, style: mode });
+  await numberPlace.open({ celebrate: () => celebrateSolve(settings.celebrations, { random: settings.celebrateRandom }), setWorld });
 }
-$('#np-back').onclick = () => openGames();
+$('#np-back').onclick = () => goHome();
 
 // How to play: the step-by-step tutorial and the tips page (tutorial.js).
 // The narrated video is the Introduction.
@@ -2961,11 +2565,8 @@ $('#dlg-video').addEventListener('close', () => {
 // the video at that point if the nudge isn't enough.
 {
   const v = $('#intro-video');
-  let last = -1, still = 0, watch = 0;
-  // Watches only while the video plays.
-  for (const ev of ['play', 'playing']) v.addEventListener(ev, () => { if (!watch) watch = setInterval(nudge, 1000); });
-  for (const ev of ['pause', 'ended', 'emptied']) v.addEventListener(ev, () => { clearInterval(watch); watch = 0; });
-  function nudge() {
+  let last = -1, still = 0;
+  setInterval(() => {
     if (!$('#dlg-video').open || v.paused || v.ended || v.seeking) { last = -1; still = 0; return; }
     if (Math.abs(v.currentTime - last) > 0.05) { last = v.currentTime; still = 0; return; }
     still += 1;
@@ -2976,7 +2577,7 @@ $('#dlg-video').addEventListener('close', () => {
       v.load();
       still = 0;
     }
-  }
+  }, 1000);
 }
 function offerIntro() {
   if (settings.introOffered) return;
@@ -3025,45 +2626,12 @@ $('#update-install').onclick = async () => {
 async function checkUpdates() {
   if (!updates.available()) return;
   pendingUpdate = await updates.check();
-  applyUpdate();
+  offerUpdate();
 }
-
-// Updates install quietly, with no notice: never mid-puzzle and never with a
-// dialog open. The website switches to the new version while the game is in
-// the background on the home screen (or right after opening, before the
-// player starts). The Windows app downloads in the background and installs
-// while it is minimized or hidden on the home screen, then restarts itself.
-// offerUpdate() (the old "A new version is ready" dialog) is kept for a
-// version that cannot update itself quietly.
-const quietMoment = () => !$('#screen-home').hidden && !document.querySelector('dialog[open]');
-let applying = false;
-async function applyUpdate() {
-  const u = pendingUpdate;
-  if (!u || applying || !quietMoment()) return;
-  const hidden = document.visibilityState === 'hidden';
-  if (u.kind === 'web') {
-    if (!hidden && performance.now() > 8000) return; // the player is looking: wait for the background
-    applying = true;
-    pendingUpdate = null;
-    try { await flushSave(); } catch (e) { /* nothing open */ }
-    webUpdateAccepted = true;
-    u.worker.postMessage({ type: 'skip-waiting' });
-    return;
-  }
-  if (!hidden) return;
-  applying = true;
-  pendingUpdate = null;
-  try { await updates.install(() => {}); } catch (e) {
-    console.warn('Quiet update not installed:', e);
-    applying = false;
-    pendingUpdate = u;
-  }
-}
-document.addEventListener('visibilitychange', () => { applyUpdate(); });
 
 $('#welcome-skip').onclick = () => { $('#dlg-welcome').close(); startQuick(); };
 $('#welcome-watch').onclick = () => { $('#dlg-welcome').close(); openVideo(); };
-$('#back-saved').onclick = async () => { await goHome({ focusSaved: true }); setSavedOpen(true); $('#saved-section').scrollIntoView(); };
+$('#back-saved').onclick = async () => { await goHome({ focusSaved: true }); $('#saved-section').scrollIntoView(); };
 
 const ACTIONS = {
   undo, redo, hint, check,
@@ -3189,8 +2757,8 @@ if ('serviceWorker' in navigator && !isDesktop && !isPortal && (location.protoco
   else { afterFirstUse(start); afterLoad(start, 10000); }
 }
 
-// Website updates: a new version downloads in the background and switches
-// over quietly (applyUpdate), never mid-puzzle.
+// Website updates: a new version installs in the background; the player is
+// offered a reload on the home screen, never mid-puzzle.
 let swReg = null;
 async function watchWebUpdates() {
   let reg;
@@ -3200,7 +2768,7 @@ async function watchWebUpdates() {
   const waiting = () => {
     if (!reg.waiting || !navigator.serviceWorker.controller) return; // first install needs no reload
     pendingUpdate = { kind: 'web', worker: reg.waiting };
-    applyUpdate();
+    offerUpdate();
   };
   waiting();
   reg.addEventListener('updatefound', () => {
@@ -3301,19 +2869,9 @@ async function init() {
   setTimeout(checkUpdates, 4000);
   // The Windows and Android apps wait here for an app key that works (license.js).
   await license.gate({ announce });
-  // A tester's special link switches the full package on (package-preview.js).
-  await pkg.fromAddress();
-  applyFeatures();
   // thelogicgrid.com/?learn opens How to play straight away; a ?play=now link
   // goes straight into a puzzle; otherwise first-time players get the welcome.
-  // Otherwise the app opens where the player last was: the game cards (always
-  // the first time), The Fantastical Logic Grid (with its welcome the first
-  // time) or NINETIMESNINE.
-  if (new URLSearchParams(location.search).has('learn')) { settings.introOffered = true; store.saveSettings(settings); openTutorial(); } else if (!handleChallengeLink() && !handlePlayLink() && currentScreen === 'home') {
-    const last = games.lastGame();
-    if (!pkg.on() || last === 'logic-grid') offerIntro(); else if (last === 'ninetimesnine' && numberPlace.enabled()) openNumberPlace(); else showScreen('games');
-  }
-  delete document.documentElement.dataset.start;
+  if (new URLSearchParams(location.search).has('learn')) { settings.introOffered = true; store.saveSettings(settings); openTutorial(); } else if (!handleChallengeLink() && !handlePlayLink()) offerIntro();
   offerLanguage();
   // Heavy extras wait until the first screen is drawn and the page is idle, so
   // they never slow the first load: the DiceBear faces (270 KB), then the

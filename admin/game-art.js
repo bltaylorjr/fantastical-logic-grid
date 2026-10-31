@@ -7,9 +7,6 @@
 
 import { genderOf } from './game-gender.js';
 
-// Letters and digits only, for an id inside the drawing (names can hold anything).
-const safeId = (s) => String(s).replace(/[^A-Za-z0-9]/g, '').replace(/[&<>"']/g, '');
-
 function rngFrom(text) {
   let h = 2166136261;
   for (const ch of String(text)) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); }
@@ -48,17 +45,8 @@ export const THEME_LOOKS = {
   chemistry: { sky: ['#e6ecf5', '#f8fafc'], ground: '#8d99ae', shape: '#2b2d42', glow: '#7df9c0', accent: '#ef476f' },
   astronomy: { sky: ['#0b1026', '#1b2a5c'], ground: '#1d2238', shape: '#0e1428', glow: '#ffe08a', accent: '#8ecae6' },
   paradox: { sky: ['#3a0ca3', '#f72585'], ground: '#4361ee', shape: '#240046', glow: '#4cc9f0', accent: '#ffbe0b' },
-  seasons: { sky: ['#f4a259', '#fde4b8'], ground: '#8a5a2b', shape: '#5b3a1e', glow: '#fff1c1', accent: '#d1495b', season: 'fall' },
 };
-// Seasons looks different in each of its topics (one per season).
-const SEASON_LOOKS = {
-  fall: THEME_LOOKS.seasons,
-  winter: { sky: ['#9fb8d6', '#e8f0f8'], ground: '#f4f8fc', shape: '#2f4858', glow: '#ffffff', accent: '#c0392b', season: 'winter' },
-  spring: { sky: ['#a8d8f0', '#e8f6e0'], ground: '#6fae4f', shape: '#4a7c3a', glow: '#fff6d6', accent: '#f78fb3', season: 'spring' },
-  summer: { sky: ['#3fa9e8', '#bfe8fb'], ground: '#e9d29a', shape: '#2d6a4f', glow: '#ffe66d', accent: '#ff6b35', season: 'summer' },
-};
-const lookFor = (themeId, topicId) => (themeId === 'seasons' && SEASON_LOOKS[topicId]) || THEME_LOOKS[themeId] || THEME_LOOKS.mystery;
-const topicOf = (puzzle) => (puzzle.topic && puzzle.topic.id) || null;
+const lookFor = (themeId) => THEME_LOOKS[themeId] || THEME_LOOKS.mystery;
 
 // ---------------------------------------------------------------------------
 // Scenes: 800 x 260, a base layer plus five detail layers (data-layer 1..5).
@@ -342,51 +330,12 @@ const SCENES = {
       `<g fill="#fff" opacity=".8">${Array.from({ length: 8 }, () => `<circle cx="${(390 + r() * 100).toFixed(0)}" cy="${(40 + r() * 60).toFixed(0)}" r="${(3 + r() * 5).toFixed(1)}"/>`).join('')}</g><g transform="translate(330 210)"><path d="M0 0 h50 l-6 26 h-38z" fill="#c9a227"/><path d="M8 0 q-16 -2 -14 12 M42 0 q16 -2 14 12" stroke="#c9a227" stroke-width="4" fill="none"/></g>`,
     ];
   },
-  seasons(r, L) {
-    const s = L.season || 'fall';
-    const crown = { fall: ['#d1495b', '#f4a259', '#e9c46a', '#c4622d'], spring: ['#f7c6d9', '#b5e48c', '#f78fb3', '#99d98c'], summer: ['#2d6a4f', '#40916c', '#1b4332', '#52b788'] }[s];
-    const leafy = (x, base, h) => `<rect x="${x - 4}" y="${base - h * 0.45}" width="8" height="${(h * 0.45).toFixed(0)}" fill="#5b3a1e"/><g fill="${pick(r, crown)}"><circle cx="${x}" cy="${(base - h * 0.62).toFixed(0)}" r="${(h * 0.3).toFixed(0)}"/><circle cx="${(x - h * 0.2).toFixed(0)}" cy="${(base - h * 0.52).toFixed(0)}" r="${(h * 0.22).toFixed(0)}"/><circle cx="${(x + h * 0.2).toFixed(0)}" cy="${(base - h * 0.5).toFixed(0)}" r="${(h * 0.22).toFixed(0)}"/></g>`;
-    const snowyPine = (x, base, h) => `${tree(x, base, h, L.shape)}<path d="M${x} ${base - h} L${(x - h * 0.16).toFixed(0)} ${(base - h * 0.68).toFixed(0)} L${(x + h * 0.16).toFixed(0)} ${(base - h * 0.68).toFixed(0)} Z" fill="#fff"/>`;
-    const sky = s === 'winter'
-      ? `<circle cx="640" cy="60" r="26" fill="#fff" opacity=".7"/><g fill="#fff" opacity=".8"><ellipse cx="200" cy="50" rx="90" ry="20"/><ellipse cx="460" cy="40" rx="70" ry="16"/></g>`
-      : `<circle cx="${s === 'summer' ? 660 : 640}" cy="${s === 'fall' ? 80 : 56}" r="${s === 'summer' ? 38 : 30}" fill="${L.glow}" opacity=".95"/><g fill="#fff" opacity=".8"><ellipse cx="180" cy="48" rx="56" ry="14"/><ellipse cx="420" cy="34" rx="40" ry="11"/></g>`;
-    const hillColor = { fall: '#b5651d', winter: '#dfe8f2', spring: '#8cc66b', summer: '#3f8f5a' }[s];
-    const ground = s === 'summer'
-      ? `<path d="M0 ${H} L0 200 Q200 190 400 204 T${W} 196 L${W} ${H} Z" fill="#2f7fb8"/><path d="M0 ${H} L0 232 Q300 220 520 236 T${W} 230 L${W} ${H} Z" fill="${L.ground}"/>`
-      : `<path d="M0 ${H} L0 208 Q200 194 420 210 T${W} 200 L${W} ${H} Z" fill="${L.ground}"/>`;
-    const trees = s === 'winter'
-      ? `${snowyPine(80, 214, 110)}${snowyPine(150, 216, 80)}${snowyPine(700, 212, 100)}${snowyPine(760, 214, 70)}`
-      : s === 'summer'
-        ? `${tree(70, 206, 110, L.shape)}${tree(140, 206, 80, '#1b4332')}${tree(730, 200, 100, L.shape)}`
-        : `${leafy(90, 214, 120)}${leafy(170, 216, 90)}${leafy(690, 212, 110)}${leafy(760, 214, 80)}`;
-    const detail = {
-      fall: `<rect x="300" y="196" width="70" height="26" rx="4" fill="#e9c46a"/><path d="M300 205 h70 M300 214 h70" stroke="#c99a4b" stroke-width="2"/>${[420, 470, 515].map((x, i) => `<ellipse cx="${x}" cy="${222 - i % 2 * 2}" rx="${18 - i * 2}" ry="13" fill="#e76f24"/><rect x="${x - 2}" y="${205 - i % 2 * 2}" width="4" height="7" fill="#4a7c3a"/>`).join('')}`,
-      winter: `<g transform="translate(470 150)"><circle cx="0" cy="56" r="24" fill="#fff" stroke="#c9d6e3"/><circle cx="0" cy="22" r="17" fill="#fff" stroke="#c9d6e3"/><circle cx="-5" cy="18" r="2" fill="#2f4858"/><circle cx="5" cy="18" r="2" fill="#2f4858"/><path d="M0 23 l10 3 l-10 2z" fill="#f4a259"/><path d="M-14 34 h28" stroke="${L.accent}" stroke-width="5"/><path d="M-20 44 l-18 -14 M20 44 l18 -14" stroke="#5b3a1e" stroke-width="3"/></g><g transform="translate(270 150)"><path d="M0 34 L40 4 L80 34 Z" fill="#fff"/><rect x="6" y="32" width="68" height="44" fill="#8b5a3c"/><rect x="34" y="50" width="14" height="26" fill="#5b3a1e"/><rect x="14" y="44" width="12" height="12" fill="#ffd166"/></g>`,
-      spring: `<rect x="300" y="200" width="120" height="18" rx="3" fill="#8b5a3c"/>${Array.from({ length: 6 }, (_, i) => `<path d="M${312 + i * 19} 200 v-14" stroke="#4a7c3a" stroke-width="3"/><circle cx="${312 + i * 19}" cy="184" r="6" fill="${pick(r, ['#f78fb3', '#ffd166', '#a685e2', '#ff6b6b'])}"/>`).join('')}<g transform="translate(500 186)"><path d="M0 10 h34 l-4 24 h-26z" fill="#4cc9f0"/><path d="M34 14 l16 -10" stroke="#4cc9f0" stroke-width="4"/><path d="M4 10 q13 -16 26 0" stroke="#4cc9f0" stroke-width="3" fill="none"/></g>`,
-      summer: `<path d="M440 200 v-70 l44 62 z" fill="#fff"/><path d="M436 200 v-60 l-30 54 z" fill="${L.accent}"/><path d="M400 204 h96 l-12 12 h-72z" fill="#8b5a3c"/><rect x="560" y="196" width="140" height="8" fill="#a0814f"/>${[570, 610, 650, 690].map((x) => `<rect x="${x}" y="204" width="5" height="16" fill="#6b4f2a"/>`).join('')}`,
-    }[s];
-    const bits = {
-      fall: () => `<path d="M0 0 q6 -8 12 0 q-6 8 -12 0z" fill="${pick(r, crown)}"/>`,
-      winter: () => '<circle r="3" fill="#fff"/>',
-      spring: () => `<ellipse rx="4" ry="2.5" fill="${pick(r, crown)}"/>`,
-      summer: () => '<circle r="2.5" fill="#fff59d" opacity=".9"/>',
-    }[s];
-    const falling = Array.from({ length: s === 'winter' ? 40 : 16 }, () => `<g transform="translate(${(r() * W).toFixed(0)} ${(20 + r() * 170).toFixed(0)}) rotate(${(r() * 360).toFixed(0)})">${bits()}</g>`).join('');
-    return [
-      sky,
-      hills(r, hillColor, 180, 50),
-      ground,
-      trees,
-      detail,
-      falling,
-    ];
-  },
 };
 
 // The scene for a puzzle. `revealed` (0..5) is how many detail layers show.
 export function sceneSvg(puzzle, revealed = 5, { animate = true } = {}) {
   const themeId = puzzle.theme.id;
-  const L = lookFor(themeId, topicOf(puzzle));
+  const L = lookFor(themeId);
   const r = rngFrom(puzzle.story && puzzle.story.id ? puzzle.story.id : puzzle.title);
   const draw = SCENES[themeId] || SCENES.mystery;
   const [base, ...layers] = draw(r, L);
@@ -434,12 +383,6 @@ function hat(themeId, r, L) {
     case 'astronomy': return `<path d="M24 38 q26 -30 52 0z" fill="#1b2a5c"/><rect x="22" y="36" width="56" height="6" rx="3" fill="#0e1428"/><circle cx="40" cy="26" r="2" fill="#ffe08a"/><circle cx="54" cy="20" r="2.5" fill="#fff"/><circle cx="62" cy="30" r="1.8" fill="#ffe08a"/>`;
     case 'paradox': return pick(r, [`<rect x="32" y="10" width="36" height="22" rx="2" fill="#240046"/><rect x="24" y="30" width="52" height="5" rx="2" fill="#240046"/><rect x="32" y="24" width="36" height="4" fill="#ffbe0b"/>`, `<path d="M30 30 q20 -30 40 0" stroke="#4cc9f0" stroke-width="3" fill="none"/><circle cx="50" cy="12" r="5" fill="#ffbe0b"/>`]);
     case 'science': return `<rect x="24" y="40" width="22" height="12" rx="5" fill="${L.glow}" opacity=".75" stroke="#2f4a6b" stroke-width="2"/><rect x="54" y="40" width="22" height="12" rx="5" fill="${L.glow}" opacity=".75" stroke="#2f4a6b" stroke-width="2"/><path d="M46 46 h8" stroke="#2f4a6b" stroke-width="2"/>`;
-    case 'seasons': return {
-      fall: `<path d="M24 34 q26 -26 52 0z" fill="#c4622d"/><rect x="22" y="32" width="56" height="5" rx="2" fill="#8a5a2b"/><path d="M60 22 q6 -6 10 0 q-4 6 -10 0z" fill="#e9c46a"/>`,
-      winter: `<path d="M26 34 q24 -28 48 0z" fill="${L.accent}"/><rect x="24" y="31" width="52" height="7" rx="3" fill="#fff"/><circle cx="50" cy="10" r="6" fill="#fff"/>`,
-      spring: `<path d="M14 36 q36 -10 72 0 l-10 -4 q-4 -16 -26 -16 q-22 0 -26 16z" fill="#f2d16b"/><circle cx="66" cy="26" r="4" fill="#f78fb3"/><circle cx="72" cy="28" r="3" fill="#fff"/>`,
-      summer: `<rect x="30" y="44" width="16" height="9" rx="3" fill="#1d1d1d"/><rect x="54" y="44" width="16" height="9" rx="3" fill="#1d1d1d"/><path d="M46 47 h8" stroke="#1d1d1d" stroke-width="2"/>`,
-    }[L.season] || '';
     default: return '';
   }
 }
@@ -458,7 +401,7 @@ function animalFace(r, name) {
 
 export function portraitSvg(puzzle, name, { size = 72 } = {}) {
   const themeId = puzzle.theme.id;
-  const L = lookFor(themeId, topicOf(puzzle));
+  const L = lookFor(themeId);
   const r = rngFrom(`${themeId}:${name}`);
   const bg = pick(r, BG);
   const isPet = themeId === 'pets' && /pet|animal|dog|cat/i.test(`${puzzle.cast && puzzle.cast.many}`);
@@ -487,5 +430,5 @@ export function portraitSvg(puzzle, name, { size = 72 } = {}) {
       <circle cx="35" cy="60" r="4" fill="#ff8a8a" opacity=".25"/><circle cx="65" cy="60" r="4" fill="#ff8a8a" opacity=".25"/>${hat(themeId, r, L)}`;
   }
   const gender = isPet ? '' : ` data-gender="${genderOf(name)}"`;
-  return `<svg class="portrait-svg"${gender} width="${size}" height="${size}" viewBox="0 0 100 100" aria-hidden="true" focusable="false"><circle cx="50" cy="50" r="50" fill="${bg}"/><clipPath id="pc-${size}-${safeId(name)}"><circle cx="50" cy="50" r="50"/></clipPath><g clip-path="url(#pc-${size}-${safeId(name)})">${face}</g></svg>`;
+  return `<svg class="portrait-svg"${gender} width="${size}" height="${size}" viewBox="0 0 100 100" aria-hidden="true" focusable="false"><circle cx="50" cy="50" r="50" fill="${bg}"/><clipPath id="pc-${size}-${name.replace(/\W/g, '')}"><circle cx="50" cy="50" r="50"/></clipPath><g clip-path="url(#pc-${size}-${name.replace(/\W/g, '')})">${face}</g></svg>`;
 }

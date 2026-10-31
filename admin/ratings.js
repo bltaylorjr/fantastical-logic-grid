@@ -69,7 +69,7 @@ function summaryCard(s, days) {
 }
 
 async function render() {
-  const days = Math.max(1, Math.min(365, Number($('#rt-days').value) || 30)); // a number, never page text
+  const days = $('#rt-days').value;
   const by = $('#rt-by').value;
   const r = await h.api(`ratings?days=${days}&by=${by}`);
   const o = r.overall;

@@ -6,7 +6,7 @@ const assert = (c, m) => { if (!c) { console.error(`FAIL: ${m}`); process.exitCo
 const { spawn } = require('child_process');
 const path = require('path');
 (async () => {
-  const { PERSONALITIES, profileOf, caughtLine, moodOf, moodPace } = await import('../web/js/castbook.js');
+  const { PERSONALITIES, profileOf } = await import('../web/js/castbook.js');
   const server = spawn('node', [path.join(__dirname, 'serve.mjs'), path.join(__dirname, '..', 'dist', 'web'), '8137'], { stdio: 'ignore' });
   await new Promise((r) => setTimeout(r, 600));
   const b = await chromium.launch();
@@ -32,8 +32,7 @@ const path = require('path');
     HTMLMediaElement.prototype.play = function () { setTimeout(() => this.dispatchEvent(new Event('ended')), 5); return Promise.resolve(); };
     speechSynthesis.speak = (u) => setTimeout(() => u.onend && u.onend(), 5);
   });
-  // Picture clues keep one clue locked; this test checks every witness's lines.
-  await page.goto('http://localhost:8137/?pictures=0');
+  await page.goto('http://localhost:8137/');
   await page.waitForSelector('#dlg-welcome[open]'); await page.keyboard.press('Escape');
   await page.waitForFunction(() => (JSON.parse(localStorage.getItem('flg.settings') || '{}')).kokoroReady === true, null, { timeout: 15000 });
   await page.waitForSelector('.toast', { state: 'detached', timeout: 15000 });
@@ -69,7 +68,7 @@ const path = require('path');
     assert(bubble.includes(p.about), `${c.who}'s bubble tells who they are (${p.about})`);
     assert([...own.clue, ...own.nothing].some((l) => bubble.includes(l)), `${c.who} speaks like a ${p.label.toLowerCase()} character`);
     const said = (await page.evaluate((n) => window.__k.slice(n), before))[0];
-    assert(said && said.asked === p.voice.kokoro && Math.abs(said.speed - moodPace(p.voice.pace, moodOf(c.who))) < 1e-9, `${c.who} speaks with their own voice, in their mood (${said && said.asked}@${said && said.speed})`);
+    assert(said && said.asked === p.voice.kokoro && Math.abs(said.speed - p.voice.pace) < 1e-9, `${c.who} speaks with their own voice (${said && said.asked}@${said && said.speed})`);
   }
 
   // 4. A hint comes with a word from one of the cast.
@@ -90,9 +89,7 @@ const path = require('path');
   await page.waitForSelector('#solved:not([hidden])');
   const cheer = await page.textContent('#resolution .cheer').catch(() => '');
   const winner = cast.find((c) => cheer.startsWith(`${c.who}:`));
-  // In a story where someone is caught, they own up instead (castbook.js caughtLine).
-  const owned = winner ? [0, 1, 2, 3].map((n) => caughtLine(winner.who, n)) : [];
-  assert(winner && [...PERSONALITIES[profileOf(winner.who).personality].solve, ...owned].some((l) => cheer.includes(l)), `the winner cheers in their own words (${cheer})`);
+  assert(winner && PERSONALITIES[profileOf(winner.who).personality].solve.some((l) => cheer.includes(l)), `the winner cheers in their own words (${cheer})`);
 
   assert(errs.length === 0, `no page errors ${errs.join(' | ')}`);
   await b.close(); server.kill();

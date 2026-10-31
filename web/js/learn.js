@@ -55,15 +55,6 @@ function randomKey() {
   return [...a].map((b) => 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'[b % 62]).join('');
 }
 
-// The colors the player sees: light, dark or contrast ("Match my device"
-// becomes light or dark), so the weekly improvement run can compare looks.
-export function currentLook() {
-  let t = 'system';
-  try { t = store.loadSettings().colorTheme || 'system'; } catch (e) { /* default */ }
-  if (t === 'light' || t === 'dark' || t === 'contrast') return t;
-  try { return matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'; } catch (e) { return 'light'; }
-}
-
 export async function record(save, outcome) {
   const L = await load();
   let play = L.plays.find((x) => x.storyId === save.storyId);
@@ -71,9 +62,6 @@ export async function record(save, outcome) {
   Object.assign(play, {
     at: Date.now(), ms: save.elapsedMs || 0, hints: save.hintsUsed || 0, checks: save.checksUsed || 0,
     mistakes: save.mistakes || 0, percent: outcome === 'solved' ? 100 : save.percent || 0,
-    // What happened to the picture clue (app.js sets save.pic: none, off,
-    // locked or solved) and the colors on screen.
-    look: currentLook(), pic: save.pic || null,
   });
   // A solve never turns back into a quit if the player deletes the save later.
   if (!(outcome === 'abandoned' && (play.outcome === 'solved' || play.outcome === 'revealed'))) play.outcome = outcome;
@@ -266,6 +254,15 @@ export async function summary(tierNames, themeNames, clueNames) {
 }
 
 // ---------- the player's own story parts ----------
+export async function listParts() {
+  const L = await load();
+  const out = [];
+  for (const [theme, kinds] of Object.entries(L.parts)) {
+    for (const [kind, list] of Object.entries(kinds)) for (const it of list) out.push({ theme, kind, ...it, key: partKey(kind, it.value) });
+  }
+  return out.sort((a, b) => b.at - a.at);
+}
+
 export async function addPart(theme, kind, value, source = 'mine') {
   const res = checkStoryPart(kind, value);
   if (!res.ok) return res;
@@ -276,6 +273,14 @@ export async function addPart(theme, kind, value, source = 'mine') {
   list.push({ value, source, at: Date.now(), shared: false });
   await persist();
   return { ok: true, key };
+}
+
+export async function removePart(theme, kind, key) {
+  const L = await load();
+  const list = L.parts[theme]?.[kind];
+  if (!list) return;
+  L.parts[theme][kind] = list.filter((it) => partKey(kind, it.value) !== key);
+  await persist();
 }
 
 // ---------- shared learning ----------

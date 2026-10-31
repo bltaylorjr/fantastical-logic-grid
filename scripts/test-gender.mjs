@@ -2,7 +2,7 @@
 // man, in every theme, topic and portrait style. Run: node scripts/test-gender.mjs
 import { THEMES } from '../engine/src/themes.js';
 import { TOPICS } from '../engine/src/topics.js';
-import { genderOf, KNOWN_NAMES, setChosenGenders } from '../web/js/gender.js';
+import { genderOf, KNOWN_NAMES } from '../web/js/gender.js';
 import { portrait, LOOKS, loadPortraits } from '../web/js/portraits.js';
 import { portraitSvg } from '../web/js/art.js';
 import * as dicebear from '../web/vendor/dicebear/dicebear.js';
@@ -64,11 +64,5 @@ for (const { theme, topic, names } of casts) {
   }
 }
 
-// A puzzle from a shared file can say anything about its characters; only
-// 'f' or 'm' ever reaches the page.
-setChosenGenders([{ name: 'Zed', gender: '"><img src=x onerror=alert(1)>' }, { name: 'Ada', gender: 'f' }]);
-if (!['f', 'm'].includes(genderOf('Zed')) || genderOf('Ada') !== 'f') { failed++; console.log('FAIL: a shared puzzle\'s gender must be f or m'); }
-else console.log('ok  a shared puzzle cannot put anything but f or m in a gender');
-setChosenGenders([]);
 console.log(failed ? `${failed} failed` : `ok  ${count} names across ${casts.length} casts: portraits and voices agree`);
 process.exitCode = failed ? 1 : 0;

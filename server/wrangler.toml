@@ -56,10 +56,9 @@ html_handling = "none"
 # data, database tidy-up and the Google and Bing search numbers. Crons are UTC,
 # so both 06:00 (summer) and 07:00 (winter) are listed and the code runs only
 # the one that is 2 am in New York. Also the weekly archive email
-# (src/archive.js), Mondays at 04:47 UTC, and the hourly round-up of owner
-# alerts (src/alerts.js) at 23 minutes past. Free plans allow up to 5 cron triggers.
+# (src/archive.js), Mondays at 04:47 UTC. Free plans allow up to 5 cron triggers.
 [triggers]
-crons = ["0 6 * * *", "0 7 * * *", "47 4 * * 1", "23 * * * *"]
+crons = ["0 6 * * *", "0 7 * * *", "47 4 * * 1"]
 
 # The weekly archive email is sent from Gmail by a GitHub Action, because the
 # domain's DNS is not on Cloudflare (ARCHIVE.md). Only if it moves there and

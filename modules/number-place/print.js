@@ -22,7 +22,7 @@ function table(p, values, given) {
 export function printableHtml(game, { marks = false, paper = 'letter', answers = true, steps = false } = {}) {
   const p = game.p;
   const values = marks ? p.givens.map((d, i) => d || game.v[i] || 0) : p.givens;
-  const title = p.story?.title || 'NINETIMESNINE';
+  const title = p.story?.title || 'Number Place';
   let html = `<!doctype html><html lang="en"><meta charset="utf-8"><title>${esc(title)}</title><style>
     @page { size: ${paper === 'a4' ? 'A4' : 'letter'}; margin: 16mm; }
     body { font-family: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif; color: #000; margin: 0; }
@@ -38,7 +38,7 @@ export function printableHtml(game, { marks = false, paper = 'letter', answers =
     ol.steps { font-size: 10pt; columns: 2; column-gap: 8mm; padding-left: 6mm; } ol.steps li { break-inside: avoid; margin-bottom: 1.5mm; }
     @media print { * { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
   </style><body>`;
-  html += `<section class="page"><h1>${esc(title)}</h1><p class="meta">NINETIMESNINE · ${esc(p.difficulty.name)} · ${Number(p.size)}×${Number(p.size)}${game.daily ? ` · Daily ${esc(game.daily)}` : ''}</p>`;
+  html += `<section class="page"><h1>${esc(title)}</h1><p class="meta">Number Place · ${esc(p.difficulty.name)} · ${Number(p.size)}×${Number(p.size)}${game.daily ? ` · Daily ${esc(game.daily)}` : ''}</p>`;
   if (p.story?.intro) html += `<p class="intro">${esc(p.story.intro)}</p>`;
   html += `<ul>${p.rules.map((r) => `<li>${esc(r)}</li>`).join('')}</ul>${table(p, values, p.givens)}</section>`;
   if (answers) html += `<section class="page"><h2>Answer key</h2>${table(p, p.solution, p.givens)}${p.story?.ending ? `<p class="intro" style="margin-top:5mm">${esc(p.story.ending)}</p>` : ''}</section>`;

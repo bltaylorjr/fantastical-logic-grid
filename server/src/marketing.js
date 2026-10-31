@@ -24,7 +24,6 @@
 // address is kept, so numbers can never be tied to a person. Codes the
 // dashboard does not know are counted as '(other)' or 'other', so nobody can
 // fill the table with made-up names.
-import { alert } from './alerts.js';
 import { json, readText, TooLarge } from './http.js';
 import { SEEDS } from './marketing-seed.js';
 import { getSettings } from './settings.js';
@@ -32,24 +31,6 @@ import { getSettings } from './settings.js';
 const DAY = 24 * 3600_000;
 const isoDay = (ms) => new Date(ms).toISOString().slice(0, 10);
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
-// The poster works in Eastern time (scripts/marketing-post.py), so "today" for
-// Post now and Launch is the day in New York.
-const easternDay = (ms) => new Date(ms).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
-const POSTER_URL = 'https://api.github.com/repos/bltaylorjr/fantastical-logic-grid/actions/workflows/marketing-post.yml/dispatches';
-
-// Starts the poster now for these ads (the GITHUB_DISPATCH_TOKEN Worker secret).
-// Without the secret they wait for the next 10:07 am run.
-async function startPoster(env, day, ids) {
-  if (!env.GITHUB_DISPATCH_TOKEN || !ids.length) return false;
-  try {
-    const res = await fetch(POSTER_URL, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${env.GITHUB_DISPATCH_TOKEN}`, Accept: 'application/vnd.github+json', 'User-Agent': 'flg-api', 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ref: 'main', inputs: { mode: 'post', day, ads: ids.join(',') } }),
-    });
-    return res.ok;
-  } catch (e) { return false; }
-}
 // Sent by the game (POST /v1/m).
 export const CLIENT_EVENTS = ['visit', 'play', 'solve', 'return', 'install', 'download', 'support'];
 // Counted by the Worker itself, never accepted from /v1/m: an educator's
@@ -378,8 +359,6 @@ export function marketingRoutes(Refusal) {
         const r = await env.DB.prepare(`INSERT INTO campaign_ads (campaign_id, channel, medium, content, title, body, media, landing, status, where_to, post_url, posted_at, notes, created_by, created_at, updated_at, post_on)
           VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?15, ?16) RETURNING id`)
           .bind(campaignId, channel, medium, content, title, text, JSON.stringify(media), landing, status, where, postUrl, status === 'posted' ? now : null, notes, who.actor, now, postOn).first();
-        // Ads the marketing autopilot writes (with the break-glass key) wait for approval.
-        if (status === 'draft' && who.role === 'owner' && !who.uid) await alert(env, null, { category: 'approvals', instant: false, title: 'New ads to approve', body: `"${title}" for ${channel} is waiting in Marketing.`, link: 'marketing', dedupe: `ads-${new Date(now).toISOString().slice(0, 10)}` });
         out = { body: { id: r.id }, target: r.id, detail: { title, channel, status } };
       }
       forgetCodes();
@@ -412,36 +391,6 @@ export function marketingRoutes(Refusal) {
       }
       await env.DB.prepare('UPDATE campaign_ads SET auto_note = ?2, updated_at = ?3 WHERE id = ?1').bind(ad.id, note || 'Automatic posting failed', now).run();
       return { body: { ok: true }, target: ad.id, detail: { title: ad.title, note } };
-    }],
-
-    // Post now: one approved ad goes out within a couple of minutes instead of on its posting day.
-    ['POST', /^marketing\/ads\/(\d+)\/post-now$/, 'admin', 'marketing.ad_post_now', async ({ env, params: [id], now }) => {
-      const ad = await env.DB.prepare('SELECT a.id, a.status, a.title, c.status AS campaign FROM campaign_ads a JOIN campaigns c ON c.id = a.campaign_id WHERE a.id = ?1').bind(Number(id)).first();
-      if (!ad) throw new Refusal(404, 'gone', 'That ad is gone.');
-      if (ad.status !== 'approved') throw new Refusal(409, 'not_approved', ad.status === 'posted' ? 'This ad is already posted.' : 'Approve the ad first (Edit > Status: Approved).');
-      if (ad.campaign !== 'active') throw new Refusal(409, 'not_active', 'Its campaign is not running yet. Use Launch campaign, or set the campaign to Active.');
-      const day = easternDay(now);
-      await env.DB.prepare("UPDATE campaign_ads SET post_on = ?2, auto_note = 'Posting now…', updated_at = ?3 WHERE id = ?1").bind(ad.id, day, now).run();
-      const started = await startPoster(env, day, [ad.id]);
-      return { body: { ok: true, started, day }, target: ad.id, detail: { title: ad.title, started } };
-    }],
-    // Launch campaign: the campaign goes Active, and its approved ads that are
-    // due (or have no day yet) are posted now. Later ads keep their days;
-    // drafts still wait for approval.
-    ['POST', /^marketing\/campaigns\/(\d+)\/launch$/, 'admin', 'marketing.campaign_launch', async ({ env, params: [id], now }) => {
-      const c = await env.DB.prepare('SELECT id, name, status, starts FROM campaigns WHERE id = ?1').bind(Number(id)).first();
-      if (!c) throw new Refusal(404, 'gone', 'That campaign is gone.');
-      if (c.status === 'ended') throw new Refusal(409, 'ended', 'This campaign has ended. Edit it and set it to Active to run it again.');
-      const day = easternDay(now);
-      await env.DB.prepare("UPDATE campaigns SET status = 'active', starts = COALESCE(starts, ?2), updated_at = ?3 WHERE id = ?1").bind(c.id, day, now).run();
-      const { results } = await env.DB.prepare("SELECT id FROM campaign_ads WHERE campaign_id = ?1 AND status = 'approved' AND (post_on IS NULL OR post_on <= ?2)").bind(c.id, day).all();
-      const ids = results.map((r) => r.id);
-      if (ids.length) {
-        await env.DB.prepare(`UPDATE campaign_ads SET post_on = ?1, auto_note = 'Posting now…', updated_at = ?2 WHERE id IN (${ids.map(() => '?').join(',')})`).bind(day, now, ...ids).run();
-      }
-      const counts = (await env.DB.prepare("SELECT SUM(status = 'draft') AS drafts, SUM(status = 'approved' AND post_on > ?2) AS later FROM campaign_ads WHERE campaign_id = ?1").bind(c.id, day).first()) || {};
-      const started = await startPoster(env, day, ids);
-      return { body: { ok: true, started, day, now: ids.length, later: counts.later || 0, drafts: counts.drafts || 0 }, target: c.id, detail: { name: c.name, posting: ids.length, started } };
     }],
 
     ['POST', /^marketing\/media$/, 'admin', 'marketing.media', async ({ env, body, who, now }) => {

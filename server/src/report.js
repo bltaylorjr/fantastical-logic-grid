@@ -44,24 +44,7 @@ export async function quality(env, days = 90, now = Date.now()) {
     };
   });
   rows.sort((a, b) => b.attention - a.attention || b.games - a.games);
-  const [looks, pictures] = await Promise.all([splitBy(env, since, 'look'), splitBy(env, since, 'pic')]);
-  return { days, since, minGames: MIN_GAMES, rows, flagged: rows.filter((r) => r.issues.length).length, looks, pictures };
-}
-
-// How games went for each color look (look) or picture clue outcome (pic),
-// so the weekly improvement run can compare them. Games sent before these
-// were recorded (NULL) are left out.
-async function splitBy(env, since, col) {
-  const { results } = await env.DB.prepare(`SELECT ${col} AS id, COUNT(*) AS games,
-      SUM(outcome = 'solved') AS solved, SUM(outcome IN ('revealed', 'abandoned')) AS quit,
-      AVG(rating) AS rating, COUNT(rating) AS rated, SUM(feel = 'hard') AS tooHard, SUM(feel = 'easy') AS tooEasy, COUNT(feel) AS felt,
-      AVG(CASE WHEN outcome = 'solved' THEN minutes END) AS minutes, AVG(hints) AS hints
-    FROM plays WHERE day >= ?1 AND ${col} IS NOT NULL GROUP BY ${col} ORDER BY games DESC`).bind(since).all();
-  return results.map((r) => ({
-    id: r.id, games: r.games, solveRate: round(r.solved / r.games), quitRate: round(r.quit / r.games),
-    rating: round(r.rating, 1), rated: r.rated, tooHard: r.felt ? round(r.tooHard / r.felt) : 0, tooEasy: r.felt ? round(r.tooEasy / r.felt) : 0,
-    minutes: round(r.minutes, 1), hints: round(r.hints, 1),
-  }));
+  return { days, since, minGames: MIN_GAMES, rows, flagged: rows.filter((r) => r.issues.length).length };
 }
 
 // Free allowances at or above the alert level (a setting, 80% at first).

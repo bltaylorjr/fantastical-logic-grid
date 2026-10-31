@@ -209,22 +209,6 @@ const SHOTS = process.env.SHOTS;
       if (saved.length !== 1) await new Promise((r) => setTimeout(r, 100));
     }
     assert(saved.length === 1 && saved[0] === theme, `theme "${theme}" is switched off`);
-    // My alerts: push on this device, and email to an address typed in by hand.
-    await page.waitForSelector('#alerts-card');
-    assert(await page.locator('#alert-on, #alerts-card .note').count() > 0, 'My alerts offers push on this device (or says why it cannot)');
-    await page.fill('#alert-email', 'not an email');
-    await page.check('[name=alert-emailOn]');
-    await page.click('#alert-save');
-    await page.waitForFunction(() => /does not look right/.test(document.body.textContent));
-    assert(true, 'a mistyped alert email is refused');
-    await page.fill('#alert-email', 'alerts@example.org');
-    await page.uncheck('[name=alert-messages]');
-    await page.click('#alert-save');
-    let prefs = null;
-    for (let i = 0; i < 50 && !prefs; i++) { prefs = await db.prepare('SELECT email_to, email_on, messages FROM alert_prefs').first(); if (!prefs) await new Promise((r) => setTimeout(r, 100)); }
-    assert(prefs && prefs.email_to === 'alerts@example.org' && prefs.email_on === 1 && prefs.messages === 0, 'alert email and choices are saved for this admin');
-    await page.waitForSelector('#alert-email');
-    assert(await page.inputValue('#alert-email') === 'alerts@example.org', 'the saved alert email shows again');
     // Settings that moved out of the game.
     const dbValue = async (key) => { const r = await db.prepare('SELECT value FROM settings WHERE key = ?').bind(key).first(); return r && JSON.parse(r.value); };
     const until = async (key, want) => { for (let i = 0; i < 50 && (await dbValue(key)) !== want; i++) await new Promise((r) => setTimeout(r, 100)); return (await dbValue(key)) === want; };
@@ -667,13 +651,7 @@ const SHOTS = process.env.SHOTS;
     await q.waitForSelector('#dialog[open]');
     await q.fill('#dialog-body textarea[name=note]', 'The music now loops without stopping (1.7.1).');
     await q.click('#dialog-ok');
-    // The item stays in place: its message folds away, a line says what was
-    // done, and every button but Delete is greyed out.
-    await q.waitForSelector('#comm-list li.settled .settled-note');
-    assert(/Addressed/.test(await q.textContent('#comm-list li.settled .settled-note')), 'the item says it was addressed');
-    assert(!(await q.isVisible('#comm-list li.settled .fb-text')), 'the message folds away');
-    assert(await q.isEnabled('#comm-list li.settled button[data-status=delete]') && await q.isDisabled('#comm-list li.settled button[data-status=new], #comm-list li.settled button[data-status=approved], #comm-list li.settled button[data-status=declined]'),
-      'only Delete stays usable');
+    await q.waitForFunction(() => /Nothing here/.test(document.querySelector('#comm-list').textContent));
     const marked = await db.prepare("SELECT status, note FROM feedback WHERE kind = 'problem'").first();
     assert(marked.status === 'addressed' && /loops/.test(marked.note), 'a problem can be marked addressed with a note');
     await q.selectOption('#comm-status', 'addressed');
@@ -681,24 +659,10 @@ const SHOTS = process.env.SHOTS;
     await q.click('#comm-list button[data-status=new]');
     await q.waitForFunction(() => /Nothing here/.test(document.querySelector('#comm-list').textContent));
     await q.selectOption('#comm-status', 'new');
-    // Approve: into the weekly fix queue, with its own list.
-    await q.waitForSelector('#comm-list button[data-status=approved]');
-    await q.click('#comm-list button[data-status=approved]');
-    await q.waitForSelector('#dialog[open]');
-    await q.click('#dialog-ok');
-    await q.waitForFunction(() => /Approved/.test(document.querySelector('#comm-list li.settled .settled-note')?.textContent || ''));
-    assert((await db.prepare("SELECT status FROM feedback WHERE kind = 'problem'").first()).status === 'approved', 'Approve sends a problem to the fix queue');
-    await q.selectOption('#comm-status', 'approved');
-    await q.waitForFunction(() => /Waiting for the weekly fix run/.test(document.querySelector('#comm-list').textContent));
-    assert(await q.locator('#comm-list button[data-status=addressed]').count() === 1, 'an approved problem can be marked fixed');
-    // Disapprove: closed with no change.
-    await q.click('#comm-list button[data-status=declined]');
-    await q.waitForSelector('#dialog[open]');
-    await q.click('#dialog-ok');
-    await q.waitForFunction(() => /Disapproved/.test(document.querySelector('#comm-list li.settled .settled-note')?.textContent || ''));
-    const closed = await db.prepare("SELECT status, declined FROM feedback WHERE kind = 'problem'").first();
-    assert(closed.status === 'done' && closed.declined === 1, 'Disapprove closes a problem');
-    await q.selectOption('#comm-status', 'new');
+    await q.waitForSelector('#comm-list button[data-status=done]');
+    await q.click('#comm-list button[data-status=done]');
+    await q.waitForFunction(() => /Nothing here/.test(document.querySelector('#comm-list').textContent));
+    assert((await db.prepare("SELECT status FROM feedback WHERE kind = 'problem'").first()).status === 'done', 'a problem can be marked done');
     await q.selectOption('#comm-type', 'all');
     await q.waitForFunction(() => /Can I print/.test(document.querySelector('#comm-list').textContent));
     assert(/pirate ship/.test(await q.textContent('#comm-list')), 'Everything lists messages and ideas together');

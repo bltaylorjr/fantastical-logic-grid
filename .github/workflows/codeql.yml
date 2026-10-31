@@ -40,13 +40,6 @@ jobs:
               - web/engine
               - dist
               - mobile
-              # Tests run in Node with a pretend browser (a fake localStorage
-              # shared by every file), which the scanner reads as paths between
-              # unrelated files. They never reach players.
-              - scripts/test-*.mjs
-              - scripts/e2e-*.cjs
-              - engine/test
-              - server/test
       - uses: github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
         with:
           category: /language:${{ matrix.language }}

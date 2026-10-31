@@ -32,13 +32,9 @@ free runners.
 - New feature? Add a scene in `capture.cjs`: move the game to the right place,
   then call `scene('name', ['First sentence.', 'Second sentence.'])`. Keep each
   sentence short; each one becomes a caption.
-- A word the voice says oddly: add it to `SAY` in `build.py` with the way a
-  person would say it (for example `thelogicgrid.com` is said "the logic grid
-  dot com"). `build.py` also rewrites the voice's sounds the way Kokoro learned
-  them (`MISAKI`), which keeps vowels and "er" sounds clear.
-- `SPEED` (default 0.9), `VOICE` (default `am_michael`), `SENTENCE_PAUSE`
-  (0.42 s) and `CLAUSE_PAUSE` (0.2 s, at commas) are environment variables for
-  `build.py`.
+- A word the voice says oddly can be given as `['Caption text.', 'Spoken text.']`.
+- `SPEED` (default 0.94) and `VOICE` (default `am_michael`) are environment
+  variables for `build.py`.
 
 ## The Educators page video
 

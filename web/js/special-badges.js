@@ -5,7 +5,6 @@
 import { CLOUD, cloudEnabled } from './cloud-config.js';
 import * as account from './account.js';
 import * as store from './store.js';
-import { whileVisible } from './pace.js';
 
 const KEY = 'specialBadges';
 const SEEN_KEY = 'specialBadgesSeen';
@@ -55,6 +54,6 @@ export function init() {
   load();
   account.onChange(() => { load(); emit([]); refresh(); });
   refresh();
-  whileVisible(refresh, EVERY_MS);
+  setInterval(refresh, EVERY_MS);
   addEventListener('online', refresh);
 }

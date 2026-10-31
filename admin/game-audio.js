@@ -17,26 +17,9 @@ function audio() {
     sfxGain.connect(ctx.destination);
     musicGain.connect(ctx.destination);
   }
-  if (ctx.state === 'suspended' && !document.hidden) ctx.resume();
-  restSoon();
+  if (ctx.state === 'suspended') ctx.resume();
   return ctx;
 }
-
-// A running AudioContext keeps the sound hardware awake (and the battery
-// draining) even when silent, so it rests a few seconds after the last sound
-// when no music is playing, and whenever the game is out of sight. audio()
-// wakes it again for the next sound.
-const REST_AFTER = 8000;
-let restTimer = 0;
-function restSoon() {
-  clearTimeout(restTimer);
-  restTimer = setTimeout(() => { if (ctx && !music && ctx.state === 'running') ctx.suspend(); }, REST_AFTER);
-}
-if (typeof document !== 'undefined') document.addEventListener('visibilitychange', () => {
-  if (!ctx) return;
-  if (document.hidden) { if (ctx.state === 'running') ctx.suspend(); }
-  else if (music) ctx.resume();
-});
 
 export function setVolumes({ sfx = 0.6, music: m = 0.4 } = {}) {
   if (!audio()) return;
@@ -143,7 +126,6 @@ export const MOODS = {
   chemistry: { root: 174.61, scale: [0, 2, 3, 5, 7, 9, 10], prog: [0, 2, 4, 3], chord: 13, chime: 0.34, bright: 640 },
   astronomy: { root: 155.56, scale: [0, 2, 4, 7, 9, 11], prog: [0, 4, 5, 3], chord: 14, chime: 0.45, bright: 520 },
   paradox: { root: 130.81, scale: [0, 2, 4, 6, 8, 10], prog: [0, 1, 5, 2], chord: 14, chime: 0.3, bright: 600 },
-  seasons: { root: 174.61, scale: [0, 2, 4, 7, 9], prog: [0, 5, 3, 4], chord: 12, chime: 0.4, bright: 660 },
 };
 
 // A soft swell: rises over `attack`, holds, then fades over `release`.
@@ -273,7 +255,6 @@ export function stopMusic() {
   for (const o of extras) o.stop(t + 1.6);
   setTimeout(() => out.disconnect(), 2000);
   music = null;
-  restSoon();
 }
 
 export const musicPlaying = () => !!music;

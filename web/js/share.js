@@ -47,7 +47,6 @@ export async function flush() {
     signal: learn.signal(p), outcome: p.outcome, rating: p.rating, feel: p.feel, parts: p.parts,
     minutes: Math.round(p.ms / 6000) / 10, hints: p.hints, mistakes: p.mistakes,
     pid: p.pid, topic: p.topic, story: p.story, chars: p.chars, version: CLOUD.appVersion || null, mode: p.mode, whatif: p.whatif,
-    look: p.look || null, pic: p.pic || null,
   }));
   try {
     await post('/v1/learn/plays', { plays });
@@ -63,6 +62,11 @@ export async function refresh(force = false) {
     const res = await fetch(`${CLOUD_URL}/v1/learn/tuning`);
     if (res.ok) await learn.setShared(await res.json());
   } catch (e) { /* offline: keep what we have */ }
+}
+
+export async function sharePart(theme, kind, value, source) {
+  if (!available()) throw new Error('Sharing is not set up yet.');
+  return post('/v1/learn/parts', { theme, kind, value, source });
 }
 
 export function soon() {

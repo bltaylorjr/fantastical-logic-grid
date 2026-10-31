@@ -143,9 +143,8 @@
     send('voices');
   }
 
-  // Back button (Android): close the top dialog the way Escape does, then step
-  // back from a puzzle or lesson towards home. Returns false on the home screen
-  // with nothing open, and the app then goes to the background.
+  // Back button (Android): close the top dialog the way Escape does. Returns
+  // false when there is nothing to close, and the app then goes to the background.
   window.__flgBack = () => {
     const open = [...document.querySelectorAll('dialog[open]')];
     const top = open[open.length - 1];
@@ -153,14 +152,11 @@
       if (top.dispatchEvent(new Event('cancel', { cancelable: true }))) top.close();
       return true;
     }
-    // An open menu or popup; a section the player opened on purpose (data-disclosure) stays.
-    const expanded = document.querySelector('[aria-expanded="true"]:not([data-disclosure])');
+    const expanded = document.querySelector('[aria-expanded="true"]');
     if (expanded) {
       (document.activeElement || document.body).dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
       return true;
     }
-    // A puzzle, a lesson or Number Place steps back towards home (app.js).
-    if (window.__flgScreenBack && window.__flgScreenBack()) return true;
     return false;
   };
 

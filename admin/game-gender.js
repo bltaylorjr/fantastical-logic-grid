@@ -105,15 +105,11 @@ function hashOf(text) { let h = 7; for (const c of text) h = (h * 31 + c.charCod
 
 // The game's own characters (cast.js) say which they are; set for the open puzzle.
 let chosen = new Map();
-// Only 'f' or 'm' is kept: puzzles can come from shared files, and the value
-// goes into the page (a portrait's data-gender).
-export function setChosenGenders(characters = []) {
-  chosen = new Map(characters.filter((c) => c && (c.gender === 'f' || c.gender === 'm')).map((c) => [String(c.name), c.gender === 'f' ? 'f' : 'm']));
-}
+export function setChosenGenders(characters = []) { chosen = new Map(characters.map((c) => [c.name, c.gender])); }
 
 // 'f' or 'm', always the same for the same name.
 export function genderOf(name) {
-  if (chosen.has(String(name || '').trim())) return chosen.get(String(name).trim()) === 'f' ? 'f' : 'm';
+  if (chosen.has(String(name || '').trim())) return chosen.get(String(name).trim());
   const first = String(name || '').trim().split(/\s+/)[0];
   const cap = first.charAt(0).toUpperCase() + first.slice(1).toLowerCase();
   if (FEMALE.has(cap)) return 'f';

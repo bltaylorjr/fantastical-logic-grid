@@ -17,8 +17,6 @@ const ORDER = ['basic', 'easy', 'medium', 'hard', 'expert', 'master'];
 const MAX_PLAYS = 400, MAX_SEEN = 5000, MAX_STORIES = 600;
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
-// Toughness and level suggestions learn from classic games; each other style tunes itself (styles.js).
-const classic = (r) => (r.style || 'classic') === 'classic';
 
 // config() gives the admin's Number Place choices: adaptStrength, practiceChance
 // and sharedWeight, each 0 to 1.
@@ -43,8 +41,6 @@ export function createLearning({ load, keep, key, config = () => ({}) }) {
       // A random key for this one game, so a rating sent later updates it.
       pid: Math.random().toString(36).slice(2, 10) + Date.now().toString(36),
       fp: p.fingerprint, d: p.difficulty.id, size: p.size, variants: p.variants, mode: game.mode || 'free',
-      // The game style (styles.js) and how its game went: rival score, best chain and so on.
-      style: game.style || 'classic', sr: game.styleResult || null,
       outcome, ms: Math.round(game.ms), hints: game.hints, mistakes: game.mistakes, checks: game.checks || 0,
       toughness: p.toughness ?? null, tuned: game.tuned ?? null, stuck: game.stuck || [], feel: null, at: Date.now(), daily: game.daily || null,
     };
@@ -79,7 +75,7 @@ export function createLearning({ load, keep, key, config = () => ({}) }) {
 
   // 0 (gentlest) to 1 (toughest) inside a level; 0.5 for a new player.
   function toughness(level) {
-    const recent = data.plays.filter((r) => r.d === level && r.mode === 'free' && classic(r)).slice(-8);
+    const recent = data.plays.filter((r) => r.d === level && r.mode === 'free').slice(-8);
     const c = config();
     const strength = c.adaptStrength ?? 1;
     let local = 0.5;
@@ -97,7 +93,7 @@ export function createLearning({ load, keep, key, config = () => ({}) }) {
 
   // The level to suggest next: up after three clean solves, down after struggles.
   function suggestLevel() {
-    const free = data.plays.filter((r) => (r.mode === 'free' || r.mode === 'daily') && classic(r));
+    const free = data.plays.filter((r) => r.mode === 'free' || r.mode === 'daily');
     if (!free.length) return 'easy';
     const last = free[free.length - 1].d;
     const lastThree = free.filter((r) => r.d === last).slice(-3);
@@ -155,12 +151,6 @@ export const BADGES = [
   { id: 'ten', name: 'Ten down', note: 'Solve 10 puzzles', test: (s) => s.solved.length >= 10 },
   { id: 'fifty', name: 'Fifty down', note: 'Solve 50 puzzles', test: (s) => s.solved.length >= 50 },
   { id: 'hundred', name: 'Centurion', note: 'Solve 100 puzzles', test: (s) => s.solved.length >= 100 },
-  { id: 'rival', name: 'Grid duelist', note: 'Beat the rival in NINETIMESNINE-Rival Grid', test: (s) => s.solved.some((r) => r.style === 'rival' && r.sr?.won) },
-  { id: 'rival-sharp', name: 'Sharper still', note: 'Beat a Sharp or Relentless rival', test: (s) => s.solved.some((r) => r.style === 'rival' && r.sr?.won && r.sr.skill >= 0.6) },
-  { id: 'chain', name: 'Chain reactor', note: 'Reach your chain goal in NINETIMESNINE-Chain Reaction', test: (s) => s.solved.some((r) => r.style === 'chain' && r.sr?.best >= r.sr.goal) },
-  { id: 'tide', name: 'Low tide', note: 'Solve a NINETIMESNINE-Tidewater puzzle', test: (s) => s.solved.some((r) => r.style === 'tide') },
-  { id: 'tide-deep', name: 'Deep diver', note: 'Solve a NINETIMESNINE-Tidewater puzzle with no ebbs and no hints', test: (s) => s.solved.some((r) => r.style === 'tide' && !r.hints && r.sr && !r.sr.ebbs) },
-  { id: 'glyph', name: 'Realm walker', note: 'Clear every realm on the NINETIMESNINE-Glyph Quest map', test: (s) => s.solved.filter((r) => r.style === 'glyph').length >= 6 },
   { id: 'student', name: 'Student of logic', note: 'Use a hint, then solve the next puzzle at that level with none', test: (s) => s.solved.some((r, i) => r.hints > 0 && s.solved.slice(i + 1).some((x) => x.d === r.d && !x.hints)) },
 ];
 
@@ -185,10 +175,8 @@ export function summary(plays, today = new Date().toISOString().slice(0, 10)) {
   const s = { solved, ...streaks(plays, today), has: (d) => solved.some((r) => r.d === d) };
   const byLevel = ORDER.map((id) => {
     const xs = solved.filter((r) => r.d === id);
-    // Times leave out Rival Grid, where the rival fills in part of the grid.
-    const timed = xs.filter((r) => r.style !== 'rival');
-    const clean = timed.filter((r) => !r.hints);
-    return { id, solved: xs.length, best: clean.length ? Math.min(...clean.map((r) => r.ms)) : null, average: timed.length ? timed.reduce((n, r) => n + r.ms, 0) / timed.length : null };
+    const clean = xs.filter((r) => !r.hints);
+    return { id, solved: xs.length, best: clean.length ? Math.min(...clean.map((r) => r.ms)) : null, average: xs.length ? xs.reduce((n, r) => n + r.ms, 0) / xs.length : null };
   });
   return { ...s, byLevel, badges: BADGES.map((b) => ({ id: b.id, name: b.name, note: b.note, earned: b.test(s) })) };
 }
