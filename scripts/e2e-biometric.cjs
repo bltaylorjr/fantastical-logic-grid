@@ -102,7 +102,6 @@ function startAuth(signer) {
     if (!localStorage.getItem('flg.settings')) localStorage.setItem('flg.settings', JSON.stringify({ introOffered: true, voiceProvider: 'device' }));
     localStorage.setItem('flg.remoteConfig', JSON.stringify({ announcements: [], disabledThemes: [], features: {}, defaults: {}, game: { idleMinutes: mins }, news: [], fetchedAt: Date.now() }));
   }, IDLE_MINUTES);
-  await ctx.addInitScript(() => { try { localStorage.setItem('flg.savedOpen', 'true'); } catch (e) { /* none */ } }); // Saved Puzzles box open (its sync button is inside)
   const page = await ctx.newPage();
   page.on('pageerror', (e) => { if (!/reading 'waiting'/.test(String(e))) errors.push(String(e)); });
   page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errors.push(m.text()); });
