@@ -350,9 +350,15 @@ const INIT = (Z) => {
     await p.click('#print-cancel');
 
     // ---------- Saved puzzles
-    await p.click('#home-btn'); await p.waitForSelector('.saved-item'); await prep(); await top();
+    // The Saved Puzzles box starts closed, and solved puzzles fold away under
+    // Completed puzzles, so open both before showing the saved game.
+    await p.click('#home-btn'); await p.waitForSelector('.saved-item', { state: 'attached' }); await prep(); await top();
     await film('saved', async () => {
-      await wait(300); await scrollTo('#saved-section', 'center', 0, 800); await glide(...(await center('.saved-item')), 600); await wait(1400);
+      await wait(300); await scrollTo('#saved-section', 'center', 0, 800);
+      if (await p.$('#saved-body[hidden]')) { await tap('#saved-toggle', 500); await wait(500); }
+      if (!(await p.$('#saved-list .saved-item'))) await p.evaluate(() => { const d = document.querySelector('#saved-done'); if (d) d.open = true; });
+      await p.waitForSelector('.saved-item >> visible=true'); await wait(300);
+      await glide(...(await center('.saved-item >> visible=true')), 600); await wait(1400);
     });
 
     // ---------- Install
