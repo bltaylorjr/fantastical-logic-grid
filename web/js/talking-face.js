@@ -342,7 +342,8 @@ export function createTalker(canvas, { reducedMotion = false } = {}) {
     // Jaw: opens fast with the voice, closes a little slower.
     const lv = level();
     const target = lv == null ? 0 : Math.max(0, Math.min(1, (lv - 0.08) * 1.5)) * 0.42 * m.jaw;
-    open += (target - open) * (target > open ? 0.55 : 0.3);
+    // (Eased by time, not by frame, so a slow machine closes the mouth as fast.)
+    open += (target - open) * (1 - Math.pow(target > open ? 0.45 : 0.7, dt * 60));
     if (open < 0.004) open = 0;
     for (const k of Object.keys(ex)) ex[k] += (m[k] - ex[k]) * Math.min(1, dt * 4);
     // Blinks, more often when nervous.
@@ -430,7 +431,8 @@ export function createTalker(canvas, { reducedMotion = false } = {}) {
     gesture(kind, ms = kind === 'shrug' ? 900 : 1100) { gesture = { kind, ms, at: performance.now() }; },
     // A blink now, or (for tests) eyelids held part-way: blink(0.5).
     blink(hold) { if (hold == null) blinkStart = performance.now(); else heldBlink = hold; },
-    pause() { stopped = true; if (raf) cancelAnimationFrame(raf); raf = 0; },
+    // Stops moving, with the mouth shut, so they never come back mid-word.
+    pause() { stopped = true; if (raf) cancelAnimationFrame(raf); raf = 0; level = () => null; open = 0; frame(performance.now()); },
     resume() { if (geo) run(); },
     get moving() { return !!(gl && geo); },
     get mouth() { return open; },
