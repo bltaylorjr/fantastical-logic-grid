@@ -1,6 +1,7 @@
 // Basic / Interactive switch: Interactive by default; Basic gives the first
 // version's layout and colors (no glass, glow, banner art or theme glyphs),
-// keeps the pictures, voices, races and badges, and stays chosen after a
+// keeps everything else but the picture puzzle that unlocks a clue and the
+// talking faces, and stays chosen after a
 // reload. Text contrast of the Basic colors in every look.
 // SHOTS=<folder> saves screenshots.
 const { chromium } = require('playwright');
@@ -65,6 +66,12 @@ function contrast(a, b) {
     await page.waitForSelector('#screen-play:not([hidden]) td.c', { timeout: 60000 });
     assert(await page.locator('#scene svg, #scene img').count() >= 1, 'Basic shows the drawn scene');
     assert(await page.locator('#talker').isHidden(), 'no talking face in Basic');
+    assert(await page.locator('#clue-list .pic-clue, #clue-list li.pic-locked').count() === 0 && await page.evaluate(() => !/Locked evidence/.test(document.querySelector('#clue-list').textContent)), 'no picture puzzle locks a clue in Basic');
+    // Switching to Interactive mid-puzzle brings the picture clue back, and Basic takes it away again.
+    await page.click('#mode-switch [data-look=interactive]');
+    assert(await page.locator('#clue-list .pic-clue, #clue-list li.pic-locked').count() >= 1, 'Interactive has the picture puzzle that unlocks a clue');
+    await page.click('#mode-switch [data-look=basic]');
+    assert(await page.locator('#clue-list .pic-clue, #clue-list li.pic-locked').count() === 0, 'switching to Basic opens every clue');
     if (SHOTS) await page.screenshot({ path: path.join(SHOTS, 'basic-play.png'), fullPage: true });
 
     // 4. Contrast of the Basic colors (AA: 4.5 for text, 3 for marks and lines).

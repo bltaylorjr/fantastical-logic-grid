@@ -979,6 +979,8 @@ function openGame(save, { fresh = false } = {}) {
 // opens and when the Picture clues setting changes.
 function startPictureClue() {
   if (!S) return;
+  // Basic leaves out the picture puzzle that unlocks a clue (Bobby, 2026-10-31).
+  if (isBasic()) { pictureClues.stop(); return; }
   pictureClues.start(S.puzzle, {
     save: S.save, settings,
     onSolved: (pc) => { sound('section'); announce(`Clue ${pc.locked} unlocked: ${S.puzzle.clues.find((c) => c.number === pc.locked)?.text || ''}`); },
@@ -2323,8 +2325,8 @@ const moodFor = (who) => {
 const CAUGHT_ENDING = /culprit|confess|stole|took|thief|prank|caught|guilty|behind it all|owns? up|admits?/i;
 
 // Basic / Interactive switch in the app bar. Basic is the first version's
-// layout and colors (app.css "Basic look"), with the pictures, voices, races
-// and badges; it leaves out the newest extras, such as talking faces.
+// layout and colors (app.css "Basic look") with everything else in the game,
+// except the picture puzzle that unlocks a clue and the talking faces.
 // Interactive is the default. The choice stays on this device (index.html
 // applies it before the first paint).
 const isBasic = () => document.documentElement.dataset.look === 'basic';
@@ -2340,6 +2342,8 @@ $('#mode-switch').addEventListener('click', (e) => {
   try { localStorage.setItem('flg.look', basic ? 'basic' : 'interactive'); } catch (err) { /* private mode: this visit only */ }
   showLook();
   if (basic) talker.hide?.();
+  // The locked clue comes and goes with the look; a Basic puzzle has every clue open.
+  if (S) startPictureClue();
   toast(basic ? 'Basic look on. Switch back to Interactive any time at the top.' : 'Interactive look on.');
 });
 showLook();
