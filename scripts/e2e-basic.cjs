@@ -61,7 +61,9 @@ function contrast(a, b) {
     for (const id of ['#read-story', '#read-clues', '#app-menu [data-cmd=board]', '#app-menu [data-cmd=stats]', '#scene']) {
       assert(await page.locator(id).count() >= 1, `Basic keeps ${id}`);
     }
-    await page.check('input[name=tier][value=basic]', { force: true });
+    // Hard, so the puzzle always has enough clues for a picture clue (a small
+    // Basic-tier puzzle with under 4 clues never gets one, and the check below needs it).
+    await page.check('input[name=tier][value=hard]', { force: true });
     await page.click('#gen-btn');
     await page.waitForSelector('#screen-play:not([hidden]) td.c', { timeout: 60000 });
     assert(await page.locator('#scene svg, #scene img').count() >= 1, 'Basic shows the drawn scene');

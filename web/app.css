@@ -1208,3 +1208,35 @@ html.silent .talker { display: none !important; }
   :root[data-look="basic"] .toolbar { flex-wrap: wrap; overflow: visible; margin: 0; padding: 0; }
   :root[data-look="basic"] .toolbar .btn { flex-direction: row; gap: 6px; min-width: 44px; padding: 8px 12px; font-size: .95rem; }
 }
+
+/* ---------- Device fit: PC, tablet and phone (2026-10-31) ---------- */
+/* Small squares on a phone: a tip under the grid (grid.js sets data-small). */
+.grid-tip { display: none; margin: 8px 0 0; }
+.grid-card:has(#gridframe[data-small="true"]:not([hidden])) .grid-tip { display: block; }
+@media (min-width: 1024px) and (max-width: 1199px) {
+  /* Tablets on their side and small laptops: the grid gets the full width
+     (bigger squares) and the clues follow under it, as on a tablet held upright. */
+  .play { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 599px) {
+  /* Phones: the sticky bar keeps to two short rows so the puzzle gets the screen.
+     Back and the logo shrink to icons (the words stay for screen readers). */
+  .appbar { gap: 6px; padding-left: max(8px, env(safe-area-inset-left)); padding-right: max(8px, env(safe-area-inset-right)); }
+  .back-btn { min-width: 44px; justify-content: center; padding: 0 10px; }
+  .back-btn .back-text { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+  body:has(#back-btn:not([hidden])) .appbar > .brand { flex: none; }
+  body:has(#back-btn:not([hidden])) .brand > span { display: none; }
+  .appbar-actions { gap: 4px; margin-left: auto; }
+  .appbar-actions .btn { padding-left: 10px; padding-right: 10px; }
+  .mode-switch button { padding: 0 8px; font-size: .85rem; }
+  .topstrip { gap: 4px; }
+  .topstrip > .btn { padding-left: 8px; padding-right: 8px; font-size: .88rem; }
+}
+@media (max-width: 479px) {
+  .brand > span { display: none; }
+}
+@media (max-width: 389px) {
+  .appbar { gap: 4px; }
+  .appbar-actions .btn { padding-left: 6px; padding-right: 6px; }
+  .mode-switch button { padding: 0 6px; font-size: .8rem; }
+}
