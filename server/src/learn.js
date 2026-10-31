@@ -32,6 +32,11 @@ const PLATFORMS = new Set(['web', 'desktop', 'android', 'ios']);
 const OUTCOMES = new Set(['solved', 'revealed', 'abandoned']);
 const FEELS = new Set(['easy', 'right', 'hard']);
 const MODES = new Set(['free', 'daily', 'race']);
+// The colors the player saw, and what happened to the picture clue (none: the
+// puzzle had none; off: the player turned picture clues off; locked: shown
+// but not solved by the player; solved: the player solved the picture).
+export const LOOKS = new Set(['light', 'dark', 'contrast']);
+export const PICS = new Set(['none', 'off', 'locked', 'solved']);
 const TOPIC_KEYS = new Set(THEMES.flatMap((t) => getTopics(t.id).map((p) => `${t.id}/${p.id}`)));
 const TUNING_DAYS = 90;
 
@@ -94,6 +99,8 @@ function cleanPlay(p) {
     version: /^\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(p.version || '') ? p.version : null,
     mode: MODES.has(p.mode) ? p.mode : null,
     whatif: Number.isFinite(+p.whatif) ? Math.round(num(p.whatif, 0, 999)) : null,
+    look: LOOKS.has(p.look) ? p.look : null,
+    pic: PICS.has(p.pic) ? p.pic : null,
   };
 }
 
@@ -107,12 +114,13 @@ async function postPlays(req, env) {
   // A row sent again with the same pid (a rating given after the game was
   // sent) updates it; a solve never turns back into a quit.
   const stmt = env.DB.prepare(`INSERT INTO plays (day, platform, tier, theme, size, clue_types, effort, signal, outcome, rating, feel, parts, minutes, hints, mistakes,
-      pid, topic, story, chars, version, mode, whatif) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+      pid, topic, story, chars, version, mode, whatif, look, pic) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     ON CONFLICT (pid) WHERE pid IS NOT NULL DO UPDATE SET rating = excluded.rating, feel = excluded.feel, signal = excluded.signal,
       outcome = CASE WHEN plays.outcome IN ('solved', 'revealed') AND excluded.outcome = 'abandoned' THEN plays.outcome ELSE excluded.outcome END,
-      minutes = COALESCE(excluded.minutes, plays.minutes), hints = excluded.hints, mistakes = excluded.mistakes`);
+      minutes = COALESCE(excluded.minutes, plays.minutes), hints = excluded.hints, mistakes = excluded.mistakes,
+      look = COALESCE(excluded.look, plays.look), pic = COALESCE(excluded.pic, plays.pic)`);
   await env.DB.batch(rows.map((r) => stmt.bind(day, r.platform, r.tier, r.theme, r.size, r.clueTypes, r.effort, r.signal, r.outcome, r.rating, r.feel, r.parts, r.minutes, r.hints, r.mistakes,
-    r.pid, r.topic, r.story, r.chars, r.version, r.mode, r.whatif)));
+    r.pid, r.topic, r.story, r.chars, r.version, r.mode, r.whatif, r.look, r.pic)));
   return json({ saved: rows.length });
 }
 

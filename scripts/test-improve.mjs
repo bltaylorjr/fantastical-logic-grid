@@ -5,7 +5,7 @@ import { mkdtempSync, writeFileSync, readFileSync, mkdirSync, copyFileSync } fro
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { analyze, renderReport, loadEngine, readLighthouse, whyLine, writeTuning, LIMITS } from './improve.mjs';
+import { analyze, renderReport, loadEngine, readLighthouse, whyLine, writeTuning, lookFindings, LIMITS } from './improve.mjs';
 import { houseTuningFor, houseDailyOptions, HOUSE_TUNING } from '../engine/src/house-tuning.js';
 import { generatePuzzle } from '../engine/src/index.js';
 
@@ -48,6 +48,30 @@ await test('findings are ranked and tagged', async () => {
   assert.ok(r.findings.some((f) => f.area === 'daily' && f.auto));
   // Dashboard work is for Bobby, not for a code change.
   assert.equal(r.findings.find((f) => /Cloudflare dashboard/.test(f.text)).forClaude, false);
+});
+
+await test('color looks and picture clues are compared, report only', async () => {
+  const quality = {
+    rows: [],
+    pictures: [{ id: 'solved', games: 40, quitRate: 0.1, rating: 4.4, rated: 20 }, { id: 'locked', games: 30, quitRate: 0.4, rating: 3.6, rated: 12 }, { id: 'off', games: 40, quitRate: 0.2, rating: 3.8, rated: 15 }],
+    looks: [{ id: 'light', games: 60, quitRate: 0.15 }, { id: 'dark', games: 40, quitRate: 0.15 }, { id: 'contrast', games: 20, quitRate: 0.5 }],
+  };
+  const out = [];
+  lookFindings(quality, (f) => out.push({ forClaude: false, auto: false, ...f }));
+  assert.ok(out.every((f) => f.area === 'looks' && !f.auto), 'nothing changes by itself');
+  assert.ok(out.some((f) => /36% of games had picture clues turned off/.test(f.text) && f.forClaude));
+  assert.ok(out.some((f) => /unsolved give up more: 40% versus 10%/.test(f.text)));
+  assert.ok(out.some((f) => /average 4.4 stars; with picture clues off, 3.8/.test(f.text)));
+  assert.ok(out.some((f) => /high-contrast look give up more/.test(f.text) && f.forClaude));
+  assert.ok(!out.some((f) => /the dark look/.test(f.text)));
+  // Too few games: nothing is said.
+  const few = [];
+  lookFindings({ pictures: [{ id: 'off', games: 9, quitRate: 0.9 }], looks: [{ id: 'dark', games: 9, quitRate: 0.9 }] }, (f) => few.push(f));
+  assert.deepEqual(few, []);
+  // The full run takes them in, under their own heading.
+  const r = await analyze(signals({ quality }), { today: '2026-11-02', current: [], engine });
+  assert.ok(r.findings.some((f) => f.area === 'looks'));
+  assert.match(renderReport(r), /Looks and picture clues/);
 });
 
 await test('the tuning entry is bounded, dated tomorrow and explained', async () => {

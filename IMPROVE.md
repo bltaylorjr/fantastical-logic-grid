@@ -19,7 +19,9 @@ repository and Gmail. The Claude task runs on the owner's Claude plan.
 - puzzle ratings and their rule findings (`/admin/v1/ratings`, by level, by
   play mode and by story part, last 30 days)
 - the puzzle quality report: which theme and level players give up on or find
-  too hard or too easy (`/admin/v1/quality`)
+  too hard or too easy, and how games go in each color look and with or
+  without the picture clue (`/admin/v1/quality`). The look and picture-clue
+  comparison is report only: it never changes the game by itself
 - what the shared learning service learned from everyone's games
   (`/v1/learn/tuning`)
 - error and feedback **counts** and free limits (`/admin/v1/summary`, `/admin/v1/alerts`)
