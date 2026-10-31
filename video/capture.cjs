@@ -507,6 +507,20 @@ const CSS = `
     await p.evaluate(() => { document.documentElement.dataset.theme = 'light'; document.documentElement.classList.add('silent'); }); await p.waitForTimeout(300);
     await scene('silent', ['And Silent mode is always there when you just want the puzzle.']);
     await p.evaluate(() => { document.documentElement.classList.remove('silent'); });
+    // Logic Grid Basic: the first version's simpler look, one switch away.
+    if (await p.$('#mode-switch [data-look=basic]')) {
+      await top(); await hl('#mode-switch', 8);
+      await scene('look-switch', ['Prefer a simpler screen? Use the Basic and Interactive switch at the top.', 'The game opens on Interactive, the full look you have seen so far.']);
+      await clearFx();
+      await clickShown('#mode-switch [data-look=basic]');
+      await p.waitForFunction(() => document.documentElement.dataset.look === 'basic'); await p.waitForTimeout(400); await prep(); await top();
+      await scene('basic-play', ['Basic is the game\'s first, classic look: flat white panels, a blue accent and a plain, easy-to-read font, with no screen animations.', 'You play exactly the same way, and every clue is open from the start, with no picture puzzles to unlock.']);
+      await clearFx();
+      await p.click('#home-btn'); await p.waitForSelector('#tier-choices input'); await prep(); await top();
+      await scene('basic-home', ['Everything else is here too: every theme and topic, drawn pictures, voices, races and the scoreboard, stats and badges, hints, saves and printing.', 'Only the talking faces stay in Interactive.', 'The game remembers your choice, and Interactive switches you back at any time.']);
+      await clickShown('#mode-switch [data-look=interactive]');
+      await p.waitForFunction(() => document.documentElement.dataset.look !== 'basic'); await p.waitForTimeout(300); await clearFx();
+    }
     await p.click('#home-btn'); await p.waitForSelector('#tier-choices input'); await prep();
     await p.click('#menu-btn'); await p.click('[data-cmd=install]'); await p.waitForSelector('#dlg-install[open]'); await prep();
     await scene('install', ['To play without opening a browser, choose Install the app from the Menu.', 'Download the Windows desktop app, which keeps itself up to date.', 'Or add the game\'s icon to your phone\'s home screen. On your phone, the same menu shows you how.', 'On a phone, pull down from the top of the page to refresh. Your progress is saved first.']);

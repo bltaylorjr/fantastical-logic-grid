@@ -23,9 +23,9 @@ OUT = os.path.join(HERE, 'out' if VIDEO == 'intro' else f'out-{VIDEO}')
 KDIR = os.environ.get('KOKORO_DIR', os.path.join(HERE, '.kokoro'))
 KURL = 'https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/'
 VOICE = os.environ.get('VOICE', 'am_michael')
-SPEED = float(os.environ.get('SPEED', '0.94'))  # a touch slower than normal, for clear words
+SPEED = float(os.environ.get('SPEED', '0.9'))  # a little slower than normal, for clear words and an unhurried pace
 SR = 24000
-FADE, LEAD, GAP, TAIL = 0.4, 0.4, 0.3, 0.55
+FADE, LEAD, GAP, TAIL = 0.4, 0.5, 0.5, 0.7
 INSTALL = '--install' in sys.argv
 
 
@@ -74,16 +74,49 @@ PHONEME_FIXES = [
     (r'ɚɹ', 'əɹ'),
 ]
 
+# Kokoro learned American English from misaki's sounds, not eSpeak's: one
+# letter for each two-part vowel ("A" for the "ay" in "page"), no long marks,
+# "ɜɹ" for the "er" in "confirm" (eSpeak drops the r) and a plain t in
+# "button". Writing eSpeak's sounds the way misaki does gives clearer,
+# steadier words.
+MISAKI = [
+    ('ʔn', 'tᵊn'), ('ʔ', 't'),
+    ('eɪ', 'A'), ('aɪ', 'I'), ('aʊ', 'W'), ('ɔɪ', 'Y'), ('oʊ', 'O'),
+    ('dʒ', 'ʤ'), ('tʃ', 'ʧ'),
+    ('ɐ', 'ə'), ('ɚ', 'əɹ'),
+    ('ɜːɹ', 'ɜɹ'), ('ɜː', 'ɜɹ'), ('ɪə', 'iə'), ('ː', ''),
+]
+
+# Words the voice gets wrong as written: said the way a person would say them.
+# A dot inside a web address also made the voice stop as if a sentence ended.
+SAY = [
+    (r'\bthelogicgrid\.com\b', 'the logic grid dot com'),
+]
+
+# Pauses: a breath at commas and a full stop between sentences, so lists and
+# steps don't run together.
+SENTENCE_PAUSE = float(os.environ.get('SENTENCE_PAUSE', '0.42'))
+CLAUSE_PAUSE = float(os.environ.get('CLAUSE_PAUSE', '0.2'))
+
 
 def fix_phonemes(p):
     for a, b in PHONEME_FIXES:
         p = re.sub(a, b, p)
-    return p
+    for a, b in MISAKI:
+        p = p.replace(a, b)
+    return p.replace('ɹɹ', 'ɹ')
+
+
+def respell(text):
+    for a, b in SAY:
+        text = re.sub(a, b, text)
+    return text
 
 
 def narrate(tts, text):
-    sounds = fix_phonemes(tts.tokenizer.phonemize(say_aloud(text), 'en-us'))
-    return tts.create(sounds, voice=VOICE, speed=SPEED, is_phonemes=True)
+    sounds = fix_phonemes(tts.tokenizer.phonemize(respell(say_aloud(text)), 'en-us'))
+    return tts.create(sounds, voice=VOICE, speed=SPEED, is_phonemes=True,
+                      sentence_pause=SENTENCE_PAUSE, clause_pause=CLAUSE_PAUSE)
 
 
 def fonts():
