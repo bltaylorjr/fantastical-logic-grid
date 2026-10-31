@@ -17,9 +17,26 @@ function audio() {
     sfxGain.connect(ctx.destination);
     musicGain.connect(ctx.destination);
   }
-  if (ctx.state === 'suspended') ctx.resume();
+  if (ctx.state === 'suspended' && !document.hidden) ctx.resume();
+  restSoon();
   return ctx;
 }
+
+// A running AudioContext keeps the sound hardware awake (and the battery
+// draining) even when silent, so it rests a few seconds after the last sound
+// when no music is playing, and whenever the game is out of sight. audio()
+// wakes it again for the next sound.
+const REST_AFTER = 8000;
+let restTimer = 0;
+function restSoon() {
+  clearTimeout(restTimer);
+  restTimer = setTimeout(() => { if (ctx && !music && ctx.state === 'running') ctx.suspend(); }, REST_AFTER);
+}
+if (typeof document !== 'undefined') document.addEventListener('visibilitychange', () => {
+  if (!ctx) return;
+  if (document.hidden) { if (ctx.state === 'running') ctx.suspend(); }
+  else if (music) ctx.resume();
+});
 
 export function setVolumes({ sfx = 0.6, music: m = 0.4 } = {}) {
   if (!audio()) return;
@@ -256,6 +273,7 @@ export function stopMusic() {
   for (const o of extras) o.stop(t + 1.6);
   setTimeout(() => out.disconnect(), 2000);
   music = null;
+  restSoon();
 }
 
 export const musicPlaying = () => !!music;

@@ -32,7 +32,7 @@ function restSoon() {
   clearTimeout(restTimer);
   restTimer = setTimeout(() => { if (ctx && !music && ctx.state === 'running') ctx.suspend(); }, REST_AFTER);
 }
-document.addEventListener('visibilitychange', () => {
+if (typeof document !== 'undefined') document.addEventListener('visibilitychange', () => {
   if (!ctx) return;
   if (document.hidden) { if (ctx.state === 'running') ctx.suspend(); }
   else if (music) ctx.resume();
