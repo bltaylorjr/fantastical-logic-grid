@@ -649,7 +649,7 @@ dialog::backdrop { background: rgb(5 7 16 / .6); backdrop-filter: blur(6px); -we
   .screen.enter .card, .screen.enter .banner, .screen.enter .play-head { animation: rise-in 520ms var(--ease) both; }
   .screen.enter .card:nth-of-type(2) { animation-delay: 80ms; } .screen.enter .side .card:nth-child(2) { animation-delay: 140ms; }
   @keyframes rise-in { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
-  .banner::before { animation: aurora 18s ease-in-out infinite; }
+  .banner::before { animation: aurora 18s ease-in-out 2; } /* drifts for a while, then rests to save power */
   @keyframes aurora { 50% { transform: translate(6%, -4%) scale(1.08); } }
   dialog[open] { animation: dlg-in 260ms var(--spring); }
   @keyframes dlg-in { from { opacity: 0; transform: translateY(10px) scale(.96); } to { opacity: 1; transform: none; } }

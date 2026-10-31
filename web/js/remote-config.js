@@ -101,7 +101,7 @@ export function init({ onThemesChanged, onConfigChanged } = {}) {
   }
   if (!CLOUD_URL) return;
   refresh();
-  setInterval(refresh, EVERY_MS);
+  setInterval(() => { if (!document.hidden) refresh(); }, EVERY_MS);
   addEventListener('online', refresh);
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible' && (!config || Date.now() - (config.fetchedAt || 0) > EVERY_MS)) refresh();
