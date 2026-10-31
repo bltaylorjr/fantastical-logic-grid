@@ -55,6 +55,7 @@ import * as licenseDownload from './license-download.js';
 import { addCloseButtons, closeDialog } from './dialog-close.js';
 import { initTalker } from './talker.js';
 import * as games from './games.js';
+import * as pkg from './package-preview.js';
 
 addCloseButtons();
 
@@ -237,7 +238,7 @@ function trackScreen(name) {
 }
 function screenBack() {
   if (currentScreen === 'games') return false;
-  if (currentScreen === 'home') { openGames(); return true; }
+  if (currentScreen === 'home') { if (!pkg.on()) return false; openGames(); return true; }
   if (currentScreen === 'learn' && !$('#learn-lesson').hidden) {
     $('#learn-back').click();
     try { if (!(history.state && history.state.flgScreen)) { history.pushState({ ...(history.state || {}), flgScreen: 'learn' }, ''); pushedHere = true; } } catch (e) { /* framed preview */ }
@@ -265,7 +266,8 @@ function showScreen(name) {
   currentScreen = name;
   delete document.documentElement.dataset.start;
   games.rememberGame(name === 'games' ? 'all' : name === 'np' ? 'ninetimesnine' : 'logic-grid');
-  $('#back-btn').hidden = name === 'games';
+  // Public visitors have only The Fantastical Logic Grid: its home is the first screen.
+  $('#back-btn').hidden = name === 'games' || (name === 'home' && !pkg.on());
   trackScreen(name);
   $('#screen-games').hidden = name !== 'games';
   $('#screen-home').hidden = name !== 'home';
@@ -284,7 +286,7 @@ function showScreen(name) {
   $('.topstrip').hidden = name === 'games';
   $('#skip-link').hidden = name !== 'play';
   $('#view-seg').hidden = name !== 'play';
-  document.title = name === 'play' && S ? `${S.save.name} · The Fantastical Logic Grid` : name === 'learn' ? 'How to play · The Fantastical Logic Grid' : name === 'np' ? 'NINETIMESNINE · The Logic Grid' : name === 'games' ? 'The Logic Grid' : HOME_TITLE === 'The Logic Grid' ? 'The Fantastical Logic Grid · The Logic Grid' : HOME_TITLE;
+  document.title = name === 'play' && S ? `${S.save.name} · The Fantastical Logic Grid` : name === 'learn' ? 'How to play · The Fantastical Logic Grid' : name === 'np' ? 'NINETIMESNINE · The Logic Grid' : name === 'games' ? 'The Logic Grid' : pkg.on() ? 'The Fantastical Logic Grid · The Logic Grid' : HOME_TITLE;
   if (name === 'home') { closeGame(); renderSaved(); renderSuggestion(); renderDaily(); accountsOnHome(); competeUi.onHome(); setTimeout(offerUpdate, 500); }
   wake.setPlaying(name === 'play' && S && !S.save.solved);
   updateMusic();
@@ -2666,7 +2668,13 @@ function applyFeatures() {
   $('[data-cmd=mail]').hidden = isPortal || !puzzleMail.available();
   $('#mail-invite').hidden = isPortal || !puzzleMail.available();
   $('[data-cmd=suggest]').hidden = !characters.suggestionsOpen();
-  $('[data-cmd=numberplace]').hidden = !numberPlace.enabled();
+  // The game cards and NINETIMESNINE are for testers of the full package only (package-preview.js).
+  $('[data-cmd=numberplace]').hidden = !pkg.on() || !numberPlace.enabled();
+  $('[data-cmd=games]').hidden = !pkg.on();
+  $('[data-cmd=leave-preview]').hidden = !pkg.on();
+  if (currentScreen === 'home') $('#back-btn').hidden = !pkg.on();
+  $('#brand-name').textContent = pkg.on() ? 'The Logic Grid' : 'The Fantastical Logic Grid';
+  $('#home-btn').setAttribute('aria-label', `${pkg.on() ? 'The Logic Grid' : 'The Fantastical Logic Grid'}, home`);
   renderGameCards();
   $('[data-cmd=pack]').hidden = isPreview || !printPack.available();
   $('#feedback-idea').hidden = !feedbackBox.available();
@@ -2800,15 +2808,17 @@ $('#app-menu').addEventListener('click', async (e) => {
   else if (cmd === 'install') installApp();
   else if (cmd === 'numberplace') openNumberPlace();
   else if (cmd === 'games') openGames();
+  else if (cmd === 'leave-preview') { pkg.leave(); games.rememberGame('logic-grid'); location.reload(); }
   else if (cmd === 'site') window.open(`${(CLOUD.siteUrl || 'https://thelogicgrid.com').replace(/\/+$/, '')}/?utm_source=portal&utm_medium=store&utm_campaign=portal`, '_blank', 'noopener');
 });
 // The Logic Grid's name in the bar: from a puzzle or How to play it goes to
 // The Fantastical Logic Grid's home; from there or another game, to the game cards.
-$('#home-btn').onclick = () => (currentScreen === 'play' || currentScreen === 'learn' ? goHome() : openGames());
+$('#home-btn').onclick = () => (!pkg.on() || currentScreen === 'play' || currentScreen === 'learn' ? goHome() : openGames());
 $('#back-btn').onclick = () => screenBack();
 
 // The Logic Grid's first screen: a card for each game (games.js).
 async function openGames() {
+  if (!pkg.on()) { goHome(); return; }
   if (S) { await flushSave(); closeGame(); }
   showScreen('games');
   window.scrollTo(0, 0);
@@ -2819,22 +2829,24 @@ async function openGames() {
 function renderGameCards() {
   games.renderCards($('#game-cards'), {
     available: (id) => id !== 'ninetimesnine' || numberPlace.enabled(),
-    onOpen: (id) => openFromCard(id),
+    onOpen: (id, mode) => openFromCard(id, mode),
   });
 }
-async function openFromCard(id) {
-  if (id === 'ninetimesnine') { openNumberPlace(); return; }
+async function openFromCard(id, mode = null) {
+  if (id === 'ninetimesnine') { openNumberPlace(mode); return; }
   await goHome();
   offerIntro();
 }
 
 // Number Place: a separate numbers game on its own screen, with the game's look
 // (web/js/number-place.js). It shares only anonymous play data, for learning.
-async function openNumberPlace() {
+// mode: a NINETIMESNINE game style to pick on its setup screen (from the game card's links).
+async function openNumberPlace(mode = null) {
+  if (!pkg.on()) { goHome(); return; }
   if (S) { await flushSave(); closeGame(); }
   showScreen('np');
   window.scrollTo(0, 0);
-  await numberPlace.open({ celebrate: () => celebrateSolve(settings.celebrations, { random: settings.celebrateRandom }), setWorld });
+  await numberPlace.open({ celebrate: () => celebrateSolve(settings.celebrations, { random: settings.celebrateRandom }), setWorld, style: mode });
 }
 $('#np-back').onclick = () => openGames();
 
@@ -3248,6 +3260,9 @@ async function init() {
   setTimeout(checkUpdates, 4000);
   // The Windows and Android apps wait here for an app key that works (license.js).
   await license.gate({ announce });
+  // A tester's special link switches the full package on (package-preview.js).
+  await pkg.fromAddress();
+  applyFeatures();
   // thelogicgrid.com/?learn opens How to play straight away; a ?play=now link
   // goes straight into a puzzle; otherwise first-time players get the welcome.
   // Otherwise the app opens where the player last was: the game cards (always
@@ -3255,7 +3270,7 @@ async function init() {
   // time) or NINETIMESNINE.
   if (new URLSearchParams(location.search).has('learn')) { settings.introOffered = true; store.saveSettings(settings); openTutorial(); } else if (!handleChallengeLink() && !handlePlayLink() && currentScreen === 'home') {
     const last = games.lastGame();
-    if (last === 'logic-grid') offerIntro(); else if (last === 'ninetimesnine' && numberPlace.enabled()) openNumberPlace(); else showScreen('games');
+    if (!pkg.on() || last === 'logic-grid') offerIntro(); else if (last === 'ninetimesnine' && numberPlace.enabled()) openNumberPlace(); else showScreen('games');
   }
   delete document.documentElement.dataset.start;
   offerLanguage();

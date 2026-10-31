@@ -564,11 +564,13 @@ button.game-card:active { transform: translateY(1px) scale(.99); }
 .game-name .menu-tag { font-size: .7rem; vertical-align: middle; padding: 1px 8px; border-radius: 999px; background: var(--accent-soft); }
 .game-blurb { color: var(--muted); }
 .game-play { justify-self: start; margin-top: 8px; font-weight: 700; color: var(--accent); }
+.game-cards > li { display: grid; gap: 8px; align-content: start; }
+.game-modes { list-style: none; margin: 0; padding: 0 4px; display: flex; flex-wrap: wrap; gap: 6px; }
 /* Wide screens: the games to play side by side, the ones to come smaller below. */
 @media (min-width: 900px) {
   .game-cards { grid-template-columns: repeat(6, minmax(0, 1fr)); }
-  .game-cards li { grid-column: span 3; }
-  .game-cards li:has(.soon) { grid-column: span 2; }
+  .game-cards > li { grid-column: span 3; }
+  .game-cards > li:has(.soon) { grid-column: span 2; }
   .game-card:not(.soon) { padding: 28px; }
   .game-card:not(.soon) .game-art svg { width: 96px; height: 96px; }
   .game-card:not(.soon) .game-name { font-size: 1.6rem; }

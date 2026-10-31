@@ -179,7 +179,7 @@ let html = readFileSync(join(out, 'index.html'), 'utf8');
 const head = html.match(/<head>([\s\S]*?)<\/head>/)[1]
   .replace(/<meta charset[^>]*>\s*/, '').replace(/<meta name="viewport"[^>]*>\s*/, '').replace(/<link rel="manifest"[^>]*>\s*/, '');
 const body = html.match(/<body>([\s\S]*?)<\/body>/)[1];
-html = head.replace('<title>The Logic Grid</title>', '<title>The Logic Grid</title>\n<meta name="claude:viewport-fit-sides" content="cover">\n<meta name="flg-mode" content="preview">') + body;
+html = head.replace('<title>The Fantastical Logic Grid</title>', '<title>The Fantastical Logic Grid</title>\n<meta name="claude:viewport-fit-sides" content="cover">\n<meta name="flg-mode" content="preview">') + body;
 writeFileSync(join(prev, 'index.html'), html);
 console.log('Built dist/preview for the claude.ai page.');
 
@@ -195,7 +195,7 @@ rmSync(join(portal, 'sw.js'));
 rmSync(join(portal, 'manifest.webmanifest'), { force: true });
 let portalHtml = readFileSync(join(portal, 'index.html'), 'utf8')
   .replace(/<link rel="manifest"[^>]*>\s*/, '')
-  .replace('<title>The Logic Grid</title>', '<title>The Logic Grid</title>\n<meta name="flg-mode" content="portal">');
+  .replace('<title>The Fantastical Logic Grid</title>', '<title>The Fantastical Logic Grid</title>\n<meta name="flg-mode" content="portal">');
 if (!portalHtml.includes('content="portal"')) throw new Error('Could not mark the portal build');
 writeFileSync(join(portal, 'index.html'), portalHtml);
 console.log('Built dist/portal for game sites such as itch.io.');

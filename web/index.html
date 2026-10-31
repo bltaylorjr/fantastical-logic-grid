@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>The Logic Grid</title>
-<meta name="description" content="The Logic Grid: puzzle games where every puzzle has one answer you can reach without guessing. Play The Fantastical Logic Grid story puzzles and NINETIMESNINE number puzzles.">
+<title>The Fantastical Logic Grid</title>
+<meta name="description" content="Story logic grid puzzles: pick a difficulty, theme and size, then solve, save, resume and print.">
 <meta name="theme-color" content="#1F5FAD">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
@@ -18,9 +18,10 @@
   try { const s = JSON.parse(localStorage.getItem('flg.settings') || '{}'); if (s.colorTheme && s.colorTheme !== 'system') document.documentElement.dataset.theme = s.colorTheme; } catch (e) {}
   // Basic look (the first version's layout and colors) if the player picked it; Interactive otherwise.
   try { if (localStorage.getItem('flg.look') === 'basic') document.documentElement.dataset.look = 'basic'; } catch (e) {}
-  // The Logic Grid opens on the game cards unless the player was last in The
-  // Fantastical Logic Grid (app.js opens the last game played).
-  try { if (localStorage.getItem('flg.game') !== 'logic-grid') document.documentElement.dataset.start = 'games'; } catch (e) {}
+  // The full Logic Grid package is in private testing (js/package-preview.js):
+  // on a tester's device it opens on the game cards unless the player was last
+  // in The Fantastical Logic Grid. Everyone else gets The Fantastical Logic Grid.
+  try { if ((localStorage.getItem('flg.preview') || /[?&]preview=(?!off)/.test(location.search)) && localStorage.getItem('flg.game') !== 'logic-grid') document.documentElement.dataset.start = 'games'; } catch (e) {}
   // Never run inside another site's frame, where clicks could be tricked
   // (GitHub Pages cannot send X-Frame-Options). The claude.ai preview is framed on purpose.
   if (window.top !== window.self && !document.querySelector('meta[name="flg-mode"]')) { document.documentElement.hidden = true; try { window.top.location = window.location.href; } catch (e) {} }
@@ -32,9 +33,9 @@
 
 <header class="appbar">
   <button class="btn quiet back-btn" type="button" id="back-btn"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg> <span class="back-text">Back</span></button>
-  <button class="brand" type="button" id="home-btn" aria-label="The Logic Grid, home">
+  <button class="brand" type="button" id="home-btn" aria-label="The Fantastical Logic Grid, home">
     <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><rect x="2" y="2" width="28" height="28" rx="6" fill="currentColor"/><path d="M11 2v28M21 2v28M2 11h28M2 21h28" stroke="var(--bg)" stroke-width="1.6"/><circle cx="16" cy="16" r="3.4" fill="var(--bg)"/><path d="M4.8 4.8l3.4 3.4M8.2 4.8l-3.4 3.4M23.8 23.8l3.4 3.4M27.2 23.8l-3.4 3.4" stroke="var(--bg)" stroke-width="1.6" stroke-linecap="round"/></svg>
-    <span>The Logic Grid</span>
+    <span id="brand-name">The Fantastical Logic Grid</span>
   </button>
   <div class="appbar-actions">
     <div class="mode-switch" id="mode-switch" role="group" aria-label="Look"><button type="button" data-look="basic" aria-pressed="false">Basic</button><button type="button" data-look="interactive" aria-pressed="true">Interactive</button></div>
@@ -62,8 +63,9 @@
     <a role="menuitem" id="support-link" href="#" target="_blank" rel="noopener" hidden>Support the game</a>
     <button role="menuitem" type="button" data-cmd="site" hidden>Play on thelogicgrid.com</button>
     <!-- The other games of The Logic Grid, each on its own screen. -->
-    <button role="menuitem" type="button" data-cmd="games" class="menu-small">All games</button>
-    <button role="menuitem" type="button" data-cmd="numberplace" class="menu-small">Play NINETIMESNINE <span class="menu-tag">New</span></button>
+    <button role="menuitem" type="button" data-cmd="games" class="menu-small" hidden>All games</button>
+    <button role="menuitem" type="button" data-cmd="leave-preview" class="menu-small" hidden>Leave the private preview</button>
+    <button role="menuitem" type="button" data-cmd="numberplace" class="menu-small" hidden>Play NINETIMESNINE <span class="menu-tag">New</span></button>
   </div>
   <!-- Always visible: How to play (the tutorial), the Introduction video and a small scoreboard. -->
   <div class="topstrip">
@@ -1122,6 +1124,6 @@
 <div class="toasts" id="toasts" aria-live="polite"></div>
 <div class="sr-only" id="announcer" aria-live="polite" translate="no"></div>
 <div id="print-root" class="print-root"></div>
-<noscript><p style="padding:16px">The Logic Grid needs JavaScript turned on.</p></noscript>
+<noscript><p style="padding:16px">The Fantastical Logic Grid needs JavaScript turned on.</p></noscript>
 </body>
 </html>

@@ -25,8 +25,12 @@ async function engine(themes) {
     return workerEngine(new URL('../np-worker.js', import.meta.url), { themes });
   } catch (e) {
     // No module workers: run the engine on the page.
-    const np = await import('../engine/number-place.js');
-    return { themes, generate: async (o) => np.generateNumberPlace(o), hint: async (p, en) => np.getNumberPlaceHint(p, en) };
+    const [np, st] = await Promise.all([import('../engine/number-place.js'), import('../engine/number-place-styles.js')]);
+    return {
+      themes, generate: async (o) => np.generateNumberPlace(o), hint: async (p, en) => np.getNumberPlaceHint(p, en),
+      // The game styles: the rival's move and the Tidewater pools and ebb.
+      move: async (p, g, o) => st.nextPlacement(p, g, o), tide: async (p, o) => st.planTide(p, o), ebb: async (p, g, w) => st.ebbTide(p, g, w),
+    };
   }
 }
 
@@ -68,6 +72,8 @@ export async function open(host = {}) {
       return;
     }
   } else mod.reopen();
+  // A game card's link to one of the games (Rival Grid, Tidewater...) picks it on the setup screen.
+  if (host.style) mod.pickStyle(host.style);
   document.getElementById('screen-np').focus();
 }
 

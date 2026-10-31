@@ -5,12 +5,15 @@ const { chromium } = require('playwright');
 const { spawn } = require('child_process');
 const path = require('path');
 const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`ok  ${m}`); };
+// The full package shows only on a tester's device (web/js/package-preview.js).
+const PREVIEW = /CODE_HASH = '([0-9a-f]{64})'/.exec(require('fs').readFileSync(path.join(__dirname, '..', 'web', 'js', 'package-preview.js'), 'utf8'))[1];
 
 (async () => {
   const server = spawn('node', [path.join(__dirname, 'serve.mjs'), path.join(__dirname, '..', 'dist', 'web'), '8182'], { stdio: 'ignore' });
   await new Promise((r) => setTimeout(r, 600));
   const browser = await chromium.launch();
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' });
+  await ctx.addInitScript((h) => localStorage.setItem('flg.preview', h), PREVIEW);
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(String(e)));
@@ -64,9 +67,45 @@ const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`o
     assert(await p2.locator('#screen-games').isHidden() && await p2.locator('#screen-home').isHidden(), 'a How to play link opens How to play, not the cards');
     await fresh.close();
 
+    // Each NINETIMESNINE game has its own link under the card.
+    await page.goto('http://localhost:8182/');
+    await page.click('#home-btn').catch(() => {});
+    await page.waitForSelector('#screen-games:not([hidden]) .game-modes button');
+    assert(await page.locator('.game-modes button').count() === 5, 'the NINETIMESNINE card links to each of its five games');
+    await page.click('.game-modes [data-mode=tide]');
+    await page.waitForSelector('#np-setup-view:not([hidden]) #np-styles .choice', { timeout: 15000 });
+    assert(await page.isChecked('input[name=np-style][value=tide]'), 'a game link opens NINETIMESNINE with that game picked');
+    await page.click('#np-back');
+    await page.waitForSelector('#screen-games:not([hidden])');
+
+    // Everyone else sees The Fantastical Logic Grid alone.
+    const pub = await browser.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' });
+    const pp = await pub.newPage();
+    pp.on('pageerror', (e) => errors.push(String(e)));
+    await pp.goto('http://localhost:8182/?preview=not-the-code');
+    await pp.waitForSelector('#screen-home:not([hidden]) #tier-choices input');
+    assert(await pp.locator('#screen-games').isHidden() && await pp.title() === 'The Fantastical Logic Grid', 'a public visitor opens on The Fantastical Logic Grid');
+    assert((await pp.locator('#home-btn').textContent()).trim() === 'The Fantastical Logic Grid' && await pp.locator('#back-btn').isHidden(), 'the bar says The Fantastical Logic Grid, with no way to the cards');
+    if (await pp.locator('#dlg-welcome[open]').count()) { await pp.keyboard.press('Escape'); await pp.waitForFunction(() => !document.querySelector('#dlg-welcome').open); }
+    await pp.click('#menu-btn');
+    assert(await pp.locator('[data-cmd=numberplace]').isHidden() && await pp.locator('[data-cmd=games]').isHidden(), 'the menu has no NINETIMESNINE or All games');
+    await pp.keyboard.press('Escape');
+    assert(!/preview=/.test(pp.url()) && !(await pp.evaluate(() => localStorage.getItem('flg.preview'))), 'a wrong code unlocks nothing and leaves the address');
+    await pp.goto('http://localhost:8182/?preview=off');
+    await pp.waitForSelector('#screen-home:not([hidden])');
+    await pub.close();
+    // A tester's device leaves the preview with ?preview=off.
+    await page.goto('http://localhost:8182/?preview=off');
+    await page.waitForSelector('#tier-choices input');
+    assert(await page.evaluate(() => !localStorage.getItem('flg.preview')) && await page.locator('#screen-games').isHidden(), '?preview=off switches the full package off');
+    await page.evaluate((h) => localStorage.setItem('flg.preview', h), PREVIEW);
+    await page.goto('http://localhost:8182/');
+    await page.click('#home-btn').catch(() => {});
+    await page.waitForSelector('#screen-games:not([hidden]) #game-cards button');
+
     // Phones: the cards stack in one column.
     await page.setViewportSize({ width: 390, height: 844 });
-    const xs = await page.$$eval('#game-cards li', (els) => els.map((e) => e.getBoundingClientRect().left));
+    const xs = await page.$$eval('#game-cards > li', (els) => els.map((e) => e.getBoundingClientRect().left));
     assert(new Set(xs.map(Math.round)).size === 1 && await page.evaluate(() => document.documentElement.scrollWidth <= 390), 'on a phone the cards stack and nothing spills sideways');
     if (process.env.SHOTS) await page.screenshot({ path: path.join(process.env.SHOTS, 'games-phone.png'), fullPage: true });
 

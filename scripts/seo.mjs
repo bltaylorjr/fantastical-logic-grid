@@ -358,7 +358,7 @@ ${verification}
   // Crawlable links to the search pages at the foot of the home screen (website only).
   const siteLinks = `<nav class="site-links" aria-label="More about the game"><ul>${NAV.map(([p, n]) => `<li><a href="${p}">${n}</a></li>`).join('')}</ul></nav>`;
   const game_html = appHtml
-    .replace('<title>The Logic Grid</title>', `<title>${esc(GAME_TITLE)}</title>`)
+    .replace('<title>The Fantastical Logic Grid</title>', `<title>${esc(GAME_TITLE)}</title>`)
     .replace(/<meta name="description"[^>]*>/, head)
     .replace(/(<main id="screen-home"[\s\S]*?)(<\/main>)/, (_, home, end) => `${home}${siteLinks}\n${end}`)
     .replace(/<body>/, `<body>\n${noscript}`);

@@ -7,7 +7,14 @@ const MARK_SOON = '<svg viewBox="0 0 32 32" aria-hidden="true"><rect x="3" y="3"
 
 export const GAMES = [
   { id: 'logic-grid', name: 'The Fantastical Logic Grid', kind: 'Story logic puzzles', blurb: 'Every case is a brand new story. Read the clues, fill the grid, close the case.', mark: MARK_GRID },
-  { id: 'ninetimesnine', name: 'NINETIMESNINE', kind: 'Number puzzles', blurb: 'Place 1 to 9 once in every row, column and box. Hints teach the next step.', mark: MARK_NINE, tag: 'New' },
+  {
+    id: 'ninetimesnine', name: 'NINETIMESNINE', kind: 'Number puzzles', blurb: 'Place 1 to 9 once in every row, column and box. Hints teach the next step.', mark: MARK_NINE, tag: 'New',
+    // Its games (modules/number-place/styles.js), each with its own link under the card.
+    modes: [
+      { id: 'classic', name: 'Classic' }, { id: 'rival', name: 'Rival Grid' }, { id: 'chain', name: 'Chain Reaction' },
+      { id: 'tide', name: 'Tidewater' }, { id: 'glyph', name: 'Glyph Quest' },
+    ],
+  },
   { id: 'cage-math', name: 'Cage Math', kind: 'Coming soon', blurb: 'Fill each cage so its numbers make the target.', mark: MARK_SOON, soon: true },
   { id: 'sum-cross', name: 'Sum Cross', kind: 'Coming soon', blurb: 'A crossword of numbers: every run adds up to its clue.', mark: MARK_SOON, soon: true },
   { id: 'picture-grid', name: 'Picture Grid', kind: 'Coming soon', blurb: 'Shade the cells the row and column counts call for, and a picture appears.', mark: MARK_SOON, soon: true },
@@ -23,6 +30,8 @@ export function rememberGame(id) {
 }
 
 // The cards. Games that are ready are buttons; the rest show what is coming.
+// A game with several ways to play lists them under its card, each opening
+// the game with that one picked: onOpen(id, mode).
 // `available(id)` lets the dashboard switch a game off.
 export function renderCards(list, { available = () => true, onOpen }) {
   list.replaceChildren(...GAMES.filter((g) => g.soon || available(g.id)).map((g) => {
@@ -49,6 +58,24 @@ export function renderCards(list, { available = () => true, onOpen }) {
       card.querySelector('.game-name').append(' ', t);
     }
     li.append(card);
+    if (g.modes && !g.soon) {
+      const modes = document.createElement('ul');
+      modes.className = 'game-modes';
+      modes.setAttribute('aria-label', `${g.name} games`);
+      for (const m of g.modes) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'btn small';
+        b.dataset.mode = m.id;
+        b.textContent = m.name;
+        b.setAttribute('aria-label', m.id === 'classic' ? g.name : `${g.name}-${m.name}`);
+        b.onclick = () => onOpen(g.id, m.id);
+        const item = document.createElement('li');
+        item.append(b);
+        modes.append(item);
+      }
+      li.append(modes);
+    }
     return li;
   }));
 }
