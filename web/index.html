@@ -18,6 +18,10 @@
   try { const s = JSON.parse(localStorage.getItem('flg.settings') || '{}'); if (s.colorTheme && s.colorTheme !== 'system') document.documentElement.dataset.theme = s.colorTheme; } catch (e) {}
   // Basic look (the first version's layout and colors) if the player picked it; Interactive otherwise.
   try { if (localStorage.getItem('flg.look') === 'basic') document.documentElement.dataset.look = 'basic'; } catch (e) {}
+  // The full Logic Grid package is in private testing (js/package-preview.js):
+  // on a tester's device it opens on the game cards unless the player was last
+  // in The Fantastical Logic Grid. Everyone else gets The Fantastical Logic Grid.
+  try { if ((localStorage.getItem('flg.preview') || /[?&]preview=(?!off)/.test(location.search)) && localStorage.getItem('flg.game') !== 'logic-grid') document.documentElement.dataset.start = 'games'; } catch (e) {}
   // Never run inside another site's frame, where clicks could be tricked
   // (GitHub Pages cannot send X-Frame-Options). The claude.ai preview is framed on purpose.
   if (window.top !== window.self && !document.querySelector('meta[name="flg-mode"]')) { document.documentElement.hidden = true; try { window.top.location = window.location.href; } catch (e) {} }
@@ -28,10 +32,10 @@
 <a class="skip" href="#grid-region" id="skip-link" hidden>Skip to grid</a>
 
 <header class="appbar">
-  <button class="btn quiet back-btn" type="button" id="back-btn" hidden><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg> <span class="back-text">Back</span></button>
+  <button class="btn quiet back-btn" type="button" id="back-btn"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg> <span class="back-text">Back</span></button>
   <button class="brand" type="button" id="home-btn" aria-label="The Fantastical Logic Grid, home">
     <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><rect x="2" y="2" width="28" height="28" rx="6" fill="currentColor"/><path d="M11 2v28M21 2v28M2 11h28M2 21h28" stroke="var(--bg)" stroke-width="1.6"/><circle cx="16" cy="16" r="3.4" fill="var(--bg)"/><path d="M4.8 4.8l3.4 3.4M8.2 4.8l-3.4 3.4M23.8 23.8l3.4 3.4M27.2 23.8l-3.4 3.4" stroke="var(--bg)" stroke-width="1.6" stroke-linecap="round"/></svg>
-    <span>The Fantastical Logic Grid</span>
+    <span id="brand-name">The Fantastical Logic Grid</span>
   </button>
   <div class="appbar-actions">
     <div class="mode-switch" id="mode-switch" role="group" aria-label="Look"><button type="button" data-look="basic" aria-pressed="false">Basic</button><button type="button" data-look="interactive" aria-pressed="true">Interactive</button></div>
@@ -58,8 +62,10 @@
     <button role="menuitem" type="button" data-cmd="install" hidden>Install the app</button>
     <a role="menuitem" id="support-link" href="#" target="_blank" rel="noopener" hidden>Support the game</a>
     <button role="menuitem" type="button" data-cmd="site" hidden>Play on thelogicgrid.com</button>
-    <!-- Number Place: a separate numbers game with its own screen (modules/number-place). -->
-    <button role="menuitem" type="button" data-cmd="numberplace" class="menu-small">Try Number Place <span class="menu-tag">New</span></button>
+    <!-- The other games of The Logic Grid, each on its own screen. -->
+    <button role="menuitem" type="button" data-cmd="games" class="menu-small" hidden>All games</button>
+    <button role="menuitem" type="button" data-cmd="leave-preview" class="menu-small" hidden>Leave the private preview</button>
+    <button role="menuitem" type="button" data-cmd="numberplace" class="menu-small" hidden>Play NINETIMESNINE <span class="menu-tag">New</span></button>
   </div>
   <!-- Always visible: How to play (the tutorial), the Introduction video and a small scoreboard. -->
   <div class="topstrip">
@@ -78,7 +84,20 @@
   </div>
 </header>
 
-<!-- ============ Home: setup + saved puzzles ============ -->
+<!-- ============ The Logic Grid: a card for each game (games.js) ============ -->
+<main id="screen-games" class="screen games" tabindex="-1" hidden>
+  <section class="banner games-banner" aria-labelledby="games-h">
+    <div class="hero-text">
+      <p class="eyebrow">Puzzle games</p>
+      <h1 class="hero-title" id="games-h">The Logic Grid</h1>
+      <p class="hero-tag">Every puzzle has exactly one answer you can reach without guessing. Choose a game.</p>
+    </div>
+  </section>
+  <h2 class="sr-only" id="games-list-h">Games</h2>
+  <ul class="game-cards" id="game-cards" aria-labelledby="games-list-h"></ul>
+</main>
+
+<!-- ============ The Fantastical Logic Grid: setup + saved puzzles ============ -->
 <main id="screen-home" class="screen" tabindex="-1">
   <div id="announcements" class="announcements" hidden></div>
   <section class="banner" aria-labelledby="hero-h">
@@ -351,10 +370,10 @@
   </aside>
 </main>
 
-<!-- ============ Number Place: its own numbers game (modules/number-place) ============ -->
+<!-- ============ NINETIMESNINE: the numbers game (modules/number-place) ============ -->
 <main id="screen-np" class="screen" tabindex="-1" hidden>
-  <p class="np-back"><button class="btn quiet small" type="button" id="np-back">Back to The Fantastical Logic Grid</button></p>
-  <div id="np-root"><p class="muted" id="np-loading">Loading Number Place…</p></div>
+  <p class="np-back"><button class="btn quiet small" type="button" id="np-back">All games</button></p>
+  <div id="np-root"><p class="muted" id="np-loading">Loading NINETIMESNINE…</p></div>
 </main>
 
 <!-- ============ How to play: the tutorial and tips ============ -->

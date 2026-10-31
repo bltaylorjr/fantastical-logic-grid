@@ -11,8 +11,11 @@ async function engine() {
     return workerEngine(new URL('../number-place/engine-worker.js', import.meta.url), { themes });
   } catch (e) {
     // No module workers: run the engine on the page.
-    const np = await import('../../engine/src/number-place.js');
-    return { themes, generate: async (o) => np.generateNumberPlace(o), hint: async (p, e2) => np.getNumberPlaceHint(p, e2) };
+    const [np, st] = await Promise.all([import('../../engine/src/number-place.js'), import('../../engine/src/number-place-styles.js')]);
+    return {
+      themes, generate: async (o) => np.generateNumberPlace(o), hint: async (p, e2) => np.getNumberPlaceHint(p, e2),
+      move: async (p, g, o) => st.nextPlacement(p, g, o), tide: async (p, o) => st.planTide(p, o), ebb: async (p, g, w) => st.ebbTide(p, g, w),
+    };
   }
 }
 

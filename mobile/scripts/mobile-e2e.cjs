@@ -42,6 +42,8 @@ const fakeAndroid = () => {
     for (const [name, device] of [['phone', devices['Pixel 7']], ['small', { ...devices['Galaxy S9+'], viewport: { width: 360, height: 740 } }]]) {
       const ctx = await browser.newContext({ ...device });
       await ctx.addInitScript(fakeAndroid);
+      // A tester's device, with the full Logic Grid package on (web/js/package-preview.js).
+      await ctx.addInitScript((h) => { try { localStorage.setItem('flg.preview', h); } catch (e) { /* none */ } }, /CODE_HASH = '([0-9a-f]{64})'/.exec(require('fs').readFileSync(path.join(__dirname, '..', '..', 'web', 'js', 'package-preview.js'), 'utf8'))[1]);
       await ctx.addInitScript(() => { try { localStorage.setItem('flg.savedOpen', 'true'); } catch (e) { /* none */ } }); // Saved Puzzles box open
       const page = await ctx.newPage();
       page.on('pageerror', (e) => errors.push(String(e)));
@@ -60,7 +62,12 @@ const fakeAndroid = () => {
         assert(await page.evaluate(() => window.__flgBack()) === true, `${name}: back closes the open dialog`);
         assert(!(await page.locator('#dlg-welcome[open]').count()), `${name}: welcome dialog closed`);
       }
-      assert(await page.evaluate(() => window.__flgBack()) === false, `${name}: back with nothing open leaves the app`);
+      // Back from The Fantastical Logic Grid goes to The Logic Grid's game cards, then leaves the app.
+      assert(await page.evaluate(() => window.__flgBack()) === true, `${name}: back on the home screen goes to the game cards`);
+      await page.waitForSelector('#screen-games:not([hidden])');
+      assert(await page.evaluate(() => window.__flgBack()) === false, `${name}: back on the game cards leaves the app`);
+      await page.click('#game-cards [data-game=logic-grid]');
+      await page.waitForSelector('#tier-choices input');
       await noSideScroll('the new puzzle screen');
       if (shots) await page.screenshot({ path: `${shots}/${name}-1-setup.png`, fullPage: true });
 

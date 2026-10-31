@@ -47,7 +47,7 @@ jobs:
         run: |
           npm install --no-save playwright
           npx playwright install --with-deps chromium
-          node mobile/scripts/mobile-e2e.cjs
+          node -r ./scripts/e2e-in-game.cjs mobile/scripts/mobile-e2e.cjs
       # The phone check above uses a build with no game server. The app itself
       # is built with it, so accounts, voices and app keys work on the phone.
       - name: Build the game for the app

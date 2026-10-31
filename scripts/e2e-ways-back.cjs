@@ -2,9 +2,9 @@
 // button, so:
 // - every website page has a Back button (top and bottom) that returns to the
 //   page before it on this site, or to the game;
-// - the game shows Back on every screen but home; the phone's back gesture or
-//   button closes an open window first, then steps back towards home, and the
-//   Android app's back button does the same.
+// - the game shows Back on every screen but the game cards; the phone's back
+//   gesture or button closes an open window first, then steps back towards
+//   home, and the Android app's back button does the same (home, then the cards).
 const { chromium } = require('playwright');
 const { spawn } = require('child_process');
 const path = require('path');
@@ -20,6 +20,8 @@ const BASE = `http://localhost:${PORT}`;
   const errors = [];
   try {
     const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block' });
+    // A tester's device, with the full package on (web/js/package-preview.js).
+    await ctx.addInitScript((h) => localStorage.setItem('flg.preview', h), /CODE_HASH = '([0-9a-f]{64})'/.exec(require('fs').readFileSync(path.join(__dirname, '..', 'web', 'js', 'package-preview.js'), 'utf8'))[1]);
     await ctx.addInitScript(() => { try { if (!localStorage.getItem('flg.settings')) localStorage.setItem('flg.settings', JSON.stringify({ introOffered: true })); } catch (e) { /* none */ } });
     const page = await ctx.newPage();
     page.on('pageerror', (e) => errors.push(String(e)));
@@ -28,7 +30,7 @@ const BASE = `http://localhost:${PORT}`;
     // ---- The game
     await page.goto(`${BASE}/`);
     await page.waitForSelector('#tier-choices input');
-    assert(await page.locator('#back-btn').isHidden(), 'no Back on the home screen');
+    assert(await page.locator('#back-btn').isVisible(), 'the home screen has Back, to all the games');
     await page.click('#quick-btn');
     await page.waitForSelector('#screen-play:not([hidden])', { timeout: 30000 });
     assert(await page.locator('#back-btn').isVisible(), 'a puzzle shows Back');
@@ -53,7 +55,12 @@ const BASE = `http://localhost:${PORT}`;
     const androidBack = () => page.evaluate(() => window.__flgScreenBack && window.__flgScreenBack());
     assert(await androidBack() === true, "the Android app's back button steps back from a puzzle");
     await page.waitForSelector('#screen-home:not([hidden])');
-    assert(await androidBack() === false, 'and on the home screen it leaves the app to Android');
+    assert(await androidBack() === true, 'on the home screen it goes to the game cards');
+    await page.waitForSelector('#screen-games:not([hidden])');
+    assert(await page.locator('#back-btn').isHidden(), 'no Back on the game cards');
+    assert(await androidBack() === false, 'and on the game cards it leaves the app to Android');
+    await page.click('#game-cards [data-game=logic-grid]');
+    await page.waitForSelector('#screen-home:not([hidden])');
 
     // A reload keeps the browser's history entries; going home afterwards
     // must not step back into the earlier load (that would reload the page).

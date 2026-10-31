@@ -73,6 +73,9 @@ jobs:
         env:
           SHOTS: screenshots
       - name: Accounts, fingerprint sign-in, races, error reports, app keys and the admin dashboard against the real Worker
+        # These open The Fantastical Logic Grid straight away (e2e-in-game.cjs), not the game cards.
+        env:
+          NODE_OPTIONS: --require ${{ github.workspace }}/scripts/e2e-in-game.cjs
         run: |
           npm --prefix server ci --no-audit --no-fund
           node scripts/e2e-accounts.cjs

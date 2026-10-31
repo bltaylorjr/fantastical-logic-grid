@@ -2,16 +2,21 @@
 export const markup = `
 <section class="np-setup" id="np-setup-view" aria-labelledby="np-h">
   <div class="card np-setup-card">
-    <p class="np-eyebrow">Number puzzles</p>
-    <h2 class="np-h" id="np-h">Number Place</h2>
+    <p class="np-eyebrow">The Logic Grid · Number puzzles</p>
+    <h2 class="np-h" id="np-h">NINETIMESNINE</h2>
     <p class="np-lede">Fill the grid so every row, column and box holds each number once. Every puzzle is new to you, proven to have one answer you can reach by logic alone, and tuned to how you play.</p>
     <p class="np-actions">
       <button class="btn primary" type="button" id="np-continue" hidden><span>Continue <small id="np-continue-name"></small></span></button>
       <button class="btn" type="button" id="np-daily-btn">Today's puzzle</button>
       <button class="btn quiet" type="button" id="np-suggest" hidden></button>
+      <button class="btn quiet" type="button" id="np-howto-btn">How to play</button>
     </p>
     <p class="np-help" id="np-daily-note"></p>
     <form id="np-setup" novalidate>
+      <fieldset id="np-style-field"><legend>Game style</legend><div class="np-choices np-styles" id="np-styles"></div>
+        <p class="np-help np-style-about" id="np-style-about"></p>
+        <ol class="np-map" id="np-map" aria-label="Glyph Quest map" hidden></ol>
+      </fieldset>
       <fieldset><legend>Difficulty</legend><div class="np-choices" id="np-levels"></div></fieldset>
       <fieldset id="np-size-field"><legend>Grid size</legend><div class="np-choices chips" id="np-sizes"></div></fieldset>
       <fieldset><legend>Extra rules (optional)</legend><div class="np-choices chips" id="np-variants"></div></fieldset>
@@ -56,13 +61,14 @@ export const markup = `
 <section class="np-play" id="np-play-view" hidden>
   <div class="np-head">
     <div>
-      <p class="np-eyebrow" id="np-kicker">Number Place</p>
-      <h2 class="np-h" id="np-title">Number Place</h2>
+      <p class="np-eyebrow" id="np-kicker">NINETIMESNINE</p>
+      <h2 class="np-h" id="np-title">NINETIMESNINE</h2>
     </div>
     <div class="np-meta"><span class="np-time" aria-label="Time"><span id="np-time">0:00</span></span><span class="np-muted" id="np-progress"></span>
       <button class="btn quiet small" type="button" id="np-pause" aria-keyshortcuts="P">Pause</button></div>
   </div>
   <p class="np-story" id="np-story"></p>
+  <div class="np-hud" id="np-hud" hidden></div>
   <div class="np-coach card" id="np-coach" role="note" hidden>
     <p class="np-coach-h">Tip <span id="np-coach-n"></span></p>
     <p id="np-coach-text"></p>
@@ -70,7 +76,7 @@ export const markup = `
   </div>
   <div class="np-layout">
     <div class="np-board-wrap">
-      <div id="np-board" class="np-board" role="grid" aria-label="Number Place grid. Arrow keys move, number keys fill in."></div>
+      <div id="np-board" class="np-board" role="grid" aria-label="NINETIMESNINE grid. Arrow keys move, number keys fill in."></div>
       <p class="np-paused-note" aria-hidden="true">Paused</p>
     </div>
     <div class="np-side">
@@ -83,12 +89,15 @@ export const markup = `
         <button class="btn small" type="button" id="np-hint-btn" aria-keyshortcuts="H">Hint</button>
         <button class="btn small" type="button" id="np-check" aria-keyshortcuts="C">Check</button>
       </div>
+      <div class="np-powers" id="np-powers" role="group" aria-label="Powers" hidden></div>
       <div class="np-digits" id="np-digits" role="group" aria-label="Numbers"></div>
       <div class="np-hint card" id="np-hint" role="status" aria-live="polite" hidden></div>
-      <label class="np-switch"><input type="checkbox" id="np-mistakes"> Show mistakes as I play</label>
+      <label class="np-switch" id="np-mistakes-row"><input type="checkbox" id="np-mistakes"> Show mistakes as I play</label>
+      <label class="np-switch" id="np-glyphnum-row" hidden><input type="checkbox" id="np-glyphnum"> Show the number under each glyph</label>
       <details class="np-rules-box">
         <summary>Rules and keys</summary>
         <ul id="np-rules"></ul>
+        <p><button class="btn small" type="button" id="np-howto-play">How to play this game</button></p>
         <p class="np-help">Arrow keys move. 1 to 9 fills a cell, Shift with a number writes a note. N switches notes on and off, A fills in notes, H gives a hint, C checks, P pauses, Backspace erases, Ctrl+Z undoes.</p>
       </details>
       <p class="np-print-row">
@@ -145,6 +154,13 @@ export const markup = `
     <label class="np-switch"><input type="checkbox" id="np-p-steps"> Step-by-step solution</label>
     <p class="np-actions"><button class="btn primary" value="print" id="np-print-go">Print</button><button class="btn quiet" value="cancel">Cancel</button></p>
   </form>
+</dialog>
+
+<dialog class="np-dialog wide" id="np-howto-dlg" aria-labelledby="np-howto-h">
+  <h2 id="np-howto-h">How to play</h2>
+  <div class="np-tabs" role="tablist" aria-label="Games" id="np-howto-tabs"></div>
+  <div class="np-howto" id="np-howto-body" role="tabpanel" tabindex="0"></div>
+  <form method="dialog"><p class="np-actions"><button class="btn quiet">Close</button></p></form>
 </dialog>
 
 <dialog class="np-dialog wide" id="np-steps-dlg" aria-labelledby="np-steps-h">
