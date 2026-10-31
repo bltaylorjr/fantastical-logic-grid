@@ -26,7 +26,7 @@ OUT = os.environ.get('OUT_DIR', 'improve-report')
 PR_URL = os.environ.get('PR_URL', '').strip()
 PR_STATE = os.environ.get('PR_STATE', '').strip()
 REPORT_URL = os.environ.get('REPORT_URL', '').strip()
-AREA = {'game': 'Game', 'looks': 'Looks and picture clues', 'daily': 'Daily puzzle', 'stories': 'Stories', 'players': 'Players', 'limits': 'Free limits',
+AREA = {'game': 'Game', 'daily': 'Daily puzzle', 'stories': 'Stories', 'players': 'Players', 'limits': 'Free limits',
         'speed': 'Speed', 'seo': 'Search (SEO)', 'site': 'Website'}
 
 

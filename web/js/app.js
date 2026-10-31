@@ -991,23 +991,12 @@ function openGame(save, { fresh = false } = {}) {
 function startPictureClue() {
   if (!S) return;
   // Basic leaves out the picture puzzle that unlocks a clue (Bobby, 2026-10-31).
-  if (isBasic()) { pictureClues.stop(); notePicture('none'); return; }
+  if (isBasic()) { pictureClues.stop(); return; }
   pictureClues.start(S.puzzle, {
     save: S.save, settings,
-    onSolved: (pc) => { notePicture('solved'); sound('section'); announce(`Clue ${pc.locked} unlocked: ${S.puzzle.clues.find((c) => c.number === pc.locked)?.text || ''}`); },
+    onSolved: (pc) => { sound('section'); announce(`Clue ${pc.locked} unlocked: ${S.puzzle.clues.find((c) => c.number === pc.locked)?.text || ''}`); },
     onChange: () => scheduleSave(),
   });
-  const pc = pictureClues.current();
-  notePicture(!pictureClues.enabled(settings) ? 'off' : !pc ? 'none' : pc.solved ? (S.save.pic === 'solved' ? 'solved' : 'locked') : 'locked');
-}
-// What happened to the picture clue, for learning (learn.js): none, off,
-// locked or solved. "Solved" means the player solved the picture themselves
-// (finishing the whole puzzle unlocks it too, which doesn't count), and it
-// sticks, so turning picture clues off afterwards doesn't undo it.
-function notePicture(v) {
-  if (!S || S.save.pic === 'solved' || S.save.pic === v) return;
-  S.save.pic = v;
-  scheduleSave();
 }
 // Short story moments under the scene as sections are finished (director.js).
 function startBeats() {
