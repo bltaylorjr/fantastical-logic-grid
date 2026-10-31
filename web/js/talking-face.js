@@ -1,14 +1,11 @@
-// Talking faces: the character who is speaking appears in a lifelike picture,
-// head and shoulders, whose lips move with their voice and who acts the way
-// they feel: a nervous witness blinks fast and fidgets with worried brows, a
-// cheerful one smiles and bobs, a sly one smirks, a caught culprit hangs their
-// head. All of it runs on this device, for free:
+// Talking faces: the character who is speaking appears in a lifelike picture
+// whose lips move with their voice, who blinks and moves their head a little.
+// All of it runs on this device, for free:
 //  - face-worker.js finds the eyes, lips and chin in the picture once
 //    (MediaPipe Face Landmarker), and the result is kept on this device;
 //  - a small WebGL program bends the picture each frame: the jaw drops as the
-//    voice gets louder, showing a mouth with teeth; the mouth corners and
-//    brows show the mood; the eyelids close for a blink; the head turns and
-//    nods on the neck while the shoulders breathe, sway and shrug;
+//    voice gets louder, showing a mouth with teeth, and the eyelids close for
+//    a blink;
 //  - the loudness comes from the voice clip itself (decoded once), so the lips
 //    follow the real words. Device voices give no sound to measure, so the
 //    lips move in a speaking rhythm instead.
@@ -61,9 +58,7 @@ let decoder = null;
 export async function loudnessOf(blob) {
   const Ctx = window.AudioContext || window.webkitAudioContext;
   if (!Ctx) return null;
-  // Only decodes, never plays: kept suspended so it doesn't hold the sound
-  // hardware awake.
-  if (!decoder) { decoder = new Ctx(); decoder.suspend?.(); }
+  decoder ||= new Ctx();
   const buf = await decoder.decodeAudioData(await blob.arrayBuffer());
   const data = buf.getChannelData(0);
   const step = Math.max(1, Math.round(buf.sampleRate / FPS));
@@ -81,38 +76,6 @@ export async function loudnessOf(blob) {
 }
 
 // ---------------------------------------------------------------------------
-// Moods: how a character acts (castbook.js MOODS). smile lifts (or drops) the
-// mouth corners, smirk lifts one; brow raises (or lowers) the brows and inner
-// raises their inner ends (worry); motion and pace scale the head's
-// movements; nod is how much the head bobs with the words; pitch tips the
-// head down (or the chin up); tilt leans it; jitter adds small quick
-// fidgets; blink is the gap between blinks in seconds; jaw scales the mouth.
-// ---------------------------------------------------------------------------
-const CALM = { smile: 0, smirk: 0, brow: 0, inner: 0, motion: 1, pace: 1, nod: 1, pitch: 0, tilt: 0, jitter: 0, blink: [2.5, 6], jaw: 1 };
-export const ACTING = {
-  calm: CALM,
-  cheerful: { smile: 0.55, brow: 0.25, motion: 1.3, pace: 1.2, nod: 1.6 },
-  excited: { smile: 0.7, brow: 0.5, motion: 1.8, pace: 1.5, nod: 2.2, jaw: 1.2 },
-  nervous: { smile: -0.1, brow: 0.3, inner: 0.7, motion: 0.8, pace: 2.2, jitter: 1, pitch: 0.25, blink: [0.7, 1.8] },
-  guilty: { smile: -0.3, inner: 0.6, motion: 0.5, pace: 0.7, pitch: 0.7, tilt: -0.3, jitter: 0.3, blink: [0.9, 2.2], jaw: 0.85 },
-  sly: { smile: 0.1, smirk: 0.7, brow: -0.25, motion: 0.8, pace: 0.6, tilt: 0.5, blink: [3, 7] },
-  grumpy: { smile: -0.55, brow: -0.7, motion: 0.7, pace: 0.6, pitch: 0.15 },
-  proud: { smile: 0.35, brow: 0.1, pitch: -0.6, motion: 0.9 },
-  kind: { smile: 0.45, brow: 0.15, inner: 0.15, motion: 0.9, pace: 0.8, tilt: 0.3 },
-  shy: { smile: 0.15, inner: 0.35, motion: 0.5, pitch: 0.55, jaw: 0.75, blink: [1.4, 3] },
-  dreamy: { smile: 0.2, brow: 0.2, motion: 1, pace: 0.5, tilt: 0.6, blink: [3, 7] },
-  formal: { motion: 0.45, pace: 0.8, pitch: -0.15 },
-  dramatic: { brow: 0.6, motion: 2, pace: 1.1, nod: 2, jaw: 1.25 },
-  playful: { smile: 0.5, smirk: 0.3, brow: 0.3, motion: 1.4, pace: 1.4, tilt: 0.4 },
-  curious: { brow: 0.45, tilt: 0.6, motion: 1.1, pace: 1.1 },
-  blunt: { brow: -0.2, motion: 0.6 },
-  chatty: { smile: 0.35, brow: 0.2, motion: 1.3, pace: 1.3, nod: 1.4 },
-  bookish: { brow: 0.15, motion: 0.7, pace: 0.8, pitch: 0.1 },
-  bold: { smile: 0.3, brow: 0.1, pitch: -0.3, motion: 1.3, nod: 1.3 },
-};
-export const actingOf = (mood) => ({ ...CALM, ...(ACTING[mood] || {}) });
-
-// ---------------------------------------------------------------------------
 // Drawing
 // ---------------------------------------------------------------------------
 const VERT = `attribute vec2 a; varying vec2 v; void main(){ v = a * 0.5 + 0.5; v.y = 1.0 - v.y; gl_Position = vec4(a, 0.0, 1.0); }`;
@@ -123,25 +86,20 @@ const FRAG = `precision highp float;
 varying vec2 v;
 uniform sampler2D uTex;
 uniform vec2 uImg;      // picture size in pixels
-uniform vec4 uView;     // crop centre (xy), crop width and height, pixels
-uniform vec3 uHead;     // head roll (radians), nod (pixels, + is down), side shift (pixels)
-uniform vec2 uNeck;     // where the head turns on the neck
-uniform float uFaceH;   // eyes to chin, pixels
-uniform vec2 uBody;     // shoulders lifted (pixels), breath (0 to 1)
+uniform vec3 uView;     // crop centre (xy) and crop size, pixels
+uniform vec3 uHead;     // head turn (radians), nod (pixels), breathing scale
 uniform vec2 uM;        // middle of the lips
 uniform vec2 uAx;       // along the mouth, left to right (unit)
 uniform float uW;       // half the mouth's width
 uniform float uCurve;   // how far the mouth corners sit below the middle
 uniform float uChin;    // chin, below the lips
 uniform float uOpen;    // jaw drop, in half mouth widths
-uniform vec2 uSmile;    // corners up (+) or down (-); the right corner's extra lift (smirk)
-uniform vec2 uBrow;     // brows up (+) or down (-); inner ends up (worry)
 uniform vec4 uEyeL;     // eye centre (xy), half width, half height
 uniform vec4 uEyeR;
 uniform float uBlink;   // 0 open, 1 shut
 
 vec2 ay() { return vec2(-uAx.y, uAx.x); }
-vec4 tex(vec2 p) { return texture2D(uTex, clamp(p / uImg, vec2(0.5) / uImg, vec2(1.0) - vec2(0.5) / uImg)); }
+vec4 tex(vec2 p) { return texture2D(uTex, clamp(p / uImg, vec2(0.0), vec2(1.0))); }
 float across(float x, float y) {
   float hw = 1.0 + 0.75 * clamp(y / uChin, 0.0, 1.0);
   return 1.0 - smoothstep(0.5 * hw, 1.1 * hw, abs(x));
@@ -169,43 +127,17 @@ vec2 eyelid(vec2 p, vec4 eye) {
   sy = mix(y, sy, reach);
   return eye.xy + (uAx * x + ay() * sy) * eye.z;
 }
-// The brow above one eye moves up or down; inward is +1 towards the nose.
-vec2 brow(vec2 p, vec4 eye, float inward) {
-  vec2 d = p - eye.xy;
-  float x = dot(d, uAx) / eye.z;
-  float y = dot(d, ay()) / eye.z;
-  float wx = exp(-x * x / 1.1);
-  float wy = exp(-(y + 1.25) * (y + 1.25) / 0.45) * smoothstep(-0.35, -0.75, y);
-  float inner = smoothstep(-0.8, 0.9, x * inward);
-  float lift = (uBrow.x + uBrow.y * inner) * 0.6 * eye.z * wx * wy;
-  return p + ay() * lift;
-}
 
 void main() {
-  // Screen point -> picture point.
-  vec2 p = uView.xy + (v - 0.5) * uView.zw;
-  vec2 down2 = ay();
-  float along = dot(p - uNeck, down2);
-  // The body: shoulders rise for a shrug and with each breath.
-  float side = abs(dot(p - uNeck, uAx)) / uFaceH;
-  float body = smoothstep(-0.05, 0.35, along / uFaceH);
-  float shoulders = body * smoothstep(0.2, 0.75, side) * (1.0 - smoothstep(1.6, 2.4, along / uFaceH));
-  p += down2 * (uBody.x * shoulders + uBody.y * 0.012 * uFaceH * body * smoothstep(0.0, 1.5, along / uFaceH));
-  // The head turns and nods on the neck; the body stays put.
-  float head = 1.0 - smoothstep(-0.25, 0.25, along / uFaceH);
-  float a = -uHead.x * head;
-  vec2 r = p - uNeck;
-  p = uNeck + vec2(cos(a) * r.x - sin(a) * r.y, sin(a) * r.x + cos(a) * r.y) - (down2 * uHead.y + uAx * uHead.z) * head;
-  vec2 q = eyelid(eyelid(brow(brow(p, uEyeL, 1.0), uEyeR, -1.0), uEyeL), uEyeR);
+  // Screen point -> picture point, with the head's small movements.
+  vec2 q = (v - 0.5) * uView.z / uHead.z;
+  float c = cos(uHead.x), s = sin(uHead.x);
+  q = vec2(c * q.x - s * q.y, s * q.x + c * q.y) + uView.xy + vec2(0.0, uHead.y);
+  q = eyelid(eyelid(q, uEyeL), uEyeR);
 
   vec2 d = q - uM;
   float lx = dot(d, uAx) / uW;
   float ly = dot(d, ay()) / uW;
-  // Mouth corners lift for a smile, drop for a frown; one lifts for a smirk.
-  float corner = smoothstep(0.1, 0.95, abs(lx)) * (1.0 - smoothstep(1.1, 1.9, abs(lx))) * exp(-ly * ly / 0.7);
-  float lift = (uSmile.x + uSmile.y * step(0.0, lx)) * 0.42 * corner;
-  ly += lift;
-  q += ay() * lift * uW;
   float line = uCurve * lx * lx;
   float y = ly - line;
   float h0 = across(lx, 0.0);
@@ -215,26 +147,28 @@ void main() {
   if (uOpen > 0.002 && h0 > 0.002 && y > -up && y < dn) {
     // Inside the open mouth: dark, upper teeth at the top, a hint of tongue.
     float t = (y + up) / max(0.0001, up + dn);
-    float sd = smoothstep(0.85, 0.2, abs(lx));
-    vec3 inner = mix(vec3(0.10, 0.03, 0.04), vec3(0.30, 0.08, 0.09), sd * 0.6);
+    float side = smoothstep(0.85, 0.2, abs(lx));
+    vec3 inner = mix(vec3(0.10, 0.03, 0.04), vec3(0.30, 0.08, 0.09), side * 0.6);
     float teeth = step(t, 0.3 + 0.1 * (1.0 - h0)) * smoothstep(0.85, 0.55, abs(lx));
-    inner = mix(inner, vec3(0.86, 0.83, 0.78) * (0.75 + 0.25 * sd), teeth * smoothstep(0.0, 0.08, uOpen));
-    inner = mix(inner, vec3(0.55, 0.22, 0.24), smoothstep(0.7, 1.0, t) * smoothstep(0.15, 0.3, uOpen) * sd);
+    inner = mix(inner, vec3(0.86, 0.83, 0.78) * (0.75 + 0.25 * side), teeth * smoothstep(0.0, 0.08, uOpen));
+    inner = mix(inner, vec3(0.55, 0.22, 0.24), smoothstep(0.7, 1.0, t) * smoothstep(0.15, 0.3, uOpen) * side);
     // Soft lip edges.
     vec2 upLip = uM + (uAx * lx + ay() * (line - up + 0.02)) * uW;
     vec2 lowLip = uM + (uAx * lx + ay() * (line + 0.02)) * uW;
+    float eU = smoothstep(0.0, 0.06, y + up);
+    float eD = smoothstep(0.0, 0.06, dn - y);
     col = vec4(inner, 1.0);
-    col = mix(tex(upLip), col, smoothstep(0.0, 0.06, y + up));
-    col = mix(tex(lowLip), col, smoothstep(0.0, 0.06, dn - y));
+    col = mix(tex(upLip), col, eU);
+    col = mix(tex(lowLip), col, eD);
   } else if (y >= dn) {
     // Below the lips: the lower lip, jaw and chin move down.
     float sy = y;
     for (int i = 0; i < 4; i++) sy = y - uOpen * across(lx, max(sy, 0.0)) * down(max(sy, 0.0));
-    col = tex(q + ay() * (sy - y) * uW);
+    col = tex(uM + (uAx * lx + ay() * (sy + line)) * uW);
   } else {
     // Above the lips: the upper lip lifts a little.
     float sy = y + up * (1.0 - smoothstep(0.0, 0.9, -y));
-    col = tex(q + ay() * (sy - y) * uW);
+    col = tex(uM + (uAx * lx + ay() * (sy + line)) * uW);
   }
   gl_FragColor = vec4(col.rgb, 1.0);
 }`;
@@ -260,8 +194,7 @@ const len = (a) => Math.hypot(a[0], a[1]);
 const mid = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
 
 // The shape numbers the drawing program needs, from the face's points.
-// aspect: the frame's height over its width.
-export function faceGeometry(face, width, height, aspect = 1.25) {
+export function faceGeometry(face, width, height) {
   const px = (k) => [face[k][0] * width, face[k][1] * height];
   const L = px('mouthL'); const R = px('mouthR');
   const along = sub(R, L);
@@ -278,24 +211,19 @@ export function faceGeometry(face, width, height, aspect = 1.25) {
   };
   const eyeL = eye('eyeLOut', 'eyeLIn', 'eyeLTop', 'eyeLBot');
   const eyeR = eye('eyeROut', 'eyeRIn', 'eyeRTop', 'eyeRBot');
+  // Show the head and shoulders: centred between the eyes and the chin.
   const eyesMid = [(eyeL[0] + eyeR[0]) / 2, (eyeL[1] + eyeR[1]) / 2];
   const chinP = px('chin');
   const faceH = len(sub(chinP, eyesMid));
-  // The head turns about the top of the neck, a little below the chin.
-  const neck = [chinP[0] + ay[0] * faceH * 0.15, chinP[1] + ay[1] * faceH * 0.15];
-  // Head and shoulders: the face in the top part of a tall frame. Kept inside
-  // the picture, so its edges never smear.
-  let vw = Math.max(faceH * 3.2, w * 6.5);
-  vw = Math.min(vw, width / 1.04, (height / aspect) / 1.04);
-  const vh = vw * aspect;
-  const centre = [eyesMid[0], eyesMid[1] + vh * 0.2];
-  const keep = (c, view, size) => Math.min(Math.max(c, view * 0.51), size - view * 0.51);
-  return { M, ax, w, curve: corners, chin, eyeL, eyeR, neck, faceH, view: [keep(centre[0], vw, width), keep(centre[1], vh, height), vw, vh] };
+  const centre = [(eyesMid[0] + chinP[0]) / 2, (eyesMid[1] + chinP[1]) / 2 - faceH * 0.12];
+  // Kept inside the picture, so its edges never smear.
+  const view = Math.min(Math.max(faceH * 3.1, w * 6), width, height) / 1.03;
+  const keep = (c, size) => Math.min(Math.max(c, view * 0.52), size - view * 0.52);
+  return { M, ax, w, curve: corners, chin, eyeL, eyeR, view: [keep(centre[0], width), keep(centre[1], height), view] };
 }
 
 // A canvas that shows one face and makes it talk.
-//   const t = createTalker(canvas); await t.show(blob, face);
-//   t.speak(level, 'nervous'); t.gesture('shrug')
+//   const t = createTalker(canvas); await t.show(blob, face); t.speak(level)
 // level() returns how loud the voice is now (0 to 1), or null when quiet.
 export function createTalker(canvas, { reducedMotion = false } = {}) {
   let gl = null;
@@ -307,18 +235,11 @@ export function createTalker(canvas, { reducedMotion = false } = {}) {
   let level = () => null;
   let raf = 0;
   let open = 0;
-  let mood = actingOf('calm');
-  const now0 = performance.now();
-  // Expression values ease towards the mood's, so changes look natural.
-  const ex = { smile: 0, smirk: 0, brow: 0, inner: 0, pitch: 0, tilt: 0 };
-  let nextBlink = now0 + 1500;
+  let nextBlink = performance.now() + 1500;
   let blinkStart = -1;
-  let heldBlink = null;
   let nod = 0;
-  let gesture = null;
-  let jitterAt = 0;
-  let jitter = [0, 0];
-  let last = now0;
+  let heldBlink = null;
+  const start = performance.now();
   if (gl) {
     try {
       prog = program(gl);
@@ -336,70 +257,38 @@ export function createTalker(canvas, { reducedMotion = false } = {}) {
   function frame(now) {
     raf = 0;
     if (!gl || !geo) return;
-    const dt = Math.min(0.1, Math.max(0, (now - last) / 1000));
-    last = now;
-    const t = (now - now0) / 1000;
-    const m = mood;
-    const still = reducedMotion ? 0.15 : 1;
+    const t = (now - start) / 1000;
     // Jaw: opens fast with the voice, closes a little slower.
     const lv = level();
-    const target = lv == null ? 0 : Math.max(0, Math.min(1, (lv - 0.08) * 1.5)) * 0.42 * m.jaw;
-    // (Eased by time, not by frame, so a slow machine closes the mouth as fast.)
-    open += (target - open) * (1 - Math.pow(target > open ? 0.45 : 0.7, dt * 60));
+    const target = lv == null ? 0 : Math.max(0, Math.min(1, (lv - 0.08) * 1.5)) * 0.42;
+    open += (target - open) * (target > open ? 0.55 : 0.3);
     if (open < 0.004) open = 0;
-    for (const k of Object.keys(ex)) ex[k] += (m[k] - ex[k]) * Math.min(1, dt * 4);
-    // Blinks, more often when nervous.
+    // Blinks every 2.5 to 6 seconds, 0.16 seconds each.
     let blink = 0;
     if (blinkStart < 0 && now > nextBlink) blinkStart = now;
     if (blinkStart >= 0) {
       const p = Math.max(0, now - blinkStart) / 160;
       blink = p >= 1 ? 0 : Math.sin(Math.PI * p);
-      if (p >= 1) { blinkStart = -1; nextBlink = now + 1000 * (m.blink[0] + Math.random() * (m.blink[1] - m.blink[0])); }
+      if (p >= 1) { blinkStart = -1; nextBlink = now + 2500 + Math.random() * 3500; }
     }
     if (heldBlink != null) blink = heldBlink;
-    // A gesture runs for its length, rising and falling.
-    let shrug = 0;
-    let gNod = 0;
-    let gShake = 0;
-    let gBrow = 0;
-    if (gesture) {
-      const p = (now - gesture.at) / gesture.ms;
-      if (p >= 1) gesture = null;
-      else {
-        const k = Math.sin(Math.PI * Math.min(1, p));
-        if (gesture.kind === 'shrug') { shrug = k; gBrow = 0.5 * k; }
-        if (gesture.kind === 'nod') gNod = Math.sin(p * Math.PI * 4) * (1 - p);
-        if (gesture.kind === 'shake') gShake = Math.sin(p * Math.PI * 4) * (1 - p);
-      }
-    }
-    // Small quick fidgets, a few times a second.
-    if (m.jitter && now > jitterAt) { jitter = [(Math.random() - 0.5) * m.jitter, (Math.random() - 0.5) * m.jitter]; jitterAt = now + 120 + Math.random() * 220; }
-    if (!m.jitter) jitter = [0, 0];
-    const fh = geo.faceH;
-    nod += (open * 0.02 * m.nod - nod) * 0.12;
-    const sp = m.pace;
-    // The mood's pose (tilt, head down or chin up) holds even with reduced motion.
-    const roll = ex.tilt * 0.07 + still * (m.motion * (0.02 * Math.sin(t * 0.63 * sp) + 0.01 * Math.sin(t * 1.71 * sp)) + jitter[0] * 0.025 + gShake * 0.06 + shrug * 0.05);
-    const pitch = fh * (ex.pitch * 0.08 + still * (nod + gNod * 0.06 + jitter[1] * 0.02 + m.motion * 0.006 * Math.sin(t * 0.9 * sp)));
-    const sway = still * fh * (m.motion * 0.025 * Math.sin(t * 0.41 * sp) + gShake * 0.05 + jitter[0] * 0.03);
-    const breath = 0.5 + 0.5 * Math.sin(t * 1.3);
+    const still = reducedMotion ? 0 : 1;
+    nod += (open * 0.012 - nod) * 0.08;
+    const turn = still * (0.012 * Math.sin(t * 0.63) + 0.006 * Math.sin(t * 1.71));
+    const drift = still * (geo.view[2] * (0.004 * Math.sin(t * 0.9) + nod));
+    const breathe = 1.02 + still * 0.006 * Math.sin(t * 1.25);
     gl.viewport(0, 0, canvas.width, canvas.height);
     gl.useProgram(prog);
     gl.uniform1i(u('uTex'), 0);
     gl.uniform2f(u('uImg'), img[0], img[1]);
-    gl.uniform4f(u('uView'), ...geo.view);
-    gl.uniform3f(u('uHead'), roll, pitch, sway);
-    gl.uniform2f(u('uNeck'), geo.neck[0], geo.neck[1]);
-    gl.uniform1f(u('uFaceH'), fh);
-    gl.uniform2f(u('uBody'), shrug * fh * 0.14 + (reducedMotion ? 0 : 0), still * breath);
+    gl.uniform3f(u('uView'), geo.view[0], geo.view[1], geo.view[2]);
+    gl.uniform3f(u('uHead'), turn, drift, breathe);
     gl.uniform2f(u('uM'), geo.M[0], geo.M[1]);
     gl.uniform2f(u('uAx'), geo.ax[0], geo.ax[1]);
     gl.uniform1f(u('uW'), geo.w);
     gl.uniform1f(u('uCurve'), geo.curve);
     gl.uniform1f(u('uChin'), geo.chin);
     gl.uniform1f(u('uOpen'), open);
-    gl.uniform2f(u('uSmile'), ex.smile, ex.smirk);
-    gl.uniform2f(u('uBrow'), ex.brow + gBrow, ex.inner);
     gl.uniform4f(u('uEyeL'), ...geo.eyeL);
     gl.uniform4f(u('uEyeR'), ...geo.eyeR);
     gl.uniform1f(u('uBlink'), blink);
@@ -422,19 +311,15 @@ export function createTalker(canvas, { reducedMotion = false } = {}) {
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, bitmap);
       if (bitmap.close) bitmap.close();
-      geo = faceGeometry(face, img[0], img[1], canvas.height / canvas.width);
+      geo = faceGeometry(face, img[0], img[1]);
       run();
       return true;
     },
-    speak(fn, how) { level = fn || (() => null); if (how) mood = actingOf(how); },
-    act(how) { mood = actingOf(how); },
+    speak(fn) { level = fn || (() => null); },
     quiet() { level = () => null; },
-    // 'shrug', 'nod' or 'shake'.
-    gesture(kind, ms = kind === 'shrug' ? 900 : 1100) { gesture = { kind, ms, at: performance.now() }; },
     // A blink now, or (for tests) eyelids held part-way: blink(0.5).
     blink(hold) { if (hold == null) blinkStart = performance.now(); else heldBlink = hold; },
-    // Stops moving, with the mouth shut, so they never come back mid-word.
-    pause() { stopped = true; if (raf) cancelAnimationFrame(raf); raf = 0; level = () => null; open = 0; frame(performance.now()); },
+    pause() { stopped = true; if (raf) cancelAnimationFrame(raf); raf = 0; },
     resume() { if (geo) run(); },
     get moving() { return !!(gl && geo); },
     get mouth() { return open; },

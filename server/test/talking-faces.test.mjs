@@ -58,11 +58,3 @@ test('a face is painted once in the photo style, kept for everyone, and can be s
   assert.equal(off.status, 503);
   assert.equal((await off.json()).error, 'switched_off');
 });
-
-test('every mood a character can act has a matching tone of voice', async () => {
-  const { moodStyle } = await import('../src/learn.js');
-  const { MOODS } = await import('../../web/js/castbook.js');
-  for (const m of MOODS) if (m !== 'calm') assert.ok(moodStyle(m), `${m} has a tone of voice`);
-  assert.equal(moodStyle('calm'), '');
-  assert.equal(moodStyle('anything else'), '', 'unknown moods are ignored');
-});

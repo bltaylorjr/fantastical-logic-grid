@@ -227,23 +227,13 @@ async function bumpChars(env, n, cap) {
   return !!row;
 }
 
-// How a character sounds in each mood (web/js/castbook.js MOODS). Gemini
-// follows a spoken direction before the words; the other voices ignore it.
-const MOOD_STYLE = {
-  cheerful: 'cheerfully', excited: 'excitedly', nervous: 'nervously, a little shaky and fast', guilty: 'sheepishly, like someone who has just been caught',
-  sly: 'slyly, with a knowing smile', grumpy: 'grumpily', proud: 'proudly', kind: 'warmly and gently', shy: 'shyly and softly',
-  dreamy: 'dreamily', formal: 'politely and formally', dramatic: 'dramatically', playful: 'playfully', curious: 'curiously',
-  blunt: 'plainly', chatty: 'chattily', bookish: 'precisely', bold: 'boldly',
-};
-export const moodStyle = (mood) => MOOD_STYLE[mood] || '';
-
 // Gemini voice: base64 PCM (or WAV) inside a generateContent answer.
-async function geminiTts(env, model, voice, text, how = '') {
+async function geminiTts(env, model, voice, text) {
   const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': env.GEMINI_API_KEY },
     body: JSON.stringify({
-      contents: [{ parts: [{ text: how ? `Say ${how}: ${text}` : text }] }],
+      contents: [{ parts: [{ text }] }],
       generationConfig: { responseModalities: ['AUDIO'], speechConfig: { languageCode: 'en-US', voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } } },
     }),
   });
@@ -291,12 +281,11 @@ async function postTts(req, env, ctx, headers) {
   const text = String(body.text || '').trim();
   const voice = GEMINI_VOICES.has(body.voice) ? body.voice : 'Charon';
   const lang = /^[a-z]{2,3}-[A-Z]{2}$/.test(body.lang || '') ? body.lang : 'en-US';
-  const how = moodStyle(body.mood);
   if (!text || text.length > 400) return json({ error: 'Text must be 1 to 400 characters.' }, 400, headers);
   const model = settings.gemini_voice_model;
   const cache = caches.default;
   const keys = {
-    gemini: new Request(`https://flg-cloud.internal/tts/${await sha256(`${model}|${voice}|${how ? `${how}|` : ''}${text}`)}`),
+    gemini: new Request(`https://flg-cloud.internal/tts/${await sha256(`${model}|${voice}|${text}`)}`),
     chirp: new Request(`https://flg-cloud.internal/tts/${await sha256(`chirp3|${lang}|${voice}|${text}`)}`),
   };
   for (const k of [keys.gemini, keys.chirp]) {
@@ -306,7 +295,7 @@ async function postTts(req, env, ctx, headers) {
   let out = { status: 429 };
   let used = 'gemini';
   // Only new clips count toward the caps.
-  if (gemini && settings.daily_tts_cap > 0 && (await bump(env, 'tts', settings.daily_tts_cap))) out = await geminiTts(env, model, voice, text, how);
+  if (gemini && settings.daily_tts_cap > 0 && (await bump(env, 'tts', settings.daily_tts_cap))) out = await geminiTts(env, model, voice, text);
   if (!out.wav && chirp && (await bumpChars(env, text.length, settings.gcloud_tts_month_cap))) {
     out = await chirpTts(env, voice, text, lang);
     used = 'chirp';

@@ -21,7 +21,7 @@ import { bump } from './learn.js';
 const STYLE = 'Warm storybook illustration, painterly, soft cinematic light, rich color, no text, no letters, no words, no logos, family friendly.';
 // The talking face finds the eyes and lips and moves them, so the face must
 // look straight ahead with its mouth closed and nothing in front of it.
-const FACE_STYLE = 'Photorealistic portrait photograph of a real person from the chest up, both shoulders in view, natural skin texture, soft even studio light, 85mm lens, sharp focus. Looking straight into the camera with the face square to the camera, eyes open, lips gently closed, no glasses, nothing covering the mouth or chin, plain softly blurred background, one person only, no text, no logos, family friendly.';
+const FACE_STYLE = 'Photorealistic head-and-shoulders portrait photograph of a real person, natural skin texture, soft even studio light, 85mm lens, sharp focus. Looking straight into the camera with the face square to the camera, eyes open, lips gently closed, no glasses, nothing covering the mouth or chin, plain softly blurred background, one person only, no text, no logos, family friendly.';
 const KINDS = ['scene', 'portrait', 'face'];
 
 async function sha256(text) {
