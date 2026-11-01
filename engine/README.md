@@ -16,7 +16,7 @@ const puzzle = generatePuzzle({ difficulty: 'hard', theme: 'holiday', topic: 'ha
 node cli.js --difficulty medium --theme holiday --topic halloween --seed party
 node cli.js --difficulty mensa --json > puzzle.json
 node cli.js --help
-npm test            # full suite (about 2 minutes)
+npm test            # full suite (long: well over an hour; CI runs the quick run)
 npm run test:quick  # one seed per theme and tier
 ```
 
@@ -276,7 +276,7 @@ which change one cell and follow the clues, are where this pays off most.
 The rules still run in the same order with the same wording, so every seed
 gives exactly the puzzle it gave before, solve path and hints included.
 
-Measured in Node on the build server's CPU (same seeds, old solver vs new):
+Measured in Node, old solver vs new on the same seeds and machine (Nov 2026):
 
 | Tier | Speedup |
 | --- | --- |
