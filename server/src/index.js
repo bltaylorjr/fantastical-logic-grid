@@ -3,6 +3,7 @@
 //   POST /v1/sync, DELETE /v1/account    account sync (sync.js), signed in only
 //   /v1/profile, /v1/scores, /v1/scoreboard, /v1/races*
 //                                        screen names, races, scoreboard (compete.js)
+//   POST /v1/sign-in/name                sign in with a screen name instead of an email (name-sign-in.js)
 //   POST /v1/errors, GET /admin/errors   anonymous error reports from the apps (errors.js)
 //   POST /v1/feedback                    the game's idea and problem boxes (feedback.js)
 //   POST /v1/puzzle-report, GET /v1/repaired/:token   Report a problem on a puzzle, and its repaired copy (puzzle-reports.js)
@@ -36,6 +37,7 @@
 
 import { handleLearn } from './learn.js';
 import { handleCompete } from './compete.js';
+import { handleNameSignIn } from './name-sign-in.js';
 import { handleChallenges } from './challenges.js';
 import { handleErrors } from './errors.js';
 import { handleFeedback } from './feedback.js';
@@ -106,6 +108,9 @@ async function route(req, env, ctx) {
   if (license) return license;
   const badges = await handleBadges(req, env, url, signedIn);
   if (badges) return badges;
+
+  const nameSignIn = await handleNameSignIn(req, env, url);
+  if (nameSignIn) return nameSignIn;
 
   const compete = await handleCompete(req, env, ctx, url, signedIn);
   if (compete) return compete;

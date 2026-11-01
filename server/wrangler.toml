@@ -124,6 +124,12 @@ name = "LIMIT_LICENSE"
 namespace_id = "41070"
 simple = { limit = 10, period = 60 }
 
+# Screen-name sign-in tries (name-sign-in.js), so passwords cannot be guessed.
+[[ratelimits]]
+name = "LIMIT_SIGN_IN"
+namespace_id = "41071"
+simple = { limit = 10, period = 60 }
+
 [[ratelimits]]
 name = "LIMIT_ERRORS"
 namespace_id = "41030"

@@ -294,7 +294,9 @@ export async function handleCompete(req, env, ctx, url, signedIn) {
     const uid = user.uid;
     const isWrite = method !== 'GET';
     if (isWrite && env.LIMIT_COMPETE && !(await env.LIMIT_COMPETE.limit({ key: uid })).success) return fail('slow_down', 429);
-    const profile = await db.prepare('SELECT screen_name, accept_invites FROM players WHERE user_id = ?1').bind(uid).first();
+    const profile = await db.prepare('SELECT screen_name, accept_invites, email FROM players WHERE user_id = ?1').bind(uid).first();
+    // Keeps the email behind the screen name current, for screen-name sign-in.
+    if (profile && user.email && profile.email !== user.email) await db.prepare('UPDATE players SET email = ?2 WHERE user_id = ?1').bind(uid, user.email).run();
     const settings = await getSettings(env, now);
     // A banned player can still look at their name and remove it.
     if (!(area === 'profile' && !sub && method !== 'PUT')) {
@@ -325,9 +327,9 @@ export async function handleCompete(req, env, ctx, url, signedIn) {
         const taken = await db.prepare('SELECT user_id FROM players WHERE name_key = ?1').bind(key).first();
         if (taken && taken.user_id !== uid) return fail('name_taken', 409, { message: 'Someone already has that screen name. Try adding a number or another word.' });
         const accept = typeof b.acceptInvites === 'boolean' ? (b.acceptInvites ? 1 : 0) : (profile ? profile.accept_invites : 1);
-        await db.prepare(`INSERT INTO players (user_id, screen_name, name_key, created_at, updated_at, accept_invites) VALUES (?1, ?2, ?3, ?4, ?4, ?5)
+        await db.prepare(`INSERT INTO players (user_id, screen_name, name_key, created_at, updated_at, accept_invites, email) VALUES (?1, ?2, ?3, ?4, ?4, ?5, ?6)
           ON CONFLICT (user_id) DO UPDATE SET screen_name = excluded.screen_name, name_key = excluded.name_key, updated_at = excluded.updated_at,
-            accept_invites = excluded.accept_invites`).bind(uid, name, key, now, accept).run();
+            accept_invites = excluded.accept_invites, email = COALESCE(excluded.email, players.email)`).bind(uid, name, key, now, accept, user.email || null).run();
         // Names from Suggest a name are approved straight away; typed names wait for an admin.
         if (isSuggestedName(name)) {
           await db.prepare("INSERT OR REPLACE INTO name_reviews (user_id, name_key, reviewed_by, reviewed_at) VALUES (?1, ?2, 'automatic (suggested name)', ?3)").bind(uid, key, now).run();
