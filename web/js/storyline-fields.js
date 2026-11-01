@@ -11,7 +11,7 @@
 export const KINDS = { theme: 'Theme idea', category: 'Category idea', storyline: 'Storyline' };
 export const MAX_CHARACTERS = 10;
 export const LIMITS = {
-  idea: 20, title: 20, pitch: 20, setting: 120, name: 30, trait: 30, goal: 160,
+  idea: 20, title: 40, pitch: 80, setting: 120, name: 30, trait: 30, goal: 160,
   clues: 2000, beat: 2000, branch: 1000, alt: 1000, credit: 40,
 };
 export const TONES = ['Lighthearted', 'Cozy', 'Whimsical', 'Funny', 'Heartwarming', 'Adventurous', 'Mysterious', 'Suspenseful', 'Spooky (not scary)', 'Dramatic'];
@@ -57,6 +57,7 @@ export function checkSubmission(body, { themeIds = [] } = {}) {
     return Object.keys(errors).length ? { errors } : { value: { kind, theme, idea } };
   }
   const v = { kind };
+  v.theme = themeIds.includes(b.theme) ? b.theme : ''; // optional
   v.title = one(b.title, LIMITS.title);
   v.pitch = one(b.pitch, LIMITS.pitch);
   v.setting = one(b.setting, LIMITS.setting);
@@ -97,6 +98,7 @@ export function formCopy(form, themeName = (id) => id, { all = false } = {}) {
   if (f.kind === 'theme') { add('Theme idea', f.idea); return out; }
   if (f.kind === 'category') { add('Theme', themeName(f.theme)); add('Category idea', f.idea); return out; }
   if (f.idea && !f.title) { add('Theme', f.theme ? themeName(f.theme) : ''); add('Their idea', f.idea); return out; } // from Share an idea
+  add('Theme', f.theme ? themeName(f.theme) : '');
   add('Title', f.title);
   add('Single-line pitch', f.pitch);
   add('Storyline setting', f.setting);

@@ -53,7 +53,7 @@ async function call(path, { auth, body } = {}) {
 
 
 const FORM = {
-  kind: 'storyline', title: 'The Midnight Gala', pitch: 'Who stole the tiara?', setting: "A seaside mansion, New Year's Eve, 1925",
+  kind: 'storyline', theme: 'mystery', title: 'The Midnight Gala', pitch: 'Who stole the tiara?', setting: "A seaside mansion, New Year's Eve, 1925",
   characters: [{ name: 'Lady Ashford', trait: 'Nervous', role: 'Main' }, { name: 'Mr. Pike', role: 'Supporting' }, { name: 'Nora' }, { name: 'Felix' }],
   goal: 'find out which guest took the tiara', clues: 'Rooms: Library, Kitchen, Garden, Ballroom. Drinks: Tea, Punch, Cider, Lemonade. the butler wasnt in the library.',
   beat: 'Beginning: the lights go out at midnight.', tone: 'Mysterious', difficulty: 'medium', reward: { animation: 'Fireworks' }, credit: 'B. Taylor', consent: true,
@@ -63,10 +63,10 @@ test('the form checks required fields, the same way as the page', async () => {
   const r = await call('/v1/story-submissions', { body: { kind: 'storyline', title: 'Only a title' } });
   assert.equal(r.status, 400);
   assert.deepEqual(Object.keys(r.body.errors).sort(), ['characters', 'clues', 'consent', 'pitch']);
-  const long = await call('/v1/story-submissions', { body: { ...FORM, title: 'x'.repeat(40) } });
+  const long = await call('/v1/story-submissions', { body: { ...FORM, title: 'x'.repeat(60) } });
   assert.equal(long.status, 200);
   const row = await db.prepare('SELECT title FROM story_submissions WHERE id = ?1').bind(long.body.id).first();
-  assert.equal(row.title.length, 20, 'titles are cut to 20 characters');
+  assert.equal(row.title.length, 40, 'titles are cut to 40 characters');
   const cat = await call('/v1/story-submissions', { body: { kind: 'category', theme: 'not-a-theme', idea: 'Secret Passage' } });
   assert.deepEqual(Object.keys(cat.body.errors), ['theme']);
 });
@@ -102,7 +102,7 @@ test('a signed-in player: saved with the account and a confirmation with the for
   const claim2 = (await call('/admin/v1/replies/claim', { auth: owner, body: { limit: 50 } })).body;
   const approved = claim2.replies.find((m) => m.email === 'ann@example.com');
   assert.equal(approved.kind, 'story_approved');
-  assert.deepEqual(approved.build, { submission: true, theme: '' });
+  assert.deepEqual(approved.build, { submission: true, theme: 'Mystery' });
   assert.equal(approved.submission.polished.clues, fixed.clues);
   const puzzle = buildStorylinePuzzle({ submission: { form: approved.submission.form, polished: approved.submission.polished }, seed: 'sub-test' });
   assert.equal(puzzle.error, undefined, puzzle.error);

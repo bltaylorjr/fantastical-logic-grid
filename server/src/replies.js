@@ -213,7 +213,7 @@ export async function claimReplies(env, limit, now = Date.now()) {
       const ready = puzzle ? JSON.parse(puzzle) : saved;
       const fromForm = !!submission && sKind === 'storyline' && submission.form && !submission.form.idea;
       const build = mayBuild && !ready && (forPlayer || r.kind === 'story_build' || fromForm || r.email)
-        ? (fromForm ? { submission: true, theme: '' } : { theme: themeName(theme || sTheme) || '' }) : null;
+        ? (fromForm ? { submission: true, theme: themeName(sTheme) || '' } : { theme: themeName(theme || sTheme) || '' }) : null;
       return {
         ...r,
         ...(submission ? { submission } : {}),

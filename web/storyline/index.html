@@ -68,20 +68,26 @@
 
     <!-- A whole storyline -->
     <section class="sl-card" data-kind="storyline" aria-label="Storyline">
+      <div class="field sl-field" data-field="theme">
+        <label for="sl-story-theme">Theme</label>
+        <p class="help" id="sl-story-theme-h">The theme your story fits best, if any. It helps the team place it.</p>
+        <select id="sl-story-theme" name="theme" aria-describedby="sl-story-theme-h sl-story-theme-x"><option value="">No theme in mind</option></select>
+        <p class="sl-ex" id="sl-story-theme-x">Example: Mystery</p>
+      </div>
       <div class="field sl-field" data-field="title">
         <label for="sl-title">Title <span class="sl-req" aria-hidden="true">*</span></label>
         <p class="help" id="sl-title-h">The name of your story. Required so we can show it on the puzzle and in your credit.</p>
-        <input type="text" id="sl-title" name="title" maxlength="20" required aria-describedby="sl-title-h sl-title-x sl-title-c" data-count>
-        <p class="sl-count" id="sl-title-c" aria-live="polite">0 of 20 characters</p>
+        <input type="text" id="sl-title" name="title" maxlength="40" required aria-describedby="sl-title-h sl-title-x sl-title-c" data-count>
+        <p class="sl-count" id="sl-title-c" aria-live="polite">0 of 40 characters</p>
         <p class="sl-ex" id="sl-title-x">Example: The Midnight Gala</p>
         <p class="sl-err" role="alert"></p>
       </div>
       <div class="field sl-field" data-field="pitch">
         <label for="sl-pitch">Single-line pitch <span class="sl-req" aria-hidden="true">*</span></label>
-        <p class="help" id="sl-pitch-h">Your story in a few words. Required because it's how the team sees the idea at a glance.</p>
-        <input type="text" id="sl-pitch" name="pitch" maxlength="20" required aria-describedby="sl-pitch-h sl-pitch-x sl-pitch-c" data-count>
-        <p class="sl-count" id="sl-pitch-c" aria-live="polite">0 of 20 characters</p>
-        <p class="sl-ex" id="sl-pitch-x">Example: Who stole the tiara?</p>
+        <p class="help" id="sl-pitch-h">Your story in one short sentence. Required because it's how the team sees the idea at a glance.</p>
+        <input type="text" id="sl-pitch" name="pitch" maxlength="80" required aria-describedby="sl-pitch-h sl-pitch-x sl-pitch-c" data-count>
+        <p class="sl-count" id="sl-pitch-c" aria-live="polite">0 of 80 characters</p>
+        <p class="sl-ex" id="sl-pitch-x">Example: A priceless tiara vanishes at midnight, and every guest has a secret.</p>
         <p class="sl-err" role="alert"></p>
       </div>
       <div class="field sl-field" data-field="setting">

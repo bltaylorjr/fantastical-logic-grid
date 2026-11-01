@@ -27,7 +27,7 @@ const section = (k = kind()) => $(`section[data-kind="${k}"]`, form);
 const option = (v, label) => `<option value="${esc(v)}">${esc(label)}</option>`;
 
 // ---------- choices
-$('#sl-cat-theme').insertAdjacentHTML('beforeend', OPTIONS.themes.map((t) => option(t.id, t.name)).join(''));
+for (const sel of ['#sl-cat-theme', '#sl-story-theme']) $(sel).insertAdjacentHTML('beforeend', OPTIONS.themes.map((t) => option(t.id, t.name)).join(''));
 $('#sl-tone').insertAdjacentHTML('beforeend', TONES.map((t) => option(t, t)).join(''));
 $('#sl-diff').insertAdjacentHTML('beforeend', DIFFICULTIES.map(([id, name]) => option(id, name)).join(''));
 $('#sl-puzzle').innerHTML = PUZZLES.map(([id, name]) => option(id, name)).join('');
@@ -107,7 +107,7 @@ function entry() {
   readCharacters();
   const val = (name) => $(`[name="${name}"]`, s).value;
   return {
-    kind: k, title: val('title'), pitch: val('pitch'), setting: val('setting'),
+    kind: k, theme: val('theme'), title: val('title'), pitch: val('pitch'), setting: val('setting'),
     characters: typed.slice(0, $$('.sl-char', s).length),
     goal: val('goal'), puzzle: val('puzzle'), clues: val('clues'), beat: val('beat'), branch: val('branch'), alt: val('alt'),
     tone: val('tone'), difficulty: val('difficulty'),
