@@ -159,8 +159,13 @@ test('the trademark and copyright scan: one click per entry, and the new ones in
   const batch = await call('/admin/v1/story-submissions/scan-new', { auth: owner, body: {} });
   assert.equal(batch.status, 200, JSON.stringify(batch.body));
   assert.ok(batch.body.scanned >= 1);
-  const row = await db.prepare('SELECT ip_verdict FROM story_submissions WHERE id = ?1').bind(clean.body.id).first();
-  assert.ok(['clear', 'check'].includes(row.ip_verdict), `scanned in the batch (${row.ip_verdict})`);
+  const row = await db.prepare('SELECT ip_verdict, ip_scan FROM story_submissions WHERE id = ?1').bind(clean.body.id).first();
+  assert.ok(row.ip_verdict, 'scanned in the batch');
+  // It reuses most of the earlier sample entries' words, so the copied-entry check finds them.
+  assert.ok(JSON.parse(row.ip_scan).findings.some((f) => f.type === 'duplicate' && f.serious), 'the same words as another entry are found');
+  const other = await call('/v1/story-submissions', { body: { kind: 'theme', idea: 'Quiet orchard' } });
+  const own = await call(`/admin/v1/story-submissions/${other.body.id}/scan`, { auth: owner, body: {} });
+  assert.equal(own.body.scan.verdict, 'clear', 'an original entry with no marks is clear');
 });
 
 test('a guest: thank-you, then a copy only to the address they type, once', async () => {
