@@ -19,6 +19,7 @@
     "test:admin": "npm --prefix server install --no-audit --no-fund && npm run build && node -r ./scripts/e2e-in-game.cjs scripts/e2e-admin.cjs && node -r ./scripts/e2e-in-game.cjs scripts/e2e-admin-passkeys.cjs && node -r ./scripts/e2e-in-game.cjs scripts/e2e-archive.cjs && node -r ./scripts/e2e-in-game.cjs scripts/e2e-admin-characters.cjs",
     "test:license": "npm --prefix server install --no-audit --no-fund && npm run build && node -r ./scripts/e2e-in-game.cjs scripts/e2e-license.cjs",
     "test:educators": "npm --prefix server install --no-audit --no-fund && npm run build && node -r ./scripts/e2e-in-game.cjs scripts/e2e-educators.cjs",
+    "test:books": "node --no-warnings scripts/e2e-books.mjs",
     "check:site": "node scripts/check-site.mjs"
   },
   "devDependencies": {
