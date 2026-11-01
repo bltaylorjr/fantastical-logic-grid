@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Report a Problem · The Fantastical Logic Grid</title>
+<meta name="description" content="Tell The Fantastical Logic Grid about a problem with a puzzle or a page, with pictures or files if they help.">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#1F5FAD">
+<link rel="icon" href="../icons/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../app.css">
+<link rel="stylesheet" href="../storyline/storyline.css">
+<link rel="stylesheet" href="report.css">
+<script type="module" src="../js/report-page.js"></script>
+</head>
+<body class="sl-page rp-page">
+<a class="skip" href="#rp-main">Skip to the form</a>
+<header class="sl-top">
+  <a class="btn quiet" href="../" id="rp-back"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg> <span id="rp-back-text">Back to the game</span></a>
+  <span class="sl-brand">The Fantastical Logic Grid</span>
+</header>
+
+<main id="rp-main" tabindex="-1">
+<div id="rp-formwrap">
+  <h1>Report a Problem</h1>
+  <p class="help sl-lead">Tell us what went wrong. A screenshot or a file often shows the problem faster than words. Please don't include your name, address or anything else personal.</p>
+  <p class="error-box" id="rp-closed" role="alert" hidden>Problem reports are closed right now. Please try again later.</p>
+
+  <form id="rp-form" novalidate>
+    <fieldset class="sl-card">
+      <legend class="sl-legend">What is the problem with?</legend>
+      <div class="sl-radios">
+        <label class="radio"><input type="radio" name="kind" value="puzzle" checked> Puzzle Problem</label>
+        <label class="radio"><input type="radio" name="kind" value="page"> Web Page Issue</label>
+      </div>
+      <p class="help rp-about" id="rp-about" aria-live="polite"></p>
+    </fieldset>
+
+    <section class="sl-card" aria-labelledby="rp-text-l">
+      <div class="field sl-field" data-field="text">
+        <label for="rp-text" id="rp-text-l">What went wrong? <span class="sl-req" aria-hidden="true">*</span></label>
+        <textarea id="rp-text" rows="6" maxlength="1000" required aria-describedby="rp-text-c rp-text-x" placeholder="For example: clue 4 says the baker was first, but the answer says she was third."></textarea>
+        <p class="sl-count" id="rp-text-c" aria-live="polite">0 of 1,000 characters</p>
+        <p class="sl-ex" id="rp-text-x">What you did, what you expected, and what happened instead.</p>
+        <p class="sl-err" role="alert"></p>
+      </div>
+    </section>
+
+    <section class="sl-card" aria-labelledby="rp-files-h">
+      <h2 class="rp-h2" id="rp-files-h">Pictures and files <span class="rp-optional">(optional)</span></h2>
+      <p class="help" id="rp-files-help">Up to 3: screenshots or photos, PDFs, or text files (.txt, .log, .json, .csv), each up to 1 MB. Pictures are made smaller and cleaned of hidden details, like where a photo was taken, before they are sent.</p>
+      <div class="rp-drop" id="rp-drop">
+        <input type="file" id="rp-file" class="sr-only" multiple accept="image/png,image/jpeg,image/webp,image/gif,application/pdf,.pdf,.txt,.log,.json,.csv,text/plain" aria-describedby="rp-files-help">
+        <label for="rp-file" class="btn" id="rp-pick">
+          <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.4 11.1 12.2 20.3a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5"/></svg>
+          Add pictures or files
+        </label>
+        <p class="rp-drop-hint" aria-hidden="true">or drop them here, or paste a screenshot</p>
+      </div>
+      <ul class="rp-files" id="rp-files" aria-label="Attached pictures and files"></ul>
+      <p class="sl-err" id="rp-files-err" role="alert"></p>
+      <p class="sr-only" id="rp-files-live" aria-live="polite"></p>
+    </section>
+
+    <section class="sl-card" id="rp-reply-card" hidden>
+      <label class="check" id="rp-reply-box"><input type="checkbox" id="rp-reply" checked> <span>Email me when it is fixed<span id="rp-reply-to"></span>, with a link to play the repaired puzzle</span></label>
+    </section>
+    <p class="help" id="rp-who"></p>
+
+    <div class="error-box" id="rp-error" role="alert" hidden></div>
+    <div class="row-inline rp-actions">
+      <button class="btn primary" type="submit" id="rp-send">Submit report</button>
+      <a class="btn" href="../" id="rp-cancel">Cancel</a>
+    </div>
+  </form>
+</div>
+
+<section id="rp-done" class="sl-card" hidden tabindex="-1" aria-labelledby="rp-done-h">
+  <h1 id="rp-done-h">Thank you</h1>
+  <p class="rp-tracking">Your report number is <b id="rp-done-number"></b>.</p>
+  <p id="rp-done-text"></p>
+  <div class="row-inline rp-actions">
+    <a class="btn primary" href="../" id="rp-done-back">Back to the game</a>
+    <button class="btn" type="button" id="rp-again">Report another problem</button>
+  </div>
+</section>
+</main>
+</body>
+</html>

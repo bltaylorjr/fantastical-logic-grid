@@ -29,6 +29,7 @@
 
 import { messageUpkeepStatements } from './messages.js';
 import { upkeepStatements as reportUpkeep } from './puzzle-reports.js';
+import { upkeepStatements as fileUpkeep } from './report-files.js';
 import { getSettings } from './settings.js';
 import { ARCHIVED_UPKEEP_JOBS } from './archive.js';
 
@@ -60,6 +61,7 @@ export async function runUpkeep(env, now = Date.now()) {
     translations: db.prepare('DELETE FROM translations WHERE day < ?1').bind(isoDay(now - 180 * DAY)),
     ...messageUpkeepStatements(env, now),
     ...reportUpkeep(env, now),
+    ...fileUpkeep(env, now),
     rating_insights: db.prepare('DELETE FROM rating_insights WHERE day < ?1').bind(isoDay(now - 90 * DAY)),
     visit_stats: db.prepare('DELETE FROM visit_stats WHERE day < ?1').bind(isoDay(now - 400 * DAY)),
     daily_results: db.prepare('DELETE FROM daily_results WHERE day < ?1').bind(isoDay(now - 120 * DAY)),

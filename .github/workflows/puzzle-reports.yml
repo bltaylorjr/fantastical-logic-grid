@@ -1,5 +1,7 @@
-# The puzzle doctor (server/PUZZLE-REPORTS.md): every 15 minutes, checks the
-# puzzles players reported with Report a problem, using the game's own engine,
+# The puzzle doctor (server/PUZZLE-REPORTS.md): started by the Worker the moment
+# a player reports a puzzle (GITHUB_DISPATCH_TOKEN), and every 15 minutes as a
+# backstop. Checks the puzzles players reported with Report a Problem, using
+# the game's own engine,
 # rebuilds the broken ones and tells the Worker, which emails the players who
 # asked (through the Thank-you emails Action). The engine needs no packages.
 # The repository is public, so this job prints only counts.

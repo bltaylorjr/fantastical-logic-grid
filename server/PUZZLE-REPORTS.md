@@ -1,16 +1,60 @@
 # Report a Problem and error tracking
 
 **Report a Problem** sits in the footer of every screen of the game and every
-page of the website. It opens a box with two choices and up to 1,000
-characters:
+page of the website. It opens the **Report a Problem page** (`web/report/`,
+`web/js/report-page.js`): in a new tab on the website, so the player's puzzle
+stays open behind it, and in the same window in the Windows, Android and iPhone
+apps (Back returns to the game). What the report is about is handed to the
+page through the browser's own storage (`web/js/report-handoff.js`); nothing
+leaves the device until the player presses Submit. The page has two choices,
+up to 1,000 characters, and room for attachments:
 
 - **Puzzle Problem**: on a puzzle, the puzzle itself and its picture go with
   the report, so it can be checked and repaired automatically.
 - **Web Page Issue**: the screen or page, the app version and the window size
   go with it (nothing personal).
+- **Pictures and files** (optional): up to 3, each up to 1 MB: screenshots or
+  photos (PNG, JPEG, WebP, GIF), PDFs, or text files (.txt, .log, .json,
+  .csv). Add them with the button, by dropping them on the page, or by pasting
+  a screenshot. Pictures are redrawn in the browser first: at most 1,600
+  pixels across and without hidden details such as where a photo was taken.
+  The Worker (`src/report-files.js`) checks every file again by its first
+  bytes and keeps only those types (never SVG or HTML, which could carry
+  scripts). They are kept in `report_files`, seen only in the admin app
+  (pictures shown, other files downloaded) and deleted after 90 days.
 
 Problems are no longer sent through **Share an idea** (it used to be "Ideas
 and problems"), so that box is only for ideas.
+
+## The moment a report arrives
+
+The Worker gives the report its tracking id and category (below), saves any
+files, and the doctor reviews it straight away (`reviewNow` in
+`src/puzzle-reports.js`):
+
+- **A puzzle**: the Worker starts the **Puzzle doctor** Action at once (the
+  `GITHUB_DISPATCH_TOKEN` Worker secret, the same one the marketing poster and
+  educator packages use). It checks and repairs the puzzle and reports back
+  within a minute or two. Without the secret, its 15-minute round picks it up.
+- **No puzzle attached**: the team looks; it is counted with its screen.
+- **A web page**: counted with its screen and app version, with any puzzle
+  reports from there, for the daily code-fix task.
+
+The admins get a **Problem** alert at once (push and email, as each one set
+in My alerts) with the review and the player's words. When the doctor
+finishes, a second alert gives its verdict: repaired (and the player emailed),
+needs a code fix, no fault found, or a likely display problem.
+
+## The errors database
+
+`error_log` records every step of every report, from the moment it is
+submitted: received, files attached, the doctor started (or waiting for its
+round), its review, its repair or why it could not repair, the alerts sent,
+and how the report was closed (a code fix, or the team's Mark done). It holds
+tracking ids and plain sentences only, never the player's words or email. The
+admin **Error tracking** page shows each report's steps as its **Doctor's
+log**, and the latest steps of all reports under **Errors database: every
+step** (`GET /admin/v1/error-log`). Steps are kept for a year.
 
 ## Tracking ids and the two categories
 
@@ -39,7 +83,8 @@ report from the game to get an email.
 
 ## The puzzle doctor
 
-Every 15 minutes the GitHub Action **Puzzle doctor**
+The moment a puzzle is reported (above), and every 15 minutes as a backstop,
+the GitHub Action **Puzzle doctor**
 (`.github/workflows/puzzle-reports.yml`, `scripts/puzzle-reports.mjs`) checks
 waiting Puzzle reports with the game's own engine (`scripts/puzzle-doctor.mjs`):
 the answer uses every item once, every clue is true, the clues lead to exactly
@@ -146,12 +191,13 @@ worked, and which clue types were false. From it:
 
 The **Error tracking** page lists every report, filtered by category, status
 or search, with the puzzle or page, the error (the player's words), the reason
-for failure and the correction made. Opening one shows the storyline as
+for failure, the correction made and how many files were attached. Opening one
+shows the player's pictures and files, the doctor's log, the storyline as
 reported and as repaired, the clues, the picture, related reports, and
 **Download the reported puzzle**, **Check again** and **Mark done with a
 note** (which emails the update to a player who asked). Below it, **What the
 doctor has learned** shows the learning table.
 
-Reports go after 365 days, repaired copies after 30 (`upkeep.js`); the
+Reports and their log go after 365 days, attached files after 90, repaired copies after 30 (`upkeep.js`); the
 learning table keeps its counts. The Action uses the existing `FLG_ADMIN_TOKEN`
 secret and needs no packages.

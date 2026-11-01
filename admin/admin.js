@@ -710,7 +710,7 @@ document.addEventListener('click', async (e) => {
     return;
   }
   const r = e.target.closest('button[data-report-retry]');
-  if (r && await act(r, () => api(`puzzle-reports/${Number(r.dataset.reportRetry)}/retry`, { method: 'POST' }), 'It will be checked again within 15 minutes.')) show('communication', { keepFocus: true });
+  if (r && await act(r, () => api(`puzzle-reports/${Number(r.dataset.reportRetry)}/retry`, { method: 'POST' }), 'Sent back to the puzzle doctor: it checks it now, or within 15 minutes.')) show(location.hash.startsWith('#errortracking') ? 'errortracking' : 'communication', { keepFocus: true });
 });
 
 // ---- Error tracking: every Report a Problem, in its two categories, and what
@@ -719,6 +719,22 @@ const FAULT_NAMES = { false_clue: 'A clue was not true', not_unique: 'More than 
   answer_key: 'Wrong answer key', solution: 'Mixed-up answer', blank_clue: 'Blank clue', blank_label: 'Blank name', question: 'Question answer missing', unreadable: 'Damaged puzzle', display: 'Display problem', page_issue: 'Web page issue' };
 const STRATEGY_NAMES = { 'same-settings': 'Same story, rebuilt', 'same-theme': 'Same theme, rebuilt', 'all-options': 'All settings, rebuilt', 'new-seed': 'New story, same theme' };
 let etMore = null;
+let etLogMore = null;
+// The errors database (error_log): every step of every report.
+const LOG_EVENTS = { received: ['', 'Received'], files: ['', 'Files attached'], doctor_called: ['ok', 'Doctor started'], doctor_waiting: ['', 'Waiting for the doctor'],
+  reviewed: ['', 'Reviewed'], repaired: ['ok', 'Repaired'], needs_fix: ['bad', 'Needs a code fix'], no_fault: ['', 'No fault found'], display: ['warn', 'Display problem'],
+  closed: ['ok', 'Closed by a code fix'], done: ['ok', 'Marked done'], alerted: ['', 'Admins alerted'] };
+const logBadge = (ev) => { const [c, w] = LOG_EVENTS[ev] || ['', ev]; return `<span class="badge ${c}">${esc(w)}</span>`; };
+const etLogRow = (l) => `<tr><td>${when(l.createdAt)}</td><td>${l.reportId ? `<button class="btn small link" type="button" data-et-open="${Number(l.reportId)}">${esc(l.tracking)}</button>` : esc(l.tracking)}</td><td>${logBadge(l.event)}</td><td>${esc(l.detail)}</td></tr>`;
+const kb = (n) => (n >= 1_048_576 ? `${(n / 1_048_576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
+let etUrls = [];
+// Attached pictures load with the admin's sign-in, so they are fetched here and
+// shown from memory; other files download.
+async function etFile(id, fid) {
+  const res = await fetch(`/admin/v1/error-tracking/${Number(id)}/files/${Number(fid)}`, { headers: { Authorization: `Bearer ${await bearer()}` } });
+  if (!res.ok) { const d = await res.json().catch(() => ({})); throw new ApiError(d.error || 'download', d.message || `Download failed (${res.status}).`); }
+  return res.blob();
+}
 const svgUrl = (svg) => `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`;
 
 function etRowHtml(r) {
@@ -731,7 +747,7 @@ function etRowHtml(r) {
     <td class="fb-text">${esc(r.text)}</td>
     <td>${r.findings.length ? r.findings.map((f) => esc(FAULT_NAMES[f.code] || f.code)).join(', ') : '–'}</td>
     <td>${esc(r.note || (r.strategy ? STRATEGY_NAMES[r.strategy] || r.strategy : '–'))}</td>
-    <td><span class="badge ${cls}">${esc(words)}</span>${r.related.length ? `<br><span class="muted">${fmt(r.related.length)} related</span>` : ''}</td></tr>`;
+    <td><span class="badge ${cls}">${esc(words)}</span>${r.related.length ? `<br><span class="muted">${fmt(r.related.length)} related</span>` : ''}${r.files ? `<br><span class="muted">${fmt(r.files)} file${r.files === 1 ? '' : 's'} attached</span>` : ''}</td></tr>`;
 }
 
 views.errortracking = async ({ arg } = {}) => {
@@ -739,7 +755,11 @@ views.errortracking = async ({ arg } = {}) => {
   if ($('#et-category').value) qs.set('category', $('#et-category').value);
   if ($('#et-status').value) qs.set('status', $('#et-status').value);
   if ($('#et-q').value.trim()) qs.set('q', $('#et-q').value.trim());
-  const [d, p] = await Promise.all([api(`error-tracking?${qs}`), api('fault-patterns')]);
+  const [d, p, log] = await Promise.all([api(`error-tracking?${qs}`), api('fault-patterns'), api('error-log')]);
+  etLogMore = log.more;
+  $('#et-log').innerHTML = log.events.length ? `<div class="table-wrap"><table class="table"><thead><tr><th scope="col">When</th><th scope="col">Report</th><th scope="col">Step</th><th scope="col">What happened</th></tr></thead>
+    <tbody id="et-log-rows">${log.events.map(etLogRow).join('')}</tbody></table></div>${etLogMore ? '<div class="row"><button class="btn small" type="button" id="et-log-more">Show older steps</button></div>' : ''}`
+    : '<p class="muted">Nothing logged yet. Every report\'s steps appear here the moment they happen.</p>';
   etMore = d.more;
   const waiting = d.counts.filter((c) => ['needs_fix', 'manual', 'page'].includes(c.status)).reduce((s, c) => s + c.n, 0);
   setCount('#count-errors', waiting);
@@ -778,6 +798,10 @@ async function etOpen(id) {
     ${['needs_fix', 'no_fault', 'manual', 'page'].includes(r.status) ? '<p class="muted">The puzzle doctor\'s daily code-fix task looks at reports waiting here. When its fix merges, this report is marked done with a plain note and the version, and the player who asked is emailed. Mark done by hand only if you fixed it yourself.</p>' : ''}
     <h3>Correction made</h3><p>${esc(r.note || '–')}${r.strategy ? ` <span class="muted">(${esc(STRATEGY_NAMES[r.strategy] || r.strategy)})</span>` : ''}${r.status === 'repaired' ? ` ${r.openedAt ? 'The player opened the repaired puzzle.' : 'The player has not opened the repaired puzzle yet.'}` : ''}</p>
     ${r.related.length ? `<h3>Related reports in the other category</h3><p>${r.related.map((t) => `<code>${esc(t)}</code>`).join(' ')} <span class="muted">(same screen and app version)</span></p>` : ''}
+    <h3>Pictures and files from the player</h3>${r.attachments.length ? `<ul class="et-files">${r.attachments.map((f) => `<li>${f.image ? `<img class="et-attach" data-et-img="${Number(f.id)}" alt="Picture the player attached: ${esc(f.name)}">` : ''}
+      <span><b>${esc(f.name)}</b> <span class="muted">${esc(kb(f.size))}</span></span> <button class="btn small" type="button" data-et-file="${Number(f.id)}" data-et-report="${Number(r.id)}" data-name="${esc(f.name)}">Download</button></li>`).join('')}</ul>`
+      : `<p class="muted">${r.files ? 'The attached files were removed (they are kept for 90 days).' : 'None attached.'}</p>`}
+    <h3>Doctor's log</h3>${r.log.length ? `<ol class="et-log">${r.log.map((l) => `<li><span class="muted">${when(l.createdAt)}</span> ${logBadge(l.event)} ${esc(l.detail)}</li>`).join('')}</ol>` : '<p class="muted">No steps logged (reported before the errors database began).</p>'}
     ${r.hasImage ? `<h3>Picture</h3><img class="et-picture" src="${svgUrl(r.image)}" alt="The puzzle's picture as the player saw it">` : ''}
     ${storyHtml(r.story, 'Storyline as reported')}${storyHtml(r.repairedStory, 'Storyline as repaired')}
     <div class="row">${r.hasPuzzle ? `<button class="btn small" type="button" data-report-file="${Number(r.id)}" data-tracking="${esc(r.tracking)}">Download the reported puzzle</button>` : ''}
@@ -786,6 +810,11 @@ async function etOpen(id) {
   panel.hidden = false;
   panel.scrollIntoView({ block: 'start' });
   $('#et-detail-h').focus();
+  for (const u of etUrls) URL.revokeObjectURL(u);
+  etUrls = [];
+  for (const img of panel.querySelectorAll('[data-et-img]')) {
+    etFile(r.id, img.dataset.etImg).then((b) => { const u = URL.createObjectURL(b); etUrls.push(u); img.src = u; }).catch(() => { img.replaceWith(Object.assign(document.createElement('span'), { className: 'muted', textContent: 'The picture could not be loaded.' })); });
+  }
 }
 
 $('#et-filter').onsubmit = (e) => { e.preventDefault(); show('errortracking', { keepFocus: true }); };
@@ -795,6 +824,15 @@ document.addEventListener('click', async (e) => {
   const o = e.target.closest('[data-et-open]');
   if (o) { await act(o, () => etOpen(Number(o.dataset.etOpen))); return; }
   if (e.target.closest('[data-et-close]')) { $('#et-detail').hidden = true; return; }
+  const file = e.target.closest('[data-et-file]');
+  if (file) { await act(file, async () => saveFile(await etFile(file.dataset.etReport, file.dataset.etFile), file.dataset.name), 'File saved.'); return; }
+  if (e.target.closest('#et-log-more')) {
+    const d = await api(`error-log?before=${Number(etLogMore)}`);
+    $('#et-log-rows').insertAdjacentHTML('beforeend', d.events.map(etLogRow).join(''));
+    etLogMore = d.more;
+    if (!etLogMore) $('#et-log-more').remove();
+    return;
+  }
   if (e.target.closest('#et-more')) {
     const qs = new URLSearchParams({ before: etMore });
     if ($('#et-category').value) qs.set('category', $('#et-category').value);

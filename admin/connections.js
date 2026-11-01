@@ -833,7 +833,7 @@ export const CONNECTIONS = [
     group: 'email',
     title: 'Educator emails straight away',
     docs: 'server/EDUCATORS.md',
-    why: 'Educators who ask for a puzzle package on the Educators page get a code email, and later their PDFs. The "Educator packages" GitHub Action sends them every 5 minutes, which GitHub sometimes starts 10 or more minutes late. With this token the Worker starts that Action the moment a teacher sends the form or you approve, so the code arrives in a minute or two. Optional: without it everything still goes out, just a little later.',
+    why: 'Educators who ask for a puzzle package on the Educators page get a code email, and later their PDFs. The "Educator packages" GitHub Action sends them every 5 minutes, which GitHub sometimes starts 10 or more minutes late. With this token the Worker starts that Action the moment a teacher sends the form or you approve, so the code arrives in a minute or two. The same token starts the puzzle doctor the moment a player reports a puzzle, so it is checked and repaired in a minute or two. Optional: without it everything still goes out, just a little later.',
     cost: 'Free (a GitHub fine-grained token; Actions on a public repository are free).',
     names: [
       { name: 'GITHUB_DISPATCH_TOKEN', where: 'worker-secret', optional: true, note: 'Fine-grained token, this repository only, Actions: Read and write. Starts github_pat_.' },
