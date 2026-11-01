@@ -87,6 +87,7 @@ import { refreshSearch, searchSnapshots, lastTry, REFRESH_GAP_MS } from './searc
 import { workshopOptions, addPart, draftParts } from './workshop.js';
 import { characterRoutes, VOICES, VOICE_STYLES } from './characters.js';
 import { storySubmissionRoutes, syncIdeaBoxDecision } from './story-submissions.js';
+import { beatImageRoutes } from './story-images.js';
 import { TOPICS as FEEDBACK_TOPICS } from './feedback.js';
 import { claimReplies, finishReplies, replyCounts, releaseUpdate, dropUpdate, deleteReplyStatements, heldStoryline, approveStoryline, declineStoryline, storeBuiltPuzzle } from './replies.js';
 import { inbox, INBOX_TYPES, conversationView, teamReply, removePuzzle, puzzleStorage, PUZZLE_MAX_CHARS, setConversationStatus, startConversation, listNews, addNews, endNews, deleteNews, deleteMessageStatements, MessageRefusal } from './messages.js';
@@ -511,6 +512,7 @@ const ROUTES = [
 
   // ---- The Storyline Submission Database (story-submissions.js).
   ...storySubmissionRoutes(Refusal),
+  ...beatImageRoutes(Refusal),
 
   ['GET', /^feedback$/, 'moderator', 'feedback.view', async ({ env, url }) => {
     const kind = FEEDBACK_TOPICS[url.searchParams.get('kind')] ? url.searchParams.get('kind') : 'idea';

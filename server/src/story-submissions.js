@@ -5,7 +5,8 @@
 // in), the author credit, their consent and, once approved, the first puzzle
 // built from it.
 //
-//   POST /v1/story-submissions        an entry (web/js/storyline-fields.js checks it)
+//   POST /v1/story-submissions        an entry (web/js/storyline-fields.js checks it), with up to 3
+//                                     pictures in `images` (story-images.js checks them)
 //   POST /v1/story-submissions/copy   { id, key, email } a guest asks for a copy of their form
 //
 // Signed in with a confirmed email, the player gets a confirmation with a copy
@@ -34,6 +35,7 @@ import { themeName } from './feedback.js';
 import { heldStoryline, approveStoryline, declineStoryline, dropUpdate } from './replies.js';
 import { THEMES } from '../../engine/src/themes.js';
 import { checkSubmission, formCopy, formText, KINDS, CONSENT_TEXT } from '../../web/js/storyline-fields.js';
+import { checkImage, saveSubmissionImages, submissionImages, deleteSubmissionImages, MAX_SUBMISSION_IMAGES, MAX_IMAGE_BYTES } from './story-images.js';
 
 const THEME_IDS = THEMES.map((t) => t.id);
 const PLATFORMS = new Set(['web', 'desktop', 'android', 'ios']);
@@ -85,12 +87,20 @@ async function signedInPlayer(req, env) {
 
 async function submit(req, env, ctx) {
   let body;
-  try { body = JSON.parse(await readText(req, 24_000)); } catch (e) { return json(req, env, { error: e instanceof TooLarge ? 'too_large' : 'bad_request' }, e instanceof TooLarge ? 413 : 400); }
+  try { body = JSON.parse(await readText(req, 24_000 + MAX_SUBMISSION_IMAGES * Math.ceil(MAX_IMAGE_BYTES * 1.4))); } catch (e) { return json(req, env, { error: e instanceof TooLarge ? 'too_large' : 'bad_request' }, e instanceof TooLarge ? 413 : 400); }
   const settings = await getSettings(env);
   if (!settings.feedback_enabled) return json(req, env, { error: 'switched_off', message: 'Submissions are closed for now. Please try again later.' }, 503);
   const checked = checkSubmission(body, { themeIds: THEME_IDS });
   if (checked.errors) return json(req, env, { error: 'check', errors: checked.errors, message: 'Some fields need a look.' }, 400);
   const form = checked.value;
+  const sent = Array.isArray(body.images) ? body.images : [];
+  if (sent.length > MAX_SUBMISSION_IMAGES) return json(req, env, { error: 'check', errors: { images: `Add up to ${MAX_SUBMISSION_IMAGES} pictures.` }, message: 'Some fields need a look.' }, 400);
+  const images = [];
+  for (const img of sent) {
+    const c = checkImage(img);
+    if (c.error) return json(req, env, { error: 'check', errors: { images: c.error }, message: 'Some fields need a look.' }, 400);
+    images.push(c.value);
+  }
   const now = Date.now();
   const { n } = await env.DB.prepare('SELECT COUNT(*) AS n FROM story_submissions WHERE created_at > ?1 AND source = \'form\'').bind(now - DAY).first();
   if (n >= MAX_NEW_PER_DAY) return json(req, env, { error: 'busy', message: 'Lots of entries came in today. Please try again tomorrow.' }, 429);
@@ -103,6 +113,7 @@ async function submit(req, env, ctx) {
     VALUES (?1, 'form', ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16) RETURNING id`)
     .bind(form.kind, form.theme || null, form.title || form.idea || null, form.pitch || null, form.credit || null, form.consent ? 1 : 0, form.consent ? CONSENT_TEXT : null,
       JSON.stringify(form), formText(form, nameOf), user ? user.uid : null, email, key ? await sha256(key) : null, key ? now + COPY_WINDOW : null, platform, version, now).first();
+  await saveSubmissionImages(env, row.id, images, now);
   await alert(env, ctx, { category: 'messages', title: `New ${KINDS[form.kind].toLowerCase()}`, body: String(form.title || form.idea || '').slice(0, 160), link: 'story-submissions' });
   let copy = 'offer';
   if (email) copy = (await queueSubmissionMail(env, { kind: 'story_received', submissionId: row.id, email, userId: user.uid, now })) ? 'emailed' : 'saved';
@@ -182,7 +193,7 @@ ${JSON.stringify(fields)}`;
 }
 
 // ---------------------------------------------------------------- admin
-const LIST_COLUMNS = `s.id, s.kind, s.source, s.theme, s.title, s.pitch, s.credit, s.consent, s.status, s.created_at AS createdAt, s.decided_at AS decidedAt,
+const LIST_COLUMNS = `s.id, s.kind, (SELECT COUNT(*) FROM story_submission_images i WHERE i.submission_id = s.id) AS images, s.source, s.theme, s.title, s.pitch, s.credit, s.consent, s.status, s.created_at AS createdAt, s.decided_at AS decidedAt,
   s.decided_by AS decidedBy, s.user_id AS uid, s.email, s.puzzle IS NOT NULL AS hasPuzzle, s.text, p.screen_name AS player`;
 
 function listItem(r) {
@@ -230,6 +241,7 @@ export function storySubmissionRoutes(Refusal) {
           text: s.text, uid: s.user_id, player: player?.name || null, email: s.email, platform: s.platform, version: s.version,
           createdAt: s.created_at, decidedAt: s.decided_at, decidedBy: s.decided_by, emails,
           puzzle: puzzle ? { title: puzzle.title, tier: puzzle.tier || puzzle.difficulty, at: s.puzzle_at, value: puzzle } : null,
+          images: await submissionImages(env, s.id),
         },
         quiet: true,
       };
@@ -299,6 +311,7 @@ export function storySubmissionRoutes(Refusal) {
     ['POST', /^story-submissions\/(\d+)\/delete$/, 'admin', 'story-submissions.delete', async ({ env, params: [id] }) => {
       const r = await env.DB.prepare('DELETE FROM story_submissions WHERE id = ?1').bind(Number(id)).run();
       if (!r.meta.changes) throw new Refusal(404, 'gone', 'That entry is gone.');
+      await deleteSubmissionImages(env, id);
       await env.DB.prepare("UPDATE feedback_replies SET status = 'dropped', email = NULL, user_id = NULL WHERE submission_id = ?1 AND status IN ('waiting', 'held')").bind(Number(id)).run();
       return { body: { ok: true }, target: id };
     }],

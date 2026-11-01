@@ -9,6 +9,7 @@
 //   /v1/messages*                        messages between signed-in players and the team (messages.js)
 //   POST /v1/picture                     AI pictures from Workers AI (pictures.js)
 //   /v1/characters*                      the game's own characters and player suggestions (characters.js)
+//   GET /v1/beat-images[/:id]           story beat pictures (story-images.js)
 //   GET /v1/config                       announcements, switched-off themes, features (settings.js)
 //   GET /v1/daily/plan                   daily puzzle changes for the website build (daily.js)
 //   /v1/daily/:date/(start|result|stats) everyone's numbers for a daily puzzle (daily-results.js)
@@ -38,6 +39,7 @@ import { handleChallenges } from './challenges.js';
 import { handleErrors } from './errors.js';
 import { handleFeedback } from './feedback.js';
 import { handleStorySubmissions } from './story-submissions.js';
+import { handleBeatImages } from './story-images.js';
 import { handlePuzzleReports } from './puzzle-reports.js';
 import { handleMessages } from './messages.js';
 import { handlePictures } from './pictures.js';
@@ -114,6 +116,9 @@ async function route(req, env, ctx) {
 
   const feedback = await handleFeedback(req, env, url, ctx);
   if (feedback) return feedback;
+
+  const beatImages = await handleBeatImages(req, env, url);
+  if (beatImages) return beatImages;
 
   const storySubmission = await handleStorySubmissions(req, env, url, ctx);
   if (storySubmission) return storySubmission;

@@ -11,6 +11,7 @@ import { CLOUD, CLOUD_URL } from './cloud-config.js';
 import * as account from './account.js';
 import { OPTIONS } from '../engine/options.js';
 import { checkSubmission, TONES, DIFFICULTIES, REWARDS, PUZZLES, MAX_CHARACTERS, CONSENT_TEXT, KINDS } from './storyline-fields.js';
+import { prepareImage, ACCEPT } from './image-prep.js';
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -98,6 +99,41 @@ $('#sl-nchar').addEventListener('change', drawCharacters);
 $('#sl-nchar').addEventListener('input', () => { if ($('#sl-nchar').value) drawCharacters(); });
 drawCharacters();
 
+// ---------- pictures (up to 3, shrunk and saved as WebP before sending)
+const MAX_PICS = 3;
+const pics = []; // { dataUrl, width, height, bytes, name }
+function drawPics() {
+  $('#sl-pics').innerHTML = pics.map((p, i) => `<li><img src="${esc(p.dataUrl)}" alt="Picture ${i + 1}: ${esc(p.name)}">
+    <p>${esc(p.name)}</p><button class="btn small quiet" type="button" data-pic-remove="${i}" aria-label="Remove picture ${i + 1}, ${esc(p.name)}">Remove</button></li>`).join('');
+  $('#sl-images').disabled = pics.length >= MAX_PICS;
+}
+$('#sl-images').accept = ACCEPT;
+$('#sl-images').addEventListener('change', async (e) => {
+  const input = e.target;
+  const files = [...input.files];
+  input.value = '';
+  const status = $('#sl-images-status');
+  const field = input.closest('.sl-field');
+  const problems = [];
+  if (pics.length + files.length > MAX_PICS) problems.push(`You can add up to ${MAX_PICS} pictures.`);
+  for (const f of files.slice(0, MAX_PICS - pics.length)) {
+    status.textContent = `Getting ${f.name} ready…`;
+    try { pics.push(await prepareImage(f, { maxSide: 1600, maxBytes: 850_000 })); } catch (err) { problems.push(`${f.name}: ${err.message}`); }
+  }
+  status.textContent = `${pics.length} of ${MAX_PICS} pictures added.`;
+  $('.sl-err', field).textContent = problems.join(' ');
+  field.classList.toggle('invalid', problems.length > 0);
+  drawPics();
+});
+$('#sl-pics').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-pic-remove]');
+  if (!b) return;
+  pics.splice(Number(b.dataset.picRemove), 1);
+  drawPics();
+  $('#sl-images-status').textContent = `${pics.length} of ${MAX_PICS} pictures added.`;
+  $('#sl-images').focus();
+});
+
 // ---------- reading and checking
 function entry() {
   const k = kind();
@@ -179,7 +215,7 @@ async function send(e) {
     const res = await fetch(`${CLOUD_URL}/v1/story-submissions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-      body: JSON.stringify({ ...checked.value, platform: platform(), version: CLOUD.appVersion || 'dev' }),
+      body: JSON.stringify({ ...checked.value, platform: platform(), version: CLOUD.appVersion || 'dev', ...(value.kind === 'storyline' && pics.length ? { images: pics.map(({ dataUrl, width, height, name }) => ({ dataUrl, width, height, name })) } : {}) }),
     });
     const data = await res.json().catch(() => ({}));
     if (res.status === 400 && data.errors) { showErrors(data.errors); return; }
