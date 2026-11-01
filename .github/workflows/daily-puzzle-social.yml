@@ -2,7 +2,9 @@
 # (9:40 in summer time), today's daily puzzle (the same one everyone gets in the
 # game) is checked for errors, made into two slides (1: story question,
 # categories and clues; 2: a blank grid to solve on) and posted to the game's
-# Facebook Page (one post, both pictures) and Instagram (a carousel).
+# Facebook Page (one post, both pictures), Instagram (a carousel) and Bluesky
+# (both pictures, with the clues in the alt text; once BLUESKY_HANDLE and
+# BLUESKY_APP_PASSWORD are saved, see admin > Connections > Bluesky).
 # The caption links to the game to play the same puzzle free (building a daily
 # streak and comparing times with everyone who played) and to the day's answer
 # key page (thelogicgrid.com/daily/<date>/). Yesterday's real player numbers are
@@ -85,6 +87,8 @@ jobs:
           META_PAGE_ID: ${{ secrets.META_PAGE_ID }}
           META_PAGE_TOKEN: ${{ secrets.META_PAGE_TOKEN }}
           INSTAGRAM_ACCOUNT_ID: ${{ secrets.INSTAGRAM_ACCOUNT_ID }}
+          BLUESKY_HANDLE: ${{ secrets.BLUESKY_HANDLE }}
+          BLUESKY_APP_PASSWORD: ${{ secrets.BLUESKY_APP_PASSWORD }}
         run: python3 -I scripts/marketing-post.py
       - name: Keep the picture with the run for 14 days
         if: always()

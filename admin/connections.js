@@ -483,7 +483,7 @@ export const CONNECTIONS = [
     id: 'bluesky',
     group: 'marketing',
     title: 'Bluesky (automatic posts)',
-    why: 'Lets the marketing autopilot post approved Bluesky ads on their day. Without it, the Bluesky ad is emailed to you to post by hand.',
+    why: 'Lets the marketing autopilot post approved Bluesky ads on their day. Also posts the daily puzzle (both slides) every morning. Without it, the Bluesky ad is emailed to you to post by hand.',
     cost: 'Free. An app password can only post; it cannot change the account password or settings.',
     docs: 'scripts/marketing-post.py',
     names: [

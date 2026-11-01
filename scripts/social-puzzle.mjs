@@ -224,6 +224,26 @@ export function caption(p, day, stats = null) {
   ].join('\n');
 }
 
+// Bluesky: posts hold 300 characters, so the links show as short addresses
+// (scripts/marketing-post.py turns each into a link to the full address) and
+// the full clues go in the pictures' alt text, so screen readers get the puzzle.
+export const BLUESKY_LIMIT = 300;
+export function bluesky(p, day) {
+  const play = 'thelogicgrid.com/fantastical', key = `thelogicgrid.com/daily/${day}/`;
+  const head = `🧩 Daily logic puzzle: "${p.title}" (${p.difficulty.name} · ${p.theme.name})`;
+  const tail = [`▶️ Play free: ${play}`, `✅ Answer key: ${key}`, '#logicpuzzle #puzzleoftheday'];
+  const middles = ['Clues on slide 1, blank grid on slide 2. Same puzzle as in the game today: solve it there to build your streak.', 'Clues on slide 1, grid on slide 2. Solve it in the game to build your streak.', ''];
+  const len = (t) => [...new Intl.Segmenter().segment(t)].length;
+  const text = middles.map((m) => [head, ...(m ? [m] : []), '', ...tail].join('\n')).find((t) => len(t) <= BLUESKY_LIMIT);
+  if (!text) return null;
+  const alt1 = [`Daily logic puzzle "${p.title}", ${p.difficulty.name}, ${p.theme.name}.`, p.story.paragraphs.at(-1),
+    `Categories: ${p.categories.map((c) => `${c.name}: ${c.items.map((i) => i.label).join(', ')}`).join('. ')}.`,
+    `Clues: ${p.clues.map((c) => `${c.number}. ${c.text}`).join(' ')}`,
+    p.questions.length ? `Questions: ${p.questions.map((q, i) => `${i + 1}. ${q.text}`).join(' ')}` : ''].filter(Boolean).join(' ').slice(0, 2000);
+  const alt2 = `Blank logic grid for "${p.title}" to mark while solving, with the categories ${p.categories.map((c) => c.name).join(', ')}.`;
+  return { text, links: [[play, playUrl(day)], [key, answerUrl(day)]], tags: ['logicpuzzle', 'puzzleoftheday'], alts: [alt1, alt2] };
+}
+
 // Instagram does not make links in captions clickable, so it also points to the bio link.
 export const instagramCaption = (p, day, stats = null) => caption(p, day, stats).replace(`\n\n${HASHTAGS}`, `\n(Links are also in our bio.)\n\n${HASHTAGS}`);
 
@@ -375,7 +395,7 @@ async function main() {
     }
     if (!result.problems.length) {
       const stats = process.env.SKIP_LIVE ? null : await yesterdayStats(DAY);
-      Object.assign(result, { ok: true, stats, caption: caption(p, DAY, stats), instagramCaption: instagramCaption(p, DAY, stats) });
+      Object.assign(result, { ok: true, stats, caption: caption(p, DAY, stats), instagramCaption: instagramCaption(p, DAY, stats), bluesky: bluesky(p, DAY) });
     }
   } catch (e) {
     result.problems.push(e.message);

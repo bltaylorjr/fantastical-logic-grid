@@ -2,7 +2,7 @@
 // posted (scripts/social-puzzle.mjs): a good puzzle passes, and each kind of
 // error stops the post. node scripts/test-social-puzzle.mjs
 import { generatePuzzle } from '../engine/src/index.js';
-import { checkPuzzle, caption, instagramCaption, answerUrl, playUrl, statsLine, gridHtml } from './social-puzzle.mjs';
+import { checkPuzzle, caption, instagramCaption, answerUrl, playUrl, statsLine, gridHtml, bluesky, BLUESKY_LIMIT } from './social-puzzle.mjs';
 
 let failed = 0;
 const check = (name, cond, detail = '') => { if (!cond) { failed++; console.log(`FAIL ${name} ${detail}`); } };
@@ -34,11 +34,22 @@ for (const difficulty of ['basic', 'easy', 'medium', 'hard']) {
   check(`${difficulty}: grid slide has every item`, r.puzzle.categories.every((c) => c.items.every((i) => grid.includes(i.label))));
   check(`${difficulty}: grid slide gives no answers`, !grid.includes('●</td>') && !grid.includes('✕</td>'));
   check(`${difficulty}: caption mentions the grid slide`, /swipe for a blank grid/.test(text));
+  const bs = bluesky(r.puzzle, DAY);
+  check(`${difficulty}: Bluesky post fits 300 characters`, bs && [...new Intl.Segmenter().segment(bs.text)].length <= BLUESKY_LIMIT, bs?.text);
+  check(`${difficulty}: Bluesky links show in the text`, bs && bs.links.every(([show, url]) => bs.text.includes(show) && url.startsWith('https://')));
+  check(`${difficulty}: Bluesky answer link is the day's answer key`, bs && bs.links[1][1] === answerUrl(DAY));
+  check(`${difficulty}: Bluesky alt text has every clue`, bs && r.puzzle.clues.every((c) => bs.alts[0].includes(c.text)) || bs.alts[0].length === 2000);
   check(`${difficulty}: caption promotes the streak`, /streak/.test(text));
   check(`${difficulty}: caption fits Instagram with numbers too`, instagramCaption(r.puzzle, DAY, { solved: 12345, medianMs: 9 * 60000 }).length <= 2200);
   check(`${difficulty}: caption gives no answers`, !r.puzzle.answerKey.questions.some((q) => text.includes(`${q.question} ${q.answer}`)));
 }
 
+{
+  const long = generatePuzzle({ difficulty: 'hard', theme: 'mystery', seed: 'social-long' });
+  long.title = 'A Title So Very Long That It Takes Up Most Of The Room Bluesky Allows For One Whole Post And Then Some More Words';
+  const bs = bluesky(long, DAY);
+  check('a long title still fits Bluesky (shorter middle line)', bs && [...new Intl.Segmenter().segment(bs.text)].length <= BLUESKY_LIMIT);
+}
 check('numbers shown with enough solvers', statsLine({ solved: 42, medianMs: 420000 }).includes('42 players') && statsLine({ solved: 42, medianMs: 420000 }).includes('7 minutes'));
 check('no numbers with too few solvers', statsLine({ solved: 3, medianMs: 420000 }) === '' && statsLine(null) === '');
 

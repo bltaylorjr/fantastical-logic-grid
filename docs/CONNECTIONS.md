@@ -703,7 +703,7 @@ uses a secret, variable or binding that is not listed there.
 
 ### Bluesky (automatic posts)
 
-**Why:** Lets the marketing autopilot post approved Bluesky ads on their day. Without it, the Bluesky ad is emailed to you to post by hand.
+**Why:** Lets the marketing autopilot post approved Bluesky ads on their day. Also posts the daily puzzle (both slides) every morning. Without it, the Bluesky ad is emailed to you to post by hand.
 
 **Cost:** Free. An app password can only post; it cannot change the account password or settings.
 
