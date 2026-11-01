@@ -56,7 +56,7 @@ $$('[data-count]', form).forEach(wireCount);
 const typed = [];
 function readCharacters() {
   $$('.sl-char:not(.sl-cat)', form).forEach((box, i) => {
-    typed[i] = { name: $('[data-c=name]', box).value, trait: $('[data-c=trait]', box).value, role: ($('[data-c=role]:checked', box) || {}).value || 'Supporting' };
+    typed[i] = { name: $('[data-c=name]', box).value, trait: $('[data-c=trait]', box).value, role: ($('[data-c=role]:checked', box) || {}).value || 'Supporting', gender: ($('[data-c=gender]:checked', box) || {}).value || '' };
   });
 }
 function drawCharacters() {
@@ -68,7 +68,7 @@ function drawCharacters() {
   const have = $$('.sl-char', box).length; // only the characters' boxes are in #sl-chars
   if (have === n) return;
   box.innerHTML = Array.from({ length: n }, (_, i) => {
-    const c = typed[i] || { name: '', trait: '', role: i === 0 ? 'Main' : 'Supporting' };
+    const c = typed[i] || { name: '', trait: '', role: i === 0 ? 'Main' : 'Supporting', gender: '' };
     const id = `sl-c${i}`;
     return `<fieldset class="sl-char"><legend>Character ${i + 1}</legend>
       <div class="field sl-field" data-field="name${i}">
@@ -84,6 +84,14 @@ function drawCharacters() {
         <input type="text" id="${id}-trait" data-c="trait" maxlength="30" value="${esc(c.trait)}" aria-describedby="${id}-trait-h ${id}-trait-x">
         <p class="sl-ex" id="${id}-trait-x">Example: Nervous</p>
       </div>
+      <fieldset class="sl-field" aria-describedby="${id}-gender-h"><legend class="sl-legend">Gender</legend>
+        <p class="help" id="${id}-gender-h">So the story says he or she, and the character gets a fitting voice and picture.</p>
+        <div class="sl-radios">
+          <label class="radio"><input type="radio" name="${id}-gender" data-c="gender" value="Male"${c.gender === 'Male' ? ' checked' : ''}> Male</label>
+          <label class="radio"><input type="radio" name="${id}-gender" data-c="gender" value="Female"${c.gender === 'Female' ? ' checked' : ''}> Female</label>
+        </div>
+        <p class="sl-ex">Example: Female</p>
+      </fieldset>
       <fieldset class="sl-field"><legend class="sl-legend">Character role</legend>
         <div class="sl-radios">
           <label class="radio"><input type="radio" name="${id}-role" data-c="role" value="Main"${c.role === 'Main' ? ' checked' : ''}> Main</label>

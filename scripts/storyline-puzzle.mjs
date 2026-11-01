@@ -18,6 +18,18 @@ import { readStoryline, readSubmission } from '../admin/storyline-parse.js';
 
 const ORDER = ['basic', 'easy', 'medium', 'hard', 'expert', 'mensa', 'theorist'];
 
+// The genders the author chose for their characters (Male or Female on the
+// form) go with the puzzle, so the game says he or she and picks a fitting
+// voice and face (web/js/gender.js reads puzzle.characters). inCast: false, so
+// they carry no portrait or lines of their own.
+function withGenders(p, submission) {
+  const chosen = (submission?.form?.characters || []).filter((c) => c && (c.gender === 'Male' || c.gender === 'Female'));
+  const names = new Set((p.categories?.[0]?.items || []).map((i) => i.label));
+  const list = chosen.filter((c) => names.has(String(c.name).trim())).map((c) => ({ name: String(c.name).trim(), gender: c.gender === 'Female' ? 'f' : 'm', inCast: false }));
+  if (list.length) p.characters = list;
+  return p;
+}
+
 export function buildStorylinePuzzle({ text, theme = '', seed = 'storyline', submission = null }) {
   const read = submission ? readSubmission(submission.form, submission.polished, theme) : readStoryline(text, theme);
   if (!read.def) return { error: read.reason };
@@ -41,7 +53,7 @@ export function buildStorylinePuzzle({ text, theme = '', seed = 'storyline', sub
   for (const difficulty of levels) {
     try {
       const p = generatePuzzle({ difficulty, custom, categories, items: difficulty === 'basic' ? Math.min(items, 4) : items, seed: `${seed}-${difficulty}`, timeLimitMs: 30000 });
-      if (p.stats.meetsTier || difficulty === levels[levels.length - 1]) return p;
+      if (p.stats.meetsTier || difficulty === levels[levels.length - 1]) return withGenders(p, submission);
     } catch (e) { last = e; }
   }
   return { error: `The engine could not build a puzzle from it (${last?.message || 'unknown'}).` };

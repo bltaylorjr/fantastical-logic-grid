@@ -54,7 +54,7 @@ async function call(path, { auth, body } = {}) {
 
 const FORM = {
   kind: 'storyline', theme: 'mystery', title: 'The Midnight Gala', pitch: 'Who stole the tiara?', setting: "A seaside mansion, New Year's Eve, 1925",
-  characters: [{ name: 'Lady Ashford', trait: 'Nervous', role: 'Main' }, { name: 'Mr. Pike', role: 'Supporting' }, { name: 'Nora' }, { name: 'Felix' }],
+  characters: [{ name: 'Lady Ashford', trait: 'Nervous', role: 'Main', gender: 'Female' }, { name: 'Mr. Pike', role: 'Supporting' }, { name: 'Nora' }, { name: 'Felix' }],
   goal: 'find out which guest took the tiara', clues: 'Rooms: Library, Kitchen, Garden, Ballroom. Drinks: Tea, Punch, Cider, Lemonade. the butler wasnt in the library.',
   beat: 'Beginning: the lights go out at midnight.', tone: 'Mysterious', difficulty: 'medium', reward: { animation: 'Fireworks' }, credit: 'B. Taylor', consent: true,
 };
@@ -107,6 +107,7 @@ test('a signed-in player: saved with the account and a confirmation with the for
   const puzzle = buildStorylinePuzzle({ submission: { form: approved.submission.form, polished: approved.submission.polished }, seed: 'sub-test' });
   assert.equal(puzzle.error, undefined, puzzle.error);
   assert.equal(puzzle.title, 'The Midnight Gala');
+  assert.deepEqual(puzzle.characters, [{ name: 'Lady Ashford', gender: 'f', inCast: false }], 'the chosen gender goes with the puzzle');
   const stored = await call('/admin/v1/replies/puzzle', { auth: owner, body: { id: approved.id, puzzle } });
   assert.equal(stored.body.stored, true, 'in the player\'s Saved puzzles');
   const entry = (await call(`/admin/v1/story-submissions/${r.body.id}`, { auth: owner })).body;

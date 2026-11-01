@@ -32,6 +32,7 @@ export const REWARDS = {
 // The puzzles a storyline can be for. With only one, the form hides the question.
 export const PUZZLES = [['logic-grid', 'The Fantastical Logic Grid']];
 export const ROLES = ['Main', 'Supporting'];
+export const GENDERS = ['Male', 'Female']; // optional, for the story's he and she
 export const CONSENT_TEXT = 'I wrote this myself and give The Logic Grid permission to use, edit and publish it in the game and its puzzles, with credit to the name I gave.';
 
 const clean = (v, max) => String(v ?? '')
@@ -72,6 +73,7 @@ export function checkSubmission(body, { themeIds = [] } = {}) {
     name: one(c?.name, LIMITS.name),
     trait: one(c?.trait, LIMITS.trait),
     role: ROLES.includes(c?.role) ? c.role : 'Supporting',
+    gender: GENDERS.includes(c?.gender) ? c.gender : '',
   }));
   // Categories: optional, but each one started needs a name and at least 3 different items.
   v.categories = [];
@@ -128,7 +130,7 @@ export function formCopy(form, themeName = (id) => id, { all = false } = {}) {
   add('Storyline setting', f.setting);
   const chars = f.characters || [];
   add('Characters', chars.length ? String(chars.length) : '');
-  chars.forEach((c, i) => add(`Character ${i + 1}`, [c.name, c.trait && `trait: ${c.trait}`, c.role && `${c.role.toLowerCase()} character`].filter(Boolean).join(', ')));
+  chars.forEach((c, i) => add(`Character ${i + 1}`, [c.name, c.gender && c.gender.toLowerCase(), c.trait && `trait: ${c.trait}`, c.role && `${c.role.toLowerCase()} character`].filter(Boolean).join(', ')));
   (f.categories || []).forEach((c, i) => add(`Category ${i + 1}`, `${c.name}${c.order ? ` (${(ORDERS.find(([id]) => id === c.order) || ['', ''])[1].replace(/ \(.*\)$/, '').toLowerCase()})` : ''}: ${c.items.join(', ')}`));
   add('Central mystery or goal', f.goal);
   if (PUZZLES.length > 1 || all) add('Puzzle', (PUZZLES.find(([id]) => id === f.puzzle) || PUZZLES[0])[1]);
