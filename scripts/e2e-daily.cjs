@@ -28,7 +28,7 @@ const SITE = path.join(__dirname, '..', 'dist', 'site');
     }
   });
   try {
-    await page.goto('http://localhost:8131/');
+    await page.goto('http://localhost:8131/fantastical/');
     await page.waitForSelector('#daily-today [data-daily]');
     assert((await page.textContent('#daily-today')).includes(latest.title), `the home screen shows today's daily puzzle ("${latest.title}")`);
     assert(await page.isHidden('#daily-streak'), 'no streak before the first daily solve');

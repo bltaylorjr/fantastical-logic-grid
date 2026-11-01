@@ -577,7 +577,7 @@ async function loadBoard() {
 }
 
 // ------------------------------------------------------------ links
-// thelogicgrid.com/?race=CODE opens the join window with the code filled in.
+// thelogicgrid.com/fantastical/?race=CODE (or the old /?race=CODE, sent on by the front page) opens the join window with the code filled in.
 export function handleRaceLink() {
   if (!compete.enabled()) return;
   const url = new URL(location.href);

@@ -136,7 +136,7 @@ ${[0, 1, 2, 3].map(catBlock).join('\n')}
 <h2 id="done-h" tabindex="-1">Thank you! Your request is with our team</h2>
 <p>Your email is confirmed. We review requests by hand, usually within a day or two. Once approved, your puzzles are made and emailed to you as PDF files.</p>
 <p class="muted">Request number <strong id="done-ref"></strong>. <span id="done-status"></span></p>
-<p><a href="${up}">Play a puzzle while you wait</a> · <a href="${up}printables/">This week's free worksheets</a></p>
+<p><a href="${up}fantastical/">Play a puzzle while you wait</a> · <a href="${up}printables/">This week's free worksheets</a></p>
 </section>
 
 <h2>Questions</h2>
