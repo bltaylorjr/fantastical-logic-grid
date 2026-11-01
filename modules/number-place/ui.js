@@ -1328,11 +1328,20 @@ function wire() {
 
   // Play
   const board = $('#np-board');
+  // A cell is picked when the finger lifts, so a touch that scrolls the page does not pick a new cell.
+  let tapAt = null;
   board.addEventListener('pointerdown', (e) => {
     const cell = e.target.closest('.np-cell');
     if (!cell || !G) return;
     e.preventDefault();
-    focusCell(Number(cell.dataset.i));
+    tapAt = { i: Number(cell.dataset.i), x: e.clientX, y: e.clientY };
+  });
+  board.addEventListener('pointermove', (e) => { if (tapAt && Math.hypot(e.clientX - tapAt.x, e.clientY - tapAt.y) > 10) tapAt = null; });
+  board.addEventListener('pointercancel', () => { tapAt = null; });
+  board.addEventListener('pointerup', (e) => {
+    const cell = e.target.closest('.np-cell');
+    if (tapAt && cell && G && Number(cell.dataset.i) === tapAt.i) focusCell(tapAt.i);
+    tapAt = null;
   });
   $('#np-digits').addEventListener('click', (e) => {
     const b = e.target.closest('[data-d]');
