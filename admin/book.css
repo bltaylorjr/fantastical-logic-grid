@@ -184,3 +184,6 @@
 .cv-guide-spine { top: 0; bottom: 0; left: calc(var(--bleed) + var(--trim-w)); width: var(--spine); border-left: 1px dashed #00c2ff; border-right: 1px dashed #00c2ff; }
 @media print { .cv-guide { display: none !important; } }
 .cv-author { margin-top: 0.2in; font: 500 14pt var(--cv-fh); }
+/* the barcode box's label is a design aid only: the printed box stays plain white for KDP's barcode */
+.cv-barcode span { visibility: hidden; }
+.cv-guides .cv-barcode span { visibility: visible; }
