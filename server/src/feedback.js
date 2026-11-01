@@ -22,6 +22,7 @@ import { queueReply } from './replies.js';
 import { talkAboutFeedback } from './messages.js';
 import { verifyIdToken } from './auth.js';
 import { THEMES } from '../../engine/src/themes.js';
+import { saveIdeaBoxEntry } from './story-submissions.js';
 
 export const TOPICS = {
   idea: ['story', 'theme', 'feature', 'other'],
@@ -65,6 +66,10 @@ async function postFeedback(req, env, ctx) {
   if (n >= MAX_NEW_PER_DAY) return json(req, env, { error: 'busy', message: 'The boxes are full for today. Please try again tomorrow.' }, 429);
   const row = await env.DB.prepare('INSERT INTO feedback (kind, topic, text, platform, version, theme, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7) RETURNING id')
     .bind(kind, topic, text, platform, version, theme, Date.now()).first();
+  // Storylines and theme ideas also go into the Storyline Submission Database.
+  if (kind === 'idea' && (topic === 'story' || topic === 'theme')) {
+    try { await saveIdeaBoxEntry(env, { feedbackId: row.id, topic, theme, text, platform, version }); } catch (e) { console.error(e); }
+  }
   await alert(env, ctx, { category: 'messages', title: kind === 'problem' ? 'New problem report' : 'New idea', body: text.slice(0, 160), link: 'communication' });
   let reply = 'none';
   let update = false;

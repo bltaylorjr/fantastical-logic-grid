@@ -2590,6 +2590,8 @@ function applyFeatures() {
   for (const el of $$('.needs-cloud')) el.hidden = !share.available() || (!!el.dataset.feature && !remote.feature(el.dataset.feature));
   $('#music-settings').hidden = !remote.feature('music');
   $('[data-cmd=feedback]').hidden = !feedbackBox.available();
+  // The Suggest a storyline page (storyline/) sends to the same team as Share an idea.
+  $('[data-cmd=storyline]').hidden = !feedbackBox.available();
   $('[data-cmd=mail]').hidden = isPortal || !puzzleMail.available();
   $('#mail-invite').hidden = isPortal || !puzzleMail.available();
   $('[data-cmd=suggest]').hidden = !characters.suggestionsOpen();
@@ -2727,6 +2729,7 @@ $('#app-menu').addEventListener('click', async (e) => {
   else if (cmd === 'daily') openTodaysDaily();
   else if (cmd === 'mail') puzzleMail.open(openDialog);
   else if (cmd === 'feedback') feedbackBox.open(openDialog, { themes: OPTIONS.themes });
+  else if (cmd === 'storyline') location.href = 'storyline/';
   else if (cmd === 'messages') messages.open();
   else if (cmd === 'account') openAccount();
   else if (cmd === 'board') competeUi.openBoard();

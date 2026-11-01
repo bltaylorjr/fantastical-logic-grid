@@ -20,6 +20,7 @@
 //   GET  /admin/v1/feedback/queue      approved ideas and problems waiting for the weekly fix run (ids and topics only)
 //   POST /admin/v1/feedback/:id/approve  approve a storyline: addressed; the email sender builds its first puzzle, stores it for the player and emails "Congratulations" with it as a PDF
 //   POST /admin/v1/feedback/:id/decline  disapprove a storyline: done; the player gets a thank-you for their input
+//   GET  /admin/v1/story-submissions?q=  the Storyline Submission Database; GET .../:id, POST .../:id/(polish|approve|decline|email|delete) (story-submissions.js)
 //   POST /admin/v1/replies/puzzle      { id, puzzle } the sender built an approved storyline's puzzle: store it for the player (owner)
 //   POST /admin/v1/replies/claim       thank-you emails waiting, for the GitHub Action to send (owner, replies.js)
 //   POST /admin/v1/replies/done        that Action says which went out; their addresses are removed (owner)
@@ -85,6 +86,7 @@ import { TUNING_CACHE_KEY } from './learn.js';
 import { refreshSearch, searchSnapshots, lastTry, REFRESH_GAP_MS } from './search.js';
 import { workshopOptions, addPart, draftParts } from './workshop.js';
 import { characterRoutes, VOICES, VOICE_STYLES } from './characters.js';
+import { storySubmissionRoutes, syncIdeaBoxDecision } from './story-submissions.js';
 import { TOPICS as FEEDBACK_TOPICS } from './feedback.js';
 import { claimReplies, finishReplies, replyCounts, releaseUpdate, dropUpdate, deleteReplyStatements, heldStoryline, approveStoryline, declineStoryline, storeBuiltPuzzle } from './replies.js';
 import { inbox, INBOX_TYPES, conversationView, teamReply, removePuzzle, puzzleStorage, PUZZLE_MAX_CHARS, setConversationStatus, startConversation, listNews, addNews, endNews, deleteNews, deleteMessageStatements, MessageRefusal } from './messages.js';
@@ -257,6 +259,7 @@ async function analytics(env, days, now = Date.now()) {
     picturesByDay: db.prepare("SELECT day, count AS n FROM usage WHERE name = 'pictures' AND day >= ?1").bind(sinceDay),
     namesWaiting: db.prepare('SELECT COUNT(*) AS n FROM players p LEFT JOIN name_reviews r ON r.user_id = p.user_id WHERE r.name_key IS NULL OR r.name_key != p.name_key'),
     educatorsWaiting: db.prepare("SELECT COUNT(*) AS n FROM educator_requests WHERE status = 'pending'"),
+    storiesWaiting: db.prepare("SELECT COUNT(*) AS n FROM story_submissions WHERE status = 'new' AND source = 'form'"),
     keysWaiting: db.prepare('SELECT COUNT(*) AS n FROM licenses WHERE waiting = 1 AND revoked_at IS NULL'),
     educatorFeedbackNew: db.prepare("SELECT COUNT(*) AS n FROM educator_feedback WHERE status = 'new' AND kind != 'survey'"),
   };
@@ -285,7 +288,7 @@ async function analytics(env, days, now = Date.now()) {
     voices: { byDay: series(r.voicesByDay), cap: settings.daily_tts_cap, enabled: settings.tts_enabled, today: series(r.voicesByDay).at(-1) },
     pictures: { byDay: series(r.picturesByDay), cap: settings.daily_picture_cap, mode: settings.ai_pictures, today: series(r.picturesByDay).at(-1) },
     errors: { byDay: series(r.errorsByDay) },
-    review: { parts: Object.fromEntries(r.parts.map((x) => [x.id, x.n])), namesWaiting: one('namesWaiting'), feedback: Object.fromEntries(r.feedbackNew.map((x) => [x.id, x.n])), messages: one('messagesUnread'), educators: one('educatorsWaiting'), educatorFeedback: one('educatorFeedbackNew'), keys: one('keysWaiting') },
+    review: { parts: Object.fromEntries(r.parts.map((x) => [x.id, x.n])), namesWaiting: one('namesWaiting'), feedback: Object.fromEntries(r.feedbackNew.map((x) => [x.id, x.n])), messages: one('messagesUnread'), educators: one('educatorsWaiting'), stories: one('storiesWaiting'), educatorFeedback: one('educatorFeedbackNew'), keys: one('keysWaiting') },
   };
   analyticsCache.set(days, { at: now, body });
   return body;
@@ -506,6 +509,9 @@ const ROUTES = [
   // ---- Characters: the game's own cast and narrators (characters.js).
   ...characterRoutes(Refusal),
 
+  // ---- The Storyline Submission Database (story-submissions.js).
+  ...storySubmissionRoutes(Refusal),
+
   ['GET', /^feedback$/, 'moderator', 'feedback.view', async ({ env, url }) => {
     const kind = FEEDBACK_TOPICS[url.searchParams.get('kind')] ? url.searchParams.get('kind') : 'idea';
     const status = ['new', 'approved', 'addressed', 'done', 'all'].includes(url.searchParams.get('status')) ? url.searchParams.get('status') : 'new';
@@ -559,6 +565,8 @@ const ROUTES = [
     } else if (['new', 'done'].includes(body.status)) r = await env.DB.prepare('UPDATE feedback SET status = ?1, done_at = ?2, note = NULL WHERE id = ?3').bind(body.status, body.status === 'done' ? now : null, Number(id)).run();
     else throw new Refusal(400, 'bad_status');
     if (!r.meta.changes) throw new Refusal(404, 'gone', 'That message is gone.');
+    const entryStatus = { approved: 'approved', addressed: 'approved', declined: 'declined', done: 'closed' }[body.status];
+    if (entryStatus) await syncIdeaBoxDecision(env, id, entryStatus, who.actor, now);
     // A player who ticked "Email me an update" hears about it, with the note.
     if (body.status === 'addressed') emailed = await releaseUpdate(env, id, cleanNote(body.note));
     else if (!['new', 'approved'].includes(body.status)) await dropUpdate(env, id, { thank: body.status === 'done' || body.status === 'declined' });
@@ -578,7 +586,7 @@ const ROUTES = [
   // gets "Congratulations" with the first puzzle built from their storyline
   // (built and stored for them by the email sender, see replies/puzzle).
   // Disapproved: marked done, and that player gets a thank-you for their input.
-  ['POST', /^feedback\/(\d+)\/(approve|decline)$/, 'moderator', 'feedback.storyline', async ({ env, params: [id, action], now }) => {
+  ['POST', /^feedback\/(\d+)\/(approve|decline)$/, 'moderator', 'feedback.storyline', async ({ env, params: [id, action], who, now }) => {
     const f = await env.DB.prepare('SELECT kind, topic, status FROM feedback WHERE id = ?1').bind(Number(id)).first();
     if (!f) throw new Refusal(404, 'gone', 'That idea is gone.');
     if (f.kind !== 'idea' || f.topic !== 'story') throw new Refusal(400, 'not_story', 'Only story ideas can be approved or disapproved as storylines.');
@@ -593,6 +601,7 @@ const ROUTES = [
       await env.DB.prepare("UPDATE feedback SET status = 'done', note = NULL, done_at = ?1 WHERE id = ?2").bind(now, Number(id)).run();
       emailed = await declineStoryline(env, id);
     }
+    await syncIdeaBoxDecision(env, id, action === 'approve' ? 'approved' : 'declined', who.actor, now);
     analyticsCache.clear();
     return { body: { ok: true, emailed }, target: id, detail: { action, emailed } };
   }],

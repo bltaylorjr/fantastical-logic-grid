@@ -6,16 +6,20 @@
 // then stored in the player's game and printed as the PDF.
 // Usage: node scripts/storyline-puzzle.mjs <in.json> <out.json>
 //   in.json:  { "text": "the storyline", "theme": "theme name or empty", "seed": "any" }
+//             or { "submission": { "form": {...}, "polished": {...} }, "seed": "any" } for an entry
+//             from the Suggest a storyline page (its corrected words and the level the author chose)
 //   out.json: the puzzle, or { "error": "why" } (exit code 3) when the
 //             storyline has no lists the game can read.
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { generatePuzzle } from '../engine/src/index.js';
 import { checkCustom } from '../engine/src/classroom.js';
-import { readStoryline } from '../admin/storyline-parse.js';
+import { readStoryline, readSubmission } from '../admin/storyline-parse.js';
 
-export function buildStorylinePuzzle({ text, theme = '', seed = 'storyline' }) {
-  const read = readStoryline(text, theme);
+const ORDER = ['basic', 'easy', 'medium', 'hard', 'expert', 'mensa', 'theorist'];
+
+export function buildStorylinePuzzle({ text, theme = '', seed = 'storyline', submission = null }) {
+  const read = submission ? readSubmission(submission.form, submission.polished) : readStoryline(text, theme);
   if (!read.def) return { error: read.reason };
   const checked = checkCustom(read.def);
   if (checked.errors) return { error: checked.errors.join(' ') };
@@ -28,7 +32,11 @@ export function buildStorylinePuzzle({ text, theme = '', seed = 'storyline' }) {
   // A number list keeps only as many values as the puzzle uses, so its
   // "runs from ... to ..." line matches the grid.
   for (const c of custom.categories) if (c.order) c.items = c.items.slice(0, items);
-  const levels = categories >= 4 ? ['medium', 'easy'] : ['easy', 'basic'];
+  let levels = categories >= 4 ? ['medium', 'easy'] : ['easy', 'basic'];
+  // The level the author picked, when the grid can carry it (Medium and up need
+  // 4 categories); the usual levels are the fallback.
+  const asked = ORDER.indexOf(read.difficulty || '');
+  if (asked >= 0) levels = [...new Set([ORDER[Math.min(asked, categories >= 4 ? ORDER.length - 1 : 1)], ...levels])];
   let last;
   for (const difficulty of levels) {
     try {

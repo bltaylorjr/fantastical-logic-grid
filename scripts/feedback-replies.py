@@ -56,11 +56,39 @@ NO_REPLY = ('Questions? Just reply to this email. To share another idea or repor
             'use Menu > Ideas and problems in the game.')
 ONE_WAY = ('This is an automatic message from a no-reply address, so replies are not read. '
            'To answer the team, open the game and choose Menu > Messages.')
-ONE_WAY_KINDS = {'message'}  # sent from MAIL_NOREPLY; everything else from MAIL_FROM
+# Sent from MAIL_NOREPLY; everything else from MAIL_FROM (support@). A
+# storyline submission's confirmation, approval and decline thank-you are one-way.
+ONE_WAY_KINDS = {'message', 'story_received', 'story_approved', 'submission_approved', 'story_declined'}
+STORY_ONE_WAY = ('This is an automatic message from a no-reply address, so replies are not read. '
+                 f'Questions? Email {MAIL_FROM}.')
+TEAM_COPY = 'Sent by The Fantastical Logic Grid team. Questions? Just reply to this email.'
+KIND_WORDS = {'storyline': 'storyline', 'theme': 'theme idea', 'category': 'category idea'}
 
 
 def footer(r):
-    return ONE_WAY if r['kind'] in ONE_WAY_KINDS else NO_REPLY
+    if r['kind'] == 'message':
+        return ONE_WAY
+    if r['kind'] in ONE_WAY_KINDS:
+        return STORY_ONE_WAY
+    if r['kind'] == 'submission_copy':
+        return TEAM_COPY
+    return NO_REPLY
+
+
+def entry_words(r):
+    """'storyline', 'theme idea' or 'category idea', for the email about an entry."""
+    return KIND_WORDS.get((r.get('submission') or {}).get('kind'), 'storyline')
+
+
+def entry_form(r):
+    """The copy of the completed form, as a block, or nothing."""
+    copy = (r.get('submission') or {}).get('copy')
+    return ('form', 'Your completed form', copy) if copy else ''
+
+
+def subject(r):
+    s = NOTES[r['kind']]['subject']
+    return s(r) if callable(s) else s
 
 SIGN_OFF = 'The Fantastical Logic Grid team\n' + GAME_URL
 
@@ -121,13 +149,49 @@ NOTES = {
             SIGN_OFF,
         ],
     },
+    'story_received': {
+        'subject': lambda r: f'We received your {entry_words(r)}',
+        'blocks': lambda r: [
+            'Hello, author!',
+            f'Thank you for sending your {entry_words(r)} to The Fantastical Logic Grid. It has been saved, '
+            'and the team reads every entry.',
+            ('We will email you if it is approved. An approved storyline comes back to you as a finished logic puzzle '
+             '(a PDF with its answer key), and it waits in your game\'s Saved puzzles too when you are signed in.')
+            if entry_words(r) == 'storyline' else 'We will email you if it is approved.',
+            'Here is a copy of what you sent:',
+            entry_form(r),
+            'Thank you for contributing!',
+            SIGN_OFF,
+        ],
+    },
+    'submission_approved': {
+        'subject': lambda r: f'Congratulations! Your {entry_words(r)} has been approved',
+        'blocks': lambda r: [
+            'Hello, author!',
+            f'Congratulations! Your {entry_words(r)} has been approved, and the team will use it in new puzzles for '
+            'The Fantastical Logic Grid.',
+            entry_form(r),
+            'Thank you for contributing to the game!',
+            SIGN_OFF,
+        ],
+    },
+    'submission_copy': {
+        'subject': lambda r: f'A {entry_words(r)} sent to The Fantastical Logic Grid' + (f': {r["submission"]["title"]}' if (r.get('submission') or {}).get('title') else ''),
+        'blocks': lambda r: [
+            'Hello,',
+            f'Here is a copy of a {entry_words(r)} sent to The Fantastical Logic Grid, as it was submitted.',
+            ('form', 'The submission', (r.get('submission') or {}).get('copy')),
+            'The first puzzle built from it is attached as a PDF, with its answer key on the last page.' if r.get('_files') else '',
+            SIGN_OFF,
+        ],
+    },
     'story_approved': {
         'subject': 'Congratulations! Your storyline has been approved',
         'blocks': lambda r: [
             'Hello, puzzler!',
             'Congratulations! Your storyline has been approved. Thank you for sending it to The Fantastical Logic Grid: '
             'the team enjoyed it and it is now part of the game.',
-            ('quote', 'Your storyline', r.get('text')),
+            ('quote', 'Your storyline', r.get('text') or (r.get('submission') or {}).get('title')),
             ('We built the first puzzle from your storyline. It is attached as a PDF, with its answer key on the last page, '
              'so you can print it and solve it on paper.') if r.get('_files') else '',
             ('The same puzzle is waiting in your game, ready to play: sign in with this email address and open Saved puzzles. '
@@ -144,6 +208,7 @@ NOTES = {
             'Thank you for taking the time to send us a storyline for The Fantastical Logic Grid. '
             'We read every one, and we truly appreciate your input.',
             ('quote', 'Your storyline', r.get('text')),
+            ('quote', 'Your entry', (r.get('submission') or {}).get('title')) if not r.get('text') else '',
             'This one will not be made into a puzzle, but please keep the ideas coming: '
             'every storyline helps us shape the stories in the game.',
             'Thank you for contributing!',
@@ -176,10 +241,15 @@ NOTES = {
 }
 
 
+def has_words(b):
+    if b[0] == 'form':
+        return isinstance(b[2], list) and len(b[2]) > 0
+    return bool(str(b[2] or '').strip()) and (b[0] != 'link' or str(b[2]).startswith('https://'))
+
+
 def blocks(r):
     """The email's blocks, without quotes that have no words."""
-    return [b for b in NOTES[r['kind']]['blocks'](r) if (isinstance(b, str) and b) or not isinstance(b, str) and (b[2] or '').strip()
-            and (b[0] != 'link' or str(b[2]).startswith('https://'))]
+    return [b for b in NOTES[r['kind']]['blocks'](r) if (isinstance(b, str) and b) or (not isinstance(b, str) and has_words(b))]
 
 
 def call(path, body):
@@ -199,6 +269,12 @@ def html_version(r):
     for b in blocks(r):
         if isinstance(b, str):
             parts.append(f'<p style="margin:0 0 14px">{html.escape(b).replace(chr(10), "<br>")}</p>')
+        elif b[0] == 'form':
+            rows = ''.join(f'<tr><th style="text-align:left;vertical-align:top;padding:6px 10px 6px 0;width:38%;color:#5c5246;font-weight:bold">{html.escape(str(k))}</th>'
+                           f'<td style="padding:6px 0;vertical-align:top">{html.escape(str(v)).replace(chr(10), "<br>")}</td></tr>' for k, v in b[2])
+            parts.append(f'<p style="margin:0 0 6px;font-weight:bold">{html.escape(b[1])}:</p>'
+                         '<table role="presentation" style="width:100%;border-collapse:collapse;margin:0 0 16px;padding:10px 14px;'
+                         f'background:#f6f1e7;border-radius:4px;font-size:15px">{rows}</table>')
         elif b[0] == 'link':
             parts.append(f'<p style="margin:6px 0 18px"><a href="{html.escape(b[2], quote=True)}" style="display:inline-block;'
                          'background:#5B3CC4;color:#ffffff;text-decoration:none;font-weight:bold;padding:12px 20px;border-radius:8px">'
@@ -218,6 +294,8 @@ def text_version(r):
     for b in blocks(r):
         if isinstance(b, str):
             out.append(b)
+        elif b[0] == 'form':
+            out.append(b[1] + ':\n' + '\n'.join(f'{k}: {v}' for k, v in b[2]))
         elif b[0] == 'link':
             out.append(b[1] + ':\n' + b[2])
         else:
@@ -249,18 +327,31 @@ def build_puzzle(r):
     store it for the player (POST /admin/v1/replies/puzzle) and keep it for the
     PDF. If the storyline has no lists the game can read, or anything fails,
     the email still goes, without a puzzle."""
-    if r.get('kind') != 'story_approved':
+    if r.get('kind') not in ('story_approved', 'story_build'):
         return
     if isinstance(r.get('puzzle'), dict):
-        r['stored'] = True  # built and stored on an earlier try
+        if r.get('storeSaved'):
+            # Saved in the database earlier; put it in the player's game too.
+            try:
+                r['stored'] = bool(call('replies/puzzle', {'id': r['id'], 'puzzle': r['puzzle']}).get('stored'))
+            except (urllib.error.HTTPError, urllib.error.URLError):
+                r['stored'] = False
+        else:
+            r['stored'] = r.get('kind') == 'story_approved' and 'puzzleExpiresAt' in r  # built and stored on an earlier try
         return
-    if not isinstance(r.get('build'), dict) or not r.get('text'):
+    build = r.get('build')
+    sub = r.get('submission') or {}
+    text = r.get('text') or (sub.get('form') or {}).get('idea')
+    if not isinstance(build, dict) or not (build.get('submission') or text):
         return
     try:
         with tempfile.TemporaryDirectory() as tmp:
             src, out = os.path.join(tmp, 'storyline.json'), os.path.join(tmp, 'puzzle.json')
             with open(src, 'w', encoding='utf-8') as f:
-                json.dump({'text': r['text'], 'theme': r['build'].get('theme') or '', 'seed': f'story-{r["id"]}'}, f)
+                if build.get('submission'):
+                    json.dump({'submission': {'form': sub.get('form'), 'polished': sub.get('polished')}, 'seed': f'story-{r["id"]}'}, f)
+                else:
+                    json.dump({'text': text, 'theme': build.get('theme') or '', 'seed': f'story-{r["id"]}'}, f)
             done = subprocess.run(['node', os.path.join(ROOT, 'scripts', 'storyline-puzzle.mjs'), src, out], timeout=300, cwd=ROOT,
                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             if done.returncode != 0:
@@ -280,7 +371,7 @@ def build_puzzle(r):
 def attachments(r):
     """The PDF for an approved storyline (puzzle and answer key), or none. If it
     cannot be built, the email still goes; the puzzle is in the game anyway."""
-    if r.get('kind') != 'story_approved' or not isinstance(r.get('puzzle'), dict):
+    if r.get('kind') not in ('story_approved', 'submission_copy') or not isinstance(r.get('puzzle'), dict):
         return []
     try:
         ensure_printer()
@@ -307,7 +398,7 @@ def message(r):
     msg['To'] = r['email']
     if not one_way:
         msg['Reply-To'] = REPLY_TO
-    msg['Subject'] = NOTES[r['kind']]['subject']
+    msg['Subject'] = subject(r)
     msg['Message-ID'] = make_msgid(domain='thelogicgrid.com')
     # An automatic message: mail programs should not send out-of-office answers to it.
     msg['Auto-Submitted'] = 'auto-replied'
@@ -325,7 +416,7 @@ def send_resend(replies):
     sent, refused = [], []
     for r in replies:
         one_way = r['kind'] in ONE_WAY_KINDS
-        payload = {'from': formataddr((SENDER_NAME, MAIL_NOREPLY if one_way else MAIL_FROM)), 'to': [r['email']], 'subject': NOTES[r['kind']]['subject'],
+        payload = {'from': formataddr((SENDER_NAME, MAIL_NOREPLY if one_way else MAIL_FROM)), 'to': [r['email']], 'subject': subject(r),
                    'text': text_version(r), 'html': html_version(r),
                    'headers': {'Auto-Submitted': 'auto-replied', 'X-Auto-Response-Suppress': 'All'}}
         if not one_way:
@@ -388,6 +479,17 @@ def main():
     if claim.get('off'):
         print('Thank-you emails are switched off in the admin dashboard.' + (f' Dropped {claim["dropped"]} waiting.' if claim.get('dropped') else ''))
         return
+    # An approved storyline with no address to write to: only its puzzle is
+    # built and saved with the entry (Storyline submissions in the dashboard).
+    builds = [r for r in claim.get('replies', []) if r.get('kind') == 'story_build']
+    for r in builds:
+        build_puzzle(r)
+    if builds:
+        try:
+            call('replies/done', {'sent': [r['id'] for r in builds], 'failed': []})
+        except (urllib.error.HTTPError, urllib.error.URLError):
+            print('Built storyline puzzles, but the Worker did not take the report.')
+        print(f'Built {len(builds)} storyline {"puzzle" if len(builds) == 1 else "puzzles"} for the database.')
     replies = [r for r in claim.get('replies', []) if r.get('kind') in NOTES and r.get('email')]
     if not replies:
         print('No thank-you emails waiting.')
