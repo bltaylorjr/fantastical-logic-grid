@@ -6,8 +6,9 @@ import assert from 'node:assert/strict';
 import { SETTINGS, checkSetting } from '../src/settings.js';
 import { socialLinks, socialHtml, DEFAULT_LINKS, NETWORKS, ICONS } from '../../web/js/social.js';
 
-test('each network has a setting; Facebook starts with the launch page', () => {
+test('each network has a setting; Facebook and Instagram start with the game\'s pages', () => {
   assert.equal(SETTINGS.social_facebook.default, DEFAULT_LINKS.facebook);
+  assert.equal(SETTINGS.social_instagram.default, DEFAULT_LINKS.instagram);
   assert.equal(SETTINGS.social_youtube.default, '');
   assert.equal(SETTINGS.social_youtube.group, 'Social links');
 });
