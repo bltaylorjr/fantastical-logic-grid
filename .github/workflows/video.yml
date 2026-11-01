@@ -71,7 +71,7 @@ jobs:
           VIDEO=wizard-fantastical python video/build.py --install
           VIDEO=wizard-ninetimesnine python video/build.py --install
           VIDEO=tlg python video/build.py --install
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: how-to-play-video
           path: |
