@@ -624,7 +624,7 @@ uses a secret, variable or binding that is not listed there.
 
 | Name | Where | Notes |
 | --- | --- | --- |
-| `GITHUB_DISPATCH_TOKEN` | Cloudflare Worker secret | Fine-grained token, this repository only, Actions: Read and write. Starts github_pat_. Optional. |
+| `GITHUB_DISPATCH_TOKEN` | Cloudflare Worker secret | Fine-grained token, this repository only, Actions: Read and write. Starts github_pat_. Optional. Also starts the Puzzle doctor the moment a player reports a puzzle (server/PUZZLE-REPORTS.md). |
 
 **Steps:**
 

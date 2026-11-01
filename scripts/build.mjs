@@ -157,13 +157,14 @@ if (!indexHtml.includes('http-equiv="Content-Security-Policy"')) {
   if (!indexHtml.includes('Content-Security-Policy')) throw new Error('Could not add the security policy to index.html');
   writeFileSync(indexFile, indexHtml);
 }
-// The Suggest a storyline page (storyline/) gets the same policy; it has no inline scripts.
-{
-  const f = join(out, 'storyline', 'index.html');
+// The Suggest a storyline page (storyline/) and the Report a Problem page
+// (report/) get the same policy; they have no inline scripts.
+for (const dir of ['storyline', 'report']) {
+  const f = join(out, dir, 'index.html');
   const page = readFileSync(f, 'utf8');
   const policy = CSP.replace(/script-src [^;]*/, "script-src 'self'");
   const withCsp = page.replace(/(<meta charset="utf-8">)/, `$1\n<meta http-equiv="Content-Security-Policy" content="${policy}">\n<meta name="referrer" content="strict-origin-when-cross-origin">`);
-  if (withCsp === page) throw new Error('Could not add the security policy to storyline/index.html');
+  if (withCsp === page) throw new Error(`Could not add the security policy to ${dir}/index.html`);
   writeFileSync(f, withCsp);
 }
 const files = [];

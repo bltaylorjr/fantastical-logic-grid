@@ -632,15 +632,26 @@ const SHOTS = process.env.SHOTS;
     await p.waitForFunction(() => /sent/.test(document.querySelector('#idea-form .acct-done').textContent));
     assert(await p.locator('#dlg-feedback #problem-form').count() === 0, 'the idea box has no problem form any more');
     await p.click('#dlg-feedback [data-close]');
-    // Problems go through Report a Problem in the footer, as a Web Page Issue here.
-    await p.click('#report-problem');
-    await p.waitForSelector('#dlg-report[open]');
-    assert(await p.isChecked('input[name=report-kind][value=page]'), 'away from a puzzle it starts as a Web Page Issue');
-    assert(await p.getAttribute('#report-text', 'maxlength') === '1000', 'the box holds 1,000 characters');
-    await p.fill('#report-text', 'The music stopped after the second puzzle.');
-    await p.click('#report-form button[type=submit]');
-    await p.waitForFunction(() => /WS-[A-Z2-9]{8}/.test(document.querySelector('#report-done').textContent));
-    await p.click('#dlg-report [data-close]');
+    // Problems go through Report a Problem in the footer: its own page, in a
+    // new tab on the website, as a Web Page Issue here, with a screenshot.
+    const [rp] = await Promise.all([p.context().waitForEvent('page'), p.click('#report-problem')]);
+    watch(rp);
+    await rp.waitForSelector('#rp-form');
+    assert(/[?&]tab=1/.test(rp.url()) && /\/report\//.test(rp.url()), 'Report a Problem opens its own page in a new tab');
+    assert(await rp.isChecked('input[name=kind][value=page]'), 'away from a puzzle it starts as a Web Page Issue');
+    assert(await rp.getAttribute('#rp-text', 'maxlength') === '1000', 'the box holds 1,000 characters');
+    await rp.fill('#rp-text', 'The music stopped after the second puzzle.');
+    const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+    await rp.setInputFiles('#rp-file', [{ name: 'screen.png', mimeType: 'image/png', buffer: png }, { name: 'console.log', mimeType: 'text/plain', buffer: Buffer.from('Audio stopped at 2:13') }]);
+    await rp.waitForFunction(() => document.querySelectorAll('#rp-files li').length === 2);
+    await rp.setInputFiles('#rp-file', [{ name: 'page.html', mimeType: 'text/html', buffer: Buffer.from('<p>hi</p>') }]);
+    await rp.waitForFunction(() => /not a type we accept/.test(document.querySelector('#rp-files-err').textContent));
+    await rp.click('#rp-send');
+    await rp.waitForFunction(() => /WS-[A-Z2-9]{8}/.test(document.querySelector('#rp-done-number').textContent));
+    assert(/2 pictures and files were received/.test(await rp.textContent('#rp-done-text')), 'the page confirms the files arrived');
+    const kept = await db.prepare('SELECT COUNT(*) AS n FROM report_files').first();
+    assert(kept.n === 2, `the files are kept with the report (${kept.n})`);
+    await rp.close();
     const fb = (await db.prepare('SELECT kind, topic, theme FROM feedback ORDER BY id').all()).results.map((r) => `${r.kind}:${r.topic}${r.theme ? `:${r.theme}` : ''}`);
     assert(fb.join() === 'idea:story:adventure,problem:page', `an idea and a web page issue arrive in their own places (${fb.join()})`);
 
