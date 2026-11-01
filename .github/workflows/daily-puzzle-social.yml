@@ -46,6 +46,7 @@ jobs:
         with:
           sparse-checkout: |
             scripts/social-puzzle.mjs
+            scripts/worksheet.mjs
             scripts/marketing-post.py
             engine/src
             web/icons/icon.svg
