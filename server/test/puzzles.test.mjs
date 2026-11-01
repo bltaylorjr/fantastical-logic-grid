@@ -28,7 +28,7 @@ test('other paths are not handled', async () => {
 
 test('off until the binding and the key are both set', async () => {
   for (const opts of [{ binding: false }, { key: 'short' }]) {
-    const res = await call(req('/v1/puzzles/generate', { body: { options: {} } }), envWith(opts).env);
+    const res = await call(req('/v1/puzzles/flg/generate', { body: { args: {} } }), envWith(opts).env);
     assert.equal(res.status, 503);
     assert.equal((await res.json()).error, 'puzzles_off');
   }
@@ -36,27 +36,38 @@ test('off until the binding and the key are both set', async () => {
 
 test('passes a puzzle request on with the key, and the answer back', async () => {
   const { env, sent } = envWith();
-  const res = await call(req('/v1/puzzles/generate', { body: { options: { difficulty: 'easy' }, extra: 'dropped' } }), env);
+  const res = await call(req('/v1/puzzles/flg/generate', { body: { args: { difficulty: 'easy' }, extra: 'dropped' } }), env);
   assert.equal(res.status, 200);
   assert.deepEqual(await res.json(), { result: { id: 'p1' } });
   assert.equal(res.headers.get('Access-Control-Allow-Origin'), ORIGIN);
   assert.equal(sent.length, 1);
-  assert.match(sent[0].url, /\/v1\/generate$/);
+  assert.match(sent[0].url, /\/v1\/run\/flg\/generate$/);
   assert.equal(sent[0].init.headers['X-FLG-Key'], KEY);
-  assert.deepEqual(JSON.parse(sent[0].init.body), { options: { difficulty: 'easy' } });
+  assert.deepEqual(JSON.parse(sent[0].init.body), { args: { difficulty: 'easy' } });
 });
 
-test('hints go to the hint path', async () => {
+test('every game operation goes to its own path', async () => {
+  const { ENGINE_GAMES } = await import('../../engine/src/games.js');
+  const all = Object.entries(ENGINE_GAMES).flatMap(([id, g]) => Object.keys(g.kinds).map((op) => `${id}/${op}`));
+  assert.ok(all.includes('np/move') && all.includes('flg/hint'));
+  for (const op of all) {
+    const { env, sent } = envWith();
+    const res = await call(req(`/v1/puzzles/${op}`, { body: { args: { puzzle: { id: 'p1' } } } }), env);
+    assert.equal(res.status, 200, op);
+    assert.ok(sent[0].url.endsWith(`/v1/run/${op}`), op);
+  }
+});
+
+test('unknown operations stop here', async () => {
   const { env, sent } = envWith();
-  const res = await call(req('/v1/puzzles/hint', { body: { puzzle: { id: 'p1' }, marks: [] } }), env);
-  assert.equal(res.status, 200);
-  assert.match(sent[0].url, /\/v1\/hint$/);
+  for (const op of ['generate', 'flg/constructor', 'flg/ping', 'np/__proto__', 'chess/generate', 'flg/generate/x']) assert.equal((await call(req(`/v1/puzzles/${op}`, { body: { args: {} } }), env)).status, 404, op);
+  assert.equal(sent.length, 0);
 });
 
 test('turns away requests from other sites and from scripts', async () => {
   for (const origin of ['https://copycat.example', null]) {
     const { env, sent } = envWith();
-    const res = await call(req('/v1/puzzles/generate', { body: { options: {} }, origin }), env);
+    const res = await call(req('/v1/puzzles/flg/generate', { body: { args: {} }, origin }), env);
     assert.equal(res.status, 403);
     assert.equal(sent.length, 0);
   }
@@ -64,7 +75,7 @@ test('turns away requests from other sites and from scripts', async () => {
 
 test('rate limited visitors wait', async () => {
   const { env, sent } = envWith({ limited: true });
-  const res = await call(req('/v1/puzzles/generate', { body: { options: {} } }), env);
+  const res = await call(req('/v1/puzzles/flg/generate', { body: { args: {} } }), env);
   assert.equal(res.status, 429);
   assert.equal(res.headers.get('Retry-After'), '60');
   assert.equal(sent.length, 0);
@@ -72,20 +83,21 @@ test('rate limited visitors wait', async () => {
 
 test('bad and oversized requests stop here', async () => {
   const { env, sent } = envWith();
-  assert.equal((await call(req('/v1/puzzles/generate', { body: '{bad' }), env)).status, 400);
-  assert.equal((await call(req('/v1/puzzles/generate', { body: { options: [] } }), env)).status, 400);
-  assert.equal((await call(req('/v1/puzzles/hint', { body: { puzzle: {}, marks: 'x' } }), env)).status, 400);
-  assert.equal((await call(req('/v1/puzzles/generate', { body: { options: { t: 'a'.repeat(70_000) } } }), env)).status, 413);
+  assert.equal((await call(req('/v1/puzzles/flg/generate', { body: '{bad' }), env)).status, 400);
+  assert.equal((await call(req('/v1/puzzles/flg/generate', { body: { args: [] } }), env)).status, 400);
+  assert.equal((await call(req('/v1/puzzles/flg/hint', { body: { puzzle: {} } }), env)).status, 400);
+  assert.equal((await call(req('/v1/puzzles/flg/generate', { body: { args: { t: 'a'.repeat(70_000) } } }), env)).status, 413);
+  assert.equal((await call(req('/v1/puzzles/np/check', { body: { args: { t: 'a'.repeat(600_000) } } }), env)).status, 413);
   assert.equal(sent.length, 0);
 });
 
 test('a wrong key on our side is reported as a server problem', async () => {
-  const res = await call(req('/v1/puzzles/generate', { body: { options: {} } }), envWith({ answer: { status: 401, body: { error: 'unauthorized' } } }).env);
+  const res = await call(req('/v1/puzzles/flg/generate', { body: { args: {} } }), envWith({ answer: { status: 401, body: { error: 'unauthorized' } } }).env);
   assert.equal(res.status, 502);
 });
 
 test('an unreachable puzzle server answers 502', async () => {
-  const res = await call(req('/v1/puzzles/generate', { body: { options: {} } }), envWith({ answer: 'throw' }).env);
+  const res = await call(req('/v1/puzzles/flg/generate', { body: { args: {} } }), envWith({ answer: 'throw' }).env);
   assert.equal(res.status, 502);
 });
 

@@ -15,7 +15,8 @@ import { storyBeats } from '../src/beats.js';
 import { SIZE_LIMITS } from '../src/tiers.js';
 import { TIER_ORDER } from '../src/tiers.js';
 import { orderItems, inOrder } from '../src/order.js';
-import { CUSTOM_STARTERS, checkCustom, checkRequest, packagePlan, gradeStory, bandOf, schoolEmail, GRADES, BANDS, PRINT_LIMITS } from '../src/classroom.js';
+import { CUSTOM_STARTERS, checkCustom, checkRequest, bandOf, schoolEmail, GRADES, BANDS, PRINT_LIMITS } from '../src/classroom.js';
+import { packagePlan, gradeStory } from '../src/classroom-build.js';
 
 const quick = process.argv.includes('--quick');
 let passed = 0, failed = 0;

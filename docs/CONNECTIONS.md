@@ -150,7 +150,7 @@ uses a secret, variable or binding that is not listed there.
 
 ### Private puzzle server (generator off players' devices)
 
-**Why:** Puzzles and hints are made on the Oracle build server, so the puzzle generator, solver, storylines and topic libraries are never sent to players' browsers. The Worker reaches the server through a Cloudflare Tunnel (Workers VPC); the server has no public address. Everything stays off until these are set; deleting FLG_PUZZLE_SERVER and publishing again goes back to puzzles made on the player's device.
+**Why:** Puzzles and hints are made on the Oracle build server, so no game's generator, solver, storylines or topic libraries are ever sent to players' browsers (The Fantastical Logic Grid, NINETIMESNINE and any game added later in engine/src/games.js). The Worker reaches the server through a Cloudflare Tunnel (Workers VPC); the server has no public address. Everything stays off until these are set; deleting FLG_PUZZLE_SERVER and publishing again goes back to puzzles made on the player's device.
 
 **Cost:** Free: the Oracle Always Free VM (shared with the build runners) and Cloudflare Workers VPC (free while in beta; check before it leaves beta).
 
@@ -158,8 +158,8 @@ uses a secret, variable or binding that is not listed there.
 | --- | --- | --- |
 | `PUZZLES` | Worker binding (server/wrangler.toml) | Workers VPC Service flg-puzzles ([[vpc_services]] in wrangler.toml, with its Service ID). Optional. |
 | `PUZZLE_KEY` | Cloudflare Worker secret | The shared key from /opt/flg/puzzle.env on the Oracle VM. Optional. |
-| `LIMIT_PUZZLES` | Worker binding (server/wrangler.toml) | Puzzles per visitor per minute (60). Optional. |
-| `LIMIT_HINTS` | Worker binding (server/wrangler.toml) | Hints per visitor per minute (120). Optional. |
+| `LIMIT_PUZZLES` | Worker binding (server/wrangler.toml) | Puzzles built per visitor per minute (120), every game. Optional. |
+| `LIMIT_HINTS` | Worker binding (server/wrangler.toml) | Play-time requests per visitor per minute (600): hints, NINETIMESNINE rival moves and tide, wizard checks. Optional. |
 | `FLG_PUZZLE_DEPLOY` | GitHub repository variable | Value: `1` Deploys the puzzle server to the Oracle VM on every engine change. Optional. |
 | `FLG_PUZZLE_SERVER` | GitHub repository variable | Value: `1` Publishes the website without the generator. Set last, after the health check is ok. Optional. |
 

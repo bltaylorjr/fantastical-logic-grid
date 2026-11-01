@@ -1,16 +1,9 @@
-// Talks to worker.js through the shared engine link (engine/engine-link.js).
-// Falls back to running the engine on the page if module workers are not
-// available (very old browsers).
-import { report } from './errors.js';
-import { engineLink } from '../engine/engine-link.js';
+// The Fantastical Logic Grid's engine for the page: puzzles and hints, through
+// the shared link (engine-links.js) to a background worker, or to the puzzle
+// server in server mode.
+import { gameLink } from './engine-links.js';
 
-const engine = engineLink(new URL('../worker.js', import.meta.url), {
-  fallback: async () => {
-    const eng = await import('../engine/index.js');
-    return { generate: (a) => eng.generatePuzzle(a), hint: (a) => eng.getHint(a.puzzle, a.marks) };
-  },
-  onError: (err) => report(err, 'engine'),
-});
+const flg = gameLink('flg');
 
-export const generate = (options) => engine.call('generate', options);
-export const hint = (puzzle, marks) => engine.call('hint', { puzzle, marks });
+export const generate = (options) => flg.call('generate', options);
+export const hint = (puzzle, marks) => flg.call('hint', { puzzle, marks });

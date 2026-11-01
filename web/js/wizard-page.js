@@ -140,20 +140,33 @@ function filterStep(r) {
 let givensSuggestion = null;
 function oneCheck(r) {
   const box = $('[data-onecheck]', formEl());
-  givensSuggestion = null;
+  // The suggestion stays until a new answer replaces it: leaving a cell to
+  // click "Add that number" runs this check again first.
   const count = $('[data-givens-count]', formEl());
   if (count) count.textContent = String((entry.givens || []).filter(Boolean).length);
-  if (!box || game !== 'ninetimesnine' || entry.givensMode !== 'mine') return;
-  if (r.errors.givens) { box.innerHTML = ''; return; }
-  const g = checkGivens(r.value);
-  givensSuggestion = g.suggestion;
-  const html = `<p class="w-msg ${g.ok ? 'good' : 'bad'}">${esc(g.words)}</p>${g.suggestion ? '<button class="btn small" type="button" data-use-suggestion>Add that number</button>' : ''}`;
-  // Only redraw when it changed, so a click on the button is never lost.
-  if (box.dataset.html !== html) { box.innerHTML = html; box.dataset.html = html; }
+  if (!box || game !== 'ninetimesnine' || entry.givensMode !== 'mine') { givensSuggestion = null; return; }
+  const my = ++oneCheckSeq;
+  clearTimeout(oneCheckTimer);
+  if (r.errors.givens) { givensSuggestion = null; box.innerHTML = ''; box.dataset.html = ''; return; }
+  // The check can run on the puzzle server (docs/PUZZLE-SERVER.md), so it
+  // waits for a short pause in typing and drops answers that are out of date.
+  oneCheckTimer = setTimeout(async () => {
+    let g;
+    try { g = await checkGivens(r.value); } catch (e) { g = { ok: false, words: e.message, suggestion: null }; }
+    if (my !== oneCheckSeq) return;
+    givensSuggestion = g.suggestion;
+    const html = `<p class="w-msg ${g.ok ? 'good' : 'bad'}">${esc(g.words)}</p>${g.suggestion ? '<button class="btn small" type="button" data-use-suggestion>Add that number</button>' : ''}`;
+    // Only redraw when it changed, so a click on the button is never lost.
+    if (box.dataset.html !== html) { box.innerHTML = html; box.dataset.html = html; }
+  }, 200);
 }
+let oneCheckSeq = 0;
+let oneCheckTimer = null;
 
 // ---------------------------------------------------------------- the check page
+let issuesSeq = 0;
 function drawIssues(r) {
+  issuesSeq++;
   const errs = Object.entries(r.errors);
   const tips = Object.entries(r.warnings).filter(([k]) => !r.errors[k]);
   const showTips = $('#c-suggest').checked;
@@ -170,11 +183,17 @@ function drawIssues(r) {
     return;
   }
   if (game === 'ninetimesnine') {
-    const g = entry.givensMode === 'mine' ? checkGivens(r.value) : { ok: true, words: 'The wizard will make a grid with exactly one answer.' };
-    status.className = `c-status ${g.ok ? 'good' : 'bad'}`;
-    status.innerHTML = `<b>${g.ok ? 'Ready to build.' : 'Not ready yet.'}</b> ${esc(g.words)}${g.suggestion ? ' <button class="btn small" type="button" data-use-suggestion>Add that number</button>' : ''}`;
-    givensSuggestion = g.suggestion;
-    $('#c-build').disabled = !g.ok;
+    const my = ++issuesSeq;
+    $('#c-build').disabled = true;
+    (async () => {
+      let g;
+      try { g = entry.givensMode === 'mine' ? await checkGivens(r.value) : { ok: true, words: 'The wizard will make a grid with exactly one answer.' }; } catch (e) { g = { ok: false, words: e.message, suggestion: null }; }
+      if (my !== issuesSeq) return;
+      status.className = `c-status ${g.ok ? 'good' : 'bad'}`;
+      status.innerHTML = `<b>${g.ok ? 'Ready to build.' : 'Not ready yet.'}</b> ${esc(g.words)}${g.suggestion ? ' <button class="btn small" type="button" data-use-suggestion>Add that number</button>' : ''}`;
+      givensSuggestion = g.suggestion;
+      $('#c-build').disabled = !g.ok;
+    })();
     return;
   }
   // The logic grid: a trial build proves the clues lead to one answer.
@@ -361,7 +380,7 @@ async function start() {
   form.wire(formEl(), () => entry, onChange, { onAddFile: addFiles, onRemoveFile: removeFile });
   formEl().addEventListener('focusout', (e) => { const f = e.target.closest('.w-field'); if (f && MODE === 'wizard') { touched.add(f.dataset.field); check(); } });
   formEl().addEventListener('click', (e) => {
-    if (e.target.closest('[data-use-suggestion]') && givensSuggestion) {
+    if (e.target.closest('[data-use-suggestion]') && givensSuggestion && !entry.givens[givensSuggestion.cell]) {
       entry.givens[givensSuggestion.cell] = givensSuggestion.digit;
       autosave();
       draw();

@@ -43,7 +43,7 @@ worked example for every style. Test: `node modules/number-place/e2e-styles.cjs`
 NINETIMESNINE is its own screen (`#screen-np`), opened from a small link at the
 foot of the Menu. `scripts/build.mjs` copies this folder to `web/modules/`, and
 `web/js/number-place.js` loads it the first time the player opens it, with the
-engine in `web/np-worker.js`. It keeps its own saves, settings and stats
+engine in the shared game worker (`web/engine-worker.js`, game `np`; see docs/PUZZLE-SERVER.md). It keeps its own saves, settings and stats
 (`flg.np.*`). The only thing it shares is anonymous play data:
 `web/js/np-share.js` sends finished games to `POST /v1/learn/np/plays` and
 brings back `GET /v1/learn/np/tuning` (server/src/number-place.js). The admin

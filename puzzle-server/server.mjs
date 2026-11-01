@@ -3,14 +3,14 @@
 // is the game's Cloudflare Worker, through a Cloudflare Tunnel (Workers VPC),
 // and every request must also carry the shared key FLG_PUZZLE_KEY.
 //
-//   POST /v1/generate  { options }          -> { result: puzzle }
-//   POST /v1/hint      { puzzle, marks }    -> { result: hint }
-//   GET  /v1/health                         -> { ok, release, engine, busy, queued }
+//   POST /v1/run/<game>/<op>  { args }  -> { result }
+//        every game and operation in engine/src/games.js
+//   GET  /v1/health                -> { ok, release, engine, busy, queued }
 //
 // Settings (environment):
 //   FLG_PUZZLE_KEY   required, at least 32 characters
 //   PORT             default 8080
-//   ENGINE_INDEX     the engine's index.js (default ../engine/src/index.js)
+//   ENGINE_DIR       the engine folder (default ../engine/src)
 //   THREADS          engine threads (default 2; the VM also runs build jobs)
 //   MAX_QUEUE        waiting requests before "busy" (default 60)
 //   RELEASE_FILE     a file holding the live release id; when its contents
@@ -21,7 +21,7 @@ import { createServer } from 'node:http';
 import { Worker } from 'node:worker_threads';
 import { timingSafeEqual, createHash } from 'node:crypto';
 import { readFileSync, existsSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -31,15 +31,18 @@ if (KEY.length < 32) {
   process.exit(2);
 }
 const PORT = Number(process.env.PORT || 8080);
-const ENGINE_INDEX = resolve(process.env.ENGINE_INDEX || join(here, '..', 'engine', 'src', 'index.js'));
+const ENGINE_DIR = resolve(process.env.ENGINE_DIR || join(here, '..', 'engine', 'src'));
 const THREADS = Math.max(1, Number(process.env.THREADS || 2));
 const MAX_QUEUE = Math.max(1, Number(process.env.MAX_QUEUE || 60));
 const RELEASE = process.env.RELEASE || 'dev';
 const RELEASE_FILE = process.env.RELEASE_FILE || '';
-const LIMITS = {
-  generate: { bytes: 256 * 1024, ms: 170000 }, // the hardest tiers take a while
-  hint: { bytes: 512 * 1024, ms: 25000 },
-};
+if (!existsSync(join(ENGINE_DIR, 'games.js'))) { console.error(`Engine not found in ${ENGINE_DIR}`); process.exit(2); }
+// Every game and operation, with its size and time limits (engine/src/games.js).
+const { ENGINE_GAMES, OP_KINDS } = await import(pathToFileURL(join(ENGINE_DIR, 'games.js')).href);
+export const LIMITS = {};
+for (const [id, game] of Object.entries(ENGINE_GAMES)) {
+  for (const [op, kind] of Object.entries(game.kinds)) LIMITS[`${id}/${op}`] = { bytes: OP_KINDS[kind].maxBytes, ms: OP_KINDS[kind].serverMs };
+}
 
 const keyHash = createHash('sha256').update(KEY).digest();
 const keyOk = (given) => typeof given === 'string' && timingSafeEqual(createHash('sha256').update(given).digest(), keyHash);
@@ -51,7 +54,7 @@ let seq = 0;
 let engineVersion = null;
 
 function startThread() {
-  const t = { worker: new Worker(join(here, 'engine-thread.mjs'), { workerData: { engineIndex: ENGINE_INDEX } }), job: null, ready: false };
+  const t = { worker: new Worker(join(here, 'engine-thread.mjs'), { workerData: { engineDir: ENGINE_DIR } }), job: null, ready: false };
   t.worker.on('message', (msg) => {
     if (msg.ready) { t.ready = true; engineVersion = msg.version; pump(); return; }
     const job = t.job;
@@ -118,20 +121,15 @@ const server = createServer(async (req, res) => {
   if (req.method === 'GET' && url.pathname === '/v1/health') {
     return send(res, 200, { ok: !stopping && threads.some((t) => t.ready), release: RELEASE, engine: engineVersion, threads: threads.length, busy: threads.filter((t) => t.job).length, queued: queue.length });
   }
-  const op = req.method === 'POST' && { '/v1/generate': 'generate', '/v1/hint': 'hint' }[url.pathname];
+  const m = req.method === 'POST' && url.pathname.match(/^\/v1\/run\/([a-z0-9-]+\/[a-z0-9-]+)$/);
+  const op = m && Object.hasOwn(LIMITS, m[1]) ? m[1] : null;
   if (!op) return send(res, 404, { error: 'not_found' });
   if (stopping) return send(res, 503, { error: 'restarting' });
   inFlight++;
   try {
     const body = await readJson(req, LIMITS[op].bytes);
-    let args;
-    if (op === 'generate') {
-      if (!isPlainObject(body.options)) return send(res, 400, { error: 'bad_options' });
-      args = { options: body.options };
-    } else {
-      if (!isPlainObject(body.puzzle) || !Array.isArray(body.marks)) return send(res, 400, { error: 'bad_hint' });
-      args = { puzzle: body.puzzle, marks: body.marks };
-    }
+    if (!isPlainObject(body.args)) return send(res, 400, { error: 'bad_args' });
+    const args = body.args;
     const result = await run(op, args);
     send(res, 200, { result });
   } catch (err) {
@@ -147,7 +145,6 @@ const server = createServer(async (req, res) => {
 server.requestTimeout = 200000;
 server.headersTimeout = 15000;
 
-if (!existsSync(ENGINE_INDEX)) { console.error(`Engine not found at ${ENGINE_INDEX}`); process.exit(2); }
 for (let i = 0; i < THREADS; i++) startThread();
 server.listen(PORT, () => console.log(`Puzzle server ${RELEASE} listening on ${PORT} with ${THREADS} engine threads.`));
 

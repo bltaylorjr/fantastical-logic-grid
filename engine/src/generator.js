@@ -13,7 +13,7 @@ import { isSolvable, solveWithTrace, TECHNIQUE_NAMES } from './solver.js';
 import { makeLanguage, clueText } from './language.js';
 import { buildStory, buildQuestions } from './story.js';
 import { orderItems } from './order.js';
-import { customWorld, customStory } from './classroom.js';
+import { customWorld, customStory } from './classroom-build.js';
 import { PLAYER_STORIES, PLAYER_STORIES_THEME, getPlayerStory } from './player-stories.js';
 // The grid's shape lives in layout.js so the page can use it without loading
 // the story library; it is still exported from here as before.

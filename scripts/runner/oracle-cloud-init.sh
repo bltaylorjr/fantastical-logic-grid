@@ -131,7 +131,7 @@ docker run -d --name flg-puzzles --restart always --network flg --ip 172.30.0.10
   --cpu-shares 2048 --memory 6g --read-only --tmpfs /tmp --user 1000:1000 \
   --env-file /opt/flg/puzzle.env -e THREADS=2 -e RELEASE_FILE=/srv/flg/current \
   -v /opt/flg-puzzles:/srv/flg:ro node:22-bookworm-slim \
-  sh -c 'r=$(cat /srv/flg/current 2>/dev/null || true); if [ -z "$r" ] || [ ! -f "/srv/flg/releases/$r/puzzle-server/server.mjs" ]; then echo "No puzzle server release yet; waiting."; sleep 30; exit 1; fi; RELEASE=$r ENGINE_INDEX=/srv/flg/releases/$r/engine/src/index.js exec node /srv/flg/releases/$r/puzzle-server/server.mjs'
+  sh -c 'r=$(cat /srv/flg/current 2>/dev/null || true); if [ -z "$r" ] || [ ! -f "/srv/flg/releases/$r/puzzle-server/server.mjs" ]; then echo "No puzzle server release yet; waiting."; sleep 30; exit 1; fi; RELEASE=$r ENGINE_DIR=/srv/flg/releases/$r/engine/src exec node /srv/flg/releases/$r/puzzle-server/server.mjs'
 
 step "Cloudflare Tunnel"
 if [ -n "$TUNNEL_TOKEN" ]; then echo "TUNNEL_TOKEN=$TUNNEL_TOKEN" > /opt/flg/tunnel.env; chmod 600 /opt/flg/tunnel.env; fi

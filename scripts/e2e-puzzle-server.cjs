@@ -1,8 +1,10 @@
 // Server mode (docs/PUZZLE-SERVER.md), end to end: a site built with
 //   FLG_PUZZLE_SERVER=1 FLG_CLOUD_URL=http://localhost:8141 npm run build
-// gets its puzzles and hints from the real puzzle server (puzzle-server/),
-// through the Worker's own route code (server/src/puzzles.js) standing in
-// for the Cloudflare Worker, and never downloads the generator.
+// gets everything its games compute from the real puzzle server
+// (puzzle-server/), through the Worker's own route code (server/src/puzzles.js)
+// standing in for the Cloudflare Worker: Logic Grid puzzles and hints, and
+// NINETIMESNINE puzzles, hints, the rival's moves, the Tidewater tide and the
+// Puzzle Wizard's one-answer check. No generator or solver is ever downloaded.
 const { chromium } = require('playwright');
 const { spawn } = require('child_process');
 const http = require('http');
@@ -22,7 +24,7 @@ const [SITE_PORT, WORKER_PORT, PUZZLE_PORT] = [8140, 8141, 8142];
     spawn('node', [path.join(__dirname, 'serve.mjs'), SITE, String(SITE_PORT)], { stdio: 'ignore' }),
     spawn('node', [path.join(ROOT, 'puzzle-server', 'server.mjs')], { env: { ...process.env, FLG_PUZZLE_KEY: KEY, PORT: String(PUZZLE_PORT), THREADS: '2', RELEASE: 'e2e' }, stdio: 'ignore' }),
   ];
-  const calls = { generate: 0, hint: 0 };
+  const calls = {};
   const env = {
     ALLOWED_ORIGINS: `http://localhost:${SITE_PORT}`,
     PUZZLE_KEY: KEY,
@@ -34,8 +36,8 @@ const [SITE_PORT, WORKER_PORT, PUZZLE_PORT] = [8140, 8141, 8142];
     for await (const c of req) chunks.push(c);
     const url = `http://localhost:${WORKER_PORT}${req.url}`;
     const request = new Request(url, { method: req.method, headers: req.headers, body: ['GET', 'HEAD', 'OPTIONS'].includes(req.method) ? undefined : Buffer.concat(chunks) });
-    const m = new URL(url).pathname.match(/^\/v1\/puzzles\/(generate|hint)$/);
-    if (m && req.method === 'POST') calls[m[1]]++;
+    const m = new URL(url).pathname.match(/^\/v1\/puzzles\/([a-z0-9-]+\/[a-z0-9-]+)$/);
+    if (m && req.method === 'POST') calls[m[1]] = (calls[m[1]] || 0) + 1;
     let out;
     if (req.method === 'OPTIONS') {
       out = new Response(null, { status: 204, headers: { 'Access-Control-Allow-Origin': req.headers.origin || '*', 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Access-Control-Allow-Headers': 'Authorization, Content-Type' } });
@@ -60,14 +62,49 @@ const [SITE_PORT, WORKER_PORT, PUZZLE_PORT] = [8140, 8141, 8142];
     await page.click('#welcome-skip');
     await page.waitForSelector('#screen-play:not([hidden])', { timeout: 60000 });
     assert(await page.locator('td.c').count() === 3 * 16, 'a quick puzzle from the puzzle server is on the grid');
-    assert(calls.generate >= 1, `the page asked the puzzle server for it (${calls.generate} request)`);
-    const before = calls.hint;
+    assert(calls['flg/generate'] >= 1, 'the page asked the puzzle server for it');
+    const waitFor = async (op, before = 0) => { for (let i = 0; i < 150 && (calls[op] || 0) <= before; i++) await page.waitForTimeout(100); return (calls[op] || 0) > before; };
     await page.keyboard.press('h');
-    for (let i = 0; i < 50 && calls.hint === before; i++) await page.waitForTimeout(100);
-    await page.waitForTimeout(800);
-    assert(calls.hint > before, 'hints come from the puzzle server');
-    const leaked = fetched.filter((u) => /\/engine\/(generator|solver|hints|clues|topics|storylines|themes|index)\.js|\/worker\.js/.test(u));
-    assert(leaked.length === 0, `no generator file was requested${leaked.length ? `: ${leaked.join(', ')}` : ''}`);
+    assert(await waitFor('flg/hint'), 'hints come from the puzzle server');
+
+    // NINETIMESNINE.
+    const G = () => page.evaluate(async () => (await import('./modules/number-place/ui.js')).state());
+    // The page's security policy allows no eval, so each wait checks one field.
+    const until = async (key, value, ms = 20000) => {
+      for (const t0 = Date.now(); Date.now() - t0 < ms; await page.waitForTimeout(100)) if (await page.evaluate(async ([k, v]) => { const g = (await import('./modules/number-place/ui.js')).state(); return !!g && g[k] === v; }, [key, value])) return true;
+      throw new Error(`FAIL: timed out waiting for ${key} = ${value}`);
+    };
+    const start = async (style) => {
+      if (!(await page.locator('#np-setup-view').isVisible())) await page.click('#np-new');
+      await page.check(`input[name=np-style][value=${style}]`, { force: true });
+      await page.check('input[name=np-level][value=easy]', { force: true });
+      await page.click('#np-gen');
+      await page.waitForSelector('#np-play-view:not([hidden])', { timeout: 60000 });
+      await until('style', style);
+      if (await page.locator('#np-coach').isVisible()) await page.click('#np-coach-close');
+    };
+    await page.click('#menu-btn');
+    await page.click('[data-cmd=numberplace]');
+    await page.waitForSelector('#np-setup-view:not([hidden]) #np-levels .choice', { timeout: 20000 });
+    await start('classic');
+    assert(calls['np/generate'] >= 1, 'a NINETIMESNINE puzzle from the puzzle server is on the board');
+    await page.click('#np-hint-btn');
+    await page.waitForSelector('#np-hint:not([hidden])');
+    assert(await waitFor('np/hint'), 'NINETIMESNINE hints come from the puzzle server');
+    await start('rival');
+    let g = await G();
+    const empty = g.p.solution.findIndex((d, i) => !g.p.givens[i] && !g.v[i]);
+    await page.locator(`#np-board .np-cell[data-i="${empty}"]`).click();
+    await page.keyboard.press(String(g.p.solution[empty]));
+    assert(await waitFor('np/move'), 'the rival\'s moves come from the puzzle server');
+    await until('turn', 'you');
+    await start('tide');
+    assert(calls['np/tide'] >= 1 && calls['np/ebb'] >= 1, 'the Tidewater tide comes from the puzzle server');
+    const check = await page.evaluate(async () => (await import('./js/wizard-build.js')).checkGivens({ size: 4, diagonal: false, givens: Array(16).fill(0) }));
+    assert(/more than one answer/.test(check.words) && check.suggestion && calls['np/check'] >= 1, 'the Puzzle Wizard\'s one-answer check comes from the puzzle server');
+
+    const leaked = fetched.filter((u) => /\/engine\/(generator|solver|hints|clues|topics|storylines|themes|index|story|classroom-build|number-place|number-place-styles|number-place-wizard|flg-ops|np-ops)\.js|engine-worker\.js/.test(u));
+    assert(leaked.length === 0, `no generator or solver file was requested${leaked.length ? `: ${leaked.join(', ')}` : ''}`);
 
     // Offline, a new puzzle gives the player plain words, not a crash.
     await ctx.setOffline(true);
