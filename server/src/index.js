@@ -109,7 +109,7 @@ async function route(req, env, ctx) {
   const errors = await handleErrors(req, env, url, ctx);
   if (errors) return errors;
 
-  const report = await handlePuzzleReports(req, env, url);
+  const report = await handlePuzzleReports(req, env, url, ctx);
   if (report) return report;
 
   const feedback = await handleFeedback(req, env, url, ctx);

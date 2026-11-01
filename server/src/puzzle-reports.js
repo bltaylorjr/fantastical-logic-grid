@@ -1,8 +1,10 @@
 // Report a Problem: the button in the footer of every screen of the game and
 // every page of the website, and the error-tracking database behind it.
 //
-//   POST /v1/puzzle-report        { kind: puzzle|page, text, puzzle?, image?, page, screen, reply, platform, version }
-//                                 -> { tracking, category, reply, update }
+//   POST /v1/puzzle-report        { kind: puzzle|page, text, puzzle?, image?, files?, page, screen, reply, platform, version }
+//                                 -> { tracking, category, reply, update, files, doctor }
+//                                 or multipart: a 'report' part (that JSON) and up to 3 'file' parts,
+//                                 the pictures and files the player attached (report-files.js)
 //   GET  /v1/repaired/:token      the repaired puzzle, for the link in the apology email
 //
 // Admin (puzzleReportRoutes, under /admin/v1/):
@@ -14,6 +16,8 @@
 //   GET  error-tracking/:id       one report in full: storyline, picture, error, reason, correction (moderator)
 //   POST error-tracking/:id/done  the team has dealt with a report the doctor could not (moderator)
 //   POST error-tracking/close     a merged code fix closes reports by tracking id (owner; Report fixes Action)
+//   GET  error-tracking/:id/files/:fid  a picture or file the player attached (moderator)
+//   GET  error-log?before=&event= the errors database: every step of every report, newest first (moderator)
 //   GET  fault-patterns           what the doctor has learned (viewer)
 //
 // Categories. The moment a report arrives it gets its tracking id and its
@@ -39,6 +43,8 @@ import { getSettings } from './settings.js';
 import { queueReply, releaseRepair, releaseUpdate } from './replies.js';
 import { cleanText } from './feedback.js';
 import { checkPuzzle } from './compete.js';
+import { alert } from './alerts.js';
+import { readFiles, saveFiles, filesOf, fileOut, logEvent, logOf, latestLog, callDoctor, readForm, MAX_FILES_CHARS } from './report-files.js';
 
 const DAY = 24 * 3600_000;
 export const MAX_TEXT = 1000;
@@ -112,18 +118,28 @@ async function linkRelated(env, tracking, related) {
   }
 }
 
-async function postReport(req, env) {
+async function postReport(req, env, ctx) {
   const ip = req.headers.get('CF-Connecting-IP') || 'local';
   if (env.LIMIT_FEEDBACK && !(await env.LIMIT_FEEDBACK.limit({ key: (await sha256(`flg|${ip}`)).slice(0, 32) })).success) {
     return json(req, env, { error: 'slow_down', message: 'That was quick! Wait a minute and try again.' }, 429, { 'Retry-After': '60' });
   }
   let body;
-  try { body = JSON.parse(await readText(req, MAX_PUZZLE_CHARS + MAX_IMAGE_CHARS + 8_000)); } catch (e) {
-    return json(req, env, { error: e instanceof TooLarge ? 'too_large' : 'bad_request' }, e instanceof TooLarge ? 413 : 400);
+  const jsonMax = MAX_PUZZLE_CHARS + MAX_IMAGE_CHARS + 8_000;
+  if (/^multipart\/form-data/i.test(req.headers.get('Content-Type') || '')) {
+    // The Report a Problem page: the report's JSON plus its pictures and files.
+    const form = await readForm(req, jsonMax);
+    if (form.error) return json(req, env, { error: form.error, ...(form.message ? { message: form.message } : {}) }, form.status);
+    body = form.body;
+  } else {
+    try { body = JSON.parse(await readText(req, jsonMax + MAX_FILES_CHARS)); } catch (e) {
+      return json(req, env, { error: e instanceof TooLarge ? 'too_large' : 'bad_request' }, e instanceof TooLarge ? 413 : 400);
+    }
   }
   if (!(await getSettings(env)).feedback_enabled) return json(req, env, { error: 'switched_off', message: 'Problem reports are closed for now.' }, 503);
   const text = cleanText(body?.text).slice(0, MAX_TEXT);
   if (text.length < 5) return json(req, env, { error: 'too_short', message: 'Tell us a little about the problem (at least 5 characters).' }, 400);
+  const files = readFiles(body.files);
+  if (files.error) return json(req, env, files, 400);
   const category = body.kind === 'page' ? 'webstructure' : 'puzzle';
   const puzzle = category === 'puzzle' && body.puzzle ? readablePuzzle(body.puzzle) : null;
   if (category === 'puzzle' && body.puzzle && !puzzle) return json(req, env, { error: 'bad_puzzle', message: 'This puzzle could not be attached to the report.' }, 400);
@@ -142,16 +158,18 @@ async function postReport(req, env) {
   const related = await findRelated(env, category, page, version, now);
   const fb = await env.DB.prepare("INSERT INTO feedback (kind, topic, text, platform, version, theme, created_at) VALUES ('problem', ?1, ?2, ?3, ?4, NULL, ?5) RETURNING id")
     .bind(cat.topic, `[${tracking}] ${text}`, platform === 'site' ? 'web' : platform, version, now).first();
-  await env.DB.prepare(`INSERT INTO puzzle_reports (tracking, category, feedback_id, puzzle, image, title, tier, theme, size, page, screen, platform, version, text, status, related, created_at)
-    VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)`)
+  const report = await env.DB.prepare(`INSERT INTO puzzle_reports (tracking, category, feedback_id, puzzle, image, title, tier, theme, size, page, screen, platform, version, text, status, related, files, created_at)
+    VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?18, ?17) RETURNING id`)
     .bind(tracking, category, fb.id, puzzle, p ? readableImage(body.image) : null, plain(p?.title, 120), plain(p?.difficulty?.id, 20), plain(p?.theme?.id, 40),
-      p ? `${p.categories.length}x${p.categories[0]?.items?.length || 0}` : '', page, screen, platform, version, text, status, JSON.stringify(related), now).run();
+      p ? `${p.categories.length}x${p.categories[0]?.items?.length || 0}` : '', page, screen, platform, version, text, status, JSON.stringify(related), now, files.length).first();
+  await saveFiles(env, report.id, tracking, files, now);
   await linkRelated(env, tracking, related);
   if (category === 'webstructure') await learnPage(env, page, version, tracking, now);
+  const doctor = await reviewNow(env, ctx, { id: report.id, tracking, category, status, page, version, related, files, title: plain(p?.title, 120), text }, now);
   let reply = 'none';
   let update = false;
   try { ({ reply, update } = await queueReply(req, env, 'problem', body.reply === true, `${text}\n\nReport number: ${tracking}`, fb.id, now)); } catch (e) { console.error(e); reply = 'error'; }
-  return json(req, env, { ok: true, tracking, category, reply, update });
+  return json(req, env, { ok: true, tracking, category, reply, update, files: files.length, doctor });
 }
 
 async function getRepaired(req, env, token) {
@@ -166,9 +184,44 @@ async function getRepaired(req, env, token) {
   return json(req, env, { tracking: r.tracking, puzzle: JSON.parse(r.repaired) });
 }
 
+// The doctor's first look, the moment a report arrives, logged in the errors
+// database and sent to the admins at once (a "problems" alert):
+//   a puzzle      the Puzzle doctor Action is started now; it checks, repairs
+//                 and reports back within a minute or two (finishReports)
+//   no puzzle     the team looks; the report is counted with its screen
+//   a web page    counted with its screen and version, with any puzzle
+//                 reports from there, for the daily code-fix task
+// Returns 'called' (the doctor is on it), 'queued' (next 15-minute round) or
+// 'reviewed' (no puzzle to check).
+async function reviewNow(env, ctx, r, now) {
+  const base = { reportId: r.id, tracking: r.tracking, category: r.category };
+  const where = r.title ? `“${r.title}”` : r.page || 'an unnamed page';
+  await logEvent(env, { ...base, event: 'received', status: r.status, detail: `${CATEGORIES[r.category].name} report about ${where}${r.version ? ` (version ${r.version})` : ''}.` }, now);
+  if (r.files.length) await logEvent(env, { ...base, event: 'files', status: r.status, detail: `${r.files.length} attached: ${r.files.map((f) => `${f.name} (${Math.max(1, Math.round(f.size / 1024))} KB)`).join(', ')}.` }, now);
+  let doctor = 'reviewed';
+  let review;
+  if (r.status === 'new') {
+    doctor = (await callDoctor(env)) ? 'called' : 'queued';
+    review = doctor === 'called' ? 'The puzzle doctor was started at once to check and repair the puzzle.' : 'The puzzle doctor will check it in its next round (within 15 minutes).';
+    await logEvent(env, { ...base, event: doctor === 'called' ? 'doctor_called' : 'doctor_waiting', status: r.status, detail: review }, now);
+  } else {
+    const same = await env.DB.prepare('SELECT COUNT(*) AS n FROM puzzle_reports WHERE category = ?1 AND page = ?2 AND version = ?3 AND created_at > ?4')
+      .bind(r.category, r.page, r.version, now - 30 * DAY).first();
+    const n = same?.n || 1;
+    const others = r.related.length ? ` ${r.related.length} related ${r.category === 'puzzle' ? 'page' : 'puzzle'} report${r.related.length === 1 ? '' : 's'} from the same screen.` : '';
+    review = r.category === 'webstructure'
+      ? `Web Page Issue on ${pageKey(r.page) || 'a page'}${n > 1 ? `: report ${n} for this screen and version in 30 days` : ''}.${others} Waiting for the daily code fix.`
+      : `No puzzle was attached, so there is nothing for the doctor to rebuild; the team looks at it.${others}`;
+    await logEvent(env, { ...base, event: 'reviewed', status: r.status, detail: review }, now);
+  }
+  await alert(env, ctx, { category: 'problems', title: `New problem report ${r.tracking}`, body: `${review} ${r.files.length ? `${r.files.length} file${r.files.length === 1 ? '' : 's'} attached. ` : ''}Player wrote: ${r.text.slice(0, 160)}`, link: 'errortracking' });
+  await logEvent(env, { ...base, event: 'alerted', status: r.status, detail: 'Sent to the admins (push and email, as set in My alerts).' }, now);
+  return doctor;
+}
+
 // Returns a Response for the public routes, or null for anything else.
-export async function handlePuzzleReports(req, env, url) {
-  if (url.pathname === '/v1/puzzle-report' && req.method === 'POST') return postReport(req, env);
+export async function handlePuzzleReports(req, env, url, ctx) {
+  if (url.pathname === '/v1/puzzle-report' && req.method === 'POST') return postReport(req, env, ctx);
   const m = url.pathname.match(/^\/v1\/repaired\/([^/]{1,64})$/);
   if (m && req.method === 'GET') return getRepaired(req, env, m[1]);
   return null;
@@ -269,7 +322,23 @@ const cleanFindings = (list) => (Array.isArray(list) ? list : []).slice(0, 12)
   .map((f) => ({ code: plain(f?.code || 'other', 30), text: plain(f?.text, 300) }))
   .filter((f) => f.text);
 
-export async function finishReports(env, results, site, now = Date.now(), probes = []) {
+// The doctor's verdict, logged in the errors database and sent to the admins
+// at once, so they hear the outcome as soon as the doctor has it.
+const VERDICT = {
+  repaired: (n) => `Repaired: ${n}`,
+  needs_fix: () => 'Needs a fix in the code: today\'s puzzle maker still makes this fault, so the daily code-fix task picks it up.',
+  no_fault: () => 'No fault found in the puzzle.',
+  display: () => 'No fault in the puzzle; most likely a display problem, tracked with the page reports from the same screen.',
+  closed: (n) => `Closed by a code fix: ${n}`,
+};
+async function report(env, ctx, row, event, findings, note, status, now) {
+  const reason = findings.length ? ` Found: ${findings.map((f) => f.text).join(' ')}` : '';
+  const detail = `${VERDICT[event](note || '')}${reason}`;
+  await logEvent(env, { reportId: row.id, tracking: row.tracking, category: 'puzzle', event, status, detail }, now);
+  await alert(env, ctx, { category: 'problems', title: `Doctor: ${row.tracking} ${event === 'repaired' ? 'repaired' : event === 'needs_fix' ? 'needs a code fix' : event === 'closed' ? 'closed' : 'no fault found'}`, body: detail, link: 'errortracking', instant: true });
+}
+
+export async function finishReports(env, results, site, now = Date.now(), probes = [], ctx = null) {
   const db = env.DB;
   const out = { repaired: 0, needsFix: 0, noFault: 0, emailed: 0, display: 0, requeued: 0, probed: 0, closed: 0 };
   for (const res of (Array.isArray(results) ? results : []).slice(0, CLAIM_MAX)) {
@@ -278,6 +347,7 @@ export async function finishReports(env, results, site, now = Date.now(), probes
     if (!row) continue;
     const findings = cleanFindings(res.findings);
     const engine = plain(res.engine, 20);
+    await logEvent(env, { reportId: row.id, tracking: row.tracking, category: 'puzzle', event: 'reviewed', status: 'checking', detail: `Checked with engine ${engine || 'unknown'}: ${findings.length ? `${findings.length} problem${findings.length === 1 ? '' : 's'} found` : 'every check passed'}.` }, now);
     const tried = (Array.isArray(res.tried) ? res.tried : []).map((t) => plain(t, 30)).slice(0, 10);
     const strategy = res.strategy ? plain(res.strategy, 30) : null;
     const repaired = res.repaired && !checkPuzzle(res.repaired) ? JSON.stringify(res.repaired) : null;
@@ -291,11 +361,14 @@ export async function finishReports(env, results, site, now = Date.now(), probes
         db.prepare("UPDATE feedback SET status = 'addressed', note = ?2, done_at = ?3 WHERE id = ?1").bind(row.fid, note, now),
       ]);
       const link = `${String(site || 'https://thelogicgrid.com').replace(/\/+$/, '')}/?repaired=${token}`;
-      out.emailed += await releaseRepair(env, row.fid, note, findings.map((f) => f.text).join('\n'), link);
+      const mailed = await releaseRepair(env, row.fid, note, findings.map((f) => f.text).join('\n'), link);
+      out.emailed += mailed;
       out.repaired++;
+      await report(env, ctx, row, 'repaired', findings, `${note}${mailed ? ' The player was emailed the repaired puzzle.' : ''}`, 'repaired', now);
     } else if (findings.length) {
       await db.prepare("UPDATE puzzle_reports SET status = 'needs_fix', findings = ?2, engine = ?3, checked_at = ?4 WHERE id = ?1").bind(id, JSON.stringify(findings), engine, now).run();
       out.needsFix++;
+      await report(env, ctx, row, 'needs_fix', findings, '', 'needs_fix', now);
     } else if (row.fix_note) {
       // Sent back after a code fix, and today's engine finds nothing left to
       // repair: the fix itself was the answer, so the report closes with its note.
@@ -306,6 +379,7 @@ export async function finishReports(env, results, site, now = Date.now(), probes
       ]);
       out.emailed += await releaseUpdate(env, row.fid, note);
       out.closed++;
+      await report(env, ctx, row, 'closed', [], note, 'done', now);
     } else {
       // Nothing wrong in the puzzle. Web Page Issues from the same screen and
       // app version point at a display problem instead.
@@ -316,6 +390,7 @@ export async function finishReports(env, results, site, now = Date.now(), probes
         .bind(id, JSON.stringify(display), JSON.stringify(related), engine, now).run();
       if (display.length) { out.display++; await upsertPattern(env, `ws|${pageKey(row.page)}|${row.version}`, { category: 'webstructure', code: 'page_issue', page: pageKey(row.page), version: row.version }, (p) => ({ ...p, seen: p.seen + 1, last_tracking: row.tracking }), now); }
       out.noFault++;
+      await report(env, ctx, row, display.length ? 'display' : 'no_fault', display, '', 'no_fault', now);
     }
     if (findings.length) await learnPuzzle(env, row, { findings, repaired: !!repaired, strategy, tried, engine, clueTypes: (Array.isArray(res.clueTypes) ? res.clueTypes : []).map((t) => plain(t, 20)) }, now);
   }
@@ -351,6 +426,7 @@ export async function closeReports(env, { trackings, note, fixedIn }, now = Date
     if (row.category === 'puzzle' && row.status === 'needs_fix' && row.hasPuzzle) {
       await db.prepare("UPDATE puzzle_reports SET status = 'new', tries = 0, fix_note = ?2, fixed_in = ?3 WHERE id = ?1").bind(row.id, text, version || null).run();
       out.requeued++;
+      await logEvent(env, { reportId: row.id, tracking, category: row.category, event: 'doctor_waiting', status: 'new', detail: `A code fix${version ? ` in version ${version}` : ''} shipped; sent back to the doctor to rebuild the puzzle.` }, now);
       continue;
     }
     const full = withVersion(text, version);
@@ -360,6 +436,7 @@ export async function closeReports(env, { trackings, note, fixedIn }, now = Date
     ]);
     out.emailed += await releaseUpdate(env, row.fid, full);
     out.closed++;
+    await logEvent(env, { reportId: row.id, tracking, category: row.category, event: 'closed', status: 'done', detail: `Closed by a code fix: ${full}` }, now);
   }
   return out;
 }
@@ -374,7 +451,7 @@ export async function reportsFor(env, feedbackIds) {
 }
 
 const SUMMARY = `id, tracking, category, title, tier, theme, size, page, platform, version, text, status, findings, note, strategy, related, engine,
-  fixed_in AS fixedIn, created_at AS createdAt, checked_at AS checkedAt, repaired_at AS repairedAt, opened_at AS openedAt, (image IS NOT NULL) AS hasImage, (puzzle IS NOT NULL) AS hasPuzzle`;
+  fixed_in AS fixedIn, created_at AS createdAt, checked_at AS checkedAt, repaired_at AS repairedAt, opened_at AS openedAt, (image IS NOT NULL) AS hasImage, (puzzle IS NOT NULL) AS hasPuzzle, files`;
 
 export async function errorList(env, url) {
   const category = CATEGORIES[url.searchParams.get('category')] ? url.searchParams.get('category') : null;
@@ -401,7 +478,7 @@ export async function errorDetail(env, id) {
   const story = (t) => { const p = parse(t, null); return p ? { title: p.title, theme: p.theme?.name || p.theme?.id || '', topic: p.topic?.name || '', paragraphs: p.story?.paragraphs || [], ending: p.story?.ending || '', clues: (p.clues || []).map((c) => c.text) } : null; };
   return {
     ...r, puzzle: undefined, repaired: undefined, findings: parse(r.findings, []), related: parse(r.related, []), hasImage: !!r.image, hasPuzzle: !!r.puzzle,
-    story: story(r.puzzle), repairedStory: story(r.repaired),
+    story: story(r.puzzle), repairedStory: story(r.repaired), attachments: await filesOf(env, id), log: await logOf(env, id),
   };
 }
 
@@ -426,8 +503,8 @@ export function puzzleReportRoutes(Refusal) {
       const r = await claimReports(env, body.limit, now);
       return { body: r, quiet: !r.reports.length && !r.probes.length, detail: { claimed: r.reports.length, probes: r.probes.length } };
     }],
-    ['POST', /^puzzle-reports\/done$/, 'owner', 'puzzle-reports.done', async ({ env, body, now }) => {
-      const r = await finishReports(env, body.results, env.SITE_URL, now, body.probes);
+    ['POST', /^puzzle-reports\/done$/, 'owner', 'puzzle-reports.done', async ({ env, ctx, body, now }) => {
+      const r = await finishReports(env, body.results, env.SITE_URL, now, body.probes, ctx);
       return { body: r, detail: r };
     }, { maxBody: CLAIM_MAX * (MAX_PUZZLE_CHARS + 10_000) }],
     ['GET', /^puzzle-reports\/(\d{1,12})\/puzzle$/, 'moderator', 'puzzle-reports.download', async ({ env, params: [id] }) => {
@@ -436,10 +513,13 @@ export function puzzleReportRoutes(Refusal) {
       const file = JSON.stringify({ format: 'fantastical-logic-grid', version: 1, save: { name: `Reported ${r.tracking}`, puzzle: JSON.parse(r.puzzle) } }, null, 1);
       return { file, type: 'application/json', name: `${r.tracking}.flg.json`, target: id, quiet: true };
     }],
-    ['POST', /^puzzle-reports\/(\d{1,12})\/retry$/, 'admin', 'puzzle-reports.retry', async ({ env, params: [id] }) => {
+    ['POST', /^puzzle-reports\/(\d{1,12})\/retry$/, 'admin', 'puzzle-reports.retry', async ({ env, params: [id], now }) => {
       const r = await env.DB.prepare("UPDATE puzzle_reports SET status = 'new', tries = 0 WHERE id = ?1 AND puzzle IS NOT NULL AND status IN ('needs_fix', 'no_fault')").bind(Number(id)).run();
       if (!r.meta.changes) throw new Refusal(409, 'not_now', 'Only a puzzle report the doctor could not repair can be checked again.');
-      return { body: { ok: true }, target: id };
+      const row = await env.DB.prepare('SELECT tracking FROM puzzle_reports WHERE id = ?1').bind(Number(id)).first();
+      const called = await callDoctor(env);
+      await logEvent(env, { reportId: Number(id), tracking: row?.tracking || '', category: 'puzzle', event: called ? 'doctor_called' : 'doctor_waiting', status: 'new', detail: `Check again asked for by the team; ${called ? 'the doctor was started at once' : 'the doctor checks it in its next round'}.` }, now);
+      return { body: { ok: true, doctor: called ? 'called' : 'queued' }, target: id };
     }],
     ['GET', /^error-tracking$/, 'moderator', 'errors.tracking', async ({ env, url }) => ({ body: await errorList(env, url), quiet: true })],
     ['GET', /^error-tracking\/(\d{1,12})$/, 'moderator', 'errors.tracking.view', async ({ env, params: [id] }) => {
@@ -450,7 +530,7 @@ export function puzzleReportRoutes(Refusal) {
     ['POST', /^error-tracking\/(\d{1,12})\/done$/, 'moderator', 'errors.tracking.done', async ({ env, params: [id], body, now }) => {
       const note = plain(body.note, 500);
       if (!note) throw new Refusal(400, 'bad_note', 'Write what was done, in everyday words.');
-      const row = await env.DB.prepare("SELECT feedback_id AS fid FROM puzzle_reports WHERE id = ?1 AND status IN ('needs_fix', 'no_fault', 'manual', 'page')").bind(Number(id)).first();
+      const row = await env.DB.prepare("SELECT feedback_id AS fid, tracking, category FROM puzzle_reports WHERE id = ?1 AND status IN ('needs_fix', 'no_fault', 'manual', 'page')").bind(Number(id)).first();
       if (!row) throw new Refusal(409, 'not_now', 'That report is already repaired or done.');
       await env.DB.batch([
         env.DB.prepare("UPDATE puzzle_reports SET status = 'done', note = ?2, checked_at = ?3 WHERE id = ?1").bind(Number(id), note, now),
@@ -458,6 +538,7 @@ export function puzzleReportRoutes(Refusal) {
       ]);
       // A player who asked gets the usual "addressed" update with this note.
       const emailed = await releaseUpdate(env, row.fid, note);
+      await logEvent(env, { reportId: Number(id), tracking: row.tracking, category: row.category, event: 'done', status: 'done', detail: `Marked done by the team: ${note}${emailed ? ' The player was emailed.' : ''}` }, now);
       return { body: { ok: true, emailed }, target: id, detail: { note, emailed } };
     }],
     ['POST', /^error-tracking\/close$/, 'owner', 'errors.tracking.close', async ({ env, body, now }) => {
@@ -465,6 +546,12 @@ export function puzzleReportRoutes(Refusal) {
       const r = await closeReports(env, body, now);
       return { body: r, detail: { closed: r.closed, requeued: r.requeued, fixedIn: plain(body.fixedIn, 20) } };
     }],
+    ['GET', /^error-tracking\/(\d{1,12})\/files\/(\d{1,12})$/, 'moderator', 'errors.tracking.file', async ({ env, params: [id, fid] }) => {
+      const out = await fileOut(env, Number(id), Number(fid));
+      if (!out) throw new Refusal(404, 'gone', 'That file is gone. Attachments are kept for 90 days.');
+      return out;
+    }],
+    ['GET', /^error-log$/, 'moderator', 'errors.log', async ({ env, url }) => ({ body: await latestLog(env, url), quiet: true })],
     ['GET', /^fault-patterns$/, 'viewer', 'errors.patterns', async ({ env }) => ({ body: await faultPatterns(env), quiet: true })],
   ];
 }

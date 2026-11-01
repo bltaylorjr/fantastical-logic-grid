@@ -449,7 +449,7 @@
   </section>
 </main>
 
-<!-- The page footer under every screen: Report a Problem (puzzle-report.js). -->
+<!-- The page footer under every screen: Report a Problem (puzzle-report.js) opens the report page (report/). -->
 <footer class="app-foot needs-cloud" data-feature="feedback" id="app-foot" hidden>
   <button class="btn quiet small" type="button" id="report-problem">Report a Problem</button>
 </footer>
@@ -643,24 +643,6 @@
   <div class="dlg-actions"><button class="btn" type="button" data-close>Close</button></div>
 </dialog>
 
-<dialog id="dlg-report" aria-labelledby="report-h">
-  <h2 id="report-h">Report a Problem</h2>
-  <form id="report-form" novalidate>
-    <fieldset class="report-kind"><legend>What is the problem with?</legend>
-      <label class="radio"><input type="radio" name="report-kind" value="puzzle" checked> Puzzle Problem</label>
-      <label class="radio"><input type="radio" name="report-kind" value="page"> Web Page Issue</label>
-    </fieldset>
-    <p class="help" id="report-about"></p>
-    <div class="field"><label for="report-text">What went wrong?</label>
-      <textarea id="report-text" rows="5" maxlength="1000" aria-describedby="report-count" placeholder="For example: clue 4 says the baker was first, but the answer says she was third."></textarea>
-      <p class="help" id="report-count" aria-live="polite">0 of 1,000 characters</p></div>
-    <label class="check" id="report-reply-box" hidden><input type="checkbox" id="report-reply" checked> <span>Email me when it is fixed<span id="report-reply-to"></span>, with a link to play the repaired puzzle</span></label>
-    <p class="help" id="report-signin" hidden>Want an email when it is fixed? <button class="btn quiet small" type="button" id="report-signin-btn">Sign in</button> with a confirmed email first.</p>
-    <div class="error-box" role="alert" hidden></div>
-    <p class="acct-done" id="report-done" role="status"></p>
-    <div class="row-inline"><button class="btn primary" type="submit">Submit</button><button class="btn" type="button" data-close>Cancel</button></div>
-  </form>
-</dialog>
 
 <dialog id="dlg-mail" aria-labelledby="mail-h">
   <h2 id="mail-h">Puzzle emails</h2>
