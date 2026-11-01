@@ -1351,7 +1351,7 @@ async function openPlayer(uid) {
   };
 }
 
-const NP_GROUP = 'Number Place';
+const NP_GROUP = 'NINETIMESNINE';
 const NP_LEVEL_NAMES = { basic: 'Basic', easy: 'Easy', medium: 'Medium', hard: 'Hard', expert: 'Expert', master: 'Master' };
 const NP_TECH_NAMES = { nakedSingle: 'Only number left', hiddenSingle: 'Only place left', intersection: 'Line and box overlap', nakedPair: 'Matching pair', hiddenPair: 'Hidden pair', nakedTriple: 'Matching three', hiddenTriple: 'Hidden three', xWing: 'Rectangle', swordfish: 'Three-line pattern', xyWing: 'Bent triple' };
 views.numberplace = async () => {
@@ -1375,15 +1375,15 @@ views.numberplace = async () => {
   };
   $('#np-body').innerHTML = `
     <div class="card"><h2>Games since ${esc(d.since)}</h2>
-      <p><b>${d.games}</b> finished Number Place games${d.games ? `: ${Object.entries(d.modes).map(([m, n]) => `${n} ${esc({ free: 'free play', daily: 'daily', race: 'race', file: 'from a file' }[m] || m)}`).join(', ')}` : ''}.
+      <p><b>${d.games}</b> finished NINETIMESNINE games${d.games ? `: ${Object.entries(d.modes).map(([m, n]) => `${n} ${esc({ free: 'free play', daily: 'daily', race: 'race', file: 'from a file' }[m] || m)}`).join(', ')}` : ''}.
       Shared tuning uses ${d.tuning.games} games from the last 90 days; a level needs 10 before it moves.</p>
-      ${levelRows.length ? table([{ label: 'Level' }, { label: 'Games', num: true }, { label: 'Solved', num: true }, { label: 'Answer shown', num: true }, { label: 'Given up', num: true }, { label: 'Typical time', num: true }, { label: 'Hints a game', num: true }, { label: 'Felt easy / right / hard' }, { label: 'Shared tuning' }], levelRows) : '<p class="muted">No Number Place games yet in this period.</p>'}
+      ${levelRows.length ? table([{ label: 'Level' }, { label: 'Games', num: true }, { label: 'Solved', num: true }, { label: 'Answer shown', num: true }, { label: 'Given up', num: true }, { label: 'Typical time', num: true }, { label: 'Hints a game', num: true }, { label: 'Felt easy / right / hard' }, { label: 'Shared tuning' }], levelRows) : '<p class="muted">No NINETIMESNINE games yet in this period.</p>'}
     </div>
     <div class="card"><h2>Where players ask for help</h2>
       ${d.stuck.length ? table([{ label: 'Technique' }, { label: 'Hints asked', num: true }], d.stuck.map((s) => [esc(NP_TECH_NAMES[s.technique] || s.technique), s.count])) : '<p class="muted">No hints asked yet.</p>'}
       <p class="muted">Players who keep asking about a technique get practice puzzles that need it (Practice puzzles, below).</p>
     </div>
-    <div class="card"><h2>Number Place settings</h2>${editable ? '' : '<p class="note">You can see the settings. Changing them needs the admin role.</p>'}
+    <div class="card"><h2>NINETIMESNINE settings</h2>${editable ? '' : '<p class="note">You can see the settings. Changing them needs the admin role.</p>'}
       ${list.map((s) => `<div class="setting"><div><b id="lbl-${s.key}">${esc(s.label)}</b><p class="help">${esc(s.help)}</p>${s.updatedBy ? `<p class="meta">Changed by ${esc(s.updatedBy)} on ${when(s.updatedAt)}</p>` : ''}</div><div>${control(s)}</div></div>`).join('')}
     </div>`;
   $$('#np-body input[type=checkbox][data-np-key]').forEach((c) => c.setAttribute('aria-labelledby', `lbl-${c.dataset.npKey}`));
@@ -1408,7 +1408,7 @@ views.settings = async () => {
   renderAlerts().catch((e) => { $('#alerts-body').innerHTML = `<div class="card"><h2>My alerts</h2><p class="note">${esc(e.message)}</p></div>`; });
   const d = await api('settings');
   const groups = {};
-  // Number Place's settings have their own section.
+  // NINETIMESNINE's settings have their own section.
   for (const s of d.settings) if (s.group !== NP_GROUP) (groups[s.group] ||= []).push(s);
   const editable = can('admin');
   const control = (s) => {

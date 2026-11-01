@@ -20,7 +20,7 @@ const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 // Toughness and level suggestions learn from classic games; each other style tunes itself (styles.js).
 const classic = (r) => (r.style || 'classic') === 'classic';
 
-// config() gives the admin's Number Place choices: adaptStrength, practiceChance
+// config() gives the admin's NINETIMESNINE choices: adaptStrength, practiceChance
 // and sharedWeight, each 0 to 1.
 export function createLearning({ load, keep, key, config = () => ({}) }) {
   let data = { v: 1, plays: [], seen: [], stories: [], ...(load(key, {}) || {}) };

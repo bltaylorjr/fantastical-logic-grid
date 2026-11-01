@@ -37,7 +37,7 @@ jobs:
           node-version: 22
       - name: Engine tests (quick run)
         run: node engine/test/run-tests.js --quick
-      - name: Number Place engine tests
+      - name: NINETIMESNINE engine tests
         run: node engine/test/number-place-tests.js
 
   app:

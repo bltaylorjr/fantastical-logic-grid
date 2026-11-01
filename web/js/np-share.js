@@ -1,10 +1,10 @@
-// Number Place's shared learning: the one thing the Number Place screen shares
-// with the rest of the game. Anonymous summaries of finished Number Place
+// NINETIMESNINE's shared learning: the one thing the NINETIMESNINE screen shares
+// with the rest of the game. Anonymous summaries of finished NINETIMESNINE
 // puzzles go to the game's service (POST /v1/learn/np/plays), and what
 // everyone's games taught comes back (GET /v1/learn/np/tuning). Nothing
 // personal is sent: no name, saves or device id. It runs while the player keeps
 // "Learn from how I play" on and the admin dashboard has learning on for
-// everyone and for Number Place, and never without CLOUD_URL.
+// everyone and for NINETIMESNINE, and never without CLOUD_URL.
 import { CLOUD, CLOUD_URL } from './cloud-config.js';
 import * as store from './store.js';
 import { feature, numberPlace } from './remote-config.js';
@@ -58,7 +58,7 @@ export async function flush() {
   } catch (e) { /* offline: try again later */ }
 }
 
-// What everyone's Number Place games taught, kept on this device.
+// What everyone's NINETIMESNINE games taught, kept on this device.
 export const shared = () => store.getLocal(SHARED) || null;
 
 export async function refresh(force = false) {

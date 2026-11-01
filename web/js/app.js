@@ -2782,7 +2782,7 @@ async function openFromCard(id, mode = null) {
   offerIntro();
 }
 
-// Number Place: a separate numbers game on its own screen, with the game's look
+// NINETIMESNINE: a separate numbers game on its own screen, with the game's look
 // (web/js/number-place.js). It shares only anonymous play data, for learning.
 // mode: a NINETIMESNINE game style to pick on its setup screen (from the game card's links).
 async function openNumberPlace(mode = null) {

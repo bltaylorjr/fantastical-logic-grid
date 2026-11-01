@@ -36,7 +36,7 @@
 //   GET  /admin/v1/players?q=&filter=&sort=&dir=&page=&per=  every player, a page at a time; GET /admin/v1/players/:uid
 //   POST /admin/v1/players/:uid/(rename|ban|unban|reset-scores|delete)
 //   GET/POST /admin/v1/settings        feature switches and limits (settings.js)
-//   GET  /admin/v1/number-place        Number Place games by level (number-place.js)
+//   GET  /admin/v1/number-place        NINETIMESNINE games by level (number-place.js)
 //   GET/POST /admin/v1/announcements   messages in the game; POST .../:id/(end|delete)
 //   GET  /admin/v1/inbox?type=&status=&q=  Communication: messages, ideas, problems, errors and emails in one list (messages.js)
 //   GET  /admin/v1/conversations/:id   one conversation; POST .../:id/reply (with an optional puzzle file), .../:id/status (open|done|delete)
@@ -717,7 +717,7 @@ const ROUTES = [
     return { body: { key: body.key, value }, target: body.key, detail: { from: before, to: value } };
   }],
 
-  // Number Place's own section: how each level is going and what players get stuck on.
+  // NINETIMESNINE's own section: how each level is going and what players get stuck on.
   ['GET', /^number-place$/, 'viewer', 'numberplace.view', async ({ env, url }) => ({ body: await npSummary(env, daysParam(url, 90)) })],
 
   ['GET', /^announcements$/, 'viewer', 'announcements.view', async ({ env, now }) => {

@@ -136,8 +136,8 @@ web/js/store.js             IndexedDB saves and used-story list, settings
 web/js/engine-client.js     talks to the Web Worker
 web/worker.js               runs generatePuzzle and getHint off the main thread
 web/sw.js                   offline cache (file list stamped by the build)
-web/js/number-place.js      Number Place screen (modules/number-place, see modules/README.md)
-web/js/np-share.js          Number Place's anonymous play data for the learning service
+web/js/number-place.js      NINETIMESNINE screen (modules/number-place, see modules/README.md)
+web/js/np-share.js          NINETIMESNINE's anonymous play data for the learning service
 desktop/src-tauri/          Tauri desktop shell
 scripts/                    build, local server, icons, end-to-end test
 ```
