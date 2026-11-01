@@ -92,12 +92,20 @@ const [SITE_PORT, WORKER_PORT, PUZZLE_PORT] = [8140, 8141, 8142];
     await page.waitForSelector('#np-hint:not([hidden])');
     assert(await waitFor('np/hint'), 'NINETIMESNINE hints come from the puzzle server');
     await start('rival');
-    let g = await G();
-    const empty = g.p.solution.findIndex((d, i) => !g.p.givens[i] && !g.v[i]);
-    await page.locator(`#np-board .np-cell[data-i="${empty}"]`).click();
-    await page.keyboard.press(String(g.p.solution[empty]));
-    assert(await waitFor('np/move'), 'the rival\'s moves come from the puzzle server');
-    await until('turn', 'you');
+    // Place a right number on your turn; the turn then passes to the rival,
+    // whose move comes from the puzzle server. Tips that pop up late can
+    // cover the board, so close them and try again if the turn did not pass.
+    let moved = false;
+    for (let tries = 0; tries < 3 && !moved; tries++) {
+      await until('turn', 'you');
+      if (await page.locator('#np-coach').isVisible()) await page.click('#np-coach-close');
+      const g = await G();
+      const empty = g.p.solution.findIndex((d, i) => !g.p.givens[i] && !g.v[i]);
+      await page.locator(`#np-board .np-cell[data-i="${empty}"]`).click();
+      await page.keyboard.press(String(g.p.solution[empty]));
+      moved = await waitFor('np/move');
+    }
+    assert(moved, 'the rival\'s moves come from the puzzle server');
     await start('tide');
     assert(calls['np/tide'] >= 1 && calls['np/ebb'] >= 1, 'the Tidewater tide comes from the puzzle server');
     const check = await page.evaluate(async () => (await import('./js/wizard-build.js')).checkGivens({ size: 4, diagonal: false, givens: Array(16).fill(0) }));
