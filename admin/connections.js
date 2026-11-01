@@ -358,7 +358,7 @@ export const CONNECTIONS = [
     docs: 'admin/README.md',
     names: [
       { name: 'OWNER_EMAIL', where: 'worker-secret', value: 'fantasticallogicgrid@gmail.com', note: 'The owner\'s game account email.' },
-      { name: 'FIREBASE_WEB_API_KEY', where: 'worker-secret', note: 'The same AIza key as the GitHub variable FLG_FIREBASE_API_KEY. A value starting AQ. is wrong. Players' screen-name sign-in uses it too.' },
+      { name: 'FIREBASE_WEB_API_KEY', where: 'worker-secret', note: 'The same AIza key as the GitHub variable FLG_FIREBASE_API_KEY. A value starting AQ. is wrong. Screen-name sign-in for players uses it too.' },
     ],
     steps: [
       'In the game (https://thelogicgrid.com), **Menu** > **Account and sync**: make an account with fantasticallogicgrid@gmail.com and click the link in the confirmation email.',
