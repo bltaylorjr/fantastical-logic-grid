@@ -1,0 +1,92 @@
+# Daily puzzle to Facebook and Instagram: every morning at about 8:40 am Eastern
+# (9:40 in summer time), today's daily puzzle (the same one everyone gets in the
+# game) is checked for errors, made into a picture with the story question,
+# categories and clues, and posted to the game's Facebook Page and Instagram.
+# The caption links to the game to play it free and to the day's answer key page
+# (thelogicgrid.com/daily/<date>/).
+#
+# Checked before posting (scripts/social-puzzle.mjs): the puzzle is complete,
+# with no broken text; every clue names grid items exactly; an independent
+# brute-force search finds exactly one answer, and it is the answer key shown;
+# the answer key page and the game are live; the picture fits and is readable.
+# If anything fails, nothing is posted and the owner's inbox gets an email
+# saying why (scripts/marketing-post.py, mode daily-puzzle). A puzzle already
+# posted is never posted twice, so Run workflow again is safe.
+#
+# Owner approved automatic posting after the checks (Bobby, 2026-11-01).
+# Pause it: repository variable DAILY_PUZZLE_SOCIAL = off.
+# Uses the marketing autopilot's Facebook keys (META_PAGE_ID, META_PAGE_TOKEN;
+# Instagram also needs instagram_basic and instagram_content_publish on the key).
+# Free: scheduled GitHub Actions on a public repo, the Facebook Graph API and Gmail.
+name: Daily puzzle to Facebook and Instagram
+on:
+  schedule:
+    - cron: '41 13 * * *'   # 13:41 UTC = 8:41 am Eastern (9:41 in summer time); the day's puzzle is published at 00:17 UTC
+  workflow_dispatch:
+    inputs:
+      day:
+        description: Optional day to post (YYYY-MM-DD, UTC like the game); leave empty for today
+        required: false
+permissions:
+  contents: read
+concurrency:
+  group: daily-puzzle-social
+jobs:
+  post:
+    if: vars.DAILY_PUZZLE_SOCIAL != 'off'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: |
+            scripts/social-puzzle.mjs
+            scripts/marketing-post.py
+            engine/src
+            web/icons/icon.svg
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install the picture tools (Chromium and the game's fonts)
+        run: |
+          npm install --no-save --no-package-lock --no-audit --no-fund playwright@1.63.0 @fontsource/atkinson-hyperlegible @fontsource/cinzel
+          npx playwright install --with-deps chromium
+      - name: Check today's puzzle and make the picture
+        id: make
+        env:
+          SITE: ${{ vars.FLG_SITE_URL || 'https://thelogicgrid.com' }}
+          DAY: ${{ inputs.day }}
+          OUT_DIR: out/social
+        run: |
+          [ -n "$DAY" ] || DAY=$(date -u +%F)
+          echo "day=$DAY" >> "$GITHUB_OUTPUT"
+          # Wait up to 30 minutes for the site, in case last night's rebuild was late.
+          for i in 1 2 3 4 5 6 7; do
+            DAY=$DAY node scripts/social-puzzle.mjs
+            grep -q '"ok": true' "out/social/$DAY.json" && break
+            grep -q 'answered 404\|answered 5\|answered nothing\|answered 0' "out/social/$DAY.json" || break
+            if [ $i -lt 7 ]; then echo "The site is not ready yet; trying again in 5 minutes."; sleep 300; fi
+          done
+          exit 0   # the next step reads the result and emails the owner if it is not ok
+      - name: Post to Facebook and Instagram (or email the owner why not)
+        if: always() && steps.make.outcome != 'skipped'
+        env:
+          MODE: daily-puzzle
+          SOCIAL_DAY: ${{ steps.make.outputs.day }}
+          OUT_DIR: out/social
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          OWNER_TASKS_TO: ${{ secrets.OWNER_TASKS_TO }}
+          META_PAGE_ID: ${{ secrets.META_PAGE_ID }}
+          META_PAGE_TOKEN: ${{ secrets.META_PAGE_TOKEN }}
+          INSTAGRAM_ACCOUNT_ID: ${{ secrets.INSTAGRAM_ACCOUNT_ID }}
+        run: python3 -I scripts/marketing-post.py
+      - name: Keep the picture with the run for 14 days
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: daily-puzzle-${{ steps.make.outputs.day }}
+          path: out/social/
+          retention-days: 14
+          if-no-files-found: ignore

@@ -617,7 +617,10 @@ ${p.story.paragraphs.map((t) => `<p>${esc(t)}</p>`).join('\n')}
 ${puzzleBody(todays, today, up)}
 ${recent(up)}`,
   });
-  for (const d of past) {
+  // Every day has its own page from the day it starts (today's too), so a link
+  // to a day's answer key, like the one in the daily Facebook and Instagram post
+  // (scripts/social-puzzle.mjs), works at once and keeps working.
+  for (const d of [today, ...past]) {
     const p = daily.get(d);
     page({
       path: `daily/${d}/`, priority: 0.4, lastmod: d, type: 'article',
