@@ -1117,3 +1117,22 @@ body:has(#view-seg:not([hidden])) #miniboard-open { flex: none; }
   .appbar { gap: 4px; }
   .appbar-actions .btn { padding-left: 6px; padding-right: 6px; }
 }
+
+/* ---------- Pinned grid on PCs, the desktop app and tablets on their side (2026-11-01) ----------
+   Bobby: "pin puzzle grid to page and have clues column scroll independently".
+   With the clues beside the grid, both columns stop under the sticky app bar:
+   the grid stays in view while the page scrolls, and the clues (and questions)
+   scroll inside their own column. Phones, tablets held upright and short
+   screens are unchanged. From 1024 to 1199 px the clues stay under the grid
+   (Device fit, above), because a clues column there would shrink the squares. */
+@media screen and (min-width: 1200px) and (min-height: 561px) {
+  .play { --pin-top: calc(var(--appbar-h, 72px) + 8px); --pin-h: calc(100vh - var(--appbar-h, 72px) - 16px); }
+  @supports (height: 100dvh) { .play { --pin-h: calc(100dvh - var(--appbar-h, 72px) - 16px); } }
+  .play > .grid-card, .play > .side { position: sticky; top: var(--pin-top); max-height: var(--pin-h); }
+  .play > .grid-card { display: flex; flex-direction: column; }
+  .play > .grid-card > * { flex: none; }
+  .play > .grid-card > .gridframe, .play > .grid-card > .listview { flex: 0 1 auto; min-height: 0; max-height: none; overflow: auto; }
+  /* At the end of the clues the wheel carries on to the page, so the story above
+     is still reached without moving the pointer. */
+  .play > .side { overflow-y: auto; align-content: start; scrollbar-gutter: stable; }
+}
