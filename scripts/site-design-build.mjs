@@ -50,7 +50,7 @@ export async function applySiteDesign({ site, base, design: given }) {
     let html = readFileSync(join(site, page), 'utf8');
     if (!/<\/head>/.test(html)) continue;
     const kind = page === 'index.html' ? 'hub' : page === 'ninetimesnine/index.html' ? 'np' : 'info';
-    html = html.replace(/<html([^>]*)>/, (m, rest) => `<html${rest.replace(/\s(data-site|data-fx-[\w-]+|data-card-[\w-]+|data-hero-[\w-]+|data-theme-picker|data-footer-links|data-np-[\w-]+|data-info-[\w-]+|data-shadows)="[^"]*"/g, '')} data-site="${kind}"${attrs}>`);
+    html = html.replace(/<html([^>]*)>/, (m, rest) => `<html${rest.replace(/\s(data-site|data-fx-[\w-]+|data-card-[\w-]+|data-hero-[\w-]+|data-theme-picker|data-footer-links|data-app-section|data-np-[\w-]+|data-info-[\w-]+|data-shadows)="[^"]*"/g, '')} data-site="${kind}"${attrs}>`);
     html = html.replace(/<style id="site-design">[\s\S]*?<\/style>\s*/, '').replace(/<script type="module" src="[^"]*js\/design-preview\.js"><\/script>\s*/, '');
     // 404.html is served at any depth, so its address starts at the site root.
     const up = page === '404.html' ? new URL(base).pathname.replace(/\/?$/, '/') : '../'.repeat(page.split('/').length - 1);

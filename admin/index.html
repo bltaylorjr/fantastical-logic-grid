@@ -19,10 +19,10 @@
 <body>
 <a class="skip" href="#main">Skip to content</a>
 <header class="top">
-  <div class="brand"><img src="/admin/icon.svg" alt="" width="28" height="28"><span>The Fantastical Logic Grid <b>Admin</b></span></div>
+  <div class="brand"><img src="/admin/icon.svg" alt="" width="28" height="28"><span>The Logic Grid <b>Admin</b></span></div>
   <div class="who" id="who" hidden>
     <a class="btn small" id="home" href="#overview">Home</a>
-    <a class="btn small" href="https://thelogicgrid.com/" target="_blank" rel="noopener">Open the game</a>
+    <a class="btn small" href="https://thelogicgrid.com/" target="_blank" rel="noopener">Open the site</a>
     <span id="who-email"></span> <span class="badge" id="who-role"></span>
     <button type="button" class="btn small" id="sign-out">Sign out</button>
   </div>
@@ -76,37 +76,44 @@
 <!-- Dashboard -->
 <div id="app" class="shell" hidden>
   <nav class="nav" aria-label="Sections">
-    <ul id="nav-list">
-      <li><a href="#overview" data-min="viewer">Overview</a></li>
-      <li><a href="#visitors" data-min="viewer">Visitors</a></li>
-      <li><a href="#usage" data-min="viewer">Usage and free limits</a></li>
-      <li><a href="#search" data-min="viewer">Search (Google and Bing)</a></li>
-      <li><a href="#daily" data-min="moderator">Daily puzzles</a></li>
-      <li><a href="#characters" data-min="moderator">Characters <span class="count" id="count-characters" hidden></span></a></li>
-      <li><a href="#media" data-min="viewer">Media library (sounds and pictures)</a></li>
-      <li><a href="#quality" data-min="viewer">Puzzle quality <span class="count" id="count-quality" hidden></span></a></li>
-      <li><a href="#ratings" data-min="viewer">Ratings and insights <span class="count" id="count-ratings" hidden></span></a></li>
-      <li><a href="#website" data-min="viewer">Website</a></li>
-      <li><a href="#marketing" data-min="viewer">Marketing</a></li>
-      <li><a href="#mail" data-min="viewer">Puzzle emails</a></li>
-      <li><a href="#stories" data-min="moderator">Story workshop and review <span class="count" id="count-parts" hidden></span></a></li>
-      <li><a href="#communication" data-min="viewer">Communication <span class="count" id="count-comm" hidden></span></a></li>
-      <li><a href="#story-submissions" data-min="moderator">Storyline submissions <span class="count" id="count-story-submissions" hidden></span></a></li>
-      <li><a href="#errortracking" data-min="moderator">Error tracking <span class="count" id="count-errors" hidden></span></a></li>
-      <li><a href="#educators" data-min="moderator">Educator requests <span class="count" id="count-educators" hidden></span></a></li>
-      <li><a href="#edu-feedback" data-min="moderator">Educator feedback <span class="count" id="count-edu-feedback" hidden></span></a></li>
-      <li><a href="#names" data-min="moderator">Screen names <span class="count" id="count-names" hidden></span></a></li>
-      <li><a href="#players" data-min="viewer">Players</a></li>
-      <li><a href="#badges" data-min="viewer">Badges</a></li>
-      <li><a href="#supporters" data-min="admin">Supporters</a></li>
-      <li><a href="#numberplace" data-min="viewer">NINETIMESNINE</a></li>
-      <li><a href="#licenses" data-min="admin">App keys <span class="count" id="count-licenses" hidden></span></a></li>
-      <li><a href="#settings" data-min="viewer">Settings and switches</a></li>
-      <li><a href="#connections" data-min="viewer">Connections and setup</a></li>
-      <li><a href="#signin" data-min="viewer">Face ID and fingerprint</a></li>
-      <li><a href="#backups" data-min="admin">Backups and archive</a></li>
-      <li><a href="#audit" data-min="admin">Audit log</a></li>
-      <li><a href="#admins" data-min="owner">Admins</a></li>
+    <div class="dash-switch" id="dash-switch" role="group" aria-label="Dashboard">
+      <button type="button" data-dash="main" aria-pressed="true">The Logic Grid <span class="dash-sub">App</span></button>
+      <button type="button" data-dash="flg" aria-pressed="false">The Fantastical Logic Grid <span class="dash-sub">Game</span></button>
+      <button type="button" data-dash="ntn" aria-pressed="false">NINETIMESNINE <span class="dash-sub">Game</span></button>
+    </div>
+    <ul id="nav-list" data-current="main">
+      <li data-dash="main"><a href="#overview" data-min="viewer">Overview</a></li>
+      <li data-dash="main"><a href="#visitors" data-min="viewer">Visitors</a></li>
+      <li data-dash="main"><a href="#usage" data-min="viewer">Usage and free limits</a></li>
+      <li data-dash="main"><a href="#search" data-min="viewer">Search (Google and Bing)</a></li>
+      <li data-dash="main"><a href="#website" data-min="viewer">Website</a></li>
+      <li data-dash="main"><a href="#marketing" data-min="viewer">Marketing</a></li>
+      <li data-dash="main"><a href="#communication" data-min="viewer">Communication <span class="count" id="count-comm" hidden></span></a></li>
+      <li data-dash="main"><a href="#errortracking" data-min="moderator">Error tracking <span class="count" id="count-errors" hidden></span></a></li>
+      <li data-dash="main"><a href="#players" data-min="viewer">Players</a></li>
+      <li data-dash="main"><a href="#names" data-min="moderator">Screen names <span class="count" id="count-names" hidden></span></a></li>
+      <li data-dash="main"><a href="#supporters" data-min="admin">Supporters</a></li>
+      <li data-dash="main"><a href="#licenses" data-min="admin">App keys <span class="count" id="count-licenses" hidden></span></a></li>
+      <li data-dash="main"><a href="#settings" data-min="viewer">Settings and switches</a></li>
+      <li data-dash="main"><a href="#connections" data-min="viewer">Connections and setup</a></li>
+      <li data-dash="main"><a href="#signin" data-min="viewer">Face ID and fingerprint</a></li>
+      <li data-dash="main"><a href="#backups" data-min="admin">Backups and archive</a></li>
+      <li data-dash="main"><a href="#audit" data-min="admin">Audit log</a></li>
+      <li data-dash="main"><a href="#admins" data-min="owner">Admins</a></li>
+      <li data-dash="flg"><a href="#fantastical" data-min="viewer">Fantastical home <span class="count" id="count-fantastical" hidden></span></a></li>
+      <li data-dash="flg"><a href="#daily" data-min="moderator">Daily puzzles</a></li>
+      <li data-dash="flg"><a href="#characters" data-min="moderator">Characters <span class="count" id="count-characters" hidden></span></a></li>
+      <li data-dash="flg"><a href="#media" data-min="viewer">Media library (sounds and pictures)</a></li>
+      <li data-dash="flg"><a href="#quality" data-min="viewer">Puzzle quality <span class="count" id="count-quality" hidden></span></a></li>
+      <li data-dash="flg"><a href="#ratings" data-min="viewer">Ratings and insights <span class="count" id="count-ratings" hidden></span></a></li>
+      <li data-dash="flg"><a href="#mail" data-min="viewer">Puzzle emails</a></li>
+      <li data-dash="flg"><a href="#stories" data-min="moderator">Story workshop and review <span class="count" id="count-parts" hidden></span></a></li>
+      <li data-dash="flg"><a href="#story-submissions" data-min="moderator">Storyline submissions <span class="count" id="count-story-submissions" hidden></span></a></li>
+      <li data-dash="flg"><a href="#educators" data-min="moderator">Educator requests <span class="count" id="count-educators" hidden></span></a></li>
+      <li data-dash="flg"><a href="#edu-feedback" data-min="moderator">Educator feedback <span class="count" id="count-edu-feedback" hidden></span></a></li>
+      <li data-dash="flg"><a href="#badges" data-min="viewer">Badges</a></li>
+      <li data-dash="flg"><a href="#game-settings" data-min="viewer">Game settings and switches</a></li>
+      <li data-dash="ntn"><a href="#numberplace" data-min="viewer">NINETIMESNINE</a></li>
     </ul>
   </nav>
   <main id="main" tabindex="-1">
@@ -478,7 +485,7 @@
       <div class="head"><h1 id="h-numberplace">NINETIMESNINE</h1>
         <div class="field inline"><label for="np-days">Period</label><select id="np-days"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option></select></div>
       </div>
-      <p class="muted">The numbers game's own switches and numbers. It shares only anonymous play summaries with the rest of the game, for learning. Logic Grid settings are under Settings and switches.</p>
+      <p class="muted">The numbers game's own switches and numbers. It shares only anonymous play summaries with the rest of the game, for learning. The Fantastical Logic Grid's switches are on its own dashboard, and app-wide switches are under App settings and switches.</p>
       <div id="np-body"><p class="muted">Loading…</p></div>
     </section>
 
@@ -516,10 +523,24 @@
     </section>
 
     <section data-view="settings" hidden aria-labelledby="h-settings">
-      <div class="head"><h1 id="h-settings">Settings and switches</h1></div>
-      <p class="muted">Changes reach every copy of the game within about a minute, with no new release.</p>
+      <div class="head"><h1 id="h-settings">App settings and switches</h1></div>
+      <p class="muted">Switches shared by the whole app: sign-in, messages, ideas and problems, languages, support, alerts and backups. Each game's own switches are on its dashboard. Changes reach every copy within about a minute, with no new release.</p>
       <div id="alerts-body"></div>
       <div id="settings-body"></div>
+    </section>
+
+    <section data-view="game-settings" hidden aria-labelledby="h-game-settings">
+      <div class="head"><h1 id="h-game-settings">Game settings and switches</h1></div>
+      <p class="muted">The Fantastical Logic Grid's own switches: play, themes, characters, voices, sounds, pictures, celebrations, puzzle emails, printable packs, educators and learning. App-wide switches are under <a href="#settings">App settings and switches</a> on The Logic Grid dashboard. Changes reach every player within about a minute.</p>
+      <div id="game-settings-body"><p class="muted">Loading…</p></div>
+    </section>
+
+    <section data-view="fantastical" hidden aria-labelledby="h-fantastical">
+      <div class="head"><h1 id="h-fantastical">The Fantastical Logic Grid</h1>
+        <div class="field inline"><label for="fg-days">Period</label><select id="fg-days"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option></select></div>
+      </div>
+      <p class="muted">Everything that belongs to this game: its puzzles, stories, characters, sounds, emails, educator packages and switches. Players, sign-in, messages, the website and marketing are shared by every game and live on The Logic Grid dashboard.</p>
+      <div id="fg-body"><p class="muted">Loading…</p></div>
     </section>
 
     <section data-view="connections" hidden aria-labelledby="h-connections" id="connections-view">

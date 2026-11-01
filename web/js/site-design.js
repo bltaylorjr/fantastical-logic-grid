@@ -29,6 +29,8 @@ const DEFAULT_TEXT = {
   ntnTag: 'Number puzzles',
   ntnText: 'Fill the grid so every row, column and box holds each number once. Start small at 4×4 or go for the full 9×9.',
   ntnButton: 'Play NINETIMESNINE',
+  appTitle: 'One account for every game',
+  appText: 'Sign in once and your saves, stats and settings stay in step in every game, on every device.',
   footerNote: 'Questions? support@thelogicgrid.com',
   infoPlay: 'Play free',
   hubTitle: 'The Logic Grid | Free logic and number puzzle games',
@@ -76,6 +78,11 @@ export const CATEGORIES = [
     text('ntnTag', 'NINETIMESNINE: label', 40),
     text('ntnText', 'NINETIMESNINE: description', 200, { long: true }),
     text('ntnButton', 'NINETIMESNINE: button', 40),
+  ] },
+  { id: 'app', name: 'Front page: shared by every game', page: 'hub', help: 'The section under the game cards: account, messages, ideas, problems, installing, support, news and social links.', options: [
+    select('appSection', 'Show this section', SHOW, 'show'),
+    text('appTitle', 'Heading', 60),
+    text('appText', 'Introduction', 200, { long: true }),
   ] },
   { id: 'effects', name: 'Front page: visual effects', page: 'hub', help: 'Movement is always switched off for visitors whose device asks for less motion.', options: [
     select('fxArrival', 'When the page opens', [pick('none', 'No animation'), pick('rise', 'Cards rise in'), pick('fade', 'Fade in')], 'none'),
@@ -154,7 +161,7 @@ export function attributes(design) {
   return {
     'data-fx-arrival': d.fxArrival, 'data-fx-hover': d.fxHover, 'data-fx-art': d.fxArt, 'data-fx-backdrop': d.fxBackdrop, 'data-fx-sparkles': d.fxSparkles,
     'data-card-order': d.cardOrder, 'data-card-layout': d.cardLayout, 'data-card-bullets': d.cardBullets, 'data-hero-align': d.heroAlign,
-    'data-hero-eyebrow': d.heroEyebrowShow, 'data-theme-picker': d.themePicker, 'data-footer-links': d.footerLinks,
+    'data-hero-eyebrow': d.heroEyebrowShow, 'data-theme-picker': d.themePicker, 'data-footer-links': d.footerLinks, 'data-app-section': d.appSection,
     'data-np-header': d.npHeader, 'data-np-flg': d.npFlgLink, 'data-info-header': d.infoHeader, 'data-info-nav': d.infoNav,
     'data-card-style': d.cardStyle, 'data-shadows': d.shadows,
   };

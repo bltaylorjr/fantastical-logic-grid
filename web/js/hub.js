@@ -3,7 +3,9 @@
 // - applies the player's color theme (the game's own setting, flg.settings),
 // - on the front page only (data-hub): old game links and the installed app
 //   go on to the game at fantastical/, since the game used to be at the site root,
-// - wires the front page's Look menu to the same setting.
+// - wires the front page's Look menu to the same setting,
+// - on the front page: Install the app, the Support link and the team's news
+//   (from the game's Worker, GET /v1/config, the same settings as the games).
 (function () {
   var root = document.documentElement;
   var me = document.currentScript;
@@ -44,6 +46,17 @@
   // (PWABuilder for the Microsoft Store) find the manifest and offline support.
   if ('serviceWorker' in navigator) addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () { /* optional */ }); });
 
+  // Install the app: Chrome and Edge offer it through the page's own button;
+  // iPhone and iPad add it from Safari's Share menu.
+  var installAsk = null;
+  addEventListener('beforeinstallprompt', function (e) {
+    e.preventDefault();
+    installAsk = e;
+    var b = document.getElementById('install-app');
+    if (b) b.hidden = false;
+  });
+  addEventListener('appinstalled', function () { installAsk = null; var b = document.getElementById('install-app'); if (b) b.hidden = true; });
+
   document.addEventListener('DOMContentLoaded', function () {
     // The spotlight and 3D tilt card effects follow the pointer (the Website
     // page in the admin dashboard picks them; CSS does nothing when they are off).
@@ -57,6 +70,19 @@
       });
       card.addEventListener('pointerleave', function () { card.style.setProperty('--rx', '0deg'); card.style.setProperty('--ry', '0deg'); });
     });
+    var installBtn = document.getElementById('install-app');
+    if (installBtn) {
+      installBtn.hidden = !installAsk;
+      installBtn.addEventListener('click', function () {
+        if (!installAsk) return;
+        installAsk.prompt();
+        installAsk.userChoice.catch(function () { /* dismissed */ }).then(function () { installAsk = null; installBtn.hidden = true; });
+      });
+    }
+    var ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    var iosNote = document.getElementById('install-ios');
+    if (iosNote && ios && navigator.standalone !== true) iosNote.hidden = false;
+    loadShared();
     var pick = document.getElementById('theme-pick');
     if (!pick) return;
     pick.value = read().colorTheme || 'system';
@@ -67,4 +93,32 @@
       apply(pick.value);
     });
   });
+
+  // The Support link and the latest news, as the games show them. Quietly
+  // skipped when the Worker cannot be reached (offline, or not set up).
+  function loadShared() {
+    var cloud = me.getAttribute('data-cloud');
+    if (!cloud || !window.fetch || preview) return;
+    fetch(cloud.replace(/\/+$/, '') + '/v1/config').then(function (r) { return r.ok ? r.json() : null; }).then(function (c) {
+      if (!c) return;
+      var url = c.game && c.game.supportUrl;
+      var support = document.getElementById('support-app');
+      if (support && typeof url === 'string' && url.indexOf('https://') === 0) { support.href = url; support.hidden = false; }
+      var items = Array.isArray(c.news) ? c.news.slice(0, 3) : [];
+      var box = document.getElementById('hub-news');
+      var list = document.getElementById('hub-news-list');
+      if (!box || !list || !items.length) return;
+      items.forEach(function (n) {
+        var li = document.createElement('li');
+        var b = document.createElement('b');
+        b.textContent = String(n.title || '');
+        var p = document.createElement('p');
+        p.textContent = String(n.text || '');
+        li.appendChild(b);
+        li.appendChild(p);
+        list.appendChild(li);
+      });
+      box.hidden = false;
+    }).catch(function () { /* offline: nothing to add */ });
+  }
 })();

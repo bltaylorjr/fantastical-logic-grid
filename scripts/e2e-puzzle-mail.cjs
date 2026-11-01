@@ -151,6 +151,7 @@ const iso = (ms) => new Date(ms).toISOString().slice(0, 10);
     await g.fill('#token-input', TOKEN);
     await g.click('#token-form button[type=submit]');
     await g.waitForSelector('#app:not([hidden])');
+    await g.click('#dash-switch [data-dash="flg"]');
     await g.click('#nav-list a[href="#mail"]');
     await g.waitForSelector('#mail-body .tile');
     assert(/Waiting to confirm\s*1/.test(await g.textContent('#mail-body .tiles')), 'the dashboard counts the address waiting to confirm');

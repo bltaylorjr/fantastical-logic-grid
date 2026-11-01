@@ -103,6 +103,7 @@ button, input, select { font: inherit; color: inherit; }
 .menu button:hover, .menu button:focus-visible, .cellmenu button:hover, .cellmenu button:focus-visible { background: var(--accent-soft); }
 /* The small NINETIMESNINE link at the foot of the menu. */
 .menu .menu-small { font-size: .85em; font-weight: 400; border-top: 1px solid var(--border); border-radius: 0 0 6px 6px; margin-top: 4px; }
+.menu .menu-group { padding: 10px 12px 4px; margin-top: 4px; border-top: 1px solid var(--border); font-size: .78em; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
 .menu .menu-tag { font-size: .8em; font-weight: 700; margin-left: 6px; padding: 1px 6px; border-radius: 999px; background: var(--accent-soft); }
 .np-back { margin: 0 0 8px; }
 
