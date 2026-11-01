@@ -53,5 +53,17 @@ for (const difficulty of ['basic', 'easy', 'medium', 'hard']) {
 check('numbers shown with enough solvers', statsLine({ solved: 42, medianMs: 420000 }).includes('42 players') && statsLine({ solved: 42, medianMs: 420000 }).includes('7 minutes'));
 check('no numbers with too few solvers', statsLine({ solved: 3, medianMs: 420000 }) === '' && statsLine(null) === '');
 
+// The workflow checks out only some files: every file the checker imports must be in that list.
+{
+  const { readFileSync } = await import('node:fs');
+  const wf = readFileSync(new URL('../.github/workflows/daily-puzzle-social.yml', import.meta.url), 'utf8');
+  const src = readFileSync(new URL('./social-puzzle.mjs', import.meta.url), 'utf8');
+  for (const [, rel] of src.matchAll(/^import .* from '(\.{1,2}\/[^']+)';/gm)) {
+    const path = new URL(rel, new URL('./social-puzzle.mjs', import.meta.url)).pathname.split('/fantastical-logic-grid/').pop().replace(/^.*?(scripts|engine)\//, '$1/');
+    const listed = wf.includes(path) || wf.split('\n').some((l) => l.trim() && path.startsWith(l.trim() + '/'));
+    check(`workflow checks out ${path}`, listed);
+  }
+}
+
 if (failed) { console.log(`${failed} social puzzle checks failed`); process.exit(1); }
 console.log('Social puzzle checks passed');
