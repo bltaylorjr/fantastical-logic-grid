@@ -349,7 +349,7 @@ def build_puzzle(r):
             src, out = os.path.join(tmp, 'storyline.json'), os.path.join(tmp, 'puzzle.json')
             with open(src, 'w', encoding='utf-8') as f:
                 if build.get('submission'):
-                    json.dump({'submission': {'form': sub.get('form'), 'polished': sub.get('polished')}, 'seed': f'story-{r["id"]}'}, f)
+                    json.dump({'submission': {'form': sub.get('form'), 'polished': sub.get('polished')}, 'theme': build.get('theme') or '', 'seed': f'story-{r["id"]}'}, f)
                 else:
                     json.dump({'text': text, 'theme': build.get('theme') or '', 'seed': f'story-{r["id"]}'}, f)
             done = subprocess.run(['node', os.path.join(ROOT, 'scripts', 'storyline-puzzle.mjs'), src, out], timeout=300, cwd=ROOT,

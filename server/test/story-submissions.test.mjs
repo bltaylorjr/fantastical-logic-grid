@@ -125,6 +125,22 @@ test('a signed-in player: saved with the account and a confirmation with the for
   await call('/admin/v1/replies/done', { auth: owner, body: { sent: claim3.replies.map((m) => m.id), failed: [] } });
 });
 
+test('the categories builder: saved with the entry and used to build the puzzle', async () => {
+  const owner = token('owner-uid', OWNER);
+  const bad = await call('/v1/story-submissions', { body: { ...FORM, categories: [{ name: 'Room', items: 'Library, Kitchen' }, { name: '', items: 'Tea, Punch, Cider' }] } });
+  assert.equal(bad.status, 400);
+  assert.deepEqual(Object.keys(bad.body.errors).sort(), ['catItems0', 'catName1']);
+  const cats = [{ name: 'Room', items: 'Library, Kitchen, Garden, Ballroom' }, { name: 'Arrival time', items: '7:00 PM, 7:15 PM, 7:30 PM, 7:45 PM', order: 'earlier' }];
+  const r = await call('/v1/story-submissions', { body: { ...FORM, title: 'Builder story', clues: 'The butler was not in the library.', categories: cats } });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  const entry = (await call(`/admin/v1/story-submissions/${r.body.id}`, { auth: owner })).body;
+  assert.deepEqual(entry.form.categories[1], { name: 'Arrival time', items: ['7:00 PM', '7:15 PM', '7:30 PM', '7:45 PM'], order: 'earlier' });
+  assert.ok(entry.copy.some(([k, v]) => k === 'Category 2' && v.startsWith('Arrival time (earliest to latest)')));
+  const puzzle = buildStorylinePuzzle({ submission: { form: entry.form }, theme: 'Mystery', seed: 'builder' });
+  assert.equal(puzzle.error, undefined, puzzle.error);
+  assert.deepEqual(puzzle.categories.map((c) => c.name).slice(1), ['Room', 'Arrival Time']);
+});
+
 test('a guest: thank-you, then a copy only to the address they type, once', async () => {
   const owner = token('owner-uid', OWNER);
   const r = await call('/v1/story-submissions', { body: { kind: 'theme', idea: 'Haunted Lighthouse' } });

@@ -10,9 +10,15 @@
 
 export const KINDS = { theme: 'Theme idea', category: 'Category idea', storyline: 'Storyline' };
 export const MAX_CHARACTERS = 10;
+// The categories builder: the lists of things to match (the grid's other columns).
+export const MAX_CATEGORIES = 4;
+export const MAX_ITEMS = 8;
+// An ordered category's items are listed from the first word to the second.
+export const ORDERS = [['', 'No order'], ['earlier', 'Earliest to latest (times, dates)'], ['lower', 'Lowest to highest (numbers, prices, ages)'],
+  ['smaller', 'Smallest to biggest'], ['shorter', 'Shortest to longest']];
 export const LIMITS = {
   idea: 20, title: 40, pitch: 80, setting: 120, name: 30, trait: 30, goal: 160,
-  clues: 2000, beat: 2000, branch: 1000, alt: 1000, credit: 40,
+  catName: 30, item: 30, clues: 2000, beat: 2000, branch: 1000, alt: 1000, credit: 40,
 };
 export const TONES = ['Lighthearted', 'Cozy', 'Whimsical', 'Funny', 'Heartwarming', 'Adventurous', 'Mysterious', 'Suspenseful', 'Spooky (not scary)', 'Dramatic'];
 // The game's difficulty levels (engine/src/tiers.js), in order.
@@ -67,6 +73,24 @@ export function checkSubmission(body, { themeIds = [] } = {}) {
     trait: one(c?.trait, LIMITS.trait),
     role: ROLES.includes(c?.role) ? c.role : 'Supporting',
   }));
+  // Categories: optional, but each one started needs a name and at least 3 different items.
+  v.categories = [];
+  const seenNames = new Set();
+  (Array.isArray(b.categories) ? b.categories.slice(0, MAX_CATEGORIES) : []).forEach((c, i) => {
+    const name = one(c?.name, LIMITS.catName);
+    const raw = Array.isArray(c?.items) ? c.items : String(c?.items ?? '').split(/[,;\n]/);
+    const seen = new Set();
+    const items = [];
+    for (const x of raw) { const t = one(x, LIMITS.item); if (t && !seen.has(t.toLowerCase())) { seen.add(t.toLowerCase()); items.push(t); } }
+    if (!name && !items.length) return;
+    const order = ORDERS.some(([id]) => id && id === c?.order) ? c.order : '';
+    if (!name) errors[`catName${i}`] = 'Give this category a name.';
+    else if (seenNames.has(name.toLowerCase())) errors[`catName${i}`] = 'Give each category a different name.';
+    seenNames.add(name.toLowerCase());
+    if (items.length < 3) errors[`catItems${i}`] = 'List at least 3 different items, separated by commas.';
+    else if (items.length > MAX_ITEMS) errors[`catItems${i}`] = `List at most ${MAX_ITEMS} items.`;
+    v.categories.push({ name, items: items.slice(0, MAX_ITEMS), order });
+  });
   v.goal = one(b.goal, LIMITS.goal);
   v.puzzle = PUZZLES.some(([id]) => id === b.puzzle) ? b.puzzle : PUZZLES[0][0];
   v.clues = clean(b.clues, LIMITS.clues);
@@ -105,6 +129,7 @@ export function formCopy(form, themeName = (id) => id, { all = false } = {}) {
   const chars = f.characters || [];
   add('Characters', chars.length ? String(chars.length) : '');
   chars.forEach((c, i) => add(`Character ${i + 1}`, [c.name, c.trait && `trait: ${c.trait}`, c.role && `${c.role.toLowerCase()} character`].filter(Boolean).join(', ')));
+  (f.categories || []).forEach((c, i) => add(`Category ${i + 1}`, `${c.name}${c.order ? ` (${(ORDERS.find(([id]) => id === c.order) || ['', ''])[1].replace(/ \(.*\)$/, '').toLowerCase()})` : ''}: ${c.items.join(', ')}`));
   add('Central mystery or goal', f.goal);
   if (PUZZLES.length > 1 || all) add('Puzzle', (PUZZLES.find(([id]) => id === f.puzzle) || PUZZLES[0])[1]);
   add('Clues', f.clues);

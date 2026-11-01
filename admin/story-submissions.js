@@ -45,7 +45,7 @@ function row(r) {
 function puzzlePreview(s, polished) {
   if (s.kind !== 'storyline') return '';
   if (s.puzzle) return `<p><b>First puzzle:</b> “${h.esc(s.puzzle.title)}”${s.puzzle.tier ? `, ${h.esc(tierName(s.puzzle.tier))}` : ''}, saved ${h.when(s.puzzle.at)}.</p>`;
-  const read = s.form.idea ? readStoryline(polished?.idea || s.form.idea, s.themeName || '') : readSubmission(s.form, polished);
+  const read = s.form.idea ? readStoryline(polished?.idea || s.form.idea, s.themeName || '') : readSubmission(s.form, polished, s.themeName || '');
   return read.def
     ? `<p><b>The puzzle will be built from:</b> ${h.esc(read.summary)}. Title “${h.esc(read.def.title)}”.</p>`
     : `<p class="note"><b>No puzzle can be built from it yet:</b> ${h.esc(read.reason)} You can add the lists to the corrected clues below. Approving still sends the author the approval email.</p>`;
