@@ -151,7 +151,7 @@ async function recordWizard(browser, W, game, fill) {
     if (i === W.STEPS[game].length - 2) {
       await view('#w-preview', -200);
       await hl(['.w-story']);
-      await scene('story', ['At the bottom of every step, your storyline is shown live: the puzzle\'s words as players will read them.', 'It is read only, and it updates as you type in the fields above.']);
+      await scene('story', ['At the bottom of every step, you see your storyline as you write it: the puzzle\'s words, just as players will read them.', 'You cannot type in it. It changes as you fill in the fields above.']);
     }
     if (i < W.STEPS[game].length - 1) await p.click('#w-next');
   }
