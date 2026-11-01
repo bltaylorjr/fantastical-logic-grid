@@ -1,12 +1,14 @@
 # Netlify and Cloudflare Pages read this file. Other hosts: see DEPLOY.md.
 # GitHub Pages ignores it; there the pages carry their own <meta> security
 # policy (scripts/build.mjs and scripts/seo.mjs).
+# Framing: only this site may frame its own pages (the front page opens Account,
+# Messages and Report a Problem in a window over itself); every other site is refused.
 /*
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
   Strict-Transport-Security: max-age=63072000; includeSubDomains
-  X-Frame-Options: DENY
-  Content-Security-Policy: frame-ancestors 'none'; object-src 'none'; base-uri 'self'
+  X-Frame-Options: SAMEORIGIN
+  Content-Security-Policy: frame-ancestors 'self'; object-src 'none'; base-uri 'self'
   Cross-Origin-Opener-Policy: same-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=(), serial=(), hid=(), bluetooth=(), interest-cohort=()
 

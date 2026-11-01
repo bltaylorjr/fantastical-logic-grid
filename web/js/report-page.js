@@ -18,6 +18,21 @@ import { feature } from './remote-config.js';
 import { platform } from './platform.js';
 import { takeHandoff } from './report-handoff.js';
 
+// Opened in a window over The Logic Grid's front page (?embed=1, js/hub.js):
+// Back, Cancel and Done close that window instead of leaving the front page.
+const EMBEDDED = (() => { try { return window.top !== window.self && window.parent.location.origin === location.origin && new URLSearchParams(location.search).get('embed') === '1'; } catch (e) { return false; } })();
+{
+  if (EMBEDDED) {
+    const closeMe = (e) => { e.preventDefault(); window.parent.postMessage({ type: 'flg-embed-done' }, location.origin); };
+    document.addEventListener('click', (e) => { if (e.target.closest && e.target.closest('#rp-back, #rp-cancel, #rp-done-back')) closeMe(e); });
+    document.addEventListener('DOMContentLoaded', () => {
+      const t = document.getElementById('rp-back-text'); if (t) t.textContent = 'Close';
+      const d = document.getElementById('rp-done-back'); if (d) d.textContent = 'Close';
+    });
+    if (document.readyState !== 'loading') { const t = document.getElementById('rp-back-text'); if (t) t.textContent = 'Close'; const d = document.getElementById('rp-done-back'); if (d) d.textContent = 'Close'; }
+  }
+}
+
 const $ = (s, el = document) => el.querySelector(s);
 const MAX = 1000;
 const MAX_FILES = 3;
@@ -33,8 +48,8 @@ const REPLY_WORDS = {
 
 // The player's saved color theme, as in the game.
 try { const s = JSON.parse(localStorage.getItem('flg.settings') || '{}'); if (s.colorTheme && s.colorTheme !== 'system') document.documentElement.dataset.theme = s.colorTheme; } catch (e) { /* default */ }
-// Never inside another site's frame.
-if (window.top !== window.self) { document.documentElement.hidden = true; try { window.top.location = window.location.href; } catch (e) { /* blocked */ } }
+// Never inside another site's frame (this site's front page may show it in a window: ?embed=1).
+if (window.top !== window.self && !EMBEDDED) { document.documentElement.hidden = true; try { window.top.location = window.location.href; } catch (e) { /* blocked */ } }
 
 const ctx = takeHandoff();
 const fromSite = ctx.from === 'site';

@@ -21,8 +21,12 @@
   // in The Fantastical Logic Grid. Everyone else gets The Fantastical Logic Grid.
   try { if ((localStorage.getItem('flg.preview') || /[?&]preview=(?!off)/.test(location.search)) && localStorage.getItem('flg.game') !== 'logic-grid') document.documentElement.dataset.start = 'games'; } catch (e) {}
   // Never run inside another site's frame, where clicks could be tricked
-  // (GitHub Pages cannot send X-Frame-Options). The claude.ai preview is framed on purpose.
-  if (window.top !== window.self && !document.querySelector('meta[name="flg-mode"]')) { document.documentElement.hidden = true; try { window.top.location = window.location.href; } catch (e) {} }
+  // (GitHub Pages cannot send X-Frame-Options). The claude.ai preview is framed on purpose,
+  // and this site's own front page shows one window of the game over itself (?embed=1).
+  var embed = false;
+  try { embed = window.top !== window.self && window.parent.location.origin === location.origin && /[?&]embed=1(&|$)/.test(location.search); } catch (e) {}
+  if (embed) document.documentElement.setAttribute('data-embed', '');
+  else if (window.top !== window.self && !document.querySelector('meta[name="flg-mode"]')) { document.documentElement.hidden = true; try { window.top.location = window.location.href; } catch (e) {} }
 </script>
 <script type="module" src="js/app.js"></script>
 </head>

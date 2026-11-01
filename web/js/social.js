@@ -63,5 +63,5 @@ const escHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<'
 // and in a tooltip. Opens in a new tab.
 export function socialHtml(list) {
   if (!list.length) return '';
-  return `<ul class="social" aria-label="Follow The Fantastical Logic Grid">${list.map((s) => `<li><a class="social-link social-${escHtml(s.id)}" href="${escHtml(s.url)}" rel="me noopener" target="_blank" title="${escHtml(s.name)}"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path fill="currentColor" d="${ICONS[s.id] || ''}"/></svg><span class="sr-only">${escHtml(s.name)} (opens in a new tab)</span></a></li>`).join('')}</ul>`;
+  return `<ul class="social" aria-label="Follow The Fantastical Logic Grid">${list.map((s) => `<li><a class="social-link social-${escHtml(s.id)}" href="${escHtml(s.url)}" rel="me noopener noreferrer" referrerpolicy="no-referrer" target="_blank" title="${escHtml(s.name)}"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path fill="currentColor" d="${ICONS[s.id] || ''}"/></svg><span class="sr-only">${escHtml(s.name)} (opens in a new tab)</span></a></li>`).join('')}</ul>`;
 }

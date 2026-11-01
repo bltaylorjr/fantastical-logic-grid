@@ -24,7 +24,7 @@ test('the footers show only networks with a link, in a fixed order', () => {
   const list = socialLinks({ youtube: 'https://youtube.com/@a', facebook: 'https://www.facebook.com/flg', x: '', tiktok: 'https://evil.example/tiktok' });
   assert.deepEqual(list.map((s) => s.id), ['facebook', 'youtube']);
   const html = socialHtml(list);
-  assert.match(html, /rel="me noopener" target="_blank"/);
+  assert.match(html, /rel="me noopener noreferrer" referrerpolicy="no-referrer" target="_blank"/);
   assert.doesNotMatch(html, /<img/, 'icons are drawn inline, no extra files');
   assert.match(html, /<svg [^>]*aria-hidden="true"/);
   assert.match(html, /<span class="sr-only">Facebook \(opens in a new tab\)<\/span>/);

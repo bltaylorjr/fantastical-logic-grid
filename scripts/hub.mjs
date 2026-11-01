@@ -19,6 +19,11 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+// The support address, never written out in a page: js/hub.js or
+// js/site-nav.js put it together into a mailto: link only when "Contact us"
+// is clicked.
+export const contactLink = (text = 'Contact us') => `<a class="contact-link" href="#contact" rel="nofollow">${text}</a>`;
+
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const json = (o) => JSON.stringify(o).replace(/</g, '\\u003c');
 const SITE_NAME = 'The Logic Grid';
@@ -36,6 +41,16 @@ export function writeGamePage(site, html) {
   const withLink = page.replace('<button role="menuitem" type="button" data-cmd="numberplace"', menuLink);
   if (withLink === page) throw new Error('hub.mjs: the game menu has no Play NINETIMESNINE item to put The Logic Grid home beside');
   page = withLink;
+  // On the website the home page has a card for everything shared by the games
+  // (account, messages, install, support, the other games), so the game's menu
+  // keeps only its own things. The apps (no home page) keep the full menu.
+  const shared = ['data-cmd="account"', 'data-cmd="messages"', 'data-cmd="feedback"', 'data-cmd="install"', 'id="support-link"', 'data-cmd="site"', 'data-cmd="games"', 'data-cmd="numberplace"'];
+  for (const attr of shared) {
+    const next = page.replace(new RegExp(`(<(?:button|a) role="menuitem"[^>]*${attr})`), '$1 data-site-hidden');
+    if (next === page) throw new Error(`hub.mjs: the game menu has no ${attr} item`);
+    page = next;
+  }
+  page = page.replace(/\s*<!-- Shared by every game[^>]*-->\s*<div class="menu-group"[^>]*>[^<]*<\/div>/, '');
   mkdirSync(join(site, 'fantastical'), { recursive: true });
   writeFileSync(join(site, 'fantastical', 'index.html'), page);
   // Suggest a storyline and Report a Problem: "Back to the game" goes to the game.
@@ -186,11 +201,12 @@ footer a { color: inherit; }
 .social-link { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border: 1px solid var(--edge-hi); border-radius: 50%; color: var(--text); background: var(--bg); text-decoration: none; }
 .social-link:hover { border-color: var(--accent); color: var(--accent); }
 [data-app-section="hide"] .app { display: none; }
-.wiz-row { margin: 22px 0 0; }
-[data-hero-align="left"] .wiz-row { text-align: left; }
-.wiz-btn { display: inline-flex; align-items: center; gap: 10px; min-height: 48px; padding: 0 22px; border-radius: 999px; border: 2px solid var(--accent); color: var(--text); background: var(--bg); font-weight: 700; text-decoration: none; }
-.wiz-btn:hover { background: var(--accent); color: var(--on-accent); }
-.wiz-btn svg { width: 20px; height: 20px; }
+dialog.ovl { position: fixed; inset: 0; width: 100vw; height: 100vh; height: 100dvh; max-width: none; max-height: none; margin: 0; padding: 0; border: 0; background: transparent; overflow: hidden; }
+dialog.ovl::backdrop { background: rgb(8 10 20 / .45); }
+.ovl iframe { display: block; width: 100%; height: 100%; border: 0; background: transparent; color-scheme: normal; }
+.ovl-x { position: fixed; top: max(12px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right)); z-index: 2; min-height: 44px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--edge-hi, #888); background: var(--bg, #fff); color: var(--text, #111); font: inherit; font-weight: 700; cursor: pointer; }
+.ovl-wait { position: fixed; inset: 0; display: grid; place-items: center; margin: 0; color: #fff; font-weight: 700; pointer-events: none; }
+.hub-note { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 5; max-width: min(90vw, 460px); padding: 12px 18px; border-radius: 12px; background: var(--text, #111); color: var(--bg, #fff); font-weight: 700; box-shadow: 0 10px 30px rgb(0 0 0 / .3); }
 .wiz-pick { width: min(560px, calc(100% - 24px)); border: 1px solid var(--edge); border-radius: var(--radius); background: var(--bg); color: var(--text); padding: 22px; }
 .wiz-pick::backdrop { background: rgb(0 0 0 / .55); }
 .wiz-pick h2 { font: 700 1.4rem/1.2 var(--display); margin: 0 0 6px; }
@@ -217,12 +233,13 @@ const themeSelect = `<label class="theme">Look <select id="theme-pick">
 <option value="system">Match device</option><option value="light">Light</option><option value="dark">Dark</option><option value="contrast">High contrast</option>
 </select></label>`;
 
-// Things shared by every game. Account and Messages open in the game page,
-// where those windows live (web/js/app.js, ?open=...); Submit Puzzle Ideas is
-// the Puzzle Wizard (wizard/, which asks the game first); Report a Problem has
-// its own page; Install and Support work right here (js/hub.js).
+// Things shared by every game. Account has its own page (account/). Messages
+// (the game's own window in a frame, ?open=...&embed=1, web/js/app.js) and
+// Report a Problem open over the front page, which stays where it is; Submit
+// Puzzle Ideas asks which game first. Only the Play buttons open a game's page.
+// Install and Support work right here. The games' menus hold only their own things.
 const APP_ITEMS = [
-  ['a', 'fantastical/?open=account', 'Account and sync', 'Sign in or make a free account. Your saves, stats and settings follow you to every device and every game.'],
+  ['a', 'account/', 'Account and sync', 'Sign in or make a free account. Your saves, stats and settings follow you to every device and every game.'],
   ['a', 'fantastical/?open=messages', 'Messages and news', 'Notes from the team, and replies to what you sent.'],
   ['a', 'wizard/', 'Submit Puzzle Ideas', 'Make your own puzzle for any game, step by step, and send it to the team.'],
   ['a', 'report/', 'Report a Problem', 'Something not right? Tell us, with a screenshot if you like.'],
@@ -241,7 +258,7 @@ export function writeHubPages({ site, url, verification, tdmMeta, copyright, soc
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">`;
-  const organization = { '@type': 'Organization', name: SITE_NAME, url: url(''), logo: { '@type': 'ImageObject', url: url('icons/icon-512.png') }, email: 'support@thelogicgrid.com', sameAs: socialList.map((s) => s.url) };
+  const organization = { '@type': 'Organization', name: SITE_NAME, url: url(''), logo: { '@type': 'ImageObject', url: url('icons/icon-512.png') }, sameAs: socialList.map((s) => s.url) };
   const website = { '@context': 'https://schema.org', '@type': 'WebSite', name: SITE_NAME, url: url(''), description, inLanguage: 'en', publisher: organization };
   const list = { '@context': 'https://schema.org', '@type': 'ItemList', itemListElement: [
     { '@type': 'ListItem', position: 1, name: 'The Fantastical Logic Grid', url: url('fantastical/') },
@@ -281,7 +298,7 @@ ${verification}
 <header class="top">
 <a class="brand" href="./" aria-label="The Logic Grid home">${LOGO}<span>The Logic Grid</span></a>
 <div class="top-actions">
-<a class="hdr-btn" href="fantastical/?open=account">Account</a>
+<a class="hdr-btn" href="account/">Account</a>
 ${themeSelect}
 </div>
 </header>
@@ -289,7 +306,6 @@ ${themeSelect}
 <span class="eyebrow" data-design-text="heroEyebrow">Puzzle games</span>
 <h1 id="hero-title" data-design-text="heroTitle">Pick your puzzle.</h1>
 <p data-design-text="heroText">Two logic games, free to play in your browser. No guessing needed in either one — every puzzle can be solved by reasoning alone.</p>
-<p class="wiz-row"><a class="wiz-btn" href="wizard/" id="wizard-open" aria-haspopup="dialog"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 19 19 5M15 4l1 2 2 1-2 1-1 2-1-2-2-1 2-1zM6 3l.7 1.3L8 5l-1.3.7L6 7l-.7-1.3L4 5l1.3-.7z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> <span data-design-text="wizardButton">Submit Puzzle Ideas</span></a></p>
 </section>
 <dialog class="wiz-pick" id="wizard-pick" aria-labelledby="wizard-pick-h">
 <h2 id="wizard-pick-h">Which puzzle would you like to make?</h2>
@@ -312,9 +328,9 @@ ${card({ cls: 'ntn', art: ART_NINE, tag: 'Number puzzles', name: 'NINETIMESNINE'
 <h2 id="app-title" data-design-text="appTitle">One account for every game</h2>
 <p class="app-lead" data-design-text="appText">Sign in once and your saves, stats and settings stay in step in every game, on every device.</p>
 <div class="app-grid">
-${APP_ITEMS.map(([, href, name, text]) => `<a class="app-item" href="${href}"${href === 'wizard/' ? ' data-wizard aria-haspopup="dialog"' : ''}><b>${name}</b><span>${text}</span></a>`).join('\n')}
+${APP_ITEMS.map(([, href, name, text]) => `<a class="app-item" href="${href}"${href === 'wizard/' ? ' data-wizard aria-haspopup="dialog"' : href === 'account/' ? '' : ' data-overlay aria-haspopup="dialog"'}><b>${name}</b><span>${text}</span></a>`).join('\n')}
 <button class="app-item" type="button" id="install-app" hidden><b>Install the app</b><span>Every game on your home screen or desktop, and they work offline.</span></button>
-<a class="app-item" id="support-app" href="#" target="_blank" rel="noopener" hidden><b>Support The Logic Grid</b><span>Every game stays free. A tip helps make more. (Opens in a new tab.)</span></a>
+<a class="app-item" id="support-app" href="#" target="_blank" rel="noopener noreferrer nofollow" referrerpolicy="no-referrer" hidden><b>Support The Logic Grid</b><span>Every game stays free. A tip helps make more. (Opens in a new tab.)</span></a>
 </div>
 <p class="app-note" id="install-ios" hidden>To install on iPhone or iPad: tap the Share button in Safari, then Add to Home Screen.</p>
 <div class="news" id="hub-news" hidden><h3>News from The Logic Grid</h3><ul id="hub-news-list"></ul></div>
@@ -324,13 +340,13 @@ ${socialList.length && socialHtml ? `<div class="follow"><h3>Follow The Logic Gr
 <footer>
 <div class="wrap">
 <span>${esc(copyright)}</span>
-<span><span class="footer-links"><a href="privacy/">Privacy</a> · <a href="terms/">Terms of use</a> · <a href="report/">Report a Problem</a> · </span><span data-design-text="footerNote">Questions? support@thelogicgrid.com</span></span>
+<span><span class="footer-links"><a href="privacy/">Privacy</a> · <a href="terms/">Terms of use</a> · <a href="report/" data-overlay aria-haspopup="dialog">Report a Problem</a> · </span><span data-design-text="footerNote">Questions?</span> ${contactLink()}</span>
 </div>
 </footer>
 </body>
 </html>
 `;
-  writeFileSync(join(site, 'index.html'), hub);
+  writeFileSync(join(site, 'index.html'), hub.replace("frame-src 'none'", "frame-src 'self'"));
   pages.unshift({ path: '', lastmod: updated, priority: 1 });
 
   // ---------- NINETIMESNINE ----------
@@ -339,7 +355,7 @@ ${socialList.length && socialHtml ? `<div class="follow"><h3>Follow The Logic Gr
   const game = readFileSync(join(site, 'fantastical', 'index.html'), 'utf8');
   const gameCsp = (game.match(/http-equiv="Content-Security-Policy" content="([^"]*)"/) || [])[1];
   if (!gameCsp) throw new Error('hub.mjs: the game page has no security policy to copy');
-  const npCsp = gameCsp.replace(/script-src [^;]*/, "script-src 'self'");
+  const npCsp = gameCsp.replace(/script-src [^;]*/, "script-src 'self'").replace("frame-src 'none'", "frame-src 'self'");
   const npDescription = 'Free number puzzles: fill the grid so every row, column and box holds each number once. Classic, Rival Grid, Chain Reaction, Tidewater and Glyph Quest.';
   const npGame = { '@context': 'https://schema.org', '@type': ['VideoGame', 'WebApplication'], name: 'NINETIMESNINE', url: url('ninetimesnine/'), description: npDescription, image: url('icons/icon-512.png'),
     inLanguage: 'en', genre: ['Puzzle', 'Number puzzle'], gamePlatform: ['Web browser'], applicationCategory: 'GameApplication', operatingSystem: 'Any (web browser)',
@@ -381,12 +397,18 @@ main.screen { padding-top: 24px; }
 .np-foot nav { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 6px; }
 .np-foot a { color: inherit; display: inline-flex; align-items: center; min-height: 44px; }
 .np-foot p { margin: 4px 0 0; }
+dialog.ovl { position: fixed; inset: 0; width: 100vw; height: 100vh; height: 100dvh; max-width: none; max-height: none; margin: 0; padding: 0; border: 0; background: transparent; overflow: hidden; }
+dialog.ovl::backdrop { background: rgb(8 10 20 / .45); }
+.ovl iframe { display: block; width: 100%; height: 100%; border: 0; background: transparent; color-scheme: normal; }
+.ovl-x { position: fixed; top: max(12px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right)); z-index: 2; min-height: 44px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--edge-hi, #888); background: var(--bg, #fff); color: var(--text, #111); font: inherit; font-weight: 700; cursor: pointer; }
+.ovl-wait { position: fixed; inset: 0; display: grid; place-items: center; margin: 0; color: #fff; font-weight: 700; pointer-events: none; }
+.hub-note { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 5; max-width: min(90vw, 460px); padding: 12px 18px; border-radius: 12px; background: var(--text, #111); color: var(--bg, #fff); font-weight: 700; box-shadow: 0 10px 30px rgb(0 0 0 / .3); }
 </style>
 </head>
 <body>
 <header class="np-top">
 <a class="brand" href="../">${LOGO}<span>The Logic Grid</span></a>
-<nav aria-label="Games"><a class="btn quiet small" href="../">‹ All games</a><a class="btn small" href="../wizard/?game=ninetimesnine">Submit Puzzle Ideas</a><a class="btn small" href="../fantastical/">The Fantastical Logic Grid</a></nav>
+<nav aria-label="Games"><a class="btn quiet small" href="../">‹ The Logic Grid home</a><a class="btn small" href="../wizard/?game=ninetimesnine">Submit Puzzle Ideas</a></nav>
 </header>
 <main id="screen-np" class="screen" tabindex="-1">
 <h1 class="sr-only">NINETIMESNINE</h1>
@@ -394,7 +416,7 @@ main.screen { padding-top: 24px; }
 <noscript><div class="card"><p><strong>NINETIMESNINE</strong> is a free number puzzle game. Turn on JavaScript to play.</p></div></noscript>
 </main>
 <footer class="np-foot">
-<nav aria-label="The Logic Grid"><a href="../fantastical/?open=account">Account and sync</a> · <a href="../wizard/?game=ninetimesnine">Submit Puzzle Ideas</a> · <a href="../report/">Report a Problem</a> · <a href="../privacy/">Privacy</a> · <a href="../terms/">Terms of use</a></nav>
+<nav aria-label="The Logic Grid"><a href="../">The Logic Grid home</a> · <a href="../privacy/">Privacy</a> · <a href="../terms/">Terms of use</a> · ${contactLink()}</nav>
 <p>${esc(copyright)}</p>
 </footer>
 </body>

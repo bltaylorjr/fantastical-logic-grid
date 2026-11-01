@@ -36,6 +36,12 @@ free runners.
   person would say it (for example `thelogicgrid.com` is said "the logic grid
   dot com"). `build.py` also rewrites the voice's sounds the way Kokoro learned
   them (`MISAKI`), which keeps vowels and "er" sounds clear.
+- Words spelled alike but said differently are chosen from the words around
+  them in `SAY`: "read" is said "reed" (players read, read-only) except after
+  is, was, been, being, has or had ("the clue being read" is "red"), and
+  "lead to" is "leed to". Colons, semicolons and dashes get a short breath,
+  "×" is said "by", and NINETIMESNINE is "Nine Times Nine". Captions keep the
+  real words.
 - `SPEED` (default 0.9), `VOICE` (default `am_michael`), `SENTENCE_PAUSE`
   (0.42 s) and `CLAUSE_PAUSE` (0.2 s, at commas) are environment variables for
   `build.py`.

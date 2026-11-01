@@ -37,6 +37,25 @@ const ignorable = (t) => /fonts\/|Failed to decode downloaded font|OTS parsing/.
     assert(await page.locator('h1').count() === 1 && /Pick your puzzle/.test(await page.locator('h1').textContent()), 'the front page has one heading');
     const play = await page.locator('a.play').evaluateAll((as) => as.map((a) => a.getAttribute('href')));
     assert(JSON.stringify(play) === JSON.stringify(['fantastical/', 'ninetimesnine/']), 'it links to both games');
+    // Shared things open over the front page; only the Play buttons open a game page.
+    await page.click('.app-item[href="report/"]');
+    await page.waitForSelector('dialog.ovl[open] iframe');
+    await page.waitForFunction(() => /Close/.test(document.querySelector('dialog.ovl iframe')?.contentDocument?.querySelector('#rp-back-text')?.textContent || ''), null, { timeout: 15000 });
+    assert(new URL(page.url()).pathname === '/', 'Report a Problem opens in a window over the front page, which stays put');
+    await page.frameLocator('dialog.ovl iframe').locator('#rp-back').click();
+    await page.waitForFunction(() => !document.querySelector('dialog.ovl'));
+    assert(new URL(page.url()).pathname === '/', 'closing it leaves the player on the front page');
+    await page.click('.app-item[href="account/"]');
+    await page.waitForURL(`${BASE}/account/`);
+    await page.waitForSelector('#ac-main h1');
+    assert(/Your account/.test(await page.textContent('#ac-main h1')) && (await page.isVisible('#dlg-account') || await page.isVisible('#ac-off')), 'Account and sync opens its own Account page');
+    assert(await page.locator('#ac-back').getAttribute('href') === '../', 'the Account page leads back home');
+    await page.goto(`${BASE}/`);
+    const frontHtml = await page.content();
+    assert(!/support@thelogicgrid\.com/.test(frontHtml) && await page.locator('a.contact-link').count() === 1, 'the support address is not in the page; Contact us builds it when clicked');
+    const [mail] = await Promise.all([page.waitForEvent('request', { predicate: (r) => r.url().startsWith('mailto:'), timeout: 3000 }).catch(() => null), page.click('a.contact-link')]);
+    assert(!mail || mail.url() === 'mailto:support@thelogicgrid.com', 'Contact us opens an email to support');
+    assert(await page.$$eval('a[target=_blank]', (as) => as.every((a) => /noreferrer/.test(a.rel) && /noopener/.test(a.rel))), 'links that open a new tab pass nothing back (noopener noreferrer)');
     await page.goto(`${BASE}/?utm_source=facebook&utm_campaign=launch`);
     assert(new URL(page.url()).pathname === '/', 'campaign tags alone stay on the front page');
 
@@ -86,13 +105,16 @@ const ignorable = (t) => /fonts\/|Failed to decode downloaded font|OTS parsing/.
     await page.goto(`${BASE}/fantastical/`);
     await page.waitForSelector('#tier-choices input');
     await page.click('#menu-btn');
-    const link = page.locator('[data-cmd=numberplace]');
-    assert(await link.isVisible(), 'the game menu still has Play NINETIMESNINE');
-    await link.click();
+    const shown = await page.$$eval('#app-menu [role=menuitem]', (els) => els.filter((e) => e.offsetParent).map((e) => e.dataset.cmd || e.getAttribute('href')));
+    assert(!shown.some((c) => ['account', 'messages', 'install', 'numberplace', 'games', 'site', 'feedback'].includes(c)), `the game menu holds only the game's own things (${shown.join(', ')})`);
+    assert(shown.includes('./'), 'and a way back to The Logic Grid home');
+    await page.keyboard.press('Escape');
+    await page.goto(`${BASE}/`);
+    await page.click('a.play[href="ninetimesnine/"]');
     await page.waitForURL(`${BASE}/ninetimesnine/`);
     await page.waitForSelector('#np-setup-view:not([hidden]) #np-levels .choice', { timeout: 20000 });
     assert(true, 'it opens NINETIMESNINE on its own page');
-    assert(await page.locator('.np-top a[href="../"]').count() >= 1 && await page.locator('.np-top a[href="../fantastical/"]').count() === 1, 'the page links back to all games and to the other game');
+    assert(await page.locator('.np-top a[href="../"]').count() >= 1 && await page.locator('a[href="../fantastical/"], a[href*="open=account"]').count() === 0, 'the page links home, and holds only its own things');
     await page.goto(`${BASE}/ninetimesnine/?style=rival`);
     await page.waitForSelector('#np-setup-view:not([hidden]) #np-levels .choice', { timeout: 20000 });
     assert(true, 'a ?style= link opens it too');

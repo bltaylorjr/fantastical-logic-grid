@@ -90,8 +90,25 @@ MISAKI = [
 
 # Words the voice gets wrong as written: said the way a person would say them.
 # A dot inside a web address also made the voice stop as if a sentence ended.
+# Words spelled alike but said differently (read, lead) are written the
+# way they sound here, from the words around them. Only the voice hears these;
+# the captions keep the real words.
 SAY = [
     (r'\bthelogicgrid\.com\b', 'the logic grid dot com'),
+    (r'\bNINETIMESNINE\b', 'Nine Times Nine'),
+    # "read": "reed" (players read, read-only), except after is, was, been,
+    # being, has or had, where it is "red" (the clue being read).
+    (r'\b([Rr])ead([- ])only\b', lambda m: f'{m.group(1)}eed{m.group(2)}only'),
+    (r'\b(is|are|was|were|be|been|being|has|have|had|just) read\b', lambda m: f'{m.group(1)} red'),
+    (r'\b([Rr])ead(s|ing)?\b', lambda m: f'{m.group(1)}eed{m.group(2) or ""}'),
+    # "lead to" is "leed to" (clues that lead to this answer).
+    (r'\b([Ll])ead(s)? to\b', lambda m: f'{m.group(1)}eed{m.group(2) or ""} to'),
+    # "4 × 4" is "4 by 4"; an ellipsis is not read out.
+    (r'\s*\u00d7\s*', ' by '),
+    (r'\u2026', ''),
+    # A breath where the sentence turns: at colons, semicolons and dashes.
+    (r'\s*[:;]\s+', ', '),
+    (r'\s+[\u2013\u2014]\s+', ', '),
 ]
 
 # Pauses: a breath at commas and a full stop between sentences, so lists and
