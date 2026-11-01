@@ -21,8 +21,11 @@ export const NETWORKS = [
   { id: 'discord', name: 'Discord', hosts: /(^|\.)(discord\.gg|discord\.com)$/ },
   { id: 'linkedin', name: 'LinkedIn', hosts: /(^|\.)linkedin\.com$/ },
 ];
-// The page the game has had since launch, used until the admin setting says otherwise.
-export const DEFAULT_LINKS = { facebook: 'https://www.facebook.com/share/19pDDj5Ppf/' };
+// The game's pages, used until the admin setting says otherwise.
+export const DEFAULT_LINKS = {
+  facebook: 'https://www.facebook.com/share/19pDDj5Ppf/',
+  instagram: 'https://www.instagram.com/fantastical_logic/',
+};
 
 // [{ id, name, url }] for the networks with a usable link, in NETWORKS order.
 export function socialLinks(links) {
