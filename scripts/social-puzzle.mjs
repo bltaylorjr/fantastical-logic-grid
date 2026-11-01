@@ -13,10 +13,12 @@
 //    - the story questions' answers match that answer key;
 //    - the answer key page (daily/<date>/) and the game are live, and the
 //      page shows this puzzle's title and answer key;
-//    - the picture fits on one square-ish Instagram image (1080 x 1350) with
+//    - each picture fits on one Instagram portrait image (1080 x 1350) with
 //      readable text.
-// 3. Makes the picture and the caption (with the answer key link) and writes
-//    them to OUT_DIR: <date>.jpg and <date>.json ({ ok, problems, caption, ... }).
+// 3. Makes two pictures (slide 1: story question, categories and clues; slide 2:
+//    the blank grid to solve on) and the caption (with the answer key link) and
+//    writes them to OUT_DIR: <date>.jpg, <date>-grid.jpg and <date>.json
+//    ({ ok, problems, caption, images, ... }).
 //    With any problem, ok is false and step 2 emails the owner and posts nothing.
 //
 //   node scripts/social-puzzle.mjs                       today (UTC day, like the game)
@@ -31,6 +33,7 @@ import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
 import { checkAnswers } from '../engine/src/index.js';
+import { gridTable } from './worksheet.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const SITE = (process.env.SITE || 'https://thelogicgrid.com').replace(/\/+$/, '');
@@ -208,7 +211,7 @@ export function caption(p, day, stats = null) {
     '',
     goal,
     '',
-    'Every clue is in the picture. It is the same puzzle everyone gets in the game today.',
+    'Every clue is on the first slide; swipe for a blank grid to solve on. It is the same puzzle everyone gets in the game today.',
     '🔥 Solve it in the game each day to build your daily streak.',
     '🏁 See how your time compares with everyone who played today, then race other players on the scoreboard.',
     ...(statsLine(stats) ? [statsLine(stats)] : []),
@@ -277,6 +280,35 @@ ${p.questions.length ? `<h2 style="margin-top:calc(16px*var(--s))">Can you answe
 </body></html>`;
 }
 
+// Slide 2: the blank staircase grid (the same one the printables use), on a
+// light card so it can be screenshotted and marked up.
+export function gridHtml(p, day) {
+  const page = pictureHtml(p, day);
+  const head = page.slice(0, page.indexOf('</style>'));
+  return `${head}
+.card{flex:1;min-height:0;margin-top:22px;background:#FBFAF6;border-radius:22px;padding:28px;display:flex;align-items:center;justify-content:center;overflow:hidden}
+#grid{transform-origin:center center}
+.lgrid{border-collapse:collapse;color:#1d1b29;font-family:Atk,'Atkinson Hyperlegible',Arial,sans-serif;font-size:22px}
+.lgrid td,.lgrid th{border:1px solid #9a97a8}
+.lgrid td{width:44px;height:44px;background:#fff}
+.lgrid td.l{border-left:3px solid #1d1b29}
+.lgrid tr.t td,.lgrid tr.t th.item{border-top:3px solid #1d1b29}
+.lgrid th.item{font-weight:400;padding:4px 10px;text-align:right;white-space:nowrap;background:#F1EFF7}
+.lgrid thead th.item{vertical-align:bottom;padding:10px 4px;text-align:left}
+.lgrid thead th.item span{writing-mode:vertical-rl;transform:rotate(180deg);white-space:nowrap}
+.lgrid th.cat{background:#2B2350;color:#fff;font-weight:700;padding:6px 8px;letter-spacing:.04em}
+.lgrid th.cat.side{width:44px}
+.lgrid th.cat.side span{writing-mode:vertical-rl;transform:rotate(180deg);white-space:nowrap}
+.lgrid td.corner{border:none;background:transparent}
+.hint{margin:16px 0 0;font-size:26px;color:#DDE1EE}
+</style></head><body>
+<header>${page.match(/<header>([\s\S]*?)<\/header>/)[1].replace('Daily puzzle', 'Daily puzzle · your grid')}</header>
+<p class="hint"><b style="color:#F5C451">${esc(p.title)}</b> · mark ✕ for no and ● for yes. Every clue is on the first slide.</p>
+<div class="card" id="card"><div id="grid">${gridTable(p)}</div></div>
+<footer><span>Answer key link in the caption</span><b>thelogicgrid.com</b></footer>
+</body></html>`;
+}
+
 // Renders the picture, shrinking the text until it fits. Returns { problems, scale }.
 export async function renderPicture(p, day, file) {
   const require = createRequire(import.meta.url);
@@ -298,7 +330,21 @@ export async function renderPicture(p, day, file) {
     }, MIN_SCALE);
     if (!scale) return { problems: ['The puzzle has too much text to read on one picture.'], scale: 0 };
     await page.screenshot({ path: file, type: 'jpeg', quality: 88 });
-    return { problems: [], scale };
+    // Slide 2: the grid, scaled to fill the card.
+    const gridFile = file.replace(/\.jpg$/, '-grid.jpg');
+    writeFileSync(gridFile.replace(/\.jpg$/, '.html'), gridHtml(p, day));
+    await page.goto(pathToFileURL(gridFile.replace(/\.jpg$/, '.html')).href);
+    await page.evaluate(() => document.fonts.ready);
+    const gridScale = await page.evaluate(() => {
+      const card = document.getElementById('card'), g = document.getElementById('grid');
+      const pad = 56, k = Math.min((card.clientWidth - pad) / g.offsetWidth, (card.clientHeight - pad) / g.offsetHeight, 1.6);
+      g.style.transform = `scale(${k})`;
+      return Number(k.toFixed(2));
+    });
+    // A grid shrunk below half size has cells too small to mark.
+    if (gridScale < 0.5) return { problems: ['The grid is too big to mark up on one picture.'], scale };
+    await page.screenshot({ path: gridFile, type: 'jpeg', quality: 88 });
+    return { problems: [], scale, gridScale, files: [file, gridFile] };
   } finally {
     await browser.close();
   }
@@ -325,7 +371,7 @@ async function main() {
       const file = join(OUT, `${DAY}.jpg`);
       const r = await renderPicture(p, DAY, file);
       result.problems.push(...r.problems);
-      if (!r.problems.length) Object.assign(result, { image: file, scale: r.scale });
+      if (!r.problems.length) Object.assign(result, { image: file, images: r.files, scale: r.scale, gridScale: r.gridScale });
     }
     if (!result.problems.length) {
       const stats = process.env.SKIP_LIVE ? null : await yesterdayStats(DAY);
