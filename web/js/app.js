@@ -466,6 +466,7 @@ function updatePreview() {
   if (k >= 6 && n >= 7) $('#preview').textContent += ' Puzzles this big can take up to 20 seconds to write.';
   // A player-written story plays at the level and size its writer chose.
   if (setup.theme === 'stories') $('#preview').textContent = 'Player Stories play at the level and size their writer chose, with their own cast. Each story lists both under its name.';
+  buildAheadSoon();
 }
 
 function gatherOptions() {
@@ -506,11 +507,33 @@ async function rememberStory(id) {
 async function makePuzzle(override = null) {
   const options = override ? { ...override } : gatherOptions();
   if (!override) store.saveSetupChoices({ tier: setup.tier, theme: setup.theme, topic: setup.topic, size: setup.size, custom: currentSize() });
+  const key = JSON.stringify(options);
+  const tuned = await tuningFor(options.difficulty);
+  let made = null;
+  // A puzzle built ahead for exactly these choices is used straight away,
+  // unless its story was played in the meantime or learning has changed
+  // since (a rating of "too easy" must reach the very next puzzle).
+  if (ahead && ahead.key === key) {
+    const job = ahead.job;
+    ahead = null;
+    made = await job;
+    if (made && (made.tunedKey !== JSON.stringify(tuned) || new Set(await store.getMeta('usedStories', [])).has(storyIdOf(made.puzzle)))) made = null;
+  }
+  if (!made) made = await buildPuzzle({ ...options }, engine.generate, tuned);
+  characters.attach(made.puzzle, made.picked);
+  await rememberStory(storyIdOf(made.puzzle));
+  // Start on the next one now, so "New puzzle" is ready the moment it's asked for.
+  buildAhead(options);
+  return made.puzzle;
+}
+
+// Builds one puzzle for these choices with a story this player has never had.
+// Returns { puzzle, picked, tunedKey } (picked: the game's own characters to
+// attach; tunedKey: the learning it was built with).
+async function buildPuzzle(options, generate, tuned = null) {
   const used = await store.getMeta('usedStories', []);
   const usedSet = new Set(used);
-  // Learning only picks between puzzles the engine has fully checked.
-  let tuned = {};
-  if (settings.learn) { try { tuned = await learn.tuning(options.difficulty, { useShared: share.available() && remote.feature('learning') }); } catch (e) { tuned = {}; } }
+  if (!tuned) tuned = await tuningFor(options.difficulty);
   // Surprise me never picks a theme that is switched off, or a supporter extra
   // this player can't open.
   const off = new Set([...remote.disabledThemes(), ...lockedThemes()]);
@@ -531,13 +554,47 @@ async function makePuzzle(override = null) {
   let puzzle = null;
   // The engine skips used stories itself; the loop is a safety net.
   for (let i = 0; i < 4 && !puzzle; i++) {
-    const p = await engine.generate({ ...tuned, ...options, usedStories: used });
+    const p = await generate({ ...tuned, ...options, usedStories: used });
     if (!usedSet.has(storyIdOf(p))) puzzle = p;
   }
   if (!puzzle) throw new Error('Every story we tried has already been used. Try another theme.');
-  characters.attach(puzzle, picked);
-  await rememberStory(storyIdOf(puzzle));
-  return puzzle;
+  return { puzzle, picked, tunedKey: JSON.stringify(tuned) };
+}
+
+// Learning only picks between puzzles the engine has fully checked.
+async function tuningFor(difficulty) {
+  if (!settings.learn) return {};
+  try { return await learn.tuning(difficulty, { useShared: share.available() && remote.feature('learning') }); } catch (e) { return {}; }
+}
+
+// Building ahead: the engine keeps one fresh, fully checked puzzle ready for
+// the player's current choices. It runs in its own background worker
+// (engine.prepare), so hints never wait behind it. Skipped when the browser
+// asks to save data; any problem just means the next puzzle is built on demand.
+let ahead = null; // { key, options, job: Promise<{ puzzle, picked, tunedKey } | null> }
+function buildAhead(options, { force = false } = {}) {
+  const key = JSON.stringify(options);
+  // A fixed seed always gives the same puzzle, so there is nothing new to build ahead.
+  if (options.seed != null || (!force && ahead && ahead.key === key)) return;
+  if (typeof navigator !== 'undefined' && navigator.connection && navigator.connection.saveData) return;
+  const generate = engine.prepare || engine.generate;
+  ahead = { key, options, job: buildPuzzle({ ...options }, generate).catch(() => null) };
+}
+// Learning just changed (a puzzle was finished or rated): if the puzzle built
+// ahead was tuned with the old learning, build it again with the new.
+async function refreshAhead() {
+  const was = ahead;
+  if (!was) return;
+  const made = await was.job;
+  if (ahead !== was || !made) return;
+  if (made.tunedKey !== JSON.stringify(await tuningFor(was.options.difficulty))) buildAhead(was.options, { force: true });
+}
+// While the New puzzle screen is open, build ahead for what is chosen there
+// once the player pauses.
+let aheadTimer = 0;
+function buildAheadSoon() {
+  clearTimeout(aheadTimer);
+  aheadTimer = setTimeout(() => { if (!$('#screen-home').hidden && !generating) buildAhead(gatherOptions()); }, 1500);
 }
 
 function setupSummary() {
@@ -807,7 +864,7 @@ $('#saved-section').addEventListener('click', async (e) => {
   else if (act === 'delete') {
     const ok = await confirmDialog({ title: `Delete “${save.name}”?`, text: `This removes the puzzle and your progress from ${signedIn() ? 'all your devices' : 'this device'}. You can undo for 10 seconds.`, yes: 'Delete puzzle', no: 'Keep it' });
     if (!ok) return;
-    if (!save.solved && settings.learn) { await learn.record(save, 'abandoned').catch(() => {}); share.soon(); }
+    if (!save.solved && settings.learn) { await learn.record(save, 'abandoned').catch(() => {}); share.soon(); refreshAhead(); }
     await store.deleteSave(id);
     await renderSaved();
     $('#saved-h').focus();
@@ -1586,7 +1643,7 @@ function checkSolved() {
     tickTimer();
     recordSolve(S.save);
     if (!S.save.revealed) campaign.solved();
-    if (settings.learn) learn.record(S.save, S.save.revealed ? 'revealed' : 'solved').then(() => share.soon(), () => {});
+    if (settings.learn) learn.record(S.save, S.save.revealed ? 'revealed' : 'solved').then(() => { share.soon(); refreshAhead(); }, () => {});
     stopTimer();
     showSolved(true);
     scheduleSave();
@@ -1693,6 +1750,7 @@ async function renderFeedback(save) {
 }
 async function saveRating(v) {
   await learn.rate(S.save, v, { keepLocal: !settings.learn }).catch(() => {});
+  refreshAhead();
   $('#feedback-thanks').textContent = settings.learn ? 'Thanks. Your next puzzles will use this.' : 'Thanks. This stays on your device, because Learn from how I play is off.';
   if (settings.learn) window.share?.soon();
 }
