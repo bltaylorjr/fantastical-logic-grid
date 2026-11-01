@@ -37,7 +37,11 @@ const SITE = (process.env.SITE || 'https://thelogicgrid.com').replace(/\/+$/, ''
 const DAY = process.env.DAY || new Date().toISOString().slice(0, 10);
 const OUT = resolve(process.env.OUT_DIR || join(root, 'out', 'social'));
 const FONT_DIR = resolve(process.env.FONT_DIR || join(root, 'node_modules', '@fontsource'));
+const API = (process.env.FLG_CLOUD_URL || 'https://flg-api.btay74.workers.dev').replace(/\/+$/, '');
 const W = 1080, H = 1350, MIN_SCALE = 0.6;
+// Yesterday's numbers go in the caption only when this many players solved it,
+// so the post never shows thin or made-up looking figures.
+const MIN_SOLVERS = 10;
 const HASHTAGS = '#logicpuzzle #puzzleoftheday #brainteaser #logicgrid #TheLogicGrid';
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -176,8 +180,26 @@ export async function checkLive(p, day) {
   return problems;
 }
 
+// ---------- yesterday's numbers (the game's public daily results) ----------
+// Best effort: missing numbers just leave the line out, never stop the post.
+export async function yesterdayStats(day) {
+  const y = new Date(Date.parse(`${day}T00:00:00Z`) - 86400000).toISOString().slice(0, 10);
+  try {
+    const res = await fetch(`${API}/v1/daily/${y}/stats`, { headers: { 'User-Agent': 'flg-daily-social' } });
+    if (!res.ok) return null;
+    const s = await res.json();
+    return Number(s.solved) >= MIN_SOLVERS ? s : null;
+  } catch { return null; }
+}
+
+export function statsLine(s) {
+  if (!s || Number(s.solved) < MIN_SOLVERS) return '';
+  const mins = s.medianMs ? Math.max(1, Math.round(s.medianMs / 60000)) : 0;
+  return `📊 Yesterday ${Number(s.solved).toLocaleString('en-US')} players solved the daily puzzle${mins ? `, with a typical time of about ${mins} minute${mins === 1 ? '' : 's'}` : ''}. Can you beat that today?`;
+}
+
 // ---------- the caption ----------
-export function caption(p, day) {
+export function caption(p, day, stats = null) {
   const K = p.categories.length, N = p.categories[0].items.length;
   const goal = p.story.paragraphs.at(-1);
   return [
@@ -186,8 +208,12 @@ export function caption(p, day) {
     '',
     goal,
     '',
-    'Every clue is in the picture. Work it out on paper, or play it free with a grid and hints:',
-    `▶️ ${playUrl(day)}`,
+    'Every clue is in the picture. It is the same puzzle everyone gets in the game today.',
+    '🔥 Solve it in the game each day to build your daily streak.',
+    '🏁 See how your time compares with everyone who played today, then race other players on the scoreboard.',
+    ...(statsLine(stats) ? [statsLine(stats)] : []),
+    '',
+    `▶️ Play today's puzzle free: ${playUrl(day)}`,
     '',
     `✅ Answer key (spoilers): ${answerUrl(day)}`,
     '',
@@ -196,7 +222,7 @@ export function caption(p, day) {
 }
 
 // Instagram does not make links in captions clickable, so it also points to the bio link.
-export const instagramCaption = (p, day) => caption(p, day).replace(`\n\n${HASHTAGS}`, `\n(Links are also in our bio.)\n\n${HASHTAGS}`);
+export const instagramCaption = (p, day, stats = null) => caption(p, day, stats).replace(`\n\n${HASHTAGS}`, `\n(Links are also in our bio.)\n\n${HASHTAGS}`);
 
 // ---------- the picture ----------
 function font(file) {
@@ -247,7 +273,7 @@ footer b{color:#F5C451}
 <ol>${p.clues.map((c) => `<li>${esc(c.text)}</li>`).join('')}</ol>
 ${p.questions.length ? `<h2 style="margin-top:calc(16px*var(--s))">Can you answer</h2><ol class="qs">${p.questions.map((q) => `<li>${esc(q.text)}</li>`).join('')}</ol>` : ''}
 </div></main>
-<footer><span>Play free with a grid and hints</span><b>thelogicgrid.com</b></footer>
+<footer><span>Same puzzle in the game · build your streak</span><b>thelogicgrid.com</b></footer>
 </body></html>`;
 }
 
@@ -301,7 +327,10 @@ async function main() {
       result.problems.push(...r.problems);
       if (!r.problems.length) Object.assign(result, { image: file, scale: r.scale });
     }
-    if (!result.problems.length) Object.assign(result, { ok: true, caption: caption(p, DAY), instagramCaption: instagramCaption(p, DAY) });
+    if (!result.problems.length) {
+      const stats = process.env.SKIP_LIVE ? null : await yesterdayStats(DAY);
+      Object.assign(result, { ok: true, stats, caption: caption(p, DAY, stats), instagramCaption: instagramCaption(p, DAY, stats) });
+    }
   } catch (e) {
     result.problems.push(e.message);
   }

@@ -2,7 +2,7 @@
 // posted (scripts/social-puzzle.mjs): a good puzzle passes, and each kind of
 // error stops the post. node scripts/test-social-puzzle.mjs
 import { generatePuzzle } from '../engine/src/index.js';
-import { checkPuzzle, caption, instagramCaption, answerUrl, playUrl } from './social-puzzle.mjs';
+import { checkPuzzle, caption, instagramCaption, answerUrl, playUrl, statsLine } from './social-puzzle.mjs';
 
 let failed = 0;
 const check = (name, cond, detail = '') => { if (!cond) { failed++; console.log(`FAIL ${name} ${detail}`); } };
@@ -30,8 +30,13 @@ for (const difficulty of ['basic', 'easy', 'medium', 'hard']) {
   check(`${difficulty}: caption has the answer key link`, text.includes(answerUrl(DAY)));
   check(`${difficulty}: caption has the play link`, text.includes(playUrl(DAY)));
   check(`${difficulty}: caption fits Instagram (2,200 characters)`, instagramCaption(r.puzzle, DAY).length <= 2200);
+  check(`${difficulty}: caption promotes the streak`, /streak/.test(text));
+  check(`${difficulty}: caption fits Instagram with numbers too`, instagramCaption(r.puzzle, DAY, { solved: 12345, medianMs: 9 * 60000 }).length <= 2200);
   check(`${difficulty}: caption gives no answers`, !r.puzzle.answerKey.questions.some((q) => text.includes(`${q.question} ${q.answer}`)));
 }
+
+check('numbers shown with enough solvers', statsLine({ solved: 42, medianMs: 420000 }).includes('42 players') && statsLine({ solved: 42, medianMs: 420000 }).includes('7 minutes'));
+check('no numbers with too few solvers', statsLine({ solved: 3, medianMs: 420000 }) === '' && statsLine(null) === '');
 
 if (failed) { console.log(`${failed} social puzzle checks failed`); process.exit(1); }
 console.log('Social puzzle checks passed');
