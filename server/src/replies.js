@@ -31,6 +31,7 @@ import { verifyIdToken } from './auth.js';
 import { getSettings } from './settings.js';
 import { themeName } from './feedback.js';
 import { storePuzzle } from './messages.js';
+import { submissionForMail } from './story-submissions.js';
 
 const DAY = 24 * 3600_000;
 const CLAIM_MAX = 50;
@@ -141,8 +142,15 @@ export async function declineStoryline(env, feedbackId) {
 // status 'sending'): store it for the player, like a puzzle from the team.
 // Returns the stored puzzle's id, or null when there is no one to store it for.
 export async function storeBuiltPuzzle(env, replyId, puzzle, now = Date.now()) {
-  const row = await env.DB.prepare("SELECT user_id AS uid, puzzle_id AS puzzleId FROM feedback_replies WHERE id = ?1 AND kind = 'story_approved' AND status = 'sending'").bind(Number(replyId)).first();
-  if (!row || !row.uid) return null;
+  const row = await env.DB.prepare(`SELECT user_id AS uid, puzzle_id AS puzzleId, submission_id AS submissionId, feedback_id AS feedbackId FROM feedback_replies
+    WHERE id = ?1 AND kind IN ('story_approved', 'story_build') AND status = 'sending'`).bind(Number(replyId)).first();
+  if (!row) return null;
+  // The Storyline Submission Database keeps the first puzzle with the entry.
+  if (row.submissionId || row.feedbackId) {
+    await env.DB.prepare(`UPDATE story_submissions SET puzzle = ?1, puzzle_at = ?2 WHERE puzzle IS NULL AND
+      ((id = ?3 AND ?3 IS NOT NULL) OR (feedback_id = ?4 AND ?4 IS NOT NULL))`).bind(JSON.stringify(puzzle), now, row.submissionId, row.feedbackId).run();
+  }
+  if (!row.uid) return null;
   if (row.puzzleId) return row.puzzleId;
   const id = await storePuzzle(env, row.uid, puzzle, 'storyline', now);
   await env.DB.prepare('UPDATE feedback_replies SET puzzle_id = ?1 WHERE id = ?2').bind(id, Number(replyId)).run();
@@ -158,8 +166,13 @@ export async function storylinesHeld(env, ids) {
 }
 
 // For account deletion: a player's waiting emails, with their addresses.
+// Their storyline entries stay (they gave permission to use them, with the
+// credit they chose), but lose the link to the account and the address.
 export async function deleteReplyStatements(env, uid) {
-  return [env.DB.prepare('DELETE FROM feedback_replies WHERE who = ?1').bind(await whoFor(uid))];
+  return [
+    env.DB.prepare('DELETE FROM feedback_replies WHERE who = ?1 OR user_id = ?2').bind(await whoFor(uid), uid),
+    env.DB.prepare('UPDATE story_submissions SET user_id = NULL, email = NULL WHERE user_id = ?1').bind(uid),
+  ];
 }
 
 // Hands the sender up to `limit` waiting notes and marks them as being sent.
@@ -177,23 +190,38 @@ export async function claimReplies(env, limit, now = Date.now()) {
   ]);
   const n = Math.min(CLAIM_MAX, Math.max(1, Number(limit) || CLAIM_MAX));
   const { results } = await db.prepare(`SELECT r.id, r.kind, r.email, r.text, r.note, r.explain, r.link, p.puzzle, p.expires_at AS puzzleExpiresAt,
-      (r.kind = 'story_approved' AND r.puzzle_id IS NULL AND r.user_id IS NOT NULL) AS needsPuzzle, f.theme AS theme FROM feedback_replies r
+      (r.kind IN ('story_approved', 'story_build') AND r.puzzle_id IS NULL) AS mayBuild, r.user_id IS NOT NULL AS forPlayer, f.theme AS theme,
+      s.kind AS sKind, s.form, s.polished, s.theme AS sTheme, s.title, s.credit, s.puzzle AS sPuzzle FROM feedback_replies r
     LEFT JOIN player_puzzles p ON p.id = r.puzzle_id AND p.expires_at > ?2
     LEFT JOIN feedback f ON f.id = r.feedback_id
-    WHERE r.status = 'waiting' AND r.email IS NOT NULL ORDER BY r.created_at LIMIT ?1`).bind(n, now).all();
+    LEFT JOIN story_submissions s ON s.id = r.submission_id OR (r.submission_id IS NULL AND r.feedback_id IS NOT NULL AND s.feedback_id = r.feedback_id)
+    WHERE r.status = 'waiting' AND (r.email IS NOT NULL OR r.kind = 'story_build') ORDER BY r.created_at LIMIT ?1`).bind(n, now).all();
   if (results.length) {
     await db.batch(results.map((r) => db.prepare("UPDATE feedback_replies SET status = 'sending', claimed_at = ?1, tries = tries + 1 WHERE id = ?2").bind(now, r.id)));
   }
   // An approved storyline carries its puzzle, for the sender to print as a PDF
   // with the answer key; if it is not built yet, `build` asks the sender to
-  // build it (from the player's words in `text`, in the theme they picked).
+  // build it (from the player's words in `text`, in the theme they picked, or
+  // from the submission form's corrected words). An email about an entry in
+  // the Storyline Submission Database carries the entry (`submission`), with
+  // the copy of the form.
   return {
     off: false,
-    replies: results.map(({ puzzle, puzzleExpiresAt, needsPuzzle, theme, ...r }) => ({
-      ...r,
-      ...(puzzle ? { puzzle: JSON.parse(puzzle), puzzleExpiresAt } : {}),
-      ...(needsPuzzle ? { build: { theme: themeName(theme) || '' } } : {}),
-    })),
+    replies: results.map(({ puzzle, puzzleExpiresAt, mayBuild, forPlayer, theme, sKind, form, polished, sTheme, title, credit, sPuzzle, ...r }) => {
+      const submission = form && (r.kind !== 'story_approved' || !r.text) ? submissionForMail({ kind: sKind, form, polished, theme: sTheme, title, credit }) : null;
+      const saved = !puzzle && sPuzzle ? JSON.parse(sPuzzle) : null;
+      const ready = puzzle ? JSON.parse(puzzle) : saved;
+      const fromForm = !!submission && sKind === 'storyline' && submission.form && !submission.form.idea;
+      const build = mayBuild && !ready && (forPlayer || r.kind === 'story_build' || fromForm || r.email)
+        ? (fromForm ? { submission: true, theme: '' } : { theme: themeName(theme || sTheme) || '' }) : null;
+      return {
+        ...r,
+        ...(submission ? { submission } : {}),
+        ...(ready ? { puzzle: ready, ...(puzzle ? { puzzleExpiresAt } : {}) } : {}),
+        ...(saved && forPlayer && r.kind === 'story_approved' ? { storeSaved: true } : {}),
+        ...(build ? { build } : {}),
+      };
+    }),
   };
 }
 

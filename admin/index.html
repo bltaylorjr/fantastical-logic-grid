@@ -90,6 +90,7 @@
       <li><a href="#mail" data-min="viewer">Puzzle emails</a></li>
       <li><a href="#stories" data-min="moderator">Story workshop and review <span class="count" id="count-parts" hidden></span></a></li>
       <li><a href="#communication" data-min="viewer">Communication <span class="count" id="count-comm" hidden></span></a></li>
+      <li><a href="#story-submissions" data-min="moderator">Storyline submissions <span class="count" id="count-story-submissions" hidden></span></a></li>
       <li><a href="#errortracking" data-min="moderator">Error tracking <span class="count" id="count-errors" hidden></span></a></li>
       <li><a href="#educators" data-min="moderator">Educator requests <span class="count" id="count-educators" hidden></span></a></li>
       <li><a href="#edu-feedback" data-min="moderator">Educator feedback <span class="count" id="count-edu-feedback" hidden></span></a></li>
@@ -328,6 +329,24 @@
       <h2>What the doctor has learned</h2>
       <p class="muted">One row per kind of fault. For puzzles: the fault, theme and difficulty, how often it was seen and repaired, the rebuild that works best, and the doctor's latest self-check with the newest engine. For web pages: the screen and app version. When a self-check shows a fault is gone, its waiting reports are repaired and emailed automatically.</p>
       <div id="et-patterns"><p class="muted">Loading…</p></div>
+    </section>
+
+    <section data-view="story-submissions" hidden aria-labelledby="h-story-submissions">
+      <div class="head"><h1 id="h-story-submissions">Storyline submissions</h1></div>
+      <p class="muted">The Storyline Submission Database: every theme idea, category idea and storyline players sent, from the game's <b>Suggest a storyline</b> page and from <b>Share an idea</b>, kept exactly as they sent it, with the player, their author credit, their consent and the first puzzle made from an approved storyline. <b>Open</b> an entry to see the original form. <b>Approve and build puzzle</b> builds the first puzzle from the corrected words, saves it here and in the player's Saved puzzles, and emails it to the author as a PDF. Confirmations and approvals go from noreply@thelogicgrid.com; everything else from support@thelogicgrid.com.</p>
+      <form class="row" id="ss-search" role="search" aria-label="Search storyline submissions">
+        <div class="field grow"><label for="ss-q">Search</label><input type="search" id="ss-q" placeholder="Words, title, author credit, player, email, theme or entry number" autocomplete="off"></div>
+        <div class="field"><label for="ss-kind">Kind</label><select id="ss-kind"><option value="">All kinds</option><option value="storyline">Storylines</option><option value="theme">Theme ideas</option><option value="category">Category ideas</option></select></div>
+        <div class="field"><label for="ss-source">From</label><select id="ss-source"><option value="">Anywhere</option><option value="form">Suggest a storyline page</option><option value="idea box">Share an idea</option></select></div>
+        <button class="btn primary" type="submit">Search</button>
+      </form>
+      <div class="sections" id="ss-tabs" role="group" aria-label="Show entries"></div>
+      <p class="muted" id="ss-total" role="status"></p>
+      <div class="ss-layout">
+        <ul class="cards ss-list" id="ss-list"></ul>
+        <div id="ss-detail-wrap"></div>
+      </div>
+      <nav class="row pager" aria-label="Entry pages"><button class="btn small" type="button" id="ss-prev" hidden>Previous page</button><button class="btn small" type="button" id="ss-next" hidden>Next page</button></nav>
     </section>
 
     <section data-view="educators" hidden aria-labelledby="h-educators">
@@ -571,5 +590,6 @@
     <div class="row end"><button class="btn" value="cancel" type="button" id="mk-dialog-cancel">Cancel</button><button class="btn primary" value="ok" id="mk-dialog-ok">Save</button></div>
   </form>
 </dialog>
+<div id="ss-print" class="ss-print" aria-hidden="true"></div>
 </body>
 </html>

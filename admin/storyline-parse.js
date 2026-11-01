@@ -122,3 +122,35 @@ export function readStoryline(text, themeName = '') {
   const summary = [`${capWords(cast.many)} (${names.length >= 3 ? names.length : 'names chosen for you'})`, ...categories.map((c) => `${c.name} (${c.items.length})`)].join(', ');
   return { def, summary };
 }
+
+// Reads an entry from the Suggest a storyline form (web/js/storyline-fields.js)
+// the same way: the characters' names are the cast, and the lists in the clues
+// and story beat ("Rooms: Library, Kitchen, Garden") are what to match. The
+// story uses the team's corrected words when there are some (polished), and
+// the title is the author's own. Returns { def, summary, difficulty } or
+// { def: null, reason }.
+export function readSubmission(form, polished = null) {
+  const f = form || {};
+  const p = polished || {};
+  const word = (k) => squash(p[k] || f[k] || '');
+  const names = (f.characters || []).map((c) => squash(c.name).slice(0, MAX_NAME)).filter(Boolean).slice(0, MAX_ITEMS);
+  const listText = [p.clues || f.clues || '', p.beat || f.beat || ''].join('\n');
+  const { lists: raw } = findLists(listText);
+  const known = new Set(names.map((n) => n.toLowerCase()));
+  // A list of the characters' own names is the cast, not a category.
+  const lists = raw.map(nameGeneric).filter((l) => l.items.length >= 3 && !l.items.every((x) => known.has(x.toLowerCase())));
+  const castLine = names.length >= 3 ? `Characters: ${names.join(', ')}.\n` : '';
+  const read = readStoryline(castLine + lists.map((l) => `${l.label}: ${l.items.join(', ')}.`).join('\n'), word('title'));
+  if (!read.def) {
+    return { def: null, reason: lists.length < 2
+      ? 'The clues need at least 2 lists of 3 or more things to match, written like "Rooms: Library, Kitchen, Garden".'
+      : read.reason };
+  }
+  // The story beat's words ("Beginning: the lights go out."), without its lists of things to match.
+  const beatRead = findLists(p.beat || f.beat || '');
+  const beat = [beatRead.scene, ...beatRead.lists.filter((l) => l.items.length < 3).map((l) => l.items.join(', '))].filter(Boolean).join('. ');
+  const story = [word('setting'), word('goal'), beat].filter(Boolean).map((s) => s[0].toUpperCase() + s.slice(1)).map((s) => (/[.!?]$/.test(s) ? s : `${s}.`)).join(' ');
+  const def = { ...read.def, title: (word('title') || read.def.title).slice(0, 80), story: story.slice(0, 1200) || read.def.story };
+  if (names.length >= 3) def.names = names;
+  return { def, summary: read.summary, difficulty: f.difficulty || '' };
+}

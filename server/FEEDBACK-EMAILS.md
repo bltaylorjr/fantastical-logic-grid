@@ -42,6 +42,31 @@ Menu > Ideas and problems, they can leave "Email me an update" ticked:
   still gets the congratulations, without a puzzle. If printing the PDF fails,
   the email still goes without it. Deleting a storyline sends nothing.
 
+- **Suggest a storyline page (the Storyline Submission Database).** Menu >
+  Suggest a storyline (and a link in Share an idea) opens `storyline/`, a page
+  for a theme idea, a category idea for an existing theme, or a whole
+  storyline (`web/js/storyline-fields.js` has the fields and rules;
+  `server/src/story-submissions.js` saves them). Every entry is kept exactly
+  as sent, with the player, the author credit, their consent and, once
+  approved, the first puzzle. Storylines and theme ideas from Share an idea
+  are saved there too, including every one sent before the database existed
+  (migration `2090_story_submissions.sql`).
+  - **Confirmation (noreply@):** signed in with a confirmed email, the player
+    gets "We received your storyline" (or theme or category idea) straight
+    away, with a copy of the completed form. A guest sees a thank-you and can
+    type an address for the copy within an hour, or press No thanks.
+  - **Approval (noreply@):** admin > Storyline submissions > Approve. For a
+    storyline, the team's corrected words (Fix spelling and grammar, Gemini,
+    or typed by hand; the original stays as sent) build the first puzzle
+    (`readSubmission` in `admin/storyline-parse.js`). It is saved with the
+    entry, put in the player's Saved puzzles when signed in, and emailed as a
+    PDF with its answer key. With no address, the puzzle is only built and
+    saved (kind `story_build`).
+  - **Decline thank-you and copies the team emails (support@):** Decline, or
+    Email a copy (to any address, with the puzzle PDF when there is one).
+  - Deleting an account keeps its entries (permission was given) but removes
+    the account link and the address.
+
 The wording is fixed (`scripts/feedback-replies.py`). The player's words (with
 email addresses and links already blanked) and the team's note only ever go to
 the player's own confirmed address, so the boxes cannot be used to send
@@ -74,8 +99,9 @@ fantasticallogicgrid@gmail.com when that is not set. Once support@thelogicgrid.c
 receives mail itself (email forwarding at the domain), set the GitHub variable
 `MAIL_REPLY_TO` to `support@thelogicgrid.com`.
 
-One-way emails (the daily puzzle, "the team sent you a message" notices and
-educator code emails) go from **noreply@thelogicgrid.com** instead, with no
+One-way emails (the daily puzzle, "the team sent you a message" notices,
+educator code emails, and a storyline submission's confirmation and approval)
+go from **noreply@thelogicgrid.com** instead, with no
 `Reply-To` and a footer saying replies are not read. Set the `MAIL_NOREPLY`
 variable to use a different address. Any address on the verified domain works
 in Resend with no extra DNS records. It also carries

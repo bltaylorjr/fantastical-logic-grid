@@ -1,0 +1,35 @@
+/* The Suggest a storyline page (web/storyline/). Builds on app.css. */
+.sl-page main { max-width: 760px; margin: 0 auto; padding: 8px 16px 64px; outline: none; }
+.sl-top { display: flex; align-items: center; gap: 12px; max-width: 760px; margin: 0 auto; padding: 12px 16px 0; }
+.sl-brand { font-family: var(--display); font-weight: 700; color: var(--muted); margin-left: auto; font-size: .95rem; }
+.sl-page h1 { font-family: var(--display); font-size: clamp(1.6rem, 4vw, 2.1rem); margin: 16px 0 6px; }
+.sl-lead { font-size: 1rem; margin-bottom: 16px; }
+.sl-card { background: var(--surface-2); border: 1px solid var(--edge); border-radius: var(--radius); padding: 18px 20px; margin: 0 0 16px; box-shadow: var(--shadow); }
+fieldset.sl-card { min-width: 0; }
+.sl-legend { font-weight: 700; padding: 0 4px; }
+.sl-radios { display: flex; flex-wrap: wrap; gap: 4px 24px; }
+.sl-field { margin: 0 0 20px; }
+.sl-field:last-child { margin-bottom: 0; }
+.sl-field .help { margin: 0 0 4px; }
+.sl-field select, .sl-field textarea, #sl-copy input[type=email] { min-height: 44px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); color: var(--text); width: 100%; font: inherit; box-sizing: border-box; }
+.sl-field textarea { resize: vertical; line-height: 1.5; }
+.sl-field input[type=number].sl-num { width: 110px; }
+.sl-req { color: var(--error); font-weight: 700; }
+.sl-ex { color: var(--muted); font-size: .9rem; font-style: italic; margin: 4px 0 0; }
+.sl-count { color: var(--muted); font-size: .85rem; margin: 2px 0 0; text-align: right; }
+.sl-err { color: var(--error); font-weight: 700; font-size: .95rem; margin: 4px 0 0; }
+.sl-err:empty { display: none; }
+.sl-field.invalid input, .sl-field.invalid select, .sl-field.invalid textarea { border-color: var(--error); border-width: 2px; }
+.sl-section { font-size: 1.15rem; margin: 28px 0 12px; padding-top: 16px; border-top: 1px solid var(--hairline); }
+.sl-char { border: 1px solid var(--edge-hi); border-radius: 12px; padding: 14px 16px; margin: 0 0 12px; }
+.sl-char legend { font-weight: 700; padding: 0 4px; }
+.sl-char .sl-field { margin-bottom: 14px; }
+.sl-rewards { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin: 8px 0 0; }
+.sl-rewards .sl-field { margin: 0; }
+.sl-consent { align-items: flex-start; line-height: 1.5; }
+.sl-consent input { margin-top: 2px; }
+.sl-privacy { margin: 0 0 12px; }
+#sl-done h1 { margin-top: 0; }
+#sl-done-text { font-size: 1.05rem; }
+#sl-copy { margin: 12px 0 0; }
+#sl-copy .field { margin-bottom: 12px; }

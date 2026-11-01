@@ -37,6 +37,7 @@ import { handleCompete } from './compete.js';
 import { handleChallenges } from './challenges.js';
 import { handleErrors } from './errors.js';
 import { handleFeedback } from './feedback.js';
+import { handleStorySubmissions } from './story-submissions.js';
 import { handlePuzzleReports } from './puzzle-reports.js';
 import { handleMessages } from './messages.js';
 import { handlePictures } from './pictures.js';
@@ -113,6 +114,9 @@ async function route(req, env, ctx) {
 
   const feedback = await handleFeedback(req, env, url, ctx);
   if (feedback) return feedback;
+
+  const storySubmission = await handleStorySubmissions(req, env, url, ctx);
+  if (storySubmission) return storySubmission;
 
   const educators = await handleEducators(req, env, ctx, url);
   if (educators) return educators;

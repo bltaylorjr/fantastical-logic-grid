@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Suggest a storyline · The Fantastical Logic Grid</title>
+<meta name="description" content="Send The Fantastical Logic Grid a theme idea, a category idea or a whole storyline for a logic puzzle.">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#1F5FAD">
+<link rel="icon" href="../icons/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../app.css">
+<link rel="stylesheet" href="storyline.css">
+<script type="module" src="../js/storyline-page.js"></script>
+</head>
+<body class="sl-page">
+<a class="skip" href="#sl-main">Skip to the form</a>
+<header class="sl-top">
+  <a class="btn quiet" href="../" id="sl-back"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg> Back to the game</a>
+  <span class="sl-brand">The Fantastical Logic Grid</span>
+</header>
+
+<main id="sl-main" tabindex="-1">
+<div id="sl-formwrap">
+  <h1>Suggest a storyline</h1>
+  <p class="help sl-lead">Send a new theme, a new category for a theme, or a whole story for a puzzle. Fields marked <span class="sl-req" aria-hidden="true">*</span><span class="sr-only">with a star</span> are required. <span id="sl-who"></span></p>
+  <p class="error-box" id="sl-closed" role="alert" hidden>Submissions are closed right now. Please try again later.</p>
+
+  <form id="sl-form" novalidate>
+    <fieldset class="sl-card">
+      <legend class="sl-legend">What would you like to send?</legend>
+      <div class="sl-radios">
+        <label class="radio"><input type="radio" name="kind" value="theme"> A theme idea</label>
+        <label class="radio"><input type="radio" name="kind" value="category"> A category for a theme</label>
+        <label class="radio"><input type="radio" name="kind" value="storyline" checked> A storyline</label>
+      </div>
+    </fieldset>
+
+    <!-- A theme idea -->
+    <section class="sl-card" data-kind="theme" hidden aria-label="Theme idea">
+      <div class="field sl-field" data-field="idea">
+        <label for="sl-theme-idea">Theme idea <span class="sl-req" aria-hidden="true">*</span></label>
+        <p class="help" id="sl-theme-idea-h">A new world for puzzles to happen in. Required because it's the whole entry.</p>
+        <input type="text" id="sl-theme-idea" name="idea" maxlength="20" required aria-describedby="sl-theme-idea-h sl-theme-idea-x sl-theme-idea-c" data-count>
+        <p class="sl-count" id="sl-theme-idea-c" aria-live="polite">0 of 20 characters</p>
+        <p class="sl-ex" id="sl-theme-idea-x">Example: Haunted Lighthouse</p>
+        <p class="sl-err" role="alert"></p>
+      </div>
+    </section>
+
+    <!-- A category for an existing theme -->
+    <section class="sl-card" data-kind="category" hidden aria-label="Category idea">
+      <div class="field sl-field" data-field="theme">
+        <label for="sl-cat-theme">Theme <span class="sl-req" aria-hidden="true">*</span></label>
+        <p class="help" id="sl-cat-theme-h">The theme your category belongs in. Required so it lands in the right place.</p>
+        <select id="sl-cat-theme" name="theme" required aria-describedby="sl-cat-theme-h sl-cat-theme-x"><option value="">Choose a theme</option></select>
+        <p class="sl-ex" id="sl-cat-theme-x">Example: Mystery</p>
+        <p class="sl-err" role="alert"></p>
+      </div>
+      <div class="field sl-field" data-field="idea">
+        <label for="sl-cat-idea">Category idea <span class="sl-req" aria-hidden="true">*</span></label>
+        <p class="help" id="sl-cat-idea-h">A new list of things players match up inside that theme. Required because it's the whole entry.</p>
+        <input type="text" id="sl-cat-idea" name="idea" maxlength="20" required aria-describedby="sl-cat-idea-h sl-cat-idea-x sl-cat-idea-c" data-count>
+        <p class="sl-count" id="sl-cat-idea-c" aria-live="polite">0 of 20 characters</p>
+        <p class="sl-ex" id="sl-cat-idea-x">Example: Secret Passage</p>
+        <p class="sl-err" role="alert"></p>
+      </div>
+    </section>
+
+    <!-- A whole storyline -->
+    <section class="sl-card" data-kind="storyline" aria-label="Storyline">
+      <div class="field sl-field" data-field="title">
+        <label for="sl-title">Title <span class="sl-req" aria-hidden="true">*</span></label>
+        <p class="help" id="sl-title-h">The name of your story. Required so we can show it on the puzzle and in your credit.</p>
+        <input type="text" id="sl-title" name="title" maxlength="20" required aria-describedby="sl-title-h sl-title-x sl-title-c" data-count>
+        <p class="sl-count" id="sl-title-c" aria-live="polite">0 of 20 characters</p>
+        <p class="sl-ex" id="sl-title-x">Example: The Midnight Gala</p>
+        <p class="sl-err" role="alert"></p>
+      </div>
+      <div class="field sl-field" data-field="pitch">
+        <label for="sl-pitch">Single-line pitch <span class="sl-req" aria-hidden="true">*</span></label>
+        <p class="help" id="sl-pitch-h">Your story in a few words. Required because it's how the team sees the idea at a glance.</p>
+        <input type="text" id="sl-pitch" name="pitch" maxlength="20" required aria-describedby="sl-pitch-h sl-pitch-x sl-pitch-c" data-count>
+        <p class="sl-count" id="sl-pitch-c" aria-live="polite">0 of 20 characters</p>
+        <p class="sl-ex" id="sl-pitch-x">Example: Who stole the tiara?</p>
+        <p class="sl-err" role="alert"></p>
+      </div>
+      <div class="field sl-field" data-field="setting">
+        <label for="sl-setting">Storyline setting</label>
+        <p class="help" id="sl-setting-h">Where and when the story happens.</p>
+        <input type="text" id="sl-setting" name="setting" maxlength="120" aria-describedby="sl-setting-h sl-setting-x">
+        <p class="sl-ex" id="sl-setting-x">Example: A seaside mansion, New Year's Eve, 1925</p>
+      </div>
+
+      <h2 class="sl-section">Characters</h2>
+      <div class="field sl-field" data-field="characters">
+        <label for="sl-nchar">Number of characters <span class="sl-req" aria-hidden="true">*</span></label>
+        <p class="help" id="sl-nchar-h">How many people are in your story, from 1 to 10. Required because every logic puzzle is built around its characters. A box for each one appears below.</p>
+        <input type="number" id="sl-nchar" name="nchar" min="1" max="10" step="1" value="3" inputmode="numeric" class="sl-num" aria-describedby="sl-nchar-h sl-nchar-x">
+        <p class="sl-ex" id="sl-nchar-x">Example: 3</p>
+        <p class="sl-err" role="alert"></p>
+      </div>
+      <div id="sl-chars"></div>
+
+      <h2 class="sl-section">Story</h2>
+      <div class="field sl-field" data-field="goal">
+        <label for="sl-goal">Central mystery or goal</label>
+        <p class="help" id="sl-goal-h">The question players are trying to answer by the end.</p>
+        <input type="text" id="sl-goal" name="goal" maxlength="160" aria-describedby="sl-goal-h sl-goal-x">
+        <p class="sl-ex" id="sl-goal-x">Example: Find out which guest took the tiara, and where they hid it.</p>
+      </div>
+      <div class="field sl-field" data-field="puzzle" id="sl-puzzle-field" hidden>
+        <label for="sl-puzzle">Puzzle</label>
+        <p class="help" id="sl-puzzle-h">Which kind of puzzle your story is for.</p>
+        <select id="sl-puzzle" name="puzzle" aria-describedby="sl-puzzle-h sl-puzzle-x"></select>
+        <p class="sl-ex" id="sl-puzzle-x">Example: The Fantastical Logic Grid</p>
+      </div>
+      <div class="field sl-field" data-field="clues">
+        <label for="sl-clues">Clues <span class="sl-req" aria-hidden="true">*</span></label>
+        <p class="help" id="sl-clues-h">The facts or deductions players use to solve it, as a paragraph or a list. Required because clues are what turn a story into a puzzle. Lists of things to match, like "Rooms: Library, Kitchen, Garden", help us build the grid. We'll balance and check every clue.</p>
+        <textarea id="sl-clues" name="clues" rows="5" maxlength="2000" required aria-describedby="sl-clues-h sl-clues-x"></textarea>
+        <p class="sl-ex" id="sl-clues-x">Example: Rooms: Library, Kitchen, Garden. The butler was not in the library. The guest in the red hat arrived before Lady Ashford.</p>
+        <p class="sl-err" role="alert"></p>
+      </div>
+      <div class="field sl-field" data-field="beat">
+        <label for="sl-beat">Story beat</label>
+        <p class="help" id="sl-beat-h">How the story unfolds: a beginning, two or three chapters, and an ending.</p>
+        <textarea id="sl-beat" name="beat" rows="5" maxlength="2000" aria-describedby="sl-beat-h sl-beat-x"></textarea>
+        <p class="sl-ex" id="sl-beat-x">Example: Beginning: the lights go out at midnight. Chapter 1: the tiara is gone… Ending: the thief is found in the greenhouse.</p>
+      </div>
+      <div class="field sl-field" data-field="branch">
+        <label for="sl-branch">Story beat branch</label>
+        <p class="help" id="sl-branch-h">A point where the story could go another way.</p>
+        <textarea id="sl-branch" name="branch" rows="3" maxlength="1000" aria-describedby="sl-branch-h sl-branch-x"></textarea>
+        <p class="sl-ex" id="sl-branch-x">Example: If the player checks the garden first, they find muddy footprints.</p>
+      </div>
+      <div class="field sl-field" data-field="alt">
+        <label for="sl-alt">Story beat alternate ending</label>
+        <p class="help" id="sl-alt-h">A different way the story could end.</p>
+        <textarea id="sl-alt" name="alt" rows="3" maxlength="1000" aria-describedby="sl-alt-h sl-alt-x"></textarea>
+        <p class="sl-ex" id="sl-alt-x">Example: The tiara was never stolen. Lady Ashford hid it herself.</p>
+      </div>
+      <div class="field sl-field" data-field="tone">
+        <label for="sl-tone">Tone</label>
+        <p class="help" id="sl-tone-h">The feel of the story.</p>
+        <select id="sl-tone" name="tone" aria-describedby="sl-tone-h sl-tone-x"><option value="">Choose a tone</option></select>
+        <p class="sl-ex" id="sl-tone-x">Example: Mysterious</p>
+      </div>
+      <div class="field sl-field" data-field="difficulty">
+        <label for="sl-diff">Level of difficulty</label>
+        <p class="help" id="sl-diff-h">How hard you picture the puzzle. The team may adjust it so the clues work.</p>
+        <select id="sl-diff" name="difficulty" aria-describedby="sl-diff-h sl-diff-x"><option value="">Choose a level</option></select>
+        <p class="sl-ex" id="sl-diff-x">Example: Medium</p>
+      </div>
+
+      <h2 class="sl-section">Reward</h2>
+      <p class="help" id="sl-reward-h">What players get when they solve it. Choose one for each.</p>
+      <div class="sl-rewards" id="sl-rewards"></div>
+      <p class="sl-ex">Example: Fireworks, Story scene picture, Narrator reads the ending</p>
+
+      <h2 class="sl-section">Credit and consent</h2>
+      <div class="field sl-field" data-field="credit">
+        <label for="sl-credit">Storyline credit</label>
+        <p class="help" id="sl-credit-h">The name to show in the author credits. Leave it blank to stay anonymous.</p>
+        <input type="text" id="sl-credit" name="credit" maxlength="40" autocomplete="name" aria-describedby="sl-credit-h sl-credit-x">
+        <p class="sl-ex" id="sl-credit-x">Example: B. Taylor</p>
+      </div>
+      <div class="sl-field" data-field="consent">
+        <label class="check sl-consent"><input type="checkbox" id="sl-consent" name="consent" required> <span><span class="sl-req" aria-hidden="true">*</span> <span id="sl-consent-text"></span> Required because we can't use your story without your permission.</span></label>
+        <p class="sl-err" role="alert"></p>
+      </div>
+    </section>
+
+    <p class="help sl-privacy">We save your entry exactly as you wrote it. Signed in, we also save your account with it and email the copy to your confirmed address. A guest's email address is only saved if you ask for a copy, and is used only for emails about this entry.</p>
+    <p class="error-box" id="sl-error" role="alert" hidden></p>
+    <div class="row-inline"><button class="btn primary" type="submit" id="sl-send">Send my entry</button></div>
+  </form>
+</div>
+
+<section id="sl-done" class="sl-card" hidden tabindex="-1" aria-labelledby="sl-done-h">
+  <h1 id="sl-done-h">Thank you for your entry</h1>
+  <p id="sl-done-text"></p>
+  <form id="sl-copy" novalidate hidden>
+    <div class="field">
+      <label for="sl-copy-email">Your email</label>
+      <input type="email" id="sl-copy-email" autocomplete="email" placeholder="name@example.com" aria-describedby="sl-copy-err">
+      <p class="sl-err" id="sl-copy-err" role="alert"></p>
+    </div>
+    <div class="row-inline"><button class="btn primary" type="submit">Email me a copy</button><button class="btn" type="button" id="sl-copy-no">No thanks</button></div>
+  </form>
+  <div class="row-inline" id="sl-done-actions" hidden><button class="btn" type="button" id="sl-again">Send another</button><a class="btn" href="../">Back to the game</a></div>
+</section>
+</main>
+</body>
+</html>

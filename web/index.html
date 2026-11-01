@@ -51,6 +51,7 @@
     <button role="menuitem" type="button" data-cmd="stats">My stats and badges</button>
     <button role="menuitem" type="button" data-cmd="pack" hidden>Printable puzzle pack</button>
     <button role="menuitem" type="button" data-cmd="suggest" hidden>Suggest a character</button>
+    <button role="menuitem" type="button" data-cmd="storyline" hidden>Suggest a storyline</button>
     <button role="menuitem" type="button" data-cmd="settings">Settings</button>
     <button role="menuitem" type="button" data-cmd="messages" hidden>Messages<span class="count"></span></button>
     <button role="menuitem" type="button" data-cmd="feedback" hidden>Share an idea</button>
@@ -631,7 +632,7 @@
       <label class="radio"><input type="radio" name="idea-topic" value="feature"> A new game feature</label>
       <label class="radio"><input type="radio" name="idea-topic" value="other"> Something else</label>
     </fieldset>
-    <div class="field" id="idea-theme-field"><label for="idea-theme">Which theme is it for?</label><select id="idea-theme"></select></div>
+    <div class="field" id="idea-theme-field"><label for="idea-theme">Which theme is it for?</label><select id="idea-theme"></select><p class="help">Have a whole story in mind, with characters and clues? <a href="storyline/">Use the Suggest a storyline form</a>, and an approved storyline comes back to you as a finished puzzle.</p></div>
     <div class="field"><label for="idea-text">Your idea</label><textarea id="idea-text" rows="4" maxlength="1000" placeholder="A pirate ship lost in the fog, where the crew mixed up the treasure maps…"></textarea></div>
     <label class="check fb-reply" hidden><input type="checkbox" data-reply checked> <span>Email me an update<span class="fb-reply-to"></span></span></label>
     <label class="check fb-talk" hidden><input type="checkbox" data-talk> <span>Let the team reply to me in Messages</span></label>
