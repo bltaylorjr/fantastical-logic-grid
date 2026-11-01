@@ -66,6 +66,14 @@ Menu > Ideas and problems, they can leave "Email me an update" ticked:
     This includes storylines sent through Share an idea.
   - **Copies the team emails (support@):** Email a copy (to any address, with
     the puzzle PDF when there is one).
+  - **Trademark and copyright scan:** Scan on an entry (or Scan new entries
+    for the next 5) checks for brand names and protected characters (a watch
+    list in `server/src/ip-scan.js`), the same 8 words in a row as another
+    entry, and, with the GEMINI_API_KEY secret, an AI review for trademarks,
+    protected characters and copied wording. Each finding names its field and
+    has a search link. The verdict (clear, check, problem) shows as a badge and
+    a filter, and Approve warns when an entry is unscanned or flagged. It is a
+    screening aid, not legal clearance.
   - Deleting an account keeps its entries (permission was given) but removes
     the account link and the address.
 

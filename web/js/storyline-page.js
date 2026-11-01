@@ -10,7 +10,7 @@
 import { CLOUD, CLOUD_URL } from './cloud-config.js';
 import * as account from './account.js';
 import { OPTIONS } from '../engine/options.js';
-import { checkSubmission, TONES, DIFFICULTIES, REWARDS, PUZZLES, MAX_CHARACTERS, CONSENT_TEXT, KINDS } from './storyline-fields.js';
+import { checkSubmission, TONES, DIFFICULTIES, REWARDS, PUZZLES, MAX_CHARACTERS, MAX_CATEGORIES, MAX_ITEMS, ORDERS, CONSENT_TEXT, KINDS } from './storyline-fields.js';
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -55,8 +55,8 @@ $$('[data-count]', form).forEach(wireCount);
 // ---------- characters: one box for each, keeping what was typed
 const typed = [];
 function readCharacters() {
-  $$('.sl-char', form).forEach((box, i) => {
-    typed[i] = { name: $('[data-c=name]', box).value, trait: $('[data-c=trait]', box).value, role: ($('[data-c=role]:checked', box) || {}).value || 'Supporting' };
+  $$('.sl-char:not(.sl-cat)', form).forEach((box, i) => {
+    typed[i] = { name: $('[data-c=name]', box).value, trait: $('[data-c=trait]', box).value, role: ($('[data-c=role]:checked', box) || {}).value || 'Supporting', gender: ($('[data-c=gender]:checked', box) || {}).value || '' };
   });
 }
 function drawCharacters() {
@@ -65,10 +65,10 @@ function drawCharacters() {
   const n = Math.max(1, Math.min(MAX_CHARACTERS, Math.round(Number(input.value)) || 1));
   if (String(n) !== input.value) input.value = n;
   const box = $('#sl-chars');
-  const have = $$('.sl-char', box).length;
+  const have = $$('.sl-char', box).length; // only the characters' boxes are in #sl-chars
   if (have === n) return;
   box.innerHTML = Array.from({ length: n }, (_, i) => {
-    const c = typed[i] || { name: '', trait: '', role: i === 0 ? 'Main' : 'Supporting' };
+    const c = typed[i] || { name: '', trait: '', role: i === 0 ? 'Main' : 'Supporting', gender: '' };
     const id = `sl-c${i}`;
     return `<fieldset class="sl-char"><legend>Character ${i + 1}</legend>
       <div class="field sl-field" data-field="name${i}">
@@ -84,6 +84,14 @@ function drawCharacters() {
         <input type="text" id="${id}-trait" data-c="trait" maxlength="30" value="${esc(c.trait)}" aria-describedby="${id}-trait-h ${id}-trait-x">
         <p class="sl-ex" id="${id}-trait-x">Example: Nervous</p>
       </div>
+      <fieldset class="sl-field" aria-describedby="${id}-gender-h"><legend class="sl-legend">Gender</legend>
+        <p class="help" id="${id}-gender-h">So the story says he or she, and the character gets a fitting voice and picture.</p>
+        <div class="sl-radios">
+          <label class="radio"><input type="radio" name="${id}-gender" data-c="gender" value="Male"${c.gender === 'Male' ? ' checked' : ''}> Male</label>
+          <label class="radio"><input type="radio" name="${id}-gender" data-c="gender" value="Female"${c.gender === 'Female' ? ' checked' : ''}> Female</label>
+        </div>
+        <p class="sl-ex">Example: Female</p>
+      </fieldset>
       <fieldset class="sl-field"><legend class="sl-legend">Character role</legend>
         <div class="sl-radios">
           <label class="radio"><input type="radio" name="${id}-role" data-c="role" value="Main"${c.role === 'Main' ? ' checked' : ''}> Main</label>
@@ -98,6 +106,74 @@ $('#sl-nchar').addEventListener('change', drawCharacters);
 $('#sl-nchar').addEventListener('input', () => { if ($('#sl-nchar').value) drawCharacters(); });
 drawCharacters();
 
+// ---------- categories builder: added one at a time, up to MAX_CATEGORIES
+const cats = []; // what was typed: { name, items, order }
+const CAT_EXAMPLES = [['Room', 'Library, Kitchen, Garden'], ['Arrival time', '7:00 PM, 7:15 PM, 7:30 PM'], ['Drink', 'Tea, Punch, Cider'], ['Mask', 'Fox, Owl, Swan']];
+function readCategories() {
+  $$('.sl-cat', form).forEach((box, i) => { cats[i] = { name: $('[data-k=name]', box).value, items: $('[data-k=items]', box).value, order: $('[data-k=order]', box).value }; });
+}
+function drawCategories(focusIndex = -1) {
+  const box = $('#sl-cats');
+  box.innerHTML = cats.map((c, i) => {
+    const id = `sl-k${i}`;
+    const [exName, exItems] = CAT_EXAMPLES[i] || CAT_EXAMPLES[0];
+    return `<fieldset class="sl-char sl-cat"><legend class="sr-only">Category ${i + 1}</legend>
+      <div class="sl-cat-head"><p class="sl-legend">Category ${i + 1}</p><button class="btn quiet small" type="button" data-remove-cat="${i}" aria-label="Remove category ${i + 1}">Remove</button></div>
+      <div class="field sl-field" data-field="catName${i}">
+        <label for="${id}-name">Category name <span class="sl-req" aria-hidden="true">*</span></label>
+        <p class="help" id="${id}-name-h">What the list is. Required for each category you add, so the grid can label the column.</p>
+        <input type="text" id="${id}-name" data-k="name" maxlength="30" value="${esc(c.name)}" aria-describedby="${id}-name-h ${id}-name-x">
+        <p class="sl-ex" id="${id}-name-x">Example: ${esc(exName)}</p>
+        <p class="sl-err" role="alert"></p>
+      </div>
+      <div class="field sl-field" data-field="catItems${i}">
+        <label for="${id}-items">Items <span class="sl-req" aria-hidden="true">*</span></label>
+        <p class="help" id="${id}-items-h">3 to ${MAX_ITEMS} different things, separated by commas. Required so players have something to match. One for each character works best.</p>
+        <input type="text" id="${id}-items" data-k="items" maxlength="300" value="${esc(c.items)}" aria-describedby="${id}-items-h ${id}-items-x ${id}-items-n">
+        <p class="sl-count" id="${id}-items-n" aria-live="polite"></p>
+        <p class="sl-ex" id="${id}-items-x">Example: ${esc(exItems)}</p>
+        <p class="sl-err" role="alert"></p>
+      </div>
+      <div class="field sl-field">
+        <label for="${id}-order">Are they in order?</label>
+        <p class="help" id="${id}-order-h">For times, numbers, prices or sizes, list them from first to last and choose the order. Ordered lists allow clues like "arrived earlier than".</p>
+        <select id="${id}-order" data-k="order" aria-describedby="${id}-order-h ${id}-order-x">${ORDERS.map(([v, l]) => `<option value="${v}"${v === c.order ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>
+        <p class="sl-ex" id="${id}-order-x">Example: Earliest to latest (times, dates)</p>
+      </div>
+    </fieldset>`;
+  }).join('');
+  $('#sl-add-cat').hidden = cats.length >= MAX_CATEGORIES;
+  countItems();
+  if (focusIndex >= 0) { const el = $(`#sl-k${focusIndex}-name`); if (el) el.focus(); }
+}
+// A live count of each category's items, against the number of characters.
+function countItems() {
+  const n = $$('.sl-char:not(.sl-cat)', form).length;
+  $$('.sl-cat', form).forEach((box, i) => {
+    const items = $('[data-k=items]', box).value.split(/[,;\n]/).map((x) => x.trim()).filter(Boolean).length;
+    $(`#sl-k${i}-items-n`).textContent = `${items} ${items === 1 ? 'item' : 'items'}${n >= 3 && items && items !== n ? ` (you have ${n} characters)` : ''}`;
+  });
+  $('#sl-cats-count').textContent = cats.length ? `${cats.length} of ${MAX_CATEGORIES} categories` : '';
+}
+$('#sl-add-cat').addEventListener('click', () => {
+  readCategories();
+  if (cats.length >= MAX_CATEGORIES) return;
+  cats.push({ name: '', items: '', order: '' });
+  drawCategories(cats.length - 1);
+});
+$('#sl-cats').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-remove-cat]');
+  if (!b) return;
+  readCategories();
+  const i = Number(b.dataset.removeCat);
+  cats.splice(i, 1);
+  drawCategories();
+  ($(`#sl-k${Math.min(i, cats.length - 1)}-name`) || $('#sl-add-cat')).focus();
+});
+$('#sl-cats').addEventListener('input', (e) => { if (e.target.dataset.k === 'items') countItems(); });
+$('#sl-chars').addEventListener('input', countItems);
+$('#sl-nchar').addEventListener('change', countItems);
+
 // ---------- reading and checking
 function entry() {
   const k = kind();
@@ -108,7 +184,8 @@ function entry() {
   const val = (name) => $(`[name="${name}"]`, s).value;
   return {
     kind: k, theme: val('theme'), title: val('title'), pitch: val('pitch'), setting: val('setting'),
-    characters: typed.slice(0, $$('.sl-char', s).length),
+    characters: typed.slice(0, $$('.sl-char:not(.sl-cat)', s).length),
+    categories: (readCategories(), cats.slice()),
     goal: val('goal'), puzzle: val('puzzle'), clues: val('clues'), beat: val('beat'), branch: val('branch'), alt: val('alt'),
     tone: val('tone'), difficulty: val('difficulty'),
     reward: Object.fromEntries(Object.keys(REWARDS).map((r) => [r, val(`reward-${r}`)])),
@@ -269,6 +346,8 @@ $('#sl-again').addEventListener('click', () => {
   typed.length = 0;
   $('#sl-chars').innerHTML = '';
   drawCharacters();
+  cats.length = 0;
+  drawCategories();
   $$('[data-count]', form).forEach((i) => i.dispatchEvent(new Event('input')));
   $('#sl-copy-email').value = '';
   $('#sl-done').hidden = true;
@@ -287,6 +366,7 @@ function drawWho() {
 }
 account.onChange(drawWho);
 drawWho();
+drawCategories();
 showKind();
 if (!CLOUD_URL) $('#sl-closed').hidden = false;
 // Opened as storyline/?kind=theme or ?kind=category: start on that kind.

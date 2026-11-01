@@ -9,7 +9,7 @@ import { readStoryline, readSubmission } from './storyline-parse.js';
 const $ = (s, el = document) => el.querySelector(s);
 
 let h = null; // helpers from admin.js
-let query = { q: '', kind: '', status: 'new', source: '', page: 0 };
+let query = { q: '', kind: '', status: 'new', source: '', scan: '', page: 0 };
 let open = null; // the entry being looked at
 
 const KIND = { theme: 'Theme idea', category: 'Category idea', storyline: 'Storyline' };
@@ -23,6 +23,9 @@ const EMAIL_KIND = {
 const MAIL_STATUS = { waiting: 'waiting to go', sending: 'sending', sent: 'sent', failed: 'could not be sent', dropped: 'not sent', held: 'held until a decision' };
 const FIELD_LABEL = { title: 'Title', pitch: 'Single-line pitch', setting: 'Storyline setting', goal: 'Central mystery or goal', clues: 'Clues', beat: 'Story beat',
   branch: 'Story beat branch', alt: 'Story beat alternate ending', idea: 'Their idea', traits: 'Character traits (one per line)' };
+// The trademark and copyright scan (server/src/ip-scan.js).
+const VERDICT = { clear: ['Scan: clear', 'ok'], check: ['Scan: check', 'warn'], problem: ['Scan: problem', 'bad'] };
+const FINDING = { trademark: 'Trademark', character: 'Protected character or setting', copyright: 'May be copied', duplicate: 'Same words as another entry' };
 const TIER = { basic: 'Basic', easy: 'Easy', medium: 'Medium', hard: 'Hard', expert: 'Expert', mensa: 'Quantum Physicist', theorist: 'Theoretical Physicist' };
 
 const tierName = (t) => TIER[typeof t === 'object' && t ? t.id : t] || (t && t.name) || '';
@@ -33,7 +36,7 @@ function row(r) {
   const [sw, scls] = STATUS[r.status] || [r.status, ''];
   const who = [r.credit && `credit: ${r.credit}`, r.player && `player: ${r.player}`, !r.player && r.uid && 'signed-in player', r.email && r.email].filter(Boolean).join(' · ');
   return `<li class="ss-row${open && open.id === r.id ? ' ss-open' : ''}">
-    <div class="row ss-row-head"><span class="badge">${e(KIND[r.kind] || r.kind)}</span><span class="badge ${scls}">${e(sw)}</span>${r.hasPuzzle ? '<span class="badge ok">Puzzle saved</span>' : ''}
+    <div class="row ss-row-head"><span class="badge">${e(KIND[r.kind] || r.kind)}</span><span class="badge ${scls}">${e(sw)}</span>${r.hasPuzzle ? '<span class="badge ok">Puzzle saved</span>' : ''}${r.ipVerdict ? `<span class="badge ${VERDICT[r.ipVerdict][1]}">${VERDICT[r.ipVerdict][0]}</span>` : '<span class="badge">Not scanned</span>'}
       <span class="muted">#${r.id} · ${h.when(r.createdAt)} · ${e(SOURCE[r.source] || r.source)}${r.themeName ? ` · ${e(r.themeName)}` : ''}</span></div>
     <p class="ss-title"><b>${e(r.title || r.text.split('\n')[0].replace(/^Their idea: /, '') || '(no title)')}</b>${r.pitch ? ` <span class="muted">· ${e(r.pitch)}</span>` : ''}</p>
     ${who ? `<p class="muted">${e(who)}</p>` : ''}
@@ -45,10 +48,30 @@ function row(r) {
 function puzzlePreview(s, polished) {
   if (s.kind !== 'storyline') return '';
   if (s.puzzle) return `<p><b>First puzzle:</b> “${h.esc(s.puzzle.title)}”${s.puzzle.tier ? `, ${h.esc(tierName(s.puzzle.tier))}` : ''}, saved ${h.when(s.puzzle.at)}.</p>`;
-  const read = s.form.idea ? readStoryline(polished?.idea || s.form.idea, s.themeName || '') : readSubmission(s.form, polished);
+  const read = s.form.idea ? readStoryline(polished?.idea || s.form.idea, s.themeName || '') : readSubmission(s.form, polished, s.themeName || '');
   return read.def
     ? `<p><b>The puzzle will be built from:</b> ${h.esc(read.summary)}. Title “${h.esc(read.def.title)}”.</p>`
     : `<p class="note"><b>No puzzle can be built from it yet:</b> ${h.esc(read.reason)} You can add the lists to the corrected clues below. Approving still sends the author the approval email.</p>`;
+}
+
+function scanPanel(s) {
+  const e = h.esc;
+  const r = s.ipScan;
+  const button = h.can('moderator') ? `<button class="btn small${r ? '' : ' primary'}" type="button" data-ss-scan>${r ? 'Scan again' : 'Scan for trademarks and copyright'}</button>` : '';
+  if (!r) return `<section class="ss-scan" aria-labelledby="ss-scan-h"><h3 id="ss-scan-h">Trademark and copyright</h3><p class="muted">Not scanned yet. The scan checks for brand names, protected characters and settings, wording that looks copied from a published work, and the same words as another entry.</p><div class="row">${button}</div></section>`;
+  const [vw, vcls] = VERDICT[r.verdict];
+  const items = r.findings.map((f) => `<li class="ss-finding${f.serious ? ' serious' : ''}">
+      <p><span class="badge ${f.serious ? 'bad' : 'warn'}">${e(FINDING[f.type] || f.type)}</span> <b>${e(f.term)}</b> <span class="muted">in ${e(f.field)} · found by the ${e(f.source)}${f.serious ? '' : ' (possible)'}</span></p>
+      <p>${e(f.why)}</p>
+      ${f.otherId ? `<p><button class="btn small link" type="button" data-ss-open-other="${f.otherId}">Open entry #${f.otherId}</button></p>` : ''}
+      ${f.link ? `<p><a href="${e(f.link)}" target="_blank" rel="noopener noreferrer">${f.type === 'copyright' ? 'Search the web for these words' : `Look up “${e(f.term)}” in the USPTO trademark search`}</a></p>` : ''}
+    </li>`).join('');
+  return `<section class="ss-scan" aria-labelledby="ss-scan-h"><h3 id="ss-scan-h">Trademark and copyright <span class="badge ${vcls}">${e(vw)}</span></h3>
+    <p>${e(r.summary)} <span class="muted">Scanned ${h.when(r.at)}${r.by ? ` by ${e(r.by)}` : ''}${r.ai ? ', with the AI review' : ''}.</span></p>
+    ${items ? `<ul class="ss-findings">${items}</ul>` : ''}
+    ${(r.notes || []).map((n) => `<p class="note">${e(n)}</p>`).join('')}
+    <p class="muted">A screening aid, not legal advice: a clear scan does not prove an entry is free to use. When in doubt, ask the author or leave it out.</p>
+    <div class="row">${button}</div></section>`;
 }
 
 function correctedEditor(s) {
@@ -99,6 +122,7 @@ function detail(s) {
       · <b>Consent:</b> ${s.consent ? 'given' : s.source === 'form' ? 'not given' : 'not asked (Share an idea)'}</p>
     <h3>Original submission</h3>
     ${copyTable(s.copy)}
+    ${scanPanel(s)}
     ${puzzlePreview(s, s.polished)}
     ${correctedEditor(s)}
     <h3>Emails</h3>${mails}
@@ -115,6 +139,7 @@ function printEntry(s) {
     <p>Player: ${e(s.player || (s.uid ? 'signed-in player' : 'guest'))}${s.email ? ` · Email: ${e(s.email)}` : ''} · Author credit: ${e(s.credit || 'Anonymous')} · Consent: ${s.consent ? 'given' : 'not given'}</p>
     <h2>Original submission</h2>${copyTable(s.copy)}
     ${s.polished ? `<h2>Corrected wording</h2>${copyTable(Object.entries(s.polished).map(([k, v]) => [FIELD_LABEL[k] || k, Array.isArray(v) ? v.join(', ') : v]))}` : ''}
+    ${s.ipScan ? `<h2>Trademark and copyright scan: ${e(VERDICT[s.ipScan.verdict][0].replace('Scan: ', ''))}</h2><p>${e(s.ipScan.summary)} (scanned ${e(new Date(s.ipScan.at).toLocaleString())})</p>${s.ipScan.findings.length ? copyTable(s.ipScan.findings.map((f) => [`${FINDING[f.type] || f.type}: ${f.term}`, `${f.field}. ${f.why}`])) : ''}` : '<p>Not scanned for trademarks and copyright.</p>'}
     ${s.puzzle ? `<h2>First puzzle</h2><p>“${e(s.puzzle.title)}”${s.puzzle.tier ? `, ${e(tierName(s.puzzle.tier))}` : ''}</p>` : ''}`;
   document.body.classList.add('ss-printing');
   const done = () => { document.body.classList.remove('ss-printing'); window.removeEventListener('afterprint', done); };
@@ -142,6 +167,9 @@ export async function storySubmissionsView(helpers) {
   const from = d.page * d.perPage;
   $('#ss-total').textContent = d.total ? `Showing ${h.fmt(from + 1)} to ${h.fmt(Math.min(d.total, from + d.items.length))} of ${h.fmt(d.total)}${query.q ? ` matching “${query.q}”` : ''}.` : (query.q ? `Nothing matches “${query.q}”.` : 'No entries here.');
   $('#ss-list').innerHTML = d.items.map(row).join('');
+  const scanBtn = $('#ss-scan-new');
+  scanBtn.hidden = !h.can('moderator') || !d.unscannedNew;
+  scanBtn.textContent = `Scan new entries (${h.fmt(d.unscannedNew || 0)} not scanned)`;
   $('#ss-prev').hidden = d.page === 0;
   $('#ss-next').hidden = from + d.items.length >= d.total;
   if (open && !d.items.some((r) => r.id === open.id)) { open = null; $('#ss-detail-wrap').innerHTML = ''; }
@@ -153,7 +181,7 @@ export function initStorySubmissions(helpers, show) {
   const refresh = () => show('story-submissions', { keepFocus: true });
   $('#ss-search').onsubmit = (e) => {
     e.preventDefault();
-    query = { ...query, q: $('#ss-q').value.trim(), kind: $('#ss-kind').value, source: $('#ss-source').value, page: 0 };
+    query = { ...query, q: $('#ss-q').value.trim(), kind: $('#ss-kind').value, source: $('#ss-source').value, scan: $('#ss-scan').value, page: 0 };
     refresh();
   };
   $('#ss-tabs').onclick = (e) => {
@@ -161,6 +189,15 @@ export function initStorySubmissions(helpers, show) {
     if (!b) return;
     query = { ...query, status: b.dataset.ssTab, page: 0 };
     refresh();
+  };
+  $('#ss-scan-new').onclick = async (e) => {
+    const b = e.currentTarget;
+    let r;
+    if (await h.act(b, async () => { r = await h.api('story-submissions/scan-new', { method: 'POST', body: {} }); })) {
+      const v = r.verdicts;
+      h.toast(`Scanned ${r.scanned}: ${v.clear} clear, ${v.check} to check, ${v.problem} with a problem.${r.left ? ` ${r.left} left: press again.` : ''}`);
+      refresh();
+    }
   };
   $('#ss-prev').onclick = () => { query.page = Math.max(0, query.page - 1); refresh(); };
   $('#ss-next').onclick = () => { query.page += 1; refresh(); };
@@ -174,6 +211,12 @@ export function initStorySubmissions(helpers, show) {
     const id = open.id;
     if (b.matches('[data-ss-close]')) { open = null; $('#ss-detail-wrap').innerHTML = ''; $('#ss-q').focus(); return; }
     if (b.matches('[data-ss-print]')) { printEntry(open); return; }
+    if (b.matches('[data-ss-open-other]')) { await h.act(b, () => openEntry(Number(b.dataset.ssOpenOther))); return; }
+    if (b.matches('[data-ss-scan]')) {
+      b.textContent = 'Scanning…';
+      if (await h.act(b, () => h.api(`story-submissions/${id}/scan`, { method: 'POST', body: {} }), 'Scan finished.')) { await openEntry(id); refresh(); }
+      return;
+    }
     if (b.matches('[data-ss-polish]')) {
       if (await h.act(b, async () => { await h.api(`story-submissions/${id}/polish`, { method: 'POST', body: {} }); }, 'Spelling and grammar fixed. Check the words, then save or approve.')) await openEntry(id);
     } else if (b.matches('[data-ss-save]')) {
@@ -183,7 +226,9 @@ export function initStorySubmissions(helpers, show) {
       const text = story
         ? (open.email ? 'The first puzzle is built from the corrected words, saved here' + (open.uid ? ', put in the player\'s Saved puzzles' : '') + ' and emailed to the author as a PDF from noreply@thelogicgrid.com within about 15 minutes.' : 'The first puzzle is built from the corrected words and saved here. There is no address to email the author.')
         : (open.email ? 'The author gets an approval email from noreply@thelogicgrid.com.' : 'There is no address to email the author.');
-      if (!(await h.ask({ title: `Approve this ${KIND[open.kind].toLowerCase()}?`, text: h.esc(text), ok: 'Approve' }))) return;
+      const scan = open.ipScan;
+      const warn = !scan ? 'It has not been scanned for trademarks and copyright yet.' : scan.verdict === 'problem' ? 'The trademark and copyright scan found a likely problem.' : scan.verdict === 'check' ? 'The trademark and copyright scan found something worth a look.' : '';
+      if (!(await h.ask({ title: `Approve this ${KIND[open.kind].toLowerCase()}?`, text: `${warn ? `<b>${h.esc(warn)}</b> ` : ''}${h.esc(text)}`, ok: 'Approve', danger: scan?.verdict === 'problem' }))) return;
       const body = document.querySelector('[data-fix]') ? { polished: readFixes(open) } : {};
       if (await h.act(b, () => h.api(`story-submissions/${id}/approve`, { method: 'POST', body }), 'Approved.')) refresh();
     } else if (b.matches('[data-ss-decline]')) {
