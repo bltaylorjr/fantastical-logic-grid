@@ -55,7 +55,8 @@ export async function readForm(req, maxJsonChars) {
   if (length > MAX_FORM_BYTES) return { error: 'too_large', status: 413, message: 'Your pictures and files are too big to send together. Remove one and try again.' };
   let form;
   try { form = await req.formData(); } catch (e) { return { error: 'bad_request', status: 400 }; }
-  const report = form.get('report');
+  let report = form.get('report');
+  if (report && typeof report === 'object' && typeof report.text === 'function') report = report.size <= maxJsonChars ? await report.text() : 'x'.repeat(maxJsonChars + 1);
   if (typeof report !== 'string' || report.length > maxJsonChars) return { error: report ? 'too_large' : 'bad_request', status: report ? 413 : 400 };
   let body;
   try { body = JSON.parse(report); } catch (e) { return { error: 'bad_request', status: 400 }; }

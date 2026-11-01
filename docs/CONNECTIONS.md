@@ -618,13 +618,13 @@ uses a secret, variable or binding that is not listed there.
 
 ### Educator emails straight away
 
-**Why:** Educators who ask for a puzzle package on the Educators page get a code email, and later their PDFs. The "Educator packages" GitHub Action sends them every 5 minutes, which GitHub sometimes starts 10 or more minutes late. With this token the Worker starts that Action the moment a teacher sends the form or you approve, so the code arrives in a minute or two. Optional: without it everything still goes out, just a little later.
+**Why:** Educators who ask for a puzzle package on the Educators page get a code email, and later their PDFs. The "Educator packages" GitHub Action sends them every 5 minutes, which GitHub sometimes starts 10 or more minutes late. With this token the Worker starts that Action the moment a teacher sends the form or you approve, so the code arrives in a minute or two. The same token starts the puzzle doctor the moment a player reports a puzzle, so it is checked and repaired in a minute or two. Optional: without it everything still goes out, just a little later.
 
 **Cost:** Free (a GitHub fine-grained token; Actions on a public repository are free).
 
 | Name | Where | Notes |
 | --- | --- | --- |
-| `GITHUB_DISPATCH_TOKEN` | Cloudflare Worker secret | Fine-grained token, this repository only, Actions: Read and write. Starts github_pat_. Optional. Also starts the Puzzle doctor the moment a player reports a puzzle (server/PUZZLE-REPORTS.md). |
+| `GITHUB_DISPATCH_TOKEN` | Cloudflare Worker secret | Fine-grained token, this repository only, Actions: Read and write. Starts github_pat_. Optional. |
 
 **Steps:**
 

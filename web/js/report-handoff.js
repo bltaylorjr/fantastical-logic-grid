@@ -51,6 +51,6 @@ export function takeHandoff() {
   if (q.get('kind') === 'page' || q.get('kind') === 'puzzle') ctx.kind = ctx.kind || q.get('kind');
   ctx.tab = q.get('tab') === '1';
   // A website page's own address only (never another site's).
-  if (ctx.page && !/^\/[\w\-./]*$/.test(String(ctx.page))) ctx.page = '/';
+  if (ctx.page && !/^\/(?!\/)[\w\-./]*$/.test(String(ctx.page))) ctx.page = '/';
   return ctx;
 }

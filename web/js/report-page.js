@@ -46,13 +46,16 @@ let files = []; // { name, type, size, blob, url }
 // ---------- leaving the page
 // Opened in its own tab: closing it returns to the game or page, just as the
 // player left it. Otherwise go back to where they came from.
-const backHref = fromSite && ctx.page ? ctx.page : '../';
+const backHref = '../';
 function leave(e) {
   if (ctx.tab) {
     e?.preventDefault();
     window.close();
     // Some browsers keep a tab the page did not open; then go back instead.
-    setTimeout(() => { location.href = backHref; }, 250);
+    setTimeout(() => { if (history.length > 1) history.back(); else location.href = backHref; }, 250);
+  } else if (fromSite && history.length > 1) {
+    e?.preventDefault();
+    history.back(); // the website page they came from
   }
 }
 for (const a of [$('#rp-back'), $('#rp-cancel'), $('#rp-done-back')]) {

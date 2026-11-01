@@ -227,10 +227,15 @@ test('attachments are kept with the report, and every step is logged in the erro
   assert.ok(alerts.some((t) => t.startsWith(`Doctor: ${puzzle.body.tracking}`)));
 
   // The Report a Problem page sends its files as form parts beside the JSON.
-  const fd = new FormData();
-  fd.append('report', JSON.stringify({ kind: 'page', text: 'The footer overlaps the grid', page: 'Puzzle screen', version: '2.1.0' }));
-  fd.append('file', new Blob([Buffer.from(png, 'base64')], { type: 'image/png' }), 'grid.png');
-  const multi = await mf.dispatchFetch('https://api.test/v1/puzzle-report', { method: 'POST', headers: { Origin: ORIGIN }, body: fd });
+  const boundary = '----flgtest7e3a';
+  const multipart = Buffer.concat([
+    Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="report"\r\n\r\n${JSON.stringify({ kind: 'page', text: 'The footer overlaps the grid', page: 'Puzzle screen', version: '2.1.0' })}\r\n`),
+    Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="grid.png"\r\nContent-Type: image/png\r\n\r\n`),
+    Buffer.from(png, 'base64'),
+    Buffer.from(`\r\n--${boundary}--\r\n`),
+  ]);
+  const multi = await mf.dispatchFetch('https://api.test/v1/puzzle-report', { method: 'POST', body: multipart,
+    headers: { Origin: ORIGIN, 'Content-Type': `multipart/form-data; boundary=${boundary}`, 'Content-Length': String(multipart.length) } });
   const mb = await multi.json();
   assert.equal(multi.status, 200, JSON.stringify(mb));
   assert.equal(mb.files, 1);
