@@ -33,7 +33,7 @@ Do part A in one sitting: the token from A1 must be used within an hour.
    `sudo tail -n 25 /var/log/cloud-init-output.log`
 6. Download the updated script and run it, pasting your token from step 1
    in place of `PASTE_TOKEN`:
-   `curl -fsSL https://raw.githubusercontent.com/bltaylorjr/fantastical-logic-grid/private-puzzle-server/scripts/runner/oracle-cloud-init.sh -o setup.sh && sudo RUNNER_TOKEN=PASTE_TOKEN bash setup.sh`
+   `curl -fsSL https://raw.githubusercontent.com/bltaylorjr/fantastical-logic-grid/main/scripts/runner/oracle-cloud-init.sh -o setup.sh && sudo RUNNER_TOKEN=PASTE_TOKEN bash setup.sh`
    It prints its progress and ends with a summary. A few minutes or up to 25 minutes.
 7. Refresh https://github.com/bltaylorjr/fantastical-logic-grid/settings/actions/runners.
    **oracle-1**, **oracle-2** and **oracle-3** should say **Idle**. If not, run
