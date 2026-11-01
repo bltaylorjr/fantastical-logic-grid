@@ -714,7 +714,8 @@ def delete_posts():
 def daily_puzzle():
     """Mode daily-puzzle: posts the day's two puzzle slides (clues, then a blank
     grid) made and checked by scripts/social-puzzle.mjs to the game's Facebook
-    Page (one post with both pictures) and Instagram (a carousel), with the
+    Page (one post with both pictures), Instagram (a carousel) and Bluesky (once
+    its keys are saved), with the
     play link and the answer key link in the caption. If any check failed (or the
     picture is missing), nothing is posted and the owner is emailed why. A puzzle
     already posted (its answer key link is in a recent post) is not posted again,
@@ -815,6 +816,58 @@ def daily_puzzle():
             except Exception as e:  # noqa: BLE001
                 failed.append(('Instagram', scrub(e)))
                 print(f'::warning::Instagram: {scrub(e)}')
+    # Bluesky: both slides with their alt text; skipped quietly until its keys are saved.
+    bs = r.get('bluesky')
+    if not has_keys('bluesky'):
+        print('::notice::Bluesky: not set up yet (BLUESKY_HANDLE, BLUESKY_APP_PASSWORD), so not posted there.')
+    elif not bs:
+        failed.append(('Bluesky', 'the post did not fit in 300 characters'))
+    else:
+        try:
+            jwt, did, handle = bluesky_session()
+            RUNTIME_KEYS.append(jwt)
+            auth_b = {'Authorization': f'Bearer {jwt}'}
+            mine = request(f'https://bsky.social/xrpc/com.atproto.repo.listRecords?repo={urllib.parse.quote(did)}&collection=app.bsky.feed.post&limit=30', headers=auth_b)
+            done = next((x for x in mine.get('records', []) if marker in json.dumps(x.get('value', {}))), None)
+            if done:
+                link = f"https://bsky.app/profile/{handle}/post/{done['uri'].rsplit('/', 1)[-1]}"
+                print(f'::notice::Already on Bluesky: {link}')
+                posted.append(('Bluesky', f'{link} (posted earlier)'))
+            else:
+                text = bs['text']
+                facets = []
+                for show, url in bs['links']:
+                    at = text.index(show)
+                    start = len(text[:at].encode())
+                    facets.append({'index': {'byteStart': start, 'byteEnd': start + len(show.encode())},
+                                   'features': [{'$type': 'app.bsky.richtext.facet#link', 'uri': url}]})
+                for tag in bs.get('tags', []):
+                    at = text.find(f'#{tag}')
+                    if at >= 0:
+                        start = len(text[:at].encode())
+                        facets.append({'index': {'byteStart': start, 'byteEnd': start + len(f'#{tag}'.encode())},
+                                       'features': [{'$type': 'app.bsky.richtext.facet#tag', 'tag': tag}]})
+                images = []
+                for n, path in enumerate(paths):
+                    with open(path, 'rb') as f:
+                        data = f.read()
+                    if len(data) > 976_000:
+                        raise Failed('a slide is over Bluesky\'s 1 MB limit')
+                    blob = request('https://bsky.social/xrpc/com.atproto.repo.uploadBlob', method='POST', data=data,
+                                   headers={**auth_b, 'Content-Type': 'image/jpeg'})['blob']
+                    alts = bs.get('alts', [])
+                    images.append({'alt': alts[n] if n < len(alts) else ALT, 'image': blob, 'aspectRatio': {'width': 1080, 'height': 1350}})
+                record = {'$type': 'app.bsky.feed.post', 'text': text, 'facets': facets, 'langs': ['en'],
+                          'createdAt': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.000Z'),
+                          'embed': {'$type': 'app.bsky.embed.images', 'images': images}}
+                res = request('https://bsky.social/xrpc/com.atproto.repo.createRecord', method='POST', headers=auth_b,
+                              data={'repo': did, 'collection': 'app.bsky.feed.post', 'record': record})
+                link = f"https://bsky.app/profile/{handle}/post/{res['uri'].rsplit('/', 1)[-1]}"
+                posted.append(('Bluesky', link))
+                print(f'::notice::Posted to Bluesky: {link}')
+        except Exception as e:  # noqa: BLE001
+            failed.append(('Bluesky', scrub(e)))
+            print(f'::warning::Bluesky: {scrub(e)}')
     if failed:
         email(f'Daily puzzle: {" and ".join(n for n, _ in failed)} did not post, {when}', [
             f'<p>Today\'s puzzle, <b>{html.escape(r.get("title", ""))}</b>, passed every check, but posting hit a problem.</p>',
