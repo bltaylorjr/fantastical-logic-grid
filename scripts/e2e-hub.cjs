@@ -37,6 +37,23 @@ const ignorable = (t) => /fonts\/|Failed to decode downloaded font|OTS parsing/.
     assert(await page.locator('h1').count() === 1 && /Pick your puzzle/.test(await page.locator('h1').textContent()), 'the front page has one heading');
     const play = await page.locator('a.play').evaluateAll((as) => as.map((a) => a.getAttribute('href')));
     assert(JSON.stringify(play) === JSON.stringify(['fantastical/', 'ninetimesnine/']), 'it links to both games');
+    // Shared things open over the front page; only the Play buttons open a game page.
+    await page.click('.app-item[href="report/"]');
+    await page.waitForSelector('dialog.ovl[open] iframe');
+    await page.waitForFunction(() => /Close/.test(document.querySelector('dialog.ovl iframe')?.contentDocument?.querySelector('#rp-back-text')?.textContent || ''), null, { timeout: 15000 });
+    assert(new URL(page.url()).pathname === '/', 'Report a Problem opens in a window over the front page, which stays put');
+    await page.frameLocator('dialog.ovl iframe').locator('#rp-back').click();
+    await page.waitForFunction(() => !document.querySelector('dialog.ovl'));
+    assert(new URL(page.url()).pathname === '/', 'closing it leaves the player on the front page');
+    await page.click('.app-item[href="fantastical/?open=account"]');
+    await page.waitForFunction(() => !document.querySelector('dialog.ovl') || document.querySelector('dialog.ovl iframe')?.contentDocument?.querySelector('dialog[open]'), null, { timeout: 20000 });
+    assert(new URL(page.url()).pathname === '/', 'Account and sync never changes the front page (it opens over it, or says accounts are off)');
+    await page.evaluate(() => document.querySelectorAll('dialog.ovl').forEach((d) => d.remove()));
+    const frontHtml = await page.content();
+    assert(!/support@thelogicgrid\.com/.test(frontHtml) && await page.locator('a.contact-link').count() === 1, 'the support address is not in the page; Contact us builds it when clicked');
+    const [mail] = await Promise.all([page.waitForEvent('request', { predicate: (r) => r.url().startsWith('mailto:'), timeout: 3000 }).catch(() => null), page.click('a.contact-link')]);
+    assert(!mail || mail.url() === 'mailto:support@thelogicgrid.com', 'Contact us opens an email to support');
+    assert(await page.$$eval('a[target=_blank]', (as) => as.every((a) => /noreferrer/.test(a.rel) && /noopener/.test(a.rel))), 'links that open a new tab pass nothing back (noopener noreferrer)');
     await page.goto(`${BASE}/?utm_source=facebook&utm_campaign=launch`);
     assert(new URL(page.url()).pathname === '/', 'campaign tags alone stay on the front page');
 

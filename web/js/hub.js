@@ -4,6 +4,8 @@
 // - on the front page only (data-hub): old game links and the installed app
 //   go on to the game at fantastical/, since the game used to be at the site root,
 // - wires the front page's Look menu to the same setting,
+// - opens Account, Messages and Report a Problem in a window over the page,
+// - builds the Contact us email link only when it is clicked,
 // - on the front page: Install the app, the Support link and the team's news
 //   (from the game's Worker, GET /v1/config, the same settings as the games).
 (function () {
@@ -19,6 +21,71 @@
   // there the page takes no clicks at all (js/design-preview.js).
   var preview = /[?&]design-preview(=|&|$)/.test(location.search);
   if (window.top !== window.self && !preview) { root.hidden = true; try { window.top.location = window.location.href; } catch (e) { /* blocked */ } return; }
+
+  // ---- On both pages (front page and NINETIMESNINE):
+  // Account, Messages and Report a Problem open in a window over this page, so
+  // the page itself never changes underneath (only the Play buttons open a game).
+  // The game's own window is shown in a frame (?embed=1); it tells this page
+  // when it is finished (web/js/app.js). Only this site may frame its pages.
+  function note(text) {
+    var n = document.createElement('p');
+    n.className = 'hub-note';
+    n.setAttribute('role', 'status');
+    n.textContent = text;
+    document.body.appendChild(n);
+    setTimeout(function () { n.remove(); }, 5000);
+  }
+  function openOverlay(a) {
+    var href = a.getAttribute('href');
+    var label = (a.querySelector('b') || a).textContent.trim();
+    var d = document.createElement('dialog');
+    d.className = 'ovl';
+    d.setAttribute('aria-label', label);
+    var wait = document.createElement('p');
+    wait.className = 'ovl-wait';
+    wait.textContent = 'Opening…';
+    var f = document.createElement('iframe');
+    f.title = label;
+    f.src = href + (href.indexOf('?') >= 0 ? '&' : '?') + 'embed=1';
+    var x = document.createElement('button');
+    x.type = 'button';
+    x.className = 'ovl-x';
+    x.textContent = 'Close';
+    d.appendChild(wait); d.appendChild(f); d.appendChild(x);
+    document.body.appendChild(d);
+    var finished = false;
+    function done(words) {
+      if (finished) return;
+      finished = true;
+      window.removeEventListener('message', onMessage);
+      try { d.close(); } catch (e) { /* closed */ }
+      d.remove();
+      try { a.focus(); } catch (e) { /* gone */ }
+      if (words) note(words);
+    }
+    function onMessage(e) {
+      if (e.origin !== location.origin || e.source !== f.contentWindow || !e.data) return;
+      if (e.data.type === 'flg-embed-ready') wait.hidden = true;
+      if (e.data.type === 'flg-embed-done') done(e.data.note);
+    }
+    window.addEventListener('message', onMessage);
+    x.addEventListener('click', function () { done(); });
+    d.addEventListener('cancel', function (e) { e.preventDefault(); done(); });
+    f.addEventListener('load', function () { wait.hidden = true; });
+    setTimeout(function () { wait.hidden = true; }, 2500);
+    d.showModal();
+  }
+  // The support address is only put together when Contact us is clicked
+  // (scripts/hub.mjs contactLink), so it is never in the page for scrapers.
+  function reversed(s) { return String(s || '').split('').reverse().join(''); }
+  document.addEventListener('click', function (e) {
+    var t = e.target && e.target.closest ? e.target : null;
+    if (!t) return;
+    var mail = t.closest('a.contact-link[data-u][data-d]');
+    if (mail) { e.preventDefault(); window.location.href = 'mailto:' + reversed(mail.getAttribute('data-u')) + '@' + reversed(mail.getAttribute('data-d')); return; }
+    var o = t.closest('a[data-overlay]');
+    if (o && typeof HTMLDialogElement === 'function' && !e.ctrlKey && !e.metaKey && !e.shiftKey) { e.preventDefault(); openOverlay(o); }
+  });
 
   if (!me || !me.hasAttribute('data-hub')) return;
 

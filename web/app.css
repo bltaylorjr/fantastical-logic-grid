@@ -1147,3 +1147,10 @@ body:has(#view-seg:not([hidden])) #miniboard-open { flex: none; }
 .story-beat.has-pic { display: grid; grid-template-columns: minmax(72px, 140px) 1fr; gap: 12px; align-items: center; }
 .story-beat-pic { width: 100%; height: auto; max-height: 140px; object-fit: contain; border-radius: 6px; }
 @media (max-width: 420px) { .story-beat.has-pic { grid-template-columns: 1fr; } .story-beat-pic { max-height: 180px; } }
+
+/* Shown in a window over The Logic Grid's front page (?embed=1, js/app.js):
+   only the game's open window shows, over the front page. */
+html[data-embed], html[data-embed] body { background: transparent !important; }
+html[data-embed] body > * { visibility: hidden !important; }
+html[data-embed] dialog[open], html[data-embed] dialog[open] * { visibility: visible !important; }
+html[data-embed] dialog::backdrop { background: transparent; }

@@ -11,3 +11,13 @@ document.addEventListener('click', (e) => {
     history.back();
   }
 });
+
+// Contact us (scripts/hub.mjs contactLink): the support address is only put
+// together when the link is clicked, so it is never written in the page.
+document.addEventListener('click', (e) => {
+  const a = e.target.closest && e.target.closest('a.contact-link[data-u][data-d]');
+  if (!a) return;
+  e.preventDefault();
+  const r = (s) => String(s || '').split('').reverse().join('');
+  window.location.href = `mailto:${r(a.dataset.u)}@${r(a.dataset.d)}`;
+});

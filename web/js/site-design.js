@@ -31,7 +31,7 @@ const DEFAULT_TEXT = {
   ntnButton: 'Play NINETIMESNINE',
   appTitle: 'One account for every game',
   appText: 'Sign in once and your saves, stats and settings stay in step in every game, on every device.',
-  footerNote: 'Questions? support@thelogicgrid.com',
+  footerNote: 'Questions?',
   infoPlay: 'Play free',
   hubTitle: 'The Logic Grid | Free logic and number puzzle games',
   hubDescription: 'The Logic Grid: The Fantastical Logic Grid story logic puzzles and NINETIMESNINE number puzzles. Free to play in your browser.',
@@ -94,7 +94,7 @@ export const CATEGORIES = [
   { id: 'chrome', name: 'Front page: header and footer', page: 'hub', options: [
     select('themePicker', 'Light and dark picker (Look)', SHOW, 'show'),
     select('footerLinks', 'Privacy and terms links', SHOW, 'show'),
-    text('footerNote', 'Footer note', 80),
+    text('footerNote', 'Footer note (before Contact us)', 80),
   ] },
   { id: 'ntnpage', name: 'NINETIMESNINE page', page: 'np', options: [
     select('npHeader', 'Header bar', [pick('light', 'Light'), pick('accent', 'Accent color')], 'light'),
