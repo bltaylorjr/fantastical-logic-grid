@@ -1,5 +1,13 @@
 # Put The Fantastical Logic Grid on the web
 
+**Site layout.** The website is The Logic Grid: its front page (`index.html`) lists
+the games, The Fantastical Logic Grid plays at `fantastical/` and NINETIMESNINE at
+`ninetimesnine/` (built by `scripts/hub.mjs`). Every other page and file (daily
+puzzles, how to play, educators, printables...) stays where it was. Old links to the
+game at the site root (`/?play=now`, `/?challenge=CODE`, the installed app) are sent
+on to `fantastical/` by the front page. All pages share one web address, so saves,
+settings and sign-in are the same everywhere.
+
 This folder is the whole game as a static website. `index.html` is at the root and every
 path is relative, so it works at a domain root (`https://example.com/`) or in a sub-folder
 (`https://example.com/games/logic-grid/`). There is no server code and no database: saves

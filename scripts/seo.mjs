@@ -17,11 +17,17 @@ import { join, dirname } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { gridTable, answerKey } from './worksheet.mjs';
+import { writeGamePage, writeHubPages } from './hub.mjs';
 import { educatorsBody, EDUCATORS_CSS, educatorFeedbackBody, FEEDBACK_CSS } from './educators-page.mjs';
 
 // Search pages are plain HTML: only the site's own files may load, inline
 // <style> is allowed, and no inline script ever runs (JSON-LD is data, not code).
 const PAGE_CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self'; object-src 'none'; frame-src 'none'; base-uri 'self'; form-action 'self'";
+
+// The game's page. The site's front page (index.html) is The Logic Grid's
+// list of games (scripts/hub.mjs); The Fantastical Logic Grid plays at
+// fantastical/ and NINETIMESNINE at ninetimesnine/.
+export const GAME = 'fantastical/';
 
 export const INDEXNOW_KEY = process.env.FLG_INDEXNOW_KEY || 'fae88a004ad87116c0e93df007b2de7e';
 // The game's social pages (web/js/social.js): the links set in the admin
@@ -286,20 +292,20 @@ ${[breadcrumb, ...schema].map((s) => `<script type="application/ld+json">${json(
 <body>
 <a class="skip" href="#main">Skip to content</a>
 <header class="top">
-  <a class="back" href="${up}" data-back><span aria-hidden="true">‹</span> Back</a>
-  <a class="brand" href="${up}">${name}</a>
+  <a class="back" href="${up}${GAME}" data-back><span aria-hidden="true">‹</span> Back</a>
+  <a class="brand" href="${up}${GAME}">${name}</a>
   <nav aria-label="Site">
     <ul>${NAV.map(([p, n]) => `<li><a href="${up}${p}"${p === path ? ' aria-current="page"' : ''}>${n}</a></li>`).join('')}</ul>
   </nav>
-  <a class="btn" href="${up}?play=now" rel="nofollow">Play free</a>
+  <a class="btn" href="${up}${GAME}?play=now" rel="nofollow">Play free</a>
 </header>
 ${crumbs.length ? `<nav class="crumbs" aria-label="Breadcrumb"><ol>${trail.map(([p, n], i) => i === trail.length - 1 ? `<li aria-current="page">${esc(n)}</li>` : `<li><a href="${up}${p}">${esc(n)}</a></li>`).join('')}</ol></nav>` : ''}
 <main id="main">
 ${body(up)}
 </main>
 <footer class="foot">
-  <p><a class="btn quiet" href="${up}" data-back><span aria-hidden="true">‹</span> Back</a> <a class="btn quiet" href="${up}">Back to the game</a></p>
-  <p><a href="${up}">Play ${name}</a> · free in your browser, offline-ready, and on Windows.</p>
+  <p><a class="btn quiet" href="${up}${GAME}" data-back><span aria-hidden="true">‹</span> Back</a> <a class="btn quiet" href="${up}${GAME}">Back to the game</a></p>
+  <p><a href="${up}${GAME}">Play ${name}</a> · free in your browser, offline-ready, and on Windows.</p>
   <p>Every puzzle has exactly one answer, checked by our solver${quality.rating ? `, and players rate them ${quality.rating.average} out of 5 stars` : ''}. <a href="${up}picks/">Hand-picked puzzles</a></p>
   <p>${NAV.map(([p, n]) => `<a href="${up}${p}">${n}</a>`).join(' · ')} · <a href="${up}privacy/">Privacy</a></p>
   ${socialList.length ? `<div class="foot-social"><p>Follow the game</p>${socialPages.socialHtml(socialList)}</div>` : ''}
@@ -315,7 +321,7 @@ ${body(up)}
   };
   // Generic play buttons open a quick puzzle straight away (?play=now in web/js/app.js);
   // a theme page's button opens the game to choose that theme.
-  const playBtn = (up, text = 'Play a new puzzle now', quick = true) => `<p><a class="btn big" href="${up}${quick ? '?play=now' : ''}"${quick ? ' rel="nofollow"' : ''}>${text}</a></p>`;
+  const playBtn = (up, text = 'Play a new puzzle now', quick = true) => `<p><a class="btn big" href="${up}${GAME}${quick ? '?play=now' : ''}"${quick ? ' rel="nofollow"' : ''}>${text}</a></p>`;
 
   // The how-to-play video. Google does not follow an @id to another page, so every page
   // that mentions it (the game's trailer and the how-to-play page) carries the full object.
@@ -332,7 +338,7 @@ ${body(up)}
   const GAME_TITLE = `Free logic grid puzzles with stories | ${name}`;
   const appDescription = 'Free story logic grid puzzles. Pick a difficulty, theme and size, then solve, save, resume and print. Every puzzle is a brand new story with exactly one answer.';
   const game = {
-    '@context': 'https://schema.org', '@type': ['VideoGame', 'WebApplication'], name, url: url(''),
+    '@context': 'https://schema.org', '@type': ['VideoGame', 'WebApplication'], name, url: url(GAME),
     description: appDescription, image: url('og-image.jpg'), inLanguage: 'en',
     genre: ['Puzzle', 'Logic puzzle', 'Mystery'], gamePlatform: ['Web browser', 'Windows'],
     applicationCategory: 'GameApplication', operatingSystem: 'Any (web browser), Windows 10 and 11', browserRequirements: 'Requires JavaScript',
@@ -348,11 +354,11 @@ ${body(up)}
   const head = `<meta name="description" content="${esc(appDescription)}">
 <meta name="robots" content="index, follow, max-image-preview:large">
 ${tdmMeta}
-${social({ title: name, description: appDescription, path: '' })}
+${social({ title: name, description: appDescription, path: GAME })}
 ${verification}
-<script type="application/ld+json">${json(website)}</script>
-<script type="application/ld+json">${json(checkVideos(game, ''))}</script>
-<meta name="flg-daily" content="daily/">`;
+<script type="application/ld+json">${json(checkVideos(game, GAME))}</script>
+<meta name="flg-daily" content="../daily/">
+<meta name="flg-np-page" content="ninetimesnine/">`;
   // Shown when scripts are off, and read by crawlers that do not run them.
   const noscript = `<noscript><div class="card" style="margin:1rem"><p><strong>${name}</strong> is a free logic grid puzzle game where every puzzle is a brand new story. Turn on JavaScript to play.</p><p>${NAV.map(([p, n]) => `<a href="${p}">${n}</a>`).join(' · ')}</p></div></noscript>`;
   // Crawlable links to the search pages at the foot of the home screen (website only).
@@ -362,8 +368,10 @@ ${verification}
     .replace(/<meta name="description"[^>]*>/, head)
     .replace(/(<main id="screen-home"[\s\S]*?)(<\/main>)/, (_, home, end) => `${home}${siteLinks}\n${end}`)
     .replace(/<body>/, `<body>\n${noscript}`);
-  writeFileSync(join(site, 'index.html'), game_html);
-  pages.push({ path: '', lastmod: updated, priority: 1 });
+  // The game moves to fantastical/; index.html becomes The Logic Grid's front page.
+  writeGamePage(site, game_html);
+  pages.push({ path: GAME, lastmod: updated, priority: 1 });
+  writeHubPages({ site, url, verification, tdmMeta, copyright, socialList, pages, updated, csp: SITE_CSP });
 
   // ---------- how to play ----------
   const transcript = (appHtml.match(/<details class="transcript">[\s\S]*?<\/summary>([\s\S]*?)<\/details>/) || [])[1] || '';
@@ -396,7 +404,7 @@ ${verification}
     body: (up) => `<h1>How to play logic grid puzzles</h1>
 <p class="lede">Each puzzle in ${name} is a logic grid wrapped in a story. The story sets up a mystery, the clues give you the facts, and the grid is where you work out the answer. Every puzzle has exactly one answer you can reach without guessing.</p>
 ${playBtn(up)}
-<p>Never solved one before? <a href="${up}?learn">How to play, step by step</a> teaches you in the game on real grids: X and O, every kind of clue, carrying facts across the grid and what-if thinking, with tips and tricks.</p>
+<p>Never solved one before? <a href="${up}${GAME}?learn">How to play, step by step</a> teaches you in the game on real grids: X and O, every kind of clue, carrying facts across the grid and what-if thinking, with tips and tricks.</p>
 <h2>The rules in five steps</h2>
 <ol class="steps">
   <li><strong>Pick a puzzle.</strong> Choose a <a href="${up}difficulty-levels/">difficulty</a>, a <a href="${up}themes/">theme</a> and a size. More categories and items make a bigger, harder grid.</li>
@@ -576,7 +584,7 @@ ${p.story.paragraphs.map((t) => `<p>${esc(t)}</p>`).join('\n')}
 <ol class="clues">${p.clues.map((c) => `<li>${esc(c.text)}</li>`).join('')}</ol>
 <h2>Questions</h2>
 <ol>${p.questions.map((q) => `<li>${esc(q.text)}</li>`).join('')}</ol>
-<p>Work it out on paper, or <a href="${up}">play an interactive puzzle in the app</a> with a grid, hints and saves.</p>
+<p>Work it out on paper, or <a href="${up}${GAME}">play an interactive puzzle in the app</a> with a grid, hints and saves.</p>
 <details class="answers"><summary>Show the answer key (spoilers)</summary>
 <div class="table-wrap"><table><caption>Answer key</caption><thead><tr>${p.answerKey.columns.map((c) => `<th scope="col">${esc(c)}</th>`).join('')}</tr></thead>
 <tbody>${p.answerKey.rows.map((r) => `<tr>${r.map((v, i) => i ? `<td>${esc(v)}</td>` : `<th scope="row">${esc(v)}</th>`).join('')}</tr>`).join('')}</tbody></table></div>
@@ -678,7 +686,7 @@ ${playBtn(up)}`,
     crumbs: [['picks/', 'Hand-picked puzzles']],
     body: (up) => `<h1>Hand-picked puzzles</h1>
 <p class="lede">The daily puzzles players liked best, and ones the team picked. Each opens in the game with the grid, hints and saves.</p>
-${picks.length ? `<ul class="picks">${picks.map((x) => `<li><a href="${up}?play=daily&amp;day=${x.date}" rel="nofollow"><strong>${esc(x.title)}</strong></a><br><span class="meta">${esc(longDate(x.date))} · ${esc(x.difficultyName)} · ${esc(x.themeName)} · ${x.categories} × ${x.items} · ${esc(pickWhy(x))}</span>${daily.has(x.date) ? ` · <a href="${up}daily/${x.date}/">clues and answer key</a>` : ''}</li>`).join('')}</ul>`
+${picks.length ? `<ul class="picks">${picks.map((x) => `<li><a href="${up}${GAME}?play=daily&amp;day=${x.date}" rel="nofollow"><strong>${esc(x.title)}</strong></a><br><span class="meta">${esc(longDate(x.date))} · ${esc(x.difficultyName)} · ${esc(x.themeName)} · ${x.categories} × ${x.items} · ${esc(pickWhy(x))}</span>${daily.has(x.date) ? ` · <a href="${up}daily/${x.date}/">clues and answer key</a>` : ''}</li>`).join('')}</ul>`
     : `<p>The first picks appear here once players have rated a few daily puzzles. Until then, try <a href="${up}daily/">today's daily puzzle</a>.</p>`}
 <h2>How every puzzle is checked</h2>
 <ul>
@@ -745,7 +753,7 @@ ${playBtn(up)}`,
       body: (up) => `<h1>${name}</h1>
 <p class="lede">Story logic puzzles, free to play in your browser.</p>
 <ul class="links">
-<li><a class="btn big" href="${up}?play=now" rel="nofollow">Play a new puzzle now</a></li>
+<li><a class="btn big" href="${up}${GAME}?play=now" rel="nofollow">Play a new puzzle now</a></li>
 <li><a class="btn link-btn" href="${up}daily/">Today's daily puzzle</a></li>
 <li><a class="btn link-btn" href="${up}how-to-play/">How to play</a></li>
 <li><a class="btn link-btn" href="${up}educators/">Free printable puzzles for teachers</a></li>
@@ -884,7 +892,7 @@ ${gridTable(p)}
 <ol class="qs">${p.questions.map((q) => `<li>${esc(q.text)}<br>_______________________________</li>`).join('')}</ol>
 ${answerKey(p)}
 </article>
-<p class="noprint"><a href="${up}printables/">All this week's worksheets</a> · <a href="${up}">Play in the game</a></p>`,
+<p class="noprint"><a href="${up}printables/">All this week's worksheets</a> · <a href="${up}${GAME}">Play in the game</a></p>`,
     });
   }
 
@@ -918,7 +926,7 @@ Sitemap: ${url('sitemap.xml')}
 `);
   writeFileSync(join(site, 'llms.txt'), `# ${name}
 
-> ${appDescription} Free in any web browser at ${url('')}, offline-ready, and as a Windows app. No account needed.
+> ${appDescription} Free in any web browser at ${url(GAME)}, offline-ready, and as a Windows app. No account needed.
 
 - Difficulty levels: ${tiers.map((t) => t.name).join(', ')}
 - Themes: ${THEMES.map((t) => t.name).join(', ')}
@@ -926,7 +934,8 @@ Sitemap: ${url('sitemap.xml')}
 
 ## Pages
 
-- [Play the game](${url('')})
+- [Play the game](${url(GAME)})
+- [The Logic Grid](${url('')}): every game from the same team, including [NINETIMESNINE](${url('ninetimesnine/')}) number puzzles
 - [How to play](${url('how-to-play/')}): rules, a narrated video and FAQ
 - [Daily puzzle](${url('daily/')}): a new free puzzle every day, with the answer key
 - [Printables](${url('printables/')}): free printable logic puzzles for classrooms and home, a new set every week, with answer keys

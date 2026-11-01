@@ -2787,6 +2787,16 @@ async function openFromCard(id, mode = null) {
 // mode: a NINETIMESNINE game style to pick on its setup screen (from the game card's links).
 async function openNumberPlace(mode = null) {
   if (!numberPlace.enabled()) { goHome(); return; }
+  // The website gives NINETIMESNINE its own page (ninetimesnine/, scripts/hub.mjs);
+  // the desktop app and game-site copies keep it on this screen.
+  const page = document.querySelector('meta[name="flg-np-page"]');
+  if (page) {
+    if (S) await flushSave();
+    const url = new URL(page.content, document.baseURI);
+    if (mode) url.searchParams.set('style', mode);
+    location.href = url.href;
+    return;
+  }
   if (S) { await flushSave(); closeGame(); }
   showScreen('np');
   window.scrollTo(0, 0);

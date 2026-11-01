@@ -10,7 +10,8 @@ import * as remote from './remote-config.js';
 const CODE = /^[A-Z0-9]{6}$/;
 export const available = () => !!CLOUD_URL && remote.feature('challenges');
 const site = () => (CLOUD.siteUrl || 'https://thelogicgrid.com').replace(/\/+$/, '');
-export const linkFor = (code) => `${site()}/?challenge=${code}`;
+// The game's page on the website is fantastical/ (the site's front page lists every game).
+export const linkFor = (code) => `${site()}/fantastical/?challenge=${code}`;
 
 async function call(path, body) {
   const r = await fetch(`${CLOUD_URL}/v1/challenges${path}`, body === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(body) });

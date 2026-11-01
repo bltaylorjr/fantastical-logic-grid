@@ -69,7 +69,7 @@ const iso = (ms) => new Date(ms).toISOString().slice(0, 10);
   const errors = [];
   page.on('pageerror', (e) => errors.push(String(e)));
   try {
-    await page.goto(`${APP}/`);
+    await page.goto(`${APP}/fantastical/`);
     await page.waitForSelector('#weekly-box:not([hidden]) [data-edition]');
     assert((await page.textContent('#weekly-box')).includes(weekly.title), `the Daily puzzle card shows the puzzle of the week ("${weekly.title}")`);
     assert((await page.textContent('#specials-list')).includes('Harvest special'), 'and lists the special edition');
@@ -92,16 +92,16 @@ const iso = (ms) => new Date(ms).toISOString().slice(0, 10);
     assert(!(await page.evaluate(() => window.__flg.state.save.scorePending)), 'it earns no scoreboard points (the answers are public)');
 
     // The special edition email's link.
-    await page.goto(`${APP}/?play=special&id=se-e2e-1&utm_source=email&utm_campaign=special-email`);
+    await page.goto(`${APP}/fantastical/?play=special&id=se-e2e-1&utm_source=email&utm_campaign=special-email`);
     await page.waitForSelector('#screen-play:not([hidden])');
     assert((await page.textContent('#p-title')) === special.title, 'the special edition link opens its puzzle');
     assert((await page.textContent('#p-meta')).includes('Special edition: Harvest special'), 'marked as the special edition');
-    await page.goto(`${APP}/?play=weekly`);
+    await page.goto(`${APP}/fantastical/?play=weekly`);
     await page.waitForSelector('#screen-play:not([hidden])');
     assert((await page.textContent('#p-title')) === weekly.title, 'the weekly email link reopens the saved puzzle of the week');
 
     // A guest signs up from the menu.
-    await page.goto(`${APP}/`);
+    await page.goto(`${APP}/fantastical/`);
     await page.waitForSelector('#mail-invite:not([hidden])');
     await page.click('#menu-btn');
     await page.click('[data-cmd=mail]');
@@ -138,7 +138,7 @@ const iso = (ms) => new Date(ms).toISOString().slice(0, 10);
     assert(!(await db.prepare('SELECT * FROM puzzle_mail WHERE email = ?1').bind('guest@example.com').first()), 'unticking both on the settings page removes the address');
 
     // The admin dashboard: plan a special edition, find and remove an address.
-    await page.goto(`${APP}/`);
+    await page.goto(`${APP}/fantastical/`);
     await page.click('#menu-btn');
     await page.click('[data-cmd=mail]');
     await page.fill('#mail-email', 'second@example.com');
