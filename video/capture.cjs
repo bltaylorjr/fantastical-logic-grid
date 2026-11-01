@@ -675,7 +675,7 @@ const CSS = `
     // The Puzzle Wizard, in the menu.
     if (await p.$('[data-cmd=wizard]')) {
       await p.click('#menu-btn'); await p.waitForSelector('[data-cmd=wizard]'); await prep(); await hl('[data-cmd=wizard]', 6);
-      await scene('wizard', ['Want to write a whole puzzle of your own?', 'The Puzzle Wizard, in the menu, walks you through your story, your characters, the lists to match and the answer.',
+      await scene('wizard', ['Want to write a whole puzzle of your own?', 'Submit Puzzle Ideas, in the menu, walks you through your story, your characters, the lists to match and the answer.',
         'It checks that your puzzle has exactly one answer, gives you a PDF to download or print, and saves it to your Saved puzzles.']);
       await p.keyboard.press('Escape');
     }

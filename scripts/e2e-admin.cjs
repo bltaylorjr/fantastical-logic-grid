@@ -630,8 +630,8 @@ const SHOTS = process.env.SHOTS;
     assert(await p.locator('#menu-count').isHidden(), 'seen news is no longer counted as new');
 
     // The two boxes: an idea and a problem report arrive separately.
-    await p.click('#menu-btn');
-    await p.click('#app-menu [data-cmd=feedback]');
+    // The old ideas box is out of the menu (Submit Puzzle Ideas replaced it) but still opens from older links.
+    await p.evaluate(() => document.querySelector('#app-menu [data-cmd=feedback]').click());
     await p.waitForSelector('#dlg-feedback[open]');
     assert(await p.$eval('#idea-form .fb-reply', (el) => el.hidden), 'a guest is not offered email updates');
     assert(await p.isVisible('#idea-theme'), 'a storyline idea asks which theme it is for');
