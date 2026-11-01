@@ -2,7 +2,7 @@
 // posted (scripts/social-puzzle.mjs): a good puzzle passes, and each kind of
 // error stops the post. node scripts/test-social-puzzle.mjs
 import { generatePuzzle } from '../engine/src/index.js';
-import { checkPuzzle, caption, instagramCaption, answerUrl, playUrl, statsLine } from './social-puzzle.mjs';
+import { checkPuzzle, caption, instagramCaption, answerUrl, playUrl, statsLine, gridHtml } from './social-puzzle.mjs';
 
 let failed = 0;
 const check = (name, cond, detail = '') => { if (!cond) { failed++; console.log(`FAIL ${name} ${detail}`); } };
@@ -30,6 +30,10 @@ for (const difficulty of ['basic', 'easy', 'medium', 'hard']) {
   check(`${difficulty}: caption has the answer key link`, text.includes(answerUrl(DAY)));
   check(`${difficulty}: caption has the play link`, text.includes(playUrl(DAY)));
   check(`${difficulty}: caption fits Instagram (2,200 characters)`, instagramCaption(r.puzzle, DAY).length <= 2200);
+  const grid = gridHtml(r.puzzle, DAY);
+  check(`${difficulty}: grid slide has every item`, r.puzzle.categories.every((c) => c.items.every((i) => grid.includes(i.label))));
+  check(`${difficulty}: grid slide gives no answers`, !grid.includes('●</td>') && !grid.includes('✕</td>'));
+  check(`${difficulty}: caption mentions the grid slide`, /swipe for a blank grid/.test(text));
   check(`${difficulty}: caption promotes the streak`, /streak/.test(text));
   check(`${difficulty}: caption fits Instagram with numbers too`, instagramCaption(r.puzzle, DAY, { solved: 12345, medianMs: 9 * 60000 }).length <= 2200);
   check(`${difficulty}: caption gives no answers`, !r.puzzle.answerKey.questions.some((q) => text.includes(`${q.question} ${q.answer}`)));

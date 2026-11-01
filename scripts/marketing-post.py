@@ -712,8 +712,9 @@ def delete_posts():
 
 
 def daily_puzzle():
-    """Mode daily-puzzle: posts the day's puzzle picture made and checked by
-    scripts/social-puzzle.mjs to the game's Facebook Page and Instagram, with the
+    """Mode daily-puzzle: posts the day's two puzzle slides (clues, then a blank
+    grid) made and checked by scripts/social-puzzle.mjs to the game's Facebook
+    Page (one post with both pictures) and Instagram (a carousel), with the
     play link and the answer key link in the caption. If any check failed (or the
     picture is missing), nothing is posted and the owner is emailed why. A puzzle
     already posted (its answer key link is in a recent post) is not posted again,
@@ -740,61 +741,80 @@ def daily_puzzle():
         return 1
     page, token = page_key()
     marker = r['answerUrl']
-    posted, failed, image_url = [], [], ''
-    with open(r['image'], 'rb') as f:
-        picture = f.read()
-    # Facebook Page: the picture uploaded from the file, so no outside hosting is needed.
-    try:
-        recent = meta(f'{GRAPH}/{page}/posts?fields=message,permalink_url&limit=25', token=token).get('data', [])
-        done = next((x for x in recent if marker in (x.get('message') or '')), None)
+    paths = r.get('images') or [r['image']]
+    posted, failed = [], []
+    auth = {'Authorization': f'Bearer {token}'}
+
+    def already(name, url, field, link_field):
+        try:
+            recent = meta(url, token=token).get('data', [])
+        except Exception as e:  # noqa: BLE001 - a failed look is reported when posting fails too
+            print(f'::warning::Could not read recent {name} posts: {scrub(e)}')
+            return None
+        done = next((x for x in recent if marker in (x.get(field) or '')), None)
         if done:
-            print(f"::notice::Already on the Facebook Page: {done.get('permalink_url', '')}")
-            posted.append(('Facebook Page', done.get('permalink_url', '') + ' (posted earlier)'))
-            photo_id = None
-        else:
-            body, ctype = multipart({'caption': r['caption']}, 'source', f'logic-puzzle-{day}.jpg', picture, 'image/jpeg')
-            res = request(f'{GRAPH}/{page}/photos', method='POST', data=body, timeout=120,
-                          headers={'Content-Type': ctype, 'Authorization': f'Bearer {token}'})
-            photo_id = res['id']
-            link = f"https://www.facebook.com/{res.get('post_id') or res['id']}"
-            posted.append(('Facebook Page', link))
-            print(f'::notice::Posted to the Facebook Page: {link}')
-        if photo_id is None:
-            res = meta(f'{GRAPH}/{page}/photos?type=uploaded&fields=id,images,name&limit=10', token=token).get('data', [])
-            photo_id = next((x['id'] for x in res if marker in (x.get('name') or '')), None)
-        if photo_id:
-            imgs = meta(f'{GRAPH}/{photo_id}?fields=images', token=token).get('images', [])
-            image_url = max(imgs, key=lambda i: i.get('width', 0)).get('source', '') if imgs else ''
-    except Exception as e:  # noqa: BLE001 - still report and try Instagram
-        failed.append(('Facebook Page', scrub(e)))
-        print(f'::warning::Facebook Page: {scrub(e)}')
-    # Instagram takes a picture by its web address: the Facebook copy's address.
+            link = done.get(link_field, '')
+            print(f'::notice::Already on {name}: {link}')
+            posted.append((name, f'{link} (posted earlier)'))
+        return done
+
+    fb_done = already('the Facebook Page', f'{GRAPH}/{page}/posts?fields=message,permalink_url&limit=25', 'message', 'permalink_url')
+    ig_id = None
     try:
-        ig = instagram_id()
-        recent = meta(f'{GRAPH}/{ig}/media?fields=caption,permalink&limit=25', token=token).get('data', [])
-        done = next((x for x in recent if marker in (x.get('caption') or '')), None)
-        if done:
-            print(f"::notice::Already on Instagram: {done.get('permalink', '')}")
-            posted.append(('Instagram', done.get('permalink', '') + ' (posted earlier)'))
-        else:
-            if not image_url:
-                # Facebook did not post: upload the picture to the Page unpublished, only to get its address.
-                body, ctype = multipart({'published': 'false', 'temporary': 'true'}, 'source', f'logic-puzzle-{day}.jpg', picture, 'image/jpeg')
-                res = request(f'{GRAPH}/{page}/photos', method='POST', data=body, timeout=120,
-                              headers={'Content-Type': ctype, 'Authorization': f'Bearer {token}'})
-                imgs = meta(f"{GRAPH}/{res['id']}?fields=images", token=token).get('images', [])
-                image_url = max(imgs, key=lambda i: i.get('width', 0)).get('source', '') if imgs else ''
-            if not image_url:
-                raise Failed('no web address for the picture to give Instagram')
-            c = meta(f'{GRAPH}/{ig}/media', 'POST', {'image_url': image_url, 'caption': r.get('instagramCaption') or r['caption']}, token)
-            wait_ready(f"{GRAPH}/{c['id']}", token)
-            pub = meta(f'{GRAPH}/{ig}/media_publish', 'POST', {'creation_id': c['id']}, token)
-            link = meta(f"{GRAPH}/{pub['id']}?fields=permalink", token=token).get('permalink') or 'https://www.instagram.com/'
-            posted.append(('Instagram', link))
-            print(f'::notice::Posted to Instagram: {link}')
+        ig_id = instagram_id()
     except Exception as e:  # noqa: BLE001
         failed.append(('Instagram', scrub(e)))
-        print(f'::warning::Instagram: {scrub(e)}')
+    ig_done = ig_id and already('Instagram', f'{GRAPH}/{ig_id}/media?fields=caption,permalink&limit=25', 'caption', 'permalink')
+
+    # Each slide is uploaded to the Page unpublished: Facebook attaches them to one
+    # post, and Instagram takes them by the web address Facebook gives each copy.
+    photos = []
+    if not fb_done or (ig_id and not ig_done):
+        try:
+            for n, path in enumerate(paths, 1):
+                with open(path, 'rb') as f:
+                    body, ctype = multipart({'published': 'false'}, 'source', f'logic-puzzle-{day}-{n}.jpg', f.read(), 'image/jpeg')
+                res = request(f'{GRAPH}/{page}/photos', method='POST', data=body, timeout=120, headers={**auth, 'Content-Type': ctype})
+                imgs = meta(f"{GRAPH}/{res['id']}?fields=images", token=token).get('images', [])
+                photos.append((res['id'], max(imgs, key=lambda i: i.get('width', 0)).get('source', '') if imgs else ''))
+        except Exception as e:  # noqa: BLE001
+            failed.append(('Pictures', f'could not upload the slides: {scrub(e)}'))
+            print(f'::warning::Could not upload the slides: {scrub(e)}')
+            photos = []
+    if photos and len(photos) == len(paths):
+        if not fb_done:
+            try:
+                form = {'message': r['caption'], **{f'attached_media[{i}]': json.dumps({'media_fbid': pid}) for i, (pid, _) in enumerate(photos)}}
+                res = meta(f'{GRAPH}/{page}/feed', 'POST', form, token)
+                link = f"https://www.facebook.com/{res['id']}"
+                posted.append(('Facebook Page', link))
+                print(f'::notice::Posted to the Facebook Page: {link}')
+            except Exception as e:  # noqa: BLE001
+                failed.append(('Facebook Page', scrub(e)))
+                print(f'::warning::Facebook Page: {scrub(e)}')
+        if ig_id and not ig_done:
+            try:
+                urls = [u for _, u in photos]
+                if not all(urls):
+                    raise Failed('no web address for a slide to give Instagram')
+                text = r.get('instagramCaption') or r['caption']
+                if len(urls) == 1:
+                    c = meta(f'{GRAPH}/{ig_id}/media', 'POST', {'image_url': urls[0], 'caption': text}, token)
+                else:
+                    kids = []
+                    for u in urls:
+                        k = meta(f'{GRAPH}/{ig_id}/media', 'POST', {'image_url': u, 'is_carousel_item': 'true'}, token)
+                        wait_ready(f"{GRAPH}/{k['id']}", token)
+                        kids.append(k['id'])
+                    c = meta(f'{GRAPH}/{ig_id}/media', 'POST', {'media_type': 'CAROUSEL', 'children': ','.join(kids), 'caption': text}, token)
+                wait_ready(f"{GRAPH}/{c['id']}", token)
+                pub = meta(f'{GRAPH}/{ig_id}/media_publish', 'POST', {'creation_id': c['id']}, token)
+                link = meta(f"{GRAPH}/{pub['id']}?fields=permalink", token=token).get('permalink') or 'https://www.instagram.com/'
+                posted.append(('Instagram', link))
+                print(f'::notice::Posted to Instagram: {link}')
+            except Exception as e:  # noqa: BLE001
+                failed.append(('Instagram', scrub(e)))
+                print(f'::warning::Instagram: {scrub(e)}')
     if failed:
         email(f'Daily puzzle: {" and ".join(n for n, _ in failed)} did not post, {when}', [
             f'<p>Today\'s puzzle, <b>{html.escape(r.get("title", ""))}</b>, passed every check, but posting hit a problem.</p>',
