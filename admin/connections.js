@@ -552,6 +552,7 @@ export const CONNECTIONS = [
       { name: 'META_PAGE_ID', where: 'github-secret', note: 'The Facebook Page\'s id (a number).' },
       { name: 'META_PAGE_TOKEN', where: 'github-secret', note: 'A Page access token made from a long-lived user token, so it does not expire. Also used for Instagram.' },
       { name: 'INSTAGRAM_ACCOUNT_ID', where: 'github-secret', note: 'The Instagram business account id linked to the Page (a number).' },
+      { name: 'DAILY_PUZZLE_SOCIAL', where: 'github-variable', optional: true, value: 'off', note: 'Only to pause the daily puzzle post to the Facebook Page and Instagram (.github/workflows/daily-puzzle-social.yml). Delete it to post again.' },
     ],
     steps: [
       'Make the Facebook Page for the game (https://www.facebook.com/pages/create).',
@@ -565,6 +566,7 @@ export const CONNECTIONS = [
       'Add `META_PAGE_ID` the same way: the Page `id`.',
       'For Instagram: make the game\'s Instagram a free **Business** or **Creator** account (**Settings** > **Account type and tools**) and link it to the Page (Page **Settings** > **Linked accounts** > **Instagram**). Make the token again with the Instagram permissions ticked and update `META_PAGE_TOKEN`. Then in the Explorer run `<page id>?fields=instagram_business_account` and add its `id` as the secret `INSTAGRAM_ACCOUNT_ID`.',
       `Test: ${REPO}/actions/workflows/marketing-post.yml > **Run workflow** with mode \`check\`. Facebook Page (and Instagram) should say connected.`,
+      `The same keys post the daily puzzle every morning after it passes its checks (${REPO}/actions/workflows/daily-puzzle-social.yml). To pause it, open ${REPO}/settings/variables/actions, click **New repository variable**, name \`DAILY_PUZZLE_SOCIAL\`, value \`off\`. Delete the variable to start again.`,
     ],
     links: [{ label: 'Meta apps', url: 'https://developers.facebook.com/apps' }, { label: 'Graph API Explorer', url: 'https://developers.facebook.com/tools/explorer' }],
   },
