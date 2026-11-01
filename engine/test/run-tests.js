@@ -91,7 +91,7 @@ function allMatches(p) {
 // ---------- tests ----------
 const seeds = quick ? ['t1'] : ['t1', 't2', 't3'];
 const sizes = [];
-// Theoretical Physicist puzzles take up to 40 seconds each to build, so they
+// Theoretical Physicist puzzles take the longest to build, so they
 // get one focused test below instead of a run for every theme and topic.
 const LOOP_TIERS = TIER_ORDER.filter((t) => t !== 'theorist');
 for (const tier of LOOP_TIERS) {
