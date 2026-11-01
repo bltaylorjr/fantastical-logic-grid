@@ -297,7 +297,7 @@ export const CONNECTIONS = [
     why: 'Per-player and per-connection request limits that keep the free allowances safe from floods.',
     cost: 'Free.',
     docs: 'server/wrangler.toml',
-    names: ['LIMIT_SYNC', 'LIMIT_AUTHLESS', 'LIMIT_COMPETE', 'LIMIT_PLAYS', 'LIMIT_PARTS', 'LIMIT_TTS', 'LIMIT_FEEDBACK', 'LIMIT_PICTURES', 'LIMIT_TRANSLATE', 'LIMIT_ERRORS', 'LIMIT_ADMIN_IP', 'LIMIT_ADMIN', 'LIMIT_MESSAGES', 'LIMIT_LICENSE']
+    names: ['LIMIT_SYNC', 'LIMIT_AUTHLESS', 'LIMIT_COMPETE', 'LIMIT_PLAYS', 'LIMIT_PARTS', 'LIMIT_TTS', 'LIMIT_FEEDBACK', 'LIMIT_PICTURES', 'LIMIT_TRANSLATE', 'LIMIT_ERRORS', 'LIMIT_ADMIN_IP', 'LIMIT_ADMIN', 'LIMIT_MESSAGES', 'LIMIT_LICENSE', 'LIMIT_SIGN_IN']
       .map((name) => ({ name, where: 'worker-binding' })),
     steps: ['Nothing to set up: each limit is a [[ratelimits]] block in `server/wrangler.toml`. Change the numbers there.'],
     links: [{ label: 'wrangler.toml', url: `${REPO}/blob/main/server/wrangler.toml` }],
@@ -358,7 +358,7 @@ export const CONNECTIONS = [
     docs: 'admin/README.md',
     names: [
       { name: 'OWNER_EMAIL', where: 'worker-secret', value: 'fantasticallogicgrid@gmail.com', note: 'The owner\'s game account email.' },
-      { name: 'FIREBASE_WEB_API_KEY', where: 'worker-secret', note: 'The same AIza key as the GitHub variable FLG_FIREBASE_API_KEY. A value starting AQ. is wrong.' },
+      { name: 'FIREBASE_WEB_API_KEY', where: 'worker-secret', note: 'The same AIza key as the GitHub variable FLG_FIREBASE_API_KEY. A value starting AQ. is wrong. Players' screen-name sign-in uses it too.' },
     ],
     steps: [
       'In the game (https://thelogicgrid.com), **Menu** > **Account and sync**: make an account with fantasticallogicgrid@gmail.com and click the link in the confirmation email.',
