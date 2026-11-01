@@ -124,7 +124,8 @@ if (puzzleServer) {
       const f = join(d, n);
       if (ent.isDirectory()) { if (n !== 'vendor') scan(f); continue; }
       if (!ent.isFile() || !/\.(js|mjs|html)$/.test(n)) continue;
-      const text = readFileSync(f, 'utf8');
+      // Comments may name removed files (usage examples); only real code counts.
+      const text = readFileSync(f, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
       for (const [, spec] of text.matchAll(/(?:from\s*|import\(\s*|new URL\(\s*)['"](\.{1,2}\/[^'"]+\.js)['"]/g)) {
         if (!existsSync(join(dirname(f), spec))) missing.push(`${relative(out, f)} -> ${spec}`);
       }
