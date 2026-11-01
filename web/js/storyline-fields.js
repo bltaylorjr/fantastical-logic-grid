@@ -1,14 +1,18 @@
 // The Suggest a storyline form's fields, shared by the page (web/storyline/),
 // the Worker that checks and saves an entry (server/src/story-submissions.js),
 // the admin dashboard's Storyline submissions page and the emails that carry a
-// copy of the form. No imports, so all of them can load it.
+// copy of the form. Its only import is the Puzzle Wizard's fields
+// (wizard-fields.js), which has none, so all of them can load it.
 //
 // Three kinds of entry: a theme idea, a category idea for an existing theme,
 // or a whole storyline. For a storyline, Title, Single-line pitch, the
 // characters (at least one, each with a name) and Clues are required, and so
 // is the consent box.
 
-export const KINDS = { theme: 'Theme idea', category: 'Category idea', storyline: 'Storyline' };
+import { wizardCopy } from './wizard-fields.js';
+
+// puzzle: a puzzle made with the Puzzle Wizard (wizard-fields.js checks it).
+export const KINDS = { theme: 'Theme idea', category: 'Category idea', storyline: 'Storyline', puzzle: 'Wizard puzzle' };
 export const MAX_CHARACTERS = 10;
 // The categories builder: the lists of things to match (the grid's other columns).
 export const MAX_CATEGORIES = 4;
@@ -48,7 +52,7 @@ const one = (v, max) => clean(v, max).replace(/\s*\n\s*/g, ' ');
 // be for; themeName(id) names one.
 export function checkSubmission(body, { themeIds = [] } = {}) {
   const b = body && typeof body === 'object' ? body : {};
-  const kind = KINDS[b.kind] ? b.kind : null;
+  const kind = KINDS[b.kind] && b.kind !== 'puzzle' ? b.kind : null;
   const errors = {};
   if (!kind) return { errors: { kind: 'Choose what you would like to send.' } };
   if (kind === 'theme') {
@@ -119,6 +123,7 @@ export function checkSubmission(body, { themeIds = [] } = {}) {
 // all = true. themeName(id) names a theme.
 export function formCopy(form, themeName = (id) => id, { all = false } = {}) {
   const f = form || {};
+  if (f.kind === 'puzzle') return wizardCopy(f);
   const out = [['Entry', KINDS[f.kind] || 'Idea']];
   const add = (label, value) => { if (all || String(value ?? '').trim()) out.push([label, String(value ?? '')]); };
   if (f.kind === 'theme') { add('Theme idea', f.idea); return out; }

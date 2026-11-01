@@ -118,7 +118,8 @@ ${attachments.length ? `<div class="att">${attachments.map((a) => `<div><b>PDF</
   try {
     card('edu', ['Teachers can get free packages of printable logic puzzles, made for their class.', 'This short video shows every step, from the request form to the PDFs in your inbox.']);
 
-    await p.goto(`${SITE}/`);
+    // The game has its own page on the website (the front page lists every game).
+    await p.goto(`${SITE}/fantastical/`);
     await p.waitForSelector('#educators-link');
     await p.evaluate(() => document.querySelectorAll('dialog[open]').forEach((d) => d.close()));
     await hl('#educators-link', 8);

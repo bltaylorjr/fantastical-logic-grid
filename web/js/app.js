@@ -638,10 +638,10 @@ function linkEditionId(url) {
   return null;
 }
 // ?open=account, ?open=messages and ?open=feedback come from The Logic Grid's
-// front page and the NINETIMESNINE page: things shared by every game whose
+// front page and the NINETIMESNINE page (?open=saved from the Puzzle Wizard): things shared by every game whose
 // windows live here. Each opens like its Menu item, and only while that item
 // is on (accounts set up, Messages and Ideas switched on in the dashboard).
-const OPEN_LINKS = ['account', 'messages', 'feedback'];
+const OPEN_LINKS = ['account', 'messages', 'feedback', 'saved'];
 function handleOpenLink() {
   const url = new URL(location.href);
   const what = url.searchParams.get('open');
@@ -2752,6 +2752,7 @@ $('#app-menu').addEventListener('click', async (e) => {
   else if (cmd === 'mail') puzzleMail.open(openDialog);
   else if (cmd === 'feedback') feedbackBox.open(openDialog, { themes: OPTIONS.themes });
   else if (cmd === 'storyline') location.href = 'storyline/';
+  else if (cmd === 'wizard') location.href = 'wizard/?game=fantastical';
   else if (cmd === 'messages') messages.open();
   else if (cmd === 'account') openAccount();
   else if (cmd === 'board') competeUi.openBoard();

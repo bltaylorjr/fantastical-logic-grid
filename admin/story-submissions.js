@@ -13,7 +13,7 @@ let h = null; // helpers from admin.js
 let query = { q: '', kind: '', status: 'new', source: '', scan: '', page: 0 };
 let open = null; // the entry being looked at
 
-const KIND = { theme: 'Theme idea', category: 'Category idea', storyline: 'Storyline' };
+const KIND = { theme: 'Theme idea', category: 'Category idea', storyline: 'Storyline', puzzle: 'Wizard puzzle' };
 const STATUS = { new: ['New', 'warn'], approved: ['Approved', 'ok'], declined: ['Declined', ''], closed: ['Closed', ''] };
 const SOURCE = { form: 'Suggest a storyline page', 'idea box': 'Share an idea' };
 const EMAIL_KIND = {
@@ -37,7 +37,7 @@ function row(r) {
   const [sw, scls] = STATUS[r.status] || [r.status, ''];
   const who = [r.credit && `credit: ${r.credit}`, r.player && `player: ${r.player}`, !r.player && r.uid && 'signed-in player', r.email && r.email].filter(Boolean).join(' · ');
   return `<li class="ss-row${open && open.id === r.id ? ' ss-open' : ''}">
-    <div class="row ss-row-head"><span class="badge">${e(KIND[r.kind] || r.kind)}</span><span class="badge ${scls}">${e(sw)}</span>${r.hasPuzzle ? '<span class="badge ok">Puzzle saved</span>' : ''}${r.ipVerdict ? `<span class="badge ${VERDICT[r.ipVerdict][1]}">${VERDICT[r.ipVerdict][0]}</span>` : '<span class="badge">Not scanned</span>'}${r.images ? `<span class="badge">${r.images} ${r.images === 1 ? 'picture' : 'pictures'}</span>` : ''}
+    <div class="row ss-row-head"><span class="badge">${e(KIND[r.kind] || r.kind)}</span><span class="badge ${scls}">${e(sw)}</span>${r.hasPuzzle ? '<span class="badge ok">Puzzle saved</span>' : ''}${r.ipVerdict ? `<span class="badge ${VERDICT[r.ipVerdict][1]}">${VERDICT[r.ipVerdict][0]}</span>` : '<span class="badge">Not scanned</span>'}${r.images ? `<span class="badge">${r.images} ${r.images === 1 ? 'picture' : 'pictures'}</span>` : ''}${r.sounds ? `<span class="badge">${r.sounds} ${r.sounds === 1 ? 'sound' : 'sounds'}</span>` : ''}
       <span class="muted">#${r.id} · ${h.when(r.createdAt)} · ${e(SOURCE[r.source] || r.source)}${r.themeName ? ` · ${e(r.themeName)}` : ''}</span></div>
     <p class="ss-title"><b>${e(r.title || r.text.split('\n')[0].replace(/^Their idea: /, '') || '(no title)')}</b>${r.pitch ? ` <span class="muted">· ${e(r.pitch)}</span>` : ''}</p>
     ${who ? `<p class="muted">${e(who)}</p>` : ''}
@@ -107,6 +107,18 @@ function pictures(s) {
     </li>`).join('')}</ul>`;
 }
 
+// Sounds sent with a Puzzle Wizard puzzle, with what the author said about each.
+const SOUND_FOR = { solved: 'Plays when the puzzle is solved', music: 'Background music', effect: 'Sound effect for a story moment', other: 'Something else' };
+function sounds(s) {
+  if (!s.sounds || !s.sounds.length) return '';
+  const e = h.esc;
+  return `<h3>Sounds</h3><ul class="bi-grid">${s.sounds.map((x, n) => `<li class="bi-card">
+    <p><b>${e(x.name || `Sound ${n + 1}`)}</b></p><audio controls preload="none" src="${e(x.src)}"></audio>
+    <p class="muted">${e(SOUND_FOR[x.purpose] || 'Sound')} · ${Math.round((x.bytes || 0) / 1024)} KB</p>
+    <p>${x.use ? '<span class="badge ok">May be used</span>' : '<span class="badge warn">Not for use</span>'}${x.use && x.credit ? ` <span class="badge">Credit: ${x.creditAs === 'real' ? 'real name' : 'screen name'}</span>` : ''}</p>
+    <a class="btn small" href="${e(x.src)}" download="${e(x.name || `sound-${n + 1}`)}">Download</a></li>`).join('')}</ul>`;
+}
+
 let beatThemes = null;
 async function useImage(b, s, imageId) {
   if (!beatThemes) beatThemes = (await h.api('beat-images')).themes;
@@ -165,6 +177,7 @@ function detail(s) {
     <h3>Original submission</h3>
     ${copyTable(s.copy)}
     ${pictures(s)}
+    ${sounds(s)}
     ${scanPanel(s)}
     ${puzzlePreview(s, s.polished)}
     ${correctedEditor(s)}

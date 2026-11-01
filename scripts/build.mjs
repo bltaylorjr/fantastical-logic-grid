@@ -168,6 +168,16 @@ for (const dir of ['storyline', 'report']) {
   if (withCsp === page) throw new Error(`Could not add the security policy to ${dir}/index.html`);
   writeFileSync(f, withCsp);
 }
+// The Puzzle Wizard (wizard/ and wizard/check/): the same policy, plus its
+// own PDF in a frame for Print (a blob: address the page made itself).
+for (const dir of ['wizard', 'wizard/check']) {
+  const f = join(out, dir, 'index.html');
+  const page = readFileSync(f, 'utf8');
+  const policy = CSP.replace(/script-src [^;]*/, "script-src 'self'").replace("frame-src 'none'", "frame-src 'self' blob:").replace("object-src 'none'", "object-src 'self' blob:");
+  const withCsp = page.replace(/(<meta charset="utf-8">)/, `$1\n<meta http-equiv="Content-Security-Policy" content="${policy}">\n<meta name="referrer" content="strict-origin-when-cross-origin">`);
+  if (withCsp === page) throw new Error(`Could not add the security policy to ${dir}/index.html`);
+  writeFileSync(f, withCsp);
+}
 const files = [];
 const walk = (d) => { for (const n of readdirSync(d)) { const p = join(d, n); if (statSync(p).isDirectory()) walk(p); else files.push(relative(out, p).split('\\').join('/')); } };
 walk(out);

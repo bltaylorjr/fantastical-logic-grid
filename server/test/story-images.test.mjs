@@ -142,3 +142,50 @@ test('a storyline with pictures: saved with the entry, shown to the team, copied
   assert.equal(left.n, 0);
   assert.ok((await call('/v1/beat-images')).body.images.some((b) => b.id === use.body.id));
 });
+
+// ---------------------------------------------------------------- the Puzzle Wizard
+import { checkSound, sniffSound } from '../src/story-sounds.js';
+// A tiny WAV header and an ID3-tagged MP3 start, as the browser reads them.
+const WAV = `data:audio/wav;base64,${btoa('RIFF\x24\x00\x00\x00WAVEfmt \x10\x00\x00\x00\x01\x00\x01\x00')}`;
+const MP3 = `data:audio/mpeg;base64,${btoa('ID3\x04\x00\x00\x00\x00\x00\x00extra')}`;
+
+test('only real sound files are kept with a wizard puzzle', () => {
+  assert.equal(checkSound({ dataUrl: WAV, name: 'tada.wav', use: true }).value.mime, 'audio/wav');
+  assert.equal(checkSound({ dataUrl: MP3 }).value.mime, 'audio/mpeg');
+  assert.ok(checkSound({ dataUrl: PNG }).error, 'a picture is not a sound');
+  assert.equal(sniffSound(new Uint8Array([0x4f, 0x67, 0x67, 0x53])), 'ogg');
+  assert.equal(checkSound({ dataUrl: WAV, use: false, credit: true }).value.credit, false, 'no credit asked for a file the team may not use');
+});
+
+const WIZARD = {
+  game: 'fantastical', title: 'The Midnight Gala', story: 'The lights went out at the gala and the tiara vanished from its velvet case.', difficulty: 'medium',
+  cast: { one: 'guest', many: 'guests' }, names: ['Ada', 'Ben', 'Cora', 'Dev'],
+  categories: [{ name: 'Room', items: 'Library, Kitchen, Garden, Attic' }, { name: 'Arrival', items: '7:00 PM, 7:15 PM, 7:30 PM, 7:45 PM', order: 'earlier' }],
+  answerMode: 'auto', credit: { as: 'real', real: 'Bobby Taylor' }, consent: true,
+  files: [{ kind: 'image', name: 'ballroom.png', purpose: 'scene', use: true, credit: true, creditAs: 'real' }, { kind: 'sound', name: 'tada.wav', purpose: 'solved', use: true, credit: false }],
+};
+
+test('a Puzzle Wizard puzzle: checked, saved with its picture and sound, shown to the team', async () => {
+  const missing = await call('/v1/story-submissions', { body: { kind: 'puzzle', entry: { ...WIZARD, title: '' } } });
+  assert.equal(missing.status, 400);
+  assert.ok(missing.body.errors.title, 'a puzzle with no title is refused');
+  const badSound = await call('/v1/story-submissions', { body: { kind: 'puzzle', entry: WIZARD, files: [{ dataUrl: PNG }, { dataUrl: PNG }] } });
+  assert.equal(badSound.status, 400);
+  assert.ok(badSound.body.errors.file1, 'a picture sent as a sound is refused');
+  const r = await call('/v1/story-submissions', { body: { kind: 'puzzle', entry: WIZARD, seed: 'abc123', credit: 'Bobby Taylor', files: [{ dataUrl: PNG, width: 1, height: 1 }, { dataUrl: WAV }] } });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  const owner = OWNER_TOKEN();
+  const list = (await call('/admin/v1/story-submissions?kind=puzzle', { auth: owner })).body;
+  const row = list.items.find((x) => x.id === r.body.id);
+  assert.ok(row && row.images === 1 && row.sounds === 1, 'the list counts the picture and the sound');
+  assert.match(row.pitch, /Puzzle Wizard: The Fantastical Logic Grid/);
+  const entry = (await call(`/admin/v1/story-submissions/${r.body.id}`, { auth: owner })).body;
+  assert.equal(entry.credit, 'Bobby Taylor');
+  assert.equal(entry.sounds[0].purpose, 'solved');
+  assert.ok(entry.copy.some(([label, v]) => label === 'Game' && v === 'The Fantastical Logic Grid'), 'the team sees which game it is for');
+  assert.ok(entry.copy.some(([label, v]) => label === 'Picture 1' && /may be used, credit as real name/.test(v)), 'the team sees how the author wants the picture used and credited');
+  const del = await call(`/admin/v1/story-submissions/${r.body.id}/delete`, { auth: owner, body: {} });
+  assert.equal(del.status, 200);
+  const { n } = await db.prepare('SELECT COUNT(*) AS n FROM story_submission_sounds WHERE submission_id = ?1').bind(r.body.id).first();
+  assert.equal(n, 0, 'deleting the entry deletes its sounds');
+});
