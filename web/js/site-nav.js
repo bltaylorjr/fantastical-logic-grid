@@ -15,9 +15,9 @@ document.addEventListener('click', (e) => {
 // Contact us (scripts/hub.mjs contactLink): the support address is only put
 // together when the link is clicked, so it is never written in the page.
 document.addEventListener('click', (e) => {
-  const a = e.target.closest && e.target.closest('a.contact-link[data-u][data-d]');
-  if (!a) return;
+  if (!(e.target.closest && e.target.closest('a.contact-link'))) return;
   e.preventDefault();
-  const r = (s) => String(s || '').split('').reverse().join('');
-  window.location.href = `mailto:${r(a.dataset.u)}@${r(a.dataset.d)}`;
+  // The two halves, reversed, so the address never appears whole in a file.
+  const [user, host] = ['troppus', 'moc.dirgcigoleht'].map((s) => [...s].reverse().join(''));
+  window.location.href = `mailto:${user}@${host}`;
 });

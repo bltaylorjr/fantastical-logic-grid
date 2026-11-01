@@ -77,12 +77,12 @@
   }
   // The support address is only put together when Contact us is clicked
   // (scripts/hub.mjs contactLink), so it is never in the page for scrapers.
-  function reversed(s) { return String(s || '').split('').reverse().join(''); }
+  // The two halves, reversed, so the address never appears whole in a file.
+  var MAIL = ['troppus', 'moc.dirgcigoleht'].map(function (s) { return s.split('').reverse().join(''); });
   document.addEventListener('click', function (e) {
     var t = e.target && e.target.closest ? e.target : null;
     if (!t) return;
-    var mail = t.closest('a.contact-link[data-u][data-d]');
-    if (mail) { e.preventDefault(); window.location.href = 'mailto:' + reversed(mail.getAttribute('data-u')) + '@' + reversed(mail.getAttribute('data-d')); return; }
+    if (t.closest('a.contact-link')) { e.preventDefault(); window.location.href = 'mailto:' + MAIL[0] + '@' + MAIL[1]; return; }
     var o = t.closest('a[data-overlay]');
     if (o && typeof HTMLDialogElement === 'function' && !e.ctrlKey && !e.metaKey && !e.shiftKey) { e.preventDefault(); openOverlay(o); }
   });

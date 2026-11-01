@@ -19,10 +19,10 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-// The support address, never written out in a page: a "Contact us" link
-// holds its two halves reversed, and js/hub.js or js/site-nav.js puts them
-// together into a mailto: link only when the link is clicked.
-export const contactLink = (text = 'Contact us') => `<a class="contact-link" href="#contact" data-u="troppus" data-d="moc.dirgcigoleht" rel="nofollow">${text}</a>`;
+// The support address, never written out in a page: js/hub.js or
+// js/site-nav.js put it together into a mailto: link only when "Contact us"
+// is clicked.
+export const contactLink = (text = 'Contact us') => `<a class="contact-link" href="#contact" rel="nofollow">${text}</a>`;
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const json = (o) => JSON.stringify(o).replace(/</g, '\\u003c');
