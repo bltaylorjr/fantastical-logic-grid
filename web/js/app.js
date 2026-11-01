@@ -699,6 +699,24 @@ function linkEditionId(url) {
 // windows live here. Each opens like its Menu item, and only while that item
 // is on (accounts set up, Messages and Ideas switched on in the dashboard).
 const OPEN_LINKS = ['account', 'messages', 'feedback', 'saved'];
+// Shown in a window over the front page (?embed=1, index.html sets data-embed):
+// only the asked-for window opens, and the front page is told when it is done.
+const EMBED = document.documentElement.hasAttribute('data-embed');
+function embedOpen() {
+  const what = new URLSearchParams(location.search).get('open');
+  const post = (data) => { try { window.parent.postMessage({ type: 'flg-embed-done', ...data }, location.origin); } catch (e) { /* not framed */ } };
+  const item = OPEN_LINKS.includes(what) ? $(`#app-menu [data-cmd="${what}"]`) : null;
+  if (!item || item.hidden) { post({ note: what === 'account' ? 'Accounts are not available right now.' : 'That is not available right now.' }); return; }
+  item.click();
+  try { window.parent.postMessage({ type: 'flg-embed-ready' }, location.origin); } catch (e) { /* not framed */ }
+  // Finished once no window has been open for a moment (signing in can open a
+  // second one, such as choosing a screen name).
+  let quiet = 0;
+  const t = setInterval(() => {
+    if (document.querySelector('dialog[open]')) quiet = 0;
+    else if (++quiet >= 3) { clearInterval(t); post({}); }
+  }, 250);
+}
 function handleOpenLink() {
   const url = new URL(location.href);
   const what = url.searchParams.get('open');
@@ -3297,7 +3315,7 @@ async function init() {
   competeUi.handleRaceLink();
   window.addEventListener('resize', () => { if (!$('#screen-home').hidden) updatePreview(); });
   document.documentElement.classList.add('ready');
-  setTimeout(checkUpdates, 4000);
+  if (!EMBED) setTimeout(checkUpdates, 4000);
   // The Windows and Android apps wait here for an app key that works (license.js).
   await license.gate({ announce });
   // A tester's special link switches the full package on (package-preview.js).
@@ -3308,11 +3326,12 @@ async function init() {
   // Otherwise the app opens where the player last was: the game cards (always
   // the first time), The Fantastical Logic Grid (with its welcome the first
   // time) or NINETIMESNINE.
-  if (new URLSearchParams(location.search).has('learn')) { settings.introOffered = true; store.saveSettings(settings); openTutorial(); } else if (!handleChallengeLink() && !handlePlayLink() && !handleOpenLink() && currentScreen === 'home') {
+  if (EMBED) embedOpen(); else if (new URLSearchParams(location.search).has('learn')) { settings.introOffered = true; store.saveSettings(settings); openTutorial(); } else if (!handleChallengeLink() && !handlePlayLink() && !handleOpenLink() && currentScreen === 'home') {
     const last = games.lastGame();
     if (!pkg.on() || last === 'logic-grid') offerIntro(); else if (last === 'ninetimesnine' && numberPlace.enabled()) openNumberPlace(); else showScreen('games');
   }
   delete document.documentElement.dataset.start;
+  if (EMBED) return;
   offerLanguage();
   // Heavy extras wait until the first screen is drawn and the page is idle, so
   // they never slow the first load: the DiceBear faces (270 KB), then the

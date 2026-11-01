@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Your account · The Logic Grid</title>
+<meta name="description" content="Sign in to The Logic Grid, sync your puzzles across devices, choose your screen name and manage your account.">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#1F5FAD">
+<link rel="icon" href="../icons/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../app.css">
+<link rel="stylesheet" href="account.css">
+<script type="module" src="../js/account-page.js"></script>
+</head>
+<body class="ac-page">
+<a class="skip" href="#ac-main">Skip to your account</a>
+<header class="ac-top">
+  <a class="btn quiet" href="../" id="ac-back"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg> The Logic Grid home</a>
+  <span class="ac-brand">The Logic Grid</span>
+</header>
+<main id="ac-main" tabindex="-1">
+  <h1>Your account</h1>
+  <p class="help ac-lead">One free account for every game: your saved puzzles, progress, stats and settings follow you to every device. You never need an account to play.</p>
+  <p class="error-box" id="ac-off" role="alert" hidden>Accounts are not switched on in this copy of the game. Open thelogicgrid.com to sign in.</p>
+  <section class="ac-card" id="ac-account" aria-label="Sign in and sync">
+    <!-- The Account and sync window: copied here from index.html when the site is built (scripts/build.mjs), so the game and this page always match. -->
+    <!-- ACCOUNT_WINDOWS -->
+  </section>
+  <section class="ac-card" id="ac-name" aria-labelledby="ac-name-h" hidden>
+    <h2 id="ac-name-h">Screen name</h2>
+    <p class="help">The name other players see on the scoreboard and in races. Players who are not signed in show as Guest.</p>
+    <p id="ac-name-now"></p>
+    <form id="ac-name-form" novalidate>
+      <div class="field"><label for="ac-name-input">New screen name</label>
+        <input type="text" id="ac-name-input" maxlength="20" autocomplete="nickname" spellcheck="false" aria-describedby="ac-name-rules ac-name-err"></div>
+      <p class="help" id="ac-name-rules">3 to 20 letters, numbers, spaces, dots, dashes or underscores. New names may wait for approval before others see them.</p>
+      <p class="ac-err" id="ac-name-err" role="alert"></p>
+      <div class="row-inline"><button class="btn primary" type="submit">Save screen name</button></div>
+    </form>
+  </section>
+  <button type="button" data-cmd="account" hidden></button>
+  <div class="sync-line" id="sync-line" hidden><span id="sync-text"></span> <button class="btn small" type="button" id="sync-btn">Sync</button></div>
+</main>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+</body>
+</html>

@@ -29,10 +29,9 @@ const DEFAULT_TEXT = {
   ntnTag: 'Number puzzles',
   ntnText: 'Fill the grid so every row, column and box holds each number once. Start small at 4×4 or go for the full 9×9.',
   ntnButton: 'Play NINETIMESNINE',
-  wizardButton: 'Submit Puzzle Ideas',
   appTitle: 'One account for every game',
   appText: 'Sign in once and your saves, stats and settings stay in step in every game, on every device.',
-  footerNote: 'Questions? support@thelogicgrid.com',
+  footerNote: 'Questions?',
   infoPlay: 'Play free',
   hubTitle: 'The Logic Grid | Free logic and number puzzle games',
   hubDescription: 'The Logic Grid: The Fantastical Logic Grid story logic puzzles and NINETIMESNINE number puzzles. Free to play in your browser.',
@@ -68,7 +67,6 @@ export const CATEGORIES = [
     text('heroEyebrow', 'Small label text', 40),
     text('heroTitle', 'Heading', 60),
     text('heroText', 'Introduction', 220, { long: true }),
-    text('wizardButton', 'Submit Puzzle Ideas button', 50),
   ] },
   { id: 'cards', name: 'Front page: game cards', page: 'hub', help: 'The two game cards: order, layout and words.', options: [
     select('cardOrder', 'Order', [pick('flg', 'The Fantastical Logic Grid first'), pick('ntn', 'NINETIMESNINE first')], 'flg'),
@@ -96,7 +94,7 @@ export const CATEGORIES = [
   { id: 'chrome', name: 'Front page: header and footer', page: 'hub', options: [
     select('themePicker', 'Light and dark picker (Look)', SHOW, 'show'),
     select('footerLinks', 'Privacy and terms links', SHOW, 'show'),
-    text('footerNote', 'Footer note', 80),
+    text('footerNote', 'Footer note (before Contact us)', 80),
   ] },
   { id: 'ntnpage', name: 'NINETIMESNINE page', page: 'np', options: [
     select('npHeader', 'Header bar', [pick('light', 'Light'), pick('accent', 'Accent color')], 'light'),

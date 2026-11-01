@@ -158,9 +158,23 @@ if (!indexHtml.includes('http-equiv="Content-Security-Policy"')) {
   if (!indexHtml.includes('Content-Security-Policy')) throw new Error('Could not add the security policy to index.html');
   writeFileSync(indexFile, indexHtml);
 }
-// The Suggest a storyline page (storyline/) and the Report a Problem page
-// (report/) get the same policy; they have no inline scripts.
-for (const dir of ['storyline', 'report']) {
+// The Account page (account/) shows the game's own Account and sync window
+// and its idle sign-out warning, copied from the game page here so the two
+// always match.
+{
+  const f = join(out, 'account', 'index.html');
+  const windows = ['dlg-account', 'dlg-idle'].map((id) => {
+    const m = indexHtml.match(new RegExp(`<dialog id="${id}"[\\s\\S]*?</dialog>`));
+    if (!m) throw new Error(`Build: index.html has no <dialog id="${id}"> for the Account page`);
+    return m[0];
+  }).join('\n');
+  const page = readFileSync(f, 'utf8');
+  if (!page.includes('<!-- ACCOUNT_WINDOWS -->')) throw new Error('Build: account/index.html has no <!-- ACCOUNT_WINDOWS --> place');
+  writeFileSync(f, page.replace('<!-- ACCOUNT_WINDOWS -->', windows));
+}
+// The Suggest a storyline page (storyline/), the Report a Problem page
+// (report/) and the Account page (account/) get the same policy; they have no inline scripts.
+for (const dir of ['storyline', 'report', 'account']) {
   const f = join(out, dir, 'index.html');
   const page = readFileSync(f, 'utf8');
   const policy = CSP.replace(/script-src [^;]*/, "script-src 'self'");

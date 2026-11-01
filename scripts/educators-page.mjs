@@ -4,6 +4,7 @@
 // Every choice comes from engine/src/classroom.js; seo/educators.js runs the
 // form (school email code, sending) against the game's Worker.
 import { esc } from './worksheet.mjs';
+import { contactLink } from './hub.mjs';
 
 export function educatorsBody(up, { options: o, api, video }) {
   const sizeOpts = [];
@@ -198,7 +199,7 @@ export function educatorFeedbackBody(up, { survey, kinds, textMax, api }) {
 <section id="fb-locked" class="panel" aria-labelledby="locked-h">
 <h2 id="locked-h">This section is for educators who received a puzzle package</h2>
 <p id="fb-locked-why">It opens with the private link in the email that brought your puzzles. Please use the <strong>Share ideas and feedback</strong> button in that email.</p>
-<p>No package yet? <a href="${up}educators/">Ask for a free puzzle package</a>. Questions? Write to <a href="mailto:support@thelogicgrid.com">support@thelogicgrid.com</a>.</p>
+<p>No package yet? <a href="${up}educators/">Ask for a free puzzle package</a>. Questions? ${contactLink()}.</p>
 </section>
 
 <div id="fb-open" hidden>

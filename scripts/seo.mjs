@@ -17,7 +17,7 @@ import { join, dirname } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { gridTable, answerKey } from './worksheet.mjs';
-import { writeGamePage, writeHubPages } from './hub.mjs';
+import { writeGamePage, writeHubPages, contactLink } from './hub.mjs';
 import { educatorsBody, EDUCATORS_CSS, educatorFeedbackBody, FEEDBACK_CSS } from './educators-page.mjs';
 
 // Search pages are plain HTML: only the site's own files may load, inline
@@ -315,7 +315,7 @@ ${body(up)}
 </main>
 <footer class="foot">
   ${app ? `<p><a class="btn quiet" href="${up}" data-back><span aria-hidden="true">‹</span> Back</a> <a class="btn quiet" href="${up}">The Logic Grid home</a></p>
-  <p>The Logic Grid: <a href="${up}fantastical/">The Fantastical Logic Grid</a> and <a href="${up}ninetimesnine/">NINETIMESNINE</a>, free in your browser. Questions? support@thelogicgrid.com</p>` : `<p><a class="btn quiet" href="${up}${GAME}" data-back><span aria-hidden="true">‹</span> Back</a> <a class="btn quiet" href="${up}${GAME}">Back to the game</a> <a class="btn quiet" href="${up}">The Logic Grid home</a></p>
+  <p>The Logic Grid: <a href="${up}fantastical/">The Fantastical Logic Grid</a> and <a href="${up}ninetimesnine/">NINETIMESNINE</a>, free in your browser. Questions? ${contactLink()}</p>` : `<p><a class="btn quiet" href="${up}${GAME}" data-back><span aria-hidden="true">‹</span> Back</a> <a class="btn quiet" href="${up}${GAME}">Back to the game</a> <a class="btn quiet" href="${up}">The Logic Grid home</a></p>
   <p><a href="${up}${GAME}">Play ${name}</a> · free in your browser, offline-ready, and on Windows.</p>`}
   <p>Every puzzle has exactly one answer, checked by our solver${quality.rating ? `, and players rate them ${quality.rating.average} out of 5 stars` : ''}. <a href="${up}picks/">Hand-picked puzzles</a></p>
   <p>${NAV.map(([p, n]) => `<a href="${up}${p}">${n}</a>`).join(' · ')} · <a href="${up}privacy/">Privacy</a></p>
@@ -359,7 +359,7 @@ ${body(up)}
     copyrightHolder: { '@type': 'Person', name: owner }, copyrightYear: 2026,
   };
   const publisher = { '@type': 'Organization', name, url: url(''), logo: { '@type': 'ImageObject', url: url('icons/icon-512.png') }, sameAs: socialList.map((s) => s.url),
-    email: 'support@thelogicgrid.com', contactPoint: { '@type': 'ContactPoint', contactType: 'customer support', email: 'support@thelogicgrid.com', availableLanguage: 'en' } };
+    contactPoint: { '@type': 'ContactPoint', contactType: 'customer support', url: url('privacy/'), availableLanguage: 'en' } };
   game.publisher = publisher;
   const website = { '@context': 'https://schema.org', '@type': 'WebSite', name, url: url(''), description: appDescription, inLanguage: 'en', publisher };
   const head = `<meta name="description" content="${esc(appDescription)}">
@@ -669,14 +669,14 @@ ${puzzleBody(p, d, up)}
 <ul>
 <li>A tip is a voluntary gift to help keep a free game running. It does not buy the game, a puzzle or anything you could not already use.</li>
 <li>As a thank-you, a tip may add a Supporter badge next to your screen name on the scoreboard, and a membership may also open supporter extra themes. These are added to your account straight away and last as long as the payment page says (a membership: while it is active).</li>
-<li>Changed your mind, or paid by mistake? Email <a href="mailto:support@thelogicgrid.com">support@thelogicgrid.com</a> within 30 days of the payment and we will refund it in full, no questions asked. This is quicker for you than asking your bank.</li>
+<li>Changed your mind, or paid by mistake? ${contactLink('Contact us')} within 30 days of the payment and we will refund it in full, no questions asked. This is quicker for you than asking your bank.</li>
 <li>If a payment is refunded or disputed with your bank or card company (a chargeback), the badge and extras from it stop. After a chargeback, new payments add no badge or extras until it is settled. We keep a record of the payment and of the thank-yous it gave, and may share it with the payment service to answer the dispute.</li>
 <li>You must be allowed to use the card or account you pay with. Payments made with someone else's card without their permission are refunded and the badge removed.</li>
 </ul>
 <h2>No guarantees</h2>
 <p>The game is provided as it is, without any warranty. We do our best to keep it working and your saves safe, but we are not responsible for lost progress or for any loss from using it, as far as the law allows.</p>
 <h2>Changes and contact</h2>
-<p>We may update these terms; the date above shows the latest version. To ask for permission, report a copy of the game, or ask a question, email <a href="mailto:support@thelogicgrid.com">support@thelogicgrid.com</a>.</p>
+<p>We may update these terms; the date above shows the latest version. To ask for permission, report a copy of the game, or ask a question, ${contactLink('contact us')}.</p>
 ${playBtn(up)}`,
   });
   // ---------- Hand-picked: the best daily puzzles, and how every puzzle is checked ----------
@@ -822,7 +822,7 @@ ${playBtn(up)}`,
 <h2>Children</h2>
 <p>Everything except races and the scoreboard can be played with no account and no personal details. An account needs an email address, so for a younger child a parent or teacher should make it, or simply play without one.</p>
 <h2>Questions</h2>
-<p>Email <strong>support@thelogicgrid.com</strong>. To report a security problem, see <a href="https://github.com/bltaylorjr/fantastical-logic-grid/security/advisories/new">the security page</a>.</p>
+<p>${contactLink()}. To report a security problem, see <a href="https://github.com/bltaylorjr/fantastical-logic-grid/security/advisories/new" rel="noopener noreferrer nofollow" referrerpolicy="no-referrer" target="_blank">the security page</a>.</p>
 <p class="meta">Last changed: 28 October 2026.</p>`,
   });
 
@@ -960,7 +960,7 @@ Sitemap: ${url('sitemap.xml')}
 - [Privacy](${url('privacy/')}): no ads, no tracking cookies, no selling data
 - [Terms of use](${url('terms/')})
 
-Contact: support@thelogicgrid.com
+Contact: the Contact us link at the foot of every page on ${url('')}
 
 ## Use of this content
 

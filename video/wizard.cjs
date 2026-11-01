@@ -119,10 +119,11 @@ async function recordWizard(browser, W, game, fill) {
   card(`wiz${game}`, [`Submit Puzzle Ideas helps you make your own puzzle for ${g.name}, step by step, and send it to the team.`, 'This video shows every entry, what it is for, and how it fits into the puzzle the wizard builds.']);
 
   await p.goto(`${SITE}/`);
-  await p.waitForSelector('#wizard-open');
-  await hl('#wizard-open', 8);
-  await scene('button', ['On thelogicgrid.com, choose Submit Puzzle Ideas.']);
-  await p.click('#wizard-open');
+  await p.waitForSelector('.app-item[data-wizard]');
+  await view('.app-item[data-wizard]', -200);
+  await hl('.app-item[data-wizard]', 8);
+  await scene('button', ['On thelogicgrid.com, choose Submit Puzzle Ideas, under One account for every game.']);
+  await p.click('.app-item[data-wizard]');
   await p.waitForSelector('#wizard-pick[open]');
   await hl(`#wizard-pick a[href$="${game}"]`, 6);
   await scene('pick', [`A box asks which puzzle you would like to make. Choose ${g.name}.`]);
@@ -238,10 +239,10 @@ async function recordIntro(browser) {
   await scene('flg', ['The Fantastical Logic Grid. Story logic puzzles where every case is brand new.']);
   await hl('.card[data-game="ntn"]', 6);
   await scene('ntn', ['NINETIMESNINE. Number puzzles, with five ways to play.']);
-  await p.evaluate(() => window.scrollTo(0, 0));
-  await hl('#wizard-open', 8);
+  await view('.app-item[data-wizard]', -200);
+  await hl('.app-item[data-wizard]', 8);
   await scene('wizard', ['New: Submit Puzzle Ideas. Make your own puzzle for either game, step by step.', 'It checks your puzzle has exactly one answer, gives you a PDF to print, and saves it to your Saved puzzles.']);
-  await p.click('#wizard-open');
+  await p.click('.app-item[data-wizard]');
   await p.waitForSelector('#wizard-pick[open]');
   await hl('#wizard-pick', 6);
   await scene('wizard-pick', ['Choose which puzzle to make, and the wizard asks only what that puzzle needs.']);
