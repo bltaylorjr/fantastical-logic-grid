@@ -36,6 +36,11 @@
     return;
   }
 
+  // The same offline helper as the game (sw.js, scope /): a first visit here
+  // makes the games playable offline, and app stores that read this page
+  // (PWABuilder for the Microsoft Store) find the manifest and offline support.
+  if ('serviceWorker' in navigator) addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () { /* optional */ }); });
+
   document.addEventListener('DOMContentLoaded', function () {
     var pick = document.getElementById('theme-pick');
     if (!pick) return;

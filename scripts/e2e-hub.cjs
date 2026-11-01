@@ -79,6 +79,8 @@ const ignorable = (t) => /fonts\/|Failed to decode downloaded font|OTS parsing/.
     await app.close();
     const manifest = await (await fetch(`${BASE}/manifest.webmanifest`)).json();
     assert(manifest.id === './' && manifest.start_url === 'fantastical/', 'the app keeps its identity and now starts at the game');
+    const front = await (await fetch(`${BASE}/`)).text();
+    assert(/<link rel="manifest" href="manifest.webmanifest">/.test(front), 'the front page links the app manifest (Microsoft Store packaging reads it)');
 
     // ---- NINETIMESNINE on its own page, from the game's menu
     await page.goto(`${BASE}/fantastical/`);

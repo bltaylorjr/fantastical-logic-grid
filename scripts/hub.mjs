@@ -177,6 +177,7 @@ export function writeHubPages({ site, url, verification, tdmMeta, copyright, soc
 ${tdmMeta}
 ${og('The Logic Grid', description, '')}
 ${verification}
+<link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="preload" href="fonts/atkinson-400.woff2" as="font" type="font/woff2" crossorigin>
