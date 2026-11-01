@@ -67,7 +67,7 @@ export async function buildPuzzle(entry, { seed = seedOf(), credit = '', paper =
   }
   const w = flgWorld(v);
   const opts = { custom: w.custom, answer: w.answer || undefined, difficulty: v.difficulty, categories: v.categories.length + 1, items: v.names.length, seed, questions: 3, title: v.title };
-  const puzzle = generate ? await generate(opts) : (await import('../engine/index.js')).generatePuzzle(opts);
+  const puzzle = await (generate || (await import('./engine-client.js')).generate)(opts);
   // The author's look (colors, pictures, music) and credit go with the puzzle.
   puzzle.wizard = { look: v.look || null, credit: credit || null, tone: v.tone || null };
   return { game: v.game, puzzle, pdf: flgPdf(puzzle, { paper, credit }), credit };

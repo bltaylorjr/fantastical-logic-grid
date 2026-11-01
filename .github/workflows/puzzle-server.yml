@@ -1,0 +1,64 @@
+# Deploys the private puzzle server (docs/PUZZLE-SERVER.md) to the Oracle
+# build server whenever the engine or the puzzle server changes on main.
+# It runs on one of the Oracle runners, which share the folder /flg-puzzles
+# with the puzzle server container: each release is copied into its own folder,
+# then the file "current" is switched to it. The puzzle server notices within
+# 15 seconds, finishes the puzzles it is making and restarts on the new release.
+# Off until the repository variable FLG_PUZZLE_DEPLOY is 1 (and FLG_RUNNER is set).
+name: Deploy puzzle server
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'engine/src/**'
+      - 'puzzle-server/**'
+      - '.github/workflows/puzzle-server.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: puzzle-server
+  cancel-in-progress: false
+jobs:
+  deploy:
+    if: vars.FLG_PUZZLE_DEPLOY == '1' && vars.FLG_RUNNER != ''
+    runs-on: [self-hosted, flg]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: |
+            engine
+            puzzle-server
+          sparse-checkout-cone-mode: false
+      - name: Test the puzzle server
+        run: node puzzle-server/test/server.test.mjs
+      - name: Copy the release to the puzzle server
+        run: |
+          set -euo pipefail
+          test -d /flg-puzzles/releases || { echo "::error::/flg-puzzles is missing. Run the updated setup script on the Oracle server (docs/PUZZLE-SERVER.md)."; exit 1; }
+          rel="${GITHUB_SHA::12}"
+          dest="/flg-puzzles/releases/$rel"
+          rm -rf "$dest.tmp" && mkdir -p "$dest.tmp/engine"
+          cp -r engine/src "$dest.tmp/engine/src"
+          cp engine/package.json "$dest.tmp/engine/package.json"
+          mkdir -p "$dest.tmp/puzzle-server"
+          cp puzzle-server/package.json puzzle-server/*.mjs "$dest.tmp/puzzle-server/"
+          rm -rf "$dest" && mv "$dest.tmp" "$dest"
+          echo "$rel" > /flg-puzzles/current.tmp && mv /flg-puzzles/current.tmp /flg-puzzles/current
+          # Keep the newest three releases.
+          ls -1dt /flg-puzzles/releases/*/ | tail -n +4 | xargs -r rm -rf
+          echo "Release $rel is live."
+      - name: Check the game can reach it
+        if: vars.FLG_CLOUD_URL != ''
+        env:
+          CLOUD: ${{ vars.FLG_CLOUD_URL }}
+        run: |
+          rel="${GITHUB_SHA::12}"
+          for i in $(seq 1 24); do
+            h=$(curl -fsS "$CLOUD/v1/puzzles/health" || true)
+            echo "$h"
+            case "$h" in *"\"release\":\"$rel\""*'"ok":true'*|*'"ok":true'*"\"release\":\"$rel\""*) echo "The Worker reaches release $rel."; exit 0;; esac
+            sleep 10
+          done
+          echo "::warning::The Worker could not reach release $rel yet. Check the tunnel and the PUZZLE_KEY secret (docs/PUZZLE-SERVER.md)."

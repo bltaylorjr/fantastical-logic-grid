@@ -68,6 +68,24 @@ crons = ["0 6 * * *", "0 7 * * *", "47 4 * * 1", "23 * * * *"]
 # name = "ARCHIVE_EMAIL"
 
 # Per-client request limits.
+# Puzzles and hints from the private puzzle server (src/puzzles.js). Set per
+# visitor; a whole classroom behind one school address still fits.
+[[ratelimits]]
+name = "LIMIT_PUZZLES"
+namespace_id = "41080"
+simple = { limit = 60, period = 60 }
+
+[[ratelimits]]
+name = "LIMIT_HINTS"
+namespace_id = "41081"
+simple = { limit = 120, period = 60 }
+
+# The private puzzle server (docs/PUZZLE-SERVER.md). Uncomment once the
+# Workers VPC Service exists, with its id:
+# [[vpc_services]]
+# binding = "PUZZLES"
+# service_id = "PASTE_VPC_SERVICE_ID"
+
 [[ratelimits]]
 name = "LIMIT_SYNC"
 namespace_id = "41010"

@@ -5,7 +5,8 @@ import { TIERS, TIER_ORDER, CLUE_TYPES, SIZE_LIMITS } from './tiers.js';
 import { PLAYER_STORIES_THEME } from './player-stories.js';
 
 export { generatePuzzle, gridLayout, ENGINE_NAME, ENGINE_VERSION } from './generator.js';
-export { getHint, checkMarks, checkAnswers, isSolved, formatPuzzleText } from './play.js';
+export { checkMarks, checkAnswers, isSolved, formatPuzzleText } from './play.js';
+export { getHint } from './hints.js';
 export { THEMES, THEME_GROUPS, TIERS, CLUE_TYPES, SIZE_LIMITS };
 export { STORYLINES } from './storylines.js';
 export { PLAYER_STORIES, PLAYER_STORIES_THEME, getPlayerStory } from './player-stories.js';

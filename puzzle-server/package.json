@@ -1,0 +1,13 @@
+{
+  "name": "flg-puzzle-server",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Private puzzle server for The Fantastical Logic Grid (docs/PUZZLE-SERVER.md). Proprietary; see ../LICENSE.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node test/server.test.mjs"
+  }
+}

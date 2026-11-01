@@ -1,31 +1,48 @@
 #!/bin/bash
-# Build server for The Fantastical Logic Grid on Oracle Cloud's Always Free
-# tier (Ampere A1 Arm VM, Ubuntu 24.04). Paste this whole file into
-# "Show advanced options > Management > Initialization script" when creating
-# the VM (docs/PRIVATE-REPO.md). It installs Docker and starts several GitHub
-# Actions runners, each in its own container so tests that use fixed ports
-# never collide. Jobs reach them through the repository variable
-#   FLG_RUNNER = ["self-hosted","flg"]
-# Pull requests from forks always stay on GitHub's own machines.
+# The Oracle Cloud server for The Fantastical Logic Grid (Always Free Ampere
+# A1 Arm VM, Ubuntu 24.04). It does two jobs:
+#   1. GitHub Actions build runners (docs/PRIVATE-REPO.md): three containers
+#      named oracle-1..3, labels self-hosted + flg, reached through the
+#      repository variable FLG_RUNNER = ["self-hosted","flg"].
+#   2. The private puzzle server (docs/PUZZLE-SERVER.md): the puzzle generator
+#      runs only here, reached only by the game's Cloudflare Worker through a
+#      Cloudflare Tunnel. No port on this server is open to the internet.
 #
-# Before pasting, replace PASTE_RUNNER_TOKEN_HERE with the token GitHub shows
-# under Settings > Actions > Runners > New self-hosted runner (Linux, ARM64,
-# the line that says --token). The token works for one hour; once a runner has
-# registered it no longer needs it.
-set -euxo pipefail
-RUNNER_TOKEN="PASTE_RUNNER_TOKEN_HERE"
+# First time: paste this whole file into "Show advanced options > Management >
+# Initialization script" when creating the VM, after replacing
+# PASTE_RUNNER_TOKEN_HERE below with the runner token from GitHub.
+#
+# Any time later (a new token, the tunnel, a fix), over SSH:
+#   sudo RUNNER_TOKEN=AAAA... TUNNEL_TOKEN=eyJ... bash /opt/flg/setup.sh
+# Either token may be left out; what is already set up keeps running.
+# Everything it does is written to /var/log/flg-setup.log.
+set -euo pipefail
+RUNNER_TOKEN="${RUNNER_TOKEN:-PASTE_RUNNER_TOKEN_HERE}"
+TUNNEL_TOKEN="${TUNNEL_TOKEN:-}"
 REPO_URL="https://github.com/bltaylorjr/fantastical-logic-grid"
 RUNNERS=3   # 4 Arm cores and 24 GB run three test jobs at once comfortably
 
+exec > >(tee -a /var/log/flg-setup.log) 2>&1
+echo "=== FLG setup $(date -u +%FT%TZ) ==="
+step() { echo; echo "--- $*"; }
+# Keep a copy of this script so it can be run again later (see the top).
+mkdir -p /opt/flg && chmod 700 /opt/flg
+if [ "$(readlink -f "$0")" != /opt/flg/setup.sh ] && [ -f "$0" ]; then cp "$0" /opt/flg/setup.sh; chmod 700 /opt/flg/setup.sh; fi
+
+step "System packages, Docker, automatic security updates, swap"
 export DEBIAN_FRONTEND=noninteractive
-apt-get update
-apt-get install -y docker.io unattended-upgrades
+command -v docker >/dev/null || { apt-get update; apt-get install -y docker.io; }
+dpkg -s unattended-upgrades >/dev/null 2>&1 || apt-get install -y unattended-upgrades
 systemctl enable --now docker
 # Security updates install themselves (and reboot at 4 am UTC if needed).
 echo 'Unattended-Upgrade::Automatic-Reboot "true"; Unattended-Upgrade::Automatic-Reboot-Time "04:00";' > /etc/apt/apt.conf.d/52flg-reboot
 # Swap keeps a big build from running out of memory.
 if [ ! -f /swapfile ]; then fallocate -l 8G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile && echo '/swapfile none swap sw 0 0' >> /etc/fstab; fi
+# A private network inside this server: the puzzle server sits at a fixed
+# address (172.30.0.10) that only the tunnel container uses.
+docker network inspect flg >/dev/null 2>&1 || docker network create --subnet 172.30.0.0/24 flg
 
+step "Build runner image"
 mkdir -p /opt/flg-runner && cd /opt/flg-runner
 cat > Dockerfile <<'EOF'
 FROM ubuntu:24.04
@@ -66,15 +83,74 @@ cat > start.sh <<'EOF'
 set -e
 cd /home/runner/actions-runner
 if [ ! -f .runner ]; then
-  ./config.sh --unattended --url "$REPO_URL" --token "$RUNNER_TOKEN" --name "$RUNNER_NAME" --labels flg --replace
+  if ! ./config.sh --unattended --url "$REPO_URL" --token "$RUNNER_TOKEN" --name "$RUNNER_NAME" --labels flg --replace; then
+    echo "REGISTRATION FAILED for $RUNNER_NAME. The runner token has probably expired (it lasts one hour)."
+    echo "Get a new one and run: sudo RUNNER_TOKEN=... bash /opt/flg/setup.sh"
+    sleep 600; exit 1
+  fi
 fi
 exec ./run.sh
 EOF
 chmod +x start.sh
 docker build -t flg-runner .
+
+step "Shared folder for puzzle server releases"
+# Deploys (.github/workflows/puzzle-server.yml) run on these runners and write
+# each release here; the puzzle server reads it. The key is kept elsewhere.
+RUNNER_UID=$(docker run --rm flg-runner id -u)
+mkdir -p /opt/flg-puzzles/releases
+chown -R "$RUNNER_UID:$RUNNER_UID" /opt/flg-puzzles
+chmod 755 /opt/flg-puzzles
+
+step "Build runners"
+registered=0
 for i in $(seq 1 "$RUNNERS"); do
+  if docker ps -a --format '{{.Names}}' | grep -qx "flg-runner-$i"; then
+    # A container that registered keeps its registration; leave it running
+    # unless a new token was given (then it is rebuilt from the new image).
+    if [ "$RUNNER_TOKEN" = PASTE_RUNNER_TOKEN_HERE ] && docker exec "flg-runner-$i" test -f /home/runner/actions-runner/.runner 2>/dev/null; then registered=$((registered+1)); continue; fi
+  fi
+  if [ "$RUNNER_TOKEN" = PASTE_RUNNER_TOKEN_HERE ]; then echo "No runner token given, so oracle-$i was not (re)created."; continue; fi
   docker rm -f "flg-runner-$i" 2>/dev/null || true
-  docker run -d --name "flg-runner-$i" --restart always --shm-size 1g \
+  docker run -d --name "flg-runner-$i" --restart always --shm-size 1g --cpu-shares 512 --memory 5g \
+    -v /opt/flg-puzzles:/flg-puzzles \
     -e REPO_URL="$REPO_URL" -e RUNNER_TOKEN="$RUNNER_TOKEN" -e RUNNER_NAME="oracle-$i" flg-runner
+  registered=$((registered+1))
 done
-echo "FLG runners started: $(docker ps --format '{{.Names}}' | tr '\n' ' ')"
+
+step "Puzzle server"
+# The shared key the Worker sends with every request (Cloudflare secret
+# PUZZLE_KEY). Made once and kept; readable by root only.
+if [ ! -s /opt/flg/puzzle.env ]; then echo "FLG_PUZZLE_KEY=$(openssl rand -hex 32)" > /opt/flg/puzzle.env; fi
+chmod 600 /opt/flg/puzzle.env
+docker rm -f flg-puzzles 2>/dev/null || true
+# Puzzle requests get priority over build jobs when the server is busy
+# (cpu-shares 2048 against 512 for each runner). Until the first release is
+# deployed it waits and tries again every 30 seconds.
+docker run -d --name flg-puzzles --restart always --network flg --ip 172.30.0.10 \
+  --cpu-shares 2048 --memory 6g --read-only --tmpfs /tmp --user 1000:1000 \
+  --env-file /opt/flg/puzzle.env -e THREADS=2 -e RELEASE_FILE=/srv/flg/current \
+  -v /opt/flg-puzzles:/srv/flg:ro node:22-bookworm-slim \
+  sh -c 'r=$(cat /srv/flg/current 2>/dev/null || true); if [ -z "$r" ] || [ ! -f "/srv/flg/releases/$r/puzzle-server/server.mjs" ]; then echo "No puzzle server release yet; waiting."; sleep 30; exit 1; fi; RELEASE=$r ENGINE_INDEX=/srv/flg/releases/$r/engine/src/index.js exec node /srv/flg/releases/$r/puzzle-server/server.mjs'
+
+step "Cloudflare Tunnel"
+if [ -n "$TUNNEL_TOKEN" ]; then echo "TUNNEL_TOKEN=$TUNNEL_TOKEN" > /opt/flg/tunnel.env; chmod 600 /opt/flg/tunnel.env; fi
+if [ -s /opt/flg/tunnel.env ]; then
+  docker rm -f flg-tunnel 2>/dev/null || true
+  # Workers VPC needs the QUIC protocol (outbound UDP 7844, open by default).
+  docker run -d --name flg-tunnel --restart always --network flg --env-file /opt/flg/tunnel.env \
+    cloudflare/cloudflared:latest tunnel --no-autoupdate --protocol quic run
+  tunnel="started"
+else
+  tunnel="not set up yet (no TUNNEL_TOKEN)"
+fi
+
+step "Summary"
+sleep 20
+docker ps -a --format 'table {{.Names}}\t{{.Status}}'
+echo
+echo "Build runners: $registered of $RUNNERS set up. They should show as Idle at $REPO_URL/settings/actions/runners within a few minutes."
+echo "If one is missing:  sudo docker logs --tail 20 flg-runner-1"
+echo "Cloudflare Tunnel: $tunnel."
+echo "Puzzle server key for the Cloudflare secret PUZZLE_KEY:  sudo cat /opt/flg/puzzle.env"
+echo "=== FLG setup finished $(date -u +%FT%TZ) ==="

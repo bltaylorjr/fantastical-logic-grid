@@ -10,7 +10,7 @@
 // Story beats, server/src/settings.js story_beats_enabled). Silent mode
 // always hides it. For testing, ?beats=0 in the address turns it off on this
 // device and ?beats=1 turns it back on.
-import { storyBeats } from '../engine/index.js';
+import { storyBeats } from '../engine/beats.js';
 import { feature } from './remote-config.js';
 import { CLOUD_URL } from './cloud-config.js';
 import * as store from './store.js';
