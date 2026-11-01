@@ -28,6 +28,14 @@ fieldset.sl-card { min-width: 0; }
 .sl-cat-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .sl-cat-head .btn { min-height: 40px; }
 #sl-cats .sl-char { margin-top: 12px; }
+.sl-mine summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.sl-mine-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; }
+.sl-mine-list li { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; border-top: 1px solid var(--hairline); padding-top: 8px; }
+.sl-mine-list .sl-mine-title { font-weight: 700; flex: 1 1 200px; }
+.sl-status { font-size: .85rem; border: 1px solid var(--edge-hi); border-radius: 999px; padding: 2px 10px; color: var(--muted); }
+.sl-status.invited { border-color: var(--accent); color: var(--text); }
+.sl-editing { border: 2px solid var(--accent); }
+.sl-editing p { margin: 0 0 8px; }
 .sl-rewards { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin: 8px 0 0; }
 .sl-rewards .sl-field { margin: 0; }
 .sl-consent { align-items: flex-start; line-height: 1.5; }

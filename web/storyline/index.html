@@ -25,6 +25,19 @@
   <p class="help sl-lead">Send a new theme, a new category for a theme, or a whole story for a puzzle. Fields marked <span class="sl-req" aria-hidden="true">*</span><span class="sr-only">with a star</span> are required. <span id="sl-who"></span></p>
   <p class="error-box" id="sl-closed" role="alert" hidden>Submissions are closed right now. Please try again later.</p>
 
+  <details class="sl-card sl-mine" id="sl-mine" hidden>
+    <summary><span class="sl-legend">Your entries</span> <span class="help" id="sl-mine-count"></span></summary>
+    <p class="help">Entries you sent while signed in. You can edit and resubmit an entry while it waits for review, or when the team asks you to.</p>
+    <ul class="sl-mine-list" id="sl-mine-list"></ul>
+  </details>
+
+  <div class="sl-card sl-editing" id="sl-editing" role="status" hidden>
+    <p><b id="sl-editing-title">Editing your entry</b></p>
+    <p class="help" id="sl-editing-help">Change anything you like, tick the permission box again, and press Resubmit. Your first version stays saved with the team.</p>
+    <div class="row-inline"><button class="btn" type="button" id="sl-edit-cancel">Stop editing and start a new entry</button></div>
+  </div>
+  <p class="error-box" id="sl-edit-error" role="alert" hidden></p>
+
   <form id="sl-form" novalidate>
     <fieldset class="sl-card">
       <legend class="sl-legend">What would you like to send?</legend>
