@@ -1,4 +1,4 @@
-// Number Place module in the private test app: start, play with keys, notes,
+// NINETIMESNINE module in the private test app: start, play with keys, notes,
 // undo and hints, solve it, and resume a saved game.
 // Run: npm run build && node modules/build-test-app.mjs && node modules/number-place/e2e.cjs
 const { chromium } = require('playwright');

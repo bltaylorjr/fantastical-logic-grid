@@ -159,7 +159,7 @@
       (document.activeElement || document.body).dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
       return true;
     }
-    // A puzzle, a lesson or Number Place steps back towards home (app.js).
+    // A puzzle, a lesson or NINETIMESNINE steps back towards home (app.js).
     if (window.__flgScreenBack && window.__flgScreenBack()) return true;
     return false;
   };

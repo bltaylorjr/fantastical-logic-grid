@@ -33,7 +33,7 @@ if (existsSync(engineSrc)) {
   writeFileSync(join(web, 'engine', 'options.js'), `// Written by scripts/build.mjs from the engine's describeOptions(). Do not edit.\nexport const OPTIONS = ${JSON.stringify(describeOptions())};\n`);
 }
 
-// 1b. Number Place, its own game screen (modules/number-place). Copied in
+// 1b. NINETIMESNINE, its own game screen (modules/number-place). Copied in
 // here so the module stays one folder the private test app also uses; the
 // game serves its engine from web/engine and its worker from web/np-worker.js.
 {

@@ -31,6 +31,6 @@ mount(document.querySelector('#np'), {
   storagePrefix: 'np-test',
   canPrint: !framed,
   canDownload: !framed,
-  onPlay: (rec) => console.info('Number Place play record (would go to the learning service):', rec),
+  onPlay: (rec) => console.info('NINETIMESNINE play record (would go to the learning service):', rec),
   setWorld: (w) => { document.documentElement.dataset.world = w; },
 });

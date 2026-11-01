@@ -126,21 +126,21 @@ export const SETTINGS = {
   learning_enabled: { type: 'bool', default: true, group: 'Learning', label: 'Learn from everyone', help: 'On: anonymous play summaries from players who keep "Learn from how I play" on tune puzzles, clue mix and story parts for all. Off: nothing is sent and summaries are dropped.' },
   story_sharing_enabled: { type: 'bool', default: true, group: 'Learning', label: 'Accept story parts from older apps', help: 'Older app versions can still send story parts for review. New ones are written in the Story workshop here.' },
   story_model: { type: 'model', default: 'gemini-flash-latest', group: 'Learning', label: 'Story workshop AI writer (Gemini model)', help: 'Drafts story parts in the Story workshop with the GEMINI_API_KEY secret, on Google\'s free tier.' },
-  // ---- Number Place: its own game screen (modules/number-place). These show in
-  // the admin dashboard's Number Place section, not with the other settings.
-  np_enabled: { type: 'bool', default: true, group: 'Number Place', label: 'Number Place in the game', help: 'On: Menu > Number Place opens the numbers game. Off: the menu link is hidden. Saved Number Place games stay on each device.' },
-  np_learning_enabled: { type: 'bool', default: true, group: 'Number Place', label: 'Learn from Number Place games', help: 'On: anonymous summaries of finished Number Place puzzles (level, time, hints, mistakes, how it felt) tune every player\'s puzzles. Needs Learn from everyone on, and players who turned off Learn from how I play send nothing. Off: nothing is sent and summaries are dropped.' },
+  // ---- NINETIMESNINE: its own game screen (modules/number-place). These show in
+  // the admin dashboard's NINETIMESNINE section, not with the other settings.
+  np_enabled: { type: 'bool', default: true, group: 'NINETIMESNINE', label: 'NINETIMESNINE in the game', help: 'On: Menu > NINETIMESNINE opens the numbers game. Off: the menu link is hidden. Saved NINETIMESNINE games stay on each device.' },
+  np_learning_enabled: { type: 'bool', default: true, group: 'NINETIMESNINE', label: 'Learn from NINETIMESNINE games', help: 'On: anonymous summaries of finished NINETIMESNINE puzzles (level, time, hints, mistakes, how it felt) tune every player\'s puzzles. Needs Learn from everyone on, and players who turned off Learn from how I play send nothing. Off: nothing is sent and summaries are dropped.' },
   np_max_level: {
-    type: 'choice', default: 'master', group: 'Number Place', label: 'Hardest level offered', help: 'Levels above this are hidden from the Number Place setup.',
+    type: 'choice', default: 'master', group: 'NINETIMESNINE', label: 'Hardest level offered', help: 'Levels above this are hidden from the NINETIMESNINE setup.',
     options: [{ value: 'medium', label: 'Medium' }, { value: 'hard', label: 'Hard' }, { value: 'expert', label: 'Expert' }, { value: 'master', label: 'Master' }],
   },
-  np_daily_enabled: { type: 'bool', default: true, group: 'Number Place', label: 'Daily Number Place puzzle', help: 'One puzzle a day, the same for everyone, from Easy on Monday to Master on Sunday, with a streak. Off: the button is hidden.' },
-  np_variants_enabled: { type: 'bool', default: true, group: 'Number Place', label: 'Extra rules (diagonals, odd and even)', help: 'Off: players get the classic rules only.' },
-  np_stories_enabled: { type: 'bool', default: true, group: 'Number Place', label: 'Stories', help: 'Each puzzle opens with a short story and ends with its ending. Off: plain puzzles with no story.' },
-  np_coach_tips: { type: 'bool', default: true, group: 'Number Place', label: 'Tips on a player\'s first puzzle', help: 'Four short tips on how to play, once per device.' },
-  np_adapt_strength: { type: 'int', min: 0, max: 100, default: 100, group: 'Number Place', label: 'How strongly puzzles adapt to each player (percent)', help: '100: a player who finds a level easy gets clearly tougher puzzles inside it, and one who struggles gets gentler ones. 0: every puzzle aims for the middle of its level. Players can also turn tuning off for themselves.' },
-  np_practice_chance: { type: 'int', min: 0, max: 100, default: 35, group: 'Number Place', label: 'Practice puzzles (percent)', help: 'How often a puzzle is built to need a technique the player has asked hints for, so they get to practice it.' },
-  np_shared_weight: { type: 'int', min: 0, max: 60, default: 25, group: 'Number Place', label: 'Weight of everyone\'s games (percent)', help: 'How much the tuning from all players counts against the player\'s own games. New players follow everyone\'s games until they have their own.' },
+  np_daily_enabled: { type: 'bool', default: true, group: 'NINETIMESNINE', label: 'Daily NINETIMESNINE puzzle', help: 'One puzzle a day, the same for everyone, from Easy on Monday to Master on Sunday, with a streak. Off: the button is hidden.' },
+  np_variants_enabled: { type: 'bool', default: true, group: 'NINETIMESNINE', label: 'Extra rules (diagonals, odd and even)', help: 'Off: players get the classic rules only.' },
+  np_stories_enabled: { type: 'bool', default: true, group: 'NINETIMESNINE', label: 'Stories', help: 'Each puzzle opens with a short story and ends with its ending. Off: plain puzzles with no story.' },
+  np_coach_tips: { type: 'bool', default: true, group: 'NINETIMESNINE', label: 'Tips on a player\'s first puzzle', help: 'Four short tips on how to play, once per device.' },
+  np_adapt_strength: { type: 'int', min: 0, max: 100, default: 100, group: 'NINETIMESNINE', label: 'How strongly puzzles adapt to each player (percent)', help: '100: a player who finds a level easy gets clearly tougher puzzles inside it, and one who struggles gets gentler ones. 0: every puzzle aims for the middle of its level. Players can also turn tuning off for themselves.' },
+  np_practice_chance: { type: 'int', min: 0, max: 100, default: 35, group: 'NINETIMESNINE', label: 'Practice puzzles (percent)', help: 'How often a puzzle is built to need a technique the player has asked hints for, so they get to practice it.' },
+  np_shared_weight: { type: 'int', min: 0, max: 60, default: 25, group: 'NINETIMESNINE', label: 'Weight of everyone\'s games (percent)', help: 'How much the tuning from all players counts against the player\'s own games. New players follow everyone\'s games until they have their own.' },
   // ---- Ideas, problems and upkeep
   feedback_enabled: { type: 'bool', default: true, group: 'Ideas and problems', label: 'Idea and problem boxes', help: 'Off: the game hides its Ideas and problems boxes.' },
   feedback_replies_enabled: { type: 'bool', default: true, group: 'Ideas and problems', label: 'Thank-you emails', help: 'Signed-in players with a confirmed email can tick "Email me an update": a short note quoting what they wrote (a thank-you for an idea, or an apology and thank-you for a problem report), and a second one with your "What was done" note when you mark it addressed. Sent every 15 minutes from support@thelogicgrid.com through Resend, or from the game\'s Gmail as a backup (server/FEEDBACK-EMAILS.md). Off: no new notes, and waiting ones are dropped.' },
@@ -318,7 +318,7 @@ export async function publicConfig(req, env) {
       supportAsks: !!(s.support_asks_enabled && s.support_link_enabled && s.support_url),
       premiumThemes: s.premium_extras_enabled ? s.premium_themes : [], extrasUrl: s.premium_extras_enabled ? s.extras_url : '',
       idleMinutes: s.player_idle_minutes },
-    // Number Place's own switches (its admin section).
+    // NINETIMESNINE's own switches (its admin section).
     numberPlace: {
       enabled: s.np_enabled, learning: s.learning_enabled && s.np_learning_enabled, maxLevel: s.np_max_level, daily: s.np_daily_enabled,
       variants: s.np_variants_enabled, stories: s.np_stories_enabled, coachTips: s.np_coach_tips,

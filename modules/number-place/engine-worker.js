@@ -1,4 +1,4 @@
-// Runs the Number Place engine off the page so building a Master puzzle never freezes it.
+// Runs the NINETIMESNINE engine off the page so building a Master puzzle never freezes it.
 import { generateNumberPlace, getNumberPlaceHint } from '../../engine/src/number-place.js';
 import { nextPlacement, planTide, ebbTide } from '../../engine/src/number-place-styles.js';
 

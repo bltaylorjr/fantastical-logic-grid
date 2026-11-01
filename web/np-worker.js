@@ -1,4 +1,4 @@
-// Number Place puzzles are built here so a Master puzzle never freezes the page.
+// NINETIMESNINE puzzles are built here so a Master puzzle never freezes the page.
 import { generateNumberPlace, getNumberPlaceHint } from './engine/number-place.js';
 import { nextPlacement, planTide, ebbTide } from './engine/number-place-styles.js';
 

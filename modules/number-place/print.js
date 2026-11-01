@@ -1,4 +1,4 @@
-// Printable pages for a Number Place puzzle: blank or with the player's
+// Printable pages for a NINETIMESNINE puzzle: blank or with the player's
 // numbers, Letter or A4, an answer key on its own page, and the step-by-step
 // solution for the smaller levels. Returns HTML; the host prints it.
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);

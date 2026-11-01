@@ -1,7 +1,7 @@
-// The Number Place screen: a separate numbers game with The Fantastical Logic
+// The NINETIMESNINE screen: a separate numbers game with The Fantastical Logic
 // Grid's look. The module (modules/number-place, copied to web/modules by the
 // build) and its stylesheet load the first time the player opens it, so the
-// Logic Grid's own start-up stays as fast as before. Number Place keeps its own
+// Logic Grid's own start-up stays as fast as before. NINETIMESNINE keeps its own
 // saves, settings and stats; the only thing it shares is anonymous play data
 // for the learning service (np-share.js).
 import * as npShare from './np-share.js';
@@ -34,7 +34,7 @@ async function engine(themes) {
   }
 }
 
-// The dashboard's choices for the module (admin console, Number Place section).
+// The dashboard's choices for the module (admin console, NINETIMESNINE section).
 function config() {
   const c = npConfig();
   return {
@@ -43,7 +43,7 @@ function config() {
   };
 }
 
-// Whether the menu offers Number Place (the dashboard can switch it off).
+// Whether the menu offers NINETIMESNINE (the dashboard can switch it off).
 export const enabled = () => npConfig().enabled !== false;
 
 export async function open(host = {}) {
@@ -68,7 +68,7 @@ export async function open(host = {}) {
     })();
     try { await loading; } catch (e) {
       loading = null;
-      document.getElementById('np-root').innerHTML = '<p class="muted">Number Place could not load. Check your connection and try again.</p>';
+      document.getElementById('np-root').innerHTML = '<p class="muted">NINETIMESNINE could not load. Check your connection and try again.</p>';
       return;
     }
   } else mod.reopen();
