@@ -239,7 +239,7 @@ export async function buildSeo({ root, site }) {
   const year = Number(today.slice(0, 4));
   const owner = 'Bobby Taylor';
   const copyright = `© 2026${year > 2026 ? `–${year}` : ''} ${owner}. All rights reserved.`;
-  const trademark = `${name}™ is a trademark of ${owner}.`;
+  const trademark = `${name}™ and The Logic Grid™ are trademarks of ${owner}.`;
   const tdmMeta = `<meta name="tdm-reservation" content="1">\n<meta name="tdm-policy" content="${url('terms/')}">`;
   const NAV = [['how-to-play/', 'How to play'], ['daily/', 'Daily puzzle'], ['printables/', 'Printables'], ['themes/', 'Themes'], ['difficulty-levels/', 'Difficulty levels'], ['educators/', 'For educators']];
   // Search results show about 60 characters of a title and 160 of a
@@ -620,7 +620,7 @@ ${puzzleBody(p, d, up)}
     crumbs: [['terms/', 'Terms of use']],
     body: (up) => `<h1>Terms of use</h1>
 <p class="lede">${name} is free to play. The game and everything in it belong to its owner. These terms say what you may do with it. By playing or using this website you agree to them.</p>
-<p class="muted">Last updated 28 October 2026.</p>
+<p class="muted">Last updated 1 November 2026.</p>
 <h2>Who owns it</h2>
 <p>${copyright} The game, its puzzle and story engine, storylines, topics, characters, text, pictures, music, sounds, videos, website and app code, and the name and logo "${name}" are protected by copyright and other laws. ${trademark} The code is visible on GitHub, but it is not open source: see the <a href="${up}LICENSE.txt">license</a>. A few free, open-source parts keep their own licenses (listed in <a href="${up}THIRD-PARTY-NOTICES.txt">third-party notices</a>).</p>
 <h2>What you may do</h2>
@@ -642,6 +642,8 @@ ${puzzleBody(p, d, up)}
 </ul>
 <h2>Accounts, screen names and races</h2>
 <p>Accounts are optional. Be kind: screen names, ideas and reports must not be rude, hateful or pretend to be someone else. We may remove a screen name, a score or an account that breaks these terms or cheats in races.</p>
+<h2 id="submissions">Stories, pictures and ideas you send</h2>
+<p>When you send a storyline, a picture, a character or an idea, you confirm it is your own work (or you have the right to send it), and you give ${owner} and ${name} a free, worldwide permission with no time limit to use, edit, adapt and publish it in the game, its puzzles, printed puzzle books, apps and promotion. You keep your own copyright. We credit you with the name you give, if you give one. We may choose not to use what you send.</p>
 <h2 id="tips">Tips and supporter thank-yous</h2>
 <p>The whole game is free. If the "Support the game" link is shown, you can choose to leave a tip or a membership payment through an outside payment service (such as Ko-fi or Lemon Squeezy), which handles your card or PayPal details; we never see them.</p>
 <ul>

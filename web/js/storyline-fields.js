@@ -26,7 +26,7 @@ export const REWARDS = {
 // The puzzles a storyline can be for. With only one, the form hides the question.
 export const PUZZLES = [['logic-grid', 'The Fantastical Logic Grid']];
 export const ROLES = ['Main', 'Supporting'];
-export const CONSENT_TEXT = 'I wrote this myself and give The Logic Grid permission to use, edit and publish it in the game and its puzzles, with credit to the name I gave.';
+export const CONSENT_TEXT = 'I wrote this myself (and any pictures I add are mine), and I give Bobby Taylor and The Logic Grid permission, free and with no time limit, to use, edit and publish it in the game, its puzzles, printed puzzle books and promotion, with credit to the name I gave. I keep my own copyright.';
 
 const clean = (v, max) => String(v ?? '')
   .replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, '')

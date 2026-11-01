@@ -1136,3 +1136,5 @@ body:has(#view-seg:not([hidden])) #miniboard-open { flex: none; }
      is still reached without moving the pointer. */
   .play > .side { overflow-y: auto; align-content: start; scrollbar-gutter: stable; }
 }
+/* Trademark sign after the game's name on the home screen. */
+.hero-title .tm { font-size: .4em; vertical-align: super; line-height: 0; margin-left: .05em; font-weight: 400; }
