@@ -107,7 +107,7 @@ const INIT = (Z) => {
   async function device({ silent = false, seed = SEED } = {}) {
     const ctx = await browser.newContext({ viewport: VIEW, deviceScaleFactor: 1, reducedMotion: 'no-preference', serviceWorkers: 'block' });
     await ctx.route('**/js/cloud-config.js', (r) => r.fulfill({ contentType: 'text/javascript', body: config }));
-    await ctx.route('**/worker.js', async (r) => {
+    await ctx.route('**/engine/flg-ops.js', async (r) => {
       const res = await r.fetch();
       r.fulfill({ response: res, body: (await res.text()).replace('generatePuzzle(args)', `generatePuzzle({ ...args, seed: args.seed || '${seed}' })`) });
     });

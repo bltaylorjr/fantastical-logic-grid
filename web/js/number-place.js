@@ -6,6 +6,7 @@
 // for the learning service (np-share.js).
 import * as npShare from './np-share.js';
 import { numberPlace as npConfig } from './remote-config.js';
+import { npEngine } from './np-engine.js';
 
 let mod = null;
 let loading = null;
@@ -17,21 +18,6 @@ function loadCss() {
   link.rel = 'stylesheet';
   link.href = new URL('../modules/number-place/ui.css', import.meta.url).href;
   document.head.append(link);
-}
-
-async function engine(themes) {
-  try {
-    const { workerEngine } = await import('../modules/number-place/engine-client.js');
-    return workerEngine(new URL('../np-worker.js', import.meta.url), { themes });
-  } catch (e) {
-    // No module workers: run the engine on the page.
-    const [np, st] = await Promise.all([import('../engine/number-place.js'), import('../engine/number-place-styles.js')]);
-    return {
-      themes, generate: async (o) => np.generateNumberPlace(o), hint: async (p, en) => np.getNumberPlaceHint(p, en),
-      // The game styles: the rival's move and the Tidewater pools and ebb.
-      move: async (p, g, o) => st.nextPlacement(p, g, o), tide: async (p, o) => st.planTide(p, o), ebb: async (p, g, w) => st.ebbTide(p, g, w),
-    };
-  }
 }
 
 // The dashboard's choices for the module (admin console, NINETIMESNINE section).
@@ -54,7 +40,7 @@ export async function open(host = {}) {
       const [ui, story] = await Promise.all([import('../modules/number-place/ui.js'), import('../engine/number-place-story.js')]);
       const themes = story.NP_STORY_THEMES.map((t) => ({ id: t.id, name: t.name }));
       ui.mount(document.getElementById('np-root'), {
-        engine: await engine(themes),
+        engine: await npEngine(themes),
         storagePrefix: 'flg.np',
         shared: npShare.shared(),
         onPlay: (rec) => npShare.record(rec),

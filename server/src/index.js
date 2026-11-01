@@ -34,6 +34,7 @@
 // old data, database tidy-up, Google and Bing search numbers) and the weekly
 // archive email (archive.js), on the crons in wrangler.toml.
 
+import { handlePuzzles } from './puzzles.js';
 import { handleLearn } from './learn.js';
 import { handleCompete } from './compete.js';
 import { handleChallenges } from './challenges.js';
@@ -95,6 +96,9 @@ async function route(req, env, ctx) {
 
   const learn = await handleLearn(req, env, ctx, url);
   if (learn) return learn;
+
+  const puzzles = await handlePuzzles(req, env, url);
+  if (puzzles) return puzzles;
 
   const challenge = await handleChallenges(req, env, url);
   if (challenge) return challenge;

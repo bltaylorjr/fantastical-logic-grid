@@ -14,7 +14,7 @@
 //                                (the publish workflow), so past days never change
 import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { pathToFileURL, fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { gridTable, answerKey } from './worksheet.mjs';
 import { writeGamePage, writeHubPages, contactLink } from './hub.mjs';
@@ -203,10 +203,12 @@ export async function buildSeo({ root, site }) {
   const SITE_CSP = cloudOrigin ? PAGE_CSP.replace("default-src 'self';", `default-src 'self'; connect-src 'self' ${cloudOrigin};`) : PAGE_CSP;
   const base = (process.env.FLG_SITE_URL || 'https://thelogicgrid.com').replace(/\/+$/, '');
   const url = (path) => `${base}/${path}`;
-  // The same engine the site ships.
-  const engine = await import(pathToFileURL(join(site, 'engine', 'index.js')).href);
+  // The same engine the site ships. In server mode (docs/PUZZLE-SERVER.md)
+  // the site has no generator, so the pages are made from the source engine.
+  const engineDir = existsSync(join(site, 'engine', 'index.js')) ? join(site, 'engine') : join(dirname(fileURLToPath(import.meta.url)), '..', 'engine', 'src');
+  const engine = await import(pathToFileURL(join(engineDir, 'index.js')).href);
   const { THEMES, TIERS, CLUE_TYPES, getTopics, storylineCount, generatePuzzle } = engine;
-  const { houseDailyOptions } = await import(pathToFileURL(join(site, 'engine', 'house-tuning.js')).href);
+  const { houseDailyOptions } = await import(pathToFileURL(join(engineDir, 'house-tuning.js')).href);
   const today = process.env.FLG_TODAY || day(new Date());
   const appHtml = readFileSync(join(site, 'index.html'), 'utf8');
   // Pages that come from code change when the code does; the date of the last
@@ -716,7 +718,7 @@ ${playBtn(up)}`,
   // The form talks to the game's Worker (server/src/educators.js). Without a
   // cloud address (tests) this page may reach localhost.
   {
-    const { classroomOptions, EDUCATOR_SURVEY, FEEDBACK_KINDS, FEEDBACK_TEXT } = await import(pathToFileURL(join(site, 'engine', 'classroom.js')).href);
+    const { classroomOptions, EDUCATOR_SURVEY, FEEDBACK_KINDS, FEEDBACK_TEXT } = await import(pathToFileURL(join(engineDir, 'classroom.js')).href);
     const csp = PAGE_CSP.replace("default-src 'self';", `default-src 'self'; connect-src 'self' ${cloudOrigin || 'http://localhost:* http://127.0.0.1:*'};`);
     mkdirSync(join(site, 'educators'), { recursive: true });
     cpSync(join(root, 'seo', 'educators.js'), join(site, 'educators', 'form.js'));

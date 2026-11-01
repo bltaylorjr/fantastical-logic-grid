@@ -148,6 +148,34 @@ uses a secret, variable or binding that is not listed there.
 
 **Links:** [GitHub variables](https://github.com/bltaylorjr/fantastical-logic-grid/settings/variables/actions) · [Fine-grained tokens](https://github.com/settings/personal-access-tokens) · [Full guide (docs/PRIVATE-REPO.md)](https://github.com/bltaylorjr/fantastical-logic-grid/blob/main/docs/PRIVATE-REPO.md)
 
+### Private puzzle server (generator off players' devices)
+
+**Why:** Puzzles and hints are made on the Oracle build server, so no game's generator, solver, storylines or topic libraries are ever sent to players' browsers (The Fantastical Logic Grid, NINETIMESNINE and any game added later in engine/src/games.js). The Worker reaches the server through a Cloudflare Tunnel (Workers VPC); the server has no public address. Everything stays off until these are set; deleting FLG_PUZZLE_SERVER and publishing again goes back to puzzles made on the player's device.
+
+**Cost:** Free: the Oracle Always Free VM (shared with the build runners) and Cloudflare Workers VPC (free while in beta; check before it leaves beta).
+
+| Name | Where | Notes |
+| --- | --- | --- |
+| `PUZZLES` | Worker binding (server/wrangler.toml) | Workers VPC Service flg-puzzles ([[vpc_services]] in wrangler.toml, with its Service ID). Optional. |
+| `PUZZLE_KEY` | Cloudflare Worker secret | The shared key from /opt/flg/puzzle.env on the Oracle VM. Optional. |
+| `LIMIT_PUZZLES` | Worker binding (server/wrangler.toml) | Puzzles built per visitor per minute (120), every game. Optional. |
+| `LIMIT_HINTS` | Worker binding (server/wrangler.toml) | Play-time requests per visitor per minute (600): hints, NINETIMESNINE rival moves and tide, wizard checks. Optional. |
+| `FLG_PUZZLE_DEPLOY` | GitHub repository variable | Value: `1` Deploys the puzzle server to the Oracle VM on every engine change. Optional. |
+| `FLG_PUZZLE_SERVER` | GitHub repository variable | Value: `1` Publishes the website without the generator. Set last, after the health check is ok. Optional. |
+
+**Steps:**
+
+1. Run the updated `scripts/runner/oracle-cloud-init.sh` on the Oracle VM (docs/owner-tasks/2026-11-01-oracle-runners-and-puzzle-server.md, part A).
+2. Cloudflare > **Workers & Pages** > **VPC** > **Tunnels** > **Create** `flg-puzzles`, choose Docker, copy the token, and run `sudo TUNNEL_TOKEN=... bash /opt/flg/setup.sh` on the VM.
+3. Cloudflare > **VPC** > **VPC Services** > **Create**: tunnel `flg-puzzles`, HTTP, IPv4 `172.30.0.10`, port `8080`. Put its Service ID in `server/wrangler.toml` under `[[vpc_services]]` (binding `PUZZLES`).
+4. Open <https://dash.cloudflare.com/?to=/:account/workers/services/view/flg-api/production/settings> (Cloudflare > **Workers & Pages** > **flg-api** > **Settings** > **Variables and Secrets**).
+5. Click **Add** (or **Edit** next to `PUZZLE_KEY` if it is already there).
+6. Choose type **Secret**, enter the name `PUZZLE_KEY`, paste everything after FLG_PUZZLE_KEY= in `sudo cat /opt/flg/puzzle.env` on the VM as the value, and click **Deploy**.
+7. Add the variable `FLG_PUZZLE_DEPLOY` = `1` at <https://github.com/bltaylorjr/fantastical-logic-grid/settings/variables/actions> (FLG_RUNNER must be set too), and run **Deploy puzzle server**.
+8. When <https://flg-api.btay74.workers.dev/v1/puzzles/health> shows `"ok":true`, add `FLG_PUZZLE_SERVER` = `1` and run **Publish web version**.
+
+**Links:** [Workers VPC](https://dash.cloudflare.com/?to=/:account/workers/vpc/tunnels) · [GitHub variables](https://github.com/bltaylorjr/fantastical-logic-grid/settings/variables/actions) · [Full guide (docs/PUZZLE-SERVER.md)](https://github.com/bltaylorjr/fantastical-logic-grid/blob/main/docs/PUZZLE-SERVER.md)
+
 ### Dependabot and GitHub security
 
 **Why:** Dependabot opens a tested pull request when a library has an update (patch and minor updates merge themselves). Secret scanning and push protection stop a key from being pushed by mistake.

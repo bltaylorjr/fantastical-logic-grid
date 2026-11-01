@@ -160,7 +160,7 @@ web/js/audio.js             sound effects and theme music (Web Audio)
 web/js/ai.js                AI pictures and voices (OpenAI, player's key), device-voice fallback
 web/js/store.js             IndexedDB saves and used-story list, settings
 web/js/engine-client.js     talks to the Web Worker
-web/worker.js               runs generatePuzzle and getHint off the main thread
+web/engine-worker.js        runs every game's engine off the main thread (engine/src/games.js)
 web/sw.js                   offline cache (file list stamped by the build)
 web/js/number-place.js      NINETIMESNINE screen (modules/number-place, see modules/README.md)
 web/js/np-share.js          NINETIMESNINE's anonymous play data for the learning service

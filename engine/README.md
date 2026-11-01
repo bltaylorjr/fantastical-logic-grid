@@ -298,9 +298,13 @@ new game needs only its own puzzle code:
   can stop a request that runs too long, and falls back to running the
   game's operations on the page where module workers are not available.
 
-The logic grid (`web/worker.js`, `web/js/engine-client.js`) and NINETIMESNINE
-(`web/np-worker.js`, `modules/number-place/engine-worker.js`) use it. Tests:
-`node test/kernel-tests.js`.
+Every game uses it the same way. `src/games.js` lists the games and their
+operations; each game's operations are one table (`src/flg-ops.js`,
+`src/np-ops.js`) used by the page's worker (`web/engine-worker.js`), the
+on-page fallback (`web/js/engine-links.js`) and the private puzzle server
+(`puzzle-server/`). Adding a game: docs/PUZZLE-SERVER.md, "Adding a game".
+The module test app still uses `modules/number-place/engine-worker.js`.
+Tests: `node test/kernel-tests.js`.
 
 ## Files
 

@@ -18,8 +18,10 @@ import { esc, gridTable } from './worksheet.mjs';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const engine = await import(pathToFileURL(join(root, 'engine', 'src', 'index.js')).href);
 const classroom = await import(pathToFileURL(join(root, 'engine', 'src', 'classroom.js')).href);
+const classroomBuild = await import(pathToFileURL(join(root, 'engine', 'src', 'classroom-build.js')).href);
 const { generatePuzzle, TIERS } = engine;
-const { packagePlan, gradeStory, bandOf, gradeById, PAPERS } = classroom;
+const { bandOf, gradeById, PAPERS } = classroom;
+const { packagePlan, gradeStory } = classroomBuild;
 
 const font = (file) => {
   const f = join(root, 'node_modules', '@fontsource', 'atkinson-hyperlegible', 'files', file);

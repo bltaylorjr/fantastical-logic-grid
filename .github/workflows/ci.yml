@@ -89,6 +89,11 @@ jobs:
           node scripts/e2e-archive.cjs
           node scripts/e2e-educators.cjs
           node scripts/e2e-license.cjs
+      - name: Private puzzle server, and a site built in server mode (docs/PUZZLE-SERVER.md)
+        run: |
+          node puzzle-server/test/server.test.mjs
+          FLG_PUZZLE_SERVER=1 FLG_CLOUD_URL=http://localhost:8141 npm run build
+          node scripts/e2e-puzzle-server.cjs
       # The screenshots from every size the layout test checks, to look at when
       # a layout check fails (kept 14 days, free).
       - name: Keep the screenshots

@@ -36,7 +36,7 @@ if (existsSync(engineSrc)) {
 
 // 1b. NINETIMESNINE, its own game screen (modules/number-place). Copied in
 // here so the module stays one folder the private test app also uses; the
-// game serves its engine from web/engine and its worker from web/np-worker.js.
+// game serves its engine from web/engine and its worker from web/engine-worker.js.
 {
   const src = join(root, 'modules', 'number-place');
   const dest = join(web, 'modules', 'number-place');
@@ -83,6 +83,72 @@ if (process.env.FLG_SITE_REPO) {
   }
 }
 
+// Server mode (docs/PUZZLE-SERVER.md): FLG_PUZZLE_SERVER=1 makes a site whose
+// puzzles come from the private puzzle server (through the Worker), for every
+// game in engine/src/games.js. Only the engine files the page itself needs
+// (PAGE_FILES) ship; everything else in the engine (every game's generator,
+// solver, clue and story writer, the classroom package builder, the story and
+// topic libraries, and any engine file a future game adds) stays on the
+// server. The page's engine connection is swapped for the one that asks the
+// server, the few names the page still shows (theme and topic names) ship as
+// small lists, and the build fails if anything left behind still imports a
+// removed file. The desktop and phone apps do not set this, so they keep
+// working offline (for now).
+const PAGE_FILES = new Set([
+  'games.js',       // the list of games and their operations (data only)
+  'options.js',     // the setup screen's choices (written above)
+  'play.js',        // checking marks and spotting a solve
+  'beats.js',       // story moments while solving
+  'story-parts.js', // story ids and player-written story parts (learning, storyline form)
+  'house-tuning.js', 'language.js', 'layout.js', 'tiers.js', 'rng.js', // tutorial and learning
+  'classroom.js',   // the Educators forms' checks (with names-only lists below)
+]);
+const puzzleServer = process.env.FLG_PUZZLE_SERVER === '1';
+if (puzzleServer) {
+  if (!cloudEnv.learnUrl) throw new Error('FLG_PUZZLE_SERVER=1 needs FLG_CLOUD_URL (the Worker that talks to the puzzle server)');
+  const engineOut = join(out, 'engine');
+  const src = join(root, 'engine', 'src');
+  const load = (f) => import(new URL(`file://${join(src, f)}`).href);
+  const removed = readdirSync(engineOut).filter((n) => !PAGE_FILES.has(n));
+  for (const n of removed) rmSync(join(engineOut, n), { recursive: true, force: true });
+  // The engine worker and NINETIMESNINE's old worker connector.
+  for (const f of ['engine-worker.js', join('modules', 'number-place', 'engine-client.js')]) rmSync(join(out, f), { force: true });
+  // The engine connection that asks the puzzle server.
+  writeFileSync(join(out, 'js', 'engine-links.js'), readFileSync(join(out, 'js', 'engine-links-remote.js')));
+  rmSync(join(out, 'js', 'engine-links-remote.js'));
+  // Names only: the Educators forms (classroom.js checks requests against the
+  // theme and topic list) and NINETIMESNINE's theme menu.
+  const { THEMES, plural } = await load('themes.js');
+  const { getTopics } = await load('topics.js');
+  const { NP_STORY_THEMES } = await load('number-place-story.js');
+  const themes = THEMES.map((t) => ({ id: t.id, name: t.name, description: t.description }));
+  const topics = Object.fromEntries(THEMES.map((t) => [t.id, getTopics(t.id).map((p) => ({ id: p.id, name: p.name }))]));
+  writeFileSync(join(engineOut, 'catalog-lite.js'), `// Written by scripts/build.mjs (server mode): theme and topic names only.\nexport const THEMES = ${JSON.stringify(themes)};\nconst TOPICS = ${JSON.stringify(topics)};\nexport const getTopics = (id) => TOPICS[id] || [];\nexport const plural = ${plural.toString()};\n`);
+  writeFileSync(join(engineOut, 'number-place-story.js'), `// Written by scripts/build.mjs (server mode): NINETIMESNINE theme names only.\nexport const NP_STORY_THEMES = ${JSON.stringify(NP_STORY_THEMES.map((t) => ({ id: t.id, name: t.name })))};\n`);
+  const classroom = readFileSync(join(src, 'classroom.js'), 'utf8')
+    .replace("import { THEMES } from './themes.js';\nimport { getTopics } from './topics.js';", "import { THEMES, getTopics } from './catalog-lite.js';");
+  if (!classroom.includes("from './catalog-lite.js'") || /from '\.\/(themes|topics|classroom-build)\.js'/.test(classroom)) throw new Error('Server mode: classroom.js imports changed; update the catalog-lite swap in scripts/build.mjs');
+  writeFileSync(join(engineOut, 'classroom.js'), classroom);
+  // Every import left in the site must still resolve to a file that shipped.
+  const missing = [];
+  const scan = (d) => {
+    for (const ent of readdirSync(d, { withFileTypes: true })) {
+      const n = ent.name;
+      const f = join(d, n);
+      if (ent.isDirectory()) { if (n !== 'vendor') scan(f); continue; }
+      if (!ent.isFile() || !/\.(js|mjs|html)$/.test(n)) continue;
+      // Comments may name removed files (usage examples); only real code counts.
+      const text = readFileSync(f, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+      for (const [, spec] of text.matchAll(/(?:from\s*|import\(\s*|new URL\(\s*)['"](\.{1,2}\/[^'"]+\.js)['"]/g)) {
+        if (!existsSync(join(dirname(f), spec))) missing.push(`${relative(out, f)} -> ${spec}`);
+      }
+    }
+  };
+  scan(out);
+  if (missing.length) throw new Error(`Server mode: these files still need code that stays on the puzzle server:\n  ${missing.join('\n  ')}`);
+  console.log(`Server mode: ${removed.length} engine files stay on the puzzle server; ${readdirSync(engineOut).length} small ones ship.`);
+}
+
 // Minify the game's own scripts and styles (not vendor/, which keeps its
 // published files and licenses) so the shipped code is smaller and much
 // harder to read or lift. Exports and imports keep their names, so modules
@@ -118,7 +184,7 @@ if (!process.env.FLG_NO_MINIFY) {
     }
     writeFileSync(p, `${banner}\n${code}`);
   }
-  for (const p of OBFUSCATE) if (!own.includes(p)) throw new Error(`Build: ${p} to obfuscate is missing`);
+  for (const p of OBFUSCATE) if (!own.includes(p) && !(puzzleServer && !PAGE_FILES.has(p.split(/[\\/]/).pop()))) throw new Error(`Build: ${p} to obfuscate is missing`);
 }
 
 // Content Security Policy for the game page (a <meta> tag, because GitHub

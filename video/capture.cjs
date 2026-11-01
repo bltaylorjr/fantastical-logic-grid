@@ -119,7 +119,7 @@ const CSS = `
     const ctx = await browser.newContext({ viewport: VIEW, deviceScaleFactor: SCALE, reducedMotion: 'reduce', serviceWorkers: 'block' });
     await ctx.route('**/js/cloud-config.js', (r) => r.fulfill({ contentType: 'text/javascript', body: config }));
     // Same game, fixed seed, so a run is repeatable.
-    await ctx.route('**/worker.js', async (r) => {
+    await ctx.route('**/engine/flg-ops.js', async (r) => {
       const res = await r.fetch();
       r.fulfill({ response: res, body: (await res.text()).replace('generatePuzzle(args)', `generatePuzzle({ ...args, seed: args.seed || '${seed}' })`) });
     });

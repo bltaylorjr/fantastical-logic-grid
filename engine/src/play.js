@@ -1,7 +1,6 @@
-// Play-time helpers that work from a saved puzzle JSON: checking marks,
-// detecting a solve, and step-by-step hints (clue, then cell, then reasoning).
-import { TIERS } from './tiers.js';
-import { solveWithTrace, TECHNIQUE_NAMES } from './solver.js';
+// Play-time helpers that work from a saved puzzle JSON: checking marks and
+// detecting a solve. Step-by-step hints live in hints.js, because they need the
+// solver, which stays on the puzzle server when the site runs in server mode.
 import { makeLanguage } from './language.js';
 
 // Rebuild the internal model (global item numbers) from puzzle JSON.
@@ -32,7 +31,7 @@ export function modelFromPuzzle(puzzle) {
   return { K, N, clues, toG, toId, entity, model, L: makeLanguage(model) };
 }
 
-const isMatch = (m, a, b) => m.entity.get(a) === m.entity.get(b);
+export const isMatch = (m, a, b) => m.entity.get(a) === m.entity.get(b);
 
 // marks: [{ a: itemId, b: itemId, mark: 'O' | 'X' }]. Returns the wrong ones.
 export function checkMarks(puzzle, marks) {
@@ -53,48 +52,6 @@ export function isSolved(puzzle, marks) {
 export function checkAnswers(puzzle, answers) {
   return puzzle.questions.map((q) => ({ number: q.number, correct: answers[q.number] === q.answer }));
 }
-
-// Next hint from the player's current grid. Mistakes come first (they make
-// every later hint unreliable); otherwise the easiest next deduction.
-export function getHint(puzzle, marks = []) {
-  const m = modelFromPuzzle(puzzle);
-  const wrong = marks.filter((mk) => (mk.mark === 'O') !== isMatch(m, mk.a, mk.b));
-  if (wrong.length) {
-    return {
-      kind: 'mistake',
-      marks: wrong,
-      levels: [
-        `${wrong.length === 1 ? 'One mark does' : `${wrong.length} marks do`} not fit the clues.`,
-        `Check the mark where ${label(m, wrong[0].a)} meets ${label(m, wrong[0].b)}.`,
-        `${label(m, wrong[0].a)} and ${label(m, wrong[0].b)} ${wrong[0].mark === 'O' ? 'do not go together' : 'do go together'}.`,
-      ],
-    };
-  }
-  const tier = TIERS[puzzle.difficulty.id] || TIERS.mensa;
-  const start = marks.map((mk) => [m.toG(mk.a), m.toG(mk.b), mk.mark === 'O' ? 1 : -1]);
-  const res = solveWithTrace(m.K, m.N, m.clues, Math.max(tier.maxLevel, 3), m.L, start, tier.whatIfDepth || 5);
-  const step = res.steps[0];
-  if (!step) return { kind: 'done', levels: ['Every cell is already worked out.'] };
-  const marksOut = step.sets.map(([x, y, v]) => ({ a: m.toId(Math.min(x, y)), b: m.toId(Math.max(x, y)), mark: v > 0 ? 'O' : 'X' }));
-  const [x, y] = step.sets[0];
-  const catA = m.L.catName(Math.floor(Math.min(x, y) / m.N)), catB = m.L.catName(Math.floor(Math.max(x, y) / m.N));
-  return {
-    kind: 'step',
-    clue: step.clue >= 0 ? step.clue + 1 : null,
-    technique: step.technique,
-    techniqueName: TECHNIQUE_NAMES[step.technique],
-    marks: marksOut,
-    explanation: step.why,
-    chain: step.chain || null,
-    levels: [
-      step.clue >= 0 ? `Look at clue ${step.clue + 1}.` : `Look at the ${catA} and ${catB} grid.`,
-      `Look at the cell where ${m.L.label(x)} meets ${m.L.label(y)}.`,
-      step.why,
-    ],
-  };
-}
-
-const label = (m, id) => m.L.label(m.toG(id));
 
 // Plain text version for printing or sharing (the answer key starts on a new page).
 export function formatPuzzleText(puzzle, { answerKey = true } = {}) {
