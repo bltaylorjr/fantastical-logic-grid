@@ -119,10 +119,11 @@ if (puzzleServer) {
   // Every import left in the site must still resolve to a file that shipped.
   const missing = [];
   const scan = (d) => {
-    for (const n of readdirSync(d)) {
+    for (const ent of readdirSync(d, { withFileTypes: true })) {
+      const n = ent.name;
       const f = join(d, n);
-      if (statSync(f).isDirectory()) { if (n !== 'vendor') scan(f); continue; }
-      if (!/\.(js|mjs|html)$/.test(n)) continue;
+      if (ent.isDirectory()) { if (n !== 'vendor') scan(f); continue; }
+      if (!ent.isFile() || !/\.(js|mjs|html)$/.test(n)) continue;
       const text = readFileSync(f, 'utf8');
       for (const [, spec] of text.matchAll(/(?:from\s*|import\(\s*|new URL\(\s*)['"](\.{1,2}\/[^'"]+\.js)['"]/g)) {
         if (!existsSync(join(dirname(f), spec))) missing.push(`${relative(out, f)} -> ${spec}`);
