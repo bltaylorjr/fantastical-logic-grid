@@ -636,6 +636,25 @@ function linkEditionId(url) {
   if (typeof raw === 'string' && /^se-[\w-]{1,40}$/.test(raw)) return raw;
   return null;
 }
+// ?open=account, ?open=messages and ?open=feedback come from The Logic Grid's
+// front page and the NINETIMESNINE page: things shared by every game whose
+// windows live here. Each opens like its Menu item, and only while that item
+// is on (accounts set up, Messages and Ideas switched on in the dashboard).
+const OPEN_LINKS = ['account', 'messages', 'feedback'];
+function handleOpenLink() {
+  const url = new URL(location.href);
+  const what = url.searchParams.get('open');
+  if (!what) return false;
+  url.searchParams.delete('open');
+  try { history.replaceState(history.state, '', url.pathname + url.search + url.hash); } catch (e) { /* framed preview */ }
+  const item = OPEN_LINKS.includes(what) ? $(`#app-menu [data-cmd="${what}"]`) : null;
+  if (!item || item.hidden) {
+    toast(what === 'account' ? 'Accounts are not available right now.' : 'That is not available right now.');
+    return false;
+  }
+  item.click();
+  return true;
+}
 function handlePlayLink() {
   const url = new URL(location.href);
   const play = url.searchParams.get('play');
@@ -3225,7 +3244,7 @@ async function init() {
   // Otherwise the app opens where the player last was: the game cards (always
   // the first time), The Fantastical Logic Grid (with its welcome the first
   // time) or NINETIMESNINE.
-  if (new URLSearchParams(location.search).has('learn')) { settings.introOffered = true; store.saveSettings(settings); openTutorial(); } else if (!handleChallengeLink() && !handlePlayLink() && currentScreen === 'home') {
+  if (new URLSearchParams(location.search).has('learn')) { settings.introOffered = true; store.saveSettings(settings); openTutorial(); } else if (!handleChallengeLink() && !handlePlayLink() && !handleOpenLink() && currentScreen === 'home') {
     const last = games.lastGame();
     if (!pkg.on() || last === 'logic-grid') offerIntro(); else if (last === 'ninetimesnine' && numberPlace.enabled()) openNumberPlace(); else showScreen('games');
   }

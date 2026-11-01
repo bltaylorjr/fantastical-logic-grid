@@ -5,6 +5,31 @@ game's own Cloudflare Worker at **https://flg-api.btay74.workers.dev/admin/**
 (these files are the Worker's static assets, see `server/wrangler.toml`), so it
 needs no extra hosting and stays free. Its API is `server/src/admin.js`.
 
+## Dashboards
+
+The menu has one dashboard for the app and one for each game. Pick one with
+the buttons at the top of the menu; the menu then shows that dashboard's
+sections. Every address (`#daily`, `#settings`, ...) still works and opens
+its own dashboard.
+
+- **The Logic Grid** (the app, shared by every game): Overview, Visitors,
+  Usage and free limits, Search, Website, Marketing, Communication, Error
+  tracking, Players, Screen names, Supporters, App keys, **App settings and
+  switches** (sign-in, messages, ideas and problems, languages, support,
+  alerts, moderation, backups, social links), Connections and setup, Face ID
+  and fingerprint, Backups and archive, Audit log, Admins.
+- **The Fantastical Logic Grid**: **Fantastical home** (`#fantastical`: what is
+  waiting for review, play numbers, and a way into each section), Daily
+  puzzles, Characters, Media library, Puzzle quality, Ratings and insights,
+  Puzzle emails, Story workshop, Storyline submissions, Educator requests,
+  Educator feedback, Badges, and **Game settings and switches**
+  (`#game-settings`: play, themes, characters, voices, sounds, pictures,
+  celebrations, puzzle emails, printable packs, educators, learning).
+- **NINETIMESNINE**: its numbers and its own settings (`#numberplace`).
+
+Which settings group goes on which dashboard is set in `admin/admin.js`
+(`GAME_GROUPS`); a new group shows under App settings until it is listed there.
+
 | Section | What you can do | Lowest role |
 | --- | --- | --- |
 | Overview | Alerts when a free allowance (voices, pictures, database size, Worker requests, database reads and writes) passes the alert level; accounts, screen names, scoring players, games finished and solved by theme and difficulty, scores, races, free voices and AI pictures against their daily caps, error reports, things waiting for review (story parts, names, new ideas and problems) | viewer |
@@ -23,7 +48,7 @@ needs no extra hosting and stays free. Its API is `server/src/admin.js`.
 | Players | Every account in one list, in sections: **Needs approval** (new or changed names), **Approved, active** (seen in the last 30 days), **Approved, inactive** (nothing for over 30 days), **Blocked** (banned) and **No screen name yet** (accounts that only sync saves), plus Everyone. Search by name or id, sort by any column, 25/50/100 a page. Viewers see names, dates and counts only | viewer |
 | | Approve or block a name from the list; open a player's page (link `#players/<id>`) to see their scores, races and how much they sync; rename, ban or lift a ban | moderator |
 | | Reset scores (this week or all time), delete an account's data | admin |
-| Settings and switches | **Keys and services**: whether the GEMINI_API_KEY secret and Workers AI are set up (keys are never shown or typed here). **Sounds**: sound effects and theme music on/off for everyone, and whether they start on and at what volume (a player can still turn their own off). **Voices**: characters speak their clues, where voices come from (server Gemini, Kokoro on the device, or the device's own), server voices on/off, the daily voice cap and the Gemini voice model. **Pictures**: portrait style, AI pictures (none, scenes, or scenes and portraits, from Workers AI's free allowance), the daily picture cap and model. **Celebrations**: which effects play when a puzzle is solved (confetti, fireworks, stars, balloons, sparkles, theme pictures, bubbles, falling snow, leaves or petals, shooting stars, ribbons, light rays, party emoji), each with its own checkbox, and Random to play one checked effect at each solve instead of all of them. **Play**: races, solo scores, new screen names, themes on/off. **Learning**: learn from everyone, story parts from older apps, the AI writer's model. **Ideas and problems**: the game's two boxes and automatic error reports. **Moderation**: extra blocked words. **Languages**: translations for players who choose another language on/off, new translations a day, and the Workers AI translation model. **Alerts and reports**: the alert level (80% at first) and the weekly summary email on/off | viewer to look, admin to change |
+| App settings and switches / Game settings and switches | Split by dashboard (see Dashboards above). **Keys and services**: whether the GEMINI_API_KEY secret and Workers AI are set up (keys are never shown or typed here). **Sounds**: sound effects and theme music on/off for everyone, and whether they start on and at what volume (a player can still turn their own off). **Voices**: characters speak their clues, where voices come from (server Gemini, Kokoro on the device, or the device's own), server voices on/off, the daily voice cap and the Gemini voice model. **Pictures**: portrait style, AI pictures (none, scenes, or scenes and portraits, from Workers AI's free allowance), the daily picture cap and model. **Celebrations**: which effects play when a puzzle is solved (confetti, fireworks, stars, balloons, sparkles, theme pictures, bubbles, falling snow, leaves or petals, shooting stars, ribbons, light rays, party emoji), each with its own checkbox, and Random to play one checked effect at each solve instead of all of them. **Play**: races, solo scores, new screen names, themes on/off. **Learning**: learn from everyone, story parts from older apps, the AI writer's model. **Ideas and problems**: the game's two boxes and automatic error reports. **Moderation**: extra blocked words. **Languages**: translations for players who choose another language on/off, new translations a day, and the Workers AI translation model. **Alerts and reports**: the alert level (80% at first) and the weekly summary email on/off | viewer to look, admin to change |
 | Backups and archive | What the weekly archive email takes out of the database and for how long each kind is kept, rows waiting, past runs; send now or download the zip (owner). Archive viewer: open archive zips in the browser to filter, group, chart and export them | admin (send/download: owner) |
 | Audit log | Every admin request, allowed or refused; 90 days in the database, older entries in the weekly archive | admin |
 | Admins | Add or remove admins and choose their role | owner |

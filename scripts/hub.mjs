@@ -1,5 +1,7 @@
 // The Logic Grid's website layout (website build only, called by seo.mjs):
-//   /               The Logic Grid's front page: a card for each game
+//   /               The Logic Grid's front page: a card for each game, and
+//                   everything shared by the games (account, messages, ideas,
+//                   problems, installing, support, news, social links)
 //   /fantastical/   The Fantastical Logic Grid (the game page, moved here)
 //   /ninetimesnine/ NINETIMESNINE on a page of its own
 // Every other file and page stays where it was, so links in emails, the
@@ -158,6 +160,32 @@ footer a { color: inherit; }
 [data-fx-sparkles="on"] .sparkles { display: block; }
 @keyframes tlg-twinkle { 0%, 100% { opacity: 0; transform: scale(.4); } 50% { opacity: .9; transform: scale(1); } }
 .wrap, footer { position: relative; z-index: 1; }
+.top-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+.hdr-btn { display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--edge-hi); background: var(--bg); color: var(--text); font-weight: 700; text-decoration: none; }
+.hdr-btn:hover { border-color: var(--accent); color: var(--accent); }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.app { padding: 8px 0 56px; }
+.app h2 { font: 700 clamp(1.5rem, 3.6vw, 2rem)/1.15 var(--display); margin: 0 0 8px; }
+.app-lead { color: var(--muted); margin: 0 0 20px; max-width: 40rem; }
+.app-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; }
+.app-item { display: flex; flex-direction: column; gap: 4px; min-height: 44px; padding: 16px 18px; border-radius: calc(var(--radius) * .7); background: var(--surface); border: 1px solid var(--edge); color: var(--text); text-decoration: none; font: inherit; text-align: left; cursor: pointer;
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); transition: border-color .2s var(--ease); }
+.app-item:hover { border-color: var(--accent); }
+.app-item b { font-size: 1.05rem; }
+.app-item span { color: var(--muted); font-size: .92rem; }
+.app-item[hidden] { display: none; }
+.app-note { color: var(--muted); font-size: .9rem; margin: 14px 0 0; }
+.news { margin-top: 28px; }
+.news h3, .follow h3 { font-size: 1.05rem; margin: 0 0 10px; }
+.news ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.news li { padding: 14px 18px; border-radius: calc(var(--radius) * .7); background: var(--surface); border: 1px solid var(--edge); }
+.news li b { display: block; }
+.news li p { margin: 4px 0 0; color: var(--muted); }
+.follow { margin-top: 28px; }
+.social { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.social-link { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border: 1px solid var(--edge-hi); border-radius: 50%; color: var(--text); background: var(--bg); text-decoration: none; }
+.social-link:hover { border-color: var(--accent); color: var(--accent); }
+[data-app-section="hide"] .app { display: none; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } .art .mk { opacity: 1 !important; } [data-fx-hover="tilt"] .card { transform: none; } .sparkles { display: none !important; } }`;
 
 const card = ({ cls, art, tag, name, text, points, href, id }) => `<article class="card" data-game="${cls}" aria-labelledby="${id}">
@@ -175,7 +203,17 @@ const themeSelect = `<label class="theme">Look <select id="theme-pick">
 <option value="system">Match device</option><option value="light">Light</option><option value="dark">Dark</option><option value="contrast">High contrast</option>
 </select></label>`;
 
-export function writeHubPages({ site, url, verification, tdmMeta, copyright, socialList = [], pages, updated, csp }) {
+// Things shared by every game. Account, Messages and Share an idea open in
+// the game page, where those windows live (web/js/app.js, ?open=...); Report
+// a Problem has its own page; Install and Support work right here (js/hub.js).
+const APP_ITEMS = [
+  ['a', 'fantastical/?open=account', 'Account and sync', 'Sign in or make a free account. Your saves, stats and settings follow you to every device and every game.'],
+  ['a', 'fantastical/?open=messages', 'Messages and news', 'Notes from the team, and replies to what you sent.'],
+  ['a', 'fantastical/?open=feedback', 'Share an idea', 'Tell us what would make the games better.'],
+  ['a', 'report/', 'Report a Problem', 'Something not right? Tell us, with a screenshot if you like.'],
+];
+
+export function writeHubPages({ site, url, verification, tdmMeta, copyright, socialList = [], pages, updated, csp, cloud = '', socialHtml = null }) {
   const year = new Date().getUTCFullYear();
   const description = 'The Logic Grid: The Fantastical Logic Grid story logic puzzles and NINETIMESNINE number puzzles. Free to play in your browser.';
   const og = (title, desc, path) => `<link rel="canonical" href="${url(path)}">
@@ -215,7 +253,7 @@ ${verification}
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="preload" href="fonts/atkinson-400.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="fonts/cinzel-700.woff2" as="font" type="font/woff2" crossorigin>
-<script src="js/hub.js" data-hub></script>
+<script src="js/hub.js" data-hub${cloud ? ` data-cloud="${esc(cloud)}"` : ''}></script>
 <script type="module" src="js/page-visit.js"></script>
 <script type="application/ld+json">${json(website)}</script>
 <script type="application/ld+json">${json(list)}</script>
@@ -227,7 +265,10 @@ ${verification}
 <div class="wrap">
 <header class="top">
 <a class="brand" href="./" aria-label="The Logic Grid home">${LOGO}<span>The Logic Grid</span></a>
+<div class="top-actions">
+<a class="hdr-btn" href="fantastical/?open=account">Account</a>
 ${themeSelect}
+</div>
 </header>
 <section class="hero" aria-labelledby="hero-title">
 <span class="eyebrow" data-design-text="heroEyebrow">Puzzle games</span>
@@ -242,11 +283,23 @@ ${card({ cls: 'ntn', art: ART_NINE, tag: 'Number puzzles', name: 'NINETIMESNINE'
     text: 'Fill the grid so every row, column and box holds each number once. Start small at 4×4 or go for the full 9×9.',
     points: ['Classic play plus Rival Grid, Chain Reaction, Tidewater and Glyph Quest', 'Notes, step-by-step hints, undo and redo', 'Rules and a worked example for every style'] })}
 </main>
+<section class="app" id="app" aria-labelledby="app-title">
+<h2 id="app-title" data-design-text="appTitle">One account for every game</h2>
+<p class="app-lead" data-design-text="appText">Sign in once and your saves, stats and settings stay in step in every game, on every device.</p>
+<div class="app-grid">
+${APP_ITEMS.map(([, href, name, text]) => `<a class="app-item" href="${href}"><b>${name}</b><span>${text}</span></a>`).join('\n')}
+<button class="app-item" type="button" id="install-app" hidden><b>Install the app</b><span>Every game on your home screen or desktop, and they work offline.</span></button>
+<a class="app-item" id="support-app" href="#" target="_blank" rel="noopener" hidden><b>Support The Logic Grid</b><span>Every game stays free. A tip helps make more. (Opens in a new tab.)</span></a>
+</div>
+<p class="app-note" id="install-ios" hidden>To install on iPhone or iPad: tap the Share button in Safari, then Add to Home Screen.</p>
+<div class="news" id="hub-news" hidden><h3>News from The Logic Grid</h3><ul id="hub-news-list"></ul></div>
+${socialList.length && socialHtml ? `<div class="follow"><h3>Follow The Logic Grid</h3>${socialHtml(socialList).replace('aria-label="Follow The Fantastical Logic Grid"', 'aria-label="Follow The Logic Grid"')}</div>` : ''}
+</section>
 </div>
 <footer>
 <div class="wrap">
 <span>${esc(copyright)}</span>
-<span><span class="footer-links"><a href="privacy/">Privacy</a> · <a href="terms/">Terms of use</a> · </span><span data-design-text="footerNote">Questions? support@thelogicgrid.com</span></span>
+<span><span class="footer-links"><a href="privacy/">Privacy</a> · <a href="terms/">Terms of use</a> · <a href="report/">Report a Problem</a> · </span><span data-design-text="footerNote">Questions? support@thelogicgrid.com</span></span>
 </div>
 </footer>
 </body>
@@ -299,6 +352,10 @@ ${og('NINETIMESNINE', npDescription, 'ninetimesnine/')}
 [data-np-header="accent"] .np-top .btn { color: var(--on-accent); border-color: currentColor; background: transparent; }
 [data-np-flg="hide"] .np-top a[href$="fantastical/"] { display: none; }
 main.screen { padding-top: 24px; }
+.np-foot { padding: 20px max(16px, env(safe-area-inset-left, 0px)) 32px; border-top: 1px solid var(--hairline); color: var(--muted); font-size: .9rem; text-align: center; }
+.np-foot nav { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 6px; }
+.np-foot a { color: inherit; display: inline-flex; align-items: center; min-height: 44px; }
+.np-foot p { margin: 4px 0 0; }
 </style>
 </head>
 <body>
@@ -311,6 +368,10 @@ main.screen { padding-top: 24px; }
 <div id="np-root"><p class="muted" id="np-loading">Loading NINETIMESNINE…</p></div>
 <noscript><div class="card"><p><strong>NINETIMESNINE</strong> is a free number puzzle game. Turn on JavaScript to play.</p></div></noscript>
 </main>
+<footer class="np-foot">
+<nav aria-label="The Logic Grid"><a href="../fantastical/?open=account">Account and sync</a> · <a href="../fantastical/?open=feedback">Share an idea</a> · <a href="../report/">Report a Problem</a> · <a href="../privacy/">Privacy</a> · <a href="../terms/">Terms of use</a></nav>
+<p>${esc(copyright)}</p>
+</footer>
 </body>
 </html>
 `;

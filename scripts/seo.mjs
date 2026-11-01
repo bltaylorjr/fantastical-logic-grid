@@ -258,7 +258,10 @@ export async function buildSeo({ root, site }) {
     const end = cut.lastIndexOf('. ');
     return end > 80 ? cut.slice(0, end + 1) : `${cut.slice(0, cut.lastIndexOf(' ')).replace(/[,;:]$/, '')}…`;
   };
-  const page = ({ path, title: fullTitle, description: fullDescription, body, crumbs = [], schema = [], lastmod = updated, priority = 0.6, type, listed = true, csp = SITE_CSP, style = '', script = '' }) => {
+  // App pages (privacy, terms) belong to The Logic Grid as a whole, not one
+  // game: their header and footer lead back to the front page and every game.
+  const APP_NAV = [['fantastical/', 'The Fantastical Logic Grid'], ['ninetimesnine/', 'NINETIMESNINE'], ['privacy/', 'Privacy'], ['terms/', 'Terms of use']];
+  const page = ({ path, title: fullTitle, description: fullDescription, body, crumbs = [], schema = [], lastmod = updated, priority = 0.6, type, listed = true, csp = SITE_CSP, style = '', script = '', app = false }) => {
     const title = fitTitle(fullTitle);
     const description = fitDescription(fullDescription);
     const file = path.endsWith('.html') ? path : `${path}index.html`;
@@ -291,21 +294,29 @@ ${[breadcrumb, ...schema].map((s) => `<script type="application/ld+json">${json(
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
-<header class="top">
+${app ? `<header class="top">
+  <a class="back" href="${up}" data-back><span aria-hidden="true">‹</span> Back</a>
+  <a class="brand" href="${up}">The Logic Grid</a>
+  <nav aria-label="Site">
+    <ul>${APP_NAV.map(([p, n]) => `<li><a href="${up}${p}"${p === path ? ' aria-current="page"' : ''}>${n}</a></li>`).join('')}</ul>
+  </nav>
+  <a class="btn" href="${up}">All games</a>
+</header>` : `<header class="top">
   <a class="back" href="${up}${GAME}" data-back><span aria-hidden="true">‹</span> Back</a>
   <a class="brand" href="${up}${GAME}">${name}</a>
   <nav aria-label="Site">
     <ul>${NAV.map(([p, n]) => `<li><a href="${up}${p}"${p === path ? ' aria-current="page"' : ''}>${n}</a></li>`).join('')}</ul>
   </nav>
   <a class="btn" href="${up}${GAME}?play=now" rel="nofollow" data-design-text="infoPlay">Play free</a>
-</header>
+</header>`}
 ${crumbs.length ? `<nav class="crumbs" aria-label="Breadcrumb"><ol>${trail.map(([p, n], i) => i === trail.length - 1 ? `<li aria-current="page">${esc(n)}</li>` : `<li><a href="${up}${p}">${esc(n)}</a></li>`).join('')}</ol></nav>` : ''}
 <main id="main">
 ${body(up)}
 </main>
 <footer class="foot">
-  <p><a class="btn quiet" href="${up}${GAME}" data-back><span aria-hidden="true">‹</span> Back</a> <a class="btn quiet" href="${up}${GAME}">Back to the game</a></p>
-  <p><a href="${up}${GAME}">Play ${name}</a> · free in your browser, offline-ready, and on Windows.</p>
+  ${app ? `<p><a class="btn quiet" href="${up}" data-back><span aria-hidden="true">‹</span> Back</a> <a class="btn quiet" href="${up}">The Logic Grid home</a></p>
+  <p>The Logic Grid: <a href="${up}fantastical/">The Fantastical Logic Grid</a> and <a href="${up}ninetimesnine/">NINETIMESNINE</a>, free in your browser. Questions? support@thelogicgrid.com</p>` : `<p><a class="btn quiet" href="${up}${GAME}" data-back><span aria-hidden="true">‹</span> Back</a> <a class="btn quiet" href="${up}${GAME}">Back to the game</a> <a class="btn quiet" href="${up}">The Logic Grid home</a></p>
+  <p><a href="${up}${GAME}">Play ${name}</a> · free in your browser, offline-ready, and on Windows.</p>`}
   <p>Every puzzle has exactly one answer, checked by our solver${quality.rating ? `, and players rate them ${quality.rating.average} out of 5 stars` : ''}. <a href="${up}picks/">Hand-picked puzzles</a></p>
   <p>${NAV.map(([p, n]) => `<a href="${up}${p}">${n}</a>`).join(' · ')} · <a href="${up}privacy/">Privacy</a></p>
   ${socialList.length ? `<div class="foot-social"><p>Follow the game</p>${socialPages.socialHtml(socialList)}</div>` : ''}
@@ -371,7 +382,7 @@ ${verification}
   // The game moves to fantastical/; index.html becomes The Logic Grid's front page.
   writeGamePage(site, game_html);
   pages.push({ path: GAME, lastmod: updated, priority: 1 });
-  writeHubPages({ site, url, verification, tdmMeta, copyright, socialList, pages, updated, csp: SITE_CSP });
+  writeHubPages({ site, url, verification, tdmMeta, copyright, socialList, pages, updated, csp: SITE_CSP, cloud, socialHtml: socialPages.socialHtml });
 
   // ---------- how to play ----------
   const transcript = (appHtml.match(/<details class="transcript">[\s\S]*?<\/summary>([\s\S]*?)<\/details>/) || [])[1] || '';
@@ -622,7 +633,7 @@ ${puzzleBody(p, d, up)}
 
   // ---------- terms of use ----------
   page({
-    path: 'terms/', priority: 0.2,
+    path: 'terms/', priority: 0.2, app: true,
     title: `Terms of use | ${name}`,
     description: `What you may and may not do with ${name}: play and print for personal or classroom use; no copying, scraping or AI training.`,
     crumbs: [['terms/', 'Terms of use']],
@@ -767,7 +778,7 @@ ${playBtn(up)}`,
 
   // ---------- Privacy (also the app stores' privacy policy link) ----------
   page({
-    path: 'privacy/', priority: 0.3,
+    path: 'privacy/', priority: 0.3, app: true,
     title: `Privacy | ${name}`,
     description: `What ${name} keeps, what it sends, and what it never does: no ads, no tracking cookies, no selling data.`,
     crumbs: [['privacy/', 'Privacy']],
