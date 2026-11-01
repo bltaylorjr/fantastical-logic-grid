@@ -11,6 +11,8 @@
 import { CATEGORIES, OPTIONS, PREVIEW_PAGES, defaults, normalize, changes } from './site-design.js';
 
 const $ = (s, el = document) => el.querySelector(s);
+// Every word from the design is escaped before it goes into the page.
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 let h = null; // helpers from admin.js
 let view = null; // the last GET /admin/v1/site-design
@@ -58,26 +60,26 @@ function control(o) {
   const v = current[o.key];
   const dis = editable() ? '' : ' disabled';
   if (o.type === 'select') {
-    return `<select id="${id}" data-key="${o.key}"${dis}>${o.choices.map((c) => `<option value="${h.esc(c.value)}"${c.value === v ? ' selected' : ''}>${h.esc(c.label)}${c.value === o.default ? ' (original)' : ''}</option>`).join('')}</select>`;
+    return `<select id="${id}" data-key="${o.key}"${dis}>${o.choices.map((c) => `<option value="${esc(c.value)}"${c.value === v ? ' selected' : ''}>${esc(c.label)}${c.value === o.default ? ' (original)' : ''}</option>`).join('')}</select>`;
   }
   const common = `id="${id}" data-key="${o.key}" maxlength="${o.max}"${dis} aria-describedby="${id}-count"`;
-  const box = o.type === 'textarea' ? `<textarea ${common} rows="3">${h.esc(v)}</textarea>` : `<input type="text" ${common} value="${h.esc(v)}">`;
+  const box = o.type === 'textarea' ? `<textarea ${common} rows="3">${esc(v)}</textarea>` : `<input type="text" ${common} value="${esc(v)}">`;
   return `${box}<span class="web-count muted" id="${id}-count">${v.length} of ${o.max} characters</span>`;
 }
 
 function optionRow(o) {
   const changed = current[o.key] !== o.default;
   return `<div class="web-opt${changed ? ' changed' : ''}" data-opt="${o.key}">
-    <div class="field"><label for="web-${o.key}">${h.esc(o.label)}</label>${control(o)}</div>
-    <button class="btn small link web-reset" type="button" data-reset="${o.key}"${changed && editable() ? '' : ' hidden'} aria-label="Put ${h.esc(o.label)} back to the original">Original</button>
+    <div class="field"><label for="web-${o.key}">${esc(o.label)}</label>${control(o)}</div>
+    <button class="btn small link web-reset" type="button" data-reset="${o.key}"${changed && editable() ? '' : ' hidden'} aria-label="Put ${esc(o.label)} back to the original">Original</button>
   </div>`;
 }
 
 function categoryHtml(c) {
   const n = c.options.filter((o) => current[o.key] !== o.default).length;
   return `<details class="web-cat" data-cat="${c.id}"${c.id === openCat ? ' open' : ''}>
-    <summary><span>${h.esc(c.name)}</span> <span class="badge${n ? ' warn' : ''}" data-cat-count="${c.id}">${n ? `${n} changed` : 'Original'}</span></summary>
-    ${c.help ? `<p class="help">${h.esc(c.help)}</p>` : ''}
+    <summary><span>${esc(c.name)}</span> <span class="badge${n ? ' warn' : ''}" data-cat-count="${c.id}">${n ? `${n} changed` : 'Original'}</span></summary>
+    ${c.help ? `<p class="help">${esc(c.help)}</p>` : ''}
     ${c.options.map(optionRow).join('')}
     ${editable() ? `<p><button class="btn small" type="button" data-reset-cat="${c.id}">Put this group back to the original</button></p>` : ''}
   </details>`;
@@ -102,11 +104,11 @@ function previewHtml() {
   const path = (PREVIEW_PAGES.find((p) => p[0] === previewPage) || PREVIEW_PAGES[0])[2];
   return `<div class="web-preview">
     <div class="row web-preview-bar">
-      <div class="field inline"><label for="web-page">Page</label><select id="web-page">${PREVIEW_PAGES.map(([id, label]) => `<option value="${id}"${id === previewPage ? ' selected' : ''}>${h.esc(label)}</option>`).join('')}</select></div>
+      <div class="field inline"><label for="web-page">Page</label><select id="web-page">${PREVIEW_PAGES.map(([id, label]) => `<option value="${id}"${id === previewPage ? ' selected' : ''}>${esc(label)}</option>`).join('')}</select></div>
       <div class="field inline"><label for="web-look">Look</label><select id="web-look"><option value="light"${look === 'light' ? ' selected' : ''}>Light</option><option value="dark"${look === 'dark' ? ' selected' : ''}>Dark</option></select></div>
       <div class="field inline"><label for="web-size">Size</label><select id="web-size"><option value="desktop"${size === 'desktop' ? ' selected' : ''}>Computer</option><option value="phone"${size === 'phone' ? ' selected' : ''}>Phone</option></select></div>
     </div>
-    <div class="web-frame-box ${size}"><iframe id="web-frame" title="Preview of the website with your draft" src="${h.esc(`${view.siteUrl}/${path}?design-preview`)}" loading="lazy"></iframe></div>
+    <div class="web-frame-box ${size}"><iframe id="web-frame" title="Preview of the website with your draft" src="${esc(`${view.siteUrl}/${path}?design-preview`)}" loading="lazy"></iframe></div>
     <p class="muted web-preview-note">The preview takes no clicks. Changes to the page itself (text and pictures inside the games, daily puzzles) are made in their own sections.</p>
   </div>`;
 }
@@ -114,7 +116,7 @@ function previewHtml() {
 function historyHtml() {
   if (!view.history.length) return '<div class="card"><h2>Published versions</h2><p class="muted">Nothing published from here yet. The website shows the original design.</p></div>';
   const rows = view.history.map((v, i) => [
-    `${i === 0 ? '<span class="badge ok">Live</span> ' : ''}${h.when(v.at)}`, h.esc(v.by || ''), `${v.changes} change${v.changes === 1 ? '' : 's'}`,
+    `${i === 0 ? '<span class="badge ok">Live</span> ' : ''}${h.when(v.at)}`, esc(v.by || ''), `${v.changes} change${v.changes === 1 ? '' : 's'}`,
     editable() ? `<button class="btn small" type="button" data-restore="${v.id}">Bring back as a draft</button>` : '',
   ]);
   return `<div class="card"><h2>Published versions</h2><p class="muted">The last ${view.history.length} designs you published. Bringing one back puts it in the draft; it goes live only when you publish.</p>
