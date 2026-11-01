@@ -107,6 +107,7 @@
       <li data-dash="flg"><a href="#quality" data-min="viewer">Puzzle quality <span class="count" id="count-quality" hidden></span></a></li>
       <li data-dash="flg"><a href="#ratings" data-min="viewer">Ratings and insights <span class="count" id="count-ratings" hidden></span></a></li>
       <li data-dash="flg"><a href="#mail" data-min="viewer">Puzzle emails</a></li>
+      <li data-dash="flg"><a href="#beat-images" data-min="moderator">Story beat pictures</a></li>
       <li data-dash="flg"><a href="#stories" data-min="moderator">Story workshop and review <span class="count" id="count-parts" hidden></span></a></li>
       <li data-dash="flg"><a href="#story-submissions" data-min="moderator">Storyline submissions <span class="count" id="count-story-submissions" hidden></span></a></li>
       <li data-dash="flg"><a href="#educators" data-min="moderator">Educator requests <span class="count" id="count-educators" hidden></span></a></li>
@@ -347,7 +348,7 @@
       <p class="muted">The Storyline Submission Database: every theme idea, category idea and storyline players sent, from the game's <b>Suggest a storyline</b> page and from <b>Share an idea</b>, kept exactly as they sent it, with the player, their author credit, their consent and the first puzzle made from an approved storyline. <b>Open</b> an entry to see the original form. <b>Scan</b> checks it for trademarks, protected characters and copied wording (a screening aid, not legal advice). <b>Approve and build puzzle</b> builds the first puzzle from the corrected words, saves it here and in the player's Saved puzzles, and emails it to the author as a PDF. Confirmations, approvals and decline thank-yous go from noreply@thelogicgrid.com; copies you email go from support@thelogicgrid.com.</p>
       <form class="row" id="ss-search" role="search" aria-label="Search storyline submissions">
         <div class="field grow"><label for="ss-q">Search</label><input type="search" id="ss-q" placeholder="Words, title, author credit, player, email, theme or entry number" autocomplete="off"></div>
-        <div class="field"><label for="ss-kind">Kind</label><select id="ss-kind"><option value="">All kinds</option><option value="storyline">Storylines</option><option value="theme">Theme ideas</option><option value="category">Category ideas</option></select></div>
+        <div class="field"><label for="ss-kind">Kind</label><select id="ss-kind"><option value="">All kinds</option><option value="storyline">Storylines</option><option value="puzzle">Wizard puzzles</option><option value="theme">Theme ideas</option><option value="category">Category ideas</option></select></div>
         <div class="field"><label for="ss-scan">Trademark and copyright</label><select id="ss-scan"><option value="">Any scan result</option><option value="unscanned">Not scanned</option><option value="flagged">Something found</option><option value="clear">Clear</option></select></div>
         <div class="field"><label for="ss-source">From</label><select id="ss-source"><option value="">Anywhere</option><option value="form">Suggest a storyline page</option><option value="idea box">Share an idea</option></select></div>
         <button class="btn primary" type="submit">Search</button>
@@ -359,6 +360,25 @@
         <div id="ss-detail-wrap"></div>
       </div>
       <nav class="row pager" aria-label="Entry pages"><button class="btn small" type="button" id="ss-prev" hidden>Previous page</button><button class="btn small" type="button" id="ss-next" hidden>Next page</button></nav>
+    </section>
+
+    <section data-view="beat-images" hidden aria-labelledby="h-beat-images">
+      <div class="head"><h1 id="h-beat-images">Story beat pictures</h1></div>
+      <p class="muted">Pictures the game shows beside a story beat, the short story moments that appear as a player finishes each section of the grid. Upload any picture your browser can open (JPG, PNG, GIF, WebP, AVIF, BMP, SVG, ICO, and HEIC or TIFF where your browser reads them). Each one is shrunk and saved as a small WebP before it is sent. A theme's own pictures are used first; <b>Every theme</b> pictures fill in for themes with none. Players who switch story beats off, or play in silent mode, never see them.</p>
+      <div class="card stack bi-drop" id="bi-drop">
+        <h2>Add pictures</h2>
+        <div class="row">
+          <div class="field"><label for="bi-theme">Theme</label><select id="bi-theme"></select></div>
+          <div class="field"><label for="bi-stage">When it shows</label><select id="bi-stage"></select></div>
+        </div>
+        <div class="field"><label for="bi-file">Pictures</label><input type="file" id="bi-file" multiple aria-describedby="bi-file-h"><span class="muted" id="bi-file-h">Choose one or more, or drop them here. You can check and change what each one shows before uploading.</span></div>
+        <p class="muted" id="bi-status" role="status" aria-live="polite"></p>
+        <div id="bi-ready"></div>
+        <div class="row"><button class="btn primary" type="button" id="bi-send" hidden>Upload</button></div>
+      </div>
+      <div class="row"><div class="field"><label for="bi-filter">Show</label><select id="bi-filter"></select></div></div>
+      <p class="muted" id="bi-total" role="status"></p>
+      <div id="bi-list"><p class="muted">Loading…</p></div>
     </section>
 
     <section data-view="educators" hidden aria-labelledby="h-educators">

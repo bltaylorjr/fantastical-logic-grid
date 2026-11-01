@@ -65,6 +65,12 @@ jobs:
         run: |
           node video/educators.cjs
           VIDEO=educators python video/build.py --install
+      - name: Puzzle Wizard how-to videos and The Logic Grid intro (record, voice, install)
+        run: |
+          node video/wizard.cjs
+          VIDEO=wizard-fantastical python video/build.py --install
+          VIDEO=wizard-ninetimesnine python video/build.py --install
+          VIDEO=tlg python video/build.py --install
       - uses: actions/upload-artifact@v4
         with:
           name: how-to-play-video
@@ -85,10 +91,14 @@ jobs:
             seo/media/educators.en.vtt
             seo/media/educators-poster.jpg
             seo/media/educators.json
+            web/media/wizard
+            web/media/games/the-logic-grid.mp4
+            web/media/games/the-logic-grid.vtt
+            web/media/games/the-logic-grid.jpg
           commit-message: 'Update the how-to-play video [video]'
           title: 'Update the how-to-play video [video]'
           body: |
-            Re-recorded the how-to-play video from the current game (commit ${{ github.sha }}), narrated by the game's own Kokoro voice, with retimed captions and transcript.
+            Re-recorded the how-to-play video, the Educators video, the Puzzle Wizard how-to videos (one for each game) and The Logic Grid intro from the current site (commit ${{ github.sha }}), narrated by the game's own Kokoro voice, with retimed captions and transcripts.
 
             A copy with burned-in captions and an SRT file for video sites are in this run's artifacts: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 

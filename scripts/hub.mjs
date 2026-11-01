@@ -186,6 +186,20 @@ footer a { color: inherit; }
 .social-link { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border: 1px solid var(--edge-hi); border-radius: 50%; color: var(--text); background: var(--bg); text-decoration: none; }
 .social-link:hover { border-color: var(--accent); color: var(--accent); }
 [data-app-section="hide"] .app { display: none; }
+.wiz-row { margin: 22px 0 0; }
+[data-hero-align="left"] .wiz-row { text-align: left; }
+.wiz-btn { display: inline-flex; align-items: center; gap: 10px; min-height: 48px; padding: 0 22px; border-radius: 999px; border: 2px solid var(--accent); color: var(--text); background: var(--bg); font-weight: 700; text-decoration: none; }
+.wiz-btn:hover { background: var(--accent); color: var(--on-accent); }
+.wiz-btn svg { width: 20px; height: 20px; }
+.wiz-pick { width: min(560px, calc(100% - 24px)); border: 1px solid var(--edge); border-radius: var(--radius); background: var(--bg); color: var(--text); padding: 22px; }
+.wiz-pick::backdrop { background: rgb(0 0 0 / .55); }
+.wiz-pick h2 { font: 700 1.4rem/1.2 var(--display); margin: 0 0 6px; }
+.wiz-pick p { color: var(--muted); margin: 0 0 14px; }
+.wiz-games { display: grid; gap: 12px; }
+.wiz-game { display: flex; flex-direction: column; gap: 4px; padding: 16px; border: 2px solid var(--edge-hi); border-radius: 14px; color: var(--text); text-decoration: none; }
+.wiz-game:hover, .wiz-game:focus-visible { border-color: var(--accent); }
+.wiz-game span { color: var(--muted); }
+.wiz-close { margin: 14px 0 0; text-align: right; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } .art .mk { opacity: 1 !important; } [data-fx-hover="tilt"] .card { transform: none; } .sparkles { display: none !important; } }`;
 
 const card = ({ cls, art, tag, name, text, points, href, id }) => `<article class="card" data-game="${cls}" aria-labelledby="${id}">
@@ -274,7 +288,17 @@ ${themeSelect}
 <span class="eyebrow" data-design-text="heroEyebrow">Puzzle games</span>
 <h1 id="hero-title" data-design-text="heroTitle">Pick your puzzle.</h1>
 <p data-design-text="heroText">Two logic games, free to play in your browser. No guessing needed in either one — every puzzle can be solved by reasoning alone.</p>
+<p class="wiz-row"><a class="wiz-btn" href="wizard/" id="wizard-open" aria-haspopup="dialog"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 19 19 5M15 4l1 2 2 1-2 1-1 2-1-2-2-1 2-1zM6 3l.7 1.3L8 5l-1.3.7L6 7l-.7-1.3L4 5l1.3-.7z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> <span data-design-text="wizardButton">Puzzle Wizard: make your own puzzle</span></a></p>
 </section>
+<dialog class="wiz-pick" id="wizard-pick" aria-labelledby="wizard-pick-h">
+<h2 id="wizard-pick-h">Which puzzle would you like to make?</h2>
+<p>The wizard asks only what that puzzle needs, step by step, and checks it has exactly one answer.</p>
+<div class="wiz-games">
+<a class="wiz-game" href="wizard/?game=fantastical"><b>The Fantastical Logic Grid</b><span>A story logic puzzle: your characters, your lists, your answer.</span></a>
+<a class="wiz-game" href="wizard/?game=ninetimesnine"><b>NINETIMESNINE</b><span>A number puzzle: your story and your own starting numbers.</span></a>
+</div>
+<p class="wiz-close"><button type="button" class="hdr-btn" id="wizard-cancel">Not now</button></p>
+</dialog>
 <main id="games" class="games" tabindex="-1" aria-label="Games">
 ${card({ cls: 'flg', art: ART_GRID, tag: 'Story logic puzzles', name: 'The Fantastical Logic Grid', id: 'g1', href: 'fantastical/',
     text: 'Read the clues, mark the grid, and work out who did what. Every puzzle tells a story.',
@@ -361,7 +385,7 @@ main.screen { padding-top: 24px; }
 <body>
 <header class="np-top">
 <a class="brand" href="../">${LOGO}<span>The Logic Grid</span></a>
-<nav aria-label="Games"><a class="btn quiet small" href="../">‹ All games</a><a class="btn small" href="../fantastical/">The Fantastical Logic Grid</a></nav>
+<nav aria-label="Games"><a class="btn quiet small" href="../">‹ All games</a><a class="btn small" href="../wizard/?game=ninetimesnine">Make a puzzle</a><a class="btn small" href="../fantastical/">The Fantastical Logic Grid</a></nav>
 </header>
 <main id="screen-np" class="screen" tabindex="-1">
 <h1 class="sr-only">NINETIMESNINE</h1>

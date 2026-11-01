@@ -83,6 +83,15 @@
     var iosNote = document.getElementById('install-ios');
     if (iosNote && ios && navigator.standalone !== true) iosNote.hidden = false;
     loadShared();
+    // Puzzle Wizard: the first click asks which puzzle to make (the link
+    // still opens the wizard's own chooser where dialogs are not supported).
+    var wizOpen = document.getElementById('wizard-open');
+    var wizPick = document.getElementById('wizard-pick');
+    if (wizOpen && wizPick && typeof wizPick.showModal === 'function') {
+      wizOpen.addEventListener('click', function (e) { e.preventDefault(); wizPick.showModal(); var first = wizPick.querySelector('.wiz-game'); if (first) first.focus(); });
+      document.getElementById('wizard-cancel').addEventListener('click', function () { wizPick.close(); wizOpen.focus(); });
+      wizPick.addEventListener('click', function (e) { if (e.target === wizPick) wizPick.close(); });
+    }
     var pick = document.getElementById('theme-pick');
     if (!pick) return;
     pick.value = read().colorTheme || 'system';

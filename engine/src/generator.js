@@ -80,6 +80,7 @@ function resolveOptions(opts = {}) {
   const questions = clamp(opts.questions ?? 3, [1, 6]);
   return { tier, seed, rng, theme, topic, scenario, K, N, customSize, weights, clueCount, questions, effort,
     extraParts: opts.storyParts, storyPrefs: opts.storyPrefs,
+    answer: world && Array.isArray(opts.answer) ? opts.answer : null,
     customNames: opts.customNames, customTitle: opts.title, usedStories: opts.usedStories || [], timeLimitMs: opts.timeLimitMs ?? tier.timeLimitMs ?? 15000,
     maxAttempts: opts.maxAttempts ?? 60 };
 }
@@ -128,6 +129,30 @@ export function buildModel(o) {
 export function randomSolution(rng, K, N) {
   const sol = [[...Array(N).keys()]];
   for (let c = 1; c < K; c++) sol.push(rng.shuffle([...Array(N).keys()]));
+  return sol;
+}
+
+// A custom world's own answer key (the Puzzle Wizard): who has which item in
+// each category, as [{ name, picks: { "Category name": "item" } }]. Every
+// name and item must be in the puzzle exactly once, so the model must use all
+// of them (as many items in each category as there are names).
+export function answerSolution(model, answer) {
+  const { K, N, cats } = model;
+  const key = (s) => String(s ?? '').trim().toLowerCase();
+  const rows = new Map(answer.map((r) => [key(r && r.name), r && r.picks ? r.picks : {}]));
+  const sol = [[...Array(N).keys()]];
+  for (let c = 1; c < K; c++) {
+    const col = cats[0].labels.map((name) => {
+      const picks = rows.get(key(name));
+      if (!picks) throw new Error(`The answer key has no row for ${name}.`);
+      const want = Object.entries(picks).find(([cat]) => key(cat) === key(cats[c].name));
+      const i = want ? cats[c].labels.findIndex((l) => key(l) === key(want[1])) : -1;
+      if (i < 0) throw new Error(`The answer key does not say which ${cats[c].name.toLowerCase()} ${name} has.`);
+      return i;
+    });
+    if (new Set(col).size !== N) throw new Error(`In the answer key, each ${cats[c].name.toLowerCase()} must go to exactly one ${cats[0].name.toLowerCase()}.`);
+    sol.push(col);
+  }
   return sol;
 }
 
@@ -219,7 +244,7 @@ export function generatePuzzle(options = {}) {
 
   for (let attempt = 0; attempt < o.maxAttempts; attempt++) {
     const model = buildModel(o);
-    const sol = randomSolution(o.rng, model.K, model.N);
+    const sol = o.answer ? answerSolution(model, o.answer) : randomSolution(o.rng, model.K, model.N);
     model.sol = sol;
     const L = makeLanguage(model);
     const clues = selectClues(o, model, sol);

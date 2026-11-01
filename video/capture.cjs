@@ -672,6 +672,13 @@ const CSS = `
       await scene('suggest', ['Dream up a character of your own with Suggest a character, in the menu.', 'Answer a few questions about their name, look, personality and voice.', 'The game\'s team reviews every suggestion, and you might meet yours in a puzzle.']);
       await p.keyboard.press('Escape');
     }
+    // The Puzzle Wizard, in the menu.
+    if (await p.$('[data-cmd=wizard]')) {
+      await p.click('#menu-btn'); await p.waitForSelector('[data-cmd=wizard]'); await prep(); await hl('[data-cmd=wizard]', 6);
+      await scene('wizard', ['Want to write a whole puzzle of your own?', 'The Puzzle Wizard, in the menu, walks you through your story, your characters, the lists to match and the answer.',
+        'It checks that your puzzle has exactly one answer, gives you a PDF to download or print, and saves it to your Saved puzzles.']);
+      await p.keyboard.press('Escape');
+    }
     card('outro', [["That's all you need: read the story, follow the clues, and mark your X's and O's.", "That's all you need. Read the story, follow the clues, and mark your exes and ohs."], 'Welcome to The Fantastical Logic Grid. Happy sleuthing!']);
 
     // Title cards.

@@ -1,6 +1,7 @@
 """Builds the how-to-play video from video/out/scenes.json (written by capture.cjs),
 or with VIDEO=educators the Educators page video from video/out-educators/scenes.json
-(written by educators.cjs).
+(written by educators.cjs), and with VIDEO=wizard-fantastical, wizard-ninetimesnine or tlg the
+Puzzle Wizard how-to videos and The Logic Grid intro (written by wizard.cjs).
 
 Voice: Kokoro-82M, American male voice am_michael (the game's own narrator),
 run locally through kokoro-onnx. Captions: one sentence per cue, as WebVTT for
@@ -255,6 +256,25 @@ def main():
         with open(os.path.join(media, 'educators.json'), 'w') as f:
             json.dump({'seconds': round(total, 1), 'minutes': minutes, 'transcript': paras}, f, indent=1)
         print('updated seo/media/educators.mp4, captions, poster and transcript')
+    elif INSTALL and (VIDEO.startswith('wizard-') or VIDEO == 'tlg'):
+        # The Puzzle Wizard's how-to videos (web/media/wizard/<game>.*, shown on
+        # each game's wizard page) and The Logic Grid intro on the game cards
+        # (web/media/games/the-logic-grid.*). Both are recorded by video/wizard.cjs.
+        if VIDEO == 'tlg':
+            media, name, vtt = os.path.join(ROOT, 'web', 'media', 'games'), 'the-logic-grid', 'the-logic-grid.vtt'
+        else:
+            name = VIDEO[len('wizard-'):]
+            media, vtt = os.path.join(ROOT, 'web', 'media', 'wizard'), f'{name}.en.vtt'
+        os.makedirs(media, exist_ok=True)
+        os.replace(os.path.join(OUT, f'{VIDEO}.mp4'), os.path.join(media, f'{name}.mp4'))
+        with open(os.path.join(OUT, 'captions.vtt')) as src, open(os.path.join(media, vtt), 'w') as dst:
+            dst.write(src.read())
+        subprocess.run(['ffmpeg', '-y', '-v', 'error', '-i', os.path.join(OUT, scenes[min(1, len(scenes) - 1)]['shot']), '-vf', 'scale=1280:-2', '-q:v', '4',
+                        os.path.join(media, f'{name}.jpg')], check=True)
+        if VIDEO != 'tlg':
+            with open(os.path.join(media, f'{name}.json'), 'w') as f:
+                json.dump({'seconds': round(total, 1), 'minutes': minutes, 'transcript': paras}, f, indent=1)
+        print(f'updated {os.path.relpath(media, ROOT)}/{name}.mp4, captions and poster')
     elif INSTALL:
         media = os.path.join(ROOT, 'web', 'media')
         os.makedirs(media, exist_ok=True)

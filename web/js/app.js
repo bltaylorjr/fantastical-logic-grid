@@ -10,6 +10,7 @@ import { printPuzzle } from './print.js';
 import { sceneSvg } from './art.js';
 import * as sfx from './audio.js';
 import * as ai from './ai.js';
+import * as director from './director.js';
 import { portrait, characterFace, loadPortraits, portraitsReady } from './portraits.js';
 import { sizesFor as tierSizes, tierChoicesHtml, themeGroupsHtml, sizeChoicesHtml, clueTypesHtml } from './setup-markup.js';
 import * as characters from './characters.js';
@@ -637,10 +638,10 @@ function linkEditionId(url) {
   return null;
 }
 // ?open=account, ?open=messages and ?open=feedback come from The Logic Grid's
-// front page and the NINETIMESNINE page: things shared by every game whose
+// front page and the NINETIMESNINE page (?open=saved from the Puzzle Wizard): things shared by every game whose
 // windows live here. Each opens like its Menu item, and only while that item
 // is on (accounts set up, Messages and Ideas switched on in the dashboard).
-const OPEN_LINKS = ['account', 'messages', 'feedback'];
+const OPEN_LINKS = ['account', 'messages', 'feedback', 'saved'];
 function handleOpenLink() {
   const url = new URL(location.href);
   const what = url.searchParams.get('open');
@@ -1242,6 +1243,7 @@ function updateProgress() {
   }
   S.doneBlocks = newDone;
   revealScene(done / S.puzzle.grid.blocks.length);
+  director.progress(done);
   try { sfx.setMood(pct / 100); } catch (e) { /* ignore */ }
   $('#progress').textContent = `${pct}% filled · ${done} of ${S.puzzle.grid.blocks.length} sections done`;
   $('#progress-fill').style.width = `${pct}%`;
@@ -2294,6 +2296,7 @@ function renderMedia() {
   const p = S.puzzle;
   S.sceneLayers = -1;
   $('#scene').innerHTML = sceneSvg(p, 0);
+  director.start(p, { silent: settings.silent, speak: (text) => { if (voiceOn()) ai.speak(settings, p, 'narrator', text, { volume: settings.volume / 100 }).catch(() => {}); } });
   const names = S.ix.cats[0].items.map((i) => i.label);
   const drawCastRow = () => {
   $('#cast-row').innerHTML = names.map((n) => {
@@ -2749,6 +2752,7 @@ $('#app-menu').addEventListener('click', async (e) => {
   else if (cmd === 'mail') puzzleMail.open(openDialog);
   else if (cmd === 'feedback') feedbackBox.open(openDialog, { themes: OPTIONS.themes });
   else if (cmd === 'storyline') location.href = 'storyline/';
+  else if (cmd === 'wizard') location.href = 'wizard/?game=fantastical';
   else if (cmd === 'messages') messages.open();
   else if (cmd === 'account') openAccount();
   else if (cmd === 'board') competeUi.openBoard();

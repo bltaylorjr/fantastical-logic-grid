@@ -83,6 +83,31 @@ sentence plays while the rest is made; the story opening is pre-made when a puzz
 
 `releases/The-Fantastical-Logic-Grid.zip` holds the installer, a portable .exe and the web build.
 
+## Puzzle Wizard
+
+Players make their own puzzle at `wizard/?game=fantastical` or `wizard/?game=ninetimesnine`
+(the front page's **Puzzle Wizard** button asks which; also Menu > Puzzle Wizard and the
+NINETIMESNINE page's **Make a puzzle**).
+
+- **Questions** for each game, with help, an example and "how this is used in your puzzle"
+  for every entry: `web/js/wizard-fields.js` (also checks entries on the Worker and narrates
+  the how-to videos). Drawn by `web/js/wizard-form.js`; the pages are `web/js/wizard-page.js`.
+- **Autosave**: the entry is saved on the device as it is typed (localStorage
+  `flg.wizard.<game>`; pictures and sounds in IndexedDB `flg-wizard`).
+- **Live storyline** at the bottom of every step, read only.
+- **Check page** (`wizard/check/`): what is missing or wrong (with suggestions), an editor for
+  every entry, and whether the puzzle will have exactly one answer. A logic grid is proven by
+  a trial build (the engine writes clues for the author's own answer key:
+  `generatePuzzle({ custom, answer })`); a NINETIMESNINE grid is checked for one answer that
+  can be reasoned out, with a number to add when it is not (`web/js/wizard-build.js`).
+- **Build my puzzle**: a real PDF (`web/js/pdf-lite.js`, `web/js/wizard-pdf.js`; puzzle pages
+  and an answer key) to download or print, saved to Saved puzzles, and a copy to the team
+  (Storyline submissions, kind "Wizard puzzle", with pictures and sounds and how the author
+  wants each used and credited).
+- **How-to videos**: `video/wizard.cjs` records one for each game and The Logic Grid intro
+  (`.github/workflows/video.yml`); the wizard's **Watch how it works** shows the video and a
+  written guide to every entry.
+
 ## Player accounts (optional)
 
 Players can create an account (email and password) so saved puzzles, progress,

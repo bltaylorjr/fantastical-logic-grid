@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Check your puzzle · The Logic Grid</title>
+<meta name="description" content="Make your own puzzle for The Fantastical Logic Grid or NINETIMESNINE, step by step, and download it as a PDF.">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#1F5FAD">
+<link rel="icon" href="../../icons/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../../app.css">
+<link rel="stylesheet" href="../../wizard/wizard.css">
+<script type="module" src="../../js/wizard-page.js"></script>
+</head>
+<body class="w-page" data-mode="check">
+<a class="skip" href="#w-content">Skip to the wizard</a>
+<header class="w-top">
+  <a class="btn quiet" href="../" id="w-back"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg> Back to the wizard</a>
+  <span class="w-brand">Puzzle Wizard</span>
+</header>
+<main id="w-content" tabindex="-1">
+<div id="w-main" hidden>
+  <div class="w-head">
+    <div><h1 id="w-h1">Check your puzzle</h1><p class="w-lead" id="w-blurb"></p></div>
+    <button class="btn" type="button" id="w-watch"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Watch how it works</button>
+  </div>
+  <div id="c-editor">
+    <p class="w-restored" id="w-restored" hidden>Your draft is saved on this device.</p>
+    <div class="c-status wait" id="c-status" tabindex="-1" role="status" aria-live="polite"><b>Checking…</b></div>
+    <section class="w-card c-issues-card" aria-labelledby="c-issues-h">
+      <h2 id="c-issues-h">What needs your attention</h2>
+      <div id="c-issues"></div>
+      <label class="check"><input type="checkbox" id="c-suggest" checked> <span>Show suggestions too <span id="c-tips-count"></span></span></label>
+    </section>
+    <p class="w-restored" id="c-edit-note" hidden>Make your changes below. Suggestions are shown, and the box at the top tells you whether the puzzle will still have exactly one answer.</p>
+    <div class="w-tools">
+      <p class="w-saved" id="w-saved" aria-live="polite">Your answers are saved on this device as you type.</p>
+      <label class="check"><input type="checkbox" id="w-guidance"> <span>Show help on every field</span></label>
+      <button class="btn quiet small" type="button" id="w-restart">Start over</button>
+    </div>
+    <form id="w-form" class="w-card w-editor" novalidate></form>
+    <section class="w-story" aria-labelledby="w-story-h">
+      <h2 id="w-story-h">Your storyline, live</h2>
+      <p class="help">Your puzzle's words as players will read them, updated as you type. Edit them in the fields above.</p>
+      <label class="sr-only" for="w-preview">Your storyline (read only)</label>
+      <textarea id="w-preview" rows="12" readonly></textarea>
+    </section>
+    <p class="help">When you build it, your puzzle is saved to your Saved puzzles, you get a PDF to download or print, and a copy goes to the team, who may publish it in the game with your credit.</p>
+    <p class="error-box" id="c-build-error" role="alert" hidden></p>
+    <div class="w-nav"><button class="btn primary big" type="button" id="c-build" disabled>Build my puzzle</button></div>
+  </div>
+  <section class="w-card c-result" id="c-result" hidden tabindex="-1" aria-labelledby="c-result-h">
+    <h2 id="c-result-h">Your puzzle is ready</h2>
+    <p class="c-result-title" id="c-result-title"></p>
+    <p class="help" id="c-result-meta"></p>
+    <div class="row-inline"><button class="btn primary" type="button" id="c-pdf">Download the PDF</button><button class="btn" type="button" id="c-print">Print</button><a class="btn" id="c-open" href="../../">Play it in the game</a></div>
+    <p class="help" id="c-pdf-msg" aria-live="polite"></p>
+    <p id="c-saved-msg"></p>
+    <p id="c-send-msg" aria-live="polite"></p>
+    <h3>Want to change something?</h3>
+    <p class="help">Go back to the editor: suggestions are shown, and the wizard tells you whether your changes still make a puzzle with exactly one answer. Build it again when you are happy.</p>
+    <div class="row-inline"><button class="btn" type="button" id="c-edit">Make changes</button></div>
+  </section>
+</div>
+</main>
+<dialog id="w-video" aria-labelledby="w-video-h" class="w-dialog">
+  <div class="w-dialog-head"><h2 id="w-video-h">How to use the Puzzle Wizard</h2><button class="btn quiet small" type="button" id="w-video-close">Close</button></div>
+  <video id="w-video-player" controls preload="none" playsinline></video>
+  <p class="help" id="w-video-none" hidden>The how-to video for this game is on its way. Meanwhile, here is what each entry is for.</p>
+  <h2 class="w-guide-h">What each entry is for</h2>
+  <div id="w-guide-list"></div>
+</dialog>
+</body>
+</html>

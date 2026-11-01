@@ -3,7 +3,8 @@
 // storyline players sent, from the game's Suggest a storyline page and from
 // Share an idea, in the words they used. Search it, open an entry to see the
 // original form, fix its spelling and grammar for the puzzle, approve or
-// decline it, print it (or save it as a PDF) and email a copy.
+// decline it, print it (or save it as a PDF) and email a copy. Pictures a
+// player added can be copied into the Story beat pictures (beat-images.js).
 import { readStoryline, readSubmission } from './storyline-parse.js';
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -12,7 +13,7 @@ let h = null; // helpers from admin.js
 let query = { q: '', kind: '', status: 'new', source: '', scan: '', page: 0 };
 let open = null; // the entry being looked at
 
-const KIND = { theme: 'Theme idea', category: 'Category idea', storyline: 'Storyline' };
+const KIND = { theme: 'Theme idea', category: 'Category idea', storyline: 'Storyline', puzzle: 'Wizard puzzle' };
 const STATUS = { new: ['New', 'warn'], approved: ['Approved', 'ok'], declined: ['Declined', ''], closed: ['Closed', ''] };
 const SOURCE = { form: 'Suggest a storyline page', 'idea box': 'Share an idea' };
 const EMAIL_KIND = {
@@ -36,7 +37,7 @@ function row(r) {
   const [sw, scls] = STATUS[r.status] || [r.status, ''];
   const who = [r.credit && `credit: ${r.credit}`, r.player && `player: ${r.player}`, !r.player && r.uid && 'signed-in player', r.email && r.email].filter(Boolean).join(' · ');
   return `<li class="ss-row${open && open.id === r.id ? ' ss-open' : ''}">
-    <div class="row ss-row-head"><span class="badge">${e(KIND[r.kind] || r.kind)}</span><span class="badge ${scls}">${e(sw)}</span>${r.hasPuzzle ? '<span class="badge ok">Puzzle saved</span>' : ''}${r.ipVerdict ? `<span class="badge ${VERDICT[r.ipVerdict][1]}">${VERDICT[r.ipVerdict][0]}</span>` : '<span class="badge">Not scanned</span>'}
+    <div class="row ss-row-head"><span class="badge">${e(KIND[r.kind] || r.kind)}</span><span class="badge ${scls}">${e(sw)}</span>${r.hasPuzzle ? '<span class="badge ok">Puzzle saved</span>' : ''}${r.ipVerdict ? `<span class="badge ${VERDICT[r.ipVerdict][1]}">${VERDICT[r.ipVerdict][0]}</span>` : '<span class="badge">Not scanned</span>'}${r.images ? `<span class="badge">${r.images} ${r.images === 1 ? 'picture' : 'pictures'}</span>` : ''}${r.sounds ? `<span class="badge">${r.sounds} ${r.sounds === 1 ? 'sound' : 'sounds'}</span>` : ''}
       <span class="muted">#${r.id} · ${h.when(r.createdAt)} · ${e(SOURCE[r.source] || r.source)}${r.themeName ? ` · ${e(r.themeName)}` : ''}</span></div>
     <p class="ss-title"><b>${e(r.title || r.text.split('\n')[0].replace(/^Their idea: /, '') || '(no title)')}</b>${r.pitch ? ` <span class="muted">· ${e(r.pitch)}</span>` : ''}</p>
     ${who ? `<p class="muted">${e(who)}</p>` : ''}
@@ -90,6 +91,50 @@ function correctedEditor(s) {
     <div class="stack">${boxes}</div>
     ${h.can('moderator') ? `<div class="row"><button class="btn small" type="button" data-ss-polish>Fix spelling and grammar</button><button class="btn small" type="button" data-ss-save>Save corrections</button></div>` : ''}
   </details>`;
+}
+
+// Pictures the player added to the form. Each can be copied into the story
+// beat pictures, so the game can show it beside a story beat.
+function pictures(s) {
+  if (!s.images || !s.images.length) return '';
+  const e = h.esc;
+  const canUse = h.can('moderator');
+  return `<h3>Pictures</h3>
+    <ul class="bi-grid">${s.images.map((i, n) => `<li class="bi-card">
+      <a href="${e(i.src)}" download="${e(i.name || `picture-${n + 1}`)}"><img src="${e(i.src)}" alt="Picture ${n + 1} the player sent${i.name ? `: ${e(i.name)}` : ''}" loading="lazy"></a>
+      <p class="muted">${i.width && i.height ? `${i.width} × ${i.height} · ` : ''}${Math.round((i.bytes || 0) / 1024)} KB</p>
+      ${i.beatImage ? '<p><span class="badge ok">In story beats</span></p>' : canUse ? `<button class="btn small" type="button" data-ss-use-img="${i.id}">Use in story beats</button>` : ''}
+    </li>`).join('')}</ul>`;
+}
+
+// Sounds sent with a Puzzle Wizard puzzle, with what the author said about each.
+const SOUND_FOR = { solved: 'Plays when the puzzle is solved', music: 'Background music', effect: 'Sound effect for a story moment', other: 'Something else' };
+function sounds(s) {
+  if (!s.sounds || !s.sounds.length) return '';
+  const e = h.esc;
+  return `<h3>Sounds</h3><ul class="bi-grid">${s.sounds.map((x, n) => `<li class="bi-card">
+    <p><b>${e(x.name || `Sound ${n + 1}`)}</b></p><audio controls preload="none" src="${e(x.src)}"></audio>
+    <p class="muted">${e(SOUND_FOR[x.purpose] || 'Sound')} · ${Math.round((x.bytes || 0) / 1024)} KB</p>
+    <p>${x.use ? '<span class="badge ok">May be used</span>' : '<span class="badge warn">Not for use</span>'}${x.use && x.credit ? ` <span class="badge">Credit: ${x.creditAs === 'real' ? 'real name' : 'screen name'}</span>` : ''}</p>
+    <a class="btn small" href="${e(x.src)}" download="${e(x.name || `sound-${n + 1}`)}">Download</a></li>`).join('')}</ul>`;
+}
+
+let beatThemes = null;
+async function useImage(b, s, imageId) {
+  if (!beatThemes) beatThemes = (await h.api('beat-images')).themes;
+  const theme = beatThemes.some((t) => t.id === s.theme) ? s.theme : 'default';
+  const v = await h.ask({
+    title: 'Use this picture in story beats?',
+    text: 'The game can show it beside a story beat for the theme and stage you pick. The player gave permission to use their entry when they sent it.',
+    fields: [
+      { name: 'theme', label: 'Theme', type: 'select', value: theme, options: beatThemes.map((t) => [t.id, t.name]) },
+      { name: 'stage', label: 'When it shows', type: 'select', value: 'any', options: [['any', 'Any story beat'], ['early', 'Early (after the first section)'], ['middle', 'Middle (about halfway)'], ['late', 'Late (before the last section)']] },
+      { name: 'alt', label: 'What the picture shows (read out by screen readers)', value: s.title || '' },
+    ],
+    ok: 'Add to story beats',
+    check: (x) => (x.alt.trim() ? '' : 'Say in a few words what the picture shows.'),
+  });
+  if (v && (await h.act(b, () => h.api(`story-submissions/${s.id}/images/${imageId}/use`, { method: 'POST', body: v }), 'Added to Story beat pictures.'))) await openEntry(s.id, { focus: false });
 }
 
 // True when the team changed a corrected-wording box, or the words were already corrected.
@@ -185,8 +230,8 @@ function detail(s) {
     canReview && s.status !== 'approved' && `<button class="btn small primary" type="button" data-ss-approve>${s.kind === 'storyline' ? 'Approve and build puzzle' : 'Approve'}</button>`,
     canReview && s.status === 'new' && '<button class="btn small" type="button" data-ss-decline>Decline</button>',
     '<button class="btn small" type="button" data-ss-print>Print or save as PDF</button>',
-    canReview && '<button class="btn small" type="button" data-ss-edit>Edit</button>',
-    canReview && s.email && `<button class="btn small" type="button" data-ss-invite>${s.editInvite ? 'Ask the author again' : 'Ask the author to edit'}</button>`,
+    canReview && s.kind !== 'puzzle' && '<button class="btn small" type="button" data-ss-edit>Edit</button>',
+    canReview && s.kind !== 'puzzle' && s.email && `<button class="btn small" type="button" data-ss-invite>${s.editInvite ? 'Ask the author again' : 'Ask the author to edit'}</button>`,
     canReview && '<button class="btn small" type="button" data-ss-email>Email a copy</button>',
     h.can('admin') && '<button class="btn small danger" type="button" data-ss-delete>Delete</button>',
     '<button class="btn small link" type="button" data-ss-close>Close</button>',
@@ -205,6 +250,8 @@ function detail(s) {
     ${s.edited ? `<p class="muted">${s.resubmittedAt && s.editedBy === 'author' ? 'Edited and resubmitted by the author' : `Edited by ${e(s.editedBy === 'author' ? 'the author' : s.editedBy || 'the team')}`} ${h.when(s.editedAt)}. ${s.versions.length} earlier ${s.versions.length === 1 ? 'version is' : 'versions are'} kept.</p>` : ''}
     ${s.editInvite ? `<p class="note">The author was asked to edit and resubmit it. Their edit link works until ${e(new Date(s.editInvite).toLocaleDateString())}.</p>` : ''}
     ${copyTable(s.copy)}
+    ${pictures(s)}
+    ${sounds(s)}
     ${s.originalCopy ? `<details><summary>The author's original submission</summary>${copyTable(s.originalCopy)}</details>` : ''}
     <div id="ss-editor-wrap"></div>
     ${scanPanel(s)}
@@ -313,6 +360,7 @@ export function initStorySubmissions(helpers, show) {
     const id = open.id;
     if (b.matches('[data-ss-close]')) { open = null; $('#ss-detail-wrap').innerHTML = ''; $('#ss-q').focus(); return; }
     if (b.matches('[data-ss-print]')) { printEntry(open); return; }
+    if (b.matches('[data-ss-use-img]')) { await useImage(b, open, Number(b.dataset.ssUseImg)); return; }
     if (b.matches('[data-ss-open-other]')) { await h.act(b, () => openEntry(Number(b.dataset.ssOpenOther))); return; }
     if (b.matches('[data-ss-scan]')) {
       b.textContent = 'Scanning…';

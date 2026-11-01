@@ -62,7 +62,7 @@ ONE_WAY_KINDS = {'message', 'story_received', 'story_approved', 'submission_appr
 STORY_ONE_WAY = ('This is an automatic message from a no-reply address, so replies are not read. '
                  f'Questions? Email {MAIL_FROM}.')
 TEAM_COPY = 'Sent by The Fantastical Logic Grid team. Questions? Just reply to this email.'
-KIND_WORDS = {'storyline': 'storyline', 'theme': 'theme idea', 'category': 'category idea'}
+KIND_WORDS = {'storyline': 'storyline', 'theme': 'theme idea', 'category': 'category idea', 'puzzle': 'puzzle'}
 
 
 def footer(r):
@@ -155,11 +155,12 @@ NOTES = {
             'Hello, author!',
             (f'Thank you for updating your {entry_words(r)}. Your changes have been saved, and it is back with the team for review.'
              if r.get('note') == 'resubmitted' else
-             f'Thank you for sending your {entry_words(r)} to The Fantastical Logic Grid. It has been saved, '
+             f'Thank you for sending your {entry_words(r)} to The Logic Grid. It has been saved, '
              'and the team reads every entry.'),
             ('We will email you if it is approved. An approved storyline comes back to you as a finished logic puzzle '
              '(a PDF with its answer key), and it waits in your game\'s Saved puzzles too when you are signed in.')
-            if entry_words(r) == 'storyline' else 'We will email you if it is approved.',
+            if entry_words(r) == 'storyline' else ('Your puzzle is already in your Saved puzzles on the device you made it on. '
+            'We will email you if the team publishes it in the game.') if entry_words(r) == 'puzzle' else 'We will email you if it is approved.',
             'Here is a copy of what you sent:',
             entry_form(r),
             ('link', 'Edit or update my entry', r.get('link')),

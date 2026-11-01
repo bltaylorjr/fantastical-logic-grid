@@ -368,6 +368,12 @@ td.num, th.num { white-space: nowrap; }
 .et-attach { max-width: 100%; width: 360px; height: auto; border: 1px solid var(--line, #ccc); border-radius: 8px; display: block; flex-basis: 100%; }
 .et-log { padding-left: 1.4em; margin: 0; display: grid; gap: 6px; }
 
+/* Story beat pictures (beat-images.js) and pictures in Storyline submissions */
+.bi-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+.bi-card { display: grid; gap: 6px; align-content: start; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
+.bi-card img { width: 100%; height: 150px; object-fit: contain; background: var(--bg); border-radius: 6px; }
+.bi-card p { margin: 0; overflow-wrap: anywhere; }
+.bi-drop.drag { outline: 3px dashed var(--accent); outline-offset: 4px; }
 /* Website (website.js): categories on the left, the live preview on the right. */
 .web-status { position: sticky; top: calc(var(--top-h, 61px) + var(--nav-h, 0px)); z-index: 3; display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; background: var(--bg); padding: 10px 0; border-bottom: 1px solid var(--line); }
 .web-state { margin: 0; }

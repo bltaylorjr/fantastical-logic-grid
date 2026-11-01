@@ -1137,3 +1137,13 @@ body:has(#view-seg:not([hidden])) #miniboard-open { flex: none; }
      is still reached without moving the pointer. */
   .play > .side { overflow-y: auto; align-content: start; scrollbar-gutter: stable; }
 }
+
+/* Story beats (web/js/director.js) */
+.story-beat { margin: 8px auto 0; max-width: 70ch; padding: 10px 14px; border-left: 4px solid var(--accent); border-radius: 8px; background: var(--bg); font-style: italic; }
+.story-beat.new { animation: beat-in 600ms ease-out; }
+@keyframes beat-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .story-beat.new { animation: none; } }
+.story-beat-text { margin: 0; }
+.story-beat.has-pic { display: grid; grid-template-columns: minmax(72px, 140px) 1fr; gap: 12px; align-items: center; }
+.story-beat-pic { width: 100%; height: auto; max-height: 140px; object-fit: contain; border-radius: 6px; }
+@media (max-width: 420px) { .story-beat.has-pic { grid-template-columns: 1fr; } .story-beat-pic { max-height: 180px; } }

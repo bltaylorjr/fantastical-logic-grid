@@ -18,6 +18,7 @@ import { puzzleMailView, initPuzzleMail } from './puzzle-mail.js';
 import { websiteView, initWebsite, initWebsiteEvents } from './website.js';
 import { educatorsView, initEducators, educatorFeedbackView, initEducatorFeedback } from './educators.js';
 import { storySubmissionsView, initStorySubmissions } from './story-submissions.js';
+import { beatImagesView, initBeatImages } from './beat-images.js';
 import { licensesView, initLicenses } from './licenses.js';
 import { mediaView } from './media.js';
 import { badgesView, initBadges, playerBadgesHtml, playerBadgeClick } from './badges.js';
@@ -1995,6 +1996,10 @@ views['edu-feedback'] = () => educatorFeedbackView(educatorHelpers);
 const storyHelpers = { api, esc, fmt, when, can, act, ask, setCount, toast };
 views['story-submissions'] = () => storySubmissionsView(storyHelpers);
 initStorySubmissions(storyHelpers, (name, o) => show(name, o));
+// ---- Story beat pictures (beat-images.js): pictures the game shows with story beats.
+const beatImageHelpers = { api, esc, when, can, act, ask, toast };
+views['beat-images'] = () => beatImagesView(beatImageHelpers);
+initBeatImages(beatImageHelpers, (name, o) => show(name, o));
 initEducatorFeedback(educatorHelpers, (name, o) => show(name, o));
 // ---- Badges (badges.js): special badges by hand and for milestones.
 const badgeHelpers = { api, esc, fmt, when, day, table, can, act, ask, toast, announce };

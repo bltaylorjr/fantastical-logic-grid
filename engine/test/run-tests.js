@@ -11,6 +11,7 @@ import { buildModel, randomSolution } from '../src/generator.js';
 import { buildStory } from '../src/story.js';
 import { makeLanguage } from '../src/language.js';
 import { makeRng } from '../src/rng.js';
+import { storyBeats } from '../src/beats.js';
 import { SIZE_LIMITS } from '../src/tiers.js';
 import { TIER_ORDER } from '../src/tiers.js';
 import { orderItems, inOrder } from '../src/order.js';
@@ -565,6 +566,42 @@ for (const diff of ['easy', 'medium', 'expert']) {
     }
   }
   check('Any player story picks one of them', PLAYER_STORIES.some((s) => s.def.title === generatePuzzle({ theme: 'stories', seed: 'any' }).story.title));
+}
+
+// Story beats: no spoilers, steady triggers, same every time.
+{
+  for (const [theme, cats] of [['mystery', 3], ['pets', 4], ['scifi', 5]]) {
+    const p = generatePuzzle({ theme, categories: cats, seed: `beats-${theme}` });
+    const beats = storyBeats(p);
+    const sections = p.grid.blocks.length;
+    check(`beats (${theme}): ${Math.min(3, sections - 1)} beats`, beats.length === Math.min(3, sections - 1), JSON.stringify(beats));
+    check(`beats (${theme}): shown in order before the last section`, beats.every((b, i) => b.after >= 1 && b.after < sections && (i === 0 || b.after > beats[i - 1].after)), JSON.stringify(beats.map((b) => b.after)));
+    check(`beats (${theme}): every slot filled`, beats.every((b) => !/[{}]/.test(b.text)), JSON.stringify(beats));
+    check(`beats (${theme}): same puzzle, same beats`, JSON.stringify(storyBeats(p)) === JSON.stringify(beats));
+  }
+}
+
+// The Puzzle Wizard: a custom world built around the player's own answer key.
+{
+  console.log('\n== Puzzle Wizard answer key');
+  const custom = { theme: 'Midnight gala', title: 'The Midnight Gala', story: 'A tiara vanished at midnight.', cast: { one: 'guest', many: 'guests' },
+    names: ['Ada', 'Ben', 'Cora', 'Dev'],
+    categories: [{ name: 'Room', items: ['Library', 'Kitchen', 'Garden', 'Attic'] }, { name: 'Arrival', items: ['7:00 PM', '7:15 PM', '7:30 PM', '7:45 PM'], order: 'earlier' }, { name: 'Drink', items: ['Tea', 'Punch', 'Cider', 'Cocoa'] }] };
+  const answer = [
+    { name: 'Ada', picks: { Room: 'Garden', Arrival: '7:30 PM', Drink: 'Tea' } },
+    { name: 'Ben', picks: { Room: 'Library', Arrival: '7:00 PM', Drink: 'Cocoa' } },
+    { name: 'Cora', picks: { Room: 'Attic', Arrival: '7:45 PM', Drink: 'Punch' } },
+    { name: 'Dev', picks: { Room: 'Kitchen', Arrival: '7:15 PM', Drink: 'Cider' } }];
+  for (const tier of ['easy', 'medium', 'hard']) {
+    const p = generatePuzzle({ custom, answer, difficulty: tier, categories: 4, items: 4, seed: `wizard-${tier}` });
+    const row = (n) => p.answerKey.rows.find((r) => r[0] === n);
+    check(`wizard (${tier}): the puzzle keeps the player's answer`, answer.every((a) => Object.entries(a.picks).every(([cat, item]) => row(a.name)[p.answerKey.columns.indexOf(cat)] === item)), JSON.stringify(p.answerKey.rows));
+    const n = countSolutions(p, 2, 20000);
+    check(`wizard (${tier}): exactly one solution (brute force)`, n === 1 || n === -1, `found ${n}`);
+  }
+  let refused = '';
+  try { generatePuzzle({ custom, answer: answer.map((a, i) => (i ? a : { ...a, picks: { ...a.picks, Room: 'Library' } })), difficulty: 'easy', categories: 4, items: 4, seed: 'wizard-bad' }); } catch (e) { refused = e.message; }
+  check('wizard: an item given to two people is refused', /exactly one/.test(refused), refused);
 }
 
 console.log('\nGeneration time per tier (ms, avg / max):');

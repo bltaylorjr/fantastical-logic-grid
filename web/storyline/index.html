@@ -183,6 +183,17 @@
       <div class="sl-rewards" id="sl-rewards"></div>
       <p class="sl-ex">Example: Fireworks, Story scene picture, Narrator reads the ending</p>
 
+      <h2 class="sl-section">Pictures</h2>
+      <div class="field sl-field" data-field="images">
+        <label for="sl-images">Pictures for your story</label>
+        <p class="help" id="sl-images-h">Up to 3 pictures that show your story: a sketch, a character, a place or an object. Most picture files work, including JPG, PNG, GIF, WebP and iPhone photos. They are shrunk before sending, and the team may show them in the game beside your story. Only send pictures you made yourself.</p>
+        <input type="file" id="sl-images" multiple aria-describedby="sl-images-h sl-images-x">
+        <p class="sl-ex" id="sl-images-x">Example: a drawing of the missing tiara</p>
+        <p class="sl-count" id="sl-images-status" role="status" aria-live="polite"></p>
+        <ul class="sl-pics" id="sl-pics"></ul>
+        <p class="sl-err" role="alert"></p>
+      </div>
+
       <h2 class="sl-section">Credit and consent</h2>
       <div class="field sl-field" data-field="credit">
         <label for="sl-credit">Storyline credit</label>
@@ -196,7 +207,7 @@
       </div>
     </section>
 
-    <p class="help sl-privacy">We save your entry exactly as you wrote it. Signed in, we also save your account with it and email the copy to your confirmed address. A guest's email address is only saved if you ask for a copy, and is used only for emails about this entry.</p>
+    <p class="help sl-privacy">We save your entry exactly as you wrote it, with any pictures you added. Signed in, we also save your account with it and email the copy to your confirmed address. A guest's email address is only saved if you ask for a copy, and is used only for emails about this entry.</p>
     <p class="error-box" id="sl-error" role="alert" hidden></p>
     <div class="row-inline"><button class="btn primary" type="submit" id="sl-send">Send my entry</button></div>
   </form>
