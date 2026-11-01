@@ -42,7 +42,7 @@ function puzzleParts(puzzle, options) {
   const state = (k) => (options.withMarks ? (marks.get(k) === 'A' ? 'X' : marks.get(k) || '') : '');
   const meta = `${esc(puzzle.theme.name)} · ${esc(puzzle.difficulty.name)} · ${K} categories, ${N} items each · ${puzzle.clues.length} clues`;
   const label = options.label ? `${esc(options.label)}: ` : '';
-  const head = (suffix = '') => `<h1>${label}${esc(puzzle.title)}${suffix}</h1><p class="pmeta">${meta} · <span translate="no">© The Fantastical Logic Grid, thelogicgrid.com</span></p>`;
+  const head = (suffix = '') => `<h1>${label}${esc(puzzle.title)}${suffix}</h1><p class="pmeta">${meta} · <span translate="no">© 2026 Bobby Taylor · The Fantastical Logic Grid™, thelogicgrid.com</span></p>`;
 
   const story = `<h2>The story</h2>${puzzle.story.paragraphs.map((p) => `<p>${esc(p)}</p>`).join('')}`;
   const grid = gridTable(puzzle, ix, state, cellPt);
@@ -86,7 +86,7 @@ export function buildPack(puzzles, options) {
   const parts = puzzles.map((p, i) => puzzleParts(p, { paper: options.paper, supportLine: options.supportLine, label: `Puzzle ${i + 1}` }));
   const list = puzzles.map((p) => `<li>${esc(p.title)} <span class="pmeta">${esc(p.theme.name)} · ${esc(p.difficulty.name)}</span></li>`).join('');
   const where = keys === 'end' ? 'The answer keys are at the back.' : keys === 'each' ? 'Each answer key follows its puzzle.' : '';
-  const cover = `<section class="pp pcover"><h1>${esc(options.title || 'Puzzle pack')}</h1><p class="pmeta"><span translate="no">© The Fantastical Logic Grid, thelogicgrid.com</span></p>${options.note ? `<p>${esc(options.note)}</p>` : ''}<h2>In this pack</h2><ol>${list}</ol>${where ? `<p>${where}</p>` : ''}</section>`;
+  const cover = `<section class="pp pcover"><h1>${esc(options.title || 'Puzzle pack')}</h1><p class="pmeta"><span translate="no">© 2026 Bobby Taylor · The Fantastical Logic Grid™, thelogicgrid.com</span></p>${options.note ? `<p>${esc(options.note)}</p>` : ''}<h2>In this pack</h2><ol>${list}</ol>${where ? `<p>${where}</p>` : ''}</section>`;
   const body = parts.map((x) => x.pages + (keys === 'each' ? x.key : '')).join('');
   return cover + body + (keys === 'end' ? parts.map((x) => x.key).join('') : '');
 }
