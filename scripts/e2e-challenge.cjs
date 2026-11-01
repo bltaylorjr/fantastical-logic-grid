@@ -82,10 +82,12 @@ const APP = `http://localhost:${APP_PORT}`;
     await a.page.waitForSelector('#dlg-share[open]');
     const text = await a.page.inputValue('#share-text');
     const link = (text.match(/https?:\/\/\S+\?challenge=[A-Z0-9]{6}/) || [])[0];
-    assert(link && /beat my time/.test(text), `the solver gets a challenge link (${link})`);
+    assert(link && /beat my time/.test(text) && /\/fantastical\/\?challenge=/.test(link), `the solver gets a challenge link to the game's page (${link})`);
     const story = await a.page.evaluate(() => window.__flg.state.puzzle.story.id);
 
-    const b = await device('B', link);
+    // This test serves the app build (dist/web), where the game is at the root;
+    // on the website it is at fantastical/ (scripts/hub.mjs, tested by e2e-hub.cjs).
+    const b = await device('B', link.replace('/fantastical/', '/'));
     await b.page.waitForSelector('#screen-play:not([hidden])', { timeout: 30000 });
     assert(await b.page.evaluate(() => window.__flg.state.puzzle.story.id) === story, 'the friend gets the very same puzzle, no account needed');
     assert(!/challenge=/.test(b.page.url()), 'the code is taken out of the address');
