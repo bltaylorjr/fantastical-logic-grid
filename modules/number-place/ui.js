@@ -1,4 +1,4 @@
-// Number Place: its own game screen, with the Logic Grid's look, for the numbers game.
+// NINETIMESNINE: its own game screen, with the Logic Grid's look, for the numbers game.
 // Self-contained so it can drop into The Fantastical Logic Grid app or run on
 // its own test page:
 //
@@ -9,13 +9,13 @@
 //   engine         { generate(options), hint(puzzle, entries), themes? } returning promises
 //   storagePrefix  localStorage key prefix (default 'flg.np')
 //   onPlay(rec)    called with each anonymous play record (and again when it is rated):
-//                  the one thing Number Place shares, for the learning service
+//                  the one thing NINETIMESNINE shares, for the learning service
 //   shared         what every player's games taught ({ toughness: { level: 0..1 } }), optional
 //   celebrate()    the host's solve effect, optional
 //   setWorld(id)   the host's backdrop for a story's world, optional
 // A host with other screens calls suspend() when the player leaves and reopen() on return.
 //   canPrint, canDownload   false where the host frame can't print or save files
-//   config()       the admin's Number Place choices (all optional): stories, coachTips,
+//   config()       the admin's NINETIMESNINE choices (all optional): stories, coachTips,
 //                  daily, variants (bools), maxLevel (a level id), adaptStrength,
 //                  practiceChance, sharedWeight (0 to 1)
 import { markup } from './markup.js';
@@ -127,10 +127,10 @@ export function unmount() {
 // What every player's games taught, when the host fetches it later.
 export function setShared(shared) { learn?.setShared(shared); }
 
-// Leaving the Number Place screen: stop the clock and save.
+// Leaving the NINETIMESNINE screen: stop the clock and save.
 export function suspend() { close(); }
 
-// Coming back to the Number Place screen: the clock runs again if a puzzle is open.
+// Coming back to the NINETIMESNINE screen: the clock runs again if a puzzle is open.
 export function reopen() {
   if (!playing()) return;
   if (G.p.story?.theme?.world) deps.setWorld?.(G.p.story.theme.world);
@@ -1208,7 +1208,7 @@ export function cleanGame(g) {
   };
 }
 
-// Opens a saved file after checking it is a real Number Place game with a valid answer.
+// Opens a saved file after checking it is a real NINETIMESNINE game with a valid answer.
 async function openFile(file) {
   const status = $('#np-status');
   try {
@@ -1328,11 +1328,20 @@ function wire() {
 
   // Play
   const board = $('#np-board');
+  // A cell is picked when the finger lifts, so a touch that scrolls the page does not pick a new cell.
+  let tapAt = null;
   board.addEventListener('pointerdown', (e) => {
     const cell = e.target.closest('.np-cell');
     if (!cell || !G) return;
     e.preventDefault();
-    focusCell(Number(cell.dataset.i));
+    tapAt = { i: Number(cell.dataset.i), x: e.clientX, y: e.clientY };
+  });
+  board.addEventListener('pointermove', (e) => { if (tapAt && Math.hypot(e.clientX - tapAt.x, e.clientY - tapAt.y) > 10) tapAt = null; });
+  board.addEventListener('pointercancel', () => { tapAt = null; });
+  board.addEventListener('pointerup', (e) => {
+    const cell = e.target.closest('.np-cell');
+    if (tapAt && cell && G && Number(cell.dataset.i) === tapAt.i) focusCell(tapAt.i);
+    tapAt = null;
   });
   $('#np-digits').addEventListener('click', (e) => {
     const b = e.target.closest('[data-d]');

@@ -1,4 +1,4 @@
-// Game styles: new ways to play a NINETIMESNINE (Number Place) puzzle, picked on the setup
+// Game styles: new ways to play a NINETIMESNINE puzzle, picked on the setup
 // screen. Classic, the traditional game, is the default. Every style plays a
 // fresh, proven puzzle (one answer, logic only); the style changes the rules
 // around it. Each one tunes itself from the player's own records of that

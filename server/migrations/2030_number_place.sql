@@ -1,4 +1,4 @@
--- Number Place (modules/number-place): anonymous play summaries for the shared
+-- NINETIMESNINE (modules/number-place): anonymous play summaries for the shared
 -- learning service. Nothing identifies a player. pid is a random key for one
 -- game, so a "how did it feel" answer sent later updates the same row.
 --   level     basic | easy | medium | hard | expert | master

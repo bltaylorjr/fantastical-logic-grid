@@ -1,4 +1,4 @@
-// Number Place: fill the grid so every row, column and box holds each number once.
+// NINETIMESNINE: fill the grid so every row, column and box holds each number once.
 // Variants: 'diagonal' (both long diagonals too) and 'parity' (shaded cells are even).
 //
 // Like the logic grid, every puzzle has exactly one answer, can be solved by

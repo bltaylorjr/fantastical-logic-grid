@@ -54,7 +54,7 @@ async function call(path, { auth, body } = {}) {
 
 const FORM = {
   kind: 'storyline', theme: 'mystery', title: 'The Midnight Gala', pitch: 'Who stole the tiara?', setting: "A seaside mansion, New Year's Eve, 1925",
-  characters: [{ name: 'Lady Ashford', trait: 'Nervous', role: 'Main' }, { name: 'Mr. Pike', role: 'Supporting' }, { name: 'Nora' }, { name: 'Felix' }],
+  characters: [{ name: 'Lady Ashford', trait: 'Nervous', role: 'Main', gender: 'Female' }, { name: 'Mr. Pike', role: 'Supporting' }, { name: 'Nora' }, { name: 'Felix' }],
   goal: 'find out which guest took the tiara', clues: 'Rooms: Library, Kitchen, Garden, Ballroom. Drinks: Tea, Punch, Cider, Lemonade. the butler wasnt in the library.',
   beat: 'Beginning: the lights go out at midnight.', tone: 'Mysterious', difficulty: 'medium', reward: { animation: 'Fireworks' }, credit: 'B. Taylor', consent: true,
 };
@@ -107,6 +107,7 @@ test('a signed-in player: saved with the account and a confirmation with the for
   const puzzle = buildStorylinePuzzle({ submission: { form: approved.submission.form, polished: approved.submission.polished }, seed: 'sub-test' });
   assert.equal(puzzle.error, undefined, puzzle.error);
   assert.equal(puzzle.title, 'The Midnight Gala');
+  assert.deepEqual(puzzle.characters, [{ name: 'Lady Ashford', gender: 'f', inCast: false }], 'the chosen gender goes with the puzzle');
   const stored = await call('/admin/v1/replies/puzzle', { auth: owner, body: { id: approved.id, puzzle } });
   assert.equal(stored.body.stored, true, 'in the player\'s Saved puzzles');
   const entry = (await call(`/admin/v1/story-submissions/${r.body.id}`, { auth: owner })).body;
@@ -123,6 +124,80 @@ test('a signed-in player: saved with the account and a confirmation with the for
   assert.equal(team.kind, 'submission_copy');
   assert.equal(team.puzzle.title, 'The Midnight Gala', 'the copy carries the saved puzzle');
   await call('/admin/v1/replies/done', { auth: owner, body: { sent: claim3.replies.map((m) => m.id), failed: [] } });
+});
+
+test('the categories builder: saved with the entry and used to build the puzzle', async () => {
+  const owner = token('owner-uid', OWNER);
+  const bad = await call('/v1/story-submissions', { body: { ...FORM, categories: [{ name: 'Room', items: 'Library, Kitchen' }, { name: '', items: 'Tea, Punch, Cider' }] } });
+  assert.equal(bad.status, 400);
+  assert.deepEqual(Object.keys(bad.body.errors).sort(), ['catItems0', 'catName1']);
+  const cats = [{ name: 'Room', items: 'Library, Kitchen, Garden, Ballroom' }, { name: 'Arrival time', items: '7:00 PM, 7:15 PM, 7:30 PM, 7:45 PM', order: 'earlier' }];
+  const r = await call('/v1/story-submissions', { body: { ...FORM, title: 'Builder story', clues: 'The butler was not in the library.', categories: cats } });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  const entry = (await call(`/admin/v1/story-submissions/${r.body.id}`, { auth: owner })).body;
+  assert.deepEqual(entry.form.categories[1], { name: 'Arrival time', items: ['7:00 PM', '7:15 PM', '7:30 PM', '7:45 PM'], order: 'earlier' });
+  assert.ok(entry.copy.some(([k, v]) => k === 'Category 2' && v.startsWith('Arrival time (earliest to latest)')));
+  const puzzle = buildStorylinePuzzle({ submission: { form: entry.form }, theme: 'Mystery', seed: 'builder' });
+  assert.equal(puzzle.error, undefined, puzzle.error);
+  assert.deepEqual(puzzle.categories.map((c) => c.name).slice(1), ['Room', 'Arrival Time']);
+});
+
+test('the trademark and copyright scan: one click per entry, and the new ones in a batch', async () => {
+  const owner = token('owner-uid', OWNER);
+  const r = await call('/v1/story-submissions', { body: { ...FORM, title: 'Hogwarts heist', clues: 'Colonel Mustard was in the library. Rooms: Library, Kitchen, Garden.' } });
+  const scan = await call(`/admin/v1/story-submissions/${r.body.id}/scan`, { auth: owner, body: {} });
+  assert.equal(scan.status, 200, JSON.stringify(scan.body));
+  assert.equal(scan.body.scan.verdict, 'problem');
+  assert.deepEqual(scan.body.scan.findings.filter((f) => f.source === 'watch list').map((f) => f.term).sort(), ['Colonel Mustard', 'Hogwarts']);
+  assert.match(scan.body.scan.notes[0], /GEMINI_API_KEY/, 'without the key the AI review is skipped, with a note');
+  const entry = (await call(`/admin/v1/story-submissions/${r.body.id}`, { auth: owner })).body;
+  assert.equal(entry.ipScan.verdict, 'problem');
+  const flagged = (await call('/admin/v1/story-submissions?scan=flagged&status=', { auth: owner })).body;
+  assert.ok(flagged.items.some((i) => i.id === r.body.id && i.ipVerdict === 'problem'));
+
+  const clean = await call('/v1/story-submissions', { body: { ...FORM, title: 'Quiet orchard', clues: 'The baker was not in the orchard.' } });
+  const batch = await call('/admin/v1/story-submissions/scan-new', { auth: owner, body: {} });
+  assert.equal(batch.status, 200, JSON.stringify(batch.body));
+  assert.ok(batch.body.scanned >= 1);
+  const row = await db.prepare('SELECT ip_verdict, ip_scan FROM story_submissions WHERE id = ?1').bind(clean.body.id).first();
+  assert.ok(row.ip_verdict, 'scanned in the batch');
+  // It reuses most of the earlier sample entries' words, so the copied-entry check finds them.
+  assert.ok(JSON.parse(row.ip_scan).findings.some((f) => f.type === 'duplicate' && f.serious), 'the same words as another entry are found');
+  const other = await call('/v1/story-submissions', { body: { kind: 'theme', idea: 'Quiet orchard' } });
+  const own = await call(`/admin/v1/story-submissions/${other.body.id}/scan`, { auth: owner, body: {} });
+  assert.equal(own.body.scan.verdict, 'clear', 'an original entry with no marks is clear');
+});
+
+test('approving without corrections leaves the wording uncorrected, and Build the puzzle works after lists are added', async () => {
+  const owner = token('owner-uid', OWNER);
+  const cy = token('cy-uid', 'cy@example.com');
+  const form = { ...FORM, title: 'Jive Turkey', clues: 'Order performed, Genre, Prop used', beat: 'The family dances.' };
+  const r = await call('/v1/story-submissions', { auth: cy, body: form });
+  const entry = (await call(`/admin/v1/story-submissions/${r.body.id}`, { auth: owner })).body;
+  // The dashboard sends the boxes as they were: the author's own words.
+  const ok = await call(`/admin/v1/story-submissions/${r.body.id}/approve`, { auth: owner, body: { polished: entry.polishable } });
+  assert.equal(ok.status, 200);
+  const row = await db.prepare('SELECT polished FROM story_submissions WHERE id = ?1').bind(r.body.id).first();
+  assert.equal(row.polished, null, 'unchanged words are not saved as corrected');
+  let claim = (await call('/admin/v1/replies/claim', { auth: owner, body: { limit: 50 } })).body;
+  await call('/admin/v1/replies/done', { auth: owner, body: { sent: claim.replies.map((m) => m.id), failed: [] } });
+
+  const none = await call(`/admin/v1/story-submissions/${r.body.id}/build`, { auth: owner, body: {} });
+  assert.equal(none.status, 400, 'no lists: no puzzle to promise');
+  const fixed = { ...entry.polishable, clues: 'Genre: Rock, Jazz, Disco, Polka. Prop: Hat, Cane, Scarf, Fan.' };
+  const build = await call(`/admin/v1/story-submissions/${r.body.id}/build`, { auth: owner, body: { polished: fixed } });
+  assert.equal(build.status, 200, JSON.stringify(build.body));
+  assert.equal((await call(`/admin/v1/story-submissions/${r.body.id}/build`, { auth: owner, body: {} })).status, 409, 'once at a time');
+  claim = (await call('/admin/v1/replies/claim', { auth: owner, body: { limit: 50 } })).body;
+  const mail = claim.replies.find((m) => m.email === 'cy@example.com');
+  assert.equal(mail.kind, 'story_puzzle');
+  assert.ok(mail.build && mail.build.submission);
+  const puzzle = buildStorylinePuzzle({ submission: { form: mail.submission.form, polished: mail.submission.polished }, seed: 'again' });
+  assert.equal(puzzle.error, undefined, puzzle.error);
+  const stored = await call('/admin/v1/replies/puzzle', { auth: owner, body: { id: mail.id, puzzle } });
+  assert.equal(stored.body.stored, true, 'in the player\'s Saved puzzles');
+  assert.ok((await call(`/admin/v1/story-submissions/${r.body.id}`, { auth: owner })).body.puzzle, 'saved with the entry');
+  await call('/admin/v1/replies/done', { auth: owner, body: { sent: claim.replies.map((m) => m.id), failed: [] } });
 });
 
 test('a guest: thank-you, then a copy only to the address they type, once', async () => {

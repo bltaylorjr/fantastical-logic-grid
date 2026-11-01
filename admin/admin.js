@@ -15,6 +15,7 @@ import { characterView } from './characters.js';
 import { ratingsView, initRatings } from './ratings.js';
 import { marketingView, initMarketing } from './marketing.js';
 import { puzzleMailView, initPuzzleMail } from './puzzle-mail.js';
+import { websiteView, initWebsite, initWebsiteEvents } from './website.js';
 import { educatorsView, initEducators, educatorFeedbackView, initEducatorFeedback } from './educators.js';
 import { storySubmissionsView, initStorySubmissions } from './story-submissions.js';
 import { beatImagesView, initBeatImages } from './beat-images.js';
@@ -297,6 +298,7 @@ views.overview = async () => {
   setCount('#count-story-submissions', can('moderator') ? d.review.stories || 0 : 0);
   if (can('admin')) setCount('#count-licenses', d.review.keys || 0);
   setCount('#count-edu-feedback', can('moderator') ? d.review.educatorFeedback || 0 : 0);
+  setCount('#count-fantastical', flgWaiting(d.review));
   const review = [];
   if (can('moderator') && d.review.parts.pending) review.push(`<a href="#stories">${fmt(d.review.parts.pending)} story ${d.review.parts.pending === 1 ? 'part' : 'parts'} waiting for review</a>`);
   const fb = d.review.feedback || {};
@@ -1352,7 +1354,7 @@ async function openPlayer(uid) {
   };
 }
 
-const NP_GROUP = 'Number Place';
+const NP_GROUP = 'NINETIMESNINE';
 const NP_LEVEL_NAMES = { basic: 'Basic', easy: 'Easy', medium: 'Medium', hard: 'Hard', expert: 'Expert', master: 'Master' };
 const NP_TECH_NAMES = { nakedSingle: 'Only number left', hiddenSingle: 'Only place left', intersection: 'Line and box overlap', nakedPair: 'Matching pair', hiddenPair: 'Hidden pair', nakedTriple: 'Matching three', hiddenTriple: 'Hidden three', xWing: 'Rectangle', swordfish: 'Three-line pattern', xyWing: 'Bent triple' };
 views.numberplace = async () => {
@@ -1376,15 +1378,15 @@ views.numberplace = async () => {
   };
   $('#np-body').innerHTML = `
     <div class="card"><h2>Games since ${esc(d.since)}</h2>
-      <p><b>${d.games}</b> finished Number Place games${d.games ? `: ${Object.entries(d.modes).map(([m, n]) => `${n} ${esc({ free: 'free play', daily: 'daily', race: 'race', file: 'from a file' }[m] || m)}`).join(', ')}` : ''}.
+      <p><b>${d.games}</b> finished NINETIMESNINE games${d.games ? `: ${Object.entries(d.modes).map(([m, n]) => `${n} ${esc({ free: 'free play', daily: 'daily', race: 'race', file: 'from a file' }[m] || m)}`).join(', ')}` : ''}.
       Shared tuning uses ${d.tuning.games} games from the last 90 days; a level needs 10 before it moves.</p>
-      ${levelRows.length ? table([{ label: 'Level' }, { label: 'Games', num: true }, { label: 'Solved', num: true }, { label: 'Answer shown', num: true }, { label: 'Given up', num: true }, { label: 'Typical time', num: true }, { label: 'Hints a game', num: true }, { label: 'Felt easy / right / hard' }, { label: 'Shared tuning' }], levelRows) : '<p class="muted">No Number Place games yet in this period.</p>'}
+      ${levelRows.length ? table([{ label: 'Level' }, { label: 'Games', num: true }, { label: 'Solved', num: true }, { label: 'Answer shown', num: true }, { label: 'Given up', num: true }, { label: 'Typical time', num: true }, { label: 'Hints a game', num: true }, { label: 'Felt easy / right / hard' }, { label: 'Shared tuning' }], levelRows) : '<p class="muted">No NINETIMESNINE games yet in this period.</p>'}
     </div>
     <div class="card"><h2>Where players ask for help</h2>
       ${d.stuck.length ? table([{ label: 'Technique' }, { label: 'Hints asked', num: true }], d.stuck.map((s) => [esc(NP_TECH_NAMES[s.technique] || s.technique), s.count])) : '<p class="muted">No hints asked yet.</p>'}
       <p class="muted">Players who keep asking about a technique get practice puzzles that need it (Practice puzzles, below).</p>
     </div>
-    <div class="card"><h2>Number Place settings</h2>${editable ? '' : '<p class="note">You can see the settings. Changing them needs the admin role.</p>'}
+    <div class="card"><h2>NINETIMESNINE settings</h2>${editable ? '' : '<p class="note">You can see the settings. Changing them needs the admin role.</p>'}
       ${list.map((s) => `<div class="setting"><div><b id="lbl-${s.key}">${esc(s.label)}</b><p class="help">${esc(s.help)}</p>${s.updatedBy ? `<p class="meta">Changed by ${esc(s.updatedBy)} on ${when(s.updatedAt)}</p>` : ''}</div><div>${control(s)}</div></div>`).join('')}
     </div>`;
   $$('#np-body input[type=checkbox][data-np-key]').forEach((c) => c.setAttribute('aria-labelledby', `lbl-${c.dataset.npKey}`));
@@ -1405,12 +1407,27 @@ $('#np-body').onclick = (e) => {
 };
 $('#np-days').onchange = () => show('numberplace', { keepFocus: true });
 
-views.settings = async () => {
-  renderAlerts().catch((e) => { $('#alerts-body').innerHTML = `<div class="card"><h2>My alerts</h2><p class="note">${esc(e.message)}</p></div>`; });
+// Which dashboard each settings group belongs to. The Fantastical Logic
+// Grid's own switches are on its dashboard (Game settings and switches),
+// NINETIMESNINE's on its page, and everything shared by the whole app (sign-in,
+// messages, ideas and problems, languages, support, alerts, backups) stays
+// under App settings and switches. A new group shows under App until it is
+// listed here.
+const GAME_GROUPS = new Set(['Play', 'Celebrations', 'Characters', 'Voices', 'Sounds', 'Pictures', 'Puzzle emails', 'Printable puzzle packs', 'Educators', 'Learning']);
+const settingsScope = (s) => (s.group === NP_GROUP ? 'ntn' : GAME_GROUPS.has(s.group) ? 'game' : 'app');
+const SETTINGS_BODY = { app: '#settings-body', game: '#game-settings-body' };
+let settingsRoute = 'settings';
+
+views.settings = () => renderSettings('app');
+views['game-settings'] = () => renderSettings('game');
+
+async function renderSettings(scope) {
+  settingsRoute = scope === 'game' ? 'game-settings' : 'settings';
+  const body = SETTINGS_BODY[scope];
+  if (scope === 'app') renderAlerts().catch((e) => { $('#alerts-body').innerHTML = `<div class="card"><h2>My alerts</h2><p class="note">${esc(e.message)}</p></div>`; });
   const d = await api('settings');
   const groups = {};
-  // Number Place's settings have their own section.
-  for (const s of d.settings) if (s.group !== NP_GROUP) (groups[s.group] ||= []).push(s);
+  for (const s of d.settings) if (settingsScope(s) === scope) (groups[s.group] ||= []).push(s);
   const editable = can('admin');
   const control = (s) => {
     const dis = editable ? '' : ' disabled';
@@ -1437,12 +1454,60 @@ views.settings = async () => {
     ${keyLine(d.services.pictures, 'Workers AI', 'AI pictures (the AI binding in wrangler.toml, on Cloudflare\'s free allowance).')}
     <p class="muted">Keys are never typed here or kept in the game. Add or change them in Cloudflare: Workers &amp; Pages &gt; flg-api &gt; Settings &gt; Variables and Secrets, as type Secret.</p>
     <p><a href="#connections">Every key, service and setting, with steps: Connections and setup</a></p></div></div>`;
-  $('#settings-body').innerHTML = services + (editable ? '' : '<p class="note">You can see the settings. Changing them needs the admin role.</p>')
+  $(body).innerHTML = (scope === 'app' ? services : '') + (editable ? '' : '<p class="note">You can see the settings. Changing them needs the admin role.</p>')
     + Object.entries(groups).map(([g, list]) => `<div class="card"><h2>${esc(g)}</h2>${list.map((s) => `<div class="setting">
       <div><b id="lbl-${s.key}">${esc(s.label)}</b><p class="help">${esc(s.help)}</p>${s.updatedBy ? `<p class="meta">Changed by ${esc(s.updatedBy)} on ${when(s.updatedAt)}</p>` : ''}</div>
       <div>${control(s)}</div>${extra(s)}</div>`).join('')}</div>`).join('');
-  $$('#settings-body input[type=checkbox][data-key]').forEach((c) => c.setAttribute('aria-labelledby', `lbl-${c.dataset.key}`));
+  $$(`${body} input[type=checkbox][data-key]`).forEach((c) => c.setAttribute('aria-labelledby', `lbl-${c.dataset.key}`));
+}
+// ------------------------------------------------------------- The Fantastical Logic Grid
+// The game's own dashboard home: what is waiting for review, how the game is
+// played, and a way into each of its sections. App-wide things (players,
+// sign-in, messages, the website, marketing) are on The Logic Grid dashboard.
+const FLG_SECTIONS = [
+  ['#daily', 'Daily puzzles', 'Plan and check each day\'s puzzle.', 'moderator'],
+  ['#characters', 'Characters', 'The cast, and characters players suggest.', 'moderator'],
+  ['#media', 'Media library', 'Music, sound effects, voices, scenes and pictures.', 'viewer'],
+  ['#quality', 'Puzzle quality', 'Where players give up, and what is too hard or too easy.', 'viewer'],
+  ['#ratings', 'Ratings and insights', 'Stars and findings by level, mode and story part.', 'viewer'],
+  ['#mail', 'Puzzle emails', 'The weekly and special edition puzzle emails.', 'viewer'],
+  ['#stories', 'Story workshop and review', 'Write and review story parts.', 'moderator'],
+  ['#story-submissions', 'Storyline submissions', 'Storylines sent in by players.', 'moderator'],
+  ['#educators', 'Educator requests', 'Printable puzzle packages for classes.', 'moderator'],
+  ['#edu-feedback', 'Educator feedback', 'Notes from teachers.', 'moderator'],
+  ['#badges', 'Badges', 'Special badges and who has them.', 'viewer'],
+  ['#game-settings', 'Game settings and switches', 'Play, themes, voices, sounds, celebrations and more.', 'viewer'],
+];
+function flgWaiting(r) {
+  return can('moderator') ? (r.parts.pending || 0) + (r.stories || 0) + (r.educators || 0) + (r.educatorFeedback || 0) : 0;
+}
+views.fantastical = async () => {
+  const d = await api(`analytics?days=${$('#fg-days').value}`);
+  const r = d.review;
+  setCount('#count-fantastical', flgWaiting(r));
+  const g = d.games;
+  const plays = g.byDay.reduce((s, v) => s + v, 0);
+  const solved = g.solvedByDay.reduce((s, v) => s + v, 0);
+  const races = d.races.byDay.reduce((s, v) => s + v, 0);
+  const waiting = [];
+  if (can('moderator') && r.parts.pending) waiting.push(`<a href="#stories">${fmt(r.parts.pending)} story ${r.parts.pending === 1 ? 'part' : 'parts'} waiting for review</a>`);
+  if (can('moderator') && r.stories) waiting.push(`<a href="#story-submissions">${fmt(r.stories)} new storyline ${r.stories === 1 ? 'submission' : 'submissions'}</a>`);
+  if (can('moderator') && r.educators) waiting.push(`<a href="#educators">${fmt(r.educators)} educator ${r.educators === 1 ? 'request' : 'requests'}</a>`);
+  if (can('moderator') && r.educatorFeedback) waiting.push(`<a href="#edu-feedback">${fmt(r.educatorFeedback)} new ${r.educatorFeedback === 1 ? 'note' : 'notes'} from educators</a>`);
+  $('#fg-body').innerHTML = `
+    ${waiting.length ? `<div class="note">${waiting.join(' · ')}</div>` : '<p class="muted">Nothing is waiting for review in this game.</p>'}
+    <h2>Play</h2>
+    <div class="tiles">
+      ${tile('Games finished', fmt(plays), '', '#details/games')}
+      ${tile('Solved', fmt(solved), `${pct(solved, plays)} of games`, '#details/solved')}
+      ${tile('Races started', fmt(races), `${fmt(d.races.open)} open now`, '#details/races')}
+      ${tile('Themes played', fmt(g.byTheme.length))}
+    </div>
+    <h2>Sections</h2>
+    <div class="tiles">${FLG_SECTIONS.filter(([, , , min]) => can(min)).map(([href, name, help]) => `<a class="tile go" href="${href}"><div class="label">${esc(name)}</div><div class="sub">${esc(help)}</div><span class="more">Open<span aria-hidden="true"> ›</span></span></a>`).join('')}</div>`;
 };
+$('#fg-days').onchange = () => show('fantastical', { keepFocus: true });
+
 // ------------------------------------------------------------- my alerts
 // Push alerts on this phone or computer, and email to an address typed in
 // here (server/src/alerts.js). Each admin sets up their own.
@@ -1553,14 +1618,14 @@ $('#alerts-body').onclick = async (e) => {
   }
 };
 async function saveSettingValue(key, value, button) {
-  if (await act(button, () => api('settings', { method: 'POST', body: { key, value } }), 'Saved. Players get it within about a minute.')) show('settings', { keepFocus: true });
-  else show('settings', { keepFocus: true });
+  await act(button, () => api('settings', { method: 'POST', body: { key, value } }), 'Saved. Players get it within about a minute.');
+  show(settingsRoute, { keepFocus: true });
 }
-$('#settings-body').onchange = (e) => {
+function onSettingsChange(e) {
   const c = e.target.closest('input[type=checkbox][data-key]');
   if (c) saveSettingValue(c.dataset.key, c.checked, c);
-};
-$('#settings-body').onclick = (e) => {
+}
+function onSettingsClick(e) {
   const b = e.target.closest('button[data-save]');
   if (!b) return;
   const key = b.dataset.save;
@@ -1568,7 +1633,8 @@ $('#settings-body').onclick = (e) => {
   else if (key === 'blocked_words' || key === 'hand_picked_days') saveSettingValue(key, $(`#set-${key}`).value.split(/[\s,]+/).filter(Boolean), b);
   else if ($(`#set-${key}`).type === 'number') saveSettingValue(key, Number($(`#set-${key}`).value), b);
   else saveSettingValue(key, $(`#set-${key}`).value.trim(), b);
-};
+}
+for (const sel of Object.values(SETTINGS_BODY)) { $(sel).onchange = onSettingsChange; $(sel).onclick = onSettingsClick; }
 
 const SUP_TIER = ['', 'Bronze', 'Silver', 'Gold', 'Platinum'];
 const SUP_SOURCE = { admin: 'Added here', kofi: 'Ko-fi', lemonsqueezy: 'Lemon Squeezy' };
@@ -1927,7 +1993,7 @@ views.licenses = () => licensesView(licenseHelpers);
 initLicenses(licenseHelpers, (name, o) => show(name, o));
 views['edu-feedback'] = () => educatorFeedbackView(educatorHelpers);
 // ---- Storyline submissions (story-submissions.js): the Storyline Submission Database.
-const storyHelpers = { api, esc, fmt, when, can, act, ask, setCount };
+const storyHelpers = { api, esc, fmt, when, can, act, ask, setCount, toast };
 views['story-submissions'] = () => storySubmissionsView(storyHelpers);
 initStorySubmissions(storyHelpers, (name, o) => show(name, o));
 // ---- Story beat pictures (beat-images.js): pictures the game shows with story beats.
@@ -1942,14 +2008,35 @@ initBadges(badgeHelpers, (name, o) => show(name, o));
 
 // ---- Puzzle emails (puzzle-mail.js): the weekly and special edition lists, sends and planner.
 views.mail = () => puzzleMailView();
+views.website = () => websiteView();
 
 // ---- Face ID and fingerprint (passkeys.js): this admin's devices.
 views.signin = () => passkeysView();
 initPasskeys({ api, esc, when, toast, act, ask, show, me: () => me, mode: () => session?.mode });
 initPuzzleMail({ api, esc, fmt, when, tile, table, can, act, ask, toast, show });
+initWebsite({ api, esc, when, table, can, act, ask, toast });
+initWebsiteEvents();
 
 // ------------------------------------------------------------- navigation
 const MIN_ROLE = { ...Object.fromEntries($$('#nav-list a').map((a) => [a.hash.slice(1), a.dataset.min])), details: 'viewer' };
+
+// Dashboards: The Logic Grid (the app: players, sign-in, messages, website,
+// marketing, keys, settings shared by every game), The Fantastical Logic Grid
+// and NINETIMESNINE. The menu shows the open dashboard's sections. Every
+// address (#daily, #settings, ...) still works and opens its own dashboard.
+const DASH_HOME = { main: 'overview', flg: 'fantastical', ntn: 'numberplace' };
+const dashOf = (view) => $(`#nav-list a[href="#${view}"]`)?.closest('li')?.dataset.dash;
+function setDash(dash) {
+  if (!DASH_HOME[dash]) return;
+  $('#nav-list').dataset.current = dash;
+  $$('#dash-switch [data-dash]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.dash === dash)));
+}
+$('#dash-switch').onclick = (e) => {
+  const b = e.target.closest('button[data-dash]');
+  if (!b || $('#nav-list').dataset.current === b.dataset.dash) return;
+  setDash(b.dataset.dash);
+  location.hash = DASH_HOME[b.dataset.dash];
+};
 
 // Older links: the idea and problem inbox, error reports and announcements now live in Communication.
 const ALIASES = { feedback: { type: 'idea' }, errors: { type: 'error' }, announcements: { tab: 'send' } };
@@ -1969,6 +2056,7 @@ async function show(route, { keepFocus = false } = {}) {
   $$('[data-view]').forEach((s) => { s.hidden = s.dataset.view !== name; });
   // Details pages belong under Overview in the menu.
   const navName = name === 'details' ? 'overview' : name;
+  setDash(dashOf(navName));
   $$('#nav-list a').forEach((a) => (a.hash === `#${navName}` ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current')));
   try { await views[name]({ arg }); } catch (e) {
     if (e.code === 'sign_in') return;

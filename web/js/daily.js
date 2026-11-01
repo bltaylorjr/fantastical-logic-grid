@@ -21,7 +21,7 @@ export const longDate = (d) => new Date(`${d}T12:00:00Z`).toLocaleDateString(und
 function bases() {
   const out = [];
   const meta = document.querySelector('meta[name="flg-daily"]');
-  if (meta) out.push(new URL(meta.content || 'daily/', location.href).href);
+  if (meta) out.push(new URL(meta.content || 'daily/', document.baseURI).href);
   const local = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
   const site = (CLOUD.siteUrl || '').replace(/\/+$/, '');
   if (site && !local && !out.some((b) => b.startsWith(site))) out.push(`${site}/daily/`);

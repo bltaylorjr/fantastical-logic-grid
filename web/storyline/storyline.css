@@ -24,6 +24,10 @@ fieldset.sl-card { min-width: 0; }
 .sl-char { border: 1px solid var(--edge-hi); border-radius: 12px; padding: 14px 16px; margin: 0 0 12px; }
 .sl-char legend { font-weight: 700; padding: 0 4px; }
 .sl-char .sl-field { margin-bottom: 14px; }
+.sl-optional { font-weight: 400; color: var(--muted); font-size: .95rem; }
+.sl-cat-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.sl-cat-head .btn { min-height: 40px; }
+#sl-cats .sl-char { margin-top: 12px; }
 .sl-rewards { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin: 8px 0 0; }
 .sl-rewards .sl-field { margin: 0; }
 .sl-consent { align-items: flex-start; line-height: 1.5; }

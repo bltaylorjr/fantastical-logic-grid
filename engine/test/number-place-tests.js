@@ -1,4 +1,4 @@
-// Number Place tests: node test/number-place-tests.js
+// NINETIMESNINE tests: node test/number-place-tests.js
 // Uniqueness is checked with the brute-force counter, independent of the logic solver.
 import {
   generateNumberPlace, fingerprintOf, makeShape, countSolutions, solveLogically, getNumberPlaceHint,

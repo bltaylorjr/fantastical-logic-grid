@@ -101,11 +101,18 @@
       <div class="field sl-field" data-field="characters">
         <label for="sl-nchar">Number of characters <span class="sl-req" aria-hidden="true">*</span></label>
         <p class="help" id="sl-nchar-h">How many people are in your story, from 1 to 10. Required because every logic puzzle is built around its characters. A box for each one appears below.</p>
-        <input type="number" id="sl-nchar" name="nchar" min="1" max="10" step="1" value="3" inputmode="numeric" class="sl-num" aria-describedby="sl-nchar-h sl-nchar-x">
-        <p class="sl-ex" id="sl-nchar-x">Example: 3</p>
+        <input type="number" id="sl-nchar" name="nchar" min="1" max="10" step="1" value="1" inputmode="numeric" class="sl-num" aria-describedby="sl-nchar-h sl-nchar-x">
+        <p class="sl-ex" id="sl-nchar-x">Example: 1</p>
         <p class="sl-err" role="alert"></p>
       </div>
       <div id="sl-chars"></div>
+
+      <h2 class="sl-section">Categories <span class="sl-optional">(optional)</span></h2>
+      <p class="help" id="sl-cats-h">The lists of things players match to your characters, like the rooms they were in or the time they arrived. Each category becomes a column in the grid. Two or more categories let us turn your story straight into a puzzle.</p>
+      <p class="sl-ex">Example: Room: Library, Kitchen, Garden</p>
+      <p class="help" id="sl-cats-count" aria-live="polite"></p>
+      <div id="sl-cats"></div>
+      <div class="row-inline"><button class="btn" type="button" id="sl-add-cat"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Add a category</button></div>
 
       <h2 class="sl-section">Story</h2>
       <div class="field sl-field" data-field="goal">
@@ -179,7 +186,7 @@
         <label for="sl-credit">Storyline credit</label>
         <p class="help" id="sl-credit-h">The name to show in the author credits. Leave it blank to stay anonymous.</p>
         <input type="text" id="sl-credit" name="credit" maxlength="40" autocomplete="name" aria-describedby="sl-credit-h sl-credit-x">
-        <p class="sl-ex" id="sl-credit-x">Example: B. Taylor</p>
+        <p class="sl-ex" id="sl-credit-x">Example: Player's screen name</p>
       </div>
       <div class="sl-field" data-field="consent">
         <label class="check sl-consent"><input type="checkbox" id="sl-consent" name="consent" required> <span><span class="sl-req" aria-hidden="true">*</span> <span id="sl-consent-text"></span> Required because we can't use your story without your permission.</span></label>

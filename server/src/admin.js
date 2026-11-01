@@ -36,7 +36,7 @@
 //   GET  /admin/v1/players?q=&filter=&sort=&dir=&page=&per=  every player, a page at a time; GET /admin/v1/players/:uid
 //   POST /admin/v1/players/:uid/(rename|ban|unban|reset-scores|delete)
 //   GET/POST /admin/v1/settings        feature switches and limits (settings.js)
-//   GET  /admin/v1/number-place        Number Place games by level (number-place.js)
+//   GET  /admin/v1/number-place        NINETIMESNINE games by level (number-place.js)
 //   GET/POST /admin/v1/announcements   messages in the game; POST .../:id/(end|delete)
 //   GET  /admin/v1/inbox?type=&status=&q=  Communication: messages, ideas, problems, errors and emails in one list (messages.js)
 //   GET  /admin/v1/conversations/:id   one conversation; POST .../:id/reply (with an optional puzzle file), .../:id/status (open|done|delete)
@@ -95,6 +95,7 @@ import { claimDailyEmail, finishDailyEmail } from './daily-email.js';
 import { archiveStatus, runArchive, buildArchive, exportArchive, confirmArchive } from './archive.js';
 import { FREE_LIMITS, cloudflareUsage } from './usage.js';
 import { plannerView, checkPlan, savePlan, resetPlan } from './daily.js';
+import { designView, checkDesign, saveDraft, discardDraft, publishDraft, restoreVersion } from './site-design.js';
 import { quality, alerts, summary, csv, CSV_KINDS } from './report.js';
 import { connectionStatus, checkGithubReport, saveGithubReport } from './connections.js';
 import { withFixes, errorFile } from './errors.js';
@@ -123,11 +124,12 @@ const SESSION_MAX_S = 12 * 3600;
 const DENIED_PER_DAY = 500; // refused requests written to the audit log, so a flood cannot fill it
 const ANALYTICS_CACHE_MS = 120_000;
 const TABLES = ['sync_users', 'sync_records', 'sync_deleted_users', 'players', 'scores', 'races', 'race_entries', 'race_invites', 'plays', 'parts', 'usage',
-  'app_errors', 'upkeep_log', 'admins', 'admin_audit', 'settings', 'announcements', 'bans', 'name_reviews', 'archive_log', 'feedback', 'feedback_replies', 'error_fixes', 'conversations', 'conversation_messages', 'message_contacts', 'news', 'search_snapshots', 'daily_plan', 'translations', 'rating_insights', 'campaigns', 'campaign_ads', 'marketing_media', 'campaign_stats', 'challenges', 'daily_results', 'daily_email', 'supporters', 'payment_blocks', 'puzzle_mail', 'puzzle_mail_got', 'puzzle_mail_days', 'special_editions', 'educator_requests', 'special_badges', 'badge_awards', 'puzzle_reports', 'player_puzzles', 'visit_stats', 'educator_feedback', 'print_packs', 'print_pack_stories', 'admin_passkeys', 'admin_sessions', 'np_plays', 'alert_prefs', 'alert_devices', 'alert_queue'];
+  'app_errors', 'upkeep_log', 'admins', 'admin_audit', 'settings', 'announcements', 'bans', 'name_reviews', 'archive_log', 'feedback', 'feedback_replies', 'error_fixes', 'conversations', 'conversation_messages', 'message_contacts', 'news', 'search_snapshots', 'daily_plan', 'translations', 'rating_insights', 'campaigns', 'campaign_ads', 'marketing_media', 'campaign_stats', 'challenges', 'daily_results', 'daily_email', 'supporters', 'payment_blocks', 'puzzle_mail', 'puzzle_mail_got', 'puzzle_mail_days', 'special_editions', 'educator_requests', 'special_badges', 'badge_awards', 'puzzle_reports', 'player_puzzles', 'visit_stats', 'educator_feedback', 'print_packs', 'print_pack_stories', 'admin_passkeys', 'admin_sessions', 'np_plays', 'alert_prefs', 'alert_devices', 'alert_queue', 'site_design'];
 // worker-src blob: lets the Media library's celebrations draw off the main
 // thread, as they do in the game (canvas-confetti makes its own small worker).
+// frame-src: the Website page's live preview shows pages of the website (only).
 const SECURITY_HEADERS = {
-  'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com; manifest-src 'self'; worker-src 'self' blob:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+  'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com; manifest-src 'self'; worker-src 'self' blob:; frame-src https://thelogicgrid.com; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
   'X-Content-Type-Options': 'nosniff',
   'X-Frame-Options': 'DENY',
   'Referrer-Policy': 'no-referrer',
@@ -138,6 +140,13 @@ const SECURITY_HEADERS = {
   'Cross-Origin-Resource-Policy': 'same-origin',
   'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=(), usb=(), serial=(), hid=(), bluetooth=(), interest-cohort=()',
 };
+
+// The preview frame shows the website set in SITE_URL (a test site in tests).
+function adminCsp(env) {
+  let site = 'https://thelogicgrid.com';
+  try { site = new URL(env.SITE_URL || site).origin; } catch (e) { /* default */ }
+  return SECURITY_HEADERS['Content-Security-Policy'].replace('frame-src https://thelogicgrid.com', `frame-src ${site}`);
+}
 
 const isoDay = (ms) => new Date(ms).toISOString().slice(0, 10);
 const weekStart = (now) => { const d = new Date(now); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - ((d.getUTCDay() + 6) % 7)); };
@@ -719,7 +728,7 @@ const ROUTES = [
     return { body: { key: body.key, value }, target: body.key, detail: { from: before, to: value } };
   }],
 
-  // Number Place's own section: how each level is going and what players get stuck on.
+  // NINETIMESNINE's own section: how each level is going and what players get stuck on.
   ['GET', /^number-place$/, 'viewer', 'numberplace.view', async ({ env, url }) => ({ body: await npSummary(env, daysParam(url, 90)) })],
 
   ['GET', /^announcements$/, 'viewer', 'announcements.view', async ({ env, now }) => {
@@ -827,6 +836,27 @@ const ROUTES = [
     const r = await resetPlan(env, date, now);
     if (r.error) throw new Refusal(400, 'bad_plan', r.error);
     return { body: r, target: date };
+  }],
+
+  // The website's design (Website page): try changes in a draft, then publish.
+  ['GET', /^site-design$/, 'viewer', 'site-design.view', async ({ env }) => ({ body: await designView(env), quiet: true })],
+  ['POST', /^site-design\/draft$/, 'admin', 'site-design.draft', async ({ env, body, who, now }) => {
+    const { value, error } = checkDesign(body);
+    if (error) throw new Refusal(400, 'bad_design', error);
+    return { body: { ok: true, draft: await saveDraft(env, value, who.actor, now) }, quiet: true };
+  }],
+  ['POST', /^site-design\/discard$/, 'admin', 'site-design.discard', async ({ env }) => ({ body: await discardDraft(env) })],
+  ['POST', /^site-design\/publish$/, 'admin', 'site-design.publish', async ({ env, body, who, now }) => {
+    let design = null;
+    if (body && body.design) { const c = checkDesign(body); if (c.error) throw new Refusal(400, 'bad_design', c.error); design = c.value; }
+    const r = await publishDraft(env, who.actor, now, design);
+    if (r.error) throw new Refusal(400, 'nothing_to_publish', r.error);
+    return { body: r, target: String(r.published.id), detail: { changes: Object.keys(r.published.design), rebuilding: r.rebuilding } };
+  }],
+  ['POST', /^site-design\/restore\/(\d+)$/, 'admin', 'site-design.restore', async ({ env, params: [id], who, now }) => {
+    const r = await restoreVersion(env, Number(id), who.actor, now);
+    if (r.error) throw new Refusal(404, 'unknown', r.error);
+    return { body: r, target: id };
   }],
 
   ['GET', /^quality$/, 'viewer', 'quality.view', async ({ env, url }) => ({ body: await quality(env, daysParam(url, 90)) })],
@@ -991,7 +1021,7 @@ async function appFile(env, url, file) {
   if (!env.ASSETS) return new Response('The admin app is not deployed with this Worker.', { status: 404 });
   const res = await env.ASSETS.fetch(new Request(new URL(`/${file}`, url.origin)));
   if (!res.ok) return new Response('Not found', { status: 404, headers: SECURITY_HEADERS });
-  return new Response(res.body, { headers: { ...SECURITY_HEADERS, 'Content-Type': TYPES[file.split('.').pop()] } });
+  return new Response(res.body, { headers: { ...SECURITY_HEADERS, 'Content-Security-Policy': adminCsp(env), 'Content-Type': TYPES[file.split('.').pop()] } });
 }
 
 const LEGACY = /^\/admin\/(learn(\/.*)?|errors)$/;

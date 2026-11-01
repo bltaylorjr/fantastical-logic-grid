@@ -1,4 +1,4 @@
-// Number Place's part of the learning service and its admin section: run with
+// NINETIMESNINE's part of the learning service and its admin section: run with
 // `npm test` in server/. The whole Worker runs in Miniflare with a local D1
 // database, so nothing leaves this computer.
 import { test, before, after } from 'node:test';
@@ -89,11 +89,11 @@ test('the admin section shows how each level is going and its own settings', asy
   const medium = r.body.levels.find((l) => l.level === 'medium');
   assert.ok(medium && medium.games >= 1, 'medium games are counted');
   const s = await call('/admin/v1/settings', { token: ADMIN });
-  const np = s.body.settings.filter((x) => x.group === 'Number Place').map((x) => x.key);
-  for (const k of ['np_enabled', 'np_learning_enabled', 'np_max_level', 'np_adapt_strength']) assert.ok(np.includes(k), `${k} is in the Number Place group`);
+  const np = s.body.settings.filter((x) => x.group === 'NINETIMESNINE').map((x) => x.key);
+  for (const k of ['np_enabled', 'np_learning_enabled', 'np_max_level', 'np_adapt_strength']) assert.ok(np.includes(k), `${k} is in the NINETIMESNINE group`);
 });
 
-test('the dashboard can switch Number Place and its learning off', async () => {
+test('the dashboard can switch NINETIMESNINE and its learning off', async () => {
   let cfg = await call('/v1/config');
   assert.equal(cfg.body.numberPlace.enabled, true);
   assert.equal(cfg.body.numberPlace.adaptStrength, 1);

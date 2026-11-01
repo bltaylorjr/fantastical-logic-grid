@@ -198,7 +198,9 @@ export function createGrid(frame, puzzle, ix, handlers) {
   table.addEventListener('pointerdown', (e) => {
     const td = e.target.closest('td.c');
     if (!td || e.button !== 0) return;
-    press = { td, x: e.clientX, y: e.clientY, timer: setTimeout(() => { suppressClick = true; openMenu(td, press.x, press.y); press = null; }, 550) };
+    cancelPress(); // a second finger replaces the first press, so its timer cannot fire later
+    const x = e.clientX, y = e.clientY;
+    press = { td, x, y, timer: setTimeout(() => { suppressClick = true; press = null; openMenu(td, x, y); }, 550) };
   });
   const cancelPress = () => { if (press) { clearTimeout(press.timer); press = null; } };
   table.addEventListener('pointermove', (e) => { if (press && Math.hypot(e.clientX - press.x, e.clientY - press.y) > 10) cancelPress(); });

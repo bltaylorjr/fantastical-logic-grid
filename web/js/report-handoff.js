@@ -20,7 +20,7 @@ export function handOff(ctx) {
 // Opens the page. inTab: the website (new tab); otherwise the same window.
 export function openReportPage(href, ctx, { inTab = true } = {}) {
   handOff(ctx);
-  const url = new URL(href, location.href);
+  const url = new URL(href, document.baseURI); // baseURI: the website's game page sits in fantastical/ with <base href="../">
   if (inTab) {
     url.searchParams.set('tab', '1');
     const w = window.open(url.href, '_blank');

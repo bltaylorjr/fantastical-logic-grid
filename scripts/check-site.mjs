@@ -88,20 +88,22 @@ for (const page of pages) {
     const canon = (html.match(/<link rel="canonical" href="([^"]+)">/) || [])[1];
     const want = `${SITE_URL}/${page.replace(/index\.html$/, '')}`;
     if (canon !== want) problem(`${page}: the canonical address is ${canon || 'missing'}, expected ${want}.`);
-    // The game page also has a hidden h1 on its play screen.
+    // The game page (fantastical/) also has a hidden h1 on its play screen.
     const h1s = (strip(html).match(/<h1[\s>]/g) || []).length;
-    if (page === 'index.html' ? h1s < 1 : h1s !== 1) problem(`${page}: has ${h1s} <h1> headings (should be one).`);
+    if (page === 'fantastical/index.html' ? h1s < 1 : h1s !== 1) problem(`${page}: has ${h1s} <h1> headings (should be one).`);
   }
   for (const [, block] of html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)) {
     let data;
     try { data = JSON.parse(block); } catch (e) { problem(`${page}: a structured-data block is not valid JSON (${e.message}).`); continue; }
     for (const d of [].concat(data['@graph'] || data)) checkSchema(page, { '@context': data['@context'], ...d });
   }
+  // The game page has <base href="../"> (scripts/hub.mjs): its links resolve from there.
+  const pageBase = new URL((html.match(/<base href="([^"]*)"/) || [])[1] || '', `${SITE_URL}/${page}`).href;
   for (const [, attr, raw] of strip(html).matchAll(/\s(href|src)="([^"]*)"/g)) {
     const href = raw.replace(/&amp;/g, '&');
     if (!href || /^(#|mailto:|tel:|data:|javascript:)/.test(href)) continue;
     let u;
-    try { u = new URL(href, `${SITE_URL}/${page}`); } catch { problem(`${page}: the ${attr} "${href}" is not a valid address.`); continue; }
+    try { u = new URL(href, pageBase); } catch { problem(`${page}: the ${attr} "${href}" is not a valid address.`); continue; }
     if (u.origin === new URL(SITE_URL).origin) internal.add(`${u.pathname}\t${page}`);
     else if (/^https?:$/.test(u.protocol)) { if (!externalLinks.has(u.href)) externalLinks.set(u.href, page); }
   }

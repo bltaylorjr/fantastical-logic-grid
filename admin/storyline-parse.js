@@ -15,6 +15,8 @@
 // The result has the shape engine/src/classroom.js checkCustom() expects.
 
 const MAX_CATEGORIES = 4; // besides the cast (checkCustom keeps 4)
+// The order words engine/src/classroom.js knows (ORDER_WORDS).
+const ORDERED = { earlier: 1, lower: 1, smaller: 1, shorter: 1 };
 const MAX_ITEMS = 8;
 const MAX_NAME = 24;
 const MAX_ITEM = 30;
@@ -43,6 +45,10 @@ function splitItems(body) {
   const out = [];
   const seen = new Set();
   for (let part of body.split(/[,;\n]/)) {
+    // A list ends where a new sentence starts ("Lemonade. The butler was ...");
+    // a short abbreviation like "Mr. Pike" stays one item.
+    const stop = part.match(/^(.*?[^.\s])[.!?]\s+(\S+\s+\S+\s+\S+.*)$/s);
+    if (stop) part = stop[1];
     part = squash(part).replace(/^(and|or)\s+/i, '').replace(/[.!?]+$/, '').trim();
     if (!part || seen.has(part.toLowerCase())) continue;
     seen.add(part.toLowerCase());
@@ -129,7 +135,7 @@ export function readStoryline(text, themeName = '') {
 // story uses the team's corrected words when there are some (polished), and
 // the title is the author's own. Returns { def, summary, difficulty } or
 // { def: null, reason }.
-export function readSubmission(form, polished = null) {
+export function readSubmission(form, polished = null, themeName = '') {
   const f = form || {};
   const p = polished || {};
   const word = (k) => squash(p[k] || f[k] || '');
@@ -139,13 +145,28 @@ export function readSubmission(form, polished = null) {
   const known = new Set(names.map((n) => n.toLowerCase()));
   // A list of the characters' own names is the cast, not a category.
   const lists = raw.map(nameGeneric).filter((l) => l.items.length >= 3 && !l.items.every((x) => known.has(x.toLowerCase())));
-  const castLine = names.length >= 3 ? `Characters: ${names.join(', ')}.\n` : '';
-  const read = readStoryline(castLine + lists.map((l) => `${l.label}: ${l.items.join(', ')}.`).join('\n'), word('title'));
-  if (!read.def) {
-    return { def: null, reason: lists.length < 2
-      ? 'The clues need at least 2 lists of 3 or more things to match, written like "Rooms: Library, Kitchen, Garden".'
-      : read.reason };
+  // Categories from the form's builder come first, as the author set them up
+  // (items in the order typed; an ordered list runs from its first item).
+  const built = (f.categories || []).filter((c) => c && c.name && (c.items || []).length >= 3).map((c) => ({
+    name: capWords(squash(c.name)).slice(0, 30), items: c.items.slice(0, MAX_ITEMS).map((x) => squash(x).slice(0, MAX_ITEM)),
+    pos: '', neg: '', order: ORDERED[c.order] ? c.order : null, less: '', more: '',
+  }));
+  // Then lists in the clues and story beat. A stand-in cast line keeps
+  // readStoryline from taking one of them as the cast.
+  const fromClues = lists.length ? readStoryline(`Characters: Zz1, Zz2, Zz3.\n${lists.map((l) => `${l.label}: ${l.items.join(', ')}.`).join('\n')}\nZzend: a, b, c.`, '') : null;
+  const used = new Set(['character', 'name', ...built.map((c) => c.name.toLowerCase())]);
+  const categories = [...built];
+  for (const c of fromClues?.def?.categories || []) {
+    if (categories.length >= MAX_CATEGORIES) break;
+    if (c.name === 'Zzend' || used.has(c.name.toLowerCase())) continue;
+    used.add(c.name.toLowerCase());
+    categories.push(c);
   }
+  if (categories.length < 2) {
+    return { def: null, reason: 'It needs at least 2 categories of 3 or more things to match: add them in the Categories builder, or as lists in the clues like "Rooms: Library, Kitchen, Garden".' };
+  }
+  const read = { def: { theme: (squash(themeName) || word('title') || 'Characters').slice(0, 60), title: 'The Characters Mix-Up', story: '', ending: '', cast: { one: 'character', many: 'characters' }, names: [], categories } };
+  read.summary = [`Characters (${names.length >= 3 ? names.length : 'names chosen for them'})`, ...categories.map((c) => `${c.name} (${c.items.length})`)].join(', ');
   // The story beat's words ("Beginning: the lights go out."), without its lists of things to match.
   const beatRead = findLists(p.beat || f.beat || '');
   const beat = [beatRead.scene, ...beatRead.lists.filter((l) => l.items.length < 3).map((l) => l.items.join(', '))].filter(Boolean).join('. ');

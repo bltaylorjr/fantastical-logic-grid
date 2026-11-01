@@ -5,6 +5,7 @@ import { join, relative, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import { buildSeo } from './seo.mjs';
+import { applySiteDesign } from './site-design-build.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const web = join(root, 'web');
@@ -33,7 +34,7 @@ if (existsSync(engineSrc)) {
   writeFileSync(join(web, 'engine', 'options.js'), `// Written by scripts/build.mjs from the engine's describeOptions(). Do not edit.\nexport const OPTIONS = ${JSON.stringify(describeOptions())};\n`);
 }
 
-// 1b. Number Place, its own game screen (modules/number-place). Copied in
+// 1b. NINETIMESNINE, its own game screen (modules/number-place). Copied in
 // here so the module stays one folder the private test app also uses; the
 // game serves its engine from web/engine and its worker from web/np-worker.js.
 {
@@ -241,6 +242,30 @@ cpSync(join(root, 'SECURITY.md'), join(site, 'security-policy.txt'));
 }
 // Search pages, daily puzzle, sitemap and search tags (website only).
 const seo = await buildSeo({ root, site });
+// The website design chosen in the admin dashboard (Website page).
+await applySiteDesign({ site, base: (process.env.FLG_SITE_URL || 'https://thelogicgrid.com').replace(/\/+$/, '') });
+// The Logic Grid's layout (scripts/hub.mjs): the front page at /, the game at
+// fantastical/, NINETIMESNINE at ninetimesnine/. The installed app keeps its
+// id ("./") and now starts at the game; offline, all three pages open.
+{
+  const mf = join(site, 'manifest.webmanifest');
+  const manifest = JSON.parse(readFileSync(mf, 'utf8'));
+  if (manifest.id !== './') throw new Error('manifest.webmanifest must keep id "./" so installed apps stay the same app');
+  manifest.start_url = 'fantastical/';
+  writeFileSync(mf, `${JSON.stringify(manifest, null, 2)}\n`);
+  const pagesHere = ['fantastical/', 'ninetimesnine/'];
+  const swFile = join(site, 'sw.js');
+  let siteSw = readFileSync(swFile, 'utf8');
+  const listed = siteSw.match(/const FILES = (\[[^\n]*\]);/);
+  if (!listed) throw new Error('Could not find the file list in sw.js');
+  const shellHere = [...JSON.parse(listed[1]), ...pagesHere, 'js/hub.js', 'js/np-page.js', 'js/design-preview.js', 'js/site-design.js'].filter((f, i, a) => a.indexOf(f) === i);
+  const siteHash = createHash('sha256').update(version);
+  for (const f of ['index.html', 'fantastical/index.html', 'ninetimesnine/index.html', 'manifest.webmanifest']) siteHash.update(readFileSync(join(site, f)));
+  siteSw = siteSw.replace(listed[0], `const FILES = ${JSON.stringify(shellHere)};`).replace(`const VERSION = '${version}';`, `const VERSION = '${siteHash.digest('hex').slice(0, 10)}';`);
+  writeFileSync(swFile, siteSw);
+  const headers = join(site, '_headers');
+  writeFileSync(headers, readFileSync(headers, 'utf8').replace('/\n  Cache-Control: no-cache\n', `/\n  Cache-Control: no-cache\n${pagesHere.map((p) => `/${p}\n  Cache-Control: no-cache\n/${p}index.html\n  Cache-Control: no-cache\n`).join('')}`));
+}
 console.log(`Built dist/site for web hosting (${seo.pages.length} pages in the sitemap).`);
 
 // The game page's first load (see MAINTENANCE.md, "Speed"):

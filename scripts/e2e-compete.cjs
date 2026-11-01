@@ -174,7 +174,7 @@ function startAuth(signer) {
     await A.page.waitForSelector('[data-view=share]:not([hidden])', { timeout: 30000 });
     const code = await A.page.textContent('#race-code-big');
     assert(/^[A-Z2-9]{6}$/.test(code), `race code shown (${code})`);
-    assert((await A.page.getAttribute('#race-link', 'href')) === `https://thelogicgrid.com/?race=${code}`, 'a share link is shown');
+    assert((await A.page.getAttribute('#race-link', 'href')) === `https://thelogicgrid.com/fantastical/?race=${code}`, 'a share link is shown');
     await A.page.click('[data-view=share] [data-close]');
     assert(await A.page.isVisible('#race-bar'), 'the play screen shows the race bar');
     // Start over in a race clears the marks but keeps the race clock and help.

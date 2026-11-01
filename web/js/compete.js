@@ -128,5 +128,5 @@ export const invitePlayer = (code, screenName) => call(`/v1/races/${code}/invite
 export const listInvites = () => call('/v1/invites');
 export const declineInvite = (id) => call(`/v1/invites/${id}/decline`, { method: 'POST' });
 
-export const shareLink = (code) => `${SHARE_ORIGIN}/?race=${code}`;
+export const shareLink = (code) => `${SHARE_ORIGIN}/fantastical/?race=${code}`;
 export const cleanCode = (raw) => String(raw || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);

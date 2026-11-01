@@ -82,10 +82,13 @@ const APP = `http://localhost:${APP_PORT}`;
     await a.page.waitForSelector('#dlg-share[open]');
     const text = await a.page.inputValue('#share-text');
     const link = (text.match(/https?:\/\/\S+\?challenge=[A-Z0-9]{6}/) || [])[0];
-    assert(link && /beat my time/.test(text), `the solver gets a challenge link (${link})`);
+    assert(link && /beat my time/.test(text) && /\/fantastical\/\?challenge=/.test(link), `the solver gets a challenge link to the game's page (${link})`);
     const story = await a.page.evaluate(() => window.__flg.state.puzzle.story.id);
 
-    const b = await device('B', link);
+    // This test serves the app build (dist/web), where the game is at the root;
+    // on the website it is at fantastical/ (scripts/hub.mjs, tested by e2e-hub.cjs).
+    const appLink = link.replace('/fantastical/', '/');
+    const b = await device('B', appLink);
     await b.page.waitForSelector('#screen-play:not([hidden])', { timeout: 30000 });
     assert(await b.page.evaluate(() => window.__flg.state.puzzle.story.id) === story, 'the friend gets the very same puzzle, no account needed');
     assert(!/challenge=/.test(b.page.url()), 'the code is taken out of the address');
@@ -97,7 +100,7 @@ const APP = `http://localhost:${APP_PORT}`;
     assert(await b.page.evaluate(() => !window.__flg.state.save.scorePending), 'a challenge earns no scoreboard points');
 
     // Opening the link again resumes the same save instead of a new copy.
-    await b.page.goto(link);
+    await b.page.goto(appLink);
     await b.page.waitForSelector('#screen-play:not([hidden])', { timeout: 30000 });
     const copies = await b.page.evaluate(async () => (await (await import('./js/store.js')).listSaves()).filter((s) => s.challenge).length);
     assert(copies === 1, 'the same link opens the same saved puzzle');

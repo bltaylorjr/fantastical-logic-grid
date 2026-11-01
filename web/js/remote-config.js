@@ -37,7 +37,7 @@ export const supportUrl = () => {
   return typeof u === 'string' && u.startsWith('https://') ? u : '';
 };
 
-// The dashboard's Number Place choices (server/src/settings.js publicConfig),
+// The dashboard's NINETIMESNINE choices (server/src/settings.js publicConfig),
 // or {} before the server has said: the game then uses the module's defaults.
 export const numberPlace = () => (config && config.numberPlace) || {};
 
