@@ -573,7 +573,7 @@ async function startGeneration() {
   const err = $('#gen-error');
   err.hidden = true;
   btn.disabled = true;
-  st.textContent = $('input[name=tier]:checked')?.value === 'theorist' ? 'Building a Theoretical Physicist puzzle… The engine is testing clue after clue until only one answer is possible. The best of the best take up to a minute.' : 'Writing your story… Large puzzles can take up to 20 seconds.';
+  st.textContent = $('input[name=tier]:checked')?.value === 'theorist' ? 'Building a Theoretical Physicist puzzle… The engine is testing clue after clue until only one answer is possible.' : 'Writing your story… Large puzzles can take up to 20 seconds.';
   try {
     const puzzle = await makePuzzle();
     const save = newSave(puzzle);
