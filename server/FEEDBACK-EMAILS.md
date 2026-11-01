@@ -66,6 +66,17 @@ Menu > Ideas and problems, they can leave "Email me an update" ticked:
     This includes storylines sent through Share an idea.
   - **Copies the team emails (support@):** Email a copy (to any address, with
     the puzzle PDF when there is one).
+  - **Editing:** Edit (admin, any status) saves the team's version; the
+    author's original and every earlier version are kept
+    (story_submission_versions), and the corrected wording, scan and puzzle
+    start over (an old puzzle stays with its version; Build the puzzle makes
+    a new one). The author can edit and resubmit while the entry is new, or
+    when the team presses **Ask the author to edit** ("Please update your
+    storyline", support@, with the team's note). The confirmation and that
+    email carry an edit link (storyline/?edit=ID.KEY, 30 days); signed in,
+    "Your entries" on the Suggest a storyline page lists them. A resubmitted
+    entry comes back as New, with "We received your updated storyline"
+    (noreply@).
   - **Trademark and copyright scan:** Scan on an entry (or Scan new entries
     for the next 5) checks for brand names and protected characters (a watch
     list in `server/src/ip-scan.js`), the same 8 words in a row as another

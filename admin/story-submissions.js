@@ -18,7 +18,7 @@ const SOURCE = { form: 'Suggest a storyline page', 'idea box': 'Share an idea' }
 const EMAIL_KIND = {
   story_received: 'Confirmation with a copy of the form (noreply@)', story_approved: 'Approval with the puzzle (noreply@)',
   submission_approved: 'Approval (noreply@)', story_declined: 'Thank-you after declining (noreply@)', submission_copy: 'Copy emailed by the team (support@)',
-  story_build: 'Puzzle built for the database (no email)', story_puzzle: 'Puzzle ready, with the PDF (noreply@)', idea_update: 'Waiting to tell the player (Share an idea)', idea: 'Thank-you (support@)',
+  story_build: 'Puzzle built for the database (no email)', story_puzzle: 'Puzzle ready, with the PDF (noreply@)', story_edit_invite: 'Asked to edit and resubmit (support@)', idea_update: 'Waiting to tell the player (Share an idea)', idea: 'Thank-you (support@)',
 };
 const MAIL_STATUS = { waiting: 'waiting to go', sending: 'sending', sent: 'sent', failed: 'could not be sent', dropped: 'not sent', held: 'held until a decision' };
 const FIELD_LABEL = { title: 'Title', pitch: 'Single-line pitch', setting: 'Storyline setting', goal: 'Central mystery or goal', clues: 'Clues', beat: 'Story beat',
@@ -107,6 +107,76 @@ function readFixes(s) {
   return out;
 }
 
+// ---------------------------------------------------------------- editing
+// The team's editor: the entry's latest version in plain fields. Saving keeps
+// the author's original and the version before (server: story-submissions.js).
+const opt = (v, label, cur) => `<option value="${h.esc(v)}"${String(v) === String(cur ?? '') ? ' selected' : ''}>${h.esc(label)}</option>`;
+function editField(name, label, value, { area = false, max = 2000, rows = 3 } = {}) {
+  const id = `ss-ed-${name}`;
+  return `<div class="field"><label for="${id}">${h.esc(label)}</label>${area
+    ? `<textarea id="${id}" data-ed="${name}" rows="${rows}" maxlength="${max}">${h.esc(value || '')}</textarea>`
+    : `<input id="${id}" data-ed="${name}" maxlength="${max}" value="${h.esc(value || '')}">`}</div>`;
+}
+function charRow(c, i, ch) {
+  return `<fieldset class="ss-ed-row" data-ed-char><legend>Character ${i + 1}</legend><div class="row">
+    <div class="field grow"><label>Name</label><input data-c="name" maxlength="${ch.limits.name}" value="${h.esc(c.name || '')}"></div>
+    <div class="field grow"><label>Trait</label><input data-c="trait" maxlength="${ch.limits.trait}" value="${h.esc(c.trait || '')}"></div>
+    <div class="field"><label>Role</label><select data-c="role">${ch.roles.map((r) => opt(r, r, c.role || 'Supporting')).join('')}</select></div>
+    <div class="field"><label>Gender</label><select data-c="gender">${opt('', 'Not given', c.gender)}${ch.genders.map((g) => opt(g, g, c.gender)).join('')}</select></div>
+    <button class="btn small danger" type="button" data-ed-remove aria-label="Remove character ${i + 1}">Remove</button></div></fieldset>`;
+}
+function catRow(c, i, ch) {
+  return `<fieldset class="ss-ed-row" data-ed-cat><legend>Category ${i + 1}</legend><div class="row">
+    <div class="field"><label>Name</label><input data-k="name" maxlength="${ch.limits.catName}" value="${h.esc(c.name || '')}"></div>
+    <div class="field grow"><label>Items (separated by commas)</label><input data-k="items" maxlength="300" value="${h.esc((c.items || []).join(', '))}"></div>
+    <div class="field"><label>Order</label><select data-k="order">${ch.orders.map(([v, l]) => opt(v, l, c.order || '')).join('')}</select></div>
+    <button class="btn small danger" type="button" data-ed-remove aria-label="Remove category ${i + 1}">Remove</button></div></fieldset>`;
+}
+function editor(s) {
+  const f = s.form;
+  const ch = s.choices;
+  let body;
+  if (s.kind === 'theme') body = editField('idea', 'Theme idea', f.idea, { max: ch.limits.idea });
+  else if (s.kind === 'category') {
+    body = `<div class="field"><label for="ss-ed-theme">Theme</label><select id="ss-ed-theme" data-ed="theme">${ch.themes.map(([v, l]) => opt(v, l, f.theme)).join('')}</select></div>${editField('idea', 'Category idea', f.idea, { max: ch.limits.idea })}`;
+  } else if (f.idea && !f.title) body = editField('idea', 'Their idea (from Share an idea)', f.idea, { area: true, max: 1000, rows: 5 });
+  else {
+    body = `<div class="field"><label for="ss-ed-theme">Theme</label><select id="ss-ed-theme" data-ed="theme">${opt('', 'No theme', f.theme)}${ch.themes.map(([v, l]) => opt(v, l, f.theme)).join('')}</select></div>
+      ${editField('title', 'Title', f.title, { max: ch.limits.title })}${editField('pitch', 'Single-line pitch', f.pitch, { max: ch.limits.pitch })}
+      ${editField('setting', 'Storyline setting', f.setting, { max: ch.limits.setting })}
+      <h4>Characters</h4><div id="ss-ed-chars">${(f.characters || []).map((c, i) => charRow(c, i, ch)).join('')}</div>
+      <button class="btn small" type="button" data-ed-add="char">Add a character</button>
+      <h4>Categories</h4><div id="ss-ed-cats">${(f.categories || []).map((c, i) => catRow(c, i, ch)).join('')}</div>
+      <button class="btn small" type="button" data-ed-add="cat">Add a category</button>
+      ${editField('goal', 'Central mystery or goal', f.goal, { max: ch.limits.goal })}
+      ${editField('clues', 'Clues', f.clues, { area: true, max: ch.limits.clues, rows: 4 })}${editField('beat', 'Story beat', f.beat, { area: true, max: ch.limits.beat, rows: 4 })}
+      ${editField('branch', 'Story beat branch', f.branch, { area: true, max: ch.limits.branch })}${editField('alt', 'Story beat alternate ending', f.alt, { area: true, max: ch.limits.alt })}
+      <div class="row"><div class="field"><label for="ss-ed-tone">Tone</label><select id="ss-ed-tone" data-ed="tone">${opt('', 'No tone', f.tone)}${ch.tones.map((t) => opt(t, t, f.tone)).join('')}</select></div>
+      <div class="field"><label for="ss-ed-diff">Level of difficulty</label><select id="ss-ed-diff" data-ed="difficulty">${opt('', 'No level', f.difficulty)}${ch.difficulties.map(([v, l]) => opt(v, l, f.difficulty)).join('')}</select></div>
+      ${Object.entries(ch.rewards).map(([k, r]) => `<div class="field"><label for="ss-ed-rw-${k}">${h.esc(r.label)}</label><select id="ss-ed-rw-${k}" data-rw="${k}">${r.options.map((o) => opt(o, o, (f.reward || {})[k] || r.options[0])).join('')}</select></div>`).join('')}</div>
+      ${editField('credit', 'Storyline credit', f.credit, { max: ch.limits.credit })}`;
+  }
+  return `<form class="stack ss-editor" id="ss-editor" aria-labelledby="ss-editor-h" novalidate>
+    <h3 id="ss-editor-h">Edit this entry</h3>
+    <p class="muted">Saving makes this the latest version. The author's original and every earlier version stay saved. The corrected wording${s.puzzle ? ', the scan and the saved puzzle' : ' and the scan'} start over for the new words${s.puzzle ? ' (the old puzzle is kept with the old version, and Build the puzzle makes a new one)' : ''}. The author is not emailed.</p>
+    ${body}
+    <p class="error" id="ss-ed-error" role="alert" hidden></p>
+    <div class="row"><button class="btn primary small" type="submit">Save the edit</button><button class="btn small" type="button" data-ed-cancel>Cancel</button></div>
+  </form>`;
+}
+function readEditor(s) {
+  const box = document.querySelector('#ss-editor');
+  const out = { kind: s.kind };
+  for (const el of box.querySelectorAll('[data-ed]')) out[el.dataset.ed] = el.value;
+  if (box.querySelector('[data-ed-char]') || box.querySelector('#ss-ed-chars')) {
+    out.characters = [...box.querySelectorAll('[data-ed-char]')].map((r) => Object.fromEntries([...r.querySelectorAll('[data-c]')].map((el) => [el.dataset.c, el.value])));
+    out.categories = [...box.querySelectorAll('[data-ed-cat]')].map((r) => Object.fromEntries([...r.querySelectorAll('[data-k]')].map((el) => [el.dataset.k, el.value])));
+    out.reward = Object.fromEntries([...box.querySelectorAll('[data-rw]')].map((el) => [el.dataset.rw, el.value]));
+    out.puzzle = s.form.puzzle;
+  }
+  return out;
+}
+
 function detail(s) {
   const e = h.esc;
   const [sw, scls] = STATUS[s.status] || [s.status, ''];
@@ -115,6 +185,8 @@ function detail(s) {
     canReview && s.status !== 'approved' && `<button class="btn small primary" type="button" data-ss-approve>${s.kind === 'storyline' ? 'Approve and build puzzle' : 'Approve'}</button>`,
     canReview && s.status === 'new' && '<button class="btn small" type="button" data-ss-decline>Decline</button>',
     '<button class="btn small" type="button" data-ss-print>Print or save as PDF</button>',
+    canReview && '<button class="btn small" type="button" data-ss-edit>Edit</button>',
+    canReview && s.email && `<button class="btn small" type="button" data-ss-invite>${s.editInvite ? 'Ask the author again' : 'Ask the author to edit'}</button>`,
     canReview && '<button class="btn small" type="button" data-ss-email>Email a copy</button>',
     h.can('admin') && '<button class="btn small danger" type="button" data-ss-delete>Delete</button>',
     '<button class="btn small link" type="button" data-ss-close>Close</button>',
@@ -129,8 +201,12 @@ function detail(s) {
     <p><b>Player:</b> ${s.player ? e(s.player) : s.uid ? 'a signed-in player (no screen name)' : 'a guest'}${s.uid ? ` <code>${e(s.uid)}</code>` : ''}
       · <b>Email:</b> ${s.email ? `<bdi>${e(s.email)}</bdi>` : 'none given'} · <b>Author credit:</b> ${e(s.credit || (s.source === 'form' ? 'Anonymous' : 'not asked'))}
       · <b>Consent:</b> ${s.consent ? 'given' : s.source === 'form' ? 'not given' : 'not asked (Share an idea)'}</p>
-    <h3>Original submission</h3>
+    <h3>${s.edited ? 'Latest version' : 'Original submission'}</h3>
+    ${s.edited ? `<p class="muted">${s.resubmittedAt && s.editedBy === 'author' ? 'Edited and resubmitted by the author' : `Edited by ${e(s.editedBy === 'author' ? 'the author' : s.editedBy || 'the team')}`} ${h.when(s.editedAt)}. ${s.versions.length} earlier ${s.versions.length === 1 ? 'version is' : 'versions are'} kept.</p>` : ''}
+    ${s.editInvite ? `<p class="note">The author was asked to edit and resubmit it. Their edit link works until ${e(new Date(s.editInvite).toLocaleDateString())}.</p>` : ''}
     ${copyTable(s.copy)}
+    ${s.originalCopy ? `<details><summary>The author's original submission</summary>${copyTable(s.originalCopy)}</details>` : ''}
+    <div id="ss-editor-wrap"></div>
     ${scanPanel(s)}
     ${puzzlePreview(s, s.polished)}
     ${correctedEditor(s)}
@@ -187,6 +263,23 @@ export async function storySubmissionsView(helpers) {
 
 export function initStorySubmissions(helpers, show) {
   h = helpers;
+  $('#ss-detail-wrap').addEventListener('submit', async (e) => {
+    if (e.target.id !== 'ss-editor' || !open) return;
+    e.preventDefault();
+    const err = $('#ss-ed-error');
+    err.hidden = true;
+    const btn = e.target.querySelector('button[type=submit]');
+    btn.disabled = true;
+    try {
+      const r = await h.api(`story-submissions/${open.id}/edit`, { method: 'POST', body: { form: readEditor(open) } });
+      h.toast(r.hadPuzzle ? 'Edit saved. Press Build the puzzle to make a new puzzle from it.' : 'Edit saved.');
+      await openEntry(open.id);
+      show('story-submissions', { keepFocus: true });
+    } catch (x) {
+      err.textContent = x.message;
+      err.hidden = false;
+    } finally { btn.disabled = false; }
+  });
   const refresh = () => show('story-submissions', { keepFocus: true });
   $('#ss-search').onsubmit = (e) => {
     e.preventDefault();
@@ -224,6 +317,37 @@ export function initStorySubmissions(helpers, show) {
     if (b.matches('[data-ss-scan]')) {
       b.textContent = 'Scanning…';
       if (await h.act(b, () => h.api(`story-submissions/${id}/scan`, { method: 'POST', body: {} }), 'Scan finished.')) { await openEntry(id); refresh(); }
+      return;
+    }
+    if (b.matches('[data-ss-edit]')) {
+      $('#ss-editor-wrap').innerHTML = editor(open);
+      $('#ss-editor').querySelector('input, select, textarea')?.focus();
+      return;
+    }
+    if (b.matches('[data-ed-cancel]')) { $('#ss-editor-wrap').innerHTML = ''; $('#ss-detail').querySelector('[data-ss-edit]')?.focus(); return; }
+    if (b.matches('[data-ed-remove]')) {
+      const row = b.closest('.ss-ed-row');
+      const list = row.parentElement;
+      row.remove();
+      [...list.children].forEach((r, i) => { r.querySelector('legend').textContent = `${r.matches('[data-ed-char]') ? 'Character' : 'Category'} ${i + 1}`; });
+      return;
+    }
+    if (b.matches('[data-ed-add]')) {
+      const isChar = b.dataset.edAdd === 'char';
+      const list = $(isChar ? '#ss-ed-chars' : '#ss-ed-cats');
+      const max = isChar ? open.choices.maxCharacters : open.choices.maxCategories;
+      if (list.children.length >= max) { h.toast(`At most ${max}.`); return; }
+      list.insertAdjacentHTML('beforeend', isChar ? charRow({}, list.children.length, open.choices) : catRow({}, list.children.length, open.choices));
+      list.lastElementChild.querySelector('input').focus();
+      return;
+    }
+    if (b.matches('[data-ss-invite]')) {
+      const v = await h.ask({
+        title: 'Ask the author to edit and resubmit',
+        text: 'They get an email from support@thelogicgrid.com with your note, a copy of their entry and a link that opens it ready to change (good for 30 days). Signed in, they also see it on the Suggest a storyline page. When they resubmit, it comes back here as New.',
+        fields: [{ name: 'note', label: 'What would you like them to change? (emailed; plain, kind words)', type: 'textarea' }], ok: 'Send',
+      });
+      if (v && (await h.act(b, () => h.api(`story-submissions/${id}/invite`, { method: 'POST', body: { note: v.note } }), 'The email goes out within about 15 minutes.'))) await openEntry(id);
       return;
     }
     if (b.matches('[data-ss-build]')) {

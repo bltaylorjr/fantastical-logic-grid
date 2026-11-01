@@ -200,6 +200,76 @@ test('approving without corrections leaves the wording uncorrected, and Build th
   await call('/admin/v1/replies/done', { auth: owner, body: { sent: claim.replies.map((m) => m.id), failed: [] } });
 });
 
+test('editing: the author edits and resubmits (signed in or by the emailed link); the team edits and asks for changes', async () => {
+  const owner = token('owner-uid', OWNER);
+  const di = token('di-uid', 'di@example.com');
+  const r = await call('/v1/story-submissions', { auth: di, body: { ...FORM, title: 'First draft' } });
+  let claim = (await call('/admin/v1/replies/claim', { auth: owner, body: { limit: 50 } })).body;
+  const conf = claim.replies.find((m) => m.email === 'di@example.com');
+  assert.match(conf.link, new RegExp(`/storyline/\\?edit=${r.body.id}\\.`), 'the confirmation carries an edit link');
+  await call('/admin/v1/replies/done', { auth: owner, body: { sent: claim.replies.map((m) => m.id), failed: [] } });
+
+  // Signed in: the page lists the entry, opens it and resubmits it.
+  const mine = (await call('/v1/story-submissions/mine', { auth: di })).body.entries;
+  assert.deepEqual(mine.map((e) => [e.id, e.editable]), [[r.body.id, true]]);
+  assert.equal((await call('/v1/story-submissions/mine')).status, 401);
+  const opened = (await call(`/v1/story-submissions/${r.body.id}/form`, { auth: di })).body;
+  assert.equal(opened.form.title, 'First draft');
+  assert.equal(opened.form.consent, undefined, 'consent is asked again');
+  assert.equal((await call(`/v1/story-submissions/${r.body.id}/form`, { auth: token('x-uid', 'x@example.com') })).status, 404, 'only the author');
+  const re = await call(`/v1/story-submissions/${r.body.id}/resubmit`, { auth: di, body: { ...opened.form, title: 'Second draft', consent: true } });
+  assert.equal(re.status, 200, JSON.stringify(re.body));
+  let entry = (await call(`/admin/v1/story-submissions/${r.body.id}`, { auth: owner })).body;
+  assert.equal(entry.title, 'Second draft');
+  assert.equal(entry.status, 'new');
+  assert.ok(entry.edited && entry.originalCopy.some(([k, v]) => k === 'Title' && v === 'First draft'), 'the original is kept');
+  assert.equal(entry.versions.length, 1);
+  claim = (await call('/admin/v1/replies/claim', { auth: owner, body: { limit: 50 } })).body;
+  assert.equal(claim.replies.find((m) => m.email === 'di@example.com').note, 'resubmitted');
+  await call('/admin/v1/replies/done', { auth: owner, body: { sent: claim.replies.map((m) => m.id), failed: [] } });
+
+  // Decided: no more edits, until the team asks (by email, with a link).
+  await call(`/admin/v1/story-submissions/${r.body.id}/approve`, { auth: owner, body: {} });
+  claim = (await call('/admin/v1/replies/claim', { auth: owner, body: { limit: 50 } })).body;
+  const approved = claim.replies.find((m) => m.email === 'di@example.com');
+  const puzzle = buildStorylinePuzzle({ submission: { form: approved.submission.form }, seed: 'edit' });
+  await call('/admin/v1/replies/puzzle', { auth: owner, body: { id: approved.id, puzzle } });
+  await call('/admin/v1/replies/done', { auth: owner, body: { sent: claim.replies.map((m) => m.id), failed: [] } });
+  assert.equal((await call(`/v1/story-submissions/${r.body.id}/resubmit`, { auth: di, body: { ...opened.form, consent: true } })).status, 409);
+
+  // The team edits the approved entry: its puzzle goes with the old version.
+  const ed = await call(`/admin/v1/story-submissions/${r.body.id}/edit`, { auth: owner, body: { form: { ...entry.form, title: 'Team title' } } });
+  assert.equal(ed.status, 200, JSON.stringify(ed.body));
+  assert.equal(ed.body.hadPuzzle, true);
+  entry = (await call(`/admin/v1/story-submissions/${r.body.id}`, { auth: owner })).body;
+  assert.equal(entry.title, 'Team title');
+  assert.equal(entry.status, 'approved', 'a team edit keeps the decision');
+  assert.equal(entry.puzzle, null);
+  assert.equal(entry.versions.length, 2);
+  assert.equal(entry.versions[1].hadPuzzle, 1);
+  assert.equal((await call(`/admin/v1/story-submissions/${r.body.id}/edit`, { auth: owner, body: { form: { ...entry.form, title: '' } } })).status, 400, 'the same required fields');
+
+  const ask = await call(`/admin/v1/story-submissions/${r.body.id}/invite`, { auth: owner, body: { note: 'Please add the genres.' } });
+  assert.equal(ask.status, 200);
+  claim = (await call('/admin/v1/replies/claim', { auth: owner, body: { limit: 50 } })).body;
+  const invite = claim.replies.find((m) => m.email === 'di@example.com');
+  assert.equal(invite.kind, 'story_edit_invite');
+  assert.equal(invite.note, 'Please add the genres.');
+  const key = invite.link.split('.').pop();
+  await call('/admin/v1/replies/done', { auth: owner, body: { sent: claim.replies.map((m) => m.id), failed: [] } });
+  assert.equal((await call('/v1/story-submissions/mine', { auth: di })).body.entries[0].invited, true);
+  const byLink = await call(`/v1/story-submissions/${r.body.id}/form?key=${key}`);
+  assert.equal(byLink.status, 200, 'the link opens it without signing in');
+  assert.equal((await call(`/v1/story-submissions/${r.body.id}/form?key=${'z'.repeat(32)}`)).status, 404);
+  const re2 = await call(`/v1/story-submissions/${r.body.id}/resubmit`, { body: { ...byLink.body.form, title: 'Third draft', consent: true, key } });
+  assert.equal(re2.status, 200, JSON.stringify(re2.body));
+  entry = (await call(`/admin/v1/story-submissions/${r.body.id}`, { auth: owner })).body;
+  assert.equal(entry.status, 'new', 'resubmitted: back for review');
+  assert.equal(entry.versions.length, 3);
+  claim = (await call('/admin/v1/replies/claim', { auth: owner, body: { limit: 50 } })).body;
+  await call('/admin/v1/replies/done', { auth: owner, body: { sent: claim.replies.map((m) => m.id), failed: [] } });
+});
+
 test('a guest: thank-you, then a copy only to the address they type, once', async () => {
   const owner = token('owner-uid', OWNER);
   const r = await call('/v1/story-submissions', { body: { kind: 'theme', idea: 'Haunted Lighthouse' } });
