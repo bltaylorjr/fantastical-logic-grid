@@ -142,6 +142,27 @@ test('the categories builder: saved with the entry and used to build the puzzle'
   assert.deepEqual(puzzle.categories.map((c) => c.name).slice(1), ['Room', 'Arrival Time']);
 });
 
+test('the trademark and copyright scan: one click per entry, and the new ones in a batch', async () => {
+  const owner = token('owner-uid', OWNER);
+  const r = await call('/v1/story-submissions', { body: { ...FORM, title: 'Hogwarts heist', clues: 'Colonel Mustard was in the library. Rooms: Library, Kitchen, Garden.' } });
+  const scan = await call(`/admin/v1/story-submissions/${r.body.id}/scan`, { auth: owner, body: {} });
+  assert.equal(scan.status, 200, JSON.stringify(scan.body));
+  assert.equal(scan.body.scan.verdict, 'problem');
+  assert.deepEqual(scan.body.scan.findings.filter((f) => f.source === 'watch list').map((f) => f.term).sort(), ['Colonel Mustard', 'Hogwarts']);
+  assert.match(scan.body.scan.notes[0], /GEMINI_API_KEY/, 'without the key the AI review is skipped, with a note');
+  const entry = (await call(`/admin/v1/story-submissions/${r.body.id}`, { auth: owner })).body;
+  assert.equal(entry.ipScan.verdict, 'problem');
+  const flagged = (await call('/admin/v1/story-submissions?scan=flagged&status=', { auth: owner })).body;
+  assert.ok(flagged.items.some((i) => i.id === r.body.id && i.ipVerdict === 'problem'));
+
+  const clean = await call('/v1/story-submissions', { body: { ...FORM, title: 'Quiet orchard', clues: 'The baker was not in the orchard.' } });
+  const batch = await call('/admin/v1/story-submissions/scan-new', { auth: owner, body: {} });
+  assert.equal(batch.status, 200, JSON.stringify(batch.body));
+  assert.ok(batch.body.scanned >= 1);
+  const row = await db.prepare('SELECT ip_verdict FROM story_submissions WHERE id = ?1').bind(clean.body.id).first();
+  assert.ok(['clear', 'check'].includes(row.ip_verdict), `scanned in the batch (${row.ip_verdict})`);
+});
+
 test('a guest: thank-you, then a copy only to the address they type, once', async () => {
   const owner = token('owner-uid', OWNER);
   const r = await call('/v1/story-submissions', { body: { kind: 'theme', idea: 'Haunted Lighthouse' } });

@@ -22,6 +22,8 @@
 //   POST /admin/v1/story-submissions/:id/decline  decline; the author gets a thank-you if we have their address
 //   POST /admin/v1/story-submissions/:id/email   { to } email a copy of the entry (and its puzzle) to any address
 //   POST /admin/v1/story-submissions/:id/delete
+//   POST /admin/v1/story-submissions/:id/scan     trademark and copyright scan (ip-scan.js)
+//   POST /admin/v1/story-submissions/scan-new     scan the next few new entries not scanned yet
 //
 // Senders (scripts/feedback-replies.py): the confirmation, the approval and a
 // decline thank-you go from noreply@thelogicgrid.com; copies the team emails
@@ -32,6 +34,7 @@ import { getSettings } from './settings.js';
 import { verifyIdToken } from './auth.js';
 import { themeName } from './feedback.js';
 import { heldStoryline, approveStoryline, declineStoryline, dropUpdate } from './replies.js';
+import { scanEntry } from './ip-scan.js';
 import { THEMES } from '../../engine/src/themes.js';
 import { checkSubmission, formCopy, formText, KINDS, CONSENT_TEXT } from '../../web/js/storyline-fields.js';
 
@@ -183,7 +186,8 @@ ${JSON.stringify(fields)}`;
 
 // ---------------------------------------------------------------- admin
 const LIST_COLUMNS = `s.id, s.kind, s.source, s.theme, s.title, s.pitch, s.credit, s.consent, s.status, s.created_at AS createdAt, s.decided_at AS decidedAt,
-  s.decided_by AS decidedBy, s.user_id AS uid, s.email, s.puzzle IS NOT NULL AS hasPuzzle, s.text, p.screen_name AS player`;
+  s.decided_by AS decidedBy, s.user_id AS uid, s.email, s.puzzle IS NOT NULL AS hasPuzzle, s.text, p.screen_name AS player,
+  s.ip_verdict AS ipVerdict, s.ip_scan_at AS ipScanAt`;
 
 function listItem(r) {
   return { ...r, consent: !!r.consent, hasPuzzle: !!r.hasPuzzle, themeName: nameOf(r.theme), text: String(r.text || '').slice(0, 280) };
@@ -201,21 +205,24 @@ export function storySubmissionRoutes(Refusal) {
       const kind = KINDS[url.searchParams.get('kind')] ? url.searchParams.get('kind') : '';
       const status = ['new', 'approved', 'declined', 'closed'].includes(url.searchParams.get('status')) ? url.searchParams.get('status') : '';
       const source = ['form', 'idea box'].includes(url.searchParams.get('source')) ? url.searchParams.get('source') : '';
+      const scan = ['unscanned', 'flagged', 'clear'].includes(url.searchParams.get('scan')) ? url.searchParams.get('scan') : '';
       const page = Math.max(0, Math.min(1000, Number(url.searchParams.get('page')) || 0));
       // Search words, titles, pitches, credits, theme names, emails and player names.
       const themeIds = q ? THEMES.filter((t) => t.name.toLowerCase().includes(q.toLowerCase())).map((t) => t.id) : [];
       const like = `%${q.replace(/[\\%_]/g, (m) => `\\${m}`)}%`;
       const where = `(?1 = '' OR s.text LIKE ?2 ESCAPE '\\' OR s.title LIKE ?2 ESCAPE '\\' OR s.pitch LIKE ?2 ESCAPE '\\' OR s.credit LIKE ?2 ESCAPE '\\'
           OR s.email LIKE ?2 ESCAPE '\\' OR p.screen_name LIKE ?2 ESCAPE '\\' OR CAST(s.id AS TEXT) = ?1 OR s.theme IN (SELECT value FROM json_each(?3)))
-        AND (?4 = '' OR s.kind = ?4) AND (?5 = '' OR s.status = ?5) AND (?6 = '' OR s.source = ?6)`;
-      const binds = [q, like, JSON.stringify(themeIds), kind, status, source];
+        AND (?4 = '' OR s.kind = ?4) AND (?5 = '' OR s.status = ?5) AND (?6 = '' OR s.source = ?6)
+        AND (?7 = '' OR (?7 = 'unscanned' AND s.ip_verdict IS NULL) OR (?7 = 'flagged' AND s.ip_verdict IN ('check', 'problem')) OR (?7 = 'clear' AND s.ip_verdict = 'clear'))`;
+      const binds = [q, like, JSON.stringify(themeIds), kind, status, source, scan];
       const from = 'FROM story_submissions s LEFT JOIN players p ON p.user_id = s.user_id';
       const [{ results }, total, counts] = await Promise.all([
         env.DB.prepare(`SELECT ${LIST_COLUMNS} ${from} WHERE ${where} ORDER BY s.created_at DESC LIMIT ${PER_PAGE} OFFSET ${page * PER_PAGE}`).bind(...binds).all(),
         env.DB.prepare(`SELECT COUNT(*) AS n ${from} WHERE ${where}`).bind(...binds).first(),
         env.DB.prepare('SELECT status, COUNT(*) AS n FROM story_submissions GROUP BY status').all(),
       ]);
-      return { body: { items: results.map(listItem), total: total.n, page, perPage: PER_PAGE, counts: Object.fromEntries(counts.results.map((c) => [c.status, c.n])) }, quiet: true };
+      const unscanned = await env.DB.prepare("SELECT COUNT(*) AS n FROM story_submissions WHERE status = 'new' AND ip_verdict IS NULL").first();
+      return { body: { items: results.map(listItem), total: total.n, page, perPage: PER_PAGE, counts: Object.fromEntries(counts.results.map((c) => [c.status, c.n])), unscannedNew: unscanned.n }, quiet: true };
     }],
     ['GET', /^story-submissions\/(\d+)$/, 'moderator', 'story-submissions.open', async ({ env, params: [id] }) => {
       const s = await load(env, id);
@@ -230,9 +237,23 @@ export function storySubmissionRoutes(Refusal) {
           text: s.text, uid: s.user_id, player: player?.name || null, email: s.email, platform: s.platform, version: s.version,
           createdAt: s.created_at, decidedAt: s.decided_at, decidedBy: s.decided_by, emails,
           puzzle: puzzle ? { title: puzzle.title, tier: puzzle.tier || puzzle.difficulty, at: s.puzzle_at, value: puzzle } : null,
+          ipScan: s.ip_scan ? JSON.parse(s.ip_scan) : null,
         },
         quiet: true,
       };
+    }],
+    // The trademark and copyright scan: one entry, or the next few new ones not scanned yet.
+    ['POST', /^story-submissions\/(\d+)\/scan$/, 'moderator', 'story-submissions.scan', async ({ env, params: [id], who, now }) => {
+      const s = await load(env, id);
+      const result = await scanOne(env, s, who, now);
+      return { body: { ok: true, scan: result }, target: id, detail: { verdict: result.verdict, findings: result.findings.length } };
+    }],
+    ['POST', /^story-submissions\/scan-new$/, 'moderator', 'story-submissions.scan-new', async ({ env, who, now }) => {
+      const { results } = await env.DB.prepare("SELECT id FROM story_submissions WHERE status = 'new' AND ip_verdict IS NULL ORDER BY created_at LIMIT ?1").bind(SCAN_BATCH).all();
+      const verdicts = { clear: 0, check: 0, problem: 0 };
+      for (const r of results) { const res = await scanOne(env, await load(env, r.id), who, now); verdicts[res.verdict] += 1; }
+      const left = (await env.DB.prepare("SELECT COUNT(*) AS n FROM story_submissions WHERE status = 'new' AND ip_verdict IS NULL").first()).n;
+      return { body: { ok: true, scanned: results.length, verdicts, left }, detail: { scanned: results.length, ...verdicts } };
     }],
     ['POST', /^story-submissions\/(\d+)\/polish$/, 'moderator', 'story-submissions.polish', async ({ env, params: [id], body }) => {
       const s = await load(env, id);
@@ -303,6 +324,16 @@ export function storySubmissionRoutes(Refusal) {
       return { body: { ok: true }, target: id };
     }],
   ];
+}
+
+// Scans one entry and saves the result with it.
+const SCAN_BATCH = 5; // each scan may wait on the AI review, so a few at a time
+async function scanOne(env, s, who, now) {
+  const { results: others } = await env.DB.prepare('SELECT id, text FROM story_submissions WHERE id != ?1 ORDER BY created_at DESC LIMIT 300').bind(s.id).all();
+  const result = await scanEntry(env, { model: (await getSettings(env)).story_model, copy: formCopy(s.form, nameOf), text: s.text, others, now });
+  result.by = who.actor;
+  await env.DB.prepare('UPDATE story_submissions SET ip_verdict = ?1, ip_scan = ?2, ip_scan_at = ?3 WHERE id = ?4').bind(result.verdict, JSON.stringify(result), now, s.id).run();
+  return result;
 }
 
 // For the Communication page's Approve and Disapprove (admin.js): keeps a

@@ -1926,7 +1926,7 @@ views.licenses = () => licensesView(licenseHelpers);
 initLicenses(licenseHelpers, (name, o) => show(name, o));
 views['edu-feedback'] = () => educatorFeedbackView(educatorHelpers);
 // ---- Storyline submissions (story-submissions.js): the Storyline Submission Database.
-const storyHelpers = { api, esc, fmt, when, can, act, ask, setCount };
+const storyHelpers = { api, esc, fmt, when, can, act, ask, setCount, toast };
 views['story-submissions'] = () => storySubmissionsView(storyHelpers);
 initStorySubmissions(storyHelpers, (name, o) => show(name, o));
 initEducatorFeedback(educatorHelpers, (name, o) => show(name, o));
