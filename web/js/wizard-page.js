@@ -31,7 +31,7 @@ try { const s = JSON.parse(localStorage.getItem('flg.settings') || '{}'); if (s.
 if (window.top !== window.self) { document.documentElement.hidden = true; try { window.top.location = window.location.href; } catch (e) { /* blocked */ } }
 
 const params = new URLSearchParams(location.search);
-const game = GAME_IDS.includes(params.get('game')) ? params.get('game') : null;
+const game = GAME_IDS.find((id) => id === params.get('game')) || null;
 
 // ---------------------------------------------------------------- the draft
 const DRAFT = (g) => `flg.wizard.${g}`;
@@ -253,7 +253,10 @@ function openVideo() {
   if (!v.dataset.ready) {
     v.dataset.ready = '1';
     v.poster = `${ROOT}media/wizard/${game}.jpg`;
-    v.innerHTML = `<source src="${ROOT}media/wizard/${game}.mp4" type="video/mp4"><track kind="captions" srclang="en" label="English" src="${ROOT}media/wizard/${game}.en.vtt" default>`;
+    // Built with DOM calls (game is one of GAME_IDS, never free text from the address).
+    const source = Object.assign(document.createElement('source'), { src: `${ROOT}media/wizard/${game}.mp4`, type: 'video/mp4' });
+    const track = Object.assign(document.createElement('track'), { kind: 'captions', srclang: 'en', label: 'English', src: `${ROOT}media/wizard/${game}.en.vtt`, default: true });
+    v.replaceChildren(source, track);
     v.addEventListener('error', () => { v.hidden = true; $('#w-video-none').hidden = false; }, true);
     $('source', v).addEventListener('error', () => { v.hidden = true; $('#w-video-none').hidden = false; });
     $('#w-guide-list').innerHTML = guideHtml();
