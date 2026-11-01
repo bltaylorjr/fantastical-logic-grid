@@ -1154,3 +1154,6 @@ html[data-embed], html[data-embed] body { background: transparent !important; }
 html[data-embed] body > * { visibility: hidden !important; }
 html[data-embed] dialog[open], html[data-embed] dialog[open] * { visibility: visible !important; }
 html[data-embed] dialog::backdrop { background: transparent; }
+
+/* The website's game page: shared things are cards on the home page (scripts/hub.mjs). */
+#app-menu [data-site-hidden] { display: none !important; }

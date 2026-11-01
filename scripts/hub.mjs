@@ -41,6 +41,16 @@ export function writeGamePage(site, html) {
   const withLink = page.replace('<button role="menuitem" type="button" data-cmd="numberplace"', menuLink);
   if (withLink === page) throw new Error('hub.mjs: the game menu has no Play NINETIMESNINE item to put The Logic Grid home beside');
   page = withLink;
+  // On the website the home page has a card for everything shared by the games
+  // (account, messages, install, support, the other games), so the game's menu
+  // keeps only its own things. The apps (no home page) keep the full menu.
+  const shared = ['data-cmd="account"', 'data-cmd="messages"', 'data-cmd="feedback"', 'data-cmd="install"', 'id="support-link"', 'data-cmd="site"', 'data-cmd="games"', 'data-cmd="numberplace"'];
+  for (const attr of shared) {
+    const next = page.replace(new RegExp(`(<(?:button|a) role="menuitem"[^>]*${attr})`), '$1 data-site-hidden');
+    if (next === page) throw new Error(`hub.mjs: the game menu has no ${attr} item`);
+    page = next;
+  }
+  page = page.replace(/\s*<!-- Shared by every game[^>]*-->\s*<div class="menu-group"[^>]*>[^<]*<\/div>/, '');
   mkdirSync(join(site, 'fantastical'), { recursive: true });
   writeFileSync(join(site, 'fantastical', 'index.html'), page);
   // Suggest a storyline and Report a Problem: "Back to the game" goes to the game.
@@ -223,13 +233,13 @@ const themeSelect = `<label class="theme">Look <select id="theme-pick">
 <option value="system">Match device</option><option value="light">Light</option><option value="dark">Dark</option><option value="contrast">High contrast</option>
 </select></label>`;
 
-// Things shared by every game. They all open over the front page, which stays
-// where it is: Account and Messages are the game's own windows shown in a frame
-// (?open=...&embed=1, web/js/app.js), Report a Problem its page in the same
-// frame (js/hub.js), and Submit Puzzle Ideas asks which game first. Only the
-// Play buttons open a game's page. Install and Support work right here.
+// Things shared by every game. Account has its own page (account/). Messages
+// (the game's own window in a frame, ?open=...&embed=1, web/js/app.js) and
+// Report a Problem open over the front page, which stays where it is; Submit
+// Puzzle Ideas asks which game first. Only the Play buttons open a game's page.
+// Install and Support work right here. The games' menus hold only their own things.
 const APP_ITEMS = [
-  ['a', 'fantastical/?open=account', 'Account and sync', 'Sign in or make a free account. Your saves, stats and settings follow you to every device and every game.'],
+  ['a', 'account/', 'Account and sync', 'Sign in or make a free account. Your saves, stats and settings follow you to every device and every game.'],
   ['a', 'fantastical/?open=messages', 'Messages and news', 'Notes from the team, and replies to what you sent.'],
   ['a', 'wizard/', 'Submit Puzzle Ideas', 'Make your own puzzle for any game, step by step, and send it to the team.'],
   ['a', 'report/', 'Report a Problem', 'Something not right? Tell us, with a screenshot if you like.'],
@@ -288,7 +298,7 @@ ${verification}
 <header class="top">
 <a class="brand" href="./" aria-label="The Logic Grid home">${LOGO}<span>The Logic Grid</span></a>
 <div class="top-actions">
-<a class="hdr-btn" href="fantastical/?open=account" data-overlay aria-haspopup="dialog">Account</a>
+<a class="hdr-btn" href="account/">Account</a>
 ${themeSelect}
 </div>
 </header>
@@ -318,7 +328,7 @@ ${card({ cls: 'ntn', art: ART_NINE, tag: 'Number puzzles', name: 'NINETIMESNINE'
 <h2 id="app-title" data-design-text="appTitle">One account for every game</h2>
 <p class="app-lead" data-design-text="appText">Sign in once and your saves, stats and settings stay in step in every game, on every device.</p>
 <div class="app-grid">
-${APP_ITEMS.map(([, href, name, text]) => `<a class="app-item" href="${href}"${href === 'wizard/' ? ' data-wizard' : ' data-overlay'} aria-haspopup="dialog"><b>${name}</b><span>${text}</span></a>`).join('\n')}
+${APP_ITEMS.map(([, href, name, text]) => `<a class="app-item" href="${href}"${href === 'wizard/' ? ' data-wizard aria-haspopup="dialog"' : href === 'account/' ? '' : ' data-overlay aria-haspopup="dialog"'}><b>${name}</b><span>${text}</span></a>`).join('\n')}
 <button class="app-item" type="button" id="install-app" hidden><b>Install the app</b><span>Every game on your home screen or desktop, and they work offline.</span></button>
 <a class="app-item" id="support-app" href="#" target="_blank" rel="noopener noreferrer nofollow" referrerpolicy="no-referrer" hidden><b>Support The Logic Grid</b><span>Every game stays free. A tip helps make more. (Opens in a new tab.)</span></a>
 </div>
@@ -398,7 +408,7 @@ dialog.ovl::backdrop { background: rgb(8 10 20 / .45); }
 <body>
 <header class="np-top">
 <a class="brand" href="../">${LOGO}<span>The Logic Grid</span></a>
-<nav aria-label="Games"><a class="btn quiet small" href="../">‹ All games</a><a class="btn small" href="../wizard/?game=ninetimesnine">Submit Puzzle Ideas</a><a class="btn small" href="../fantastical/">The Fantastical Logic Grid</a></nav>
+<nav aria-label="Games"><a class="btn quiet small" href="../">‹ The Logic Grid home</a><a class="btn small" href="../wizard/?game=ninetimesnine">Submit Puzzle Ideas</a></nav>
 </header>
 <main id="screen-np" class="screen" tabindex="-1">
 <h1 class="sr-only">NINETIMESNINE</h1>
@@ -406,7 +416,7 @@ dialog.ovl::backdrop { background: rgb(8 10 20 / .45); }
 <noscript><div class="card"><p><strong>NINETIMESNINE</strong> is a free number puzzle game. Turn on JavaScript to play.</p></div></noscript>
 </main>
 <footer class="np-foot">
-<nav aria-label="The Logic Grid"><a href="../fantastical/?open=account" data-overlay aria-haspopup="dialog">Account and sync</a> · <a href="../wizard/?game=ninetimesnine">Submit Puzzle Ideas</a> · <a href="../report/" data-overlay aria-haspopup="dialog">Report a Problem</a> · <a href="../privacy/">Privacy</a> · <a href="../terms/">Terms of use</a> · ${contactLink()}</nav>
+<nav aria-label="The Logic Grid"><a href="../">The Logic Grid home</a> · <a href="../privacy/">Privacy</a> · <a href="../terms/">Terms of use</a> · ${contactLink()}</nav>
 <p>${esc(copyright)}</p>
 </footer>
 </body>
