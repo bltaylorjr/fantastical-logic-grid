@@ -15,6 +15,7 @@ import { characterView } from './characters.js';
 import { ratingsView, initRatings } from './ratings.js';
 import { marketingView, initMarketing } from './marketing.js';
 import { puzzleMailView, initPuzzleMail } from './puzzle-mail.js';
+import { websiteView, initWebsite, initWebsiteEvents } from './website.js';
 import { educatorsView, initEducators, educatorFeedbackView, initEducatorFeedback } from './educators.js';
 import { storySubmissionsView, initStorySubmissions } from './story-submissions.js';
 import { licensesView, initLicenses } from './licenses.js';
@@ -1937,11 +1938,14 @@ initBadges(badgeHelpers, (name, o) => show(name, o));
 
 // ---- Puzzle emails (puzzle-mail.js): the weekly and special edition lists, sends and planner.
 views.mail = () => puzzleMailView();
+views.website = () => websiteView();
 
 // ---- Face ID and fingerprint (passkeys.js): this admin's devices.
 views.signin = () => passkeysView();
 initPasskeys({ api, esc, when, toast, act, ask, show, me: () => me, mode: () => session?.mode });
 initPuzzleMail({ api, esc, fmt, when, tile, table, can, act, ask, toast, show });
+initWebsite({ api, esc, when, table, can, act, ask, toast });
+initWebsiteEvents();
 
 // ------------------------------------------------------------- navigation
 const MIN_ROLE = { ...Object.fromEntries($$('#nav-list a').map((a) => [a.hash.slice(1), a.dataset.min])), details: 'viewer' };

@@ -13,14 +13,17 @@
   apply(read().colorTheme);
   // Never run inside another site's frame, where clicks could be tricked
   // (GitHub Pages cannot send X-Frame-Options), the same as the game page.
-  if (window.top !== window.self) { root.hidden = true; try { window.top.location = window.location.href; } catch (e) { /* blocked */ } return; }
+  // The admin dashboard's Website page shows these pages in its preview frame;
+  // there the page takes no clicks at all (js/design-preview.js).
+  var preview = /[?&]design-preview(=|&|$)/.test(location.search);
+  if (window.top !== window.self && !preview) { root.hidden = true; try { window.top.location = window.location.href; } catch (e) { /* blocked */ } return; }
 
   if (!me || !me.hasAttribute('data-hub')) return;
 
   // Anything but campaign tags (utm_*) in the address was meant for the game:
   // ?play=now, ?challenge=CODE, ?race=CODE, ?learn, ?preview=..., #...
   var forGame = false;
-  try { new URLSearchParams(location.search).forEach(function (v, k) { if (!/^utm_/.test(k)) forGame = true; }); } catch (e) { /* old browser */ }
+  try { new URLSearchParams(location.search).forEach(function (v, k) { if (!/^utm_/.test(k) && k !== 'design-preview') forGame = true; }); } catch (e) { /* old browser */ }
   if (location.hash.length > 1 && location.hash !== '#games') forGame = true;
   // The installed app used to start at the site root. A player who came here
   // from one of the games (The Logic Grid home in the menu) stays.
@@ -30,7 +33,7 @@
   try {
     ['standalone', 'fullscreen', 'minimal-ui', 'window-controls-overlay'].forEach(function (m) { if (!fromHere && matchMedia('(display-mode: ' + m + ')').matches) installed = true; });
   } catch (e) { /* no matchMedia */ }
-  if (forGame || installed) {
+  if (!preview && (forGame || installed)) {
     root.hidden = true;
     location.replace('fantastical/' + location.search + location.hash);
     return;
@@ -42,6 +45,18 @@
   if ('serviceWorker' in navigator) addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () { /* optional */ }); });
 
   document.addEventListener('DOMContentLoaded', function () {
+    // The spotlight and 3D tilt card effects follow the pointer (the Website
+    // page in the admin dashboard picks them; CSS does nothing when they are off).
+    Array.prototype.forEach.call(document.querySelectorAll('.card'), function (card) {
+      card.addEventListener('pointermove', function (e) {
+        var r = card.getBoundingClientRect(), x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
+        card.style.setProperty('--mx', Math.round(x * 100) + '%');
+        card.style.setProperty('--my', Math.round(y * 100) + '%');
+        card.style.setProperty('--ry', ((x - 0.5) * 10).toFixed(1) + 'deg');
+        card.style.setProperty('--rx', ((0.5 - y) * 10).toFixed(1) + 'deg');
+      });
+      card.addEventListener('pointerleave', function () { card.style.setProperty('--rx', '0deg'); card.style.setProperty('--ry', '0deg'); });
+    });
     var pick = document.getElementById('theme-pick');
     if (!pick) return;
     pick.value = read().colorTheme || 'system';

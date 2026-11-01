@@ -106,3 +106,8 @@ dd { margin: 0 0 0 1rem; }
 }
 .inline-links { display: flex; flex-wrap: wrap; gap: 8px 18px; padding: 0; list-style: none; }
 .inline-links a { display: inline-block; padding: 6px 0; }
+/* Choices from the admin dashboard's Website page (web/js/site-design.js). */
+[data-info-header="accent"] .top { background: var(--accent); border-color: transparent; }
+[data-info-header="accent"] .top a, [data-info-header="accent"] .top .brand, [data-info-header="accent"] .top nav a[aria-current="page"] { color: var(--on-accent); }
+[data-info-header="accent"] .top .back, [data-info-header="accent"] .top .btn { border: 2px solid currentColor; background: transparent; color: var(--on-accent); }
+[data-info-nav="hide"] .top nav { display: none; }
