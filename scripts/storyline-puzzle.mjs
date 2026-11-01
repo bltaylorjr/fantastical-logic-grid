@@ -19,7 +19,7 @@ import { readStoryline, readSubmission } from '../admin/storyline-parse.js';
 const ORDER = ['basic', 'easy', 'medium', 'hard', 'expert', 'mensa', 'theorist'];
 
 export function buildStorylinePuzzle({ text, theme = '', seed = 'storyline', submission = null }) {
-  const read = submission ? readSubmission(submission.form, submission.polished) : readStoryline(text, theme);
+  const read = submission ? readSubmission(submission.form, submission.polished, theme) : readStoryline(text, theme);
   if (!read.def) return { error: read.reason };
   const checked = checkCustom(read.def);
   if (checked.errors) return { error: checked.errors.join(' ') };
