@@ -116,7 +116,7 @@ async function recordWizard(browser, W, game, fill) {
     return [`${f.label}${f.req ? ', which is required' : ''}. ${f.help}`, f.use];
   };
 
-  card(`wiz${game}`, [`Submit Puzzle Ideas helps you make your own ${g.name} puzzle, step by step, and send it to the team.`, 'This video shows every entry, what it is for, and how it fits into the puzzle the wizard builds.']);
+  card(`wiz${game}`, [`Submit Puzzle Ideas helps you make your own puzzle for ${g.name}, step by step, and send it to the team.`, 'This video shows every entry, what it is for, and how it fits into the puzzle the wizard builds.']);
 
   await p.goto(`${SITE}/`);
   await p.waitForSelector('#wizard-open');
