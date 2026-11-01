@@ -5,7 +5,8 @@
 // every button, field and grid cell must be at least 44 px, and on wide
 // screens the scene sits beside the story so the grid comes up into view.
 // On PCs and tablets on their side the grid's squares stay big, and on phones
-// the sticky app bar keeps to two short rows.
+// the sticky app bar keeps to two short rows. On PCs (1200 px and wider) the
+// grid is pinned under the app bar and the clues scroll in their own column.
 // The Menu (with every item shown) must fit below the app bar, scroll inside
 // itself to its last item, and have a solid background.
 // SHOTS=<folder> saves a screenshot of each (CI keeps them as an artifact).
@@ -107,6 +108,29 @@ const inspect = () => {
         const top = await page.evaluate(() => document.querySelector('#grid-region').getBoundingClientRect().top + scrollY);
         const scene = await page.evaluate(() => { const s = document.querySelector('#scene').getBoundingClientRect(), t = document.querySelector('#story').getBoundingClientRect(); return { beside: s.left >= t.right, top: Math.abs(s.top - t.top) }; });
         assert(scene.beside && scene.top < 2, `${name}: the scene sits beside the story, so the grid starts at ${Math.round(top)} px`);
+      }
+      // PCs, the desktop app and big tablets on their side: the grid is pinned
+      // under the app bar and the clues scroll in their own column (Bobby, 2026-11-01).
+      if (width >= 1200 && height > 560) {
+        const pin = await page.evaluate(async () => {
+          const bar = document.querySelector('.appbar').getBoundingClientRect().height;
+          const play = document.querySelector('.play'), side = document.querySelector('.play > .side'), grid = document.querySelector('#grid-region');
+          window.scrollTo(0, play.getBoundingClientRect().top + scrollY - bar - 8);
+          await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+          const g0 = grid.getBoundingClientRect(), s0 = side.getBoundingClientRect();
+          side.scrollTop = side.scrollHeight;
+          await new Promise((r) => requestAnimationFrame(r));
+          const g1 = grid.getBoundingClientRect();
+          const last = side.querySelector('#check-answers').getBoundingClientRect();
+          return { bar, gTop: g0.top, gBottom: g0.bottom, sTop: s0.top, sBottom: s0.bottom, moved: Math.abs(g1.top - g0.top), scrolls: side.scrollHeight > side.clientHeight, scrolled: side.scrollTop > 0, lastIn: last.bottom <= s0.bottom + 1 && last.top >= s0.top - 1, sticky: getComputedStyle(grid).position };
+        });
+        assert(pin.sticky === 'sticky' && pin.gTop >= pin.bar - 1 && pin.gBottom <= height + 1, `${name}: the grid is pinned under the app bar and fits on screen (${Math.round(pin.gTop)}-${Math.round(pin.gBottom)} px)`);
+        assert(pin.sTop >= pin.bar - 1 && pin.sBottom <= height + 1, `${name}: the clues column fits on screen beside the grid`);
+        assert(!pin.scrolls || (pin.scrolled && pin.moved < 1 && pin.lastIn), `${name}: the clues scroll on their own to Check answers while the grid stays put`);
+        if (SHOTS) await page.screenshot({ path: file('play-pinned') });
+        await page.evaluate(() => { document.querySelector('.play > .side').scrollTop = 0; window.scrollTo(0, 0); });
+      } else if (width >= 1024) {
+        assert(await page.evaluate(() => getComputedStyle(document.querySelector('#grid-region')).position !== 'sticky'), `${name}: the grid is not pinned where the clues sit under it`);
       }
       // The Grid / List switch sits in the app bar, so it stays in reach after scrolling down.
       if (height > 560) {

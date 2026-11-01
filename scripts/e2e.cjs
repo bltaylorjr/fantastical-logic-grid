@@ -253,7 +253,9 @@ const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`o
     await page.setViewportSize({ width: 1280, height: 900 });
     // The app bar's height reaches the CSS through a ResizeObserver, which runs after the resize.
     await page.waitForFunction(() => document.documentElement.style.getPropertyValue('--appbar-h') === `${document.querySelector('.appbar').offsetHeight}px`, null, { timeout: 5000 }).catch(() => {});
-    const fit = await page.evaluate(() => { const f = document.querySelector('#gridframe'); return [f.scrollHeight, f.clientHeight, parseFloat(getComputedStyle(f).maxHeight), innerHeight - document.querySelector('.appbar').offsetHeight - 16]; });
+    // On a PC the grid card is pinned under the app bar and holds the height
+    // (the frame fills it); elsewhere the frame itself stops at the screen.
+    const fit = await page.evaluate(() => { const f = document.querySelector('#gridframe'), c = document.querySelector('#grid-region'); const pinned = getComputedStyle(c).position === 'sticky'; return [f.scrollHeight, f.clientHeight, parseFloat(getComputedStyle(pinned ? c : f).maxHeight), innerHeight - document.querySelector('.appbar').offsetHeight - 16]; });
     assert(fit[0] <= fit[1] + 1 && Math.abs(fit[2] - fit[3]) <= 1, `grid frame is as tall as the screen below the app bar, no inner scroll (${fit.join('/')})`);
     // Browser autofill sends keydown events with no key (player error report: reading 'toLowerCase').
     await page.evaluate(() => { document.dispatchEvent(new Event('keydown')); document.dispatchEvent(new KeyboardEvent('keydown')); });
