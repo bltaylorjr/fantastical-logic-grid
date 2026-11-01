@@ -83,11 +83,12 @@ sentence plays while the rest is made; the story opening is pre-made when a puzz
 
 `releases/The-Fantastical-Logic-Grid.zip` holds the installer, a portable .exe and the web build.
 
-## Puzzle Wizard
+## Submit Puzzle Ideas (the Puzzle Wizard)
 
 Players make their own puzzle at `wizard/?game=fantastical` or `wizard/?game=ninetimesnine`
-(the front page's **Puzzle Wizard** button asks which; also Menu > Puzzle Wizard and the
-NINETIMESNINE page's **Make a puzzle**).
+(the front page's **Submit Puzzle Ideas** button and card ask which; also Menu > Submit Puzzle
+Ideas and the NINETIMESNINE page). It replaced the old Share an idea box, whose code stays for
+links in older pages and emails (`?open=feedback`).
 
 - **Questions** for each game, with help, an example and "how this is used in your puzzle"
   for every entry: `web/js/wizard-fields.js` (also checks entries on the Worker and narrates

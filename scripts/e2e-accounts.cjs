@@ -201,8 +201,8 @@ function startAuth(signer) {
     await F.route('**/js/cloud-config.js', (r) => r.fulfill({ contentType: 'text/javascript', body: config.replace("learnUrl: ''", `learnUrl: 'http://localhost:${API_PORT}'`).replace("CLOUD_URL = ''", `CLOUD_URL = 'http://localhost:${API_PORT}'`) }));
     await F.goto(APP);
     await F.waitForSelector('#tier-choices input');
-    await F.click('#menu-btn');
-    await F.click('#app-menu [data-cmd=feedback]');
+    // The old ideas box is out of the menu (Submit Puzzle Ideas replaced it) but still opens from older links.
+    await F.evaluate(() => document.querySelector('#app-menu [data-cmd=feedback]').click());
     await F.waitForSelector('#dlg-feedback[open]');
     assert(await F.isVisible('#idea-form .fb-reply') && /^Email me an update at bobby@example\.com$/.test((await F.textContent('#idea-form .fb-reply')).trim()), 'a signed-in player is offered email updates at their address');
     assert(await F.isVisible('#idea-form .fb-talk'), 'a signed-in player can ask the team to reply in Messages');

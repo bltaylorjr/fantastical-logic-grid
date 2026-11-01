@@ -52,14 +52,15 @@
     <button role="menuitem" type="button" data-cmd="pack" hidden>Printable puzzle pack</button>
     <button role="menuitem" type="button" data-cmd="suggest" hidden>Suggest a character</button>
     <button role="menuitem" type="button" data-cmd="storyline" hidden>Suggest a storyline</button>
-    <button role="menuitem" type="button" data-cmd="wizard">Puzzle Wizard</button>
     <button role="menuitem" type="button" data-cmd="board" hidden>Scoreboard</button>
     <button role="menuitem" type="button" data-cmd="settings">Settings</button>
     <!-- Shared by every game of The Logic Grid (also on the front page). -->
     <div class="menu-group" role="separator" aria-label="The Logic Grid">The Logic Grid</div>
     <button role="menuitem" type="button" data-cmd="account" hidden>Account and sync</button>
     <button role="menuitem" type="button" data-cmd="messages" hidden>Messages<span class="count"></span></button>
-    <button role="menuitem" type="button" data-cmd="feedback" hidden>Share an idea</button>
+    <button role="menuitem" type="button" data-cmd="wizard">Submit Puzzle Ideas</button>
+    <!-- The old ideas box: replaced by Submit Puzzle Ideas (the Puzzle Wizard), kept for links in older pages and emails. -->
+    <button role="menuitem" type="button" data-cmd="feedback" hidden>Ideas box</button>
     <button role="menuitem" type="button" data-cmd="install" hidden>Install the app</button>
     <a role="menuitem" id="support-link" href="#" target="_blank" rel="noopener" hidden>Support the game</a>
     <button role="menuitem" type="button" data-cmd="site" hidden>Play on thelogicgrid.com</button>
@@ -355,7 +356,7 @@
         <label class="chip"><input type="radio" name="feel" value="right"> Just right</label>
         <label class="chip"><input type="radio" name="feel" value="hard"> Too hard</label>
       </fieldset>
-      <p class="help"><span id="feedback-thanks" role="status"></span> <button class="btn quiet small" type="button" id="feedback-idea">Share an idea</button></p>
+      <p class="help"><span id="feedback-thanks" role="status"></span> <button class="btn quiet small" type="button" id="feedback-idea">Submit Puzzle Ideas</button></p>
     </div>
     <p id="next-tip"></p>
     <div class="solved-actions">

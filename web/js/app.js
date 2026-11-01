@@ -1709,7 +1709,8 @@ $('#rating-clear').onclick = async () => {
   await saveRating({ rating: null });
   $('#feedback-thanks').textContent = 'Rating cleared.';
 };
-$('#feedback-idea').onclick = () => feedbackBox.open(openDialog, { kind: 'idea', themes: OPTIONS.themes });
+// Submit Puzzle Ideas (the Puzzle Wizard) replaced the Share an idea box.
+$('#feedback-idea').onclick = () => { location.href = 'wizard/?game=fantastical'; };
 
 // Streak, new badges and Share my result on the solved panel.
 async function renderSolvedExtras(save) {
@@ -2611,7 +2612,8 @@ function applyFeatures() {
   renderSocial();
   for (const el of $$('.needs-cloud')) el.hidden = !share.available() || (!!el.dataset.feature && !remote.feature(el.dataset.feature));
   $('#music-settings').hidden = !remote.feature('music');
-  $('[data-cmd=feedback]').hidden = !feedbackBox.available();
+  // Ideas now go through Submit Puzzle Ideas (the Puzzle Wizard); the old box stays out of the menu.
+  $('[data-cmd=feedback]').hidden = true;
   // The Suggest a storyline page (storyline/) sends to the same team as Share an idea.
   $('[data-cmd=storyline]').hidden = !feedbackBox.available();
   $('[data-cmd=mail]').hidden = isPortal || !puzzleMail.available();
@@ -2628,7 +2630,7 @@ function applyFeatures() {
   $('#home-btn').setAttribute('aria-label', `${pkg.on() ? 'The Logic Grid' : 'The Fantastical Logic Grid'}, home`);
   renderGameCards();
   $('[data-cmd=pack]').hidden = isPreview || !printPack.available();
-  $('#feedback-idea').hidden = !feedbackBox.available();
+  $('#feedback-idea').hidden = false;
   messages.configChanged();
   const support = remote.supportUrl();
   $('#support-link').hidden = !support;

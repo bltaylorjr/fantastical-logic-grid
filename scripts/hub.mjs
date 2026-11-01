@@ -217,13 +217,14 @@ const themeSelect = `<label class="theme">Look <select id="theme-pick">
 <option value="system">Match device</option><option value="light">Light</option><option value="dark">Dark</option><option value="contrast">High contrast</option>
 </select></label>`;
 
-// Things shared by every game. Account, Messages and Share an idea open in
-// the game page, where those windows live (web/js/app.js, ?open=...); Report
-// a Problem has its own page; Install and Support work right here (js/hub.js).
+// Things shared by every game. Account and Messages open in the game page,
+// where those windows live (web/js/app.js, ?open=...); Submit Puzzle Ideas is
+// the Puzzle Wizard (wizard/, which asks the game first); Report a Problem has
+// its own page; Install and Support work right here (js/hub.js).
 const APP_ITEMS = [
   ['a', 'fantastical/?open=account', 'Account and sync', 'Sign in or make a free account. Your saves, stats and settings follow you to every device and every game.'],
   ['a', 'fantastical/?open=messages', 'Messages and news', 'Notes from the team, and replies to what you sent.'],
-  ['a', 'fantastical/?open=feedback', 'Share an idea', 'Tell us what would make the games better.'],
+  ['a', 'wizard/', 'Submit Puzzle Ideas', 'Make your own puzzle for any game, step by step, and send it to the team.'],
   ['a', 'report/', 'Report a Problem', 'Something not right? Tell us, with a screenshot if you like.'],
 ];
 
@@ -288,7 +289,7 @@ ${themeSelect}
 <span class="eyebrow" data-design-text="heroEyebrow">Puzzle games</span>
 <h1 id="hero-title" data-design-text="heroTitle">Pick your puzzle.</h1>
 <p data-design-text="heroText">Two logic games, free to play in your browser. No guessing needed in either one — every puzzle can be solved by reasoning alone.</p>
-<p class="wiz-row"><a class="wiz-btn" href="wizard/" id="wizard-open" aria-haspopup="dialog"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 19 19 5M15 4l1 2 2 1-2 1-1 2-1-2-2-1 2-1zM6 3l.7 1.3L8 5l-1.3.7L6 7l-.7-1.3L4 5l1.3-.7z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> <span data-design-text="wizardButton">Puzzle Wizard: make your own puzzle</span></a></p>
+<p class="wiz-row"><a class="wiz-btn" href="wizard/" id="wizard-open" aria-haspopup="dialog"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 19 19 5M15 4l1 2 2 1-2 1-1 2-1-2-2-1 2-1zM6 3l.7 1.3L8 5l-1.3.7L6 7l-.7-1.3L4 5l1.3-.7z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> <span data-design-text="wizardButton">Submit Puzzle Ideas</span></a></p>
 </section>
 <dialog class="wiz-pick" id="wizard-pick" aria-labelledby="wizard-pick-h">
 <h2 id="wizard-pick-h">Which puzzle would you like to make?</h2>
@@ -311,7 +312,7 @@ ${card({ cls: 'ntn', art: ART_NINE, tag: 'Number puzzles', name: 'NINETIMESNINE'
 <h2 id="app-title" data-design-text="appTitle">One account for every game</h2>
 <p class="app-lead" data-design-text="appText">Sign in once and your saves, stats and settings stay in step in every game, on every device.</p>
 <div class="app-grid">
-${APP_ITEMS.map(([, href, name, text]) => `<a class="app-item" href="${href}"><b>${name}</b><span>${text}</span></a>`).join('\n')}
+${APP_ITEMS.map(([, href, name, text]) => `<a class="app-item" href="${href}"${href === 'wizard/' ? ' data-wizard aria-haspopup="dialog"' : ''}><b>${name}</b><span>${text}</span></a>`).join('\n')}
 <button class="app-item" type="button" id="install-app" hidden><b>Install the app</b><span>Every game on your home screen or desktop, and they work offline.</span></button>
 <a class="app-item" id="support-app" href="#" target="_blank" rel="noopener" hidden><b>Support The Logic Grid</b><span>Every game stays free. A tip helps make more. (Opens in a new tab.)</span></a>
 </div>
@@ -385,7 +386,7 @@ main.screen { padding-top: 24px; }
 <body>
 <header class="np-top">
 <a class="brand" href="../">${LOGO}<span>The Logic Grid</span></a>
-<nav aria-label="Games"><a class="btn quiet small" href="../">‹ All games</a><a class="btn small" href="../wizard/?game=ninetimesnine">Make a puzzle</a><a class="btn small" href="../fantastical/">The Fantastical Logic Grid</a></nav>
+<nav aria-label="Games"><a class="btn quiet small" href="../">‹ All games</a><a class="btn small" href="../wizard/?game=ninetimesnine">Submit Puzzle Ideas</a><a class="btn small" href="../fantastical/">The Fantastical Logic Grid</a></nav>
 </header>
 <main id="screen-np" class="screen" tabindex="-1">
 <h1 class="sr-only">NINETIMESNINE</h1>
@@ -393,7 +394,7 @@ main.screen { padding-top: 24px; }
 <noscript><div class="card"><p><strong>NINETIMESNINE</strong> is a free number puzzle game. Turn on JavaScript to play.</p></div></noscript>
 </main>
 <footer class="np-foot">
-<nav aria-label="The Logic Grid"><a href="../fantastical/?open=account">Account and sync</a> · <a href="../fantastical/?open=feedback">Share an idea</a> · <a href="../report/">Report a Problem</a> · <a href="../privacy/">Privacy</a> · <a href="../terms/">Terms of use</a></nav>
+<nav aria-label="The Logic Grid"><a href="../fantastical/?open=account">Account and sync</a> · <a href="../wizard/?game=ninetimesnine">Submit Puzzle Ideas</a> · <a href="../report/">Report a Problem</a> · <a href="../privacy/">Privacy</a> · <a href="../terms/">Terms of use</a></nav>
 <p>${esc(copyright)}</p>
 </footer>
 </body>

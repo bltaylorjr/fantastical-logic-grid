@@ -32,7 +32,13 @@ const ignorable = (t) => /fonts\/|Failed to decode downloaded font|OTS parsing|m
     await p.goto(`${BASE}/`);
     await p.click('#wizard-open');
     await p.waitForSelector('#wizard-pick[open]');
-    assert(await p.locator('#wizard-pick a.wiz-game').count() === 2, 'the Puzzle Wizard button asks which puzzle to make');
+    assert(/Submit Puzzle Ideas/.test(await p.textContent('#wizard-open')), 'the front page button is called Submit Puzzle Ideas');
+    assert(await p.locator('#wizard-pick a.wiz-game').count() === 2, 'the Submit Puzzle Ideas button asks which puzzle to make');
+    await p.keyboard.press('Escape');
+    assert(!/Share an idea/.test(await p.textContent('body')), 'the front page no longer offers Share an idea');
+    await p.click('.app-item[data-wizard]');
+    await p.waitForSelector('#wizard-pick[open]');
+    assert(true, 'Submit Puzzle Ideas in the shared section opens the same choice');
     await p.click('#wizard-pick a[href$="fantastical"]');
     await p.waitForSelector('#w-form .w-step');
     assert(/The Fantastical Logic Grid/.test(await p.textContent('#w-h1')), 'choosing a puzzle opens its own wizard');
@@ -88,6 +94,7 @@ const ignorable = (t) => /fonts\/|Failed to decode downloaded font|OTS parsing|m
     await p.waitForFunction(() => /The Midnight Gala/.test(document.querySelector('#saved-section')?.textContent || ''), null, { timeout: 10000 });
     assert(true, 'the wizard puzzle is listed in the game\'s Saved puzzles');
     await p.click('#menu-btn');
+    assert(await p.locator('#app-menu [data-cmd=feedback]').isHidden() && /Submit Puzzle Ideas/.test(await p.textContent('#app-menu [data-cmd=wizard]')), 'the menu has Submit Puzzle Ideas instead of Share an idea');
     await p.click('[data-cmd=wizard]');
     await p.waitForURL(/wizard\/\?game=fantastical/);
     assert(true, 'the game menu opens the Puzzle Wizard');

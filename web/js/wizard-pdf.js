@@ -6,7 +6,7 @@ import { createPdf, wrapText, textWidth } from './pdf-lite.js';
 const M = 48; // page margin, points
 
 function footer(doc, credit) {
-  const words = `${credit ? `Puzzle by ${credit}. ` : ''}Made with the Puzzle Wizard at thelogicgrid.com`;
+  const words = `${credit ? `Puzzle by ${credit}. ` : ''}Made with Submit Puzzle Ideas at thelogicgrid.com`;
   doc.text(M, doc.height - M + 14, words, { size: 8, gray: 0.35 });
 }
 

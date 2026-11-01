@@ -29,7 +29,7 @@ const DEFAULT_TEXT = {
   ntnTag: 'Number puzzles',
   ntnText: 'Fill the grid so every row, column and box holds each number once. Start small at 4×4 or go for the full 9×9.',
   ntnButton: 'Play NINETIMESNINE',
-  wizardButton: 'Puzzle Wizard: make your own puzzle',
+  wizardButton: 'Submit Puzzle Ideas',
   appTitle: 'One account for every game',
   appText: 'Sign in once and your saves, stats and settings stay in step in every game, on every device.',
   footerNote: 'Questions? support@thelogicgrid.com',
@@ -68,7 +68,7 @@ export const CATEGORIES = [
     text('heroEyebrow', 'Small label text', 40),
     text('heroTitle', 'Heading', 60),
     text('heroText', 'Introduction', 220, { long: true }),
-    text('wizardButton', 'Puzzle Wizard button', 50),
+    text('wizardButton', 'Submit Puzzle Ideas button', 50),
   ] },
   { id: 'cards', name: 'Front page: game cards', page: 'hub', help: 'The two game cards: order, layout and words.', options: [
     select('cardOrder', 'Order', [pick('flg', 'The Fantastical Logic Grid first'), pick('ntn', 'NINETIMESNINE first')], 'flg'),

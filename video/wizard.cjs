@@ -116,12 +116,12 @@ async function recordWizard(browser, W, game, fill) {
     return [`${f.label}${f.req ? ', which is required' : ''}. ${f.help}`, f.use];
   };
 
-  card(`wiz${game}`, [`The Puzzle Wizard helps you make your own ${g.name} puzzle, step by step.`, 'This video shows every entry, what it is for, and how it fits into the puzzle the wizard builds.']);
+  card(`wiz${game}`, [`Submit Puzzle Ideas helps you make your own ${g.name} puzzle, step by step, and send it to the team.`, 'This video shows every entry, what it is for, and how it fits into the puzzle the wizard builds.']);
 
   await p.goto(`${SITE}/`);
   await p.waitForSelector('#wizard-open');
   await hl('#wizard-open', 8);
-  await scene('button', ['On thelogicgrid.com, choose Puzzle Wizard.']);
+  await scene('button', ['On thelogicgrid.com, choose Submit Puzzle Ideas.']);
   await p.click('#wizard-open');
   await p.waitForSelector('#wizard-pick[open]');
   await hl(`#wizard-pick a[href$="${game}"]`, 6);
@@ -240,7 +240,7 @@ async function recordIntro(browser) {
   await scene('ntn', ['NINETIMESNINE. Number puzzles, with five ways to play.']);
   await p.evaluate(() => window.scrollTo(0, 0));
   await hl('#wizard-open', 8);
-  await scene('wizard', ['New: the Puzzle Wizard. Make your own puzzle for either game, step by step.', 'It checks your puzzle has exactly one answer, gives you a PDF to print, and saves it to your Saved puzzles.']);
+  await scene('wizard', ['New: Submit Puzzle Ideas. Make your own puzzle for either game, step by step.', 'It checks your puzzle has exactly one answer, gives you a PDF to print, and saves it to your Saved puzzles.']);
   await p.click('#wizard-open');
   await p.waitForSelector('#wizard-pick[open]');
   await hl('#wizard-pick', 6);

@@ -343,8 +343,8 @@ async function start() {
   $('#w-main').hidden = false;
   if (MODE === 'check') $('#w-back').href = `../?game=${game}`;
   const g = GAMES[game];
-  $('#w-h1').textContent = MODE === 'check' ? `Check your puzzle: ${g.name}` : `Puzzle Wizard: ${g.name}`;
-  document.title = `${MODE === 'check' ? 'Check your puzzle' : 'Puzzle Wizard'} · ${g.name}`;
+  $('#w-h1').textContent = MODE === 'check' ? `Check your puzzle: ${g.name}` : `Submit Puzzle Ideas: ${g.name}`;
+  document.title = `${MODE === 'check' ? 'Check your puzzle' : 'Submit Puzzle Ideas'} · ${g.name}`;
   $('#w-blurb').textContent = g.blurb;
   const d = loadDraft();
   entry = d ? { ...blankEntry(game), ...d.entry } : blankEntry(game);
