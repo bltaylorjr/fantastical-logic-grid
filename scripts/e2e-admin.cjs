@@ -637,6 +637,8 @@ const SHOTS = process.env.SHOTS;
     const [rp] = await Promise.all([p.context().waitForEvent('page'), p.click('#report-problem')]);
     watch(rp);
     await rp.waitForSelector('#rp-form');
+    // The form is in the page's markup; wait for its script to fill in what the report is about.
+    await rp.waitForFunction(() => document.querySelector('#rp-about').textContent.trim() !== '');
     assert(/[?&]tab=1/.test(rp.url()) && /\/report\//.test(rp.url()), 'Report a Problem opens its own page in a new tab');
     assert(await rp.isChecked('input[name=kind][value=page]'), 'away from a puzzle it starts as a Web Page Issue');
     assert(await rp.getAttribute('#rp-text', 'maxlength') === '1000', 'the box holds 1,000 characters');
