@@ -85,11 +85,12 @@
     loadShared();
     // Submit Puzzle Ideas (the Puzzle Wizard): the first click asks which puzzle to make (the link
     // still opens the wizard's own chooser where dialogs are not supported).
-    var wizOpen = document.getElementById('wizard-open');
+    // The Submit Puzzle Ideas card in the shared section opens it.
     var wizPick = document.getElementById('wizard-pick');
-    if (wizOpen && wizPick && typeof wizPick.showModal === 'function') {
-      var opener = wizOpen;
-      Array.prototype.forEach.call(document.querySelectorAll('#wizard-open, [data-wizard]'), function (a) {
+    var wizCards = document.querySelectorAll('[data-wizard]');
+    if (wizCards.length && wizPick && typeof wizPick.showModal === 'function') {
+      var opener = wizCards[0];
+      Array.prototype.forEach.call(wizCards, function (a) {
         a.addEventListener('click', function (e) { e.preventDefault(); opener = a; wizPick.showModal(); var first = wizPick.querySelector('.wiz-game'); if (first) first.focus(); });
       });
       document.getElementById('wizard-cancel').addEventListener('click', function () { wizPick.close(); opener.focus(); });

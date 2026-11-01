@@ -86,7 +86,7 @@ sentence plays while the rest is made; the story opening is pre-made when a puzz
 ## Submit Puzzle Ideas (the Puzzle Wizard)
 
 Players make their own puzzle at `wizard/?game=fantastical` or `wizard/?game=ninetimesnine`
-(the front page's **Submit Puzzle Ideas** button and card ask which; also Menu > Submit Puzzle
+(the front page's **Submit Puzzle Ideas** card asks which; also Menu > Submit Puzzle
 Ideas and the NINETIMESNINE page). It replaced the old Share an idea box, whose code stays for
 links in older pages and emails (`?open=feedback`).
 

@@ -30,15 +30,12 @@ const ignorable = (t) => /fonts\/|Failed to decode downloaded font|OTS parsing|m
 
     // ---- The front page: the first click asks which puzzle.
     await p.goto(`${BASE}/`);
-    await p.click('#wizard-open');
-    await p.waitForSelector('#wizard-pick[open]');
-    assert(/Submit Puzzle Ideas/.test(await p.textContent('#wizard-open')), 'the front page button is called Submit Puzzle Ideas');
-    assert(await p.locator('#wizard-pick a.wiz-game').count() === 2, 'the Submit Puzzle Ideas button asks which puzzle to make');
-    await p.keyboard.press('Escape');
+    assert(await p.locator('.hero a, .hero button').count() === 0, 'the heading has no Submit Puzzle Ideas button (the card below has it)');
     assert(!/Share an idea/.test(await p.textContent('body')), 'the front page no longer offers Share an idea');
+    assert(/Submit Puzzle Ideas/.test(await p.textContent('.app-item[data-wizard]')), 'the shared section has a Submit Puzzle Ideas card');
     await p.click('.app-item[data-wizard]');
     await p.waitForSelector('#wizard-pick[open]');
-    assert(true, 'Submit Puzzle Ideas in the shared section opens the same choice');
+    assert(await p.locator('#wizard-pick a.wiz-game').count() === 2, 'the Submit Puzzle Ideas card asks which puzzle to make');
     await p.click('#wizard-pick a[href$="fantastical"]');
     await p.waitForSelector('#w-form .w-step');
     assert(/The Fantastical Logic Grid/.test(await p.textContent('#w-h1')), 'choosing a puzzle opens its own wizard');
