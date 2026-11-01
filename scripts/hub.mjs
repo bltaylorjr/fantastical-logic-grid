@@ -22,6 +22,9 @@ const json = (o) => JSON.stringify(o).replace(/</g, '\\u003c');
 const SITE_NAME = 'The Logic Grid';
 
 export function writeGamePage(site, html) {
+  // Built already (the build ran on this folder before, as test-picks does):
+  // the game is in fantastical/ and index.html is the front page, rewritten below.
+  if (html.includes('js/hub.js') && readFileSync(join(site, 'fantastical', 'index.html'), 'utf8').includes('<base href="../">')) return;
   let page = html.replace('<meta charset="utf-8">', '<meta charset="utf-8">\n<base href="../">');
   if (page === html) throw new Error('hub.mjs: the game page has no <meta charset> to put <base> after');
   // In-page links (#grid-region, placeholders) must stay on this page, not the base.
