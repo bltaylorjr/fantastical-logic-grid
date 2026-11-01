@@ -150,16 +150,18 @@ async function askCopy(req, env) {
 // ---------------------------------------------------------------- editing
 // A new edit link for an entry (the key is kept hashed; the link only goes
 // into the email). Replaces any earlier link.
-async function editLink(env, id, now = Date.now()) {
+// invite: the team asked for changes, so a decided entry opens again; the
+// confirmation's link only works while the entry waits for review.
+async function editLink(env, id, now = Date.now(), { invite = false } = {}) {
   const key = randomKey();
-  await env.DB.prepare('UPDATE story_submissions SET edit_key = ?1, edit_until = ?2 WHERE id = ?3').bind(await sha256(key), now + EDIT_DAYS * DAY, id).run();
+  await env.DB.prepare(`UPDATE story_submissions SET edit_key = ?1, edit_until = ?2${invite ? ', edit_invited = 1' : ''} WHERE id = ?3`).bind(await sha256(key), now + EDIT_DAYS * DAY, id).run();
   return `${SITE}/storyline/?edit=${id}.${key}`;
 }
 
 const STATUS_WORDS = { new: 'Waiting for review', approved: 'Approved', declined: 'Not used', closed: 'Closed' };
 
 // May the author edit it now? While it is new, or when the team asked (an edit link still good).
-const editable = (row, now = Date.now()) => row.status === 'new' || (row.edit_until || 0) > now;
+const editable = (row, now = Date.now()) => row.status === 'new' || (!!row.edit_invited && (row.edit_until || 0) > now);
 
 // Who is asking about an entry: its signed-in author, or someone with its edit link.
 async function authorOf(req, env, id, key) {
@@ -180,7 +182,7 @@ export async function saveVersion(env, row, form, by, now = Date.now(), { resubm
     env.DB.prepare('INSERT INTO story_submission_versions (submission_id, form, puzzle, replaced_by, created_at) VALUES (?1, ?2, ?3, ?4, ?5)').bind(row.id, old, row.puzzle || null, by, now),
     env.DB.prepare(`UPDATE story_submissions SET current = ?1, text = ?2, title = ?3, pitch = ?4, credit = ?5, theme = COALESCE(?6, theme), edited_at = ?7, edited_by = ?8,
         polished = NULL, ip_verdict = NULL, ip_scan = NULL, ip_scan_at = NULL, puzzle = NULL, puzzle_at = NULL
-        ${resubmit ? ", status = 'new', decided_at = NULL, decided_by = NULL, resubmitted_at = ?7" : ''} WHERE id = ?9`)
+        ${resubmit ? ", status = 'new', decided_at = NULL, decided_by = NULL, resubmitted_at = ?7, edit_invited = 0" : ''} WHERE id = ?9`)
       .bind(JSON.stringify(form), formText(form, nameOf), form.title || form.idea || row.title, form.pitch || null, form.credit || null, form.theme || null, now, by, row.id),
   ];
   await env.DB.batch(stmts);
@@ -206,12 +208,12 @@ function checkEdit(row, body, { team = false } = {}) {
 async function mine(req, env) {
   const user = await signedInPlayer(req, env);
   if (!user) return json(req, env, { error: 'signed_out', message: 'Sign in to see your entries.' }, 401);
-  const { results } = await env.DB.prepare('SELECT id, kind, title, status, created_at, edit_until, resubmitted_at, current, form FROM story_submissions WHERE user_id = ?1 ORDER BY created_at DESC LIMIT 50').bind(user.uid).all();
+  const { results } = await env.DB.prepare('SELECT id, kind, title, status, created_at, edit_until, edit_invited, resubmitted_at, current, form FROM story_submissions WHERE user_id = ?1 ORDER BY created_at DESC LIMIT 50').bind(user.uid).all();
   const now = Date.now();
   return json(req, env, {
     entries: results.map((r) => ({
       id: r.id, kind: r.kind, kindName: KINDS[r.kind], title: r.title || formOf(r).idea || '', status: r.status, statusName: STATUS_WORDS[r.status] || r.status,
-      createdAt: r.created_at, resubmittedAt: r.resubmitted_at, editable: editable(r, now), invited: r.status !== 'new' && (r.edit_until || 0) > now,
+      createdAt: r.created_at, resubmittedAt: r.resubmitted_at, editable: editable(r, now), invited: r.status !== 'new' && !!r.edit_invited && (r.edit_until || 0) > now,
     })),
   });
 }
@@ -374,7 +376,7 @@ export function storySubmissionRoutes(Refusal) {
           edited: !!s.current, editedAt: s.edited_at, editedBy: s.edited_by, resubmittedAt: s.resubmitted_at,
           originalCopy: s.current ? formCopy(s.original, nameOf) : null,
           versions: (await env.DB.prepare('SELECT replaced_by AS by, created_at AS at, puzzle IS NOT NULL AS hadPuzzle FROM story_submission_versions WHERE submission_id = ?1 ORDER BY created_at').bind(s.id).all()).results,
-          editInvite: (s.edit_until || 0) > Date.now() && s.status !== 'new' ? s.edit_until : null,
+          editInvite: s.edit_invited && (s.edit_until || 0) > Date.now() && s.status !== 'new' ? s.edit_until : null,
           choices: { themes: THEMES.map((t) => [t.id, t.name]), tones: TONES, difficulties: DIFFICULTIES, orders: ORDERS, roles: ROLES, genders: GENDERS,
             rewards: Object.fromEntries(Object.entries(REWARDS).map(([k, r]) => [k, r])), limits: LIMITS, maxCharacters: MAX_CHARACTERS, maxCategories: MAX_CATEGORIES },
         },
@@ -409,7 +411,7 @@ export function storySubmissionRoutes(Refusal) {
       if (!row) throw new Refusal(404, 'gone', 'That entry is gone.');
       if (!row.email) throw new Refusal(400, 'no_email', 'There is no address for the author, so they cannot be asked by email.');
       const note = String(body.note || '').replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, '').trim().slice(0, 1000);
-      if (!(await queueSubmissionMail(env, { kind: 'story_edit_invite', submissionId: row.id, email: row.email, userId: row.user_id, now, cap: false, link: await editLink(env, row.id, now), note: note || null }))) {
+      if (!(await queueSubmissionMail(env, { kind: 'story_edit_invite', submissionId: row.id, email: row.email, userId: row.user_id, now, cap: false, link: await editLink(env, row.id, now, { invite: true }), note: note || null }))) {
         throw new Refusal(429, 'limit', 'Emails are switched off (Settings and switches > Ideas and problems).');
       }
       return { body: { ok: true }, target: id, detail: { note: !!note } };

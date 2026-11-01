@@ -6,12 +6,14 @@
 --   edited_at/by   the last edit and who made it (an admin, or 'author')
 --   resubmitted_at when the author last edited and resubmitted it
 --   edit_key       a hashed key for the author's edit link (emailed), until edit_until
+--   edit_invited   1 when the team asked the author to edit (a decided entry opens again)
 ALTER TABLE story_submissions ADD COLUMN current TEXT;
 ALTER TABLE story_submissions ADD COLUMN edited_at INTEGER;
 ALTER TABLE story_submissions ADD COLUMN edited_by TEXT;
 ALTER TABLE story_submissions ADD COLUMN resubmitted_at INTEGER;
 ALTER TABLE story_submissions ADD COLUMN edit_key TEXT;
 ALTER TABLE story_submissions ADD COLUMN edit_until INTEGER;
+ALTER TABLE story_submissions ADD COLUMN edit_invited INTEGER NOT NULL DEFAULT 0;
 
 -- One row per replaced version: the form as it was, and the puzzle built from it.
 CREATE TABLE IF NOT EXISTS story_submission_versions (
