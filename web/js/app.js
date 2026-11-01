@@ -466,6 +466,7 @@ function updatePreview() {
   if (k >= 6 && n >= 7) $('#preview').textContent += ' Puzzles this big can take up to 20 seconds to write.';
   // A player-written story plays at the level and size its writer chose.
   if (setup.theme === 'stories') $('#preview').textContent = 'Player Stories play at the level and size their writer chose, with their own cast. Each story lists both under its name.';
+  buildAheadSoon();
 }
 
 function gatherOptions() {
@@ -506,6 +507,27 @@ async function rememberStory(id) {
 async function makePuzzle(override = null) {
   const options = override ? { ...override } : gatherOptions();
   if (!override) store.saveSetupChoices({ tier: setup.tier, theme: setup.theme, topic: setup.topic, size: setup.size, custom: currentSize() });
+  const key = JSON.stringify(options);
+  let made = null;
+  // A puzzle built ahead for exactly these choices is used straight away,
+  // unless its story was played in the meantime.
+  if (ahead && ahead.key === key) {
+    const job = ahead.job;
+    ahead = null;
+    made = await job;
+    if (made && new Set(await store.getMeta('usedStories', [])).has(storyIdOf(made.puzzle))) made = null;
+  }
+  if (!made) made = await buildPuzzle({ ...options }, engine.generate);
+  characters.attach(made.puzzle, made.picked);
+  await rememberStory(storyIdOf(made.puzzle));
+  // Start on the next one now, so "New puzzle" is ready the moment it's asked for.
+  buildAhead(options);
+  return made.puzzle;
+}
+
+// Builds one puzzle for these choices with a story this player has never had.
+// Returns { puzzle, picked } (picked: the game's own characters to attach).
+async function buildPuzzle(options, generate) {
   const used = await store.getMeta('usedStories', []);
   const usedSet = new Set(used);
   // Learning only picks between puzzles the engine has fully checked.
@@ -531,13 +553,32 @@ async function makePuzzle(override = null) {
   let puzzle = null;
   // The engine skips used stories itself; the loop is a safety net.
   for (let i = 0; i < 4 && !puzzle; i++) {
-    const p = await engine.generate({ ...tuned, ...options, usedStories: used });
+    const p = await generate({ ...tuned, ...options, usedStories: used });
     if (!usedSet.has(storyIdOf(p))) puzzle = p;
   }
   if (!puzzle) throw new Error('Every story we tried has already been used. Try another theme.');
-  characters.attach(puzzle, picked);
-  await rememberStory(storyIdOf(puzzle));
-  return puzzle;
+  return { puzzle, picked };
+}
+
+// Building ahead: the engine keeps one fresh, fully checked puzzle ready for
+// the player's current choices. It runs in its own background worker
+// (engine.prepare), so hints never wait behind it. Skipped when the browser
+// asks to save data; any problem just means the next puzzle is built on demand.
+let ahead = null; // { key, job: Promise<{ puzzle, picked } | null> }
+function buildAhead(options) {
+  const key = JSON.stringify(options);
+  // A fixed seed always gives the same puzzle, so there is nothing new to build ahead.
+  if (options.seed != null || (ahead && ahead.key === key)) return;
+  if (typeof navigator !== 'undefined' && navigator.connection && navigator.connection.saveData) return;
+  const generate = engine.prepare || engine.generate;
+  ahead = { key, job: buildPuzzle({ ...options }, generate).catch(() => null) };
+}
+// While the New puzzle screen is open, build ahead for what is chosen there
+// once the player pauses.
+let aheadTimer = 0;
+function buildAheadSoon() {
+  clearTimeout(aheadTimer);
+  aheadTimer = setTimeout(() => { if (!$('#screen-home').hidden && !generating) buildAhead(gatherOptions()); }, 1500);
 }
 
 function setupSummary() {

@@ -12,5 +12,11 @@ const engine = engineLink(new URL('../worker.js', import.meta.url), {
   onError: (err) => report(err, 'engine'),
 });
 
+// Building ahead (the next puzzle, while the player plays) uses its own
+// worker, so a hint is never stuck behind it. No page fallback: building
+// ahead on the page would slow the game, so without workers it simply fails.
+const ahead = engineLink(new URL('../worker.js', import.meta.url));
+
 export const generate = (options) => engine.call('generate', options);
+export const prepare = (options) => ahead.call('generate', options);
 export const hint = (puzzle, marks) => engine.call('hint', { puzzle, marks });
