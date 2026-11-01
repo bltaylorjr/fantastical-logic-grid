@@ -282,6 +282,7 @@ Measured in Node on the build server's CPU (same seeds, old solver vs new):
 | --- | --- |
 | Basic to Hard | about 2x |
 | Expert and Quantum Physicist | about 4x |
+| Theoretical Physicist | about 5x (seconds instead of tens of seconds) |
 
 ## Shared engine core (any game)
 
