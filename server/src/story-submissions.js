@@ -22,6 +22,7 @@
 //   POST /admin/v1/story-submissions/:id/decline  decline; the author gets a thank-you if we have their address
 //   POST /admin/v1/story-submissions/:id/email   { to } email a copy of the entry (and its puzzle) to any address
 //   POST /admin/v1/story-submissions/:id/delete
+//   POST /admin/v1/story-submissions/:id/build    build an approved storyline's puzzle again (after adding lists to the corrected clues)
 //   POST /admin/v1/story-submissions/:id/scan     trademark and copyright scan (ip-scan.js)
 //   POST /admin/v1/story-submissions/scan-new     scan the next few new entries not scanned yet
 //
@@ -35,6 +36,7 @@ import { verifyIdToken } from './auth.js';
 import { themeName } from './feedback.js';
 import { heldStoryline, approveStoryline, declineStoryline, dropUpdate } from './replies.js';
 import { scanEntry } from './ip-scan.js';
+import { readStoryline, readSubmission } from '../../admin/storyline-parse.js';
 import { THEMES } from '../../engine/src/themes.js';
 import { checkSubmission, formCopy, formText, KINDS, CONSENT_TEXT } from '../../web/js/storyline-fields.js';
 
@@ -149,6 +151,14 @@ export function polishable(form) {
   for (const k of POLISH_FIELDS) if (String(form[k] || '').trim()) out[k] = form[k];
   if (Array.isArray(form.characters)) out.traits = form.characters.map((c) => c.trait || '');
   return out;
+}
+
+// True when the "corrected" words are just the author's own (nothing was fixed).
+export function sameAsOriginal(form, value) {
+  const want = polishable(form);
+  return Object.keys(want).every((k) => (k === 'traits'
+    ? (Array.isArray(value?.traits) ? value.traits : []).every((t, i) => String(t ?? '').trim() === String(want.traits[i] ?? '').trim())
+    : String(value?.[k] ?? '').trim() === String(want[k] ?? '').trim()));
 }
 
 // Keeps only the corrected fields the form has, as plain text of sensible length.
@@ -271,7 +281,7 @@ export function storySubmissionRoutes(Refusal) {
       const s = await load(env, id);
       if (s.status === 'approved') throw new Refusal(409, 'already', 'This entry is already approved.');
       let polished = s.polished;
-      if (body.polished) polished = cleanPolished(s.form, body.polished);
+      if (body.polished && !sameAsOriginal(s.form, body.polished)) polished = cleanPolished(s.form, body.polished);
       // The puzzle uses corrected words: fixed now if nobody has yet (the original stays as sent).
       if (!polished && s.kind === 'storyline') {
         try { const r = await polishWithAi(env, (await getSettings(env)).story_model, s.form); if (r.polished) polished = r.polished; } catch (e) { console.error(e); }
@@ -293,6 +303,28 @@ export function storySubmissionRoutes(Refusal) {
         emailed = (await queueSubmissionMail(env, { kind: 'submission_approved', submissionId: s.id, email: s.email, userId: s.user_id, now, cap: false })) ? 1 : 0;
       }
       return { body: { ok: true, emailed }, target: id, detail: { kind: s.kind, emailed } };
+    }],
+    // An approved storyline that has no puzzle yet (its clues had no lists the
+    // first time): build it again from the corrected words. The author gets
+    // "Your storyline puzzle is ready" with the PDF (noreply@), and a signed-in
+    // player finds it in Saved puzzles.
+    ['POST', /^story-submissions\/(\d+)\/build$/, 'moderator', 'story-submissions.build', async ({ env, params: [id], body, now }) => {
+      const s = await load(env, id);
+      if (s.kind !== 'storyline' || s.status !== 'approved') throw new Refusal(400, 'not_approved', 'Only an approved storyline can have its puzzle built.');
+      if (s.puzzle) throw new Refusal(409, 'already', 'This storyline already has its puzzle.');
+      let polished = s.polished;
+      if (body.polished && !sameAsOriginal(s.form, body.polished)) {
+        polished = cleanPolished(s.form, body.polished);
+        await env.DB.prepare('UPDATE story_submissions SET polished = ?1 WHERE id = ?2').bind(JSON.stringify(polished), s.id).run();
+      }
+      // Only when the game can read a grid from it, so the author is not told about a puzzle that never comes.
+      const read = s.form.idea ? readStoryline(polished?.idea || s.form.idea, nameOf(s.theme)) : readSubmission(s.form, polished, nameOf(s.theme));
+      if (!read.def) throw new Refusal(400, 'no_lists', `No puzzle can be built from it yet: ${read.reason}`);
+      const busy = await env.DB.prepare("SELECT COUNT(*) AS n FROM feedback_replies WHERE submission_id = ?1 AND kind IN ('story_approved', 'story_build', 'story_puzzle') AND status IN ('waiting', 'sending')").bind(s.id).first();
+      if (busy.n) throw new Refusal(409, 'waiting', 'The puzzle is already waiting to be built. It goes out within about 15 minutes.');
+      const kind = s.email ? 'story_puzzle' : 'story_build';
+      await queueSubmissionMail(env, { kind, submissionId: s.id, email: s.email, userId: s.user_id, now, cap: false });
+      return { body: { ok: true, emailed: kind === 'story_puzzle' ? 1 : 0 }, target: id, detail: { kind } };
     }],
     ['POST', /^story-submissions\/(\d+)\/decline$/, 'moderator', 'story-submissions.decline', async ({ env, params: [id], who, now }) => {
       const s = await load(env, id);

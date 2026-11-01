@@ -58,7 +58,7 @@ ONE_WAY = ('This is an automatic message from a no-reply address, so replies are
            'To answer the team, open the game and choose Menu > Messages.')
 # Sent from MAIL_NOREPLY; everything else from MAIL_FROM (support@). A
 # storyline submission's confirmation, approval and decline thank-you are one-way.
-ONE_WAY_KINDS = {'message', 'story_received', 'story_approved', 'submission_approved', 'story_declined'}
+ONE_WAY_KINDS = {'message', 'story_received', 'story_approved', 'submission_approved', 'story_declined', 'story_puzzle'}
 STORY_ONE_WAY = ('This is an automatic message from a no-reply address, so replies are not read. '
                  f'Questions? Email {MAIL_FROM}.')
 TEAM_COPY = 'Sent by The Fantastical Logic Grid team. Questions? Just reply to this email.'
@@ -182,6 +182,19 @@ NOTES = {
             f'Here is a copy of a {entry_words(r)} sent to The Fantastical Logic Grid, as it was submitted.',
             ('form', 'The submission', (r.get('submission') or {}).get('copy')),
             'The first puzzle built from it is attached as a PDF, with its answer key on the last page.' if r.get('_files') else '',
+            SIGN_OFF,
+        ],
+    },
+    'story_puzzle': {
+        'subject': 'Your storyline puzzle is ready',
+        'blocks': lambda r: [
+            'Hello, puzzler!',
+            'Good news: the first puzzle built from your approved storyline is ready.',
+            ('quote', 'Your storyline', (r.get('submission') or {}).get('title')),
+            'It is attached as a PDF, with its answer key on the last page, so you can print it and solve it on paper.' if r.get('_files') else '',
+            ('The same puzzle is waiting in your game, ready to play: sign in with this email address and open Saved puzzles. '
+             'It is also in Menu > Messages > Puzzles for you for 30 days.') if r.get('stored') else '',
+            'Thank you for contributing to the game\'s stories!',
             SIGN_OFF,
         ],
     },
@@ -327,7 +340,7 @@ def build_puzzle(r):
     store it for the player (POST /admin/v1/replies/puzzle) and keep it for the
     PDF. If the storyline has no lists the game can read, or anything fails,
     the email still goes, without a puzzle."""
-    if r.get('kind') not in ('story_approved', 'story_build'):
+    if r.get('kind') not in ('story_approved', 'story_build', 'story_puzzle'):
         return
     if isinstance(r.get('puzzle'), dict):
         if r.get('storeSaved'):
@@ -337,7 +350,7 @@ def build_puzzle(r):
             except (urllib.error.HTTPError, urllib.error.URLError):
                 r['stored'] = False
         else:
-            r['stored'] = r.get('kind') == 'story_approved' and 'puzzleExpiresAt' in r  # built and stored on an earlier try
+            r['stored'] = r.get('kind') in ('story_approved', 'story_puzzle') and 'puzzleExpiresAt' in r  # built and stored on an earlier try
         return
     build = r.get('build')
     sub = r.get('submission') or {}
@@ -371,7 +384,7 @@ def build_puzzle(r):
 def attachments(r):
     """The PDF for an approved storyline (puzzle and answer key), or none. If it
     cannot be built, the email still goes; the puzzle is in the game anyway."""
-    if r.get('kind') not in ('story_approved', 'submission_copy') or not isinstance(r.get('puzzle'), dict):
+    if r.get('kind') not in ('story_approved', 'story_puzzle', 'submission_copy') or not isinstance(r.get('puzzle'), dict):
         return []
     try:
         ensure_printer()
