@@ -150,17 +150,22 @@ NOTES = {
         ],
     },
     'story_received': {
-        'subject': lambda r: f'We received your {entry_words(r)}',
+        'subject': lambda r: f'We received your {"updated " if r.get("note") == "resubmitted" else ""}{entry_words(r)}',
         'blocks': lambda r: [
             'Hello, author!',
-            f'Thank you for sending your {entry_words(r)} to The Logic Grid. It has been saved, '
-            'and the team reads every entry.',
+            (f'Thank you for updating your {entry_words(r)}. Your changes have been saved, and it is back with the team for review.'
+             if r.get('note') == 'resubmitted' else
+             f'Thank you for sending your {entry_words(r)} to The Logic Grid. It has been saved, '
+             'and the team reads every entry.'),
             ('We will email you if it is approved. An approved storyline comes back to you as a finished logic puzzle '
              '(a PDF with its answer key), and it waits in your game\'s Saved puzzles too when you are signed in.')
             if entry_words(r) == 'storyline' else ('Your puzzle is already in your Saved puzzles on the device you made it on. '
             'We will email you if the team publishes it in the game.') if entry_words(r) == 'puzzle' else 'We will email you if it is approved.',
             'Here is a copy of what you sent:',
             entry_form(r),
+            ('link', 'Edit or update my entry', r.get('link')),
+            'Spotted something to change? The button opens your entry so you can edit and resubmit it while the team reviews it '
+            '(the link works for 30 days). Signed in, you can also find it on the Suggest a storyline page.' if r.get('link') else '',
             'Thank you for contributing!',
             SIGN_OFF,
         ],
@@ -183,6 +188,20 @@ NOTES = {
             f'Here is a copy of a {entry_words(r)} sent to The Fantastical Logic Grid, as it was submitted.',
             ('form', 'The submission', (r.get('submission') or {}).get('copy')),
             'The first puzzle built from it is attached as a PDF, with its answer key on the last page.' if r.get('_files') else '',
+            SIGN_OFF,
+        ],
+    },
+    'story_edit_invite': {
+        'subject': lambda r: f'Please update your {entry_words(r)}',
+        'blocks': lambda r: [
+            'Hello, author!',
+            f'Thank you for your {entry_words(r)} for The Fantastical Logic Grid. The team would like you to make a few changes '
+            'and send it again.',
+            ('quote', 'A note from the team', r.get('note')),
+            entry_form(r),
+            ('link', 'Edit and resubmit my entry', r.get('link')),
+            'The button opens your entry with everything you wrote, ready to change. The link works for 30 days. '
+            'Signed in, you can also find it on the Suggest a storyline page.',
             SIGN_OFF,
         ],
     },
