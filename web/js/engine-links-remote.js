@@ -37,8 +37,10 @@ async function remote(game, op, args, timeoutMs) {
   throw new Error(WORDS.down);
 }
 
+// The lane (engine-links.js: 'ahead' builds the next puzzle in the background)
+// makes no difference here: the puzzle server runs requests side by side.
 const links = new Map();
-export function gameLink(id) {
+export function gameLink(id, lane = 'main') {
   const game = Object.hasOwn(ENGINE_GAMES, id) ? ENGINE_GAMES[id] : null;
   if (!game) throw new Error(`No engine for game "${id}"`);
   if (!links.has(id)) {
