@@ -108,7 +108,7 @@ function previewHtml() {
       <div class="field inline"><label for="web-look">Look</label><select id="web-look"><option value="light"${look === 'light' ? ' selected' : ''}>Light</option><option value="dark"${look === 'dark' ? ' selected' : ''}>Dark</option></select></div>
       <div class="field inline"><label for="web-size">Size</label><select id="web-size"><option value="desktop"${size === 'desktop' ? ' selected' : ''}>Computer</option><option value="phone"${size === 'phone' ? ' selected' : ''}>Phone</option></select></div>
     </div>
-    <div class="web-frame-box ${size}"><iframe id="web-frame" title="Preview of the website with your draft" src="${esc(`${view.siteUrl}/${path}?design-preview`)}" loading="lazy"></iframe></div>
+    <div class="web-frame-box${size === 'phone' ? ' phone' : ''}"><iframe id="web-frame" title="Preview of the website with your draft" src="${esc(`${view.siteUrl}/${path}?design-preview`)}" loading="lazy"></iframe></div>
     <p class="muted web-preview-note">The preview takes no clicks. Changes to the page itself (text and pictures inside the games, daily puzzles) are made in their own sections.</p>
   </div>`;
 }
@@ -224,9 +224,9 @@ export function initWebsiteEvents() {
   const body = $('#web-body');
   body.addEventListener('change', (e) => {
     const t = e.target;
-    if (t.id === 'web-page') { previewPage = t.value; $('#web-frame').src = `${view.siteUrl}/${PREVIEW_PAGES.find((p) => p[0] === t.value)[2]}?design-preview`; return; }
-    if (t.id === 'web-look') { look = t.value; sendPreview(); return; }
-    if (t.id === 'web-size') { size = t.value; $('.web-frame-box').className = `web-frame-box ${size}`; return; }
+    if (t.id === 'web-page') { previewPage = PREVIEW_PAGES.some((p) => p[0] === t.value) ? t.value : 'hub'; $('#web-frame').src = `${view.siteUrl}/${PREVIEW_PAGES.find((p) => p[0] === t.value)[2]}?design-preview`; return; }
+    if (t.id === 'web-look') { look = t.value === 'dark' ? 'dark' : 'light'; sendPreview(); return; }
+    if (t.id === 'web-size') { size = t.value === 'phone' ? 'phone' : 'desktop'; $('.web-frame-box').classList.toggle('phone', size === 'phone'); return; }
     const key = t.dataset.key;
     if (key && editable()) setDesign({ ...current, [key]: t.value }, { from: key });
   });
