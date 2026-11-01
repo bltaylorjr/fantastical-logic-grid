@@ -7,7 +7,7 @@
   "exports": "./src/index.js",
   "bin": { "logic-grid": "./cli.js" },
   "scripts": {
-    "test": "node test/run-tests.js",
+    "test": "node test/run-tests.js && node test/kernel-tests.js",
     "test:quick": "node test/run-tests.js --quick",
     "generate": "node cli.js"
   },

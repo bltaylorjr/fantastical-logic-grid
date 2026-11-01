@@ -267,6 +267,40 @@ npx esbuild src/index.js --bundle --format=iife --global-name=LogicGrid --outfil
 python3 preview/build.py
 ```
 
+## Speed
+
+The solver keeps a bitmask for every row of the grid (which items are still
+open, which are marked O) and a work list for each deduction rule, so after a
+mark only the places that mark affects are looked at again. What-if trials,
+which change one cell and follow the clues, are where this pays off most.
+The rules still run in the same order with the same wording, so every seed
+gives exactly the puzzle it gave before, solve path and hints included.
+
+Measured in Node on the build server's CPU (same seeds, old solver vs new):
+
+| Tier | Speedup |
+| --- | --- |
+| Basic to Hard | about 2x |
+| Expert and Quantum Physicist | about 4x |
+
+## Shared engine core (any game)
+
+Every game runs its engine in a worker through the same two small files, so a
+new game needs only its own puzzle code:
+
+- `src/engine-host.js`: `serveEngine(ops)` in the game's worker. `ops` maps
+  request names to functions (they may return promises). It ignores messages
+  from other origins, rejects unknown names, and answers the built-in `ops`
+  and `ping` requests.
+- `src/engine-link.js`: `engineLink(workerUrl, { fallback, onError, timeoutMs })`
+  on the page. Starts the worker on first use, restarts it after a crash,
+  can stop a request that runs too long, and falls back to running the
+  game's operations on the page where module workers are not available.
+
+The logic grid (`web/worker.js`, `web/js/engine-client.js`) and NINETIMESNINE
+(`web/np-worker.js`, `modules/number-place/engine-worker.js`) use it. Tests:
+`node test/kernel-tests.js`.
+
 ## Files
 
 ```
@@ -283,8 +317,11 @@ src/more-stories.js extra story parts, appended to the lists above on load
 src/tiers.js       difficulty tiers and clue types
 src/order.js       the item order rule for every grid category
 src/play.js        hints, checking and print text
+src/engine-host.js shared worker host for every game's engine
+src/engine-link.js shared page-side link to a game's engine worker
 cli.js             command line generator
 dist/              single-file browser build
 preview/           workshop page (preview.src.html + build.py -> workshop.html)
 test/run-tests.js  test suite with brute-force uniqueness check
+test/kernel-tests.js shared engine core tests
 ```
