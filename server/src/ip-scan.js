@@ -107,9 +107,9 @@ export function duplicateFindings(text, others) {
 }
 
 // 3. AI review.
-async function aiFindings(env, model, fields) {
+export async function aiFindings(env, model, fields, about = 'player-written story submissions for a family logic puzzle game') {
   if (!env.GEMINI_API_KEY) return { note: 'AI review skipped: it needs the GEMINI_API_KEY Cloudflare secret. The watch list and copied-entry checks still ran.' };
-  const prompt = `You screen player-written story submissions for a family logic puzzle game for intellectual property problems, before the team uses them.
+  const prompt = `You screen ${about} for intellectual property problems, before the team uses them.
 Look for: (1) trademarks and brand names; (2) protected characters, places, creatures or settings from books, films, TV, comics or games; (3) wording that looks copied from a published work (book passages, song lyrics, poems, famous film lines) rather than written by the player.
 Public domain material (for example Sherlock Holmes stories before 1928, fairy tales, Greek myths, Shakespeare) and ordinary words are fine: do not flag them. Generic genre ideas (a haunted house, a detective, a dragon) are fine.
 For each finding give the field label, the exact words, what it may belong to, and how sure you are ("likely" or "possible").

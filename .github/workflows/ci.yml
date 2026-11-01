@@ -89,6 +89,7 @@ jobs:
           node scripts/e2e-archive.cjs
           node scripts/e2e-educators.cjs
           node scripts/e2e-license.cjs
+          node --no-warnings scripts/e2e-books.mjs
       # The screenshots from every size the layout test checks, to look at when
       # a layout check fails (kept 14 days, free).
       - name: Keep the screenshots

@@ -14,6 +14,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <link rel="stylesheet" href="/admin/admin.css">
 <link rel="stylesheet" href="/admin/marketing.css">
+<link rel="stylesheet" href="/admin/book.css">
 <script type="module" src="/admin/admin.js"></script>
 </head>
 <body>
@@ -88,6 +89,7 @@
       <li><a href="#ratings" data-min="viewer">Ratings and insights <span class="count" id="count-ratings" hidden></span></a></li>
       <li><a href="#marketing" data-min="viewer">Marketing</a></li>
       <li><a href="#mail" data-min="viewer">Puzzle emails</a></li>
+      <li><a href="#books" data-min="admin">Book publishing</a></li>
       <li><a href="#stories" data-min="moderator">Story workshop and review <span class="count" id="count-parts" hidden></span></a></li>
       <li><a href="#communication" data-min="viewer">Communication <span class="count" id="count-comm" hidden></span></a></li>
       <li><a href="#story-submissions" data-min="moderator">Storyline submissions <span class="count" id="count-story-submissions" hidden></span></a></li>
@@ -473,6 +475,12 @@
       </div>
       <p class="muted">The numbers game's own switches and numbers. It shares only anonymous play summaries with the rest of the game, for learning. Logic Grid settings are under Settings and switches.</p>
       <div id="np-body"><p class="muted">Loading…</p></div>
+    </section>
+
+    <section data-view="books" hidden aria-labelledby="h-books">
+      <div class="head"><h1 id="h-books">Book publishing</h1></div>
+      <p class="muted">Make print puzzle books for Amazon KDP with the game's own puzzles: choose themes and topics, pages, colors for every page and element, design the cover, check KDP's rules and price, and keep every book in the books database so no puzzle is printed twice. It starts with the settings Volume 1 was made with.</p>
+      <div id="bk-root"><p class="muted">Loading…</p></div>
     </section>
 
     <section data-view="licenses" hidden aria-labelledby="h-licenses">

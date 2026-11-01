@@ -18,6 +18,7 @@ import { puzzleMailView, initPuzzleMail } from './puzzle-mail.js';
 import { educatorsView, initEducators, educatorFeedbackView, initEducatorFeedback } from './educators.js';
 import { storySubmissionsView, initStorySubmissions } from './story-submissions.js';
 import { licensesView, initLicenses } from './licenses.js';
+import { booksView } from './books.js';
 import { mediaView } from './media.js';
 import { badgesView, initBadges, playerBadgesHtml, playerBadgeClick } from './badges.js';
 import { passkeysSupported, platformReady, rememberedPasskey, passkeySignIn, offerPasskey, passkeysView, initPasskeys } from './passkeys.js';
@@ -1934,6 +1935,9 @@ initEducatorFeedback(educatorHelpers, (name, o) => show(name, o));
 const badgeHelpers = { api, esc, fmt, when, day, table, can, act, ask, toast, announce };
 views.badges = () => badgesView(badgeHelpers);
 initBadges(badgeHelpers, (name, o) => show(name, o));
+
+// ---- Book publishing (books.js): print books, their covers and the books database.
+views.books = () => booksView({ api, esc, fmt, when, tile, can, act, ask, toast, announce });
 
 // ---- Puzzle emails (puzzle-mail.js): the weekly and special edition lists, sends and planner.
 views.mail = () => puzzleMailView();
