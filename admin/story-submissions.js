@@ -18,7 +18,7 @@ const SOURCE = { form: 'Suggest a storyline page', 'idea box': 'Share an idea' }
 const EMAIL_KIND = {
   story_received: 'Confirmation with a copy of the form (noreply@)', story_approved: 'Approval with the puzzle (noreply@)',
   submission_approved: 'Approval (noreply@)', story_declined: 'Thank-you after declining (noreply@)', submission_copy: 'Copy emailed by the team (support@)',
-  story_build: 'Puzzle built for the database (no email)', idea_update: 'Waiting to tell the player (Share an idea)', idea: 'Thank-you (support@)',
+  story_build: 'Puzzle built for the database (no email)', story_puzzle: 'Puzzle ready, with the PDF (noreply@)', idea_update: 'Waiting to tell the player (Share an idea)', idea: 'Thank-you (support@)',
 };
 const MAIL_STATUS = { waiting: 'waiting to go', sending: 'sending', sent: 'sent', failed: 'could not be sent', dropped: 'not sent', held: 'held until a decision' };
 const FIELD_LABEL = { title: 'Title', pitch: 'Single-line pitch', setting: 'Storyline setting', goal: 'Central mystery or goal', clues: 'Clues', beat: 'Story beat',
@@ -47,11 +47,14 @@ function row(r) {
 // What the engine can build from the entry, using the corrected words.
 function puzzlePreview(s, polished) {
   if (s.kind !== 'storyline') return '';
+  const again = s.status === 'approved' && !s.puzzle && h.can('moderator');
   if (s.puzzle) return `<p><b>First puzzle:</b> “${h.esc(s.puzzle.title)}”${s.puzzle.tier ? `, ${h.esc(tierName(s.puzzle.tier))}` : ''}, saved ${h.when(s.puzzle.at)}.</p>`;
   const read = s.form.idea ? readStoryline(polished?.idea || s.form.idea, s.themeName || '') : readSubmission(s.form, polished, s.themeName || '');
+  const build = again ? `<div class="row"><button class="btn small primary" type="button" data-ss-build${read.def ? '' : ' aria-describedby="ss-no-puzzle"'}>Build the puzzle</button></div>
+    <p class="muted">Builds the first puzzle from the corrected words below, saves it here${s.uid ? ' and in the player\'s Saved puzzles' : ''}${s.email ? ', and emails it to the author as a PDF from noreply@thelogicgrid.com' : ''}.</p>` : '';
   return read.def
-    ? `<p><b>The puzzle will be built from:</b> ${h.esc(read.summary)}. Title “${h.esc(read.def.title)}”.</p>`
-    : `<p class="note"><b>No puzzle can be built from it yet:</b> ${h.esc(read.reason)} You can add the lists to the corrected clues below. Approving still sends the author the approval email.</p>`;
+    ? `<p><b>${again ? 'Approved, but no puzzle yet. It can be built from' : 'The puzzle will be built from'}:</b> ${h.esc(read.summary)}. Title “${h.esc(read.def.title)}”.</p>${build}`
+    : `<p class="note" id="ss-no-puzzle"><b>No puzzle can be built from it yet:</b> ${h.esc(read.reason)} Add the lists to the corrected clues below, like "Genre: Rock, Jazz, Disco", then press ${again ? '<b>Save corrections</b> and <b>Build the puzzle</b>' : '<b>Save corrections</b>'}.${again ? '' : ' Approving still sends the author the approval email.'}</p>${build}`;
 }
 
 function scanPanel(s) {
@@ -87,6 +90,12 @@ function correctedEditor(s) {
     <div class="stack">${boxes}</div>
     ${h.can('moderator') ? `<div class="row"><button class="btn small" type="button" data-ss-polish>Fix spelling and grammar</button><button class="btn small" type="button" data-ss-save>Save corrections</button></div>` : ''}
   </details>`;
+}
+
+// True when the team changed a corrected-wording box, or the words were already corrected.
+function fixesTouched(s) {
+  if (s.polished) return true;
+  return [...document.querySelectorAll('[data-fix]')].some((el) => el.value !== el.defaultValue);
 }
 
 function readFixes(s) {
@@ -217,6 +226,11 @@ export function initStorySubmissions(helpers, show) {
       if (await h.act(b, () => h.api(`story-submissions/${id}/scan`, { method: 'POST', body: {} }), 'Scan finished.')) { await openEntry(id); refresh(); }
       return;
     }
+    if (b.matches('[data-ss-build]')) {
+      const body = fixesTouched(open) ? { polished: readFixes(open) } : {};
+      if (await h.act(b, () => h.api(`story-submissions/${id}/build`, { method: 'POST', body }), 'The puzzle is being built. It goes out within about 15 minutes.')) await openEntry(id);
+      return;
+    }
     if (b.matches('[data-ss-polish]')) {
       if (await h.act(b, async () => { await h.api(`story-submissions/${id}/polish`, { method: 'POST', body: {} }); }, 'Spelling and grammar fixed. Check the words, then save or approve.')) await openEntry(id);
     } else if (b.matches('[data-ss-save]')) {
@@ -229,7 +243,8 @@ export function initStorySubmissions(helpers, show) {
       const scan = open.ipScan;
       const warn = !scan ? 'It has not been scanned for trademarks and copyright yet.' : scan.verdict === 'problem' ? 'The trademark and copyright scan found a likely problem.' : scan.verdict === 'check' ? 'The trademark and copyright scan found something worth a look.' : '';
       if (!(await h.ask({ title: `Approve this ${KIND[open.kind].toLowerCase()}?`, text: `${warn ? `<b>${h.esc(warn)}</b> ` : ''}${h.esc(text)}`, ok: 'Approve', danger: scan?.verdict === 'problem' }))) return;
-      const body = document.querySelector('[data-fix]') ? { polished: readFixes(open) } : {};
+      // Untouched boxes are the author's own words: leave them, so the server fixes the wording itself.
+      const body = document.querySelector('[data-fix]') && fixesTouched(open) ? { polished: readFixes(open) } : {};
       if (await h.act(b, () => h.api(`story-submissions/${id}/approve`, { method: 'POST', body }), 'Approved.')) refresh();
     } else if (b.matches('[data-ss-decline]')) {
       if (!(await h.ask({ title: 'Decline this entry?', text: open.email ? 'The author gets a thank-you for their input from noreply@thelogicgrid.com.' : 'There is no address to email the author.', ok: 'Decline', danger: true }))) return;

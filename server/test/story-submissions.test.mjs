@@ -168,6 +168,38 @@ test('the trademark and copyright scan: one click per entry, and the new ones in
   assert.equal(own.body.scan.verdict, 'clear', 'an original entry with no marks is clear');
 });
 
+test('approving without corrections leaves the wording uncorrected, and Build the puzzle works after lists are added', async () => {
+  const owner = token('owner-uid', OWNER);
+  const cy = token('cy-uid', 'cy@example.com');
+  const form = { ...FORM, title: 'Jive Turkey', clues: 'Order performed, Genre, Prop used', beat: 'The family dances.' };
+  const r = await call('/v1/story-submissions', { auth: cy, body: form });
+  const entry = (await call(`/admin/v1/story-submissions/${r.body.id}`, { auth: owner })).body;
+  // The dashboard sends the boxes as they were: the author's own words.
+  const ok = await call(`/admin/v1/story-submissions/${r.body.id}/approve`, { auth: owner, body: { polished: entry.polishable } });
+  assert.equal(ok.status, 200);
+  const row = await db.prepare('SELECT polished FROM story_submissions WHERE id = ?1').bind(r.body.id).first();
+  assert.equal(row.polished, null, 'unchanged words are not saved as corrected');
+  let claim = (await call('/admin/v1/replies/claim', { auth: owner, body: { limit: 50 } })).body;
+  await call('/admin/v1/replies/done', { auth: owner, body: { sent: claim.replies.map((m) => m.id), failed: [] } });
+
+  const none = await call(`/admin/v1/story-submissions/${r.body.id}/build`, { auth: owner, body: {} });
+  assert.equal(none.status, 400, 'no lists: no puzzle to promise');
+  const fixed = { ...entry.polishable, clues: 'Genre: Rock, Jazz, Disco, Polka. Prop: Hat, Cane, Scarf, Fan.' };
+  const build = await call(`/admin/v1/story-submissions/${r.body.id}/build`, { auth: owner, body: { polished: fixed } });
+  assert.equal(build.status, 200, JSON.stringify(build.body));
+  assert.equal((await call(`/admin/v1/story-submissions/${r.body.id}/build`, { auth: owner, body: {} })).status, 409, 'once at a time');
+  claim = (await call('/admin/v1/replies/claim', { auth: owner, body: { limit: 50 } })).body;
+  const mail = claim.replies.find((m) => m.email === 'cy@example.com');
+  assert.equal(mail.kind, 'story_puzzle');
+  assert.ok(mail.build && mail.build.submission);
+  const puzzle = buildStorylinePuzzle({ submission: { form: mail.submission.form, polished: mail.submission.polished }, seed: 'again' });
+  assert.equal(puzzle.error, undefined, puzzle.error);
+  const stored = await call('/admin/v1/replies/puzzle', { auth: owner, body: { id: mail.id, puzzle } });
+  assert.equal(stored.body.stored, true, 'in the player\'s Saved puzzles');
+  assert.ok((await call(`/admin/v1/story-submissions/${r.body.id}`, { auth: owner })).body.puzzle, 'saved with the entry');
+  await call('/admin/v1/replies/done', { auth: owner, body: { sent: claim.replies.map((m) => m.id), failed: [] } });
+});
+
 test('a guest: thank-you, then a copy only to the address they type, once', async () => {
   const owner = token('owner-uid', OWNER);
   const r = await call('/v1/story-submissions', { body: { kind: 'theme', idea: 'Haunted Lighthouse' } });
