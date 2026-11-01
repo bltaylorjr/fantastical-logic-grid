@@ -51,8 +51,8 @@ const LOGO = '<svg viewBox="0 0 512 512" aria-hidden="true" focusable="false"><r
 
 const ART_GRID = `<svg viewBox="0 0 240 150" aria-hidden="true" focusable="false">
 <g fill="none" stroke="rgb(255 255 255 / .9)" stroke-width="2.5"><rect x="60" y="15" width="120" height="120" rx="8"/><path d="M100 15v120M140 15v120M60 55h120M60 95h120"/></g>
-<g stroke="#FFF" stroke-width="5" stroke-linecap="round"><path d="M70 25l20 20M90 25l-20 20M150 65l20 20M170 65l-20 20M70 105l20 20M90 105l-20 20M110 105l20 20M130 105l-20 20"/></g>
-<circle cx="120" cy="75" r="11" fill="#FFD400" stroke="#FFF" stroke-width="3"/><circle cx="160" cy="35" r="11" fill="#FFD400" stroke="#FFF" stroke-width="3"/>
+<g stroke="#FFF" stroke-width="5" stroke-linecap="round"><path d="M70 25l20 20M90 25l-20 20"/><path class="mk" d="M150 65l20 20M170 65l-20 20"/><path class="mk" d="M70 105l20 20M90 105l-20 20"/><path class="mk" d="M110 105l20 20M130 105l-20 20"/></g>
+<circle class="mk" cx="120" cy="75" r="11" fill="#FFD400" stroke="#FFF" stroke-width="3"/><circle class="mk" cx="160" cy="35" r="11" fill="#FFD400" stroke="#FFF" stroke-width="3"/>
 <path d="M28 40l5 12 12 5-12 5-5 12-5-12-12-5 12-5z" fill="#FFD400"/><path d="M212 96l3.5 8 8 3.5-8 3.5-3.5 8-3.5-8-8-3.5 8-3.5z" fill="#FFF" opacity=".8"/></svg>`;
 
 const ART_NINE = (() => {
@@ -63,7 +63,7 @@ const ART_NINE = (() => {
 <rect width="126" height="126" rx="8" fill="rgb(255 255 255 / .08)" stroke="rgb(255 255 255 / .9)" stroke-width="2.5"/>
 <path d="${thin}" stroke="rgb(255 255 255 / .35)" stroke-width="1"/><path d="M42 0v126M84 0v126M0 42h126M0 84h126" stroke="rgb(255 255 255 / .9)" stroke-width="2.5"/>
 <g fill="#FFF" font-family="Atkinson Hyperlegible, system-ui, sans-serif" font-weight="700" font-size="10" text-anchor="middle">${given.map(([r, c, n]) => `<text x="${c * 14 + 7}" y="${r * 14 + 11}">${n}</text>`).join('')}</g>
-<rect x="56" y="56" width="14" height="14" fill="#FFD400"/><text x="63" y="67" font-family="Atkinson Hyperlegible, system-ui, sans-serif" font-weight="700" font-size="10" text-anchor="middle">9</text></g></svg>`;
+<g class="mk"><rect x="56" y="56" width="14" height="14" fill="#FFD400"/><text x="63" y="67" font-family="Atkinson Hyperlegible, system-ui, sans-serif" font-weight="700" font-size="10" text-anchor="middle">9</text></g></g></svg>`;
 })();
 
 const CHEVRON = '<svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M7 4l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -128,16 +128,46 @@ header.top { display: flex; flex-wrap: wrap; align-items: center; justify-conten
 footer { border-top: 1px solid var(--edge); padding: 26px 0 40px; color: var(--muted); font-size: .9rem; }
 footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px 24px; }
 footer a { color: inherit; }
-@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }`;
+[data-hero-align="left"] .hero { text-align: left; } [data-hero-align="left"] .hero p { margin-inline: 0; }
+[data-hero-eyebrow="hide"] .eyebrow, [data-theme-picker="hide"] .theme, [data-footer-links="hide"] .footer-links, [data-card-bullets="hide"] .points { display: none; }
+[data-card-order="ntn"] .card[data-game="ntn"] { order: -1; }
+[data-card-layout="stack"] .games { grid-template-columns: minmax(0, 1fr); max-width: 640px; margin-inline: auto; }
+[data-card-style="solid"] .card { background: var(--bg); -webkit-backdrop-filter: none; backdrop-filter: none; }
+[data-card-style="outline"] .card { background: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; border-color: var(--edge-hi); }
+[data-shadows="none"] .card { box-shadow: none; } [data-shadows="strong"] .card { box-shadow: 0 30px 60px -24px rgb(20 16 60 / .55); }
+.card { border-radius: var(--radius); } .play::after { border-radius: var(--radius); }
+[data-fx-hover="none"] .card:hover, [data-fx-hover="tilt"] .card:hover { transform: none; }
+[data-fx-hover="tilt"] .card { transform: perspective(700px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)); transition: transform .15s ease-out, border-color .25s var(--ease); }
+[data-fx-hover="spotlight"] .card::after { content: ""; position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity .2s; background: radial-gradient(220px circle at var(--mx, 50%) var(--my, 50%), rgb(255 212 0 / .28), transparent 60%); }
+[data-fx-hover="spotlight"] .card:hover::after { opacity: 1; }
+[data-fx-arrival="rise"] .hero, [data-fx-arrival="rise"] .card { animation: tlg-rise .7s var(--ease) both; }
+[data-fx-arrival="rise"] .card:nth-child(2) { animation-delay: .15s; }
+[data-fx-arrival="fade"] .hero, [data-fx-arrival="fade"] .games { animation: tlg-fade .8s ease-out both; }
+@keyframes tlg-rise { from { opacity: 0; transform: translateY(18px); } }
+@keyframes tlg-fade { from { opacity: 0; } }
+.art .mk { transition: opacity .25s; }
+[data-fx-art="solve"] .art .mk { opacity: 0; }
+[data-fx-art="solve"] .card:hover .art .mk, [data-fx-art="solve"] .card:focus-within .art .mk { opacity: 1; }
+[data-fx-art="solve"] .card .art .mk:nth-child(2) { transition-delay: .1s; } [data-fx-art="solve"] .card .art .mk:nth-child(3) { transition-delay: .2s; } [data-fx-art="solve"] .card .art .mk:nth-child(4) { transition-delay: .3s; }
+[data-fx-backdrop="plain"] body { background: var(--page); }
+[data-fx-backdrop="glow"] body { background: radial-gradient(900px 500px at 12% -10%, rgb(124 92 255 / var(--glow-a)), transparent 60%), radial-gradient(800px 520px at 100% 10%, rgb(34 184 207 / var(--glow-a)), transparent 60%), var(--page); }
+[data-fx-backdrop="drift"] body { animation: tlg-drift 14s linear infinite; }
+@keyframes tlg-drift { to { background-position: 0 0, 0 0, 32px 32px, 32px 32px, 0 0; } }
+.sparkles { display: none; position: fixed; inset: 0; pointer-events: none; z-index: 0; }
+.sparkles svg { position: absolute; width: 12px; height: 12px; opacity: 0; animation: tlg-twinkle 3.4s ease-in-out infinite; }
+[data-fx-sparkles="on"] .sparkles { display: block; }
+@keyframes tlg-twinkle { 0%, 100% { opacity: 0; transform: scale(.4); } 50% { opacity: .9; transform: scale(1); } }
+.wrap, footer { position: relative; z-index: 1; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } .art .mk { opacity: 1 !important; } [data-fx-hover="tilt"] .card { transform: none; } .sparkles { display: none !important; } }`;
 
-const card = ({ cls, art, tag, name, text, points, href, id }) => `<article class="card" aria-labelledby="${id}">
+const card = ({ cls, art, tag, name, text, points, href, id }) => `<article class="card" data-game="${cls}" aria-labelledby="${id}">
 <div class="art ${cls}">${art}</div>
 <div class="body">
-<span class="tag">${tag}</span>
+<span class="tag" data-design-text="${cls}Tag">${tag}</span>
 <h2 id="${id}">${name}</h2>
-<p>${text}</p>
-<ul>${points.map((p) => `<li>${p}</li>`).join('')}</ul>
-<a class="play" href="${href}">Play ${name} ${CHEVRON}</a>
+<p data-design-text="${cls}Text">${text}</p>
+<ul class="points">${points.map((p) => `<li>${p}</li>`).join('')}</ul>
+<a class="play" href="${href}"><span data-design-text="${cls}Button">Play ${name}</span> ${CHEVRON}</a>
 </div>
 </article>`;
 
@@ -193,15 +223,16 @@ ${verification}
 </head>
 <body>
 <a class="skip" href="#games">Skip to the games</a>
+<div class="sparkles" aria-hidden="true">${[[8, 14], [88, 20], [52, 92], [22, 70], [76, 62]].map(([x, y], i) => `<svg style="left:${x}%;top:${y}%;animation-delay:${i * 0.7}s" viewBox="0 0 10 10"><path d="M5 0l1.2 3.8L10 5 6.2 6.2 5 10 3.8 6.2 0 5l3.8-1.2z" fill="${['#F2B600', '#7C5CFF', '#22B8CF'][i % 3]}"/></svg>`).join('')}</div>
 <div class="wrap">
 <header class="top">
 <a class="brand" href="./" aria-label="The Logic Grid home">${LOGO}<span>The Logic Grid</span></a>
 ${themeSelect}
 </header>
 <section class="hero" aria-labelledby="hero-title">
-<span class="eyebrow">Puzzle games</span>
-<h1 id="hero-title">Pick your puzzle.</h1>
-<p>Two logic games, free to play in your browser. No guessing needed in either one — every puzzle can be solved by reasoning alone.</p>
+<span class="eyebrow" data-design-text="heroEyebrow">Puzzle games</span>
+<h1 id="hero-title" data-design-text="heroTitle">Pick your puzzle.</h1>
+<p data-design-text="heroText">Two logic games, free to play in your browser. No guessing needed in either one — every puzzle can be solved by reasoning alone.</p>
 </section>
 <main id="games" class="games" tabindex="-1" aria-label="Games">
 ${card({ cls: 'flg', art: ART_GRID, tag: 'Story logic puzzles', name: 'The Fantastical Logic Grid', id: 'g1', href: 'fantastical/',
@@ -215,7 +246,7 @@ ${card({ cls: 'ntn', art: ART_NINE, tag: 'Number puzzles', name: 'NINETIMESNINE'
 <footer>
 <div class="wrap">
 <span>${esc(copyright)}</span>
-<span><a href="privacy/">Privacy</a> · <a href="terms/">Terms of use</a> · Questions? support@thelogicgrid.com</span>
+<span><span class="footer-links"><a href="privacy/">Privacy</a> · <a href="terms/">Terms of use</a> · </span><span data-design-text="footerNote">Questions? support@thelogicgrid.com</span></span>
 </div>
 </footer>
 </body>
@@ -263,6 +294,10 @@ ${og('NINETIMESNINE', npDescription, 'ninetimesnine/')}
 .np-top .brand svg { width: 34px; height: 34px; }
 .np-top nav { display: flex; flex-wrap: wrap; gap: 8px; }
 .np-top a { text-decoration: none; }
+[data-np-header="accent"] .np-top { background: var(--accent); border-color: transparent; }
+[data-np-header="accent"] .np-top .brand { color: var(--on-accent); }
+[data-np-header="accent"] .np-top .btn { color: var(--on-accent); border-color: currentColor; background: transparent; }
+[data-np-flg="hide"] .np-top a[href$="fantastical/"] { display: none; }
 main.screen { padding-top: 24px; }
 </style>
 </head>

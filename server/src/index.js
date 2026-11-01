@@ -11,6 +11,7 @@
 //   /v1/characters*                      the game's own characters and player suggestions (characters.js)
 //   GET /v1/config                       announcements, switched-off themes, features (settings.js)
 //   GET /v1/daily/plan                   daily puzzle changes for the website build (daily.js)
+//   GET /v1/site/design                  the published website design, for the website build (site-design.js)
 //   /v1/daily/:date/(start|result|stats) everyone's numbers for a daily puzzle (daily-results.js)
 //   /v1/daily-email[/unsubscribe]       daily puzzle by email for signed-in players (daily-email.js)
 //   /v1/mail[/signup|confirm|unsubscribe|settings]  weekly and special edition puzzle emails, players and guests (puzzle-mail.js)
@@ -43,6 +44,7 @@ import { handleMessages } from './messages.js';
 import { handlePictures } from './pictures.js';
 import { handleCharacters } from './characters.js';
 import { handleDaily } from './daily.js';
+import { handleSiteDesign } from './site-design.js';
 import { handleDailyResults } from './daily-results.js';
 import { handleQuality } from './quality.js';
 import { handleDailyEmail } from './daily-email.js';
@@ -150,6 +152,9 @@ async function route(req, env, ctx) {
 
   const daily = await handleDaily(req, env, url);
   if (daily) return daily;
+
+  const siteDesign = await handleSiteDesign(req, env, url);
+  if (siteDesign) return siteDesign;
 
   const translated = await handleTranslate(req, env, url);
   if (translated) return translated;

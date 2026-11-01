@@ -350,3 +350,25 @@ td.num, th.num { white-space: nowrap; }
 .et-files li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
 .et-attach { max-width: 100%; width: 360px; height: auto; border: 1px solid var(--line, #ccc); border-radius: 8px; display: block; flex-basis: 100%; }
 .et-log { padding-left: 1.4em; margin: 0; display: grid; gap: 6px; }
+
+/* Website (website.js): categories on the left, the live preview on the right. */
+.web-status { position: sticky; top: calc(var(--top-h, 61px) + var(--nav-h, 0px)); z-index: 3; display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; background: var(--bg); padding: 10px 0; border-bottom: 1px solid var(--line); }
+.web-state { margin: 0; }
+.web-layout { display: grid; grid-template-columns: minmax(300px, 400px) minmax(0, 1fr); gap: 20px; align-items: start; margin-top: 12px; }
+.web-cat { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; margin: 0 0 10px; }
+.web-cat > summary { display: flex; justify-content: space-between; align-items: center; gap: 8px; min-height: 48px; padding: 0 14px; cursor: pointer; font-weight: 700; }
+.web-cat[open] > summary { border-bottom: 1px solid var(--line); }
+.web-cat > .help, .web-cat > p { margin: 10px 14px; }
+.web-opt { display: flex; gap: 8px; align-items: flex-end; padding: 10px 14px; border-left: 4px solid transparent; }
+.web-opt.changed { border-left-color: var(--accent); }
+.web-opt .field { flex: 1; }
+.web-opt select, .web-opt input, .web-opt textarea { width: 100%; }
+.web-count { font-size: .8rem; }
+.web-preview { position: sticky; top: calc(var(--top-h, 61px) + var(--nav-h, 0px) + 116px); }
+.web-preview-bar { margin-bottom: 8px; }
+.web-frame-box { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--panel); margin-inline: auto; }
+.web-frame-box iframe { display: block; width: 100%; height: calc(100vh - var(--top-h, 61px) - 230px); min-height: 420px; border: 0; }
+.web-frame-box.phone { width: 390px; max-width: 100%; }
+.web-preview-note { font-size: .85rem; }
+@media (max-width: 900px) { .web-layout { grid-template-columns: minmax(0, 1fr); } .web-preview { position: static; } }
+

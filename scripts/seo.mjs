@@ -297,7 +297,7 @@ ${[breadcrumb, ...schema].map((s) => `<script type="application/ld+json">${json(
   <nav aria-label="Site">
     <ul>${NAV.map(([p, n]) => `<li><a href="${up}${p}"${p === path ? ' aria-current="page"' : ''}>${n}</a></li>`).join('')}</ul>
   </nav>
-  <a class="btn" href="${up}${GAME}?play=now" rel="nofollow">Play free</a>
+  <a class="btn" href="${up}${GAME}?play=now" rel="nofollow" data-design-text="infoPlay">Play free</a>
 </header>
 ${crumbs.length ? `<nav class="crumbs" aria-label="Breadcrumb"><ol>${trail.map(([p, n], i) => i === trail.length - 1 ? `<li aria-current="page">${esc(n)}</li>` : `<li><a href="${up}${p}">${esc(n)}</a></li>`).join('')}</ol></nav>` : ''}
 <main id="main">

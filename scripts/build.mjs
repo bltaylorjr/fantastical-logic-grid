@@ -5,6 +5,7 @@ import { join, relative, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import { buildSeo } from './seo.mjs';
+import { applySiteDesign } from './site-design-build.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const web = join(root, 'web');
@@ -241,6 +242,8 @@ cpSync(join(root, 'SECURITY.md'), join(site, 'security-policy.txt'));
 }
 // Search pages, daily puzzle, sitemap and search tags (website only).
 const seo = await buildSeo({ root, site });
+// The website design chosen in the admin dashboard (Website page).
+await applySiteDesign({ site, base: (process.env.FLG_SITE_URL || 'https://thelogicgrid.com').replace(/\/+$/, '') });
 // The Logic Grid's layout (scripts/hub.mjs): the front page at /, the game at
 // fantastical/, NINETIMESNINE at ninetimesnine/. The installed app keeps its
 // id ("./") and now starts at the game; offline, all three pages open.
@@ -255,7 +258,7 @@ const seo = await buildSeo({ root, site });
   let siteSw = readFileSync(swFile, 'utf8');
   const listed = siteSw.match(/const FILES = (\[[^\n]*\]);/);
   if (!listed) throw new Error('Could not find the file list in sw.js');
-  const shellHere = [...JSON.parse(listed[1]), ...pagesHere, 'js/hub.js', 'js/np-page.js'].filter((f, i, a) => a.indexOf(f) === i);
+  const shellHere = [...JSON.parse(listed[1]), ...pagesHere, 'js/hub.js', 'js/np-page.js', 'js/design-preview.js', 'js/site-design.js'].filter((f, i, a) => a.indexOf(f) === i);
   const siteHash = createHash('sha256').update(version);
   for (const f of ['index.html', 'fantastical/index.html', 'ninetimesnine/index.html', 'manifest.webmanifest']) siteHash.update(readFileSync(join(site, f)));
   siteSw = siteSw.replace(listed[0], `const FILES = ${JSON.stringify(shellHere)};`).replace(`const VERSION = '${version}';`, `const VERSION = '${siteHash.digest('hex').slice(0, 10)}';`);
