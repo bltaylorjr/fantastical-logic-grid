@@ -289,6 +289,7 @@ uses a secret, variable or binding that is not listed there.
 | `LIMIT_ADMIN` | Worker binding (server/wrangler.toml) |  |
 | `LIMIT_MESSAGES` | Worker binding (server/wrangler.toml) |  |
 | `LIMIT_LICENSE` | Worker binding (server/wrangler.toml) |  |
+| `LIMIT_SIGN_IN` | Worker binding (server/wrangler.toml) |  |
 
 **Steps:**
 
@@ -357,7 +358,7 @@ uses a secret, variable or binding that is not listed there.
 | Name | Where | Notes |
 | --- | --- | --- |
 | `OWNER_EMAIL` | Cloudflare Worker secret | Value: `fantasticallogicgrid@gmail.com` The owner's game account email. |
-| `FIREBASE_WEB_API_KEY` | Cloudflare Worker secret | The same AIza key as the GitHub variable FLG_FIREBASE_API_KEY. A value starting AQ. is wrong. |
+| `FIREBASE_WEB_API_KEY` | Cloudflare Worker secret | The same AIza key as the GitHub variable FLG_FIREBASE_API_KEY. A value starting AQ. is wrong. Screen-name sign-in for players uses it too. |
 
 **Steps:**
 
