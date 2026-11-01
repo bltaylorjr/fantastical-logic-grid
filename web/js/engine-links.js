@@ -1,7 +1,8 @@
 // The page's connection to any game's engine (engine/games.js), through the
 // shared engine link (engine/engine-link.js): each game runs in its own
-// background worker (engine-worker.js, named after the game), starts on first use, restarts after a
-// crash, and runs on the page where module workers are not available.
+// background worker (engine-worker.js, named after the game), starts on first
+// use, restarts after a crash, and runs on the page where module workers are
+// not available.
 //   const engine = gameLink('np');
 //   const puzzle = await engine.call('generate', options);
 // In server mode (docs/PUZZLE-SERVER.md) the build swaps this file for
