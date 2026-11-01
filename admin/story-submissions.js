@@ -17,7 +17,7 @@ const STATUS = { new: ['New', 'warn'], approved: ['Approved', 'ok'], declined: [
 const SOURCE = { form: 'Suggest a storyline page', 'idea box': 'Share an idea' };
 const EMAIL_KIND = {
   story_received: 'Confirmation with a copy of the form (noreply@)', story_approved: 'Approval with the puzzle (noreply@)',
-  submission_approved: 'Approval (noreply@)', story_declined: 'Thank-you after declining (support@)', submission_copy: 'Copy emailed by the team (support@)',
+  submission_approved: 'Approval (noreply@)', story_declined: 'Thank-you after declining (noreply@)', submission_copy: 'Copy emailed by the team (support@)',
   story_build: 'Puzzle built for the database (no email)', idea_update: 'Waiting to tell the player (Share an idea)', idea: 'Thank-you (support@)',
 };
 const MAIL_STATUS = { waiting: 'waiting to go', sending: 'sending', sent: 'sent', failed: 'could not be sent', dropped: 'not sent', held: 'held until a decision' };
@@ -187,7 +187,7 @@ export function initStorySubmissions(helpers, show) {
       const body = document.querySelector('[data-fix]') ? { polished: readFixes(open) } : {};
       if (await h.act(b, () => h.api(`story-submissions/${id}/approve`, { method: 'POST', body }), 'Approved.')) refresh();
     } else if (b.matches('[data-ss-decline]')) {
-      if (!(await h.ask({ title: 'Decline this entry?', text: open.email ? 'The author gets a thank-you for their input from support@thelogicgrid.com.' : 'There is no address to email the author.', ok: 'Decline', danger: true }))) return;
+      if (!(await h.ask({ title: 'Decline this entry?', text: open.email ? 'The author gets a thank-you for their input from noreply@thelogicgrid.com.' : 'There is no address to email the author.', ok: 'Decline', danger: true }))) return;
       if (await h.act(b, () => h.api(`story-submissions/${id}/decline`, { method: 'POST' }), 'Declined.')) refresh();
     } else if (b.matches('[data-ss-email]')) {
       const v = await h.ask({ title: 'Email a copy of this entry', text: 'It goes from support@thelogicgrid.com with the original form, and the puzzle as a PDF when one is saved.', fields: [{ name: 'to', label: 'Email address', type: 'email', value: open.email || '' }], ok: 'Send' });

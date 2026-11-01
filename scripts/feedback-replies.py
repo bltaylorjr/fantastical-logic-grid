@@ -57,8 +57,8 @@ NO_REPLY = ('Questions? Just reply to this email. To share another idea or repor
 ONE_WAY = ('This is an automatic message from a no-reply address, so replies are not read. '
            'To answer the team, open the game and choose Menu > Messages.')
 # Sent from MAIL_NOREPLY; everything else from MAIL_FROM (support@). A
-# storyline submission's confirmation and its approval are one-way.
-ONE_WAY_KINDS = {'message', 'story_received', 'story_approved', 'submission_approved'}
+# storyline submission's confirmation, approval and decline thank-you are one-way.
+ONE_WAY_KINDS = {'message', 'story_received', 'story_approved', 'submission_approved', 'story_declined'}
 STORY_ONE_WAY = ('This is an automatic message from a no-reply address, so replies are not read. '
                  f'Questions? Email {MAIL_FROM}.')
 TEAM_COPY = 'Sent by The Fantastical Logic Grid team. Questions? Just reply to this email.'

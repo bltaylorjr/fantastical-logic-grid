@@ -23,9 +23,9 @@
 //   POST /admin/v1/story-submissions/:id/email   { to } email a copy of the entry (and its puzzle) to any address
 //   POST /admin/v1/story-submissions/:id/delete
 //
-// Senders (scripts/feedback-replies.py): the confirmation and the approval go
-// from noreply@thelogicgrid.com; a decline thank-you and copies the team
-// emails go from support@thelogicgrid.com.
+// Senders (scripts/feedback-replies.py): the confirmation, the approval and a
+// decline thank-you go from noreply@thelogicgrid.com; copies the team emails
+// go from support@thelogicgrid.com.
 import { alert } from './alerts.js';
 import { json, readText, TooLarge } from './http.js';
 import { getSettings } from './settings.js';

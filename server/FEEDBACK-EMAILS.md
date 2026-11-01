@@ -62,8 +62,10 @@ Menu > Ideas and problems, they can leave "Email me an update" ticked:
     entry, put in the player's Saved puzzles when signed in, and emailed as a
     PDF with its answer key. With no address, the puzzle is only built and
     saved (kind `story_build`).
-  - **Decline thank-you and copies the team emails (support@):** Decline, or
-    Email a copy (to any address, with the puzzle PDF when there is one).
+  - **Decline thank-you (noreply@):** Decline sends a thank-you for their input.
+    This includes storylines sent through Share an idea.
+  - **Copies the team emails (support@):** Email a copy (to any address, with
+    the puzzle PDF when there is one).
   - Deleting an account keeps its entries (permission was given) but removes
     the account link and the address.
 
@@ -100,7 +102,8 @@ receives mail itself (email forwarding at the domain), set the GitHub variable
 `MAIL_REPLY_TO` to `support@thelogicgrid.com`.
 
 One-way emails (the daily puzzle, "the team sent you a message" notices,
-educator code emails, and a storyline submission's confirmation and approval)
+educator code emails, and a storyline submission's confirmation, approval
+and decline thank-you)
 go from **noreply@thelogicgrid.com** instead, with no
 `Reply-To` and a footer saying replies are not read. Set the `MAIL_NOREPLY`
 variable to use a different address. Any address on the verified domain works
