@@ -4,7 +4,8 @@
 # categories and clues; 2: a blank grid to solve on) and posted to the game's
 # Facebook Page (one post, both pictures), Instagram (a carousel) and Bluesky
 # (both pictures, with the clues in the alt text; once BLUESKY_HANDLE and
-# BLUESKY_APP_PASSWORD are saved, see admin > Connections > Bluesky).
+# BLUESKY_APP_PASSWORD are saved, see admin > Connections > Bluesky) and
+# Mastodon (both pictures with alt text; MASTODON_URL and MASTODON_TOKEN).
 # The caption links to the game to play the same puzzle free (building a daily
 # streak and comparing times with everyone who played) and to the day's answer
 # key page (thelogicgrid.com/daily/<date>/). Yesterday's real player numbers are
@@ -76,7 +77,7 @@ jobs:
             if [ $i -lt 7 ]; then echo "The site is not ready yet; trying again in 5 minutes."; sleep 300; fi
           done
           exit 0   # the next step reads the result and emails the owner if it is not ok
-      - name: Post to Facebook and Instagram (or email the owner why not)
+      - name: Post to Facebook, Instagram, Bluesky and Mastodon (or email the owner why not)
         if: always() && steps.make.outcome != 'skipped'
         env:
           MODE: daily-puzzle
@@ -90,6 +91,8 @@ jobs:
           INSTAGRAM_ACCOUNT_ID: ${{ secrets.INSTAGRAM_ACCOUNT_ID }}
           BLUESKY_HANDLE: ${{ secrets.BLUESKY_HANDLE }}
           BLUESKY_APP_PASSWORD: ${{ secrets.BLUESKY_APP_PASSWORD }}
+          MASTODON_URL: ${{ vars.MASTODON_URL }}
+          MASTODON_TOKEN: ${{ secrets.MASTODON_TOKEN }}
         run: python3 -I scripts/marketing-post.py
       - name: Keep the picture with the run for 14 days
         if: always()

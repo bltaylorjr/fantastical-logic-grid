@@ -244,6 +244,27 @@ export function bluesky(p, day) {
   return { text, links: [[play, playUrl(day)], [key, answerUrl(day)]], tags: ['logicpuzzle', 'puzzleoftheday'], alts: [alt1, alt2] };
 }
 
+// Mastodon: posts hold 500 characters, and each link counts as 23 whatever its
+// length, so the full addresses fit. The pictures reuse Bluesky's alt text
+// (Mastodon allows 1,500 characters of it).
+export const MASTODON_LIMIT = 500;
+export const mastodonLength = (t) => [...t.replace(/https?:\/\/\S+/g, 'x'.repeat(23))].length;
+export function mastodon(p, day) {
+  const head = [`🧩 Daily logic puzzle for ${longDate(day)}`, `"${p.title}" · ${p.difficulty.name} · ${p.theme.name}`];
+  const tail = ['', `▶️ Play today's puzzle free: ${playUrl(day)}`, `✅ Answer key (spoilers): ${answerUrl(day)}`, '', '#LogicPuzzle #PuzzleOfTheDay #Puzzles'];
+  const goal = p.story.paragraphs.at(-1);
+  const middles = [
+    ['', goal, '', 'Clues on slide 1, blank grid on slide 2. Same puzzle as in the game today: solve it there to build your daily streak.'],
+    ['', 'Clues on slide 1, blank grid on slide 2. Same puzzle as in the game today: solve it there to build your daily streak.'],
+    ['', 'Clues on slide 1, grid on slide 2. Solve it in the game to build your streak.'],
+    [],
+  ];
+  const text = middles.map((m) => [...head, ...m, ...tail].join('\n')).find((t) => mastodonLength(t) <= MASTODON_LIMIT);
+  const bs = bluesky(p, day);
+  if (!text || !bs) return null;
+  return { text, alts: bs.alts.map((a) => a.slice(0, 1500)) };
+}
+
 // Instagram does not make links in captions clickable, so it also points to the bio link.
 export const instagramCaption = (p, day, stats = null) => caption(p, day, stats).replace(`\n\n${HASHTAGS}`, `\n(Links are also in our bio.)\n\n${HASHTAGS}`);
 
@@ -395,7 +416,7 @@ async function main() {
     }
     if (!result.problems.length) {
       const stats = process.env.SKIP_LIVE ? null : await yesterdayStats(DAY);
-      Object.assign(result, { ok: true, stats, caption: caption(p, DAY, stats), instagramCaption: instagramCaption(p, DAY, stats), bluesky: bluesky(p, DAY) });
+      Object.assign(result, { ok: true, stats, caption: caption(p, DAY, stats), instagramCaption: instagramCaption(p, DAY, stats), bluesky: bluesky(p, DAY), mastodon: mastodon(p, DAY) });
     }
   } catch (e) {
     result.problems.push(e.message);

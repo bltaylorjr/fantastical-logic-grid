@@ -1,8 +1,8 @@
-// Tests the checks the daily Facebook/Instagram puzzle must pass before it is
+// Tests the checks the daily social media puzzle must pass before it is
 // posted (scripts/social-puzzle.mjs): a good puzzle passes, and each kind of
 // error stops the post. node scripts/test-social-puzzle.mjs
 import { generatePuzzle } from '../engine/src/index.js';
-import { checkPuzzle, caption, instagramCaption, answerUrl, playUrl, statsLine, gridHtml, bluesky, BLUESKY_LIMIT } from './social-puzzle.mjs';
+import { checkPuzzle, caption, instagramCaption, answerUrl, playUrl, statsLine, gridHtml, bluesky, BLUESKY_LIMIT, mastodon, mastodonLength, MASTODON_LIMIT } from './social-puzzle.mjs';
 
 let failed = 0;
 const check = (name, cond, detail = '') => { if (!cond) { failed++; console.log(`FAIL ${name} ${detail}`); } };
@@ -39,6 +39,10 @@ for (const difficulty of ['basic', 'easy', 'medium', 'hard']) {
   check(`${difficulty}: Bluesky links show in the text`, bs && bs.links.every(([show, url]) => bs.text.includes(show) && url.startsWith('https://')));
   check(`${difficulty}: Bluesky answer link is the day's answer key`, bs && bs.links[1][1] === answerUrl(DAY));
   check(`${difficulty}: Bluesky alt text has every clue`, bs && r.puzzle.clues.every((c) => bs.alts[0].includes(c.text)) || bs.alts[0].length === 2000);
+  const md = mastodon(r.puzzle, DAY);
+  check(`${difficulty}: Mastodon post fits 500 characters`, md && mastodonLength(md.text) <= MASTODON_LIMIT, md?.text);
+  check(`${difficulty}: Mastodon post has the play and answer key links`, md && md.text.includes(playUrl(DAY)) && md.text.includes(answerUrl(DAY)));
+  check(`${difficulty}: Mastodon alt text fits 1,500 characters`, md && md.alts.length === 2 && md.alts.every((a) => a.length <= 1500));
   check(`${difficulty}: caption promotes the streak`, /streak/.test(text));
   check(`${difficulty}: caption fits Instagram with numbers too`, instagramCaption(r.puzzle, DAY, { solved: 12345, medianMs: 9 * 60000 }).length <= 2200);
   check(`${difficulty}: caption gives no answers`, !r.puzzle.answerKey.questions.some((q) => text.includes(`${q.question} ${q.answer}`)));
@@ -49,6 +53,8 @@ for (const difficulty of ['basic', 'easy', 'medium', 'hard']) {
   long.title = 'A Title So Very Long That It Takes Up Most Of The Room Bluesky Allows For One Whole Post And Then Some More Words';
   const bs = bluesky(long, DAY);
   check('a long title still fits Bluesky (shorter middle line)', bs && [...new Intl.Segmenter().segment(bs.text)].length <= BLUESKY_LIMIT);
+  const md = mastodon(long, DAY);
+  check('a long title still fits Mastodon', md && mastodonLength(md.text) <= MASTODON_LIMIT);
 }
 check('numbers shown with enough solvers', statsLine({ solved: 42, medianMs: 420000 }).includes('42 players') && statsLine({ solved: 42, medianMs: 420000 }).includes('7 minutes'));
 check('no numbers with too few solvers', statsLine({ solved: 3, medianMs: 420000 }) === '' && statsLine(null) === '');
