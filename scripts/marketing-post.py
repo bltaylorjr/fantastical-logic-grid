@@ -30,7 +30,7 @@ Mode message posts one message (MESSAGE, with an optional picture link
 IMAGE_URL or video link VIDEO_URL) to the game's Facebook Page straight away, for a one-off post the
 owner approved that is not in the Marketing list.
 Mode daily-puzzle posts the day's puzzle picture and caption, made and checked by
-scripts/social-puzzle.mjs, to the Facebook Page and Instagram (see daily_puzzle).
+scripts/social-puzzle.mjs, to the Facebook Page, Instagram, Bluesky and Mastodon (see daily_puzzle).
 Python standard library only.
 """
 import base64
@@ -228,22 +228,31 @@ def multipart(fields, file_field, filename, data, ctype):
     return out, f'multipart/form-data; boundary={boundary}'
 
 
-def post_mastodon(ad):
+def mastodon_base():
     base = env('MASTODON_URL').rstrip('/')
     if not base.startswith('https://'):
         base = 'https://' + base
-    auth = {'Authorization': f"Bearer {env('MASTODON_TOKEN')}"}
+    return base, {'Authorization': f"Bearer {env('MASTODON_TOKEN')}"}
+
+
+def mastodon_media(base, auth, data, filename, ctype, alt):
+    """Uploads one picture with its alt text and waits until Mastodon has it ready."""
+    body, btype = multipart({'description': alt}, 'file', filename, data, ctype)
+    m = request(f'{base}/api/v2/media', method='POST', data=body, timeout=120, headers={**auth, 'Content-Type': btype})
+    for _ in range(30):
+        if m.get('url'):
+            break
+        time.sleep(2)
+        m = request(f"{base}/api/v1/media/{m['id']}", headers=auth)
+    return m['id']
+
+
+def post_mastodon(ad):
+    base, auth = mastodon_base()
     media_ids = []
     for url in files(ad, 'image')[:4]:
         data, ctype = download(url)
-        body, btype = multipart({'description': ALT}, 'file', url.rsplit('/', 1)[-1], data, ctype)
-        m = request(f'{base}/api/v2/media', method='POST', data=body, headers={**auth, 'Content-Type': btype})
-        for _ in range(30):
-            if m.get('url'):
-                break
-            time.sleep(2)
-            m = request(f"{base}/api/v1/media/{m['id']}", headers=auth)
-        media_ids.append(m['id'])
+        media_ids.append(mastodon_media(base, auth, data, url.rsplit('/', 1)[-1], ctype, ALT))
     # The idempotency key stops a retry from posting the same ad twice.
     r = request(f'{base}/api/v1/statuses', method='POST', headers={**auth, 'Idempotency-Key': f"flg-ad-{ad['id']}"},
                 data={'status': ad['words'], 'media_ids': media_ids, 'visibility': 'public', 'language': 'en'})
@@ -714,8 +723,8 @@ def delete_posts():
 def daily_puzzle():
     """Mode daily-puzzle: posts the day's two puzzle slides (clues, then a blank
     grid) made and checked by scripts/social-puzzle.mjs to the game's Facebook
-    Page (one post with both pictures), Instagram (a carousel) and Bluesky (once
-    its keys are saved), with the
+    Page (one post with both pictures), Instagram (a carousel), Bluesky and
+    Mastodon (each once its keys are saved), with the
     play link and the answer key link in the caption. If any check failed (or the
     picture is missing), nothing is posted and the owner is emailed why. A puzzle
     already posted (its answer key link is in a recent post) is not posted again,
@@ -734,7 +743,7 @@ def daily_puzzle():
     if not r.get('ok'):
         for m in r.get('problems', []):
             print(f'::error::Not posted: {m}')
-        email(f'Daily puzzle not posted, {when}', ['<p>Today\'s daily puzzle was <b>not</b> posted to Facebook or Instagram, because a check before posting found a problem:</p>',
+        email(f'Daily puzzle not posted, {when}', ['<p>Today\'s daily puzzle was <b>not</b> posted anywhere, because a check before posting found a problem:</p>',
               '<ul>' + ''.join(f'<li>{html.escape(m)}</li>' for m in r.get('problems', [])) + '</ul>', tail])
         return 1
     if not has_keys('facebook'):
@@ -868,6 +877,36 @@ def daily_puzzle():
         except Exception as e:  # noqa: BLE001
             failed.append(('Bluesky', scrub(e)))
             print(f'::warning::Bluesky: {scrub(e)}')
+    # Mastodon: both slides with their alt text; skipped quietly until its keys are saved.
+    md = r.get('mastodon')
+    if not has_keys('mastodon'):
+        print('::notice::Mastodon: not set up yet (MASTODON_URL, MASTODON_TOKEN), so not posted there.')
+    elif not md:
+        failed.append(('Mastodon', 'the post did not fit in 500 characters'))
+    else:
+        try:
+            base, auth_m = mastodon_base()
+            me = request(f'{base}/api/v1/accounts/verify_credentials', headers=auth_m)
+            recent = request(f"{base}/api/v1/accounts/{me['id']}/statuses?limit=30&exclude_replies=true&exclude_reblogs=true", headers=auth_m)
+            done = next((x for x in recent if marker in (x.get('content') or '')), None)
+            if done:
+                print(f"::notice::Already on Mastodon: {done.get('url', '')}")
+                posted.append(('Mastodon', f"{done.get('url', '')} (posted earlier)"))
+            else:
+                media_ids = []
+                for n, path in enumerate(paths):
+                    with open(path, 'rb') as f:
+                        data = f.read()
+                    alts = md.get('alts', [])
+                    media_ids.append(mastodon_media(base, auth_m, data, f'logic-puzzle-{day}-{n + 1}.jpg', 'image/jpeg', alts[n] if n < len(alts) else ALT))
+                # The idempotency key stops a retry from posting the same day twice.
+                res = request(f'{base}/api/v1/statuses', method='POST', headers={**auth_m, 'Idempotency-Key': f'flg-daily-{day}'},
+                              data={'status': md['text'], 'media_ids': media_ids, 'visibility': 'public', 'language': 'en'})
+                posted.append(('Mastodon', res['url']))
+                print(f"::notice::Posted to Mastodon: {res['url']}")
+        except Exception as e:  # noqa: BLE001
+            failed.append(('Mastodon', scrub(e)))
+            print(f'::warning::Mastodon: {scrub(e)}')
     if failed:
         email(f'Daily puzzle: {" and ".join(n for n, _ in failed)} did not post, {when}', [
             f'<p>Today\'s puzzle, <b>{html.escape(r.get("title", ""))}</b>, passed every check, but posting hit a problem.</p>',
