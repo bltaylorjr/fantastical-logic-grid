@@ -144,7 +144,7 @@ const CSS = `
         });
       }
     }
-    await ctx.addInitScript((s) => { if (!localStorage.getItem('flg.settings')) localStorage.setItem('flg.settings', JSON.stringify({ introOffered: true, voiceProvider: 'device', silent: s })); }, silent);
+    await ctx.addInitScript((s) => { if (!localStorage.getItem('flg.settings')) localStorage.setItem('flg.settings', JSON.stringify({ introOffered: true, voiceProvider: 'device', silent: s })); if (!localStorage.getItem('flg.game')) localStorage.setItem('flg.game', 'logic-grid'); }, silent);
     const page = await ctx.newPage();
     page.on('pageerror', (e) => console.log('page error:', e.message));
     await page.goto(`${APP}/`);
