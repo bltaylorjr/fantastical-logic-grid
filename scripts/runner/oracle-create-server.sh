@@ -1,7 +1,7 @@
 #!/bin/bash
-# Creates the free Oracle build server (flg-build: Ampere A1, 4 cores, 24 GB,
+# Creates the free Oracle build server (flg-build: Ampere A1, 2 cores, 12 GB,
 # Ubuntu 24.04, 100 GB disk) in Ashburn, trying each availability domain once.
-# With SMALLER=1 it also tries 2 cores/12 GB and 1 core/6 GB (still free).
+# With SMALLER=1 it also tries 1 core/6 GB (still free).
 # Oracle's free Arm servers are often sold out, so .github/workflows/
 # oracle-create-server.yml runs this every few minutes until one is created.
 #
@@ -30,10 +30,12 @@ for v in VCN SN IMG; do [ -n "${!v}" ] && [ "${!v}" != null ] || { echo "Could n
 # The GitHub runner token and Cloudflare tunnel are added afterwards over SSH.
 printf '#!/bin/bash\ncurl -fsSL https://raw.githubusercontent.com/bltaylorjr/fantastical-logic-grid/main/scripts/runner/oracle-cloud-init.sh -o /root/setup.sh && bash /root/setup.sh\n' > /tmp/flg-init.sh
 
-# Sizes to try, largest first. All are inside Oracle's Always Free allowance
-# (4 Arm cores, 24 GB). SMALLER=1 adds the smaller ones as a last resort.
-SIZES="4:24"
-[ "${SMALLER:-}" = 1 ] && SIZES="4:24 2:12 1:6"
+# Sizes to try, largest first. Oracle's Always Free Arm allowance is 2 cores
+# and 12 GB (1,500 OCPU hours and 9,000 GB hours a month; it was 4 and 24
+# until mid 2026), so anything bigger would be charged. SMALLER=1 adds
+# 1 core/6 GB as a last resort.
+SIZES="2:12"
+[ "${SMALLER:-}" = 1 ] && SIZES="2:12 1:6"
 ADS=$(oci iam availability-domain list -c "$C" --query 'data[].name' --raw-output | tr -d '[]," ')
 for size in $SIZES; do
   cpu=${size%%:*}; mem=${size##*:}

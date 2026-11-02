@@ -20,8 +20,8 @@ set -euo pipefail
 RUNNER_TOKEN="${RUNNER_TOKEN:-PASTE_RUNNER_TOKEN_HERE}"
 TUNNEL_TOKEN="${TUNNEL_TOKEN:-}"
 REPO_URL="https://github.com/bltaylorjr/fantastical-logic-grid"
-# 4 Arm cores and 24 GB run three test jobs at once comfortably; a smaller
-# free server (created as a last resort when Oracle was sold out) runs fewer.
+# Runners by size: 3 at 4+ cores, 2 on the Always Free 2 cores and 12 GB,
+# 1 on a 1-core server (the last-resort size when Oracle was sold out).
 CORES=$(nproc)
 RUNNERS=${RUNNERS:-$([ "$CORES" -ge 4 ] && echo 3 || { [ "$CORES" -ge 2 ] && echo 2 || echo 1; })}
 
