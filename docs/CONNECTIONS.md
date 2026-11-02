@@ -776,7 +776,7 @@ uses a secret, variable or binding that is not listed there.
 
 ### X (automatic posts)
 
-**Why:** Lets the marketing autopilot post approved X ads on their day (text and link; the link shows the game's picture card).
+**Why:** Lets the marketing autopilot post approved X ads on their day (text and link; the link shows the game's picture card). Also posts the daily puzzle (text and links) every morning, starting the morning after the keys are saved.
 
 **Cost:** Free on the X API Free plan, which allows far more posts a month than this campaign needs. Do not pick a paid plan.
 
@@ -832,7 +832,7 @@ uses a secret, variable or binding that is not listed there.
 
 ### Threads (automatic posts)
 
-**Why:** Lets the marketing autopilot post approved Threads ads on their day.
+**Why:** Lets the marketing autopilot post approved Threads ads on their day. Also posts the daily puzzle (both slides) every morning, starting the morning after the keys are saved.
 
 **Cost:** Free. The token lasts 60 days; make a new one when the check says it stopped working.
 
@@ -855,7 +855,7 @@ uses a secret, variable or binding that is not listed there.
 
 ### LinkedIn (automatic posts)
 
-**Why:** Lets the marketing autopilot share approved LinkedIn ads on your profile on their day, with the link's picture card.
+**Why:** Lets the marketing autopilot share approved LinkedIn ads on your profile on their day, with the link's picture card. Also shares the daily puzzle every morning, starting the morning after the key is saved.
 
 **Cost:** Free (the Share on LinkedIn product). LinkedIn keys last 60 days: when the check says LinkedIn stopped working, press **Get the key** again.
 
@@ -877,7 +877,7 @@ uses a secret, variable or binding that is not listed there.
 
 ### Pinterest (automatic pins)
 
-**Why:** Lets the marketing autopilot pin approved Pinterest ads on their day, with the picture and the tracked link, to the board named in the ad.
+**Why:** Lets the marketing autopilot pin approved Pinterest ads on their day, with the picture and the tracked link, to the board named in the ad. Also pins the daily puzzle's clue slide every morning to the board **Daily Logic Puzzles** (make it with the other boards; without it the first board is used).
 
 **Cost:** Free. A new Pinterest app starts with Trial access, where pins are visible only to you. Ask for **Standard access** (free, a short form) and add the keys once it is approved.
 

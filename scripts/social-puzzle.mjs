@@ -265,6 +265,47 @@ export function mastodon(p, day) {
   return { text, alts: bs.alts.map((a) => a.slice(0, 1500)) };
 }
 
+// X: 280 characters, where each link counts as 23 and an emoji as 2. X's free
+// plan posts text only, so the play link's picture card shows the game.
+export const X_LIMIT = 280;
+export const xLength = (t) => [...t.replace(/https?:\/\/\S+/g, 'x'.repeat(23))].reduce((n, c) => n + (c.codePointAt(0) > 0xffff ? 2 : 1), 0);
+export function xPost(p, day) {
+  const head = `🧩 Daily logic puzzle: "${p.title}" (${p.difficulty.name} · ${p.theme.name})`;
+  const tail = ['', `▶️ Play free: ${playUrl(day)}`, `✅ Answer key: ${answerUrl(day)}`];
+  const middles = [['', 'Same puzzle as in the game today: solve it there to build your daily streak.', '', '#LogicPuzzle #PuzzleOfTheDay'], ['', '#LogicPuzzle #PuzzleOfTheDay'], []];
+  for (const m of middles) {
+    const text = [head, ...tail, ...m].join('\n');
+    if (xLength(text) <= X_LIMIT) return text;
+  }
+  const short = [`🧩 Daily logic puzzle (${p.difficulty.name})`, ...tail].join('\n');
+  return xLength(short) <= X_LIMIT ? short : null;
+}
+
+// Threads: 500 characters, links counted in full. The slides go with it when
+// there is a web address for them.
+export const THREADS_LIMIT = 500;
+export function threads(p, day) {
+  const head = [`🧩 Daily logic puzzle for ${longDate(day)}`, `"${p.title}" · ${p.difficulty.name} · ${p.theme.name}`];
+  const tail = ['', `▶️ Play today's puzzle free: ${playUrl(day)}`, `✅ Answer key (spoilers): ${answerUrl(day)}`, '', '#LogicPuzzle'];
+  const goal = p.story.paragraphs.at(-1);
+  const middles = [
+    ['', goal, '', 'Same puzzle as in the game today: solve it there to build your daily streak.'],
+    ['', 'Same puzzle as in the game today: solve it there to build your daily streak.'],
+    [],
+  ];
+  return middles.map((m) => [...head, ...m, ...tail].join('\n')).find((t) => [...t].length <= THREADS_LIMIT) || null;
+}
+
+// Pinterest: one pin of the clue slide, linking to the game's play page. The
+// answer key link is in the description, which also marks the pin as posted.
+export function pin(p, day) {
+  const title = `Daily logic puzzle: ${p.title}`.slice(0, 100);
+  const about = [`${p.difficulty.name} · ${p.theme.name} · ${longDate(day)}.`, p.story.paragraphs.at(-1),
+    'Every clue is on the picture. Play it free in the game, or check your answer:', `Answer key: ${answerUrl(day)}`,
+    '#logicpuzzle #printablepuzzle #brainteaser'].join(' ');
+  return { title, description: about.slice(0, 800), link: playUrl(day), board: 'Daily Logic Puzzles' };
+}
+
 // Instagram does not make links in captions clickable, so it also points to the bio link.
 export const instagramCaption = (p, day, stats = null) => caption(p, day, stats).replace(`\n\n${HASHTAGS}`, `\n(Links are also in our bio.)\n\n${HASHTAGS}`);
 
@@ -416,7 +457,7 @@ async function main() {
     }
     if (!result.problems.length) {
       const stats = process.env.SKIP_LIVE ? null : await yesterdayStats(DAY);
-      Object.assign(result, { ok: true, stats, caption: caption(p, DAY, stats), instagramCaption: instagramCaption(p, DAY, stats), bluesky: bluesky(p, DAY), mastodon: mastodon(p, DAY) });
+      Object.assign(result, { ok: true, stats, caption: caption(p, DAY, stats), instagramCaption: instagramCaption(p, DAY, stats), bluesky: bluesky(p, DAY), mastodon: mastodon(p, DAY), x: xPost(p, DAY), threads: threads(p, DAY), pin: pin(p, DAY) });
     }
   } catch (e) {
     result.problems.push(e.message);
