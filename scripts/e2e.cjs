@@ -18,9 +18,14 @@ const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`o
   try {
     await page.goto('http://localhost:8123/');
     await page.waitForSelector('#tier-choices input');
-    // First launch offers How to play and the narrated Introduction video.
+    // First launch offers How to play and the tour of The Logic Grid.
     await page.waitForSelector('#dlg-welcome[open]');
     await page.click('#welcome-watch');
+    await page.waitForSelector('#dlg-game-video[open]');
+    const tour = await page.evaluate(async () => { const v = document.querySelector('#game-video'); if (v.readyState < 1) await new Promise((r) => { v.onloadedmetadata = r; setTimeout(r, 5000); }); const t = v.textTracks[0]; return { src: v.currentSrc, d: v.duration, track: t && t.kind, mode: t && t.mode }; });
+    assert(/the-logic-grid\.mp4$/.test(tour.src) && tour.d > 30 && tour.track === 'captions' && tour.mode === 'showing', `the welcome plays the site tour with captions on (${Math.round(tour.d)} s)`);
+    await page.click('#game-video-close');
+    await page.click('#intro-btn');
     await page.waitForSelector('#dlg-video[open]');
     const vid = await page.evaluate(async () => { const v = document.querySelector('#intro-video'); if (v.readyState < 1) await new Promise((r) => { v.onloadedmetadata = r; setTimeout(r, 5000); }); const t = v.textTracks[0]; return { d: v.duration, track: t && t.kind, mode: t && t.mode }; });
     assert(vid.d > 200 && vid.track === 'captions' && vid.mode === 'showing', `intro video loads with captions on (${Math.round(vid.d)} s)`);

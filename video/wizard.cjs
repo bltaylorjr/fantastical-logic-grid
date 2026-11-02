@@ -44,8 +44,11 @@ const FLG = {
   await new Promise((r) => setTimeout(r, 600));
   const browser = await chromium.launch();
   try {
-    await recordWizard(browser, W, 'fantastical', async (p, step) => fillFlg(p, step));
-    await recordWizard(browser, W, 'ninetimesnine', async (p, step) => fillNtn(p, step, NTN));
+    // TLG_ONLY=1 records just The Logic Grid intro (a quick check of the tour).
+    if (!process.env.TLG_ONLY) {
+      await recordWizard(browser, W, 'fantastical', async (p, step) => fillFlg(p, step));
+      await recordWizard(browser, W, 'ninetimesnine', async (p, step) => fillNtn(p, step, NTN));
+    }
     await recordIntro(browser);
   } finally {
     await browser.close();
@@ -222,6 +225,10 @@ async function fillNtn(p, step, sample) {
 }
 
 // ---------------------------------------------------------------- The Logic Grid intro
+// A tour of the whole website: the front page, every game, the rules pages,
+// the shared account items, the free pages (daily puzzle, printables,
+// educators) and a game page. It plays from the first-visit welcome and the
+// front page's "See the games" section.
 async function recordIntro(browser) {
   const out = path.join(__dirname, 'out-tlg');
   const shots = path.join(out, 'shots');
@@ -230,26 +237,80 @@ async function recordIntro(browser) {
   const scenes = [];
   const p = await newPage(browser);
   const { hl, view, scene, card } = helpers(p, shots, scenes);
-  card('tlg', ['Welcome to The Logic Grid: logic and number puzzle games, free to play in your browser.']);
-  await p.goto(`${SITE}/`);
-  await p.waitForSelector('.games .card');
+  const go = async (where, sel) => { await p.goto(`${SITE}/${where}`); await p.waitForSelector(sel); await p.waitForTimeout(300); };
+  const has = async (sel) => p.evaluate((s) => { const e = document.querySelector(s); return !!e && e.getBoundingClientRect().width > 0; }, sel);
+
+  card('tlg', ['Welcome to The Logic Grid: five puzzle games, free to play in your browser.', 'Here is a quick tour of everything on the site.']);
+
+  // The front page.
+  await go('', '.games .card');
+  await hl('.hero', 10);
+  await scene('front', ['This is the front page, at thelogicgrid.com. Every puzzle here can be solved by reasoning alone. No guessing needed.']);
+  await hl(['.top .hdr-btn', '.top .theme'], 8);
+  await scene('top', ['At the top: your Account, and Look, which changes the colors of the page.']);
   await hl('.games', 8);
-  await scene('cards', ['Choose a game from the cards.']);
-  await hl('.card[data-game="flg"]', 6);
-  await scene('flg', ['The Fantastical Logic Grid. Story logic puzzles where every case is brand new.']);
-  await hl('.card[data-game="ntn"]', 6);
-  await scene('ntn', ['NINETIMESNINE. Number puzzles, with five ways to play.']);
-  await view('.app-item[data-wizard]', -200);
+  await scene('cards', ['Each card is a game. Choose Play to start, or Rules and how to play to learn it first.']);
+
+  // Every game.
+  const GAMES = [
+    ['flg', 'The Fantastical Logic Grid: story logic puzzles. Read the clues, mark the grid, and work out who did what. Every case is a brand new story.'],
+    ['ntn', 'NINETIMESNINE: number puzzles from 4 by 4 up to 9 by 9, with five ways to play.'],
+    ['cm', 'Cage Math: fill each cage so its numbers make the target, with every number once in each row and column.'],
+    ['sc', 'Sum Cross: a crossword of numbers, where every run adds up to its clue.'],
+    ['pg', 'Picture Grid: shade the cells each row and column calls for, and a hidden picture appears for your gallery.'],
+  ];
+  for (const [id, line] of GAMES) {
+    if (!(await has(`.card[data-game="${id}"]`))) continue;
+    await view(`.card[data-game="${id}"]`, -140);
+    await hl(`.card[data-game="${id}"]`, 6);
+    await scene(`game-${id}`, [line]);
+  }
+
+  // A rules page.
+  await go('cage-math/rules/', 'h1');
+  await scene('rules', ['Every game has its own rules page, with a narrated how-to video, so you can learn before you play.']);
+
+  // A game page.
+  await go('fantastical/', '#howto-btn');
+  await hl(['#howto-btn', '#intro-btn'], 8);
+  await scene('in-game', ['Inside The Fantastical Logic Grid, How to play teaches you step by step, and the Introduction video shows everything the game can do.']);
+
+  // Back on the front page: the videos and the shared items.
+  await go('', '.games .card');
+  if (await has('#watch')) {
+    await view('#watch', -40);
+    await hl('#watch', 8);
+    await scene('watch', ['See the games has this tour, and a one-minute video for each game.']);
+  }
+  await view('#app', -60);
+  await hl('.app-item[href="account/"]', 8);
+  await scene('account', ['One account works in every game. Sign in once, and your saves, stats and settings follow you to every device.']);
+  await hl('.app-item[href*="messages"]', 8);
+  await scene('messages', ['Messages and news has notes from the team, and replies to anything you sent.']);
   await hl('.app-item[data-wizard]', 8);
-  await scene('wizard', ['New: Submit Puzzle Ideas. Make your own puzzle for either game, step by step.', 'It checks your puzzle has exactly one answer, gives you a PDF to print, and saves it to your Saved puzzles.']);
+  await scene('wizard', ['Submit Puzzle Ideas lets you make your own puzzle, step by step.', 'It checks your puzzle has exactly one answer, gives you a PDF to print, and saves it to your Saved puzzles.']);
   await p.click('.app-item[data-wizard]');
   await p.waitForSelector('#wizard-pick[open]');
   await hl('#wizard-pick', 6);
-  await scene('wizard-pick', ['Choose which puzzle to make, and the wizard asks only what that puzzle needs.']);
+  await scene('wizard-pick', ['Choose which puzzle to make, and the wizard asks only what that puzzle needs. It has its own how-to video, too.']);
   await p.keyboard.press('Escape');
   await view('#app', -60);
-  await hl('#app', 8);
-  await scene('app', ['One account works in every game: your saves, stats and settings follow you.', 'Messages, ideas, problem reports and installing the app are all here too.']);
+  await hl('.app-item[href="report/"]', 8);
+  await scene('report', ['Something not right? Report a Problem tells the team, with a screenshot if you like.', 'Where your device allows it, Install the app puts every game on your home screen or desktop, and they work offline.']);
+  if (await has('.follow')) {
+    await view('.follow', -200);
+    await hl('.follow', 8);
+    await scene('follow', ['Follow The Logic Grid for the daily puzzle and news.']);
+  }
+
+  // The free pages.
+  await go('daily/', 'h1');
+  await scene('daily', ['There is a new daily puzzle every day, the same one for everyone, so you can compare with friends.']);
+  await go('printables/', 'h1');
+  await scene('printables', ['Printables has free puzzles to print, each with its answer key.']);
+  await go('educators/', 'h1');
+  await scene('educators', ['And for teachers, Educators has free printable puzzle packages for the classroom.']);
+
   card('tlgoutro', ['Pick your puzzle, or make your own. Happy puzzling!']);
   await cards(browser, shots, ['tlg', 'tlgoutro']);
   fs.writeFileSync(path.join(out, 'scenes.json'), JSON.stringify({ scenes }, null, 1));

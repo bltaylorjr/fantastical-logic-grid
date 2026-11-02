@@ -156,6 +156,7 @@
       document.getElementById('wizard-cancel').addEventListener('click', function () { wizPick.close(); opener.focus(); });
       wizPick.addEventListener('click', function (e) { if (e.target === wizPick) wizPick.close(); });
     }
+    welcome();
     var pick = document.getElementById('theme-pick');
     if (!pick) return;
     pick.value = read().colorTheme || 'system';
@@ -166,6 +167,40 @@
       apply(pick.value);
     });
   });
+
+  // First visit: a welcome with the tour of The Logic Grid, offered once.
+  // Players who already know the site (they saw the game's welcome) are not
+  // asked. X, Escape, Start playing or a click outside close it, and the
+  // video stops when it closes.
+  function welcome() {
+    var dlg = document.getElementById('hub-welcome');
+    if (!dlg || preview || typeof dlg.showModal !== 'function') return;
+    var s = read();
+    if (s.hubWelcomed || s.introOffered) return;
+    s.hubWelcomed = true;
+    try { localStorage.setItem(KEY, JSON.stringify(s)); } catch (e) { return; /* no storage: never nag on every visit */ }
+    var player = document.getElementById('hub-welcome-player');
+    var video = player.querySelector('video');
+    var tour = document.getElementById('hub-welcome-tour');
+    var shut = function () { if (dlg.open) dlg.close(); };
+    dlg.addEventListener('close', function () { if (video) video.pause(); });
+    dlg.addEventListener('click', function (e) { if (e.target === dlg) shut(); });
+    document.getElementById('hub-welcome-x').addEventListener('click', shut);
+    document.getElementById('hub-welcome-close').addEventListener('click', shut);
+    tour.addEventListener('click', function () {
+      player.hidden = false;
+      tour.hidden = true;
+      document.getElementById('hub-welcome-text').hidden = true;
+      if (video) {
+        if (video.textTracks[0]) video.textTracks[0].mode = 'showing';
+        video.focus();
+        var p = video.play();
+        if (p && p.then) p.then(function () { if (!dlg.open) video.pause(); }, function () { /* its own Play button */ });
+      }
+    });
+    dlg.showModal();
+    tour.focus();
+  }
 
   // The Support link and the latest news, as the games show them. Quietly
   // skipped when the Worker cannot be reached (offline, or not set up).

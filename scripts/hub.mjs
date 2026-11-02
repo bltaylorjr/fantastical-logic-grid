@@ -305,6 +305,18 @@ dialog.ovl::backdrop { background: rgb(8 10 20 / .45); }
 .wiz-game:hover, .wiz-game:focus-visible { border-color: var(--accent); }
 .wiz-game span { color: var(--muted); }
 .wiz-close { margin: 14px 0 0; text-align: right; }
+.hub-welcome { width: min(760px, calc(100% - 24px)); max-height: calc(100dvh - 24px); overflow: auto; border: 1px solid var(--edge); border-radius: var(--radius); background: var(--bg); color: var(--text); padding: 22px; }
+.hub-welcome::backdrop { background: rgb(0 0 0 / .55); }
+.hub-welcome h2 { font: 700 1.5rem/1.2 var(--display); margin: 0 44px 8px 0; }
+.hub-welcome p { color: var(--muted); margin: 0 0 14px; }
+.hub-welcome video { display: block; width: 100%; height: auto; border-radius: 12px; background: #000; margin: 0 0 14px; }
+.hub-welcome .hw-x { position: absolute; top: 14px; right: 14px; width: 44px; height: 44px; border-radius: 999px; border: 1px solid var(--edge-hi); background: var(--bg); color: var(--text); font: 700 1.3rem/1 var(--body, inherit); cursor: pointer; }
+.hub-welcome .hw-x:hover, .hub-welcome .hw-x:focus-visible { border-color: var(--accent); color: var(--accent); }
+.hw-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; margin: 6px 0 0; }
+.hub-welcome [hidden] { display: none !important; }
+.hub-welcome .hw-note { margin: 12px 0 0; font-size: .9rem; }
+.hw-go { display: inline-flex; align-items: center; min-height: 48px; padding: 0 22px; border-radius: 999px; border: 0; background: var(--accent); color: var(--on-accent); font: inherit; font-weight: 700; cursor: pointer; }
+.hw-go:hover { background: var(--accent-hi); }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } .art .mk { opacity: 1 !important; } [data-fx-hover="tilt"] .card { transform: none; } .sparkles { display: none !important; } }`;
 
 const card = ({ cls, art, tag, name, text, points, href, rules, id }) => `<article class="card" data-game="${cls}" aria-labelledby="${id}">
@@ -419,6 +431,14 @@ ${themeSelect}
 </div>
 <p class="wiz-close"><button type="button" class="hdr-btn" id="wizard-cancel">Not now</button></p>
 </dialog>
+${watchMain ? `<dialog class="hub-welcome" id="hub-welcome" aria-labelledby="hub-welcome-h">
+<button type="button" class="hw-x" id="hub-welcome-x" aria-label="Close" title="Close (Esc)">×</button>
+<h2 id="hub-welcome-h">Welcome to The Logic Grid!</h2>
+<p id="hub-welcome-text">Five puzzle games, free to play in your browser. New here? <b>Take the tour</b>: a short narrated video, with captions, of everything on the site, from every game to your account and making your own puzzles.</p>
+<div id="hub-welcome-player" hidden>${videoTag(site, '', 'the-logic-grid', 'A tour of The Logic Grid')}</div>
+<p class="hw-actions"><button type="button" class="hdr-btn" id="hub-welcome-close">Start playing</button><button type="button" class="hw-go" id="hub-welcome-tour">Take the tour</button></p>
+<p class="hw-note">The tour is always under See the games on this page.</p>
+</dialog>` : ''}
 <main id="games" class="games" tabindex="-1" aria-label="Games">
 ${GAME_PAGES.map((g, i) => card({ ...g, id: `g${i + 1}`, href: g.page, rules: howToPath(g) })).join('\n')}
 </main>

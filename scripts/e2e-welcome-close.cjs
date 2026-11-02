@@ -1,4 +1,4 @@
-// The first-visit welcome and the Introduction video can always be closed:
+// The first-visit welcome, its tour of The Logic Grid and the Introduction video can always be closed:
 // a close (X) button that stays in view, Escape, and a click on the dimmed page.
 // Checked at a laptop-sized desktop app window, where the video used to push
 // its Close button out of sight.
@@ -50,8 +50,15 @@ const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`o
     await page.click('#dlg-welcome p');
     assert(await page.evaluate(() => document.querySelector('#dlg-welcome').open), 'a click inside the welcome keeps it open');
 
-    // 3. The Introduction fits a laptop window: X and Close are in view.
+    // 3. The welcome's tour and the Introduction fit a laptop window: X and Close are in view.
     await page.click('#welcome-watch');
+    await page.waitForSelector('#dlg-game-video[open]');
+    await page.waitForTimeout(400);
+    assert(await inView(page, '#dlg-game-video .dlg-x') && await inView(page, '#game-video-close'), 'the tour shows X and Close in view');
+    await page.click('#dlg-game-video .dlg-x');
+    assert(!(await anyOpen(page)), 'X closes the tour');
+    assert(await page.waitForFunction(() => document.querySelector('#game-video').paused, null, { timeout: 3000 }).then(() => true, () => false), 'the tour stops when closed');
+    await page.click('#intro-btn');
     await page.waitForSelector('#dlg-video[open]');
     await page.waitForTimeout(400);
     assert(await inView(page, '#dlg-video .dlg-x'), 'video shows a close (X) button');
@@ -74,9 +81,9 @@ const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`o
     page = await open({ width: 360, height: 480 });
     assert(await inView(page, '#dlg-welcome .dlg-x'), 'X in view on a small window');
     await page.click('#welcome-watch');
-    await page.waitForSelector('#dlg-video[open]');
+    await page.waitForSelector('#dlg-game-video[open]');
     await page.waitForTimeout(400);
-    assert(await inView(page, '#dlg-video .dlg-x') && await inView(page, '#video-close'), 'video X and Close in view on a small window');
+    assert(await inView(page, '#dlg-game-video .dlg-x') && await inView(page, '#game-video-close'), 'tour X and Close in view on a small window');
     await page.context().close();
 
     assert(errors.length === 0, `no page errors${errors.length ? `: ${errors.join(' | ')}` : ''}`);
