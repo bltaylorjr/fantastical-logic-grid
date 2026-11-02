@@ -10,6 +10,7 @@ repository and Gmail. The Claude task runs on the owner's Claude plan.
 | 2:00 to 2:30 am Eastern | Nightly maintenance: site, SEO, speed (Lighthouse), ratings and free-limit checks | `nightly.yml` (see MAINTENANCE.md) |
 | 05:37 UTC | Weekly summary email: the week in numbers | `summary-email.yml` |
 | 08:23 UTC (4:23 am EDT, 3:23 am EST) | **Weekly improvement run**: analyze, tune, report, email | `.github/workflows/improve.yml` |
+| 09:47 UTC | Backup of the run above, only if GitHub skipped it | `.github/workflows/improve.yml` |
 | 5:41 am Eastern | **Weekly Claude task**: up to three small fix PRs from the report | a Claude scheduled task (below) |
 
 ## 1. The weekly improvement run
