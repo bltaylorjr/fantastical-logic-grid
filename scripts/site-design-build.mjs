@@ -49,7 +49,8 @@ export async function applySiteDesign({ site, base, design: given }) {
     if (SKIP.test(page) || !/<html[\s>]/.test(readFileSync(join(site, page), 'utf8').slice(0, 400))) continue;
     let html = readFileSync(join(site, page), 'utf8');
     if (!/<\/head>/.test(html)) continue;
-    const kind = page === 'index.html' ? 'hub' : page === 'ninetimesnine/index.html' ? 'np' : 'info';
+    // Every game's own page (ninetimesnine/, cage-math/, ...) has the same layout.
+    const kind = page === 'index.html' ? 'hub' : /^(ninetimesnine|cage-math|sum-cross|picture-grid)\/index\.html$/.test(page) ? 'np' : 'info';
     html = html.replace(/<html([^>]*)>/, (m, rest) => `<html${rest.replace(/\s(data-site|data-fx-[\w-]+|data-card-[\w-]+|data-hero-[\w-]+|data-theme-picker|data-footer-links|data-app-section|data-np-[\w-]+|data-info-[\w-]+|data-shadows)="[^"]*"/g, '')} data-site="${kind}"${attrs}>`);
     html = html.replace(/<style id="site-design">[\s\S]*?<\/style>\s*/, '').replace(/<script type="module" src="[^"]*js\/design-preview\.js"><\/script>\s*/, '');
     // 404.html is served at any depth, so its address starts at the site root.
@@ -57,7 +58,7 @@ export async function applySiteDesign({ site, base, design: given }) {
     html = html.replace('</head>', `<style id="site-design">${css}</style>\n<script type="module" src="${up}js/design-preview.js"></script>\n</head>`);
     html = html.replace(/(<(\w+)\b[^>]*\sdata-design-text="(\w+)"[^>]*>)([^<]*)(<\/\2>)/g, (m, open, tag, key, inner, close) => (key in words ? `${open}${esc(words[key])}${close}` : m));
     // Search results and sharing (front page and NINETIMESNINE).
-    const seo = kind === 'hub' ? ['hubTitle', 'hubDescription'] : kind === 'np' ? ['npTitle', 'npDescription'] : null;
+    const seo = kind === 'hub' ? ['hubTitle', 'hubDescription'] : page === 'ninetimesnine/index.html' ? ['npTitle', 'npDescription'] : null;
     if (seo) {
       html = html.replace(/<title>[^<]*<\/title>/, `<title>${esc(words[seo[0]])}</title>`)
         .replace(/(<meta name="description" content=")[^"]*(")/, `$1${esc(words[seo[1]])}$2`)

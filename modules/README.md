@@ -7,9 +7,9 @@ only after the owner approves it.
 | Module | Engine | Status |
 |---|---|---|
 | `number-place/` (NINETIMESNINE) | `engine/src/number-place.js`, `engine/src/number-place-styles.js` | In the game (small menu link); game styles in the test app |
-| `cage-math/` (Cage Math) | `engine/src/cage-math.js` | Own screen, private preview only |
-| `sum-cross/` (Sum Cross) | `engine/src/sum-cross.js` | Own screen, private preview only |
-| `picture-grid/` (Picture Grid) | `engine/src/picture-grid.js`, `engine/src/picture-grid-art.js` | Own screen, private preview only |
+| `cage-math/` (Cage Math) | `engine/src/cage-math.js` | Own screen in the app, own page on the website (`<game>/`) |
+| `sum-cross/` (Sum Cross) | `engine/src/sum-cross.js` | Own screen in the app, own page on the website (`<game>/`) |
+| `picture-grid/` (Picture Grid) | `engine/src/picture-grid.js`, `engine/src/picture-grid-art.js` | Own screen in the app, own page on the website (`<game>/`) |
 | `grid-kit/` | `engine/src/kit-common.js` | The shared game screen the three above are built on |
 
 ## Cage Math, Sum Cross and Picture Grid (the grid kit)
@@ -36,7 +36,7 @@ make sure no puzzle, story or picture comes twice (daily puzzles excepted).
 Picture Grid keeps a gallery of the pictures a player has uncovered.
 
 In the game each is its own screen (`#screen-cm`, `#screen-sc`, `#screen-pg`),
-loaded by `web/js/kit-games.js` and shown only with the private preview.
+loaded by `web/js/kit-games.js`; on the website each also has its own page (`web/js/kit-page.js`, written by `scripts/hub.mjs`).
 `web/js/kit-share.js` sends anonymous play data to `POST /v1/learn/<game>/plays`
 and brings back `GET /v1/learn/<game>/tuning` (server/src/kit-games.js, table
 `kit_plays`, migration 2140). Each game has its own admin dashboard section

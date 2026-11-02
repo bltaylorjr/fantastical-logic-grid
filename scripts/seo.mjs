@@ -17,7 +17,8 @@ import { join, dirname } from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { gridTable, answerKey } from './worksheet.mjs';
-import { writeGamePage, writeHubPages, contactLink } from './hub.mjs';
+import { writeGamePage, writeHubPages, contactLink, OWN_PAGES } from './hub.mjs';
+import { writeGuides } from './game-guides.mjs';
 import { educatorsBody, EDUCATORS_CSS, educatorFeedbackBody, FEEDBACK_CSS } from './educators-page.mjs';
 
 // Search pages are plain HTML: only the site's own files may load, inline
@@ -266,7 +267,7 @@ export async function buildSeo({ root, site }) {
   };
   // App pages (privacy, terms) belong to The Logic Grid as a whole, not one
   // game: their header and footer lead back to the front page and every game.
-  const APP_NAV = [['fantastical/', 'The Fantastical Logic Grid'], ['ninetimesnine/', 'NINETIMESNINE'], ['privacy/', 'Privacy'], ['terms/', 'Terms of use']];
+  const APP_NAV = [['fantastical/', 'The Fantastical Logic Grid'], ...OWN_PAGES.map((g) => [g.page, g.name]), ['privacy/', 'Privacy'], ['terms/', 'Terms of use']];
   const page = ({ path, title: fullTitle, description: fullDescription, body, crumbs = [], schema = [], lastmod = updated, priority = 0.6, type, listed = true, csp = SITE_CSP, style = '', script = '', app = false }) => {
     const title = fitTitle(fullTitle);
     const description = fitDescription(fullDescription);
@@ -321,7 +322,7 @@ ${body(up)}
 </main>
 <footer class="foot">
   ${app ? `<p><a class="btn quiet" href="${up}" data-back><span aria-hidden="true">‹</span> Back</a> <a class="btn quiet" href="${up}">The Logic Grid home</a></p>
-  <p>The Logic Grid: <a href="${up}fantastical/">The Fantastical Logic Grid</a> and <a href="${up}ninetimesnine/">NINETIMESNINE</a>, free in your browser. Questions? ${contactLink()}</p>` : `<p><a class="btn quiet" href="${up}${GAME}" data-back><span aria-hidden="true">‹</span> Back</a> <a class="btn quiet" href="${up}${GAME}">Back to the game</a> <a class="btn quiet" href="${up}">The Logic Grid home</a></p>
+  <p>The Logic Grid: <a href="${up}fantastical/">The Fantastical Logic Grid</a>, ${OWN_PAGES.map((g) => `<a href="${up}${g.page}">${g.name}</a>`).join(', ')}, free in your browser. Questions? ${contactLink()}</p>` : `<p><a class="btn quiet" href="${up}${GAME}" data-back><span aria-hidden="true">‹</span> Back</a> <a class="btn quiet" href="${up}${GAME}">Back to the game</a> <a class="btn quiet" href="${up}">The Logic Grid home</a></p>
   <p><a href="${up}${GAME}">Play ${name}</a> · free in your browser, offline-ready, and on Windows.</p>`}
   <p>Every puzzle has exactly one answer, checked by our solver${quality.rating ? `, and players rate them ${quality.rating.average} out of 5 stars` : ''}. <a href="${up}picks/">Hand-picked puzzles</a></p>
   <p>${NAV.map(([p, n]) => `<a href="${up}${p}">${n}</a>`).join(' · ')} · <a href="${up}privacy/">Privacy</a></p>
@@ -375,7 +376,8 @@ ${social({ title: name, description: appDescription, path: GAME })}
 ${verification}
 <script type="application/ld+json">${json(checkVideos(game, GAME))}</script>
 <meta name="flg-daily" content="../daily/">
-<meta name="flg-np-page" content="ninetimesnine/">`;
+<meta name="flg-np-page" content="ninetimesnine/">
+<meta name="flg-hub" content="./">`;
   // Shown when scripts are off, and read by crawlers that do not run them.
   const noscript = `<noscript><div class="card" style="margin:1rem"><p><strong>${name}</strong> is a free logic grid puzzle game where every puzzle is a brand new story. Turn on JavaScript to play.</p><p>${NAV.map(([p, n]) => `<a href="${p}">${n}</a>`).join(' · ')}</p></div></noscript>`;
   // Crawlable links to the search pages at the foot of the home screen (website only).
@@ -389,6 +391,8 @@ ${verification}
   writeGamePage(site, game_html);
   pages.push({ path: GAME, lastmod: updated, priority: 1 });
   writeHubPages({ site, url, verification, tdmMeta, copyright, socialList, pages, updated, csp: SITE_CSP, cloud, socialHtml: socialPages.socialHtml });
+  // How to play pages for NINETIMESNINE, Cage Math, Sum Cross and Picture Grid.
+  await writeGuides({ root, site, url, page, updated });
 
   // ---------- how to play ----------
   const transcript = (appHtml.match(/<details class="transcript">[\s\S]*?<\/summary>([\s\S]*?)<\/details>/) || [])[1] || '';
@@ -962,7 +966,7 @@ Sitemap: ${url('sitemap.xml')}
 ## Pages
 
 - [Play the game](${url(GAME)})
-- [The Logic Grid](${url('')}): every game from the same team, including [NINETIMESNINE](${url('ninetimesnine/')}) number puzzles
+- [The Logic Grid](${url('')}): every game from the same team: ${OWN_PAGES.map((g) => `[${g.name}](${url(g.page)}) ([how to play](${url(`${g.page}how-to-play/`)}))`).join(', ')}
 - [How to play](${url('how-to-play/')}): rules, a narrated video and FAQ
 - [Daily puzzle](${url('daily/')}): a new free puzzle every day, with the answer key
 - [Printables](${url('printables/')}): free printable logic puzzles for classrooms and home, a new set every week, with answer keys
