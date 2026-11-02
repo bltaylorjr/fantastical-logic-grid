@@ -1,6 +1,8 @@
 # Keeps trying to create the free Oracle build server (flg-build) until it
 # exists. Oracle's free Arm servers in Ashburn are often sold out, so this
-# asks every 5 minutes (scripts/runner/oracle-create-server.sh) and stops by
+# asks every 2 minutes (scripts/runner/oracle-create-server.sh). Each run
+# lasts up to 5 hours and then starts the next one (the 5-minute schedule is
+# only a backup, since GitHub doesn't always run it). It stops by
 # itself once the server exists or the deadline below has passed. The owner
 # chose to stay on the free tier: in the last 6 hours it also tries smaller
 # free sizes (2 cores/12 GB, then 1 core/6 GB) as a last resort.
@@ -20,6 +22,7 @@ on:
 permissions:
   contents: read
   issues: write
+  actions: write   # to start its own next run
 concurrency:
   group: oracle-create-server
   cancel-in-progress: false
@@ -35,7 +38,9 @@ jobs:
   create:
     # Always GitHub's own runners: the Oracle runners are what this creates.
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # Each run keeps trying for up to 5 hours, then starts the next run, so
+    # it doesn't depend on GitHub's 5-minute schedule actually firing.
+    timeout-minutes: 330
     steps:
       - name: Still trying?
         id: gate
@@ -64,9 +69,26 @@ jobs:
         if: steps.gate.outputs.go == 'yes'
         id: create
         run: |
-          # Last resort, in the final 6 hours only: smaller free sizes too.
-          if [ "$(date -u +%s)" -gt $(( $(date -u -d "$DEADLINE" +%s) - 6*3600 )) ]; then export SMALLER=1; echo "Final hours: smaller free sizes allowed too."; fi
-          bash scripts/runner/oracle-create-server.sh
+          end=$(( $(date -u +%s) + 5*3600 ))
+          deadline=$(date -u -d "$DEADLINE" +%s)
+          while :; do
+            now=$(date -u +%s)
+            # Last resort, in the final 6 hours only: smaller free sizes too.
+            if [ "$now" -gt $(( deadline - 6*3600 )) ]; then export SMALLER=1; fi
+            echo "--- $(date -u '+%H:%M UTC')${SMALLER:+ (smaller free sizes allowed too)}"
+            bash scripts/runner/oracle-create-server.sh || exit 1
+            result=$(tail -n 1 "$GITHUB_OUTPUT" | sed -n 's/^result=//p')
+            [ "$result" = FULL ] || exit 0
+            now=$(date -u +%s)
+            if [ "$now" -gt "$deadline" ]; then echo "Deadline reached; stopping."; exit 0; fi
+            if [ "$now" -gt "$end" ]; then echo "again=yes" >> "$GITHUB_OUTPUT"; exit 0; fi
+            sleep 120
+          done
+      - name: Start the next run
+        if: steps.create.outputs.again == 'yes'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run oracle-create-server.yml --repo "$GITHUB_REPOSITORY" --ref main
       - name: Tell the owner
         if: steps.create.outputs.result == 'CREATED'
         env:
