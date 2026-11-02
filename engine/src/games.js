@@ -29,6 +29,9 @@ export const ENGINE_GAMES = {
     ops: 'np-ops.js',
     kinds: { generate: 'build', hint: 'play', move: 'play', tide: 'play', ebb: 'play', check: 'play' },
   },
+  cm: { name: 'Cage Math', ops: 'cm-ops.js', kinds: { generate: 'build', hint: 'play' } },
+  sc: { name: 'Sum Cross', ops: 'sc-ops.js', kinds: { generate: 'build', hint: 'play' } },
+  pg: { name: 'Picture Grid', ops: 'pg-ops.js', kinds: { generate: 'build', hint: 'play' } },
 };
 
 // How long each kind may take, and how big a request may be.

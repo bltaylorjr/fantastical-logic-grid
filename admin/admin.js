@@ -1407,6 +1407,68 @@ $('#np-body').onclick = (e) => {
 };
 $('#np-days').onchange = () => show('numberplace', { keepFocus: true });
 
+// Cage Math, Sum Cross and Picture Grid: one section each, the same shape as
+// NINETIMESNINE's (server/src/kit-games.js), with its own settings group.
+const KIT_SECTIONS = { cm: { view: 'cagemath', group: 'Cage Math' }, sc: { view: 'sumcross', group: 'Sum Cross' }, pg: { view: 'picturegrid', group: 'Picture Grid' } };
+const KIT_TECH_NAMES = {
+  cm: { nakedSingle: 'Only number left', hiddenSingle: 'Only place left', cageCombo: 'Cage combinations', cageLine: 'Cage claims a line', nakedPair: 'Matching pair', hiddenPair: 'Hidden pair', nakedTriple: 'Matching three', cageTotal: 'Line total' },
+  sc: { nakedSingle: 'Only number left', hiddenSingle: 'A run needs it here', combo: 'Run combinations', comboFit: 'Fitting the combinations', nakedPair: 'Matching pair', nakedTriple: 'Matching three' },
+  pg: { overlap: 'Overlapping runs', finish: 'Finished line', edge: 'Pushing from the edge', reach: 'Out of reach', cross: 'Working both ways' },
+};
+for (const [id, k] of Object.entries(KIT_SECTIONS)) {
+  views[k.view] = async () => {
+    const [d, st] = await Promise.all([api(`kit-game/${id}?days=${$(`#kit-${id}-days`).value}`), api('settings')]);
+    const editable = can('admin');
+    const list = st.settings.filter((s) => s.group === k.group);
+    const pct = (a, b) => (b ? `${Math.round((a / b) * 100)}%` : '–');
+    const tuned = (t) => (t == null ? '–' : t > 0.58 ? `${t} (tougher)` : t < 0.42 ? `${t} (gentler)` : `${t} (middle)`);
+    const levelRows = d.levels.filter((l) => l.games).map((l) => [
+      `<b>${esc(NP_LEVEL_NAMES[l.level])}</b>`, l.games, pct(l.solved, l.games), l.revealed, l.abandoned,
+      l.medianMinutes == null ? '–' : `${Math.round(l.medianMinutes * 10) / 10} min`, l.avgHints ?? '–',
+      `${l.feels.easy} / ${l.feels.right} / ${l.feels.hard}`, esc(tuned(d.tuning.toughness[l.level] ?? null)),
+    ]);
+    const control = (s) => {
+      const dis = editable ? '' : ' disabled';
+      if (s.type === 'bool') return `<label class="check"><input type="checkbox" data-kit-key="${s.key}"${s.value ? ' checked' : ''}${dis}> <span>${s.value ? 'On' : 'Off'}</span></label>`;
+      const save = editable ? `<button class="btn small" data-kit-save="${s.key}">Save</button>` : '';
+      const label = `<label class="sr-only" for="kitset-${s.key}">${esc(s.label)}</label>`;
+      if (s.type === 'int') return `<div class="row"><div class="field">${label}<input id="kitset-${s.key}" type="number" min="${s.min}" max="${s.max}" value="${s.value}" inputmode="numeric"${dis}></div>${save}</div>`;
+      return `<div class="row"><div class="field">${label}<select id="kitset-${s.key}"${dis}>${s.options.map((o) => `<option value="${esc(o.value)}"${o.value === s.value ? ' selected' : ''}>${esc(o.label)}</option>`).join('')}</select></div>${save}</div>`;
+    };
+    const sizes = Object.entries(d.sizes).sort((a, b) => a[0] - b[0]).map(([n, c]) => `${c} at ${n}×${n}`).join(', ');
+    $(`#kit-${id}-body`).innerHTML = `
+      <div class="card"><h2>Games since ${esc(d.since)}</h2>
+        <p><b>${d.games}</b> finished ${esc(d.name)} games${d.games ? `: ${Object.entries(d.modes).map(([m, n]) => `${n} ${esc({ free: 'free play', daily: 'daily', file: 'from a file' }[m] || m)}`).join(', ')}` : ''}.${sizes ? ` Grid sizes: ${esc(sizes)}.` : ''}
+        Shared tuning uses ${d.tuning.games} games from the last 90 days; a level needs 10 before it moves.</p>
+        ${levelRows.length ? table([{ label: 'Level' }, { label: 'Games', num: true }, { label: 'Solved', num: true }, { label: 'Answer shown', num: true }, { label: 'Given up', num: true }, { label: 'Typical time', num: true }, { label: 'Hints a game', num: true }, { label: 'Felt easy / right / hard' }, { label: 'Shared tuning' }], levelRows) : `<p class="muted">No ${esc(d.name)} games yet in this period.</p>`}
+      </div>
+      <div class="card"><h2>Where players ask for help</h2>
+        ${d.stuck.length ? table([{ label: 'Step' }, { label: 'Hints asked', num: true }], d.stuck.map((s) => [esc(KIT_TECH_NAMES[id][s.technique] || s.technique), s.count])) : '<p class="muted">No hints asked yet.</p>'}
+        <p class="muted">Players who keep asking about a step get practice puzzles that need it (Practice puzzles, below).</p>
+      </div>
+      <div class="card"><h2>${esc(d.name)} settings</h2>${editable ? '' : '<p class="note">You can see the settings. Changing them needs the admin role.</p>'}
+        ${list.map((s) => `<div class="setting"><div><b id="lbl-${s.key}">${esc(s.label)}</b><p class="help">${esc(s.help)}</p>${s.updatedBy ? `<p class="meta">Changed by ${esc(s.updatedBy)} on ${when(s.updatedAt)}</p>` : ''}</div><div>${control(s)}</div></div>`).join('')}
+      </div>`;
+    $$(`#kit-${id}-body input[type=checkbox][data-kit-key]`).forEach((c) => c.setAttribute('aria-labelledby', `lbl-${c.dataset.kitKey}`));
+  };
+  const save = async (key, value, button) => {
+    await act(button, () => api('settings', { method: 'POST', body: { key, value } }), 'Saved. Players get it within about a minute.');
+    show(k.view, { keepFocus: true });
+  };
+  $(`#kit-${id}-body`).onchange = (e) => {
+    const c = e.target.closest('input[type=checkbox][data-kit-key]');
+    if (c) save(c.dataset.kitKey, c.checked, c);
+  };
+  $(`#kit-${id}-body`).onclick = (e) => {
+    const b = e.target.closest('button[data-kit-save]');
+    if (!b) return;
+    const input = $(`#kitset-${b.dataset.kitSave}`);
+    save(b.dataset.kitSave, input.type === 'number' ? Number(input.value) : input.value, b);
+  };
+  $(`#kit-${id}-days`).onchange = () => show(k.view, { keepFocus: true });
+}
+const KIT_GROUP_DASH = Object.fromEntries(Object.entries(KIT_SECTIONS).map(([id, k]) => [k.group, id]));
+
 // Which dashboard each settings group belongs to. The Fantastical Logic
 // Grid's own switches are on its dashboard (Game settings and switches),
 // NINETIMESNINE's on its page, and everything shared by the whole app (sign-in,
@@ -1414,7 +1476,7 @@ $('#np-days').onchange = () => show('numberplace', { keepFocus: true });
 // under App settings and switches. A new group shows under App until it is
 // listed here.
 const GAME_GROUPS = new Set(['Play', 'Celebrations', 'Characters', 'Voices', 'Sounds', 'Pictures', 'Puzzle emails', 'Printable puzzle packs', 'Educators', 'Learning']);
-const settingsScope = (s) => (s.group === NP_GROUP ? 'ntn' : GAME_GROUPS.has(s.group) ? 'game' : 'app');
+const settingsScope = (s) => (s.group === NP_GROUP ? 'ntn' : KIT_GROUP_DASH[s.group] || (GAME_GROUPS.has(s.group) ? 'game' : 'app'));
 const SETTINGS_BODY = { app: '#settings-body', game: '#game-settings-body' };
 let settingsRoute = 'settings';
 
@@ -2022,9 +2084,9 @@ const MIN_ROLE = { ...Object.fromEntries($$('#nav-list a').map((a) => [a.hash.sl
 
 // Dashboards: The Logic Grid (the app: players, sign-in, messages, website,
 // marketing, keys, settings shared by every game), The Fantastical Logic Grid
-// and NINETIMESNINE. The menu shows the open dashboard's sections. Every
+// NINETIMESNINE, Cage Math, Sum Cross and Picture Grid. The menu shows the open dashboard's sections. Every
 // address (#daily, #settings, ...) still works and opens its own dashboard.
-const DASH_HOME = { main: 'overview', flg: 'fantastical', ntn: 'numberplace' };
+const DASH_HOME = { main: 'overview', flg: 'fantastical', ntn: 'numberplace', cm: 'cagemath', sc: 'sumcross', pg: 'picturegrid' };
 const dashOf = (view) => $(`#nav-list a[href="#${view}"]`)?.closest('li')?.dataset.dash;
 function setDash(dash) {
   if (!DASH_HOME[dash]) return;

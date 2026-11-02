@@ -3,9 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>NINETIMESNINE Preview</title>
+<title>Puzzle Module Preview</title>
 <link rel="stylesheet" href="app.css">
 <link rel="stylesheet" href="modules/number-place/ui.css">
+<link rel="stylesheet" href="modules/grid-kit/kit.css">
 <style>
   .test-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; padding-block: 10px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); border-bottom: 1px solid var(--hairline); background: var(--surface-2); }
   .test-bar p { margin: 0; font-weight: 700; }
@@ -18,6 +19,7 @@
 <body>
 <header class="test-bar">
   <p>Puzzle module test <small>Private preview. Not part of the live game yet.</small></p>
+  <label>Game <select id="game"><option value="np">NINETIMESNINE</option><option value="cm">Cage Math</option><option value="sc">Sum Cross</option><option value="pg">Picture Grid</option></select></label>
   <label>Look <select id="theme"><option value="system">Match device</option><option value="light">Light</option><option value="dark">Dark</option><option value="contrast">High contrast</option></select></label>
 </header>
 <main class="screen"><div id="np"></div></main>

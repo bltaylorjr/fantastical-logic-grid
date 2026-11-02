@@ -25,6 +25,7 @@ import * as puzzleReport from './puzzle-report.js';
 import * as messages from './messages.js';
 import * as share from './share.js';
 import * as numberPlace from './number-place.js';
+import * as kitGames from './kit-games.js';
 import * as errorReports from './errors.js';
 import * as campaign from './campaign.js';
 import { countVisit } from './visit.js';
@@ -237,6 +238,7 @@ function trackScreen(name) {
 function screenBack() {
   if (currentScreen === 'games') return false;
   if (currentScreen === 'home') { if (!pkg.on()) return false; openGames(); return true; }
+  if (kitGames.byScreen(currentScreen)) { openGames(); return true; }
   if (currentScreen === 'learn' && !$('#learn-lesson').hidden) {
     $('#learn-back').click();
     try { if (!(history.state && history.state.flgScreen)) { history.pushState({ ...(history.state || {}), flgScreen: 'learn' }, ''); pushedHere = true; } } catch (e) { /* framed preview */ }
@@ -263,7 +265,7 @@ window.__flgScreenBack = screenBack;
 function showScreen(name) {
   currentScreen = name;
   delete document.documentElement.dataset.start;
-  games.rememberGame(name === 'games' ? 'all' : name === 'np' ? 'ninetimesnine' : 'logic-grid');
+  games.rememberGame(name === 'games' ? 'all' : name === 'np' ? 'ninetimesnine' : kitGames.byScreen(name) || 'logic-grid');
   // Public visitors have only The Fantastical Logic Grid: its home is the first screen.
   $('#back-btn').hidden = name === 'games' || (name === 'home' && !pkg.on());
   trackScreen(name);
@@ -272,19 +274,21 @@ function showScreen(name) {
   $('#screen-play').hidden = name !== 'play';
   $('#screen-learn').hidden = name !== 'learn';
   $('#screen-np').hidden = name !== 'np';
+  for (const k of ['cm', 'sc', 'pg']) $(`#screen-${k}`).hidden = name !== k;
   if (name !== 'learn') tutorial.close();
   if (name !== 'np') numberPlace.leave();
+  kitGames.leave(name);
   const scr = $(`#screen-${name}`);
   // The entrance animation plays on screen changes, not for the first screen
   // at start (it would hold back the first paint).
   if (document.documentElement.classList.contains('ready')) { scr.classList.remove('enter'); void scr.offsetWidth; scr.classList.add('enter'); }
   if (name === 'games') setWorld('random');
-  else if (name !== 'np') setWorld(name === 'play' && S ? S.puzzle.theme.id : setup.theme);
+  else if (name !== 'np' && !kitGames.byScreen(name)) setWorld(name === 'play' && S ? S.puzzle.theme.id : setup.theme);
   // How to play, the Introduction and the scoreboard are The Fantastical Logic Grid's.
   $('.topstrip').hidden = name === 'games';
   $('#skip-link').hidden = name !== 'play';
   $('#view-seg').hidden = name !== 'play';
-  document.title = name === 'play' && S ? `${S.save.name} · The Fantastical Logic Grid` : name === 'learn' ? 'How to play · The Fantastical Logic Grid' : name === 'np' ? 'NINETIMESNINE · The Logic Grid' : name === 'games' ? 'The Logic Grid' : pkg.on() ? 'The Fantastical Logic Grid · The Logic Grid' : HOME_TITLE;
+  document.title = name === 'play' && S ? `${S.save.name} · The Fantastical Logic Grid` : name === 'learn' ? 'How to play · The Fantastical Logic Grid' : name === 'np' ? 'NINETIMESNINE · The Logic Grid' : kitGames.byScreen(name) ? `${kitGames.KIT_GAMES[kitGames.byScreen(name)].name} · The Logic Grid` : name === 'games' ? 'The Logic Grid' : pkg.on() ? 'The Fantastical Logic Grid · The Logic Grid' : HOME_TITLE;
   if (name === 'home') { closeGame(); renderSaved(); renderSuggestion(); renderDaily(); accountsOnHome(); competeUi.onHome(); setTimeout(offerUpdate, 500); }
   wake.setPlaying(name === 'play' && S && !S.save.solved);
   updateMusic();
@@ -2857,7 +2861,7 @@ async function openGames() {
 }
 function renderGameCards() {
   games.renderCards($('#game-cards'), {
-    available: (id) => id !== 'ninetimesnine' || numberPlace.enabled(),
+    available: (id) => (id === 'ninetimesnine' ? numberPlace.enabled() : kitGames.KIT_GAMES[id] ? kitGames.enabled(id) : true),
     onOpen: (id, mode) => openFromCard(id, mode),
     onWatch: (video, title) => openGameVideo(video, title),
   });
@@ -2879,6 +2883,7 @@ $('#game-video-close').onclick = () => $('#dlg-game-video').close();
 $('#dlg-game-video').addEventListener('close', () => $('#game-video').pause());
 async function openFromCard(id, mode = null) {
   if (id === 'ninetimesnine') { openNumberPlace(mode); return; }
+  if (kitGames.KIT_GAMES[id]) { openKitGame(id); return; }
   await goHome();
   offerIntro();
 }
@@ -2904,6 +2909,17 @@ async function openNumberPlace(mode = null) {
   await numberPlace.open({ celebrate: () => celebrateSolve(settings.celebrations, { random: settings.celebrateRandom }), setWorld, style: mode });
 }
 $('#np-back').onclick = () => (pkg.on() ? openGames() : goHome());
+
+// Cage Math, Sum Cross and Picture Grid: each its own screen with the game's
+// look (web/js/kit-games.js), for testers of the full package only.
+async function openKitGame(card) {
+  if (!pkg.on() || !kitGames.enabled(card)) { goHome(); return; }
+  if (S) { await flushSave(); closeGame(); }
+  showScreen(kitGames.KIT_GAMES[card].id);
+  window.scrollTo(0, 0);
+  await kitGames.open(card, { celebrate: () => celebrateSolve(settings.celebrations, { random: settings.celebrateRandom }), setWorld });
+}
+for (const k of ['cm', 'sc', 'pg']) $(`#${k}-back`).onclick = () => openGames();
 
 // How to play: the step-by-step tutorial and the tips page (tutorial.js).
 // The narrated video is the Introduction.
@@ -3328,7 +3344,7 @@ async function init() {
   // time) or NINETIMESNINE.
   if (EMBED) embedOpen(); else if (new URLSearchParams(location.search).has('learn')) { settings.introOffered = true; store.saveSettings(settings); openTutorial(); } else if (!handleChallengeLink() && !handlePlayLink() && !handleOpenLink() && currentScreen === 'home') {
     const last = games.lastGame();
-    if (!pkg.on() || last === 'logic-grid') offerIntro(); else if (last === 'ninetimesnine' && numberPlace.enabled()) openNumberPlace(); else showScreen('games');
+    if (!pkg.on() || last === 'logic-grid') offerIntro(); else if (last === 'ninetimesnine' && numberPlace.enabled()) openNumberPlace(); else if (kitGames.KIT_GAMES[last] && kitGames.enabled(last)) openKitGame(last); else showScreen('games');
   }
   delete document.documentElement.dataset.start;
   if (EMBED) return;

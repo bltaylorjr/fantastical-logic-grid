@@ -80,6 +80,9 @@
       <button type="button" data-dash="main" aria-pressed="true">The Logic Grid <span class="dash-sub">App</span></button>
       <button type="button" data-dash="flg" aria-pressed="false">The Fantastical Logic Grid <span class="dash-sub">Game</span></button>
       <button type="button" data-dash="ntn" aria-pressed="false">NINETIMESNINE <span class="dash-sub">Game</span></button>
+      <button type="button" data-dash="cm" aria-pressed="false">Cage Math <span class="dash-sub">Game, private preview</span></button>
+      <button type="button" data-dash="sc" aria-pressed="false">Sum Cross <span class="dash-sub">Game, private preview</span></button>
+      <button type="button" data-dash="pg" aria-pressed="false">Picture Grid <span class="dash-sub">Game, private preview</span></button>
     </div>
     <ul id="nav-list" data-current="main">
       <li data-dash="main"><a href="#overview" data-min="viewer">Overview</a></li>
@@ -115,6 +118,9 @@
       <li data-dash="flg"><a href="#badges" data-min="viewer">Badges</a></li>
       <li data-dash="flg"><a href="#game-settings" data-min="viewer">Game settings and switches</a></li>
       <li data-dash="ntn"><a href="#numberplace" data-min="viewer">NINETIMESNINE</a></li>
+      <li data-dash="cm"><a href="#cagemath" data-min="viewer">Cage Math</a></li>
+      <li data-dash="sc"><a href="#sumcross" data-min="viewer">Sum Cross</a></li>
+      <li data-dash="pg"><a href="#picturegrid" data-min="viewer">Picture Grid</a></li>
     </ul>
   </nav>
   <main id="main" tabindex="-1">
@@ -499,6 +505,30 @@
       <div class="head"><h1 id="h-website">Website</h1></div>
       <p class="muted">How thelogicgrid.com looks: colors, fonts, shapes, the front page's words and effects, the NINETIMESNINE page, the information pages, and what search results show. Try anything in the preview; visitors see nothing until you press Publish.</p>
       <div id="web-body"><p class="muted">Loading…</p></div>
+    </section>
+
+    <section data-view="cagemath" hidden aria-labelledby="h-cagemath">
+      <div class="head"><h1 id="h-cagemath">Cage Math</h1>
+        <div class="field inline"><label for="kit-cm-days">Period</label><select id="kit-cm-days" data-kit-days="cm"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option></select></div>
+      </div>
+      <p class="muted">The numbers game's own switches and numbers. Only testers with the private preview link see it in the app until it goes public. It shares only anonymous play summaries with the rest of the app, for learning. App-wide switches are under App settings and switches.</p>
+      <div id="kit-cm-body" data-kit-body="cm"><p class="muted">Loading…</p></div>
+    </section>
+
+    <section data-view="sumcross" hidden aria-labelledby="h-sumcross">
+      <div class="head"><h1 id="h-sumcross">Sum Cross</h1>
+        <div class="field inline"><label for="kit-sc-days">Period</label><select id="kit-sc-days" data-kit-days="sc"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option></select></div>
+      </div>
+      <p class="muted">The numbers game's own switches and numbers. Only testers with the private preview link see it in the app until it goes public. It shares only anonymous play summaries with the rest of the app, for learning. App-wide switches are under App settings and switches.</p>
+      <div id="kit-sc-body" data-kit-body="sc"><p class="muted">Loading…</p></div>
+    </section>
+
+    <section data-view="picturegrid" hidden aria-labelledby="h-picturegrid">
+      <div class="head"><h1 id="h-picturegrid">Picture Grid</h1>
+        <div class="field inline"><label for="kit-pg-days">Period</label><select id="kit-pg-days" data-kit-days="pg"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option></select></div>
+      </div>
+      <p class="muted">The picture game's own switches and numbers. Only testers with the private preview link see it in the app until it goes public. It shares only anonymous play summaries with the rest of the app, for learning. App-wide switches are under App settings and switches.</p>
+      <div id="kit-pg-body" data-kit-body="pg"><p class="muted">Loading…</p></div>
     </section>
 
     <section data-view="numberplace" hidden aria-labelledby="h-numberplace">

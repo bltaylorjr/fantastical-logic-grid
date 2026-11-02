@@ -7,6 +7,41 @@ only after the owner approves it.
 | Module | Engine | Status |
 |---|---|---|
 | `number-place/` (NINETIMESNINE) | `engine/src/number-place.js`, `engine/src/number-place-styles.js` | In the game (small menu link); game styles in the test app |
+| `cage-math/` (Cage Math) | `engine/src/cage-math.js` | Own screen, private preview only |
+| `sum-cross/` (Sum Cross) | `engine/src/sum-cross.js` | Own screen, private preview only |
+| `picture-grid/` (Picture Grid) | `engine/src/picture-grid.js`, `engine/src/picture-grid-art.js` | Own screen, private preview only |
+| `grid-kit/` | `engine/src/kit-common.js` | The shared game screen the three above are built on |
+
+## Cage Math, Sum Cross and Picture Grid (the grid kit)
+
+These three share one game screen, `grid-kit/kit.js`. `createGame(def)` takes a
+game definition (`<game>/game.js`: levels, board drawing, how a move works,
+how-to text, badges) and returns the module API (`mount`, `unmount`, `suspend`,
+`reopen`, `setShared`, `state`, `learning`, `dailyOptions`); `<game>/ui.js` is
+one line that does this. Every element id starts with the game id (`cm`, `sc`,
+`pg`), so all three can be open at once.
+
+What each game gets from the kit: six levels with a suggested one, a daily
+puzzle with a streak, saved games (rename, delete, undo), timer and pause,
+notes or shade/cross pens, undo and redo, check, three-step hints beside the
+grid, Fill it in, show the answer, the solution replayed step by step, how-it-
+felt rating, badges and stats, share as picture or text, save and open a file,
+print, sound, silent mode and full keyboard play.
+
+Every puzzle is proven by a solver that works the way a person does, so it has
+one answer and needs no guessing; the hints come from the same solver. The
+player's own records (`grid-kit/learning.js`) tune how tough each puzzle is
+inside its level, pick practice puzzles for the steps they ask hints about, and
+make sure no puzzle, story or picture comes twice (daily puzzles excepted).
+Picture Grid keeps a gallery of the pictures a player has uncovered.
+
+In the game each is its own screen (`#screen-cm`, `#screen-sc`, `#screen-pg`),
+loaded by `web/js/kit-games.js` and shown only with the private preview.
+`web/js/kit-share.js` sends anonymous play data to `POST /v1/learn/<game>/plays`
+and brings back `GET /v1/learn/<game>/tuning` (server/src/kit-games.js, table
+`kit_plays`, migration 2140). Each game has its own admin dashboard section
+and settings (`cm_*`, `sc_*`, `pg_*`). Tests: `node modules/grid-kit/e2e.cjs`
+and `node engine/test/kit-games-tests.js`.
 
 ## How a module plugs in
 
@@ -59,4 +94,6 @@ node scripts/serve.mjs dist/module-test 8080
 node modules/number-place/e2e.cjs  # browser test
 node modules/number-place/e2e-styles.cjs  # game styles
 node engine/test/number-place-tests.js
+node modules/grid-kit/e2e.cjs      # Cage Math, Sum Cross, Picture Grid (?game=cm|sc|pg)
+node engine/test/kit-games-tests.js
 ```

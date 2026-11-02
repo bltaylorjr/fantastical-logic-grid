@@ -5,6 +5,9 @@
 // have a video explaining the idea.
 const MARK_GRID = '<svg viewBox="0 0 32 32" aria-hidden="true"><rect x="2" y="2" width="28" height="28" rx="6" fill="currentColor"/><path d="M11 2v28M21 2v28M2 11h28M2 21h28" stroke="var(--hero-ink)" stroke-width="1.6"/><circle cx="16" cy="16" r="3.4" fill="var(--hero-ink)"/><path d="M4.8 4.8l3.4 3.4M8.2 4.8l-3.4 3.4M23.8 23.8l3.4 3.4M27.2 23.8l-3.4 3.4" stroke="var(--hero-ink)" stroke-width="1.6" stroke-linecap="round"/></svg>';
 const MARK_NINE = '<svg viewBox="0 0 32 32" aria-hidden="true"><rect x="2" y="2" width="28" height="28" rx="6" fill="currentColor"/><path d="M11 2v28M21 2v28M2 11h28M2 21h28" stroke="var(--hero-ink)" stroke-width="1.6"/><g fill="var(--hero-ink)" font-family="inherit" font-weight="700" font-size="7" text-anchor="middle"><text x="6.5" y="9">9</text><text x="16" y="18.5">9</text><text x="25.5" y="28">9</text></g></svg>';
+const MARK_CAGE = '<svg viewBox="0 0 32 32" aria-hidden="true"><rect x="2" y="2" width="28" height="28" rx="6" fill="currentColor"/><path d="M16 2v14H2M16 16h14M23 16v14" stroke="var(--hero-ink)" stroke-width="2.2"/><g fill="var(--hero-ink)" font-family="inherit" font-weight="700" font-size="6.5"><text x="4.5" y="9.5">6+</text><text x="18.5" y="9.5">2÷</text><text x="4.5" y="23.5">12×</text></g></svg>';
+const MARK_CROSS = '<svg viewBox="0 0 32 32" aria-hidden="true"><rect x="2" y="2" width="28" height="28" rx="6" fill="currentColor"/><path d="M2 12h28M12 2v28M21 12v18M12 21h18" stroke="var(--hero-ink)" stroke-width="1.6"/><path d="M3 3l9 9" stroke="var(--hero-ink)" stroke-width="1.2"/><g fill="var(--hero-ink)" font-family="inherit" font-weight="700" font-size="5.5"><text x="7.5" y="7">9</text><text x="3" y="11">4</text><text x="15" y="18.5">3</text><text x="24" y="18.5">1</text></g></svg>';
+const MARK_PICTURE = '<svg viewBox="0 0 32 32" aria-hidden="true"><rect x="2" y="2" width="28" height="28" rx="6" fill="currentColor"/><g fill="var(--hero-ink)"><rect x="12" y="8" width="4" height="4"/><rect x="16" y="8" width="4" height="4"/><rect x="8" y="12" width="16" height="4"/><rect x="8" y="16" width="16" height="4"/><rect x="12" y="20" width="8" height="4"/><rect x="14" y="24" width="4" height="3"/></g></svg>';
 const MARK_SOON = '<svg viewBox="0 0 32 32" aria-hidden="true"><rect x="3" y="3" width="26" height="26" rx="6" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="4 3"/><path d="M16 11v10M11 16h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
 
 export const GAMES = [
@@ -17,9 +20,9 @@ export const GAMES = [
       { id: 'tide', name: 'Tidewater' }, { id: 'glyph', name: 'Glyph Quest' },
     ],
   },
-  { id: 'cage-math', name: 'Cage Math', kind: 'Coming soon', blurb: 'Fill each cage so its numbers make the target.', mark: MARK_SOON, soon: true, video: 'cage-math' },
-  { id: 'sum-cross', name: 'Sum Cross', kind: 'Coming soon', blurb: 'A crossword of numbers: every run adds up to its clue.', mark: MARK_SOON, soon: true, video: 'sum-cross' },
-  { id: 'picture-grid', name: 'Picture Grid', kind: 'Coming soon', blurb: 'Shade the cells the row and column counts call for, and a picture appears.', mark: MARK_SOON, soon: true, video: 'picture-grid' },
+  { id: 'cage-math', name: 'Cage Math', kind: 'Number puzzles', blurb: 'Fill each cage so its numbers make the target, with every number once in each row and column.', mark: MARK_CAGE, tag: 'New', video: 'cage-math' },
+  { id: 'sum-cross', name: 'Sum Cross', kind: 'Number puzzles', blurb: 'A crossword of numbers: every run adds up to its clue, with no number twice.', mark: MARK_CROSS, tag: 'New', video: 'sum-cross' },
+  { id: 'picture-grid', name: 'Picture Grid', kind: 'Picture puzzles', blurb: 'Shade the cells the row and column counts call for, and a picture appears for your gallery.', mark: MARK_PICTURE, tag: 'New', video: 'picture-grid' },
 ];
 
 // The game the player last opened, so the app opens there next time.
