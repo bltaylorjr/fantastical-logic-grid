@@ -20,6 +20,9 @@
 //   POST /admin/v1/vault/items/:id/restore   back out of the bin
 //   POST /admin/v1/vault/items/:id/purge     delete for good
 //   POST /admin/v1/vault/reset               { confirm: 'DELETE' } wipe the whole vault (forgotten master password)
+//   POST /admin/v1/vault/devices             { credId, label, prfSalt, keyIv, keyCt } unlock with Face ID or fingerprint on a device
+//   POST /admin/v1/vault/devices/:id/used    note the last unlock
+//   POST /admin/v1/vault/devices/:id/remove  stop that device unlocking with Face ID or fingerprint
 const DAY = 24 * 3600_000;
 export const VAULT_BIN_DAYS = 30;
 export const VAULT_MAX_ITEMS = 2000;
@@ -28,6 +31,8 @@ const ADD_MAX = 40; // per request, so an import stays inside D1's queries per r
 const MIN_ITERATIONS = 310_000;
 const MAX_ITERATIONS = 5_000_000;
 const B64 = /^[A-Za-z0-9+/]+={0,2}$/;
+const B64URL = /^[A-Za-z0-9_-]{16,1400}$/;
+export const VAULT_MAX_DEVICES = 10;
 
 const b64 = (v, min, max) => typeof v === 'string' && v.length >= min && v.length <= max && B64.test(v);
 
@@ -58,12 +63,13 @@ export function vaultRoutes(Refusal) {
   return [
     ['GET', /^vault$/, 'owner', 'vault.open', async ({ env, who, now }) => {
       ownerOnly(who, Refusal);
-      const [, meta, items] = await env.DB.batch([
+      const [, meta, items, devices] = await env.DB.batch([
         env.DB.prepare('DELETE FROM vault_items WHERE deleted_at IS NOT NULL AND deleted_at < ?1').bind(now - VAULT_BIN_DAYS * DAY),
         env.DB.prepare('SELECT * FROM vault_meta WHERE id = 1'),
         env.DB.prepare('SELECT id, iv, ct, created_at AS createdAt, updated_at AS updatedAt, deleted_at AS deletedAt FROM vault_items ORDER BY id'),
+        env.DB.prepare('SELECT id, cred_id AS credId, label, prf_salt AS prfSalt, key_iv AS keyIv, key_ct AS keyCt, created_at AS createdAt, last_used_at AS lastUsedAt FROM vault_devices ORDER BY created_at'),
       ]);
-      return { body: { meta: metaView(meta.results[0] || null), items: items.results, binDays: VAULT_BIN_DAYS, maxItems: VAULT_MAX_ITEMS } };
+      return { body: { meta: metaView(meta.results[0] || null), items: items.results, devices: devices.results, binDays: VAULT_BIN_DAYS, maxItems: VAULT_MAX_ITEMS } };
     }],
     ['POST', /^vault\/setup$/, 'owner', 'vault.setup', async ({ env, who, body, now }) => {
       ownerOnly(who, Refusal);
@@ -116,10 +122,34 @@ export function vaultRoutes(Refusal) {
       if (!r.meta.changes) throw new Refusal(404, 'gone', 'Only logins in the bin can be deleted for good.');
       return { body: { ok: true }, target: id };
     }],
+    ['POST', /^vault\/devices$/, 'owner', 'vault.device-add', async ({ env, who, body, now }) => {
+      ownerOnly(who, Refusal);
+      const label = String(body.label || '').replace(/[\u0000-\u001f\u007f<>]/g, '').trim().slice(0, 60) || 'Device';
+      if (!B64URL.test(String(body.credId || '')) || !b64(body.prfSalt, 40, 48) || !b64(body.keyIv, 16, 24) || !b64(body.keyCt, 40, 120)) {
+        throw new Refusal(400, 'bad_device', 'The device key was not sent in the right form.');
+      }
+      if (!(await env.DB.prepare('SELECT 1 FROM vault_meta WHERE id = 1').first())) throw new Refusal(404, 'no_vault', 'Set up the vault first.');
+      const { n } = await env.DB.prepare('SELECT COUNT(*) AS n FROM vault_devices').first();
+      if (n >= VAULT_MAX_DEVICES) throw new Refusal(409, 'too_many', `Up to ${VAULT_MAX_DEVICES} devices. Remove one first.`);
+      const r = await env.DB.prepare('INSERT INTO vault_devices (cred_id, label, prf_salt, key_iv, key_ct, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6) ON CONFLICT(cred_id) DO UPDATE SET label = ?2, prf_salt = ?3, key_iv = ?4, key_ct = ?5 RETURNING id')
+        .bind(body.credId, label, body.prfSalt, body.keyIv, body.keyCt, now).first();
+      return { body: { ok: true, id: r.id }, target: r.id, detail: { label } };
+    }],
+    ['POST', /^vault\/devices\/(\d+)\/used$/, 'owner', 'vault.device-unlock', async ({ env, who, params: [id], now }) => {
+      ownerOnly(who, Refusal);
+      await env.DB.prepare('UPDATE vault_devices SET last_used_at = ?1 WHERE id = ?2').bind(now, Number(id)).run();
+      return { body: { ok: true }, target: id };
+    }],
+    ['POST', /^vault\/devices\/(\d+)\/remove$/, 'owner', 'vault.device-remove', async ({ env, who, params: [id] }) => {
+      ownerOnly(who, Refusal);
+      const r = await env.DB.prepare('DELETE FROM vault_devices WHERE id = ?1').bind(Number(id)).run();
+      if (!r.meta.changes) throw new Refusal(404, 'gone', 'That device was already removed.');
+      return { body: { ok: true }, target: id };
+    }],
     ['POST', /^vault\/reset$/, 'owner', 'vault.reset', async ({ env, who, body }) => {
       ownerOnly(who, Refusal);
       if (body.confirm !== 'DELETE') throw new Refusal(400, 'confirm', 'Type DELETE to wipe the vault.');
-      const [items] = await env.DB.batch([env.DB.prepare('DELETE FROM vault_items'), env.DB.prepare('DELETE FROM vault_meta')]);
+      const [items] = await env.DB.batch([env.DB.prepare('DELETE FROM vault_items'), env.DB.prepare('DELETE FROM vault_meta'), env.DB.prepare('DELETE FROM vault_devices')]);
       return { body: { ok: true }, detail: { removed: items.meta.changes } };
     }],
   ];

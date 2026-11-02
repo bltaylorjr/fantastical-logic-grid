@@ -118,3 +118,29 @@ test('vault: set up once, add, change, bin, restore, purge, new master, reset', 
   assert.equal(v.body.meta, null);
   assert.equal(v.body.items.length, 0);
 });
+
+test('vault: Face ID devices are added, listed, noted, removed, and wiped with the vault', async () => {
+  const owner = token('owner-uid', OWNER);
+  const dev = () => ({ credId: Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('base64url'), label: 'iPhone, Safari', prfSalt: b64(32), keyIv: b64(12), keyCt: b64(48) });
+  assert.equal((await call('/admin/v1/vault/devices', { auth: owner, body: dev() })).status, 404, 'needs a vault first');
+  await call('/admin/v1/vault/setup', { auth: owner, body: meta() });
+  assert.equal((await call('/admin/v1/vault/devices', { auth: owner, body: { ...dev(), keyCt: 'not base64!' } })).status, 400);
+  const d = dev();
+  const add = await call('/admin/v1/vault/devices', { auth: owner, body: d });
+  assert.equal(add.status, 200, JSON.stringify(add.body));
+  const glass = await call('/admin/v1/vault/devices', { auth: 'break-glass-token-for-tests-1234', body: dev() });
+  assert.equal(glass.status, 403, 'not the break-glass key');
+  assert.equal((await call(`/admin/v1/vault/devices/${add.body.id}/used`, { auth: owner, body: {} })).status, 200);
+  let v = await call('/admin/v1/vault', { auth: owner });
+  assert.equal(v.body.devices.length, 1);
+  assert.equal(v.body.devices[0].credId, d.credId);
+  assert.equal(v.body.devices[0].keyCt, d.keyCt);
+  assert.ok(v.body.devices[0].lastUsedAt);
+  assert.equal((await call(`/admin/v1/vault/devices/${add.body.id}/remove`, { auth: owner, body: {} })).status, 200);
+  v = await call('/admin/v1/vault', { auth: owner });
+  assert.equal(v.body.devices.length, 0);
+  await call('/admin/v1/vault/devices', { auth: owner, body: dev() });
+  await call('/admin/v1/vault/reset', { auth: owner, body: { confirm: 'DELETE' } });
+  v = await call('/admin/v1/vault', { auth: owner });
+  assert.equal(v.body.devices.length, 0, 'a wipe removes the devices too');
+});

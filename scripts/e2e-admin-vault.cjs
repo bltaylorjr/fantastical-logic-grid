@@ -3,7 +3,9 @@
 // (Miniflare, local D1): set up a master password, add a login with a 2-step
 // code key, copy the password, Log in (opens the site and copies the
 // username), move to the bin and undo, lock, a wrong master password, unlock,
-// import a Chrome CSV, change the master password, and reload (locked again).
+// import a Chrome CSV, change the master password, reload (locked again),
+// Face ID unlock (Chromium's virtual authenticator with PRF), removing the
+// device, and a device without PRF getting a plain explanation.
 // It also checks the database holds no readable password, name or address.
 // Needs `npm install` in server/ first. SHOTS=<folder> saves screenshots there.
 const { chromium } = require('playwright');
@@ -67,6 +69,12 @@ function totp(secret, now = Date.now()) {
     const opened = [];
     await ctx.route('https://www.namecheap.com/**', (r) => { opened.push(r.request().url()); return r.fulfill({ contentType: 'text/html', body: '<title>Namecheap</title>' }); });
     const page = await ctx.newPage();
+    const faceId = async (pg, hasPrf = true) => {
+      const cdp = await pg.context().newCDPSession(pg);
+      await cdp.send('WebAuthn.enable');
+      await cdp.send('WebAuthn.addVirtualAuthenticator', { options: { protocol: 'ctap2', ctap2Version: 'ctap2_1', transport: 'internal', hasResidentKey: true, hasUserVerification: true, isUserVerified: true, automaticPresenceSimulation: true, hasPrf } });
+    };
+    await faceId(page);
     page.on('console', (m) => { if (m.type() === 'error' && !/^Failed to load resource/.test(m.text())) problems.push(m.text()); });
     page.on('pageerror', (e) => problems.push(e.message));
     const clip = () => page.evaluate(() => navigator.clipboard.readText());
@@ -167,6 +175,23 @@ function totp(secret, now = Date.now()) {
     await page.waitForSelector('#vault-open:not([hidden]) .vault-item');
     assert(/Namecheap/.test(await page.textContent('#vault-list')), 'the right master password opens it again');
 
+    // Face ID: offered after a master-password unlock, then unlocks on its own.
+    await page.waitForSelector('#vault-bio-offer:not([hidden])');
+    assert(true, 'after unlocking with the master password it offers Face ID or fingerprint');
+    await page.click('#vault-bio-offer-yes');
+    await page.waitForSelector('#vault-bio-offer', { state: 'hidden' });
+    const devRows = (await db.prepare('SELECT * FROM vault_devices').all()).results;
+    assert(devRows.length === 1, 'the device is saved');
+    assert(!JSON.stringify(devRows).includes(MASTER), 'the device row holds no master password');
+    await page.click('#vault-lock');
+    await page.waitForSelector('#vault-bio-box:not([hidden])');
+    assert(true, 'the locked page offers Unlock with Face ID or fingerprint');
+    await shot(page, 'vault-6-bio-unlock');
+    await page.click('#vault-bio');
+    await page.waitForSelector('#vault-open:not([hidden]) .vault-item');
+    assert(/Namecheap/.test(await page.textContent('#vault-list')), 'Face ID opens the vault without the master password');
+    assert((await db.prepare('SELECT last_used_at FROM vault_devices').first()).last_used_at, 'the device notes when it was last used');
+
     // Import a Chrome CSV, with one duplicate to skip.
     const csv = path.join(os.tmpdir(), 'chrome-passwords.csv');
     fs.writeFileSync(csv, 'name,url,username,password,note\nGitHub,https://github.com/login,bltaylorjr,gh-Pa55-word-xyz,"two, lines\nhere"\nCloudflare,https://dash.cloudflare.com,btay74@outlook.com,cf-secret-123,\nGitHub,https://github.com/login,bltaylorjr,gh-Pa55-word-xyz,\n');
@@ -204,6 +229,37 @@ function totp(secret, now = Date.now()) {
     await page.click('#vault-unlock button[type=submit]');
     await page.waitForFunction(() => document.querySelectorAll('#vault-list .vault-item').length === 3);
     assert(true, 'the new master password opens all 3 logins');
+    await page.click('#vault-lock');
+    await page.click('#vault-bio');
+    await page.waitForFunction(() => document.querySelectorAll('#vault-list .vault-item').length === 3);
+    assert(true, 'Face ID still works after the master password changed');
+
+    // Remove the device: it needs the master password again.
+    await page.click('.vault-more summary');
+    assert(/This device/.test(await page.textContent('#vault-devices')), 'the device list marks this device');
+    await shot(page, 'vault-7-devices');
+    await page.click('[data-v-dev]');
+    await page.click('#dialog-ok');
+    await page.waitForFunction(() => /No devices/.test(document.querySelector('#vault-devices').textContent));
+    await page.click('#vault-lock');
+    assert(await page.locator('#vault-bio-box').isHidden(), 'a removed device no longer offers Face ID');
+    await page.fill('#vault-pass', 'brand new master phrase 77');
+    await page.click('#vault-unlock button[type=submit]');
+    await page.waitForSelector('#vault-open:not([hidden]) .vault-item');
+
+    // A device whose browser has no PRF: a plain explanation, nothing saved.
+    const page2 = await ctx.newPage();
+    await faceId(page2, false);
+    await page2.goto(`${API}/admin/#vault`);
+    await page2.waitForSelector('#vault-unlock:not([hidden])');
+    await page2.fill('#vault-pass', 'brand new master phrase 77');
+    await page2.click('#vault-unlock button[type=submit]');
+    await page2.waitForSelector('#vault-bio-offer:not([hidden])');
+    await page2.click('#vault-bio-offer-yes');
+    await page2.waitForFunction(() => /cannot unlock Passwords/.test(document.querySelector('#toast').textContent));
+    assert(true, 'a device without PRF support is told plainly');
+    assert((await db.prepare('SELECT COUNT(*) AS n FROM vault_devices').first()).n === 0, 'nothing is saved for it');
+    await page2.close();
 
     // Phone size.
     await page.setViewportSize({ width: 390, height: 844 });

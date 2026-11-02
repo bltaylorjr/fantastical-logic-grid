@@ -6,12 +6,18 @@
 // the open vault key live only in this page's memory: Lock now, signing out,
 // closing the tab or the idle timer forgets them.
 //
+// Face ID, a fingerprint or Windows Hello can stand in for the master password
+// on a device that was set up for it: a passkey made for Passwords gives a
+// secret through the browser's PRF extension (only after the face or finger
+// check), and that secret opens this device's own locked copy of the vault key.
+//
 // "Log in" opens the site's sign-in page and copies the username; the row then
 // offers the password and the 2-step code to paste. A web page cannot type
 // into another website (browsers forbid it), so true autofill would need a
 // browser extension.
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+import { deviceLabel, platformReady } from './passkeys.js';
 
 const ITERATIONS = 600_000;
 const ADD_CHUNK = 40;
@@ -26,6 +32,7 @@ const KIND_ONE = { login: 'Website login', email: 'Email account', hosting: 'Hos
 
 let h = null; // helpers from admin.js
 let meta = null;
+let devices = []; // devices that can unlock with Face ID or fingerprint (no secrets in them)
 let key = null; // the open vault key (CryptoKey), or null when locked
 let items = []; // [{ id, d: {...}, updatedAt, deletedAt }]
 let loaded = false;
@@ -65,6 +72,92 @@ async function seal(d) {
 async function unseal(row) {
   const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: fromB64(row.iv) }, key, fromB64(row.ct));
   return JSON.parse(dec.decode(pt));
+}
+
+// ------------------------------------------------------------- Face ID and fingerprint
+const DEVICE_KEY = 'flg-vault-device';
+const BIO_SKIP = 'flg-vault-bio-skip';
+const toB64u = (buf) => toB64(buf).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const fromB64u = (s) => fromB64(s.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((s.length + 3) % 4));
+const store = (k, v) => { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, JSON.stringify(v)); } catch { /* private window */ } };
+const stored = (k) => { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch { return null; } };
+const myDevice = () => { const m = stored(DEVICE_KEY); return m && devices.find((d) => d.credId === m.credId); };
+
+class BioError extends Error {}
+function bioWords(e) {
+  if (e instanceof BioError) return e;
+  if (e?.name === 'NotAllowedError' || e?.name === 'AbortError') return new BioError('Face ID or fingerprint was cancelled or timed out.');
+  if (e?.name === 'SecurityError') return new BioError('This browser will not use Face ID or fingerprint on this page.');
+  return new BioError(e?.message || 'Face ID or fingerprint did not work. Please try again.');
+}
+async function deviceKey(secret) {
+  const base = await crypto.subtle.importKey('raw', secret, 'HKDF', false, ['deriveKey']);
+  return crypto.subtle.deriveKey({ name: 'HKDF', hash: 'SHA-256', salt: new Uint8Array(32), info: enc.encode('flg-vault-device-v1') }, base, { name: 'AES-GCM', length: 256 }, false, ['wrapKey', 'unwrapKey']);
+}
+async function prfSecret(credId, salt) {
+  const cred = await navigator.credentials.get({ publicKey: {
+    challenge: rand(32), rpId: location.hostname, timeout: 60_000, userVerification: 'required',
+    allowCredentials: [{ type: 'public-key', id: fromB64u(credId) }],
+    extensions: { prf: { eval: { first: salt } } },
+  } });
+  const first = cred?.getClientExtensionResults?.().prf?.results?.first;
+  if (!first) throw new BioError('This browser cannot unlock Passwords with Face ID or fingerprint. Use the master password.');
+  return first;
+}
+// Makes a passkey for Passwords on this device and saves this device's copy of the vault key.
+async function setUpBio() {
+  const salt = rand(32);
+  let cred;
+  try {
+    cred = await navigator.credentials.create({ publicKey: {
+      rp: { id: location.hostname, name: 'The Logic Grid Passwords' },
+      user: { id: rand(16), name: 'Passwords', displayName: 'Passwords (The Logic Grid admin)' },
+      challenge: rand(32), timeout: 60_000,
+      pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }],
+      authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required', residentKey: 'preferred' },
+      extensions: { prf: { eval: { first: salt } } },
+    } });
+  } catch (e) { throw bioWords(e); }
+  const credId = toB64u(cred.rawId);
+  const ext = cred.getClientExtensionResults?.().prf;
+  if (!ext?.enabled) throw new BioError('This browser or device cannot unlock Passwords with Face ID or fingerprint yet (it needs passkey PRF support: recent Chrome, Edge or Safari). A passkey named "Passwords (The Logic Grid admin)" may have been saved; you can delete it in your device settings.');
+  let secret = ext.results?.first;
+  if (!secret) { try { secret = await prfSecret(credId, salt); } catch (e) { throw bioWords(e); } }
+  const iv = rand(12);
+  const keyCt = await crypto.subtle.wrapKey('raw', key, await deviceKey(secret), { name: 'AES-GCM', iv });
+  const dev = { credId, label: deviceLabel(), prfSalt: toB64(salt), keyIv: toB64(iv), keyCt: toB64(keyCt) };
+  const r = await h.api('vault/devices', { method: 'POST', body: dev });
+  store(DEVICE_KEY, { credId });
+  store(BIO_SKIP, null);
+  devices = devices.filter((d) => d.credId !== credId).concat([{ ...dev, id: r.id, createdAt: Date.now() }]);
+}
+async function bioUnlock() {
+  const d = myDevice();
+  if (!d) throw new BioError('This device is not set up for Face ID or fingerprint any more. Use the master password.');
+  let secret;
+  try { secret = await prfSecret(d.credId, fromB64(d.prfSalt)); } catch (e) { throw bioWords(e); }
+  try {
+    key = await crypto.subtle.unwrapKey('raw', fromB64(d.keyCt), await deviceKey(secret), { name: 'AES-GCM', iv: fromB64(d.keyIv) }, { name: 'AES-GCM' }, true, ['encrypt', 'decrypt']);
+  } catch { throw new BioError('Face ID or fingerprint could not open Passwords on this device. Use the master password, then set it up again.'); }
+  h.api(`vault/devices/${d.id}/used`, { method: 'POST', body: {} }).catch(() => {});
+}
+let bioReady = null;
+const canBio = () => (bioReady ??= platformReady().catch(() => false));
+
+async function paintBio() {
+  const mine = myDevice();
+  if (!mine && stored(DEVICE_KEY) && meta) store(DEVICE_KEY, null); // removed on another device
+  const box = $('#vault-bio-box');
+  box.hidden = !mine;
+  $('#vault-unlock-btn').className = mine ? 'btn' : 'btn primary';
+  const ready = await canBio();
+  $('#vault-devices').innerHTML = devices.length
+    ? devices.map((d) => `<li class="row"><span><b>${esc(d.label)}</b>${d.credId === stored(DEVICE_KEY)?.credId ? ' <span class="badge ok">This device</span>' : ''}<br><small class="muted">Set up ${h.when(d.createdAt)}${d.lastUsedAt ? `, last used ${h.when(d.lastUsedAt)}` : ''}</small></span><button class="btn small danger" type="button" data-v-dev="${d.id}" aria-label="Remove ${esc(d.label)}">Remove</button></li>`).join('')
+    : '<li class="muted">No devices set up yet.</li>';
+  $('#vault-bio-setup').hidden = !ready || !!mine;
+  $('#vault-bio-why').hidden = ready || !!mine;
+  $('#vault-bio-why').textContent = 'This device or browser has no Face ID, fingerprint or Windows Hello for websites.';
+  $('#vault-bio-offer').hidden = !key || !ready || !!mine || !!stored(BIO_SKIP);
 }
 
 // ------------------------------------------------------------- 2-step codes (RFC 6238)
@@ -199,6 +292,7 @@ function paint() {
   $('#vault-open').hidden = state !== 'open';
   $('#vault-top').hidden = state !== 'open';
   if (state === 'open') { renderTiles(); renderList(); }
+  if (state !== 'setup') paintBio();
 }
 
 function renderTiles() {
@@ -293,8 +387,9 @@ export async function vaultView(helpers) {
   if (!key) {
     const r = await h.api('vault');
     meta = r.meta;
+    devices = r.devices || [];
     paint();
-    $(meta ? '#vault-pass' : '#vault-new-1')?.focus();
+    $(!meta ? '#vault-new-1' : myDevice() ? '#vault-bio' : '#vault-pass')?.focus();
     return;
   }
   paint();
@@ -303,6 +398,7 @@ export async function vaultView(helpers) {
 async function reload() {
   const r = await h.api('vault');
   meta = r.meta;
+  devices = r.devices || [];
   if (!meta) { lockVault(); return; }
   const out = [];
   let bad = 0;
@@ -532,6 +628,7 @@ export function initVault(helpers) {
     try {
       const r = await h.api('vault');
       meta = r.meta;
+      devices = r.devices || [];
       if (!meta) { paint(); return; }
       try { key = await unwrapVaultKey($('#vault-pass').value, meta); } catch { err.textContent = 'That is not the master password.'; err.hidden = false; $('#vault-pass').select(); return; }
       $('#vault-pass').value = '';
@@ -545,10 +642,52 @@ export function initVault(helpers) {
     } finally { btn.disabled = false; btn.textContent = 'Unlock'; }
   };
 
+
+  // Face ID and fingerprint.
+  $('#vault-bio').onclick = async (e) => {
+    const err = $('#vault-unlock-error');
+    err.hidden = true;
+    const b = e.currentTarget;
+    b.disabled = true;
+    try {
+      await bioUnlock();
+      touch();
+      await reload();
+      paint();
+      h.announce('Passwords unlocked.');
+      $('#vault-q').focus();
+    } catch (x) {
+      key = null;
+      if (x.code !== 'sign_in') { err.textContent = x.message; err.hidden = false; }
+    } finally { b.disabled = false; }
+  };
+  const setUp = async (b) => {
+    touch();
+    await h.act(b, async () => { try { await setUpBio(); } catch (e) { throw bioWords(e); } }, 'Done. Next time, unlock with Face ID or your fingerprint.');
+    paintBio();
+  };
+  $('#vault-bio-setup').onclick = (e) => setUp(e.currentTarget);
+  $('#vault-bio-offer-yes').onclick = (e) => setUp(e.currentTarget);
+  $('#vault-bio-offer-no').onclick = () => { store(BIO_SKIP, Date.now()); paintBio(); };
+  $('#vault-devices').onclick = async (e) => {
+    const b = e.target.closest('[data-v-dev]');
+    if (!b) return;
+    const d = devices.find((x) => x.id === Number(b.dataset.vDev));
+    if (!d) return;
+    const yes = await h.ask({ title: 'Remove this device', text: `<b>${esc(d.label)}</b> will need the master password to open Passwords.`, ok: 'Remove', danger: true });
+    if (!yes) return;
+    await h.act(b, async () => {
+      await h.api(`vault/devices/${d.id}/remove`, { method: 'POST', body: {} });
+      devices = devices.filter((x) => x.id !== d.id);
+      if (stored(DEVICE_KEY)?.credId === d.credId) store(DEVICE_KEY, null);
+    }, 'Device removed.');
+    paintBio();
+  };
+
   $('#vault-reset').onclick = async () => {
     const v = await h.ask({ title: 'Wipe the vault', text: 'Every saved login is deleted for good. This cannot be undone. Type <b>DELETE</b> to go ahead.', fields: [{ name: 'confirm', label: 'Type DELETE' }], ok: 'Wipe the vault', danger: true, check: (x) => (x.confirm === 'DELETE' ? '' : 'Type DELETE in capitals.') });
     if (!v) return;
-    await h.act(null, async () => { await h.api('vault/reset', { method: 'POST', body: { confirm: 'DELETE' } }); meta = null; lockVault(); }, 'The vault was wiped. Choose a new master password.');
+    await h.act(null, async () => { await h.api('vault/reset', { method: 'POST', body: { confirm: 'DELETE' } }); meta = null; devices = []; store(DEVICE_KEY, null); lockVault(); }, 'The vault was wiped. Choose a new master password.');
     paint();
   };
 

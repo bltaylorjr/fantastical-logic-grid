@@ -695,9 +695,13 @@
       <!-- Locked. -->
       <form id="vault-unlock" class="card stack" novalidate hidden aria-labelledby="h-vault-unlock">
         <h2 id="h-vault-unlock">Unlock</h2>
+        <div class="stack" id="vault-bio-box" hidden>
+          <div class="row"><button class="btn primary" type="button" id="vault-bio">Unlock with Face ID or fingerprint</button></div>
+          <p class="muted">Or type the master password:</p>
+        </div>
         <div class="field"><label for="vault-pass">Master password</label><input id="vault-pass" type="password" autocomplete="current-password" required></div>
         <p class="error" id="vault-unlock-error" role="alert" hidden></p>
-        <div class="row"><button class="btn primary" type="submit">Unlock</button></div>
+        <div class="row"><button class="btn" type="submit" id="vault-unlock-btn">Unlock</button></div>
         <details><summary>Forgot the master password?</summary>
           <p class="muted">It cannot be recovered. You can wipe the vault (every saved login is deleted) and choose a new master password.</p>
           <button class="btn small danger" type="button" id="vault-reset">Wipe the vault and start again</button>
@@ -706,6 +710,10 @@
 
       <!-- Open. -->
       <div id="vault-open" hidden>
+        <div class="note" id="vault-bio-offer" role="region" aria-label="Faster unlock" hidden>
+          <p><b>Unlock faster on this device.</b> Use Face ID, your fingerprint or Windows Hello instead of typing the master password.</p>
+          <div class="row"><button class="btn primary" type="button" id="vault-bio-offer-yes">Set it up</button><button class="btn" type="button" id="vault-bio-offer-no">Not now</button></div>
+        </div>
         <div class="tiles" id="vault-tiles"></div>
         <div class="note" id="vault-undo" role="status" hidden><span id="vault-undo-text"></span> <button class="btn small" type="button" id="vault-undo-btn">Undo</button></div>
         <div class="row card" role="search">
@@ -725,6 +733,11 @@
           <div class="row"><button class="btn" type="button" id="vault-export">Download a CSV</button></div>
           <h3>Lock after</h3>
           <div class="row"><div class="field"><label for="vault-idle">Lock when not used for</label><select id="vault-idle"><option value="1">1 minute</option><option value="5">5 minutes</option><option value="15">15 minutes</option><option value="30">30 minutes</option></select></div></div>
+          <h3>Face ID and fingerprint</h3>
+          <p class="muted">Each device you set up can open Passwords with your face, finger or Windows Hello. It still needs the master password if Face ID stops working, and you can remove a lost device here at once.</p>
+          <ul class="vault-devices" id="vault-devices"></ul>
+          <p class="muted" id="vault-bio-why" hidden></p>
+          <div class="row"><button class="btn" type="button" id="vault-bio-setup">Set up on this device</button></div>
           <h3>Master password</h3>
           <div class="row"><button class="btn" type="button" id="vault-master">Change the master password</button></div>
         </details>

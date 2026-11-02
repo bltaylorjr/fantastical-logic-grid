@@ -90,6 +90,14 @@ favourite star.
   (Unlock > Forgot the master password?).
 - **Only the owner**, signed in with their own account. The break-glass key,
   assistant keys and other admins are refused by the API (`server/src/vault.js`).
+- **Face ID, fingerprint or Windows Hello** can unlock it instead of the
+  master password on each device you set up (offered after you unlock with the
+  master password; listed under Import, export and settings, where a lost
+  device can be removed). It uses a passkey made just for Passwords and the
+  browser's PRF extension: after the face or finger check the passkey gives a
+  secret that opens that device's own locked copy of the vault key
+  (`vault_devices`). Needs a recent Chrome, Edge or Safari; other browsers are
+  told so and keep using the master password, which always works.
 - **Locks itself** after 5 minutes without use (1 to 30, under Import, export
   and settings), on Lock now, on sign-out and on reload.
 - **Log in** opens the site's sign-in page in a new tab and copies the
