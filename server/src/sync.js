@@ -18,6 +18,20 @@ import { deletePrintPackStatements } from './print-packs.js';
 import { deletePuzzleMailStatement } from './puzzle-mail.js';
 import { deleteBadgeStatements } from './special-badges.js';
 
+// Daily account totals for the admin dashboard (migrations/2160_account_days.sql).
+// They survive the account's own rows being deleted, so a player who joins and
+// later leaves is still counted as new on the day they joined.
+const utcDay = (ms) => new Date(ms).toISOString().slice(0, 10);
+export function accountMadeStatement(env, now = Date.now()) {
+  return env.DB.prepare('INSERT INTO account_days (day, made, deleted) VALUES (?1, 1, 0) ON CONFLICT (day) DO UPDATE SET made = made + 1').bind(utcDay(now));
+}
+// Put this before the statement that adds the player to sync_deleted_users, in
+// the same batch: an account already marked deleted is not counted twice.
+export function accountDeletedStatement(env, uid, now = Date.now()) {
+  return env.DB.prepare(`INSERT INTO account_days (day, made, deleted) SELECT ?1, 0, 1 WHERE NOT EXISTS (SELECT 1 FROM sync_deleted_users WHERE user_id = ?2)
+    ON CONFLICT (day) DO UPDATE SET deleted = deleted + 1`).bind(utcDay(now), uid);
+}
+
 const KINDS = new Set(['save', 'meta', 'settings']);
 const MAX_CHANGES = 100;
 const MAX_RECORD_CHARS = 1_000_000;
@@ -53,7 +67,8 @@ export async function handleSync(req, env, user) {
   const out = { applied: [], conflicts: [] };
 
   if (changes.length) {
-    await db.prepare('INSERT OR IGNORE INTO sync_users (user_id, rev, created_at) VALUES (?1, 0, ?2)').bind(uid, Date.now()).run();
+    const made = await db.prepare('INSERT OR IGNORE INTO sync_users (user_id, rev, created_at) VALUES (?1, 0, ?2)').bind(uid, Date.now()).run();
+    if (made.meta && made.meta.changes) await accountMadeStatement(env).run();
     const { n, used } = await db.prepare('SELECT COUNT(*) AS n, COALESCE(SUM(LENGTH(data)), 0) AS used FROM sync_records WHERE user_id = ?1').bind(uid).first();
     const full = n >= MAX_RECORDS;
     const incoming = changes.reduce((s, c) => s + (c.deleted ? 0 : c.data.length), 0);
@@ -144,6 +159,7 @@ export async function handleDeleteAccount(req, env, user) {
     env.DB.prepare('UPDATE supporters SET user_id = NULL WHERE user_id = ?1').bind(user.uid),
     // An app key keeps working on the player's devices, no longer tied to them (licenses.js).
     env.DB.prepare('UPDATE licenses SET user_id = NULL, email = NULL WHERE user_id = ?1').bind(user.uid),
+    accountDeletedStatement(env, user.uid),
     env.DB.prepare('INSERT OR REPLACE INTO sync_deleted_users (user_id, deleted_at) VALUES (?1, ?2)').bind(user.uid, Date.now()),
   ]);
   return json(req, env, { deleted: true });

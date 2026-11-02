@@ -670,3 +670,22 @@ test('the dashboard keeps other sites and powerful features away', async () => {
   assert.equal(r.headers.get('cross-origin-opener-policy'), 'same-origin');
   assert.match(r.headers.get('permissions-policy'), /camera=\(\)/);
 });
+
+test('new accounts stay counted after they are deleted', async () => {
+  const today = new Date().toISOString().slice(0, 10);
+  const base = (await db.prepare('SELECT made, deleted FROM account_days WHERE day = ?1').bind(today).first()) || { made: 0, deleted: 0 };
+  const save = (uid) => call('/v1/sync', { auth: player(uid), body: { changes: [{ kind: 'settings', key: 'settings', data: '{}', updatedAt: Date.now(), baseRev: 0 }] } });
+  for (const uid of ['join-a', 'join-b', 'join-c']) assert.equal((await save(uid)).status, 200);
+  // A second save from the same account is not a new account.
+  await call('/v1/sync', { auth: player('join-a'), body: { changes: [{ kind: 'meta', key: 'solves', data: '[]', updatedAt: Date.now(), baseRev: 0 }] } });
+  // One player deletes their own account; an admin deletes another, twice.
+  assert.equal((await call('/v1/account', { auth: player('join-a'), method: 'DELETE' })).status, 200);
+  assert.equal((await call('/admin/v1/players/join-b/delete', { auth: owner(), body: { confirm: 'join-b' } })).status, 200);
+  assert.equal((await call('/admin/v1/players/join-b/delete', { auth: owner(), body: { confirm: 'join-b' } })).status, 200);
+  const row = await db.prepare('SELECT made, deleted FROM account_days WHERE day = ?1').bind(today).first();
+  assert.equal(row.made - base.made, 3, 'all three joins counted, though two were deleted');
+  assert.equal(row.deleted - base.deleted, 2, 'each deleted account counted once');
+  const a = await call('/admin/v1/analytics?days=13', { auth: owner() });
+  assert.equal(a.body.players.newAccounts.at(-1), row.made);
+  assert.equal(a.body.players.deletedAccounts, (await db.prepare('SELECT SUM(deleted) AS n FROM account_days WHERE day >= ?1').bind(a.body.since).first()).n);
+});
