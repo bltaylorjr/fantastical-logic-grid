@@ -253,7 +253,7 @@ export async function buildSeo({ root, site }) {
   const copyright = `© 2026${year > 2026 ? `–${year}` : ''} ${owner}. All rights reserved.`;
   const trademark = `${name}™ is a trademark of ${owner}.`;
   const tdmMeta = `<meta name="tdm-reservation" content="1">\n<meta name="tdm-policy" content="${url('terms/')}">`;
-  const NAV = [['how-to-play/', 'How to play'], ['daily/', 'Daily puzzle'], ['printables/', 'Printables'], ['themes/', 'Themes'], ['difficulty-levels/', 'Difficulty levels'], ['educators/', 'For educators']];
+  const NAV = [['how-to-play/', 'Rules and how to play'], ['daily/', 'Daily puzzle'], ['printables/', 'Printables'], ['themes/', 'Themes'], ['difficulty-levels/', 'Difficulty levels'], ['educators/', 'For educators']];
   // Search results show about 60 characters of a title and 160 of a
   // description: a title that would be cut loses the site name (it is still in
   // og:site_name), and a description is shortened at a sentence or word.
@@ -404,9 +404,9 @@ ${verification}
   ];
   page({
     path: 'how-to-play/', priority: 0.9,
-    title: `How to play logic grid puzzles | ${name}`,
-    description: 'Learn how to solve logic grid puzzles step by step: read the story, follow the clues and mark X and O in the grid. Includes a narrated video with captions.',
-    crumbs: [['how-to-play/', 'How to play']],
+    title: `Rules and how to play | ${name}`,
+    description: 'The rules of The Fantastical Logic Grid and how to solve its story logic puzzles: read the story, follow the clues, mark X and O. With a narrated video.',
+    crumbs: [['how-to-play/', 'Rules and how to play']],
     schema: [
       { '@context': 'https://schema.org', '@type': 'HowTo', name: 'How to solve a logic grid puzzle', description: 'Solve a story logic grid puzzle by deduction, with no guessing.', step: [
         ['Pick a puzzle', 'Choose a difficulty, a theme and a size, then press Generate puzzle.'],
@@ -418,11 +418,20 @@ ${verification}
       { '@context': 'https://schema.org', ...video, transcript: transcript.replace(/<[^>]+>/g, ' ').replace(/&#x27;/g, "'").replace(/\s+/g, ' ').trim() },
       { '@context': 'https://schema.org', '@type': 'FAQPage', mainEntity: faq.map(([q, a]) => ({ '@type': 'Question', name: q, acceptedAnswer: { '@type': 'Answer', text: a } })) },
     ],
-    body: (up) => `<h1>How to play logic grid puzzles</h1>
+    body: (up) => `<h1>Rules and how to play</h1>
 <p class="lede">Each puzzle in ${name} is a logic grid wrapped in a story. The story sets up a mystery, the clues give you the facts, and the grid is where you work out the answer. Every puzzle has exactly one answer you can reach without guessing.</p>
 ${playBtn(up)}
 <p>Never solved one before? <a href="${up}${GAME}?learn">How to play, step by step</a> teaches you in the game on real grids: X and O, every kind of clue, carrying facts across the grid and what-if thinking, with tips and tricks.</p>
-<h2>The rules in five steps</h2>
+<h2 id="rules">Game rules</h2>
+<ol class="steps">
+  <li><strong>The lists.</strong> Every puzzle has a few categories, such as people, pets and hats, and every category has the same number of items.</li>
+  <li><strong>One match each.</strong> Each item goes with exactly one item from every other category, and no two items share a match.</li>
+  <li><strong>The clues are true.</strong> Use only the story and the clues, never outside knowledge. A clue that names two choices, such as Otter or Owl Cabin, means the answer is one of them.</li>
+  <li><strong>The grid.</strong> Each square is where two items meet. An X means they do not go together; an O means they do. Each row and each column of a section has exactly one O.</li>
+  <li><strong>One answer, no guessing.</strong> Every puzzle has exactly one answer, checked by our solver, and the clues always lead you to it by logic.</li>
+  <li><strong>Closing the case.</strong> Answer the questions under the clues and press Check answers. Your time, hints and checks go into your stats; in races and on the scoreboard, hints and checks cost a few points.</li>
+</ol>
+<h2>How to play in five steps</h2>
 <ol class="steps">
   <li><strong>Pick a puzzle.</strong> Choose a <a href="${up}difficulty-levels/">difficulty</a>, a <a href="${up}themes/">theme</a> and a size. More categories and items make a bigger, harder grid.</li>
   <li><strong>Read the story.</strong> It tells you who is involved and ends with the question you need to answer.</li>
@@ -492,7 +501,7 @@ ${playBtn(up, `Play a ${t.name.toLowerCase()} puzzle`, false)}
 <p>Each puzzle matches the ${esc(t.cast.many)} with things like ${t.categories.slice(0, 4).map((c) => esc(c.name.toLowerCase())).join(', ')}.${count ? ` The ${esc(t.name)} theme alone can tell more than ${(Math.floor(count / 1000) * 1000).toLocaleString('en-US')} different stories.` : ''}</p>
 <h2>More themes</h2>
 <ul class="inline-links">${THEMES.filter((o) => o.id !== t.id).map((o) => `<li><a href="${up}themes/${o.id}/">${esc(o.name)} puzzles</a></li>`).join('')}</ul>
-<p><a href="${up}themes/">All themes</a> · <a href="${up}daily/">Today's daily puzzle</a> · <a href="${up}difficulty-levels/">Difficulty levels</a> · <a href="${up}how-to-play/">How to play</a></p>`,
+<p><a href="${up}themes/">All themes</a> · <a href="${up}daily/">Today's daily puzzle</a> · <a href="${up}difficulty-levels/">Difficulty levels</a> · <a href="${up}how-to-play/">Rules and how to play</a></p>`,
     });
   }
 
@@ -782,7 +791,7 @@ ${playBtn(up)}`,
 <ul class="links">
 <li><a class="btn big" href="${up}${GAME}?play=now" rel="nofollow">Play a new puzzle now</a></li>
 <li><a class="btn link-btn" href="${up}daily/">Today's daily puzzle</a></li>
-<li><a class="btn link-btn" href="${up}how-to-play/">How to play</a></li>
+<li><a class="btn link-btn" href="${up}how-to-play/">Rules and how to play</a></li>
 <li><a class="btn link-btn" href="${up}educators/">Free printable puzzles for teachers</a></li>
 </ul>
 <section id="latest" data-api="${cloud || ''}" hidden aria-labelledby="latest-h">
@@ -886,7 +895,7 @@ ${playBtn(up)}`,
 <li>Students mark X where a clue rules a pair out and O where two things go together. One O in a row means the rest of that row is X.</li>
 <li>When the grid is full, they answer the questions and check with the key.</li>
 </ol>
-<p>New to logic grids? <a href="${up}how-to-play/">How to play</a> walks through the rules with a short video.</p>
+<p>New to logic grids? <a href="${up}how-to-play/">Rules and how to play</a> walks through the rules with a short video.</p>
 <h2>Make as many as you need</h2>
 <p>In the game you can make unlimited puzzles at any of ${Object.keys(TIERS).length} levels, in ${THEMES.length} themes and almost any size, then print them blank or with your marks, on Letter or A4, with the answer key on its own page. Easy puzzles can also print a step-by-step solution. Every puzzle is a new story, in any of 100 languages, so it also works for language learners.</p>
 ${playBtn(up, 'Make a puzzle to print', false)}
