@@ -534,7 +534,15 @@ const SHOTS = process.env.SHOTS;
 
     await openSection(page, 'audit');
     await page.waitForSelector('#audit-rows tr td');
-    const log = await page.textContent('#audit-rows');
+    // The log shows the newest 100 entries a page; load older pages until the actions are there.
+    const logged = (t) => /settings\.change/.test(t) && /players\.rename/.test(t) && /parts\.review/.test(t);
+    let log = await page.textContent('#audit-rows');
+    for (let i = 0; i < 5 && !logged(log) && await page.locator('#audit-more').isVisible(); i++) {
+      const rows = await page.locator('#audit-rows tr').count();
+      await page.click('#audit-more');
+      await page.waitForFunction((n) => document.querySelectorAll('#audit-rows tr').length > n, rows);
+      log = await page.textContent('#audit-rows');
+    }
     assert(/settings\.change/.test(log) && /players\.rename/.test(log) && /parts\.review/.test(log), 'the audit log shows what was done');
     await shot(page, '4-audit');
 
