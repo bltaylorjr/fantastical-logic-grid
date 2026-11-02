@@ -58,6 +58,7 @@
 //   GET  /admin/v1/summary?days=       the week in numbers, for the Monday summary email
 //   GET  /admin/v1/export/(players|scores|feedback).csv   spreadsheet downloads
 //   GET/POST /admin/v1/admins          who may sign in (owner only); POST /admin/v1/admins/remove
+//   GET/POST /admin/v1/admin-keys      assistant keys for helpers such as Claude (owner only); POST .../:id/revoke (admin-keys.js)
 //   GET  /admin/v1/connections[?refresh=1]  live status for the Connections and setup guide (connections.js)
 //   POST /admin/v1/connections/github  the Connections status Action's report: names that are set, never values
 //   GET  /admin/v1/archive             the weekly archive: setup, what goes, past runs (archive.js)
@@ -113,6 +114,7 @@ import { educatorRoutes } from './educators.js';
 import { puzzleReportRoutes } from './puzzle-reports.js';
 import { visitorRoutes } from './visits.js';
 import { alertRoutes } from './alerts.js';
+import { KEY_PREFIX, checkKey, adminKeyRoutes } from './admin-keys.js';
 import { SESSION_PREFIX, PasskeyError, signInOptions, checkSignIn, startSession, checkSession, endSessionStatement, forgetAdminStatements, registerOptions, register, listPasskeys, removePasskey } from './passkeys.js';
 
 const DAY = 24 * 3600_000;
@@ -126,7 +128,7 @@ const SESSION_MAX_S = 12 * 3600;
 const DENIED_PER_DAY = 500; // refused requests written to the audit log, so a flood cannot fill it
 const ANALYTICS_CACHE_MS = 120_000;
 const TABLES = ['sync_users', 'sync_records', 'sync_deleted_users', 'players', 'scores', 'races', 'race_entries', 'race_invites', 'plays', 'parts', 'usage',
-  'app_errors', 'upkeep_log', 'admins', 'admin_audit', 'settings', 'announcements', 'bans', 'name_reviews', 'archive_log', 'feedback', 'feedback_replies', 'error_fixes', 'conversations', 'conversation_messages', 'message_contacts', 'news', 'search_snapshots', 'daily_plan', 'translations', 'rating_insights', 'campaigns', 'campaign_ads', 'marketing_media', 'campaign_stats', 'challenges', 'daily_results', 'daily_email', 'supporters', 'payment_blocks', 'puzzle_mail', 'puzzle_mail_got', 'puzzle_mail_days', 'special_editions', 'educator_requests', 'special_badges', 'badge_awards', 'puzzle_reports', 'player_puzzles', 'visit_stats', 'educator_feedback', 'print_packs', 'print_pack_stories', 'admin_passkeys', 'admin_sessions', 'np_plays', 'kit_plays', 'alert_prefs', 'alert_devices', 'alert_queue', 'site_design'];
+  'app_errors', 'upkeep_log', 'admins', 'admin_audit', 'settings', 'announcements', 'bans', 'name_reviews', 'archive_log', 'feedback', 'feedback_replies', 'error_fixes', 'conversations', 'conversation_messages', 'message_contacts', 'news', 'search_snapshots', 'daily_plan', 'translations', 'rating_insights', 'campaigns', 'campaign_ads', 'marketing_media', 'campaign_stats', 'challenges', 'daily_results', 'daily_email', 'supporters', 'payment_blocks', 'puzzle_mail', 'puzzle_mail_got', 'puzzle_mail_days', 'special_editions', 'educator_requests', 'special_badges', 'badge_awards', 'puzzle_reports', 'player_puzzles', 'visit_stats', 'educator_feedback', 'print_packs', 'print_pack_stories', 'admin_passkeys', 'admin_sessions', 'admin_keys', 'np_plays', 'kit_plays', 'alert_prefs', 'alert_devices', 'alert_queue', 'site_design'];
 // worker-src blob: lets the Media library's celebrations draw off the main
 // thread, as they do in the game (canvas-confetti makes its own small worker).
 // frame-src: the Website page's live preview shows pages of the website (only).
@@ -202,6 +204,12 @@ async function identify(req, env) {
     // Checked on every request, so a removed admin is out at once.
     const role = await roleOf(env, s.email);
     return { actor: s.email, role, key: `pk:${s.hash.slice(0, 24)}`, signedInAt: s.createdAt, session: s.hash };
+  }
+  // An assistant key made by the owner in admin > Admins (admin-keys.js).
+  if (token.startsWith(KEY_PREFIX)) {
+    const k = await checkKey(env, token);
+    if (!k) throw new Refusal(401, 'sign_in', 'That assistant key is not right, has ended or was revoked.');
+    return { actor: `key: ${k.name}`, role: k.role, key: `key:${k.id}`, signedInAt: 0 };
   }
   if (token.split('.').length !== 3) throw new Refusal(401, 'sign_in', 'That key is not right.');
   let user;
@@ -523,6 +531,9 @@ const ROUTES = [
 
   // ---- The Storyline Submission Database (story-submissions.js).
   ...storySubmissionRoutes(Refusal),
+
+  // ---- Assistant keys for the admin API (admin-keys.js), owner only.
+  ...adminKeyRoutes(Refusal),
   ...beatImageRoutes(Refusal),
 
   ['GET', /^feedback$/, 'moderator', 'feedback.view', async ({ env, url }) => {
