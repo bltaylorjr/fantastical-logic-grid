@@ -1,8 +1,8 @@
-// How to play pages for the games with a page of their own (website only,
-// called by seo.mjs): ninetimesnine/how-to-play/, cage-math/how-to-play/,
-// sum-cross/how-to-play/, picture-grid/how-to-play/. Each mirrors The
-// Fantastical Logic Grid's how-to-play/: the rules, the levels, a video, tips
-// and a play button. The words come from the games themselves (each game's
+// Rules and how to play pages for Cage Math, Sum Cross and Picture Grid
+// (website only, called by seo.mjs): cage-math/rules/, sum-cross/rules/,
+// picture-grid/rules/. Each mirrors The Fantastical Logic Grid's how-to-play/
+// and NINETIMESNINE's rules/ (scripts/hub.mjs): the rules, the levels, a
+// video, tips and a play button. The words come from the games themselves (each game's
 // How to play window), so the pages never drift from the games.
 //
 // Videos (web/media/games):
@@ -13,7 +13,7 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { OWN_PAGES, hasVideo, videoTag } from './hub.mjs';
+import { OWN_PAGES, hasVideo, videoTag, howToPath } from './hub.mjs';
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -27,7 +27,7 @@ const STYLE = `
 .gk-howto-ex > p { margin: 8px 0; }
 @media (max-width: 760px) { .gk-howto-cols { grid-template-columns: minmax(0, 1fr); } .gk-howto-ex { position: static; } }
 .guide-videos video { display: block; width: 100%; height: auto; border-radius: 12px; background: #000; margin: 0 0 6px; }
-.style-rules { margin: 0 0 28px; }`;
+`;
 
 async function load(root, file) {
   return import(pathToFileURL(join(root, 'modules', file)).href);
@@ -35,26 +35,6 @@ async function load(root, file) {
 
 // Each game's text: the lede, the rules (HTML), the levels and the tips.
 async function guideFor(root, g) {
-  if (g.id === 'ninetimesnine') {
-    const { HOWTO } = await load(root, 'number-place/howto.js');
-    const { STYLES } = await load(root, 'number-place/styles.js');
-    const name = (id) => STYLES.find((s) => s.id === id)?.short || id;
-    const list = (items) => `<ul>${items.map((t) => `<li>${esc(t)}</li>`).join('')}</ul>`;
-    const classic = HOWTO.find((h) => h.id === 'classic');
-    return {
-      lede: 'NINETIMESNINE is the number puzzle where every row, column and box holds each number once. Play the classic game on a 4×4, 6×6 or 9×9 grid, or try one of four new ways to play. Every puzzle has exactly one answer you can reach by logic alone.',
-      rules: `<h2>The rules</h2>
-<p>${esc(classic.goal)}</p>
-${list(classic.rules)}
-<h2>Tools that help</h2>
-${list(classic.tools)}
-<h2>Every way to play</h2>
-${HOWTO.filter((h) => h.id !== 'classic').map((h) => `<section class="style-rules"><h3>${esc(name(h.id))}</h3><p>${esc(h.goal)}</p>${list(h.rules)}</section>`).join('\n')}`,
-      levels: null,
-      tips: HOWTO.flatMap((h) => (h.tips || []).slice(0, h.id === 'classic' ? 4 : 1)),
-      steps: [['Pick a style and a size', 'Choose Classic or another style, a grid size and a difficulty.'], ['Fill in a number', 'Tap a cell, then a number. Each row, column and box holds every number once.'], ['Use notes', 'Switch Notes on to pencil in what a cell could be.'], ['Ask for a hint', 'A hint gives a nudge, then where to look, then why.'], ['Finish the grid', 'Fill every cell correctly to solve the puzzle.']],
-    };
-  }
   const { def } = await load(root, `${g.id}/game.js`);
   return {
     lede: def.lede,
@@ -63,13 +43,12 @@ ${HOWTO.filter((h) => h.id !== 'classic').map((h) => `<section class="style-rule
     sizeLabel: def.sizeLabel,
     tips: def.coach,
     keys: def.keysHelp,
-    steps: null,
   };
 }
 
 export async function writeGuides({ root, site, url, page, updated }) {
-  for (const g of OWN_PAGES) {
-    const path = `${g.page}how-to-play/`;
+  for (const g of OWN_PAGES.filter((o) => o.root !== 'np')) {
+    const path = howToPath(g);
     const guide = await guideFor(root, g);
     const deep = `${g.video}-how-to-play`;
     const videos = [
@@ -81,7 +60,7 @@ export async function writeGuides({ root, site, url, page, updated }) {
       thumbnailUrl: [existsSync(join(site, 'media', 'games', `${v.file}.jpg`)) ? url(`media/games/${v.file}.jpg`) : url('og-image.jpg')],
       uploadDate: `${updated}T00:00:00Z`, contentUrl: url(`media/games/${v.file}.mp4`), embedUrl: url(path), inLanguage: 'en',
     }));
-    const steps = guide.steps || [
+    const steps = [
       ['Pick a level', 'Choose a difficulty from Basic to Master. Each level picks a grid size to suit it.'],
       ['Read the clues', 'Every number on the board is a clue about the cells beside it.'],
       ['Fill in what must be true', 'Start where the clues leave only one choice.'],
@@ -90,16 +69,16 @@ export async function writeGuides({ root, site, url, page, updated }) {
     ];
     page({
       path, priority: 0.8, app: true,
-      title: `How to play ${g.name} | The Logic Grid`,
-      description: `Learn how to play ${g.name}: the rules, the levels, tips to get started and a video. ${g.description}`,
-      crumbs: [[g.page, g.name], [path, 'How to play']],
+      title: `${g.name} rules and how to play | The Logic Grid`,
+      description: `The rules of ${g.name} and how to play it: the levels, tips to get started and a video. ${g.description}`,
+      crumbs: [[g.page, g.name], [path, 'Rules and how to play']],
       style: STYLE,
       schema: [
         { '@context': 'https://schema.org', '@type': 'HowTo', name: `How to play ${g.name}`, description: g.description,
           step: steps.map(([n, t], i) => ({ '@type': 'HowToStep', position: i + 1, name: n, text: t })) },
         ...videoSchema,
       ],
-      body: (up) => `<h1>How to play ${esc(g.name)}</h1>
+      body: (up) => `<h1>${esc(g.name)} rules and how to play</h1>
 <p class="lede">${esc(guide.lede)}</p>
 <p><a class="btn big" href="${up}${g.page}">Play ${esc(g.name)} now</a></p>
 ${videos.length ? `<div class="guide-videos">${videos.map((v, i) => `<h2>${i === 0 ? 'Watch: ' : ''}${esc(v.label)}</h2>\n${videoTag(site, up, v.file, v.label, i === 0 ? 'metadata' : 'none')}\n<p class="muted">${esc(v.note)}</p>`).join('\n')}</div>` : ''}
@@ -115,7 +94,7 @@ ${guide.levels ? `<h2>The levels</h2>
 <ul>${guide.tips.map((t) => `<li>${esc(t)}</li>`).join('')}</ul>
 ${guide.keys ? `<h2>Playing with a keyboard</h2>\n<p>${esc(guide.keys)}</p>` : ''}
 <p><a class="btn big" href="${up}${g.page}">Play ${esc(g.name)}</a></p>
-<p class="muted">More games: ${OWN_PAGES.filter((o) => o !== g).map((o) => `<a href="${up}${o.page}how-to-play/">${esc(o.name)}</a>`).join(' · ')} · <a href="${up}how-to-play/">The Fantastical Logic Grid</a></p>`,
+<p class="muted">Rules for the other games: ${OWN_PAGES.filter((o) => o !== g).map((o) => `<a href="${up}${howToPath(o)}">${esc(o.name)}</a>`).join(' · ')} · <a href="${up}how-to-play/">The Fantastical Logic Grid</a></p>`,
     });
   }
 }

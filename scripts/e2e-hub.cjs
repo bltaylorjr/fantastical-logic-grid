@@ -37,7 +37,7 @@ const ignorable = (t) => /fonts\/|Failed to decode downloaded font|OTS parsing/.
     assert(await page.locator('h1').count() === 1 && /Pick your puzzle/.test(await page.locator('h1').textContent()), 'the front page has one heading');
     const play = await page.locator('a.play').evaluateAll((as) => as.map((a) => a.getAttribute('href')));
     assert(JSON.stringify(play) === JSON.stringify(['fantastical/', 'ninetimesnine/', 'cage-math/', 'sum-cross/', 'picture-grid/']), 'it links to every game');
-    assert(await page.locator('.card .more a').count() === 5 && await page.locator('#watch video').count() >= 1, 'each card links to How to play, and the front page shows the videos');
+    assert(await page.locator('#watch video').count() >= 1, 'the front page shows the videos');
     // Shared things open over the front page; only the Play buttons open a game page.
     await page.click('.app-item[href="report/"]');
     await page.waitForSelector('dialog.ovl[open] iframe');
@@ -109,6 +109,7 @@ const ignorable = (t) => /fonts\/|Failed to decode downloaded font|OTS parsing/.
     const shown = await page.$$eval('#app-menu [role=menuitem]', (els) => els.filter((e) => e.offsetParent).map((e) => e.dataset.cmd || e.getAttribute('href')));
     assert(!shown.some((c) => ['account', 'messages', 'install', 'numberplace', 'games', 'site', 'feedback'].includes(c)), `the game menu holds only the game's own things (${shown.join(', ')})`);
     assert(shown.includes('./'), 'and a way back to The Logic Grid home');
+    assert(shown.includes('how-to-play/'), 'and the game\'s rules page');
     await page.keyboard.press('Escape');
     await page.goto(`${BASE}/`);
     await page.click('a.play[href="ninetimesnine/"]');
@@ -116,6 +117,19 @@ const ignorable = (t) => /fonts\/|Failed to decode downloaded font|OTS parsing/.
     await page.waitForSelector('#np-setup-view:not([hidden]) #np-levels .choice', { timeout: 20000 });
     assert(true, 'it opens NINETIMESNINE on its own page');
     assert(await page.locator('.np-top a[href="../"]').count() >= 1 && await page.locator('a[href="../fantastical/"], a[href*="open=account"]').count() === 0, 'the page links home, and holds only its own things');
+    // ---- Every game has a rules page, linked from its card and its own page
+    await page.click('.np-top a[href="rules/"]');
+    await page.waitForURL(`${BASE}/ninetimesnine/rules/`);
+    assert(/rules and how to play/i.test(await page.textContent('h1')), 'NINETIMESNINE has a rules page');
+    const styles = await page.$$eval('.rules-style', (els) => els.map((e) => e.id));
+    assert(JSON.stringify(styles) === JSON.stringify(['classic', 'rival', 'chain', 'tide', 'glyph']), `it has every style's rules (${styles.join(', ')})`);
+    assert(await page.locator('.rules-style .np-ex').count() >= 25 && await page.locator('#glyph .np-ex-cell', { hasText: 'IV' }).count() > 0, 'with each worked example, glyphs included');
+    await page.goto(`${BASE}/`);
+    const rules = await page.locator('a.rules-link').evaluateAll((as) => as.map((a) => a.getAttribute('href')));
+    assert(JSON.stringify(rules) === JSON.stringify(['how-to-play/', 'ninetimesnine/rules/', 'cage-math/rules/', 'sum-cross/rules/', 'picture-grid/rules/']), 'each game card links its rules page');
+    await page.click('a.rules-link[href="how-to-play/"]');
+    await page.waitForURL(`${BASE}/how-to-play/`);
+    assert(await page.locator('h2#rules').count() === 1, 'The Fantastical Logic Grid\'s page has the game rules');
     await page.goto(`${BASE}/ninetimesnine/?style=rival`);
     await page.waitForSelector('#np-setup-view:not([hidden]) #np-levels .choice', { timeout: 20000 });
     assert(true, 'a ?style= link opens it too');
@@ -127,9 +141,9 @@ const ignorable = (t) => /fonts\/|Failed to decode downloaded font|OTS parsing/.
       await page.waitForURL(`${BASE}/${dir}/`);
       await page.waitForSelector(`#${id}-root.gk-app`, { timeout: 20000 });
       assert(await page.locator('h1').first().textContent() === name && await page.locator('.np-top a[href="../"]').count() >= 1, `${name} plays on its own page, which links home`);
-      await page.click('.np-top a[href="how-to-play/"]');
-      await page.waitForURL(`${BASE}/${dir}/how-to-play/`);
-      assert(new RegExp(`How to play ${name}`).test(await page.locator('h1').textContent()) && await page.locator('main table').count() === 1, `${name} has a How to play page with its rules and levels`);
+      await page.click('.np-top a[href="rules/"]');
+      await page.waitForURL(`${BASE}/${dir}/rules/`);
+      assert(new RegExp(`${name} rules and how to play`).test(await page.locator('h1').textContent()) && await page.locator('main table').count() === 1 && await page.locator('main video').count() >= 1, `${name} has a rules page with its levels and videos`);
     }
     // From The Fantastical Logic Grid's page, the bar's name leads to the front page.
     await page.evaluate(() => localStorage.setItem('flg.game', 'cage-math'));
@@ -147,7 +161,7 @@ const ignorable = (t) => /fonts\/|Failed to decode downloaded font|OTS parsing/.
     const sw = await (await fetch(`${BASE}/sw.js`)).text();
     assert(['fantastical/', 'ninetimesnine/', 'cage-math/', 'sum-cross/', 'picture-grid/', './'].every((p) => sw.includes(`"${p}"`)), 'the offline helper keeps every page');
     const sitemap = await (await fetch(`${BASE}/sitemap.xml`)).text();
-    assert(['fantastical/', 'ninetimesnine/', 'cage-math/', 'sum-cross/', 'picture-grid/', 'cage-math/how-to-play/'].every((p) => sitemap.includes(`/${p}</loc>`)), 'the sitemap lists every game and its How to play page');
+    assert(['fantastical/', 'ninetimesnine/', 'ninetimesnine/rules/', 'cage-math/', 'sum-cross/', 'picture-grid/', 'cage-math/rules/'].every((p) => sitemap.includes(`/${p}</loc>`)), 'the sitemap lists every game and the rules pages');
 
     assert(!errors.length, `no page errors${errors.length ? `: ${errors.join(' | ')}` : ''}`);
   } finally {

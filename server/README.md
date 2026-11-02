@@ -198,3 +198,13 @@ cd .. && npm run test:accounts     # two-device browser test of the whole flow
 cd .. && npm run test:compete      # two players: screen names, a race, the scoreboard
 cd .. && npm run test:errors       # an error in the game reaches the Worker, cleaned
 ```
+
+## Assistant keys
+
+The owner can make a key in admin > Admins > Assistant keys so a helper (for
+example Claude) can use the admin API without a game account: give it a name,
+a role (viewer, moderator or admin, never owner) and how long it works (1 to 90
+days). The key is shown once; only its hash is kept. Send it as
+`Authorization: Bearer flgk_...` to `/admin/v1/...`. Everything done with it is
+in the audit log as "key: name", and Revoke stops it at once
+(`src/admin-keys.js`, table `admin_keys`).

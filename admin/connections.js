@@ -174,6 +174,7 @@ export const CONNECTIONS = [
     docs: 'docs/PRIVATE-REPO.md',
     names: [
       { name: 'FLG_RUNNER', where: 'github-variable', optional: true, value: '["self-hosted","flg"]', note: 'Runs Linux jobs on the Oracle build server.' },
+      { name: 'OCI_API_KEY', where: 'github-secret', optional: true, note: 'Private key (.pem) of an Oracle API key for btay74@outlook.com (profile > Tokens and keys > API keys). Lets **Create Oracle build server** keep retrying until Oracle has free Arm capacity.' },
       { name: 'FLG_SITE_REPO', where: 'github-variable', optional: true, value: 'bltaylorjr/thelogicgrid', note: 'Publishes the site and mirrors releases to the public repo.' },
       { name: 'SITE_REPO_TOKEN', where: 'github-secret', optional: true, note: 'Fine-grained token with Contents: read and write on bltaylorjr/thelogicgrid only.' },
     ],

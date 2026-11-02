@@ -1886,7 +1886,36 @@ views.admins = async () => {
       <td><div class="actions"><button class="btn small danger" data-email="${esc(a.email)}">Remove</button></div></td></tr>`),
   ];
   $('#admin-rows').innerHTML = rows.join('');
+  // Assistant keys (server/src/admin-keys.js).
+  const k = await api('admin-keys');
+  const STATE = { active: ['Working', 'ok'], ended: ['Ended', ''], revoked: ['Revoked', 'bad'] };
+  $('#key-rows').innerHTML = k.keys.length ? k.keys.map((x) => {
+    const [sw, cls] = STATE[x.state];
+    return `<tr><td>${esc(x.name)} <span class="muted">…${esc(x.hint)}</span></td><td><span class="badge">${esc(x.role)}</span></td><td>${day(x.createdAt)} by ${esc(x.createdBy)}</td>
+      <td>${day(x.expiresAt)}</td><td>${x.lastUsedAt ? when(x.lastUsedAt) : 'Never'}</td><td><span class="badge ${cls}">${sw}</span></td>
+      <td>${x.state === 'active' ? `<div class="actions"><button class="btn small danger" type="button" data-key-revoke="${x.id}">Revoke</button></div>` : ''}</td></tr>`;
+  }).join('') : '<tr><td colspan="7" class="muted">No keys yet.</td></tr>';
 };
+$('#key-form').onsubmit = async (e) => {
+  e.preventDefault();
+  let made;
+  if (await act(e.submitter, async () => { made = await api('admin-keys', { method: 'POST', body: { name: $('#key-name').value.trim(), role: $('#key-role').value, days: Number($('#key-days').value) } }); }, 'Key made. Copy it now.')) {
+    $('#key-value').textContent = made.key;
+    $('#key-new').hidden = false;
+    $('#key-copy').focus();
+    show('admins', { keepFocus: true });
+  }
+};
+$('#key-copy').onclick = async () => {
+  try { await navigator.clipboard.writeText($('#key-value').textContent); toast('Copied.'); announce('Copied.'); } catch (e) { toast('Select the key and copy it by hand.'); }
+};
+$('#key-hide').onclick = () => { $('#key-value').textContent = ''; $('#key-new').hidden = true; $('#key-name').focus(); };
+$('#key-rows').addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-key-revoke]');
+  if (!b) return;
+  if (!(await ask({ title: 'Revoke this key?', text: 'It stops working at once. Anything already done with it stays in the audit log.', ok: 'Revoke', danger: true }))) return;
+  if (await act(b, () => api(`admin-keys/${b.dataset.keyRevoke}/revoke`, { method: 'POST' }), 'Revoked.')) show('admins', { keepFocus: true });
+});
 $('#admin-form').onsubmit = async (e) => {
   e.preventDefault();
   const email = $('#admin-email').value.trim();
