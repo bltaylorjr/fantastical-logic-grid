@@ -22,7 +22,7 @@ const SHOW = [pick('show', 'Show'), pick('hide', 'Hide')];
 const DEFAULT_TEXT = {
   heroEyebrow: 'Puzzle games',
   heroTitle: 'Pick your puzzle.',
-  heroText: 'Two logic games, free to play in your browser. No guessing needed in either one — every puzzle can be solved by reasoning alone.',
+  heroText: 'Five puzzle games, free to play in your browser. No guessing needed in any of them — every puzzle can be solved by reasoning alone.',
   flgTag: 'Story logic puzzles',
   flgText: 'Read the clues, mark the grid, and work out who did what. Every puzzle tells a story.',
   flgButton: 'Play The Fantastical Logic Grid',
@@ -34,7 +34,7 @@ const DEFAULT_TEXT = {
   footerNote: 'Questions?',
   infoPlay: 'Play free',
   hubTitle: 'The Logic Grid | Free logic and number puzzle games',
-  hubDescription: 'The Logic Grid: The Fantastical Logic Grid story logic puzzles and NINETIMESNINE number puzzles. Free to play in your browser.',
+  hubDescription: 'The Logic Grid: free logic and number puzzle games. The Fantastical Logic Grid, NINETIMESNINE, Cage Math, Sum Cross and Picture Grid, in your browser.',
   npTitle: 'NINETIMESNINE | Free number puzzles | The Logic Grid',
   npDescription: 'Free number puzzles: fill the grid so every row, column and box holds each number once. Classic, Rival Grid, Chain Reaction, Tidewater and Glyph Quest.',
 };

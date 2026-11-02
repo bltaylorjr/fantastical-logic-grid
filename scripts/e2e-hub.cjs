@@ -36,7 +36,8 @@ const ignorable = (t) => /fonts\/|Failed to decode downloaded font|OTS parsing/.
     assert(new URL(page.url()).pathname === '/', 'the front page stays put');
     assert(await page.locator('h1').count() === 1 && /Pick your puzzle/.test(await page.locator('h1').textContent()), 'the front page has one heading');
     const play = await page.locator('a.play').evaluateAll((as) => as.map((a) => a.getAttribute('href')));
-    assert(JSON.stringify(play) === JSON.stringify(['fantastical/', 'ninetimesnine/']), 'it links to both games');
+    assert(JSON.stringify(play) === JSON.stringify(['fantastical/', 'ninetimesnine/', 'cage-math/', 'sum-cross/', 'picture-grid/']), 'it links to every game');
+    assert(await page.locator('.card .more a').count() === 5 && await page.locator('#watch video').count() >= 1, 'each card links to How to play, and the front page shows the videos');
     // Shared things open over the front page; only the Play buttons open a game page.
     await page.click('.app-item[href="report/"]');
     await page.waitForSelector('dialog.ovl[open] iframe');
@@ -119,13 +120,34 @@ const ignorable = (t) => /fonts\/|Failed to decode downloaded font|OTS parsing/.
     await page.waitForSelector('#np-setup-view:not([hidden]) #np-levels .choice', { timeout: 20000 });
     assert(true, 'a ?style= link opens it too');
 
+    // ---- Cage Math, Sum Cross and Picture Grid on their own pages
+    for (const [dir, id, name] of [['cage-math', 'cm', 'Cage Math'], ['sum-cross', 'sc', 'Sum Cross'], ['picture-grid', 'pg', 'Picture Grid']]) {
+      await page.goto(`${BASE}/`);
+      await page.click(`a.play[href="${dir}/"]`);
+      await page.waitForURL(`${BASE}/${dir}/`);
+      await page.waitForSelector(`#${id}-root.gk-app`, { timeout: 20000 });
+      assert(await page.locator('h1').first().textContent() === name && await page.locator('.np-top a[href="../"]').count() >= 1, `${name} plays on its own page, which links home`);
+      await page.click('.np-top a[href="how-to-play/"]');
+      await page.waitForURL(`${BASE}/${dir}/how-to-play/`);
+      assert(new RegExp(`How to play ${name}`).test(await page.locator('h1').textContent()) && await page.locator('main table').count() === 1, `${name} has a How to play page with its rules and levels`);
+    }
+    // From The Fantastical Logic Grid's page, the bar's name leads to the front page.
+    await page.evaluate(() => localStorage.setItem('flg.game', 'cage-math'));
+    await page.goto(`${BASE}/fantastical/`);
+    await page.waitForSelector('#screen-home:not([hidden]) #tier-choices input');
+    assert(await page.locator('#screen-games').isHidden(), 'The Fantastical Logic Grid\'s page always opens on its own home');
+    if (await page.locator('dialog[open]').count()) { await page.keyboard.press('Escape'); await page.waitForFunction(() => !document.querySelector('dialog[open]')); }
+    await page.click('#home-btn');
+    await page.waitForURL(`${BASE}/`);
+    assert(true, 'the name in its bar opens The Logic Grid front page');
+
     // ---- Website pages around the game
     await page.goto(`${BASE}/storyline/`);
     assert(await page.locator('#sl-back').getAttribute('href') === '../fantastical/', 'Suggest a storyline goes back to the game');
     const sw = await (await fetch(`${BASE}/sw.js`)).text();
-    assert(/"fantastical\/"/.test(sw) && /"ninetimesnine\/"/.test(sw) && /"\.\/"/.test(sw), 'the offline helper keeps all three pages');
+    assert(['fantastical/', 'ninetimesnine/', 'cage-math/', 'sum-cross/', 'picture-grid/', './'].every((p) => sw.includes(`"${p}"`)), 'the offline helper keeps every page');
     const sitemap = await (await fetch(`${BASE}/sitemap.xml`)).text();
-    assert(/\/fantastical\/<\/loc>/.test(sitemap) && /\/ninetimesnine\/<\/loc>/.test(sitemap), 'the sitemap lists both games');
+    assert(['fantastical/', 'ninetimesnine/', 'cage-math/', 'sum-cross/', 'picture-grid/', 'cage-math/how-to-play/'].every((p) => sitemap.includes(`/${p}</loc>`)), 'the sitemap lists every game and its How to play page');
 
     assert(!errors.length, `no page errors${errors.length ? `: ${errors.join(' | ')}` : ''}`);
   } finally {

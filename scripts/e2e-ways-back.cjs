@@ -20,8 +20,6 @@ const BASE = `http://localhost:${PORT}`;
   const errors = [];
   try {
     const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block' });
-    // A tester's device, with the full package on (web/js/package-preview.js).
-    await ctx.addInitScript((h) => localStorage.setItem('flg.preview', h), /CODE_HASH = '([0-9a-f]{64})'/.exec(require('fs').readFileSync(path.join(__dirname, '..', 'web', 'js', 'package-preview.js'), 'utf8'))[1]);
     await ctx.addInitScript(() => { try { if (!localStorage.getItem('flg.settings')) localStorage.setItem('flg.settings', JSON.stringify({ introOffered: true })); } catch (e) { /* none */ } });
     const page = await ctx.newPage();
     page.on('pageerror', (e) => errors.push(String(e)));
@@ -55,12 +53,14 @@ const BASE = `http://localhost:${PORT}`;
     const androidBack = () => page.evaluate(() => window.__flgScreenBack && window.__flgScreenBack());
     assert(await androidBack() === true, "the Android app's back button steps back from a puzzle");
     await page.waitForSelector('#screen-home:not([hidden])');
-    assert(await androidBack() === true, 'on the home screen it goes to the game cards');
-    await page.waitForSelector('#screen-games:not([hidden])');
-    assert(await page.locator('#back-btn').isHidden(), 'no Back on the game cards');
-    assert(await androidBack() === false, 'and on the game cards it leaves the app to Android');
-    await page.click('#game-cards [data-game=logic-grid]');
-    await page.waitForSelector('#screen-home:not([hidden])');
+    // On the website every game has its own page, so the game cards are the
+    // front page (the apps keep them as a screen: e2e-games.cjs).
+    assert(await androidBack() === true, 'on the home screen it goes to all the games');
+    await page.waitForURL(`${BASE}/`);
+    await page.waitForSelector('a.play[href="fantastical/"]');
+    assert(true, 'which on the website is The Logic Grid front page');
+    await page.click('a.play[href="fantastical/"]');
+    await page.waitForSelector('#screen-home:not([hidden]) #tier-choices input');
 
     // A reload keeps the browser's history entries; going home afterwards
     // must not step back into the earlier load (that would reload the page).
