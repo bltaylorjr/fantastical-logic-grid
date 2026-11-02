@@ -227,7 +227,7 @@ def main():
     with open(os.path.join(OUT, 'captions.ass'), 'w') as f:
         f.write('[Script Info]\nScriptType: v4.00+\nPlayResX: 1920\nPlayResY: 1080\nWrapStyle: 0\n\n[V4+ Styles]\n'
                 'Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n'
-                'Style: Cap,Atkinson Hyperlegible,50,&H00FFFFFF,&H00FFFFFF,&H08101010,&H08101010,0,0,0,0,100,100,0,0,3,14,0,2,160,160,48,1\n\n'
+                'Style: Cap,Atkinson Hyperlegible,50,&H00FFFFFF,&H00FFFFFF,&H08101010,&H08101010,0,0,0,0,100,100,0,0,3,14,0,2,160,160,100,1\n\n'
                 '[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n')
         for a, b, c in final:
             f.write(f'Dialogue: 0,{ats(a)},{ats(b)},Cap,,0,0,0,,' + r'\N'.join(textwrap.wrap(c, 46)) + '\n')
@@ -241,11 +241,21 @@ def main():
         off += beats[i - 1][1]
         filt.append(f'[{prev}][v{i}]xfade=transition=fade:duration={FADE}:offset={off:.3f}[x{i}]')
         prev = f'x{i}'
+    # The Logic Grid's mark in the bottom-right corner of every frame: the game
+    # icon and "The Logic Grid · thelogicgrid.com", where the captions (kept
+    # 160 px in from each side, centred) never reach and the game's top bar
+    # stays clear.
+    n = len(beats)
+    mark_font = os.path.join(fonts(), 'Atkinson-700.ttf').replace(':', r'\:')
+    filt.append(f'[{n + 1}:v]scale=52:52:flags=lanczos,format=rgba[icon]')
+    filt.append(f"[{prev}]drawbox=x=iw-494:y=ih-82:w=470:h=62:color=0x16133a@0.72:t=fill,"
+                f"drawtext=fontfile='{mark_font}':text='The Logic Grid · thelogicgrid.com':fontsize=24:fontcolor=white:x=w-tw-42:y=h-63[marked]")
+    filt.append('[marked][icon]overlay=x=W-486:y=H-77[branded]')
+    prev = 'branded'
     filt.append(f'[{prev}]trim=0:{total:.3f},setpts=PTS-STARTPTS,split[clean][b2]')
     filt.append(f"[b2]subtitles={os.path.join(OUT, 'captions.ass')}:fontsdir={fonts()}[cap]")
-    n = len(beats)
     enc = ['-c:v', 'libx264', '-preset', 'medium', '-pix_fmt', 'yuv420p', '-r', '30', '-c:a', 'aac', '-b:a', '128k', '-movflags', '+faststart']
-    subprocess.run(['ffmpeg', '-y', '-v', 'error', *inputs, '-i', voice, '-filter_complex',
+    subprocess.run(['ffmpeg', '-y', '-v', 'error', *inputs, '-i', voice, '-i', os.path.join(ROOT, 'web', 'icons', 'icon-512.png'), '-filter_complex',
                     ';'.join(filt) + f';[{n}:a]loudnorm=I=-16:TP=-1.5:LRA=11,aresample=48000,asplit[a1][a2]',
                     '-map', '[clean]', '-map', '[a1]', '-crf', '26', *enc, os.path.join(OUT, f'{VIDEO}.mp4'),
                     '-map', '[cap]', '-map', '[a2]', '-crf', '22', *enc, os.path.join(OUT, f'{VIDEO}-captioned.mp4')], check=True)

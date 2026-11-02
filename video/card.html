@@ -12,6 +12,8 @@ p{font-size:34px;margin:0;color:#e3e6f6}
 .steps{display:flex;gap:24px;justify-content:center;margin-top:30px}
 .steps div{background:rgba(255,255,255,.08);border:2px solid rgba(255,255,255,.3);border-radius:16px;padding:14px 22px;font-size:28px;font-weight:700}
 .steps b{color:#F5C451;margin-right:8px}
+.brand{position:absolute;left:0;right:0;bottom:190px;text-align:center;font-size:26px;color:#cfd3ee}
+.brand b{color:#fff}
 </style></head><body><div class="grid"></div><div class="box" id="c"></div>
 <script>
 const C={
@@ -26,7 +28,10 @@ const C={
  wizoutro:`<img src="../web/icons/icon-512.png" alt=""><h1>Your puzzle, ready to share</h1><div class="steps"><div><b>1</b>Answer the questions</div><div><b>2</b>Check and fix</div><div><b>3</b>Build, print and play</div></div><p style="margin-top:28px">thelogicgrid.com</p>`,
  tlg:`<img src="../web/icons/icon-512.png" alt=""><h1>The Logic Grid</h1><p>Logic and number puzzle games, free in your browser.</p>`,
  tlgoutro:`<img src="../web/icons/icon-512.png" alt=""><h1>Pick your puzzle</h1><div class="steps"><div><b>1</b>Choose a game</div><div><b>2</b>Play or make a puzzle</div><div><b>3</b>One account for all</div></div><p style="margin-top:28px">thelogicgrid.com</p>`,
- outro:`<img src="../web/icons/icon-512.png" alt=""><h1>Solve the case</h1><div class="steps"><div><b>1</b>Read the story</div><div><b>2</b>Follow the clues</div><div><b>3</b>Mark X and O</div></div>`,
+ outro:`<img src="../web/icons/icon-512.png" alt=""><h1>Solve the case</h1><div class="steps"><div><b>1</b>Read the story</div><div><b>2</b>Follow the clues</div><div><b>3</b>Mark X and O</div></div><p style="margin-top:28px">Play free at thelogicgrid.com</p>`,
 };
-document.getElementById('c').innerHTML=C[location.hash.slice(1)];
+const k=location.hash.slice(1);
+document.getElementById('c').innerHTML=C[k];
+// Closing cards end on The Logic Grid: the site and the YouTube channel.
+if(/outro$/.test(k))document.body.insertAdjacentHTML('beforeend','<p class="brand"><b>The Logic Grid</b> on YouTube: @thelogicgridpuzzles</p>');
 </script></body></html>
