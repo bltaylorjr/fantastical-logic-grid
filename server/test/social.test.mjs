@@ -6,9 +6,12 @@ import assert from 'node:assert/strict';
 import { SETTINGS, checkSetting } from '../src/settings.js';
 import { socialLinks, socialHtml, DEFAULT_LINKS, NETWORKS, ICONS } from '../../web/js/social.js';
 
-test('each network has a setting; Facebook and Instagram start with the game\'s pages', () => {
+test('each network has a setting; Facebook, Instagram and Mastodon start with the game\'s pages', () => {
   assert.equal(SETTINGS.social_facebook.default, DEFAULT_LINKS.facebook);
   assert.equal(SETTINGS.social_instagram.default, DEFAULT_LINKS.instagram);
+  assert.equal(SETTINGS.social_mastodon.default, DEFAULT_LINKS.mastodon);
+  assert.ok(checkSetting('social_mastodon', 'https://mastodon.social/@thelogicgrid').value);
+  assert.match(checkSetting('social_mastodon', 'https://example.com/@thelogicgrid').error, /not on Mastodon/);
   assert.equal(SETTINGS.social_youtube.default, '');
   assert.equal(SETTINGS.social_youtube.group, 'Social links');
 });
