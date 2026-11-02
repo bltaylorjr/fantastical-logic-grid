@@ -5,15 +5,12 @@ const { chromium } = require('playwright');
 const { spawn } = require('child_process');
 const path = require('path');
 const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`ok  ${m}`); };
-// The full package shows only on a tester's device (web/js/package-preview.js).
-const PREVIEW = /CODE_HASH = '([0-9a-f]{64})'/.exec(require('fs').readFileSync(path.join(__dirname, '..', 'web', 'js', 'package-preview.js'), 'utf8'))[1];
 
 (async () => {
   const server = spawn('node', [path.join(__dirname, 'serve.mjs'), path.join(__dirname, '..', 'dist', 'web'), '8182'], { stdio: 'ignore' });
   await new Promise((r) => setTimeout(r, 600));
   const browser = await chromium.launch();
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' });
-  await ctx.addInitScript((h) => localStorage.setItem('flg.preview', h), PREVIEW);
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(String(e)));
@@ -106,33 +103,19 @@ const PREVIEW = /CODE_HASH = '([0-9a-f]{64})'/.exec(require('fs').readFileSync(p
     await page.waitForFunction(() => !document.querySelector('#dlg-game-video').open && document.querySelector('#game-video').paused);
     assert(true, 'closing the video stops it');
 
-    // Everyone else sees The Fantastical Logic Grid alone.
+    // Every game is public: an old tester link (?preview=...) still opens the
+    // cards, and the code is taken out of the address.
     const pub = await browser.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' });
     const pp = await pub.newPage();
     pp.on('pageerror', (e) => errors.push(String(e)));
-    await pp.goto('http://localhost:8182/?preview=not-the-code');
-    await pp.waitForSelector('#screen-home:not([hidden]) #tier-choices input');
-    assert(await pp.locator('#screen-games').isHidden() && await pp.title() === 'The Fantastical Logic Grid', 'a public visitor opens on The Fantastical Logic Grid');
-    assert((await pp.locator('#home-btn').textContent()).trim() === 'The Fantastical Logic Grid' && await pp.locator('#back-btn').isHidden(), 'the bar says The Fantastical Logic Grid, with no way to the cards');
-    if (await pp.locator('#dlg-welcome[open]').count()) { await pp.keyboard.press('Escape'); await pp.waitForFunction(() => !document.querySelector('#dlg-welcome').open); }
-    await pp.click('#menu-btn');
-    assert(await pp.locator('[data-cmd=numberplace]').isVisible() && await pp.locator('[data-cmd=games]').isHidden(), 'the menu has NINETIMESNINE but no All games');
-    assert(await pp.evaluate(() => { const m = [...document.querySelectorAll('#app-menu > *')].filter((e) => !e.hidden); return m[m.length - 1].dataset.cmd === 'numberplace'; }), 'NINETIMESNINE is the last menu item');
-    await pp.click('[data-cmd=numberplace]');
-    await pp.waitForSelector('#screen-np:not([hidden])');
-    assert(true, 'a public visitor can open NINETIMESNINE from the menu');
-    await pp.click('#np-back');
-    await pp.waitForSelector('#screen-home:not([hidden])');
-    assert(await pp.locator('#screen-games').isHidden(), 'Back from NINETIMESNINE goes home, not to the game cards');
-    assert(!/preview=/.test(pp.url()) && !(await pp.evaluate(() => localStorage.getItem('flg.preview'))), 'a wrong code unlocks nothing and leaves the address');
-    await pp.goto('http://localhost:8182/?preview=off');
-    await pp.waitForSelector('#screen-home:not([hidden])');
+    await pp.addInitScript(() => localStorage.setItem('flg.preview', 'old-hash'));
+    await pp.goto('http://localhost:8182/?preview=an-old-code');
+    await pp.waitForSelector('#screen-games:not([hidden]) #game-cards button');
+    const pubCards = await pp.$$eval('#game-cards .game-card', (els) => els.map((e) => e.dataset.game));
+    assert(['logic-grid', 'ninetimesnine', 'cage-math', 'sum-cross', 'picture-grid'].every((id) => pubCards.includes(id)), 'every visitor gets a card for every game');
+    assert(!/preview=/.test(pp.url()) && !(await pp.evaluate(() => localStorage.getItem('flg.preview'))), 'an old preview link is cleaned out of the address and the device');
+    assert(await pp.locator('[data-cmd=leave-preview]').count() === 0, 'the menu has no Leave the preview item');
     await pub.close();
-    // A tester's device leaves the preview with ?preview=off.
-    await page.goto('http://localhost:8182/?preview=off');
-    await page.waitForSelector('#tier-choices input');
-    assert(await page.evaluate(() => !localStorage.getItem('flg.preview')) && await page.locator('#screen-games').isHidden(), '?preview=off switches the full package off');
-    await page.evaluate((h) => localStorage.setItem('flg.preview', h), PREVIEW);
     await page.goto('http://localhost:8182/');
     await page.click('#home-btn').catch(() => {});
     await page.waitForSelector('#screen-games:not([hidden]) #game-cards button');

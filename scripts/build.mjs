@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import { buildSeo } from './seo.mjs';
 import { applySiteDesign } from './site-design-build.mjs';
+import { OWN_PAGES } from './hub.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const web = join(root, 'web');
@@ -343,22 +344,23 @@ const seo = await buildSeo({ root, site });
 // The website design chosen in the admin dashboard (Website page).
 await applySiteDesign({ site, base: (process.env.FLG_SITE_URL || 'https://thelogicgrid.com').replace(/\/+$/, '') });
 // The Logic Grid's layout (scripts/hub.mjs): the front page at /, the game at
-// fantastical/, NINETIMESNINE at ninetimesnine/. The installed app keeps its
-// id ("./") and now starts at the game; offline, all three pages open.
+// fantastical/, and every other game on a page of its own (ninetimesnine/,
+// cage-math/, sum-cross/, picture-grid/). The installed app keeps its id ("./")
+// and now starts at the game; offline, every one of those pages opens.
 {
   const mf = join(site, 'manifest.webmanifest');
   const manifest = JSON.parse(readFileSync(mf, 'utf8'));
   if (manifest.id !== './') throw new Error('manifest.webmanifest must keep id "./" so installed apps stay the same app');
   manifest.start_url = 'fantastical/';
   writeFileSync(mf, `${JSON.stringify(manifest, null, 2)}\n`);
-  const pagesHere = ['fantastical/', 'ninetimesnine/'];
+  const pagesHere = ['fantastical/', ...OWN_PAGES.map((g) => g.page)];
   const swFile = join(site, 'sw.js');
   let siteSw = readFileSync(swFile, 'utf8');
   const listed = siteSw.match(/const FILES = (\[[^\n]*\]);/);
   if (!listed) throw new Error('Could not find the file list in sw.js');
-  const shellHere = [...JSON.parse(listed[1]), ...pagesHere, 'js/hub.js', 'js/np-page.js', 'js/design-preview.js', 'js/site-design.js'].filter((f, i, a) => a.indexOf(f) === i);
+  const shellHere = [...JSON.parse(listed[1]), ...pagesHere, 'js/hub.js', 'js/np-page.js', 'js/kit-page.js', 'js/design-preview.js', 'js/site-design.js'].filter((f, i, a) => a.indexOf(f) === i);
   const siteHash = createHash('sha256').update(version);
-  for (const f of ['index.html', 'fantastical/index.html', 'ninetimesnine/index.html', 'manifest.webmanifest']) siteHash.update(readFileSync(join(site, f)));
+  for (const f of ['index.html', ...pagesHere.map((p) => `${p}index.html`), 'manifest.webmanifest']) siteHash.update(readFileSync(join(site, f)));
   siteSw = siteSw.replace(listed[0], `const FILES = ${JSON.stringify(shellHere)};`).replace(`const VERSION = '${version}';`, `const VERSION = '${siteHash.digest('hex').slice(0, 10)}';`);
   writeFileSync(swFile, siteSw);
   const headers = join(site, '_headers');

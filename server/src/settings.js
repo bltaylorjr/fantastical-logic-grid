@@ -28,7 +28,7 @@ export const CELEBRATIONS = ['confetti', 'fireworks', 'stars', 'balloons', 'spar
 const KIT_SETTINGS_GAMES = [['cm', 'Cage Math', 'numbers'], ['sc', 'Sum Cross', 'numbers'], ['pg', 'Picture Grid', 'pictures']];
 function kitSettings(id, name, what) {
   return {
-    [`${id}_enabled`]: { type: 'bool', default: true, group: name, label: `${name} in the app`, help: `On: testers of the full package (the preview link) see the ${name} card. Off: the card is hidden. Saved ${name} games stay on each device.` },
+    [`${id}_enabled`]: { type: 'bool', default: true, group: name, label: `${name} in the app`, help: `On: everyone sees the ${name} card and can play it (in the app and on its own website page). Off: the card is hidden and the page says the game is taking a break. Saved ${name} games stay on each device.` },
     [`${id}_learning_enabled`]: { type: 'bool', default: true, group: name, label: `Learn from ${name} games`, help: `On: anonymous summaries of finished ${name} puzzles (level, size, time, hints, mistakes, how it felt) tune every player's puzzles. Needs Learn from everyone on, and players who turned off Learn from how I play send nothing. Off: nothing is sent and summaries are dropped.` },
     [`${id}_max_level`]: {
       type: 'choice', default: 'master', group: name, label: 'Hardest level offered', help: `Levels above this are hidden from the ${name} setup.`,

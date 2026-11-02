@@ -54,7 +54,6 @@ import * as license from './license.js';
 import * as licenseDownload from './license-download.js';
 import { addCloseButtons, closeDialog } from './dialog-close.js';
 import * as games from './games.js';
-import * as pkg from './package-preview.js';
 
 addCloseButtons();
 
@@ -207,6 +206,10 @@ function setWorld(id) { document.documentElement.dataset.world = id || 'random';
 
 // The website's game page has a longer title for search results (scripts/seo.mjs).
 const HOME_TITLE = document.title;
+// The website's front page (scripts/hub.mjs), which has a card for every game
+// and gives each game a page of its own. The apps and game-site copies have no
+// such page and keep every game on its own screen here.
+const SITE_HUB = document.querySelector('meta[name="flg-hub"]');
 
 // A way back from every screen. The Back button (top left, on every screen
 // but the game cards), the phone's back gesture or back button, and the Android
@@ -237,7 +240,7 @@ function trackScreen(name) {
 }
 function screenBack() {
   if (currentScreen === 'games') return false;
-  if (currentScreen === 'home') { if (!pkg.on()) return false; openGames(); return true; }
+  if (currentScreen === 'home') { openGames(); return true; }
   if (kitGames.byScreen(currentScreen)) { openGames(); return true; }
   if (currentScreen === 'learn' && !$('#learn-lesson').hidden) {
     $('#learn-back').click();
@@ -266,8 +269,7 @@ function showScreen(name) {
   currentScreen = name;
   delete document.documentElement.dataset.start;
   games.rememberGame(name === 'games' ? 'all' : name === 'np' ? 'ninetimesnine' : kitGames.byScreen(name) || 'logic-grid');
-  // Public visitors have only The Fantastical Logic Grid: its home is the first screen.
-  $('#back-btn').hidden = name === 'games' || (name === 'home' && !pkg.on());
+  $('#back-btn').hidden = name === 'games';
   trackScreen(name);
   $('#screen-games').hidden = name !== 'games';
   $('#screen-home').hidden = name !== 'home';
@@ -288,7 +290,7 @@ function showScreen(name) {
   $('.topstrip').hidden = name === 'games';
   $('#skip-link').hidden = name !== 'play';
   $('#view-seg').hidden = name !== 'play';
-  document.title = name === 'play' && S ? `${S.save.name} · The Fantastical Logic Grid` : name === 'learn' ? 'How to play · The Fantastical Logic Grid' : name === 'np' ? 'NINETIMESNINE · The Logic Grid' : kitGames.byScreen(name) ? `${kitGames.KIT_GAMES[kitGames.byScreen(name)].name} · The Logic Grid` : name === 'games' ? 'The Logic Grid' : pkg.on() ? 'The Fantastical Logic Grid · The Logic Grid' : HOME_TITLE;
+  document.title = name === 'play' && S ? `${S.save.name} · The Fantastical Logic Grid` : name === 'learn' ? 'How to play · The Fantastical Logic Grid' : name === 'np' ? 'NINETIMESNINE · The Logic Grid' : kitGames.byScreen(name) ? `${kitGames.KIT_GAMES[kitGames.byScreen(name)].name} · The Logic Grid` : name === 'games' ? 'The Logic Grid' : SITE_HUB ? HOME_TITLE : 'The Fantastical Logic Grid · The Logic Grid';
   if (name === 'home') { closeGame(); renderSaved(); renderSuggestion(); renderDaily(); accountsOnHome(); competeUi.onHome(); setTimeout(offerUpdate, 500); }
   wake.setPlaying(name === 'play' && S && !S.save.solved);
   updateMusic();
@@ -720,6 +722,15 @@ function embedOpen() {
     if (document.querySelector('dialog[open]')) quiet = 0;
     else if (++quiet >= 3) { clearInterval(t); post({}); }
   }, 250);
+}
+function dropPreviewCode() {
+  try {
+    localStorage.removeItem('flg.preview');
+    const url = new URL(location.href);
+    if (!url.searchParams.has('preview')) return;
+    url.searchParams.delete('preview');
+    history.replaceState(history.state, '', url.pathname + url.search + url.hash);
+  } catch (e) { /* framed preview or no storage */ }
 }
 function handleOpenLink() {
   const url = new URL(location.href);
@@ -2700,14 +2711,7 @@ function applyFeatures() {
   $('#mail-invite').hidden = isPortal || !puzzleMail.available();
   $('[data-cmd=suggest]').hidden = !characters.suggestionsOpen();
   // NINETIMESNINE is at the bottom of the menu for everyone (the dashboard can switch it off).
-  // The game cards are for testers of the full package only (package-preview.js).
   $('[data-cmd=numberplace]').hidden = !numberPlace.enabled();
-  $('[data-cmd=games]').hidden = !pkg.on();
-  $('#np-back').textContent = pkg.on() ? 'All games' : 'Back';
-  $('[data-cmd=leave-preview]').hidden = !pkg.on();
-  if (currentScreen === 'home') $('#back-btn').hidden = !pkg.on();
-  $('#brand-name').textContent = pkg.on() ? 'The Logic Grid' : 'The Fantastical Logic Grid';
-  $('#home-btn').setAttribute('aria-label', `${pkg.on() ? 'The Logic Grid' : 'The Fantastical Logic Grid'}, home`);
   renderGameCards();
   $('[data-cmd=pack]').hidden = isPreview || !printPack.available();
   $('#feedback-idea').hidden = false;
@@ -2841,17 +2845,21 @@ $('#app-menu').addEventListener('click', async (e) => {
   else if (cmd === 'install') installApp();
   else if (cmd === 'numberplace') openNumberPlace();
   else if (cmd === 'games') openGames();
-  else if (cmd === 'leave-preview') { pkg.leave(); games.rememberGame('logic-grid'); location.reload(); }
   else if (cmd === 'site') window.open(`${(CLOUD.siteUrl || 'https://thelogicgrid.com').replace(/\/+$/, '')}/?utm_source=portal&utm_medium=store&utm_campaign=portal`, '_blank', 'noopener');
 });
 // The Logic Grid's name in the bar: from a puzzle or How to play it goes to
 // The Fantastical Logic Grid's home; from there or another game, to the game cards.
-$('#home-btn').onclick = () => (!pkg.on() || currentScreen === 'play' || currentScreen === 'learn' ? goHome() : openGames());
+$('#home-btn').onclick = () => (currentScreen === 'play' || currentScreen === 'learn' ? goHome() : openGames());
 $('#back-btn').onclick = () => screenBack();
+
+async function toSitePage(path) {
+  if (S) await flushSave();
+  location.href = new URL(path, document.baseURI).href;
+}
 
 // The Logic Grid's first screen: a card for each game (games.js).
 async function openGames() {
-  if (!pkg.on()) { goHome(); return; }
+  if (SITE_HUB) { toSitePage(SITE_HUB.content); return; }
   if (S) { await flushSave(); closeGame(); }
   showScreen('games');
   window.scrollTo(0, 0);
@@ -2908,12 +2916,14 @@ async function openNumberPlace(mode = null) {
   window.scrollTo(0, 0);
   await numberPlace.open({ celebrate: () => celebrateSolve(settings.celebrations, { random: settings.celebrateRandom }), setWorld, style: mode });
 }
-$('#np-back').onclick = () => (pkg.on() ? openGames() : goHome());
+$('#np-back').onclick = () => openGames();
 
 // Cage Math, Sum Cross and Picture Grid: each its own screen with the game's
-// look (web/js/kit-games.js), for testers of the full package only.
+// look (web/js/kit-games.js). The website gives each its own page (cage-math/,
+// sum-cross/, picture-grid/, scripts/hub.mjs).
 async function openKitGame(card) {
-  if (!pkg.on() || !kitGames.enabled(card)) { goHome(); return; }
+  if (!kitGames.enabled(card)) { goHome(); return; }
+  if (SITE_HUB) { toSitePage(`${kitGames.KIT_GAMES[card].dir}/`); return; }
   if (S) { await flushSave(); closeGame(); }
   showScreen(kitGames.KIT_GAMES[card].id);
   window.scrollTo(0, 0);
@@ -3334,17 +3344,19 @@ async function init() {
   if (!EMBED) setTimeout(checkUpdates, 4000);
   // The Windows and Android apps wait here for an app key that works (license.js).
   await license.gate({ announce });
-  // A tester's special link switches the full package on (package-preview.js).
-  await pkg.fromAddress();
+  // Old tester links (?preview=...) from the private preview: the package is
+  // public now, so the code is just taken out of the address.
+  dropPreviewCode();
   applyFeatures();
   // thelogicgrid.com/?learn opens How to play straight away; a ?play=now link
   // goes straight into a puzzle; otherwise first-time players get the welcome.
   // Otherwise the app opens where the player last was: the game cards (always
   // the first time), The Fantastical Logic Grid (with its welcome the first
-  // time) or NINETIMESNINE.
+  // time) or another game. On the website this page is The Fantastical Logic
+  // Grid's own (the front page holds the cards), so it always opens there.
   if (EMBED) embedOpen(); else if (new URLSearchParams(location.search).has('learn')) { settings.introOffered = true; store.saveSettings(settings); openTutorial(); } else if (!handleChallengeLink() && !handlePlayLink() && !handleOpenLink() && currentScreen === 'home') {
     const last = games.lastGame();
-    if (!pkg.on() || last === 'logic-grid') offerIntro(); else if (last === 'ninetimesnine' && numberPlace.enabled()) openNumberPlace(); else if (kitGames.KIT_GAMES[last] && kitGames.enabled(last)) openKitGame(last); else showScreen('games');
+    if (SITE_HUB || last === 'logic-grid') offerIntro(); else if (last === 'ninetimesnine' && numberPlace.enabled()) openNumberPlace(); else if (kitGames.KIT_GAMES[last] && kitGames.enabled(last)) openKitGame(last); else showScreen('games');
   }
   delete document.documentElement.dataset.start;
   if (EMBED) return;

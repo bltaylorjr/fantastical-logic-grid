@@ -6,8 +6,6 @@ const { chromium } = require('playwright');
 const { spawn } = require('child_process');
 const path = require('path');
 const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`ok  ${m}`); };
-// The full package shows only on a tester's device (web/js/package-preview.js).
-const PREVIEW = /CODE_HASH = '([0-9a-f]{64})'/.exec(require('fs').readFileSync(path.join(__dirname, '..', 'web', 'js', 'package-preview.js'), 'utf8'))[1];
 
 (async () => {
   const server = spawn('node', [path.join(__dirname, 'serve.mjs'), path.join(__dirname, '..', 'dist', 'web'), '8136'], { stdio: 'ignore' });
@@ -28,7 +26,6 @@ const PREVIEW = /CODE_HASH = '([0-9a-f]{64})'/.exec(require('fs').readFileSync(p
   };
   try {
     await page.addInitScript(() => localStorage.setItem('flg.settings', JSON.stringify({ introOffered: true, sound: false })));
-    await page.addInitScript((h) => localStorage.setItem('flg.preview', h), PREVIEW);
     await page.goto('http://localhost:8136/');
     await page.waitForSelector('#tier-choices input');
     assert(!(await page.locator('link#np-css').count()) && !(await page.evaluate(() => performance.getEntriesByType('resource').some((r) => /modules\/number-place/.test(r.name)))), 'NINETIMESNINE loads nothing until it is opened');

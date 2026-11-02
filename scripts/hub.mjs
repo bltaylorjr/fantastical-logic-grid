@@ -4,6 +4,7 @@
 //                   problems, installing, support, news, social links)
 //   /fantastical/   The Fantastical Logic Grid (the game page, moved here)
 //   /ninetimesnine/ NINETIMESNINE on a page of its own
+//   /cage-math/, /sum-cross/, /picture-grid/  the same for each of those games
 // Every other file and page stays where it was, so links in emails, the
 // desktop app, the admin dashboard and game sites keep working.
 //
@@ -16,7 +17,7 @@
 // (?play=now, ?challenge=CODE, ?race=CODE, ?learn, ?preview=...) and the
 // installed app (its start address used to be /) on to fantastical/.
 // Campaign tags alone (utm_*) stay on the front page.
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { HOWTO, exampleGrid } from '../modules/number-place/howto.js';
 import { styleOf } from '../modules/number-place/styles.js';
@@ -89,6 +90,73 @@ const ART_NINE = (() => {
 <g class="mk"><rect x="56" y="56" width="14" height="14" fill="#FFD400"/><text x="63" y="67" font-family="Atkinson Hyperlegible, system-ui, sans-serif" font-weight="700" font-size="10" text-anchor="middle">9</text></g></g></svg>`;
 })();
 
+const ART_CAGE = `<svg viewBox="0 0 240 150" aria-hidden="true" focusable="false"><g transform="translate(64 19)">
+<rect width="112" height="112" rx="8" fill="rgb(255 255 255 / .08)" stroke="rgb(255 255 255 / .9)" stroke-width="2.5"/>
+<path d="M28 0v112M56 0v112M84 0v112M0 28h112M0 56h112M0 84h112" stroke="rgb(255 255 255 / .3)" stroke-width="1"/>
+<path d="M56 0v56H0M56 28h56M84 28v84M28 56v56M28 84h56" fill="none" stroke="#FFF" stroke-width="3.5"/>
+<g fill="#FFF" font-family="Atkinson Hyperlegible, system-ui, sans-serif" font-weight="700" font-size="11"><text x="4" y="13">7+</text><text x="60" y="13">2÷</text><text x="4" y="69">12×</text><text x="60" y="41">3−</text><text x="88" y="41">9+</text><text x="32" y="69">4</text></g>
+<g class="mk"><rect x="28.5" y="56.5" width="27" height="27" fill="#FFD400"/><text x="42" y="76" font-family="Atkinson Hyperlegible, system-ui, sans-serif" font-weight="700" font-size="15" text-anchor="middle">4</text></g></g></svg>`;
+
+const ART_CROSS = (() => {
+  const B = 22;
+  const black = [[0, 0], [0, 1], [0, 4], [1, 0], [2, 3], [3, 0], [4, 0], [4, 4]];
+  const nums = [[1, 2, 9], [1, 3, 8], [2, 1, 6], [2, 2, 7], [3, 3, 6], [3, 2, 4]];
+  const cells = [];
+  for (let r = 0; r < 5; r++) for (let c = 0; c < 5; c++) if (black.some(([a, b]) => a === r && b === c)) cells.push(`<rect x="${c * B}" y="${r * B}" width="${B}" height="${B}" fill="rgb(255 255 255 / .28)"/>`);
+  return `<svg viewBox="0 0 240 150" aria-hidden="true" focusable="false"><g transform="translate(65 20)">
+<rect width="110" height="110" rx="6" fill="rgb(255 255 255 / .08)" stroke="rgb(255 255 255 / .9)" stroke-width="2.5"/>${cells.join('')}
+<path d="${[1, 2, 3, 4].map((i) => `M${i * B} 0v110M0 ${i * B}h110`).join('')}" stroke="rgb(255 255 255 / .7)" stroke-width="1.2"/>
+<path d="M0 0l22 22M22 0l22 22M0 22l22 22" stroke="rgb(255 255 255 / .7)" stroke-width="1"/>
+<g fill="#FFF" font-family="Atkinson Hyperlegible, system-ui, sans-serif" font-weight="700" font-size="7"><text x="28" y="18">16</text><text x="2" y="42">17</text><text x="2" y="64">15</text></g>
+<g fill="#FFF" font-family="Atkinson Hyperlegible, system-ui, sans-serif" font-weight="700" font-size="12" text-anchor="middle">${nums.map(([r, c, n]) => `<text x="${c * B + 11}" y="${r * B + 15}">${n}</text>`).join('')}</g>
+<g class="mk"><rect x="66" y="44" width="22" height="22" fill="#FFD400"/><text x="77" y="59" font-family="Atkinson Hyperlegible, system-ui, sans-serif" font-weight="700" font-size="12" text-anchor="middle">8</text></g></g></svg>`;
+})();
+
+const ART_PICTURE = (() => {
+  // A small heart, shaded cell by cell, with its row counts.
+  const rows = ['.##.##.', '#######', '#######', '.#####.', '..###..', '...#...'];
+  const S = 14;
+  const fill = [];
+  rows.forEach((row, r) => [...row].forEach((ch, c) => { if (ch === '#') fill.push(`<rect${r > 2 ? ' class="mk"' : ''} x="${c * S + 1}" y="${r * S + 1}" width="${S - 2}" height="${S - 2}" rx="2" fill="#FFD400"/>`); }));
+  const counts = rows.map((row) => row.split('.').filter(Boolean).map((x) => x.length).join(' '));
+  return `<svg viewBox="0 0 240 150" aria-hidden="true" focusable="false"><g transform="translate(86 33)">
+<rect width="${7 * S}" height="${6 * S}" rx="4" fill="rgb(255 255 255 / .08)" stroke="rgb(255 255 255 / .9)" stroke-width="2"/>
+<path d="${[1, 2, 3, 4, 5, 6].map((i) => `M${i * S} 0v${6 * S}`).join('')}${[1, 2, 3, 4, 5].map((i) => `M0 ${i * S}h${7 * S}`).join('')}" stroke="rgb(255 255 255 / .3)" stroke-width="1"/>${fill.join('')}
+<g fill="#FFF" font-family="Atkinson Hyperlegible, system-ui, sans-serif" font-weight="700" font-size="8" text-anchor="end">${counts.map((t, r) => `<text x="-6" y="${r * S + 10}">${t}</text>`).join('')}</g></g></svg>`;
+})();
+
+// Every game on the website, in the order of the front page's cards. `page`
+// is its folder; `video` its intro (web/media/games/<video>.mp4, .vtt, .jpg).
+// The Fantastical Logic Grid's page is the game app itself (writeGamePage).
+export const GAME_PAGES = [
+  { id: 'fantastical', cls: 'flg', page: 'fantastical/', name: 'The Fantastical Logic Grid', tag: 'Story logic puzzles', art: ART_GRID, video: 'fantastical-logic-grid', howTo: 'how-to-play/',
+    text: 'Read the clues, mark the grid, and work out who did what. Every puzzle tells a story.',
+    points: ['Choose a difficulty, a theme and a grid size', 'Save, resume and print your puzzles', 'A new daily puzzle every day'] },
+  { id: 'ninetimesnine', cls: 'ntn', page: 'ninetimesnine/', name: 'NINETIMESNINE', tag: 'Number puzzles', art: ART_NINE, video: 'ninetimesnine', wizard: true,
+    text: 'Fill the grid so every row, column and box holds each number once. Start small at 4×4 or go for the full 9×9.',
+    points: ['Classic play plus Rival Grid, Chain Reaction, Tidewater and Glyph Quest', 'Notes, step-by-step hints, undo and redo', 'Rules and a worked example for every style'],
+    description: 'Free number puzzles: fill the grid so every row, column and box holds each number once. Classic, Rival Grid, Chain Reaction, Tidewater and Glyph Quest.',
+    title: 'NINETIMESNINE | Free number puzzles | The Logic Grid', genre: 'Number puzzle', css: 'modules/number-place/ui.css', script: 'js/np-page.js', root: 'np' },
+  { id: 'cage-math', cls: 'cm', page: 'cage-math/', name: 'Cage Math', tag: 'Number puzzles', art: ART_CAGE, video: 'cage-math',
+    text: 'Fill each cage so its numbers make the target, with every number once in each row and column.',
+    points: ['Add, subtract, multiply and divide, from 4×4 up to 9×9', 'Six levels, from Basic to Master', 'Hints that explain the next step'],
+    description: 'Free Cage Math puzzles: fill each cage so its numbers make the target, with every number once in each row and column. Six levels, 4×4 to 9×9.',
+    title: 'Cage Math | Free math logic puzzles | The Logic Grid', genre: 'Math puzzle', css: 'modules/grid-kit/kit.css', script: 'js/kit-page.js', root: 'cm' },
+  { id: 'sum-cross', cls: 'sc', page: 'sum-cross/', name: 'Sum Cross', tag: 'Number puzzles', art: ART_CROSS, video: 'sum-cross',
+    text: 'A crossword of numbers: every run adds up to its clue, with no number twice.',
+    points: ['Grids from 5×5 up to 12×12', 'Six levels, from Basic to Master', 'Notes, hints, undo and redo'],
+    description: 'Free Sum Cross puzzles: a crossword of numbers where every run across and down adds up to its clue, with no number twice. Six levels.',
+    title: 'Sum Cross | Free number crossword puzzles | The Logic Grid', genre: 'Number puzzle', css: 'modules/grid-kit/kit.css', script: 'js/kit-page.js', root: 'sc' },
+  { id: 'picture-grid', cls: 'pg', page: 'picture-grid/', name: 'Picture Grid', tag: 'Picture puzzles', art: ART_PICTURE, video: 'picture-grid',
+    text: 'Shade the cells the row and column counts call for, and a hidden picture appears for your gallery.',
+    points: ['Pictures from 5×5 up to 25×25', 'Every picture you uncover joins your gallery', 'Hints that show a line you can work on'],
+    description: 'Free Picture Grid puzzles: shade the cells each row and column calls for and a hidden picture appears. Pictures from 5×5 to 25×25.',
+    title: 'Picture Grid | Free picture logic puzzles | The Logic Grid', genre: 'Picture puzzle', css: 'modules/grid-kit/kit.css', script: 'js/kit-page.js', root: 'pg' },
+];
+// The games with a page of their own written here (every game but the app).
+export const OWN_PAGES = GAME_PAGES.filter((g) => g.script);
+export const howToPath = (g) => g.howTo || `${g.page}rules/`;
+
 const CHEVRON = '<svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M7 4l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
 // The same color tokens as the game (web/app.css).
@@ -137,6 +205,9 @@ header.top { display: flex; flex-wrap: wrap; align-items: center; justify-conten
 .art svg { width: min(62%, 240px); height: auto; }
 .art.flg { background: linear-gradient(135deg, #2A1B6E, #5B3CC4 55%, #1F5FAD); }
 .art.ntn { background: linear-gradient(135deg, #0B3B4A, #0E7490 55%, #1E40AF); }
+.art.cm { background: linear-gradient(135deg, #4A1235, #B4235A 55%, #7C2D92); }
+.art.sc { background: linear-gradient(135deg, #3B2A06, #B45309 55%, #9A3412); }
+.art.pg { background: linear-gradient(135deg, #0F3D2A, #15803D 55%, #0E7490); }
 :root[data-theme="contrast"] .art { background: #000; }
 .body { display: flex; flex-direction: column; gap: 12px; padding: 24px 24px 26px; flex: 1; }
 .tag { font-size: .78rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
@@ -145,6 +216,16 @@ header.top { display: flex; flex-wrap: wrap; align-items: center; justify-conten
 .card ul { padding-left: 1.15em; }
 .card-actions { margin-top: auto; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; }
 .rules-link { position: relative; z-index: 1; display: inline-flex; align-items: center; min-height: 44px; color: var(--text); font-weight: 700; text-underline-offset: 3px; }
+.watch { padding: 0 0 56px; }
+.watch h2 { font: 700 clamp(1.5rem, 3.6vw, 2rem)/1.15 var(--display); margin: 0 0 8px; }
+.watch-lead { color: var(--muted); margin: 0 0 20px; max-width: 40rem; }
+.watch video { display: block; width: 100%; height: auto; border-radius: calc(var(--radius) * .7); background: #000; }
+.watch-main { margin: 0 0 22px; }
+.watch-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 18px; list-style: none; margin: 0; padding: 0; }
+.watch-grid h3 { font-size: 1.05rem; margin: 10px 0 2px; }
+.watch-grid p { margin: 0; color: var(--muted); font-size: .92rem; }
+.watch-grid a { color: inherit; display: inline-flex; align-items: center; min-height: 44px; }
+[data-watch-section="hide"] .watch { display: none; }
 .play { align-self: flex-start; display: inline-flex; align-items: center; gap: 10px; min-height: 48px; padding: 0 22px; border-radius: 999px;
   background: var(--accent); color: var(--on-accent); font-weight: 700; text-decoration: none; transition: background .2s var(--ease); }
 .play:hover { background: var(--accent-hi); }
@@ -166,7 +247,7 @@ footer a { color: inherit; }
 [data-fx-hover="spotlight"] .card::after { content: ""; position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity .2s; background: radial-gradient(220px circle at var(--mx, 50%) var(--my, 50%), rgb(255 212 0 / .28), transparent 60%); }
 [data-fx-hover="spotlight"] .card:hover::after { opacity: 1; }
 [data-fx-arrival="rise"] .hero, [data-fx-arrival="rise"] .card { animation: tlg-rise .7s var(--ease) both; }
-[data-fx-arrival="rise"] .card:nth-child(2) { animation-delay: .15s; }
+[data-fx-arrival="rise"] .card:nth-child(2) { animation-delay: .1s; } [data-fx-arrival="rise"] .card:nth-child(3) { animation-delay: .2s; } [data-fx-arrival="rise"] .card:nth-child(4) { animation-delay: .3s; } [data-fx-arrival="rise"] .card:nth-child(5) { animation-delay: .4s; }
 [data-fx-arrival="fade"] .hero, [data-fx-arrival="fade"] .games { animation: tlg-fade .8s ease-out both; }
 @keyframes tlg-rise { from { opacity: 0; transform: translateY(18px); } }
 @keyframes tlg-fade { from { opacity: 0; } }
@@ -254,9 +335,16 @@ const APP_ITEMS = [
   ['a', 'report/', 'Report a Problem', 'Something not right? Tell us, with a screenshot if you like.'],
 ];
 
+// A video from web/media/games, if the build has it (the files are added as
+// they are made, so a missing one leaves its spot out rather than a broken player).
+export const hasVideo = (site, name) => existsSync(join(site, 'media', 'games', `${name}.mp4`));
+export const videoTag = (site, up, name, label, preload = 'none') => `<video controls preload="${preload}" playsinline${existsSync(join(site, 'media', 'games', `${name}.jpg`)) ? ` poster="${up}media/games/${name}.jpg"` : ''} width="1280" height="720" aria-label="${esc(label)}">
+<source src="${up}media/games/${name}.mp4" type="video/mp4">${existsSync(join(site, 'media', 'games', `${name}.vtt`)) ? `\n<track kind="captions" srclang="en" label="English" src="${up}media/games/${name}.vtt">` : ''}
+</video>`;
+
 export function writeHubPages({ site, url, verification, tdmMeta, copyright, socialList = [], pages, updated, csp, cloud = '', socialHtml = null }) {
   const year = new Date().getUTCFullYear();
-  const description = 'The Logic Grid: The Fantastical Logic Grid story logic puzzles and NINETIMESNINE number puzzles. Free to play in your browser.';
+  const description = 'The Logic Grid: free logic and number puzzle games. The Fantastical Logic Grid, NINETIMESNINE, Cage Math, Sum Cross and Picture Grid, in your browser.';
   const og = (title, desc, path) => `<link rel="canonical" href="${url(path)}">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="${SITE_NAME}">
@@ -269,10 +357,16 @@ export function writeHubPages({ site, url, verification, tdmMeta, copyright, soc
 <meta name="twitter:card" content="summary_large_image">`;
   const organization = { '@type': 'Organization', name: SITE_NAME, url: url(''), logo: { '@type': 'ImageObject', url: url('icons/icon-512.png') }, sameAs: socialList.map((s) => s.url) };
   const website = { '@context': 'https://schema.org', '@type': 'WebSite', name: SITE_NAME, url: url(''), description, inLanguage: 'en', publisher: organization };
-  const list = { '@context': 'https://schema.org', '@type': 'ItemList', itemListElement: [
-    { '@type': 'ListItem', position: 1, name: 'The Fantastical Logic Grid', url: url('fantastical/') },
-    { '@type': 'ListItem', position: 2, name: 'NINETIMESNINE', url: url('ninetimesnine/') },
-  ] };
+  const list = { '@context': 'https://schema.org', '@type': 'ItemList', itemListElement: GAME_PAGES.map((g, i) => ({ '@type': 'ListItem', position: i + 1, name: g.name, url: url(g.page) })) };
+  // The Logic Grid's introduction and each game's highlight video.
+  const watchMain = hasVideo(site, 'the-logic-grid');
+  const watchGames = GAME_PAGES.filter((g) => hasVideo(site, g.video));
+  const watch = watchMain || watchGames.length ? `<section class="watch" id="watch" aria-labelledby="watch-title">
+<h2 id="watch-title" data-design-text="watchTitle">See the games</h2>
+<p class="watch-lead" data-design-text="watchText">A quick look at The Logic Grid, then a minute with each game.</p>
+${watchMain ? `<div class="watch-main">${videoTag(site, '', 'the-logic-grid', 'Introducing The Logic Grid', 'metadata')}</div>` : ''}
+${watchGames.length ? `<ul class="watch-grid">${watchGames.map((g) => `<li>${videoTag(site, '', g.video, `${g.name} highlights`)}<h3>${esc(g.name)}</h3><p><a href="${g.page}">Play</a> · <a href="${howToPath(g)}">Rules and how to play</a></p></li>`).join('')}</ul>` : ''}
+</section>` : '';
 
   // ---------- the front page ----------
   const hub = `<!doctype html>
@@ -314,7 +408,7 @@ ${themeSelect}
 <section class="hero" aria-labelledby="hero-title">
 <span class="eyebrow" data-design-text="heroEyebrow">Puzzle games</span>
 <h1 id="hero-title" data-design-text="heroTitle">Pick your puzzle.</h1>
-<p data-design-text="heroText">Two logic games, free to play in your browser. No guessing needed in either one — every puzzle can be solved by reasoning alone.</p>
+<p data-design-text="heroText">Five puzzle games, free to play in your browser. No guessing needed in any of them — every puzzle can be solved by reasoning alone.</p>
 </section>
 <dialog class="wiz-pick" id="wizard-pick" aria-labelledby="wizard-pick-h">
 <h2 id="wizard-pick-h">Which puzzle would you like to make?</h2>
@@ -326,13 +420,9 @@ ${themeSelect}
 <p class="wiz-close"><button type="button" class="hdr-btn" id="wizard-cancel">Not now</button></p>
 </dialog>
 <main id="games" class="games" tabindex="-1" aria-label="Games">
-${card({ cls: 'flg', art: ART_GRID, tag: 'Story logic puzzles', name: 'The Fantastical Logic Grid', id: 'g1', href: 'fantastical/', rules: 'how-to-play/',
-    text: 'Read the clues, mark the grid, and work out who did what. Every puzzle tells a story.',
-    points: ['Choose a difficulty, a theme and a grid size', 'Save, resume and print your puzzles', 'A new daily puzzle every day'] })}
-${card({ cls: 'ntn', art: ART_NINE, tag: 'Number puzzles', name: 'NINETIMESNINE', id: 'g2', href: 'ninetimesnine/', rules: 'ninetimesnine/rules/',
-    text: 'Fill the grid so every row, column and box holds each number once. Start small at 4×4 or go for the full 9×9.',
-    points: ['Classic play plus Rival Grid, Chain Reaction, Tidewater and Glyph Quest', 'Notes, step-by-step hints, undo and redo', 'Rules and a worked example for every style'] })}
+${GAME_PAGES.map((g, i) => card({ ...g, id: `g${i + 1}`, href: g.page, rules: howToPath(g) })).join('\n')}
 </main>
+${watch}
 <section class="app" id="app" aria-labelledby="app-title">
 <h2 id="app-title" data-design-text="appTitle">One account for every game</h2>
 <p class="app-lead" data-design-text="appText">Sign in once and your saves, stats and settings stay in step in every game, on every device.</p>
@@ -358,17 +448,19 @@ ${socialList.length && socialHtml ? `<div class="follow"><h3>Follow The Logic Gr
   writeFileSync(join(site, 'index.html'), hub.replace("frame-src 'none'", "frame-src 'self'"));
   pages.unshift({ path: '', lastmod: updated, priority: 1 });
 
-  // ---------- NINETIMESNINE ----------
+  // ---------- each game's own page (NINETIMESNINE, Cage Math, Sum Cross, Picture Grid) ----------
   // The game page's own security policy (it reaches the game's Worker for
   // settings and shared play data), with no inline scripts at all.
   const game = readFileSync(join(site, 'fantastical', 'index.html'), 'utf8');
   const gameCsp = (game.match(/http-equiv="Content-Security-Policy" content="([^"]*)"/) || [])[1];
   if (!gameCsp) throw new Error('hub.mjs: the game page has no security policy to copy');
   const npCsp = gameCsp.replace(/script-src [^;]*/, "script-src 'self'").replace("frame-src 'none'", "frame-src 'self'");
-  const npDescription = 'Free number puzzles: fill the grid so every row, column and box holds each number once. Classic, Rival Grid, Chain Reaction, Tidewater and Glyph Quest.';
-  const npGame = { '@context': 'https://schema.org', '@type': ['VideoGame', 'WebApplication'], name: 'NINETIMESNINE', url: url('ninetimesnine/'), description: npDescription, image: url('icons/icon-512.png'),
-    inLanguage: 'en', genre: ['Puzzle', 'Number puzzle'], gamePlatform: ['Web browser'], applicationCategory: 'GameApplication', operatingSystem: 'Any (web browser)',
+  for (const g of OWN_PAGES) {
+  const npDescription = g.description;
+  const npGame = { '@context': 'https://schema.org', '@type': ['VideoGame', 'WebApplication'], name: g.name, url: url(g.page), description: npDescription, image: url('icons/icon-512.png'),
+    inLanguage: 'en', genre: ['Puzzle', g.genre], gamePlatform: ['Web browser'], applicationCategory: 'GameApplication', operatingSystem: 'Any (web browser)',
     browserRequirements: 'Requires JavaScript', isAccessibleForFree: true, offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' }, publisher: organization };
+  const kit = g.root !== 'np';
   const np = `<!doctype html>
 <html lang="en">
 <head>
@@ -376,20 +468,20 @@ ${socialList.length && socialHtml ? `<div class="follow"><h3>Follow The Logic Gr
 <meta http-equiv="Content-Security-Policy" content="${npCsp}">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>NINETIMESNINE | Free number puzzles | The Logic Grid</title>
+<title>${esc(g.title)}</title>
 <meta name="description" content="${esc(npDescription)}">
 <meta name="robots" content="index, follow, max-image-preview:large">
 <meta name="theme-color" content="#1F5FAD">
 ${tdmMeta}
-${og('NINETIMESNINE', npDescription, 'ninetimesnine/')}
+${og(g.name, npDescription, g.page)}
 <link rel="icon" href="../icons/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="../icons/icon-192.png">
 <link rel="preload" href="../fonts/atkinson-400.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="../fonts/atkinson-700.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="../app.css">
-<link rel="stylesheet" href="../modules/number-place/ui.css">
+<link rel="stylesheet" href="../${g.css}"${kit ? ' id="gk-css"' : ''}>
 <script src="../js/hub.js"></script>
-<script type="module" src="../js/np-page.js"></script>
+<script type="module" src="../${g.script}"></script>
 <script type="application/ld+json">${json(npGame)}</script>
 <style>
 .np-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; padding: 14px max(16px, env(safe-area-inset-right, 0px)) 14px max(16px, env(safe-area-inset-left, 0px)); border-bottom: 1px solid var(--hairline); background: var(--surface-2); }
@@ -417,12 +509,12 @@ dialog.ovl::backdrop { background: rgb(8 10 20 / .45); }
 <body>
 <header class="np-top">
 <a class="brand" href="../">${LOGO}<span>The Logic Grid</span></a>
-<nav aria-label="Games"><a class="btn quiet small" href="../">‹ The Logic Grid home</a><a class="btn small" href="rules/">Rules and how to play</a><a class="btn small" href="../wizard/?game=ninetimesnine">Submit Puzzle Ideas</a></nav>
+<nav aria-label="Games"><a class="btn quiet small" href="../">‹ The Logic Grid home</a><a class="btn small" href="rules/">Rules and how to play</a>${g.wizard ? `<a class="btn small" href="../wizard/?game=${g.id}">Submit Puzzle Ideas</a>` : ''}</nav>
 </header>
-<main id="screen-np" class="screen" tabindex="-1">
-<h1 class="sr-only">NINETIMESNINE</h1>
-<div id="np-root"><p class="muted" id="np-loading">Loading NINETIMESNINE…</p></div>
-<noscript><div class="card"><p><strong>NINETIMESNINE</strong> is a free number puzzle game. Turn on JavaScript to play.</p></div></noscript>
+<main id="screen-${g.root}" class="screen" tabindex="-1"${kit ? ` data-kit-game="${g.id}"` : ''}>
+<h1 class="sr-only">${esc(g.name)}</h1>
+<div id="${g.root}-root"><p class="muted"${kit ? '' : ' id="np-loading"'}>Loading ${esc(g.name)}…</p></div>
+<noscript><div class="card"><p><strong>${esc(g.name)}</strong> is a free ${esc(g.genre.toLowerCase())} game. Turn on JavaScript to play. <a href="rules/">Rules and how to play</a></p></div></noscript>
 </main>
 <footer class="np-foot">
 <nav aria-label="The Logic Grid"><a href="../">The Logic Grid home</a> · <a href="rules/">Rules and how to play</a> · <a href="../privacy/">Privacy</a> · <a href="../terms/">Terms of use</a> · ${contactLink()}</nav>
@@ -431,9 +523,10 @@ dialog.ovl::backdrop { background: rgb(8 10 20 / .45); }
 </body>
 </html>
 `;
-  mkdirSync(join(site, 'ninetimesnine'), { recursive: true });
-  writeFileSync(join(site, 'ninetimesnine', 'index.html'), np);
-  pages.push({ path: 'ninetimesnine/', lastmod: updated, priority: 0.9 });
+  mkdirSync(join(site, g.page), { recursive: true });
+  writeFileSync(join(site, g.page, 'index.html'), np);
+  pages.push({ path: g.page, lastmod: updated, priority: 0.9 });
+  }
 
   // ---------- NINETIMESNINE rules and how to play ----------
   // Every style's full rules, tools, tips and worked example, from the same
@@ -500,6 +593,7 @@ ${rulesSchema.map((x) => `<script type="application/ld+json">${json(x)}</script>
 .rules-steps figure { margin: 0; }
 .rules-steps figcaption { font-size: .95rem; }
 .rules-top { margin-left: 12px; }
+.rules-video video { display: block; width: 100%; height: auto; border-radius: 12px; background: #000; }
 .np-foot { padding: 20px max(16px, env(safe-area-inset-left, 0px)) 32px; border-top: 1px solid var(--hairline); color: var(--muted); font-size: .9rem; text-align: center; }
 .np-foot nav { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 6px; }
 .np-foot a { color: inherit; display: inline-flex; align-items: center; min-height: 44px; }
@@ -515,6 +609,7 @@ ${rulesSchema.map((x) => `<script type="application/ld+json">${json(x)}</script>
 <main id="main" class="rules np-app" tabindex="-1">
 <h1>NINETIMESNINE rules and how to play</h1>
 <p class="lede">Fill the grid so every row, column and box holds each number once. Every puzzle has exactly one answer, and you can always reach it by logic alone. Classic is the traditional game; the other styles add new rules around the same puzzle.</p>
+${hasVideo(site, 'ninetimesnine-how-to-play') ? `<h2>Watch: how to play NINETIMESNINE</h2>\n<div class="rules-video">${videoTag(site, '../../', 'ninetimesnine-how-to-play', 'How to play NINETIMESNINE, in depth', 'metadata')}</div>\n<p class="np-help">The full walkthrough, narrated, with captions.</p>` : ''}
 <nav aria-label="Styles"><ul class="rules-toc">${HOWTO.map((h) => `<li><a href="#${h.id}">${esc(styleOf(h.id).short)}</a></li>`).join('')}</ul></nav>
 ${HOWTO.map(styleSection).join('\n')}
 </main>

@@ -42,8 +42,6 @@ const fakeAndroid = () => {
     for (const [name, device] of [['phone', devices['Pixel 7']], ['small', { ...devices['Galaxy S9+'], viewport: { width: 360, height: 740 } }]]) {
       const ctx = await browser.newContext({ ...device });
       await ctx.addInitScript(fakeAndroid);
-      // A tester's device, with the full Logic Grid package on (web/js/package-preview.js).
-      await ctx.addInitScript((h) => { try { localStorage.setItem('flg.preview', h); } catch (e) { /* none */ } }, /CODE_HASH = '([0-9a-f]{64})'/.exec(require('fs').readFileSync(path.join(__dirname, '..', '..', 'web', 'js', 'package-preview.js'), 'utf8'))[1]);
       await ctx.addInitScript(() => { try { localStorage.setItem('flg.savedOpen', 'true'); } catch (e) { /* none */ } }); // Saved Puzzles box open
       const page = await ctx.newPage();
       page.on('pageerror', (e) => errors.push(String(e)));

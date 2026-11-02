@@ -54,6 +54,8 @@ const [SITE_PORT, WORKER_PORT, PUZZLE_PORT] = [8140, 8141, 8142];
   const fetched = [];
   try {
     const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    // Start in The Fantastical Logic Grid, not on the game cards (as e2e-in-game.cjs does).
+    await ctx.addInitScript(() => { try { if (!localStorage.getItem('flg.game')) localStorage.setItem('flg.game', 'logic-grid'); } catch (e) { /* no storage */ } });
     const page = await ctx.newPage();
     page.on('pageerror', (e) => errors.push(String(e)));
     page.on('request', (r) => fetched.push(r.url()));

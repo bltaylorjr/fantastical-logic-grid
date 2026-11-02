@@ -1,0 +1,133 @@
+WEBVTT
+
+1
+00:00:07.600 --> 00:00:13.300
+Every game lives on The Logic Grid's game cards. Tap Cage Math to open it.
+
+2
+00:00:13.500 --> 00:00:22.200
+Choose a difficulty. Basic is a 4×4 with adding only. Each level adds signs and logic, up to Master on grids as big as 9×9.
+
+3
+00:00:22.400 --> 00:00:28.100
+Pick a grid size, or tap Today's puzzle: one fresh puzzle for everyone, every day.
+
+4
+00:00:28.700 --> 00:00:35.300
+More options: silent mode, sound effects, puzzles tuned to how you play, notes that clear themselves, and highlighting.
+
+5
+00:00:35.500 --> 00:00:41.800
+We'll play an Easy 4×4. Tap Start puzzle: it's built just for you, with exactly one answer.
+
+6
+00:00:45.300 --> 00:00:51.900
+Each puzzle has a title and a short story. The timer and your progress sit on the right.
+
+7
+00:00:52.100 --> 00:01:00.500
+Fill the grid with the numbers 1 to 4. A 9×9 uses 1 to 9: always 1 up to the size of the grid.
+
+8
+00:01:00.700 --> 00:01:04.000
+Each row holds every number exactly once…
+
+9
+00:01:04.200 --> 00:01:07.200
+…and so does each column.
+
+10
+00:01:07.400 --> 00:01:14.300
+Thick lines split the grid into cages. The label in a cage's corner is its target and its sign.
+
+11
+00:01:14.500 --> 00:01:23.600
++ adds the numbers up. − is the difference between two. × multiplies them. ÷ divides the bigger by the smaller.
+
+12
+00:01:23.800 --> 00:01:31.400
+Try this cage: 3× over two cells. On a 4×4 the only pair that multiplies to 3 is 1 and 3, so these two cells are 1 and 3, in some order.
+
+13
+00:01:31.600 --> 00:01:38.500
+A number may repeat inside a cage, as long as the two aren't in the same row or column.
+
+14
+00:01:38.700 --> 00:01:45.300
+A cage with one cell and no sign is already filled in for you. It's a free start.
+
+15
+00:01:48.500 --> 00:01:55.900
+In column 2, 3 can only go in row 3.
+
+16
+00:01:56.200 --> 00:02:03.600
+Row 3, column 1 can only be 1: every other number is already in its row or column, or cannot make the 3× cage at row 3, column 1.
+
+17
+00:02:03.900 --> 00:02:11.300
+Row 4, column 1 can only be 3: every other number is already in its row or column, or cannot make the 3× cage at row 3, column 1.
+
+18
+00:02:11.600 --> 00:02:19.000
+In row 2, 3 can only go in column 3.
+
+19
+00:02:19.300 --> 00:02:26.800
+That's the whole game: find a cell with only one possible number, fill it in, and look again. No guessing, ever.
+
+20
+00:02:30.000 --> 00:02:39.300
+Not sure yet? Switch on Notes and tap numbers to pencil in what a cell could be. Shift with a number does the same on a keyboard.
+
+21
+00:02:39.500 --> 00:02:47.000
+Fill notes writes in every number each empty cell could still be, so you can cross them off as you go.
+
+22
+00:02:47.200 --> 00:02:52.300
+Undo and Redo take back any move. Erase clears the cell you're on.
+
+23
+00:02:52.500 --> 00:02:56.700
+Stuck? Hint starts with a gentle nudge, not the answer.
+
+24
+00:02:56.900 --> 00:03:00.200
+Ask again to see where to look.
+
+25
+00:03:00.400 --> 00:03:07.900
+Ask once more and it explains why, in plain words. Then fill it in yourself, or let the hint do it.
+
+26
+00:03:08.400 --> 00:03:14.100
+Let's make a mistake on purpose. Check finds wrong numbers and marks them in red.
+
+27
+00:03:14.300 --> 00:03:20.600
+Undo takes it back. Or switch on Show mistakes as I play to see mistakes straight away.
+
+28
+00:03:20.800 --> 00:03:29.200
+Rules and keys keeps the rules close by. Print the puzzle, save it to a file, or start a new one from here too.
+
+29
+00:03:32.600 --> 00:03:36.800
+Keep going the same way until every cell is filled.
+
+30
+00:03:38.000 --> 00:03:44.900
+Solved! Tell the game how it felt. Your answer, and how you played, tune the next puzzle to you.
+
+31
+00:03:45.100 --> 00:03:51.400
+Watch the solution replays the logic one step at a time, with the reason for each number.
+
+32
+00:03:52.000 --> 00:03:59.200
+Next puzzle is always new: you never see the same puzzle twice. Share my result sends your time to friends.
+
+33
+00:03:59.800 --> 00:04:07.300
+Back on the setup page, your puzzles save as you play, and Stats and badges keeps your times, streaks and rewards.
