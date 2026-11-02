@@ -399,3 +399,16 @@ td.num, th.num { white-space: nowrap; }
 .web-preview-note { font-size: .85rem; }
 @media (max-width: 900px) { .web-layout { grid-template-columns: minmax(0, 1fr); } .web-preview { position: static; } }
 
+
+/* Site accounts (admin/site-accounts.js), at the top of Connections and setup. */
+#acct-box summary { cursor: pointer; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; min-height: 44px; }
+#acct-box summary h2 { display: inline; margin: 0; }
+.acct-list { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); }
+.acct { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+.acct-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.acct-head h3 { margin: 0; font-size: 1rem; }
+.acct-actions { margin-left: auto; display: flex; gap: 6px; }
+.acct dl { margin: 6px 0 0; display: grid; gap: 2px; }
+.acct dl div { display: grid; grid-template-columns: 7.5em 1fr; gap: 8px; }
+.acct dt { color: var(--muted); }
+.acct dd { margin: 0; overflow-wrap: anywhere; }

@@ -286,6 +286,20 @@ const SHOTS = process.env.SHOTS;
     await page.selectOption('#conn-show', 'attention');
     assert(await page.locator('details.conn[data-id=github-security]').isHidden(), 'Needs attention hides the rest');
     await page.selectOption('#conn-show', 'all');
+    // Site accounts: safe details only; anything that looks like a password is refused.
+    await page.waitForSelector('#acct-list .acct', { state: 'attached' });
+    assert(/@thelogicgridpuzzles/.test(await page.textContent('#acct-list')), 'Site accounts lists the YouTube channel');
+    await page.click('#acct-box summary');
+    await page.click('#acct-add');
+    await page.fill('#dialog [name=site]', 'Discord');
+    await page.fill('#dialog [name=notes]', 'password: hunter2');
+    await page.click('#dialog-ok');
+    await page.waitForSelector('#dialog[open] [name=site]');
+    assert((await page.inputValue('#dialog [name=notes]')) === 'password: hunter2' && !/Discord/.test(await page.textContent('#acct-list')), 'a password is refused and the form opens again');
+    await page.fill('#dialog [name=notes]', 'Server invite in the footer');
+    await page.click('#dialog-ok');
+    await page.waitForFunction(() => /Discord/.test(document.querySelector('#acct-list').textContent));
+    assert(true, 'a site account is added');
     await shot(page, '8-connections');
     // Get the key: the owner goes to the site with the app id only (the app
     // secret is typed on return, never stored), and coming back takes the

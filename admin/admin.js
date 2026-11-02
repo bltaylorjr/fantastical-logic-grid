@@ -10,6 +10,7 @@
 import { initPullRefresh } from './pull-refresh.js';
 import { readStoryline } from './storyline-parse.js';
 import { renderConnections } from './connections-view.js';
+import { renderSiteAccounts } from './site-accounts.js';
 import { takeOAuthReturn, finishOAuth } from './oauth.js';
 import { characterView } from './characters.js';
 import { ratingsView, initRatings } from './ratings.js';
@@ -1766,7 +1767,10 @@ $('#sup-blocks').onclick = async (e) => {
   if (!(await ask({ title: 'Lift this block?', text: 'New payments from this player will add a badge and extras again. Do this once the dispute is settled in your favor or the player has paid it back.', ok: 'Lift the block' }))) return;
   if (await act(b, () => api(`supporters/blocks/${b.dataset.supUnblock}/remove`, { method: 'POST' }), 'Block lifted.')) show('supporters', { keepFocus: true });
 };
-views.connections = () => renderConnections($('#connections-view'), { api, esc, when, toast, announce, ask });
+views.connections = () => {
+  renderSiteAccounts($('#acct-box'), { api, esc, when, toast, announce, ask, can });
+  return renderConnections($('#connections-view'), { api, esc, when, toast, announce, ask });
+};
 
 $('#ann-form').onsubmit = async (e) => {
   e.preventDefault();
