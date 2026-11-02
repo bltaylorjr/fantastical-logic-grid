@@ -1,7 +1,9 @@
 # Keeps trying to create the free Oracle build server (flg-build) until it
 # exists. Oracle's free Arm servers in Ashburn are often sold out, so this
 # asks every 5 minutes (scripts/runner/oracle-create-server.sh) and stops by
-# itself once the server exists or the deadline below has passed.
+# itself once the server exists or the deadline below has passed. The owner
+# chose to stay on the free tier: in the last 6 hours it also tries smaller
+# free sizes (2 cores/12 GB, then 1 core/6 GB) as a last resort.
 #
 # Needs the repository secret OCI_API_KEY: the private key (.pem) of an API
 # key on the btay74@outlook.com Oracle user (Oracle Cloud > profile > User
@@ -61,7 +63,10 @@ jobs:
       - name: Create the server if Oracle has room
         if: steps.gate.outputs.go == 'yes'
         id: create
-        run: bash scripts/runner/oracle-create-server.sh
+        run: |
+          # Last resort, in the final 6 hours only: smaller free sizes too.
+          if [ "$(date -u +%s)" -gt $(( $(date -u -d "$DEADLINE" +%s) - 6*3600 )) ]; then export SMALLER=1; echo "Final hours: smaller free sizes allowed too."; fi
+          bash scripts/runner/oracle-create-server.sh
       - name: Tell the owner
         if: steps.create.outputs.result == 'CREATED'
         env:

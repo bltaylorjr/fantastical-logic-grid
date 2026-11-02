@@ -1,6 +1,7 @@
 #!/bin/bash
 # Creates the free Oracle build server (flg-build: Ampere A1, 4 cores, 24 GB,
 # Ubuntu 24.04, 100 GB disk) in Ashburn, trying each availability domain once.
+# With SMALLER=1 it also tries 2 cores/12 GB and 1 core/6 GB (still free).
 # Oracle's free Arm servers are often sold out, so .github/workflows/
 # oracle-create-server.yml runs this every few minutes until one is created.
 #
@@ -29,15 +30,23 @@ for v in VCN SN IMG; do [ -n "${!v}" ] && [ "${!v}" != null ] || { echo "Could n
 # The GitHub runner token and Cloudflare tunnel are added afterwards over SSH.
 printf '#!/bin/bash\ncurl -fsSL https://raw.githubusercontent.com/bltaylorjr/fantastical-logic-grid/main/scripts/runner/oracle-cloud-init.sh -o /root/setup.sh && bash /root/setup.sh\n' > /tmp/flg-init.sh
 
-for AD in $(oci iam availability-domain list -c "$C" --query 'data[].name' --raw-output | tr -d '[]," '); do
-  res=$(oci compute instance launch --no-retry -c "$C" --availability-domain "$AD" --display-name "$NAME" \
-    --shape VM.Standard.A1.Flex --shape-config '{"ocpus":4,"memoryInGBs":24}' --image-id "$IMG" --subnet-id "$SN" \
-    --assign-public-ip true --boot-volume-size-in-gbs 100 --ssh-authorized-keys-file "$HERE/flg-build.pub" \
-    --user-data-file /tmp/flg-init.sh 2>&1)
-  if echo "$res" | grep -q '"lifecycle-state"'; then out CREATED "$NAME in $AD"; exit 0; fi
-  msg=$(echo "$res" | grep -o '"message": "[^"]*' | head -1 | cut -c13-)
-  echo "$AD: ${msg:-$(echo "$res" | tail -c 300)}"
-  # Anything but a capacity answer (or Oracle asking us to slow down) is a real problem.
-  echo "$msg" | grep -qi 'capacity\|too many requests' || { echo "Stopping: unexpected answer from Oracle."; exit 1; }
+# Sizes to try, largest first. All are inside Oracle's Always Free allowance
+# (4 Arm cores, 24 GB). SMALLER=1 adds the smaller ones as a last resort.
+SIZES="4:24"
+[ "${SMALLER:-}" = 1 ] && SIZES="4:24 2:12 1:6"
+ADS=$(oci iam availability-domain list -c "$C" --query 'data[].name' --raw-output | tr -d '[]," ')
+for size in $SIZES; do
+  cpu=${size%%:*}; mem=${size##*:}
+  for AD in $ADS; do
+    res=$(oci compute instance launch --no-retry -c "$C" --availability-domain "$AD" --display-name "$NAME" \
+      --shape VM.Standard.A1.Flex --shape-config "{\"ocpus\":$cpu,\"memoryInGBs\":$mem}" --image-id "$IMG" --subnet-id "$SN" \
+      --assign-public-ip true --boot-volume-size-in-gbs 100 --ssh-authorized-keys-file "$HERE/flg-build.pub" \
+      --user-data-file /tmp/flg-init.sh 2>&1)
+    if echo "$res" | grep -q '"lifecycle-state"'; then out CREATED "$NAME in $AD with $cpu cores and $mem GB"; exit 0; fi
+    msg=$(echo "$res" | grep -o '"message": "[^"]*' | head -1 | cut -c13-)
+    echo "$AD, $cpu cores: ${msg:-$(echo "$res" | tail -c 300)}"
+    # Anything but a capacity answer (or Oracle asking us to slow down) is a real problem.
+    echo "$msg" | grep -qi 'capacity\|too many requests' || { echo "Stopping: unexpected answer from Oracle."; exit 1; }
+  done
 done
 out FULL "every zone is out of capacity right now"

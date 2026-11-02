@@ -20,7 +20,10 @@ set -euo pipefail
 RUNNER_TOKEN="${RUNNER_TOKEN:-PASTE_RUNNER_TOKEN_HERE}"
 TUNNEL_TOKEN="${TUNNEL_TOKEN:-}"
 REPO_URL="https://github.com/bltaylorjr/fantastical-logic-grid"
-RUNNERS=3   # 4 Arm cores and 24 GB run three test jobs at once comfortably
+# 4 Arm cores and 24 GB run three test jobs at once comfortably; a smaller
+# free server (created as a last resort when Oracle was sold out) runs fewer.
+CORES=$(nproc)
+RUNNERS=${RUNNERS:-$([ "$CORES" -ge 4 ] && echo 3 || { [ "$CORES" -ge 2 ] && echo 2 || echo 1; })}
 
 exec > >(tee -a /var/log/flg-setup.log) 2>&1
 echo "=== FLG setup $(date -u +%FT%TZ) ==="
