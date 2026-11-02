@@ -549,7 +549,7 @@ export const CONNECTIONS = [
     id: 'x',
     group: 'marketing',
     title: 'X (automatic posts)',
-    why: 'Lets the marketing autopilot post approved X ads on their day (text and link; the link shows the game\'s picture card).',
+    why: 'Lets the marketing autopilot post approved X ads on their day (text and link; the link shows the game\'s picture card). Also posts the daily puzzle (text and links) every morning, starting the morning after the keys are saved.',
     cost: 'Free on the X API Free plan, which allows far more posts a month than this campaign needs. Do not pick a paid plan.',
     docs: 'scripts/marketing-post.py',
     names: [
@@ -601,7 +601,7 @@ export const CONNECTIONS = [
     id: 'threads',
     group: 'marketing',
     title: 'Threads (automatic posts)',
-    why: 'Lets the marketing autopilot post approved Threads ads on their day.',
+    why: 'Lets the marketing autopilot post approved Threads ads on their day. Also posts the daily puzzle (both slides) every morning, starting the morning after the keys are saved.',
     cost: 'Free. The token lasts 60 days; make a new one when the check says it stopped working.',
     docs: 'scripts/marketing-post.py',
     names: [
@@ -624,7 +624,7 @@ export const CONNECTIONS = [
     group: 'marketing',
     oauth: 'linkedin',
     title: 'LinkedIn (automatic posts)',
-    why: 'Lets the marketing autopilot share approved LinkedIn ads on your profile on their day, with the link\'s picture card.',
+    why: 'Lets the marketing autopilot share approved LinkedIn ads on your profile on their day, with the link\'s picture card. Also shares the daily puzzle every morning, starting the morning after the key is saved.',
     cost: 'Free (the Share on LinkedIn product). LinkedIn keys last 60 days: when the check says LinkedIn stopped working, press **Get the key** again.',
     docs: 'scripts/marketing-post.py',
     names: [{ name: 'LINKEDIN_TOKEN', where: 'github-secret', note: 'A member key that can post for you (60 days).' }],
@@ -643,7 +643,7 @@ export const CONNECTIONS = [
     group: 'marketing',
     oauth: 'pinterest',
     title: 'Pinterest (automatic pins)',
-    why: 'Lets the marketing autopilot pin approved Pinterest ads on their day, with the picture and the tracked link, to the board named in the ad.',
+    why: 'Lets the marketing autopilot pin approved Pinterest ads on their day, with the picture and the tracked link, to the board named in the ad. Also pins the daily puzzle\'s clue slide every morning to the board **Daily Logic Puzzles** (make it with the other boards; without it the first board is used).',
     cost: 'Free. A new Pinterest app starts with Trial access, where pins are visible only to you. Ask for **Standard access** (free, a short form) and add the keys once it is approved.',
     docs: 'scripts/marketing-post.py',
     names: [

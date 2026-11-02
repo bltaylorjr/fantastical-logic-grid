@@ -2,7 +2,7 @@
 // posted (scripts/social-puzzle.mjs): a good puzzle passes, and each kind of
 // error stops the post. node scripts/test-social-puzzle.mjs
 import { generatePuzzle } from '../engine/src/index.js';
-import { checkPuzzle, caption, instagramCaption, answerUrl, playUrl, statsLine, gridHtml, bluesky, BLUESKY_LIMIT, mastodon, mastodonLength, MASTODON_LIMIT } from './social-puzzle.mjs';
+import { checkPuzzle, caption, instagramCaption, answerUrl, playUrl, statsLine, gridHtml, bluesky, BLUESKY_LIMIT, mastodon, mastodonLength, MASTODON_LIMIT, xPost, xLength, X_LIMIT, threads, THREADS_LIMIT, pin } from './social-puzzle.mjs';
 
 let failed = 0;
 const check = (name, cond, detail = '') => { if (!cond) { failed++; console.log(`FAIL ${name} ${detail}`); } };
@@ -34,6 +34,15 @@ for (const difficulty of ['basic', 'easy', 'medium', 'hard']) {
   check(`${difficulty}: grid slide has every item`, r.puzzle.categories.every((c) => c.items.every((i) => grid.includes(i.label))));
   check(`${difficulty}: grid slide gives no answers`, !grid.includes('●</td>') && !grid.includes('✕</td>'));
   check(`${difficulty}: caption mentions the grid slide`, /swipe for a blank grid/.test(text));
+  const xt = xPost(r.puzzle, DAY);
+  check(`${difficulty}: X post fits 280`, xt && xLength(xt) <= X_LIMIT, xt);
+  check(`${difficulty}: X post has both links`, xt && xt.includes(playUrl(DAY)) && xt.includes(answerUrl(DAY)));
+  const th = threads(r.puzzle, DAY);
+  check(`${difficulty}: Threads post fits 500`, th && [...th].length <= THREADS_LIMIT, th);
+  check(`${difficulty}: Threads post has the answer key`, th && th.includes(answerUrl(DAY)));
+  const pn = pin(r.puzzle, DAY);
+  check(`${difficulty}: pin fits Pinterest`, pn.title.length <= 100 && pn.description.length <= 800);
+  check(`${difficulty}: pin is marked with the answer key and links to play`, pn.description.includes(answerUrl(DAY)) && pn.link === playUrl(DAY));
   const bs = bluesky(r.puzzle, DAY);
   check(`${difficulty}: Bluesky post fits 300 characters`, bs && [...new Intl.Segmenter().segment(bs.text)].length <= BLUESKY_LIMIT, bs?.text);
   check(`${difficulty}: Bluesky links show in the text`, bs && bs.links.every(([show, url]) => bs.text.includes(show) && url.startsWith('https://')));
