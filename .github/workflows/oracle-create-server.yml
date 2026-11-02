@@ -4,8 +4,8 @@
 # lasts up to 5 hours and then starts the next one (the 5-minute schedule is
 # only a backup, since GitHub doesn't always run it). It stops by
 # itself once the server exists or the deadline below has passed. The owner
-# chose to stay on the free tier: in the last 6 hours it also tries smaller
-# free sizes (2 cores/12 GB, then 1 core/6 GB) as a last resort.
+# chose to stay on the free tier, so it asks for the Always Free size (2 Arm
+# cores, 12 GB) and, in the last 6 hours, also 1 core/6 GB as a last resort.
 #
 # Needs the repository secret OCI_API_KEY: the private key (.pem) of an API
 # key on the btay74@outlook.com Oracle user (Oracle Cloud > profile > User
