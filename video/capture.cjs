@@ -508,7 +508,7 @@ const CSS = `
     }
     await p.click('#home-btn'); await p.waitForSelector('#tier-choices input'); await prep();
     await p.click('#menu-btn'); await p.click('[data-cmd=install]'); await p.waitForSelector('#dlg-install[open]'); await prep();
-    await scene('install', ['To play without opening a browser, choose Install the app from the Menu.', 'Download the Windows desktop app, which keeps itself up to date.', 'Or add the game\'s icon to your phone\'s home screen. On your phone, the same menu shows you how.', 'On a phone, pull down from the top of the page to refresh. Your progress is saved first.']);
+    await scene('install', ['To play without opening a browser, choose Install the app on The Logic Grid home page.', 'Download the Windows desktop app, which keeps itself up to date.', 'Or add the game\'s icon to your phone\'s home screen. On your phone, the same button shows you how.', 'On a phone, pull down from the top of the page to refresh. Your progress is saved first.']);
     await p.click('#install-close'); await p.waitForTimeout(300);
 
     // =================== Accounts, screen names, races, scoreboard
@@ -655,11 +655,11 @@ const CSS = `
       }
       await p.evaluate(async () => { await (await import('./js/remote-config.js')).refreshNow(); await (await import('./js/messages.js')).refresh(); });
       await p.click('#menu-btn'); await p.waitForTimeout(300); await prep();
-      await scene('messages-menu', ['When the team writes to you, or posts news, the Menu button shows a number.']);
+      await scene('messages-menu', ['When the team writes to you, or posts news, you see a number on the Menu button in the desktop and phone apps.']);
       await p.click('[data-cmd=messages]'); await p.waitForSelector('#dlg-messages[open]');
       if (me) { await p.click('#msg-convs summary'); await p.waitForTimeout(300); }
       await prep();
-      await scene('messages', ['Messages, in the menu, has news from the game\'s team for everyone.',
+      await scene('messages', ['Messages and news, on The Logic Grid home page, has news from the game\'s team for everyone.',
         ...(me ? ['Signed in, you can write to the team with a question, an idea or a problem, and read their replies right here.', 'Tick Email me, and you get a short email when the team writes back.'] : ['Sign in to write to the team and read their replies.'])]);
       await p.keyboard.press('Escape');
     }
