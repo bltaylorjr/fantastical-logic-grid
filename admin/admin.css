@@ -412,3 +412,24 @@ td.num, th.num { white-space: nowrap; }
 .acct dl div { display: grid; grid-template-columns: 7.5em 1fr; gap: 8px; }
 .acct dt { color: var(--muted); }
 .acct dd { margin: 0; overflow-wrap: anywhere; }
+
+/* Passwords (vault.js). */
+.vault-list { list-style: none; margin: 16px 0; padding: 0; display: grid; gap: 10px; }
+.vault-item { display: grid; grid-template-columns: auto 1fr; gap: 12px; align-items: start; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+.vault-item .vault-acts { grid-column: 1 / -1; flex-wrap: wrap; gap: 6px; }
+@media (min-width: 900px) { .vault-item { grid-template-columns: auto 1fr auto; } .vault-item .vault-acts { grid-column: auto; justify-content: flex-end; max-width: 460px; } }
+.vault-av { width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center; font-weight: 700; font-size: 1.1rem; color: #fff; background: #4b3aa8; }
+.vault-av[data-hue="1"] { background: #1f6f5c; } .vault-av[data-hue="2"] { background: #8a3b12; } .vault-av[data-hue="3"] { background: #1d5a99; }
+.vault-av[data-hue="4"] { background: #7d2a6b; } .vault-av[data-hue="5"] { background: #4d6a14; } .vault-av[data-hue="6"] { background: #a3192e; } .vault-av[data-hue="7"] { background: #3d4a63; }
+.vault-main { min-width: 0; overflow-wrap: anywhere; }
+.vault-line { display: inline-block; margin-right: 18px; }
+.vault-pw { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 1rem; user-select: all; overflow-wrap: anywhere; }
+.vault-code { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-weight: 700; font-size: 1.05rem; letter-spacing: .05em; }
+.vault-code[data-left="low"] { color: var(--bad); }
+.vault-empty { padding: 16px; }
+.vault-more h3 { margin-top: 1.25rem; }
+.vault-dialog { width: min(640px, calc(100% - 32px)); }
+.vault-pass-row { flex-wrap: nowrap; gap: 6px; }
+.vault-pass-row input { flex: 1; min-width: 0; font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; }
+.vault-fields { border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px 12px; }
+.vault-extra { align-items: flex-end; gap: 8px; margin-bottom: 8px; }

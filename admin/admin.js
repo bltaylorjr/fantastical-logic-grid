@@ -23,6 +23,7 @@ import { beatImagesView, initBeatImages } from './beat-images.js';
 import { licensesView, initLicenses } from './licenses.js';
 import { mediaView } from './media.js';
 import { badgesView, initBadges, playerBadgesHtml, playerBadgeClick } from './badges.js';
+import { vaultView, initVault, lockVault } from './vault.js';
 import { passkeysSupported, platformReady, rememberedPasskey, passkeySignIn, offerPasskey, passkeysView, initPasskeys } from './passkeys.js';
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -2105,6 +2106,11 @@ initBadges(badgeHelpers, (name, o) => show(name, o));
 views.mail = () => puzzleMailView();
 views.website = () => websiteView();
 
+// ---- Passwords (vault.js): the owner's password manager, locked on this device.
+const vaultHelpers = { api, esc, fmt, when, tile, act, ask, toast, announce };
+views.vault = () => vaultView(vaultHelpers);
+initVault(vaultHelpers);
+
 // ---- Face ID and fingerprint (passkeys.js): this admin's devices.
 views.signin = () => passkeysView();
 initPasskeys({ api, esc, when, toast, act, ask, show, me: () => me, mode: () => session?.mode });
@@ -2189,6 +2195,7 @@ async function enter() {
 }
 
 function signOut(message) {
+  lockVault();
   // A passkey session also ends on the server, so its key is useless if copied.
   if (session?.mode === 'passkey') fetch('/admin/v1/session/end', { method: 'POST', headers: { Authorization: `Bearer ${session.key}` }, keepalive: true }).catch(() => {});
   const email = session?.email || me?.email;

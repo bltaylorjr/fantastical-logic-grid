@@ -17,7 +17,8 @@ its own dashboard.
   tracking, Players, Screen names, Supporters, App keys, **App settings and
   switches** (sign-in, messages, ideas and problems, languages, support,
   alerts, moderation, backups, social links), Connections and setup, Face ID
-  and fingerprint, Backups and archive, Audit log, Admins.
+  and fingerprint, Backups and archive, Audit log, Admins, **Passwords**
+  (owner only, see below).
 - **The Fantastical Logic Grid**: **Fantastical home** (`#fantastical`: what is
   waiting for review, play numbers, and a way into each section), Daily
   puzzles, Characters, Media library, Puzzle quality, Ratings and insights,
@@ -72,6 +73,37 @@ In the game's own Settings, players keep only their personal choices: Silent
 mode, colors, play aids, "Learn from how I play", and their sound effects and
 theme music switches and volumes. The Sound button on a puzzle mutes
 everything in one tap.
+
+## Passwords (owner only)
+
+`#vault` is a password manager for every website and service you run the
+business with: name, type, website and sign-in page, username, account email,
+password, 2-step code key, notes, extra fields (PINs, security answers) and a
+favourite star.
+
+- **Locked on your device.** The first visit asks for a master password. Every
+  login is locked in the browser (AES-GCM, with a random vault key that the
+  master password locks through PBKDF2-SHA-256 at 600,000 rounds) before it
+  is sent, so D1, backups, the audit log, the break-glass key and assistant
+  keys only ever hold scrambled text. The master password is never sent or
+  stored and **cannot be recovered**: forgetting it means wiping the vault
+  (Unlock > Forgot the master password?).
+- **Only the owner**, signed in with their own account. The break-glass key,
+  assistant keys and other admins are refused by the API (`server/src/vault.js`).
+- **Locks itself** after 5 minutes without use (1 to 30, under Import, export
+  and settings), on Lock now, on sign-out and on reload.
+- **Log in** opens the site's sign-in page in a new tab and copies the
+  username; then Copy password and Copy code. Copied text is cleared from the
+  clipboard after 30 seconds. A web page cannot type into another website, so
+  real autofill would need a browser extension.
+- **2-step codes**: paste the setup key a site shows beside its QR code (or an
+  `otpauth://` link) and the 6-digit code shows and counts down, like an
+  authenticator app.
+- Make a password (20 characters), a strength meter, tiles and filters for
+  weak and reused passwords, the last 5 passwords kept on each login, a bin
+  with Undo (emptied after 30 days), CSV import from Chrome, Edge, Firefox,
+  Safari, Bitwarden, 1Password and LastPass (duplicates skipped), CSV export,
+  and Change the master password.
 
 ## On your phone or computer
 
