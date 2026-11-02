@@ -355,6 +355,7 @@ td.num, th.num { white-space: nowrap; }
 .ss-ed-row { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin: 0 0 8px; }
 .ss-ed-row legend { font-weight: 600; padding: 0 4px; }
 .ss-ed-row .row { align-items: flex-end; }
+.key-value { display: block; word-break: break-all; font-size: 1rem; padding: 8px 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; user-select: all; }
 .ss-print { display: none; }
 @media print {
   body.ss-printing > *:not(#ss-print) { display: none !important; }
