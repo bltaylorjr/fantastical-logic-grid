@@ -275,6 +275,7 @@ function startAuth(signer) {
     await B.page.fill('#my-notes', 'Notes typed on B');
     await B.page.click('#notes-save');
     await B.page.click('#home-btn');
+    await B.page.waitForSelector('#screen-home:not([hidden])'); // the puzzle is saved before home shows
     await syncNow(B.page);
     await syncNow(A.page);
     const savedA = await A.page.evaluate(async (t) => { const s = (await (await import('./js/store.js')).listSaves()).find((x) => x.name === t); return { marks: Object.keys(s.marks).length, notes: s.myNotes }; }, title);
@@ -294,6 +295,7 @@ function startAuth(signer) {
     await A.page.waitForSelector('#screen-play:not([hidden])');
     await markCells(A.page, [10, 11]);
     await A.page.click('#home-btn');
+    await A.page.waitForSelector('#screen-home:not([hidden])'); // the puzzle is saved before home shows
     await A.page.evaluate(() => window.dispatchEvent(new Event('offline')));
     const offline = await syncNow(A.page);
     assert(offline.state === 'offline', 'A plays offline; sync waits');
@@ -302,6 +304,7 @@ function startAuth(signer) {
     await B.page.waitForSelector('#screen-play:not([hidden])');
     await markCells(B.page, [20]);
     await B.page.click('#home-btn');
+    await B.page.waitForSelector('#screen-home:not([hidden])'); // the puzzle is saved before home shows
     await syncNow(B.page);
     await A.ctx.setOffline(false);
     const back = await syncNow(A.page);
