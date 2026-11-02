@@ -1,6 +1,6 @@
 // The Logic Grid's first screen: a card for each game. A first visit opens on
-// the cards; each ready game's card opens its own screen; games still to come
-// show as coming soon; the app reopens where the player last was.
+// the cards; each game's card opens its own screen (Cage Math, Sum Cross and
+// Picture Grid too); the app reopens where the player last was.
 const { chromium } = require('playwright');
 const { spawn } = require('child_process');
 const path = require('path');
@@ -28,7 +28,7 @@ const PREVIEW = /CODE_HASH = '([0-9a-f]{64})'/.exec(require('fs').readFileSync(p
     const cards = await page.$$eval('#game-cards .game-card', (els) => els.map((e) => ({ id: e.dataset.game, name: e.querySelector('.game-name').textContent, button: e.tagName === 'BUTTON' })));
     assert(cards[0].id === 'logic-grid' && /^The Fantastical Logic Grid/.test(cards[0].name) && cards[0].button, 'The Fantastical Logic Grid has a card');
     assert(cards[1].id === 'ninetimesnine' && /^NINETIMESNINE/.test(cards[1].name) && cards[1].button, 'NINETIMESNINE has a card');
-    assert(cards.slice(2).length >= 1 && cards.slice(2).every((c) => !c.button), 'games still to come show as coming soon, not as buttons');
+    assert(['cage-math', 'sum-cross', 'picture-grid'].every((id) => cards.some((c) => c.id === id && c.button)), 'Cage Math, Sum Cross and Picture Grid have cards');
 
     // The Fantastical Logic Grid, with its welcome the first time.
     await page.click('#game-cards [data-game=logic-grid]');
@@ -78,12 +78,28 @@ const PREVIEW = /CODE_HASH = '([0-9a-f]{64})'/.exec(require('fs').readFileSync(p
     await page.click('#np-back');
     await page.waitForSelector('#screen-games:not([hidden])');
 
+    // Cage Math, Sum Cross and Picture Grid each open their own screen, and come back.
+    for (const [card, screen, name] of [['cage-math', 'cm', 'Cage Math'], ['sum-cross', 'sc', 'Sum Cross'], ['picture-grid', 'pg', 'Picture Grid']]) {
+      await page.click(`#game-cards [data-game=${card}]`);
+      await page.waitForSelector(`#screen-${screen}:not([hidden]) #${screen}-setup-view:not([hidden]) #${screen}-levels .choice`);
+      assert(page.url() && (await page.title()).startsWith(name), `${name} opens on its own screen`);
+      await page.check(`input[name=${screen}-level][value=basic]`, { force: true });
+      await page.click(`#${screen}-gen`);
+      await page.waitForSelector(`#${screen}-play-view:not([hidden]) #${screen}-board [data-i]`, { timeout: 30000 });
+      assert(true, `${name} builds a puzzle in the game's engine worker`);
+      await page.reload();
+      await page.waitForSelector(`#screen-${screen}:not([hidden])`);
+      assert(true, 'and the app reopens there');
+      await page.click(`#${screen}-back`);
+      await page.waitForSelector('#screen-games:not([hidden])');
+    }
+
     // Each game has a video, and The Logic Grid has its own intro.
     assert(await page.locator('.game-watch').count() === 5 && await page.locator('#games-intro-btn').isVisible(), 'every game card has a video, and so does The Logic Grid');
     await page.click('.game-watch[data-video=cage-math]');
     await page.waitForSelector('#dlg-game-video[open]');
     const vid = await page.evaluate(() => ({ src: document.querySelector('#game-video source').getAttribute('src'), track: document.querySelector('#game-video track').getAttribute('src'), h: document.querySelector('#game-video-h').textContent }));
-    assert(vid.src === 'media/games/cage-math.mp4' && vid.track === 'media/games/cage-math.vtt' && /Cage Math/.test(vid.h), 'a coming-soon card plays the video explaining its idea');
+    assert(vid.src === 'media/games/cage-math.mp4' && vid.track === 'media/games/cage-math.vtt' && /Cage Math/.test(vid.h), 'a card plays the video explaining its game');
     const files = await page.evaluate(async () => Promise.all(['the-logic-grid', 'fantastical-logic-grid', 'ninetimesnine', 'cage-math', 'sum-cross', 'picture-grid'].flatMap((n) => ['mp4', 'vtt', 'jpg'].map((x) => fetch(`media/games/${n}.${x}`, { method: 'HEAD' }).then((r) => r.ok)))));
     assert(files.every(Boolean), 'every video, its captions and its poster are there');
     await page.click('#game-video-close');

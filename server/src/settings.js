@@ -23,6 +23,27 @@ export const CELEBRATIONS = ['confetti', 'fireworks', 'stars', 'balloons', 'spar
 // type: bool, int (with min/max), choice (one of options), model (an AI
 // model name), url (an https link, or empty), themes (list of theme ids),
 // words or days (YYYY-MM-DD dates).
+// Cage Math, Sum Cross and Picture Grid each have the same switches, in their
+// own group, shown in the admin dashboard's section for that game (cm_*, sc_*, pg_*).
+const KIT_SETTINGS_GAMES = [['cm', 'Cage Math', 'numbers'], ['sc', 'Sum Cross', 'numbers'], ['pg', 'Picture Grid', 'pictures']];
+function kitSettings(id, name, what) {
+  return {
+    [`${id}_enabled`]: { type: 'bool', default: true, group: name, label: `${name} in the app`, help: `On: testers of the full package (the preview link) see the ${name} card. Off: the card is hidden. Saved ${name} games stay on each device.` },
+    [`${id}_learning_enabled`]: { type: 'bool', default: true, group: name, label: `Learn from ${name} games`, help: `On: anonymous summaries of finished ${name} puzzles (level, size, time, hints, mistakes, how it felt) tune every player's puzzles. Needs Learn from everyone on, and players who turned off Learn from how I play send nothing. Off: nothing is sent and summaries are dropped.` },
+    [`${id}_max_level`]: {
+      type: 'choice', default: 'master', group: name, label: 'Hardest level offered', help: `Levels above this are hidden from the ${name} setup.`,
+      options: [{ value: 'medium', label: 'Medium' }, { value: 'hard', label: 'Hard' }, { value: 'expert', label: 'Expert' }, { value: 'master', label: 'Master' }],
+    },
+    [`${id}_daily_enabled`]: { type: 'bool', default: true, group: name, label: `Daily ${name} puzzle`, help: `One puzzle a day, the same for everyone, from Easy on Monday to Master on Sunday, with a streak. Off: the button is hidden.` },
+    [`${id}_stories_enabled`]: { type: 'bool', default: true, group: name, label: what === 'pictures' ? 'Picture openings and endings' : 'Stories', help: what === 'pictures' ? 'Each puzzle opens with a line about its hidden picture and ends by naming it. Off: plain puzzles.' : 'Each puzzle opens with a short story line and ends with its ending. Off: plain puzzles.' },
+    [`${id}_coach_tips`]: { type: 'bool', default: true, group: name, label: 'Tips on a player\'s first puzzle', help: 'Four short tips on how to play, once per device.' },
+    [`${id}_adapt_strength`]: { type: 'int', min: 0, max: 100, default: 100, group: name, label: 'How strongly puzzles adapt to each player (percent)', help: '100: a player who finds a level easy gets clearly tougher puzzles inside it, and one who struggles gets gentler ones. 0: every puzzle aims for the middle of its level. Players can also turn tuning off for themselves.' },
+    [`${id}_practice_chance`]: { type: 'int', min: 0, max: 100, default: 35, group: name, label: 'Practice puzzles (percent)', help: 'How often a puzzle is built to need a step the player has asked hints for, so they get to practice it.' },
+    [`${id}_shared_weight`]: { type: 'int', min: 0, max: 60, default: 25, group: name, label: 'Weight of everyone\'s games (percent)', help: 'How much the tuning from all players counts against the player\'s own games. New players follow everyone\'s games until they have their own.' },
+  };
+}
+export const KIT_GROUPS = KIT_SETTINGS_GAMES.map(([, name]) => name);
+
 export const SETTINGS = {
   // ---- Sounds: the player can still turn their own effects and music off,
   // and the one-tap mute and Silent mode always work.
@@ -142,6 +163,7 @@ export const SETTINGS = {
   np_adapt_strength: { type: 'int', min: 0, max: 100, default: 100, group: 'NINETIMESNINE', label: 'How strongly puzzles adapt to each player (percent)', help: '100: a player who finds a level easy gets clearly tougher puzzles inside it, and one who struggles gets gentler ones. 0: every puzzle aims for the middle of its level. Players can also turn tuning off for themselves.' },
   np_practice_chance: { type: 'int', min: 0, max: 100, default: 35, group: 'NINETIMESNINE', label: 'Practice puzzles (percent)', help: 'How often a puzzle is built to need a technique the player has asked hints for, so they get to practice it.' },
   np_shared_weight: { type: 'int', min: 0, max: 60, default: 25, group: 'NINETIMESNINE', label: 'Weight of everyone\'s games (percent)', help: 'How much the tuning from all players counts against the player\'s own games. New players follow everyone\'s games until they have their own.' },
+  ...Object.assign({}, ...KIT_SETTINGS_GAMES.map(([id, name, what]) => kitSettings(id, name, what))),
   // ---- Ideas, problems and upkeep
   feedback_enabled: { type: 'bool', default: true, group: 'Ideas and problems', label: 'Idea and problem boxes', help: 'Off: the game hides its Ideas and problems boxes.' },
   feedback_replies_enabled: { type: 'bool', default: true, group: 'Ideas and problems', label: 'Thank-you emails', help: 'Signed-in players with a confirmed email can tick "Email me an update": a short note quoting what they wrote (a thank-you for an idea, or an apology and thank-you for a problem report), and a second one with your "What was done" note when you mark it addressed. Sent every 15 minutes from support@thelogicgrid.com through Resend, or from the game\'s Gmail as a backup (server/FEEDBACK-EMAILS.md). Off: no new notes, and waiting ones are dropped.' },
@@ -325,6 +347,12 @@ export async function publicConfig(req, env) {
       variants: s.np_variants_enabled, stories: s.np_stories_enabled, coachTips: s.np_coach_tips,
       adaptStrength: s.np_adapt_strength / 100, practiceChance: s.np_practice_chance / 100, sharedWeight: s.np_shared_weight / 100,
     },
+    // Cage Math, Sum Cross and Picture Grid's own switches (their admin sections).
+    kitGames: Object.fromEntries(KIT_SETTINGS_GAMES.map(([id]) => [id, {
+      enabled: s[`${id}_enabled`], learning: s.learning_enabled && s[`${id}_learning_enabled`], maxLevel: s[`${id}_max_level`], daily: s[`${id}_daily_enabled`],
+      stories: s[`${id}_stories_enabled`], coachTips: s[`${id}_coach_tips`],
+      adaptStrength: s[`${id}_adapt_strength`] / 100, practiceChance: s[`${id}_practice_chance`] / 100, sharedWeight: s[`${id}_shared_weight`] / 100,
+    }])),
     // Starting values; a player's own choice wins.
     defaults: { sound: s.default_sound, volume: s.default_volume, music: s.default_music, musicVolume: s.default_music_volume },
   }, 200, { 'Cache-Control': 'public, max-age=60' });

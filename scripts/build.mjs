@@ -43,6 +43,14 @@ if (existsSync(engineSrc)) {
   rmSync(join(web, 'modules'), { recursive: true, force: true });
   mkdirSync(dest, { recursive: true });
   for (const n of readdirSync(src).filter((f) => /\.(js|css)$/.test(f) && f !== 'engine-worker.js')) writeFileSync(join(dest, n), readFileSync(join(src, n)));
+  // Cage Math, Sum Cross and Picture Grid: the shared game screen (grid-kit)
+  // and each game's definition. Their engines run in the shared game worker
+  // like NINETIMESNINE's (engine/src/games.js); the test app's own worker
+  // files stay behind.
+  for (const dir of ['grid-kit', 'cage-math', 'sum-cross', 'picture-grid']) {
+    mkdirSync(join(web, 'modules', dir), { recursive: true });
+    for (const n of readdirSync(join(root, 'modules', dir)).filter((f) => /\.(js|css)$/.test(f) && !['engine-worker.js', 'engine-client.js'].includes(f))) writeFileSync(join(web, 'modules', dir, n), readFileSync(join(root, 'modules', dir, n)));
+  }
 }
 
 // 2. Fonts.

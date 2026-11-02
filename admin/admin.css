@@ -82,7 +82,10 @@ input[type=checkbox], input[type=radio] { width: 22px; height: 22px; min-height:
 .dash-sub { font-size: .78rem; font-weight: 400; color: var(--muted); }
 #nav-list[data-current="main"] > li:not([data-dash="main"]),
 #nav-list[data-current="flg"] > li:not([data-dash="flg"]),
-#nav-list[data-current="ntn"] > li:not([data-dash="ntn"]) { display: none; }
+#nav-list[data-current="ntn"] > li:not([data-dash="ntn"]),
+#nav-list[data-current="cm"] > li:not([data-dash="cm"]),
+#nav-list[data-current="sc"] > li:not([data-dash="sc"]),
+#nav-list[data-current="pg"] > li:not([data-dash="pg"]) { display: none; }
 .count { background: var(--bad); color: var(--panel); border-radius: 999px; padding: 0 8px; font-size: .85rem; font-weight: 700; }
 main { padding: 16px 24px 48px; max-width: 1200px; width: 100%; min-width: 0; }
 main:focus { outline: none; }
