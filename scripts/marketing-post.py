@@ -887,7 +887,8 @@ def daily_puzzle():
         try:
             base, auth_m = mastodon_base()
             me = request(f'{base}/api/v1/accounts/verify_credentials', headers=auth_m)
-            recent = request(f"{base}/api/v1/accounts/{me['id']}/statuses?limit=30&exclude_replies=true&exclude_reblogs=true", headers=auth_m)
+            # Read without the key: it can only post (no read:statuses), and the posts are public.
+            recent = request(f"{base}/api/v1/accounts/{me['id']}/statuses?limit=30&exclude_replies=true&exclude_reblogs=true")
             done = next((x for x in recent if marker in (x.get('content') or '')), None)
             if done:
                 print(f"::notice::Already on Mastodon: {done.get('url', '')}")
