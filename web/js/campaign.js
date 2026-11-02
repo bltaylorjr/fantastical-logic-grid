@@ -21,7 +21,7 @@ const REFERRERS = [
   [/(^|\.)google\.[a-z.]+$/, 'google', 'search'], [/(^|\.)bing\.com$/, 'bing', 'search'], [/(^|\.)duckduckgo\.com$/, 'duckduckgo', 'search'],
   [/(^|\.)yahoo\.[a-z.]+$/, 'yahoo', 'search'], [/(^|\.)ecosia\.org$/, 'ecosia', 'search'], [/(^|\.)search\.brave\.com$/, 'brave', 'search'],
   [/(^|\.)reddit\.com$|^redd\.it$/, 'reddit', 'forum'], [/(^|\.)facebook\.com$|^fb\.me$/, 'facebook', 'social'], [/(^|\.)instagram\.com$/, 'instagram', 'social'],
-  [/^t\.co$|(^|\.)x\.com$|(^|\.)twitter\.com$/, 'x', 'social'], [/(^|\.)threads\.(net|com)$/, 'threads', 'social'], [/(^|\.)bsky\.app$/, 'bluesky', 'social'],
+  [/^t\.co$|(^|\.)x\.com$|(^|\.)twitter\.com$/, 'x', 'social'], [/(^|\.)threads\.(net|com)$/, 'threads', 'social'], [/(^|\.)bsky\.app$/, 'bluesky', 'social'], [/(^|\.)(mastodon\.(social|online|world)|mstdn\.social|mas\.to)$/, 'mastodon', 'social'],
   [/(^|\.)youtube\.com$|^youtu\.be$/, 'youtube', 'video'], [/(^|\.)tiktok\.com$/, 'tiktok', 'video'], [/(^|\.)pinterest\.[a-z.]+$|^pin\.it$/, 'pinterest', 'social'],
   [/(^|\.)linkedin\.com$|^lnkd\.in$/, 'linkedin', 'social'], [/(^|\.)discord(app)?\.com$/, 'discord', 'community'], [/(^|\.)itch\.io$/, 'itch', 'store'],
   [/(^|\.)producthunt\.com$/, 'producthunt', 'directory'], [/^news\.ycombinator\.com$/, 'hackernews', 'community'], [/(^|\.)indiehackers\.com$/, 'indiehackers', 'community'],
