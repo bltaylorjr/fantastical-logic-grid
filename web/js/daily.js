@@ -1,6 +1,7 @@
 // The daily puzzle: one new puzzle a day, the same for everyone, published by
 // the website build (scripts/seo.mjs) as daily/latest.json and
-// daily/puzzles/<date>.json. Days run on UTC, like the website.
+// daily/puzzles/<date>.json. Days run on US Eastern time, like the website:
+// a new puzzle comes out at midnight Eastern.
 //
 // Streaks: a day counts when its daily puzzle is solved (not revealed) within
 // 48 hours of the day starting, so every time zone gets a fair chance. The
@@ -11,8 +12,13 @@ import * as store from './store.js';
 const CACHE_KEY = 'dailyCache';
 export const STREAK_GRACE_MS = 48 * 3600 * 1000;
 
-export const utcDay = (t = Date.now()) => new Date(t).toISOString().slice(0, 10);
-export const addDays = (d, n) => { const x = new Date(`${d}T00:00:00Z`); x.setUTCDate(x.getUTCDate() + n); return utcDay(x.getTime()); };
+const isoDay = (t) => new Date(t).toISOString().slice(0, 10);
+const EASTERN = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' });
+// Today's daily puzzle date (US Eastern).
+export const puzzleDay = (t = Date.now()) => EASTERN.format(new Date(t));
+// When a puzzle day starts: midnight Eastern (04:00 or 05:00 UTC).
+export const dayStart = (d) => { const est = Date.parse(`${d}T05:00:00Z`); return puzzleDay(est - 3600_000) === d ? est - 3600_000 : est; };
+export const addDays = (d, n) => { const x = new Date(`${d}T00:00:00Z`); x.setUTCDate(x.getUTCDate() + n); return isoDay(x.getTime()); };
 export const longDate = (d) => new Date(`${d}T12:00:00Z`).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'UTC' });
 
 // The website build marks its game page (meta flg-daily), so there the files
@@ -100,15 +106,17 @@ export function streakDays(solves) {
   const days = new Set();
   for (const s of solves) {
     if (!s.daily || s.revealed) continue;
-    const start = Date.parse(`${s.daily}T00:00:00Z`);
-    if (s.at >= start && s.at - start <= STREAK_GRACE_MS) days.add(s.daily);
+    // Days before the switch from UTC came out at midnight UTC, so a solve
+    // from then on counts; the 48 hours run from midnight Eastern.
+    const opened = Date.parse(`${s.daily}T00:00:00Z`);
+    if (s.at >= opened && s.at - dayStart(s.daily) <= STREAK_GRACE_MS) days.add(s.daily);
   }
   return days;
 }
 
 // { current, best, todayDone }. The current streak still counts while today's
 // puzzle is unsolved, as long as yesterday's was solved.
-export function streak(solves, today = utcDay()) {
+export function streak(solves, today = puzzleDay()) {
   const days = streakDays(solves);
   const sorted = [...days].sort();
   let best = 0, run = 0, prev = null;

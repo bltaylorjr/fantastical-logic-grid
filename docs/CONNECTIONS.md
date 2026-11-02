@@ -46,7 +46,7 @@ uses a secret, variable or binding that is not listed there.
 
 ### GitHub Pages (the website)
 
-**Why:** Hosts the game at <https://thelogicgrid.com>. The "Publish web version" workflow builds and publishes it on every push to main and every night at 00:17 UTC (the daily puzzle page). Once the source goes private (see "Private source"), Pages is served from the public repo bltaylorjr/thelogicgrid instead, so the Pages checks here become optional.
+**Why:** Hosts the game at <https://thelogicgrid.com>. The "Publish web version" workflow builds and publishes it on every push to main and every night just after midnight US Eastern (the daily puzzle page). Once the source goes private (see "Private source"), Pages is served from the public repo bltaylorjr/thelogicgrid instead, so the Pages checks here become optional.
 
 **Cost:** Free for public repositories.
 

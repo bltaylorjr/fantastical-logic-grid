@@ -16,7 +16,7 @@ on:
   push:
     branches: [main]
   schedule:
-    - cron: '17 0 * * *'   # daily puzzle page
+    - cron: '17 4,5 * * *'   # daily puzzle page: just after midnight US Eastern (04:17 UTC in summer time, 05:17 in winter)
 permissions:
   contents: read
   pages: write

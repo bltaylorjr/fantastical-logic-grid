@@ -63,6 +63,10 @@ const PRINT_LEVELS = [
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const json = (o) => JSON.stringify(o).replace(/</g, '\\u003c');
 const day = (d) => d.toISOString().slice(0, 10);
+// The daily puzzle's day follows US Eastern time (the game's home time zone),
+// so a new puzzle comes out at midnight Eastern, not at 7 or 8 pm the evening
+// before as it did on UTC days.
+const easternDay = (d) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
 const addDays = (s, n) => { const d = new Date(`${s}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return day(d); };
 const dailySummary = (p, d, planned) => ({
   date: d, title: p.title, theme: p.theme.id, themeName: p.theme.name, difficulty: p.difficulty.id, difficultyName: p.difficulty.name,
@@ -209,7 +213,7 @@ export async function buildSeo({ root, site }) {
   const engine = await import(pathToFileURL(join(engineDir, 'index.js')).href);
   const { THEMES, TIERS, CLUE_TYPES, getTopics, storylineCount, generatePuzzle } = engine;
   const { houseDailyOptions } = await import(pathToFileURL(join(engineDir, 'house-tuning.js')).href);
-  const today = process.env.FLG_TODAY || day(new Date());
+  const today = process.env.FLG_TODAY || easternDay(new Date());
   const appHtml = readFileSync(join(site, 'index.html'), 'utf8');
   // Pages that come from code change when the code does; the date of the last
   // commit is the honest "last changed" date for them.
@@ -502,6 +506,7 @@ ${playBtn(up, `Play a ${t.name.toLowerCase()} puzzle`, false)}
   const daily = new Map();
   const allPast = new Map(); // every daily puzzle up to today, for the Hand-picked collection
   const upcoming = [];
+  const earlyDays = new Map(); // tomorrow's puzzle, when it is already out
   // Weekly and special edition puzzles join the chain on their day, before
   // that day's daily puzzle, so every story stays new.
   const specials = await readSpecials(base);
@@ -512,8 +517,12 @@ ${playBtn(up, `Play a ${t.name.toLowerCase()} puzzle`, false)}
   // and special editions whose day has come.
   const pastDays = [];
   for (let d = DAILY_START; d <= today; d = addDays(d, 1)) pastDays.push(d);
+  // Tomorrow's too: a day already published early (as UTC builds did each
+  // evening) stays exactly as players saw it.
+  const tomorrow = addDays(today, 1);
   const published = process.env.FLG_NO_PUBLISHED === '1' ? new Map() : await readPublished(base, [
     ...pastDays.map((d) => `daily/puzzles/${d}.json`),
+    `daily/puzzles/${tomorrow}.json`,
     ...pastDays.filter((d) => d >= WEEKLY_START && new Date(`${d}T00:00:00Z`).getUTCDay() === 1).map((d) => `weekly/puzzles/${d}.json`),
     ...specials.filter((e) => e.date <= today).map((e) => `specials/${e.id}.json`),
   ]);
@@ -554,7 +563,9 @@ ${playBtn(up, `Play a ${t.name.toLowerCase()} puzzle`, false)}
     // planned by hand in the admin dashboard are built exactly as planned.
     const house = plan.has(d) ? {} : houseDailyOptions(d, difficulty);
     const seed = `daily-${d}${o.reroll ? `-r${o.reroll}` : ''}`;
-    const p = (d <= today && kept(`daily/puzzles/${d}.json`)) || fresh({ difficulty, theme, ...size, ...house }, seed);
+    const early = d === tomorrow && kept(`daily/puzzles/${d}.json`);
+    const p = (d <= today && kept(`daily/puzzles/${d}.json`)) || early || fresh({ difficulty, theme, ...size, ...house }, seed);
+    if (early) earlyDays.set(d, p);
     dailyStories.push([d, p.story.id]);
     if (d <= today) allPast.set(d, p);
     if (d > today) upcoming.push(dailySummary(p, d, plan.has(d)));
@@ -563,7 +574,7 @@ ${playBtn(up, `Play a ${t.name.toLowerCase()} puzzle`, false)}
   // The game's Daily puzzle reads these: latest.json names today's puzzle and
   // puzzles/<date>.json holds each one in full (the pages show the answers anyway).
   mkdirSync(join(site, 'daily', 'puzzles'), { recursive: true });
-  for (const [d, p] of daily) writeFileSync(join(site, 'daily', 'puzzles', `${d}.json`), JSON.stringify({ date: d, puzzle: p }));
+  for (const [d, p] of [...daily, ...earlyDays]) writeFileSync(join(site, 'daily', 'puzzles', `${d}.json`), JSON.stringify({ date: d, puzzle: p }));
   writeFileSync(join(site, 'daily', 'latest.json'), JSON.stringify({ date: today, ...dailySummary(daily.get(today), today, plan.has(today)), days: [...daily.keys()].sort().reverse() }));
   // For the dashboard's planner: the next days, without clues or answers.
   writeFileSync(join(site, 'daily', 'upcoming.json'), JSON.stringify({ built: new Date().toISOString(), today, days: upcoming }));

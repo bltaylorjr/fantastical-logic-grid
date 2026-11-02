@@ -2200,7 +2200,7 @@ async function openStats() {
 async function renderStats() {
   const body = $('#stats-body');
   let sm;
-  try { sm = await stats.summary(dailyLatest ? dailyLatest.date : daily.utcDay()); } catch (e) { body.innerHTML = '<p>Your stats could not be loaded on this device.</p>'; return; }
+  try { sm = await stats.summary(dailyLatest ? dailyLatest.date : daily.puzzleDay()); } catch (e) { body.innerHTML = '<p>Your stats could not be loaded on this device.</p>'; return; }
   const themeName = (id) => (OPTIONS.themes.find((t) => t.id === id) || {}).name || id;
   const hours = sm.totalMs / 3600000;
   const earned = sm.badges.filter((b) => b.at);
