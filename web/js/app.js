@@ -2880,11 +2880,12 @@ function openGameVideo(video, title) {
   $('#game-video-h').textContent = title;
   v.poster = `media/games/${video}.jpg`;
   v.replaceChildren(Object.assign(document.createElement('source'), { src: `media/games/${video}.mp4`, type: 'video/mp4' }),
-    Object.assign(document.createElement('track'), { kind: 'captions', srclang: 'en', label: 'English', src: `media/games/${video}.vtt` }));
+    Object.assign(document.createElement('track'), { kind: 'captions', srclang: 'en', label: 'English', src: `media/games/${video}.vtt`, default: true }));
   v.load();
   try { ai.stopSpeaking(); } catch (e) { /* ignore */ }
   openDialog($('#dlg-game-video'), v);
-  v.play().catch(() => { /* the player's own Play button */ });
+  // Closed before playback started (a quick X)? Then it stays stopped.
+  v.play().then(() => { if (!$('#dlg-game-video').open) v.pause(); }).catch(() => { /* the player's own Play button */ });
 }
 $('#games-intro-btn').onclick = () => openGameVideo('the-logic-grid', 'Introducing The Logic Grid');
 $('#game-video-close').onclick = () => $('#dlg-game-video').close();
@@ -3105,7 +3106,9 @@ async function applyUpdate() {
 document.addEventListener('visibilitychange', () => { applyUpdate(); });
 
 $('#welcome-skip').onclick = () => { $('#dlg-welcome').close(); startQuick(); };
-$('#welcome-watch').onclick = () => { $('#dlg-welcome').close(); openVideo(); };
+// The welcome's video is the tour of the whole site (video/wizard.cjs, The Logic Grid intro);
+// the game's own Introduction stays at the top of the page.
+$('#welcome-watch').onclick = () => { $('#dlg-welcome').close(); openGameVideo('the-logic-grid', 'A tour of The Logic Grid'); };
 $('#back-saved').onclick = async () => { await goHome({ focusSaved: true }); setSavedOpen(true); $('#saved-section').scrollIntoView(); };
 
 const ACTIONS = {
