@@ -1,7 +1,7 @@
 // The website's front page (The Logic Grid) and the NINETIMESNINE page
 // (scripts/hub.mjs). A plain script in <head>, so it runs before first paint:
 // - applies the player's color theme (the game's own setting, flg.settings),
-// - on the front page only (data-hub): old game links and the installed app
+// - on the front page only (data-hub): old game links (with a query or hash)
 //   go on to the game at fantastical/, since the game used to be at the site root,
 // - wires the front page's Look menu to the same setting,
 // - opens Account, Messages and Report a Problem in a window over the page,
@@ -94,15 +94,8 @@
   var forGame = false;
   try { new URLSearchParams(location.search).forEach(function (v, k) { if (!/^utm_/.test(k) && k !== 'design-preview') forGame = true; }); } catch (e) { /* old browser */ }
   if (location.hash.length > 1 && location.hash !== '#games') forGame = true;
-  // The installed app used to start at the site root. A player who came here
-  // from one of the games (The Logic Grid home in the menu) stays.
-  var fromHere = false;
-  try { fromHere = !!document.referrer && new URL(document.referrer).origin === location.origin; } catch (e) { /* none */ }
-  var installed = !fromHere && navigator.standalone === true;
-  try {
-    ['standalone', 'fullscreen', 'minimal-ui', 'window-controls-overlay'].forEach(function (m) { if (!fromHere && matchMedia('(display-mode: ' + m + ')').matches) installed = true; });
-  } catch (e) { /* no matchMedia */ }
-  if (!preview && (forGame || installed)) {
+  // The installed app starts here too, on the front page with every game.
+  if (!preview && forGame) {
     root.hidden = true;
     location.replace('fantastical/' + location.search + location.hash);
     return;
