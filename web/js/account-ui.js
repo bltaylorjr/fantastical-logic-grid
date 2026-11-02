@@ -264,8 +264,15 @@ function wireDialog() {
   const signinForm = $('[data-view=signin]', d);
   signinForm.onsubmit = (e) => {
     e.preventDefault();
-    const email = checkEmail(signinForm);
-    if (!email) return;
+    // An email, or the player's screen name.
+    const login = $('#si-email');
+    login.value = login.value.trim();
+    if (!login.value) { fail(signinForm, 'Enter your email or your screen name.', login); return; }
+    if (account.isScreenName(login.value) ? login.value.length < 3 || login.value.length > 20 : !EMAIL.test(login.value)) {
+      fail(signinForm, account.isScreenName(login.value) ? 'Screen names have 3 to 20 characters. Check it, or use your email.' : 'Enter your email address, like name@example.com.', login);
+      return;
+    }
+    const email = login.value;
     const pass = $('#si-pass');
     if (!pass.value) { fail(signinForm, 'Enter your password.', pass); return; }
     busy(signinForm, 'Signing in…', async () => {
@@ -275,7 +282,7 @@ function wireDialog() {
         if (dlg().open) { show('account'); focusView(); }
         ui.toast('Signed in. Your puzzles will now sync across your devices.');
         setTimeout(offerBio, 1500);
-      } catch (err) { fail(signinForm, err.message, err.code === 'INVALID_EMAIL' ? $('#si-email') : pass); }
+      } catch (err) { fail(signinForm, err.message, err.code === 'INVALID_EMAIL' || err.code === 'INVALID_LOGIN_CREDENTIALS' && account.isScreenName(email) ? $('#si-email') : pass); }
     });
   };
 

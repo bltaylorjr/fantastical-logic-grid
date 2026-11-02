@@ -793,7 +793,7 @@ ${playBtn(up)}`,
 <p>Your puzzles, notes, settings, stats and badges are saved in your browser or the app on your device. They stay there unless you sign in to sync them.</p>
 <h2>If you make an account</h2>
 <p>An account is optional. It uses Google Firebase sign-in with your email address and a password. Your saves, notes, settings and stats are then kept on the game's server so they appear on all your devices. You can delete the account and everything synced with it at any time in <strong>Menu &gt; Account and sync</strong>.</p>
-<p>A screen name is needed only for races and the scoreboard, and it is the only thing other players see. Never your email.</p>
+<p>A screen name is needed only for races and the scoreboard, and it is the only thing other players see. Never your email. Once you have one, you can also sign in with your screen name instead of your email; for that, the game's server keeps your account email next to your screen name. It is never shown or sent to anyone, and it is removed with your screen name.</p>
 <h2>Anonymous numbers</h2>
 <p>To make the puzzles better, the game sends counts and summaries that are not tied to you, your account or your device:</p>
 <ul>

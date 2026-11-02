@@ -52,7 +52,7 @@ function startAuth(signer) {
         return ok(session(u));
       }
       if (route === '/v1/accounts:sendOobCode') { emails.push({ type: body.requestType, email: body.email || (find(uidOf(body.idToken)) || {}).email }); return ok({}); }
-      if (route === '/v1/accounts:lookup') return ok({ users: [{ emailVerified: false }] });
+      if (route === '/v1/accounts:lookup') return ok({ users: [{ email: (find(uidOf(body.idToken)) || {}).email, emailVerified: false }] });
       if (route === '/v1/accounts:delete') { const u = find(uidOf(body.idToken)); if (u) users.delete(u.email); return ok({}); }
       if (route === '/v1/token') {
         const uid = refresh.get(body.refresh_token);
@@ -80,7 +80,7 @@ function startAuth(signer) {
     scriptPath: path.join(ROOT, 'server/src/index.js'),
     compatibilityDate: '2026-08-01',
     d1Databases: ['DB'],
-    bindings: { FIREBASE_PROJECT_ID: PROJECT, ALLOWED_ORIGINS: APP, TEST_JWKS: JSON.stringify(signer.jwks) },
+    bindings: { FIREBASE_PROJECT_ID: PROJECT, ALLOWED_ORIGINS: APP, TEST_JWKS: JSON.stringify(signer.jwks), FIREBASE_WEB_API_KEY: 'test-key', TEST_SIGN_IN_URL: `http://localhost:${AUTH_PORT}/v1/accounts:signInWithPassword` },
   });
   const db = await mf.getD1Database('DB');
   for (const f of fs.readdirSync(path.join(ROOT, 'server/migrations')).filter((n) => n.endsWith('.sql')).sort()) {
@@ -193,6 +193,25 @@ function startAuth(signer) {
     const usedA = await meta(A.page, 'usedStories');
     const usedB = await meta(B.page, 'usedStories');
     assert(usedA.length > 0 && usedA.every((id) => usedB.includes(id)), 'used-story list synced, so stories are not reused on the other device');
+
+    // ---- Device C signs in with the screen name instead of the email.
+    const C = await device('C');
+    await openAccount(C.page);
+    assert(/screen name/i.test(await C.page.textContent('label[for=si-email]')), 'the sign-in box takes an email or a screen name');
+    await C.page.fill('#si-email', 'bobby grid');
+    await C.page.fill('#si-pass', 'wrong password');
+    await C.page.click('[data-view=signin] button[type=submit]');
+    await C.page.waitForSelector('[data-view=signin] .error-box:not([hidden])');
+    assert(/screen name and password do not match/.test(await C.page.textContent('[data-view=signin] .error-box')), 'a wrong password with a screen name gives a clear message');
+    await C.page.fill('#si-pass', 'correct horse battery');
+    await C.page.click('[data-view=signin] button[type=submit]');
+    await C.page.waitForSelector('[data-view=account]:not([hidden])');
+    assert(await C.page.textContent('#acct-email') === 'bobby@example.com', 'a screen-name sign-in shows the account email');
+    const byName = await fetch(`http://localhost:${API_PORT}/v1/sign-in/name`, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: APP }, body: JSON.stringify({ name: 'Bobby Grid', password: 'correct horse battery' }) }).then((r) => r.json());
+    assert(byName.idToken && !JSON.stringify(byName).includes('bobby@'), 'the screen-name sign-in never sends the email back');
+    const noName = await fetch(`http://localhost:${API_PORT}/v1/sign-in/name`, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: APP }, body: JSON.stringify({ name: 'Nobody Here', password: 'correct horse battery' }) });
+    assert(noName.status === 400 && (await noName.json()).error.message === 'INVALID_LOGIN_CREDENTIALS', 'an unknown screen name gets the same answer as a wrong password');
+    await C.ctx.close();
 
     // ---- A signed-in player is offered email updates for an idea; the
     // stand-in's accounts are not confirmed, so the game says to confirm first.
