@@ -346,12 +346,12 @@ await applySiteDesign({ site, base: (process.env.FLG_SITE_URL || 'https://thelog
 // The Logic Grid's layout (scripts/hub.mjs): the front page at /, the game at
 // fantastical/, and every other game on a page of its own (ninetimesnine/,
 // cage-math/, sum-cross/, picture-grid/). The installed app keeps its id ("./")
-// and now starts at the game; offline, every one of those pages opens.
+// and starts at the front page; offline, every one of those pages opens.
 {
   const mf = join(site, 'manifest.webmanifest');
   const manifest = JSON.parse(readFileSync(mf, 'utf8'));
   if (manifest.id !== './') throw new Error('manifest.webmanifest must keep id "./" so installed apps stay the same app');
-  manifest.start_url = 'fantastical/';
+  manifest.start_url = './';
   writeFileSync(mf, `${JSON.stringify(manifest, null, 2)}\n`);
   const pagesHere = ['fantastical/', ...OWN_PAGES.map((g) => g.page)];
   const swFile = join(site, 'sw.js');

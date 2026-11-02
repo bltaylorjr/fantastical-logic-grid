@@ -1,7 +1,7 @@
 // The website's layout (scripts/hub.mjs), against the website build (dist/site):
 // - the front page lists the games and links to each one,
-// - old game links (?play=now, ?challenge=...) and the installed app go on to
-//   fantastical/, while campaign tags alone stay on the front page,
+// - old game links (?play=now, ?challenge=...) go on to fantastical/, while
+//   campaign tags alone and the installed app stay on the front page,
 // - NINETIMESNINE plays on its own page, and the game's menu link opens it,
 // - the front page's Look menu is the game's own color setting,
 // - Suggest a storyline goes back to the game, and the offline helper covers every page.
@@ -80,7 +80,7 @@ const ignorable = (t) => /fonts\/|Failed to decode downloaded font|OTS parsing/.
     await page.waitForURL(/\/fantastical\/\?learn/);
     assert(true, 'an old ?learn link goes on to How to play');
 
-    // ---- The installed app used to start at /
+    // ---- The installed app starts on the front page
     const app = await ctx.newPage();
     watch(app);
     await app.addInitScript(() => {
@@ -88,9 +88,10 @@ const ignorable = (t) => /fonts\/|Failed to decode downloaded font|OTS parsing/.
       window.matchMedia = (q) => (/display-mode: standalone/.test(q) ? { matches: true, media: q, addEventListener() {}, removeEventListener() {} } : real(q));
     });
     await app.goto(`${BASE}/`);
-    await app.waitForURL(`${BASE}/fantastical/`);
+    await app.waitForSelector('a.play');
+    assert(new URL(app.url()).pathname === '/', 'the installed app opens on the front page, with every game');
+    await app.goto(`${BASE}/fantastical/`);
     await app.waitForSelector('#tier-choices input');
-    assert(true, 'the installed app, opened at its old start address, goes to the game');
     await app.click('#menu-btn');
     await app.click('a[role=menuitem][href="./"]');
     await app.waitForURL(`${BASE}/`);
@@ -98,7 +99,7 @@ const ignorable = (t) => /fonts\/|Failed to decode downloaded font|OTS parsing/.
     assert(true, 'the game menu\'s The Logic Grid home opens the front page, even in the installed app');
     await app.close();
     const manifest = await (await fetch(`${BASE}/manifest.webmanifest`)).json();
-    assert(manifest.id === './' && manifest.start_url === 'fantastical/', 'the app keeps its identity and now starts at the game');
+    assert(manifest.id === './' && manifest.start_url === './', 'the app keeps its identity and starts at the front page');
     const front = await (await fetch(`${BASE}/`)).text();
     assert(/<link rel="manifest" href="manifest.webmanifest">/.test(front), 'the front page links the app manifest (Microsoft Store packaging reads it)');
 

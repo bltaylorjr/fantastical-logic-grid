@@ -14,8 +14,8 @@
 // carry over between them.
 //
 // Old links: the front page sends any address with a query or hash
-// (?play=now, ?challenge=CODE, ?race=CODE, ?learn, ?preview=...) and the
-// installed app (its start address used to be /) on to fantastical/.
+// (?play=now, ?challenge=CODE, ?race=CODE, ?learn, ?preview=...) on to
+// fantastical/. The installed app starts on the front page.
 // Campaign tags alone (utm_*) stay on the front page.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
