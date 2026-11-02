@@ -10,7 +10,7 @@ public repositories) and a Cloudflare Workers cron trigger (free plan allows 5).
 | Health check of the website, Worker, database, daily cleanup and desktop update file. Opens a `health-check` issue when something is down and closes it when it is back up | `.github/workflows/health.yml` | every 3 hours |
 | Daily digest of errors players hit, as a `player-errors` issue | `.github/workflows/health.yml` | daily, once `FLG_ADMIN_TOKEN` is set |
 | Daily player report email: new errors (grouped, already-fixed ones listed apart) and new problems and ideas, only when something is new. See "Player reports" below | `.github/workflows/player-reports.yml`, `scripts/player-reports.py` | daily at 07:13 UTC |
-| Daily puzzle page and sitemap refresh, then IndexNow notice to Bing and other engines | `.github/workflows/pages.yml` | nightly, 00:17 UTC |
+| Daily puzzle page and sitemap refresh, then IndexNow notice to Bing and other engines | `.github/workflows/pages.yml` | nightly, just after midnight US Eastern (04:17 or 05:17 UTC) |
 | **Nightly maintenance** at 2 am Eastern (see below) | `.github/workflows/nightly.yml`, `scripts/nightly-checks.sh`, `server/src/nightly.js` | nightly, 2:00 and 2:20 am ET |
 | Cleanup of data the game no longer needs, so the free D1 database never fills up, then `PRAGMA optimize` and the Google and Bing search numbers | `server/src/nightly.js`, `server/src/upkeep.js` | nightly, 2:00 am ET |
 | Weekly archive email: old rows zipped, emailed to the owner from Gmail, then removed (off until switched on). See [server/ARCHIVE.md](server/ARCHIVE.md) | `.github/workflows/archive-email.yml`, `server/src/archive.js` | Mondays at 05:07 UTC |

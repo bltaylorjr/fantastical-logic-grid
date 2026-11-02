@@ -89,7 +89,7 @@ export const CONNECTIONS = [
     id: 'github-pages',
     group: 'website',
     title: 'GitHub Pages (the website)',
-    why: 'Hosts the game at https://thelogicgrid.com. The "Publish web version" workflow builds and publishes it on every push to main and every night at 00:17 UTC (the daily puzzle page). Once the source goes private (see "Private source"), Pages is served from the public repo bltaylorjr/thelogicgrid instead, so the Pages checks here become optional.',
+    why: 'Hosts the game at https://thelogicgrid.com. The "Publish web version" workflow builds and publishes it on every push to main and every night just after midnight US Eastern (the daily puzzle page). Once the source goes private (see "Private source"), Pages is served from the public repo bltaylorjr/thelogicgrid instead, so the Pages checks here become optional.',
     cost: 'Free for public repositories.',
     docs: 'hosting/DEPLOY.md',
     names: [

@@ -27,7 +27,7 @@
 name: Daily puzzle to Facebook and Instagram
 on:
   schedule:
-    - cron: '41 13 * * *'   # 13:41 UTC = 8:41 am Eastern (9:41 in summer time); the day's puzzle is published at 00:17 UTC
+    - cron: '41 13 * * *'   # 13:41 UTC = 8:41 am Eastern (9:41 in summer time); the day's puzzle is published just after midnight Eastern
   workflow_dispatch:
     inputs:
       day:
