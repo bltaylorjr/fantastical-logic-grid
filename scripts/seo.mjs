@@ -259,6 +259,13 @@ export async function buildSeo({ root, site }) {
   // description: a title that would be cut loses the site name (it is still in
   // og:site_name), and a description is shortened at a sentence or word.
   const fitTitle = (t) => (t.length > 65 && t.endsWith(` | ${name}`) ? t.slice(0, -name.length - 3) : t);
+  // A daily page's title, kept to what search results show (about 70
+  // characters): the long date first, then a shorter date for long story titles.
+  const shortDate = (s) => new Date(`${s}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+  const dailyTitle = (t, d) => {
+    const tries = [`${t}: logic puzzle for ${longDate(d)} | ${name}`, `${t}: logic puzzle for ${shortDate(d)}`, `${t}: puzzle for ${shortDate(d)}`];
+    return tries.map(fitTitle).find((x) => x.length <= 70) || `${t}, ${shortDate(d)}`;
+  };
   const fitDescription = (d) => {
     if (d.length <= 160) return d;
     const cut = d.slice(0, 160);
@@ -650,7 +657,7 @@ ${recent(up)}`,
     const p = daily.get(d);
     page({
       path: `daily/${d}/`, priority: 0.4, lastmod: d, type: 'article',
-      title: `${p.title}: logic puzzle for ${longDate(d)} | ${name}`,
+      title: dailyTitle(p.title, d),
       description: `The daily logic grid puzzle for ${longDate(d)}: ${p.title}, a ${p.difficulty.name.toLowerCase()} ${p.theme.name.toLowerCase()} story, with clues and the answer key.`,
       crumbs: [['daily/', 'Daily puzzle'], [`daily/${d}/`, longDate(d)]],
       schema: [dailyArticle(p, d, `daily/${d}/`)],
