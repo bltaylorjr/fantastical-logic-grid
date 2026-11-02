@@ -47,7 +47,7 @@ const framed = !!document.querySelector('meta[name="np-no-print"]');
 const host = {
   canPrint: !framed,
   canDownload: !framed,
-  onPlay: (rec) => console.info(`${game === 'np' ? 'NINETIMESNINE' : game} play record (would go to the learning service):`, rec),
+  onPlay: (rec) => console.info('%s play record (would go to the learning service):', game === 'np' ? 'NINETIMESNINE' : game, rec),
   setWorld: (w) => { document.documentElement.dataset.world = w; },
 };
 const el = document.querySelector('#np');
