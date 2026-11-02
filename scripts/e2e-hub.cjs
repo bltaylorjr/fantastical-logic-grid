@@ -108,6 +108,7 @@ const ignorable = (t) => /fonts\/|Failed to decode downloaded font|OTS parsing/.
     const shown = await page.$$eval('#app-menu [role=menuitem]', (els) => els.filter((e) => e.offsetParent).map((e) => e.dataset.cmd || e.getAttribute('href')));
     assert(!shown.some((c) => ['account', 'messages', 'install', 'numberplace', 'games', 'site', 'feedback'].includes(c)), `the game menu holds only the game's own things (${shown.join(', ')})`);
     assert(shown.includes('./'), 'and a way back to The Logic Grid home');
+    assert(shown.includes('how-to-play/'), 'and the game\'s rules page');
     await page.keyboard.press('Escape');
     await page.goto(`${BASE}/`);
     await page.click('a.play[href="ninetimesnine/"]');
@@ -115,6 +116,19 @@ const ignorable = (t) => /fonts\/|Failed to decode downloaded font|OTS parsing/.
     await page.waitForSelector('#np-setup-view:not([hidden]) #np-levels .choice', { timeout: 20000 });
     assert(true, 'it opens NINETIMESNINE on its own page');
     assert(await page.locator('.np-top a[href="../"]').count() >= 1 && await page.locator('a[href="../fantastical/"], a[href*="open=account"]').count() === 0, 'the page links home, and holds only its own things');
+    // ---- Every game has a rules page, linked from its card and its own page
+    await page.click('.np-top a[href="rules/"]');
+    await page.waitForURL(`${BASE}/ninetimesnine/rules/`);
+    assert(/rules and how to play/i.test(await page.textContent('h1')), 'NINETIMESNINE has a rules page');
+    const styles = await page.$$eval('.rules-style', (els) => els.map((e) => e.id));
+    assert(JSON.stringify(styles) === JSON.stringify(['classic', 'rival', 'chain', 'tide', 'glyph']), `it has every style's rules (${styles.join(', ')})`);
+    assert(await page.locator('.rules-style .np-ex').count() >= 25 && await page.locator('#glyph .np-ex-cell', { hasText: 'IV' }).count() > 0, 'with each worked example, glyphs included');
+    await page.goto(`${BASE}/`);
+    const rules = await page.locator('a.rules-link').evaluateAll((as) => as.map((a) => a.getAttribute('href')));
+    assert(JSON.stringify(rules) === JSON.stringify(['how-to-play/', 'ninetimesnine/rules/']), 'each game card links its rules page');
+    await page.click('a.rules-link[href="how-to-play/"]');
+    await page.waitForURL(`${BASE}/how-to-play/`);
+    assert(await page.locator('h2#rules').count() === 1, 'The Fantastical Logic Grid\'s page has the game rules');
     await page.goto(`${BASE}/ninetimesnine/?style=rival`);
     await page.waitForSelector('#np-setup-view:not([hidden]) #np-levels .choice', { timeout: 20000 });
     assert(true, 'a ?style= link opens it too');
@@ -125,7 +139,7 @@ const ignorable = (t) => /fonts\/|Failed to decode downloaded font|OTS parsing/.
     const sw = await (await fetch(`${BASE}/sw.js`)).text();
     assert(/"fantastical\/"/.test(sw) && /"ninetimesnine\/"/.test(sw) && /"\.\/"/.test(sw), 'the offline helper keeps all three pages');
     const sitemap = await (await fetch(`${BASE}/sitemap.xml`)).text();
-    assert(/\/fantastical\/<\/loc>/.test(sitemap) && /\/ninetimesnine\/<\/loc>/.test(sitemap), 'the sitemap lists both games');
+    assert(/\/fantastical\/<\/loc>/.test(sitemap) && /\/ninetimesnine\/<\/loc>/.test(sitemap) && /\/ninetimesnine\/rules\/<\/loc>/.test(sitemap), 'the sitemap lists both games and the rules page');
 
     assert(!errors.length, `no page errors${errors.length ? `: ${errors.join(' | ')}` : ''}`);
   } finally {

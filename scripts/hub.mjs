@@ -18,6 +18,8 @@
 // Campaign tags alone (utm_*) stay on the front page.
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { HOWTO, exampleGrid } from '../modules/number-place/howto.js';
+import { styleOf } from '../modules/number-place/styles.js';
 
 // The support address, never written out in a page: js/hub.js or
 // js/site-nav.js put it together into a mailto: link only when "Contact us"
@@ -41,6 +43,10 @@ export function writeGamePage(site, html) {
   const withLink = page.replace('<button role="menuitem" type="button" data-cmd="numberplace"', menuLink);
   if (withLink === page) throw new Error('hub.mjs: the game menu has no Play NINETIMESNINE item to put The Logic Grid home beside');
   page = withLink;
+  // The game's rules page (how-to-play/, seo.mjs), after Settings.
+  const withRules = page.replace(/(<button role="menuitem" type="button" data-cmd="settings">[^<]*<\/button>)/, '$1\n    <a role="menuitem" href="how-to-play/">Rules and how to play</a>');
+  if (withRules === page) throw new Error('hub.mjs: the game menu has no Settings item to put the rules link after');
+  page = withRules;
   // On the website the home page has a card for everything shared by the games
   // (account, messages, install, support, the other games), so the game's menu
   // keeps only its own things. The apps (no home page) keep the full menu.
@@ -137,7 +143,9 @@ header.top { display: flex; flex-wrap: wrap; align-items: center; justify-conten
 .card h2 { font: 700 1.55rem/1.15 var(--display); margin: 0; }
 .card p, .card ul { margin: 0; color: var(--muted); }
 .card ul { padding-left: 1.15em; }
-.play { margin-top: auto; align-self: flex-start; display: inline-flex; align-items: center; gap: 10px; min-height: 48px; padding: 0 22px; border-radius: 999px;
+.card-actions { margin-top: auto; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; }
+.rules-link { position: relative; z-index: 1; display: inline-flex; align-items: center; min-height: 44px; color: var(--text); font-weight: 700; text-underline-offset: 3px; }
+.play { align-self: flex-start; display: inline-flex; align-items: center; gap: 10px; min-height: 48px; padding: 0 22px; border-radius: 999px;
   background: var(--accent); color: var(--on-accent); font-weight: 700; text-decoration: none; transition: background .2s var(--ease); }
 .play:hover { background: var(--accent-hi); }
 .play svg { width: 18px; height: 18px; }
@@ -218,14 +226,15 @@ dialog.ovl::backdrop { background: rgb(8 10 20 / .45); }
 .wiz-close { margin: 14px 0 0; text-align: right; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } .art .mk { opacity: 1 !important; } [data-fx-hover="tilt"] .card { transform: none; } .sparkles { display: none !important; } }`;
 
-const card = ({ cls, art, tag, name, text, points, href, id }) => `<article class="card" data-game="${cls}" aria-labelledby="${id}">
+const card = ({ cls, art, tag, name, text, points, href, rules, id }) => `<article class="card" data-game="${cls}" aria-labelledby="${id}">
 <div class="art ${cls}">${art}</div>
 <div class="body">
 <span class="tag" data-design-text="${cls}Tag">${tag}</span>
 <h2 id="${id}">${name}</h2>
 <p data-design-text="${cls}Text">${text}</p>
 <ul class="points">${points.map((p) => `<li>${p}</li>`).join('')}</ul>
-<a class="play" href="${href}"><span data-design-text="${cls}Button">Play ${name}</span> ${CHEVRON}</a>
+<div class="card-actions"><a class="play" href="${href}"><span data-design-text="${cls}Button">Play ${name}</span> ${CHEVRON}</a>
+<a class="rules-link" href="${rules}">Rules and how to play</a></div>
 </div>
 </article>`;
 
@@ -317,10 +326,10 @@ ${themeSelect}
 <p class="wiz-close"><button type="button" class="hdr-btn" id="wizard-cancel">Not now</button></p>
 </dialog>
 <main id="games" class="games" tabindex="-1" aria-label="Games">
-${card({ cls: 'flg', art: ART_GRID, tag: 'Story logic puzzles', name: 'The Fantastical Logic Grid', id: 'g1', href: 'fantastical/',
+${card({ cls: 'flg', art: ART_GRID, tag: 'Story logic puzzles', name: 'The Fantastical Logic Grid', id: 'g1', href: 'fantastical/', rules: 'how-to-play/',
     text: 'Read the clues, mark the grid, and work out who did what. Every puzzle tells a story.',
     points: ['Choose a difficulty, a theme and a grid size', 'Save, resume and print your puzzles', 'A new daily puzzle every day'] })}
-${card({ cls: 'ntn', art: ART_NINE, tag: 'Number puzzles', name: 'NINETIMESNINE', id: 'g2', href: 'ninetimesnine/',
+${card({ cls: 'ntn', art: ART_NINE, tag: 'Number puzzles', name: 'NINETIMESNINE', id: 'g2', href: 'ninetimesnine/', rules: 'ninetimesnine/rules/',
     text: 'Fill the grid so every row, column and box holds each number once. Start small at 4×4 or go for the full 9×9.',
     points: ['Classic play plus Rival Grid, Chain Reaction, Tidewater and Glyph Quest', 'Notes, step-by-step hints, undo and redo', 'Rules and a worked example for every style'] })}
 </main>
@@ -408,7 +417,7 @@ dialog.ovl::backdrop { background: rgb(8 10 20 / .45); }
 <body>
 <header class="np-top">
 <a class="brand" href="../">${LOGO}<span>The Logic Grid</span></a>
-<nav aria-label="Games"><a class="btn quiet small" href="../">‹ The Logic Grid home</a><a class="btn small" href="../wizard/?game=ninetimesnine">Submit Puzzle Ideas</a></nav>
+<nav aria-label="Games"><a class="btn quiet small" href="../">‹ The Logic Grid home</a><a class="btn small" href="rules/">Rules and how to play</a><a class="btn small" href="../wizard/?game=ninetimesnine">Submit Puzzle Ideas</a></nav>
 </header>
 <main id="screen-np" class="screen" tabindex="-1">
 <h1 class="sr-only">NINETIMESNINE</h1>
@@ -416,7 +425,7 @@ dialog.ovl::backdrop { background: rgb(8 10 20 / .45); }
 <noscript><div class="card"><p><strong>NINETIMESNINE</strong> is a free number puzzle game. Turn on JavaScript to play.</p></div></noscript>
 </main>
 <footer class="np-foot">
-<nav aria-label="The Logic Grid"><a href="../">The Logic Grid home</a> · <a href="../privacy/">Privacy</a> · <a href="../terms/">Terms of use</a> · ${contactLink()}</nav>
+<nav aria-label="The Logic Grid"><a href="../">The Logic Grid home</a> · <a href="rules/">Rules and how to play</a> · <a href="../privacy/">Privacy</a> · <a href="../terms/">Terms of use</a> · ${contactLink()}</nav>
 <p>${esc(copyright)}</p>
 </footer>
 </body>
@@ -425,4 +434,98 @@ dialog.ovl::backdrop { background: rgb(8 10 20 / .45); }
   mkdirSync(join(site, 'ninetimesnine'), { recursive: true });
   writeFileSync(join(site, 'ninetimesnine', 'index.html'), np);
   pages.push({ path: 'ninetimesnine/', lastmod: updated, priority: 0.9 });
+
+  // ---------- NINETIMESNINE rules and how to play ----------
+  // Every style's full rules, tools, tips and worked example, from the same
+  // text as the game's How to play window (modules/number-place/howto.js).
+  const rulesDescription = 'The rules of NINETIMESNINE and how to play each style: Classic, Rival Grid, Chain Reaction, Tidewater and Glyph Quest, each with a worked example.';
+  const key = (h) => `<p class="np-help np-ex-key"><span class="np-ex-cell given">1</span> given <span class="np-ex-cell new">2</span> just placed${h.id === 'rival' ? ' <span class="np-ex-cell mine">2</span> yours <span class="np-ex-cell theirs">3</span> the rival&#39;s' : ''}${h.id === 'chain' ? ' <span class="np-ex-cell zone"></span> would link' : ''}${h.id === 'tide' ? ' <span class="np-ex-cell water"></span> water' : ''} <span class="np-ex-cell wrong">4</span> wrong</p>`;
+  const styleSection = (h) => {
+    const st = styleOf(h.id);
+    return `<section class="rules-style" id="${h.id}" aria-labelledby="${h.id}-h">
+<h2 id="${h.id}-h">${esc(st.name)}${h.id === 'classic' ? ' (Classic)' : ''}</h2>
+<p class="rules-goal"><b>Goal:</b> ${esc(h.goal)}</p>
+<h3>Rules</h3>
+<ol>${h.rules.map((r) => `<li>${esc(r)}</li>`).join('')}</ol>
+<h3>Tools and options</h3>
+<ul>${h.tools.map((r) => `<li>${esc(r)}</li>`).join('')}</ul>
+<h3>Example</h3>
+<p>${esc(h.example.intro)}</p>
+${key(h)}
+<ol class="rules-steps">${h.example.steps.map((x, i) => `<li><figure>${exampleGrid(x.grid, { glyph: !!h.glyph })}<figcaption><b>Step ${i + 1}.</b> ${esc(x.say)}</figcaption></figure></li>`).join('')}</ol>
+<h3>Tips</h3>
+<ul>${h.tips.map((r) => `<li>${esc(r)}</li>`).join('')}</ul>
+<p><a class="btn small" href="../${h.id === 'classic' ? '' : `?style=${h.id}`}">Play ${esc(h.id === 'classic' ? 'NINETIMESNINE' : st.short)}</a> <a class="rules-top" href="#main">Back to the top</a></p>
+</section>`;
+  };
+  const rulesSchema = [
+    { '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: [['', SITE_NAME], ['ninetimesnine/', 'NINETIMESNINE'], ['ninetimesnine/rules/', 'Rules and how to play']].map(([p, n], i) => ({ '@type': 'ListItem', position: i + 1, name: n, item: url(p) })) },
+    { '@context': 'https://schema.org', '@type': 'HowTo', name: 'How to play NINETIMESNINE', description: HOWTO[0].goal, step: HOWTO[0].rules.map((r, i) => ({ '@type': 'HowToStep', position: i + 1, text: r })) },
+  ];
+  const rules = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="${npCsp}">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>NINETIMESNINE rules and how to play | The Logic Grid</title>
+<meta name="description" content="${esc(rulesDescription)}">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<meta name="theme-color" content="#1F5FAD">
+${tdmMeta}
+${og('NINETIMESNINE rules and how to play', rulesDescription, 'ninetimesnine/rules/')}
+<link rel="icon" href="../../icons/icon.svg" type="image/svg+xml">
+<link rel="preload" href="../../fonts/atkinson-400.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="../../app.css">
+<link rel="stylesheet" href="../../modules/number-place/ui.css">
+<script src="../../js/hub.js"></script>
+${rulesSchema.map((x) => `<script type="application/ld+json">${json(x)}</script>`).join('\n')}
+<style>
+.np-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; padding: 14px max(16px, env(safe-area-inset-right, 0px)) 14px max(16px, env(safe-area-inset-left, 0px)); border-bottom: 1px solid var(--hairline); background: var(--surface-2); }
+.np-top .brand { display: inline-flex; align-items: center; gap: 10px; color: var(--text); text-decoration: none; font: 700 1.05rem/1 var(--display); letter-spacing: .03em; }
+.np-top .brand svg { width: 34px; height: 34px; }
+.np-top nav { display: flex; flex-wrap: wrap; gap: 8px; }
+.np-top a { text-decoration: none; }
+.rules { max-width: 860px; margin: 0 auto; padding: 24px max(16px, env(safe-area-inset-left, 0px)) 40px; line-height: 1.6; }
+.rules h1 { font: 700 clamp(1.7rem, 4vw, 2.3rem)/1.15 var(--display); margin: 0 0 8px; }
+.rules .lede { font-size: 1.1rem; color: var(--muted); margin: 0 0 16px; }
+.rules-toc { display: flex; flex-wrap: wrap; gap: 8px; padding: 0; margin: 0 0 8px; list-style: none; }
+.rules-toc a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px; border: 1px solid var(--edge-hi); border-radius: 999px; color: var(--text); font-weight: 700; text-decoration: none; }
+.rules-style { margin-top: 28px; padding-top: 24px; border-top: 1px solid var(--hairline); scroll-margin-top: 12px; }
+.rules-style h2 { font: 700 1.5rem/1.2 var(--display); margin: 0 0 8px; }
+.rules-style h3 { font-size: 1.05rem; margin: 18px 0 6px; }
+.rules-goal { font-size: 1.05rem; }
+.rules-steps { list-style: none; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
+.rules-steps figure { margin: 0; }
+.rules-steps figcaption { font-size: .95rem; }
+.rules-top { margin-left: 12px; }
+.np-foot { padding: 20px max(16px, env(safe-area-inset-left, 0px)) 32px; border-top: 1px solid var(--hairline); color: var(--muted); font-size: .9rem; text-align: center; }
+.np-foot nav { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 6px; }
+.np-foot a { color: inherit; display: inline-flex; align-items: center; min-height: 44px; }
+.np-foot p { margin: 4px 0 0; }
+@media print { .np-top, .np-foot, .rules-toc, .rules-style .btn, .rules-top { display: none; } .rules-style { break-before: page; border: 0; } }
+</style>
+</head>
+<body>
+<header class="np-top">
+<a class="brand" href="../../">${LOGO}<span>The Logic Grid</span></a>
+<nav aria-label="NINETIMESNINE"><a class="btn quiet small" href="../../">‹ The Logic Grid home</a><a class="btn small primary" href="../">Play NINETIMESNINE</a></nav>
+</header>
+<main id="main" class="rules np-app" tabindex="-1">
+<h1>NINETIMESNINE rules and how to play</h1>
+<p class="lede">Fill the grid so every row, column and box holds each number once. Every puzzle has exactly one answer, and you can always reach it by logic alone. Classic is the traditional game; the other styles add new rules around the same puzzle.</p>
+<nav aria-label="Styles"><ul class="rules-toc">${HOWTO.map((h) => `<li><a href="#${h.id}">${esc(styleOf(h.id).short)}</a></li>`).join('')}</ul></nav>
+${HOWTO.map(styleSection).join('\n')}
+</main>
+<footer class="np-foot">
+<nav aria-label="The Logic Grid"><a href="../../">The Logic Grid home</a> · <a href="../">Play NINETIMESNINE</a> · <a href="../../privacy/">Privacy</a> · <a href="../../terms/">Terms of use</a> · ${contactLink()}</nav>
+<p>${esc(copyright)}</p>
+</footer>
+</body>
+</html>
+`;
+  mkdirSync(join(site, 'ninetimesnine', 'rules'), { recursive: true });
+  writeFileSync(join(site, 'ninetimesnine', 'rules', 'index.html'), rules);
+  pages.push({ path: 'ninetimesnine/rules/', lastmod: updated, priority: 0.7 });
 }
