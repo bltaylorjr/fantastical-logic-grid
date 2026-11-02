@@ -132,6 +132,7 @@ uses a secret, variable or binding that is not listed there.
 | Name | Where | Notes |
 | --- | --- | --- |
 | `FLG_RUNNER` | GitHub repository variable | Value: `["self-hosted","flg"]` Runs Linux jobs on the Oracle build server. Optional. |
+| `OCI_API_KEY` | GitHub repository secret | Private key (.pem) of an Oracle API key for btay74@outlook.com (profile > Tokens and keys > API keys). Lets **Create Oracle build server** keep retrying until Oracle has free Arm capacity. Optional. |
 | `FLG_SITE_REPO` | GitHub repository variable | Value: `bltaylorjr/thelogicgrid` Publishes the site and mirrors releases to the public repo. Optional. |
 | `SITE_REPO_TOKEN` | GitHub repository secret | Fine-grained token with Contents: read and write on bltaylorjr/thelogicgrid only. Optional. |
 
