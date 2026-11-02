@@ -10,7 +10,7 @@ import { TIERS } from './tiers.js';
 import { THEMES, plural } from './themes.js';
 import { cap, joinList } from './language.js';
 import { hashString } from './rng.js';
-import { checkCustom, bandOf, PRINT_LIMITS, ORDER_WORDS } from './classroom.js';
+import { checkCustom, bandOf, PRINT_LIMITS, ORDER_WORDS, FILL_NAMES } from './classroom.js';
 
 // ---------------------------------------------------------------- custom worlds
 export function customWorld(def) {

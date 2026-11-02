@@ -97,7 +97,7 @@ export const CUSTOM_STARTERS = [
   },
 ];
 
-const FILL_NAMES = ['Alex', 'Bailey', 'Casey', 'Devon', 'Emery', 'Finley', 'Harper', 'Jordan', 'Kai', 'Logan', 'Morgan', 'Parker', 'Quinn', 'Riley'];
+export const FILL_NAMES = ['Alex', 'Bailey', 'Casey', 'Devon', 'Emery', 'Finley', 'Harper', 'Jordan', 'Kai', 'Logan', 'Morgan', 'Parker', 'Quinn', 'Riley'];
 
 export const gradeById = (id) => GRADES.find((g) => g.id === String(id)) || null;
 export const bandOf = (gradeId) => BANDS[(gradeById(gradeId) || GRADES[GRADES.length - 1]).band];

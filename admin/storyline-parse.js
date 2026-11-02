@@ -25,8 +25,13 @@ const squash = (s) => String(s || '').replace(/[\u0000-\u001f\u007f<>]/g, ' ').r
 const capWords = (s) => s.replace(/\b([a-z])/g, (m) => m.toUpperCase());
 
 // "Companies" -> "Company", "Accessories" -> "Accessory", "Prices" -> "Price".
+// Words ending in "-ies" whose one ends in "-ie", not "-y" ("Movies" -> "Movie").
+const IE_WORDS = /(^|\s)(movies|cookies|pies|ties|lies|brownies|zombies|rookies|hippies|calories|goodies|goalies|smoothies|selfies|veggies|collies|genies|pixies|hoodies|beanies|aunties|sweeties|birdies|cuties|newbies|sorties|lassies|pinkies|boogies|indies|walkie-talkies)$/i;
+
 export function singular(word) {
   const w = squash(word);
+  // The last word decides ("Clothing Themes" -> "Clothing Theme").
+  if (IE_WORDS.test(w)) return w.replace(/ies$/i, (m) => (m[0] === 'I' ? 'IE' : 'ie'));
   if (/ies$/i.test(w)) return w.replace(/ies$/i, (m) => (m[0] === 'I' ? 'Y' : 'y'));
   if (/(ss|us|is)$/i.test(w)) return w;
   if (/(ches|shes|xes|sses)$/i.test(w)) return w.replace(/es$/i, '');
@@ -65,7 +70,7 @@ function findLists(text) {
   let m;
   while ((m = re.exec(t))) marks.push({ start: m.index + m[1].length, bodyStart: m.index + m[0].length, label: squash(m[2]) });
   const lists = marks.map((k, i) => ({ label: k.label, items: splitItems(t.slice(k.bodyStart, i + 1 < marks.length ? marks[i + 1].start : t.length)) }));
-  const scene = squash(marks.length ? t.slice(0, marks[0].start) : '');
+  const scene = squash(marks.length ? t.slice(0, marks[0].start) : t); // no lists: it is all scene
   return { scene, lists };
 }
 
@@ -140,8 +145,10 @@ export function readSubmission(form, polished = null, themeName = '') {
   const p = polished || {};
   const word = (k) => squash(p[k] || f[k] || '');
   const names = (f.characters || []).map((c) => squash(c.name).slice(0, MAX_NAME)).filter(Boolean).slice(0, MAX_ITEMS);
-  const listText = [p.clues || f.clues || '', p.beat || f.beat || ''].join('\n');
-  const { lists: raw } = findLists(listText);
+  // Lists in the clues, then in the story beat: read line by line, so a list
+  // on one line never runs on into the next line or into the story.
+  const byLine = (text) => String(text || '').split(/\r?\n/).flatMap((line) => findLists(line).lists);
+  const raw = [...byLine(p.clues || f.clues), ...byLine(p.beat || f.beat)];
   const known = new Set(names.map((n) => n.toLowerCase()));
   // A list of the characters' own names is the cast, not a category.
   const lists = raw.map(nameGeneric).filter((l) => l.items.length >= 3 && !l.items.every((x) => known.has(x.toLowerCase())));
@@ -168,8 +175,10 @@ export function readSubmission(form, polished = null, themeName = '') {
   const read = { def: { theme: (squash(themeName) || word('title') || 'Characters').slice(0, 60), title: 'The Characters Mix-Up', story: '', ending: '', cast: { one: 'character', many: 'characters' }, names: [], categories } };
   read.summary = [`Characters (${names.length >= 3 ? names.length : 'names chosen for them'})`, ...categories.map((c) => `${c.name} (${c.items.length})`)].join(', ');
   // The story beat's words ("Beginning: the lights go out."), without its lists of things to match.
-  const beatRead = findLists(p.beat || f.beat || '');
-  const beat = [beatRead.scene, ...beatRead.lists.filter((l) => l.items.length < 3).map((l) => l.items.join(', '))].filter(Boolean).join('. ');
+  const beat = String(p.beat || f.beat || '').split(/\r?\n/).flatMap((line) => {
+    const r = findLists(line);
+    return [r.scene, ...r.lists.filter((l) => l.items.length < 3).map((l) => l.items.join(', '))];
+  }).map((x) => squash(x).replace(/[.!?]+$/, '')).filter(Boolean).join('. ');
   const story = [word('setting'), word('goal'), beat].filter(Boolean).map((s) => s[0].toUpperCase() + s.slice(1)).map((s) => (/[.!?]$/.test(s) ? s : `${s}.`)).join(' ');
   const def = { ...read.def, title: (word('title') || read.def.title).slice(0, 80), story: story.slice(0, 1200) || read.def.story };
   if (names.length >= 3) def.names = names;

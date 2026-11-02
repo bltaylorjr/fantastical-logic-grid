@@ -270,6 +270,22 @@ test('editing: the author edits and resubmits (signed in or by the emailed link)
   await call('/admin/v1/replies/done', { auth: owner, body: { sent: claim.replies.map((m) => m.id), failed: [] } });
 });
 
+test('reading a storyline: lists end at the line, "Movies" is "Movie", and a story without lists is kept', async () => {
+  const form = {
+    kind: 'storyline', title: 'The Hallmark of Hosting', characters: ['Ellie', 'Izzy', 'Jade', 'Lizzie', 'Penny'].map((name) => ({ name })),
+    clues: 'Movies: Christmas Vacation, Holiday House, Elf, Jingle Pets, Home Alone\nDates: December 4, December 10, December 15, December 18, December 28\nClothing Theme: Holiday Elegance, Polar Bears and Penguins, Plaid, Pajamas, Silver and Gold',
+    beat: 'Each character, during various days in December, will host a movie night for four of their friends. Each host has planned a movie, clothing theme, and a date for the movie at their own home.',
+  };
+  const p = buildStorylinePuzzle({ submission: { form }, theme: 'Holiday', seed: 'hallmark' });
+  assert.equal(p.error, undefined, p.error);
+  assert.deepEqual(p.categories.slice(1).map((c) => c.name), ['Movie', 'Date', 'Clothing Theme']);
+  assert.ok(p.categories[3].items.every((i) => !/December|host/.test(i.label)), 'the story beat is not read as list items');
+  assert.ok(p.story.paragraphs[0].startsWith('Each character, during various days in December'), 'the story beat is the story');
+  // Fewer than 3 characters: the engine chooses the names.
+  const few = buildStorylinePuzzle({ submission: { form: { ...form, characters: [{ name: 'Al' }] } }, seed: 'few' });
+  assert.equal(few.error, undefined, few.error);
+});
+
 test('a guest: thank-you, then a copy only to the address they type, once', async () => {
   const owner = token('owner-uid', OWNER);
   const r = await call('/v1/story-submissions', { body: { kind: 'theme', idea: 'Haunted Lighthouse' } });
