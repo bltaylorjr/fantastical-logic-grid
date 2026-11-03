@@ -953,5 +953,7 @@ export function createGame(def) {
     state: () => G,
     learning: () => learn,
     dailyOptions,
+    // A link to today's daily puzzle (?play=daily on the game's page).
+    playDaily: () => startDaily(),
   };
 }

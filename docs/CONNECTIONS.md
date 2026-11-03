@@ -811,6 +811,7 @@ uses a secret, variable or binding that is not listed there.
 | `META_PAGE_TOKEN` | GitHub repository secret | A Page access token made from a long-lived user token, so it does not expire. Also used for Instagram. |
 | `INSTAGRAM_ACCOUNT_ID` | GitHub repository secret | The Instagram business account id linked to the Page (a number). |
 | `DAILY_PUZZLE_SOCIAL` | GitHub repository variable | Value: `off` Only to pause the daily puzzle post to the Facebook Page and Instagram (.github/workflows/daily-puzzle-social.yml). Delete it to post again. Optional. |
+| `DAILY_PUZZLE_GAMES` | GitHub repository variable | Which other games' daily puzzles are posted after the Logic Grid's: unset (all four: `np,cm,sc,pg`), a list such as `np,cm`, or `none` for the Logic Grid only (scripts/social-games.mjs). Optional. |
 
 **Steps:**
 
@@ -826,7 +827,7 @@ uses a secret, variable or binding that is not listed there.
 10. Add `META_PAGE_ID` the same way: the Page `id`.
 11. For Instagram: make the game's Instagram a free **Business** or **Creator** account (**Settings** > **Account type and tools**) and link it to the Page (Page **Settings** > **Linked accounts** > **Instagram**). Make the token again with the Instagram permissions ticked and update `META_PAGE_TOKEN`. Then in the Explorer run `<page id>?fields=instagram_business_account` and add its `id` as the secret `INSTAGRAM_ACCOUNT_ID`.
 12. Test: <https://github.com/bltaylorjr/fantastical-logic-grid/actions/workflows/marketing-post.yml> > **Run workflow** with mode `check`. Facebook Page (and Instagram) should say connected.
-13. The same keys post the daily puzzle every morning after it passes its checks (<https://github.com/bltaylorjr/fantastical-logic-grid/actions/workflows/daily-puzzle-social.yml>). To pause it, open <https://github.com/bltaylorjr/fantastical-logic-grid/settings/variables/actions>, click **New repository variable**, name `DAILY_PUZZLE_SOCIAL`, value `off`. Delete the variable to start again.
+13. The same keys post the daily puzzle every morning after it passes its checks (<https://github.com/bltaylorjr/fantastical-logic-grid/actions/workflows/daily-puzzle-social.yml>). To pause it, open <https://github.com/bltaylorjr/fantastical-logic-grid/settings/variables/actions>, click **New repository variable**, name `DAILY_PUZZLE_SOCIAL`, value `off`. Delete the variable to start again. Every game's daily puzzle is posted (NINETIMESNINE, Cage Math, Sum Cross and Picture Grid after the Logic Grid, each checked first, each with its answer key page at `<game>/daily/<date>/`); a game with its daily puzzle switched off in admin is skipped, and `DAILY_PUZZLE_GAMES` picks which ones.
 
 **Links:** [Meta apps](https://developers.facebook.com/apps) · [Graph API Explorer](https://developers.facebook.com/tools/explorer) · [Full guide (scripts/marketing-post.py)](https://github.com/bltaylorjr/fantastical-logic-grid/blob/main/scripts/marketing-post.py)
 

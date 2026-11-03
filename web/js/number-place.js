@@ -60,6 +60,8 @@ export async function open(host = {}) {
   } else mod.reopen();
   // A game card's link to one of the games (Rival Grid, Tidewater...) picks it on the setup screen.
   if (host.style) mod.pickStyle(host.style);
+  // A daily puzzle post's link (?play=daily) opens today's puzzle.
+  if (host.daily) await mod.playDaily();
   document.getElementById('screen-np').focus();
 }
 
