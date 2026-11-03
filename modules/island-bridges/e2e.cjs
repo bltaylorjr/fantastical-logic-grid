@@ -172,6 +172,7 @@ const P = 'ib', DIR = 'island-bridges';
     await page.click(`#${P}-reveal`);
     await page.click(`#${P}-reveal-yes`);
     assert(/answer/i.test(await page.textContent(`#${P}-solved-h`)), 'Show the answer builds every bridge');
+    await story.race(page, P, DIR, assert);
     await page.close();
     assert(errors.length === 0, `no page errors ${errors.join(' | ')}`);
     console.log('Island Bridges module: all checks passed');

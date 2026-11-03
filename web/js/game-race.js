@@ -1,5 +1,5 @@
-// Races against other players in NINETIMESNINE, Cage Math, Sum Cross and
-// Picture Grid: the same races as The Fantastical Logic Grid's (compete.js,
+// Races against other players in NINETIMESNINE, Cage Math, Sum Cross, Picture
+// Grid, More or Less, Skyline, Star Field, Loop Line and Island Bridges: the same races as The Fantastical Logic Grid's (compete.js,
 // server/src/compete.js), with the same rules. Everyone in a race gets the same
 // puzzle, the fastest solve wins, each hint adds 1 minute and each check 15
 // seconds, and revealing the answer counts as giving up.
@@ -15,13 +15,17 @@
 // racePuzzle() (a puzzle with the setup screen's choices), startShared(p) and
 // state() (the game in progress). A finished race puzzle (solved, or revealed
 // and not undone within 10 seconds) is sent with every cell's value; the server
-// checks the answers.
+// checks the answers. The line games (Loop Line, Island Bridges) keep a value
+// for each edge instead of each cell, and send those the same way.
+// A race puzzle is always the game's standard kind, with the setup screen's
+// level and size (the kit's racePuzzle), and the kit offers no level change
+// when a race puzzle is finished (races stay at the level they were started at).
 import * as account from './account.js';
 import * as compete from './compete.js';
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
-const NAMES = { np: 'NINETIMESNINE', cm: 'Cage Math', sc: 'Sum Cross', pg: 'Picture Grid' };
+const NAMES = { np: 'NINETIMESNINE', cm: 'Cage Math', sc: 'Sum Cross', pg: 'Picture Grid', ml: 'More or Less', sk: 'Skyline', sf: 'Star Field', ll: 'Loop Line', ib: 'Island Bridges' };
 const TIERS = { basic: 'Basic', easy: 'Easy', medium: 'Medium', hard: 'Hard', expert: 'Expert', master: 'Master' };
 const STATUS = { solved: 'Solved', solving: 'Still solving', gave_up: 'Revealed the answer', invited: 'Challenged, not joined yet', declined: 'Said no thanks' };
 const store = {

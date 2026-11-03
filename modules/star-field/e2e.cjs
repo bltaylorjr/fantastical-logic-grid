@@ -146,6 +146,7 @@ const P = 'sf';
     s = await st();
     assert(s.n === 10 && s.k === 2, 'Expert is a 10×10 with two stars each');
     if (SHOTS) await page.locator('.gk-layout').screenshot({ path: path.join(SHOTS, 'sf-expert.png') });
+    await story.race(page, P, 'star-field', assert);
     await page.close();
     assert(errors.length === 0, `no page errors ${errors.join(' | ')}`);
     console.log('Star Field module: all checks passed');

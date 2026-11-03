@@ -215,14 +215,23 @@ test('a race: host and rival solve the same puzzle, fastest wins', async () => {
   assert.equal(board.body.rows.find((r) => r.name === 'Sky Fox II').wins, 0);
 });
 
-test('races in every game: NINETIMESNINE, Cage Math, Sum Cross and Picture Grid', async () => {
+test('races in every game: NINETIMESNINE, Cage Math, Sum Cross, Picture Grid and the newer grid-kit games', async () => {
   const root2 = join(root, '..', 'engine', 'src');
   const make = {
     np: async () => (await import(join(root2, 'np-ops.js'))).OPS.generate({ difficulty: 'easy', seed: 'race-np' }),
     cm: async () => (await import(join(root2, 'cm-ops.js'))).OPS.generate({ difficulty: 'easy', size: 4, seed: 'race-cm' }),
     sc: async () => (await import(join(root2, 'sc-ops.js'))).OPS.generate({ difficulty: 'easy', size: 6, seed: 'race-sc' }),
     pg: async () => (await import(join(root2, 'pg-ops.js'))).OPS.generate({ difficulty: 'easy', size: 10, seed: 'race-pg' }),
+    ml: async () => (await import(join(root2, 'ml-ops.js'))).OPS.generate({ difficulty: 'easy', size: 5, seed: 'race-ml' }),
+    sk: async () => (await import(join(root2, 'sk-ops.js'))).OPS.generate({ difficulty: 'easy', size: 5, seed: 'race-sk' }),
+    sf: async () => (await import(join(root2, 'sf-ops.js'))).OPS.generate({ difficulty: 'easy', size: 6, seed: 'race-sf' }),
+    // The line games: answers are edges, not cells.
+    ll: async () => (await import(join(root2, 'll-ops.js'))).OPS.generate({ difficulty: 'easy', size: 5, seed: 'race-ll' }),
+    ib: async () => (await import(join(root2, 'ib-ops.js'))).OPS.generate({ difficulty: 'easy', size: 7, seed: 'race-ib' }),
   };
+  // A wrong value for one answer: a cell number moved on, or a mark swapped
+  // (Picture Grid, Star Field, Loop Line: 1 for 2; Island Bridges: 1 and 2 bridges, 3 none).
+  const wrongAt = (game, p, v) => (['pg', 'sf', 'll'].includes(game) ? (v === 1 ? 2 : 1) : game === 'ib' ? (v === 1 ? 2 : 1) : (v % p.size) + 1);
   for (const [game, gen] of Object.entries(make)) {
     const p = await gen();
     assert.equal((await call('/v1/races', { as: 'ann', body: { game, puzzle: { ...p, solution: [1] } } })).status, 400, `${game}: a broken puzzle is refused`);
@@ -244,8 +253,10 @@ test('races in every game: NINETIMESNINE, Cage Math, Sum Cross and Picture Grid'
     const answers = p.solution.slice();
     const wrong = answers.slice();
     const i = answers.findIndex((v) => v);
-    wrong[i] = game === 'pg' ? (answers[i] === 1 ? 2 : 1) : (answers[i] % (p.size) ) + 1;
+    wrong[i] = wrongAt(game, p, answers[i]);
     assert.equal((await call(`/v1/races/${code}/finish`, { as: 'ben', body: { elapsedMs: 60_000, hints: 0, checks: 0, answers: wrong } })).status, 422, `${game}: wrong answers refused`);
+    // Crosses and dots are the player's own notes: left undecided they still solve it.
+    if (['sf', 'll', 'ib'].includes(game)) for (let j = 0; j < answers.length; j++) if (answers[j] === (game === 'ib' ? 3 : 2)) answers[j] = 0;
     const ben = await call(`/v1/races/${code}/finish`, { as: 'ben', body: { elapsedMs: 60_000, hints: 1, checks: 0, answers } });
     assert.equal(ben.status, 200, `${game}: ${JSON.stringify(ben.body)}`);
     assert.ok(ben.body.points > 0, `${game}: points`);

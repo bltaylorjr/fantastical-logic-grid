@@ -711,7 +711,8 @@ export function createGame(def) {
   // level stays one button away.
   function nextLevelOffer() {
     const here = G.p.difficulty.id;
-    const s = prefs.adapt && G.mode !== 'file' ? learn.suggestLevel() : here;
+    // Never during a race: a race stays at the level it was started at.
+    const s = prefs.adapt && G.mode !== 'file' && G.mode !== 'race' ? learn.suggestLevel() : here;
     const move = s !== here && levels().some((l) => l.id === s);
     G.next = move ? s : here;
     const up = ORDER.indexOf(s) > ORDER.indexOf(here);
@@ -1068,11 +1069,12 @@ export function createGame(def) {
     // A link to today's daily puzzle (?play=daily on the game's page).
     playDaily: () => startDaily(),
     // Races (web/js/game-race.js): a puzzle with the setup screen's level and
-    // size at the level's usual toughness, and starting the race puzzle.
+    // size at the level's usual toughness (never tuned to the player, never a
+    // practice puzzle), with the player's story theme, and starting the race puzzle.
     racePuzzle: () => {
       const level = $('levels').querySelector('input:checked')?.value || prefs.level || def.levels[0].id;
       const size = Number($('sizes').querySelector('input:checked')?.value) || def.levels.find((l) => l.id === level).sizes[0];
-      return engine.generate({ seed: Math.random().toString(36).slice(2), story: cfg().stories !== false, toughness: 0.5, difficulty: level, size, usedStories: [], usedPictures: [], avoid: [] });
+      return engine.generate({ seed: Math.random().toString(36).slice(2), story: cfg().stories !== false, theme: prefs.theme || 'surprise', toughness: 0.5, practice: null, difficulty: level, size, usedStories: [], usedPictures: [], avoid: [] });
     },
     startShared: (p, { mode = 'race' } = {}) => begin(p, { mode }),
   };

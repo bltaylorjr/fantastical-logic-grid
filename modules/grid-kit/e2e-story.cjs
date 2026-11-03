@@ -4,6 +4,7 @@
 //   await story.pick(page, P, theme, moments) on the setup screen
 //   await story.watch(page, P)                once the puzzle is open
 //   await story.solved(page, P, DIR, { theme, moments, next }, assert)
+//   await story.race(page, P, DIR, assert)    a race puzzle: the standard puzzle, no level change offered
 const LEVELS = { basic: 'Basic', easy: 'Easy', medium: 'Medium', hard: 'Hard', expert: 'Expert', master: 'Master' };
 const ORDER = Object.keys(LEVELS);
 
@@ -56,4 +57,27 @@ async function solved(page, P, DIR, { theme, moments, next }, assert) {
   } else assert(await page.locator(`#${P}-adapt-note`).isHidden() && await page.locator(`#${P}-again-same`).isHidden(), `${P}: no level change offered`);
 }
 
-module.exports = { seed, pick, watch, solved };
+// A race puzzle (web/js/game-race.js starts one the same way): the game's
+// standard puzzle at the setup screen's level, never tuned or a practice
+// puzzle. Story moments still show, but finishing it never offers another
+// level, even when the player's record would suggest one.
+async function race(page, P, DIR, assert) {
+  const r = await page.evaluate(async (dir) => {
+    const ui = await import(`./modules/${dir}/ui.js`);
+    const level = document.querySelector('[id$="-levels"] input:checked')?.value;
+    ui.startShared(await ui.racePuzzle(), { mode: 'race' });
+    const G = ui.state();
+    return { level, mode: G.mode, got: G.p.difficulty.id, practice: G.practice, tuned: G.tuned, suggest: ui.learning().suggestLevel(), count: G.v.length, sol: G.p.solution.length };
+  }, DIR);
+  await page.waitForSelector(`#${P}-play-view:not([hidden])`);
+  assert(r.mode === 'race' && r.got === r.level && !r.practice && r.tuned === null, `${P}: a race puzzle is the standard puzzle at the setup's level (${r.level})`);
+  assert(r.count === r.sol, `${P}: a race keeps one value for each part of the answer (${r.count}), as the race result sends`);
+  await page.click(`#${P}-coach-close`).catch(() => {});
+  await page.click(`#${P}-reveal`);
+  await page.click(`#${P}-reveal-yes`);
+  await page.waitForSelector(`#${P}-solved:not([hidden])`);
+  assert(await page.locator(`#${P}-adapt-note`).isHidden() && await page.locator(`#${P}-again-same`).isHidden() && (await page.textContent(`#${P}-again`)).trim() === 'Next puzzle',
+    `${P}: finishing a race offers no level change${r.suggest !== r.level ? ` (the record suggests ${LEVELS[r.suggest]})` : ''}`);
+}
+
+module.exports = { seed, pick, watch, solved, race };

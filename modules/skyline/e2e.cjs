@@ -115,6 +115,7 @@ const PORT = Number(process.env.PORT) || 8201, P = 'sk', DIR = 'skyline', NAME =
       await page.click(`#${P}-gen`);
       await page.waitForSelector(`#${P}-play-view:not([hidden])`, { timeout: 30000 });
       assert((await st()).fp !== s.fp, `${NAME}: the next puzzle is new`);
+      if (opt.next) await story.race(page, P, DIR, assert);
       await page.close();
     }
     assert(errors.length === 0, `no page errors ${errors.join(' | ')}`);

@@ -832,8 +832,9 @@ def daily_more_sites(r, day, paths, image_urls, posted, failed, key=''):
 
 def daily_puzzle(game=''):
     """Mode daily-puzzle, one game: game '' is The Fantastical Logic Grid
-    (OUT_DIR/<day>.json from scripts/social-puzzle.mjs); np, cm, sc and pg are
-    NINETIMESNINE, Cage Math, Sum Cross and Picture Grid (OUT_DIR/<day>-<game>.json
+    (OUT_DIR/<day>.json from scripts/social-puzzle.mjs); np, cm, sc, pg, ml,
+    sk, sf, ll and ib are NINETIMESNINE, Cage Math, Sum Cross, Picture Grid, More
+    or Less, Skyline, Star Field, Loop Line and Island Bridges (OUT_DIR/<day>-<game>.json
     from scripts/social-games.mjs, one picture each). Posts the day's puzzle slides (clues, then a blank
     grid) made and checked by scripts/social-puzzle.mjs to the game's Facebook
     Page (one post with both pictures), Instagram (a carousel), Bluesky,
@@ -1041,8 +1042,8 @@ def daily_puzzle(game=''):
 def main():
     if MODE == 'daily-puzzle':
         # The Fantastical Logic Grid first, then every other game's daily puzzle
-        # (SOCIAL_GAMES, default np,cm,sc,pg). One game failing never stops the others.
-        games = [''] + [g.strip() for g in (env('SOCIAL_GAMES') or 'np,cm,sc,pg').split(',') if g.strip()]
+        # (SOCIAL_GAMES, default np,cm,sc,pg,ml,sk,sf,ll,ib). One game failing never stops the others.
+        games = [''] + [g.strip() for g in (env('SOCIAL_GAMES') or 'np,cm,sc,pg,ml,sk,sf,ll,ib').split(',') if g.strip()]
         codes = []
         for g in games:
             try:

@@ -1,5 +1,5 @@
-// The daily puzzles of NINETIMESNINE, Cage Math, Sum Cross and Picture Grid,
-// made outside the browser exactly as each game makes them, for:
+// The daily puzzles of NINETIMESNINE, Cage Math, Sum Cross, Picture Grid,
+// More or Less, Skyline, Star Field, Loop Line and Island Bridges, made outside the browser exactly as each game makes them, for:
 //   - the answer key pages, <game>/daily/<date>/ (scripts/build.mjs), and
 //   - the daily puzzle posts (scripts/social-games.mjs, run each morning by
 //     .github/workflows/daily-puzzle-social.yml).
@@ -7,15 +7,19 @@
 // and post (scripts/social-puzzle.mjs).
 //
 // Each game's daily puzzle comes from a fixed seed for the date, the game's
-// own daily options and the admin's switches for that game (GET /v1/config:
-// daily on or off, stories on or off, highest level), so it is the same puzzle
-// every player gets in the game that day. Dates are UTC days, like the games.
+// own daily options (for the grid-kit games, also the day's story theme) and
+// the admin's switches for that game (GET /v1/config: daily on or off, stories
+// on or off, highest level), so it is the same puzzle, story and all, every
+// player gets in the game that day. Dates are UTC days, like the games.
 //
 // checkDaily() proves a puzzle before it is posted: no broken text, the answer
 // obeys every rule of the game (checked here, independently of the engine), the
 // givens match the answer, and the engine's step-by-step solver, run again from
 // scratch, solves it without guessing to that same answer, so it has exactly
-// one answer. NINETIMESNINE and Cage Math are also counted by a full search.
+// one answer. NINETIMESNINE, Cage Math, and More or Less and Skyline up to
+// 7×7 are also counted by a full search. Loop Line and Island Bridges are line
+// games: their answer is a list of edges (lines between dots, bridges between
+// islands), not cells.
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { OPS as NP } from '../engine/src/np-ops.js';
@@ -26,10 +30,26 @@ import { makeShape, countSolutions, solveLogically } from '../engine/src/number-
 import { solveCageMath, countCageMath } from '../engine/src/cage-math.js';
 import { solveSumCross } from '../engine/src/sum-cross.js';
 import { solvePictureGrid } from '../engine/src/picture-grid.js';
+import { OPS as ML } from '../engine/src/ml-ops.js';
+import { OPS as SK } from '../engine/src/sk-ops.js';
+import { OPS as SF } from '../engine/src/sf-ops.js';
+import { OPS as LL } from '../engine/src/ll-ops.js';
+import { OPS as IB } from '../engine/src/ib-ops.js';
+import { solveMoreOrLess, countMoreOrLess } from '../engine/src/more-or-less.js';
+import { solveSkyline, countSkyline } from '../engine/src/skyline.js';
+import { solveStarField } from '../engine/src/star-field.js';
+import { solveLoopLine } from '../engine/src/loop-line.js';
+import { solveIslandBridges } from '../engine/src/island-bridges.js';
 import { KIT_LEVELS } from '../engine/src/kit-common.js';
+import { themeForDay } from '../modules/grid-kit/story.js';
 import { def as cmDef } from '../modules/cage-math/game.js';
 import { def as scDef } from '../modules/sum-cross/game.js';
 import { def as pgDef } from '../modules/picture-grid/game.js';
+import { def as mlDef } from '../modules/more-or-less/game.js';
+import { def as skDef } from '../modules/skyline/game.js';
+import { def as sfDef } from '../modules/star-field/game.js';
+import { def as llDef } from '../modules/loop-line/game.js';
+import { def as ibDef } from '../modules/island-bridges/game.js';
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 export const longDate = (d) => new Date(`${d}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
@@ -126,6 +146,91 @@ function pgRules(p) {
   for (let c = 0; c < C; c++) if (!same(runsOf([...Array(R)].map((_, r) => s[r * C + c])), p.colClues[c])) out.push(`column ${c + 1} does not match its clue`);
   return out;
 }
+function mlRules(p) {
+  const N = p.size, s = p.solution, out = latinProblems(s, N);
+  for (const g of p.signs) {
+    const b = g.d === 'r' ? g.c + 1 : g.c + N;
+    if ((s[g.c] < s[b]) !== g.lt) { out.push(`the sign beside row ${Math.floor(g.c / N) + 1}, column ${(g.c % N) + 1} is not kept`); break; }
+  }
+  return out;
+}
+function skRules(p) {
+  const N = p.size, s = p.solution, out = latinProblems(s, N);
+  const line = (side, k) => [...Array(N)].map((_, j) => (side === 'top' ? j * N + k : side === 'bottom' ? (N - 1 - j) * N + k : side === 'left' ? k * N + j : k * N + N - 1 - j));
+  for (const side of ['top', 'bottom', 'left', 'right']) {
+    (p.clues[side] || []).forEach((want, k) => {
+      if (!want) return;
+      let top = 0, n = 0;
+      for (const i of line(side, k)) if (s[i] > top) { top = s[i]; n++; }
+      if (n !== want) out.push(`from the ${side}, line ${k + 1} does not show ${want} buildings`);
+    });
+  }
+  return out;
+}
+function sfRules(p) {
+  const N = p.size, K = p.stars, s = p.solution, out = [];
+  const star = (r, c) => r >= 0 && c >= 0 && r < N && c < N && s[r * N + c] === 1;
+  const regions = new Map();
+  for (let i = 0; i < N * N; i++) if (s[i] === 1) regions.set(p.regions[i], (regions.get(p.regions[i]) || 0) + 1);
+  for (let k = 0; k < N; k++) {
+    if ([...Array(N)].filter((_, c) => star(k, c)).length !== K) out.push(`row ${k + 1} does not hold ${K} star${K === 1 ? '' : 's'}`);
+    if ([...Array(N)].filter((_, r) => star(r, k)).length !== K) out.push(`column ${k + 1} does not hold ${K} star${K === 1 ? '' : 's'}`);
+    if ((regions.get(k) || 0) !== K) out.push(`region ${k + 1} does not hold ${K} star${K === 1 ? '' : 's'}`);
+  }
+  for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+    if (star(r, c) && (star(r, c + 1) || star(r + 1, c - 1) || star(r + 1, c) || star(r + 1, c + 1))) { out.push(`two stars touch at row ${r + 1}, column ${c + 1}`); return out; }
+  }
+  return out;
+}
+// Loop Line's edges: flat ones row by row (dot rows 0..R), then upright ones.
+function llRules(p) {
+  const R = p.size, C = p.cols, W = C + 1, H = (R + 1) * C, s = p.solution, out = [];
+  if (s.length !== H + R * W) return ['the answer has the wrong number of edges'];
+  const ends = (e) => (e < H ? [Math.floor(e / C) * W + (e % C), Math.floor(e / C) * W + (e % C) + 1] : [e - H, e - H + W]);
+  const deg = new Map(), adj = new Map();
+  s.forEach((v, e) => {
+    if (v !== 1) return;
+    for (const d of ends(e)) { deg.set(d, (deg.get(d) || 0) + 1); adj.set(d, [...(adj.get(d) || []), ...ends(e).filter((x) => x !== d)]); }
+  });
+  if (!deg.size) return ['the answer has no loop'];
+  if ([...deg.values()].some((n) => n !== 2)) out.push('the line branches or stops somewhere');
+  const startDot = deg.keys().next().value, seen = new Set([startDot]), todo = [startDot];
+  while (todo.length) for (const n of adj.get(todo.pop()) || []) if (!seen.has(n)) { seen.add(n); todo.push(n); }
+  if (seen.size !== deg.size) out.push('the lines make more than one loop');
+  p.clues.forEach((n, i) => {
+    if (n < 0) return;
+    const r = Math.floor(i / C), c = i % C;
+    const used = [r * C + c, (r + 1) * C + c, H + r * W + c, H + r * W + c + 1].filter((e) => s[e] === 1).length;
+    if (used !== n) out.push(`the ${n} at row ${r + 1}, column ${c + 1} has ${used} sides on the loop`);
+  });
+  return out;
+}
+// Island Bridges' links: each island to the next one right and down, in reading order.
+function ibRules(p) {
+  const C = p.cols, I = p.islands, s = p.solution, out = [];
+  const at = new Map(I.map((x, i) => [x.r * C + x.c, i]));
+  const links = [];
+  I.forEach((x, a) => {
+    for (let c = x.c + 1; c < C; c++) if (at.has(x.r * C + c)) { links.push([a, at.get(x.r * C + c), 'h']); break; }
+    for (let r = x.r + 1; r < p.size; r++) if (at.has(r * C + x.c)) { links.push([a, at.get(r * C + x.c), 'v']); break; }
+  });
+  if (links.length !== s.length || links.some(([a, b], e) => p.links[e]?.a !== a || p.links[e]?.b !== b)) return ['the bridges do not match the islands'];
+  const n = I.map(() => 0), parent = I.map((_, i) => i);
+  const find = (i) => (parent[i] === i ? i : (parent[i] = find(parent[i])));
+  links.forEach(([a, b], e) => { const k = s[e] === 1 || s[e] === 2 ? s[e] : 0; if (k) { n[a] += k; n[b] += k; parent[find(a)] = find(b); } });
+  I.forEach((x, i) => { if (n[i] !== x.n) out.push(`the ${x.n} at row ${x.r + 1}, column ${x.c + 1} has ${n[i]} bridges`); });
+  if (I.some((_, i) => find(i) !== find(0))) out.push('the islands are not all joined into one group');
+  const built = links.map((l, e) => [...l, s[e] === 1 || s[e] === 2]).filter((l) => l[3]);
+  for (const [ha, hb, hd] of built) {
+    if (hd !== 'h') continue;
+    for (const [va, vb, vd] of built) {
+      if (vd !== 'v') continue;
+      const r = I[ha].r, c = I[va].c;
+      if (I[va].r < r && r < I[vb].r && I[ha].c < c && c < I[hb].c) { out.push('two bridges cross'); return out; }
+    }
+  }
+  return out;
+}
 const sameAnswer = (a, b, pick = (x) => x) => a.length === b.length && a.every((x, i) => pick(x) === pick(b[i]));
 
 // ---------- the games ----------
@@ -137,8 +242,15 @@ const kitOptions = (d, id) => (date, cfg) => {
   let level = d.daily[weekday(date)];
   if (!lv.some((l) => l.id === level)) level = lv[lv.length - 1].id;
   const L = d.levels.find((l) => l.id === level);
-  return { story: cfg.stories !== false, difficulty: level, size: L.dailySize || L.sizes[0], seed: `daily-${id}-${date}`, daily: date, usedStories: [], usedPictures: [], avoid: [] };
+  return { story: cfg.stories !== false, theme: themeForDay(date), difficulty: level, size: L.dailySize || L.sizes[0], seed: `daily-${id}-${date}`, daily: date, usedStories: [], usedPictures: [], avoid: [] };
 };
+// A grid-kit game whose printed board (def.printBoard) and level and size words come from its definition.
+const kitGame = (d, more) => ({
+  id: d.id, name: d.name, def: d, configKey: d.id, options: kitOptions(d, d.id),
+  size: (p) => d.sizeLabel(p.size), level: (p) => p.difficulty.name,
+  css: d.printCss, board: (p, values, answers) => d.printBoard(p, values, { answers }), ...more,
+});
+const proved = (s, p, pick, why = 'the step-by-step solver could not reach the answer without guessing') => (s.solved && sameAnswer(s.values, p.solution, pick) ? [] : [why]);
 
 export const DAILY_GAMES = [
   {
@@ -204,6 +316,56 @@ export const DAILY_GAMES = [
       return s.solved && sameAnswer(s.values, p.solution, (v) => (v === 1 ? 1 : 0)) ? [] : ['the line-by-line solver could not reach the picture without guessing'];
     },
   },
+  kitGame(mlDef, {
+    page: 'more-or-less/', ops: ML,
+    goal: 'Fill the grid so every row and column holds each number once, and every sign between two cells points to the smaller number.',
+    hashtags: '#moreorless #futoshiki #puzzleoftheday #brainteaser #TheLogicGrid',
+    tags: ['numberpuzzle', 'puzzleoftheday'],
+    rules: mlRules,
+    unique(p) {
+      const out = proved(solveMoreOrLess(p), p);
+      // A full search is quick up to 7×7; bigger grids rely on the solver's proof.
+      if (p.size <= 7 && countMoreOrLess(p, 2) !== 1) out.push('a full search does not find exactly one answer');
+      return out;
+    },
+  }),
+  kitGame(skDef, {
+    page: 'skyline/', ops: SK,
+    goal: 'Build one tower of each height in every row and column, so each number around the edge counts the towers you can see from there.',
+    hashtags: '#skyline #skyscraperpuzzle #puzzleoftheday #brainteaser #TheLogicGrid',
+    tags: ['numberpuzzle', 'puzzleoftheday'],
+    rules: skRules,
+    unique(p) {
+      const out = proved(solveSkyline(p), p);
+      // A full search is quick up to 7×7; 8×8 relies on the solver's proof.
+      if (p.size <= 7 && countSkyline(p, 2) !== 1) out.push('a full search does not find exactly one answer');
+      return out;
+    },
+  }),
+  kitGame(sfDef, {
+    page: 'star-field/', ops: SF,
+    goal: 'Place stars so every row, column and outlined region holds the same number, and no two stars touch, not even at a corner.',
+    hashtags: '#starfield #starbattle #puzzleoftheday #brainteaser #TheLogicGrid',
+    tags: ['logicpuzzle', 'puzzleoftheday'],
+    rules: sfRules,
+    unique: (p) => proved(solveStarField(p), p, (v) => (v === 1 ? 1 : 0)),
+  }),
+  kitGame(llDef, {
+    page: 'loop-line/', ops: LL,
+    goal: 'Draw one closed loop along the dotted lines so every number shows how many of its sides the loop uses.',
+    hashtags: '#loopline #slitherlink #puzzleoftheday #brainteaser #TheLogicGrid',
+    tags: ['logicpuzzle', 'puzzleoftheday'],
+    rules: llRules,
+    unique: (p) => proved(solveLoopLine(p), p, (v) => (v === 1 ? 1 : 0)),
+  }),
+  kitGame(ibDef, {
+    page: 'island-bridges/', ops: IB,
+    goal: 'Join the islands with straight bridges, one or two at a time, so each island has as many as its number and all of them form one group.',
+    hashtags: '#islandbridges #hashi #puzzleoftheday #brainteaser #TheLogicGrid',
+    tags: ['logicpuzzle', 'puzzleoftheday'],
+    rules: ibRules,
+    unique: (p) => proved(solveIslandBridges(p), p, (v) => (v === 1 || v === 2 ? v : 0)),
+  }),
 ];
 export const gameById = (id) => DAILY_GAMES.find((g) => g.id === id);
 

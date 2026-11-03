@@ -168,6 +168,7 @@ const P = 'll', DIR = 'loop-line';
     await page.click(`#${P}-reveal`);
     await page.click(`#${P}-reveal-yes`);
     assert(/answer/i.test(await page.textContent(`#${P}-solved-h`)), 'Show the answer draws the loop');
+    await story.race(page, P, DIR, assert);
     await page.close();
     assert(errors.length === 0, `no page errors ${errors.join(' | ')}`);
     console.log('Loop Line module: all checks passed');

@@ -1,5 +1,5 @@
-// Daily puzzles of NINETIMESNINE, Cage Math, Sum Cross and Picture Grid for
-// social media, step 1 of 2 (run each morning by
+// Daily puzzles of NINETIMESNINE, Cage Math, Sum Cross, Picture Grid, More or
+// Less, Skyline, Star Field, Loop Line and Island Bridges for social media, step 1 of 2 (run each morning by
 // .github/workflows/daily-puzzle-social.yml, after The Fantastical Logic
 // Grid's own step 1, scripts/social-puzzle.mjs; step 2 is
 // scripts/marketing-post.py with MODE=daily-puzzle, which posts every game).
