@@ -1,7 +1,6 @@
 // Voice engine: Vox, the free voice engine shared by every game, running on
-// the owner's computer (vox serve), or online through a Cloudflare tunnel
-// (https://….thelogicgrid.com or a quick https://….trycloudflare.com
-// address). This page talks to it directly with the admin token Vox prints
+// the owner's computer (vox serve), or online through a named Cloudflare
+// tunnel at the owner's own address (https://voice.thelogicgrid.com). This page talks to it directly with the admin token Vox prints
 // when it starts. Nothing here goes through the Worker, so it costs nothing.
 //
 // Parts: Learning (how it improves, refine now, settings, rounds), Review
@@ -34,15 +33,16 @@ function saveConn(c) {
 }
 
 // Where the engine may be: this computer, or online through your own address
-// (voice.thelogicgrid.com) or a Cloudflare quick tunnel. The dashboard's
-// content policy allows only these, and the token is never sent anywhere else.
+// (voice.thelogicgrid.com). The dashboard's content policy allows only these,
+// and the token is never sent anywhere else. Quick tunnels
+// (*.trycloudflare.com) are not allowed: anyone can make one.
 function cleanUrl(raw) {
   let u;
   try { u = new URL(String(raw || '').trim() || DEFAULT_URL); } catch (e) { throw new Error('That address is not valid. Use http://127.0.0.1:5150 or your online address.'); }
   const local = u.protocol === 'http:' && ['127.0.0.1', 'localhost'].includes(u.hostname);
-  const online = u.protocol === 'https:' && (/\.thelogicgrid\.com$/.test(u.hostname) || /^[a-z0-9-]+\.trycloudflare\.com$/.test(u.hostname));
+  const online = u.protocol === 'https:' && /\.thelogicgrid\.com$/.test(u.hostname);
   if (!local && !online) {
-    throw new Error('Use http://127.0.0.1:5150 on this computer, or the engine\'s online address (https://….thelogicgrid.com or the https://….trycloudflare.com address it printed).');
+    throw new Error('Use http://127.0.0.1:5150 on this computer, or the engine\'s own online address (https://voice.thelogicgrid.com). Quick tunnel addresses (….trycloudflare.com) are not allowed.');
   }
   return u.origin;
 }
@@ -140,7 +140,7 @@ function connectForm(message = '') {
   return `<section class="card" aria-labelledby="vx-conn-h">
     <h2 id="vx-conn-h">Connect to the voice engine</h2>
     <p>The voice engine runs free on your computer. Start it with <code>vox serve --ckpt your_model.pt</code> and paste the admin token it prints (also in <code>learning/admin_token.txt</code>).
-      To use it from anywhere, start it with <code>--tunnel</code> (or your own address, see the engine's README) and paste the online address it shows.</p>
+      To use it from anywhere, give it your own address with a named Cloudflare tunnel (like <code>https://voice.thelogicgrid.com</code>, see the engine's README) and paste that address. Quick tunnel addresses (….trycloudflare.com) don't work here.</p>
     ${message ? `<p class="error" role="alert">${h.esc(message)}</p>` : ''}
     <form id="vx-connect" class="row" novalidate>
       <div class="field grow"><label for="vx-url">Address</label><input id="vx-url" type="url" value="${h.esc(c.url || DEFAULT_URL)}" autocomplete="off" spellcheck="false"></div>
@@ -305,7 +305,8 @@ async function renderAutotune(el) {
 
 // ------------------------------------------------------------------ voices
 async function renderVoices(el) {
-  if (sampleJob && !sampleJob.done) sampleJob = await vox(`/v1/admin/jobs/${sampleJob.id}`);
+  // Keep the job's id even if the engine's answer leaves it out, so the next check still works.
+  if (sampleJob && !sampleJob.done) sampleJob = { ...(await vox(`/v1/admin/jobs/${encodeURIComponent(sampleJob.id)}`)), id: sampleJob.id };
   const rows = voiceList.map((v) => [`<b>${h.esc(v.name)}</b>`, h.esc(v.origin), h.esc(v.description || ''),
     v.autotune ? h.esc(v.autotune.preset || 'custom') : '<span class="muted">off</span>',
     v.tuned ? '<span class="badge ok">optimized</span>' : '<span class="muted">default</span>',
@@ -377,8 +378,15 @@ async function renderWords(el, prefill = '') {
 }
 async function showWord(word) {
   wordQuery = word;
-  const w = await (await fetch(`${conn.url}/v1/dictionary/${encodeURIComponent(word)}`, { headers: { 'X-Vox-Admin-Token': conn.token } })).json();
-  $('#vx-word-card').innerHTML = wordCard(w);
+  const card = $('#vx-word-card');
+  let w = null, problem = '';
+  try {
+    const res = await fetch(`${conn.url}/v1/dictionary/${encodeURIComponent(word)}`, { headers: { 'X-Vox-Admin-Token': conn.token } });
+    w = await res.json().catch(() => null);
+    // A real answer always says whether the word was found; anything else is an error from the engine.
+    if (!w || typeof w.found !== 'boolean') { problem = (w && typeof w.detail === 'string' && w.detail) || `The engine said ${res.status}.`; w = null; }
+  } catch (e) { problem = 'The voice engine is not answering.'; }
+  if (card) card.innerHTML = w ? wordCard({ word, ...w }) : `<p class="error" role="alert">Couldn't look up “${h.esc(word)}”: ${h.esc(problem)}</p>`;
 }
 
 // -------------------------------------------------------------- languages
@@ -438,14 +446,30 @@ async function renderVersions(el) {
 // --------------------------------------------------------------- rendering
 const RENDER = { learning: renderLearning, review: renderReview, autotune: renderAutotune, voices: renderVoices, words: renderWords, languages: renderLanguages, versions: renderVersions };
 
+// While a job runs the tab refreshes every 3 seconds, but not while you are
+// typing in one of its forms: then it waits until you save or change tabs.
+let editing = false;
+function pollLater() {
+  poll = setTimeout(() => {
+    if (location.hash !== '#voice-engine') return;
+    if (editing) { pollLater(); return; }
+    renderTab();
+  }, 3000);
+}
+
 async function renderTab(extra) {
   clearTimeout(poll);
+  editing = false;
   const el = $('#vx-tab-body');
   if (!el) return;
+  // Panels you opened (Learning settings, New voice from samples, Fine-tune)
+  // stay open when the tab is drawn again.
+  const open = new Set($$('details[open] > summary', el).map((s) => s.textContent.trim()));
   try {
     voiceList = await (await fetch(`${conn.url}/v1/voices`)).json();
     const busy = await RENDER[tab](el, extra);
-    if (busy) poll = setTimeout(() => { if (location.hash === '#voice-engine') renderTab(); }, 3000);
+    $$('details > summary', el).forEach((s) => { if (open.has(s.textContent.trim())) s.parentElement.open = true; });
+    if (busy) pollLater();
   } catch (e) {
     if (e.offline || e.status === 401) { render(e.message); return; }
     el.innerHTML = `<p class="error">${h.esc(e.message)}</p>`;
@@ -465,10 +489,11 @@ async function render(message = '') {
     await vox('/v1/admin/check');
   } catch (e) {
     body.innerHTML = connectForm(e.status === 401 ? 'That admin token was not accepted. Copy it again from the engine.' : 'The voice engine is not answering. Start it with "vox serve" on this computer, then try again.');
-    return;
+    return false;
   }
   body.innerHTML = shell(health);
   await renderTab();
+  return true;
 }
 
 export function voiceEngineView(helpers) {
@@ -496,6 +521,9 @@ export function initVoiceEngine(helpers) {
 
   let suggestTimer = null;
   body.addEventListener('input', (e) => {
+    // Typing or choosing in a form pauses the 3-second refresh, so it never
+    // wipes what you are in the middle of (see pollLater).
+    if (e.target.closest('#vx-tab-body form')) editing = true;
     if (e.target.id !== 'vx-q') return;
     clearTimeout(suggestTimer);
     const q = e.target.value.trim();
@@ -511,6 +539,7 @@ export function initVoiceEngine(helpers) {
 
   body.addEventListener('submit', async (e) => {
     e.preventDefault();
+    editing = false; // sending the form means you're done with it; refreshing can go on
     const f = e.target;
     const btn = f.querySelector('[type=submit]');
     if (f.id === 'vx-connect') {
@@ -519,8 +548,7 @@ export function initVoiceEngine(helpers) {
         const token = $('#vx-token').value.trim();
         if (!token) throw new Error('Paste the admin token the engine printed.');
         saveConn({ url, token });
-        await render();
-        if (loadConn()) h.toast('Connected to the voice engine.');
+        if (await render()) h.toast('Connected to the voice engine.');
       } catch (err) { body.innerHTML = connectForm(err.message); }
     } else if (f.id === 'vx-settings') {
       await h.act(btn, async () => {
@@ -538,8 +566,10 @@ export function initVoiceEngine(helpers) {
         if (!text) throw new Error('Type a line first.');
         const voice = $('#vx-ab-voice').value;
         btn.textContent = 'Making two takes…';
-        const r = await vox('/v1/admin/ab', { method: 'POST', body: { text, voice } });
-        abPair = { ...r, text, voice };
+        try {
+          const r = await vox('/v1/admin/ab', { method: 'POST', body: { text, voice } });
+          abPair = { ...r, text, voice };
+        } finally { btn.textContent = 'Make two takes'; }
         await renderTab();
       });
     } else if (f.id === 'vx-lookup') {
@@ -551,9 +581,13 @@ export function initVoiceEngine(helpers) {
         if (!text) throw new Error('Type a line first.');
         langLast = { ...langLast, text, to: $('#vx-tr-to').value, voice: $('#vx-tr-voice').value };
         btn.textContent = 'Translating…';
-        const r = await fetch(`${conn.url}/v1/translate`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Vox-Admin-Token': conn.token }, body: JSON.stringify({ text, to: langLast.to }) });
-        const j = await r.json();
-        btn.textContent = 'Translate';
+        let r, j;
+        try {
+          r = await fetch(`${conn.url}/v1/translate`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Vox-Admin-Token': conn.token }, body: JSON.stringify({ text, to: langLast.to }) });
+          j = await r.json().catch(() => ({}));
+        } catch (err) {
+          throw new Error('The voice engine is not answering.');
+        } finally { btn.textContent = 'Translate'; }
         if (!r.ok) throw new Error(j.detail || 'Translation failed.');
         langLast.out = j.text;
         $('#vx-tr-out').innerHTML = `<p class="vx-tr-result" lang="${h.esc(langLast.to)}">${h.esc(j.text)}</p>`;
