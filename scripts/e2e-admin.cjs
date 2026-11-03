@@ -695,16 +695,20 @@ const SHOTS = process.env.SHOTS;
     assert(await rp.isChecked('input[name=kind][value=page]'), 'away from a puzzle it starts as a Web Page Issue');
     assert(await rp.getAttribute('#rp-text', 'maxlength') === '1000', 'the box holds 1,000 characters');
     await rp.fill('#rp-text', 'The music stopped after the second puzzle.');
+    // The screenshot of the screen the player was on is attached for them first.
+    await rp.waitForFunction(() => document.querySelector('#rp-files li .rp-name')?.textContent === 'Screenshot of the screen you were on', null, { timeout: 15000 });
+    assert(true, 'a screenshot of the screen is attached for the player');
     const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
     await rp.setInputFiles('#rp-file', [{ name: 'screen.png', mimeType: 'image/png', buffer: png }, { name: 'console.log', mimeType: 'text/plain', buffer: Buffer.from('Audio stopped at 2:13') }]);
-    await rp.waitForFunction(() => document.querySelectorAll('#rp-files li').length === 2);
+    // The screenshot does not use up one of the player's 3.
+    await rp.waitForFunction(() => document.querySelectorAll('#rp-files li').length === 3);
     await rp.setInputFiles('#rp-file', [{ name: 'page.html', mimeType: 'text/html', buffer: Buffer.from('<p>hi</p>') }]);
     await rp.waitForFunction(() => /not a type we accept/.test(document.querySelector('#rp-files-err').textContent));
     await rp.click('#rp-send');
     await rp.waitForFunction(() => /WS-[A-Z2-9]{8}/.test(document.querySelector('#rp-done-number').textContent));
-    assert(/2 pictures and files were received/.test(await rp.textContent('#rp-done-text')), 'the page confirms the files arrived');
+    assert(/3 pictures and files were received/.test(await rp.textContent('#rp-done-text')), 'the page confirms the files arrived');
     const kept = await db.prepare('SELECT COUNT(*) AS n FROM report_files').first();
-    assert(kept.n === 2, `the files are kept with the report (${kept.n})`);
+    assert(kept.n === 3, `the files are kept with the report, screenshot included (${kept.n})`);
     await rp.close();
     const fb = (await db.prepare('SELECT kind, topic, theme FROM feedback ORDER BY id').all()).results.map((r) => `${r.kind}:${r.topic}${r.theme ? `:${r.theme}` : ''}`);
     assert(fb.join() === 'idea:story:adventure,problem:page', `an idea and a web page issue arrive in their own places (${fb.join()})`);
