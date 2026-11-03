@@ -221,3 +221,66 @@
 .gk-app .gk-swatch { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 4px; border: 1px solid currentColor; }
 .gk-app .gk-swatch.fill { background: currentColor; }
 :root[data-theme="contrast"] .gk-app .gk-pg .gk-cell.on { background: #fff; }
+
+/* Line games (kind 'edges'): Loop Line and Island Bridges. The board is one
+   surface sized by its parent; --n rows and --c columns of units; sizes use
+   the board's own width (cqw), so the small step-by-step board scales too. */
+.gk-app .gk-ln { display: block; position: relative; container-type: inline-size; touch-action: none; aspect-ratio: var(--c) / var(--n); --u: calc(100cqw / var(--c)); }
+.gk-app .gk-ln .ln-e { position: absolute; cursor: pointer; outline: none; border-radius: 6px; touch-action: none; }
+.gk-app .gk-ln .ln-e.h { transform: translateY(-50%); }
+.gk-app .gk-ln .ln-e.v { transform: translateX(-50%); }
+.gk-app .gk-ln.gk-mini .ln-e { cursor: default; }
+.gk-app .gk-ln.paused > * { filter: blur(10px); opacity: .4; }
+.gk-app .gk-ln .ln-e.sel { box-shadow: 0 0 0 3px var(--gk-focus); }
+.gk-app .gk-ln .ln-e.hinted { box-shadow: 0 0 0 3px var(--gk-hint); animation: gk-pulse-ln 1.2s ease 2; }
+.gk-app .gk-ln .ln-e.peer { background: color-mix(in srgb, var(--gk-accent) 12%, transparent); }
+@keyframes gk-pulse-ln { 50% { box-shadow: 0 0 0 6px var(--gk-hint); } }
+
+/* Loop Line */
+.gk-app .gk-ll .ln-e::before { content: ""; position: absolute; border-radius: 99px; background: var(--gk-line); }
+.gk-app .gk-ll .ln-e.h::before { left: 0; right: 0; top: 50%; height: max(1px, calc(var(--u) * .03)); transform: translateY(-50%); }
+.gk-app .gk-ll .ln-e.v::before { top: 0; bottom: 0; left: 50%; width: max(1px, calc(var(--u) * .03)); transform: translateX(-50%); }
+.gk-app .gk-ll .ln-e[data-v="1"]::before { background: var(--gk-accent); }
+.gk-app .gk-ll .ln-e.h[data-v="1"]::before { height: max(3px, calc(var(--u) * .13)); left: calc(var(--u) * -.065); right: calc(var(--u) * -.065); }
+.gk-app .gk-ll .ln-e.v[data-v="1"]::before { width: max(3px, calc(var(--u) * .13)); top: calc(var(--u) * -.065); bottom: calc(var(--u) * -.065); }
+.gk-app .gk-ll .ln-e[data-v="2"]::before { opacity: 0; }
+.gk-app .gk-ll .ln-e[data-v="2"]::after { content: "×"; position: absolute; inset: 0; display: grid; place-items: center; color: var(--gk-muted); font-size: max(10px, calc(var(--u) * .34)); line-height: 1; }
+.gk-app .gk-ll .ln-e.wrong[data-v="1"]::before { background: var(--gk-error); }
+.gk-app .gk-ll .ln-e.wrong[data-v="2"]::after { color: var(--gk-error); font-weight: 700; }
+.gk-app .gk-ll .ll-dot { position: absolute; width: max(4px, calc(var(--u) * .14)); aspect-ratio: 1; border-radius: 50%; background: var(--gk-text); transform: translate(-50%, -50%); pointer-events: none; z-index: 1; }
+.gk-app .gk-ll .ll-dot.anchor { box-shadow: 0 0 0 max(2px, calc(var(--u) * .05)) var(--gk-bg), 0 0 0 max(4px, calc(var(--u) * .1)) var(--gk-focus); }
+.gk-app .gk-ll .ll-dot.over { background: var(--gk-error); transform: translate(-50%, -50%) scale(1.6); }
+.gk-app .gk-ll .ll-clue { position: absolute; transform: translate(-50%, -50%); font-weight: 700; font-size: max(11px, calc(var(--u) * .5)); line-height: 1; color: var(--gk-text); pointer-events: none; font-variant-numeric: tabular-nums; transition: opacity var(--gk-fast); }
+.gk-app .gk-ll .ll-clue.done { opacity: .35; }
+.gk-app .gk-ll .ll-clue.over { color: var(--gk-error); opacity: 1; text-decoration: underline wavy; text-decoration-thickness: 1px; }
+.gk-app .gk-ll.won .ln-e[data-v="1"]::before { animation: gk-ln-won .8s ease both; }
+@keyframes gk-ln-won { 50% { filter: brightness(1.4); transform: scale(1.05); } }
+.gk-app .gk-swatch.fill.line { background: none; border: 0; position: relative; }
+.gk-app .gk-swatch.fill.line::before { content: ""; position: absolute; left: 1px; right: 1px; top: 50%; height: 4px; margin-top: -2px; border-radius: 3px; background: currentColor; }
+
+/* Island Bridges */
+.gk-app .gk-ib { background-color: var(--gk-bg); background-image: radial-gradient(circle, var(--gk-line) max(1px, calc(var(--u) * .03)), transparent calc(max(1px, calc(var(--u) * .03)) + .5px)); background-size: calc(100% / var(--c)) calc(100% / var(--n)); }
+.gk-app .gk-ib .ln-e { z-index: 1; }
+.gk-app .gk-ib .ln-e::before, .gk-app .gk-ib .ln-e::after { content: ""; position: absolute; border-radius: 99px; }
+.gk-app .gk-ib .ln-e.h::before, .gk-app .gk-ib .ln-e.h::after { left: 0; right: 0; height: max(2px, calc(var(--u) * .08)); }
+.gk-app .gk-ib .ln-e.v::before, .gk-app .gk-ib .ln-e.v::after { top: 0; bottom: 0; width: max(2px, calc(var(--u) * .08)); }
+.gk-app .gk-ib .ln-e.h::before { top: 50%; transform: translateY(-50%); }
+.gk-app .gk-ib .ln-e.v::before { left: 50%; transform: translateX(-50%); }
+.gk-app .gk-ib .ln-e.sel[data-v="0"]::before { border: 1px dashed var(--gk-muted); }
+.gk-app .gk-ib .ln-e[data-v="1"]::before { background: var(--gk-text); }
+.gk-app .gk-ib .ln-e[data-v="2"]::before, .gk-app .gk-ib .ln-e[data-v="2"]::after { background: var(--gk-text); }
+.gk-app .gk-ib .ln-e.h[data-v="2"]::before { top: 32%; }
+.gk-app .gk-ib .ln-e.h[data-v="2"]::after { top: 68%; transform: translateY(-50%); }
+.gk-app .gk-ib .ln-e.v[data-v="2"]::before { left: 32%; }
+.gk-app .gk-ib .ln-e.v[data-v="2"]::after { left: 68%; transform: translateX(-50%); }
+.gk-app .gk-ib .ln-e[data-v="3"]::after { content: "×"; inset: 0; display: grid; place-items: center; color: var(--gk-muted); font-size: max(10px, calc(var(--u) * .4)); line-height: 1; width: auto; height: auto; background: none; }
+.gk-app .gk-ib .ln-e.wrong::before, .gk-app .gk-ib .ln-e.wrong::after { background: var(--gk-error); }
+.gk-app .gk-ib .ln-e.wrong[data-v="3"]::after { color: var(--gk-error); background: none; }
+.gk-app .gk-ib .ib-isl { position: absolute; width: calc(100% / var(--c) * .78); aspect-ratio: 1; transform: translate(-50%, -50%); border-radius: 50%; display: grid; place-items: center; background: var(--gk-bg); border: max(2px, calc(var(--u) * .05)) solid var(--gk-text); color: var(--gk-text); font-weight: 700; font-size: max(11px, calc(var(--u) * .42)); line-height: 1; z-index: 2; pointer-events: none; font-variant-numeric: tabular-nums; }
+.gk-app .gk-ib .ib-isl.done { background: color-mix(in srgb, var(--gk-accent) 22%, var(--gk-bg)); border-color: var(--gk-accent); }
+.gk-app .gk-ib .ib-isl.over { border-color: var(--gk-error); color: var(--gk-error); }
+.gk-app .gk-ib .ib-isl.anchor { box-shadow: 0 0 0 max(2px, calc(var(--u) * .05)) var(--gk-bg), 0 0 0 max(4px, calc(var(--u) * .1)) var(--gk-focus); }
+.gk-app .gk-ib.won .ib-isl { background: color-mix(in srgb, var(--gk-accent) 35%, var(--gk-bg)); }
+:root[data-theme="contrast"] .gk-app .gk-ib .ln-e[data-v="1"]::before, :root[data-theme="contrast"] .gk-app .gk-ib .ln-e[data-v="2"]::before, :root[data-theme="contrast"] .gk-app .gk-ib .ln-e[data-v="2"]::after { background: #fff; }
+@media (prefers-reduced-motion: reduce) { .gk-app .gk-ln .ln-e, .gk-app .gk-ln .ln-e::before { animation: none !important; } }
+.gk-app.gk-silent .gk-ln .ln-e::before { animation: none !important; }

@@ -1,5 +1,5 @@
 // The game screen shared by The Logic Grid's newer games (Cage Math, Sum
-// Cross, Picture Grid). Each game passes its own definition (modules/<game>/game.js):
+// Cross, Picture Grid, and the line games on kind 'edges': see lines.js). Each game passes its own definition (modules/<game>/game.js):
 // its levels, how its board looks and how a cell is marked. The kit brings
 // everything else, the same way NINETIMESNINE does: a setup view with daily
 // puzzle, suggested level and saved puzzles; play with timer, pause, undo and
@@ -20,6 +20,7 @@ import { createLearning, summary, ORDER } from './learning.js';
 import { sounds } from './sound.js';
 import { printableHtml, printHtml } from './print.js';
 import { resultPicture } from './picture.js';
+import { edgePointer } from './lines.js';
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (e) { return d; } };
@@ -35,6 +36,10 @@ const bit = (d) => 1 << (d - 1);
 export function createGame(def) {
   const P = def.id;
   const DIGITS = def.kind === 'digits';
+  // Line games mark the edges between dots (or islands) instead of cells: the
+  // game says how many there are and how a mark cycles (modules/grid-kit/lines.js).
+  const EDGES = def.kind === 'edges';
+  const countOf = (p) => (def.count ? def.count(p) : p.size * p.cols);
   let root = null, deps = {}, engine = null, learn = null, K = {}, prefs = {};
   let G = null, lastRecord = null, deleted = null, timer = null, lastTick = 0, stroke = null;
   const $ = (id) => root.querySelector(`#${P}-${id}`);
@@ -53,16 +58,17 @@ export function createGame(def) {
   const trimGames = (all) => Object.fromEntries(Object.entries(all).sort((a, b) => (b[1].updated || 0) - (a[1].updated || 0)).slice(0, 40));
   const savePrefs = () => keep(K.prefs, prefs);
   const playing = () => !!G && !$('play-view').hidden;
-  const N = () => G.p.size * G.p.cols;
+  const N = () => countOf(G.p);
   const isGiven = (i) => !!G.p.givens[i];
   const valueAt = (i) => G.p.givens[i] || G.v[i];
   const playable = (i) => def.playable(G.p, i);
   const wrongAt = (i) => {
     const v = G.v[i];
     if (!v || isGiven(i)) return false;
+    if (def.wrongValue) return def.wrongValue(G.p, i, v);
     return DIGITS ? v !== G.p.solution[i] : (v === 1) !== (G.p.solution[i] === 1);
   };
-  const isSolved = () => (DIGITS
+  const isSolved = () => (def.solvedBy ? def.solvedBy(G.p, G.p.solution.map((_, i) => valueAt(i))) : DIGITS
     ? G.p.solution.every((d, i) => !playable(i) || valueAt(i) === d)
     : G.p.solution.every((d, i) => (d === 1) === (valueAt(i) === 1)));
 
@@ -202,7 +208,7 @@ export function createGame(def) {
 
   function begin(p, { mode = 'free', daily = null, practice = null, tuned = null } = {}) {
     close();
-    const cells = p.size * p.cols;
+    const cells = countOf(p);
     G = {
       id: `g${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, p, mode, daily, practice, tuned,
       name: uniqueName(def.titleOf(p)),
@@ -307,7 +313,7 @@ export function createGame(def) {
     const el = $('board');
     def.buildBoard(el, G.p);
     for (const c of el.querySelectorAll('[data-i]')) {
-      c.setAttribute('role', 'gridcell');
+      c.setAttribute('role', def.itemRole || 'gridcell');
       c.tabIndex = -1;
     }
   }
@@ -354,13 +360,18 @@ export function createGame(def) {
           el.querySelector('.gk-notes').innerHTML = m ? def.digits(p).map((d) => `<i>${m & bit(d) ? d : ''}</i>`).join('') : '';
         }
         el.setAttribute('aria-label', `${def.cellLabel(p, i)}${v ? `, ${v}${isGiven(i) ? ', given' : ''}` : ', empty'}${!v && G.n[i] ? `, notes ${def.digits(p).filter((d) => G.n[i] & bit(d)).join(' ')}` : ''}`);
+      } else if (EDGES) {
+        cls.toggle('on', v === 1);
+        cls.toggle('x', v === 2);
+        if (el.dataset.v !== String(v)) el.dataset.v = v;
+        el.setAttribute('aria-label', `${def.cellLabel(p, i)}: ${def.valueName(p, v)}`);
       } else {
         cls.toggle('on', v === 1);
         cls.toggle('x', v === 2);
         el.setAttribute('aria-label', `${def.cellLabel(p, i)}, ${v === 1 ? 'shaded' : v === 2 ? 'crossed' : 'empty'}${isGiven(i) ? ', given' : ''}`);
       }
     }
-    def.paint?.(board, { p, value: valueAt, wrong: wrongAt });
+    def.paint?.(board, { p, value: valueAt, wrong: wrongAt, sel: G.sel });
     board.classList.toggle('paused', !!G.paused);
     board.classList.toggle('won', !!G.solved && !quiet());
     $('pause').textContent = G.paused ? 'Resume' : 'Pause';
@@ -381,7 +392,7 @@ export function createGame(def) {
     }
     const open = p.solution.filter((_, i) => playable(i) && !isGiven(i)).length;
     const done = p.solution.filter((_, i) => playable(i) && !isGiven(i) && (DIGITS ? G.v[i] : G.v[i] === 1 || (p.solution[i] === 2 && G.v[i] === 2))).length;
-    $('progress').textContent = `${Math.round((done / Math.max(1, open)) * 100)}%`;
+    $('progress').textContent = `${Math.round((def.progress ? def.progress(p, valueAt) : done / Math.max(1, open)) * 100)}%`;
     $('time').textContent = fmtTime(G.ms);
     renderHint();
   }
@@ -436,6 +447,14 @@ export function createGame(def) {
     return [{ i, from: G.v[i], to: value, nf: 0, nt: 0 }];
   }
   function autoCross(changes) {
+    if (EDGES) {
+      if (!prefs.autoCross || !def.autoMarks) return changes;
+      const vals = G.v.slice();
+      for (const ch of changes) vals[ch.i] = ch.to;
+      const seen = new Set(changes.map((ch) => ch.i));
+      const extra = def.autoMarks(G.p, vals, changes.map((ch) => ch.i)).filter(([x]) => !seen.has(x) && !vals[x] && !isGiven(x)).map(([x, to]) => { seen.add(x); return { i: x, from: G.v[x], to, nf: 0, nt: 0 }; });
+      return changes.concat(extra);
+    }
     if (!prefs.autoCross || DIGITS) return changes;
     const extra = [];
     const lines = new Set();
@@ -486,13 +505,13 @@ export function createGame(def) {
   function keyMark(value) {
     const i = G.sel;
     if (i < 0) return;
-    const to = G.v[i] === value ? 0 : value;
+    const to = EDGES ? def.nextValue(G.p, i, G.v[i], value) : G.v[i] === value ? 0 : value;
     const ch = mark(i, to);
     if (!ch.length) return;
     const all = autoCross(ch);
     apply(all);
-    play(to === 1 ? 'place' : 'note');
-    announce(`${def.cellLabel(G.p, i)} ${to === 1 ? 'shaded' : to === 2 ? 'crossed' : 'cleared'}`, true);
+    play(to === 1 || (EDGES && to && to !== 2 && to !== 3) ? 'place' : 'note');
+    announce(EDGES ? `${def.cellLabel(G.p, i)}: ${def.valueName(G.p, to)}` : `${def.cellLabel(G.p, i)} ${to === 1 ? 'shaded' : to === 2 ? 'crossed' : 'cleared'}`, true);
     afterChange(ch);
   }
   function setPen(v) {
@@ -544,8 +563,9 @@ export function createGame(def) {
     const wrong = new Set([...Array(N()).keys()].filter(wrongAt));
     G.checked = wrong;
     render(); save();
-    const left = G.p.solution.filter((d, i) => playable(i) && !valueAt(i) && (DIGITS || d === 1)).length;
-    announce(wrong.size ? `${wrong.size} ${DIGITS ? 'number' : 'mark'}${wrong.size === 1 ? ' is' : 's are'} wrong. They are marked in red.` : `Everything so far is right. ${left} ${DIGITS ? 'cell' : 'shaded cell'}${left === 1 ? '' : 's'} to go.`, true);
+    const left = def.leftCount ? def.leftCount(G.p, valueAt) : G.p.solution.filter((d, i) => playable(i) && !valueAt(i) && (DIGITS || d === 1)).length;
+    const word = def.leftWord || (DIGITS ? 'cell' : 'shaded cell');
+    announce(wrong.size ? `${wrong.size} ${DIGITS ? 'number' : 'mark'}${wrong.size === 1 ? ' is' : 's are'} wrong. They are marked in red.` : `Everything so far is right. ${left} ${word}${left === 1 ? '' : 's'} to go.`, true);
   }
 
   // ---------- hints: a nudge, then where, then why ----------
@@ -643,7 +663,10 @@ export function createGame(def) {
   function reveal() {
     $('reveal-confirm').hidden = true;
     const changes = [];
-    G.p.solution.forEach((d, i) => { if (playable(i) && !isGiven(i) && G.v[i] !== d) changes.push({ i, from: G.v[i], to: d, nf: G.n[i], nt: 0 }); });
+    G.p.solution.forEach((d, i) => {
+      const to = def.revealValue ? def.revealValue(G.p, i, G.v[i]) : d;
+      if (playable(i) && !isGiven(i) && G.v[i] !== to) changes.push({ i, from: G.v[i], to, nf: G.n[i], nt: 0 });
+    });
     apply(changes);
     G.revealed = true;
     G.solved = true;
@@ -708,7 +731,7 @@ export function createGame(def) {
       const v = vals[i];
       el.classList.toggle('given', !!G.p.givens[i]);
       el.classList.toggle('hinted', focus.has(i));
-      if (DIGITS) { el.querySelector('.v').textContent = v || ''; el.querySelector('.gk-notes').innerHTML = ''; } else { el.classList.toggle('on', v === 1); el.classList.toggle('x', v === 2); }
+      if (DIGITS) { el.querySelector('.v').textContent = v || ''; el.querySelector('.gk-notes').innerHTML = ''; } else { el.classList.toggle('on', v === 1); el.classList.toggle('x', v === 2); if (EDGES) el.dataset.v = v || 0; }
     }
     $('step-n').textContent = stepAt ? `Step ${stepAt} of ${path.length}` : `${path.length} steps`;
     $('step-tech').textContent = cur ? cur.techniqueName : 'The start';
@@ -737,12 +760,12 @@ export function createGame(def) {
     if (!g || typeof g !== 'object') return null;
     const p = def.cleanPuzzle(g.p);
     if (!p) return null;
-    const cells = p.size * p.cols;
+    const cells = countOf(p);
     const nums = (a, max) => (Array.isArray(a) && a.length === cells ? a.map((x) => (Number.isInteger(x) && x >= 0 && x <= max ? x : 0)) : Array(cells).fill(0));
     const hist = (a) => (Array.isArray(a) ? a.filter(Array.isArray).slice(-400).map((chs) => chs.filter((c) => c && Number.isInteger(c.i) && c.i >= 0 && c.i < cells).map((c) => ({ i: c.i, from: Number(c.from) || 0, to: Number(c.to) || 0, nf: Number(c.nf) || 0, nt: Number(c.nt) || 0 }))) : []);
     const num = (x) => (Number.isFinite(+x) && +x >= 0 ? +x : 0);
     return {
-      p, v: nums(g.v, DIGITS ? 9 : 2), n: nums(g.n, 1023), undo: hist(g.undo), redo: hist(g.redo),
+      p, v: nums(g.v, DIGITS ? 9 : def.maxValue || 2), n: nums(g.n, 1023), undo: hist(g.undo), redo: hist(g.redo),
       name: String(g.name || def.titleOf(p)).slice(0, 80), mode: ['free', 'daily', 'file'].includes(g.mode) ? g.mode : 'file',
       daily: /^\d{4}-\d{2}-\d{2}$/.test(g.daily || '') ? g.daily : null, practice: NAME_ID.test(g.practice || '') ? g.practice : null, tuned: g.tuned == null ? null : num(g.tuned),
       ms: num(g.ms), hints: num(g.hints), mistakes: num(g.mistakes), checks: num(g.checks), stuck: Array.isArray(g.stuck) ? g.stuck.filter((t) => NAME_ID.test(t)).slice(-50) : [],
@@ -861,6 +884,23 @@ export function createGame(def) {
       $('digits').addEventListener('click', (e) => { const b = e.target.closest('[data-d]'); if (b) { place(Number(b.dataset.d)); focusCell(G.sel); } });
       $('notes-btn').onclick = () => { prefs.notes = !prefs.notes; savePrefs(); render(); };
       $('auto').onclick = autoNotes;
+    } else if (EDGES) {
+      edgePointer(board, {
+        def, p: () => G.p, value: (i) => G.v[i], pen: () => prefs.pen || 1,
+        ready: () => !!G && !G.solved && !G.paused && playing(),
+        preview(changes) { for (const ch of changes) G.v[ch.i] = ch.to; render(); },
+        cancel(changes) { for (const ch of changes) G.v[ch.i] = ch.from; render(); },
+        commit(changes) {
+          for (const ch of changes.slice().reverse()) G.v[ch.i] = ch.from;
+          const chs = changes.map((ch) => ({ i: ch.i, from: ch.from, to: ch.to, nf: 0, nt: 0 })).filter((ch) => !isGiven(ch.i));
+          if (chs.length) { G.sel = chs[chs.length - 1].i; apply(autoCross(chs)); play(chs[0].to === 2 || chs[0].to === 3 || !chs[0].to ? 'note' : 'place'); }
+          afterChange(chs);
+          if (G && !G.solved) focusCell(G.sel);
+        },
+        tap(i) { G.sel = i; keyMark(prefs.pen || 1); if (G && !G.solved) { render(); focusCell(i); } },
+      });
+      $('pen-fill').onclick = () => setPen(1);
+      $('pen-cross').onclick = () => setPen(2);
     } else {
       board.addEventListener('pointerdown', (e) => {
         const c = e.target.closest('[data-i]');
