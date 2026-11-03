@@ -215,3 +215,25 @@ test('marketing: a post that brought players is offered again; a channel with no
   const back = (await db.prepare(`SELECT status FROM campaign_ads WHERE id IN (${ups.join(',')})`).all()).results.map((x) => x.status);
   assert.deepEqual(back, ['approved', 'approved'], 'undo approves them again');
 });
+
+test('marketing: a post is repeated once; after the repeat is measured it is not suggested again', async () => {
+  const now = Date.now();
+  const { id: camp } = await db.prepare("INSERT INTO campaigns (code, name, status, created_by, created_at, updated_at) VALUES ('summer', 'Summer', 'active', 't', ?1, ?1) RETURNING id").bind(now).first();
+  const { id: ad } = await db.prepare(`INSERT INTO campaign_ads (campaign_id, channel, medium, content, title, body, media, landing, status, post_on, posted_at, created_by, created_at, updated_at)
+    VALUES (?1, 'bluesky', 'social', 'tip-two', 'Bluesky: tip two', 'Try it {link}', '[]', '/?play=now', 'posted', ?2, ?3, 't', ?3, ?3) RETURNING id`).bind(camp, day(3), now).first();
+  const stat = (event, n) => db.prepare("INSERT INTO campaign_stats (day, campaign, source, medium, content, event, platform, n) VALUES (?1, 'summer', 'bluesky', 'social', 'tip-two', ?2, 'web', ?3)").bind(day(1), event, n).run();
+  await stat('visit', 12);
+  await stat('play', 6);
+  const repeats = async () => (await call('/admin/v1/tuning')).body.waiting.filter((x) => x.target === `repeat:${ad}`);
+
+  await call('/admin/v1/tuning/check', { body: {} });
+  const [repeat] = await repeats();
+  assert.ok(repeat, 'the post is offered again');
+  assert.equal((await call(`/admin/v1/tuning/${repeat.id}/approve`, { body: {} })).status, 200);
+  // The copy goes out, and 14 days later the change has been measured.
+  await db.prepare("UPDATE campaign_ads SET status = 'posted', posted_at = ?1 WHERE content = 'tip-two-again'").bind(now).run();
+  await db.prepare(`UPDATE tuning_proposals SET check_at = ?1, result = '{"verdict":"helped"}' WHERE id = ?2`).bind(now - 1000, repeat.id).run();
+
+  await call('/admin/v1/tuning/check', { body: {} });
+  assert.deepEqual(await repeats(), [], 'no second suggestion to repeat the same post');
+});

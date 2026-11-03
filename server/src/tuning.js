@@ -299,6 +299,10 @@ export async function candidates(env, now = Date.now()) {
     FROM campaign_ads a JOIN campaigns c ON c.id = a.campaign_id
     LEFT JOIN campaign_stats s ON s.campaign = c.code AND s.source = a.channel AND s.content = a.content AND s.day >= ?1
     WHERE a.status = 'posted' AND a.content != '' AND substr(a.content, -length(?2)) != ?2
+      -- One repeat per post: once it has a copy (the same test as repeatCopy),
+      -- it is not suggested again after that copy has been measured.
+      AND NOT EXISTS (SELECT 1 FROM campaign_ads r WHERE r.campaign_id = a.campaign_id AND r.channel = a.channel
+        AND r.content = a.content || ?2 AND r.status != 'removed')
     GROUP BY a.id`).bind(from, REPEAT_SUFFIX).all()).results;
   for (const a of ads) {
     if (a.cstatus !== 'active' || a.visits < AD_MIN_VISITS || a.plays / a.visits < 0.3) continue;
