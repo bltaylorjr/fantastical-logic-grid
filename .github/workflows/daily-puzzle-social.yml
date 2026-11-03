@@ -24,7 +24,8 @@
 # saying why (scripts/marketing-post.py, mode daily-puzzle). A puzzle already
 # posted is never posted twice, so Run workflow again is safe.
 #
-# Every other game too (NINETIMESNINE, Cage Math, Sum Cross, Picture Grid):
+# Every other game too (NINETIMESNINE, Cage Math, Sum Cross, Picture Grid,
+# More or Less, Skyline, Star Field, Loop Line, Island Bridges):
 # right after the Logic Grid's post, each game's daily puzzle (the same one
 # everyone gets in that game today) is made and checked by
 # scripts/social-games.mjs and posted to the same sites as one picture, with
@@ -36,7 +37,7 @@
 # Owner approved automatic posting after the checks (Bobby, 2026-11-01), and
 # asked for every game's daily puzzle to be posted (2026-11-02).
 # Only some games: repository variable DAILY_PUZZLE_GAMES (e.g. np,cm; empty or
-# unset = all four; none = the Logic Grid only).
+# unset = all nine; none = the Logic Grid only).
 # Pause it: repository variable DAILY_PUZZLE_SOCIAL = off.
 # Uses the marketing autopilot's Facebook keys (META_PAGE_ID, META_PAGE_TOKEN;
 # Instagram also needs instagram_basic and instagram_content_publish on the key).
@@ -71,10 +72,16 @@ jobs:
             modules/cage-math/game.js
             modules/sum-cross/game.js
             modules/picture-grid/game.js
+            modules/more-or-less/game.js
+            modules/skyline/game.js
+            modules/star-field/game.js
+            modules/loop-line/game.js
+            modules/island-bridges/game.js
+            modules/grid-kit/story.js
             engine/src
             web/icons/icon.svg
           sparse-checkout-cone-mode: false
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 20
       - name: Install the picture tools (Chromium and the game's fonts)
@@ -121,7 +128,7 @@ jobs:
         env:
           MODE: daily-puzzle
           SOCIAL_DAY: ${{ steps.make.outputs.day }}
-          SOCIAL_GAMES: ${{ vars.DAILY_PUZZLE_GAMES == 'none' && ' ' || vars.DAILY_PUZZLE_GAMES || 'np,cm,sc,pg' }}
+          SOCIAL_GAMES: ${{ vars.DAILY_PUZZLE_GAMES == 'none' && ' ' || vars.DAILY_PUZZLE_GAMES || 'np,cm,sc,pg,ml,sk,sf,ll,ib' }}
           OUT_DIR: out/social
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
@@ -154,7 +161,7 @@ jobs:
           key: daily-posted-${{ steps.make.outputs.day }}-${{ github.run_id }}-${{ github.run_attempt }}
       - name: Keep the picture with the run for 14 days
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: daily-puzzle-${{ steps.make.outputs.day }}
           path: out/social/

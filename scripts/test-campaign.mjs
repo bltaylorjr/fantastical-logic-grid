@@ -74,3 +74,26 @@ ok('a page reached by an ad remembers it for its own forms, and tidies the addre
 mem.clear();
 assert.equal(campaign.attribution(), null);
 ok('no campaign, nothing to report');
+
+// Where a visit came from: webmail is email, only Google's search page is a search.
+const from = (ref) => { const a = campaign.arrival('https://thelogicgrid.com/', ref); return a && `${a.s}/${a.m}`; };
+assert.equal(from('https://mail.google.com/mail/u/0/'), 'email/email');
+assert.equal(from('https://outlook.live.com/mail/0/'), 'email/email');
+assert.equal(from('https://www.google.com/'), 'google/search');
+assert.equal(from('https://www.google.co.uk/'), 'google/search');
+assert.equal(from('https://docs.google.com/document/d/x'), 'google/referral');
+assert.equal(from('https://www.bing.com/'), 'bing/search');
+ok('Gmail and Outlook links count as email, not a Google search');
+
+// Link checkers and crawlers are not counted as visitors.
+mem.clear();
+sent.length = 0;
+Object.defineProperty(globalThis, 'navigator', { value: { userAgent: 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)', onLine: true }, configurable: true });
+go('https://thelogicgrid.com/?utm_source=youtube&utm_medium=video&utm_campaign=how-to-play-tips');
+campaign.init();
+assert.deepEqual(sent, []);
+assert.equal(campaign.isBot('facebookexternalhit/1.1'), true);
+assert.equal(campaign.isBot('Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1'), false);
+assert.equal(campaign.isBot('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/140.0.0.0 Safari/537.36'), false, 'the test browser still counts');
+Object.defineProperty(globalThis, 'navigator', { value: { userAgent: 'test', onLine: true }, configurable: true });
+ok('crawlers and link previews are not counted as visits');

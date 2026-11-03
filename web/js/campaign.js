@@ -17,8 +17,13 @@ const KEY = 'flg-campaign';
 const KEEP_MS = 30 * 24 * 3600 * 1000;
 const MAX_SOLVES_PER_DAY = 20;
 // Sites people arrive from, by the end of their host name.
+// Webmail comes first: mail.google.com is Gmail, not a Google search, and
+// before Nov 2026 links opened from Gmail were counted as Google searches.
+// Only Google's search page itself counts as search; its other services (Docs,
+// Sites, News) are ordinary links.
 const REFERRERS = [
-  [/(^|\.)google\.[a-z.]+$/, 'google', 'search'], [/(^|\.)bing\.com$/, 'bing', 'search'], [/(^|\.)duckduckgo\.com$/, 'duckduckgo', 'search'],
+  [/(^|\.)(mail\.google|outlook\.live|outlook\.office|outlook\.office365|mail\.yahoo|mail\.aol)\.com$|^mail\.proton\.me$/, 'email', 'email'],
+  [/^(www\.)?google\.[a-z.]+$/, 'google', 'search'], [/(^|\.)google\.[a-z.]+$/, 'google', 'referral'], [/(^|\.)bing\.com$/, 'bing', 'search'], [/(^|\.)duckduckgo\.com$/, 'duckduckgo', 'search'],
   [/(^|\.)yahoo\.[a-z.]+$/, 'yahoo', 'search'], [/(^|\.)ecosia\.org$/, 'ecosia', 'search'], [/(^|\.)search\.brave\.com$/, 'brave', 'search'],
   [/(^|\.)reddit\.com$|^redd\.it$/, 'reddit', 'forum'], [/(^|\.)facebook\.com$|^fb\.me$/, 'facebook', 'social'], [/(^|\.)instagram\.com$/, 'instagram', 'social'],
   [/^t\.co$|(^|\.)x\.com$|(^|\.)twitter\.com$/, 'x', 'social'], [/(^|\.)threads\.(net|com)$/, 'threads', 'social'], [/(^|\.)bsky\.app$/, 'bluesky', 'social'], [/(^|\.)(mastodon\.(social|online|world)|mstdn\.social|mas\.to)$/, 'mastodon', 'social'],
@@ -26,8 +31,11 @@ const REFERRERS = [
   [/(^|\.)linkedin\.com$|^lnkd\.in$/, 'linkedin', 'social'], [/(^|\.)discord(app)?\.com$/, 'discord', 'community'], [/(^|\.)itch\.io$/, 'itch', 'store'],
   [/(^|\.)producthunt\.com$/, 'producthunt', 'directory'], [/^news\.ycombinator\.com$/, 'hackernews', 'community'], [/(^|\.)indiehackers\.com$/, 'indiehackers', 'community'],
   [/(^|\.)alternativeto\.net$/, 'alternativeto', 'directory'], [/(^|\.)github\.com$/, 'github', 'referral'], [/(^|\.)quora\.com$/, 'quora', 'forum'],
-  [/(^|\.)(mail\.google|outlook\.live|mail\.yahoo)\.com$/, 'email', 'email'],
 ];
+// Link checkers and crawlers that run pages (social previews, search bots,
+// speed tests) are not visitors.
+const BOT = /bot|crawl|spider|slurp|facebookexternalhit|embedly|preview|lighthouse|pagespeed|gtmetrix/i;
+export const isBot = (ua = (typeof navigator !== 'undefined' && navigator.userAgent) || '') => BOT.test(ua);
 const slug = (v) => String(v || '').trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -74,7 +82,7 @@ export function init() {
     const a = arrival();
     cleanAddress();
     cameBack(a);
-    if (!a) return;
+    if (!a || isBot()) return;
     // One visit per browser tab, so reloads are not counted again.
     const seen = `${a.c}|${a.s}|${a.k}`;
     let counted = false;

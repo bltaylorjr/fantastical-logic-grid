@@ -3,7 +3,7 @@
 // In the game itself the shared worker (web/engine-worker.js) does this job.
 import { serveEngine } from '../../engine/src/engine-host.js';
 
-const OPS_FILE = { cm: 'cm-ops.js', sc: 'sc-ops.js', pg: 'pg-ops.js' };
+const OPS_FILE = { cm: 'cm-ops.js', sc: 'sc-ops.js', pg: 'pg-ops.js', ll: 'll-ops.js', ib: 'ib-ops.js', ml: 'ml-ops.js', sk: 'sk-ops.js', sf: 'sf-ops.js' };
 const file = OPS_FILE[self.name];
 if (!file) throw new Error(`No engine for game "${self.name}"`);
 const loaded = import(`../../engine/src/${file}`).then((m) => m.OPS);

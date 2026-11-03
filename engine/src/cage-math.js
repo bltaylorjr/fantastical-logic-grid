@@ -4,11 +4,12 @@
 // works the way a person does, so it has exactly one answer reachable by logic
 // alone, and its difficulty is the hardest technique it needs.
 //
-//   generateCageMath({ difficulty, size, seed, avoid, toughness, practice, usedStories, story })
+//   generateCageMath({ difficulty, size, seed, avoid, toughness, practice, usedStories, story, theme })
 //   getCageMathHint(puzzle, entries)   a nudge, then where, then why
 //   solveCageMath(puzzle, entries)     the logical solver (used by the tests)
 import { makeRng } from './rng.js';
 import { aNum, bit, bitCount, bitsOf, onlyBit, cellName, cap, clamp01, fingerprint, pickByToughness, kitStory, KIT_LEVEL_NAMES, listOr, listAnd } from './kit-common.js';
+import { kitThemeStory } from './kit-story.js';
 
 export const CM_TECHNIQUES = {
   nakedSingle: { level: 1, name: 'Only number left' },
@@ -357,7 +358,7 @@ function candidate(N, tier, rng) {
   return { sol, cages, res, fits, score: toughnessOf(res.steps, N) };
 }
 
-export function generateCageMath({ difficulty = 'medium', size, seed = Math.random().toString(36).slice(2), avoid = [], toughness = 0.5, practice = null, usedStories = [], story = true } = {}) {
+export function generateCageMath({ difficulty = 'medium', size, seed = Math.random().toString(36).slice(2), avoid = [], toughness = 0.5, practice = null, usedStories = [], story = true, theme = null } = {}) {
   const tier = CM_TIERS[difficulty];
   if (!tier) throw new Error(`Unknown difficulty "${difficulty}".`);
   const N = CM_SIZES.includes(Number(size)) ? Number(size) : tier.sizes[0];
@@ -401,7 +402,7 @@ export function generateCageMath({ difficulty = 'medium', size, seed = Math.rand
       'A number may repeat inside a cage, as long as it is not twice in one row or column.',
     ],
   };
-  if (story) p.story = kitStory('cm', seed, usedStories);
+  if (story) p.story = kitThemeStory('cm', seed, { theme, used: usedStories, classic: () => kitStory('cm', seed, usedStories) });
   return p;
 }
 

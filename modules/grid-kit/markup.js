@@ -1,10 +1,14 @@
 // The game screen's HTML for each kit game: a setup view, a play view and its
 // dialogs. Every id starts with the game's id, so several games can sit on one page.
+import { THEME_GROUPS } from './story.js';
+
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
 export function markup(def) {
   const P = def.id;
   const digits = def.kind === 'digits';
+  // Line games (kind 'edges') name their own pens and options; the others keep their words.
+  const pens = def.penNames || ['Shade', 'Cross'];
   return `
 <section class="gk-setup" id="${P}-setup-view" aria-labelledby="${P}-h">
   <div class="card gk-setup-card">
@@ -21,14 +25,19 @@ export function markup(def) {
     <form id="${P}-setup" novalidate>
       <fieldset><legend>Difficulty</legend><div class="gk-choices" id="${P}-levels"></div></fieldset>
       <fieldset id="${P}-size-field"><legend>Grid size</legend><div class="gk-choices chips" id="${P}-sizes"></div></fieldset>
+      <div class="gk-field" id="${P}-theme-field">
+        <label for="${P}-theme">Story theme</label>
+        <select id="${P}-theme"><option value="surprise">Surprise me</option>${THEME_GROUPS.map((g) => `<optgroup label="${esc(g.name)}">${g.themes.map((t) => `<option value="${t.id}">${esc(t.name)}</option>`).join('')}</optgroup>`).join('')}</select>
+      </div>
       <details class="gk-more">
         <summary>More options</summary>
         <div class="gk-more-body">
           <label class="gk-switch"><input type="checkbox" id="${P}-silent"> Silent mode <small class="gk-muted">grid only: no story, sound or animation</small></label>
+          <label class="gk-switch"><input type="checkbox" id="${P}-moments"> Show story moments <small class="gk-muted">a short line now and then while you solve</small></label>
           <label class="gk-switch"><input type="checkbox" id="${P}-sound"> Sound effects</label>
           <label class="gk-switch"><input type="checkbox" id="${P}-adapt"> Tune puzzles to how I play</label>
-          ${digits ? `<label class="gk-switch"><input type="checkbox" id="${P}-autoclean"> Clear notes when I place a number</label>` : `<label class="gk-switch"><input type="checkbox" id="${P}-autocross"> Cross out the rest of a line when it is finished</label>`}
-          <label class="gk-switch"><input type="checkbox" id="${P}-highlight"> ${digits ? 'Highlight related cells and matching numbers' : 'Highlight the row and column I am on'}</label>
+          ${digits ? `<label class="gk-switch"><input type="checkbox" id="${P}-autoclean"> Clear notes when I place a number</label>` : `<label class="gk-switch"><input type="checkbox" id="${P}-autocross"> ${esc(def.autoCrossLabel || 'Cross out the rest of a line when it is finished')}</label>`}
+          <label class="gk-switch"><input type="checkbox" id="${P}-highlight"> ${digits ? 'Highlight related cells and matching numbers' : esc(def.highlightLabel || 'Highlight the row and column I am on')}</label>
         </div>
       </details>
       <div class="gk-gen-row">
@@ -76,8 +85,9 @@ export function markup(def) {
   </div>
   <div class="gk-layout">
     <div class="gk-board-wrap">
-      <div id="${P}-board" class="gk-board gk-${P}" role="grid" aria-label="${esc(def.name)} grid. ${esc(def.boardHelp)}"></div>
+      <div id="${P}-board" class="gk-board gk-${P}${def.kind === 'edges' ? ' gk-ln' : ''}" role="${def.boardRole || 'grid'}" aria-label="${esc(def.name)} ${def.kind === 'edges' ? 'board' : 'grid'}. ${esc(def.boardHelp)}"></div>
       <p class="gk-paused-note" aria-hidden="true">Paused</p>
+      <p class="gk-moment" id="${P}-moment" hidden><span id="${P}-moment-text"></span> <button class="gk-moment-x" type="button" id="${P}-moment-close" aria-label="Hide this story moment">×</button></p>
     </div>
     <div class="gk-side">
       <div class="gk-tools" role="toolbar" aria-label="Tools">
@@ -90,10 +100,10 @@ export function markup(def) {
         <button class="btn small" type="button" id="${P}-check" aria-keyshortcuts="C">Check</button>
       </div>
       ${digits ? `<div class="gk-digits" id="${P}-digits" role="group" aria-label="Numbers"></div>` : `<div class="gk-paint" role="group" aria-label="Pen">
-        <button class="btn gk-pen" type="button" id="${P}-pen-fill" aria-pressed="true" aria-keyshortcuts="F"><span class="gk-swatch fill" aria-hidden="true"></span> Shade</button>
-        <button class="btn gk-pen" type="button" id="${P}-pen-cross" aria-pressed="false" aria-keyshortcuts="X"><span class="gk-swatch cross" aria-hidden="true">×</span> Cross</button>
+        <button class="btn gk-pen" type="button" id="${P}-pen-fill" aria-pressed="true" aria-keyshortcuts="F"><span class="gk-swatch fill${def.kind === 'edges' ? ' line' : ''}" aria-hidden="true"></span> ${esc(pens[0])}</button>
+        <button class="btn gk-pen" type="button" id="${P}-pen-cross" aria-pressed="false" aria-keyshortcuts="X"><span class="gk-swatch cross" aria-hidden="true">×</span> ${esc(pens[1])}</button>
       </div>
-      <p class="gk-help">Tap a cell, or drag along a row or column to mark several. Tap a marked cell again to clear it.</p>`}
+      <p class="gk-help">${esc(def.penHelp || 'Tap a cell, or drag along a row or column to mark several. Tap a marked cell again to clear it.')}</p>`}
       <div class="gk-hint card" id="${P}-hint" role="status" aria-live="polite" hidden></div>
       <label class="gk-switch"><input type="checkbox" id="${P}-mistakes"> Show mistakes as I play</label>
       <details class="gk-rules-box">
@@ -126,8 +136,10 @@ export function markup(def) {
       <span class="gk-muted" id="${P}-feel-done" role="status"></span>
     </div>
     <p class="gk-new-badges" id="${P}-new-badges" hidden></p>
+    <p class="gk-adapt" id="${P}-adapt-note" hidden></p>
     <p class="gk-actions">
       <button class="btn primary" type="button" id="${P}-again">Next puzzle</button>
+      <button class="btn" type="button" id="${P}-again-same" hidden></button>
       <button class="btn" type="button" id="${P}-share">Share my result</button>
       <button class="btn" type="button" id="${P}-steps-btn">Watch the solution</button>
       <button class="btn quiet" type="button" id="${P}-home">Back to setup</button>
@@ -139,6 +151,7 @@ export function markup(def) {
   </section>
   <p class="gk-sr" id="${P}-live" aria-live="assertive"></p>
   <p class="gk-sr" id="${P}-status-live" role="status" aria-live="polite"></p>
+  <p class="gk-sr" id="${P}-moment-live" aria-live="polite"></p>
 </section>
 
 <dialog class="gk-dialog" id="${P}-print-dlg" aria-labelledby="${P}-print-h">
@@ -167,7 +180,7 @@ export function markup(def) {
 <dialog class="gk-dialog wide" id="${P}-steps-dlg" aria-labelledby="${P}-steps-h">
   <h2 id="${P}-steps-h">The solution, step by step</h2>
   <div class="gk-steps-layout">
-    <div class="gk-board gk-mini gk-${P}" id="${P}-steps-board" aria-hidden="true"></div>
+    <div class="gk-board gk-mini gk-${P}${def.kind === 'edges' ? ' gk-ln' : ''}" id="${P}-steps-board" aria-hidden="true"></div>
     <div>
       <p class="gk-eyebrow" id="${P}-step-n"></p>
       <p class="gk-step-tech" id="${P}-step-tech"></p>

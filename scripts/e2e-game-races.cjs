@@ -1,5 +1,6 @@
-// End-to-end check of races in NINETIMESNINE, Cage Math, Sum Cross and Picture
-// Grid (web/js/game-race.js) with two players on two pretend devices, on the
+// End-to-end check of races in NINETIMESNINE, Cage Math, Sum Cross, Picture
+// Grid, More or Less, Skyline, Star Field, and the line games Loop Line and
+// Island Bridges (web/js/game-race.js) with two players on two pretend devices, on the
 // games' own pages. Runs the real Worker in Miniflare with a local D1 database
 // and a small stand-in for Firebase Auth, like scripts/e2e-compete.cjs. Needs
 // `npm install` in server/ and a build (npm run test:compete does both).
@@ -178,8 +179,38 @@ function startAuth(signer) {
     await B.waitForURL(/\/cage-math\//, { timeout: 15000 });
     assert(true, "a race code from another game opens that game's page");
 
+    // ---- The newer games: a race started by A, joined with the code by B and
+    // solved. Loop Line and Island Bridges send edges (lines, bridges), not cells;
+    // the crosses B left undecided do not matter.
+    for (const [g, dir, page] of [['ml', 'more-or-less', 'more-or-less/'], ['sk', 'skyline', 'skyline/'], ['sf', 'star-field', 'star-field/'], ['ll', 'loop-line', 'loop-line/'], ['ib', 'island-bridges', 'island-bridges/']]) {
+      await open(A, page, g);
+      await A.click(`#${g}-race-card [data-race=start]`);
+      await dlg(A).locator('.race-view:not([hidden]) button[type=submit]').click();
+      await A.waitForFunction(() => /^[A-Z2-9]{6}$/.test(document.querySelector('dialog[open] [data-r=code]')?.textContent || ''), null, { timeout: 30000 });
+      const c = await dlg(A).locator('[data-r=code]').textContent();
+      assert((await dlg(A).locator('[data-r=link]').textContent()).endsWith(`/${page}?race=${c}`), `${g}: the race link opens the game's page`);
+      await dlg(A).locator('.race-view:not([hidden]) .dlg-actions .primary').click();
+      await open(B, page, g);
+      await B.click(`#${g}-race-card [data-race=join]`);
+      await B.fill(`#${g}-race-code`, c);
+      await dlg(B).locator('.race-view:not([hidden]) button[type=submit]').click();
+      await B.waitForSelector(`#${g}-play-view .race-bar:not([hidden])`, { timeout: 30000 });
+      const mod = `/modules/${dir}/ui.js`;
+      const kind = await B.evaluate(async (m) => { const G = (await import(m)).state(); return { mode: G.mode, n: G.v.length, sol: G.p.solution.length }; }, mod);
+      assert(kind.mode === 'race' && kind.n === kind.sol, `${g}: joined; the race puzzle keeps ${kind.n} answer marks`);
+      await B.evaluate(async ([m, g]) => {
+        const G = (await import(m)).state();
+        // Only the lines, bridges or stars: crosses and dots left undecided.
+        G.v = G.p.solution.map((d, i) => (G.p.givens[i] ? 0 : g === 'ib' ? (d === 3 ? 0 : d) : ['sf', 'll'].includes(g) ? (d === 1 ? 1 : 0) : d));
+        Object.assign(G, { solved: true, revealed: false, ms: 30_000, hints: 0 });
+      }, [mod, g]);
+      await B.waitForFunction(() => /Solved/.test(document.querySelector('dialog[open]')?.textContent || ''), null, { timeout: 20000 });
+      assert(true, `${g}: a solve is accepted by the server`);
+      await B.keyboard.press('Escape');
+    }
+
     const r = await db.prepare('SELECT game, COUNT(*) AS n FROM races GROUP BY game ORDER BY game').all();
-    assert(JSON.stringify(r.results) === JSON.stringify([{ game: 'cm', n: 1 }, { game: 'np', n: 1 }, { game: 'pg', n: 1 }]), 'each race is kept with its game');
+    assert(JSON.stringify(r.results) === JSON.stringify(['cm', 'ib', 'll', 'ml', 'np', 'pg', 'sf', 'sk'].map((game) => ({ game, n: 1 }))), 'each race is kept with its game');
     assert(!errors.length, `no page errors ${errors.join(' | ')}`);
   } finally {
     for (const c of contexts) await c.close().catch(() => {});
