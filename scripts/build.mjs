@@ -109,6 +109,8 @@ const PAGE_FILES = new Set([
   'options.js',     // the setup screen's choices (written above)
   'play.js',        // checking marks and spotting a solve
   'beats.js',       // story moments while solving
+  'lab-stories.js', // story moments for the Timeline Case and Seating Plan styles (text only)
+  'lab-play.js',    // those styles' sizes and how they adapt to the player (no generator)
   'story-parts.js', // story ids and player-written story parts (learning, storyline form)
   'house-tuning.js', 'language.js', 'layout.js', 'tiers.js', 'rng.js', // tutorial and learning
   'classroom.js',   // the Educators forms' checks (with names-only lists below)
