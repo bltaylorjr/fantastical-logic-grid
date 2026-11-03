@@ -298,7 +298,8 @@ function finalize(o, best, elapsedMs) {
   goalAbout.item = sol[model.goal.cat][story.goalAnswer.item];
   const questions = buildQuestions({ rng, model, L, story, goal: goalAbout, count: o.questions });
 
-  const notes = [];
+  // A Lab mode may add its own notes (modes.js: a theme it could not use).
+  const notes = o.modeNotes ? [...o.modeNotes] : [];
   if (o.customSize) notes.push(`Custom size ${K} x ${N} is outside the ${tier.name} range (${tier.categories.join('-')} categories, ${tier.items.join('-')} items).`);
   if (o.clueCount && clues.length !== o.clueCount) {
     notes.push(clues.length > o.clueCount
@@ -331,7 +332,7 @@ function finalize(o, best, elapsedMs) {
       ...(c.note ? { note: c.note.replace(/\{one\}/g, scenario.cast.one).replace(/\{many\}/g, scenario.cast.many).replace(/\{low\}/g, c.labels[0]).replace(/\{high\}/g, c.labels.at(-1)) } : {}),
     })),
     grid: gridLayout(cats),
-    story: { id: story.id, parts: story.parts, title: story.title, paragraphs: story.paragraphs, text: story.text, goal: story.goalQuestion, ending: story.ending, wordCount: story.wordCount },
+    story: { id: story.id, parts: story.parts, title: story.title, paragraphs: story.paragraphs, text: story.text, goal: story.goalQuestion, ending: story.ending, wordCount: story.wordCount, ...(story.beatWords ? { beatWords: story.beatWords } : {}) },
     clues: clues.map((c, i) => ({ number: i + 1, text: clueText(L, c, rng), type: c.type, typeName: CLUE_TYPES[c.type] || MODE_CLUE_TYPES[c.type], logic: encodeClue(c, itemId) })),
     questions: questions.map((q, i) => ({
       number: i + 1, text: q.text, category: cats[q.askCat].id,
