@@ -6,6 +6,7 @@ import * as compete from './compete.js';
 import { esc } from './grid.js';
 import { feature } from './remote-config.js';
 import { TIER_NAMES as BADGE_NAMES } from './perks.js';
+import * as cpu from './computer-race.js';
 
 // The scoreboard badge for a supporter: tier 1 Bronze up to 4 Platinum
 // (server/src/supporters.js). Older servers send true, shown as Bronze.
@@ -21,7 +22,7 @@ export const supporterPill = (t) => {
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
-const RACE_TITLES = { start: 'Start a race', join: 'Join a race', challenge: 'Challenge a player', share: 'Race started', standings: 'Race standings' };
+const RACE_TITLES = { computer: 'Race the computer', start: 'Start a race', join: 'Join a race', challenge: 'Challenge a player', share: 'Race started', standings: 'Race standings' };
 const TIER_NAMES = { basic: 'Basic', easy: 'Easy', medium: 'Medium', hard: 'Hard', expert: 'Expert', mensa: 'Quantum Physicist', theorist: 'Theoretical Physicist' };
 const INVITE_POLL_MS = 120_000;
 let ui = null;
@@ -36,8 +37,11 @@ export const GUEST = 'Guest';
 
 export function initCompete(hooks) {
   ui = hooks;
-  if (!compete.enabled()) return;
+  // Racing the computer needs no account, so the card always shows; the rest
+  // of it (races with players, the scoreboard) only when accounts are on.
   $('#compete-section').hidden = false;
+  wireComputer();
+  if (!compete.enabled()) { renderCard(); return; }
   $('[data-cmd=board]').hidden = false;
   $('#help-compete').hidden = false;
   name = compete.cachedName();
@@ -110,25 +114,30 @@ function requireName(then) {
 
 // ------------------------------------------------------------ home card
 function renderCard() {
-  if (!compete.enabled()) return;
-  const user = account.current();
   const btn = (id, text, primary) => `<button class="btn${primary ? ' primary' : ''}" type="button" data-compete="${id}">${text}</button>`;
+  if (!compete.enabled()) {
+    $('#compete-h').textContent = 'Race the computer';
+    $('#compete-intro').textContent = `Race a computer opponent on a new puzzle: solve it before the computer does. No account needed. ${cpu.recordText()}`.trim();
+    $('#compete-actions').innerHTML = btn('computer', 'Race the computer', true);
+    return;
+  }
+  const user = account.current();
   let actions;
   const me = $('#compete-me');
   renderChip();
   me.hidden = false;
   me.innerHTML = `Playing as <b>${esc(user && name ? name : GUEST)}</b>`;
   if (!user) {
-    actions = btn('signin', 'Sign in to race', true) + btn('board', 'Scoreboard');
+    actions = btn('computer', 'Race the computer', true) + btn('signin', 'Sign in to race players') + btn('board', 'Scoreboard');
   } else if (!name) {
-    actions = btn('name', 'Choose a screen name', true) + btn('board', 'Scoreboard');
+    actions = btn('computer', 'Race the computer') + btn('name', 'Choose a screen name', true) + btn('board', 'Scoreboard');
   } else {
     me.innerHTML += ` <button class="btn quiet small" type="button" data-compete="name">Change<span class="sr-only"> screen name</span></button>`;
-    actions = btn('start', 'Start a race', true) + btn('challenge', 'Challenge a player') + btn('find', 'Find a race') + btn('join', 'Join with a code') + btn('board', 'Scoreboard');
+    actions = btn('start', 'Start a race', true) + btn('computer', 'Race the computer') + btn('challenge', 'Challenge a player') + btn('find', 'Find a race') + btn('join', 'Join with a code') + btn('board', 'Scoreboard');
   }
   $('#compete-intro').textContent = user && name
     ? 'Race on the very same puzzle: the fastest solve wins. Every solved puzzle also earns points on the scoreboard.'
-    : 'Race other detectives on the very same puzzle and climb the scoreboard. Sign in and choose a screen name to take part. You never need an account to play on your own.';
+    : 'Race the computer any time, or sign in and choose a screen name to race other detectives on the very same puzzle and climb the scoreboard. You never need an account to play on your own.';
   $('#compete-actions').innerHTML = actions;
   renderInvites();
 }
@@ -196,6 +205,7 @@ document.addEventListener('click', (e) => {
   if (act === 'signin') ui.openAccount();
   else if (act === 'name') openName();
   else if (act === 'board') openBoard();
+  else if (act === 'computer') openComputer();
   else if (act === 'start') needName(openStart);
   else if (act === 'join') needName(() => openJoin(''));
   else if (act === 'challenge') needName(openChallenge);
@@ -473,8 +483,12 @@ function renderStandingsInto(el, race) {
 // While a race is open on the play screen.
 export function onGameOpen(save) {
   const bar = $('#race-bar');
-  bar.hidden = !(compete.enabled() && save.race);
+  const vs = save.vsComputer;
+  $('#race-cpu').hidden = !vs;
+  $('#race-share').hidden = $('#race-standings').hidden = !!vs;
+  bar.hidden = !((compete.enabled() && save.race) || vs);
   if (bar.hidden) return;
+  if (vs) { onTick(save); return; }
   $('#race-bar-text').innerHTML = `<b>Race ${esc(save.race.code)}</b>. Everyone in this race has the same puzzle. Each hint adds 1 minute and each check 15 seconds.`;
 }
 
@@ -486,6 +500,7 @@ export async function onSolved(save, pairs) {
   const box = $('#compete-result');
   box.hidden = true;
   box.innerHTML = '';
+  if (save.vsComputer) computerResult(save, box);
   if (!compete.enabled() || !account.current()) return;
   if (save.race) {
     box.hidden = false;
@@ -592,3 +607,73 @@ export function handleRaceLink() {
   }
   needName(() => openJoin(code));
 }
+
+// ------------------------------------------------------------ race the computer
+function openComputer() {
+  const last = ui.getSetting('computerSkill') || 'matched';
+  $('#cpu-choice').innerHTML = `The race uses your New puzzle choices: <b>${esc(ui.setupSummary())}</b>. Change them on the home screen first if you like.`;
+  $('#cpu-skills').innerHTML = cpu.SKILLS.map((s) => `<label><input type="radio" name="cpu-skill" value="${s.id}"${s.id === last ? ' checked' : ''}> <span><b>${esc(s.name)}</b> <small>${esc(s.note)}</small></span></label>`).join('');
+  $('#cpu-record').textContent = cpu.recordText();
+  showRace('computer');
+}
+
+function wireComputer() {
+  const d = $('#dlg-race');
+  d.addEventListener('click', (e) => { if (e.target.closest('[data-close]')) d.close(); });
+  const form = $('.race-view[data-view=computer]', d);
+  form.onsubmit = (e) => {
+    e.preventDefault();
+    const skill = $('input[name=cpu-skill]:checked', form)?.value || 'matched';
+    ui.setSetting('computerSkill', skill);
+    busy($('button[type=submit]', form), 'Writing the puzzle…', async () => {
+      try {
+        const puzzle = await ui.makePuzzle();
+        await ui.openComputerRace(puzzle, skill);
+        d.close();
+        ui.toast(`Race on! The computer (${cpu.skillOf(skill).name}) has started too.`);
+      } catch (err) { raceFail('computer', err.message || String(err)); }
+    });
+  };
+}
+
+// Every second of play: the computer's progress in the race bar.
+export function onTick(save) {
+  const vs = save && save.vsComputer;
+  if (!vs || $('#race-bar').hidden) return;
+  const pct = Math.floor(cpu.progressAt(save.elapsedMs || 0, vs.ms, vs.seed) * 100);
+  const skill = cpu.skillOf(vs.skill).name;
+  $('#race-cpu-bar').value = pct;
+  $('#race-cpu-pct').textContent = `${pct}%`;
+  $('#race-cpu-label').textContent = `Computer (${skill})`;
+  $('#race-cpu').classList.toggle('done', pct >= 100);
+  if (!vs.result) {
+    $('#race-bar-text').innerHTML = pct >= 100
+      ? `<b>The computer finished in ${ui.fmtTime(vs.ms)}.</b> Your race time so far: ${ui.fmtTime(cpu.raceMsOf(save))}. Finish anyway and beat it next time.`
+      : `<b>Racing the computer.</b> Your race time: ${ui.fmtTime(cpu.raceMsOf(save))}. Each hint adds 1 minute and each check 15 seconds.`;
+  }
+  if (pct >= 100 && !vs.warned && !save.solved) {
+    vs.warned = true;
+    ui.saveGame();
+    ui.toast(`The computer solved it in ${ui.fmtTime(vs.ms)}. You can still finish the puzzle.`);
+  }
+}
+
+function computerResult(save, box) {
+  const vs = save.vsComputer;
+  if (!vs.result) {
+    const mine = cpu.raceMsOf(save);
+    const won = !save.revealed && mine < vs.ms;
+    vs.result = { won, raceMs: save.revealed ? null : mine };
+    vs.done = true;
+    cpu.addResult(won);
+    ui.saveGame();
+  }
+  const r = vs.result, skill = cpu.skillOf(vs.skill).name;
+  const line = save.revealed ? `You revealed the answer, so the computer (${skill}) wins this one.`
+    : r.won ? `<b>You beat the computer (${skill})</b> by ${ui.fmtTime(vs.ms - r.raceMs)}! Your race time ${ui.fmtTime(r.raceMs)}, the computer's ${ui.fmtTime(vs.ms)}.`
+      : `<b>The computer (${skill}) won</b> by ${ui.fmtTime(r.raceMs - vs.ms)}. Your race time ${ui.fmtTime(r.raceMs)}, the computer's ${ui.fmtTime(vs.ms)}.`;
+  box.hidden = false;
+  box.innerHTML = `<p>${line}</p><p class="muted">${esc(cpu.recordText())}</p><p><button class="btn small" type="button" data-compete="computer">Race the computer again</button></p>`;
+  $('#race-bar-text').textContent = save.revealed ? 'Race over: you revealed the answer.' : r.won ? 'Race over: you won!' : 'Race over: the computer won.';
+}
+

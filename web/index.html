@@ -278,6 +278,7 @@
 
   <div class="race-bar" id="race-bar" hidden>
     <p id="race-bar-text"></p>
+    <div class="cpu-meter" id="race-cpu" hidden><span class="cpu-label" id="race-cpu-label">Computer</span><progress id="race-cpu-bar" max="100" value="0" aria-labelledby="race-cpu-label"></progress><span id="race-cpu-pct" aria-hidden="true">0%</span></div>
     <button class="btn small" type="button" id="race-share">Share the race</button>
     <button class="btn small" type="button" id="race-standings">Standings</button>
   </div>
@@ -929,6 +930,14 @@
     <p id="challenge-choice"></p>
     <div class="error-box" role="alert" hidden></div>
     <div class="dlg-actions"><button class="btn" type="button" data-close>Cancel</button><button class="btn primary" type="submit">Send the challenge</button></div>
+  </form>
+  <form class="race-view" data-view="computer" novalidate hidden>
+    <p class="help">Race a computer opponent on a new puzzle. It works through the same puzzle as you, and the race bar shows how far along it is. Solve it before the computer finishes to win. Each hint adds 1 minute and each check 15 seconds to your race time, and revealing the answer counts as giving up. No account needed.</p>
+    <p id="cpu-choice"></p>
+    <fieldset class="cpu-skills"><legend>How fast is the computer?</legend><div id="cpu-skills"></div></fieldset>
+    <p class="help" id="cpu-record"></p>
+    <div class="error-box" role="alert" hidden></div>
+    <div class="dlg-actions"><button class="btn" type="button" data-close>Cancel</button><button class="btn primary" type="submit">Start the race</button></div>
   </form>
   <div class="race-view" data-view="share" hidden>
     <p class="help">Give this code or link to the people you want to race. Your clock is already running in the game, so start whenever you are ready.</p>
