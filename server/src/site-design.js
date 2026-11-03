@@ -7,7 +7,7 @@
 //   GET /v1/site/design   the published design, for the website build (public)
 //   (admin) GET site-design, POST site-design/draft, POST site-design/discard,
 //           POST site-design/publish, POST site-design/restore/:id   see admin.js
-import { changes, normalize } from '../../web/js/site-design.js';
+import { changes, normalize, countChanges } from '../../web/js/site-design.js';
 import { json } from './http.js';
 
 const HISTORY = 20;
@@ -32,17 +32,18 @@ export async function designView(env) {
     env.DB.prepare('SELECT id, actor, at, design FROM site_design WHERE state = ?1 ORDER BY id DESC LIMIT ?2').bind('published', HISTORY).all()]);
   return {
     draft, published: live,
-    history: list.results.map((r) => ({ id: r.id, by: r.actor, at: r.at, changes: Object.keys(parse(r.design)).length })),
+    history: list.results.map((r) => ({ id: r.id, by: r.actor, at: r.at, changes: countChanges(parse(r.design)) })),
     siteUrl: String(env.SITE_URL || 'https://thelogicgrid.com').replace(/\/+$/, ''),
     rebuildsAtOnce: !!env.GITHUB_DISPATCH_TOKEN,
   };
 }
 
-// Only known options and listed choices are kept (normalize), and only what
-// differs from the defaults is stored.
+// Only known options and listed choices are kept (normalize), plus the changes
+// made on the pages themselves (plain words, hide, move), and only what differs
+// from the defaults is stored.
 export const checkDesign = (body) => {
   if (!body || typeof body.design !== 'object' || Array.isArray(body.design)) return { error: 'Send the design as an object.' };
-  if (JSON.stringify(body.design).length > 20_000) return { error: 'That design is too large.' };
+  if (JSON.stringify(body.design).length > 200_000) return { error: 'That design is too large.' };
   return { value: changes(normalize(body.design)) };
 };
 
