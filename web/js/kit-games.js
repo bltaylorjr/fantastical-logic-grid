@@ -65,6 +65,8 @@ export async function open(card, host = {}) {
         config: config(g.id),
       });
       mods[g.id] = ui;
+      // Races against other players (only when accounts are on).
+      import('./game-race.js').then((r) => r.attach(g.id, ui, rootEl)).catch(() => { /* races are optional */ });
       share.refresh(g.id).then((s) => { if (s) ui.setShared(s); });
       share.flush(g.id);
     })();
@@ -74,6 +76,8 @@ export async function open(card, host = {}) {
       return;
     }
   } else mods[g.id].reopen();
+  // A daily puzzle post's link (?play=daily) opens today's puzzle.
+  if (host.daily) await mods[g.id].playDaily();
   document.getElementById(`screen-${g.id}`).focus();
 }
 

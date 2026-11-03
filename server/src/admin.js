@@ -124,7 +124,7 @@ const STORED_ROLES = ['admin', 'moderator', 'viewer'];
 const MAX_BODY = 8_000;
 // An admin must sign in again (with their password) at least this often, even
 // while the dashboard keeps refreshing their token; the dashboard itself signs
-// out after 30 idle minutes.
+// out after 1 idle hour.
 const SESSION_MAX_S = 12 * 3600;
 const DENIED_PER_DAY = 500; // refused requests written to the audit log, so a flood cannot fill it
 const ANALYTICS_CACHE_MS = 120_000;

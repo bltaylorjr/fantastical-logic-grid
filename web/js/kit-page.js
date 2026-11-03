@@ -19,7 +19,8 @@ if (game) {
     document.getElementById(`${game.id}-root`).innerHTML = `<p class="muted">${game.name} is taking a short break. Please try again soon, or play <a href="../fantastical/">The Fantastical Logic Grid</a>.</p>`;
   } else {
     try { localStorage.setItem('flg.game', card); } catch (e) { /* private mode */ }
-    kitGames.open(card, { celebrate: () => celebrate(settings.celebrations, { random: settings.celebrateRandom }), setWorld });
+    // ?play=daily (the daily puzzle posts' link) opens today's puzzle.
+    kitGames.open(card, { celebrate: () => celebrate(settings.celebrations, { random: settings.celebrateRandom }), setWorld, daily: new URLSearchParams(location.search).get('play') === 'daily' });
     // The module saves and pauses its clock when the page is hidden or left.
   }
 }

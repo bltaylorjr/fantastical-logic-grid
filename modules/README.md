@@ -119,3 +119,25 @@ node modules/grid-kit/e2e.cjs      # Cage Math, Sum Cross, Picture Grid (?game=c
 node modules/more-or-less/e2e.cjs  # and skyline, star-field, loop-line, island-bridges (?game=ml|sk|sf|ll|ib)
 node engine/test/kit-games-tests.js
 ```
+
+## Daily puzzles on social media and their answer keys
+
+`scripts/game-daily.mjs` makes each game's daily puzzle outside the browser exactly as the
+game does (same seed, daily options and admin switches from `GET /v1/config`). The nightly
+build writes an answer key page for each, `<game>/daily/<date>/` (today and the 30 days
+before), and each morning `scripts/social-games.mjs` checks the puzzle (rules checked
+independently, one answer proven by the engine's solver, answer key page live and showing
+this puzzle) and makes its picture and captions, which `scripts/marketing-post.py` posts
+after the Logic Grid's (`.github/workflows/daily-puzzle-social.yml`). `?play=daily` on a
+game's page opens today's puzzle (`playDaily()` in each module). Test:
+`node scripts/test-social-games.mjs`.
+
+## Races against other players
+
+Every module game has races like The Fantastical Logic Grid's (`web/js/game-race.js`, added by
+`web/js/number-place.js` and `web/js/kit-games.js` when accounts are on): a *Race other players*
+card on the setup screen (Start a race, Find a race, Join with a code), a race bar while a race
+puzzle is open, and race links (`<game>/?race=CODE`). The module provides `racePuzzle()` (a puzzle
+with the setup choices), `startShared(p)` and `state()`. A finished race sends every cell's value;
+the Worker (`server/src/compete.js`, `GAMES`) checks the puzzle's shape when a race starts and the
+answers when it finishes. Test: `node scripts/e2e-game-races.cjs`.

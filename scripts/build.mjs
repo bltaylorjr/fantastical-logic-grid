@@ -368,6 +368,14 @@ await applySiteDesign({ site, base: (process.env.FLG_SITE_URL || 'https://thelog
   const headers = join(site, '_headers');
   writeFileSync(headers, readFileSync(headers, 'utf8').replace('/\n  Cache-Control: no-cache\n', `/\n  Cache-Control: no-cache\n${pagesHere.map((p) => `/${p}\n  Cache-Control: no-cache\n/${p}index.html\n  Cache-Control: no-cache\n`).join('')}`));
 }
+// Every other game's daily puzzle answer key, <game>/daily/<date>/ (today and
+// the 30 days before), linked from the daily puzzle posts (scripts/game-daily.mjs).
+{
+  const { writeDailyPages, loadConfig } = await import('./game-daily.mjs');
+  const config = await loadConfig(process.env.FLG_CLOUD_URL);
+  const n = await writeDailyPages({ site, base: (process.env.FLG_SITE_URL || 'https://thelogicgrid.com').replace(/\/+$/, ''), config });
+  console.log(`Wrote ${n} daily answer key pages for the other games${config ? '' : ' (admin switches not reachable: defaults used)'}.`);
+}
 console.log(`Built dist/site for web hosting (${seo.pages.length} pages in the sitemap).`);
 
 // The game page's first load (see MAINTENANCE.md, "Speed"):

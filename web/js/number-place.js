@@ -49,6 +49,8 @@ export async function open(host = {}) {
         config,
       });
       mod = ui;
+      // Races against other players (only when accounts are on).
+      import('./game-race.js').then((r) => r.attach('np', ui, document.getElementById('np-root'))).catch(() => { /* races are optional */ });
       npShare.refresh().then((s) => { if (s) ui.setShared(s); });
       npShare.flush();
     })();
@@ -60,6 +62,8 @@ export async function open(host = {}) {
   } else mod.reopen();
   // A game card's link to one of the games (Rival Grid, Tidewater...) picks it on the setup screen.
   if (host.style) mod.pickStyle(host.style);
+  // A daily puzzle post's link (?play=daily) opens today's puzzle.
+  if (host.daily) await mod.playDaily();
   document.getElementById('screen-np').focus();
 }
 

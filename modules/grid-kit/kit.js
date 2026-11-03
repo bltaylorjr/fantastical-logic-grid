@@ -835,7 +835,7 @@ export function createGame(def) {
     const num = (x) => (Number.isFinite(+x) && +x >= 0 ? +x : 0);
     return {
       p, v: nums(g.v, DIGITS ? 9 : def.maxValue || 2), n: nums(g.n, 1023), undo: hist(g.undo), redo: hist(g.redo),
-      name: String(g.name || def.titleOf(p)).slice(0, 80), mode: ['free', 'daily', 'file'].includes(g.mode) ? g.mode : 'file',
+      name: String(g.name || def.titleOf(p)).slice(0, 80), mode: ['free', 'daily', 'file', 'race'].includes(g.mode) ? g.mode : 'file',
       daily: /^\d{4}-\d{2}-\d{2}$/.test(g.daily || '') ? g.daily : null, practice: NAME_ID.test(g.practice || '') ? g.practice : null, tuned: g.tuned == null ? null : num(g.tuned),
       ms: num(g.ms), hints: num(g.hints), mistakes: num(g.mistakes), checks: num(g.checks), stuck: Array.isArray(g.stuck) ? g.stuck.filter((t) => NAME_ID.test(t)).slice(-50) : [],
       solved: !!g.solved, revealed: !!g.revealed, created: num(g.created) || Date.now(), updated: num(g.updated) || Date.now(),
@@ -1065,5 +1065,15 @@ export function createGame(def) {
     state: () => G,
     learning: () => learn,
     dailyOptions,
+    // A link to today's daily puzzle (?play=daily on the game's page).
+    playDaily: () => startDaily(),
+    // Races (web/js/game-race.js): a puzzle with the setup screen's level and
+    // size at the level's usual toughness, and starting the race puzzle.
+    racePuzzle: () => {
+      const level = $('levels').querySelector('input:checked')?.value || prefs.level || def.levels[0].id;
+      const size = Number($('sizes').querySelector('input:checked')?.value) || def.levels.find((l) => l.id === level).sizes[0];
+      return engine.generate({ seed: Math.random().toString(36).slice(2), story: cfg().stories !== false, toughness: 0.5, difficulty: level, size, usedStories: [], usedPictures: [], avoid: [] });
+    },
+    startShared: (p, { mode = 'race' } = {}) => begin(p, { mode }),
   };
 }

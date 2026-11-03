@@ -9,6 +9,16 @@ import * as compete from './compete.js';
 import * as remote from './remote-config.js';
 
 const $ = (s) => document.querySelector(s);
+// ?game=np&race=CODE: a game sent the player here to sign in to race; once
+// signed in they go back to that game's page (and the race). Only the games'
+// own pages and a well-formed race code are ever used.
+const next = (() => {
+  const q = new URLSearchParams(location.search);
+  const game = Object.keys(compete.GAME_PAGES).find((g) => g === q.get('game'));
+  if (!game) return '';
+  const code = compete.cleanCode(q.get('race'));
+  return `../${compete.GAME_PAGES[game]}${compete.CODE.test(code) ? `?race=${code}` : ''}`;
+})();
 
 // The player's color theme, as in the game; never inside another site's frame.
 try { const s = JSON.parse(localStorage.getItem('flg.settings') || '{}'); if (s.colorTheme && s.colorTheme !== 'system') document.documentElement.dataset.theme = s.colorTheme; } catch (e) { /* default */ }
@@ -78,7 +88,8 @@ async function start() {
   openAccount();
   // Signing out or in keeps the window showing; it is the page.
   dlg.addEventListener('close', () => setTimeout(() => { openAccount(); drawName(); }, 0));
-  account.onChange(() => drawName());
+  account.onChange(() => { drawName(); if (next && account.current()) location.href = next; });
+  if (next && account.current()) { location.href = next; return; }
   drawName();
 }
 start();
