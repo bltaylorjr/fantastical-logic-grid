@@ -161,7 +161,7 @@ jobs:
           key: daily-posted-${{ steps.make.outputs.day }}-${{ github.run_id }}-${{ github.run_attempt }}
       - name: Keep the picture with the run for 14 days
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: daily-puzzle-${{ steps.make.outputs.day }}
           path: out/social/

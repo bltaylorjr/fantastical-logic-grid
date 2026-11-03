@@ -65,7 +65,7 @@ jobs:
       - name: Results
         if: always() && env.REPORT != ''
         run: node scripts/wack-summary.mjs "$env:REPORT" "${{ matrix.app }}"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: wack-report-${{ matrix.app }}

@@ -93,7 +93,7 @@ jobs:
           # Checksums so anyone can check the installer is the genuine one.
           sha256sum "$SETUP" > SHA256SUMS-admin.txt && cat SHA256SUMS-admin.txt
           gh release upload "$TAG" SHA256SUMS-admin.txt --repo "$GITHUB_REPOSITORY" --clobber
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: admin-windows-installer
           path: desktop-admin/src-tauri/target/release/bundle/nsis/*_x64-setup.exe
