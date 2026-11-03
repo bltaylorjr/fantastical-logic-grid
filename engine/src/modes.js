@@ -1,5 +1,5 @@
-// Lab modes: two new ways to play the story logic grid, for the owner's
-// review only (the setup screen shows them with ?lab=1 or a FLG_LAB=1 build).
+// Puzzle styles: two more ways to play the story logic grid, picked under
+// Puzzle style on the setup screen (web/js/lab.js; Classic is the default).
 //
 //   timeline  Timeline Case: a whodunit. Suspects, places, an object and the
 //             clock times in a logbook. Clues lean on time order (before,

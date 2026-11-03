@@ -81,18 +81,6 @@ const appVersion = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).
 cloud = cloud.replace(/appVersion: '[^']*'/, `appVersion: ${JSON.stringify(appVersion)}`);
 writeFileSync(cloudFile, cloud);
 await speedUpFirstLoad(out);
-// Lab modes (web/js/lab.js) for the owner's review: FLG_LAB=1 shows the Lab
-// mode choice on the setup screen in every copy built here, including
-// dist/preview, where the page address (?lab=1) cannot be changed. Without
-// it the page is exactly as before.
-if (process.env.FLG_LAB === '1') {
-  const f = join(out, 'index.html');
-  const page = readFileSync(f, 'utf8');
-  const marked = page.replace('<title>The Fantastical Logic Grid</title>', '<title>The Fantastical Logic Grid</title>\n<meta name="flg-lab" content="1">');
-  if (marked === page) throw new Error('FLG_LAB=1: could not mark index.html');
-  writeFileSync(f, marked);
-  console.log('Lab modes on (FLG_LAB=1).');
-}
 // Windows downloads come from the public site repository once the source is
 // private (FLG_SITE_REPO, docs/PRIVATE-REPO.md); players cannot reach releases
 // in a private repository.

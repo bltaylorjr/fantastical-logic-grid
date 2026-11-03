@@ -142,6 +142,15 @@
           <legend id="topic-legend">Topic</legend>
           <div class="choices tiers topics" id="topic-choices"></div>
         </fieldset>
+        <fieldset id="mode-field">
+          <legend>Puzzle style</legend>
+          <div class="choices chips" id="mode-choices">
+            <label class="choice"><input type="radio" name="puzzle-mode" value="classic" checked><span><b>Classic</b><small>The usual story puzzle</small></span></label>
+            <label class="choice"><input type="radio" name="puzzle-mode" value="timeline"><span><b>Timeline Case</b><small>A whodunit told by the clock</small></span></label>
+            <label class="choice"><input type="radio" name="puzzle-mode" value="seating"><span><b>Seating Plan</b><small>Guests round one table</small></span></label>
+          </div>
+          <p class="help" id="mode-help" hidden>Set in the theme you pick ("Surprise me" picks one). The style sets the grid size and the kinds of clues for each difficulty, so Size and Topic are hidden.</p>
+        </fieldset>
         <fieldset>
           <legend>Size</legend>
           <div class="choices chips" id="size-choices"></div>

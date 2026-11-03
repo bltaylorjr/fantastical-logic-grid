@@ -1,58 +1,31 @@
-// Lab modes on the setup screen (engine/src/modes.js): Timeline Case and
-// Seating Plan, for the owner's review only. Nothing here shows unless the
-// page address has ?lab=1 or the build was made with FLG_LAB=1 (which adds
-// <meta name="flg-lab" content="1">, for the claude.ai preview where the
-// address cannot be changed). With the lab off the setup screen is exactly as
-// before and no puzzle gets a mode.
+// Puzzle styles on the setup screen (engine/src/modes.js): Classic (the
+// default, every puzzle exactly as before), Timeline Case and Seating Plan.
+// The choice is the setup screen's "Puzzle style" (web/index.html, #mode-field).
+// Old ?lab=1 links and FLG_LAB=1 builds need nothing: the choice is always shown.
 //
-// A Lab puzzle is set in the theme picked on the setup screen ("Surprise me"
-// picks one). The mode chooses the grid size for each difficulty, so the
-// Size and Topic choices hide while a Lab mode is picked.
+// A Timeline Case or Seating Plan is set in the theme picked on the setup
+// screen ("Surprise me" picks one). The style chooses the grid size for each
+// difficulty, so the Size and Topic choices hide while one is picked.
 //
-// Lab puzzles stay out of the live learning data, ratings, scoreboard, stats
-// and badges. Each mode keeps its own small record on this device instead
-// (store meta "labLearning"), used the way free play tunes itself
+// These puzzles count toward the player's own stats, streaks and badges like
+// any other, but stay out of races, the scoreboard, ratings and the shared
+// learning data. Each style keeps its own small record on this device
+// instead (store meta "labLearning"), used the way free play tunes itself
 // (engine/lab-play.js): toughness inside the chosen difficulty, and a
 // suggested next difficulty on the solved panel.
 import * as store from './store.js';
 import { LAB_SIZES, labTuning, labAddPlay, labSuggest } from '../engine/lab-play.js';
 
-export const LAB_ON = (() => {
-  try {
-    if (new URLSearchParams(location.search).get('lab') === '1') return true;
-  } catch (e) { /* no address (tests) */ }
-  return !!document.querySelector('meta[name="flg-lab"][content="1"]');
-})();
-
-export const LAB_CHOICES = [
-  { id: 'standard', name: 'Standard', summary: 'The usual story puzzle with your theme.' },
-  { id: 'timeline', name: 'Timeline Case', summary: 'A whodunit told by the clock: before, right after, between, first and last.' },
-  { id: 'seating', name: 'Seating Plan', summary: 'Guests round one table: next to, across from, two seats to the left.' },
+// The setup screen's choices; 'classic' sends no mode to the engine.
+export const MODE_CHOICES = [
+  { id: 'classic', name: 'Classic' },
+  { id: 'timeline', name: 'Timeline Case' },
+  { id: 'seating', name: 'Seating Plan' },
 ];
+export const knownMode = (v) => (MODE_CHOICES.some((m) => m.id === v) ? v : 'classic');
+export const modeName = (id) => (MODE_CHOICES.find((m) => m.id === id) || {}).name || '';
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-
-// The Lab field, placed first in the setup form. onChange(modeId) runs on a pick.
-export function mountLabField(form, current, onChange) {
-  let field = form.querySelector('#lab-field');
-  if (!field) {
-    field = document.createElement('fieldset');
-    field.id = 'lab-field';
-    field.className = 'lab-field';
-    form.prepend(field);
-  }
-  field.innerHTML = `<legend>Lab mode <span class="optional">(review only)</span></legend>
-    <div class="choices tiers" id="lab-choices">${LAB_CHOICES.map((m) => `
-      <label class="choice"><input type="radio" name="labmode" value="${esc(m.id)}"${m.id === current ? ' checked' : ''}>
-      <span><b>${esc(m.name)}</b><small>${esc(m.summary)}</small></span></label>`).join('')}
-    </div>
-    <p class="help" id="lab-help">${current === 'standard' ? '' : 'The story is set in the theme you pick below ("Surprise me" picks one). The mode sets the grid size for each difficulty, so Size and Topic are hidden.'}</p>`;
-  field.onchange = (e) => {
-    const v = e.target.closest('input[name=labmode]')?.value;
-    if (LAB_CHOICES.some((m) => m.id === v)) onChange(v);
-  };
-  return field;
-}
 
 // A simple round table for a solved Seating Plan: seats numbered clockwise
 // from the top, each with its guest's name.
@@ -73,21 +46,21 @@ export function tableSvg(puzzle) {
       + `<text x="${x.toFixed(1)}" y="${(y + 5).toFixed(1)}" text-anchor="middle" font-size="14" font-weight="700" fill="currentColor">${esc(who[it.id] || '')}</text></g>`;
   }).join('');
   const label = `Round table: ${seatCat.items.map((it) => `${it.label}, ${who[it.id]}`).join('; ')}.`;
-  return `<figure class="lab-table" style="margin:12px auto;max-width:340px;text-align:center"><svg viewBox="0 0 ${W} ${W}" role="img" aria-label="${esc(label)}"><circle cx="${cx}" cy="${cy}" r="${R}" fill="currentColor" fill-opacity="0.08" stroke="currentColor" stroke-width="2"/>${seats}</svg>`
+  return `<figure class="mode-table" style="margin:12px auto;max-width:340px;text-align:center"><svg viewBox="0 0 ${W} ${W}" role="img" aria-label="${esc(label)}"><circle cx="${cx}" cy="${cy}" r="${R}" fill="currentColor" fill-opacity="0.08" stroke="currentColor" stroke-width="2"/>${seats}</svg>`
     + `<figcaption class="help">${esc(seatCat.name)}s numbered clockwise. Each guest's left is the next ${esc(seatCat.name.toLowerCase())} clockwise.</figcaption></figure>`;
 }
 
-// The grid size a Lab mode uses at a difficulty: [categories, items].
+// The grid size a puzzle style uses at a difficulty: [categories, items].
 export const labSize = (mode, tier) => (LAB_SIZES[mode] && LAB_SIZES[mode][tier]) || null;
 
 // ---------------------------------------------------------------------------
-// Each Lab mode's own record (never the live learning data).
+// Each style's own record (never the shared learning data).
 const RECORD_KEY = 'labLearning';
 async function loadRecord() {
   try { const r = await store.getMeta(RECORD_KEY, null); return r && typeof r === 'object' ? r : {}; } catch (e) { return {}; }
 }
 
-// A finished, revealed or abandoned Lab puzzle. outcome: solved | revealed | abandoned.
+// A finished, revealed or abandoned Timeline Case or Seating Plan. outcome: solved | revealed | abandoned.
 export async function labRecord(save, outcome) {
   const p = save && save.puzzle;
   if (!p || !LAB_SIZES[p.mode]) return;
@@ -100,18 +73,18 @@ export async function labRecord(save, outcome) {
   try { await store.setMeta(RECORD_KEY, r); } catch (e) { /* the record is optional */ }
 }
 
-// generatePuzzle() options from the mode's own record (only toughness).
+// generatePuzzle() options from the style's own record (only toughness).
 export async function labTuningFor(mode, tier) {
   const r = await loadRecord();
   return labTuning(Array.isArray(r[mode]) ? r[mode] : [], tier);
 }
 
-// The solved panel's suggestion: { tier, text } from the mode's record.
+// The solved panel's suggestion: { tier, text } from the style's record.
 export async function labNext(mode, tierOrder, tierName) {
   const r = await loadRecord();
   const s = labSuggest(Array.isArray(r[mode]) ? r[mode] : [], tierOrder);
   if (!s) return null;
-  const name = (LAB_CHOICES.find((m) => m.id === mode) || {}).name || 'Lab puzzle';
+  const name = modeName(mode) || 'puzzle';
   const was = tierName(r[mode].filter((p) => p.outcome !== 'playing').at(-1).tier);
   const next = tierName(s.tier);
   const a = /^[AEIOU]/.test(next) ? 'an' : 'a';
