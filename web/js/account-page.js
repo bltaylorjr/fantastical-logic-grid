@@ -9,6 +9,9 @@ import * as compete from './compete.js';
 import * as remote from './remote-config.js';
 
 const $ = (s) => document.querySelector(s);
+// ?next=/ninetimesnine/?race=CODE: a game sent the player here to sign in (a
+// race link opened while signed out); they go back there once signed in.
+const next = (() => { const n = new URLSearchParams(location.search).get('next') || ''; return /^\/(?![/\\])[^\s]*$/.test(n) ? n : ''; })();
 
 // The player's color theme, as in the game; never inside another site's frame.
 try { const s = JSON.parse(localStorage.getItem('flg.settings') || '{}'); if (s.colorTheme && s.colorTheme !== 'system') document.documentElement.dataset.theme = s.colorTheme; } catch (e) { /* default */ }
@@ -78,7 +81,8 @@ async function start() {
   openAccount();
   // Signing out or in keeps the window showing; it is the page.
   dlg.addEventListener('close', () => setTimeout(() => { openAccount(); drawName(); }, 0));
-  account.onChange(() => drawName());
+  account.onChange(() => { drawName(); if (next && account.current()) location.href = next; });
+  if (next && account.current()) { location.href = next; return; }
   drawName();
 }
 start();

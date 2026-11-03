@@ -59,6 +59,8 @@ export async function open(card, host = {}) {
         config: config(g.id),
       });
       mods[g.id] = ui;
+      // Races against other players (only when accounts are on).
+      import('./game-race.js').then((r) => r.attach(g.id, ui, rootEl)).catch(() => { /* races are optional */ });
       share.refresh(g.id).then((s) => { if (s) ui.setShared(s); });
       share.flush(g.id);
     })();

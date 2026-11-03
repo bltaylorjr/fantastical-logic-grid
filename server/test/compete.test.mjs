@@ -215,6 +215,46 @@ test('a race: host and rival solve the same puzzle, fastest wins', async () => {
   assert.equal(board.body.rows.find((r) => r.name === 'Sky Fox II').wins, 0);
 });
 
+test('races in every game: NINETIMESNINE, Cage Math, Sum Cross and Picture Grid', async () => {
+  const root2 = join(root, '..', 'engine', 'src');
+  const make = {
+    np: async () => (await import(join(root2, 'np-ops.js'))).OPS.generate({ difficulty: 'easy', seed: 'race-np' }),
+    cm: async () => (await import(join(root2, 'cm-ops.js'))).OPS.generate({ difficulty: 'easy', size: 4, seed: 'race-cm' }),
+    sc: async () => (await import(join(root2, 'sc-ops.js'))).OPS.generate({ difficulty: 'easy', size: 6, seed: 'race-sc' }),
+    pg: async () => (await import(join(root2, 'pg-ops.js'))).OPS.generate({ difficulty: 'easy', size: 10, seed: 'race-pg' }),
+  };
+  for (const [game, gen] of Object.entries(make)) {
+    const p = await gen();
+    assert.equal((await call('/v1/races', { as: 'ann', body: { game, puzzle: { ...p, solution: [1] } } })).status, 400, `${game}: a broken puzzle is refused`);
+    assert.equal((await call('/v1/races', { as: 'ann', body: { game: 'chess', puzzle: p } })).status, 400, 'an unknown game is refused');
+    const made = await call('/v1/races', { as: 'ann', body: { game, puzzle: p } });
+    assert.equal(made.status, 200, `${game}: ${JSON.stringify(made.body)}`);
+    assert.equal(made.body.game, game);
+    const code = made.body.code;
+    // Found only when looking for this game; the Logic Grid's find never offers it.
+    const found = await call('/v1/races/find', { as: 'ben', body: { game } });
+    assert.equal(found.body.code, code, `${game}: found`);
+    assert.equal(found.body.game, game);
+    const flgFind = await call('/v1/races/find', { as: 'ben', body: {} });
+    assert.notEqual(flgFind.body.code, code, `${game}: not offered to Logic Grid players`);
+    const joined = await call(`/v1/races/${code}/join`, { as: 'ben' });
+    assert.equal(joined.body.game, game);
+    assert.deepEqual(joined.body.puzzle.solution, p.solution);
+    // Answers: every cell. Wrong ones are refused.
+    const answers = p.solution.slice();
+    const wrong = answers.slice();
+    const i = answers.findIndex((v) => v);
+    wrong[i] = game === 'pg' ? (answers[i] === 1 ? 2 : 1) : (answers[i] % (p.size) ) + 1;
+    assert.equal((await call(`/v1/races/${code}/finish`, { as: 'ben', body: { elapsedMs: 60_000, hints: 0, checks: 0, answers: wrong } })).status, 422, `${game}: wrong answers refused`);
+    const ben = await call(`/v1/races/${code}/finish`, { as: 'ben', body: { elapsedMs: 60_000, hints: 1, checks: 0, answers } });
+    assert.equal(ben.status, 200, `${game}: ${JSON.stringify(ben.body)}`);
+    assert.ok(ben.body.points > 0, `${game}: points`);
+    assert.equal(ben.body.race.players.find((x) => x.me).status, 'solved');
+    const row = await db.prepare('SELECT game FROM scores WHERE story_id = ?1').bind(`${game}:${p.fingerprint}`).first();
+    assert.equal(row.game, game);
+  }
+});
+
 test('private races are not offered to strangers', async () => {
   const made = await call('/v1/races', { as: 'ann', body: { puzzle: puzzle('private-1'), public: false } });
   const found = await call('/v1/races/find', { as: 'ben', body: {} });

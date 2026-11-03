@@ -49,6 +49,8 @@ export async function open(host = {}) {
         config,
       });
       mod = ui;
+      // Races against other players (only when accounts are on).
+      import('./game-race.js').then((r) => r.attach('np', ui, document.getElementById('np-root'))).catch(() => { /* races are optional */ });
       npShare.refresh().then((s) => { if (s) ui.setShared(s); });
       npShare.flush();
     })();

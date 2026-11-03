@@ -83,6 +83,7 @@ jobs:
           node scripts/e2e-accounts.cjs
           node scripts/e2e-biometric.cjs
           node scripts/e2e-compete.cjs
+          node scripts/e2e-game-races.cjs
           node scripts/e2e-challenge.cjs
           node scripts/e2e-daily-results.cjs
           node scripts/e2e-puzzle-mail.cjs

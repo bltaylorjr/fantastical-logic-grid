@@ -154,6 +154,12 @@ export function pickStyle(id) {
 
 // A puzzle everyone plays (a race or a shared challenge): never filtered as "seen".
 export function startShared(puzzle, { mode = 'race' } = {}) { begin(puzzle, { mode }); }
+// A race puzzle (web/js/game-race.js): the setup screen's level, size and extra
+// rules, played the classic way, at the level's usual toughness.
+export function racePuzzle() {
+  const o = readSetup();
+  return engine.generate({ seed: Math.random().toString(36).slice(2), theme: prefs.theme || null, story: storiesOn(), toughness: 0.5, usedStories: [], ...o });
+}
 
 // Games saved by the first version of this module.
 function migrate() {
