@@ -121,6 +121,7 @@ import { alertRoutes } from './alerts.js';
 import { KEY_PREFIX, checkKey, adminKeyRoutes } from './admin-keys.js';
 import { siteAccountRoutes } from './site-accounts.js';
 import { SESSION_PREFIX, PasskeyError, signInOptions, checkSignIn, startSession, checkSession, endSessionStatement, forgetAdminStatements, registerOptions, register, listPasskeys, removePasskey } from './passkeys.js';
+import { accountDeletedStatement } from './sync.js';
 
 const DAY = 24 * 3600_000;
 const ROLES = { viewer: 1, moderator: 2, admin: 3, owner: 4 };
@@ -132,7 +133,7 @@ const MAX_BODY = 8_000;
 const SESSION_MAX_S = 12 * 3600;
 const DENIED_PER_DAY = 500; // refused requests written to the audit log, so a flood cannot fill it
 const ANALYTICS_CACHE_MS = 120_000;
-const TABLES = ['sync_users', 'sync_records', 'sync_deleted_users', 'players', 'scores', 'races', 'race_entries', 'race_invites', 'plays', 'parts', 'usage',
+const TABLES = ['sync_users', 'sync_records', 'sync_deleted_users', 'account_days', 'players', 'scores', 'races', 'race_entries', 'race_invites', 'plays', 'parts', 'usage',
   'app_errors', 'upkeep_log', 'admins', 'admin_audit', 'settings', 'announcements', 'bans', 'name_reviews', 'archive_log', 'feedback', 'feedback_replies', 'error_fixes', 'conversations', 'conversation_messages', 'message_contacts', 'news', 'search_snapshots', 'daily_plan', 'translations', 'rating_insights', 'campaigns', 'campaign_ads', 'marketing_media', 'campaign_stats', 'challenges', 'daily_results', 'daily_email', 'supporters', 'payment_blocks', 'puzzle_mail', 'puzzle_mail_got', 'puzzle_mail_days', 'special_editions', 'educator_requests', 'special_badges', 'badge_awards', 'puzzle_reports', 'player_puzzles', 'visit_stats', 'educator_feedback', 'print_packs', 'print_pack_stories', 'admin_passkeys', 'admin_sessions', 'admin_keys', 'np_plays', 'kit_plays', 'alert_prefs', 'alert_devices', 'alert_queue', 'site_design', 'site_accounts', 'tuning_proposals', 'house_nudges', 'tuning_rules'];
 // worker-src blob: lets the Media library's celebrations draw off the main
 // thread, as they do in the game (canvas-confetti makes its own small worker).
@@ -260,8 +261,9 @@ async function analytics(env, days, now = Date.now()) {
   const sinceDay = isoDay(since);
   const q = {
     accounts: db.prepare('SELECT COUNT(*) AS n FROM sync_users'),
-    accountsByDay: db.prepare("SELECT date(created_at / 1000, 'unixepoch') AS day, COUNT(*) AS n FROM sync_users WHERE created_at >= ?1 GROUP BY day").bind(since),
-    deleted: db.prepare('SELECT COUNT(*) AS n FROM sync_deleted_users WHERE deleted_at >= ?1').bind(since),
+    // Daily totals that stay put when an account is deleted (account_days).
+    accountsByDay: db.prepare('SELECT day, made AS n FROM account_days WHERE day >= ?1').bind(sinceDay),
+    deleted: db.prepare('SELECT COALESCE(SUM(deleted), 0) AS n FROM account_days WHERE day >= ?1').bind(sinceDay),
     names: db.prepare('SELECT COUNT(*) AS n FROM players'),
     newNames: db.prepare('SELECT COUNT(*) AS n FROM players WHERE created_at >= ?1').bind(since),
     banned: db.prepare('SELECT COUNT(*) AS n FROM bans WHERE until IS NULL OR until > ?1').bind(now),
@@ -699,6 +701,7 @@ const ROUTES = [
       ...deleteBadgeStatements(env, uid),
       env.DB.prepare('UPDATE supporters SET user_id = NULL WHERE user_id = ?1').bind(uid),
       env.DB.prepare('UPDATE payment_blocks SET user_id = NULL WHERE user_id = ?1').bind(uid),
+      accountDeletedStatement(env, uid, now),
       env.DB.prepare('INSERT OR REPLACE INTO sync_deleted_users (user_id, deleted_at) VALUES (?1, ?2)').bind(uid, now),
     ]);
     clearBoardCache();

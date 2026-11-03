@@ -599,6 +599,7 @@ ${og(g.name, npDescription, g.page)}
 <link rel="stylesheet" href="../${g.css}"${kit ? ' id="gk-css"' : ''}>
 <script src="../js/hub.js"></script>
 <script type="module" src="../${g.script}"></script>
+<script type="module" src="../js/page-visit.js"></script>
 <script type="application/ld+json">${json(npGame)}</script>
 <style>
 .np-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; padding: 14px max(16px, env(safe-area-inset-right, 0px)) 14px max(16px, env(safe-area-inset-left, 0px)); border-bottom: 1px solid var(--hairline); background: var(--surface-2); }
@@ -690,6 +691,7 @@ ${og('NINETIMESNINE rules and how to play', rulesDescription, 'ninetimesnine/rul
 <link rel="stylesheet" href="../../app.css">
 <link rel="stylesheet" href="../../modules/number-place/ui.css">
 <script src="../../js/hub.js"></script>
+<script type="module" src="../../js/page-visit.js"></script>
 ${rulesSchema.map((x) => `<script type="application/ld+json">${json(x)}</script>`).join('\n')}
 <style>
 .np-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; padding: 14px max(16px, env(safe-area-inset-right, 0px)) 14px max(16px, env(safe-area-inset-left, 0px)); border-bottom: 1px solid var(--hairline); background: var(--surface-2); }
