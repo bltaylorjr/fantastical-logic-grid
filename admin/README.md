@@ -115,14 +115,14 @@ are never stored on the phone. Icons: `node scripts/admin-icons.cjs admin`.
   it from a browser. The pages have a strict Content-Security-Policy, cannot be
   framed and are not indexed. With "Keep me signed in on this device" the
   session survives switching apps (localStorage), otherwise it lives only in
-  the tab; either way it locks after 30 idle minutes.
+  the tab; either way it locks after 1 idle hour.
 - **Face ID and fingerprint** (`server/src/passkeys.js`, `admin/passkeys.js`):
   each admin can set up passkeys on their phones and computers under Face ID
   and fingerprint. The device keeps the private key and only unlocks it with
   the admin's face, finger or PIN; the Worker keeps the public key (D1
   `admin_passkeys`) and checks each sign-in with WebCrypto. A passkey sign-in
   gives a session key (only its hash is stored, `admin_sessions`) that locks
-  after 30 idle minutes and ends after 12 hours, on sign-out, or when the
+  after 1 idle hour and ends after 12 hours, on sign-out, or when the
   device or the admin is removed. Setting up a device needs a password
   sign-in from the last 15 minutes. Free: no library or service.
 - **Privacy**: anonymous learning data (plays and story parts) is only counted

@@ -4,7 +4,7 @@
 // or a fingerprint (passkeys.js). With "Keep me signed in on this device" the
 // session is kept in localStorage, so it survives the phone closing the app
 // while the admin uses other apps; otherwise it lives only in this tab
-// (sessionStorage). Either way it locks after 30 idle minutes, and Face ID or
+// (sessionStorage). Either way it locks after 1 idle hour, and Face ID or
 // a fingerprint opens it again.
 
 import { initPullRefresh } from './pull-refresh.js';
@@ -55,7 +55,7 @@ const pct = (a, b) => (b ? `${Math.round((100 * a) / b)}%` : '–');
 const AUTH_URL = 'https://identitytoolkit.googleapis.com/v1';
 const TOKEN_URL = 'https://securetoken.googleapis.com/v1';
 const SESSION_KEY = 'flg-admin-session';
-const IDLE_MS = 30 * 60_000;
+const IDLE_MS = 60 * 60_000;
 const ROLES = { viewer: 1, moderator: 2, admin: 3, owner: 4 };
 const TIER_NAMES = { basic: 'Basic', easy: 'Easy', medium: 'Medium', hard: 'Hard', expert: 'Expert', mensa: 'Quantum Physicist', theorist: 'Theoretical Physicist' };
 
@@ -94,8 +94,8 @@ function clearSession() {
   try { sessionStorage.removeItem(SESSION_KEY); localStorage.removeItem(SESSION_KEY); } catch (e) { /* ignore */ }
 }
 const lockWords = () => (rememberedPasskey()
-  ? 'Locked after 30 minutes without use. Use Face ID or your fingerprint to open it again.'
-  : 'Locked after 30 minutes without use. Sign in again to open it.');
+  ? 'Locked after 1 hour without use. Use Face ID or your fingerprint to open it again.'
+  : 'Locked after 1 hour without use. Sign in again to open it.');
 
 class ApiError extends Error { constructor(code, message, status) { super(message || code); this.code = code; this.status = status; } }
 
