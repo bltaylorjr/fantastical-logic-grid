@@ -127,6 +127,9 @@ export const def = {
   id: 'sf',
   name: 'Star Field',
   kind: 'shade',
+  penNames: ['Star', 'Dot'],
+  markWords: { on: 'star', x: 'no star', none: 'empty' },
+  leftWord: 'star',
   eyebrow: 'The Logic Grid · Star puzzles',
   lede: 'Place stars so every row, column and outlined region has the same number, and no two stars touch, not even at a corner. Every puzzle is proven to have one answer you can reach without guessing, never repeats, and is tuned to how you play.',
   boardHelp: 'Arrow keys move, Space places a star, X marks a cell empty.',
@@ -140,7 +143,7 @@ export const def = {
   solvedTitle: () => 'Every star is in place!',
   coach: [
     'Every row, column and outlined region gets the same number of stars: one on smaller grids, two on the biggest. Stars never touch, not even at a corner.',
-    'The Shade pen places a star. Switch to Cross to mark a cell you know is empty with a dot. Drag to mark a whole stretch.',
+    'The Star pen places a star. Switch to Dot to mark a cell you know is empty with a dot. Drag to mark a whole stretch.',
     'Start with the smallest regions. A region squeezed into one row puts its star in that row, so the rest of that row is empty.',
     'Stuck? Hint shows where to look, then why, in plain words.',
   ],
@@ -239,7 +242,7 @@ export const def = {
     <p>Stars never touch each other, not even at a corner.</p>
     <h3>Marking</h3>
     <ul>
-      <li>The Shade pen places a star. Choose the Cross pen to mark a cell you know is empty with a dot.</li>
+      <li>The Star pen places a star. Choose the Dot pen to mark a cell you know is empty with a dot.</li>
       <li>Drag along a row or column to mark several cells at once. Tap a marked cell again to clear it.</li>
       <li>Stars that touch, or one star too many in a line or region, turn red.</li>
       <li>With the option on, the rest of a row or column is dotted for you once it has all its stars.</li>

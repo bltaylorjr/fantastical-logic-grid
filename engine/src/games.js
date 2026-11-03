@@ -32,6 +32,11 @@ export const ENGINE_GAMES = {
   cm: { name: 'Cage Math', ops: 'cm-ops.js', kinds: { generate: 'build', hint: 'play' } },
   sc: { name: 'Sum Cross', ops: 'sc-ops.js', kinds: { generate: 'build', hint: 'play' } },
   pg: { name: 'Picture Grid', ops: 'pg-ops.js', kinds: { generate: 'build', hint: 'play' } },
+  ml: { name: 'More or Less', ops: 'ml-ops.js', kinds: { generate: 'build', hint: 'play' } },
+  sk: { name: 'Skyline', ops: 'sk-ops.js', kinds: { generate: 'build', hint: 'play' } },
+  sf: { name: 'Star Field', ops: 'sf-ops.js', kinds: { generate: 'build', hint: 'play' } },
+  ll: { name: 'Loop Line', ops: 'll-ops.js', kinds: { generate: 'build', hint: 'play' } },
+  ib: { name: 'Island Bridges', ops: 'ib-ops.js', kinds: { generate: 'build', hint: 'play' } },
 };
 
 // How long each kind may take, and how big a request may be.

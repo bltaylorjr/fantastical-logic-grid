@@ -496,6 +496,13 @@ function growRegions(N, K, sol, rng) {
   return reg;
 }
 
+// True when some region is a single cell.
+function tinyRegion(reg, N) {
+  const count = Array(N).fill(0);
+  for (const k of reg) count[k]++;
+  return count.some((n) => n === 1);
+}
+
 // Renumber regions in reading order of their first cell.
 function renumber(reg) {
   const map = new Map();
@@ -614,6 +621,8 @@ export function generateStarField({ difficulty = 'medium', size, seed = Math.ran
     if (Date.now() > until && (found.length || backup)) break;
     const c = candidate(N, K, tier, makeRng(`${seed}:sf:${attempt}`));
     if (!c || !c.res.solved) continue;
+    // A one-cell region hands over a free star: only Basic keeps them.
+    if (difficulty !== 'basic' && tinyRegion(c.reg, N)) continue;
     if (seen.has(fpOf(N, K, c.reg))) continue;
     c.score = scoreOf(c.res.steps, N);
     if (c.res.hardest < tier.minTech) { if (!backup || c.res.hardest > backup.res.hardest || (c.res.hardest === backup.res.hardest && c.score > backup.score)) backup = c; continue; }

@@ -36,6 +36,8 @@ const bit = (d) => 1 << (d - 1);
 export function createGame(def) {
   const P = def.id;
   const DIGITS = def.kind === 'digits';
+  // Words for a shade game's marks; a game may name them its own way (def.markWords).
+  const MW = { on: 'shaded', x: 'crossed', none: 'empty', ...(def.markWords || {}) };
   // Line games mark the edges between dots (or islands) instead of cells: the
   // game says how many there are and how a mark cycles (modules/grid-kit/lines.js).
   const EDGES = def.kind === 'edges';
@@ -368,7 +370,7 @@ export function createGame(def) {
       } else {
         cls.toggle('on', v === 1);
         cls.toggle('x', v === 2);
-        el.setAttribute('aria-label', `${def.cellLabel(p, i)}, ${v === 1 ? 'shaded' : v === 2 ? 'crossed' : 'empty'}${isGiven(i) ? ', given' : ''}`);
+        el.setAttribute('aria-label', `${def.cellLabel(p, i)}, ${v === 1 ? MW.on : v === 2 ? MW.x : MW.none}${isGiven(i) ? ', given' : ''}`);
       }
     }
     def.paint?.(board, { p, value: valueAt, wrong: wrongAt, sel: G.sel });
@@ -456,13 +458,17 @@ export function createGame(def) {
       return changes.concat(extra);
     }
     if (!prefs.autoCross || DIGITS) return changes;
+    // Judge each line with this move's marks already in place, and never
+    // overwrite a cell the move itself just marked.
+    const next = new Map(changes.map((ch) => [ch.i, ch.to]));
+    const after = (x) => (next.has(x) ? next.get(x) : valueAt(x));
     const extra = [];
     const lines = new Set();
     for (const ch of changes) { lines.add(`r${Math.floor(ch.i / G.p.cols)}`); lines.add(`c${ch.i % G.p.cols}`); }
     for (const key of lines) {
       const cells = def.lineCells(G.p, key);
-      const vals = cells.map((x) => valueAt(x) === 1 ? 1 : 0);
-      if (def.lineDone(G.p, key, vals)) for (const x of cells) if (!valueAt(x) && !extra.some((e) => e.i === x)) extra.push({ i: x, from: 0, to: 2, nf: 0, nt: 0 });
+      const vals = cells.map((x) => after(x) === 1 ? 1 : 0);
+      if (def.lineDone(G.p, key, vals)) for (const x of cells) if (!after(x) && !next.has(x) && !extra.some((e) => e.i === x)) extra.push({ i: x, from: 0, to: 2, nf: 0, nt: 0 });
     }
     return changes.concat(extra);
   }
@@ -511,7 +517,7 @@ export function createGame(def) {
     const all = autoCross(ch);
     apply(all);
     play(to === 1 || (EDGES && to && to !== 2 && to !== 3) ? 'place' : 'note');
-    announce(EDGES ? `${def.cellLabel(G.p, i)}: ${def.valueName(G.p, to)}` : `${def.cellLabel(G.p, i)} ${to === 1 ? 'shaded' : to === 2 ? 'crossed' : 'cleared'}`, true);
+    announce(EDGES ? `${def.cellLabel(G.p, i)}: ${def.valueName(G.p, to)}` : `${def.cellLabel(G.p, i)} ${to === 1 ? MW.on : to === 2 ? MW.x : 'cleared'}`, true);
     afterChange(ch);
   }
   function setPen(v) {

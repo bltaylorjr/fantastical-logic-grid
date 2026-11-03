@@ -1,14 +1,14 @@
 // Private test app for puzzle modules: mounts one module on its own page,
 // outside The Logic Grid, so it can be tried before integration. The Game
-// menu (or ?game=cm, sc, pg, np) picks the module.
+// menu (or ?game=np, cm, sc, pg, ml, sk, sf, ll, ib) picks the module.
 import { NP_STORY_THEMES } from '../../engine/src/number-place-story.js';
 
 const themes = NP_STORY_THEMES.map((t) => ({ id: t.id, name: t.name }));
-const KIT = { cm: 'cage-math', sc: 'sum-cross', pg: 'picture-grid' };
+const KIT = { cm: 'cage-math', sc: 'sum-cross', pg: 'picture-grid', ml: 'more-or-less', sk: 'skyline', sf: 'star-field', ll: 'loop-line', ib: 'island-bridges' };
 const params = new URLSearchParams(location.search);
 let game = params.get('game');
 try { if (!game) game = localStorage.getItem('module-test.game'); } catch (e) { /* private mode */ }
-if (!['np', 'cm', 'sc', 'pg'].includes(game)) game = 'np';
+if (!['np', ...Object.keys(KIT)].includes(game)) game = 'np';
 
 async function npEngine() {
   const { workerEngine } = await import('../number-place/engine-client.js');
