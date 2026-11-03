@@ -1,6 +1,7 @@
 // Star Field's definition for the shared game screen (modules/grid-kit/kit.js).
 // Cells are 1 (a star), 2 (a dot: known empty) or 0 (not decided). The kit's
 // shade pen places stars and its cross pen places dots.
+import { cleanStory } from '../grid-kit/story.js';
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const SIZES = [5, 6, 7, 8, 9, 10, 11];
 const LEVEL_IDS = ['basic', 'easy', 'medium', 'hard', 'expert', 'master'];
@@ -232,7 +233,7 @@ export const def = {
       })),
       toughness: Number(p.toughness) || 0, fingerprint: str(p.fingerprint, 80),
       rules: (Array.isArray(p.rules) ? p.rules : []).slice(0, 8).map((r) => str(r)),
-      story: p.story ? { id: str(p.story.id, 80), title: str(p.story.title, 80), intro: str(p.story.intro), ending: str(p.story.ending) } : null,
+      story: cleanStory(p.story),
     };
   },
   howto: `

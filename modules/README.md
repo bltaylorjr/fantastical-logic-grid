@@ -28,6 +28,18 @@ grid, Fill it in, show the answer, the solution replayed step by step, how-it-
 felt rating, badges and stats, share as picture or text, save and open a file,
 print, sound, silent mode and full keyboard play.
 
+**Story themes.** The setup screen's Story theme picks one of the main game's
+themes (or Surprise me); the daily puzzle's theme comes from the date, so it is
+the same for everyone. The engine gets it as the `theme` generate option and
+builds the title, opening, ending and three story moments
+(`engine/src/kit-story.js`); every word players see is in
+`engine/src/kit-story-words.js`, with a HOW TO WRITE note. The story is only a
+wrapper: the grid and clues are exactly the same with any theme or none
+(`engine/test/kit-story-proof.json`). Story moments show under the board as
+progress passes a third, two thirds and nearly the end, unless the player
+turns off Show story moments. When the player's record says another level
+suits them, the solved card says so and Next puzzle goes there.
+
 Every puzzle is proven by a solver that works the way a person does, so it has
 one answer and needs no guessing; the hints come from the same solver. The
 player's own records (`grid-kit/learning.js`) tune how tough each puzzle is

@@ -1,6 +1,7 @@
 // More or Less's definition for the shared game screen (modules/grid-kit/kit.js):
 // how its board looks (numbers, and the signs between neighbouring cells),
 // which cells see each other, and its words.
+import { cleanStory } from '../grid-kit/story.js';
 const bit = (d) => 1 << (d - 1);
 const rowCells = (N, r) => [...Array(N)].map((_, c) => r * N + c);
 const colCells = (N, c) => [...Array(N)].map((_, r) => r * N + c);
@@ -211,7 +212,7 @@ export const def = {
       })),
       toughness: Number(p.toughness) || 0, fingerprint: str(p.fingerprint, 80),
       rules: (Array.isArray(p.rules) ? p.rules : []).slice(0, 8).map((r) => str(r)),
-      story: p.story ? { id: str(p.story.id, 80), title: str(p.story.title, 80), intro: str(p.story.intro), ending: str(p.story.ending) } : null,
+      story: cleanStory(p.story),
     };
   },
   howto: `

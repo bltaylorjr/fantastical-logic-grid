@@ -4,6 +4,7 @@
 import { generateStarField, countStarField, solveStarField, getStarFieldHint, checkStarField, SF_TIERS, SF_TECHNIQUES } from '../src/star-field.js';
 import { OPS } from '../src/sf-ops.js';
 import { def } from '../../modules/star-field/game.js';
+import { themeStoryChecks } from './kit-story-checks.js';
 
 const quick = process.argv.includes('--quick');
 let passed = 0, failed = 0;
@@ -103,6 +104,9 @@ for (const difficulty of levels) {
   const p = generateStarField({ difficulty: 'hard', seed: 'p', practice: 'groups' });
   check('sf practice step used', p.techniques.includes('groups'));
 }
+
+// ---------- story themes ----------
+themeStoryChecks(check, 'sf', generateStarField, def);
 
 console.log(`${passed} passed, ${failed} failed`);
 if (failed) process.exit(1);

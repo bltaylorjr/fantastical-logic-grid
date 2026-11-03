@@ -7,12 +7,13 @@
 //
 // Cell values: 1 star, 2 blank (a dot), 0 not decided yet.
 //
-//   generateStarField({ difficulty, size, seed, avoid, toughness, practice, usedStories, story })
+//   generateStarField({ difficulty, size, seed, avoid, toughness, practice, usedStories, story, theme })
 //   getStarFieldHint(puzzle, entries)   a nudge, then where, then why
 //   solveStarField(puzzle, entries)     the logical solver (used by the tests)
 //   countStarField(puzzle, limit)       brute-force answer counter (tests only)
 import { makeRng } from './rng.js';
 import { cellName, cap, clamp01, fingerprint, pickByToughness, KIT_LEVEL_NAMES, listAnd } from './kit-common.js';
+import { kitThemeStory } from './kit-story.js';
 
 export const SF_TECHNIQUES = {
   neighbour: { level: 1, name: 'Stars never touch' },
@@ -605,7 +606,7 @@ function storyFor(seed, used = []) {
   return null;
 }
 
-export function generateStarField({ difficulty = 'medium', size, seed = Math.random().toString(36).slice(2), avoid = [], toughness = 0.5, practice = null, usedStories = [], story = true } = {}) {
+export function generateStarField({ difficulty = 'medium', size, seed = Math.random().toString(36).slice(2), avoid = [], toughness = 0.5, practice = null, usedStories = [], story = true, theme = null } = {}) {
   const tier = SF_TIERS[difficulty];
   if (!tier) throw new Error(`Unknown difficulty "${difficulty}".`);
   const N = tier.sizes.includes(Number(size)) ? Number(size) : tier.sizes[0];
@@ -650,7 +651,7 @@ export function generateStarField({ difficulty = 'medium', size, seed = Math.ran
       'Mark cells you know are empty with a dot. Dots are optional, but they help.',
     ],
   };
-  if (story) p.story = storyFor(seed, usedStories);
+  if (story) p.story = kitThemeStory('sf', seed, { theme, used: usedStories, classic: () => storyFor(seed, usedStories) });
   return p;
 }
 

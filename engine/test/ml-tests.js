@@ -3,6 +3,7 @@
 // solver, on grids up to 7×7.
 import { generateMoreOrLess, countMoreOrLess, solveMoreOrLess, getMoreOrLessHint, checkMoreOrLess, ML_TIERS, ML_TECHNIQUES, edgesOf } from '../src/more-or-less.js';
 import { def } from '../../modules/more-or-less/game.js';
+import { themeStoryChecks } from './kit-story-checks.js';
 
 const quick = process.argv.includes('--quick');
 let passed = 0, failed = 0;
@@ -60,6 +61,9 @@ for (const difficulty of levels) for (const seed of seeds) {
   const s5 = generateMoreOrLess({ difficulty: 'easy', size: 4, seed: 's' });
   check('ml size option is honoured', s5.size === 4);
 }
+
+// ---------- story themes ----------
+themeStoryChecks(check, 'ml', generateMoreOrLess, def);
 
 console.log(`${passed} passed, ${failed} failed`);
 if (failed) process.exit(1);

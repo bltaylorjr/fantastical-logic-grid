@@ -2,6 +2,7 @@
 // a line game (kind 'edges', see grid-kit/lines.js). The marks are the links:
 // pairs of islands that can see each other across open water, in reading
 // order. Values: 1 or 2 bridges, 3 crossed (no bridge), 0 nothing yet.
+import { cleanStory } from '../grid-kit/story.js';
 const SIZES = [7, 9, 10, 11, 12, 13, 15];
 
 export function ibLinks(R, C, islands) {
@@ -250,7 +251,7 @@ export const def = {
       })),
       toughness: Number(p.toughness) || 0, fingerprint: str(p.fingerprint, 80),
       rules: (Array.isArray(p.rules) ? p.rules : []).slice(0, 8).map((r) => str(r)),
-      story: p.story ? { id: str(p.story.id, 80), title: str(p.story.title, 80), intro: str(p.story.intro), ending: str(p.story.ending) } : null,
+      story: cleanStory(p.story),
     };
   },
   howto: `

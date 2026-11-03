@@ -6,8 +6,9 @@
 const { chromium } = require('playwright');
 const { spawn } = require('child_process');
 const path = require('path');
+const story = require('../grid-kit/e2e-story.cjs');
 const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`ok  ${m}`); };
-const PORT = Number(process.env.SF_PORT || 8202);
+const PORT = Number(process.env.SF_PORT || process.env.PORT || 8202);
 const SHOTS = process.env.SF_SHOTS || '';
 const P = 'sf';
 
@@ -24,10 +25,14 @@ const P = 'sf';
     await page.goto(`http://localhost:${PORT}/?game=${P}`);
     await page.waitForSelector(`#${P}-setup-view:not([hidden]) #${P}-levels .choice`);
     assert(await page.locator(`input[name=${P}-level]`).count() === 6, 'six difficulty levels');
+    // Two past give-ups at Easy, so the solved card offers a gentler level; an Astronomy story with moments.
+    const seeded = await story.seed(page, P, 'easy', { outcome: 'revealed' });
     await page.check(`input[name=${P}-level][value=easy]`, { force: true });
+    await story.pick(page, P, 'astronomy', true);
     await page.click(`#${P}-gen`);
     await page.waitForSelector(`#${P}-play-view:not([hidden])`, { timeout: 30000 });
     await page.click(`#${P}-coach-close`).catch(() => {});
+    await story.watch(page, P);
     const st = () => page.evaluate(async () => {
       const G = (await import('./modules/star-field/ui.js')).state();
       return { v: [...G.v], s: G.p.solution, n: G.p.size, k: G.p.stars, sel: G.sel, hints: G.hints, solved: G.solved, fp: G.p.fingerprint, undo: G.undo.length };
@@ -87,6 +92,7 @@ const P = 'sf';
     await page.waitForSelector(`#${P}-solved:not([hidden])`, { timeout: 5000 });
     assert((await st()).solved, 'the puzzle is solved');
     assert(/star/i.test(await page.textContent(`#${P}-solved-h`)), 'the solved card has a title');
+    await story.solved(page, P, 'star-field', { theme: 'astronomy', moments: true, next: 'basic' }, assert);
     await page.click(`#${P}-steps-btn`);
     await page.waitForSelector(`#${P}-steps-dlg[open]`);
     await page.click(`#${P}-step-next`);
@@ -96,7 +102,7 @@ const P = 'sf';
     await page.keyboard.press('Escape');
     assert(logs.length >= 1, 'the play record goes to the host');
     const plays = await page.evaluate(async () => (await import('./modules/star-field/ui.js')).learning().plays().length);
-    assert(plays === 1, 'the solve leaves one play record');
+    assert(plays === 1 + seeded, 'the solve leaves one play record');
 
     // Printing builds a page with the board and an answer key.
     const printed = await page.evaluate(async () => {

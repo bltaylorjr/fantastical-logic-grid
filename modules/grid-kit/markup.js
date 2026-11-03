@@ -1,5 +1,7 @@
 // The game screen's HTML for each kit game: a setup view, a play view and its
 // dialogs. Every id starts with the game's id, so several games can sit on one page.
+import { THEME_GROUPS } from './story.js';
+
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
 export function markup(def) {
@@ -23,10 +25,15 @@ export function markup(def) {
     <form id="${P}-setup" novalidate>
       <fieldset><legend>Difficulty</legend><div class="gk-choices" id="${P}-levels"></div></fieldset>
       <fieldset id="${P}-size-field"><legend>Grid size</legend><div class="gk-choices chips" id="${P}-sizes"></div></fieldset>
+      <div class="gk-field" id="${P}-theme-field">
+        <label for="${P}-theme">Story theme</label>
+        <select id="${P}-theme"><option value="surprise">Surprise me</option>${THEME_GROUPS.map((g) => `<optgroup label="${esc(g.name)}">${g.themes.map((t) => `<option value="${t.id}">${esc(t.name)}</option>`).join('')}</optgroup>`).join('')}</select>
+      </div>
       <details class="gk-more">
         <summary>More options</summary>
         <div class="gk-more-body">
           <label class="gk-switch"><input type="checkbox" id="${P}-silent"> Silent mode <small class="gk-muted">grid only: no story, sound or animation</small></label>
+          <label class="gk-switch"><input type="checkbox" id="${P}-moments"> Show story moments <small class="gk-muted">a short line now and then while you solve</small></label>
           <label class="gk-switch"><input type="checkbox" id="${P}-sound"> Sound effects</label>
           <label class="gk-switch"><input type="checkbox" id="${P}-adapt"> Tune puzzles to how I play</label>
           ${digits ? `<label class="gk-switch"><input type="checkbox" id="${P}-autoclean"> Clear notes when I place a number</label>` : `<label class="gk-switch"><input type="checkbox" id="${P}-autocross"> ${esc(def.autoCrossLabel || 'Cross out the rest of a line when it is finished')}</label>`}
@@ -80,6 +87,7 @@ export function markup(def) {
     <div class="gk-board-wrap">
       <div id="${P}-board" class="gk-board gk-${P}${def.kind === 'edges' ? ' gk-ln' : ''}" role="${def.boardRole || 'grid'}" aria-label="${esc(def.name)} ${def.kind === 'edges' ? 'board' : 'grid'}. ${esc(def.boardHelp)}"></div>
       <p class="gk-paused-note" aria-hidden="true">Paused</p>
+      <p class="gk-moment" id="${P}-moment" hidden><span id="${P}-moment-text"></span> <button class="gk-moment-x" type="button" id="${P}-moment-close" aria-label="Hide this story moment">×</button></p>
     </div>
     <div class="gk-side">
       <div class="gk-tools" role="toolbar" aria-label="Tools">
@@ -128,8 +136,10 @@ export function markup(def) {
       <span class="gk-muted" id="${P}-feel-done" role="status"></span>
     </div>
     <p class="gk-new-badges" id="${P}-new-badges" hidden></p>
+    <p class="gk-adapt" id="${P}-adapt-note" hidden></p>
     <p class="gk-actions">
       <button class="btn primary" type="button" id="${P}-again">Next puzzle</button>
+      <button class="btn" type="button" id="${P}-again-same" hidden></button>
       <button class="btn" type="button" id="${P}-share">Share my result</button>
       <button class="btn" type="button" id="${P}-steps-btn">Watch the solution</button>
       <button class="btn quiet" type="button" id="${P}-home">Back to setup</button>
@@ -141,6 +151,7 @@ export function markup(def) {
   </section>
   <p class="gk-sr" id="${P}-live" aria-live="assertive"></p>
   <p class="gk-sr" id="${P}-status-live" role="status" aria-live="polite"></p>
+  <p class="gk-sr" id="${P}-moment-live" aria-live="polite"></p>
 </section>
 
 <dialog class="gk-dialog" id="${P}-print-dlg" aria-labelledby="${P}-print-h">

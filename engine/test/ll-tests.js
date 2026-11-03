@@ -4,6 +4,8 @@
 // seed gives the same puzzle, and the puzzle plays to the end by hints alone.
 import { generateLoopLine, countLoopLine, solveLoopLine, getLoopLineHint, checkLoopLine, llGeometry, LL_TIERS, LL_TECHNIQUES } from '../src/loop-line.js';
 import { OPS } from '../src/ll-ops.js';
+import { def } from '../../modules/loop-line/game.js';
+import { themeStoryChecks } from './kit-story-checks.js';
 
 const quick = process.argv.includes('--quick');
 let passed = 0, failed = 0;
@@ -72,6 +74,9 @@ for (const difficulty of levels) for (const seed of seeds) {
   const p = generateLoopLine({ difficulty: 'basic', seed: 'z' });
   check('ll counter sees many answers with no numbers', countLoopLine({ ...p, clues: p.clues.map(() => -1) }, 2) === 2);
 }
+
+// ---------- story themes ----------
+themeStoryChecks(check, 'll', generateLoopLine, def);
 
 console.log(`${passed} passed, ${failed} failed`);
 if (failed) process.exit(1);

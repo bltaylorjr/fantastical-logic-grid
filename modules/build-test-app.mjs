@@ -18,7 +18,7 @@ if (existsSync(fonts)) cpSync(fonts, join(out, 'fonts'), { recursive: true });
 for (const dir of ['number-place', 'grid-kit', 'cage-math', 'sum-cross', 'picture-grid', 'more-or-less', 'skyline', 'star-field', 'loop-line', 'island-bridges', 'test-app']) {
   cpSync(join(root, 'modules', dir), join(out, 'modules', dir), { recursive: true, filter: (f) => !f.endsWith('.cjs') && !f.endsWith('.html') });
 }
-for (const f of ["number-place.js", "number-place-styles.js", "number-place-story.js", "rng.js", "engine-host.js", "kit-common.js", "cage-math.js", "sum-cross.js", "picture-grid.js", "picture-grid-art.js", "cm-ops.js", "sc-ops.js", "pg-ops.js", "latin-kit.js", "more-or-less.js", "skyline.js", "ml-ops.js", "sk-ops.js", "star-field.js", "sf-ops.js", "loop-line.js", "island-bridges.js", "ll-ops.js", "ib-ops.js"]) cpSync(join(root, 'engine', 'src', f), join(out, 'engine', 'src', f));
+for (const f of ["number-place.js", "number-place-styles.js", "number-place-story.js", "rng.js", "engine-host.js", "kit-common.js", "cage-math.js", "sum-cross.js", "picture-grid.js", "picture-grid-art.js", "cm-ops.js", "sc-ops.js", "pg-ops.js", "latin-kit.js", "more-or-less.js", "skyline.js", "ml-ops.js", "sk-ops.js", "star-field.js", "sf-ops.js", "loop-line.js", "island-bridges.js", "ll-ops.js", "ib-ops.js", "kit-story.js", "kit-story-words.js", "themes.js"]) cpSync(join(root, 'engine', 'src', f), join(out, 'engine', 'src', f));
 // The same page without its document wrapper, for the private claude.ai preview
 // (which adds its own wrapper and cannot print).
 const page = readFileSync(join(out, 'index.html'), 'utf8');

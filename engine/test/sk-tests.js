@@ -3,6 +3,7 @@
 // solver, on grids up to 6×6 (7×7 too without --quick).
 import { generateSkyline, countSkyline, solveSkyline, getSkylineHint, checkSkyline, SK_TIERS, SK_TECHNIQUES, cluesOf } from '../src/skyline.js';
 import { def } from '../../modules/skyline/game.js';
+import { themeStoryChecks } from './kit-story-checks.js';
 
 const quick = process.argv.includes('--quick');
 let passed = 0, failed = 0;
@@ -67,6 +68,9 @@ for (const difficulty of levels) for (const seed of seeds) {
   const sw = p.solution.slice(); [sw[0], sw[1]] = [sw[1], sw[0]];
   check('sk clashes catch a wrong row', def.clashes(p, sw).size > 0);
 }
+
+// ---------- story themes ----------
+themeStoryChecks(check, 'sk', generateSkyline, def);
 
 console.log(`${passed} passed, ${failed} failed`);
 if (failed) process.exit(1);

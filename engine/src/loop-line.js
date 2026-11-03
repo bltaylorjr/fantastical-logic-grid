@@ -7,12 +7,13 @@
 // Edges: flat ones first (row by row, (R+1)×C of them), then upright ones
 // (R×(C+1)). Edge values: 1 line, 2 crossed (no line), 0 not decided yet.
 //
-//   generateLoopLine({ difficulty, size, seed, avoid, toughness, practice, usedStories, story })
+//   generateLoopLine({ difficulty, size, seed, avoid, toughness, practice, usedStories, story, theme })
 //   getLoopLineHint(puzzle, entries)   a nudge, then where, then why
 //   solveLoopLine(puzzle, entries)     the logical solver (used by the tests)
 //   countLoopLine(puzzle, limit)       brute-force count of answers (tests, small grids)
 import { makeRng } from './rng.js';
 import { cap, clamp01, fingerprint, pickByToughness, KIT_LEVEL_NAMES } from './kit-common.js';
+import { kitThemeStory } from './kit-story.js';
 
 export const LL_TECHNIQUES = {
   zero: { level: 1, name: 'A zero' },
@@ -584,7 +585,7 @@ function attempt(R, C, tier, rng) {
   return { clues, sol, res, nClues: left, score: scoreOf(res, left, R * C) };
 }
 
-export function generateLoopLine({ difficulty = 'medium', size, seed = Math.random().toString(36).slice(2), avoid = [], toughness = 0.5, practice = null, usedStories = [], story: wantStory = true } = {}) {
+export function generateLoopLine({ difficulty = 'medium', size, seed = Math.random().toString(36).slice(2), avoid = [], toughness = 0.5, practice = null, usedStories = [], story: wantStory = true, theme = null } = {}) {
   const tier = LL_TIERS[difficulty];
   if (!tier) throw new Error(`Unknown difficulty "${difficulty}".`);
   const N = tier.sizes.includes(Number(size)) ? Number(size) : tier.sizes[0];
@@ -627,7 +628,7 @@ export function generateLoopLine({ difficulty = 'medium', size, seed = Math.rand
       'Mark edges you know are empty with a cross. Crosses are optional, but they help.',
     ],
   };
-  if (wantStory) p.story = story(seed, usedStories);
+  if (wantStory) p.story = kitThemeStory('ll', seed, { theme, used: usedStories, classic: () => story(seed, usedStories) });
   return p;
 }
 

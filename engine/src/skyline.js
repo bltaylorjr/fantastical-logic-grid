@@ -6,7 +6,7 @@
 // alone, and its difficulty is the hardest technique it needs. Where the edge
 // numbers alone are not enough for a level's techniques, a few heights are given.
 //
-//   generateSkyline({ difficulty, size, seed, avoid, toughness, practice, usedStories, story })
+//   generateSkyline({ difficulty, size, seed, avoid, toughness, practice, usedStories, story, theme })
 //   getSkylineHint(puzzle, entries)   a nudge, then where, then why
 //   solveSkyline(puzzle, entries)     the logical solver (used by the tests)
 //   countSkyline(puzzle)              brute-force answer count (tests)
@@ -16,6 +16,7 @@
 import { makeRng } from './rng.js';
 import { bit, bitsOf, cellName, cap, clamp01, fingerprint, pickByToughness, KIT_LEVEL_NAMES, listAnd } from './kit-common.js';
 import { latinSquare, latinState, latinFinders, runSolver, countLatin, pruneClues, checkLatin, latinHint, latinStory, pathOf, toughnessOf, elimText, unitName } from './latin-kit.js';
+import { kitThemeStory } from './kit-story.js';
 
 export const SK_TECHNIQUES = {
   nakedSingle: { level: 1, name: 'Only number left' },
@@ -233,7 +234,7 @@ function candidate(N, tier, rng) {
   return { sol, givens: p.givens, clues: p.clues, res, fits, score: toughnessOf(res.steps, SK_TECHNIQUES, N) + p.givens.filter(Boolean).length * -0.5 };
 }
 
-export function generateSkyline({ difficulty = 'medium', size, seed = Math.random().toString(36).slice(2), avoid = [], toughness = 0.5, practice = null, usedStories = [], story = true } = {}) {
+export function generateSkyline({ difficulty = 'medium', size, seed = Math.random().toString(36).slice(2), avoid = [], toughness = 0.5, practice = null, usedStories = [], story = true, theme = null } = {}) {
   const tier = SK_TIERS[difficulty];
   if (!tier) throw new Error(`Unknown difficulty "${difficulty}".`);
   const N = SK_SIZES.includes(Number(size)) ? Number(size) : tier.sizes[0];
@@ -275,7 +276,7 @@ export function generateSkyline({ difficulty = 'medium', size, seed = Math.rando
       'A number at the edge says how many buildings you see looking along that row or column from there. Taller buildings hide shorter ones behind them.',
     ],
   };
-  if (story) p.story = latinStory('sk', seed, usedStories);
+  if (story) p.story = kitThemeStory('sk', seed, { theme, used: usedStories, classic: () => latinStory('sk', seed, usedStories) });
   return p;
 }
 

@@ -6,6 +6,7 @@
 const { chromium } = require('playwright');
 const { spawn } = require('child_process');
 const path = require('path');
+const story = require('../grid-kit/e2e-story.cjs');
 const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`ok  ${m}`); };
 const PORT = process.env.PORT || '8203';
 const P = 'll', DIR = 'loop-line';
@@ -23,10 +24,14 @@ const P = 'll', DIR = 'loop-line';
     await page.goto(`http://localhost:${PORT}/?game=${P}`);
     await page.waitForSelector(`#${P}-setup-view:not([hidden]) #${P}-levels .choice`);
     assert(await page.locator(`input[name=${P}-level]`).count() === 6, 'six difficulty levels');
+    // Two past give-ups at Easy, so the solved card offers a gentler level; a story theme with moments.
+    const seeded = await story.seed(page, P, 'easy', { outcome: 'revealed' });
     await page.check(`input[name=${P}-level][value=easy]`, { force: true });
+    await story.pick(page, P, 'parks', true);
     await page.click(`#${P}-gen`);
     await page.waitForSelector(`#${P}-play-view:not([hidden])`, { timeout: 30000 });
     await page.click(`#${P}-coach-close`).catch(() => {});
+    await story.watch(page, P);
     const st = () => page.evaluate(async (dir) => {
       const G = (await import(`./modules/${dir}/ui.js`)).state();
       return { v: [...G.v], s: G.p.solution, hints: G.hints, solved: G.solved, fp: G.p.fingerprint, sel: G.sel, R: G.p.size, C: G.p.cols, undo: G.undo.length };
@@ -133,6 +138,7 @@ const P = 'll', DIR = 'loop-line';
     }
     await page.waitForSelector(`#${P}-solved:not([hidden])`, { timeout: 5000 });
     assert((await st()).solved, 'the puzzle is solved');
+    await story.solved(page, P, DIR, { theme: 'parks', moments: true, next: 'basic' }, assert);
     assert((await page.textContent(`#${P}-solved-h`)).trim().length > 3, 'the solved card has a title');
     await page.click(`#${P}-steps-btn`);
     await page.waitForSelector(`#${P}-steps-dlg[open]`);
@@ -141,7 +147,7 @@ const P = 'll', DIR = 'loop-line';
     assert(await page.locator(`#${P}-steps-board [data-v="1"], #${P}-steps-board [data-v="2"]`).count() > 0, 'the replay board shows the step');
     await page.keyboard.press('Escape');
     assert(logs.length >= 1, 'the play record goes to the host');
-    assert(await page.evaluate(async (dir) => (await import(`./modules/${dir}/ui.js`)).learning().plays().length, DIR) === 1, 'the solve leaves one play record');
+    assert(await page.evaluate(async (dir) => (await import(`./modules/${dir}/ui.js`)).learning().plays().length, DIR) === 1 + seeded, 'the solve leaves one play record');
 
     await page.click(`#${P}-home`);
     await page.waitForSelector(`#${P}-setup-view:not([hidden])`);

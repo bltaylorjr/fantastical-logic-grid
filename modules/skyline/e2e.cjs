@@ -7,8 +7,9 @@
 const { chromium } = require('playwright');
 const { spawn } = require('child_process');
 const path = require('path');
+const story = require('../grid-kit/e2e-story.cjs');
 const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`ok  ${m}`); };
-const PORT = 8201, P = 'sk', DIR = 'skyline', NAME = 'Skyline';
+const PORT = Number(process.env.PORT) || 8201, P = 'sk', DIR = 'skyline', NAME = 'Skyline';
 
 (async () => {
   const server = spawn('node', [path.join(__dirname, '..', '..', 'scripts', 'serve.mjs'), path.join(__dirname, '..', '..', 'dist', 'module-test'), String(PORT)], { stdio: 'ignore' });
@@ -22,13 +23,19 @@ const PORT = 8201, P = 'sk', DIR = 'skyline', NAME = 'Skyline';
       const logs = [];
       page.on('console', (m) => { if (/play record/.test(m.text())) logs.push(m.text()); });
       await page.goto(`http://localhost:${PORT}/?game=${P}`);
-      await page.selectOption('#theme', theme);
       await page.waitForSelector(`#${P}-setup-view:not([hidden]) #${P}-levels .choice`);
+      // Story themes and moments: Mystery with moments (and two past give-ups,
+      // so the solved card offers a gentler level), then moments off, then Farm Life.
+      const opt = { light: { theme: 'mystery', moments: true, next: 'basic' }, dark: { theme: 'surprise', moments: false }, contrast: { theme: 'farm', moments: true } }[theme];
+      const seeded = opt.next ? await story.seed(page, P, 'easy', { outcome: 'revealed' }) : 0;
+      await page.selectOption('#theme', theme);
       assert(await page.locator(`input[name=${P}-level]`).count() === 6, `${NAME} (${theme}): six difficulty levels`);
       await page.check(`input[name=${P}-level][value=${theme === 'light' ? 'easy' : 'basic'}]`, { force: true });
+      await story.pick(page, P, opt.theme, opt.moments);
       await page.click(`#${P}-gen`);
       await page.waitForSelector(`#${P}-play-view:not([hidden])`, { timeout: 30000 });
       await page.click(`#${P}-coach-close`).catch(() => {});
+      await story.watch(page, P);
       const st = () => page.evaluate(async (dir) => {
         const G = (await import(`./modules/${dir}/ui.js`)).state();
         return { v: [...G.v], s: G.p.solution, gv: G.p.givens, n: G.p.size, clues: ['top', 'bottom', 'left', 'right'].reduce((n, k) => n + G.p.clues[k].filter(Boolean).length, 0), hints: G.hints, solved: G.solved, fp: G.p.fingerprint };
@@ -81,6 +88,7 @@ const PORT = 8201, P = 'sk', DIR = 'skyline', NAME = 'Skyline';
       await page.waitForSelector(`#${P}-solved:not([hidden])`, { timeout: 5000 });
       assert((await st()).solved, `${NAME}: the puzzle is solved by keyboard`);
       assert((await page.textContent(`#${P}-solved-h`)).trim().length > 3, `${NAME}: the solved card has a title`);
+      await story.solved(page, P, DIR, { theme: opt.theme === 'surprise' ? null : opt.theme, moments: opt.moments, next: opt.next }, assert);
       await page.click(`#${P}-steps-btn`);
       await page.waitForSelector(`#${P}-steps-dlg[open]`);
       await page.click(`#${P}-step-next`);
@@ -90,7 +98,7 @@ const PORT = 8201, P = 'sk', DIR = 'skyline', NAME = 'Skyline';
       await page.keyboard.press('Escape');
       assert(logs.length >= 1, `${NAME}: the play record goes to the host`);
       const plays = await page.evaluate(async (dir) => (await import(`./modules/${dir}/ui.js`)).learning().plays().length, DIR);
-      assert(plays === 1, `${NAME}: the solve leaves one play record`);
+      assert(plays === 1 + seeded, `${NAME}: the solve leaves one play record`);
 
       // Printing draws the edge numbers too.
       const printed = await page.evaluate(async () => {

@@ -2,6 +2,7 @@
 // a line game (kind 'edges', see grid-kit/lines.js). The marks are the edges
 // between dots: flat ones first, row by row, then upright ones. Values: 1 a
 // line, 2 crossed (no line), 0 not decided.
+import { cleanStory } from '../grid-kit/story.js';
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const SIZES = [5, 6, 7, 8, 10, 12];
 
@@ -245,7 +246,7 @@ export const def = {
       })),
       toughness: Number(p.toughness) || 0, fingerprint: str(p.fingerprint, 80),
       rules: (Array.isArray(p.rules) ? p.rules : []).slice(0, 8).map((r) => str(r)),
-      story: p.story ? { id: str(p.story.id, 80), title: str(p.story.title, 80), intro: str(p.story.intro), ending: str(p.story.ending) } : null,
+      story: cleanStory(p.story),
     };
   },
   howto: `

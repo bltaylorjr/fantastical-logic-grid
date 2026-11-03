@@ -49,6 +49,11 @@
 .gk-app .gk-confirm { padding: 14px 16px; border: 2px solid var(--gk-error); }
 .gk-app .gk-confirm p { margin: 0 0 8px; }
 .gk-app .gk-ending { font-size: 1.1rem; font-style: italic; max-width: 62ch; }
+.gk-app .gk-moment { display: flex; align-items: center; gap: 6px; max-width: 62ch; margin: 8px 0 0; color: var(--gk-muted); font-style: italic; font-size: .95rem; }
+.gk-app .gk-moment[hidden] { display: none; }
+.gk-app .gk-moment-x { flex-shrink: 0; min-width: 32px; min-height: 32px; border: 0; border-radius: 6px; background: none; color: var(--gk-muted); font: inherit; font-style: normal; font-size: 1.1rem; cursor: pointer; }
+.gk-app .gk-moment-x:hover, .gk-app .gk-moment-x:focus-visible { background: var(--gk-soft); color: var(--gk-text); }
+.gk-app .gk-adapt { font-weight: 700; }
 .gk-app .gk-feel { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 12px 0; }
 .gk-app .gk-feel p { margin: 0 8px 0 0; font-weight: 700; }
 .gk-app .gk-feel [aria-pressed="true"] { background: var(--gk-accent); color: var(--on-accent, #fff); border-color: var(--gk-accent); }

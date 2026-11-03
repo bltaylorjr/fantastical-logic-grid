@@ -4,6 +4,8 @@
 // seed gives the same puzzle, and the puzzle plays to the end by hints alone.
 import { generateIslandBridges, countIslandBridges, solveIslandBridges, getIslandBridgesHint, checkIslandBridges, ibLinks, IB_TIERS, IB_TECHNIQUES } from '../src/island-bridges.js';
 import { OPS } from '../src/ib-ops.js';
+import { def } from '../../modules/island-bridges/game.js';
+import { themeStoryChecks } from './kit-story-checks.js';
 
 const quick = process.argv.includes('--quick');
 let passed = 0, failed = 0;
@@ -75,6 +77,9 @@ for (const difficulty of levels) for (const seed of seeds) {
   two.links = ibLinks(7, 7, two.islands);
   check('ib counter sees two answers for a square of 3s', countIslandBridges(two, 3) === 2);
 }
+
+// ---------- story themes ----------
+themeStoryChecks(check, 'ib', generateIslandBridges, def);
 
 console.log(`${passed} passed, ${failed} failed`);
 if (failed) process.exit(1);

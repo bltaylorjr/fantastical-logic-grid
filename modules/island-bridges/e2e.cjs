@@ -6,6 +6,7 @@
 const { chromium } = require('playwright');
 const { spawn } = require('child_process');
 const path = require('path');
+const story = require('../grid-kit/e2e-story.cjs');
 const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`ok  ${m}`); };
 const PORT = process.env.PORT || '8203';
 const P = 'ib', DIR = 'island-bridges';
@@ -23,10 +24,14 @@ const P = 'ib', DIR = 'island-bridges';
     await page.goto(`http://localhost:${PORT}/?game=${P}`);
     await page.waitForSelector(`#${P}-setup-view:not([hidden]) #${P}-levels .choice`);
     assert(await page.locator(`input[name=${P}-level]`).count() === 6, 'six difficulty levels');
+    // Two past give-ups at Easy, so the solved card offers a gentler level; a story theme with moments.
+    const seeded = await story.seed(page, P, 'easy', { outcome: 'revealed' });
     await page.check(`input[name=${P}-level][value=easy]`, { force: true });
+    await story.pick(page, P, 'nautical', true);
     await page.click(`#${P}-gen`);
     await page.waitForSelector(`#${P}-play-view:not([hidden])`, { timeout: 30000 });
     await page.click(`#${P}-coach-close`).catch(() => {});
+    await story.watch(page, P);
     const st = () => page.evaluate(async (dir) => {
       const G = (await import(`./modules/${dir}/ui.js`)).state();
       return { v: [...G.v], s: G.p.solution, hints: G.hints, solved: G.solved, fp: G.p.fingerprint, sel: G.sel, links: G.p.links, islands: G.p.islands, R: G.p.size, C: G.p.cols };
@@ -141,6 +146,7 @@ const P = 'ib', DIR = 'island-bridges';
     }
     await page.waitForSelector(`#${P}-solved:not([hidden])`, { timeout: 5000 });
     assert((await st()).solved, 'the puzzle is solved');
+    await story.solved(page, P, DIR, { theme: 'nautical', moments: true, next: 'basic' }, assert);
     await page.click(`#${P}-steps-btn`);
     await page.waitForSelector(`#${P}-steps-dlg[open]`);
     await page.click(`#${P}-step-end`);

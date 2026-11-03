@@ -15,12 +15,15 @@
 // engine: { generate(options), hint(puzzle, entries) } returning promises.
 // config(): the admin's choices for this game (all optional): daily, coachTips,
 // stories (bools), maxLevel, adaptStrength, practiceChance, sharedWeight.
+// Stories follow the player's story theme (story.js; the words are in
+// engine/src/kit-story-words.js), and story moments show as they solve.
 import { markup } from './markup.js';
 import { createLearning, summary, ORDER } from './learning.js';
 import { sounds } from './sound.js';
 import { printableHtml, printHtml } from './print.js';
 import { resultPicture } from './picture.js';
 import { edgePointer } from './lines.js';
+import { THEME_IDS, themeForDay, themeName, beatsReached } from './story.js';
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (e) { return d; } };
@@ -80,7 +83,7 @@ export function createGame(def) {
     let d = def.daily[day];
     if (!lv.some((l) => l.id === d)) d = lv[lv.length - 1].id;
     const level = def.levels.find((l) => l.id === d);
-    return { difficulty: d, size: level.dailySize || level.sizes[0], seed: `daily-${P}-${date}` };
+    return { difficulty: d, size: level.dailySize || level.sizes[0], seed: `daily-${P}-${date}`, theme: themeForDay(date) };
   }
 
   // ---------- mount ----------
@@ -92,7 +95,7 @@ export function createGame(def) {
     engine = deps.engine;
     const pre = deps.storagePrefix || `flg.${P}`;
     K = { games: `${pre}.games`, cur: `${pre}.cur`, prefs: `${pre}.prefs`, learn: `${pre}.learn` };
-    prefs = { notes: false, showMistakes: false, autoClean: true, autoCross: true, highlight: true, silent: false, sound: true, adapt: true, level: null, size: null, coachDone: false, pen: 1, ...load(K.prefs, {}) };
+    prefs = { notes: false, showMistakes: false, autoClean: true, autoCross: true, highlight: true, silent: false, sound: true, adapt: true, theme: 'surprise', moments: true, level: null, size: null, coachDone: false, pen: 1, ...load(K.prefs, {}) };
     learn = createLearning({ load, keep, key: K.learn, par: def.par, simple: def.simpleTechniques || [], config: cfg });
     if (deps.shared) learn.setShared(deps.shared);
     root.classList.add('gk-app', `gk-app-${P}`);
@@ -127,7 +130,10 @@ export function createGame(def) {
     if (!lv.some((l) => l.id === prefs.level)) prefs.level = lv[0].id;
     $('levels').innerHTML = lv.map((l) => `<label class="choice"><input type="radio" name="${P}-level" value="${l.id}"${l.id === prefs.level ? ' checked' : ''}><span><b>${esc(l.name)}</b><small>${esc(l.note)}</small></span></label>`).join('');
     renderSizes();
-    for (const [id, key] of [['silent', 'silent'], ['sound', 'sound'], ['adapt', 'adapt'], ['highlight', 'highlight'], [DIGITS ? 'autoclean' : 'autocross', DIGITS ? 'autoClean' : 'autoCross']]) {
+    if (prefs.theme !== 'surprise' && !THEME_IDS.includes(prefs.theme)) prefs.theme = 'surprise';
+    $('theme').value = prefs.theme;
+    $('theme').onchange = () => { prefs.theme = $('theme').value; savePrefs(); };
+    for (const [id, key] of [['silent', 'silent'], ['sound', 'sound'], ['moments', 'moments'], ['adapt', 'adapt'], ['highlight', 'highlight'], [DIGITS ? 'autoclean' : 'autocross', DIGITS ? 'autoClean' : 'autoCross']]) {
       const el = $(id);
       el.checked = !!prefs[key];
       el.onchange = () => { prefs[key] = el.checked; savePrefs(); root.classList.toggle('gk-silent', quiet()); renderSetup(); };
@@ -153,7 +159,8 @@ export function createGame(def) {
     const sum = summary(learn.plays(), { name: def.name, extra: def.badges || [] });
     const doneToday = learn.plays().some((r) => r.daily === todayUtc() && r.outcome === 'solved');
     $('daily-btn').hidden = $('daily-note').hidden = cfg().daily === false;
-    $('daily-note').textContent = `${doneToday ? 'You solved today\'s puzzle. ' : ''}Today's puzzle is ${levelName(d.difficulty)}.${sum.streak ? ` Streak: ${sum.streak} day${sum.streak === 1 ? '' : 's'}.` : ''}`;
+    $('theme-field').hidden = quiet() || cfg().stories === false;
+    $('daily-note').textContent = `${doneToday ? 'You solved today\'s puzzle. ' : ''}Today's puzzle is ${levelName(d.difficulty)}${$('theme-field').hidden ? '' : `, with a ${themeName(d.theme)} story`}.${sum.streak ? ` Streak: ${sum.streak} day${sum.streak === 1 ? '' : 's'}.` : ''}`;
 
     const suggested = learn.suggestLevel();
     const chosen = $('levels').querySelector('input:checked')?.value;
@@ -198,7 +205,7 @@ export function createGame(def) {
     try {
       const tuned = mode === 'free' ? learn.optionsFor(opts.difficulty) : {};
       if (mode === 'free' && !prefs.adapt) { tuned.toughness = 0.5; tuned.practice = null; }
-      const p = await engine.generate({ seed: Math.random().toString(36).slice(2), story: cfg().stories !== false, ...tuned, ...opts });
+      const p = await engine.generate({ seed: Math.random().toString(36).slice(2), story: cfg().stories !== false, theme: prefs.theme || 'surprise', ...tuned, ...opts });
       status.textContent = '';
       begin(p, { mode, daily: opts.daily || null, practice: tuned.practice || null, tuned: tuned.toughness ?? null });
     } catch (e) {
@@ -250,7 +257,7 @@ export function createGame(def) {
   function save() {
     if (!G) return;
     G.updated = Date.now();
-    const { hint, checked, paused, ...rest } = G;
+    const { hint, checked, paused, next, ...rest } = G;
     putGame({ ...rest, undo: G.undo.slice(-400), redo: G.redo.slice(-400) });
     keep(K.cur, G.id);
   }
@@ -282,6 +289,9 @@ export function createGame(def) {
     $('title').textContent = story ? p.story.title : `${p.difficulty.name} puzzle`;
     $('story').textContent = story ? p.story.intro : '';
     $('story').hidden = !story;
+    // Story moments already passed (a resumed game) stay passed, and do not show again.
+    if (!Number.isInteger(G.beat)) G.beat = beatsReached(progressOf());
+    $('moment').hidden = true;
     $('rules').innerHTML = p.rules.map((r) => `<li>${esc(r)}</li>`).join('');
     $('solved').hidden = true;
     $('share-box').hidden = true;
@@ -392,11 +402,39 @@ export function createGame(def) {
       $('notes-btn').setAttribute('aria-pressed', String(!!prefs.notes));
       $('notes-btn').querySelector('.state').textContent = prefs.notes ? 'On' : 'Off';
     }
-    const open = p.solution.filter((_, i) => playable(i) && !isGiven(i)).length;
-    const done = p.solution.filter((_, i) => playable(i) && !isGiven(i) && (DIGITS ? G.v[i] : G.v[i] === 1 || (p.solution[i] === 2 && G.v[i] === 2))).length;
-    $('progress').textContent = `${Math.round((def.progress ? def.progress(p, valueAt) : done / Math.max(1, open)) * 100)}%`;
+    const frac = progressOf();
+    $('progress').textContent = `${Math.round(frac * 100)}%`;
+    storyMoment(frac);
     $('time').textContent = fmtTime(G.ms);
     renderHint();
+  }
+
+  // How far along the player is, 0 to 1 (the percent shown beside the timer).
+  function progressOf() {
+    const p = G.p;
+    if (def.progress) return def.progress(p, valueAt);
+    const open = p.solution.filter((_, i) => playable(i) && !isGiven(i)).length;
+    const done = p.solution.filter((_, i) => playable(i) && !isGiven(i) && (DIGITS ? G.v[i] : G.v[i] === 1 || (p.solution[i] === 2 && G.v[i] === 2))).length;
+    return done / Math.max(1, open);
+  }
+
+  // Story moments: as progress passes a third, two thirds and nearly the end,
+  // one short line of the story shows under the board. It never blocks play,
+  // is read out politely, and can be hidden. The lines come with the puzzle
+  // (story.beats), so they are the same for everyone and say nothing about the answer.
+  function storyMoment(frac) {
+    const beats = G.p.story?.beats || [];
+    const reached = beatsReached(frac);
+    if (G.solved) { $('moment').hidden = true; return; }
+    if (reached <= (G.beat || 0)) return;
+    G.beat = reached;
+    const text = beats[Math.min(reached, beats.length) - 1];
+    if (!text || !showStory() || prefs.moments === false) return;
+    $('moment-text').textContent = text;
+    $('moment').hidden = false;
+    const live = $('moment-live');
+    live.textContent = '';
+    setTimeout(() => { if (root) live.textContent = text; }, 60);
   }
 
   // ---------- changing cells ----------
@@ -661,9 +699,34 @@ export function createGame(def) {
     $('feel-done').textContent = '';
     root.querySelector(`#${P}-solved .gk-feel`).hidden = G.revealed;
     $('share').hidden = G.revealed;
+    $('moment').hidden = true;
+    nextLevelOffer();
     $('new-badges').hidden = !newBadges.length;
     $('new-badges').textContent = newBadges.length ? `New badge${newBadges.length === 1 ? '' : 's'}: ${newBadges.map((b) => b.name).join(', ')}` : '';
     if (fresh) { box.focus(); announce(`${$('solved-h').textContent} ${$('solved-text').textContent}`); }
+  }
+
+  // Keep the player stretched: when their record says another level suits
+  // them now, the solved card says so and Next puzzle goes there. The same
+  // level stays one button away.
+  function nextLevelOffer() {
+    const here = G.p.difficulty.id;
+    const s = prefs.adapt && G.mode !== 'file' ? learn.suggestLevel() : here;
+    const move = s !== here && levels().some((l) => l.id === s);
+    G.next = move ? s : here;
+    const up = ORDER.indexOf(s) > ORDER.indexOf(here);
+    $('adapt-note').hidden = !move;
+    $('adapt-note').textContent = move ? (up ? `You're ready for ${levelName(s)}.` : `Try ${levelName(s)} for a breather.`) : '';
+    $('again').textContent = move ? `Try ${levelName(s)}` : 'Next puzzle';
+    $('again-same').hidden = !move;
+    $('again-same').textContent = `Another ${levelName(here)}`;
+  }
+  function nextPuzzle(level) {
+    const lv = def.levels.find((l) => l.id === level) || def.levels.find((l) => l.id === G.p.difficulty.id);
+    const size = lv.sizes.includes(G.p.size) ? G.p.size : lv.sizes.includes(prefs.size) ? prefs.size : lv.sizes[0];
+    if (lv.id !== G.p.difficulty.id) { prefs.level = lv.id; prefs.size = size; savePrefs(); buildSetup(); }
+    showView('setup');
+    startNew({ difficulty: lv.id, size });
   }
 
   function reveal() {
@@ -777,6 +840,7 @@ export function createGame(def) {
       ms: num(g.ms), hints: num(g.hints), mistakes: num(g.mistakes), checks: num(g.checks), stuck: Array.isArray(g.stuck) ? g.stuck.filter((t) => NAME_ID.test(t)).slice(-50) : [],
       solved: !!g.solved, revealed: !!g.revealed, created: num(g.created) || Date.now(), updated: num(g.updated) || Date.now(),
       sel: Number.isInteger(g.sel) && g.sel >= 0 && g.sel < cells ? g.sel : 0,
+      beat: Number.isInteger(g.beat) && g.beat >= 0 && g.beat <= 3 ? g.beat : null,
     };
   }
 
@@ -944,7 +1008,9 @@ export function createGame(def) {
     $('reveal-no').onclick = () => { $('reveal-confirm').hidden = true; };
     $('reveal-yes').onclick = reveal;
     $('new').onclick = () => { if (G && !G.solved && G.ms > 5000) record('abandoned'); showView('setup'); };
-    $('again').onclick = () => { const lv = G.p.difficulty.id, size = G.p.size; showView('setup'); startNew({ difficulty: lv, size }); };
+    $('again').onclick = () => nextPuzzle(G.next || G.p.difficulty.id);
+    $('again-same').onclick = () => nextPuzzle(G.p.difficulty.id);
+    $('moment-close').onclick = () => { $('moment').hidden = true; focusCell(G.sel); };
     $('home').onclick = () => showView('setup');
     $('share').onclick = share;
     $('steps-btn').onclick = openSteps;

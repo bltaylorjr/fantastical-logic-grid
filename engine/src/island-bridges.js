@@ -9,12 +9,13 @@
 // open water (p.links, in reading order). Link values: 1 or 2 bridges,
 // 3 no bridge (a cross), 0 not decided yet.
 //
-//   generateIslandBridges({ difficulty, size, seed, avoid, toughness, practice, usedStories, story })
+//   generateIslandBridges({ difficulty, size, seed, avoid, toughness, practice, usedStories, story, theme })
 //   getIslandBridgesHint(puzzle, entries)   a nudge, then where, then why
 //   solveIslandBridges(puzzle, entries)     the logical solver (used by the tests)
 //   countIslandBridges(puzzle, limit)       brute-force count of answers (tests)
 import { makeRng } from './rng.js';
 import { cap, clamp01, fingerprint, pickByToughness, KIT_LEVEL_NAMES } from './kit-common.js';
+import { kitThemeStory } from './kit-story.js';
 
 export const IB_TECHNIQUES = {
   cross: { level: 1, name: 'Bridges can\'t cross' },
@@ -404,7 +405,7 @@ function story(seed, used = []) {
 const fpOf = (R, C, islands) => fingerprint('ib', `${R}x${C}|${islands.map((s) => `${s.r}.${s.c}.${s.n}`).join(',')}`);
 const scoreOf = (res, nIsl) => Math.round(res.steps.reduce((s, x) => s + IB_TECHNIQUES[x.technique].level ** 2, 0) + nIsl);
 
-export function generateIslandBridges({ difficulty = 'medium', size, seed = Math.random().toString(36).slice(2), avoid = [], toughness = 0.5, practice = null, usedStories = [], story: wantStory = true } = {}) {
+export function generateIslandBridges({ difficulty = 'medium', size, seed = Math.random().toString(36).slice(2), avoid = [], toughness = 0.5, practice = null, usedStories = [], story: wantStory = true, theme = null } = {}) {
   const tier = IB_TIERS[difficulty];
   if (!tier) throw new Error(`Unknown difficulty "${difficulty}".`);
   const N = tier.sizes.includes(Number(size)) ? Number(size) : tier.sizes[0];
@@ -450,7 +451,7 @@ export function generateIslandBridges({ difficulty = 'medium', size, seed = Math
       'In the end every island is joined into one group, so you can walk from any island to any other.',
     ],
   };
-  if (wantStory) p.story = story(seed, usedStories);
+  if (wantStory) p.story = kitThemeStory('ib', seed, { theme, used: usedStories, classic: () => story(seed, usedStories) });
   return p;
 }
 

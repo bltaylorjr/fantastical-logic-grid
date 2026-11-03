@@ -4,7 +4,7 @@
 // does, so it has exactly one answer reachable by logic alone, and its
 // difficulty is the hardest technique it needs.
 //
-//   generateMoreOrLess({ difficulty, size, seed, avoid, toughness, practice, usedStories, story })
+//   generateMoreOrLess({ difficulty, size, seed, avoid, toughness, practice, usedStories, story, theme })
 //   getMoreOrLessHint(puzzle, entries)   a nudge, then where, then why
 //   solveMoreOrLess(puzzle, entries)     the logical solver (used by the tests)
 //   countMoreOrLess(puzzle)              brute-force answer count (tests)
@@ -14,6 +14,7 @@
 import { makeRng } from './rng.js';
 import { bit, bitsOf, cellName, cap, clamp01, fingerprint, pickByToughness, KIT_LEVEL_NAMES, listAnd, listOr } from './kit-common.js';
 import { latinSquare, latinState, latinFinders, runSolver, countLatin, pruneClues, checkLatin, latinHint, latinStory, pathOf, toughnessOf, highBit, lowBit, elimText, unitName } from './latin-kit.js';
+import { kitThemeStory } from './kit-story.js';
 
 export const ML_TECHNIQUES = {
   nakedSingle: { level: 1, name: 'Only number left' },
@@ -175,7 +176,7 @@ function candidate(N, tier, rng) {
   return { sol, givens: p.givens, signs: p.signs, res, fits, score: toughnessOf(res.steps, ML_TECHNIQUES, N) };
 }
 
-export function generateMoreOrLess({ difficulty = 'medium', size, seed = Math.random().toString(36).slice(2), avoid = [], toughness = 0.5, practice = null, usedStories = [], story = true } = {}) {
+export function generateMoreOrLess({ difficulty = 'medium', size, seed = Math.random().toString(36).slice(2), avoid = [], toughness = 0.5, practice = null, usedStories = [], story = true, theme = null } = {}) {
   const tier = ML_TIERS[difficulty];
   if (!tier) throw new Error(`Unknown difficulty "${difficulty}".`);
   const N = ML_SIZES.includes(Number(size)) ? Number(size) : tier.sizes[0];
@@ -217,7 +218,7 @@ export function generateMoreOrLess({ difficulty = 'medium', size, seed = Math.ra
       'A sign between two cells points to the smaller number: in 2 < 3, the 2 is less.',
     ],
   };
-  if (story) p.story = latinStory('ml', seed, usedStories);
+  if (story) p.story = kitThemeStory('ml', seed, { theme, used: usedStories, classic: () => latinStory('ml', seed, usedStories) });
   return p;
 }
 
