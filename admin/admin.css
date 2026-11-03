@@ -416,7 +416,7 @@ td.num, th.num { white-space: nowrap; }
 .web-mode { display: inline-flex; border: 2px solid var(--line); border-radius: 10px; overflow: hidden; }
 .web-mode label { display: flex; }
 .web-mode input { position: absolute; opacity: 0; width: 1px; height: 1px; }
-.web-mode span { display: flex; align-items: center; min-height: 40px; padding: 0 14px; cursor: pointer; font-weight: 600; }
+.web-mode span { display: flex; align-items: center; min-height: 44px; padding: 0 14px; cursor: pointer; font-weight: 600; }
 .web-mode input:checked + span { background: var(--accent); color: var(--accent-text); }
 .web-mode input:focus-visible + span { outline: 3px solid var(--focus, var(--accent)); outline-offset: -3px; }
 .web-mode input:disabled + span { opacity: .5; cursor: not-allowed; }
