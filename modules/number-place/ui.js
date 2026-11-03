@@ -139,6 +139,9 @@ export function reopen() {
 }
 
 // Opens the setup screen with a game style picked (the host's links to each game).
+// A link to today's daily puzzle (?play=daily on the NINETIMESNINE page).
+export function playDaily() { return startDaily(); }
+
 export function pickStyle(id) {
   if (!root || !STYLES.some((x) => x.id === id)) return;
   prefs.style = id;

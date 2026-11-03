@@ -68,6 +68,8 @@ export async function open(card, host = {}) {
       return;
     }
   } else mods[g.id].reopen();
+  // A daily puzzle post's link (?play=daily) opens today's puzzle.
+  if (host.daily) await mods[g.id].playDaily();
   document.getElementById(`screen-${g.id}`).focus();
 }
 

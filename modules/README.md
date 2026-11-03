@@ -97,3 +97,15 @@ node engine/test/number-place-tests.js
 node modules/grid-kit/e2e.cjs      # Cage Math, Sum Cross, Picture Grid (?game=cm|sc|pg)
 node engine/test/kit-games-tests.js
 ```
+
+## Daily puzzles on social media and their answer keys
+
+`scripts/game-daily.mjs` makes each game's daily puzzle outside the browser exactly as the
+game does (same seed, daily options and admin switches from `GET /v1/config`). The nightly
+build writes an answer key page for each, `<game>/daily/<date>/` (today and the 30 days
+before), and each morning `scripts/social-games.mjs` checks the puzzle (rules checked
+independently, one answer proven by the engine's solver, answer key page live and showing
+this puzzle) and makes its picture and captions, which `scripts/marketing-post.py` posts
+after the Logic Grid's (`.github/workflows/daily-puzzle-social.yml`). `?play=daily` on a
+game's page opens today's puzzle (`playDaily()` in each module). Test:
+`node scripts/test-social-games.mjs`.
