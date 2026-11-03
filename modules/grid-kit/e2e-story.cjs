@@ -47,7 +47,9 @@ async function solved(page, P, DIR, { theme, moments, next }, assert) {
   if (theme) assert(info.story.theme === theme && info.title === info.story.title, `${P}: the chosen story theme (${theme}) tells the story: "${info.story.title}"`);
   if (moments) {
     assert(seen.length >= 1 && seen.every((t) => info.story.beats.includes(t) && !/\d/.test(t)), `${P}: story moments appeared while solving (${seen.length}): "${seen[0]}"`);
-    assert((await page.textContent(`#${P}-moment-live`)).trim().length > 0, `${P}: the story moment is read out politely`);
+    // The live region is filled a moment after the line shows (so screen readers notice the change).
+    const spoken = await page.waitForFunction((P) => document.querySelector(`#${P}-moment-live`)?.textContent.trim(), P, { timeout: 5000 }).then(() => true, () => false);
+    assert(spoken, `${P}: the story moment is read out politely`);
   } else assert(seen.length === 0, `${P}: no story moments with the setting off`);
   assert(await page.locator(`#${P}-moment`).isHidden(), `${P}: the story moment steps aside on the solved card`);
   if (next) {
