@@ -164,6 +164,7 @@ web/engine-worker.js        runs every game's engine off the main thread (engine
 web/sw.js                   offline cache (file list stamped by the build)
 web/js/number-place.js      NINETIMESNINE screen (modules/number-place, see modules/README.md)
 web/js/np-share.js          NINETIMESNINE's anonymous play data for the learning service
+web/js/computer-race.js     Race the computer: the computer opponent's pace and the player's record (this device only)
 desktop/src-tauri/          Tauri desktop shell
 scripts/                    build, local server, icons, end-to-end test
 ```

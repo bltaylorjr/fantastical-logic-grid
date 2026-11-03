@@ -808,6 +808,13 @@ dialog::backdrop { background: rgb(5 7 16 / .6); backdrop-filter: blur(6px); -we
 .race-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0 0 16px; padding: 10px 16px;
   border: 1px solid var(--border); border-left: 4px solid var(--accent); border-radius: 12px; background: var(--surface, var(--bg)); }
 .race-bar p { margin: 0; flex: 1 1 260px; }
+.cpu-meter { display: flex; align-items: center; gap: 8px; flex: 1 1 220px; font-weight: 700; }
+.cpu-meter progress { flex: 1; height: 12px; accent-color: var(--accent); }
+.cpu-meter.done { color: var(--accent); }
+.cpu-skills { border: 0; margin: 0; padding: 0; display: grid; gap: 6px; }
+.cpu-skills legend { font-weight: 700; margin-bottom: 6px; padding: 0; }
+.cpu-skills label { display: flex; gap: 8px; align-items: baseline; cursor: pointer; }
+.cpu-skills small { color: var(--muted); }
 .race-view { display: grid; gap: 12px; }
 .race-view .help, .race-view p { margin: 0; }
 .code-input { font-size: 1.4rem; letter-spacing: .25em; text-transform: uppercase; font-family: ui-monospace, Menlo, Consolas, monospace; max-width: 12ch; }
