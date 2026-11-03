@@ -54,7 +54,7 @@ import * as license from './license.js';
 import * as licenseDownload from './license-download.js';
 import { addCloseButtons, closeDialog } from './dialog-close.js';
 import * as games from './games.js';
-import { LAB_ON, mountLabField, tableSvg } from './lab.js';
+import { LAB_ON, mountLabField, tableSvg, labSize, labRecord, labTuningFor, labNext } from './lab.js';
 
 addCloseButtons();
 
@@ -389,11 +389,20 @@ function renderSetup() {
   $('#clue-count').oninput = updatePreview;
   $('#setup').onsubmit = (e) => { e.preventDefault(); startGeneration(); };
   if (LAB_ON) {
-    const draw = () => mountLabField($('#setup'), labMode, (v) => { labMode = v; draw(); updatePreview(); });
+    const draw = () => { mountLabField($('#setup'), labMode, (v) => { labMode = v; draw(); updatePreview(); }); showLabChoices(); };
     draw();
   }
   $('#style-choices').onchange = () => { settings.silent = $('input[name=playstyle]:checked').value === 'silent'; store.saveSettings(settings); applyMode(); };
   updatePreview();
+}
+
+// While a Lab mode is picked, the mode sets the grid size and uses the
+// theme's own world, so the Size and Topic choices hide.
+const labActive = () => LAB_ON && labMode !== 'standard';
+function showLabChoices() {
+  const sizeField = $('#size-choices').closest('fieldset');
+  if (sizeField) sizeField.hidden = labActive();
+  renderTopics();
 }
 
 // Supporter extra themes this player can't pick yet (none for premium supporters).
@@ -420,7 +429,7 @@ function topicField() {
 function renderTopics() {
   const theme = OPTIONS.themes.find((t) => t.id === setup.theme);
   const topics = (theme && theme.topics) || [];
-  topicField().hidden = topics.length < 2 || topicsClosed;
+  topicField().hidden = topics.length < 2 || topicsClosed || labActive();
   topicField().querySelector('legend').textContent = theme && topics.length > 1 ? `${theme.name} topics` : 'Topic';
   if (!topics.some((t) => t.id === setup.topic)) setup.topic = 'any';
   topicField().querySelector('#topic-choices').innerHTML = topics.map((t) => `
@@ -479,7 +488,12 @@ function updatePreview() {
   if (k >= 6 && n >= 7) $('#preview').textContent += ' Puzzles this big can take up to 20 seconds to write.';
   // A player-written story plays at the level and size its writer chose.
   if (setup.theme === 'stories') $('#preview').textContent = 'Player Stories play at the level and size their writer chose, with their own cast. Each story lists both under its name.';
-  if (LAB_ON && labMode !== 'standard') $('#preview').textContent = `Lab: a ${TIERS[setup.tier].name} ${labMode === 'timeline' ? 'Timeline Case' : 'Seating Plan'}, with its own story and size.`;
+  if (labActive()) {
+    const [lk, ln] = labSize(labMode, setup.tier) || [k, n];
+    const theme = OPTIONS.themes.find((t) => t.id === setup.theme);
+    $('#preview').textContent = `Lab: ${/^[AEIOU]/.test(TIERS[setup.tier].name) ? 'an' : 'a'} ${TIERS[setup.tier].name} ${labMode === 'timeline' ? 'Timeline Case' : 'Seating Plan'} ${theme ? `set in the ${theme.name} theme` : 'in a surprise theme'}, with ${lk} categories of ${ln} ${labMode === 'seating' ? 'seats' : 'items'} each.`;
+    $('#size-warning').hidden = true;
+  }
   buildAheadSoon();
 }
 
@@ -498,12 +512,14 @@ function gatherOptions() {
   const types = $$('#clue-type-choices input:checked').map((i) => i.value);
   const tierTypes = TIERS[setup.tier].clueTypes;
   if (types.length && (types.length !== tierTypes.length || types.some((t) => !tierTypes.includes(t)))) o.clueTypes = types;
-  // Lab mode: the mode picks its own story, clue types and size (a custom size still counts).
-  if (LAB_ON && labMode !== 'standard') {
+  // Lab mode: the story is set in the chosen theme; the mode picks its own
+  // clue types and size (the Size choice is hidden).
+  if (labActive()) {
     o.mode = labMode;
     delete o.topic;
     delete o.clueTypes;
-    if (setup.size !== 'custom') { delete o.categories; delete o.items; }
+    delete o.categories;
+    delete o.items;
   }
   return o;
 }
@@ -529,7 +545,7 @@ async function makePuzzle(override = null) {
   const options = override ? { ...override } : gatherOptions();
   if (!override) store.saveSetupChoices({ tier: setup.tier, theme: setup.theme, topic: setup.topic, size: setup.size, custom: currentSize() });
   const key = JSON.stringify(options);
-  const tuned = await tuningFor(options.difficulty);
+  const tuned = await tuningForOptions(options);
   let made = null;
   // A puzzle built ahead for exactly these choices is used straight away,
   // unless its story was played in the meantime or learning has changed
@@ -554,7 +570,7 @@ async function makePuzzle(override = null) {
 async function buildPuzzle(options, generate, tuned = null) {
   const used = await store.getMeta('usedStories', []);
   const usedSet = new Set(used);
-  if (!tuned) tuned = await tuningFor(options.difficulty);
+  if (!tuned) tuned = await tuningForOptions(options);
   // Surprise me never picks a theme that is switched off, or a supporter extra
   // this player can't open.
   const off = new Set([...remote.disabledThemes(), ...lockedThemes()]);
@@ -580,6 +596,14 @@ async function buildPuzzle(options, generate, tuned = null) {
   }
   if (!puzzle) throw new Error('Every story we tried has already been used. Try another theme.');
   return { puzzle, picked, tunedKey: JSON.stringify(tuned) };
+}
+
+// A Lab puzzle is tuned from its mode's own record (lab.js), never from the
+// live learning data.
+async function tuningForOptions(options) {
+  if (!options.mode) return tuningFor(options.difficulty);
+  if (!settings.learn) return {};
+  try { return await labTuningFor(options.mode, options.difficulty); } catch (e) { return {}; }
 }
 
 // Learning only picks between puzzles the engine has fully checked.
@@ -608,7 +632,7 @@ async function refreshAhead() {
   if (!was) return;
   const made = await was.job;
   if (ahead !== was || !made) return;
-  if (made.tunedKey !== JSON.stringify(await tuningFor(was.options.difficulty))) buildAhead(was.options, { force: true });
+  if (made.tunedKey !== JSON.stringify(await tuningForOptions(was.options))) buildAhead(was.options, { force: true });
 }
 // While the New puzzle screen is open, build ahead for what is chosen there
 // once the player pauses.
@@ -913,6 +937,8 @@ $('#saved-section').addEventListener('click', async (e) => {
     const ok = await confirmDialog({ title: `Delete “${save.name}”?`, text: `This removes the puzzle and your progress from ${signedIn() ? 'all your devices' : 'this device'}. You can undo for 10 seconds.`, yes: 'Delete puzzle', no: 'Keep it' });
     if (!ok) return;
     if (!save.solved && settings.learn && !(save.puzzle && save.puzzle.mode)) { await learn.record(save, 'abandoned').catch(() => {}); share.soon(); refreshAhead(); }
+    // A Lab puzzle given up goes to its mode's own record only.
+    if (!save.solved && settings.learn && save.puzzle && save.puzzle.mode) { await labRecord(save, 'abandoned').catch(() => {}); refreshAhead(); }
     await store.deleteSave(id);
     await renderSaved();
     $('#saved-h').focus();
@@ -1693,6 +1719,8 @@ function checkSolved() {
     if (!S.save.revealed) campaign.solved();
     // Lab puzzles (review only) are left out of learning and the scoreboard.
     if (settings.learn && !S.puzzle.mode) learn.record(S.save, S.save.revealed ? 'revealed' : 'solved').then(() => { share.soon(); refreshAhead(); }, () => {});
+    // They go to their mode's own small record instead (lab.js).
+    if (S.puzzle.mode) S.labRecorded = (settings.learn ? labRecord(S.save, S.save.revealed ? 'revealed' : 'solved') : Promise.resolve()).then(() => refreshAhead(), () => {});
     stopTimer();
     showSolved(true);
     scheduleSave();
@@ -1701,6 +1729,24 @@ function checkSolved() {
     $('#solved').hidden = true;
     startTimer();
   }
+}
+
+// A Lab puzzle's next-difficulty suggestion comes from its mode's own record.
+async function showLabNext(save) {
+  try { await S.labRecorded; } catch (e) { /* none */ }
+  if (!settings.learn) return;
+  const s = await labNext(S.puzzle.mode, TIER_IDS, (id) => TIERS[id].name).catch(() => null);
+  if (!s || !S || S.save !== save) return;
+  $('#next-tip').textContent = s.text;
+  const tier = S.puzzle.difficulty.id;
+  $('#next-btn').textContent = s.tier === tier ? `New ${TIERS[tier].name} puzzle` : `Try ${TIERS[s.tier].name}`;
+  $('#next-btn').onclick = () => {
+    setup.tier = s.tier;
+    setup.size = null;
+    store.saveSetupChoices({ ...setup, custom: setup.custom });
+    renderSetup();
+    goHome();
+  };
 }
 
 function fmtTime(ms) {
@@ -1741,6 +1787,7 @@ function showSolved(celebrate) {
     renderSetup();
     goHome();
   };
+  if (S.puzzle.mode) showLabNext(save);
   const res = $('#resolution');
   const winner = winnerOf(S.puzzle, S.ix);
   const bg = S.sceneUrl ? `<img class="bg" src="${S.sceneUrl}" alt="">` : sceneSvg(S.puzzle, 5, { animate: false });
@@ -2609,6 +2656,8 @@ function voiceWaitNote() {
 
 // Adaptive difficulty: suggest a level from the last few solves.
 async function recordSolve(save) {
+  // Lab puzzles (review only) never count toward stats, streaks or badges.
+  if (save.puzzle && save.puzzle.mode) return;
   const { K, N } = S.ix;
   // The stats page, daily streak and badges. First, because a new solve log
   // starts from the history below.

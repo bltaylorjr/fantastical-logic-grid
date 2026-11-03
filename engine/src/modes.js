@@ -16,10 +16,17 @@
 // (test/mode-off-check.js proves it). The new clue types live in clues.js,
 // solver.js and language.js, and no tier ever weights them.
 //
-// All story frames below are original writing for the game.
+// Themes: a Lab puzzle is set in the theme the player chose, with that
+// theme's cast and categories, and its story from lab-stories.js (all the
+// words live there, with notes on how to write them). "Surprise me" picks a
+// theme. A theme that cannot host the mode (a Player Story, an educator's
+// own world, or a theme with no Lab story) falls back to a stand-alone story
+// with a note, never an error.
 import { makeRng } from './rng.js';
 import { TIERS } from './tiers.js';
-import { clock, plural } from './themes.js';
+import { THEMES, getTheme, clock, plural } from './themes.js';
+import { TIMELINE_STORIES, SEATING_STORIES, FALLBACK_TIMELINE, FALLBACK_SEATING } from './lab-stories.js';
+import { LAB_SIZES, LAB_LIMITS } from './lab-play.js';
 import { orderItems } from './order.js';
 import { cap, joinList } from './language.js';
 import { countWords } from './story-parts.js';
@@ -45,225 +52,14 @@ export const MODE_CLUE_TYPES = {
 };
 
 // ---------------------------------------------------------------------------
-// Story frames. Slots: {n} number word, {many}/{one} cast words, {time} the
-// crime's time (timeline) or {seat} the goal seat (seating), {thing} the
-// stolen or left item. Endings also get {culprit}, {place}, {object}, {extra}
-// (timeline) or {winner}, {left}, {right}, {across} and the frame's own
-// category items by id (seating).
-
-const TIMELINE_FRAMES = [
-  {
-    id: 'gala', name: 'The Lantern Gala',
-    setting: 'a small-town art gallery lit by paper lanterns at night', mood: 'elegant, hushed, suspicious',
-    names: ['Ansel', 'Bettina', 'Corwin', 'Delphine', 'Emrys', 'Florence', 'Gideon', 'Harriet', 'Ignatius', 'Juniper'],
-    thing: 'the silver hare statuette',
-    titles: ['The Silver Hare Affair', 'The Lantern Gala Theft'],
-    openings: [
-      'The Harrowgate Gallery held its Lantern Gala, and {n} guests drifted between the rooms with glasses in hand.',
-      'Rain tapped on the skylights while {n} {many} admired the paintings at the Harrowgate Gallery\'s Lantern Gala.',
-    ],
-    crime: 'At {time}, {thing} vanished from its plinth, and the lights flickered for a moment.',
-    log: 'The coat-check attendant kept a careful notebook, noting each guest once as they passed her desk.',
-    endings: [
-      'The notebook does not lie. {culprit} {where} at {time}, the very moment {thing} vanished, with the {object} close at hand. The hare was found wrapped in a scarf, and {culprit} admitted to "borrowing" it for luck.',
-      'At {time} only one guest was near the plinth: {culprit}, slipping away from the {place} with the {object}. The silver hare went back on its stand before the speeches began.',
-    ],
-    place: { name: 'Room', noun: 'room', pos: 'was in the {x}', neg: 'was not in the {x}', items: ['East Wing', 'Sculpture Court', 'Print Room', 'Balcony', 'Cloakroom', 'Tea Salon', 'Studio', 'Archive'] },
-    object: { name: 'Object', noun: 'object', pos: 'carried the {x}', neg: 'did not carry the {x}', items: ['Opera Glasses', 'Umbrella', 'Sketchbook', 'Hand Fan', 'Walking Stick', 'Tote Bag', 'Camera', 'Programme'] },
-    extra: { name: 'Drink', noun: 'drink', pos: 'was drinking {x}', neg: 'was not drinking {x}', items: ['Sparkling Water', 'Elderflower', 'Iced Tea', 'Ginger Beer', 'Lemonade', 'Cola', 'Hot Cocoa', 'Rose Tea'] },
-    time: { start: 18 * 60, step: 30 },
-  },
-  {
-    id: 'sleeper', name: 'The Overnight Sleeper',
-    setting: 'a vintage night train crossing snowy hills, lamps glowing in each carriage', mood: 'cozy, tense, rattling',
-    names: ['Albin', 'Beatrix', 'Casimir', 'Dorothea', 'Evander', 'Fenella', 'Godfrey', 'Henrietta', 'Isidore', 'Josephine'],
-    thing: 'the sealed blue envelope',
-    titles: ['The Blue Envelope', 'Trouble on the Sleeper'],
-    openings: [
-      'The overnight sleeper rattled north through the snow, carrying {n} {many} who all claimed they had slept soundly.',
-      'Somewhere between two silent stations, the night train slowed, and {n} passengers stepped out of their berths.',
-    ],
-    crime: 'At {time}, {thing} was taken from the guard\'s desk.',
-    log: 'The conductor punched each ticket once on his rounds, and every punch is stamped with the time.',
-    endings: [
-      'The ticket punches tell it plainly. {culprit} {where} at {time}, when {thing} disappeared, and the {object} gave them away. The envelope held nothing but a birthday card for the conductor.',
-      '{culprit} was the only passenger who {where} at {time}. With the {object} tucked under one arm, they had hidden {thing} until the morning. No harm done: it was a surprise for the driver.',
-    ],
-    place: { name: 'Carriage', noun: 'carriage', pos: 'was in the {x}', neg: 'was not in the {x}', items: ['Dining Car', 'Observation Deck', 'Baggage Van', 'Lounge Car', 'Galley', 'Corridor', 'Sleeper Berth', 'Vestibule'] },
-    object: { name: 'Belonging', noun: 'belonging', pos: 'had the {x}', neg: 'did not have the {x}', items: ['Hat Box', 'Thermos', 'Crossword', 'Knitting Bag', 'Pocket Torch', 'Travel Clock', 'Map Case', 'Wool Blanket'] },
-    extra: { name: 'Destination', noun: 'destination', pos: 'was going to {x}', neg: 'was not going to {x}', items: ['Ashby', 'Bramford', 'Calder', 'Dunmore', 'Elmstead', 'Fallowfield', 'Greystone', 'Hartwell'] },
-    time: { start: 22 * 60, step: 30 },
-  },
-  {
-    id: 'lighthouse', name: 'The Keeper\'s Logbook',
-    setting: 'a storm-bound island inn beside a tall lighthouse, waves crashing below', mood: 'stormy, candlelit, wary',
-    names: ['Arlo', 'Briony', 'Cedric', 'Dulcie', 'Edmund', 'Freya', 'Garrick', 'Hester', 'Ivo', 'Jessamy'],
-    thing: 'the brass lamp key',
-    titles: ['The Missing Lamp Key', 'A Storm at Gull Rock'],
-    openings: [
-      'A storm cut Gull Rock off from the mainland, and {n} {many} waited it out at the little inn below the lighthouse.',
-      'The ferry could not cross in the gale, so {n} travelers spent the night at the inn on Gull Rock.',
-    ],
-    crime: 'At {time}, {thing} went missing, and the great lamp could not be wound.',
-    log: 'The keeper writes in his logbook on every round, and he noted each guest once, each at a different time.',
-    endings: [
-      'The logbook settles it. At {time} {culprit} {where} with the {object}, and {thing} was found in their coat pocket. They only wanted a look at the lamp room.',
-      'Only {culprit} was near the lamp at {time}, coming from the {place} with the {object}. {Thing} was back on its hook before the next ship passed.',
-    ],
-    place: { name: 'Spot', noun: 'spot', pos: 'was at the {x}', neg: 'was not at the {x}', items: ['Boathouse', 'Fireside', 'Lamp Stairs', 'Pantry', 'Porch', 'Reading Nook', 'Sea Wall', 'Workshop'] },
-    object: { name: 'Item', noun: 'item', pos: 'held the {x}', neg: 'did not hold the {x}', items: ['Oil Lamp', 'Rope Coil', 'Spyglass', 'Tin Mug', 'Oilskin Hat', 'Sea Chart', 'Fiddle', 'Bucket'] },
-    extra: { name: 'Boot', noun: 'boots', pos: 'wore the {x} boots', neg: 'did not wear the {x} boots', items: ['Black', 'Brown', 'Green', 'Grey', 'Navy', 'Red', 'White', 'Yellow'] },
-    time: { start: 18 * 60, step: 60 },
-  },
-  {
-    id: 'bakeoff', name: 'The Midnight Bake-Off',
-    setting: 'a warm village bakery after closing, flour in the air and ovens glowing', mood: 'warm, busy, mischievous',
-    names: ['Agatha', 'Barnaby', 'Celeste', 'Desmond', 'Eloise', 'Ferdinand', 'Ginevra', 'Horace', 'Imogen', 'Jolyon'],
-    thing: 'the prize recipe card',
-    titles: ['The Prize Recipe Puzzle', 'Flour on the Floor'],
-    openings: [
-      'The village held its first Midnight Bake-Off, and {n} bakers worked late into the night at Crumb & Kettle.',
-      'Ovens hummed at Crumb & Kettle as {n} {many} raced to finish their bakes before the judges arrived.',
-    ],
-    crime: 'At {time}, {thing} was swiped from the judges\' table.',
-    log: 'The oven timer sheet shows each baker once, when they set their timer, and no two at the same time.',
-    endings: [
-      'The timer sheet gives it away: {culprit} {where} at {time}, with the {object} in hand, when {thing} went missing. It turned up inside a mixing bowl, a little sticky but readable.',
-      'At {time} only {culprit} was near the judges\' table, coming from the {place} with the {object}. {Thing} was returned with an apology and a fresh scone.',
-    ],
-    place: { name: 'Station', noun: 'station', pos: 'was at the {x}', neg: 'was not at the {x}', items: ['Bread Oven', 'Cooling Racks', 'Flour Bins', 'Front Counter', 'Icing Bench', 'Larder', 'Sink', 'Mixer'] },
-    object: { name: 'Tool', noun: 'tool', pos: 'used the {x}', neg: 'did not use the {x}', items: ['Rolling Pin', 'Whisk', 'Piping Bag', 'Spatula', 'Sieve', 'Pastry Brush', 'Scales', 'Cake Tin'] },
-    extra: { name: 'Bake', noun: 'bake', pos: 'baked the {x}', neg: 'did not bake the {x}', items: ['Babka', 'Brioche', 'Eclairs', 'Focaccia', 'Lemon Tart', 'Pretzels', 'Scones', 'Strudel'] },
-    time: { start: 20 * 60, step: 30 },
-  },
-  {
-    id: 'eclipse', name: 'The Eclipse Party',
-    setting: 'a hilltop observatory under a clear night sky, telescopes pointed at the moon', mood: 'starry, quiet, curious',
-    names: ['Alaric', 'Bryony', 'Cosmo', 'Daphne', 'Elio', 'Fern', 'Gulliver', 'Hazel', 'Iona', 'Jareth'],
-    thing: 'the hand-drawn star chart',
-    titles: ['The Star Chart Mystery', 'Shadows at the Observatory'],
-    openings: [
-      'On the night of the eclipse, {n} {many} climbed the hill to the old observatory to watch the moon turn red.',
-      'The old observatory opened its dome for the eclipse, and {n} stargazers crowded in with blankets and flasks.',
-    ],
-    crime: 'At {time}, just as the moon went dark, {thing} was cut from its frame.',
-    log: 'Everyone signed the visitor book once during the night, and each signature has its own time beside it.',
-    endings: [
-      'The visitor book points one way. {culprit} {where} at {time}, the moment {thing} was taken, with the {object} nearby. They had rolled it up to copy the stars at home and meant to bring it back.',
-      'At {time}, while the moon was dark, only {culprit} was beside the frame, fresh from the {place} with the {object}. {Thing} was found safe in a telescope case.',
-    ],
-    place: { name: 'Spot', noun: 'spot', pos: 'was at the {x}', neg: 'was not at the {x}', items: ['Dome', 'Map Room', 'Roof Deck', 'Library', 'Cocoa Stand', 'Gift Shop', 'Lens Store', 'Stairwell'] },
-    object: { name: 'Item', noun: 'item', pos: 'brought the {x}', neg: 'did not bring the {x}', items: ['Binoculars', 'Red Torch', 'Notebook', 'Flask', 'Picnic Rug', 'Star Wheel', 'Camera', 'Compass'] },
-    extra: { name: 'Planet', noun: 'favorite planet', pos: 'loves {x}', neg: 'does not love {x}', items: ['Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune', 'Pluto'] },
-    time: { start: 21 * 60, step: 30 },
-  },
-];
-
-const SEATING_FRAMES = [
-  {
-    id: 'harvest', name: 'The Harvest Supper',
-    setting: 'a round oak table in a farmhouse kitchen, set for a harvest supper by candlelight', mood: 'warm, golden, friendly',
-    names: ['Alma', 'Boris', 'Cecily', 'Dexter', 'Esme', 'Fabian', 'Gilda', 'Hollis', 'Ingrid', 'Jules'],
-    thing: 'a thank-you note tucked under a plate',
-    titles: ['The Harvest Supper', 'A Note Under the Plate'],
-    openings: [
-      'After the last field was cut, {n} {many} gathered round the old oak table at Brookfield Farm for the harvest supper.',
-      'The farmhouse kitchen smelled of bread and apples as {n} neighbors took their places round one round table.',
-    ],
-    incident: 'When the plates were cleared, someone found {thing} at {seat}, signed only with a drawing of a wheat sheaf.',
-    endings: [
-      '{winner} sat in {seat}, with {left} on their left and {right} on their right. The note was theirs: a thank-you to everyone who helped bring the harvest in.',
-      'It was {winner} in {seat}. Between {left} and {right}, they had quietly written the note to thank the whole table for a good year.',
-    ],
-    seat: { name: 'Seat', noun: 'seat', pos: 'sat in {x}', neg: 'did not sit in {x}' },
-    cats: [
-      { id: 'dish', name: 'Dish', noun: 'dish', pos: 'brought the {x}', neg: 'did not bring the {x}', items: ['Apple Crumble', 'Corn Bread', 'Pumpkin Soup', 'Roast Squash', 'Bean Stew', 'Potato Bake', 'Berry Pie', 'Herb Salad'] },
-      { id: 'drink', name: 'Drink', noun: 'drink', pos: 'poured {x}', neg: 'did not pour {x}', items: ['Cider', 'Cordial', 'Ginger Tea', 'Milk', 'Lemonade', 'Mint Tea', 'Plum Juice', 'Water'] },
-      { id: 'job', name: 'Job', noun: 'job on the farm', pos: 'looks after the {x}', neg: 'does not look after the {x}', items: ['Barn', 'Beehives', 'Chickens', 'Garden', 'Goats', 'Orchard', 'Tractor', 'Well'] },
-    ],
-  },
-  {
-    id: 'reunion', name: 'The Class Reunion',
-    setting: 'a round banquet table in a hotel ballroom with old school photos on the wall', mood: 'cheerful, nostalgic, chatty',
-    names: ['Anouk', 'Bastian', 'Coralie', 'Dario', 'Elodie', 'Florian', 'Greer', 'Hamish', 'Ines', 'Joaquin'],
-    thing: 'an unsigned speech card',
-    titles: ['The Unsigned Speech', 'Ten Years On'],
-    openings: [
-      'Ten years after they left school, {n} old classmates met again round one round table in the Linden Hotel ballroom.',
-      'The reunion committee set a single round table for {n} {many} who had not seen each other in years.',
-    ],
-    incident: 'Before dessert, a waiter found {thing} at {seat}: a funny, kind toast to the whole class, with no name on it.',
-    endings: [
-      '{winner} sat in {seat}, between {left} on their left and {right} on their right. They stood up, a little pink, and read the toast out loud.',
-      'The card belonged to {winner} in {seat}. {left} and {right} cheered as they finally gave the speech.',
-    ],
-    seat: { name: 'Seat', noun: 'seat', pos: 'sat in {x}', neg: 'did not sit in {x}' },
-    cats: [
-      { id: 'career', name: 'Career', noun: 'job', pos: 'works as a {x}', neg: 'does not work as a {x}', items: ['Architect', 'Baker', 'Chemist', 'Dentist', 'Florist', 'Pilot', 'Teacher', 'Vet'] },
-      { id: 'dessert', name: 'Dessert', noun: 'dessert', pos: 'ordered the {x}', neg: 'did not order the {x}', items: ['Cheesecake', 'Fruit Tart', 'Ice Cream', 'Mousse', 'Pavlova', 'Sorbet', 'Sponge Cake', 'Trifle'] },
-      { id: 'club', name: 'School Club', noun: 'school club', pos: 'was in the {x} club', neg: 'was not in the {x} club', items: ['Art', 'Chess', 'Choir', 'Drama', 'Hiking', 'Robotics', 'Science', 'Yearbook'] },
-    ],
-  },
-  {
-    id: 'puzzlers', name: 'The Puzzle Society',
-    setting: 'a round table in a wood-paneled club room, covered in puzzle books and teacups', mood: 'clever, cozy, quiet',
-    names: ['Ambrose', 'Blythe', 'Crispin', 'Dagny', 'Eben', 'Fleur', 'Gaspard', 'Honora', 'Ike', 'Jocasta'],
-    thing: 'a puzzle with every square already filled in',
-    titles: ['The Finished Puzzle', 'Tea at the Puzzle Society'],
-    openings: [
-      'The Puzzle Society meets every Thursday, and tonight {n} {many} sat round their famous round table.',
-      'Teacups clinked as {n} members of the Puzzle Society took their usual chairs round the round table.',
-    ],
-    incident: 'Halfway through the evening, the chair spotted {thing} at {seat}, solved in record time.',
-    endings: [
-      '{winner} sat in {seat}, with {left} on their left and {right} on their right. They shrugged and said it was an easy one.',
-      'The record-breaker was {winner}, in {seat}. {left} asked for a rematch, and {right} poured more tea.',
-    ],
-    seat: { name: 'Chair', noun: 'chair', pos: 'sat in {x}', neg: 'did not sit in {x}' },
-    cats: [
-      { id: 'tea', name: 'Tea', noun: 'tea', pos: 'drank {x}', neg: 'did not drink {x}', items: ['Assam', 'Chamomile', 'Darjeeling', 'Earl Grey', 'Green Tea', 'Jasmine', 'Peppermint', 'Rooibos'] },
-      { id: 'puzzle', name: 'Favorite Puzzle', noun: 'favorite puzzle', pos: 'loves {x}', neg: 'does not love {x}', items: ['Anagrams', 'Cryptics', 'Jigsaws', 'Logic Grids', 'Mazes', 'Riddles', 'Tangrams', 'Word Search'] },
-      { id: 'pen', name: 'Pen', noun: 'pen color', pos: 'writes in {x} ink', neg: 'does not write in {x} ink', items: ['Black', 'Blue', 'Brown', 'Green', 'Orange', 'Purple', 'Red', 'Silver'] },
-    ],
-  },
-  {
-    id: 'captain', name: 'The Captain\'s Table',
-    setting: 'a round table in a ship\'s dining saloon, portholes showing a calm night sea', mood: 'grand, gently rocking, festive',
-    names: ['Alastair', 'Belinda', 'Cyrus', 'Delia', 'Ewan', 'Faye', 'Gustav', 'Hilde', 'Ivor', 'Jemima'],
-    thing: 'a small brass compass left beside a napkin',
-    titles: ['The Captain\'s Table', 'The Brass Compass'],
-    openings: [
-      'On the last night of the voyage, {n} {many} were invited to dine at the captain\'s round table.',
-      'The ship\'s band played softly as {n} passengers found their place cards round the captain\'s table.',
-    ],
-    incident: 'After the toast, the purser found {thing} at {seat}, engraved with the words "for the captain".',
-    endings: [
-      '{winner} sat in {seat}, with {left} on their left and {right} on their right. The compass was their gift to the captain, who wore it proudly ashore.',
-      'It was {winner}, in {seat}. {left} and {right} had no idea they had brought a present for the captain.',
-    ],
-    seat: { name: 'Seat', noun: 'seat', pos: 'sat in {x}', neg: 'did not sit in {x}' },
-    cats: [
-      { id: 'starter', name: 'Starter', noun: 'starter', pos: 'chose the {x}', neg: 'did not choose the {x}', items: ['Crab Cakes', 'Garden Salad', 'Melon', 'Mushroom Soup', 'Oysters', 'Pate', 'Prawn Cocktail', 'Tomato Tart'] },
-      { id: 'cabin', name: 'Deck', noun: 'deck', pos: 'sleeps on the {x} Deck', neg: 'does not sleep on the {x} Deck', items: ['Aurora', 'Bay', 'Coral', 'Dolphin', 'Harbor', 'Lagoon', 'Mariner', 'Starlight'] },
-      { id: 'pastime', name: 'Pastime', noun: 'pastime on board', pos: 'enjoyed {x}', neg: 'did not enjoy {x}', items: ['Dancing', 'Fishing', 'Painting', 'Quoits', 'Reading', 'Sketching', 'Stargazing', 'Swimming'] },
-    ],
-  },
-];
-
-export const LAB_FRAMES = { timeline: TIMELINE_FRAMES, seating: SEATING_FRAMES };
-
-// ---------------------------------------------------------------------------
 // Sizes and tiers. Each mode keeps every tier's grading (advanced steps,
 // what-if chains, score), with its own clue types. The new clue types are
 // reasoned at the advanced level, so Basic and Easy may use that level here
 // (a Basic Timeline Case still only needs "read it and carry it").
 
-const SIZES = {
-  // [categories, items] per tier
-  timeline: { basic: [4, 4], easy: [4, 4], medium: [4, 5], hard: [4, 5], expert: [5, 5], mensa: [5, 6], theorist: [5, 7] },
-  seating: { basic: [3, 5], easy: [3, 6], medium: [4, 6], hard: [4, 6], expert: [4, 6], mensa: [5, 7], theorist: [5, 8] },
-};
-const LIMITS = { timeline: { categories: [4, 5], items: [4, 8] }, seating: { categories: [3, 5], items: [5, 8] } };
+// [categories, items] per tier live in lab-play.js (the setup screen shows them).
+const SIZES = LAB_SIZES;
+const LIMITS = LAB_LIMITS;
 
 const WEIGHTS = {
   timeline: {
@@ -307,15 +103,64 @@ export function modeTier(mode, tierId) {
 
 const clamp = (v, [lo, hi]) => Math.max(lo, Math.min(hi, v));
 
+// The story frame for a theme, built from its lab-stories.js entry and the
+// theme's own cast and categories, or null when the theme cannot host the
+// mode (no entry, or the entry names a category the theme does not have, a
+// numbered one, or one with too few items).
+const SEAT = { name: 'Seat', noun: 'seat', pos: 'sat in {x}', neg: 'did not sit in {x}' };
+export function themeFrame(mode, theme) {
+  const entry = theme && (mode === 'timeline' ? TIMELINE_STORIES : SEATING_STORIES)[theme.id];
+  if (!entry) return null;
+  const catOf = (id) => {
+    const c = theme.categories.find((x) => x.id === id);
+    return c && !c.ordinal && Array.isArray(c.items) && c.items.length >= LIMITS[mode].items[1]
+      ? { name: c.name, noun: c.noun, pos: c.pos, neg: c.neg, items: c.items } : null;
+  };
+  const base = {
+    id: theme.id, themed: true, name: entry.titles[0], setting: entry.setting, mood: entry.mood,
+    names: theme.names, cast: theme.cast, thing: entry.thing, titles: entry.titles, openings: entry.openings, endings: entry.endings,
+  };
+  if (mode === 'timeline') {
+    const [place, object, extra] = [entry.place, entry.object, entry.extra].map(catOf);
+    if (!place || !object || !extra || new Set([entry.place, entry.object, entry.extra]).size < 3) return null;
+    return { ...base, scene: entry.scene, crime: entry.crime, log: entry.log, place, object, extra, time: entry.time };
+  }
+  const cats = (entry.cats || []).map((id) => { const c = catOf(id); return c && { id, ...c }; });
+  if (cats.length < LIMITS.seating.categories[1] - 2 || cats.some((c) => !c || c.id === 'seat' || c.id === 'name')) return null;
+  return { ...base, scene: entry.occasion, incident: entry.incident, cats, seat: { ...SEAT, ...(entry.seat || {}) } };
+}
+
+// Themes a Lab mode can be set in ("Surprise me" picks among them).
+export const modeThemes = (mode) => THEMES.filter((t) => themeFrame(mode, t));
+
 // generator.js resolveOptions hands a lab-mode request here. Returns the same
 // shape of options the generator uses, with the mode's tier, world and story.
 export function resolveModeOptions(opts) {
   const mode = opts.mode;
   const seed = opts.seed != null ? String(opts.seed) : Math.floor(Math.random() * 2 ** 32).toString(36);
   const tier = modeTier(mode, opts.difficulty);
-  const rng = makeRng(`${seed}|lab-${mode}|${tier.id}|${opts.topic || ''}|${opts.categories || ''}x${opts.items || ''}`);
-  const frames = LAB_FRAMES[mode];
-  const frame = frames.find((f) => f.id === opts.topic) || rng.pick(frames);
+  const rng = makeRng(`${seed}|lab-${mode}|${tier.id}|${opts.theme && opts.theme !== 'random' ? opts.theme : ''}|${opts.topic || ''}|${opts.categories || ''}x${opts.items || ''}`);
+  const learn = opts.learning || {};
+  const notes = [];
+  // The theme: the one chosen, or for "Surprise me" one picked here (leaning
+  // toward themes the player enjoys, as the main game does).
+  const fallbacks = mode === 'timeline' ? FALLBACK_TIMELINE : FALLBACK_SEATING;
+  let frame = opts.topic ? fallbacks.find((f) => f.id === opts.topic) : null;
+  let theme = null;
+  if (!frame) {
+    if (!opts.custom && (!opts.theme || opts.theme === 'random')) {
+      const pool = modeThemes(mode);
+      const w = learn.themeWeights;
+      theme = w ? getTheme(rng.weighted(Object.fromEntries(pool.map((t) => [t.id, clamp(Number(w[t.id]) || 1, [0.3, 3])])))) : rng.pick(pool);
+    } else if (!opts.custom) theme = getTheme(opts.theme) || null;
+    frame = themeFrame(mode, theme);
+    if (!frame) {
+      frame = rng.pick(fallbacks);
+      const what = opts.custom ? 'Your own world' : opts.theme === 'stories' ? 'Player Stories' : theme ? `The ${theme.name} theme` : 'That theme';
+      notes.push(`${what} cannot be used for a ${LAB_MODES[mode].name} yet, so this one is set at ${frame.name}.`);
+      theme = null;
+    }
+  }
   const K = clamp(opts.categories || tier.defaultSize[0], LIMITS[mode].categories);
   const N = clamp(opts.items || tier.defaultSize[1], LIMITS[mode].items);
   const customSize = K !== tier.defaultSize[0] || N !== tier.defaultSize[1];
@@ -325,19 +170,19 @@ export function resolveModeOptions(opts) {
     if (Object.keys(want).length) weights = want;
   }
   if (mode === 'seating' && N % 2) delete weights.across;
-  const learn = opts.learning || {};
   const effort = clamp(Number(learn.effort) || 0, [-1, 1]);
-  const themeId = mode === 'timeline' ? 'mystery' : 'occasion';
-  const theme = { id: themeId, name: `${LAB_MODES[mode].name} (Lab)` };
-  const topic = { id: frame.id, name: frame.name, description: LAB_MODES[mode].summary };
-  const cast = mode === 'timeline' ? { one: 'suspect', many: 'suspects' } : { one: 'guest', many: 'guests' };
+  const themeOut = theme ? { id: theme.id, name: theme.name }
+    : { id: mode === 'timeline' ? 'mystery' : 'occasion', name: `${LAB_MODES[mode].name} (Lab)` };
+  const topic = frame.themed ? { id: `lab-${mode}`, name: LAB_MODES[mode].name, description: LAB_MODES[mode].summary }
+    : { id: frame.id, name: frame.name, description: LAB_MODES[mode].summary };
+  const cast = frame.cast || (mode === 'timeline' ? { one: 'suspect', many: 'suspects' } : { one: 'guest', many: 'guests' });
   const scenario = {
-    theme, topic, cast, names: frame.names, art: { setting: frame.setting, mood: frame.mood },
+    theme: themeOut, topic, cast, names: frame.names, art: { setting: frame.setting, mood: frame.mood },
     // finalize() asks the scenario for its story when it has its own writer.
     modeStory: (args) => (mode === 'timeline' ? timelineStory : seatingStory)({ ...args, frame, usedStories: opts.usedStories || [], mode }),
   };
   return {
-    mode, frame, tier, seed, rng, theme, topic, scenario, K, N, customSize, weights,
+    mode, frame, tier, seed, rng, theme: themeOut, topic, scenario, K, N, customSize, weights, modeNotes: notes,
     clueCount: opts.clueCount ? Math.max(1, Math.floor(opts.clueCount)) : null,
     questions: clamp(opts.questions ?? 3, [1, 6]), effort,
     customNames: opts.customNames, customTitle: opts.title, usedStories: opts.usedStories || [],
@@ -432,6 +277,8 @@ function storyShell({ frame, mode, model, scene, goalLine, ending, pick, goalQue
     paragraphs, text: paragraphs.join('\n\n'),
     goalQuestion, goalAnswer: { cat: 0, item: winnerEntity }, ending, notes, wordCount,
     parts: { t: String(pick.t), o: String(pick.o), e: String(pick.e), mode },
+    // For the story moments (beats.js): words that never give an answer away.
+    beatWords: { thing: frame.thing, scene: frame.scene || frame.name.replace(/^The /, 'the ') },
   };
 }
 
@@ -442,11 +289,13 @@ function timelineStory({ rng, goal, model, L, customTitle, frame, usedStories, m
   const e = sol[tc].indexOf(goal.item);
   const time = cats[tc].labels[goal.item];
   const of = (id) => { const c = cats.findIndex((x) => x.id === id); return c < 0 ? '' : cats[c].labels[sol[c][e]]; };
+  // What the culprit did, in the category's own words ("competed in Archery").
+  const fact = (id) => { const c = cats.findIndex((x) => x.id === id); return c < 0 ? '' : L.pos(c * N + sol[c][e]); };
   const vars = { n: NUMBER_WORDS[N], many: model.cast.many, one: model.cast.one, time, thing: frame.thing, Thing: cap(frame.thing),
     culprit: cats[0].labels[e], place: of('place'), object: of('object'), extra: of('extra'),
-    where: L.pos(cats.findIndex((x) => x.id === 'place') * N + sol[cats.findIndex((x) => x.id === 'place')][e]) };
+    where: fact('place'), holding: fact('object') };
   const scene = [frame.openings[pick.o], frame.crime].map((t) => capFirst(fill(t, vars))).join(' ');
-  const goalLine = `Whoever was seen at ${time} is the one who took ${frame.thing}. Can you work out who it was, and where they were?`;
+  const goalLine = `Whoever was seen at ${time} is the one who took ${frame.thing}. Can you work out who it was?`;
   return storyShell({ frame, mode, model, scene, goalLine, ending: capFirst(fill(frame.endings[pick.e], vars)), pick,
     goalQuestion: `Who ${L.pos(tc * N + goal.item)}?`, winnerEntity: e, customTitle });
 }
