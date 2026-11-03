@@ -19,7 +19,7 @@
 
 export const SESSION_PREFIX = 'flgp.';
 export const SESSION_MAX_MS = 12 * 3600_000;
-export const IDLE_MS = 30 * 60_000;
+export const IDLE_MS = 60 * 60_000;
 // Setting up a new device needs a sign-in from the last 15 minutes, so a
 // dashboard left open cannot quietly gain someone else's passkey.
 export const FRESH_MS = 15 * 60_000;
@@ -224,7 +224,7 @@ export async function checkSession(env, token, now = Date.now()) {
   const row = await env.DB.prepare('SELECT email, created_at, last_seen, expires_at FROM admin_sessions WHERE token_hash = ?1').bind(hash).first();
   if (!row) throw new PasskeyError(401, 'sign_in', 'Please sign in again.');
   if (row.expires_at < now) throw new PasskeyError(401, 'sign_in', 'For safety, please sign in again.');
-  if (now - row.last_seen > IDLE_MS) throw new PasskeyError(401, 'locked', 'Locked after 30 minutes without activity.');
+  if (now - row.last_seen > IDLE_MS) throw new PasskeyError(401, 'locked', 'Locked after 1 hour without activity.');
   if (now - row.last_seen > SEEN_EVERY_MS) await env.DB.prepare('UPDATE admin_sessions SET last_seen = ?2 WHERE token_hash = ?1').bind(hash, now).run();
   return { email: row.email, hash, createdAt: row.created_at };
 }
