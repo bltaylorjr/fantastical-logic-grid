@@ -23,7 +23,8 @@ export const supporterPill = (t) => {
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const RACE_TITLES = { computer: 'Race the computer', start: 'Start a race', join: 'Join a race', challenge: 'Challenge a player', share: 'Race started', standings: 'Race standings' };
-const TIER_NAMES = { basic: 'Basic', easy: 'Easy', medium: 'Medium', hard: 'Hard', expert: 'Expert', mensa: 'Quantum Physicist', theorist: 'Theoretical Physicist' };
+const TIER_NAMES = { basic: 'Basic', easy: 'Easy', medium: 'Medium', hard: 'Hard', expert: 'Expert', mensa: 'Quantum Physicist', theorist: 'Theoretical Physicist', master: 'Master' };
+const GAME_NAMES = { np: 'NINETIMESNINE', cm: 'Cage Math', sc: 'Sum Cross', pg: 'Picture Grid' };
 const INVITE_POLL_MS = 120_000;
 let ui = null;
 let name = null; // the player's screen name, once known
@@ -168,7 +169,7 @@ function renderInvites() {
   box.hidden = !show;
   if (!show) { box.innerHTML = ''; return; }
   box.innerHTML = `<h3>Challenges for you</h3><ul class="invite-list">${invites.map((i) => `<li>
-      <p><b>${esc(i.from)}</b> challenged you to “${esc(i.title)}”, ${esc(TIER_NAMES[i.tier] || i.tier)}.</p>
+      <p><b>${esc(i.from)}</b> challenged you to “${esc(i.title)}”, ${i.game && GAME_NAMES[i.game] ? `${esc(GAME_NAMES[i.game])}, ` : ''}${esc(TIER_NAMES[i.tier] || i.tier)}.</p>
       <div class="row"><button class="btn primary small" type="button" data-invite-accept="${esc(i.code)}">Accept<span class="sr-only"> the challenge from ${esc(i.from)}</span></button>
       <button class="btn small" type="button" data-invite-decline="${i.id}">No thanks<span class="sr-only"> to ${esc(i.from)}</span></button></div></li>`).join('')}</ul>`;
 }
@@ -399,7 +400,9 @@ function wireRace() {
 async function joinAndOpen(code) {
   const saved = await ui.findRaceSave(code);
   if (saved) { ui.openSave(saved); return; }
-  const { puzzle, race } = await compete.joinRace(code);
+  const { puzzle, race, game } = await compete.joinRace(code);
+  // A race in another game (a challenge or link from NINETIMESNINE, Cage Math...): open it on that game's page.
+  if (game && game !== 'flg') { location.href = new URL(`../${compete.GAME_PAGES[game]}?race=${code}`, location.href).href; return; }
   await ui.openRace(puzzle, race);
   ui.toast(`Joined the race “${race.title}”. ${race.players.length} player${race.players.length === 1 ? '' : 's'} so far. Good luck!`);
 }
