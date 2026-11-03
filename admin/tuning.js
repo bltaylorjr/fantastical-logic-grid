@@ -14,9 +14,12 @@ const STATUS = { declined: 'Declined', expired: 'Not answered in time', undone: 
 
 // A value in plain words, for the target it belongs to.
 function show(target, v) {
+  if (target.startsWith('repeat:') && !v) return 'not repeated';
   if (v == null) return '–';
   if (target.startsWith('nudge:effort:')) return v === 0 ? 'as players taught it' : `${v > 0 ? 'tougher' : 'gentler'} by ${Math.abs(v).toFixed(1)}`;
   if (target.startsWith('nudge:theme:')) return v === 1 ? 'normal' : `${v > 1 ? 'more' : 'less'} often (x${Number(v).toFixed(2)})`;
+  if (target.startsWith('repeat:')) return v && v.on ? `posted again on ${H.day(Date.parse(`${v.on}T12:00:00`))}` : 'not repeated';
+  if (target.startsWith('approved:')) return Array.isArray(v) ? (v.length ? `${v.length} upcoming post${v.length === 1 ? '' : 's'} approved` : 'paused (back to draft)') : '–';
   if (typeof v === 'boolean') return v ? 'On' : 'Off';
   return LEVELS[v] || String(v);
 }

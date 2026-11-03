@@ -170,8 +170,11 @@
 
   // First visit: a welcome with the tour of The Logic Grid, offered once.
   // Players who already know the site (they saw the game's welcome) are not
-  // asked. X, Escape, Start playing or a click outside close it, and the
-  // video stops when it closes.
+  // asked. X, Escape or a click outside close it, and the video stops when it
+  // closes. Play today's puzzle opens the daily puzzle. Visitors who came from
+  // another site (a search, a post) get Play today's puzzle as the main
+  // button: they came to play, and before Nov 2026 none of them started a
+  // puzzle from here. Everyone else gets the tour first.
   function welcome() {
     var dlg = document.getElementById('hub-welcome');
     if (!dlg || preview || typeof dlg.showModal !== 'function') return;
@@ -186,7 +189,14 @@
     dlg.addEventListener('close', function () { if (video) video.pause(); });
     dlg.addEventListener('click', function (e) { if (e.target === dlg) shut(); });
     document.getElementById('hub-welcome-x').addEventListener('click', shut);
-    document.getElementById('hub-welcome-close').addEventListener('click', shut);
+    var play = document.getElementById('hub-welcome-play');
+    var outside = false;
+    try { var from = new URL(document.referrer).hostname; outside = !!from && from !== location.hostname && !/(^|\.)thelogicgrid\.com$/.test(from); } catch (e) { /* typed in or a bookmark */ }
+    if (outside && play) {
+      play.className = 'hw-go';
+      tour.className = 'hdr-btn';
+      tour.parentNode.insertBefore(tour, play);
+    }
     tour.addEventListener('click', function () {
       player.hidden = false;
       tour.hidden = true;
@@ -199,7 +209,7 @@
       }
     });
     dlg.showModal();
-    tour.focus();
+    (outside && play ? play : tour).focus();
   }
 
   // The Support link and the latest news, as the games show them. Quietly

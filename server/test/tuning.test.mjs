@@ -172,3 +172,46 @@ test('pre-approval: only the owner sets it, and pre-approved changes apply by th
   assert.ok(a.results.some((x) => /waiting for your OK/.test(x.title)));
   assert.ok(a.results.some((x) => /pre-approved/.test(x.title)));
 });
+
+test('marketing: a post that brought players is offered again; a channel with no players is paused; both undo', async () => {
+  const now = Date.now();
+  const { id: camp } = await db.prepare("INSERT INTO campaigns (code, name, status, created_by, created_at, updated_at) VALUES ('spring', 'Spring', 'active', 't', ?1, ?1) RETURNING id").bind(now).first();
+  const { id: ad } = await db.prepare(`INSERT INTO campaign_ads (campaign_id, channel, medium, content, title, body, media, landing, status, post_on, posted_at, created_by, created_at, updated_at)
+    VALUES (?1, 'facebook', 'social', 'tip-one', 'Facebook: tip one', 'Try it {link}', '[]', '/?play=now', 'posted', ?2, ?3, 't', ?3, ?3) RETURNING id`).bind(camp, day(3), now).first();
+  const ups = [];
+  for (const d of [5, 9]) {
+    ups.push((await db.prepare(`INSERT INTO campaign_ads (campaign_id, channel, medium, content, title, body, media, landing, status, post_on, created_by, created_at, updated_at)
+      VALUES (?1, 'x', 'social', ?2, 'X post', 'Hi {link}', '[]', '/?play=now', 'approved', ?3, 't', ?4, ?4) RETURNING id`).bind(camp, `x-${d}`, day(-d), now).first()).id);
+  }
+  const stat = (source, content, event, n) => db.prepare("INSERT INTO campaign_stats (day, campaign, source, medium, content, event, platform, n) VALUES (?1, 'spring', ?2, 'social', ?3, ?4, 'web', ?5)").bind(day(1), source, content, event, n).run();
+  await stat('facebook', 'tip-one', 'visit', 12);
+  await stat('facebook', 'tip-one', 'play', 6);
+  await stat('x', 'x-old', 'visit', 31);
+
+  const r = await call('/admin/v1/tuning/check', { body: {} });
+  assert.ok(r.body.added >= 2);
+  const v = (await call('/admin/v1/tuning')).body;
+  const repeat = v.waiting.find((x) => x.kind === 'ad_repeat');
+  const pause = v.waiting.find((x) => x.kind === 'ad_pause');
+  assert.equal(repeat.target, `repeat:${ad}`);
+  assert.match(repeat.reason, /12 visitors .* 50% of them started a puzzle/);
+  assert.equal(pause.target, 'approved:x');
+  assert.deepEqual(pause.from, ups);
+  // Nothing changed before approval.
+  assert.equal((await db.prepare("SELECT COUNT(*) AS n FROM campaign_ads WHERE content = 'tip-one-again'").first()).n, 0);
+
+  assert.equal((await call(`/admin/v1/tuning/${repeat.id}/approve`, { body: {} })).status, 200);
+  const copy = await db.prepare("SELECT status, post_on, landing, channel FROM campaign_ads WHERE content = 'tip-one-again'").first();
+  assert.deepEqual([copy.status, copy.channel, copy.landing, copy.post_on], ['approved', 'facebook', '/?play=now', repeat.to.on]);
+  assert.equal((await call(`/admin/v1/tuning/${pause.id}/approve`, { body: {} })).status, 200);
+  const st = (await db.prepare(`SELECT status FROM campaign_ads WHERE id IN (${ups.join(',')})`).all()).results.map((x) => x.status);
+  assert.deepEqual(st, ['draft', 'draft'], 'the paused posts went back to draft');
+
+  // A copy is never repeated again, and undo takes both back.
+  assert.equal((await call('/admin/v1/tuning/check', { body: {} })).body.added, 0);
+  assert.equal((await call(`/admin/v1/tuning/${repeat.id}/undo`, { body: {} })).status, 200);
+  assert.equal((await db.prepare("SELECT status FROM campaign_ads WHERE content = 'tip-one-again'").first()).status, 'removed');
+  assert.equal((await call(`/admin/v1/tuning/${pause.id}/undo`, { body: {} })).status, 200);
+  const back = (await db.prepare(`SELECT status FROM campaign_ads WHERE id IN (${ups.join(',')})`).all()).results.map((x) => x.status);
+  assert.deepEqual(back, ['approved', 'approved'], 'undo approves them again');
+});

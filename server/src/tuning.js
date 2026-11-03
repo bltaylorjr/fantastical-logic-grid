@@ -21,6 +21,10 @@
 //                 level offered, one step down, never below Medium
 //   tips          the same games: first-puzzle tips back on
 //   support_asks  the short Support ask after a solve, on
+//   ad_repeat     post an ad that brought players again, a week later, on the
+//                 same channel (a copy with its own tracked link)
+//   ad_pause      move the next posts on a channel whose links bring visitors
+//                 but no players back to draft, until someone looks at them
 // Each needs enough games behind it (MIN_GAMES) and is never suggested again
 // for a while after a decline. Only counts and rates are read: no player text.
 import { getSettings, saveSetting, checkSetting, SETTINGS } from './settings.js';
@@ -57,7 +61,12 @@ export const KINDS = {
   max_level: { label: 'Hardest level offered in the other games', limits: `one level down at a time, never below ${LEVEL_NAMES[MAX_LEVEL_FLOOR]}` },
   tips: { label: 'First-puzzle tips in the other games', limits: 'only switches tips back on' },
   support_asks: { label: 'Support ask after a solve', limits: 'only switches it on, when the Support link is set up' },
+  ad_repeat: { label: 'Repeat a post that brought players', limits: 'one copy of a post, a week later, on the same channel; never a copy of a copy' },
+  ad_pause: { label: 'Pause posts on a channel that brings no players', limits: 'only the channel\'s upcoming posts, back to draft; nothing is deleted' },
 };
+const AD_MIN_VISITS = 10;      // a post needs this many tracked visits to be repeated
+const PAUSE_MIN_VISITS = 30;   // a channel needs this many tracked visits with no puzzle started to be paused
+const REPEAT_SUFFIX = '-again';
 const MODES = ['ask', 'auto'];
 
 // ------------------------------------------------------------- values
@@ -65,16 +74,36 @@ const MODES = ['ask', 'auto'];
 function parseTarget(target) {
   const m = /^nudge:(effort|theme):([\w-]{1,40})$/.exec(target);
   if (m) return { type: 'nudge', what: m[1], id: m[2], key: `${m[1]}:${m[2]}` };
+  const ad = /^repeat:(\d{1,12})$/.exec(target);
+  if (ad) return { type: 'repeat', id: Number(ad[1]) };
+  const ch = /^approved:([a-z0-9][a-z0-9_-]{0,39})$/.exec(target);
+  if (ch) return { type: 'approved', channel: ch[1] };
   const s = /^setting:([a-z0-9_]{1,60})$/.exec(target);
   if (s && SETTINGS[s[1]]) return { type: 'setting', key: s[1] };
   return null;
 }
 const nudgeDefault = (what) => (what === 'theme' ? 1 : 0);
 
+// The not-yet-posted copy of an ad that self-tuning made, if any.
+async function repeatCopy(env, id) {
+  return env.DB.prepare(`SELECT c.id, c.post_on FROM campaign_ads c JOIN campaign_ads a ON a.id = ?1
+    WHERE c.campaign_id = a.campaign_id AND c.channel = a.channel AND c.content = a.content || ?2 AND c.status != 'removed' LIMIT 1`).bind(id, REPEAT_SUFFIX).first();
+}
+// A channel's upcoming approved posts, ids in order.
+async function upcomingApproved(env, channel, now = Date.now()) {
+  const { results } = await env.DB.prepare(`SELECT id FROM campaign_ads WHERE channel = ?1 AND status = 'approved' AND posted_at IS NULL AND COALESCE(post_on, '9999') >= ?2 ORDER BY id`).bind(channel, isoDay(now)).all();
+  return results.map((r) => r.id);
+}
+
 async function readTarget(env, target, settings) {
   const t = parseTarget(target);
   if (!t) return undefined;
   if (t.type === 'setting') return (settings || await getSettings(env))[t.key];
+  if (t.type === 'repeat') {
+    const copy = await repeatCopy(env, t.id);
+    return copy ? { on: copy.post_on } : null;
+  }
+  if (t.type === 'approved') return upcomingApproved(env, t.channel);
   const row = await env.DB.prepare('SELECT value FROM house_nudges WHERE target = ?1').bind(t.key).first();
   return row ? row.value : nudgeDefault(t.what);
 }
@@ -88,6 +117,24 @@ async function writeTarget(env, target, value, by, now) {
     await saveSetting(env, t.key, c.value, by);
     const g = /^(np|cm|sc|pg)_/.exec(t.key);
     if (g) await caches.default.delete(new Request(g[1] === 'np' ? NP_TUNING_CACHE_KEY : kitTuningKey(g[1]))).catch(() => {});
+  } else if (t.type === 'repeat') {
+    const copy = await repeatCopy(env, t.id);
+    if (value && !copy) {
+      await env.DB.prepare(`INSERT INTO campaign_ads (campaign_id, channel, medium, content, title, body, media, landing, status, where_to, notes, post_on, created_by, created_at, updated_at)
+        SELECT campaign_id, channel, medium, content || ?2, title || ' (again)', body, media, landing, 'approved', where_to, ?3, ?4, ?5, ?6, ?6 FROM campaign_ads WHERE id = ?1`)
+        .bind(t.id, REPEAT_SUFFIX, `A repeat of a post that brought players, approved in Self-tuning by ${by}.`, value.on, `self-tuning:${t.id}`, now).run();
+    } else if (!value && copy) {
+      await env.DB.prepare("UPDATE campaign_ads SET status = 'removed', updated_at = ?2 WHERE id = ?1 AND posted_at IS NULL").bind(copy.id, now).run();
+    }
+  } else if (t.type === 'approved') {
+    // Set which of the channel's upcoming posts are approved: the listed ones
+    // become approved, other upcoming approved ones go back to draft.
+    const want = new Set((value || []).map(Number));
+    const { results } = await env.DB.prepare(`SELECT id, status FROM campaign_ads WHERE channel = ?1 AND posted_at IS NULL AND status IN ('approved', 'draft') AND COALESCE(post_on, '9999') >= ?2`).bind(t.channel, isoDay(now)).all();
+    for (const r of results) {
+      const status = want.has(r.id) ? 'approved' : (r.status === 'approved' ? 'draft' : null);
+      if (status && status !== r.status) await env.DB.prepare('UPDATE campaign_ads SET status = ?1, updated_at = ?2 WHERE id = ?3').bind(status, now, r.id).run();
+    }
   } else {
     if (!Number.isFinite(value)) throw new Error('bad value');
     if (value === nudgeDefault(t.what)) await env.DB.prepare('DELETE FROM house_nudges WHERE target = ?1').bind(t.key).run();
@@ -119,11 +166,24 @@ async function measure(env, target, from, to) {
     const q = db.prepare(sql);
     return shape(await (g[1] === 'np' ? q.bind(from, to) : q.bind(from, to, g[1])).first());
   }
+  if (t?.type === 'repeat') {
+    const ad = await db.prepare('SELECT a.channel, a.content, c.code FROM campaign_ads a JOIN campaigns c ON c.id = a.campaign_id WHERE a.id = ?1').bind(t.id).first();
+    if (!ad) return {};
+    return adStats(await db.prepare(`SELECT event, SUM(n) AS n FROM campaign_stats WHERE campaign = ?1 AND source = ?2 AND content = ?3 AND day >= ?4 AND day < ?5 GROUP BY event`).bind(ad.code, ad.channel, ad.content + REPEAT_SUFFIX, from, to).all());
+  }
+  if (t?.type === 'approved') {
+    return adStats(await db.prepare(`SELECT event, SUM(n) AS n FROM campaign_stats WHERE source = ?1 AND campaign != '(none)' AND day >= ?2 AND day < ?3 GROUP BY event`).bind(t.channel, from, to).all());
+  }
   if (t?.key === 'support_asks_enabled') {
     const r = await db.prepare("SELECT COALESCE(SUM(CASE WHEN event = 'visit' THEN n END), 0) AS visits, COALESCE(SUM(CASE WHEN event = 'support' THEN n END), 0) AS support FROM campaign_stats WHERE day >= ?1 AND day < ?2").bind(from, to).first();
     return { visits: r.visits, support: r.support, supportRate: r.visits ? round(r.support / r.visits, 3) : null };
   }
   return {};
+}
+function adStats({ results }) {
+  const e = Object.fromEntries(results.map((r) => [r.event, r.n]));
+  const visits = e.visit || 0, plays = e.play || 0;
+  return { visits, plays, solves: e.solve || 0, returns: e.return || 0, startRate: visits ? round(plays / visits) : null };
 }
 const shape = (r) => ({
   games: r.games || 0, solved: r.solved || 0, quit: r.quit || 0,
@@ -231,6 +291,35 @@ export async function candidates(env, now = Date.now()) {
         watch: 'Support presses per visitor, and new supporters.' });
     }
   }
+  // Marketing: repeat a post whose tracked link brought players; pause a
+  // channel whose links bring visitors but nobody starts a puzzle.
+  const ads = (await db.prepare(`SELECT a.id, a.channel, a.medium, a.content, a.title, c.code, c.status AS cstatus,
+      COALESCE(SUM(CASE WHEN s.event = 'visit' THEN s.n END), 0) AS visits, COALESCE(SUM(CASE WHEN s.event = 'play' THEN s.n END), 0) AS plays,
+      COALESCE(SUM(CASE WHEN s.event = 'return' THEN s.n END), 0) AS returns
+    FROM campaign_ads a JOIN campaigns c ON c.id = a.campaign_id
+    LEFT JOIN campaign_stats s ON s.campaign = c.code AND s.source = a.channel AND s.content = a.content AND s.day >= ?1
+    WHERE a.status = 'posted' AND a.content != '' AND substr(a.content, -length(?2)) != ?2
+    GROUP BY a.id`).bind(from, REPEAT_SUFFIX).all()).results;
+  for (const a of ads) {
+    if (a.cstatus !== 'active' || a.visits < AD_MIN_VISITS || a.plays / a.visits < 0.3) continue;
+    const on = isoDay(now + 7 * DAY);
+    const m = { visits: a.visits, plays: a.plays, startRate: round(a.plays / a.visits), returns: a.returns };
+    out.push({ kind: 'ad_repeat', target: `repeat:${a.id}`, from: null, to: { on }, baseline: m, dir: 'up',
+      label: `Post "${a.title}" again on ${on}`,
+      reason: `Its link brought ${a.visits} visitors in the last ${WINDOW_DAYS} days and ${pct(m.startRate)} of them started a puzzle.`,
+      watch: `Visitors and puzzles started from the repeat's own tracked link, ${MEASURE_DAYS} days after approval.` });
+  }
+  const channels = (await db.prepare(`SELECT source, COALESCE(SUM(CASE WHEN event = 'visit' THEN n END), 0) AS visits, COALESCE(SUM(CASE WHEN event = 'play' THEN n END), 0) AS plays
+    FROM campaign_stats WHERE campaign NOT IN ('(none)', '(other)') AND day >= ?1 GROUP BY source`).bind(from).all()).results;
+  for (const c of channels) {
+    if (c.visits < PAUSE_MIN_VISITS || c.plays) continue;
+    const ids = await upcomingApproved(env, c.source, now);
+    if (!ids.length) continue;
+    out.push({ kind: 'ad_pause', target: `approved:${c.source}`, from: ids, to: [], baseline: { visits: c.visits, plays: 0, startRate: 0 }, dir: 'down',
+      label: `Pause the next ${ids.length} ${c.source} post${ids.length === 1 ? '' : 's'} until you look at them`,
+      reason: `${c.visits} visitors came from ${c.source} posts in the last ${WINDOW_DAYS} days and none started a puzzle. Check the posts use their tracked link before posting more.`,
+      watch: `Nothing is posted on ${c.source} while paused; approve the posts again in Marketing when ready.` });
+  }
   return out;
 }
 
@@ -290,6 +379,11 @@ function verdict(r, before, after) {
     const d = (after.supportRate || 0) - (before.supportRate || 0);
     return d > 0.002 ? ['helped', `Support presses went from ${pct(before.supportRate || 0)} to ${pct(after.supportRate || 0)} of visitors.`] : d < -0.002 ? ['worse', `Support presses fell from ${pct(before.supportRate || 0)} to ${pct(after.supportRate || 0)} of visitors.`] : ['no_change', 'Support presses stayed about the same.'];
   }
+  if (kind === 'ad_repeat') {
+    if (!after.visits || after.visits < 5) return ['not_enough', `The repeat brought ${after.visits || 0} visitors: too few to tell.`];
+    return after.startRate >= 0.3 ? ['helped', `The repeat brought ${after.visits} visitors and ${pct(after.startRate)} started a puzzle.`] : ['no_change', `The repeat brought ${after.visits} visitors, but only ${pct(after.startRate || 0)} started a puzzle.`];
+  }
+  if (kind === 'ad_pause') return ['no_change', `Paused. ${after.visits || 0} visitors came from earlier ${r.target.slice('approved:'.length)} posts since; approve its posts again in Marketing when ready.`];
   if (!after.games || after.games < 10) return ['not_enough', `Only ${after.games || 0} games since the change: too few to tell. It stays as it is.`];
   const dir = kind === 'level' && JSON.parse(r.to_value) > JSON.parse(r.from_value) ? 'up' : 'down';
   if (kind === 'theme' && before.rating != null && after.rating != null && after.rated >= 5) {

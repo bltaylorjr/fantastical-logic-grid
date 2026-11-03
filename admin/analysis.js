@@ -249,16 +249,21 @@ function marketing(d) {
     H.tile('Came back', pc(share(tot.return || 0, tot.visit || 0)), `${H.fmt(tot.return)} visitors`),
     H.tile('Campaigns', H.fmt(m.campaigns), `${H.fmt(m.ads)} posts planned, ${H.fmt(m.posted)} posted`),
   ];
-  t.body = `<h3>Where visitors came from</h3>${H.table([{ label: 'Source' }, { label: 'Kind' }, { label: 'Visits', num: 1 }, { label: 'Started a puzzle', num: 1 }, { label: 'Solved', num: 1 }, { label: 'Came back', num: 1 }],
+  t.body = `<p class="muted">Before Nov 3, 2026, links opened from Gmail were counted as Google searches, so older Google numbers are too high.</p><h3>Where visitors came from</h3>${H.table([{ label: 'Source' }, { label: 'Kind' }, { label: 'Visits', num: 1 }, { label: 'Started a puzzle', num: 1 }, { label: 'Solved', num: 1 }, { label: 'Came back', num: 1 }],
     src.map((x) => [H.esc(x.source), H.esc(x.medium), H.fmt(x.visit), `${H.fmt(x.play)} (${pc(share(x.play, x.visit))})`, H.fmt(x.solve), H.fmt(x.return)]), 'No tracked visits in this period.')}`;
   if ((tot.visit || 0) < MIN.visits) t.findings.push({ st: 'early', text: `${H.fmt(tot.visit)} tracked visits. Too few to say which channel works best, but the early signs are below.` });
   const best = src.filter((x) => x.visit >= 5).sort((x, y) => share(y.play, y.visit) - share(x.play, x.visit))[0];
   if (best && best.play) t.findings.push({ st: best.visit >= 20 ? 'good' : 'early', text: `${H.esc(best.source)} (${H.esc(best.medium)}) sends the most engaged visitors so far: ${pc(share(best.play, best.visit))} of them start a puzzle.` });
+  // Search visitors land on the front page or a guide, not in a puzzle; posts
+  // and videos carry links that open one, so a gap there means the wrong link.
   const weak = src.filter((x) => x.visit >= 5 && !x.play);
-  if (weak.length) {
-    t.findings.push({ st: 'watch', text: `Visitors from ${weak.map((x) => H.esc(x.source)).join(', ')} came but did not start a puzzle.` });
-    t.ideas.push({ text: `Send ${weak.map((x) => x.source).join(' and ')} visitors straight into a puzzle (a link to today's puzzle, not the front page)`, why: 'Visits with no puzzle started', impact: 'medium', effort: 'small', link: '#marketing' });
+  const weakLinks = weak.filter((x) => x.medium !== 'search');
+  const weakSearch = weak.filter((x) => x.medium === 'search');
+  if (weakLinks.length) {
+    t.findings.push({ st: 'watch', text: `Visitors from ${weakLinks.map((x) => H.esc(x.source)).join(', ')} came but did not start a puzzle.` });
+    t.ideas.push({ text: `Check that ${weakLinks.map((x) => x.source).join(' and ')} posts use their tracked link, which opens a puzzle straight away (?play=now or ?play=daily)`, why: 'Visits with no puzzle started', impact: 'medium', effort: 'small', link: '#marketing' });
   }
+  if (weakSearch.length) t.findings.push({ st: 'watch', text: `Visitors from ${weakSearch.map((x) => H.esc(x.source)).join(', ')} came but did not start a puzzle. Search visitors land on the front page or a guide; from Nov 3, 2026 the front page offers them today's puzzle first.` });
   if (m.ads && m.posted / m.ads < 0.3) t.findings.push({ st: 'watch', text: `${H.fmt(m.posted)} of ${H.fmt(m.ads)} planned posts have gone out.` });
   const social = src.filter((x) => x.medium === 'social' || x.medium === 'video');
   if (!social.some((x) => x.source === 'tiktok' || x.source === 'instagram')) t.ideas.push({ text: 'Test short vertical videos (a 20-second "can you solve this?" clue reveal) on Instagram Reels, TikTok and YouTube Shorts', why: 'No visits from short-video apps yet', impact: 'high', effort: 'medium', link: '#marketing' });

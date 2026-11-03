@@ -27,6 +27,8 @@ suggests small, bounded changes:
 | Hardest level | NINETIMESNINE, Cage Math, Sum Cross, Picture Grid: one level down when under 20% solve the top one | never below Medium | 10 games at the top level |
 | Tips | the same games: first-puzzle tips back on when 40%+ give up | on only | 30 games |
 | Support ask | the short Support ask after a solve, when visitors already press Support | on only | 100 tracked visits |
+| Repeat a post | post an ad again a week later on the same channel (a copy with its own tracked link), when 30%+ of the visitors its link brought started a puzzle | one copy, never a copy of a copy | 10 tracked visits |
+| Pause a channel | move a channel's upcoming approved posts back to draft when its links brought visitors but nobody started a puzzle | only upcoming posts; nothing deleted | 30 tracked visits |
 
 Nothing changes until an admin presses **Approve** (each suggestion says why,
 what changes and what will be checked). Level and theme changes are "house
