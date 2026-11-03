@@ -31,6 +31,7 @@ import * as campaign from './campaign.js';
 import { countVisit } from './visit.js';
 import { initAccounts, openAccount, onHome as accountsOnHome, signedIn } from './account-ui.js';
 import * as competeUi from './compete-ui.js';
+import * as computerRace from './computer-race.js';
 import * as remote from './remote-config.js';
 import { socialLinks, socialHtml, DEFAULT_LINKS } from './social.js';
 import * as perks from './perks.js';
@@ -625,6 +626,17 @@ async function openRace(puzzle, race) {
   openGame(save, { fresh: true });
   return save;
 }
+// A race against the computer (computer-race.js): a new puzzle, on this device only.
+async function openComputerRace(puzzle, skill) {
+  await rememberStory(storyIdOf(puzzle));
+  const save = newSave(puzzle);
+  const plays = (await learn.getState().catch(() => null))?.plays || [];
+  save.vsComputer = computerRace.newRace(save, skill, plays);
+  save.coach = false;
+  await store.putSave(save);
+  openGame(save, { fresh: true });
+  return save;
+}
 async function findRaceSave(code) { return (await store.listSaves()).find((x) => x.race && x.race.code === code) || null; }
 
 let generating = false;
@@ -813,6 +825,7 @@ function savedItem(s, fmt) {
     isNewSave(s) ? '<span class="pill new">New</span>' : '',
     s.gift ? '<span class="pill">From your storyline</span>' : '',
     s.race ? `<span class="pill">Race ${esc(s.race.code)}</span>` : '',
+    s.vsComputer ? '<span class="pill">Race vs computer</span>' : '',
     s.daily ? `<span class="pill">Daily ${esc(daily.longDate(s.daily))}</span>` : '',
     s.editionLabel ? `<span class="pill">${esc(s.editionLabel)}</span>` : '',
     (s.myNotes || '').trim() ? '<span class="pill">Has notes</span>' : '',
@@ -1610,7 +1623,7 @@ function syncSolvedView() {
 
 async function startOver() {
   const s = S.save;
-  const racing = !!(s.race && !s.race.finished);
+  const racing = !!(s.race && !s.race.finished) || !!(s.vsComputer && !s.vsComputer.done);
   if (!S.marks.size && !S.queries.size && !s.ticked.length && !Object.values(s.answers).some(Boolean) && !s.elapsedMs && !s.hintsUsed && !s.checksUsed) {
     status('This puzzle is already at the start.');
     return;
@@ -1644,7 +1657,7 @@ async function startOver() {
 
 async function reveal() {
   if (S.save.solved && !S.save.revealed) { status('This puzzle is already solved.'); return; }
-  const raceNote = S.save.race && !S.save.race.finished ? ' In a race this counts as giving up.' : '';
+  const raceNote = (S.save.race && !S.save.race.finished) || (S.save.vsComputer && !S.save.vsComputer.done) ? ' In a race this counts as giving up.' : '';
   const ok = await confirmDialog({ title: 'Reveal the solution?', text: `Every cell will be filled in and this puzzle will no longer count as solved by you.${raceNote} You can undo for 10 seconds.`, yes: 'Reveal solution', no: 'Keep solving' });
   if (!ok) return;
   const wasRevealed = S.save.revealed;
@@ -1764,7 +1777,7 @@ function showSolved(celebrate) {
 function reportResult(save) {
   const pairs = () => markList().filter((m) => m.mark === 'O').map((m) => [m.a, m.b]);
   const send = () => { if (S && S.save === save && save.solved) competeUi.onSolved(save, pairs()); };
-  if (save.race && save.revealed && !save.race.finished) setTimeout(send, 11000);
+  if ((save.race && save.revealed && !save.race.finished) || (save.vsComputer && save.revealed && !save.vsComputer.done)) setTimeout(send, 11000);
   else send();
 }
 
@@ -2294,6 +2307,7 @@ function tickTimer() {
   if (!document.hidden) S.save.elapsedMs += now - S.started;
   S.started = now;
   renderTimer();
+  competeUi.onTick(S.save);
 }
 function renderTimer() {
   $('#timer').hidden = !settings.showTimer;
@@ -3332,7 +3346,7 @@ async function init() {
   puzzleReport.init({ openDialog, openAccount, announce });
   puzzleReport.openRepaired(addRepairedPuzzle);
   competeUi.initCompete({
-    openDialog, toast, announce, confirmDialog, openAccount, fmtTime, makePuzzle, setupSummary, openRace, findRaceSave,
+    openDialog, toast, announce, confirmDialog, openAccount, fmtTime, makePuzzle, setupSummary, openRace, findRaceSave, openComputerRace,
     openSave: (save) => openGame(save),
     currentTier: () => setup.tier,
     usedStories: () => store.getMeta('usedStories', []),
