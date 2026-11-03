@@ -137,8 +137,13 @@ const TABLES = ['sync_users', 'sync_records', 'sync_deleted_users', 'players', '
 // worker-src blob: lets the Media library's celebrations draw off the main
 // thread, as they do in the game (canvas-confetti makes its own small worker).
 // frame-src: the Website page's live preview shows pages of the website (only).
+// connect-src 127.0.0.1 / localhost / *.thelogicgrid.com: the Voice engine page
+// talks to Vox on the owner's computer, or online at the owner's own address
+// (a named Cloudflare tunnel such as voice.thelogicgrid.com). Never
+// *.trycloudflare.com: anyone can get one of those free, so allowing them would
+// let a stray script send admin data to a stranger's address.
 const SECURITY_HEADERS = {
-  'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com; manifest-src 'self'; worker-src 'self' blob:; frame-src https://thelogicgrid.com; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+  'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com http://127.0.0.1:* http://localhost:* ws://127.0.0.1:* ws://localhost:* https://*.thelogicgrid.com wss://*.thelogicgrid.com; manifest-src 'self'; worker-src 'self' blob:; frame-src https://thelogicgrid.com; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
   'X-Content-Type-Options': 'nosniff',
   'X-Frame-Options': 'DENY',
   'Referrer-Policy': 'no-referrer',

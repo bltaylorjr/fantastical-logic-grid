@@ -14,6 +14,7 @@ import { renderSiteAccounts } from './site-accounts.js';
 import { takeOAuthReturn, finishOAuth } from './oauth.js';
 import { characterView } from './characters.js';
 import { ratingsView, initRatings } from './ratings.js';
+import { voiceEngineView, initVoiceEngine } from './voice-engine.js';
 import { marketingView, initMarketing } from './marketing.js';
 import { puzzleMailView, initPuzzleMail } from './puzzle-mail.js';
 import { websiteView, initWebsite, initWebsiteEvents, isEditorWindow } from './website.js';
@@ -2120,6 +2121,11 @@ initEducatorFeedback(educatorHelpers, (name, o) => show(name, o));
 const badgeHelpers = { api, esc, fmt, when, day, table, can, act, ask, toast, announce };
 views.badges = () => badgesView(badgeHelpers);
 initBadges(badgeHelpers, (name, o) => show(name, o));
+
+// ---- Voice engine (voice-engine.js): Vox on the owner's computer, its learning, auto-tune and versions.
+const voiceHelpers = { esc, fmt, when, tile, table, can, act, ask, toast, announce };
+views['voice-engine'] = () => voiceEngineView(voiceHelpers);
+initVoiceEngine(voiceHelpers);
 
 // ---- Analysis report (analysis.js): every number by topic, the market and what to build next.
 const analysisHelpers = { api, esc, fmt, when, day, bytes, tile, table, bars, can, act, ask, toast, announce, setCount };

@@ -449,6 +449,27 @@ body.web-editor-window .web-controls { max-height: calc(100vh - var(--top-h, 61p
 body.web-editor-window .web-frame-box iframe { height: calc(100vh - var(--top-h, 61px) - 150px); }
 @media (max-width: 900px) { body.web-editor-window .web-layout { grid-template-columns: minmax(0, 1fr); } body.web-editor-window .web-controls { max-height: none; position: static; } }
 
+/* Voice engine (voice-engine.js) */
+.vx-status { justify-content: space-between; align-items: center; }
+.vx-status p { margin: 0; }
+.vx-takes { list-style: none; margin: 12px 0; padding: 0; display: grid; gap: 8px; }
+.vx-take { display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; align-items: center; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+.vx-take-text { flex: 1 1 320px; min-width: 0; }
+.vx-ab { border-top: 1px solid var(--line); margin-top: 12px; padding-top: 12px; display: grid; gap: 8px; }
+.vx-ab p { margin: 0; }
+.vx-settings > summary, .vx-more > summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; }
+.vx-settings > summary h2 { margin: 0; font-size: 1.1rem; }
+.vx-settings > summary::before, .vx-more > summary::before { content: "▸"; margin-right: 8px; color: var(--accent); }
+.vx-settings[open] > summary::before, .vx-more[open] > summary::before { content: "▾"; }
+.vx-more { margin: 8px 0; }
+#vx-body progress { width: 100%; height: 12px; accent-color: var(--accent); }
+#vx-body code { background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
+.vx-prons, .vx-senses { margin: 4px 0 8px; padding-left: 1.2em; }
+.vx-prons li, .vx-senses li { margin: 4px 0; }
+#vx-word-card h3 { margin: 0; font-size: 1.4rem; }
+#vx-word-card h4 { margin: 12px 0 0; text-transform: capitalize; }
+.vx-tr-result { font-size: 1.15rem; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin: 8px 0 0; }
+
 /* Analysis report (analysis.js): a summary, contents, then one folding topic each. */
 .an-tools { gap: 8px; align-items: flex-end; flex-wrap: wrap; }
 .an-summary h2 { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 0; }
