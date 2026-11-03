@@ -23,6 +23,7 @@ import { beatImagesView, initBeatImages } from './beat-images.js';
 import { licensesView, initLicenses } from './licenses.js';
 import { mediaView } from './media.js';
 import { badgesView, initBadges, playerBadgesHtml, playerBadgeClick } from './badges.js';
+import { analysisView, initAnalysis } from './analysis.js';
 import { passkeysSupported, platformReady, rememberedPasskey, passkeySignIn, offerPasskey, passkeysView, initPasskeys } from './passkeys.js';
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -2100,6 +2101,11 @@ initEducatorFeedback(educatorHelpers, (name, o) => show(name, o));
 const badgeHelpers = { api, esc, fmt, when, day, table, can, act, ask, toast, announce };
 views.badges = () => badgesView(badgeHelpers);
 initBadges(badgeHelpers, (name, o) => show(name, o));
+
+// ---- Analysis report (analysis.js): every number by topic, the market and what to build next.
+const analysisHelpers = { api, esc, fmt, when, day, bytes, tile, table, bars };
+views.analysis = () => analysisView(analysisHelpers);
+initAnalysis(analysisHelpers, (name, o) => show(name, o));
 
 // ---- Puzzle emails (puzzle-mail.js): the weekly and special edition lists, sends and planner.
 views.mail = () => puzzleMailView();

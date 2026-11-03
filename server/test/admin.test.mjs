@@ -571,6 +571,28 @@ test('analytics, storage and story review', async () => {
   assert.equal((await call('/admin/v1/parts/review', { auth: owner(), body: { key: 'gone', status: 'approved' } })).status, 404);
 });
 
+test('the analysis report gathers every topic in one request; money only for admins', async () => {
+  await db.prepare("INSERT INTO visit_stats (day, who, app, os, device, country, region, n) VALUES (date('now'), 'guest', 'web', 'ios', 'mobile', 'US', 'NC', 5)").run();
+  await db.prepare("INSERT INTO visit_stats (day, who, app, os, device, country, region, n) VALUES (date('now', '-10 days'), 'guest', 'web', 'ios', 'mobile', 'US', 'NC', 3)").run();
+  const r = await call('/admin/v1/analysis?days=7', { auth: owner() });
+  assert.equal(r.status, 200);
+  for (const part of ['analytics', 'visitors', 'search', 'quality', 'alerts', 'market', 'marketing', 'ratings', 'games', 'storage', 'extra']) assert.ok(r.body[part], `${part} is there`);
+  assert.equal(r.body.days, 7);
+  assert.equal(r.body.visitors.total, 5);
+  assert.equal(r.body.extra.previous.visits, 3, 'the period before, for the trend');
+  assert.equal(r.body.extra.money, true);
+  assert.ok(Array.isArray(r.body.extra.supporters));
+  assert.ok(r.body.market.marks.length >= 5);
+  assert.equal((await call('/admin/v1/admins', { auth: owner(), body: { email: 'analyst@example.com', role: 'viewer' } })).status, 200);
+  const v = await call('/admin/v1/analysis', { auth: idToken('analyst-uid', 'analyst@example.com') });
+  assert.equal(v.status, 200);
+  assert.equal(v.body.extra.money, false);
+  assert.equal(v.body.extra.supporters, null, 'viewers do not see supporter numbers');
+  assert.equal(v.body.extra.licenses, null);
+  const { results } = await db.prepare("SELECT COUNT(*) AS n FROM admin_audit WHERE action = 'analysis.view'").all();
+  assert.ok(results[0].n >= 2, 'each report is in the audit log');
+});
+
 test('backups: the archive page, a download, and the viewer page', async () => {
   const status = await call('/admin/v1/archive', { auth: TOKEN });
   assert.equal(status.status, 200);

@@ -144,6 +144,14 @@ const SHOTS = process.env.SHOTS;
     assert(/Games finished/.test(overview) && /mystery/.test(overview), 'the overview shows games and themes');
     assert(/140/.test(overview) && /300/.test(overview), 'the overview shows voices used against the cap');
     assert(await page.locator('#ov-body svg[role=img]').count() >= 5, 'the overview has charts with text descriptions');
+    // The Analysis report: a summary, every topic, the market and the ranked suggestions.
+    await openSection(page, 'analysis');
+    await page.waitForSelector('#an-body .an-summary');
+    const report = await page.textContent('#an-body');
+    assert(/Play and engagement/.test(report) && /Search and discoverability/.test(report) && /Reliability and running costs/.test(report), 'the analysis report has its topics');
+    assert(/Competitors/.test(report) && /Suggested improvements and new builds/.test(report), 'the analysis report has the market and the suggestions');
+    await page.click('#an-body a[data-an-open="search"]');
+    assert(await page.locator('#an-search').evaluate((d) => d.open), 'a contents link opens its topic');
     await openSection(page, 'settings');
     await page.waitForSelector('[data-view="settings"]:not([hidden])');
     await page.click('#home');

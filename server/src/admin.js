@@ -56,6 +56,7 @@
 //   GET  /admin/v1/alerts              free allowances close to running out
 //   /admin/v1/notify*                  my own push and email alerts (alerts.js)
 //   GET  /admin/v1/summary?days=       the week in numbers, for the Monday summary email
+//   GET  /admin/v1/analysis?days=      every number by topic, for the Analysis report (analysis.js)
 //   GET  /admin/v1/export/(players|scores|feedback).csv   spreadsheet downloads
 //   GET/POST /admin/v1/admins          who may sign in (owner only); POST /admin/v1/admins/remove
 //   GET/POST /admin/v1/admin-keys      assistant keys for helpers such as Claude (owner only); POST .../:id/revoke (admin-keys.js)
@@ -113,6 +114,7 @@ import { editionRoutes } from './editions.js';
 import { educatorRoutes } from './educators.js';
 import { puzzleReportRoutes } from './puzzle-reports.js';
 import { visitorRoutes } from './visits.js';
+import { analysisData } from './analysis.js';
 import { alertRoutes } from './alerts.js';
 import { KEY_PREFIX, checkKey, adminKeyRoutes } from './admin-keys.js';
 import { siteAccountRoutes } from './site-accounts.js';
@@ -897,6 +899,7 @@ const ROUTES = [
   ...puzzleReportRoutes(Refusal),
   ...visitorRoutes(),
   ...alertRoutes(Refusal),
+  ['GET', /^analysis$/, 'viewer', 'analysis.view', async ({ env, url, now, who }) => ({ body: await analysisData(env, daysParam(url, 365), { now, role: who.role, analytics, storage }) })],
   ['GET', /^alerts$/, 'viewer', 'alerts.view', async ({ env }) => ({ body: await alerts(env) })],
   ['GET', /^summary$/, 'admin', 'summary.view', async ({ env, url }) => {
     const s = await summary(env, daysParam(url, 31));
