@@ -54,6 +54,7 @@ import * as license from './license.js';
 import * as licenseDownload from './license-download.js';
 import { addCloseButtons, closeDialog } from './dialog-close.js';
 import * as games from './games.js';
+import { LAB_ON, mountLabField, tableSvg } from './lab.js';
 
 addCloseButtons();
 
@@ -311,6 +312,8 @@ async function goHome({ focusSaved = false } = {}) {
 const setup = {
   tier: 'easy', theme: 'random', topic: 'any', size: null, custom: [4, 4],
 };
+// Lab mode (lab.js): only with ?lab=1 or a FLG_LAB=1 build; never saved.
+let labMode = 'standard';
 
 const sizesFor = (tierId) => tierSizes(TIERS[tierId]);
 // The setup choices hold only entries from the game's own lists, never text
@@ -385,6 +388,10 @@ function renderSetup() {
   $('#cats').oninput = $('#items').oninput = () => { setup.custom = knownCustom([$('#cats').value, $('#items').value]); updatePreview(); };
   $('#clue-count').oninput = updatePreview;
   $('#setup').onsubmit = (e) => { e.preventDefault(); startGeneration(); };
+  if (LAB_ON) {
+    const draw = () => mountLabField($('#setup'), labMode, (v) => { labMode = v; draw(); updatePreview(); });
+    draw();
+  }
   $('#style-choices').onchange = () => { settings.silent = $('input[name=playstyle]:checked').value === 'silent'; store.saveSettings(settings); applyMode(); };
   updatePreview();
 }
@@ -472,6 +479,7 @@ function updatePreview() {
   if (k >= 6 && n >= 7) $('#preview').textContent += ' Puzzles this big can take up to 20 seconds to write.';
   // A player-written story plays at the level and size its writer chose.
   if (setup.theme === 'stories') $('#preview').textContent = 'Player Stories play at the level and size their writer chose, with their own cast. Each story lists both under its name.';
+  if (LAB_ON && labMode !== 'standard') $('#preview').textContent = `Lab: a ${TIERS[setup.tier].name} ${labMode === 'timeline' ? 'Timeline Case' : 'Seating Plan'}, with its own story and size.`;
   buildAheadSoon();
 }
 
@@ -490,6 +498,13 @@ function gatherOptions() {
   const types = $$('#clue-type-choices input:checked').map((i) => i.value);
   const tierTypes = TIERS[setup.tier].clueTypes;
   if (types.length && (types.length !== tierTypes.length || types.some((t) => !tierTypes.includes(t)))) o.clueTypes = types;
+  // Lab mode: the mode picks its own story, clue types and size (a custom size still counts).
+  if (LAB_ON && labMode !== 'standard') {
+    o.mode = labMode;
+    delete o.topic;
+    delete o.clueTypes;
+    if (setup.size !== 'custom') { delete o.categories; delete o.items; }
+  }
   return o;
 }
 
@@ -555,7 +570,7 @@ async function buildPuzzle(options, generate, tuned = null) {
   // The game's own characters (made in the admin dashboard) may join the
   // cast or tell the story. Names the player typed always win.
   // Player Stories keep their writer's own cast, so no characters join.
-  const picked = options.customNames || options.theme === 'random' || options.theme === 'stories' ? {} : characters.pick(options.theme, options.items);
+  const picked = options.customNames || options.theme === 'random' || options.theme === 'stories' || options.mode ? {} : characters.pick(options.theme, options.items);
   if (picked.cast && picked.cast.length) options.customNames = picked.cast.map((c) => c.name);
   let puzzle = null;
   // The engine skips used stories itself; the loop is a safety net.
@@ -897,7 +912,7 @@ $('#saved-section').addEventListener('click', async (e) => {
   else if (act === 'delete') {
     const ok = await confirmDialog({ title: `Delete “${save.name}”?`, text: `This removes the puzzle and your progress from ${signedIn() ? 'all your devices' : 'this device'}. You can undo for 10 seconds.`, yes: 'Delete puzzle', no: 'Keep it' });
     if (!ok) return;
-    if (!save.solved && settings.learn) { await learn.record(save, 'abandoned').catch(() => {}); share.soon(); refreshAhead(); }
+    if (!save.solved && settings.learn && !(save.puzzle && save.puzzle.mode)) { await learn.record(save, 'abandoned').catch(() => {}); share.soon(); refreshAhead(); }
     await store.deleteSave(id);
     await renderSaved();
     $('#saved-h').focus();
@@ -1672,11 +1687,12 @@ function checkSolved() {
     if (Date.now() - lastTryAgain < 4000) ai.stopSpeaking();
     S.save.completedAt = Date.now();
     // The daily, weekly and special puzzles' answers are on the website, so they earn no scoreboard points.
-    if (!S.save.race && !S.save.daily && !S.save.edition && !S.save.challenge && !S.save.revealed && !S.save.restarted) S.save.scorePending = true;
+    if (!S.save.race && !S.save.daily && !S.save.edition && !S.save.challenge && !S.save.revealed && !S.save.restarted && !S.puzzle.mode) S.save.scorePending = true;
     tickTimer();
     recordSolve(S.save);
     if (!S.save.revealed) campaign.solved();
-    if (settings.learn) learn.record(S.save, S.save.revealed ? 'revealed' : 'solved').then(() => { share.soon(); refreshAhead(); }, () => {});
+    // Lab puzzles (review only) are left out of learning and the scoreboard.
+    if (settings.learn && !S.puzzle.mode) learn.record(S.save, S.save.revealed ? 'revealed' : 'solved').then(() => { share.soon(); refreshAhead(); }, () => {});
     stopTimer();
     showSolved(true);
     scheduleSave();
@@ -1699,6 +1715,9 @@ function showSolved(celebrate) {
   const i = TIER_IDS.indexOf(tier);
   $('#solved-h').textContent = save.revealed ? 'Solution revealed' : 'Case closed!';
   $('#ending').textContent = S.puzzle.story.ending;
+  // A solved Seating Plan (lab mode) shows its round table.
+  $('#lab-table')?.remove();
+  if (S.puzzle.mode === 'seating') $('#ending').insertAdjacentHTML('afterend', `<div id="lab-table">${tableSvg(S.puzzle)}</div>`);
   $('#solved-stats').innerHTML = [
     ['Time', fmtTime(save.elapsedMs)], ['Hints used', Number(save.hintsUsed) || 0], ['Checks', Number(save.checksUsed) || 0],
   ].map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('');
@@ -1782,6 +1801,7 @@ async function renderFeedback(save) {
   $('#feedback-thanks').textContent = '';
 }
 async function saveRating(v) {
+  if (S && S.puzzle.mode) { $('#feedback-thanks').textContent = 'Thanks. Lab puzzles are for review, so this rating is not saved.'; return; }
   await learn.rate(S.save, v, { keepLocal: !settings.learn }).catch(() => {});
   refreshAhead();
   $('#feedback-thanks').textContent = settings.learn ? 'Thanks. Your next puzzles will use this.' : 'Thanks. This stays on your device, because Learn from how I play is off.';
