@@ -35,7 +35,10 @@ const EMBEDDED = (() => { try { return window.top !== window.self && window.pare
 
 const $ = (s, el = document) => el.querySelector(s);
 const MAX = 1000;
+// Up to 3 the player picks; the automatic screenshot comes on top and does not
+// use one up (the Worker allows 4: server/src/report-files.js).
 const MAX_FILES = 3;
+const own = () => files.filter((f) => !f.auto).length;
 const MAX_BYTES = 1_048_576;
 const MAX_SIDE = 1600;
 const IMAGE = /^image\/(png|jpeg|webp|gif)$/;
@@ -162,7 +165,7 @@ async function add(list) {
 }
 async function addAll(list) {
   for (const file of [...list]) {
-    if (files.length >= MAX_FILES) { filesError(`You can attach up to ${MAX_FILES} pictures or files.`); break; }
+    if (!file.auto && own() >= MAX_FILES) { filesError(`You can attach up to ${MAX_FILES} pictures or files.`); break; }
     try {
       let blob;
       let name = file.name || 'screenshot.png';
@@ -177,7 +180,7 @@ async function addAll(list) {
       }
       const item = { name, type: blob.type || file.type, size: blob.size, blob, url: blob.type.startsWith('image/') ? URL.createObjectURL(blob) : '', auto: !!file.auto };
       files.push(item);
-      say(`${item.auto ? 'A screenshot of the screen you were on is' : `${name}`} attached, ${kb(item.size)}. ${files.length} of ${MAX_FILES}.`);
+      say(item.auto ? `A screenshot of the screen you were on is attached, ${kb(item.size)}.` : `${name} attached, ${kb(item.size)}. ${own()} of ${MAX_FILES}.`);
     } catch (e) { filesError(e.message); }
   }
   drawFiles();
@@ -208,8 +211,8 @@ function drawFiles() {
     li.append(thumb, meta, rm);
     return li;
   }));
-  $('#rp-pick').toggleAttribute('aria-disabled', files.length >= MAX_FILES);
-  $('#rp-file').disabled = files.length >= MAX_FILES;
+  $('#rp-pick').toggleAttribute('aria-disabled', own() >= MAX_FILES);
+  $('#rp-file').disabled = own() >= MAX_FILES;
 }
 
 $('#rp-file').addEventListener('change', (e) => { add(e.target.files); e.target.value = ''; });
