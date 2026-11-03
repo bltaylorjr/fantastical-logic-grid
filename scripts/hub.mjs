@@ -531,9 +531,9 @@ ${themeSelect}
 ${watchMain ? `<dialog class="hub-welcome" id="hub-welcome" aria-labelledby="hub-welcome-h">
 <button type="button" class="hw-x" id="hub-welcome-x" aria-label="Close" title="Close (Esc)">×</button>
 <h2 id="hub-welcome-h">Welcome to The Logic Grid!</h2>
-<p id="hub-welcome-text">Ten puzzle games, free to play in your browser. New here? <b>Take the tour</b>: a short narrated video, with captions, of everything on the site, from every game to your account and making your own puzzles.</p>
+<p id="hub-welcome-text">Ten puzzle games, free to play in your browser. Jump straight into <b>today's puzzle</b>, or <b>take the tour</b>: a short narrated video, with captions, of everything on the site, from every game to your account and making your own puzzles.</p>
 <div id="hub-welcome-player" hidden>${videoTag(site, '', 'the-logic-grid', 'A tour of The Logic Grid')}</div>
-<p class="hw-actions"><button type="button" class="hdr-btn" id="hub-welcome-close">Start playing</button><button type="button" class="hw-go" id="hub-welcome-tour">Take the tour</button></p>
+<p class="hw-actions"><a class="hdr-btn" id="hub-welcome-play" href="fantastical/?play=daily">Play today's puzzle</a><button type="button" class="hw-go" id="hub-welcome-tour">Take the tour</button></p>
 <p class="hw-note">The tour is always under See the games on this page.</p>
 </dialog>` : ''}
 <main id="games" class="games" tabindex="-1" aria-label="Games">
