@@ -1,21 +1,22 @@
 // Voice engine: Vox, the free voice engine shared by every game, running on
-// the owner's computer (vox serve). This page talks to it directly at
-// http://127.0.0.1:5150 (the dashboard's content policy allows this computer
-// only), with the admin token Vox prints when it starts. Nothing here goes
-// through the Worker, so it costs nothing and keeps working when the site is
-// busy.
+// the owner's computer (vox serve), or online through a Cloudflare tunnel
+// (https://….thelogicgrid.com or a quick https://….trycloudflare.com
+// address). This page talks to it directly with the admin token Vox prints
+// when it starts. Nothing here goes through the Worker, so it costs nothing.
 //
 // Parts: Learning (how it improves, refine now, settings, rounds), Review
-// takes (thumbs up/down and A/B choices that teach it), Auto-tune (per-voice
-// pitch correction with a preview), Voices (auto-optimize, undo refinement),
-// Pronunciation (fixes for names it says wrong) and Versions (roll back).
+// takes (thumbs up/down and A/B choices that teach it), Voices (new voices
+// blended from many speakers' samples, auto-optimize, undo refinement),
+// Auto-tune (per-voice pitch correction with a preview), Words (the American
+// English dictionary and your pronunciation fixes), Languages (translate and
+// hear lines) and Versions (roll back).
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 
 const STORE_KEY = 'vox-engine';
 const DEFAULT_URL = 'http://127.0.0.1:5150';
-const TABS = [['learning', 'Learning'], ['review', 'Review takes'], ['autotune', 'Auto-tune'],
-  ['voices', 'Voices'], ['words', 'Pronunciation'], ['versions', 'Versions']];
+const TABS = [['learning', 'Learning'], ['review', 'Review takes'], ['voices', 'Voices'], ['autotune', 'Auto-tune'],
+  ['words', 'Words'], ['languages', 'Languages'], ['versions', 'Versions']];
 
 let h = null;       // dashboard helpers
 let conn = null;    // { url, token }
@@ -32,13 +33,16 @@ function saveConn(c) {
   try { if (c) localStorage.setItem(STORE_KEY, JSON.stringify(c)); else localStorage.removeItem(STORE_KEY); } catch (e) { /* private mode */ }
 }
 
-// Only this computer: the dashboard's content policy allows nothing else, and
-// the token must never be sent anywhere but the engine.
+// Where the engine may be: this computer, or online through your own address
+// (voice.thelogicgrid.com) or a Cloudflare quick tunnel. The dashboard's
+// content policy allows only these, and the token is never sent anywhere else.
 function cleanUrl(raw) {
   let u;
-  try { u = new URL(String(raw || '').trim() || DEFAULT_URL); } catch (e) { throw new Error('That address is not valid. Use http://127.0.0.1:5150'); }
-  if (u.protocol !== 'http:' || !['127.0.0.1', 'localhost'].includes(u.hostname)) {
-    throw new Error('Use the engine on this computer: http://127.0.0.1 with its port (5150 unless you changed it).');
+  try { u = new URL(String(raw || '').trim() || DEFAULT_URL); } catch (e) { throw new Error('That address is not valid. Use http://127.0.0.1:5150 or your online address.'); }
+  const local = u.protocol === 'http:' && ['127.0.0.1', 'localhost'].includes(u.hostname);
+  const online = u.protocol === 'https:' && (/\.thelogicgrid\.com$/.test(u.hostname) || /^[a-z0-9-]+\.trycloudflare\.com$/.test(u.hostname));
+  if (!local && !online) {
+    throw new Error('Use http://127.0.0.1:5150 on this computer, or the engine\'s online address (https://….thelogicgrid.com or the https://….trycloudflare.com address it printed).');
   }
   return u.origin;
 }
@@ -88,7 +92,7 @@ async function speakPreview(body, button) {
   if (button?.dataset.playing) { stopAudio(); return; }
   let res;
   try {
-    res = await fetch(`${conn.url}/v1/speak`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    res = await fetch(`${conn.url}/v1/speak`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Vox-Admin-Token': conn.token }, body: JSON.stringify(body) });
   } catch (e) { throw new Error('The voice engine is not answering.'); }
   if (!res.ok) { let m = 'Could not make that line.'; try { m = (await res.json()).detail || m; } catch (e) { /* */ } throw new Error(m); }
   await playBlob(await res.blob(), button);
@@ -135,11 +139,11 @@ function connectForm(message = '') {
   const c = loadConn() || {};
   return `<section class="card" aria-labelledby="vx-conn-h">
     <h2 id="vx-conn-h">Connect to the voice engine</h2>
-    <p>The voice engine runs on your computer, free. Open this page on that computer, start it with
-      <code>vox serve --ckpt your_model.pt</code>, and paste the admin token it prints (also in <code>learning/admin_token.txt</code>).</p>
+    <p>The voice engine runs free on your computer. Start it with <code>vox serve --ckpt your_model.pt</code> and paste the admin token it prints (also in <code>learning/admin_token.txt</code>).
+      To use it from anywhere, start it with <code>--tunnel</code> (or your own address, see the engine's README) and paste the online address it shows.</p>
     ${message ? `<p class="error" role="alert">${h.esc(message)}</p>` : ''}
     <form id="vx-connect" class="row" novalidate>
-      <div class="field"><label for="vx-url">Address</label><input id="vx-url" type="url" value="${h.esc(c.url || DEFAULT_URL)}" autocomplete="off" spellcheck="false"></div>
+      <div class="field grow"><label for="vx-url">Address</label><input id="vx-url" type="url" value="${h.esc(c.url || DEFAULT_URL)}" autocomplete="off" spellcheck="false"></div>
       <div class="field grow"><label for="vx-token">Admin token</label><input id="vx-token" type="password" value="${h.esc(c.token || '')}" autocomplete="off" spellcheck="false" required></div>
       <button class="btn primary" type="submit">Connect</button>
     </form>
@@ -149,7 +153,7 @@ function connectForm(message = '') {
 
 function shell(health) {
   const tabs = TABS.map(([k, label]) => `<label class="tab"><input type="radio" name="vx-tab" value="${k}"${k === tab ? ' checked' : ''}> ${label}</label>`).join('');
-  return `<div class="row vx-status"><p class="muted">Connected to <b>${h.esc(conn.url)}</b> · model <b>${h.esc(health.version || '–')}</b> · ${h.esc(health.device)}${health.vocoder_trained ? '' : ' · <span class="badge warn">vocoder not trained yet</span>'}</p>
+  return `<div class="row vx-status"><p class="muted">Connected to <b>${h.esc(conn.url)}</b>${health.public ? ' <span class="badge ok">online</span>' : ''} · model <b>${h.esc(health.version || '–')}</b> · ${h.esc(health.device)}${health.vocoder_trained ? '' : ' · <span class="badge warn">vocoder not trained yet</span>'}</p>
       <button class="btn small link" type="button" id="vx-forget">Disconnect</button></div>
     ${health.learning ? '' : '<p class="note">Learning is off on this engine (it was started with --no-learning). Start it without that option to use this page fully.</p>'}
     <fieldset class="tabs"><legend class="sr-only">Part</legend>${tabs}</fieldset>
@@ -301,6 +305,7 @@ async function renderAutotune(el) {
 
 // ------------------------------------------------------------------ voices
 async function renderVoices(el) {
+  if (sampleJob && !sampleJob.done) sampleJob = await vox(`/v1/admin/jobs/${sampleJob.id}`);
   const rows = voiceList.map((v) => [`<b>${h.esc(v.name)}</b>`, h.esc(v.origin), h.esc(v.description || ''),
     v.autotune ? h.esc(v.autotune.preset || 'custom') : '<span class="muted">off</span>',
     v.tuned ? '<span class="badge ok">optimized</span>' : '<span class="muted">default</span>',
@@ -310,17 +315,52 @@ async function renderVoices(el) {
       ${v.tuned ? `<button class="btn small link" type="button" data-reset="${h.esc(v.name)}">Reset settings</button>` : ''}
       ${v.refined ? `<button class="btn small link" type="button" data-unrefine="${h.esc(v.name)}">Undo last refinement</button>` : ''}
       ${v.name !== 'narrator' ? `<button class="btn small danger" type="button" data-del="${h.esc(v.name)}">Delete</button>` : ''}</div>`]);
-  el.innerHTML = `<p class="muted">Auto-optimize tries several generation settings on test lines, scores each, and keeps the best for that voice; the comparisons also teach the learning loop. Refinements are the small identity nudges from takes you liked.</p>
+  el.innerHTML = `${samplesForm()}<p class="muted">Auto-optimize tries several generation settings on test lines, scores each, and keeps the best for that voice; the comparisons also teach the learning loop. Refinements are the small identity nudges from takes you liked.</p>
     ${h.table(['Voice', 'Kind', 'Description', 'Auto-tune', 'Settings', 'Refinements', ''], rows, 'No voices yet.', { csv: false })}`;
+  return Boolean(sampleJob && !sampleJob.done);
 }
 
-// --------------------------------------------------------------- pronunciation
+// ------------------------------------------------------------------ words
+// The dictionary (every word's sounds, meanings and usage) and your fixes,
+// in one place.
+let wordQuery = '';
+function wordCard(w) {
+  if (!w.found) return `<p class="muted">\u201c${h.esc(w.word)}\u201d isn't in the dictionary${w.installed ? '' : ' (not installed yet)'}. Add how to say it below and every line will use it.</p>`;
+  const say = (p) => `<li><b>${h.esc(p.respelling)}</b> <span class="muted">/${h.esc(p.ipa)}/ · ${h.fmt(p.syllables)} syllable${p.syllables === 1 ? '' : 's'} · ${h.esc(p.arpabet)} · ${h.esc(p.source)}</span>${p.usage ? ` <span class="badge">${h.esc(p.usage)}</span>` : ''}</li>`;
+  const prons = (w.usage_pronunciations.length ? w.usage_pronunciations : w.pronunciations.slice(0, 3)).map(say).join('');
+  const groups = {};
+  w.senses.forEach((x) => { (groups[x.pos] = groups[x.pos] || []).push(x); });
+  const example = w.senses.flatMap((x) => x.examples)[0] || '';
+  const senses = Object.entries(groups).map(([pos, list]) => `<h4>${h.esc(pos)}</h4><ol class="vx-senses">${list.slice(0, 6).map((x) => `<li>${h.esc(x.definition)}${x.examples.length ? `<br><span class="muted">\u201c${h.esc(x.examples[0])}\u201d</span>` : ''}${x.synonyms.length ? `<br><span class="muted">Also: ${h.esc(x.synonyms.slice(0, 5).join(', '))}</span>` : ''}</li>`).join('')}${list.length > 6 ? `<li class="muted">and ${list.length - 6} more</li>` : ''}</ol>`).join('');
+  return `<section class="card" aria-labelledby="vx-w-h"><div class="head"><h3 id="vx-w-h">${h.esc(w.word)}</h3>
+      <div class="row"><button class="btn small" type="button" data-say="${h.esc(w.word)}">Hear it</button>
+        <button class="btn small" type="button" data-say="${h.esc(w.word)}" data-clear="1">Hear it slowly</button>
+        ${example ? `<button class="btn small" type="button" data-say="${h.esc(example)}">Hear it in use</button>` : ''}
+        <button class="btn small link" type="button" data-fix="${h.esc(w.word)}">Fix how it's said</button></div></div>
+    ${w.your_fix ? `<p class="note">Your fix: said as <b>${h.esc(w.your_fix)}</b>.</p>` : ''}
+    ${usageNote(w)}<ul class="vx-prons">${prons}</ul>${senses || '<p class="muted">No meanings listed.</p>'}</section>`;
+}
+function usageNote(w) {
+  return w.usage_pronunciations.length ? '<p class="muted">Said two ways depending on use; the engine picks from the words around it.</p>' : '';
+}
 async function renderWords(el, prefill = '') {
-  const r = await vox('/v1/admin/lexicon');
+  const [r, d] = await Promise.all([vox('/v1/admin/lexicon'), vox('/v1/admin/dictionary')]);
+  const running = d.running && d.running[0];
   const rows = Object.entries(r.words).map(([w, say]) => [`<b>${h.esc(w)}</b>`, h.esc(say),
-    `<div class="row"><button class="btn small" type="button" data-say="${h.esc(say)}">Hear</button><button class="btn small danger" type="button" data-unword="${h.esc(w)}">Remove</button></div>`]);
+    `<div class="row"><button class="btn small" type="button" data-say="${h.esc(w)}">Hear</button><button class="btn small danger" type="button" data-unword="${h.esc(w)}">Remove</button></div>`]);
   const issues = r.issues.map((i) => [`<b>${h.esc(i.word)}</b>`, `${h.fmt(i.misses)} of ${h.fmt(i.seen)}`, `<button class="btn small" type="button" data-fix="${h.esc(i.word)}">Add a fix</button>`]);
-  el.innerHTML = `<p class="muted">For names and made-up words it says wrong. Write the word, then how it sounds (for example Aelith → AY-lith). Fixes apply to every line at once, in every game.</p>
+  const status = d.installed
+    ? `<p class="muted">American English dictionary: <b>${h.fmt(d.words)}</b> words and phrases, ${h.fmt(d.with_pronunciation)} with pronunciations, ${h.fmt(d.senses)} meanings (CMU Pronouncing Dictionary and Open English WordNet). Words it doesn't list are worked out by its letters-to-sounds model${d.guesser ? ` (${Math.round(d.guesser.words_ignoring_stress * 100)}% exactly right on words it never saw)` : ''}.</p>`
+    : running ? `<p>Installing the dictionary: ${h.esc(running.message)}</p><progress max="1" value="${Number(running.progress) || 0}" aria-label="Progress"></progress>`
+      : '<div class="note"><p>The American English dictionary isn\'t installed yet. It\'s free, takes a couple of minutes, and gives every word its pronunciation, meanings and usage.</p><button class="btn primary" type="button" id="vx-dict-install">Install the dictionary</button></div>';
+  el.innerHTML = `${status}
+    <form id="vx-lookup" class="row" role="search">
+      <div class="field grow"><label for="vx-q">Look up a word</label><input id="vx-q" type="search" list="vx-q-list" value="${h.esc(wordQuery)}" autocomplete="off" spellcheck="false"><datalist id="vx-q-list"></datalist></div>
+      <button class="btn primary" type="submit">Look up</button>
+    </form>
+    <div id="vx-word-card"></div>
+    <h2>Your pronunciation fixes</h2>
+    <p class="muted">For names and made-up words. Write how it sounds (Aelith \u2192 AY-lith), or exact sounds from the dictionary (EY1 L IH0 TH). Fixes apply to every line at once, in every game.</p>
     <form id="vx-word" class="card row" novalidate>
       <div class="field"><label for="vx-w">Word</label><input id="vx-w" type="text" maxlength="64" value="${h.esc(prefill)}" autocomplete="off" required></div>
       <div class="field grow"><label for="vx-say">Say it as</label><input id="vx-say" type="text" maxlength="128" autocomplete="off" required></div>
@@ -331,7 +371,56 @@ async function renderWords(el, prefill = '') {
     <h2>Words it may be saying wrong</h2>
     <p class="muted">Words the transcriber often fails to hear in the engine's own lines (needs Whisper).</p>
     ${h.table(['Word', 'Misheard', ''], issues, 'None found.', { csv: false })}`;
+  if (wordQuery) await showWord(wordQuery);
   if (prefill) $('#vx-say').focus();
+  return Boolean(running);
+}
+async function showWord(word) {
+  wordQuery = word;
+  const w = await (await fetch(`${conn.url}/v1/dictionary/${encodeURIComponent(word)}`, { headers: { 'X-Vox-Admin-Token': conn.token } })).json();
+  $('#vx-word-card').innerHTML = wordCard(w);
+}
+
+// -------------------------------------------------------------- languages
+let langLast = { to: 'es', text: 'Welcome back, traveler. The road was long, but you made it.' };
+async function renderLanguages(el) {
+  const r = await (await fetch(`${conn.url}/v1/languages`)).json();
+  el.innerHTML = `<p class="muted">Translate any line into ${h.fmt(r.languages.length)} languages and hear it, free and on the engine's own computer (${h.esc(r.backend)} model, ${h.esc(r.license)} license). Markup like [breath] and [warm]\u2026[/warm] is kept. Games can ask for a language on any line (<code>"translate_to": "es"</code>), and each translation is saved so it's only made once.</p>
+    <form id="vx-tr" class="card stack" novalidate>
+      <div class="field"><label for="vx-tr-text">Line (English)</label><textarea id="vx-tr-text" rows="2" maxlength="1000">${h.esc(langLast.text)}</textarea></div>
+      <div class="row">
+        <div class="field"><label for="vx-tr-to">Into</label><select id="vx-tr-to">${r.languages.filter((l) => l.code !== 'en').map((l) => `<option value="${h.esc(l.code)}"${l.code === langLast.to ? ' selected' : ''}>${h.esc(l.name)}</option>`).join('')}</select></div>
+        <div class="field"><label for="vx-tr-voice">Voice</label><select id="vx-tr-voice">${voiceOptions(langLast.voice || voiceList[0]?.name)}</select></div>
+        <button class="btn primary" type="submit">Translate</button>
+        <button class="btn" type="button" id="vx-tr-hear">Hear it</button>
+      </div>
+      <div id="vx-tr-out" aria-live="polite">${langLast.out ? `<p class="vx-tr-result" lang="${h.esc(langLast.to)}">${h.esc(langLast.out)}</p>` : ''}</div>
+    </form>
+    <p class="note">The voices speak a language well once the engine has been trained on recordings in it (for example Common Voice or Multilingual LibriSpeech, both free; see the engine's README). Until then translated lines are read from their spelling.</p>`;
+}
+
+// ------------------------------------------------------- voices from samples
+let sampleJob = null;
+function samplesForm() {
+  if (sampleJob && !sampleJob.done) return `<section class="card" aria-live="polite"><h2>Making a voice from samples</h2><p>${h.esc(sampleJob.message)}</p><progress max="1" value="${Number(sampleJob.progress) || 0}" aria-label="Progress"></progress></section>`;
+  const done = sampleJob && sampleJob.done ? (sampleJob.failed ? `<p class="error" role="alert">${h.esc(sampleJob.message)}</p>`
+    : `<p class="note">Made <b>${h.esc(sampleJob.result.name)}</b> from ${h.fmt(sampleJob.result.used)} speakers (closest match to any one of them: ${Math.round(sampleJob.result.max_similarity * 100)}%, limit 75%). <button class="btn small" type="button" data-hear="${h.esc(sampleJob.result.name)}">Hear it</button></p>`) : '';
+  return `<details class="card vx-settings"${done ? ' open' : ''}><summary><h2>New voice from samples</h2></summary>
+    <p class="muted">Searches openly licensed recordings (public domain or Creative Commons BY) for your keywords, finds different speakers, and blends at least 3 of them into a new voice that sounds like none of them: no one person carries more than 40%, and the result must stay well apart from every speaker. No recording needed. To copy one specific person, use cloning with their consent.</p>
+    ${done}
+    <form id="vx-samples" class="stack" novalidate>
+      <div class="row"><div class="field"><label for="vx-s-name">Name for the voice</label><input id="vx-s-name" type="text" maxlength="64" pattern="[A-Za-z0-9_-]+" autocomplete="off" required></div>
+        <div class="field"><label for="vx-s-n">Speakers to blend</label><input id="vx-s-n" type="number" min="3" max="12" value="5"></div></div>
+      <div class="field"><label for="vx-s-kw">Keywords (comma between each)</label><input id="vx-s-kw" type="text" maxlength="300" placeholder="old sea captain, harbor radio, sailor stories" autocomplete="off"></div>
+      <details class="vx-more"><summary>Add your own links or files</summary>
+        <div class="field"><label for="vx-s-urls">Links (one per line)</label><textarea id="vx-s-urls" rows="2" spellcheck="false"></textarea></div>
+        <div class="field"><label for="vx-s-files">Files</label><input id="vx-s-files" type="file" accept="audio/*,video/*" multiple></div>
+        <div class="row"><div class="field"><label for="vx-s-lic">Their license</label><select id="vx-s-lic"><option value="">Choose…</option>
+          ${[['public-domain', 'Public domain'], ['cc0', 'CC0'], ['cc-by-4.0', 'CC BY 4.0'], ['cc-by-sa-4.0', 'CC BY-SA 4.0'], ['own-recording', 'My own recordings'], ['consented', 'Speakers gave written consent']].map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select></div>
+          <div class="field grow"><label for="vx-s-credit">Credit (who made them)</label><input id="vx-s-credit" type="text" maxlength="200" autocomplete="off"></div></div>
+      </details>
+      <div class="row"><button class="btn primary" type="submit">Make the voice</button></div>
+    </form></details>`;
 }
 
 // ---------------------------------------------------------------- versions
@@ -347,7 +436,7 @@ async function renderVersions(el) {
 }
 
 // --------------------------------------------------------------- rendering
-const RENDER = { learning: renderLearning, review: renderReview, autotune: renderAutotune, voices: renderVoices, words: renderWords, versions: renderVersions };
+const RENDER = { learning: renderLearning, review: renderReview, autotune: renderAutotune, voices: renderVoices, words: renderWords, languages: renderLanguages, versions: renderVersions };
 
 async function renderTab(extra) {
   clearTimeout(poll);
@@ -356,7 +445,7 @@ async function renderTab(extra) {
   try {
     voiceList = await (await fetch(`${conn.url}/v1/voices`)).json();
     const busy = await RENDER[tab](el, extra);
-    if (busy && tab === 'learning') poll = setTimeout(() => { if (location.hash === '#voice-engine') renderTab(); }, 3000);
+    if (busy) poll = setTimeout(() => { if (location.hash === '#voice-engine') renderTab(); }, 3000);
   } catch (e) {
     if (e.offline || e.status === 401) { render(e.message); return; }
     el.innerHTML = `<p class="error">${h.esc(e.message)}</p>`;
@@ -405,6 +494,21 @@ export function initVoiceEngine(helpers) {
     }
   });
 
+  let suggestTimer = null;
+  body.addEventListener('input', (e) => {
+    if (e.target.id !== 'vx-q') return;
+    clearTimeout(suggestTimer);
+    const q = e.target.value.trim();
+    suggestTimer = setTimeout(async () => {
+      if (q.length < 2) return;
+      try {
+        const r = await (await fetch(`${conn.url}/v1/dictionary?prefix=${encodeURIComponent(q)}`, { headers: { 'X-Vox-Admin-Token': conn.token } })).json();
+        const list = $('#vx-q-list');
+        if (list) list.innerHTML = r.words.map((w) => `<option value="${h.esc(w)}"></option>`).join('');
+      } catch (err) { /* suggestions are optional */ }
+    }, 200);
+  });
+
   body.addEventListener('submit', async (e) => {
     e.preventDefault();
     const f = e.target;
@@ -436,6 +540,42 @@ export function initVoiceEngine(helpers) {
         btn.textContent = 'Making two takes…';
         const r = await vox('/v1/admin/ab', { method: 'POST', body: { text, voice } });
         abPair = { ...r, text, voice };
+        await renderTab();
+      });
+    } else if (f.id === 'vx-lookup') {
+      const q = $('#vx-q').value.trim();
+      if (q) await h.act(btn, () => showWord(q));
+    } else if (f.id === 'vx-tr') {
+      await h.act(btn, async () => {
+        const text = $('#vx-tr-text').value.trim();
+        if (!text) throw new Error('Type a line first.');
+        langLast = { ...langLast, text, to: $('#vx-tr-to').value, voice: $('#vx-tr-voice').value };
+        btn.textContent = 'Translating…';
+        const r = await fetch(`${conn.url}/v1/translate`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Vox-Admin-Token': conn.token }, body: JSON.stringify({ text, to: langLast.to }) });
+        const j = await r.json();
+        btn.textContent = 'Translate';
+        if (!r.ok) throw new Error(j.detail || 'Translation failed.');
+        langLast.out = j.text;
+        $('#vx-tr-out').innerHTML = `<p class="vx-tr-result" lang="${h.esc(langLast.to)}">${h.esc(j.text)}</p>`;
+      });
+    } else if (f.id === 'vx-samples') {
+      await h.act(btn, async () => {
+        const name = $('#vx-s-name').value.trim();
+        if (!/^[A-Za-z0-9_-]{1,64}$/.test(name)) throw new Error('Name the voice with letters, numbers, - or _ (no spaces).');
+        const fd = new FormData();
+        fd.append('name', name);
+        fd.append('keywords', $('#vx-s-kw').value);
+        fd.append('speakers', String(Math.max(3, Number($('#vx-s-n').value) || 5)));
+        fd.append('urls', $('#vx-s-urls').value);
+        fd.append('license', $('#vx-s-lic').value);
+        fd.append('attribution', $('#vx-s-credit').value);
+        for (const file of $('#vx-s-files').files) fd.append('files', file);
+        let res;
+        try { res = await fetch(`${conn.url}/v1/admin/voices/from-samples`, { method: 'POST', headers: { 'X-Vox-Admin-Token': conn.token }, body: fd }); }
+        catch (e) { throw new Error('The voice engine is not answering.'); }
+        const j = await res.json();
+        if (!res.ok) throw new Error(j.detail || 'Could not start.');
+        sampleJob = { id: j.job, done: false, message: 'Starting…', progress: 0 };
         await renderTab();
       });
     } else if (f.id === 'vx-word') {
@@ -489,13 +629,28 @@ export function initVoiceEngine(helpers) {
       return;
     }
     if (b.dataset.hear) { await h.act(null, () => speakPreview({ text: 'Hello there. This is how I sound today.', voice: b.dataset.hear, seed: 3 }, b)); return; }
-    if (b.dataset.say) { await h.act(null, () => speakPreview({ text: b.dataset.say, voice: voiceList[0]?.name || 'narrator', seed: 3 }, b)); return; }
+    if (b.dataset.say) { await h.act(null, () => speakPreview({ text: b.dataset.say, voice: voiceList[0]?.name || 'narrator', seed: 3, enunciate: b.dataset.clear ? 1 : 0 }, b)); return; }
+    if (b.id === 'vx-dict-install') {
+      await h.act(b, async () => { await vox('/v1/admin/dictionary/install', { method: 'POST' }); await renderTab(); }, 'Installing the dictionary. This takes a couple of minutes.');
+      return;
+    }
+    if (b.id === 'vx-tr-hear') {
+      const text = $('#vx-tr-text').value.trim();
+      if (text) await h.act(null, () => speakPreview({ text, voice: $('#vx-tr-voice').value, seed: 3, translate_to: $('#vx-tr-to').value }, b));
+      return;
+    }
     if (b.id === 'vx-say-hear') {
       const t = $('#vx-say').value.trim() || $('#vx-w').value.trim();
       if (t) await h.act(null, () => speakPreview({ text: t, voice: voiceList[0]?.name || 'narrator', seed: 3 }, b));
       return;
     }
-    if (b.dataset.fix) { await renderWords($('#vx-tab-body'), b.dataset.fix); return; }
+    if (b.dataset.fix) {
+      $('#vx-w').value = b.dataset.fix;
+      $('#vx-say').value = '';
+      $('#vx-say').focus();
+      $('#vx-word').scrollIntoView({ block: 'center' });
+      return;
+    }
     if (b.dataset.unword) {
       await h.act(b, async () => { await vox(`/v1/admin/lexicon/${encodeURIComponent(b.dataset.unword)}`, { method: 'DELETE' }); await renderTab(); }, 'Fix removed.');
       return;
