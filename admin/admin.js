@@ -738,7 +738,13 @@ async function etFile(id, fid) {
   if (!res.ok) { const d = await res.json().catch(() => ({})); throw new ApiError(d.error || 'download', d.message || `Download failed (${res.status}).`); }
   return res.blob();
 }
-const svgUrl = (svg) => `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`;
+// The game's scene picture is saved as it sits in the page, without the SVG
+// namespace a picture on its own needs (without it browsers show nothing), so
+// it is added here; animation classes are dropped.
+const svgUrl = (svg) => {
+  const own = /^\s*<svg\b[^>]*\sxmlns=/i.test(svg) ? svg : svg.replace(/^\s*<svg\b/i, '<svg xmlns="http://www.w3.org/2000/svg"');
+  return `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(own)))}`;
+};
 
 function etRowHtml(r) {
   const [cls, words] = REPORT_STATES[r.status] || ['', r.status];
@@ -801,11 +807,11 @@ async function etOpen(id) {
     ${['needs_fix', 'no_fault', 'manual', 'page'].includes(r.status) ? '<p class="muted">The puzzle doctor\'s daily code-fix task looks at reports waiting here. When its fix merges, this report is marked done with a plain note and the version, and the player who asked is emailed. Mark done by hand only if you fixed it yourself.</p>' : ''}
     <h3>Correction made</h3><p>${esc(r.note || '–')}${r.strategy ? ` <span class="muted">(${esc(STRATEGY_NAMES[r.strategy] || r.strategy)})</span>` : ''}${r.status === 'repaired' ? ` ${r.openedAt ? 'The player opened the repaired puzzle.' : 'The player has not opened the repaired puzzle yet.'}` : ''}</p>
     ${r.related.length ? `<h3>Related reports in the other category</h3><p>${r.related.map((t) => `<code>${esc(t)}</code>`).join(' ')} <span class="muted">(same screen and app version)</span></p>` : ''}
-    <h3>Pictures and files from the player</h3>${r.attachments.length ? `<ul class="et-files">${r.attachments.map((f) => `<li>${f.image ? `<img class="et-attach" data-et-img="${Number(f.id)}" alt="Picture the player attached: ${esc(f.name)}">` : ''}
+    <h3>Screenshot, pictures and files from the player</h3>${r.attachments.length ? `<ul class="et-files">${r.attachments.map((f) => `<li>${f.image ? `<img class="et-attach" data-et-img="${Number(f.id)}" alt="Picture the player attached: ${esc(f.name)}">` : ''}
       <span><b>${esc(f.name)}</b> <span class="muted">${esc(kb(f.size))}</span></span> <button class="btn small" type="button" data-et-file="${Number(f.id)}" data-et-report="${Number(r.id)}" data-name="${esc(f.name)}">Download</button></li>`).join('')}</ul>`
       : `<p class="muted">${r.files ? 'The attached files were removed (they are kept for 90 days).' : 'None attached.'}</p>`}
     <h3>Doctor's log</h3>${r.log.length ? `<ol class="et-log">${r.log.map((l) => `<li><span class="muted">${when(l.createdAt)}</span> ${logBadge(l.event)} ${esc(l.detail)}</li>`).join('')}</ol>` : '<p class="muted">No steps logged (reported before the errors database began).</p>'}
-    ${r.hasImage ? `<h3>Picture</h3><img class="et-picture" src="${svgUrl(r.image)}" alt="The puzzle's picture as the player saw it">` : ''}
+    ${r.hasImage ? `<h3>Puzzle scene</h3><p class="muted">The picture at the top of the puzzle. The screenshot of the player's screen, when there is one, is under Pictures and files from the player.</p><img class="et-picture" src="${svgUrl(r.image)}" alt="The puzzle's scene picture">` : ''}
     ${storyHtml(r.story, 'Storyline as reported')}${storyHtml(r.repairedStory, 'Storyline as repaired')}
     <div class="row">${r.hasPuzzle ? `<button class="btn small" type="button" data-report-file="${Number(r.id)}" data-tracking="${esc(r.tracking)}">Download the reported puzzle</button>` : ''}
       ${['needs_fix', 'no_fault'].includes(r.status) && r.hasPuzzle && can('admin') ? `<button class="btn small" type="button" data-report-retry="${Number(r.id)}">Check again</button>` : ''}
