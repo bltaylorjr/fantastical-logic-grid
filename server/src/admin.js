@@ -864,7 +864,7 @@ const ROUTES = [
     const { value, error } = checkDesign(body);
     if (error) throw new Refusal(400, 'bad_design', error);
     return { body: { ok: true, draft: await saveDraft(env, value, who.actor, now) }, quiet: true };
-  }],
+  }, { maxBody: 220_000 }],
   ['POST', /^site-design\/discard$/, 'admin', 'site-design.discard', async ({ env }) => ({ body: await discardDraft(env) })],
   ['POST', /^site-design\/publish$/, 'admin', 'site-design.publish', async ({ env, body, who, now }) => {
     let design = null;
@@ -872,7 +872,7 @@ const ROUTES = [
     const r = await publishDraft(env, who.actor, now, design);
     if (r.error) throw new Refusal(400, 'nothing_to_publish', r.error);
     return { body: r, target: String(r.published.id), detail: { changes: Object.keys(r.published.design), rebuilding: r.rebuilding } };
-  }],
+  }, { maxBody: 220_000 }],
   ['POST', /^site-design\/restore\/(\d+)$/, 'admin', 'site-design.restore', async ({ env, params: [id], who, now }) => {
     const r = await restoreVersion(env, Number(id), who.actor, now);
     if (r.error) throw new Refusal(404, 'unknown', r.error);

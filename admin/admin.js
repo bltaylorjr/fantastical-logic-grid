@@ -16,7 +16,7 @@ import { characterView } from './characters.js';
 import { ratingsView, initRatings } from './ratings.js';
 import { marketingView, initMarketing } from './marketing.js';
 import { puzzleMailView, initPuzzleMail } from './puzzle-mail.js';
-import { websiteView, initWebsite, initWebsiteEvents } from './website.js';
+import { websiteView, initWebsite, initWebsiteEvents, isEditorWindow } from './website.js';
 import { educatorsView, initEducators, educatorFeedbackView, initEducatorFeedback } from './educators.js';
 import { storySubmissionsView, initStorySubmissions } from './story-submissions.js';
 import { beatImagesView, initBeatImages } from './beat-images.js';
@@ -2121,6 +2121,7 @@ views.signin = () => passkeysView();
 initPasskeys({ api, esc, when, toast, act, ask, show, me: () => me, mode: () => session?.mode });
 initPuzzleMail({ api, esc, fmt, when, tile, table, can, act, ask, toast, show });
 initWebsite({ api, esc, when, table, can, act, ask, toast });
+if (isEditorWindow) document.body.classList.add('web-editor-window');
 initWebsiteEvents();
 
 // ------------------------------------------------------------- navigation
@@ -2161,6 +2162,8 @@ async function show(route, { keepFocus = false } = {}) {
     history.replaceState(null, '', '#communication');
     name = 'communication';
   }
+  // The website editor's own window (Website > Open in a new window) shows only the Website page.
+  if (isEditorWindow) { name = 'website'; if (location.hash !== '#website') history.replaceState(null, '', `${location.search}#website`); }
   if (!views[name] || !can(MIN_ROLE[name])) name = 'overview';
   $$('[data-view]').forEach((s) => { s.hidden = s.dataset.view !== name; });
   // Details pages belong under Overview in the menu.

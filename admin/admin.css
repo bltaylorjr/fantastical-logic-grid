@@ -417,3 +417,34 @@ td.num, th.num { white-space: nowrap; }
 .acct dl div { display: grid; grid-template-columns: 7.5em 1fr; gap: 8px; }
 .acct dt { color: var(--muted); }
 .acct dd { margin: 0; overflow-wrap: anywhere; }
+/* Website > Edit on the page, and the editor's own window (Open in a new window). */
+.web-mode { display: inline-flex; border: 2px solid var(--line); border-radius: 10px; overflow: hidden; }
+.web-mode label { display: flex; }
+.web-mode input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.web-mode span { display: flex; align-items: center; min-height: 44px; padding: 0 14px; cursor: pointer; font-weight: 600; }
+.web-mode input:checked + span { background: var(--accent); color: var(--accent-text); }
+.web-mode input:focus-visible + span { outline: 3px solid var(--focus, var(--accent)); outline-offset: -3px; }
+.web-mode input:disabled + span { opacity: .5; cursor: not-allowed; }
+.web-preview-bar { align-items: flex-end; flex-wrap: wrap; gap: 8px 12px; }
+.web-edit { margin-top: 0; border-color: var(--accent); }
+.web-edit h2 { font-size: 1.05rem; margin: 0 0 8px; display: flex; gap: 8px; align-items: center; }
+.web-edit textarea { width: 100%; }
+#web-steps { border-top: 1px solid var(--line); margin-top: 14px; padding-top: 12px; }
+.web-crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; margin: 0 0 10px; font-size: .9rem; }
+.web-crumbs .btn.link { min-height: 32px; padding: 0 4px; }
+.web-sel-actions { margin-top: 10px; flex-wrap: wrap; }
+.web-tips { margin: 6px 0 0; padding-left: 20px; }
+.web-step-list { margin: 0 0 8px; padding-left: 22px; max-height: 260px; overflow-y: auto; }
+.web-step-list li { padding: 4px 0; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
+.web-opts-h { font-size: 1.05rem; margin: 18px 0 8px; }
+.web-layout.editing .web-frame-box iframe { height: calc(100vh - var(--top-h, 61px) - 200px); }
+body.web-editor-window .nav, body.web-editor-window #home, body.web-editor-window .skip { display: none; }
+body.web-editor-window .shell { grid-template-columns: minmax(0, 1fr); }
+body.web-editor-window main { max-width: none; padding: 8px 16px 24px; }
+body.web-editor-window [data-view="website"] > .head, body.web-editor-window [data-view="website"] > p.muted { display: none; }
+body.web-editor-window .web-status { top: var(--top-h, 61px); }
+body.web-editor-window .web-layout { grid-template-columns: minmax(0, 1fr) minmax(320px, 380px); }
+body.web-editor-window .web-layout > .web-preview { order: -1; top: calc(var(--top-h, 61px) + 70px); }
+body.web-editor-window .web-controls { max-height: calc(100vh - var(--top-h, 61px) - 90px); overflow-y: auto; position: sticky; top: calc(var(--top-h, 61px) + 70px); padding-right: 4px; }
+body.web-editor-window .web-frame-box iframe { height: calc(100vh - var(--top-h, 61px) - 150px); }
+@media (max-width: 900px) { body.web-editor-window .web-layout { grid-template-columns: minmax(0, 1fr); } body.web-editor-window .web-controls { max-height: none; position: static; } }
