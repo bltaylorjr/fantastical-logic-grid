@@ -264,6 +264,7 @@ const SHOTS = process.env.SHOTS;
       const text = await page.textContent(`#kit-${id}-body`);
       assert(text.includes(`${name} settings`) && /Games since/.test(text), `the ${name} section shows its games and settings`);
     }
+    await openSection(page, 'picturegrid');
     await page.locator('#kit-pg-body input[data-kit-key=pg_daily_enabled]').uncheck();
     assert(await until('pg_daily_enabled', false), 'a Picture Grid setting is saved from its own section');
     await page.waitForFunction(() => document.querySelector('#kit-pg-body input[data-kit-key=pg_daily_enabled]')?.nextElementSibling?.textContent === 'Off');
