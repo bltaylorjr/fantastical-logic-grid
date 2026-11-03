@@ -580,6 +580,7 @@ export const CONNECTIONS = [
       { name: 'META_PAGE_TOKEN', where: 'github-secret', note: 'A Page access token made from a long-lived user token, so it does not expire. Also used for Instagram.' },
       { name: 'INSTAGRAM_ACCOUNT_ID', where: 'github-secret', note: 'The Instagram business account id linked to the Page (a number).' },
       { name: 'DAILY_PUZZLE_SOCIAL', where: 'github-variable', optional: true, value: 'off', note: 'Only to pause the daily puzzle post to the Facebook Page and Instagram (.github/workflows/daily-puzzle-social.yml). Delete it to post again.' },
+      { name: 'DAILY_PUZZLE_GAMES', where: 'github-variable', optional: true, value: 'np,cm,sc,pg,ml,sk,sf,ll,ib', note: 'Which other games\' daily puzzles are posted after the Logic Grid\'s (scripts/social-games.mjs): leave it unset for all nine, list some (for example `np,cm`), or `none` for the Logic Grid only.' },
     ],
     steps: [
       'Make the Facebook Page for the game (https://www.facebook.com/pages/create).',
@@ -593,7 +594,7 @@ export const CONNECTIONS = [
       'Add `META_PAGE_ID` the same way: the Page `id`.',
       'For Instagram: make the game\'s Instagram a free **Business** or **Creator** account (**Settings** > **Account type and tools**) and link it to the Page (Page **Settings** > **Linked accounts** > **Instagram**). Make the token again with the Instagram permissions ticked and update `META_PAGE_TOKEN`. Then in the Explorer run `<page id>?fields=instagram_business_account` and add its `id` as the secret `INSTAGRAM_ACCOUNT_ID`.',
       `Test: ${REPO}/actions/workflows/marketing-post.yml > **Run workflow** with mode \`check\`. Facebook Page (and Instagram) should say connected.`,
-      `The same keys post the daily puzzle every morning after it passes its checks (${REPO}/actions/workflows/daily-puzzle-social.yml). To pause it, open ${REPO}/settings/variables/actions, click **New repository variable**, name \`DAILY_PUZZLE_SOCIAL\`, value \`off\`. Delete the variable to start again.`,
+      `The same keys post the daily puzzle every morning after it passes its checks (${REPO}/actions/workflows/daily-puzzle-social.yml). To pause it, open ${REPO}/settings/variables/actions, click **New repository variable**, name \`DAILY_PUZZLE_SOCIAL\`, value \`off\`. Delete the variable to start again. NINETIMESNINE, Cage Math, Sum Cross, Picture Grid, More or Less, Skyline, Star Field, Loop Line and Island Bridges post their daily puzzles right after (each checked first, each with its answer key page at \`<game>/daily/<date>/\`); a game with its daily puzzle switched off in admin is skipped. To post only some of them, add the repository variable \`DAILY_PUZZLE_GAMES\` (for example \`np,cm\`, or \`none\`).`,
     ],
     links: [{ label: 'Meta apps', url: 'https://developers.facebook.com/apps' }, { label: 'Graph API Explorer', url: 'https://developers.facebook.com/tools/explorer' }],
   },

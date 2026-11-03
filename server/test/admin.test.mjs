@@ -571,6 +571,28 @@ test('analytics, storage and story review', async () => {
   assert.equal((await call('/admin/v1/parts/review', { auth: owner(), body: { key: 'gone', status: 'approved' } })).status, 404);
 });
 
+test('the analysis report gathers every topic in one request; money only for admins', async () => {
+  await db.prepare("INSERT INTO visit_stats (day, who, app, os, device, country, region, n) VALUES (date('now'), 'guest', 'web', 'ios', 'mobile', 'US', 'NC', 5)").run();
+  await db.prepare("INSERT INTO visit_stats (day, who, app, os, device, country, region, n) VALUES (date('now', '-10 days'), 'guest', 'web', 'ios', 'mobile', 'US', 'NC', 3)").run();
+  const r = await call('/admin/v1/analysis?days=7', { auth: owner() });
+  assert.equal(r.status, 200);
+  for (const part of ['analytics', 'visitors', 'search', 'quality', 'alerts', 'market', 'marketing', 'ratings', 'games', 'storage', 'extra']) assert.ok(r.body[part], `${part} is there`);
+  assert.equal(r.body.days, 7);
+  assert.equal(r.body.visitors.total, 5);
+  assert.equal(r.body.extra.previous.visits, 3, 'the period before, for the trend');
+  assert.equal(r.body.extra.money, true);
+  assert.ok(Array.isArray(r.body.extra.supporters));
+  assert.ok(r.body.market.marks.length >= 5);
+  assert.equal((await call('/admin/v1/admins', { auth: owner(), body: { email: 'analyst@example.com', role: 'viewer' } })).status, 200);
+  const v = await call('/admin/v1/analysis', { auth: idToken('analyst-uid', 'analyst@example.com') });
+  assert.equal(v.status, 200);
+  assert.equal(v.body.extra.money, false);
+  assert.equal(v.body.extra.supporters, null, 'viewers do not see supporter numbers');
+  assert.equal(v.body.extra.licenses, null);
+  const { results } = await db.prepare("SELECT COUNT(*) AS n FROM admin_audit WHERE action = 'analysis.view'").all();
+  assert.ok(results[0].n >= 2, 'each report is in the audit log');
+});
+
 test('backups: the archive page, a download, and the viewer page', async () => {
   const status = await call('/admin/v1/archive', { auth: TOKEN });
   assert.equal(status.status, 200);
@@ -672,6 +694,8 @@ test('the dashboard keeps other sites and powerful features away', async () => {
 });
 
 test('new accounts stay counted after they are deleted', async () => {
+  // Its own owner sign-in: earlier tests in this file use up owner()'s 40 admin requests a minute.
+  const boss = () => idToken('owner-uid-accounts', OWNER);
   const today = new Date().toISOString().slice(0, 10);
   const base = (await db.prepare('SELECT made, deleted FROM account_days WHERE day = ?1').bind(today).first()) || { made: 0, deleted: 0 };
   const save = (uid) => call('/v1/sync', { auth: player(uid), body: { changes: [{ kind: 'settings', key: 'settings', data: '{}', updatedAt: Date.now(), baseRev: 0 }] } });
@@ -680,12 +704,12 @@ test('new accounts stay counted after they are deleted', async () => {
   await call('/v1/sync', { auth: player('join-a'), body: { changes: [{ kind: 'meta', key: 'solves', data: '[]', updatedAt: Date.now(), baseRev: 0 }] } });
   // One player deletes their own account; an admin deletes another, twice.
   assert.equal((await call('/v1/account', { auth: player('join-a'), method: 'DELETE' })).status, 200);
-  assert.equal((await call('/admin/v1/players/join-b/delete', { auth: owner(), body: { confirm: 'join-b' } })).status, 200);
-  assert.equal((await call('/admin/v1/players/join-b/delete', { auth: owner(), body: { confirm: 'join-b' } })).status, 200);
+  assert.equal((await call('/admin/v1/players/join-b/delete', { auth: boss(), body: { confirm: 'join-b' } })).status, 200);
+  assert.equal((await call('/admin/v1/players/join-b/delete', { auth: boss(), body: { confirm: 'join-b' } })).status, 200);
   const row = await db.prepare('SELECT made, deleted FROM account_days WHERE day = ?1').bind(today).first();
   assert.equal(row.made - base.made, 3, 'all three joins counted, though two were deleted');
   assert.equal(row.deleted - base.deleted, 2, 'each deleted account counted once');
-  const a = await call('/admin/v1/analytics?days=13', { auth: owner() });
+  const a = await call('/admin/v1/analytics?days=13', { auth: boss() });
   assert.equal(a.body.players.newAccounts.at(-1), row.made);
   assert.equal(a.body.players.deletedAccounts, (await db.prepare('SELECT SUM(deleted) AS n FROM account_days WHERE day >= ?1').bind(a.body.since).first()).n);
 });

@@ -139,6 +139,9 @@ export function reopen() {
 }
 
 // Opens the setup screen with a game style picked (the host's links to each game).
+// A link to today's daily puzzle (?play=daily on the NINETIMESNINE page).
+export function playDaily() { return startDaily(); }
+
 export function pickStyle(id) {
   if (!root || !STYLES.some((x) => x.id === id)) return;
   prefs.style = id;
@@ -151,6 +154,12 @@ export function pickStyle(id) {
 
 // A puzzle everyone plays (a race or a shared challenge): never filtered as "seen".
 export function startShared(puzzle, { mode = 'race' } = {}) { begin(puzzle, { mode }); }
+// A race puzzle (web/js/game-race.js): the setup screen's level, size and extra
+// rules, played the classic way, at the level's usual toughness.
+export function racePuzzle() {
+  const o = readSetup();
+  return engine.generate({ seed: Math.random().toString(36).slice(2), theme: prefs.theme || null, story: storiesOn(), toughness: 0.5, usedStories: [], ...o });
+}
 
 // Games saved by the first version of this module.
 function migrate() {

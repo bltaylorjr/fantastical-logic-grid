@@ -112,8 +112,9 @@ export function postScore(save) {
 }
 
 // ------------------------------------------------------------ races
-export const createRace = (puzzle, isPublic) => call('/v1/races', { method: 'POST', body: { puzzle, public: !!isPublic } });
-export const findRace = (tier, skip = []) => call('/v1/races/find', { method: 'POST', body: { tier, skip } });
+// game: 'flg' (The Fantastical Logic Grid, the default), np, cm, sc, pg, ml, sk, sf, ll or ib.
+export const createRace = (puzzle, isPublic, game = 'flg') => call('/v1/races', { method: 'POST', body: { puzzle, public: !!isPublic, game } });
+export const findRace = (tier, skip = [], game = 'flg') => call('/v1/races/find', { method: 'POST', body: { tier, skip, game } });
 export const joinRace = (code) => call(`/v1/races/${code}/join`, { method: 'POST' });
 export const raceStandings = (code) => call(`/v1/races/${code}`);
 export function finishRace(save, pairs) {
@@ -123,10 +124,19 @@ export function finishRace(save, pairs) {
   });
 }
 
+// A race in one of the grid games: every cell's value (a line game's: every edge's)
+// instead of the Logic Grid's pairs.
+export function finishGameRace(code, { elapsedMs, hints, checks, revealed, answers }) {
+  return call(`/v1/races/${code}/finish`, { method: 'POST', body: { elapsedMs: Math.round(elapsedMs), hints: hints || 0, checks: checks || 0, revealed: !!revealed, answers } });
+}
+
 // Challenges: invite one player by screen name to a race you are in.
 export const invitePlayer = (code, screenName) => call(`/v1/races/${code}/invite`, { method: 'POST', body: { screenName } });
 export const listInvites = () => call('/v1/invites');
 export const declineInvite = (id) => call(`/v1/invites/${id}/decline`, { method: 'POST' });
 
-export const shareLink = (code) => `${SHARE_ORIGIN}/fantastical/?race=${code}`;
+// Each game's page, where its race links open.
+export const GAME_PAGES = { flg: 'fantastical/', np: 'ninetimesnine/', cm: 'cage-math/', sc: 'sum-cross/', pg: 'picture-grid/',
+  ml: 'more-or-less/', sk: 'skyline/', sf: 'star-field/', ll: 'loop-line/', ib: 'island-bridges/' };
+export const shareLink = (code, game = 'flg') => `${SHARE_ORIGIN}/${GAME_PAGES[game] || GAME_PAGES.flg}?race=${code}`;
 export const cleanCode = (raw) => String(raw || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);

@@ -18,6 +18,8 @@ import { PLAYER_STORIES, PLAYER_STORIES_THEME, getPlayerStory } from './player-s
 // The grid's shape lives in layout.js so the page can use it without loading
 // the story library; it is still exported from here as before.
 import { gridLayout } from './layout.js';
+// Lab modes (Timeline Case, Seating Plan): only when options.mode names one.
+import { isLabMode, resolveModeOptions, buildModeModel, MODE_CLUE_TYPES } from './modes.js';
 export { gridLayout };
 
 export const ENGINE_NAME = 'The Fantastical Logic Grid';
@@ -26,6 +28,7 @@ export const ENGINE_VERSION = '1.0.0';
 const clamp = (v, [lo, hi]) => Math.max(lo, Math.min(hi, v));
 
 function resolveOptions(opts = {}) {
+  if (isLabMode(opts.mode)) return resolveModeOptions(opts);
   const seed = opts.seed != null ? String(opts.seed) : Math.floor(Math.random() * 2 ** 32).toString(36);
   // theme "stories": a player-written story (player-stories.js) plays exactly
   // as written, at its own difficulty and full size, with its own cast.
@@ -88,6 +91,7 @@ function resolveOptions(opts = {}) {
 // Choose the goal category, the other categories and their items. Exported
 // for the tests, which build stories for every topic and size.
 export function buildModel(o) {
+  if (o.mode) return buildModeModel(o);
   const { rng, scenario, K, N, weights } = o;
   const wantsOrdinal = 'less' in weights || 'diff' in weights;
   const goalDef = rng.pick(scenario.categories);
@@ -180,7 +184,7 @@ function grade(K, N, clues, tier, L) {
 function selectClues(o, model, sol) {
   const { rng, tier, weights } = o;
   const { K, N } = model;
-  const ctx = { K, N, sol, ordinals: model.ordinals, rng };
+  const ctx = { K, N, sol, ordinals: model.ordinals, rng, ...model.clueCtx };
   const next = candidateStream(ctx, weights);
 
   // 1. Add clues until the puzzle can be solved (unique, no guessing).
@@ -285,7 +289,8 @@ function finalize(o, best, elapsedMs) {
   const ref = (gl) => ({ category: cats[Math.floor(gl / N)].id, item: gl % N, id: itemId(gl), label: L.label(gl) });
 
   const goal = { cat: model.goal.cat, item: rng.int(N) };
-  const story = scenario.custom ? customStory({ scenario, goal, model, L, customTitle: o.customTitle, seed: o.seed })
+  const story = scenario.modeStory ? scenario.modeStory({ rng, goal, model, L, customTitle: o.customTitle })
+    : scenario.custom ? customStory({ scenario, goal, model, L, customTitle: o.customTitle, seed: o.seed })
     : buildStory({ rng, scenario, goal, model, L, customTitle: o.customTitle, usedStories: o.usedStories,
       extraParts: o.extraParts, storyPrefs: prefsFor(o.storyPrefs, theme.id, scenario.key) });
   const goalAbout = { cat: model.goal.cat, item: null };
@@ -293,7 +298,8 @@ function finalize(o, best, elapsedMs) {
   goalAbout.item = sol[model.goal.cat][story.goalAnswer.item];
   const questions = buildQuestions({ rng, model, L, story, goal: goalAbout, count: o.questions });
 
-  const notes = [];
+  // A Lab mode may add its own notes (modes.js: a theme it could not use).
+  const notes = o.modeNotes ? [...o.modeNotes] : [];
   if (o.customSize) notes.push(`Custom size ${K} x ${N} is outside the ${tier.name} range (${tier.categories.join('-')} categories, ${tier.items.join('-')} items).`);
   if (o.clueCount && clues.length !== o.clueCount) {
     notes.push(clues.length > o.clueCount
@@ -309,7 +315,10 @@ function finalize(o, best, elapsedMs) {
     version: ENGINE_VERSION,
     id: `${theme.id}-${topic.id}-${tier.id}-${K}x${N}-${o.seed}`,
     seed: o.seed,
-    options: { difficulty: tier.id, theme: theme.id, topic: topic.id, categories: K, items: N, clueCount: o.clueCount, clueTypes: Object.keys(o.weights), questions: o.questions, ...(scenario.custom ? { custom: scenario.custom } : {}) },
+    options: { difficulty: tier.id, theme: theme.id, topic: topic.id, categories: K, items: N, clueCount: o.clueCount, clueTypes: Object.keys(o.weights), questions: o.questions, ...(scenario.custom ? { custom: scenario.custom } : {}), ...(o.mode ? { mode: o.mode } : {}) },
+    // Lab modes: which one, and the table's size for the solved panel's picture.
+    ...(o.mode ? { mode: o.mode } : {}),
+    ...(o.mode === 'seating' ? { table: { seats: N, category: cats[model.goal.cat].id } } : {}),
     title: story.title,
     theme: { id: theme.id, name: theme.name },
     topic: { id: topic.id, name: topic.name, description: topic.description },
@@ -323,8 +332,8 @@ function finalize(o, best, elapsedMs) {
       ...(c.note ? { note: c.note.replace(/\{one\}/g, scenario.cast.one).replace(/\{many\}/g, scenario.cast.many).replace(/\{low\}/g, c.labels[0]).replace(/\{high\}/g, c.labels.at(-1)) } : {}),
     })),
     grid: gridLayout(cats),
-    story: { id: story.id, parts: story.parts, title: story.title, paragraphs: story.paragraphs, text: story.text, goal: story.goalQuestion, ending: story.ending, wordCount: story.wordCount },
-    clues: clues.map((c, i) => ({ number: i + 1, text: clueText(L, c, rng), type: c.type, typeName: CLUE_TYPES[c.type], logic: encodeClue(c, itemId) })),
+    story: { id: story.id, parts: story.parts, title: story.title, paragraphs: story.paragraphs, text: story.text, goal: story.goalQuestion, ending: story.ending, wordCount: story.wordCount, ...(story.beatWords ? { beatWords: story.beatWords } : {}) },
+    clues: clues.map((c, i) => ({ number: i + 1, text: clueText(L, c, rng), type: c.type, typeName: CLUE_TYPES[c.type] || MODE_CLUE_TYPES[c.type], logic: encodeClue(c, itemId) })),
     questions: questions.map((q, i) => ({
       number: i + 1, text: q.text, category: cats[q.askCat].id,
       options: cats[q.askCat].labels.map((_, j) => `${cats[q.askCat].id}:${j}`),

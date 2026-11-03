@@ -56,6 +56,8 @@
 //   GET  /admin/v1/alerts              free allowances close to running out
 //   /admin/v1/notify*                  my own push and email alerts (alerts.js)
 //   GET  /admin/v1/summary?days=       the week in numbers, for the Monday summary email
+//   GET  /admin/v1/analysis?days=      every number by topic, for the Analysis report (analysis.js)
+//   GET  /admin/v1/tuning              self-tuning: suggested changes waiting for approval; POST .../check, .../:id/(approve|decline|undo), .../rules (tuning.js)
 //   GET  /admin/v1/export/(players|scores|feedback).csv   spreadsheet downloads
 //   GET/POST /admin/v1/admins          who may sign in (owner only); POST /admin/v1/admins/remove
 //   GET/POST /admin/v1/admin-keys      assistant keys for helpers such as Claude (owner only); POST .../:id/revoke (admin-keys.js)
@@ -113,6 +115,8 @@ import { editionRoutes } from './editions.js';
 import { educatorRoutes } from './educators.js';
 import { puzzleReportRoutes } from './puzzle-reports.js';
 import { visitorRoutes } from './visits.js';
+import { analysisData } from './analysis.js';
+import { tuningRoutes } from './tuning.js';
 import { alertRoutes } from './alerts.js';
 import { KEY_PREFIX, checkKey, adminKeyRoutes } from './admin-keys.js';
 import { siteAccountRoutes } from './site-accounts.js';
@@ -125,12 +129,12 @@ const STORED_ROLES = ['admin', 'moderator', 'viewer'];
 const MAX_BODY = 8_000;
 // An admin must sign in again (with their password) at least this often, even
 // while the dashboard keeps refreshing their token; the dashboard itself signs
-// out after 30 idle minutes.
+// out after 1 idle hour.
 const SESSION_MAX_S = 12 * 3600;
 const DENIED_PER_DAY = 500; // refused requests written to the audit log, so a flood cannot fill it
 const ANALYTICS_CACHE_MS = 120_000;
 const TABLES = ['sync_users', 'sync_records', 'sync_deleted_users', 'account_days', 'players', 'scores', 'races', 'race_entries', 'race_invites', 'plays', 'parts', 'usage',
-  'app_errors', 'upkeep_log', 'admins', 'admin_audit', 'settings', 'announcements', 'bans', 'name_reviews', 'archive_log', 'feedback', 'feedback_replies', 'error_fixes', 'conversations', 'conversation_messages', 'message_contacts', 'news', 'search_snapshots', 'daily_plan', 'translations', 'rating_insights', 'campaigns', 'campaign_ads', 'marketing_media', 'campaign_stats', 'challenges', 'daily_results', 'daily_email', 'supporters', 'payment_blocks', 'puzzle_mail', 'puzzle_mail_got', 'puzzle_mail_days', 'special_editions', 'educator_requests', 'special_badges', 'badge_awards', 'puzzle_reports', 'player_puzzles', 'visit_stats', 'educator_feedback', 'print_packs', 'print_pack_stories', 'admin_passkeys', 'admin_sessions', 'admin_keys', 'np_plays', 'kit_plays', 'alert_prefs', 'alert_devices', 'alert_queue', 'site_design', 'site_accounts'];
+  'app_errors', 'upkeep_log', 'admins', 'admin_audit', 'settings', 'announcements', 'bans', 'name_reviews', 'archive_log', 'feedback', 'feedback_replies', 'error_fixes', 'conversations', 'conversation_messages', 'message_contacts', 'news', 'search_snapshots', 'daily_plan', 'translations', 'rating_insights', 'campaigns', 'campaign_ads', 'marketing_media', 'campaign_stats', 'challenges', 'daily_results', 'daily_email', 'supporters', 'payment_blocks', 'puzzle_mail', 'puzzle_mail_got', 'puzzle_mail_days', 'special_editions', 'educator_requests', 'special_badges', 'badge_awards', 'puzzle_reports', 'player_puzzles', 'visit_stats', 'educator_feedback', 'print_packs', 'print_pack_stories', 'admin_passkeys', 'admin_sessions', 'admin_keys', 'np_plays', 'kit_plays', 'alert_prefs', 'alert_devices', 'alert_queue', 'site_design', 'site_accounts', 'tuning_proposals', 'house_nudges', 'tuning_rules'];
 // worker-src blob: lets the Media library's celebrations draw off the main
 // thread, as they do in the game (canvas-confetti makes its own small worker).
 // frame-src: the Website page's live preview shows pages of the website (only).
@@ -285,6 +289,7 @@ async function analytics(env, days, now = Date.now()) {
     storiesWaiting: db.prepare("SELECT COUNT(*) AS n FROM story_submissions WHERE status = 'new' AND source = 'form'"),
     keysWaiting: db.prepare('SELECT COUNT(*) AS n FROM licenses WHERE waiting = 1 AND revoked_at IS NULL'),
     educatorFeedbackNew: db.prepare("SELECT COUNT(*) AS n FROM educator_feedback WHERE status = 'new' AND kind != 'survey'"),
+    tuningWaiting: db.prepare("SELECT COUNT(*) AS n FROM tuning_proposals WHERE status = 'waiting'"),
   };
   const names = Object.keys(q);
   const res = await db.batch(Object.values(q));
@@ -311,7 +316,7 @@ async function analytics(env, days, now = Date.now()) {
     voices: { byDay: series(r.voicesByDay), cap: settings.daily_tts_cap, enabled: settings.tts_enabled, today: series(r.voicesByDay).at(-1) },
     pictures: { byDay: series(r.picturesByDay), cap: settings.daily_picture_cap, mode: settings.ai_pictures, today: series(r.picturesByDay).at(-1) },
     errors: { byDay: series(r.errorsByDay) },
-    review: { parts: Object.fromEntries(r.parts.map((x) => [x.id, x.n])), namesWaiting: one('namesWaiting'), feedback: Object.fromEntries(r.feedbackNew.map((x) => [x.id, x.n])), messages: one('messagesUnread'), educators: one('educatorsWaiting'), stories: one('storiesWaiting'), educatorFeedback: one('educatorFeedbackNew'), keys: one('keysWaiting') },
+    review: { parts: Object.fromEntries(r.parts.map((x) => [x.id, x.n])), namesWaiting: one('namesWaiting'), feedback: Object.fromEntries(r.feedbackNew.map((x) => [x.id, x.n])), messages: one('messagesUnread'), educators: one('educatorsWaiting'), stories: one('storiesWaiting'), educatorFeedback: one('educatorFeedbackNew'), keys: one('keysWaiting'), tuning: one('tuningWaiting') },
   };
   analyticsCache.set(days, { at: now, body });
   return body;
@@ -743,15 +748,16 @@ const ROUTES = [
     await saveSetting(env, body.key, value, who.actor);
     analyticsCache.clear();
     if (String(body.key).startsWith('np_')) await caches.default.delete(new Request(NP_TUNING_CACHE_KEY));
-    const kit = /^(cm|sc|pg)_/.exec(String(body.key));
+    const kit = /^(cm|sc|pg|ml|sk|sf|ll|ib)_/.exec(String(body.key));
     if (kit) await caches.default.delete(new Request(kitTuningKey(kit[1])));
     return { body: { key: body.key, value }, target: body.key, detail: { from: before, to: value } };
   }],
 
   // NINETIMESNINE's own section: how each level is going and what players get stuck on.
   ['GET', /^number-place$/, 'viewer', 'numberplace.view', async ({ env, url }) => ({ body: await npSummary(env, daysParam(url, 90)) })],
-  // Cage Math, Sum Cross and Picture Grid: each its own section, the same way.
-  ['GET', /^kit-game\/(cm|sc|pg)$/, 'viewer', 'kitgame.view', async ({ env, url, params: [game] }) => ({ body: await kitSummary(env, game, daysParam(url, 90)), quiet: true })],
+  // The grid-kit games (Cage Math, Sum Cross, Picture Grid, More or Less, Skyline,
+  // Star Field, Loop Line, Island Bridges): each its own section, the same way.
+  ['GET', /^kit-game\/(cm|sc|pg|ml|sk|sf|ll|ib)$/, 'viewer', 'kitgame.view', async ({ env, url, params: [game] }) => ({ body: await kitSummary(env, game, daysParam(url, 90)), quiet: true })],
 
   ['GET', /^announcements$/, 'viewer', 'announcements.view', async ({ env, now }) => {
     const { results } = await env.DB.prepare(`SELECT id, text, level, starts_at AS startsAt, ends_at AS endsAt, created_by AS createdBy, created_at AS createdAt
@@ -866,7 +872,7 @@ const ROUTES = [
     const { value, error } = checkDesign(body);
     if (error) throw new Refusal(400, 'bad_design', error);
     return { body: { ok: true, draft: await saveDraft(env, value, who.actor, now) }, quiet: true };
-  }],
+  }, { maxBody: 220_000 }],
   ['POST', /^site-design\/discard$/, 'admin', 'site-design.discard', async ({ env }) => ({ body: await discardDraft(env) })],
   ['POST', /^site-design\/publish$/, 'admin', 'site-design.publish', async ({ env, body, who, now }) => {
     let design = null;
@@ -874,7 +880,7 @@ const ROUTES = [
     const r = await publishDraft(env, who.actor, now, design);
     if (r.error) throw new Refusal(400, 'nothing_to_publish', r.error);
     return { body: r, target: String(r.published.id), detail: { changes: Object.keys(r.published.design), rebuilding: r.rebuilding } };
-  }],
+  }, { maxBody: 220_000 }],
   ['POST', /^site-design\/restore\/(\d+)$/, 'admin', 'site-design.restore', async ({ env, params: [id], who, now }) => {
     const r = await restoreVersion(env, Number(id), who.actor, now);
     if (r.error) throw new Refusal(404, 'unknown', r.error);
@@ -899,7 +905,9 @@ const ROUTES = [
   ...educatorRoutes(Refusal),
   ...puzzleReportRoutes(Refusal),
   ...visitorRoutes(),
+  ...tuningRoutes(Refusal),
   ...alertRoutes(Refusal),
+  ['GET', /^analysis$/, 'viewer', 'analysis.view', async ({ env, url, now, who }) => ({ body: await analysisData(env, daysParam(url, 365), { now, role: who.role, analytics, storage }) })],
   ['GET', /^alerts$/, 'viewer', 'alerts.view', async ({ env }) => ({ body: await alerts(env) })],
   ['GET', /^summary$/, 'admin', 'summary.view', async ({ env, url }) => {
     const s = await summary(env, daysParam(url, 31));

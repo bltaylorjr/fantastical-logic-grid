@@ -8,6 +8,9 @@
 //   <html data-site="hub|np|info" data-fx-...>   which page it is, and the choices that switch layouts and effects
 //   <style id="site-design">                     the chosen colors, fonts and shapes (empty for the default design)
 //   the chosen words in elements marked data-design-text="key"
+//   data-page="how-to-play/" on <html>, and the changes made on that page in the
+//   dashboard's page editor (words, hidden and moved elements) as
+//   <script type="application/json" id="site-edits">, which js/design-preview.js applies
 //   js/design-preview.js                         the dashboard's live preview (does nothing for visitors)
 // The game page (fantastical/) and its two form pages (storyline/, report/) keep the game's own look.
 import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
@@ -50,12 +53,20 @@ export async function applySiteDesign({ site, base, design: given }) {
     let html = readFileSync(join(site, page), 'utf8');
     if (!/<\/head>/.test(html)) continue;
     // Every game's own page (ninetimesnine/, cage-math/, ...) has the same layout.
-    const kind = page === 'index.html' ? 'hub' : /^(ninetimesnine|cage-math|sum-cross|picture-grid)\/index\.html$/.test(page) ? 'np' : 'info';
-    html = html.replace(/<html([^>]*)>/, (m, rest) => `<html${rest.replace(/\s(data-site|data-fx-[\w-]+|data-card-[\w-]+|data-hero-[\w-]+|data-theme-picker|data-footer-links|data-app-section|data-np-[\w-]+|data-info-[\w-]+|data-shadows)="[^"]*"/g, '')} data-site="${kind}"${attrs}>`);
-    html = html.replace(/<style id="site-design">[\s\S]*?<\/style>\s*/, '').replace(/<script type="module" src="[^"]*js\/design-preview\.js"><\/script>\s*/, '');
+    const kind = page === 'index.html' ? 'hub' : /^(ninetimesnine|cage-math|sum-cross|picture-grid|more-or-less|skyline|star-field|loop-line|island-bridges)\/index\.html$/.test(page) ? 'np' : 'info';
+    // The page's own changes from the page editor (Website > Edit on the page).
+    const pageKey = page.replace(/(^|\/)index\.html$/, '$1');
+    const edits = (changes.edits || []).filter((e) => e.p === pageKey);
+    html = html.replace(/<html([^>]*)>/, (m, rest) => `<html${rest.replace(/\s(data-site|data-page|data-edits|data-fx-[\w-]+|data-card-[\w-]+|data-hero-[\w-]+|data-theme-picker|data-footer-links|data-app-section|data-np-[\w-]+|data-info-[\w-]+|data-shadows)(="[^"]*")?(?=[\s/]|$)/g, '')} data-site="${kind}" data-page="${esc(pageKey)}"${edits.length ? ' data-edits' : ''}${attrs}>`);
+    html = html.replace(/<style id="site-design">[\s\S]*?<\/style>\s*/, '').replace(/<script type="module" src="[^"]*js\/design-preview\.js"><\/script>\s*/, '')
+      .replace(/<script type="application\/json" id="site-edits">[\s\S]*?<\/script>\s*/, '');
     // 404.html is served at any depth, so its address starts at the site root.
     const up = page === '404.html' ? new URL(base).pathname.replace(/\/?$/, '/') : '../'.repeat(page.split('/').length - 1);
-    html = html.replace('</head>', `<style id="site-design">${css}</style>\n<script type="module" src="${up}js/design-preview.js"></script>\n</head>`);
+    // With page changes, the page stays see-through for a moment until they are
+    // applied, so visitors never see the old words jump; it shows anyway after 0.8 s.
+    const editsCss = edits.length ? 'html[data-edits]:not(.edits-done) body{opacity:0;animation:flg-edits-wait 0s .8s forwards}@keyframes flg-edits-wait{to{opacity:1}}' : '';
+    const editsJson = edits.length ? `<script type="application/json" id="site-edits">${JSON.stringify(edits).replace(/</g, '\\u003c')}</script>\n` : '';
+    html = html.replace('</head>', `<style id="site-design">${css}${editsCss}</style>\n${editsJson}<script type="module" src="${up}js/design-preview.js"></script>\n</head>`);
     html = html.replace(/(<(\w+)\b[^>]*\sdata-design-text="(\w+)"[^>]*>)([^<]*)(<\/\2>)/g, (m, open, tag, key, inner, close) => (key in words ? `${open}${esc(words[key])}${close}` : m));
     // Search results and sharing (front page and NINETIMESNINE).
     const seo = kind === 'hub' ? ['hubTitle', 'hubDescription'] : page === 'ninetimesnine/index.html' ? ['npTitle', 'npDescription'] : null;
@@ -67,6 +78,6 @@ export async function applySiteDesign({ site, base, design: given }) {
     writeFileSync(join(site, page), html);
     count++;
   }
-  console.log(`Website design: ${Object.keys(changes).length} change(s) from ${got.from}, written into ${count} pages.`);
+  console.log(`Website design: ${sd.countChanges(changes)} change(s) from ${got.from}, written into ${count} pages.`);
   return { changes, version: got.version };
 }

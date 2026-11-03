@@ -18,7 +18,7 @@ import { deletePrintPackStatements } from './print-packs.js';
 import { deletePuzzleMailStatement } from './puzzle-mail.js';
 import { deleteBadgeStatements } from './special-badges.js';
 
-// Daily account totals for the admin dashboard (migrations/2160_account_days.sql).
+// Daily account totals for the admin dashboard (migrations/2180_account_days.sql).
 // They survive the account's own rows being deleted, so a player who joins and
 // later leaves is still counted as new on the day they joined.
 const utcDay = (ms) => new Date(ms).toISOString().slice(0, 10);

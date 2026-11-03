@@ -40,7 +40,7 @@ export const supportUrl = () => {
 // The dashboard's NINETIMESNINE choices (server/src/settings.js publicConfig),
 // or {} before the server has said: the game then uses the module's defaults.
 export const numberPlace = () => (config && config.numberPlace) || {};
-// The same for Cage Math, Sum Cross and Picture Grid (id cm, sc or pg).
+// The same for each grid-kit game (id cm, sc, pg, ml, sk, sf, ll or ib).
 export const kitGame = (id) => (config && config.kitGames && config.kitGames[id]) || {};
 
 // Minutes without activity before a signed-in player is signed out (idle.js);

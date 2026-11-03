@@ -6,10 +6,17 @@
 //   DELETE /v1/profile               leave: removes the name, scores and race entries
 //   POST   /v1/scores                { storyId, tier, categories, items, elapsedMs, hints, checks }
 //   GET    /v1/scoreboard?period=week|all   top players (no sign-in needed)
-//   POST   /v1/races                 { puzzle, public }  start a race on this puzzle
-//   POST   /v1/races/find            { tier?, skip? }  an open race by someone else
+//   POST   /v1/races                 { puzzle, public, game? }  start a race on this puzzle
+//   POST   /v1/races/find            { tier?, skip?, game? }  an open race by someone else
 //   POST   /v1/races/:code/join      returns the race puzzle and starts the clock
 //   POST   /v1/races/:code/finish    { elapsedMs, hints, checks, revealed, pairs }
+//                                     (other games send answers: every cell's value, not pairs)
+//
+// Races work in every game (GAMES): game 'flg' (the default) is The Fantastical
+// Logic Grid; np, cm, sc, pg, ml, sk and sf are NINETIMESNINE, Cage Math, Sum
+// Cross, Picture Grid, More or Less, Skyline and Star Field, whose puzzles are
+// grids of numbers or marked cells; ll and ib are Loop Line and Island Bridges,
+// line games whose answers are edges (lines between dots, bridges between islands).
 //   GET    /v1/races/:code           the standings
 //   POST   /v1/races/:code/invite    { screenName }  challenge a player to this race
 //   GET    /v1/invites               challenges waiting for this player
@@ -137,6 +144,120 @@ function matchesSolution(puzzle, pairs) {
   return true;
 }
 
+// ------------------------------------------------------------- the other games
+// NINETIMESNINE and the grid-kit games: the puzzle shapes their engines make
+// (engine/src/number-place.js, cage-math.js, sum-cross.js, picture-grid.js,
+// more-or-less.js, skyline.js, star-field.js, loop-line.js, island-bridges.js),
+// each level's usual solve time (the games' own par, modules/<game>/game.js)
+// and the points a level is worth, on the same scale as the Logic Grid's.
+export const GAMES = {
+  flg: { name: 'The Fantastical Logic Grid' },
+  np: { name: 'NINETIMESNINE', par: { basic: 120e3, easy: 300e3, medium: 540e3, hard: 900e3, expert: 1320e3, master: 1800e3 } },
+  cm: { name: 'Cage Math', par: { basic: 90e3, easy: 180e3, medium: 360e3, hard: 720e3, expert: 1200e3, master: 1800e3 } },
+  sc: { name: 'Sum Cross', par: { basic: 90e3, easy: 240e3, medium: 480e3, hard: 840e3, expert: 1320e3, master: 2100e3 } },
+  pg: { name: 'Picture Grid', par: { basic: 60e3, easy: 240e3, medium: 360e3, hard: 900e3, expert: 1500e3, master: 2400e3 } },
+  ml: { name: 'More or Less', par: { basic: 60e3, easy: 150e3, medium: 300e3, hard: 600e3, expert: 1080e3, master: 1680e3 } },
+  sk: { name: 'Skyline', par: { basic: 60e3, easy: 150e3, medium: 240e3, hard: 480e3, expert: 900e3, master: 1500e3 } },
+  sf: { name: 'Star Field', par: { basic: 90e3, easy: 180e3, medium: 420e3, hard: 720e3, expert: 1200e3, master: 1800e3 } },
+  ll: { name: 'Loop Line', par: { basic: 90e3, easy: 180e3, medium: 420e3, hard: 720e3, expert: 1200e3, master: 1800e3 } },
+  ib: { name: 'Island Bridges', par: { basic: 90e3, easy: 180e3, medium: 360e3, hard: 600e3, expert: 900e3, master: 1500e3 } },
+};
+const LEVEL_POINTS = { basic: 10, easy: 20, medium: 35, hard: 55, expert: 80, master: 110 };
+export const gameOf = (g) => (g === undefined || g === null ? 'flg' : Object.hasOwn(GAMES, g) ? g : null);
+
+export function pointsForGame({ game, tier, elapsedMs, hints, checks }) {
+  const par = GAMES[game].par[tier];
+  const speed = Math.min(1.5, Math.max(0.6, Math.sqrt(par / Math.max(elapsedMs, 1))));
+  const help = Math.max(0.25, 1 - 0.15 * hints - 0.05 * checks);
+  return Math.max(1, Math.round(LEVEL_POINTS[tier] * speed * help));
+}
+
+const ints = (a, len, lo, hi) => Array.isArray(a) && a.length === len && a.every((v) => Number.isInteger(v) && v >= lo && v <= hi);
+// A grid game's puzzle, checked for shape and size, and its story for blocked
+// words. Returns null when it can be shared, or the problem.
+export function checkGamePuzzle(game, p) {
+  if (!p || typeof p !== 'object' || !p.difficulty || !Object.hasOwn(LEVEL_POINTS, p.difficulty.id)) return 'bad_puzzle';
+  if (typeof p.fingerprint !== 'string' || !p.fingerprint || p.fingerprint.length > 160) return 'bad_puzzle';
+  const R = p.size, C = p.cols ?? p.size;
+  if (game === 'np') {
+    const boxes = { 4: [2, 2], 6: [2, 3], 9: [3, 3] };
+    if (!boxes[R] || !Array.isArray(p.box) || p.box[0] !== boxes[R][0] || p.box[1] !== boxes[R][1]) return 'bad_puzzle';
+    if (!ints(p.solution, R * R, 1, R) || !ints(p.givens, R * R, 0, R)) return 'bad_puzzle';
+    if (!Array.isArray(p.variants) || p.variants.some((v) => v !== 'diagonal' && v !== 'parity')) return 'bad_puzzle';
+    if (!Array.isArray(p.evenCells) || !p.evenCells.every((i) => Number.isInteger(i) && i >= 0 && i < R * R)) return 'bad_puzzle';
+  } else if (game === 'cm') {
+    if (!(Number.isInteger(R) && R >= 4 && R <= 9) || C !== R) return 'bad_puzzle';
+    if (!ints(p.solution, R * R, 1, R) || !ints(p.givens, R * R, 0, R)) return 'bad_puzzle';
+    if (!Array.isArray(p.cages) || !p.cages.length || p.cages.length > R * R) return 'bad_puzzle';
+    for (const cg of p.cages) {
+      if (!cg || !['=', '+', '−', '×', '÷'].includes(cg.op) || !Number.isInteger(cg.target) || cg.target < 0 || cg.target > 1e7) return 'bad_puzzle';
+      if (!Array.isArray(cg.cells) || !cg.cells.length || !cg.cells.every((i) => Number.isInteger(i) && i >= 0 && i < R * R)) return 'bad_puzzle';
+    }
+  } else if (game === 'sc') {
+    if (!(Number.isInteger(R) && R >= 4 && R <= 14 && Number.isInteger(C) && C >= 4 && C <= 14)) return 'bad_puzzle';
+    if (!ints(p.solution, R * C, 0, 9) || !ints(p.givens, R * C, 0, 9)) return 'bad_puzzle';
+    if (!Array.isArray(p.clues) || !p.clues.length || !p.clues.every((k) => ints(k, 3, 0, 45 * 4) && k[0] < R * C)) return 'bad_puzzle';
+  } else if (game === 'pg') {
+    if (!(Number.isInteger(R) && R >= 5 && R <= 25 && Number.isInteger(C) && C >= 5 && C <= 25)) return 'bad_puzzle';
+    if (!ints(p.solution, R * C, 0, 2) || !ints(p.givens, R * C, 0, 2)) return 'bad_puzzle';
+    const line = (a, n, len) => Array.isArray(a) && a.length === n && a.every((l) => Array.isArray(l) && l.length <= len && l.every((v) => Number.isInteger(v) && v >= 0 && v <= len));
+    if (!line(p.rowClues, R, C) || !line(p.colClues, C, R)) return 'bad_puzzle';
+  } else if (game === 'ml') {
+    if (!(Number.isInteger(R) && R >= 4 && R <= 9) || C !== R) return 'bad_puzzle';
+    if (!ints(p.solution, R * R, 1, R) || !ints(p.givens, R * R, 0, R)) return 'bad_puzzle';
+    if (!Array.isArray(p.signs) || p.signs.length > 2 * R * (R - 1)) return 'bad_puzzle';
+    if (!p.signs.every((s) => s && Number.isInteger(s.c) && s.c >= 0 && s.c < R * R && (s.d === 'r' || s.d === 'd') && typeof s.lt === 'boolean')) return 'bad_puzzle';
+  } else if (game === 'sk') {
+    if (!(Number.isInteger(R) && R >= 4 && R <= 8) || C !== R) return 'bad_puzzle';
+    if (!ints(p.solution, R * R, 1, R) || !ints(p.givens, R * R, 0, R)) return 'bad_puzzle';
+    if (!p.clues || typeof p.clues !== 'object' || !['top', 'bottom', 'left', 'right'].every((k) => ints(p.clues[k], R, 0, R))) return 'bad_puzzle';
+  } else if (game === 'sf') {
+    if (!(Number.isInteger(R) && R >= 5 && R <= 11) || C !== R || (p.stars !== 1 && p.stars !== 2)) return 'bad_puzzle';
+    if (!ints(p.solution, R * R, 1, 2) || !ints(p.givens, R * R, 0, 2) || !ints(p.regions, R * R, 0, R - 1)) return 'bad_puzzle';
+  } else if (game === 'll') {
+    // Edges: (R + 1) rows of C flat ones, then R rows of C + 1 upright ones.
+    if (!(Number.isInteger(R) && R >= 5 && R <= 12) || C !== R) return 'bad_puzzle';
+    const E = (R + 1) * C + R * (C + 1);
+    if (!ints(p.solution, E, 1, 2) || !ints(p.givens, E, 0, 2) || !ints(p.clues, R * C, -1, 3)) return 'bad_puzzle';
+  } else if (game === 'ib') {
+    // Links: pairs of islands that can see each other; 1 or 2 bridges, 3 none.
+    if (!(Number.isInteger(R) && R >= 7 && R <= 15) || C !== R) return 'bad_puzzle';
+    const I = p.islands;
+    if (!Array.isArray(I) || I.length < 2 || I.length > R * C) return 'bad_puzzle';
+    if (!I.every((s) => s && Number.isInteger(s.r) && Number.isInteger(s.c) && Number.isInteger(s.n) && s.r >= 0 && s.r < R && s.c >= 0 && s.c < C && s.n >= 1 && s.n <= 8)) return 'bad_puzzle';
+    const L = p.links;
+    if (!Array.isArray(L) || !L.length || L.length > 2 * I.length) return 'bad_puzzle';
+    if (!L.every((l) => l && Number.isInteger(l.a) && Number.isInteger(l.b) && l.a >= 0 && l.b >= 0 && l.a < I.length && l.b < I.length && (l.dir === 'h' || l.dir === 'v'))) return 'bad_puzzle';
+    if (!ints(p.solution, L.length, 1, 3) || !ints(p.givens, L.length, 0, 3)) return 'bad_puzzle';
+  } else return 'bad_puzzle';
+  if (p.story !== undefined && p.story !== null && typeof p.story !== 'object') return 'bad_puzzle';
+  // The grid-kit games' stories also have story moments (beats), shown while solving.
+  const beats = Array.isArray(p.story?.beats) ? p.story.beats.slice(0, 6) : [];
+  const text = [p.story?.title, p.story?.intro, p.story?.ending, ...beats, p.picture?.name].filter((t) => typeof t === 'string').join(' \n ');
+  if (text.length > 4000) return 'bad_puzzle';
+  if (hasBlockedWords(text, { strict: false })) return 'puzzle_words';
+  return null;
+}
+// The race puzzle's title: its story title, or the game's name.
+export const gameTitle = (game, p) => String((game !== 'pg' && p.story?.title) || GAMES[game].name).slice(0, 120);
+
+// A grid game's answers solve the puzzle: every cell's (or line game's edge's)
+// value, as the game keeps them (Picture Grid: 1 shaded; Star Field: 1 a star;
+// Loop Line: 1 a line; Island Bridges: 1 or 2 bridges, anything else none; Sum
+// Cross: its clue and black squares are not counted). Crosses and dots are the
+// player's own notes, so they never count against an answer.
+const bridges = (v) => (v === 1 || v === 2 ? v : 0);
+export function answersSolve(game, p, answers) {
+  if (!Array.isArray(answers) || answers.length !== p.solution.length) return false;
+  return p.solution.every((want, i) => {
+    const got = answers[i];
+    if (game === 'pg' || game === 'sf' || game === 'll') return (got === 1) === (want === 1);
+    if (game === 'ib') return bridges(got) === bridges(want);
+    if (game === 'sc' && !want) return true;
+    return got === want;
+  });
+}
+
 // ------------------------------------------------------------- scoreboard
 let boardCache = new Map(); // period -> { at, body }
 export const clearBoardCache = () => boardCache.clear();
@@ -240,14 +361,14 @@ async function standings(env, race, uid, now) {
     players.push({ name: shown(a.to_id, a.screen_name, a.approved), me: a.to_id === uid, host: false, status: a.status === 'declined' ? 'declined' : 'invited', place: null, elapsedMs: null, hints: null, checks: null, raceMs: null });
   }
   return {
-    code: race.code, title: race.title, tier: race.tier, cells: race.cells,
+    code: race.code, game: race.game || 'flg', title: race.title, tier: race.tier, cells: race.cells,
     createdAt: race.created_at, closesAt: race.closes_at, open: now < race.closes_at && results.length < RACE_PLAYERS,
     penalties: { hintMs: HINT_PENALTY_MS, checkMs: CHECK_PENALTY_MS },
     players,
   };
 }
 
-const getRace = (env, code) => env.DB.prepare('SELECT code, host_id, tier, cells, story_id, title, public, created_at, closes_at FROM races WHERE code = ?1').bind(code).first();
+const getRace = (env, code) => env.DB.prepare('SELECT code, game, host_id, tier, cells, story_id, title, public, created_at, closes_at FROM races WHERE code = ?1').bind(code).first();
 
 // ------------------------------------------------------------- routing
 const ROUTES = /^\/v1\/(profile|scores|scoreboard|races|invites)(?:\/(find|[A-Z0-9]{6}|\d{1,12})(?:\/(join|finish|invite|decline))?)?$/;
@@ -367,13 +488,13 @@ export async function handleCompete(req, env, ctx, url, signedIn) {
 
     if (area === 'invites') {
       if (!sub && method === 'GET') {
-        const { results } = await db.prepare(`SELECT i.id, i.code, i.created_at, r.title, r.tier, r.cells, p.screen_name AS from_name, ${APPROVED('p')} AS approved
+        const { results } = await db.prepare(`SELECT i.id, i.code, i.created_at, r.title, r.tier, r.cells, r.game, p.screen_name AS from_name, ${APPROVED('p')} AS approved
           FROM race_invites i JOIN races r ON r.code = i.code LEFT JOIN players p ON p.user_id = i.from_id
           WHERE i.to_id = ?1 AND i.status = 'pending' AND r.closes_at > ?2
             AND NOT EXISTS (SELECT 1 FROM race_entries e WHERE e.code = i.code AND e.user_id = ?1)
           ORDER BY i.created_at DESC LIMIT 20`).bind(uid, now).all();
         return json(req, env, {
-          invites: results.map((r) => ({ id: r.id, code: r.code, title: r.title, tier: r.tier, cells: r.cells, from: r.from_name ? (r.approved || !settings.names_need_approval ? r.from_name : NEW_PLAYER) : 'A former player', at: r.created_at })),
+          invites: results.map((r) => ({ id: r.id, code: r.code, game: r.game || 'flg', title: r.title, tier: r.tier, cells: r.cells, from: r.from_name ? (r.approved || !settings.names_need_approval ? r.from_name : NEW_PLAYER) : 'A former player', at: r.created_at })),
         });
       }
       if (sub && /^\d+$/.test(sub) && action === 'decline' && method === 'POST') {
@@ -394,14 +515,18 @@ export async function handleCompete(req, env, ctx, url, signedIn) {
         b = null;
       }
       const puzzle = b && b.puzzle;
-      const problem = checkPuzzle(puzzle);
+      const game = gameOf(b && b.game);
+      if (!game) return fail('bad_puzzle');
+      const problem = game === 'flg' ? checkPuzzle(puzzle) : checkGamePuzzle(game, puzzle);
       if (problem === 'puzzle_words') return fail(problem, 422, { message: 'This puzzle has words that cannot be shared with other players. Remove the custom title or names and try again.' });
       if (problem) return fail(problem);
       const text = JSON.stringify(puzzle);
       if (text.length > MAX_PUZZLE_CHARS) return fail('too_large', 413);
       const hosted = await db.prepare('SELECT COUNT(*) AS n FROM races WHERE host_id = ?1 AND created_at >= ?2').bind(uid, now - 24 * 3600_000).first();
       if (hosted.n >= RACES_PER_DAY) return fail('daily_limit', 429, { message: `You can start up to ${RACES_PER_DAY} races a day.` });
-      const cells = cellsOf(puzzle.categories.length, puzzle.categories[0].items.length);
+      const cells = game === 'flg' ? cellsOf(puzzle.categories.length, puzzle.categories[0].items.length) : puzzle.size * (puzzle.cols ?? puzzle.size);
+      const storyId = game === 'flg' ? puzzle.story.id : `${game}:${puzzle.fingerprint}`;
+      const title = game === 'flg' ? puzzle.title : gameTitle(game, puzzle);
       // Tidy up long-finished races while we are here.
       ctx.waitUntil(db.batch([
         db.prepare('DELETE FROM race_entries WHERE code IN (SELECT code FROM races WHERE created_at < ?1)').bind(now - RACE_KEEP_MS),
@@ -409,8 +534,8 @@ export async function handleCompete(req, env, ctx, url, signedIn) {
       ]).catch(() => {}));
       for (let i = 0; i < 5; i++) {
         const code = newCode();
-        const r = await db.prepare(`INSERT OR IGNORE INTO races (code, host_id, tier, cells, story_id, title, puzzle, public, created_at, closes_at)
-          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)`).bind(code, uid, puzzle.difficulty.id, cells, puzzle.story.id, puzzle.title, text, b.public === false ? 0 : 1, now, now + RACE_OPEN_MS).run();
+        const r = await db.prepare(`INSERT OR IGNORE INTO races (code, host_id, tier, cells, story_id, title, puzzle, public, created_at, closes_at, game)
+          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)`).bind(code, uid, puzzle.difficulty.id, cells, storyId, title, text, b.public === false ? 0 : 1, now, now + RACE_OPEN_MS, game).run();
         if (r.meta.changes) {
           await db.prepare('INSERT INTO race_entries (code, user_id, joined_at) VALUES (?1, ?2, ?3)').bind(code, uid, now).run();
           return json(req, env, await standings(env, await getRace(env, code), uid, now));
@@ -421,17 +546,18 @@ export async function handleCompete(req, env, ctx, url, signedIn) {
 
     if (sub === 'find' && method === 'POST') {
       const b = (await body()) || {};
-      const tier = TIERS[b.tier] ? b.tier : null;
+      const game = gameOf(b.game) || 'flg';
+      const tier = (game === 'flg' ? TIERS[b.tier] : Object.hasOwn(LEVEL_POINTS, b.tier || '')) ? b.tier : null;
       const skip = Array.isArray(b.skip) ? b.skip.filter((c) => typeof c === 'string').slice(0, 20) : [];
-      const { results } = await db.prepare(`SELECT r.code, r.story_id, r.tier, r.title FROM races r
-        WHERE r.public = 1 AND r.closes_at > ?1 AND (r.host_id IS NULL OR r.host_id != ?2) AND (?3 IS NULL OR r.tier = ?3)
+      const { results } = await db.prepare(`SELECT r.code, r.story_id, r.tier, r.title, r.game FROM races r
+        WHERE r.public = 1 AND r.closes_at > ?1 AND (r.host_id IS NULL OR r.host_id != ?2) AND (?3 IS NULL OR r.tier = ?3) AND r.game = ?6
           AND NOT EXISTS (SELECT 1 FROM race_entries e WHERE e.code = r.code AND e.user_id = ?2)
           AND (SELECT COUNT(*) FROM race_entries e WHERE e.code = r.code) < ?4
           AND r.code NOT IN (SELECT value FROM json_each(?5))
-        ORDER BY random() LIMIT 1`).bind(now, uid, tier, RACE_PLAYERS, JSON.stringify(skip)).all();
+        ORDER BY random() LIMIT 1`).bind(now, uid, tier, RACE_PLAYERS, JSON.stringify(skip), game).all();
       if (!results.length) return fail('no_open_races', 404, { message: 'No open races right now. Start one and others can join it.' });
       const r = results[0];
-      return json(req, env, { code: r.code, storyId: r.story_id, tier: r.tier, title: r.title });
+      return json(req, env, { code: r.code, game: r.game, storyId: r.story_id, tier: r.tier, title: r.title });
     }
 
     const race = await db.prepare('SELECT * FROM races WHERE code = ?1').bind(sub).first();
@@ -450,7 +576,7 @@ export async function handleCompete(req, env, ctx, url, signedIn) {
           db.prepare("UPDATE race_invites SET status = 'accepted' WHERE code = ?1 AND to_id = ?2").bind(sub, uid),
         ]);
       }
-      return json(req, env, { race: await standings(env, race, uid, now), puzzle: JSON.parse(race.puzzle) });
+      return json(req, env, { race: await standings(env, race, uid, now), game: race.game || 'flg', puzzle: JSON.parse(race.puzzle) });
     }
 
     if (action === 'invite' && method === 'POST') {
@@ -485,7 +611,8 @@ export async function handleCompete(req, env, ctx, url, signedIn) {
       const reported = int(b.elapsedMs, 0, MAX_SOLVE_MS);
       if (hints === null || checks === null || reported === null) return fail('bad_result');
       const puzzle = JSON.parse(race.puzzle);
-      const solved = !b.revealed && matchesSolution(puzzle, b.pairs);
+      const game = race.game || 'flg';
+      const solved = !b.revealed && (game === 'flg' ? matchesSolution(puzzle, b.pairs) : answersSolve(game, puzzle, b.answers));
       if (!b.revealed && !solved) return fail('not_solved', 422, { message: 'Those answers do not solve the puzzle yet.' });
       // Never shorter than the real time since joining allows.
       const elapsedMs = Math.max(MIN_SOLVE_MS, Math.min(reported, now - entry.joined_at + 5_000));
@@ -494,9 +621,9 @@ export async function handleCompete(req, env, ctx, url, signedIn) {
         WHERE code = ?1 AND user_id = ?2 AND finished_at IS NULL`).bind(sub, uid, now, solved ? 1 : 0, elapsedMs, hints, checks, raceMs)];
       let points = null;
       if (solved) {
-        points = pointsFor({ tier: race.tier, cells: race.cells, elapsedMs, hints, checks });
-        stmts.push(db.prepare(`INSERT OR IGNORE INTO scores (user_id, story_id, kind, tier, cells, elapsed_ms, hints, checks, points, created_at)
-          VALUES (?1, ?2, 'race', ?3, ?4, ?5, ?6, ?7, ?8, ?9)`).bind(uid, race.story_id, race.tier, race.cells, elapsedMs, hints, checks, points, now));
+        points = game === 'flg' ? pointsFor({ tier: race.tier, cells: race.cells, elapsedMs, hints, checks }) : pointsForGame({ game, tier: race.tier, elapsedMs, hints, checks });
+        stmts.push(db.prepare(`INSERT OR IGNORE INTO scores (user_id, story_id, kind, tier, cells, elapsed_ms, hints, checks, points, created_at, game)
+          VALUES (?1, ?2, 'race', ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)`).bind(uid, race.story_id, race.tier, race.cells, elapsedMs, hints, checks, points, now, game));
       }
       await db.batch(stmts);
       boardCache.clear();

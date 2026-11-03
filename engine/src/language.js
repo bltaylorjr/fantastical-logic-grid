@@ -41,7 +41,7 @@ export function makeLanguage(model) {
     return `${subj(x)} ${fill(cats[c][tplKey], joinList(ys.map(label), conj))}`;
   }
 
-  return {
+  const L = {
     label, subj, pos, neg, pair, catOf, isKey,
     name: label,
     cast: () => cast.many,
@@ -52,7 +52,10 @@ export function makeLanguage(model) {
     negList: (x, ys) => listPred('neg', x, ys, 'or'),
     gap: (c, d) => cats[c].ordinal.gaps[d],
     ordinal: (c) => cats[c].ordinal,
+    // A clue as a clause inside a sentence ("Clue 3 says ..."), for hints.
+    clause: (c) => { const t = clueText(L, c).replace(/\.$/, ''); return /^The /.test(t) ? 'the' + t.slice(3) : t; },
   };
+  return L;
 }
 
 // Clue text. Each renderer returns one sentence.
@@ -99,6 +102,24 @@ export function clueText(L, c, rng) {
     }
     case 'ifthen':
       return `If ${L.pair(c.p[0], c.p[1], 1)}, then ${L.pair(c.q[0], c.q[1], 1)}.`;
+    // ----- Lab modes only (modes.js); the phrases live on the ordered category.
+    case 'next': {
+      const o = L.ordinal(c.o);
+      return flip() ? `${cap(L.subj(c.a))} ${o.prev} ${L.subj(c.b)}.` : `${cap(L.subj(c.b))} ${o.next} ${L.subj(c.a)}.`;
+    }
+    case 'between': {
+      const o = L.ordinal(c.o);
+      const end = (g) => (L.catOf(g) === c.o ? L.label(g) : L.subj(g));
+      return `${cap(L.subj(c.m))} ${o.betweenA} ${end(c.a)} ${o.betweenB} ${end(c.b)}.`;
+    }
+    case 'first':
+    case 'last':
+      return `${cap(L.subj(c.a))} ${L.ordinal(c.o)[c.type]}.`;
+    case 'nextTo':
+    case 'across':
+    case 'left2':
+    case 'notNext':
+      return `${cap(L.subj(c.a))} ${L.ordinal(c.o)[c.type]} ${L.subj(c.b)}.`;
     default:
       throw new Error(`Unknown clue type ${c.type}`);
   }

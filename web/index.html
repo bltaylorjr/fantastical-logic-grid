@@ -142,6 +142,15 @@
           <legend id="topic-legend">Topic</legend>
           <div class="choices tiers topics" id="topic-choices"></div>
         </fieldset>
+        <fieldset id="mode-field">
+          <legend>Puzzle style</legend>
+          <div class="choices chips" id="mode-choices">
+            <label class="choice"><input type="radio" name="puzzle-mode" value="classic" checked><span><b>Classic</b><small>The usual story puzzle</small></span></label>
+            <label class="choice"><input type="radio" name="puzzle-mode" value="timeline"><span><b>Timeline Case</b><small>A whodunit told by the clock</small></span></label>
+            <label class="choice"><input type="radio" name="puzzle-mode" value="seating"><span><b>Seating Plan</b><small>Guests round one table</small></span></label>
+          </div>
+          <p class="help" id="mode-help" hidden>Set in the theme you pick ("Surprise me" picks one). The style sets the grid size and the kinds of clues for each difficulty, so Size and Topic are hidden.</p>
+        </fieldset>
         <fieldset>
           <legend>Size</legend>
           <div class="choices chips" id="size-choices"></div>
@@ -278,6 +287,7 @@
 
   <div class="race-bar" id="race-bar" hidden>
     <p id="race-bar-text"></p>
+    <div class="cpu-meter" id="race-cpu" hidden><span class="cpu-label" id="race-cpu-label">Computer</span><progress id="race-cpu-bar" max="100" value="0" aria-labelledby="race-cpu-label"></progress><span id="race-cpu-pct" aria-hidden="true">0%</span></div>
     <button class="btn small" type="button" id="race-share">Share the race</button>
     <button class="btn small" type="button" id="race-standings">Standings</button>
   </div>
@@ -376,7 +386,7 @@
   <div id="np-root"><p class="muted" id="np-loading">Loading NINETIMESNINE…</p></div>
 </main>
 
-<!-- ============ Cage Math, Sum Cross and Picture Grid (modules/grid-kit and each game's folder) ============ -->
+<!-- ============ The grid-kit games: Cage Math, Sum Cross, Picture Grid, More or Less, Skyline, Star Field, Loop Line, Island Bridges (modules/grid-kit and each game's folder) ============ -->
 <main id="screen-cm" class="screen" tabindex="-1" hidden>
   <p class="np-back"><button class="btn quiet small" type="button" id="cm-back">All games</button></p>
   <div id="cm-root"><p class="muted">Loading Cage Math…</p></div>
@@ -388,6 +398,26 @@
 <main id="screen-pg" class="screen" tabindex="-1" hidden>
   <p class="np-back"><button class="btn quiet small" type="button" id="pg-back">All games</button></p>
   <div id="pg-root"><p class="muted">Loading Picture Grid…</p></div>
+</main>
+<main id="screen-ml" class="screen" tabindex="-1" hidden>
+  <p class="np-back"><button class="btn quiet small" type="button" id="ml-back">All games</button></p>
+  <div id="ml-root"><p class="muted">Loading More or Less…</p></div>
+</main>
+<main id="screen-sk" class="screen" tabindex="-1" hidden>
+  <p class="np-back"><button class="btn quiet small" type="button" id="sk-back">All games</button></p>
+  <div id="sk-root"><p class="muted">Loading Skyline…</p></div>
+</main>
+<main id="screen-sf" class="screen" tabindex="-1" hidden>
+  <p class="np-back"><button class="btn quiet small" type="button" id="sf-back">All games</button></p>
+  <div id="sf-root"><p class="muted">Loading Star Field…</p></div>
+</main>
+<main id="screen-ll" class="screen" tabindex="-1" hidden>
+  <p class="np-back"><button class="btn quiet small" type="button" id="ll-back">All games</button></p>
+  <div id="ll-root"><p class="muted">Loading Loop Line…</p></div>
+</main>
+<main id="screen-ib" class="screen" tabindex="-1" hidden>
+  <p class="np-back"><button class="btn quiet small" type="button" id="ib-back">All games</button></p>
+  <div id="ib-root"><p class="muted">Loading Island Bridges…</p></div>
 </main>
 
 <!-- ============ How to play: the tutorial and tips ============ -->
@@ -822,7 +852,7 @@
   </div>
 </dialog>
 
-<!-- The game cards' videos (games.js): one player for all of them, in the test build only. -->
+<!-- One player for the game cards' videos (games.js) and the welcome's tour of The Logic Grid. -->
 <dialog id="dlg-game-video" class="wide" aria-labelledby="game-video-h" data-light-dismiss>
   <h2 id="game-video-h">Video</h2>
   <video id="game-video" controls preload="none" playsinline aria-describedby="game-video-note"></video>
@@ -845,18 +875,18 @@
       <p>Tips and tricks puts the moves that solve most puzzles on one page. In a hurry? Play a quick puzzle starts a small Easy case straight away, with no choices to make. Every day there is also a new Daily puzzle, the same one for everyone. Solve it each day to build a streak. With a free sign-in, you can get each day&#x27;s puzzle by email. Every Monday there is also a Puzzle of the week: a bigger Expert puzzle with a brand-new story.</p>
       <p>Anyone can get the puzzle of the week and special edition puzzles by email, with no account. Choose Puzzle emails in the Menu, type your address, then press Confirm in the email we send you. Here&#x27;s how to play. Start on the New puzzle screen and pick a difficulty. Basic and Easy are perfect for beginners. Quantum Physicist is for true masterminds. And Theoretical Physicist is for the best of the best.</p>
       <p>Next, choose a theme. Themes are grouped, like Mystery and Action, Imagination, or Science and Learning. Or pick Surprise me. Most themes also open a list of topics right under them, like which holiday or which kind of mystery. Pick one, or leave it on Any. Then pick a size. More categories and more items make a bigger, harder grid.</p>
-      <p>Under More options, Full experience adds scenes, characters and sound. Silent mode keeps only the story, the grid, the clues and the answer key. Press Generate puzzle, and your story is written in a moment. Here&#x27;s our case: The Final Curtain Theater Ghost. The buttons along the top help you as you play. Read the story first. It tells you who is involved, and it ends with the question you need to answer. Here, it&#x27;s: Who arrived at 6:00 PM? You can also press Read the story aloud to hear it.</p>
+      <p>Under More options, Full experience adds scenes, characters and sound. Silent mode keeps only the story, the grid, the clues and the answer key. Press Generate puzzle, and your story is written in a moment. Here&#x27;s our case: The Muddled Jam Jar. The buttons along the top help you as you play. Read the story first. It tells you who is involved, and it ends with the question you need to answer. Here, it&#x27;s: Who baked the Carrot Cake? You can also press Read the story aloud to hear it.</p>
       <p>Every character has a personality, shown under their name, and a voice of their own. Select a character&#x27;s portrait to hear the clues they remember, in their own words. Every clue is also in the clue list. To hear every clue in order, press Read the clues aloud. Each character tells their own clue, and the clue being read lights up. On your first Easy puzzle, coach tips appear above the grid to guide your first moves.</p>
-      <p>Now the grid. Each square is where two things meet, like an actor and a call time. Your job is to decide whether they go together. Click or tap a square once to mark an X. X means ruled out: these two don&#x27;t go together. Tap again for an O. O means confirmed: these two are a match. Tap a third time to clear the square.</p>
-      <p>Let&#x27;s solve it together, starting with the simplest clues. Clue 1 says the actor who plays the Queen arrived at 6:30 PM. Mark an O there. Clue 2 says Quentin does not play the Pirate. Mark an X there. Clue 3 says Leopold arrived at 5:45 PM. Mark an O there.</p>
-      <p>Clue 4 says the actor who plays the Jester arrived at 5:45 PM or 6:30 PM, so no other call time is possible. Clues 5 and 6 each rule out pairs directly. Mark an X for each one. Leopold arrived at 5:45 PM, so Leopold cannot go with any other call time, and no other actor can go with 5:45 PM. Each row and each column in a section has exactly one match, so everything else in that line is an X. The actor who plays the Queen arrived at 6:30 PM, so Queen cannot go with any other call time, and no other role can go with 6:30 PM.</p>
-      <p>6:15 PM is the only call time left for Benedict. Mark an O there. When only one square is left in a row or column, it must be the answer. In the full experience, each finished section also reveals more of the scene. Stuck? Press Hint. The first hint shows you which clue to use, and names the trick that cracks it.</p>
-      <p>Press Which cell? for the exact square, then Explain why for the full reasoning. It ends with a short lesson on how that trick works, so you can spot it yourself next time. You can even let it mark the square for you. Press Check at any time to see whether any of your marks are wrong. Made a mistake? Undo and Redo take back any move, as many times as you like. Want a fresh start? Press Start over. It clears your marks and resets the timer, hints and checks. Your notes stay unless you choose to clear them, and Undo can bring everything back.</p>
-      <p>Prefer words to grids? List view lets you choose each match from a menu. The game also works fully by keyboard and with a screen reader. When you think you know, answer the questions under the clues, and press Check answers. Want to jot something down? Press My notes and type. Press Save to keep them, or Close to get back to the puzzle. Only you can see your notes, even in a race.</p>
-      <p>Keep going the same way, clue by clue, until the whole grid is filled in. Case closed! Imogen arrived at 6:00 PM. Imogen takes a bow and returns the theater ghost to thunderous applause. You also see your time and a suggestion for your next puzzle. Every solve ends with a celebration, like confetti, fireworks, ribbons, balloons or shooting stars. Silent mode and your device&#x27;s reduce motion setting turn it off.</p>
-      <p>Solving puzzles earns badges, like First case closed. Press Share my result to send friends a picture of your win. It never gives the answers away. Challenge a friend makes a link to this very puzzle, with your time to beat. Your friend needs no account, and you both see who was quicker. If you like, rate the puzzle from 1 to 5 stars, where 5 is excellent, and say whether it felt too easy, just right or too hard. It is optional. The game learns from your answers and tunes your next puzzle to suit you.</p>
-      <p>You can print any puzzle, blank or with your marks, with the answer key on its own page. Your progress saves automatically. Come back any time and pick up where you left off, from Saved puzzles. My stats and badges, in the Menu, shows your totals, best times, favorite themes, your daily streak and every badge to earn. Press Help to see every keyboard shortcut. And Introduction, at the top of every page, plays this video again.</p>
-      <p>Play in light or dark colors, or in high contrast. And Silent mode is always there when you just want the puzzle. To play without opening a browser, choose Install the app on The Logic Grid home page. Download the Windows desktop app, which keeps itself up to date. Or add the game&#x27;s icon to your phone&#x27;s home screen. On your phone, the same button shows you how. On a phone, pull down from the top of the page to refresh. Your progress is saved first.</p>
+      <p>Now the grid. Each square is where two things meet, like a villager and a drink. Your job is to decide whether they go together. Click or tap a square once to mark an X. X means ruled out: these two don&#x27;t go together. Tap again for an O. O means confirmed: these two are a match. Tap a third time to clear the square.</p>
+      <p>Let&#x27;s solve it together, starting with the simplest clues. Clue 1 says the villager who baked the Muffins was drinking Hot Milk. Mark an O there. Clue 2 says the villager who baked the Carrot Cake was not drinking Mint Tea. Mark an X there. Clue 3 says Ada was drinking Hot Milk. Mark an O there.</p>
+      <p>Clues 4 and 5 each rule out pairs directly. Mark an X for each one. Clue 6 says Clara baked the Fruit Pie. Mark an O there. Clara baked the Fruit Pie, so Clara cannot go with any other baked good, and no other villager can go with Fruit Pie. Each row and each column in a section has exactly one match, so everything else in that line is an X.</p>
+      <p>Ada was drinking Hot Milk, so Ada cannot go with any other drink, and no other villager can go with Hot Milk. The villager who baked the Muffins was drinking Hot Milk, so Muffins cannot go with any other drink, and no other baked good can go with Hot Milk. Earl Grey is the only drink left for Fruit Pie. Mark an O there. When only one square is left in a row or column, it must be the answer. In the full experience, each finished section also reveals more of the scene.</p>
+      <p>Stuck? Press Hint. The first hint shows you which clue to use, and names the trick that cracks it. Press Which cell? for the exact square, then Explain why for the full reasoning. It ends with a short lesson on how that trick works, so you can spot it yourself next time. You can even let it mark the square for you. Press Check at any time to see whether any of your marks are wrong.</p>
+      <p>Made a mistake? Undo and Redo take back any move, as many times as you like. Want a fresh start? Press Start over. It clears your marks and resets the timer, hints and checks. Your notes stay unless you choose to clear them, and Undo can bring everything back. Prefer words to grids? List view lets you choose each match from a menu. The game also works fully by keyboard and with a screen reader.</p>
+      <p>When you think you know, answer the questions under the clues, and press Check answers. Want to jot something down? Press My notes and type. Press Save to keep them, or Close to get back to the puzzle. Only you can see your notes, even in a race. Keep going the same way, clue by clue, until the whole grid is filled in. Case closed! Iris baked the Carrot Cake, so Iris had the prize jam all along, only to keep it safe from the rain. You also see your time and a suggestion for your next puzzle.</p>
+      <p>Every solve ends with a celebration, like confetti, fireworks, ribbons, balloons or shooting stars. Silent mode and your device&#x27;s reduce motion setting turn it off. Solving puzzles earns badges, like First case closed. Press Share my result to send friends a picture of your win. It never gives the answers away. Challenge a friend makes a link to this very puzzle, with your time to beat. Your friend needs no account, and you both see who was quicker.</p>
+      <p>If you like, rate the puzzle from 1 to 5 stars, where 5 is excellent, and say whether it felt too easy, just right or too hard. It is optional. The game learns from your answers and tunes your next puzzle to suit you. You can print any puzzle, blank or with your marks, with the answer key on its own page. Your progress saves automatically. Come back any time and pick up where you left off, from Saved puzzles. My stats and badges, in the Menu, shows your totals, best times, favorite themes, your daily streak and every badge to earn.</p>
+      <p>Press Help to see every keyboard shortcut. And Introduction, at the top of every page, plays this video again. Play in light or dark colors, or in high contrast. And Silent mode is always there when you just want the puzzle. To play without opening a browser, choose Install the app on The Logic Grid home page. Download the Windows desktop app, which keeps itself up to date. Or add the game&#x27;s icon to your phone&#x27;s home screen. On your phone, the same button shows you how. On a phone, pull down from the top of the page to refresh. Your progress is saved first.</p>
       <p>You can also play with other detectives. You never need an account to play. But a free account keeps your puzzles, progress and settings in step on the website, the desktop app and your phone. The name at the top shows who you are playing as. Until you sign in, you play as Guest. Create one with your email and a password. Keep me signed in is ticked, so you stay signed in on this device. Untick it on a shared computer. If you ever forget your password, Forgot password sends you a reset link.</p>
       <p>Once you are signed in, your puzzles sync on their own. Sign in on another device and they are waiting for you. Signed in, Printable puzzle pack in the Menu prints a few brand-new puzzles at once, with their answer keys. Pick how many, the difficulty and the theme. Each player gets a set number of packs a week. Once you are signed in, you pick a screen name. Type your own, or press Suggest a name and the game makes one up for you. It is the only thing other players see, and rude names are turned away. Don&#x27;t want one? Sign out instead, and you play as Guest.</p>
       <p>Your screen name now shows at the top. Play against others lets you race other players on the very same puzzle, and climb the scoreboard. To race, press Start a race. It uses the difficulty, theme and size you picked on the New puzzle screen. Share the race code or link with a friend. Or anyone can press Find a race to join an open race.</p>
@@ -882,9 +912,9 @@
   <button class="dlg-x" type="button" aria-label="Close" title="Close (Esc)"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
   <h2 id="welcome-h">Welcome, detective!</h2>
   <p>Never solved a logic grid puzzle? <b>How to play</b> teaches you step by step on real grids, with tips and tricks, in about 15 minutes.</p>
-  <p>Or watch the <b>Introduction</b>, an 11-minute narrated video with captions, to see everything the game can do.</p>
-  <p class="muted">Both are always at the top of the page.</p>
-  <div class="dlg-actions"><button class="btn" type="button" id="welcome-skip">Play a quick puzzle</button><button class="btn primary" type="button" id="welcome-learn">How to play</button><button class="btn" type="button" id="welcome-watch"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 9.003a1 1 0 0 1 1.517-.859l4.997 2.997a1 1 0 0 1 0 1.718l-4.997 2.997A1 1 0 0 1 9 14.996z"/><circle cx="12" cy="12" r="10"/></svg> Watch the video</button></div>
+  <p>New here? <b>Take the tour</b>: a short narrated video, with captions, of everything on The Logic Grid, from every game to your account and making your own puzzles.</p>
+  <p class="muted">How to play and the game's own Introduction are always at the top of the page.</p>
+  <div class="dlg-actions"><button class="btn" type="button" id="welcome-skip">Play a quick puzzle</button><button class="btn primary" type="button" id="welcome-learn">How to play</button><button class="btn" type="button" id="welcome-watch"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 9.003a1 1 0 0 1 1.517-.859l4.997 2.997a1 1 0 0 1 0 1.718l-4.997 2.997A1 1 0 0 1 9 14.996z"/><circle cx="12" cy="12" r="10"/></svg> Take the tour</button></div>
 </dialog>
 
 <dialog id="dlg-name" aria-labelledby="name-h">
@@ -929,6 +959,14 @@
     <p id="challenge-choice"></p>
     <div class="error-box" role="alert" hidden></div>
     <div class="dlg-actions"><button class="btn" type="button" data-close>Cancel</button><button class="btn primary" type="submit">Send the challenge</button></div>
+  </form>
+  <form class="race-view" data-view="computer" novalidate hidden>
+    <p class="help">Race a computer opponent on a new puzzle. It works through the same puzzle as you, and the race bar shows how far along it is. Solve it before the computer finishes to win. Each hint adds 1 minute and each check 15 seconds to your race time, and revealing the answer counts as giving up. No account needed.</p>
+    <p id="cpu-choice"></p>
+    <fieldset class="cpu-skills"><legend>How fast is the computer?</legend><div id="cpu-skills"></div></fieldset>
+    <p class="help" id="cpu-record"></p>
+    <div class="error-box" role="alert" hidden></div>
+    <div class="dlg-actions"><button class="btn" type="button" data-close>Cancel</button><button class="btn primary" type="submit">Start the race</button></div>
   </form>
   <div class="race-view" data-view="share" hidden>
     <p class="help">Give this code or link to the people you want to race. Your clock is already running in the game, so start whenever you are ready.</p>

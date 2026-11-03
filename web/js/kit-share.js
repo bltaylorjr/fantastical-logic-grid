@@ -1,7 +1,7 @@
-// Shared learning for Cage Math, Sum Cross and Picture Grid: the one thing
+// Shared learning for the grid-kit games (kit-games.js): the one thing
 // their screens share with the rest of the app. Anonymous summaries of
 // finished puzzles go to the learning service (POST /v1/learn/<game>/plays,
-// game cm, sc or pg) and what everyone's games taught comes back
+// game cm, sc, pg, ml, sk, sf, ll or ib) and what everyone's games taught comes back
 // (GET /v1/learn/<game>/tuning). Nothing personal is sent: no name, saves or
 // device id. It runs while the player keeps "Learn from how I play" on and the
 // admin dashboard has learning on for everyone and for that game, and never
@@ -10,7 +10,7 @@ import { CLOUD, CLOUD_URL } from './cloud-config.js';
 import * as store from './store.js';
 import { feature, kitGame } from './remote-config.js';
 
-const GAMES = new Set(['cm', 'sc', 'pg']);
+const GAMES = new Set(['cm', 'sc', 'pg', 'ml', 'sk', 'sf', 'll', 'ib']);
 const TUNING_EVERY_MS = 6 * 3600 * 1000;
 const timers = {};
 

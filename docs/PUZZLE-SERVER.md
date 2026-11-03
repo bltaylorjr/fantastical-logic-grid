@@ -25,6 +25,14 @@ runs. The list of games is `engine/src/games.js`:
 | --- | --- | --- |
 | `flg` The Fantastical Logic Grid | `engine/src/flg-ops.js` | `generate` (build), `hint` |
 | `np` NINETIMESNINE | `engine/src/np-ops.js` | `generate` (build), `hint`, `move` (the Rival Grid's rival), `tide` and `ebb` (Tidewater), `check` (the Puzzle Wizard's one-answer check) |
+| `cm` Cage Math | `engine/src/cm-ops.js` | `generate` (build), `hint` |
+| `sc` Sum Cross | `engine/src/sc-ops.js` | `generate` (build), `hint` |
+| `pg` Picture Grid | `engine/src/pg-ops.js` | `generate` (build), `hint` |
+| `ml` More or Less | `engine/src/ml-ops.js` | `generate` (build), `hint` |
+| `sk` Skyline | `engine/src/sk-ops.js` | `generate` (build), `hint` |
+| `sf` Star Field | `engine/src/sf-ops.js` | `generate` (build), `hint` |
+| `ll` Loop Line | `engine/src/ll-ops.js` | `generate` (build), `hint` |
+| `ib` Island Bridges | `engine/src/ib-ops.js` | `generate` (build), `hint` |
 
 Each operations file is one table, `OPS`, used unchanged by all three places
 an engine runs:

@@ -31,6 +31,7 @@ import * as campaign from './campaign.js';
 import { countVisit } from './visit.js';
 import { initAccounts, openAccount, onHome as accountsOnHome, signedIn } from './account-ui.js';
 import * as competeUi from './compete-ui.js';
+import * as computerRace from './computer-race.js';
 import * as remote from './remote-config.js';
 import { socialLinks, socialHtml, DEFAULT_LINKS } from './social.js';
 import * as perks from './perks.js';
@@ -54,6 +55,7 @@ import * as license from './license.js';
 import * as licenseDownload from './license-download.js';
 import { addCloseButtons, closeDialog } from './dialog-close.js';
 import * as games from './games.js';
+import { knownMode, modeName, tableSvg, labSize, labRecord, labTuningFor, labNext } from './lab.js';
 
 addCloseButtons();
 
@@ -276,7 +278,7 @@ function showScreen(name) {
   $('#screen-play').hidden = name !== 'play';
   $('#screen-learn').hidden = name !== 'learn';
   $('#screen-np').hidden = name !== 'np';
-  for (const k of ['cm', 'sc', 'pg']) $(`#screen-${k}`).hidden = name !== k;
+  for (const { id: k } of Object.values(kitGames.KIT_GAMES)) $(`#screen-${k}`).hidden = name !== k;
   if (name !== 'learn') tutorial.close();
   if (name !== 'np') numberPlace.leave();
   kitGames.leave(name);
@@ -308,8 +310,9 @@ async function goHome({ focusSaved = false } = {}) {
 // ====================================================================
 // Setup screen
 // ====================================================================
+// mode: the Puzzle style (lab.js): classic (the default), timeline or seating.
 const setup = {
-  tier: 'easy', theme: 'random', topic: 'any', size: null, custom: [4, 4],
+  tier: 'easy', theme: 'random', topic: 'any', size: null, custom: [4, 4], mode: 'classic',
 };
 
 const sizesFor = (tierId) => tierSizes(TIERS[tierId]);
@@ -332,6 +335,7 @@ function renderSetup() {
     setup.topic = knownTopic(setup.theme, saved.topic);
     setup.size = knownSize(setup.tier, saved.size);
     setup.custom = knownCustom(saved.custom);
+    setup.mode = knownMode(saved.mode);
   }
 
   $('#tier-choices').innerHTML = tierChoicesHtml(OPTIONS.difficulties, setup.tier);
@@ -385,8 +389,26 @@ function renderSetup() {
   $('#cats').oninput = $('#items').oninput = () => { setup.custom = knownCustom([$('#cats').value, $('#items').value]); updatePreview(); };
   $('#clue-count').oninput = updatePreview;
   $('#setup').onsubmit = (e) => { e.preventDefault(); startGeneration(); };
+  // Puzzle style: Classic, Timeline Case or Seating Plan.
+  const modeInput = $(`input[name=puzzle-mode][value="${setup.mode}"]`);
+  if (modeInput) modeInput.checked = true;
+  $('#mode-choices').onchange = () => { setup.mode = knownMode($('input[name=puzzle-mode]:checked').value); showModeChoices(); updatePreview(); };
+  showModeChoices();
   $('#style-choices').onchange = () => { settings.silent = $('input[name=playstyle]:checked').value === 'silent'; store.saveSettings(settings); applyMode(); };
   updatePreview();
+}
+
+// While Timeline Case or Seating Plan is picked, the style sets the grid size
+// and clues and uses the theme's own world, so the Size, Topic and Clue types
+// choices hide.
+const modeActive = () => setup.mode !== 'classic';
+function showModeChoices() {
+  const sizeField = $('#size-choices').closest('fieldset');
+  if (sizeField) sizeField.hidden = modeActive();
+  const clueTypes = $('#clue-type-choices').closest('fieldset');
+  if (clueTypes) clueTypes.hidden = modeActive();
+  $('#mode-help').hidden = !modeActive();
+  renderTopics();
 }
 
 // Supporter extra themes this player can't pick yet (none for premium supporters).
@@ -413,7 +435,7 @@ function topicField() {
 function renderTopics() {
   const theme = OPTIONS.themes.find((t) => t.id === setup.theme);
   const topics = (theme && theme.topics) || [];
-  topicField().hidden = topics.length < 2 || topicsClosed;
+  topicField().hidden = topics.length < 2 || topicsClosed || modeActive();
   topicField().querySelector('legend').textContent = theme && topics.length > 1 ? `${theme.name} topics` : 'Topic';
   if (!topics.some((t) => t.id === setup.topic)) setup.topic = 'any';
   topicField().querySelector('#topic-choices').innerHTML = topics.map((t) => `
@@ -472,10 +494,19 @@ function updatePreview() {
   if (k >= 6 && n >= 7) $('#preview').textContent += ' Puzzles this big can take up to 20 seconds to write.';
   // A player-written story plays at the level and size its writer chose.
   if (setup.theme === 'stories') $('#preview').textContent = 'Player Stories play at the level and size their writer chose, with their own cast. Each story lists both under its name.';
+  if (modeActive()) {
+    const [lk, ln] = labSize(setup.mode, setup.tier) || [k, n];
+    const theme = OPTIONS.themes.find((t) => t.id === setup.theme);
+    const tier = TIERS[setup.tier].name;
+    const where = setup.theme === 'stories' ? 'with a story of its own (Player Stories are Classic puzzles)' : theme ? `set in the ${theme.name} theme` : 'in a surprise theme';
+    $('#preview').textContent = `${/^[AEIOU]/.test(tier) ? 'An' : 'A'} ${tier} ${modeName(setup.mode)} ${where}, with ${lk} categories of ${ln} ${setup.mode === 'seating' ? 'seats' : 'items'} each.`;
+    $('#size-warning').hidden = true;
+  }
   buildAheadSoon();
 }
 
-function gatherOptions() {
+// classic: true leaves the Puzzle style out (races are always Classic).
+function gatherOptions({ classic = false } = {}) {
   const [k, n] = currentSize();
   const o = { difficulty: setup.tier, theme: setup.theme, categories: k, items: n };
   if (setup.theme !== 'random' && setup.topic && setup.topic !== 'any') o.topic = setup.topic;
@@ -490,6 +521,15 @@ function gatherOptions() {
   const types = $$('#clue-type-choices input:checked').map((i) => i.value);
   const tierTypes = TIERS[setup.tier].clueTypes;
   if (types.length && (types.length !== tierTypes.length || types.some((t) => !tierTypes.includes(t)))) o.clueTypes = types;
+  // Timeline Case or Seating Plan: the story is set in the chosen theme; the
+  // style picks its own clue types and size (those choices are hidden).
+  if (modeActive() && !classic) {
+    o.mode = setup.mode;
+    delete o.topic;
+    delete o.clueTypes;
+    delete o.categories;
+    delete o.items;
+  }
   return o;
 }
 
@@ -510,11 +550,11 @@ async function rememberStory(id) {
 
 // A new puzzle from the setup choices, with a story this player has never had.
 // With `override` (a quick puzzle), the setup choices are neither read nor saved.
-async function makePuzzle(override = null) {
-  const options = override ? { ...override } : gatherOptions();
-  if (!override) store.saveSetupChoices({ tier: setup.tier, theme: setup.theme, topic: setup.topic, size: setup.size, custom: currentSize() });
+async function makePuzzle(override = null, { classic = false } = {}) {
+  const options = override ? { ...override } : gatherOptions({ classic });
+  if (!override) store.saveSetupChoices({ tier: setup.tier, theme: setup.theme, topic: setup.topic, size: setup.size, custom: currentSize(), mode: setup.mode });
   const key = JSON.stringify(options);
-  const tuned = await tuningFor(options.difficulty);
+  const tuned = await tuningForOptions(options);
   let made = null;
   // A puzzle built ahead for exactly these choices is used straight away,
   // unless its story was played in the meantime or learning has changed
@@ -539,7 +579,7 @@ async function makePuzzle(override = null) {
 async function buildPuzzle(options, generate, tuned = null) {
   const used = await store.getMeta('usedStories', []);
   const usedSet = new Set(used);
-  if (!tuned) tuned = await tuningFor(options.difficulty);
+  if (!tuned) tuned = await tuningForOptions(options);
   // Surprise me never picks a theme that is switched off, or a supporter extra
   // this player can't open.
   const off = new Set([...remote.disabledThemes(), ...lockedThemes()]);
@@ -555,7 +595,7 @@ async function buildPuzzle(options, generate, tuned = null) {
   // The game's own characters (made in the admin dashboard) may join the
   // cast or tell the story. Names the player typed always win.
   // Player Stories keep their writer's own cast, so no characters join.
-  const picked = options.customNames || options.theme === 'random' || options.theme === 'stories' ? {} : characters.pick(options.theme, options.items);
+  const picked = options.customNames || options.theme === 'random' || options.theme === 'stories' || options.mode ? {} : characters.pick(options.theme, options.items);
   if (picked.cast && picked.cast.length) options.customNames = picked.cast.map((c) => c.name);
   let puzzle = null;
   // The engine skips used stories itself; the loop is a safety net.
@@ -565,6 +605,14 @@ async function buildPuzzle(options, generate, tuned = null) {
   }
   if (!puzzle) throw new Error('Every story we tried has already been used. Try another theme.');
   return { puzzle, picked, tunedKey: JSON.stringify(tuned) };
+}
+
+// A Timeline Case or Seating Plan is tuned from its style's own record
+// (lab.js), never from the shared learning data.
+async function tuningForOptions(options) {
+  if (!options.mode) return tuningFor(options.difficulty);
+  if (!settings.learn) return {};
+  try { return await labTuningFor(options.mode, options.difficulty); } catch (e) { return {}; }
 }
 
 // Learning only picks between puzzles the engine has fully checked.
@@ -593,7 +641,7 @@ async function refreshAhead() {
   if (!was) return;
   const made = await was.job;
   if (ahead !== was || !made) return;
-  if (made.tunedKey !== JSON.stringify(await tuningFor(was.options.difficulty))) buildAhead(was.options, { force: true });
+  if (made.tunedKey !== JSON.stringify(await tuningForOptions(was.options))) buildAhead(was.options, { force: true });
 }
 // While the New puzzle screen is open, build ahead for what is chosen there
 // once the player pauses.
@@ -620,6 +668,17 @@ async function openRace(puzzle, race) {
   await rememberStory(storyIdOf(puzzle));
   const save = newSave(puzzle);
   save.race = { code: race.code, finished: false };
+  save.coach = false;
+  await store.putSave(save);
+  openGame(save, { fresh: true });
+  return save;
+}
+// A race against the computer (computer-race.js): a new puzzle, on this device only.
+async function openComputerRace(puzzle, skill) {
+  await rememberStory(storyIdOf(puzzle));
+  const save = newSave(puzzle);
+  const plays = (await learn.getState().catch(() => null))?.plays || [];
+  save.vsComputer = computerRace.newRace(save, skill, plays);
   save.coach = false;
   await store.putSave(save);
   openGame(save, { fresh: true });
@@ -813,6 +872,7 @@ function savedItem(s, fmt) {
     isNewSave(s) ? '<span class="pill new">New</span>' : '',
     s.gift ? '<span class="pill">From your storyline</span>' : '',
     s.race ? `<span class="pill">Race ${esc(s.race.code)}</span>` : '',
+    s.vsComputer ? '<span class="pill">Race vs computer</span>' : '',
     s.daily ? `<span class="pill">Daily ${esc(daily.longDate(s.daily))}</span>` : '',
     s.editionLabel ? `<span class="pill">${esc(s.editionLabel)}</span>` : '',
     (s.myNotes || '').trim() ? '<span class="pill">Has notes</span>' : '',
@@ -897,7 +957,9 @@ $('#saved-section').addEventListener('click', async (e) => {
   else if (act === 'delete') {
     const ok = await confirmDialog({ title: `Delete “${save.name}”?`, text: `This removes the puzzle and your progress from ${signedIn() ? 'all your devices' : 'this device'}. You can undo for 10 seconds.`, yes: 'Delete puzzle', no: 'Keep it' });
     if (!ok) return;
-    if (!save.solved && settings.learn) { await learn.record(save, 'abandoned').catch(() => {}); share.soon(); refreshAhead(); }
+    if (!save.solved && settings.learn && !(save.puzzle && save.puzzle.mode)) { await learn.record(save, 'abandoned').catch(() => {}); share.soon(); refreshAhead(); }
+    // A Timeline Case or Seating Plan given up goes to its style's own record only.
+    if (!save.solved && settings.learn && save.puzzle && save.puzzle.mode) { await labRecord(save, 'abandoned').catch(() => {}); refreshAhead(); }
     await store.deleteSave(id);
     await renderSaved();
     $('#saved-h').focus();
@@ -1610,7 +1672,7 @@ function syncSolvedView() {
 
 async function startOver() {
   const s = S.save;
-  const racing = !!(s.race && !s.race.finished);
+  const racing = !!(s.race && !s.race.finished) || !!(s.vsComputer && !s.vsComputer.done);
   if (!S.marks.size && !S.queries.size && !s.ticked.length && !Object.values(s.answers).some(Boolean) && !s.elapsedMs && !s.hintsUsed && !s.checksUsed) {
     status('This puzzle is already at the start.');
     return;
@@ -1644,7 +1706,7 @@ async function startOver() {
 
 async function reveal() {
   if (S.save.solved && !S.save.revealed) { status('This puzzle is already solved.'); return; }
-  const raceNote = S.save.race && !S.save.race.finished ? ' In a race this counts as giving up.' : '';
+  const raceNote = (S.save.race && !S.save.race.finished) || (S.save.vsComputer && !S.save.vsComputer.done) ? ' In a race this counts as giving up.' : '';
   const ok = await confirmDialog({ title: 'Reveal the solution?', text: `Every cell will be filled in and this puzzle will no longer count as solved by you.${raceNote} You can undo for 10 seconds.`, yes: 'Reveal solution', no: 'Keep solving' });
   if (!ok) return;
   const wasRevealed = S.save.revealed;
@@ -1671,12 +1733,16 @@ function checkSolved() {
     clearTimeout(tryAgainTimer);
     if (Date.now() - lastTryAgain < 4000) ai.stopSpeaking();
     S.save.completedAt = Date.now();
-    // The daily, weekly and special puzzles' answers are on the website, so they earn no scoreboard points.
-    if (!S.save.race && !S.save.daily && !S.save.edition && !S.save.challenge && !S.save.revealed && !S.save.restarted) S.save.scorePending = true;
+    // The daily, weekly and special puzzles' answers are on the website, so they earn no scoreboard points;
+    // nor do Timeline Case and Seating Plan puzzles (puzzle.mode), which stay off the scoreboard.
+    if (!S.save.race && !S.save.daily && !S.save.edition && !S.save.challenge && !S.save.revealed && !S.save.restarted && !S.puzzle.mode) S.save.scorePending = true;
     tickTimer();
     recordSolve(S.save);
     if (!S.save.revealed) campaign.solved();
-    if (settings.learn) learn.record(S.save, S.save.revealed ? 'revealed' : 'solved').then(() => { share.soon(); refreshAhead(); }, () => {});
+    // Timeline Case and Seating Plan puzzles are left out of the shared learning data.
+    if (settings.learn && !S.puzzle.mode) learn.record(S.save, S.save.revealed ? 'revealed' : 'solved').then(() => { share.soon(); refreshAhead(); }, () => {});
+    // They go to their style's own small record instead (lab.js).
+    if (S.puzzle.mode) S.labRecorded = (settings.learn ? labRecord(S.save, S.save.revealed ? 'revealed' : 'solved') : Promise.resolve()).then(() => refreshAhead(), () => {});
     stopTimer();
     showSolved(true);
     scheduleSave();
@@ -1685,6 +1751,24 @@ function checkSolved() {
     $('#solved').hidden = true;
     startTimer();
   }
+}
+
+// A Timeline Case or Seating Plan's next-difficulty suggestion comes from its style's own record.
+async function showLabNext(save) {
+  try { await S.labRecorded; } catch (e) { /* none */ }
+  if (!settings.learn) return;
+  const s = await labNext(S.puzzle.mode, TIER_IDS, (id) => TIERS[id].name).catch(() => null);
+  if (!s || !S || S.save !== save) return;
+  $('#next-tip').textContent = s.text;
+  const tier = S.puzzle.difficulty.id;
+  $('#next-btn').textContent = s.tier === tier ? `New ${TIERS[tier].name} puzzle` : `Try ${TIERS[s.tier].name}`;
+  $('#next-btn').onclick = () => {
+    setup.tier = s.tier;
+    setup.size = null;
+    store.saveSetupChoices({ ...setup, custom: setup.custom });
+    renderSetup();
+    goHome();
+  };
 }
 
 function fmtTime(ms) {
@@ -1699,6 +1783,9 @@ function showSolved(celebrate) {
   const i = TIER_IDS.indexOf(tier);
   $('#solved-h').textContent = save.revealed ? 'Solution revealed' : 'Case closed!';
   $('#ending').textContent = S.puzzle.story.ending;
+  // A solved Seating Plan shows its round table.
+  $('#mode-table')?.remove();
+  if (S.puzzle.mode === 'seating') $('#ending').insertAdjacentHTML('afterend', `<div id="mode-table">${tableSvg(S.puzzle)}</div>`);
   $('#solved-stats').innerHTML = [
     ['Time', fmtTime(save.elapsedMs)], ['Hints used', Number(save.hintsUsed) || 0], ['Checks', Number(save.checksUsed) || 0],
   ].map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('');
@@ -1722,6 +1809,7 @@ function showSolved(celebrate) {
     renderSetup();
     goHome();
   };
+  if (S.puzzle.mode) showLabNext(save);
   const res = $('#resolution');
   const winner = winnerOf(S.puzzle, S.ix);
   const bg = S.sceneUrl ? `<img class="bg" src="${S.sceneUrl}" alt="">` : sceneSvg(S.puzzle, 5, { animate: false });
@@ -1764,7 +1852,7 @@ function showSolved(celebrate) {
 function reportResult(save) {
   const pairs = () => markList().filter((m) => m.mark === 'O').map((m) => [m.a, m.b]);
   const send = () => { if (S && S.save === save && save.solved) competeUi.onSolved(save, pairs()); };
-  if (save.race && save.revealed && !save.race.finished) setTimeout(send, 11000);
+  if ((save.race && save.revealed && !save.race.finished) || (save.vsComputer && save.revealed && !save.vsComputer.done)) setTimeout(send, 11000);
   else send();
 }
 
@@ -1782,6 +1870,7 @@ async function renderFeedback(save) {
   $('#feedback-thanks').textContent = '';
 }
 async function saveRating(v) {
+  if (S && S.puzzle.mode) { $('#feedback-thanks').textContent = `Thanks. ${modeName(S.puzzle.mode)} puzzles adapt to how you play them, so ratings are not used for them yet.`; return; }
   await learn.rate(S.save, v, { keepLocal: !settings.learn }).catch(() => {});
   refreshAhead();
   $('#feedback-thanks').textContent = settings.learn ? 'Thanks. Your next puzzles will use this.' : 'Thanks. This stays on your device, because Learn from how I play is off.';
@@ -1806,7 +1895,8 @@ $('#feedback-idea').onclick = () => { location.href = 'wizard/?game=fantastical'
 // Streak, new badges and Share my result on the solved panel.
 async function renderSolvedExtras(save) {
   $('#share-result').hidden = !!save.revealed;
-  $('#challenge-btn').hidden = !!save.revealed || !!save.race || !challenge.available();
+  // Timeline Case and Seating Plan puzzles stay out of races and challenges.
+  $('#challenge-btn').hidden = !!save.revealed || !!save.race || !!(save.puzzle && save.puzzle.mode) || !challenge.available();
   renderChallenge(save);
   $('#share-note').textContent = '';
   const box = $('#solved-badges');
@@ -2294,6 +2384,7 @@ function tickTimer() {
   if (!document.hidden) S.save.elapsedMs += now - S.started;
   S.started = now;
   renderTimer();
+  competeUi.onTick(S.save);
 }
 function renderTimer() {
   $('#timer').hidden = !settings.showTimer;
@@ -2589,14 +2680,19 @@ function voiceWaitNote() {
 
 // Adaptive difficulty: suggest a level from the last few solves.
 async function recordSolve(save) {
+  // Timeline Case and Seating Plan puzzles count toward stats, streaks and
+  // badges like any other; only Classic puzzles feed the level suggestion
+  // below (the other styles suggest from their own record, lab.js).
   const { K, N } = S.ix;
   // The stats page, daily streak and badges. First, because a new solve log
   // starts from the history below.
   let fresh = [];
   try { fresh = await stats.record(save); } catch (e) { /* stats are optional */ }
-  const hist = await store.getMeta('history', []);
-  hist.push({ tier: save.puzzle.difficulty.id, ms: save.elapsedMs, hints: save.hintsUsed, revealed: !!save.revealed, cells: (K * (K - 1) / 2) * N * N, at: Date.now() });
-  await store.setMeta('history', hist.slice(-50));
+  if (!save.puzzle.mode) {
+    const hist = await store.getMeta('history', []);
+    hist.push({ tier: save.puzzle.difficulty.id, ms: save.elapsedMs, hints: save.hintsUsed, revealed: !!save.revealed, cells: (K * (K - 1) / 2) * N * N, at: Date.now() });
+    await store.setMeta('history', hist.slice(-50));
+  }
   if (S && S.save === save) { S.newBadges = fresh; renderSolvedExtras(save); renderSupportAsk(save); }
   if (fresh.length) {
     sound('section');
@@ -2880,11 +2976,12 @@ function openGameVideo(video, title) {
   $('#game-video-h').textContent = title;
   v.poster = `media/games/${video}.jpg`;
   v.replaceChildren(Object.assign(document.createElement('source'), { src: `media/games/${video}.mp4`, type: 'video/mp4' }),
-    Object.assign(document.createElement('track'), { kind: 'captions', srclang: 'en', label: 'English', src: `media/games/${video}.vtt` }));
+    Object.assign(document.createElement('track'), { kind: 'captions', srclang: 'en', label: 'English', src: `media/games/${video}.vtt`, default: true }));
   v.load();
   try { ai.stopSpeaking(); } catch (e) { /* ignore */ }
   openDialog($('#dlg-game-video'), v);
-  v.play().catch(() => { /* the player's own Play button */ });
+  // Closed before playback started (a quick X)? Then it stays stopped.
+  v.play().then(() => { if (!$('#dlg-game-video').open) v.pause(); }).catch(() => { /* the player's own Play button */ });
 }
 $('#games-intro-btn').onclick = () => openGameVideo('the-logic-grid', 'Introducing The Logic Grid');
 $('#game-video-close').onclick = () => $('#dlg-game-video').close();
@@ -2918,9 +3015,10 @@ async function openNumberPlace(mode = null) {
 }
 $('#np-back').onclick = () => openGames();
 
-// Cage Math, Sum Cross and Picture Grid: each its own screen with the game's
-// look (web/js/kit-games.js). The website gives each its own page (cage-math/,
-// sum-cross/, picture-grid/, scripts/hub.mjs).
+// The grid-kit games (Cage Math, Sum Cross, Picture Grid, More or Less,
+// Skyline, Star Field, Loop Line, Island Bridges): each its own screen with the
+// game's look (web/js/kit-games.js). The website gives each its own page
+// (cage-math/, skyline/, ..., scripts/hub.mjs).
 async function openKitGame(card) {
   if (!kitGames.enabled(card)) { goHome(); return; }
   if (SITE_HUB) { toSitePage(`${kitGames.KIT_GAMES[card].dir}/`); return; }
@@ -2929,7 +3027,7 @@ async function openKitGame(card) {
   window.scrollTo(0, 0);
   await kitGames.open(card, { celebrate: () => celebrateSolve(settings.celebrations, { random: settings.celebrateRandom }), setWorld });
 }
-for (const k of ['cm', 'sc', 'pg']) $(`#${k}-back`).onclick = () => openGames();
+for (const { id: k } of Object.values(kitGames.KIT_GAMES)) $(`#${k}-back`).onclick = () => openGames();
 
 // How to play: the step-by-step tutorial and the tips page (tutorial.js).
 // The narrated video is the Introduction.
@@ -3105,7 +3203,9 @@ async function applyUpdate() {
 document.addEventListener('visibilitychange', () => { applyUpdate(); });
 
 $('#welcome-skip').onclick = () => { $('#dlg-welcome').close(); startQuick(); };
-$('#welcome-watch').onclick = () => { $('#dlg-welcome').close(); openVideo(); };
+// The welcome's video is the tour of the whole site (video/wizard.cjs, The Logic Grid intro);
+// the game's own Introduction stays at the top of the page.
+$('#welcome-watch').onclick = () => { $('#dlg-welcome').close(); openGameVideo('the-logic-grid', 'A tour of The Logic Grid'); };
 $('#back-saved').onclick = async () => { await goHome({ focusSaved: true }); setSavedOpen(true); $('#saved-section').scrollIntoView(); };
 
 const ACTIONS = {
@@ -3329,7 +3429,9 @@ async function init() {
   puzzleReport.init({ openDialog, openAccount, announce });
   puzzleReport.openRepaired(addRepairedPuzzle);
   competeUi.initCompete({
-    openDialog, toast, announce, confirmDialog, openAccount, fmtTime, makePuzzle, setupSummary, openRace, findRaceSave,
+    // Races are always Classic puzzles, whatever the Puzzle style.
+    openDialog, toast, announce, confirmDialog, openAccount, fmtTime, makePuzzle: () => makePuzzle(null, { classic: true }),
+    setupSummary: () => `${setupSummary()}${modeActive() ? ' · Classic style' : ''}`, openRace, findRaceSave, openComputerRace,
     openSave: (save) => openGame(save),
     currentTier: () => setup.tier,
     usedStories: () => store.getMeta('usedStories', []),
@@ -3385,4 +3487,4 @@ function afterLoad(fn, delay) {
 init();
 
 // For tests and debugging.
-window.__flg = { get state() { return S; }, settings: () => settings, get tutorial() { return tutorial.state(); } };
+window.__flg = { get state() { return S; }, settings: () => settings, get tutorial() { return tutorial.state(); }, gatherOptions: () => gatherOptions(), raceOptions: () => gatherOptions({ classic: true }) };

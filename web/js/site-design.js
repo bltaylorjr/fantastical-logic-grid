@@ -22,7 +22,7 @@ const SHOW = [pick('show', 'Show'), pick('hide', 'Hide')];
 const DEFAULT_TEXT = {
   heroEyebrow: 'Puzzle games',
   heroTitle: 'Pick your puzzle.',
-  heroText: 'Five puzzle games, free to play in your browser. No guessing needed in any of them — every puzzle can be solved by reasoning alone.',
+  heroText: 'Ten puzzle games, free to play in your browser. No guessing needed in any of them — every puzzle can be solved by reasoning alone.',
   flgTag: 'Story logic puzzles',
   flgText: 'Read the clues, mark the grid, and work out who did what. Every puzzle tells a story.',
   flgButton: 'Play The Fantastical Logic Grid',
@@ -34,7 +34,7 @@ const DEFAULT_TEXT = {
   footerNote: 'Questions?',
   infoPlay: 'Play free',
   hubTitle: 'The Logic Grid | Free logic and number puzzle games',
-  hubDescription: 'The Logic Grid: free logic and number puzzle games. The Fantastical Logic Grid, NINETIMESNINE, Cage Math, Sum Cross and Picture Grid, in your browser.',
+  hubDescription: 'The Logic Grid: ten free logic and number puzzle games in your browser, from The Fantastical Logic Grid and NINETIMESNINE to Cage Math, Skyline and Loop Line.',
   npTitle: 'NINETIMESNINE | Free number puzzles | The Logic Grid',
   npDescription: 'Free number puzzles: fill the grid so every row, column and box holds each number once. Classic, Rival Grid, Chain Reaction, Tidewater and Glyph Quest.',
 };
@@ -126,7 +126,9 @@ export const defaults = () => Object.fromEntries(OPTIONS.map((o) => [o.key, o.de
 // else falls back to the default, so a bad save can never break a page.
 export function normalize(input) {
   const out = defaults();
+  out.edits = [];
   if (!input || typeof input !== 'object') return out;
+  out.edits = normalizeEdits(input.edits);
   for (const o of OPTIONS) {
     const v = input[o.key];
     if (o.type === 'select') { if (o.choices.some((c) => c.value === v)) out[o.key] = v; continue; }
@@ -140,8 +142,16 @@ export function normalize(input) {
 // Only the choices that differ from the defaults (what is saved and published).
 export function changes(design) {
   const d = normalize(design);
-  return Object.fromEntries(OPTIONS.filter((o) => d[o.key] !== o.default).map((o) => [o.key, d[o.key]]));
+  const out = Object.fromEntries(OPTIONS.filter((o) => d[o.key] !== o.default).map((o) => [o.key, d[o.key]]));
+  if (d.edits.length) out.edits = d.edits;
+  return out;
 }
+
+// How many things differ from the original design: each option, and each change made on a page.
+export const countChanges = (design) => {
+  const c = changes(design);
+  return Object.keys(c).filter((k) => k !== 'edits').length + (c.edits ? c.edits.length : 0);
+};
 
 const FONTS = {
   cinzel: '"Cinzel", "Iowan Old Style", "Palatino Linotype", Georgia, serif',
@@ -201,3 +211,136 @@ export const texts = (design) => {
   return Object.fromEntries(OPTIONS.filter((o) => o.type !== 'select').map((o) => [o.key, d[o.key]]));
 };
 export const optionFor = (key) => BY_KEY[key];
+
+// ---------- changes made on the page itself ----------
+// The dashboard's page editor (Website > Edit on the page) records each change
+// as a small step: new words for one element, hiding it, or moving it before
+// or after another element. Steps name elements by their place in the page as
+// it was built ("#games>article:2>h2" = the 2nd article in the element with id
+// "games", then its heading), plus the first words of the element, so a step
+// is skipped, never applied to the wrong element, if the page has changed since.
+// The same code applies the steps in the dashboard's preview and for visitors
+// (js/design-preview.js). Words are plain text only.
+export const EDIT_MAX = 400;
+export const EDIT_TEXT_MAX = 600;
+const PATH_RE = /^(body|#[A-Za-z][\w-]{0,60})(>[a-z][a-z0-9-]{0,20}:\d{1,3}){0,30}$/;
+const PAGE_RE = /^[a-z0-9][a-z0-9/._-]{0,80}$|^$/;
+const plain = (v, max) => String(v ?? '').replace(/[<>]/g, '').replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max).trim();
+
+export function normalizeEdits(list) {
+  if (!Array.isArray(list)) return [];
+  const out = [];
+  for (const e of list.slice(0, EDIT_MAX)) {
+    if (!e || typeof e !== 'object' || typeof e.p !== 'string' || !PAGE_RE.test(e.p) || typeof e.t !== 'string' || !PATH_RE.test(e.t)) continue;
+    const step = { p: e.p, t: e.t, g: plain(e.g, 60), op: e.op };
+    if (e.n) step.n = plain(e.n, 40);
+    if (e.op === 'text') { step.v = plain(e.v, EDIT_TEXT_MAX); if (!step.v) continue; }
+    else if (e.op === 'move') {
+      if (typeof e.to !== 'string' || !PATH_RE.test(e.to) || e.to === e.t || (e.at !== 'before' && e.at !== 'after')) continue;
+      step.to = e.to; step.tg = plain(e.tg, 60); step.at = e.at;
+    } else if (e.op !== 'hide') continue;
+    out.push(step);
+  }
+  return out;
+}
+
+// The words that identify an element: its first 60 characters of text, or a
+// picture's description. Words set by the options (data-design-text) are left
+// out, so changing an option later never loses a page change.
+export function guardOf(el) {
+  const key = el.getAttribute('data-design-text');
+  if (key) return `design:${key}`;
+  let t = '';
+  const walk = (n) => {
+    for (const c of n.childNodes) {
+      if (t.length > 300) return;
+      if (c.nodeType === 3) t += c.data;
+      else if (c.nodeType === 1 && !c.hasAttribute('data-design-text') && !['script', 'style', 'svg', 'template'].includes(c.localName)) { t += ' '; walk(c); }
+    }
+  };
+  walk(el);
+  // The same tidying as saved steps get, so the two always compare equal.
+  t = plain(t, 60);
+  if (t) return t;
+  if (el.localName === 'img') return plain(el.getAttribute('alt') || (el.getAttribute('src') || '').split('/').pop(), 60);
+  return '';
+}
+
+// The element's address in the page, from the nearest ancestor with an id.
+export function pathOf(el) {
+  const doc = el.ownerDocument;
+  const segs = [];
+  for (let n = el; n && n !== doc.body; n = n.parentElement) {
+    if (!n.parentElement) return null; // not in the page
+    if (n.id && /^[A-Za-z][\w-]{0,60}$/.test(n.id) && doc.querySelectorAll(`#${n.id}`).length === 1) { segs.unshift(`#${n.id}`); return segs.join('>'); }
+    let i = 1;
+    for (let s = n.previousElementSibling; s; s = s.previousElementSibling) if (s.localName === n.localName) i++;
+    segs.unshift(`${n.localName}:${i}`);
+  }
+  segs.unshift('body');
+  return segs.join('>');
+}
+
+// Finds the element a step names; if the page changed, the one element with the
+// same tag and words (or none, and the step is skipped).
+export function resolvePath(doc, path, guard) {
+  const [first, ...rest] = path.split('>');
+  const root = first === 'body' ? doc.body : doc.getElementById(first.slice(1));
+  let el = root;
+  for (const seg of rest) {
+    if (!el) break;
+    const [tag, nth] = seg.split(':');
+    let i = 0;
+    el = [...el.children].find((c) => c.localName === tag && ++i === Number(nth)) || null;
+  }
+  if (el && guardOf(el) === guard) return el;
+  if (!root || !guard) return null;
+  const tag = rest.length ? rest[rest.length - 1].split(':')[0] : null;
+  if (!tag) return null;
+  const same = [...root.querySelectorAll(tag)].filter((c) => guardOf(c) === guard);
+  return same.length === 1 ? same[0] : null;
+}
+
+// Applies one page's steps. All elements are found first, in the page as built,
+// then the steps run in order. Returns a function that puts everything back.
+export function applyEdits(doc, edits, page, keep = {}) {
+  const steps = normalizeEdits(edits).filter((e) => e.p === page);
+  const found = steps.map((e) => ({ e, el: resolvePath(doc, e.t, e.g), to: e.op === 'move' ? resolvePath(doc, e.to, e.tg) : null }));
+  const undo = [];
+  const origText = keep.origText || new WeakMap();
+  let applied = 0;
+  const missed = [];
+  for (const { e, el, to } of found) {
+    if (!el) { missed.push(e); continue; }
+    if (e.op === 'text') {
+      if (el.children.length) { missed.push(e); continue; } // only elements that hold words alone
+      if (!origText.has(el)) origText.set(el, el.textContent);
+      const was = el.textContent;
+      el.textContent = e.v;
+      undo.push(() => { el.textContent = origText.get(el) ?? was; });
+    } else if (e.op === 'hide') {
+      const was = el.style.getPropertyValue('display');
+      const pri = el.style.getPropertyPriority('display');
+      el.style.setProperty('display', 'none', 'important');
+      el.setAttribute('data-design-hidden', '');
+      undo.push(() => { el.removeAttribute('data-design-hidden'); if (was) el.style.setProperty('display', was, pri); else el.style.removeProperty('display'); });
+    } else if (e.op === 'move') {
+      if (!to || to === el || el.contains(to) || !to.parentElement) { missed.push(e); continue; }
+      const parent = el.parentElement;
+      const next = el.nextSibling;
+      to.parentElement.insertBefore(el, e.at === 'before' ? to : to.nextSibling);
+      undo.push(() => { if (next && next.parentNode === parent) parent.insertBefore(el, next); else parent.append(el); });
+    }
+    applied++;
+  }
+  return { applied, skipped: steps.length - applied, missed, undo: () => { for (let i = undo.length - 1; i >= 0; i--) undo[i](); } };
+}
+
+// A short description of a step, for the dashboard's list of changes.
+export function describeEdit(e) {
+  const what = e.n || 'Element';
+  const words = e.g ? ` "${e.g.length > 40 ? `${e.g.slice(0, 40)}…` : e.g}"` : '';
+  if (e.op === 'text') return `${what}${words}: new words "${e.v.length > 50 ? `${e.v.slice(0, 50)}…` : e.v}"`;
+  if (e.op === 'hide') return `${what}${words}: hidden`;
+  return `${what}${words}: moved ${e.at === 'before' ? 'before' : 'after'} "${(e.tg || 'another element').slice(0, 40)}"`;
+}
