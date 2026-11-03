@@ -159,8 +159,7 @@ class Race {
     // Inside the app, its own account window; on a game's page, the Account page.
     const item = document.querySelector('#app-menu [data-cmd="account"]');
     if (item && !item.hidden) { item.click(); return; }
-    const back = location.pathname + (this.pending ? `?race=${this.pending}` : location.search);
-    location.href = new URL(`../account/?next=${encodeURIComponent(back)}`, location.href).href;
+    location.href = new URL(`../account/?game=${this.game}${this.pending ? `&race=${this.pending}` : ''}`, location.href).href;
   }
   openName() { document.getElementById(`${this.game}-race-name`).value = this.name || ''; this.show('name', 'Choose a screen name'); }
 

@@ -9,9 +9,16 @@ import * as compete from './compete.js';
 import * as remote from './remote-config.js';
 
 const $ = (s) => document.querySelector(s);
-// ?next=/ninetimesnine/?race=CODE: a game sent the player here to sign in (a
-// race link opened while signed out); they go back there once signed in.
-const next = (() => { const n = new URLSearchParams(location.search).get('next') || ''; return /^\/(?![/\\])[^\s]*$/.test(n) ? n : ''; })();
+// ?game=np&race=CODE: a game sent the player here to sign in to race; once
+// signed in they go back to that game's page (and the race). Only the games'
+// own pages and a well-formed race code are ever used.
+const next = (() => {
+  const q = new URLSearchParams(location.search);
+  const game = Object.keys(compete.GAME_PAGES).find((g) => g === q.get('game'));
+  if (!game) return '';
+  const code = compete.cleanCode(q.get('race'));
+  return `../${compete.GAME_PAGES[game]}${compete.CODE.test(code) ? `?race=${code}` : ''}`;
+})();
 
 // The player's color theme, as in the game; never inside another site's frame.
 try { const s = JSON.parse(localStorage.getItem('flg.settings') || '{}'); if (s.colorTheme && s.colorTheme !== 'system') document.documentElement.dataset.theme = s.colorTheme; } catch (e) { /* default */ }

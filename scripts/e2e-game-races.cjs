@@ -115,13 +115,16 @@ function startAuth(signer) {
     const B = await device('B');
     await open(B, `ninetimesnine/?race=${code}`, 'np');
     assert((await B.textContent('#np-race-card')).includes(`Sign in to join race ${code}`), 'a race link asks a signed-out player to sign in');
+    assert(await B.isVisible('#np-race-card [data-race=signin]'), 'the card offers Sign in to race');
     await signUp(B, 'ben@example.com');
     await B.evaluate(async () => (await import('/js/compete.js')).setName('Ben Swift'));
     // Approve both names the way an admin does, so each sees the other's name.
     await db.prepare("INSERT OR REPLACE INTO name_reviews (user_id, name_key, reviewed_by, reviewed_at) SELECT user_id, name_key, 'test', 1 FROM players").run();
-    await B.goto(`${APP}/ninetimesnine/?race=${code}`);
+    // Signing in on the Account page brings the player back to the race (as the Sign in button does).
+    await B.goto(`${APP}/account/?game=np&race=${code}&next=https://evil.example/`);
+    await B.waitForURL(new RegExp(`/ninetimesnine/\\?race=${code}$|/ninetimesnine/$`), { timeout: 30000 });
     await B.waitForSelector('#np-play-view .race-bar:not([hidden])', { timeout: 30000 });
-    assert(true, 'a signed-in player joins straight from the race link');
+    assert(true, 'once signed in, the Account page sends the player back to the race, who joins it');
     const same = await Promise.all([A, B].map((p) => p.evaluate(async () => (await import('/modules/number-place/ui.js')).state().p.fingerprint)));
     assert(same[0] === same[1], 'both players have the very same puzzle');
 
