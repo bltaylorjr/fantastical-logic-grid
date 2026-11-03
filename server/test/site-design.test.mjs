@@ -7,7 +7,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Miniflare } from 'miniflare';
-import { CATEGORIES, OPTIONS, defaults, normalize, changes, css, attributes, texts } from '../../web/js/site-design.js';
+import { CATEGORIES, OPTIONS, defaults, normalize, changes, css, attributes, texts, normalizeEdits, countChanges, describeEdit, EDIT_MAX } from '../../web/js/site-design.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const ORIGIN = 'https://thelogicgrid.com';
@@ -68,6 +68,33 @@ test('the default design changes nothing, and only known choices are kept', () =
   assert.equal(texts(d).heroTitle, 'bHello/b there');
   assert.match(css({ accentLight: '#0E7490' }), /--accent:#0E7490/);
   assert.doesNotMatch(css({ accentLight: '#0E7490' }), /data-theme="contrast"\]\{/, 'high contrast is never restyled');
+});
+
+test('page changes (Edit on the page): only plain words, hide and move, with real addresses', () => {
+  const good = [
+    { p: '', t: '#games>article:1>div:2>ul:1>li:1', g: 'Choose a difficulty', op: 'text', v: '  New <b>words</b>\n here ', n: 'List item' },
+    { p: 'how-to-play/', t: 'body>main:1>p:3', g: 'x', op: 'hide' },
+    { p: '', t: '#games>article:2', g: 'NINETIMESNINE', op: 'move', to: '#games>article:1', tg: 'The Fantastical', at: 'before' },
+  ];
+  const bad = [
+    { p: '', t: 'main p', g: '', op: 'hide' }, // not an address
+    { p: '../x', t: 'body>p:1', g: '', op: 'hide' }, // not a page
+    { p: '', t: 'body>p:1', g: '', op: 'html', v: '<script>' }, // not a kind of change
+    { p: '', t: 'body>p:1', g: '', op: 'text', v: '   ' }, // no words
+    { p: '', t: 'body>p:1', g: '', op: 'move', to: 'body>p:1', at: 'before' }, // onto itself
+    { p: '', t: 'body>p:1', g: '', op: 'move', to: 'body>p:2', at: 'inside' },
+    'nonsense', null,
+  ];
+  const out = normalizeEdits([...good, ...bad]);
+  assert.equal(out.length, 3, 'only the three good changes are kept');
+  assert.equal(out[0].v, 'New bwords/b here', 'words are plain, tidy text');
+  assert.deepEqual(Object.keys(out[2]).sort(), ['at', 'g', 'op', 'p', 't', 'tg', 'to']);
+  assert.equal(normalizeEdits(Array.from({ length: EDIT_MAX + 50 }, () => good[1])).length, EDIT_MAX, 'at most EDIT_MAX changes');
+  const d = changes({ corners: 'square', edits: good });
+  assert.equal(d.edits.length, 3);
+  assert.equal(countChanges(d), 4, 'each page change counts, plus each option');
+  assert.deepEqual(changes({ edits: [] }), {}, 'no page changes, nothing stored');
+  assert.match(describeEdit(out[2]), /moved before "The Fantastical"/);
 });
 
 test('draft, publish, history and the public copy', async () => {

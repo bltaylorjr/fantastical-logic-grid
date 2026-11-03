@@ -92,6 +92,8 @@ jobs:
           node scripts/e2e-archive.cjs
           node scripts/e2e-educators.cjs
           node scripts/e2e-license.cjs
+      - name: The admin dashboard's website editor (Edit on the page, its own window, Publish) against the real Worker
+        run: node scripts/e2e-admin-website.cjs
       - name: Private puzzle server, and a site built in server mode (docs/PUZZLE-SERVER.md)
         run: |
           node puzzle-server/test/server.test.mjs
