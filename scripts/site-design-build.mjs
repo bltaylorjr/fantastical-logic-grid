@@ -50,7 +50,7 @@ export async function applySiteDesign({ site, base, design: given }) {
     let html = readFileSync(join(site, page), 'utf8');
     if (!/<\/head>/.test(html)) continue;
     // Every game's own page (ninetimesnine/, cage-math/, ...) has the same layout.
-    const kind = page === 'index.html' ? 'hub' : /^(ninetimesnine|cage-math|sum-cross|picture-grid)\/index\.html$/.test(page) ? 'np' : 'info';
+    const kind = page === 'index.html' ? 'hub' : /^(ninetimesnine|cage-math|sum-cross|picture-grid|more-or-less|skyline|star-field|loop-line|island-bridges)\/index\.html$/.test(page) ? 'np' : 'info';
     html = html.replace(/<html([^>]*)>/, (m, rest) => `<html${rest.replace(/\s(data-site|data-fx-[\w-]+|data-card-[\w-]+|data-hero-[\w-]+|data-theme-picker|data-footer-links|data-app-section|data-np-[\w-]+|data-info-[\w-]+|data-shadows)="[^"]*"/g, '')} data-site="${kind}"${attrs}>`);
     html = html.replace(/<style id="site-design">[\s\S]*?<\/style>\s*/, '').replace(/<script type="module" src="[^"]*js\/design-preview\.js"><\/script>\s*/, '');
     // 404.html is served at any depth, so its address starts at the site root.

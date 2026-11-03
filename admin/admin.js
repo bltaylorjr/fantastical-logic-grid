@@ -1408,13 +1408,24 @@ $('#np-body').onclick = (e) => {
 };
 $('#np-days').onchange = () => show('numberplace', { keepFocus: true });
 
-// Cage Math, Sum Cross and Picture Grid: one section each, the same shape as
+// The grid-kit games (Cage Math, Sum Cross, Picture Grid, More or Less, Skyline,
+// Star Field, Loop Line, Island Bridges): one section each, the same shape as
 // NINETIMESNINE's (server/src/kit-games.js), with its own settings group.
-const KIT_SECTIONS = { cm: { view: 'cagemath', group: 'Cage Math' }, sc: { view: 'sumcross', group: 'Sum Cross' }, pg: { view: 'picturegrid', group: 'Picture Grid' } };
+const KIT_SECTIONS = {
+  cm: { view: 'cagemath', group: 'Cage Math' }, sc: { view: 'sumcross', group: 'Sum Cross' }, pg: { view: 'picturegrid', group: 'Picture Grid' },
+  ml: { view: 'moreorless', group: 'More or Less' }, sk: { view: 'skyline', group: 'Skyline' }, sf: { view: 'starfield', group: 'Star Field' },
+  ll: { view: 'loopline', group: 'Loop Line' }, ib: { view: 'islandbridges', group: 'Island Bridges' },
+};
 const KIT_TECH_NAMES = {
   cm: { nakedSingle: 'Only number left', hiddenSingle: 'Only place left', cageCombo: 'Cage combinations', cageLine: 'Cage claims a line', nakedPair: 'Matching pair', hiddenPair: 'Hidden pair', nakedTriple: 'Matching three', cageTotal: 'Line total' },
   sc: { nakedSingle: 'Only number left', hiddenSingle: 'A run needs it here', combo: 'Run combinations', comboFit: 'Fitting the combinations', nakedPair: 'Matching pair', nakedTriple: 'Matching three' },
   pg: { overlap: 'Overlapping runs', finish: 'Finished line', edge: 'Pushing from the edge', reach: 'Out of reach', cross: 'Working both ways' },
+  // The same names as each engine's list of steps (engine/src/<game>.js).
+  ml: { nakedSingle: 'Only number left', hiddenSingle: 'Only place left', signLimit: 'Sign limits', signChain: 'Sign chains', nakedPair: 'Matching pair', hiddenPair: 'Hidden pair', nakedTriple: 'Matching three' },
+  sk: { nakedSingle: 'Only number left', hiddenSingle: 'Only place left', edgeOne: 'Edge 1', edgeAll: 'Edge sees all', distance: 'Distance limits', visibility: 'Visibility counting', nakedPair: 'Matching pair', hiddenPair: 'Hidden pair', nakedTriple: 'Matching three' },
+  sf: { neighbour: 'Stars never touch', finished: 'Finished line or region', onlyPlace: 'Only room left', squeeze: 'Region claims a line', touchAll: 'Touching every choice', blocks: 'One star per 2×2 block', noRoom: 'No room left', groups: 'Regions share lines', chain: 'Following it through' },
+  ll: { zero: 'A zero', full: 'Finished number', fill: 'Every open side', dotFull: 'Two lines at a dot', deadEnd: 'Dead end', goOn: 'A line must go on', closed: 'The loop is closed', corner: 'Corner rule', smallLoop: 'No early loops', enter: 'A line into a 1 or a 3', threes: 'Two 3s side by side', pass2: 'A line through a 2', diag3: 'Two 3s corner to corner', whatIf: 'Follow it through' },
+  ib: { cross: 'Bridges can\'t cross', full: 'Island is complete', room: 'Not enough room', only: 'Every bridge it can get', must: 'Not enough without it', isolate: 'Don\'t close off a group', reach: 'Must reach the rest', whatIf: 'Follow it through' },
 };
 for (const [id, k] of Object.entries(KIT_SECTIONS)) {
   views[k.view] = async () => {
@@ -2117,9 +2128,12 @@ const MIN_ROLE = { ...Object.fromEntries($$('#nav-list a').map((a) => [a.hash.sl
 
 // Dashboards: The Logic Grid (the app: players, sign-in, messages, website,
 // marketing, keys, settings shared by every game), The Fantastical Logic Grid
-// NINETIMESNINE, Cage Math, Sum Cross and Picture Grid. The menu shows the open dashboard's sections. Every
+// NINETIMESNINE and each grid-kit game. The menu shows the open dashboard's sections. Every
 // address (#daily, #settings, ...) still works and opens its own dashboard.
-const DASH_HOME = { main: 'overview', flg: 'fantastical', ntn: 'numberplace', cm: 'cagemath', sc: 'sumcross', pg: 'picturegrid' };
+const DASH_HOME = {
+  main: 'overview', flg: 'fantastical', ntn: 'numberplace', cm: 'cagemath', sc: 'sumcross', pg: 'picturegrid',
+  ml: 'moreorless', sk: 'skyline', sf: 'starfield', ll: 'loopline', ib: 'islandbridges',
+};
 const dashOf = (view) => $(`#nav-list a[href="#${view}"]`)?.closest('li')?.dataset.dash;
 function setDash(dash) {
   if (!DASH_HOME[dash]) return;

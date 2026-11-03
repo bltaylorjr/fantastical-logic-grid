@@ -398,7 +398,7 @@ ${verification}
   writeGamePage(site, game_html);
   pages.push({ path: GAME, lastmod: updated, priority: 1 });
   writeHubPages({ site, url, verification, tdmMeta, copyright, socialList, pages, updated, csp: SITE_CSP, cloud, socialHtml: socialPages.socialHtml });
-  // Rules and how to play pages for Cage Math, Sum Cross and Picture Grid.
+  // Rules and how to play pages for every grid-kit game.
   await writeGuides({ root, site, url, page, updated });
 
   // ---------- how to play ----------

@@ -10,16 +10,22 @@ only after the owner approves it.
 | `cage-math/` (Cage Math) | `engine/src/cage-math.js` | Own screen in the app, own page on the website (`<game>/`) |
 | `sum-cross/` (Sum Cross) | `engine/src/sum-cross.js` | Own screen in the app, own page on the website (`<game>/`) |
 | `picture-grid/` (Picture Grid) | `engine/src/picture-grid.js`, `engine/src/picture-grid-art.js` | Own screen in the app, own page on the website (`<game>/`) |
-| `grid-kit/` | `engine/src/kit-common.js` | The shared game screen the three above are built on |
+| `more-or-less/` (More or Less) | `engine/src/more-or-less.js`, `engine/src/latin-kit.js` | Own screen in the app, own page on the website (`<game>/`) |
+| `skyline/` (Skyline) | `engine/src/skyline.js`, `engine/src/latin-kit.js` | Own screen in the app, own page on the website (`<game>/`) |
+| `star-field/` (Star Field) | `engine/src/star-field.js` | Own screen in the app, own page on the website (`<game>/`) |
+| `loop-line/` (Loop Line) | `engine/src/loop-line.js` | Own screen in the app, own page on the website (`<game>/`) |
+| `island-bridges/` (Island Bridges) | `engine/src/island-bridges.js` | Own screen in the app, own page on the website (`<game>/`) |
+| `grid-kit/` | `engine/src/kit-common.js` | The shared game screen the eight above are built on |
 
-## Cage Math, Sum Cross and Picture Grid (the grid kit)
+## The grid-kit games
 
-These three share one game screen, `grid-kit/kit.js`. `createGame(def)` takes a
+Cage Math, Sum Cross, Picture Grid, More or Less, Skyline, Star Field, Loop
+Line and Island Bridges share one game screen, `grid-kit/kit.js`. `createGame(def)` takes a
 game definition (`<game>/game.js`: levels, board drawing, how a move works,
 how-to text, badges) and returns the module API (`mount`, `unmount`, `suspend`,
 `reopen`, `setShared`, `state`, `learning`, `dailyOptions`); `<game>/ui.js` is
 one line that does this. Every element id starts with the game id (`cm`, `sc`,
-`pg`), so all three can be open at once.
+`pg`, `ml`, `sk`, `sf`, `ll`, `ib`), so all of them can be open at once.
 
 What each game gets from the kit: six levels with a suggested one, a daily
 puzzle with a streak, saved games (rename, delete, undo), timer and pause,
@@ -47,13 +53,16 @@ inside its level, pick practice puzzles for the steps they ask hints about, and
 make sure no puzzle, story or picture comes twice (daily puzzles excepted).
 Picture Grid keeps a gallery of the pictures a player has uncovered.
 
-In the game each is its own screen (`#screen-cm`, `#screen-sc`, `#screen-pg`),
+In the game each is its own screen (`#screen-cm`, `#screen-sc`, `#screen-ml`, ...),
 loaded by `web/js/kit-games.js`; on the website each also has its own page (`web/js/kit-page.js`, written by `scripts/hub.mjs`).
 `web/js/kit-share.js` sends anonymous play data to `POST /v1/learn/<game>/plays`
 and brings back `GET /v1/learn/<game>/tuning` (server/src/kit-games.js, table
 `kit_plays`, migration 2140). Each game has its own admin dashboard section
-and settings (`cm_*`, `sc_*`, `pg_*`). Tests: `node modules/grid-kit/e2e.cjs`
-and `node engine/test/kit-games-tests.js`.
+and settings (`cm_*`, `sc_*`, `pg_*`, `ml_*`, `sk_*`, `sf_*`, `ll_*`, `ib_*`). Tests: `node modules/grid-kit/e2e.cjs`,
+each new game's `node modules/<game>/e2e.cjs` and `node engine/test/kit-games-tests.js`
+(plus `ml-`, `sk-`, `sf-`, `ll-` and `ib-tests.js`). A game without an intro video
+simply has no Watch button or video on its pages; adding `web/media/games/<video>.mp4`
+and the game's `video` field (web/js/games.js, scripts/hub.mjs) is all it takes.
 
 ## How a module plugs in
 
@@ -107,5 +116,6 @@ node modules/number-place/e2e.cjs  # browser test
 node modules/number-place/e2e-styles.cjs  # game styles
 node engine/test/number-place-tests.js
 node modules/grid-kit/e2e.cjs      # Cage Math, Sum Cross, Picture Grid (?game=cm|sc|pg)
+node modules/more-or-less/e2e.cjs  # and skyline, star-field, loop-line, island-bridges (?game=ml|sk|sf|ll|ib)
 node engine/test/kit-games-tests.js
 ```

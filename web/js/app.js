@@ -277,7 +277,7 @@ function showScreen(name) {
   $('#screen-play').hidden = name !== 'play';
   $('#screen-learn').hidden = name !== 'learn';
   $('#screen-np').hidden = name !== 'np';
-  for (const k of ['cm', 'sc', 'pg']) $(`#screen-${k}`).hidden = name !== k;
+  for (const { id: k } of Object.values(kitGames.KIT_GAMES)) $(`#screen-${k}`).hidden = name !== k;
   if (name !== 'learn') tutorial.close();
   if (name !== 'np') numberPlace.leave();
   kitGames.leave(name);
@@ -2988,9 +2988,10 @@ async function openNumberPlace(mode = null) {
 }
 $('#np-back').onclick = () => openGames();
 
-// Cage Math, Sum Cross and Picture Grid: each its own screen with the game's
-// look (web/js/kit-games.js). The website gives each its own page (cage-math/,
-// sum-cross/, picture-grid/, scripts/hub.mjs).
+// The grid-kit games (Cage Math, Sum Cross, Picture Grid, More or Less,
+// Skyline, Star Field, Loop Line, Island Bridges): each its own screen with the
+// game's look (web/js/kit-games.js). The website gives each its own page
+// (cage-math/, skyline/, ..., scripts/hub.mjs).
 async function openKitGame(card) {
   if (!kitGames.enabled(card)) { goHome(); return; }
   if (SITE_HUB) { toSitePage(`${kitGames.KIT_GAMES[card].dir}/`); return; }
@@ -2999,7 +3000,7 @@ async function openKitGame(card) {
   window.scrollTo(0, 0);
   await kitGames.open(card, { celebrate: () => celebrateSolve(settings.celebrations, { random: settings.celebrateRandom }), setWorld });
 }
-for (const k of ['cm', 'sc', 'pg']) $(`#${k}-back`).onclick = () => openGames();
+for (const { id: k } of Object.values(kitGames.KIT_GAMES)) $(`#${k}-back`).onclick = () => openGames();
 
 // How to play: the step-by-step tutorial and the tips page (tutorial.js).
 // The narrated video is the Introduction.

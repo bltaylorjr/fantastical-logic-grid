@@ -1,6 +1,7 @@
-// Rules and how to play pages for Cage Math, Sum Cross and Picture Grid
-// (website only, called by seo.mjs): cage-math/rules/, sum-cross/rules/,
-// picture-grid/rules/. Each mirrors The Fantastical Logic Grid's how-to-play/
+// Rules and how to play pages for every grid-kit game (website only, called
+// by seo.mjs): cage-math/rules/, sum-cross/rules/, picture-grid/rules/,
+// more-or-less/rules/, skyline/rules/, star-field/rules/, loop-line/rules/,
+// island-bridges/rules/. Each mirrors The Fantastical Logic Grid's how-to-play/
 // and NINETIMESNINE's rules/ (scripts/hub.mjs): the rules, the levels, a
 // video, tips and a play button. The words come from the games themselves (each game's
 // How to play window), so the pages never drift from the games.
@@ -50,10 +51,11 @@ export async function writeGuides({ root, site, url, page, updated }) {
   for (const g of OWN_PAGES.filter((o) => o.root !== 'np')) {
     const path = howToPath(g);
     const guide = await guideFor(root, g);
-    const deep = `${g.video}-how-to-play`;
+    // A game without a video yet (no `video` in GAME_PAGES) simply has none here.
+    const deep = g.video && `${g.video}-how-to-play`;
     const videos = [
-      hasVideo(site, deep) && { file: deep, label: `How to play ${g.name}, in depth`, note: 'The full walkthrough, narrated, with captions.' },
-      hasVideo(site, g.video) && { file: g.video, label: `${g.name} in a minute`, note: 'A quick look at the game.' },
+      deep && hasVideo(site, deep) && { file: deep, label: `How to play ${g.name}, in depth`, note: 'The full walkthrough, narrated, with captions.' },
+      g.video && hasVideo(site, g.video) && { file: g.video, label: `${g.name} in a minute`, note: 'A quick look at the game.' },
     ].filter(Boolean);
     const videoSchema = videos.map((v) => ({
       '@context': 'https://schema.org', '@type': 'VideoObject', name: v.label, description: `${v.note} ${g.description}`,

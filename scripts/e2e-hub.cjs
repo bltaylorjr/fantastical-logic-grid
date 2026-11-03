@@ -11,6 +11,10 @@ const path = require('path');
 const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`ok  ${m}`); };
 const site = path.join(__dirname, '..', 'dist', 'site');
 const PORT = 8157;
+// Every grid-kit game: folder, id, name, and whether it has its intro videos yet.
+const KIT = [['cage-math', 'cm', 'Cage Math', true], ['sum-cross', 'sc', 'Sum Cross', true], ['picture-grid', 'pg', 'Picture Grid', true], ['more-or-less', 'ml', 'More or Less', false],
+  ['skyline', 'sk', 'Skyline', false], ['star-field', 'sf', 'Star Field', false], ['loop-line', 'll', 'Loop Line', false], ['island-bridges', 'ib', 'Island Bridges', false]];
+const KIT_PAGES = KIT.map(([dir]) => `${dir}/`);
 const BASE = `http://localhost:${PORT}`;
 // Fonts come from npm packages; a build without them is still a fair test of everything else.
 const ignorable = (t) => /fonts\/|Failed to decode downloaded font|OTS parsing/.test(t);
@@ -36,7 +40,7 @@ const ignorable = (t) => /fonts\/|Failed to decode downloaded font|OTS parsing/.
     assert(new URL(page.url()).pathname === '/', 'the front page stays put');
     assert(await page.locator('h1').count() === 1 && /Pick your puzzle/.test(await page.locator('h1').textContent()), 'the front page has one heading');
     const play = await page.locator('a.play').evaluateAll((as) => as.map((a) => a.getAttribute('href')));
-    assert(JSON.stringify(play) === JSON.stringify(['fantastical/', 'ninetimesnine/', 'cage-math/', 'sum-cross/', 'picture-grid/']), 'it links to every game');
+    assert(JSON.stringify(play) === JSON.stringify(['fantastical/', 'ninetimesnine/', ...KIT_PAGES]), 'it links to every game');
     assert(await page.locator('#watch video').count() >= 1, 'the front page shows the videos');
     // Shared things open over the front page; only the Play buttons open a game page.
     await page.click('.app-item[href="report/"]');
@@ -127,7 +131,7 @@ const ignorable = (t) => /fonts\/|Failed to decode downloaded font|OTS parsing/.
     assert(await page.locator('.rules-style .np-ex').count() >= 25 && await page.locator('#glyph .np-ex-cell', { hasText: 'IV' }).count() > 0, 'with each worked example, glyphs included');
     await page.goto(`${BASE}/`);
     const rules = await page.locator('a.rules-link').evaluateAll((as) => as.map((a) => a.getAttribute('href')));
-    assert(JSON.stringify(rules) === JSON.stringify(['how-to-play/', 'ninetimesnine/rules/', 'cage-math/rules/', 'sum-cross/rules/', 'picture-grid/rules/']), 'each game card links its rules page');
+    assert(JSON.stringify(rules) === JSON.stringify(['how-to-play/', 'ninetimesnine/rules/', ...KIT_PAGES.map((p) => `${p}rules/`)]), 'each game card links its rules page');
     await page.click('a.rules-link[href="how-to-play/"]');
     await page.waitForURL(`${BASE}/how-to-play/`);
     assert(await page.locator('h2#rules').count() === 1, 'The Fantastical Logic Grid\'s page has the game rules');
@@ -135,8 +139,8 @@ const ignorable = (t) => /fonts\/|Failed to decode downloaded font|OTS parsing/.
     await page.waitForSelector('#np-setup-view:not([hidden]) #np-levels .choice', { timeout: 20000 });
     assert(true, 'a ?style= link opens it too');
 
-    // ---- Cage Math, Sum Cross and Picture Grid on their own pages
-    for (const [dir, id, name] of [['cage-math', 'cm', 'Cage Math'], ['sum-cross', 'sc', 'Sum Cross'], ['picture-grid', 'pg', 'Picture Grid']]) {
+    // ---- Every grid-kit game on its own page
+    for (const [dir, id, name, video] of KIT) {
       await page.goto(`${BASE}/`);
       await page.click(`a.play[href="${dir}/"]`);
       await page.waitForURL(`${BASE}/${dir}/`);
@@ -144,7 +148,9 @@ const ignorable = (t) => /fonts\/|Failed to decode downloaded font|OTS parsing/.
       assert(await page.locator('h1').first().textContent() === name && await page.locator('.np-top a[href="../"]').count() >= 1, `${name} plays on its own page, which links home`);
       await page.click('.np-top a[href="rules/"]');
       await page.waitForURL(`${BASE}/${dir}/rules/`);
-      assert(new RegExp(`${name} rules and how to play`).test(await page.locator('h1').textContent()) && await page.locator('main table').count() === 1 && await page.locator('main video').count() >= 1, `${name} has a rules page with its levels and videos`);
+      assert(new RegExp(`${name} rules and how to play`).test(await page.locator('h1').textContent()) && await page.locator('main table').count() === 1, `${name} has a rules page with its levels`);
+      if (video) assert(await page.locator('main video').count() >= 1, `${name}'s rules page has its videos`);
+      else assert(!(await page.locator('main video, .guide-videos').count()), `${name} has no video yet, and its rules page leaves the spot out`);
     }
     // From The Fantastical Logic Grid's page, the bar's name leads to the front page.
     await page.evaluate(() => localStorage.setItem('flg.game', 'cage-math'));
@@ -160,9 +166,9 @@ const ignorable = (t) => /fonts\/|Failed to decode downloaded font|OTS parsing/.
     await page.goto(`${BASE}/storyline/`);
     assert(await page.locator('#sl-back').getAttribute('href') === '../fantastical/', 'Suggest a storyline goes back to the game');
     const sw = await (await fetch(`${BASE}/sw.js`)).text();
-    assert(['fantastical/', 'ninetimesnine/', 'cage-math/', 'sum-cross/', 'picture-grid/', './'].every((p) => sw.includes(`"${p}"`)), 'the offline helper keeps every page');
+    assert(['fantastical/', 'ninetimesnine/', ...KIT_PAGES, './'].every((p) => sw.includes(`"${p}"`)), 'the offline helper keeps every page');
     const sitemap = await (await fetch(`${BASE}/sitemap.xml`)).text();
-    assert(['fantastical/', 'ninetimesnine/', 'ninetimesnine/rules/', 'cage-math/', 'sum-cross/', 'picture-grid/', 'cage-math/rules/'].every((p) => sitemap.includes(`/${p}</loc>`)), 'the sitemap lists every game and the rules pages');
+    assert(['fantastical/', 'ninetimesnine/', 'ninetimesnine/rules/', ...KIT_PAGES, ...KIT_PAGES.map((p) => `${p}rules/`)].every((p) => sitemap.includes(`/${p}</loc>`)), 'the sitemap lists every game and the rules pages');
 
     assert(!errors.length, `no page errors${errors.length ? `: ${errors.join(' | ')}` : ''}`);
   } finally {
