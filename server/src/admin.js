@@ -740,15 +740,16 @@ const ROUTES = [
     await saveSetting(env, body.key, value, who.actor);
     analyticsCache.clear();
     if (String(body.key).startsWith('np_')) await caches.default.delete(new Request(NP_TUNING_CACHE_KEY));
-    const kit = /^(cm|sc|pg)_/.exec(String(body.key));
+    const kit = /^(cm|sc|pg|ml|sk|sf|ll|ib)_/.exec(String(body.key));
     if (kit) await caches.default.delete(new Request(kitTuningKey(kit[1])));
     return { body: { key: body.key, value }, target: body.key, detail: { from: before, to: value } };
   }],
 
   // NINETIMESNINE's own section: how each level is going and what players get stuck on.
   ['GET', /^number-place$/, 'viewer', 'numberplace.view', async ({ env, url }) => ({ body: await npSummary(env, daysParam(url, 90)) })],
-  // Cage Math, Sum Cross and Picture Grid: each its own section, the same way.
-  ['GET', /^kit-game\/(cm|sc|pg)$/, 'viewer', 'kitgame.view', async ({ env, url, params: [game] }) => ({ body: await kitSummary(env, game, daysParam(url, 90)), quiet: true })],
+  // The grid-kit games (Cage Math, Sum Cross, Picture Grid, More or Less, Skyline,
+  // Star Field, Loop Line, Island Bridges): each its own section, the same way.
+  ['GET', /^kit-game\/(cm|sc|pg|ml|sk|sf|ll|ib)$/, 'viewer', 'kitgame.view', async ({ env, url, params: [game] }) => ({ body: await kitSummary(env, game, daysParam(url, 90)), quiet: true })],
 
   ['GET', /^announcements$/, 'viewer', 'announcements.view', async ({ env, now }) => {
     const { results } = await env.DB.prepare(`SELECT id, text, level, starts_at AS startsAt, ends_at AS endsAt, created_by AS createdBy, created_at AS createdAt

@@ -39,8 +39,12 @@ jobs:
         run: node engine/test/run-tests.js --quick
       - name: NINETIMESNINE engine tests
         run: node engine/test/number-place-tests.js
-      - name: Cage Math, Sum Cross and Picture Grid engine tests
-        run: node engine/test/kit-games-tests.js
+      - name: Grid-kit game engine tests
+        run: |
+          node engine/test/kit-games-tests.js
+          for g in ml sk sf ll ib; do node engine/test/$g-tests.js --quick; done
+      - name: Timeline Case and Seating Plan engine tests
+        run: node engine/test/mode-tests.js --quick
 
   app:
     runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork && '"ubuntu-latest"') || vars.FLG_RUNNER || '"ubuntu-latest"') }}

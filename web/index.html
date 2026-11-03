@@ -142,6 +142,15 @@
           <legend id="topic-legend">Topic</legend>
           <div class="choices tiers topics" id="topic-choices"></div>
         </fieldset>
+        <fieldset id="mode-field">
+          <legend>Puzzle style</legend>
+          <div class="choices chips" id="mode-choices">
+            <label class="choice"><input type="radio" name="puzzle-mode" value="classic" checked><span><b>Classic</b><small>The usual story puzzle</small></span></label>
+            <label class="choice"><input type="radio" name="puzzle-mode" value="timeline"><span><b>Timeline Case</b><small>A whodunit told by the clock</small></span></label>
+            <label class="choice"><input type="radio" name="puzzle-mode" value="seating"><span><b>Seating Plan</b><small>Guests round one table</small></span></label>
+          </div>
+          <p class="help" id="mode-help" hidden>Set in the theme you pick ("Surprise me" picks one). The style sets the grid size and the kinds of clues for each difficulty, so Size and Topic are hidden.</p>
+        </fieldset>
         <fieldset>
           <legend>Size</legend>
           <div class="choices chips" id="size-choices"></div>
@@ -377,7 +386,7 @@
   <div id="np-root"><p class="muted" id="np-loading">Loading NINETIMESNINE…</p></div>
 </main>
 
-<!-- ============ Cage Math, Sum Cross and Picture Grid (modules/grid-kit and each game's folder) ============ -->
+<!-- ============ The grid-kit games: Cage Math, Sum Cross, Picture Grid, More or Less, Skyline, Star Field, Loop Line, Island Bridges (modules/grid-kit and each game's folder) ============ -->
 <main id="screen-cm" class="screen" tabindex="-1" hidden>
   <p class="np-back"><button class="btn quiet small" type="button" id="cm-back">All games</button></p>
   <div id="cm-root"><p class="muted">Loading Cage Math…</p></div>
@@ -389,6 +398,26 @@
 <main id="screen-pg" class="screen" tabindex="-1" hidden>
   <p class="np-back"><button class="btn quiet small" type="button" id="pg-back">All games</button></p>
   <div id="pg-root"><p class="muted">Loading Picture Grid…</p></div>
+</main>
+<main id="screen-ml" class="screen" tabindex="-1" hidden>
+  <p class="np-back"><button class="btn quiet small" type="button" id="ml-back">All games</button></p>
+  <div id="ml-root"><p class="muted">Loading More or Less…</p></div>
+</main>
+<main id="screen-sk" class="screen" tabindex="-1" hidden>
+  <p class="np-back"><button class="btn quiet small" type="button" id="sk-back">All games</button></p>
+  <div id="sk-root"><p class="muted">Loading Skyline…</p></div>
+</main>
+<main id="screen-sf" class="screen" tabindex="-1" hidden>
+  <p class="np-back"><button class="btn quiet small" type="button" id="sf-back">All games</button></p>
+  <div id="sf-root"><p class="muted">Loading Star Field…</p></div>
+</main>
+<main id="screen-ll" class="screen" tabindex="-1" hidden>
+  <p class="np-back"><button class="btn quiet small" type="button" id="ll-back">All games</button></p>
+  <div id="ll-root"><p class="muted">Loading Loop Line…</p></div>
+</main>
+<main id="screen-ib" class="screen" tabindex="-1" hidden>
+  <p class="np-back"><button class="btn quiet small" type="button" id="ib-back">All games</button></p>
+  <div id="ib-root"><p class="muted">Loading Island Bridges…</p></div>
 </main>
 
 <!-- ============ How to play: the tutorial and tips ============ -->

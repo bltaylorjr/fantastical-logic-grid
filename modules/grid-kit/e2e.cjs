@@ -5,16 +5,21 @@
 const { chromium } = require('playwright');
 const { spawn } = require('child_process');
 const path = require('path');
+const story = require('./e2e-story.cjs');
 const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`ok  ${m}`); };
 
+// Story themes and moments: Cage Math tells a Mystery with moments, after two
+// quick past solves, so the solved card offers Medium; Sum Cross has moments
+// switched off; Picture Grid wraps its picture in a Pets & Animals story.
 const GAMES = [
-  { id: 'cm', dir: 'cage-math', name: 'Cage Math', level: 'easy' },
-  { id: 'sc', dir: 'sum-cross', name: 'Sum Cross', level: 'easy' },
-  { id: 'pg', dir: 'picture-grid', name: 'Picture Grid', level: 'easy' },
+  { id: 'cm', dir: 'cage-math', name: 'Cage Math', level: 'easy', theme: 'mystery', moments: true, next: 'medium' },
+  { id: 'sc', dir: 'sum-cross', name: 'Sum Cross', level: 'easy', theme: 'surprise', moments: false },
+  { id: 'pg', dir: 'picture-grid', name: 'Picture Grid', level: 'easy', theme: 'pets', moments: true },
 ];
+const PORT = Number(process.env.PORT) || 8143;
 
 (async () => {
-  const server = spawn('node', [path.join(__dirname, '..', '..', 'scripts', 'serve.mjs'), path.join(__dirname, '..', '..', 'dist', 'module-test'), '8143'], { stdio: 'ignore' });
+  const server = spawn('node', [path.join(__dirname, '..', '..', 'scripts', 'serve.mjs'), path.join(__dirname, '..', '..', 'dist', 'module-test'), String(PORT)], { stdio: 'ignore' });
   await new Promise((r) => setTimeout(r, 600));
   const browser = await chromium.launch();
   const errors = [];
@@ -25,13 +30,16 @@ const GAMES = [
       page.on('pageerror', (e) => errors.push(`${P}: ${e}`));
       const logs = [];
       page.on('console', (m) => { if (/play record/.test(m.text())) logs.push(m.text()); });
-      await page.goto(`http://localhost:8143/?game=${P}`);
+      await page.goto(`http://localhost:${PORT}/?game=${P}`);
       await page.waitForSelector(`#${P}-setup-view:not([hidden]) #${P}-levels .choice`);
+      const seeded = g.next ? await story.seed(page, P, g.level) : 0;
       assert(await page.locator(`input[name=${P}-level]`).count() === 6, `${g.name}: six difficulty levels`);
       await page.check(`input[name=${P}-level][value=${g.level}]`, { force: true });
+      await story.pick(page, P, g.theme, g.moments);
       await page.click(`#${P}-gen`);
       await page.waitForSelector(`#${P}-play-view:not([hidden])`, { timeout: 30000 });
       await page.click(`#${P}-coach-close`).catch(() => {});
+      await story.watch(page, P);
       const st = () => page.evaluate(async (dir) => {
         const G = (await import(`./modules/${dir}/ui.js`)).state();
         return { v: [...G.v], s: G.p.solution, gv: G.p.givens, hints: G.hints, solved: G.solved, fp: G.p.fingerprint };
@@ -65,6 +73,7 @@ const GAMES = [
       await page.waitForSelector(`#${P}-solved:not([hidden])`, { timeout: 5000 });
       assert((await st()).solved, `${g.name}: the puzzle is solved`);
       assert((await page.textContent(`#${P}-solved-h`)).trim().length > 3, `${g.name}: the solved card has a title`);
+      await story.solved(page, P, g.dir, { theme: g.theme === 'surprise' ? null : g.theme, moments: g.moments, next: g.next }, assert);
       if (P === 'pg') assert(/It's|picture/i.test(await page.textContent(`#${P}-solved`)), 'Picture Grid: the solved card names the picture');
       await page.click(`#${P}-steps-btn`);
       await page.waitForSelector(`#${P}-steps-dlg[open]`);
@@ -73,10 +82,17 @@ const GAMES = [
       await page.keyboard.press('Escape');
       assert(logs.length >= 1, `${g.name}: the play record goes to the host for the learning service`);
       const plays = await page.evaluate(async (dir) => (await import(`./modules/${dir}/ui.js`)).learning().plays().length, g.dir);
-      assert(plays === 1, `${g.name}: the solve leaves one play record`);
+      assert(plays === 1 + seeded, `${g.name}: the solve leaves one play record`);
 
-      // A second puzzle at the same level is a different one.
-      await page.click(`#${P}-home`);
+      if (g.next) {
+        // Next puzzle takes the suggested level.
+        await page.click(`#${P}-again`);
+        await page.waitForFunction(async ([dir, fp]) => { const G = (await import(`./modules/${dir}/ui.js`)).state(); return G && G.p.fingerprint !== fp; }, [g.dir, s.fp], { timeout: 30000 });
+        const lv = await page.evaluate(async (dir) => (await import(`./modules/${dir}/ui.js`)).state().p.difficulty.id, g.dir);
+        assert(lv === g.next, `${g.name}: Next puzzle starts the suggested level (${lv})`);
+        await page.click(`#${P}-new`);
+      } else await page.click(`#${P}-home`);
+      // A second puzzle is a different one.
       await page.waitForSelector(`#${P}-setup-view:not([hidden])`);
       assert(await page.locator(`#${P}-saved li`).count() >= 1, `${g.name}: Saved puzzles lists the game`);
       await page.click(`#${P}-gen`);

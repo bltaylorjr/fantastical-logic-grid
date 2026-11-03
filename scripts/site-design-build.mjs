@@ -53,7 +53,7 @@ export async function applySiteDesign({ site, base, design: given }) {
     let html = readFileSync(join(site, page), 'utf8');
     if (!/<\/head>/.test(html)) continue;
     // Every game's own page (ninetimesnine/, cage-math/, ...) has the same layout.
-    const kind = page === 'index.html' ? 'hub' : /^(ninetimesnine|cage-math|sum-cross|picture-grid)\/index\.html$/.test(page) ? 'np' : 'info';
+    const kind = page === 'index.html' ? 'hub' : /^(ninetimesnine|cage-math|sum-cross|picture-grid|more-or-less|skyline|star-field|loop-line|island-bridges)\/index\.html$/.test(page) ? 'np' : 'info';
     // The page's own changes from the page editor (Website > Edit on the page).
     const pageKey = page.replace(/(^|\/)index\.html$/, '$1');
     const edits = (changes.edits || []).filter((e) => e.p === pageKey);
