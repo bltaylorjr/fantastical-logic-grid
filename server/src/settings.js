@@ -23,9 +23,11 @@ export const CELEBRATIONS = ['confetti', 'fireworks', 'stars', 'balloons', 'spar
 // type: bool, int (with min/max), choice (one of options), model (an AI
 // model name), url (an https link, or empty), themes (list of theme ids),
 // words or days (YYYY-MM-DD dates).
-// Cage Math, Sum Cross and Picture Grid each have the same switches, in their
-// own group, shown in the admin dashboard's section for that game (cm_*, sc_*, pg_*).
-const KIT_SETTINGS_GAMES = [['cm', 'Cage Math', 'numbers'], ['sc', 'Sum Cross', 'numbers'], ['pg', 'Picture Grid', 'pictures']];
+// Every grid-kit game (Cage Math, Sum Cross, Picture Grid, More or Less, Skyline,
+// Star Field, Loop Line, Island Bridges) has the same switches, in its own
+// group, shown in the admin dashboard's section for that game (cm_*, sc_*, ...).
+const KIT_SETTINGS_GAMES = [['cm', 'Cage Math', 'numbers'], ['sc', 'Sum Cross', 'numbers'], ['pg', 'Picture Grid', 'pictures'],
+  ['ml', 'More or Less', 'numbers'], ['sk', 'Skyline', 'numbers'], ['sf', 'Star Field', 'numbers'], ['ll', 'Loop Line', 'numbers'], ['ib', 'Island Bridges', 'numbers']];
 function kitSettings(id, name, what) {
   return {
     [`${id}_enabled`]: { type: 'bool', default: true, group: name, label: `${name} in the app`, help: `On: everyone sees the ${name} card and can play it (in the app and on its own website page). Off: the card is hidden and the page says the game is taking a break. Saved ${name} games stay on each device.` },
@@ -347,7 +349,7 @@ export async function publicConfig(req, env) {
       variants: s.np_variants_enabled, stories: s.np_stories_enabled, coachTips: s.np_coach_tips,
       adaptStrength: s.np_adapt_strength / 100, practiceChance: s.np_practice_chance / 100, sharedWeight: s.np_shared_weight / 100,
     },
-    // Cage Math, Sum Cross and Picture Grid's own switches (their admin sections).
+    // Each grid-kit game's own switches (their admin sections).
     kitGames: Object.fromEntries(KIT_SETTINGS_GAMES.map(([id]) => [id, {
       enabled: s[`${id}_enabled`], learning: s.learning_enabled && s[`${id}_learning_enabled`], maxLevel: s[`${id}_max_level`], daily: s[`${id}_daily_enabled`],
       stories: s[`${id}_stories_enabled`], coachTips: s[`${id}_coach_tips`],

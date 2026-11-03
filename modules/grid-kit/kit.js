@@ -1,5 +1,5 @@
 // The game screen shared by The Logic Grid's newer games (Cage Math, Sum
-// Cross, Picture Grid). Each game passes its own definition (modules/<game>/game.js):
+// Cross, Picture Grid, and the line games on kind 'edges': see lines.js). Each game passes its own definition (modules/<game>/game.js):
 // its levels, how its board looks and how a cell is marked. The kit brings
 // everything else, the same way NINETIMESNINE does: a setup view with daily
 // puzzle, suggested level and saved puzzles; play with timer, pause, undo and
@@ -15,11 +15,15 @@
 // engine: { generate(options), hint(puzzle, entries) } returning promises.
 // config(): the admin's choices for this game (all optional): daily, coachTips,
 // stories (bools), maxLevel, adaptStrength, practiceChance, sharedWeight.
+// Stories follow the player's story theme (story.js; the words are in
+// engine/src/kit-story-words.js), and story moments show as they solve.
 import { markup } from './markup.js';
 import { createLearning, summary, ORDER } from './learning.js';
 import { sounds } from './sound.js';
 import { printableHtml, printHtml } from './print.js';
 import { resultPicture } from './picture.js';
+import { edgePointer } from './lines.js';
+import { THEME_IDS, themeForDay, themeName, beatsReached } from './story.js';
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (e) { return d; } };
@@ -35,6 +39,12 @@ const bit = (d) => 1 << (d - 1);
 export function createGame(def) {
   const P = def.id;
   const DIGITS = def.kind === 'digits';
+  // Words for a shade game's marks; a game may name them its own way (def.markWords).
+  const MW = { on: 'shaded', x: 'crossed', none: 'empty', ...(def.markWords || {}) };
+  // Line games mark the edges between dots (or islands) instead of cells: the
+  // game says how many there are and how a mark cycles (modules/grid-kit/lines.js).
+  const EDGES = def.kind === 'edges';
+  const countOf = (p) => (def.count ? def.count(p) : p.size * p.cols);
   let root = null, deps = {}, engine = null, learn = null, K = {}, prefs = {};
   let G = null, lastRecord = null, deleted = null, timer = null, lastTick = 0, stroke = null;
   const $ = (id) => root.querySelector(`#${P}-${id}`);
@@ -53,16 +63,17 @@ export function createGame(def) {
   const trimGames = (all) => Object.fromEntries(Object.entries(all).sort((a, b) => (b[1].updated || 0) - (a[1].updated || 0)).slice(0, 40));
   const savePrefs = () => keep(K.prefs, prefs);
   const playing = () => !!G && !$('play-view').hidden;
-  const N = () => G.p.size * G.p.cols;
+  const N = () => countOf(G.p);
   const isGiven = (i) => !!G.p.givens[i];
   const valueAt = (i) => G.p.givens[i] || G.v[i];
   const playable = (i) => def.playable(G.p, i);
   const wrongAt = (i) => {
     const v = G.v[i];
     if (!v || isGiven(i)) return false;
+    if (def.wrongValue) return def.wrongValue(G.p, i, v);
     return DIGITS ? v !== G.p.solution[i] : (v === 1) !== (G.p.solution[i] === 1);
   };
-  const isSolved = () => (DIGITS
+  const isSolved = () => (def.solvedBy ? def.solvedBy(G.p, G.p.solution.map((_, i) => valueAt(i))) : DIGITS
     ? G.p.solution.every((d, i) => !playable(i) || valueAt(i) === d)
     : G.p.solution.every((d, i) => (d === 1) === (valueAt(i) === 1)));
 
@@ -72,7 +83,7 @@ export function createGame(def) {
     let d = def.daily[day];
     if (!lv.some((l) => l.id === d)) d = lv[lv.length - 1].id;
     const level = def.levels.find((l) => l.id === d);
-    return { difficulty: d, size: level.dailySize || level.sizes[0], seed: `daily-${P}-${date}` };
+    return { difficulty: d, size: level.dailySize || level.sizes[0], seed: `daily-${P}-${date}`, theme: themeForDay(date) };
   }
 
   // ---------- mount ----------
@@ -84,7 +95,7 @@ export function createGame(def) {
     engine = deps.engine;
     const pre = deps.storagePrefix || `flg.${P}`;
     K = { games: `${pre}.games`, cur: `${pre}.cur`, prefs: `${pre}.prefs`, learn: `${pre}.learn` };
-    prefs = { notes: false, showMistakes: false, autoClean: true, autoCross: true, highlight: true, silent: false, sound: true, adapt: true, level: null, size: null, coachDone: false, pen: 1, ...load(K.prefs, {}) };
+    prefs = { notes: false, showMistakes: false, autoClean: true, autoCross: true, highlight: true, silent: false, sound: true, adapt: true, theme: 'surprise', moments: true, level: null, size: null, coachDone: false, pen: 1, ...load(K.prefs, {}) };
     learn = createLearning({ load, keep, key: K.learn, par: def.par, simple: def.simpleTechniques || [], config: cfg });
     if (deps.shared) learn.setShared(deps.shared);
     root.classList.add('gk-app', `gk-app-${P}`);
@@ -119,7 +130,10 @@ export function createGame(def) {
     if (!lv.some((l) => l.id === prefs.level)) prefs.level = lv[0].id;
     $('levels').innerHTML = lv.map((l) => `<label class="choice"><input type="radio" name="${P}-level" value="${l.id}"${l.id === prefs.level ? ' checked' : ''}><span><b>${esc(l.name)}</b><small>${esc(l.note)}</small></span></label>`).join('');
     renderSizes();
-    for (const [id, key] of [['silent', 'silent'], ['sound', 'sound'], ['adapt', 'adapt'], ['highlight', 'highlight'], [DIGITS ? 'autoclean' : 'autocross', DIGITS ? 'autoClean' : 'autoCross']]) {
+    if (prefs.theme !== 'surprise' && !THEME_IDS.includes(prefs.theme)) prefs.theme = 'surprise';
+    $('theme').value = prefs.theme;
+    $('theme').onchange = () => { prefs.theme = $('theme').value; savePrefs(); };
+    for (const [id, key] of [['silent', 'silent'], ['sound', 'sound'], ['moments', 'moments'], ['adapt', 'adapt'], ['highlight', 'highlight'], [DIGITS ? 'autoclean' : 'autocross', DIGITS ? 'autoClean' : 'autoCross']]) {
       const el = $(id);
       el.checked = !!prefs[key];
       el.onchange = () => { prefs[key] = el.checked; savePrefs(); root.classList.toggle('gk-silent', quiet()); renderSetup(); };
@@ -145,7 +159,8 @@ export function createGame(def) {
     const sum = summary(learn.plays(), { name: def.name, extra: def.badges || [] });
     const doneToday = learn.plays().some((r) => r.daily === todayUtc() && r.outcome === 'solved');
     $('daily-btn').hidden = $('daily-note').hidden = cfg().daily === false;
-    $('daily-note').textContent = `${doneToday ? 'You solved today\'s puzzle. ' : ''}Today's puzzle is ${levelName(d.difficulty)}.${sum.streak ? ` Streak: ${sum.streak} day${sum.streak === 1 ? '' : 's'}.` : ''}`;
+    $('theme-field').hidden = quiet() || cfg().stories === false;
+    $('daily-note').textContent = `${doneToday ? 'You solved today\'s puzzle. ' : ''}Today's puzzle is ${levelName(d.difficulty)}${$('theme-field').hidden ? '' : `, with a ${themeName(d.theme)} story`}.${sum.streak ? ` Streak: ${sum.streak} day${sum.streak === 1 ? '' : 's'}.` : ''}`;
 
     const suggested = learn.suggestLevel();
     const chosen = $('levels').querySelector('input:checked')?.value;
@@ -190,7 +205,7 @@ export function createGame(def) {
     try {
       const tuned = mode === 'free' ? learn.optionsFor(opts.difficulty) : {};
       if (mode === 'free' && !prefs.adapt) { tuned.toughness = 0.5; tuned.practice = null; }
-      const p = await engine.generate({ seed: Math.random().toString(36).slice(2), story: cfg().stories !== false, ...tuned, ...opts });
+      const p = await engine.generate({ seed: Math.random().toString(36).slice(2), story: cfg().stories !== false, theme: prefs.theme || 'surprise', ...tuned, ...opts });
       status.textContent = '';
       begin(p, { mode, daily: opts.daily || null, practice: tuned.practice || null, tuned: tuned.toughness ?? null });
     } catch (e) {
@@ -202,7 +217,7 @@ export function createGame(def) {
 
   function begin(p, { mode = 'free', daily = null, practice = null, tuned = null } = {}) {
     close();
-    const cells = p.size * p.cols;
+    const cells = countOf(p);
     G = {
       id: `g${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, p, mode, daily, practice, tuned,
       name: uniqueName(def.titleOf(p)),
@@ -242,7 +257,7 @@ export function createGame(def) {
   function save() {
     if (!G) return;
     G.updated = Date.now();
-    const { hint, checked, paused, ...rest } = G;
+    const { hint, checked, paused, next, ...rest } = G;
     putGame({ ...rest, undo: G.undo.slice(-400), redo: G.redo.slice(-400) });
     keep(K.cur, G.id);
   }
@@ -274,6 +289,9 @@ export function createGame(def) {
     $('title').textContent = story ? p.story.title : `${p.difficulty.name} puzzle`;
     $('story').textContent = story ? p.story.intro : '';
     $('story').hidden = !story;
+    // Story moments already passed (a resumed game) stay passed, and do not show again.
+    if (!Number.isInteger(G.beat)) G.beat = beatsReached(progressOf());
+    $('moment').hidden = true;
     $('rules').innerHTML = p.rules.map((r) => `<li>${esc(r)}</li>`).join('');
     $('solved').hidden = true;
     $('share-box').hidden = true;
@@ -307,7 +325,7 @@ export function createGame(def) {
     const el = $('board');
     def.buildBoard(el, G.p);
     for (const c of el.querySelectorAll('[data-i]')) {
-      c.setAttribute('role', 'gridcell');
+      c.setAttribute('role', def.itemRole || 'gridcell');
       c.tabIndex = -1;
     }
   }
@@ -354,13 +372,18 @@ export function createGame(def) {
           el.querySelector('.gk-notes').innerHTML = m ? def.digits(p).map((d) => `<i>${m & bit(d) ? d : ''}</i>`).join('') : '';
         }
         el.setAttribute('aria-label', `${def.cellLabel(p, i)}${v ? `, ${v}${isGiven(i) ? ', given' : ''}` : ', empty'}${!v && G.n[i] ? `, notes ${def.digits(p).filter((d) => G.n[i] & bit(d)).join(' ')}` : ''}`);
+      } else if (EDGES) {
+        cls.toggle('on', v === 1);
+        cls.toggle('x', v === 2);
+        if (el.dataset.v !== String(v)) el.dataset.v = v;
+        el.setAttribute('aria-label', `${def.cellLabel(p, i)}: ${def.valueName(p, v)}`);
       } else {
         cls.toggle('on', v === 1);
         cls.toggle('x', v === 2);
-        el.setAttribute('aria-label', `${def.cellLabel(p, i)}, ${v === 1 ? 'shaded' : v === 2 ? 'crossed' : 'empty'}${isGiven(i) ? ', given' : ''}`);
+        el.setAttribute('aria-label', `${def.cellLabel(p, i)}, ${v === 1 ? MW.on : v === 2 ? MW.x : MW.none}${isGiven(i) ? ', given' : ''}`);
       }
     }
-    def.paint?.(board, { p, value: valueAt, wrong: wrongAt });
+    def.paint?.(board, { p, value: valueAt, wrong: wrongAt, sel: G.sel });
     board.classList.toggle('paused', !!G.paused);
     board.classList.toggle('won', !!G.solved && !quiet());
     $('pause').textContent = G.paused ? 'Resume' : 'Pause';
@@ -379,11 +402,39 @@ export function createGame(def) {
       $('notes-btn').setAttribute('aria-pressed', String(!!prefs.notes));
       $('notes-btn').querySelector('.state').textContent = prefs.notes ? 'On' : 'Off';
     }
-    const open = p.solution.filter((_, i) => playable(i) && !isGiven(i)).length;
-    const done = p.solution.filter((_, i) => playable(i) && !isGiven(i) && (DIGITS ? G.v[i] : G.v[i] === 1 || (p.solution[i] === 2 && G.v[i] === 2))).length;
-    $('progress').textContent = `${Math.round((done / Math.max(1, open)) * 100)}%`;
+    const frac = progressOf();
+    $('progress').textContent = `${Math.round(frac * 100)}%`;
+    storyMoment(frac);
     $('time').textContent = fmtTime(G.ms);
     renderHint();
+  }
+
+  // How far along the player is, 0 to 1 (the percent shown beside the timer).
+  function progressOf() {
+    const p = G.p;
+    if (def.progress) return def.progress(p, valueAt);
+    const open = p.solution.filter((_, i) => playable(i) && !isGiven(i)).length;
+    const done = p.solution.filter((_, i) => playable(i) && !isGiven(i) && (DIGITS ? G.v[i] : G.v[i] === 1 || (p.solution[i] === 2 && G.v[i] === 2))).length;
+    return done / Math.max(1, open);
+  }
+
+  // Story moments: as progress passes a third, two thirds and nearly the end,
+  // one short line of the story shows under the board. It never blocks play,
+  // is read out politely, and can be hidden. The lines come with the puzzle
+  // (story.beats), so they are the same for everyone and say nothing about the answer.
+  function storyMoment(frac) {
+    const beats = G.p.story?.beats || [];
+    const reached = beatsReached(frac);
+    if (G.solved) { $('moment').hidden = true; return; }
+    if (reached <= (G.beat || 0)) return;
+    G.beat = reached;
+    const text = beats[Math.min(reached, beats.length) - 1];
+    if (!text || !showStory() || prefs.moments === false) return;
+    $('moment-text').textContent = text;
+    $('moment').hidden = false;
+    const live = $('moment-live');
+    live.textContent = '';
+    setTimeout(() => { if (root) live.textContent = text; }, 60);
   }
 
   // ---------- changing cells ----------
@@ -436,14 +487,26 @@ export function createGame(def) {
     return [{ i, from: G.v[i], to: value, nf: 0, nt: 0 }];
   }
   function autoCross(changes) {
+    if (EDGES) {
+      if (!prefs.autoCross || !def.autoMarks) return changes;
+      const vals = G.v.slice();
+      for (const ch of changes) vals[ch.i] = ch.to;
+      const seen = new Set(changes.map((ch) => ch.i));
+      const extra = def.autoMarks(G.p, vals, changes.map((ch) => ch.i)).filter(([x]) => !seen.has(x) && !vals[x] && !isGiven(x)).map(([x, to]) => { seen.add(x); return { i: x, from: G.v[x], to, nf: 0, nt: 0 }; });
+      return changes.concat(extra);
+    }
     if (!prefs.autoCross || DIGITS) return changes;
+    // Judge each line with this move's marks already in place, and never
+    // overwrite a cell the move itself just marked.
+    const next = new Map(changes.map((ch) => [ch.i, ch.to]));
+    const after = (x) => (next.has(x) ? next.get(x) : valueAt(x));
     const extra = [];
     const lines = new Set();
     for (const ch of changes) { lines.add(`r${Math.floor(ch.i / G.p.cols)}`); lines.add(`c${ch.i % G.p.cols}`); }
     for (const key of lines) {
       const cells = def.lineCells(G.p, key);
-      const vals = cells.map((x) => valueAt(x) === 1 ? 1 : 0);
-      if (def.lineDone(G.p, key, vals)) for (const x of cells) if (!valueAt(x) && !extra.some((e) => e.i === x)) extra.push({ i: x, from: 0, to: 2, nf: 0, nt: 0 });
+      const vals = cells.map((x) => after(x) === 1 ? 1 : 0);
+      if (def.lineDone(G.p, key, vals)) for (const x of cells) if (!after(x) && !next.has(x) && !extra.some((e) => e.i === x)) extra.push({ i: x, from: 0, to: 2, nf: 0, nt: 0 });
     }
     return changes.concat(extra);
   }
@@ -486,13 +549,13 @@ export function createGame(def) {
   function keyMark(value) {
     const i = G.sel;
     if (i < 0) return;
-    const to = G.v[i] === value ? 0 : value;
+    const to = EDGES ? def.nextValue(G.p, i, G.v[i], value) : G.v[i] === value ? 0 : value;
     const ch = mark(i, to);
     if (!ch.length) return;
     const all = autoCross(ch);
     apply(all);
-    play(to === 1 ? 'place' : 'note');
-    announce(`${def.cellLabel(G.p, i)} ${to === 1 ? 'shaded' : to === 2 ? 'crossed' : 'cleared'}`, true);
+    play(to === 1 || (EDGES && to && to !== 2 && to !== 3) ? 'place' : 'note');
+    announce(EDGES ? `${def.cellLabel(G.p, i)}: ${def.valueName(G.p, to)}` : `${def.cellLabel(G.p, i)} ${to === 1 ? MW.on : to === 2 ? MW.x : 'cleared'}`, true);
     afterChange(ch);
   }
   function setPen(v) {
@@ -544,8 +607,9 @@ export function createGame(def) {
     const wrong = new Set([...Array(N()).keys()].filter(wrongAt));
     G.checked = wrong;
     render(); save();
-    const left = G.p.solution.filter((d, i) => playable(i) && !valueAt(i) && (DIGITS || d === 1)).length;
-    announce(wrong.size ? `${wrong.size} ${DIGITS ? 'number' : 'mark'}${wrong.size === 1 ? ' is' : 's are'} wrong. They are marked in red.` : `Everything so far is right. ${left} ${DIGITS ? 'cell' : 'shaded cell'}${left === 1 ? '' : 's'} to go.`, true);
+    const left = def.leftCount ? def.leftCount(G.p, valueAt) : G.p.solution.filter((d, i) => playable(i) && !valueAt(i) && (DIGITS || d === 1)).length;
+    const word = def.leftWord || (DIGITS ? 'cell' : 'shaded cell');
+    announce(wrong.size ? `${wrong.size} ${DIGITS ? 'number' : 'mark'}${wrong.size === 1 ? ' is' : 's are'} wrong. They are marked in red.` : `Everything so far is right. ${left} ${word}${left === 1 ? '' : 's'} to go.`, true);
   }
 
   // ---------- hints: a nudge, then where, then why ----------
@@ -635,15 +699,44 @@ export function createGame(def) {
     $('feel-done').textContent = '';
     root.querySelector(`#${P}-solved .gk-feel`).hidden = G.revealed;
     $('share').hidden = G.revealed;
+    $('moment').hidden = true;
+    nextLevelOffer();
     $('new-badges').hidden = !newBadges.length;
     $('new-badges').textContent = newBadges.length ? `New badge${newBadges.length === 1 ? '' : 's'}: ${newBadges.map((b) => b.name).join(', ')}` : '';
     if (fresh) { box.focus(); announce(`${$('solved-h').textContent} ${$('solved-text').textContent}`); }
   }
 
+  // Keep the player stretched: when their record says another level suits
+  // them now, the solved card says so and Next puzzle goes there. The same
+  // level stays one button away.
+  function nextLevelOffer() {
+    const here = G.p.difficulty.id;
+    // Never during a race: a race stays at the level it was started at.
+    const s = prefs.adapt && G.mode !== 'file' && G.mode !== 'race' ? learn.suggestLevel() : here;
+    const move = s !== here && levels().some((l) => l.id === s);
+    G.next = move ? s : here;
+    const up = ORDER.indexOf(s) > ORDER.indexOf(here);
+    $('adapt-note').hidden = !move;
+    $('adapt-note').textContent = move ? (up ? `You're ready for ${levelName(s)}.` : `Try ${levelName(s)} for a breather.`) : '';
+    $('again').textContent = move ? `Try ${levelName(s)}` : 'Next puzzle';
+    $('again-same').hidden = !move;
+    $('again-same').textContent = `Another ${levelName(here)}`;
+  }
+  function nextPuzzle(level) {
+    const lv = def.levels.find((l) => l.id === level) || def.levels.find((l) => l.id === G.p.difficulty.id);
+    const size = lv.sizes.includes(G.p.size) ? G.p.size : lv.sizes.includes(prefs.size) ? prefs.size : lv.sizes[0];
+    if (lv.id !== G.p.difficulty.id) { prefs.level = lv.id; prefs.size = size; savePrefs(); buildSetup(); }
+    showView('setup');
+    startNew({ difficulty: lv.id, size });
+  }
+
   function reveal() {
     $('reveal-confirm').hidden = true;
     const changes = [];
-    G.p.solution.forEach((d, i) => { if (playable(i) && !isGiven(i) && G.v[i] !== d) changes.push({ i, from: G.v[i], to: d, nf: G.n[i], nt: 0 }); });
+    G.p.solution.forEach((d, i) => {
+      const to = def.revealValue ? def.revealValue(G.p, i, G.v[i]) : d;
+      if (playable(i) && !isGiven(i) && G.v[i] !== to) changes.push({ i, from: G.v[i], to, nf: G.n[i], nt: 0 });
+    });
     apply(changes);
     G.revealed = true;
     G.solved = true;
@@ -708,7 +801,7 @@ export function createGame(def) {
       const v = vals[i];
       el.classList.toggle('given', !!G.p.givens[i]);
       el.classList.toggle('hinted', focus.has(i));
-      if (DIGITS) { el.querySelector('.v').textContent = v || ''; el.querySelector('.gk-notes').innerHTML = ''; } else { el.classList.toggle('on', v === 1); el.classList.toggle('x', v === 2); }
+      if (DIGITS) { el.querySelector('.v').textContent = v || ''; el.querySelector('.gk-notes').innerHTML = ''; } else { el.classList.toggle('on', v === 1); el.classList.toggle('x', v === 2); if (EDGES) el.dataset.v = v || 0; }
     }
     $('step-n').textContent = stepAt ? `Step ${stepAt} of ${path.length}` : `${path.length} steps`;
     $('step-tech').textContent = cur ? cur.techniqueName : 'The start';
@@ -737,17 +830,18 @@ export function createGame(def) {
     if (!g || typeof g !== 'object') return null;
     const p = def.cleanPuzzle(g.p);
     if (!p) return null;
-    const cells = p.size * p.cols;
+    const cells = countOf(p);
     const nums = (a, max) => (Array.isArray(a) && a.length === cells ? a.map((x) => (Number.isInteger(x) && x >= 0 && x <= max ? x : 0)) : Array(cells).fill(0));
     const hist = (a) => (Array.isArray(a) ? a.filter(Array.isArray).slice(-400).map((chs) => chs.filter((c) => c && Number.isInteger(c.i) && c.i >= 0 && c.i < cells).map((c) => ({ i: c.i, from: Number(c.from) || 0, to: Number(c.to) || 0, nf: Number(c.nf) || 0, nt: Number(c.nt) || 0 }))) : []);
     const num = (x) => (Number.isFinite(+x) && +x >= 0 ? +x : 0);
     return {
-      p, v: nums(g.v, DIGITS ? 9 : 2), n: nums(g.n, 1023), undo: hist(g.undo), redo: hist(g.redo),
+      p, v: nums(g.v, DIGITS ? 9 : def.maxValue || 2), n: nums(g.n, 1023), undo: hist(g.undo), redo: hist(g.redo),
       name: String(g.name || def.titleOf(p)).slice(0, 80), mode: ['free', 'daily', 'file', 'race'].includes(g.mode) ? g.mode : 'file',
       daily: /^\d{4}-\d{2}-\d{2}$/.test(g.daily || '') ? g.daily : null, practice: NAME_ID.test(g.practice || '') ? g.practice : null, tuned: g.tuned == null ? null : num(g.tuned),
       ms: num(g.ms), hints: num(g.hints), mistakes: num(g.mistakes), checks: num(g.checks), stuck: Array.isArray(g.stuck) ? g.stuck.filter((t) => NAME_ID.test(t)).slice(-50) : [],
       solved: !!g.solved, revealed: !!g.revealed, created: num(g.created) || Date.now(), updated: num(g.updated) || Date.now(),
       sel: Number.isInteger(g.sel) && g.sel >= 0 && g.sel < cells ? g.sel : 0,
+      beat: Number.isInteger(g.beat) && g.beat >= 0 && g.beat <= 3 ? g.beat : null,
     };
   }
 
@@ -861,6 +955,23 @@ export function createGame(def) {
       $('digits').addEventListener('click', (e) => { const b = e.target.closest('[data-d]'); if (b) { place(Number(b.dataset.d)); focusCell(G.sel); } });
       $('notes-btn').onclick = () => { prefs.notes = !prefs.notes; savePrefs(); render(); };
       $('auto').onclick = autoNotes;
+    } else if (EDGES) {
+      edgePointer(board, {
+        def, p: () => G.p, value: (i) => G.v[i], pen: () => prefs.pen || 1,
+        ready: () => !!G && !G.solved && !G.paused && playing(),
+        preview(changes) { for (const ch of changes) G.v[ch.i] = ch.to; render(); },
+        cancel(changes) { for (const ch of changes) G.v[ch.i] = ch.from; render(); },
+        commit(changes) {
+          for (const ch of changes.slice().reverse()) G.v[ch.i] = ch.from;
+          const chs = changes.map((ch) => ({ i: ch.i, from: ch.from, to: ch.to, nf: 0, nt: 0 })).filter((ch) => !isGiven(ch.i));
+          if (chs.length) { G.sel = chs[chs.length - 1].i; apply(autoCross(chs)); play(chs[0].to === 2 || chs[0].to === 3 || !chs[0].to ? 'note' : 'place'); }
+          afterChange(chs);
+          if (G && !G.solved) focusCell(G.sel);
+        },
+        tap(i) { G.sel = i; keyMark(prefs.pen || 1); if (G && !G.solved) { render(); focusCell(i); } },
+      });
+      $('pen-fill').onclick = () => setPen(1);
+      $('pen-cross').onclick = () => setPen(2);
     } else {
       board.addEventListener('pointerdown', (e) => {
         const c = e.target.closest('[data-i]');
@@ -898,7 +1009,9 @@ export function createGame(def) {
     $('reveal-no').onclick = () => { $('reveal-confirm').hidden = true; };
     $('reveal-yes').onclick = reveal;
     $('new').onclick = () => { if (G && !G.solved && G.ms > 5000) record('abandoned'); showView('setup'); };
-    $('again').onclick = () => { const lv = G.p.difficulty.id, size = G.p.size; showView('setup'); startNew({ difficulty: lv, size }); };
+    $('again').onclick = () => nextPuzzle(G.next || G.p.difficulty.id);
+    $('again-same').onclick = () => nextPuzzle(G.p.difficulty.id);
+    $('moment-close').onclick = () => { $('moment').hidden = true; focusCell(G.sel); };
     $('home').onclick = () => showView('setup');
     $('share').onclick = share;
     $('steps-btn').onclick = openSteps;
@@ -956,11 +1069,12 @@ export function createGame(def) {
     // A link to today's daily puzzle (?play=daily on the game's page).
     playDaily: () => startDaily(),
     // Races (web/js/game-race.js): a puzzle with the setup screen's level and
-    // size at the level's usual toughness, and starting the race puzzle.
+    // size at the level's usual toughness (never tuned to the player, never a
+    // practice puzzle), with the player's story theme, and starting the race puzzle.
     racePuzzle: () => {
       const level = $('levels').querySelector('input:checked')?.value || prefs.level || def.levels[0].id;
       const size = Number($('sizes').querySelector('input:checked')?.value) || def.levels.find((l) => l.id === level).sizes[0];
-      return engine.generate({ seed: Math.random().toString(36).slice(2), story: cfg().stories !== false, toughness: 0.5, difficulty: level, size, usedStories: [], usedPictures: [], avoid: [] });
+      return engine.generate({ seed: Math.random().toString(36).slice(2), story: cfg().stories !== false, theme: prefs.theme || 'surprise', toughness: 0.5, practice: null, difficulty: level, size, usedStories: [], usedPictures: [], avoid: [] });
     },
     startShared: (p, { mode = 'race' } = {}) => begin(p, { mode }),
   };

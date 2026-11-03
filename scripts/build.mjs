@@ -44,11 +44,12 @@ if (existsSync(engineSrc)) {
   rmSync(join(web, 'modules'), { recursive: true, force: true });
   mkdirSync(dest, { recursive: true });
   for (const n of readdirSync(src).filter((f) => /\.(js|css)$/.test(f) && f !== 'engine-worker.js')) writeFileSync(join(dest, n), readFileSync(join(src, n)));
-  // Cage Math, Sum Cross and Picture Grid: the shared game screen (grid-kit)
-  // and each game's definition. Their engines run in the shared game worker
+  // The grid-kit games (Cage Math, Sum Cross, Picture Grid, More or Less,
+  // Skyline, Star Field, Loop Line, Island Bridges): the shared game screen
+  // (grid-kit) and each game's definition. Their engines run in the shared game worker
   // like NINETIMESNINE's (engine/src/games.js); the test app's own worker
   // files stay behind.
-  for (const dir of ['grid-kit', 'cage-math', 'sum-cross', 'picture-grid']) {
+  for (const dir of ['grid-kit', 'cage-math', 'sum-cross', 'picture-grid', 'more-or-less', 'skyline', 'star-field', 'loop-line', 'island-bridges']) {
     mkdirSync(join(web, 'modules', dir), { recursive: true });
     for (const n of readdirSync(join(root, 'modules', dir)).filter((f) => /\.(js|css)$/.test(f) && !['engine-worker.js', 'engine-client.js'].includes(f))) writeFileSync(join(web, 'modules', dir, n), readFileSync(join(root, 'modules', dir, n)));
   }
@@ -108,6 +109,8 @@ const PAGE_FILES = new Set([
   'options.js',     // the setup screen's choices (written above)
   'play.js',        // checking marks and spotting a solve
   'beats.js',       // story moments while solving
+  'lab-stories.js', // story moments for the Timeline Case and Seating Plan styles (text only)
+  'lab-play.js',    // those styles' sizes and how they adapt to the player (no generator)
   'story-parts.js', // story ids and player-written story parts (learning, storyline form)
   'house-tuning.js', 'language.js', 'layout.js', 'tiers.js', 'rng.js', // tutorial and learning
   'classroom.js',   // the Educators forms' checks (with names-only lists below)
@@ -345,7 +348,8 @@ const seo = await buildSeo({ root, site });
 await applySiteDesign({ site, base: (process.env.FLG_SITE_URL || 'https://thelogicgrid.com').replace(/\/+$/, '') });
 // The Logic Grid's layout (scripts/hub.mjs): the front page at /, the game at
 // fantastical/, and every other game on a page of its own (ninetimesnine/,
-// cage-math/, sum-cross/, picture-grid/). The installed app keeps its id ("./")
+// cage-math/, sum-cross/, picture-grid/, more-or-less/, skyline/, star-field/,
+// loop-line/, island-bridges/). The installed app keeps its id ("./")
 // and starts at the front page; offline, every one of those pages opens.
 {
   const mf = join(site, 'manifest.webmanifest');

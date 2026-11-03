@@ -5,6 +5,9 @@ const { chromium } = require('playwright');
 const { spawn } = require('child_process');
 const path = require('path');
 const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`ok  ${m}`); };
+// Every grid-kit game: card id, screen id, name.
+const KIT = [['cage-math', 'cm', 'Cage Math'], ['sum-cross', 'sc', 'Sum Cross'], ['picture-grid', 'pg', 'Picture Grid'], ['more-or-less', 'ml', 'More or Less'],
+  ['skyline', 'sk', 'Skyline'], ['star-field', 'sf', 'Star Field'], ['loop-line', 'll', 'Loop Line'], ['island-bridges', 'ib', 'Island Bridges']];
 
 (async () => {
   const server = spawn('node', [path.join(__dirname, 'serve.mjs'), path.join(__dirname, '..', 'dist', 'web'), '8182'], { stdio: 'ignore' });
@@ -25,7 +28,8 @@ const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`o
     const cards = await page.$$eval('#game-cards .game-card', (els) => els.map((e) => ({ id: e.dataset.game, name: e.querySelector('.game-name').textContent, button: e.tagName === 'BUTTON' })));
     assert(cards[0].id === 'logic-grid' && /^The Fantastical Logic Grid/.test(cards[0].name) && cards[0].button, 'The Fantastical Logic Grid has a card');
     assert(cards[1].id === 'ninetimesnine' && /^NINETIMESNINE/.test(cards[1].name) && cards[1].button, 'NINETIMESNINE has a card');
-    assert(['cage-math', 'sum-cross', 'picture-grid'].every((id) => cards.some((c) => c.id === id && c.button)), 'Cage Math, Sum Cross and Picture Grid have cards');
+    assert(KIT.every(([id]) => cards.some((c) => c.id === id && c.button)), 'every grid-kit game has a card');
+    assert(cards.length === 10, `ten games, ten cards (${cards.length})`);
 
     // The Fantastical Logic Grid, with its welcome the first time.
     await page.click('#game-cards [data-game=logic-grid]');
@@ -75,8 +79,8 @@ const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`o
     await page.click('#np-back');
     await page.waitForSelector('#screen-games:not([hidden])');
 
-    // Cage Math, Sum Cross and Picture Grid each open their own screen, and come back.
-    for (const [card, screen, name] of [['cage-math', 'cm', 'Cage Math'], ['sum-cross', 'sc', 'Sum Cross'], ['picture-grid', 'pg', 'Picture Grid']]) {
+    // Every grid-kit game opens its own screen, and comes back.
+    for (const [card, screen, name] of KIT) {
       await page.click(`#game-cards [data-game=${card}]`);
       await page.waitForSelector(`#screen-${screen}:not([hidden]) #${screen}-setup-view:not([hidden]) #${screen}-levels .choice`);
       assert(page.url() && (await page.title()).startsWith(name), `${name} opens on its own screen`);
@@ -91,8 +95,9 @@ const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`o
       await page.waitForSelector('#screen-games:not([hidden])');
     }
 
-    // Each game has a video, and The Logic Grid has its own intro.
-    assert(await page.locator('.game-watch').count() === 5 && await page.locator('#games-intro-btn').isVisible(), 'every game card has a video, and so does The Logic Grid');
+    // Each game with a video has a Watch button, and The Logic Grid has its own intro.
+    assert(await page.locator('.game-watch').count() === 5 && await page.locator('#games-intro-btn').isVisible(), 'every game card with a video has a Watch button, and so does The Logic Grid');
+    assert(!(await page.locator(['more-or-less', 'skyline', 'star-field', 'loop-line', 'island-bridges'].map((id) => `[data-game=${id}] ~ .game-watch`).join(', ')).count()), 'a game without a video has no Watch button');
     await page.click('.game-watch[data-video=cage-math]');
     await page.waitForSelector('#dlg-game-video[open]');
     const vid = await page.evaluate(() => ({ src: document.querySelector('#game-video source').getAttribute('src'), track: document.querySelector('#game-video track').getAttribute('src'), h: document.querySelector('#game-video-h').textContent }));
@@ -112,7 +117,7 @@ const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`o
     await pp.goto('http://localhost:8182/?preview=an-old-code');
     await pp.waitForSelector('#screen-games:not([hidden]) #game-cards button');
     const pubCards = await pp.$$eval('#game-cards .game-card', (els) => els.map((e) => e.dataset.game));
-    assert(['logic-grid', 'ninetimesnine', 'cage-math', 'sum-cross', 'picture-grid'].every((id) => pubCards.includes(id)), 'every visitor gets a card for every game');
+    assert(['logic-grid', 'ninetimesnine', ...KIT.map(([id]) => id)].every((id) => pubCards.includes(id)), 'every visitor gets a card for every game');
     assert(!/preview=/.test(pp.url()) && !(await pp.evaluate(() => localStorage.getItem('flg.preview'))), 'an old preview link is cleaned out of the address and the device');
     assert(await pp.locator('[data-cmd=leave-preview]').count() === 0, 'the menu has no Leave the preview item');
     await pub.close();

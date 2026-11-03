@@ -13,8 +13,10 @@
 //                                     (other games send answers: every cell's value, not pairs)
 //
 // Races work in every game (GAMES): game 'flg' (the default) is The Fantastical
-// Logic Grid; np, cm, sc and pg are NINETIMESNINE, Cage Math, Sum Cross and
-// Picture Grid, whose puzzles are grids of numbers or shaded cells.
+// Logic Grid; np, cm, sc, pg, ml, sk and sf are NINETIMESNINE, Cage Math, Sum
+// Cross, Picture Grid, More or Less, Skyline and Star Field, whose puzzles are
+// grids of numbers or marked cells; ll and ib are Loop Line and Island Bridges,
+// line games whose answers are edges (lines between dots, bridges between islands).
 //   GET    /v1/races/:code           the standings
 //   POST   /v1/races/:code/invite    { screenName }  challenge a player to this race
 //   GET    /v1/invites               challenges waiting for this player
@@ -143,16 +145,22 @@ function matchesSolution(puzzle, pairs) {
 }
 
 // ------------------------------------------------------------- the other games
-// NINETIMESNINE, Cage Math, Sum Cross and Picture Grid: the puzzle shapes their
-// engines make (engine/src/number-place.js, cage-math.js, sum-cross.js,
-// picture-grid.js), each level's usual solve time (the games' own par) and the
-// points a level is worth, on the same scale as the Logic Grid's.
+// NINETIMESNINE and the grid-kit games: the puzzle shapes their engines make
+// (engine/src/number-place.js, cage-math.js, sum-cross.js, picture-grid.js,
+// more-or-less.js, skyline.js, star-field.js, loop-line.js, island-bridges.js),
+// each level's usual solve time (the games' own par, modules/<game>/game.js)
+// and the points a level is worth, on the same scale as the Logic Grid's.
 export const GAMES = {
   flg: { name: 'The Fantastical Logic Grid' },
   np: { name: 'NINETIMESNINE', par: { basic: 120e3, easy: 300e3, medium: 540e3, hard: 900e3, expert: 1320e3, master: 1800e3 } },
   cm: { name: 'Cage Math', par: { basic: 90e3, easy: 180e3, medium: 360e3, hard: 720e3, expert: 1200e3, master: 1800e3 } },
   sc: { name: 'Sum Cross', par: { basic: 90e3, easy: 240e3, medium: 480e3, hard: 840e3, expert: 1320e3, master: 2100e3 } },
   pg: { name: 'Picture Grid', par: { basic: 60e3, easy: 240e3, medium: 360e3, hard: 900e3, expert: 1500e3, master: 2400e3 } },
+  ml: { name: 'More or Less', par: { basic: 60e3, easy: 150e3, medium: 300e3, hard: 600e3, expert: 1080e3, master: 1680e3 } },
+  sk: { name: 'Skyline', par: { basic: 60e3, easy: 150e3, medium: 240e3, hard: 480e3, expert: 900e3, master: 1500e3 } },
+  sf: { name: 'Star Field', par: { basic: 90e3, easy: 180e3, medium: 420e3, hard: 720e3, expert: 1200e3, master: 1800e3 } },
+  ll: { name: 'Loop Line', par: { basic: 90e3, easy: 180e3, medium: 420e3, hard: 720e3, expert: 1200e3, master: 1800e3 } },
+  ib: { name: 'Island Bridges', par: { basic: 90e3, easy: 180e3, medium: 360e3, hard: 600e3, expert: 900e3, master: 1500e3 } },
 };
 const LEVEL_POINTS = { basic: 10, easy: 20, medium: 35, hard: 55, expert: 80, master: 110 };
 export const gameOf = (g) => (g === undefined || g === null ? 'flg' : Object.hasOwn(GAMES, g) ? g : null);
@@ -194,9 +202,38 @@ export function checkGamePuzzle(game, p) {
     if (!ints(p.solution, R * C, 0, 2) || !ints(p.givens, R * C, 0, 2)) return 'bad_puzzle';
     const line = (a, n, len) => Array.isArray(a) && a.length === n && a.every((l) => Array.isArray(l) && l.length <= len && l.every((v) => Number.isInteger(v) && v >= 0 && v <= len));
     if (!line(p.rowClues, R, C) || !line(p.colClues, C, R)) return 'bad_puzzle';
+  } else if (game === 'ml') {
+    if (!(Number.isInteger(R) && R >= 4 && R <= 9) || C !== R) return 'bad_puzzle';
+    if (!ints(p.solution, R * R, 1, R) || !ints(p.givens, R * R, 0, R)) return 'bad_puzzle';
+    if (!Array.isArray(p.signs) || p.signs.length > 2 * R * (R - 1)) return 'bad_puzzle';
+    if (!p.signs.every((s) => s && Number.isInteger(s.c) && s.c >= 0 && s.c < R * R && (s.d === 'r' || s.d === 'd') && typeof s.lt === 'boolean')) return 'bad_puzzle';
+  } else if (game === 'sk') {
+    if (!(Number.isInteger(R) && R >= 4 && R <= 8) || C !== R) return 'bad_puzzle';
+    if (!ints(p.solution, R * R, 1, R) || !ints(p.givens, R * R, 0, R)) return 'bad_puzzle';
+    if (!p.clues || typeof p.clues !== 'object' || !['top', 'bottom', 'left', 'right'].every((k) => ints(p.clues[k], R, 0, R))) return 'bad_puzzle';
+  } else if (game === 'sf') {
+    if (!(Number.isInteger(R) && R >= 5 && R <= 11) || C !== R || (p.stars !== 1 && p.stars !== 2)) return 'bad_puzzle';
+    if (!ints(p.solution, R * R, 1, 2) || !ints(p.givens, R * R, 0, 2) || !ints(p.regions, R * R, 0, R - 1)) return 'bad_puzzle';
+  } else if (game === 'll') {
+    // Edges: (R + 1) rows of C flat ones, then R rows of C + 1 upright ones.
+    if (!(Number.isInteger(R) && R >= 5 && R <= 12) || C !== R) return 'bad_puzzle';
+    const E = (R + 1) * C + R * (C + 1);
+    if (!ints(p.solution, E, 1, 2) || !ints(p.givens, E, 0, 2) || !ints(p.clues, R * C, -1, 3)) return 'bad_puzzle';
+  } else if (game === 'ib') {
+    // Links: pairs of islands that can see each other; 1 or 2 bridges, 3 none.
+    if (!(Number.isInteger(R) && R >= 7 && R <= 15) || C !== R) return 'bad_puzzle';
+    const I = p.islands;
+    if (!Array.isArray(I) || I.length < 2 || I.length > R * C) return 'bad_puzzle';
+    if (!I.every((s) => s && Number.isInteger(s.r) && Number.isInteger(s.c) && Number.isInteger(s.n) && s.r >= 0 && s.r < R && s.c >= 0 && s.c < C && s.n >= 1 && s.n <= 8)) return 'bad_puzzle';
+    const L = p.links;
+    if (!Array.isArray(L) || !L.length || L.length > 2 * I.length) return 'bad_puzzle';
+    if (!L.every((l) => l && Number.isInteger(l.a) && Number.isInteger(l.b) && l.a >= 0 && l.b >= 0 && l.a < I.length && l.b < I.length && (l.dir === 'h' || l.dir === 'v'))) return 'bad_puzzle';
+    if (!ints(p.solution, L.length, 1, 3) || !ints(p.givens, L.length, 0, 3)) return 'bad_puzzle';
   } else return 'bad_puzzle';
   if (p.story !== undefined && p.story !== null && typeof p.story !== 'object') return 'bad_puzzle';
-  const text = [p.story?.title, p.story?.intro, p.story?.ending, p.picture?.name].filter((t) => typeof t === 'string').join(' \n ');
+  // The grid-kit games' stories also have story moments (beats), shown while solving.
+  const beats = Array.isArray(p.story?.beats) ? p.story.beats.slice(0, 6) : [];
+  const text = [p.story?.title, p.story?.intro, p.story?.ending, ...beats, p.picture?.name].filter((t) => typeof t === 'string').join(' \n ');
   if (text.length > 4000) return 'bad_puzzle';
   if (hasBlockedWords(text, { strict: false })) return 'puzzle_words';
   return null;
@@ -204,13 +241,18 @@ export function checkGamePuzzle(game, p) {
 // The race puzzle's title: its story title, or the game's name.
 export const gameTitle = (game, p) => String((game !== 'pg' && p.story?.title) || GAMES[game].name).slice(0, 120);
 
-// A grid game's answers solve the puzzle: every cell's value, as the game keeps
-// them (Picture Grid: 1 shaded; Sum Cross: its clue and black squares are not counted).
+// A grid game's answers solve the puzzle: every cell's (or line game's edge's)
+// value, as the game keeps them (Picture Grid: 1 shaded; Star Field: 1 a star;
+// Loop Line: 1 a line; Island Bridges: 1 or 2 bridges, anything else none; Sum
+// Cross: its clue and black squares are not counted). Crosses and dots are the
+// player's own notes, so they never count against an answer.
+const bridges = (v) => (v === 1 || v === 2 ? v : 0);
 export function answersSolve(game, p, answers) {
   if (!Array.isArray(answers) || answers.length !== p.solution.length) return false;
   return p.solution.every((want, i) => {
     const got = answers[i];
-    if (game === 'pg') return (got === 1) === (want === 1);
+    if (game === 'pg' || game === 'sf' || game === 'll') return (got === 1) === (want === 1);
+    if (game === 'ib') return bridges(got) === bridges(want);
     if (game === 'sc' && !want) return true;
     return got === want;
   });

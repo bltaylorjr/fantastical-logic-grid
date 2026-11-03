@@ -6,7 +6,7 @@
 //                          clue mix, theme lean, and approved story parts
 //   POST /v1/learn/parts   a story part a player chose to share; waits for review
 //   POST /v1/learn/np/plays, GET /v1/learn/np/tuning   the same for NINETIMESNINE (number-place.js)
-//   POST /v1/learn/(cm|sc|pg)/plays, GET .../tuning     the same for Cage Math, Sum Cross and Picture Grid (kit-games.js)
+//   POST /v1/learn/(cm|sc|pg|ml|sk|sf|ll|ib)/plays, GET .../tuning     the same for each grid-kit game (kit-games.js)
 //   POST /v1/tts           Gemini voice clips for players without their own key,
 //                          cached, rate limited and capped per day
 //
@@ -380,9 +380,9 @@ export async function handleLearn(req, env, ctx, url = new URL(req.url)) {
     // NINETIMESNINE shares only these: its play summaries and its tuning (number-place.js).
     else if (url.pathname === '/v1/learn/np/tuning' && req.method === 'GET') res = await getNpTuning(req, env, ctx, json);
     else if (url.pathname === '/v1/learn/np/plays' && req.method === 'POST') res = (await limited(env.LIMIT_PLAYS, req)) ? json({ error: 'Slow down.' }, 429) : await postNpPlays(req, env, await bodyJson(req, 64_000), json);
-    // Cage Math, Sum Cross and Picture Grid share the same two things (kit-games.js).
-    else if (/^\/v1\/learn\/(cm|sc|pg)\/tuning$/.test(url.pathname) && req.method === 'GET') res = await getKitTuning(url.pathname.split('/')[3], env, ctx, json);
-    else if (/^\/v1\/learn\/(cm|sc|pg)\/plays$/.test(url.pathname) && req.method === 'POST' && isKitGame(url.pathname.split('/')[3])) res = (await limited(env.LIMIT_PLAYS, req)) ? json({ error: 'Slow down.' }, 429) : await postKitPlays(url.pathname.split('/')[3], env, await bodyJson(req, 64_000), json);
+    // The grid-kit games share the same two things (kit-games.js).
+    else if (/^\/v1\/learn\/(cm|sc|pg|ml|sk|sf|ll|ib)\/tuning$/.test(url.pathname) && req.method === 'GET') res = await getKitTuning(url.pathname.split('/')[3], env, ctx, json);
+    else if (/^\/v1\/learn\/(cm|sc|pg|ml|sk|sf|ll|ib)\/plays$/.test(url.pathname) && req.method === 'POST' && isKitGame(url.pathname.split('/')[3])) res = (await limited(env.LIMIT_PLAYS, req)) ? json({ error: 'Slow down.' }, 429) : await postKitPlays(url.pathname.split('/')[3], env, await bodyJson(req, 64_000), json);
     else if (url.pathname === '/v1/learn/plays' && req.method === 'POST') res = (await limited(env.LIMIT_PLAYS, req)) ? json({ error: 'Slow down.' }, 429) : await postPlays(req, env);
     else if (url.pathname === '/v1/learn/parts' && req.method === 'POST') res = (await limited(env.LIMIT_PARTS, req)) ? json({ error: 'Slow down.' }, 429) : await postPart(req, env);
     else res = json({ error: 'Not found.' }, 404);

@@ -1,4 +1,4 @@
-// Cage Math, Sum Cross and Picture Grid's part of the learning service and their admin sections: run with
+// The grid-kit games' part of the learning service and their admin sections: run with
 // `npm test` in server/. The whole Worker runs in Miniflare with a local D1
 // database, so nothing leaves this computer.
 import { test, before, after } from 'node:test';
@@ -7,7 +7,8 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Miniflare } from 'miniflare';
-import { computeKitTuning, cleanKitPlay } from '../src/kit-games.js';
+import { pathToFileURL } from 'node:url';
+import { computeKitTuning, cleanKitPlay, kitVerdict, KIT_GAMES } from '../src/kit-games.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const ORIGIN = 'https://thelogicgrid.com';
@@ -56,6 +57,26 @@ test('a play record is cleaned: unknown games, levels, sizes and techniques are 
   assert.equal('name' in r, false);
 });
 
+// Each game's sizes, steps and typical times here must match the game itself
+// (modules/<game>/game.js) and its engine's list of steps.
+const NEW_GAMES = [['ml', 'more-or-less', 'ML_TECHNIQUES'], ['sk', 'skyline', 'SK_TECHNIQUES'], ['sf', 'star-field', 'SF_TECHNIQUES'], ['ll', 'loop-line', 'LL_TECHNIQUES'], ['ib', 'island-bridges', 'IB_TECHNIQUES']];
+test('More or Less, Skyline, Star Field, Loop Line and Island Bridges match their games', async () => {
+  for (const [id, dir, techs] of NEW_GAMES) {
+    const { def } = await import(pathToFileURL(join(root, '..', 'modules', dir, 'game.js')).href);
+    const engine = await import(pathToFileURL(join(root, '..', 'engine', 'src', `${dir}.js`)).href);
+    assert.equal(KIT_GAMES[id].name, def.name);
+    assert.deepEqual(KIT_GAMES[id].sizes, [...new Set(def.levels.flatMap((l) => l.sizes))].sort((a, b) => a - b), `${def.name} sizes`);
+    assert.deepEqual([...KIT_GAMES[id].techniques].sort(), Object.keys(engine[techs]).sort(), `${def.name} steps`);
+    for (const [level, ms] of Object.entries(def.par)) {
+      // Solved without hints just under the game's typical time reads as easy; well over twice it, as tough.
+      assert.equal(kitVerdict(id, { level, outcome: 'solved', hints: 0, minutes: ms / 60000 - 0.01 }), 1, `${def.name} ${level} typical time`);
+      assert.equal(kitVerdict(id, { level, outcome: 'solved', hints: 0, minutes: ms / 60000 + 0.01 }), 0, `${def.name} ${level} typical time`);
+    }
+    assert.ok(cleanKitPlay(id, play({ size: KIT_GAMES[id].sizes[0] })), `${def.name} takes a play`);
+    assert.equal(cleanKitPlay(id, play({ size: 25 })), null, `${def.name} has no 25 x 25`);
+  }
+});
+
 test('shared tuning moves a level only after 10 games, and gently', () => {
   assert.deepEqual(computeKitTuning('pg', Array.from({ length: 9 }, () => ({ level: 'hard', outcome: 'solved', feel: 'easy', hints: 0, minutes: 3 }))).toughness, {});
   const easy = computeKitTuning('pg', Array.from({ length: 12 }, () => ({ level: 'hard', outcome: 'solved', feel: 'easy', hints: 0, minutes: 3 })));
@@ -91,8 +112,13 @@ test('each game has its own admin section and its own settings', async () => {
   assert.equal(r.body.name, 'Cage Math');
   assert.ok(r.body.levels.find((l) => l.level === 'medium').games >= 1);
   assert.equal((await call('/admin/v1/kit-game/zz', { token: ADMIN })).status, 404);
+  for (const id of ['ml', 'sk', 'sf', 'll', 'ib']) {
+    const x = await call(`/admin/v1/kit-game/${id}`, { token: ADMIN });
+    assert.equal(x.status, 200, `${id} has its admin section`);
+    assert.equal(x.body.name, KIT_GAMES[id].name);
+  }
   const s = await call('/admin/v1/settings', { token: ADMIN });
-  for (const [id, group] of [['cm', 'Cage Math'], ['sc', 'Sum Cross'], ['pg', 'Picture Grid']]) {
+  for (const [id, group] of [['cm', 'Cage Math'], ['sc', 'Sum Cross'], ['pg', 'Picture Grid'], ['ml', 'More or Less'], ['sk', 'Skyline'], ['sf', 'Star Field'], ['ll', 'Loop Line'], ['ib', 'Island Bridges']]) {
     const keys = s.body.settings.filter((x) => x.group === group).map((x) => x.key);
     for (const k of ['enabled', 'learning_enabled', 'max_level', 'daily_enabled', 'adapt_strength', 'shared_weight']) assert.ok(keys.includes(`${id}_${k}`), `${id}_${k} is in the ${group} group`);
   }

@@ -17,6 +17,8 @@
 // the same deductions with the same wording, so a seed always gives the same
 // puzzle it gave before.
 
+import { MODE_RELATIONS } from './clues.js';
+
 export const YES = 1;
 export const NO = -1;
 
@@ -37,7 +39,15 @@ export const TECHNIQUE_NAMES = {
   gap: 'Exact gap',
   conditional: 'If / then',
   whatIf: 'What if',
+  // Lab modes only (modes.js).
+  timeOrder: 'Time order',
+  roundTable: 'Round the table',
 };
+
+// Lab-mode clue types that compare places on an ordered category (o): the
+// items they name, as [field, ...].
+const MODE_FIELDS = { next: ['a', 'b'], between: ['a', 'm', 'b'], first: ['a'], last: ['a'],
+  nextTo: ['a', 'b'], across: ['a', 'b'], left2: ['a', 'b'], notNext: ['a', 'b'] };
 
 // Work lists. Each grid rule keeps a bitset of the places it still has to
 // look at ("pending"). A place is cleared when the rule looks at it and is
@@ -129,12 +139,14 @@ function touch(S, p, q, v) {
 function watchList(K, N, clues) {
   const R = K * N * K;
   const rowsOf = (c) => (c.type === 'less' || c.type === 'diff') ? [c.a * K + c.o, c.b * K + c.o]
-    : c.type === 'ifthen' ? [c.p[0] * K + Math.floor(c.p[1] / N), c.q[0] * K + Math.floor(c.q[1] / N)] : null;
+    : c.type === 'ifthen' ? [c.p[0] * K + Math.floor(c.p[1] / N), c.q[0] * K + Math.floor(c.q[1] / N)]
+    : MODE_FIELDS[c.type] ? modeRows(c, K, N) : null;
   const start = new Int32Array(R + 1);
   const pairs = [];
   clues.forEach((c, k) => {
     const rows = rowsOf(c);
     if (!rows) return;
+    if (rows.length !== 2) { for (const r of rows) pairs.push(r, k); return; }
     pairs.push(rows[0], k);
     if (rows[1] !== rows[0]) pairs.push(rows[1], k);
   });
@@ -144,6 +156,19 @@ function watchList(K, N, clues) {
   const fill = start.slice(0, R);
   for (let i = 0; i < pairs.length; i += 2) list[fill[pairs[i]]++] = pairs[i + 1];
   return { start, list };
+}
+
+// Rows a lab-mode clue reads (each named item against the ordered category),
+// without repeats; an item of the ordered category itself has a fixed place.
+function modeRows(c, K, N) {
+  const rows = [];
+  for (const f of MODE_FIELDS[c.type]) {
+    const g = c[f];
+    if (Math.floor(g / N) === c.o) continue;
+    const r = g * K + c.o;
+    if (!rows.includes(r)) rows.push(r);
+  }
+  return rows.length ? rows : null;
 }
 
 const cat = (S, g) => Math.floor(g / S.N);
@@ -259,6 +284,29 @@ function clueReadings(S) {
             if (x !== c.x1 && x !== c.x2) sets.push([x, y, NO]);
           }
         why = D && (() => `Clue ${k + 1} says ${D.list([c.x1, c.x2])} go with ${D.list([c.y1, c.y2])} in some order, so nothing else in that grid can match them.`);
+        break;
+      }
+      case 'next':
+      case 'between':
+      case 'first':
+      case 'last':
+      case 'nextTo':
+      case 'across':
+      case 'left2':
+      case 'notNext': {
+        // Lab modes: every item named belongs to a different person; first
+        // and last fix a time outright.
+        const its = MODE_FIELDS[c.type].map((f) => c[f]);
+        for (let i = 0; i < its.length; i++)
+          for (let j = i + 1; j < its.length; j++)
+            if (cat(S, its[i]) !== cat(S, its[j])) sets.push([its[i], its[j], NO]);
+        if (c.type === 'first' || c.type === 'last') {
+          const t = c.o * N + (c.type === 'first' ? 0 : N - 1);
+          sets.push([c.a, t, YES]);
+          why = D && (() => `Clue ${k + 1} says ${D.clause(c)}: ${D.pair(c.a, t, YES)}.`);
+        } else if (sets.length) {
+          why = D && (() => `Clue ${k + 1} says ${D.clause(c)}, so ${sets.map(([x, y]) => D.pair(x, y, NO)).join(', and ')}.`);
+        }
         break;
       }
       case 'less':
@@ -426,10 +474,88 @@ function clueReasoning(S) {
         d = { sets: [[c.p[0], c.p[1], NO]], why: D && (() => `Clue ${k + 1}: if ${D.pair(c.p[0], c.p[1], YES)}, then ${D.pair(c.q[0], c.q[1], YES)}. But ${D.pair(c.q[0], c.q[1], NO)}, so ${D.pair(c.p[0], c.p[1], NO)}.`) };
       }
       if (d && emit(S, { level: 2, tech: 'conditional', clue: k, ...d })) return true;
+    } else if (MODE_FIELDS[c.type]) {
+      if (modeReasoning(S, c, k)) return true;
     }
   }
   return false;
 }
+
+// Lab modes: keep only the places (times or seats) for each named item that
+// still fit the clue with some open place for the others. Seats wrap round.
+function modeReasoning(S, c, k) {
+  const { N } = S;
+  const D = S.describe;
+  const fields = MODE_FIELDS[c.type];
+  if (fields.length < 2) return false;
+  const items = fields.map((f) => c[f]);
+  const placesOf = (g) => (cat(S, g) === c.o ? [g % N] : poss(S, g, c.o).map((h) => h % N));
+  const opts = items.map(placesOf);
+  const fits = c.type === 'between'
+    ? (v) => v[0] < v[1] && v[1] < v[2]
+    : (v) => MODE_RELATIONS[c.type](v[0], v[1], N);
+  // For each item and each of its places: is there a fitting choice for the others?
+  const supported = (i, v) => {
+    const pick = [];
+    const walk = (j) => {
+      if (j === items.length) return fits(pick);
+      if (j === i) { pick[j] = v; return walk(j + 1); }
+      for (const w of opts[j]) {
+        if (pick.slice(0, j).includes(w) || w === v) continue;
+        pick[j] = w;
+        if (walk(j + 1)) return true;
+      }
+      return false;
+    };
+    return walk(0);
+  };
+  const sets = [];
+  items.forEach((g, i) => {
+    if (cat(S, g) === c.o) return;
+    for (const v of opts[i]) if (!supported(i, v)) sets.push([g, c.o * N + v, NO]);
+  });
+  if (!sets.length) return false;
+  const ring = c.type === 'nextTo' || c.type === 'across' || c.type === 'left2' || c.type === 'notNext';
+  const why = D && (() => {
+    const lab = (v) => D.label(c.o * N + v);
+    const head = `Clue ${k + 1} says ${D.clause(c)}.`;
+    if (items.length !== 2) {
+      const known = items.filter((g, i) => cat(S, g) !== c.o && !sets.some((s) => s[0] === g) && opts[i].length < N);
+      const facts = known.map((g) => D.posList(g, poss(S, g, c.o)));
+      const ruled = items.filter((g) => sets.some((s) => s[0] === g)).map((g) => D.negList(g, sets.filter((s) => s[0] === g).map((s) => s[1])));
+      return `${head} ${facts.length ? `${cap(joinAnd(facts))}. ` : ''}With the times still open, ${joinAnd(ruled)}.`;
+    }
+    // Two items: say, for each ruled-out place, which place the other one
+    // would need and that it is not open. Seats wrap round the table.
+    let wraps = false;
+    const reasons = sets.slice(0, 3).map(([g, h]) => {
+      const i = items.indexOf(g), j = 1 - i, v = h % N;
+      const other = items[j];
+      const need = [];
+      for (let w = 0; w < N; w++) {
+        if (w === v) continue;
+        const ok = i === 0 ? MODE_RELATIONS[c.type](v, w, N) : MODE_RELATIONS[c.type](w, v, N);
+        if (!ok) continue;
+        need.push(w);
+        if (ring && c.type !== 'notNext' && c.type !== 'across' && Math.abs(v - w) !== (c.type === 'left2' ? 2 : 1)) wraps = true;
+      }
+      const where = joinList(need.map(lab), 'or');
+      const who = cat(S, other) === 0 ? D.label(other) : D.subj(other);
+      const prep = ring ? 'in' : 'at';
+      if (!need.length) return `${lab(v)} leaves no ${ring ? 'seat' : 'time'} that fits for ${who}`;
+      return need.length === 1 ? `${lab(v)} would need ${who} ${prep} ${where}, which is not open`
+        : `${lab(v)} would need ${who} ${prep} ${where}, and none of those is open`;
+    });
+    const more = sets.length > 3 ? `, and the same goes for ${joinAnd(sets.slice(3).map(([, h]) => lab(h % N)))}` : '';
+    const roundNote = wraps ? ` The table is round, so ${lab(N - 1)} is next to ${lab(0)}.` : '';
+    const ruled = [...new Set(sets.map((s) => s[0]))].map((g) => D.negList(g, sets.filter((s) => s[0] === g).map((s) => s[1])));
+    return `${head}${roundNote} ${cap(reasons.join('; '))}${more}. So ${joinAnd(ruled)}.`;
+  });
+  return emit(S, { level: 2, tech: ring ? 'roundTable' : 'timeOrder', clue: k, sets, why });
+}
+
+const joinList = (xs, conj) => (xs.length <= 1 ? xs.join('') : xs.length === 2 ? `${xs[0]} ${conj} ${xs[1]}` : `${xs.slice(0, -1).join(', ')} ${conj} ${xs.at(-1)}`);
+const joinAnd = (xs) => (xs.length <= 1 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}`);
 
 // ---------- Level 3: what-if ----------
 

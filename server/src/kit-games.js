@@ -1,19 +1,25 @@
-// Cage Math, Sum Cross and Picture Grid's part of the shared learning service
-// (the kit games, modules/grid-kit). The only data these games share with the
+// The grid-kit games' part of the shared learning service (modules/grid-kit:
+// Cage Math, Sum Cross, Picture Grid, More or Less, Skyline, Star Field, Loop
+// Line, Island Bridges). The only data these games share with the
 // rest of the app: anonymous summaries of finished puzzles, and the tuning
 // worked out from everyone's games. One table (kit_plays) with a game column.
 //
-//   POST /v1/learn/(cm|sc|pg)/plays    summaries of finished puzzles
-//   GET  /v1/learn/(cm|sc|pg)/tuning   toughness per level from everyone's games
-//   GET  /admin/v1/kit-game/(cm|sc|pg) the admin section: how each level is going
+//   POST /v1/learn/(cm|sc|pg|ml|sk|sf|ll|ib)/plays    summaries of finished puzzles
+//   GET  /v1/learn/(cm|sc|pg|ml|sk|sf|ll|ib)/tuning   toughness per level from everyone's games
+//   GET  /admin/v1/kit-game/(cm|sc|pg|ml|sk|sf|ll|ib) the admin section: how each level is going
 //
-// Each game's settings are in its own group (settings.js): cm_*, sc_*, pg_*.
+// Each game's settings are in its own group (settings.js): cm_*, sc_*, pg_*, ml_*, ...
 import { getSettings } from './settings.js';
 
 export const KIT_GAMES = {
   cm: { name: 'Cage Math', sizes: [4, 5, 6, 7, 8, 9], techniques: ['nakedSingle', 'hiddenSingle', 'cageCombo', 'cageLine', 'nakedPair', 'hiddenPair', 'nakedTriple', 'cageTotal'] },
   sc: { name: 'Sum Cross', sizes: [5, 6, 7, 8, 9, 10, 12], techniques: ['nakedSingle', 'hiddenSingle', 'combo', 'comboFit', 'nakedPair', 'nakedTriple'] },
   pg: { name: 'Picture Grid', sizes: [5, 10, 15, 20, 25], techniques: ['overlap', 'finish', 'edge', 'reach', 'cross'] },
+  ml: { name: 'More or Less', sizes: [4, 5, 6, 7, 8, 9], techniques: ['nakedSingle', 'hiddenSingle', 'signLimit', 'signChain', 'nakedPair', 'hiddenPair', 'nakedTriple'] },
+  sk: { name: 'Skyline', sizes: [4, 5, 6, 7, 8], techniques: ['nakedSingle', 'hiddenSingle', 'edgeOne', 'edgeAll', 'distance', 'visibility', 'nakedPair', 'hiddenPair', 'nakedTriple'] },
+  sf: { name: 'Star Field', sizes: [5, 6, 7, 8, 9, 10, 11], techniques: ['neighbour', 'finished', 'onlyPlace', 'squeeze', 'touchAll', 'blocks', 'noRoom', 'groups', 'chain'] },
+  ll: { name: 'Loop Line', sizes: [5, 6, 7, 8, 10, 12], techniques: ['zero', 'full', 'fill', 'dotFull', 'deadEnd', 'goOn', 'closed', 'corner', 'smallLoop', 'enter', 'threes', 'pass2', 'diag3', 'whatIf'] },
+  ib: { name: 'Island Bridges', sizes: [7, 9, 10, 11, 12, 13, 15], techniques: ['cross', 'full', 'room', 'only', 'must', 'isolate', 'reach', 'whatIf'] },
 };
 export const KIT_LEVELS = ['basic', 'easy', 'medium', 'hard', 'expert', 'master'];
 export const kitTuningKey = (game) => `https://flg-cloud.internal/v1/learn/${game}/tuning`;
@@ -22,6 +28,11 @@ const PAR_MIN = {
   cm: { basic: 1.5, easy: 3, medium: 6, hard: 12, expert: 20, master: 30 },
   sc: { basic: 1.5, easy: 4, medium: 8, hard: 14, expert: 22, master: 35 },
   pg: { basic: 1, easy: 4, medium: 6, hard: 15, expert: 25, master: 40 },
+  ml: { basic: 1, easy: 2.5, medium: 5, hard: 10, expert: 18, master: 28 },
+  sk: { basic: 1, easy: 2.5, medium: 4, hard: 8, expert: 15, master: 25 },
+  sf: { basic: 1.5, easy: 3, medium: 7, hard: 12, expert: 20, master: 30 },
+  ll: { basic: 1.5, easy: 3, medium: 7, hard: 12, expert: 20, master: 30 },
+  ib: { basic: 1.5, easy: 3, medium: 6, hard: 10, expert: 15, master: 25 },
 };
 const PLATFORMS = new Set(['web', 'desktop', 'android', 'ios']);
 const MODES = new Set(['free', 'daily', 'file']);

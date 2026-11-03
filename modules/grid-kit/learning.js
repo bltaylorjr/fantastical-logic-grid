@@ -76,7 +76,13 @@ export function createLearning({ load, keep, key, par, simple = [], config = () 
     if (recent.length) {
       let w = 0, sum = 0;
       recent.forEach((r, i) => { const wt = i + 1; w += wt; sum += verdict(r) * wt; });
-      local = clamp(0.5 + (sum / w) * 0.25 * strength, 0.05, 0.95);
+      local = 0.5 + (sum / w) * 0.25 * strength;
+      // The latest puzzle counts a little extra: a quick solve with no help
+      // steps up sooner, a give-up eases off at once.
+      const last = recent[recent.length - 1];
+      if (last.outcome === 'solved' && !last.hints && !last.mistakes && last.feel !== 'hard' && last.ms < (par[level] || 600e3) * 0.75) local += 0.08 * strength;
+      else if (last.outcome !== 'solved') local -= 0.1 * strength;
+      local = clamp(local, 0.05, 0.95);
     }
     const s = shared?.toughness?.[level];
     if (typeof s !== 'number') return local;

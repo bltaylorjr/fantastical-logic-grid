@@ -268,14 +268,16 @@ const SHOTS = process.env.SHOTS;
     await page.selectOption('#npset-np_max_level', 'expert');
     await page.click('button[data-np-save=np_max_level]');
     assert(await until('np_max_level', 'expert'), 'the hardest NINETIMESNINE level is saved');
-    // Cage Math, Sum Cross and Picture Grid each have their own section too.
-    assert(!(await page.locator('#settings-body [data-key^=cm_], #settings-body [data-key^=sc_], #settings-body [data-key^=pg_]').count()), 'the new games\' settings are not in the shared Settings page');
-    for (const [view, id, name] of [['cagemath', 'cm', 'Cage Math'], ['sumcross', 'sc', 'Sum Cross'], ['picturegrid', 'pg', 'Picture Grid']]) {
+    // Every grid-kit game has its own section too.
+    const KIT = [['cagemath', 'cm', 'Cage Math'], ['sumcross', 'sc', 'Sum Cross'], ['picturegrid', 'pg', 'Picture Grid'], ['moreorless', 'ml', 'More or Less'], ['skyline', 'sk', 'Skyline'], ['starfield', 'sf', 'Star Field'], ['loopline', 'll', 'Loop Line'], ['islandbridges', 'ib', 'Island Bridges']];
+    assert(!(await page.locator(KIT.map(([, id]) => `#settings-body [data-key^=${id}_]`).join(', ')).count()), 'the grid-kit games\' settings are not in the shared Settings page');
+    for (const [view, id, name] of KIT) {
       await openSection(page, view);
       await page.waitForSelector(`#kit-${id}-body input[data-kit-key=${id}_daily_enabled]`);
       const text = await page.textContent(`#kit-${id}-body`);
       assert(text.includes(`${name} settings`) && /Games since/.test(text), `the ${name} section shows its games and settings`);
     }
+    await openSection(page, 'picturegrid');
     await page.locator('#kit-pg-body input[data-kit-key=pg_daily_enabled]').uncheck();
     assert(await until('pg_daily_enabled', false), 'a Picture Grid setting is saved from its own section');
     await page.waitForFunction(() => document.querySelector('#kit-pg-body input[data-kit-key=pg_daily_enabled]')?.nextElementSibling?.textContent === 'Off');
