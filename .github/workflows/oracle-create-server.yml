@@ -5,7 +5,7 @@
 # only a backup, since GitHub doesn't always run it). It stops by
 # itself once the server exists or the deadline below has passed. The owner
 # chose to stay on the free tier, so it asks for the Always Free size (2 Arm
-# cores, 12 GB) and, in the last 6 hours, also 1 core/6 GB as a last resort.
+# cores, 12 GB) and, after the first day, also 1 core/6 GB as a last resort.
 #
 # Needs the repository secret OCI_API_KEY: the private key (.pem) of an API
 # key on the btay74@outlook.com Oracle user (Oracle Cloud > profile > User
@@ -27,8 +27,11 @@ concurrency:
   group: oracle-create-server
   cancel-in-progress: false
 env:
-  # Retry for 24 hours from when this was started (Nov 1, 2026, 11 pm Eastern).
-  DEADLINE: '2026-11-03T04:15:00Z'
+  # Started Nov 1, 2026 (11 pm Eastern) for 24 hours; the owner chose to keep
+  # going on the free tier, so it now runs for another week.
+  DEADLINE: '2026-11-10T04:15:00Z'
+  # From here on the last-resort size (1 core, 6 GB) is tried too.
+  SMALLER_FROM: '2026-11-02T22:15:00Z'
   # The API key's user, fingerprint and tenancy (identifiers, not secrets;
   # Oracle profile > Tokens and keys > API keys > View configuration file).
   OCI_USER: ocid1.user.oc1..aaaaaaaabao4wu7gjxtjamhpmfl3jpad4vgl3m3mhwg3trivbpey5yu7jijq
@@ -73,8 +76,8 @@ jobs:
           deadline=$(date -u -d "$DEADLINE" +%s)
           while :; do
             now=$(date -u +%s)
-            # Last resort, in the final 6 hours only: smaller free sizes too.
-            if [ "$now" -gt $(( deadline - 6*3600 )) ]; then export SMALLER=1; fi
+            # Last resort, after the first day: the smaller free size too.
+            if [ "$now" -gt "$(date -u -d "$SMALLER_FROM" +%s)" ]; then export SMALLER=1; fi
             echo "--- $(date -u '+%H:%M UTC')${SMALLER:+ (smaller free sizes allowed too)}"
             bash scripts/runner/oracle-create-server.sh || exit 1
             result=$(tail -n 1 "$GITHUB_OUTPUT" | sed -n 's/^result=//p')
