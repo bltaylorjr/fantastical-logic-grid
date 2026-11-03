@@ -84,9 +84,17 @@ function totp(secret, now = Date.now()) {
     await page.fill('#login-password', 'right-password');
     await page.click('#login-form button[type=submit]');
     await page.waitForSelector('#app:not([hidden]) .tile');
-    assert(await page.locator('#nav-list a[href="#vault"]').isVisible(), 'the owner sees Passwords in the menu');
-
-    await page.goto(`${API}/admin/#vault`);
+    assert(!(await page.locator('#nav-list[data-current="main"] a[href="#vault"]').isVisible()), 'Passwords is not in The Logic Grid menu');
+    await page.click('#dash-switch [data-dash="vault"]');
+    await page.waitForSelector('#vault-setup:not([hidden])');
+    assert(await page.evaluate(() => location.hash) === '#vault', 'the owner opens Passwords from its own dashboard button');
+    assert(await page.getAttribute('#dash-switch [data-dash="vault"]', 'aria-pressed') === 'true', 'the Passwords button shows as open');
+    assert(await page.locator('#nav-list > li:visible').count() === 0, 'Passwords stands alone, with no section menu');
+    await page.click('#dash-switch [data-dash="main"]');
+    await page.waitForSelector('[data-view="overview"]:not([hidden])');
+    await page.goto(`${API}/admin/#passwords`);
+    await page.waitForSelector('#vault-setup:not([hidden])');
+    assert(await page.evaluate(() => location.hash) === '#vault', 'the address #passwords opens it too');
     await page.waitForSelector('#vault-setup:not([hidden])');
     await shot(page, 'vault-1-setup');
     await page.fill('#vault-new-1', 'short');
@@ -269,6 +277,23 @@ function totp(secret, now = Date.now()) {
 
     // Sign out locks it as well.
     await page.click('#signout').catch(() => {});
+
+    // Another admin does not see the Passwords button, and #vault sends them to the Overview.
+    await db.prepare("INSERT INTO admins (email, role, added_by, added_at) VALUES ('helper@example.com', 'admin', 'e2e', 0)").run();
+    const ctx3 = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    await ctx3.route('https://identitytoolkit.googleapis.com/**', (r) => {
+      const body = JSON.parse(r.request().postData() || '{}');
+      return r.fulfill({ contentType: 'application/json', body: JSON.stringify({ localId: 'helper-uid', email: body.email, idToken: signer.token({ sub: 'helper-uid', email: body.email, email_verified: true }), refreshToken: 'r2', expiresIn: '3600' }) });
+    });
+    const p3 = await ctx3.newPage();
+    await p3.goto(`${API}/admin/#vault`);
+    await p3.fill('#login-email', 'helper@example.com');
+    await p3.fill('#login-password', 'x');
+    await p3.click('#login-form button[type=submit]');
+    await p3.waitForSelector('#app:not([hidden]) .tile');
+    assert(await p3.locator('#dash-switch [data-dash="vault"]').isHidden(), 'another admin does not see the Passwords button');
+    assert(await p3.locator('[data-view="vault"]').isHidden(), 'and cannot open the Passwords page');
+    await ctx3.close();
 
     assert(!problems.length, `no page errors${problems.length ? `: ${problems.join(' | ')}` : ''}`);
     console.log('\nPasswords e2e passed.');

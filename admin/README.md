@@ -17,8 +17,10 @@ its own dashboard.
   tracking, Players, Screen names, Supporters, App keys, **App settings and
   switches** (sign-in, messages, ideas and problems, languages, support,
   alerts, moderation, backups, social links), Connections and setup, Face ID
-  and fingerprint, Backups and archive, Audit log, Admins, **Passwords**
-  (owner only, see below).
+  and fingerprint, Backups and archive, Audit log, Admins.
+- **Passwords** (owner only, see below): its own dashboard button, one page
+  with no section menu. `#passwords` or `#vault` opens it, and the installed
+  app's icon has a Passwords shortcut (long-press or right-click).
 - **The Fantastical Logic Grid**: **Fantastical home** (`#fantastical`: what is
   waiting for review, play numbers, and a way into each section), Daily
   puzzles, Characters, Media library, Puzzle quality, Ratings and insights,

@@ -2123,9 +2123,10 @@ const MIN_ROLE = { ...Object.fromEntries($$('#nav-list a').map((a) => [a.hash.sl
 
 // Dashboards: The Logic Grid (the app: players, sign-in, messages, website,
 // marketing, keys, settings shared by every game), The Fantastical Logic Grid
-// NINETIMESNINE, Cage Math, Sum Cross and Picture Grid. The menu shows the open dashboard's sections. Every
+// NINETIMESNINE, Cage Math, Sum Cross and Picture Grid, plus Passwords (owner
+// only, one page with no section menu; #passwords also opens it). The menu shows the open dashboard's sections. Every
 // address (#daily, #settings, ...) still works and opens its own dashboard.
-const DASH_HOME = { main: 'overview', flg: 'fantastical', ntn: 'numberplace', cm: 'cagemath', sc: 'sumcross', pg: 'picturegrid' };
+const DASH_HOME = { main: 'overview', flg: 'fantastical', ntn: 'numberplace', cm: 'cagemath', sc: 'sumcross', pg: 'picturegrid', vault: 'vault' };
 const dashOf = (view) => $(`#nav-list a[href="#${view}"]`)?.closest('li')?.dataset.dash;
 function setDash(dash) {
   if (!DASH_HOME[dash]) return;
@@ -2146,6 +2147,7 @@ async function show(route, { keepFocus = false } = {}) {
   // #players/<id> opens a player's page under the list.
   let [name, ...rest] = String(route || '').split('/');
   const arg = rest.length ? decodeURIComponent(rest.join('/')) : undefined;
+  if (name === 'passwords') { name = 'vault'; history.replaceState(null, '', '#vault'); }
   const alias = ALIASES[name];
   if (alias) {
     if (alias.type) { $('input[name=comm-tab][value=inbox]').checked = true; $('#comm-type').value = alias.type; }
@@ -2188,6 +2190,7 @@ async function enter() {
   $('#who-email').textContent = me.email;
   $('#who-role').textContent = me.role;
   $$('#nav-list a').forEach((a) => { a.parentElement.hidden = !can(a.dataset.min); });
+  $$('#dash-switch [data-min]').forEach((b) => { b.hidden = !can(b.dataset.min); });
   $$('main [data-min]').forEach((el) => { el.hidden = !can(el.dataset.min); });
   show(location.hash.slice(1) || 'overview');
   offerPasskey();
