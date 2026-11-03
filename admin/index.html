@@ -86,7 +86,7 @@
     </div>
     <ul id="nav-list" data-current="main">
       <li data-dash="main"><a href="#overview" data-min="viewer">Overview</a></li>
-      <li data-dash="main"><a href="#analysis" data-min="viewer">Analysis report</a></li>
+      <li data-dash="main"><a href="#analysis" data-min="viewer">Analysis and self-tuning <span class="count" id="count-analysis" hidden></span></a></li>
       <li data-dash="main"><a href="#visitors" data-min="viewer">Visitors</a></li>
       <li data-dash="main"><a href="#usage" data-min="viewer">Usage and free limits</a></li>
       <li data-dash="main"><a href="#search" data-min="viewer">Search (Google and Bing)</a></li>
@@ -137,14 +137,14 @@
     </section>
 
     <section data-view="analysis" hidden aria-labelledby="h-analysis">
-      <div class="head"><h1 id="h-analysis">Analysis report</h1>
+      <div class="head"><h1 id="h-analysis">Analysis and self-tuning</h1>
         <div class="row an-tools">
           <div class="field inline"><label for="an-days">Period</label><select id="an-days"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option><option value="365">Last 365 days</option></select></div>
           <button class="btn" type="button" id="an-refresh">Refresh</button>
           <button class="btn primary" type="button" id="an-print">Print or save as PDF</button>
         </div>
       </div>
-      <p class="muted">Every number the dashboard keeps, broken down by topic: what it shows, what to do next, how the game stands in the market and what to build. Figures with too little data behind them are marked "Too early to judge".</p>
+      <p class="muted">Every number the dashboard keeps, broken down by topic: what it shows, what to do next, how the game stands in the market and what to build. Self-tuning suggests small changes from these numbers and waits for your approval. Figures with too little data behind them are marked "Too early to judge".</p>
       <div id="an-body"><p class="muted">Loading…</p></div>
     </section>
 

@@ -7,6 +7,7 @@
 // The report never claims more than the data shows: a figure with too few
 // games or visits behind it is marked "Too early" instead of good or bad.
 import { MARKET } from './analysis-market.js';
+import { loadTuning } from './tuning.js';
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -494,6 +495,7 @@ function render(d) {
   const shown = topics.filter((t) => !t.hidden);
   const contents = `<nav class="an-contents" aria-label="Report contents"><h2>Contents</h2><ol>
     <li><a href="#an-summary" data-an-jump>Summary</a></li>
+    <li><a href="#an-tuning" data-an-open="tuning">Self-tuning</a></li>
     ${shown.map((t) => `<li><a href="#an-${t.id}" data-an-open="${t.id}">${H.esc(t.title)}</a> ${badge(t.missing ? 'early' : worst(t.findings))}</li>`).join('')}
     <li><a href="#an-market" data-an-open="market">Performance in the market</a></li>
     <li><a href="#an-trends" data-an-open="trends">Trends and technology</a></li>
@@ -501,6 +503,7 @@ function render(d) {
   const gen = `Built ${H.esc(H.when(d.generatedAt))} from the last ${H.fmt(d.days)} days. Market and technology research from ${H.esc(isoLabel(MARKET.researchedOn))}.`;
   $('#an-body').innerHTML = `<p class="muted">${gen}</p>
     <div id="an-summary">${summaryHtml(d, topics)}</div>
+    <section class="card an-tuning" id="an-tuning" aria-label="Self-tuning"><p class="muted">Loading self-tuning…</p></section>
     ${contents}
     <h2 class="an-part">By topic</h2>
     ${shown.map((t, i) => topicHtml(t, i === 0)).join('')}
@@ -514,8 +517,9 @@ function render(d) {
 export async function analysisView(helpers) {
   H = helpers;
   $('#an-body').innerHTML = '<p class="muted">Gathering every number. This takes a few seconds…</p>';
-  const d = await H.api(`analysis?days=${$('#an-days').value}`);
+  const [d] = await Promise.all([H.api(`analysis?days=${$('#an-days').value}`)]);
   render(d);
+  await loadTuning(H);
 }
 
 // Printing opens every topic first, so the PDF has the whole report.

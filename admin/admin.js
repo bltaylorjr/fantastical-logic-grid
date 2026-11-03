@@ -24,6 +24,7 @@ import { licensesView, initLicenses } from './licenses.js';
 import { mediaView } from './media.js';
 import { badgesView, initBadges, playerBadgesHtml, playerBadgeClick } from './badges.js';
 import { analysisView, initAnalysis } from './analysis.js';
+import { initTuning } from './tuning.js';
 import { passkeysSupported, platformReady, rememberedPasskey, passkeySignIn, offerPasskey, passkeysView, initPasskeys } from './passkeys.js';
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -296,6 +297,7 @@ views.overview = async () => {
   const labels = d.dayList;
   setCount('#count-parts', d.review.parts.pending || 0);
   setCount('#count-names', d.review.namesWaiting || 0);
+  setCount('#count-analysis', d.review.tuning || 0);
   setCount('#count-educators', d.review.educators || 0);
   setCount('#count-story-submissions', can('moderator') ? d.review.stories || 0 : 0);
   if (can('admin')) setCount('#count-licenses', d.review.keys || 0);
@@ -2103,9 +2105,10 @@ views.badges = () => badgesView(badgeHelpers);
 initBadges(badgeHelpers, (name, o) => show(name, o));
 
 // ---- Analysis report (analysis.js): every number by topic, the market and what to build next.
-const analysisHelpers = { api, esc, fmt, when, day, bytes, tile, table, bars };
+const analysisHelpers = { api, esc, fmt, when, day, bytes, tile, table, bars, can, act, ask, toast, announce, setCount };
 views.analysis = () => analysisView(analysisHelpers);
 initAnalysis(analysisHelpers, (name, o) => show(name, o));
+initTuning(analysisHelpers);
 
 // ---- Puzzle emails (puzzle-mail.js): the weekly and special edition lists, sends and planner.
 views.mail = () => puzzleMailView();

@@ -481,3 +481,14 @@ body.web-editor-window .web-frame-box iframe { height: calc(100vh - var(--top-h,
   body.an-printing a { color: #000; }
 }
 @media print { body.an-printing .shell { display: block; } }
+/* Self-tuning (tuning.js) on the Analysis page. */
+.an-tuning { border-left: 4px solid var(--accent); }
+.tn-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.tn-head h2 { display: flex; align-items: center; gap: 10px; margin: 0; }
+.tn-list { list-style: none; padding: 0; margin: 8px 0; display: grid; gap: 10px; }
+.tn-card { border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; background: var(--bg); }
+.tn-card.tn-undo { border-color: var(--bad); }
+.tn-card h4 { margin: 0 0 6px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.tn-card p { margin: 6px 0; }
+.tn-card .row { gap: 8px; margin-top: 8px; }
+@media print { body.an-printing #an-tuning button, body.an-printing #an-tuning select { display: none !important; } }
