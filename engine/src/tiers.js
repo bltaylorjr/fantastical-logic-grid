@@ -81,8 +81,8 @@ export const TIERS = {
     weights: { is: 0.1, not: 1.5, neither: 1.5, either: 2, pairs: 2.5, allDiff: 1.5, less: 3, diff: 3, ifthen: 3 },
     maxLevel: 3, requireLevel: 3, minAdvancedSteps: 12, minWhatIfSteps: 2, minScore: 750, maxWhatIf: Infinity, whatIfDepth: 5,
     // Big grids take longer to prove; the hardest puzzle found is kept if none
-    // reaches the bar in time.
-    timeLimitMs: 40000,
+    // reaches the bar within the 60 tries (tries, not the clock, so every device
+    // builds the same puzzle from the same seed).
     removeFirst: ['is', 'not', 'neither', 'allDiff', 'either', 'pairs', 'less', 'diff', 'ifthen'],
   },
 };

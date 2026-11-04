@@ -593,9 +593,10 @@ export function generateLoopLine({ difficulty = 'medium', size, seed = Math.rand
   const seen = new Set(avoid);
   const found = [];
   let backup = null;
-  const budget = N >= 12 ? 5000 : N >= 10 ? 6000 : 2200, started = Date.now();
+  // Bounded by work, not the clock: the same seed gives the same puzzle on every device, however fast or busy (attempt counts match the old time budget on the puzzle server, Nov 2026).
+  const enough = N >= 12 ? 4 : N >= 10 ? 73 : N >= 8 ? 96 : N >= 7 ? 159 : 400;
   for (let k = 0; k < 400 && found.length < 3; k++) {
-    if (Date.now() - started > budget && (found.length || (backup && k >= 2))) break;
+    if (k >= enough && (found.length || (backup && k >= 2))) break;
     const rng = makeRng(`${seed}:ll:${k}`);
     const c = attempt(N, N, tier, rng);
     if (!c) continue;

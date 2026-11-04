@@ -246,9 +246,8 @@ export function generatePictureGrid({ difficulty = 'medium', size, seed = Math.r
     const proof = proveAndGive(a.cells, N, N, tier, rng);
     if (proof) found.push({ ...a, ...proof, score: scoreOf(proof.res, proof.nGivens, N) });
   }
-  const until = Date.now() + 4000;
+  // The build is bounded by work, not the clock: the same seed gives the same puzzle on every device, however fast or busy (attempt counts match the old time budget on the puzzle server, Nov 2026).
   for (let attempt = 0; found.length < 3 && attempt < 300; attempt++) {
-    if (Date.now() > until && found.length) break;
     const r2 = makeRng(`${seed}:m${attempt}`);
     const m = mosaic(N, r2, tier.mosaic);
     if (m.cells.every((v) => v === 2) || seen.has(fpOf(m.cells, N))) continue;

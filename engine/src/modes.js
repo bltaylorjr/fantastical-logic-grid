@@ -186,7 +186,7 @@ export function resolveModeOptions(opts) {
     clueCount: opts.clueCount ? Math.max(1, Math.floor(opts.clueCount)) : null,
     questions: clamp(opts.questions ?? 3, [1, 6]), effort,
     customNames: opts.customNames, customTitle: opts.title, usedStories: opts.usedStories || [],
-    timeLimitMs: opts.timeLimitMs ?? tier.timeLimitMs ?? 15000, maxAttempts: opts.maxAttempts ?? 60,
+    timeLimitMs: opts.timeLimitMs ?? null, maxAttempts: opts.maxAttempts ?? 60,
   };
 }
 

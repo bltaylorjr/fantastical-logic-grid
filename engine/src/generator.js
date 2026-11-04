@@ -84,7 +84,7 @@ function resolveOptions(opts = {}) {
   return { tier, seed, rng, theme, topic, scenario, K, N, customSize, weights, clueCount, questions, effort,
     extraParts: opts.storyParts, storyPrefs: opts.storyPrefs,
     answer: world && Array.isArray(opts.answer) ? opts.answer : null,
-    customNames: opts.customNames, customTitle: opts.title, usedStories: opts.usedStories || [], timeLimitMs: opts.timeLimitMs ?? tier.timeLimitMs ?? 15000,
+    customNames: opts.customNames, customTitle: opts.title, usedStories: opts.usedStories || [], timeLimitMs: opts.timeLimitMs ?? null,
     maxAttempts: opts.maxAttempts ?? 60 };
 }
 
@@ -262,9 +262,13 @@ export function generatePuzzle(options = {}) {
     if (!best || fit < best.fit) best = { fit, model, clues, attempt, score: g.score };
     if (fit === 0) pool.push({ fit, model, clues, attempt, score: g.score });
     if (pool.length >= want) break;
-    // Searching for a better effort match gets half the time budget.
-    if (pool.length && Date.now() - started > o.timeLimitMs / 2) break;
-    if (Date.now() - started > o.timeLimitMs) break;
+    // The build is bounded by attempts (maxAttempts), not the clock, so the same
+    // seed gives the same puzzle on every device. A caller may still pass
+    // timeLimitMs (classroom packages, scripts) to cap the time as well.
+    if (o.timeLimitMs) {
+      if (pool.length && Date.now() - started > o.timeLimitMs / 2) break;
+      if (Date.now() - started > o.timeLimitMs) break;
+    }
   }
   if (pool.length > 1) {
     pool.sort((p, q) => p.score - q.score);
