@@ -12,6 +12,8 @@ const path = require('path');
   const page = await b.newPage();
   const errs = []; page.on('pageerror', (e) => errs.push(String(e)));
   await page.addInitScript(() => {
+    // These checks hear the cast while solving, which starts off (Settings > Sound).
+    try { const s = JSON.parse(localStorage.getItem('flg.settings') || '{}'); if (s.speechPlay === undefined) { s.speechPlay = true; localStorage.setItem('flg.settings', JSON.stringify(s)); } } catch (e) { /* no storage */ }
     // Stand-in for the Kokoro worker: a quick "download", then 50 ms WAV clips
     // that carry the number of the text they were made from.
     window.__texts = []; window.__played = []; window.__device = []; window.__failOn = null;

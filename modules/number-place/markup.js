@@ -25,7 +25,8 @@ export const markup = `
         <div class="np-more-body">
           <div class="np-field"><label for="np-theme">Story theme</label><select id="np-theme"></select></div>
           <label class="np-switch"><input type="checkbox" id="np-silent"> Silent mode <small class="np-muted">grid only: no story, sound or animation</small></label>
-          <label class="np-switch"><input type="checkbox" id="np-sound"> Sound effects</label>
+          <label class="np-switch"><input type="checkbox" id="np-sfxplay"> Sound effects while solving <small class="np-muted">numbers, finished rows and boxes, hints</small></label>
+          <label class="np-switch"><input type="checkbox" id="np-sfxfinish"> Sound effects at the finish <small class="np-muted">the solve fanfare</small></label>
           <label class="np-switch"><input type="checkbox" id="np-adapt"> Tune puzzles to how I play</label>
           <label class="np-switch"><input type="checkbox" id="np-autoclean"> Clear notes when I place a number</label>
           <label class="np-switch"><input type="checkbox" id="np-highlight"> Highlight the row, column, box and matching numbers</label>

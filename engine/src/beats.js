@@ -26,19 +26,20 @@ import { hashString } from './rng.js';
 import { LAB_BEATS } from './lab-stories.js';
 
 export const BEATS = {
-  // Placeholder lines so the feature can be tested. Replace or add to them.
+  // Lines for any theme: one sentence each, and nothing that belongs to one
+  // kind of place (no doors or rooms), so they fit a beach, a forest or space.
   default: {
     early: [
-      'The first pieces fall into place. Somewhere, a door creaks.',
-      '{name} looks around the room, as if counting who is still here.',
+      'The first pieces fall into place.',
+      '{name} looks around, as if counting who is still here.',
     ],
     middle: [
-      'Halfway there. The {many} start to watch each other more closely.',
-      '{name} clears their throat and changes the subject, a little too fast.',
+      'Halfway there, and the {many} start to watch each other closely.',
+      '{name} changes the subject a little too fast.',
     ],
     late: [
-      'Only one part of the puzzle is left. Everyone goes quiet.',
-      'The {many} gather together. The answer is close now.',
+      'Only one part of the puzzle is left, and everyone goes quiet.',
+      'The {many} gather close, because the answer is near.',
     ],
   },
   // Bobby's beats for the Mystery theme go here.

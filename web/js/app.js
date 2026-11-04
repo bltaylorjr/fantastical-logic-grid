@@ -159,14 +159,20 @@ function openDialog(dlg, focusEl) {
   focusEl?.focus();
 }
 
-function sound(kind) {
-  if (!settings.sound || settings.silent || !remote.feature('soundEffects')) return;
+// Where a sound or a voice plays, each with its own switch in Settings > Sound
+// (defaults in store.js): 'play' while solving, 'finish' once the puzzle is
+// solved, 'story' for the storyline. 'any' is the click that confirms sound is on.
+const PLACE_KEY = { sfx: { play: 'sfxPlay', finish: 'sfxFinish' }, speech: { story: 'speechStory', play: 'speechPlay', finish: 'speechFinish' } };
+const placeOn = (type, where) => { const k = PLACE_KEY[type][where]; return !k || settings[k] !== false; };
+function sound(kind, where = 'play') {
+  if (!settings.sound || settings.silent || !remote.feature('soundEffects') || !placeOn('sfx', where)) return;
   try { sfx.setVolumes({ sfx: settings.volume / 100, music: settings.musicVolume / 100 }); sfx.play(kind); } catch (e) { /* sound is optional */ }
 }
 
 // Silent mode hides scenes, portraits, sound, music and animation.
 function applyMode() {
   document.documentElement.classList.toggle('silent', !!settings.silent);
+  applySpeechButtons();
   const btn = $('#sound-btn');
   btn.textContent = settings.sound ? 'Sound on' : 'Sound off';
   btn.setAttribute('aria-pressed', String(!!settings.sound));
@@ -186,7 +192,7 @@ $('#sound-btn').onclick = () => {
   if (!settings.sound) ai.stopSpeaking();
   store.saveSettings(settings);
   applyMode();
-  if (settings.sound) sound('tick');
+  if (settings.sound) sound('tick', 'any');
   status(settings.sound ? 'Sound on.' : 'Sound off.');
 };
 
@@ -1278,7 +1284,7 @@ let lastTryAgain = 0;
 let tryAgainTimer = 0;
 function tryAgainNearEnd(k) {
   clearTimeout(tryAgainTimer);
-  if (!S || S.save.solved || S.save.revealed || !voiceOn()) return;
+  if (!S || S.save.solved || S.save.revealed || !voiceOn('play')) return;
   const left = [...S.grid.cells.keys()].filter((c) => !S.marks.get(c)).length;
   const lastDecisions = Math.max(3, S.puzzle.categories[0].items.length);
   if (left > lastDecisions) return;
@@ -1503,7 +1509,7 @@ $('#check-answers').onclick = () => {
     if (r.correct) right++;
   }
   $('#answer-result').textContent = `${right} of ${res.length} answers correct.`;
-  sound(right === res.length ? 'solve' : 'error');
+  sound(right === res.length ? 'solve' : 'error', 'finish');
 };
 $('#story').addEventListener('toggle', () => { if (S && !$('#story').open) { S.save.storyRead = true; scheduleSave(); } });
 
@@ -1830,7 +1836,7 @@ function showSolved(celebrate) {
   const cheerEl = $('#solved-cheer');
   cheerEl.hidden = !winner && !cheerLine;
   cheerEl.innerHTML = `${winner ? `<span class="cheer-face" aria-hidden="true">${face}</span>` : ''}<span class="cheer-words">${cheerLine ? `<b>${esc(cheer.name)}:</b> “${esc(cheerLine)}”` : `<b>${esc(winner || '')}</b>`}</span>`;
-  if (celebrate && voiceOn()) {
+  if (celebrate && voiceOn('finish')) {
     setTimeout(() => {
       if (!S || !S.save.solved) return;
       const said = [...(cheerLine ? [{ who: cheer.id && cheer.id === S.puzzle.narrator ? 'narrator' : cheer.name, text: cheerLine }] : []), { who: 'narrator', text: S.puzzle.story.ending }];
@@ -1844,7 +1850,7 @@ function showSolved(celebrate) {
   clearHint();
   $('#coach').hidden = true;
   if (celebrate) {
-    sound('solve');
+    sound('solve', 'finish');
     const shown = save.revealed ? null : celebrateSolve(settings.celebrations, { random: settings.celebrateRandom, theme: S.puzzle.theme.id, topic: S.puzzle.topic && S.puzzle.topic.id });
     $('#solved').dataset.effects = shown ? shown.join(' ') : '';
     $('#solved').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
@@ -2486,7 +2492,7 @@ function renderMedia() {
   S.sceneLayers = -1;
   // The whole picture shows from the start; finished sections light up its parts.
   $('#scene').innerHTML = `${sceneSvg(p, 5, { animate: false })}${GLINTS}`;
-  director.start(p, { silent: settings.silent, speak: (text) => { if (voiceOn()) ai.speak(settings, p, 'narrator', text, { volume: settings.volume / 100 }).catch(() => {}); } });
+  director.start(p, { silent: settings.silent, speak: (text) => { if (voiceOn('play')) ai.speak(settings, p, 'narrator', text, { volume: settings.volume / 100 }).catch(() => {}); } });
   const names = S.ix.cats[0].items.map((i) => i.label);
   const drawCastRow = () => {
   $('#cast-row').innerHTML = names.map((n) => {
@@ -2522,10 +2528,19 @@ function renderMedia() {
   loadAiArt();
   loadCharacterArt();
   // Make the start of the story narration ahead of time so Read aloud plays at once.
-  if (voiceOn()) ai.warmVoice(settings, p, 'narrator', p.story.paragraphs.join(' '));
+  if (voiceOn('story')) ai.warmVoice(settings, p, 'narrator', p.story.paragraphs.join(' '));
 }
 
-const voiceOn = () => settings.sound && settings.readAloud && !settings.silent;
+const voiceOn = (where) => settings.sound && settings.readAloud && !settings.silent && (!where || placeOn('speech', where));
+// The where-it-plays switches only matter while All sound is on.
+function soundPlacesEnabled() {
+  $$('#sound-places fieldset').forEach((f) => { f.disabled = !settings.sound; });
+}
+// Read-aloud buttons show only where speech is switched on (Settings > Sound).
+function applySpeechButtons() {
+  $('#read-story').hidden = !placeOn('speech', 'story');
+  $('#read-clues').hidden = !placeOn('speech', 'play');
+}
 
 // Swap in AI pictures from the game's server when the admin dashboard has them
 // on. Built-in art stays until they arrive, and whenever they can't be made.
@@ -2622,7 +2637,7 @@ $('#cast-row').addEventListener('click', (e) => {
     : `<p><span class="who">${esc(who)}:</span> “${esc(nothing)}”</p>`);
   $('#bubble').hidden = false;
   sound('whoosh');
-  if (voiceOn()) {
+  if (voiceOn('play')) {
     const lines = clues.length ? clues.map((c) => `${sayingFor(who, c.number)} ${c.text}`).join(' ') : nothing;
     voiceWaitNote();
     ai.speak(settings, S.puzzle, who, lines, { volume: settings.volume / 100 });
@@ -2632,6 +2647,7 @@ $('#cast-row').addEventListener('click', (e) => {
 $('#read-story').addEventListener('click', () => {
   if (!S) return;
   if (!settings.sound) { status('Sound is off. Turn it on to hear the story.'); return; }
+  if (!placeOn('speech', 'story')) { status('Reading the story aloud is off in Settings, under Sound.'); return; }
   voiceWaitNote();
   ai.speak(settings, S.puzzle, 'narrator', S.puzzle.story.paragraphs.join(' '), { volume: settings.volume / 100 });
 });
@@ -2648,6 +2664,7 @@ $('#read-clues').addEventListener('click', async () => {
   const b = $('#read-clues');
   if (b.getAttribute('aria-pressed') === 'true') { ai.stopSpeaking(); readCluesDone(); return; }
   if (!settings.sound) { status('Sound is off. Turn it on to hear the clues.'); return; }
+  if (!placeOn('speech', 'play')) { status('Voices while solving are off in Settings, under Sound.'); return; }
   const game = S;
   const lines = game.puzzle.clues.map((c) => ({ who: game.witness[c.number] || 'narrator', text: `Clue ${c.number}. ${c.text}` }));
   b.setAttribute('aria-pressed', 'true');
@@ -2708,7 +2725,7 @@ async function recordSolve(save) {
   }
   if (S && S.save === save) { S.newBadges = fresh; renderSolvedExtras(save); renderSupportAsk(save); }
   if (fresh.length) {
-    sound('section');
+    sound('section', 'finish');
     toast(fresh.length === 1 ? `Badge earned: ${fresh[0].name}` : `${fresh.length} badges earned: ${fresh.map((b) => b.name).join(', ')}`, { label: 'My badges', run: openStats });
   }
   // Special badges for milestones are checked on the server against the
@@ -2843,6 +2860,7 @@ function openSettings() {
     else if (el.type === 'checkbox') el.checked = !!settings[el.name];
     else if (el.type === 'range' || el.type === 'password' || el.type === 'text') el.value = settings[el.name] ?? '';
   }
+  soundPlacesEnabled();
   fillLanguages();
   openDialog($('#dlg-settings'), f.querySelector('input:checked') || f.querySelector('input'));
 }
@@ -2858,7 +2876,10 @@ $('#settings-form').addEventListener('change', (e) => {
   applyMode();
   renderTimer();
   if (el.name === 'coach' && S && el.checked && !S.save.solved) { S.save.coach = true; updateCoach(); }
-  if ((el.name === 'sound' && el.checked) || el.name === 'volume') sound('tick');
+  if (el.name.startsWith('speech') && !el.checked) ai.stopSpeaking();
+  if (el.name === 'sound') soundPlacesEnabled();
+  if ((el.name === 'sound' && el.checked) || el.name === 'volume') sound('tick', 'any');
+  else if (el.name.startsWith('sfx') && el.checked) sound('tick', 'any');
 });
 
 // ---- Language
@@ -3409,7 +3430,7 @@ async function init() {
   specialBadges.init();
   specialBadges.onChange((fresh) => {
     if (fresh.length && !(S && !S.save.solved)) {
-      sound('section');
+      sound('section', 'finish');
       toast(fresh.length === 1 ? `Special badge: ${fresh[0].icon} ${fresh[0].name}` : `${fresh.length} special badges: ${fresh.map((b) => `${b.icon} ${b.name}`).join(', ')}`, { label: 'My badges', run: openStats });
     }
     if ($('#dlg-stats').open) renderStats();

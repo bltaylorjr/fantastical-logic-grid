@@ -9,6 +9,8 @@ const { spawn } = require('child_process');
   const b = await chromium.launch(); const page = await b.newPage();
   const errs = []; page.on('pageerror', (e) => errs.push(String(e)));
   await page.addInitScript(() => {
+    // These checks hear the cast while solving, which starts off (Settings > Sound).
+    try { const s = JSON.parse(localStorage.getItem('flg.settings') || '{}'); if (s.speechPlay === undefined) { s.speechPlay = true; localStorage.setItem('flg.settings', JSON.stringify(s)); } } catch (e) { /* no storage */ }
     window.__k = []; const Real = Worker;
     // Stand-in for the Kokoro worker: a 2 s "download", then tiny WAV clips.
     window.Worker = function (url, o) {

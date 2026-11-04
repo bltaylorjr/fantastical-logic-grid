@@ -283,6 +283,10 @@ td.c.wrong:focus { box-shadow: inset 0 0 0 3px var(--error), inset 0 0 0 6px var
    column and the marks scale with the squares. */
 table.lg.fit { font-size: 12px; table-layout: auto; }
 table.lg.fit th.rowh { width: var(--rowh-w); min-width: var(--rowh-w); max-width: var(--rowh-w); padding: 0 4px; }
+/* Small squares stay square: names shrink with the squares, so their line
+   never makes a row taller than its squares are wide (WS-85GS9WF5). */
+table.lg.fit th.rowh, table.lg.fit th.colh { font-size: clamp(8px, calc(var(--cell) * .72), 12px); line-height: 1; }
+table.lg.fit td.c { line-height: 1; }
 table.lg.fit th.rcat { min-width: 20px; padding: 2px; }
 table.lg.fit th.colh { overflow: hidden; }
 /* A category name never widens its columns: it is cut short with "…". */
@@ -380,6 +384,13 @@ dialog.wide { max-width: min(1000px, calc(100vw - 32px)); }
 dialog::backdrop { background: rgb(0 0 0 / .5); }
 dialog h2 { margin-bottom: 12px; }
 dialog fieldset { margin-bottom: 16px; }
+/* Settings > Sound: where effects and voices play, grouped under All sound. */
+.sound-places { margin: 4px 0 8px 32px; display: grid; gap: 4px; }
+.sound-places fieldset.sub { margin: 0; }
+.sound-places legend { font-weight: 600; font-size: .95rem; padding: 0; margin: 6px 0 0; }
+.sound-places .check small.help { margin: 0 0 0 4px; }
+.sound-places fieldset:disabled { opacity: .55; }
+.sound-places fieldset:disabled .check { cursor: default; }
 .dlg-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 .install-opt { border-top: 1px solid var(--hairline); padding-top: 12px; margin-top: 12px; }
 .install-opt h3 { margin-bottom: 6px; }

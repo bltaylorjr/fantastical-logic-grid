@@ -34,7 +34,8 @@ export function markup(def) {
         <div class="gk-more-body">
           <label class="gk-switch"><input type="checkbox" id="${P}-silent"> Silent mode <small class="gk-muted">grid only: no story, sound or animation</small></label>
           <label class="gk-switch"><input type="checkbox" id="${P}-moments"> Show story moments <small class="gk-muted">a short line now and then while you solve</small></label>
-          <label class="gk-switch"><input type="checkbox" id="${P}-sound"> Sound effects</label>
+          <label class="gk-switch"><input type="checkbox" id="${P}-sfxplay"> Sound effects while solving <small class="gk-muted">marks, finished lines, hints</small></label>
+          <label class="gk-switch"><input type="checkbox" id="${P}-sfxfinish"> Sound effects at the finish <small class="gk-muted">the solve fanfare</small></label>
           <label class="gk-switch"><input type="checkbox" id="${P}-adapt"> Tune puzzles to how I play</label>
           ${digits ? `<label class="gk-switch"><input type="checkbox" id="${P}-autoclean"> Clear notes when I place a number</label>` : `<label class="gk-switch"><input type="checkbox" id="${P}-autocross"> ${esc(def.autoCrossLabel || 'Cross out the rest of a line when it is finished')}</label>`}
           <label class="gk-switch"><input type="checkbox" id="${P}-highlight"> ${digits ? 'Highlight related cells and matching numbers' : esc(def.highlightLabel || 'Highlight the row and column I am on')}</label>

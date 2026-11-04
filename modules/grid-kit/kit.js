@@ -52,7 +52,8 @@ export function createGame(def) {
   const cfg = () => (deps.config ? deps.config() || {} : {});
   const quiet = () => !!prefs.silent;
   const showStory = () => !quiet() && cfg().stories !== false;
-  const play = (name) => { if (prefs.sound && !quiet()) { try { sounds[name](); } catch (e) { /* no audio */ } } };
+  // Sound effects have two switches, by where they play: while solving, and at the finish.
+  const play = (name) => { if (prefs[name === 'solved' ? 'sfxFinish' : 'sfxPlay'] && !quiet()) { try { sounds[name](); } catch (e) { /* no audio */ } } };
   const levelName = (id) => def.levels.find((l) => l.id === id)?.name || id;
   const levels = () => {
     const max = ORDER.indexOf(cfg().maxLevel);
@@ -96,6 +97,9 @@ export function createGame(def) {
     const pre = deps.storagePrefix || `flg.${P}`;
     K = { games: `${pre}.games`, cur: `${pre}.cur`, prefs: `${pre}.prefs`, learn: `${pre}.learn` };
     prefs = { notes: false, showMistakes: false, autoClean: true, autoCross: true, highlight: true, silent: false, sound: true, adapt: true, theme: 'surprise', moments: true, level: null, size: null, coachDone: false, pen: 1, ...load(K.prefs, {}) };
+    // Before the two switches there was one Sound effects switch: keep the player's choice.
+    prefs.sfxPlay ??= prefs.sound !== false;
+    prefs.sfxFinish ??= prefs.sound !== false;
     learn = createLearning({ load, keep, key: K.learn, par: def.par, simple: def.simpleTechniques || [], config: cfg });
     if (deps.shared) learn.setShared(deps.shared);
     root.classList.add('gk-app', `gk-app-${P}`);
@@ -133,7 +137,7 @@ export function createGame(def) {
     if (prefs.theme !== 'surprise' && !THEME_IDS.includes(prefs.theme)) prefs.theme = 'surprise';
     $('theme').value = prefs.theme;
     $('theme').onchange = () => { prefs.theme = $('theme').value; savePrefs(); };
-    for (const [id, key] of [['silent', 'silent'], ['sound', 'sound'], ['moments', 'moments'], ['adapt', 'adapt'], ['highlight', 'highlight'], [DIGITS ? 'autoclean' : 'autocross', DIGITS ? 'autoClean' : 'autoCross']]) {
+    for (const [id, key] of [['silent', 'silent'], ['sfxplay', 'sfxPlay'], ['sfxfinish', 'sfxFinish'], ['moments', 'moments'], ['adapt', 'adapt'], ['highlight', 'highlight'], [DIGITS ? 'autoclean' : 'autocross', DIGITS ? 'autoClean' : 'autoCross']]) {
       const el = $(id);
       el.checked = !!prefs[key];
       el.onchange = () => { prefs[key] = el.checked; savePrefs(); root.classList.toggle('gk-silent', quiet()); renderSetup(); };

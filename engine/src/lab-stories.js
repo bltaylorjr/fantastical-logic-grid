@@ -1012,7 +1012,7 @@ export const FALLBACK_SEATING = [
   {
     id: 'captain', name: 'The Captain\'s Table',
     setting: 'a round table in a ship\'s dining saloon, portholes showing a calm night sea', mood: 'grand, gently rocking, festive',
-    names: ['Alastair', 'Belinda', 'Cyrus', 'Delia', 'Ewan', 'Faye', 'Gustav', 'Hilde', 'Ivor', 'Jemima'],
+    names: ['Alastair', 'Belinda', 'Cyrus', 'Delia', 'Ewan', 'Faye', 'Gustav', 'Hilde', 'Ivor', 'Josephine'],
     thing: 'a small brass compass left beside a napkin',
     titles: ['The Captain\'s Table', 'The Brass Compass'],
     openings: [

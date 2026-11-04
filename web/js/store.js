@@ -161,6 +161,10 @@ export function requestPersistence() {
 export const DEFAULT_SETTINGS = {
   colorTheme: 'system', autoX: false, singleKeys: true, showTimer: true, coach: true, sound: true, volume: 60,
   silent: false, music: true, musicVolume: 40, instant: false,
+  // Where sound plays, each on or off only (the effects and voices are the
+  // game's): effects while solving and at the finish; voices for the story,
+  // while solving (off to start with, so solving is quiet) and at the finish.
+  sfxPlay: true, sfxFinish: true, speechStory: true, speechPlay: false, speechFinish: true,
   readAloud: true, aiPictures: 'scene', voiceProvider: 'server', kokoroReady: false, portraitStyle: 'notionists', confetti: true, celebrations: ['confetti'], celebrateRandom: false, introOffered: false,
   learn: true, shareNoticeShown: false, language: 'en-US', languageOffered: false,
 };
