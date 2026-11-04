@@ -426,7 +426,6 @@ input[type=range] { width: 100%; min-height: 44px; accent-color: var(--accent); 
 .cast-btn small.trait { font-style: italic; }
 .bubble .about { color: var(--muted); font-style: italic; }
 .char-line { margin: 0 0 8px; font-style: italic; }
-.resolution .char-line.cheer { position: absolute; left: 50%; bottom: 6%; transform: translateX(-50%); max-width: 90%; text-align: center; background: rgb(0 0 0 / .65); color: #fff; padding: 6px 14px; border-radius: 12px; }
 .clue-list .from { display: block; font-size: .85rem; color: var(--muted); }
 .clue-list li.spot label { background: var(--accent-soft); }
 .resolution { position: relative; border-radius: 12px; overflow: hidden; margin: -8px 0 16px; width: 100%; height: clamp(180px, 26vw, 300px); }
@@ -455,10 +454,11 @@ input[type=range] { width: 100%; min-height: 44px; accent-color: var(--accent); 
   :root:not(.silent) .glints i.flash::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgb(255 255 255 / 0), rgb(255 236 150 / .55) 50%, rgb(255 255 255 / 0)); animation: glint 1.4s var(--ease) both; }
   @keyframes glint { 0% { opacity: 0; transform: translateY(40%); } 35% { opacity: 1; } 100% { opacity: 0; transform: translateY(-40%); } }
 }
-/* "See the whole picture" at the end hides the character and words on top of it. */
-.see-picture { margin: -8px 0 12px; }
-.resolution.clear .spot, .resolution.clear .hero, .resolution.clear .char-line { opacity: 0; visibility: hidden; transition: opacity 300ms var(--ease), visibility 0s 300ms; }
-.resolution .spot, .resolution .hero, .resolution .char-line { transition: opacity 300ms var(--ease); }
+/* Under "Case closed!": the character who did it, and their cheer. Nothing covers the picture. */
+#solved-cheer { display: flex; align-items: center; gap: 12px; margin: -4px 0 10px; font-size: 1.05rem; }
+#solved-cheer[hidden] { display: none; }
+#solved-cheer .cheer-face { flex: none; width: 52px; height: 52px; border-radius: 50%; overflow: hidden; box-shadow: 0 0 0 3px var(--accent, #5B3CC4); }
+#solved-cheer .cheer-face svg, #solved-cheer .cheer-face img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .scene .painting { position: absolute; right: 8px; bottom: 8px; background: rgb(0 0 0 / .6); color: #fff; font-size: .85rem; padding: 2px 10px; border-radius: 999px; }
 .scene { position: relative; }
 .portrait-img { width: 72px; height: 72px; border-radius: 50%; object-fit: cover; display: block; }
@@ -470,7 +470,6 @@ input[type=range] { width: 100%; min-height: 44px; accent-color: var(--accent); 
 .told-face { display: inline-flex; width: 40px; height: 40px; border-radius: 50%; overflow: hidden; flex: none; }
 .told-face svg, .told-face img { width: 40px; height: 40px; object-fit: cover; display: block; }
 .char-line { margin: 0 0 8px; font-style: italic; }
-.resolution .char-line.cheer { position: absolute; left: 50%; bottom: 6%; transform: translateX(-50%); max-width: 90%; text-align: center; background: rgb(0 0 0 / .65); color: #fff; padding: 6px 14px; border-radius: 12px; font-style: italic; }
 #dlg-suggest select, #dlg-suggest textarea { box-sizing: border-box; min-height: 44px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); color: var(--text); width: 100%; font: inherit; }
 #dlg-suggest .field { margin-bottom: 12px; }
 #dlg-suggest fieldset { border: 0; padding: 0; margin: 0 0 12px; }
