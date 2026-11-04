@@ -87,7 +87,7 @@ const path = require('path');
     }
   });
   await page.waitForSelector('#solved:not([hidden])');
-  const cheer = await page.textContent('#resolution .cheer').catch(() => '');
+  const cheer = await page.textContent('#solved-cheer .cheer-words').catch(() => '');
   const winner = cast.find((c) => cheer.startsWith(`${c.who}:`));
   assert(winner && PERSONALITIES[profileOf(winner.who).personality].solve.some((l) => cheer.includes(l)), `the winner cheers in their own words (${cheer})`);
 

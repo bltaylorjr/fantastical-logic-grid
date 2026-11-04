@@ -1821,9 +1821,12 @@ function showSolved(celebrate) {
   const plain = !admin && winner && !save.revealed && !settings.silent;
   const cheer = admin || (plain ? { name: winner } : null);
   const cheerLine = admin ? lineOf(admin, 'solve', S.save.hintsUsed + S.puzzle.clues.length) : plain ? sayingOf(winner, 'solve', save.hintsUsed + S.puzzle.clues.length) : null;
-  res.innerHTML = `${bg}<div class="spot"></div>${winner ? `<div class="hero">${face}<b>${esc(winner)}</b></div>` : ''}${cheerLine ? `<p class="char-line cheer"><b>${esc(cheer.name)}:</b> “${esc(cheerLine)}”</p>` : ''}`;
-  // The picture is hidden from screen readers, so the cheer is announced.
-  if (celebrate && cheerLine && !settings.silent) setTimeout(() => announce(`${cheer.name} says: ${cheerLine}`), 800);
+  // The finished picture shows whole, with nothing on top. The character who
+  // did it and their cheer are a line under "Case closed!".
+  res.innerHTML = bg;
+  const cheerEl = $('#solved-cheer');
+  cheerEl.hidden = !winner && !cheerLine;
+  cheerEl.innerHTML = `${winner ? `<span class="cheer-face" aria-hidden="true">${face}</span>` : ''}<span class="cheer-words">${cheerLine ? `<b>${esc(cheer.name)}:</b> “${esc(cheerLine)}”` : `<b>${esc(winner || '')}</b>`}</span>`;
   if (celebrate && voiceOn()) {
     setTimeout(() => {
       if (!S || !S.save.solved) return;
@@ -1831,11 +1834,8 @@ function showSolved(celebrate) {
       ai.speakLines(settings, S.puzzle, said, { volume: settings.volume / 100 });
     }, 1200);
   }
-  res.classList.remove('celebrate', 'clear');
+  res.classList.remove('celebrate');
   if (celebrate) { void res.offsetWidth; res.classList.add('celebrate'); }
-  const see = $('#see-picture');
-  see.setAttribute('aria-pressed', 'false');
-  see.textContent = 'See the whole picture';
   $('#solved').hidden = false;
   reportResult(save);
   clearHint();
@@ -2604,13 +2604,6 @@ function celebrateBlock(rc, cc) {
   }
   announce(`${rc.name} and ${cc.name} section complete.`);
 }
-
-// The finished picture on its own, without the character and words on top.
-$('#see-picture').addEventListener('click', () => {
-  const clear = $('#resolution').classList.toggle('clear');
-  $('#see-picture').setAttribute('aria-pressed', String(clear));
-  $('#see-picture').textContent = clear ? 'Show the character again' : 'See the whole picture';
-});
 
 $('#cast-row').addEventListener('click', (e) => {
   const b = e.target.closest('.cast-btn');

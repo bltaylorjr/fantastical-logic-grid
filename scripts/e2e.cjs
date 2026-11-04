@@ -235,15 +235,10 @@ const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`o
       await page.emulateMedia({ reducedMotion: 'no-preference' });
     }
     await page.screenshot({ path: process.env.SHOTS + '/5-solved.png', fullPage: true });
-    assert(await page.locator('#resolution .hero svg').count() === 1, 'resolution scene shows the culprit');
     assert(await page.locator('#scene .glints i.done').count() === 5, 'every part of the scene is lit when solved');
-    await page.click('#see-picture');
-    await page.waitForSelector('#resolution .hero', { state: 'hidden' });
-    if (process.env.SHOTS) await page.locator('#solved').screenshot({ path: process.env.SHOTS + '/6-whole-picture.png' });
-    assert(await page.locator('#resolution.clear').count() === 1 && await page.getAttribute('#see-picture', 'aria-pressed') === 'true', 'See the whole picture hides the character and words');
-    await page.click('#see-picture');
-    await page.waitForSelector('#resolution .hero', { state: 'visible' });
-    assert(await page.isVisible('#resolution .hero') && /See the whole picture/.test(await page.textContent('#see-picture')), 'and the button brings them back');
+    assert(await page.locator('#resolution .hero, #resolution .char-line, #resolution .spot').count() === 0, 'the finished picture shows whole, with nothing on top');
+    assert(await page.locator('#solved-h + #solved-cheer .cheer-face svg, #solved-h + #solved-cheer .cheer-face img').count() === 1, 'the character who did it is in a line under Case closed');
+    if (process.env.SHOTS) await page.locator('#solved').screenshot({ path: process.env.SHOTS + '/6-case-closed.png' });
     await page.click('[data-act=restart]');
     await page.click('#confirm-yes');
     assert(await page.isHidden('#solved') && !(await page.evaluate(() => window.__flg.state.save.solved)), 'start over on a solved puzzle reopens it');
