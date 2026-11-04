@@ -44,6 +44,11 @@
     <a class="btn quiet educators-link" id="educators-link" href="educators/" hidden>For educators</a>
     <button class="btn quiet player-chip" type="button" id="player-chip" hidden><span class="sr-only">Playing as </span><span id="player-chip-name" translate="no">Guest</span></button>
     <button class="btn quiet" type="button" id="lang-btn" translate="no" aria-pressed="false" hidden>English</button>
+    <!-- Grid or List: in the app bar's one row while a puzzle is open, so it never scrolls away. -->
+    <div class="seg view-seg" id="view-seg" role="radiogroup" aria-label="Show the puzzle as" hidden>
+      <label title="Grid view"><input type="radio" name="view" value="grid" checked><span><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/></svg><span class="seg-text">Grid</span></span></label>
+      <label title="List view"><input type="radio" name="view" value="list"><span><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h.01M3 12h.01M3 19h.01M8 5h13M8 12h13M8 19h13"/></svg><span class="seg-text">List</span></span></label>
+    </div>
     <button class="btn quiet" type="button" id="help-btn" aria-keyshortcuts="Shift+?">Help</button>
     <button class="btn quiet" type="button" id="menu-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="app-menu">Menu<span class="count-dot" id="menu-count" aria-hidden="true" hidden></span></button>
   </div>
@@ -72,20 +77,14 @@
     <button role="menuitem" type="button" data-cmd="games" class="menu-small" hidden>All games</button>
     <button role="menuitem" type="button" data-cmd="numberplace" class="menu-small" hidden>Play NINETIMESNINE <span class="menu-tag">New</span></button>
   </div>
-  <!-- Always visible: How to play (the tutorial), the Introduction video and a small scoreboard. -->
+  <!-- The puzzle's main page only: How to play (the tutorial) and a small scoreboard. The Introduction is under Help. -->
   <div class="topstrip">
     <button class="btn quiet small" type="button" id="howto-btn"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg> How to play</button>
-    <button class="btn quiet small" type="button" id="intro-btn"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 9.003a1 1 0 0 1 1.517-.859l4.997 2.997a1 1 0 0 1 0 1.718l-4.997 2.997A1 1 0 0 1 9 14.996z"/><circle cx="12" cy="12" r="10"/></svg> Introduction</button>
     <section class="miniboard" id="miniboard" aria-labelledby="miniboard-h" hidden>
       <h2 class="sr-only" id="miniboard-h">Scoreboard this week</h2>
       <ol id="miniboard-list"></ol>
       <button class="btn quiet small" type="button" id="miniboard-open">Scoreboard</button>
     </section>
-    <!-- Grid or List, in the sticky bar so it never scrolls away while a puzzle is open. -->
-    <div class="seg view-seg" id="view-seg" role="radiogroup" aria-label="Show the puzzle as" hidden>
-      <label title="Grid view"><input type="radio" name="view" value="grid" checked><span><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/></svg><span class="seg-text">Grid</span></span></label>
-      <label title="List view"><input type="radio" name="view" value="list"><span><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h.01M3 12h.01M3 19h.01M8 5h13M8 12h13M8 19h13"/></svg><span class="seg-text">List</span></span></label>
-    </div>
   </div>
 </header>
 
@@ -914,7 +913,7 @@
   <h2 id="welcome-h">Welcome, detective!</h2>
   <p>Never solved a logic grid puzzle? <b>How to play</b> teaches you step by step on real grids, with tips and tricks, in about 15 minutes.</p>
   <p>New here? <b>Take the tour</b>: a short narrated video, with captions, of everything on The Logic Grid, from every game to your account and making your own puzzles.</p>
-  <p class="muted">How to play and the game's own Introduction are always at the top of the page.</p>
+  <p class="muted">How to play is at the top of the game's main page, and the game's own Introduction is under Help.</p>
   <div class="dlg-actions"><button class="btn" type="button" id="welcome-skip">Play a quick puzzle</button><button class="btn primary" type="button" id="welcome-learn">How to play</button><button class="btn" type="button" id="welcome-watch"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 9.003a1 1 0 0 1 1.517-.859l4.997 2.997a1 1 0 0 1 0 1.718l-4.997 2.997A1 1 0 0 1 9 14.996z"/><circle cx="12" cy="12" r="10"/></svg> Take the tour</button></div>
 </dialog>
 
@@ -1120,7 +1119,7 @@
 <dialog id="dlg-help" aria-labelledby="help-h">
   <h2 id="help-h">Help</h2>
   <div class="help-learn">
-    <p><b>New to logic puzzles?</b> How to play teaches you step by step on real grids: X and O, every kind of clue, carrying facts across the grid, what-if thinking, hints and notes. For a narrated tour of the whole game, watch the Introduction. Both are also at the top of every page.</p>
+    <p><b>New to logic puzzles?</b> How to play teaches you step by step on real grids: X and O, every kind of clue, carrying facts across the grid, what-if thinking, hints and notes. For a narrated tour of the whole game, watch the Introduction. How to play is also at the top of the game's main page.</p>
     <p class="row-inline"><button class="btn primary small" type="button" id="help-tutorial">How to play</button> <button class="btn small" type="button" id="help-tips">Tips and tricks</button> <button class="btn small" type="button" id="help-intro">Introduction video</button></p>
   </div>
   <p>Read a clue, then mark the grid. <b>X</b> means two things do not go together. <b>O</b> means they do. Each row in a sub-grid has exactly one O. When the grid is full, answer the story questions. To begin a puzzle again, press <b>Start over</b>: it clears your marks, clue ticks and answers and resets the timer, hints and checks (in a race the race clock keeps running). Your notes stay unless you choose to clear them, and Undo brings it all back.</p>
