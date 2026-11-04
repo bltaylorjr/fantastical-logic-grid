@@ -37,9 +37,9 @@ from lemminflect import getInflection
 ENG = inflect.engine()
 OUT = 'engine/src/crossword-words.js'
 MIN_LEN, MAX_LEN = 3, 21
-BAD_SENSE = re.compile(r'\b(offensive|derogatory|vulgar|obscene|slang|disparaging|slur|taboo|profane|street names?|sex|sexual|sexually|erotic|genitals?|genitalia|intercourse|copulat\w*|prostitut\w*|pornograph\w*|narcotic|orgasm|masturbat\w*|lewd|obscenity)\b', re.I)
+BAD_SENSE = re.compile(r'\b(offensive|derogatory|vulgar|obscene|slang|disparaging|slur|taboo|profane|street names?|sexual|sexually|erotic|genitals?|genitalia|intercourse|copulat\w*|prostitut\w*|pornograph\w*|narcotic|orgasm|masturbat\w*|lewd|obscenity)\b', re.I)
 # Glosses that are notes, not definitions.
-NOT_A_DEF = re.compile(r'^(sometimes|formerly|often|usually) (placed|included|classified|considered|treated)|^(used|also|see|of|any|one|either|each)\b', re.I)
+NOT_A_DEF = re.compile(r'^(sometimes|formerly|often|usually) (placed|included|classified|considered|treated)|^(used|also|see|of|one|either|each)\b', re.I)
 # "Kind of ..." only names something concrete; these are too vague to be a clue.
 VAGUE = set('''man woman person people object thing entity whole unit act event state group part matter abstraction
 attribute relation measure content communication cognition channel way form kind type quality property condition
@@ -115,7 +115,7 @@ def tidy(d):
     d = re.sub(r'^of or (relating|pertaining) to', 'Relating to', d, flags=re.I)
     d = re.sub(r'^relating to or (characteristic|characterized) of', 'Relating to', d, flags=re.I)
     d = ARTICLE.sub('', d)
-    d = re.sub(r'^to\s+', '', d, flags=re.I)
+    d = re.sub(r'^(to|any)\s+', '', d, flags=re.I)
     d = ARTICLE.sub('', d)
     return d
 
@@ -183,7 +183,7 @@ for name in wn.all_lemma_names():
     if '_' not in name:
         continue
     parts = name.split('_')
-    if len(parts) not in (2, 3) or any(not p.isalpha() or not p.islower() for p in parts):
+    if len(parts) not in (2, 3, 4) or any(not p.isalpha() or not p.islower() for p in parts):
         continue
     # Only a phrase used in its everyday sense (WordNet writes names with capitals).
     if not any(l.name() == name for syn in wn.synsets(name)[:1] for l in syn.lemmas()):
@@ -232,7 +232,7 @@ for name in wn.all_lemma_names():
     good_senses = 0
     for rank, s in enumerate(synsets[:6]):
         d = s.definition()
-        if BAD_SENSE.search(d) or s.lexname() in ('noun.Tops',):
+        if BAD_SENSE.search(d):
             if rank == 0:
                 break  # the main sense is offensive or slang: skip the word
             continue
@@ -295,7 +295,7 @@ def inflect_first(text, tag):
     if not re.fullmatch(r'[a-z]+', fw) or not wn.synsets(fw, 'v') or wn.morphy(fw, 'v') != fw:
         return None
     if fw == 'be':
-        form = {'VBD': 'was', 'VBG': 'being', 'VBZ': 'is'}[tag]
+        form = {'VBD': 'was', 'VBG': 'being', 'VBZ': 'is', 'VBN': 'been'}[tag]
     else:
         forms = getInflection(fw, tag)
         if len(forms) != 1:
@@ -313,11 +313,15 @@ for name in wn.all_lemma_names('v'):
     vs = [syn for syn in wn.synsets(name, 'v')[:3] if not BAD_SENSE.search(syn.definition())]
     if not vs:
         continue
-    for tag in ('VBD', 'VBG', 'VBZ'):
+    past = getInflection(name, 'VBD')
+    for tag in ('VBD', 'VBG', 'VBZ', 'VBN'):
         forms = getInflection(name, tag)
         if len(forms) != 1:
             continue
         form = forms[0]
+        # The past participle only when it differs from the past (TAKEN, not TOOK twice).
+        if tag == 'VBN' and len(past) == 1 and past[0] == form:
+            continue
         F = letters(form)
         if not (MIN_LEN <= len(F) <= MAX_LEN) or F == letters(name) or is_bad(form):
             continue
@@ -350,6 +354,70 @@ for name in wn.all_lemma_names('v'):
         for k, v in clues.items():
             e['clues'].setdefault(k, v)
         verb_added += 1
+
+# ---------- adjective forms: EASIER, BIGGEST ----------
+adj_added = 0
+for name in wn.all_lemma_names('a'):
+    if not name.isalpha() or not name.islower() or is_bad(name) or zipf(name) < 2.5:
+        continue
+    senses = [syn for syn in wn.synsets(name, 'a')[:3] if not BAD_SENSE.search(syn.definition())]
+    if not senses:
+        continue
+    for tag, word in (('JJR', 'more'), ('JJS', 'most')):
+        forms = getInflection(name, tag)
+        if len(forms) != 1 or forms[0].startswith(word) or ' ' in forms[0]:
+            continue
+        form = forms[0]
+        F = letters(form)
+        if not (MIN_LEN <= len(F) <= MAX_LEN) or F == letters(name) or zipf(form) < 2.3 or is_bad(form):
+            continue
+        clues = {}
+        for rank, syn in enumerate(senses):
+            for other in syn.lemmas():
+                on = other.name()
+                if on == name or not on.isalpha() or not on.islower() or is_bad(on) or s_not_main(syn, on):
+                    continue
+                of = getInflection(on, tag)
+                if len(of) != 1 or ' ' in of[0] or zipf(of[0]) < 2.5 or gives_away(of[0], [form, name], F):
+                    continue
+                c = of[0][0].upper() + of[0][1:]
+                clues.setdefault(c.lower(), (c, rank and 1, 'syn'))
+        if not clues:
+            continue
+        e = entries.get(F)
+        if e is None:
+            e = entries[F] = {'z': zipf(form), 'phrase': '', 'clues': {}, 'proper': False}
+        e['proper'] = False
+        e['z'] = max(e['z'], zipf(form))
+        for k, v in clues.items():
+            e['clues'].setdefault(k, v)
+        adj_added += 1
+
+# ---------- everyday words WordNet does not list (INTO, UPON, WHOM) ----------
+# Clued only by the WordNet phrases they complete ("Out ___ the blue").
+from wordfreq import top_n_list
+glue_added = 0
+for w in top_n_list('en', 80000):
+    if not w.isalpha() or not w.isascii() or not w.islower():
+        continue
+    W = letters(w)
+    if not (MIN_LEN <= len(W) <= 9) or W in entries or is_bad(w) or zipf(w) < 3.0:
+        continue
+    clues = {}
+    for (pz, parts, i) in sorted(phrase_of.get(w, []), reverse=True):
+        if parts[i] != w:
+            continue
+        others = [p for j, p in enumerate(parts) if j != i]
+        if any(gives_away(o, [w], W) for o in others):
+            continue
+        shown = ' '.join('___' if j == i else p for j, p in enumerate(parts))
+        shown = shown[0].upper() + shown[1:] if shown[0] != '_' else shown
+        clues.setdefault(shown.lower(), (shown, 0 if pz >= 4.2 else 1 if pz >= 3.6 else 2, 'fitb'))
+        if len(clues) >= 4:
+            break
+    if clues:
+        entries[W] = {'z': zipf(w), 'phrase': '', 'clues': clues, 'proper': False}
+        glue_added += 1
 
 # ---------- plurals ----------
 def pluralize_def(text):
@@ -504,7 +572,7 @@ header = '''// The Crossword game's answers and clues: built by scripts/crosswor
 with open(OUT, 'w', encoding='utf-8') as f:
     f.write(header)
     f.write('export const WORDS = ' + json.dumps(body) + ';\n')
-print(f'lemmas looked at {seen_lemmas}, answers {len(rows)}, plurals {plural_added}, verb forms {verb_added}')
+print(f'lemmas looked at {seen_lemmas}, answers {len(rows)}, plurals {plural_added}, verb forms {verb_added}, adjective forms {adj_added}, everyday words {glue_added}')
 by_len = defaultdict(int)
 for r in rows:
     by_len[len(r[0])] += 1
