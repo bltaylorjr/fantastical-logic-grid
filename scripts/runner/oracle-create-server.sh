@@ -28,7 +28,16 @@ for v in VCN SN IMG; do [ -n "${!v}" ] && [ "${!v}" != null ] || { echo "Could n
 
 # Startup script: the server sets itself up (scripts/runner/oracle-cloud-init.sh).
 # The GitHub runner token and Cloudflare tunnel are added afterwards over SSH.
-printf '#!/bin/bash\ncurl -fsSL https://raw.githubusercontent.com/bltaylorjr/fantastical-logic-grid/main/scripts/runner/oracle-cloud-init.sh -o /root/setup.sh && bash /root/setup.sh\n' > /tmp/flg-init.sh
+# The Cloudflare tunnel token and the puzzle key (GitHub secrets FLG_TUNNEL_TOKEN
+# and FLG_PUZZLE_KEY, when set) go in too, so the puzzle server and its tunnel
+# come up on their own. Containers on the server cannot read these settings
+# (flg-metadata-guard in oracle-cloud-init.sh).
+{
+  echo '#!/bin/bash'
+  printf 'export TUNNEL_TOKEN=%q PUZZLE_KEY=%q\n' "${FLG_TUNNEL_TOKEN:-}" "${FLG_PUZZLE_KEY:-}"
+  echo 'curl -fsSL https://raw.githubusercontent.com/bltaylorjr/fantastical-logic-grid/main/scripts/runner/oracle-cloud-init.sh -o /root/setup.sh && bash /root/setup.sh'
+} > /tmp/flg-init.sh
+chmod 600 /tmp/flg-init.sh
 
 # Sizes to try, largest first. Oracle's Always Free Arm allowance is 2 cores
 # and 12 GB (1,500 OCPU hours and 9,000 GB hours a month; it was 4 and 24

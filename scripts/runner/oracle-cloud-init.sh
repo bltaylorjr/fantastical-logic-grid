@@ -19,6 +19,9 @@
 set -euo pipefail
 RUNNER_TOKEN="${RUNNER_TOKEN:-PASTE_RUNNER_TOKEN_HERE}"
 TUNNEL_TOKEN="${TUNNEL_TOKEN:-}"
+# The shared key the Worker sends (Cloudflare secret PUZZLE_KEY). Given when
+# the server is created (oracle-create-server.sh); otherwise one is made here.
+PUZZLE_KEY="${PUZZLE_KEY:-}"
 REPO_URL="https://github.com/bltaylorjr/fantastical-logic-grid"
 # Runners by size: 3 at 4+ cores, 2 on the Always Free 2 cores and 12 GB,
 # 1 on a 1-core server (the last-resort size when Oracle was sold out).
@@ -44,6 +47,25 @@ if [ ! -f /swapfile ]; then fallocate -l 8G /swapfile && chmod 600 /swapfile && 
 # A private network inside this server: the puzzle server sits at a fixed
 # address (172.30.0.10) that only the tunnel container uses.
 docker network inspect flg >/dev/null 2>&1 || docker network create --subnet 172.30.0.0/24 flg
+
+step "Keep containers away from the server's startup settings"
+# The startup settings (Oracle's metadata address 169.254.169.254) can hold the
+# tunnel token and the puzzle key. Build jobs run in containers, so containers
+# may not reach that address; the server itself still can. Re-applied at boot.
+cat > /etc/systemd/system/flg-metadata-guard.service <<'UNIT'
+[Unit]
+Description=Block containers from the instance metadata address
+After=docker.service
+Requires=docker.service
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/sh -c 'iptables -C DOCKER-USER -d 169.254.169.254 -j DROP 2>/dev/null || iptables -I DOCKER-USER -d 169.254.169.254 -j DROP'
+[Install]
+WantedBy=multi-user.target
+UNIT
+systemctl daemon-reload
+systemctl enable --now flg-metadata-guard.service
 
 step "Build runner image"
 mkdir -p /opt/flg-runner && cd /opt/flg-runner
@@ -124,7 +146,8 @@ done
 step "Puzzle server"
 # The shared key the Worker sends with every request (Cloudflare secret
 # PUZZLE_KEY). Made once and kept; readable by root only.
-if [ ! -s /opt/flg/puzzle.env ]; then echo "FLG_PUZZLE_KEY=$(openssl rand -hex 32)" > /opt/flg/puzzle.env; fi
+if [ -n "$PUZZLE_KEY" ]; then echo "FLG_PUZZLE_KEY=$PUZZLE_KEY" > /opt/flg/puzzle.env
+elif [ ! -s /opt/flg/puzzle.env ]; then echo "FLG_PUZZLE_KEY=$(openssl rand -hex 32)" > /opt/flg/puzzle.env; fi
 chmod 600 /opt/flg/puzzle.env
 docker rm -f flg-puzzles 2>/dev/null || true
 # Puzzle requests get priority over build jobs when the server is busy
