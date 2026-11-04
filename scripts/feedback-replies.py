@@ -260,6 +260,23 @@ NOTES = {
             SIGN_OFF,
         ],
     },
+    # A corrected copy of an author's puzzle (their storyline or Puzzle Wizard
+    # puzzle), queued by the team with what changed in `note` and the puzzle
+    # stored for the player (puzzle_id): the PDF goes with it. From support@,
+    # so the author can reply.
+    'puzzle_corrected': {
+        'subject': lambda r: f'Your corrected puzzle: {(r.get("puzzle") or {}).get("title") or "your puzzle"}',
+        'blocks': lambda r: [
+            'Hello, puzzler!',
+            f'Thank you for your reports. We corrected your puzzle “{(r.get("puzzle") or {}).get("title") or "your puzzle"}”.',
+            ('quote', 'What we changed', r.get('note')),
+            'The corrected puzzle is attached as a PDF, with its answer key on the last page.' if r.get('_files') else '',
+            ('It is also waiting in your game for 30 days: sign in and open Menu > Messages > Puzzles for you, then press Play '
+             'to keep it in your Saved puzzles. You can delete the old copy from Saved puzzles.') if 'puzzleExpiresAt' in r else '',
+            'Thank you for helping us make the game better for every player.',
+            SIGN_OFF,
+        ],
+    },
     'message': {
         'subject': 'You have a new message from The Fantastical Logic Grid team',
         'blocks': lambda r: [
@@ -404,7 +421,7 @@ def build_puzzle(r):
 def attachments(r):
     """The PDF for an approved storyline (puzzle and answer key), or none. If it
     cannot be built, the email still goes; the puzzle is in the game anyway."""
-    if r.get('kind') not in ('story_approved', 'story_puzzle', 'submission_copy') or not isinstance(r.get('puzzle'), dict):
+    if r.get('kind') not in ('story_approved', 'story_puzzle', 'submission_copy', 'puzzle_corrected') or not isinstance(r.get('puzzle'), dict):
         return []
     try:
         ensure_printer()
