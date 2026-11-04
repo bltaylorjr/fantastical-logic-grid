@@ -82,11 +82,12 @@ name = "LIMIT_HINTS"
 namespace_id = "41081"
 simple = { limit = 600, period = 60 }
 
-# The private puzzle server (docs/PUZZLE-SERVER.md). Uncomment once the
-# Workers VPC Service exists, with its id:
-# [[vpc_services]]
-# binding = "PUZZLES"
-# service_id = "PASTE_VPC_SERVICE_ID"
+# The private puzzle server (docs/PUZZLE-SERVER.md), through the
+# Workers VPC Service flg-puzzles: tunnel flg-puzzles, 172.30.0.10:8080
+# (created Nov 3, 2026). Puzzles stay off until PUZZLE_KEY is set too.
+[[vpc_services]]
+binding = "PUZZLES"
+service_id = "01a1a45a-1899-7dc0-94ed-583bc6752722"
 
 [[ratelimits]]
 name = "LIMIT_SYNC"
