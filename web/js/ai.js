@@ -259,6 +259,10 @@ const SPOKEN = [
   // read the trailing mark as a closing quote and stop as if the sentence
   // ended (player report: "judges'... table"). It sounds the same without it.
   [/(?<!['‘]\w*)(\ws)['’](?=\s+\w)/g, '$1'],
+  // A scale, sign or clock that "read" a value is the past tense ("The
+  // shelter scale read 12 pounds."): said "red", not "reed" (player report
+  // PZ-4W26P5V8). "Read the clues" stays as it is.
+  [/\b(scales?|station|meters?|gauges?|clocks?|signs?|thermometers?|displays?|boards?|tags?|labels?|dials?|counters?|odometers?|speedometers?|timers?|screens?|readouts?|receipts?|notes?|cards?)\s+read\b/gi, '$1 red'],
   [/\(([^)]*)\)/g, ', $1,'],
   [/,\s*([.,!?;:])/g, '$1'],
   [/\s{2,}/g, ' '],

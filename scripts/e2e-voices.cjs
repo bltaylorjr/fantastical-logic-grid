@@ -53,6 +53,10 @@ const { spawn } = require('child_process');
   // closing quote and stops mid-sentence (player report: "judges' ... table").
   const poss = await page.evaluate(async () => (await import('./js/ai.js')).speechText("A red sweater was spotted near the judges' table. It was the judge's call, and she said 'fine' at once."));
   assert(poss === "A red sweater was spotted near the judges table. It was the judge's call, and she said 'fine' at once.", `a plural possessive loses its apostrophe, nothing else does (${poss})`);
+  // A scale that "read" a value is the past tense, said "red"; "read the clues"
+  // is left alone (player report PZ-4W26P5V8).
+  const read = await page.evaluate(async () => (await import('./js/ai.js')).speechText('The shelter scale read 12 pounds. The scale at the weigh station read 40 pounds. Read the story, then read 3 clues.'));
+  assert(read === 'The shelter scale red 12 pounds. The scale at the weigh station red 40 pounds. Read the story, then read 3 clues.', `past-tense read is said "red" (${read})`);
   assert(!errs.length, 'no page errors');
   await b.close(); server.kill();
 })();

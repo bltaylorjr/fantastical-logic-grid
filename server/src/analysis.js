@@ -14,12 +14,33 @@ import { overview as marketingOverview } from './marketing.js';
 import { ratingNumbers } from './ratings.js';
 import { npSummary } from './number-place.js';
 import { kitSummary } from './kit-games.js';
+import { olderThan, errorFile } from './errors.js';
 
 const DAY = 24 * 3600_000;
 const isoDay = (ms) => new Date(ms).toISOString().slice(0, 10);
 const dayStart = (now) => { const d = new Date(now); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()); };
 const safe = (p) => Promise.resolve().then(() => p()).catch(() => null);
 const ROLES = { viewer: 1, moderator: 2, admin: 3, owner: 4 };
+
+// Errors from an app version older than the one that fixed them are players
+// still on an old copy, not a problem in the game today: they are counted
+// apart (errorsFixed) and left out of errorsOpen and errorsOpenTop.
+export function splitErrors(rows, fixes) {
+  if (!rows) return {};
+  const byKey = new Map((fixes || []).map((f) => [`${f.message}|${f.file}`, f]));
+  const open = new Map();
+  let errorsOpen = 0, errorsFixed = 0;
+  for (const r of rows) {
+    const f = byKey.get(`${r.message}|${errorFile(r.place)}`) || byKey.get(`${r.message}|`);
+    if (f && olderThan(r.version, f.fixedIn)) { errorsFixed += r.n; continue; }
+    errorsOpen += r.n;
+    const k = `${r.message}|${r.place}`;
+    const x = open.get(k) || { message: r.message, place: r.place, platform: r.platform, n: 0 };
+    x.n += r.n;
+    open.set(k, x);
+  }
+  return { errorsOpen, errorsFixed, errorsOpenTop: [...open.values()].sort((a, b) => b.n - a.n).slice(0, 5) };
+}
 
 // Search results keep only what the report reads: totals, the top queries and
 // pages, and the sitemap and home page checks.
@@ -69,6 +90,10 @@ async function extraCounts(env, days, now, role) {
     badges: db.prepare('SELECT COUNT(*) AS n FROM badge_awards WHERE removed_at IS NULL'),
     conversations: db.prepare('SELECT COUNT(*) AS n, COALESCE(SUM(status = \'open\'), 0) AS open FROM conversations WHERE created_at >= ?1').bind(since),
     errorsTop: db.prepare('SELECT message, place, platform, SUM(count) AS n FROM app_errors WHERE day >= ?1 GROUP BY fingerprint ORDER BY n DESC LIMIT 5').bind(sinceDay),
+    // Every error of the period by app version, so ones already fixed in a
+    // newer version (error_fixes) are counted apart from the ones still open.
+    errorRows: db.prepare('SELECT message, place, platform, version, SUM(count) AS n FROM app_errors WHERE day >= ?1 GROUP BY message, place, platform, version').bind(sinceDay),
+    errorFixes: db.prepare('SELECT message, file, fixed_in AS fixedIn FROM error_fixes'),
     // The period before, for the trend arrows.
     prevPlays: db.prepare("SELECT COUNT(*) AS n, COALESCE(SUM(outcome = 'solved'), 0) AS solved FROM plays WHERE day >= ?1 AND day < ?2").bind(prevDay, sinceDay),
     prevVisits: db.prepare('SELECT COALESCE(SUM(n), 0) AS n FROM visit_stats WHERE day >= ?1 AND day < ?2').bind(prevDay, sinceDay),
@@ -99,6 +124,7 @@ async function extraCounts(env, days, now, role) {
     challenges: first('challenges'), daily: first('daily'), dailyEmail: first('dailyEmail').n || 0, mail: first('mail'),
     printPacks: first('printPacks'), badges: first('badges').n || 0, conversations: first('conversations'),
     errorsTop: out.errorsTop || [],
+    ...splitErrors(out.errorRows, out.errorFixes),
     previous: { plays: first('prevPlays').n || 0, solved: first('prevPlays').solved || 0, visits: first('prevVisits').n || 0, accounts: first('prevAccounts').n || 0, errors: first('prevErrors').n || 0 },
     firstVisit: first('firstVisit').day || null, firstPlay: first('firstPlay').day || null,
     supporters: money ? out.supporters : null, licenses: money ? first('licenses') : null,

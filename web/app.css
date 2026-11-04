@@ -261,6 +261,11 @@ table.lg th.colh { vertical-align: bottom; padding: 4px 0 6px; width: var(--cell
 table.lg th.colh div { writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap; margin: 0 auto; max-height: 160px; overflow: hidden; text-overflow: ellipsis; }
 table.lg th.colh.lastcol, table.lg th.cath { border-right: var(--cat-line) solid var(--rule); }
 table.lg th.rcat { font-weight: 700; writing-mode: vertical-rl; transform: rotate(180deg); text-align: center; padding: 4px; min-width: 30px; border-left: var(--cat-line) solid var(--rule); border-bottom: var(--cat-line) solid var(--rule); }
+/* A long list name stays on one line, as long as its rows, and is cut short
+   with "…" (the full name is in the tooltip): wrapped, it hid under the row
+   names, and a longer name stretched its rows taller than the rest. */
+table.lg th.rcat > .rcat-t { display: block; margin: 0 auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-height: calc(var(--cell) * var(--n, 1) - 8px); }
+table.lg.fit th.rcat > .rcat-t { max-height: calc(var(--cell) * var(--n, 1) - 4px); }
 table.lg th.rowh { text-align: right; padding: 0 8px; white-space: nowrap; height: var(--cell); border-right: var(--cat-line) solid var(--rule); max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
 table.lg th.rowh.lastrow { border-bottom: var(--cat-line) solid var(--rule); }
 table.lg th.hl { background: var(--cross); font-weight: 700; }
