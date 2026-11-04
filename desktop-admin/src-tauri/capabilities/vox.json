@@ -11,6 +11,7 @@
     "allow-vox-stop",
     "allow-vox-token",
     "allow-vox-open",
-    "allow-vox-set-online"
+    "allow-vox-set-online",
+    "allow-vox-set-autostart"
   ]
 }

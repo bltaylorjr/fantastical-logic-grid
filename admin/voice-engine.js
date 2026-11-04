@@ -311,7 +311,6 @@ async function connectFromLink() {
 // Inside the Windows admin app, the app itself starts and stops Vox (no
 // command window) and hands this page the admin token, so it all happens here.
 // Only these vox_* commands are open to the page (desktop-admin/src-tauri/src/vox.rs).
-const AUTO_KEY = 'vox-autostart';
 let desk = null; // null: not checked yet; false: a browser (or an older app)
 let deskStatus = null;
 const appCall = (cmd, args = {}) => window.__TAURI_INTERNALS__.invoke(cmd, args);
@@ -319,8 +318,7 @@ async function detectDesk() {
   if (!window.__FLG_ADMIN_DESKTOP__ || !window.__TAURI_INTERNALS__?.invoke) return false;
   try { deskStatus = await appCall('vox_status'); return true; } catch (e) { return false; }
 }
-const autoStart = () => { try { return localStorage.getItem(AUTO_KEY) !== 'off'; } catch (e) { return true; } };
-let autoTried = false;
+let autoTried = true; // the app itself starts Vox when it opens; this page only starts it after a folder is chosen
 
 function deskCard(message = '') {
   const st = deskStatus || {};
@@ -336,10 +334,10 @@ function deskCard(message = '') {
     ${busy ? '<progress aria-label="Working"></progress>' : ''}
     ${message ? `<p class="error" role="alert">${h.esc(message)}</p>` : ''}
     ${st.folder
-    ? `<p class="muted">Vox runs right here on this computer, started and stopped by the admin app, and stops when you close the app. Folder: <b>${h.esc(st.folder)}</b> · model <b>${h.esc(st.model || 'made the first time you start it')}</b></p>`
+    ? `<p class="muted">Vox runs hidden on this computer: it starts when the admin app opens and stops when you close the app. Folder: <b>${h.esc(st.folder)}</b> · model <b>${h.esc(st.model || 'made the first time you start it')}</b></p>`
     : `<div class="note"><p>Choose the Vox folder once: the <b>vox-engine</b> folder you unzipped (it has README.md and a folder named vox inside).</p><button class="btn primary" type="button" id="vx-app-folder">Choose the Vox folder</button></div>`}
     <details class="vx-more"><summary>More</summary>
-      <label class="check"><input id="vx-auto-start" type="checkbox"${autoStart() ? ' checked' : ''}> Start Vox when I open this page</label>
+      <label class="check"><input id="vx-auto-start" type="checkbox"${st.autostart !== false ? ' checked' : ''}> Start Vox when the admin app opens</label>
       <label class="check"><input id="vx-online-app" type="checkbox"${st.online !== false ? ' checked' : ''}> Let my other devices open Vox (puts it online with a free Cloudflare address; applies the next time Vox starts)</label>
       <div class="row">
         ${st.folder ? '<button class="btn small" type="button" id="vx-app-folder">Change folder</button>' : ''}
@@ -386,7 +384,7 @@ async function deskWatch() {
   else if (['starting', 'installing', 'making-model', 'running'].includes(st.phase)) setLight('checking', st.message || 'Starting Vox…');
   else if (!st.folder) setLight('down', 'Choose the Vox folder to begin.');
   else setLight('down', 'Vox is stopped. Click Start Vox.');
-  if (!up && !autoTried && autoStart() && st.folder && (!st.phase || st.phase === 'idle') && !st.running) {
+  if (!up && !autoTried && st.autostart !== false && st.folder && (!st.phase || st.phase === 'idle') && !st.running) {
     autoTried = true;
     try { await appCall('vox_start'); } catch (e) { h.toast(String(e)); }
     watch = setTimeout(deskWatch, 500);
@@ -771,7 +769,7 @@ export function initVoiceEngine(helpers) {
   body.addEventListener('change', (e) => {
     const t = e.target;
     if (t.id === 'vx-online-app') { appCall('vox_set_online', { on: t.checked }).catch((err) => h.toast(String(err))); return; }
-    if (t.id === 'vx-auto-start') { try { localStorage.setItem(AUTO_KEY, t.checked ? 'on' : 'off'); } catch (err) { /* private mode */ } return; }
+    if (t.id === 'vx-auto-start') { appCall('vox_set_autostart', { on: t.checked }).catch((err) => h.toast(String(err))); return; }
     if (t.name === 'vx-tab') { tab = t.value; renderTab(); }
     else if (t.id === 'vx-rf') { reviewFilter = t.value; renderTab(); }
     else if (t.id === 'vx-rv') { reviewVoice = t.value; renderTab(); }

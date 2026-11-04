@@ -9,7 +9,7 @@
 
 mod vox;
 
-use tauri::{AppHandle, RunEvent, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, RunEvent, WebviewUrl, WebviewWindowBuilder, WindowEvent};
 use tauri::webview::NewWindowResponse;
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
 use tauri_plugin_opener::OpenerExt;
@@ -45,7 +45,8 @@ fn main() {
             vox::vox_stop,
             vox::vox_token,
             vox::vox_open,
-            vox::vox_set_online
+            vox::vox_set_online,
+            vox::vox_set_autostart
         ])
         .setup(|app| {
             let nav = app.handle().clone();
@@ -75,6 +76,13 @@ fn main() {
                 })
                 .build()?;
 
+            // Vox starts hidden (no command window) as soon as the app opens,
+            // unless that is switched off on the Voice engine page.
+            let starter = app.handle().clone();
+            if vox::autostart_on(&starter) {
+                let _ = vox::vox_start(starter);
+            }
+
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 if let Err(e) = check_for_update(handle).await {
@@ -85,10 +93,14 @@ fn main() {
         })
         .build(tauri::generate_context!())
         .expect("error while running The Logic Grid Admin")
-        .run(|app, event| {
-            if let RunEvent::Exit = event {
-                vox::shutdown(app);
+        .run(|app, event| match event {
+            // Closing the main window (its X) closes the whole app, archive
+            // viewer windows included, and that stops Vox.
+            RunEvent::WindowEvent { label, event: WindowEvent::CloseRequested { .. }, .. } if label == "main" => {
+                app.exit(0);
             }
+            RunEvent::Exit => vox::shutdown(app),
+            _ => {}
         });
 }
 

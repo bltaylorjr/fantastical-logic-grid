@@ -41,6 +41,8 @@ pub struct Status {
     online: bool,
     /// The free Cloudflare address Vox is online at right now, if it is.
     online_url: Option<String>,
+    /// Starts by itself when the admin app opens.
+    autostart: bool,
 }
 
 fn hidden(cmd: &mut Command) -> &mut Command {
@@ -67,6 +69,16 @@ fn write_config(app: &AppHandle, key: &str, value: serde_json::Value) {
         let _ = c.parent().map(fs::create_dir_all);
         let _ = fs::write(c, cfg.to_string());
     }
+}
+
+/// Start Vox as soon as the admin app opens (on by default).
+pub fn autostart_on(app: &AppHandle) -> bool {
+    read_config(app).get("autostart").and_then(|v| v.as_bool()).unwrap_or(true)
+}
+
+/// Is something already answering on Vox's port (a Vox started some other way)?
+fn port_in_use() -> bool {
+    std::net::TcpStream::connect_timeout(&"127.0.0.1:5150".parse().unwrap(), std::time::Duration::from_millis(400)).is_ok()
 }
 
 fn online_on(app: &AppHandle) -> bool {
@@ -218,6 +230,7 @@ pub fn vox_status(app: AppHandle, vox: State<'_, Vox>) -> Status {
         phase,
         message,
         online: online_on(&app),
+        autostart: autostart_on(&app),
     }
 }
 
@@ -254,6 +267,10 @@ pub fn vox_start(app: AppHandle) -> Result<(), String> {
         if p == "installing" || p == "making-model" || p == "starting" {
             return Ok(());
         }
+    }
+    if port_in_use() {
+        set(&vox, "idle", "Vox is already running on this computer (started outside the admin app).");
+        return Ok(());
     }
     vox.cancel.store(false, Ordering::SeqCst);
     set(&vox, "starting", "Starting Vox…");
@@ -339,6 +356,12 @@ pub fn vox_set_online(app: AppHandle, on: bool) {
     write_config(&app, "online", serde_json::json!(on));
 }
 
+/// Whether Vox starts by itself when the admin app opens.
+#[tauri::command]
+pub fn vox_set_autostart(app: AppHandle, on: bool) {
+    write_config(&app, "autostart", serde_json::json!(on));
+}
+
 /// The admin token Vox wrote when it started, so the page connects by itself.
 #[tauri::command]
 pub fn vox_token(app: AppHandle) -> Option<String> {
@@ -362,10 +385,13 @@ pub fn vox_open(app: AppHandle, what: String) -> Result<(), String> {
     app.opener().open_path(p.display().to_string(), None::<&str>).map_err(|e| e.to_string())
 }
 
-/// Called when the app closes: a Vox this app started stops with it.
+/// Called when the app closes: Vox stops with it.
 pub fn shutdown(app: &AppHandle) {
-    if let Some(mut c) = app.state::<Vox>().child.lock().unwrap().take() {
+    let vox = app.state::<Vox>();
+    vox.cancel.store(true, Ordering::SeqCst);
+    if let Some(mut c) = vox.child.lock().unwrap().take() {
         let _ = c.kill();
-        stop_strays();
     }
+    // Also the tunnel it opened, and a Vox started from Vox.vbs or a command window.
+    stop_strays();
 }
