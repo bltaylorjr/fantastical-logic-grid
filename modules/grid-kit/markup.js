@@ -6,7 +6,8 @@ const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&
 
 export function markup(def) {
   const P = def.id;
-  const digits = def.kind === 'digits';
+  const digits = def.kind === 'digits' || def.kind === 'letters';
+  const letters = def.kind === 'letters';
   // Line games (kind 'edges') name their own pens and options; the others keep their words.
   const pens = def.penNames || ['Shade', 'Cross'];
   return `
@@ -37,8 +38,8 @@ export function markup(def) {
           <label class="gk-switch"><input type="checkbox" id="${P}-sfxplay"> Sound effects while solving <small class="gk-muted">marks, finished lines, hints</small></label>
           <label class="gk-switch"><input type="checkbox" id="${P}-sfxfinish"> Sound effects at the finish <small class="gk-muted">the solve fanfare</small></label>
           <label class="gk-switch"><input type="checkbox" id="${P}-adapt"> Tune puzzles to how I play</label>
-          ${digits ? `<label class="gk-switch"><input type="checkbox" id="${P}-autoclean"> Clear notes when I place a number</label>` : `<label class="gk-switch"><input type="checkbox" id="${P}-autocross"> ${esc(def.autoCrossLabel || 'Cross out the rest of a line when it is finished')}</label>`}
-          <label class="gk-switch"><input type="checkbox" id="${P}-highlight"> ${digits ? 'Highlight related cells and matching numbers' : esc(def.highlightLabel || 'Highlight the row and column I am on')}</label>
+          ${letters ? '' : digits ? `<label class="gk-switch"><input type="checkbox" id="${P}-autoclean"> Clear notes when I place a number</label>` : `<label class="gk-switch"><input type="checkbox" id="${P}-autocross"> ${esc(def.autoCrossLabel || 'Cross out the rest of a line when it is finished')}</label>`}
+          <label class="gk-switch"><input type="checkbox" id="${P}-highlight"> ${letters ? 'Highlight the answer I am on' : digits ? 'Highlight related cells and matching numbers' : esc(def.highlightLabel || 'Highlight the row and column I am on')}</label>
         </div>
       </details>
       <div class="gk-gen-row">
@@ -95,12 +96,13 @@ export function markup(def) {
         <button class="btn small" type="button" id="${P}-undo" aria-keyshortcuts="Control+Z">Undo</button>
         <button class="btn small" type="button" id="${P}-redo" aria-keyshortcuts="Control+Y">Redo</button>
         <button class="btn small" type="button" id="${P}-erase" aria-keyshortcuts="Backspace">Erase</button>
-        ${digits ? `<button class="btn small" type="button" id="${P}-notes-btn" aria-pressed="false" aria-keyshortcuts="N">Notes <span class="state">Off</span></button>
+        ${digits && !letters ? `<button class="btn small" type="button" id="${P}-notes-btn" aria-pressed="false" aria-keyshortcuts="N">Notes <span class="state">Off</span></button>
         <button class="btn small" type="button" id="${P}-auto" aria-keyshortcuts="A">Fill notes</button>` : ''}
-        <button class="btn small" type="button" id="${P}-hint-btn" aria-keyshortcuts="H">Hint</button>
-        <button class="btn small" type="button" id="${P}-check" aria-keyshortcuts="C">Check</button>
+        <button class="btn small" type="button" id="${P}-hint-btn" aria-keyshortcuts="${letters ? '?' : 'H'}">Hint</button>
+        <button class="btn small" type="button" id="${P}-check" aria-keyshortcuts="${letters ? '!' : 'C'}">Check</button>
       </div>
-      ${digits ? `<div class="gk-digits" id="${P}-digits" role="group" aria-label="Numbers"></div>` : `<div class="gk-paint" role="group" aria-label="Pen">
+      ${letters ? `<div class="gk-clues" id="${P}-clues"></div>` : ''}
+      ${digits ? `<div class="gk-digits" id="${P}-digits" role="group" aria-label="${letters ? 'Letters' : 'Numbers'}"></div>` : `<div class="gk-paint" role="group" aria-label="Pen">
         <button class="btn gk-pen" type="button" id="${P}-pen-fill" aria-pressed="true" aria-keyshortcuts="F"><span class="gk-swatch fill${def.kind === 'edges' ? ' line' : ''}" aria-hidden="true"></span> ${esc(pens[0])}</button>
         <button class="btn gk-pen" type="button" id="${P}-pen-cross" aria-pressed="false" aria-keyshortcuts="X"><span class="gk-swatch cross" aria-hidden="true">×</span> ${esc(pens[1])}</button>
       </div>

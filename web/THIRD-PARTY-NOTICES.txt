@@ -15,6 +15,14 @@ modern-screenshot 4.7.0 by wxm                   MIT          vendor/modern-scre
 Simple Icons 13.21.0 (social media icons)        CC0 1.0      js/social.js
 Atkinson Hyperlegible font (Braille Institute)   SIL OFL 1.1  fonts/
 Cinzel font by Natanael Gama                     SIL OFL 1.1  fonts/
+WordNet 3.0, Princeton University (Crossword     WordNet      engine/crossword-words.js
+  answers and clues). WordNet 3.0 Copyright 2006 by Princeton University. All rights reserved.
+  THIS SOFTWARE AND DATABASE IS PROVIDED "AS IS" AND PRINCETON UNIVERSITY MAKES NO
+  REPRESENTATIONS OR WARRANTIES, EXPRESS OR IMPLIED.
+wordfreq word frequencies by Robyn Speer         CC BY-SA 4.0 engine/crossword-words.js (rounded scores only)
+List of Dirty, Naughty, Obscene and Otherwise    CC BY 4.0    words left out of the Crossword
+  Bad Words (Shutterstock)
+LemmInflect and inflect (word forms)             MIT          used to build engine/crossword-words.js
 
 Online service used (no code bundled):
 Pwned Passwords by Have I Been Pwned (haveibeenpwned.com), checked at sign-up with k-anonymity: only the first 5 characters of the password's SHA-1 hash are sent.

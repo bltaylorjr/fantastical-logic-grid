@@ -4,7 +4,7 @@
 // shared game screen (modules/grid-kit, copied to web/modules by the build)
 // with its game's definition, loaded the first time the player opens it, so
 // start-up stays as fast as before. Their engines run in the shared game
-// worker (engine/src/games.js: cm, sc, pg, ml, sk, sf, ll, ib). Each keeps its own saves,
+// worker (engine/src/games.js: cm, sc, pg, ml, sk, sf, ll, ib, cw). Each keeps its own saves,
 // settings and stats; the only thing shared is anonymous play data for the
 // learning service (kit-share.js).
 import { gameLink } from './engine-links.js';
@@ -21,6 +21,7 @@ export const KIT_GAMES = {
   'star-field': { id: 'sf', dir: 'star-field', name: 'Star Field' },
   'loop-line': { id: 'll', dir: 'loop-line', name: 'Loop Line' },
   'island-bridges': { id: 'ib', dir: 'island-bridges', name: 'Island Bridges' },
+  'crossword': { id: 'cw', dir: 'crossword', name: 'Crossword' },
 };
 export const byScreen = (id) => Object.entries(KIT_GAMES).find(([, g]) => g.id === id)?.[0] || null;
 

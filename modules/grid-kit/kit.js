@@ -38,7 +38,12 @@ const bit = (d) => 1 << (d - 1);
 
 export function createGame(def) {
   const P = def.id;
-  const DIGITS = def.kind === 'digits';
+  // Letter games (the Crossword, kind 'letters') work like the number games:
+  // a value per cell (1 to 26 for A to Z), typed from the keyboard or the
+  // on-screen keys, with a direction (Across or Down) that typing follows.
+  const LETTERS = def.kind === 'letters';
+  const DIGITS = def.kind === 'digits' || LETTERS;
+  const shown = (v) => (LETTERS ? (v ? String.fromCharCode(64 + v) : '') : v);
   // Words for a shade game's marks; a game may name them its own way (def.markWords).
   const MW = { on: 'shaded', x: 'crossed', none: 'empty', ...(def.markWords || {}) };
   // Line games mark the edges between dots (or islands) instead of cells: the
@@ -137,7 +142,7 @@ export function createGame(def) {
     if (prefs.theme !== 'surprise' && !THEME_IDS.includes(prefs.theme)) prefs.theme = 'surprise';
     $('theme').value = prefs.theme;
     $('theme').onchange = () => { prefs.theme = $('theme').value; savePrefs(); };
-    for (const [id, key] of [['silent', 'silent'], ['sfxplay', 'sfxPlay'], ['sfxfinish', 'sfxFinish'], ['moments', 'moments'], ['adapt', 'adapt'], ['highlight', 'highlight'], [DIGITS ? 'autoclean' : 'autocross', DIGITS ? 'autoClean' : 'autoCross']]) {
+    for (const [id, key] of [['silent', 'silent'], ['sfxplay', 'sfxPlay'], ['sfxfinish', 'sfxFinish'], ['moments', 'moments'], ['adapt', 'adapt'], ['highlight', 'highlight'], ...(LETTERS ? [] : [[DIGITS ? 'autoclean' : 'autocross', DIGITS ? 'autoClean' : 'autoCross']])]) {
       const el = $(id);
       el.checked = !!prefs[key];
       el.onchange = () => { prefs[key] = el.checked; savePrefs(); root.classList.toggle('gk-silent', quiet()); renderSetup(); };
@@ -227,7 +232,7 @@ export function createGame(def) {
       name: uniqueName(def.titleOf(p)),
       v: Array(cells).fill(0), n: Array(cells).fill(0), undo: [], redo: [],
       ms: 0, hints: 0, mistakes: 0, checks: 0, stuck: [], solved: false, revealed: false,
-      created: Date.now(), updated: Date.now(), sel: -1,
+      created: Date.now(), updated: Date.now(), sel: -1, dir: 'A',
     };
     G.sel = [...Array(cells).keys()].find((i) => def.playable(p, i) && !p.givens[i]) ?? 0;
     learn.started(p);
@@ -335,6 +340,13 @@ export function createGame(def) {
   }
 
   function buildPad() {
+    if (LETTERS) {
+      // An on-screen keyboard: three rows, and a key to go back a square.
+      const rows = ['QWERTYUIOP', 'ASDFGHJKL', 'ZXCVBNM'];
+      $('digits').className = 'gk-keys';
+      $('digits').innerHTML = rows.map((r, k) => `<div class="gk-keyrow">${[...r].map((ch) => `<button class="gk-key" type="button" data-d="${ch.charCodeAt(0) - 64}" aria-label="${ch}">${ch}</button>`).join('')}${k === 2 ? '<button class="gk-key wide" type="button" data-back="1" aria-label="Erase and go back">⌫</button>' : ''}</div>`).join('');
+      return;
+    }
     const ds = def.digits(G.p);
     const pad = $('digits');
     pad.dataset.cols = ds.length > 6 ? 5 : ds.length;
@@ -352,7 +364,7 @@ export function createGame(def) {
     const clash = clashes();
     const sel = G.sel;
     const selVal = sel >= 0 ? valueAt(sel) : 0;
-    const peers = prefs.highlight && sel >= 0 ? new Set(def.peers(p, sel)) : new Set();
+    const peers = prefs.highlight && sel >= 0 ? new Set(def.peers(p, sel, G.dir)) : new Set();
     const hinted = G.hint && G.hint.level >= 1 ? new Set(G.hint.cells || []) : new Set();
     for (const el of board.querySelectorAll('[data-i]')) {
       const i = Number(el.dataset.i);
@@ -364,18 +376,18 @@ export function createGame(def) {
       cls.toggle('hinted', hinted.has(i));
       cls.toggle('wrong', !!(prefs.showMistakes || G.checked?.has(i)) && wrongAt(i));
       if (DIGITS) {
-        cls.toggle('same', !!prefs.highlight && !!selVal && v === selVal && i !== sel);
+        cls.toggle('same', !LETTERS && !!prefs.highlight && !!selVal && v === selVal && i !== sel);
         cls.toggle('clash', clash.has(i));
         const span = el.querySelector('.v');
         if (v) {
-          if (span.textContent !== String(v)) span.textContent = v;
+          if (span.textContent !== String(shown(v))) span.textContent = shown(v);
           el.querySelector('.gk-notes').innerHTML = '';
         } else {
           span.textContent = '';
           const m = G.n[i];
           el.querySelector('.gk-notes').innerHTML = m ? def.digits(p).map((d) => `<i>${m & bit(d) ? d : ''}</i>`).join('') : '';
         }
-        el.setAttribute('aria-label', `${def.cellLabel(p, i)}${v ? `, ${v}${isGiven(i) ? ', given' : ''}` : ', empty'}${!v && G.n[i] ? `, notes ${def.digits(p).filter((d) => G.n[i] & bit(d)).join(' ')}` : ''}`);
+        el.setAttribute('aria-label', `${def.cellLabel(p, i, G.dir)}${v ? `, ${shown(v)}${isGiven(i) ? ', given' : ''}` : ', empty'}${!v && G.n[i] ? `, notes ${def.digits(p).filter((d) => G.n[i] & bit(d)).join(' ')}` : ''}`);
       } else if (EDGES) {
         cls.toggle('on', v === 1);
         cls.toggle('x', v === 2);
@@ -387,14 +399,14 @@ export function createGame(def) {
         el.setAttribute('aria-label', `${def.cellLabel(p, i)}, ${v === 1 ? MW.on : v === 2 ? MW.x : MW.none}${isGiven(i) ? ', given' : ''}`);
       }
     }
-    def.paint?.(board, { p, value: valueAt, wrong: wrongAt, sel: G.sel });
+    def.paint?.(board, { p, value: valueAt, wrong: wrongAt, sel: G.sel, dir: G.dir, solved: G.solved, select: (i, dir) => { if (dir) G.dir = dir; select(i); } });
     board.classList.toggle('paused', !!G.paused);
     board.classList.toggle('won', !!G.solved && !quiet());
     $('pause').textContent = G.paused ? 'Resume' : 'Pause';
     $('pause').hidden = G.solved;
     $('undo').disabled = !G.undo.length || G.solved;
     $('redo').disabled = !G.redo.length || G.solved;
-    if (DIGITS) {
+    if (DIGITS && !LETTERS) {
       const counts = {};
       p.solution.forEach((_, i) => { const v = valueAt(i); if (v) counts[v] = (counts[v] || 0) + 1; });
       for (const b of $('digits').querySelectorAll('[data-d]')) {
@@ -403,8 +415,10 @@ export function createGame(def) {
         b.querySelector('.left').textContent = left == null || left < 0 ? '' : left;
         b.classList.toggle('done', left === 0);
       }
-      $('notes-btn').setAttribute('aria-pressed', String(!!prefs.notes));
-      $('notes-btn').querySelector('.state').textContent = prefs.notes ? 'On' : 'Off';
+      if (!LETTERS) {
+        $('notes-btn').setAttribute('aria-pressed', String(!!prefs.notes));
+        $('notes-btn').querySelector('.state').textContent = prefs.notes ? 'On' : 'Off';
+      }
     }
     const frac = progressOf();
     $('progress').textContent = `${Math.round(frac * 100)}%`;
@@ -463,9 +477,9 @@ export function createGame(def) {
   function place(d) {
     const i = G.sel;
     if (!G || G.solved || G.paused || i < 0 || !playable(i) || isGiven(i)) return;
-    if (prefs.notes) { toggleNote(i, d); return; }
+    if (prefs.notes && !LETTERS) { toggleNote(i, d); return; }
     const was = G.v[i];
-    const to = was === d ? 0 : d;
+    const to = LETTERS ? d : was === d ? 0 : d;
     const changes = [{ i, from: was, to, nf: G.n[i], nt: 0 }];
     if (to && prefs.autoClean) {
       for (const x of def.peers(G.p, i)) if (G.n[x] & bit(d)) changes.push({ i: x, from: G.v[x], to: G.v[x], nf: G.n[x], nt: G.n[x] & ~bit(d) });
@@ -473,8 +487,11 @@ export function createGame(def) {
     apply(changes);
     play(to ? 'place' : 'note');
     if (to && def.units) for (const u of def.units(G.p, i)) if (u.every((x) => valueAt(x) && !wrongAt(x)) && u.includes(i)) { play('unit'); break; }
-    announce(to ? `${to} in ${def.cellLabel(G.p, i)}` : `Cleared ${def.cellLabel(G.p, i)}`, true);
+    announce(to ? `${shown(to)} in ${def.cellLabel(G.p, i, G.dir)}` : `Cleared ${def.cellLabel(G.p, i, G.dir)}`, true);
+    // Letter games move on to the next square of the word.
+    if (LETTERS && def.advance) { const next = def.advance(G.p, i, G.dir, 1, valueAt); if (next >= 0) G.sel = next; }
     afterChange(changes.slice(0, 1));
+    if (LETTERS && G && !G.solved) focusCell(G.sel);
   }
 
   function toggleNote(i, d) {
@@ -570,7 +587,12 @@ export function createGame(def) {
   }
 
   function erase() {
-    const i = G.sel;
+    let i = G.sel;
+    if (LETTERS && !G.solved && i >= 0 && !G.v[i] && def.advance) {
+      // An empty square: go back one, and erase that one.
+      const back = def.advance(G.p, i, G.dir, -1, valueAt);
+      if (back >= 0) { G.sel = i = back; render(); focusCell(i); }
+    }
     if (G.solved || i < 0 || isGiven(i) || (!G.v[i] && !G.n[i])) return;
     const changes = [{ i, from: G.v[i], to: 0, nf: G.n[i], nt: 0 }];
     apply(changes);
@@ -613,7 +635,7 @@ export function createGame(def) {
     render(); save();
     const left = def.leftCount ? def.leftCount(G.p, valueAt) : G.p.solution.filter((d, i) => playable(i) && !valueAt(i) && (DIGITS || d === 1)).length;
     const word = def.leftWord || (DIGITS ? 'cell' : 'shaded cell');
-    announce(wrong.size ? `${wrong.size} ${DIGITS ? 'number' : 'mark'}${wrong.size === 1 ? ' is' : 's are'} wrong. They are marked in red.` : `Everything so far is right. ${left} ${word}${left === 1 ? '' : 's'} to go.`, true);
+    announce(wrong.size ? `${wrong.size} ${LETTERS ? 'letter' : DIGITS ? 'number' : 'mark'}${wrong.size === 1 ? ' is' : 's are'} wrong. They are marked in red.` : `Everything so far is right. ${left} ${word}${left === 1 ? '' : 's'} to go.`, true);
   }
 
   // ---------- hints: a nudge, then where, then why ----------
@@ -805,7 +827,7 @@ export function createGame(def) {
       const v = vals[i];
       el.classList.toggle('given', !!G.p.givens[i]);
       el.classList.toggle('hinted', focus.has(i));
-      if (DIGITS) { el.querySelector('.v').textContent = v || ''; el.querySelector('.gk-notes').innerHTML = ''; } else { el.classList.toggle('on', v === 1); el.classList.toggle('x', v === 2); if (EDGES) el.dataset.v = v || 0; }
+      if (DIGITS) { el.querySelector('.v').textContent = v ? shown(v) : ''; el.querySelector('.gk-notes').innerHTML = ''; } else { el.classList.toggle('on', v === 1); el.classList.toggle('x', v === 2); if (EDGES) el.dataset.v = v || 0; }
     }
     $('step-n').textContent = stepAt ? `Step ${stepAt} of ${path.length}` : `${path.length} steps`;
     $('step-tech').textContent = cur ? cur.techniqueName : 'The start';
@@ -839,7 +861,7 @@ export function createGame(def) {
     const hist = (a) => (Array.isArray(a) ? a.filter(Array.isArray).slice(-400).map((chs) => chs.filter((c) => c && Number.isInteger(c.i) && c.i >= 0 && c.i < cells).map((c) => ({ i: c.i, from: Number(c.from) || 0, to: Number(c.to) || 0, nf: Number(c.nf) || 0, nt: Number(c.nt) || 0 }))) : []);
     const num = (x) => (Number.isFinite(+x) && +x >= 0 ? +x : 0);
     return {
-      p, v: nums(g.v, DIGITS ? 9 : def.maxValue || 2), n: nums(g.n, 1023), undo: hist(g.undo), redo: hist(g.redo),
+      p, v: nums(g.v, def.maxValue || (DIGITS ? 9 : 2)), n: nums(g.n, 1023), dir: g.dir === 'D' ? 'D' : 'A', undo: hist(g.undo), redo: hist(g.redo),
       name: String(g.name || def.titleOf(p)).slice(0, 80), mode: ['free', 'daily', 'file', 'race'].includes(g.mode) ? g.mode : 'file',
       daily: /^\d{4}-\d{2}-\d{2}$/.test(g.daily || '') ? g.daily : null, practice: NAME_ID.test(g.practice || '') ? g.practice : null, tuned: g.tuned == null ? null : num(g.tuned),
       ms: num(g.ms), hints: num(g.hints), mistakes: num(g.mistakes), checks: num(g.checks), stuck: Array.isArray(g.stuck) ? g.stuck.filter((t) => NAME_ID.test(t)).slice(-50) : [],
@@ -955,10 +977,24 @@ export function createGame(def) {
 
     const board = $('board');
     if (DIGITS) {
-      board.addEventListener('click', (e) => { const c = e.target.closest('[data-i]'); if (c) select(Number(c.dataset.i)); });
-      $('digits').addEventListener('click', (e) => { const b = e.target.closest('[data-d]'); if (b) { place(Number(b.dataset.d)); focusCell(G.sel); } });
-      $('notes-btn').onclick = () => { prefs.notes = !prefs.notes; savePrefs(); render(); };
-      $('auto').onclick = autoNotes;
+      board.addEventListener('click', (e) => {
+        const c = e.target.closest('[data-i]');
+        if (!c) return;
+        const i = Number(c.dataset.i);
+        // Letter games: a second tap on the same square turns Across into Down.
+        if (LETTERS && G && i === G.sel && def.turn) G.dir = def.turn(G.p, i, G.dir);
+        else if (LETTERS && G && def.dirFor) G.dir = def.dirFor(G.p, i, G.dir);
+        select(i);
+      });
+      $('digits').addEventListener('click', (e) => {
+        if (e.target.closest('[data-back]')) { erase(); focusCell(G.sel); return; }
+        const b = e.target.closest('[data-d]');
+        if (b) { place(Number(b.dataset.d)); focusCell(G.sel); }
+      });
+      if (!LETTERS) {
+        $('notes-btn').onclick = () => { prefs.notes = !prefs.notes; savePrefs(); render(); };
+        $('auto').onclick = autoNotes;
+      }
     } else if (EDGES) {
       edgePointer(board, {
         def, p: () => G.p, value: (i) => G.v[i], pen: () => prefs.pen || 1,
@@ -1039,6 +1075,7 @@ export function createGame(def) {
     if ((e.ctrlKey || e.metaKey) && k.toLowerCase() === 'z') { e.preventDefault(); if (e.shiftKey) redo(); else undo(); return; }
     if ((e.ctrlKey || e.metaKey) && k.toLowerCase() === 'y') { e.preventDefault(); redo(); return; }
     if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (LETTERS) { onLetterKey(e); return; }
     if (k === 'p' || k === 'P') { $('pause').click(); return; }
     if (G.solved || G.paused) return;
     const arrows = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] };
@@ -1059,6 +1096,28 @@ export function createGame(def) {
     } else {
       if (k === ' ' || k === 'Enter' || k === 'f' || k === 'F') { e.preventDefault(); keyMark(1); return; }
       if (k === 'x' || k === 'X' || k === '.') { e.preventDefault(); keyMark(2); return; }
+    }
+  }
+
+  // Letter games: letters type, so the tools use other keys (? hint, ! check,
+  // Esc pause). Space or Enter turns Across into Down; Tab goes to the next
+  // answer (Shift+Tab back); an arrow across the word's direction turns first.
+  function onLetterKey(e) {
+    const k = e.key;
+    if (k === 'Escape') { $('pause').click(); return; }
+    if (G.solved || G.paused) return;
+    if (k === '?') { e.preventDefault(); hint(); return; }
+    if (k === '!') { e.preventDefault(); check(); return; }
+    if (/^[a-z]$/i.test(k)) { e.preventDefault(); place(k.toUpperCase().charCodeAt(0) - 64); return; }
+    if (k === 'Backspace' || k === 'Delete') { e.preventDefault(); erase(); return; }
+    if (k === ' ' || k === 'Enter') { e.preventDefault(); if (def.turn) { G.dir = def.turn(G.p, G.sel, G.dir); render(); focusCell(G.sel); } return; }
+    if (k === 'Tab') { e.preventDefault(); if (def.nextWord) { const [i, dir] = def.nextWord(G.p, G.sel, G.dir, e.shiftKey ? -1 : 1, valueAt); G.dir = dir; select(i); } return; }
+    const arrows = { ArrowUp: [-1, 0, 'D'], ArrowDown: [1, 0, 'D'], ArrowLeft: [0, -1, 'A'], ArrowRight: [0, 1, 'A'] };
+    if (arrows[k]) {
+      e.preventDefault();
+      const [dr, dc, dir] = arrows[k];
+      if (G.dir !== dir && def.canGo?.(G.p, G.sel, dir)) { G.dir = dir; render(); focusCell(G.sel); return; }
+      move(dr, dc);
     }
   }
 

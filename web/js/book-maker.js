@@ -37,6 +37,7 @@ const KIT = [
   { id: 'sf', dir: 'star-field', name: 'Star Field' },
   { id: 'll', dir: 'loop-line', name: 'Loop Line' },
   { id: 'ib', dir: 'island-bridges', name: 'Island Bridges' },
+  { id: 'cw', dir: 'crossword', name: 'Crossword' },
 ];
 const NP_LEVELS = [
   { id: 'basic', name: 'Basic', sizes: [4, 6] }, { id: 'easy', name: 'Easy', sizes: [6, 9] }, { id: 'medium', name: 'Medium', sizes: [9, 6] },

@@ -43,6 +43,7 @@ export const GAMES = {
   sf: { task: 'Place the stars: the right count in every row, column and region, and no two touching.', done: 'The last star shines.', bits: 'stars' },
   ll: { task: 'Draw one closed loop. Each number says how many sides of its square the loop runs along.', done: 'The loop closes, with no loose ends.', bits: 'pieces of the loop' },
   ib: { task: 'Build bridges so every island gets its number and all of them join up.', done: 'The last bridge joins every island.', bits: 'bridges' },
+  cw: { task: 'Fill every square so each Across and Down answer matches its clue.', done: 'The last word drops into place.', bits: 'answers' },
 };
 
 // Used for any theme, or any list, that has no lines of its own.
