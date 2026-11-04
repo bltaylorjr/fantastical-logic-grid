@@ -251,8 +251,9 @@ if (!indexHtml.includes('http-equiv="Content-Security-Policy"')) {
   writeFileSync(f, page.replace('<!-- ACCOUNT_WINDOWS -->', windows));
 }
 // The Suggest a storyline page (storyline/), the Report a Problem page
-// (report/) and the Account page (account/) get the same policy; they have no inline scripts.
-for (const dir of ['storyline', 'report', 'account']) {
+// (report/), the Account page (account/) and the admin's Book maker
+// (book-maker/) get the same policy; they have no inline scripts.
+for (const dir of ['storyline', 'report', 'account', 'book-maker']) {
   const f = join(out, dir, 'index.html');
   const page = readFileSync(f, 'utf8');
   const policy = CSP.replace(/script-src [^;]*/, "script-src 'self'");
