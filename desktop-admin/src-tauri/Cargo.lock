@@ -953,9 +953,10 @@ dependencies = [
 
 [[package]]
 name = "fantastical-logic-grid-admin"
-version = "1.0.1"
+version = "1.1.0"
 dependencies = [
  "futures-channel",
+ "serde",
  "serde_json",
  "tauri",
  "tauri-build",

@@ -191,6 +191,7 @@ function openCard(message = '') {
   return `<section class="card vx-open" aria-labelledby="vx-open-h">
     <div class="head"><h2 id="vx-open-h">Open Vox</h2>
       <button class="btn" type="button" id="vx-studio" disabled title="Opens Vox's own Voice Studio in a new tab">Open Voice Studio</button></div>
+    ${window.__FLG_ADMIN_DESKTOP__ ? '<p class="note">Update the admin app (it asks when a new version is ready) to start and stop Vox right here, with no shortcut or command window.</p>' : '<p class="muted">On Windows, the admin app for Windows starts and stops Vox for you, with nothing to download or type.</p>'}
     <p class="vx-light" id="vx-light" role="status" aria-live="polite" data-state="checking"><span class="vx-dot" aria-hidden="true"></span><span id="vx-light-text">Looking for Vox at ${h.esc(url)}…</span></p>
     ${message ? `<p class="error" role="alert">${h.esc(message)}</p>` : ''}
 
@@ -260,7 +261,82 @@ async function watchEngine() {
   watch = setTimeout(watchEngine, 3000);
 }
 
+
+// ---------------------------------------------------------- Windows app
+// Inside the Windows admin app, the app itself starts and stops Vox (no
+// command window) and hands this page the admin token, so it all happens here.
+// Only these vox_* commands are open to the page (desktop-admin/src-tauri/src/vox.rs).
+const AUTO_KEY = 'vox-autostart';
+let desk = null; // null: not checked yet; false: a browser (or an older app)
+let deskStatus = null;
+const appCall = (cmd, args = {}) => window.__TAURI_INTERNALS__.invoke(cmd, args);
+async function detectDesk() {
+  if (!window.__FLG_ADMIN_DESKTOP__ || !window.__TAURI_INTERNALS__?.invoke) return false;
+  try { deskStatus = await appCall('vox_status'); return true; } catch (e) { return false; }
+}
+const autoStart = () => { try { return localStorage.getItem(AUTO_KEY) !== 'off'; } catch (e) { return true; } };
+let autoTried = false;
+
+function deskCard(message = '') {
+  const st = deskStatus || {};
+  const busy = ['starting', 'installing', 'making-model'].includes(st.phase);
+  return `<section class="card vx-open" aria-labelledby="vx-open-h">
+    <div class="head"><h2 id="vx-open-h">Vox</h2>
+      <div class="row">
+        <button class="btn primary" type="button" id="vx-app-start"${st.folder && !busy && !st.running ? '' : ' hidden'}>Start Vox</button>
+        <button class="btn" type="button" id="vx-app-stop"${st.running || busy ? '' : ' hidden'}>Stop Vox</button>
+        <button class="btn" type="button" id="vx-studio" disabled title="Opens Vox's own Voice Studio">Open Voice Studio</button>
+      </div></div>
+    <p class="vx-light" id="vx-light" role="status" aria-live="polite" data-state="checking"><span class="vx-dot" aria-hidden="true"></span><span id="vx-light-text">Checking Vox…</span></p>
+    ${busy ? '<progress aria-label="Working"></progress>' : ''}
+    ${message ? `<p class="error" role="alert">${h.esc(message)}</p>` : ''}
+    ${st.folder
+    ? `<p class="muted">Vox runs right here on this computer, started and stopped by the admin app, and stops when you close the app. Folder: <b>${h.esc(st.folder)}</b> · model <b>${h.esc(st.model || 'made the first time you start it')}</b></p>`
+    : `<div class="note"><p>Choose the Vox folder once: the <b>vox-engine</b> folder you unzipped (it has README.md and a folder named vox inside).</p><button class="btn primary" type="button" id="vx-app-folder">Choose the Vox folder</button></div>`}
+    <details class="vx-more"><summary>More</summary>
+      <div class="field inline"><input id="vx-auto-start" type="checkbox"${autoStart() ? ' checked' : ''}><label for="vx-auto-start">Start Vox when I open this page</label></div>
+      <div class="row">
+        ${st.folder ? '<button class="btn small" type="button" id="vx-app-folder">Change folder</button>' : ''}
+        <button class="btn small" type="button" data-app-open="folder">Open the Vox folder</button>
+        <button class="btn small" type="button" data-app-open="log">Open Vox's log</button>
+        <button class="btn small" type="button" data-app-open="setup-log">Open the setup log</button>
+      </div>
+    </details>
+  </section>`;
+}
+
+async function deskWatch() {
+  clearTimeout(watch);
+  if (location.hash !== '#voice-engine' || !$('#vx-light')) return;
+  const before = deskStatus;
+  try { deskStatus = await appCall('vox_status'); } catch (e) { /* keep the last one */ }
+  let up = false;
+  try { await engineHealth(DEFAULT_URL); up = true; } catch (e) { /* not yet */ }
+  if (up) {
+    const token = await appCall('vox_token').catch(() => null);
+    if (token && !tokenRejected) { saveConn({ url: DEFAULT_URL, token }); await render(); return; }
+  }
+  // Redraw when the buttons need to change (started, stopped, a new step).
+  if (!before || before.phase !== deskStatus.phase || before.running !== deskStatus.running || before.folder !== deskStatus.folder) {
+    $('#vx-body').innerHTML = deskCard();
+  }
+  const st = deskStatus;
+  if (up) setLight('up', 'Vox is running. Connecting…');
+  else if (st.phase === 'failed') setLight('down', st.message);
+  else if (['starting', 'installing', 'making-model', 'running'].includes(st.phase)) setLight('checking', st.message || 'Starting Vox…');
+  else if (!st.folder) setLight('down', 'Choose the Vox folder to begin.');
+  else setLight('down', 'Vox is stopped. Click Start Vox.');
+  if (!up && !autoTried && autoStart() && st.folder && (!st.phase || st.phase === 'idle') && !st.running) {
+    autoTried = true;
+    try { await appCall('vox_start'); } catch (e) { h.toast(String(e)); }
+    watch = setTimeout(deskWatch, 500);
+    return;
+  }
+  watch = setTimeout(deskWatch, 2000);
+}
+
 function showOpen(message = '') {
+  if (desk) { $('#vx-body').innerHTML = deskCard(message); deskWatch(); return; }
   $('#vx-body').innerHTML = openCard(message);
   watchEngine();
 }
@@ -268,7 +344,7 @@ function showOpen(message = '') {
 function shell(health) {
   const tabs = TABS.map(([k, label]) => `<label class="tab"><input type="radio" name="vx-tab" value="${k}"${k === tab ? ' checked' : ''}> ${label}</label>`).join('');
   return `<div class="row vx-status"><p class="muted">Connected to <b>${h.esc(conn.url)}</b>${health.public ? ' <span class="badge ok">online</span>' : ''} · model <b>${h.esc(health.version || '–')}</b> · ${h.esc(health.device)}${health.vocoder_trained ? '' : ' · <span class="badge warn">vocoder not trained yet</span>'}</p>
-      <div class="row"><button class="btn small" type="button" id="vx-studio">Open Voice Studio</button>
+      <div class="row"><button class="btn small" type="button" id="vx-studio">Open Voice Studio</button>${desk ? '<button class="btn small" type="button" id="vx-app-stop">Stop Vox</button>' : ''}
       <button class="btn small link" type="button" id="vx-forget">Disconnect</button></div></div>
     ${health.learning ? '' : '<p class="note">Learning is off on this engine (it was started with --no-learning). Start it without that option to use this page fully.</p>'}
     <fieldset class="tabs"><legend class="sr-only">Part</legend>${tabs}</fieldset>
@@ -596,6 +672,7 @@ async function render(message = '') {
   clearTimeout(watch);
   stopAudio();
   const body = $('#vx-body');
+  if (desk === null) desk = await detectDesk();
   conn = loadConn();
   if (!conn || message) { showOpen(message); return false; }
   let health;
@@ -627,6 +704,7 @@ export function initVoiceEngine(helpers) {
 
   body.addEventListener('change', (e) => {
     const t = e.target;
+    if (t.id === 'vx-auto-start') { try { localStorage.setItem(AUTO_KEY, t.checked ? 'on' : 'off'); } catch (err) { /* private mode */ } return; }
     if (t.name === 'vx-tab') { tab = t.value; renderTab(); }
     else if (t.id === 'vx-rf') { reviewFilter = t.value; renderTab(); }
     else if (t.id === 'vx-rv') { reviewVoice = t.value; renderTab(); }
@@ -773,6 +851,28 @@ export function initVoiceEngine(helpers) {
     const b = e.target.closest('button');
     if (!b) return;
     if (b.id === 'vx-forget') { saveConn(null); render(); return; }
+    if (b.id === 'vx-app-start') {
+      tokenRejected = false;
+      try { await appCall('vox_start'); } catch (err) { h.toast(String(err)); }
+      deskWatch();
+      return;
+    }
+    if (b.id === 'vx-app-stop') {
+      b.disabled = true;
+      try { await appCall('vox_stop'); } catch (err) { h.toast(String(err)); }
+      autoTried = true; // don't start it again by itself
+      h.toast('Vox is stopped.'); h.announce('Vox is stopped.');
+      await render();
+      return;
+    }
+    if (b.id === 'vx-app-folder') {
+      try { await appCall('vox_choose_folder'); deskStatus = null; autoTried = false; showOpen(); } catch (err) { if (!/No folder chosen/.test(String(err))) h.toast(String(err)); }
+      return;
+    }
+    if (b.dataset.appOpen) {
+      try { await appCall('vox_open', { what: b.dataset.appOpen }); } catch (err) { h.toast(String(err)); }
+      return;
+    }
     if (b.id === 'vx-studio') {
       let url = conn?.url;
       if (!url) { try { url = cleanUrl($('#vx-url')?.value); } catch (err) { h.toast(err.message); return; } }

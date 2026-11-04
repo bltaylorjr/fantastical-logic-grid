@@ -10,8 +10,18 @@ page itself keeps.
 - **Download:** the "Download for Windows" button in the dashboard (Windows
   visitors only, hidden inside the app) links
   `releases/download/admin-desktop/The-Fantastical-Logic-Grid-Admin-Setup.exe`.
-- **No permissions for the page:** there is no capabilities file, so the web page
-  cannot call any app command. Links that leave `/admin` (Open the game, GitHub)
+- **Vox, the voice engine, runs inside the app:** on the Voice engine page,
+  **Start Vox** and **Stop Vox** run Vox on this computer with no command window,
+  and the page connects by itself (the app reads Vox's admin token from
+  `learning\admin_token.txt`). The first start installs Vox and makes the practice
+  model if needed (output in `vox-setup-log.txt`); Vox's own output goes to
+  `vox-log.txt`. The Vox folder is found in the usual places (like
+  `Downloads\MEGA\vox-engine\vox-engine`) or chosen once in a folder picker.
+  A Vox the app started stops when the app closes. See `src-tauri/src/vox.rs`.
+- **The page's only permissions are Vox's:** `capabilities/vox.json` lets the
+  dashboard's own address (and nothing else) call the six `vox_*` commands. They
+  take no program, path or arguments from the page, so the page still cannot run
+  anything else, read files or use any other app feature. Links that leave `/admin` (Open the game, GitHub)
   open in the normal browser; the archive viewer opens in its own window.
 - **Updates:** at start the app checks
   `releases/download/admin-desktop/latest.json` (signed with the same updater key
