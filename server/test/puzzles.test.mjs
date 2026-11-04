@@ -102,7 +102,7 @@ test('an unreachable puzzle server answers 502', async () => {
 });
 
 test('health needs no origin and shows no secrets', async () => {
-  const res = await call(req('/v1/puzzles/health', { method: 'GET', origin: null }), envWith({ answer: { status: 200, body: { ok: true, release: 'abc', busy: 0, queued: 0, threads: 2 } } }).env);
+  const res = await call(req('/v1/puzzles/health', { method: 'GET', origin: null }), envWith({ answer: { status: 200, body: { ok: true, release: 'abc', busy: 0, queued: 0, threads: 2, canary: { ok: true, state: 'passed', failed: [] }, ops: { 'flg/generate': { runs: 3 } } } } }).env);
   assert.equal(res.status, 200);
-  assert.deepEqual(await res.json(), { ok: true, release: 'abc', busy: 0, queued: 0 });
+  assert.deepEqual(await res.json(), { ok: true, release: 'abc', busy: 0, queued: 0, canary: 'passed' });
 });
