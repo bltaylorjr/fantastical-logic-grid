@@ -62,7 +62,7 @@ def main():
             + (f'<p><a href="{html.escape(ISSUE_URL)}">GitHub issue</a></p>' if ISSUE_URL else '')
             + (f'<p><a href="{html.escape(RUN_URL)}">Full report</a></p>' if RUN_URL else ''))
     msg = EmailMessage()
-    msg['From'] = f'The Fantastical Logic Grid <{GMAIL_USER}>'
+    msg['From'] = f'The Logic Grid <{GMAIL_USER}>'
     msg['To'] = TO
     msg['Subject'] = subject
     msg.set_content('\n'.join(text))

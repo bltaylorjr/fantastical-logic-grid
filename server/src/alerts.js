@@ -23,7 +23,7 @@ const CATEGORY_WORDS = { problems: 'Problem', approvals: 'Waiting for you', mess
 const KEEP_MS = 30 * 24 * 3600_000;
 const DEDUPE_MS = 6 * 3600_000;
 const MAX_DEVICES = 10;
-const MAIL_FROM = 'The Fantastical Logic Grid <noreply@thelogicgrid.com>';
+const MAIL_FROM = 'The Logic Grid <noreply@thelogicgrid.com>';
 const ADMIN_URL = 'https://flg-api.btay74.workers.dev/admin/';
 // Only the browsers' own push services, so a device address can never point
 // the Worker at anything else.

@@ -1,5 +1,5 @@
-// Number Place: its own game screen, with the Logic Grid's look, for the numbers game.
-// Self-contained so it can drop into The Fantastical Logic Grid app or run on
+// NINETIMESNINE: its own game screen, with the Logic Grid's look, for the numbers game.
+// Self-contained so it can drop into The Logic Grid app or run on
 // its own test page:
 //
 //   import { mount } from './ui.js';
@@ -9,13 +9,13 @@
 //   engine         { generate(options), hint(puzzle, entries), themes? } returning promises
 //   storagePrefix  localStorage key prefix (default 'flg.np')
 //   onPlay(rec)    called with each anonymous play record (and again when it is rated):
-//                  the one thing Number Place shares, for the learning service
+//                  the one thing NINETIMESNINE shares, for the learning service
 //   shared         what every player's games taught ({ toughness: { level: 0..1 } }), optional
 //   celebrate()    the host's solve effect, optional
 //   setWorld(id)   the host's backdrop for a story's world, optional
 // A host with other screens calls suspend() when the player leaves and reopen() on return.
 //   canPrint, canDownload   false where the host frame can't print or save files
-//   config()       the admin's Number Place choices (all optional): stories, coachTips,
+//   config()       the admin's NINETIMESNINE choices (all optional): stories, coachTips,
 //                  daily, variants (bools), maxLevel (a level id), adaptStrength,
 //                  practiceChance, sharedWeight (0 to 1)
 import { markup } from './markup.js';
@@ -92,7 +92,8 @@ const glyphHtml = (d) => (styled('glyph') ? `${esc(glyph(d))}${prefs.glyphNums ?
 const bit = (d) => 1 << (d - 1);
 const quiet = () => !!prefs.silent;
 const showStory = () => !quiet() && cfg().stories !== false;
-const play = (name) => { if (prefs.sound && !quiet()) { try { sounds[name](); } catch (e) { /* no audio */ } } };
+// Sound effects have two switches, by where they play: while solving, and at the finish.
+const play = (name) => { if (prefs[name === 'solved' ? 'sfxFinish' : 'sfxPlay'] && !quiet()) { try { sounds[name](); } catch (e) { /* no audio */ } } };
 
 // ---------- mount ----------
 
@@ -104,6 +105,9 @@ export function mount(container, host) {
   const pre = deps.storagePrefix || 'flg.np';
   K = { games: `${pre}.games`, cur: `${pre}.cur`, prefs: `${pre}.prefs`, learn: `${pre}.learn`, old: `${pre}.current` };
   prefs = { notes: false, showMistakes: false, autoClean: true, highlight: true, silent: false, sound: true, adapt: true, theme: '', level: null, size: null, variants: [], coachDone: false, style: 'classic', styleTips: {}, glyphNums: false, ...load(K.prefs, {}) };
+  // Before the two switches there was one Sound effects switch: keep the player's choice.
+  prefs.sfxPlay ??= prefs.sound !== false;
+  prefs.sfxFinish ??= prefs.sound !== false;
   if (!STYLES.some((x) => x.id === prefs.style)) prefs.style = 'classic';
   learn = createLearning({ load, keep, key: K.learn, config: cfg });
   if (deps.shared) learn.setShared(deps.shared);
@@ -127,10 +131,10 @@ export function unmount() {
 // What every player's games taught, when the host fetches it later.
 export function setShared(shared) { learn?.setShared(shared); }
 
-// Leaving the Number Place screen: stop the clock and save.
+// Leaving the NINETIMESNINE screen: stop the clock and save.
 export function suspend() { close(); }
 
-// Coming back to the Number Place screen: the clock runs again if a puzzle is open.
+// Coming back to the NINETIMESNINE screen: the clock runs again if a puzzle is open.
 export function reopen() {
   if (!playing()) return;
   if (G.p.story?.theme?.world) deps.setWorld?.(G.p.story.theme.world);
@@ -139,6 +143,9 @@ export function reopen() {
 }
 
 // Opens the setup screen with a game style picked (the host's links to each game).
+// A link to today's daily puzzle (?play=daily on the NINETIMESNINE page).
+export function playDaily() { return startDaily(); }
+
 export function pickStyle(id) {
   if (!root || !STYLES.some((x) => x.id === id)) return;
   prefs.style = id;
@@ -151,6 +158,12 @@ export function pickStyle(id) {
 
 // A puzzle everyone plays (a race or a shared challenge): never filtered as "seen".
 export function startShared(puzzle, { mode = 'race' } = {}) { begin(puzzle, { mode }); }
+// A race puzzle (web/js/game-race.js): the setup screen's level, size and extra
+// rules, played the classic way, at the level's usual toughness.
+export function racePuzzle() {
+  const o = readSetup();
+  return engine.generate({ seed: Math.random().toString(36).slice(2), theme: prefs.theme || null, story: storiesOn(), toughness: 0.5, usedStories: [], ...o });
+}
 
 // Games saved by the first version of this module.
 function migrate() {
@@ -199,7 +212,7 @@ function buildSetup() {
   $('#np-theme').innerHTML = `<option value="">Any, a surprise each time</option>${themes.map((t) => `<option value="${esc(t.id)}">${esc(t.name)}</option>`).join('')}`;
   $('#np-theme').value = prefs.theme || '';
   $('#np-theme').closest('.np-field').hidden = !themes.length;
-  for (const [id, key] of [['#np-silent', 'silent'], ['#np-sound', 'sound'], ['#np-adapt', 'adapt'], ['#np-autoclean', 'autoClean'], ['#np-highlight', 'highlight']]) {
+  for (const [id, key] of [['#np-silent', 'silent'], ['#np-sfxplay', 'sfxPlay'], ['#np-sfxfinish', 'sfxFinish'], ['#np-adapt', 'adapt'], ['#np-autoclean', 'autoClean'], ['#np-highlight', 'highlight']]) {
     $(id).checked = !!prefs[key];
     $(id).onchange = (e) => { prefs[key] = e.target.checked; savePrefs(); root.classList.toggle('np-silent', quiet()); renderSetup(); };
   }
@@ -1208,7 +1221,7 @@ export function cleanGame(g) {
   };
 }
 
-// Opens a saved file after checking it is a real Number Place game with a valid answer.
+// Opens a saved file after checking it is a real NINETIMESNINE game with a valid answer.
 async function openFile(file) {
   const status = $('#np-status');
   try {
@@ -1328,11 +1341,20 @@ function wire() {
 
   // Play
   const board = $('#np-board');
+  // A cell is picked when the finger lifts, so a touch that scrolls the page does not pick a new cell.
+  let tapAt = null;
   board.addEventListener('pointerdown', (e) => {
     const cell = e.target.closest('.np-cell');
     if (!cell || !G) return;
     e.preventDefault();
-    focusCell(Number(cell.dataset.i));
+    tapAt = { i: Number(cell.dataset.i), x: e.clientX, y: e.clientY };
+  });
+  board.addEventListener('pointermove', (e) => { if (tapAt && Math.hypot(e.clientX - tapAt.x, e.clientY - tapAt.y) > 10) tapAt = null; });
+  board.addEventListener('pointercancel', () => { tapAt = null; });
+  board.addEventListener('pointerup', (e) => {
+    const cell = e.target.closest('.np-cell');
+    if (tapAt && cell && G && Number(cell.dataset.i) === tapAt.i) focusCell(tapAt.i);
+    tapAt = null;
   });
   $('#np-digits').addEventListener('click', (e) => {
     const b = e.target.closest('[data-d]');

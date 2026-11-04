@@ -10,6 +10,17 @@ const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`ok  ${m}`); };
+// The admin menu shows one dashboard at a time (The Logic Grid, The Fantastical
+// Logic Grid, NINETIMESNINE): open the dashboard a section is on, then the section.
+async function openSection(page, view) {
+  const link = `#nav-list a[href="#${view}"]`;
+  if (!(await page.isVisible(link))) {
+    const dash = await page.$eval(link, (a) => a.closest('li').dataset.dash);
+    await page.click(`#dash-switch [data-dash="${dash}"]`);
+    await page.waitForSelector(link, { state: 'visible' });
+  }
+  await page.click(link);
+}
 
 const ROOT = path.join(__dirname, '..');
 const API_PORT = 8162;
@@ -133,7 +144,20 @@ const SHOTS = process.env.SHOTS;
     assert(/Games finished/.test(overview) && /mystery/.test(overview), 'the overview shows games and themes');
     assert(/140/.test(overview) && /300/.test(overview), 'the overview shows voices used against the cap');
     assert(await page.locator('#ov-body svg[role=img]').count() >= 5, 'the overview has charts with text descriptions');
-    await page.click('#nav-list a[href="#settings"]');
+    // The Analysis report: a summary, every topic, the market and the ranked suggestions.
+    await openSection(page, 'analysis');
+    await page.waitForSelector('#an-body .an-summary');
+    const report = await page.textContent('#an-body');
+    assert(/Play and engagement/.test(report) && /Search and discoverability/.test(report) && /Reliability and running costs/.test(report), 'the analysis report has its topics');
+    assert(/Competitors/.test(report) && /Suggested improvements and new builds/.test(report), 'the analysis report has the market and the suggestions');
+    await page.waitForSelector('#an-tuning .tn-head');
+    assert(/Nothing changes until you approve it/.test(await page.textContent('#an-tuning')), 'self-tuning says nothing changes without approval');
+    await page.click('#an-tuning button[data-tn="check"]');
+    await page.waitForSelector('#toast:not([hidden])');
+    assert(await page.locator('#an-tuning select[data-tn-rule]').count() >= 5, 'the owner can set pre-approval for each kind of change');
+    await page.click('#an-body a[data-an-open="search"]');
+    assert(await page.locator('#an-search').evaluate((d) => d.open), 'a contents link opens its topic');
+    await openSection(page, 'settings');
     await page.waitForSelector('[data-view="settings"]:not([hidden])');
     await page.click('#home');
     await page.waitForSelector('[data-view="overview"]:not([hidden])');
@@ -177,7 +201,7 @@ const SHOTS = process.env.SHOTS;
     await page.click('#home');
     await page.waitForSelector('[data-view="overview"]:not([hidden]) a.tile');
 
-    await page.click('a[href="#stories"]');
+    await openSection(page, 'stories');
     await page.waitForSelector('#parts-list button[data-status=approved]');
     await page.click('#parts-list button[data-status=approved]');
     await page.waitForFunction(() => /Nothing here/.test(document.querySelector('#parts-list').textContent));
@@ -195,12 +219,12 @@ const SHOTS = process.env.SHOTS;
     for (let i = 0; i < 50 && !added; i++) { added = await db.prepare("SELECT status, source FROM parts WHERE theme = 'mystery' AND kind = 'openings'").first(); if (!added) await new Promise((r) => setTimeout(r, 100)); }
     assert(added && added.status === 'approved' && added.source === 'admin', 'a story part written in the workshop goes straight to every player');
 
-    await page.click('a[href="#settings"]');
+    await openSection(page, 'game-settings');
     await page.waitForSelector('input[name=theme-disabled_themes]');
     const theme = await page.getAttribute('input[name=theme-disabled_themes]:nth-of-type(1)', 'value');
     await page.locator('input[name=theme-disabled_themes]').first().check();
     await page.click('button[data-save=disabled_themes]');
-    await page.waitForFunction(() => /Changed by/.test(document.querySelector('#settings-body').textContent));
+    await page.waitForFunction(() => /Changed by/.test(document.querySelector('#game-settings-body').textContent));
     // "Changed by" can already show from an earlier save, so wait for the row itself.
     let saved = [];
     for (let i = 0; i < 50 && saved.length !== 1; i++) {
@@ -209,8 +233,11 @@ const SHOTS = process.env.SHOTS;
       if (saved.length !== 1) await new Promise((r) => setTimeout(r, 100));
     }
     assert(saved.length === 1 && saved[0] === theme, `theme "${theme}" is switched off`);
-    // My alerts: push on this device, and email to an address typed in by hand.
+    assert(!(await page.locator('#game-settings-body [data-key=messages_enabled]').count()), 'app-wide switches are not on the game\'s settings page');
+    // My alerts (App settings): push on this device, and email to an address typed in by hand.
+    await openSection(page, 'settings');
     await page.waitForSelector('#alerts-card');
+    assert(!(await page.locator('#settings-body [data-key=races_enabled]').count()), 'game switches are not on the app settings page');
     assert(await page.locator('#alert-on, #alerts-card .note').count() > 0, 'My alerts offers push on this device (or says why it cannot)');
     await page.fill('#alert-email', 'not an email');
     await page.check('[name=alert-emailOn]');
@@ -229,19 +256,35 @@ const SHOTS = process.env.SHOTS;
     const dbValue = async (key) => { const r = await db.prepare('SELECT value FROM settings WHERE key = ?').bind(key).first(); return r && JSON.parse(r.value); };
     const until = async (key, want) => { for (let i = 0; i < 50 && (await dbValue(key)) !== want; i++) await new Promise((r) => setTimeout(r, 100)); return (await dbValue(key)) === want; };
     assert(/GEMINI_API_KEY/.test(await page.textContent('#settings-body')), 'the dashboard shows which keys are set, without the keys');
-    // Number Place has its own section: its games and the settings only it uses.
-    assert(!(await page.locator('#settings-body [data-key^=np_]').count()), 'Number Place settings are not in the shared Settings page');
-    await page.click('a[href="#numberplace"]');
+    // NINETIMESNINE has its own section: its games and the settings only it uses.
+    assert(!(await page.locator('#settings-body [data-key^=np_]').count()), 'NINETIMESNINE settings are not in the shared Settings page');
+    await openSection(page, 'numberplace');
     await page.waitForSelector('#np-body input[data-np-key=np_daily_enabled]');
-    assert(/Number Place settings/.test(await page.textContent('#np-body')) && /Games since/.test(await page.textContent('#np-body')), 'the Number Place section shows its games and settings');
+    assert(/NINETIMESNINE settings/.test(await page.textContent('#np-body')) && /Games since/.test(await page.textContent('#np-body')), 'the NINETIMESNINE section shows its games and settings');
     await page.locator('#np-body input[data-np-key=np_daily_enabled]').uncheck();
-    assert(await until('np_daily_enabled', false), 'a Number Place setting is saved from its own section');
+    assert(await until('np_daily_enabled', false), 'a NINETIMESNINE setting is saved from its own section');
     // Saving re-draws the section; wait for it (the switch then reads Off) so the next change is not drawn over.
     await page.waitForFunction(() => document.querySelector('#np-body input[data-np-key=np_daily_enabled]')?.nextElementSibling?.textContent === 'Off');
     await page.selectOption('#npset-np_max_level', 'expert');
     await page.click('button[data-np-save=np_max_level]');
-    assert(await until('np_max_level', 'expert'), 'the hardest Number Place level is saved');
-    await page.click('a[href="#settings"]');
+    assert(await until('np_max_level', 'expert'), 'the hardest NINETIMESNINE level is saved');
+    // Every grid-kit game has its own section too.
+    const KIT = [['cagemath', 'cm', 'Cage Math'], ['sumcross', 'sc', 'Sum Cross'], ['picturegrid', 'pg', 'Picture Grid'], ['moreorless', 'ml', 'More or Less'], ['skyline', 'sk', 'Skyline'], ['starfield', 'sf', 'Star Field'], ['loopline', 'll', 'Loop Line'], ['islandbridges', 'ib', 'Island Bridges']];
+    assert(!(await page.locator(KIT.map(([, id]) => `#settings-body [data-key^=${id}_]`).join(', ')).count()), 'the grid-kit games\' settings are not in the shared Settings page');
+    for (const [view, id, name] of KIT) {
+      await openSection(page, view);
+      await page.waitForSelector(`#kit-${id}-body input[data-kit-key=${id}_daily_enabled]`);
+      const text = await page.textContent(`#kit-${id}-body`);
+      assert(text.includes(`${name} settings`) && /Games since/.test(text), `the ${name} section shows its games and settings`);
+    }
+    await openSection(page, 'picturegrid');
+    await page.locator('#kit-pg-body input[data-kit-key=pg_daily_enabled]').uncheck();
+    assert(await until('pg_daily_enabled', false), 'a Picture Grid setting is saved from its own section');
+    await page.waitForFunction(() => document.querySelector('#kit-pg-body input[data-kit-key=pg_daily_enabled]')?.nextElementSibling?.textContent === 'Off');
+    await page.selectOption('#kitset-pg_max_level', 'expert');
+    await page.click('button[data-kit-save=pg_max_level]');
+    assert(await until('pg_max_level', 'expert'), 'the hardest Picture Grid level is saved');
+    await openSection(page, 'settings');
     await page.waitForSelector('#settings-body a[href="#connections"]');
     // The Connections and setup guide, from admin/connections.js, with live status.
     await page.click('#settings-body a[href="#connections"]');
@@ -258,6 +301,20 @@ const SHOTS = process.env.SHOTS;
     await page.selectOption('#conn-show', 'attention');
     assert(await page.locator('details.conn[data-id=github-security]').isHidden(), 'Needs attention hides the rest');
     await page.selectOption('#conn-show', 'all');
+    // Site accounts: safe details only; anything that looks like a password is refused.
+    await page.waitForSelector('#acct-list .acct', { state: 'attached' });
+    assert(/@thelogicgridpuzzles/.test(await page.textContent('#acct-list')), 'Site accounts lists the YouTube channel');
+    await page.click('#acct-box summary');
+    await page.click('#acct-add');
+    await page.fill('#dialog [name=site]', 'Discord');
+    await page.fill('#dialog [name=notes]', 'password: hunter2');
+    await page.click('#dialog-ok');
+    await page.waitForSelector('#dialog[open] [name=site]');
+    assert((await page.inputValue('#dialog [name=notes]')) === 'password: hunter2' && !/Discord/.test(await page.textContent('#acct-list')), 'a password is refused and the form opens again');
+    await page.fill('#dialog [name=notes]', 'Server invite in the footer');
+    await page.click('#dialog-ok');
+    await page.waitForFunction(() => /Discord/.test(document.querySelector('#acct-list').textContent));
+    assert(true, 'a site account is added');
     await shot(page, '8-connections');
     // Get the key: the owner goes to the site with the app id only (the app
     // secret is typed on return, never stored), and coming back takes the
@@ -274,7 +331,7 @@ const SHOTS = process.env.SHOTS;
     await page.waitForFunction(() => /did not allow/.test(document.querySelector('#toast')?.textContent || ''));
     assert(!page.url().includes('state=') && page.url().endsWith('#connections'), 'the code is taken off the address bar');
     assert(await page.evaluate(() => !sessionStorage.getItem('flg-oauth')), 'the pending sign-in is cleared from the tab');
-    await page.click('a[href="#settings"]');
+    await openSection(page, 'game-settings');
     await page.waitForSelector('input[data-key=default_music]');
     await page.uncheck('input[data-key=default_music]');
     assert(await until('default_music', false), 'theme music starts off for players who have not chosen');
@@ -303,7 +360,7 @@ const SHOTS = process.env.SHOTS;
     await shot(page, '2-settings');
 
     // Media library: every sound and picture, by group, from the game's own code.
-    await page.click('#nav-list a[href="#media"]');
+    await openSection(page, 'media');
     await page.waitForSelector('#media-body [data-music=mystery]');
     assert(await page.locator('#media-body [data-music]').count() >= 18, 'Background music: one piece for each theme');
     await page.click('#media-body [data-music=mystery]');
@@ -336,7 +393,7 @@ const SHOTS = process.env.SHOTS;
     await page.click('#media-tabs [data-tab=pictures]');
     assert(/🔍/.test(await page.textContent('#media-body')), 'Theme pictures: the little pictures for each theme');
 
-    await page.click('a[href="#communication"]');
+    await openSection(page, 'communication');
     await page.check('input[name=comm-tab][value=send]');
     await page.waitForSelector('#comm-send:not([hidden])');
     await page.fill('#ann-text', 'Double points this weekend!');
@@ -349,7 +406,7 @@ const SHOTS = process.env.SHOTS;
     await page.waitForSelector('#news-list .badge.ok');
     assert(/Three new worlds/.test(await page.textContent('#news-list')), 'news for every player\'s Messages is published');
 
-    await page.click('a[href="#names"]');
+    await openSection(page, 'names');
     await page.waitForSelector('#names-rows button[data-act=reset]');
     await page.click('#names-rows button[data-act=reset]');
     await page.click('#dialog-ok');
@@ -360,7 +417,7 @@ const SHOTS = process.env.SHOTS;
     // Players: every account in sections, with Approve and Block on each name.
     await db.prepare('INSERT INTO players (user_id, screen_name, name_key, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?4)').bind('player-2', 'Fresh Face', 'freshface', Date.now()).run();
     await db.prepare('INSERT INTO sync_users (user_id, rev, created_at) VALUES (?1, 1, ?2)').bind('sync-only-1', Date.now()).run();
-    await page.click('a[href="#players"]');
+    await openSection(page, 'players');
     await page.waitForFunction(() => /Fresh Face/.test(document.querySelector('#players-rows').textContent) && /No screen name/.test(document.querySelector('#players-rows').textContent));
     await page.click('#players-sections [data-section=pending]');
     await page.waitForFunction(() => document.querySelector('#players-sections [data-section=pending]').getAttribute('aria-pressed') === 'true'
@@ -382,7 +439,7 @@ const SHOTS = process.env.SHOTS;
     assert(/Latest scores/.test(await page.textContent('#player-card')), 'a player opens with their scores');
     await shot(page, '3-player');
 
-    await page.click('a[href="#supporters"]');
+    await openSection(page, 'supporters');
     await page.waitForSelector('#sup-rows td');
     await page.fill('#sup-who', 'fan@example.com');
     await page.selectOption('#sup-kind', 'premium');
@@ -400,7 +457,7 @@ const SHOTS = process.env.SHOTS;
     assert(/fan@example\.com/.test(await page.textContent('#sup-blocks')) && /dp_123/.test(await page.textContent('#sup-blocks')), 'the player is listed as blocked, with the note');
 
     // App keys: make a key, see it listed, allow a second install.
-    await page.click('a[href="#licenses"]');
+    await openSection(page, 'licenses');
     await page.waitForSelector('#lic-rows td');
     assert(/LICENSE_SIGNING_KEY/.test(await page.textContent('#lic-banner')), 'App keys says the signing secret is not set yet');
     await page.fill('#lic-label', 'Test player');
@@ -414,7 +471,7 @@ const SHOTS = process.env.SHOTS;
     assert(/0 of 2[\s\S]*0 of 2/.test(await page.textContent('#lic-rows')), 'an admin allows a second install');
     await shot(page, '3-app-keys');
 
-    await page.click('a[href="#search"]');
+    await openSection(page, 'search');
     await page.waitForSelector('#search-body .tile');
     const search = await page.textContent('#search-body');
     assert(/logic grid puzzles/.test(search) && /Submitted and indexed/.test(search) && /\/rules\.html/.test(search), 'the Search section shows Google searches, pages and indexing');
@@ -426,7 +483,7 @@ const SHOTS = process.env.SHOTS;
 
     // Daily puzzles: the coming days from the site build, and a planned change.
     const upcoming = JSON.parse(fs.readFileSync(path.join(ROOT, 'dist', 'site', 'daily', 'upcoming.json'), 'utf8'));
-    await page.click('a[href="#daily"]');
+    await openSection(page, 'daily');
     await page.waitForSelector('#daily-body table');
     assert((await page.textContent('#daily-body')).includes(upcoming.days[0].title), 'the planner previews the coming days from the website build');
     await page.click(`#daily-body button[data-plan="${upcoming.days[1].date}"]`);
@@ -448,7 +505,7 @@ const SHOTS = process.env.SHOTS;
     await shot(page, '4-daily');
 
     // Puzzle quality.
-    await page.click('a[href="#quality"]');
+    await openSection(page, 'quality');
     await page.waitForSelector('#quality-body .tile');
     assert(/Groups to look at/.test(await page.textContent('#quality-body')) && await page.locator('#quality-body table tbody tr').count() >= 4, 'the quality report lists themes and levels');
     // Any table downloads as CSV.
@@ -456,7 +513,7 @@ const SHOTS = process.env.SHOTS;
     const csvFile = fs.readFileSync(await dl.path(), 'utf8');
     assert(/^\uFEFF?Theme,Difficulty/.test(csvFile) && /\.csv$/.test(dl.suggestedFilename()), `a table downloads as a CSV file (${dl.suggestedFilename()})`);
     // Ratings and insights.
-    await page.click('a[href="#ratings"]');
+    await openSection(page, 'ratings');
     await page.waitForSelector('#ratings-body .tile');
     const rt = await page.textContent('#ratings-body');
     assert(/Average rating/.test(rt) && /What's working/.test(rt) && /What to improve/.test(rt) && /In a few words/.test(rt), 'Ratings and insights shows the numbers and the plain-words analysis');
@@ -467,7 +524,7 @@ const SHOTS = process.env.SHOTS;
     await shot(page, '4b-ratings');
     // Marketing: the starter campaign, ad words with their tracked link, media and numbers.
     await db.prepare("INSERT INTO campaign_stats (day, campaign, source, medium, content, event, platform, n) VALUES (?1, 'launch-2026', 'pinterest', 'social', 'printable-pin', 'visit', 'web', 12), (?1, 'launch-2026', 'pinterest', 'social', 'printable-pin', 'solve', 'web', 5)").bind(new Date(now).toISOString().slice(0, 10)).run();
-    await page.click('a[href="#marketing"]');
+    await openSection(page, 'marketing');
     await page.waitForSelector('#marketing-body .tile');
     const mk = await page.textContent('#marketing-body');
     assert(/Launch on free channels/.test(mk) && /Visits/.test(mk) && /By channel/.test(mk), 'Marketing shows the launch campaign and its numbers');
@@ -494,19 +551,27 @@ const SHOTS = process.env.SHOTS;
     await page.selectOption('#mk-b-m', 'print');
     assert(/utm_source=library&utm_medium=print&utm_campaign=library-flyers/.test(await page.inputValue('#mk-b-out')), 'a new campaign and a tracked link from the link maker');
     await shot(page, '4c-marketing');
-    await page.click('a[href="#players"]');
+    await openSection(page, 'players');
     const [dl2] = await Promise.all([page.waitForEvent('download'), page.click('[data-export=scores]')]);
     assert(/Screen name/.test(fs.readFileSync(await dl2.path(), 'utf8')) && /logic-grid-scores-/.test(dl2.suggestedFilename()), 'all scores download as a CSV file');
 
     await db.prepare("UPDATE usage SET count = 290 WHERE name = 'tts'").run();
-    await page.click('a[href="#overview"]');
+    await openSection(page, 'overview');
     await page.waitForSelector('#ov-body .alerts');
     assert(/Free server voices today/.test(await page.textContent('#ov-body .alerts')), 'the overview warns when a free allowance is nearly used');
     await db.prepare("UPDATE usage SET count = 140 WHERE name = 'tts'").run();
 
-    await page.click('a[href="#audit"]');
+    await openSection(page, 'audit');
     await page.waitForSelector('#audit-rows tr td');
-    const log = await page.textContent('#audit-rows');
+    // The log shows the newest 100 entries a page; load older pages until the actions are there.
+    const logged = (t) => /settings\.change/.test(t) && /players\.rename/.test(t) && /parts\.review/.test(t);
+    let log = await page.textContent('#audit-rows');
+    for (let i = 0; i < 5 && !logged(log) && await page.locator('#audit-more').isVisible(); i++) {
+      const rows = await page.locator('#audit-rows tr').count();
+      await page.click('#audit-more');
+      await page.waitForFunction((n) => document.querySelectorAll('#audit-rows tr').length > n, rows);
+      log = await page.textContent('#audit-rows');
+    }
     assert(/settings\.change/.test(log) && /players\.rename/.test(log) && /parts\.review/.test(log), 'the audit log shows what was done');
     await shot(page, '4-audit');
 
@@ -616,8 +681,8 @@ const SHOTS = process.env.SHOTS;
     assert(await p.locator('#menu-count').isHidden(), 'seen news is no longer counted as new');
 
     // The two boxes: an idea and a problem report arrive separately.
-    await p.click('#menu-btn');
-    await p.click('#app-menu [data-cmd=feedback]');
+    // The old ideas box is out of the menu (Submit Puzzle Ideas replaced it) but still opens from older links.
+    await p.evaluate(() => document.querySelector('#app-menu [data-cmd=feedback]').click());
     await p.waitForSelector('#dlg-feedback[open]');
     assert(await p.$eval('#idea-form .fb-reply', (el) => el.hidden), 'a guest is not offered email updates');
     assert(await p.isVisible('#idea-theme'), 'a storyline idea asks which theme it is for');
@@ -637,20 +702,26 @@ const SHOTS = process.env.SHOTS;
     const [rp] = await Promise.all([p.context().waitForEvent('page'), p.click('#report-problem')]);
     watch(rp);
     await rp.waitForSelector('#rp-form');
+    // The form is in the page's markup; wait for its script to fill in what the report is about.
+    await rp.waitForFunction(() => document.querySelector('#rp-about').textContent.trim() !== '');
     assert(/[?&]tab=1/.test(rp.url()) && /\/report\//.test(rp.url()), 'Report a Problem opens its own page in a new tab');
     assert(await rp.isChecked('input[name=kind][value=page]'), 'away from a puzzle it starts as a Web Page Issue');
     assert(await rp.getAttribute('#rp-text', 'maxlength') === '1000', 'the box holds 1,000 characters');
     await rp.fill('#rp-text', 'The music stopped after the second puzzle.');
+    // The screenshot of the screen the player was on is attached for them first.
+    await rp.waitForFunction(() => document.querySelector('#rp-files li .rp-name')?.textContent === 'Screenshot of the screen you were on', null, { timeout: 15000 });
+    assert(true, 'a screenshot of the screen is attached for the player');
     const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
     await rp.setInputFiles('#rp-file', [{ name: 'screen.png', mimeType: 'image/png', buffer: png }, { name: 'console.log', mimeType: 'text/plain', buffer: Buffer.from('Audio stopped at 2:13') }]);
-    await rp.waitForFunction(() => document.querySelectorAll('#rp-files li').length === 2);
+    // The screenshot does not use up one of the player's 3.
+    await rp.waitForFunction(() => document.querySelectorAll('#rp-files li').length === 3);
     await rp.setInputFiles('#rp-file', [{ name: 'page.html', mimeType: 'text/html', buffer: Buffer.from('<p>hi</p>') }]);
     await rp.waitForFunction(() => /not a type we accept/.test(document.querySelector('#rp-files-err').textContent));
     await rp.click('#rp-send');
     await rp.waitForFunction(() => /WS-[A-Z2-9]{8}/.test(document.querySelector('#rp-done-number').textContent));
-    assert(/2 pictures and files were received/.test(await rp.textContent('#rp-done-text')), 'the page confirms the files arrived');
+    assert(/3 pictures and files were received/.test(await rp.textContent('#rp-done-text')), 'the page confirms the files arrived');
     const kept = await db.prepare('SELECT COUNT(*) AS n FROM report_files').first();
-    assert(kept.n === 2, `the files are kept with the report (${kept.n})`);
+    assert(kept.n === 3, `the files are kept with the report, screenshot included (${kept.n})`);
     await rp.close();
     const fb = (await db.prepare('SELECT kind, topic, theme FROM feedback ORDER BY id').all()).results.map((r) => `${r.kind}:${r.topic}${r.theme ? `:${r.theme}` : ''}`);
     assert(fb.join() === 'idea:story:adventure,problem:page', `an idea and a web page issue arrive in their own places (${fb.join()})`);

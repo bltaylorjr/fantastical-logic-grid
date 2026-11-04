@@ -27,7 +27,7 @@ const SITE = `http://localhost:${PORT}`;
     const page = await ctx.newPage();
     const errors = [];
     page.on('pageerror', (e) => errors.push(String(e)));
-    await page.goto(`${SITE}/`);
+    await page.goto(`${SITE}/fantastical/`);
     await page.waitForSelector('#home-btn');
     const csp = await page.getAttribute('meta[http-equiv="Content-Security-Policy"]', 'content');
     assert(/script-src 'self' 'sha256-/.test(csp || ''), 'the game page has a script policy with the inline script hash');

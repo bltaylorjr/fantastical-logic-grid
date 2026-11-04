@@ -51,18 +51,18 @@ REPLY_TO = os.environ.get('MAIL_REPLY_TO', '').strip() or 'fantasticallogicgrid@
 # One-way emails (nothing to answer) go from here, with no Reply-To.
 MAIL_NOREPLY = os.environ.get('MAIL_NOREPLY', '').strip() or 'noreply@thelogicgrid.com'
 GAME_URL = 'https://thelogicgrid.com'
-SENDER_NAME = 'The Fantastical Logic Grid'
+SENDER_NAME = 'The Logic Grid'
 NO_REPLY = ('Questions? Just reply to this email. To share another idea or report a problem, '
             'use Menu > Ideas and problems in the game.')
 ONE_WAY = ('This is an automatic message from a no-reply address, so replies are not read. '
            'To answer the team, open the game and choose Menu > Messages.')
 # Sent from MAIL_NOREPLY; everything else from MAIL_FROM (support@). A
 # storyline submission's confirmation, approval and decline thank-you are one-way.
-ONE_WAY_KINDS = {'message', 'story_received', 'story_approved', 'submission_approved', 'story_declined'}
+ONE_WAY_KINDS = {'message', 'story_received', 'story_approved', 'submission_approved', 'story_declined', 'story_puzzle'}
 STORY_ONE_WAY = ('This is an automatic message from a no-reply address, so replies are not read. '
                  f'Questions? Email {MAIL_FROM}.')
-TEAM_COPY = 'Sent by The Fantastical Logic Grid team. Questions? Just reply to this email.'
-KIND_WORDS = {'storyline': 'storyline', 'theme': 'theme idea', 'category': 'category idea'}
+TEAM_COPY = 'Sent by The Logic Grid team. Questions? Just reply to this email.'
+KIND_WORDS = {'storyline': 'storyline', 'theme': 'theme idea', 'category': 'category idea', 'puzzle': 'puzzle'}
 
 
 def footer(r):
@@ -90,7 +90,7 @@ def subject(r):
     s = NOTES[r['kind']]['subject']
     return s(r) if callable(s) else s
 
-SIGN_OFF = 'The Fantastical Logic Grid team\n' + GAME_URL
+SIGN_OFF = 'The Logic Grid team\n' + GAME_URL
 
 # Each email is a list of blocks: plain paragraphs, ('link', words, url) for a
 # button (the URL comes from the Worker and always points at the game's own
@@ -103,7 +103,7 @@ NOTES = {
         'subject': 'Thank you for your idea!',
         'blocks': lambda r: [
             'Hello, puzzler!',
-            'Thank you for sending us your idea for The Fantastical Logic Grid, and for helping to make the game better. '
+            'Thank you for sending us your idea for The Logic Grid, and for helping to make the game better. '
             'We read every idea, and the best ones find their way into new stories, themes and features.',
             ('quote', 'Your idea', r.get('text')),
             'We will email you again when the team acts on it. Thank you for contributing!',
@@ -114,7 +114,7 @@ NOTES = {
         'subject': 'We received your problem report',
         'blocks': lambda r: [
             'Hello, puzzler!',
-            'We are sorry for the inconvenience. Your problem report for The Fantastical Logic Grid has been received, '
+            'We are sorry for the inconvenience. Your problem report for The Logic Grid has been received, '
             'and it is being looked into and addressed.',
             ('quote', 'What you reported', r.get('text')),
             'Thank you for the information. Reports like yours help us find and fix problems for every player. '
@@ -126,7 +126,7 @@ NOTES = {
         'subject': 'An update on your idea',
         'blocks': lambda r: [
             'Hello, puzzler!',
-            'Good news: the team has acted on the idea you sent us for The Fantastical Logic Grid.',
+            'Good news: the team has acted on the idea you sent us for The Logic Grid.',
             ('quote', 'Your idea', r.get('text')),
             ('quote', 'What we did', r.get('note')),
             'Thank you again for helping to make the game better. Open the game to see it, and keep the ideas coming!',
@@ -150,16 +150,22 @@ NOTES = {
         ],
     },
     'story_received': {
-        'subject': lambda r: f'We received your {entry_words(r)}',
+        'subject': lambda r: f'We received your {"updated " if r.get("note") == "resubmitted" else ""}{entry_words(r)}',
         'blocks': lambda r: [
             'Hello, author!',
-            f'Thank you for sending your {entry_words(r)} to The Fantastical Logic Grid. It has been saved, '
-            'and the team reads every entry.',
+            (f'Thank you for updating your {entry_words(r)}. Your changes have been saved, and it is back with the team for review.'
+             if r.get('note') == 'resubmitted' else
+             f'Thank you for sending your {entry_words(r)} to The Logic Grid. It has been saved, '
+             'and the team reads every entry.'),
             ('We will email you if it is approved. An approved storyline comes back to you as a finished logic puzzle '
              '(a PDF with its answer key), and it waits in your game\'s Saved puzzles too when you are signed in.')
-            if entry_words(r) == 'storyline' else 'We will email you if it is approved.',
+            if entry_words(r) == 'storyline' else ('Your puzzle is already in your Saved puzzles on the device you made it on. '
+            'We will email you if the team publishes it in the game.') if entry_words(r) == 'puzzle' else 'We will email you if it is approved.',
             'Here is a copy of what you sent:',
             entry_form(r),
+            ('link', 'Edit or update my entry', r.get('link')),
+            'Spotted something to change? The button opens your entry so you can edit and resubmit it while the team reviews it '
+            '(the link works for 30 days). Signed in, you can also find it on the Suggest a storyline page.' if r.get('link') else '',
             'Thank you for contributing!',
             SIGN_OFF,
         ],
@@ -176,12 +182,39 @@ NOTES = {
         ],
     },
     'submission_copy': {
-        'subject': lambda r: f'A {entry_words(r)} sent to The Fantastical Logic Grid' + (f': {r["submission"]["title"]}' if (r.get('submission') or {}).get('title') else ''),
+        'subject': lambda r: f'A {entry_words(r)} sent to The Logic Grid' + (f': {r["submission"]["title"]}' if (r.get('submission') or {}).get('title') else ''),
         'blocks': lambda r: [
             'Hello,',
-            f'Here is a copy of a {entry_words(r)} sent to The Fantastical Logic Grid, as it was submitted.',
+            f'Here is a copy of a {entry_words(r)} sent to The Logic Grid, as it was submitted.',
             ('form', 'The submission', (r.get('submission') or {}).get('copy')),
             'The first puzzle built from it is attached as a PDF, with its answer key on the last page.' if r.get('_files') else '',
+            SIGN_OFF,
+        ],
+    },
+    'story_edit_invite': {
+        'subject': lambda r: f'Please update your {entry_words(r)}',
+        'blocks': lambda r: [
+            'Hello, author!',
+            f'Thank you for your {entry_words(r)} for The Logic Grid. The team would like you to make a few changes '
+            'and send it again.',
+            ('quote', 'A note from the team', r.get('note')),
+            entry_form(r),
+            ('link', 'Edit and resubmit my entry', r.get('link')),
+            'The button opens your entry with everything you wrote, ready to change. The link works for 30 days. '
+            'Signed in, you can also find it on the Suggest a storyline page.',
+            SIGN_OFF,
+        ],
+    },
+    'story_puzzle': {
+        'subject': 'Your storyline puzzle is ready',
+        'blocks': lambda r: [
+            'Hello, puzzler!',
+            'Good news: the first puzzle built from your approved storyline is ready.',
+            ('quote', 'Your storyline', (r.get('submission') or {}).get('title')),
+            'It is attached as a PDF, with its answer key on the last page, so you can print it and solve it on paper.' if r.get('_files') else '',
+            ('The same puzzle is waiting in your game, ready to play: sign in with this email address and open Saved puzzles. '
+             'It is also in Menu > Messages > Puzzles for you for 30 days.') if r.get('stored') else '',
+            'Thank you for contributing to the game\'s stories!',
             SIGN_OFF,
         ],
     },
@@ -219,7 +252,7 @@ NOTES = {
         'subject': 'The problem you reported has been addressed',
         'blocks': lambda r: [
             'Hello, puzzler!',
-            'The problem you reported in The Fantastical Logic Grid has been addressed. Thank you for your patience.',
+            'The problem you reported in The Logic Grid has been addressed. Thank you for your patience.',
             ('quote', 'What you reported', r.get('text')),
             ('quote', 'What we did', r.get('note')),
             'If you still see it after updating the game, please tell us in Menu > Ideas and problems. '
@@ -227,11 +260,28 @@ NOTES = {
             SIGN_OFF,
         ],
     },
-    'message': {
-        'subject': 'You have a new message from The Fantastical Logic Grid team',
+    # A corrected copy of an author's puzzle (their storyline or Puzzle Wizard
+    # puzzle), queued by the team with what changed in `note` and the puzzle
+    # stored for the player (puzzle_id): the PDF goes with it. From support@,
+    # so the author can reply.
+    'puzzle_corrected': {
+        'subject': lambda r: f'Your corrected puzzle: {(r.get("puzzle") or {}).get("title") or "your puzzle"}',
         'blocks': lambda r: [
             'Hello, puzzler!',
-            'The Fantastical Logic Grid team has written to you. To read it and reply, open the game, '
+            f'Thank you for your reports. We corrected your puzzle “{(r.get("puzzle") or {}).get("title") or "your puzzle"}”.',
+            ('quote', 'What we changed', r.get('note')),
+            'The corrected puzzle is attached as a PDF, with its answer key on the last page.' if r.get('_files') else '',
+            ('It is also waiting in your game for 30 days: sign in and open Menu > Messages > Puzzles for you, then press Play '
+             'to keep it in your Saved puzzles. You can delete the old copy from Saved puzzles.') if 'puzzleExpiresAt' in r else '',
+            'Thank you for helping us make the game better for every player.',
+            SIGN_OFF,
+        ],
+    },
+    'message': {
+        'subject': 'You have a new message from The Logic Grid team',
+        'blocks': lambda r: [
+            'Hello, puzzler!',
+            'The Logic Grid team has written to you. To read it and reply, open the game, '
             'sign in and choose Menu > Messages.',
             'You get this email because you turned on "Email me when the team writes" in Messages. '
             'To stop these emails, untick it there.',
@@ -327,7 +377,7 @@ def build_puzzle(r):
     store it for the player (POST /admin/v1/replies/puzzle) and keep it for the
     PDF. If the storyline has no lists the game can read, or anything fails,
     the email still goes, without a puzzle."""
-    if r.get('kind') not in ('story_approved', 'story_build'):
+    if r.get('kind') not in ('story_approved', 'story_build', 'story_puzzle'):
         return
     if isinstance(r.get('puzzle'), dict):
         if r.get('storeSaved'):
@@ -337,7 +387,7 @@ def build_puzzle(r):
             except (urllib.error.HTTPError, urllib.error.URLError):
                 r['stored'] = False
         else:
-            r['stored'] = r.get('kind') == 'story_approved' and 'puzzleExpiresAt' in r  # built and stored on an earlier try
+            r['stored'] = r.get('kind') in ('story_approved', 'story_puzzle') and 'puzzleExpiresAt' in r  # built and stored on an earlier try
         return
     build = r.get('build')
     sub = r.get('submission') or {}
@@ -349,7 +399,7 @@ def build_puzzle(r):
             src, out = os.path.join(tmp, 'storyline.json'), os.path.join(tmp, 'puzzle.json')
             with open(src, 'w', encoding='utf-8') as f:
                 if build.get('submission'):
-                    json.dump({'submission': {'form': sub.get('form'), 'polished': sub.get('polished')}, 'seed': f'story-{r["id"]}'}, f)
+                    json.dump({'submission': {'form': sub.get('form'), 'polished': sub.get('polished')}, 'theme': build.get('theme') or '', 'seed': f'story-{r["id"]}'}, f)
                 else:
                     json.dump({'text': text, 'theme': build.get('theme') or '', 'seed': f'story-{r["id"]}'}, f)
             done = subprocess.run(['node', os.path.join(ROOT, 'scripts', 'storyline-puzzle.mjs'), src, out], timeout=300, cwd=ROOT,
@@ -371,7 +421,7 @@ def build_puzzle(r):
 def attachments(r):
     """The PDF for an approved storyline (puzzle and answer key), or none. If it
     cannot be built, the email still goes; the puzzle is in the game anyway."""
-    if r.get('kind') not in ('story_approved', 'submission_copy') or not isinstance(r.get('puzzle'), dict):
+    if r.get('kind') not in ('story_approved', 'story_puzzle', 'submission_copy', 'puzzle_corrected') or not isinstance(r.get('puzzle'), dict):
         return []
     try:
         ensure_printer()

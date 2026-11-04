@@ -23,6 +23,29 @@ export const CELEBRATIONS = ['confetti', 'fireworks', 'stars', 'balloons', 'spar
 // type: bool, int (with min/max), choice (one of options), model (an AI
 // model name), url (an https link, or empty), themes (list of theme ids),
 // words or days (YYYY-MM-DD dates).
+// Every grid-kit game (Cage Math, Sum Cross, Picture Grid, More or Less, Skyline,
+// Star Field, Loop Line, Island Bridges) has the same switches, in its own
+// group, shown in the admin dashboard's section for that game (cm_*, sc_*, ...).
+const KIT_SETTINGS_GAMES = [['cm', 'Cage Math', 'numbers'], ['sc', 'Sum Cross', 'numbers'], ['pg', 'Picture Grid', 'pictures'],
+  ['ml', 'More or Less', 'numbers'], ['sk', 'Skyline', 'numbers'], ['sf', 'Star Field', 'numbers'], ['ll', 'Loop Line', 'numbers'], ['ib', 'Island Bridges', 'numbers']];
+function kitSettings(id, name, what) {
+  return {
+    [`${id}_enabled`]: { type: 'bool', default: true, group: name, label: `${name} in the app`, help: `On: everyone sees the ${name} card and can play it (in the app and on its own website page). Off: the card is hidden and the page says the game is taking a break. Saved ${name} games stay on each device.` },
+    [`${id}_learning_enabled`]: { type: 'bool', default: true, group: name, label: `Learn from ${name} games`, help: `On: anonymous summaries of finished ${name} puzzles (level, size, time, hints, mistakes, how it felt) tune every player's puzzles. Needs Learn from everyone on, and players who turned off Learn from how I play send nothing. Off: nothing is sent and summaries are dropped.` },
+    [`${id}_max_level`]: {
+      type: 'choice', default: 'master', group: name, label: 'Hardest level offered', help: `Levels above this are hidden from the ${name} setup.`,
+      options: [{ value: 'medium', label: 'Medium' }, { value: 'hard', label: 'Hard' }, { value: 'expert', label: 'Expert' }, { value: 'master', label: 'Master' }],
+    },
+    [`${id}_daily_enabled`]: { type: 'bool', default: true, group: name, label: `Daily ${name} puzzle`, help: `One puzzle a day, the same for everyone, from Easy on Monday to Master on Sunday, with a streak. Off: the button is hidden.` },
+    [`${id}_stories_enabled`]: { type: 'bool', default: true, group: name, label: what === 'pictures' ? 'Picture openings and endings' : 'Stories', help: what === 'pictures' ? 'Each puzzle opens with a line about its hidden picture and ends by naming it. Off: plain puzzles.' : 'Each puzzle opens with a short story line and ends with its ending. Off: plain puzzles.' },
+    [`${id}_coach_tips`]: { type: 'bool', default: true, group: name, label: 'Tips on a player\'s first puzzle', help: 'Four short tips on how to play, once per device.' },
+    [`${id}_adapt_strength`]: { type: 'int', min: 0, max: 100, default: 100, group: name, label: 'How strongly puzzles adapt to each player (percent)', help: '100: a player who finds a level easy gets clearly tougher puzzles inside it, and one who struggles gets gentler ones. 0: every puzzle aims for the middle of its level. Players can also turn tuning off for themselves.' },
+    [`${id}_practice_chance`]: { type: 'int', min: 0, max: 100, default: 35, group: name, label: 'Practice puzzles (percent)', help: 'How often a puzzle is built to need a step the player has asked hints for, so they get to practice it.' },
+    [`${id}_shared_weight`]: { type: 'int', min: 0, max: 60, default: 25, group: name, label: 'Weight of everyone\'s games (percent)', help: 'How much the tuning from all players counts against the player\'s own games. New players follow everyone\'s games until they have their own.' },
+  };
+}
+export const KIT_GROUPS = KIT_SETTINGS_GAMES.map(([, name]) => name);
+
 export const SETTINGS = {
   // ---- Sounds: the player can still turn their own effects and music off,
   // and the one-tap mute and Silent mode always work.
@@ -103,6 +126,7 @@ export const SETTINGS = {
   names_enabled: { type: 'bool', default: true, group: 'Play', label: 'New and changed screen names', help: 'Off: players keep their names but cannot choose new ones.' },
   special_badges_enabled: { type: 'bool', default: true, group: 'Play', label: 'Special badges', help: 'On: players see their special badges (Tester, Contributor and the ones made under Badges) on My stats and badges and next to their name on the scoreboard, and badges for milestones are given out automatically. Off: none show and none are given out; awards are kept for when you turn it back on.' },
   names_need_approval: { type: 'bool', default: true, group: 'Play', label: 'New screen names wait for approval', help: 'On: other players see a name a player typed only after an admin approves it in Players or Screen names; until then it shows as "New player". Names from Suggest a name are approved automatically. The player always sees their own name. Off: names show straight away.' },
+  story_beats_enabled: { type: 'bool', default: true, group: 'Play', label: 'Story beats', help: 'Short story moments appear under the scene as a player finishes each section of the grid, and are read aloud when read-aloud is on. They never give away the answer. Silent mode hides them. Off: no story beats for anyone.' },
   challenges_enabled: { type: 'bool', default: true, group: 'Play', label: 'Challenge a friend links', help: 'After solving, players can share a link that opens the same puzzle for anyone, with their time to beat. No account needed. Off: no new links; links already shared still open.' },
   challenges_daily_cap: { type: 'int', min: 0, max: 5000, default: 500, group: 'Play', label: 'New challenge links a day', help: 'Keeps the database inside Cloudflare\'s free limits. Each link is kept for 60 days.' },
   daily_results_enabled: { type: 'bool', default: true, group: 'Play', label: 'Daily puzzle numbers for everyone', help: 'Shows how many played today\'s puzzle, how many solved it and the typical time, on the home screen and after solving. Only counts are kept. Off: the numbers are hidden.' },
@@ -126,21 +150,22 @@ export const SETTINGS = {
   learning_enabled: { type: 'bool', default: true, group: 'Learning', label: 'Learn from everyone', help: 'On: anonymous play summaries from players who keep "Learn from how I play" on tune puzzles, clue mix and story parts for all. Off: nothing is sent and summaries are dropped.' },
   story_sharing_enabled: { type: 'bool', default: true, group: 'Learning', label: 'Accept story parts from older apps', help: 'Older app versions can still send story parts for review. New ones are written in the Story workshop here.' },
   story_model: { type: 'model', default: 'gemini-flash-latest', group: 'Learning', label: 'Story workshop AI writer (Gemini model)', help: 'Drafts story parts in the Story workshop with the GEMINI_API_KEY secret, on Google\'s free tier.' },
-  // ---- Number Place: its own game screen (modules/number-place). These show in
-  // the admin dashboard's Number Place section, not with the other settings.
-  np_enabled: { type: 'bool', default: true, group: 'Number Place', label: 'Number Place in the game', help: 'On: Menu > Number Place opens the numbers game. Off: the menu link is hidden. Saved Number Place games stay on each device.' },
-  np_learning_enabled: { type: 'bool', default: true, group: 'Number Place', label: 'Learn from Number Place games', help: 'On: anonymous summaries of finished Number Place puzzles (level, time, hints, mistakes, how it felt) tune every player\'s puzzles. Needs Learn from everyone on, and players who turned off Learn from how I play send nothing. Off: nothing is sent and summaries are dropped.' },
+  // ---- NINETIMESNINE: its own game screen (modules/number-place). These show in
+  // the admin dashboard's NINETIMESNINE section, not with the other settings.
+  np_enabled: { type: 'bool', default: true, group: 'NINETIMESNINE', label: 'NINETIMESNINE in the game', help: 'On: Menu > NINETIMESNINE opens the numbers game. Off: the menu link is hidden. Saved NINETIMESNINE games stay on each device.' },
+  np_learning_enabled: { type: 'bool', default: true, group: 'NINETIMESNINE', label: 'Learn from NINETIMESNINE games', help: 'On: anonymous summaries of finished NINETIMESNINE puzzles (level, time, hints, mistakes, how it felt) tune every player\'s puzzles. Needs Learn from everyone on, and players who turned off Learn from how I play send nothing. Off: nothing is sent and summaries are dropped.' },
   np_max_level: {
-    type: 'choice', default: 'master', group: 'Number Place', label: 'Hardest level offered', help: 'Levels above this are hidden from the Number Place setup.',
+    type: 'choice', default: 'master', group: 'NINETIMESNINE', label: 'Hardest level offered', help: 'Levels above this are hidden from the NINETIMESNINE setup.',
     options: [{ value: 'medium', label: 'Medium' }, { value: 'hard', label: 'Hard' }, { value: 'expert', label: 'Expert' }, { value: 'master', label: 'Master' }],
   },
-  np_daily_enabled: { type: 'bool', default: true, group: 'Number Place', label: 'Daily Number Place puzzle', help: 'One puzzle a day, the same for everyone, from Easy on Monday to Master on Sunday, with a streak. Off: the button is hidden.' },
-  np_variants_enabled: { type: 'bool', default: true, group: 'Number Place', label: 'Extra rules (diagonals, odd and even)', help: 'Off: players get the classic rules only.' },
-  np_stories_enabled: { type: 'bool', default: true, group: 'Number Place', label: 'Stories', help: 'Each puzzle opens with a short story and ends with its ending. Off: plain puzzles with no story.' },
-  np_coach_tips: { type: 'bool', default: true, group: 'Number Place', label: 'Tips on a player\'s first puzzle', help: 'Four short tips on how to play, once per device.' },
-  np_adapt_strength: { type: 'int', min: 0, max: 100, default: 100, group: 'Number Place', label: 'How strongly puzzles adapt to each player (percent)', help: '100: a player who finds a level easy gets clearly tougher puzzles inside it, and one who struggles gets gentler ones. 0: every puzzle aims for the middle of its level. Players can also turn tuning off for themselves.' },
-  np_practice_chance: { type: 'int', min: 0, max: 100, default: 35, group: 'Number Place', label: 'Practice puzzles (percent)', help: 'How often a puzzle is built to need a technique the player has asked hints for, so they get to practice it.' },
-  np_shared_weight: { type: 'int', min: 0, max: 60, default: 25, group: 'Number Place', label: 'Weight of everyone\'s games (percent)', help: 'How much the tuning from all players counts against the player\'s own games. New players follow everyone\'s games until they have their own.' },
+  np_daily_enabled: { type: 'bool', default: true, group: 'NINETIMESNINE', label: 'Daily NINETIMESNINE puzzle', help: 'One puzzle a day, the same for everyone, from Easy on Monday to Master on Sunday, with a streak. Off: the button is hidden.' },
+  np_variants_enabled: { type: 'bool', default: true, group: 'NINETIMESNINE', label: 'Extra rules (diagonals, odd and even)', help: 'Off: players get the classic rules only.' },
+  np_stories_enabled: { type: 'bool', default: true, group: 'NINETIMESNINE', label: 'Stories', help: 'Each puzzle opens with a short story and ends with its ending. Off: plain puzzles with no story.' },
+  np_coach_tips: { type: 'bool', default: true, group: 'NINETIMESNINE', label: 'Tips on a player\'s first puzzle', help: 'Four short tips on how to play, once per device.' },
+  np_adapt_strength: { type: 'int', min: 0, max: 100, default: 100, group: 'NINETIMESNINE', label: 'How strongly puzzles adapt to each player (percent)', help: '100: a player who finds a level easy gets clearly tougher puzzles inside it, and one who struggles gets gentler ones. 0: every puzzle aims for the middle of its level. Players can also turn tuning off for themselves.' },
+  np_practice_chance: { type: 'int', min: 0, max: 100, default: 35, group: 'NINETIMESNINE', label: 'Practice puzzles (percent)', help: 'How often a puzzle is built to need a technique the player has asked hints for, so they get to practice it.' },
+  np_shared_weight: { type: 'int', min: 0, max: 60, default: 25, group: 'NINETIMESNINE', label: 'Weight of everyone\'s games (percent)', help: 'How much the tuning from all players counts against the player\'s own games. New players follow everyone\'s games until they have their own.' },
+  ...Object.assign({}, ...KIT_SETTINGS_GAMES.map(([id, name, what]) => kitSettings(id, name, what))),
   // ---- Ideas, problems and upkeep
   feedback_enabled: { type: 'bool', default: true, group: 'Ideas and problems', label: 'Idea and problem boxes', help: 'Off: the game hides its Ideas and problems boxes.' },
   feedback_replies_enabled: { type: 'bool', default: true, group: 'Ideas and problems', label: 'Thank-you emails', help: 'Signed-in players with a confirmed email can tick "Email me an update": a short note quoting what they wrote (a thank-you for an idea, or an apology and thank-you for a problem report), and a second one with your "What was done" note when you mark it addressed. Sent every 15 minutes from support@thelogicgrid.com through Resend, or from the game\'s Gmail as a backup (server/FEEDBACK-EMAILS.md). Off: no new notes, and waiting ones are dropped.' },
@@ -304,7 +329,7 @@ export async function publicConfig(req, env) {
       storySharing: s.story_sharing_enabled, learning: s.learning_enabled, errorReports: s.error_reports_enabled,
       feedback: s.feedback_enabled, feedbackReplies: s.feedback_replies_enabled, soundEffects: s.sound_effects_enabled, music: s.theme_music_enabled, pictures: s.ai_pictures !== 'none',
       translate: s.translate_enabled, messages: s.messages_enabled, challenges: s.challenges_enabled, dailyResults: s.daily_results_enabled, dailyEmail: s.daily_email_enabled,
-      printPacks: s.print_packs_enabled, biometrics: s.biometric_signin_enabled,
+      printPacks: s.print_packs_enabled, biometrics: s.biometric_signin_enabled, storyBeats: s.story_beats_enabled,
       ...(await licenseConfig(env, s)),
       puzzleMail: s.puzzle_mail_enabled && (s.weekly_mail_enabled || s.special_mail_enabled), weeklyMail: s.puzzle_mail_enabled && s.weekly_mail_enabled, specialMail: s.puzzle_mail_enabled && s.special_mail_enabled,
     },
@@ -318,12 +343,18 @@ export async function publicConfig(req, env) {
       supportAsks: !!(s.support_asks_enabled && s.support_link_enabled && s.support_url),
       premiumThemes: s.premium_extras_enabled ? s.premium_themes : [], extrasUrl: s.premium_extras_enabled ? s.extras_url : '',
       idleMinutes: s.player_idle_minutes },
-    // Number Place's own switches (its admin section).
+    // NINETIMESNINE's own switches (its admin section).
     numberPlace: {
       enabled: s.np_enabled, learning: s.learning_enabled && s.np_learning_enabled, maxLevel: s.np_max_level, daily: s.np_daily_enabled,
       variants: s.np_variants_enabled, stories: s.np_stories_enabled, coachTips: s.np_coach_tips,
       adaptStrength: s.np_adapt_strength / 100, practiceChance: s.np_practice_chance / 100, sharedWeight: s.np_shared_weight / 100,
     },
+    // Each grid-kit game's own switches (their admin sections).
+    kitGames: Object.fromEntries(KIT_SETTINGS_GAMES.map(([id]) => [id, {
+      enabled: s[`${id}_enabled`], learning: s.learning_enabled && s[`${id}_learning_enabled`], maxLevel: s[`${id}_max_level`], daily: s[`${id}_daily_enabled`],
+      stories: s[`${id}_stories_enabled`], coachTips: s[`${id}_coach_tips`],
+      adaptStrength: s[`${id}_adapt_strength`] / 100, practiceChance: s[`${id}_practice_chance`] / 100, sharedWeight: s[`${id}_shared_weight`] / 100,
+    }])),
     // Starting values; a player's own choice wins.
     defaults: { sound: s.default_sound, volume: s.default_volume, music: s.default_music, musicVolume: s.default_music_volume },
   }, 200, { 'Cache-Control': 'public, max-age=60' });

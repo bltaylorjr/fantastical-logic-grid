@@ -101,7 +101,7 @@ const CHARACTERS = {
       }
     });
     await page.waitForSelector('#solved:not([hidden])');
-    const cheer = await page.textContent('#resolution');
+    const cheer = await page.textContent('#solved-cheer .cheer-words');
     assert(/Hoist the colors, we did it!|Brilliant, simply brilliant!/.test(cheer), 'a character cheers when the puzzle is solved');
 
     // Silent mode hides the storyteller line with the other media.

@@ -9,6 +9,15 @@
 // Items are numbered globally: item g belongs to category floor(g / N) and is
 // item g % N in that category. Cell (x, y) is 1 (O, match), -1 (X, ruled out)
 // or 0 (unknown), and is stored symmetrically.
+//
+// Speed: alongside the cells, every row (item x against category b) keeps two
+// bitmasks, `open` (items not yet ruled out) and `yes` (items marked O). Each
+// rule checks these first, so a row with nothing new to say costs one
+// operation instead of a loop. The rules still run in the same order and make
+// the same deductions with the same wording, so a seed always gives the same
+// puzzle it gave before.
+
+import { MODE_RELATIONS } from './clues.js';
 
 export const YES = 1;
 export const NO = -1;
@@ -30,15 +39,160 @@ export const TECHNIQUE_NAMES = {
   gap: 'Exact gap',
   conditional: 'If / then',
   whatIf: 'What if',
+  // Lab modes only (modes.js).
+  timeOrder: 'Time order',
+  roundTable: 'Round the table',
 };
+
+// Lab-mode clue types that compare places on an ordered category (o): the
+// items they name, as [field, ...].
+const MODE_FIELDS = { next: ['a', 'b'], between: ['a', 'm', 'b'], first: ['a'], last: ['a'],
+  nextTo: ['a', 'b'], across: ['a', 'b'], left2: ['a', 'b'], notNext: ['a', 'b'] };
+
+// Work lists. Each grid rule keeps a bitset of the places it still has to
+// look at ("pending"). A place is cleared when the rule looks at it and is
+// marked again whenever a mark it depends on changes. A place that is not
+// pending would find nothing new, so skipping it changes nothing; places are
+// still visited in the rule's original order. This is what makes what-if
+// trials cheap: after one trial mark only a handful of places need a look.
+//   lastLeft: row x*K+b          onlyOne, noShared: (a*K+b)*N+i for a < b
+//   crossGrid: item x
+const bitset = (n) => { const w = new Uint32Array((n + 31) >>> 5).fill(0xffffffff); return w; };
+const mark = (P, i) => { P[i >>> 5] |= 1 << (i & 31); };
+
+// The first pending place at or after `from`, cleared and returned; -1 if none.
+function takeNext(P, from) {
+  let w = from >>> 5;
+  if (w >= P.length) return -1;
+  let m = P[w] & (-1 << (from & 31));
+  for (;;) {
+    if (m) {
+      const b = 31 - Math.clz32(m & -m);
+      P[w] &= ~(1 << b);
+      return (w << 5) + b;
+    }
+    if (++w >= P.length) return -1;
+    m = P[w];
+  }
+}
 
 export function createState(K, N, clues, describe, whatIfDepth = 4) {
   const KN = K * N;
-  return { K, N, KN, cells: new Int8Array(KN * KN), clues, describe, trace: null, stopFirst: false, changes: 0, rounds: 0, whatIfDepth };
+  const open = new Uint16Array(KN * K).fill((1 << N) - 1);
+  // done[k]: clue k's plain marks are all on the grid, so reading it again adds nothing.
+  return { K, N, KN, cells: new Int8Array(KN * KN), open, yes: new Uint16Array(KN * K), done: new Uint8Array(clues.length),
+    pLast: bitset(KN * K), pOnly: bitset(K * K * N), pCross: bitset(KN), pShared: bitset(K * K * N),
+    pClue: bitset(clues.length), watch: watchList(K, N, clues),
+    clues, describe, trace: null, stopFirst: false, changes: 0, rounds: 0, whatIfDepth };
+}
+
+// A copy for a what-if trial: its own cells, masks and work lists, same clues and settings.
+function fork(S, trace, stopFirst) {
+  return { ...S, cells: S.cells.slice(), open: S.open.slice(), yes: S.yes.slice(), done: S.done.slice(),
+    pLast: S.pLast.slice(), pOnly: S.pOnly.slice(), pCross: S.pCross.slice(), pShared: S.pShared.slice(), pClue: S.pClue.slice(), trace, stopFirst, changes: 0 };
+}
+
+// Row (p against category q) just gained mark v: mark every place that reads
+// it and could now find something new. An X can only give lastLeft, noShared
+// and ordering clues something new; an O only onlyOne and if/then clues;
+// crossGrid uses both.
+function touch(S, p, q, v) {
+  const { K, N } = S;
+  const r = p * K + q;
+  const cp = Math.floor(p / N), ip = p - cp * N;
+  for (let i = S.watch.start[r], e = S.watch.start[r + 1]; i < e; i++) mark(S.pClue, S.watch.list[i]);
+  // crossGrid at x reads x's rows and the rows of every O partner of x.
+  mark(S.pCross, p);
+  for (let a = 0; a < K; a++) if (a !== cp) for (let m = S.yes[p * K + a]; m; m &= m - 1) mark(S.pCross, a * N + lowBit(m));
+  if (v === YES) {
+    // onlyOne at (a, b, i) reads its own row and the row of its O partner y against a.
+    if (cp < q) mark(S.pOnly, (cp * K + q) * N + ip);
+    else for (let m = S.yes[r]; m; m &= m - 1) mark(S.pOnly, (q * K + cp) * N + lowBit(m));
+    return;
+  }
+  mark(S.pLast, r);
+  // noShared at (a, b, i) for x against z in b can only find something new
+  // through category q, and only if x and z now share no option in q.
+  const op = S.open[r];
+  // p as x: any open z in a later category b (not q) left with nothing in common.
+  for (let b = cp + 1; b < K; b++) {
+    if (b === q) continue;
+    const rb = p * K + b;
+    for (let m = S.open[rb] & ~S.yes[rb]; m; m &= m - 1) {
+      if (!(S.open[(b * N + lowBit(m)) * K + q] & op)) { mark(S.pShared, (cp * K + b) * N + ip); break; }
+    }
+  }
+  // p as z: every x in an earlier category a (not q) still open with p.
+  for (let a = 0; a < cp; a++) {
+    if (a === q) continue;
+    const base = (a * K + cp) * N, ra = p * K + a;
+    for (let m = S.open[ra] & ~S.yes[ra]; m; m &= m - 1) {
+      const i = lowBit(m);
+      if (!(S.open[(a * N + i) * K + q] & op)) mark(S.pShared, base + i);
+    }
+  }
+}
+
+// Which ordering and if/then clues read each row, as one flat list per row
+// (start[r] to start[r + 1] in `list`). Built for each solve, because the
+// generator grows and trims its clue lists between solves.
+function watchList(K, N, clues) {
+  const R = K * N * K;
+  const rowsOf = (c) => (c.type === 'less' || c.type === 'diff') ? [c.a * K + c.o, c.b * K + c.o]
+    : c.type === 'ifthen' ? [c.p[0] * K + Math.floor(c.p[1] / N), c.q[0] * K + Math.floor(c.q[1] / N)]
+    : MODE_FIELDS[c.type] ? modeRows(c, K, N) : null;
+  const start = new Int32Array(R + 1);
+  const pairs = [];
+  clues.forEach((c, k) => {
+    const rows = rowsOf(c);
+    if (!rows) return;
+    if (rows.length !== 2) { for (const r of rows) pairs.push(r, k); return; }
+    pairs.push(rows[0], k);
+    if (rows[1] !== rows[0]) pairs.push(rows[1], k);
+  });
+  for (let i = 0; i < pairs.length; i += 2) start[pairs[i] + 1]++;
+  for (let r = 0; r < R; r++) start[r + 1] += start[r];
+  const list = new Int32Array(pairs.length / 2);
+  const fill = start.slice(0, R);
+  for (let i = 0; i < pairs.length; i += 2) list[fill[pairs[i]]++] = pairs[i + 1];
+  return { start, list };
+}
+
+// Rows a lab-mode clue reads (each named item against the ordered category),
+// without repeats; an item of the ordered category itself has a fixed place.
+function modeRows(c, K, N) {
+  const rows = [];
+  for (const f of MODE_FIELDS[c.type]) {
+    const g = c[f];
+    if (Math.floor(g / N) === c.o) continue;
+    const r = g * K + c.o;
+    if (!rows.includes(r)) rows.push(r);
+  }
+  return rows.length ? rows : null;
 }
 
 const cat = (S, g) => Math.floor(g / S.N);
 const get = (S, x, y) => S.cells[x * S.KN + y];
+
+// Write one mark (both halves of the cell) and keep the row masks in step.
+function put(S, x, y, v) {
+  const { N, K, KN } = S;
+  S.cells[x * KN + y] = v;
+  S.cells[y * KN + x] = v;
+  const cx = Math.floor(x / N), cy = Math.floor(y / N);
+  if (v === NO) {
+    S.open[x * K + cy] &= ~(1 << (y - cy * N));
+    S.open[y * K + cx] &= ~(1 << (x - cx * N));
+  } else if (v === YES) {
+    S.yes[x * K + cy] |= 1 << (y - cy * N);
+    S.yes[y * K + cx] |= 1 << (x - cx * N);
+  }
+  touch(S, x, cy, v);
+  touch(S, y, cx, v);
+}
+
+const popcount = (m) => { let n = 0; while (m) { m &= m - 1; n++; } return n; };
+const lowBit = (m) => 31 - Math.clz32(m & -m);
 
 function emit(S, d) {
   const fresh = [];
@@ -49,10 +203,7 @@ function emit(S, d) {
     fresh.push(s);
   }
   if (!fresh.length) return false;
-  for (const [x, y, v] of fresh) {
-    S.cells[x * S.KN + y] = v;
-    S.cells[y * S.KN + x] = v;
-  }
+  for (const [x, y, v] of fresh) put(S, x, y, v);
   S.changes++;
   if (S.trace) {
     S.trace.push({ level: d.level, technique: d.tech, clue: d.clue ?? -1, sets: fresh, why: d.why ? d.why() : '', chain: d.chain || null, depth: d.depth || 0 });
@@ -79,7 +230,7 @@ const lower = (s) => s.charAt(0).toLowerCase() + s.slice(1);
 // Items of category c still possible for item x.
 function poss(S, x, c) {
   const out = [];
-  for (let j = 0; j < S.N; j++) if (get(S, x, c * S.N + j) !== NO) out.push(c * S.N + j);
+  for (let m = S.open[x * S.K + c]; m; m &= m - 1) out.push(c * S.N + lowBit(m));
   return out;
 }
 
@@ -89,6 +240,7 @@ function clueReadings(S) {
   const { N } = S;
   const D = S.describe;
   for (let k = 0; k < S.clues.length; k++) {
+    if (S.done[k]) continue;
     const c = S.clues[k];
     const sets = [];
     let why = null;
@@ -134,6 +286,29 @@ function clueReadings(S) {
         why = D && (() => `Clue ${k + 1} says ${D.list([c.x1, c.x2])} go with ${D.list([c.y1, c.y2])} in some order, so nothing else in that grid can match them.`);
         break;
       }
+      case 'next':
+      case 'between':
+      case 'first':
+      case 'last':
+      case 'nextTo':
+      case 'across':
+      case 'left2':
+      case 'notNext': {
+        // Lab modes: every item named belongs to a different person; first
+        // and last fix a time outright.
+        const its = MODE_FIELDS[c.type].map((f) => c[f]);
+        for (let i = 0; i < its.length; i++)
+          for (let j = i + 1; j < its.length; j++)
+            if (cat(S, its[i]) !== cat(S, its[j])) sets.push([its[i], its[j], NO]);
+        if (c.type === 'first' || c.type === 'last') {
+          const t = c.o * N + (c.type === 'first' ? 0 : N - 1);
+          sets.push([c.a, t, YES]);
+          why = D && (() => `Clue ${k + 1} says ${D.clause(c)}: ${D.pair(c.a, t, YES)}.`);
+        } else if (sets.length) {
+          why = D && (() => `Clue ${k + 1} says ${D.clause(c)}, so ${sets.map(([x, y]) => D.pair(x, y, NO)).join(', and ')}.`);
+        }
+        break;
+      }
       case 'less':
       case 'diff':
       case 'ifthen':
@@ -143,7 +318,10 @@ function clueReadings(S) {
         }
         break;
     }
-    if (sets.length && emit(S, { level: 0, tech: 'clue', clue: k, sets, why })) return true;
+    if (!sets.length) { S.done[k] = 1; continue; }
+    const stop = emit(S, { level: 0, tech: 'clue', clue: k, sets, why });
+    S.done[k] = 1;
+    if (stop) return true;
   }
   return false;
 }
@@ -151,36 +329,36 @@ function clueReadings(S) {
 function onlyOne(S) {
   const { K, N } = S;
   const D = S.describe;
-  for (let a = 0; a < K; a++)
-    for (let b = a + 1; b < K; b++)
-      for (let i = 0; i < N; i++)
-        for (let j = 0; j < N; j++) {
+  for (let p = takeNext(S.pOnly, 0); p >= 0; p = takeNext(S.pOnly, p + 1)) {
+    const i = p % N, ab = (p - i) / N, a = Math.floor(ab / K), b = ab % K;
+    if (a >= b || a >= K) continue;
+        for (let ym = S.yes[(a * N + i) * K + b]; ym; ym &= ym - 1) {
+          const j = lowBit(ym);
           const x = a * N + i, y = b * N + j;
-          if (get(S, x, y) !== YES) continue;
+          // Nothing new: the row and the column already have only this O open.
+          if (!(S.open[x * K + b] & ~(1 << j)) && !(S.open[y * K + a] & ~(1 << i))) continue;
           const sets = [];
           for (let t = 0; t < N; t++) {
             if (t !== j) sets.push([x, b * N + t, NO]);
             if (t !== i) sets.push([a * N + t, y, NO]);
           }
           const why = D && (() => `${cap(D.pair(x, y, YES))}, so ${D.name(x)} cannot go with any other ${D.catName(b)}, and no other ${D.catName(a)} can go with ${D.name(y)}.`);
-          if (emit(S, { level: 0, tech: 'onlyOne', sets, why })) return true;
+          if (emit(S, { level: 0, tech: 'onlyOne', sets, why })) { mark(S.pOnly, p); return true; }
         }
+  }
   return false;
 }
 
 function lastLeft(S) {
   const { K, N } = S;
   const D = S.describe;
-  for (let x = 0; x < K * N; x++) {
-    const a = cat(S, x);
-    for (let b = 0; b < K; b++) {
-      if (b === a) continue;
-      let count = 0, last = -1, hasYes = false;
-      for (let j = 0; j < N; j++) {
-        const v = get(S, x, b * N + j);
-        if (v !== NO) { count++; last = b * N + j; }
-        if (v === YES) hasYes = true;
-      }
+  for (let p = takeNext(S.pLast, 0); p >= 0; p = takeNext(S.pLast, p + 1)) {
+    const x = Math.floor(p / K), b = p % K;
+    if (x >= K * N || b === cat(S, x)) continue;
+    {
+      const m = S.open[x * K + b];
+      if (m & (m - 1)) continue; // two or more still open
+      const count = m ? 1 : 0, last = m ? b * N + lowBit(m) : -1, hasYes = S.yes[x * K + b] !== 0;
       if (count === 0) {
         throw new Contradiction(D ? `${D.name(x)} would have no ${D.catName(b)} left` : 'empty row');
       }
@@ -198,15 +376,19 @@ function lastLeft(S) {
 function crossGrid(S) {
   const { K, N } = S;
   const D = S.describe;
-  for (let x = 0; x < K * N; x++) {
+  for (let x = takeNext(S.pCross, 0); x >= 0 && x < K * N; x = takeNext(S.pCross, x + 1)) {
     const a = cat(S, x);
     for (let b = 0; b < K; b++) {
       if (b === a) continue;
-      for (let j = 0; j < N; j++) {
-        const y = b * N + j;
-        if (get(S, x, y) !== YES) continue;
+      for (let ym = S.yes[x * K + b]; ym; ym &= ym - 1) {
+        const y = b * N + lowBit(ym);
         for (let c = 0; c < K; c++) {
           if (c === a || c === b) continue;
+          // Marks y has in category c that x does not have yet.
+          const full = (1 << N) - 1;
+          const known = (full & ~S.open[y * K + c]) | S.yes[y * K + c];
+          const unknownX = S.open[x * K + c] & ~S.yes[x * K + c];
+          if (!(known & unknownX)) continue;
           const sets = [];
           for (let t = 0; t < N; t++) {
             const z = c * N + t;
@@ -232,32 +414,31 @@ function crossGrid(S) {
 function noShared(S) {
   const { K, N } = S;
   const D = S.describe;
-  for (let a = 0; a < K; a++)
-    for (let b = a + 1; b < K; b++)
-      for (let i = 0; i < N; i++)
-        for (let j = 0; j < N; j++) {
-          const x = a * N + i, z = b * N + j;
-          if (get(S, x, z) !== 0) continue;
+  for (let p = takeNext(S.pShared, 0); p >= 0; p = takeNext(S.pShared, p + 1)) {
+    const i = p % N, ab = (p - i) / N, a = Math.floor(ab / K), b = ab % K;
+    if (a >= b || a >= K) continue;
+      {
+        const r = (a * N + i) * K + b;
+        for (let um = S.open[r] & ~S.yes[r]; um; um &= um - 1) {
+          const x = a * N + i, z = b * N + lowBit(um);
           for (let c = 0; c < K; c++) {
             if (c === a || c === b) continue;
-            let shared = false;
-            for (let t = 0; t < N && !shared; t++) {
-              const y = c * N + t;
-              if (get(S, x, y) !== NO && get(S, z, y) !== NO) shared = true;
-            }
-            if (shared) continue;
+            if (S.open[x * K + c] & S.open[z * K + c]) continue;
             const why = D && (() => `${cap(D.posList(x, poss(S, x, c)))}, and ${D.posList(z, poss(S, z, c))}. With no ${D.catName(c)} in common, ${D.pair(x, z, NO)}.`);
-            if (emit(S, { level: 2, tech: 'noShared', sets: [[x, z, NO]], why })) return true;
+            // Stopping after one step: come back for the rest of this row.
+            if (emit(S, { level: 2, tech: 'noShared', sets: [[x, z, NO]], why })) { mark(S.pShared, p); return true; }
             break;
           }
         }
+      }
+  }
   return false;
 }
 
 function clueReasoning(S) {
   const { N } = S;
   const D = S.describe;
-  for (let k = 0; k < S.clues.length; k++) {
+  for (let k = takeNext(S.pClue, 0); k >= 0 && k < S.clues.length; k = takeNext(S.pClue, k + 1)) {
     const c = S.clues[k];
     if (c.type === 'less' || c.type === 'diff') {
       const pa = poss(S, c.a, c.o), pb = poss(S, c.b, c.o);
@@ -293,10 +474,88 @@ function clueReasoning(S) {
         d = { sets: [[c.p[0], c.p[1], NO]], why: D && (() => `Clue ${k + 1}: if ${D.pair(c.p[0], c.p[1], YES)}, then ${D.pair(c.q[0], c.q[1], YES)}. But ${D.pair(c.q[0], c.q[1], NO)}, so ${D.pair(c.p[0], c.p[1], NO)}.`) };
       }
       if (d && emit(S, { level: 2, tech: 'conditional', clue: k, ...d })) return true;
+    } else if (MODE_FIELDS[c.type]) {
+      if (modeReasoning(S, c, k)) return true;
     }
   }
   return false;
 }
+
+// Lab modes: keep only the places (times or seats) for each named item that
+// still fit the clue with some open place for the others. Seats wrap round.
+function modeReasoning(S, c, k) {
+  const { N } = S;
+  const D = S.describe;
+  const fields = MODE_FIELDS[c.type];
+  if (fields.length < 2) return false;
+  const items = fields.map((f) => c[f]);
+  const placesOf = (g) => (cat(S, g) === c.o ? [g % N] : poss(S, g, c.o).map((h) => h % N));
+  const opts = items.map(placesOf);
+  const fits = c.type === 'between'
+    ? (v) => v[0] < v[1] && v[1] < v[2]
+    : (v) => MODE_RELATIONS[c.type](v[0], v[1], N);
+  // For each item and each of its places: is there a fitting choice for the others?
+  const supported = (i, v) => {
+    const pick = [];
+    const walk = (j) => {
+      if (j === items.length) return fits(pick);
+      if (j === i) { pick[j] = v; return walk(j + 1); }
+      for (const w of opts[j]) {
+        if (pick.slice(0, j).includes(w) || w === v) continue;
+        pick[j] = w;
+        if (walk(j + 1)) return true;
+      }
+      return false;
+    };
+    return walk(0);
+  };
+  const sets = [];
+  items.forEach((g, i) => {
+    if (cat(S, g) === c.o) return;
+    for (const v of opts[i]) if (!supported(i, v)) sets.push([g, c.o * N + v, NO]);
+  });
+  if (!sets.length) return false;
+  const ring = c.type === 'nextTo' || c.type === 'across' || c.type === 'left2' || c.type === 'notNext';
+  const why = D && (() => {
+    const lab = (v) => D.label(c.o * N + v);
+    const head = `Clue ${k + 1} says ${D.clause(c)}.`;
+    if (items.length !== 2) {
+      const known = items.filter((g, i) => cat(S, g) !== c.o && !sets.some((s) => s[0] === g) && opts[i].length < N);
+      const facts = known.map((g) => D.posList(g, poss(S, g, c.o)));
+      const ruled = items.filter((g) => sets.some((s) => s[0] === g)).map((g) => D.negList(g, sets.filter((s) => s[0] === g).map((s) => s[1])));
+      return `${head} ${facts.length ? `${cap(joinAnd(facts))}. ` : ''}With the times still open, ${joinAnd(ruled)}.`;
+    }
+    // Two items: say, for each ruled-out place, which place the other one
+    // would need and that it is not open. Seats wrap round the table.
+    let wraps = false;
+    const reasons = sets.slice(0, 3).map(([g, h]) => {
+      const i = items.indexOf(g), j = 1 - i, v = h % N;
+      const other = items[j];
+      const need = [];
+      for (let w = 0; w < N; w++) {
+        if (w === v) continue;
+        const ok = i === 0 ? MODE_RELATIONS[c.type](v, w, N) : MODE_RELATIONS[c.type](w, v, N);
+        if (!ok) continue;
+        need.push(w);
+        if (ring && c.type !== 'notNext' && c.type !== 'across' && Math.abs(v - w) !== (c.type === 'left2' ? 2 : 1)) wraps = true;
+      }
+      const where = joinList(need.map(lab), 'or');
+      const who = cat(S, other) === 0 ? D.label(other) : D.subj(other);
+      const prep = ring ? 'in' : 'at';
+      if (!need.length) return `${lab(v)} leaves no ${ring ? 'seat' : 'time'} that fits for ${who}`;
+      return need.length === 1 ? `${lab(v)} would need ${who} ${prep} ${where}, which is not open`
+        : `${lab(v)} would need ${who} ${prep} ${where}, and none of those is open`;
+    });
+    const more = sets.length > 3 ? `, and the same goes for ${joinAnd(sets.slice(3).map(([, h]) => lab(h % N)))}` : '';
+    const roundNote = wraps ? ` The table is round, so ${lab(N - 1)} is next to ${lab(0)}.` : '';
+    const ruled = [...new Set(sets.map((s) => s[0]))].map((g) => D.negList(g, sets.filter((s) => s[0] === g).map((s) => s[1])));
+    return `${head}${roundNote} ${cap(reasons.join('; '))}${more}. So ${joinAnd(ruled)}.`;
+  });
+  return emit(S, { level: 2, tech: ring ? 'roundTable' : 'timeOrder', clue: k, sets, why });
+}
+
+const joinList = (xs, conj) => (xs.length <= 1 ? xs.join('') : xs.length === 2 ? `${xs[0]} ${conj} ${xs[1]}` : `${xs.slice(0, -1).join(', ')} ${conj} ${xs.at(-1)}`);
+const joinAnd = (xs) => (xs.length <= 1 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}`);
 
 // ---------- Level 3: what-if ----------
 
@@ -315,12 +574,11 @@ function whatIf(S) {
       }
   cand.sort((p, q) => p[0] - q[0]);
   for (const [, x, y] of cand) {
-    const trial = { ...S, cells: S.cells.slice(), trace: null, stopFirst: false, changes: 0 };
+    const trial = fork(S, null, false);
     let reason = null;
     let depth = 0;
     try {
-      trial.cells[x * S.KN + y] = YES;
-      trial.cells[y * S.KN + x] = YES;
+      put(trial, x, y, YES);
       depth = propagate(trial, 2, S.whatIfDepth);
     } catch (e) {
       if (!(e instanceof Contradiction)) throw e;
@@ -331,9 +589,8 @@ function whatIf(S) {
     let chain = null;
     if (S.trace) {
       // Re-run the trial with a trace, so the hint can show the chain.
-      const t = { ...S, cells: S.cells.slice(), trace: [], stopFirst: true, changes: 0 };
-      t.cells[x * S.KN + y] = YES;
-      t.cells[y * S.KN + x] = YES;
+      const t = fork(S, [], true);
+      put(t, x, y, YES);
       let r = reason;
       try { traceLoop(t, 2); } catch (e) { if (!(e instanceof Contradiction)) throw e; r = e.reason; }
       chain = t.trace.map((s) => s.why);
@@ -390,8 +647,10 @@ export function unknownCount(S) {
   let n = 0;
   for (let a = 0; a < K; a++)
     for (let b = a + 1; b < K; b++)
-      for (let i = 0; i < N; i++)
-        for (let j = 0; j < N; j++) if (get(S, a * N + i, b * N + j) === 0) n++;
+      for (let i = 0; i < N; i++) {
+        const r = (a * N + i) * K + b;
+        n += popcount(S.open[r] & ~S.yes[r]);
+      }
   return n;
 }
 
@@ -411,10 +670,7 @@ export function isSolvable(K, N, clues, maxLevel, whatIfDepth) {
 // marks ([x, y, v] triples), which is how hints continue from a player's grid.
 export function solveWithTrace(K, N, clues, maxLevel, describe, start = [], whatIfDepth) {
   const S = createState(K, N, clues, describe, whatIfDepth);
-  for (const [x, y, v] of start) {
-    S.cells[x * S.KN + y] = v;
-    S.cells[y * S.KN + x] = v;
-  }
+  for (const [x, y, v] of start) put(S, x, y, v);
   S.trace = [];
   let contradiction = null;
   try {

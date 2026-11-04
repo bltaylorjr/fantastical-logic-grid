@@ -11,7 +11,7 @@
 // writer drafts). Shared learning (other players' results and approved story
 // parts) arrives through setShared() and is blended in.
 import * as store from './store.js';
-import { checkStoryPart, partKey, parseStoryId } from '../engine/story.js';
+import { checkStoryPart, partKey, parseStoryId } from '../engine/story-parts.js';
 import { houseTuningFor } from '../engine/house-tuning.js';
 
 const KEY = 'learning';

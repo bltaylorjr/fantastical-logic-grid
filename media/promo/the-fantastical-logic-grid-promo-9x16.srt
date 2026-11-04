@@ -4,7 +4,7 @@ Every puzzle tells a brand new
 story.
 
 2
-00:00:04,250 --> 00:00:06,811
+00:00:04,250 --> 00:00:06,809
 This is The Fantastical Logic
 Grid!
 
@@ -34,8 +34,8 @@ Race your friends, and climb
 the scoreboard.
 
 8
-00:00:25,750 --> 00:00:28,107
-Then suggest a storyline of
+00:00:25,750 --> 00:00:28,134
+Then submit a puzzle idea of
 your own!
 
 9

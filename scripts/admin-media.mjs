@@ -17,6 +17,7 @@ export const MEDIA_COPIES = [
   ['admin/game-art.js', 'web/js/art.js', [["'./gender.js'", "'./game-gender.js'"]]],
   ['admin/game-effects.js', 'web/js/effects.js', [["'../vendor/confetti/confetti.module.js'", "'./confetti.js'"]]],
   ['admin/confetti.js', 'web/vendor/confetti/confetti.module.js', []],
+  ['admin/site-design.js', 'web/js/site-design.js', []],
 ];
 
 export function mediaCopy(game, swaps) {

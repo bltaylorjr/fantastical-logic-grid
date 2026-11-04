@@ -119,7 +119,7 @@ const CSS = `
     const ctx = await browser.newContext({ viewport: VIEW, deviceScaleFactor: SCALE, reducedMotion: 'reduce', serviceWorkers: 'block' });
     await ctx.route('**/js/cloud-config.js', (r) => r.fulfill({ contentType: 'text/javascript', body: config }));
     // Same game, fixed seed, so a run is repeatable.
-    await ctx.route('**/worker.js', async (r) => {
+    await ctx.route('**/engine/flg-ops.js', async (r) => {
       const res = await r.fetch();
       r.fulfill({ response: res, body: (await res.text()).replace('generatePuzzle(args)', `generatePuzzle({ ...args, seed: args.seed || '${seed}' })`) });
     });
@@ -144,7 +144,7 @@ const CSS = `
         });
       }
     }
-    await ctx.addInitScript((s) => { if (!localStorage.getItem('flg.settings')) localStorage.setItem('flg.settings', JSON.stringify({ introOffered: true, voiceProvider: 'device', silent: s })); }, silent);
+    await ctx.addInitScript((s) => { if (!localStorage.getItem('flg.settings')) localStorage.setItem('flg.settings', JSON.stringify({ introOffered: true, voiceProvider: 'device', silent: s })); if (!localStorage.getItem('flg.game')) localStorage.setItem('flg.game', 'logic-grid'); }, silent);
     const page = await ctx.newPage();
     page.on('pageerror', (e) => console.log('page error:', e.message));
     await page.goto(`${APP}/`);
@@ -508,7 +508,7 @@ const CSS = `
     }
     await p.click('#home-btn'); await p.waitForSelector('#tier-choices input'); await prep();
     await p.click('#menu-btn'); await p.click('[data-cmd=install]'); await p.waitForSelector('#dlg-install[open]'); await prep();
-    await scene('install', ['To play without opening a browser, choose Install the app from the Menu.', 'Download the Windows desktop app, which keeps itself up to date.', 'Or add the game\'s icon to your phone\'s home screen. On your phone, the same menu shows you how.', 'On a phone, pull down from the top of the page to refresh. Your progress is saved first.']);
+    await scene('install', ['To play without opening a browser, choose Install the app on The Logic Grid home page.', 'Download the Windows desktop app, which keeps itself up to date.', 'Or add the game\'s icon to your phone\'s home screen. On your phone, the same button shows you how.', 'On a phone, pull down from the top of the page to refresh. Your progress is saved first.']);
     await p.click('#install-close'); await p.waitForTimeout(300);
 
     // =================== Accounts, screen names, races, scoreboard
@@ -655,11 +655,11 @@ const CSS = `
       }
       await p.evaluate(async () => { await (await import('./js/remote-config.js')).refreshNow(); await (await import('./js/messages.js')).refresh(); });
       await p.click('#menu-btn'); await p.waitForTimeout(300); await prep();
-      await scene('messages-menu', ['When the team writes to you, or posts news, the Menu button shows a number.']);
+      await scene('messages-menu', ['When the team writes to you, or posts news, you see a number on the Menu button in the desktop and phone apps.']);
       await p.click('[data-cmd=messages]'); await p.waitForSelector('#dlg-messages[open]');
       if (me) { await p.click('#msg-convs summary'); await p.waitForTimeout(300); }
       await prep();
-      await scene('messages', ['Messages, in the menu, has news from the game\'s team for everyone.',
+      await scene('messages', ['Messages and news, on The Logic Grid home page, has news from the game\'s team for everyone.',
         ...(me ? ['Signed in, you can write to the team with a question, an idea or a problem, and read their replies right here.', 'Tick Email me, and you get a short email when the team writes back.'] : ['Sign in to write to the team and read their replies.'])]);
       await p.keyboard.press('Escape');
     }
@@ -670,6 +670,13 @@ const CSS = `
       await p.fill('#suggest-look', 'A blue sea captain\'s coat and a white beard');
       await p.fill('#suggest-personality', 'Cheerful, a little forgetful, and loves a good riddle');
       await scene('suggest', ['Dream up a character of your own with Suggest a character, in the menu.', 'Answer a few questions about their name, look, personality and voice.', 'The game\'s team reviews every suggestion, and you might meet yours in a puzzle.']);
+      await p.keyboard.press('Escape');
+    }
+    // The Puzzle Wizard, in the menu.
+    if (await p.$('[data-cmd=wizard]')) {
+      await p.click('#menu-btn'); await p.waitForSelector('[data-cmd=wizard]'); await prep(); await hl('[data-cmd=wizard]', 6);
+      await scene('wizard', ['Want to write a whole puzzle of your own?', 'Submit Puzzle Ideas, in the menu, walks you through your story, your characters, the lists to match and the answer.',
+        'It checks that your puzzle has exactly one answer, gives you a PDF to download or print, and saves it to your Saved puzzles.']);
       await p.keyboard.press('Escape');
     }
     card('outro', [["That's all you need: read the story, follow the clues, and mark your X's and O's.", "That's all you need. Read the story, follow the clues, and mark your exes and ohs."], 'Welcome to The Fantastical Logic Grid. Happy sleuthing!']);

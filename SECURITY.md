@@ -1,6 +1,6 @@
 # Security
 
-The Fantastical Logic Grid is a free puzzle game at https://thelogicgrid.com,
+The Logic Grid is a free puzzle game at https://thelogicgrid.com,
 with a Windows app, optional player accounts and an admin dashboard. We take
 the safety of players and their saves seriously.
 
@@ -39,7 +39,7 @@ GitHub themselves (please report those to them).
 - Every page carries a strict Content Security Policy; the API and admin
   dashboard send HSTS, anti-framing and no-sniff headers; every API route has
   rate limits and size limits; admins need a confirmed email, are locked out
-  after 30 idle minutes and must sign in again every 12 hours (with a password
+  after 1 idle hour and must sign in again every 12 hours (with a password
   or a passkey that needs Face ID, a fingerprint or the device PIN), and every
   admin action is written to an audit log.
 - New passwords are checked against known data leaks (Have I Been Pwned's

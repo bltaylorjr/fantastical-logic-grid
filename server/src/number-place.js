@@ -1,12 +1,12 @@
-// Number Place's part of the shared learning service. The only data Number
+// NINETIMESNINE's part of the shared learning service. The only data Number
 // Place shares with the rest of the game: anonymous summaries of finished
 // puzzles, and the tuning worked out from everyone's games.
 //
-//   POST /v1/learn/np/plays    summaries of finished Number Place puzzles
+//   POST /v1/learn/np/plays    summaries of finished NINETIMESNINE puzzles
 //   GET  /v1/learn/np/tuning   toughness per level from everyone's games
 //
-// The admin dashboard's Number Place section reads npSummary() and changes the
-// settings in the "Number Place" group (settings.js).
+// The admin dashboard's NINETIMESNINE section reads npSummary() and changes the
+// settings in the "NINETIMESNINE" group (settings.js).
 import { getSettings } from './settings.js';
 
 export const NP_LEVELS = ['basic', 'easy', 'medium', 'hard', 'expert', 'master'];
@@ -97,7 +97,7 @@ export async function getNpTuning(req, env, ctx, json) {
   return res;
 }
 
-// The admin's Number Place section: how each level is going.
+// The admin's NINETIMESNINE section: how each level is going.
 export async function npSummary(env, days = 30) {
   const since = new Date(Date.now() - (days - 1) * 86400000).toISOString().slice(0, 10);
   const { results } = await env.DB.prepare('SELECT day, level, size, variants, mode, outcome, feel, minutes, hints, mistakes, tuned, stuck FROM np_plays WHERE day >= ?1 ORDER BY rowid DESC LIMIT 50000').bind(since).all();

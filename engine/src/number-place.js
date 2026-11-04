@@ -1,4 +1,4 @@
-// Number Place: fill the grid so every row, column and box holds each number once.
+// NINETIMESNINE: fill the grid so every row, column and box holds each number once.
 // Variants: 'diagonal' (both long diagonals too) and 'parity' (shaded cells are even).
 //
 // Like the logic grid, every puzzle has exactly one answer, can be solved by
@@ -390,7 +390,9 @@ export function generateNumberPlace({ difficulty = 'medium', size, variants = []
   const want = t > 0.65 ? (N === 9 && tier.minLevel >= 4 ? 2 : 3) : 1;
   const found = [];
   let tries = 0;
-  for (let attempt = 0; attempt < 300 && found.length < want; attempt++) {
+  // A seed that finds nothing in 300 tries keeps looking (up to 1,200), so a
+  // daily puzzle's fixed seed never fails; seeds that found one are unchanged.
+  for (let attempt = 0; (attempt < 300 || (!found.length && attempt < 1200)) && found.length < want; attempt++) {
     const c = candidate(shape, tier, makeRng(`${seed}:${attempt}`), { parity, symmetric });
     if (!c) continue;
     const evenCells = c.evenMask ? c.evenMask.map((e, i) => (e ? i : -1)).filter((i) => i >= 0) : [];

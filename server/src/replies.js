@@ -143,7 +143,7 @@ export async function declineStoryline(env, feedbackId) {
 // Returns the stored puzzle's id, or null when there is no one to store it for.
 export async function storeBuiltPuzzle(env, replyId, puzzle, now = Date.now()) {
   const row = await env.DB.prepare(`SELECT user_id AS uid, puzzle_id AS puzzleId, submission_id AS submissionId, feedback_id AS feedbackId FROM feedback_replies
-    WHERE id = ?1 AND kind IN ('story_approved', 'story_build') AND status = 'sending'`).bind(Number(replyId)).first();
+    WHERE id = ?1 AND kind IN ('story_approved', 'story_build', 'story_puzzle') AND status = 'sending'`).bind(Number(replyId)).first();
   if (!row) return null;
   // The Storyline Submission Database keeps the first puzzle with the entry.
   if (row.submissionId || row.feedbackId) {
@@ -190,8 +190,8 @@ export async function claimReplies(env, limit, now = Date.now()) {
   ]);
   const n = Math.min(CLAIM_MAX, Math.max(1, Number(limit) || CLAIM_MAX));
   const { results } = await db.prepare(`SELECT r.id, r.kind, r.email, r.text, r.note, r.explain, r.link, p.puzzle, p.expires_at AS puzzleExpiresAt,
-      (r.kind IN ('story_approved', 'story_build') AND r.puzzle_id IS NULL) AS mayBuild, r.user_id IS NOT NULL AS forPlayer, f.theme AS theme,
-      s.kind AS sKind, s.form, s.polished, s.theme AS sTheme, s.title, s.credit, s.puzzle AS sPuzzle FROM feedback_replies r
+      (r.kind IN ('story_approved', 'story_build', 'story_puzzle') AND r.puzzle_id IS NULL) AS mayBuild, r.user_id IS NOT NULL AS forPlayer, f.theme AS theme,
+      s.kind AS sKind, s.form, s.current, s.polished, s.theme AS sTheme, s.title, s.credit, s.puzzle AS sPuzzle FROM feedback_replies r
     LEFT JOIN player_puzzles p ON p.id = r.puzzle_id AND p.expires_at > ?2
     LEFT JOIN feedback f ON f.id = r.feedback_id
     LEFT JOIN story_submissions s ON s.id = r.submission_id OR (r.submission_id IS NULL AND r.feedback_id IS NOT NULL AND s.feedback_id = r.feedback_id)
@@ -207,8 +207,8 @@ export async function claimReplies(env, limit, now = Date.now()) {
   // the copy of the form.
   return {
     off: false,
-    replies: results.map(({ puzzle, puzzleExpiresAt, mayBuild, forPlayer, theme, sKind, form, polished, sTheme, title, credit, sPuzzle, ...r }) => {
-      const submission = form && (r.kind !== 'story_approved' || !r.text) ? submissionForMail({ kind: sKind, form, polished, theme: sTheme, title, credit }) : null;
+    replies: results.map(({ puzzle, puzzleExpiresAt, mayBuild, forPlayer, theme, sKind, form, current, polished, sTheme, title, credit, sPuzzle, ...r }) => {
+      const submission = form && (r.kind !== 'story_approved' || !r.text) ? submissionForMail({ kind: sKind, form, current, polished, theme: sTheme, title, credit }) : null;
       const saved = !puzzle && sPuzzle ? JSON.parse(sPuzzle) : null;
       const ready = puzzle ? JSON.parse(puzzle) : saved;
       const fromForm = !!submission && sKind === 'storyline' && submission.form && !submission.form.idea;
@@ -218,7 +218,7 @@ export async function claimReplies(env, limit, now = Date.now()) {
         ...r,
         ...(submission ? { submission } : {}),
         ...(ready ? { puzzle: ready, ...(puzzle ? { puzzleExpiresAt } : {}) } : {}),
-        ...(saved && forPlayer && r.kind === 'story_approved' ? { storeSaved: true } : {}),
+        ...(saved && forPlayer && ['story_approved', 'story_puzzle'].includes(r.kind) ? { storeSaved: true } : {}),
         ...(build ? { build } : {}),
       };
     }),

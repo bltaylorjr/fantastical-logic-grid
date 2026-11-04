@@ -20,7 +20,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
       - name: Setup guide lists every connection (admin/connections.js)
@@ -32,20 +32,28 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
       - name: Engine tests (quick run)
         run: node engine/test/run-tests.js --quick
-      - name: Number Place engine tests
+      - name: NINETIMESNINE engine tests
         run: node engine/test/number-place-tests.js
+      - name: Grid-kit game engine tests
+        run: |
+          node engine/test/kit-games-tests.js
+          for g in ml sk sf ll ib; do node engine/test/$g-tests.js --quick; done
+      - name: Timeline Case and Seating Plan engine tests
+        run: node engine/test/mode-tests.js --quick
+      - name: Engine doctor (rule-based health checks catch planted faults)
+        run: node engine/test/doctor-tests.js
 
   app:
     runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork && '"ubuntu-latest"') || vars.FLG_RUNNER || '"ubuntu-latest"') }}
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -81,6 +89,7 @@ jobs:
           node scripts/e2e-accounts.cjs
           node scripts/e2e-biometric.cjs
           node scripts/e2e-compete.cjs
+          node scripts/e2e-game-races.cjs
           node scripts/e2e-challenge.cjs
           node scripts/e2e-daily-results.cjs
           node scripts/e2e-puzzle-mail.cjs
@@ -89,11 +98,18 @@ jobs:
           node scripts/e2e-archive.cjs
           node scripts/e2e-educators.cjs
           node scripts/e2e-license.cjs
+      - name: The admin dashboard's website editor (Edit on the page, its own window, Publish) against the real Worker
+        run: node scripts/e2e-admin-website.cjs
+      - name: Private puzzle server, and a site built in server mode (docs/PUZZLE-SERVER.md)
+        run: |
+          node puzzle-server/test/server.test.mjs
+          FLG_PUZZLE_SERVER=1 FLG_CLOUD_URL=http://localhost:8141 npm run build
+          node scripts/e2e-puzzle-server.cjs
       # The screenshots from every size the layout test checks, to look at when
       # a layout check fails (kept 14 days, free).
       - name: Keep the screenshots
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: screenshots
           path: screenshots/
@@ -105,7 +121,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm

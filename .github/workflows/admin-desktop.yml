@@ -31,7 +31,7 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 20
           cache: npm
@@ -81,7 +81,7 @@ jobs:
             const out = { version, notes: "", pub_date: new Date().toISOString(), platforms: { "windows-x86_64": { signature, url } } };
             require("fs").writeFileSync("latest.json", JSON.stringify(out, null, 2));
           ' "$VERSION" "$sig" "$url"
-          notes="The Fantastical Logic Grid Admin for Windows, version $VERSION. Download $SETUP below and open it to install; installed copies update themselves. Windows may say \"Windows protected your PC\" because the app is not signed with a paid certificate: click More info, then Run anyway."
+          notes="The Logic Grid Admin for Windows, version $VERSION. Download $SETUP below and open it to install; installed copies update themselves. Windows may say \"Windows protected your PC\" because the app is not signed with a paid certificate: click More info, then Run anyway."
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --title "Admin app for Windows v$VERSION" --notes "$notes" --latest=false
           else
@@ -93,7 +93,7 @@ jobs:
           # Checksums so anyone can check the installer is the genuine one.
           sha256sum "$SETUP" > SHA256SUMS-admin.txt && cat SHA256SUMS-admin.txt
           gh release upload "$TAG" SHA256SUMS-admin.txt --repo "$GITHUB_REPOSITORY" --clobber
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: admin-windows-installer
           path: desktop-admin/src-tauri/target/release/bundle/nsis/*_x64-setup.exe

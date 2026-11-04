@@ -1,0 +1,178 @@
+// The website's layout (scripts/hub.mjs), against the website build (dist/site):
+// - the front page lists the games and links to each one,
+// - old game links (?play=now, ?challenge=...) go on to fantastical/, while
+//   campaign tags alone and the installed app stay on the front page,
+// - NINETIMESNINE plays on its own page, and the game's menu link opens it,
+// - the front page's Look menu is the game's own color setting,
+// - Suggest a storyline goes back to the game, and the offline helper covers every page.
+const { chromium } = require('playwright');
+const { spawn } = require('child_process');
+const path = require('path');
+const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`ok  ${m}`); };
+const site = path.join(__dirname, '..', 'dist', 'site');
+const PORT = 8157;
+// Every grid-kit game: folder, id, name, and whether it has its intro videos yet.
+const KIT = [['cage-math', 'cm', 'Cage Math', true], ['sum-cross', 'sc', 'Sum Cross', true], ['picture-grid', 'pg', 'Picture Grid', true], ['more-or-less', 'ml', 'More or Less', false],
+  ['skyline', 'sk', 'Skyline', false], ['star-field', 'sf', 'Star Field', false], ['loop-line', 'll', 'Loop Line', false], ['island-bridges', 'ib', 'Island Bridges', false]];
+const KIT_PAGES = KIT.map(([dir]) => `${dir}/`);
+const BASE = `http://localhost:${PORT}`;
+// Fonts come from npm packages; a build without them is still a fair test of everything else.
+const ignorable = (t) => /fonts\/|Failed to decode downloaded font|OTS parsing/.test(t);
+
+(async () => {
+  const server = spawn('node', [path.join(__dirname, 'serve.mjs'), site, String(PORT)], { stdio: 'ignore' });
+  await new Promise((r) => setTimeout(r, 700));
+  const browser = await chromium.launch();
+  const errors = [];
+  const watch = (page) => {
+    page.on('pageerror', (e) => errors.push(String(e)));
+    page.on('console', (m) => { if (m.type() === 'error' && !ignorable(m.text() + (m.location().url || ''))) errors.push(m.text()); });
+    page.on('response', (r) => { if (r.status() >= 400 && !ignorable(r.url())) errors.push(`${r.status()} ${r.url()}`); });
+  };
+  try {
+    const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' });
+    await ctx.addInitScript(() => { try { if (!localStorage.getItem('flg.settings')) localStorage.setItem('flg.settings', JSON.stringify({ introOffered: true, sound: false })); } catch (e) { /* none */ } });
+    const page = await ctx.newPage();
+    watch(page);
+
+    // ---- The front page
+    await page.goto(`${BASE}/`);
+    assert(new URL(page.url()).pathname === '/', 'the front page stays put');
+    assert(await page.locator('h1').count() === 1 && /Pick your puzzle/.test(await page.locator('h1').textContent()), 'the front page has one heading');
+    const play = await page.locator('a.play').evaluateAll((as) => as.map((a) => a.getAttribute('href')));
+    assert(JSON.stringify(play) === JSON.stringify(['fantastical/', 'ninetimesnine/', ...KIT_PAGES]), 'it links to every game');
+    assert(await page.locator('#watch video').count() >= 1, 'the front page shows the videos');
+    // Shared things open over the front page; only the Play buttons open a game page.
+    await page.click('.app-item[href="report/"]');
+    await page.waitForSelector('dialog.ovl[open] iframe');
+    await page.waitForFunction(() => /Close/.test(document.querySelector('dialog.ovl iframe')?.contentDocument?.querySelector('#rp-back-text')?.textContent || ''), null, { timeout: 15000 });
+    assert(new URL(page.url()).pathname === '/', 'Report a Problem opens in a window over the front page, which stays put');
+    await page.frameLocator('dialog.ovl iframe').locator('#rp-back').click();
+    await page.waitForFunction(() => !document.querySelector('dialog.ovl'));
+    assert(new URL(page.url()).pathname === '/', 'closing it leaves the player on the front page');
+    await page.click('.app-item[href="account/"]');
+    await page.waitForURL(`${BASE}/account/`);
+    await page.waitForSelector('#ac-main h1');
+    assert(/Your account/.test(await page.textContent('#ac-main h1')) && (await page.isVisible('#dlg-account') || await page.isVisible('#ac-off')), 'Account and sync opens its own Account page');
+    assert(await page.locator('#ac-back').getAttribute('href') === '../', 'the Account page leads back home');
+    await page.goto(`${BASE}/`);
+    const frontHtml = await page.content();
+    assert(!/support@thelogicgrid\.com/.test(frontHtml) && await page.locator('a.contact-link').count() === 1, 'the support address is not in the page; Contact us builds it when clicked');
+    const [mail] = await Promise.all([page.waitForEvent('request', { predicate: (r) => r.url().startsWith('mailto:'), timeout: 3000 }).catch(() => null), page.click('a.contact-link')]);
+    assert(!mail || mail.url() === 'mailto:support@thelogicgrid.com', 'Contact us opens an email to support');
+    assert(await page.$$eval('a[target=_blank]', (as) => as.every((a) => /noreferrer/.test(a.rel) && /noopener/.test(a.rel))), 'links that open a new tab pass nothing back (noopener noreferrer)');
+    await page.goto(`${BASE}/?utm_source=facebook&utm_campaign=launch`);
+    assert(new URL(page.url()).pathname === '/', 'campaign tags alone stay on the front page');
+
+    // ---- Look: the game's own color setting
+    await page.selectOption('#theme-pick', 'dark');
+    assert(await page.evaluate(() => document.documentElement.dataset.theme) === 'dark', 'Look changes the front page');
+    assert(await page.evaluate(() => JSON.parse(localStorage.getItem('flg.settings')).introOffered === true), 'and keeps the game\'s other settings');
+    await page.click('a.play[href="fantastical/"]');
+    await page.waitForSelector('#tier-choices input');
+    assert(new URL(page.url()).pathname === '/fantastical/', 'Play opens The Fantastical Logic Grid at fantastical/');
+    assert(await page.evaluate(() => document.documentElement.dataset.theme) === 'dark', 'the game uses the same Look');
+    await page.evaluate(() => { const s = JSON.parse(localStorage.getItem('flg.settings')); s.colorTheme = 'system'; localStorage.setItem('flg.settings', JSON.stringify(s)); });
+
+    // ---- Old links go on to the game
+    await page.goto(`${BASE}/?play=now&utm_source=email`);
+    await page.waitForSelector('#screen-play:not([hidden])', { timeout: 30000 });
+    const forwarded = new URL(page.url());
+    assert(forwarded.pathname === '/fantastical/', 'an old ?play=now link goes on to the game');
+    assert(!forwarded.searchParams.has('play') || forwarded.searchParams.get('play') === 'now', 'and the game opens a puzzle from it');
+    await page.goto(`${BASE}/?learn`);
+    await page.waitForURL(/\/fantastical\/\?learn/);
+    assert(true, 'an old ?learn link goes on to How to play');
+
+    // ---- The installed app starts on the front page
+    const app = await ctx.newPage();
+    watch(app);
+    await app.addInitScript(() => {
+      const real = window.matchMedia.bind(window);
+      window.matchMedia = (q) => (/display-mode: standalone/.test(q) ? { matches: true, media: q, addEventListener() {}, removeEventListener() {} } : real(q));
+    });
+    await app.goto(`${BASE}/`);
+    await app.waitForSelector('a.play');
+    assert(new URL(app.url()).pathname === '/', 'the installed app opens on the front page, with every game');
+    await app.goto(`${BASE}/fantastical/`);
+    await app.waitForSelector('#tier-choices input');
+    await app.click('#menu-btn');
+    await app.click('a[role=menuitem][href="./"]');
+    await app.waitForURL(`${BASE}/`);
+    await app.waitForSelector('a.play');
+    assert(true, 'the game menu\'s The Logic Grid home opens the front page, even in the installed app');
+    await app.close();
+    const manifest = await (await fetch(`${BASE}/manifest.webmanifest`)).json();
+    assert(manifest.id === './' && manifest.start_url === './', 'the app keeps its identity and starts at the front page');
+    const front = await (await fetch(`${BASE}/`)).text();
+    assert(/<link rel="manifest" href="manifest.webmanifest">/.test(front), 'the front page links the app manifest (Microsoft Store packaging reads it)');
+
+    // ---- NINETIMESNINE on its own page, from the game's menu
+    await page.goto(`${BASE}/fantastical/`);
+    await page.waitForSelector('#tier-choices input');
+    await page.click('#menu-btn');
+    const shown = await page.$$eval('#app-menu [role=menuitem]', (els) => els.filter((e) => e.offsetParent).map((e) => e.dataset.cmd || e.getAttribute('href')));
+    assert(!shown.some((c) => ['account', 'messages', 'install', 'numberplace', 'games', 'site', 'feedback'].includes(c)), `the game menu holds only the game's own things (${shown.join(', ')})`);
+    assert(shown.includes('./'), 'and a way back to The Logic Grid home');
+    assert(shown.includes('how-to-play/'), 'and the game\'s rules page');
+    await page.keyboard.press('Escape');
+    await page.goto(`${BASE}/`);
+    await page.click('a.play[href="ninetimesnine/"]');
+    await page.waitForURL(`${BASE}/ninetimesnine/`);
+    await page.waitForSelector('#np-setup-view:not([hidden]) #np-levels .choice', { timeout: 20000 });
+    assert(true, 'it opens NINETIMESNINE on its own page');
+    assert(await page.locator('.np-top a[href="../"]').count() >= 1 && await page.locator('a[href="../fantastical/"], a[href*="open=account"]').count() === 0, 'the page links home, and holds only its own things');
+    // ---- Every game has a rules page, linked from its card and its own page
+    await page.click('.np-top a[href="rules/"]');
+    await page.waitForURL(`${BASE}/ninetimesnine/rules/`);
+    assert(/rules and how to play/i.test(await page.textContent('h1')), 'NINETIMESNINE has a rules page');
+    const styles = await page.$$eval('.rules-style', (els) => els.map((e) => e.id));
+    assert(JSON.stringify(styles) === JSON.stringify(['classic', 'rival', 'chain', 'tide', 'glyph']), `it has every style's rules (${styles.join(', ')})`);
+    assert(await page.locator('.rules-style .np-ex').count() >= 25 && await page.locator('#glyph .np-ex-cell', { hasText: 'IV' }).count() > 0, 'with each worked example, glyphs included');
+    await page.goto(`${BASE}/`);
+    const rules = await page.locator('a.rules-link').evaluateAll((as) => as.map((a) => a.getAttribute('href')));
+    assert(JSON.stringify(rules) === JSON.stringify(['how-to-play/', 'ninetimesnine/rules/', ...KIT_PAGES.map((p) => `${p}rules/`)]), 'each game card links its rules page');
+    await page.click('a.rules-link[href="how-to-play/"]');
+    await page.waitForURL(`${BASE}/how-to-play/`);
+    assert(await page.locator('h2#rules').count() === 1, 'The Fantastical Logic Grid\'s page has the game rules');
+    await page.goto(`${BASE}/ninetimesnine/?style=rival`);
+    await page.waitForSelector('#np-setup-view:not([hidden]) #np-levels .choice', { timeout: 20000 });
+    assert(true, 'a ?style= link opens it too');
+
+    // ---- Every grid-kit game on its own page
+    for (const [dir, id, name, video] of KIT) {
+      await page.goto(`${BASE}/`);
+      await page.click(`a.play[href="${dir}/"]`);
+      await page.waitForURL(`${BASE}/${dir}/`);
+      await page.waitForSelector(`#${id}-root.gk-app`, { timeout: 20000 });
+      assert(await page.locator('h1').first().textContent() === name && await page.locator('.np-top a[href="../"]').count() >= 1, `${name} plays on its own page, which links home`);
+      await page.click('.np-top a[href="rules/"]');
+      await page.waitForURL(`${BASE}/${dir}/rules/`);
+      assert(new RegExp(`${name} rules and how to play`).test(await page.locator('h1').textContent()) && await page.locator('main table').count() === 1, `${name} has a rules page with its levels`);
+      if (video) assert(await page.locator('main video').count() >= 1, `${name}'s rules page has its videos`);
+      else assert(!(await page.locator('main video, .guide-videos').count()), `${name} has no video yet, and its rules page leaves the spot out`);
+    }
+    // From The Fantastical Logic Grid's page, the bar's name leads to the front page.
+    await page.evaluate(() => localStorage.setItem('flg.game', 'cage-math'));
+    await page.goto(`${BASE}/fantastical/`);
+    await page.waitForSelector('#screen-home:not([hidden]) #tier-choices input');
+    assert(await page.locator('#screen-games').isHidden(), 'The Fantastical Logic Grid\'s page always opens on its own home');
+    if (await page.locator('dialog[open]').count()) { await page.keyboard.press('Escape'); await page.waitForFunction(() => !document.querySelector('dialog[open]')); }
+    await page.click('#home-btn');
+    await page.waitForURL(`${BASE}/`);
+    assert(true, 'the name in its bar opens The Logic Grid front page');
+
+    // ---- Website pages around the game
+    await page.goto(`${BASE}/storyline/`);
+    assert(await page.locator('#sl-back').getAttribute('href') === '../fantastical/', 'Suggest a storyline goes back to the game');
+    const sw = await (await fetch(`${BASE}/sw.js`)).text();
+    assert(['fantastical/', 'ninetimesnine/', ...KIT_PAGES, './'].every((p) => sw.includes(`"${p}"`)), 'the offline helper keeps every page');
+    const sitemap = await (await fetch(`${BASE}/sitemap.xml`)).text();
+    assert(['fantastical/', 'ninetimesnine/', 'ninetimesnine/rules/', ...KIT_PAGES, ...KIT_PAGES.map((p) => `${p}rules/`)].every((p) => sitemap.includes(`/${p}</loc>`)), 'the sitemap lists every game and the rules pages');
+
+    assert(!errors.length, `no page errors${errors.length ? `: ${errors.join(' | ')}` : ''}`);
+  } finally {
+    await browser.close();
+    server.kill();
+  }
+})().catch((e) => { console.error(e.message); process.exit(1); });

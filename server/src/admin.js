@@ -36,7 +36,8 @@
 //   GET  /admin/v1/players?q=&filter=&sort=&dir=&page=&per=  every player, a page at a time; GET /admin/v1/players/:uid
 //   POST /admin/v1/players/:uid/(rename|ban|unban|reset-scores|delete)
 //   GET/POST /admin/v1/settings        feature switches and limits (settings.js)
-//   GET  /admin/v1/number-place        Number Place games by level (number-place.js)
+//   GET  /admin/v1/number-place        NINETIMESNINE games by level (number-place.js)
+//   GET  /admin/v1/kit-game/:game      Cage Math, Sum Cross or Picture Grid games by level (kit-games.js)
 //   GET/POST /admin/v1/announcements   messages in the game; POST .../:id/(end|delete)
 //   GET  /admin/v1/inbox?type=&status=&q=  Communication: messages, ideas, problems, errors and emails in one list (messages.js)
 //   GET  /admin/v1/conversations/:id   one conversation; POST .../:id/reply (with an optional puzzle file), .../:id/status (open|done|delete)
@@ -55,8 +56,11 @@
 //   GET  /admin/v1/alerts              free allowances close to running out
 //   /admin/v1/notify*                  my own push and email alerts (alerts.js)
 //   GET  /admin/v1/summary?days=       the week in numbers, for the Monday summary email
+//   GET  /admin/v1/analysis?days=      every number by topic, for the Analysis report (analysis.js)
+//   GET  /admin/v1/tuning              self-tuning: suggested changes waiting for approval; POST .../check, .../:id/(approve|decline|undo), .../rules (tuning.js)
 //   GET  /admin/v1/export/(players|scores|feedback).csv   spreadsheet downloads
 //   GET/POST /admin/v1/admins          who may sign in (owner only); POST /admin/v1/admins/remove
+//   GET/POST /admin/v1/admin-keys      assistant keys for helpers such as Claude (owner only); POST .../:id/revoke (admin-keys.js)
 //   GET  /admin/v1/connections[?refresh=1]  live status for the Connections and setup guide (connections.js)
 //   POST /admin/v1/connections/github  the Connections status Action's report: names that are set, never values
 //   GET  /admin/v1/archive             the weekly archive: setup, what goes, past runs (archive.js)
@@ -82,11 +86,13 @@ import { checkName, cleanName, nameKey, hasBlockedWords } from './names.js';
 import { deleteCompeteStatements, clearBoardCache } from './compete.js';
 import { SETTINGS, CELEBRATIONS, getSettings, checkSetting, saveSetting, themeList } from './settings.js';
 import { npSummary, NP_TUNING_CACHE_KEY } from './number-place.js';
+import { kitSummary, kitTuningKey } from './kit-games.js';
 import { TUNING_CACHE_KEY } from './learn.js';
 import { refreshSearch, searchSnapshots, lastTry, REFRESH_GAP_MS } from './search.js';
 import { workshopOptions, addPart, draftParts } from './workshop.js';
 import { characterRoutes, VOICES, VOICE_STYLES } from './characters.js';
 import { storySubmissionRoutes, syncIdeaBoxDecision } from './story-submissions.js';
+import { beatImageRoutes } from './story-images.js';
 import { TOPICS as FEEDBACK_TOPICS } from './feedback.js';
 import { claimReplies, finishReplies, replyCounts, releaseUpdate, dropUpdate, deleteReplyStatements, heldStoryline, approveStoryline, declineStoryline, storeBuiltPuzzle } from './replies.js';
 import { inbox, INBOX_TYPES, conversationView, teamReply, removePuzzle, puzzleStorage, PUZZLE_MAX_CHARS, setConversationStatus, startConversation, listNews, addNews, endNews, deleteNews, deleteMessageStatements, MessageRefusal } from './messages.js';
@@ -94,6 +100,7 @@ import { claimDailyEmail, finishDailyEmail } from './daily-email.js';
 import { archiveStatus, runArchive, buildArchive, exportArchive, confirmArchive } from './archive.js';
 import { FREE_LIMITS, cloudflareUsage } from './usage.js';
 import { plannerView, checkPlan, savePlan, resetPlan } from './daily.js';
+import { designView, checkDesign, saveDraft, discardDraft, publishDraft, restoreVersion } from './site-design.js';
 import { quality, alerts, summary, csv, CSV_KINDS } from './report.js';
 import { connectionStatus, checkGithubReport, saveGithubReport } from './connections.js';
 import { withFixes, errorFile } from './errors.js';
@@ -108,8 +115,13 @@ import { editionRoutes } from './editions.js';
 import { educatorRoutes } from './educators.js';
 import { puzzleReportRoutes } from './puzzle-reports.js';
 import { visitorRoutes } from './visits.js';
+import { analysisData } from './analysis.js';
+import { tuningRoutes } from './tuning.js';
 import { alertRoutes } from './alerts.js';
+import { KEY_PREFIX, checkKey, adminKeyRoutes } from './admin-keys.js';
+import { siteAccountRoutes } from './site-accounts.js';
 import { SESSION_PREFIX, PasskeyError, signInOptions, checkSignIn, startSession, checkSession, endSessionStatement, forgetAdminStatements, registerOptions, register, listPasskeys, removePasskey } from './passkeys.js';
+import { accountDeletedStatement } from './sync.js';
 
 const DAY = 24 * 3600_000;
 const ROLES = { viewer: 1, moderator: 2, admin: 3, owner: 4 };
@@ -117,16 +129,24 @@ const STORED_ROLES = ['admin', 'moderator', 'viewer'];
 const MAX_BODY = 8_000;
 // An admin must sign in again (with their password) at least this often, even
 // while the dashboard keeps refreshing their token; the dashboard itself signs
-// out after 30 idle minutes.
+// out after 1 idle hour.
 const SESSION_MAX_S = 12 * 3600;
 const DENIED_PER_DAY = 500; // refused requests written to the audit log, so a flood cannot fill it
 const ANALYTICS_CACHE_MS = 120_000;
-const TABLES = ['sync_users', 'sync_records', 'sync_deleted_users', 'players', 'scores', 'races', 'race_entries', 'race_invites', 'plays', 'parts', 'usage',
-  'app_errors', 'upkeep_log', 'admins', 'admin_audit', 'settings', 'announcements', 'bans', 'name_reviews', 'archive_log', 'feedback', 'feedback_replies', 'error_fixes', 'conversations', 'conversation_messages', 'message_contacts', 'news', 'search_snapshots', 'daily_plan', 'translations', 'rating_insights', 'campaigns', 'campaign_ads', 'marketing_media', 'campaign_stats', 'challenges', 'daily_results', 'daily_email', 'supporters', 'payment_blocks', 'puzzle_mail', 'puzzle_mail_got', 'puzzle_mail_days', 'special_editions', 'educator_requests', 'special_badges', 'badge_awards', 'puzzle_reports', 'player_puzzles', 'visit_stats', 'educator_feedback', 'print_packs', 'print_pack_stories', 'admin_passkeys', 'admin_sessions', 'np_plays', 'alert_prefs', 'alert_devices', 'alert_queue'];
+const TABLES = ['sync_users', 'sync_records', 'sync_deleted_users', 'account_days', 'players', 'scores', 'races', 'race_entries', 'race_invites', 'plays', 'parts', 'usage',
+  'app_errors', 'upkeep_log', 'admins', 'admin_audit', 'settings', 'announcements', 'bans', 'name_reviews', 'archive_log', 'feedback', 'feedback_replies', 'error_fixes', 'conversations', 'conversation_messages', 'message_contacts', 'news', 'search_snapshots', 'daily_plan', 'translations', 'rating_insights', 'campaigns', 'campaign_ads', 'marketing_media', 'campaign_stats', 'challenges', 'daily_results', 'daily_email', 'supporters', 'payment_blocks', 'puzzle_mail', 'puzzle_mail_got', 'puzzle_mail_days', 'special_editions', 'educator_requests', 'special_badges', 'badge_awards', 'puzzle_reports', 'player_puzzles', 'visit_stats', 'educator_feedback', 'print_packs', 'print_pack_stories', 'admin_passkeys', 'admin_sessions', 'admin_keys', 'np_plays', 'kit_plays', 'alert_prefs', 'alert_devices', 'alert_queue', 'site_design', 'site_accounts', 'tuning_proposals', 'house_nudges', 'tuning_rules'];
 // worker-src blob: lets the Media library's celebrations draw off the main
 // thread, as they do in the game (canvas-confetti makes its own small worker).
+// frame-src: the Website page's live preview shows pages of the website (only).
+// connect-src 127.0.0.1 / localhost / *.thelogicgrid.com: the Voice engine page
+// talks to Vox on the owner's computer, or online at the owner's own address
+// (a named Cloudflare tunnel such as voice.thelogicgrid.com). Never
+// *.trycloudflare.com: anyone can get one of those free, so allowing them would
+// let a stray script send admin data to a stranger's address.
+// ipc: / http://ipc.localhost: inside the Windows admin app, how the page asks
+// the app to start and stop Vox (only the vox_* commands are allowed).
 const SECURITY_HEADERS = {
-  'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com; manifest-src 'self'; worker-src 'self' blob:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+  'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com http://127.0.0.1:* http://localhost:* http://ipc.localhost ipc: ws://127.0.0.1:* ws://localhost:* https://*.thelogicgrid.com wss://*.thelogicgrid.com; manifest-src 'self'; worker-src 'self' blob:; frame-src https://thelogicgrid.com; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
   'X-Content-Type-Options': 'nosniff',
   'X-Frame-Options': 'DENY',
   'Referrer-Policy': 'no-referrer',
@@ -137,6 +157,34 @@ const SECURITY_HEADERS = {
   'Cross-Origin-Resource-Policy': 'same-origin',
   'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=(), usb=(), serial=(), hid=(), bluetooth=(), interest-cohort=()',
 };
+
+// The preview frame shows the website set in SITE_URL (a test site in tests).
+// voxUrl: where Vox is online right now (see the Vox link below). Only that one
+// exact address is added, never *.trycloudflare.com as a whole.
+function adminCsp(env, voxUrl = '') {
+  let site = 'https://thelogicgrid.com';
+  try { site = new URL(env.SITE_URL || site).origin; } catch (e) { /* default */ }
+  let csp = SECURITY_HEADERS['Content-Security-Policy'].replace('frame-src https://thelogicgrid.com', `frame-src ${site}`);
+  if (voxUrl && VOX_URL.test(voxUrl)) csp = csp.replace('connect-src ', `connect-src ${voxUrl} `);
+  return csp;
+}
+
+// ---- Vox link: where Vox (the voice engine on the owner's Windows PC) is
+// online right now, with its admin token, so the Voice engine page on any
+// signed-in device can open it. The Windows admin app saves it each time it
+// starts Vox online (the free Cloudflare address changes every start) and
+// clears it when Vox stops. Admins only; kept in the settings table.
+const VOX_LINK_KEY = 'vox_link';
+const VOX_URL = /^https:\/\/(?:[a-z0-9-]+\.trycloudflare\.com|[a-z0-9-]+\.thelogicgrid\.com)$/;
+const VOX_TOKEN = /^[A-Za-z0-9_-]{16,128}$/;
+async function voxLink(env) {
+  try {
+    const r = await env.DB.prepare('SELECT value, updated_at FROM settings WHERE key = ?1').bind(VOX_LINK_KEY).first();
+    if (!r) return null;
+    const v = JSON.parse(r.value);
+    return v && VOX_URL.test(v.url) ? { url: v.url, token: v.token, at: r.updated_at } : null;
+  } catch (e) { return null; }
+}
 
 const isoDay = (ms) => new Date(ms).toISOString().slice(0, 10);
 const weekStart = (now) => { const d = new Date(now); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - ((d.getUTCDay() + 6) % 7)); };
@@ -191,6 +239,12 @@ async function identify(req, env) {
     const role = await roleOf(env, s.email);
     return { actor: s.email, role, key: `pk:${s.hash.slice(0, 24)}`, signedInAt: s.createdAt, session: s.hash };
   }
+  // An assistant key made by the owner in admin > Admins (admin-keys.js).
+  if (token.startsWith(KEY_PREFIX)) {
+    const k = await checkKey(env, token);
+    if (!k) throw new Refusal(401, 'sign_in', 'That assistant key is not right, has ended or was revoked.');
+    return { actor: `key: ${k.name}`, role: k.role, key: `key:${k.id}`, signedInAt: 0 };
+  }
   if (token.split('.').length !== 3) throw new Refusal(401, 'sign_in', 'That key is not right.');
   let user;
   try { user = await verifyIdToken(token, env); } catch (e) {
@@ -230,8 +284,9 @@ async function analytics(env, days, now = Date.now()) {
   const sinceDay = isoDay(since);
   const q = {
     accounts: db.prepare('SELECT COUNT(*) AS n FROM sync_users'),
-    accountsByDay: db.prepare("SELECT date(created_at / 1000, 'unixepoch') AS day, COUNT(*) AS n FROM sync_users WHERE created_at >= ?1 GROUP BY day").bind(since),
-    deleted: db.prepare('SELECT COUNT(*) AS n FROM sync_deleted_users WHERE deleted_at >= ?1').bind(since),
+    // Daily totals that stay put when an account is deleted (account_days).
+    accountsByDay: db.prepare('SELECT day, made AS n FROM account_days WHERE day >= ?1').bind(sinceDay),
+    deleted: db.prepare('SELECT COALESCE(SUM(deleted), 0) AS n FROM account_days WHERE day >= ?1').bind(sinceDay),
     names: db.prepare('SELECT COUNT(*) AS n FROM players'),
     newNames: db.prepare('SELECT COUNT(*) AS n FROM players WHERE created_at >= ?1').bind(since),
     banned: db.prepare('SELECT COUNT(*) AS n FROM bans WHERE until IS NULL OR until > ?1').bind(now),
@@ -262,6 +317,7 @@ async function analytics(env, days, now = Date.now()) {
     storiesWaiting: db.prepare("SELECT COUNT(*) AS n FROM story_submissions WHERE status = 'new' AND source = 'form'"),
     keysWaiting: db.prepare('SELECT COUNT(*) AS n FROM licenses WHERE waiting = 1 AND revoked_at IS NULL'),
     educatorFeedbackNew: db.prepare("SELECT COUNT(*) AS n FROM educator_feedback WHERE status = 'new' AND kind != 'survey'"),
+    tuningWaiting: db.prepare("SELECT COUNT(*) AS n FROM tuning_proposals WHERE status = 'waiting'"),
   };
   const names = Object.keys(q);
   const res = await db.batch(Object.values(q));
@@ -288,7 +344,7 @@ async function analytics(env, days, now = Date.now()) {
     voices: { byDay: series(r.voicesByDay), cap: settings.daily_tts_cap, enabled: settings.tts_enabled, today: series(r.voicesByDay).at(-1) },
     pictures: { byDay: series(r.picturesByDay), cap: settings.daily_picture_cap, mode: settings.ai_pictures, today: series(r.picturesByDay).at(-1) },
     errors: { byDay: series(r.errorsByDay) },
-    review: { parts: Object.fromEntries(r.parts.map((x) => [x.id, x.n])), namesWaiting: one('namesWaiting'), feedback: Object.fromEntries(r.feedbackNew.map((x) => [x.id, x.n])), messages: one('messagesUnread'), educators: one('educatorsWaiting'), stories: one('storiesWaiting'), educatorFeedback: one('educatorFeedbackNew'), keys: one('keysWaiting') },
+    review: { parts: Object.fromEntries(r.parts.map((x) => [x.id, x.n])), namesWaiting: one('namesWaiting'), feedback: Object.fromEntries(r.feedbackNew.map((x) => [x.id, x.n])), messages: one('messagesUnread'), educators: one('educatorsWaiting'), stories: one('storiesWaiting'), educatorFeedback: one('educatorFeedbackNew'), keys: one('keysWaiting'), tuning: one('tuningWaiting') },
   };
   analyticsCache.set(days, { at: now, body });
   return body;
@@ -452,6 +508,21 @@ const ROUTES = [
     const result = await refreshSearch(env, now);
     return { body: { result, sources: await searchSnapshots(env) }, detail: result };
   }],
+  ['GET', /^vox-link$/, 'admin', 'vox.link.view', async ({ env }) => ({ body: (await voxLink(env)) || {}, quiet: true })],
+  ['POST', /^vox-link$/, 'admin', 'vox.link.set', async ({ env, body, who }) => {
+    const url = str(body?.url, 200).replace(/\/+$/, '');
+    const token = str(body?.token, 200);
+    if (!VOX_URL.test(url)) throw new Refusal(400, 'bad_url', 'That is not a Vox online address.');
+    if (!VOX_TOKEN.test(token)) throw new Refusal(400, 'bad_token', 'That is not a Vox admin token.');
+    const old = await voxLink(env);
+    if (old && old.url === url && old.token === token) return { body: { ok: true }, quiet: true };
+    await saveSetting(env, VOX_LINK_KEY, { url, token }, who.actor);
+    return { body: { ok: true }, detail: { url } };
+  }],
+  ['DELETE', /^vox-link$/, 'admin', 'vox.link.clear', async ({ env }) => {
+    await env.DB.prepare('DELETE FROM settings WHERE key = ?1').bind(VOX_LINK_KEY).run();
+    return { body: { ok: true } };
+  }],
   ['GET', /^storage$/, 'viewer', 'storage.view', async ({ env }) => ({ body: await storage(env) })],
   ['GET', /^usage$/, 'viewer', 'usage.view', async ({ env, url }) => ({ body: await cloudflareUsage(env, daysParam(url, 30)) })],
 
@@ -511,6 +582,11 @@ const ROUTES = [
 
   // ---- The Storyline Submission Database (story-submissions.js).
   ...storySubmissionRoutes(Refusal),
+
+  // ---- Assistant keys for the admin API (admin-keys.js), owner only.
+  ...adminKeyRoutes(Refusal),
+  ...siteAccountRoutes(Refusal),
+  ...beatImageRoutes(Refusal),
 
   ['GET', /^feedback$/, 'moderator', 'feedback.view', async ({ env, url }) => {
     const kind = FEEDBACK_TOPICS[url.searchParams.get('kind')] ? url.searchParams.get('kind') : 'idea';
@@ -663,6 +739,7 @@ const ROUTES = [
       ...deleteBadgeStatements(env, uid),
       env.DB.prepare('UPDATE supporters SET user_id = NULL WHERE user_id = ?1').bind(uid),
       env.DB.prepare('UPDATE payment_blocks SET user_id = NULL WHERE user_id = ?1').bind(uid),
+      accountDeletedStatement(env, uid, now),
       env.DB.prepare('INSERT OR REPLACE INTO sync_deleted_users (user_id, deleted_at) VALUES (?1, ?2)').bind(uid, now),
     ]);
     clearBoardCache();
@@ -714,11 +791,16 @@ const ROUTES = [
     await saveSetting(env, body.key, value, who.actor);
     analyticsCache.clear();
     if (String(body.key).startsWith('np_')) await caches.default.delete(new Request(NP_TUNING_CACHE_KEY));
+    const kit = /^(cm|sc|pg|ml|sk|sf|ll|ib)_/.exec(String(body.key));
+    if (kit) await caches.default.delete(new Request(kitTuningKey(kit[1])));
     return { body: { key: body.key, value }, target: body.key, detail: { from: before, to: value } };
   }],
 
-  // Number Place's own section: how each level is going and what players get stuck on.
+  // NINETIMESNINE's own section: how each level is going and what players get stuck on.
   ['GET', /^number-place$/, 'viewer', 'numberplace.view', async ({ env, url }) => ({ body: await npSummary(env, daysParam(url, 90)) })],
+  // The grid-kit games (Cage Math, Sum Cross, Picture Grid, More or Less, Skyline,
+  // Star Field, Loop Line, Island Bridges): each its own section, the same way.
+  ['GET', /^kit-game\/(cm|sc|pg|ml|sk|sf|ll|ib)$/, 'viewer', 'kitgame.view', async ({ env, url, params: [game] }) => ({ body: await kitSummary(env, game, daysParam(url, 90)), quiet: true })],
 
   ['GET', /^announcements$/, 'viewer', 'announcements.view', async ({ env, now }) => {
     const { results } = await env.DB.prepare(`SELECT id, text, level, starts_at AS startsAt, ends_at AS endsAt, created_by AS createdBy, created_at AS createdAt
@@ -827,6 +909,27 @@ const ROUTES = [
     return { body: r, target: date };
   }],
 
+  // The website's design (Website page): try changes in a draft, then publish.
+  ['GET', /^site-design$/, 'viewer', 'site-design.view', async ({ env }) => ({ body: await designView(env), quiet: true })],
+  ['POST', /^site-design\/draft$/, 'admin', 'site-design.draft', async ({ env, body, who, now }) => {
+    const { value, error } = checkDesign(body);
+    if (error) throw new Refusal(400, 'bad_design', error);
+    return { body: { ok: true, draft: await saveDraft(env, value, who.actor, now) }, quiet: true };
+  }, { maxBody: 220_000 }],
+  ['POST', /^site-design\/discard$/, 'admin', 'site-design.discard', async ({ env }) => ({ body: await discardDraft(env) })],
+  ['POST', /^site-design\/publish$/, 'admin', 'site-design.publish', async ({ env, body, who, now }) => {
+    let design = null;
+    if (body && body.design) { const c = checkDesign(body); if (c.error) throw new Refusal(400, 'bad_design', c.error); design = c.value; }
+    const r = await publishDraft(env, who.actor, now, design);
+    if (r.error) throw new Refusal(400, 'nothing_to_publish', r.error);
+    return { body: r, target: String(r.published.id), detail: { changes: Object.keys(r.published.design), rebuilding: r.rebuilding } };
+  }, { maxBody: 220_000 }],
+  ['POST', /^site-design\/restore\/(\d+)$/, 'admin', 'site-design.restore', async ({ env, params: [id], who, now }) => {
+    const r = await restoreVersion(env, Number(id), who.actor, now);
+    if (r.error) throw new Refusal(404, 'unknown', r.error);
+    return { body: r, target: id };
+  }],
+
   ['GET', /^quality$/, 'viewer', 'quality.view', async ({ env, url }) => ({ body: await quality(env, daysParam(url, 90)) })],
   // ---- Puzzle ratings and insights (ratings.js).
   ...ratingRoutes(Refusal),
@@ -845,7 +948,9 @@ const ROUTES = [
   ...educatorRoutes(Refusal),
   ...puzzleReportRoutes(Refusal),
   ...visitorRoutes(),
+  ...tuningRoutes(Refusal),
   ...alertRoutes(Refusal),
+  ['GET', /^analysis$/, 'viewer', 'analysis.view', async ({ env, url, now, who }) => ({ body: await analysisData(env, daysParam(url, 365), { now, role: who.role, analytics, storage }) })],
   ['GET', /^alerts$/, 'viewer', 'alerts.view', async ({ env }) => ({ body: await alerts(env) })],
   ['GET', /^summary$/, 'admin', 'summary.view', async ({ env, url }) => {
     const s = await summary(env, daysParam(url, 31));
@@ -989,7 +1094,8 @@ async function appFile(env, url, file) {
   if (!env.ASSETS) return new Response('The admin app is not deployed with this Worker.', { status: 404 });
   const res = await env.ASSETS.fetch(new Request(new URL(`/${file}`, url.origin)));
   if (!res.ok) return new Response('Not found', { status: 404, headers: SECURITY_HEADERS });
-  return new Response(res.body, { headers: { ...SECURITY_HEADERS, 'Content-Type': TYPES[file.split('.').pop()] } });
+  const voxUrl = file.endsWith('.html') ? (await voxLink(env))?.url : '';
+  return new Response(res.body, { headers: { ...SECURITY_HEADERS, 'Content-Security-Policy': adminCsp(env, voxUrl), 'Content-Type': TYPES[file.split('.').pop()], ...(voxUrl ? { 'Cache-Control': 'no-store' } : {}) } });
 }
 
 const LEGACY = /^\/admin\/(learn(\/.*)?|errors)$/;

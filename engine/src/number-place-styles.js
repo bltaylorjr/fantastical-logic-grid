@@ -1,4 +1,4 @@
-// Game styles built on a Number Place puzzle. The puzzle itself is unchanged
+// Game styles built on a NINETIMESNINE puzzle. The puzzle itself is unchanged
 // (one answer, logic only); a style adds a way to play it:
 //
 //   classic   the traditional game

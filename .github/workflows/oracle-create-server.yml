@@ -1,0 +1,107 @@
+# Keeps trying to create the free Oracle build server (flg-build) until it
+# exists. Oracle's free Arm servers in Ashburn are often sold out, so this
+# asks every 2 minutes (scripts/runner/oracle-create-server.sh). Each run
+# lasts up to 5 hours and then starts the next one (the 5-minute schedule is
+# only a backup, since GitHub doesn't always run it). It stops by
+# itself once the server exists or the deadline below has passed. The owner
+# chose to stay on the free tier, so it asks for the Always Free size (2 Arm
+# cores, 12 GB) and, after the first day, also 1 core/6 GB as a last resort.
+#
+# Needs the repository secret OCI_API_KEY: the private key (.pem) of an API
+# key on the btay74@outlook.com Oracle user (Oracle Cloud > profile > User
+# settings > Tokens and keys > API keys). Until it is set, each run just says so.
+#
+# When the server is created it opens a GitHub issue (GitHub emails the owner),
+# so the next steps (runner token, Cloudflare tunnel) can follow.
+# Free: scheduled GitHub Actions on a public repo cost nothing.
+name: Create Oracle build server
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+  issues: write
+  actions: write   # to start its own next run
+concurrency:
+  group: oracle-create-server
+  cancel-in-progress: false
+env:
+  # Started Nov 1, 2026 (11 pm Eastern) for 24 hours; the owner chose to keep
+  # going on the free tier, so it now runs for another week.
+  DEADLINE: '2026-11-10T04:15:00Z'
+  # From here on the last-resort size (1 core, 6 GB) is tried too.
+  SMALLER_FROM: '2026-11-02T22:15:00Z'
+  # The API key's user, fingerprint and tenancy (identifiers, not secrets;
+  # Oracle profile > Tokens and keys > API keys > View configuration file).
+  OCI_USER: ocid1.user.oc1..aaaaaaaabao4wu7gjxtjamhpmfl3jpad4vgl3m3mhwg3trivbpey5yu7jijq
+  OCI_FINGERPRINT: '61:82:b0:a8:47:5b:4c:3a:81:2c:e7:3c:38:15:38:58'
+  OCI_TENANCY: ocid1.tenancy.oc1..aaaaaaaau2nnh62vtwnmo3ekgh7baojrc3nrd7ordqrxhcwvaymhmz3kl5aa
+jobs:
+  create:
+    # Always GitHub's own runners: the Oracle runners are what this creates.
+    runs-on: ubuntu-latest
+    # Each run keeps trying for up to 5 hours, then starts the next run, so
+    # it doesn't depend on GitHub's 5-minute schedule actually firing.
+    timeout-minutes: 330
+    steps:
+      - name: Still trying?
+        id: gate
+        env:
+          KEY: ${{ secrets.OCI_API_KEY }}
+        run: |
+          if [ "$(date -u +%s)" -gt "$(date -u -d "$DEADLINE" +%s)" ]; then echo "Past the deadline ($DEADLINE); not trying any more."; echo go=no >> "$GITHUB_OUTPUT"; exit 0; fi
+          missing=""
+          [ -n "$KEY" ] || missing="$missing secret OCI_API_KEY"
+          for v in OCI_USER OCI_FINGERPRINT OCI_TENANCY; do [ -n "${!v}" ] || missing="$missing $v"; done
+          if [ -n "$missing" ]; then echo "::warning::Not set up yet, missing:$missing"; echo go=no >> "$GITHUB_OUTPUT"; exit 0; fi
+          echo go=yes >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        if: steps.gate.outputs.go == 'yes'
+      - name: Oracle command line
+        if: steps.gate.outputs.go == 'yes'
+        env:
+          KEY: ${{ secrets.OCI_API_KEY }}
+        run: |
+          pip install --quiet --disable-pip-version-check oci-cli
+          mkdir -p ~/.oci
+          printf '%s\n' "$KEY" > ~/.oci/key.pem
+          printf '[DEFAULT]\nuser=%s\nfingerprint=%s\ntenancy=%s\nregion=us-ashburn-1\nkey_file=%s\n' "$OCI_USER" "$OCI_FINGERPRINT" "$OCI_TENANCY" "$HOME/.oci/key.pem" > ~/.oci/config
+          chmod 600 ~/.oci/key.pem ~/.oci/config
+      - name: Create the server if Oracle has room
+        if: steps.gate.outputs.go == 'yes'
+        id: create
+        env:
+          # Handed to the new server so its puzzle server and Cloudflare tunnel
+          # start on their own (docs/PUZZLE-SERVER.md). Optional.
+          FLG_TUNNEL_TOKEN: ${{ secrets.FLG_TUNNEL_TOKEN }}
+          FLG_PUZZLE_KEY: ${{ secrets.FLG_PUZZLE_KEY }}
+        run: |
+          end=$(( $(date -u +%s) + 5*3600 ))
+          deadline=$(date -u -d "$DEADLINE" +%s)
+          while :; do
+            now=$(date -u +%s)
+            # Last resort, after the first day: the smaller free size too.
+            if [ "$now" -gt "$(date -u -d "$SMALLER_FROM" +%s)" ]; then export SMALLER=1; fi
+            echo "--- $(date -u '+%H:%M UTC')${SMALLER:+ (smaller free sizes allowed too)}"
+            bash scripts/runner/oracle-create-server.sh || exit 1
+            result=$(tail -n 1 "$GITHUB_OUTPUT" | sed -n 's/^result=//p')
+            [ "$result" = FULL ] || exit 0
+            now=$(date -u +%s)
+            if [ "$now" -gt "$deadline" ]; then echo "Deadline reached; stopping."; exit 0; fi
+            if [ "$now" -gt "$end" ]; then echo "again=yes" >> "$GITHUB_OUTPUT"; exit 0; fi
+            sleep 120
+          done
+      - name: Start the next run
+        if: steps.create.outputs.again == 'yes'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run oracle-create-server.yml --repo "$GITHUB_REPOSITORY" --ref main
+      - name: Tell the owner
+        if: steps.create.outputs.result == 'CREATED'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "Oracle build server created (flg-build)" --body "Oracle finally had room: the free build server **flg-build** was created at $(date -u '+%Y-%m-%d %H:%M UTC') and is setting itself up (about 20 minutes).
+
+          Next: tell Claude \"the Oracle server is created\" so it can connect the GitHub runners and the Cloudflare tunnel. This workflow now stops by itself."

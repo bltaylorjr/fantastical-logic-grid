@@ -62,7 +62,7 @@ final class GameViewController: UIViewController, WKScriptMessageHandler, WKNavi
         case "print":
             let printer = UIPrintInteractionController.shared
             let info = UIPrintInfo(dictionary: nil)
-            info.jobName = body["title"] as? String ?? "The Fantastical Logic Grid"
+            info.jobName = body["title"] as? String ?? "The Logic Grid"
             info.outputType = .general
             printer.printInfo = info
             printer.printFormatter = webView.viewPrintFormatter()

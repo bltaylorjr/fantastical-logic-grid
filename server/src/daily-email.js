@@ -35,7 +35,7 @@ function page(title, text, status = 200) {
   const body = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>${esc(title)}</title></head>
 <body style="margin:0;padding:24px;background:#f6f1e7;font-family:Arial,Helvetica,sans-serif;font-size:17px;line-height:1.5;color:#1f1a14">
 <div style="max-width:520px;margin:40px auto;background:#fffdf8;border-radius:10px;padding:24px"><h1 style="font-size:22px;margin:0 0 12px">${esc(title)}</h1><p>${esc(text)}</p>
-<p><a href="https://thelogicgrid.com/" style="color:#7a3e00">Go to The Fantastical Logic Grid</a></p></div></body></html>`;
+<p><a href="https://thelogicgrid.com/" style="color:#7a3e00">Go to The Logic Grid</a></p></div></body></html>`;
   return new Response(body, { status, headers: {
     'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store',
     'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",

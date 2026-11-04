@@ -46,7 +46,7 @@ uses a secret, variable or binding that is not listed there.
 
 ### GitHub Pages (the website)
 
-**Why:** Hosts the game at <https://thelogicgrid.com>. The "Publish web version" workflow builds and publishes it on every push to main and every night at 00:17 UTC (the daily puzzle page). Once the source goes private (see "Private source"), Pages is served from the public repo bltaylorjr/thelogicgrid instead, so the Pages checks here become optional.
+**Why:** Hosts the game at <https://thelogicgrid.com>. The "Publish web version" workflow builds and publishes it on every push to main and every night just after midnight US Eastern (the daily puzzle page). Once the source goes private (see "Private source"), Pages is served from the public repo bltaylorjr/thelogicgrid instead, so the Pages checks here become optional.
 
 **Cost:** Free for public repositories.
 
@@ -132,6 +132,7 @@ uses a secret, variable or binding that is not listed there.
 | Name | Where | Notes |
 | --- | --- | --- |
 | `FLG_RUNNER` | GitHub repository variable | Value: `["self-hosted","flg"]` Runs Linux jobs on the Oracle build server. Optional. |
+| `OCI_API_KEY` | GitHub repository secret | Private key (.pem) of an Oracle API key for btay74@outlook.com (profile > Tokens and keys > API keys). Lets **Create Oracle build server** keep retrying until Oracle has free Arm capacity. Optional. |
 | `FLG_SITE_REPO` | GitHub repository variable | Value: `bltaylorjr/thelogicgrid` Publishes the site and mirrors releases to the public repo. Optional. |
 | `SITE_REPO_TOKEN` | GitHub repository secret | Fine-grained token with Contents: read and write on bltaylorjr/thelogicgrid only. Optional. |
 
@@ -147,6 +148,36 @@ uses a secret, variable or binding that is not listed there.
 8. Only after a desktop release with the new update address has shipped: **Settings** > **General** > **Danger Zone** > **Change visibility** > **Private**.
 
 **Links:** [GitHub variables](https://github.com/bltaylorjr/fantastical-logic-grid/settings/variables/actions) · [Fine-grained tokens](https://github.com/settings/personal-access-tokens) · [Full guide (docs/PRIVATE-REPO.md)](https://github.com/bltaylorjr/fantastical-logic-grid/blob/main/docs/PRIVATE-REPO.md)
+
+### Private puzzle server (generator off players' devices)
+
+**Why:** Puzzles and hints are made on the Oracle build server, so no game's generator, solver, storylines or topic libraries are ever sent to players' browsers (The Fantastical Logic Grid, NINETIMESNINE and any game added later in engine/src/games.js). The Worker reaches the server through a Cloudflare Tunnel (Workers VPC); the server has no public address. Everything stays off until these are set; deleting FLG_PUZZLE_SERVER and publishing again goes back to puzzles made on the player's device.
+
+**Cost:** Free: the Oracle Always Free VM (shared with the build runners) and Cloudflare Workers VPC (free while in beta; check before it leaves beta).
+
+| Name | Where | Notes |
+| --- | --- | --- |
+| `PUZZLES` | Worker binding (server/wrangler.toml) | Workers VPC Service flg-puzzles ([[vpc_services]] in wrangler.toml, with its Service ID). Optional. |
+| `PUZZLE_KEY` | Cloudflare Worker secret | The shared key the Worker sends to the puzzle server; the same value as FLG_PUZZLE_KEY. Optional. |
+| `FLG_PUZZLE_KEY` | GitHub repository secret | The same key as PUZZLE_KEY; handed to the Oracle server when it is created. Optional. |
+| `FLG_TUNNEL_TOKEN` | GitHub repository secret | Token of the Cloudflare tunnel flg-puzzles; handed to the Oracle server when it is created. Optional. |
+| `LIMIT_PUZZLES` | Worker binding (server/wrangler.toml) | Puzzles built per visitor per minute (120), every game. Optional. |
+| `LIMIT_HINTS` | Worker binding (server/wrangler.toml) | Play-time requests per visitor per minute (600): hints, NINETIMESNINE rival moves and tide, wizard checks. Optional. |
+| `FLG_PUZZLE_DEPLOY` | GitHub repository variable | Value: `1` Deploys the puzzle server to the Oracle VM on every engine change. Optional. |
+| `FLG_PUZZLE_SERVER` | GitHub repository variable | Value: `1` Publishes the website without the generator. Set last, after the health check is ok. Optional. |
+
+**Steps:**
+
+1. Run the updated `scripts/runner/oracle-cloud-init.sh` on the Oracle VM (docs/owner-tasks/2026-11-01-oracle-runners-and-puzzle-server.md, part A).
+2. Cloudflare > **Workers & Pages** > **VPC** > **Tunnels** > **Create** `flg-puzzles`, choose Docker, copy the token, and run `sudo TUNNEL_TOKEN=... bash /opt/flg/setup.sh` on the VM.
+3. Cloudflare > **VPC** > **VPC Services** > **Create**: tunnel `flg-puzzles`, HTTP, IPv4 `172.30.0.10`, port `8080`. Put its Service ID in `server/wrangler.toml` under `[[vpc_services]]` (binding `PUZZLES`).
+4. Open <https://dash.cloudflare.com/?to=/:account/workers/services/view/flg-api/production/settings> (Cloudflare > **Workers & Pages** > **flg-api** > **Settings** > **Variables and Secrets**).
+5. Click **Add** (or **Edit** next to `PUZZLE_KEY` if it is already there).
+6. Choose type **Secret**, enter the name `PUZZLE_KEY`, paste everything after FLG_PUZZLE_KEY= in `sudo cat /opt/flg/puzzle.env` on the VM as the value, and click **Deploy**.
+7. Add the variable `FLG_PUZZLE_DEPLOY` = `1` at <https://github.com/bltaylorjr/fantastical-logic-grid/settings/variables/actions> (FLG_RUNNER must be set too), and run **Deploy puzzle server**.
+8. When <https://flg-api.btay74.workers.dev/v1/puzzles/health> shows `"ok":true`, add `FLG_PUZZLE_SERVER` = `1` and run **Publish web version**.
+
+**Links:** [Workers VPC](https://dash.cloudflare.com/?to=/:account/workers/vpc/tunnels) · [GitHub variables](https://github.com/bltaylorjr/fantastical-logic-grid/settings/variables/actions) · [Full guide (docs/PUZZLE-SERVER.md)](https://github.com/bltaylorjr/fantastical-logic-grid/blob/main/docs/PUZZLE-SERVER.md)
 
 ### Dependabot and GitHub security
 
@@ -289,6 +320,7 @@ uses a secret, variable or binding that is not listed there.
 | `LIMIT_ADMIN` | Worker binding (server/wrangler.toml) |  |
 | `LIMIT_MESSAGES` | Worker binding (server/wrangler.toml) |  |
 | `LIMIT_LICENSE` | Worker binding (server/wrangler.toml) |  |
+| `LIMIT_SIGN_IN` | Worker binding (server/wrangler.toml) |  |
 
 **Steps:**
 
@@ -357,7 +389,7 @@ uses a secret, variable or binding that is not listed there.
 | Name | Where | Notes |
 | --- | --- | --- |
 | `OWNER_EMAIL` | Cloudflare Worker secret | Value: `fantasticallogicgrid@gmail.com` The owner's game account email. |
-| `FIREBASE_WEB_API_KEY` | Cloudflare Worker secret | The same AIza key as the GitHub variable FLG_FIREBASE_API_KEY. A value starting AQ. is wrong. |
+| `FIREBASE_WEB_API_KEY` | Cloudflare Worker secret | The same AIza key as the GitHub variable FLG_FIREBASE_API_KEY. A value starting AQ. is wrong. Screen-name sign-in for players uses it too. |
 
 **Steps:**
 
@@ -703,7 +735,7 @@ uses a secret, variable or binding that is not listed there.
 
 ### Bluesky (automatic posts)
 
-**Why:** Lets the marketing autopilot post approved Bluesky ads on their day. Without it, the Bluesky ad is emailed to you to post by hand.
+**Why:** Lets the marketing autopilot post approved Bluesky ads on their day. Also posts the daily puzzle (both slides) every morning. Without it, the Bluesky ad is emailed to you to post by hand.
 
 **Cost:** Free. An app password can only post; it cannot change the account password or settings.
 
@@ -746,7 +778,7 @@ uses a secret, variable or binding that is not listed there.
 
 ### X (automatic posts)
 
-**Why:** Lets the marketing autopilot post approved X ads on their day (text and link; the link shows the game's picture card).
+**Why:** Lets the marketing autopilot post approved X ads on their day (text and link; the link shows the game's picture card). Also posts the daily puzzle (text and links) every morning, starting the morning after the keys are saved.
 
 **Cost:** Free on the X API Free plan, which allows far more posts a month than this campaign needs. Do not pick a paid plan.
 
@@ -780,6 +812,8 @@ uses a secret, variable or binding that is not listed there.
 | `META_PAGE_ID` | GitHub repository secret | The Facebook Page's id (a number). |
 | `META_PAGE_TOKEN` | GitHub repository secret | A Page access token made from a long-lived user token, so it does not expire. Also used for Instagram. |
 | `INSTAGRAM_ACCOUNT_ID` | GitHub repository secret | The Instagram business account id linked to the Page (a number). |
+| `DAILY_PUZZLE_SOCIAL` | GitHub repository variable | Value: `off` Only to pause the daily puzzle post to the Facebook Page and Instagram (.github/workflows/daily-puzzle-social.yml). Delete it to post again. Optional. |
+| `DAILY_PUZZLE_GAMES` | GitHub repository variable | Value: `np,cm,sc,pg,ml,sk,sf,ll,ib` Which other games' daily puzzles are posted after the Logic Grid's (scripts/social-games.mjs): leave it unset for all nine, list some (for example `np,cm`), or `none` for the Logic Grid only. Optional. |
 
 **Steps:**
 
@@ -795,12 +829,13 @@ uses a secret, variable or binding that is not listed there.
 10. Add `META_PAGE_ID` the same way: the Page `id`.
 11. For Instagram: make the game's Instagram a free **Business** or **Creator** account (**Settings** > **Account type and tools**) and link it to the Page (Page **Settings** > **Linked accounts** > **Instagram**). Make the token again with the Instagram permissions ticked and update `META_PAGE_TOKEN`. Then in the Explorer run `<page id>?fields=instagram_business_account` and add its `id` as the secret `INSTAGRAM_ACCOUNT_ID`.
 12. Test: <https://github.com/bltaylorjr/fantastical-logic-grid/actions/workflows/marketing-post.yml> > **Run workflow** with mode `check`. Facebook Page (and Instagram) should say connected.
+13. The same keys post the daily puzzle every morning after it passes its checks (<https://github.com/bltaylorjr/fantastical-logic-grid/actions/workflows/daily-puzzle-social.yml>). To pause it, open <https://github.com/bltaylorjr/fantastical-logic-grid/settings/variables/actions>, click **New repository variable**, name `DAILY_PUZZLE_SOCIAL`, value `off`. Delete the variable to start again. NINETIMESNINE, Cage Math, Sum Cross, Picture Grid, More or Less, Skyline, Star Field, Loop Line and Island Bridges post their daily puzzles right after (each checked first, each with its answer key page at `<game>/daily/<date>/`); a game with its daily puzzle switched off in admin is skipped. To post only some of them, add the repository variable `DAILY_PUZZLE_GAMES` (for example `np,cm`, or `none`).
 
 **Links:** [Meta apps](https://developers.facebook.com/apps) · [Graph API Explorer](https://developers.facebook.com/tools/explorer) · [Full guide (scripts/marketing-post.py)](https://github.com/bltaylorjr/fantastical-logic-grid/blob/main/scripts/marketing-post.py)
 
 ### Threads (automatic posts)
 
-**Why:** Lets the marketing autopilot post approved Threads ads on their day.
+**Why:** Lets the marketing autopilot post approved Threads ads on their day. Also posts the daily puzzle (both slides) every morning, starting the morning after the keys are saved.
 
 **Cost:** Free. The token lasts 60 days; make a new one when the check says it stopped working.
 
@@ -823,7 +858,7 @@ uses a secret, variable or binding that is not listed there.
 
 ### LinkedIn (automatic posts)
 
-**Why:** Lets the marketing autopilot share approved LinkedIn ads on your profile on their day, with the link's picture card.
+**Why:** Lets the marketing autopilot share approved LinkedIn ads on your profile on their day, with the link's picture card. Also shares the daily puzzle every morning, starting the morning after the key is saved.
 
 **Cost:** Free (the Share on LinkedIn product). LinkedIn keys last 60 days: when the check says LinkedIn stopped working, press **Get the key** again.
 
@@ -845,7 +880,7 @@ uses a secret, variable or binding that is not listed there.
 
 ### Pinterest (automatic pins)
 
-**Why:** Lets the marketing autopilot pin approved Pinterest ads on their day, with the picture and the tracked link, to the board named in the ad.
+**Why:** Lets the marketing autopilot pin approved Pinterest ads on their day, with the picture and the tracked link, to the board named in the ad. Also pins the daily puzzle's clue slide every morning to the board **Daily Logic Puzzles** (make it with the other boards; without it the first board is used).
 
 **Cost:** Free. A new Pinterest app starts with Trial access, where pins are visible only to you. Ask for **Standard access** (free, a short form) and add the keys once it is approved.
 

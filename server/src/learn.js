@@ -5,7 +5,8 @@
 //   GET  /v1/learn/tuning  what every player's games taught: toughness per level,
 //                          clue mix, theme lean, and approved story parts
 //   POST /v1/learn/parts   a story part a player chose to share; waits for review
-//   POST /v1/learn/np/plays, GET /v1/learn/np/tuning   the same for Number Place (number-place.js)
+//   POST /v1/learn/np/plays, GET /v1/learn/np/tuning   the same for NINETIMESNINE (number-place.js)
+//   POST /v1/learn/(cm|sc|pg|ml|sk|sf|ll|ib)/plays, GET .../tuning     the same for each grid-kit game (kit-games.js)
 //   POST /v1/tts           Gemini voice clips for players without their own key,
 //                          cached, rate limited and capped per day
 //
@@ -20,6 +21,7 @@ import { getSettings } from './settings.js';
 import { readText } from './http.js';
 import { GEMINI_VOICES } from './voices.js';
 import { postNpPlays, getNpTuning } from './number-place.js';
+import { isKitGame, postKitPlays, getKitTuning } from './kit-games.js';
 
 // The edge-cache key of the tuning reply; the admin dashboard clears it after a review.
 export const TUNING_CACHE_KEY = 'https://flg-cloud.internal/v1/learn/tuning';
@@ -162,6 +164,36 @@ export function computeTuning(plays, approved) {
   return { games: plays.length, effort, clueWeights, themeWeights, parts, updated: new Date().toISOString() };
 }
 
+// Approved house nudges (the admin's Self-tuning, tuning.js) on top of what
+// everyone's games teach: effort:<tier> is added to a level's toughness,
+// theme:<id> multiplies how often Surprise me picks a theme. Listed under
+// `house` so the change is visible.
+export async function readNudges(env) {
+  try {
+    const { results } = await env.DB.prepare('SELECT target, value FROM house_nudges').all();
+    return Object.fromEntries(results.map((r) => [r.target, r.value]));
+  } catch (e) { return {}; } // not migrated yet
+}
+
+export function applyNudges(tuning, nudges) {
+  const out = { ...tuning, effort: { ...(tuning.effort || {}) }, themeWeights: { ...(tuning.themeWeights || {}) } };
+  const house = { effort: {}, themes: {} };
+  const r2 = (v) => Math.round(v * 100) / 100;
+  for (const [key, v] of Object.entries(nudges || {})) {
+    const [what, id] = key.split(':');
+    if (!Number.isFinite(v)) continue;
+    if (what === 'effort' && TIERS.has(id) && v) {
+      out.effort[id] = r2(clamp((out.effort[id] || 0) + v, -1, 1));
+      house.effort[id] = v;
+    } else if (what === 'theme' && THEME_IDS.has(id) && v !== 1) {
+      out.themeWeights[id] = r2(clamp((out.themeWeights[id] ?? 1) * v, 0.5, 1.6));
+      house.themes[id] = v;
+    }
+  }
+  if (Object.keys(house.effort).length || Object.keys(house.themes).length) out.house = house;
+  return out;
+}
+
 async function getTuning(req, env, ctx) {
   const cache = caches.default;
   const key = new Request(TUNING_CACHE_KEY);
@@ -170,7 +202,7 @@ async function getTuning(req, env, ctx) {
   const since = new Date(Date.now() - TUNING_DAYS * 86400000).toISOString().slice(0, 10);
   const plays = (await env.DB.prepare('SELECT tier, theme, clue_types, effort, signal, rating FROM plays WHERE day >= ? ORDER BY rowid DESC LIMIT 50000').bind(since).all()).results;
   const approved = (await env.DB.prepare("SELECT theme, kind, value FROM parts WHERE status = 'approved' ORDER BY reviewed DESC LIMIT 2000").all()).results;
-  const res = json(computeTuning(plays, approved), 200, { 'Cache-Control': 'public, max-age=900' });
+  const res = json(applyNudges(computeTuning(plays, approved), await readNudges(env)), 200, { 'Cache-Control': 'public, max-age=900' });
   ctx.waitUntil(cache.put(key, res.clone()));
   return res;
 }
@@ -345,9 +377,12 @@ export async function handleLearn(req, env, ctx, url = new URL(req.url)) {
     }
     let res;
     if (url.pathname === '/v1/learn/tuning' && req.method === 'GET') res = await getTuning(req, env, ctx);
-    // Number Place shares only these: its play summaries and its tuning (number-place.js).
+    // NINETIMESNINE shares only these: its play summaries and its tuning (number-place.js).
     else if (url.pathname === '/v1/learn/np/tuning' && req.method === 'GET') res = await getNpTuning(req, env, ctx, json);
     else if (url.pathname === '/v1/learn/np/plays' && req.method === 'POST') res = (await limited(env.LIMIT_PLAYS, req)) ? json({ error: 'Slow down.' }, 429) : await postNpPlays(req, env, await bodyJson(req, 64_000), json);
+    // The grid-kit games share the same two things (kit-games.js).
+    else if (/^\/v1\/learn\/(cm|sc|pg|ml|sk|sf|ll|ib)\/tuning$/.test(url.pathname) && req.method === 'GET') res = await getKitTuning(url.pathname.split('/')[3], env, ctx, json);
+    else if (/^\/v1\/learn\/(cm|sc|pg|ml|sk|sf|ll|ib)\/plays$/.test(url.pathname) && req.method === 'POST' && isKitGame(url.pathname.split('/')[3])) res = (await limited(env.LIMIT_PLAYS, req)) ? json({ error: 'Slow down.' }, 429) : await postKitPlays(url.pathname.split('/')[3], env, await bodyJson(req, 64_000), json);
     else if (url.pathname === '/v1/learn/plays' && req.method === 'POST') res = (await limited(env.LIMIT_PLAYS, req)) ? json({ error: 'Slow down.' }, 429) : await postPlays(req, env);
     else if (url.pathname === '/v1/learn/parts' && req.method === 'POST') res = (await limited(env.LIMIT_PARTS, req)) ? json({ error: 'Slow down.' }, 429) : await postPart(req, env);
     else res = json({ error: 'Not found.' }, 404);

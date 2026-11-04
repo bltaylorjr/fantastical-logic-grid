@@ -1,11 +1,12 @@
-// The Number Place screen: a separate numbers game with The Fantastical Logic
+// The NINETIMESNINE screen: a separate numbers game with The Fantastical Logic
 // Grid's look. The module (modules/number-place, copied to web/modules by the
 // build) and its stylesheet load the first time the player opens it, so the
-// Logic Grid's own start-up stays as fast as before. Number Place keeps its own
+// Logic Grid's own start-up stays as fast as before. NINETIMESNINE keeps its own
 // saves, settings and stats; the only thing it shares is anonymous play data
 // for the learning service (np-share.js).
 import * as npShare from './np-share.js';
 import { numberPlace as npConfig } from './remote-config.js';
+import { npEngine } from './np-engine.js';
 
 let mod = null;
 let loading = null;
@@ -19,22 +20,7 @@ function loadCss() {
   document.head.append(link);
 }
 
-async function engine(themes) {
-  try {
-    const { workerEngine } = await import('../modules/number-place/engine-client.js');
-    return workerEngine(new URL('../np-worker.js', import.meta.url), { themes });
-  } catch (e) {
-    // No module workers: run the engine on the page.
-    const [np, st] = await Promise.all([import('../engine/number-place.js'), import('../engine/number-place-styles.js')]);
-    return {
-      themes, generate: async (o) => np.generateNumberPlace(o), hint: async (p, en) => np.getNumberPlaceHint(p, en),
-      // The game styles: the rival's move and the Tidewater pools and ebb.
-      move: async (p, g, o) => st.nextPlacement(p, g, o), tide: async (p, o) => st.planTide(p, o), ebb: async (p, g, w) => st.ebbTide(p, g, w),
-    };
-  }
-}
-
-// The dashboard's choices for the module (admin console, Number Place section).
+// The dashboard's choices for the module (admin console, NINETIMESNINE section).
 function config() {
   const c = npConfig();
   return {
@@ -43,7 +29,7 @@ function config() {
   };
 }
 
-// Whether the menu offers Number Place (the dashboard can switch it off).
+// Whether the menu offers NINETIMESNINE (the dashboard can switch it off).
 export const enabled = () => npConfig().enabled !== false;
 
 export async function open(host = {}) {
@@ -54,7 +40,7 @@ export async function open(host = {}) {
       const [ui, story] = await Promise.all([import('../modules/number-place/ui.js'), import('../engine/number-place-story.js')]);
       const themes = story.NP_STORY_THEMES.map((t) => ({ id: t.id, name: t.name }));
       ui.mount(document.getElementById('np-root'), {
-        engine: await engine(themes),
+        engine: await npEngine(themes),
         storagePrefix: 'flg.np',
         shared: npShare.shared(),
         onPlay: (rec) => npShare.record(rec),
@@ -63,17 +49,21 @@ export async function open(host = {}) {
         config,
       });
       mod = ui;
+      // Races against other players (only when accounts are on).
+      import('./game-race.js').then((r) => r.attach('np', ui, document.getElementById('np-root'))).catch(() => { /* races are optional */ });
       npShare.refresh().then((s) => { if (s) ui.setShared(s); });
       npShare.flush();
     })();
     try { await loading; } catch (e) {
       loading = null;
-      document.getElementById('np-root').innerHTML = '<p class="muted">Number Place could not load. Check your connection and try again.</p>';
+      document.getElementById('np-root').innerHTML = '<p class="muted">NINETIMESNINE could not load. Check your connection and try again.</p>';
       return;
     }
   } else mod.reopen();
   // A game card's link to one of the games (Rival Grid, Tidewater...) picks it on the setup screen.
   if (host.style) mod.pickStyle(host.style);
+  // A daily puzzle post's link (?play=daily) opens today's puzzle.
+  if (host.daily) await mod.playDaily();
   document.getElementById('screen-np').focus();
 }
 

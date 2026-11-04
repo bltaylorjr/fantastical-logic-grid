@@ -22,6 +22,16 @@ up to 1,000 characters, and room for attachments:
   bytes and keeps only those types (never SVG or HTML, which could carry
   scripts). They are kept in `report_files`, seen only in the admin app
   (pictures shown, other files downloaded) and deleted after 90 days.
+- **Screenshot** (automatic): the moment Report a Problem is pressed, the
+  screen the player is on (the visible part only) is drawn into a JPEG in the
+  browser (`captureScreen` in `web/js/report-handoff.js`, using
+  `web/vendor/modern-screenshot`, loaded only then). Password boxes, videos,
+  frames and hidden screens are left out. It arrives on the report page as
+  the first attachment, "Screenshot of the screen you were on", and the player
+  can remove it before sending; after that it is an ordinary attached picture.
+  The new tab opens straight away and the page waits a few seconds for it; in
+  the apps (same window) it is made before the page changes. If it cannot be
+  made in 6 seconds the report goes without it.
 
 Problems are no longer sent through **Share an idea** (it used to be "Ideas
 and problems"), so that box is only for ideas.
@@ -193,7 +203,7 @@ The **Error tracking** page lists every report, filtered by category, status
 or search, with the puzzle or page, the error (the player's words), the reason
 for failure, the correction made and how many files were attached. Opening one
 shows the player's pictures and files, the doctor's log, the storyline as
-reported and as repaired, the clues, the picture, related reports, and
+reported and as repaired, the clues, the puzzle scene picture (the namespace SVG needs on its own is added when shown), related reports, and
 **Download the reported puzzle**, **Check again** and **Mark done with a
 note** (which emails the update to a player who asked). Below it, **What the
 doctor has learned** shows the learning table.

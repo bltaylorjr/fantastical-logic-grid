@@ -20,15 +20,13 @@ const BASE = `http://localhost:${PORT}`;
   const errors = [];
   try {
     const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block' });
-    // A tester's device, with the full package on (web/js/package-preview.js).
-    await ctx.addInitScript((h) => localStorage.setItem('flg.preview', h), /CODE_HASH = '([0-9a-f]{64})'/.exec(require('fs').readFileSync(path.join(__dirname, '..', 'web', 'js', 'package-preview.js'), 'utf8'))[1]);
     await ctx.addInitScript(() => { try { if (!localStorage.getItem('flg.settings')) localStorage.setItem('flg.settings', JSON.stringify({ introOffered: true })); } catch (e) { /* none */ } });
     const page = await ctx.newPage();
     page.on('pageerror', (e) => errors.push(String(e)));
     const screen = () => page.evaluate(() => ['home', 'play', 'learn', 'np'].find((s) => !document.getElementById(`screen-${s}`).hidden));
 
     // ---- The game
-    await page.goto(`${BASE}/`);
+    await page.goto(`${BASE}/fantastical/`);
     await page.waitForSelector('#tier-choices input');
     assert(await page.locator('#back-btn').isVisible(), 'the home screen has Back, to all the games');
     await page.click('#quick-btn');
@@ -36,7 +34,7 @@ const BASE = `http://localhost:${PORT}`;
     assert(await page.locator('#back-btn').isVisible(), 'a puzzle shows Back');
     await page.click('#back-btn');
     await page.waitForSelector('#screen-home:not([hidden])');
-    assert(new URL(page.url()).pathname === '/', 'Back from a puzzle goes home, still in the game');
+    assert(new URL(page.url()).pathname === '/fantastical/', 'Back from a puzzle goes home, still in the game');
 
     await page.click('#continue-btn');
     await page.waitForSelector('#screen-play:not([hidden])');
@@ -48,19 +46,21 @@ const BASE = `http://localhost:${PORT}`;
     assert(!(await page.locator('#dlg-settings[open]').count()) && (await screen()) === 'play', "the phone's back closes an open window first and stays on the puzzle");
     await page.goBack();
     await page.waitForSelector('#screen-home:not([hidden])');
-    assert(new URL(page.url()).pathname === '/', "the phone's back then goes from the puzzle to home, without leaving the game");
+    assert(new URL(page.url()).pathname === '/fantastical/', "the phone's back then goes from the puzzle to home, without leaving the game");
 
     await page.click('#continue-btn');
     await page.waitForSelector('#screen-play:not([hidden])');
     const androidBack = () => page.evaluate(() => window.__flgScreenBack && window.__flgScreenBack());
     assert(await androidBack() === true, "the Android app's back button steps back from a puzzle");
     await page.waitForSelector('#screen-home:not([hidden])');
-    assert(await androidBack() === true, 'on the home screen it goes to the game cards');
-    await page.waitForSelector('#screen-games:not([hidden])');
-    assert(await page.locator('#back-btn').isHidden(), 'no Back on the game cards');
-    assert(await androidBack() === false, 'and on the game cards it leaves the app to Android');
-    await page.click('#game-cards [data-game=logic-grid]');
-    await page.waitForSelector('#screen-home:not([hidden])');
+    // On the website every game has its own page, so the game cards are the
+    // front page (the apps keep them as a screen: e2e-games.cjs).
+    assert(await androidBack() === true, 'on the home screen it goes to all the games');
+    await page.waitForURL(`${BASE}/`);
+    await page.waitForSelector('a.play[href="fantastical/"]');
+    assert(true, 'which on the website is The Logic Grid front page');
+    await page.click('a.play[href="fantastical/"]');
+    await page.waitForSelector('#screen-home:not([hidden]) #tier-choices input');
 
     // A reload keeps the browser's history entries; going home afterwards
     // must not step back into the earlier load (that would reload the page).
@@ -81,7 +81,7 @@ const BASE = `http://localhost:${PORT}`;
     await page.waitForURL(/how-to-play\/$/);
     for (const where of ['header .back', 'footer [data-back]']) assert(await page.locator(where).first().isVisible(), `a website page has Back (${where.split(' ')[0]})`);
     await page.click('header .back');
-    await page.waitForURL(`${BASE}/`);
+    await page.waitForURL(`${BASE}/fantastical/`);
     await page.waitForSelector('#tier-choices input');
     assert(true, 'Back on a website page returns to the game it came from');
 
@@ -97,7 +97,7 @@ const BASE = `http://localhost:${PORT}`;
     const fresh = await ctx.newPage();
     await fresh.goto(`${BASE}/printables/`);
     await fresh.click('header .back');
-    await fresh.waitForURL(`${BASE}/`);
+    await fresh.waitForURL(`${BASE}/fantastical/`);
     assert(true, 'a page opened on its own goes Back to the game');
     await fresh.close();
 

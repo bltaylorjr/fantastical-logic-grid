@@ -1,4 +1,4 @@
-// Stories for Number Place. Each puzzle gets a short case: who needs the grid
+// Stories for NINETIMESNINE. Each puzzle gets a short case: who needs the grid
 // filled, why, and how it ends. A story id is made of its parts, and players
 // pass the ids they have seen back as usedStories so no story repeats.
 import { makeRng } from './rng.js';

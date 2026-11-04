@@ -167,12 +167,14 @@ test('setting up a device needs a recent password sign-in and a real admin', asy
   assert.equal((await call('/admin/v1/passkeys/register', { auth: mod, body: phone.create(options.body) })).body.error, 'passkey_expired');
 });
 
-test('sessions lock after 30 idle minutes and end after 12 hours', async () => {
+test('sessions lock after 1 idle hour and end after 12 hours', async () => {
   const phone = makePhone();
   await setUp(phone);
   const s = await signIn(phone);
   const hash = (await db.prepare('SELECT token_hash FROM admin_sessions ORDER BY created_at DESC LIMIT 1').first()).token_hash;
-  await db.prepare('UPDATE admin_sessions SET last_seen = ?2 WHERE token_hash = ?1').bind(hash, Date.now() - 31 * 60_000).run();
+  await db.prepare('UPDATE admin_sessions SET last_seen = ?2 WHERE token_hash = ?1').bind(hash, Date.now() - 59 * 60_000).run();
+  assert.equal((await call('/admin/v1/me', { auth: s.body.token })).status, 200);
+  await db.prepare('UPDATE admin_sessions SET last_seen = ?2 WHERE token_hash = ?1').bind(hash, Date.now() - 61 * 60_000).run();
   const locked = await call('/admin/v1/me', { auth: s.body.token });
   assert.deepEqual([locked.status, locked.body.error], [401, 'locked']);
 

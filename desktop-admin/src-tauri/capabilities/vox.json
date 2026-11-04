@@ -1,0 +1,17 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "vox",
+  "description": "The admin dashboard's Voice engine page may start, stop and connect to Vox on this computer. Nothing else: no files, no programs, no other app features.",
+  "windows": ["main"],
+  "remote": { "urls": ["https://flg-api.btay74.workers.dev/admin/*"] },
+  "permissions": [
+    "allow-vox-status",
+    "allow-vox-choose-folder",
+    "allow-vox-start",
+    "allow-vox-stop",
+    "allow-vox-token",
+    "allow-vox-open",
+    "allow-vox-set-online",
+    "allow-vox-set-autostart"
+  ]
+}

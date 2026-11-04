@@ -3,14 +3,17 @@
 //   POST /v1/sync, DELETE /v1/account    account sync (sync.js), signed in only
 //   /v1/profile, /v1/scores, /v1/scoreboard, /v1/races*
 //                                        screen names, races, scoreboard (compete.js)
+//   POST /v1/sign-in/name                sign in with a screen name instead of an email (name-sign-in.js)
 //   POST /v1/errors, GET /admin/errors   anonymous error reports from the apps (errors.js)
 //   POST /v1/feedback                    the game's idea and problem boxes (feedback.js)
 //   POST /v1/puzzle-report, GET /v1/repaired/:token   Report a problem on a puzzle, and its repaired copy (puzzle-reports.js)
 //   /v1/messages*                        messages between signed-in players and the team (messages.js)
 //   POST /v1/picture                     AI pictures from Workers AI (pictures.js)
 //   /v1/characters*                      the game's own characters and player suggestions (characters.js)
+//   GET /v1/beat-images[/:id]           story beat pictures (story-images.js)
 //   GET /v1/config                       announcements, switched-off themes, features (settings.js)
 //   GET /v1/daily/plan                   daily puzzle changes for the website build (daily.js)
+//   GET /v1/site/design                  the published website design, for the website build (site-design.js)
 //   /v1/daily/:date/(start|result|stats) everyone's numbers for a daily puzzle (daily-results.js)
 //   /v1/daily-email[/unsubscribe]       daily puzzle by email for signed-in players (daily-email.js)
 //   /v1/mail[/signup|confirm|unsubscribe|settings]  weekly and special edition puzzle emails, players and guests (puzzle-mail.js)
@@ -32,17 +35,21 @@
 // old data, database tidy-up, Google and Bing search numbers) and the weekly
 // archive email (archive.js), on the crons in wrangler.toml.
 
+import { handlePuzzles } from './puzzles.js';
 import { handleLearn } from './learn.js';
 import { handleCompete } from './compete.js';
+import { handleNameSignIn } from './name-sign-in.js';
 import { handleChallenges } from './challenges.js';
 import { handleErrors } from './errors.js';
 import { handleFeedback } from './feedback.js';
 import { handleStorySubmissions } from './story-submissions.js';
+import { handleBeatImages } from './story-images.js';
 import { handlePuzzleReports } from './puzzle-reports.js';
 import { handleMessages } from './messages.js';
 import { handlePictures } from './pictures.js';
 import { handleCharacters } from './characters.js';
 import { handleDaily } from './daily.js';
+import { handleSiteDesign } from './site-design.js';
 import { handleDailyResults } from './daily-results.js';
 import { handleQuality } from './quality.js';
 import { handleDailyEmail } from './daily-email.js';
@@ -92,6 +99,9 @@ async function route(req, env, ctx) {
   const learn = await handleLearn(req, env, ctx, url);
   if (learn) return learn;
 
+  const puzzles = await handlePuzzles(req, env, url);
+  if (puzzles) return puzzles;
+
   const challenge = await handleChallenges(req, env, url);
   if (challenge) return challenge;
 
@@ -102,6 +112,9 @@ async function route(req, env, ctx) {
   if (license) return license;
   const badges = await handleBadges(req, env, url, signedIn);
   if (badges) return badges;
+
+  const nameSignIn = await handleNameSignIn(req, env, url);
+  if (nameSignIn) return nameSignIn;
 
   const compete = await handleCompete(req, env, ctx, url, signedIn);
   if (compete) return compete;
@@ -114,6 +127,9 @@ async function route(req, env, ctx) {
 
   const feedback = await handleFeedback(req, env, url, ctx);
   if (feedback) return feedback;
+
+  const beatImages = await handleBeatImages(req, env, url);
+  if (beatImages) return beatImages;
 
   const storySubmission = await handleStorySubmissions(req, env, url, ctx);
   if (storySubmission) return storySubmission;
@@ -150,6 +166,9 @@ async function route(req, env, ctx) {
 
   const daily = await handleDaily(req, env, url);
   if (daily) return daily;
+
+  const siteDesign = await handleSiteDesign(req, env, url);
+  if (siteDesign) return siteDesign;
 
   const translated = await handleTranslate(req, env, url);
   if (translated) return translated;

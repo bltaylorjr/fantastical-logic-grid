@@ -1,4 +1,4 @@
-/* Number Place module. Everything is scoped to .np-app and uses the host
+/* NINETIMESNINE module. Everything is scoped to .np-app and uses the host
    app's color tokens (--accent, --bg, --text...), with fallbacks so it also
    works on a plain page. The host supplies .btn and .card. */
 .np-app { --np-accent: var(--accent, #5B3CC4); --np-bg: var(--bg, #fff); --np-text: var(--text, #121626); --np-muted: var(--muted, #4A5168);

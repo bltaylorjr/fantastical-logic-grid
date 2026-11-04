@@ -7,7 +7,7 @@ const toolsOf = (items) => ({ from: 'tool', items });
 export const MORE = {
   topics: [
     // ---------------------------------------------------------------- Olympiad
-    { id: 'olympiad', name: 'Math Olympiad', description: 'The hardest problems of the year and a hall full of young solvers.',
+    { id: 'olympiad', name: 'Math Olympiad', description: 'The hardest problems of the year and a handful of young solvers.',
       cast: { one: 'competitor', many: 'competitors' },
       names: ['Anya', 'Bram', 'Cyrus', 'Delia', 'Emeric', 'Freya', 'Gideon', 'Hana', 'Ilya', 'Jun'],
       categories: [

@@ -13,11 +13,13 @@ import { isSolvable, solveWithTrace, TECHNIQUE_NAMES } from './solver.js';
 import { makeLanguage, clueText } from './language.js';
 import { buildStory, buildQuestions } from './story.js';
 import { orderItems } from './order.js';
-import { customWorld, customStory } from './classroom.js';
+import { customWorld, customStory } from './classroom-build.js';
 import { PLAYER_STORIES, PLAYER_STORIES_THEME, getPlayerStory } from './player-stories.js';
 // The grid's shape lives in layout.js so the page can use it without loading
 // the story library; it is still exported from here as before.
 import { gridLayout } from './layout.js';
+// Lab modes (Timeline Case, Seating Plan): only when options.mode names one.
+import { isLabMode, resolveModeOptions, buildModeModel, MODE_CLUE_TYPES } from './modes.js';
 export { gridLayout };
 
 export const ENGINE_NAME = 'The Fantastical Logic Grid';
@@ -26,6 +28,7 @@ export const ENGINE_VERSION = '1.0.0';
 const clamp = (v, [lo, hi]) => Math.max(lo, Math.min(hi, v));
 
 function resolveOptions(opts = {}) {
+  if (isLabMode(opts.mode)) return resolveModeOptions(opts);
   const seed = opts.seed != null ? String(opts.seed) : Math.floor(Math.random() * 2 ** 32).toString(36);
   // theme "stories": a player-written story (player-stories.js) plays exactly
   // as written, at its own difficulty and full size, with its own cast.
@@ -80,13 +83,15 @@ function resolveOptions(opts = {}) {
   const questions = clamp(opts.questions ?? 3, [1, 6]);
   return { tier, seed, rng, theme, topic, scenario, K, N, customSize, weights, clueCount, questions, effort,
     extraParts: opts.storyParts, storyPrefs: opts.storyPrefs,
-    customNames: opts.customNames, customTitle: opts.title, usedStories: opts.usedStories || [], timeLimitMs: opts.timeLimitMs ?? tier.timeLimitMs ?? 15000,
+    answer: world && Array.isArray(opts.answer) ? opts.answer : null,
+    customNames: opts.customNames, customTitle: opts.title, usedStories: opts.usedStories || [], timeLimitMs: opts.timeLimitMs ?? null,
     maxAttempts: opts.maxAttempts ?? 60 };
 }
 
 // Choose the goal category, the other categories and their items. Exported
 // for the tests, which build stories for every topic and size.
 export function buildModel(o) {
+  if (o.mode) return buildModeModel(o);
   const { rng, scenario, K, N, weights } = o;
   const wantsOrdinal = 'less' in weights || 'diff' in weights;
   const goalDef = rng.pick(scenario.categories);
@@ -131,6 +136,30 @@ export function randomSolution(rng, K, N) {
   return sol;
 }
 
+// A custom world's own answer key (the Puzzle Wizard): who has which item in
+// each category, as [{ name, picks: { "Category name": "item" } }]. Every
+// name and item must be in the puzzle exactly once, so the model must use all
+// of them (as many items in each category as there are names).
+export function answerSolution(model, answer) {
+  const { K, N, cats } = model;
+  const key = (s) => String(s ?? '').trim().toLowerCase();
+  const rows = new Map(answer.map((r) => [key(r && r.name), r && r.picks ? r.picks : {}]));
+  const sol = [[...Array(N).keys()]];
+  for (let c = 1; c < K; c++) {
+    const col = cats[0].labels.map((name) => {
+      const picks = rows.get(key(name));
+      if (!picks) throw new Error(`The answer key has no row for ${name}.`);
+      const want = Object.entries(picks).find(([cat]) => key(cat) === key(cats[c].name));
+      const i = want ? cats[c].labels.findIndex((l) => key(l) === key(want[1])) : -1;
+      if (i < 0) throw new Error(`The answer key does not say which ${cats[c].name.toLowerCase()} ${name} has.`);
+      return i;
+    });
+    if (new Set(col).size !== N) throw new Error(`In the answer key, each ${cats[c].name.toLowerCase()} must go to exactly one ${cats[0].name.toLowerCase()}.`);
+    sol.push(col);
+  }
+  return sol;
+}
+
 function grade(K, N, clues, tier, L) {
   const res = solveWithTrace(K, N, clues, tier.maxLevel, L, [], tier.whatIfDepth);
   const levels = [0, 0, 0, 0];
@@ -155,7 +184,7 @@ function grade(K, N, clues, tier, L) {
 function selectClues(o, model, sol) {
   const { rng, tier, weights } = o;
   const { K, N } = model;
-  const ctx = { K, N, sol, ordinals: model.ordinals, rng };
+  const ctx = { K, N, sol, ordinals: model.ordinals, rng, ...model.clueCtx };
   const next = candidateStream(ctx, weights);
 
   // 1. Add clues until the puzzle can be solved (unique, no guessing).
@@ -219,7 +248,7 @@ export function generatePuzzle(options = {}) {
 
   for (let attempt = 0; attempt < o.maxAttempts; attempt++) {
     const model = buildModel(o);
-    const sol = randomSolution(o.rng, model.K, model.N);
+    const sol = o.answer ? answerSolution(model, o.answer) : randomSolution(o.rng, model.K, model.N);
     model.sol = sol;
     const L = makeLanguage(model);
     const clues = selectClues(o, model, sol);
@@ -233,9 +262,13 @@ export function generatePuzzle(options = {}) {
     if (!best || fit < best.fit) best = { fit, model, clues, attempt, score: g.score };
     if (fit === 0) pool.push({ fit, model, clues, attempt, score: g.score });
     if (pool.length >= want) break;
-    // Searching for a better effort match gets half the time budget.
-    if (pool.length && Date.now() - started > o.timeLimitMs / 2) break;
-    if (Date.now() - started > o.timeLimitMs) break;
+    // The build is bounded by attempts (maxAttempts), not the clock, so the same
+    // seed gives the same puzzle on every device. A caller may still pass
+    // timeLimitMs (classroom packages, scripts) to cap the time as well.
+    if (o.timeLimitMs) {
+      if (pool.length && Date.now() - started > o.timeLimitMs / 2) break;
+      if (Date.now() - started > o.timeLimitMs) break;
+    }
   }
   if (pool.length > 1) {
     pool.sort((p, q) => p.score - q.score);
@@ -260,7 +293,8 @@ function finalize(o, best, elapsedMs) {
   const ref = (gl) => ({ category: cats[Math.floor(gl / N)].id, item: gl % N, id: itemId(gl), label: L.label(gl) });
 
   const goal = { cat: model.goal.cat, item: rng.int(N) };
-  const story = scenario.custom ? customStory({ scenario, goal, model, L, customTitle: o.customTitle, seed: o.seed })
+  const story = scenario.modeStory ? scenario.modeStory({ rng, goal, model, L, customTitle: o.customTitle })
+    : scenario.custom ? customStory({ scenario, goal, model, L, customTitle: o.customTitle, seed: o.seed })
     : buildStory({ rng, scenario, goal, model, L, customTitle: o.customTitle, usedStories: o.usedStories,
       extraParts: o.extraParts, storyPrefs: prefsFor(o.storyPrefs, theme.id, scenario.key) });
   const goalAbout = { cat: model.goal.cat, item: null };
@@ -268,7 +302,8 @@ function finalize(o, best, elapsedMs) {
   goalAbout.item = sol[model.goal.cat][story.goalAnswer.item];
   const questions = buildQuestions({ rng, model, L, story, goal: goalAbout, count: o.questions });
 
-  const notes = [];
+  // A Lab mode may add its own notes (modes.js: a theme it could not use).
+  const notes = o.modeNotes ? [...o.modeNotes] : [];
   if (o.customSize) notes.push(`Custom size ${K} x ${N} is outside the ${tier.name} range (${tier.categories.join('-')} categories, ${tier.items.join('-')} items).`);
   if (o.clueCount && clues.length !== o.clueCount) {
     notes.push(clues.length > o.clueCount
@@ -284,7 +319,10 @@ function finalize(o, best, elapsedMs) {
     version: ENGINE_VERSION,
     id: `${theme.id}-${topic.id}-${tier.id}-${K}x${N}-${o.seed}`,
     seed: o.seed,
-    options: { difficulty: tier.id, theme: theme.id, topic: topic.id, categories: K, items: N, clueCount: o.clueCount, clueTypes: Object.keys(o.weights), questions: o.questions, ...(scenario.custom ? { custom: scenario.custom } : {}) },
+    options: { difficulty: tier.id, theme: theme.id, topic: topic.id, categories: K, items: N, clueCount: o.clueCount, clueTypes: Object.keys(o.weights), questions: o.questions, ...(scenario.custom ? { custom: scenario.custom } : {}), ...(o.mode ? { mode: o.mode } : {}) },
+    // Lab modes: which one, and the table's size for the solved panel's picture.
+    ...(o.mode ? { mode: o.mode } : {}),
+    ...(o.mode === 'seating' ? { table: { seats: N, category: cats[model.goal.cat].id } } : {}),
     title: story.title,
     theme: { id: theme.id, name: theme.name },
     topic: { id: topic.id, name: topic.name, description: topic.description },
@@ -298,8 +336,8 @@ function finalize(o, best, elapsedMs) {
       ...(c.note ? { note: c.note.replace(/\{one\}/g, scenario.cast.one).replace(/\{many\}/g, scenario.cast.many).replace(/\{low\}/g, c.labels[0]).replace(/\{high\}/g, c.labels.at(-1)) } : {}),
     })),
     grid: gridLayout(cats),
-    story: { id: story.id, parts: story.parts, title: story.title, paragraphs: story.paragraphs, text: story.text, goal: story.goalQuestion, ending: story.ending, wordCount: story.wordCount },
-    clues: clues.map((c, i) => ({ number: i + 1, text: clueText(L, c, rng), type: c.type, typeName: CLUE_TYPES[c.type], logic: encodeClue(c, itemId) })),
+    story: { id: story.id, parts: story.parts, title: story.title, paragraphs: story.paragraphs, text: story.text, goal: story.goalQuestion, ending: story.ending, wordCount: story.wordCount, ...(story.beatWords ? { beatWords: story.beatWords } : {}) },
+    clues: clues.map((c, i) => ({ number: i + 1, text: clueText(L, c, rng), type: c.type, typeName: CLUE_TYPES[c.type] || MODE_CLUE_TYPES[c.type], logic: encodeClue(c, itemId) })),
     questions: questions.map((q, i) => ({
       number: i + 1, text: q.text, category: cats[q.askCat].id,
       options: cats[q.askCat].labels.map((_, j) => `${cats[q.askCat].id}:${j}`),

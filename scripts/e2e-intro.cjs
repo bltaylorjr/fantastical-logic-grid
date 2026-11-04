@@ -28,7 +28,7 @@ const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`o
     await page.goto('http://localhost:8158/');
     await page.waitForSelector('#dlg-welcome[open]');
     await page.evaluate(() => document.querySelector('#dlg-welcome').close());
-    await page.click('#intro-btn');
+    await page.click('#help-btn'); await page.click('#help-intro');
     assert(await page.evaluate(() => document.querySelector('#dlg-video').open), 'Introduction opens');
     assert(await v('v.preload') === 'auto', 'the whole video buffers ahead');
     await v('v.play()');

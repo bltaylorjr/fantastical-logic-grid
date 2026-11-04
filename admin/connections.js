@@ -89,7 +89,7 @@ export const CONNECTIONS = [
     id: 'github-pages',
     group: 'website',
     title: 'GitHub Pages (the website)',
-    why: 'Hosts the game at https://thelogicgrid.com. The "Publish web version" workflow builds and publishes it on every push to main and every night at 00:17 UTC (the daily puzzle page). Once the source goes private (see "Private source"), Pages is served from the public repo bltaylorjr/thelogicgrid instead, so the Pages checks here become optional.',
+    why: 'Hosts the game at https://thelogicgrid.com. The "Publish web version" workflow builds and publishes it on every push to main and every night just after midnight US Eastern (the daily puzzle page). Once the source goes private (see "Private source"), Pages is served from the public repo bltaylorjr/thelogicgrid instead, so the Pages checks here become optional.',
     cost: 'Free for public repositories.',
     docs: 'hosting/DEPLOY.md',
     names: [
@@ -174,6 +174,7 @@ export const CONNECTIONS = [
     docs: 'docs/PRIVATE-REPO.md',
     names: [
       { name: 'FLG_RUNNER', where: 'github-variable', optional: true, value: '["self-hosted","flg"]', note: 'Runs Linux jobs on the Oracle build server.' },
+      { name: 'OCI_API_KEY', where: 'github-secret', optional: true, note: 'Private key (.pem) of an Oracle API key for btay74@outlook.com (profile > Tokens and keys > API keys). Lets **Create Oracle build server** keep retrying until Oracle has free Arm capacity.' },
       { name: 'FLG_SITE_REPO', where: 'github-variable', optional: true, value: 'bltaylorjr/thelogicgrid', note: 'Publishes the site and mirrors releases to the public repo.' },
       { name: 'SITE_REPO_TOKEN', where: 'github-secret', optional: true, note: 'Fine-grained token with Contents: read and write on bltaylorjr/thelogicgrid only.' },
     ],
@@ -188,6 +189,34 @@ export const CONNECTIONS = [
     ],
     links: [{ label: 'GitHub variables', url: `${REPO}/settings/variables/actions` }, { label: 'Fine-grained tokens', url: 'https://github.com/settings/personal-access-tokens' }],
     checks: [{ type: 'http', url: 'https://github.com/bltaylorjr/thelogicgrid', label: 'The public site repo exists', optional: true }],
+  },
+  {
+    id: 'puzzle-server',
+    group: 'github',
+    title: 'Private puzzle server (generator off players\' devices)',
+    why: 'Puzzles and hints are made on the Oracle build server, so no game\'s generator, solver, storylines or topic libraries are ever sent to players\' browsers (The Fantastical Logic Grid, NINETIMESNINE and any game added later in engine/src/games.js). The Worker reaches the server through a Cloudflare Tunnel (Workers VPC); the server has no public address. Everything stays off until these are set; deleting FLG_PUZZLE_SERVER and publishing again goes back to puzzles made on the player\'s device.',
+    cost: 'Free: the Oracle Always Free VM (shared with the build runners) and Cloudflare Workers VPC (free while in beta; check before it leaves beta).',
+    docs: 'docs/PUZZLE-SERVER.md',
+    names: [
+      { name: 'PUZZLES', where: 'worker-binding', optional: true, note: 'Workers VPC Service flg-puzzles ([[vpc_services]] in wrangler.toml, with its Service ID).' },
+      { name: 'PUZZLE_KEY', where: 'worker-secret', optional: true, note: 'The shared key the Worker sends to the puzzle server; the same value as FLG_PUZZLE_KEY.' },
+      { name: 'FLG_PUZZLE_KEY', where: 'github-secret', optional: true, note: 'The same key as PUZZLE_KEY; handed to the Oracle server when it is created.' },
+      { name: 'FLG_TUNNEL_TOKEN', where: 'github-secret', optional: true, note: 'Token of the Cloudflare tunnel flg-puzzles; handed to the Oracle server when it is created.' },
+      { name: 'LIMIT_PUZZLES', where: 'worker-binding', optional: true, note: 'Puzzles built per visitor per minute (120), every game.' },
+      { name: 'LIMIT_HINTS', where: 'worker-binding', optional: true, note: 'Play-time requests per visitor per minute (600): hints, NINETIMESNINE rival moves and tide, wizard checks.' },
+      { name: 'FLG_PUZZLE_DEPLOY', where: 'github-variable', optional: true, value: '1', note: 'Deploys the puzzle server to the Oracle VM on every engine change.' },
+      { name: 'FLG_PUZZLE_SERVER', where: 'github-variable', optional: true, value: '1', note: 'Publishes the website without the generator. Set last, after the health check is ok.' },
+    ],
+    steps: [
+      'Run the updated `scripts/runner/oracle-cloud-init.sh` on the Oracle VM (docs/owner-tasks/2026-11-01-oracle-runners-and-puzzle-server.md, part A).',
+      'Cloudflare > **Workers & Pages** > **VPC** > **Tunnels** > **Create** `flg-puzzles`, choose Docker, copy the token, and run `sudo TUNNEL_TOKEN=... bash /opt/flg/setup.sh` on the VM.',
+      'Cloudflare > **VPC** > **VPC Services** > **Create**: tunnel `flg-puzzles`, HTTP, IPv4 `172.30.0.10`, port `8080`. Put its Service ID in `server/wrangler.toml` under `[[vpc_services]]` (binding `PUZZLES`).',
+      ...CF_SECRET_STEPS('PUZZLE_KEY', 'everything after FLG_PUZZLE_KEY= in `sudo cat /opt/flg/puzzle.env` on the VM'),
+      `Add the variable \`FLG_PUZZLE_DEPLOY\` = \`1\` at ${REPO}/settings/variables/actions (FLG_RUNNER must be set too), and run **Deploy puzzle server**.`,
+      'When https://flg-api.btay74.workers.dev/v1/puzzles/health shows `"ok":true`, add `FLG_PUZZLE_SERVER` = `1` and run **Publish web version**.',
+    ],
+    links: [{ label: 'Workers VPC', url: 'https://dash.cloudflare.com/?to=/:account/workers/vpc/tunnels' }, { label: 'GitHub variables', url: `${REPO}/settings/variables/actions` }],
+    checks: [{ type: 'http', url: 'https://flg-api.btay74.workers.dev/v1/puzzles/health', label: 'The Worker reaches the puzzle server', optional: true }],
   },
   {
     id: 'github-security',
@@ -297,7 +326,7 @@ export const CONNECTIONS = [
     why: 'Per-player and per-connection request limits that keep the free allowances safe from floods.',
     cost: 'Free.',
     docs: 'server/wrangler.toml',
-    names: ['LIMIT_SYNC', 'LIMIT_AUTHLESS', 'LIMIT_COMPETE', 'LIMIT_PLAYS', 'LIMIT_PARTS', 'LIMIT_TTS', 'LIMIT_FEEDBACK', 'LIMIT_PICTURES', 'LIMIT_TRANSLATE', 'LIMIT_ERRORS', 'LIMIT_ADMIN_IP', 'LIMIT_ADMIN', 'LIMIT_MESSAGES', 'LIMIT_LICENSE']
+    names: ['LIMIT_SYNC', 'LIMIT_AUTHLESS', 'LIMIT_COMPETE', 'LIMIT_PLAYS', 'LIMIT_PARTS', 'LIMIT_TTS', 'LIMIT_FEEDBACK', 'LIMIT_PICTURES', 'LIMIT_TRANSLATE', 'LIMIT_ERRORS', 'LIMIT_ADMIN_IP', 'LIMIT_ADMIN', 'LIMIT_MESSAGES', 'LIMIT_LICENSE', 'LIMIT_SIGN_IN']
       .map((name) => ({ name, where: 'worker-binding' })),
     steps: ['Nothing to set up: each limit is a [[ratelimits]] block in `server/wrangler.toml`. Change the numbers there.'],
     links: [{ label: 'wrangler.toml', url: `${REPO}/blob/main/server/wrangler.toml` }],
@@ -358,7 +387,7 @@ export const CONNECTIONS = [
     docs: 'admin/README.md',
     names: [
       { name: 'OWNER_EMAIL', where: 'worker-secret', value: 'fantasticallogicgrid@gmail.com', note: 'The owner\'s game account email.' },
-      { name: 'FIREBASE_WEB_API_KEY', where: 'worker-secret', note: 'The same AIza key as the GitHub variable FLG_FIREBASE_API_KEY. A value starting AQ. is wrong.' },
+      { name: 'FIREBASE_WEB_API_KEY', where: 'worker-secret', note: 'The same AIza key as the GitHub variable FLG_FIREBASE_API_KEY. A value starting AQ. is wrong. Screen-name sign-in for players uses it too.' },
     ],
     steps: [
       'In the game (https://thelogicgrid.com), **Menu** > **Account and sync**: make an account with fantasticallogicgrid@gmail.com and click the link in the confirmation email.',
@@ -483,7 +512,7 @@ export const CONNECTIONS = [
     id: 'bluesky',
     group: 'marketing',
     title: 'Bluesky (automatic posts)',
-    why: 'Lets the marketing autopilot post approved Bluesky ads on their day. Without it, the Bluesky ad is emailed to you to post by hand.',
+    why: 'Lets the marketing autopilot post approved Bluesky ads on their day. Also posts the daily puzzle (both slides) every morning. Without it, the Bluesky ad is emailed to you to post by hand.',
     cost: 'Free. An app password can only post; it cannot change the account password or settings.',
     docs: 'scripts/marketing-post.py',
     names: [
@@ -522,7 +551,7 @@ export const CONNECTIONS = [
     id: 'x',
     group: 'marketing',
     title: 'X (automatic posts)',
-    why: 'Lets the marketing autopilot post approved X ads on their day (text and link; the link shows the game\'s picture card).',
+    why: 'Lets the marketing autopilot post approved X ads on their day (text and link; the link shows the game\'s picture card). Also posts the daily puzzle (text and links) every morning, starting the morning after the keys are saved.',
     cost: 'Free on the X API Free plan, which allows far more posts a month than this campaign needs. Do not pick a paid plan.',
     docs: 'scripts/marketing-post.py',
     names: [
@@ -552,6 +581,8 @@ export const CONNECTIONS = [
       { name: 'META_PAGE_ID', where: 'github-secret', note: 'The Facebook Page\'s id (a number).' },
       { name: 'META_PAGE_TOKEN', where: 'github-secret', note: 'A Page access token made from a long-lived user token, so it does not expire. Also used for Instagram.' },
       { name: 'INSTAGRAM_ACCOUNT_ID', where: 'github-secret', note: 'The Instagram business account id linked to the Page (a number).' },
+      { name: 'DAILY_PUZZLE_SOCIAL', where: 'github-variable', optional: true, value: 'off', note: 'Only to pause the daily puzzle post to the Facebook Page and Instagram (.github/workflows/daily-puzzle-social.yml). Delete it to post again.' },
+      { name: 'DAILY_PUZZLE_GAMES', where: 'github-variable', optional: true, value: 'np,cm,sc,pg,ml,sk,sf,ll,ib', note: 'Which other games\' daily puzzles are posted after the Logic Grid\'s (scripts/social-games.mjs): leave it unset for all nine, list some (for example `np,cm`), or `none` for the Logic Grid only.' },
     ],
     steps: [
       'Make the Facebook Page for the game (https://www.facebook.com/pages/create).',
@@ -565,6 +596,7 @@ export const CONNECTIONS = [
       'Add `META_PAGE_ID` the same way: the Page `id`.',
       'For Instagram: make the game\'s Instagram a free **Business** or **Creator** account (**Settings** > **Account type and tools**) and link it to the Page (Page **Settings** > **Linked accounts** > **Instagram**). Make the token again with the Instagram permissions ticked and update `META_PAGE_TOKEN`. Then in the Explorer run `<page id>?fields=instagram_business_account` and add its `id` as the secret `INSTAGRAM_ACCOUNT_ID`.',
       `Test: ${REPO}/actions/workflows/marketing-post.yml > **Run workflow** with mode \`check\`. Facebook Page (and Instagram) should say connected.`,
+      `The same keys post the daily puzzle every morning after it passes its checks (${REPO}/actions/workflows/daily-puzzle-social.yml). To pause it, open ${REPO}/settings/variables/actions, click **New repository variable**, name \`DAILY_PUZZLE_SOCIAL\`, value \`off\`. Delete the variable to start again. NINETIMESNINE, Cage Math, Sum Cross, Picture Grid, More or Less, Skyline, Star Field, Loop Line and Island Bridges post their daily puzzles right after (each checked first, each with its answer key page at \`<game>/daily/<date>/\`); a game with its daily puzzle switched off in admin is skipped. To post only some of them, add the repository variable \`DAILY_PUZZLE_GAMES\` (for example \`np,cm\`, or \`none\`).`,
     ],
     links: [{ label: 'Meta apps', url: 'https://developers.facebook.com/apps' }, { label: 'Graph API Explorer', url: 'https://developers.facebook.com/tools/explorer' }],
   },
@@ -572,7 +604,7 @@ export const CONNECTIONS = [
     id: 'threads',
     group: 'marketing',
     title: 'Threads (automatic posts)',
-    why: 'Lets the marketing autopilot post approved Threads ads on their day.',
+    why: 'Lets the marketing autopilot post approved Threads ads on their day. Also posts the daily puzzle (both slides) every morning, starting the morning after the keys are saved.',
     cost: 'Free. The token lasts 60 days; make a new one when the check says it stopped working.',
     docs: 'scripts/marketing-post.py',
     names: [
@@ -595,7 +627,7 @@ export const CONNECTIONS = [
     group: 'marketing',
     oauth: 'linkedin',
     title: 'LinkedIn (automatic posts)',
-    why: 'Lets the marketing autopilot share approved LinkedIn ads on your profile on their day, with the link\'s picture card.',
+    why: 'Lets the marketing autopilot share approved LinkedIn ads on your profile on their day, with the link\'s picture card. Also shares the daily puzzle every morning, starting the morning after the key is saved.',
     cost: 'Free (the Share on LinkedIn product). LinkedIn keys last 60 days: when the check says LinkedIn stopped working, press **Get the key** again.',
     docs: 'scripts/marketing-post.py',
     names: [{ name: 'LINKEDIN_TOKEN', where: 'github-secret', note: 'A member key that can post for you (60 days).' }],
@@ -614,7 +646,7 @@ export const CONNECTIONS = [
     group: 'marketing',
     oauth: 'pinterest',
     title: 'Pinterest (automatic pins)',
-    why: 'Lets the marketing autopilot pin approved Pinterest ads on their day, with the picture and the tracked link, to the board named in the ad.',
+    why: 'Lets the marketing autopilot pin approved Pinterest ads on their day, with the picture and the tracked link, to the board named in the ad. Also pins the daily puzzle\'s clue slide every morning to the board **Daily Logic Puzzles** (make it with the other boards; without it the first board is used).',
     cost: 'Free. A new Pinterest app starts with Trial access, where pins are visible only to you. Ask for **Standard access** (free, a short form) and add the keys once it is approved.',
     docs: 'scripts/marketing-post.py',
     names: [

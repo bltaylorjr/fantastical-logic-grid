@@ -5,6 +5,8 @@ import { join, relative, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import { buildSeo } from './seo.mjs';
+import { applySiteDesign } from './site-design-build.mjs';
+import { OWN_PAGES } from './hub.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const web = join(root, 'web');
@@ -33,15 +35,24 @@ if (existsSync(engineSrc)) {
   writeFileSync(join(web, 'engine', 'options.js'), `// Written by scripts/build.mjs from the engine's describeOptions(). Do not edit.\nexport const OPTIONS = ${JSON.stringify(describeOptions())};\n`);
 }
 
-// 1b. Number Place, its own game screen (modules/number-place). Copied in
+// 1b. NINETIMESNINE, its own game screen (modules/number-place). Copied in
 // here so the module stays one folder the private test app also uses; the
-// game serves its engine from web/engine and its worker from web/np-worker.js.
+// game serves its engine from web/engine and its worker from web/engine-worker.js.
 {
   const src = join(root, 'modules', 'number-place');
   const dest = join(web, 'modules', 'number-place');
   rmSync(join(web, 'modules'), { recursive: true, force: true });
   mkdirSync(dest, { recursive: true });
   for (const n of readdirSync(src).filter((f) => /\.(js|css)$/.test(f) && f !== 'engine-worker.js')) writeFileSync(join(dest, n), readFileSync(join(src, n)));
+  // The grid-kit games (Cage Math, Sum Cross, Picture Grid, More or Less,
+  // Skyline, Star Field, Loop Line, Island Bridges): the shared game screen
+  // (grid-kit) and each game's definition. Their engines run in the shared game worker
+  // like NINETIMESNINE's (engine/src/games.js); the test app's own worker
+  // files stay behind.
+  for (const dir of ['grid-kit', 'cage-math', 'sum-cross', 'picture-grid', 'more-or-less', 'skyline', 'star-field', 'loop-line', 'island-bridges']) {
+    mkdirSync(join(web, 'modules', dir), { recursive: true });
+    for (const n of readdirSync(join(root, 'modules', dir)).filter((f) => /\.(js|css)$/.test(f) && !['engine-worker.js', 'engine-client.js'].includes(f))) writeFileSync(join(web, 'modules', dir, n), readFileSync(join(root, 'modules', dir, n)));
+  }
 }
 
 // 2. Fonts.
@@ -82,13 +93,81 @@ if (process.env.FLG_SITE_REPO) {
   }
 }
 
+// Server mode (docs/PUZZLE-SERVER.md): FLG_PUZZLE_SERVER=1 makes a site whose
+// puzzles come from the private puzzle server (through the Worker), for every
+// game in engine/src/games.js. Only the engine files the page itself needs
+// (PAGE_FILES) ship; everything else in the engine (every game's generator,
+// solver, clue and story writer, the classroom package builder, the story and
+// topic libraries, and any engine file a future game adds) stays on the
+// server. The page's engine connection is swapped for the one that asks the
+// server, the few names the page still shows (theme and topic names) ship as
+// small lists, and the build fails if anything left behind still imports a
+// removed file. The desktop and phone apps do not set this, so they keep
+// working offline (for now).
+const PAGE_FILES = new Set([
+  'games.js',       // the list of games and their operations (data only)
+  'options.js',     // the setup screen's choices (written above)
+  'play.js',        // checking marks and spotting a solve
+  'beats.js',       // story moments while solving
+  'lab-stories.js', // story moments for the Timeline Case and Seating Plan styles (text only)
+  'lab-play.js',    // those styles' sizes and how they adapt to the player (no generator)
+  'story-parts.js', // story ids and player-written story parts (learning, storyline form)
+  'house-tuning.js', 'language.js', 'layout.js', 'tiers.js', 'rng.js', // tutorial and learning
+  'classroom.js',   // the Educators forms' checks (with names-only lists below)
+]);
+const puzzleServer = process.env.FLG_PUZZLE_SERVER === '1';
+if (puzzleServer) {
+  if (!cloudEnv.learnUrl) throw new Error('FLG_PUZZLE_SERVER=1 needs FLG_CLOUD_URL (the Worker that talks to the puzzle server)');
+  const engineOut = join(out, 'engine');
+  const src = join(root, 'engine', 'src');
+  const load = (f) => import(new URL(`file://${join(src, f)}`).href);
+  const removed = readdirSync(engineOut).filter((n) => !PAGE_FILES.has(n));
+  for (const n of removed) rmSync(join(engineOut, n), { recursive: true, force: true });
+  // The engine worker and NINETIMESNINE's old worker connector.
+  for (const f of ['engine-worker.js', join('modules', 'number-place', 'engine-client.js')]) rmSync(join(out, f), { force: true });
+  // The engine connection that asks the puzzle server.
+  writeFileSync(join(out, 'js', 'engine-links.js'), readFileSync(join(out, 'js', 'engine-links-remote.js')));
+  rmSync(join(out, 'js', 'engine-links-remote.js'));
+  // Names only: the Educators forms (classroom.js checks requests against the
+  // theme and topic list) and NINETIMESNINE's theme menu.
+  const { THEMES, plural } = await load('themes.js');
+  const { getTopics } = await load('topics.js');
+  const { NP_STORY_THEMES } = await load('number-place-story.js');
+  const themes = THEMES.map((t) => ({ id: t.id, name: t.name, description: t.description }));
+  const topics = Object.fromEntries(THEMES.map((t) => [t.id, getTopics(t.id).map((p) => ({ id: p.id, name: p.name }))]));
+  writeFileSync(join(engineOut, 'catalog-lite.js'), `// Written by scripts/build.mjs (server mode): theme and topic names only.\nexport const THEMES = ${JSON.stringify(themes)};\nconst TOPICS = ${JSON.stringify(topics)};\nexport const getTopics = (id) => TOPICS[id] || [];\nexport const plural = ${plural.toString()};\n`);
+  writeFileSync(join(engineOut, 'number-place-story.js'), `// Written by scripts/build.mjs (server mode): NINETIMESNINE theme names only.\nexport const NP_STORY_THEMES = ${JSON.stringify(NP_STORY_THEMES.map((t) => ({ id: t.id, name: t.name })))};\n`);
+  const classroom = readFileSync(join(src, 'classroom.js'), 'utf8')
+    .replace("import { THEMES } from './themes.js';\nimport { getTopics } from './topics.js';", "import { THEMES, getTopics } from './catalog-lite.js';");
+  if (!classroom.includes("from './catalog-lite.js'") || /from '\.\/(themes|topics|classroom-build)\.js'/.test(classroom)) throw new Error('Server mode: classroom.js imports changed; update the catalog-lite swap in scripts/build.mjs');
+  writeFileSync(join(engineOut, 'classroom.js'), classroom);
+  // Every import left in the site must still resolve to a file that shipped.
+  const missing = [];
+  const scan = (d) => {
+    for (const ent of readdirSync(d, { withFileTypes: true })) {
+      const n = ent.name;
+      const f = join(d, n);
+      if (ent.isDirectory()) { if (n !== 'vendor') scan(f); continue; }
+      if (!ent.isFile() || !/\.(js|mjs|html)$/.test(n)) continue;
+      // Comments may name removed files (usage examples); only real code counts.
+      const text = readFileSync(f, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+      for (const [, spec] of text.matchAll(/(?:from\s*|import\(\s*|new URL\(\s*)['"](\.{1,2}\/[^'"]+\.js)['"]/g)) {
+        if (!existsSync(join(dirname(f), spec))) missing.push(`${relative(out, f)} -> ${spec}`);
+      }
+    }
+  };
+  scan(out);
+  if (missing.length) throw new Error(`Server mode: these files still need code that stays on the puzzle server:\n  ${missing.join('\n  ')}`);
+  console.log(`Server mode: ${removed.length} engine files stay on the puzzle server; ${readdirSync(engineOut).length} small ones ship.`);
+}
+
 // Minify the game's own scripts and styles (not vendor/, which keeps its
 // published files and licenses) so the shipped code is smaller and much
 // harder to read or lift. Exports and imports keep their names, so modules
 // still load each other. FLG_NO_MINIFY=1 keeps readable files for debugging.
 if (!process.env.FLG_NO_MINIFY) {
   const { transformSync } = await import('esbuild');
-  const banner = '/*! The Fantastical Logic Grid. © 2026 Bobby Taylor. All rights reserved. Terms: https://thelogicgrid.com/terms/ */';
+  const banner = '/*! The Logic Grid. © 2026 Bobby Taylor. All rights reserved. Terms: https://thelogicgrid.com/terms/ */';
   const own = [];
   const walkOwn = (d) => { for (const n of readdirSync(d)) { const p = join(d, n); if (statSync(p).isDirectory()) { if (n !== 'vendor') walkOwn(p); } else if (/\.(js|css)$/.test(n) && n !== 'sw.js') own.push(p); } };
   walkOwn(out);
@@ -117,7 +196,7 @@ if (!process.env.FLG_NO_MINIFY) {
     }
     writeFileSync(p, `${banner}\n${code}`);
   }
-  for (const p of OBFUSCATE) if (!own.includes(p)) throw new Error(`Build: ${p} to obfuscate is missing`);
+  for (const p of OBFUSCATE) if (!own.includes(p) && !(puzzleServer && !PAGE_FILES.has(p.split(/[\\/]/).pop()))) throw new Error(`Build: ${p} to obfuscate is missing`);
 }
 
 // Content Security Policy for the game page (a <meta> tag, because GitHub
@@ -157,12 +236,36 @@ if (!indexHtml.includes('http-equiv="Content-Security-Policy"')) {
   if (!indexHtml.includes('Content-Security-Policy')) throw new Error('Could not add the security policy to index.html');
   writeFileSync(indexFile, indexHtml);
 }
-// The Suggest a storyline page (storyline/) and the Report a Problem page
-// (report/) get the same policy; they have no inline scripts.
-for (const dir of ['storyline', 'report']) {
+// The Account page (account/) shows the game's own Account and sync window
+// and its idle sign-out warning, copied from the game page here so the two
+// always match.
+{
+  const f = join(out, 'account', 'index.html');
+  const windows = ['dlg-account', 'dlg-idle'].map((id) => {
+    const m = indexHtml.match(new RegExp(`<dialog id="${id}"[\\s\\S]*?</dialog>`));
+    if (!m) throw new Error(`Build: index.html has no <dialog id="${id}"> for the Account page`);
+    return m[0];
+  }).join('\n');
+  const page = readFileSync(f, 'utf8');
+  if (!page.includes('<!-- ACCOUNT_WINDOWS -->')) throw new Error('Build: account/index.html has no <!-- ACCOUNT_WINDOWS --> place');
+  writeFileSync(f, page.replace('<!-- ACCOUNT_WINDOWS -->', windows));
+}
+// The Suggest a storyline page (storyline/), the Report a Problem page
+// (report/) and the Account page (account/) get the same policy; they have no inline scripts.
+for (const dir of ['storyline', 'report', 'account']) {
   const f = join(out, dir, 'index.html');
   const page = readFileSync(f, 'utf8');
   const policy = CSP.replace(/script-src [^;]*/, "script-src 'self'");
+  const withCsp = page.replace(/(<meta charset="utf-8">)/, `$1\n<meta http-equiv="Content-Security-Policy" content="${policy}">\n<meta name="referrer" content="strict-origin-when-cross-origin">`);
+  if (withCsp === page) throw new Error(`Could not add the security policy to ${dir}/index.html`);
+  writeFileSync(f, withCsp);
+}
+// The Puzzle Wizard (wizard/ and wizard/check/): the same policy, plus its
+// own PDF in a frame for Print (a blob: address the page made itself).
+for (const dir of ['wizard', 'wizard/check']) {
+  const f = join(out, dir, 'index.html');
+  const page = readFileSync(f, 'utf8');
+  const policy = CSP.replace(/script-src [^;]*/, "script-src 'self'").replace("frame-src 'none'", "frame-src 'self' blob:").replace("object-src 'none'", "object-src 'self' blob:");
   const withCsp = page.replace(/(<meta charset="utf-8">)/, `$1\n<meta http-equiv="Content-Security-Policy" content="${policy}">\n<meta name="referrer" content="strict-origin-when-cross-origin">`);
   if (withCsp === page) throw new Error(`Could not add the security policy to ${dir}/index.html`);
   writeFileSync(f, withCsp);
@@ -171,7 +274,7 @@ const files = [];
 const walk = (d) => { for (const n of readdirSync(d)) { const p = join(d, n); if (statSync(p).isDirectory()) walk(p); else files.push(relative(out, p).split('\\').join('/')); } };
 walk(out);
 // The Kokoro voice engine (about 28 MB) is cached when first used, not on install.
-const shell = ['./', ...files.filter((f) => f !== 'sw.js' && !f.endsWith('icon-1024.png') && !f.startsWith('icons/screens/') && !/^vendor\/(ort|kokoro)\//.test(f) && f !== 'kokoro-worker.js' && !f.startsWith('media/'))];
+const shell = ['./', ...files.filter((f) => f !== 'sw.js' && !f.endsWith('icon-1024.png') && !f.startsWith('icons/screens/') && !/^vendor\/(ort|kokoro|modern-screenshot)\//.test(f) && f !== 'kokoro-worker.js' && !f.startsWith('media/'))];
 const hash = createHash('sha256');
 for (const f of files.sort()) hash.update(f).update(readFileSync(join(out, f)));
 const version = hash.digest('hex').slice(0, 10);
@@ -241,6 +344,40 @@ cpSync(join(root, 'SECURITY.md'), join(site, 'security-policy.txt'));
 }
 // Search pages, daily puzzle, sitemap and search tags (website only).
 const seo = await buildSeo({ root, site });
+// The website design chosen in the admin dashboard (Website page).
+await applySiteDesign({ site, base: (process.env.FLG_SITE_URL || 'https://thelogicgrid.com').replace(/\/+$/, '') });
+// The Logic Grid's layout (scripts/hub.mjs): the front page at /, the game at
+// fantastical/, and every other game on a page of its own (ninetimesnine/,
+// cage-math/, sum-cross/, picture-grid/, more-or-less/, skyline/, star-field/,
+// loop-line/, island-bridges/). The installed app keeps its id ("./")
+// and starts at the front page; offline, every one of those pages opens.
+{
+  const mf = join(site, 'manifest.webmanifest');
+  const manifest = JSON.parse(readFileSync(mf, 'utf8'));
+  if (manifest.id !== './') throw new Error('manifest.webmanifest must keep id "./" so installed apps stay the same app');
+  manifest.start_url = './';
+  writeFileSync(mf, `${JSON.stringify(manifest, null, 2)}\n`);
+  const pagesHere = ['fantastical/', ...OWN_PAGES.map((g) => g.page)];
+  const swFile = join(site, 'sw.js');
+  let siteSw = readFileSync(swFile, 'utf8');
+  const listed = siteSw.match(/const FILES = (\[[^\n]*\]);/);
+  if (!listed) throw new Error('Could not find the file list in sw.js');
+  const shellHere = [...JSON.parse(listed[1]), ...pagesHere, 'js/hub.js', 'js/np-page.js', 'js/kit-page.js', 'js/design-preview.js', 'js/site-design.js'].filter((f, i, a) => a.indexOf(f) === i);
+  const siteHash = createHash('sha256').update(version);
+  for (const f of ['index.html', ...pagesHere.map((p) => `${p}index.html`), 'manifest.webmanifest']) siteHash.update(readFileSync(join(site, f)));
+  siteSw = siteSw.replace(listed[0], `const FILES = ${JSON.stringify(shellHere)};`).replace(`const VERSION = '${version}';`, `const VERSION = '${siteHash.digest('hex').slice(0, 10)}';`);
+  writeFileSync(swFile, siteSw);
+  const headers = join(site, '_headers');
+  writeFileSync(headers, readFileSync(headers, 'utf8').replace('/\n  Cache-Control: no-cache\n', `/\n  Cache-Control: no-cache\n${pagesHere.map((p) => `/${p}\n  Cache-Control: no-cache\n/${p}index.html\n  Cache-Control: no-cache\n`).join('')}`));
+}
+// Every other game's daily puzzle answer key, <game>/daily/<date>/ (today and
+// the 30 days before), linked from the daily puzzle posts (scripts/game-daily.mjs).
+{
+  const { writeDailyPages, loadConfig } = await import('./game-daily.mjs');
+  const config = await loadConfig(process.env.FLG_CLOUD_URL);
+  const n = await writeDailyPages({ site, base: (process.env.FLG_SITE_URL || 'https://thelogicgrid.com').replace(/\/+$/, ''), config });
+  console.log(`Wrote ${n} daily answer key pages for the other games${config ? '' : ' (admin switches not reachable: defaults used)'}.`);
+}
 console.log(`Built dist/site for web hosting (${seo.pages.length} pages in the sitemap).`);
 
 // The game page's first load (see MAINTENANCE.md, "Speed"):

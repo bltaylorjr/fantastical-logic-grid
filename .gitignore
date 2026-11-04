@@ -14,3 +14,6 @@ desktop-admin/src-tauri/gen/
 screenshots/
 __pycache__/
 media/marketing/out/
+
+# Daily puzzle pictures for Facebook and Instagram (scripts/social-puzzle.mjs)
+out/

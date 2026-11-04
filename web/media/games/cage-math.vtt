@@ -1,17 +1,17 @@
 WEBVTT
 
 1
-00:00:04.600 --> 00:00:08.800
-Each cage shows its target. This one says its three numbers add up to 7.
+00:00:07.600 --> 00:00:12.600
+Each row and each column holds every number once.
 
 2
-00:00:09.200 --> 00:00:13.200
-Two numbers that divide to make 3? Only 3 and 1.
+00:00:12.800 --> 00:00:17.800
+The numbers in each cage make its target, with the sign shown: add, subtract, multiply or divide.
 
 3
-00:00:13.400 --> 00:00:17.800
-So the top row's other two are 2 and 4, which make 6. The 7+ cage needs one more: 1.
+00:00:18.000 --> 00:00:23.000
+Every number follows from the last. No guessing, ever.
 
 4
-00:00:18.000 --> 00:00:23.600
-Every number follows from the last. No guessing.
+00:00:23.800 --> 00:00:27.600
+Solved. One answer, reached by logic alone, and a new puzzle every time.

@@ -20,6 +20,11 @@ name: Weekly improvement
 on:
   schedule:
     - cron: '23 8 * * 1'   # Mondays 08:23 UTC
+    # GitHub sometimes skips a scheduled run when it is busy (it skipped
+    # 2026-11-02). This backup an hour and a half later runs only when the
+    # 08:23 run did not, and still before the weekly Claude task (10:41 UTC
+    # in winter, 09:41 UTC in summer).
+    - cron: '47 9 * * 1'   # Mondays 09:47 UTC, backup
   workflow_dispatch:
     inputs:
       email:
@@ -38,8 +43,29 @@ permissions:
 concurrency:
   group: improve
 jobs:
-  improve:
+  # The backup schedule runs only when nothing ran this week's report today.
+  when:
     if: vars.IMPROVE != 'off'
+    runs-on: ubuntu-latest
+    outputs:
+      go: ${{ steps.check.outputs.go }}
+    steps:
+      - id: check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BACKUP: ${{ github.event_name == 'schedule' && github.event.schedule == '47 9 * * 1' }}
+        run: |
+          go=true
+          if [ "$BACKUP" = true ]; then
+            done=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow improve.yml --created ">=$(date -u +%F)" --json databaseId,conclusion \
+              -q "[.[] | select(.databaseId != ${{ github.run_id }} and .conclusion == \"success\")] | length")
+            if [ "${done:-0}" -gt 0 ]; then go=false; echo "The report already ran today, so the backup has nothing to do."; fi
+          fi
+          echo "go=$go" >> "$GITHUB_OUTPUT"
+
+  improve:
+    needs: when
+    if: needs.when.outputs.go == 'true'
     runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork && '"ubuntu-latest"') || vars.FLG_RUNNER || '"ubuntu-latest"') }}
     timeout-minutes: 75
     env:
@@ -48,7 +74,7 @@ jobs:
       LH_DIR: ${{ github.workspace }}/nightly-lighthouse
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
 

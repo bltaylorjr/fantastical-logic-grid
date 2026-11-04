@@ -13,6 +13,8 @@ const path = require('path');
   const page = await b.newPage();
   const errs = []; page.on('pageerror', (e) => errs.push(String(e)));
   await page.addInitScript(() => {
+    // These checks hear the cast while solving, which starts off (Settings > Sound).
+    try { const s = JSON.parse(localStorage.getItem('flg.settings') || '{}'); if (s.speechPlay === undefined) { s.speechPlay = true; localStorage.setItem('flg.settings', JSON.stringify(s)); } } catch (e) { /* no storage */ }
     // Stand-in Kokoro worker that records which voice spoke, and can pretend a
     // downloadable voice is unavailable (offline) so its stand-in speaks.
     window.__k = []; window.__offline = false;
@@ -87,7 +89,7 @@ const path = require('path');
     }
   });
   await page.waitForSelector('#solved:not([hidden])');
-  const cheer = await page.textContent('#resolution .cheer').catch(() => '');
+  const cheer = await page.textContent('#solved-cheer .cheer-words').catch(() => '');
   const winner = cast.find((c) => cheer.startsWith(`${c.who}:`));
   assert(winner && PERSONALITIES[profileOf(winner.who).personality].solve.some((l) => cheer.includes(l)), `the winner cheers in their own words (${cheer})`);
 

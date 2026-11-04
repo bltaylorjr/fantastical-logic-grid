@@ -107,11 +107,11 @@ const INIT = (Z) => {
   async function device({ silent = false, seed = SEED } = {}) {
     const ctx = await browser.newContext({ viewport: VIEW, deviceScaleFactor: 1, reducedMotion: 'no-preference', serviceWorkers: 'block' });
     await ctx.route('**/js/cloud-config.js', (r) => r.fulfill({ contentType: 'text/javascript', body: config }));
-    await ctx.route('**/worker.js', async (r) => {
+    await ctx.route('**/engine/flg-ops.js', async (r) => {
       const res = await r.fetch();
       r.fulfill({ response: res, body: (await res.text()).replace('generatePuzzle(args)', `generatePuzzle({ ...args, seed: args.seed || '${seed}' })`) });
     });
-    await ctx.addInitScript((s) => { if (!localStorage.getItem('flg.settings')) localStorage.setItem('flg.settings', JSON.stringify({ introOffered: true, voiceProvider: 'device', silent: s, coach: false })); }, silent);
+    await ctx.addInitScript((s) => { if (!localStorage.getItem('flg.settings')) localStorage.setItem('flg.settings', JSON.stringify({ introOffered: true, voiceProvider: 'device', silent: s, coach: false })); if (!localStorage.getItem('flg.game')) localStorage.setItem('flg.game', 'logic-grid'); }, silent);
     await ctx.addInitScript(INIT, ZOOM);
     const page = await ctx.newPage();
     page.on('pageerror', (e) => console.log('page error:', e.message));
@@ -448,21 +448,23 @@ const INIT = (Z) => {
     });
     await p.keyboard.press('Escape');
 
-    // ---------- Share a storyline idea (signed in, so the email box shows)
+    // ---------- Submit Puzzle Ideas: the Puzzle Wizard (it replaced Share an idea)
     await top();
     await film('idea', async () => {
       await wait(200);
       await tap('#menu-btn', 500); await wait(350);
-      await tap('[data-cmd=feedback]', 500);
-      await p.waitForSelector('#dlg-feedback[open]'); await wait(500);
-      await tap('#idea-form input[name=idea-topic][value=story] + *, #idea-form input[name=idea-topic][value=story]', 450).catch(() => {});
-      await p.selectOption('#idea-theme', 'nautical').catch(() => {});
-      await wait(300);
-      await tap('#idea-text', 500);
-      await p.locator('#idea-text').pressSequentially('A lighthouse keeper finds the great lantern switched off on the stormiest night of the year...', { delay: 38 });
+      await tap('[data-cmd=wizard]', 500);
+      await p.waitForSelector('#w-form .w-step'); await wait(500);
+      await tap('#w-title', 450);
+      await p.locator('#w-title').pressSequentially('The Lighthouse Keeper', { delay: 45 });
+      await wait(250);
+      await tap('#w-story', 450);
+      await p.locator('#w-story').pressSequentially('The great lantern went dark on the stormiest night of the year, and every keeper swears it was not them...', { delay: 32 });
       await wait(1500);
     });
-    await p.evaluate(() => { const d = document.querySelector('#dlg-feedback'); if (d && d.open) d.close(); });
+    // Back to the game for the next clip.
+    await p.goto(APP);
+    await p.waitForSelector('#tier-choices input');
     await top(); await wait(500);
     await film('home-signed-in', async () => { await wait(2200); });
 

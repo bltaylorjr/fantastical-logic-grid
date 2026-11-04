@@ -31,7 +31,7 @@ jobs:
             scripts/connections.mjs
             package.json
           sparse-checkout-cone-mode: false
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
       # Cloudflare deploys the Worker after a push to main; give it a moment.
@@ -52,6 +52,8 @@ jobs:
             ${{ secrets.CLOUDFLARE_PROJECT != '' && 'CLOUDFLARE_PROJECT' || '' }}
             ${{ secrets.DEPLOY_HOOK_URL != '' && 'DEPLOY_HOOK_URL' || '' }}
             ${{ secrets.FLG_ADMIN_TOKEN != '' && 'FLG_ADMIN_TOKEN' || '' }}
+            ${{ secrets.FLG_PUZZLE_KEY != '' && 'FLG_PUZZLE_KEY' || '' }}
+            ${{ secrets.FLG_TUNNEL_TOKEN != '' && 'FLG_TUNNEL_TOKEN' || '' }}
             ${{ secrets.FTP_DIR != '' && 'FTP_DIR' || '' }}
             ${{ secrets.FTP_PASSWORD != '' && 'FTP_PASSWORD' || '' }}
             ${{ secrets.FTP_SERVER != '' && 'FTP_SERVER' || '' }}
@@ -66,6 +68,7 @@ jobs:
             ${{ secrets.NETLIFY_AUTH_TOKEN != '' && 'NETLIFY_AUTH_TOKEN' || '' }}
             ${{ secrets.NETLIFY_SITE_ID != '' && 'NETLIFY_SITE_ID' || '' }}
             ${{ secrets.NIGHTLY_TO != '' && 'NIGHTLY_TO' || '' }}
+            ${{ secrets.OCI_API_KEY != '' && 'OCI_API_KEY' || '' }}
             ${{ secrets.OWNER_TASKS_TO != '' && 'OWNER_TASKS_TO' || '' }}
             ${{ secrets.PINTEREST_APP_ID != '' && 'PINTEREST_APP_ID' || '' }}
             ${{ secrets.PINTEREST_APP_SECRET != '' && 'PINTEREST_APP_SECRET' || '' }}

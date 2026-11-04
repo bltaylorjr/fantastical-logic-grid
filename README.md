@@ -1,4 +1,4 @@
-# The Fantastical Logic Grid: browser and desktop app
+# The Logic Grid: browser and desktop app
 
 The playable game, built on the puzzle and story engine in
 `/mnt/project-files/logic-grid-engine/` (copied in at build time, never edited here).
@@ -83,6 +83,32 @@ sentence plays while the rest is made; the story opening is pre-made when a puzz
 
 `releases/The-Fantastical-Logic-Grid.zip` holds the installer, a portable .exe and the web build.
 
+## Submit Puzzle Ideas (the Puzzle Wizard)
+
+Players make their own puzzle at `wizard/?game=fantastical` or `wizard/?game=ninetimesnine`
+(the front page's **Submit Puzzle Ideas** card asks which; also Menu > Submit Puzzle
+Ideas and the NINETIMESNINE page). It replaced the old Share an idea box, whose code stays for
+links in older pages and emails (`?open=feedback`).
+
+- **Questions** for each game, with help, an example and "how this is used in your puzzle"
+  for every entry: `web/js/wizard-fields.js` (also checks entries on the Worker and narrates
+  the how-to videos). Drawn by `web/js/wizard-form.js`; the pages are `web/js/wizard-page.js`.
+- **Autosave**: the entry is saved on the device as it is typed (localStorage
+  `flg.wizard.<game>`; pictures and sounds in IndexedDB `flg-wizard`).
+- **Live storyline** at the bottom of every step, read only.
+- **Check page** (`wizard/check/`): what is missing or wrong (with suggestions), an editor for
+  every entry, and whether the puzzle will have exactly one answer. A logic grid is proven by
+  a trial build (the engine writes clues for the author's own answer key:
+  `generatePuzzle({ custom, answer })`); a NINETIMESNINE grid is checked for one answer that
+  can be reasoned out, with a number to add when it is not (`web/js/wizard-build.js`).
+- **Build my puzzle**: a real PDF (`web/js/pdf-lite.js`, `web/js/wizard-pdf.js`; puzzle pages
+  and an answer key) to download or print, saved to Saved puzzles, and a copy to the team
+  (Storyline submissions, kind "Wizard puzzle", with pictures and sounds and how the author
+  wants each used and credited).
+- **How-to videos**: `video/wizard.cjs` records one for each game and The Logic Grid intro
+  (`.github/workflows/video.yml`); the wizard's **Watch how it works** shows the video and a
+  written guide to every entry.
+
 ## Player accounts (optional)
 
 Players can create an account (email and password) so saved puzzles, progress,
@@ -134,10 +160,12 @@ web/js/audio.js             sound effects and theme music (Web Audio)
 web/js/ai.js                AI pictures and voices (OpenAI, player's key), device-voice fallback
 web/js/store.js             IndexedDB saves and used-story list, settings
 web/js/engine-client.js     talks to the Web Worker
-web/worker.js               runs generatePuzzle and getHint off the main thread
+web/engine-worker.js        runs every game's engine off the main thread (engine/src/games.js)
 web/sw.js                   offline cache (file list stamped by the build)
-web/js/number-place.js      Number Place screen (modules/number-place, see modules/README.md)
-web/js/np-share.js          Number Place's anonymous play data for the learning service
+web/js/number-place.js      NINETIMESNINE screen (modules/number-place, see modules/README.md)
+web/js/np-share.js          NINETIMESNINE's anonymous play data for the learning service
+web/js/computer-race.js     Race the computer: the computer opponent's pace and the player's record (this device only)
+web/js/game-race.js         Races against other players in NINETIMESNINE and every grid-kit game
 desktop/src-tauri/          Tauri desktop shell
 scripts/                    build, local server, icons, end-to-end test
 ```

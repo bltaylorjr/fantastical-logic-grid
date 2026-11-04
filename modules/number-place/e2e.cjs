@@ -1,4 +1,4 @@
-// Number Place module in the private test app: start, play with keys, notes,
+// NINETIMESNINE module in the private test app: start, play with keys, notes,
 // undo and hints, solve it, and resume a saved game.
 // Run: npm run build && node modules/build-test-app.mjs && node modules/number-place/e2e.cjs
 const { chromium } = require('playwright');
@@ -39,6 +39,16 @@ const shots = process.env.NP_SHOTS;
     let s = await npState(page);
     const empty = s.givens.findIndex((d) => !d);
     await page.locator(`#np-board .np-cell[data-i="${empty}"]`).click();
+    // A touch that slides (scrolling the page) does not pick the cell it started on.
+    const other = empty === 0 ? 1 : 0;
+    const touch = (type, i, dy = 0) => page.evaluate(([type, i, dy]) => {
+      const r = document.querySelector(`#np-board .np-cell[data-i="${i}"]`).getBoundingClientRect();
+      document.querySelector(`#np-board .np-cell[data-i="${i}"]`).dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, pointerType: 'touch', clientX: r.left + 5, clientY: r.top + 5 + dy }));
+    }, [type, i, dy]);
+    await touch('pointerdown', other); await touch('pointermove', other, 40); await touch('pointerup', other, 40);
+    assert((await npState(page)).sel === empty, 'a touch that scrolls does not move the selection');
+    await touch('pointerdown', other); await touch('pointercancel', other);
+    assert((await npState(page)).sel === empty, 'a touch the browser turns into a scroll does not move the selection');
     const right = s.solution[empty], wrong = (right % 6) + 1;
     await page.keyboard.press(String(wrong));
     s = await npState(page);
