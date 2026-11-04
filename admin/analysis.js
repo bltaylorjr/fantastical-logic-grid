@@ -360,20 +360,25 @@ function reliability(d) {
   if (!a) return { ...t, missing: true };
   const errors = sum(a.errors.byDay);
   const games = sum(a.games.byDay);
+  // Errors still open: those from versions older than their fix are players on
+  // an old copy of the app (counted apart below), not a problem today.
+  const open = e.errorsOpen ?? errors;
+  const openTop = e.errorsOpenTop || e.errorsTop || [];
   const dbFull = st && st.databaseBytes && st.limits ? st.databaseBytes / st.limits.d1DatabaseBytes : null;
   t.tiles = [
     H.tile('Errors', H.fmt(errors), change(errors, e.previous?.errors), '#errortracking'),
-    H.tile('Errors per 100 games', games ? r1((100 * errors) / games) : '–', ''),
+    H.tile('Errors per 100 games', games ? r1((100 * open) / games) : '–', e.errorsFixed ? `${H.fmt(e.errorsFixed)} more from old app versions, already fixed` : ''),
     H.tile('Database', st ? H.esc(H.bytes(st.databaseBytes)) : '–', dbFull != null ? `${pc(dbFull)} of the free 500 MB` : '', '#usage'),
     H.tile('Free limit alerts', H.fmt(al ? al.alerts.length : null), al ? `Cloudflare numbers: ${al.cloudflare}` : '', '#usage'),
   ];
   t.body = `<div class="charts">${H.bars('Errors per day', a.errors.byDay, { labels: a.dayList })}</div>
     <h3>Most frequent errors</h3>${H.table([{ label: 'Error' }, { label: 'Where' }, { label: 'App' }, { label: 'Count', num: 1 }],
-      (e.errorsTop || []).map((x) => [H.esc(String(x.message).slice(0, 120)), H.esc(x.place || '–'), H.esc(APPS[x.platform] || x.platform || '–'), H.fmt(x.n)]), 'No errors in this period.')}`;
-  if (games >= 10 && errors / games > 0.2) {
-    t.findings.push({ st: 'act', text: `${r1((100 * errors) / games)} errors for every 100 games. The top error is "${H.esc(String(e.errorsTop?.[0]?.message || '').slice(0, 60))}".` });
-    t.ideas.push({ text: 'Fix the most frequent error first; it usually covers most of the reports', why: `${H.fmt(errors)} errors this period`, impact: 'high', effort: 'small', link: '#errortracking' });
-  } else if (games >= 10) t.findings.push({ st: 'good', text: `${H.fmt(errors)} errors for ${H.fmt(games)} games: few players hit a problem.` });
+      openTop.map((x) => [H.esc(String(x.message).slice(0, 120)), H.esc(x.place || '–'), H.esc(APPS[x.platform] || x.platform || '–'), H.fmt(x.n)]), 'No errors in this period.')}`;
+  if (games >= 10 && open / games > 0.2) {
+    t.findings.push({ st: 'act', text: `${r1((100 * open) / games)} errors for every 100 games. The top error is "${H.esc(String(openTop[0]?.message || '').slice(0, 60))}".` });
+    t.ideas.push({ text: 'Fix the most frequent error first; it usually covers most of the reports', why: `${H.fmt(open)} errors this period`, impact: 'high', effort: 'small', link: '#errortracking' });
+  } else if (games >= 10) t.findings.push({ st: 'good', text: `${H.fmt(open)} errors for ${H.fmt(games)} games: few players hit a problem.` });
+  if (e.errorsFixed) t.findings.push({ st: 'early', text: `${H.fmt(e.errorsFixed)} more errors came from old copies of the app, from before the version that fixed them. They stop as those players update.` });
   if (al && al.alerts.length) t.findings.push({ st: 'act', text: `${al.alerts.map((x) => H.esc(x.label)).join(', ')} close to the free limit.` });
   else if (al) t.findings.push({ st: 'good', text: 'No free allowance is close to running out.' });
   if (dbFull != null && dbFull > 0.6) t.findings.push({ st: 'watch', text: `The database is ${pc(dbFull)} full. Turn on the weekly archive in Backups.` });
