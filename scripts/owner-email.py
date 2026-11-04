@@ -117,7 +117,7 @@ def to_html(markdown):
 
 def send(subject, markdown, source='', attach=''):
     msg = EmailMessage()
-    msg['From'] = f'The Fantastical Logic Grid <{GMAIL_USER}>'
+    msg['From'] = f'The Logic Grid <{GMAIL_USER}>'
     msg['To'] = TO
     msg['Subject'] = subject
     footer = (f'\n\n---\nSent automatically from {source} in https://github.com/{REPO}' if source else

@@ -1,4 +1,4 @@
-// The admin dashboard for The Fantastical Logic Grid. Served by the game's
+// The admin dashboard for The Logic Grid. Served by the game's
 // Worker at /admin/ and talks only to its /admin/v1 API (server/src/admin.js).
 // Sign-in uses Firebase's REST API with the admin's game account, or Face ID
 // or a fingerprint (passkeys.js). With "Keep me signed in on this device" the

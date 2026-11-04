@@ -135,7 +135,7 @@ export async function buildArchive(env, now = Date.now()) {
   }
   const total = Object.values(counts).reduce((s, n) => s + n, 0);
   const manifest = {
-    app: 'The Fantastical Logic Grid', kind: 'weekly-archive', version: 1, generatedAt: new Date(now).toISOString(), total, tables, personalData: PERSONAL_DATA,
+    app: 'The Logic Grid', kind: 'weekly-archive', version: 1, generatedAt: new Date(now).toISOString(), total, tables, personalData: PERSONAL_DATA,
   };
   files.unshift({ name: 'manifest.json', data: JSON.stringify(manifest, null, 2) });
   files.push({ name: 'README.txt', data: readme(manifest) });
@@ -162,7 +162,7 @@ export function removalStatements(db, plan) {
 function readme(m) {
   const lines = Object.entries(m.tables).map(([t, x]) => `  ${t}.csv  ${x.rows} rows  ${x.label}`);
   return [
-    `The Fantastical Logic Grid: archive made ${m.generatedAt}`,
+    `The Logic Grid: archive made ${m.generatedAt}`,
     '',
     'Old rows the game no longer needs, saved before they were removed from the',
     'database. Open the CSV files in any spreadsheet, or drop this zip on the',
@@ -228,7 +228,7 @@ export async function runArchive(env, now = Date.now(), { trigger = 'weekly' } =
   try {
     await env.ARCHIVE_EMAIL.send({
       to: env.ARCHIVE_TO,
-      from: { email: env.ARCHIVE_FROM, name: 'The Fantastical Logic Grid' },
+      from: { email: env.ARCHIVE_FROM, name: 'The Logic Grid' },
       subject: `Logic Grid archive ${isoDay(now)}: ${total} old rows`,
       text: `The weekly archive of data the game no longer needs.\n\n${list || '  (no rows)'}\n\n${outcome}\n\nOpen the zip with Backups and archive > Archive viewer in the admin dashboard, or open the CSV files in a spreadsheet. Player ids are replaced with codes; README.txt in the zip lists the personal data it holds.\n`,
       attachments: total ? [{ filename: name, content: zip.buffer.slice(zip.byteOffset, zip.byteOffset + zip.length), type: 'application/zip', disposition: 'attachment' }] : undefined,

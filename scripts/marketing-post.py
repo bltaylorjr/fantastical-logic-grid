@@ -68,7 +68,7 @@ ADMIN_URL = f'{API}/admin/#marketing'
 UA = 'flg-marketing-post'
 GRAPH = 'https://graph.facebook.com/v21.0'
 THREADS = 'https://graph.threads.net/v1.0'
-REDDIT_UA = 'linux:flg-marketing-post:1.0 (The Fantastical Logic Grid)'
+REDDIT_UA = 'linux:flg-marketing-post:1.0 (The Logic Grid)'
 RETRY_DAYS = 3  # a failed automatic post is tried again on the next 3 mornings
 
 KEYS = {
@@ -641,7 +641,7 @@ def email(subject, parts):
     style = 'body{font-family:Segoe UI,Arial,sans-serif;font-size:15px;line-height:1.5;color:#1d1b29;max-width:760px}h3{margin-top:26px;border-top:1px solid #ddd;padding-top:12px}'
     body = f'<!doctype html><html><head><meta charset="utf-8"><style>{style}</style></head><body>{"".join(parts)}</body></html>'
     msg = EmailMessage()
-    msg['From'] = f'The Fantastical Logic Grid <{GMAIL_USER}>'
+    msg['From'] = f'The Logic Grid <{GMAIL_USER}>'
     msg['To'] = MAIL_TO
     msg['Subject'] = subject
     msg.set_content(re.sub(r'<[^>]+>', '', re.sub(r'</(p|h3|li|pre)>', '\n', body)))

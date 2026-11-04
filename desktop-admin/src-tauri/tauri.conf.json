@@ -19,8 +19,8 @@
     "targets": [
       "nsis"
     ],
-    "publisher": "The Fantastical Logic Grid",
-    "shortDescription": "Admin dashboard for The Fantastical Logic Grid",
+    "publisher": "The Logic Grid",
+    "shortDescription": "Admin dashboard for The Logic Grid",
     "copyright": "© 2026 Bobby Taylor. All rights reserved.",
     "homepage": "https://thelogicgrid.com",
     "icon": [

@@ -1,4 +1,4 @@
-# The Fantastical Logic Grid: browser and desktop app
+# The Logic Grid: browser and desktop app
 
 The playable game, built on the puzzle and story engine in
 `/mnt/project-files/logic-grid-engine/` (copied in at build time, never edited here).

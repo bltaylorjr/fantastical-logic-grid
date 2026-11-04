@@ -1,6 +1,6 @@
 # Security
 
-The Fantastical Logic Grid is a free puzzle game at https://thelogicgrid.com,
+The Logic Grid is a free puzzle game at https://thelogicgrid.com,
 with a Windows app, optional player accounts and an admin dashboard. We take
 the safety of players and their saves seriously.
 

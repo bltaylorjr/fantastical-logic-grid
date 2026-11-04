@@ -1,4 +1,4 @@
-// The Fantastical Logic Grid: app controller (setup, play, saves, hints, print).
+// The Logic Grid app controller (setup, play, saves, hints, print).
 // Only the light parts of the engine load on the page; the story library
 // stays in the puzzle writer (worker.js). options.js is written by the build.
 import { checkMarks, isSolved, checkAnswers } from '../engine/play.js';
@@ -3135,8 +3135,8 @@ function offerUpdate() {
   pendingUpdate = null;
   shownUpdate = u;
   $('#update-text').textContent = u.kind === 'web'
-    ? 'A new version of The Fantastical Logic Grid is ready.'
-    : `Version ${u.version} of The Fantastical Logic Grid is available.${u.notes ? ` ${u.notes}` : ''}`;
+    ? 'A new version of The Logic Grid is ready.'
+    : `Version ${u.version} of The Logic Grid is available.${u.notes ? ` ${u.notes}` : ''}`;
   $('#update-install').textContent = u.kind === 'web' ? 'Reload now' : 'Install and restart';
   $('#update-status').textContent = '';
   openDialog($('#dlg-update'), $('#update-install'));

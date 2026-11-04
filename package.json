@@ -3,7 +3,7 @@
   "version": "1.18.4",
   "private": true,
   "license": "UNLICENSED",
-  "description": "The Fantastical Logic Grid: browser (PWA) and desktop app.",
+  "description": "The Logic Grid: browser (PWA) and desktop app.",
   "type": "module",
   "scripts": {
     "build": "node scripts/build.mjs",

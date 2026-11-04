@@ -167,7 +167,7 @@ if (puzzleServer) {
 // still load each other. FLG_NO_MINIFY=1 keeps readable files for debugging.
 if (!process.env.FLG_NO_MINIFY) {
   const { transformSync } = await import('esbuild');
-  const banner = '/*! The Fantastical Logic Grid. © 2026 Bobby Taylor. All rights reserved. Terms: https://thelogicgrid.com/terms/ */';
+  const banner = '/*! The Logic Grid. © 2026 Bobby Taylor. All rights reserved. Terms: https://thelogicgrid.com/terms/ */';
   const own = [];
   const walkOwn = (d) => { for (const n of readdirSync(d)) { const p = join(d, n); if (statSync(p).isDirectory()) { if (n !== 'vendor') walkOwn(p); } else if (/\.(js|css)$/.test(n) && n !== 'sw.js') own.push(p); } };
   walkOwn(out);

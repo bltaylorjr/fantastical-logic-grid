@@ -1,5 +1,5 @@
 // NINETIMESNINE: its own game screen, with the Logic Grid's look, for the numbers game.
-// Self-contained so it can drop into The Fantastical Logic Grid app or run on
+// Self-contained so it can drop into The Logic Grid app or run on
 // its own test page:
 //
 //   import { mount } from './ui.js';

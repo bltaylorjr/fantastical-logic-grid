@@ -1,4 +1,4 @@
-/* The Fantastical Logic Grid: app styles.
+/* The Logic Grid: app styles.
    Tokens follow the UI Design & Accessibility Guidelines (contrast checked there). */
 @font-face { font-family: "Atkinson Hyperlegible"; font-weight: 400; font-style: normal; font-display: swap; src: url(fonts/atkinson-400.woff2) format("woff2"); }
 @font-face { font-family: "Atkinson Hyperlegible"; font-weight: 700; font-style: normal; font-display: swap; src: url(fonts/atkinson-700.woff2) format("woff2"); }

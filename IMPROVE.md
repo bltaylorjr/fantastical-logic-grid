@@ -157,7 +157,7 @@ The task follows these rules:
 ### The prompt
 
 ```
-Weekly improvement task for The Fantastical Logic Grid (GitHub repo
+Weekly improvement task for The Logic Grid (GitHub repo
 bltaylorjr/fantastical-logic-grid). Read IMPROVE.md in the repo, section
 "2. The weekly Claude task", and follow its rules exactly. Then read the open
 GitHub issue labelled weekly-improvement and work through its "For the weekly

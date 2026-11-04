@@ -2,7 +2,7 @@
   "name": "flg-puzzle-server",
   "private": true,
   "version": "1.0.0",
-  "description": "Private puzzle server for The Fantastical Logic Grid (docs/PUZZLE-SERVER.md). Proprietary; see ../LICENSE.",
+  "description": "Private puzzle server for The Logic Grid (docs/PUZZLE-SERVER.md). Proprietary; see ../LICENSE.",
   "license": "UNLICENSED",
   "type": "module",
   "engines": { "node": ">=22" },

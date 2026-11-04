@@ -16,7 +16,7 @@ Menu > Ideas and problems, they can leave "Email me an update" ticked:
   names, "PR #", "commit" or "null"). Marking it **Done** or deleting it
   instead sends no update and removes the held address and words.
 
-- **Message notice:** "You have a new message from The Fantastical Logic Grid
+- **Message notice:** "You have a new message from The Logic Grid
   team", sent when the team writes to a player who turned on "Email me when
   the team writes" in Menu > Messages (see `MESSAGES.md`). At most one a day
   per player, and it only says to open Messages.
@@ -111,7 +111,7 @@ email is sent.
    game's Gmail) and reports back (`POST /admin/v1/replies/done`). The address is removed as
    soon as a note is sent, or after 3 failed tries. Rows go after 30 days.
 
-Through Resend the sender is **The Fantastical Logic Grid
+Through Resend the sender is **The Logic Grid
 &lt;support@thelogicgrid.com&gt;**. Through the Gmail backup it shows as **The
 Fantastical Logic Grid** from fantasticallogicgrid@gmail.com, because
 Gmail can only send from its own address. Players can reply: every email sets

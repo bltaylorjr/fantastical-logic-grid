@@ -1,6 +1,6 @@
 # Admin dashboard
 
-A separate web app for running The Fantastical Logic Grid. It is served by the
+A separate web app for running The Logic Grid. It is served by the
 game's own Cloudflare Worker at **https://flg-api.btay74.workers.dev/admin/**
 (these files are the Worker's static assets, see `server/wrangler.toml`), so it
 needs no extra hosting and stays free. Its API is `server/src/admin.js`.

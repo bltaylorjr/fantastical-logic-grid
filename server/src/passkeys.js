@@ -26,7 +26,7 @@ export const FRESH_MS = 15 * 60_000;
 const CHALLENGE_MS = 5 * 60_000;
 const SEEN_EVERY_MS = 60_000; // last_seen is written at most once a minute per session
 const MAX_PER_ADMIN = 10;
-const RP_NAME = 'The Fantastical Logic Grid Admin';
+const RP_NAME = 'The Logic Grid Admin';
 
 export class PasskeyError extends Error {
   constructor(status, error, message) { super(message || error); this.status = status; this.error = error; }

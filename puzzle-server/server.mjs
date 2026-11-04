@@ -1,4 +1,4 @@
-// The Fantastical Logic Grid: private puzzle server (docs/PUZZLE-SERVER.md).
+// The Logic Grid: private puzzle server (docs/PUZZLE-SERVER.md).
 // Runs on the Oracle build server. It has no public address: the only way in
 // is the game's Cloudflare Worker, through a Cloudflare Tunnel (Workers VPC),
 // and every request must also carry the shared key FLG_PUZZLE_KEY.

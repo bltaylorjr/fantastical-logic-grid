@@ -1,4 +1,4 @@
-# The Fantastical Logic Grid Admin for Windows
+# The Logic Grid Admin for Windows
 
 A small Windows app (Tauri) that opens the online admin dashboard,
 https://flg-api.btay74.workers.dev/admin/, in its own window with a Start menu
