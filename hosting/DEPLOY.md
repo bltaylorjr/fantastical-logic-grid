@@ -1,4 +1,4 @@
-# Put The Fantastical Logic Grid on the web
+# Put The Logic Grid on the web
 
 **Site layout.** The website is The Logic Grid: its front page (`index.html`) lists
 the games, The Fantastical Logic Grid plays at `fantastical/` and NINETIMESNINE at

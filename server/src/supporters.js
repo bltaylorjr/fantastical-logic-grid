@@ -127,7 +127,7 @@ export async function evidence(env, id, now = Date.now()) {
   const sc = scores.results[0] || {};
   const what = g.kind === 'premium' ? 'a Supporter badge on the scoreboard and the supporter extra themes' : 'a Supporter badge on the scoreboard';
   const lines = [
-    'The Fantastical Logic Grid (thelogicgrid.com): supporter payment record',
+    'The Logic Grid (thelogicgrid.com): supporter payment record',
     `Prepared ${day(now)} for a payment dispute.`,
     '',
     'The payment',

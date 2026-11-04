@@ -115,9 +115,9 @@ def build(s):
         sections.append(('Free services used', [f"{k}: {n(v)}" for k, v in sorted(usage.items())]))
 
     subject = f"Logic Grid week {s['from']} to {s['to']}: {n(g['finished'])} games, {n(p['newAccounts'])} new players" + (f", {len(s['alerts'])} free-limit warning{'s' if len(s['alerts']) > 1 else ''}" if s['alerts'] else '')
-    text = f"The Fantastical Logic Grid, {s['from']} to {s['to']}\n\n" + '\n\n'.join(f"{h}\n" + '\n'.join(f'- {x}' for x in ls) for h, ls in sections) + f"\n\nOpen the dashboard: {DASHBOARD}\nTurn this email off in Settings and switches > Alerts and reports.\n"
+    text = f"The Logic Grid, {s['from']} to {s['to']}\n\n" + '\n\n'.join(f"{h}\n" + '\n'.join(f'- {x}' for x in ls) for h, ls in sections) + f"\n\nOpen the dashboard: {DASHBOARD}\nTurn this email off in Settings and switches > Alerts and reports.\n"
     body = ''.join(f"<h2 style=\"font-size:16px;margin:20px 0 6px\">{html.escape(h)}</h2><ul style=\"margin:0;padding-left:20px\">" + ''.join(f'<li style="margin:3px 0">{html.escape(x)}</li>' for x in ls) + '</ul>' for h, ls in sections)
-    page = (f"<div style=\"font-family:Arial,sans-serif;font-size:14px;color:#121626;max-width:640px\"><h1 style=\"font-size:20px;color:#5B3CC4\">The Fantastical Logic Grid</h1>"
+    page = (f"<div style=\"font-family:Arial,sans-serif;font-size:14px;color:#121626;max-width:640px\"><h1 style=\"font-size:20px;color:#5B3CC4\">The Logic Grid</h1>"
             f"<p>{html.escape(s['from'])} to {html.escape(s['to'])}</p>{body}<p style=\"margin-top:24px\"><a href=\"{html.escape(DASHBOARD)}\">Open the dashboard</a>. "
             "Turn this email off in Settings and switches &gt; Alerts and reports.</p></div>")
     return subject, text, page
@@ -141,7 +141,7 @@ def main():
         return
     subject, text, page = build(s)
     msg = EmailMessage()
-    msg['From'] = f'The Fantastical Logic Grid <{GMAIL_USER}>'
+    msg['From'] = f'The Logic Grid <{GMAIL_USER}>'
     msg['To'] = TO
     msg['Subject'] = subject
     msg.set_content(text)

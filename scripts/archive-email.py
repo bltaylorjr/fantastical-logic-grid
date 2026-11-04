@@ -80,7 +80,7 @@ def main():
             'Rows are removed from the database after this email only when both Backups switches are on in the admin dashboard; '
             'then this email is the only copy, so keep it.')
     msg = EmailMessage()
-    msg['From'] = f'The Fantastical Logic Grid <{GMAIL_USER}>'
+    msg['From'] = f'The Logic Grid <{GMAIL_USER}>'
     msg['To'] = TO
     msg['Subject'] = f'Logic Grid archive {name[12:22]}: {total} old rows'
     msg.set_content(f'The weekly archive of data the game no longer needs.\n\n{listing}\n\n{plan}\n\n'

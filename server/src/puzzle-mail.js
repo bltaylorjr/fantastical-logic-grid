@@ -67,7 +67,7 @@ function page(title, paras, { form, links = [], status = 200 } = {}) {
 ${form ? `<form method="post" action="${esc(form.action)}">${Object.entries(form.fields || {}).map(([k, v]) => `<input type="hidden" name="${esc(k)}" value="${esc(v)}">`).join('')}
 ${(form.checks || []).map(([k, label, on]) => `<p><label style="display:flex;gap:10px;align-items:center"><input type="checkbox" name="${esc(k)}" value="1"${on ? ' checked' : ''} style="width:22px;height:22px"> ${esc(label)}</label></p>`).join('')}
 <p><button type="submit" style="${BTN}">${esc(form.button)}</button></p></form>` : ''}
-${[...links, ['https://thelogicgrid.com/', 'Go to The Fantastical Logic Grid']].map(([href, text]) => `<p><a href="${esc(href)}" style="color:#7a3e00">${esc(text)}</a></p>`).join('')}</main></body></html>`;
+${[...links, ['https://thelogicgrid.com/', 'Go to The Logic Grid']].map(([href, text]) => `<p><a href="${esc(href)}" style="color:#7a3e00">${esc(text)}</a></p>`).join('')}</main></body></html>`;
   return new Response(body, { status, headers: {
     'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store',
     'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
@@ -188,7 +188,7 @@ export async function handlePuzzleMail(req, env, url) {
     const expired = () => page('This link has expired', ['This confirm link was already used or is more than 7 days old. To sign up again, open Menu > Puzzle emails in the game.'], { status: 404 });
     if (!r || !r.confirm_at || now - r.confirm_at > CONFIRM_TTL) return expired();
     if (req.method === 'GET') {
-      return page('Confirm your puzzle emails', [`Press Confirm to get ${listWords(wantOf(r))} from The Fantastical Logic Grid at ${r.email}.`, 'If you did not ask for this, close this page and nothing more will come.'],
+      return page('Confirm your puzzle emails', [`Press Confirm to get ${listWords(wantOf(r))} from The Logic Grid at ${r.email}.`, 'If you did not ask for this, close this page and nothing more will come.'],
         { form: { action: '/v1/mail/confirm', fields: { t }, button: 'Confirm' } });
     }
     const done = await confirmToken(db, t, now);

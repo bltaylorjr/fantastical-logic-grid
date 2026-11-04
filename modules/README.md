@@ -1,6 +1,6 @@
 # Puzzle modules
 
-New puzzle types for The Fantastical Logic Grid, built as self-contained
+New puzzle types for The Logic Grid, built as self-contained
 modules. Each one is tried in the private test app first and joins the game
 only after the owner approves it.
 

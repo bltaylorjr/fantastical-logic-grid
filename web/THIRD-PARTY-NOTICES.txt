@@ -1,4 +1,4 @@
-The Fantastical Logic Grid uses these free, open-source components.
+The Logic Grid uses these free, open-source components.
 Full license texts are in the vendor/ folder next to each component.
 
 Kokoro text-to-speech (kokoro-js 1.2.1)          Apache-2.0   vendor/kokoro/

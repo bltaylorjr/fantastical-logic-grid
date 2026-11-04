@@ -1,4 +1,4 @@
-// The Fantastical Logic Grid Admin desktop app: one window that opens the online
+// The Logic Grid Admin desktop app: one window that opens the online
 // admin dashboard (https://flg-api.btay74.workers.dev/admin/), so it is always
 // the live version with the server's own strict CSP and sign-in. The page gets no
 // app permissions (no capabilities file): links that leave the dashboard open in
@@ -38,7 +38,7 @@ fn main() {
             let nav = app.handle().clone();
             let popup = app.handle().clone();
             WebviewWindowBuilder::new(app, "main", WebviewUrl::External(Url::parse(HOME)?))
-                .title("The Fantastical Logic Grid Admin")
+                .title("The Logic Grid Admin")
                 .inner_size(1280.0, 860.0)
                 .min_inner_size(360.0, 480.0)
                 .center()
@@ -71,7 +71,7 @@ fn main() {
             Ok(())
         })
         .run(tauri::generate_context!())
-        .expect("error while running The Fantastical Logic Grid Admin");
+        .expect("error while running The Logic Grid Admin");
 }
 
 /// Looks for a newer signed version; if there is one, asks before installing it.

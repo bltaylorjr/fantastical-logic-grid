@@ -1,5 +1,5 @@
 #!/bin/bash
-# The Oracle Cloud server for The Fantastical Logic Grid (Always Free Ampere
+# The Oracle Cloud server for The Logic Grid (Always Free Ampere
 # A1 Arm VM, Ubuntu 24.04). It does two jobs:
 #   1. GitHub Actions build runners (docs/PRIVATE-REPO.md): three containers
 #      named oracle-1..3, labels self-hosted + flg, reached through the

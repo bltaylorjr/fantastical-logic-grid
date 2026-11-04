@@ -144,11 +144,11 @@ def build(needs, fixed, problems, ideas, new_problems, new_ideas):
     subject = f"Logic Grid player report {day}: " + (', '.join(parts) or 'nothing new')
     footer = (f"Mark problems and ideas addressed in the dashboard: {DASHBOARD}\n"
               "Errors are anonymous and cleaned of personal details. Stop this email with the repository variable PLAYER_REPORTS=off.")
-    text = f"The Fantastical Logic Grid, player report for {day}\n\n" + '\n\n'.join(
+    text = f"The Logic Grid, player report for {day}\n\n" + '\n\n'.join(
         f"{h}\n" + '\n'.join(f'- {x}' for x in ls) for h, ls in sections) + f"\n\n{footer}\n"
     body = ''.join(f"<h2 style=\"font-size:16px;margin:20px 0 6px\">{html.escape(h)}</h2><ul style=\"margin:0;padding-left:20px\">"
                    + ''.join(f'<li style="margin:3px 0">{html.escape(x)}</li>' for x in ls) + '</ul>' for h, ls in sections)
-    page = (f"<div style=\"font-family:Arial,sans-serif;font-size:14px;color:#121626;max-width:640px\"><h1 style=\"font-size:20px;color:#5B3CC4\">The Fantastical Logic Grid</h1>"
+    page = (f"<div style=\"font-family:Arial,sans-serif;font-size:14px;color:#121626;max-width:640px\"><h1 style=\"font-size:20px;color:#5B3CC4\">The Logic Grid</h1>"
             f"<p>Player report for {html.escape(day)}</p>{body}<p style=\"margin-top:24px\"><a href=\"{html.escape(DASHBOARD)}\">Open the dashboard</a> to mark problems and ideas addressed. "
             "Errors are anonymous and cleaned of personal details. Stop this email with the repository variable PLAYER_REPORTS=off.</p></div>")
     return subject, text, page
@@ -204,7 +204,7 @@ def main():
         return
     subject, text, page = build(needs, fixed, problems, ideas, new_problems, new_ideas)
     msg = EmailMessage()
-    msg['From'] = f'The Fantastical Logic Grid <{GMAIL_USER}>'
+    msg['From'] = f'The Logic Grid <{GMAIL_USER}>'
     msg['To'] = TO
     msg['Subject'] = subject
     msg.set_content(text)

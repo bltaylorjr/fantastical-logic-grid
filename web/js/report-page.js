@@ -314,7 +314,7 @@ function done(data, k) {
     DOCTOR_WORDS[data.doctor] || (k === 'puzzle' ? 'The team will look into it.' : 'The team will look into it, and fixes go out in the next update.'),
     REPLY_WORDS[data.reply] || '',
   ].filter(Boolean).join(' ');
-  document.title = `Report ${data.tracking} sent · The Fantastical Logic Grid`;
+  document.title = `Report ${data.tracking} sent · The Logic Grid`;
   box.focus();
 }
 
