@@ -44,7 +44,8 @@ fn main() {
             vox::vox_start,
             vox::vox_stop,
             vox::vox_token,
-            vox::vox_open
+            vox::vox_open,
+            vox::vox_set_online
         ])
         .setup(|app| {
             let nav = app.handle().clone();

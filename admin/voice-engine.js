@@ -38,11 +38,13 @@ function saveConn(c) {
 // (voice.thelogicgrid.com). The dashboard's content policy allows only these,
 // and the token is never sent anywhere else. Quick tunnels
 // (*.trycloudflare.com) are not allowed: anyone can make one.
-function cleanUrl(raw) {
+function cleanUrl(raw, { linked = false } = {}) {
   let u;
   try { u = new URL(String(raw || '').trim() || DEFAULT_URL); } catch (e) { throw new Error('That address is not valid. Use http://127.0.0.1:5150 or your online address.'); }
   const local = u.protocol === 'http:' && ['127.0.0.1', 'localhost'].includes(u.hostname);
-  const online = u.protocol === 'https:' && /\.thelogicgrid\.com$/.test(u.hostname);
+  // A ….trycloudflare.com address is accepted only when it came from the
+  // server's Vox link (saved by the Windows admin app), never typed in.
+  const online = u.protocol === 'https:' && (/\.thelogicgrid\.com$/.test(u.hostname) || (linked && /^[a-z0-9-]+\.trycloudflare\.com$/.test(u.hostname)));
   if (!local && !online) {
     throw new Error('Use http://127.0.0.1:5150 on this computer, or the engine\'s own online address (https://voice.thelogicgrid.com). Quick tunnel addresses (….trycloudflare.com) are not allowed.');
   }
@@ -191,7 +193,7 @@ function openCard(message = '') {
   return `<section class="card vx-open" aria-labelledby="vx-open-h">
     <div class="head"><h2 id="vx-open-h">Open Vox</h2>
       <button class="btn" type="button" id="vx-studio" disabled title="Opens Vox's own Voice Studio in a new tab">Open Voice Studio</button></div>
-    ${window.__FLG_ADMIN_DESKTOP__ ? '<p class="note">Update the admin app (it asks when a new version is ready) to start and stop Vox right here, with no shortcut or command window.</p>' : '<p class="muted">On Windows, the admin app for Windows starts and stops Vox for you, with nothing to download or type.</p>'}
+    ${window.__FLG_ADMIN_DESKTOP__ ? '<p class="note">Update the admin app (it asks when a new version is ready) to start and stop Vox right here, with no shortcut or command window.</p>' : '<p class="note">Vox runs on your Windows PC. Start it there in the admin app for Windows (Voice engine, Start Vox) and it opens here by itself, on any device. The steps below are only for starting it by hand on this computer.</p>'}
     <p class="vx-light" id="vx-light" role="status" aria-live="polite" data-state="checking"><span class="vx-dot" aria-hidden="true"></span><span id="vx-light-text">Looking for Vox at ${h.esc(url)}…</span></p>
     ${message ? `<p class="error" role="alert">${h.esc(message)}</p>` : ''}
 
@@ -247,6 +249,15 @@ function setLight(state, text) {
 async function watchEngine() {
   clearTimeout(watch);
   if (location.hash !== '#voice-engine' || !$('#vx-light')) return;
+  if (loadConn()?.linked || link) {
+    // Opened through the Vox link: wait for the PC, then connect.
+    const r = await connectFromLink();
+    if (r === 'reloading') return;
+    if (r === true) { await render(); return; }
+    setLight('down', link ? 'Vox is off on your Windows PC. Open the admin app there and click Start Vox; this page connects by itself.' : 'Vox isn\'t online. On your Windows PC, open the admin app\'s Voice engine page and start Vox: then it opens here too.');
+    watch = setTimeout(watchEngine, 5000);
+    return;
+  }
   let url;
   try { url = cleanUrl($('#vx-url')?.value); } catch (e) { setLight('down', e.message); return; }
   try {
@@ -261,6 +272,40 @@ async function watchEngine() {
   watch = setTimeout(watchEngine, 3000);
 }
 
+
+// ------------------------------------------------------------- Vox link
+// The Windows admin app starts Vox online and saves where it is (a free
+// Cloudflare address that changes on every start) with its token on the
+// server. Any other signed-in device reads it here and connects by itself.
+let link = null; // { url, token, at } or null
+async function fetchLink() {
+  try { const l = await h.api('vox-link'); link = l?.url ? l : null; } catch (e) { link = null; }
+  return link;
+}
+// This page may only reach the Vox address that was current when it loaded
+// (the server adds that one address to the page's content policy). When Vox
+// has a new address, reload once to pick it up.
+function reloadForLink(url) {
+  let done = '';
+  try { done = sessionStorage.getItem('vox-reloaded-for') || ''; } catch (e) { /* */ }
+  if (done === url) return false;
+  try { sessionStorage.setItem('vox-reloaded-for', url); } catch (e) { /* */ }
+  location.reload();
+  return true;
+}
+async function connectFromLink() {
+  const l = await fetchLink();
+  if (!l) return false;
+  try { cleanUrl(l.url, { linked: true }); } catch (e) { return false; }
+  const prev = loadConn();
+  saveConn({ url: l.url, token: l.token, linked: true });
+  conn = loadConn();
+  try { await engineHealth(l.url); return true; } catch (e) {
+    // Blocked by the page's policy (a newer address) or Vox is off right now.
+    if (!prev || prev.url !== l.url) { if (reloadForLink(l.url)) return 'reloading'; }
+    return false;
+  }
+}
 
 // ---------------------------------------------------------- Windows app
 // Inside the Windows admin app, the app itself starts and stops Vox (no
@@ -295,6 +340,7 @@ function deskCard(message = '') {
     : `<div class="note"><p>Choose the Vox folder once: the <b>vox-engine</b> folder you unzipped (it has README.md and a folder named vox inside).</p><button class="btn primary" type="button" id="vx-app-folder">Choose the Vox folder</button></div>`}
     <details class="vx-more"><summary>More</summary>
       <label class="check"><input id="vx-auto-start" type="checkbox"${autoStart() ? ' checked' : ''}> Start Vox when I open this page</label>
+      <label class="check"><input id="vx-online-app" type="checkbox"${st.online !== false ? ' checked' : ''}> Let my other devices open Vox (puts it online with a free Cloudflare address; applies the next time Vox starts)</label>
       <div class="row">
         ${st.folder ? '<button class="btn small" type="button" id="vx-app-folder">Change folder</button>' : ''}
         <button class="btn small" type="button" data-app-open="folder">Open the Vox folder</button>
@@ -303,6 +349,19 @@ function deskCard(message = '') {
       </div>
     </details>
   </section>`;
+}
+
+const st0 = () => deskStatus || {};
+let waitOnline = 0;
+let publishedUrl = '';
+async function publishLink(token) {
+  const url = st0().online_url;
+  if (!url || url === publishedUrl) return;
+  try { await h.api('vox-link', { method: 'POST', body: { url, token } }); publishedUrl = url; } catch (e) { h.toast(`Couldn't share Vox's online address: ${e.message}`); }
+}
+async function clearLink() {
+  publishedUrl = '';
+  try { await h.api('vox-link', { method: 'DELETE' }); } catch (e) { /* it times out on the server side anyway */ }
 }
 
 async function deskWatch() {
@@ -314,7 +373,8 @@ async function deskWatch() {
   try { await engineHealth(DEFAULT_URL); up = true; } catch (e) { /* not yet */ }
   if (up) {
     const token = await appCall('vox_token').catch(() => null);
-    if (token && !tokenRejected) { saveConn({ url: DEFAULT_URL, token }); await render(); return; }
+    if (token && st0().online && !st0().online_url && (waitOnline = (waitOnline || Date.now())) && Date.now() - waitOnline < 60000) { setLight('checking', 'Vox is running. Going online so your other devices can open it…'); watch = setTimeout(deskWatch, 2000); return; }
+    if (token && !tokenRejected) { await publishLink(token); saveConn({ url: DEFAULT_URL, token }); await render(); return; }
   }
   // Redraw when the buttons need to change (started, stopped, a new step).
   if (!before || before.phase !== deskStatus.phase || before.running !== deskStatus.running || before.folder !== deskStatus.folder) {
@@ -343,9 +403,9 @@ function showOpen(message = '') {
 
 function shell(health) {
   const tabs = TABS.map(([k, label]) => `<label class="tab"><input type="radio" name="vx-tab" value="${k}"${k === tab ? ' checked' : ''}> ${label}</label>`).join('');
-  return `<div class="row vx-status"><p class="muted">Connected to <b>${h.esc(conn.url)}</b>${health.public ? ' <span class="badge ok">online</span>' : ''} · model <b>${h.esc(health.version || '–')}</b> · ${h.esc(health.device)}${health.vocoder_trained ? '' : ' · <span class="badge warn">vocoder not trained yet</span>'}</p>
+  return `<div class="row vx-status"><p class="muted">Connected to <b>${h.esc(conn.linked ? 'Vox on your Windows PC' : conn.url)}</b>${health.public ? ' <span class="badge ok">online</span>' : ''}${desk && publishedUrl ? ' · <span class="muted">your other devices can open it too</span>' : ''} · model <b>${h.esc(health.version || '–')}</b> · ${h.esc(health.device)}${health.vocoder_trained ? '' : ' · <span class="badge warn">vocoder not trained yet</span>'}</p>
       <div class="row"><button class="btn small" type="button" id="vx-studio">Open Voice Studio</button>${desk ? '<button class="btn small" type="button" id="vx-app-stop">Stop Vox</button>' : ''}
-      <button class="btn small link" type="button" id="vx-forget">Disconnect</button></div></div>
+      ${conn.linked ? '' : '<button class="btn small link" type="button" id="vx-forget">Disconnect</button>'}</div></div>
     ${health.learning ? '' : '<p class="note">Learning is off on this engine (it was started with --no-learning). Start it without that option to use this page fully.</p>'}
     <fieldset class="tabs"><legend class="sr-only">Part</legend>${tabs}</fieldset>
     <div id="vx-tab-body"><p class="muted">Loading…</p></div>`;
@@ -674,12 +734,18 @@ async function render(message = '') {
   const body = $('#vx-body');
   if (desk === null) desk = await detectDesk();
   conn = loadConn();
+  if (!desk && !message && (!conn || conn.linked)) {
+    const r = await connectFromLink();
+    if (r === 'reloading') return false;
+    conn = loadConn();
+  }
   if (!conn || message) { showOpen(message); return false; }
   let health;
   try {
     health = await engineHealth(conn.url);
     await vox('/v1/admin/check');
   } catch (e) {
+    if (!desk && !conn.linked && e.status !== 401 && await connectFromLink() === true) return render();
     // Not running: the Open Vox card watches for it and connects by itself.
     // A refused token is shown once and isn't retried until you paste another.
     if (e.status === 401) tokenRejected = true;
@@ -704,6 +770,7 @@ export function initVoiceEngine(helpers) {
 
   body.addEventListener('change', (e) => {
     const t = e.target;
+    if (t.id === 'vx-online-app') { appCall('vox_set_online', { on: t.checked }).catch((err) => h.toast(String(err))); return; }
     if (t.id === 'vx-auto-start') { try { localStorage.setItem(AUTO_KEY, t.checked ? 'on' : 'off'); } catch (err) { /* private mode */ } return; }
     if (t.name === 'vx-tab') { tab = t.value; renderTab(); }
     else if (t.id === 'vx-rf') { reviewFilter = t.value; renderTab(); }
@@ -860,6 +927,8 @@ export function initVoiceEngine(helpers) {
     if (b.id === 'vx-app-stop') {
       b.disabled = true;
       try { await appCall('vox_stop'); } catch (err) { h.toast(String(err)); }
+      await clearLink();
+      waitOnline = 0;
       autoTried = true; // don't start it again by itself
       h.toast('Vox is stopped.'); h.announce('Vox is stopped.');
       await render();

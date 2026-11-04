@@ -18,8 +18,15 @@ page itself keeps.
   `vox-log.txt`. The Vox folder is found in the usual places (like
   `Downloads\MEGA\vox-engine\vox-engine`) or chosen once in a folder picker.
   A Vox the app started stops when the app closes. See `src-tauri/src/vox.rs`.
+- **Vox on any device:** unless "Let my other devices open Vox" is off, Start Vox
+  puts it online with a free Cloudflare quick tunnel (`vox serve --tunnel`). The
+  app downloads Cloudflare's free `cloudflared.exe` once into its data folder if
+  it isn't installed. The page saves the address and token on the server
+  (`/admin/v1/vox-link`, admins only), so the Voice engine page on a phone or any
+  other computer connects by itself. The address changes on every start, and the
+  dashboard's content policy allows only the current one. Stop Vox clears it.
 - **The page's only permissions are Vox's:** `capabilities/vox.json` lets the
-  dashboard's own address (and nothing else) call the six `vox_*` commands. They
+  dashboard's own address (and nothing else) call the seven `vox_*` commands. They
   take no program, path or arguments from the page, so the page still cannot run
   anything else, read files or use any other app feature. Links that leave `/admin` (Open the game, GitHub)
   open in the normal browser; the archive viewer opens in its own window.

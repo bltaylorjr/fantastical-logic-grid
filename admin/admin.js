@@ -2123,7 +2123,7 @@ views.badges = () => badgesView(badgeHelpers);
 initBadges(badgeHelpers, (name, o) => show(name, o));
 
 // ---- Voice engine (voice-engine.js): Vox on the owner's computer, its learning, auto-tune and versions.
-const voiceHelpers = { esc, fmt, when, tile, table, can, act, ask, toast, announce };
+const voiceHelpers = { esc, fmt, when, tile, table, can, act, ask, toast, announce, api };
 views['voice-engine'] = () => voiceEngineView(voiceHelpers);
 initVoiceEngine(voiceHelpers);
 

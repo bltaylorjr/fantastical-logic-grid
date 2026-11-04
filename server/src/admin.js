@@ -159,10 +159,31 @@ const SECURITY_HEADERS = {
 };
 
 // The preview frame shows the website set in SITE_URL (a test site in tests).
-function adminCsp(env) {
+// voxUrl: where Vox is online right now (see the Vox link below). Only that one
+// exact address is added, never *.trycloudflare.com as a whole.
+function adminCsp(env, voxUrl = '') {
   let site = 'https://thelogicgrid.com';
   try { site = new URL(env.SITE_URL || site).origin; } catch (e) { /* default */ }
-  return SECURITY_HEADERS['Content-Security-Policy'].replace('frame-src https://thelogicgrid.com', `frame-src ${site}`);
+  let csp = SECURITY_HEADERS['Content-Security-Policy'].replace('frame-src https://thelogicgrid.com', `frame-src ${site}`);
+  if (voxUrl && VOX_URL.test(voxUrl)) csp = csp.replace('connect-src ', `connect-src ${voxUrl} `);
+  return csp;
+}
+
+// ---- Vox link: where Vox (the voice engine on the owner's Windows PC) is
+// online right now, with its admin token, so the Voice engine page on any
+// signed-in device can open it. The Windows admin app saves it each time it
+// starts Vox online (the free Cloudflare address changes every start) and
+// clears it when Vox stops. Admins only; kept in the settings table.
+const VOX_LINK_KEY = 'vox_link';
+const VOX_URL = /^https:\/\/(?:[a-z0-9-]+\.trycloudflare\.com|[a-z0-9-]+\.thelogicgrid\.com)$/;
+const VOX_TOKEN = /^[A-Za-z0-9_-]{16,128}$/;
+async function voxLink(env) {
+  try {
+    const r = await env.DB.prepare('SELECT value, updated_at FROM settings WHERE key = ?1').bind(VOX_LINK_KEY).first();
+    if (!r) return null;
+    const v = JSON.parse(r.value);
+    return v && VOX_URL.test(v.url) ? { url: v.url, token: v.token, at: r.updated_at } : null;
+  } catch (e) { return null; }
 }
 
 const isoDay = (ms) => new Date(ms).toISOString().slice(0, 10);
@@ -486,6 +507,21 @@ const ROUTES = [
     if (now - (await lastTry(env)) < REFRESH_GAP_MS) throw new Refusal(429, 'too_soon', 'The search numbers were fetched a few minutes ago. Try again in 10 minutes.');
     const result = await refreshSearch(env, now);
     return { body: { result, sources: await searchSnapshots(env) }, detail: result };
+  }],
+  ['GET', /^vox-link$/, 'admin', 'vox.link.view', async ({ env }) => ({ body: (await voxLink(env)) || {}, quiet: true })],
+  ['POST', /^vox-link$/, 'admin', 'vox.link.set', async ({ env, body, who }) => {
+    const url = str(body?.url, 200).replace(/\/+$/, '');
+    const token = str(body?.token, 200);
+    if (!VOX_URL.test(url)) throw new Refusal(400, 'bad_url', 'That is not a Vox online address.');
+    if (!VOX_TOKEN.test(token)) throw new Refusal(400, 'bad_token', 'That is not a Vox admin token.');
+    const old = await voxLink(env);
+    if (old && old.url === url && old.token === token) return { body: { ok: true }, quiet: true };
+    await saveSetting(env, VOX_LINK_KEY, { url, token }, who.actor);
+    return { body: { ok: true }, detail: { url } };
+  }],
+  ['DELETE', /^vox-link$/, 'admin', 'vox.link.clear', async ({ env }) => {
+    await env.DB.prepare('DELETE FROM settings WHERE key = ?1').bind(VOX_LINK_KEY).run();
+    return { body: { ok: true } };
   }],
   ['GET', /^storage$/, 'viewer', 'storage.view', async ({ env }) => ({ body: await storage(env) })],
   ['GET', /^usage$/, 'viewer', 'usage.view', async ({ env, url }) => ({ body: await cloudflareUsage(env, daysParam(url, 30)) })],
@@ -1058,7 +1094,8 @@ async function appFile(env, url, file) {
   if (!env.ASSETS) return new Response('The admin app is not deployed with this Worker.', { status: 404 });
   const res = await env.ASSETS.fetch(new Request(new URL(`/${file}`, url.origin)));
   if (!res.ok) return new Response('Not found', { status: 404, headers: SECURITY_HEADERS });
-  return new Response(res.body, { headers: { ...SECURITY_HEADERS, 'Content-Security-Policy': adminCsp(env), 'Content-Type': TYPES[file.split('.').pop()] } });
+  const voxUrl = file.endsWith('.html') ? (await voxLink(env))?.url : '';
+  return new Response(res.body, { headers: { ...SECURITY_HEADERS, 'Content-Security-Policy': adminCsp(env, voxUrl), 'Content-Type': TYPES[file.split('.').pop()], ...(voxUrl ? { 'Cache-Control': 'no-store' } : {}) } });
 }
 
 const LEGACY = /^\/admin\/(learn(\/.*)?|errors)$/;

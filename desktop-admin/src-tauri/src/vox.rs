@@ -1,6 +1,7 @@
 // Vox inside the admin app: the Voice engine page can start, stop and connect to
 // Vox (the free voice engine, a Python program on this computer) without a
-// command window. Only these commands are open to the page, and only to the
+// command window, and put it online with a free Cloudflare address so the
+// admin app on any device can open it. Only these commands are open to the page, and only to the
 // admin dashboard's own address (capabilities/vox.json). The page can't pass a
 // program, a path or arguments: the Vox folder is chosen in a native folder
 // picker and checked to really be a Vox folder, and the commands that run are
@@ -36,6 +37,10 @@ pub struct Status {
     phase: String,
     message: String,
     model: Option<String>,
+    /// Reachable from other devices (on by default).
+    online: bool,
+    /// The free Cloudflare address Vox is online at right now, if it is.
+    online_url: Option<String>,
 }
 
 fn hidden(cmd: &mut Command) -> &mut Command {
@@ -48,19 +53,35 @@ fn config_file(app: &AppHandle) -> Option<PathBuf> {
     app.path().app_config_dir().ok().map(|d| d.join("vox.json"))
 }
 
+fn read_config(app: &AppHandle) -> serde_json::Value {
+    config_file(app)
+        .and_then(|c| fs::read_to_string(c).ok())
+        .and_then(|t| serde_json::from_str(&t).ok())
+        .unwrap_or_else(|| serde_json::json!({}))
+}
+
+fn write_config(app: &AppHandle, key: &str, value: serde_json::Value) {
+    let mut cfg = read_config(app);
+    cfg[key] = value;
+    if let Some(c) = config_file(app) {
+        let _ = c.parent().map(fs::create_dir_all);
+        let _ = fs::write(c, cfg.to_string());
+    }
+}
+
+fn online_on(app: &AppHandle) -> bool {
+    read_config(app).get("online").and_then(|v| v.as_bool()).unwrap_or(true)
+}
+
 fn is_vox_folder(p: &Path) -> bool {
     p.join("vox").join("cli.py").is_file() && p.join("pyproject.toml").is_file()
 }
 
 /// The saved Vox folder, or the first Vox folder found in the usual places.
 fn folder(app: &AppHandle) -> Option<PathBuf> {
-    if let Some(f) = config_file(app).and_then(|c| fs::read_to_string(c).ok()) {
-        if let Ok(v) = serde_json::from_str::<serde_json::Value>(&f) {
-            if let Some(p) = v.get("folder").and_then(|p| p.as_str()).map(PathBuf::from) {
-                if is_vox_folder(&p) {
-                    return Some(p);
-                }
-            }
+    if let Some(p) = read_config(app).get("folder").and_then(|p| p.as_str()).map(PathBuf::from) {
+        if is_vox_folder(&p) {
+            return Some(p);
         }
     }
     let home = app.path().home_dir().ok()?;
@@ -79,9 +100,63 @@ fn folder(app: &AppHandle) -> Option<PathBuf> {
 }
 
 fn save_folder(app: &AppHandle, p: &Path) {
-    if let Some(c) = config_file(app) {
-        let _ = c.parent().map(fs::create_dir_all);
-        let _ = fs::write(c, serde_json::json!({ "folder": p }).to_string());
+    write_config(app, "folder", serde_json::json!(p));
+}
+
+/// The address Vox printed when it went online ("Online at https://….trycloudflare.com").
+fn online_url(dir: &Path) -> Option<String> {
+    let log = fs::read_to_string(dir.join("vox-log.txt")).ok()?;
+    let start = log.find("https://")?;
+    let rest = &log[start..];
+    let end = rest.find(".trycloudflare.com")? + ".trycloudflare.com".len();
+    let url = &rest[..end];
+    url["https://".len()..url.len() - ".trycloudflare.com".len()]
+        .chars()
+        .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+        .then(|| url.to_string())
+}
+
+/// cloudflared, the free Cloudflare program that puts Vox online: the one
+/// installed on the computer, or a copy this app downloads once from
+/// Cloudflare's own GitHub releases into its data folder.
+fn cloudflared(app: &AppHandle) -> Option<PathBuf> {
+    let ok = |exe: &Path| {
+        hidden(Command::new(exe).arg("--version")).stdout(Stdio::null()).stderr(Stdio::null()).status().map(|s| s.success()).unwrap_or(false)
+    };
+    if ok(Path::new("cloudflared")) {
+        return Some(PathBuf::from("cloudflared"));
+    }
+    let dir = app.path().app_data_dir().ok()?.join("cloudflared");
+    let exe = dir.join("cloudflared.exe");
+    if exe.is_file() && ok(&exe) {
+        return Some(exe);
+    }
+    fs::create_dir_all(&dir).ok()?;
+    let got = hidden(Command::new("curl.exe").args([
+        "-fsSL",
+        "-o",
+        &exe.display().to_string(),
+        "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe",
+    ]))
+    .stdout(Stdio::null())
+    .stderr(Stdio::null())
+    .status()
+    .map(|s| s.success())
+    .unwrap_or(false);
+    (got && ok(&exe)).then_some(exe)
+}
+
+/// Ends a Vox (and its cloudflared) that this app didn't start or that was
+/// left behind: stopping Python directly doesn't stop the tunnel it opened.
+fn stop_strays() {
+    #[cfg(windows)]
+    {
+        let _ = hidden(Command::new("powershell").args([
+            "-NoProfile",
+            "-Command",
+            "Get-CimInstance Win32_Process -Filter \"CommandLine like '%vox.cli serve%' or CommandLine like '%vox serve %' or CommandLine like '%--url http://127.0.0.1:5150%'\" | Invoke-CimMethod -MethodName Terminate | Out-Null",
+        ]))
+        .status();
     }
 }
 
@@ -137,10 +212,12 @@ pub fn vox_status(app: AppHandle, vox: State<'_, Vox>) -> Status {
     }
     Status {
         model: dir.as_deref().and_then(model),
+        online_url: if running { dir.as_deref().and_then(online_url) } else { None },
         folder: dir.map(|d| d.display().to_string()),
         running,
         phase,
         message,
+        online: online_on(&app),
     }
 }
 
@@ -209,6 +286,23 @@ pub fn vox_start(app: AppHandle) -> Result<(), String> {
         let m = model(&dir).unwrap_or_else(|| "practice.pt".into());
         let mut cmd = Command::new(py);
         hidden(cmd.args(["-m", "vox.cli", "serve", "--ckpt", &m]).current_dir(&dir));
+        if online_on(&app2) {
+            set(&vox, "starting", "Getting the free Cloudflare program that puts Vox online…");
+            match cloudflared(&app2) {
+                Some(exe) => {
+                    if let Some(bin) = exe.parent().filter(|p| !p.as_os_str().is_empty()) {
+                        let path = std::env::var_os("PATH").unwrap_or_default();
+                        let mut parts = vec![bin.to_path_buf()];
+                        parts.extend(std::env::split_paths(&path));
+                        if let Ok(joined) = std::env::join_paths(parts) {
+                            cmd.env("PATH", joined);
+                        }
+                    }
+                    cmd.arg("--tunnel");
+                }
+                None => set(&vox, "starting", "Couldn't get the Cloudflare program, so Vox runs on this computer only for now."),
+            }
+        }
         if let Ok(log) = File::create(dir.join("vox-log.txt")) {
             if let Ok(err) = log.try_clone() {
                 cmd.stdout(log).stderr(err);
@@ -234,16 +328,15 @@ pub fn vox_stop(vox: State<'_, Vox>) {
         let _ = c.kill();
         let _ = c.wait();
     }
-    #[cfg(windows)]
-    {
-        let _ = hidden(Command::new("powershell").args([
-            "-NoProfile",
-            "-Command",
-            "Get-CimInstance Win32_Process -Filter \"CommandLine like '%vox.cli serve%' or CommandLine like '%vox serve %'\" | Invoke-CimMethod -MethodName Terminate | Out-Null",
-        ]))
-        .status();
-    }
+    stop_strays();
     set(&vox, "idle", "Vox is stopped.");
+}
+
+/// Whether Vox goes online (reachable from the admin app on other devices)
+/// the next time it starts.
+#[tauri::command]
+pub fn vox_set_online(app: AppHandle, on: bool) {
+    write_config(&app, "online", serde_json::json!(on));
 }
 
 /// The admin token Vox wrote when it started, so the page connects by itself.
@@ -273,5 +366,6 @@ pub fn vox_open(app: AppHandle, what: String) -> Result<(), String> {
 pub fn shutdown(app: &AppHandle) {
     if let Some(mut c) = app.state::<Vox>().child.lock().unwrap().take() {
         let _ = c.kill();
+        stop_strays();
     }
 }

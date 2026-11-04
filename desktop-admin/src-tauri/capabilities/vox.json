@@ -10,6 +10,7 @@
     "allow-vox-start",
     "allow-vox-stop",
     "allow-vox-token",
-    "allow-vox-open"
+    "allow-vox-open",
+    "allow-vox-set-online"
   ]
 }
