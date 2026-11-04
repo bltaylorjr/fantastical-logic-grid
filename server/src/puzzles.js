@@ -8,7 +8,7 @@
 //   POST /v1/puzzles/<game>/<op>  { args }  -> { result }
 //     every game and operation in engine/src/games.js (a new game there
 //     works here with no changes)
-//   GET  /v1/puzzles/health                 -> { ok, release, busy, queued }
+//   GET  /v1/puzzles/health                 -> { ok, release, busy, queued, canary }
 //
 // Only the game's own pages and apps may call it (ALLOWED_ORIGINS), every
 // visitor has a rate limit, and request sizes are capped before anything is
@@ -45,7 +45,7 @@ export async function handlePuzzles(req, env, url) {
     try {
       const res = await env.PUZZLES.fetch(`${ORIGIN}/v1/health`, { headers: { 'X-FLG-Key': env.PUZZLE_KEY } });
       const h = await res.json().catch(() => ({}));
-      return json(req, env, { ok: res.ok && h.ok === true, release: h.release || null, busy: h.busy ?? null, queued: h.queued ?? null }, res.ok ? 200 : 502);
+      return json(req, env, { ok: res.ok && h.ok === true, release: h.release || null, busy: h.busy ?? null, queued: h.queued ?? null, canary: h.canary?.state ?? null }, res.ok ? 200 : 502);
     } catch (e) {
       return fail('unreachable', 502);
     }

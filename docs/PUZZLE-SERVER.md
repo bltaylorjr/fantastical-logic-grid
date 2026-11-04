@@ -73,7 +73,7 @@ A test (`puzzle-server/test/server.test.mjs`) fails if an operations file and
 | `puzzle-server/` | Oracle VM, container `flg-puzzles` (172.30.0.10:8080 on the VM's private `flg` network) | Runs every game's operations in 2 worker threads. Refuses any request without the key, caps sizes, queues up to 60 requests (then "busy"), stops a request past its kind's time limit. Read-only container, runs as an ordinary user. |
 | `server/src/puzzles.js` | Cloudflare Worker | `POST /v1/puzzles/<game>/<op>`, `GET /v1/puzzles/health`. Only operations in `games.js`, only the game's own origins (`ALLOWED_ORIGINS`), and per visitor a minute 120 builds (`LIMIT_PUZZLES`) and 600 play-time requests (`LIMIT_HINTS`), enough for a classroom behind one school address. Answers 503 `puzzles_off` until the binding and secret exist. |
 | `scripts/build.mjs` | Build | With `FLG_PUZZLE_SERVER=1`: keeps only `PAGE_FILES` in the site's engine folder, removes the engine worker, swaps in the remote engine links, writes names-only theme and topic lists for the Educators forms and NINETIMESNINE's menu, and fails if any shipped file still imports a removed one. |
-| `.github/workflows/puzzle-server.yml` | Oracle runner | On every change to `engine/src` or `puzzle-server` on main: tests, copies the release into `/opt/flg-puzzles/releases/<sha>`, switches `current`. The server restarts itself on the new release within 15 s, after finishing the requests in hand. |
+| `.github/workflows/puzzle-server.yml` | Oracle runner | On every change to `engine/src`, the engine doctor or `puzzle-server` on main: tests, copies the release into `/opt/flg-puzzles/releases/<sha>`, runs the engine canary on that copy (`engine/health.js --quick`) and only then switches `current` (the old one is noted in `previous`). The server restarts itself on the new release within 15 s, after finishing the requests in hand. If the server answers but the new release is not healthy within 4 minutes, `current` is switched back to `previous` and the run fails. |
 | `scripts/runner/oracle-cloud-init.sh` | Oracle VM | Sets up the build runners, the puzzle server and the tunnel. Safe to run again (`/opt/flg/setup.sh`). Log: `/var/log/flg-setup.log`. |
 
 Engine files split so the page needs only small pieces: Logic Grid hints
@@ -112,9 +112,27 @@ shows `"ok":true` with the latest release.
 
 ## Looking after it
 
+The server looks after itself with plain rules (no AI):
+
+- **Start-up check.** On start it checks every game with `engine/doctor.js`
+  in a thread of its own, and `GET /v1/health` says `ok` only once that passes
+  (`canary.state`: `checking`, `passed` or `failed`, with what failed).
+  `CANARY=0` skips it.
+- **Thread upkeep.** An engine thread is replaced after a time-out, a crash,
+  `RECYCLE_JOBS` requests (400) or once it holds `RECYCLE_MB` of memory (600),
+  so memory never builds up. A thread that crashes 3 or more times in a minute
+  is restarted after 1 s, doubling up to 60 s, instead of in a tight loop.
+- **Numbers.** Health shows `upkeep` (threads started, replaced, crashed,
+  timed out) and, per operation, runs, failures, time-outs, busy refusals and
+  the middle and slowest-5% times of the last 200.
+- **Nightly.** The Engine health Action (`.github/workflows/engine-health.yml`)
+  checks every game and level and reads this health through the Worker; see
+  MAINTENANCE.md.
+
 - Status: `sudo docker ps -a` and `sudo docker logs --tail 50 flg-puzzles` on the VM.
 - New key: `sudo rm /opt/flg/puzzle.env && sudo bash /opt/flg/setup.sh`, then
   update the `PUZZLE_KEY` Worker secret with `sudo cat /opt/flg/puzzle.env`.
-- Tests: `node puzzle-server/test/server.test.mjs`,
+- Tests: `node puzzle-server/test/server.test.mjs` (also the start-up check,
+  thread replacement and a broken release), `node engine/test/doctor-tests.js`,
   `node --test server/test/puzzles.test.mjs`, and the browser test
   `scripts/e2e-puzzle-server.cjs` (after a server-mode build; see the CI step).

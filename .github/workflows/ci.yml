@@ -45,6 +45,8 @@ jobs:
           for g in ml sk sf ll ib; do node engine/test/$g-tests.js --quick; done
       - name: Timeline Case and Seating Plan engine tests
         run: node engine/test/mode-tests.js --quick
+      - name: Engine doctor (rule-based health checks catch planted faults)
+        run: node engine/test/doctor-tests.js
 
   app:
     runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork && '"ubuntu-latest"') || vars.FLG_RUNNER || '"ubuntu-latest"') }}
