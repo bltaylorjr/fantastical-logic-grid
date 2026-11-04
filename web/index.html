@@ -608,7 +608,18 @@
   <form method="dialog" id="settings-form">
     <h2 id="settings-h">Settings</h2>
     <fieldset id="sound-settings"><legend>Sound</legend>
-      <label class="check"><input type="checkbox" name="sound"> Sound effects and voices</label>
+      <label class="check"><input type="checkbox" name="sound"> All sound</label>
+      <div class="sound-places" id="sound-places">
+        <fieldset class="sub"><legend>Sound effects</legend>
+          <label class="check"><input type="checkbox" name="sfxPlay"> While solving <small class="help">marks, ticks, hints, finished sections</small></label>
+          <label class="check"><input type="checkbox" name="sfxFinish"> At the finish <small class="help">the solve fanfare, answers, badges</small></label>
+        </fieldset>
+        <fieldset class="sub"><legend>Voices</legend>
+          <label class="check"><input type="checkbox" name="speechStory"> The story <small class="help">Read the story aloud</small></label>
+          <label class="check"><input type="checkbox" name="speechPlay"> While solving <small class="help">story moments, the cast's lines, Read the clues aloud, "Try again"</small></label>
+          <label class="check"><input type="checkbox" name="speechFinish"> At the finish <small class="help">the cheer and the story's ending</small></label>
+        </fieldset>
+      </div>
       <div class="field"><label for="volume">Volume</label><input type="range" id="volume" name="volume" min="0" max="100" step="5"></div>
       <div id="music-settings">
         <label class="check"><input type="checkbox" name="music"> Theme music</label>

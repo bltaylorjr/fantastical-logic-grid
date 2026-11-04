@@ -281,7 +281,7 @@ export const MORE = {
     // ---------------------------------------------------------------- Insects
     { id: 'insects', name: 'Insect Survey', description: 'Sweep nets, pitfall traps and a world of tiny creatures.',
       cast: { one: 'entomologist', many: 'entomologists' },
-      names: ['Avery', 'Basil', 'Cricket', 'Dorian', 'Effie', 'Fabian', 'Greer', 'Hester', 'Inigo', 'Jemima'],
+      names: ['Avery', 'Basil', 'Cricket', 'Dorian', 'Effie', 'Fabian', 'Greer', 'Hester', 'Inigo', 'Juniper'],
       categories: [
         cat('insect', 'Insect', 'found the {x}', 'did not find the {x}',
           ['Ladybug', 'Praying Mantis', 'Stag Beetle', 'Firefly', 'Bumblebee', 'Walking Stick', 'Grasshopper', 'Luna Moth']),

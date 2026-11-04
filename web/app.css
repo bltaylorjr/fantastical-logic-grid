@@ -87,6 +87,16 @@ button, input, select { font: inherit; color: inherit; }
 /* ---------- App bar ---------- */
 .appbar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; display: flex; align-items: center; justify-content: space-between; gap: 8px;
   padding: 8px max(16px, env(safe-area-inset-right)) 8px max(16px, env(safe-area-inset-left)); background: var(--bg); border-bottom: 1px solid var(--hairline); }
+/* Phones: while scrolling down the bar folds to one short row (How to play,
+   the Introduction and the scoreboard step aside; Grid / List, Help and Menu
+   stay), so it never covers much of the grid. Any scroll up, or the top of
+   the page, brings the full bar back (WS-85GS9WF5). */
+@media (max-width: 599px) {
+  .appbar.compact .topstrip { flex: 0 0 auto; order: 2; border-top: 0; padding-top: 0; }
+  .appbar.compact > .brand { order: 1; }
+  .appbar.compact .appbar-actions { order: 3; }
+  .appbar.compact #howto-btn, .appbar.compact #intro-btn, .appbar.compact .miniboard, .appbar.compact .brand > span { display: none; }
+}
 .brand { display: flex; align-items: center; gap: 10px; background: none; border: 0; padding: 6px 4px; min-height: 44px; cursor: pointer; font-weight: 700; font-size: 1.05rem; color: var(--text); border-radius: 8px; text-align: left; }
 .brand-mark { width: 30px; height: 30px; color: var(--accent); flex: none; }
 .appbar-actions { display: flex; gap: 8px; }
@@ -283,6 +293,10 @@ td.c.wrong:focus { box-shadow: inset 0 0 0 3px var(--error), inset 0 0 0 6px var
    column and the marks scale with the squares. */
 table.lg.fit { font-size: 12px; table-layout: auto; }
 table.lg.fit th.rowh { width: var(--rowh-w); min-width: var(--rowh-w); max-width: var(--rowh-w); padding: 0 4px; }
+/* Small squares stay square: names shrink with the squares, so their line
+   never makes a row taller than its squares are wide (WS-85GS9WF5). */
+table.lg.fit th.rowh, table.lg.fit th.colh { font-size: clamp(8px, calc(var(--cell) * .72), 12px); line-height: 1; }
+table.lg.fit td.c { line-height: 1; }
 table.lg.fit th.rcat { min-width: 20px; padding: 2px; }
 table.lg.fit th.colh { overflow: hidden; }
 /* A category name never widens its columns: it is cut short with "…". */
@@ -380,6 +394,13 @@ dialog.wide { max-width: min(1000px, calc(100vw - 32px)); }
 dialog::backdrop { background: rgb(0 0 0 / .5); }
 dialog h2 { margin-bottom: 12px; }
 dialog fieldset { margin-bottom: 16px; }
+/* Settings > Sound: where effects and voices play, grouped under All sound. */
+.sound-places { margin: 4px 0 8px 32px; display: grid; gap: 4px; }
+.sound-places fieldset.sub { margin: 0; }
+.sound-places legend { font-weight: 600; font-size: .95rem; padding: 0; margin: 6px 0 0; }
+.sound-places .check small.help { margin: 0 0 0 4px; }
+.sound-places fieldset:disabled { opacity: .55; }
+.sound-places fieldset:disabled .check { cursor: default; }
 .dlg-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 .install-opt { border-top: 1px solid var(--hairline); padding-top: 12px; margin-top: 12px; }
 .install-opt h3 { margin-bottom: 6px; }

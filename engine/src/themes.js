@@ -441,7 +441,7 @@ export const THEMES = [
       { id: 'lodging', name: 'Lodging', pos: 'stayed in the {x}', neg: 'did not stay in the {x}',
         items: ['Hotel', 'Cabin', 'Beach Hut', 'Hostel', 'Villa', 'Treehouse', 'Houseboat', 'Castle Inn'] },
       { id: 'treat', name: 'Local Treat', noun: 'local treat', pos: 'tasted the {x}', neg: 'did not taste the {x}',
-        items: ['Gelato', 'Crepe', 'Churro', 'Mochi', 'Shave Ice', 'Fish and Chips', 'Pastry', 'Taco'] },
+        items: ['Gelato', 'Crepe', 'Churro', 'Mochi', 'Shaved Ice', 'Fish and Chips', 'Pastry', 'Taco'] },
     ],
   },
   {

@@ -322,7 +322,7 @@ const island = {
   categories: [
     cat('isle', 'Island', 'loved {x} Island', 'did not love {x} Island', ['Turtle', 'Coconut', 'Pelican', 'Lantern', 'Driftwood', 'Mango', 'Starfish', 'Hammock'], { noun: 'favorite island' }),
     cat('boat', 'Boat', 'hopped over on the {x}', 'did not hop over on the {x}', ['Ferry', 'Water Taxi', 'Sailboat', 'Catamaran', 'Seaplane', 'Outrigger', 'Kayak', 'Glass-Bottom Boat'], { noun: 'way to hop' }),
-    cat('snack', 'Island Snack', 'tasted the {x}', 'did not taste the {x}', ['Shave Ice', 'Banana Bread', 'Papaya', 'Poke Bowl', 'Taro Chips', 'Passion Fruit', 'Grilled Fish', 'Pineapple Whip'], { noun: 'island snack' }),
+    cat('snack', 'Island Snack', 'tasted the {x}', 'did not taste the {x}', ['Shaved Ice', 'Banana Bread', 'Papaya', 'Poke Bowl', 'Taro Chips', 'Passion Fruit', 'Grilled Fish', 'Pineapple Whip'], { noun: 'island snack' }),
     cat('find', 'Beach Find', 'found the {x}', 'did not find the {x}', ['Sea Glass', 'Sand Dollar', 'Glass Float', 'Cowrie Shell', 'Shark Tooth', 'Lava Rock', 'Old Coin', 'Sea Bean'], { noun: 'beach find' }),
     'lodging',
     ord('islands', 'Islands Visited', 'visited {x} islands', 'did not visit {x} islands',

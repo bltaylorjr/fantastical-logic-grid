@@ -16,7 +16,7 @@ const FEMALE = new Set(`
   Flossie Frankie Freja Genevieve Gertie Gia Gilda Gilly Ginevra Ginger Ginny
   Gisele Giselle Goldie Gwendolyn Halle Hana Harper Hedda Helga Henrietta
   Hester Hex Hilde Honor Ida Ignatia Ilona Ilse Ilyra Imogen Indigo Ines Inez
-  Iolana Ione Isadora Itzel Iva Jade Jana Jasmine Jemima Joelle Jolene Jordan
+  Iolana Ione Isadora Itzel Iva Jade Jana Jasmine Jemima Joelle Jolene Jordan Josephine Juliet
   Joy June Kailani Kari Kavya Kenzie Kesi Kiara Kira Laleh Lani Lark Lavinia
   Leah Leilani Leni Lin Lina Lirien Loretta Lorna Lucia Lula Lulu Maeve Magna
   Mali Malia Margo Margot Marisol Marla Maude Maya Meera Mei Min Minnie Mira
