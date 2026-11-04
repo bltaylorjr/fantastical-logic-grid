@@ -1831,8 +1831,11 @@ function showSolved(celebrate) {
       ai.speakLines(settings, S.puzzle, said, { volume: settings.volume / 100 });
     }, 1200);
   }
-  res.classList.remove('celebrate');
+  res.classList.remove('celebrate', 'clear');
   if (celebrate) { void res.offsetWidth; res.classList.add('celebrate'); }
+  const see = $('#see-picture');
+  see.setAttribute('aria-pressed', 'false');
+  see.textContent = 'See the whole picture';
   $('#solved').hidden = false;
   reportResult(save);
   clearHint();
@@ -2478,7 +2481,8 @@ function winnerOf(puzzle, ix) {
 function renderMedia() {
   const p = S.puzzle;
   S.sceneLayers = -1;
-  $('#scene').innerHTML = sceneSvg(p, 0);
+  // The whole picture shows from the start; finished sections light up its parts.
+  $('#scene').innerHTML = `${sceneSvg(p, 5, { animate: false })}${GLINTS}`;
   director.start(p, { silent: settings.silent, speak: (text) => { if (voiceOn()) ai.speak(settings, p, 'narrator', text, { volume: settings.volume / 100 }).catch(() => {}); } });
   const names = S.ix.cats[0].items.map((i) => i.label);
   const drawCastRow = () => {
@@ -2534,7 +2538,7 @@ async function loadAiArt() {
     const blob = await ai.sceneImage(settings, p);
     if (S !== game) return;
     game.sceneUrl = URL.createObjectURL(blob);
-    $('#scene').innerHTML = `<div class="ai-scene"><img src="${game.sceneUrl}" alt=""><div class="veil">${'<i></i>'.repeat(5)}</div></div>`;
+    $('#scene').innerHTML = `<div class="ai-scene"><img src="${game.sceneUrl}" alt=""></div>${GLINTS}`;
     game.sceneLayers = -1;
     updateProgress();
   } catch (e) {
@@ -2577,12 +2581,18 @@ async function loadCharacterArt() {
   }
 }
 
+// The scene shows whole from the start. Each fifth of the grid finished makes
+// the matching part of the picture light up (strips left to right), so progress
+// still shows there without hiding anything.
+const GLINTS = `<div class="glints" aria-hidden="true">${'<i></i>'.repeat(5)}</div>`;
 function revealScene(fraction) {
   const n = Math.min(5, Math.ceil(fraction * 5 - 1e-9));
-  const layers = $$('#scene .layer');
-  layers.forEach((g, i) => g.classList.toggle('on', i < Math.max(n, 1)));
-  $$('#scene .veil i').forEach((v, i) => v.classList.toggle('gone', i < Math.max(n, 1)));
-  if (S.sceneLayers >= 0 && n > S.sceneLayers && !settings.silent) status('A new part of the scene appears.');
+  $$('#scene .glints i').forEach((g, i) => g.classList.toggle('done', i < n));
+  if (S.sceneLayers >= 0 && n > S.sceneLayers) {
+    const g = $$('#scene .glints i')[n - 1];
+    if (g) { g.classList.remove('flash'); void g.offsetWidth; g.classList.add('flash'); }
+    if (!settings.silent) status('Part of the scene lights up.');
+  }
   S.sceneLayers = n;
 }
 
@@ -2594,6 +2604,13 @@ function celebrateBlock(rc, cc) {
   }
   announce(`${rc.name} and ${cc.name} section complete.`);
 }
+
+// The finished picture on its own, without the character and words on top.
+$('#see-picture').addEventListener('click', () => {
+  const clear = $('#resolution').classList.toggle('clear');
+  $('#see-picture').setAttribute('aria-pressed', String(clear));
+  $('#see-picture').textContent = clear ? 'Show the character again' : 'See the whole picture';
+});
 
 $('#cast-row').addEventListener('click', (e) => {
   const b = e.target.closest('.cast-btn');
