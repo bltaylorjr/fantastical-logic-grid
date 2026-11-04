@@ -616,10 +616,11 @@ export function generateStarField({ difficulty = 'medium', size, seed = Math.ran
   const want = N >= 9 ? 2 : 3;
   const found = [];
   let backup = null, practiceTries = 0;
-  // A time budget: past it, the best proven puzzle found so far is used.
-  const until = Date.now() + (N >= 10 ? 6000 : 2500);
+  // A budget: past it, the best proven puzzle found so far is used. Bounded by
+  // work, not the clock: the same seed gives the same puzzle on every device, however fast or busy (attempt counts match the old time budget on the puzzle server, Nov 2026).
+  const enough = { 7: 322, 8: 162, 9: 47, 10: 103, 11: 39 }[N] ?? 400;
   for (let attempt = 0; attempt < 400 && found.length < want; attempt++) {
-    if (Date.now() > until && (found.length || backup)) break;
+    if (attempt >= enough && (found.length || backup)) break;
     const c = candidate(N, K, tier, makeRng(`${seed}:sf:${attempt}`));
     if (!c || !c.res.solved) continue;
     // A one-cell region hands over a free star: only Basic keeps them.

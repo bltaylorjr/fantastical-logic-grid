@@ -6,7 +6,8 @@
 //   - the puzzle has what the page needs (answer, givens, solve path, level)
 //   - the answer passes the game's own checker
 //   - there is exactly one answer (brute force, on sizes the counter handles fast)
-//   - the same seed gives the same puzzle (so daily puzzles and shares never change)
+//   - the same seed gives the same puzzle, even on a very slow device (so daily
+//     puzzles, races and shares match everywhere)
 //   - it survives the trip through JSON (worker messages and the puzzle server)
 //   - a hint works on a blank board, on the copy that came back from JSON,
 //     and spots a wrong entry
@@ -202,12 +203,18 @@ export async function checkPuzzle(id, { level, seed = 'doctor', determinism = tr
     } catch (e) { problem(`the brute-force count failed: ${e.message}`); }
   }
 
-  // Same seed, same puzzle.
+  // Same seed, same puzzle, even on a device thousands of times slower (the
+  // clock jumps 100 s at every look), so races, shares and daily puzzles match
+  // on every phone, computer and the puzzle server.
   if (determinism) {
+    const realNow = Date.now;
     try {
+      let looks = 0;
+      Date.now = () => realNow() + (looks++) * 100000;
       const again = await OPS.generate({ ...args });
-      if (fingerprint(again) !== fingerprint(p)) problem('the same seed gave a different puzzle');
-    } catch (e) { problem(`a second build with the same seed failed: ${e.message}`); }
+      Date.now = realNow;
+      if (fingerprint(again) !== fingerprint(p)) problem('the same seed gave a different puzzle on a slow device (the build depends on the clock)');
+    } catch (e) { problem(`a second build with the same seed failed: ${e.message}`); } finally { Date.now = realNow; }
   }
 
   // The trip through JSON, then hints.

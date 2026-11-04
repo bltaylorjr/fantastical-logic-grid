@@ -315,9 +315,11 @@ export function generateSumCross({ difficulty = 'medium', size, seed = Math.rand
   const want = R >= 10 ? 2 : 4;
   const found = [];
   let backup = null, practiceTries = 0;
-  const until = Date.now() + (R >= 10 ? 6000 : 3500);
+  // Past this many attempts the best proven puzzle so far is used. Bounded by
+  // work, not the clock: the same seed gives the same puzzle on every device, however fast or busy (attempt counts match the old time budget on the puzzle server, Nov 2026).
+  const enough = R >= 12 ? 53 : R >= 10 ? 47 : R >= 9 ? 124 : 400;
   for (let attempt = 0; attempt < 400 && found.length < want; attempt++) {
-    if (Date.now() > until && (found.length || backup)) break;
+    if (attempt >= enough && (found.length || backup)) break;
     const c = candidate(R, C, tier, makeRng(`${seed}:${attempt}`));
     if (!c || seen.has(fpOf(R, C, c.clues, c.givens))) continue;
     if (!c.fits) { if (!backup || c.score > backup.score) backup = c; continue; }

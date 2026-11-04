@@ -413,9 +413,10 @@ export function generateIslandBridges({ difficulty = 'medium', size, seed = Math
   const seen = new Set(avoid);
   const found = [];
   let backup = null;
-  const started = Date.now(), budget = N >= 13 ? 4000 : 1500;
+  // Bounded by work, not the clock: the same seed gives the same puzzle on every device, however fast or busy (attempt counts match the old time budget on the puzzle server, Nov 2026).
+  const enough = N >= 15 ? 596 : 3000;
   for (let k = 0; k < 3000 && found.length < 4; k++) {
-    if (Date.now() - started > budget && (found.length || (backup && Date.now() - started > budget * 2))) break;
+    if (k >= enough && (found.length || (backup && k >= enough * 2))) break;
     const rng = makeRng(`${seed}:ib:${k}`);
     const m = makeMap(N, N, tier, rng);
     if (m.islands.length < 3) continue;

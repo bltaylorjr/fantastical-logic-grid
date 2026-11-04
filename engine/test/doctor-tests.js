@@ -58,6 +58,9 @@ export const OPS = { generate: (a) => generateSkyline({ ...a, seed: String(Math.
 export const OPS = { generate: (a) => generateSkyline(a), hint: () => { throw new Error('boom'); } };`, /hint failed/],
   ['a hint that misses mistakes', `import { generateSkyline, getSkylineHint } from './skyline.js';
 export const OPS = { generate: (a) => generateSkyline(a), hint: (a) => getSkylineHint(a.puzzle, []) };`, /did not spot/],
+  ['a build that depends on the clock', `import { generateSkyline, getSkylineHint } from './skyline.js';
+const start = Date.now();
+export const OPS = { generate: (a) => { const t = Date.now(); const p = generateSkyline(a); return Date.now() - t > 1000 ? generateSkyline({ ...a, seed: a.seed + 'x' }) : p; }, hint: (a) => getSkylineHint(a.puzzle, a.entries) };`, /slow device/],
   ['a build that throws', `export const OPS = { generate: () => { throw new Error('no puzzle'); }, hint: () => ({}) };`, /build failed/],
   ['a puzzle with two answers', `import { generateSkyline, getSkylineHint } from './skyline.js';
 export const OPS = { generate: (a) => { const p = generateSkyline(a); for (const side of Object.keys(p.clues)) p.clues[side] = p.clues[side].map(() => 0); p.givens = p.givens.map(() => 0); return p; }, hint: (a) => getSkylineHint(a.puzzle, a.entries) };`, /answers found by brute force|cannot finish/],

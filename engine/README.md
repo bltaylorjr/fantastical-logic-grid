@@ -46,7 +46,7 @@ This follows the design process step by step:
    separate brute-force search.
 6. **Grade it.** The solve path is checked against the tier's rules (hardest
    technique needed, number of advanced steps, what-if steps). If it does not
-   fit, the engine tries again with a fresh answer table (up to 60 tries or 15 seconds)
+   fit, the engine tries again with a fresh answer table (up to 60 tries; tries, not the clock, so the same seed gives the same puzzle on every device however fast or busy it is; pass `timeLimitMs` to cap the time as well)
    and returns the closest match, with a note saying how it differs.
 
 ## Player Stories

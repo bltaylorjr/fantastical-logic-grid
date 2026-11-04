@@ -369,9 +369,8 @@ export function generateCageMath({ difficulty = 'medium', size, seed = Math.rand
   let practiceTries = 0, backup = null;
   // A time budget, so a big grid never keeps the player waiting: past it, the
   // toughest proven puzzle found so far is used.
-  const until = Date.now() + (N >= 8 ? 5000 : 3000);
+  // The build is bounded by work, not the clock: the same seed gives the same puzzle on every device, however fast or busy (attempt counts match the old time budget on the puzzle server, Nov 2026).
   for (let attempt = 0; attempt < 600 && found.length < want; attempt++) {
-    if (Date.now() > until && (found.length || backup)) break;
     const c = candidate(N, tier, makeRng(`${seed}:${attempt}`));
     if (!c) continue;
     if (seen.has(fpOf(N, c.cages))) continue;

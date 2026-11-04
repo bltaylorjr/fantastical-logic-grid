@@ -185,11 +185,10 @@ export function generateMoreOrLess({ difficulty = 'medium', size, seed = Math.ra
   const want = N >= 8 ? 2 : N >= 6 ? 3 : 4;
   const found = [];
   let practiceTries = 0, backup = null;
-  // A time budget, so a big grid never keeps the player waiting: past it, the
-  // toughest proven puzzle found so far is used.
-  const until = Date.now() + (N >= 8 ? 12000 : 4000);
+  // The build is bounded by work, not the clock: the same seed gives the same
+  // puzzle on every device, however fast or busy (200 attempts always fitted
+  // in the old time budget on the puzzle server, Nov 2026).
   for (let attempt = 0; attempt < 200 && found.length < want; attempt++) {
-    if (Date.now() > until && (found.length || backup)) break;
     const c = candidate(N, tier, makeRng(`${seed}:${attempt}`));
     if (!c) continue;
     if (seen.has(fpOf(N, c.givens, c.signs))) continue;
