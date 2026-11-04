@@ -61,7 +61,8 @@ const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`o
     await page.screenshot({ path: process.env.SHOTS + '/2-play.png', fullPage: true });
 
     // multimedia: scene, portraits, witness bubble
-    assert(await page.locator('#scene svg .layer').count() === 5, 'scene has 5 unlockable layers');
+    assert(await page.locator('#scene svg .layer.on').count() === 5 && await page.locator('#scene .glints i').count() === 5, 'the whole scene shows from the start, with 5 parts to light up');
+    assert(await page.locator('#scene .glints i.done').count() === 0, 'no part is lit before any section is done');
     assert(await page.locator('.cast-btn').count() === 4, 'a portrait for each character');
     await page.locator('.cast-btn').first().click();
     assert(/clue \d+/.test(await page.textContent('#bubble')), 'portrait tells its clue');
@@ -235,7 +236,14 @@ const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`o
     }
     await page.screenshot({ path: process.env.SHOTS + '/5-solved.png', fullPage: true });
     assert(await page.locator('#resolution .hero svg').count() === 1, 'resolution scene shows the culprit');
-    assert(await page.locator('#scene .layer.on').count() === 5, 'whole scene revealed when solved');
+    assert(await page.locator('#scene .glints i.done').count() === 5, 'every part of the scene is lit when solved');
+    await page.click('#see-picture');
+    await page.waitForSelector('#resolution .hero', { state: 'hidden' });
+    if (process.env.SHOTS) await page.locator('#solved').screenshot({ path: process.env.SHOTS + '/6-whole-picture.png' });
+    assert(await page.locator('#resolution.clear').count() === 1 && await page.getAttribute('#see-picture', 'aria-pressed') === 'true', 'See the whole picture hides the character and words');
+    await page.click('#see-picture');
+    await page.waitForSelector('#resolution .hero', { state: 'visible' });
+    assert(await page.isVisible('#resolution .hero') && /See the whole picture/.test(await page.textContent('#see-picture')), 'and the button brings them back');
     await page.click('[data-act=restart]');
     await page.click('#confirm-yes');
     assert(await page.isHidden('#solved') && !(await page.evaluate(() => window.__flg.state.save.solved)), 'start over on a solved puzzle reopens it');

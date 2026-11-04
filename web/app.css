@@ -447,9 +447,18 @@ input[type=range] { width: 100%; min-height: 44px; accent-color: var(--accent); 
 
 .ai-scene { position: relative; width: 100%; height: 100%; }
 .ai-scene img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.veil { position: absolute; inset: 0; display: grid; grid-template-columns: repeat(5, 1fr); }
-.veil i { background: rgb(10 14 30 / .55); backdrop-filter: blur(14px) grayscale(.6); -webkit-backdrop-filter: blur(14px) grayscale(.6); transition: opacity 900ms var(--ease); }
-.veil i.gone { opacity: 0; }
+/* The whole scene shows from the start; each finished fifth of the grid lights up its strip. */
+.glints { position: absolute; inset: 0; display: grid; grid-template-columns: repeat(5, 1fr); pointer-events: none; }
+.glints i { position: relative; }
+.glints i.done { box-shadow: inset 0 -4px 0 rgb(255 212 0 / .9); }
+@media (prefers-reduced-motion: no-preference) {
+  :root:not(.silent) .glints i.flash::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgb(255 255 255 / 0), rgb(255 236 150 / .55) 50%, rgb(255 255 255 / 0)); animation: glint 1.4s var(--ease) both; }
+  @keyframes glint { 0% { opacity: 0; transform: translateY(40%); } 35% { opacity: 1; } 100% { opacity: 0; transform: translateY(-40%); } }
+}
+/* "See the whole picture" at the end hides the character and words on top of it. */
+.see-picture { margin: -8px 0 12px; }
+.resolution.clear .spot, .resolution.clear .hero, .resolution.clear .char-line { opacity: 0; visibility: hidden; transition: opacity 300ms var(--ease), visibility 0s 300ms; }
+.resolution .spot, .resolution .hero, .resolution .char-line { transition: opacity 300ms var(--ease); }
 .scene .painting { position: absolute; right: 8px; bottom: 8px; background: rgb(0 0 0 / .6); color: #fff; font-size: .85rem; padding: 2px 10px; border-radius: 999px; }
 .scene { position: relative; }
 .portrait-img { width: 72px; height: 72px; border-radius: 50%; object-fit: cover; display: block; }
