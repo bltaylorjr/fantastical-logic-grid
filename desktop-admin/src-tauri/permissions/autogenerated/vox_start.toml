@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-vox-start"
+description = "Enables the vox_start command without any pre-configured scope."
+commands.allow = ["vox_start"]
+
+[[permission]]
+identifier = "deny-vox-start"
+description = "Denies the vox_start command without any pre-configured scope."
+commands.deny = ["vox_start"]
