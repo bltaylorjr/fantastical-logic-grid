@@ -218,7 +218,7 @@ function openCard(message = '') {
 
     <div class="vx-step">
       <h3><span class="vx-num" aria-hidden="true">2</span> Connect</h3>
-      <p>When Vox starts, its window shows a line beginning <b>Vox admin token:</b>. Paste that token here once. This device remembers it, and after that the page connects by itself whenever Vox is running. The token is also saved in the Vox folder, in <code>learning\\admin_token.txt</code>.</p>
+      <p>Once Vox is running on this computer, this page gets its token from Vox and connects by itself: nothing to copy. Only if that can't work (an older Vox, or Vox on another computer), paste the token from the line beginning <b>Vox admin token:</b>, also saved in <code>learning\\admin_token.txt</code>.</p>
       <form id="vx-connect" class="stack" novalidate>
         <div class="row">
           <div class="field grow"><label for="vx-token">Admin token</label><input id="vx-token" type="password" value="${h.esc(c.token || '')}" autocomplete="off" spellcheck="false" required></div>
@@ -246,6 +246,18 @@ function setLight(state, text) {
 }
 
 // Check whether Vox is up; connect by itself if a good token is saved.
+// Vox on this computer hands the admin page its token (GET /v1/pair), so no
+// one has to copy it. It answers only this page's own address, never through
+// the internet tunnel.
+async function pairToken(url) {
+  try {
+    const res = await fetch(`${url}/v1/pair`, { signal: AbortSignal.timeout(2500) });
+    if (!res.ok) return null;
+    const t = (await res.json()).token;
+    return typeof t === 'string' && t ? t : null;
+  } catch (e) { return null; }
+}
+
 async function watchEngine() {
   clearTimeout(watch);
   if (location.hash !== '#voice-engine' || !$('#vx-light')) return;
@@ -264,6 +276,8 @@ async function watchEngine() {
     const health = await engineHealth(url);
     const saved = loadConn();
     if (saved?.token && saved.url === url && !tokenRejected) { await render(); return; }
+    const paired = await pairToken(url);
+    if (paired) { tokenRejected = false; saveConn({ url, token: paired }); await render(); return; }
     setLight('up', `Vox is running${health.version ? ` (model ${health.version})` : ''}. ${saved?.token && !tokenRejected ? 'Connecting…' : 'Paste its admin token below to connect.'}`);
   } catch (e) {
     const saved = loadConn();
@@ -746,6 +760,10 @@ async function render(message = '') {
     if (!desk && !conn.linked && e.status !== 401 && await connectFromLink() === true) return render();
     // Not running: the Open Vox card watches for it and connects by itself.
     // A refused token is shown once and isn't retried until you paste another.
+    if (e.status === 401 && !conn.linked) {
+      const paired = await pairToken(conn.url);
+      if (paired && paired !== conn.token) { saveConn({ url: conn.url, token: paired }); return render(); }
+    }
     if (e.status === 401) tokenRejected = true;
     showOpen(e.status === 401 ? 'Vox didn\'t accept that admin token. Copy it again from the Vox window (the line beginning "Vox admin token:") and connect.' : '');
     return false;
