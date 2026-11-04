@@ -2,6 +2,8 @@
 // the owner's computer (vox serve), or online through a named Cloudflare
 // tunnel at the owner's own address (https://voice.thelogicgrid.com). This page talks to it directly with the admin token Vox prints
 // when it starts. Nothing here goes through the Worker, so it costs nothing.
+// Until it's connected, the page shows "Open Vox": a running/not-running
+// light, a downloadable Windows start shortcut, and auto-connect.
 //
 // Parts: Learning (how it improves, refine now, settings, rounds), Review
 // takes (thumbs up/down and A/B choices that teach it), Voices (new voices
@@ -134,27 +136,140 @@ function trendChart(trend) {
     <svg viewBox="0 0 ${w} ${ht}" preserveAspectRatio="none" role="img" aria-label="${h.esc(summary)}">${line}${dots}</svg></figure>`;
 }
 
-// ------------------------------------------------------------- connection
-function connectForm(message = '') {
+// ------------------------------------------------------------- open Vox
+// The "Open Vox" card shown until the page is connected. A light shows
+// whether Vox is running (checked every 3 seconds while this page is open).
+// When it comes up and a token is already saved, the page connects by itself.
+// A browser page can't start programs, so starting Vox is one double-click on
+// a small "Start Vox.cmd" shortcut this card makes for you.
+const LAUNCH_KEY = 'vox-launch';
+let watch = null;          // status timer
+let tokenRejected = false; // don't auto-connect again with a token that failed
+
+function loadLaunch() {
+  try { return { folder: '', model: 'practice.pt', online: false, ...JSON.parse(localStorage.getItem(LAUNCH_KEY) || '{}') }; } catch (e) { return { folder: '', model: 'practice.pt', online: false }; }
+}
+function saveLaunch(v) { try { localStorage.setItem(LAUNCH_KEY, JSON.stringify(v)); } catch (e) { /* private mode */ } }
+
+// Windows paths and file names go inside "quotes" in the shortcut; quotes,
+// % and line breaks would break out of them, so they are refused.
+function checkLaunch({ folder, model }) {
+  if (/["%\r\n<>|]/.test(folder)) throw new Error('The folder can\'t contain " % < > or |. Copy it from the address bar of the Vox folder in File Explorer.');
+  if (!model) throw new Error('Type the model file name, like practice.pt.');
+  if (/["%\r\n<>|]/.test(model) || !/\.pt$/i.test(model)) throw new Error('The model file name should end in .pt, like practice.pt or runs\\v1\\vox.pt.');
+}
+const startCommand = ({ model, online }) => `vox serve --ckpt "${model}"${online ? ' --tunnel-name vox' : ''}`;
+
+function startShortcut(v) {
+  const lines = [
+    '@echo off',
+    'title Vox voice engine',
+    v.folder ? `cd /d "${v.folder}"` : 'cd /d "%~dp0"',
+    'if exist ".venv\\Scripts\\activate.bat" call ".venv\\Scripts\\activate.bat"',
+    'if exist "venv\\Scripts\\activate.bat" call "venv\\Scripts\\activate.bat"',
+    'echo Starting Vox. Leave this window open: closing it stops Vox.',
+    'echo The admin app connects by itself once Vox is ready.',
+    'echo.',
+    startCommand(v),
+    'echo.',
+    'echo Vox has stopped. If there is an error above, copy it and ask for help.',
+    'pause',
+  ];
+  return lines.join('\r\n') + '\r\n';
+}
+
+async function engineHealth(url) {
+  const res = await fetch(`${url}/v1/health`, { signal: AbortSignal.timeout(2500) });
+  if (!res.ok) throw new Error('not ready');
+  return res.json();
+}
+
+function openCard(message = '') {
   const c = loadConn() || {};
-  return `<section class="card" aria-labelledby="vx-conn-h">
-    <h2 id="vx-conn-h">Connect to the voice engine</h2>
-    <p>The voice engine runs free on your computer. Start it with <code>vox serve --ckpt your_model.pt</code> and paste the admin token it prints (also in <code>learning/admin_token.txt</code>).
-      To use it from anywhere, give it your own address with a named Cloudflare tunnel (like <code>https://voice.thelogicgrid.com</code>, see the engine's README) and paste that address. Quick tunnel addresses (….trycloudflare.com) don't work here.</p>
+  const v = loadLaunch();
+  const url = c.url || DEFAULT_URL;
+  return `<section class="card vx-open" aria-labelledby="vx-open-h">
+    <div class="head"><h2 id="vx-open-h">Open Vox</h2>
+      <button class="btn" type="button" id="vx-studio" disabled title="Opens Vox's own Voice Studio in a new tab">Open Voice Studio</button></div>
+    <p class="vx-light" id="vx-light" role="status" aria-live="polite" data-state="checking"><span class="vx-dot" aria-hidden="true"></span><span id="vx-light-text">Looking for Vox at ${h.esc(url)}…</span></p>
     ${message ? `<p class="error" role="alert">${h.esc(message)}</p>` : ''}
-    <form id="vx-connect" class="row" novalidate>
-      <div class="field grow"><label for="vx-url">Address</label><input id="vx-url" type="url" value="${h.esc(c.url || DEFAULT_URL)}" autocomplete="off" spellcheck="false"></div>
-      <div class="field grow"><label for="vx-token">Admin token</label><input id="vx-token" type="password" value="${h.esc(c.token || '')}" autocomplete="off" spellcheck="false" required></div>
-      <button class="btn primary" type="submit">Connect</button>
-    </form>
-    <p class="muted">The token is kept on this device only and is sent to nothing but the engine. Chrome or Edge may ask once whether this page may use devices on your network: choose Allow.</p>
+
+    <div class="vx-step" id="vx-step-start">
+      <h3><span class="vx-num" aria-hidden="true">1</span> Start Vox</h3>
+      <p>Vox runs free on your own computer. Make a start shortcut once, save it on your desktop, then double-click it whenever you want Vox. A black window opens: leave it open while you work, because closing it stops Vox.</p>
+      <form id="vx-launch" class="stack" novalidate>
+        <div class="row">
+          <div class="field grow"><label for="vx-folder">Vox folder</label><input id="vx-folder" type="text" value="${h.esc(v.folder)}" placeholder="C:\\Users\\you\\vox-engine" autocomplete="off" spellcheck="false" aria-describedby="vx-folder-help">
+            <span class="muted" id="vx-folder-help">In File Explorer, open the Vox folder, click the address bar and copy it. Leave this blank if you'll save the shortcut inside the Vox folder.</span></div>
+          <div class="field"><label for="vx-model">Model file</label><input id="vx-model" type="text" value="${h.esc(v.model)}" autocomplete="off" spellcheck="false" aria-describedby="vx-model-help">
+            <span class="muted" id="vx-model-help">practice.pt until you have a trained model (for example runs\\v1\\vox.pt).</span></div>
+        </div>
+        <div class="field inline"><input id="vx-online" type="checkbox"${v.online ? ' checked' : ''}><label for="vx-online">Also put it online at my own address (voice.thelogicgrid.com, after the one-time tunnel setup)</label></div>
+        <div class="row"><button class="btn primary" type="submit">Download start shortcut</button></div>
+      </form>
+      <details class="vx-more"><summary>Or start it by typing a command</summary>
+        <p>Open a Command Prompt in the Vox folder and type:</p>
+        <div class="row vx-cmd-row"><code id="vx-cmd">${h.esc(startCommand(v))}</code><button class="btn small" type="button" id="vx-copy-cmd">Copy</button></div>
+      </details>
+    </div>
+
+    <div class="vx-step">
+      <h3><span class="vx-num" aria-hidden="true">2</span> Connect</h3>
+      <p>When Vox starts, its window shows a line beginning <b>Vox admin token:</b>. Paste that token here once. This device remembers it, and after that the page connects by itself whenever Vox is running. The token is also saved in the Vox folder, in <code>learning\\admin_token.txt</code>.</p>
+      <form id="vx-connect" class="stack" novalidate>
+        <div class="row">
+          <div class="field grow"><label for="vx-token">Admin token</label><input id="vx-token" type="password" value="${h.esc(c.token || '')}" autocomplete="off" spellcheck="false" required></div>
+          <button class="btn primary" type="submit">Connect</button>
+        </div>
+        <details class="vx-more"${c.url && c.url !== DEFAULT_URL ? ' open' : ''}><summary>Engine address</summary>
+          <div class="field"><label for="vx-url">Address</label><input id="vx-url" type="url" value="${h.esc(url)}" autocomplete="off" spellcheck="false" aria-describedby="vx-url-help">
+            <span class="muted" id="vx-url-help">http://127.0.0.1:5150 when Vox runs on this computer. To reach it from anywhere, use its own online address (https://voice.thelogicgrid.com). Quick tunnel addresses (….trycloudflare.com) aren't allowed.</span></div>
+        </details>
+      </form>
+      <p class="muted">The token stays on this device and is sent only to Vox. Chrome or Edge may ask once whether this page can use devices on your network: choose Allow.</p>
+    </div>
   </section>`;
+}
+
+function setLight(state, text) {
+  const el = $('#vx-light');
+  if (!el) return;
+  el.dataset.state = state;
+  $('#vx-light-text').textContent = text;
+  const studio = $('#vx-studio');
+  if (studio) studio.disabled = state !== 'up';
+  const step = $('#vx-step-start');
+  if (step) step.classList.toggle('vx-done', state === 'up');
+}
+
+// Check whether Vox is up; connect by itself if a good token is saved.
+async function watchEngine() {
+  clearTimeout(watch);
+  if (location.hash !== '#voice-engine' || !$('#vx-light')) return;
+  let url;
+  try { url = cleanUrl($('#vx-url')?.value); } catch (e) { setLight('down', e.message); return; }
+  try {
+    const health = await engineHealth(url);
+    const saved = loadConn();
+    if (saved?.token && saved.url === url && !tokenRejected) { await render(); return; }
+    setLight('up', `Vox is running${health.version ? ` (model ${health.version})` : ''}. ${saved?.token && !tokenRejected ? 'Connecting…' : 'Paste its admin token below to connect.'}`);
+  } catch (e) {
+    const saved = loadConn();
+    setLight('down', `Vox isn't running at ${url} yet. Start it with step 1. ${saved?.token && !tokenRejected ? 'Your token is saved, so this page connects as soon as Vox is ready.' : 'This page notices when it\'s ready.'}`);
+  }
+  watch = setTimeout(watchEngine, 3000);
+}
+
+function showOpen(message = '') {
+  $('#vx-body').innerHTML = openCard(message);
+  watchEngine();
 }
 
 function shell(health) {
   const tabs = TABS.map(([k, label]) => `<label class="tab"><input type="radio" name="vx-tab" value="${k}"${k === tab ? ' checked' : ''}> ${label}</label>`).join('');
   return `<div class="row vx-status"><p class="muted">Connected to <b>${h.esc(conn.url)}</b>${health.public ? ' <span class="badge ok">online</span>' : ''} · model <b>${h.esc(health.version || '–')}</b> · ${h.esc(health.device)}${health.vocoder_trained ? '' : ' · <span class="badge warn">vocoder not trained yet</span>'}</p>
-      <button class="btn small link" type="button" id="vx-forget">Disconnect</button></div>
+      <div class="row"><button class="btn small" type="button" id="vx-studio">Open Voice Studio</button>
+      <button class="btn small link" type="button" id="vx-forget">Disconnect</button></div></div>
     ${health.learning ? '' : '<p class="note">Learning is off on this engine (it was started with --no-learning). Start it without that option to use this page fully.</p>'}
     <fieldset class="tabs"><legend class="sr-only">Part</legend>${tabs}</fieldset>
     <div id="vx-tab-body"><p class="muted">Loading…</p></div>`;
@@ -478,19 +593,23 @@ async function renderTab(extra) {
 
 async function render(message = '') {
   clearTimeout(poll);
+  clearTimeout(watch);
   stopAudio();
   const body = $('#vx-body');
   conn = loadConn();
-  if (!conn || message) { body.innerHTML = connectForm(message); return; }
+  if (!conn || message) { showOpen(message); return false; }
   let health;
   try {
-    const res = await fetch(`${conn.url}/v1/health`);
-    health = await res.json();
+    health = await engineHealth(conn.url);
     await vox('/v1/admin/check');
   } catch (e) {
-    body.innerHTML = connectForm(e.status === 401 ? 'That admin token was not accepted. Copy it again from the engine.' : 'The voice engine is not answering. Start it with "vox serve" on this computer, then try again.');
+    // Not running: the Open Vox card watches for it and connects by itself.
+    // A refused token is shown once and isn't retried until you paste another.
+    if (e.status === 401) tokenRejected = true;
+    showOpen(e.status === 401 ? 'Vox didn\'t accept that admin token. Copy it again from the Vox window (the line beginning "Vox admin token:") and connect.' : '');
     return false;
   }
+  tokenRejected = false;
   body.innerHTML = shell(health);
   await renderTab();
   return true;
@@ -504,7 +623,7 @@ export function voiceEngineView(helpers) {
 export function initVoiceEngine(helpers) {
   h = helpers;
   const body = $('#vx-body');
-  addEventListener('hashchange', () => { if (location.hash !== '#voice-engine') { clearTimeout(poll); stopAudio(); } });
+  addEventListener('hashchange', () => { if (location.hash !== '#voice-engine') { clearTimeout(poll); clearTimeout(watch); stopAudio(); } });
 
   body.addEventListener('change', (e) => {
     const t = e.target;
@@ -524,6 +643,11 @@ export function initVoiceEngine(helpers) {
     // Typing or choosing in a form pauses the 3-second refresh, so it never
     // wipes what you are in the middle of (see pollLater).
     if (e.target.closest('#vx-tab-body form')) editing = true;
+    if (['vx-model', 'vx-online'].includes(e.target.id)) {
+      $('#vx-cmd').textContent = startCommand({ model: $('#vx-model').value.trim() || 'practice.pt', online: $('#vx-online').checked });
+      return;
+    }
+    if (e.target.id === 'vx-url') { tokenRejected = false; clearTimeout(watch); watch = setTimeout(watchEngine, 600); return; }
     if (e.target.id !== 'vx-q') return;
     clearTimeout(suggestTimer);
     const q = e.target.value.trim();
@@ -546,11 +670,34 @@ export function initVoiceEngine(helpers) {
       try {
         const url = cleanUrl($('#vx-url').value);
         const token = $('#vx-token').value.trim();
-        if (!token) throw new Error('Paste the admin token the engine printed.');
+        if (!token) throw new Error('Paste the admin token from the Vox window (the line beginning "Vox admin token:").');
         saveConn({ url, token });
-        if (await render()) h.toast('Connected to the voice engine.');
-      } catch (err) { body.innerHTML = connectForm(err.message); }
-    } else if (f.id === 'vx-settings') {
+        tokenRejected = false;
+        try { await engineHealth(url); } catch (err) {
+          h.announce('Token saved. Waiting for Vox to start.');
+          watchEngine();
+          return;
+        }
+        if (await render()) h.toast('Connected to Vox.');
+      } catch (err) { showOpen(err.message); }
+      return;
+    }
+    if (f.id === 'vx-launch') {
+      const v = { folder: $('#vx-folder').value.trim().replace(/[\\/]+$/, ''), model: $('#vx-model').value.trim(), online: $('#vx-online').checked };
+      try { checkLaunch(v); } catch (err) { h.toast(err.message); h.announce(err.message); return; }
+      saveLaunch(v);
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([startShortcut(v)], { type: 'application/octet-stream' }));
+      a.download = 'Start Vox.cmd';
+      document.body.append(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      const msg = 'Start shortcut downloaded. Move "Start Vox.cmd" to your desktop and double-click it. If Windows warns about it, click More info, then Run anyway.';
+      h.toast(msg); h.announce(msg);
+      return;
+    }
+    if (f.id === 'vx-settings') {
       await h.act(btn, async () => {
         const n = (id) => Number($(id).value);
         await vox('/v1/admin/learning/settings', { method: 'PUT', body: {
@@ -626,6 +773,16 @@ export function initVoiceEngine(helpers) {
     const b = e.target.closest('button');
     if (!b) return;
     if (b.id === 'vx-forget') { saveConn(null); render(); return; }
+    if (b.id === 'vx-studio') {
+      let url = conn?.url;
+      if (!url) { try { url = cleanUrl($('#vx-url')?.value); } catch (err) { h.toast(err.message); return; } }
+      window.open(`${url}/`, '_blank', 'noopener');
+      return;
+    }
+    if (b.id === 'vx-copy-cmd') {
+      try { await navigator.clipboard.writeText($('#vx-cmd').textContent); h.toast('Copied.'); h.announce('Copied.'); } catch (err) { h.toast('Select the command and copy it by hand.'); }
+      return;
+    }
     if (b.id === 'vx-refine') {
       await h.act(b, async () => { await vox('/v1/admin/learning/refine', { method: 'POST' }); await renderTab(); }, 'Refinement started.');
       return;
