@@ -288,8 +288,11 @@ function showScreen(name) {
   if (document.documentElement.classList.contains('ready')) { scr.classList.remove('enter'); void scr.offsetWidth; scr.classList.add('enter'); }
   if (name === 'games') setWorld('random');
   else if (name !== 'np' && !kitGames.byScreen(name)) setWorld(name === 'play' && S ? S.puzzle.theme.id : setup.theme);
-  // How to play, the Introduction and the scoreboard are The Fantastical Logic Grid's.
-  $('.topstrip').hidden = name === 'games';
+  // How to play and the small scoreboard sit on The Fantastical Logic Grid's
+  // main page only. While a puzzle is open the app bar keeps to one slim row:
+  // Back, the logo, Grid / List, Help and Menu (app.css, [data-screen=play]).
+  $('.topstrip').hidden = name !== 'home';
+  document.documentElement.dataset.screen = name;
   $('#skip-link').hidden = name !== 'play';
   $('#view-seg').hidden = name !== 'play';
   document.title = name === 'play' && S ? `${S.save.name} · The Fantastical Logic Grid` : name === 'learn' ? 'How to play · The Fantastical Logic Grid' : name === 'np' ? 'NINETIMESNINE · The Logic Grid' : kitGames.byScreen(name) ? `${kitGames.KIT_GAMES[kitGames.byScreen(name)].name} · The Logic Grid` : name === 'games' ? 'The Logic Grid' : SITE_HUB ? HOME_TITLE : 'The Fantastical Logic Grid · The Logic Grid';
@@ -3081,7 +3084,7 @@ $('#help-btn').onclick = () => {
 };
 $('#help-close').onclick = () => $('#dlg-help').close();
 
-// The Introduction (narrated video): offered once on first launch, always at the top.
+// The Introduction (narrated video): offered once on first launch, and always under Help.
 function openVideo() {
   if ($('#dlg-help').open) $('#dlg-help').close();
   // The Introduction has the floor: game speech and music stop while it plays,
@@ -3092,14 +3095,13 @@ function openVideo() {
   openDialog($('#dlg-video'), v);
   updateMusic();
 }
-// The app bar (with How to play, the Introduction and the small scoreboard) stays at the top;
+// The app bar (with How to play and the small scoreboard on the main page) stays at the top;
 // its height keeps scrolled-to items from hiding under it.
 const appbar = $('.appbar');
 const setAppbarHeight = () => document.documentElement.style.setProperty('--appbar-h', `${appbar.offsetHeight}px`);
 if (window.ResizeObserver) new ResizeObserver(setAppbarHeight).observe(appbar);
 setAppbarHeight();
 $('#howto-btn').onclick = () => openTutorial();
-$('#intro-btn').onclick = openVideo;
 $('#miniboard-open').onclick = () => competeUi.openBoard();
 $('#video-close').onclick = () => $('#dlg-video').close();
 $('#dlg-video').addEventListener('close', () => {

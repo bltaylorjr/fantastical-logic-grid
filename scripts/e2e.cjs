@@ -25,13 +25,13 @@ const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`o
     const tour = await page.evaluate(async () => { const v = document.querySelector('#game-video'); if (v.readyState < 1) await new Promise((r) => { v.onloadedmetadata = r; setTimeout(r, 5000); }); const t = v.textTracks[0]; return { src: v.currentSrc, d: v.duration, track: t && t.kind, mode: t && t.mode }; });
     assert(/the-logic-grid\.mp4$/.test(tour.src) && tour.d > 30 && tour.track === 'captions' && tour.mode === 'showing', `the welcome plays the site tour with captions on (${Math.round(tour.d)} s)`);
     await page.click('#game-video-close');
-    await page.click('#intro-btn');
+    await page.click('#help-btn'); await page.click('#help-intro');
     await page.waitForSelector('#dlg-video[open]');
     const vid = await page.evaluate(async () => { const v = document.querySelector('#intro-video'); if (v.readyState < 1) await new Promise((r) => { v.onloadedmetadata = r; setTimeout(r, 5000); }); const t = v.textTracks[0]; return { d: v.duration, track: t && t.kind, mode: t && t.mode }; });
     assert(vid.d > 200 && vid.track === 'captions' && vid.mode === 'showing', `intro video loads with captions on (${Math.round(vid.d)} s)`);
     await page.click('#video-close');
-    assert(await page.locator('#intro-btn').isVisible(), 'the Introduction is on the game page');
-    await page.click('#intro-btn');
+    assert(await page.locator('#help-btn').isVisible(), 'the Introduction is under Help on the game page');
+    await page.click('#help-btn'); await page.click('#help-intro');
     await page.waitForSelector('#dlg-video[open]');
     await page.click('#video-close');
     assert(await page.locator('#howto-btn').isVisible(), 'How to play is on the game page');

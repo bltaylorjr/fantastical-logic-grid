@@ -179,7 +179,7 @@ export const CLOUD_URL = CLOUD.learnUrl;` }));
     assert(await page.evaluate((k) => window.__flg.state.marks.get(k), k0) === 'X', 'the puzzle cell menu still works after the tutorial');
 
     // From a puzzle, the video window offers the tutorial; the puzzle is saved first.
-    await page.click('#intro-btn');
+    await page.click('#help-btn'); await page.click('#help-intro');
     await page.waitForSelector('#dlg-video[open]');
     assert((await page.textContent('#video-h')).startsWith('Introduction'), 'the video is now called the Introduction');
     await page.click('#video-learn');

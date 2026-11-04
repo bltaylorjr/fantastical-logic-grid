@@ -1089,21 +1089,10 @@ dialog.rules table.board td { font-variant-numeric: tabular-nums; }
 /* Grid / List switch in the sticky app bar (shown only while a puzzle is open),
    so it can be reached without scrolling back up to the grid. Icon plus word on
    wider screens; icons only on phones, where the word stays for screen readers. */
-.view-seg { flex: none; margin-left: auto; }
+.view-seg { flex: none; align-self: center; }
 .view-seg[hidden] { display: none; }
 .view-seg > label > span { gap: 6px; min-width: 44px; justify-content: center; padding: 0 12px; }
 .view-seg .ico { width: 20px; height: 20px; flex: none; }
-/* While a puzzle is open the scoreboard strip shares its row with the switch:
-   it gives up room first and cuts long screen names short with an ellipsis. */
-body:has(#view-seg:not([hidden])) .topstrip { min-width: 0; }
-body:has(#view-seg:not([hidden])) .miniboard { flex: 1 1 0; flex-wrap: nowrap; }
-@media (max-width: 599px) {
-  /* Phones: How to play and Introduction keep the first row to themselves. */
-  body:has(#view-seg:not([hidden])) .miniboard { flex-basis: 55%; }
-}
-body:has(#view-seg:not([hidden])) .miniboard ol { flex: 0 1 auto; flex-wrap: nowrap; min-width: 0; overflow: hidden; }
-body:has(#view-seg:not([hidden])) .miniboard li { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-body:has(#view-seg:not([hidden])) #miniboard-open { flex: none; }
 @media (max-width: 599px) {
   .view-seg > label > span { padding: 0 10px; }
   .view-seg .seg-text { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
@@ -1177,3 +1166,31 @@ html[data-embed] dialog::backdrop { background: transparent; }
 
 /* The website's game page: shared things are cards on the home page (scripts/hub.mjs). */
 #app-menu [data-site-hidden] { display: none !important; }
+
+/* ---------- Compact bar while a puzzle is open (2026-11-03) ----------
+   Bobby: "compact top to basic menu during puzzle play, only show what is needed".
+   One slim row: Back, the logo, Grid / List, Help and Menu. How to play and the
+   scoreboard stay on the puzzle's main page (app.js hides the strip elsewhere);
+   For educators and the screen name wait there too (screen name: in the Menu). */
+[data-screen=play] .appbar { flex-wrap: nowrap; padding-top: 4px; padding-bottom: 4px; }
+[data-screen=play] .appbar > .brand { flex: 0 1 auto; }
+[data-screen=play] .brand > span { display: none; }
+[data-screen=play] #educators-link, [data-screen=play] #player-chip { display: none !important; }
+[data-screen=play] .appbar-actions { margin-left: auto; align-items: center; }
+/* The main page's strip: How to play and the scoreboard share one line; long
+   screen names are cut short with an ellipsis. */
+.topstrip { flex-wrap: nowrap; min-width: 0; }
+.topstrip > .btn { flex: none; }
+.miniboard { flex: 1 1 0; flex-wrap: nowrap; justify-content: flex-end; }
+.miniboard ol { flex: 0 1 auto; flex-wrap: nowrap; min-width: 0; overflow: hidden; }
+.miniboard li { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+#miniboard-open { flex: none; }
+.appbar-actions .educators-link { white-space: nowrap; }
+/* Phones: the screen name gives up room first so Help and Menu always fit. */
+.appbar-actions { min-width: 0; }
+.appbar-actions > * { flex: none; }
+.appbar-actions > .player-chip { flex: 0 1 auto; min-width: 44px; }
+@media (max-width: 479px) { .appbar-actions > .player-chip { max-width: 7.5em; } }
+.appbar-actions > .player-chip { justify-content: flex-start; }
+#player-chip-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.player-chip::before { flex: none; }
