@@ -196,41 +196,6 @@ $('#sound-btn').onclick = () => {
   status(settings.sound ? 'Sound on.' : 'Sound off.');
 };
 
-// Phones: the two-row app bar folds to one short row while scrolling down
-// (app.css, .appbar.compact) and opens again on any scroll up, near the top,
-// or when something in it has focus.
-(() => {
-  const bar = document.querySelector('.appbar');
-  if (!bar) return;
-  let lastY = scrollY;
-  let ticking = false;
-  let quietUntil = 0;
-  // Fold or open the bar without the page jumping: whatever is under the bar
-  // stays where it was on screen, and the scrolling this causes is ignored.
-  const set = (on) => {
-    if (bar.classList.contains('compact') === on) return;
-    const anchor = document.querySelector('main:not([hidden])') || document.body;
-    const before = anchor.getBoundingClientRect().top;
-    bar.classList.toggle('compact', on);
-    const shift = anchor.getBoundingClientRect().top - before;
-    if (Math.abs(shift) >= 1) scrollBy(0, shift);
-    quietUntil = performance.now() + 250;
-    lastY = scrollY;
-  };
-  const update = () => {
-    ticking = false;
-    const y = scrollY;
-    if (performance.now() < quietUntil) { lastY = y; return; }
-    const narrow = innerWidth < 600;
-    if (!narrow || y < 60 || document.querySelector('dialog[open]')) set(false);
-    else if (y > lastY + 6) set(true);
-    else if (y < lastY - 6) set(false);
-    if (Math.abs(y - lastY) > 6) lastY = y;
-  };
-  addEventListener('scroll', () => { if (!ticking) { ticking = true; requestAnimationFrame(update); } }, { passive: true });
-  bar.addEventListener('focusin', (e) => { if (!e.target.closest('#view-seg, #app-menu, .appbar-actions')) set(false); });
-})();
-
 let themeSetByApp = !!document.documentElement.dataset.theme;
 function applyColorTheme() {
   const t = settings.colorTheme;

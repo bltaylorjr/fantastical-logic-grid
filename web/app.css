@@ -87,16 +87,6 @@ button, input, select { font: inherit; color: inherit; }
 /* ---------- App bar ---------- */
 .appbar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; display: flex; align-items: center; justify-content: space-between; gap: 8px;
   padding: 8px max(16px, env(safe-area-inset-right)) 8px max(16px, env(safe-area-inset-left)); background: var(--bg); border-bottom: 1px solid var(--hairline); }
-/* Phones: while scrolling down the bar folds to one short row (How to play,
-   the Introduction and the scoreboard step aside; Grid / List, Help and Menu
-   stay), so it never covers much of the grid. Any scroll up, or the top of
-   the page, brings the full bar back (WS-85GS9WF5). */
-@media (max-width: 599px) {
-  .appbar.compact .topstrip { flex: 0 0 auto; order: 2; border-top: 0; padding-top: 0; }
-  .appbar.compact > .brand { order: 1; }
-  .appbar.compact .appbar-actions { order: 3; }
-  .appbar.compact #howto-btn, .appbar.compact #intro-btn, .appbar.compact .miniboard, .appbar.compact .brand > span { display: none; }
-}
 .brand { display: flex; align-items: center; gap: 10px; background: none; border: 0; padding: 6px 4px; min-height: 44px; cursor: pointer; font-weight: 700; font-size: 1.05rem; color: var(--text); border-radius: 8px; text-align: left; }
 .brand-mark { width: 30px; height: 30px; color: var(--accent); flex: none; }
 .appbar-actions { display: flex; gap: 8px; }

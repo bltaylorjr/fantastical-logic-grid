@@ -4,8 +4,8 @@
 // on; the story and the finish keep their voices. All sound off greys out the
 // rest. The grid games and NINETIMESNINE split their Sound effects switch the
 // same way and keep an older "off" choice.
-// Also the phone fixes from WS-85GS9WF5: small squares stay square, and the
-// app bar folds to one short row while scrolling down (Grid / List in reach).
+// Also the phone fixes for WS-85GS9WF5: small squares stay square, and the
+// app bar on a puzzle is one slim row (#330).
 const { chromium, devices } = require('playwright');
 const { spawn } = require('child_process');
 const path = require('path');
@@ -84,13 +84,9 @@ const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`o
     await m.waitForTimeout(500);
     const sq = await m.evaluate(() => { const r = [...document.querySelectorAll('#gridframe td.c')].map((td) => td.getBoundingClientRect()); const spread = (xs) => Math.max(...xs) - Math.min(...xs); return { w: spread(r.map((x) => x.width)), h: spread(r.map((x) => x.height)), odd: r.filter((x) => Math.abs(x.width - x.height) > 1).length }; });
     assert(sq.w <= 1 && sq.h <= 1 && sq.odd === 0, `small squares on a phone are all the same size and square (${JSON.stringify(sq)})`);
-    const full = await m.evaluate(() => document.querySelector('.appbar').getBoundingClientRect().height);
-    for (let i = 0; i < 4; i++) { await m.mouse.wheel(0, 250); await m.waitForTimeout(300); }
-    const folded = await m.evaluate(() => { const s = document.querySelector('#view-seg').getBoundingClientRect(); return { bar: document.querySelector('.appbar').getBoundingClientRect().height, segIn: s.width > 0 && s.top >= 0 && s.bottom <= innerHeight }; });
-    assert(folded.bar < full - 30 && folded.bar <= 70, `the app bar folds to one row while scrolling down (${Math.round(full)} -> ${Math.round(folded.bar)} px)`);
-    assert(folded.segIn, 'the Grid / List switch stays in reach');
-    await m.mouse.wheel(0, -150); await m.waitForTimeout(400);
-    assert(Math.round(await m.evaluate(() => document.querySelector('.appbar').getBoundingClientRect().height)) === Math.round(full), 'scrolling up opens the full bar again');
+    // The bar is one slim row while a puzzle is open (#330), with Grid / List in reach.
+    const bar = await m.evaluate(() => { const s = document.querySelector('#view-seg').getBoundingClientRect(); return { h: document.querySelector('.appbar').getBoundingClientRect().height, segIn: s.width > 0 && s.top >= 0 && s.bottom <= innerHeight }; });
+    assert(bar.h <= 70 && bar.segIn, `the app bar on a puzzle is one slim row with Grid / List in reach (${Math.round(bar.h)} px)`);
     await phone.close();
 
     assert(!errors.length, `no page errors${errors.length ? `: ${errors.join(' | ')}` : ''}`);
