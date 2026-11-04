@@ -205,7 +205,7 @@ function openCard(message = '') {
           <div class="field"><label for="vx-model">Model file</label><input id="vx-model" type="text" value="${h.esc(v.model)}" autocomplete="off" spellcheck="false" aria-describedby="vx-model-help">
             <span class="muted" id="vx-model-help">practice.pt until you have a trained model (for example runs\\v1\\vox.pt).</span></div>
         </div>
-        <div class="field inline"><input id="vx-online" type="checkbox"${v.online ? ' checked' : ''}><label for="vx-online">Also put it online at my own address (voice.thelogicgrid.com, after the one-time tunnel setup)</label></div>
+        <label class="check"><input id="vx-online" type="checkbox"${v.online ? ' checked' : ''}> Also put it online at my own address (voice.thelogicgrid.com, after the one-time tunnel setup)</label>
         <div class="row"><button class="btn primary" type="submit">Download start shortcut</button></div>
       </form>
       <details class="vx-more"><summary>Or start it by typing a command</summary>
@@ -294,7 +294,7 @@ function deskCard(message = '') {
     ? `<p class="muted">Vox runs right here on this computer, started and stopped by the admin app, and stops when you close the app. Folder: <b>${h.esc(st.folder)}</b> · model <b>${h.esc(st.model || 'made the first time you start it')}</b></p>`
     : `<div class="note"><p>Choose the Vox folder once: the <b>vox-engine</b> folder you unzipped (it has README.md and a folder named vox inside).</p><button class="btn primary" type="button" id="vx-app-folder">Choose the Vox folder</button></div>`}
     <details class="vx-more"><summary>More</summary>
-      <div class="field inline"><input id="vx-auto-start" type="checkbox"${autoStart() ? ' checked' : ''}><label for="vx-auto-start">Start Vox when I open this page</label></div>
+      <label class="check"><input id="vx-auto-start" type="checkbox"${autoStart() ? ' checked' : ''}> Start Vox when I open this page</label>
       <div class="row">
         ${st.folder ? '<button class="btn small" type="button" id="vx-app-folder">Change folder</button>' : ''}
         <button class="btn small" type="button" data-app-open="folder">Open the Vox folder</button>
