@@ -158,7 +158,9 @@ uses a secret, variable or binding that is not listed there.
 | Name | Where | Notes |
 | --- | --- | --- |
 | `PUZZLES` | Worker binding (server/wrangler.toml) | Workers VPC Service flg-puzzles ([[vpc_services]] in wrangler.toml, with its Service ID). Optional. |
-| `PUZZLE_KEY` | Cloudflare Worker secret | The shared key from /opt/flg/puzzle.env on the Oracle VM. Optional. |
+| `PUZZLE_KEY` | Cloudflare Worker secret | The shared key the Worker sends to the puzzle server; the same value as FLG_PUZZLE_KEY. Optional. |
+| `FLG_PUZZLE_KEY` | GitHub repository secret | The same key as PUZZLE_KEY; handed to the Oracle server when it is created. Optional. |
+| `FLG_TUNNEL_TOKEN` | GitHub repository secret | Token of the Cloudflare tunnel flg-puzzles; handed to the Oracle server when it is created. Optional. |
 | `LIMIT_PUZZLES` | Worker binding (server/wrangler.toml) | Puzzles built per visitor per minute (120), every game. Optional. |
 | `LIMIT_HINTS` | Worker binding (server/wrangler.toml) | Play-time requests per visitor per minute (600): hints, NINETIMESNINE rival moves and tide, wizard checks. Optional. |
 | `FLG_PUZZLE_DEPLOY` | GitHub repository variable | Value: `1` Deploys the puzzle server to the Oracle VM on every engine change. Optional. |

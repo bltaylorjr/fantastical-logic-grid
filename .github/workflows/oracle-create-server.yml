@@ -71,6 +71,11 @@ jobs:
       - name: Create the server if Oracle has room
         if: steps.gate.outputs.go == 'yes'
         id: create
+        env:
+          # Handed to the new server so its puzzle server and Cloudflare tunnel
+          # start on their own (docs/PUZZLE-SERVER.md). Optional.
+          FLG_TUNNEL_TOKEN: ${{ secrets.FLG_TUNNEL_TOKEN }}
+          FLG_PUZZLE_KEY: ${{ secrets.FLG_PUZZLE_KEY }}
         run: |
           end=$(( $(date -u +%s) + 5*3600 ))
           deadline=$(date -u -d "$DEADLINE" +%s)

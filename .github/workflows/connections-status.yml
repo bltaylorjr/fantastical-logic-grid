@@ -52,6 +52,8 @@ jobs:
             ${{ secrets.CLOUDFLARE_PROJECT != '' && 'CLOUDFLARE_PROJECT' || '' }}
             ${{ secrets.DEPLOY_HOOK_URL != '' && 'DEPLOY_HOOK_URL' || '' }}
             ${{ secrets.FLG_ADMIN_TOKEN != '' && 'FLG_ADMIN_TOKEN' || '' }}
+            ${{ secrets.FLG_PUZZLE_KEY != '' && 'FLG_PUZZLE_KEY' || '' }}
+            ${{ secrets.FLG_TUNNEL_TOKEN != '' && 'FLG_TUNNEL_TOKEN' || '' }}
             ${{ secrets.FTP_DIR != '' && 'FTP_DIR' || '' }}
             ${{ secrets.FTP_PASSWORD != '' && 'FTP_PASSWORD' || '' }}
             ${{ secrets.FTP_SERVER != '' && 'FTP_SERVER' || '' }}

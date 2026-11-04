@@ -199,7 +199,9 @@ export const CONNECTIONS = [
     docs: 'docs/PUZZLE-SERVER.md',
     names: [
       { name: 'PUZZLES', where: 'worker-binding', optional: true, note: 'Workers VPC Service flg-puzzles ([[vpc_services]] in wrangler.toml, with its Service ID).' },
-      { name: 'PUZZLE_KEY', where: 'worker-secret', optional: true, note: 'The shared key from /opt/flg/puzzle.env on the Oracle VM.' },
+      { name: 'PUZZLE_KEY', where: 'worker-secret', optional: true, note: 'The shared key the Worker sends to the puzzle server; the same value as FLG_PUZZLE_KEY.' },
+      { name: 'FLG_PUZZLE_KEY', where: 'github-secret', optional: true, note: 'The same key as PUZZLE_KEY; handed to the Oracle server when it is created.' },
+      { name: 'FLG_TUNNEL_TOKEN', where: 'github-secret', optional: true, note: 'Token of the Cloudflare tunnel flg-puzzles; handed to the Oracle server when it is created.' },
       { name: 'LIMIT_PUZZLES', where: 'worker-binding', optional: true, note: 'Puzzles built per visitor per minute (120), every game.' },
       { name: 'LIMIT_HINTS', where: 'worker-binding', optional: true, note: 'Play-time requests per visitor per minute (600): hints, NINETIMESNINE rival moves and tide, wizard checks.' },
       { name: 'FLG_PUZZLE_DEPLOY', where: 'github-variable', optional: true, value: '1', note: 'Deploys the puzzle server to the Oracle VM on every engine change.' },
