@@ -1205,3 +1205,6 @@ html[data-embed] dialog::backdrop { background: transparent; }
 .appbar-actions > .player-chip { justify-content: flex-start; }
 #player-chip-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .player-chip::before { flex: none; }
+
+/* Trademark sign after the game's name on the home screen. */
+.hero-title .tm { font-size: .4em; vertical-align: super; line-height: 0; margin-left: .05em; font-weight: 400; }

@@ -88,7 +88,8 @@ function about() {
   $('#rp-about').textContent = kind() === 'page'
     ? `Tell us what looked wrong or did not work${ctx.where ? ` on ${ctx.where.split(':')[0]}` : ' on the page'}. We also send which ${fromSite ? 'page' : 'screen'} it was, the app version and your window size, nothing personal.`
     : p ? `About the puzzle “${p.title}”. The puzzle and its picture are sent with your report, so our puzzle doctor can check it and fix it straight away.`
-      : 'Open the puzzle in the game and report it from there, so it is sent with your report. Or tell us which puzzle it was, and add a screenshot if you can.';
+      : ctx.game === 'number-place' ? 'About a NINETIMESNINE puzzle. Tell us its level and what went wrong, and add a screenshot if you can. The team will look into it.'
+        : 'Open the puzzle in the game and report it from there, so it is sent with your report. Or tell us which puzzle it was, and add a screenshot if you can.';
 }
 for (const r of form.querySelectorAll('input[name=kind]')) r.addEventListener('change', about);
 $(`input[name=kind][value=${ctx.kind === 'page' || (!ctx.puzzle && ctx.kind !== 'puzzle') ? 'page' : 'puzzle'}]`, form).checked = true;
@@ -283,6 +284,7 @@ form.addEventListener('submit', async (e) => {
       platform: fromSite ? 'site' : (ctx.platform || platform()), version: ctx.version || CLOUD.appVersion || (fromSite ? 'site' : 'dev'),
       ...(fromSite ? { page: String(ctx.page || '/').slice(0, 200) } : { where: String(ctx.where || 'Game').slice(0, 200) }),
       screen: ctx.screen || `${innerWidth}x${innerHeight}`,
+      ...(ctx.game ? { game: ctx.game } : {}),
       ...(k === 'puzzle' && ctx.puzzle ? { puzzle: ctx.puzzle, image: ctx.image || undefined } : {}),
     };
     const fd = new FormData();

@@ -1,7 +1,8 @@
 // NINETIMESNINE in the game: the small menu link opens its own screen, a puzzle
 // can be played and solved there, the Logic Grid's keys and saves are left
 // alone, and leaving and coming back keeps the puzzle. Only anonymous play
-// data is shared, in the learning service's shape.
+// data is shared, in the learning service's shape. Ideas and problem reports
+// sent from its screen are marked as NINETIMESNINE's.
 const { chromium } = require('playwright');
 const { spawn } = require('child_process');
 const path = require('path');
@@ -92,6 +93,61 @@ const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`o
     await page.click('#gen-btn');
     await page.waitForSelector('#screen-play:not([hidden])', { timeout: 30000 });
     assert(await page.locator('#screen-np').isHidden(), 'the Logic Grid plays on its own screen again');
+
+    // Ideas and Report a Problem sent from the NINETIMESNINE screen say so,
+    // so each game's are kept apart. (A second tab, with the game's service
+    // pointed at a stand-in that records what is sent.)
+    const sent = [];
+    const FC = await browser.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' });
+    const F = await FC.newPage();
+    await FC.addInitScript(() => localStorage.setItem('flg.settings', JSON.stringify({ introOffered: true, sound: false })));
+    FC.on('weberror', (e) => errors.push(String(e.error())));
+    await FC.route('**/js/cloud-config.js', async (r) => {
+      const body = (await (await r.fetch()).text()).replace(/learnUrl:\s*(""|'')/, 'learnUrl:"http://localhost:8139"');
+      r.fulfill({ contentType: 'text/javascript', body });
+    });
+    // Reports go as a form (a 'report' part holding the JSON, plus any files);
+    // ideas go as JSON.
+    const bodyOf = (req) => {
+      const raw = req.postDataBuffer()?.toString('utf8') || '';
+      const part = /name="report"\r\n\r\n([\s\S]*?)\r\n--/.exec(raw);
+      try { return JSON.parse(part ? part[1] : raw || '{}'); } catch (e) { return {}; }
+    };
+    await FC.route('http://localhost:8139/**', (r) => {
+      const req = r.request();
+      if (req.method() === 'POST') sent.push({ path: new URL(req.url()).pathname, body: bodyOf(req) });
+      r.fulfill({ contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type, Authorization', 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS' }, body: JSON.stringify(/puzzle-report/.test(req.url()) ? { ok: true, tracking: 'PZ-TEST2345', category: 'puzzle', reply: 'none', files: 0 } : { ok: true }) });
+    });
+    // Report a Problem opens its own page in a new tab on the website.
+    const report = async (words) => {
+      const [rp] = await Promise.all([FC.waitForEvent('page'), F.click('#report-problem')]);
+      await rp.waitForSelector('#rp-form');
+      await rp.waitForFunction(() => document.querySelector('#rp-about').textContent.length > 0);
+      const about = await rp.textContent('#rp-about');
+      const puzzleKind = await rp.isChecked('input[name=kind][value=puzzle]');
+      // The screenshot added for the player is not needed here.
+      for (const b of await rp.locator('#rp-files button').all()) await b.click();
+      await rp.fill('#rp-text', words);
+      await rp.click('#rp-send');
+      await rp.waitForFunction(() => /PZ-TEST2345/.test(document.querySelector('#rp-done-number').textContent));
+      await rp.close();
+      return { about, puzzleKind };
+    };
+    await F.goto('http://localhost:8136/');
+    await F.waitForSelector('#tier-choices input');
+    await F.click('#menu-btn');
+    await F.click('[data-cmd=numberplace]');
+    await F.waitForSelector('#screen-np:not([hidden])');
+    const npSent = await report('The hard puzzle had two answers.');
+    assert(npSent.puzzleKind && /NINETIMESNINE puzzle/.test(npSent.about), 'Report a Problem on NINETIMESNINE starts as a NINETIMESNINE puzzle problem');
+    const sentReport = sent.find((x) => x.path === '/v1/puzzle-report');
+    assert(sentReport && sentReport.body.game === 'number-place' && !sentReport.body.puzzle && sentReport.body.where === 'NINETIMESNINE screen', 'the report is marked as NINETIMESNINE\'s, with no Logic Grid puzzle');
+    // (The Ideas box is hidden now that Submit Puzzle Ideas replaced it; the
+    // server keeps an idea's game: server/test/feedback-games.test.mjs.)
+    await F.click('#np-back');
+    await report('The home screen looks squashed.');
+    assert(sent.filter((x) => x.path === '/v1/puzzle-report')[1].body.game === 'logic-grid', 'back on the Logic Grid, reports are the Logic Grid\'s');
+    await FC.close();
 
     assert(!errors.length, `no page errors (${errors.join(' | ')})`);
     console.log('NINETIMESNINE in the game: all checks passed');

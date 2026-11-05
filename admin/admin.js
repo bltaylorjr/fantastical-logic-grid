@@ -751,11 +751,12 @@ const svgUrl = (svg) => {
   return `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(own)))}`;
 };
 
+const GAME_NAMES = { 'logic-grid': 'The Fantastical Logic Grid', 'number-place': 'NINETIMESNINE' };
 function etRowHtml(r) {
   const [cls, words] = REPORT_STATES[r.status] || ['', r.status];
   return `<tr>
     <td><button class="btn small link" type="button" data-et-open="${Number(r.id)}">${esc(r.tracking)}</button></td>
-    <td>${esc(CATEGORY_NAMES[r.category] || r.category)}</td>
+    <td>${esc(CATEGORY_NAMES[r.category] || r.category)}${r.game && r.game !== 'logic-grid' ? `<br><span class="badge">${esc(GAME_NAMES[r.game] || r.game)}</span>` : ''}</td>
     <td>${when(r.createdAt)}</td>
     <td>${esc(r.title || r.page || '–')}${r.theme ? `<br><span class="muted">${esc(r.theme)} · ${esc(TIER_NAMES[r.tier] || r.tier)} · ${esc(r.size)}</span>` : ''}</td>
     <td class="fb-text">${esc(r.text)}</td>
@@ -768,6 +769,7 @@ views.errortracking = async ({ arg } = {}) => {
   const qs = new URLSearchParams();
   if ($('#et-category').value) qs.set('category', $('#et-category').value);
   if ($('#et-status').value) qs.set('status', $('#et-status').value);
+  if ($('#et-game').value) qs.set('game', $('#et-game').value);
   if ($('#et-q').value.trim()) qs.set('q', $('#et-q').value.trim());
   const [d, p, log] = await Promise.all([api(`error-tracking?${qs}`), api('fault-patterns'), api('error-log')]);
   etLogMore = log.more;
@@ -834,6 +836,7 @@ async function etOpen(id) {
 $('#et-filter').onsubmit = (e) => { e.preventDefault(); show('errortracking', { keepFocus: true }); };
 $('#et-category').onchange = () => show('errortracking', { keepFocus: true });
 $('#et-status').onchange = () => show('errortracking', { keepFocus: true });
+$('#et-game').onchange = () => show('errortracking', { keepFocus: true });
 document.addEventListener('click', async (e) => {
   const o = e.target.closest('[data-et-open]');
   if (o) { await act(o, () => etOpen(Number(o.dataset.etOpen))); return; }
@@ -851,6 +854,7 @@ document.addEventListener('click', async (e) => {
     const qs = new URLSearchParams({ before: etMore });
     if ($('#et-category').value) qs.set('category', $('#et-category').value);
     if ($('#et-status').value) qs.set('status', $('#et-status').value);
+    if ($('#et-game').value) qs.set('game', $('#et-game').value);
     const d = await api(`error-tracking?${qs}`);
     $('#et-rows').insertAdjacentHTML('beforeend', d.reports.map(etRowHtml).join(''));
     etMore = d.more;
@@ -943,7 +947,7 @@ function itemHtml(i) {
     const m = i.meta;
     // A new storyline is decided with Approve or Disapprove (storyApproveHtml) instead of Mark addressed / Mark done.
     const storyline = i.type === 'idea' && m.topic === 'story' && i.status === 'new' && can('moderator');
-    return `<li>${type} ${state} <b>${esc(FB_TOPICS[m.topic] || m.topic)}</b>${m.themeName ? ` <span class="badge">Theme: ${esc(m.themeName)}</span>` : ''}
+    return `<li>${type} ${state} <b>${esc(FB_TOPICS[m.topic] || m.topic)}</b>${m.game && m.game !== 'logic-grid' ? ` <span class="badge">${esc(m.gameName || m.game)}</span>` : ''}${m.themeName ? ` <span class="badge">Theme: ${esc(m.themeName)}</span>` : ''}
       <span class="muted">${when(i.at)} · ${esc(m.platform)} ${esc(m.version)}${m.conversationId ? ' · the player asked for a reply' : ''}</span>
       <p class="fb-text">${esc(i.text)}</p>
       ${i.status === 'addressed' && m.note ? `<p class="fb-note"><b>What we did:</b> ${esc(m.note)} <span class="muted">${when(m.doneAt)}</span></p>` : ''}
@@ -976,7 +980,7 @@ views.communication = async () => {
   $('#comm-send').hidden = tab !== 'send';
   if (tab === 'send') { await sendView(); return; }
   const q = $('#comm-q').value.trim();
-  const d = await api(`inbox?type=${$('#comm-type').value}&status=${$('#comm-status').value}&q=${encodeURIComponent(q)}`);
+  const d = await api(`inbox?type=${$('#comm-type').value}&status=${$('#comm-status').value}&game=${$('#comm-game').value}&q=${encodeURIComponent(q)}`);
   for (const o of $('#comm-type').options) o.hidden = o.value !== 'all' && !d.types.includes(o.value);
   $('#comm-summary').textContent = `${commCounts(d.counts)} Showing ${plural(d.items.length, 'item', 'items')}${q ? ` with "${q}"` : ''}.`;
   const r = d.replies;
@@ -1042,6 +1046,7 @@ $$('input[name=comm-tab]').forEach((r) => { r.onchange = () => show('communicati
 $('#comm-filter').onsubmit = (e) => { e.preventDefault(); closeThread(); show('communication', { keepFocus: true }); };
 $('#comm-type').onchange = () => { closeThread(); show('communication', { keepFocus: true }); };
 $('#comm-status').onchange = () => { closeThread(); show('communication', { keepFocus: true }); };
+$('#comm-game').onchange = () => { closeThread(); show('communication', { keepFocus: true }); };
 $('#comm-list').onclick = async (e) => {
   const o = e.target.closest('button[data-open]');
   if (o) { await act(o, () => showThread(Number(o.dataset.open))); return; }
@@ -1398,6 +1403,20 @@ views.numberplace = async () => {
       ${d.stuck.length ? table([{ label: 'Technique' }, { label: 'Hints asked', num: true }], d.stuck.map((s) => [esc(NP_TECH_NAMES[s.technique] || s.technique), s.count])) : '<p class="muted">No hints asked yet.</p>'}
       <p class="muted">Players who keep asking about a technique get practice puzzles that need it (Practice puzzles, below).</p>
     </div>
+    <div class="card"><h2>Ideas and problems from NINETIMESNINE</h2>
+      ${table([{ label: 'Box' }, { label: 'New', num: true }, { label: 'Approved', num: true }, { label: 'Addressed', num: true }, { label: 'Done', num: true }],
+    [['Ideas', d.feedback.idea], ['Problems', d.feedback.problem]].map(([label, c]) => [label, fmt(c.new || 0), fmt(c.approved || 0), fmt(c.addressed || 0), fmt(c.done || 0)]))}
+      <p>Report a Problem from the NINETIMESNINE screen: ${fmt(d.feedback.reports.puzzle)} puzzle, ${fmt(d.feedback.reports.webstructure)} web page.</p>
+      <div class="row">${can('moderator') ? '<button class="btn small" type="button" data-np-inbox>Read them in Communication</button>' : ''}<button class="btn small" type="button" data-np-errors>Open in Error tracking</button></div>
+      <p class="muted">Kept apart from the Logic Grid's. Puzzle reports from NINETIMESNINE carry no puzzle file, so the team reads them (the puzzle doctor only checks Logic Grid puzzles).</p>
+    </div>
+    <div class="card"><h2>Learning from all games</h2>
+      ${d.tuning.crowd ? `<p>NINETIMESNINE also learns from every game's players: ${fmt(d.tuning.crowd.games.logicGrid)} Logic Grid and ${fmt(d.tuning.crowd.games.numberPlace)} NINETIMESNINE games from the last 90 days, pooled by how tough a level is. A level with few games of its own follows this until it has enough.</p>
+      ${table([{ label: 'Band' }, { label: 'Levels' }, { label: 'How players found it' }], [['gentle', 'Basic, Easy'], ['middle', 'Medium, Hard'], ['tough', 'Expert, Master']].map(([b, levels]) => {
+    const v = d.tuning.crowd.lean[b];
+    return [esc(b[0].toUpperCase() + b.slice(1)), levels, v == null ? 'Not enough games yet' : v > 0.1 ? `${v} (too easy: puzzles get tougher)` : v < -0.1 ? `${v} (too hard: puzzles get gentler)` : `${v} (about right)`];
+  }))}` : `<p class="muted">${d.sharedLearning ? 'Turn on Learn from NINETIMESNINE games to pool its games with the others.' : 'Off: each game tunes only from its own games. Turn on Learn across all games under Settings and switches > Learning.'}</p>`}
+    </div>
     <div class="card"><h2>NINETIMESNINE settings</h2>${editable ? '' : '<p class="note">You can see the settings. Changing them needs the admin role.</p>'}
       ${list.map((s) => `<div class="setting"><div><b id="lbl-${s.key}">${esc(s.label)}</b><p class="help">${esc(s.help)}</p>${s.updatedBy ? `<p class="meta">Changed by ${esc(s.updatedBy)} on ${when(s.updatedAt)}</p>` : ''}</div><div>${control(s)}</div></div>`).join('')}
     </div>`;
@@ -1412,6 +1431,14 @@ $('#np-body').onchange = (e) => {
   if (c) saveNpSetting(c.dataset.npKey, c.checked, c);
 };
 $('#np-body').onclick = (e) => {
+  if (e.target.closest('[data-np-inbox]')) {
+    $('input[name=comm-tab][value=inbox]').checked = true;
+    $('#comm-type').value = 'all';
+    $('#comm-game').value = 'number-place';
+    location.hash = '#communication';
+    return;
+  }
+  if (e.target.closest('[data-np-errors]')) { $('#et-game').value = 'number-place'; location.hash = '#errortracking'; return; }
   const b = e.target.closest('button[data-np-save]');
   if (!b) return;
   const input = $(`#npset-${b.dataset.npSave}`);

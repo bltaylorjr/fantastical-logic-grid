@@ -268,6 +268,18 @@ const SHOTS = process.env.SHOTS;
     await page.selectOption('#npset-np_max_level', 'expert');
     await page.click('button[data-np-save=np_max_level]');
     assert(await until('np_max_level', 'expert'), 'the hardest NINETIMESNINE level is saved');
+        // Its own ideas and problems, kept apart from the Logic Grid's, and the learning pooled across games.
+    await db.prepare("INSERT INTO feedback (kind, topic, text, platform, version, game, created_at) VALUES ('idea', 'feature', 'NINETIMESNINE needs a pencil mode for corners.', 'web', '1.14.0', 'number-place', ?1)").bind(Date.now()).run();
+    await openSection(page, 'overview');
+    await openSection(page, 'numberplace');
+    await page.waitForFunction(() => /Ideas and problems from NINETIMESNINE/.test(document.querySelector('#np-body').textContent));
+    assert(/Learning from all games/.test(await page.textContent('#np-body')), 'the NINETIMESNINE section shows its ideas and problems and the learning across games');
+    await page.click('#np-body [data-np-inbox]');
+    await page.waitForFunction(() => /pencil mode/.test(document.querySelector('#comm-list')?.textContent || ''));
+    assert((await page.inputValue('#comm-game')) === 'number-place' && !/clockwork|grid colors/i.test(await page.textContent('#comm-list')), 'Read them in Communication shows only NINETIMESNINE\'s');
+    assert(await page.locator('#comm-list li .badge', { hasText: 'NINETIMESNINE' }).count() >= 1, 'each one is labeled with its game');
+    await page.selectOption('#comm-game', 'all');
+    await db.prepare("DELETE FROM feedback WHERE game = 'number-place'").run();
     // Every grid-kit game has its own section too.
     const KIT = [['cagemath', 'cm', 'Cage Math'], ['sumcross', 'sc', 'Sum Cross'], ['picturegrid', 'pg', 'Picture Grid'], ['moreorless', 'ml', 'More or Less'], ['skyline', 'sk', 'Skyline'], ['starfield', 'sf', 'Star Field'], ['loopline', 'll', 'Loop Line'], ['islandbridges', 'ib', 'Island Bridges']];
     assert(!(await page.locator(KIT.map(([, id]) => `#settings-body [data-key^=${id}_]`).join(', ')).count()), 'the grid-kit games\' settings are not in the shared Settings page');
