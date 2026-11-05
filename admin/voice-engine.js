@@ -570,18 +570,23 @@ async function renderAutotune(el) {
 async function renderVoices(el) {
   // Keep the job's id even if the engine's answer leaves it out, so the next check still works.
   if (sampleJob && !sampleJob.done) sampleJob = { ...(await vox(`/v1/admin/jobs/${encodeURIComponent(sampleJob.id)}`)), id: sampleJob.id };
-  const rows = voiceList.map((v) => [`<b>${h.esc(v.name)}</b>`, h.esc(v.origin), h.esc(v.description || ''),
+  await loadOptions();
+  const rows = voiceList.map((v) => [`<b>${h.esc(v.name)}</b>`, h.esc(v.origin), `${h.esc(v.description || '')}${v.profile ? `<br><span class="muted">${h.esc(profileSummary(v.profile))}</span>` : ''}`,
     v.autotune ? h.esc(v.autotune.preset || 'custom') : '<span class="muted">off</span>',
     v.tuned ? '<span class="badge ok">optimized</span>' : '<span class="muted">default</span>',
     v.refined ? `${h.fmt(v.refined)}` : '<span class="muted">–</span>',
     `<div class="row"><button class="btn small" type="button" data-hear="${h.esc(v.name)}">Hear</button>
+      ${options ? `<button class="btn small" type="button" data-prof="${h.esc(v.name)}">Age, dialect and delivery</button>` : ''}
       <button class="btn small" type="button" data-opt="${h.esc(v.name)}">Auto-optimize</button>
       ${v.tuned ? `<button class="btn small link" type="button" data-reset="${h.esc(v.name)}">Reset settings</button>` : ''}
       ${v.refined ? `<button class="btn small link" type="button" data-unrefine="${h.esc(v.name)}">Undo last refinement</button>` : ''}
       ${v.name !== 'narrator' ? `<button class="btn small danger" type="button" data-del="${h.esc(v.name)}">Delete</button>` : ''}</div>`]);
-  el.innerHTML = `${samplesForm()}<p class="muted">Auto-optimize tries several generation settings on test lines, scores each, and keeps the best for that voice; the comparisons also teach the learning loop. Refinements are the small identity nudges from takes you liked.</p>
+  let disc = null;
+  try { disc = await vox('/v1/admin/discover'); } catch (e) { /* an older engine: no discovery */ }
+  const health = await fetch(`${conn.url}/v1/health`).then((r) => r.json()).catch(() => null);
+  el.innerHTML = `${agesCard()}${samplesForm()}${discoverCard(disc, health)}<p class="muted">Auto-optimize tries several generation settings on test lines, scores each, and keeps the best for that voice; the comparisons also teach the learning loop. Refinements are the small identity nudges from takes you liked.</p>
     ${h.table(['Voice', 'Kind', 'Description', 'Auto-tune', 'Settings', 'Refinements', ''], rows, 'No voices yet.', { csv: false })}`;
-  return Boolean(sampleJob && !sampleJob.done);
+  return Boolean((sampleJob && !sampleJob.done) || disc?.running);
 }
 
 // ------------------------------------------------------------------ words
@@ -672,6 +677,118 @@ async function renderLanguages(el) {
 
 // ------------------------------------------------------- voices from samples
 let sampleJob = null;
+// Voices for every age: six starting voices (adult, teen and adolescent; male
+// and female) and any age from first words to 90, with dialect, speaking
+// style, fluency, child sound patterns and the full range from a whisper to
+// singing (vox/development.py, dialects.py, delivery.py on the engine).
+let options = null;
+let tryLine = 'Hello there! Can you help me find the red ball? I think it rolled under the big tree.';
+async function loadOptions() {
+  if (!options) { try { options = await vox('/v1/voices/options'); } catch (e) { options = null; } }
+  return options;
+}
+const opt = (list, sel, blank) => (blank ? `<option value="">${h.esc(blank)}</option>` : '') + list.map(([v, l]) => `<option value="${h.esc(v)}"${String(v) === String(sel ?? '') ? ' selected' : ''}>${h.esc(l)}</option>`).join('');
+function dialectOptions(sel, blank = 'General American (default)') {
+  const groups = {};
+  (options?.dialects || []).filter((d) => d.id !== 'general_american').forEach((d) => { (groups[d.custom ? 'Your dialects' : (d.region || 'Other')] ||= []).push(d); });
+  return `<option value="">${h.esc(blank)}</option>` + Object.entries(groups).map(([g, list]) => `<optgroup label="${h.esc(g)}">${list.map((d) => `<option value="${h.esc(d.id)}"${d.id === sel ? ' selected' : ''}>${h.esc(d.label)}</option>`).join('')}</optgroup>`).join('');
+}
+function profileSummary(p) {
+  if (!p) return '';
+  const o = options || {};
+  const bits = [];
+  if (p.age != null) bits.push(`age ${p.age}`);
+  if (p.dialect) bits.push((o.dialects || []).find((d) => d.id === p.dialect)?.label || p.dialect);
+  if (p.register) bits.push((o.registers || []).find((r) => r.id === p.register)?.label || p.register);
+  if (p.delivery) bits.push((o.deliveries || []).find((r) => r.id === p.delivery)?.label || p.delivery);
+  if (p.fluency != null) bits.push(`fluency ${Math.round(p.fluency * 100)}%`);
+  return bits.join(' · ');
+}
+function agesCard() {
+  const o = options;
+  if (!o) return '';
+  const chars = voiceList.filter((v) => v.profile?.group);
+  const stages = o.stages.map((x) => [x.age, x.label]);
+  const voices = voiceList.map((v) => [v.name, v.name + (v.profile?.age != null ? ` (age ${v.profile.age})` : '')]);
+  return `<details class="card vx-settings"${chars.length ? '' : ' open'}><summary><h2>Voices for every age</h2></summary>
+    <p class="muted">Adult, teen and adolescent voices, male and female, from a child's first words to adult and older. Age sets the voice (pitch and how big the voice sounds), the sounds young children use before they can say every sound ("wabbit", "tat", "poon"), natural hesitations, pace and melody. Add a dialect, a speaking style and a delivery from a whisper to singing to a scream. Children's voices are designed, never copied from real children. Every setting can also be changed for a single line.</p>
+    <form id="vx-starters" class="row" novalidate>
+      <div class="field grow"><label for="vx-st-d">Dialect for the six</label><select id="vx-st-d">${dialectOptions('')}</select></div>
+      <button class="btn primary" type="submit">Make the six starting voices</button>
+    </form>
+    <details class="vx-more"><summary>New voice at any age</summary>
+      <form id="vx-char" class="stack" novalidate>
+        <div class="row">
+          <div class="field"><label for="vx-c-g">Starting voice</label><select id="vx-c-g">${opt(o.groups.map((g) => [g.id, g.label]), 'adolescent_female')}</select></div>
+          <div class="field"><label for="vx-c-age">Age</label><select id="vx-c-age">${opt(stages, '', 'The group’s usual age')}</select></div>
+          <div class="field grow"><label for="vx-c-name">Name (optional)</label><input id="vx-c-name" type="text" maxlength="64" pattern="[A-Za-z0-9_-]+" autocomplete="off" spellcheck="false"></div>
+        </div>
+        <div class="row">
+          <div class="field grow"><label for="vx-c-d">Dialect</label><select id="vx-c-d">${dialectOptions('')}</select></div>
+          <div class="field"><label for="vx-c-acc">Accent strength</label><select id="vx-c-acc">${opt([[1, 'Full'], [0.7, 'Strong'], [0.5, 'Medium'], [0.3, 'Light']], 1)}</select></div>
+        </div>
+        <div class="row">
+          <div class="field"><label for="vx-c-r">Speaking style</label><select id="vx-c-r">${opt(o.registers.map((r) => [r.id, r.label]), '', 'Natural for the age')}</select></div>
+          <div class="field"><label for="vx-c-dv">Usual delivery</label><select id="vx-c-dv">${opt(o.deliveries.map((r) => [r.id, r.label]), '', 'Normal')}</select></div>
+          <div class="field"><label for="vx-c-f">Fluency</label><select id="vx-c-f">${opt([[1, 'Completely fluent'], [0.9, 'A few hesitations'], [0.75, 'Many hesitations (like a preschooler)'], [0.5, 'Stammers often']], '', 'Natural for the age')}</select></div>
+        </div>
+        <label class="check"><input id="vx-c-simp" type="checkbox"> Say lines the way a child of that age would put them (changes the words: "ball!", "want ball", "I goed park")</label>
+        <details class="vx-more"><summary>Sound patterns (for a character of any age)</summary>
+          <p class="muted">By default each pattern fades out at the age children usually stop using it. Tick one to keep it at any age, for a character who always says "wabbit", say.</p>
+          <div class="row">${o.processes.map((x) => `<label class="check"><input type="checkbox" data-proc="${h.esc(x.id)}"> ${h.esc(x.label)} <span class="muted">(${h.esc(x.example)}; gone by about ${x.gone_by})</span></label>`).join('')}</div>
+        </details>
+        <div class="row"><button class="btn primary" type="submit">Make this voice</button></div>
+      </form>
+    </details>
+    <details class="vx-more"${chars.length ? ' open' : ''}><summary>Try any voice</summary>
+      <form id="vx-try" class="stack" novalidate>
+        <div class="field"><label for="vx-t-line">Line</label><textarea id="vx-t-line" rows="2" maxlength="600">${h.esc(tryLine)}</textarea></div>
+        <div class="row">
+          <div class="field"><label for="vx-t-v">Voice</label><select id="vx-t-v">${opt(voices, chars[0]?.name || voiceList[0]?.name)}</select></div>
+          <div class="field"><label for="vx-t-age">Age</label><select id="vx-t-age">${opt(stages, '', 'The voice’s own')}</select></div>
+          <div class="field grow"><label for="vx-t-d">Dialect</label><select id="vx-t-d">${dialectOptions('', 'The voice’s own')}</select></div>
+        </div>
+        <div class="row">
+          <div class="field"><label for="vx-t-dv">Delivery</label><select id="vx-t-dv">${opt(o.deliveries.map((r) => [r.id, r.label]), '', 'The voice’s own')}</select></div>
+          <div class="field"><label for="vx-t-r">Speaking style</label><select id="vx-t-r">${opt(o.registers.map((r) => [r.id, r.label]), '', 'The voice’s own')}</select></div>
+          <div class="field grow" id="vx-t-notes-f" hidden><label for="vx-t-notes">Notes to sing (one per syllable, repeating)</label><input id="vx-t-notes" type="text" placeholder="C4 C4 G4 G4 A4 A4 G4, or leave empty for a tune" autocomplete="off" spellcheck="false"></div>
+        </div>
+        <label class="check"><input id="vx-t-simp" type="checkbox"> Put it the way a child of that age would</label>
+        <div class="row"><button class="btn primary" type="submit" id="vx-t-go">Play sample</button></div>
+      </form>
+    </details>
+  </details>`;
+}
+
+// Discover voices: every American English word, a few at a time, as search
+// keywords for openly licensed recordings; each group that finds 3+ different
+// speakers becomes a new blended voice (vox/discover.py on the engine).
+function discoverCard(d, health) {
+  if (!d) return '';
+  const pct = d.total_words ? Math.round((d.cursor / d.total_words) * 1000) / 10 : 0;
+  const list = d.voices.map((v) => `<li class="vx-take"><div class="vx-take-text"><b>${h.esc(v.name)}</b><br><span class="muted">From the words ${h.esc(v.words.join(', '))} · blend of ${h.fmt(v.speakers)} speakers · ${h.when(secs(v.at))}</span></div>
+      <div class="row"><button class="btn small" type="button" data-sample="${h.esc(v.name)}">Play sample</button><button class="btn small danger" type="button" data-del="${h.esc(v.name)}">Delete</button></div></li>`).join('');
+  const recent = d.recent.filter((r) => !r.ok).slice(0, 5).map((r) => `<li>${h.esc(r.words.join(', '))}: <span class="muted">${h.esc(String(r.detail))}</span></li>`).join('');
+  const untrained = health && !health.vocoder_trained;
+  return `<details class="card vx-settings"${d.running || d.voices.length ? ' open' : ''}><summary><h2>Discover voices from every word</h2></summary>
+    <p class="muted">Goes through every word in the American English dictionary, most-used first, a few words at a time. Each group is searched for openly licensed recordings (public domain or Creative Commons BY), and when the recordings have at least 3 different speakers they're blended into a new voice that sounds like none of them, with credits. It picks up where it left off. It's polite to the Internet Archive (one request at a time with pauses, one small file per recording) and deletes the downloads as it goes, so it's slow: plan on a few minutes per voice.</p>
+    ${untrained ? '<p class="note">The practice model hears every speaker as the same person, so it refuses every voice. Discovery starts making voices once you use a trained model.</p>' : ''}
+    ${d.total_words == null ? '<p class="note">Install the American English dictionary first (Words tab).</p>' : `<p><b>${h.fmt(d.cursor)}</b> of ${h.fmt(d.total_words)} words used (${pct}%) · <b>${h.fmt(d.voices.length)}</b> voices made · ${h.fmt(d.refused)} groups without enough speakers</p>`}
+    ${d.running ? `<p aria-live="polite">${h.esc(d.message)}</p><progress max="1" value="${Number(d.progress) || 0}" aria-label="Discovery progress"></progress>
+      <div class="row"><button class="btn" type="button" id="vx-disc-stop">Stop</button></div>`
+    : `${d.message ? `<p class="muted">${h.esc(d.message)}</p>` : ''}
+      <form id="vx-disc" class="row" novalidate>
+        <div class="field"><label for="vx-disc-n">New voices to make this run</label><input id="vx-disc-n" type="number" min="1" max="10000" value="20"></div>
+        <div class="field"><label for="vx-disc-w">Words per voice</label><input id="vx-disc-w" type="number" min="1" max="8" value="3"></div>
+        <div class="field"><label for="vx-disc-s">Speakers per voice</label><input id="vx-disc-s" type="number" min="3" max="12" value="5"></div>
+        <button class="btn primary" type="submit"${d.total_words == null ? ' disabled' : ''}>${d.cursor ? 'Continue discovering' : 'Start discovering'}</button>
+        ${d.cursor ? '<button class="btn link" type="button" id="vx-disc-reset">Start over from the first word</button>' : ''}
+      </form>`}
+    ${list ? `<h3>Discovered voices</h3><ul class="vx-takes">${list}</ul>` : ''}
+    ${recent ? `<details class="vx-more"><summary>Recent groups without a voice</summary><ul>${recent}</ul></details>` : ''}
+  </details>`;
+}
+
 function samplesForm() {
   if (sampleJob && !sampleJob.done) return `<section class="card" aria-live="polite"><h2>Making a voice from samples</h2><p>${h.esc(sampleJob.message)}</p><progress max="1" value="${Number(sampleJob.progress) || 0}" aria-label="Progress"></progress></section>`;
   const done = sampleJob && sampleJob.done ? (sampleJob.failed ? `<p class="error" role="alert">${h.esc(sampleJob.message)}</p>`
@@ -786,6 +903,7 @@ export function initVoiceEngine(helpers) {
 
   body.addEventListener('change', (e) => {
     const t = e.target;
+    if (t.id === 'vx-t-dv') { const nf = $('#vx-t-notes-f'); if (nf) nf.hidden = t.value !== 'singing'; return; }
     if (t.id === 'vx-online-app') { appCall('vox_set_online', { on: t.checked }).catch((err) => h.toast(String(err))); return; }
     if (t.id === 'vx-auto-start') { appCall('vox_set_autostart', { on: t.checked }).catch((err) => h.toast(String(err))); return; }
     if (t.name === 'vx-tab') { tab = t.value; renderTab(); }
@@ -856,6 +974,49 @@ export function initVoiceEngine(helpers) {
       setTimeout(() => URL.revokeObjectURL(a.href), 1000);
       const msg = 'Start shortcut downloaded. Move "Start Vox.cmd" to your desktop and double-click it. If Windows warns about it, click More info, then Run anyway.';
       h.toast(msg); h.announce(msg);
+      return;
+    }
+    if (f.id === 'vx-starters') {
+      await h.act(btn, async () => {
+        const r = await vox('/v1/admin/voices/starters', { method: 'POST', body: { dialect: $('#vx-st-d').value || null } });
+        await renderTab();
+        h.toast(r.made.length ? `Made ${r.made.length} voices: ${r.made.join(', ')}.` : 'Those six voices are already made.');
+      });
+      return;
+    }
+    if (f.id === 'vx-char') {
+      const procs = Object.fromEntries($$('[data-proc]', f).filter((x) => x.checked).map((x) => [x.dataset.proc, 1]));
+      const val = (id) => $(id).value;
+      const name = val('#vx-c-name').trim();
+      if (name && !/^[A-Za-z0-9_-]{1,64}$/.test(name)) { h.toast('Names may use letters, numbers, - and _ only.'); return; }
+      await h.act(btn, async () => {
+        const r = await vox('/v1/admin/voices/character', { method: 'POST', body: {
+          group: val('#vx-c-g'), name: name || null, age: val('#vx-c-age') ? Number(val('#vx-c-age')) : null,
+          dialect: val('#vx-c-d') || null, accent: val('#vx-c-d') ? Number(val('#vx-c-acc')) : null,
+          speaking_style: val('#vx-c-r') || null, delivery: val('#vx-c-dv') || null,
+          fluency: val('#vx-c-f') ? Number(val('#vx-c-f')) : null, simplify: $('#vx-c-simp').checked || null,
+          processes: Object.keys(procs).length ? procs : null } });
+        await renderTab();
+        h.toast(`Made ${r.name}: ${r.description}.`);
+      });
+      return;
+    }
+    if (f.id === 'vx-try') {
+      const val = (id) => $(id).value;
+      tryLine = val('#vx-t-line').trim() || tryLine;
+      const body = { text: tryLine, voice: val('#vx-t-v'), seed: 3 };
+      if (val('#vx-t-age')) body.age = Number(val('#vx-t-age'));
+      if (val('#vx-t-d')) body.dialect = val('#vx-t-d');
+      if (val('#vx-t-dv')) body.delivery = val('#vx-t-dv');
+      if (val('#vx-t-r')) body.speaking_style = val('#vx-t-r');
+      if ($('#vx-t-simp').checked) body.simplify = true;
+      if (body.delivery === 'singing' && val('#vx-t-notes').trim()) body.sing = { notes: val('#vx-t-notes').trim() };
+      await h.act(null, () => speakPreview(body, $('#vx-t-go')));
+      return;
+    }
+    if (f.id === 'vx-disc') {
+      const n = (id) => Number($(id).value);
+      await h.act(btn, async () => { await vox('/v1/admin/discover/start', { method: 'POST', body: { voices: n('#vx-disc-n'), words_per_voice: n('#vx-disc-w'), speakers: n('#vx-disc-s') } }); await renderTab(); }, 'Discovering voices. It keeps going in the background.');
       return;
     }
     if (f.id === 'vx-settings') {
@@ -1004,6 +1165,36 @@ export function initVoiceEngine(helpers) {
       }, spec ? 'Auto-tune saved for this voice.' : 'Auto-tune turned off for this voice.');
       return;
     }
+    if (b.dataset.prof) {
+      const v = voiceList.find((x) => x.name === b.dataset.prof) || {};
+      const p = v.profile || {};
+      const o = options;
+      const vals = await h.ask({ title: `${b.dataset.prof}: age, dialect and delivery`, text: 'Every line in this voice uses these, unless a game asks for something else on a line.', ok: 'Save', fields: [
+        { name: 'age', label: 'Age', type: 'select', value: p.age != null ? String(p.age) : '', options: [['', 'Not set (as the voice sounds)'], ...o.stages.map((x) => [String(x.age), x.label])] },
+        { name: 'sex', label: 'Voice', type: 'select', value: p.sex || '', options: [['', 'Not set'], ['female', 'Female'], ['male', 'Male']] },
+        { name: 'dialect', label: 'Dialect', type: 'select', value: p.dialect || '', options: [['', 'General American'], ...o.dialects.filter((d) => d.id !== 'general_american').map((d) => [d.id, `${d.label} (${d.region})`])] },
+        { name: 'accent', label: 'Accent strength', type: 'select', value: p.accent != null ? String(p.accent) : '1', options: [['1', 'Full'], ['0.7', 'Strong'], ['0.5', 'Medium'], ['0.3', 'Light']] },
+        { name: 'register', label: 'Speaking style', type: 'select', value: p.register || '', options: [['', 'Natural'], ...o.registers.map((r) => [r.id, r.label])] },
+        { name: 'delivery', label: 'Usual delivery', type: 'select', value: p.delivery || '', options: [['', 'Normal'], ...o.deliveries.map((r) => [r.id, r.label])] },
+        { name: 'fluency', label: 'Fluency', type: 'select', value: p.fluency != null ? String(p.fluency) : '', options: [['', 'Natural for the age'], ['1', 'Completely fluent'], ['0.9', 'A few hesitations'], ['0.75', 'Many hesitations'], ['0.5', 'Stammers often']] },
+      ] });
+      if (!vals) return;
+      const num = (x) => (x === '' ? null : Number(x));
+      await h.act(b, async () => {
+        await vox(`/v1/admin/voices/${encodeURIComponent(b.dataset.prof)}/profile`, { method: 'PUT', body: {
+          age: num(vals.age), sex: vals.sex || null, dialect: vals.dialect || null, accent: vals.dialect ? num(vals.accent) : null,
+          register: vals.register || null, delivery: vals.delivery || null, fluency: num(vals.fluency) } });
+        await renderTab();
+      }, 'Saved. Every line in this voice uses it now.');
+      return;
+    }
+    if (b.id === 'vx-disc-stop') { await h.act(b, async () => { await vox('/v1/admin/discover/stop', { method: 'POST' }); await renderTab(); }, 'Stopping after the current group of words.'); return; }
+    if (b.id === 'vx-disc-reset') {
+      if (!(await h.ask({ title: 'Start over from the first word?', text: 'Voices already made are kept. Discovery goes through the dictionary again from the start.', ok: 'Start over' }))) return;
+      await h.act(b, async () => { await vox('/v1/admin/discover/reset', { method: 'POST' }); await renderTab(); });
+      return;
+    }
+    if (b.dataset.sample) { await h.act(null, () => speakPreview({ text: 'Hello there. This is my voice. The quick brown fox jumps over the lazy dog.', voice: b.dataset.sample, seed: 3 }, b)); return; }
     if (b.dataset.hear) { await h.act(null, () => speakPreview({ text: 'Hello there. This is how I sound today.', voice: b.dataset.hear, seed: 3 }, b)); return; }
     if (b.dataset.say) { await h.act(null, () => speakPreview({ text: b.dataset.say, voice: voiceList[0]?.name || 'narrator', seed: 3, enunciate: b.dataset.clear ? 1 : 0 }, b)); return; }
     if (b.id === 'vx-dict-install') {
