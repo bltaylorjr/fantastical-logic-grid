@@ -20,7 +20,8 @@ import { TIER_ORDER, CLUE_TYPES } from '../../engine/src/tiers.js';
 import { getSettings } from './settings.js';
 import { readText } from './http.js';
 import { GEMINI_VOICES } from './voices.js';
-import { postNpPlays, getNpTuning } from './number-place.js';
+import { postNpPlays, getNpTuning, npVerdict } from './number-place.js';
+import { loadCrowd, priorFor, shrink } from './shared-learning.js';
 import { isKitGame, postKitPlays, getKitTuning } from './kit-games.js';
 
 // The edge-cache key of the tuning reply; the admin dashboard clears it after a review.
@@ -121,12 +122,16 @@ async function postPlays(req, env) {
 // ---------- tuning ----------
 // The same ideas as the app's on-device learning, over everyone's games, with
 // gentler limits so no single group of players can pull puzzles too far.
-export function computeTuning(plays, approved) {
+// crowd (shared-learning.js): what all games' players found at each band of
+// difficulty. A tier is drawn toward it while it has few games of its own.
+export function computeTuning(plays, approved, crowd = null) {
   const byTier = {};
   const clueSum = {}, clueN = {};
   const themeSum = {}, themeN = {}, themeCount = {};
+  const efforts = {};
   for (const p of plays) {
     (byTier[p.tier] ||= []).push(clamp(p.effort + 0.35 * p.signal, -1, 1));
+    (efforts[p.tier] ||= []).push(p.effort);
     themeCount[p.theme] = (themeCount[p.theme] || 0) + 1;
     if (!p.rating) continue;
     const d = (p.rating - 3) / 2;
@@ -141,9 +146,14 @@ export function computeTuning(plays, approved) {
     }
   }
   const effort = {};
-  for (const [tier, list] of Object.entries(byTier)) {
-    if (list.length < 10) continue;
-    effort[tier] = Math.round(clamp(list.reduce((s, x) => s + x, 0) / list.length, -0.6, 0.6) * 100) / 100;
+  for (const tier of TIER_ORDER) {
+    const list = byTier[tier] || [];
+    const lean = priorFor(crowd, tier);
+    if (lean == null && list.length < 10) continue;
+    // The prior keeps the tier's own typical toughness and adds what all players found.
+    const own = efforts[tier]?.length ? efforts[tier].reduce((s, x) => s + x, 0) / efforts[tier].length : 0;
+    const e = lean == null ? list.reduce((s, x) => s + x, 0) / list.length : shrink(list, clamp(own + 0.35 * lean, -1, 1));
+    effort[tier] = Math.round(clamp(e, -0.6, 0.6) * 100) / 100;
   }
   const clueWeights = {};
   for (const t in clueSum) if (clueN[t] >= 10) clueWeights[t] = Math.round(clamp(1 + 0.5 * (clueSum[t] / clueN[t]), 0.75, 1.4) * 100) / 100;
@@ -161,7 +171,7 @@ export function computeTuning(plays, approved) {
     try { value = JSON.parse(row.value); } catch (e) { continue; }
     ((parts[row.theme] ||= {})[row.kind] ||= []).push(value);
   }
-  return { games: plays.length, effort, clueWeights, themeWeights, parts, updated: new Date().toISOString() };
+  return { games: plays.length, effort, clueWeights, themeWeights, parts, ...(crowd ? { crowd: { games: crowd.games, lean: crowd.lean } } : {}), updated: new Date().toISOString() };
 }
 
 // Approved house nudges (the admin's Self-tuning, tuning.js) on top of what
@@ -202,7 +212,9 @@ async function getTuning(req, env, ctx) {
   const since = new Date(Date.now() - TUNING_DAYS * 86400000).toISOString().slice(0, 10);
   const plays = (await env.DB.prepare('SELECT tier, theme, clue_types, effort, signal, rating FROM plays WHERE day >= ? ORDER BY rowid DESC LIMIT 50000').bind(since).all()).results;
   const approved = (await env.DB.prepare("SELECT theme, kind, value FROM parts WHERE status = 'approved' ORDER BY reviewed DESC LIMIT 2000").all()).results;
-  const res = json(applyNudges(computeTuning(plays, approved), await readNudges(env)), 200, { 'Cache-Control': 'public, max-age=900' });
+  // Every game's players count too (shared-learning.js).
+  const crowd = await loadCrowd(env, await getSettings(env), npVerdict);
+  const res = json(applyNudges(computeTuning(plays, approved, crowd), await readNudges(env)), 200, { 'Cache-Control': 'public, max-age=900' });
   ctx.waitUntil(cache.put(key, res.clone()));
   return res;
 }

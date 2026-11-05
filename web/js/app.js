@@ -1013,14 +1013,19 @@ function exportSave(save) {
 // Report a Problem (puzzle-report.js), in the footer under every screen. On a
 // puzzle it starts as a Puzzle Problem with that puzzle and its picture;
 // elsewhere as a Web Page Issue naming the screen.
-const SCREEN_NAMES = { 'screen-home': 'Home screen', 'screen-play': 'Puzzle screen', 'screen-learn': 'How to play' };
+// On the NINETIMESNINE screen it is marked as NINETIMESNINE's, so each game's
+// reports are kept apart, and starts as a Puzzle Problem.
+const SCREEN_NAMES = { 'screen-home': 'Home screen', 'screen-play': 'Puzzle screen', 'screen-learn': 'How to play', 'screen-np': 'NINETIMESNINE screen' };
+// The game the player is in, for reports and ideas.
+const gameNow = () => (currentScreen === 'np' ? 'number-place' : 'logic-grid');
 $('#report-problem').onclick = () => {
   const screen = $$('main.screen').find((m) => !m.hidden);
   const where = SCREEN_NAMES[screen?.id] || screen?.id || 'Game';
   const onPuzzle = screen?.id === 'screen-play' && S && S.save;
   let image = '';
   if (onPuzzle) { try { image = sceneSvg(S.save.puzzle, 5, { animate: false }); } catch (e) { /* sent without it */ } }
-  puzzleReport.open({ puzzle: onPuzzle ? S.save.puzzle : null, image, where: onPuzzle ? `${where}: ${S.save.name}` : where });
+  const game = gameNow();
+  puzzleReport.open({ puzzle: onPuzzle ? S.save.puzzle : null, image, where: onPuzzle ? `${where}: ${S.save.name}` : where, game, kind: game === 'number-place' ? 'puzzle' : undefined });
 };
 
 // The link in the "we fixed the puzzle you reported" email: the repaired
@@ -2966,7 +2971,7 @@ $('#app-menu').addEventListener('click', async (e) => {
   else if (cmd === 'suggest') characters.openSuggest(openDialog, OPTIONS.themes.filter((t) => !remote.disabledThemes().has(t.id)));
   else if (cmd === 'daily') openTodaysDaily();
   else if (cmd === 'mail') puzzleMail.open(openDialog);
-  else if (cmd === 'feedback') feedbackBox.open(openDialog, { themes: OPTIONS.themes });
+  else if (cmd === 'feedback') feedbackBox.open(openDialog, { themes: OPTIONS.themes, from: gameNow() });
   else if (cmd === 'storyline') location.href = 'storyline/';
   else if (cmd === 'wizard') location.href = 'wizard/?game=fantastical';
   else if (cmd === 'messages') messages.open();

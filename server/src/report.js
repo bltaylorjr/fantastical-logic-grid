@@ -9,6 +9,7 @@ import { getSettings } from './settings.js';
 import { FREE_LIMITS, cloudflareUsage } from './usage.js';
 import { ratingInsights } from './ratings.js';
 import { printPackTotals } from './print-packs.js';
+import { GAMES } from './feedback.js';
 
 const DAY = 24 * 3600_000;
 const isoDay = (ms) => new Date(ms).toISOString().slice(0, 10);
@@ -237,7 +238,7 @@ export async function csv(env, kind, now = Date.now()) {
     return toCsv(['When (UTC)', 'Screen name', 'Kind', 'Difficulty', 'Cells', 'Minutes', 'Hints', 'Checks', 'Points'],
       results.map((x) => [iso(x.created_at), x.screen_name || '', x.kind, x.tier, x.cells, round((x.elapsed_ms || 0) / 60000, 1), x.hints, x.checks, x.points]));
   }
-  const { results } = await env.DB.prepare('SELECT created_at, kind, topic, status, platform, version, text FROM feedback ORDER BY created_at DESC LIMIT 50000').all();
-  return toCsv(['When (UTC)', 'Box', 'Topic', 'Status', 'Platform', 'Version', 'Text'],
-    results.map((x) => [iso(x.created_at), x.kind, x.topic, x.status, x.platform, x.version, x.text]));
+  const { results } = await env.DB.prepare('SELECT created_at, game, kind, topic, status, platform, version, text FROM feedback ORDER BY created_at DESC LIMIT 50000').all();
+  return toCsv(['When (UTC)', 'Box', 'Topic', 'Status', 'Platform', 'Version', 'Text', 'Game'],
+    results.map((x) => [iso(x.created_at), x.kind, x.topic, x.status, x.platform, x.version, x.text, GAMES[x.game] || x.game]));
 }
