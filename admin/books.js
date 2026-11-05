@@ -286,7 +286,10 @@ export function coverDims(b, pages) {
 export function coverSvg(b, pages, { guides = false } = {}) {
   const d = b.cover || {};
   const tpl = COVER_TEMPLATES.find((t) => t.id === d.template) || COVER_TEMPLATES[0];
-  const c = { ...tpl.colors, ...(d.colors || {}) };
+  // Only real #rrggbb colors reach the drawing (a saved template's or the
+  // color boxes'); anything else keeps the template's own.
+  const c = { ...tpl.colors };
+  for (const [k, v] of Object.entries(d.colors || {})) if (k in c && /^#[0-9a-f]{6}$/i.test(String(v))) c[k] = String(v);
   const { W, H, spine, total } = coverDims(b, pages);
   const TW = total[0] * PT, TH = total[1] * PT, bl = BLEED * PT, w = W * PT, hh = H * PT, sp = spine * PT;
   const backX = bl, spineX = bl + w, frontX = bl + w + sp;
