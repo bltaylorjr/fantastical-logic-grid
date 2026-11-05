@@ -613,7 +613,7 @@ async function renderVoices(el) {
   let disc = null;
   try { disc = await vox('/v1/admin/discover'); } catch (e) { /* an older engine: no discovery */ }
   const health = await fetch(`${conn.url}/v1/health`).then((r) => r.json()).catch(() => null);
-  el.innerHTML = `${agesCard()}${samplesForm()}${discoverCard(disc, health)}<p class="muted">Auto-optimize tries several generation settings on test lines, scores each, and keeps the best for that voice; the comparisons also teach the learning loop. Refinements are the small identity nudges from takes you liked.</p>
+  el.innerHTML = `${agesCard()}${samplesForm(disc)}${discoverCard(disc, health)}<p class="muted">Auto-optimize tries several generation settings on test lines, scores each, and keeps the best for that voice; the comparisons also teach the learning loop. Refinements are the small identity nudges from takes you liked.</p>
     ${h.table(['Voice', 'Kind', 'Description', 'Auto-tune', 'Settings', 'Refinements', ''], rows, 'No voices yet.', { csv: false })}`;
   return Boolean((sampleJob && !sampleJob.done) || disc?.running);
 }
@@ -803,11 +803,12 @@ function discoverCard(d, health) {
     <p class="muted">Goes through every word in the American English dictionary, most-used first, a few words at a time. Each group is searched for openly licensed recordings (public domain or Creative Commons BY), and when the recordings have at least 3 different speakers they're blended into a new voice that sounds like none of them, with credits. It picks up where it left off. It's polite to the Internet Archive (one request at a time with pauses, one small file per recording) and deletes the downloads as it goes, so it's slow: plan on a few minutes per voice.</p>
     ${untrained ? '<p class="note">The practice model hears every speaker as the same person, so it refuses every voice. Discovery starts making voices once you use a trained model.</p>' : ''}
     ${d.total_words == null ? '<p class="note">Install the American English dictionary first (Words tab).</p>' : `<p><b>${h.fmt(d.cursor)}</b> of ${h.fmt(d.total_words)} words used (${pct}%) · <b>${h.fmt(d.voices.length)}</b> voices made · ${h.fmt(d.refused)} groups without enough speakers</p>`}
-    ${d.running ? `<p aria-live="polite">${h.esc(d.message)}</p><progress max="1" value="${Number(d.progress) || 0}" aria-label="Discovery progress"></progress>
+    ${d.running && d.source === 'list' ? '<p class="muted">Making voices from your word list (New voice from samples, above).</p>'
+    : d.running ? `<p aria-live="polite">${h.esc(d.message)}</p><progress max="1" value="${Number(d.progress) || 0}" aria-label="Discovery progress"></progress>
       <div class="row"><button class="btn" type="button" id="vx-disc-stop">Stop</button></div>`
-    : `${d.message ? `<p class="muted">${h.esc(d.message)}</p>` : ''}
+    : `${d.message && d.source !== 'list' ? `<p class="muted">${h.esc(d.message)}</p>` : ''}
       <form id="vx-disc" class="row" novalidate>
-        <div class="field"><label for="vx-disc-n">New voices to make this run</label><input id="vx-disc-n" type="number" min="1" max="10000" value="20"></div>
+        <div class="field"><label for="vx-disc-n">New voices to make this run</label><input id="vx-disc-n" type="number" min="1" step="1" placeholder="No limit" aria-describedby="vx-disc-n-help"><span class="muted" id="vx-disc-n-help">Leave empty to keep going until every word is used.</span></div>
         <div class="field"><label for="vx-disc-w">Words per voice</label><input id="vx-disc-w" type="number" min="1" max="8" value="3"></div>
         <div class="field"><label for="vx-disc-s">Speakers per voice</label><input id="vx-disc-s" type="number" min="3" max="12" value="5"></div>
         <button class="btn primary" type="submit"${d.total_words == null ? ' disabled' : ''}>${d.cursor ? 'Continue discovering' : 'Start discovering'}</button>
@@ -818,11 +819,11 @@ function discoverCard(d, health) {
   </details>`;
 }
 
-function samplesForm() {
+function samplesForm(disc) {
   if (sampleJob && !sampleJob.done) return `<section class="card" aria-live="polite"><h2>Making a voice from samples</h2><p>${h.esc(sampleJob.message)}</p><progress max="1" value="${Number(sampleJob.progress) || 0}" aria-label="Progress"></progress></section>`;
   const done = sampleJob && sampleJob.done ? (sampleJob.failed ? `<p class="error" role="alert">${h.esc(sampleJob.message)}</p>`
     : `<p class="note">Made <b>${h.esc(sampleJob.result.name)}</b> from ${h.fmt(sampleJob.result.used)} speakers (closest match to any one of them: ${Math.round(sampleJob.result.max_similarity * 100)}%, limit 75%). <button class="btn small" type="button" data-hear="${h.esc(sampleJob.result.name)}">Hear it</button></p>`) : '';
-  return `<details class="card vx-settings"${done ? ' open' : ''}><summary><h2>New voice from samples</h2></summary>
+  return `<details class="card vx-settings"${done || disc?.list || (disc?.running && disc.source === 'list') ? ' open' : ''}><summary><h2>New voice from samples</h2></summary>
     <p class="muted">Searches openly licensed recordings (public domain or Creative Commons BY) for your keywords, finds different speakers, and blends at least 3 of them into a new voice that sounds like none of them: no one person carries more than 40%, and the result must stay well apart from every speaker. No recording needed. To copy one specific person, use cloning with their consent.</p>
     ${done}
     <form id="vx-samples" class="stack" novalidate>
@@ -837,7 +838,37 @@ function samplesForm() {
           <div class="field grow"><label for="vx-s-credit">Credit (who made them)</label><input id="vx-s-credit" type="text" maxlength="200" autocomplete="off"></div></div>
       </details>
       <div class="row"><button class="btn primary" type="submit">Make the voice</button></div>
-    </form></details>`;
+    </form>
+    ${wordListSection(disc)}</details>`;
+}
+
+// Many voices from your own word list (.txt or .csv): the engine uses the words
+// a few at a time as search keywords, exactly like "Discover voices from every
+// word", but from your list, which keeps its own place (vox/discover.py).
+function wordListSection(d) {
+  const head = '<h3 id="vx-l-h">Many voices from a word list</h3>';
+  if (!d) return `${head}<p class="muted">Update Vox to make voices from a word list.</p>`;
+  if (d.running && d.source === 'list') {
+    return `${head}<p aria-live="polite">${h.esc(d.message)}</p><progress max="1" value="${Number(d.progress) || 0}" aria-label="Word list progress"></progress>
+      <div class="row"><button class="btn" type="button" id="vx-disc-stop">Stop</button></div>`;
+  }
+  const l = d.list;
+  const used = l ? `<p>Your list: <b>${h.esc(l.name)}</b> · ${h.fmt(l.cursor)} of ${h.fmt(l.total)} words used (${l.total ? Math.round((l.cursor / l.total) * 1000) / 10 : 0}%)</p>` : '';
+  const busy = d.running ? '<p class="note">Discovery from the dictionary is running. Stop it first to use your list.</p>' : '';
+  return `<section aria-labelledby="vx-l-h">${head}
+    <p class="muted">Upload a .txt or .csv file with words separated by commas or new lines, up to every American English word. Vox searches for them a few words at a time and makes a new voice from each group, with the same rules as above. It keeps its place, so you can stop and continue any time.</p>
+    ${used}${busy}${d.message && d.source === 'list' ? `<p class="muted">${h.esc(d.message)}</p>` : ''}
+    <form id="vx-list" class="stack" novalidate>
+      <div class="field"><label for="vx-l-file">Word list file (.txt or .csv)</label><input id="vx-l-file" type="file" accept=".txt,.csv,text/plain,text/csv"${l ? ' aria-describedby="vx-l-keep"' : ''}>
+        ${l ? `<span class="muted" id="vx-l-keep">Leave empty to keep using ${h.esc(l.name)}.</span>` : ''}</div>
+      <div class="row">
+        <div class="field"><label for="vx-l-n">New voices to make this run</label><input id="vx-l-n" type="number" min="1" step="1" placeholder="No limit" aria-describedby="vx-l-n-help"><span class="muted" id="vx-l-n-help">Leave empty to keep going until every word is used.</span></div>
+        <div class="field"><label for="vx-l-w">Words per voice</label><input id="vx-l-w" type="number" min="1" max="8" value="3"></div>
+        <div class="field"><label for="vx-l-s">Speakers per voice</label><input id="vx-l-s" type="number" min="3" max="12" value="5"></div></div>
+      <div class="row"><button class="btn primary" type="submit"${d.running ? ' disabled' : ''}>${l ? (l.cursor ? 'Continue with my list' : 'Start with my list') : 'Upload and start'}</button>
+        ${l && l.cursor ? '<button class="btn link" type="button" id="vx-l-reset">Start my list over</button>' : ''}
+        ${l ? '<button class="btn link danger" type="button" id="vx-l-clear">Remove my list</button>' : ''}</div>
+    </form></section>`;
 }
 
 // ---------------------------------------------------------------- versions
@@ -1043,6 +1074,26 @@ export function initVoiceEngine(helpers) {
       await h.act(null, () => speakPreview(body, $('#vx-t-go')));
       return;
     }
+    if (f.id === 'vx-list') {
+      const n = (id) => Number($(id).value);
+      await h.act(btn, async () => {
+        const file = $('#vx-l-file').files[0];
+        if (file) {
+          if (!/\.(txt|csv)$/i.test(file.name)) throw new Error('Choose a .txt or .csv file.');
+          const fd = new FormData();
+          fd.append('file', file);
+          let res;
+          try { res = await fetch(`${conn.url}/v1/admin/discover/list`, { method: 'POST', headers: { 'X-Vox-Admin-Token': conn.token }, body: fd }); }
+          catch (e) { throw new Error('The voice engine is not answering.'); }
+          const j = await res.json().catch(() => ({}));
+          if (res.status === 404 || res.status === 405) throw new Error('Update Vox to make voices from a word list.');
+          if (!res.ok) throw new Error(j.detail || 'Could not read that file.');
+        } else if (!$('#vx-l-keep')) throw new Error('Choose a word list file (.txt or .csv).');
+        await vox('/v1/admin/discover/start', { method: 'POST', body: { voices: n('#vx-l-n'), words_per_voice: n('#vx-l-w'), speakers: n('#vx-l-s'), source: 'list' } });
+        await renderTab();
+      }, 'Making voices from your word list. It keeps going in the background.');
+      return;
+    }
     if (f.id === 'vx-disc') {
       const n = (id) => Number($(id).value);
       await h.act(btn, async () => { await vox('/v1/admin/discover/start', { method: 'POST', body: { voices: n('#vx-disc-n'), words_per_voice: n('#vx-disc-w'), speakers: n('#vx-disc-s') } }); await renderTab(); }, 'Discovering voices. It keeps going in the background.');
@@ -1214,6 +1265,16 @@ export function initVoiceEngine(helpers) {
       return;
     }
     if (b.id === 'vx-disc-stop') { await h.act(b, async () => { await vox('/v1/admin/discover/stop', { method: 'POST' }); await renderTab(); }, 'Stopping after the current group of words.'); return; }
+    if (b.id === 'vx-l-reset') {
+      if (!(await h.ask({ title: 'Start your list over?', text: 'Voices already made are kept. The next run starts again from the first word in your list.', ok: 'Start over' }))) return;
+      await h.act(b, async () => { await vox('/v1/admin/discover/reset?source=list', { method: 'POST' }); await renderTab(); });
+      return;
+    }
+    if (b.id === 'vx-l-clear') {
+      if (!(await h.ask({ title: 'Remove your word list?', text: 'Voices already made are kept. You can upload a list again any time.', ok: 'Remove' }))) return;
+      await h.act(b, async () => { await vox('/v1/admin/discover/list', { method: 'DELETE' }); await renderTab(); });
+      return;
+    }
     if (b.id === 'vx-disc-reset') {
       if (!(await h.ask({ title: 'Start over from the first word?', text: 'Voices already made are kept. Discovery goes through the dictionary again from the start.', ok: 'Start over' }))) return;
       await h.act(b, async () => { await vox('/v1/admin/discover/reset', { method: 'POST' }); await renderTab(); });
