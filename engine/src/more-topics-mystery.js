@@ -176,7 +176,7 @@ export const MORE = {
           costume: ['The {one} you want wore the {x}.', 'A thread from the {x} was snagged on the wagon door.'],
           snack: ['The {one} you want snacked on {x}.', 'A trail of {x} led away from the scene.'],
           show: ['The {one} you want went on at {x}.', 'The show list says the key act went on at {x}.'],
-          seasons: ['The {one} you want has toured {x}.', 'Only someone who has toured {x} would know that trick.'],
+          seasons: ['The {one} you want has toured {x}.', 'The one who has toured {x} knew that trick.'],
         },
       },
       art: { setting: 'a striped circus big top at night with strings of lights, wagons and a sawdust ring', mood: 'red and gold, playful suspense' } },

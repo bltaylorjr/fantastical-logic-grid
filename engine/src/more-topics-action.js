@@ -60,7 +60,7 @@ export const MORE = {
           gear: ['The {one} you want carried the {x}.', 'The {x} made the rescue possible.'],
           mascot: ['The {one} you want feeds {x}.', 'The station pet {x} would not leave the {one} you want alone.'],
           alarm: ['The {one} you want answered the alarm at {x}.', 'The dispatch log shows the key call at {x}.'],
-          service: ['The {one} you want has served {x}.', 'Only someone who has served {x} knew that trick.'],
+          service: ['The {one} you want has served {x}.', 'The one who has served {x} knew that trick.'],
         },
       },
       art: { setting: 'a brick fire station with red trucks rolling out, ladders raised against a smoky orange sky', mood: 'fire red and chrome, urgent' } },
