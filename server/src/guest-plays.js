@@ -11,8 +11,8 @@
 //   - the device (its random id, web/js/guest-limit.js): guest_daily_limit
 //   - the internet connection: guest_network_daily_limit, for all guests on it
 //     together, so a fresh browser on the same connection gets no more than that
-// Only one-way hashes are stored (the address with a salt that changes every
-// day), and rows go after 3 days (upkeep.js). Signed-in players never call this.
+// Only one-way hashes are stored (the address with a random salt made for each
+// day, kept in guest_salts), and rows and salts go after 3 days (upkeep.js). Signed-in players never call this.
 // The device decides when to ask; the game builds puzzles on the device, so
 // this is a gate for honest browsers, not a lock on the engine.
 import { json, readText, TooLarge } from './http.js';
@@ -39,6 +39,13 @@ export function decide({ device, network }, { limit, networkLimit }) {
   return { ok: left > 0, left, limit };
 }
 
+// The day's random salt for connection hashes (made on first use).
+async function daySalt(env, day) {
+  const fresh = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(24))));
+  await env.DB.prepare('INSERT OR IGNORE INTO guest_salts (day, salt) VALUES (?1, ?2)').bind(day, fresh).run();
+  return (await env.DB.prepare('SELECT salt FROM guest_salts WHERE day = ?1').bind(day).first()).salt;
+}
+
 export async function handleGuestPlays(req, env, url) {
   if (url.pathname !== '/v1/guest-play' || req.method !== 'POST') return null;
   const ip = req.headers.get('CF-Connecting-IP') || 'local';
@@ -52,7 +59,7 @@ export async function handleGuestPlays(req, env, url) {
   if (!limits.limit) return json(req, env, { ok: true, left: null, limit: 0 });
   const day = localDay(req.cf && req.cf.timezone);
   const dev = `d:${await sha256(`flg-guest-device|${body.d}`)}`;
-  const net = `n:${await sha256(`flg-guest-net|${day}|${ip}|${env.GUEST_SALT || ''}`)}`;
+  const net = `n:${await sha256(`flg-guest-net|${day}|${ip}|${await daySalt(env, day)}`)}`;
   const { results } = await env.DB.prepare('SELECT who, n FROM guest_plays WHERE day = ?1 AND who IN (?2, ?3)').bind(day, dev, net).all();
   const count = (who) => (results.find((r) => r.who === who) || { n: 0 }).n;
   const now = decide({ device: count(dev), network: count(net) }, limits);

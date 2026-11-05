@@ -8,3 +8,10 @@ CREATE TABLE IF NOT EXISTS guest_plays (
   n    INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (day, who)
 );
+
+-- A random salt for each day's connection hashes, made by the Worker on the
+-- day's first guest puzzle and deleted with that day's counts.
+CREATE TABLE IF NOT EXISTS guest_salts (
+  day   TEXT PRIMARY KEY,
+  salt  TEXT NOT NULL
+);

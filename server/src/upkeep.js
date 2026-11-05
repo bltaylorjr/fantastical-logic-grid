@@ -66,6 +66,7 @@ export async function runUpkeep(env, now = Date.now()) {
     rating_insights: db.prepare('DELETE FROM rating_insights WHERE day < ?1').bind(isoDay(now - 90 * DAY)),
     // Guest puzzle counts (guest-plays.js) are only needed for their own day.
     guest_plays: db.prepare('DELETE FROM guest_plays WHERE day < ?1').bind(isoDay(now - 3 * DAY)),
+    guest_salts: db.prepare('DELETE FROM guest_salts WHERE day < ?1').bind(isoDay(now - 3 * DAY)),
     visit_stats: db.prepare('DELETE FROM visit_stats WHERE day < ?1').bind(isoDay(now - 400 * DAY)),
     account_days: db.prepare('DELETE FROM account_days WHERE day < ?1').bind(isoDay(now - 400 * DAY)),
     daily_results: db.prepare('DELETE FROM daily_results WHERE day < ?1').bind(isoDay(now - 120 * DAY)),
