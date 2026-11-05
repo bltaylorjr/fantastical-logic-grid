@@ -14,6 +14,9 @@
 // fixed: the email apologizes, explains in plain words what was wrong and what
 // was done, and links back here with ?repaired=<token>, which puts the repaired
 // puzzle in Saved puzzles (openRepaired below).
+// The report also says which game it came from (game: 'logic-grid' or
+// 'number-place'), so each game's reports are kept apart in the dashboard.
+// Only Logic Grid puzzles go with a report: the puzzle doctor checks those.
 import { CLOUD, CLOUD_URL } from './cloud-config.js';
 import { feature } from './remote-config.js';
 import { platform } from './platform.js';
@@ -23,14 +26,16 @@ let deps = { announce: () => {} };
 
 export const available = () => !!CLOUD_URL && feature('feedback');
 
-// ctx: { puzzle, image, where }. puzzle is the open or last played puzzle (or
-// null); image the picture drawn for it (SVG text); where the screen's name.
+// ctx: { puzzle, image, where, game }. puzzle is the open or last played puzzle (or
+// null); image the picture drawn for it (SVG text); where the screen's name;
+// game the game it was opened from.
 export function open(ctx = {}) {
   if (!available()) return;
-  const puzzle = ctx.puzzle || null;
+  const game = ctx.game === 'number-place' ? 'number-place' : 'logic-grid';
+  const puzzle = game === 'logic-grid' ? ctx.puzzle || null : null;
   const p = platform();
   openReportPage('report/?from=game', {
-    from: 'game', kind: ctx.kind === 'page' || !puzzle ? 'page' : 'puzzle', puzzle, image: ctx.image || '',
+    from: 'game', kind: ctx.kind === 'page' || (!puzzle && ctx.kind !== 'puzzle') ? 'page' : 'puzzle', puzzle, image: puzzle ? ctx.image || '' : '', game,
     where: String(ctx.where || '').slice(0, 200), platform: p, version: CLOUD.appVersion || 'dev', screen: `${innerWidth}x${innerHeight}`,
   }, { inTab: p === 'web' });
 }

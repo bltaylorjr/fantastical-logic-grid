@@ -28,7 +28,7 @@
 import { alert } from './alerts.js';
 import { json, readText, TooLarge } from './http.js';
 import { getSettings } from './settings.js';
-import { cleanText, themeName } from './feedback.js';
+import { cleanText, themeName, cleanGame, GAMES } from './feedback.js';
 import { withFixes } from './errors.js';
 import { queueNotice, storylinesHeld } from './replies.js';
 import { reportsFor } from './puzzle-reports.js';
@@ -308,11 +308,14 @@ const EMAIL_STATUS = { held: 'Sent once the team marks it addressed', waiting: '
 // One list, newest first, of everything players sent or the game reported.
 // type: one of INBOX_TYPES; status: new (open, waiting), approved (ideas and problems
 // waiting for the weekly fix run), addressed (ideas, problems
-// and errors the team marked addressed with a note), done or all; q: words to find.
-export async function inbox(env, role, { type = 'all', status = 'new', q = '' } = {}, now = Date.now()) {
+// and errors the team marked addressed with a note), done or all; q: words to find;
+// game: 'all' or one of feedback.js GAMES. Only ideas and problems record their
+// game, so choosing one game shows just those.
+export async function inbox(env, role, { type = 'all', status = 'new', q = '', game = 'all' } = {}, now = Date.now()) {
   const db = env.DB;
   const allowed = typesFor(role);
-  const want = type === 'all' ? allowed : allowed.filter((t) => t === type);
+  const oneGame = game === 'all' ? null : cleanGame(game);
+  const want = (type === 'all' ? allowed : allowed.filter((t) => t === type)).filter((t) => !oneGame || t === 'idea' || t === 'problem');
   const search = q ? like(q) : null;
   const items = [];
   const has = (t) => want.includes(t);
@@ -337,12 +340,12 @@ export async function inbox(env, role, { type = 'all', status = 'new', q = '' } 
   }
   for (const kind of ['idea', 'problem']) {
     if (!has(kind)) continue;
-    const { results } = await db.prepare(`SELECT id, topic, theme, text, platform, version, status, note, created_at AS at, done_at AS doneAt, conversation_id AS conversationId, approved_at AS approvedAt, approved_by AS approvedBy, declined FROM feedback
-      WHERE kind = ?1 AND (?2 = 'all' OR status = ?2) AND (?3 IS NULL OR text LIKE ?3 ESCAPE '\\') ORDER BY created_at DESC LIMIT ?4`).bind(kind, status, search, PER_TYPE).all();
+    const { results } = await db.prepare(`SELECT id, game, topic, theme, text, platform, version, status, note, created_at AS at, done_at AS doneAt, conversation_id AS conversationId, approved_at AS approvedAt, approved_by AS approvedBy, declined FROM feedback
+      WHERE kind = ?1 AND (?2 = 'all' OR status = ?2) AND (?3 IS NULL OR text LIKE ?3 ESCAPE '\\') AND (?5 IS NULL OR game = ?5) ORDER BY created_at DESC LIMIT ?4`).bind(kind, status, search, PER_TYPE, oneGame).all();
     const reports = kind === 'problem' ? await reportsFor(env, results.filter((f) => f.topic === 'puzzle' || f.topic === 'page').map((f) => f.id)).catch(() => new Map()) : new Map();
     const storyEmail = kind === 'idea' ? await storylinesHeld(env, results.filter((f) => f.topic === 'story').map((f) => f.id)).catch(() => new Set()) : new Set();
     for (const f of results) {
-      items.push({ report: reports.get(f.id) || null, type: kind, id: f.id, at: f.at, status: f.status, title: f.topic, text: f.text, meta: { topic: f.topic, theme: f.theme || null, themeName: f.theme ? themeName(f.theme) : null, platform: f.platform, version: f.version, conversationId: f.conversationId, note: f.note, doneAt: f.doneAt, storyEmail: storyEmail.has(f.id), approvedAt: f.approvedAt, approvedBy: f.approvedBy, declined: !!f.declined } });
+      items.push({ report: reports.get(f.id) || null, type: kind, id: f.id, at: f.at, status: f.status, title: f.topic, text: f.text, meta: { game: f.game, gameName: GAMES[f.game] || f.game, topic: f.topic, theme: f.theme || null, themeName: f.theme ? themeName(f.theme) : null, platform: f.platform, version: f.version, conversationId: f.conversationId, note: f.note, doneAt: f.doneAt, storyEmail: storyEmail.has(f.id), approvedAt: f.approvedAt, approvedBy: f.approvedBy, declined: !!f.declined } });
     }
   }
   // Error reports have no done state: "new" is the last 7 days, "all" and
@@ -369,7 +372,7 @@ export async function inbox(env, role, { type = 'all', status = 'new', q = '' } 
     } catch (e) { /* the email queue is not set up yet */ }
   }
   items.sort((a, b) => b.at - a.at);
-  return { type, status, q, types: allowed, items: items.slice(0, 200), counts: await inboxCounts(env, role, now) };
+  return { type, status, q, game: oneGame || 'all', games: GAMES, types: allowed, items: items.slice(0, 200), counts: await inboxCounts(env, role, now) };
 }
 
 // What is waiting, for the tab badges and the nav count.
