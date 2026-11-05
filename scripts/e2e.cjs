@@ -18,15 +18,20 @@ const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`o
   try {
     await page.goto('http://localhost:8123/');
     await page.waitForSelector('#tier-choices input');
-    // First launch offers How to play and the narrated Introduction video.
+    // First launch offers How to play and the tour of The Logic Grid.
     await page.waitForSelector('#dlg-welcome[open]');
     await page.click('#welcome-watch');
+    await page.waitForSelector('#dlg-game-video[open]');
+    const tour = await page.evaluate(async () => { const v = document.querySelector('#game-video'); if (v.readyState < 1) await new Promise((r) => { v.onloadedmetadata = r; setTimeout(r, 5000); }); const t = v.textTracks[0]; return { src: v.currentSrc, d: v.duration, track: t && t.kind, mode: t && t.mode }; });
+    assert(/the-logic-grid\.mp4$/.test(tour.src) && tour.d > 30 && tour.track === 'captions' && tour.mode === 'showing', `the welcome plays the site tour with captions on (${Math.round(tour.d)} s)`);
+    await page.click('#game-video-close');
+    await page.click('#help-btn'); await page.click('#help-intro');
     await page.waitForSelector('#dlg-video[open]');
     const vid = await page.evaluate(async () => { const v = document.querySelector('#intro-video'); if (v.readyState < 1) await new Promise((r) => { v.onloadedmetadata = r; setTimeout(r, 5000); }); const t = v.textTracks[0]; return { d: v.duration, track: t && t.kind, mode: t && t.mode }; });
     assert(vid.d > 200 && vid.track === 'captions' && vid.mode === 'showing', `intro video loads with captions on (${Math.round(vid.d)} s)`);
     await page.click('#video-close');
-    assert(await page.locator('#intro-btn').isVisible(), 'the Introduction is on the game page');
-    await page.click('#intro-btn');
+    assert(await page.locator('#help-btn').isVisible(), 'the Introduction is under Help on the game page');
+    await page.click('#help-btn'); await page.click('#help-intro');
     await page.waitForSelector('#dlg-video[open]');
     await page.click('#video-close');
     assert(await page.locator('#howto-btn').isVisible(), 'How to play is on the game page');
@@ -56,7 +61,8 @@ const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`o
     await page.screenshot({ path: process.env.SHOTS + '/2-play.png', fullPage: true });
 
     // multimedia: scene, portraits, witness bubble
-    assert(await page.locator('#scene svg .layer').count() === 5, 'scene has 5 unlockable layers');
+    assert(await page.locator('#scene svg .layer.on').count() === 5 && await page.locator('#scene .glints i').count() === 5, 'the whole scene shows from the start, with 5 parts to light up');
+    assert(await page.locator('#scene .glints i.done').count() === 0, 'no part is lit before any section is done');
     assert(await page.locator('.cast-btn').count() === 4, 'a portrait for each character');
     await page.locator('.cast-btn').first().click();
     assert(/clue \d+/.test(await page.textContent('#bubble')), 'portrait tells its clue');
@@ -218,7 +224,8 @@ const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`o
         return { all: m.celebrate(list, { theme: 'pets' }), one: m.celebrate(list, { random: true, theme: 'mystery' }), none: m.celebrate([], {}) };
       }, all);
       assert(await page.locator('.fx-rays').count() >= 1, 'light rays add their glow');
-      await page.waitForTimeout(4000);
+      // It lasts 3.6 s; a busy test machine can run its animation a little late.
+      await page.waitForFunction(() => !document.querySelector('.fx-rays'), null, { timeout: 10000 }).catch(() => {});
       assert(await page.locator('.fx-rays').count() === 0, 'the light rays glow removes itself');
       assert(fx.all.join() === all.join() && errors.length === 0, `every celebration effect plays without errors (${errors.join('; ')})`);
       assert(fx.one.length === 1 && all.includes(fx.one[0]), 'Random plays one of the checked effects');
@@ -228,8 +235,10 @@ const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`o
       await page.emulateMedia({ reducedMotion: 'no-preference' });
     }
     await page.screenshot({ path: process.env.SHOTS + '/5-solved.png', fullPage: true });
-    assert(await page.locator('#resolution .hero svg').count() === 1, 'resolution scene shows the culprit');
-    assert(await page.locator('#scene .layer.on').count() === 5, 'whole scene revealed when solved');
+    assert(await page.locator('#scene .glints i.done').count() === 5, 'every part of the scene is lit when solved');
+    assert(await page.locator('#resolution .hero, #resolution .char-line, #resolution .spot').count() === 0, 'the finished picture shows whole, with nothing on top');
+    assert(await page.locator('#solved-h + #solved-cheer .cheer-face svg, #solved-h + #solved-cheer .cheer-face img').count() === 1, 'the character who did it is in a line under Case closed');
+    if (process.env.SHOTS) await page.locator('#solved').screenshot({ path: process.env.SHOTS + '/6-case-closed.png' });
     await page.click('[data-act=restart]');
     await page.click('#confirm-yes');
     assert(await page.isHidden('#solved') && !(await page.evaluate(() => window.__flg.state.save.solved)), 'start over on a solved puzzle reopens it');
@@ -252,7 +261,9 @@ const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`o
     await page.setViewportSize({ width: 1280, height: 900 });
     // The app bar's height reaches the CSS through a ResizeObserver, which runs after the resize.
     await page.waitForFunction(() => document.documentElement.style.getPropertyValue('--appbar-h') === `${document.querySelector('.appbar').offsetHeight}px`, null, { timeout: 5000 }).catch(() => {});
-    const fit = await page.evaluate(() => { const f = document.querySelector('#gridframe'); return [f.scrollHeight, f.clientHeight, parseFloat(getComputedStyle(f).maxHeight), innerHeight - document.querySelector('.appbar').offsetHeight - 16]; });
+    // On a PC the grid card is pinned under the app bar and holds the height
+    // (the frame fills it); elsewhere the frame itself stops at the screen.
+    const fit = await page.evaluate(() => { const f = document.querySelector('#gridframe'), c = document.querySelector('#grid-region'); const pinned = getComputedStyle(c).position === 'sticky'; return [f.scrollHeight, f.clientHeight, parseFloat(getComputedStyle(pinned ? c : f).maxHeight), innerHeight - document.querySelector('.appbar').offsetHeight - 16]; });
     assert(fit[0] <= fit[1] + 1 && Math.abs(fit[2] - fit[3]) <= 1, `grid frame is as tall as the screen below the app bar, no inner scroll (${fit.join('/')})`);
     // Browser autofill sends keydown events with no key (player error report: reading 'toLowerCase').
     await page.evaluate(() => { document.dispatchEvent(new Event('keydown')); document.dispatchEvent(new KeyboardEvent('keydown')); });

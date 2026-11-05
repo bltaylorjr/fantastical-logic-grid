@@ -1,4 +1,4 @@
-// Number Place: fill the grid so every row, column and box holds each number once.
+// NINETIMESNINE: fill the grid so every row, column and box holds each number once.
 // Variants: 'diagonal' (both long diagonals too) and 'parity' (shaded cells are even).
 //
 // Like the logic grid, every puzzle has exactly one answer, can be solved by
@@ -254,8 +254,9 @@ function hiddenSubset(shape, st, k) {
 const cap = (s) => s[0].toUpperCase() + s.slice(1);
 
 // Solves by deduction only, using techniques up to maxLevel. Returns the steps
-// taken and whether the grid was finished.
-export function solveLogically(shape, grid, { maxLevel = 5, evenMask = null } = {}) {
+// taken and whether the grid was finished. firstPlace stops at the first
+// number placed (the next move, for game styles that only need one).
+export function solveLogically(shape, grid, { maxLevel = 5, evenMask = null, firstPlace = false } = {}) {
   const st = initCandidates(shape, grid, evenMask);
   const order = Object.keys(NP_TECHNIQUES).filter((t) => NP_TECHNIQUES[t].level <= maxLevel);
   const steps = [];
@@ -269,6 +270,7 @@ export function solveLogically(shape, grid, { maxLevel = 5, evenMask = null } = 
     if (step.place) place(shape, st, ...step.place);
     else for (const [c, d] of step.remove) st.cand[c] &= ~bit(d);
     steps.push(step);
+    if (firstPlace && step.place) break;
   }
   return { solved: st.v.every(Boolean), values: st.v, steps, hardest };
 }
@@ -388,7 +390,9 @@ export function generateNumberPlace({ difficulty = 'medium', size, variants = []
   const want = t > 0.65 ? (N === 9 && tier.minLevel >= 4 ? 2 : 3) : 1;
   const found = [];
   let tries = 0;
-  for (let attempt = 0; attempt < 300 && found.length < want; attempt++) {
+  // A seed that finds nothing in 300 tries keeps looking (up to 1,200), so a
+  // daily puzzle's fixed seed never fails; seeds that found one are unchanged.
+  for (let attempt = 0; (attempt < 300 || (!found.length && attempt < 1200)) && found.length < want; attempt++) {
     const c = candidate(shape, tier, makeRng(`${seed}:${attempt}`), { parity, symmetric });
     if (!c) continue;
     const evenCells = c.evenMask ? c.evenMask.map((e, i) => (e ? i : -1)).filter((i) => i >= 0) : [];

@@ -46,8 +46,6 @@ function saved() { const v = store.getLocal(KEY); return v && typeof v === 'obje
 
 // The account that can sign in with the device check here, if any.
 export function enrolledFor(uid) { const v = saved(); return !!(v && (!uid || v.uid === uid)); }
-export function enrolledEmail() { const v = saved(); return v ? v.email : null; }
-
 export function forget() { store.setLocal(KEY, undefined); }
 
 // Turns it on for this account on this device. The device asks for the
@@ -64,7 +62,7 @@ export async function enroll(user) {
   try {
     cred = await navigator.credentials.create({
       publicKey: {
-        rp: { name: 'The Fantastical Logic Grid' },
+        rp: { name: 'The Logic Grid' },
         // A random handle, so the passkey never carries the account id.
         user: { id: random(16), name: user.email, displayName: user.email },
         challenge: random(32),
@@ -126,7 +124,7 @@ export async function verify(uid) {
   // The platform decides the check, never the stored record.
   if (native()) {
     if (!v.native) throw new BiometricError('NOT_SET_UP', 'Fingerprint or face sign-in is not on for this account on this device.');
-    if (!(await native().verify({ title: 'Sign in to The Fantastical Logic Grid', subtitle: v.email }))) throw new BiometricError('CANCELLED', CANCELLED);
+    if (!(await native().verify({ title: 'Sign in to The Logic Grid', subtitle: v.email }))) throw new BiometricError('CANCELLED', CANCELLED);
     return true;
   }
   if (v.native || !v.id) throw new BiometricError('NOT_SET_UP', 'Fingerprint or face sign-in is not on for this account on this device.');

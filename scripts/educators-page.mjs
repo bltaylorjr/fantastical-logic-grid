@@ -4,6 +4,7 @@
 // Every choice comes from engine/src/classroom.js; seo/educators.js runs the
 // form (school email code, sending) against the game's Worker.
 import { esc } from './worksheet.mjs';
+import { contactLink } from './hub.mjs';
 
 export function educatorsBody(up, { options: o, api, video }) {
   const sizeOpts = [];
@@ -136,7 +137,7 @@ ${[0, 1, 2, 3].map(catBlock).join('\n')}
 <h2 id="done-h" tabindex="-1">Thank you! Your request is with our team</h2>
 <p>Your email is confirmed. We review requests by hand, usually within a day or two. Once approved, your puzzles are made and emailed to you as PDF files.</p>
 <p class="muted">Request number <strong id="done-ref"></strong>. <span id="done-status"></span></p>
-<p><a href="${up}">Play a puzzle while you wait</a> · <a href="${up}printables/">This week's free worksheets</a></p>
+<p><a href="${up}fantastical/">Play a puzzle while you wait</a> · <a href="${up}printables/">This week's free worksheets</a></p>
 </section>
 
 <h2>Questions</h2>
@@ -198,7 +199,7 @@ export function educatorFeedbackBody(up, { survey, kinds, textMax, api }) {
 <section id="fb-locked" class="panel" aria-labelledby="locked-h">
 <h2 id="locked-h">This section is for educators who received a puzzle package</h2>
 <p id="fb-locked-why">It opens with the private link in the email that brought your puzzles. Please use the <strong>Share ideas and feedback</strong> button in that email.</p>
-<p>No package yet? <a href="${up}educators/">Ask for a free puzzle package</a>. Questions? Write to <a href="mailto:support@thelogicgrid.com">support@thelogicgrid.com</a>.</p>
+<p>No package yet? <a href="${up}educators/">Ask for a free puzzle package</a>. Questions? ${contactLink()}.</p>
 </section>
 
 <div id="fb-open" hidden>

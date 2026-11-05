@@ -11,12 +11,12 @@ import { buildModel, randomSolution } from '../src/generator.js';
 import { buildStory } from '../src/story.js';
 import { makeLanguage } from '../src/language.js';
 import { makeRng } from '../src/rng.js';
-import { pictureClue, solvePicture, lineClues, PICTURES } from '../src/picture.js';
 import { storyBeats } from '../src/beats.js';
 import { SIZE_LIMITS } from '../src/tiers.js';
 import { TIER_ORDER } from '../src/tiers.js';
 import { orderItems, inOrder } from '../src/order.js';
-import { CUSTOM_STARTERS, checkCustom, checkRequest, packagePlan, gradeStory, bandOf, schoolEmail, GRADES, BANDS, PRINT_LIMITS } from '../src/classroom.js';
+import { CUSTOM_STARTERS, checkCustom, checkRequest, bandOf, schoolEmail, GRADES, BANDS, PRINT_LIMITS } from '../src/classroom.js';
+import { packagePlan, gradeStory } from '../src/classroom-build.js';
 
 const quick = process.argv.includes('--quick');
 let passed = 0, failed = 0;
@@ -92,7 +92,7 @@ function allMatches(p) {
 // ---------- tests ----------
 const seeds = quick ? ['t1'] : ['t1', 't2', 't3'];
 const sizes = [];
-// Theoretical Physicist puzzles take up to 40 seconds each to build, so they
+// Theoretical Physicist puzzles take the longest to build, so they
 // get one focused test below instead of a run for every theme and topic.
 const LOOP_TIERS = TIER_ORDER.filter((t) => t !== 'theorist');
 for (const tier of LOOP_TIERS) {
@@ -545,52 +545,6 @@ for (const diff of ['easy', 'medium', 'expert']) {
   check('school emails are recognized and personal ones are not', JSON.stringify(Object.values(kinds)) === JSON.stringify(['school', 'school', 'school', 'school', 'personal', 'unknown']), JSON.stringify(kinds));
 }
 
-// Picture clues: every picture solves by logic, and the
-// locked clue is a real clue of the puzzle.
-{
-  for (const [theme, list] of Object.entries(PICTURES)) {
-    for (const pic of list) {
-      const widths = new Set(pic.rows.map((r) => r.length));
-      check(`picture "${pic.name}" (${theme}): rows all the same width`, widths.size === 1);
-      check(`picture "${pic.name}" (${theme}): only # and .`, pic.rows.every((r) => /^[#.]+$/.test(r)));
-      const g = solvePicture(lineClues(pic.rows));
-      check(`picture "${pic.name}" (${theme}): solvable by logic alone`, !!g && g.every((r, y) => r.every((v, x) => (v === 1) === (pic.rows[y][x] === '#'))));
-    }
-  }
-  for (const t of THEMES) {
-    if (t.id === 'mystery') continue; // Bobby's to draw; uses the default pictures meanwhile
-    check(`pictures: theme ${t.id} has its own pictures`, (PICTURES[t.id] || []).length >= 2);
-  }
-  for (const [tier, max] of [['basic', 6], ['easy', 6], ['medium', 8], ['expert', 12]]) {
-    for (const theme of ['pets', 'music', 'mystery']) {
-      const p = generatePuzzle({ theme, difficulty: tier, seed: `picture-size-${tier}-${theme}` });
-      const pc = pictureClue(p);
-      if (!pc) continue;
-      const size = Math.max(pc.picture.rows.length, pc.picture.rows[0].length);
-      check(`picture clue (${tier}, ${theme}): picture fits the level (${size} <= ${max})`, size <= max, pc.picture.name);
-    }
-  }
-  for (const theme of ['mystery', 'pets', 'scifi']) {
-    const p = generatePuzzle({ theme, seed: `picture-${theme}` });
-    const pc = pictureClue(p);
-    check(`picture clue (${theme}): locks one of the puzzle's clues`, !!pc && p.clues.some((c) => c.number === pc.locked), JSON.stringify(pc && pc.locked));
-    check(`picture clue (${theme}): same puzzle, same picture`, JSON.stringify(pictureClue(p)) === JSON.stringify(pc));
-  }
-}
-
-// Story beats: no spoilers, steady triggers, same every time.
-{
-  for (const [theme, cats] of [['mystery', 3], ['pets', 4], ['scifi', 5]]) {
-    const p = generatePuzzle({ theme, categories: cats, seed: `beats-${theme}` });
-    const beats = storyBeats(p);
-    const sections = p.grid.blocks.length;
-    check(`beats (${theme}): ${Math.min(3, sections - 1)} beats`, beats.length === Math.min(3, sections - 1), JSON.stringify(beats));
-    check(`beats (${theme}): shown in order before the last section`, beats.every((b, i) => b.after >= 1 && b.after < sections && (i === 0 || b.after > beats[i - 1].after)), JSON.stringify(beats.map((b) => b.after)));
-    check(`beats (${theme}): every slot filled`, beats.every((b) => !/[{}]/.test(b.text)), JSON.stringify(beats));
-    check(`beats (${theme}): same puzzle, same beats`, JSON.stringify(storyBeats(p)) === JSON.stringify(beats));
-  }
-}
-
 // ---------- Player Stories: written by players, played exactly as written ----------
 {
   const opts = describeOptions();
@@ -613,6 +567,42 @@ for (const diff of ['easy', 'medium', 'expert']) {
     }
   }
   check('Any player story picks one of them', PLAYER_STORIES.some((s) => s.def.title === generatePuzzle({ theme: 'stories', seed: 'any' }).story.title));
+}
+
+// Story beats: no spoilers, steady triggers, same every time.
+{
+  for (const [theme, cats] of [['mystery', 3], ['pets', 4], ['scifi', 5]]) {
+    const p = generatePuzzle({ theme, categories: cats, seed: `beats-${theme}` });
+    const beats = storyBeats(p);
+    const sections = p.grid.blocks.length;
+    check(`beats (${theme}): ${Math.min(3, sections - 1)} beats`, beats.length === Math.min(3, sections - 1), JSON.stringify(beats));
+    check(`beats (${theme}): shown in order before the last section`, beats.every((b, i) => b.after >= 1 && b.after < sections && (i === 0 || b.after > beats[i - 1].after)), JSON.stringify(beats.map((b) => b.after)));
+    check(`beats (${theme}): every slot filled`, beats.every((b) => !/[{}]/.test(b.text)), JSON.stringify(beats));
+    check(`beats (${theme}): same puzzle, same beats`, JSON.stringify(storyBeats(p)) === JSON.stringify(beats));
+  }
+}
+
+// The Puzzle Wizard: a custom world built around the player's own answer key.
+{
+  console.log('\n== Puzzle Wizard answer key');
+  const custom = { theme: 'Midnight gala', title: 'The Midnight Gala', story: 'A tiara vanished at midnight.', cast: { one: 'guest', many: 'guests' },
+    names: ['Ada', 'Ben', 'Cora', 'Dev'],
+    categories: [{ name: 'Room', items: ['Library', 'Kitchen', 'Garden', 'Attic'] }, { name: 'Arrival', items: ['7:00 PM', '7:15 PM', '7:30 PM', '7:45 PM'], order: 'earlier' }, { name: 'Drink', items: ['Tea', 'Punch', 'Cider', 'Cocoa'] }] };
+  const answer = [
+    { name: 'Ada', picks: { Room: 'Garden', Arrival: '7:30 PM', Drink: 'Tea' } },
+    { name: 'Ben', picks: { Room: 'Library', Arrival: '7:00 PM', Drink: 'Cocoa' } },
+    { name: 'Cora', picks: { Room: 'Attic', Arrival: '7:45 PM', Drink: 'Punch' } },
+    { name: 'Dev', picks: { Room: 'Kitchen', Arrival: '7:15 PM', Drink: 'Cider' } }];
+  for (const tier of ['easy', 'medium', 'hard']) {
+    const p = generatePuzzle({ custom, answer, difficulty: tier, categories: 4, items: 4, seed: `wizard-${tier}` });
+    const row = (n) => p.answerKey.rows.find((r) => r[0] === n);
+    check(`wizard (${tier}): the puzzle keeps the player's answer`, answer.every((a) => Object.entries(a.picks).every(([cat, item]) => row(a.name)[p.answerKey.columns.indexOf(cat)] === item)), JSON.stringify(p.answerKey.rows));
+    const n = countSolutions(p, 2, 20000);
+    check(`wizard (${tier}): exactly one solution (brute force)`, n === 1 || n === -1, `found ${n}`);
+  }
+  let refused = '';
+  try { generatePuzzle({ custom, answer: answer.map((a, i) => (i ? a : { ...a, picks: { ...a.picks, Room: 'Library' } })), difficulty: 'easy', categories: 4, items: 4, seed: 'wizard-bad' }); } catch (e) { refused = e.message; }
+  check('wizard: an item given to two people is refused', /exactly one/.test(refused), refused);
 }
 
 console.log('\nGeneration time per tier (ms, avg / max):');

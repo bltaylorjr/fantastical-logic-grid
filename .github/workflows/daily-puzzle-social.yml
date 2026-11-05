@@ -1,0 +1,169 @@
+# Daily puzzle to Facebook and Instagram: every morning at about 8:40 am Eastern
+# (9:40 in summer time), today's daily puzzle (the same one everyone gets in the
+# game) is checked for errors, made into two slides (1: story question,
+# categories and clues; 2: a blank grid to solve on) and posted to the game's
+# Facebook Page (one post, both pictures), Instagram (a carousel) and Bluesky
+# (both pictures, with the clues in the alt text; once BLUESKY_HANDLE and
+# BLUESKY_APP_PASSWORD are saved, see admin > Connections > Bluesky) and
+# Mastodon (both pictures with alt text; MASTODON_URL and MASTODON_TOKEN).
+# Also X (text and links), Threads (both slides), LinkedIn (caption and the play
+# link's picture card) and Pinterest (the clue slide, pinned to the board
+# "Daily Logic Puzzles", or the first board if there is none by that name):
+# each starts by itself the morning after its marketing autopilot keys are
+# saved, and is skipped quietly until then.
+# The caption links to the game to play the same puzzle free (building a daily
+# streak and comparing times with everyone who played) and to the day's answer
+# key page (thelogicgrid.com/daily/<date>/). Yesterday's real player numbers are
+# added when at least 10 players solved it.
+#
+# Checked before posting (scripts/social-puzzle.mjs): the puzzle is complete,
+# with no broken text; every clue names grid items exactly; an independent
+# brute-force search finds exactly one answer, and it is the answer key shown;
+# the answer key page and the game are live; the picture fits and is readable.
+# If anything fails, nothing is posted and the owner's inbox gets an email
+# saying why (scripts/marketing-post.py, mode daily-puzzle). A puzzle already
+# posted is never posted twice, so Run workflow again is safe.
+#
+# Every other game too (NINETIMESNINE, Cage Math, Sum Cross, Picture Grid,
+# More or Less, Skyline, Star Field, Loop Line, Island Bridges):
+# right after the Logic Grid's post, each game's daily puzzle (the same one
+# everyone gets in that game today) is made and checked by
+# scripts/social-games.mjs and posted to the same sites as one picture, with
+# links to play it free (<game>/?play=daily opens today's puzzle) and to its
+# answer key page (<game>/daily/<date>/, written by the nightly site build).
+# A game whose daily puzzle is switched off in admin is skipped. A failed check
+# stops only that game's post and emails the owner why.
+#
+# Owner approved automatic posting after the checks (Bobby, 2026-11-01), and
+# asked for every game's daily puzzle to be posted (2026-11-02).
+# Only some games: repository variable DAILY_PUZZLE_GAMES (e.g. np,cm; empty or
+# unset = all nine; none = the Logic Grid only).
+# Pause it: repository variable DAILY_PUZZLE_SOCIAL = off.
+# Uses the marketing autopilot's Facebook keys (META_PAGE_ID, META_PAGE_TOKEN;
+# Instagram also needs instagram_basic and instagram_content_publish on the key).
+# Free: scheduled GitHub Actions on a public repo, the Facebook Graph API and Gmail.
+name: Daily puzzle to Facebook and Instagram
+on:
+  schedule:
+    - cron: '41 13 * * *'   # 13:41 UTC = 8:41 am Eastern (9:41 in summer time); the day's puzzle is published just after midnight Eastern
+  workflow_dispatch:
+    inputs:
+      day:
+        description: Optional day to post (YYYY-MM-DD, UTC like the game); leave empty for today
+        required: false
+permissions:
+  contents: read
+concurrency:
+  group: daily-puzzle-social
+jobs:
+  post:
+    if: vars.DAILY_PUZZLE_SOCIAL != 'off'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: |
+            scripts/social-puzzle.mjs
+            scripts/worksheet.mjs
+            scripts/marketing-post.py
+            scripts/game-daily.mjs
+            scripts/social-games.mjs
+            modules/cage-math/game.js
+            modules/sum-cross/game.js
+            modules/picture-grid/game.js
+            modules/more-or-less/game.js
+            modules/skyline/game.js
+            modules/star-field/game.js
+            modules/loop-line/game.js
+            modules/island-bridges/game.js
+            modules/grid-kit/story.js
+            engine/src
+            web/icons/icon.svg
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20
+      - name: Install the picture tools (Chromium and the game's fonts)
+        run: |
+          npm install --no-save --no-package-lock --no-audit --no-fund playwright@1.63.0 @fontsource/atkinson-hyperlegible @fontsource/cinzel
+          npx playwright install --with-deps chromium
+      - name: Check today's puzzle and make the picture
+        id: make
+        env:
+          SITE: ${{ vars.FLG_SITE_URL || 'https://thelogicgrid.com' }}
+          FLG_CLOUD_URL: ${{ vars.FLG_CLOUD_URL || 'https://flg-api.btay74.workers.dev' }}
+          DAY: ${{ inputs.day }}
+          OUT_DIR: out/social
+        run: |
+          [ -n "$DAY" ] || DAY=$(date -u +%F)
+          echo "day=$DAY" >> "$GITHUB_OUTPUT"
+          # Wait up to 30 minutes for the site, in case last night's rebuild was late.
+          for i in 1 2 3 4 5 6 7; do
+            DAY=$DAY node scripts/social-puzzle.mjs
+            grep -q '"ok": true' "out/social/$DAY.json" && break
+            grep -q 'answered 404\|answered 5\|answered nothing\|answered 0' "out/social/$DAY.json" || break
+            if [ $i -lt 7 ]; then echo "The site is not ready yet; trying again in 5 minutes."; sleep 300; fi
+          done
+          # Every other game's daily puzzle, waiting the same way for its answer key page.
+          GAMES_LIST="${{ vars.DAILY_PUZZLE_GAMES }}"
+          if [ "$GAMES_LIST" != "none" ]; then
+            for i in 1 2 3 4 5 6 7; do
+              GAMES="$GAMES_LIST" DAY=$DAY node scripts/social-games.mjs
+              grep -l 'answered 404\|answered 5\|answered nothing\|answered 0' out/social/$DAY-*.json >/dev/null 2>&1 || break
+              if [ $i -lt 7 ]; then echo "An answer key page is not ready yet; trying again in 5 minutes."; sleep 300; fi
+            done
+          fi
+          exit 0   # the next step reads the results and emails the owner about any that are not ok
+      - name: Remember which sites already have today's puzzle
+        if: always() && steps.make.outcome != 'skipped'
+        uses: actions/cache/restore@v4
+        with:
+          path: out/posted
+          key: daily-posted-${{ steps.make.outputs.day }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: daily-posted-${{ steps.make.outputs.day }}-
+      - name: Post every game's daily puzzle to Facebook, Instagram, Bluesky, Mastodon, X, Threads, LinkedIn and Pinterest (or email the owner why not)
+        id: post
+        if: always() && steps.make.outcome != 'skipped'
+        env:
+          MODE: daily-puzzle
+          SOCIAL_DAY: ${{ steps.make.outputs.day }}
+          SOCIAL_GAMES: ${{ vars.DAILY_PUZZLE_GAMES == 'none' && ' ' || vars.DAILY_PUZZLE_GAMES || 'np,cm,sc,pg,ml,sk,sf,ll,ib' }}
+          OUT_DIR: out/social
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          OWNER_TASKS_TO: ${{ secrets.OWNER_TASKS_TO }}
+          META_PAGE_ID: ${{ secrets.META_PAGE_ID }}
+          META_PAGE_TOKEN: ${{ secrets.META_PAGE_TOKEN }}
+          INSTAGRAM_ACCOUNT_ID: ${{ secrets.INSTAGRAM_ACCOUNT_ID }}
+          BLUESKY_HANDLE: ${{ secrets.BLUESKY_HANDLE }}
+          BLUESKY_APP_PASSWORD: ${{ secrets.BLUESKY_APP_PASSWORD }}
+          MASTODON_URL: ${{ vars.MASTODON_URL }}
+          MASTODON_TOKEN: ${{ secrets.MASTODON_TOKEN }}
+          X_API_KEY: ${{ secrets.X_API_KEY }}
+          X_API_SECRET: ${{ secrets.X_API_SECRET }}
+          X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
+          X_ACCESS_SECRET: ${{ secrets.X_ACCESS_SECRET }}
+          THREADS_USER_ID: ${{ secrets.THREADS_USER_ID }}
+          THREADS_TOKEN: ${{ secrets.THREADS_TOKEN }}
+          LINKEDIN_TOKEN: ${{ secrets.LINKEDIN_TOKEN }}
+          PINTEREST_APP_ID: ${{ secrets.PINTEREST_APP_ID }}
+          PINTEREST_APP_SECRET: ${{ secrets.PINTEREST_APP_SECRET }}
+          PINTEREST_REFRESH_TOKEN: ${{ secrets.PINTEREST_REFRESH_TOKEN }}
+          PINTEREST_BOARD_ID: ${{ secrets.PINTEREST_BOARD_ID }}
+          POSTED_DIR: out/posted
+        run: python3 -I scripts/marketing-post.py
+      - name: Save which sites have today's puzzle, for a re-run
+        if: always() && hashFiles('out/posted/**') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: out/posted
+          key: daily-posted-${{ steps.make.outputs.day }}-${{ github.run_id }}-${{ github.run_attempt }}
+      - name: Keep the picture with the run for 14 days
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: daily-puzzle-${{ steps.make.outputs.day }}
+          path: out/social/
+          retention-days: 14
+          if-no-files-found: ignore

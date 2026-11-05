@@ -6,8 +6,12 @@ import assert from 'node:assert/strict';
 import { SETTINGS, checkSetting } from '../src/settings.js';
 import { socialLinks, socialHtml, DEFAULT_LINKS, NETWORKS, ICONS } from '../../web/js/social.js';
 
-test('each network has a setting; Facebook starts with the launch page', () => {
+test('each network has a setting; Facebook, Instagram and Mastodon start with the game\'s pages', () => {
   assert.equal(SETTINGS.social_facebook.default, DEFAULT_LINKS.facebook);
+  assert.equal(SETTINGS.social_instagram.default, DEFAULT_LINKS.instagram);
+  assert.equal(SETTINGS.social_mastodon.default, DEFAULT_LINKS.mastodon);
+  assert.ok(checkSetting('social_mastodon', 'https://mastodon.social/@thelogicgrid').value);
+  assert.match(checkSetting('social_mastodon', 'https://example.com/@thelogicgrid').error, /not on Mastodon/);
   assert.equal(SETTINGS.social_youtube.default, '');
   assert.equal(SETTINGS.social_youtube.group, 'Social links');
 });
@@ -23,7 +27,7 @@ test('the footers show only networks with a link, in a fixed order', () => {
   const list = socialLinks({ youtube: 'https://youtube.com/@a', facebook: 'https://www.facebook.com/flg', x: '', tiktok: 'https://evil.example/tiktok' });
   assert.deepEqual(list.map((s) => s.id), ['facebook', 'youtube']);
   const html = socialHtml(list);
-  assert.match(html, /rel="me noopener" target="_blank"/);
+  assert.match(html, /rel="me noopener noreferrer" referrerpolicy="no-referrer" target="_blank"/);
   assert.doesNotMatch(html, /<img/, 'icons are drawn inline, no extra files');
   assert.match(html, /<svg [^>]*aria-hidden="true"/);
   assert.match(html, /<span class="sr-only">Facebook \(opens in a new tab\)<\/span>/);

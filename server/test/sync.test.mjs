@@ -23,7 +23,7 @@ before(async () => {
     scriptPath: join(root, 'src/index.js'),
     compatibilityDate: '2026-08-01',
     d1Databases: ['DB'],
-    bindings: { FIREBASE_PROJECT_ID: PROJECT, ALLOWED_ORIGINS: `${ORIGIN},http://tauri.localhost`, TEST_JWKS: JSON.stringify(signer.jwks) },
+    bindings: { FIREBASE_PROJECT_ID: PROJECT, ALLOWED_ORIGINS: `${ORIGIN},http://tauri.localhost`, TEST_JWKS: JSON.stringify(signer.jwks), SYNC_MAX_USER_CHARS: '3000000' },
   });
   const db = await mf.getD1Database('DB');
   for (const f of readdirSync(join(root, 'migrations')).filter((n) => n.endsWith('.sql')).sort()) {
@@ -127,6 +127,19 @@ test('rejects bad and oversized changes', async () => {
   const t = signer.token({ sub: 'frank' });
   assert.equal((await call('/v1/sync', { token: t, body: { changes: [{ kind: 'nope', key: 'k', data: '1', updatedAt: 1 }] } })).status, 400);
   assert.equal((await call('/v1/sync', { token: t, body: { changes: [{ ...save('f1'), data: 'x'.repeat(1_000_001) }] } })).status, 413);
+});
+
+test('one account cannot fill the database: a quota on all of its records together', async () => {
+  const t = signer.token({ sub: 'greedy' });
+  const big = 'x'.repeat(900_000);
+  for (let i = 0; i < 3; i++) await sync(t, { changes: [save(`g${i}`, { big })] });
+  const r = await call('/v1/sync', { token: t, body: { changes: [save('g3', { big })] } });
+  assert.equal(r.status, 413);
+  assert.equal((await r.json()).error, 'quota');
+  // Replacing a record it already has is fine: that record's room comes back.
+  const again = await call('/v1/sync', { token: t, body: { changes: [{ ...save('g0', { big }), updatedAt: Date.now() + 1, baseRev: 1 }] } });
+  assert.equal(again.status, 200, await again.clone().text());
+  assert.equal((await again.json()).applied.length, 1);
 });
 
 test('deleting an account needs a recent sign-in and removes everything', async () => {

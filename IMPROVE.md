@@ -10,7 +10,42 @@ repository and Gmail. The Claude task runs on the owner's Claude plan.
 | 2:00 to 2:30 am Eastern | Nightly maintenance: site, SEO, speed (Lighthouse), ratings and free-limit checks | `nightly.yml` (see MAINTENANCE.md) |
 | 05:37 UTC | Weekly summary email: the week in numbers | `summary-email.yml` |
 | 08:23 UTC (4:23 am EDT, 3:23 am EST) | **Weekly improvement run**: analyze, tune, report, email | `.github/workflows/improve.yml` |
+| 09:47 UTC | Backup of the run above, only if GitHub skipped it | `.github/workflows/improve.yml` |
 | 5:41 am Eastern | **Weekly Claude task**: up to three small fix PRs from the report | a Claude scheduled task (below) |
+
+## Self-tuning with approval (admin dashboard)
+
+The admin dashboard's **Analysis and self-tuning** page also tunes the live
+game, but only with an admin's OK. Every night at 2 am Eastern (and when an
+admin presses Check now) `server/src/tuning.js` reads the last 30 days and
+suggests small, bounded changes:
+
+| Kind | What changes | Limit | Needs |
+|---|---|---|---|
+| Level toughness | a Logic Grid level, gentler when players give up (35%+) or say too hard (40%+), tougher when 90%+ solve and 40%+ say too easy | 0.2 a step, never past 0.6 either way | 20 games at that level |
+| Theme | how often Surprise me picks a theme: less when rated under 3 stars or given up 45%+, more when rated 4.5+ | x0.85 or x1.15 a step, 0.6 to 1.4 | 20 games in that theme |
+| Hardest level | NINETIMESNINE, Cage Math, Sum Cross, Picture Grid: one level down when under 20% solve the top one | never below Medium | 10 games at the top level |
+| Tips | the same games: first-puzzle tips back on when 40%+ give up | on only | 30 games |
+| Support ask | the short Support ask after a solve, when visitors already press Support | on only | 100 tracked visits |
+| Repeat a post | post an ad again a week later on the same channel (a copy with its own tracked link), when 30%+ of the visitors its link brought started a puzzle | one copy, never a copy of a copy | 10 tracked visits |
+| Pause a channel | move a channel's upcoming approved posts back to draft when its links brought visitors but nobody started a puzzle | only upcoming posts; nothing deleted | 30 tracked visits |
+
+Nothing changes until an admin presses **Approve** (each suggestion says why,
+what changes and what will be checked). Level and theme changes are "house
+nudges" added on top of the shared learning in `GET /v1/learn/tuning`, so they
+reach new puzzles for players who keep "Learn from how I play" on (the
+default) without a deploy; the others are ordinary settings. Fourteen days
+later the change is judged (helped, no clear change, made it worse, or too few
+games); one that made things worse is offered back as an undo, which also
+waits for approval. **Undo** works at any time. A declined or undone change is
+not suggested again for 30 days, a suggestion nobody answers goes away after
+21 days, and a value someone changed by hand is never overwritten.
+
+**Pre-approval** (owner only, per kind of change): "Pre-approved" lets that
+kind apply by itself at the nightly check, still within its limits, measured
+and undoable. Everything starts as "Ask me first". New suggestions and
+pre-approved changes send an alert (Waiting for you). The weekly run below is
+separate: it tunes the daily puzzle in code.
 
 ## 1. The weekly improvement run
 
@@ -122,7 +157,7 @@ The task follows these rules:
 ### The prompt
 
 ```
-Weekly improvement task for The Fantastical Logic Grid (GitHub repo
+Weekly improvement task for The Logic Grid (GitHub repo
 bltaylorjr/fantastical-logic-grid). Read IMPROVE.md in the repo, section
 "2. The weekly Claude task", and follow its rules exactly. Then read the open
 GitHub issue labelled weekly-improvement and work through its "For the weekly

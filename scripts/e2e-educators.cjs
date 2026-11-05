@@ -50,7 +50,7 @@ const TOKEN = 'e2e-educators-token';
     const page = await ctx.newPage();
     page.on('pageerror', (e) => errors.push(e.message));
     page.on('console', (m) => { if (m.type() === 'error' && /Content Security Policy|Refused/.test(m.text())) errors.push(m.text()); });
-    await page.goto(`${SITE}/`);
+    await page.goto(`${SITE}/fantastical/`);
     const link = page.locator('#educators-link');
     assert(await link.isVisible(), 'the website game page shows For educators');
     const box = await link.boundingBox();

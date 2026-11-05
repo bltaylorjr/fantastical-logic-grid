@@ -141,7 +141,7 @@ def send(subject, markdown, base_dir='.'):
     if not GMAIL_USER or not GMAIL_PASSWORD:
         fail('Missing the GMAIL_USER or GMAIL_APP_PASSWORD secret. See server/ARCHIVE.md.')
     msg = EmailMessage()
-    msg['From'] = f'The Fantastical Logic Grid <{GMAIL_USER}>'
+    msg['From'] = f'The Logic Grid <{GMAIL_USER}>'
     msg['To'] = TO
     msg['Subject'] = subject
     # Pictures from the repository travel inside the email (cid: links), so

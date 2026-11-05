@@ -1,6 +1,7 @@
 """Builds the how-to-play video from video/out/scenes.json (written by capture.cjs),
 or with VIDEO=educators the Educators page video from video/out-educators/scenes.json
-(written by educators.cjs).
+(written by educators.cjs), and with VIDEO=wizard-fantastical, wizard-ninetimesnine or tlg the
+Puzzle Wizard how-to videos and The Logic Grid intro (written by wizard.cjs).
 
 Voice: Kokoro-82M, American male voice am_michael (the game's own narrator),
 run locally through kokoro-onnx. Captions: one sentence per cue, as WebVTT for
@@ -23,9 +24,9 @@ OUT = os.path.join(HERE, 'out' if VIDEO == 'intro' else f'out-{VIDEO}')
 KDIR = os.environ.get('KOKORO_DIR', os.path.join(HERE, '.kokoro'))
 KURL = 'https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/'
 VOICE = os.environ.get('VOICE', 'am_michael')
-SPEED = float(os.environ.get('SPEED', '0.94'))  # a touch slower than normal, for clear words
+SPEED = float(os.environ.get('SPEED', '0.9'))  # a little slower than normal, for clear words and an unhurried pace
 SR = 24000
-FADE, LEAD, GAP, TAIL = 0.4, 0.4, 0.3, 0.55
+FADE, LEAD, GAP, TAIL = 0.4, 0.5, 0.5, 0.7
 INSTALL = '--install' in sys.argv
 
 
@@ -74,16 +75,66 @@ PHONEME_FIXES = [
     (r'ɚɹ', 'əɹ'),
 ]
 
+# Kokoro learned American English from misaki's sounds, not eSpeak's: one
+# letter for each two-part vowel ("A" for the "ay" in "page"), no long marks,
+# "ɜɹ" for the "er" in "confirm" (eSpeak drops the r) and a plain t in
+# "button". Writing eSpeak's sounds the way misaki does gives clearer,
+# steadier words.
+MISAKI = [
+    ('ʔn', 'tᵊn'), ('ʔ', 't'),
+    ('eɪ', 'A'), ('aɪ', 'I'), ('aʊ', 'W'), ('ɔɪ', 'Y'), ('oʊ', 'O'),
+    ('dʒ', 'ʤ'), ('tʃ', 'ʧ'),
+    ('ɐ', 'ə'), ('ɚ', 'əɹ'),
+    ('ɜːɹ', 'ɜɹ'), ('ɜː', 'ɜɹ'), ('ɪə', 'iə'), ('ː', ''),
+]
+
+# Words the voice gets wrong as written: said the way a person would say them.
+# A dot inside a web address also made the voice stop as if a sentence ended.
+# Words spelled alike but said differently (read, lead) are written the
+# way they sound here, from the words around them. Only the voice hears these;
+# the captions keep the real words.
+SAY = [
+    (r'\bthelogicgrid\.com\b', 'the logic grid dot com'),
+    (r'\bNINETIMESNINE\b', 'Nine Times Nine'),
+    # "read": "reed" (players read, read-only), except after is, was, been,
+    # being, has or had, where it is "red" (the clue being read).
+    (r'\b([Rr])ead([- ])only\b', lambda m: f'{m.group(1)}eed{m.group(2)}only'),
+    (r'\b(is|are|was|were|be|been|being|has|have|had|just) read\b', lambda m: f'{m.group(1)} red'),
+    (r'\b([Rr])ead(s|ing)?\b', lambda m: f'{m.group(1)}eed{m.group(2) or ""}'),
+    # "lead to" is "leed to" (clues that lead to this answer).
+    (r'\b([Ll])ead(s)? to\b', lambda m: f'{m.group(1)}eed{m.group(2) or ""} to'),
+    # "4 × 4" is "4 by 4"; an ellipsis is not read out.
+    (r'\s*\u00d7\s*', ' by '),
+    (r'\u2026', ''),
+    # A breath where the sentence turns: at colons, semicolons and dashes.
+    (r'\s*[:;]\s+', ', '),
+    (r'\s+[\u2013\u2014]\s+', ', '),
+]
+
+# Pauses: a breath at commas and a full stop between sentences, so lists and
+# steps don't run together.
+SENTENCE_PAUSE = float(os.environ.get('SENTENCE_PAUSE', '0.42'))
+CLAUSE_PAUSE = float(os.environ.get('CLAUSE_PAUSE', '0.2'))
+
 
 def fix_phonemes(p):
     for a, b in PHONEME_FIXES:
         p = re.sub(a, b, p)
-    return p
+    for a, b in MISAKI:
+        p = p.replace(a, b)
+    return p.replace('ɹɹ', 'ɹ')
+
+
+def respell(text):
+    for a, b in SAY:
+        text = re.sub(a, b, text)
+    return text
 
 
 def narrate(tts, text):
-    sounds = fix_phonemes(tts.tokenizer.phonemize(say_aloud(text), 'en-us'))
-    return tts.create(sounds, voice=VOICE, speed=SPEED, is_phonemes=True)
+    sounds = fix_phonemes(tts.tokenizer.phonemize(respell(say_aloud(text)), 'en-us'))
+    return tts.create(sounds, voice=VOICE, speed=SPEED, is_phonemes=True,
+                      sentence_pause=SENTENCE_PAUSE, clause_pause=CLAUSE_PAUSE)
 
 
 def fonts():
@@ -176,7 +227,7 @@ def main():
     with open(os.path.join(OUT, 'captions.ass'), 'w') as f:
         f.write('[Script Info]\nScriptType: v4.00+\nPlayResX: 1920\nPlayResY: 1080\nWrapStyle: 0\n\n[V4+ Styles]\n'
                 'Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n'
-                'Style: Cap,Atkinson Hyperlegible,50,&H00FFFFFF,&H00FFFFFF,&H08101010,&H08101010,0,0,0,0,100,100,0,0,3,14,0,2,160,160,48,1\n\n'
+                'Style: Cap,Atkinson Hyperlegible,50,&H00FFFFFF,&H00FFFFFF,&H08101010,&H08101010,0,0,0,0,100,100,0,0,3,14,0,2,160,160,100,1\n\n'
                 '[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n')
         for a, b, c in final:
             f.write(f'Dialogue: 0,{ats(a)},{ats(b)},Cap,,0,0,0,,' + r'\N'.join(textwrap.wrap(c, 46)) + '\n')
@@ -190,11 +241,21 @@ def main():
         off += beats[i - 1][1]
         filt.append(f'[{prev}][v{i}]xfade=transition=fade:duration={FADE}:offset={off:.3f}[x{i}]')
         prev = f'x{i}'
+    # The Logic Grid's mark in the bottom-right corner of every frame: the game
+    # icon and "The Logic Grid · thelogicgrid.com", where the captions (kept
+    # 160 px in from each side, centred) never reach and the game's top bar
+    # stays clear.
+    n = len(beats)
+    mark_font = os.path.join(fonts(), 'Atkinson-700.ttf').replace(':', r'\:')
+    filt.append(f'[{n + 1}:v]scale=52:52:flags=lanczos,format=rgba[icon]')
+    filt.append(f"[{prev}]drawbox=x=iw-494:y=ih-82:w=470:h=62:color=0x16133a@0.72:t=fill,"
+                f"drawtext=fontfile='{mark_font}':text='The Logic Grid · thelogicgrid.com':fontsize=24:fontcolor=white:x=w-tw-42:y=h-63[marked]")
+    filt.append('[marked][icon]overlay=x=W-486:y=H-77[branded]')
+    prev = 'branded'
     filt.append(f'[{prev}]trim=0:{total:.3f},setpts=PTS-STARTPTS,split[clean][b2]')
     filt.append(f"[b2]subtitles={os.path.join(OUT, 'captions.ass')}:fontsdir={fonts()}[cap]")
-    n = len(beats)
     enc = ['-c:v', 'libx264', '-preset', 'medium', '-pix_fmt', 'yuv420p', '-r', '30', '-c:a', 'aac', '-b:a', '128k', '-movflags', '+faststart']
-    subprocess.run(['ffmpeg', '-y', '-v', 'error', *inputs, '-i', voice, '-filter_complex',
+    subprocess.run(['ffmpeg', '-y', '-v', 'error', *inputs, '-i', voice, '-i', os.path.join(ROOT, 'web', 'icons', 'icon-512.png'), '-filter_complex',
                     ';'.join(filt) + f';[{n}:a]loudnorm=I=-16:TP=-1.5:LRA=11,aresample=48000,asplit[a1][a2]',
                     '-map', '[clean]', '-map', '[a1]', '-crf', '26', *enc, os.path.join(OUT, f'{VIDEO}.mp4'),
                     '-map', '[cap]', '-map', '[a2]', '-crf', '22', *enc, os.path.join(OUT, f'{VIDEO}-captioned.mp4')], check=True)
@@ -222,6 +283,25 @@ def main():
         with open(os.path.join(media, 'educators.json'), 'w') as f:
             json.dump({'seconds': round(total, 1), 'minutes': minutes, 'transcript': paras}, f, indent=1)
         print('updated seo/media/educators.mp4, captions, poster and transcript')
+    elif INSTALL and (VIDEO.startswith('wizard-') or VIDEO == 'tlg'):
+        # The Puzzle Wizard's how-to videos (web/media/wizard/<game>.*, shown on
+        # each game's wizard page) and The Logic Grid intro on the game cards
+        # (web/media/games/the-logic-grid.*). Both are recorded by video/wizard.cjs.
+        if VIDEO == 'tlg':
+            media, name, vtt = os.path.join(ROOT, 'web', 'media', 'games'), 'the-logic-grid', 'the-logic-grid.vtt'
+        else:
+            name = VIDEO[len('wizard-'):]
+            media, vtt = os.path.join(ROOT, 'web', 'media', 'wizard'), f'{name}.en.vtt'
+        os.makedirs(media, exist_ok=True)
+        os.replace(os.path.join(OUT, f'{VIDEO}.mp4'), os.path.join(media, f'{name}.mp4'))
+        with open(os.path.join(OUT, 'captions.vtt')) as src, open(os.path.join(media, vtt), 'w') as dst:
+            dst.write(src.read())
+        subprocess.run(['ffmpeg', '-y', '-v', 'error', '-i', os.path.join(OUT, scenes[min(1, len(scenes) - 1)]['shot']), '-vf', 'scale=1280:-2', '-q:v', '4',
+                        os.path.join(media, f'{name}.jpg')], check=True)
+        if VIDEO != 'tlg':
+            with open(os.path.join(media, f'{name}.json'), 'w') as f:
+                json.dump({'seconds': round(total, 1), 'minutes': minutes, 'transcript': paras}, f, indent=1)
+        print(f'updated {os.path.relpath(media, ROOT)}/{name}.mp4, captions and poster')
     elif INSTALL:
         media = os.path.join(ROOT, 'web', 'media')
         os.makedirs(media, exist_ok=True)

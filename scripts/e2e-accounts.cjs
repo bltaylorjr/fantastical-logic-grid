@@ -52,7 +52,7 @@ function startAuth(signer) {
         return ok(session(u));
       }
       if (route === '/v1/accounts:sendOobCode') { emails.push({ type: body.requestType, email: body.email || (find(uidOf(body.idToken)) || {}).email }); return ok({}); }
-      if (route === '/v1/accounts:lookup') return ok({ users: [{ emailVerified: false }] });
+      if (route === '/v1/accounts:lookup') return ok({ users: [{ email: (find(uidOf(body.idToken)) || {}).email, emailVerified: false }] });
       if (route === '/v1/accounts:delete') { const u = find(uidOf(body.idToken)); if (u) users.delete(u.email); return ok({}); }
       if (route === '/v1/token') {
         const uid = refresh.get(body.refresh_token);
@@ -80,7 +80,7 @@ function startAuth(signer) {
     scriptPath: path.join(ROOT, 'server/src/index.js'),
     compatibilityDate: '2026-08-01',
     d1Databases: ['DB'],
-    bindings: { FIREBASE_PROJECT_ID: PROJECT, ALLOWED_ORIGINS: APP, TEST_JWKS: JSON.stringify(signer.jwks) },
+    bindings: { FIREBASE_PROJECT_ID: PROJECT, ALLOWED_ORIGINS: APP, TEST_JWKS: JSON.stringify(signer.jwks), FIREBASE_WEB_API_KEY: 'test-key', TEST_SIGN_IN_URL: `http://localhost:${AUTH_PORT}/v1/accounts:signInWithPassword` },
   });
   const db = await mf.getD1Database('DB');
   for (const f of fs.readdirSync(path.join(ROOT, 'server/migrations')).filter((n) => n.endsWith('.sql')).sort()) {
@@ -194,6 +194,25 @@ function startAuth(signer) {
     const usedB = await meta(B.page, 'usedStories');
     assert(usedA.length > 0 && usedA.every((id) => usedB.includes(id)), 'used-story list synced, so stories are not reused on the other device');
 
+    // ---- Device C signs in with the screen name instead of the email.
+    const C = await device('C');
+    await openAccount(C.page);
+    assert(/screen name/i.test(await C.page.textContent('label[for=si-email]')), 'the sign-in box takes an email or a screen name');
+    await C.page.fill('#si-email', 'bobby grid');
+    await C.page.fill('#si-pass', 'wrong password');
+    await C.page.click('[data-view=signin] button[type=submit]');
+    await C.page.waitForSelector('[data-view=signin] .error-box:not([hidden])');
+    assert(/screen name and password do not match/.test(await C.page.textContent('[data-view=signin] .error-box')), 'a wrong password with a screen name gives a clear message');
+    await C.page.fill('#si-pass', 'correct horse battery');
+    await C.page.click('[data-view=signin] button[type=submit]');
+    await C.page.waitForSelector('[data-view=account]:not([hidden])');
+    assert(await C.page.textContent('#acct-email') === 'bobby@example.com', 'a screen-name sign-in shows the account email');
+    const byName = await fetch(`http://localhost:${API_PORT}/v1/sign-in/name`, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: APP }, body: JSON.stringify({ name: 'Bobby Grid', password: 'correct horse battery' }) }).then((r) => r.json());
+    assert(byName.idToken && !JSON.stringify(byName).includes('bobby@'), 'the screen-name sign-in never sends the email back');
+    const noName = await fetch(`http://localhost:${API_PORT}/v1/sign-in/name`, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: APP }, body: JSON.stringify({ name: 'Nobody Here', password: 'correct horse battery' }) });
+    assert(noName.status === 400 && (await noName.json()).error.message === 'INVALID_LOGIN_CREDENTIALS', 'an unknown screen name gets the same answer as a wrong password');
+    await C.ctx.close();
+
     // ---- A signed-in player is offered email updates for an idea; the
     // stand-in's accounts are not confirmed, so the game says to confirm first.
     // (A second tab, with the idea boxes pointed at the same local Worker.)
@@ -201,8 +220,8 @@ function startAuth(signer) {
     await F.route('**/js/cloud-config.js', (r) => r.fulfill({ contentType: 'text/javascript', body: config.replace("learnUrl: ''", `learnUrl: 'http://localhost:${API_PORT}'`).replace("CLOUD_URL = ''", `CLOUD_URL = 'http://localhost:${API_PORT}'`) }));
     await F.goto(APP);
     await F.waitForSelector('#tier-choices input');
-    await F.click('#menu-btn');
-    await F.click('#app-menu [data-cmd=feedback]');
+    // The old ideas box is out of the menu (Submit Puzzle Ideas replaced it) but still opens from older links.
+    await F.evaluate(() => document.querySelector('#app-menu [data-cmd=feedback]').click());
     await F.waitForSelector('#dlg-feedback[open]');
     assert(await F.isVisible('#idea-form .fb-reply') && /^Email me an update at bobby@example\.com$/.test((await F.textContent('#idea-form .fb-reply')).trim()), 'a signed-in player is offered email updates at their address');
     assert(await F.isVisible('#idea-form .fb-talk'), 'a signed-in player can ask the team to reply in Messages');
@@ -256,6 +275,7 @@ function startAuth(signer) {
     await B.page.fill('#my-notes', 'Notes typed on B');
     await B.page.click('#notes-save');
     await B.page.click('#home-btn');
+    await B.page.waitForSelector('#screen-home:not([hidden])'); // the puzzle is saved before home shows
     await syncNow(B.page);
     await syncNow(A.page);
     const savedA = await A.page.evaluate(async (t) => { const s = (await (await import('./js/store.js')).listSaves()).find((x) => x.name === t); return { marks: Object.keys(s.marks).length, notes: s.myNotes }; }, title);
@@ -275,6 +295,7 @@ function startAuth(signer) {
     await A.page.waitForSelector('#screen-play:not([hidden])');
     await markCells(A.page, [10, 11]);
     await A.page.click('#home-btn');
+    await A.page.waitForSelector('#screen-home:not([hidden])'); // the puzzle is saved before home shows
     await A.page.evaluate(() => window.dispatchEvent(new Event('offline')));
     const offline = await syncNow(A.page);
     assert(offline.state === 'offline', 'A plays offline; sync waits');
@@ -283,14 +304,20 @@ function startAuth(signer) {
     await B.page.waitForSelector('#screen-play:not([hidden])');
     await markCells(B.page, [20]);
     await B.page.click('#home-btn');
+    await B.page.waitForSelector('#screen-home:not([hidden])'); // the puzzle is saved before home shows
     await syncNow(B.page);
     await A.ctx.setOffline(false);
     const back = await syncNow(A.page);
     assert(back.state === 'synced', 'A syncs once back online');
     await syncNow(B.page);
-    const namesA = await savedNames(A.page);
+    // The saved list redraws after sync finishes (on a busy machine a moment later).
+    let namesA = await savedNames(A.page);
+    for (let i = 0; i < 20 && !namesA.includes(`${title} (from another device)`); i++) {
+      await A.page.waitForTimeout(250);
+      namesA = await savedNames(A.page);
+    }
     assert(namesA.includes(`${title} (from another device)`), `conflict keeps both copies of the progress (${namesA.join(', ')})`);
-    // The saved list redraws after sync finishes, so give B a moment to catch up.
+    // Give B the same moment to catch up.
     let namesB = await savedNames(B.page);
     for (let i = 0; i < 20 && JSON.stringify(namesA) !== JSON.stringify(namesB); i++) {
       await B.page.waitForTimeout(250);

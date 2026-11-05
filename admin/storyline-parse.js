@@ -15,6 +15,8 @@
 // The result has the shape engine/src/classroom.js checkCustom() expects.
 
 const MAX_CATEGORIES = 4; // besides the cast (checkCustom keeps 4)
+// The order words engine/src/classroom.js knows (ORDER_WORDS).
+const ORDERED = { earlier: 1, lower: 1, smaller: 1, shorter: 1 };
 const MAX_ITEMS = 8;
 const MAX_NAME = 24;
 const MAX_ITEM = 30;
@@ -23,8 +25,13 @@ const squash = (s) => String(s || '').replace(/[\u0000-\u001f\u007f<>]/g, ' ').r
 const capWords = (s) => s.replace(/\b([a-z])/g, (m) => m.toUpperCase());
 
 // "Companies" -> "Company", "Accessories" -> "Accessory", "Prices" -> "Price".
+// Words ending in "-ies" whose one ends in "-ie", not "-y" ("Movies" -> "Movie").
+const IE_WORDS = /(^|\s)(movies|cookies|pies|ties|lies|brownies|zombies|rookies|hippies|calories|goodies|goalies|smoothies|selfies|veggies|collies|genies|pixies|hoodies|beanies|aunties|sweeties|birdies|cuties|newbies|sorties|lassies|pinkies|boogies|indies|walkie-talkies)$/i;
+
 export function singular(word) {
   const w = squash(word);
+  // The last word decides ("Clothing Themes" -> "Clothing Theme").
+  if (IE_WORDS.test(w)) return w.replace(/ies$/i, (m) => (m[0] === 'I' ? 'IE' : 'ie'));
   if (/ies$/i.test(w)) return w.replace(/ies$/i, (m) => (m[0] === 'I' ? 'Y' : 'y'));
   if (/(ss|us|is)$/i.test(w)) return w;
   if (/(ches|shes|xes|sses)$/i.test(w)) return w.replace(/es$/i, '');
@@ -43,6 +50,10 @@ function splitItems(body) {
   const out = [];
   const seen = new Set();
   for (let part of body.split(/[,;\n]/)) {
+    // A list ends where a new sentence starts ("Lemonade. The butler was ...");
+    // a short abbreviation like "Mr. Pike" stays one item.
+    const stop = part.match(/^(.*?[^.\s])[.!?]\s+(\S+\s+\S+\s+\S+.*)$/s);
+    if (stop) part = stop[1];
     part = squash(part).replace(/^(and|or)\s+/i, '').replace(/[.!?]+$/, '').trim();
     if (!part || seen.has(part.toLowerCase())) continue;
     seen.add(part.toLowerCase());
@@ -59,7 +70,7 @@ function findLists(text) {
   let m;
   while ((m = re.exec(t))) marks.push({ start: m.index + m[1].length, bodyStart: m.index + m[0].length, label: squash(m[2]) });
   const lists = marks.map((k, i) => ({ label: k.label, items: splitItems(t.slice(k.bodyStart, i + 1 < marks.length ? marks[i + 1].start : t.length)) }));
-  const scene = squash(marks.length ? t.slice(0, marks[0].start) : '');
+  const scene = squash(marks.length ? t.slice(0, marks[0].start) : t); // no lists: it is all scene
   return { scene, lists };
 }
 
@@ -121,4 +132,55 @@ export function readStoryline(text, themeName = '') {
   };
   const summary = [`${capWords(cast.many)} (${names.length >= 3 ? names.length : 'names chosen for you'})`, ...categories.map((c) => `${c.name} (${c.items.length})`)].join(', ');
   return { def, summary };
+}
+
+// Reads an entry from the Suggest a storyline form (web/js/storyline-fields.js)
+// the same way: the characters' names are the cast, and the lists in the clues
+// and story beat ("Rooms: Library, Kitchen, Garden") are what to match. The
+// story uses the team's corrected words when there are some (polished), and
+// the title is the author's own. Returns { def, summary, difficulty } or
+// { def: null, reason }.
+export function readSubmission(form, polished = null, themeName = '') {
+  const f = form || {};
+  const p = polished || {};
+  const word = (k) => squash(p[k] || f[k] || '');
+  const names = (f.characters || []).map((c) => squash(c.name).slice(0, MAX_NAME)).filter(Boolean).slice(0, MAX_ITEMS);
+  // Lists in the clues, then in the story beat: read line by line, so a list
+  // on one line never runs on into the next line or into the story.
+  const byLine = (text) => String(text || '').split(/\r?\n/).flatMap((line) => findLists(line).lists);
+  const raw = [...byLine(p.clues || f.clues), ...byLine(p.beat || f.beat)];
+  const known = new Set(names.map((n) => n.toLowerCase()));
+  // A list of the characters' own names is the cast, not a category.
+  const lists = raw.map(nameGeneric).filter((l) => l.items.length >= 3 && !l.items.every((x) => known.has(x.toLowerCase())));
+  // Categories from the form's builder come first, as the author set them up
+  // (items in the order typed; an ordered list runs from its first item).
+  const built = (f.categories || []).filter((c) => c && c.name && (c.items || []).length >= 3).map((c) => ({
+    name: capWords(squash(c.name)).slice(0, 30), items: c.items.slice(0, MAX_ITEMS).map((x) => squash(x).slice(0, MAX_ITEM)),
+    pos: '', neg: '', order: ORDERED[c.order] ? c.order : null, less: '', more: '',
+  }));
+  // Then lists in the clues and story beat. A stand-in cast line keeps
+  // readStoryline from taking one of them as the cast.
+  const fromClues = lists.length ? readStoryline(`Characters: Zz1, Zz2, Zz3.\n${lists.map((l) => `${l.label}: ${l.items.join(', ')}.`).join('\n')}\nZzend: a, b, c.`, '') : null;
+  const used = new Set(['character', 'name', ...built.map((c) => c.name.toLowerCase())]);
+  const categories = [...built];
+  for (const c of fromClues?.def?.categories || []) {
+    if (categories.length >= MAX_CATEGORIES) break;
+    if (c.name === 'Zzend' || used.has(c.name.toLowerCase())) continue;
+    used.add(c.name.toLowerCase());
+    categories.push(c);
+  }
+  if (categories.length < 2) {
+    return { def: null, reason: 'It needs at least 2 categories of 3 or more things to match: add them in the Categories builder, or as lists in the clues like "Rooms: Library, Kitchen, Garden".' };
+  }
+  const read = { def: { theme: (squash(themeName) || word('title') || 'Characters').slice(0, 60), title: 'The Characters Mix-Up', story: '', ending: '', cast: { one: 'character', many: 'characters' }, names: [], categories } };
+  read.summary = [`Characters (${names.length >= 3 ? names.length : 'names chosen for them'})`, ...categories.map((c) => `${c.name} (${c.items.length})`)].join(', ');
+  // The story beat's words ("Beginning: the lights go out."), without its lists of things to match.
+  const beat = String(p.beat || f.beat || '').split(/\r?\n/).flatMap((line) => {
+    const r = findLists(line);
+    return [r.scene, ...r.lists.filter((l) => l.items.length < 3).map((l) => l.items.join(', '))];
+  }).map((x) => squash(x).replace(/[.!?]+$/, '')).filter(Boolean).join('. ');
+  const story = [word('setting'), word('goal'), beat].filter(Boolean).map((s) => s[0].toUpperCase() + s.slice(1)).map((s) => (/[.!?]$/.test(s) ? s : `${s}.`)).join(' ');
+  const def = { ...read.def, title: (word('title') || read.def.title).slice(0, 80), story: story.slice(0, 1200) || read.def.story };
+  if (names.length >= 3) def.names = names;
+  return { def, summary: read.summary, difficulty: f.difficulty || '' };
 }

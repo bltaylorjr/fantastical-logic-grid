@@ -1,7 +1,7 @@
 // Keeps the screen on while a puzzle is being played (Screen Wake Lock API,
-// which the desktop app's WebView2 also supports). After 30 minutes with no
+// which the desktop app's WebView2 also supports). After 10 minutes with no
 // input the lock is let go so the display can sleep; any input takes it again.
-const IDLE_MS = 30 * 60 * 1000;
+const IDLE_MS = 10 * 60 * 1000;
 let playing = false;
 let lock = null;
 let lastInput = Date.now();
@@ -35,7 +35,3 @@ export function setPlaying(on) {
 const touch = () => { const idle = !lock; lastInput = Date.now(); if (playing && idle) sync(); };
 for (const ev of ['pointerdown', 'keydown', 'wheel', 'touchstart']) addEventListener(ev, touch, { passive: true, capture: true });
 document.addEventListener('visibilitychange', sync);
-
-// For tests.
-export const _state = () => ({ playing, held: !!lock, lastInput });
-export const _idle = (ms) => { lastInput = Date.now() - ms; return sync(); };

@@ -1,4 +1,4 @@
-// Learning across all games: the Logic Grid's and Number Place's anonymous
+// Learning across all games: the Logic Grid's and NINETIMESNINE's anonymous
 // play summaries pooled into one reading of how players are finding each band
 // of difficulty, so every game learns from every game's players.
 //
@@ -12,7 +12,7 @@
 // Both games' readings are put on one scale, the lean: -1 (much too hard) to
 // +1 (much too easy). The Logic Grid's is its play signal (learn.js), Number
 // Place's its verdict halved (number-place.js npVerdict). Race games are left
-// out, as they are in Number Place's own tuning.
+// out, as they are in NINETIMESNINE's own tuning.
 //
 // Levels are matched by where they sit in each game's ladder (BANDS), never by
 // name, so a new game only has to say which band each of its levels is in.
@@ -63,7 +63,7 @@ export function shrink(values, prior, k = PRIOR_GAMES) {
 }
 
 // Both games' recent plays, for the tuning endpoints and the admin dashboard.
-// A table that is not set up yet (Number Place's before its migration) counts
+// A table that is not set up yet (NINETIMESNINE's before its migration) counts
 // as no games. npVerdict comes from number-place.js, passed in so the two
 // modules do not import each other.
 export async function loadCrowd(env, settings, npVerdict, now = Date.now()) {

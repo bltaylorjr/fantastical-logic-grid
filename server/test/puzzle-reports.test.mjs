@@ -178,3 +178,70 @@ test('a merged code fix closes its reports with the player note and version', as
   assert.match(p.note, /^The menu now fits on small phones\. Fixed in version 2\.1\.1\.$/);
   assert.equal((await call('/admin/v1/error-tracking/close', { auth: owner, body: { trackings: [pz.tracking], note: 'again' } })).body.skipped[0], pz.tracking, 'a closed report stays closed');
 });
+
+test('attachments are kept with the report, and every step is logged in the errors database', async () => {
+  const owner = token('owner-uid', OWNER);
+  const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 7, 7, 7]).toString('base64');
+  const svg = Buffer.from('<svg onload="alert(1)"/>').toString('base64');
+  const refused = await call('/v1/puzzle-report', { body: { kind: 'page', text: 'The menu is cut off', page: 'Home screen', version: '2.1.0', files: [{ name: 'x.svg', data: svg }] } });
+  assert.equal(refused.status, 400);
+  assert.equal(refused.body.error, 'file_type');
+
+  const sent = await call('/v1/puzzle-report', { body: { kind: 'page', text: 'The menu is cut off on my phone', page: 'Home screen', version: '2.1.0', screen: '360x640',
+    files: [{ name: 'screen shot.jpg', data: png }, { name: 'console.log', data: Buffer.from('TypeError: x is undefined').toString('base64') }] } });
+  assert.equal(sent.status, 200, JSON.stringify(sent.body));
+  assert.equal(sent.body.files, 2);
+  assert.equal(sent.body.doctor, 'reviewed', 'a page issue is reviewed at once');
+
+  const good = generatePuzzle({ difficulty: 'easy', categories: 3, items: 4, seed: 'report-log-test' });
+  const puzzle = await call('/v1/puzzle-report', { body: { kind: 'puzzle', text: 'Clue 2 seems wrong to me', puzzle: good, page: 'Puzzle screen: Log', version: '2.1.0' } });
+  assert.equal(puzzle.body.doctor, 'queued', 'without the dispatch secret the next round picks it up');
+
+  const list = (await call('/admin/v1/error-tracking?category=webstructure', { auth: owner })).body.reports;
+  const row = list.find((r) => r.tracking === sent.body.tracking);
+  assert.equal(row.files, 2);
+  const detail = (await call(`/admin/v1/error-tracking/${row.id}`, { auth: owner })).body;
+  assert.deepEqual(detail.attachments.map((f) => [f.name, f.mime, f.image]), [['screen shot.png', 'image/png', true], ['console.log', 'text/plain', false]]);
+  assert.deepEqual(detail.log.map((l) => l.event), ['received', 'files', 'reviewed', 'alerted']);
+  assert.ok(!detail.log.some((l) => l.detail.includes('cut off on my phone')), "the player's words stay out of the log");
+
+  const pic = await mf.dispatchFetch(`https://api.test/admin/v1/error-tracking/${row.id}/files/${detail.attachments[0].id}`, { headers: { Authorization: `Bearer ${await owner}`, Origin: ORIGIN } });
+  assert.equal(pic.status, 200);
+  assert.equal(pic.headers.get('Content-Type'), 'image/png');
+  assert.equal(pic.headers.get('X-Content-Type-Options'), 'nosniff');
+  assert.equal((await pic.arrayBuffer()).byteLength, 11);
+  const txt = await mf.dispatchFetch(`https://api.test/admin/v1/error-tracking/${row.id}/files/${detail.attachments[1].id}`, { headers: { Authorization: `Bearer ${await owner}`, Origin: ORIGIN } });
+  assert.equal(txt.headers.get('Content-Type'), 'application/octet-stream', 'anything but a picture downloads');
+  assert.match(txt.headers.get('Content-Disposition'), /^attachment/);
+
+  // The doctor's verdict is logged and reported too.
+  const claim = (await call('/admin/v1/puzzle-reports/claim', { auth: owner, body: { limit: 5 } })).body;
+  const results = claim.reports.map((r) => ({ id: r.id, ...examine(r.puzzle, claim.playbook) }));
+  await call('/admin/v1/puzzle-reports/done', { auth: owner, body: { results } });
+  const pz = (await call('/admin/v1/error-tracking?category=puzzle', { auth: owner })).body.reports.find((r) => r.tracking === puzzle.body.tracking);
+  const events = (await call(`/admin/v1/error-tracking/${pz.id}`, { auth: owner })).body.log.map((l) => l.event);
+  assert.deepEqual(events.slice(0, 3), ['received', 'doctor_waiting', 'alerted']);
+  assert.ok(events.includes('reviewed') && events.includes('no_fault'), events.join());
+  const alerts = (await db.prepare("SELECT title FROM alert_queue WHERE category = 'problems' ORDER BY id").all()).results.map((a) => a.title);
+  assert.ok(alerts.includes(`New problem report ${sent.body.tracking}`));
+  assert.ok(alerts.some((t) => t.startsWith(`Doctor: ${puzzle.body.tracking}`)));
+
+  // The Report a Problem page sends its files as form parts beside the JSON.
+  const boundary = '----flgtest7e3a';
+  const multipart = Buffer.concat([
+    Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="report"\r\n\r\n${JSON.stringify({ kind: 'page', text: 'The footer overlaps the grid', page: 'Puzzle screen', version: '2.1.0' })}\r\n`),
+    Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="grid.png"\r\nContent-Type: image/png\r\n\r\n`),
+    Buffer.from(png, 'base64'),
+    Buffer.from(`\r\n--${boundary}--\r\n`),
+  ]);
+  const multi = await mf.dispatchFetch('https://api.test/v1/puzzle-report', { method: 'POST', body: multipart,
+    headers: { Origin: ORIGIN, 'Content-Type': `multipart/form-data; boundary=${boundary}`, 'Content-Length': String(multipart.length) } });
+  const mb = await multi.json();
+  assert.equal(multi.status, 200, JSON.stringify(mb));
+  assert.equal(mb.files, 1);
+  assert.match(mb.tracking, /^WS-/);
+
+  const latest = (await call('/admin/v1/error-log', { auth: owner })).body.events;
+  assert.ok(latest.length >= 8);
+  assert.ok(latest[0].id > latest[latest.length - 1].id, 'newest first');
+});

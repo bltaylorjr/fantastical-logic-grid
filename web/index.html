@@ -16,9 +16,17 @@
 <script>
   // Apply the saved color theme before first paint.
   try { const s = JSON.parse(localStorage.getItem('flg.settings') || '{}'); if (s.colorTheme && s.colorTheme !== 'system') document.documentElement.dataset.theme = s.colorTheme; } catch (e) {}
+  // The app opens on the game cards unless the player was last in The
+  // Fantastical Logic Grid. On the website this page is The Fantastical Logic
+  // Grid's own (fantastical/; the front page has the cards), so it opens there.
+  try { if (!/\/fantastical\/(index\.html)?$/.test(location.pathname) && localStorage.getItem('flg.game') !== 'logic-grid') document.documentElement.dataset.start = 'games'; } catch (e) {}
   // Never run inside another site's frame, where clicks could be tricked
-  // (GitHub Pages cannot send X-Frame-Options). The claude.ai preview is framed on purpose.
-  if (window.top !== window.self && !document.querySelector('meta[name="flg-mode"]')) { document.documentElement.hidden = true; try { window.top.location = window.location.href; } catch (e) {} }
+  // (GitHub Pages cannot send X-Frame-Options). The claude.ai preview is framed on purpose,
+  // and this site's own front page shows one window of the game over itself (?embed=1).
+  var embed = false;
+  try { embed = window.top !== window.self && window.parent.location.origin === location.origin && /[?&]embed=1(&|$)/.test(location.search); } catch (e) {}
+  if (embed) document.documentElement.setAttribute('data-embed', '');
+  else if (window.top !== window.self && !document.querySelector('meta[name="flg-mode"]')) { document.documentElement.hidden = true; try { window.top.location = window.location.href; } catch (e) {} }
 </script>
 <script type="module" src="js/app.js"></script>
 </head>
@@ -26,16 +34,21 @@
 <a class="skip" href="#grid-region" id="skip-link" hidden>Skip to grid</a>
 
 <header class="appbar">
-  <button class="btn quiet back-btn" type="button" id="back-btn" hidden><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg> Back</button>
-  <button class="brand" type="button" id="home-btn" aria-label="The Fantastical Logic Grid, home">
+  <button class="btn quiet back-btn" type="button" id="back-btn"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg> <span class="back-text">Back</span></button>
+  <button class="brand" type="button" id="home-btn" aria-label="The Logic Grid, home">
     <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><rect x="2" y="2" width="28" height="28" rx="6" fill="currentColor"/><path d="M11 2v28M21 2v28M2 11h28M2 21h28" stroke="var(--bg)" stroke-width="1.6"/><circle cx="16" cy="16" r="3.4" fill="var(--bg)"/><path d="M4.8 4.8l3.4 3.4M8.2 4.8l-3.4 3.4M23.8 23.8l3.4 3.4M27.2 23.8l-3.4 3.4" stroke="var(--bg)" stroke-width="1.6" stroke-linecap="round"/></svg>
-    <span>The Fantastical Logic Grid</span>
+    <span id="brand-name">The Logic Grid</span>
   </button>
   <div class="appbar-actions">
     <!-- Website only: build.mjs shows it in dist/site (not the desktop app or game portals). -->
     <a class="btn quiet educators-link" id="educators-link" href="educators/" hidden>For educators</a>
     <button class="btn quiet player-chip" type="button" id="player-chip" hidden><span class="sr-only">Playing as </span><span id="player-chip-name" translate="no">Guest</span></button>
     <button class="btn quiet" type="button" id="lang-btn" translate="no" aria-pressed="false" hidden>English</button>
+    <!-- Grid or List: in the app bar's one row while a puzzle is open, so it never scrolls away. -->
+    <div class="seg view-seg" id="view-seg" role="radiogroup" aria-label="Show the puzzle as" hidden>
+      <label title="Grid view"><input type="radio" name="view" value="grid" checked><span><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/></svg><span class="seg-text">Grid</span></span></label>
+      <label title="List view"><input type="radio" name="view" value="list"><span><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h.01M3 12h.01M3 19h.01M8 5h13M8 12h13M8 19h13"/></svg><span class="seg-text">List</span></span></label>
+    </div>
     <button class="btn quiet" type="button" id="help-btn" aria-keyshortcuts="Shift+?">Help</button>
     <button class="btn quiet" type="button" id="menu-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="app-menu">Menu<span class="count-dot" id="menu-count" aria-hidden="true" hidden></span></button>
   </div>
@@ -47,35 +60,49 @@
     <button role="menuitem" type="button" data-cmd="stats">My stats and badges</button>
     <button role="menuitem" type="button" data-cmd="pack" hidden>Printable puzzle pack</button>
     <button role="menuitem" type="button" data-cmd="suggest" hidden>Suggest a character</button>
-    <button role="menuitem" type="button" data-cmd="settings">Settings</button>
-    <button role="menuitem" type="button" data-cmd="messages" hidden>Messages<span class="count"></span></button>
-    <button role="menuitem" type="button" data-cmd="feedback" hidden>Share an idea</button>
+    <button role="menuitem" type="button" data-cmd="storyline" hidden>Suggest a storyline</button>
     <button role="menuitem" type="button" data-cmd="board" hidden>Scoreboard</button>
+    <button role="menuitem" type="button" data-cmd="settings">Settings</button>
+    <!-- Shared by every game of The Logic Grid (also on the front page). -->
+    <div class="menu-group" role="separator" aria-label="The Logic Grid">The Logic Grid</div>
     <button role="menuitem" type="button" data-cmd="account" hidden>Account and sync</button>
+    <button role="menuitem" type="button" data-cmd="messages" hidden>Messages<span class="count"></span></button>
+    <button role="menuitem" type="button" data-cmd="wizard">Submit Puzzle Ideas</button>
+    <!-- The old ideas box: replaced by Submit Puzzle Ideas (the Puzzle Wizard), kept for links in older pages and emails. -->
+    <button role="menuitem" type="button" data-cmd="feedback" hidden>Ideas box</button>
     <button role="menuitem" type="button" data-cmd="install" hidden>Install the app</button>
     <a role="menuitem" id="support-link" href="#" target="_blank" rel="noopener" hidden>Support the game</a>
     <button role="menuitem" type="button" data-cmd="site" hidden>Play on thelogicgrid.com</button>
-    <!-- Number Place: a separate numbers game with its own screen (modules/number-place). -->
-    <button role="menuitem" type="button" data-cmd="numberplace" class="menu-small">Try Number Place <span class="menu-tag">New</span></button>
+    <!-- The other games of The Logic Grid, each on its own screen. -->
+    <button role="menuitem" type="button" data-cmd="games" class="menu-small" hidden>All games</button>
+    <button role="menuitem" type="button" data-cmd="numberplace" class="menu-small" hidden>Play NINETIMESNINE <span class="menu-tag">New</span></button>
   </div>
-  <!-- Always visible: How to play (the tutorial), the Introduction video and a small scoreboard. -->
+  <!-- The puzzle's main page only: How to play (the tutorial) and a small scoreboard. The Introduction is under Help. -->
   <div class="topstrip">
     <button class="btn quiet small" type="button" id="howto-btn"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg> How to play</button>
-    <button class="btn quiet small" type="button" id="intro-btn"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 9.003a1 1 0 0 1 1.517-.859l4.997 2.997a1 1 0 0 1 0 1.718l-4.997 2.997A1 1 0 0 1 9 14.996z"/><circle cx="12" cy="12" r="10"/></svg> Introduction</button>
     <section class="miniboard" id="miniboard" aria-labelledby="miniboard-h" hidden>
       <h2 class="sr-only" id="miniboard-h">Scoreboard this week</h2>
       <ol id="miniboard-list"></ol>
       <button class="btn quiet small" type="button" id="miniboard-open">Scoreboard</button>
     </section>
-    <!-- Grid or List, in the sticky bar so it never scrolls away while a puzzle is open. -->
-    <div class="seg view-seg" id="view-seg" role="radiogroup" aria-label="Show the puzzle as" hidden>
-      <label title="Grid view"><input type="radio" name="view" value="grid" checked><span><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/></svg><span class="seg-text">Grid</span></span></label>
-      <label title="List view"><input type="radio" name="view" value="list"><span><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h.01M3 12h.01M3 19h.01M8 5h13M8 12h13M8 19h13"/></svg><span class="seg-text">List</span></span></label>
-    </div>
   </div>
 </header>
 
-<!-- ============ Home: setup + saved puzzles ============ -->
+<!-- ============ The Logic Grid: a card for each game (games.js) ============ -->
+<main id="screen-games" class="screen games" tabindex="-1" hidden>
+  <section class="banner games-banner" aria-labelledby="games-h">
+    <div class="hero-text">
+      <p class="eyebrow">Puzzle games</p>
+      <h1 class="hero-title" id="games-h">The Logic Grid</h1>
+      <p class="hero-tag">Every puzzle has exactly one answer you can reach without guessing. Choose a game.</p>
+      <p class="hero-cta"><button class="btn" type="button" id="games-intro-btn" data-video="the-logic-grid"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M10 8.5v7l6-3.5z" fill="currentColor"/></svg>Watch the intro</button></p>
+    </div>
+  </section>
+  <h2 class="sr-only" id="games-list-h">Games</h2>
+  <ul class="game-cards" id="game-cards" aria-labelledby="games-list-h"></ul>
+</main>
+
+<!-- ============ The Fantastical Logic Grid: setup + saved puzzles ============ -->
 <main id="screen-home" class="screen" tabindex="-1">
   <div id="announcements" class="announcements" hidden></div>
   <section class="banner" aria-labelledby="hero-h">
@@ -113,6 +140,15 @@
         <fieldset id="topic-field" hidden>
           <legend id="topic-legend">Topic</legend>
           <div class="choices tiers topics" id="topic-choices"></div>
+        </fieldset>
+        <fieldset id="mode-field">
+          <legend>Puzzle style</legend>
+          <div class="choices chips" id="mode-choices">
+            <label class="choice"><input type="radio" name="puzzle-mode" value="classic" checked><span><b>Classic</b><small>The usual story puzzle</small></span></label>
+            <label class="choice"><input type="radio" name="puzzle-mode" value="timeline"><span><b>Timeline Case</b><small>A whodunit told by the clock</small></span></label>
+            <label class="choice"><input type="radio" name="puzzle-mode" value="seating"><span><b>Seating Plan</b><small>Guests round one table</small></span></label>
+          </div>
+          <p class="help" id="mode-help" hidden>Set in the theme you pick ("Surprise me" picks one). The style sets the grid size and the kinds of clues for each difficulty, so Size and Topic are hidden.</p>
         </fieldset>
         <fieldset>
           <legend>Size</legend>
@@ -250,6 +286,7 @@
 
   <div class="race-bar" id="race-bar" hidden>
     <p id="race-bar-text"></p>
+    <div class="cpu-meter" id="race-cpu" hidden><span class="cpu-label" id="race-cpu-label">Computer</span><progress id="race-cpu-bar" max="100" value="0" aria-labelledby="race-cpu-label"></progress><span id="race-cpu-pct" aria-hidden="true">0%</span></div>
     <button class="btn small" type="button" id="race-share">Share the race</button>
     <button class="btn small" type="button" id="race-standings">Standings</button>
   </div>
@@ -281,6 +318,7 @@
       </div>
       <div class="hintbox" id="hintbox" hidden></div>
       <div class="gridframe" id="gridframe"></div>
+      <p class="help grid-tip" id="grid-tip">The squares are small on this screen. For bigger squares, turn your device sideways, pinch to zoom, or switch to List at the top.</p>
       <div class="listview" id="listview" hidden></div>
       <p class="help legend"><span class="sym-x" aria-hidden="true"></span> ruled out &nbsp; <span class="sym-o" aria-hidden="true"></span> confirmed &nbsp;·&nbsp; Click or tap a cell to cycle X, O, <span class="sym-q">?</span> (a reminder to come back to it) and blank. Right-click or long-press to choose. Press ? for keys.</p>
     </section>
@@ -304,6 +342,7 @@
   <section class="card solved" id="solved" hidden tabindex="-1" aria-labelledby="solved-h">
     <div class="resolution media" id="resolution" aria-hidden="true"></div>
     <h2 id="solved-h">Case closed!</h2>
+    <p class="char-line cheer media" id="solved-cheer" hidden></p>
     <p class="ending" id="ending"></p>
     <dl class="solved-stats" id="solved-stats"></dl>
     <p class="streak-line" id="solved-streak" hidden></p>
@@ -330,7 +369,7 @@
         <label class="chip"><input type="radio" name="feel" value="right"> Just right</label>
         <label class="chip"><input type="radio" name="feel" value="hard"> Too hard</label>
       </fieldset>
-      <p class="help"><span id="feedback-thanks" role="status"></span> <button class="btn quiet small" type="button" id="feedback-idea">Share an idea</button></p>
+      <p class="help"><span id="feedback-thanks" role="status"></span> <button class="btn quiet small" type="button" id="feedback-idea">Submit Puzzle Ideas</button></p>
     </div>
     <p id="next-tip"></p>
     <div class="solved-actions">
@@ -339,18 +378,46 @@
       <button class="btn" type="button" id="back-saved">Saved Puzzles</button>
     </div>
   </section>
-  <!-- The talking face of whoever is speaking (talker.js). Pictures only:
-       their words are already on the screen. -->
-  <aside class="talker" id="talker" aria-hidden="true" hidden>
-    <div class="talker-frame"><canvas width="320" height="400"></canvas><div class="talker-still"></div></div>
-    <p class="talker-name"></p>
-  </aside>
 </main>
 
-<!-- ============ Number Place: its own numbers game (modules/number-place) ============ -->
+<!-- ============ NINETIMESNINE: the numbers game (modules/number-place) ============ -->
 <main id="screen-np" class="screen" tabindex="-1" hidden>
-  <p class="np-back"><button class="btn quiet small" type="button" id="np-back">Back to The Fantastical Logic Grid</button></p>
-  <div id="np-root"><p class="muted" id="np-loading">Loading Number Place…</p></div>
+  <p class="np-back"><button class="btn quiet small" type="button" id="np-back">All games</button></p>
+  <div id="np-root"><p class="muted" id="np-loading">Loading NINETIMESNINE…</p></div>
+</main>
+
+<!-- ============ The grid-kit games: Cage Math, Sum Cross, Picture Grid, More or Less, Skyline, Star Field, Loop Line, Island Bridges (modules/grid-kit and each game's folder) ============ -->
+<main id="screen-cm" class="screen" tabindex="-1" hidden>
+  <p class="np-back"><button class="btn quiet small" type="button" id="cm-back">All games</button></p>
+  <div id="cm-root"><p class="muted">Loading Cage Math…</p></div>
+</main>
+<main id="screen-sc" class="screen" tabindex="-1" hidden>
+  <p class="np-back"><button class="btn quiet small" type="button" id="sc-back">All games</button></p>
+  <div id="sc-root"><p class="muted">Loading Sum Cross…</p></div>
+</main>
+<main id="screen-pg" class="screen" tabindex="-1" hidden>
+  <p class="np-back"><button class="btn quiet small" type="button" id="pg-back">All games</button></p>
+  <div id="pg-root"><p class="muted">Loading Picture Grid…</p></div>
+</main>
+<main id="screen-ml" class="screen" tabindex="-1" hidden>
+  <p class="np-back"><button class="btn quiet small" type="button" id="ml-back">All games</button></p>
+  <div id="ml-root"><p class="muted">Loading More or Less…</p></div>
+</main>
+<main id="screen-sk" class="screen" tabindex="-1" hidden>
+  <p class="np-back"><button class="btn quiet small" type="button" id="sk-back">All games</button></p>
+  <div id="sk-root"><p class="muted">Loading Skyline…</p></div>
+</main>
+<main id="screen-sf" class="screen" tabindex="-1" hidden>
+  <p class="np-back"><button class="btn quiet small" type="button" id="sf-back">All games</button></p>
+  <div id="sf-root"><p class="muted">Loading Star Field…</p></div>
+</main>
+<main id="screen-ll" class="screen" tabindex="-1" hidden>
+  <p class="np-back"><button class="btn quiet small" type="button" id="ll-back">All games</button></p>
+  <div id="ll-root"><p class="muted">Loading Loop Line…</p></div>
+</main>
+<main id="screen-ib" class="screen" tabindex="-1" hidden>
+  <p class="np-back"><button class="btn quiet small" type="button" id="ib-back">All games</button></p>
+  <div id="ib-root"><p class="muted">Loading Island Bridges…</p></div>
 </main>
 
 <!-- ============ How to play: the tutorial and tips ============ -->
@@ -433,7 +500,7 @@
   </section>
 </main>
 
-<!-- The page footer under every screen: Report a Problem (puzzle-report.js). -->
+<!-- The page footer under every screen: Report a Problem (puzzle-report.js) opens the report page (report/). -->
 <footer class="app-foot needs-cloud" data-feature="feedback" id="app-foot" hidden>
   <button class="btn quiet small" type="button" id="report-problem">Report a Problem</button>
 </footer>
@@ -541,13 +608,23 @@
   <form method="dialog" id="settings-form">
     <h2 id="settings-h">Settings</h2>
     <fieldset id="sound-settings"><legend>Sound</legend>
-      <label class="check"><input type="checkbox" name="sound"> Sound effects and voices</label>
+      <label class="check"><input type="checkbox" name="sound"> All sound</label>
+      <div class="sound-places" id="sound-places">
+        <fieldset class="sub"><legend>Sound effects</legend>
+          <label class="check"><input type="checkbox" name="sfxPlay"> While solving <small class="help">marks, ticks, hints, finished sections</small></label>
+          <label class="check"><input type="checkbox" name="sfxFinish"> At the finish <small class="help">the solve fanfare, answers, badges</small></label>
+        </fieldset>
+        <fieldset class="sub"><legend>Voices</legend>
+          <label class="check"><input type="checkbox" name="speechStory"> The story <small class="help">Read the story aloud</small></label>
+          <label class="check"><input type="checkbox" name="speechPlay"> While solving <small class="help">story moments, the cast's lines, Read the clues aloud, "Try again"</small></label>
+          <label class="check"><input type="checkbox" name="speechFinish"> At the finish <small class="help">the cheer and the story's ending</small></label>
+        </fieldset>
+      </div>
       <div class="field"><label for="volume">Volume</label><input type="range" id="volume" name="volume" min="0" max="100" step="5"></div>
       <div id="music-settings">
         <label class="check"><input type="checkbox" name="music"> Theme music</label>
         <div class="field"><label for="musicVolume">Music volume</label><input type="range" id="musicVolume" name="musicVolume" min="0" max="100" step="5"></div>
       </div>
-      <label class="check" id="talking-faces-row"><input type="checkbox" name="talkingFaces"> Talking faces: the character who is speaking appears, and their lips move with their voice</label>
       <p class="help">The Sound button at the top of a puzzle turns all sound off and on in one tap.</p>
     </fieldset>
     <fieldset><legend>Colors</legend>
@@ -572,9 +649,6 @@
     <details class="more" id="more-settings">
       <summary>More play settings</summary>
       <fieldset><legend class="sr-only">Play</legend>
-        <label class="check"><input type="checkbox" name="pictureClues" aria-describedby="pictureclues-help"> Picture clues: one clue starts locked behind a small picture puzzle</label>
-        <p class="help" id="pictureclues-help">Fill in the picture to uncover the evidence and unlock the clue. Smaller pictures on easier levels. Turning this off shows every clue right away.</p>
-        <label class="check"><input type="checkbox" name="storyBeats"> Story moments: short bits of story appear as I finish each section</label>
         <label class="check"><input type="checkbox" name="autoX" aria-describedby="autox-help"> Auto-X: when I place an O, rule out the rest of its row and column</label>
         <p class="help" id="autox-help">Automatic Xs are drawn smaller. Clearing or changing the O removes them again, Undo takes back the O and its Xs together, and tapping an automatic X clears it. Xs you placed yourself always stay.</p>
         <label class="check"><input type="checkbox" name="singleKeys"> Single-key shortcuts (X, O, H, C, R)</label>
@@ -612,7 +686,7 @@
 <dialog id="dlg-feedback" class="wide" aria-labelledby="feedback-h">
   <h2 id="feedback-h">Share an idea</h2>
   <p class="help">Ideas for storylines, themes and features go to the game's team. Something not working? Use <b>Report a Problem</b> at the bottom of the page instead, so it reaches the right place. Don't include your name, email or anything personal: ideas are anonymous. Signed in with a confirmed email? Tick "Email me an update" and we'll email you about your idea. Signed in and want an answer? Tick "Let the team reply to me" and the reply shows in Menu &gt; Messages.</p>
-  <p class="note" id="feedback-game" hidden>This idea is for <b>Number Place</b>.</p>
+  <p class="note" id="feedback-game" hidden>This idea is for <b>NINETIMESNINE</b>.</p>
   <form class="feedback-box" id="idea-form" data-kind="idea" novalidate>
     <h3>Share an idea</h3>
     <fieldset><legend>What is it about?</legend>
@@ -621,7 +695,7 @@
       <label class="radio"><input type="radio" name="idea-topic" value="feature"> A new game feature</label>
       <label class="radio"><input type="radio" name="idea-topic" value="other"> Something else</label>
     </fieldset>
-    <div class="field" id="idea-theme-field"><label for="idea-theme">Which theme is it for?</label><select id="idea-theme"></select></div>
+    <div class="field" id="idea-theme-field"><label for="idea-theme">Which theme is it for?</label><select id="idea-theme"></select><p class="help">Have a whole story in mind, with characters and clues? <a href="storyline/">Use the Suggest a storyline form</a>, and an approved storyline comes back to you as a finished puzzle.</p></div>
     <div class="field"><label for="idea-text">Your idea</label><textarea id="idea-text" rows="4" maxlength="1000" placeholder="A pirate ship lost in the fog, where the crew mixed up the treasure maps…"></textarea></div>
     <label class="check fb-reply" hidden><input type="checkbox" data-reply checked> <span>Email me an update<span class="fb-reply-to"></span></span></label>
     <label class="check fb-talk" hidden><input type="checkbox" data-talk> <span>Let the team reply to me in Messages</span></label>
@@ -632,24 +706,6 @@
   <div class="dlg-actions"><button class="btn" type="button" data-close>Close</button></div>
 </dialog>
 
-<dialog id="dlg-report" aria-labelledby="report-h">
-  <h2 id="report-h">Report a Problem</h2>
-  <form id="report-form" novalidate>
-    <fieldset class="report-kind"><legend>What is the problem with?</legend>
-      <label class="radio"><input type="radio" name="report-kind" value="puzzle" checked> Puzzle Problem</label>
-      <label class="radio"><input type="radio" name="report-kind" value="page"> Web Page Issue</label>
-    </fieldset>
-    <p class="help" id="report-about"></p>
-    <div class="field"><label for="report-text">What went wrong?</label>
-      <textarea id="report-text" rows="5" maxlength="1000" aria-describedby="report-count" placeholder="For example: clue 4 says the baker was first, but the answer says she was third."></textarea>
-      <p class="help" id="report-count" aria-live="polite">0 of 1,000 characters</p></div>
-    <label class="check" id="report-reply-box" hidden><input type="checkbox" id="report-reply" checked> <span>Email me when it is fixed<span id="report-reply-to"></span>, with a link to play the repaired puzzle</span></label>
-    <p class="help" id="report-signin" hidden>Want an email when it is fixed? <button class="btn quiet small" type="button" id="report-signin-btn">Sign in</button> with a confirmed email first.</p>
-    <div class="error-box" role="alert" hidden></div>
-    <p class="acct-done" id="report-done" role="status"></p>
-    <div class="row-inline"><button class="btn primary" type="submit">Submit</button><button class="btn" type="button" data-close>Cancel</button></div>
-  </form>
-</dialog>
 
 <dialog id="dlg-mail" aria-labelledby="mail-h">
   <h2 id="mail-h">Puzzle emails</h2>
@@ -717,7 +773,7 @@
       <div class="bio-error" id="si-bio-error" role="alert" hidden></div>
     </div>
     <p class="help">Sign in to keep your saved puzzles, progress and settings on every device: the website, the desktop app and your phone. You never need an account to play.</p>
-    <div class="field"><label for="si-email">Email</label><input type="email" id="si-email" name="email" autocomplete="username email" inputmode="email" spellcheck="false" required></div>
+    <div class="field"><label for="si-email">Email or screen name</label><input type="text" id="si-email" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required aria-describedby="si-email-help"><p class="help" id="si-email-help">A screen name works once you have chosen one for the scoreboard.</p></div>
     <div class="field"><label for="si-pass">Password</label><input type="password" id="si-pass" name="password" autocomplete="current-password" required></div>
     <label class="check"><input type="checkbox" data-show-pass> Show password</label>
     <label class="check"><input type="checkbox" data-remember checked> Keep me signed in on this device</label>
@@ -808,6 +864,14 @@
   </div>
 </dialog>
 
+<!-- One player for the game cards' videos (games.js) and the welcome's tour of The Logic Grid. -->
+<dialog id="dlg-game-video" class="wide" aria-labelledby="game-video-h" data-light-dismiss>
+  <h2 id="game-video-h">Video</h2>
+  <video id="game-video" controls preload="none" playsinline aria-describedby="game-video-note"></video>
+  <p class="muted" id="game-video-note">The words on screen are part of the video, so it works with the sound off.</p>
+  <div class="dlg-actions"><button class="btn primary" type="button" id="game-video-close">Close</button></div>
+</dialog>
+
 <dialog id="dlg-video" class="wide" aria-labelledby="video-h" data-light-dismiss>
   <button class="dlg-x" type="button" aria-label="Close" title="Close (Esc)"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
   <h2 id="video-h">Introduction to The Fantastical Logic Grid</h2>
@@ -820,28 +884,28 @@
     <summary>Read the transcript</summary>
       <p>Welcome to The Fantastical Logic Grid. Every case is a brand new story, and you are the detective. Each puzzle is a logic grid wrapped in a story. The story sets up a mystery, the clues give you the facts, and the grid is where you work out the answer. Every story is written fresh for you and never repeated. And every puzzle has exactly one answer you can reach without guessing.</p>
       <p>New to logic puzzles? Press How to play, at the top of every page. It teaches you to solve them step by step, on real grids. Five short lessons take you from your very first mark to solving a whole puzzle on your own. They cover every kind of clue, carrying facts across the grid, what-if thinking, and hints. Each step explains one idea, then you make the marks yourself. The game tells you when a mark does not fit, and Show me makes the marks for you if you are stuck.</p>
-      <p>Tips and tricks puts the moves that solve most puzzles on one page. In a hurry? Play a quick puzzle starts a small Easy case straight away, with no choices to make. Every day there is also a new Daily puzzle, the same one for everyone. Solve it each day to build a streak. With a free sign-in, you can get each day&#x27;s puzzle by email. Anyone can get the puzzle of the week and special edition puzzles by email, with no account. Choose Puzzle emails in the Menu, type your address, then press Confirm in the email we send you.</p>
-      <p>Here&#x27;s how to play. Start on the New puzzle screen and pick a difficulty. Basic and Easy are perfect for beginners. Quantum Physicist is for true masterminds. And Theoretical Physicist is for the best of the best. Next, choose a theme. Themes are grouped, like Mystery and Action, Imagination, or Science and Learning. Or pick Surprise me.</p>
-      <p>Most themes also have topics, like which holiday or which kind of mystery. Pick one, or leave it on Any. Then pick a size. More categories and more items make a bigger, harder grid. Under More options, Full experience adds scenes, characters and sound. Silent mode keeps only the story, the grid, the clues and the answer key.</p>
-      <p>Press Generate puzzle, and your story is written in a moment. Here&#x27;s our case: The Silent Diamond. The buttons along the top help you as you play. Read the story first. It tells you who is involved, and it ends with the question you need to answer. Here, it&#x27;s: Who was in the Dinosaur wing? You can also press Read the story aloud to hear it.</p>
+      <p>Tips and tricks puts the moves that solve most puzzles on one page. In a hurry? Play a quick puzzle starts a small Easy case straight away, with no choices to make. Every day there is also a new Daily puzzle, the same one for everyone. Solve it each day to build a streak. With a free sign-in, you can get each day&#x27;s puzzle by email. Every Monday there is also a Puzzle of the week: a bigger Expert puzzle with a brand-new story.</p>
+      <p>Anyone can get the puzzle of the week and special edition puzzles by email, with no account. Choose Puzzle emails in the Menu, type your address, then press Confirm in the email we send you. Here&#x27;s how to play. Start on the New puzzle screen and pick a difficulty. Basic and Easy are perfect for beginners. Quantum Physicist is for true masterminds. And Theoretical Physicist is for the best of the best.</p>
+      <p>Next, choose a theme. Themes are grouped, like Mystery and Action, Imagination, or Science and Learning. Or pick Surprise me. Most themes also open a list of topics right under them, like which holiday or which kind of mystery. Pick one, or leave it on Any. Then pick a size. More categories and more items make a bigger, harder grid.</p>
+      <p>Under More options, Full experience adds scenes, characters and sound. Silent mode keeps only the story, the grid, the clues and the answer key. Press Generate puzzle, and your story is written in a moment. Here&#x27;s our case: The Stormy Pearl Necklace. The buttons along the top help you as you play. Read the story first. It tells you who is involved, and it ends with the question you need to answer. Here, it&#x27;s: Who was in the Sun Deck? You can also press Read the story aloud to hear it.</p>
       <p>Every character has a personality, shown under their name, and a voice of their own. Select a character&#x27;s portrait to hear the clues they remember, in their own words. Every clue is also in the clue list. To hear every clue in order, press Read the clues aloud. Each character tells their own clue, and the clue being read lights up. On your first Easy puzzle, coach tips appear above the grid to guide your first moves.</p>
-      <p>Now the grid. Each square is where two things meet, like a suspect and an age. Your job is to decide whether they go together. Click or tap a square once to mark an X. X means ruled out: these two don&#x27;t go together. Tap again for an O. O means confirmed: these two are a match. Tap a third time to clear the square.</p>
-      <p>Let&#x27;s solve it together, starting with the simplest clues. Clue 1 says Jasper was in the Jewel wing. Mark an O there. Clues 2, 3, 4 and 5 each rule out pairs directly. Mark an X for each one. Clue 6 says the suspect who is 60 years old was in the Dinosaur or Ocean wing, so no other wing is possible.</p>
-      <p>Clue 7 says the suspect who was in the Ocean wing is 50 years old. Mark an O there. Jasper was in the Jewel wing, so Jasper cannot go with any other wing, and no other suspect can go with Jewel. Each row and each column in a section has exactly one match, so everything else in that line is an X. The suspect who was in the Ocean wing is 50 years old, so Ocean cannot go with any other age, and no other wing can go with 50. 45 is the only age left for Jewel. Mark an O there. When only one square is left in a row or column, it must be the answer.</p>
+      <p>Now the grid. Each square is where two things meet, like a traveler and a pastime. Your job is to decide whether they go together. Click or tap a square once to mark an X. X means ruled out: these two don&#x27;t go together. Tap again for an O. O means confirmed: these two are a match. Tap a third time to clear the square.</p>
+      <p>Let&#x27;s solve it together, starting with the simplest clues. Clue 1 says the traveler who was in the Chart Room spent the evening at Bridge Club. Mark an O there. Clues 2 and 3 each rule out pairs directly. Mark an X for each one. Clue 4 says the traveler who was in the Engine Room is Amelia or Ignatius, so no other traveler is possible.</p>
+      <p>Clues 5, 5, 6 and 7 each rule out pairs directly. Mark an X for each one. The traveler who was in the Chart Room spent the evening at Bridge Club, so Chart Room cannot go with any other pastime, and no other spot on board can go with Bridge Club. Each row and each column in a section has exactly one match, so everything else in that line is an X. Promenade Deck is the only spot on board left for Ignatius. Mark an O there. When only one square is left in a row or column, it must be the answer.</p>
       <p>In the full experience, each finished section also reveals more of the scene. Stuck? Press Hint. The first hint shows you which clue to use, and names the trick that cracks it. Press Which cell? for the exact square, then Explain why for the full reasoning. It ends with a short lesson on how that trick works, so you can spot it yourself next time. You can even let it mark the square for you.</p>
       <p>Press Check at any time to see whether any of your marks are wrong. Made a mistake? Undo and Redo take back any move, as many times as you like. Want a fresh start? Press Start over. It clears your marks and resets the timer, hints and checks. Your notes stay unless you choose to clear them, and Undo can bring everything back. Prefer words to grids? List view lets you choose each match from a menu. The game also works fully by keyboard and with a screen reader.</p>
-      <p>When you think you know, answer the questions under the clues, and press Check answers. Want to jot something down? Press My notes and type. Press Save to keep them, or Close to get back to the puzzle. Only you can see your notes, even in a race. Keep going the same way, clue by clue, until the whole grid is filled in. Case closed! Greta was in the Dinosaur wing. Caught on the loading dock, Greta hands back the Star of Cairo. You also see your time and a suggestion for your next puzzle.</p>
+      <p>When you think you know, answer the questions under the clues, and press Check answers. Want to jot something down? Press My notes and type. Press Save to keep them, or Close to get back to the puzzle. Only you can see your notes, even in a race. Keep going the same way, clue by clue, until the whole grid is filled in. Case closed! Case closed before landfall! Bertram was in the Sun Deck, and the pearl necklace is locked away until port. You also see your time and a suggestion for your next puzzle.</p>
       <p>Every solve ends with a celebration, like confetti, fireworks, ribbons, balloons or shooting stars. Silent mode and your device&#x27;s reduce motion setting turn it off. Solving puzzles earns badges, like First case closed. Press Share my result to send friends a picture of your win. It never gives the answers away. Challenge a friend makes a link to this very puzzle, with your time to beat. Your friend needs no account, and you both see who was quicker.</p>
       <p>If you like, rate the puzzle from 1 to 5 stars, where 5 is excellent, and say whether it felt too easy, just right or too hard. It is optional. The game learns from your answers and tunes your next puzzle to suit you. You can print any puzzle, blank or with your marks, with the answer key on its own page. Your progress saves automatically. Come back any time and pick up where you left off, from Saved puzzles. My stats and badges, in the Menu, shows your totals, best times, favorite themes, your daily streak and every badge to earn.</p>
-      <p>Press Help to see every keyboard shortcut. And Introduction, at the top of every page, plays this video again. Play in light or dark colors, or in high contrast. And Silent mode is always there when you just want the puzzle. To play without opening a browser, choose Install the app from the Menu. Download the Windows desktop app, which keeps itself up to date. Or add the game&#x27;s icon to your phone&#x27;s home screen. On your phone, the same menu shows you how. On a phone, pull down from the top of the page to refresh. Your progress is saved first.</p>
+      <p>Press Help to see every keyboard shortcut. And Introduction, at the top of every page, plays this video again. Play in light or dark colors, or in high contrast. And Silent mode is always there when you just want the puzzle. To play without opening a browser, choose Install the app on The Logic Grid home page. Download the Windows desktop app, which keeps itself up to date. Or add the game&#x27;s icon to your phone&#x27;s home screen. On your phone, the same button shows you how. On a phone, pull down from the top of the page to refresh. Your progress is saved first.</p>
       <p>You can also play with other detectives. You never need an account to play. But a free account keeps your puzzles, progress and settings in step on the website, the desktop app and your phone. The name at the top shows who you are playing as. Until you sign in, you play as Guest. Create one with your email and a password. Keep me signed in is ticked, so you stay signed in on this device. Untick it on a shared computer. If you ever forget your password, Forgot password sends you a reset link.</p>
-      <p>Once you are signed in, your puzzles sync on their own. Sign in on another device and they are waiting for you. Once you are signed in, you pick a screen name. Type your own, or press Suggest a name and the game makes one up for you. It is the only thing other players see, and rude names are turned away. Don&#x27;t want one? Sign out instead, and you play as Guest.</p>
+      <p>Once you are signed in, your puzzles sync on their own. Sign in on another device and they are waiting for you. Signed in, Printable puzzle pack in the Menu prints a few brand-new puzzles at once, with their answer keys. Pick how many, the difficulty and the theme. Each player gets a set number of packs a week. Once you are signed in, you pick a screen name. Type your own, or press Suggest a name and the game makes one up for you. It is the only thing other players see, and rude names are turned away. Don&#x27;t want one? Sign out instead, and you play as Guest.</p>
       <p>Your screen name now shows at the top. Play against others lets you race other players on the very same puzzle, and climb the scoreboard. To race, press Start a race. It uses the difficulty, theme and size you picked on the New puzzle screen. Share the race code or link with a friend. Or anyone can press Find a race to join an open race.</p>
       <p>Everyone gets the very same puzzle. The race bar shows the code, and Standings shows who is still solving. When you finish, you see your place. Fastest solve wins, and each hint adds time. The scoreboard ranks players this week and of all time. Every solve earns points, even when you play on your own. Press Scoring and race rules to see exactly how points are awarded.</p>
       <p>This week&#x27;s leaders are always in view at the top of the page. Select Scoreboard there to see the full board. To race one particular player, press Challenge a player and type their screen name. They see your challenge under Play against others, the next time they open the game. Accept starts the race on the very same puzzle. No thanks turns it down. Finally, make the game your own.</p>
-      <p>In Settings, sound effects and theme music start on, and you can turn either one off. Learn from how I play tunes your next puzzles to suit you. And play in your own language. US English is the default, and you can choose any of 100 languages under Language. The game translates itself as you play, and the English button at the top shows the original at any time. Have an idea for a story, or found a problem? Ideas and problems, in the menu, has a separate box for each, and they go straight to the game&#x27;s team. For a storyline idea, pick which theme it is for from the list. Signed in with a confirmed email? Leave Email me an update ticked. The game emails you a thank-you, and again when the team acts on it. Want an answer? Tick Let the team reply to me.</p>
-      <p>When the team writes to you, or posts news, the Menu button shows a number. Messages, in the menu, has news from the game&#x27;s team for everyone. Signed in, you can write to the team with a question, an idea or a problem, and read their replies right here. Tick Email me, and you get a short email when the team writes back. Dream up a character of your own with Suggest a character, in the menu. Answer a few questions about their name, look, personality and voice. The game&#x27;s team reviews every suggestion, and you might meet yours in a puzzle.</p>
-      <p>That&#x27;s all you need: read the story, follow the clues, and mark your X&#x27;s and O&#x27;s. Welcome to The Fantastical Logic Grid. Happy sleuthing!</p>
+      <p>In Settings, sound effects and theme music start on, and you can turn either one off. Learn from how I play tunes your next puzzles to suit you. And play in your own language. US English is the default, and you can choose any of 100 languages under Language. The game translates itself as you play, and the English button at the top shows the original at any time. When the team writes to you, or posts news, you see a number on the Menu button in the desktop and phone apps.</p>
+      <p>Messages and news, on The Logic Grid home page, has news from the game&#x27;s team for everyone. Signed in, you can write to the team with a question, an idea or a problem, and read their replies right here. Tick Email me, and you get a short email when the team writes back. Dream up a character of your own with Suggest a character, in the menu. Answer a few questions about their name, look, personality and voice. The game&#x27;s team reviews every suggestion, and you might meet yours in a puzzle.</p>
+      <p>Want to write a whole puzzle of your own? Submit Puzzle Ideas, in the menu, walks you through your story, your characters, the lists to match and the answer. It checks that your puzzle has exactly one answer, gives you a PDF to download or print, and saves it to your Saved puzzles. That&#x27;s all you need: read the story, follow the clues, and mark your X&#x27;s and O&#x27;s. Welcome to The Fantastical Logic Grid. Happy sleuthing!</p>
   </details>
   <div class="dlg-actions"><button class="btn" type="button" id="video-learn">How to play, step by step</button><button class="btn primary" type="button" id="video-close">Close</button></div>
 </dialog>
@@ -859,9 +923,9 @@
   <button class="dlg-x" type="button" aria-label="Close" title="Close (Esc)"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
   <h2 id="welcome-h">Welcome, detective!</h2>
   <p>Never solved a logic grid puzzle? <b>How to play</b> teaches you step by step on real grids, with tips and tricks, in about 15 minutes.</p>
-  <p>Or watch the <b>Introduction</b>, an 11-minute narrated video with captions, to see everything the game can do.</p>
-  <p class="muted">Both are always at the top of the page.</p>
-  <div class="dlg-actions"><button class="btn" type="button" id="welcome-skip">Play a quick puzzle</button><button class="btn primary" type="button" id="welcome-learn">How to play</button><button class="btn" type="button" id="welcome-watch"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 9.003a1 1 0 0 1 1.517-.859l4.997 2.997a1 1 0 0 1 0 1.718l-4.997 2.997A1 1 0 0 1 9 14.996z"/><circle cx="12" cy="12" r="10"/></svg> Watch the video</button></div>
+  <p>New here? <b>Take the tour</b>: a short narrated video, with captions, of everything on The Logic Grid, from every game to your account and making your own puzzles.</p>
+  <p class="muted">How to play is at the top of the game's main page, and the game's own Introduction is under Help.</p>
+  <div class="dlg-actions"><button class="btn" type="button" id="welcome-skip">Play a quick puzzle</button><button class="btn primary" type="button" id="welcome-learn">How to play</button><button class="btn" type="button" id="welcome-watch"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 9.003a1 1 0 0 1 1.517-.859l4.997 2.997a1 1 0 0 1 0 1.718l-4.997 2.997A1 1 0 0 1 9 14.996z"/><circle cx="12" cy="12" r="10"/></svg> Take the tour</button></div>
 </dialog>
 
 <dialog id="dlg-name" aria-labelledby="name-h">
@@ -906,6 +970,14 @@
     <p id="challenge-choice"></p>
     <div class="error-box" role="alert" hidden></div>
     <div class="dlg-actions"><button class="btn" type="button" data-close>Cancel</button><button class="btn primary" type="submit">Send the challenge</button></div>
+  </form>
+  <form class="race-view" data-view="computer" novalidate hidden>
+    <p class="help">Race a computer opponent on a new puzzle. It works through the same puzzle as you, and the race bar shows how far along it is. Solve it before the computer finishes to win. Each hint adds 1 minute and each check 15 seconds to your race time, and revealing the answer counts as giving up. No account needed.</p>
+    <p id="cpu-choice"></p>
+    <fieldset class="cpu-skills"><legend>How fast is the computer?</legend><div id="cpu-skills"></div></fieldset>
+    <p class="help" id="cpu-record"></p>
+    <div class="error-box" role="alert" hidden></div>
+    <div class="dlg-actions"><button class="btn" type="button" data-close>Cancel</button><button class="btn primary" type="submit">Start the race</button></div>
   </form>
   <div class="race-view" data-view="share" hidden>
     <p class="help">Give this code or link to the people you want to race. Your clock is already running in the game, so start whenever you are ready.</p>
@@ -1058,7 +1130,7 @@
 <dialog id="dlg-help" aria-labelledby="help-h">
   <h2 id="help-h">Help</h2>
   <div class="help-learn">
-    <p><b>New to logic puzzles?</b> How to play teaches you step by step on real grids: X and O, every kind of clue, carrying facts across the grid, what-if thinking, hints and notes. For a narrated tour of the whole game, watch the Introduction. Both are also at the top of every page.</p>
+    <p><b>New to logic puzzles?</b> How to play teaches you step by step on real grids: X and O, every kind of clue, carrying facts across the grid, what-if thinking, hints and notes. For a narrated tour of the whole game, watch the Introduction. How to play is also at the top of the game's main page.</p>
     <p class="row-inline"><button class="btn primary small" type="button" id="help-tutorial">How to play</button> <button class="btn small" type="button" id="help-tips">Tips and tricks</button> <button class="btn small" type="button" id="help-intro">Introduction video</button></p>
   </div>
   <p>Read a clue, then mark the grid. <b>X</b> means two things do not go together. <b>O</b> means they do. Each row in a sub-grid has exactly one O. When the grid is full, answer the story questions. To begin a puzzle again, press <b>Start over</b>: it clears your marks, clue ticks and answers and resets the timer, hints and checks (in a race the race clock keeps running). Your notes stay unless you choose to clear them, and Undo brings it all back.</p>

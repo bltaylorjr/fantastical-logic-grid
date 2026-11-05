@@ -14,14 +14,21 @@
 //                                (the publish workflow), so past days never change
 import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { pathToFileURL, fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { gridTable, answerKey } from './worksheet.mjs';
+import { writeGamePage, writeHubPages, contactLink, OWN_PAGES, howToPath } from './hub.mjs';
+import { writeGuides } from './game-guides.mjs';
 import { educatorsBody, EDUCATORS_CSS, educatorFeedbackBody, FEEDBACK_CSS } from './educators-page.mjs';
 
 // Search pages are plain HTML: only the site's own files may load, inline
 // <style> is allowed, and no inline script ever runs (JSON-LD is data, not code).
 const PAGE_CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self'; object-src 'none'; frame-src 'none'; base-uri 'self'; form-action 'self'";
+
+// The game's page. The site's front page (index.html) is The Logic Grid's
+// list of games (scripts/hub.mjs); The Fantastical Logic Grid plays at
+// fantastical/ and NINETIMESNINE at ninetimesnine/.
+export const GAME = 'fantastical/';
 
 export const INDEXNOW_KEY = process.env.FLG_INDEXNOW_KEY || 'fae88a004ad87116c0e93df007b2de7e';
 // The game's social pages (web/js/social.js): the links set in the admin
@@ -57,6 +64,10 @@ const PRINT_LEVELS = [
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const json = (o) => JSON.stringify(o).replace(/</g, '\\u003c');
 const day = (d) => d.toISOString().slice(0, 10);
+// The daily puzzle's day follows US Eastern time (the game's home time zone),
+// so a new puzzle comes out at midnight Eastern, not at 7 or 8 pm the evening
+// before as it did on UTC days.
+const easternDay = (d) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
 const addDays = (s, n) => { const d = new Date(`${s}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return day(d); };
 const dailySummary = (p, d, planned) => ({
   date: d, title: p.title, theme: p.theme.id, themeName: p.theme.name, difficulty: p.difficulty.id, difficultyName: p.difficulty.name,
@@ -197,17 +208,20 @@ export async function buildSeo({ root, site }) {
   const SITE_CSP = cloudOrigin ? PAGE_CSP.replace("default-src 'self';", `default-src 'self'; connect-src 'self' ${cloudOrigin};`) : PAGE_CSP;
   const base = (process.env.FLG_SITE_URL || 'https://thelogicgrid.com').replace(/\/+$/, '');
   const url = (path) => `${base}/${path}`;
-  // The same engine the site ships.
-  const engine = await import(pathToFileURL(join(site, 'engine', 'index.js')).href);
+  // The same engine the site ships. In server mode (docs/PUZZLE-SERVER.md)
+  // the site has no generator, so the pages are made from the source engine.
+  const engineDir = existsSync(join(site, 'engine', 'index.js')) ? join(site, 'engine') : join(dirname(fileURLToPath(import.meta.url)), '..', 'engine', 'src');
+  const engine = await import(pathToFileURL(join(engineDir, 'index.js')).href);
   const { THEMES, TIERS, CLUE_TYPES, getTopics, storylineCount, generatePuzzle } = engine;
-  const { houseDailyOptions } = await import(pathToFileURL(join(site, 'engine', 'house-tuning.js')).href);
-  const today = process.env.FLG_TODAY || day(new Date());
+  const { houseDailyOptions } = await import(pathToFileURL(join(engineDir, 'house-tuning.js')).href);
+  const today = process.env.FLG_TODAY || easternDay(new Date());
   const appHtml = readFileSync(join(site, 'index.html'), 'utf8');
   // Pages that come from code change when the code does; the date of the last
   // commit is the honest "last changed" date for them.
   let updated = today;
   try { updated = execFileSync('git', ['log', '-1', '--format=%cs'], { cwd: root, encoding: 'utf8' }).trim() || today; } catch {}
-  const name = 'The Fantastical Logic Grid';
+  const name = 'The Fantastical Logic Grid'; // the game these pages are about
+  const siteName = 'The Logic Grid'; // the website and business
   const pages = []; // { path, lastmod, priority }
   const quality = await readQuality(base);
   const socialList = await readSocial();
@@ -217,13 +231,14 @@ export async function buildSeo({ root, site }) {
     process.env.FLG_GOOGLE_SITE_VERIFICATION && `<meta name="google-site-verification" content="${esc(process.env.FLG_GOOGLE_SITE_VERIFICATION)}">`,
     process.env.FLG_BING_SITE_VERIFICATION && `<meta name="msvalidate.01" content="${esc(process.env.FLG_BING_SITE_VERIFICATION)}">`,
   ].filter(Boolean).join('\n');
+  // These pages are The Fantastical Logic Grid's, so they share its picture.
   const social = ({ title, description, path, type = 'website' }) => `<link rel="canonical" href="${url(path)}">
 <meta property="og:type" content="${type}">
-<meta property="og:site_name" content="${name}">
+<meta property="og:site_name" content="${siteName}">
 <meta property="og:title" content="${esc(title)}">
 <meta property="og:description" content="${esc(description)}">
 <meta property="og:url" content="${url(path)}">
-<meta property="og:image" content="${url('og-image.jpg')}">
+<meta property="og:image" content="${url('og-fantastical.jpg')}">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="${name}: story logic grid puzzles">
@@ -231,7 +246,7 @@ export async function buildSeo({ root, site }) {
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="${esc(title)}">
 <meta name="twitter:description" content="${esc(description)}">
-<meta name="twitter:image" content="${url('og-image.jpg')}">`;
+<meta name="twitter:image" content="${url('og-fantastical.jpg')}">`;
 
   // Inlined so the page paints without waiting for a stylesheet.
   const css = readFileSync(join(root, 'seo', 'site.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\s*\n\s*/g, '\n');
@@ -239,20 +254,30 @@ export async function buildSeo({ root, site }) {
   const year = Number(today.slice(0, 4));
   const owner = 'Bobby Taylor';
   const copyright = `© 2026${year > 2026 ? `–${year}` : ''} ${owner}. All rights reserved.`;
-  const trademark = `${name}™ is a trademark of ${owner}.`;
+  const trademark = `${siteName}™ and ${name}™ are trademarks of ${owner}.`;
   const tdmMeta = `<meta name="tdm-reservation" content="1">\n<meta name="tdm-policy" content="${url('terms/')}">`;
-  const NAV = [['how-to-play/', 'How to play'], ['daily/', 'Daily puzzle'], ['printables/', 'Printables'], ['themes/', 'Themes'], ['difficulty-levels/', 'Difficulty levels'], ['educators/', 'For educators']];
+  const NAV = [['how-to-play/', 'Rules and how to play'], ['daily/', 'Daily puzzle'], ['printables/', 'Printables'], ['themes/', 'Themes'], ['difficulty-levels/', 'Difficulty levels'], ['educators/', 'For educators']];
   // Search results show about 60 characters of a title and 160 of a
   // description: a title that would be cut loses the site name (it is still in
   // og:site_name), and a description is shortened at a sentence or word.
   const fitTitle = (t) => (t.length > 65 && t.endsWith(` | ${name}`) ? t.slice(0, -name.length - 3) : t);
+  // A daily page's title, kept to what search results show (about 70
+  // characters): the long date first, then a shorter date for long story titles.
+  const shortDate = (s) => new Date(`${s}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+  const dailyTitle = (t, d) => {
+    const tries = [`${t}: logic puzzle for ${longDate(d)} | ${name}`, `${t}: logic puzzle for ${shortDate(d)}`, `${t}: puzzle for ${shortDate(d)}`];
+    return tries.map(fitTitle).find((x) => x.length <= 70) || `${t}, ${shortDate(d)}`;
+  };
   const fitDescription = (d) => {
     if (d.length <= 160) return d;
     const cut = d.slice(0, 160);
     const end = cut.lastIndexOf('. ');
     return end > 80 ? cut.slice(0, end + 1) : `${cut.slice(0, cut.lastIndexOf(' ')).replace(/[,;:]$/, '')}…`;
   };
-  const page = ({ path, title: fullTitle, description: fullDescription, body, crumbs = [], schema = [], lastmod = updated, priority = 0.6, type, listed = true, csp = SITE_CSP, style = '', script = '' }) => {
+  // App pages (privacy, terms) belong to The Logic Grid as a whole, not one
+  // game: their header and footer lead back to the front page and every game.
+  const APP_NAV = [['fantastical/', 'The Fantastical Logic Grid'], ...OWN_PAGES.map((g) => [g.page, g.name]), ['privacy/', 'Privacy'], ['terms/', 'Terms of use']];
+  const page = ({ path, title: fullTitle, description: fullDescription, body, crumbs = [], schema = [], lastmod = updated, priority = 0.6, type, listed = true, csp = SITE_CSP, style = '', script = '', app = false }) => {
     const title = fitTitle(fullTitle);
     const description = fitDescription(fullDescription);
     const file = path.endsWith('.html') ? path : `${path}index.html`;
@@ -285,21 +310,29 @@ ${[breadcrumb, ...schema].map((s) => `<script type="application/ld+json">${json(
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
-<header class="top">
+${app ? `<header class="top">
   <a class="back" href="${up}" data-back><span aria-hidden="true">‹</span> Back</a>
-  <a class="brand" href="${up}">${name}</a>
+  <a class="brand" href="${up}">The Logic Grid</a>
+  <nav aria-label="Site">
+    <ul>${APP_NAV.map(([p, n]) => `<li><a href="${up}${p}"${p === path ? ' aria-current="page"' : ''}>${n}</a></li>`).join('')}</ul>
+  </nav>
+  <a class="btn" href="${up}">All games</a>
+</header>` : `<header class="top">
+  <a class="back" href="${up}${GAME}" data-back><span aria-hidden="true">‹</span> Back</a>
+  <a class="brand" href="${up}${GAME}">${name}</a>
   <nav aria-label="Site">
     <ul>${NAV.map(([p, n]) => `<li><a href="${up}${p}"${p === path ? ' aria-current="page"' : ''}>${n}</a></li>`).join('')}</ul>
   </nav>
-  <a class="btn" href="${up}?play=now" rel="nofollow">Play free</a>
-</header>
+  <a class="btn" href="${up}${GAME}?play=now" rel="nofollow" data-design-text="infoPlay">Play free</a>
+</header>`}
 ${crumbs.length ? `<nav class="crumbs" aria-label="Breadcrumb"><ol>${trail.map(([p, n], i) => i === trail.length - 1 ? `<li aria-current="page">${esc(n)}</li>` : `<li><a href="${up}${p}">${esc(n)}</a></li>`).join('')}</ol></nav>` : ''}
 <main id="main">
 ${body(up)}
 </main>
 <footer class="foot">
-  <p><a class="btn quiet" href="${up}" data-back><span aria-hidden="true">‹</span> Back</a> <a class="btn quiet" href="${up}">Back to the game</a></p>
-  <p><a href="${up}">Play ${name}</a> · free in your browser, offline-ready, and on Windows.</p>
+  ${app ? `<p><a class="btn quiet" href="${up}" data-back><span aria-hidden="true">‹</span> Back</a> <a class="btn quiet" href="${up}">The Logic Grid home</a></p>
+  <p>The Logic Grid: <a href="${up}fantastical/">The Fantastical Logic Grid</a>, ${OWN_PAGES.map((g) => `<a href="${up}${g.page}">${g.name}</a>`).join(', ')}, free in your browser. Questions? ${contactLink()}</p>` : `<p><a class="btn quiet" href="${up}${GAME}" data-back><span aria-hidden="true">‹</span> Back</a> <a class="btn quiet" href="${up}${GAME}">Back to the game</a> <a class="btn quiet" href="${up}">The Logic Grid home</a></p>
+  <p><a href="${up}${GAME}">Play ${name}</a> · free in your browser, offline-ready, and on Windows.</p>`}
   <p>Every puzzle has exactly one answer, checked by our solver${quality.rating ? `, and players rate them ${quality.rating.average} out of 5 stars` : ''}. <a href="${up}picks/">Hand-picked puzzles</a></p>
   <p>${NAV.map(([p, n]) => `<a href="${up}${p}">${n}</a>`).join(' · ')} · <a href="${up}privacy/">Privacy</a></p>
   ${socialList.length ? `<div class="foot-social"><p>Follow the game</p>${socialPages.socialHtml(socialList)}</div>` : ''}
@@ -315,7 +348,7 @@ ${body(up)}
   };
   // Generic play buttons open a quick puzzle straight away (?play=now in web/js/app.js);
   // a theme page's button opens the game to choose that theme.
-  const playBtn = (up, text = 'Play a new puzzle now', quick = true) => `<p><a class="btn big" href="${up}${quick ? '?play=now' : ''}"${quick ? ' rel="nofollow"' : ''}>${text}</a></p>`;
+  const playBtn = (up, text = 'Play a new puzzle now', quick = true) => `<p><a class="btn big" href="${up}${GAME}${quick ? '?play=now' : ''}"${quick ? ' rel="nofollow"' : ''}>${text}</a></p>`;
 
   // The how-to-play video. Google does not follow an @id to another page, so every page
   // that mentions it (the game's trailer and the how-to-play page) carries the full object.
@@ -323,7 +356,7 @@ ${body(up)}
   const video = {
     '@type': 'VideoObject', '@id': url('how-to-play/#video'), name: `Introduction to ${name}`,
     description: 'A narrated, captioned walkthrough of a full puzzle, from picking a theme to closing the case.',
-    thumbnailUrl: [url('og-image.jpg')], uploadDate: '2026-10-25T00:00:00-04:00',
+    thumbnailUrl: [url('og-fantastical.jpg')], uploadDate: '2026-10-25T00:00:00-04:00',
     contentUrl: url('media/intro.mp4'), embedUrl: url('how-to-play/'), inLanguage: 'en',
     ...(minutes ? { duration: `PT${minutes}M` } : {}),
   };
@@ -332,8 +365,8 @@ ${body(up)}
   const GAME_TITLE = `Free logic grid puzzles with stories | ${name}`;
   const appDescription = 'Free story logic grid puzzles. Pick a difficulty, theme and size, then solve, save, resume and print. Every puzzle is a brand new story with exactly one answer.';
   const game = {
-    '@context': 'https://schema.org', '@type': ['VideoGame', 'WebApplication'], name, url: url(''),
-    description: appDescription, image: url('og-image.jpg'), inLanguage: 'en',
+    '@context': 'https://schema.org', '@type': ['VideoGame', 'WebApplication'], name, url: url(GAME),
+    description: appDescription, image: url('og-fantastical.jpg'), inLanguage: 'en',
     genre: ['Puzzle', 'Logic puzzle', 'Mystery'], gamePlatform: ['Web browser', 'Windows'],
     applicationCategory: 'GameApplication', operatingSystem: 'Any (web browser), Windows 10 and 11', browserRequirements: 'Requires JavaScript',
     playMode: ['SinglePlayer', 'MultiPlayer'], isAccessibleForFree: true, offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
@@ -341,18 +374,19 @@ ${body(up)}
     trailer: video,
     copyrightHolder: { '@type': 'Person', name: owner }, copyrightYear: 2026,
   };
-  const publisher = { '@type': 'Organization', name, url: url(''), logo: { '@type': 'ImageObject', url: url('icons/icon-512.png') }, sameAs: socialList.map((s) => s.url),
-    email: 'support@thelogicgrid.com', contactPoint: { '@type': 'ContactPoint', contactType: 'customer support', email: 'support@thelogicgrid.com', availableLanguage: 'en' } };
+  const publisher = { '@type': 'Organization', name: siteName, url: url(''), logo: { '@type': 'ImageObject', url: url('icons/icon-512.png') }, sameAs: socialList.map((s) => s.url),
+    contactPoint: { '@type': 'ContactPoint', contactType: 'customer support', url: url('privacy/'), availableLanguage: 'en' } };
   game.publisher = publisher;
-  const website = { '@context': 'https://schema.org', '@type': 'WebSite', name, url: url(''), description: appDescription, inLanguage: 'en', publisher };
+  const website = { '@context': 'https://schema.org', '@type': 'WebSite', name: siteName, url: url(''), description: appDescription, inLanguage: 'en', publisher };
   const head = `<meta name="description" content="${esc(appDescription)}">
 <meta name="robots" content="index, follow, max-image-preview:large">
 ${tdmMeta}
-${social({ title: name, description: appDescription, path: '' })}
+${social({ title: name, description: appDescription, path: GAME })}
 ${verification}
-<script type="application/ld+json">${json(website)}</script>
-<script type="application/ld+json">${json(checkVideos(game, ''))}</script>
-<meta name="flg-daily" content="daily/">`;
+<script type="application/ld+json">${json(checkVideos(game, GAME))}</script>
+<meta name="flg-daily" content="../daily/">
+<meta name="flg-np-page" content="ninetimesnine/">
+<meta name="flg-hub" content="./">`;
   // Shown when scripts are off, and read by crawlers that do not run them.
   const noscript = `<noscript><div class="card" style="margin:1rem"><p><strong>${name}</strong> is a free logic grid puzzle game where every puzzle is a brand new story. Turn on JavaScript to play.</p><p>${NAV.map(([p, n]) => `<a href="${p}">${n}</a>`).join(' · ')}</p></div></noscript>`;
   // Crawlable links to the search pages at the foot of the home screen (website only).
@@ -362,8 +396,12 @@ ${verification}
     .replace(/<meta name="description"[^>]*>/, head)
     .replace(/(<main id="screen-home"[\s\S]*?)(<\/main>)/, (_, home, end) => `${home}${siteLinks}\n${end}`)
     .replace(/<body>/, `<body>\n${noscript}`);
-  writeFileSync(join(site, 'index.html'), game_html);
-  pages.push({ path: '', lastmod: updated, priority: 1 });
+  // The game moves to fantastical/; index.html becomes The Logic Grid's front page.
+  writeGamePage(site, game_html);
+  pages.push({ path: GAME, lastmod: updated, priority: 1 });
+  writeHubPages({ site, url, verification, tdmMeta, copyright, socialList, pages, updated, csp: SITE_CSP, cloud, socialHtml: socialPages.socialHtml });
+  // Rules and how to play pages for every grid-kit game.
+  await writeGuides({ root, site, url, page, updated });
 
   // ---------- how to play ----------
   const transcript = (appHtml.match(/<details class="transcript">[\s\S]*?<\/summary>([\s\S]*?)<\/details>/) || [])[1] || '';
@@ -379,9 +417,9 @@ ${verification}
   ];
   page({
     path: 'how-to-play/', priority: 0.9,
-    title: `How to play logic grid puzzles | ${name}`,
-    description: 'Learn how to solve logic grid puzzles step by step: read the story, follow the clues and mark X and O in the grid. Includes a narrated video with captions.',
-    crumbs: [['how-to-play/', 'How to play']],
+    title: `Rules and how to play | ${name}`,
+    description: 'The rules of The Fantastical Logic Grid and how to solve its story logic puzzles: read the story, follow the clues, mark X and O. With a narrated video.',
+    crumbs: [['how-to-play/', 'Rules and how to play']],
     schema: [
       { '@context': 'https://schema.org', '@type': 'HowTo', name: 'How to solve a logic grid puzzle', description: 'Solve a story logic grid puzzle by deduction, with no guessing.', step: [
         ['Pick a puzzle', 'Choose a difficulty, a theme and a size, then press Generate puzzle.'],
@@ -393,11 +431,20 @@ ${verification}
       { '@context': 'https://schema.org', ...video, transcript: transcript.replace(/<[^>]+>/g, ' ').replace(/&#x27;/g, "'").replace(/\s+/g, ' ').trim() },
       { '@context': 'https://schema.org', '@type': 'FAQPage', mainEntity: faq.map(([q, a]) => ({ '@type': 'Question', name: q, acceptedAnswer: { '@type': 'Answer', text: a } })) },
     ],
-    body: (up) => `<h1>How to play logic grid puzzles</h1>
+    body: (up) => `<h1>Rules and how to play</h1>
 <p class="lede">Each puzzle in ${name} is a logic grid wrapped in a story. The story sets up a mystery, the clues give you the facts, and the grid is where you work out the answer. Every puzzle has exactly one answer you can reach without guessing.</p>
 ${playBtn(up)}
-<p>Never solved one before? <a href="${up}?learn">How to play, step by step</a> teaches you in the game on real grids: X and O, every kind of clue, carrying facts across the grid and what-if thinking, with tips and tricks.</p>
-<h2>The rules in five steps</h2>
+<p>Never solved one before? <a href="${up}${GAME}?learn">How to play, step by step</a> teaches you in the game on real grids: X and O, every kind of clue, carrying facts across the grid and what-if thinking, with tips and tricks.</p>
+<h2 id="rules">Game rules</h2>
+<ol class="steps">
+  <li><strong>The lists.</strong> Every puzzle has a few categories, such as people, pets and hats, and every category has the same number of items.</li>
+  <li><strong>One match each.</strong> Each item goes with exactly one item from every other category, and no two items share a match.</li>
+  <li><strong>The clues are true.</strong> Use only the story and the clues, never outside knowledge. A clue that names two choices, such as Otter or Owl Cabin, means the answer is one of them.</li>
+  <li><strong>The grid.</strong> Each square is where two items meet. An X means they do not go together; an O means they do. Each row and each column of a section has exactly one O.</li>
+  <li><strong>One answer, no guessing.</strong> Every puzzle has exactly one answer, checked by our solver, and the clues always lead you to it by logic.</li>
+  <li><strong>Closing the case.</strong> Answer the questions under the clues and press Check answers. Your time, hints and checks go into your stats; in races and on the scoreboard, hints and checks cost a few points.</li>
+</ol>
+<h2>How to play in five steps</h2>
 <ol class="steps">
   <li><strong>Pick a puzzle.</strong> Choose a <a href="${up}difficulty-levels/">difficulty</a>, a <a href="${up}themes/">theme</a> and a size. More categories and items make a bigger, harder grid.</li>
   <li><strong>Read the story.</strong> It tells you who is involved and ends with the question you need to answer.</li>
@@ -407,7 +454,7 @@ ${playBtn(up)}
 </ol>
 <p>Stuck? Press <strong>Hint</strong>: the first hint points you to a clue, then the exact square, then the full reasoning. Undo and Redo take back any move, and <strong>Check</strong> shows whether any mark is wrong.</p>
 <h2>Watch the introduction: a full case, solved</h2>
-<video id="video" controls preload="metadata" playsinline poster="${up}og-image.jpg" width="1280" height="720">
+<video id="video" controls preload="metadata" playsinline poster="${up}og-fantastical.jpg" width="1280" height="720">
   <source src="${up}media/intro.mp4" type="video/mp4">
   <track kind="captions" srclang="en" label="English" src="${up}media/intro.en.vtt" default>
 </video>
@@ -467,7 +514,7 @@ ${playBtn(up, `Play a ${t.name.toLowerCase()} puzzle`, false)}
 <p>Each puzzle matches the ${esc(t.cast.many)} with things like ${t.categories.slice(0, 4).map((c) => esc(c.name.toLowerCase())).join(', ')}.${count ? ` The ${esc(t.name)} theme alone can tell more than ${(Math.floor(count / 1000) * 1000).toLocaleString('en-US')} different stories.` : ''}</p>
 <h2>More themes</h2>
 <ul class="inline-links">${THEMES.filter((o) => o.id !== t.id).map((o) => `<li><a href="${up}themes/${o.id}/">${esc(o.name)} puzzles</a></li>`).join('')}</ul>
-<p><a href="${up}themes/">All themes</a> · <a href="${up}daily/">Today's daily puzzle</a> · <a href="${up}difficulty-levels/">Difficulty levels</a> · <a href="${up}how-to-play/">How to play</a></p>`,
+<p><a href="${up}themes/">All themes</a> · <a href="${up}daily/">Today's daily puzzle</a> · <a href="${up}difficulty-levels/">Difficulty levels</a> · <a href="${up}how-to-play/">Rules and how to play</a></p>`,
     });
   }
 
@@ -481,6 +528,7 @@ ${playBtn(up, `Play a ${t.name.toLowerCase()} puzzle`, false)}
   const daily = new Map();
   const allPast = new Map(); // every daily puzzle up to today, for the Hand-picked collection
   const upcoming = [];
+  const earlyDays = new Map(); // tomorrow's puzzle, when it is already out
   // Weekly and special edition puzzles join the chain on their day, before
   // that day's daily puzzle, so every story stays new.
   const specials = await readSpecials(base);
@@ -491,8 +539,12 @@ ${playBtn(up, `Play a ${t.name.toLowerCase()} puzzle`, false)}
   // and special editions whose day has come.
   const pastDays = [];
   for (let d = DAILY_START; d <= today; d = addDays(d, 1)) pastDays.push(d);
+  // Tomorrow's too: a day already published early (as UTC builds did each
+  // evening) stays exactly as players saw it.
+  const tomorrow = addDays(today, 1);
   const published = process.env.FLG_NO_PUBLISHED === '1' ? new Map() : await readPublished(base, [
     ...pastDays.map((d) => `daily/puzzles/${d}.json`),
+    `daily/puzzles/${tomorrow}.json`,
     ...pastDays.filter((d) => d >= WEEKLY_START && new Date(`${d}T00:00:00Z`).getUTCDay() === 1).map((d) => `weekly/puzzles/${d}.json`),
     ...specials.filter((e) => e.date <= today).map((e) => `specials/${e.id}.json`),
   ]);
@@ -533,7 +585,9 @@ ${playBtn(up, `Play a ${t.name.toLowerCase()} puzzle`, false)}
     // planned by hand in the admin dashboard are built exactly as planned.
     const house = plan.has(d) ? {} : houseDailyOptions(d, difficulty);
     const seed = `daily-${d}${o.reroll ? `-r${o.reroll}` : ''}`;
-    const p = (d <= today && kept(`daily/puzzles/${d}.json`)) || fresh({ difficulty, theme, ...size, ...house }, seed);
+    const early = d === tomorrow && kept(`daily/puzzles/${d}.json`);
+    const p = (d <= today && kept(`daily/puzzles/${d}.json`)) || early || fresh({ difficulty, theme, ...size, ...house }, seed);
+    if (early) earlyDays.set(d, p);
     dailyStories.push([d, p.story.id]);
     if (d <= today) allPast.set(d, p);
     if (d > today) upcoming.push(dailySummary(p, d, plan.has(d)));
@@ -542,7 +596,7 @@ ${playBtn(up, `Play a ${t.name.toLowerCase()} puzzle`, false)}
   // The game's Daily puzzle reads these: latest.json names today's puzzle and
   // puzzles/<date>.json holds each one in full (the pages show the answers anyway).
   mkdirSync(join(site, 'daily', 'puzzles'), { recursive: true });
-  for (const [d, p] of daily) writeFileSync(join(site, 'daily', 'puzzles', `${d}.json`), JSON.stringify({ date: d, puzzle: p }));
+  for (const [d, p] of [...daily, ...earlyDays]) writeFileSync(join(site, 'daily', 'puzzles', `${d}.json`), JSON.stringify({ date: d, puzzle: p }));
   writeFileSync(join(site, 'daily', 'latest.json'), JSON.stringify({ date: today, ...dailySummary(daily.get(today), today, plan.has(today)), days: [...daily.keys()].sort().reverse() }));
   // For the dashboard's planner: the next days, without clues or answers.
   writeFileSync(join(site, 'daily', 'upcoming.json'), JSON.stringify({ built: new Date().toISOString(), today, days: upcoming }));
@@ -576,7 +630,7 @@ ${p.story.paragraphs.map((t) => `<p>${esc(t)}</p>`).join('\n')}
 <ol class="clues">${p.clues.map((c) => `<li>${esc(c.text)}</li>`).join('')}</ol>
 <h2>Questions</h2>
 <ol>${p.questions.map((q) => `<li>${esc(q.text)}</li>`).join('')}</ol>
-<p>Work it out on paper, or <a href="${up}">play an interactive puzzle in the app</a> with a grid, hints and saves.</p>
+<p>Work it out on paper, or <a href="${up}${GAME}">play an interactive puzzle in the app</a> with a grid, hints and saves.</p>
 <details class="answers"><summary>Show the answer key (spoilers)</summary>
 <div class="table-wrap"><table><caption>Answer key</caption><thead><tr>${p.answerKey.columns.map((c) => `<th scope="col">${esc(c)}</th>`).join('')}</tr></thead>
 <tbody>${p.answerKey.rows.map((r) => `<tr>${r.map((v, i) => i ? `<td>${esc(v)}</td>` : `<th scope="row">${esc(v)}</th>`).join('')}</tr>`).join('')}</tbody></table></div>
@@ -598,11 +652,14 @@ ${p.story.paragraphs.map((t) => `<p>${esc(t)}</p>`).join('\n')}
 ${puzzleBody(todays, today, up)}
 ${recent(up)}`,
   });
-  for (const d of past) {
+  // Every day has its own page from the day it starts (today's too), so a link
+  // to a day's answer key, like the one in the daily Facebook and Instagram post
+  // (scripts/social-puzzle.mjs), works at once and keeps working.
+  for (const d of [today, ...past]) {
     const p = daily.get(d);
     page({
       path: `daily/${d}/`, priority: 0.4, lastmod: d, type: 'article',
-      title: `${p.title}: logic puzzle for ${longDate(d)} | ${name}`,
+      title: dailyTitle(p.title, d),
       description: `The daily logic grid puzzle for ${longDate(d)}: ${p.title}, a ${p.difficulty.name.toLowerCase()} ${p.theme.name.toLowerCase()} story, with clues and the answer key.`,
       crumbs: [['daily/', 'Daily puzzle'], [`daily/${d}/`, longDate(d)]],
       schema: [dailyArticle(p, d, `daily/${d}/`)],
@@ -614,7 +671,7 @@ ${puzzleBody(p, d, up)}
 
   // ---------- terms of use ----------
   page({
-    path: 'terms/', priority: 0.2,
+    path: 'terms/', priority: 0.2, app: true,
     title: `Terms of use | ${name}`,
     description: `What you may and may not do with ${name}: play and print for personal or classroom use; no copying, scraping or AI training.`,
     crumbs: [['terms/', 'Terms of use']],
@@ -647,14 +704,14 @@ ${puzzleBody(p, d, up)}
 <ul>
 <li>A tip is a voluntary gift to help keep a free game running. It does not buy the game, a puzzle or anything you could not already use.</li>
 <li>As a thank-you, a tip may add a Supporter badge next to your screen name on the scoreboard, and a membership may also open supporter extra themes. These are added to your account straight away and last as long as the payment page says (a membership: while it is active).</li>
-<li>Changed your mind, or paid by mistake? Email <a href="mailto:support@thelogicgrid.com">support@thelogicgrid.com</a> within 30 days of the payment and we will refund it in full, no questions asked. This is quicker for you than asking your bank.</li>
+<li>Changed your mind, or paid by mistake? ${contactLink('Contact us')} within 30 days of the payment and we will refund it in full, no questions asked. This is quicker for you than asking your bank.</li>
 <li>If a payment is refunded or disputed with your bank or card company (a chargeback), the badge and extras from it stop. After a chargeback, new payments add no badge or extras until it is settled. We keep a record of the payment and of the thank-yous it gave, and may share it with the payment service to answer the dispute.</li>
 <li>You must be allowed to use the card or account you pay with. Payments made with someone else's card without their permission are refunded and the badge removed.</li>
 </ul>
 <h2>No guarantees</h2>
 <p>The game is provided as it is, without any warranty. We do our best to keep it working and your saves safe, but we are not responsible for lost progress or for any loss from using it, as far as the law allows.</p>
 <h2>Changes and contact</h2>
-<p>We may update these terms; the date above shows the latest version. To ask for permission, report a copy of the game, or ask a question, email <a href="mailto:support@thelogicgrid.com">support@thelogicgrid.com</a>.</p>
+<p>We may update these terms; the date above shows the latest version. To ask for permission, report a copy of the game, or ask a question, ${contactLink('contact us')}.</p>
 ${playBtn(up)}`,
   });
   // ---------- Hand-picked: the best daily puzzles, and how every puzzle is checked ----------
@@ -678,7 +735,7 @@ ${playBtn(up)}`,
     crumbs: [['picks/', 'Hand-picked puzzles']],
     body: (up) => `<h1>Hand-picked puzzles</h1>
 <p class="lede">The daily puzzles players liked best, and ones the team picked. Each opens in the game with the grid, hints and saves.</p>
-${picks.length ? `<ul class="picks">${picks.map((x) => `<li><a href="${up}?play=daily&amp;day=${x.date}" rel="nofollow"><strong>${esc(x.title)}</strong></a><br><span class="meta">${esc(longDate(x.date))} · ${esc(x.difficultyName)} · ${esc(x.themeName)} · ${x.categories} × ${x.items} · ${esc(pickWhy(x))}</span>${daily.has(x.date) ? ` · <a href="${up}daily/${x.date}/">clues and answer key</a>` : ''}</li>`).join('')}</ul>`
+${picks.length ? `<ul class="picks">${picks.map((x) => `<li><a href="${up}${GAME}?play=daily&amp;day=${x.date}" rel="nofollow"><strong>${esc(x.title)}</strong></a><br><span class="meta">${esc(longDate(x.date))} · ${esc(x.difficultyName)} · ${esc(x.themeName)} · ${x.categories} × ${x.items} · ${esc(pickWhy(x))}</span>${daily.has(x.date) ? ` · <a href="${up}daily/${x.date}/">clues and answer key</a>` : ''}</li>`).join('')}</ul>`
     : `<p>The first picks appear here once players have rated a few daily puzzles. Until then, try <a href="${up}daily/">today's daily puzzle</a>.</p>`}
 <h2>How every puzzle is checked</h2>
 <ul>
@@ -694,7 +751,7 @@ ${playBtn(up)}`,
   // The form talks to the game's Worker (server/src/educators.js). Without a
   // cloud address (tests) this page may reach localhost.
   {
-    const { classroomOptions, EDUCATOR_SURVEY, FEEDBACK_KINDS, FEEDBACK_TEXT } = await import(pathToFileURL(join(site, 'engine', 'classroom.js')).href);
+    const { classroomOptions, EDUCATOR_SURVEY, FEEDBACK_KINDS, FEEDBACK_TEXT } = await import(pathToFileURL(join(engineDir, 'classroom.js')).href);
     const csp = PAGE_CSP.replace("default-src 'self';", `default-src 'self'; connect-src 'self' ${cloudOrigin || 'http://localhost:* http://127.0.0.1:*'};`);
     mkdirSync(join(site, 'educators'), { recursive: true });
     cpSync(join(root, 'seo', 'educators.js'), join(site, 'educators', 'form.js'));
@@ -745,9 +802,9 @@ ${playBtn(up)}`,
       body: (up) => `<h1>${name}</h1>
 <p class="lede">Story logic puzzles, free to play in your browser.</p>
 <ul class="links">
-<li><a class="btn big" href="${up}?play=now" rel="nofollow">Play a new puzzle now</a></li>
+<li><a class="btn big" href="${up}${GAME}?play=now" rel="nofollow">Play a new puzzle now</a></li>
 <li><a class="btn link-btn" href="${up}daily/">Today's daily puzzle</a></li>
-<li><a class="btn link-btn" href="${up}how-to-play/">How to play</a></li>
+<li><a class="btn link-btn" href="${up}how-to-play/">Rules and how to play</a></li>
 <li><a class="btn link-btn" href="${up}educators/">Free printable puzzles for teachers</a></li>
 </ul>
 <section id="latest" data-api="${cloud || ''}" hidden aria-labelledby="latest-h">
@@ -759,7 +816,7 @@ ${playBtn(up)}`,
 
   // ---------- Privacy (also the app stores' privacy policy link) ----------
   page({
-    path: 'privacy/', priority: 0.3,
+    path: 'privacy/', priority: 0.3, app: true,
     title: `Privacy | ${name}`,
     description: `What ${name} keeps, what it sends, and what it never does: no ads, no tracking cookies, no selling data.`,
     crumbs: [['privacy/', 'Privacy']],
@@ -769,7 +826,7 @@ ${playBtn(up)}`,
 <p>Your puzzles, notes, settings, stats and badges are saved in your browser or the app on your device. They stay there unless you sign in to sync them.</p>
 <h2>If you make an account</h2>
 <p>An account is optional. It uses Google Firebase sign-in with your email address and a password. Your saves, notes, settings and stats are then kept on the game's server so they appear on all your devices. You can delete the account and everything synced with it at any time in <strong>Menu &gt; Account and sync</strong>.</p>
-<p>A screen name is needed only for races and the scoreboard, and it is the only thing other players see. Never your email.</p>
+<p>A screen name is needed only for races and the scoreboard, and it is the only thing other players see. Never your email. Once you have one, you can also sign in with your screen name instead of your email; for that, the game's server keeps your account email next to your screen name. It is never shown or sent to anyone, and it is removed with your screen name.</p>
 <h2>Anonymous numbers</h2>
 <p>To make the puzzles better, the game sends counts and summaries that are not tied to you, your account or your device:</p>
 <ul>
@@ -780,7 +837,7 @@ ${playBtn(up)}`,
 <li><strong>Challenge a friend</strong> links keep the puzzle, the time to beat, and how many people played it.</li>
 </ul>
 <h2>Things you choose to send</h2>
-<p>Ideas, problem reports and story suggestions you write go to the team. If you are signed in and ask for a reply, the team may answer by email or in Messages.</p>
+<p>Ideas, problem reports and story suggestions you write go to the team. Pictures and files you attach to a problem report are seen only by the team and deleted after 90 days; pictures are made smaller and cleaned of hidden details, like where a photo was taken, before they leave your device. When you press Report a Problem, a screenshot of the screen you were on is attached for you; you can remove it before sending. If you are signed in and ask for a reply, the team may answer by email or in Messages.</p>
 <p><strong>Daily puzzle by email:</strong> if you are signed in and tick <strong>Email me each day's puzzle</strong>, the game keeps your account's email address to send it, once a day. Every email has a one-click unsubscribe link, and unticking the box or deleting your account removes the address.</p>
 <p><strong>Weekly and special edition puzzles by email:</strong> anyone can sign up in <strong>Menu &gt; Puzzle emails</strong>, with or without an account. The game keeps the email address and which emails you picked. If you are not signed in, we first email you a link to confirm, and nothing else is sent until you press Confirm; an address that is never confirmed is removed after 7 days. Every email has a one-click unsubscribe link and a link to change which emails you get. Unsubscribing from both, or deleting your account, removes the address.</p>
 <p><strong>Educator puzzle packages:</strong> when a teacher asks for a package on the <a href="../educators/">Educators page</a>, we keep the name, school, school email and the choices on the form to confirm the address, review the request and email the puzzles. Requests that are never confirmed or are declined are removed after 30 days. After a package is emailed, the educator may send ideas, problems, feedback and survey answers through a private link; we keep those with the request to improve our tools and to answer them by email.</p>
@@ -800,7 +857,7 @@ ${playBtn(up)}`,
 <h2>Children</h2>
 <p>Everything except races and the scoreboard can be played with no account and no personal details. An account needs an email address, so for a younger child a parent or teacher should make it, or simply play without one.</p>
 <h2>Questions</h2>
-<p>Email <strong>support@thelogicgrid.com</strong>. To report a security problem, see <a href="https://github.com/bltaylorjr/fantastical-logic-grid/security/advisories/new">the security page</a>.</p>
+<p>${contactLink()}. To report a security problem, see <a href="https://github.com/bltaylorjr/fantastical-logic-grid/security/advisories/new" rel="noopener noreferrer nofollow" referrerpolicy="no-referrer" target="_blank">the security page</a>.</p>
 <p class="meta">Last changed: 28 October 2026.</p>`,
   });
 
@@ -851,7 +908,7 @@ ${playBtn(up)}`,
 <li>Students mark X where a clue rules a pair out and O where two things go together. One O in a row means the rest of that row is X.</li>
 <li>When the grid is full, they answer the questions and check with the key.</li>
 </ol>
-<p>New to logic grids? <a href="${up}how-to-play/">How to play</a> walks through the rules with a short video.</p>
+<p>New to logic grids? <a href="${up}how-to-play/">Rules and how to play</a> walks through the rules with a short video.</p>
 <h2>Make as many as you need</h2>
 <p>In the game you can make unlimited puzzles at any of ${Object.keys(TIERS).length} levels, in ${THEMES.length} themes and almost any size, then print them blank or with your marks, on Letter or A4, with the answer key on its own page. Easy puzzles can also print a step-by-step solution. Every puzzle is a new story, in any of 100 languages, so it also works for language learners.</p>
 ${playBtn(up, 'Make a puzzle to print', false)}
@@ -884,7 +941,7 @@ ${gridTable(p)}
 <ol class="qs">${p.questions.map((q) => `<li>${esc(q.text)}<br>_______________________________</li>`).join('')}</ol>
 ${answerKey(p)}
 </article>
-<p class="noprint"><a href="${up}printables/">All this week's worksheets</a> · <a href="${up}">Play in the game</a></p>`,
+<p class="noprint"><a href="${up}printables/">All this week's worksheets</a> · <a href="${up}${GAME}">Play in the game</a></p>`,
     });
   }
 
@@ -893,7 +950,7 @@ ${answerKey(p)}
   // 404.html is served at any depth, so its links must start at the site root.
   const root404 = new URL(base).pathname.replace(/\/?$/, '/');
   writeFileSync(join(site, '404.html'), readFileSync(join(site, '404.html'), 'utf8').replace(/(href|src)="(?!https?:|#)([^"]*)"/g, (m, a, h) => `${a}="${root404}${h}"`));
-  cpSync(join(root, 'seo', 'og-image.jpg'), join(site, 'og-image.jpg'));
+  for (const f of ['og-image.jpg', 'og-fantastical.jpg']) cpSync(join(root, 'seo', f), join(site, f));
   writeFileSync(join(site, `${INDEXNOW_KEY}.txt`), INDEXNOW_KEY);
 
   writeFileSync(join(site, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>
@@ -918,7 +975,7 @@ Sitemap: ${url('sitemap.xml')}
 `);
   writeFileSync(join(site, 'llms.txt'), `# ${name}
 
-> ${appDescription} Free in any web browser at ${url('')}, offline-ready, and as a Windows app. No account needed.
+> ${appDescription} Free in any web browser at ${url(GAME)}, offline-ready, and as a Windows app. No account needed.
 
 - Difficulty levels: ${tiers.map((t) => t.name).join(', ')}
 - Themes: ${THEMES.map((t) => t.name).join(', ')}
@@ -926,7 +983,8 @@ Sitemap: ${url('sitemap.xml')}
 
 ## Pages
 
-- [Play the game](${url('')})
+- [Play the game](${url(GAME)})
+- [The Logic Grid](${url('')}): every game from the same team: ${OWN_PAGES.map((g) => `[${g.name}](${url(g.page)}) ([rules and how to play](${url(howToPath(g))}))`).join(', ')}
 - [How to play](${url('how-to-play/')}): rules, a narrated video and FAQ
 - [Daily puzzle](${url('daily/')}): a new free puzzle every day, with the answer key
 - [Printables](${url('printables/')}): free printable logic puzzles for classrooms and home, a new set every week, with answer keys
@@ -937,7 +995,7 @@ Sitemap: ${url('sitemap.xml')}
 - [Privacy](${url('privacy/')}): no ads, no tracking cookies, no selling data
 - [Terms of use](${url('terms/')})
 
-Contact: support@thelogicgrid.com
+Contact: the Contact us link at the foot of every page on ${url('')}
 
 ## Use of this content
 

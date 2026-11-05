@@ -9,7 +9,7 @@ const W = 1200, H = 630;
 
 function siteUrl(daily) {
   const site = (CLOUD.siteUrl || 'https://thelogicgrid.com').replace(/\/+$/, '');
-  return daily ? `${site}/daily/` : `${site}/`;
+  return daily ? `${site}/daily/` : `${site}/fantastical/`;
 }
 
 // info: { title, tier, theme, size, time, hints, revealed, daily (a date label), streak }

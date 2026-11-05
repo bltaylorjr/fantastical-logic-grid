@@ -19,10 +19,10 @@
 <body>
 <a class="skip" href="#main">Skip to content</a>
 <header class="top">
-  <div class="brand"><img src="/admin/icon.svg" alt="" width="28" height="28"><span>The Fantastical Logic Grid <b>Admin</b></span></div>
+  <div class="brand"><img src="/admin/icon.svg" alt="" width="28" height="28"><span>The Logic Grid <b>Admin</b></span></div>
   <div class="who" id="who" hidden>
     <a class="btn small" id="home" href="#overview">Home</a>
-    <a class="btn small" href="https://thelogicgrid.com/" target="_blank" rel="noopener">Open the game</a>
+    <a class="btn small" href="https://thelogicgrid.com/" target="_blank" rel="noopener">Open the site</a>
     <span id="who-email"></span> <span class="badge" id="who-role"></span>
     <button type="button" class="btn small" id="sign-out">Sign out</button>
   </div>
@@ -61,7 +61,7 @@
       <li><b>iPhone or iPad:</b> open this page in Safari, tap the Share button, then <b>Add to Home Screen</b>.</li>
       <li><b>Android:</b> open this page in Chrome, tap the menu (three dots), then <b>Install app</b> or <b>Add to Home screen</b>.</li>
     </ul>
-    <p class="muted">With <b>Keep me signed in on this device</b> ticked, it stays signed in while you use other apps. After 30 minutes without use it locks, and Face ID or your fingerprint opens it again (set that up under <b>Face ID and fingerprint</b> once you are in).</p>
+    <p class="muted">With <b>Keep me signed in on this device</b> ticked, it stays signed in while you use other apps. After 1 hour without use it locks, and Face ID or your fingerprint opens it again (set that up under <b>Face ID and fingerprint</b> once you are in).</p>
   </details>
   <details class="break-glass">
     <summary>Use the break-glass key</summary>
@@ -76,35 +76,63 @@
 <!-- Dashboard -->
 <div id="app" class="shell" hidden>
   <nav class="nav" aria-label="Sections">
-    <ul id="nav-list">
-      <li><a href="#overview" data-min="viewer">Overview</a></li>
-      <li><a href="#visitors" data-min="viewer">Visitors</a></li>
-      <li><a href="#usage" data-min="viewer">Usage and free limits</a></li>
-      <li><a href="#search" data-min="viewer">Search (Google and Bing)</a></li>
-      <li><a href="#daily" data-min="moderator">Daily puzzles</a></li>
-      <li><a href="#characters" data-min="moderator">Characters <span class="count" id="count-characters" hidden></span></a></li>
-      <li><a href="#media" data-min="viewer">Media library (sounds and pictures)</a></li>
-      <li><a href="#quality" data-min="viewer">Puzzle quality <span class="count" id="count-quality" hidden></span></a></li>
-      <li><a href="#ratings" data-min="viewer">Ratings and insights <span class="count" id="count-ratings" hidden></span></a></li>
-      <li><a href="#marketing" data-min="viewer">Marketing</a></li>
-      <li><a href="#mail" data-min="viewer">Puzzle emails</a></li>
-      <li><a href="#stories" data-min="moderator">Story workshop and review <span class="count" id="count-parts" hidden></span></a></li>
-      <li><a href="#communication" data-min="viewer">Communication <span class="count" id="count-comm" hidden></span></a></li>
-      <li><a href="#errortracking" data-min="moderator">Error tracking <span class="count" id="count-errors" hidden></span></a></li>
-      <li><a href="#educators" data-min="moderator">Educator requests <span class="count" id="count-educators" hidden></span></a></li>
-      <li><a href="#edu-feedback" data-min="moderator">Educator feedback <span class="count" id="count-edu-feedback" hidden></span></a></li>
-      <li><a href="#names" data-min="moderator">Screen names <span class="count" id="count-names" hidden></span></a></li>
-      <li><a href="#players" data-min="viewer">Players</a></li>
-      <li><a href="#badges" data-min="viewer">Badges</a></li>
-      <li><a href="#supporters" data-min="admin">Supporters</a></li>
-      <li><a href="#numberplace" data-min="viewer">Number Place</a></li>
-      <li><a href="#licenses" data-min="admin">App keys <span class="count" id="count-licenses" hidden></span></a></li>
-      <li><a href="#settings" data-min="viewer">Settings and switches</a></li>
-      <li><a href="#connections" data-min="viewer">Connections and setup</a></li>
-      <li><a href="#signin" data-min="viewer">Face ID and fingerprint</a></li>
-      <li><a href="#backups" data-min="admin">Backups and archive</a></li>
-      <li><a href="#audit" data-min="admin">Audit log</a></li>
-      <li><a href="#admins" data-min="owner">Admins</a></li>
+    <div class="dash-switch" id="dash-switch" role="group" aria-label="Dashboard">
+      <button type="button" data-dash="main" aria-pressed="true">The Logic Grid <span class="dash-sub">App</span></button>
+      <button type="button" data-dash="flg" aria-pressed="false">The Fantastical Logic Grid <span class="dash-sub">Game</span></button>
+      <button type="button" data-dash="ntn" aria-pressed="false">NINETIMESNINE <span class="dash-sub">Game</span></button>
+      <button type="button" data-dash="cm" aria-pressed="false">Cage Math <span class="dash-sub">Game</span></button>
+      <button type="button" data-dash="sc" aria-pressed="false">Sum Cross <span class="dash-sub">Game</span></button>
+      <button type="button" data-dash="pg" aria-pressed="false">Picture Grid <span class="dash-sub">Game</span></button>
+      <button type="button" data-dash="ml" aria-pressed="false">More or Less <span class="dash-sub">Game</span></button>
+      <button type="button" data-dash="sk" aria-pressed="false">Skyline <span class="dash-sub">Game</span></button>
+      <button type="button" data-dash="sf" aria-pressed="false">Star Field <span class="dash-sub">Game</span></button>
+      <button type="button" data-dash="ll" aria-pressed="false">Loop Line <span class="dash-sub">Game</span></button>
+      <button type="button" data-dash="ib" aria-pressed="false">Island Bridges <span class="dash-sub">Game</span></button>
+    </div>
+    <ul id="nav-list" data-current="main">
+      <li data-dash="main"><a href="#overview" data-min="viewer">Overview</a></li>
+      <li data-dash="main"><a href="#analysis" data-min="viewer">Analysis and self-tuning <span class="count" id="count-analysis" hidden></span></a></li>
+      <li data-dash="main"><a href="#visitors" data-min="viewer">Visitors</a></li>
+      <li data-dash="main"><a href="#usage" data-min="viewer">Usage and free limits</a></li>
+      <li data-dash="main"><a href="#search" data-min="viewer">Search (Google and Bing)</a></li>
+      <li data-dash="main"><a href="#website" data-min="viewer">Website</a></li>
+      <li data-dash="main"><a href="#marketing" data-min="viewer">Marketing</a></li>
+      <li data-dash="main"><a href="#voice-engine" data-min="admin">Voice engine</a></li>
+      <li data-dash="main"><a href="#communication" data-min="viewer">Communication <span class="count" id="count-comm" hidden></span></a></li>
+      <li data-dash="main"><a href="#errortracking" data-min="moderator">Error tracking <span class="count" id="count-errors" hidden></span></a></li>
+      <li data-dash="main"><a href="#players" data-min="viewer">Players</a></li>
+      <li data-dash="main"><a href="#names" data-min="moderator">Screen names <span class="count" id="count-names" hidden></span></a></li>
+      <li data-dash="main"><a href="#supporters" data-min="admin">Supporters</a></li>
+      <li data-dash="main"><a href="#licenses" data-min="admin">App keys <span class="count" id="count-licenses" hidden></span></a></li>
+      <li data-dash="main"><a href="#settings" data-min="viewer">Settings and switches</a></li>
+      <li data-dash="main"><a href="#connections" data-min="viewer">Connections and setup</a></li>
+      <li data-dash="main"><a href="#signin" data-min="viewer">Face ID and fingerprint</a></li>
+      <li data-dash="main"><a href="#backups" data-min="admin">Backups and archive</a></li>
+      <li data-dash="main"><a href="#audit" data-min="admin">Audit log</a></li>
+      <li data-dash="main"><a href="#admins" data-min="owner">Admins</a></li>
+      <li data-dash="flg"><a href="#fantastical" data-min="viewer">Fantastical home <span class="count" id="count-fantastical" hidden></span></a></li>
+      <li data-dash="flg"><a href="#daily" data-min="moderator">Daily puzzles</a></li>
+      <li data-dash="flg"><a href="#characters" data-min="moderator">Characters <span class="count" id="count-characters" hidden></span></a></li>
+      <li data-dash="flg"><a href="#media" data-min="viewer">Media library (sounds and pictures)</a></li>
+      <li data-dash="flg"><a href="#quality" data-min="viewer">Puzzle quality <span class="count" id="count-quality" hidden></span></a></li>
+      <li data-dash="flg"><a href="#ratings" data-min="viewer">Ratings and insights <span class="count" id="count-ratings" hidden></span></a></li>
+      <li data-dash="flg"><a href="#mail" data-min="viewer">Puzzle emails</a></li>
+      <li data-dash="flg"><a href="#beat-images" data-min="moderator">Story beat pictures</a></li>
+      <li data-dash="flg"><a href="#stories" data-min="moderator">Story workshop and review <span class="count" id="count-parts" hidden></span></a></li>
+      <li data-dash="flg"><a href="#story-submissions" data-min="moderator">Storyline submissions <span class="count" id="count-story-submissions" hidden></span></a></li>
+      <li data-dash="flg"><a href="#educators" data-min="moderator">Educator requests <span class="count" id="count-educators" hidden></span></a></li>
+      <li data-dash="flg"><a href="#edu-feedback" data-min="moderator">Educator feedback <span class="count" id="count-edu-feedback" hidden></span></a></li>
+      <li data-dash="flg"><a href="#badges" data-min="viewer">Badges</a></li>
+      <li data-dash="flg"><a href="#game-settings" data-min="viewer">Game settings and switches</a></li>
+      <li data-dash="ntn"><a href="#numberplace" data-min="viewer">NINETIMESNINE</a></li>
+      <li data-dash="cm"><a href="#cagemath" data-min="viewer">Cage Math</a></li>
+      <li data-dash="sc"><a href="#sumcross" data-min="viewer">Sum Cross</a></li>
+      <li data-dash="pg"><a href="#picturegrid" data-min="viewer">Picture Grid</a></li>
+      <li data-dash="ml"><a href="#moreorless" data-min="viewer">More or Less</a></li>
+      <li data-dash="sk"><a href="#skyline" data-min="viewer">Skyline</a></li>
+      <li data-dash="sf"><a href="#starfield" data-min="viewer">Star Field</a></li>
+      <li data-dash="ll"><a href="#loopline" data-min="viewer">Loop Line</a></li>
+      <li data-dash="ib"><a href="#islandbridges" data-min="viewer">Island Bridges</a></li>
     </ul>
   </nav>
   <main id="main" tabindex="-1">
@@ -117,6 +145,18 @@
         <div class="field inline"><label for="ov-days">Period</label><select id="ov-days"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option></select></div>
       </div>
       <div id="ov-body"><p class="muted">Loading…</p></div>
+    </section>
+
+    <section data-view="analysis" hidden aria-labelledby="h-analysis">
+      <div class="head"><h1 id="h-analysis">Analysis and self-tuning</h1>
+        <div class="row an-tools">
+          <div class="field inline"><label for="an-days">Period</label><select id="an-days"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option><option value="365">Last 365 days</option></select></div>
+          <button class="btn" type="button" id="an-refresh">Refresh</button>
+          <button class="btn primary" type="button" id="an-print">Print or save as PDF</button>
+        </div>
+      </div>
+      <p class="muted">Every number the dashboard keeps, broken down by topic: what it shows, what to do next, how the game stands in the market and what to build. Self-tuning suggests small changes from these numbers and waits for your approval. Figures with too little data behind them are marked "Too early to judge".</p>
+      <div id="an-body"><p class="muted">Loading…</p></div>
     </section>
 
     <section data-view="details" hidden aria-labelledby="h-details">
@@ -132,7 +172,7 @@
       <div class="head"><h1 id="h-visitors">Visitors</h1>
         <div class="field inline"><label for="vis-days">Period</label><select id="vis-days"><option value="1">Today</option><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option><option value="365">Last 365 days</option></select></div>
       </div>
-      <p class="muted">People who opened the game, each device counted once a day. Guests are not signed in; players are signed in to an account. Place comes from the connection and is never stored as an address.</p>
+      <p class="muted">People who opened any page of thelogicgrid.com (the front page, any game, the account page and the information pages) or the apps, each device counted once a day however many pages it opens. Guests are not signed in; players are signed in to an account. Place comes from the connection and is never stored as an address.</p>
       <div id="vis-body"><p class="muted">Loading…</p></div>
     </section>
 
@@ -152,7 +192,7 @@
 
     <section data-view="daily" hidden aria-labelledby="h-daily">
       <div class="head"><h1 id="h-daily">Daily puzzles</h1></div>
-      <p class="muted">Everyone gets the same daily puzzle. Change a coming day's theme, difficulty or size, or ask for a new story. Past days and today never change, and no story is ever used twice. The site is rebuilt every night at 00:17 UTC, so a change shows in the preview and the game after the next build.</p>
+      <p class="muted">Everyone gets the same daily puzzle. Change a coming day's theme, difficulty or size, or ask for a new story. Past days and today never change, and no story is ever used twice. The site is rebuilt every night just after midnight US Eastern, so a change shows in the preview and the game after the next build.</p>
       <p class="muted" data-min="admin">To publish a change sooner, run <a href="https://github.com/bltaylorjr/fantastical-logic-grid/actions/workflows/pages.yml" target="_blank" rel="noopener">Publish web version</a> on GitHub (Run workflow).</p>
       <div id="daily-body"><p class="muted">Loading…</p></div>
     </section>
@@ -194,6 +234,12 @@
       </div>
       <p class="muted">Themes and levels that players give up on, rate low, or say are too hard or too easy, worst first. From the anonymous play summaries; a group needs at least 5 games before it is flagged. Fix ideas: add story parts in the Story workshop, switch a theme off for a while, or plan easier daily puzzles.</p>
       <div id="quality-body"><p class="muted">Loading…</p></div>
+    </section>
+
+    <section data-view="voice-engine" hidden aria-labelledby="h-voice-engine">
+      <div class="head"><h1 id="h-voice-engine">Voice engine</h1></div>
+      <p class="muted">Vox, the free voice engine every game can use, on your own computer or online. It learns from every line it speaks and from your ratings, so it keeps getting better. Here you teach it, make new voices from many speakers' samples, set auto-tune, look up any American English word and fix how it's said, translate lines into other languages, and roll back to any earlier version.</p>
+      <div id="vx-body"><p class="muted">Loading…</p></div>
     </section>
 
     <section data-view="ratings" hidden aria-labelledby="h-ratings">
@@ -264,7 +310,7 @@
           <div class="field"><label for="comm-type">Show</label><select id="comm-type">
             <option value="all">Everything</option><option value="message">Messages</option><option value="idea">Ideas</option><option value="problem">Problems</option>
             <option value="error">Error reports</option><option value="email">Emails to players</option></select></div>
-          <div class="field"><label for="comm-game">Game</label><select id="comm-game"><option value="all">All games</option><option value="logic-grid">The Fantastical Logic Grid</option><option value="number-place">Number Place</option></select></div>
+          <div class="field"><label for="comm-game">Game</label><select id="comm-game"><option value="all">All games</option><option value="logic-grid">The Fantastical Logic Grid</option><option value="number-place">NINETIMESNINE</option></select></div>
           <div class="field"><label for="comm-status">Status</label><select id="comm-status"><option value="new">New and open</option><option value="approved">Approved (being processed)</option><option value="addressed">Addressed</option><option value="done">Done</option><option value="all">All</option></select></div>
           <div class="field grow"><label for="comm-q">Find words</label><input id="comm-q" type="search" autocomplete="off" maxlength="100"></div>
           <button class="btn primary" type="submit">Find</button>
@@ -318,10 +364,10 @@
 
     <section data-view="errortracking" hidden aria-labelledby="h-errortracking">
       <div class="head"><h1 id="h-errortracking">Error tracking</h1></div>
-      <p class="muted">Every Report a Problem, sorted by category as it arrives: <b>Puzzle</b> (PZ-…) or <b>Web structure</b> (WS-…). The puzzle doctor checks Puzzle reports every 15 minutes, rebuilds the broken ones and emails the players who asked. It uses Web structure reports from the same screen and app version to tell a broken puzzle from a display problem, and learns which repairs work for each kind of fault.</p>
+      <p class="muted">Every Report a Problem, sorted by category as it arrives: <b>Puzzle</b> (PZ-…) or <b>Web structure</b> (WS-…), with any pictures and files the player attached. The puzzle doctor reviews each report the moment it is submitted: it checks a reported puzzle within a minute or two (or at the latest in its 15-minute round), rebuilds a broken one, emails the player who asked, and sends you an alert with the outcome. Every step is kept in the errors database below. It uses Web structure reports from the same screen and app version to tell a broken puzzle from a display problem, and learns which repairs work for each kind of fault.</p>
       <form class="row filters" id="et-filter" novalidate>
         <div class="field inline"><label for="et-category">Category</label><select id="et-category"><option value="">Both</option><option value="puzzle">Puzzle</option><option value="webstructure">Web structure</option></select></div>
-        <div class="field inline"><label for="et-game">Game</label><select id="et-game"><option value="">All games</option><option value="logic-grid">The Fantastical Logic Grid</option><option value="number-place">Number Place</option></select></div>
+        <div class="field inline"><label for="et-game">Game</label><select id="et-game"><option value="">All games</option><option value="logic-grid">The Fantastical Logic Grid</option><option value="number-place">NINETIMESNINE</option></select></div>
         <div class="field inline"><label for="et-status">Status</label><select id="et-status"><option value="">Any</option><option value="needs_fix">Needs a fix in the code</option><option value="manual">Needs the team</option><option value="page">Web page issue (open)</option><option value="no_fault">No fault in the puzzle</option><option value="repaired">Repaired</option><option value="done">Done</option><option value="new">Waiting for the doctor</option></select></div>
         <div class="field inline"><label for="et-q">Search</label><input id="et-q" type="search" placeholder="PZ-…, title, words, page"></div>
         <button class="btn" type="submit">Show</button>
@@ -330,6 +376,47 @@
       <h2>What the doctor has learned</h2>
       <p class="muted">One row per kind of fault. For puzzles: the fault, theme and difficulty, how often it was seen and repaired, the rebuild that works best, and the doctor's latest self-check with the newest engine. For web pages: the screen and app version. When a self-check shows a fault is gone, its waiting reports are repaired and emailed automatically.</p>
       <div id="et-patterns"><p class="muted">Loading…</p></div>
+      <h2>Errors database: every step</h2>
+      <p class="muted">Each report's steps, newest first: received, files attached, the doctor started, its review, the repair or why it could not repair, the alert to you, and how it was closed. Nothing personal is kept here. Steps are kept for a year; attached files for 90 days.</p>
+      <div id="et-log"><p class="muted">Loading…</p></div>
+    </section>
+
+    <section data-view="story-submissions" hidden aria-labelledby="h-story-submissions">
+      <div class="head"><h1 id="h-story-submissions">Storyline submissions</h1></div>
+      <p class="muted">The Storyline Submission Database: every theme idea, category idea and storyline players sent, from the game's <b>Suggest a storyline</b> page and from <b>Share an idea</b>, kept exactly as they sent it, with the player, their author credit, their consent and the first puzzle made from an approved storyline. <b>Open</b> an entry to see the original form. <b>Scan</b> checks it for trademarks, protected characters and copied wording (a screening aid, not legal advice). <b>Approve and build puzzle</b> builds the first puzzle from the corrected words, saves it here and in the player's Saved puzzles, and emails it to the author as a PDF. Confirmations, approvals and decline thank-yous go from noreply@thelogicgrid.com; copies you email go from support@thelogicgrid.com.</p>
+      <form class="row" id="ss-search" role="search" aria-label="Search storyline submissions">
+        <div class="field grow"><label for="ss-q">Search</label><input type="search" id="ss-q" placeholder="Words, title, author credit, player, email, theme or entry number" autocomplete="off"></div>
+        <div class="field"><label for="ss-kind">Kind</label><select id="ss-kind"><option value="">All kinds</option><option value="storyline">Storylines</option><option value="puzzle">Wizard puzzles</option><option value="theme">Theme ideas</option><option value="category">Category ideas</option></select></div>
+        <div class="field"><label for="ss-scan">Trademark and copyright</label><select id="ss-scan"><option value="">Any scan result</option><option value="unscanned">Not scanned</option><option value="flagged">Something found</option><option value="clear">Clear</option></select></div>
+        <div class="field"><label for="ss-source">From</label><select id="ss-source"><option value="">Anywhere</option><option value="form">Suggest a storyline page</option><option value="idea box">Share an idea</option></select></div>
+        <button class="btn primary" type="submit">Search</button>
+      </form>
+      <div class="row"><div class="sections grow" id="ss-tabs" role="group" aria-label="Show entries"></div><button class="btn small" type="button" id="ss-scan-new" hidden>Scan new entries</button></div>
+      <p class="muted" id="ss-total" role="status"></p>
+      <div class="ss-layout">
+        <ul class="cards ss-list" id="ss-list"></ul>
+        <div id="ss-detail-wrap"></div>
+      </div>
+      <nav class="row pager" aria-label="Entry pages"><button class="btn small" type="button" id="ss-prev" hidden>Previous page</button><button class="btn small" type="button" id="ss-next" hidden>Next page</button></nav>
+    </section>
+
+    <section data-view="beat-images" hidden aria-labelledby="h-beat-images">
+      <div class="head"><h1 id="h-beat-images">Story beat pictures</h1></div>
+      <p class="muted">Pictures the game shows beside a story beat, the short story moments that appear as a player finishes each section of the grid. Upload any picture your browser can open (JPG, PNG, GIF, WebP, AVIF, BMP, SVG, ICO, and HEIC or TIFF where your browser reads them). Each one is shrunk and saved as a small WebP before it is sent. A theme's own pictures are used first; <b>Every theme</b> pictures fill in for themes with none. Players who switch story beats off, or play in silent mode, never see them.</p>
+      <div class="card stack bi-drop" id="bi-drop">
+        <h2>Add pictures</h2>
+        <div class="row">
+          <div class="field"><label for="bi-theme">Theme</label><select id="bi-theme"></select></div>
+          <div class="field"><label for="bi-stage">When it shows</label><select id="bi-stage"></select></div>
+        </div>
+        <div class="field"><label for="bi-file">Pictures</label><input type="file" id="bi-file" multiple aria-describedby="bi-file-h"><span class="muted" id="bi-file-h">Choose one or more, or drop them here. You can check and change what each one shows before uploading.</span></div>
+        <p class="muted" id="bi-status" role="status" aria-live="polite"></p>
+        <div id="bi-ready"></div>
+        <div class="row"><button class="btn primary" type="button" id="bi-send" hidden>Upload</button></div>
+      </div>
+      <div class="row"><div class="field"><label for="bi-filter">Show</label><select id="bi-filter"></select></div></div>
+      <p class="muted" id="bi-total" role="status"></p>
+      <div id="bi-list"><p class="muted">Loading…</p></div>
     </section>
 
     <section data-view="educators" hidden aria-labelledby="h-educators">
@@ -446,11 +533,81 @@
       <div class="table-wrap"><table class="table"><thead><tr><th scope="col">Blocked player</th><th scope="col">Since</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody id="sup-blocks"></tbody></table></div>
     </section>
 
+    <section data-view="website" hidden aria-labelledby="h-website">
+      <div class="head"><h1 id="h-website">Website</h1></div>
+      <p class="muted">How thelogicgrid.com looks: colors, fonts, shapes, the front page's words and effects, the NINETIMESNINE page, the information pages, and what search results show. Try anything in the preview; visitors see nothing until you press Publish.</p>
+      <div id="web-body"><p class="muted">Loading…</p></div>
+    </section>
+
+    <section data-view="cagemath" hidden aria-labelledby="h-cagemath">
+      <div class="head"><h1 id="h-cagemath">Cage Math</h1>
+        <div class="field inline"><label for="kit-cm-days">Period</label><select id="kit-cm-days" data-kit-days="cm"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option></select></div>
+      </div>
+      <p class="muted">The numbers game's own switches and numbers. Everyone sees it in the app and on its own website page unless it is switched off below. It shares only anonymous play summaries with the rest of the app, for learning. App-wide switches are under App settings and switches.</p>
+      <div id="kit-cm-body" data-kit-body="cm"><p class="muted">Loading…</p></div>
+    </section>
+
+    <section data-view="sumcross" hidden aria-labelledby="h-sumcross">
+      <div class="head"><h1 id="h-sumcross">Sum Cross</h1>
+        <div class="field inline"><label for="kit-sc-days">Period</label><select id="kit-sc-days" data-kit-days="sc"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option></select></div>
+      </div>
+      <p class="muted">The numbers game's own switches and numbers. Everyone sees it in the app and on its own website page unless it is switched off below. It shares only anonymous play summaries with the rest of the app, for learning. App-wide switches are under App settings and switches.</p>
+      <div id="kit-sc-body" data-kit-body="sc"><p class="muted">Loading…</p></div>
+    </section>
+
+    <section data-view="picturegrid" hidden aria-labelledby="h-picturegrid">
+      <div class="head"><h1 id="h-picturegrid">Picture Grid</h1>
+        <div class="field inline"><label for="kit-pg-days">Period</label><select id="kit-pg-days" data-kit-days="pg"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option></select></div>
+      </div>
+      <p class="muted">The picture game's own switches and numbers. Everyone sees it in the app and on its own website page unless it is switched off below. It shares only anonymous play summaries with the rest of the app, for learning. App-wide switches are under App settings and switches.</p>
+      <div id="kit-pg-body" data-kit-body="pg"><p class="muted">Loading…</p></div>
+    </section>
+
+    <section data-view="moreorless" hidden aria-labelledby="h-moreorless">
+      <div class="head"><h1 id="h-moreorless">More or Less</h1>
+        <div class="field inline"><label for="kit-ml-days">Period</label><select id="kit-ml-days" data-kit-days="ml"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option></select></div>
+      </div>
+      <p class="muted">The numbers game's own switches and numbers. Everyone sees it in the app and on its own website page unless it is switched off below. It shares only anonymous play summaries with the rest of the app, for learning. App-wide switches are under App settings and switches.</p>
+      <div id="kit-ml-body" data-kit-body="ml"><p class="muted">Loading…</p></div>
+    </section>
+
+    <section data-view="skyline" hidden aria-labelledby="h-skyline">
+      <div class="head"><h1 id="h-skyline">Skyline</h1>
+        <div class="field inline"><label for="kit-sk-days">Period</label><select id="kit-sk-days" data-kit-days="sk"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option></select></div>
+      </div>
+      <p class="muted">The numbers game's own switches and numbers. Everyone sees it in the app and on its own website page unless it is switched off below. It shares only anonymous play summaries with the rest of the app, for learning. App-wide switches are under App settings and switches.</p>
+      <div id="kit-sk-body" data-kit-body="sk"><p class="muted">Loading…</p></div>
+    </section>
+
+    <section data-view="starfield" hidden aria-labelledby="h-starfield">
+      <div class="head"><h1 id="h-starfield">Star Field</h1>
+        <div class="field inline"><label for="kit-sf-days">Period</label><select id="kit-sf-days" data-kit-days="sf"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option></select></div>
+      </div>
+      <p class="muted">The star game's own switches and numbers. Everyone sees it in the app and on its own website page unless it is switched off below. It shares only anonymous play summaries with the rest of the app, for learning. App-wide switches are under App settings and switches.</p>
+      <div id="kit-sf-body" data-kit-body="sf"><p class="muted">Loading…</p></div>
+    </section>
+
+    <section data-view="loopline" hidden aria-labelledby="h-loopline">
+      <div class="head"><h1 id="h-loopline">Loop Line</h1>
+        <div class="field inline"><label for="kit-ll-days">Period</label><select id="kit-ll-days" data-kit-days="ll"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option></select></div>
+      </div>
+      <p class="muted">The line game's own switches and numbers. Everyone sees it in the app and on its own website page unless it is switched off below. It shares only anonymous play summaries with the rest of the app, for learning. App-wide switches are under App settings and switches.</p>
+      <div id="kit-ll-body" data-kit-body="ll"><p class="muted">Loading…</p></div>
+    </section>
+
+    <section data-view="islandbridges" hidden aria-labelledby="h-islandbridges">
+      <div class="head"><h1 id="h-islandbridges">Island Bridges</h1>
+        <div class="field inline"><label for="kit-ib-days">Period</label><select id="kit-ib-days" data-kit-days="ib"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option></select></div>
+      </div>
+      <p class="muted">The bridge game's own switches and numbers. Everyone sees it in the app and on its own website page unless it is switched off below. It shares only anonymous play summaries with the rest of the app, for learning. App-wide switches are under App settings and switches.</p>
+      <div id="kit-ib-body" data-kit-body="ib"><p class="muted">Loading…</p></div>
+    </section>
+
     <section data-view="numberplace" hidden aria-labelledby="h-numberplace">
-      <div class="head"><h1 id="h-numberplace">Number Place</h1>
+      <div class="head"><h1 id="h-numberplace">NINETIMESNINE</h1>
         <div class="field inline"><label for="np-days">Period</label><select id="np-days"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option></select></div>
       </div>
-      <p class="muted">The numbers game's own switches and numbers. It shares only anonymous play summaries with the rest of the game, for learning. Logic Grid settings are under Settings and switches.</p>
+      <p class="muted">The numbers game's own switches and numbers. It shares only anonymous play summaries with the rest of the game, for learning. The Fantastical Logic Grid's switches are on its own dashboard, and app-wide switches are under App settings and switches.</p>
       <div id="np-body"><p class="muted">Loading…</p></div>
     </section>
 
@@ -488,10 +645,24 @@
     </section>
 
     <section data-view="settings" hidden aria-labelledby="h-settings">
-      <div class="head"><h1 id="h-settings">Settings and switches</h1></div>
-      <p class="muted">Changes reach every copy of the game within about a minute, with no new release.</p>
+      <div class="head"><h1 id="h-settings">App settings and switches</h1></div>
+      <p class="muted">Switches shared by the whole app: sign-in, messages, ideas and problems, languages, support, alerts and backups. Each game's own switches are on its dashboard. Changes reach every copy within about a minute, with no new release.</p>
       <div id="alerts-body"></div>
       <div id="settings-body"></div>
+    </section>
+
+    <section data-view="game-settings" hidden aria-labelledby="h-game-settings">
+      <div class="head"><h1 id="h-game-settings">Game settings and switches</h1></div>
+      <p class="muted">The Fantastical Logic Grid's own switches: play, themes, characters, voices, sounds, pictures, celebrations, puzzle emails, printable packs, educators and learning. App-wide switches are under <a href="#settings">App settings and switches</a> on The Logic Grid dashboard. Changes reach every player within about a minute.</p>
+      <div id="game-settings-body"><p class="muted">Loading…</p></div>
+    </section>
+
+    <section data-view="fantastical" hidden aria-labelledby="h-fantastical">
+      <div class="head"><h1 id="h-fantastical">The Fantastical Logic Grid</h1>
+        <div class="field inline"><label for="fg-days">Period</label><select id="fg-days"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option></select></div>
+      </div>
+      <p class="muted">Everything that belongs to this game: its puzzles, stories, characters, sounds, emails, educator packages and switches. Players, sign-in, messages, the website and marketing are shared by every game and live on The Logic Grid dashboard.</p>
+      <div id="fg-body"><p class="muted">Loading…</p></div>
     </section>
 
     <section data-view="connections" hidden aria-labelledby="h-connections" id="connections-view">
@@ -499,6 +670,12 @@
         <button class="btn" type="button" id="conn-refresh">Check again</button>
       </div>
       <p class="muted">Every outside service the game uses: why it is needed, the exact names and settings, step-by-step instructions and links. Secret values are never shown or typed here, only whether each name is set. This guide is made from <code>admin/connections.js</code>, and the tests make sure every new secret, variable or binding in the code is added to it.</p>
+      <details class="card" id="acct-box" hidden>
+        <summary><h2>Site accounts</h2> <span class="muted" id="acct-count"></span></summary>
+        <p class="muted">The game's accounts on outside sites: where each one is, which email signs in and where its keys are kept. Passwords, keys and tokens never go here; keep them in your password manager.</p>
+        <div id="acct-list"><p class="muted">Loading…</p></div>
+        <div class="row end"><button class="btn" type="button" id="acct-add">Add a site account</button></div>
+      </details>
       <div id="conn-summary"></div>
       <div class="row" role="search">
         <div class="field grow"><label for="conn-q">Search</label><input id="conn-q" type="search" autocomplete="off" placeholder="For example Resend, DNS or GMAIL_APP_PASSWORD"></div>
@@ -529,7 +706,7 @@
 
     <section data-view="signin" hidden aria-labelledby="h-signin">
       <div class="head"><h1 id="h-signin">Face ID and fingerprint</h1></div>
-      <p class="muted">Sign in with your face, fingerprint or device PIN instead of your password. Your face and fingerprint never leave your device: it keeps a passkey that only opens for you, and the dashboard checks it. The dashboard stays signed in while you use other apps, locks after 30 minutes without use, and asks for Face ID or your fingerprint again to open. Once every 12 hours it asks again even if you keep using it.</p>
+      <p class="muted">Sign in with your face, fingerprint or device PIN instead of your password. Your face and fingerprint never leave your device: it keeps a passkey that only opens for you, and the dashboard checks it. The dashboard stays signed in while you use other apps, locks after 1 hour without use, and asks for Face ID or your fingerprint again to open. Once every 12 hours it asks again even if you keep using it.</p>
       <div id="pk-status"></div>
       <div class="row"><button class="btn primary" type="button" id="pk-add" hidden>Set up this device</button></div>
       <h2>Your devices</h2>
@@ -551,6 +728,21 @@
         <button class="btn primary" type="submit">Add or change</button>
       </form>
       <div class="table-wrap"><table class="table"><thead><tr><th scope="col">Email</th><th scope="col">Role</th><th scope="col">Added</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody id="admin-rows"></tbody></table></div>
+
+      <h2 id="h-keys">Assistant keys</h2>
+      <p class="muted">A key lets a helper, such as Claude, use this dashboard's features on your behalf without a game account. Choose the lowest role that does the job and a short time; you can revoke a key at any moment. Everything done with a key is in the audit log as "key: name". The key is shown once, when you make it: give it only to the helper it is for, and never post it anywhere public.</p>
+      <form id="key-form" class="row card" novalidate aria-labelledby="h-keys">
+        <div class="field grow"><label for="key-name">Name</label><input id="key-name" maxlength="40" value="Claude" autocomplete="off" required></div>
+        <div class="field"><label for="key-role">Role</label><select id="key-role"><option value="viewer">Viewer</option><option value="moderator" selected>Moderator</option><option value="admin">Admin</option></select></div>
+        <div class="field"><label for="key-days">Works for</label><select id="key-days"><option value="1">1 day</option><option value="7" selected>7 days</option><option value="30">30 days</option><option value="90">90 days</option></select></div>
+        <button class="btn primary" type="submit">Make a key</button>
+      </form>
+      <div class="note" id="key-new" role="status" hidden>
+        <p><b>Your new key. Copy it now: it will not be shown again.</b></p>
+        <p><code id="key-value" class="key-value"></code></p>
+        <div class="row"><button class="btn small" type="button" id="key-copy">Copy the key</button><button class="btn small" type="button" id="key-hide">I copied it</button></div>
+      </div>
+      <div class="table-wrap"><table class="table"><thead><tr><th scope="col">Name</th><th scope="col">Role</th><th scope="col">Made</th><th scope="col">Ends</th><th scope="col">Last used</th><th scope="col">State</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody id="key-rows"></tbody></table></div>
     </section>
   </main>
 </div>
@@ -573,5 +765,6 @@
     <div class="row end"><button class="btn" value="cancel" type="button" id="mk-dialog-cancel">Cancel</button><button class="btn primary" value="ok" id="mk-dialog-ok">Save</button></div>
   </form>
 </dialog>
+<div id="ss-print" class="ss-print" aria-hidden="true"></div>
 </body>
 </html>

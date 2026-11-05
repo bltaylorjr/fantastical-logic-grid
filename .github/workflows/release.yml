@@ -46,7 +46,7 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 20
           cache: npm
@@ -71,7 +71,7 @@ jobs:
           projectPath: desktop
           tauriScript: npx tauri
           tagName: v__VERSION__
-          releaseName: The Fantastical Logic Grid v__VERSION__
+          releaseName: The Logic Grid v__VERSION__
           releaseBody: Download the setup .exe below to install. Installed copies update themselves.
           releaseDraft: false
           prerelease: false
@@ -109,5 +109,5 @@ jobs:
           sed -i "s#github.com/${GITHUB_REPOSITORY}/releases/download/#github.com/${SITE_REPO}/releases/download/#g" rel/latest.json
           grep -q "github.com/${SITE_REPO}/releases/download/" rel/latest.json
           GH_TOKEN="$SITE_REPO_TOKEN" gh release create "$tag" rel/* --repo "$SITE_REPO" --target gh-pages --latest \
-            --title "The Fantastical Logic Grid $tag" \
+            --title "The Logic Grid $tag" \
             --notes "Download the setup .exe below to install. Installed copies update themselves. © 2026 Bobby Taylor. All rights reserved. Terms: https://thelogicgrid.com/terms/"

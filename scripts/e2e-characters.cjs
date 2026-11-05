@@ -78,7 +78,9 @@ const CHARACTERS = {
     await shot('game-characters');
 
     // Captain Mo tells his clues with his own line.
-    const moClues = await page.evaluate(() => Object.values(window.__flg.state.witness).filter((w) => w === 'Captain Mo').length);
+    // A clue that is still locked picture evidence is not told yet, so it does not count.
+    const moClues = await page.evaluate(() => Object.entries(window.__flg.state.witness)
+      .filter(([n, w]) => w === 'Captain Mo' && !/Locked evidence/.test(document.querySelector(`#clue-list li[data-n="${n}"]`)?.textContent || '')).length);
     await page.click('#cast-row .cast-btn[data-who="Captain Mo"]');
     const bubble = await page.textContent('#bubble');
     // A clue still locked as picture evidence has no line yet, so only count the open ones.
@@ -101,7 +103,7 @@ const CHARACTERS = {
       }
     });
     await page.waitForSelector('#solved:not([hidden])');
-    const cheer = await page.textContent('#resolution');
+    const cheer = await page.textContent('#solved-cheer .cheer-words');
     assert(/Hoist the colors, we did it!|Brilliant, simply brilliant!/.test(cheer), 'a character cheers when the puzzle is solved');
 
     // Silent mode hides the storyteller line with the other media.

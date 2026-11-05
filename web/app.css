@@ -1,4 +1,4 @@
-/* The Fantastical Logic Grid: app styles.
+/* The Logic Grid: app styles.
    Tokens follow the UI Design & Accessibility Guidelines (contrast checked there). */
 @font-face { font-family: "Atkinson Hyperlegible"; font-weight: 400; font-style: normal; font-display: swap; src: url(fonts/atkinson-400.woff2) format("woff2"); }
 @font-face { font-family: "Atkinson Hyperlegible"; font-weight: 700; font-style: normal; font-display: swap; src: url(fonts/atkinson-700.woff2) format("woff2"); }
@@ -101,8 +101,9 @@ button, input, select { font: inherit; color: inherit; }
 .menu a:hover, .menu a:focus-visible { background: var(--accent-soft); }
 .menu button, .cellmenu button { background: none; border: 0; text-align: left; padding: 10px 12px; min-height: 44px; border-radius: 6px; cursor: pointer; }
 .menu button:hover, .menu button:focus-visible, .cellmenu button:hover, .cellmenu button:focus-visible { background: var(--accent-soft); }
-/* The small Number Place link at the foot of the menu. */
+/* The small NINETIMESNINE link at the foot of the menu. */
 .menu .menu-small { font-size: .85em; font-weight: 400; border-top: 1px solid var(--border); border-radius: 0 0 6px 6px; margin-top: 4px; }
+.menu .menu-group { padding: 10px 12px 4px; margin-top: 4px; border-top: 1px solid var(--border); font-size: .78em; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
 .menu .menu-tag { font-size: .8em; font-weight: 700; margin-left: 6px; padding: 1px 6px; border-radius: 999px; background: var(--accent-soft); }
 .np-back { margin: 0 0 8px; }
 
@@ -260,6 +261,11 @@ table.lg th.colh { vertical-align: bottom; padding: 4px 0 6px; width: var(--cell
 table.lg th.colh div { writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap; margin: 0 auto; max-height: 160px; overflow: hidden; text-overflow: ellipsis; }
 table.lg th.colh.lastcol, table.lg th.cath { border-right: var(--cat-line) solid var(--rule); }
 table.lg th.rcat { font-weight: 700; writing-mode: vertical-rl; transform: rotate(180deg); text-align: center; padding: 4px; min-width: 30px; border-left: var(--cat-line) solid var(--rule); border-bottom: var(--cat-line) solid var(--rule); }
+/* A long list name stays on one line, as long as its rows, and is cut short
+   with "…" (the full name is in the tooltip): wrapped, it hid under the row
+   names, and a longer name stretched its rows taller than the rest. */
+table.lg th.rcat > .rcat-t { display: block; margin: 0 auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-height: calc(var(--cell) * var(--n, 1) - 8px); }
+table.lg.fit th.rcat > .rcat-t { max-height: calc(var(--cell) * var(--n, 1) - 4px); }
 table.lg th.rowh { text-align: right; padding: 0 8px; white-space: nowrap; height: var(--cell); border-right: var(--cat-line) solid var(--rule); max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
 table.lg th.rowh.lastrow { border-bottom: var(--cat-line) solid var(--rule); }
 table.lg th.hl { background: var(--cross); font-weight: 700; }
@@ -273,6 +279,22 @@ td.c:focus { outline: none; box-shadow: inset 0 0 0 3px var(--focus); z-index: 1
 td.c svg { width: 26px; height: 26px; display: block; margin: auto; pointer-events: none; }
 td.c.wrong { box-shadow: inset 0 0 0 3px var(--error); }
 td.c.wrong:focus { box-shadow: inset 0 0 0 3px var(--error), inset 0 0 0 6px var(--focus); }
+/* A grid made to fit a narrow screen (grid.js fit): names wrap in a narrower
+   column and the marks scale with the squares. */
+table.lg.fit { font-size: 12px; table-layout: auto; }
+table.lg.fit th.rowh { width: var(--rowh-w); min-width: var(--rowh-w); max-width: var(--rowh-w); padding: 0 4px; }
+/* Small squares stay square: names shrink with the squares, so their line
+   never makes a row taller than its squares are wide (WS-85GS9WF5). */
+table.lg.fit th.rowh, table.lg.fit th.colh { font-size: clamp(8px, calc(var(--cell) * .72), 12px); line-height: 1; }
+table.lg.fit td.c { line-height: 1; }
+table.lg.fit th.rcat { min-width: 20px; padding: 2px; }
+table.lg.fit th.colh { overflow: hidden; }
+/* A category name never widens its columns: it is cut short with "…". */
+table.lg.fit th.cath > span { display: block; width: 0; min-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+table.lg.fit th.colh div { max-height: 110px; }
+table.lg.fit td.c svg { width: calc(var(--cell) * .6); height: calc(var(--cell) * .6); }
+table.lg.fit td.c .warn-ico { font-size: 9px; }
+@media (max-width: 480px) { .grid-card { padding: 12px 8px; } }
 /* The legend's sample "?" */
 .sym-q { color: var(--error); font-weight: 700; }
 /* The player's own "?" reminder: red, in the top right corner. */
@@ -362,6 +384,13 @@ dialog.wide { max-width: min(1000px, calc(100vw - 32px)); }
 dialog::backdrop { background: rgb(0 0 0 / .5); }
 dialog h2 { margin-bottom: 12px; }
 dialog fieldset { margin-bottom: 16px; }
+/* Settings > Sound: where effects and voices play, grouped under All sound. */
+.sound-places { margin: 4px 0 8px 32px; display: grid; gap: 4px; }
+.sound-places fieldset.sub { margin: 0; }
+.sound-places legend { font-weight: 600; font-size: .95rem; padding: 0; margin: 6px 0 0; }
+.sound-places .check small.help { margin: 0 0 0 4px; }
+.sound-places fieldset:disabled { opacity: .55; }
+.sound-places fieldset:disabled .check { cursor: default; }
 .dlg-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 .install-opt { border-top: 1px solid var(--hairline); padding-top: 12px; margin-top: 12px; }
 .install-opt h3 { margin-bottom: 6px; }
@@ -408,7 +437,6 @@ input[type=range] { width: 100%; min-height: 44px; accent-color: var(--accent); 
 .cast-btn small.trait { font-style: italic; }
 .bubble .about { color: var(--muted); font-style: italic; }
 .char-line { margin: 0 0 8px; font-style: italic; }
-.resolution .char-line.cheer { position: absolute; left: 50%; bottom: 6%; transform: translateX(-50%); max-width: 90%; text-align: center; background: rgb(0 0 0 / .65); color: #fff; padding: 6px 14px; border-radius: 12px; }
 .clue-list .from { display: block; font-size: .85rem; color: var(--muted); }
 .clue-list li.spot label { background: var(--accent-soft); }
 .resolution { position: relative; border-radius: 12px; overflow: hidden; margin: -8px 0 16px; width: 100%; height: clamp(180px, 26vw, 300px); }
@@ -429,9 +457,19 @@ input[type=range] { width: 100%; min-height: 44px; accent-color: var(--accent); 
 
 .ai-scene { position: relative; width: 100%; height: 100%; }
 .ai-scene img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.veil { position: absolute; inset: 0; display: grid; grid-template-columns: repeat(5, 1fr); }
-.veil i { background: rgb(10 14 30 / .55); backdrop-filter: blur(14px) grayscale(.6); -webkit-backdrop-filter: blur(14px) grayscale(.6); transition: opacity 900ms var(--ease); }
-.veil i.gone { opacity: 0; }
+/* The whole scene shows from the start; each finished fifth of the grid lights up its strip. */
+.glints { position: absolute; inset: 0; display: grid; grid-template-columns: repeat(5, 1fr); pointer-events: none; }
+.glints i { position: relative; }
+.glints i.done { box-shadow: inset 0 -4px 0 rgb(255 212 0 / .9); }
+@media (prefers-reduced-motion: no-preference) {
+  :root:not(.silent) .glints i.flash::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgb(255 255 255 / 0), rgb(255 236 150 / .55) 50%, rgb(255 255 255 / 0)); animation: glint 1.4s var(--ease) both; }
+  @keyframes glint { 0% { opacity: 0; transform: translateY(40%); } 35% { opacity: 1; } 100% { opacity: 0; transform: translateY(-40%); } }
+}
+/* Under "Case closed!": the character who did it, and their cheer. Nothing covers the picture. */
+#solved-cheer { display: flex; align-items: center; gap: 12px; margin: -4px 0 10px; font-size: 1.05rem; }
+#solved-cheer[hidden] { display: none; }
+#solved-cheer .cheer-face { flex: none; width: 52px; height: 52px; border-radius: 50%; overflow: hidden; box-shadow: 0 0 0 3px var(--accent, #5B3CC4); }
+#solved-cheer .cheer-face svg, #solved-cheer .cheer-face img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .scene .painting { position: absolute; right: 8px; bottom: 8px; background: rgb(0 0 0 / .6); color: #fff; font-size: .85rem; padding: 2px 10px; border-radius: 999px; }
 .scene { position: relative; }
 .portrait-img { width: 72px; height: 72px; border-radius: 50%; object-fit: cover; display: block; }
@@ -443,7 +481,6 @@ input[type=range] { width: 100%; min-height: 44px; accent-color: var(--accent); 
 .told-face { display: inline-flex; width: 40px; height: 40px; border-radius: 50%; overflow: hidden; flex: none; }
 .told-face svg, .told-face img { width: 40px; height: 40px; object-fit: cover; display: block; }
 .char-line { margin: 0 0 8px; font-style: italic; }
-.resolution .char-line.cheer { position: absolute; left: 50%; bottom: 6%; transform: translateX(-50%); max-width: 90%; text-align: center; background: rgb(0 0 0 / .65); color: #fff; padding: 6px 14px; border-radius: 12px; font-style: italic; }
 #dlg-suggest select, #dlg-suggest textarea { box-sizing: border-box; min-height: 44px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); color: var(--text); width: 100%; font: inherit; }
 #dlg-suggest .field { margin-bottom: 12px; }
 #dlg-suggest fieldset { border: 0; padding: 0; margin: 0 0 12px; }
@@ -529,6 +566,45 @@ h3, legend, .card h3 { font-family: var(--font); }
 #continue-btn > span { display: grid; text-align: left; line-height: 1.2; }
 #continue-btn small { font-size: .85rem; max-width: 30ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 640px) { .banner { grid-template-columns: minmax(0, 1fr); gap: 12px; } .hero-art svg { width: 56px; } .hero-actions .btn { flex: 1 1 100%; } }
+
+/* The Logic Grid: the game cards (games.js). Until app.js picks the first
+   screen, data-start shows the cards in place of The Fantastical Logic Grid's home. */
+[data-start=games] #screen-home { display: none !important; }
+[data-start=games] #screen-games { display: block !important; }
+[data-start=games] #back-btn, [data-start=games] .topstrip { display: none !important; }
+.games-banner { grid-template-columns: minmax(0, 1fr); }
+.game-cards { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 16px; }
+.game-card { width: 100%; height: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 16px; align-items: start; text-align: left; font: inherit; color: inherit;
+  padding: 20px; border-radius: var(--radius, 12px); border: 1px solid var(--edge-hi, var(--border)); background: var(--surface, var(--bg));
+  box-shadow: inset 0 1px 0 var(--edge, transparent), var(--shadow, none); transition: transform var(--fast) var(--ease), border-color var(--fast), box-shadow var(--mid, 200ms) var(--ease); }
+button.game-card { cursor: pointer; }
+button.game-card:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--accent) 60%, var(--edge-hi, var(--border))); box-shadow: inset 0 1px 0 var(--edge, transparent), 0 14px 32px -14px color-mix(in srgb, var(--accent) 80%, transparent); }
+button.game-card:active { transform: translateY(1px) scale(.99); }
+.game-card.soon { opacity: .7; border-style: dashed; box-shadow: none; }
+.game-art svg { width: 64px; height: 64px; display: block; color: var(--accent); }
+.game-card.soon .game-art svg { color: var(--muted); }
+.game-text { display: grid; gap: 4px; }
+.game-kind { text-transform: uppercase; letter-spacing: .14em; font-size: .75rem; font-weight: 700; color: var(--muted); }
+.game-name { font-size: 1.3rem; font-weight: 700; line-height: 1.2; }
+.game-name .menu-tag { font-size: .7rem; vertical-align: middle; padding: 1px 8px; border-radius: 999px; background: var(--accent-soft); }
+.game-blurb { color: var(--muted); }
+.game-play { justify-self: start; margin-top: 8px; font-weight: 700; color: var(--accent); }
+.game-cards > li { display: grid; gap: 8px; align-content: start; }
+.game-modes { list-style: none; margin: 0; padding: 0 4px; display: flex; flex-wrap: wrap; gap: 6px; }
+.game-watch { justify-self: start; margin: 0 4px; }
+.game-watch::before { content: "\25B6"; font-size: .8em; margin-right: .45em; }
+.hero-cta { margin: 14px 0 0; }
+.hero-cta .ico { width: 1.2em; height: 1.2em; margin-right: .4em; vertical-align: -.2em; }
+#game-video { display: block; width: min(100%, calc((100vh - 260px) * 16 / 9)); min-width: min(100%, 280px); margin: 0 auto; aspect-ratio: 16 / 9; background: #000; border-radius: 8px; }
+/* Wide screens: the games to play side by side, the ones to come smaller below. */
+@media (min-width: 900px) {
+  .game-cards { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .game-cards > li { grid-column: span 3; }
+  .game-cards > li:has(.soon) { grid-column: span 2; }
+  .game-card:not(.soon) { padding: 28px; }
+  .game-card:not(.soon) .game-art svg { width: 96px; height: 96px; }
+  .game-card:not(.soon) .game-name { font-size: 1.6rem; }
+}
 
 /* Setup: difficulty cards, theme tiles, size chips */
 .choice > span { border-radius: 14px; border: 1px solid var(--edge-hi); background: var(--surface-2); box-shadow: inset 0 1px 0 var(--edge);
@@ -637,7 +713,7 @@ dialog::backdrop { background: rgb(5 7 16 / .6); backdrop-filter: blur(6px); -we
   .screen.enter .card, .screen.enter .banner, .screen.enter .play-head { animation: rise-in 520ms var(--ease) both; }
   .screen.enter .card:nth-of-type(2) { animation-delay: 80ms; } .screen.enter .side .card:nth-child(2) { animation-delay: 140ms; }
   @keyframes rise-in { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
-  .banner::before { animation: aurora 18s ease-in-out infinite; }
+  .banner::before { animation: aurora 18s ease-in-out 2; } /* drifts for a while, then rests to save power */
   @keyframes aurora { 50% { transform: translate(6%, -4%) scale(1.08); } }
   dialog[open] { animation: dlg-in 260ms var(--spring); }
   @keyframes dlg-in { from { opacity: 0; transform: translateY(10px) scale(.96); } to { opacity: 1; transform: none; } }
@@ -700,13 +776,6 @@ dialog::backdrop { background: rgb(5 7 16 / .6); backdrop-filter: blur(6px); -we
   table.ptab { border-collapse: collapse; margin: 6pt 0 10pt; font-size: 10.5pt; }
   table.ptab th, table.ptab td { border: .5pt solid #000; padding: 3pt 6pt; text-align: left; }
   .psteps { font-size: 10pt; }
-  .pic-print-box { break-inside: avoid; margin: 8pt 0; }
-  table.pic-print { border-collapse: collapse; font-size: 9pt; margin: 4pt 0; }
-  table.pic-print td { width: 14pt; height: 14pt; border: .5pt solid #000; padding: 0; }
-  table.pic-print td.f { background: #000; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  table.pic-print thead th { vertical-align: bottom; line-height: 1.1; font-weight: 400; padding: 0 0 2pt; }
-  table.pic-print tbody th { text-align: right; white-space: nowrap; font-weight: 400; padding: 0 4pt 0 0; }
-  .pic-print-flip { transform: rotate(180deg); font-size: 9pt; margin-top: 6pt; }
 }
 
 /* ===== Learning: puzzle feedback and the story workshop ===== */
@@ -763,6 +832,13 @@ dialog::backdrop { background: rgb(5 7 16 / .6); backdrop-filter: blur(6px); -we
 .race-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0 0 16px; padding: 10px 16px;
   border: 1px solid var(--border); border-left: 4px solid var(--accent); border-radius: 12px; background: var(--surface, var(--bg)); }
 .race-bar p { margin: 0; flex: 1 1 260px; }
+.cpu-meter { display: flex; align-items: center; gap: 8px; flex: 1 1 220px; font-weight: 700; }
+.cpu-meter progress { flex: 1; height: 12px; accent-color: var(--accent); }
+.cpu-meter.done { color: var(--accent); }
+.cpu-skills { border: 0; margin: 0; padding: 0; display: grid; gap: 6px; }
+.cpu-skills legend { font-weight: 700; margin-bottom: 6px; padding: 0; }
+.cpu-skills label { display: flex; gap: 8px; align-items: baseline; cursor: pointer; }
+.cpu-skills small { color: var(--muted); }
 .race-view { display: grid; gap: 12px; }
 .race-view .help, .race-view p { margin: 0; }
 .code-input { font-size: 1.4rem; letter-spacing: .25em; text-transform: uppercase; font-family: ui-monospace, Menlo, Consolas, monospace; max-width: 12ch; }
@@ -1004,38 +1080,6 @@ dialog.rules table.board td { font-variant-numeric: tabular-nums; }
   .screen { padding-top: 12px; }
 }
 
-/* Story beats (experimental, web/js/director.js) */
-.story-beat { margin: 8px auto 0; max-width: 70ch; padding: 10px 14px; border-left: 4px solid var(--accent); border-radius: 8px; background: var(--bg); font-style: italic; }
-.story-beat.new { animation: beat-in 600ms ease-out; }
-@keyframes beat-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: reduce) { .story-beat.new { animation: none; } }
-/* Picture clues (experimental, web/js/picture-clue.js) */
-.clue-list li.pic-locked > label { display: none; }
-.pic-clue { grid-column: 1 / -1; min-width: 0; padding: 4px 0 8px; }
-.pic-open { text-align: left; }
-.pic-body { margin-top: 8px; max-width: 100%; }
-.pic-scroll { max-width: 100%; overflow-x: auto; padding-bottom: 4px; }
-.pic-scroll-hint { margin: 0 0 6px; font-size: 0.9rem; color: var(--muted); }
-/* Squares are easy to tap (44 px, like the main grid); on a narrow phone the
-   picture scrolls sideways inside its box instead of the page. */
-.pic-grid { --pic-cell: 44px; }
-.pic-help { margin: 0 0 8px; max-width: 60ch; }
-.pic-grid tbody th { min-width: 0; }
-.pic-grid { border-collapse: collapse; }
-.pic-grid th { font-size: 0.8rem; color: var(--muted); font-weight: 600; font-variant-numeric: tabular-nums; }
-.pic-grid thead th { vertical-align: bottom; padding: 0 0 4px; line-height: 1.1; }
-.pic-grid tbody th { text-align: right; padding: 0 6px 0 0; white-space: nowrap; }
-.pic-grid td { padding: 0; }
-.pic-cell { display: block; width: var(--pic-cell, 30px); height: var(--pic-cell, 30px); margin: 0; padding: 0; border: 1px solid var(--muted); background: var(--bg); cursor: pointer; }
-.pic-cell.f { background: var(--text); }
-.pic-cell.x { background: var(--cross); }
-.pic-cell.x::after { content: '×'; color: var(--muted); }
-.pic-cell:focus-visible { outline: 3px solid var(--accent); outline-offset: -3px; }
-.pic-grid.done .pic-cell { cursor: default; border-color: transparent; }
-.pic-grid.done .pic-cell.x { background: var(--bg); }
-.pic-grid.done .pic-cell.x::after { content: none; }
-.pic-grid.done .pic-cell.f { background: var(--accent); }
-.pic-status { min-height: 1.4em; margin: 6px 0; font-weight: 600; }
 /* Social pages under the home screen (social.js) */
 .home-foot { margin: 32px auto 8px; text-align: center; }
 .home-foot p { margin: 0 0 8px; }
@@ -1056,35 +1100,108 @@ dialog.rules table.board td { font-variant-numeric: tabular-nums; }
 /* Grid / List switch in the sticky app bar (shown only while a puzzle is open),
    so it can be reached without scrolling back up to the grid. Icon plus word on
    wider screens; icons only on phones, where the word stays for screen readers. */
-.view-seg { flex: none; margin-left: auto; }
+.view-seg { flex: none; align-self: center; }
 .view-seg[hidden] { display: none; }
 .view-seg > label > span { gap: 6px; min-width: 44px; justify-content: center; padding: 0 12px; }
 .view-seg .ico { width: 20px; height: 20px; flex: none; }
-/* While a puzzle is open the scoreboard strip shares its row with the switch:
-   it gives up room first and cuts long screen names short with an ellipsis. */
-body:has(#view-seg:not([hidden])) .topstrip { min-width: 0; }
-body:has(#view-seg:not([hidden])) .miniboard { flex: 1 1 0; flex-wrap: nowrap; }
-@media (max-width: 599px) {
-  /* Phones: How to play and Introduction keep the first row to themselves. */
-  body:has(#view-seg:not([hidden])) .miniboard { flex-basis: 55%; }
-}
-body:has(#view-seg:not([hidden])) .miniboard ol { flex: 0 1 auto; flex-wrap: nowrap; min-width: 0; overflow: hidden; }
-body:has(#view-seg:not([hidden])) .miniboard li { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-body:has(#view-seg:not([hidden])) #miniboard-open { flex: none; }
 @media (max-width: 599px) {
   .view-seg > label > span { padding: 0 10px; }
   .view-seg .seg-text { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 }
 
-/* Talking faces (talker.js): whoever is speaking, in the corner. Never takes
-   taps, so it can't get in the way of the grid. */
-.talker { position: fixed; right: 16px; bottom: 16px; z-index: 40; width: 184px; margin: 0; pointer-events: none; text-align: center; }
-.talker[hidden] { display: none; }
-.talker-frame { position: relative; width: 100%; aspect-ratio: 4 / 5; border-radius: 20px; overflow: hidden; background: var(--surface-2); border: 3px solid var(--edge-hi); box-shadow: var(--shadow); transition: border-color var(--mid) var(--ease), box-shadow var(--mid) var(--ease); }
-.talker.speaking .talker-frame { border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft), var(--shadow); }
-.talker canvas, .talker-still, .talker-still > * { position: absolute; inset: 0; width: 100%; height: 100%; display: block; object-fit: cover; }
-.talker canvas[hidden], .talker-still[hidden] { display: none; }
-.talker-name { display: inline-block; margin: 6px 0 0; padding: 2px 10px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--edge-hi); font-weight: 700; font-size: .9rem; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-@media (max-width: 600px) { .talker { width: 120px; right: 10px; bottom: 10px; } .talker-name { font-size: .8rem; } }
-@media print { .talker { display: none !important; } }
-html.silent .talker { display: none !important; }
+/* ---------- Device fit: PC, tablet and phone (2026-10-31) ---------- */
+/* Small squares on a phone: a tip under the grid (grid.js sets data-small). */
+.grid-tip { display: none; margin: 8px 0 0; }
+.grid-card:has(#gridframe[data-small="true"]:not([hidden])) .grid-tip { display: block; }
+@media (min-width: 1024px) and (max-width: 1199px) {
+  /* Tablets on their side and small laptops: the grid gets the full width
+     (bigger squares) and the clues follow under it, as on a tablet held upright. */
+  .play { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 599px) {
+  /* Phones: the sticky bar keeps to two short rows so the puzzle gets the screen.
+     Back and the logo shrink to icons (the words stay for screen readers). */
+  .appbar { gap: 6px; padding-left: max(8px, env(safe-area-inset-left)); padding-right: max(8px, env(safe-area-inset-right)); }
+  .back-btn { min-width: 44px; justify-content: center; padding: 0 10px; }
+  .back-btn .back-text { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+  body:has(#back-btn:not([hidden])) .appbar > .brand { flex: none; }
+  body:has(#back-btn:not([hidden])) .brand > span { display: none; }
+  .appbar-actions { gap: 4px; margin-left: auto; }
+  .appbar-actions .btn { padding-left: 10px; padding-right: 10px; }
+  .topstrip { gap: 4px; }
+  .topstrip > .btn { padding-left: 8px; padding-right: 8px; font-size: .88rem; }
+}
+@media (max-width: 479px) {
+  .brand > span { display: none; }
+}
+@media (max-width: 389px) {
+  .appbar { gap: 4px; }
+  .appbar-actions .btn { padding-left: 6px; padding-right: 6px; }
+}
+
+/* ---------- Pinned grid on PCs, the desktop app and tablets on their side (2026-11-01) ----------
+   Bobby: "pin puzzle grid to page and have clues column scroll independently".
+   With the clues beside the grid, both columns stop under the sticky app bar:
+   the grid stays in view while the page scrolls, and the clues (and questions)
+   scroll inside their own column. Phones, tablets held upright and short
+   screens are unchanged. From 1024 to 1199 px the clues stay under the grid
+   (Device fit, above), because a clues column there would shrink the squares. */
+@media screen and (min-width: 1200px) and (min-height: 561px) {
+  .play { --pin-top: calc(var(--appbar-h, 72px) + 8px); --pin-h: calc(100vh - var(--appbar-h, 72px) - 16px); }
+  @supports (height: 100dvh) { .play { --pin-h: calc(100dvh - var(--appbar-h, 72px) - 16px); } }
+  .play > .grid-card, .play > .side { position: sticky; top: var(--pin-top); max-height: var(--pin-h); }
+  .play > .grid-card { display: flex; flex-direction: column; }
+  .play > .grid-card > * { flex: none; }
+  .play > .grid-card > .gridframe, .play > .grid-card > .listview { flex: 0 1 auto; min-height: 0; max-height: none; overflow: auto; }
+  /* At the end of the clues the wheel carries on to the page, so the story above
+     is still reached without moving the pointer. */
+  .play > .side { overflow-y: auto; align-content: start; scrollbar-gutter: stable; }
+}
+
+/* Story beats (web/js/director.js) */
+.story-beat { margin: 8px auto 0; max-width: 70ch; padding: 10px 14px; border-left: 4px solid var(--accent); border-radius: 8px; background: var(--bg); font-style: italic; }
+.story-beat.new { animation: beat-in 600ms ease-out; }
+@keyframes beat-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .story-beat.new { animation: none; } }
+.story-beat-text { margin: 0; }
+.story-beat.has-pic { display: grid; grid-template-columns: minmax(72px, 140px) 1fr; gap: 12px; align-items: center; }
+.story-beat-pic { width: 100%; height: auto; max-height: 140px; object-fit: contain; border-radius: 6px; }
+@media (max-width: 420px) { .story-beat.has-pic { grid-template-columns: 1fr; } .story-beat-pic { max-height: 180px; } }
+
+/* Shown in a window over The Logic Grid's front page (?embed=1, js/app.js):
+   only the game's open window shows, over the front page. */
+html[data-embed], html[data-embed] body { background: transparent !important; }
+html[data-embed] body > * { visibility: hidden !important; }
+html[data-embed] dialog[open], html[data-embed] dialog[open] * { visibility: visible !important; }
+html[data-embed] dialog::backdrop { background: transparent; }
+
+/* The website's game page: shared things are cards on the home page (scripts/hub.mjs). */
+#app-menu [data-site-hidden] { display: none !important; }
+
+/* ---------- Compact bar while a puzzle is open (2026-11-03) ----------
+   Bobby: "compact top to basic menu during puzzle play, only show what is needed".
+   One slim row: Back, the logo, Grid / List, Help and Menu. How to play and the
+   scoreboard stay on the puzzle's main page (app.js hides the strip elsewhere);
+   For educators and the screen name wait there too (screen name: in the Menu). */
+[data-screen=play] .appbar { flex-wrap: nowrap; padding-top: 4px; padding-bottom: 4px; }
+[data-screen=play] .appbar > .brand { flex: 0 1 auto; }
+[data-screen=play] .brand > span { display: none; }
+[data-screen=play] #educators-link, [data-screen=play] #player-chip { display: none !important; }
+[data-screen=play] .appbar-actions { margin-left: auto; align-items: center; }
+/* The main page's strip: How to play and the scoreboard share one line; long
+   screen names are cut short with an ellipsis. */
+.topstrip { flex-wrap: nowrap; min-width: 0; }
+.topstrip > .btn { flex: none; }
+.miniboard { flex: 1 1 0; flex-wrap: nowrap; justify-content: flex-end; }
+.miniboard ol { flex: 0 1 auto; flex-wrap: nowrap; min-width: 0; overflow: hidden; }
+.miniboard li { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+#miniboard-open { flex: none; }
+.appbar-actions .educators-link { white-space: nowrap; }
+/* Phones: the screen name gives up room first so Help and Menu always fit. */
+.appbar-actions { min-width: 0; }
+.appbar-actions > * { flex: none; }
+.appbar-actions > .player-chip { flex: 0 1 auto; min-width: 44px; }
+@media (max-width: 479px) { .appbar-actions > .player-chip { max-width: 7.5em; } }
+.appbar-actions > .player-chip { justify-content: flex-start; }
+#player-chip-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.player-chip::before { flex: none; }

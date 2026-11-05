@@ -81,9 +81,9 @@ def main():
     body = ''.join(f'<h2 style="font-size:16px;margin:20px 0 6px">{html.escape(h)}</h2><ul style="margin:0;padding-left:20px">'
                    + ''.join(f'<li style="margin:3px 0">{html.escape(x)}</li>' for x in ls) + '</ul>' for h, ls in sections)
     link = f'<p style="margin-top:24px"><a href="{html.escape(REPORT_URL)}">The full report</a></p>' if REPORT_URL else ''
-    page = f'<div style="font-family:Arial,sans-serif;font-size:14px;color:#121626;max-width:640px"><h1 style="font-size:20px;color:#5B3CC4">The Fantastical Logic Grid: what we changed and why</h1>{body}{link}</div>'
+    page = f'<div style="font-family:Arial,sans-serif;font-size:14px;color:#121626;max-width:640px"><h1 style="font-size:20px;color:#5B3CC4">The Logic Grid: what we changed and why</h1>{body}{link}</div>'
     msg = EmailMessage()
-    msg['From'] = f'The Fantastical Logic Grid <{GMAIL_USER}>'
+    msg['From'] = f'The Logic Grid <{GMAIL_USER}>'
     msg['To'] = TO
     msg['Subject'] = subject
     msg.set_content(text)

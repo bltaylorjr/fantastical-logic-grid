@@ -64,11 +64,6 @@ export async function refresh(force = false) {
   } catch (e) { /* offline: keep what we have */ }
 }
 
-export async function sharePart(theme, kind, value, source) {
-  if (!available()) throw new Error('Sharing is not set up yet.');
-  return post('/v1/learn/parts', { theme, kind, value, source });
-}
-
 export function soon() {
   clearTimeout(timer);
   timer = setTimeout(flush, 4000);

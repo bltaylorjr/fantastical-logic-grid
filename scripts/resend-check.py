@@ -70,8 +70,8 @@ def main():
     if not TO:
         print('GMAIL_USER is not set, so there is no inbox to send the test to.')
         sys.exit(1)
-    payload = {'from': formataddr(('The Fantastical Logic Grid', MAIL_FROM)), 'to': [TO],
-               'subject': 'Resend test from The Fantastical Logic Grid',
+    payload = {'from': formataddr(('The Logic Grid', MAIL_FROM)), 'to': [TO],
+               'subject': 'Resend test from The Logic Grid',
                'text': f'This is a test from the Resend check. If you can read it, emails from {MAIL_FROM} work.\n'}
     req = urllib.request.Request('https://api.resend.com/emails', method='POST', data=json.dumps(payload).encode(),
                                  headers={'Authorization': f'Bearer {KEY}', 'Content-Type': 'application/json',

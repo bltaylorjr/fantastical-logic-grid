@@ -29,6 +29,8 @@ app's Post now and Launch campaign buttons start a run like that.
 Mode message posts one message (MESSAGE, with an optional picture link
 IMAGE_URL or video link VIDEO_URL) to the game's Facebook Page straight away, for a one-off post the
 owner approved that is not in the Marketing list.
+Mode daily-puzzle posts the day's puzzle picture and caption, made and checked by
+scripts/social-puzzle.mjs, to the Facebook Page, Instagram, Bluesky, Mastodon, X, Threads, LinkedIn and Pinterest (see daily_puzzle).
 Python standard library only.
 """
 import base64
@@ -66,7 +68,7 @@ ADMIN_URL = f'{API}/admin/#marketing'
 UA = 'flg-marketing-post'
 GRAPH = 'https://graph.facebook.com/v21.0'
 THREADS = 'https://graph.threads.net/v1.0'
-REDDIT_UA = 'linux:flg-marketing-post:1.0 (The Fantastical Logic Grid)'
+REDDIT_UA = 'linux:flg-marketing-post:1.0 (The Logic Grid)'
 RETRY_DAYS = 3  # a failed automatic post is tried again on the next 3 mornings
 
 KEYS = {
@@ -226,22 +228,31 @@ def multipart(fields, file_field, filename, data, ctype):
     return out, f'multipart/form-data; boundary={boundary}'
 
 
-def post_mastodon(ad):
+def mastodon_base():
     base = env('MASTODON_URL').rstrip('/')
     if not base.startswith('https://'):
         base = 'https://' + base
-    auth = {'Authorization': f"Bearer {env('MASTODON_TOKEN')}"}
+    return base, {'Authorization': f"Bearer {env('MASTODON_TOKEN')}"}
+
+
+def mastodon_media(base, auth, data, filename, ctype, alt):
+    """Uploads one picture with its alt text and waits until Mastodon has it ready."""
+    body, btype = multipart({'description': alt}, 'file', filename, data, ctype)
+    m = request(f'{base}/api/v2/media', method='POST', data=body, timeout=120, headers={**auth, 'Content-Type': btype})
+    for _ in range(30):
+        if m.get('url'):
+            break
+        time.sleep(2)
+        m = request(f"{base}/api/v1/media/{m['id']}", headers=auth)
+    return m['id']
+
+
+def post_mastodon(ad):
+    base, auth = mastodon_base()
     media_ids = []
     for url in files(ad, 'image')[:4]:
         data, ctype = download(url)
-        body, btype = multipart({'description': ALT}, 'file', url.rsplit('/', 1)[-1], data, ctype)
-        m = request(f'{base}/api/v2/media', method='POST', data=body, headers={**auth, 'Content-Type': btype})
-        for _ in range(30):
-            if m.get('url'):
-                break
-            time.sleep(2)
-            m = request(f"{base}/api/v1/media/{m['id']}", headers=auth)
-        media_ids.append(m['id'])
+        media_ids.append(mastodon_media(base, auth, data, url.rsplit('/', 1)[-1], ctype, ALT))
     # The idempotency key stops a retry from posting the same ad twice.
     r = request(f'{base}/api/v1/statuses', method='POST', headers={**auth, 'Idempotency-Key': f"flg-ad-{ad['id']}"},
                 data={'status': ad['words'], 'media_ids': media_ids, 'visibility': 'public', 'language': 'en'})
@@ -630,7 +641,7 @@ def email(subject, parts):
     style = 'body{font-family:Segoe UI,Arial,sans-serif;font-size:15px;line-height:1.5;color:#1d1b29;max-width:760px}h3{margin-top:26px;border-top:1px solid #ddd;padding-top:12px}'
     body = f'<!doctype html><html><head><meta charset="utf-8"><style>{style}</style></head><body>{"".join(parts)}</body></html>'
     msg = EmailMessage()
-    msg['From'] = f'The Fantastical Logic Grid <{GMAIL_USER}>'
+    msg['From'] = f'The Logic Grid <{GMAIL_USER}>'
     msg['To'] = MAIL_TO
     msg['Subject'] = subject
     msg.set_content(re.sub(r'<[^>]+>', '', re.sub(r'</(p|h3|li|pre)>', '\n', body)))
@@ -669,7 +680,380 @@ def post_message():
     return 0
 
 
+def delete_posts():
+    """Take down the game's own Facebook Page and Instagram posts named in REMOVE
+    (their public links), for example the old copy after an ad is posted again
+    with a new video. Links to anything else are refused."""
+    links = [x.strip() for x in os.environ.get('REMOVE', '').split(',') if x.strip()]
+    if not links or not has_keys('facebook'):
+        print('::error::Nothing to take down: REMOVE is empty or the Facebook keys are not saved.')
+        return 1
+    page, token = page_key()
+    bad = 0
+    for link in links:
+        try:
+            fb = re.match(r'https://www\.facebook\.com/(\d+)/videos/(\d+)/?$', link) or re.match(r'https://www\.facebook\.com/(\d+)_(\d+)/?$', link)
+            ig = re.match(r'https://www\.instagram\.com/(?:reel|p)/([\w-]+)/?$', link)
+            if fb:
+                if fb.group(1) != page:
+                    raise Failed('that post is not on the game\'s Facebook Page')
+                target = fb.group(2) if '/videos/' in link else f'{fb.group(1)}_{fb.group(2)}'
+            elif ig and has_keys('instagram'):
+                mine, after = None, ''
+                for _ in range(10):  # the account's newest 500 posts
+                    r = meta(f'{GRAPH}/{instagram_id()}/media?fields=id,permalink&limit=50{after}', token=token)
+                    mine = next((m['id'] for m in r.get('data', []) if ig.group(1) in m.get('permalink', '')), None)
+                    nxt = r.get('paging', {}).get('cursors', {}).get('after')
+                    if mine or not nxt or not r.get('paging', {}).get('next'):
+                        break
+                    after = f'&after={nxt}'
+                if not mine:
+                    raise Failed('that post is not on the game\'s Instagram account')
+                target = mine
+            else:
+                raise Failed('only links to the game\'s Facebook Page videos or posts, or its Instagram posts, can be taken down')
+            meta(f'{GRAPH}/{target}', 'DELETE', None, token)
+            print(f'::notice::Took down {link}')
+        except Exception as e:  # noqa: BLE001 - report every link
+            bad += 1
+            print(f'::warning::Could not take down {link}: {scrub(e)}')
+    return 1 if bad else 0
+
+
+def posted_mark(day, site, link=None):
+    """Remembers which sites got the day's puzzle, for the sites that cannot be
+    asked (X's free plan and LinkedIn's posting key cannot read posts back).
+    The folder is kept between runs of the same day by the workflow's cache,
+    so Run workflow again does not post twice. Returns the earlier link, or
+    saves this one when a link is given."""
+    path = os.path.join(env('POSTED_DIR') or 'out/posted', day, site)
+    if link is None:
+        try:
+            with open(path, encoding='utf-8') as f:
+                return f.read().strip() or 'posted earlier'
+        except OSError:
+            return None
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, 'w', encoding='utf-8') as f:
+        f.write(link)
+    return link
+
+
+def daily_more_sites(r, day, paths, image_urls, posted, failed, key=''):
+    """The daily puzzle on X, Threads, LinkedIn and Pinterest. Each is skipped
+    quietly until its keys are saved, so the post starts there by itself the
+    morning after the keys are added. A site that already has the day's puzzle
+    is not posted to again."""
+    marker = r['answerUrl']
+
+    def one(site, name, fn):
+        if not has_keys(site):
+            print(f"::notice::{name}: not set up yet ({', '.join(KEYS[site])}), so not posted there.")
+            return
+        earlier = posted_mark(day + key, site)
+        if earlier:
+            print(f'::notice::Already on {name}: {earlier}')
+            posted.append((name, f'{earlier} (posted earlier)'))
+            return
+        try:
+            link = fn()
+            if not link:
+                return
+            if link.startswith('earlier:'):
+                link = link[len('earlier:'):]
+                print(f'::notice::Already on {name}: {link}')
+                posted.append((name, f'{link} (posted earlier)'))
+            else:
+                print(f'::notice::Posted to {name}: {link}')
+                posted.append((name, link))
+            posted_mark(day + key, site, link)
+        except Exception as e:  # noqa: BLE001
+            failed.append((name, scrub(e)))
+            print(f'::warning::{name}: {scrub(e)}')
+
+    def x():
+        if not r.get('x'):
+            raise Failed('the post did not fit in 280 characters')
+        return post_x({'words': r['x']})
+
+    def threads():
+        if not r.get('threads'):
+            raise Failed('the post did not fit in 500 characters')
+        user, token = env('THREADS_USER_ID'), env('THREADS_TOKEN')
+        recent = meta(f'{THREADS}/{user}/threads?fields=text,permalink&limit=25', token=token).get('data', [])
+        done = next((t for t in recent if marker in (t.get('text') or '')), None)
+        if done:
+            return 'earlier:' + (done.get('permalink') or 'https://www.threads.net/')
+        text = r['threads']
+        # The slides go along when Facebook gave each a web address this run;
+        # otherwise the post is the text and links.
+        if len(image_urls) > 1:
+            kids = []
+            for u in image_urls:
+                k = meta(f'{THREADS}/{user}/threads', 'POST', {'media_type': 'IMAGE', 'image_url': u, 'is_carousel_item': 'true'}, token)
+                kids.append(k['id'])
+            for k in kids:
+                wait_ready(f'{THREADS}/{k}', token, 'status')
+            form = {'media_type': 'CAROUSEL', 'children': ','.join(kids), 'text': text}
+        elif image_urls:
+            form = {'media_type': 'IMAGE', 'image_url': image_urls[0], 'text': text}
+        else:
+            form = {'media_type': 'TEXT', 'text': text}
+        c = meta(f'{THREADS}/{user}/threads', 'POST', form, token)
+        wait_ready(f"{THREADS}/{c['id']}", token, 'status')
+        res = meta(f'{THREADS}/{user}/threads_publish', 'POST', {'creation_id': c['id']}, token)
+        return meta(f"{THREADS}/{res['id']}?fields=permalink", token=token).get('permalink') or 'https://www.threads.net/'
+
+    def linkedin():
+        return post_linkedin({'words': r['caption'], 'link': r['playUrl']})
+
+    def pinterest():
+        p = r.get('pin')
+        if not p:
+            raise Failed('no pin text was made')
+        auth = {'Authorization': f'Bearer {pinterest_token()}'}
+        mine = request('https://api.pinterest.com/v5/pins?page_size=25', headers=auth).get('items', [])
+        done = next((x for x in mine if marker in (x.get('description') or '')), None)
+        if done:
+            return f"earlier:https://www.pinterest.com/pin/{done['id']}/"
+        with open(paths[0], 'rb') as f:
+            data = base64.b64encode(f.read()).decode()
+        res = request('https://api.pinterest.com/v5/pins', method='POST', headers=auth, data={
+            'board_id': pinterest_board({'where': p['board']}, auth), 'title': p['title'], 'description': p['description'],
+            'link': p['link'], 'alt_text': ((r.get('bluesky') or {}).get('alts') or [ALT])[0][:500],
+            'media_source': {'source_type': 'image_base64', 'content_type': 'image/jpeg', 'data': data}})
+        return f"https://www.pinterest.com/pin/{res['id']}/"
+
+    one('x', 'X', x)
+    one('threads', 'Threads', threads)
+    one('linkedin', 'LinkedIn', linkedin)
+    one('pinterest', 'Pinterest', pinterest)
+
+
+def daily_puzzle(game=''):
+    """Mode daily-puzzle, one game: game '' is The Fantastical Logic Grid
+    (OUT_DIR/<day>.json from scripts/social-puzzle.mjs); np, cm, sc, pg, ml,
+    sk, sf, ll and ib are NINETIMESNINE, Cage Math, Sum Cross, Picture Grid, More
+    or Less, Skyline, Star Field, Loop Line and Island Bridges (OUT_DIR/<day>-<game>.json
+    from scripts/social-games.mjs, one picture each). Posts the day's puzzle slides (clues, then a blank
+    grid) made and checked by scripts/social-puzzle.mjs to the game's Facebook
+    Page (one post with both pictures), Instagram (a carousel), Bluesky,
+    Mastodon, X, Threads, LinkedIn and Pinterest (each once its keys are
+    saved; see daily_more_sites), with the
+    play link and the answer key link in the caption. If any check failed (or the
+    picture is missing), nothing is posted and the owner is emailed why. A puzzle
+    already posted (its answer key link is in a recent post) is not posted again,
+    so a re-run is safe."""
+    day = env('SOCIAL_DAY') or datetime.now(timezone.utc).date().isoformat()
+    out = env('OUT_DIR') or 'out/social'
+    key = f'-{game}' if game else ''
+    try:
+        with open(os.path.join(out, f'{day}{key}.json'), encoding='utf-8') as f:
+            r = json.load(f)
+    except (OSError, ValueError):
+        r = {'ok': False, 'problems': ['The puzzle checker did not finish, so there was nothing checked to post.']}
+    if r.get('skipped'):
+        print(f"::notice::{r['problems'][0]}")
+        return 0
+    label = r.get('gameName') or 'The Fantastical Logic Grid'
+    when = datetime.fromisoformat(day).strftime('%A, %B %-d')
+    run = f"https://github.com/bltaylorjr/fantastical-logic-grid/actions/runs/{env('GITHUB_RUN_ID')}" if env('GITHUB_RUN_ID') else ''
+    tail = (f'<p>Details: <a href="{html.escape(run)}">this run</a>. ' if run else '<p>') + \
+        'To try again after fixing it: <a href="https://github.com/bltaylorjr/fantastical-logic-grid/actions/workflows/daily-puzzle-social.yml">Daily puzzle to Facebook and Instagram</a> &gt; Run workflow.</p>'
+    if not r.get('ok'):
+        for m in r.get('problems', []):
+            print(f'::error::Not posted: {m}')
+        email(f'Daily puzzle not posted ({label}), {when}', [f'<p>Today\'s daily {html.escape(label)} puzzle was <b>not</b> posted anywhere, because a check before posting found a problem:</p>',
+              '<ul>' + ''.join(f'<li>{html.escape(m)}</li>' for m in r.get('problems', [])) + '</ul>', tail])
+        return 1
+    if not has_keys('facebook'):
+        print('::error::The Facebook keys (META_PAGE_ID, META_PAGE_TOKEN) are not saved.')
+        return 1
+    page, token = page_key()
+    marker = r['answerUrl']
+    paths = r.get('images') or [r['image']]
+    posted, failed = [], []
+    auth = {'Authorization': f'Bearer {token}'}
+
+    def already(name, url, field, link_field):
+        try:
+            recent = meta(url, token=token).get('data', [])
+        except Exception as e:  # noqa: BLE001 - a failed look is reported when posting fails too
+            print(f'::warning::Could not read recent {name} posts: {scrub(e)}')
+            return None
+        done = next((x for x in recent if marker in (x.get(field) or '')), None)
+        if done:
+            link = done.get(link_field, '')
+            print(f'::notice::Already on {name}: {link}')
+            posted.append((name, f'{link} (posted earlier)'))
+        return done
+
+    fb_done = already('the Facebook Page', f'{GRAPH}/{page}/posts?fields=message,permalink_url&limit=25', 'message', 'permalink_url')
+    ig_id = None
+    try:
+        ig_id = instagram_id()
+    except Exception as e:  # noqa: BLE001
+        failed.append(('Instagram', scrub(e)))
+    ig_done = ig_id and already('Instagram', f'{GRAPH}/{ig_id}/media?fields=caption,permalink&limit=25', 'caption', 'permalink')
+
+    # Each slide is uploaded to the Page unpublished: Facebook attaches them to one
+    # post, and Instagram takes them by the web address Facebook gives each copy.
+    photos = []
+    if not fb_done or (ig_id and not ig_done):
+        try:
+            for n, path in enumerate(paths, 1):
+                with open(path, 'rb') as f:
+                    body, ctype = multipart({'published': 'false'}, 'source', f'logic-puzzle-{day}{key}-{n}.jpg', f.read(), 'image/jpeg')
+                res = request(f'{GRAPH}/{page}/photos', method='POST', data=body, timeout=120, headers={**auth, 'Content-Type': ctype})
+                imgs = meta(f"{GRAPH}/{res['id']}?fields=images", token=token).get('images', [])
+                photos.append((res['id'], max(imgs, key=lambda i: i.get('width', 0)).get('source', '') if imgs else ''))
+        except Exception as e:  # noqa: BLE001
+            failed.append(('Pictures', f'could not upload the slides: {scrub(e)}'))
+            print(f'::warning::Could not upload the slides: {scrub(e)}')
+            photos = []
+    if photos and len(photos) == len(paths):
+        if not fb_done:
+            try:
+                form = {'message': r['caption'], **{f'attached_media[{i}]': json.dumps({'media_fbid': pid}) for i, (pid, _) in enumerate(photos)}}
+                res = meta(f'{GRAPH}/{page}/feed', 'POST', form, token)
+                link = f"https://www.facebook.com/{res['id']}"
+                posted.append(('Facebook Page', link))
+                print(f'::notice::Posted to the Facebook Page: {link}')
+            except Exception as e:  # noqa: BLE001
+                failed.append(('Facebook Page', scrub(e)))
+                print(f'::warning::Facebook Page: {scrub(e)}')
+        if ig_id and not ig_done:
+            try:
+                urls = [u for _, u in photos]
+                if not all(urls):
+                    raise Failed('no web address for a slide to give Instagram')
+                text = r.get('instagramCaption') or r['caption']
+                if len(urls) == 1:
+                    c = meta(f'{GRAPH}/{ig_id}/media', 'POST', {'image_url': urls[0], 'caption': text}, token)
+                else:
+                    kids = []
+                    for u in urls:
+                        k = meta(f'{GRAPH}/{ig_id}/media', 'POST', {'image_url': u, 'is_carousel_item': 'true'}, token)
+                        wait_ready(f"{GRAPH}/{k['id']}", token)
+                        kids.append(k['id'])
+                    c = meta(f'{GRAPH}/{ig_id}/media', 'POST', {'media_type': 'CAROUSEL', 'children': ','.join(kids), 'caption': text}, token)
+                wait_ready(f"{GRAPH}/{c['id']}", token)
+                pub = meta(f'{GRAPH}/{ig_id}/media_publish', 'POST', {'creation_id': c['id']}, token)
+                link = meta(f"{GRAPH}/{pub['id']}?fields=permalink", token=token).get('permalink') or 'https://www.instagram.com/'
+                posted.append(('Instagram', link))
+                print(f'::notice::Posted to Instagram: {link}')
+            except Exception as e:  # noqa: BLE001
+                failed.append(('Instagram', scrub(e)))
+                print(f'::warning::Instagram: {scrub(e)}')
+    # Bluesky: both slides with their alt text; skipped quietly until its keys are saved.
+    bs = r.get('bluesky')
+    if not has_keys('bluesky'):
+        print('::notice::Bluesky: not set up yet (BLUESKY_HANDLE, BLUESKY_APP_PASSWORD), so not posted there.')
+    elif not bs:
+        failed.append(('Bluesky', 'the post did not fit in 300 characters'))
+    else:
+        try:
+            jwt, did, handle = bluesky_session()
+            RUNTIME_KEYS.append(jwt)
+            auth_b = {'Authorization': f'Bearer {jwt}'}
+            mine = request(f'https://bsky.social/xrpc/com.atproto.repo.listRecords?repo={urllib.parse.quote(did)}&collection=app.bsky.feed.post&limit=30', headers=auth_b)
+            done = next((x for x in mine.get('records', []) if marker in json.dumps(x.get('value', {}))), None)
+            if done:
+                link = f"https://bsky.app/profile/{handle}/post/{done['uri'].rsplit('/', 1)[-1]}"
+                print(f'::notice::Already on Bluesky: {link}')
+                posted.append(('Bluesky', f'{link} (posted earlier)'))
+            else:
+                text = bs['text']
+                facets = []
+                for show, url in bs['links']:
+                    at = text.index(show)
+                    start = len(text[:at].encode())
+                    facets.append({'index': {'byteStart': start, 'byteEnd': start + len(show.encode())},
+                                   'features': [{'$type': 'app.bsky.richtext.facet#link', 'uri': url}]})
+                for tag in bs.get('tags', []):
+                    at = text.find(f'#{tag}')
+                    if at >= 0:
+                        start = len(text[:at].encode())
+                        facets.append({'index': {'byteStart': start, 'byteEnd': start + len(f'#{tag}'.encode())},
+                                       'features': [{'$type': 'app.bsky.richtext.facet#tag', 'tag': tag}]})
+                images = []
+                for n, path in enumerate(paths):
+                    with open(path, 'rb') as f:
+                        data = f.read()
+                    if len(data) > 976_000:
+                        raise Failed('a slide is over Bluesky\'s 1 MB limit')
+                    blob = request('https://bsky.social/xrpc/com.atproto.repo.uploadBlob', method='POST', data=data,
+                                   headers={**auth_b, 'Content-Type': 'image/jpeg'})['blob']
+                    alts = bs.get('alts', [])
+                    images.append({'alt': alts[n] if n < len(alts) else ALT, 'image': blob, 'aspectRatio': {'width': 1080, 'height': 1350}})
+                record = {'$type': 'app.bsky.feed.post', 'text': text, 'facets': facets, 'langs': ['en'],
+                          'createdAt': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.000Z'),
+                          'embed': {'$type': 'app.bsky.embed.images', 'images': images}}
+                res = request('https://bsky.social/xrpc/com.atproto.repo.createRecord', method='POST', headers=auth_b,
+                              data={'repo': did, 'collection': 'app.bsky.feed.post', 'record': record})
+                link = f"https://bsky.app/profile/{handle}/post/{res['uri'].rsplit('/', 1)[-1]}"
+                posted.append(('Bluesky', link))
+                print(f'::notice::Posted to Bluesky: {link}')
+        except Exception as e:  # noqa: BLE001
+            failed.append(('Bluesky', scrub(e)))
+            print(f'::warning::Bluesky: {scrub(e)}')
+    # Mastodon: both slides with their alt text; skipped quietly until its keys are saved.
+    md = r.get('mastodon')
+    if not has_keys('mastodon'):
+        print('::notice::Mastodon: not set up yet (MASTODON_URL, MASTODON_TOKEN), so not posted there.')
+    elif not md:
+        failed.append(('Mastodon', 'the post did not fit in 500 characters'))
+    else:
+        try:
+            base, auth_m = mastodon_base()
+            me = request(f'{base}/api/v1/accounts/verify_credentials', headers=auth_m)
+            # Read without the key: it can only post (no read:statuses), and the posts are public.
+            recent = request(f"{base}/api/v1/accounts/{me['id']}/statuses?limit=30&exclude_replies=true&exclude_reblogs=true")
+            done = next((x for x in recent if marker in (x.get('content') or '')), None)
+            if done:
+                print(f"::notice::Already on Mastodon: {done.get('url', '')}")
+                posted.append(('Mastodon', f"{done.get('url', '')} (posted earlier)"))
+            else:
+                media_ids = []
+                for n, path in enumerate(paths):
+                    with open(path, 'rb') as f:
+                        data = f.read()
+                    alts = md.get('alts', [])
+                    media_ids.append(mastodon_media(base, auth_m, data, f'logic-puzzle-{day}{key}-{n + 1}.jpg', 'image/jpeg', alts[n] if n < len(alts) else ALT))
+                # The idempotency key stops a retry from posting the same day (and game) twice.
+                res = request(f'{base}/api/v1/statuses', method='POST', headers={**auth_m, 'Idempotency-Key': f'flg-daily-{day}{key}'},
+                              data={'status': md['text'], 'media_ids': media_ids, 'visibility': 'public', 'language': 'en'})
+                posted.append(('Mastodon', res['url']))
+                print(f"::notice::Posted to Mastodon: {res['url']}")
+        except Exception as e:  # noqa: BLE001
+            failed.append(('Mastodon', scrub(e)))
+            print(f'::warning::Mastodon: {scrub(e)}')
+    daily_more_sites(r, day, paths, [u for _, u in photos if u], posted, failed, key)
+    if failed:
+        email(f'Daily puzzle ({label}): {" and ".join(n for n, _ in failed)} did not post, {when}', [
+            f'<p>Today\'s {html.escape(label)} puzzle, <b>{html.escape(r.get("title", ""))}</b>, passed every check, but posting hit a problem.</p>',
+            '<ul>' + ''.join(f'<li><b>{html.escape(n)}:</b> {html.escape(why)}</li>' for n, why in failed) + '</ul>',
+            ('<p>Posted:</p><ul>' + ''.join(f'<li>{html.escape(n)}: {html.escape(u)}</li>' for n, u in posted) + '</ul>') if posted else '',
+            tail])
+        return 1
+    return 0
+
+
 def main():
+    if MODE == 'daily-puzzle':
+        # The Fantastical Logic Grid first, then every other game's daily puzzle
+        # (SOCIAL_GAMES, default np,cm,sc,pg,ml,sk,sf,ll,ib). One game failing never stops the others.
+        games = [''] + [g.strip() for g in (env('SOCIAL_GAMES') or 'np,cm,sc,pg,ml,sk,sf,ll,ib').split(',') if g.strip()]
+        codes = []
+        for g in games:
+            try:
+                codes.append(daily_puzzle(g))
+            except Exception as e:  # noqa: BLE001
+                print(f'::error::Daily puzzle {g or "fantastical"}: {scrub(e)}')
+                codes.append(1)
+        sys.exit(1 if any(codes) else 0)
+    if MODE == 'delete':
+        sys.exit(delete_posts())
     if MODE == 'check':
         sys.exit(1 if check_keys() else 0)
     if MODE == 'message':

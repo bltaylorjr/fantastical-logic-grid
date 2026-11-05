@@ -1,4 +1,4 @@
-# The Fantastical Logic Grid: Android and iOS apps
+# The Logic Grid: Android and iOS apps
 
 Both apps are thin native shells around the same web build (`dist/web`), so
 every game feature, story and fix comes from `web/` with no mobile copy to
@@ -70,7 +70,7 @@ paused and runs only when the workflow is started by hand; it compiles the app
 for the Simulator, which needs no Apple account. Google Play steps and listing:
 `docs/GOOGLE-PLAY.md`.
 
-**Phone check**: `node mobile/scripts/mobile-e2e.cjs` (needs Playwright)
+**Phone check**: `node -r ./scripts/e2e-in-game.cjs mobile/scripts/mobile-e2e.cjs` (needs Playwright)
 serves `dist/web` the way the Android app does, stands in for the Android side
 and checks each bridge feature, plus the layout at 360 and 412 px wide.
 

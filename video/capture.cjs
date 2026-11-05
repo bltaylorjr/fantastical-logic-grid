@@ -119,7 +119,7 @@ const CSS = `
     const ctx = await browser.newContext({ viewport: VIEW, deviceScaleFactor: SCALE, reducedMotion: 'reduce', serviceWorkers: 'block' });
     await ctx.route('**/js/cloud-config.js', (r) => r.fulfill({ contentType: 'text/javascript', body: config }));
     // Same game, fixed seed, so a run is repeatable.
-    await ctx.route('**/worker.js', async (r) => {
+    await ctx.route('**/engine/flg-ops.js', async (r) => {
       const res = await r.fetch();
       r.fulfill({ response: res, body: (await res.text()).replace('generatePuzzle(args)', `generatePuzzle({ ...args, seed: args.seed || '${seed}' })`) });
     });
@@ -144,7 +144,7 @@ const CSS = `
         });
       }
     }
-    await ctx.addInitScript((s) => { if (!localStorage.getItem('flg.settings')) localStorage.setItem('flg.settings', JSON.stringify({ introOffered: true, voiceProvider: 'device', silent: s })); }, silent);
+    await ctx.addInitScript((s) => { if (!localStorage.getItem('flg.settings')) localStorage.setItem('flg.settings', JSON.stringify({ introOffered: true, voiceProvider: 'device', silent: s })); if (!localStorage.getItem('flg.game')) localStorage.setItem('flg.game', 'logic-grid'); }, silent);
     const page = await ctx.newPage();
     page.on('pageerror', (e) => console.log('page error:', e.message));
     await page.goto(`${APP}/`);
@@ -345,25 +345,6 @@ const CSS = `
     await scrollTo('#read-clues'); await hl(['#read-clues']);
     await scene('read-clues', ['To hear every clue in order, press Read the clues aloud.', 'Each character tells their own clue, and the clue being read lights up.']);
     await clearFx();
-    // Talking faces (talker.js): shown as they look while a voice reads, since
-    // the recording has no voices or AI pictures.
-    const talked = await p.evaluate((who) => {
-      const box = document.querySelector('#talker');
-      const face = document.querySelector(`.cast-btn[data-who="${CSS.escape(who)}"] svg, .cast-btn[data-who="${CSS.escape(who)}"] img`);
-      if (!box || !face) return false;
-      box.querySelector('.talker-still').innerHTML = face.outerHTML;
-      box.querySelector('canvas').hidden = true;
-      box.querySelector('.talker-name').textContent = who;
-      box.classList.add('speaking');
-      box.hidden = false;
-      return true;
-    }, who);
-    if (talked) {
-      await hl(['#talker']);
-      await scene('talking-face', ['While a voice reads, the character who is speaking appears in the corner.', 'When AI pictures are on, they get a lifelike face, and their lips move with their words.', 'They act the part too: a nervous witness fidgets, a cheerful one smiles, and a caught culprit hangs their head.', 'You can turn Talking faces off in Settings.']);
-      await clearFx();
-      await p.evaluate(() => { const box = document.querySelector('#talker'); box.hidden = true; box.classList.remove('speaking'); });
-    }
 
     // =================== The grid
     await gridView();
@@ -486,7 +467,11 @@ const CSS = `
     await top(); await p.click('[data-act=print]'); await p.waitForTimeout(300);
     await scene('print', ['You can print any puzzle, blank or with your marks, with the answer key on its own page.']);
     await p.click('#print-cancel');
-    await p.click('#home-btn'); await p.waitForSelector('.saved-item'); await p.waitForTimeout(400); await prep();
+    await p.click('#home-btn'); await p.waitForSelector('#saved-section .saved-item', { state: 'attached' });
+    // Saved Puzzles folds away, and solved puzzles sit under Completed puzzles (PR #163): open both.
+    if (await p.$eval('#saved-toggle', (b) => b.getAttribute('aria-expanded') !== 'true')) await p.click('#saved-toggle');
+    await p.evaluate(() => { const d = document.getElementById('saved-done'); if (!d.hidden) d.open = true; });
+    await p.waitForSelector('#saved-section .saved-item'); await p.waitForTimeout(400); await prep();
     await scrollTo('#saved-section'); await hl('#saved-section');
     await scene('saved', ['Your progress saves automatically.', 'Come back any time and pick up where you left off, from Saved puzzles.']);
     await clearFx();
@@ -499,7 +484,7 @@ const CSS = `
     await top(); await hl('#intro-btn');
     await scene('howto', ['And Introduction, at the top of every page, plays this video again.']);
     await clearFx();
-    await p.click('.saved-item [data-do=resume]'); await p.waitForSelector('#screen-play:not([hidden])'); await prep(); await top();
+    await p.click('#saved-section .saved-item [data-do=resume]'); await p.waitForSelector('#screen-play:not([hidden])'); await prep(); await top();
     await p.evaluate(() => { document.documentElement.dataset.theme = 'dark'; }); await p.waitForTimeout(300);
     await scene('dark', ['Play in light or dark colors,']);
     await p.evaluate(() => { document.documentElement.dataset.theme = 'contrast'; }); await p.waitForTimeout(300);
@@ -507,9 +492,23 @@ const CSS = `
     await p.evaluate(() => { document.documentElement.dataset.theme = 'light'; document.documentElement.classList.add('silent'); }); await p.waitForTimeout(300);
     await scene('silent', ['And Silent mode is always there when you just want the puzzle.']);
     await p.evaluate(() => { document.documentElement.classList.remove('silent'); });
+    // Logic Grid Basic: the first version's simpler look, one switch away.
+    if (await p.$('#mode-switch [data-look=basic]')) {
+      await top(); await hl('#mode-switch', 8);
+      await scene('look-switch', ['Prefer a simpler screen? Use the Basic and Interactive switch at the top.', 'The game opens on Interactive, the full look you have seen so far.']);
+      await clearFx();
+      await clickShown('#mode-switch [data-look=basic]');
+      await p.waitForFunction(() => document.documentElement.dataset.look === 'basic'); await p.waitForTimeout(400); await prep(); await top();
+      await scene('basic-play', ['Basic is the game\'s first, classic look: flat white panels, a blue accent and a plain, easy-to-read font, with no screen animations.', 'You play exactly the same way, and every clue is open from the start, with no picture puzzles to unlock.']);
+      await clearFx();
+      await p.click('#home-btn'); await p.waitForSelector('#tier-choices input'); await prep(); await top();
+      await scene('basic-home', ['Everything else is here too: every theme and topic, drawn pictures, voices, races and the scoreboard, stats and badges, hints, saves and printing.', 'Only the talking faces stay in Interactive.', 'The game remembers your choice, and Interactive switches you back at any time.']);
+      await clickShown('#mode-switch [data-look=interactive]');
+      await p.waitForFunction(() => document.documentElement.dataset.look !== 'basic'); await p.waitForTimeout(300); await clearFx();
+    }
     await p.click('#home-btn'); await p.waitForSelector('#tier-choices input'); await prep();
     await p.click('#menu-btn'); await p.click('[data-cmd=install]'); await p.waitForSelector('#dlg-install[open]'); await prep();
-    await scene('install', ['To play without opening a browser, choose Install the app from the Menu.', 'Download the Windows desktop app, which keeps itself up to date.', 'Or add the game\'s icon to your phone\'s home screen. On your phone, the same menu shows you how.', 'On a phone, pull down from the top of the page to refresh. Your progress is saved first.']);
+    await scene('install', ['To play without opening a browser, choose Install the app on The Logic Grid home page.', 'Download the Windows desktop app, which keeps itself up to date.', 'Or add the game\'s icon to your phone\'s home screen. On your phone, the same button shows you how.', 'On a phone, pull down from the top of the page to refresh. Your progress is saved first.']);
     await p.click('#install-close'); await p.waitForTimeout(300);
 
     // =================== Accounts, screen names, races, scoreboard
@@ -546,6 +545,8 @@ const CSS = `
     }
     if (await p.isVisible('#compete-section')) {
       // Signed in, the game asks for a screen name straight away.
+      // (Closing the print pack window can close it too: then open it from the name at the top.)
+      if (!(await p.waitForSelector('#dlg-name[open]', { timeout: 5000 }).catch(() => null))) { await top(); await p.click('#player-chip'); }
       await p.waitForSelector('#dlg-name[open]', { timeout: 15000 });
       await p.fill('#name-input', 'Sky Fox');
       await scene('screen-name', ['Once you are signed in, you pick a screen name.', 'Type your own, or press Suggest a name and the game makes one up for you.', 'It is the only thing other players see, and rude names are turned away.', 'Don\'t want one? Sign out instead, and you play as Guest.']);
@@ -654,11 +655,11 @@ const CSS = `
       }
       await p.evaluate(async () => { await (await import('./js/remote-config.js')).refreshNow(); await (await import('./js/messages.js')).refresh(); });
       await p.click('#menu-btn'); await p.waitForTimeout(300); await prep();
-      await scene('messages-menu', ['When the team writes to you, or posts news, the Menu button shows a number.']);
+      await scene('messages-menu', ['When the team writes to you, or posts news, you see a number on the Menu button in the desktop and phone apps.']);
       await p.click('[data-cmd=messages]'); await p.waitForSelector('#dlg-messages[open]');
       if (me) { await p.click('#msg-convs summary'); await p.waitForTimeout(300); }
       await prep();
-      await scene('messages', ['Messages, in the menu, has news from the game\'s team for everyone.',
+      await scene('messages', ['Messages and news, on The Logic Grid home page, has news from the game\'s team for everyone.',
         ...(me ? ['Signed in, you can write to the team with a question, an idea or a problem, and read their replies right here.', 'Tick Email me, and you get a short email when the team writes back.'] : ['Sign in to write to the team and read their replies.'])]);
       await p.keyboard.press('Escape');
     }
@@ -669,6 +670,13 @@ const CSS = `
       await p.fill('#suggest-look', 'A blue sea captain\'s coat and a white beard');
       await p.fill('#suggest-personality', 'Cheerful, a little forgetful, and loves a good riddle');
       await scene('suggest', ['Dream up a character of your own with Suggest a character, in the menu.', 'Answer a few questions about their name, look, personality and voice.', 'The game\'s team reviews every suggestion, and you might meet yours in a puzzle.']);
+      await p.keyboard.press('Escape');
+    }
+    // The Puzzle Wizard, in the menu.
+    if (await p.$('[data-cmd=wizard]')) {
+      await p.click('#menu-btn'); await p.waitForSelector('[data-cmd=wizard]'); await prep(); await hl('[data-cmd=wizard]', 6);
+      await scene('wizard', ['Want to write a whole puzzle of your own?', 'Submit Puzzle Ideas, in the menu, walks you through your story, your characters, the lists to match and the answer.',
+        'It checks that your puzzle has exactly one answer, gives you a PDF to download or print, and saves it to your Saved puzzles.']);
       await p.keyboard.press('Escape');
     }
     card('outro', [["That's all you need: read the story, follow the clues, and mark your X's and O's.", "That's all you need. Read the story, follow the clues, and mark your exes and ohs."], 'Welcome to The Fantastical Logic Grid. Happy sleuthing!']);

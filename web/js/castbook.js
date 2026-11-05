@@ -206,11 +206,11 @@ const CAST = {
   blunt: 'Greta Falcon Gwen David Dax Dina Josh Wade Rhea Vera Quake Morgan Gareth Linnea Priya Fabian Bree Sora Tate Gio Ilse Bao Chike Dante Borin Perpetua Kit Nyx Kip Hedda Faye Jasmine Dag Sigrid Kofi Duncan Pia Pearl Dana Etta Ruby Myrtle Maya Gilda Ember Gilly Clementine Doyle',
   gossipy: 'Gemma Carly Emma Holly Harriet Lena Daphne Barnaby Yara Mabel Serena Amelia Bodhi Benedict Cooper Brooks Colt Taro Dara Dmitri Jana Jin Dayo Della Dagny Quill Lark Rex Gabe Dimitri Gil Jolene Elin Anton Tendai Ewan August Blaise Everett Abe Buck Chester Remy Jory Heath Inigo Cove Euphemia',
   sly: 'Dorian Cobra Cassius Jules Reed Ezra Calico Thistle Selena Rory Ondine Elena Eloise Harper Esmeralda Imogen Jordan Yuki Asha Indy Benji Lan Eshe Ernie Grim Sabine Rook Zelda Javi Ivo Cass Emmett Lars Jade Zuberi Fergus Laszlo Darius Ira Rufus Earl Orrin Emeric Leni Ilona Huxley Alba Gertie',
-  kind: 'Ivy Ella Hannah Hazel Gaia Indira Eva Opal Abel Flora Fern Elaine Tobias Clem Montague Leopold Reese Kenji Baraka Amelie Aarav Min Femi Genevieve Helga Amir Lirien Vix Luis Kari Edie Adele Eddy Magnus Kailani Ned Viggo Evelyn Grady Lucius Nola Kira Margo Rafe Cricket Ferris Ebon Humphrey',
+  kind: 'Ivy Juliet Ella Hannah Hazel Gaia Indira Eva Opal Abel Flora Fern Elaine Tobias Clem Montague Leopold Reese Kenji Baraka Amelie Aarav Min Femi Genevieve Helga Amir Lirien Vix Luis Kari Edie Adele Eddy Magnus Kailani Ned Viggo Evelyn Grady Lucius Nola Kira Margo Rafe Cricket Ferris Ebon Humphrey',
   brave: 'Dash Amara Brynn Astra Fatima Freya Tessa Leon Nova Anne Brienne Beckett Josie Finnian Marisol Rosalind Sawyer Aiko Ines Felipe Ilan Tao Jamal Hank Korr Darya Nimeth Delmar Celia Elise Flynn Astrid Gale Cyril Malia Cecily Lucia Frederick Aspen Elmer Merle Tess Sia Sela Bryony Hamish Hob Brook',
   shy: 'Ghost Isolde Ivan Nell Soren Dewdrop Thea Sam Desmond Avery Anouk Adelaide Birdie Ash Axel Akira Corbin Sandy Jude Hal Anika Wen Kiara Joy Magna Farid Oren Pike Bastian Farah Ike Ariel Alder Sven Otto Alma Mali Beatrix Lowell Bess Patsy Zane Zoe Teo Cielo Benny Fable Cinder',
   silly: 'Jett Finn Ben Kevin Bix Jada Gus Bo Theo Cody Milo Spark Clover Silas Amos Oceane Dallas Coral Chidi Jago Leah Yu Malik Ruth Rurik Inez Sylas Avi Evie Ilya Goldie Garrett Briar Ayana Nalani Odile Arjun Julian Nolan Rollie Eula Dot Luca Emory Darian Emmy Bixby Ebony',
-  formal: 'Edith Henry Alice Alaric Emile Grace Simon Omar Hugh Arthur Odette Murray Nerissa Ingrid Fitz Quentin Jax Duke Dalia Esther Micah Aoife Zuri Wes Thora Bryn Thalia Blip Freddie Jun Coco Elodie Harbor Dolly Iolana Bastien Niran Dahlia Roxanne Lula Flossie Lulu Toby Asa Esperanza Daisy Ione Grey',
+  formal: 'Edith Josephine Henry Alice Alaric Emile Grace Simon Omar Hugh Arthur Odette Murray Nerissa Ingrid Fitz Quentin Jax Duke Dalia Esther Micah Aoife Zuri Wes Thora Bryn Thalia Blip Freddie Jun Coco Elodie Harbor Dolly Iolana Bastien Niran Dahlia Roxanne Lula Flossie Lulu Toby Asa Esperanza Daisy Ione Grey',
   curious: 'Echo Cora Danny Juniper Ion Dylan Paige Leila Noor Esme Pip Angus Coralie Henrietta Gwendolyn Casey Kenzie Delia Faraji Horace Noa Brendan Beatrice Lucian Ulf Kasim Vael Tide Giselle Archie Franco June Isadora Loretta Pua Suri Wei Joss Cassidy Addie Iva Pippa Max Gage Fausto Graham Elva Indigo',
 };
 const BY_NAME = new Map();
@@ -286,43 +286,4 @@ export function profileOf(name) {
 export function sayingOf(name, kind, n = 0) {
   const lines = PERSONALITIES[personalityOf(name)][kind] || [];
   return lines.length ? lines[(Math.abs(n) + hashOf(firstName(name))) % lines.length] : '';
-}
-
-// How a character acts while they speak (talking-face.js and the voice's
-// tone, ai.js). Each personality has its own way of telling a clue; some
-// moments change it: a cheer is excited, and a culprit caught at the end of
-// a mystery is sheepish.
-export const MOODS = ['calm', 'cheerful', 'excited', 'nervous', 'guilty', 'sly', 'grumpy', 'proud', 'kind', 'shy',
-  'dreamy', 'formal', 'dramatic', 'playful', 'curious', 'blunt', 'chatty', 'bookish', 'bold'];
-const MOOD_OF = {
-  cheerful: 'cheerful', grumpy: 'grumpy', nervous: 'nervous', dramatic: 'dramatic', scholarly: 'bookish', boastful: 'proud',
-  dreamy: 'dreamy', blunt: 'blunt', gossipy: 'chatty', sly: 'sly', kind: 'kind', brave: 'bold', shy: 'shy', silly: 'playful',
-  formal: 'formal', curious: 'curious',
-};
-// How a mood changes a voice: its pace (Kokoro and device voices) and pitch
-// (device voices). The natural voice is told the mood in words instead.
-export const MOOD_PACE = { nervous: 1.08, excited: 1.08, chatty: 1.05, guilty: 0.94, shy: 0.95, dreamy: 0.92, grumpy: 0.96, sly: 0.96 };
-export const MOOD_PITCH = { nervous: 1.08, excited: 1.1, cheerful: 1.05, guilty: 0.94, grumpy: 0.92, shy: 1.04 };
-export const moodPace = (pace, mood) => (MOOD_PACE[mood] ? Math.round(Math.min(1.25, Math.max(0.75, pace * MOOD_PACE[mood])) * 100) / 100 : pace);
-export const moodOf = (name) => MOOD_OF[personalityOf(name)] || 'calm';
-
-// Said by the one behind it all when a mystery is solved. Like every line,
-// they never name anyone or anything in the grid.
-const CAUGHT = [
-  'All right, all right. It was me.',
-  'You got me. I should have known you would work it out.',
-  'Oh dear. I suppose the game is up.',
-  'Fine, I confess. I only meant to borrow it.',
-];
-export const caughtLine = (name, n = 0) => CAUGHT[(Math.abs(n) + hashOf(firstName(name))) % CAUGHT.length];
-// The same for one of the game's own characters (cast.js), whose personality
-// is written in words in the admin dashboard: the first mood or personality
-// it mentions, such as "a nervous baker" or "grumpy but fair".
-export function moodOfPersonality(text) {
-  const words = String(text || '').toLowerCase().match(/[a-z]+/g) || [];
-  for (const w of words) {
-    if (MOOD_OF[w]) return MOOD_OF[w];
-    if (MOODS.includes(w)) return w;
-  }
-  return 'calm';
 }

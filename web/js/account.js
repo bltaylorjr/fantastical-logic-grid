@@ -19,6 +19,11 @@ const SESSION = 'auth';
 const TAB_KEY = 'flg.auth';
 function readTabSession() { try { return JSON.parse(sessionStorage.getItem(TAB_KEY)) || null; } catch (e) { return null; } }
 function writeTabSession(v) { try { if (v) sessionStorage.setItem(TAB_KEY, JSON.stringify(v)); else sessionStorage.removeItem(TAB_KEY); } catch (e) { /* memory only */ } }
+// On a host shared with other people's games (itch.io serves every HTML game
+// from the same origin), any of them could read a sign-in kept on the device,
+// so there it lasts for this visit only.
+const SHARED_ORIGIN = /(^|\.)itch\.zone$/i.test(location.hostname);
+if (SHARED_ORIGIN && store.getLocal(SESSION)) store.setLocal(SESSION, undefined);
 let session = store.getLocal(SESSION) || readTabSession(); // { uid, email, refreshToken, verified, remember }
 
 // Keeps the session where the player chose: on the device, or for this visit only.
@@ -53,6 +58,7 @@ const MESSAGES = {
   INVALID_LOGIN_CREDENTIALS: 'That email and password do not match an account. Check them, or reset your password.',
   INVALID_PASSWORD: 'That email and password do not match an account. Check them, or reset your password.',
   EMAIL_NOT_FOUND: 'That email and password do not match an account. Check them, or reset your password.',
+  NAME_NO_MATCH: 'That screen name and password do not match an account. Check them, or sign in with your email.',
   INVALID_EMAIL: 'That email address does not look right. Check it and try again.',
   MISSING_PASSWORD: 'Enter your password.',
   WEAK_PASSWORD: 'Choose a longer password: at least 8 characters.',
@@ -93,7 +99,7 @@ const auth = (path, body) => post(`${CLOUD.authUrl}/${path}?key=${encodeURICompo
 function begin(data, verified, remember = true) {
   locked = null;
   saveLocked();
-  session = { uid: data.localId, email: data.email, refreshToken: data.refreshToken, verified: !!verified, remember: remember !== false };
+  session = { uid: data.localId, email: data.email, refreshToken: data.refreshToken, verified: !!verified, remember: !SHARED_ORIGIN && remember !== false };
   idToken = data.idToken;
   idTokenExp = Date.now() + (Number(data.expiresIn) || 3600) * 1000;
   saveSession();
@@ -124,11 +130,28 @@ export async function signUp(email, password, { remember = true } = {}) {
   auth('accounts:sendOobCode', { requestType: 'VERIFY_EMAIL', idToken: data.idToken }).catch(() => {});
 }
 
-export async function signIn(email, password, { remember = true } = {}) {
-  const data = await auth('accounts:signInWithPassword', { email, password, returnSecureToken: true });
-  let verified = false;
-  try { verified = !!(await auth('accounts:lookup', { idToken: data.idToken })).users?.[0]?.emailVerified; } catch (e) { /* optional */ }
-  begin(data, verified, remember);
+// True when the sign-in box holds a screen name rather than an email.
+export const isScreenName = (text) => !String(text || '').includes('@');
+
+// Signs in with an email, or with a screen name: the game's server finds the
+// account behind the name and signs in with Firebase for the player, without
+// ever telling this device the email. The account details then come from
+// Firebase with the new token.
+export async function signIn(login, password, { remember = true } = {}) {
+  const byName = isScreenName(login);
+  const data = byName
+    ? await post(`${CLOUD.syncUrl.replace(/\/$/, '')}/v1/sign-in/name`, { name: String(login).trim(), password }).catch((e) => {
+      if (e.code === 'INVALID_LOGIN_CREDENTIALS') throw new AccountError(e.code, MESSAGES.NAME_NO_MATCH);
+      throw e;
+    })
+    : await auth('accounts:signInWithPassword', { email: login, password, returnSecureToken: true });
+  let user = null;
+  // A screen-name sign-in needs the account's email (it is shown in the
+  // account window and asked for again before deleting the account).
+  if (byName) user = (await auth('accounts:lookup', { idToken: data.idToken })).users?.[0];
+  else try { user = (await auth('accounts:lookup', { idToken: data.idToken })).users?.[0]; } catch (e) { /* optional */ }
+  if (byName) data.email = user?.email;
+  begin(data, !!user?.emailVerified, remember);
 }
 
 // Always reports success, so the form never reveals which emails have accounts.

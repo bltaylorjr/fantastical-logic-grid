@@ -16,7 +16,7 @@ Menu > Ideas and problems, they can leave "Email me an update" ticked:
   names, "PR #", "commit" or "null"). Marking it **Done** or deleting it
   instead sends no update and removes the held address and words.
 
-- **Message notice:** "You have a new message from The Fantastical Logic Grid
+- **Message notice:** "You have a new message from The Logic Grid
   team", sent when the team writes to a player who turned on "Email me when
   the team writes" in Menu > Messages (see `MESSAGES.md`). At most one a day
   per player, and it only says to open Messages.
@@ -42,6 +42,52 @@ Menu > Ideas and problems, they can leave "Email me an update" ticked:
   still gets the congratulations, without a puzzle. If printing the PDF fails,
   the email still goes without it. Deleting a storyline sends nothing.
 
+- **Suggest a storyline page (the Storyline Submission Database).** Menu >
+  Suggest a storyline (and a link in Share an idea) opens `storyline/`, a page
+  for a theme idea, a category idea for an existing theme, or a whole
+  storyline (`web/js/storyline-fields.js` has the fields and rules;
+  `server/src/story-submissions.js` saves them). Every entry is kept exactly
+  as sent, with the player, the author credit, their consent and, once
+  approved, the first puzzle. Storylines and theme ideas from Share an idea
+  are saved there too, including every one sent before the database existed
+  (migration `2090_story_submissions.sql`).
+  - **Confirmation (noreply@):** signed in with a confirmed email, the player
+    gets "We received your storyline" (or theme or category idea) straight
+    away, with a copy of the completed form. A guest sees a thank-you and can
+    type an address for the copy within an hour, or press No thanks.
+  - **Approval (noreply@):** admin > Storyline submissions > Approve. For a
+    storyline, the team's corrected words (Fix spelling and grammar, Gemini,
+    or typed by hand; the original stays as sent) build the first puzzle
+    (`readSubmission` in `admin/storyline-parse.js`). It is saved with the
+    entry, put in the player's Saved puzzles when signed in, and emailed as a
+    PDF with its answer key. With no address, the puzzle is only built and
+    saved (kind `story_build`).
+  - **Decline thank-you (noreply@):** Decline sends a thank-you for their input.
+    This includes storylines sent through Share an idea.
+  - **Copies the team emails (support@):** Email a copy (to any address, with
+    the puzzle PDF when there is one).
+  - **Editing:** Edit (admin, any status) saves the team's version; the
+    author's original and every earlier version are kept
+    (story_submission_versions), and the corrected wording, scan and puzzle
+    start over (an old puzzle stays with its version; Build the puzzle makes
+    a new one). The author can edit and resubmit while the entry is new, or
+    when the team presses **Ask the author to edit** ("Please update your
+    storyline", support@, with the team's note). The confirmation and that
+    email carry an edit link (storyline/?edit=ID.KEY, 30 days); signed in,
+    "Your entries" on the Suggest a storyline page lists them. A resubmitted
+    entry comes back as New, with "We received your updated storyline"
+    (noreply@).
+  - **Trademark and copyright scan:** Scan on an entry (or Scan new entries
+    for the next 5) checks for brand names and protected characters (a watch
+    list in `server/src/ip-scan.js`), the same 8 words in a row as another
+    entry, and, with the GEMINI_API_KEY secret, an AI review for trademarks,
+    protected characters and copied wording. Each finding names its field and
+    has a search link. The verdict (clear, check, problem) shows as a badge and
+    a filter, and Approve warns when an entry is unscanned or flagged. It is a
+    screening aid, not legal clearance.
+  - Deleting an account keeps its entries (permission was given) but removes
+    the account link and the address.
+
 The wording is fixed (`scripts/feedback-replies.py`). The player's words (with
 email addresses and links already blanked) and the team's note only ever go to
 the player's own confirmed address, so the boxes cannot be used to send
@@ -65,7 +111,7 @@ email is sent.
    game's Gmail) and reports back (`POST /admin/v1/replies/done`). The address is removed as
    soon as a note is sent, or after 3 failed tries. Rows go after 30 days.
 
-Through Resend the sender is **The Fantastical Logic Grid
+Through Resend the sender is **The Logic Grid
 &lt;support@thelogicgrid.com&gt;**. Through the Gmail backup it shows as **The
 Fantastical Logic Grid** from fantasticallogicgrid@gmail.com, because
 Gmail can only send from its own address. Players can reply: every email sets
@@ -74,8 +120,10 @@ fantasticallogicgrid@gmail.com when that is not set. Once support@thelogicgrid.c
 receives mail itself (email forwarding at the domain), set the GitHub variable
 `MAIL_REPLY_TO` to `support@thelogicgrid.com`.
 
-One-way emails (the daily puzzle, "the team sent you a message" notices and
-educator code emails) go from **noreply@thelogicgrid.com** instead, with no
+One-way emails (the daily puzzle, "the team sent you a message" notices,
+educator code emails, and a storyline submission's confirmation, approval
+and decline thank-you)
+go from **noreply@thelogicgrid.com** instead, with no
 `Reply-To` and a footer saying replies are not read. Set the `MAIL_NOREPLY`
 variable to use a different address. Any address on the verified domain works
 in Resend with no extra DNS records. It also carries

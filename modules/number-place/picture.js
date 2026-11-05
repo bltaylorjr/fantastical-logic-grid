@@ -1,6 +1,6 @@
 // A spoiler-free result picture for sharing: the grid's shape with the given
 // cells shaded (no numbers), the level, time and hints.
-export function resultPicture(game, { title = 'Number Place', accent = '#5B3CC4', dark = false } = {}) {
+export function resultPicture(game, { title = 'NINETIMESNINE', accent = '#5B3CC4', dark = false } = {}) {
   const p = game.p, N = p.size, [br, bc] = p.box;
   const W = 600, H = 760, pad = 60, g = W - pad * 2, cell = g / N;
   const c = document.createElement('canvas');
@@ -13,7 +13,7 @@ export function resultPicture(game, { title = 'Number Place', accent = '#5B3CC4'
   x.font = '700 30px "Atkinson Hyperlegible", system-ui, sans-serif';
   x.fillText(title, pad, 60);
   x.font = '400 20px "Atkinson Hyperlegible", system-ui, sans-serif';
-  x.fillText(`Number Place · ${p.difficulty.name}${game.daily ? ` · Daily ${game.daily}` : ''}`, pad, 92);
+  x.fillText(`${game.styleName || 'NINETIMESNINE'} · ${p.difficulty.name}${game.daily ? ` · Daily ${game.daily}` : ''}`, pad, 92);
   const top = 120;
   for (let i = 0; i < N * N; i++) {
     const r = Math.floor(i / N), col = i % N;
@@ -37,6 +37,6 @@ export function resultPicture(game, { title = 'Number Place', accent = '#5B3CC4'
   x.font = '400 22px "Atkinson Hyperlegible", system-ui, sans-serif';
   x.fillText(game.hints ? `${game.hints} hint${game.hints === 1 ? '' : 's'}` : 'No hints', pad, top + g + 94);
   x.textAlign = 'right';
-  x.fillText('The Fantastical Logic Grid', W - pad, top + g + 94);
+  x.fillText('The Logic Grid', W - pad, top + g + 94);
   return c;
 }

@@ -31,7 +31,7 @@ export function createGrid(frame, puzzle, ix, handlers) {
 
   // ---- markup ----
   let h = `<table class="lg" role="grid" aria-label="Logic grid. ${rows.length * N} rows. Arrow keys move, X rules out, O confirms." aria-rowcount="${rows.length * N + 2}">`;
-  h += `<thead><tr role="row"><th class="corner" colspan="2" aria-hidden="true"></th>${cols.map((c) => `<th class="cath" colspan="${N}" scope="colgroup">${esc(c.name)}</th>`).join('')}</tr>`;
+  h += `<thead><tr role="row"><th class="corner" colspan="2" aria-hidden="true"></th>${cols.map((c) => `<th class="cath" colspan="${N}" scope="colgroup"><span>${esc(c.name)}</span></th>`).join('')}</tr>`;
   h += `<tr role="row"><th class="corner" colspan="2" aria-hidden="true"></th>${cols.map((c) => c.items.map((it, j) => `<th class="colh${j === N - 1 ? ' lastcol' : ''}" scope="col" role="columnheader" data-id="${it.id}" title="${esc(it.label)}"><div>${esc(it.label)}</div></th>`).join('')).join('')}</tr></thead><tbody>`;
   const matrix = [];
   rows.forEach((rc, ri) => {
@@ -39,7 +39,7 @@ export function createGrid(frame, puzzle, ix, handlers) {
     rc.items.forEach((it, i) => {
       const r = ri * N + i;
       matrix[r] = [];
-      h += `<tr role="row">${i === 0 ? `<th class="rcat" rowspan="${N}" scope="rowgroup">${esc(rc.name)}</th>` : ''}<th class="rowh${i === N - 1 ? ' lastrow' : ''}" scope="row" role="rowheader" data-id="${it.id}" title="${esc(it.label)}">${esc(it.label)}</th>`;
+      h += `<tr role="row">${i === 0 ? `<th class="rcat" rowspan="${N}" scope="rowgroup" title="${esc(rc.name)}"><span class="rcat-t" style="--n:${N}">${esc(rc.name)}</span></th>` : ''}<th class="rowh${i === N - 1 ? ' lastrow' : ''}" scope="row" role="rowheader" data-id="${it.id}" title="${esc(it.label)}">${esc(it.label)}</th>`;
       for (let b = 0; b < cols.length; b++) {
         if (b >= nBlocks) { h += `<td class="gap" colspan="${N}" aria-hidden="true"></td>`; continue; }
         cols[b].items.forEach((ct, j) => {
@@ -57,12 +57,50 @@ export function createGrid(frame, puzzle, ix, handlers) {
   const cells = new Map([...table.querySelectorAll('td.c')].map((td) => [td.dataset.k, td]));
   const totalCols = cols.length * N;
   // Sticky offsets for the pinned headers.
-  requestAnimationFrame(() => {
+  function pin() {
     const cath = table.querySelector('th.cath');
     const rcat = table.querySelector('th.rcat');
     if (cath) table.style.setProperty('--cath-h', `${cath.offsetHeight}px`);
     if (rcat) table.style.setProperty('--rcat-w', `${rcat.offsetWidth}px`);
-  });
+  }
+  // Phones and narrow windows: the whole grid fits the frame's width, so it
+  // never scrolls sideways. Names get tighter and the squares smaller, only
+  // as much as needed (bigger screens keep the full 44 px squares).
+  // The room is measured with the full-size grid in place: on a PC or tablet
+  // the grid's column is as wide as the grid, so measuring the shrunk grid
+  // would shrink it again on every resize, down to the smallest squares.
+  let fitted = { avail: -1, cell: 0, rowh: 0 };
+  const setFit = (cell, rowh) => {
+    table.classList.toggle('fit', !!cell);
+    if (cell) { table.style.setProperty('--cell', `${cell}px`); table.style.setProperty('--rowh-w', `${rowh}px`); }
+  };
+  function fit() {
+    if (!frame.clientWidth || !table.isConnected) return;
+    setFit(0);
+    for (const n of ['--cell', '--rowh-w']) table.style.removeProperty(n);
+    const avail = frame.clientWidth;
+    if (avail === fitted.avail) { setFit(fitted.cell, fitted.rowh); pin(); return; }
+    let cell = 0, rowh = 0;
+    if (table.scrollWidth > avail) {
+      // Item names get at most about a fifth of the width (cut short with
+      // "…"; the full name is in the tooltip and read out), the squares the rest.
+      rowh = Math.min(table.querySelector('th.rowh').offsetWidth, Math.max(52, Math.round(avail * 0.22)));
+      setFit(44, rowh);
+      const head = table.querySelector('th.rcat').offsetWidth + table.querySelector('th.rowh').offsetWidth;
+      cell = Math.min(44, Math.floor((avail - head - cols.length * 2) / totalCols));
+      for (let tries = 0; tries < 40; tries++) {
+        cell = Math.max(12, cell);
+        setFit(cell, rowh);
+        if (table.scrollWidth <= avail || cell <= 12) break;
+        cell--;
+      }
+    }
+    fitted = { avail, cell, rowh };
+    frame.dataset.small = cell && cell < 24 ? 'true' : 'false';
+    pin();
+  }
+  requestAnimationFrame(fit);
+  if (window.ResizeObserver) new ResizeObserver(() => requestAnimationFrame(fit)).observe(frame);
 
   let focused = null;
   const at = (r, c) => (matrix[r] && matrix[r][c] ? cells.get(matrix[r][c]) : null);
@@ -160,7 +198,9 @@ export function createGrid(frame, puzzle, ix, handlers) {
   table.addEventListener('pointerdown', (e) => {
     const td = e.target.closest('td.c');
     if (!td || e.button !== 0) return;
-    press = { td, x: e.clientX, y: e.clientY, timer: setTimeout(() => { suppressClick = true; openMenu(td, press.x, press.y); press = null; }, 550) };
+    cancelPress(); // a second finger replaces the first press, so its timer cannot fire later
+    const x = e.clientX, y = e.clientY;
+    press = { td, x, y, timer: setTimeout(() => { suppressClick = true; press = null; openMenu(td, x, y); }, 550) };
   });
   const cancelPress = () => { if (press) { clearTimeout(press.timer); press = null; } };
   table.addEventListener('pointermove', (e) => { if (press && Math.hypot(e.clientX - press.x, e.clientY - press.y) > 10) cancelPress(); });

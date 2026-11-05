@@ -15,5 +15,12 @@ export function workerEngine(worker, { themes = [] } = {}) {
     pending.set(id, { resolve, reject });
     w.postMessage({ id, op, args });
   });
-  return { themes, generate: (options) => call('generate', options), hint: (puzzle, entries) => call('hint', { puzzle, entries }) };
+  return {
+    themes,
+    generate: (options) => call('generate', options),
+    hint: (puzzle, entries) => call('hint', { puzzle, entries }),
+    move: (puzzle, grid, options) => call('move', { puzzle, grid, options }),
+    tide: (puzzle, options) => call('tide', { puzzle, options }),
+    ebb: (puzzle, grid, water) => call('ebb', { puzzle, grid, water }),
+  };
 }

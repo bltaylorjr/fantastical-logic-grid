@@ -50,7 +50,7 @@ async function call(path, { body, token } = {}) {
 
 test('every level of both games is in a band', () => {
   for (const t of TIER_ORDER) assert.ok(BANDS[t], `Logic Grid ${t}`);
-  for (const l of NP_LEVELS) assert.ok(BANDS[l], `Number Place ${l}`);
+  for (const l of NP_LEVELS) assert.ok(BANDS[l], `NINETIMESNINE ${l}`);
 });
 
 test('ideas and problems record their game, and the inbox shows one game at a time', async () => {
@@ -59,14 +59,14 @@ test('ideas and problems record their game, and the inbox shows one game at a ti
   assert.equal((await call('/v1/feedback', { body: { kind: 'problem', topic: 'play', text: 'Notes vanish after undo', game: 'chess' } })).status, 200);
   const rows = (await db.prepare('SELECT text, game, theme FROM feedback ORDER BY id').all()).results;
   assert.deepEqual(rows.map((r) => r.game), ['number-place', 'logic-grid', 'logic-grid'], 'unknown games count as the Logic Grid');
-  assert.equal(rows[0].theme, null, 'the Logic Grid theme list is not used for Number Place');
+  assert.equal(rows[0].theme, null, 'the Logic Grid theme list is not used for NINETIMESNINE');
   assert.equal(rows[1].theme, 'adventure');
 
   const np = await call('/admin/v1/inbox?game=number-place', { token: ADMIN });
   assert.equal(np.status, 200);
   assert.equal(np.body.game, 'number-place');
   assert.deepEqual(np.body.items.map((i) => i.text), ['A grid where the numbers are planets']);
-  assert.equal(np.body.items[0].meta.gameName, 'Number Place');
+  assert.equal(np.body.items[0].meta.gameName, 'NINETIMESNINE');
   const lg = await call('/admin/v1/inbox?type=idea&game=logic-grid', { token: ADMIN });
   assert.deepEqual(lg.body.items.map((i) => i.text), ['A pirate ship lost in the fog']);
   const all = await call('/admin/v1/inbox?type=idea', { token: ADMIN });
@@ -78,14 +78,14 @@ test('ideas and problems record their game, and the inbox shows one game at a ti
 
 test('Report a Problem records its game, and another game\'s puzzle is never sent to the doctor', async () => {
   const puzzle = generatePuzzle({ difficulty: 'easy', categories: 3, items: 4, seed: 'np-game-test' });
-  const np = await call('/v1/puzzle-report', { body: { kind: 'puzzle', text: 'This one has two answers', page: 'Number Place screen', puzzle, game: 'number-place' } });
+  const np = await call('/v1/puzzle-report', { body: { kind: 'puzzle', text: 'This one has two answers', page: 'NINETIMESNINE screen', puzzle, game: 'number-place' } });
   assert.equal(np.status, 200, JSON.stringify(np.body));
   const lg = await call('/v1/puzzle-report', { body: { kind: 'puzzle', text: 'Clue 3 is wrong here', puzzle, page: 'Puzzle screen: Test' } });
   assert.equal(lg.status, 200);
   const r = await db.prepare('SELECT game, status, puzzle IS NULL AS bare FROM puzzle_reports WHERE tracking = ?1').bind(np.body.tracking).first();
   assert.deepEqual({ ...r }, { game: 'number-place', status: 'manual', bare: 1 });
   const fb = await db.prepare('SELECT f.game FROM feedback f JOIN puzzle_reports p ON p.feedback_id = f.id WHERE p.tracking = ?1').bind(np.body.tracking).first();
-  assert.equal(fb.game, 'number-place', 'its words in the inbox are Number Place\'s too');
+  assert.equal(fb.game, 'number-place', 'its words in the inbox are NINETIMESNINE\'s too');
   assert.equal((await db.prepare('SELECT game FROM puzzle_reports WHERE tracking = ?1').bind(lg.body.tracking).first()).game, 'logic-grid');
 
   const list = await call('/admin/v1/error-tracking?game=number-place', { token: ADMIN });
@@ -95,11 +95,11 @@ test('Report a Problem records its game, and another game\'s puzzle is never sen
   assert.equal((await call('/admin/v1/error-tracking', { token: ADMIN })).body.reports.length, 2);
 });
 
-test('the Number Place admin page counts its own ideas and problems', async () => {
+test('the NINETIMESNINE admin page counts its own ideas and problems', async () => {
   const r = await call('/admin/v1/number-place', { token: ADMIN });
   assert.equal(r.status, 200);
   assert.equal(r.body.feedback.idea.new, 1);
-  assert.equal(r.body.feedback.problem.new, 1, 'the Number Place puzzle report');
+  assert.equal(r.body.feedback.problem.new, 1, 'the NINETIMESNINE puzzle report');
   assert.equal(r.body.feedback.reports.puzzle, 1);
   assert.equal(r.body.sharedLearning, true);
 });
@@ -120,7 +120,7 @@ test('the pooled reading puts both games on one scale by band', () => {
   assert.equal(shrink([1, 1, 1, 1, 1, 1, 1, 1, 1, 1], 0), 0.5);
 });
 
-test('a Number Place level with few games follows what all players found', () => {
+test('a NINETIMESNINE level with few games follows what all players found', () => {
   // Logic Grid players find the gentle levels far too easy.
   const crowd = computeCrowd(Array.from({ length: 40 }, () => lgPlay('easy', 1)), []);
   const t = computeNpTuning([npPlay('easy', 'solved', null)], crowd);
@@ -136,7 +136,7 @@ test('a Number Place level with few games follows what all players found', () =>
 });
 
 test('a Logic Grid tier with few games follows what all players found', () => {
-  // Number Place players find the tough levels far too hard.
+  // NINETIMESNINE players find the tough levels far too hard.
   const np = Array.from({ length: 30 }, () => ({ level: 'master', lean: -1, mode: 'free' }));
   const crowd = computeCrowd([], np);
   const t = computeTuning([lgPlay('theorist', 0)], [], crowd);
@@ -153,9 +153,9 @@ test('the tuning endpoints pool both games, and the switch turns it off', async 
   let r = await call('/v1/learn/tuning');
   assert.equal(r.status, 200);
   assert.equal(r.body.crowd.games.numberPlace, 25);
-  assert.ok(r.body.effort.medium < 0, 'Logic Grid medium gets gentler from Number Place\'s hard games');
+  assert.ok(r.body.effort.medium < 0, 'Logic Grid medium gets gentler from NINETIMESNINE\'s hard games');
   const np = await call('/v1/learn/np/tuning');
-  assert.ok(np.body.toughness.medium < 0.5, 'Number Place medium too');
+  assert.ok(np.body.toughness.medium < 0.5, 'NINETIMESNINE medium too');
 
   assert.equal((await call('/admin/v1/settings', { token: ADMIN, body: { key: 'shared_learning_enabled', value: false } })).status, 200);
   // The tuning replies are cached for 15 minutes; clear them as a new day would.

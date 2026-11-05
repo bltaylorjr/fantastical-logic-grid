@@ -26,6 +26,7 @@ import { queueReply } from './replies.js';
 import { talkAboutFeedback } from './messages.js';
 import { verifyIdToken } from './auth.js';
 import { THEMES } from '../../engine/src/themes.js';
+import { saveIdeaBoxEntry } from './story-submissions.js';
 
 export const TOPICS = {
   idea: ['story', 'theme', 'feature', 'other'],
@@ -35,7 +36,7 @@ const THEME_IDS = new Set(THEMES.map((t) => t.id));
 export const themeName = (id) => (THEMES.find((t) => t.id === id) || {}).name || id || '';
 const PLATFORMS = new Set(['web', 'desktop', 'android', 'ios']);
 // The games a message can come from, and their names in the dashboard.
-export const GAMES = { 'logic-grid': 'The Fantastical Logic Grid', 'number-place': 'Number Place' };
+export const GAMES = { 'logic-grid': 'The Fantastical Logic Grid', 'number-place': 'NINETIMESNINE' };
 export const cleanGame = (g) => (Object.hasOwn(GAMES, g) ? g : 'logic-grid');
 const MAX_NEW_PER_DAY = 500;
 
@@ -74,6 +75,10 @@ async function postFeedback(req, env, ctx) {
   if (n >= MAX_NEW_PER_DAY) return json(req, env, { error: 'busy', message: 'The boxes are full for today. Please try again tomorrow.' }, 429);
   const row = await env.DB.prepare('INSERT INTO feedback (kind, topic, text, platform, version, theme, game, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8) RETURNING id')
     .bind(kind, topic, text, platform, version, theme, game, Date.now()).first();
+  // Storylines and theme ideas also go into the Storyline Submission Database.
+  if (kind === 'idea' && (topic === 'story' || topic === 'theme')) {
+    try { await saveIdeaBoxEntry(env, { feedbackId: row.id, topic, theme, text, platform, version }); } catch (e) { console.error(e); }
+  }
   await alert(env, ctx, { category: 'messages', title: `${kind === 'problem' ? 'New problem report' : 'New idea'}${game === 'logic-grid' ? '' : ` (${GAMES[game]})`}`, body: text.slice(0, 160), link: 'communication' });
   let reply = 'none';
   let update = false;

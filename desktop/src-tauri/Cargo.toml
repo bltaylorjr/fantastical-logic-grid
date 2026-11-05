@@ -1,7 +1,7 @@
 [package]
 name = "fantastical-logic-grid"
-version = "1.15.0"
-description = "The Fantastical Logic Grid"
+version = "1.19.0"
+description = "The Logic Grid"
 edition = "2021"
 
 [build-dependencies]

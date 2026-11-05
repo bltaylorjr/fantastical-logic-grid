@@ -1,0 +1,125 @@
+WEBVTT
+
+1
+00:00:07.600 --> 00:00:13.300
+Every game lives on The Logic Grid's game cards. Tap Sum Cross to open it.
+
+2
+00:00:13.500 --> 00:00:22.200
+Choose a difficulty. Basic is a small grid to learn on. Each level adds harder combinations, up to Master on grids as big as 12×12.
+
+3
+00:00:22.400 --> 00:00:28.100
+Pick a grid size, or tap Today's puzzle: one fresh puzzle for everyone, every day.
+
+4
+00:00:28.700 --> 00:00:35.300
+More options: silent mode, sound effects, puzzles tuned to how you play, notes that clear themselves, and highlighting.
+
+5
+00:00:35.500 --> 00:00:41.800
+We'll play a Basic 5×5. Tap Start puzzle: it's built just for you, with exactly one answer.
+
+6
+00:00:45.300 --> 00:00:51.900
+Each puzzle has a title and a short story. The timer and your progress sit on the right.
+
+7
+00:00:52.100 --> 00:00:58.400
+Fill every white cell with a number from 1 to 9. The dark squares hold the clues.
+
+8
+00:00:58.600 --> 00:01:06.100
+A run is a line of white cells, across or down, between dark squares. Each run adds up to its clue.
+
+9
+00:01:06.300 --> 00:01:15.900
+In a clue square, the number at the upper right is the total going across. The one at the lower left is the total going down.
+
+10
+00:01:16.100 --> 00:01:21.500
+No number appears twice in the same run. That's what makes the totals useful.
+
+11
+00:01:21.700 --> 00:01:29.300
+Some totals can only be made one way. This run of 3 adds to 6, and with no repeats that's only 1 + 2 + 3.
+
+12
+00:01:29.500 --> 00:01:38.800
+Where an across run and a down run cross, the cell needs a number that both runs allow. A clue turns faint when its run is complete.
+
+13
+00:01:42.000 --> 00:01:49.400
+The 17 across at row 2, column 3 needs a 9 (it can only be 8 + 9), and row 2, column 4 is the only cell in it that can take it.
+
+14
+00:01:49.700 --> 00:01:57.100
+The 17 down at row 1, column 4 needs a 2 (it can only be 2 + 6 + 9), and row 3, column 4 is the only cell in it that can take it.
+
+15
+00:01:57.400 --> 00:02:04.800
+The 17 across at row 2, column 3 needs an 8 (it can only be 8 + 9), and row 2, column 5 is the only cell in it that can take it.
+
+16
+00:02:05.100 --> 00:02:12.500
+The 12 down at row 1, column 5 needs a 1 (it can only be 1 + 3 + 8), and row 4, column 5 is the only cell in it that can take it.
+
+17
+00:02:12.800 --> 00:02:20.300
+That's the whole game: find a cell with only one possible number, fill it in, and look again. No guessing, ever.
+
+18
+00:02:23.500 --> 00:02:32.800
+Not sure yet? Switch on Notes and tap numbers to pencil in what a cell could be. Shift with a number does the same on a keyboard.
+
+19
+00:02:33.000 --> 00:02:40.500
+Fill notes writes in every number each empty cell could still be, so you can cross them off as you go.
+
+20
+00:02:40.700 --> 00:02:45.800
+Undo and Redo take back any move. Erase clears the cell you're on.
+
+21
+00:02:46.000 --> 00:02:50.200
+Stuck? Hint starts with a gentle nudge, not the answer.
+
+22
+00:02:50.400 --> 00:02:53.700
+Ask again to see where to look.
+
+23
+00:02:53.900 --> 00:03:01.400
+Ask once more and it explains why, in plain words. Then fill it in yourself, or let the hint do it.
+
+24
+00:03:01.900 --> 00:03:07.600
+Let's make a mistake on purpose. Check finds wrong numbers and marks them in red.
+
+25
+00:03:07.800 --> 00:03:14.100
+Undo takes it back. Or switch on Show mistakes as I play to see mistakes straight away.
+
+26
+00:03:14.300 --> 00:03:22.700
+Rules and keys keeps the rules close by. Print the puzzle, save it to a file, or start a new one from here too.
+
+27
+00:03:26.100 --> 00:03:30.300
+Keep going the same way until every cell is filled.
+
+28
+00:03:32.700 --> 00:03:39.600
+Solved! Tell the game how it felt. Your answer, and how you played, tune the next puzzle to you.
+
+29
+00:03:39.800 --> 00:03:46.100
+Watch the solution replays the logic one step at a time, with the reason for each number.
+
+30
+00:03:46.700 --> 00:03:53.900
+Next puzzle is always new: you never see the same puzzle twice. Share my result sends your time to friends.
+
+31
+00:03:54.500 --> 00:04:02.000
+Back on the setup page, your puzzles save as you play, and Stats and badges keeps your times, streaks and rewards.

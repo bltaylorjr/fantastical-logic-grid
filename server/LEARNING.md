@@ -34,11 +34,11 @@ come from**. A player's own Google key is always used first.
 
 ## Learning across all games
 
-Each game in the package (the Logic Grid and Number Place so far) also learns from
+Each game in the package (the Logic Grid and NINETIMESNINE so far) also learns from
 the other games' players (`server/src/shared-learning.js`). Both games' anonymous
 play summaries are pooled by how tough a level is, never by its name:
 
-| Band | Logic Grid | Number Place |
+| Band | Logic Grid | NINETIMESNINE |
 | --- | --- | --- |
 | gentle | Basic, Easy | Basic, Easy |
 | middle | Medium, Hard | Medium, Hard |
@@ -53,8 +53,8 @@ before it moves. The replies of `/v1/learn/tuning` and `/v1/learn/np/tuning` kee
 their shape, so the apps need no update; they gain a `crowd` field with the counts.
 
 The switch is **Settings and switches > Learning > Learn across all games**. Off:
-each game tunes only from its own games, as before. Number Place's games are pooled
-only while **Learn from Number Place games** is on. A new game joins by adding its
+each game tunes only from its own games, as before. NINETIMESNINE's games are pooled
+only while **Learn from NINETIMESNINE games** is on. A new game joins by adding its
 levels to `BANDS` and its plays to `loadCrowd`.
 
 ## Story parts players share

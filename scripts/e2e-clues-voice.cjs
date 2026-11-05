@@ -12,6 +12,8 @@ const path = require('path');
   const page = await b.newPage();
   const errs = []; page.on('pageerror', (e) => errs.push(String(e)));
   await page.addInitScript(() => {
+    // These checks hear the cast while solving, which starts off (Settings > Sound).
+    try { const s = JSON.parse(localStorage.getItem('flg.settings') || '{}'); if (s.speechPlay === undefined) { s.speechPlay = true; localStorage.setItem('flg.settings', JSON.stringify(s)); } } catch (e) { /* no storage */ }
     // Stand-in for the Kokoro worker: a quick "download", then 50 ms WAV clips
     // that carry the number of the text they were made from.
     window.__texts = []; window.__played = []; window.__device = []; window.__failOn = null;
@@ -50,8 +52,7 @@ const path = require('path');
     };
     speechSynthesis.speak = (u) => { window.__device.push(u.text); setTimeout(() => u.onend && u.onend(), 5); };
   });
-  // Picture clues keep one clue locked; this test checks that every clue is read.
-  await page.goto('http://localhost:8133/?pictures=0');
+  await page.goto('http://localhost:8133/');
   await page.waitForSelector('#dlg-welcome[open]'); await page.keyboard.press('Escape');
   // A plain (not async) check: waitForFunction treats a returned promise as already true.
   await page.waitForFunction(() => (JSON.parse(localStorage.getItem('flg.settings') || '{}')).kokoroReady === true, null, { timeout: 15000 });

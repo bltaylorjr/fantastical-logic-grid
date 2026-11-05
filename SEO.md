@@ -10,7 +10,7 @@ find, read and rank, keep it fresh, and catch problems early. That is what this 
 | What | When | Where |
 |---|---|---|
 | Search pages that work without JavaScript: How to play (with the video, transcript and FAQ), Themes (one page per theme), Difficulty levels, Daily puzzle | every build | `scripts/seo.mjs`, `seo/site.css` |
-| A new **daily puzzle page** with a never-used story, plus the last 30 days | every night, 00:17 UTC | `.github/workflows/pages.yml` |
+| A new **daily puzzle page** with a never-used story, plus the last 30 days | every night, just after midnight US Eastern | `.github/workflows/pages.yml` |
 | Search tags on every page: description, canonical address, Open Graph and X/Twitter cards (share picture `seo/og-image.jpg`), and structured data (VideoGame, WebSite, HowTo, VideoObject, FAQ, Article, breadcrumbs) | every build | `scripts/seo.mjs` |
 | `sitemap.xml` (with real "last changed" dates), `robots.txt`, `llms.txt` (for AI assistants), a friendly `404.html` | every build | `scripts/seo.mjs` |
 | **IndexNow**: tells Bing, Yandex, Seznam, Naver and other IndexNow engines which pages changed, right after each publish | after every publish | `pages.yml`, job `indexnow` |

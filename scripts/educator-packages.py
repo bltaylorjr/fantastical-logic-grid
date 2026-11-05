@@ -46,11 +46,11 @@ REPLY_TO = os.environ.get('MAIL_REPLY_TO', '').strip() or 'fantasticallogicgrid@
 MAIL_NOREPLY = os.environ.get('MAIL_NOREPLY', '').strip() or 'noreply@thelogicgrid.com'
 SITE = (os.environ.get('FLG_SITE_URL', '').strip() or 'https://thelogicgrid.com').rstrip('/')
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SENDER_NAME = 'The Fantastical Logic Grid'
+SENDER_NAME = 'The Logic Grid'
 CONTACT = 'support@thelogicgrid.com'
 NO_REPLY = 'Questions? Just reply to this email.'
 ONE_WAY = 'This is an automatic message from a no-reply address, so replies are not read. Questions? Write to support@thelogicgrid.com.'
-SIGN_OFF = 'The Fantastical Logic Grid team\n' + SITE
+SIGN_OFF = 'The Logic Grid team\n' + SITE
 
 
 def verify_mail(m):

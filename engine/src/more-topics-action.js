@@ -255,7 +255,7 @@ export const MORE = {
         cat('tower', 'Tower', 'watched from {x}', 'did not watch from {x}', ['Tower One', 'Tower Two', 'Tower Three', 'Tower Four', 'Tower Five', 'Tower Six', 'Tower Seven', 'Tower Eight']),
         cat('craft', 'Rescue Craft', 'used the {x}', 'did not use the {x}', ['Paddleboard', 'Jet Ski', 'Surfboard', 'Rescue Buoy', 'Dune Buggy', 'Kayak', 'Inflatable Boat', 'Rescue Tube'], { noun: 'rescue craft' }),
         cat('shades', 'Sunglasses', 'wore the {x} sunglasses', 'did not wear the {x} sunglasses', ['Aviator', 'Wraparound', 'Mirrored', 'Round', 'Cat Eye', 'Sport', 'Square', 'Clip-On'], { noun: 'sunglasses' }),
-        cat('treat', 'Snack', 'brought the {x}', 'did not bring the {x}', ['Fish Tacos', 'Shave Ice', 'Coconut Water', 'Pineapple Slices', 'Mango Smoothie', 'Fruit Bar', 'Rice Ball', 'Granola']),
+        cat('treat', 'Snack', 'brought the {x}', 'did not bring the {x}', ['Fish Tacos', 'Shaved Ice', 'Coconut Water', 'Pineapple Slices', 'Mango Smoothie', 'Fruit Bar', 'Rice Ball', 'Granola']),
         ord('swim', 'Swim Test', 'swam the test in {x}', 'did not swim the test in {x}',
           countOrd(6, 1, (v) => plural(v, 'minute', 'minutes'), 'swam faster than', 'swam slower than', 'swam {d} faster than', 'swam {d} slower than', (s) => plural(s, 'minute', 'minutes')),
           { noun: 'swim test time' }),

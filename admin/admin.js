@@ -1,24 +1,31 @@
-// The admin dashboard for The Fantastical Logic Grid. Served by the game's
+// The admin dashboard for The Logic Grid. Served by the game's
 // Worker at /admin/ and talks only to its /admin/v1 API (server/src/admin.js).
 // Sign-in uses Firebase's REST API with the admin's game account, or Face ID
 // or a fingerprint (passkeys.js). With "Keep me signed in on this device" the
 // session is kept in localStorage, so it survives the phone closing the app
 // while the admin uses other apps; otherwise it lives only in this tab
-// (sessionStorage). Either way it locks after 30 idle minutes, and Face ID or
+// (sessionStorage). Either way it locks after 1 idle hour, and Face ID or
 // a fingerprint opens it again.
 
 import { initPullRefresh } from './pull-refresh.js';
 import { readStoryline } from './storyline-parse.js';
 import { renderConnections } from './connections-view.js';
+import { renderSiteAccounts } from './site-accounts.js';
 import { takeOAuthReturn, finishOAuth } from './oauth.js';
 import { characterView } from './characters.js';
 import { ratingsView, initRatings } from './ratings.js';
+import { voiceEngineView, initVoiceEngine } from './voice-engine.js';
 import { marketingView, initMarketing } from './marketing.js';
 import { puzzleMailView, initPuzzleMail } from './puzzle-mail.js';
+import { websiteView, initWebsite, initWebsiteEvents, isEditorWindow } from './website.js';
 import { educatorsView, initEducators, educatorFeedbackView, initEducatorFeedback } from './educators.js';
+import { storySubmissionsView, initStorySubmissions } from './story-submissions.js';
+import { beatImagesView, initBeatImages } from './beat-images.js';
 import { licensesView, initLicenses } from './licenses.js';
 import { mediaView } from './media.js';
 import { badgesView, initBadges, playerBadgesHtml, playerBadgeClick } from './badges.js';
+import { analysisView, initAnalysis } from './analysis.js';
+import { initTuning } from './tuning.js';
 import { passkeysSupported, platformReady, rememberedPasskey, passkeySignIn, offerPasskey, passkeysView, initPasskeys } from './passkeys.js';
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -51,7 +58,7 @@ const pct = (a, b) => (b ? `${Math.round((100 * a) / b)}%` : '–');
 const AUTH_URL = 'https://identitytoolkit.googleapis.com/v1';
 const TOKEN_URL = 'https://securetoken.googleapis.com/v1';
 const SESSION_KEY = 'flg-admin-session';
-const IDLE_MS = 30 * 60_000;
+const IDLE_MS = 60 * 60_000;
 const ROLES = { viewer: 1, moderator: 2, admin: 3, owner: 4 };
 const TIER_NAMES = { basic: 'Basic', easy: 'Easy', medium: 'Medium', hard: 'Hard', expert: 'Expert', mensa: 'Quantum Physicist', theorist: 'Theoretical Physicist' };
 
@@ -90,8 +97,8 @@ function clearSession() {
   try { sessionStorage.removeItem(SESSION_KEY); localStorage.removeItem(SESSION_KEY); } catch (e) { /* ignore */ }
 }
 const lockWords = () => (rememberedPasskey()
-  ? 'Locked after 30 minutes without use. Use Face ID or your fingerprint to open it again.'
-  : 'Locked after 30 minutes without use. Sign in again to open it.');
+  ? 'Locked after 1 hour without use. Use Face ID or your fingerprint to open it again.'
+  : 'Locked after 1 hour without use. Sign in again to open it.');
 
 class ApiError extends Error { constructor(code, message, status) { super(message || code); this.code = code; this.status = status; } }
 
@@ -291,9 +298,12 @@ views.overview = async () => {
   const labels = d.dayList;
   setCount('#count-parts', d.review.parts.pending || 0);
   setCount('#count-names', d.review.namesWaiting || 0);
+  setCount('#count-analysis', d.review.tuning || 0);
   setCount('#count-educators', d.review.educators || 0);
+  setCount('#count-story-submissions', can('moderator') ? d.review.stories || 0 : 0);
   if (can('admin')) setCount('#count-licenses', d.review.keys || 0);
   setCount('#count-edu-feedback', can('moderator') ? d.review.educatorFeedback || 0 : 0);
+  setCount('#count-fantastical', flgWaiting(d.review));
   const review = [];
   if (can('moderator') && d.review.parts.pending) review.push(`<a href="#stories">${fmt(d.review.parts.pending)} story ${d.review.parts.pending === 1 ? 'part' : 'parts'} waiting for review</a>`);
   const fb = d.review.feedback || {};
@@ -302,6 +312,7 @@ views.overview = async () => {
   if (can('moderator') && unread) review.push(`<a href="#communication">${fmt(unread)} unread ${unread === 1 ? 'message' : 'messages'} from players</a>`);
   if (can('moderator') && (fb.idea || fb.problem)) review.push(`<a href="#communication">${fmt(fb.idea || 0)} new ${fb.idea === 1 ? 'idea' : 'ideas'} and ${fmt(fb.problem || 0)} new ${fb.problem === 1 ? 'problem' : 'problems'} from players</a>`);
   if (can('admin') && d.review.keys) review.push(`<a href="#licenses">${fmt(d.review.keys)} free app ${d.review.keys === 1 ? 'key' : 'keys'} waiting for approval</a>`);
+  if (can('moderator') && d.review.stories) review.push(`<a href="#story-submissions">${fmt(d.review.stories)} new storyline ${d.review.stories === 1 ? 'submission' : 'submissions'} waiting for review</a>`);
   if (can('moderator') && d.review.educators) review.push(`<a href="#educators">${fmt(d.review.educators)} educator ${d.review.educators === 1 ? 'request' : 'requests'} waiting for review</a>`);
   if (can('moderator') && d.review.educatorFeedback) review.push(`<a href="#edu-feedback">${fmt(d.review.educatorFeedback)} new ${d.review.educatorFeedback === 1 ? 'note' : 'notes'} from educators</a>`);
   if (can('moderator') && d.review.namesWaiting) review.push(`<a href="#names">${fmt(d.review.namesWaiting)} new or changed screen ${d.review.namesWaiting === 1 ? 'name' : 'names'}</a>`);
@@ -706,7 +717,7 @@ document.addEventListener('click', async (e) => {
     return;
   }
   const r = e.target.closest('button[data-report-retry]');
-  if (r && await act(r, () => api(`puzzle-reports/${Number(r.dataset.reportRetry)}/retry`, { method: 'POST' }), 'It will be checked again within 15 minutes.')) show('communication', { keepFocus: true });
+  if (r && await act(r, () => api(`puzzle-reports/${Number(r.dataset.reportRetry)}/retry`, { method: 'POST' }), 'Sent back to the puzzle doctor: it checks it now, or within 15 minutes.')) show(location.hash.startsWith('#errortracking') ? 'errortracking' : 'communication', { keepFocus: true });
 });
 
 // ---- Error tracking: every Report a Problem, in its two categories, and what
@@ -715,9 +726,31 @@ const FAULT_NAMES = { false_clue: 'A clue was not true', not_unique: 'More than 
   answer_key: 'Wrong answer key', solution: 'Mixed-up answer', blank_clue: 'Blank clue', blank_label: 'Blank name', question: 'Question answer missing', unreadable: 'Damaged puzzle', display: 'Display problem', page_issue: 'Web page issue' };
 const STRATEGY_NAMES = { 'same-settings': 'Same story, rebuilt', 'same-theme': 'Same theme, rebuilt', 'all-options': 'All settings, rebuilt', 'new-seed': 'New story, same theme' };
 let etMore = null;
-const svgUrl = (svg) => `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`;
+let etLogMore = null;
+// The errors database (error_log): every step of every report.
+const LOG_EVENTS = { received: ['', 'Received'], files: ['', 'Files attached'], doctor_called: ['ok', 'Doctor started'], doctor_waiting: ['', 'Waiting for the doctor'],
+  reviewed: ['', 'Reviewed'], repaired: ['ok', 'Repaired'], needs_fix: ['bad', 'Needs a code fix'], no_fault: ['', 'No fault found'], display: ['warn', 'Display problem'],
+  closed: ['ok', 'Closed by a code fix'], done: ['ok', 'Marked done'], alerted: ['', 'Admins alerted'] };
+const logBadge = (ev) => { const [c, w] = LOG_EVENTS[ev] || ['', ev]; return `<span class="badge ${c}">${esc(w)}</span>`; };
+const etLogRow = (l) => `<tr><td>${when(l.createdAt)}</td><td>${l.reportId ? `<button class="btn small link" type="button" data-et-open="${Number(l.reportId)}">${esc(l.tracking)}</button>` : esc(l.tracking)}</td><td>${logBadge(l.event)}</td><td>${esc(l.detail)}</td></tr>`;
+const kb = (n) => (n >= 1_048_576 ? `${(n / 1_048_576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
+let etUrls = [];
+// Attached pictures load with the admin's sign-in, so they are fetched here and
+// shown from memory; other files download.
+async function etFile(id, fid) {
+  const res = await fetch(`/admin/v1/error-tracking/${Number(id)}/files/${Number(fid)}`, { headers: { Authorization: `Bearer ${await bearer()}` } });
+  if (!res.ok) { const d = await res.json().catch(() => ({})); throw new ApiError(d.error || 'download', d.message || `Download failed (${res.status}).`); }
+  return res.blob();
+}
+// The game's scene picture is saved as it sits in the page, without the SVG
+// namespace a picture on its own needs (without it browsers show nothing), so
+// it is added here; animation classes are dropped.
+const svgUrl = (svg) => {
+  const own = /^\s*<svg\b[^>]*\sxmlns=/i.test(svg) ? svg : svg.replace(/^\s*<svg\b/i, '<svg xmlns="http://www.w3.org/2000/svg"');
+  return `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(own)))}`;
+};
 
-const GAME_NAMES = { 'logic-grid': 'The Fantastical Logic Grid', 'number-place': 'Number Place' };
+const GAME_NAMES = { 'logic-grid': 'The Fantastical Logic Grid', 'number-place': 'NINETIMESNINE' };
 function etRowHtml(r) {
   const [cls, words] = REPORT_STATES[r.status] || ['', r.status];
   return `<tr>
@@ -728,7 +761,7 @@ function etRowHtml(r) {
     <td class="fb-text">${esc(r.text)}</td>
     <td>${r.findings.length ? r.findings.map((f) => esc(FAULT_NAMES[f.code] || f.code)).join(', ') : '–'}</td>
     <td>${esc(r.note || (r.strategy ? STRATEGY_NAMES[r.strategy] || r.strategy : '–'))}</td>
-    <td><span class="badge ${cls}">${esc(words)}</span>${r.related.length ? `<br><span class="muted">${fmt(r.related.length)} related</span>` : ''}</td></tr>`;
+    <td><span class="badge ${cls}">${esc(words)}</span>${r.related.length ? `<br><span class="muted">${fmt(r.related.length)} related</span>` : ''}${r.files ? `<br><span class="muted">${fmt(r.files)} file${r.files === 1 ? '' : 's'} attached</span>` : ''}</td></tr>`;
 }
 
 views.errortracking = async ({ arg } = {}) => {
@@ -737,7 +770,11 @@ views.errortracking = async ({ arg } = {}) => {
   if ($('#et-status').value) qs.set('status', $('#et-status').value);
   if ($('#et-game').value) qs.set('game', $('#et-game').value);
   if ($('#et-q').value.trim()) qs.set('q', $('#et-q').value.trim());
-  const [d, p] = await Promise.all([api(`error-tracking?${qs}`), api('fault-patterns')]);
+  const [d, p, log] = await Promise.all([api(`error-tracking?${qs}`), api('fault-patterns'), api('error-log')]);
+  etLogMore = log.more;
+  $('#et-log').innerHTML = log.events.length ? `<div class="table-wrap"><table class="table"><thead><tr><th scope="col">When</th><th scope="col">Report</th><th scope="col">Step</th><th scope="col">What happened</th></tr></thead>
+    <tbody id="et-log-rows">${log.events.map(etLogRow).join('')}</tbody></table></div>${etLogMore ? '<div class="row"><button class="btn small" type="button" id="et-log-more">Show older steps</button></div>' : ''}`
+    : '<p class="muted">Nothing logged yet. Every report\'s steps appear here the moment they happen.</p>';
   etMore = d.more;
   const waiting = d.counts.filter((c) => ['needs_fix', 'manual', 'page'].includes(c.status)).reduce((s, c) => s + c.n, 0);
   setCount('#count-errors', waiting);
@@ -776,7 +813,11 @@ async function etOpen(id) {
     ${['needs_fix', 'no_fault', 'manual', 'page'].includes(r.status) ? '<p class="muted">The puzzle doctor\'s daily code-fix task looks at reports waiting here. When its fix merges, this report is marked done with a plain note and the version, and the player who asked is emailed. Mark done by hand only if you fixed it yourself.</p>' : ''}
     <h3>Correction made</h3><p>${esc(r.note || '–')}${r.strategy ? ` <span class="muted">(${esc(STRATEGY_NAMES[r.strategy] || r.strategy)})</span>` : ''}${r.status === 'repaired' ? ` ${r.openedAt ? 'The player opened the repaired puzzle.' : 'The player has not opened the repaired puzzle yet.'}` : ''}</p>
     ${r.related.length ? `<h3>Related reports in the other category</h3><p>${r.related.map((t) => `<code>${esc(t)}</code>`).join(' ')} <span class="muted">(same screen and app version)</span></p>` : ''}
-    ${r.hasImage ? `<h3>Picture</h3><img class="et-picture" src="${svgUrl(r.image)}" alt="The puzzle's picture as the player saw it">` : ''}
+    <h3>Screenshot, pictures and files from the player</h3>${r.attachments.length ? `<ul class="et-files">${r.attachments.map((f) => `<li>${f.image ? `<img class="et-attach" data-et-img="${Number(f.id)}" alt="Picture the player attached: ${esc(f.name)}">` : ''}
+      <span><b>${esc(f.name)}</b> <span class="muted">${esc(kb(f.size))}</span></span> <button class="btn small" type="button" data-et-file="${Number(f.id)}" data-et-report="${Number(r.id)}" data-name="${esc(f.name)}">Download</button></li>`).join('')}</ul>`
+      : `<p class="muted">${r.files ? 'The attached files were removed (they are kept for 90 days).' : 'None attached.'}</p>`}
+    <h3>Doctor's log</h3>${r.log.length ? `<ol class="et-log">${r.log.map((l) => `<li><span class="muted">${when(l.createdAt)}</span> ${logBadge(l.event)} ${esc(l.detail)}</li>`).join('')}</ol>` : '<p class="muted">No steps logged (reported before the errors database began).</p>'}
+    ${r.hasImage ? `<h3>Puzzle scene</h3><p class="muted">The picture at the top of the puzzle. The screenshot of the player's screen, when there is one, is under Screenshot, pictures and files from the player.</p><img class="et-picture" src="${svgUrl(r.image)}" alt="The puzzle's scene picture">` : ''}
     ${storyHtml(r.story, 'Storyline as reported')}${storyHtml(r.repairedStory, 'Storyline as repaired')}
     <div class="row">${r.hasPuzzle ? `<button class="btn small" type="button" data-report-file="${Number(r.id)}" data-tracking="${esc(r.tracking)}">Download the reported puzzle</button>` : ''}
       ${['needs_fix', 'no_fault'].includes(r.status) && r.hasPuzzle && can('admin') ? `<button class="btn small" type="button" data-report-retry="${Number(r.id)}">Check again</button>` : ''}
@@ -784,6 +825,11 @@ async function etOpen(id) {
   panel.hidden = false;
   panel.scrollIntoView({ block: 'start' });
   $('#et-detail-h').focus();
+  for (const u of etUrls) URL.revokeObjectURL(u);
+  etUrls = [];
+  for (const img of panel.querySelectorAll('[data-et-img]')) {
+    etFile(r.id, img.dataset.etImg).then((b) => { const u = URL.createObjectURL(b); etUrls.push(u); img.src = u; }).catch(() => { img.replaceWith(Object.assign(document.createElement('span'), { className: 'muted', textContent: 'The picture could not be loaded.' })); });
+  }
 }
 
 $('#et-filter').onsubmit = (e) => { e.preventDefault(); show('errortracking', { keepFocus: true }); };
@@ -794,6 +840,15 @@ document.addEventListener('click', async (e) => {
   const o = e.target.closest('[data-et-open]');
   if (o) { await act(o, () => etOpen(Number(o.dataset.etOpen))); return; }
   if (e.target.closest('[data-et-close]')) { $('#et-detail').hidden = true; return; }
+  const file = e.target.closest('[data-et-file]');
+  if (file) { await act(file, async () => saveFile(await etFile(file.dataset.etReport, file.dataset.etFile), file.dataset.name), 'File saved.'); return; }
+  if (e.target.closest('#et-log-more')) {
+    const d = await api(`error-log?before=${Number(etLogMore)}`);
+    $('#et-log-rows').insertAdjacentHTML('beforeend', d.events.map(etLogRow).join(''));
+    etLogMore = d.more;
+    if (!etLogMore) $('#et-log-more').remove();
+    return;
+  }
   if (e.target.closest('#et-more')) {
     const qs = new URLSearchParams({ before: etMore });
     if ($('#et-category').value) qs.set('category', $('#et-category').value);
@@ -1315,7 +1370,7 @@ async function openPlayer(uid) {
   };
 }
 
-const NP_GROUP = 'Number Place';
+const NP_GROUP = 'NINETIMESNINE';
 const NP_LEVEL_NAMES = { basic: 'Basic', easy: 'Easy', medium: 'Medium', hard: 'Hard', expert: 'Expert', master: 'Master' };
 const NP_TECH_NAMES = { nakedSingle: 'Only number left', hiddenSingle: 'Only place left', intersection: 'Line and box overlap', nakedPair: 'Matching pair', hiddenPair: 'Hidden pair', nakedTriple: 'Matching three', hiddenTriple: 'Hidden three', xWing: 'Rectangle', swordfish: 'Three-line pattern', xyWing: 'Bent triple' };
 views.numberplace = async () => {
@@ -1339,29 +1394,29 @@ views.numberplace = async () => {
   };
   $('#np-body').innerHTML = `
     <div class="card"><h2>Games since ${esc(d.since)}</h2>
-      <p><b>${d.games}</b> finished Number Place games${d.games ? `: ${Object.entries(d.modes).map(([m, n]) => `${n} ${esc({ free: 'free play', daily: 'daily', race: 'race', file: 'from a file' }[m] || m)}`).join(', ')}` : ''}.
+      <p><b>${d.games}</b> finished NINETIMESNINE games${d.games ? `: ${Object.entries(d.modes).map(([m, n]) => `${n} ${esc({ free: 'free play', daily: 'daily', race: 'race', file: 'from a file' }[m] || m)}`).join(', ')}` : ''}.
       Shared tuning uses ${d.tuning.games} games from the last 90 days; a level needs 10 before it moves.</p>
-      ${levelRows.length ? table([{ label: 'Level' }, { label: 'Games', num: true }, { label: 'Solved', num: true }, { label: 'Answer shown', num: true }, { label: 'Given up', num: true }, { label: 'Typical time', num: true }, { label: 'Hints a game', num: true }, { label: 'Felt easy / right / hard' }, { label: 'Shared tuning' }], levelRows) : '<p class="muted">No Number Place games yet in this period.</p>'}
+      ${levelRows.length ? table([{ label: 'Level' }, { label: 'Games', num: true }, { label: 'Solved', num: true }, { label: 'Answer shown', num: true }, { label: 'Given up', num: true }, { label: 'Typical time', num: true }, { label: 'Hints a game', num: true }, { label: 'Felt easy / right / hard' }, { label: 'Shared tuning' }], levelRows) : '<p class="muted">No NINETIMESNINE games yet in this period.</p>'}
     </div>
     <div class="card"><h2>Where players ask for help</h2>
       ${d.stuck.length ? table([{ label: 'Technique' }, { label: 'Hints asked', num: true }], d.stuck.map((s) => [esc(NP_TECH_NAMES[s.technique] || s.technique), s.count])) : '<p class="muted">No hints asked yet.</p>'}
       <p class="muted">Players who keep asking about a technique get practice puzzles that need it (Practice puzzles, below).</p>
     </div>
-    <div class="card"><h2>Ideas and problems from Number Place</h2>
+    <div class="card"><h2>Ideas and problems from NINETIMESNINE</h2>
       ${table([{ label: 'Box' }, { label: 'New', num: true }, { label: 'Approved', num: true }, { label: 'Addressed', num: true }, { label: 'Done', num: true }],
     [['Ideas', d.feedback.idea], ['Problems', d.feedback.problem]].map(([label, c]) => [label, fmt(c.new || 0), fmt(c.approved || 0), fmt(c.addressed || 0), fmt(c.done || 0)]))}
-      <p>Report a Problem from the Number Place screen: ${fmt(d.feedback.reports.puzzle)} puzzle, ${fmt(d.feedback.reports.webstructure)} web page.</p>
+      <p>Report a Problem from the NINETIMESNINE screen: ${fmt(d.feedback.reports.puzzle)} puzzle, ${fmt(d.feedback.reports.webstructure)} web page.</p>
       <div class="row">${can('moderator') ? '<button class="btn small" type="button" data-np-inbox>Read them in Communication</button>' : ''}<button class="btn small" type="button" data-np-errors>Open in Error tracking</button></div>
-      <p class="muted">Kept apart from the Logic Grid's. Puzzle reports from Number Place carry no puzzle file, so the team reads them (the puzzle doctor only checks Logic Grid puzzles).</p>
+      <p class="muted">Kept apart from the Logic Grid's. Puzzle reports from NINETIMESNINE carry no puzzle file, so the team reads them (the puzzle doctor only checks Logic Grid puzzles).</p>
     </div>
     <div class="card"><h2>Learning from all games</h2>
-      ${d.tuning.crowd ? `<p>Number Place also learns from every game's players: ${fmt(d.tuning.crowd.games.logicGrid)} Logic Grid and ${fmt(d.tuning.crowd.games.numberPlace)} Number Place games from the last 90 days, pooled by how tough a level is. A level with few games of its own follows this until it has enough.</p>
+      ${d.tuning.crowd ? `<p>NINETIMESNINE also learns from every game's players: ${fmt(d.tuning.crowd.games.logicGrid)} Logic Grid and ${fmt(d.tuning.crowd.games.numberPlace)} NINETIMESNINE games from the last 90 days, pooled by how tough a level is. A level with few games of its own follows this until it has enough.</p>
       ${table([{ label: 'Band' }, { label: 'Levels' }, { label: 'How players found it' }], [['gentle', 'Basic, Easy'], ['middle', 'Medium, Hard'], ['tough', 'Expert, Master']].map(([b, levels]) => {
     const v = d.tuning.crowd.lean[b];
     return [esc(b[0].toUpperCase() + b.slice(1)), levels, v == null ? 'Not enough games yet' : v > 0.1 ? `${v} (too easy: puzzles get tougher)` : v < -0.1 ? `${v} (too hard: puzzles get gentler)` : `${v} (about right)`];
-  }))}` : `<p class="muted">${d.sharedLearning ? 'Turn on Learn from Number Place games to pool its games with the others.' : 'Off: each game tunes only from its own games. Turn on Learn across all games under Settings and switches > Learning.'}</p>`}
+  }))}` : `<p class="muted">${d.sharedLearning ? 'Turn on Learn from NINETIMESNINE games to pool its games with the others.' : 'Off: each game tunes only from its own games. Turn on Learn across all games under Settings and switches > Learning.'}</p>`}
     </div>
-    <div class="card"><h2>Number Place settings</h2>${editable ? '' : '<p class="note">You can see the settings. Changing them needs the admin role.</p>'}
+    <div class="card"><h2>NINETIMESNINE settings</h2>${editable ? '' : '<p class="note">You can see the settings. Changing them needs the admin role.</p>'}
       ${list.map((s) => `<div class="setting"><div><b id="lbl-${s.key}">${esc(s.label)}</b><p class="help">${esc(s.help)}</p>${s.updatedBy ? `<p class="meta">Changed by ${esc(s.updatedBy)} on ${when(s.updatedAt)}</p>` : ''}</div><div>${control(s)}</div></div>`).join('')}
     </div>`;
   $$('#np-body input[type=checkbox][data-np-key]').forEach((c) => c.setAttribute('aria-labelledby', `lbl-${c.dataset.npKey}`));
@@ -1390,12 +1445,100 @@ $('#np-body').onclick = (e) => {
 };
 $('#np-days').onchange = () => show('numberplace', { keepFocus: true });
 
-views.settings = async () => {
-  renderAlerts().catch((e) => { $('#alerts-body').innerHTML = `<div class="card"><h2>My alerts</h2><p class="note">${esc(e.message)}</p></div>`; });
+// The grid-kit games (Cage Math, Sum Cross, Picture Grid, More or Less, Skyline,
+// Star Field, Loop Line, Island Bridges): one section each, the same shape as
+// NINETIMESNINE's (server/src/kit-games.js), with its own settings group.
+const KIT_SECTIONS = {
+  cm: { view: 'cagemath', group: 'Cage Math' }, sc: { view: 'sumcross', group: 'Sum Cross' }, pg: { view: 'picturegrid', group: 'Picture Grid' },
+  ml: { view: 'moreorless', group: 'More or Less' }, sk: { view: 'skyline', group: 'Skyline' }, sf: { view: 'starfield', group: 'Star Field' },
+  ll: { view: 'loopline', group: 'Loop Line' }, ib: { view: 'islandbridges', group: 'Island Bridges' },
+};
+const KIT_TECH_NAMES = {
+  cm: { nakedSingle: 'Only number left', hiddenSingle: 'Only place left', cageCombo: 'Cage combinations', cageLine: 'Cage claims a line', nakedPair: 'Matching pair', hiddenPair: 'Hidden pair', nakedTriple: 'Matching three', cageTotal: 'Line total' },
+  sc: { nakedSingle: 'Only number left', hiddenSingle: 'A run needs it here', combo: 'Run combinations', comboFit: 'Fitting the combinations', nakedPair: 'Matching pair', nakedTriple: 'Matching three' },
+  pg: { overlap: 'Overlapping runs', finish: 'Finished line', edge: 'Pushing from the edge', reach: 'Out of reach', cross: 'Working both ways' },
+  // The same names as each engine's list of steps (engine/src/<game>.js).
+  ml: { nakedSingle: 'Only number left', hiddenSingle: 'Only place left', signLimit: 'Sign limits', signChain: 'Sign chains', nakedPair: 'Matching pair', hiddenPair: 'Hidden pair', nakedTriple: 'Matching three' },
+  sk: { nakedSingle: 'Only number left', hiddenSingle: 'Only place left', edgeOne: 'Edge 1', edgeAll: 'Edge sees all', distance: 'Distance limits', visibility: 'Visibility counting', nakedPair: 'Matching pair', hiddenPair: 'Hidden pair', nakedTriple: 'Matching three' },
+  sf: { neighbour: 'Stars never touch', finished: 'Finished line or region', onlyPlace: 'Only room left', squeeze: 'Region claims a line', touchAll: 'Touching every choice', blocks: 'One star per 2×2 block', noRoom: 'No room left', groups: 'Regions share lines', chain: 'Following it through' },
+  ll: { zero: 'A zero', full: 'Finished number', fill: 'Every open side', dotFull: 'Two lines at a dot', deadEnd: 'Dead end', goOn: 'A line must go on', closed: 'The loop is closed', corner: 'Corner rule', smallLoop: 'No early loops', enter: 'A line into a 1 or a 3', threes: 'Two 3s side by side', pass2: 'A line through a 2', diag3: 'Two 3s corner to corner', whatIf: 'Follow it through' },
+  ib: { cross: 'Bridges can\'t cross', full: 'Island is complete', room: 'Not enough room', only: 'Every bridge it can get', must: 'Not enough without it', isolate: 'Don\'t close off a group', reach: 'Must reach the rest', whatIf: 'Follow it through' },
+};
+for (const [id, k] of Object.entries(KIT_SECTIONS)) {
+  views[k.view] = async () => {
+    const [d, st] = await Promise.all([api(`kit-game/${id}?days=${$(`#kit-${id}-days`).value}`), api('settings')]);
+    const editable = can('admin');
+    const list = st.settings.filter((s) => s.group === k.group);
+    const pct = (a, b) => (b ? `${Math.round((a / b) * 100)}%` : '–');
+    const tuned = (t) => (t == null ? '–' : t > 0.58 ? `${t} (tougher)` : t < 0.42 ? `${t} (gentler)` : `${t} (middle)`);
+    const levelRows = d.levels.filter((l) => l.games).map((l) => [
+      `<b>${esc(NP_LEVEL_NAMES[l.level])}</b>`, l.games, pct(l.solved, l.games), l.revealed, l.abandoned,
+      l.medianMinutes == null ? '–' : `${Math.round(l.medianMinutes * 10) / 10} min`, l.avgHints ?? '–',
+      `${l.feels.easy} / ${l.feels.right} / ${l.feels.hard}`, esc(tuned(d.tuning.toughness[l.level] ?? null)),
+    ]);
+    const control = (s) => {
+      const dis = editable ? '' : ' disabled';
+      if (s.type === 'bool') return `<label class="check"><input type="checkbox" data-kit-key="${s.key}"${s.value ? ' checked' : ''}${dis}> <span>${s.value ? 'On' : 'Off'}</span></label>`;
+      const save = editable ? `<button class="btn small" data-kit-save="${s.key}">Save</button>` : '';
+      const label = `<label class="sr-only" for="kitset-${s.key}">${esc(s.label)}</label>`;
+      if (s.type === 'int') return `<div class="row"><div class="field">${label}<input id="kitset-${s.key}" type="number" min="${s.min}" max="${s.max}" value="${s.value}" inputmode="numeric"${dis}></div>${save}</div>`;
+      return `<div class="row"><div class="field">${label}<select id="kitset-${s.key}"${dis}>${s.options.map((o) => `<option value="${esc(o.value)}"${o.value === s.value ? ' selected' : ''}>${esc(o.label)}</option>`).join('')}</select></div>${save}</div>`;
+    };
+    const sizes = Object.entries(d.sizes).sort((a, b) => a[0] - b[0]).map(([n, c]) => `${c} at ${n}×${n}`).join(', ');
+    $(`#kit-${id}-body`).innerHTML = `
+      <div class="card"><h2>Games since ${esc(d.since)}</h2>
+        <p><b>${d.games}</b> finished ${esc(d.name)} games${d.games ? `: ${Object.entries(d.modes).map(([m, n]) => `${n} ${esc({ free: 'free play', daily: 'daily', file: 'from a file' }[m] || m)}`).join(', ')}` : ''}.${sizes ? ` Grid sizes: ${esc(sizes)}.` : ''}
+        Shared tuning uses ${d.tuning.games} games from the last 90 days; a level needs 10 before it moves.</p>
+        ${levelRows.length ? table([{ label: 'Level' }, { label: 'Games', num: true }, { label: 'Solved', num: true }, { label: 'Answer shown', num: true }, { label: 'Given up', num: true }, { label: 'Typical time', num: true }, { label: 'Hints a game', num: true }, { label: 'Felt easy / right / hard' }, { label: 'Shared tuning' }], levelRows) : `<p class="muted">No ${esc(d.name)} games yet in this period.</p>`}
+      </div>
+      <div class="card"><h2>Where players ask for help</h2>
+        ${d.stuck.length ? table([{ label: 'Step' }, { label: 'Hints asked', num: true }], d.stuck.map((s) => [esc(KIT_TECH_NAMES[id][s.technique] || s.technique), s.count])) : '<p class="muted">No hints asked yet.</p>'}
+        <p class="muted">Players who keep asking about a step get practice puzzles that need it (Practice puzzles, below).</p>
+      </div>
+      <div class="card"><h2>${esc(d.name)} settings</h2>${editable ? '' : '<p class="note">You can see the settings. Changing them needs the admin role.</p>'}
+        ${list.map((s) => `<div class="setting"><div><b id="lbl-${s.key}">${esc(s.label)}</b><p class="help">${esc(s.help)}</p>${s.updatedBy ? `<p class="meta">Changed by ${esc(s.updatedBy)} on ${when(s.updatedAt)}</p>` : ''}</div><div>${control(s)}</div></div>`).join('')}
+      </div>`;
+    $$(`#kit-${id}-body input[type=checkbox][data-kit-key]`).forEach((c) => c.setAttribute('aria-labelledby', `lbl-${c.dataset.kitKey}`));
+  };
+  const save = async (key, value, button) => {
+    await act(button, () => api('settings', { method: 'POST', body: { key, value } }), 'Saved. Players get it within about a minute.');
+    show(k.view, { keepFocus: true });
+  };
+  $(`#kit-${id}-body`).onchange = (e) => {
+    const c = e.target.closest('input[type=checkbox][data-kit-key]');
+    if (c) save(c.dataset.kitKey, c.checked, c);
+  };
+  $(`#kit-${id}-body`).onclick = (e) => {
+    const b = e.target.closest('button[data-kit-save]');
+    if (!b) return;
+    const input = $(`#kitset-${b.dataset.kitSave}`);
+    save(b.dataset.kitSave, input.type === 'number' ? Number(input.value) : input.value, b);
+  };
+  $(`#kit-${id}-days`).onchange = () => show(k.view, { keepFocus: true });
+}
+const KIT_GROUP_DASH = Object.fromEntries(Object.entries(KIT_SECTIONS).map(([id, k]) => [k.group, id]));
+
+// Which dashboard each settings group belongs to. The Fantastical Logic
+// Grid's own switches are on its dashboard (Game settings and switches),
+// NINETIMESNINE's on its page, and everything shared by the whole app (sign-in,
+// messages, ideas and problems, languages, support, alerts, backups) stays
+// under App settings and switches. A new group shows under App until it is
+// listed here.
+const GAME_GROUPS = new Set(['Play', 'Celebrations', 'Characters', 'Voices', 'Sounds', 'Pictures', 'Puzzle emails', 'Printable puzzle packs', 'Educators', 'Learning']);
+const settingsScope = (s) => (s.group === NP_GROUP ? 'ntn' : KIT_GROUP_DASH[s.group] || (GAME_GROUPS.has(s.group) ? 'game' : 'app'));
+const SETTINGS_BODY = { app: '#settings-body', game: '#game-settings-body' };
+let settingsRoute = 'settings';
+
+views.settings = () => renderSettings('app');
+views['game-settings'] = () => renderSettings('game');
+
+async function renderSettings(scope) {
+  settingsRoute = scope === 'game' ? 'game-settings' : 'settings';
+  const body = SETTINGS_BODY[scope];
+  if (scope === 'app') renderAlerts().catch((e) => { $('#alerts-body').innerHTML = `<div class="card"><h2>My alerts</h2><p class="note">${esc(e.message)}</p></div>`; });
   const d = await api('settings');
   const groups = {};
-  // Number Place's settings have their own section.
-  for (const s of d.settings) if (s.group !== NP_GROUP) (groups[s.group] ||= []).push(s);
+  for (const s of d.settings) if (settingsScope(s) === scope) (groups[s.group] ||= []).push(s);
   const editable = can('admin');
   const control = (s) => {
     const dis = editable ? '' : ' disabled';
@@ -1422,12 +1565,60 @@ views.settings = async () => {
     ${keyLine(d.services.pictures, 'Workers AI', 'AI pictures (the AI binding in wrangler.toml, on Cloudflare\'s free allowance).')}
     <p class="muted">Keys are never typed here or kept in the game. Add or change them in Cloudflare: Workers &amp; Pages &gt; flg-api &gt; Settings &gt; Variables and Secrets, as type Secret.</p>
     <p><a href="#connections">Every key, service and setting, with steps: Connections and setup</a></p></div></div>`;
-  $('#settings-body').innerHTML = services + (editable ? '' : '<p class="note">You can see the settings. Changing them needs the admin role.</p>')
+  $(body).innerHTML = (scope === 'app' ? services : '') + (editable ? '' : '<p class="note">You can see the settings. Changing them needs the admin role.</p>')
     + Object.entries(groups).map(([g, list]) => `<div class="card"><h2>${esc(g)}</h2>${list.map((s) => `<div class="setting">
       <div><b id="lbl-${s.key}">${esc(s.label)}</b><p class="help">${esc(s.help)}</p>${s.updatedBy ? `<p class="meta">Changed by ${esc(s.updatedBy)} on ${when(s.updatedAt)}</p>` : ''}</div>
       <div>${control(s)}</div>${extra(s)}</div>`).join('')}</div>`).join('');
-  $$('#settings-body input[type=checkbox][data-key]').forEach((c) => c.setAttribute('aria-labelledby', `lbl-${c.dataset.key}`));
+  $$(`${body} input[type=checkbox][data-key]`).forEach((c) => c.setAttribute('aria-labelledby', `lbl-${c.dataset.key}`));
+}
+// ------------------------------------------------------------- The Fantastical Logic Grid
+// The game's own dashboard home: what is waiting for review, how the game is
+// played, and a way into each of its sections. App-wide things (players,
+// sign-in, messages, the website, marketing) are on The Logic Grid dashboard.
+const FLG_SECTIONS = [
+  ['#daily', 'Daily puzzles', 'Plan and check each day\'s puzzle.', 'moderator'],
+  ['#characters', 'Characters', 'The cast, and characters players suggest.', 'moderator'],
+  ['#media', 'Media library', 'Music, sound effects, voices, scenes and pictures.', 'viewer'],
+  ['#quality', 'Puzzle quality', 'Where players give up, and what is too hard or too easy.', 'viewer'],
+  ['#ratings', 'Ratings and insights', 'Stars and findings by level, mode and story part.', 'viewer'],
+  ['#mail', 'Puzzle emails', 'The weekly and special edition puzzle emails.', 'viewer'],
+  ['#stories', 'Story workshop and review', 'Write and review story parts.', 'moderator'],
+  ['#story-submissions', 'Storyline submissions', 'Storylines sent in by players.', 'moderator'],
+  ['#educators', 'Educator requests', 'Printable puzzle packages for classes.', 'moderator'],
+  ['#edu-feedback', 'Educator feedback', 'Notes from teachers.', 'moderator'],
+  ['#badges', 'Badges', 'Special badges and who has them.', 'viewer'],
+  ['#game-settings', 'Game settings and switches', 'Play, themes, voices, sounds, celebrations and more.', 'viewer'],
+];
+function flgWaiting(r) {
+  return can('moderator') ? (r.parts.pending || 0) + (r.stories || 0) + (r.educators || 0) + (r.educatorFeedback || 0) : 0;
+}
+views.fantastical = async () => {
+  const d = await api(`analytics?days=${$('#fg-days').value}`);
+  const r = d.review;
+  setCount('#count-fantastical', flgWaiting(r));
+  const g = d.games;
+  const plays = g.byDay.reduce((s, v) => s + v, 0);
+  const solved = g.solvedByDay.reduce((s, v) => s + v, 0);
+  const races = d.races.byDay.reduce((s, v) => s + v, 0);
+  const waiting = [];
+  if (can('moderator') && r.parts.pending) waiting.push(`<a href="#stories">${fmt(r.parts.pending)} story ${r.parts.pending === 1 ? 'part' : 'parts'} waiting for review</a>`);
+  if (can('moderator') && r.stories) waiting.push(`<a href="#story-submissions">${fmt(r.stories)} new storyline ${r.stories === 1 ? 'submission' : 'submissions'}</a>`);
+  if (can('moderator') && r.educators) waiting.push(`<a href="#educators">${fmt(r.educators)} educator ${r.educators === 1 ? 'request' : 'requests'}</a>`);
+  if (can('moderator') && r.educatorFeedback) waiting.push(`<a href="#edu-feedback">${fmt(r.educatorFeedback)} new ${r.educatorFeedback === 1 ? 'note' : 'notes'} from educators</a>`);
+  $('#fg-body').innerHTML = `
+    ${waiting.length ? `<div class="note">${waiting.join(' · ')}</div>` : '<p class="muted">Nothing is waiting for review in this game.</p>'}
+    <h2>Play</h2>
+    <div class="tiles">
+      ${tile('Games finished', fmt(plays), '', '#details/games')}
+      ${tile('Solved', fmt(solved), `${pct(solved, plays)} of games`, '#details/solved')}
+      ${tile('Races started', fmt(races), `${fmt(d.races.open)} open now`, '#details/races')}
+      ${tile('Themes played', fmt(g.byTheme.length))}
+    </div>
+    <h2>Sections</h2>
+    <div class="tiles">${FLG_SECTIONS.filter(([, , , min]) => can(min)).map(([href, name, help]) => `<a class="tile go" href="${href}"><div class="label">${esc(name)}</div><div class="sub">${esc(help)}</div><span class="more">Open<span aria-hidden="true"> ›</span></span></a>`).join('')}</div>`;
 };
+$('#fg-days').onchange = () => show('fantastical', { keepFocus: true });
+
 // ------------------------------------------------------------- my alerts
 // Push alerts on this phone or computer, and email to an address typed in
 // here (server/src/alerts.js). Each admin sets up their own.
@@ -1538,14 +1729,14 @@ $('#alerts-body').onclick = async (e) => {
   }
 };
 async function saveSettingValue(key, value, button) {
-  if (await act(button, () => api('settings', { method: 'POST', body: { key, value } }), 'Saved. Players get it within about a minute.')) show('settings', { keepFocus: true });
-  else show('settings', { keepFocus: true });
+  await act(button, () => api('settings', { method: 'POST', body: { key, value } }), 'Saved. Players get it within about a minute.');
+  show(settingsRoute, { keepFocus: true });
 }
-$('#settings-body').onchange = (e) => {
+function onSettingsChange(e) {
   const c = e.target.closest('input[type=checkbox][data-key]');
   if (c) saveSettingValue(c.dataset.key, c.checked, c);
-};
-$('#settings-body').onclick = (e) => {
+}
+function onSettingsClick(e) {
   const b = e.target.closest('button[data-save]');
   if (!b) return;
   const key = b.dataset.save;
@@ -1553,7 +1744,8 @@ $('#settings-body').onclick = (e) => {
   else if (key === 'blocked_words' || key === 'hand_picked_days') saveSettingValue(key, $(`#set-${key}`).value.split(/[\s,]+/).filter(Boolean), b);
   else if ($(`#set-${key}`).type === 'number') saveSettingValue(key, Number($(`#set-${key}`).value), b);
   else saveSettingValue(key, $(`#set-${key}`).value.trim(), b);
-};
+}
+for (const sel of Object.values(SETTINGS_BODY)) { $(sel).onchange = onSettingsChange; $(sel).onclick = onSettingsClick; }
 
 const SUP_TIER = ['', 'Bronze', 'Silver', 'Gold', 'Platinum'];
 const SUP_SOURCE = { admin: 'Added here', kofi: 'Ko-fi', lemonsqueezy: 'Lemon Squeezy' };
@@ -1623,7 +1815,10 @@ $('#sup-blocks').onclick = async (e) => {
   if (!(await ask({ title: 'Lift this block?', text: 'New payments from this player will add a badge and extras again. Do this once the dispute is settled in your favor or the player has paid it back.', ok: 'Lift the block' }))) return;
   if (await act(b, () => api(`supporters/blocks/${b.dataset.supUnblock}/remove`, { method: 'POST' }), 'Block lifted.')) show('supporters', { keepFocus: true });
 };
-views.connections = () => renderConnections($('#connections-view'), { api, esc, when, toast, announce, ask });
+views.connections = () => {
+  renderSiteAccounts($('#acct-box'), { api, esc, when, toast, announce, ask, can });
+  return renderConnections($('#connections-view'), { api, esc, when, toast, announce, ask });
+};
 
 $('#ann-form').onsubmit = async (e) => {
   e.preventDefault();
@@ -1743,7 +1938,36 @@ views.admins = async () => {
       <td><div class="actions"><button class="btn small danger" data-email="${esc(a.email)}">Remove</button></div></td></tr>`),
   ];
   $('#admin-rows').innerHTML = rows.join('');
+  // Assistant keys (server/src/admin-keys.js).
+  const k = await api('admin-keys');
+  const STATE = { active: ['Working', 'ok'], ended: ['Ended', ''], revoked: ['Revoked', 'bad'] };
+  $('#key-rows').innerHTML = k.keys.length ? k.keys.map((x) => {
+    const [sw, cls] = STATE[x.state];
+    return `<tr><td>${esc(x.name)} <span class="muted">…${esc(x.hint)}</span></td><td><span class="badge">${esc(x.role)}</span></td><td>${day(x.createdAt)} by ${esc(x.createdBy)}</td>
+      <td>${day(x.expiresAt)}</td><td>${x.lastUsedAt ? when(x.lastUsedAt) : 'Never'}</td><td><span class="badge ${cls}">${sw}</span></td>
+      <td>${x.state === 'active' ? `<div class="actions"><button class="btn small danger" type="button" data-key-revoke="${x.id}">Revoke</button></div>` : ''}</td></tr>`;
+  }).join('') : '<tr><td colspan="7" class="muted">No keys yet.</td></tr>';
 };
+$('#key-form').onsubmit = async (e) => {
+  e.preventDefault();
+  let made;
+  if (await act(e.submitter, async () => { made = await api('admin-keys', { method: 'POST', body: { name: $('#key-name').value.trim(), role: $('#key-role').value, days: Number($('#key-days').value) } }); }, 'Key made. Copy it now.')) {
+    $('#key-value').textContent = made.key;
+    $('#key-new').hidden = false;
+    $('#key-copy').focus();
+    show('admins', { keepFocus: true });
+  }
+};
+$('#key-copy').onclick = async () => {
+  try { await navigator.clipboard.writeText($('#key-value').textContent); toast('Copied.'); announce('Copied.'); } catch (e) { toast('Select the key and copy it by hand.'); }
+};
+$('#key-hide').onclick = () => { $('#key-value').textContent = ''; $('#key-new').hidden = true; $('#key-name').focus(); };
+$('#key-rows').addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-key-revoke]');
+  if (!b) return;
+  if (!(await ask({ title: 'Revoke this key?', text: 'It stops working at once. Anything already done with it stays in the audit log.', ok: 'Revoke', danger: true }))) return;
+  if (await act(b, () => api(`admin-keys/${b.dataset.keyRevoke}/revoke`, { method: 'POST' }), 'Revoked.')) show('admins', { keepFocus: true });
+});
 $('#admin-form').onsubmit = async (e) => {
   e.preventDefault();
   const email = $('#admin-email').value.trim();
@@ -1911,22 +2135,66 @@ const licenseHelpers = { api, esc, fmt, when, tile, act, ask, toast, setCount };
 views.licenses = () => licensesView(licenseHelpers);
 initLicenses(licenseHelpers, (name, o) => show(name, o));
 views['edu-feedback'] = () => educatorFeedbackView(educatorHelpers);
+// ---- Storyline submissions (story-submissions.js): the Storyline Submission Database.
+const storyHelpers = { api, esc, fmt, when, can, act, ask, setCount, toast };
+views['story-submissions'] = () => storySubmissionsView(storyHelpers);
+initStorySubmissions(storyHelpers, (name, o) => show(name, o));
+// ---- Story beat pictures (beat-images.js): pictures the game shows with story beats.
+const beatImageHelpers = { api, esc, when, can, act, ask, toast };
+views['beat-images'] = () => beatImagesView(beatImageHelpers);
+initBeatImages(beatImageHelpers, (name, o) => show(name, o));
 initEducatorFeedback(educatorHelpers, (name, o) => show(name, o));
 // ---- Badges (badges.js): special badges by hand and for milestones.
 const badgeHelpers = { api, esc, fmt, when, day, table, can, act, ask, toast, announce };
 views.badges = () => badgesView(badgeHelpers);
 initBadges(badgeHelpers, (name, o) => show(name, o));
 
+// ---- Voice engine (voice-engine.js): Vox on the owner's computer, its learning, auto-tune and versions.
+const voiceHelpers = { esc, fmt, when, tile, table, can, act, ask, toast, announce, api };
+views['voice-engine'] = () => voiceEngineView(voiceHelpers);
+initVoiceEngine(voiceHelpers);
+
+// ---- Analysis report (analysis.js): every number by topic, the market and what to build next.
+const analysisHelpers = { api, esc, fmt, when, day, bytes, tile, table, bars, can, act, ask, toast, announce, setCount };
+views.analysis = () => analysisView(analysisHelpers);
+initAnalysis(analysisHelpers, (name, o) => show(name, o));
+initTuning(analysisHelpers);
+
 // ---- Puzzle emails (puzzle-mail.js): the weekly and special edition lists, sends and planner.
 views.mail = () => puzzleMailView();
+views.website = () => websiteView();
 
 // ---- Face ID and fingerprint (passkeys.js): this admin's devices.
 views.signin = () => passkeysView();
 initPasskeys({ api, esc, when, toast, act, ask, show, me: () => me, mode: () => session?.mode });
 initPuzzleMail({ api, esc, fmt, when, tile, table, can, act, ask, toast, show });
+initWebsite({ api, esc, when, table, can, act, ask, toast });
+if (isEditorWindow) document.body.classList.add('web-editor-window');
+initWebsiteEvents();
 
 // ------------------------------------------------------------- navigation
 const MIN_ROLE = { ...Object.fromEntries($$('#nav-list a').map((a) => [a.hash.slice(1), a.dataset.min])), details: 'viewer' };
+
+// Dashboards: The Logic Grid (the app: players, sign-in, messages, website,
+// marketing, keys, settings shared by every game), The Fantastical Logic Grid
+// NINETIMESNINE and each grid-kit game. The menu shows the open dashboard's sections. Every
+// address (#daily, #settings, ...) still works and opens its own dashboard.
+const DASH_HOME = {
+  main: 'overview', flg: 'fantastical', ntn: 'numberplace', cm: 'cagemath', sc: 'sumcross', pg: 'picturegrid',
+  ml: 'moreorless', sk: 'skyline', sf: 'starfield', ll: 'loopline', ib: 'islandbridges',
+};
+const dashOf = (view) => $(`#nav-list a[href="#${view}"]`)?.closest('li')?.dataset.dash;
+function setDash(dash) {
+  if (!DASH_HOME[dash]) return;
+  $('#nav-list').dataset.current = dash;
+  $$('#dash-switch [data-dash]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.dash === dash)));
+}
+$('#dash-switch').onclick = (e) => {
+  const b = e.target.closest('button[data-dash]');
+  if (!b || $('#nav-list').dataset.current === b.dataset.dash) return;
+  setDash(b.dataset.dash);
+  location.hash = DASH_HOME[b.dataset.dash];
+};
 
 // Older links: the idea and problem inbox, error reports and announcements now live in Communication.
 const ALIASES = { feedback: { type: 'idea' }, errors: { type: 'error' }, announcements: { tab: 'send' } };
@@ -1942,10 +2210,13 @@ async function show(route, { keepFocus = false } = {}) {
     history.replaceState(null, '', '#communication');
     name = 'communication';
   }
+  // The website editor's own window (Website > Open in a new window) shows only the Website page.
+  if (isEditorWindow) { name = 'website'; if (location.hash !== '#website') history.replaceState(null, '', `${location.search}#website`); }
   if (!views[name] || !can(MIN_ROLE[name])) name = 'overview';
   $$('[data-view]').forEach((s) => { s.hidden = s.dataset.view !== name; });
   // Details pages belong under Overview in the menu.
   const navName = name === 'details' ? 'overview' : name;
+  setDash(dashOf(navName));
   $$('#nav-list a').forEach((a) => (a.hash === `#${navName}` ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current')));
   try { await views[name]({ arg }); } catch (e) {
     if (e.code === 'sign_in') return;

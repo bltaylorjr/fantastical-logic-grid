@@ -4,6 +4,9 @@
 // page must not scroll sideways (the grid may scroll inside its own frame),
 // every button, field and grid cell must be at least 44 px, and on wide
 // screens the scene sits beside the story so the grid comes up into view.
+// On PCs and tablets on their side the grid's squares stay big, and on phones
+// the sticky app bar keeps to two short rows. On PCs (1200 px and wider) the
+// grid is pinned under the app bar and the clues scroll in their own column.
 // The Menu (with every item shown) must fit below the app bar, scroll inside
 // itself to its last item, and have a solid background.
 // SHOTS=<folder> saves a screenshot of each (CI keeps them as an artifact).
@@ -26,6 +29,7 @@ const inspect = () => {
   const vw = document.documentElement.clientWidth;
   const small = [];
   for (const el of document.querySelectorAll('button, a[href], input:not([type=hidden]), select, summary, td.c')) {
+    if (el.matches('table.lg.fit td.c')) continue; // a grid made to fit the screen (checked below)
     if (el.closest('[hidden], .sr-only, .skip')) continue;
     const cs = getComputedStyle(el);
     if (cs.visibility === 'hidden' || cs.display === 'none') continue;
@@ -55,6 +59,7 @@ const inspect = () => {
 
       let p = await page.evaluate(inspect);
       assert(await page.evaluate(() => document.querySelector('#view-seg').hidden), `${name}: the Grid / List switch is hidden on the home screen`);
+      assert(await page.locator('#howto-btn').isVisible() && !(await page.locator('#intro-btn').count()), `${name}: the main page shows How to play at the top, and the Introduction is under Help`);
       if (SHOTS) await page.screenshot({ path: file('home'), fullPage: true });
       assert(p.sideways <= 0, `${name} (${width} x ${height}): the home screen does not scroll sideways`);
       assert(!p.small.length, `${name}: every target on the home screen is at least 44 px${p.small.length ? ` (${p.small.join(', ')})` : ''}`);
@@ -85,14 +90,56 @@ const inspect = () => {
       if (SHOTS) await page.screenshot({ path: file('play'), fullPage: true });
       assert(p.sideways <= 0, `${name}: the puzzle screen does not scroll sideways`);
       assert(!p.small.length, `${name}: every target on the puzzle screen is at least 44 px${p.small.length ? ` (${p.small.join(', ')})` : ''}`);
+      // While a puzzle is open the bar is one slim row: Back, logo, Grid / List, Help and Menu.
+      const bar = await page.evaluate(() => {
+        const vis = (q) => { const el = document.querySelector(q); return !!el && el.getClientRects().length > 0; };
+        const tops = ['#back-btn', '#home-btn', '#view-seg', '#help-btn', '#menu-btn'].map((q) => Math.round(document.querySelector(q).getBoundingClientRect().top));
+        return { strip: vis('.topstrip'), edu: vis('#educators-link'), chip: vis('#player-chip'), seg: vis('#view-seg'), spread: Math.max(...tops) - Math.min(...tops), h: document.querySelector('.appbar').offsetHeight };
+      });
+      assert(!bar.strip && !bar.edu && !bar.chip && bar.seg, `${name}: the puzzle's bar shows only Back, the logo, Grid / List, Help and Menu`);
+      assert(bar.spread <= 8 && bar.h <= 76, `${name}: the puzzle's bar is one row (${bar.h} px high)`);
       const frame = await page.evaluate(() => { const f = document.querySelector('#gridframe').getBoundingClientRect(); return { right: f.right, h: f.height }; });
       assert(frame.right <= width && frame.h <= height, `${name}: the grid's frame fits on screen`);
-      const cell = await page.evaluate(() => document.querySelector('td.c').getBoundingClientRect().width);
-      assert(cell >= 44, `${name}: grid cells are ${Math.round(cell)} px`);
+      // The grid never scrolls sideways: on a narrow screen it fits the frame's
+      // width (Bobby, 2026-10-31); otherwise the squares stay 44 px.
+      const g = await page.evaluate(() => { const f = document.querySelector('#gridframe'); return { over: f.scrollWidth - f.clientWidth, fit: !!f.querySelector('table.lg.fit'), cell: f.querySelector('td.c').getBoundingClientRect().width }; });
+      assert(g.over <= 0, `${name}: the grid fits its frame's width, no sideways scrolling (${Math.round(g.cell)} px squares)`);
+      if (!g.fit) assert(g.cell >= 44, `${name}: grid cells are ${Math.round(g.cell)} px`);
+      // PCs and tablets on their side: the grid gets the room it needs, so the
+      // squares stay big (a narrow grid column once shrank them to 12 px).
+      if (width >= 1024) assert(g.cell >= 36, `${name}: the grid's squares stay big on a wide screen (${Math.round(g.cell)} px)`);
+      // Phones: the sticky bar keeps to two short rows on a puzzle.
+      if (width >= 360 && width < 600 && height > 560) {
+        const bar = await page.evaluate(() => document.querySelector('.appbar').getBoundingClientRect().height);
+        assert(bar <= 132, `${name}: the app bar is two short rows on a puzzle (${Math.round(bar)} px)`);
+      }
       if (width >= 1100) {
         const top = await page.evaluate(() => document.querySelector('#grid-region').getBoundingClientRect().top + scrollY);
         const scene = await page.evaluate(() => { const s = document.querySelector('#scene').getBoundingClientRect(), t = document.querySelector('#story').getBoundingClientRect(); return { beside: s.left >= t.right, top: Math.abs(s.top - t.top) }; });
         assert(scene.beside && scene.top < 2, `${name}: the scene sits beside the story, so the grid starts at ${Math.round(top)} px`);
+      }
+      // PCs, the desktop app and big tablets on their side: the grid is pinned
+      // under the app bar and the clues scroll in their own column (Bobby, 2026-11-01).
+      if (width >= 1200 && height > 560) {
+        const pin = await page.evaluate(async () => {
+          const bar = document.querySelector('.appbar').getBoundingClientRect().height;
+          const play = document.querySelector('.play'), side = document.querySelector('.play > .side'), grid = document.querySelector('#grid-region');
+          window.scrollTo(0, play.getBoundingClientRect().top + scrollY - bar - 8);
+          await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+          const g0 = grid.getBoundingClientRect(), s0 = side.getBoundingClientRect();
+          side.scrollTop = side.scrollHeight;
+          await new Promise((r) => requestAnimationFrame(r));
+          const g1 = grid.getBoundingClientRect();
+          const last = side.querySelector('#check-answers').getBoundingClientRect();
+          return { bar, gTop: g0.top, gBottom: g0.bottom, sTop: s0.top, sBottom: s0.bottom, moved: Math.abs(g1.top - g0.top), scrolls: side.scrollHeight > side.clientHeight, scrolled: side.scrollTop > 0, lastIn: last.bottom <= s0.bottom + 1 && last.top >= s0.top - 1, sticky: getComputedStyle(grid).position };
+        });
+        assert(pin.sticky === 'sticky' && pin.gTop >= pin.bar - 1 && pin.gBottom <= height + 1, `${name}: the grid is pinned under the app bar and fits on screen (${Math.round(pin.gTop)}-${Math.round(pin.gBottom)} px)`);
+        assert(pin.sTop >= pin.bar - 1 && pin.sBottom <= height + 1, `${name}: the clues column fits on screen beside the grid`);
+        assert(!pin.scrolls || (pin.scrolled && pin.moved < 1 && pin.lastIn), `${name}: the clues scroll on their own to Check answers while the grid stays put`);
+        if (SHOTS) await page.screenshot({ path: file('play-pinned') });
+        await page.evaluate(() => { document.querySelector('.play > .side').scrollTop = 0; window.scrollTo(0, 0); });
+      } else if (width >= 1024) {
+        assert(await page.evaluate(() => getComputedStyle(document.querySelector('#grid-region')).position !== 'sticky'), `${name}: the grid is not pinned where the clues sit under it`);
       }
       // The Grid / List switch sits in the app bar, so it stays in reach after scrolling down.
       if (height > 560) {

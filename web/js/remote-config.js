@@ -37,9 +37,11 @@ export const supportUrl = () => {
   return typeof u === 'string' && u.startsWith('https://') ? u : '';
 };
 
-// The dashboard's Number Place choices (server/src/settings.js publicConfig),
+// The dashboard's NINETIMESNINE choices (server/src/settings.js publicConfig),
 // or {} before the server has said: the game then uses the module's defaults.
 export const numberPlace = () => (config && config.numberPlace) || {};
+// The same for each grid-kit game (id cm, sc, pg, ml, sk, sf, ll or ib).
+export const kitGame = (id) => (config && config.kitGames && config.kitGames[id]) || {};
 
 // Minutes without activity before a signed-in player is signed out (idle.js);
 // 0 means never. 30 until the dashboard says otherwise.
@@ -69,15 +71,15 @@ async function refresh() {
     const next = await res.json();
     const themeLists = (c) => JSON.stringify([(c && c.disabledThemes) || [], (c && c.game && c.game.premiumThemes) || [], (c && c.game && c.game.extrasUrl) || '']);
     const themesChanged = themeLists(config) !== themeLists(next);
-    const before = JSON.stringify(config && [config.features, config.defaults, config.game, config.news, config.numberPlace]);
+    const before = JSON.stringify(config && [config.features, config.defaults, config.game, config.news, config.numberPlace, config.kitGames]);
     config = {
       announcements: next.announcements || [], disabledThemes: next.disabledThemes || [], features: next.features || {},
-      defaults: next.defaults || {}, game: next.game || {}, news: next.news || [], numberPlace: next.numberPlace || null, fetchedAt: Date.now(),
+      defaults: next.defaults || {}, game: next.game || {}, news: next.news || [], numberPlace: next.numberPlace || null, kitGames: next.kitGames || null, fetchedAt: Date.now(),
     };
     store.setLocal(KEY, config);
     renderAnnouncements();
     if (themesChanged) onThemes();
-    if (before !== JSON.stringify([config.features, config.defaults, config.game, config.news, config.numberPlace])) onChange();
+    if (before !== JSON.stringify([config.features, config.defaults, config.game, config.news, config.numberPlace, config.kitGames])) onChange();
   } catch (e) { /* offline: keep the last copy */ }
 }
 
@@ -101,7 +103,7 @@ export function init({ onThemesChanged, onConfigChanged } = {}) {
   }
   if (!CLOUD_URL) return;
   refresh();
-  setInterval(refresh, EVERY_MS);
+  setInterval(() => { if (!document.hidden) refresh(); }, EVERY_MS);
   addEventListener('online', refresh);
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible' && (!config || Date.now() - (config.fetchedAt || 0) > EVERY_MS)) refresh();

@@ -1,4 +1,4 @@
-// Number Place module in the private test app: start, play with keys, notes,
+// NINETIMESNINE module in the private test app: start, play with keys, notes,
 // undo and hints, solve it, and resume a saved game.
 // Run: npm run build && node modules/build-test-app.mjs && node modules/number-place/e2e.cjs
 const { chromium } = require('playwright');
@@ -39,6 +39,16 @@ const shots = process.env.NP_SHOTS;
     let s = await npState(page);
     const empty = s.givens.findIndex((d) => !d);
     await page.locator(`#np-board .np-cell[data-i="${empty}"]`).click();
+    // A touch that slides (scrolling the page) does not pick the cell it started on.
+    const other = empty === 0 ? 1 : 0;
+    const touch = (type, i, dy = 0) => page.evaluate(([type, i, dy]) => {
+      const r = document.querySelector(`#np-board .np-cell[data-i="${i}"]`).getBoundingClientRect();
+      document.querySelector(`#np-board .np-cell[data-i="${i}"]`).dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, pointerType: 'touch', clientX: r.left + 5, clientY: r.top + 5 + dy }));
+    }, [type, i, dy]);
+    await touch('pointerdown', other); await touch('pointermove', other, 40); await touch('pointerup', other, 40);
+    assert((await npState(page)).sel === empty, 'a touch that scrolls does not move the selection');
+    await touch('pointerdown', other); await touch('pointercancel', other);
+    assert((await npState(page)).sel === empty, 'a touch the browser turns into a scroll does not move the selection');
     const right = s.solution[empty], wrong = (right % 6) + 1;
     await page.keyboard.press(String(wrong));
     s = await npState(page);
@@ -173,7 +183,7 @@ const shots = process.env.NP_SHOTS;
     const t = await pg.evaluate(async () => (await import('./modules/number-place/ui.js')).learning().toughness('basic'));
     assert(t > 0.5, `quick clean solves and "too easy" raise the toughness (${t.toFixed(2)})`);
     assert(await pg.locator('#np-saved li').count() === 3, 'saved puzzles lists all three');
-    assert(/3 of 18 badges|[1-9]\d? of 18 badges/.test(await pg.textContent('#np-badges')), 'badges are listed');
+    assert(/[1-9]\d? of 24 badges/.test(await pg.textContent('#np-badges')), 'badges are listed');
 
     // Rename, delete and undo.
     await pg.locator('#np-saved li').first().locator('[data-act=rename]').click();
@@ -206,7 +216,7 @@ const shots = process.env.NP_SHOTS;
     assert(await pg.locator('#np-board .np-cell').count() === g.p.size ** 2, 'a saved puzzle file opens');
     await pg.click('#np-home');
     await pg.setInputFiles('#np-file', { name: 'bad.json', mimeType: 'application/json', buffer: Buffer.from('{"format":"number-place","game":{"p":{"size":4,"givens":[1],"solution":[1]}}}') });
-    await pg.waitForFunction(() => /not a Number Place puzzle/.test(document.querySelector('#np-status').textContent));
+    await pg.waitForFunction(() => /not a NINETIMESNINE puzzle/.test(document.querySelector('#np-status').textContent));
     assert(true, 'a broken file is refused with a clear message');
     // A shared file can hold anything: markup in its numbers or story never reaches the page as HTML.
     const evil = JSON.parse(JSON.stringify(g));
@@ -224,7 +234,7 @@ const shots = process.env.NP_SHOTS;
     const bad2 = JSON.parse(JSON.stringify(g));
     bad2.p.solution[0] = '<img src=x onerror="window.__pwned=1">';
     await pg.setInputFiles('#np-file', { name: 'bad2.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify({ format: 'number-place', version: 1, game: bad2 })) });
-    await pg.waitForFunction(() => /not a Number Place puzzle/.test(document.querySelector('#np-status').textContent));
+    await pg.waitForFunction(() => /not a NINETIMESNINE puzzle/.test(document.querySelector('#np-status').textContent));
     assert(!(await pg.evaluate(() => window.__pwned)), 'a file whose answer is not all numbers is refused');
 
     // Silent mode: no story or coach.

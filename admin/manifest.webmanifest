@@ -1,7 +1,7 @@
 {
-  "name": "The Fantastical Logic Grid Admin",
+  "name": "The Logic Grid Admin",
   "short_name": "Grid Admin",
-  "description": "The admin dashboard for The Fantastical Logic Grid.",
+  "description": "The admin dashboard for The Logic Grid.",
   "id": "/admin/",
   "start_url": "/admin/",
   "scope": "/admin/",
