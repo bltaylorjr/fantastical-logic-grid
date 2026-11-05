@@ -179,10 +179,38 @@ fn model(dir: &Path) -> Option<String> {
     ["runs/v1/vox.pt", "practice.pt"].iter().find(|m| dir.join(m).is_file()).map(|m| m.to_string())
 }
 
-fn python() -> Option<&'static str> {
-    ["python", "py"].into_iter().find(|p| {
-        hidden(Command::new(p).arg("--version")).stdout(Stdio::null()).stderr(Stdio::null()).status().map(|s| s.success()).unwrap_or(false)
-    })
+/// A real Python: where the python.org installer puts it (found even before
+/// Windows refreshes PATH), the py launcher, or python on PATH. The Microsoft
+/// Store shortcut named "python" fails --version, so it never counts.
+fn find_python() -> Option<String> {
+    let works = |exe: &str| {
+        hidden(Command::new(exe).arg("--version")).stdout(Stdio::null()).stderr(Stdio::null()).status().map(|s| s.success()).unwrap_or(false)
+    };
+    if let Some(local) = std::env::var_os("LOCALAPPDATA") {
+        for v in ["Python313", "Python312", "Python311"] {
+            let exe = PathBuf::from(&local).join("Programs").join("Python").join(v).join("python.exe");
+            if exe.is_file() && works(&exe.display().to_string()) {
+                return Some(exe.display().to_string());
+            }
+        }
+    }
+    ["python", "py"].into_iter().find(|p| works(p)).map(String::from)
+}
+
+/// Python, installing it (free, from python.org through winget) if it's missing.
+fn python(vox: &Vox) -> Option<String> {
+    if let Some(p) = find_python() {
+        return Some(p);
+    }
+    set(vox, "installing", "Installing Python (free, from python.org). This takes a few minutes the first time…");
+    let _ = hidden(Command::new("winget").args([
+        "install", "-e", "--id", "Python.Python.3.13", "--scope", "user", "--silent",
+        "--accept-package-agreements", "--accept-source-agreements",
+    ]))
+    .stdout(Stdio::null())
+    .stderr(Stdio::null())
+    .status();
+    find_python()
 }
 
 fn set(vox: &Vox, phase: &str, msg: &str) {
@@ -279,10 +307,11 @@ pub fn vox_start(app: AppHandle) -> Result<(), String> {
     let app2 = app.clone();
     std::thread::spawn(move || {
         let vox = app2.state::<Vox>();
-        let Some(py) = python() else {
-            set(&vox, "failed", "Python isn't installed. Get it free from python.org (tick \"Add python.exe to PATH\"), then click Start Vox again.");
+        let Some(py) = python(&vox) else {
+            set(&vox, "failed", "Python couldn't be installed automatically. Get it free from python.org (tick \"Add python.exe to PATH\"), then click Start Vox again.");
             return;
         };
+        let py = py.as_str();
         let ready = |d: &Path| step(d, py, &["-c", "import vox.cli, torch, fastapi, uvicorn"]);
         if !ready(&dir) {
             set(&vox, "installing", "Installing Vox. The first time this downloads free parts (PyTorch is the biggest) and takes several minutes…");
