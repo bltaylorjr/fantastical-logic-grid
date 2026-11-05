@@ -13,10 +13,48 @@
 <script src="studio.js" defer></script>
 </head>
 <body>
-<div id="gate" class="gate" hidden><div class="gate-card"><div class="brand"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>Book Studio</div><h1 id="gateTitle">Sign in to Grid Admin</h1><p id="gateText"></p><div class="export-row"><a class="btn primary" id="gateSignIn" href="/admin/#book-studio">Sign in</a><a class="btn" id="gateBack" href="/admin/" hidden>Back to Grid Admin</a></div></div></div>
+<div id="gate" class="gate" hidden><div class="gate-card">
+  <div class="brand"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>Book Studio</div>
+  <h1 id="gateTitle">Sign in to Book Studio</h1>
+  <p id="gateText"></p>
+  <p id="gateError" class="gate-error" role="alert" hidden></p>
+  <form id="signInForm" class="gate-form" hidden>
+    <div id="pkSignInBox" class="gate-form" hidden><button class="btn primary big" id="pkSignIn" type="button">Sign in with Face ID or fingerprint</button><div class="gate-or">or use your password</div></div>
+    <label class="lab">Email <input type="email" id="siEmail" autocomplete="username" required></label>
+    <label class="lab">Password <input type="password" id="siPassword" autocomplete="current-password" required></label>
+    <label class="check"><input type="checkbox" id="siKeep"> Keep me signed in on this device</label>
+    <button class="btn primary big" id="siSubmit" type="submit">Sign in</button>
+    <div class="gate-links"><button type="button" class="linkbtn" id="toForgot">Forgot password?</button><button type="button" class="linkbtn" id="toCreate">First time? Create your password</button></div>
+  </form>
+  <form id="createForm" class="gate-form" hidden>
+    <label class="lab">Email <input type="email" id="cfEmail" autocomplete="username" required></label>
+    <label class="lab">New password <input type="password" id="cfPassword" autocomplete="new-password" required></label>
+    <label class="lab">New password again <input type="password" id="cfConfirm" autocomplete="new-password" required></label>
+    <button class="btn primary big" id="cfSubmit" type="submit">Create password</button>
+    <button class="btn big" type="button" data-gate-back>Cancel</button>
+  </form>
+  <form id="forgotForm" class="gate-form" hidden>
+    <label class="lab">Email <input type="email" id="fgEmail" autocomplete="username" required></label>
+    <button class="btn primary big" id="fgSubmit" type="submit">Send the link</button>
+    <button class="btn big" type="button" data-gate-back>Cancel</button>
+  </form>
+  <div id="verifyBox" class="gate-form" hidden>
+    <button class="btn primary big" id="verifyDone" type="button">Continue</button>
+    <button class="btn big" type="button" data-gate-back>Cancel</button>
+    <div class="gate-links"><button type="button" class="linkbtn" id="verifyResend">Send the link again</button></div>
+  </div>
+  <div id="offerBox" class="gate-form" hidden>
+    <button class="btn primary big" id="pkOfferYes" type="button">Use Face ID or fingerprint</button>
+    <button class="btn big" id="pkOfferNo" type="button">Not now</button>
+  </div>
+  <div id="deniedBox" class="gate-form" hidden>
+    <button class="btn big" id="gateOther" type="button">Cancel and sign in with another account</button>
+    <a class="btn big" id="gateBack" href="/admin/" hidden>Back to Grid Admin</a>
+  </div>
+</div></div>
 <div id="app" hidden>
   <header class="topbar">
-    <header class="studio-bar"><a class="studio-home" id="backToAdmin" href="/admin/">← Grid Admin</a><span class="studio-who" id="whoEmail"></span><button class="btn ghost" id="signOutBtn" type="button">Sign out</button></header>
+    <header class="studio-bar"><a class="studio-home" id="backToAdmin" href="/admin/">← Grid Admin</a><span class="studio-who" id="whoEmail"></span><button class="btn ghost" id="pkSetUp" type="button" hidden>Set up Face ID or fingerprint</button><button class="btn ghost" id="signOutBtn" type="button">Sign out</button></header>
     <div class="brand"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span><span class="brand-name">Puzzle Book Studio</span></div>
     <div class="pubbar">
       <label class="field-inline"><span>Publisher</span><select id="pub"></select></label>
@@ -33,6 +71,7 @@
     <button class="tab" role="tab" data-tab="cover" aria-selected="false">Cover</button>
     <button class="tab" role="tab" data-tab="details" aria-selected="false">Book details</button>
     <button class="tab" role="tab" data-tab="publish" aria-selected="false">Check &amp; export</button>
+    <span class="tab-steps"><button class="btn ghost" id="navBack" type="button" hidden>← Back</button><button class="btn" id="navNext" type="button">Next: Cover →</button></span>
   </nav>
   <main>
     <!-- INTERIOR -->

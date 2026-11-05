@@ -49,8 +49,48 @@ for (const [name, [, , file]] of Object.entries(VENDOR)) {
   js = js.replace(new RegExp(`(${name}: \\{ url: )'https://cdn\\.jsdelivr\\.net/npm/[^']+'`), `$1'vendor/${file}'`);
 }
 js = js.replace(/\s*heic2any: \{[^\n]*\n/, '\n');
-const pageTop = `<header class="studio-bar"><a class="studio-home" id="backToAdmin" href="/admin/">← Grid Admin</a><span class="studio-who" id="whoEmail"></span><button class="btn ghost" id="signOutBtn" type="button">Sign out</button></header>`;
-const gate = `<div id="gate" class="gate" hidden><div class="gate-card"><div class="brand"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>Book Studio</div><h1 id="gateTitle">Sign in to Grid Admin</h1><p id="gateText"></p><div class="export-row"><a class="btn primary" id="gateSignIn" href="/admin/#book-studio">Sign in</a><a class="btn" id="gateBack" href="/admin/" hidden>Back to Grid Admin</a></div></div></div>`;
+const pageTop = `<header class="studio-bar"><a class="studio-home" id="backToAdmin" href="/admin/">← Grid Admin</a><span class="studio-who" id="whoEmail"></span><button class="btn ghost" id="pkSetUp" type="button" hidden>Set up Face ID or fingerprint</button><button class="btn ghost" id="signOutBtn" type="button">Sign out</button></header>`;
+// The sign-in screen (book-studio/src/auth.js drives it): password, creating a
+// password, a reset link, confirming the email, and Face ID or fingerprint.
+const gate = `<div id="gate" class="gate" hidden><div class="gate-card">
+  <div class="brand"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>Book Studio</div>
+  <h1 id="gateTitle">Sign in to Book Studio</h1>
+  <p id="gateText"></p>
+  <p id="gateError" class="gate-error" role="alert" hidden></p>
+  <form id="signInForm" class="gate-form" hidden>
+    <div id="pkSignInBox" class="gate-form" hidden><button class="btn primary big" id="pkSignIn" type="button">Sign in with Face ID or fingerprint</button><div class="gate-or">or use your password</div></div>
+    <label class="lab">Email <input type="email" id="siEmail" autocomplete="username" required></label>
+    <label class="lab">Password <input type="password" id="siPassword" autocomplete="current-password" required></label>
+    <label class="check"><input type="checkbox" id="siKeep"> Keep me signed in on this device</label>
+    <button class="btn primary big" id="siSubmit" type="submit">Sign in</button>
+    <div class="gate-links"><button type="button" class="linkbtn" id="toForgot">Forgot password?</button><button type="button" class="linkbtn" id="toCreate">First time? Create your password</button></div>
+  </form>
+  <form id="createForm" class="gate-form" hidden>
+    <label class="lab">Email <input type="email" id="cfEmail" autocomplete="username" required></label>
+    <label class="lab">New password <input type="password" id="cfPassword" autocomplete="new-password" required></label>
+    <label class="lab">New password again <input type="password" id="cfConfirm" autocomplete="new-password" required></label>
+    <button class="btn primary big" id="cfSubmit" type="submit">Create password</button>
+    <button class="btn big" type="button" data-gate-back>Cancel</button>
+  </form>
+  <form id="forgotForm" class="gate-form" hidden>
+    <label class="lab">Email <input type="email" id="fgEmail" autocomplete="username" required></label>
+    <button class="btn primary big" id="fgSubmit" type="submit">Send the link</button>
+    <button class="btn big" type="button" data-gate-back>Cancel</button>
+  </form>
+  <div id="verifyBox" class="gate-form" hidden>
+    <button class="btn primary big" id="verifyDone" type="button">Continue</button>
+    <button class="btn big" type="button" data-gate-back>Cancel</button>
+    <div class="gate-links"><button type="button" class="linkbtn" id="verifyResend">Send the link again</button></div>
+  </div>
+  <div id="offerBox" class="gate-form" hidden>
+    <button class="btn primary big" id="pkOfferYes" type="button">Use Face ID or fingerprint</button>
+    <button class="btn big" id="pkOfferNo" type="button">Not now</button>
+  </div>
+  <div id="deniedBox" class="gate-form" hidden>
+    <button class="btn big" id="gateOther" type="button">Cancel and sign in with another account</button>
+    <a class="btn big" id="gateBack" href="/admin/" hidden>Back to Grid Admin</a>
+  </div>
+</div></div>`;
 let html = body
   .replace(/^<title>[\s\S]*?(?=<div id="app">)/, '')
   .replace('<div id="app">', `${gate}\n<div id="app" hidden>`)
@@ -64,6 +104,16 @@ const extraCss = `
 .gate-card { max-width: 440px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 24px; display: flex; flex-direction: column; gap: 12px; }
 .gate-card h1 { font-family: var(--f-display); font-size: 22px; margin: 0; }
 .gate-card p { margin: 0; color: var(--ink-2); line-height: 1.5; }
+.gate-card { width: 100%; }
+.gate-form { display: flex; flex-direction: column; gap: 10px; }
+.gate-form .lab { font-size: 13px; }
+.gate-form .lab input { min-height: 44px; font-size: 16px; padding: 8px 10px; }
+.gate-form .check { min-height: 44px; }
+.gate-form .btn.big { min-height: 44px; justify-content: center; font-size: 15px; }
+.gate-or { text-align: center; font-size: 12px; color: var(--ink-2); }
+.gate-links { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; }
+.linkbtn { background: none; border: 0; padding: 0; min-height: 44px; color: var(--accent); font: inherit; font-size: 13px; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.gate-error { color: var(--danger, #b42318) !important; font-weight: 600; }
 `;
 // the studio bar sits inside the top bar so it wraps above the controls
 html = html.replace(`${pageTop}\n    <div class="brand">`, `<div class="brand">`).replace('<header class="topbar">', `<header class="topbar">\n    ${pageTop}`);

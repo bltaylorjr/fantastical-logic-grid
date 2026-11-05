@@ -1,8 +1,10 @@
 // End-to-end check of Book Studio (admin/book-studio/) against the real Worker
 // (Miniflare, local D1, the admin/ files as Worker assets), under its real
-// content security policy: the sign-in gate, a publisher who has access, a
-// viewer who does not, the sample book, Apply specs, and a submission packet
-// download that is written to the audit log.
+// content security policy: the sign-in screen (password, creating a password
+// with email confirmation, a reset link, Face ID or fingerprint through
+// Chromium's virtual authenticator), a publisher who has access, a viewer who
+// does not, the sample book, Apply specs, and a submission packet download
+// that is written to the audit log.
 // Needs `npm install` in server/ and `node book-studio/build.mjs` first.
 // SHOTS=<folder> saves screenshots there.
 const { chromium } = require('playwright');
@@ -38,28 +40,139 @@ const SHOTS = process.env.SHOTS;
     const sql = fs.readFileSync(path.join(ROOT, 'server/migrations', f), 'utf8').replace(/--.*$/gm, '');
     for (const stmt of sql.split(';').map((s) => s.trim()).filter(Boolean)) await db.prepare(stmt).run();
   }
-  await db.prepare("INSERT INTO admins (email, role, added_by, added_at) VALUES ('pub@example.com', 'publisher', 'test', 0), ('view@example.com', 'viewer', 'test', 0)").run();
+  await db.prepare("INSERT INTO admins (email, role, added_by, added_at) VALUES ('pub@example.com', 'publisher', 'test', 0), ('view@example.com', 'viewer', 'test', 0), ('new@example.com', 'publisher', 'test', 0)").run();
   const session = (email, uid) => JSON.stringify({ mode: 'firebase', email, idToken: signer.token({ sub: uid, email, email_verified: true }), refreshToken: 'x', exp: Date.now() + 3_000_000, seen: Date.now() });
 
   const browser = await chromium.launch();
   const problems = [];
-  const open = async (stored) => {
+  // Firebase's REST API, answered with tokens the Worker trusts. A new
+  // account's email is unconfirmed until its token is refreshed after the link.
+  const sent = [];
+  const json = (r, body, status = 200) => r.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
+  const tokenFor = (email, verified) => signer.token({ sub: `uid-${email}`, email, email_verified: verified });
+  const firebase = async (ctx) => {
+    await ctx.route('https://identitytoolkit.googleapis.com/**', (r) => {
+      const url = r.request().url(); const body = JSON.parse(r.request().postData() || '{}');
+      if (url.includes('signInWithPassword')) {
+        if (body.password !== 'right-password') return json(r, { error: { message: 'INVALID_LOGIN_CREDENTIALS' } }, 400);
+        return json(r, { email: body.email, idToken: tokenFor(body.email, true), refreshToken: `r:${body.email}`, expiresIn: '3600' });
+      }
+      if (url.includes('signUp')) {
+        if (body.email === 'pub@example.com') return json(r, { error: { message: 'EMAIL_EXISTS' } }, 400);
+        return json(r, { email: body.email, idToken: tokenFor(body.email, false), refreshToken: `r:${body.email}`, expiresIn: '3600' });
+      }
+      if (url.includes('sendOobCode')) { sent.push(body.requestType); return json(r, {}); }
+      return json(r, {});
+    });
+    await ctx.route('https://securetoken.googleapis.com/**', (r) => {
+      const email = JSON.parse(r.request().postData() || '{}').refresh_token.slice(2);
+      return json(r, { id_token: tokenFor(email, true), refresh_token: `r:${email}`, expires_in: '3600' });
+    });
+  };
+  // A phone or laptop with Face ID: Chromium's virtual platform authenticator.
+  const faceId = async (page) => {
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send('WebAuthn.enable');
+    await cdp.send('WebAuthn.addVirtualAuthenticator', { options: { protocol: 'ctap2', transport: 'internal', hasResidentKey: true, hasUserVerification: true, isUserVerified: true, automaticPresenceSimulation: true } });
+  };
+  const open = async (stored, { withFaceId = false } = {}) => {
     const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 }, acceptDownloads: true });
     // The book fonts come from Google Fonts; the test runs offline.
     await ctx.route('https://fonts.googleapis.com/**', (r) => r.fulfill({ body: '', contentType: 'text/css' }));
+    await firebase(ctx);
     if (stored) await ctx.addInitScript((s) => { sessionStorage.setItem('flg-admin-session', s); }, stored);
     const page = await ctx.newPage();
     page.on('pageerror', (e) => problems.push(`page error: ${e.message}`));
-    page.on('console', (m) => { if (m.type() === 'error' && !/fonts\.g/.test(m.text())) problems.push(`console: ${m.text()}`); });
+    // Refused requests (a wrong password, an unconfirmed email) are expected.
+    page.on('console', (m) => { if (m.type() === 'error' && !/fonts\.g|^Failed to load resource/.test(m.text())) problems.push(`console: ${m.text()}`); });
+    if (withFaceId) await faceId(page);
     await page.goto(`${BASE}/admin/book-studio/`);
     return page;
   };
+  const opened = (page, email) => page.waitForFunction((e) => !document.querySelector('#app').hidden && document.querySelector('#whoEmail').textContent === e, email, { timeout: 30000 });
+  const error = async (page) => { await page.waitForSelector('#gateError:not([hidden])'); return page.textContent('#gateError'); };
   try {
-    // Nobody signed in: the gate points to Grid Admin.
+    // Nobody signed in: the studio's own sign-in screen.
     let page = await open(null);
-    await page.waitForSelector('#gate:not([hidden])');
-    assert(await page.isHidden('#app'), 'signed out: the studio stays hidden behind the sign-in gate');
-    assert((await page.getAttribute('#gateSignIn', 'href')) === '/admin/#book-studio', 'the gate links to Grid Admin sign-in');
+    await page.waitForSelector('#signInForm:not([hidden])');
+    assert(await page.isHidden('#app'), 'signed out: the studio stays hidden behind its sign-in screen');
+    assert(await page.isHidden('#pkSignInBox'), 'no Face ID button on a device without Face ID or a fingerprint reader');
+
+    // An invited publisher creates a password and confirms the email.
+    await page.click('#toCreate');
+    await page.fill('#cfEmail', 'pub@example.com');
+    await page.fill('#cfPassword', 'short');
+    await page.fill('#cfConfirm', 'short');
+    await page.click('#cfSubmit');
+    assert(/at least 8/.test(await error(page)), 'create password: a short password is refused');
+    await page.fill('#cfPassword', 'long-password-1');
+    await page.fill('#cfConfirm', 'long-password-2');
+    await page.click('#cfSubmit');
+    assert(/not the same/.test(await error(page)), 'create password: the two passwords must match');
+    await page.fill('#cfConfirm', 'long-password-1');
+    await page.click('#cfSubmit');
+    assert(/already has a password/.test(await error(page)), 'create password: an email that already has one is sent to sign in');
+    await page.click('#createForm [data-gate-back]');
+    await page.waitForSelector('#signInForm:not([hidden])');
+    assert(true, 'Cancel on "Create your password" returns to sign-in');
+    await page.click('#toCreate');
+    await page.fill('#cfEmail', 'new@example.com');
+    await page.fill('#cfPassword', 'long-password-1');
+    await page.fill('#cfConfirm', 'long-password-1');
+    await page.click('#cfSubmit');
+    await page.waitForSelector('#verifyBox:not([hidden])');
+    assert(sent.includes('VERIFY_EMAIL') && /new@example\.com/.test(await page.textContent('#gateText')), 'create password: a confirmation link is sent to the new email');
+    if (SHOTS) await page.screenshot({ path: path.join(SHOTS, 'book-studio-confirm.png') });
+    await page.click('#verifyDone');
+    await opened(page, 'new@example.com');
+    assert(true, 'after confirming the email, the new publisher is in Book Studio');
+
+    // Sign out, a wrong password, the reset link, then the right password.
+    await page.click('#signOutBtn');
+    await page.waitForSelector('#signInForm:not([hidden])');
+    assert((await page.inputValue('#siEmail')) === 'new@example.com', 'signing out returns to the sign-in screen with the email filled in');
+    await page.fill('#siPassword', 'wrong-password');
+    await page.click('#siSubmit');
+    assert(/do not match/.test(await error(page)), 'a wrong password is refused');
+    await page.click('#toForgot');
+    await page.click('#fgSubmit');
+    await page.waitForSelector('#signInForm:not([hidden])');
+    assert(sent.includes('PASSWORD_RESET') && /new password is on its way/.test(await page.textContent('#gateText')), 'Forgot password sends a reset link');
+    await page.fill('#siPassword', 'right-password');
+    await page.click('#siSubmit');
+    await opened(page, 'new@example.com');
+    assert(true, 'the right password opens Book Studio');
+    await page.context().close();
+
+    // A confirmed account that nobody added.
+    page = await open(null);
+    await page.waitForSelector('#signInForm:not([hidden])');
+    await page.fill('#siEmail', 'stranger@example.com');
+    await page.fill('#siPassword', 'right-password');
+    await page.click('#siSubmit');
+    await page.waitForSelector('#deniedBox:not([hidden])');
+    assert(/stranger@example\.com has not been given Book Studio access/.test(await page.textContent('#gateText')), 'an account nobody added is told to ask the owner');
+    await page.context().close();
+
+    // Face ID or fingerprint: offered after a password sign-in, then used.
+    page = await open(null, { withFaceId: true });
+    await page.waitForSelector('#signInForm:not([hidden]) #pkSignInBox:not([hidden])');
+    assert(true, 'a device with Face ID shows "Sign in with Face ID or fingerprint"');
+    if (SHOTS) await page.screenshot({ path: path.join(SHOTS, 'book-studio-sign-in.png') });
+    await page.fill('#siEmail', 'pub@example.com');
+    await page.fill('#siPassword', 'right-password');
+    await page.click('#siSubmit');
+    await page.waitForSelector('#offerBox:not([hidden])');
+    await page.click('#pkOfferYes');
+    await opened(page, 'pub@example.com');
+    assert(await page.evaluate(() => JSON.parse(localStorage.getItem('flg-admin-passkey'))?.email === 'pub@example.com'), 'Face ID is set up for this device after the password sign-in');
+    assert(await page.isHidden('#pkSetUp'), 'the set-up button hides once this device is set up');
+    await page.click('#signOutBtn');
+    await page.waitForSelector('#pkSignInBox:not([hidden])');
+    await page.click('#pkSignIn');
+    await opened(page, 'pub@example.com');
+    const { results: pk } = await db.prepare("SELECT action FROM admin_audit WHERE actor = 'pub@example.com' AND action LIKE 'passkeys%'").all();
+    assert(pk.length > 0, 'Face ID sign-in opens Book Studio with no password');
     await page.context().close();
 
     // A viewer without publishing access is refused.
@@ -75,7 +188,14 @@ const SHOTS = process.env.SHOTS;
     assert(true, `publisher: the studio opens with the sample book (${await page.$$eval('#pages .page', (a) => a.length)} pages)`);
     assert(await page.isHidden('#backToAdmin'), 'publisher: no link back into the dashboard');
     if (SHOTS) await page.screenshot({ path: path.join(SHOTS, 'book-studio.png') });
-    await page.click('[data-tab=cover]');
+    assert((await page.textContent('#navNext')) === 'Next: Cover →' && await page.isHidden('#navBack'), 'the Interior step offers Next: Cover and no Back');
+    await page.click('#navNext');
+    await page.waitForSelector('#view-cover:not([hidden])');
+    await page.click('[data-tab=publish]');
+    assert((await page.textContent('#navBack')) === '← Back to Cover' && await page.isHidden('#navNext'), 'Check & export offers Back to Cover and no Next');
+    await page.click('#navBack');
+    await page.waitForSelector('#view-cover:not([hidden])');
+    assert((await page.textContent('#navBack')) === '← Back to Interior', 'Back returns to the step you came from');
     await page.waitForFunction(() => document.querySelector('#cvSpecs')?.textContent.includes('Full cover'), null, { timeout: 15000 });
     assert(true, 'the cover designer loads its vendored library under the page policy');
     await page.click('#applyPub');
@@ -83,6 +203,10 @@ const SHOTS = process.env.SHOTS;
     const pages = await page.$$eval('#pages .page', (a) => a.length);
     assert(pages >= 24, `Apply specs (KDP) brings the book to the 24-page minimum (${pages} pages)`);
     await page.selectOption('#dpi', '200');
+    await page.click('#expPacket');
+    await page.click('.busy .busy-cancel:not([hidden])', { timeout: 30000 });
+    await page.waitForFunction(() => !document.querySelector('.busy') && /Export cancelled/.test(document.querySelector('.toast')?.textContent || ''), null, { timeout: 60000 });
+    assert(true, 'Cancel on the progress card stops an export and saves nothing');
     const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 180000 }), page.click('#expPacket')]);
     assert(/submission-packet\.zip$/.test(dl.suggestedFilename()), `the submission packet downloads (${dl.suggestedFilename()})`);
     const { results } = await db.prepare("SELECT actor, status FROM admin_audit WHERE action = 'publishing.export'").all();

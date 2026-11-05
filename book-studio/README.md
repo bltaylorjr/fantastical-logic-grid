@@ -20,8 +20,17 @@ imported manuscripts (.docx, .odt, .rtf, .txt, .md, .html, .epub, .pdf, .csv) an
 
 The page asks `GET /admin/v1/me` (`canPublish`) when it opens, and checks in with
 `POST /admin/v1/publishing/export` before every export, so taking access away works at
-once and every exported book (title, publisher, page count) is in the audit log. Sign-in is
-Grid Admin's own (same session, same 1-hour idle lock).
+once and every exported book (title, publisher, page count) is in the audit log. Book Studio has its
+own sign-in screen, sharing Grid Admin's session (signing in to one signs in to both, same
+1-hour idle lock):
+
+- **Email and password** (the game's accounts). Someone the owner has added can press
+  **First time? Create your password**; they confirm their email from the link before the
+  server says anything about their access. **Forgot password?** sends a reset link.
+- **Face ID, fingerprint or Windows Hello** (passkeys, through `admin/passkeys.js`). After a
+  password sign-in on a device that has one, Book Studio offers to set it up; **Set up Face ID
+  or fingerprint** at the top does it later. Devices are listed and removed in Grid Admin
+  under Face ID and fingerprint (owner, admins and the rest of the dashboard's roles).
 
 Books are kept in the browser that made them (IndexedDB). **Project > Save project file**
 keeps a copy or moves a book to another computer.
