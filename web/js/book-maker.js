@@ -247,7 +247,17 @@ async function show(m) {
   let style = document.getElementById('book-style');
   if (!style) { style = document.createElement('style'); style.id = 'book-style'; document.head.append(style); }
   style.textContent = String(m.css || '');
-  document.body.innerHTML = String(m.html || '');
+  // Only the dashboard sends this (trusted above), and it only sends pages it
+  // drew; still, nothing here may run: scripts, frames and event handlers are
+  // dropped before the pages are shown.
+  const doc = new DOMParser().parseFromString(String(m.html || ''), 'text/html');
+  for (const n of doc.querySelectorAll('script, iframe, object, embed, link, meta, base')) n.remove();
+  for (const n of doc.body.querySelectorAll('*')) {
+    for (const a of [...n.attributes]) {
+      if (/^on/i.test(a.name) || /^\s*javascript:/i.test(a.value)) n.removeAttribute(a.name);
+    }
+  }
+  document.body.replaceChildren(...doc.body.childNodes);
   document.body.className = 'bk-shown';
   if (document.fonts?.ready) await document.fonts.ready;
   // A frame that is not shown never paints, so wait with a timer, not a paint.

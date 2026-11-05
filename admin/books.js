@@ -459,8 +459,8 @@ function render() {
         <div class="field grow"><label for="bk-subtitle">Subtitle</label><input id="bk-subtitle" data-b="subtitle" maxlength="160" value="${e(book.subtitle)}"></div>
       </div>
       <div class="row">
-        <div class="field"><label for="bk-volume">Volume</label><input id="bk-volume" data-b="volume" type="number" min="1" max="999" value="${book.volume}"></div>
-        <div class="field"><label for="bk-edition">Edition</label><input id="bk-edition" data-b="edition" type="number" min="1" max="99" value="${book.edition}"></div>
+        <div class="field"><label for="bk-volume">Volume</label><input id="bk-volume" data-b="volume" type="number" min="1" max="999" value="${e(book.volume)}"></div>
+        <div class="field"><label for="bk-edition">Edition</label><input id="bk-edition" data-b="edition" type="number" min="1" max="99" value="${e(book.edition)}"></div>
         <div class="field grow"><label for="bk-author">Author</label><input id="bk-author" data-b="author" maxlength="120" value="${e(book.author)}"></div>
         <div class="field"><label for="bk-isbn">ISBN (optional)</label><input id="bk-isbn" data-s="isbn" maxlength="20" value="${e(book.settings.isbn || '')}"></div>
       </div>
@@ -499,7 +499,7 @@ function render() {
     </section>
 
     <section class="card stack" aria-labelledby="bk-h-cover"><h2 id="bk-h-cover">4. The cover</h2>
-      <p class="muted">Full wrap with ${BLEED} in bleed: ${dims.total[0].toFixed(3)} × ${dims.total[1].toFixed(3)} in. Spine ${dims.spine.toFixed(3)} in for ${Math.max(pages, MIN_PAGES)} pages on ${book.paper} paper.${spineTextOk(pages) ? '' : ' Spine words need more than 79 pages, so the spine stays plain.'}</p>
+      <p class="muted">Full wrap with ${BLEED} in bleed: ${dims.total[0].toFixed(3)} × ${dims.total[1].toFixed(3)} in. Spine ${dims.spine.toFixed(3)} in for ${Math.max(pages, MIN_PAGES)} pages on ${e(book.paper)} paper.${spineTextOk(pages) ? '' : ' Spine words need more than 79 pages, so the spine stays plain.'}</p>
       <ul class="bk-tpls">${templateCards()}</ul>
       <fieldset class="bk-fs"${locked ? ' disabled' : ''}>
       <div class="row">
