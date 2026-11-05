@@ -496,6 +496,7 @@ uses a secret, variable or binding that is not listed there.
 | Name | Where | Notes |
 | --- | --- | --- |
 | `BING_WEBMASTER_KEY` | Cloudflare Worker secret | Bing Webmaster > Settings > API access > API Key. Optional. |
+| `BING_WEBMASTER_KEY` | GitHub repository secret | The same key again. Bing often refuses the Worker (it shares its internet address with other sites), so a GitHub Action fetches the numbers every 6 hours from GitHub instead. Optional. |
 | `FLG_BING_SITE_VERIFICATION` | GitHub repository variable | Only for the meta tag method. The site uses the XML file method. Optional. |
 
 **Settings:**
@@ -510,6 +511,8 @@ uses a secret, variable or binding that is not listed there.
 4. Open <https://dash.cloudflare.com/?to=/:account/workers/services/view/flg-api/production/settings> (Cloudflare > **Workers & Pages** > **flg-api** > **Settings** > **Variables and Secrets**).
 5. Click **Add** (or **Edit** next to `BING_WEBMASTER_KEY` if it is already there).
 6. Choose type **Secret**, enter the name `BING_WEBMASTER_KEY`, paste the key as the value, and click **Deploy**.
+7. Open <https://github.com/bltaylorjr/fantastical-logic-grid/settings/secrets/actions> and click **New repository secret** (or the pencil next to `BING_WEBMASTER_KEY`).
+8. Name: `BING_WEBMASTER_KEY`. Secret: the same key. Click **Add secret**.
 
 **Links:** [Bing Webmaster Tools](https://www.bing.com/webmasters) · [Full guide (SEO.md)](https://github.com/bltaylorjr/fantastical-logic-grid/blob/main/SEO.md)
 

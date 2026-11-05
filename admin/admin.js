@@ -1991,16 +1991,16 @@ views.search = async () => {
 };
 const SEARCH_SETUP = {
   google: 'Add the Worker secret <code>GSC_SERVICE_ACCOUNT</code> (a Google Cloud service account key that is a user on the Search Console property). Steps are in admin/README.md.',
-  bing: 'Add the Worker secret <code>BING_WEBMASTER_KEY</code> (Bing Webmaster Tools, Settings, API access). Steps are in admin/README.md.',
+  bing: 'Add the Worker secret <code>BING_WEBMASTER_KEY</code> (Bing Webmaster Tools, Settings, API access), and the same key as a GitHub repository secret so Bing can be fetched from GitHub. Steps are in admin/README.md.',
 };
 function searchSource(title, key, s) {
   const head = `<h2>${esc(title)}</h2>`;
   if (!s.connected && !s.data) return `<div class="card">${head}<p class="note">Not connected yet. ${SEARCH_SETUP[key]}</p></div>`;
   const status = s.retryAt
-    ? `<p class="note">Bing asked us to slow down (it limits how often one internet address can ask, and our server shares its address with other sites). Nothing is wrong with the site. ${s.data ? `The numbers below are from ${when(s.fetchedAt)}. ` : ''}It will try again by itself ${s.retryAt > Date.now() ? `after ${when(s.retryAt)}` : 'at the next refresh'}.</p>`
+    ? `<p class="note">Bing asked us to slow down (it limits how often one internet address can ask, and our server shares its address with other sites). Nothing is wrong with the site. ${s.data ? `The numbers below are from ${when(s.fetchedAt)}. ` : ''}It will try again by itself ${s.retryAt > Date.now() ? `after ${when(s.retryAt)}` : 'within the hour'}, and the GitHub Action fetches Bing every 6 hours from an address Bing does not limit.</p>`
     : s.error
     ? `<p class="error">The last fetch (${when(s.triedAt)}) failed: ${esc(s.error)}${s.data ? ' The numbers below are from the last good fetch.' : ''}</p>`
-    : s.fetchedAt ? `<p class="muted">Fetched ${when(s.fetchedAt)}.</p>` : '<p class="muted">Not fetched yet: it runs every night at 2 am Eastern, or press Refresh now.</p>';
+    : s.fetchedAt ? `<p class="muted">Fetched ${when(s.fetchedAt)}${s.data?.via === 'github' ? ' (by the GitHub Action, which Bing does not limit)' : ''}. It refreshes by itself.</p>` : '<p class="muted">Not fetched yet: it refreshes by itself every night at 2 am Eastern (and catches up hourly if that fails), or press Refresh now.</p>';
   const x = s.data;
   if (!x) return `<div class="card">${head}${status}</div>`;
   const t = x.totals;

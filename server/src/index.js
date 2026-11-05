@@ -60,6 +60,7 @@ import { handleSpecials } from './editions.js';
 import { handleTranslate } from './translate.js';
 import { handleAdmin } from './admin.js';
 import { NIGHTLY_CRONS, isMaintenanceHour, runNightly } from './nightly.js';
+import { catchUpSearch } from './search.js';
 import { handleMarketing } from './marketing.js';
 import { handleVisits } from './visits.js';
 import { handleGuestPlays } from './guest-plays.js';
@@ -221,8 +222,11 @@ export default {
   },
   async scheduled(controller, env, ctx) {
     if (controller.cron === ALERTS_CRON) {
-      // The hourly round-up of owner alerts (alerts.js).
+      // The hourly round-up of owner alerts (alerts.js), and the search
+      // numbers caught up if a night's fetch failed (search.js), so they keep
+      // themselves current without anyone pressing Refresh.
       ctx.waitUntil(sendWaiting(env).then((r) => { if (r.sent) console.log('alerts', JSON.stringify(r)); }));
+      ctx.waitUntil(catchUpSearch(env).then((r) => { if (Object.values(r).some((v) => v === 'ok' || v === 'error')) console.log('search catch-up', JSON.stringify(r)); }, (e) => console.error('search catch-up', e)));
       return;
     }
     if (controller.cron === WEEKLY_ARCHIVE_CRON) {

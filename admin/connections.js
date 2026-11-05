@@ -480,6 +480,7 @@ export const CONNECTIONS = [
     docs: 'SEO.md',
     names: [
       { name: 'BING_WEBMASTER_KEY', where: 'worker-secret', optional: true, note: 'Bing Webmaster > Settings > API access > API Key.' },
+      { name: 'BING_WEBMASTER_KEY', where: 'github-secret', optional: true, note: 'The same key again. Bing often refuses the Worker (it shares its internet address with other sites), so a GitHub Action fetches the numbers every 6 hours from GitHub instead.' },
       { name: 'FLG_BING_SITE_VERIFICATION', where: 'github-variable', optional: true, note: 'Only for the meta tag method. The site uses the XML file method.' },
     ],
     settings: [{ label: 'Verification', value: 'XML file hosting/BingSiteAuth.xml at the site root (keep it)' }],
@@ -488,6 +489,7 @@ export const CONNECTIONS = [
       '**Sitemaps** > **Submit sitemap**: `https://thelogicgrid.com/sitemap.xml` (skip if listed).',
       'For dashboard numbers: **Settings** (gear) > **API access** > **API Key** > **Generate**. Copy it.',
       ...CF_SECRET_STEPS('BING_WEBMASTER_KEY', 'the key'),
+      ...GH_SECRET_STEPS('BING_WEBMASTER_KEY', 'the same key'),
     ],
     links: [{ label: 'Bing Webmaster Tools', url: 'https://www.bing.com/webmasters' }],
     checks: [{ type: 'http', url: `${SITE}/BingSiteAuth.xml`, label: 'Bing verification file is published' }],

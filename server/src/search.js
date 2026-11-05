@@ -1,6 +1,8 @@
 // Google Search Console and Bing Webmaster numbers for thelogicgrid.com, for
-// the admin dashboard. Fetched every night at 2 am Eastern (nightly.js) (and on
-// demand from the dashboard), then kept in D1 (`search_snapshots`) so viewing
+// the admin dashboard. Fetched every night at 2 am Eastern (nightly.js), caught
+// up by the hourly cron when a night failed (catchUpSearch), sent in for Bing by
+// a GitHub Action every 6 hours (acceptBingReport), and on demand from the
+// dashboard, then kept in D1 (`search_snapshots`) so viewing
 // the dashboard never calls Google or Bing. Both APIs are free.
 //
 // Credentials live only in Worker secrets:
@@ -117,6 +119,9 @@ export async function fetchGoogle(env, now = Date.now()) {
 // "/Date(1729814400000-0700)/" -> 1729814400000
 export const bingDate = (v) => { const m = /Date\((-?\d+)/.exec(String(v || '')); return m ? Number(m[1]) : null; };
 
+// The five Bing reports the dashboard uses, asked for in this order.
+export const BING_METHODS = ['GetRankAndTrafficStats', 'GetQueryStats', 'GetPageStats', 'GetFeeds', 'GetCrawlStats'];
+
 export async function fetchBing(env, now = Date.now()) {
   const site = homeOf(siteOf(env));
   const call = (method) => fetch(`https://ssl.bing.com/webmaster/api.svc/json/${method}?siteUrl=${encodeURIComponent(site)}&apikey=${encodeURIComponent(env.BING_WEBMASTER_KEY)}`)
@@ -125,9 +130,9 @@ export async function fetchBing(env, now = Date.now()) {
     .catch((e) => { throw new Error(String(e.message).split(env.BING_WEBMASTER_KEY).join('…')); });
   const errors = [];
   // One request at a time with a short pause, so a refresh never bursts.
-  const traffic = await call('GetRankAndTrafficStats');
+  const traffic = await call(BING_METHODS[0]);
   const extra = [];
-  for (const method of ['GetQueryStats', 'GetPageStats', 'GetFeeds', 'GetCrawlStats']) {
+  for (const method of BING_METHODS.slice(1)) {
     await sleep(BING_GAP_MS);
     try { extra.push(await call(method)); } catch (e) {
       // Throttled part way: stop asking and keep what arrived.
@@ -136,6 +141,12 @@ export async function fetchBing(env, now = Date.now()) {
     }
   }
   const [queries = [], pages = [], feeds = [], crawl = []] = extra;
+  return shapeBing({ traffic, queries, pages, feeds, crawl, errors }, site, now);
+}
+
+// Turns Bing's raw report rows into the dashboard's numbers. Used for the
+// Worker's own fetch and for the copy fetched from GitHub (acceptBingReport).
+export function shapeBing({ traffic = [], queries = [], pages = [], feeds = [], crawl = [], errors = [] }, site, now = Date.now()) {
   const since = now - RANGE_DAYS * DAY;
   const byDay = traffic.map((x) => ({ date: isoDay(bingDate(x.Date) || 0), clicks: x.Clicks || 0, impressions: x.Impressions || 0, ms: bingDate(x.Date) || 0 }))
     .filter((x) => x.ms >= since).sort((a, b) => a.ms - b.ms).map(({ ms, ...x }) => x);
@@ -179,30 +190,69 @@ const SOURCES = {
   bing: { configured: (env) => !!env.BING_WEBMASTER_KEY, fetch: fetchBing },
 };
 
+const saveGood = (env, name, data, now) => env.DB.prepare(`INSERT INTO search_snapshots (source, fetched_at, data, error, tried_at) VALUES (?1, ?2, ?3, NULL, ?2)
+  ON CONFLICT (source) DO UPDATE SET fetched_at = excluded.fetched_at, data = excluded.data, error = NULL, tried_at = excluded.tried_at`)
+  .bind(name, now, JSON.stringify(data)).run();
+const saveError = (env, name, msg, now) => env.DB.prepare(`INSERT INTO search_snapshots (source, fetched_at, data, error, tried_at) VALUES (?1, NULL, NULL, ?2, ?3)
+  ON CONFLICT (source) DO UPDATE SET error = excluded.error, tried_at = excluded.tried_at`).bind(name, String(msg).slice(0, 500), now).run();
+
+// Numbers older than this are refreshed by the hourly check (catchUpSearch).
+export const STALE_MS = 20 * 3600_000;
+// The hourly check asks a source at most this often after a failed try.
+export const RETRY_GAP_MS = 3 * 3600_000;
+
 // Fetches each connected source and saves it. A failed fetch keeps the last
-// good numbers and records the error next to them.
-export async function refreshSearch(env, now = Date.now()) {
+// good numbers and records the error next to them. With `dueOnly`, a source is
+// only asked when its numbers are stale and it was not tried recently (the
+// hourly catch-up), so nobody has to press Refresh after a failed night.
+export async function refreshSearch(env, now = Date.now(), { dueOnly = false } = {}) {
   const out = {};
-  const { results } = await env.DB.prepare('SELECT source, error, tried_at FROM search_snapshots').all();
+  const { results } = await env.DB.prepare('SELECT source, fetched_at, error, tried_at FROM search_snapshots').all();
   const last = new Map(results.map((r) => [r.source, r]));
   for (const [name, src] of Object.entries(SOURCES)) {
     if (!src.configured(env)) { out[name] = 'not_connected'; continue; }
     const prev = last.get(name);
     if (name === 'bing' && isThrottle(prev?.error) && now - (prev.tried_at || 0) < BING_BACKOFF_MS) { out[name] = 'waiting'; continue; }
+    if (dueOnly && (now - (prev?.fetched_at || 0) < STALE_MS || (prev?.error && now - (prev.tried_at || 0) < RETRY_GAP_MS))) { out[name] = 'fresh'; continue; }
     try {
-      const data = await src.fetch(env, now);
-      await env.DB.prepare(`INSERT INTO search_snapshots (source, fetched_at, data, error, tried_at) VALUES (?1, ?2, ?3, NULL, ?2)
-        ON CONFLICT (source) DO UPDATE SET fetched_at = excluded.fetched_at, data = excluded.data, error = NULL, tried_at = excluded.tried_at`)
-        .bind(name, now, JSON.stringify(data)).run();
+      await saveGood(env, name, await src.fetch(env, now), now);
       out[name] = 'ok';
     } catch (e) {
-      const msg = String(e.message || e).slice(0, 500);
-      await env.DB.prepare(`INSERT INTO search_snapshots (source, fetched_at, data, error, tried_at) VALUES (?1, NULL, NULL, ?2, ?3)
-        ON CONFLICT (source) DO UPDATE SET error = excluded.error, tried_at = excluded.tried_at`).bind(name, msg, now).run();
+      await saveError(env, name, e.message || e, now);
       out[name] = 'error';
     }
   }
   return out;
+}
+
+// The hourly catch-up: refreshes only the sources whose numbers are stale.
+export const catchUpSearch = (env, now = Date.now()) => refreshSearch(env, now, { dueOnly: true });
+
+// Bing limits the shared Cloudflare addresses the Worker sends from, so a
+// GitHub Action (.github/workflows/bing-search.yml) also fetches the raw Bing
+// reports from GitHub's own addresses and posts them here. Checked and shaped
+// the same way as the Worker's own fetch.
+const MAX_ROWS = 5000;
+export function checkBingReport(body) {
+  if (!body || typeof body !== 'object') return { error: 'Send the Bing reports as JSON.' };
+  const value = {};
+  for (const k of ['traffic', 'queries', 'pages', 'feeds', 'crawl']) {
+    const v = body[k] ?? [];
+    if (!Array.isArray(v) || v.length > MAX_ROWS || v.some((r) => !r || typeof r !== 'object' || Array.isArray(r))) return { error: `"${k}" must be a list of Bing rows.` };
+    value[k] = v;
+  }
+  const errors = body.errors ?? [];
+  if (!Array.isArray(errors)) return { error: '"errors" must be a list.' };
+  value.errors = errors.slice(0, 10).map((e) => String(e).slice(0, 300));
+  if (body.error != null) value.error = String(body.error).slice(0, 500);
+  return { value };
+}
+
+export async function acceptBingReport(env, value, now = Date.now()) {
+  if (value.error) { await saveError(env, 'bing', `From GitHub: ${value.error}`, now); return 'error'; }
+  const data = { ...shapeBing(value, homeOf(siteOf(env)), now), via: 'github' };
+  await saveGood(env, 'bing', data, now);
+  return 'ok';
 }
 
 export async function searchSnapshots(env) {

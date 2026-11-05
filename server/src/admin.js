@@ -10,7 +10,8 @@
 //   GET  /admin/v1/storage             rows per table, database size, free limits
 //   GET  /admin/v1/usage?days=         Cloudflare's own request and D1 counts (optional token)
 //   GET  /admin/v1/visitors?days=      site visitors: guests and players, apps, systems, devices, places (visits.js)
-//   GET  /admin/v1/search              Google and Bing search numbers (search.js); POST .../refresh
+//   GET  /admin/v1/search              Google and Bing search numbers (search.js); POST .../refresh;
+//                                      POST .../bing (Bing reports fetched by the GitHub Action bing-search.yml)
 //   GET  /admin/v1/errors?days=        error reports, most frequent first, with the fixes marked addressed
 //   POST /admin/v1/errors/fix          mark an error addressed { message, place, fixedIn, note }; POST .../fix/:id/delete
 //   GET  /admin/v1/parts?status=       shared story parts; POST /admin/v1/parts/review
@@ -91,7 +92,7 @@ import { SETTINGS, CELEBRATIONS, getSettings, checkSetting, saveSetting, themeLi
 import { npSummary, NP_TUNING_CACHE_KEY } from './number-place.js';
 import { kitSummary, kitTuningKey } from './kit-games.js';
 import { TUNING_CACHE_KEY } from './learn.js';
-import { refreshSearch, searchSnapshots, lastTry, REFRESH_GAP_MS } from './search.js';
+import { refreshSearch, searchSnapshots, lastTry, REFRESH_GAP_MS, checkBingReport, acceptBingReport } from './search.js';
 import { workshopOptions, addPart, draftParts } from './workshop.js';
 import { characterRoutes, VOICES, VOICE_STYLES } from './characters.js';
 import { storySubmissionRoutes, syncIdeaBoxDecision } from './story-submissions.js';
@@ -513,6 +514,12 @@ const ROUTES = [
     if (now - (await lastTry(env)) < REFRESH_GAP_MS) throw new Refusal(429, 'too_soon', 'The search numbers were fetched a few minutes ago. Try again in 10 minutes.');
     const result = await refreshSearch(env, now);
     return { body: { result, sources: await searchSnapshots(env) }, detail: result };
+  }],
+  ['POST', /^search\/bing$/, 'admin', 'search.bing', async ({ env, body, now }) => {
+    const { value, error } = checkBingReport(body);
+    if (error) throw new Refusal(400, 'bad_report', error);
+    const result = await acceptBingReport(env, value, now);
+    return { body: { result }, detail: { result, rows: value.traffic.length } };
   }],
   ['GET', /^vox-link$/, 'admin', 'vox.link.view', async ({ env }) => ({ body: (await voxLink(env)) || {}, quiet: true })],
   ['POST', /^vox-link$/, 'admin', 'vox.link.set', async ({ env, body, who }) => {
