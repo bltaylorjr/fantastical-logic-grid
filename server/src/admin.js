@@ -5,7 +5,9 @@
 //
 //   GET  /admin/                       the dashboard (admin/index.html)
 //   GET  /admin/v1/client-config       the Firebase web key the sign-in form needs
-//   GET  /admin/v1/me                  who is signed in and their role
+//   GET  /admin/v1/me                  who is signed in, their role and whether they may publish books
+//   POST /admin/v1/publishing/export   Book Studio (admin/book-studio/) asks before every export; logged (publishers)
+//   POST /admin/v1/admins/publishing   { email, on } let one admin use Book Studio (owner)
 //   GET  /admin/v1/analytics?days=     players, games, scores, races, voices, errors
 //   GET  /admin/v1/storage             rows per table, database size, free limits
 //   GET  /admin/v1/usage?days=         Cloudflare's own request and D1 counts (optional token)
@@ -131,8 +133,12 @@ import { SESSION_PREFIX, PasskeyError, signInOptions, checkSignIn, startSession,
 import { accountDeletedStatement } from './sync.js';
 
 const DAY = 24 * 3600_000;
-const ROLES = { viewer: 1, moderator: 2, admin: 3, owner: 4 };
-const STORED_ROLES = ['admin', 'moderator', 'viewer'];
+// publisher: may open only Book Studio (admin/book-studio/) and the routes it
+// needs, nothing else in the dashboard. Every other role can also be given
+// Book Studio with the per-admin publishing switch (admins.publishing); the
+// owner and admins always have it.
+const ROLES = { publisher: 0.5, viewer: 1, moderator: 2, admin: 3, owner: 4 };
+const STORED_ROLES = ['admin', 'moderator', 'viewer', 'publisher'];
 const MAX_BODY = 8_000;
 // An admin must sign in again (with their password) at least this often, even
 // while the dashboard keeps refreshing their token; the dashboard itself signs
@@ -222,13 +228,17 @@ const bearer = (req) => (req.headers.get('Authorization') || '').match(/^Bearer\
 const tokenMatches = (env, token) => { const want = String(env.ADMIN_TOKEN || '').trim(); return want.length >= 16 && safeEqual(token.trim(), want); };
 
 // ------------------------------------------------------------- identity
-async function roleOf(env, email) {
+async function accessOf(env, email) {
   const owner = String(env.OWNER_EMAIL || '').trim().toLowerCase();
-  if (owner && email === owner) return 'owner';
-  const row = await env.DB.prepare('SELECT role FROM admins WHERE email = ?1').bind(email).first();
+  if (owner && email === owner) return { role: 'owner', publishing: true };
+  const row = await env.DB.prepare('SELECT role, publishing FROM admins WHERE email = ?1').bind(email).first();
   if (!row || !STORED_ROLES.includes(row.role)) throw new Refusal(403, 'not_admin', 'This account is not an admin.');
-  return row.role;
+  return { role: row.role, publishing: !!row.publishing };
 }
+async function roleOf(env, email) { return (await accessOf(env, email)).role; }
+// Book Studio: the owner and admins always; publishers by their role; anyone
+// else when the owner has switched publishing on for them.
+const canPublish = (who) => !!who && (ROLES[who.role] >= ROLES.admin || who.role === 'publisher' || who.publishing === true);
 
 // who: { actor, role, key (rate limit), signedInAt (ms, when the admin last
 // proved who they are), session (a passkey session's hash) }.
@@ -243,8 +253,8 @@ async function identify(req, env) {
       throw e;
     }
     // Checked on every request, so a removed admin is out at once.
-    const role = await roleOf(env, s.email);
-    return { actor: s.email, role, key: `pk:${s.hash.slice(0, 24)}`, signedInAt: s.createdAt, session: s.hash };
+    const { role, publishing } = await accessOf(env, s.email);
+    return { actor: s.email, role, publishing, key: `pk:${s.hash.slice(0, 24)}`, signedInAt: s.createdAt, session: s.hash };
   }
   // An assistant key made by the owner in admin > Admins (admin-keys.js).
   if (token.startsWith(KEY_PREFIX)) {
@@ -265,8 +275,8 @@ async function identify(req, env) {
   // admin's email must be confirmed before the role is even looked up (an
   // unconfirmed account must not learn which addresses are admins).
   if (!user.emailVerified) throw new Refusal(403, 'verify_email', 'Confirm your email address first.');
-  const role = await roleOf(env, email);
-  return { actor: email, role, key: user.uid, uid: user.uid, signedInAt: user.authTime * 1000 };
+  const { role, publishing } = await accessOf(env, email);
+  return { actor: email, role, publishing, key: user.uid, uid: user.uid, signedInAt: user.authTime * 1000 };
 }
 
 async function audit(env, entry) {
@@ -498,7 +508,14 @@ async function renamePlayer(env, uid, body, who, now) {
 const str = (v, max) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
 
 const ROUTES = [
-  ['GET', /^me$/, 'viewer', 'me', async ({ who }) => ({ body: { email: who.actor, role: who.role, roles: Object.keys(ROLES) } })],
+  ['GET', /^me$/, 'publisher', 'me', async ({ who }) => ({ body: { email: who.actor, role: who.role, roles: Object.keys(ROLES), canPublish: canPublish(who) } })],
+  // Book Studio checks in before each export, so access can be taken away at
+  // once and every exported book is in the audit log.
+  ['POST', /^publishing\/export$/, 'publisher', 'publishing.export', async ({ who, body }) => {
+    if (!canPublish(who)) throw new Refusal(403, 'no_publishing', 'This account does not have publishing access. Ask the owner to switch it on under Admins.');
+    const detail = { kind: str(body.kind, 20), platform: str(body.platform, 60), pages: Math.max(0, Math.min(5000, Number(body.pages) || 0)) };
+    return { body: { ok: true }, target: str(body.title, 200) || 'Untitled', detail };
+  }],
 
   ['GET', /^analytics$/, 'viewer', 'analytics.view', async ({ env, url }) => ({ body: await analytics(env, daysParam(url)) })],
   ['GET', /^search$/, 'viewer', 'search.view', async ({ env }) => ({ body: { sources: await searchSnapshots(env) } })],
@@ -984,18 +1001,29 @@ const ROUTES = [
   }],
 
   ['GET', /^admins$/, 'owner', 'admins.view', async ({ env }) => {
-    const { results } = await env.DB.prepare('SELECT email, role, added_by AS addedBy, added_at AS addedAt FROM admins ORDER BY added_at').all();
+    const { results } = await env.DB.prepare('SELECT email, role, publishing, added_by AS addedBy, added_at AS addedAt FROM admins ORDER BY added_at').all();
+    for (const r of results) r.publishing = r.role === 'admin' || r.role === 'publisher' || !!r.publishing;
     const owner = String(env.OWNER_EMAIL || '').trim().toLowerCase();
     return { body: { owner: owner || null, admins: results, roles: STORED_ROLES } };
   }],
   ['POST', /^admins$/, 'owner', 'admins.add', async ({ env, body, who, now }) => {
     const email = str(body.email, 254).toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Refusal(400, 'bad_email', 'Enter an email address.');
-    if (!STORED_ROLES.includes(body.role)) throw new Refusal(400, 'bad_role', 'Choose admin, moderator or viewer.');
+    if (!STORED_ROLES.includes(body.role)) throw new Refusal(400, 'bad_role', 'Choose admin, moderator, viewer or publisher.');
     if (email === String(env.OWNER_EMAIL || '').trim().toLowerCase()) throw new Refusal(400, 'owner', 'That is the owner.');
-    await env.DB.prepare(`INSERT INTO admins (email, role, added_by, added_at) VALUES (?1, ?2, ?3, ?4)
-      ON CONFLICT (email) DO UPDATE SET role = excluded.role, added_by = excluded.added_by, added_at = excluded.added_at`).bind(email, body.role, who.actor, now).run();
-    return { body: { ok: true }, target: email, detail: { role: body.role } };
+    // publishing: left out keeps what the admin had (a new admin starts without it).
+    const pub = body.publishing === undefined ? null : (body.publishing ? 1 : 0);
+    await env.DB.prepare(`INSERT INTO admins (email, role, added_by, added_at, publishing) VALUES (?1, ?2, ?3, ?4, COALESCE(?5, 0))
+      ON CONFLICT (email) DO UPDATE SET role = excluded.role, added_by = excluded.added_by, added_at = excluded.added_at,
+        publishing = COALESCE(?5, admins.publishing)`).bind(email, body.role, who.actor, now, pub).run();
+    return { body: { ok: true }, target: email, detail: { role: body.role, ...(pub === null ? {} : { publishing: !!pub }) } };
+  }],
+  ['POST', /^admins\/publishing$/, 'owner', 'admins.publishing', async ({ env, body }) => {
+    const email = str(body.email, 254).toLowerCase();
+    const on = body.on ? 1 : 0;
+    const r = await env.DB.prepare('UPDATE admins SET publishing = ?2 WHERE email = ?1').bind(email, on).run();
+    if (!r.meta.changes) throw new Refusal(404, 'not_found', 'That email is not on the admin list.');
+    return { body: { ok: true }, target: email, detail: { publishing: !!on } };
   }],
   ['POST', /^admins\/remove$/, 'owner', 'admins.remove', async ({ env, body }) => {
     const email = str(body.email, 254).toLowerCase();
@@ -1004,17 +1032,17 @@ const ROUTES = [
   }],
 
   // Face ID and fingerprint sign-in on this admin's own devices (passkeys.js).
-  ['GET', /^passkeys$/, 'viewer', 'passkeys.view', async ({ env, who }) => ({ body: { passkeys: String(who.actor).includes('@') ? await listPasskeys(env, who.actor) : [] }, quiet: true })],
-  ['POST', /^passkeys\/options$/, 'viewer', 'passkeys.options', async ({ env, url, who, now }) => ({ body: await registerOptions(env, url, who, now), quiet: true })],
-  ['POST', /^passkeys\/register$/, 'viewer', 'passkeys.add', async ({ env, url, who, body, now }) => {
+  ['GET', /^passkeys$/, 'publisher', 'passkeys.view', async ({ env, who }) => ({ body: { passkeys: String(who.actor).includes('@') ? await listPasskeys(env, who.actor) : [] }, quiet: true })],
+  ['POST', /^passkeys\/options$/, 'publisher', 'passkeys.options', async ({ env, url, who, now }) => ({ body: await registerOptions(env, url, who, now), quiet: true })],
+  ['POST', /^passkeys\/register$/, 'publisher', 'passkeys.add', async ({ env, url, who, body, now }) => {
     const added = await register(env, url, who, body, now);
     return { body: added, target: added.device };
   }, { maxBody: 6_000 }],
-  ['POST', /^passkeys\/([\w-]{1,1400})\/remove$/, 'viewer', 'passkeys.remove', async ({ env, who, params }) => {
+  ['POST', /^passkeys\/([\w-]{1,1400})\/remove$/, 'publisher', 'passkeys.remove', async ({ env, who, params }) => {
     await removePasskey(env, who.actor, params[0]);
     return { body: { ok: true }, target: params[0].slice(0, 16) };
   }],
-  ['POST', /^session\/end$/, 'viewer', 'sign-out', async ({ env, who }) => {
+  ['POST', /^session\/end$/, 'publisher', 'sign-out', async ({ env, who }) => {
     if (who.session) await endSessionStatement(env, who.session).run();
     return { body: { ok: true } };
   }],
@@ -1109,6 +1137,12 @@ async function api(req, env, ctx, url, path) {
 }
 
 const APP_FILE = /^\/admin\/([\w-]+\.(?:js|css|svg|png|html|webmanifest))?$/;
+// Book Studio (admin/book-studio/): its own page with its own vendored libraries.
+const STUDIO_FILE = /^\/admin\/book-studio\/((?:vendor\/)?[\w-]+(?:\.[\w-]+)*\.(?:js|css|html))?$/;
+// Book Studio edits rich text (style attributes on every formatted word) and
+// draws covers with the book fonts from Google Fonts, so its page allows
+// inline styles and those two font hosts. Scripts stay 'self' only.
+const STUDIO_CSP = "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' data: blob: https://identitytoolkit.googleapis.com https://securetoken.googleapis.com; worker-src 'self' blob:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
 const TYPES = { js: 'text/javascript; charset=utf-8', css: 'text/css; charset=utf-8', svg: 'image/svg+xml', png: 'image/png', html: 'text/html; charset=utf-8', webmanifest: 'application/manifest+json' };
 
 async function appFile(env, url, file) {
@@ -1117,6 +1151,13 @@ async function appFile(env, url, file) {
   if (!res.ok) return new Response('Not found', { status: 404, headers: SECURITY_HEADERS });
   const voxUrl = file.endsWith('.html') ? (await voxLink(env))?.url : '';
   return new Response(res.body, { headers: { ...SECURITY_HEADERS, 'Content-Security-Policy': adminCsp(env, voxUrl), 'Content-Type': TYPES[file.split('.').pop()], ...(voxUrl ? { 'Cache-Control': 'no-store' } : {}) } });
+}
+
+async function studioFile(env, url, file) {
+  if (!env.ASSETS) return new Response('The admin app is not deployed with this Worker.', { status: 404 });
+  const res = await env.ASSETS.fetch(new Request(new URL(`/book-studio/${file}`, url.origin)));
+  if (!res.ok) return new Response('Not found', { status: 404, headers: SECURITY_HEADERS });
+  return new Response(res.body, { headers: { ...SECURITY_HEADERS, 'Content-Security-Policy': STUDIO_CSP, 'Content-Type': TYPES[file.split('.').pop()] } });
 }
 
 const LEGACY = /^\/admin\/(learn(\/.*)?|errors)$/;
@@ -1137,6 +1178,9 @@ export async function handleAdmin(req, env, ctx, url, legacy) {
   // The old token-only story review page moved into the dashboard.
   if (path === '/admin/learn' && req.method === 'GET') return Response.redirect(new URL('/admin/#stories', url).toString(), 301);
   if (path.startsWith('/admin/v1/')) return api(req, env, ctx, url, path.slice('/admin/v1/'.length));
+  if (path === '/admin/book-studio') return Response.redirect(new URL('/admin/book-studio/', url).toString(), 301);
+  const studio = req.method === 'GET' && path.match(STUDIO_FILE);
+  if (studio) return studioFile(env, url, studio[1] || 'index.html');
   const file = req.method === 'GET' && path.match(APP_FILE);
   if (file) return appFile(env, url, file[1] || 'index.html');
   if (LEGACY.test(path)) {

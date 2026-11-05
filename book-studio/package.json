@@ -1,0 +1,19 @@
+{
+  "name": "book-studio",
+  "private": true,
+  "license": "UNLICENSED",
+  "description": "Book Studio: the puzzle book editor in Grid Admin. Libraries vendored into admin/book-studio/vendor by build.mjs.",
+  "type": "module",
+  "scripts": { "build": "node build.mjs" },
+  "devDependencies": {
+    "fabric": "5.3.0",
+    "html2canvas": "1.4.1",
+    "jspdf": "2.5.1",
+    "jszip": "3.10.1",
+    "mammoth": "1.6.0",
+    "marked": "9.1.6",
+    "pako": "2.1.0",
+    "pdfjs-dist": "3.11.174",
+    "utif": "3.1.0"
+  }
+}

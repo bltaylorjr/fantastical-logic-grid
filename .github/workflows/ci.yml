@@ -98,6 +98,12 @@ jobs:
           node scripts/e2e-archive.cjs
           node scripts/e2e-educators.cjs
           node scripts/e2e-license.cjs
+      - name: Book Studio is built from book-studio/src, and works against the real Worker
+        run: |
+          npm --prefix book-studio ci --no-audit --no-fund
+          node book-studio/build.mjs
+          git diff --exit-code -- admin/book-studio || (echo "admin/book-studio is out of date: run node book-studio/build.mjs and commit it" && exit 1)
+          node scripts/e2e-book-studio.cjs
       - name: The admin dashboard's website editor (Edit on the page, its own window, Publish) against the real Worker
         run: node scripts/e2e-admin-website.cjs
       - name: Private puzzle server, and a site built in server mode (docs/PUZZLE-SERVER.md)

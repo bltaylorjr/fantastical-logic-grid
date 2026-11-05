@@ -1,0 +1,16 @@
+Book Studio (admin/book-studio/) uses these open-source libraries, copied
+unchanged from npm by book-studio/build.mjs (versions pinned in
+book-studio/package.json). Each keeps its own license; the full texts are in
+each package on npm.
+
+fabric.min.js             Fabric.js 5.3.0        MIT
+jspdf.umd.min.js          jsPDF 2.5.1            MIT
+html2canvas.min.js        html2canvas 1.4.1      MIT
+jszip.min.js              JSZip 3.10.1           MIT (dual MIT or GPL-3.0-or-later; used under MIT)
+mammoth.browser.min.js    mammoth 1.6.0          BSD-2-Clause
+pdf.min.js, pdf.worker.min.js  PDF.js (pdfjs-dist) 3.11.174  Apache-2.0
+pako.min.js               pako 2.1.0             MIT AND Zlib
+UTIF.js                   UTIF.js 3.1.0          MIT
+marked.min.js             marked 9.1.6           MIT
+
+The book fonts load from Google Fonts (SIL Open Font License or Apache-2.0).
