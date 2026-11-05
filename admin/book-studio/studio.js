@@ -209,7 +209,7 @@ async function loadLibs(...names) { for (const n of names) await loadLib(n); }
 
 /* File save: uses the viewer's download capability when hosted, a plain link otherwise */
 async function saveFile(filename, data) {
-  const blob = data instanceof Blob ? data : new Blob([data]);
+  const blob = data instanceof Blob ? data : new Blob([data], { type: 'application/octet-stream' });
   if (window.claude && typeof window.claude.use === 'function') {
     let d = null;
     try { d = await window.claude.use('downloads'); } catch (e) { d = null; }
@@ -406,7 +406,7 @@ function renderPageList() {
   list.innerHTML = `<div class="pagelist-head"><span>${S.pages.length} pages</span><button class="btn ghost" id="plAdd" title="Add page">+ Add</button></div>`;
   S.pages.forEach((p, i) => {
     const it = document.createElement('div'); it.className = 'pl-item' + (i === curPage ? ' active' : ''); it.tabIndex = 0;
-    const lines = Math.min(6, Math.ceil((p.html || '').replace(/<[^>]*>/g, '').replace(/[<>]/g, '').length / 120));
+    const lines = Math.min(6, Math.ceil((p.html || '').length / 200));
     const thumb = `<div class="pl-thumb">${Array.from({ length: lines }, (_, k) => `<i style="top:${7 + k * 6}px"></i>`).join('')}</div>`;
     const of = pgs[i] && pgs[i].classList.contains('overflow');
     it.innerHTML = `${thumb}<div class="pl-meta"><b>${i + 1}</b><span>${esc(pageLabel(p))}</span></div>${of ? '<i class="pl-flag" title="Overflowing"></i>' : ''}`;

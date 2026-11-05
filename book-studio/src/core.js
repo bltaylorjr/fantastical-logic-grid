@@ -56,7 +56,7 @@ async function loadLibs(...names) { for (const n of names) await loadLib(n); }
 
 /* File save: uses the viewer's download capability when hosted, a plain link otherwise */
 async function saveFile(filename, data) {
-  const blob = data instanceof Blob ? data : new Blob([data]);
+  const blob = data instanceof Blob ? data : new Blob([data], { type: 'application/octet-stream' });
   if (window.claude && typeof window.claude.use === 'function') {
     let d = null;
     try { d = await window.claude.use('downloads'); } catch (e) { d = null; }
