@@ -88,6 +88,7 @@
       <button type="button" data-dash="sf" aria-pressed="false">Star Field <span class="dash-sub">Game</span></button>
       <button type="button" data-dash="ll" aria-pressed="false">Loop Line <span class="dash-sub">Game</span></button>
       <button type="button" data-dash="ib" aria-pressed="false">Island Bridges <span class="dash-sub">Game</span></button>
+      <button type="button" data-dash="vault" data-min="owner" aria-pressed="false" hidden>Passwords <span class="dash-sub">Owner only, locked with your master password</span></button>
     </div>
     <ul id="nav-list" data-current="main">
       <li data-dash="main"><a href="#overview" data-min="viewer">Overview</a></li>
@@ -134,6 +135,7 @@
       <li data-dash="sf"><a href="#starfield" data-min="viewer">Star Field</a></li>
       <li data-dash="ll"><a href="#loopline" data-min="viewer">Loop Line</a></li>
       <li data-dash="ib"><a href="#islandbridges" data-min="viewer">Island Bridges</a></li>
+      <li data-dash="vault"><a href="#vault" data-min="owner">Passwords</a></li>
     </ul>
   </nav>
   <main id="main" tabindex="-1">
@@ -752,6 +754,76 @@
       </div>
       <div class="table-wrap"><table class="table"><thead><tr><th scope="col">Name</th><th scope="col">Role</th><th scope="col">Made</th><th scope="col">Ends</th><th scope="col">Last used</th><th scope="col">State</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody id="key-rows"></tbody></table></div>
     </section>
+
+    <!-- Passwords (vault.js): the owner's password manager, locked on this device. -->
+    <section data-view="vault" hidden aria-labelledby="h-vault">
+      <div class="head"><h1 id="h-vault">Passwords</h1>
+        <div class="row" id="vault-top" hidden><span class="badge ok" id="vault-state">Unlocked</span><button class="btn small" type="button" id="vault-lock">Lock now</button></div>
+      </div>
+      <p class="muted">Every website, username, password, 2-step code and note in one place. They are locked on this device with your master password before they leave it, so the server, a backup, the break-glass key and assistant keys only ever hold scrambled text. Only you, signed in as the owner, can open this page.</p>
+
+      <!-- First time: choose a master password. -->
+      <form id="vault-setup" class="card stack" novalidate hidden aria-labelledby="h-vault-setup">
+        <h2 id="h-vault-setup">Choose your master password</h2>
+        <p class="note"><b>Nobody can recover this password, not even Claude.</b> If you forget it, the only way back in is to wipe the vault and start again. Use a long phrase you will remember, for example four or five random words, and write it down somewhere safe away from your computer.</p>
+        <div class="field"><label for="vault-new-1">Master password</label><input id="vault-new-1" type="password" autocomplete="new-password" minlength="10" required aria-describedby="vault-new-meter"><span id="vault-new-meter" class="muted" aria-live="polite">At least 10 characters.</span></div>
+        <div class="field"><label for="vault-new-2">Type it again</label><input id="vault-new-2" type="password" autocomplete="new-password" required></div>
+        <label class="check"><input type="checkbox" id="vault-new-show"> Show what I type</label>
+        <p class="error" id="vault-setup-error" role="alert" hidden></p>
+        <div class="row"><button class="btn primary" type="submit">Set up Passwords</button></div>
+      </form>
+
+      <!-- Locked. -->
+      <form id="vault-unlock" class="card stack" novalidate hidden aria-labelledby="h-vault-unlock">
+        <h2 id="h-vault-unlock">Unlock</h2>
+        <div class="stack" id="vault-bio-box" hidden>
+          <div class="row"><button class="btn primary" type="button" id="vault-bio">Unlock with Face ID or fingerprint</button></div>
+          <p class="muted">Or type the master password:</p>
+        </div>
+        <div class="field"><label for="vault-pass">Master password</label><input id="vault-pass" type="password" autocomplete="current-password" required></div>
+        <p class="error" id="vault-unlock-error" role="alert" hidden></p>
+        <div class="row"><button class="btn" type="submit" id="vault-unlock-btn">Unlock</button></div>
+        <details><summary>Forgot the master password?</summary>
+          <p class="muted">It cannot be recovered. You can wipe the vault (every saved login is deleted) and choose a new master password.</p>
+          <button class="btn small danger" type="button" id="vault-reset">Wipe the vault and start again</button>
+        </details>
+      </form>
+
+      <!-- Open. -->
+      <div id="vault-open" hidden>
+        <div class="note" id="vault-bio-offer" role="region" aria-label="Faster unlock" hidden>
+          <p><b>Unlock faster on this device.</b> Use Face ID, your fingerprint or Windows Hello instead of typing the master password.</p>
+          <div class="row"><button class="btn primary" type="button" id="vault-bio-offer-yes">Set it up</button><button class="btn" type="button" id="vault-bio-offer-no">Not now</button></div>
+        </div>
+        <div class="tiles" id="vault-tiles"></div>
+        <div class="note" id="vault-undo" role="status" hidden><span id="vault-undo-text"></span> <button class="btn small" type="button" id="vault-undo-btn">Undo</button></div>
+        <div class="row card" role="search">
+          <div class="field grow"><label for="vault-q">Search names, websites, usernames and notes</label><input id="vault-q" type="search" autocomplete="off" spellcheck="false"></div>
+          <div class="field"><label for="vault-kind">Show</label><select id="vault-kind"></select></div>
+          <button class="btn primary" type="button" id="vault-add">Add a login</button>
+          <button class="btn" type="button" id="vault-gen">Make a password</button>
+        </div>
+        <ul class="vault-list" id="vault-list" aria-label="Saved logins"></ul>
+        <details class="card vault-more">
+          <summary><b>Import, export and settings</b></summary>
+          <h3>Import</h3>
+          <p class="muted">Bring logins in from a CSV file exported from Chrome, Edge, Firefox, Safari, Bitwarden, 1Password or LastPass. Delete that file afterwards: it is not locked.</p>
+          <div class="row"><label class="btn" for="vault-import-file">Choose a CSV file</label><input id="vault-import-file" type="file" accept=".csv,text/csv" class="sr-only"></div>
+          <h3>Export</h3>
+          <p class="muted">Downloads every login as a plain CSV file anyone could read (Chrome and Edge can import it). Keep it somewhere safe and delete it when done.</p>
+          <div class="row"><button class="btn" type="button" id="vault-export">Download a CSV</button></div>
+          <h3>Lock after</h3>
+          <div class="row"><div class="field"><label for="vault-idle">Lock when not used for</label><select id="vault-idle"><option value="1">1 minute</option><option value="5">5 minutes</option><option value="15">15 minutes</option><option value="30">30 minutes</option></select></div></div>
+          <h3>Face ID and fingerprint</h3>
+          <p class="muted">Each device you set up can open Passwords with your face, finger or Windows Hello. It still needs the master password if Face ID stops working, and you can remove a lost device here at once.</p>
+          <ul class="vault-devices" id="vault-devices"></ul>
+          <p class="muted" id="vault-bio-why" hidden></p>
+          <div class="row"><button class="btn" type="button" id="vault-bio-setup">Set up on this device</button></div>
+          <h3>Master password</h3>
+          <div class="row"><button class="btn" type="button" id="vault-master">Change the master password</button></div>
+        </details>
+      </div>
+    </section>
   </main>
 </div>
 
@@ -771,6 +843,32 @@
     <div id="mk-dialog-body"></div>
     <p class="error" id="mk-dialog-error" role="alert" hidden></p>
     <div class="row end"><button class="btn" value="cancel" type="button" id="mk-dialog-cancel">Cancel</button><button class="btn primary" value="ok" id="mk-dialog-ok">Save</button></div>
+  </form>
+</dialog>
+<dialog id="vault-dialog" class="vault-dialog" aria-labelledby="vault-dlg-title">
+  <button class="dlg-x" type="button" id="vault-dlg-x" aria-label="Close" title="Close"><svg aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg></button>
+  <form method="dialog" id="vault-dlg-form" class="stack" novalidate>
+    <h2 id="vault-dlg-title">Add a login</h2>
+    <div class="field"><label for="vf-title">Name</label><input id="vf-title" maxlength="120" autocomplete="off" required placeholder="For example Namecheap"></div>
+    <div class="field"><label for="vf-kind">Type</label><select id="vf-kind"></select></div>
+    <div class="field"><label for="vf-url">Website address</label><input id="vf-url" type="url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://www.namecheap.com"></div>
+    <div class="field"><label for="vf-login">Sign-in page (if different)</label><input id="vf-login" type="url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://www.namecheap.com/myaccount/login/"><span class="muted">Log in opens this page.</span></div>
+    <div class="field"><label for="vf-user">Username</label><input id="vf-user" autocomplete="off" spellcheck="false"></div>
+    <div class="field"><label for="vf-email">Email on the account</label><input id="vf-email" type="email" autocomplete="off" spellcheck="false"></div>
+    <div class="field"><label for="vf-pass">Password</label>
+      <div class="row vault-pass-row"><input id="vf-pass" type="password" autocomplete="new-password" spellcheck="false" aria-describedby="vf-meter"><button class="btn small" type="button" id="vf-show" aria-pressed="false">Show</button><button class="btn small" type="button" id="vf-make">Make one</button></div>
+      <span id="vf-meter" class="muted" aria-live="polite"></span>
+    </div>
+    <div class="field"><label for="vf-totp">2-step code key (optional)</label><input id="vf-totp" autocomplete="off" spellcheck="false" placeholder="JBSW Y3DP EHPK 3PXP or otpauth://…"><span class="muted">The setup key a site shows next to its QR code for an authenticator app. With it, this page shows the 6-digit code.</span></div>
+    <div class="field"><label for="vf-notes">Notes</label><textarea id="vf-notes" rows="3" placeholder="Security questions, PINs, account numbers you need to sign in…"></textarea></div>
+    <fieldset class="vault-fields"><legend>Extra fields</legend>
+      <div id="vf-extra"></div>
+      <button class="btn small" type="button" id="vf-extra-add">Add a field</button>
+    </fieldset>
+    <label class="check"><input type="checkbox" id="vf-fav"> Favourite (shows at the top)</label>
+    <details id="vf-history" hidden><summary>Earlier passwords</summary><ul id="vf-history-list"></ul></details>
+    <p class="error" id="vault-dlg-error" role="alert" hidden></p>
+    <div class="row end"><button class="btn" type="button" id="vault-dlg-cancel">Cancel</button><button class="btn primary" id="vault-dlg-ok">Save</button></div>
   </form>
 </dialog>
 <div id="ss-print" class="ss-print" aria-hidden="true"></div>

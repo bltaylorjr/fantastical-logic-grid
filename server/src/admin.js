@@ -61,6 +61,7 @@
 //   GET  /admin/v1/tuning              self-tuning: suggested changes waiting for approval; POST .../check, .../:id/(approve|decline|undo), .../rules (tuning.js)
 //   GET  /admin/v1/export/(players|scores|feedback).csv   spreadsheet downloads
 //   GET/POST /admin/v1/admins          who may sign in (owner only); POST /admin/v1/admins/remove
+//   GET/POST /admin/v1/vault[/...]     Passwords, the owner's password manager; only scrambled text is stored (vault.js)
 //   GET/POST /admin/v1/admin-keys      assistant keys for helpers such as Claude (owner only); POST .../:id/revoke (admin-keys.js)
 //   GET  /admin/v1/connections[?refresh=1]  live status for the Connections and setup guide (connections.js)
 //   POST /admin/v1/connections/github  the Connections status Action's report: names that are set, never values
@@ -122,6 +123,7 @@ import { tuningRoutes } from './tuning.js';
 import { alertRoutes } from './alerts.js';
 import { KEY_PREFIX, checkKey, adminKeyRoutes } from './admin-keys.js';
 import { siteAccountRoutes } from './site-accounts.js';
+import { vaultRoutes } from './vault.js';
 import { SESSION_PREFIX, PasskeyError, signInOptions, checkSignIn, startSession, checkSession, endSessionStatement, forgetAdminStatements, registerOptions, register, listPasskeys, removePasskey } from './passkeys.js';
 import { accountDeletedStatement } from './sync.js';
 
@@ -136,7 +138,7 @@ const SESSION_MAX_S = 12 * 3600;
 const DENIED_PER_DAY = 500; // refused requests written to the audit log, so a flood cannot fill it
 const ANALYTICS_CACHE_MS = 120_000;
 const TABLES = ['sync_users', 'sync_records', 'sync_deleted_users', 'account_days', 'players', 'scores', 'races', 'race_entries', 'race_invites', 'plays', 'parts', 'usage',
-  'app_errors', 'upkeep_log', 'admins', 'admin_audit', 'settings', 'announcements', 'bans', 'name_reviews', 'archive_log', 'feedback', 'feedback_replies', 'error_fixes', 'conversations', 'conversation_messages', 'message_contacts', 'news', 'search_snapshots', 'daily_plan', 'translations', 'rating_insights', 'campaigns', 'campaign_ads', 'marketing_media', 'campaign_stats', 'challenges', 'daily_results', 'daily_email', 'supporters', 'payment_blocks', 'puzzle_mail', 'puzzle_mail_got', 'puzzle_mail_days', 'special_editions', 'educator_requests', 'special_badges', 'badge_awards', 'puzzle_reports', 'player_puzzles', 'visit_stats', 'educator_feedback', 'print_packs', 'print_pack_stories', 'admin_passkeys', 'admin_sessions', 'admin_keys', 'np_plays', 'kit_plays', 'alert_prefs', 'alert_devices', 'alert_queue', 'site_design', 'site_accounts', 'tuning_proposals', 'house_nudges', 'tuning_rules', 'books', 'book_puzzles', 'book_templates'];
+  'app_errors', 'upkeep_log', 'admins', 'admin_audit', 'settings', 'announcements', 'bans', 'name_reviews', 'archive_log', 'feedback', 'feedback_replies', 'error_fixes', 'conversations', 'conversation_messages', 'message_contacts', 'news', 'search_snapshots', 'daily_plan', 'translations', 'rating_insights', 'campaigns', 'campaign_ads', 'marketing_media', 'campaign_stats', 'challenges', 'daily_results', 'daily_email', 'supporters', 'payment_blocks', 'puzzle_mail', 'puzzle_mail_got', 'puzzle_mail_days', 'special_editions', 'educator_requests', 'special_badges', 'badge_awards', 'puzzle_reports', 'player_puzzles', 'visit_stats', 'educator_feedback', 'print_packs', 'print_pack_stories', 'admin_passkeys', 'admin_sessions', 'admin_keys', 'np_plays', 'kit_plays', 'alert_prefs', 'alert_devices', 'alert_queue', 'site_design', 'site_accounts', 'tuning_proposals', 'house_nudges', 'tuning_rules', 'vault_items', 'vault_devices', 'books', 'book_puzzles', 'book_templates'];
 // worker-src blob: lets the Media library's celebrations draw off the main
 // thread, as they do in the game (canvas-confetti makes its own small worker).
 // frame-src: the Website page's live preview shows pages of the website (only).
@@ -588,6 +590,8 @@ const ROUTES = [
   // ---- Assistant keys for the admin API (admin-keys.js), owner only.
   ...adminKeyRoutes(Refusal),
   ...siteAccountRoutes(Refusal),
+  // ---- Passwords: the owner's password manager, locked on their device (vault.js).
+  ...vaultRoutes(Refusal),
   ...beatImageRoutes(Refusal),
 
   ['GET', /^feedback$/, 'moderator', 'feedback.view', async ({ env, url }) => {
