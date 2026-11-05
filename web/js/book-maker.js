@@ -16,6 +16,7 @@
 // Each item: { fp, game, gameName, title, level, size, story, rules, page, key, text }.
 // page and key are HTML for the puzzle and its answer key; css (per game) is
 // already scoped to .bk-g-<game>, so games never restyle each other.
+import DOMPurify from '../vendor/dompurify/purify.js';
 import { CLOUD } from './cloud-config.js';
 import { gameLink } from './engine-links.js';
 import { OPTIONS } from '../engine/options.js';
@@ -246,17 +247,10 @@ async function show(m) {
   let style = document.getElementById('book-style');
   if (!style) { style = document.createElement('style'); style.id = 'book-style'; document.head.append(style); }
   style.textContent = String(m.css || '');
-  // Only the dashboard sends this (trusted above), and it only sends pages it
-  // drew; still, nothing here may run: scripts, frames and event handlers are
-  // dropped before the pages are shown.
-  const doc = new DOMParser().parseFromString(String(m.html || ''), 'text/html');
-  for (const n of doc.querySelectorAll('script, iframe, object, embed, link, meta, base')) n.remove();
-  for (const n of doc.body.querySelectorAll('*')) {
-    for (const a of [...n.attributes]) {
-      if (/^on/i.test(a.name) || /^\s*javascript:/i.test(a.value)) n.removeAttribute(a.name);
-    }
-  }
-  document.body.replaceChildren(...doc.body.childNodes);
+  // Only the dashboard sends this (checked above), and it only sends pages it
+  // drew; still, nothing here may run: DOMPurify drops scripts, frames and
+  // event handlers before the pages are shown.
+  document.body.replaceChildren(DOMPurify.sanitize(String(m.html || ''), { RETURN_DOM_FRAGMENT: true }));
   document.body.className = 'bk-shown';
   if (document.fonts?.ready) await document.fonts.ready;
   // A frame that is not shown never paints, so wait with a timer, not a paint.
