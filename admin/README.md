@@ -56,7 +56,8 @@ Which settings group goes on which dashboard is set in `admin/admin.js`
 | App settings and switches / Game settings and switches | Split by dashboard (see Dashboards above). **Keys and services**: whether the GEMINI_API_KEY secret and Workers AI are set up (keys are never shown or typed here). **Sounds**: sound effects and theme music on/off for everyone, and whether they start on and at what volume (a player can still turn their own off). **Voices**: characters speak their clues, where voices come from (server Gemini, Kokoro on the device, or the device's own), server voices on/off, the daily voice cap and the Gemini voice model. **Pictures**: portrait style, AI pictures (none, scenes, or scenes and portraits, from Workers AI's free allowance), the daily picture cap and model. **Celebrations**: which effects play when a puzzle is solved (confetti, fireworks, stars, balloons, sparkles, theme pictures, bubbles, falling snow, leaves or petals, shooting stars, ribbons, light rays, party emoji), each with its own checkbox, and Random to play one checked effect at each solve instead of all of them. **Play**: races, solo scores, new screen names, themes on/off. **Learning**: learn from everyone, story parts from older apps, the AI writer's model. **Ideas and problems**: the game's two boxes and automatic error reports. **Moderation**: extra blocked words. **Languages**: translations for players who choose another language on/off, new translations a day, and the Workers AI translation model. **Alerts and reports**: the alert level (80% at first) and the weekly summary email on/off | viewer to look, admin to change |
 | Backups and archive | What the weekly archive email takes out of the database and for how long each kind is kept, rows waiting, past runs; send now or download the zip (owner). Archive viewer: open archive zips in the browser to filter, group, chart and export them | admin (send/download: owner) |
 | Audit log | Every admin request, allowed or refused; 90 days in the database, older entries in the weekly archive | admin |
-| Admins | Add or remove admins and choose their role | owner |
+| Book Studio | Opens its own page, `/admin/book-studio/`: the puzzle book editor with publisher presets, puzzle generators, cover designer and one-click submission packets (see [book-studio/README.md](../book-studio/README.md)). Each export is checked and written to the audit log | admin, or anyone given publishing (below) |
+| Admins | Add or remove admins and choose their role: admin, moderator, viewer, or **publisher** (Book Studio only, nothing else). **Can publish books** gives a moderator or viewer Book Studio too; the owner, admins and publishers always have it | owner |
 
 Every table has **Download this table (CSV)**, and admins can download all
 players, all scores, or all ideas and problems as spreadsheet files (Players
@@ -146,6 +147,9 @@ are never stored on the phone. Icons: `node scripts/admin-icons.cjs admin`.
   could make an account with an email they do not own).
 - **Roles**: owner > admin > moderator > viewer. The owner is set only by the
   secret, so nobody can take that role from inside the dashboard.
+  **Publisher** sits outside that ladder: it signs in like any admin but the
+  API refuses every route except who-am-I, Face ID setup, sign-out and Book
+  Studio's export check, and the dashboard sends it straight to Book Studio.
 - **Break-glass key**: the Worker's existing `ADMIN_TOKEN` secret still opens
   the dashboard with the owner's rights, for when sign-in is down. Every use is
   logged as "break-glass token".

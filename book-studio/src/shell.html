@@ -1,0 +1,617 @@
+<title>Puzzle Book Studio</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Public+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Merriweather:ital,wght@0,400;0,700;1,400&family=Lora:ital,wght@0,400;0,700;1,400&family=EB+Garamond:ital,wght@0,400;0,700;1,400&family=Nunito:ital,wght@0,400;0,700;0,900;1,400&family=Open+Sans:ital,wght@0,400;0,700;1,400&family=Roboto+Slab:wght@400;700&family=Patrick+Hand&family=Bebas+Neue&family=Fredoka:wght@400;600&family=Courier+Prime:wght@400;700&family=Oswald:wght@400;700&family=Playfair+Display:ital,wght@0,400;0,800;1,400&family=Permanent+Marker&display=swap">
+<style>
+/* Layout: a print shop's proof desk. Chrome is cool graphite; pages are plain paper; guide colors follow press conventions (bleed red, trim black, safe blue). */
+:root {
+  --bg: #e7eaee; --panel: #f7f8fa; --panel-2: #eef1f4; --ink: #17202b; --ink-2: #4a5666; --line: #cfd5dd;
+  --accent: #1f5fd6; --accent-ink: #ffffff; --accent-soft: #dfe9fb;
+  --ok: #18794e; --ok-soft: #dcf3e7; --warn: #a15c00; --warn-soft: #fbefd9; --bad: #c4321f; --bad-soft: #fbe2de;
+  --paper: #ffffff; --paper-ink: #111111; --desk: #d3d8df;
+  --guide-bleed: #e0332a; --guide-safe: #2f7de1; --guide-spine: #9b39d4;
+  --f-ui: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-display: "Bricolage Grotesque", "Public Sans", system-ui, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+  --r: 6px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #12161c; --panel: #1a2029; --panel-2: #212833; --ink: #e6ebf2; --ink-2: #9aa6b6; --line: #2f3845;
+  --accent: #6c9dff; --accent-ink: #0b1220; --accent-soft: #1d2b46;
+  --ok: #5fd39a; --ok-soft: #13301f; --warn: #f0b45a; --warn-soft: #34270f; --bad: #ff8270; --bad-soft: #3a1914;
+  --desk: #0d1015; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #12161c; --panel: #1a2029; --panel-2: #212833; --ink: #e6ebf2; --ink-2: #9aa6b6; --line: #2f3845;
+  --accent: #6c9dff; --accent-ink: #0b1220; --accent-soft: #1d2b46;
+  --ok: #5fd39a; --ok-soft: #13301f; --warn: #f0b45a; --warn-soft: #34270f; --bad: #ff8270; --bad-soft: #3a1914;
+  --desk: #0d1015; color-scheme: dark }
+
+[hidden] { display: none !important; }
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--ink); font-family: var(--f-ui); font-size: 14px; overflow: hidden; }
+* { box-sizing: border-box; }
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+#app { height: 100%; display: grid; grid-template-rows: auto auto 1fr auto; }
+
+/* Top bar */
+.topbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; background: var(--panel); border-bottom: 1px solid var(--line);
+  padding-block: 8px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.brand { font-family: var(--f-display); font-weight: 800; font-size: 18px; letter-spacing: -0.01em; display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+.brand-mark { width: 22px; height: 22px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--ink); border: 1px solid var(--ink); }
+.brand-mark i { background: var(--panel); } .brand-mark i:nth-child(1), .brand-mark i:nth-child(5), .brand-mark i:nth-child(9) { background: var(--accent); }
+.pubbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-left: auto; }
+.field-inline { display: flex; align-items: center; gap: 6px; }
+.field-inline > span { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-2); }
+select, input[type=text], input[type=number], input[type=search], textarea, input[type=date] {
+  background: var(--paper); color: var(--paper-ink); border: 1px solid var(--line); border-radius: var(--r); padding: 5px 8px; min-height: 30px; }
+:root[data-theme="dark"] select, :root[data-theme="dark"] input, :root[data-theme="dark"] textarea { background: var(--panel-2); color: var(--ink); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) select, :root:not([data-theme="light"]) input, :root:not([data-theme="light"]) textarea { background: var(--panel-2); color: var(--ink); } }
+.btn { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--panel); border-radius: var(--r); padding: 5px 10px; min-height: 30px; cursor: pointer; white-space: nowrap; }
+.btn:hover { background: var(--panel-2); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+.btn.primary:hover { filter: brightness(1.08); }
+.btn.ghost { background: transparent; border-color: transparent; }
+.btn.danger { color: var(--bad); }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+
+/* Tabs */
+.tabs { display: flex; gap: 2px; background: var(--panel); border-bottom: 1px solid var(--line); overflow-x: auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.tab { border: 0; background: none; padding: 9px 14px; cursor: pointer; color: var(--ink-2); border-bottom: 2px solid transparent; font-weight: 600; white-space: nowrap; }
+.tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+main { min-height: 0; position: relative; }
+.view { position: absolute; inset: 0; display: flex; flex-direction: column; min-height: 0; }
+
+/* Toolbars */
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; background: var(--panel); border-bottom: 1px solid var(--line);
+  padding-block: 6px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.tgroup { display: flex; align-items: center; gap: 2px; padding-right: 6px; margin-right: 2px; border-right: 1px solid var(--line); }
+.tgroup:last-child { border-right: 0; }
+.tb { min-width: 30px; height: 30px; border: 1px solid transparent; background: transparent; border-radius: var(--r); cursor: pointer; display: inline-grid; place-items: center; padding: 0 6px; }
+.tb:hover { background: var(--panel-2); border-color: var(--line); }
+.tb.on { background: var(--accent-soft); border-color: var(--accent); }
+.tb svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.tb input[type=color] { width: 22px; height: 22px; border: 0; padding: 0; background: none; cursor: pointer; }
+.toolbar select { min-height: 30px; padding: 3px 6px; }
+
+/* Manuscript workspace */
+.workspace { flex: 1; min-height: 0; display: grid; grid-template-columns: 170px 1fr 260px; }
+.pagelist { border-right: 1px solid var(--line); background: var(--panel); overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+.pagelist-head { display: flex; justify-content: space-between; align-items: center; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-2); }
+.pl-item { display: flex; align-items: center; gap: 8px; padding: 5px 6px; border-radius: var(--r); cursor: pointer; border: 1px solid transparent; }
+.pl-item:hover { background: var(--panel-2); }
+.pl-item.active { border-color: var(--accent); background: var(--accent-soft); }
+.pl-thumb { width: 34px; height: 44px; background: var(--paper); border: 1px solid var(--line); flex: none; position: relative; overflow: hidden; }
+.pl-thumb i { position: absolute; left: 5px; right: 5px; height: 2px; background: #c8ccd2; }
+.pl-meta { min-width: 0; font-size: 12px; line-height: 1.25; }
+.pl-meta b { font-family: var(--f-mono); font-weight: 500; }
+.pl-meta span { display: block; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100px; }
+.pl-flag { width: 8px; height: 8px; border-radius: 50%; background: var(--bad); flex: none; margin-left: auto; }
+
+.desk { overflow: auto; background: var(--desk); min-width: 0; min-height: 0; position: relative; }
+#pages { padding: 32px 40px 80px; display: flex; flex-direction: column; align-items: center; gap: 28px; width: max-content; min-width: 100%; }
+.spread-label { font-family: var(--f-mono); font-size: 11px; color: var(--ink-2); margin-bottom: -20px; align-self: center; }
+.page { position: relative; background: var(--paper); color: var(--paper-ink); box-shadow: 0 1px 2px rgba(0,0,0,.18), 0 6px 18px rgba(0,0,0,.12); flex: none; }
+.page.active { box-shadow: 0 0 0 2px var(--accent), 0 6px 18px rgba(0,0,0,.16); }
+.page .bleedline { position: absolute; border: 1px dashed var(--guide-bleed); pointer-events: none; opacity: .65; }
+.page .safeline { position: absolute; border: 1px dashed var(--guide-safe); pointer-events: none; opacity: .5; }
+.page .page-bg { position: absolute; background-size: cover; background-position: center; pointer-events: none; }
+.page .content { position: absolute; outline: none; overflow: hidden; font-family: var(--book-font); font-size: var(--book-size); line-height: var(--book-lh); color: #111; word-wrap: break-word; }
+.page .content:focus { box-shadow: inset 0 0 0 1px rgba(47,125,225,.25); }
+.page .folio { position: absolute; font-family: var(--book-font); font-size: 10pt; color: #111; pointer-events: none; }
+.page .tag { position: absolute; top: -22px; left: 0; font-family: var(--f-mono); font-size: 11px; color: var(--ink-2); display: flex; gap: 8px; white-space: nowrap; }
+.page .tag .of { color: var(--bad); font-weight: 600; }
+.page.overflow { box-shadow: 0 0 0 2px var(--bad), 0 6px 18px rgba(0,0,0,.16); }
+.hide-guides .page .bleedline, .hide-guides .page .safeline { display: none; }
+
+/* Book content typography (inside pages) */
+.content > :first-child { margin-top: 0; }
+.content p { margin: 0 0 .6em; }
+.content h1 { font-size: 2em; line-height: 1.15; margin: 0 0 .5em; }
+.content h2 { font-size: 1.45em; line-height: 1.2; margin: .4em 0 .45em; }
+.content h3 { font-size: 1.15em; margin: .4em 0 .4em; }
+.content ul, .content ol { margin: 0 0 .6em; padding-left: 1.4em; }
+.content img { max-width: 100%; height: auto; display: block; margin: 0 auto .6em; }
+.content img.sel { outline: 2px solid var(--accent); }
+.content table { border-collapse: collapse; margin: 0 auto .6em; }
+.content td, .content th { border: 1px solid #444; padding: 4px 6px; }
+.content hr { border: 0; border-top: 1px solid #555; margin: .8em 0; }
+.content blockquote { margin: 0 0 .6em; padding-left: 1em; border-left: 3px solid #999; }
+.content .puzzle { margin: 0 auto .7em; user-select: none; position: relative; }
+.content .puzzle.sel { outline: 2px solid var(--accent); outline-offset: 4px; }
+.pz-grid { display: grid; margin: 0 auto; border: 2.5px solid #111; background: #fff; }
+.pz-grid > div { border: 1px solid #444; display: grid; place-items: center; font-family: "Courier Prime", "Courier New", monospace; color: #111; aspect-ratio: 1; }
+.pz-sudoku > div.bt { border-top: 2.5px solid #111; } .pz-sudoku > div.bl { border-left: 2.5px solid #111; }
+.pz-sudoku > div.given { font-weight: 700; }
+.pz-sudoku > div.fill { color: #777; }
+.pz-ws > div.hit { background: #d9d9d9; font-weight: 700; }
+.pz-words { columns: 3; column-gap: 1.2em; font-size: .85em; margin: .6em auto 0; text-transform: uppercase; letter-spacing: .04em; }
+.pz-words span { display: block; }
+.pz-caption { text-align: center; font-size: .8em; margin-top: .3em; }
+.answers-wrap .puzzle { display: inline-block; vertical-align: top; margin: 0 .12in .14in; }
+.content .center { text-align: center; }
+
+/* Inspector */
+.inspector { border-left: 1px solid var(--line); background: var(--panel); overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 14px; }
+.insp-sec { display: flex; flex-direction: column; gap: 8px; }
+.insp-sec h3 { margin: 0; font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--ink-2); font-weight: 600; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.lab { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--ink-2); min-width: 0; }
+.lab input, .lab select { width: 100%; color: var(--ink); }
+.check { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+.mono { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+.hint { font-size: 12px; color: var(--ink-2); line-height: 1.4; margin: 0; }
+.specs-card { border: 1px solid var(--line); border-radius: var(--r); padding: 8px 10px; background: var(--panel-2); font-size: 12px; display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; }
+.specs-card dt { color: var(--ink-2); } .specs-card dd { margin: 0; font-family: var(--f-mono); text-align: right; }
+
+/* Cover */
+.cover-ws { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 280px; }
+.cover-desk { overflow: auto; background: var(--desk); padding: 30px; min-width: 0; }
+.cover-stage { position: relative; margin: 0 auto; box-shadow: 0 6px 22px rgba(0,0,0,.2); }
+.cover-guides { position: absolute; inset: 0; pointer-events: none; }
+.cover-guides .g { position: absolute; }
+.cover-guides .lbl { position: absolute; font-family: var(--f-mono); font-size: 10px; color: #fff; background: rgba(23,32,43,.7); padding: 1px 4px; border-radius: 3px; white-space: nowrap; }
+.cover-panel-names { display: flex; font-family: var(--f-mono); font-size: 11px; color: var(--ink-2); margin: 0 auto 6px; }
+.cover-panel-names div { text-align: center; overflow: hidden; white-space: nowrap; }
+
+/* Details & publish */
+.scroll-page { flex: 1; overflow-y: auto; padding-block: 24px 60px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.narrow { max-width: 920px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px; }
+.narrow h2 { font-family: var(--f-display); font-size: 26px; letter-spacing: -0.01em; margin: 0; text-wrap: balance; }
+.narrow > p.lead { margin: -12px 0 0; color: var(--ink-2); max-width: 65ch; line-height: 1.5; }
+.formgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px 16px; }
+.formgrid .wide { grid-column: 1 / -1; }
+.lab textarea { min-height: 120px; resize: vertical; width: 100%; color: var(--ink); line-height: 1.45; }
+.count { font-family: var(--f-mono); font-size: 11px; align-self: flex-end; }
+.count.over { color: var(--bad); }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.card h3 { margin: 0; font-size: 15px; }
+.pub-hero { display: grid; grid-template-columns: 1.3fr 1fr; gap: 16px; }
+.big-select { font-size: 16px; padding: 8px 10px; min-height: 42px; width: 100%; }
+.export-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.issues { display: flex; flex-direction: column; gap: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--panel); }
+.issue { display: grid; grid-template-columns: 92px 1fr auto; gap: 12px; align-items: center; padding: 10px 14px; border-top: 1px solid var(--line); }
+.issue:first-child { border-top: 0; }
+.issue .txt { min-width: 0; line-height: 1.4; }
+.issue .txt small { display: block; color: var(--ink-2); }
+.chip { display: inline-flex; justify-content: center; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; padding: 3px 8px; border-radius: 999px; white-space: nowrap; }
+.chip::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.chip.error { color: var(--bad); background: var(--bad-soft); }
+.chip.warn { color: var(--warn); background: var(--warn-soft); }
+.chip.ok { color: var(--ok); background: var(--ok-soft); }
+.chip.info { color: var(--accent); background: var(--accent-soft); }
+.summary { display: flex; gap: 10px; flex-wrap: wrap; }
+.progress { height: 6px; background: var(--panel-2); border-radius: 999px; overflow: hidden; }
+.progress > div { height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+ul.plain { margin: 0; padding-left: 1.1em; line-height: 1.5; color: var(--ink-2); }
+a { color: var(--accent); }
+
+/* Status bar */
+.statusbar { display: flex; flex-wrap: wrap; gap: 4px 18px; align-items: center; background: var(--panel); border-top: 1px solid var(--line); font-size: 12px; color: var(--ink-2);
+  padding-block: 5px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.statusbar b { color: var(--ink); font-family: var(--f-mono); font-weight: 500; }
+.statusbar .spacer { margin-left: auto; }
+
+/* Dialogs */
+dialog { border: 1px solid var(--line); border-radius: 12px; background: var(--panel); color: var(--ink); padding: 0; width: min(560px, calc(100vw - 32px)); max-height: calc(100vh - 40px); }
+dialog::backdrop { background: rgba(10,14,20,.45); }
+.dlg { display: flex; flex-direction: column; max-height: calc(100vh - 40px); }
+.dlg header { padding: 14px 18px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; }
+.dlg header h3 { margin: 0; font-family: var(--f-display); font-size: 18px; }
+.dlg .body { padding: 16px 18px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
+.dlg footer { padding: 12px 18px; border-top: 1px solid var(--line); display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+.seg { display: flex; border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+.seg button { flex: 1; border: 0; background: var(--panel); padding: 7px 8px; cursor: pointer; border-right: 1px solid var(--line); }
+.seg button:last-child { border-right: 0; }
+.seg button.on { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.dropzone { border: 2px dashed var(--line); border-radius: 10px; padding: 22px; text-align: center; color: var(--ink-2); cursor: pointer; }
+.dropzone.drag { border-color: var(--accent); background: var(--accent-soft); }
+.formats { font-size: 12px; color: var(--ink-2); line-height: 1.5; }
+
+.toast { position: fixed; left: 50%; bottom: calc(46px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 9px 14px; border-radius: 8px; font-size: 13px; z-index: 100; max-width: calc(100vw - 32px); box-shadow: 0 6px 20px rgba(0,0,0,.25); }
+.busy { position: fixed; inset: 0; background: rgba(10,14,20,.45); display: grid; place-items: center; z-index: 90; }
+.busy-card { background: var(--panel); color: var(--ink); border-radius: 12px; padding: 18px 20px; width: min(360px, calc(100vw - 32px)); display: flex; flex-direction: column; gap: 10px; }
+#renderHost { position: fixed; left: -100000px; top: 0; }
+
+@media (max-width: 1100px) { .workspace { grid-template-columns: 140px 1fr; } .inspector { display: none; } .workspace.show-insp .inspector { display: flex; position: absolute; right: 0; top: 0; bottom: 0; width: 270px; z-index: 5; box-shadow: -6px 0 20px rgba(0,0,0,.2); } .workspace { position: relative; } .pub-hero { grid-template-columns: 1fr; } .cover-ws { grid-template-columns: 1fr; grid-template-rows: 1fr auto; } .cover-ws .inspector { display: flex; max-height: 40vh; border-left: 0; border-top: 1px solid var(--line); } }
+@media (max-width: 640px) { .workspace { grid-template-columns: 1fr; } .pagelist { display: none; } .issue { grid-template-columns: 1fr; gap: 6px; } .brand-name { display: none; } }
+@media (min-width: 1101px) { #inspToggle { display: none; } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div id="app">
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span><span class="brand-name">Puzzle Book Studio</span></div>
+    <div class="pubbar">
+      <label class="field-inline"><span>Publisher</span><select id="pub"></select></label>
+      <label class="field-inline"><span>Trim</span><select id="trim"></select></label>
+      <label class="field-inline"><span>Paper</span><select id="paper"><option value="white">White</option><option value="cream">Cream</option><option value="color">Color (premium)</option></select></label>
+      <label class="field-inline"><span>Interior</span><select id="ink"><option value="bw">Black &amp; white</option><option value="color">Color</option></select></label>
+      <label class="check"><input type="checkbox" id="bleed"> Bleed</label>
+      <button class="btn primary" id="applyPub" title="Apply this publisher's specs, fix what can be fixed, and check the book">Apply specs &amp; auto-fix</button>
+      <button class="btn" id="projMenuBtn" aria-haspopup="true">Project ▾</button>
+    </div>
+  </header>
+  <nav class="tabs" role="tablist">
+    <button class="tab" role="tab" data-tab="manuscript" aria-selected="true">Interior</button>
+    <button class="tab" role="tab" data-tab="cover" aria-selected="false">Cover</button>
+    <button class="tab" role="tab" data-tab="details" aria-selected="false">Book details</button>
+    <button class="tab" role="tab" data-tab="publish" aria-selected="false">Check &amp; export</button>
+  </nav>
+  <main>
+    <!-- INTERIOR -->
+    <section class="view" id="view-manuscript">
+      <div class="toolbar" id="tb">
+        <div class="tgroup">
+          <button class="tb" data-cmd="undo" title="Undo (Ctrl+Z)"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg></button>
+          <button class="tb" data-cmd="redo" title="Redo (Ctrl+Y)"><svg viewBox="0 0 24 24"><path d="m15 14 5-5-5-5"/><path d="M20 9H10a6 6 0 0 0 0 12h3"/></svg></button>
+        </div>
+        <div class="tgroup">
+          <select id="blockFmt" title="Paragraph style"><option value="p">Body text</option><option value="h1">Title</option><option value="h2">Heading</option><option value="h3">Subheading</option><option value="blockquote">Quote</option></select>
+          <select id="fontFam" title="Font"></select>
+          <select id="fontSize" title="Font size"></select>
+        </div>
+        <div class="tgroup">
+          <button class="tb" data-cmd="bold" title="Bold (Ctrl+B)"><b>B</b></button>
+          <button class="tb" data-cmd="italic" title="Italic (Ctrl+I)"><i style="font-family:Georgia,serif">I</i></button>
+          <button class="tb" data-cmd="underline" title="Underline (Ctrl+U)"><u>U</u></button>
+          <button class="tb" data-cmd="strikeThrough" title="Strikethrough"><s>S</s></button>
+          <label class="tb" title="Text color"><input type="color" id="foreColor" value="#111111"></label>
+          <label class="tb" title="Highlight"><input type="color" id="hiliteColor" value="#fff59d"></label>
+        </div>
+        <div class="tgroup">
+          <button class="tb" data-cmd="justifyLeft" title="Align left"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h10M4 18h14"/></svg></button>
+          <button class="tb" data-cmd="justifyCenter" title="Center"><svg viewBox="0 0 24 24"><path d="M4 6h16M7 12h10M5 18h14"/></svg></button>
+          <button class="tb" data-cmd="justifyRight" title="Align right"><svg viewBox="0 0 24 24"><path d="M4 6h16M10 12h10M6 18h14"/></svg></button>
+          <button class="tb" data-cmd="justifyFull" title="Justify"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+          <button class="tb" data-cmd="insertUnorderedList" title="Bulleted list"><svg viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/></svg></button>
+          <button class="tb" data-cmd="insertOrderedList" title="Numbered list"><svg viewBox="0 0 24 24"><path d="M10 6h10M10 12h10M10 18h10M4 4v4M3 18h3l-3 3h3"/></svg></button>
+          <select id="lineH" title="Line spacing"><option value="">Spacing</option><option>1</option><option>1.15</option><option>1.3</option><option>1.5</option><option>2</option></select>
+        </div>
+        <div class="tgroup">
+          <button class="tb" id="insPuzzle" title="Insert or bulk-generate puzzles">Puzzles</button>
+          <button class="tb" id="insImage" title="Insert image">Image</button>
+          <button class="tb" id="insTable" title="Insert table or grid">Table</button>
+          <button class="tb" data-cmd="insertHorizontalRule" title="Divider line"><svg viewBox="0 0 24 24"><path d="M3 12h18"/></svg></button>
+          <button class="tb" id="importBtn" title="Import text, documents and images">Import</button>
+        </div>
+        <div class="tgroup">
+          <button class="tb" id="findBtn" title="Find and replace (Ctrl+F)">Find</button>
+          <button class="tb" id="cleanBtn" title="Auto-edit text: smart quotes, dashes, spacing">Auto-edit</button>
+          <button class="tb" data-cmd="removeFormat" title="Clear formatting">Tx</button>
+        </div>
+        <div class="tgroup">
+          <button class="tb" id="addPage" title="Add page after current">+ Page</button>
+          <button class="tb" id="reflowBtn" title="Move overflowing content onto following pages">Reflow</button>
+          <select id="zoom" title="Zoom"><option value="0.5">50%</option><option value="0.75" selected>75%</option><option value="1">100%</option><option value="1.25">125%</option><option value="1.5">150%</option></select>
+          <button class="tb" id="guidesBtn" title="Show or hide margin and bleed guides">Guides</button>
+          <button class="tb" id="inspToggle" title="Page settings">Settings</button>
+        </div>
+      </div>
+      <div class="workspace" id="workspace">
+        <aside class="pagelist" id="pagelist" aria-label="Pages"></aside>
+        <div class="desk" id="desk"><div id="pages"></div></div>
+        <aside class="inspector" id="inspector">
+          <div class="insp-sec" id="imgTools" hidden>
+            <h3>Selected image</h3>
+            <label class="lab">Width <input type="range" id="imgW" min="10" max="100" value="100"></label>
+            <div class="row2">
+              <button class="btn" data-img="rotate">Rotate 90°</button>
+              <button class="btn" data-img="flip">Flip</button>
+              <button class="btn" data-img="gray">Grayscale</button>
+              <button class="btn" data-img="crop">Crop…</button>
+              <button class="btn" data-img="left">Float left</button>
+              <button class="btn" data-img="right">Float right</button>
+              <button class="btn" data-img="center">Center</button>
+              <button class="btn" data-img="pagebg">Make page background</button>
+            </div>
+            <label class="lab">Brightness <input type="range" id="imgBright" min="50" max="150" value="100"></label>
+            <label class="lab">Contrast <input type="range" id="imgContrast" min="50" max="200" value="100"></label>
+            <div class="row2"><button class="btn" data-img="apply">Apply adjustments</button><button class="btn danger" data-img="delete">Delete image</button></div>
+            <p class="hint mono" id="imgDpi"></p>
+          </div>
+          <div class="insp-sec" id="pzTools" hidden>
+            <h3>Selected puzzle</h3>
+            <label class="lab">Size (inches) <input type="range" id="pzSize" min="2" max="8" step="0.1"></label>
+            <div class="row2"><button class="btn" id="pzRegen">New puzzle</button><button class="btn danger" id="pzDel">Delete</button></div>
+          </div>
+          <div class="insp-sec">
+            <h3>Current page</h3>
+            <div class="row2">
+              <button class="btn" id="pgDup">Duplicate</button>
+              <button class="btn danger" id="pgDel">Delete</button>
+              <button class="btn" id="pgUp">Move up</button>
+              <button class="btn" id="pgDown">Move down</button>
+            </div>
+            <label class="check"><input type="checkbox" id="pgNoFolio"> Hide page number on this page</label>
+            <div class="row2"><button class="btn" id="pgBgImg">Background image</button><button class="btn" id="pgBgClear">Clear background</button></div>
+          </div>
+          <div class="insp-sec">
+            <h3>Margins (inches)</h3>
+            <div class="row2">
+              <label class="lab">Top <input type="number" step="0.0625" min="0" id="mTop"></label>
+              <label class="lab">Bottom <input type="number" step="0.0625" min="0" id="mBottom"></label>
+              <label class="lab">Inside (gutter) <input type="number" step="0.0625" min="0" id="mInside"></label>
+              <label class="lab">Outside <input type="number" step="0.0625" min="0" id="mOutside"></label>
+            </div>
+            <p class="hint" id="marginHint"></p>
+          </div>
+          <div class="insp-sec">
+            <h3>Body text defaults</h3>
+            <label class="lab">Font <select id="bodyFont"></select></label>
+            <div class="row2">
+              <label class="lab">Size (pt) <input type="number" min="6" max="36" step="0.5" id="bodySize"></label>
+              <label class="lab">Line height <input type="number" min="1" max="3" step="0.05" id="bodyLh"></label>
+            </div>
+          </div>
+          <div class="insp-sec">
+            <h3>Page numbers</h3>
+            <label class="check"><input type="checkbox" id="folioOn"> Show page numbers</label>
+            <div class="row2">
+              <label class="lab">Position <select id="folioPos"><option value="outside">Bottom outside</option><option value="center">Bottom center</option></select></label>
+              <label class="lab">Start on page <input type="number" min="1" id="folioStart"></label>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- COVER -->
+    <section class="view" id="view-cover" hidden>
+      <div class="toolbar">
+        <div class="tgroup">
+          <button class="btn primary" id="cvAuto" title="Build a cover from your book details">Auto-design cover</button>
+          <select id="cvTheme" title="Color theme"></select>
+        </div>
+        <div class="tgroup">
+          <button class="tb" id="cvText">Text</button>
+          <button class="tb" id="cvImage">Image</button>
+          <button class="tb" id="cvRect">Box</button>
+          <button class="tb" id="cvCircle">Circle</button>
+          <button class="tb" id="cvGrid">Puzzle motif</button>
+          <label class="tb" title="Background color">BG <input type="color" id="cvBg" value="#1f3a5f"></label>
+          <button class="tb" id="cvBgImg" title="Full-wrap background image">BG image</button>
+        </div>
+        <div class="tgroup">
+          <button class="tb" id="cvFwd" title="Bring forward">Forward</button>
+          <button class="tb" id="cvBack" title="Send backward">Back</button>
+          <button class="tb" id="cvDup" title="Duplicate">Duplicate</button>
+          <button class="tb" id="cvDel" title="Delete (Del)">Delete</button>
+        </div>
+        <div class="tgroup">
+          <select id="cvZoom"><option value="0.35">35%</option><option value="0.5" selected>50%</option><option value="0.75">75%</option><option value="1">100%</option></select>
+          <button class="tb" id="cvGuidesBtn">Guides</button>
+        </div>
+      </div>
+      <div class="cover-ws">
+        <div class="cover-desk" id="coverDesk">
+          <div class="cover-panel-names" id="cvNames"></div>
+          <div class="cover-stage" id="coverStage"><canvas id="coverCanvas"></canvas><div class="cover-guides" id="coverGuides"></div></div>
+        </div>
+        <aside class="inspector" id="cvInspector">
+          <div class="insp-sec">
+            <h3>Cover size</h3>
+            <dl class="specs-card" id="cvSpecs"></dl>
+            <p class="hint">Spine width comes from your page count and paper. It updates when pages are added or removed, and objects move with their panel.</p>
+          </div>
+          <div class="insp-sec" id="cvObjTools" hidden>
+            <h3>Selected object</h3>
+            <label class="lab">Font <select id="cvFont"></select></label>
+            <div class="row2">
+              <label class="lab">Size <input type="number" id="cvSize" min="6" max="400"></label>
+              <label class="lab">Color <input type="color" id="cvColor"></label>
+            </div>
+            <div class="row2">
+              <button class="btn" id="cvBold">Bold</button>
+              <button class="btn" id="cvItalic">Italic</button>
+              <select id="cvAlign"><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select>
+              <label class="lab">Opacity <input type="range" id="cvOpacity" min="0" max="100"></label>
+            </div>
+            <div class="row2">
+              <button class="btn" data-snap="front">Center on front</button>
+              <button class="btn" data-snap="back">Center on back</button>
+              <button class="btn" data-snap="spine">Put on spine</button>
+              <button class="btn" data-snap="rotate">Rotate 90°</button>
+            </div>
+          </div>
+          <div class="insp-sec">
+            <h3>Guide key</h3>
+            <p class="hint"><span style="color:var(--guide-bleed)">Red</span>: trim line (art past it is cut off). <span style="color:var(--guide-safe)">Blue</span>: safe zone for text. <span style="color:var(--guide-spine)">Purple</span>: spine. The white box marks the barcode area.</p>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- DETAILS -->
+    <section class="view" id="view-details" hidden>
+      <div class="scroll-page"><div class="narrow">
+        <h2>Book details</h2>
+        <p class="lead">These fields fill the title page, copyright page, cover, and the metadata sheet in your submission packet. Limits follow the selected publisher.</p>
+        <div class="formgrid" id="metaForm">
+          <label class="lab">Title <input type="text" data-meta="title" id="m-title"></label>
+          <label class="lab">Subtitle <input type="text" data-meta="subtitle" id="m-subtitle"></label>
+          <label class="lab">Author <input type="text" data-meta="author" id="m-author"></label>
+          <label class="lab">Contributors (illustrator, editor) <input type="text" data-meta="contributors" id="m-contributors"></label>
+          <label class="lab">Series name <input type="text" data-meta="series" id="m-series"></label>
+          <label class="lab">Volume / series number <input type="text" data-meta="seriesNo" id="m-seriesNo"></label>
+          <label class="lab">Edition <input type="text" data-meta="edition" id="m-edition"></label>
+          <label class="lab">Publisher / imprint <input type="text" data-meta="imprint" id="m-imprint"></label>
+          <label class="lab">ISBN-13 <input type="text" data-meta="isbn" id="m-isbn" placeholder="978…"></label>
+          <label class="lab">Publication date <input type="date" data-meta="pubDate" id="m-pubDate"></label>
+          <label class="lab">Language <input type="text" data-meta="language" id="m-language"></label>
+          <label class="lab">List price (USD) <input type="text" data-meta="price" id="m-price"></label>
+          <label class="lab">Reading audience <select data-meta="audience" id="m-audience"><option>Adult</option><option>Young adult</option><option>Children 9–12</option><option>Children 6–8</option><option>All ages</option></select></label>
+          <label class="lab">Copyright holder <input type="text" data-meta="copyright" id="m-copyright"></label>
+          <label class="lab wide">Description <textarea data-meta="description" id="m-description"></textarea><span class="count" id="descCount"></span></label>
+          <label class="lab wide">Back cover blurb <textarea data-meta="blurb" id="m-blurb" style="min-height:80px"></textarea></label>
+          <label class="lab wide">Keywords (one per line) <textarea data-meta="keywords" id="m-keywords" style="min-height:90px"></textarea><span class="count" id="kwCount"></span></label>
+          <label class="lab wide">Categories (one per line, e.g. GAM007000 Games &amp; Activities / Puzzles) <textarea data-meta="categories" id="m-categories" style="min-height:70px"></textarea><span class="count" id="catCount"></span></label>
+        </div>
+        <div class="export-row"><button class="btn" id="addFront">Insert title &amp; copyright pages</button></div>
+      </div></div>
+    </section>
+
+    <!-- PUBLISH -->
+    <section class="view" id="view-publish" hidden>
+      <div class="scroll-page"><div class="narrow">
+        <h2>Check &amp; export</h2>
+        <p class="lead">Pick a publisher, apply its specs in one click, then download the submission packet: print-ready interior PDF, full-wrap cover PDF, metadata sheet and a preflight report.</p>
+        <div class="pub-hero">
+          <div class="card">
+            <h3>Publisher</h3>
+            <select id="pub2" class="big-select"></select>
+            <dl class="specs-card" id="pubSpecs"></dl>
+            <div class="export-row">
+              <button class="btn primary" id="applyPub2">Apply specs &amp; auto-fix</button>
+              <button class="btn" id="runCheck">Re-check</button>
+            </div>
+          </div>
+          <div class="card">
+            <h3>Export</h3>
+            <label class="lab">Resolution <select id="dpi"><option value="300" selected>300 DPI (print)</option><option value="200">200 DPI (draft, smaller file)</option></select></label>
+            <div class="export-row">
+              <button class="btn primary" id="expPacket">Download submission packet (.zip)</button>
+            </div>
+            <div class="export-row">
+              <button class="btn" id="expInterior">Interior PDF</button>
+              <button class="btn" id="expCover">Cover PDF</button>
+              <button class="btn" id="expMeta">Metadata sheet</button>
+            </div>
+            <p class="hint" id="pubLinks"></p>
+          </div>
+        </div>
+        <div class="summary" id="checkSummary"></div>
+        <div class="issues" id="issues"></div>
+        <div class="card"><h3>Publisher notes</h3><ul class="plain" id="pubNotes"></ul></div>
+      </div></div>
+    </section>
+  </main>
+  <footer class="statusbar">
+    <span>Pages <b id="sbPages">0</b></span>
+    <span>Trim <b id="sbTrim"></b></span>
+    <span>Spine <b id="sbSpine"></b></span>
+    <span>Cover <b id="sbCover"></b></span>
+    <span id="sbCheck"></span>
+    <span class="spacer" id="sbSave"></span>
+  </footer>
+</div>
+
+<!-- Project menu -->
+<dialog id="dlgProject"><div class="dlg">
+  <header><h3>Project</h3><button class="btn ghost" data-close>Close</button></header>
+  <div class="body">
+    <p class="hint">Your work saves automatically in this browser. Save a project file to keep a backup or move it to another computer.</p>
+    <div class="export-row">
+      <button class="btn primary" id="projSave">Save project file</button>
+      <button class="btn" id="projOpen">Open project file</button>
+      <button class="btn" id="projSample">Load sample book</button>
+      <button class="btn danger" id="projNew">Start a blank book</button>
+    </div>
+    <p class="hint" id="projNewConfirm" hidden>This replaces the current book. Save a project file first if you want to keep it. <button class="btn danger" id="projNewYes">Replace it</button></p>
+  </div>
+</div></dialog>
+
+<!-- Puzzle dialog -->
+<dialog id="dlgPuzzle"><div class="dlg">
+  <header><h3>Puzzles</h3><button class="btn ghost" data-close>Close</button></header>
+  <div class="body">
+    <div class="seg" id="pzKind"><button data-k="sudoku" class="on">Sudoku</button><button data-k="wordsearch">Word search</button><button data-k="maze">Maze</button></div>
+    <div class="row2">
+      <label class="lab">How many <input type="number" id="pzCount" min="1" max="500" value="1"></label>
+      <label class="lab">Per page <select id="pzPerPage"><option value="1">1</option><option value="2">2</option><option value="4">4</option></select></label>
+    </div>
+    <div id="pzOpts-sudoku" class="row2">
+      <label class="lab">Difficulty <select id="sdDiff"><option value="easy">Easy</option><option value="medium" selected>Medium</option><option value="hard">Hard</option><option value="expert">Expert</option></select></label>
+    </div>
+    <div id="pzOpts-wordsearch" hidden>
+      <div class="row2">
+        <label class="lab">Grid size <select id="wsSize"><option>10</option><option>12</option><option selected>15</option><option>18</option><option>20</option></select></label>
+        <label class="lab">Directions <select id="wsDir"><option value="easy">Across and down</option><option value="medium" selected>Plus diagonals</option><option value="hard">All 8 (incl. backwards)</option></select></label>
+      </div>
+      <label class="lab">Word lists: first line is the theme title, a blank line starts the next list <textarea id="wsLists" style="min-height:160px"></textarea></label>
+    </div>
+    <div id="pzOpts-maze" class="row2" hidden>
+      <label class="lab">Size <select id="mzSize"><option value="12">12 × 12</option><option value="18" selected>18 × 18</option><option value="25">25 × 25</option><option value="35">35 × 35</option></select></label>
+      <label class="lab">Shape <select id="mzShape"><option value="square">Square</option><option value="circle">Round</option></select></label>
+    </div>
+    <label class="check"><input type="checkbox" id="pzAnswers" checked> Add solutions to the answer key at the back</label>
+    <label class="check"><input type="checkbox" id="pzNewPages" checked> Put puzzles on new pages after the current page</label>
+  </div>
+  <footer><button class="btn" data-close>Cancel</button><button class="btn primary" id="pzGo">Generate</button></footer>
+</div></dialog>
+
+<!-- Import dialog -->
+<dialog id="dlgImport"><div class="dlg">
+  <header><h3>Import</h3><button class="btn ghost" data-close>Close</button></header>
+  <div class="body">
+    <div class="dropzone" id="dropzone" tabindex="0">Drop files here or click to choose<br><small>You can pick several at once</small></div>
+    <input type="file" id="importFile" multiple hidden>
+    <label class="lab">Text and documents <select id="impTextMode"><option value="flow">Flow into new pages after the current page</option><option value="cursor">Insert at the cursor</option></select></label>
+    <label class="lab">Images and PDF pages <select id="impImgMode"><option value="page-fit">One per page, fit inside margins</option><option value="page-bleed">One per page, full bleed</option><option value="cursor">Insert at the cursor</option></select></label>
+    <label class="lab">PDF files <select id="impPdfMode"><option value="images">Import each page as an image</option><option value="text">Extract the text</option></select></label>
+    <p class="formats"><b>Text:</b> .docx, .odt, .rtf, .txt, .md, .html, .epub, .pdf, .csv/.tsv (as a table), .json (project file)<br><b>Images:</b> .jpg, .png, .gif, .webp, .svg, .bmp, .avif, .ico, .tif/.tiff, .heic/.heif</p>
+  </div>
+</div></dialog>
+
+<!-- Find dialog -->
+<dialog id="dlgFind"><div class="dlg">
+  <header><h3>Find &amp; replace</h3><button class="btn ghost" data-close>Close</button></header>
+  <div class="body">
+    <label class="lab">Find <input type="text" id="findQ"></label>
+    <label class="lab">Replace with <input type="text" id="findR"></label>
+    <label class="check"><input type="checkbox" id="findCase"> Match case</label>
+    <p class="hint" id="findInfo"></p>
+  </div>
+  <footer><button class="btn" id="findCount">Count</button><button class="btn primary" id="findAll">Replace all</button></footer>
+</div></dialog>
+
+<!-- Auto-edit dialog -->
+<dialog id="dlgClean"><div class="dlg">
+  <header><h3>Auto-edit text</h3><button class="btn ghost" data-close>Close</button></header>
+  <div class="body">
+    <p class="hint">Runs on every page. Puzzle grids are left alone.</p>
+    <label class="check"><input type="checkbox" id="ceQuotes" checked> Curly quotes and apostrophes</label>
+    <label class="check"><input type="checkbox" id="ceDashes" checked> Double hyphens to em dashes</label>
+    <label class="check"><input type="checkbox" id="ceEllipsis" checked> Three dots to an ellipsis</label>
+    <label class="check"><input type="checkbox" id="ceSpaces" checked> Collapse double spaces, trim stray spaces</label>
+    <label class="check"><input type="checkbox" id="ceEmpty" checked> Remove empty paragraphs</label>
+    <label class="check"><input type="checkbox" id="ceFonts"> Reset all body text to the default font</label>
+    <label class="check"><input type="checkbox" id="ceHeads"> Title Case headings</label>
+    <p class="hint" id="cleanInfo"></p>
+  </div>
+  <footer><button class="btn" data-close>Cancel</button><button class="btn primary" id="cleanGo">Run auto-edit</button></footer>
+</div></dialog>
+
+<!-- Table dialog -->
+<dialog id="dlgTable"><div class="dlg">
+  <header><h3>Insert table or grid</h3><button class="btn ghost" data-close>Close</button></header>
+  <div class="body">
+    <div class="row2">
+      <label class="lab">Rows <input type="number" id="tblRows" min="1" max="40" value="5"></label>
+      <label class="lab">Columns <input type="number" id="tblCols" min="1" max="40" value="5"></label>
+    </div>
+    <label class="check"><input type="checkbox" id="tblSquare"> Square cells (blank puzzle grid)</label>
+  </div>
+  <footer><button class="btn" data-close>Cancel</button><button class="btn primary" id="tblGo">Insert</button></footer>
+</div></dialog>
+
+<!-- Crop dialog -->
+<dialog id="dlgCrop"><div class="dlg">
+  <header><h3>Crop image</h3><button class="btn ghost" data-close>Close</button></header>
+  <div class="body">
+    <p class="hint">Trim a percentage from each edge.</p>
+    <div class="row2">
+      <label class="lab">Top % <input type="number" id="crT" min="0" max="45" value="0"></label>
+      <label class="lab">Bottom % <input type="number" id="crB" min="0" max="45" value="0"></label>
+      <label class="lab">Left % <input type="number" id="crL" min="0" max="45" value="0"></label>
+      <label class="lab">Right % <input type="number" id="crR" min="0" max="45" value="0"></label>
+    </div>
+  </div>
+  <footer><button class="btn" data-close>Cancel</button><button class="btn primary" id="cropGo">Crop</button></footer>
+</div></dialog>
+
+<input type="file" id="fileImg" accept="image/*,.tif,.tiff,.heic,.heif" hidden>
+<input type="file" id="fileProj" accept=".json,application/json" hidden>
+<div id="renderHost" aria-hidden="true"></div>

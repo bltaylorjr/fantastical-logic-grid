@@ -62,7 +62,8 @@ const AUTH_URL = 'https://identitytoolkit.googleapis.com/v1';
 const TOKEN_URL = 'https://securetoken.googleapis.com/v1';
 const SESSION_KEY = 'flg-admin-session';
 const IDLE_MS = 60 * 60_000;
-const ROLES = { viewer: 1, moderator: 2, admin: 3, owner: 4 };
+// publisher: Book Studio only (admin/book-studio/); they never see this dashboard.
+const ROLES = { publisher: 0.5, viewer: 1, moderator: 2, admin: 3, owner: 4 };
 const TIER_NAMES = { basic: 'Basic', easy: 'Easy', medium: 'Medium', hard: 'Hard', expert: 'Expert', mensa: 'Quantum Physicist', theorist: 'Theoretical Physicist' };
 
 let session = null; // { mode: 'firebase'|'passkey'|'token', key?, refreshToken?, idToken?, exp?, email?, keep?, seen? }
@@ -1936,9 +1937,15 @@ $('#backups-body').onclick = async (e) => {
 views.admins = async () => {
   const d = await api('admins');
   const rows = [
-    `<tr><td>${d.owner ? esc(d.owner) : '<i>Not set: add the OWNER_EMAIL secret</i>'}</td><td><span class="badge ok">owner</span></td><td>–</td><td></td></tr>`,
-    ...d.admins.map((a) => `<tr><td>${esc(a.email)}</td><td><span class="badge">${esc(a.role)}</span></td><td>${day(a.addedAt)} by ${esc(a.addedBy)}</td>
-      <td><div class="actions"><button class="btn small danger" data-email="${esc(a.email)}">Remove</button></div></td></tr>`),
+    `<tr><td>${d.owner ? esc(d.owner) : '<i>Not set: add the OWNER_EMAIL secret</i>'}</td><td><span class="badge ok">owner</span></td><td><span class="badge ok">Always</span></td><td>–</td><td></td></tr>`,
+    ...d.admins.map((a) => {
+      // Admins and publishers always have Book Studio; the switch is for moderators and viewers.
+      const fixed = a.role === 'admin' || a.role === 'publisher';
+      const pub = fixed ? '<span class="badge ok">Always</span>'
+        : `<label class="check"><input type="checkbox" data-publish-email="${esc(a.email)}"${a.publishing ? ' checked' : ''}> Can publish books</label>`;
+      return `<tr><td>${esc(a.email)}</td><td><span class="badge">${esc(a.role)}</span></td><td>${pub}</td><td>${day(a.addedAt)} by ${esc(a.addedBy)}</td>
+      <td><div class="actions"><button class="btn small danger" data-email="${esc(a.email)}">Remove</button></div></td></tr>`;
+    }),
   ];
   $('#admin-rows').innerHTML = rows.join('');
   // Assistant keys (server/src/admin-keys.js).
@@ -1975,8 +1982,22 @@ $('#admin-form').onsubmit = async (e) => {
   e.preventDefault();
   const email = $('#admin-email').value.trim();
   if (!email) { $('#admin-email').focus(); return; }
-  if (await act(e.submitter, () => api('admins', { method: 'POST', body: { email, role: $('#admin-role').value } }), `${email} can now sign in. They must use a game account with that email, confirmed.`)) { $('#admin-form').reset(); show('admins', { keepFocus: true }); }
+  const role = $('#admin-role').value;
+  const done = role === 'publisher' ? `${email} can now use Book Studio. Send them ${location.origin}/admin/book-studio/ and have them sign in with a confirmed game account with that email.`
+    : `${email} can now sign in. They must use a game account with that email, confirmed.`;
+  if (await act(e.submitter, () => api('admins', { method: 'POST', body: { email, role, publishing: $('#admin-publishing').checked } }), done)) { $('#admin-form').reset(); show('admins', { keepFocus: true }); }
 };
+// Book Studio access for one moderator or viewer.
+$('#admin-rows').addEventListener('change', async (e) => {
+  const box = e.target.closest('input[data-publish-email]');
+  if (!box) return;
+  const email = box.dataset.publishEmail;
+  box.disabled = true;
+  try {
+    await api('admins/publishing', { method: 'POST', body: { email, on: box.checked } });
+    toast(box.checked ? `${email} can now publish books in Book Studio.` : `${email} can no longer publish books.`);
+  } catch (err) { box.checked = !box.checked; toast(err.message); } finally { box.disabled = false; }
+});
 $('#admin-rows').onclick = async (e) => {
   const b = e.target.closest('button[data-email]');
   if (!b) return;
@@ -2247,13 +2268,16 @@ $('#home').onclick = (e) => {
 // ------------------------------------------------------------- sign-in
 async function enter() {
   me = await api('me');
+  // Book Studio is its own page. Publishers only ever go there; anyone else
+  // with publishing access goes there when they signed in from its link.
+  if (me.canPublish && (me.role === 'publisher' || location.hash === '#book-studio')) { location.replace('/admin/book-studio/'); return; }
   $('#login').hidden = true;
   $('#verify').hidden = true;
   $('#app').hidden = false;
   $('#who').hidden = false;
   $('#who-email').textContent = me.email;
   $('#who-role').textContent = me.role;
-  $$('#nav-list a').forEach((a) => { a.parentElement.hidden = !can(a.dataset.min); });
+  $$('#nav-list a').forEach((a) => { a.parentElement.hidden = !can(a.dataset.min) || ('publish' in a.dataset && !me.canPublish); });
   $$('#dash-switch [data-min]').forEach((b) => { b.hidden = !can(b.dataset.min); });
   $$('main [data-min]').forEach((el) => { el.hidden = !can(el.dataset.min); });
   show(location.hash.slice(1) || 'overview');

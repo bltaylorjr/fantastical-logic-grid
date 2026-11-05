@@ -640,7 +640,7 @@ const SHOTS = process.env.SHOTS;
 
     // Responsive: every page at phone, tablet, 200% zoom and monitor sizes, with
     // no sideways scrolling and no button or field under 44 px.
-    const pages = await page.$$eval('#nav-list a:not([hidden])', (as) => as.map((a) => a.getAttribute('href').slice(1)));
+    const pages = await page.$$eval('#nav-list a[href^="#"]:not([hidden])', (as) => as.map((a) => a.getAttribute('href').slice(1)));
     for (const [label, width, height] of [['a phone', 360, 780], ['a portrait tablet', 768, 1024], ['200% zoom', 640, 400], ['a large monitor', 1920, 1080]]) {
       await page.setViewportSize({ width, height });
       const bad = [];

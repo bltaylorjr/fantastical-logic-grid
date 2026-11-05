@@ -713,3 +713,51 @@ test('new accounts stay counted after they are deleted', async () => {
   assert.equal(a.body.players.newAccounts.at(-1), row.made);
   assert.equal(a.body.players.deletedAccounts, (await db.prepare('SELECT SUM(deleted) AS n FROM account_days WHERE day >= ?1').bind(a.body.since).first()).n);
 });
+
+test('publishing: Book Studio access by role or the per-admin switch, checked on every export', async () => {
+  // Its own uid, so earlier tests' requests do not count toward this one's rate limit.
+  const boss = idToken('owner-uid-publishing', OWNER);
+  const exp = (auth) => call('/admin/v1/publishing/export', { auth, body: { kind: 'packet', title: 'Weekend Teasers', platform: 'Amazon KDP', pages: 24 } });
+  assert.equal((await call('/admin/v1/admins', { auth: boss, body: { email: 'pub@example.com', role: 'publisher' } })).status, 200);
+  assert.equal((await call('/admin/v1/admins', { auth: boss, body: { email: 'pubview@example.com', role: 'viewer' } })).status, 200);
+  const pub = idToken('pub-uid', 'pub@example.com');
+  const viewer = idToken('pubview-uid', 'pubview@example.com');
+  // A publisher reaches Book Studio and nothing else.
+  const pm = await call('/admin/v1/me', { auth: pub });
+  assert.deepEqual([pm.status, pm.body.role, pm.body.canPublish], [200, 'publisher', true]);
+  assert.equal((await exp(pub)).status, 200);
+  for (const path of ['/admin/v1/analytics', '/admin/v1/players', '/admin/v1/books', '/admin/v1/audit']) assert.equal((await call(path, { auth: pub })).status, 403, path);
+  // A viewer has no publishing until the owner switches it on, and loses it when switched off.
+  assert.equal((await call('/admin/v1/me', { auth: viewer })).body.canPublish, false);
+  assert.equal((await exp(viewer)).body.error, 'no_publishing');
+  assert.equal((await call('/admin/v1/admins/publishing', { auth: viewer, body: { email: 'pubview@example.com', on: true } })).status, 403);
+  assert.equal((await call('/admin/v1/admins/publishing', { auth: boss, body: { email: 'pubview@example.com', on: true } })).status, 200);
+  assert.equal((await call('/admin/v1/me', { auth: viewer })).body.canPublish, true);
+  assert.equal((await exp(viewer)).status, 200);
+  // Changing the role keeps the switch unless it is sent.
+  await call('/admin/v1/admins', { auth: boss, body: { email: 'pubview@example.com', role: 'moderator' } });
+  assert.equal((await call('/admin/v1/me', { auth: viewer })).body.canPublish, true);
+  await call('/admin/v1/admins/publishing', { auth: boss, body: { email: 'pubview@example.com', on: false } });
+  assert.equal((await exp(viewer)).status, 403);
+  assert.equal((await call('/admin/v1/admins/publishing', { auth: boss, body: { email: 'nobody@example.com', on: true } })).status, 404);
+  // The owner and the break-glass key always may; the list shows who can.
+  assert.equal((await call('/admin/v1/me', { auth: boss })).body.canPublish, true);
+  const list = (await call('/admin/v1/admins', { auth: boss })).body.admins;
+  assert.equal(list.find((a) => a.email === 'pub@example.com').publishing, true);
+  assert.equal(list.find((a) => a.email === 'pubview@example.com').publishing, false);
+  const { results } = await db.prepare("SELECT actor, target, detail, status FROM admin_audit WHERE action = 'publishing.export' ORDER BY id").all();
+  assert.ok(results.some((r) => r.actor === 'pub@example.com' && r.target === 'Weekend Teasers' && r.status === 200 && JSON.parse(r.detail).platform === 'Amazon KDP'));
+  assert.ok(results.some((r) => r.actor === 'pubview@example.com' && r.status === 403));
+  // Book Studio's page: its own content policy, vendored scripts only.
+  const page = await call('/admin/book-studio/', { origin: null });
+  assert.equal(page.status, 200);
+  assert.match(page.headers.get('content-type'), /text\/html/);
+  const csp = page.headers.get('content-security-policy');
+  assert.match(csp, /script-src 'self';/);
+  assert.match(csp, /frame-ancestors 'none'/);
+  assert.equal((await call('/admin/book-studio/vendor/fabric.min.js', { origin: null })).status, 200);
+  assert.equal((await call('/admin/book-studio/other/admin.js', { origin: null })).status, 404);
+  await call('/admin/v1/admins/remove', { auth: boss, body: { email: 'pub@example.com' } });
+  await call('/admin/v1/admins/remove', { auth: boss, body: { email: 'pubview@example.com' } });
+  assert.equal((await call('/admin/v1/me', { auth: pub })).status, 403);
+});

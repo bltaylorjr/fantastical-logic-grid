@@ -1,0 +1,414 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>Book Studio · Grid Admin</title>
+<link rel="icon" href="/admin/icon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Public+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Merriweather:ital,wght@0,400;0,700;1,400&family=Lora:ital,wght@0,400;0,700;1,400&family=EB+Garamond:ital,wght@0,400;0,700;1,400&family=Nunito:ital,wght@0,400;0,700;0,900;1,400&family=Open+Sans:ital,wght@0,400;0,700;1,400&family=Roboto+Slab:wght@400;700&family=Patrick+Hand&family=Bebas+Neue&family=Fredoka:wght@400;600&family=Courier+Prime:wght@400;700&family=Oswald:wght@400;700&family=Playfair+Display:ital,wght@0,400;0,800;1,400&family=Permanent+Marker&display=swap">
+<link rel="stylesheet" href="studio.css">
+<script src="studio.js" defer></script>
+</head>
+<body>
+<div id="gate" class="gate" hidden><div class="gate-card"><div class="brand"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>Book Studio</div><h1 id="gateTitle">Sign in to Grid Admin</h1><p id="gateText"></p><div class="export-row"><a class="btn primary" id="gateSignIn" href="/admin/#book-studio">Sign in</a><a class="btn" id="gateBack" href="/admin/" hidden>Back to Grid Admin</a></div></div></div>
+<div id="app" hidden>
+  <header class="topbar">
+    <header class="studio-bar"><a class="studio-home" id="backToAdmin" href="/admin/">← Grid Admin</a><span class="studio-who" id="whoEmail"></span><button class="btn ghost" id="signOutBtn" type="button">Sign out</button></header>
+    <div class="brand"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span><span class="brand-name">Puzzle Book Studio</span></div>
+    <div class="pubbar">
+      <label class="field-inline"><span>Publisher</span><select id="pub"></select></label>
+      <label class="field-inline"><span>Trim</span><select id="trim"></select></label>
+      <label class="field-inline"><span>Paper</span><select id="paper"><option value="white">White</option><option value="cream">Cream</option><option value="color">Color (premium)</option></select></label>
+      <label class="field-inline"><span>Interior</span><select id="ink"><option value="bw">Black &amp; white</option><option value="color">Color</option></select></label>
+      <label class="check"><input type="checkbox" id="bleed"> Bleed</label>
+      <button class="btn primary" id="applyPub" title="Apply this publisher's specs, fix what can be fixed, and check the book">Apply specs &amp; auto-fix</button>
+      <button class="btn" id="projMenuBtn" aria-haspopup="true">Project ▾</button>
+    </div>
+  </header>
+  <nav class="tabs" role="tablist">
+    <button class="tab" role="tab" data-tab="manuscript" aria-selected="true">Interior</button>
+    <button class="tab" role="tab" data-tab="cover" aria-selected="false">Cover</button>
+    <button class="tab" role="tab" data-tab="details" aria-selected="false">Book details</button>
+    <button class="tab" role="tab" data-tab="publish" aria-selected="false">Check &amp; export</button>
+  </nav>
+  <main>
+    <!-- INTERIOR -->
+    <section class="view" id="view-manuscript">
+      <div class="toolbar" id="tb">
+        <div class="tgroup">
+          <button class="tb" data-cmd="undo" title="Undo (Ctrl+Z)"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg></button>
+          <button class="tb" data-cmd="redo" title="Redo (Ctrl+Y)"><svg viewBox="0 0 24 24"><path d="m15 14 5-5-5-5"/><path d="M20 9H10a6 6 0 0 0 0 12h3"/></svg></button>
+        </div>
+        <div class="tgroup">
+          <select id="blockFmt" title="Paragraph style"><option value="p">Body text</option><option value="h1">Title</option><option value="h2">Heading</option><option value="h3">Subheading</option><option value="blockquote">Quote</option></select>
+          <select id="fontFam" title="Font"></select>
+          <select id="fontSize" title="Font size"></select>
+        </div>
+        <div class="tgroup">
+          <button class="tb" data-cmd="bold" title="Bold (Ctrl+B)"><b>B</b></button>
+          <button class="tb" data-cmd="italic" title="Italic (Ctrl+I)"><i style="font-family:Georgia,serif">I</i></button>
+          <button class="tb" data-cmd="underline" title="Underline (Ctrl+U)"><u>U</u></button>
+          <button class="tb" data-cmd="strikeThrough" title="Strikethrough"><s>S</s></button>
+          <label class="tb" title="Text color"><input type="color" id="foreColor" value="#111111"></label>
+          <label class="tb" title="Highlight"><input type="color" id="hiliteColor" value="#fff59d"></label>
+        </div>
+        <div class="tgroup">
+          <button class="tb" data-cmd="justifyLeft" title="Align left"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h10M4 18h14"/></svg></button>
+          <button class="tb" data-cmd="justifyCenter" title="Center"><svg viewBox="0 0 24 24"><path d="M4 6h16M7 12h10M5 18h14"/></svg></button>
+          <button class="tb" data-cmd="justifyRight" title="Align right"><svg viewBox="0 0 24 24"><path d="M4 6h16M10 12h10M6 18h14"/></svg></button>
+          <button class="tb" data-cmd="justifyFull" title="Justify"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+          <button class="tb" data-cmd="insertUnorderedList" title="Bulleted list"><svg viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/></svg></button>
+          <button class="tb" data-cmd="insertOrderedList" title="Numbered list"><svg viewBox="0 0 24 24"><path d="M10 6h10M10 12h10M10 18h10M4 4v4M3 18h3l-3 3h3"/></svg></button>
+          <select id="lineH" title="Line spacing"><option value="">Spacing</option><option>1</option><option>1.15</option><option>1.3</option><option>1.5</option><option>2</option></select>
+        </div>
+        <div class="tgroup">
+          <button class="tb" id="insPuzzle" title="Insert or bulk-generate puzzles">Puzzles</button>
+          <button class="tb" id="insImage" title="Insert image">Image</button>
+          <button class="tb" id="insTable" title="Insert table or grid">Table</button>
+          <button class="tb" data-cmd="insertHorizontalRule" title="Divider line"><svg viewBox="0 0 24 24"><path d="M3 12h18"/></svg></button>
+          <button class="tb" id="importBtn" title="Import text, documents and images">Import</button>
+        </div>
+        <div class="tgroup">
+          <button class="tb" id="findBtn" title="Find and replace (Ctrl+F)">Find</button>
+          <button class="tb" id="cleanBtn" title="Auto-edit text: smart quotes, dashes, spacing">Auto-edit</button>
+          <button class="tb" data-cmd="removeFormat" title="Clear formatting">Tx</button>
+        </div>
+        <div class="tgroup">
+          <button class="tb" id="addPage" title="Add page after current">+ Page</button>
+          <button class="tb" id="reflowBtn" title="Move overflowing content onto following pages">Reflow</button>
+          <select id="zoom" title="Zoom"><option value="0.5">50%</option><option value="0.75" selected>75%</option><option value="1">100%</option><option value="1.25">125%</option><option value="1.5">150%</option></select>
+          <button class="tb" id="guidesBtn" title="Show or hide margin and bleed guides">Guides</button>
+          <button class="tb" id="inspToggle" title="Page settings">Settings</button>
+        </div>
+      </div>
+      <div class="workspace" id="workspace">
+        <aside class="pagelist" id="pagelist" aria-label="Pages"></aside>
+        <div class="desk" id="desk"><div id="pages"></div></div>
+        <aside class="inspector" id="inspector">
+          <div class="insp-sec" id="imgTools" hidden>
+            <h3>Selected image</h3>
+            <label class="lab">Width <input type="range" id="imgW" min="10" max="100" value="100"></label>
+            <div class="row2">
+              <button class="btn" data-img="rotate">Rotate 90°</button>
+              <button class="btn" data-img="flip">Flip</button>
+              <button class="btn" data-img="gray">Grayscale</button>
+              <button class="btn" data-img="crop">Crop…</button>
+              <button class="btn" data-img="left">Float left</button>
+              <button class="btn" data-img="right">Float right</button>
+              <button class="btn" data-img="center">Center</button>
+              <button class="btn" data-img="pagebg">Make page background</button>
+            </div>
+            <label class="lab">Brightness <input type="range" id="imgBright" min="50" max="150" value="100"></label>
+            <label class="lab">Contrast <input type="range" id="imgContrast" min="50" max="200" value="100"></label>
+            <div class="row2"><button class="btn" data-img="apply">Apply adjustments</button><button class="btn danger" data-img="delete">Delete image</button></div>
+            <p class="hint mono" id="imgDpi"></p>
+          </div>
+          <div class="insp-sec" id="pzTools" hidden>
+            <h3>Selected puzzle</h3>
+            <label class="lab">Size (inches) <input type="range" id="pzSize" min="2" max="8" step="0.1"></label>
+            <div class="row2"><button class="btn" id="pzRegen">New puzzle</button><button class="btn danger" id="pzDel">Delete</button></div>
+          </div>
+          <div class="insp-sec">
+            <h3>Current page</h3>
+            <div class="row2">
+              <button class="btn" id="pgDup">Duplicate</button>
+              <button class="btn danger" id="pgDel">Delete</button>
+              <button class="btn" id="pgUp">Move up</button>
+              <button class="btn" id="pgDown">Move down</button>
+            </div>
+            <label class="check"><input type="checkbox" id="pgNoFolio"> Hide page number on this page</label>
+            <div class="row2"><button class="btn" id="pgBgImg">Background image</button><button class="btn" id="pgBgClear">Clear background</button></div>
+          </div>
+          <div class="insp-sec">
+            <h3>Margins (inches)</h3>
+            <div class="row2">
+              <label class="lab">Top <input type="number" step="0.0625" min="0" id="mTop"></label>
+              <label class="lab">Bottom <input type="number" step="0.0625" min="0" id="mBottom"></label>
+              <label class="lab">Inside (gutter) <input type="number" step="0.0625" min="0" id="mInside"></label>
+              <label class="lab">Outside <input type="number" step="0.0625" min="0" id="mOutside"></label>
+            </div>
+            <p class="hint" id="marginHint"></p>
+          </div>
+          <div class="insp-sec">
+            <h3>Body text defaults</h3>
+            <label class="lab">Font <select id="bodyFont"></select></label>
+            <div class="row2">
+              <label class="lab">Size (pt) <input type="number" min="6" max="36" step="0.5" id="bodySize"></label>
+              <label class="lab">Line height <input type="number" min="1" max="3" step="0.05" id="bodyLh"></label>
+            </div>
+          </div>
+          <div class="insp-sec">
+            <h3>Page numbers</h3>
+            <label class="check"><input type="checkbox" id="folioOn"> Show page numbers</label>
+            <div class="row2">
+              <label class="lab">Position <select id="folioPos"><option value="outside">Bottom outside</option><option value="center">Bottom center</option></select></label>
+              <label class="lab">Start on page <input type="number" min="1" id="folioStart"></label>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- COVER -->
+    <section class="view" id="view-cover" hidden>
+      <div class="toolbar">
+        <div class="tgroup">
+          <button class="btn primary" id="cvAuto" title="Build a cover from your book details">Auto-design cover</button>
+          <select id="cvTheme" title="Color theme"></select>
+        </div>
+        <div class="tgroup">
+          <button class="tb" id="cvText">Text</button>
+          <button class="tb" id="cvImage">Image</button>
+          <button class="tb" id="cvRect">Box</button>
+          <button class="tb" id="cvCircle">Circle</button>
+          <button class="tb" id="cvGrid">Puzzle motif</button>
+          <label class="tb" title="Background color">BG <input type="color" id="cvBg" value="#1f3a5f"></label>
+          <button class="tb" id="cvBgImg" title="Full-wrap background image">BG image</button>
+        </div>
+        <div class="tgroup">
+          <button class="tb" id="cvFwd" title="Bring forward">Forward</button>
+          <button class="tb" id="cvBack" title="Send backward">Back</button>
+          <button class="tb" id="cvDup" title="Duplicate">Duplicate</button>
+          <button class="tb" id="cvDel" title="Delete (Del)">Delete</button>
+        </div>
+        <div class="tgroup">
+          <select id="cvZoom"><option value="0.35">35%</option><option value="0.5" selected>50%</option><option value="0.75">75%</option><option value="1">100%</option></select>
+          <button class="tb" id="cvGuidesBtn">Guides</button>
+        </div>
+      </div>
+      <div class="cover-ws">
+        <div class="cover-desk" id="coverDesk">
+          <div class="cover-panel-names" id="cvNames"></div>
+          <div class="cover-stage" id="coverStage"><canvas id="coverCanvas"></canvas><div class="cover-guides" id="coverGuides"></div></div>
+        </div>
+        <aside class="inspector" id="cvInspector">
+          <div class="insp-sec">
+            <h3>Cover size</h3>
+            <dl class="specs-card" id="cvSpecs"></dl>
+            <p class="hint">Spine width comes from your page count and paper. It updates when pages are added or removed, and objects move with their panel.</p>
+          </div>
+          <div class="insp-sec" id="cvObjTools" hidden>
+            <h3>Selected object</h3>
+            <label class="lab">Font <select id="cvFont"></select></label>
+            <div class="row2">
+              <label class="lab">Size <input type="number" id="cvSize" min="6" max="400"></label>
+              <label class="lab">Color <input type="color" id="cvColor"></label>
+            </div>
+            <div class="row2">
+              <button class="btn" id="cvBold">Bold</button>
+              <button class="btn" id="cvItalic">Italic</button>
+              <select id="cvAlign"><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select>
+              <label class="lab">Opacity <input type="range" id="cvOpacity" min="0" max="100"></label>
+            </div>
+            <div class="row2">
+              <button class="btn" data-snap="front">Center on front</button>
+              <button class="btn" data-snap="back">Center on back</button>
+              <button class="btn" data-snap="spine">Put on spine</button>
+              <button class="btn" data-snap="rotate">Rotate 90°</button>
+            </div>
+          </div>
+          <div class="insp-sec">
+            <h3>Guide key</h3>
+            <p class="hint"><span style="color:var(--guide-bleed)">Red</span>: trim line (art past it is cut off). <span style="color:var(--guide-safe)">Blue</span>: safe zone for text. <span style="color:var(--guide-spine)">Purple</span>: spine. The white box marks the barcode area.</p>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- DETAILS -->
+    <section class="view" id="view-details" hidden>
+      <div class="scroll-page"><div class="narrow">
+        <h2>Book details</h2>
+        <p class="lead">These fields fill the title page, copyright page, cover, and the metadata sheet in your submission packet. Limits follow the selected publisher.</p>
+        <div class="formgrid" id="metaForm">
+          <label class="lab">Title <input type="text" data-meta="title" id="m-title"></label>
+          <label class="lab">Subtitle <input type="text" data-meta="subtitle" id="m-subtitle"></label>
+          <label class="lab">Author <input type="text" data-meta="author" id="m-author"></label>
+          <label class="lab">Contributors (illustrator, editor) <input type="text" data-meta="contributors" id="m-contributors"></label>
+          <label class="lab">Series name <input type="text" data-meta="series" id="m-series"></label>
+          <label class="lab">Volume / series number <input type="text" data-meta="seriesNo" id="m-seriesNo"></label>
+          <label class="lab">Edition <input type="text" data-meta="edition" id="m-edition"></label>
+          <label class="lab">Publisher / imprint <input type="text" data-meta="imprint" id="m-imprint"></label>
+          <label class="lab">ISBN-13 <input type="text" data-meta="isbn" id="m-isbn" placeholder="978…"></label>
+          <label class="lab">Publication date <input type="date" data-meta="pubDate" id="m-pubDate"></label>
+          <label class="lab">Language <input type="text" data-meta="language" id="m-language"></label>
+          <label class="lab">List price (USD) <input type="text" data-meta="price" id="m-price"></label>
+          <label class="lab">Reading audience <select data-meta="audience" id="m-audience"><option>Adult</option><option>Young adult</option><option>Children 9–12</option><option>Children 6–8</option><option>All ages</option></select></label>
+          <label class="lab">Copyright holder <input type="text" data-meta="copyright" id="m-copyright"></label>
+          <label class="lab wide">Description <textarea data-meta="description" id="m-description"></textarea><span class="count" id="descCount"></span></label>
+          <label class="lab wide">Back cover blurb <textarea data-meta="blurb" id="m-blurb" style="min-height:80px"></textarea></label>
+          <label class="lab wide">Keywords (one per line) <textarea data-meta="keywords" id="m-keywords" style="min-height:90px"></textarea><span class="count" id="kwCount"></span></label>
+          <label class="lab wide">Categories (one per line, e.g. GAM007000 Games &amp; Activities / Puzzles) <textarea data-meta="categories" id="m-categories" style="min-height:70px"></textarea><span class="count" id="catCount"></span></label>
+        </div>
+        <div class="export-row"><button class="btn" id="addFront">Insert title &amp; copyright pages</button></div>
+      </div></div>
+    </section>
+
+    <!-- PUBLISH -->
+    <section class="view" id="view-publish" hidden>
+      <div class="scroll-page"><div class="narrow">
+        <h2>Check &amp; export</h2>
+        <p class="lead">Pick a publisher, apply its specs in one click, then download the submission packet: print-ready interior PDF, full-wrap cover PDF, metadata sheet and a preflight report.</p>
+        <div class="pub-hero">
+          <div class="card">
+            <h3>Publisher</h3>
+            <select id="pub2" class="big-select"></select>
+            <dl class="specs-card" id="pubSpecs"></dl>
+            <div class="export-row">
+              <button class="btn primary" id="applyPub2">Apply specs &amp; auto-fix</button>
+              <button class="btn" id="runCheck">Re-check</button>
+            </div>
+          </div>
+          <div class="card">
+            <h3>Export</h3>
+            <label class="lab">Resolution <select id="dpi"><option value="300" selected>300 DPI (print)</option><option value="200">200 DPI (draft, smaller file)</option></select></label>
+            <div class="export-row">
+              <button class="btn primary" id="expPacket">Download submission packet (.zip)</button>
+            </div>
+            <div class="export-row">
+              <button class="btn" id="expInterior">Interior PDF</button>
+              <button class="btn" id="expCover">Cover PDF</button>
+              <button class="btn" id="expMeta">Metadata sheet</button>
+            </div>
+            <p class="hint" id="pubLinks"></p>
+          </div>
+        </div>
+        <div class="summary" id="checkSummary"></div>
+        <div class="issues" id="issues"></div>
+        <div class="card"><h3>Publisher notes</h3><ul class="plain" id="pubNotes"></ul></div>
+      </div></div>
+    </section>
+  </main>
+  <footer class="statusbar">
+    <span>Pages <b id="sbPages">0</b></span>
+    <span>Trim <b id="sbTrim"></b></span>
+    <span>Spine <b id="sbSpine"></b></span>
+    <span>Cover <b id="sbCover"></b></span>
+    <span id="sbCheck"></span>
+    <span class="spacer" id="sbSave"></span>
+  </footer>
+</div>
+
+<!-- Project menu -->
+<dialog id="dlgProject"><div class="dlg">
+  <header><h3>Project</h3><button class="btn ghost" data-close>Close</button></header>
+  <div class="body">
+    <p class="hint">Your work saves automatically in this browser. Save a project file to keep a backup or move it to another computer.</p>
+    <div class="export-row">
+      <button class="btn primary" id="projSave">Save project file</button>
+      <button class="btn" id="projOpen">Open project file</button>
+      <button class="btn" id="projSample">Load sample book</button>
+      <button class="btn danger" id="projNew">Start a blank book</button>
+    </div>
+    <p class="hint" id="projNewConfirm" hidden>This replaces the current book. Save a project file first if you want to keep it. <button class="btn danger" id="projNewYes">Replace it</button></p>
+  </div>
+</div></dialog>
+
+<!-- Puzzle dialog -->
+<dialog id="dlgPuzzle"><div class="dlg">
+  <header><h3>Puzzles</h3><button class="btn ghost" data-close>Close</button></header>
+  <div class="body">
+    <div class="seg" id="pzKind"><button data-k="sudoku" class="on">Sudoku</button><button data-k="wordsearch">Word search</button><button data-k="maze">Maze</button></div>
+    <div class="row2">
+      <label class="lab">How many <input type="number" id="pzCount" min="1" max="500" value="1"></label>
+      <label class="lab">Per page <select id="pzPerPage"><option value="1">1</option><option value="2">2</option><option value="4">4</option></select></label>
+    </div>
+    <div id="pzOpts-sudoku" class="row2">
+      <label class="lab">Difficulty <select id="sdDiff"><option value="easy">Easy</option><option value="medium" selected>Medium</option><option value="hard">Hard</option><option value="expert">Expert</option></select></label>
+    </div>
+    <div id="pzOpts-wordsearch" hidden>
+      <div class="row2">
+        <label class="lab">Grid size <select id="wsSize"><option>10</option><option>12</option><option selected>15</option><option>18</option><option>20</option></select></label>
+        <label class="lab">Directions <select id="wsDir"><option value="easy">Across and down</option><option value="medium" selected>Plus diagonals</option><option value="hard">All 8 (incl. backwards)</option></select></label>
+      </div>
+      <label class="lab">Word lists: first line is the theme title, a blank line starts the next list <textarea id="wsLists" style="min-height:160px"></textarea></label>
+    </div>
+    <div id="pzOpts-maze" class="row2" hidden>
+      <label class="lab">Size <select id="mzSize"><option value="12">12 × 12</option><option value="18" selected>18 × 18</option><option value="25">25 × 25</option><option value="35">35 × 35</option></select></label>
+      <label class="lab">Shape <select id="mzShape"><option value="square">Square</option><option value="circle">Round</option></select></label>
+    </div>
+    <label class="check"><input type="checkbox" id="pzAnswers" checked> Add solutions to the answer key at the back</label>
+    <label class="check"><input type="checkbox" id="pzNewPages" checked> Put puzzles on new pages after the current page</label>
+  </div>
+  <footer><button class="btn" data-close>Cancel</button><button class="btn primary" id="pzGo">Generate</button></footer>
+</div></dialog>
+
+<!-- Import dialog -->
+<dialog id="dlgImport"><div class="dlg">
+  <header><h3>Import</h3><button class="btn ghost" data-close>Close</button></header>
+  <div class="body">
+    <div class="dropzone" id="dropzone" tabindex="0">Drop files here or click to choose<br><small>You can pick several at once</small></div>
+    <input type="file" id="importFile" multiple hidden>
+    <label class="lab">Text and documents <select id="impTextMode"><option value="flow">Flow into new pages after the current page</option><option value="cursor">Insert at the cursor</option></select></label>
+    <label class="lab">Images and PDF pages <select id="impImgMode"><option value="page-fit">One per page, fit inside margins</option><option value="page-bleed">One per page, full bleed</option><option value="cursor">Insert at the cursor</option></select></label>
+    <label class="lab">PDF files <select id="impPdfMode"><option value="images">Import each page as an image</option><option value="text">Extract the text</option></select></label>
+    <p class="formats"><b>Text:</b> .docx, .odt, .rtf, .txt, .md, .html, .epub, .pdf, .csv/.tsv (as a table), .json (project file)<br><b>Images:</b> .jpg, .png, .gif, .webp, .svg, .bmp, .avif, .ico, .tif/.tiff, .heic/.heif</p>
+  </div>
+</div></dialog>
+
+<!-- Find dialog -->
+<dialog id="dlgFind"><div class="dlg">
+  <header><h3>Find &amp; replace</h3><button class="btn ghost" data-close>Close</button></header>
+  <div class="body">
+    <label class="lab">Find <input type="text" id="findQ"></label>
+    <label class="lab">Replace with <input type="text" id="findR"></label>
+    <label class="check"><input type="checkbox" id="findCase"> Match case</label>
+    <p class="hint" id="findInfo"></p>
+  </div>
+  <footer><button class="btn" id="findCount">Count</button><button class="btn primary" id="findAll">Replace all</button></footer>
+</div></dialog>
+
+<!-- Auto-edit dialog -->
+<dialog id="dlgClean"><div class="dlg">
+  <header><h3>Auto-edit text</h3><button class="btn ghost" data-close>Close</button></header>
+  <div class="body">
+    <p class="hint">Runs on every page. Puzzle grids are left alone.</p>
+    <label class="check"><input type="checkbox" id="ceQuotes" checked> Curly quotes and apostrophes</label>
+    <label class="check"><input type="checkbox" id="ceDashes" checked> Double hyphens to em dashes</label>
+    <label class="check"><input type="checkbox" id="ceEllipsis" checked> Three dots to an ellipsis</label>
+    <label class="check"><input type="checkbox" id="ceSpaces" checked> Collapse double spaces, trim stray spaces</label>
+    <label class="check"><input type="checkbox" id="ceEmpty" checked> Remove empty paragraphs</label>
+    <label class="check"><input type="checkbox" id="ceFonts"> Reset all body text to the default font</label>
+    <label class="check"><input type="checkbox" id="ceHeads"> Title Case headings</label>
+    <p class="hint" id="cleanInfo"></p>
+  </div>
+  <footer><button class="btn" data-close>Cancel</button><button class="btn primary" id="cleanGo">Run auto-edit</button></footer>
+</div></dialog>
+
+<!-- Table dialog -->
+<dialog id="dlgTable"><div class="dlg">
+  <header><h3>Insert table or grid</h3><button class="btn ghost" data-close>Close</button></header>
+  <div class="body">
+    <div class="row2">
+      <label class="lab">Rows <input type="number" id="tblRows" min="1" max="40" value="5"></label>
+      <label class="lab">Columns <input type="number" id="tblCols" min="1" max="40" value="5"></label>
+    </div>
+    <label class="check"><input type="checkbox" id="tblSquare"> Square cells (blank puzzle grid)</label>
+  </div>
+  <footer><button class="btn" data-close>Cancel</button><button class="btn primary" id="tblGo">Insert</button></footer>
+</div></dialog>
+
+<!-- Crop dialog -->
+<dialog id="dlgCrop"><div class="dlg">
+  <header><h3>Crop image</h3><button class="btn ghost" data-close>Close</button></header>
+  <div class="body">
+    <p class="hint">Trim a percentage from each edge.</p>
+    <div class="row2">
+      <label class="lab">Top % <input type="number" id="crT" min="0" max="45" value="0"></label>
+      <label class="lab">Bottom % <input type="number" id="crB" min="0" max="45" value="0"></label>
+      <label class="lab">Left % <input type="number" id="crL" min="0" max="45" value="0"></label>
+      <label class="lab">Right % <input type="number" id="crR" min="0" max="45" value="0"></label>
+    </div>
+  </div>
+  <footer><button class="btn" data-close>Cancel</button><button class="btn primary" id="cropGo">Crop</button></footer>
+</div></dialog>
+
+<input type="file" id="fileImg" accept="image/*,.tif,.tiff,.heic,.heif" hidden>
+<input type="file" id="fileProj" accept=".json,application/json" hidden>
+<div id="renderHost" aria-hidden="true"></div>
+
+</body>
+</html>
