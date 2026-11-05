@@ -20,7 +20,7 @@ page itself keeps.
   Vox starts by itself, hidden, as soon as the app opens ("Start Vox when the
   admin app opens" on the Voice engine page, on by default). Closing the app
   window (its X) closes the app and stops Vox, its tunnel, and a Vox started
-  from Vox.vbs or a command window. See `src-tauri/src/vox.rs`.
+  from the Vox desktop shortcut or a command window. See `src-tauri/src/vox.rs`.
 - **Vox on any device:** unless "Let my other devices open Vox" is off, Start Vox
   puts it online with a free Cloudflare quick tunnel (`vox serve --tunnel`). The
   app downloads Cloudflare's free `cloudflared.exe` once into its data folder if

@@ -161,17 +161,37 @@ fn cloudflared(app: &AppHandle) -> Option<PathBuf> {
 }
 
 /// Ends a Vox (and its cloudflared) that this app didn't start or that was
-/// left behind: stopping Python directly doesn't stop the tunnel it opened.
-fn stop_strays() {
+/// left behind: stopping Python alone doesn't stop the tunnel it opened. Uses
+/// Windows' own taskkill (no scripts, which antivirus programs distrust): the
+/// process id Vox's desktop shortcut saves (learning/vox.pid), with everything
+/// it started, and any cloudflared tunnel.
+fn stop_strays(dir: Option<&Path>) {
     #[cfg(windows)]
     {
-        let _ = hidden(Command::new("powershell").args([
-            "-NoProfile",
-            "-Command",
-            "Get-CimInstance Win32_Process -Filter \"CommandLine like '%vox.cli serve%' or CommandLine like '%vox serve %' or CommandLine like '%--url http://127.0.0.1:5150%'\" | Invoke-CimMethod -MethodName Terminate | Out-Null",
-        ]))
-        .status();
+        let kill = |args: &[&str]| {
+            let _ = hidden(Command::new("taskkill").args(args)).stdout(Stdio::null()).stderr(Stdio::null()).status();
+        };
+        if let Some(pid) = dir.and_then(|d| fs::read_to_string(d.join("learning").join("vox.pid")).ok()) {
+            let pid = pid.trim().to_string();
+            if pid.chars().all(|c| c.is_ascii_digit()) && !pid.is_empty() {
+                kill(&["/F", "/T", "/PID", &pid]);
+            }
+        }
+        kill(&["/F", "/IM", "cloudflared.exe"]);
     }
+    #[cfg(not(windows))]
+    let _ = dir;
+}
+
+/// Stops a child and everything it started (Vox and its tunnel).
+fn kill_tree(c: &mut Child) {
+    #[cfg(windows)]
+    {
+        let pid = c.id().to_string();
+        let _ = hidden(Command::new("taskkill").args(["/F", "/T", "/PID", &pid])).stdout(Stdio::null()).stderr(Stdio::null()).status();
+    }
+    let _ = c.kill();
+    let _ = c.wait();
 }
 
 /// The trained model when there is one, otherwise the practice model.
@@ -370,13 +390,12 @@ pub fn vox_start(app: AppHandle) -> Result<(), String> {
 /// Stops Vox: the copy this app started, and one started some other way
 /// (Vox.vbs or a command window) too.
 #[tauri::command]
-pub fn vox_stop(vox: State<'_, Vox>) {
+pub fn vox_stop(app: AppHandle, vox: State<'_, Vox>) {
     vox.cancel.store(true, Ordering::SeqCst);
     if let Some(mut c) = vox.child.lock().unwrap().take() {
-        let _ = c.kill();
-        let _ = c.wait();
+        kill_tree(&mut c);
     }
-    stop_strays();
+    stop_strays(folder(&app).as_deref());
     set(&vox, "idle", "Vox is stopped.");
 }
 
@@ -421,8 +440,8 @@ pub fn shutdown(app: &AppHandle) {
     let vox = app.state::<Vox>();
     vox.cancel.store(true, Ordering::SeqCst);
     if let Some(mut c) = vox.child.lock().unwrap().take() {
-        let _ = c.kill();
+        kill_tree(&mut c);
     }
-    // Also the tunnel it opened, and a Vox started from Vox.vbs or a command window.
-    stop_strays();
+    // Also a Vox started from the desktop shortcut, and any tunnel left behind.
+    stop_strays(folder(app).as_deref());
 }
