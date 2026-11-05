@@ -65,7 +65,6 @@ const extraCss = `
 .gate-card h1 { font-family: var(--f-display); font-size: 22px; margin: 0; }
 .gate-card p { margin: 0; color: var(--ink-2); line-height: 1.5; }
 `;
-html = html.replace('<div class="brand">', '<div class="brand">');
 // the studio bar sits inside the top bar so it wraps above the controls
 html = html.replace(`${pageTop}\n    <div class="brand">`, `<div class="brand">`).replace('<header class="topbar">', `<header class="topbar">\n    ${pageTop}`);
 const out = join(root, 'admin', 'book-studio');

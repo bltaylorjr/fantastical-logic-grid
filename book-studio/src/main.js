@@ -1,11 +1,10 @@
 /* ---------- App shell ---------- */
 function fillPubSelects() {
-  const opts = Object.entries(PUBLISHERS).map(([k, p]) => `<option value="${k}">${p.name}</option>`).join('');
-  $('#pub').innerHTML = opts; $('#pub2').innerHTML = opts;
+  for (const id of ['#pub', '#pub2']) $(id).replaceChildren(...Object.entries(PUBLISHERS).map(([k, p]) => new Option(p.name, k)));
 }
 function fillTrimSelect() {
   const P = PUBLISHERS[S.pub]; const list = P.trims.includes(S.trim) ? P.trims : [S.trim, ...P.trims];
-  $('#trim').innerHTML = list.map(t => `<option value="${t}">${TRIM_LABEL(t)}${P.trims.includes(t) ? '' : ' (not offered)'}</option>`).join('');
+  $('#trim').replaceChildren(...list.map(t => new Option(TRIM_LABEL(t) + (P.trims.includes(t) ? '' : ' (not offered)'), t)));
   $('#trim').value = S.trim;
 }
 function refreshUI() {

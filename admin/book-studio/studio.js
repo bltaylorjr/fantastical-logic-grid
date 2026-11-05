@@ -406,7 +406,7 @@ function renderPageList() {
   list.innerHTML = `<div class="pagelist-head"><span>${S.pages.length} pages</span><button class="btn ghost" id="plAdd" title="Add page">+ Add</button></div>`;
   S.pages.forEach((p, i) => {
     const it = document.createElement('div'); it.className = 'pl-item' + (i === curPage ? ' active' : ''); it.tabIndex = 0;
-    const lines = Math.min(6, Math.ceil((p.html || '').replace(/<[^>]+>/g, '').length / 120));
+    const lines = Math.min(6, Math.ceil((p.html || '').replace(/<[^>]*>/g, '').replace(/[<>]/g, '').length / 120));
     const thumb = `<div class="pl-thumb">${Array.from({ length: lines }, (_, k) => `<i style="top:${7 + k * 6}px"></i>`).join('')}</div>`;
     const of = pgs[i] && pgs[i].classList.contains('overflow');
     it.innerHTML = `${thumb}<div class="pl-meta"><b>${i + 1}</b><span>${esc(pageLabel(p))}</span></div>${of ? '<i class="pl-flag" title="Overflowing"></i>' : ''}`;
@@ -757,22 +757,39 @@ function autoEditText(o) {
   return n;
 }
 
-/* Sanitize imported/pasted HTML: keep structure and basic formatting, drop scripts and app styles */
+/* Sanitize imported/pasted HTML with an allowlist: keep structure and basic
+   formatting; unwrap unknown elements; drop scripts, embeds, forms and every
+   attribute or URL that is not plainly safe. Parsing with DOMParser is inert. */
+const SAFE_TAGS = new Set(['P', 'BR', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'STRONG', 'B', 'EM', 'I', 'U', 'S', 'SUB', 'SUP', 'SPAN', 'DIV',
+  'SECTION', 'ARTICLE', 'MAIN', 'HEADER', 'FOOTER', 'UL', 'OL', 'LI', 'TABLE', 'THEAD', 'TBODY', 'TFOOT', 'TR', 'TD', 'TH', 'CAPTION',
+  'COLGROUP', 'COL', 'IMG', 'A', 'BLOCKQUOTE', 'PRE', 'CODE', 'HR', 'FIGURE', 'FIGCAPTION', 'SMALL', 'MARK']);
+const DROP_TAGS = 'script,style,meta,link,base,iframe,frame,frameset,object,embed,applet,noscript,template,title,head,svg,math,form,input,button,select,textarea,video,audio,source,track,canvas,portal';
+const SAFE_ATTRS = new Set(['style', 'src', 'href', 'alt', 'title', 'colspan', 'rowspan', 'align', 'width', 'height', 'start', 'type']);
+const safeUrl = (v, img) => {
+  const u = String(v).replace(/[\u0000- \u007f-\u009f]/g, '');
+  return img ? /^(data:image\/(png|jpe?g|gif|webp|bmp);|blob:|https?:)/i.test(u) : /^(https?:|mailto:|#)/i.test(u);
+};
 function sanitizeHTML(html) {
-  const doc = new DOMParser().parseFromString(html, 'text/html');
-  $$('script,style,meta,link,iframe,object,embed,noscript,title,head,svg foreignObject', doc).forEach(e => e.remove());
-  $$('*', doc.body).forEach(el => {
+  const doc = new DOMParser().parseFromString(String(html), 'text/html');
+  $$(DROP_TAGS, doc).forEach(e => e.remove());
+  // Deepest first, so unwrapping never skips a node.
+  $$('*', doc.body).reverse().forEach(el => {
+    if (!SAFE_TAGS.has(el.tagName)) { el.replaceWith(...el.childNodes); return; }
     [...el.attributes].forEach(a => {
       const n = a.name.toLowerCase();
-      if (n.startsWith('on') || n === 'class' || n === 'id' || n.startsWith('data-') || n === 'contenteditable') el.removeAttribute(a.name);
-      else if ((n === 'src' || n === 'href') && /^\s*javascript:/i.test(a.value)) el.removeAttribute(a.name);
+      if (!SAFE_ATTRS.has(n)) el.removeAttribute(a.name);
+      else if ((n === 'src' || n === 'href') && !safeUrl(a.value, el.tagName === 'IMG')) el.removeAttribute(a.name);
     });
-    if (el.style) { ['position', 'top', 'left', 'right', 'bottom', 'width', 'height', 'margin', 'padding', 'background', 'background-color', 'font-family', 'font-size', 'line-height'].forEach(p => { if (p !== 'font-weight') el.style.removeProperty(p); }); }
-    if (['DIV', 'SECTION', 'ARTICLE', 'MAIN', 'HEADER', 'FOOTER'].includes(el.tagName) && !el.querySelector('p,div,h1,h2,h3,h4,ul,ol,table,img')) {
-      const p = doc.createElement('p'); p.innerHTML = el.innerHTML; el.replaceWith(p);
+    if (el.tagName === 'A') { el.setAttribute('rel', 'noopener noreferrer'); el.setAttribute('target', '_blank'); }
+    if (el.style) {
+      ['position', 'top', 'left', 'right', 'bottom', 'width', 'height', 'margin', 'padding', 'background', 'background-color', 'background-image', 'font-family', 'font-size', 'line-height'].forEach(p => el.style.removeProperty(p));
+      if (/url\s*\(|expression\s*\(/i.test(el.getAttribute('style') || '')) el.removeAttribute('style');
     }
   });
-  $$('h4,h5,h6', doc.body).forEach(h => { const n = doc.createElement('h3'); n.innerHTML = h.innerHTML; h.replaceWith(n); });
+  $$('div,section,article,main,header,footer', doc.body).reverse().forEach(el => {
+    if (!el.querySelector('p,div,h1,h2,h3,h4,ul,ol,table,img')) { const p = doc.createElement('p'); p.append(...el.childNodes); el.replaceWith(p); }
+  });
+  $$('h4,h5,h6', doc.body).forEach(h => { const n = doc.createElement('h3'); n.append(...h.childNodes); h.replaceWith(n); });
   return doc.body.innerHTML;
 }
 
@@ -1737,12 +1754,11 @@ function renderPubCard() {
 
 /* ---------- App shell ---------- */
 function fillPubSelects() {
-  const opts = Object.entries(PUBLISHERS).map(([k, p]) => `<option value="${k}">${p.name}</option>`).join('');
-  $('#pub').innerHTML = opts; $('#pub2').innerHTML = opts;
+  for (const id of ['#pub', '#pub2']) $(id).replaceChildren(...Object.entries(PUBLISHERS).map(([k, p]) => new Option(p.name, k)));
 }
 function fillTrimSelect() {
   const P = PUBLISHERS[S.pub]; const list = P.trims.includes(S.trim) ? P.trims : [S.trim, ...P.trims];
-  $('#trim').innerHTML = list.map(t => `<option value="${t}">${TRIM_LABEL(t)}${P.trims.includes(t) ? '' : ' (not offered)'}</option>`).join('');
+  $('#trim').replaceChildren(...list.map(t => new Option(TRIM_LABEL(t) + (P.trims.includes(t) ? '' : ' (not offered)'), t)));
   $('#trim').value = S.trim;
 }
 function refreshUI() {
