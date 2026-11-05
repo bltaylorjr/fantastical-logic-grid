@@ -117,6 +117,10 @@ export const markup = `
     <h2 id="np-solved-h">Solved!</h2>
     <p class="np-ending" id="np-ending"></p>
     <p id="np-solved-text"></p>
+    <fieldset class="np-stars" id="np-stars"><legend>Rate this puzzle <span class="np-muted">(optional, 1 star is poor, 5 is excellent)</span></legend>
+      <label><input type="radio" name="np-rating" value="1"><span aria-hidden="true">★</span><span class="np-sr">1 star, poor</span></label><label><input type="radio" name="np-rating" value="2"><span aria-hidden="true">★</span><span class="np-sr">2 stars, fair</span></label><label><input type="radio" name="np-rating" value="3"><span aria-hidden="true">★</span><span class="np-sr">3 stars, good</span></label><label><input type="radio" name="np-rating" value="4"><span aria-hidden="true">★</span><span class="np-sr">4 stars, very good</span></label><label><input type="radio" name="np-rating" value="5"><span aria-hidden="true">★</span><span class="np-sr">5 stars, excellent</span></label>
+      <span class="np-muted" id="np-stars-done" role="status"></span>
+    </fieldset>
     <div class="np-feel" id="np-feel" role="group" aria-labelledby="np-feel-h">
       <p id="np-feel-h">How did that feel?</p>
       <button class="btn small" type="button" data-feel="easy">Too easy</button>

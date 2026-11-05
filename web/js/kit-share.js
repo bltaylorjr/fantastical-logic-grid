@@ -27,7 +27,7 @@ function platform() {
 // A play record as the service takes it. `game` goes with every record.
 export function toPlay(game, rec) {
   return {
-    game, platform: platform(), level: rec.d, size: rec.size, mode: rec.mode, outcome: rec.outcome, feel: rec.feel,
+    game, platform: platform(), level: rec.d, size: rec.size, mode: rec.mode, outcome: rec.outcome, feel: rec.feel, rating: rec.rating || null,
     minutes: Math.round(rec.ms / 6000) / 10, hints: rec.hints, mistakes: rec.mistakes, checks: rec.checks,
     tuned: rec.tuned, score: rec.toughness, stuck: rec.stuck, pid: rec.pid, version: CLOUD.appVersion || null,
   };

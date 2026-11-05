@@ -10,43 +10,110 @@ import { FREE_LIMITS, cloudflareUsage } from './usage.js';
 import { ratingInsights } from './ratings.js';
 import { printPackTotals } from './print-packs.js';
 import { GAMES } from './feedback.js';
+import { wilson, bayesAverage, meanInterval, median, quantile, robustZ, winsorize } from './stats.js';
 
 const DAY = 24 * 3600_000;
 const isoDay = (ms) => new Date(ms).toISOString().slice(0, 10);
 const round = (v, p = 2) => (v == null ? null : Math.round(v * 10 ** p) / 10 ** p);
 // Groups with fewer games than this are listed but never flagged.
 const MIN_GAMES = 5;
+// How a group is judged (all at 95% confidence, server/src/stats.js):
+//   gave up, too hard, too easy   flagged only when the Wilson interval's lower
+//                                 bound is above the limit, so a few games can't
+//                                 raise a flag on their own
+//   rating                        a Bayesian average (pulled toward the overall
+//                                 average, weight 5 ratings), flagged when the
+//                                 whole 95% interval is under 3 stars
+//   solve time                    each solve's time over what the game expected,
+//                                 clipped to 0.1-6x against stray values, and its
+//                                 median (not the mean, which one long pause skews)
+//   hints                         the group's average against its level's other
+//                                 groups by modified z-score (median and MAD)
+const LIMITS = {
+  quitLow: 0.3, feelLow: 0.25, ratingBelow: 3, ratingWeight: 5,
+  slowRatio: 1.6, fastRatio: 0.5, minTimed: 5, clip: [0.1, 6],
+  hintZ: 3.5, minHints: 1.5, hintTimes: 2,
+};
 
 // One row per theme and level, most in need of attention first.
 export async function quality(env, days = 90, now = Date.now()) {
   const since = isoDay(now - (days - 1) * DAY);
-  const { results } = await env.DB.prepare(`SELECT theme, tier, COUNT(*) AS games,
-      SUM(outcome = 'solved') AS solved, SUM(outcome = 'revealed') AS revealed, SUM(outcome = 'abandoned') AS abandoned,
-      AVG(rating) AS rating, COUNT(rating) AS rated, SUM(feel = 'hard') AS tooHard, SUM(feel = 'easy') AS tooEasy, COUNT(feel) AS felt,
-      AVG(CASE WHEN outcome = 'solved' THEN minutes END) AS minutes, AVG(hints) AS hints
-    FROM plays WHERE day >= ?1 GROUP BY theme, tier`).bind(since).all();
-  const rows = results.map((r) => {
-    const quit = (r.revealed + r.abandoned) / r.games;
-    const hard = r.felt ? r.tooHard / r.felt : 0;
-    const easy = r.felt ? r.tooEasy / r.felt : 0;
-    const issues = [];
-    if (r.games >= MIN_GAMES) {
-      if (quit >= 0.4) issues.push({ code: 'quit', text: `${Math.round(quit * 100)}% gave up or revealed the answer` });
-      if (r.felt >= 3 && hard >= 0.4) issues.push({ code: 'hard', text: `${Math.round(hard * 100)}% said it was too hard` });
-      if (r.felt >= 3 && easy >= 0.4) issues.push({ code: 'easy', text: `${Math.round(easy * 100)}% said it was too easy` });
-      if (r.rated >= 3 && r.rating < 3) issues.push({ code: 'rating', text: `rated ${round(r.rating, 1)} out of 5` });
+  const { results } = await env.DB.prepare(`SELECT theme, tier, outcome, rating, feel, minutes, expected, hints, mistakes
+    FROM plays WHERE day >= ?1 ORDER BY rowid DESC LIMIT 60000`).bind(since).all();
+  // Problem puzzles waiting on the Puzzle quality page, per theme and level.
+  const waiting = {};
+  try {
+    const q = await env.DB.prepare("SELECT theme, tier, COUNT(*) AS n FROM quality_puzzles WHERE status IN ('open', 'fixed') GROUP BY theme, tier").all();
+    for (const r of q.results) waiting[`${r.theme}|${r.tier}`] = r.n;
+  } catch (e) { /* not migrated yet */ }
+
+  const groups = new Map();
+  let ratingSum = 0, ratingN = 0;
+  for (const p of results) {
+    const key = `${p.theme}|${p.tier}`;
+    let g = groups.get(key);
+    if (!g) groups.set(key, (g = { theme: p.theme, tier: p.tier, n: 0, solved: 0, quit: 0, ratings: [], felt: 0, hard: 0, easy: 0, minutes: [], ratios: [], hints: [], mistakes: [] }));
+    g.n++;
+    if (p.outcome === 'solved') g.solved++; else g.quit++;
+    if (p.rating >= 1 && p.rating <= 5) { g.ratings.push(p.rating); ratingSum += p.rating; ratingN++; }
+    if (p.feel) { g.felt++; if (p.feel === 'hard') g.hard++; if (p.feel === 'easy') g.easy++; }
+    if (p.outcome === 'solved' && p.minutes > 0) {
+      g.minutes.push(p.minutes);
+      if (p.expected > 0) g.ratios.push(p.minutes / p.expected);
     }
-    // More games and bigger problems come first.
-    const attention = issues.length ? Math.log2(1 + r.games) * (quit + Math.max(hard, easy) + (r.rated >= 3 ? Math.max(0, 3 - r.rating) / 2 : 0)) : 0;
+    if (p.hints != null) g.hints.push(p.hints);
+    if (p.mistakes != null) g.mistakes.push(p.mistakes);
+  }
+  const prior = ratingN ? ratingSum / ratingN : null;
+  const mean = (v) => (v.length ? v.reduce((a, b) => a + b, 0) / v.length : null);
+  // Each level's groups' hint averages, for the modified z-score.
+  const tierHints = {};
+  for (const g of groups.values()) if (g.n >= MIN_GAMES && g.hints.length) (tierHints[g.tier] ||= []).push(mean(g.hints));
+
+  const rows = [...groups.values()].map((g) => {
+    const quit = wilson(g.quit, g.n);
+    const hard = wilson(g.hard, g.felt);
+    const easy = wilson(g.easy, g.felt);
+    const rated = g.ratings.length;
+    const rating = rated ? bayesAverage(g.ratings.reduce((a, b) => a + b, 0), rated, prior, LIMITS.ratingWeight) : null;
+    const ratingCI = meanInterval(g.ratings);
+    const ratios = winsorize(g.ratios, ...LIMITS.clip);
+    const timeRatio = ratios.length >= LIMITS.minTimed ? median(ratios) : null;
+    const hints = mean(g.hints);
+    const peers = tierHints[g.tier] || [];
+    const hintZ = hints != null && peers.length >= 3 ? robustZ(hints, peers) : null;
+    const peerNorm = peers.length ? median(peers) : null;
+    const issues = [];
+    if (g.n >= MIN_GAMES) {
+      if (quit.low >= LIMITS.quitLow) issues.push({ code: 'quit', text: `${pctText(quit.p)} gave up or revealed the answer (at least ${pctText(quit.low)})` });
+      if (g.felt >= 3 && hard.low >= LIMITS.feelLow) issues.push({ code: 'hard', text: `${pctText(hard.p)} said it was too hard (at least ${pctText(hard.low)})` });
+      if (g.felt >= 3 && easy.low >= LIMITS.feelLow) issues.push({ code: 'easy', text: `${pctText(easy.p)} said it was too easy (at least ${pctText(easy.low)})` });
+      if (rated >= 3 && ratingCI.high != null && ratingCI.high < LIMITS.ratingBelow) issues.push({ code: 'rating', text: `rated ${round(ratingCI.mean, 1)} of 5 (95% range ${round(Math.max(1, ratingCI.low), 1)}-${round(ratingCI.high, 1)})` });
+      // Normal limits: the typical solve against the time the game expected.
+      if (timeRatio != null && timeRatio > LIMITS.slowRatio && quantile(ratios, 0.25) > 1) issues.push({ code: 'slow', text: `a typical solve took ${round(timeRatio, 1)}× the expected time` });
+      if (timeRatio != null && timeRatio < LIMITS.fastRatio && quantile(ratios, 0.75) < 1) issues.push({ code: 'fast', text: `a typical solve took ${Math.round(timeRatio * 100)}% of the expected time` });
+      // Hints: an outlier among the level's groups, or (with few groups to compare) twice the usual.
+      const hintsOff = hints != null && hints >= LIMITS.minHints && (hintZ != null ? hintZ > LIMITS.hintZ : peerNorm != null && hints >= peerNorm * LIMITS.hintTimes && peers.length > 1);
+      if (hintsOff) issues.push({ code: 'hints', text: `${round(hints, 1)} hints a game (usual ${round(peerNorm, 1)})` });
+    }
+    // Ranked on the cautious side of each number, weighted by how many games.
+    const off = issues.some((x) => x.code === 'slow') ? (timeRatio - 1) / 2 : issues.some((x) => x.code === 'fast') ? 0.25 : 0;
+    const attention = issues.length ? Math.log2(1 + g.n) * (quit.low + Math.max(hard.low, easy.low) + (rating != null ? Math.max(0, 3 - rating) / 2 : 0) + off + (issues.some((x) => x.code === 'hints') ? 0.3 : 0)) : 0;
     return {
-      theme: r.theme, tier: r.tier, games: r.games, solved: r.solved, solveRate: round(r.solved / r.games), quitRate: round(quit),
-      rating: round(r.rating, 1), rated: r.rated, tooHard: round(hard), tooEasy: round(easy), minutes: round(r.minutes, 1), hints: round(r.hints, 1),
-      issues, attention: round(attention, 3),
+      theme: g.theme, tier: g.tier, games: g.n, solved: g.solved, solveRate: round(g.solved / g.n), quitRate: round(quit.p), quitRange: [round(quit.low), round(quit.high)],
+      rating: round(rating, 1), rated, ratingRange: ratingCI.low == null ? null : [round(Math.max(1, ratingCI.low), 1), round(Math.min(5, ratingCI.high), 1)],
+      tooHard: g.felt ? round(hard.p) : null, tooEasy: g.felt ? round(easy.p) : null, felt: g.felt,
+      minutes: round(median(g.minutes), 1), hints: round(hints, 1), mistakes: round(mean(g.mistakes), 1), timeRatio: round(timeRatio, 2), timed: ratios.length,
+      puzzles: waiting[`${g.theme}|${g.tier}`] || 0, issues, attention: round(attention, 3),
     };
   });
   rows.sort((a, b) => b.attention - a.attention || b.games - a.games);
-  return { days, since, minGames: MIN_GAMES, rows, flagged: rows.filter((r) => r.issues.length).length };
+  return {
+    days, since, minGames: MIN_GAMES, limits: LIMITS, ratingAverage: round(prior, 2), rows,
+    flagged: rows.filter((r) => r.issues.length).length, waiting: Object.values(waiting).reduce((a, b) => a + b, 0),
+  };
 }
+const pctText = (v) => `${Math.round((v || 0) * 100)}%`;
 
 // Free allowances at or above the alert level (a setting, 80% at first).
 // Each: { id, level: 'warn' | 'full', label, used, limit, percent, text }.

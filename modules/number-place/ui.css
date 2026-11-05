@@ -230,3 +230,16 @@
 .np-app .np-ex-key { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
 .np-app .np-ex-key .np-ex-cell { font-size: .85rem; min-width: 1.7em; min-height: 1.7em; border: 1px solid var(--np-line); border-radius: 4px; }
 @media (max-width: 760px) { .np-app .np-howto-cols { grid-template-columns: minmax(0, 1fr); } .np-app .np-howto-ex { position: static; } }
+
+/* Rate this puzzle: 1 to 5 stars. Only the first rating counts, so the stars lock once given. */
+.np-app .np-stars { border: 0; padding: 0; margin: 12px 0 0; display: flex; flex-wrap: wrap; align-items: center; gap: 2px; }
+.np-app .np-stars legend { width: 100%; font-weight: 700; padding: 0; margin-bottom: 2px; }
+.np-app .np-stars label { position: relative; display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; font-size: 1.7rem; cursor: pointer; color: var(--muted, #6b6b80); }
+.np-app .np-stars input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.np-app .np-stars:has(input:checked) label { color: var(--np-accent); }
+.np-app .np-stars label:has(input:checked) ~ label { color: var(--muted, #6b6b80); }
+.np-app .np-stars label:has(input:focus-visible) { outline: 3px solid var(--np-accent); outline-offset: 2px; border-radius: 8px; }
+.np-app .np-stars:not(:disabled):hover label { color: var(--np-accent); }
+.np-app .np-stars:not(:disabled) label:hover ~ label { color: var(--muted, #6b6b80); }
+.np-app .np-stars:disabled label { cursor: default; }
+.np-app .np-feel button:disabled { cursor: default; opacity: 1; }

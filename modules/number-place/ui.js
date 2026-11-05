@@ -1029,9 +1029,8 @@ function showSolved({ fresh, newBadges = [] }) {
     const timeNote = styled('rival') ? '' : record ? ' A new best time!' : G.ms < par * 0.6 && !G.hints && styled('classic') ? ' That was quick: the next one will be a little tougher.' : '';
     $('#np-solved-text').textContent = `${styleSolvedText()}${p.difficulty.name} solved in ${fmtTime(G.ms)}${G.hints ? ` with ${G.hints} hint${G.hints === 1 ? '' : 's'}` : ' with no hints'}${G.mistakes ? ` and ${G.mistakes} slip${G.mistakes === 1 ? '' : 's'}` : ''}.${timeNote}`;
   }
-  $('#np-feel').hidden = G.revealed || !fresh;
-  $('#np-feel-done').textContent = '';
-  for (const b of root.querySelectorAll('[data-feel]')) b.setAttribute('aria-pressed', 'false');
+  $('#np-feel').hidden = G.revealed;
+  showReview();
   $('#np-share').hidden = G.revealed;
   $('#np-new-badges').hidden = !newBadges.length;
   $('#np-new-badges').textContent = newBadges.length ? `New badge${newBadges.length === 1 ? '' : 's'}: ${newBadges.map((b) => b.name).join(', ')}` : '';
@@ -1057,10 +1056,21 @@ function reveal() {
   showSolved({ fresh: true });
 }
 
-function rate(feel) {
-  const rec = learn.rate(G.p.fingerprint, feel);
-  for (const b of root.querySelectorAll('[data-feel]')) b.setAttribute('aria-pressed', String(b.dataset.feel === feel));
-  $('#np-feel-done').textContent = feel === 'easy' ? 'Thanks. The next one will be tougher.' : feel === 'hard' ? 'Thanks. The next one will be gentler.' : 'Thanks. We\'ll keep it about here.';
+// Rate this puzzle (stars) and How did that feel: each is answered once.
+// A given answer shows, locked, so it is counted once and never changed.
+const FEEL_WORDS = { easy: 'Thanks. The next one will be tougher.', hard: 'Thanks. The next one will be gentler.', right: 'Thanks. We\'ll keep it about here.' };
+function showReview() {
+  const r = learn.reviewOf(G.p.fingerprint);
+  for (const i of root.querySelectorAll('#np-stars input')) i.checked = +i.value === r.rating;
+  $('#np-stars').disabled = !!r.rating;
+  $('#np-stars-done').textContent = r.rating ? `You rated it ${r.rating} star${r.rating === 1 ? '' : 's'}. Thanks!` : '';
+  for (const b of root.querySelectorAll('[data-feel]')) { b.setAttribute('aria-pressed', String(b.dataset.feel === r.feel)); b.disabled = !!r.feel; }
+  $('#np-feel-done').textContent = r.feel ? FEEL_WORDS[r.feel] || '' : '';
+}
+function rate(v) {
+  const rec = learn.rate(G.p.fingerprint, v);
+  showReview();
+  if (rec && typeof v === 'object' && v.rating) $('#np-stars-done').textContent = `Thanks for rating it ${v.rating} star${v.rating === 1 ? '' : 's'}.`;
   if (rec) { try { deps.onPlay?.(rec); } catch (e) { /* optional */ } }
 }
 
@@ -1384,7 +1394,8 @@ function wire() {
   };
   $('#np-share').onclick = share;
   $('#np-home').onclick = () => showView('setup');
-  root.querySelectorAll('[data-feel]').forEach((b) => { b.onclick = () => rate(b.dataset.feel); });
+  root.querySelectorAll('[data-feel]').forEach((b) => { b.onclick = () => { if (!b.disabled) rate(b.dataset.feel); }; });
+  $('#np-stars').addEventListener('change', (e) => { if (e.target.name === 'np-rating') rate({ rating: +e.target.value }); });
   $('#np-steps-btn').onclick = openSteps;
   $('#np-howto-btn').onclick = () => openHowto(chosenStyle());
   $('#np-howto-play').onclick = () => openHowto(G?.style);

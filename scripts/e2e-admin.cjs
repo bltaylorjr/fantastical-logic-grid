@@ -524,6 +524,57 @@ const SHOTS = process.env.SHOTS;
     const [dl] = await Promise.all([page.waitForEvent('download'), page.click('#quality-body [data-csv]')]);
     const csvFile = fs.readFileSync(await dl.path(), 'utf8');
     assert(/^\uFEFF?Theme,Difficulty/.test(csvFile) && /\.csv$/.test(dl.suggestedFilename()), `a table downloads as a CSV file (${dl.suggestedFilename()})`);
+    // Problem puzzles: a puzzle a player gave up on, with its numbers, fixes and actions.
+    {
+      const { generatePuzzle } = await import(path.join(ROOT, 'engine/src/index.js'));
+      const qp = generatePuzzle({ difficulty: 'hard', theme: 'mystery', seed: 'e2e-qp' });
+      const qsize = `${qp.categories.length}x${qp.categories[0].items.length}`;
+      const qplay = (o) => ({ platform: 'web', tier: 'hard', theme: 'mystery', size: qsize, clueTypes: {}, effort: 0, signal: -0.8, outcome: 'abandoned', rating: null, feel: null, parts: {},
+        minutes: 30, hints: 4, mistakes: 1, pid: `e2eqp${Math.random().toString(36).slice(2, 12)}`, topic: qp.topic.id, story: qp.story.id, version: '1.20.0', mode: 'free', whatif: 2,
+        puzzleId: qp.id, expected: 8, clues: qp.clues.length, score: qp.stats.difficultyScore, ...o });
+      const post = (p, body) => fetch(`http://localhost:${API_PORT}${p}`, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: APP }, body: JSON.stringify(body) });
+      assert((await post('/v1/learn/plays', { plays: [qplay(), qplay({ outcome: 'solved', feel: 'hard', rating: 2 })] })).ok, 'play summaries with the puzzle id are taken');
+      assert((await (await post('/v1/learn/problem', { puzzle: qp })).json()).saved, 'the problem puzzle is kept');
+      await openSection(page, 'overview');
+      await openSection(page, 'quality');
+      const qcard = page.locator(`[data-qp="${qp.id}"]`);
+      await qcard.waitFor();
+      const qsum = await qcard.locator('summary').textContent();
+      assert(qsum.includes(qp.title) && /Needs fixing/.test(qsum) && /given up/.test(qsum), 'the problem puzzle is listed with why it was flagged');
+      await qcard.locator('summary').click();
+      const qbody = await qcard.textContent();
+      assert(/Suggested fixes/.test(qbody) && /expected 8/.test(qbody) && qbody.includes(qp.seed), 'its numbers, seed and suggested fixes show');
+      assert(await qcard.locator('[data-qp-act=publish]').isDisabled(), 'Republish waits for a fix');
+      // Edit: a rebuild one level easier, through the website's own engine, and a new title.
+      await qcard.locator('button[data-qp-edit]:not([data-qp-fix])').click();
+      await page.waitForSelector('#qp-dialog[open] #qp-title');
+      await page.selectOption('#qp-level', 'medium');
+      await page.fill('#qp-k', '4');
+      await page.fill('#qp-n', '4');
+      await page.click('#qp-rebuild');
+      await page.waitForFunction(() => /^Rebuilt: Medium/.test(document.querySelector('#qp-rebuild-state').textContent), null, { timeout: 120000 });
+      assert(/Medium/.test(await page.textContent('#qp-preview')), 'the preview shows the rebuilt puzzle');
+      await page.fill('#qp-title', 'The Kinder Mystery');
+      await page.fill('#qp-note', 'One level easier');
+      await page.click('#qp-save');
+      await page.waitForFunction(() => !document.querySelector('#qp-dialog[open]'));
+      let row = await db.prepare('SELECT status, note FROM quality_puzzles WHERE id = ?1').bind(qp.id).first();
+      assert(row.status === 'fixed' && row.note === 'One level easier', 'the fix is saved');
+      await page.waitForFunction((id) => /Fixed, not republished/.test(document.querySelector(`[data-qp="${id}"] summary`)?.textContent || ""), qp.id);
+      await page.locator(`[data-qp="${qp.id}"] [data-qp-act=publish]`).click();
+      await page.waitForFunction((id) => /Republished/.test(document.querySelector(`[data-qp="${id}"] summary`)?.textContent || ''), qp.id);
+      const fixedNow = await (await fetch(`http://localhost:${API_PORT}/v1/learn/fixed`, { headers: { Origin: APP } })).json();
+      assert(fixedNow.puzzles.length === 1 && fixedNow.puzzles[0].puzzle.title === 'The Kinder Mystery' && fixedNow.puzzles[0].puzzle.difficulty.id === 'medium', 'players get the fixed puzzle');
+      // Delete asks first, then offers Undo.
+      await page.locator(`[data-qp="${qp.id}"] [data-qp-act=retire]`).click();
+      await page.click('#dialog-ok');
+      await page.waitForSelector('.qp-undo button');
+      assert((await db.prepare('SELECT status FROM quality_puzzles WHERE id = ?1').bind(qp.id).first()).status === 'retired', 'Delete retires it');
+      await page.click('.qp-undo button');
+      await page.waitForFunction((id) => !!document.querySelector(`[data-qp="${id}"]`), qp.id);
+      assert((await db.prepare('SELECT status FROM quality_puzzles WHERE id = ?1').bind(qp.id).first()).status === 'published', 'Undo puts it back');
+      await shot(page, '4b-quality-puzzles');
+    }
     // Ratings and insights.
     await openSection(page, 'ratings');
     await page.waitForSelector('#ratings-body .tile');

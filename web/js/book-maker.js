@@ -13,6 +13,8 @@
 //   { type: 'flg-book-show', req, html, css }   draw a finished book (or cover) on this page, every
 //        page's contents shrunk to fit its page -> { type: 'flg-book-shown', req, pages }
 //   { type: 'flg-book-print' }                  print what is shown (Save as PDF for the print file)
+//   { type: 'flg-puzzle-make', req, options }   one Logic Grid puzzle rebuilt for the Puzzle quality
+//        page (admin/quality.js) -> { type: 'flg-puzzle-made', req, puzzle }
 // Each item: { fp, game, gameName, title, level, size, story, rules, page, key, text }.
 // page and key are HTML for the puzzle and its answer key; css (per game) is
 // already scoped to .bk-g-<game>, so games never restyle each other.
@@ -258,6 +260,18 @@ async function show(m) {
   return fitPages();
 }
 
+// One Logic Grid puzzle with these settings (difficulty, theme, topic,
+// categories, items, seed), built by the game's own engine.
+const LEVEL_IDS = () => new Set(OPTIONS.difficulties.map((d) => d.id));
+async function rebuild(o) {
+  if (!LEVEL_IDS().has(o.difficulty)) throw new Error('Choose a level.');
+  const opt = { difficulty: o.difficulty, theme: o.theme || 'random', seed: String(o.seed || Math.random().toString(36).slice(2, 10)).slice(0, 40) };
+  if (o.topic) opt.topic = String(o.topic);
+  if (o.categories && o.items) { opt.categories = Math.round(Number(o.categories)); opt.items = Math.round(Number(o.items)); }
+  if (Array.isArray(o.usedStories)) opt.usedStories = o.usedStories.slice(0, 2000).map(String);
+  return gameLink('flg').call('generate', opt);
+}
+
 addEventListener('message', async (e) => {
   if (e.origin !== admin && !(local && /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(e.origin))) return;
   if (!e.data || typeof e.data !== 'object') return;
@@ -268,6 +282,8 @@ addEventListener('message', async (e) => {
     else if (m.type === 'flg-book-make') reply({ type: 'flg-book-made', req: m.req, ...(await make(m, reply)) });
     else if (m.type === 'flg-book-show') reply({ type: 'flg-book-shown', req: m.req, pages: await show(m) });
     else if (m.type === 'flg-book-print') window.print();
+    // The Puzzle quality page's Edit > Rebuild: one Logic Grid puzzle, whole.
+    else if (m.type === 'flg-puzzle-make') reply({ type: 'flg-puzzle-made', req: m.req, puzzle: await rebuild(m.options || {}) });
   } catch (err) {
     reply({ type: 'flg-book-error', req: m.req, message: String(err?.message || err) });
   }

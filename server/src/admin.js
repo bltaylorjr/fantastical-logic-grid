@@ -48,6 +48,7 @@
 //   GET  /admin/v1/audit               the audit log
 //   GET  /admin/v1/daily               the daily puzzle planner; POST .../:date (change), .../:date/reset (daily.js)
 //   GET  /admin/v1/quality?days=       puzzles players give up on, rate low or find too hard or easy (report.js)
+//   GET/POST /admin/v1/quality-puzzles[/...]  problem puzzles: details, fixes, edit, delete, republish (quality-puzzles.js)
 //   GET  /admin/v1/ratings?days=&by=[&brief=1]  puzzle ratings, trends and the plain-words analysis; POST .../summary (ratings.js)
 //   GET  /admin/v1/marketing?days=     campaigns, ads, media, tracked links and their numbers (marketing.js)
 //   GET/POST /admin/v1/supporters      supporters and premium grants; POST .../:id/remove (supporters.js)
@@ -104,6 +105,7 @@ import { FREE_LIMITS, cloudflareUsage } from './usage.js';
 import { plannerView, checkPlan, savePlan, resetPlan } from './daily.js';
 import { designView, checkDesign, saveDraft, discardDraft, publishDraft, restoreVersion } from './site-design.js';
 import { quality, alerts, summary, csv, CSV_KINDS } from './report.js';
+import { qualityPuzzleRoutes } from './quality-puzzles.js';
 import { connectionStatus, checkGithubReport, saveGithubReport } from './connections.js';
 import { withFixes, errorFile } from './errors.js';
 import { ratingRoutes } from './ratings.js';
@@ -138,7 +140,7 @@ const SESSION_MAX_S = 12 * 3600;
 const DENIED_PER_DAY = 500; // refused requests written to the audit log, so a flood cannot fill it
 const ANALYTICS_CACHE_MS = 120_000;
 const TABLES = ['sync_users', 'sync_records', 'sync_deleted_users', 'account_days', 'players', 'scores', 'races', 'race_entries', 'race_invites', 'plays', 'parts', 'usage',
-  'app_errors', 'upkeep_log', 'admins', 'admin_audit', 'settings', 'announcements', 'bans', 'name_reviews', 'archive_log', 'feedback', 'feedback_replies', 'error_fixes', 'conversations', 'conversation_messages', 'message_contacts', 'news', 'search_snapshots', 'daily_plan', 'translations', 'rating_insights', 'campaigns', 'campaign_ads', 'marketing_media', 'campaign_stats', 'challenges', 'daily_results', 'daily_email', 'supporters', 'payment_blocks', 'puzzle_mail', 'puzzle_mail_got', 'puzzle_mail_days', 'special_editions', 'educator_requests', 'special_badges', 'badge_awards', 'puzzle_reports', 'player_puzzles', 'visit_stats', 'educator_feedback', 'print_packs', 'print_pack_stories', 'admin_passkeys', 'admin_sessions', 'admin_keys', 'np_plays', 'kit_plays', 'alert_prefs', 'alert_devices', 'alert_queue', 'site_design', 'site_accounts', 'tuning_proposals', 'house_nudges', 'tuning_rules', 'vault_items', 'vault_devices', 'books', 'book_puzzles', 'book_templates'];
+  'app_errors', 'upkeep_log', 'admins', 'admin_audit', 'settings', 'announcements', 'bans', 'name_reviews', 'archive_log', 'feedback', 'feedback_replies', 'error_fixes', 'conversations', 'conversation_messages', 'message_contacts', 'news', 'search_snapshots', 'daily_plan', 'translations', 'rating_insights', 'campaigns', 'campaign_ads', 'marketing_media', 'campaign_stats', 'challenges', 'daily_results', 'daily_email', 'supporters', 'payment_blocks', 'puzzle_mail', 'puzzle_mail_got', 'puzzle_mail_days', 'special_editions', 'educator_requests', 'special_badges', 'badge_awards', 'puzzle_reports', 'player_puzzles', 'visit_stats', 'educator_feedback', 'print_packs', 'print_pack_stories', 'admin_passkeys', 'admin_sessions', 'admin_keys', 'np_plays', 'kit_plays', 'alert_prefs', 'alert_devices', 'alert_queue', 'site_design', 'site_accounts', 'tuning_proposals', 'house_nudges', 'tuning_rules', 'vault_items', 'vault_devices', 'quality_puzzles', 'books', 'book_puzzles', 'book_templates'];
 // worker-src blob: lets the Media library's celebrations draw off the main
 // thread, as they do in the game (canvas-confetti makes its own small worker).
 // frame-src: the Website page's live preview shows pages of the website (only).
@@ -939,6 +941,8 @@ const ROUTES = [
   }],
 
   ['GET', /^quality$/, 'viewer', 'quality.view', async ({ env, url }) => ({ body: await quality(env, daysParam(url, 90)) })],
+  // ---- Problem puzzles: details, suggested fixes, Edit, Delete and Republish (quality-puzzles.js).
+  ...qualityPuzzleRoutes(Refusal),
   // ---- Puzzle ratings and insights (ratings.js).
   ...ratingRoutes(Refusal),
   // ---- Marketing: campaigns, ads, media and what each link brought in (marketing.js).

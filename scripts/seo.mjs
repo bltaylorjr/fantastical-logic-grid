@@ -832,7 +832,7 @@ ${playBtn(up)}`,
 <h2>Anonymous numbers</h2>
 <p>To make the puzzles better, the game sends counts and summaries that are not tied to you, your account or your device:</p>
 <ul>
-<li><strong>Play summaries</strong> (difficulty, size, theme, time, hints, and your optional star rating). Turn this off in <strong>Settings &gt; Learning</strong>; your ratings then stay on your device.</li>
+<li><strong>Play summaries</strong> (difficulty, size, theme, time, hints, and your optional star rating). A puzzle you gave up on, rated low, or found far too hard or too easy is sent whole too, so the team can fix it; never a story you wrote yourself. Turn this off in <strong>Settings &gt; Learning</strong>; your ratings then stay on your device.</li>
 <li><strong>Daily puzzle numbers</strong>: that the day's puzzle was opened and how long the solve took, kept only as totals per day.</li>
 <li><strong>Error reports</strong> when something breaks, with the error message and app version.</li>
 <li><strong>Which link or site you arrived from</strong>, such as a post on a forum, kept only as totals per day.</li>
