@@ -4,6 +4,7 @@
 // Logic Grid's own start-up stays as fast as before. NINETIMESNINE keeps its own
 // saves, settings and stats; the only thing it shares is anonymous play data
 // for the learning service (np-share.js).
+import * as guestLimit from './guest-limit.js';
 import * as npShare from './np-share.js';
 import { numberPlace as npConfig } from './remote-config.js';
 import { npEngine } from './np-engine.js';
@@ -47,6 +48,8 @@ export async function open(host = {}) {
         celebrate: host.celebrate,
         setWorld: host.setWorld,
         config,
+        // Guests get a few new puzzles a day, all games together (guest-limit.js).
+        allowNew: guestLimit.allowNew, started: guestLimit.started, guestNote: guestLimit.note,
       });
       mod = ui;
       // Races against other players (only when accounts are on).

@@ -7,6 +7,7 @@
 // worker (engine/src/games.js: cm, sc, pg, ml, sk, sf, ll, ib, cw). Each keeps its own saves,
 // settings and stats; the only thing shared is anonymous play data for the
 // learning service (kit-share.js).
+import * as guestLimit from './guest-limit.js';
 import { gameLink } from './engine-links.js';
 import { kitGame } from './remote-config.js';
 import * as share from './kit-share.js';
@@ -64,6 +65,8 @@ export async function open(card, host = {}) {
         celebrate: host.celebrate,
         setWorld: host.setWorld,
         config: config(g.id),
+        // Guests get a few new puzzles a day, all games together (guest-limit.js).
+        allowNew: guestLimit.allowNew, started: guestLimit.started, guestNote: guestLimit.note,
       });
       mods[g.id] = ui;
       // Races against other players (only when accounts are on).
