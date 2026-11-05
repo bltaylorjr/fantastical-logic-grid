@@ -812,7 +812,7 @@ function discoverCard(d, health) {
       <div class="row"><button class="btn" type="button" id="vx-disc-stop">Stop</button></div>`
     : `${d.message && d.source !== 'list' ? `<p class="muted">${h.esc(d.message)}</p>` : ''}
       <form id="vx-disc" class="row" novalidate>
-        <div class="field"><label for="vx-disc-n">New voices to make this run</label><input id="vx-disc-n" type="number" min="1" max="10000" value="20"></div>
+        <div class="field"><label for="vx-disc-n">New voices to make this run</label><input id="vx-disc-n" type="number" min="1" step="1" placeholder="No limit" aria-describedby="vx-disc-n-help"><span class="muted" id="vx-disc-n-help">Leave empty to keep going until every word is used.</span></div>
         <div class="field"><label for="vx-disc-w">Words per voice</label><input id="vx-disc-w" type="number" min="1" max="8" value="3"></div>
         <div class="field"><label for="vx-disc-s">Speakers per voice</label><input id="vx-disc-s" type="number" min="3" max="12" value="5"></div>
         <button class="btn primary" type="submit"${d.total_words == null ? ' disabled' : ''}>${d.cursor ? 'Continue discovering' : 'Start discovering'}</button>
@@ -866,7 +866,7 @@ function wordListSection(d) {
       <div class="field"><label for="vx-l-file">Word list file (.txt or .csv)</label><input id="vx-l-file" type="file" accept=".txt,.csv,text/plain,text/csv"${l ? ' aria-describedby="vx-l-keep"' : ''}>
         ${l ? `<span class="muted" id="vx-l-keep">Leave empty to keep using ${h.esc(l.name)}.</span>` : ''}</div>
       <div class="row">
-        <div class="field"><label for="vx-l-n">New voices to make this run</label><input id="vx-l-n" type="number" min="1" max="10000" value="20"></div>
+        <div class="field"><label for="vx-l-n">New voices to make this run</label><input id="vx-l-n" type="number" min="1" step="1" placeholder="No limit" aria-describedby="vx-l-n-help"><span class="muted" id="vx-l-n-help">Leave empty to keep going until every word is used.</span></div>
         <div class="field"><label for="vx-l-w">Words per voice</label><input id="vx-l-w" type="number" min="1" max="8" value="3"></div>
         <div class="field"><label for="vx-l-s">Speakers per voice</label><input id="vx-l-s" type="number" min="3" max="12" value="5"></div></div>
       <div class="row"><button class="btn primary" type="submit"${d.running ? ' disabled' : ''}>${l ? (l.cursor ? 'Continue with my list' : 'Start with my list') : 'Upload and start'}</button>
