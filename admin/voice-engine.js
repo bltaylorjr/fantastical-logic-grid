@@ -210,6 +210,7 @@ function openCard(message = '') {
         <label class="check"><input id="vx-online" type="checkbox"${v.online ? ' checked' : ''}> Also put it online at my own address (voice.thelogicgrid.com, after the one-time tunnel setup)</label>
         <div class="row"><button class="btn primary" type="submit">Download start shortcut</button></div>
       </form>
+      <p class="muted" id="vx-blocked-help">If Windows says <b>Smart App Control blocked a file</b>, it has no Run anyway button: right-click <b>Start Vox.cmd</b>, choose <b>Properties</b>, tick <b>Unblock</b> at the bottom and click OK, then double-click it again. If it is still blocked, use Start Vox in the admin app for Windows, or the typed command below.</p>
       <details class="vx-more"><summary>Or start it by typing a command</summary>
         <p>Open a Command Prompt in the Vox folder and type:</p>
         <div class="row vx-cmd-row"><code id="vx-cmd">${h.esc(startCommand(v))}</code><button class="btn small" type="button" id="vx-copy-cmd">Copy</button></div>
@@ -972,7 +973,7 @@ export function initVoiceEngine(helpers) {
       a.click();
       a.remove();
       setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-      const msg = 'Start shortcut downloaded. Move "Start Vox.cmd" to your desktop and double-click it. If Windows warns about it, click More info, then Run anyway.';
+      const msg = 'Start shortcut downloaded. Move "Start Vox.cmd" to your desktop and double-click it. If Windows blocks it, right-click it, choose Properties, tick Unblock and click OK.';
       h.toast(msg); h.announce(msg);
       return;
     }
