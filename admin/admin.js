@@ -28,6 +28,7 @@ import { badgesView, initBadges, playerBadgesHtml, playerBadgeClick } from './ba
 import { vaultView, initVault, lockVault } from './vault.js';
 import { analysisView, initAnalysis } from './analysis.js';
 import { initTuning } from './tuning.js';
+import { qualityView, initQuality } from './quality.js';
 import { passkeysSupported, platformReady, rememberedPasskey, passkeySignIn, offerPasskey, passkeysView, initPasskeys } from './passkeys.js';
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -2107,17 +2108,10 @@ $('#daily-body').addEventListener('submit', (e) => {
 views.characters = () => characterView({ api, esc, toast, announce, act, can, setCount });
 views.media = () => mediaView({ api, esc, toast, announce, act, can, table });
 
-// ---- Puzzle quality: what to fix first.
-views.quality = async () => {
-  const q = await api(`quality?days=${$('#q-days').value}`);
-  setCount('#count-quality', q.flagged);
-  const p = (v) => (v == null ? '–' : `${Math.round(v * 100)}%`);
-  $('#quality-body').innerHTML = `
-    <div class="tiles">${tile('Groups to look at', fmt(q.flagged), `of ${fmt(q.rows.length)} theme and level groups`)}${tile('Games', fmt(q.rows.reduce((s, r) => s + r.games, 0)), `since ${esc(q.since)}`)}</div>
-    ${table([{ label: 'Theme' }, { label: 'Difficulty' }, { label: 'What players say' }, { label: 'Games', num: 1 }, { label: 'Solved', num: 1 }, { label: 'Gave up', num: 1 }, { label: 'Too hard', num: 1 }, { label: 'Too easy', num: 1 }, { label: 'Rating', num: 1 }, { label: 'Minutes', num: 1 }, { label: 'Hints', num: 1 }],
-      q.rows.map((r) => [esc(r.theme), esc(TIER_NAMES[r.tier] || r.tier), r.issues.length ? r.issues.map((x) => `<span class="badge warn">${esc(x.text)}</span>`).join(' ') : (r.games < q.minGames ? '<span class="muted">Too few games yet</span>' : '<span class="badge ok">Fine</span>'),
-        fmt(r.games), p(r.solveRate), p(r.quitRate), p(r.tooHard), p(r.tooEasy), r.rating ?? '–', r.minutes ?? '–', r.hints ?? '–']), 'No games shared in this period.')}`;
-};
+// ---- Puzzle quality (quality.js): what to fix first, and the problem puzzles themselves.
+const qualityHelpers = { api, esc, fmt, when, tile, table, can, act, ask, toast, announce, setCount };
+views.quality = () => qualityView(qualityHelpers);
+initQuality(qualityHelpers, (name, o) => show(name, o));
 $('#q-days').onchange = () => show('quality');
 
 // ---- Ratings and insights (ratings.js): stars after each solve, and what they say.

@@ -597,7 +597,8 @@ async function makePuzzle(override = null, { classic = false } = {}) {
 // Returns { puzzle, picked, tunedKey } (picked: the game's own characters to
 // attach; tunedKey: the learning it was built with).
 async function buildPuzzle(options, generate, tuned = null) {
-  const used = await store.getMeta('usedStories', []);
+  // Stories the team deleted (Puzzle quality page) count as used: never built again.
+  const used = [...await store.getMeta('usedStories', []), ...await learn.retiredStories().catch(() => [])];
   const usedSet = new Set(used);
   if (!tuned) tuned = await tuningForOptions(options);
   // Surprise me never picks a theme that is switched off, or a supporter extra
@@ -1894,35 +1895,32 @@ function reportResult(save) {
 // excellent) and a quick feel. It never blocks anything. With "Learn from how
 // I play" on it tunes the next puzzles and joins the anonymous ratings report
 // (admin Ratings and insights); with it off the rating stays on this device.
+// Each is answered once: a given answer shows, locked, so every puzzle is
+// counted once and the numbers stay honest.
 async function renderFeedback(save) {
   const box = $('#feedback');
   const prev = await learn.ratingOf(save.storyId).catch(() => ({}));
   if (!S || S.save !== save) return;
   for (const r of $$('input[name=rating]', box)) r.checked = prev.rating === +r.value;
   for (const r of $$('input[name=feel]', box)) r.checked = prev.feel === r.value;
-  $('#rating-clear').hidden = !prev.rating;
-  $('#feedback-thanks').textContent = '';
+  $('.stars', box).disabled = !!prev.rating;
+  $('.feel', box).disabled = !!prev.feel;
+  $('#feedback-thanks').textContent = prev.rating ? `You rated it ${prev.rating} star${prev.rating === 1 ? '' : 's'}. Thanks!` : '';
 }
 async function saveRating(v) {
   if (S && S.puzzle.mode) { $('#feedback-thanks').textContent = `Thanks. ${modeName(S.puzzle.mode)} puzzles adapt to how you play them, so ratings are not used for them yet.`; return; }
-  await learn.rate(S.save, v, { keepLocal: !settings.learn }).catch(() => {});
+  const took = await learn.rate(S.save, v, { keepLocal: !settings.learn }).catch(() => false);
+  if (!took) return;
+  if (v.rating) $('#feedback .stars').disabled = true;
+  if (v.feel) $('#feedback .feel').disabled = true;
   refreshAhead();
   $('#feedback-thanks').textContent = settings.learn ? 'Thanks. Your next puzzles will use this.' : 'Thanks. This stays on your device, because Learn from how I play is off.';
   if (settings.learn) window.share?.soon();
 }
 $('#feedback').addEventListener('change', async (e) => {
   if (!S || !e.target.name) return;
-  if (e.target.name === 'rating') $('#rating-clear').hidden = false;
   await saveRating(e.target.name === 'rating' ? { rating: +e.target.value } : { feel: e.target.value });
 });
-$('#rating-clear').onclick = async () => {
-  if (!S) return;
-  for (const r of $$('#feedback input[name=rating]')) r.checked = false;
-  $('#rating-clear').hidden = true;
-  $('#feedback .stars input')?.focus();
-  await saveRating({ rating: null });
-  $('#feedback-thanks').textContent = 'Rating cleared.';
-};
 // Submit Puzzle Ideas (the Puzzle Wizard) replaced the Share an idea box.
 $('#feedback-idea').onclick = () => { location.href = 'wizard/?game=fantastical'; };
 
@@ -2170,16 +2168,38 @@ async function renderDaily() {
 }
 // Hand-picked: the best-rated daily puzzles and ones the team picked
 // (daily/picks.json from the website build). They never add to a streak.
+// Also the puzzles the team fixed and republished (Puzzle quality page).
+let fixedList = [];
 async function renderPicks(saves) {
   const box = $('#daily-picks');
-  const list = await daily.picks();
-  box.hidden = !list.length;
-  if (!list.length) return;
+  const [list, fixed] = await Promise.all([daily.picks(), share.fixedPuzzles()]);
+  fixedList = fixed;
+  box.hidden = !list.length && !fixed.length;
+  if (!list.length && !fixed.length) return;
+  const done = (sv) => (sv ? (sv.solved ? ' · finished' : ` · ${Math.round(Number(sv.percent)) || 0}% done`) : '');
   $('#daily-picks-list').innerHTML = list.map((x) => {
     const sv = saves.find((s) => s.daily === x.date);
     const why = x.hand ? 'picked by the team' : `rated ${Number(x.average) || 0} of 5`;
-    return `<li><button class="btn quiet small" type="button" data-daily="${esc(x.date)}">${esc(x.title)}</button> <span class="muted">${esc(x.difficultyName)} · ${esc(x.themeName)} · ${esc(why)}${sv ? (sv.solved ? ' · finished' : ` · ${Math.round(Number(sv.percent)) || 0}% done`) : ''}</span></li>`;
+    return `<li><button class="btn quiet small" type="button" data-daily="${esc(x.date)}">${esc(x.title)}</button> <span class="muted">${esc(x.difficultyName)} · ${esc(x.themeName)} · ${esc(why)}${done(sv)}</span></li>`;
+  }).join('') + fixed.map((x) => {
+    const sv = saves.find((s) => s.fixedOf === x.id);
+    return `<li><button class="btn quiet small" type="button" data-fixed="${esc(x.id)}">${esc(x.puzzle.title)}</button> <span class="muted">${esc(x.puzzle.difficulty?.name || '')} · ${esc(x.puzzle.theme?.name || '')} · fixed by the team${done(sv)}</span></li>`;
   }).join('');
+}
+
+// A fixed puzzle goes into Saved puzzles (once) and opens.
+async function openFixed(id) {
+  const x = fixedList.find((f) => f.id === id);
+  if (!x) return;
+  let save = (await store.listSaves()).find((s) => s.fixedOf === id);
+  if (!save) {
+    await rememberStory(storyIdOf(x.puzzle));
+    save = newSave(x.puzzle);
+    save.fixedOf = id;
+    await store.putSave(save);
+    await renderSaved();
+  }
+  openGame(save);
 }
 
 // The puzzle of the week and special editions, under the daily puzzle, and
@@ -2303,6 +2323,8 @@ $('#daily-section').addEventListener('click', (e) => {
   if (b) openDaily(b.dataset.daily, b);
   const ed = e.target.closest('[data-edition]');
   if (ed) openEdition(ed.dataset.edition, ed);
+  const fx = e.target.closest('[data-fixed]');
+  if (fx) openFixed(fx.dataset.fixed);
 });
 async function openDaily(date, btn) {
   const existing = (await store.listSaves()).find((x) => x.daily === date);

@@ -31,6 +31,7 @@
 import { messageUpkeepStatements } from './messages.js';
 import { upkeepStatements as reportUpkeep } from './puzzle-reports.js';
 import { upkeepStatements as fileUpkeep } from './report-files.js';
+import { upkeepStatements as qualityUpkeep } from './quality-puzzles.js';
 import { getSettings } from './settings.js';
 import { ARCHIVED_UPKEEP_JOBS } from './archive.js';
 
@@ -63,6 +64,7 @@ export async function runUpkeep(env, now = Date.now()) {
     ...messageUpkeepStatements(env, now),
     ...reportUpkeep(env, now),
     ...fileUpkeep(env, now),
+    ...qualityUpkeep(env, now),
     rating_insights: db.prepare('DELETE FROM rating_insights WHERE day < ?1').bind(isoDay(now - 90 * DAY)),
     // Guest puzzle counts (guest-plays.js) are only needed for their own day.
     guest_plays: db.prepare('DELETE FROM guest_plays WHERE day < ?1').bind(isoDay(now - 3 * DAY)),

@@ -132,6 +132,10 @@ export function markup(def) {
     <h2 id="${P}-solved-h">Solved!</h2>
     <p class="gk-ending" id="${P}-ending"></p>
     <p id="${P}-solved-text"></p>
+    <fieldset class="gk-stars" id="${P}-stars"><legend>Rate this puzzle <span class="gk-muted">(optional, 1 star is poor, 5 is excellent)</span></legend>
+      <label><input type="radio" name="${P}-rating" value="1"><span aria-hidden="true">★</span><span class="gk-sr">1 star, poor</span></label><label><input type="radio" name="${P}-rating" value="2"><span aria-hidden="true">★</span><span class="gk-sr">2 stars, fair</span></label><label><input type="radio" name="${P}-rating" value="3"><span aria-hidden="true">★</span><span class="gk-sr">3 stars, good</span></label><label><input type="radio" name="${P}-rating" value="4"><span aria-hidden="true">★</span><span class="gk-sr">4 stars, very good</span></label><label><input type="radio" name="${P}-rating" value="5"><span aria-hidden="true">★</span><span class="gk-sr">5 stars, excellent</span></label>
+      <span class="gk-muted" id="${P}-stars-done" role="status"></span>
+    </fieldset>
     <div class="gk-feel" role="group" aria-labelledby="${P}-feel-h">
       <p id="${P}-feel-h">How did that feel?</p>
       <button class="btn small" type="button" data-feel="easy">Too easy</button>

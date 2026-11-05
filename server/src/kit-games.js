@@ -51,6 +51,7 @@ export function cleanKitPlay(game, p) {
   return {
     platform: PLATFORMS.has(p.platform) ? p.platform : 'web',
     level: p.level, size: p.size, mode: MODES.has(p.mode) ? p.mode : 'free', outcome: p.outcome, feel: FEELS.has(p.feel) ? p.feel : null,
+    rating: Number.isInteger(p.rating) && p.rating >= 1 && p.rating <= 5 ? p.rating : null,
     minutes: num(p.minutes, 0, 600, null), hints: Math.round(num(p.hints, 0, 999)), mistakes: Math.round(num(p.mistakes, 0, 9999)), checks: Math.round(num(p.checks, 0, 999)),
     tuned: num(p.tuned, 0, 1, null), score: p.score == null ? null : Math.round(num(p.score, 0, 5000)),
     stuck: JSON.stringify([...new Set((Array.isArray(p.stuck) ? p.stuck : []).filter((t) => g.techniques.includes(t)))].slice(0, 10)),
@@ -67,10 +68,11 @@ export async function postKitPlays(game, env, body, json) {
   const rows = (Array.isArray(body.plays) ? body.plays : []).slice(0, 50).map((p) => cleanKitPlay(game, p)).filter(Boolean);
   if (!rows.length) return json({ saved: 0 });
   const day = today();
-  const stmt = env.DB.prepare(`INSERT INTO kit_plays (game, day, platform, level, size, mode, outcome, feel, minutes, hints, mistakes, checks, tuned, score, stuck, pid, version)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-    ON CONFLICT (game, pid) WHERE pid IS NOT NULL DO UPDATE SET feel = COALESCE(excluded.feel, kit_plays.feel)`);
-  await env.DB.batch(rows.map((r) => stmt.bind(game, day, r.platform, r.level, r.size, r.mode, r.outcome, r.feel, r.minutes, r.hints, r.mistakes, r.checks, r.tuned, r.score, r.stuck, r.pid, r.version)));
+  // Only a game's first rating and first feel count: a later change is ignored.
+  const stmt = env.DB.prepare(`INSERT INTO kit_plays (game, day, platform, level, size, mode, outcome, feel, minutes, hints, mistakes, checks, tuned, score, stuck, pid, version, rating)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    ON CONFLICT (game, pid) WHERE pid IS NOT NULL DO UPDATE SET feel = COALESCE(kit_plays.feel, excluded.feel), rating = COALESCE(kit_plays.rating, excluded.rating)`);
+  await env.DB.batch(rows.map((r) => stmt.bind(game, day, r.platform, r.level, r.size, r.mode, r.outcome, r.feel, r.minutes, r.hints, r.mistakes, r.checks, r.tuned, r.score, r.stuck, r.pid, r.version, r.rating)));
   return json({ saved: rows.length });
 }
 

@@ -23,6 +23,7 @@ import { GEMINI_VOICES } from './voices.js';
 import { postNpPlays, getNpTuning, npVerdict } from './number-place.js';
 import { loadCrowd, priorFor, shrink } from './shared-learning.js';
 import { isKitGame, postKitPlays, getKitTuning } from './kit-games.js';
+import { saveProblemPuzzle, retiredStories, fixedPuzzles, ID_RE as PUZZLE_ID_RE } from './quality-puzzles.js';
 
 // The edge-cache key of the tuning reply; the admin dashboard clears it after a review.
 export const TUNING_CACHE_KEY = 'https://flg-cloud.internal/v1/learn/tuning';
@@ -97,6 +98,13 @@ function cleanPlay(p) {
     version: /^\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(p.version || '') ? p.version : null,
     mode: MODES.has(p.mode) ? p.mode : null,
     whatif: Number.isFinite(+p.whatif) ? Math.round(num(p.whatif, 0, 999)) : null,
+    // For Puzzle quality (quality-puzzles.js): which puzzle it was (the
+    // engine's own id, nothing about the player), the time the game expected,
+    // its clue count and difficulty score.
+    puzzleId: PUZZLE_ID_RE.test(p.puzzleId || '') ? p.puzzleId : null,
+    expected: num(p.expected, 0, 600, null),
+    clues: Number.isFinite(+p.clues) && p.clues != null ? Math.round(num(p.clues, 0, 200)) : null,
+    score: num(p.score, 0, 10_000, null),
   };
 }
 
@@ -108,15 +116,37 @@ async function postPlays(req, env) {
   if (!rows.length) return json({ saved: 0 });
   const day = today();
   // A row sent again with the same pid (a rating given after the game was
-  // sent) updates it; a solve never turns back into a quit.
+  // sent) updates it; a solve never turns back into a quit. Only the first
+  // rating and the first feel count: a later change is ignored.
   const stmt = env.DB.prepare(`INSERT INTO plays (day, platform, tier, theme, size, clue_types, effort, signal, outcome, rating, feel, parts, minutes, hints, mistakes,
-      pid, topic, story, chars, version, mode, whatif) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-    ON CONFLICT (pid) WHERE pid IS NOT NULL DO UPDATE SET rating = excluded.rating, feel = excluded.feel, signal = excluded.signal,
+      pid, topic, story, chars, version, mode, whatif, puzzle_id, expected, clues, score) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    ON CONFLICT (pid) WHERE pid IS NOT NULL DO UPDATE SET
+      rating = COALESCE(plays.rating, excluded.rating), feel = COALESCE(plays.feel, excluded.feel),
+      signal = CASE WHEN plays.feel IS NOT NULL THEN plays.signal ELSE excluded.signal END,
       outcome = CASE WHEN plays.outcome IN ('solved', 'revealed') AND excluded.outcome = 'abandoned' THEN plays.outcome ELSE excluded.outcome END,
       minutes = COALESCE(excluded.minutes, plays.minutes), hints = excluded.hints, mistakes = excluded.mistakes`);
   await env.DB.batch(rows.map((r) => stmt.bind(day, r.platform, r.tier, r.theme, r.size, r.clueTypes, r.effort, r.signal, r.outcome, r.rating, r.feel, r.parts, r.minutes, r.hints, r.mistakes,
-    r.pid, r.topic, r.story, r.chars, r.version, r.mode, r.whatif)));
+    r.pid, r.topic, r.story, r.chars, r.version, r.mode, r.whatif, r.puzzleId, r.expected, r.clues, r.score)));
   return json({ saved: rows.length });
+}
+
+async function postProblem(req, env) {
+  const body = await bodyJson(req, 130_000);
+  if (!(await getSettings(env)).learning_enabled) return json({ saved: false });
+  const r = await saveProblemPuzzle(env, body);
+  return json({ saved: r.saved }, r.error === 'bad_puzzle' ? 400 : 200);
+}
+
+// quality-puzzles.js clears this when the team publishes or unpublishes.
+const FIXED_CACHE_KEY = 'https://flg-cloud.internal/v1/learn/fixed';
+async function getFixed(env, ctx) {
+  const cache = caches.default;
+  const key = new Request(FIXED_CACHE_KEY);
+  const hit = await cache.match(key);
+  if (hit) return new Response(hit.body, hit);
+  const res = json({ puzzles: await fixedPuzzles(env) }, 200, { 'Cache-Control': 'public, max-age=600' });
+  ctx.waitUntil(cache.put(key, res.clone()));
+  return res;
 }
 
 // ---------- tuning ----------
@@ -214,7 +244,9 @@ async function getTuning(req, env, ctx) {
   const approved = (await env.DB.prepare("SELECT theme, kind, value FROM parts WHERE status = 'approved' ORDER BY reviewed DESC LIMIT 2000").all()).results;
   // Every game's players count too (shared-learning.js).
   const crowd = await loadCrowd(env, await getSettings(env), npVerdict);
-  const res = json(applyNudges(computeTuning(plays, approved, crowd), await readNudges(env)), 200, { 'Cache-Control': 'public, max-age=900' });
+  // Stories the team deleted on the Puzzle quality page: no game builds them again.
+  const retired = await retiredStories(env);
+  const res = json({ ...applyNudges(computeTuning(plays, approved, crowd), await readNudges(env)), ...(retired.length ? { retiredStories: retired } : {}) }, 200, { 'Cache-Control': 'public, max-age=900' });
   ctx.waitUntil(cache.put(key, res.clone()));
   return res;
 }
@@ -396,6 +428,10 @@ export async function handleLearn(req, env, ctx, url = new URL(req.url)) {
     else if (/^\/v1\/learn\/(cm|sc|pg|ml|sk|sf|ll|ib)\/tuning$/.test(url.pathname) && req.method === 'GET') res = await getKitTuning(url.pathname.split('/')[3], env, ctx, json);
     else if (/^\/v1\/learn\/(cm|sc|pg|ml|sk|sf|ll|ib)\/plays$/.test(url.pathname) && req.method === 'POST' && isKitGame(url.pathname.split('/')[3])) res = (await limited(env.LIMIT_PLAYS, req)) ? json({ error: 'Slow down.' }, 429) : await postKitPlays(url.pathname.split('/')[3], env, await bodyJson(req, 64_000), json);
     else if (url.pathname === '/v1/learn/plays' && req.method === 'POST') res = (await limited(env.LIMIT_PLAYS, req)) ? json({ error: 'Slow down.' }, 429) : await postPlays(req, env);
+    // One problem puzzle from a finished game (quality-puzzles.js), and the
+    // puzzles the team fixed and republished.
+    else if (url.pathname === '/v1/learn/problem' && req.method === 'POST') res = (await limited(env.LIMIT_PLAYS, req)) ? json({ error: 'Slow down.' }, 429) : await postProblem(req, env);
+    else if (url.pathname === '/v1/learn/fixed' && req.method === 'GET') res = await getFixed(env, ctx);
     else if (url.pathname === '/v1/learn/parts' && req.method === 'POST') res = (await limited(env.LIMIT_PARTS, req)) ? json({ error: 'Slow down.' }, 429) : await postPart(req, env);
     else res = json({ error: 'Not found.' }, 404);
     const out = new Response(res.body, res);

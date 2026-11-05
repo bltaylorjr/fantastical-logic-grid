@@ -46,7 +46,28 @@ function playOf(save) {
     pid: randomKey(), topic: p.topic?.id || null, story: p.story?.id || null,
     chars: (p.characters || []).map((c) => c.id).filter(Boolean), whatif: p.stats.stepsByLevel?.whatIf ?? null,
     mode: save.daily ? 'daily' : save.race ? 'race' : 'free',
+    // For the team's Puzzle quality page: the engine's own id for this puzzle
+    // (theme, topic, level, size and seed, nothing about the player). Not for
+    // a player's own story.
+    puzzleId: p.id && !p.options?.custom && !p.mode ? p.id : null,
   };
+}
+
+// The normal limits (the same as server/src/quality-puzzles.js LIMITS): a
+// finished puzzle outside them is a problem puzzle, and only then does the
+// puzzle itself go to the team with the anonymous summary.
+const LIMITS = { slowTimes: 2, fastTimes: 0.35, hints: 3, mistakes: 6, lowRating: 2 };
+export function isProblem(p) {
+  if (!p || p.outcome === 'playing') return false;
+  if (p.outcome === 'revealed' || p.outcome === 'abandoned') return true;
+  if (p.rating && p.rating <= LIMITS.lowRating) return true;
+  if (p.feel === 'hard' || p.feel === 'easy') return true;
+  if (p.expectedMs && p.ms && (p.ms > p.expectedMs * LIMITS.slowTimes || p.ms < p.expectedMs * LIMITS.fastTimes)) return true;
+  return p.hints >= LIMITS.hints || p.mistakes >= LIMITS.mistakes;
+}
+// Keeps the puzzle with a problem play until it is sent (share.js), then drops it.
+function keepIfProblem(play, save) {
+  if (play.puzzleId && !play.puzzleSent && isProblem(play) && save?.puzzle?.id === play.puzzleId) play.puzzle = save.puzzle;
 }
 
 function randomKey() {
@@ -65,6 +86,7 @@ export async function record(save, outcome) {
   });
   // A solve never turns back into a quit if the player deletes the save later.
   if (!(outcome === 'abandoned' && (play.outcome === 'solved' || play.outcome === 'revealed'))) play.outcome = outcome;
+  keepIfProblem(play, save);
   L.plays = L.plays.slice(-MAX_PLAYS);
   await persist();
   return play;
@@ -76,12 +98,18 @@ export async function rate(save, { rating, feel }, { keepLocal = false } = {}) {
   const L = await load();
   let play = L.plays.find((x) => x.storyId === save.storyId);
   if (!play) play = await record(save, save.solved ? (save.revealed ? 'revealed' : 'solved') : 'playing');
-  if (rating !== undefined) play.rating = rating;
-  if (feel !== undefined) play.feel = feel;
+  // Only the first rating and the first feel count (the panel locks them),
+  // so every puzzle is counted once and the shared numbers stay honest.
+  let took = false;
+  if (Number.isInteger(rating) && rating >= 1 && rating <= 5 && !play.rating) { play.rating = rating; took = true; }
+  if (feel && !play.feel) { play.feel = feel; took = true; }
+  if (!took) return false;
+  if (!keepLocal) keepIfProblem(play, save);
   // Already shared: send it again (same pid) so the shared summary gets the rating.
   if (keepLocal) play.sent = 3;
   else if (play.sent && play.pid) play.sent = 0;
   await persist();
+  return true;
 }
 
 export async function ratingOf(storyId) {
@@ -278,6 +306,21 @@ export async function markSent(storyIds, partKeys = []) {
   for (const p of L.plays) if (storyIds.includes(p.storyId)) p.sent = p.rating ? 2 : 1;
   for (const kinds of Object.values(L.parts)) for (const [kind, list] of Object.entries(kinds)) for (const it of list) if (partKeys.includes(partKey(kind, it.value))) it.shared = true;
   await persist();
+}
+
+// After the problem puzzle went to the team: only the summary stays here.
+export async function puzzleSent(storyId) {
+  const L = await load();
+  const p = L.plays.find((x) => x.storyId === storyId);
+  if (p) { delete p.puzzle; p.puzzleSent = true; }
+  await persist();
+}
+
+// Stories the team deleted on the Puzzle quality page (from the shared tuning):
+// this game never builds them again.
+export async function retiredStories() {
+  const L = await load();
+  return Array.isArray(L.shared?.retiredStories) ? L.shared.retiredStories.filter((x) => typeof x === 'string') : [];
 }
 
 export async function reset() {

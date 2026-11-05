@@ -16,6 +16,7 @@
 //
 // Privacy: everything here is counted over anonymous rows. Nothing is joined
 // to accounts, and a group is only flagged once it has MIN_RATED ratings.
+import { meanInterval } from './stats.js';
 import { THEMES } from '../../engine/src/themes.js';
 import { getTopics, buildScenario } from '../../engine/src/topics.js';
 import { TIERS, CLUE_TYPES } from '../../engine/src/tiers.js';
@@ -88,9 +89,18 @@ const groupSql = (d) => `SELECT ${d.sql} AS grp, COUNT(*) AS games, COUNT(plays.
   FROM plays${d.from || ''} WHERE plays.day >= ?1${d.where ? ` AND ${d.where}` : ''} GROUP BY grp HAVING grp IS NOT NULL
   ORDER BY rated DESC, games DESC LIMIT ${MAX_GROUPS}`;
 
+// The 95% range of a group's average rating, from how many gave each star
+// (t-based for small groups, stats.js meanInterval).
+function ratingRange(spread) {
+  const values = spread.flatMap((n, i) => Array(n).fill(i + 1));
+  const ci = meanInterval(values);
+  return ci.low == null ? null : [round(Math.max(1, ci.low), 2), round(Math.min(5, ci.high), 2)];
+}
+
 function shape(r, name) {
+  const spread = [r.r1, r.r2, r.r3, r.r4, r.r5].map((x) => x || 0);
   return {
-    id: r.grp, name, games: r.games, rated: r.rated, avg: round(r.avg, 2), spread: [r.r1, r.r2, r.r3, r.r4, r.r5].map((x) => x || 0),
+    id: r.grp, name, games: r.games, rated: r.rated, avg: round(r.avg, 2), spread, range: ratingRange(spread),
     solveRate: round(r.solved / r.games), quitRate: round(r.quit / r.games),
     tooHard: r.felt ? round(r.hard / r.felt) : null, tooEasy: r.felt ? round(r.easy / r.felt) : null,
     recent: round(r.recent, 2), recentN: r.recentN, earlier: round(r.earlier, 2), earlierN: r.earlierN,
@@ -203,8 +213,10 @@ export function findings(n) {
   for (const dim of RULE_DIMS) {
     for (const g of n.groups[dim] || []) {
       if (g.rated < MIN_RATED || g.rated >= o.rated) continue; // a group that is everything says nothing new
-      const low = g.avg <= Math.max(2.5, base - 0.8);
-      const high = g.avg >= Math.max(4.2, base + 0.5);
+      // Said only when the group's whole 95% range sits below (or above) the
+      // overall average, so a handful of ratings can't make a finding.
+      const low = g.avg <= Math.max(2.5, base - 0.8) && (!g.range || g.range[1] < base);
+      const high = g.avg >= Math.max(4.2, base + 0.5) && (!g.range || g.range[0] > base);
       if (!low && !high) continue;
       const extra = [];
       if (low && g.quitRate >= 0.3) extra.push(`${pct(g.quitRate)} gave up or revealed the answer`);

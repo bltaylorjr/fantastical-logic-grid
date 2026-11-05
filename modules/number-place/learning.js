@@ -46,7 +46,7 @@ export function createLearning({ load, keep, key, config = () => ({}) }) {
       // The game style (styles.js) and how its game went: rival score, best chain and so on.
       style: game.style || 'classic', sr: game.styleResult || null,
       outcome, ms: Math.round(game.ms), hints: game.hints, mistakes: game.mistakes, checks: game.checks || 0,
-      toughness: p.toughness ?? null, tuned: game.tuned ?? null, stuck: game.stuck || [], feel: null, at: Date.now(), daily: game.daily || null,
+      toughness: p.toughness ?? null, tuned: game.tuned ?? null, stuck: game.stuck || [], feel: null, rating: null, at: Date.now(), daily: game.daily || null,
     };
     data.plays.push(rec);
     data.plays = data.plays.slice(-MAX_PLAYS);
@@ -55,12 +55,26 @@ export function createLearning({ load, keep, key, config = () => ({}) }) {
   }
 
   // The player's "how did that feel?" answer for their latest record of this puzzle.
-  function rate(fp, feel) {
+  // The player's review of their latest game of this puzzle: stars (1 to 5)
+  // and/or how it felt. Only the first answer to each counts, so the shared
+  // numbers stay honest: a later change returns null and nothing is sent.
+  // v: a feel ('easy' | 'right' | 'hard') or { rating, feel }.
+  function rate(fp, v) {
+    const o = typeof v === 'string' ? { feel: v } : v || {};
     const rec = [...data.plays].reverse().find((r) => r.fp === fp);
     if (!rec) return null;
-    rec.feel = feel;
+    let took = false;
+    if (o.feel && !rec.feel) { rec.feel = o.feel; took = true; }
+    const stars = Math.round(Number(o.rating));
+    if (stars >= 1 && stars <= 5 && !rec.rating) { rec.rating = stars; took = true; }
+    if (!took) return null;
     persist();
     return rec;
+  }
+  // What the player already said about this puzzle (latest game): { rating, feel }.
+  function reviewOf(fp) {
+    const rec = [...data.plays].reverse().find((r) => r.fp === fp);
+    return rec ? { rating: rec.rating || null, feel: rec.feel || null } : { rating: null, feel: null };
   }
 
   // How a play went, from -2 (much too hard) to +2 (much too easy).
@@ -128,7 +142,7 @@ export function createLearning({ load, keep, key, config = () => ({}) }) {
   }
 
   return {
-    started, finished, rate, toughness, suggestLevel, weakTechnique, optionsFor,
+    started, finished, rate, reviewOf, toughness, suggestLevel, weakTechnique, optionsFor,
     plays: () => data.plays,
     hasSeen: (fp) => data.seen.includes(fp),
     setShared: (s) => { shared = s; },

@@ -580,3 +580,40 @@ body.web-editor-window .web-frame-box iframe { height: calc(100vh - var(--top-h,
 .bk-cover-frame, .bk-cover-frame[hidden] { display: block; position: fixed; left: -12000px; top: 0; width: 20in; height: 12in; }
 .bk-bar { position: sticky; bottom: 0; background: var(--panel); border-top: 1px solid var(--line); padding: 10px 0; }
 label.check { display: inline-flex; gap: 6px; align-items: center; }
+
+/* ---------- Puzzle quality: problem puzzles (quality.js) ---------- */
+.qp-h { font-size: 1.2rem; margin: 24px 0 8px; }
+.qp-filters { align-items: flex-end; gap: 8px 12px; flex-wrap: wrap; margin: 8px 0 12px; }
+.qp-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+.qp-card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
+.qp-card > summary { cursor: pointer; padding: 10px 14px; min-height: 44px; display: flex; flex-direction: column; gap: 4px; list-style: none; }
+.qp-card > summary::-webkit-details-marker { display: none; }
+.qp-card > summary:focus-visible { outline: 3px solid var(--focus, var(--accent)); outline-offset: 2px; }
+.qp-card > summary .qp-title::before { content: "▸"; color: var(--accent); margin-right: 8px; }
+.qp-card[open] > summary .qp-title::before { content: "▾"; }
+.qp-card[open] > summary { border-bottom: 1px solid var(--line); }
+.qp-title { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 1.05rem; }
+.qp-sub { color: var(--muted); font-size: .9rem; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; padding-left: 22px; }
+.qp-body { padding: 4px 14px 14px; }
+.qp-body h3 { font-size: 1rem; margin: 14px 0 6px; }
+.qp-facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 6px 16px; margin: 10px 0; }
+.qp-facts div { display: grid; gap: 2px; min-width: 0; }
+.qp-facts dt { color: var(--muted); font-size: .85rem; }
+.qp-facts dd { margin: 0; overflow-wrap: anywhere; }
+.qp-fixes { padding-left: 1.3em; margin: 0; display: grid; gap: 6px; }
+.qp-actions { gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 12px; }
+.qp-undo { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.qp-frame { position: fixed; left: -12000px; top: 0; width: 900px; height: 700px; border: 0; }
+.qp-dialog { width: min(760px, calc(100% - 32px)); max-height: calc(100vh - 32px); overflow-y: auto; }
+.qp-d-head { justify-content: space-between; align-items: center; }
+.qp-d-head h2 { margin: 0; }
+.qp-rebuild { border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px 12px; display: grid; gap: 8px; }
+.qp-rebuild .row { gap: 8px 12px; align-items: flex-end; flex-wrap: wrap; }
+.qp-rebuild input[type=number] { width: 6em; }
+.qp-preview > summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; font-weight: 600; }
+.qp-preview h4 { margin: 8px 0 2px; }
+.qp-cats { margin: 8px 0; line-height: 1.5; }
+.qp-clues { padding-left: 1.4em; margin: 0; display: grid; gap: 4px; }
+.qp-method { margin: 8px 0 0; }
+.qp-method > summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; color: var(--accent); font-weight: 600; }
+.qp-method ul { margin: 4px 0 0; padding-left: 1.2em; display: grid; gap: 4px; font-size: .9rem; }

@@ -731,8 +731,7 @@ export function createGame(def) {
     $('ending').textContent = showStory() && G.p.story?.ending ? G.p.story.ending : '';
     $('ending').hidden = !$('ending').textContent;
     $('solved-text').textContent = G.revealed ? 'This one does not count as solved. The next one will.' : `${G.p.difficulty.name} in ${fmtTime(G.ms)}${G.hints ? ` with ${G.hints} hint${G.hints === 1 ? '' : 's'}` : ' with no hints'}${G.mistakes ? `, ${G.mistakes} mistake${G.mistakes === 1 ? '' : 's'}` : ''}.`;
-    $$(`#${P}-solved [data-feel]`).forEach((b) => b.setAttribute('aria-pressed', 'false'));
-    $('feel-done').textContent = '';
+    showReview();
     root.querySelector(`#${P}-solved .gk-feel`).hidden = G.revealed;
     $('share').hidden = G.revealed;
     $('moment').hidden = true;
@@ -784,11 +783,22 @@ export function createGame(def) {
     showSolved({ fresh: true });
   }
 
-  function rate(feel) {
-    const rec = learn.rate(G.p.fingerprint, feel);
+  // Rate this puzzle (stars) and How did that feel: each is answered once.
+  // A given answer shows, locked, so it is counted once and never changed.
+  function showReview() {
+    const r = learn.reviewOf(G.p.fingerprint);
+    const stars = root.querySelector(`#${P}-stars`);
+    root.querySelectorAll(`#${P}-stars input`).forEach((i) => { i.checked = +i.value === r.rating; });
+    stars.disabled = !!r.rating;
+    $('stars-done').textContent = r.rating ? `You rated it ${r.rating} star${r.rating === 1 ? '' : 's'}. Thanks!` : '';
+    $$(`#${P}-solved [data-feel]`).forEach((b) => { b.setAttribute('aria-pressed', String(b.dataset.feel === r.feel)); b.disabled = !!r.feel; });
+    $('feel-done').textContent = r.feel ? 'Thanks. The next puzzle will take it into account.' : '';
+  }
+  function rate(v) {
+    const rec = learn.rate(G.p.fingerprint, v);
     if (rec) deps.onPlay?.({ ...rec, game: P });
-    $$(`#${P}-solved [data-feel]`).forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.feel === feel)));
-    $('feel-done').textContent = 'Thanks. The next puzzle will take it into account.';
+    showReview();
+    if (rec && typeof v === 'object' && v.rating) $('stars-done').textContent = `Thanks for rating it ${v.rating} star${v.rating === 1 ? '' : 's'}.`;
   }
 
   function shareText() {
@@ -1068,7 +1078,8 @@ export function createGame(def) {
     $('step-prev').onclick = () => { stepAt = Math.max(0, stepAt - 1); drawStep(); };
     $('step-next').onclick = () => { stepAt = Math.min(G.p.solvePath.length, stepAt + 1); drawStep(); };
     $('step-end').onclick = () => { stepAt = G.p.solvePath.length; drawStep(); };
-    root.querySelector(`#${P}-solved .gk-feel`).addEventListener('click', (e) => { const b = e.target.closest('[data-feel]'); if (b) rate(b.dataset.feel); });
+    root.querySelector(`#${P}-solved .gk-feel`).addEventListener('click', (e) => { const b = e.target.closest('[data-feel]'); if (b && !b.disabled) rate(b.dataset.feel); });
+    root.querySelector(`#${P}-stars`).addEventListener('change', (e) => { if (e.target.name === `${P}-rating`) rate({ rating: +e.target.value }); });
     document.addEventListener('keydown', onKey);
     document.addEventListener('visibilitychange', onHide);
     window.addEventListener('pagehide', onLeave);

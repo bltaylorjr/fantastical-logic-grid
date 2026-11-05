@@ -45,11 +45,14 @@ const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`o
     assert(/5 stars is excellent/.test(await page.textContent('#rate-help')), 'the scale is explained (5 is excellent)');
     assert(await page.locator('#feedback .stars input[value="5"]').getAttribute('aria-describedby') === null && (await page.getAttribute('#feedback .stars', 'aria-describedby')) === 'rate-help', 'the stars point to the scale for screen readers');
     assert(L.plays[0].pid && /^[A-Za-z0-9]{12}$/.test(L.plays[0].pid) && L.plays[0].mode === 'free' && L.plays[0].topic, 'the summary has a one-off key, mode and topic for the ratings report');
-    await page.click('#rating-clear');
+    // Only the first answer counts: the stars and the feel lock once given.
+    await page.waitForFunction(() => document.querySelector('#feedback .stars').disabled && document.querySelector('#feedback .feel').disabled);
+    assert(await page.isDisabled('#feedback .stars input[value="1"]') && await page.isDisabled('#feedback .feel input[value="hard"]'), 'a given rating and feel lock');
+    assert(/You rated it 5 stars|Your next puzzles/.test(await page.textContent('#feedback-thanks')), 'the panel thanks the player');
+    await page.evaluate(async () => { const learn = await import('./js/learn.js'); await learn.rate(window.__flg.state.save, { rating: 1, feel: 'hard' }); });
     L = await learning();
-    assert(L.plays[0].rating === null && L.plays[0].feel === 'easy' && !(await page.isChecked('#feedback .stars input[value="5"]')), 'Clear my rating takes the stars back');
-    await page.locator('#feedback .stars label').nth(4).click();
-    await page.waitForFunction(async () => (await (await import('./js/learn.js')).getState()).plays[0].rating === 5);
+    assert(L.plays[0].rating === 5 && L.plays[0].feel === 'easy', 'a second answer to the same puzzle is not counted');
+    assert(!(await page.$('#rating-clear')), 'there is no Clear my rating any more');
 
     await page.click('#next-btn');
     await page.waitForSelector('#screen-home:not([hidden])');

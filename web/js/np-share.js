@@ -27,7 +27,7 @@ function platform() {
 // A module play record, as the service takes it.
 export function toPlay(rec) {
   return {
-    platform: platform(), level: rec.d, size: rec.size, variants: rec.variants || [], mode: rec.mode, outcome: rec.outcome, feel: rec.feel,
+    platform: platform(), level: rec.d, size: rec.size, variants: rec.variants || [], mode: rec.mode, outcome: rec.outcome, feel: rec.feel, rating: rec.rating || null,
     minutes: Math.round(rec.ms / 6000) / 10, hints: rec.hints, mistakes: rec.mistakes, checks: rec.checks,
     tuned: rec.tuned, score: rec.toughness, stuck: rec.stuck, pid: rec.pid, version: CLOUD.appVersion || null,
   };
