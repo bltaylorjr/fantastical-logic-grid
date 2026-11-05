@@ -1,0 +1,16 @@
+# What Vox needs, all free. The Windows admin app installs these into its own
+# Python environment the first time Vox starts (see desktop-admin/src-tauri/src/vox.rs).
+torch>=2.4
+numpy
+scipy
+soundfile
+pyyaml; python_version < "3.15"
+fastapi
+uvicorn
+python-multipart
+httpx
+cmudict
+wn
+# Whisper (free, runs on this computer): scores how clearly each line is said
+# and finds words the model says wrong; also transcribes training audio.
+faster-whisper

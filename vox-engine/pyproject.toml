@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vox-engine"
+version = "1.0.0"
+description = "Free, open-source generative voice engine for games: diffusion transformer TTS, voice design, consented cloning, editing."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+dependencies = [
+  "torch>=2.4",
+  "numpy",
+  "scipy",
+  "soundfile",
+  "pyyaml; python_version < '3.15'",   # no Windows build for 3.15 yet; JSON source lists work without it
+  "fastapi",
+  "uvicorn",
+  "python-multipart",
+  "httpx",
+  "cmudict",
+  "wn",
+]
+
+[project.optional-dependencies]
+# All free. Whisper transcribes audio that has no transcript; datasets pulls
+# Hugging Face corpora; yt-dlp fetches openly licensed online video.
+data = ["faster-whisper", "datasets", "yt-dlp"]
+# Translation into 100 (M2M100) or 400+ (MADLAD-400) languages
+translate = ["transformers", "sentencepiece"]
+
+[project.scripts]
+vox = "vox.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["vox*"]
+
+[tool.setuptools.package-data]
+vox = ["static/*", "lexicon/g2p.pt"]

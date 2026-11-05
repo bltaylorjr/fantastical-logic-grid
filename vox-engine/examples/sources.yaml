@@ -1,0 +1,81 @@
+# Training data sources for `vox prepare-data --sources examples/sources.yaml`
+#
+# Every source must declare a license. Only licenses that allow commercial use
+# are accepted (so you can sell games using the voices) unless you set
+# project.noncommercial: true. All sources below are free to download.
+# CC BY sources require credit: the pipeline writes ATTRIBUTION.md for you;
+# put its contents in your game's credits.
+
+project:
+  noncommercial: false
+
+sources:
+  # --- Core speech: many speakers, clean audio ------------------------------
+  - name: libritts_r              # ~585 h, 2,456 speakers, 24 kHz
+    kind: huggingface
+    license: cc-by-4.0
+    attribution: "LibriTTS-R (Koizumi et al. 2023), openslr.org/141, CC BY 4.0"
+    dataset: blabble-io/libritts_r
+    config: clean
+    split: train.clean.360
+    text_column: text_normalized
+    speaker_column: speaker_id
+    max_items: 50000              # start smaller; raise as your GPU time allows
+
+  # Column names differ between Hugging Face uploads: open the dataset page's
+  # "Viewer" tab and match text_column / speaker_column to what it shows.
+  - name: hifi_tts                # ~292 h, 10 speakers, studio-like quality
+    kind: huggingface
+    license: cc-by-4.0
+    attribution: "Hi-Fi TTS (Bakhturina et al. 2021), openslr.org/109, CC BY 4.0"
+    dataset: MikhailT/hifi-tts
+    config: clean
+    split: train
+    text_column: text_normalized
+    speaker_column: speaker
+    max_items: 20000
+
+  # LJSpeech (public domain, 24 h, one speaker). Download and unzip from
+  # keithito.com/LJ-Speech-Dataset, then point at the folder.
+  # - name: ljspeech
+  #   kind: ljspeech
+  #   license: public-domain
+  #   path: ~/datasets/LJSpeech-1.1
+
+  # --- Emotion: real labels that teach the emotion controls -----------------
+  # CREMA-D: 7,442 clips, 91 actors, 6 emotions. Clone
+  # github.com/CheyneyComputerScience/CREMA-D (git lfs) and point at AudioWAV.
+  # - name: crema_d
+  #   kind: crema_d
+  #   license: odbl
+  #   attribution: "CREMA-D (Cao et al. 2014), Open Database License"
+  #   path: ~/datasets/CREMA-D/AudioWAV
+
+  # --- Online scanning: openly licensed archives ----------------------------
+  - name: archive_radio_drama     # public-domain / CC BY items only (re-checked per item)
+    kind: internet_archive
+    license: public-domain        # the minimum; each item's own license is verified too
+    query: "old time radio drama"
+    mediatype: audio
+    max_items: 20
+
+  - name: librivox                # volunteer-read public-domain audiobooks
+    kind: librivox
+    license: public-domain
+    max_books: 10
+    max_sections: 3
+
+  # Individual online videos (needs yt-dlp). Skipped automatically unless the
+  # platform shows a Creative Commons license, or you declare own-recording /
+  # consented for videos you made or have written permission for.
+  # - name: my_channel
+  #   kind: media_url
+  #   license: own-recording
+  #   urls: ["https://www.youtube.com/watch?v=..."]
+
+  # --- Your own voice actors: the best data for your game's characters ------
+  # Layout: <path>/<speaker>/<clip>.wav + <clip>.txt (+ optional <clip>.emotion)
+  # - name: my_cast
+  #   kind: local
+  #   license: consented
+  #   path: ~/game/voice_sessions

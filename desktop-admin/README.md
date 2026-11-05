@@ -10,17 +10,19 @@ page itself keeps.
 - **Download:** the "Download for Windows" button in the dashboard (Windows
   visitors only, hidden inside the app) links
   `releases/download/admin-desktop/The-Fantastical-Logic-Grid-Admin-Setup.exe`.
-- **Vox, the voice engine, runs inside the app:** on the Voice engine page,
-  **Start Vox** and **Stop Vox** run Vox on this computer with no command window,
-  and the page connects by itself (the app reads Vox's admin token from
-  `learning\admin_token.txt`). The first start installs Vox and makes the practice
-  model if needed (output in `vox-setup-log.txt`); Vox's own output goes to
-  `vox-log.txt`. The Vox folder is found in the usual places (like
-  `Downloads\MEGA\vox-engine\vox-engine`) or chosen once in a folder picker.
-  Vox starts by itself, hidden, as soon as the app opens ("Start Vox when the
-  admin app opens" on the Voice engine page, on by default). Closing the app
-  window (its X) closes the app and stops Vox, its tunnel, and a Vox started
-  from the Vox desktop shortcut or a command window. See `src-tauri/src/vox.rs`.
+- **Vox, the voice engine, is built into the app:** the engine's code ships
+  inside the app (the repo's `vox-engine/` folder, bundled as a resource), and
+  its voices, models, learning and logs live in the app's data folder,
+  `%APPDATA%\com.fantasticallogicgrid.admin\vox`. Nothing depends on a Vox folder.
+  The first start sets up Vox's own Python environment there (installing Python
+  3.13 with winget if the computer has none), installs `vox-engine/requirements.txt`
+  (again only when that list changes), installs Whisper (faster-whisper and its
+  base model; optional, Vox runs without it) and makes the practice model. It
+  brings over the voices, learning and models from an older Vox folder once.
+  Vox starts hidden when the app opens ("Start Vox when the admin app opens" on
+  the Voice engine page, on by default) and stops, with its tunnel, when the app
+  window is closed. Setup output goes to `vox-setup-log.txt`, Vox's to
+  `vox-log.txt`. See `src-tauri/src/vox.rs`.
 - **Vox on any device:** unless "Let my other devices open Vox" is off, Start Vox
   puts it online with a free Cloudflare quick tunnel (`vox serve --tunnel`). The
   app downloads Cloudflare's free `cloudflared.exe` once into its data folder if
@@ -29,7 +31,7 @@ page itself keeps.
   other computer connects by itself. The address changes on every start, and the
   dashboard's content policy allows only the current one. Stop Vox clears it.
 - **The page's only permissions are Vox's:** `capabilities/vox.json` lets the
-  dashboard's own address (and nothing else) call the eight `vox_*` commands. They
+  dashboard's own address (and nothing else) call the seven `vox_*` commands. They
   take no program, path or arguments from the page, so the page still cannot run
   anything else, read files or use any other app feature. Links that leave `/admin` (Open the game, GitHub)
   open in the normal browser; the archive viewer opens in its own window.

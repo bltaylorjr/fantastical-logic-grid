@@ -3,6 +3,7 @@
 # admin dashboard and the installed app's updater both use. That release is never
 # marked "latest", so the game's own releases and updates are not affected.
 # On a pull request it only builds the installer (a check that it still builds).
+# The app carries the Vox engine (vox-engine/), so engine changes build it too.
 # It publishes when a version bump of desktop-admin/src-tauri/tauri.conf.json
 # reaches main and that version is not out yet, or from the Actions tab.
 # Needs the repository secret TAURI_SIGNING_PRIVATE_KEY (the same updater key as the game).
@@ -11,10 +12,10 @@ name: Admin app for Windows
 on:
   workflow_dispatch:
   pull_request:
-    paths: ['desktop-admin/**', '.github/workflows/admin-desktop.yml']
+    paths: ['desktop-admin/**', 'vox-engine/**', '.github/workflows/admin-desktop.yml']
   push:
     branches: [main]
-    paths: ['desktop-admin/**']
+    paths: ['desktop-admin/**', 'vox-engine/**']
 permissions:
   contents: write
 concurrency:
