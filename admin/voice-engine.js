@@ -160,22 +160,54 @@ function checkLaunch({ folder, model }) {
   if (!model) throw new Error('Type the model file name, like practice.pt.');
   if (/["%\r\n<>|]/.test(model) || !/\.pt$/i.test(model)) throw new Error('The model file name should end in .pt, like practice.pt or runs\\v1\\vox.pt.');
 }
-const startCommand = ({ model, online }) => `vox serve --ckpt "${model}"${online ? ' --tunnel-name vox' : ''}`;
+// python -m vox.cli works even when Python's Scripts folder (where a bare
+// "vox" lives) is not on the PATH; the admin app starts it the same way.
+const startCommand = ({ model, online }, py = 'python') => `${py} -m vox.cli serve --ckpt "${model}"${online ? ' --tunnel-name vox' : ''}`;
 
+// Vox's processes (the server and the tunnel it opened), matched the way the
+// admin app's Stop Vox finds them (desktop-admin/src-tauri/src/vox.rs).
+const VOX_PROCS = "Get-CimInstance Win32_Process | Where-Object { $_.ProcessId -ne $PID -and ($_.CommandLine -like '*vox.cli serve*' -or $_.CommandLine -like '*vox serve *' -or $_.CommandLine -like '*--url http://127.0.0.1:5150*') }";
+
+// The start shortcut runs Vox in the background with no window: it starts a
+// hidden copy of itself (with "run"), which writes Vox's output to
+// vox-log.txt (and first-time setup to vox-setup-log.txt). Double-clicked
+// while Vox is running, it offers to stop it.
 function startShortcut(v) {
   const lines = [
     '@echo off',
     'title Vox voice engine',
     v.folder ? `cd /d "${v.folder}"` : 'cd /d "%~dp0"',
+    'if /i "%~1"=="run" goto run',
+    `powershell -NoProfile -Command "if (${VOX_PROCS}) { exit 3 }"`,
+    'if errorlevel 3 goto running',
+    'set "VOXSELF=%~f0"',
+    'powershell -NoProfile -Command "Start-Process -FilePath $env:VOXSELF -ArgumentList run -WindowStyle Hidden"',
+    'echo Vox is starting in the background, with no window.',
+    'echo The admin app connects by itself once Vox is ready. The first start installs Vox and takes several minutes.',
+    'echo What Vox writes goes to vox-log.txt in the Vox folder. Double-click this shortcut again to stop Vox.',
+    'timeout /t 8 >nul',
+    'exit /b',
+    '',
+    ':running',
+    'echo Vox is already running in the background.',
+    'choice /c YN /m "Stop Vox now"',
+    'if errorlevel 2 exit /b',
+    `powershell -NoProfile -Command "${VOX_PROCS} | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"`,
+    'echo Vox has stopped.',
+    'timeout /t 3 >nul',
+    'exit /b',
+    '',
+    ':run',
     'if exist ".venv\\Scripts\\activate.bat" call ".venv\\Scripts\\activate.bat"',
     'if exist "venv\\Scripts\\activate.bat" call "venv\\Scripts\\activate.bat"',
-    'echo Starting Vox. Leave this window open: closing it stops Vox.',
-    'echo The admin app connects by itself once Vox is ready.',
-    'echo.',
-    startCommand(v),
-    'echo.',
-    'echo Vox has stopped. If there is an error above, copy it and ask for help.',
-    'pause',
+    // Python: "python", or the "py" launcher if only that is installed.
+    'set "PY=python"',
+    'python --version >nul 2>nul || set "PY=py"',
+    '%PY% --version >nul 2>nul || (echo Python is not installed. Get it free from python.org and tick "Add python.exe to PATH", then start Vox again.> "vox-log.txt"& exit /b 1)',
+    // The first time (as the admin app does): install Vox, then the practice model.
+    '%PY% -c "import vox.cli, torch, fastapi, uvicorn" >nul 2>nul || %PY% -m pip install -e . >> "vox-setup-log.txt" 2>&1',
+    ...(/^practice\.pt$/i.test(v.model) ? ['if not exist "practice.pt" %PY% -m vox.cli init --preset tiny --out practice.pt >> "vox-setup-log.txt" 2>&1'] : []),
+    `${startCommand(v, '%PY%')} > "vox-log.txt" 2>&1`,
   ];
   return lines.join('\r\n') + '\r\n';
 }
@@ -199,7 +231,7 @@ function openCard(message = '') {
 
     <div class="vx-step" id="vx-step-start">
       <h3><span class="vx-num" aria-hidden="true">1</span> Start Vox</h3>
-      <p>Vox runs free on your own computer. Make a start shortcut once, save it on your desktop, then double-click it whenever you want Vox. A black window opens: leave it open while you work, because closing it stops Vox.</p>
+      <p>Vox runs free on your own computer. Make a start shortcut once, save it on your desktop, then double-click it whenever you want Vox. Vox runs in the background with no window; double-click the shortcut again to stop it. What it writes goes to vox-log.txt in the Vox folder.</p>
       <form id="vx-launch" class="stack" novalidate>
         <div class="row">
           <div class="field grow"><label for="vx-folder">Vox folder</label><input id="vx-folder" type="text" value="${h.esc(v.folder)}" placeholder="C:\\Users\\you\\vox-engine" autocomplete="off" spellcheck="false" aria-describedby="vx-folder-help">
@@ -973,7 +1005,7 @@ export function initVoiceEngine(helpers) {
       a.click();
       a.remove();
       setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-      const msg = 'Start shortcut downloaded. Move "Start Vox.cmd" to your desktop and double-click it. If Windows blocks it, right-click it, choose Properties, tick Unblock and click OK.';
+      const msg = 'Start shortcut downloaded. Move "Start Vox.cmd" to your desktop and double-click it: Vox runs in the background. Double-click it again to stop Vox. If Windows blocks it, right-click it, choose Properties, tick Unblock and click OK.';
       h.toast(msg); h.announce(msg);
       return;
     }
