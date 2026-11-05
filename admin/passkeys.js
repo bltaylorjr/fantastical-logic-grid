@@ -133,6 +133,10 @@ export async function passkeysView() {
     : '<tr><td colspan="4" class="muted">No devices set up yet.</td></tr>';
 }
 
+// Book Studio (admin/book-studio/) uses the sign-in and set-up steps without
+// the dashboard's section: it passes just { api, me }.
+export function usePasskeyHelpers(helpers) { h = helpers; }
+
 export function initPasskeys(helpers) {
   h = helpers;
   const setUp = async (button, after) => {

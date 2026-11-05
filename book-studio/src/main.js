@@ -22,9 +22,20 @@ function updateStatus() {
 }
 
 let currentTab = 'manuscript';
-function showTab(name) {
+// Back returns to the step you came from; Next goes to the following step.
+const STEPS = [['manuscript', 'Interior'], ['cover', 'Cover'], ['details', 'Book details'], ['publish', 'Check & export']];
+const tabTrail = [];
+function updateStepButtons() {
+  const i = STEPS.findIndex(s => s[0] === currentTab); const next = STEPS[i + 1];
+  $('#navNext').hidden = !next; if (next) $('#navNext').textContent = `Next: ${next[1]} →`;
+  const prev = tabTrail[tabTrail.length - 1];
+  $('#navBack').hidden = !prev; if (prev) $('#navBack').textContent = `← Back to ${STEPS.find(s => s[0] === prev)[1]}`;
+}
+function showTab(name, { back = false } = {}) {
   if (name === currentTab && !$('#view-' + name).hidden && name !== 'publish') return;
+  if (name !== currentTab && !back) { tabTrail.push(currentTab); if (tabTrail.length > 20) tabTrail.shift(); }
   currentTab = name;
+  updateStepButtons();
   $$('.tab').forEach(t => t.setAttribute('aria-selected', t.dataset.tab === name ? 'true' : 'false'));
   ['manuscript', 'cover', 'details', 'publish'].forEach(v => $('#view-' + v).hidden = v !== name);
   if (name === 'cover') ensureCover().then(() => { sizeCoverCanvas(); cv.calcOffset(); }).catch(() => { });
@@ -89,6 +100,9 @@ async function buildSample() {
 function wireShell() {
   fillPubSelects();
   $$('.tab').forEach(t => t.onclick = () => showTab(t.dataset.tab));
+  $('#navBack').onclick = () => { const prev = tabTrail.pop(); if (prev) showTab(prev, { back: true }); };
+  $('#navNext').onclick = () => { const i = STEPS.findIndex(s => s[0] === currentTab); if (STEPS[i + 1]) showTab(STEPS[i + 1][0]); };
+  updateStepButtons();
   const setPub = v => { S.pub = v; if (!PUBLISHERS[v].trims.includes(S.trim)) toast(`${PUBLISHERS[v].short} does not offer ${TRIM_LABEL(S.trim)}. Apply specs to switch to the nearest size.`, 5000); updateMetaCounts(); };
   $('#pub').onchange = onSpecChange(e => setPub(e.target.value));
   $('#pub2').onchange = onSpecChange(e => setPub(e.target.value));
@@ -117,7 +131,7 @@ async function init() {
   if (saved && saved.pages && saved.pages.length) { loadProject(saved); $('#sbSave').textContent = 'Restored from this browser'; }
   else { busy('Building the sample book'); await buildSample(); busy(false); $('#sbSave').textContent = 'Sample book loaded. Open Project to start your own.'; }
   const h = (location.hash || '').slice(1); if (['cover', 'details', 'publish'].includes(h)) showTab(h);
-  window.addEventListener('hashchange', () => { const t = location.hash.slice(1); if (['manuscript', 'cover', 'details', 'publish'].includes(t) && t !== currentTab) showTab(t); });
+  window.addEventListener('hashchange', () => { const t = location.hash.slice(1); if (['manuscript', 'cover', 'details', 'publish'].includes(t) && t !== currentTab) { const back = tabTrail[tabTrail.length - 1] === t; if (back) tabTrail.pop(); showTab(t, { back }); } });
   document.fonts && document.fonts.ready.then(() => checkAllOverflow());
 }
 // init() runs from auth.js once Grid Admin says this account may publish

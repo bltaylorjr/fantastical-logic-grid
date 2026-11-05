@@ -14,14 +14,21 @@ function toast(msg, ms = 3200) {
   t.textContent = msg; t.hidden = false;
   clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, ms);
 }
-let busyEl;
+// The progress card. Long work that calls allowCancel() first gets a Cancel
+// button; after it is pressed, the next busy() step throws { code: 'cancelled' }.
+let busyEl, busyCanCancel = false, busyCancelled = false;
+function allowCancel() { busyCanCancel = true; busyCancelled = false; }
 function busy(label, frac) {
-  if (label === false) { if (busyEl) busyEl.remove(); busyEl = null; return; }
+  if (label === false) { if (busyEl) busyEl.remove(); busyEl = null; busyCanCancel = false; busyCancelled = false; return; }
+  if (busyCancelled) throw Object.assign(new Error('Cancelled.'), { code: 'cancelled' });
   if (!busyEl) {
     busyEl = document.createElement('div'); busyEl.className = 'busy';
-    busyEl.innerHTML = '<div class="busy-card"><b class="busy-label"></b><div class="progress"><div></div></div><small class="hint busy-sub"></small></div>';
+    busyEl.innerHTML = '<div class="busy-card"><b class="busy-label"></b><div class="progress"><div></div></div><small class="hint busy-sub"></small><button class="btn busy-cancel" type="button" hidden>Cancel</button></div>';
     document.body.appendChild(busyEl);
+    const stop = $('.busy-cancel', busyEl);
+    stop.onclick = () => { busyCancelled = true; stop.disabled = true; stop.textContent = 'Stopping…'; };
   }
+  $('.busy-cancel', busyEl).hidden = !busyCanCancel;
   $('.busy-label', busyEl).textContent = label;
   $('.progress > div', busyEl).style.width = (frac == null ? 5 : Math.round(frac * 100)) + '%';
 }
