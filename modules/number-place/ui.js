@@ -12,6 +12,8 @@
 //                  the one thing NINETIMESNINE shares, for the learning service
 //   shared         what every player's games taught ({ toughness: { level: 0..1 } }), optional
 //   celebrate()    the host's solve effect, optional
+//   allowNew(), started(), guestNote()   the host's guest limit: asked before a new
+//                  free-play puzzle (false stops it), told when one opens, and a line for setup
 //   setWorld(id)   the host's backdrop for a story's world, optional
 // A host with other screens calls suspend() when the player leaves and reopen() on return.
 //   canPrint, canDownload   false where the host frame can't print or save files
@@ -274,7 +276,14 @@ function trimGames(all) {
   for (const id of ids.slice(60)) delete all[id];
 }
 
+function renderGuest() {
+  const t = deps.guestNote?.() || '';
+  $('#np-guest').textContent = t;
+  $('#np-guest').hidden = !t;
+}
+
 export function renderSetup() {
+  renderGuest();
   const all = Object.values(games()).sort((a, b) => (b.updated || 0) - (a.updated || 0));
   const curId = load(K.cur, null);
   const cur = all.find((g) => g.id === curId && !g.solved) || all.find((g) => !g.solved);
@@ -325,6 +334,8 @@ export function renderSetup() {
 // ---------- start, resume, save ----------
 
 async function startNew(opts, { mode = 'free', style = 'classic' } = {}) {
+  // A guest's new puzzles for the day (the host's guest limit); the daily puzzle is always free.
+  if (mode === 'free' && deps.allowNew && !(await deps.allowNew())) { renderGuest(); return; }
   const status = $('#np-status');
   status.textContent = 'Building a puzzle just for you, with exactly one answer…';
   $('#np-gen').disabled = true;
@@ -335,6 +346,7 @@ async function startNew(opts, { mode = 'free', style = 'classic' } = {}) {
     const extra = await styleStart(style, p);
     status.textContent = '';
     begin(p, { mode, daily: opts.daily || null, practice: tuned.practice || null, tuned: tuned.toughness ?? null, style, extra });
+    if (mode === 'free') deps.started?.();
   } catch (e) {
     status.textContent = `Could not build that puzzle: ${e.message}`;
   } finally {

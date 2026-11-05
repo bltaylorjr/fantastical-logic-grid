@@ -41,6 +41,8 @@ export const supportUrl = () => {
 // or {} before the server has said: the game then uses the module's defaults.
 export const numberPlace = () => (config && config.numberPlace) || {};
 // The same for each grid-kit game (id cm, sc, pg, ml, sk, sf, ll or ib).
+// New puzzles a guest may start each day, all games together (guest-limit.js); 0 is no limit.
+export const guestDailyLimit = () => { const v = config && config.game && config.game.guestDailyLimit; return Number.isInteger(v) ? v : null; };
 export const kitGame = (id) => (config && config.kitGames && config.kitGames[id]) || {};
 
 // Minutes without activity before a signed-in player is signed out (idle.js);

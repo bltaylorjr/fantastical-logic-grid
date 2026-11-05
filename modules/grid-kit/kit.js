@@ -157,7 +157,14 @@ export function createGame(def) {
     $('sizes').innerHTML = sizes.map((n) => `<label class="choice"><input type="radio" name="${P}-size" value="${n}"${n === prefs.size ? ' checked' : ''}><span><b>${esc(def.sizeLabel(n))}</b></span></label>`).join('');
   }
 
+  function renderGuest() {
+    const t = deps.guestNote?.() || '';
+    $('guest').textContent = t;
+    $('guest').hidden = !t;
+  }
+
   function renderSetup() {
+    renderGuest();
     const all = Object.values(games()).sort((a, b) => (b.updated || 0) - (a.updated || 0));
     const curId = load(K.cur, null);
     const cur = all.find((g) => g.id === curId && !g.solved) || all.find((g) => !g.solved);
@@ -208,6 +215,8 @@ export function createGame(def) {
   // ---------- start, resume, save ----------
 
   async function startNew(opts, { mode = 'free' } = {}) {
+    // A guest's new puzzles for the day (the host's guest limit); the daily puzzle is always free.
+    if (mode === 'free' && deps.allowNew && !(await deps.allowNew())) { renderGuest(); return; }
     const status = $('status');
     status.textContent = 'Building a puzzle just for you, with exactly one answer…';
     $('gen').disabled = true;
@@ -217,6 +226,7 @@ export function createGame(def) {
       const p = await engine.generate({ seed: Math.random().toString(36).slice(2), story: cfg().stories !== false, theme: prefs.theme || 'surprise', ...tuned, ...opts });
       status.textContent = '';
       begin(p, { mode, daily: opts.daily || null, practice: tuned.practice || null, tuned: tuned.toughness ?? null });
+      if (mode === 'free') deps.started?.();
     } catch (e) {
       status.textContent = `Could not build that puzzle: ${e.message}`;
     } finally {

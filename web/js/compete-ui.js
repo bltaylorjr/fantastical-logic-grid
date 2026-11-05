@@ -624,8 +624,10 @@ function wireComputer() {
   const d = $('#dlg-race');
   d.addEventListener('click', (e) => { if (e.target.closest('[data-close]')) d.close(); });
   const form = $('.race-view[data-view=computer]', d);
-  form.onsubmit = (e) => {
+  form.onsubmit = async (e) => {
     e.preventDefault();
+    // A guest's new puzzles for the day (guest-limit.js) include races against the computer.
+    if (ui.allowNew && !(await ui.allowNew())) { d.close(); return; }
     const skill = $('input[name=cpu-skill]:checked', form)?.value || 'matched';
     ui.setSetting('computerSkill', skill);
     busy($('button[type=submit]', form), 'Writing the puzzle…', async () => {
