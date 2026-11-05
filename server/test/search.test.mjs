@@ -169,3 +169,74 @@ test('refresh waits ten minutes between fetches and is audited', async () => {
   const row = await db.prepare("SELECT COUNT(*) AS n FROM admin_audit WHERE action = 'search.refresh' AND status = 200").first();
   assert.equal(row.n, 4);
 });
+
+const post = async (path, body) => {
+  const r = await mf.dispatchFetch(`https://api.test${path}`, { method: 'POST', headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  return { status: r.status, body: await r.json() };
+};
+const alertsHour = async () => (await mf.getWorker()).scheduled({ cron: '23 * * * *', scheduledTime: new Date() });
+const bingCalls = () => seen.filter((x) => x.split(' ')[1].startsWith('ssl.bing.com')).length;
+
+test('the hourly cron leaves fresh numbers alone', async () => {
+  await db.prepare('UPDATE search_snapshots SET fetched_at = ?1, tried_at = ?1, error = NULL').bind(Date.now() - 3600_000).run();
+  const before = seen.length;
+  await alertsHour();
+  assert.equal(seen.length, before, 'nothing is fetched while the numbers are under 20 hours old');
+});
+
+test('the hourly cron catches up stale numbers without anyone pressing Refresh', async () => {
+  await db.prepare('UPDATE search_snapshots SET fetched_at = ?1, tried_at = ?1, error = NULL').bind(Date.now() - 25 * 3600_000).run();
+  const before = bingCalls();
+  await alertsHour();
+  assert.ok(bingCalls() > before, 'Bing was asked again');
+  const { sources } = (await call('/admin/v1/search')).body;
+  assert.ok(Date.now() - sources.bing.fetchedAt < 60_000, 'Bing numbers are new');
+  assert.ok(Date.now() - sources.google.fetchedAt < 60_000, 'Google numbers are new');
+});
+
+test('the hourly catch-up waits three hours after a failed try', async () => {
+  bingFails = true;
+  await db.prepare("UPDATE search_snapshots SET fetched_at = ?1, tried_at = ?2, error = 'Bing: 500 down' WHERE source = 'bing'").bind(Date.now() - 25 * 3600_000, Date.now() - 3600_000).run();
+  const before = bingCalls();
+  await alertsHour();
+  assert.equal(bingCalls(), before, 'tried an hour ago, so not yet');
+  await db.prepare("UPDATE search_snapshots SET tried_at = ?1 WHERE source = 'bing'").bind(Date.now() - 4 * 3600_000).run();
+  await alertsHour();
+  assert.ok(bingCalls() > before, 'asked again after three hours');
+  bingFails = false;
+});
+
+test('Bing numbers sent in by the GitHub Action are stored and clear a throttle', async () => {
+  await db.prepare("UPDATE search_snapshots SET error = 'Bing GetRankAndTrafficStats: 400 ERROR!!! ThrottleIP', tried_at = ?1 WHERE source = 'bing'").bind(Date.now()).run();
+  const now = Date.now();
+  const r = await post('/admin/v1/search/bing', {
+    traffic: [{ Date: msDate(now - 864e5), Clicks: 11, Impressions: 200 }],
+    queries: [{ Query: 'story logic puzzles', Clicks: 6, Impressions: 120, AvgImpressionPosition: 3, Date: msDate(now - 2 * 864e5) }],
+    pages: [], feeds: [], crawl: [{ Date: msDate(now - 864e5), InIndex: 9, CrawledPages: 14, CrawlErrors: 0 }],
+    errors: ['Bing GetPageStats: 500 busy'],
+  });
+  assert.deepEqual([r.status, r.body.result], [200, 'ok']);
+  const bing = (await call('/admin/v1/search')).body.sources.bing;
+  assert.equal(bing.error, null);
+  assert.equal(bing.retryAt, null);
+  assert.equal(bing.data.via, 'github');
+  assert.equal(bing.data.totals.clicks, 11);
+  assert.equal(bing.data.queries[0].key, 'story logic puzzles');
+  assert.equal(bing.data.crawl.inIndex, 9);
+  assert.deepEqual(bing.data.errors, ['Bing GetPageStats: 500 busy']);
+});
+
+test('a GitHub report that Bing refused keeps the last good numbers', async () => {
+  const r = await post('/admin/v1/search/bing', { error: 'Bing GetRankAndTrafficStats: 400 ThrottleUser' });
+  assert.deepEqual([r.status, r.body.result], [200, 'error']);
+  const bing = (await call('/admin/v1/search')).body.sources.bing;
+  assert.match(bing.error, /^From GitHub: .*ThrottleUser/);
+  assert.equal(bing.data.totals.clicks, 11);
+});
+
+test('a malformed GitHub report is refused and the endpoint needs the admin token', async () => {
+  assert.equal((await post('/admin/v1/search/bing', { traffic: 'lots' })).status, 400);
+  assert.equal((await post('/admin/v1/search/bing', { traffic: [1, 2] })).status, 400);
+  const r = await mf.dispatchFetch('https://api.test/admin/v1/search/bing', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+  assert.ok([401, 403].includes(r.status));
+});

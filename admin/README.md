@@ -212,9 +212,14 @@ are never stored on the phone. Icons: `node scripts/admin-icons.cjs admin`.
         Worker secret `GSC_SERVICE_ACCOUNT` (type **Secret**). Then delete the
         downloaded file.
    - **Bing.** https://www.bing.com/webmasters > Settings (gear) > **API access**
-     > **API Key** > Generate. Add it as the Worker secret `BING_WEBMASTER_KEY`.
+     > **API Key** > Generate. Add it as the Worker secret `BING_WEBMASTER_KEY`,
+     and add the same key as a GitHub repository secret `BING_WEBMASTER_KEY`
+     (GitHub > Settings > Secrets and variables > Actions). Bing often refuses
+     the Worker because Cloudflare shares its internet address with other sites,
+     so the **Bing search numbers** Action fetches it from GitHub every 6 hours.
    - Open the dashboard's **Search** section and press **Refresh now**. After
-     that it updates by itself every night at 2 am Eastern. If your property is a
+     that it updates by itself: every night at 2 am Eastern, an hourly catch-up
+     when numbers are over 20 hours old, and Bing from GitHub every 6 hours. If your property is a
      domain property, set the Worker variable `SEARCH_SITE_URL` in
      `server/wrangler.toml` to `sc-domain:thelogicgrid.com`.
 8. Optional: add helpers under **Admins** with the email of their game account.

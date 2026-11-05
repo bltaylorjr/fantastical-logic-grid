@@ -1,0 +1,35 @@
+# Bing numbers for the admin dashboard, fetched from GitHub's own internet
+# addresses every 6 hours and sent to the Worker (scripts/bing-search.mjs).
+# Bing keeps refusing the Worker itself ("ThrottleIP") because Cloudflare
+# Workers share their outgoing addresses with many other sites. Needs the
+# repository secrets BING_WEBMASTER_KEY (same key as the Worker secret) and
+# FLG_ADMIN_TOKEN; without them the run is skipped quietly.
+# Free: a few seconds of GitHub Actions four times a day.
+name: Bing search numbers
+on:
+  schedule:
+    - cron: '41 */6 * * *'   # every 6 hours, off the hour
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: bing-search
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: scripts/bing-search.mjs
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Fetch the Bing numbers and send them to the dashboard
+        env:
+          BING_WEBMASTER_KEY: ${{ secrets.BING_WEBMASTER_KEY }}
+          FLG_ADMIN_TOKEN: ${{ secrets.FLG_ADMIN_TOKEN }}
+          API: ${{ vars.FLG_CLOUD_URL || 'https://flg-api.btay74.workers.dev' }}
+          SITE: ${{ vars.FLG_SITE_URL || 'https://thelogicgrid.com' }}
+        run: node scripts/bing-search.mjs
