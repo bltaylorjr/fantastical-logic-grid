@@ -118,7 +118,7 @@ export const MORE = {
           potion: ['The alchemist you want brewed the {x}.', 'A bottle of {x} was left on the bench.'],
           tool: ['The alchemist you want uses the {x}.', 'The answer was hidden in the {x}.'],
           robe: ['The alchemist you want wears the {x} robe.', 'A singed scrap of {x} robe was found nearby.'],
-          level: ['The alchemist you want holds rank {x}.', 'Only an alchemist of rank {x} could manage this.'],
+          level: ['The alchemist you want holds rank {x}.', 'The alchemist of rank {x} managed this.'],
           brew: ['The alchemist you want finished brewing at {x}.', 'The tower clock read {x} at the key moment.'],
         },
       },

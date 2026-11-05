@@ -413,6 +413,9 @@ for (const diff of ['easy', 'medium', 'expert']) {
         const leads = S.leads[c.id] || [];
         if (!leads.length) problem(where, `no lead for "${c.id}"`);
         for (const l of leads) if (!l.includes('{x}')) problem(where, `lead "${l}" does not name the item`);
+        // A number can be small (one year, rank 2), so a lead for a numbered
+        // category must not say only an expert with that number could do it.
+        if (c.ordinal) for (const l of leads) if (/^only\b/i.test(l)) problem(where, `lead "${l}" says only that number could do it`);
       }
       const words = [...sc.categories.flatMap((c) => labelsOf(c).map((w) => [w, `${c.name} item`])), ...sc.names.map((n) => [n, 'cast name'])];
       const seen = new Map();
