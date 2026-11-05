@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Report a Problem · The Fantastical Logic Grid</title>
-<meta name="description" content="Tell The Fantastical Logic Grid about a problem with a puzzle or a page, with pictures or files if they help.">
+<title>Report a Problem · The Logic Grid</title>
+<meta name="description" content="Tell The Logic Grid about a problem with a puzzle or a page, with pictures or files if they help.">
 <meta name="robots" content="noindex">
 <meta name="theme-color" content="#1F5FAD">
 <link rel="icon" href="../icons/icon.svg" type="image/svg+xml">
@@ -12,12 +12,13 @@
 <link rel="stylesheet" href="../storyline/storyline.css">
 <link rel="stylesheet" href="report.css">
 <script type="module" src="../js/report-page.js"></script>
+<script type="module" src="../js/page-visit.js"></script>
 </head>
 <body class="sl-page rp-page">
 <a class="skip" href="#rp-main">Skip to the form</a>
 <header class="sl-top">
   <a class="btn quiet" href="../" id="rp-back"><svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg> <span id="rp-back-text">Back to the game</span></a>
-  <span class="sl-brand">The Fantastical Logic Grid</span>
+  <span class="sl-brand">The Logic Grid</span>
 </header>
 
 <main id="rp-main" tabindex="-1">
@@ -48,7 +49,7 @@
 
     <section class="sl-card" aria-labelledby="rp-files-h">
       <h2 class="rp-h2" id="rp-files-h">Pictures and files <span class="rp-optional">(optional)</span></h2>
-      <p class="help" id="rp-files-help">Up to 3: screenshots or photos, PDFs, or text files (.txt, .log, .json, .csv), each up to 1 MB. Pictures are made smaller and cleaned of hidden details, like where a photo was taken, before they are sent.</p>
+      <p class="help" id="rp-files-help">Up to 3: screenshots or photos, PDFs, or text files (.txt, .log, .json, .csv), each up to 1 MB. Pictures are made smaller and cleaned of hidden details, like where a photo was taken, before they are sent. A screenshot of the screen you were on is added for you, so we can see what you saw; remove it if you would rather not send it.</p>
       <div class="rp-drop" id="rp-drop">
         <input type="file" id="rp-file" class="sr-only" multiple accept="image/png,image/jpeg,image/webp,image/gif,application/pdf,.pdf,.txt,.log,.json,.csv,text/plain" aria-describedby="rp-files-help">
         <label for="rp-file" class="btn" id="rp-pick">

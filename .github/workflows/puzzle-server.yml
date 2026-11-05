@@ -4,6 +4,12 @@
 # with the puzzle server container: each release is copied into its own folder,
 # then the file "current" is switched to it. The puzzle server notices within
 # 15 seconds, finishes the puzzles it is making and restarts on the new release.
+# Safe updates, no AI involved: before the switch, the copied release must pass
+# the engine canary (engine/health.js --quick: every game builds, has one
+# answer, survives JSON and gives hints). After the switch, if the server
+# starts on the new release but does not become healthy within 4 minutes,
+# "current" is switched back to the release that was live before, and the run
+# fails so the Actions tab shows it.
 # Off until the repository variable FLG_PUZZLE_DEPLOY is 1 (and FLG_RUNNER is set).
 name: Deploy puzzle server
 on:
@@ -11,6 +17,8 @@ on:
     branches: [main]
     paths:
       - 'engine/src/**'
+      - 'engine/doctor.js'
+      - 'engine/health.js'
       - 'puzzle-server/**'
       - '.github/workflows/puzzle-server.yml'
   workflow_dispatch:
@@ -33,6 +41,8 @@ jobs:
           sparse-checkout-cone-mode: false
       - name: Test the puzzle server
         run: node puzzle-server/test/server.test.mjs
+      - name: Engine doctor tests
+        run: node engine/test/doctor-tests.js
       - name: Copy the release to the puzzle server
         run: |
           set -euo pipefail
@@ -41,13 +51,22 @@ jobs:
           dest="/flg-puzzles/releases/$rel"
           rm -rf "$dest.tmp" && mkdir -p "$dest.tmp/engine"
           cp -r engine/src "$dest.tmp/engine/src"
-          cp engine/package.json "$dest.tmp/engine/package.json"
+          cp engine/package.json engine/doctor.js engine/health.js "$dest.tmp/engine/"
           mkdir -p "$dest.tmp/puzzle-server"
           cp puzzle-server/package.json puzzle-server/*.mjs "$dest.tmp/puzzle-server/"
+          # Canary: the copy that will go live must pass before anything switches.
+          if ! node "$dest.tmp/engine/health.js" --quick --engine-dir "$dest.tmp/engine/src"; then
+            rm -rf "$dest.tmp"
+            echo "::error::Release $rel failed the engine canary; the live release was not changed."
+            exit 1
+          fi
           rm -rf "$dest" && mv "$dest.tmp" "$dest"
+          prev=$(cat /flg-puzzles/current 2>/dev/null || true)
+          if [ -n "$prev" ] && [ "$prev" != "$rel" ]; then echo "$prev" > /flg-puzzles/previous; fi
           echo "$rel" > /flg-puzzles/current.tmp && mv /flg-puzzles/current.tmp /flg-puzzles/current
-          # Keep the newest three releases.
-          ls -1dt /flg-puzzles/releases/*/ | tail -n +4 | xargs -r rm -rf
+          # Keep the newest three releases, and always the one to roll back to.
+          keep_prev=$(cat /flg-puzzles/previous 2>/dev/null || true)
+          ls -1dt /flg-puzzles/releases/*/ | tail -n +4 | while read -r d; do [ "$(basename "$d")" = "$keep_prev" ] || rm -rf "$d"; done
           echo "Release $rel is live."
       - name: Check the game can reach it
         if: vars.FLG_CLOUD_URL != ''
@@ -55,10 +74,21 @@ jobs:
           CLOUD: ${{ vars.FLG_CLOUD_URL }}
         run: |
           rel="${GITHUB_SHA::12}"
+          seen=0
           for i in $(seq 1 24); do
             h=$(curl -fsS "$CLOUD/v1/puzzles/health" || true)
             echo "$h"
+            # The puzzle server answered (on any release), so the tunnel works.
+            case "$h" in *'"release":"'*) seen=1;; esac
             case "$h" in *"\"release\":\"$rel\""*'"ok":true'*|*'"ok":true'*"\"release\":\"$rel\""*) echo "The Worker reaches release $rel."; exit 0;; esac
             sleep 10
           done
+          prev=$(cat /flg-puzzles/previous 2>/dev/null || true)
+          if [ "$seen" = 1 ] && [ -n "$prev" ] && [ -f "/flg-puzzles/releases/$prev/puzzle-server/server.mjs" ]; then
+            # The server is reachable but the new release never became healthy
+            # (it fails its start-up check or keeps crashing): put the old one back.
+            echo "$prev" > /flg-puzzles/current.tmp && mv /flg-puzzles/current.tmp /flg-puzzles/current
+            echo "::error::Release $rel did not become healthy within 4 minutes. Rolled back to $prev."
+            exit 1
+          fi
           echo "::warning::The Worker could not reach release $rel yet. Check the tunnel and the PUZZLE_KEY secret (docs/PUZZLE-SERVER.md)."

@@ -1,5 +1,6 @@
 // Picture Grid's definition for the shared game screen (modules/grid-kit/kit.js).
 // Cells are 1 (shaded), 2 (crossed: known blank) or 0 (not decided).
+import { cleanStory } from '../grid-kit/story.js';
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 export const cluesOf = (line) => {
   const out = [];
@@ -122,7 +123,7 @@ export const def = {
       })),
       toughness: Number(p.toughness) || 0, fingerprint: str(p.fingerprint, 80),
       rules: (Array.isArray(p.rules) ? p.rules : []).slice(0, 8).map((r) => str(r)),
-      story: p.story ? { id: str(p.story.id, 80), title: str(p.story.title, 80), intro: str(p.story.intro), ending: str(p.story.ending) } : null,
+      story: cleanStory(p.story),
     };
   },
   howto: `

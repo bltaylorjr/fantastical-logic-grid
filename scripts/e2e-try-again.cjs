@@ -17,7 +17,7 @@ const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`o
   const cell = (k) => page.locator(`#gridframe td.c[data-k="${k}"]`);
   const press = async (k, key) => { await cell(k).focus(); await page.keyboard.press(key); };
   try {
-    await page.addInitScript(() => localStorage.setItem('flg.settings', JSON.stringify({ introOffered: true, sound: true, readAloud: true, volume: 0, autoX: false, coach: false })));
+    await page.addInitScript(() => localStorage.setItem('flg.settings', JSON.stringify({ introOffered: true, sound: true, readAloud: true, speechPlay: true, volume: 0, autoX: false, coach: false })));
     await page.goto('http://localhost:8159/');
     await page.waitForSelector('#tier-choices input');
     await page.check('input[name=tier][value=basic]', { force: true });

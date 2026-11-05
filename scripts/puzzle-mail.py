@@ -40,9 +40,9 @@ GMAIL_PASSWORD = ''.join(os.environ.get('GMAIL_APP_PASSWORD', '').split())
 RESEND_KEY = os.environ.get('RESEND_API_KEY', '').strip()
 MAIL_FROM = os.environ.get('MAIL_FROM', '').strip() or 'noreply@thelogicgrid.com'
 SITE = os.environ.get('FLG_SITE_URL', '').strip().rstrip('/') or 'https://thelogicgrid.com'
-SENDER_NAME = 'The Fantastical Logic Grid'
+SENDER_NAME = 'The Logic Grid'
 ROUNDS = 5  # at most 500 of each a run
-SUPPORT_LINE = 'The Fantastical Logic Grid is free, has no ads, and is made by one person. If you enjoy it, you can help keep it going'
+SUPPORT_LINE = 'The Logic Grid is free, has no ads, and is made by one person. If you enjoy it, you can help keep it going'
 LIST_NAMES = {'weekly': 'the puzzle of the week (Mondays)', 'special': 'special edition puzzles'}
 
 
@@ -88,16 +88,16 @@ def confirm_email(person):
     url = f"{API}/v1/mail/confirm?t={person['token']}"
     what = ' and '.join(LIST_NAMES[x] for x in person.get('lists', []) if x in LIST_NAMES) or 'puzzle emails'
     subject = 'Confirm your puzzle emails'
-    text = (f"Someone, hopefully you, asked for {what} from The Fantastical Logic Grid at this address.\n\n"
+    text = (f"Someone, hopefully you, asked for {what} from The Logic Grid at this address.\n\n"
             f"To confirm, open this link and press Confirm:\n{url}\n\n"
             "If you did not ask for this, ignore this email and nothing more will come. The link stops working after 7 days.\n\n"
-            "--\nThe Fantastical Logic Grid. This is a no-reply address.\n")
+            "--\nThe Logic Grid. This is a no-reply address.\n")
     body = WRAP.format(
         '<h1 style="margin:0 0 12px;font-size:22px">Confirm your puzzle emails</h1>'
-        f'<p style="margin:0 0 16px">Someone, hopefully you, asked for {E(what)} from The Fantastical Logic Grid at this address.</p>'
+        f'<p style="margin:0 0 16px">Someone, hopefully you, asked for {E(what)} from The Logic Grid at this address.</p>'
         + BUTTON.format(E(url), 'Confirm my emails')
         + '<p style="margin:0 0 14px">If you did not ask for this, ignore this email and nothing more will come. The link stops working after 7 days.</p>'
-        + SMALL.format('The Fantastical Logic Grid. This is a no-reply address.'))
+        + SMALL.format('The Logic Grid. This is a no-reply address.'))
     return subject, text, body, {'Auto-Submitted': 'auto-generated', 'X-Auto-Response-Suppress': 'All'}
 
 
@@ -107,7 +107,7 @@ def puzzle_email(person, *, kind, heading, subject, title, meta, opening, note, 
     why = 'the puzzle of the week' if kind == 'weekly' else 'special edition puzzles'
     text = (f"{heading}\n\n{title}\n{meta}\n\n" + (f"{note}\n\n" if note else '') + f"{opening}\n\nPlay it free: {play_url}\n\n"
             + (f"{SUPPORT_LINE}: {support}\n\n" if support else '')
-            + f"--\nYou asked for {why} by email from The Fantastical Logic Grid. This is a no-reply address.\n"
+            + f"--\nYou asked for {why} by email from The Logic Grid. This is a no-reply address.\n"
             f"Unsubscribe with one click: {unsub}\nChange which emails you get: {settings}\n")
     body = WRAP.format(
         f'<p style="margin:0 0 6px;font-size:14px;color:#5c5246">{E(heading)}</p>'
@@ -117,7 +117,7 @@ def puzzle_email(person, *, kind, heading, subject, title, meta, opening, note, 
         + f'<p style="margin:0 0 20px">{E(opening)}</p>'
         + BUTTON.format(E(play_url), 'Play it free')
         + (f'<p style="margin:0 0 14px;font-size:14px;color:#5c5246">{E(SUPPORT_LINE)}: <a href="{E(support)}" style="color:#7a3e00">support the game</a>.</p>' if support else '')
-        + SMALL.format(f'You asked for {E(why)} by email from The Fantastical Logic Grid. This is a no-reply address. '
+        + SMALL.format(f'You asked for {E(why)} by email from The Logic Grid. This is a no-reply address. '
                        f'<a href="{E(unsub)}" style="color:#5c5246">Unsubscribe</a> with one click, or '
                        f'<a href="{E(settings)}" style="color:#5c5246">change which emails you get</a>.'))
     headers = {'List-Unsubscribe': f'<{unsub}>', 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',

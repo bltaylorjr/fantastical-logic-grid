@@ -59,6 +59,7 @@ const inspect = () => {
 
       let p = await page.evaluate(inspect);
       assert(await page.evaluate(() => document.querySelector('#view-seg').hidden), `${name}: the Grid / List switch is hidden on the home screen`);
+      assert(await page.locator('#howto-btn').isVisible() && !(await page.locator('#intro-btn').count()), `${name}: the main page shows How to play at the top, and the Introduction is under Help`);
       if (SHOTS) await page.screenshot({ path: file('home'), fullPage: true });
       assert(p.sideways <= 0, `${name} (${width} x ${height}): the home screen does not scroll sideways`);
       assert(!p.small.length, `${name}: every target on the home screen is at least 44 px${p.small.length ? ` (${p.small.join(', ')})` : ''}`);
@@ -89,6 +90,14 @@ const inspect = () => {
       if (SHOTS) await page.screenshot({ path: file('play'), fullPage: true });
       assert(p.sideways <= 0, `${name}: the puzzle screen does not scroll sideways`);
       assert(!p.small.length, `${name}: every target on the puzzle screen is at least 44 px${p.small.length ? ` (${p.small.join(', ')})` : ''}`);
+      // While a puzzle is open the bar is one slim row: Back, logo, Grid / List, Help and Menu.
+      const bar = await page.evaluate(() => {
+        const vis = (q) => { const el = document.querySelector(q); return !!el && el.getClientRects().length > 0; };
+        const tops = ['#back-btn', '#home-btn', '#view-seg', '#help-btn', '#menu-btn'].map((q) => Math.round(document.querySelector(q).getBoundingClientRect().top));
+        return { strip: vis('.topstrip'), edu: vis('#educators-link'), chip: vis('#player-chip'), seg: vis('#view-seg'), spread: Math.max(...tops) - Math.min(...tops), h: document.querySelector('.appbar').offsetHeight };
+      });
+      assert(!bar.strip && !bar.edu && !bar.chip && bar.seg, `${name}: the puzzle's bar shows only Back, the logo, Grid / List, Help and Menu`);
+      assert(bar.spread <= 8 && bar.h <= 76, `${name}: the puzzle's bar is one row (${bar.h} px high)`);
       const frame = await page.evaluate(() => { const f = document.querySelector('#gridframe').getBoundingClientRect(); return { right: f.right, h: f.height }; });
       assert(frame.right <= width && frame.h <= height, `${name}: the grid's frame fits on screen`);
       // The grid never scrolls sideways: on a narrow screen it fits the frame's

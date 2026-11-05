@@ -4,11 +4,12 @@
 // answer reachable by logic alone; a few starting numbers are given only where
 // the logic needs them.
 //
-//   generateSumCross({ difficulty, size, seed, avoid, toughness, practice, usedStories, story })
+//   generateSumCross({ difficulty, size, seed, avoid, toughness, practice, usedStories, story, theme })
 //   getSumCrossHint(puzzle, entries)   a nudge, then where, then why
 //   solveSumCross(puzzle, entries)     the logical solver (used by the tests)
 import { makeRng } from './rng.js';
 import { aNum, bit, bitCount, bitsOf, onlyBit, cellName, cap, clamp01, fingerprint, pickByToughness, kitStory, KIT_LEVEL_NAMES, listOr } from './kit-common.js';
+import { kitThemeStory } from './kit-story.js';
 
 export const SC_TECHNIQUES = {
   nakedSingle: { level: 1, name: 'Only number left' },
@@ -305,7 +306,7 @@ function candidate(R, C, tier, rng) {
   return null;
 }
 
-export function generateSumCross({ difficulty = 'medium', size, seed = Math.random().toString(36).slice(2), avoid = [], toughness = 0.5, practice = null, usedStories = [], story = true } = {}) {
+export function generateSumCross({ difficulty = 'medium', size, seed = Math.random().toString(36).slice(2), avoid = [], toughness = 0.5, practice = null, usedStories = [], story = true, theme = null } = {}) {
   const tier = SC_TIERS[difficulty];
   if (!tier) throw new Error(`Unknown difficulty "${difficulty}".`);
   const R = SC_SIZES.includes(Number(size)) ? Number(size) : tier.sizes[0], C = R;
@@ -314,9 +315,11 @@ export function generateSumCross({ difficulty = 'medium', size, seed = Math.rand
   const want = R >= 10 ? 2 : 4;
   const found = [];
   let backup = null, practiceTries = 0;
-  const until = Date.now() + (R >= 10 ? 6000 : 3500);
+  // Past this many attempts the best proven puzzle so far is used. Bounded by
+  // work, not the clock: the same seed gives the same puzzle on every device, however fast or busy (attempt counts match the old time budget on the puzzle server, Nov 2026).
+  const enough = R >= 12 ? 53 : R >= 10 ? 47 : R >= 9 ? 124 : 400;
   for (let attempt = 0; attempt < 400 && found.length < want; attempt++) {
-    if (Date.now() > until && (found.length || backup)) break;
+    if (attempt >= enough && (found.length || backup)) break;
     const c = candidate(R, C, tier, makeRng(`${seed}:${attempt}`));
     if (!c || seen.has(fpOf(R, C, c.clues, c.givens))) continue;
     if (!c.fits) { if (!backup || c.score > backup.score) backup = c; continue; }
@@ -343,7 +346,7 @@ export function generateSumCross({ difficulty = 'medium', size, seed = Math.rand
       'No number appears twice in the same run.',
     ],
   };
-  if (story) p.story = kitStory('sc', seed, usedStories);
+  if (story) p.story = kitThemeStory('sc', seed, { theme, used: usedStories, classic: () => kitStory('sc', seed, usedStories) });
   return p;
 }
 

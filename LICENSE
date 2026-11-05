@@ -1,10 +1,10 @@
-The Fantastical Logic Grid
+The Logic Grid and The Fantastical Logic Grid
 Copyright (c) 2026 Bobby Taylor. All rights reserved.
 
 This repository and everything in it (the game, its puzzle and story engine,
 storylines, topics, characters, text, artwork, music, sound, video, the
-admin app, the server code, the website, and the name and logo "The
-Fantastical Logic Grid") are proprietary. They are NOT open source.
+admin app, the server code, the website, and the names and logos "The Logic
+Grid" and "The Fantastical Logic Grid") are proprietary. They are NOT open source.
 
 The source is visible on GitHub so the game can be built and hosted, and so
 security researchers can review it. Being able to see it does not give anyone
@@ -18,8 +18,8 @@ may not:
     artwork, audio or video, including by scraping or other automated means;
   - use any of it to train, fine-tune or test a machine-learning or AI model,
     or to build a dataset;
-  - use the name "The Fantastical Logic Grid", the logo or a confusingly
-    similar name for another game, app or service.
+  - use the names "The Logic Grid" or "The Fantastical Logic Grid", the
+    logos or a confusingly similar name for another game, app or service.
 
 Players may use the game as described in the Terms of use at
 https://thelogicgrid.com/terms/ (for example, printing puzzles for personal

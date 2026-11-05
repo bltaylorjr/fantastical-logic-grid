@@ -87,6 +87,86 @@ const MAKERS = {
     if (new Set([...p, ...q]).size < 4) return null;
     return { type: 'ifthen', p, q };
   },
+  // ----- Lab modes only (modes.js). The tiers never weight these types, so
+  // standard puzzles never draw them. ctx.time is the Timeline Case's clock
+  // category and ctx.ring the Seating Plan's seat category (seats wrap round).
+  next(ctx) {
+    // b was seen right after a (the next time on the clock).
+    const o = ctx.time;
+    if (o == null) return null;
+    const { rng, N } = ctx;
+    const v = rng.int(N - 1);
+    return { type: 'next', o, a: g(ctx, otherCat(ctx, o), entAt(ctx, o, v)), b: g(ctx, otherCat(ctx, o), entAt(ctx, o, v + 1)) };
+  },
+  between(ctx) {
+    // m was seen after a but before b; a and b may be clock times themselves.
+    const o = ctx.time;
+    if (o == null || ctx.N < 3) return null;
+    const { rng, N } = ctx;
+    const [lo, mid, hi] = distinct(rng, N, 3).sort((p, q) => p - q);
+    const m = g(ctx, otherCat(ctx, o), entAt(ctx, o, mid));
+    if (rng.next() < 0.4) return { type: 'between', o, a: o * N + lo, m, b: o * N + hi };
+    return { type: 'between', o, a: g(ctx, otherCat(ctx, o), entAt(ctx, o, lo)), m, b: g(ctx, otherCat(ctx, o), entAt(ctx, o, hi)) };
+  },
+  first(ctx) {
+    const o = ctx.time;
+    if (o == null) return null;
+    return { type: 'first', o, a: g(ctx, otherCat(ctx, o), entAt(ctx, o, 0)) };
+  },
+  last(ctx) {
+    const o = ctx.time;
+    if (o == null) return null;
+    return { type: 'last', o, a: g(ctx, otherCat(ctx, o), entAt(ctx, o, ctx.N - 1)) };
+  },
+  nextTo(ctx) {
+    const o = ctx.ring;
+    if (o == null) return null;
+    const { rng, N } = ctx;
+    const v = rng.int(N);
+    const w = (v + (rng.next() < 0.5 ? 1 : N - 1)) % N;
+    return { type: 'nextTo', o, a: g(ctx, otherCat(ctx, o), entAt(ctx, o, v)), b: g(ctx, otherCat(ctx, o), entAt(ctx, o, w)) };
+  },
+  across(ctx) {
+    const o = ctx.ring;
+    if (o == null || ctx.N % 2) return null;
+    const { rng, N } = ctx;
+    const v = rng.int(N);
+    return { type: 'across', o, a: g(ctx, otherCat(ctx, o), entAt(ctx, o, v)), b: g(ctx, otherCat(ctx, o), entAt(ctx, o, (v + N / 2) % N)) };
+  },
+  left2(ctx) {
+    // a sits two seats to the left of b: two seats on from b, clockwise.
+    const o = ctx.ring;
+    if (o == null) return null;
+    const { rng, N } = ctx;
+    const vb = rng.int(N);
+    return { type: 'left2', o, a: g(ctx, otherCat(ctx, o), entAt(ctx, o, (vb + 2) % N)), b: g(ctx, otherCat(ctx, o), entAt(ctx, o, vb)) };
+  },
+  notNext(ctx) {
+    const o = ctx.ring;
+    if (o == null || ctx.N < 4) return null;
+    const { rng, N } = ctx;
+    const v = rng.int(N);
+    const w = (v + 2 + rng.int(N - 3)) % N;
+    return { type: 'notNext', o, a: g(ctx, otherCat(ctx, o), entAt(ctx, o, v)), b: g(ctx, otherCat(ctx, o), entAt(ctx, o, w)) };
+  },
+};
+
+// Lab modes: the entity at value index v of category o, and a random category other than o.
+const entAt = (ctx, o, v) => ctx.sol[o].indexOf(v);
+function otherCat(ctx, o) {
+  const c = ctx.rng.int(ctx.K - 1);
+  return c >= o ? c + 1 : c;
+}
+
+// Lab modes: does the relation hold between value indexes va and vb (and vm
+// for 'between')? Shared by clueHolds and the solver. N is the number of
+// items (seats wrap round: seat N sits next to seat 1).
+export const MODE_RELATIONS = {
+  next: (va, vb) => vb === va + 1,
+  nextTo: (va, vb, N) => { const d = (vb - va + N) % N; return d === 1 || d === N - 1; },
+  across: (va, vb, N) => N % 2 === 0 && (vb - va + N) % N === N / 2,
+  left2: (va, vb, N) => (va - vb + N) % N === 2,
+  notNext: (va, vb, N) => { const d = (vb - va + N) % N; return d !== 0 && d !== 1 && d !== N - 1; },
 };
 
 function gapOf(ctx, c) {
@@ -105,7 +185,7 @@ export function clueKey(c) {
   const norm = { ...c };
   if (norm.xs) norm.xs = [...norm.xs].sort();
   if (norm.items) norm.items = [...norm.items].sort();
-  if (c.type === 'is' || c.type === 'not') [norm.a, norm.b] = [c.a, c.b].sort((p, q) => p - q);
+  if (c.type === 'is' || c.type === 'not' || c.type === 'nextTo' || c.type === 'across' || c.type === 'notNext') [norm.a, norm.b] = [c.a, c.b].sort((p, q) => p - q);
   if (c.type === 'either') [norm.b1, norm.b2] = [c.b1, c.b2].sort((p, q) => p - q);
   if (c.type === 'pairs') {
     [norm.x1, norm.x2] = [c.x1, c.x2].sort((p, q) => p - q);
@@ -148,6 +228,11 @@ export function clueHolds(ctx, c) {
     case 'less': return val(c.a, c.o) < val(c.b, c.o);
     case 'diff': return val(c.b, c.o) - val(c.a, c.o) === c.d;
     case 'ifthen': return !same(c.p[0], c.p[1]) || same(c.q[0], c.q[1]);
-    default: return false;
+    case 'between': return val(c.a, c.o) < val(c.m, c.o) && val(c.m, c.o) < val(c.b, c.o);
+    case 'first': return val(c.a, c.o) === 0;
+    case 'last': return val(c.a, c.o) === N - 1;
+    default:
+      if (MODE_RELATIONS[c.type]) return !same(c.a, c.b) && MODE_RELATIONS[c.type](val(c.a, c.o), val(c.b, c.o), N);
+      return false;
   }
 }

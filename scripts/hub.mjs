@@ -4,7 +4,8 @@
 //                   problems, installing, support, news, social links)
 //   /fantastical/   The Fantastical Logic Grid (the game page, moved here)
 //   /ninetimesnine/ NINETIMESNINE on a page of its own
-//   /cage-math/, /sum-cross/, /picture-grid/  the same for each of those games
+//   /cage-math/, /sum-cross/, /picture-grid/, /more-or-less/, /skyline/,
+//   /star-field/, /loop-line/, /island-bridges/  the same for each of those games
 // Every other file and page stays where it was, so links in emails, the
 // desktop app, the admin dashboard and game sites keep working.
 //
@@ -125,8 +126,74 @@ const ART_PICTURE = (() => {
 <g fill="#FFF" font-family="Atkinson Hyperlegible, system-ui, sans-serif" font-weight="700" font-size="8" text-anchor="end">${counts.map((t, r) => `<text x="-6" y="${r * S + 10}">${t}</text>`).join('')}</g></g></svg>`;
 })();
 
+const F = 'font-family="Atkinson Hyperlegible, system-ui, sans-serif" font-weight="700"';
+const ART_MORELESS = (() => {
+  const S = 28, N = 4;
+  const given = [[0, 0, 1], [1, 2, 4], [3, 1, 3]];
+  // Signs between side-by-side cells (r, c: between c and c+1) and stacked cells (r: between r and r+1, c).
+  const across = [[0, 1, '<'], [2, 0, '>'], [3, 2, '<']];
+  const down = [[0, 3, '^'], [1, 1, 'v'], [2, 2, '^']];
+  const arrow = (x, y, d) => {
+    const p = { '<': `M${x + 3} ${y - 4}l-6 4 6 4`, '>': `M${x - 3} ${y - 4}l6 4-6 4`, '^': `M${x - 4} ${y + 3}l4-6 4 6`, v: `M${x - 4} ${y - 3}l4 6 4-6` }[d];
+    return `<path d="${p}"/>`;
+  };
+  return `<svg viewBox="0 0 240 150" aria-hidden="true" focusable="false"><g transform="translate(64 19)">
+<rect width="${N * S}" height="${N * S}" rx="8" fill="rgb(255 255 255 / .08)" stroke="rgb(255 255 255 / .9)" stroke-width="2.5"/>
+<path d="${[1, 2, 3].map((i) => `M${i * S} 0v${N * S}M0 ${i * S}h${N * S}`).join('')}" stroke="rgb(255 255 255 / .45)" stroke-width="1.2"/>
+<g fill="none" stroke="#FFF" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">${across.map(([r, c, d]) => arrow((c + 1) * S, r * S + S / 2, d)).join('')}${down.map(([r, c, d]) => arrow(c * S + S / 2, (r + 1) * S, d)).join('')}</g>
+<g fill="#FFF" ${F} font-size="14" text-anchor="middle">${given.map(([r, c, n]) => `<text x="${c * S + S / 2}" y="${r * S + 19}">${n}</text>`).join('')}</g>
+<g class="mk"><rect x="${2 * S + 3}" y="${2 * S + 3}" width="${S - 6}" height="${S - 6}" rx="3" fill="#FFD400"/><text x="${2 * S + S / 2}" y="${2 * S + 19}" ${F} font-size="14" text-anchor="middle">2</text></g></g></svg>`;
+})();
+
+const ART_SKYLINE = `<svg viewBox="0 0 240 150" aria-hidden="true" focusable="false">
+<path d="M30 128h180" stroke="rgb(255 255 255 / .9)" stroke-width="2.5" stroke-linecap="round"/>
+<g fill="rgb(255 255 255 / .22)" stroke="rgb(255 255 255 / .9)" stroke-width="2"><rect x="58" y="88" width="26" height="40" rx="2"/><rect x="128" y="64" width="26" height="64" rx="2"/><rect x="163" y="100" width="26" height="28" rx="2"/></g>
+<g class="mk"><rect x="93" y="40" width="26" height="88" rx="2" fill="#FFD400" stroke="#FFF" stroke-width="2"/></g>
+<g fill="rgb(255 255 255 / .55)"><rect x="64" y="96" width="5" height="5"/><rect x="73" y="96" width="5" height="5"/><rect x="134" y="74" width="5" height="5"/><rect x="143" y="74" width="5" height="5"/><rect x="134" y="86" width="5" height="5"/><rect x="143" y="86" width="5" height="5"/><rect x="169" y="108" width="5" height="5"/><rect x="178" y="108" width="5" height="5"/></g>
+<g fill="#FFF" ${F} font-size="16" text-anchor="middle"><text x="36" y="120">2</text><text x="206" y="94">3</text></g>
+<path d="M44 114l10-4M196 88l-10 4" stroke="#FFF" stroke-width="2" stroke-linecap="round"/>
+<path d="M200 30l4 9 9 4-9 4-4 9-4-9-9-4 9-4z" fill="#FFF" opacity=".8"/></svg>`;
+
+const ART_STARS = (() => {
+  const S = 20, N = 6;
+  const star = (cx, cy, r = 7) => {
+    const pts = [];
+    for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + (i * Math.PI) / 5; const rr = i % 2 ? r * 0.45 : r; pts.push(`${(cx + Math.cos(a) * rr).toFixed(1)},${(cy + Math.sin(a) * rr).toFixed(1)}`); }
+    return `<polygon points="${pts.join(' ')}"/>`;
+  };
+  const stars = [[0, 1], [1, 3], [2, 5], [3, 0], [4, 2], [5, 4]];
+  return `<svg viewBox="0 0 240 150" aria-hidden="true" focusable="false"><g transform="translate(60 15)">
+<rect width="${N * S}" height="${N * S}" rx="8" fill="rgb(255 255 255 / .08)" stroke="rgb(255 255 255 / .9)" stroke-width="2.5"/>
+<path d="${[1, 2, 3, 4, 5].map((i) => `M${i * S} 0v${N * S}M0 ${i * S}h${N * S}`).join('')}" stroke="rgb(255 255 255 / .3)" stroke-width="1"/>
+<path d="M40 0v40H0M40 20h40v-20M80 20v60h40M0 80h60v40M60 80v-20h-20v20M100 80v40" fill="none" stroke="#FFF" stroke-width="3"/>
+<g fill="#FFF">${stars.slice(0, 4).map(([r, c]) => star(c * S + S / 2, r * S + S / 2)).join('')}</g>
+<g class="mk" fill="#FFD400">${star(2 * S + S / 2, 4 * S + S / 2)}</g><g class="mk" fill="#FFD400">${star(4 * S + S / 2, 5 * S + S / 2)}</g></g></svg>`;
+})();
+
+const ART_LOOP = (() => {
+  const S = 24, N = 4;
+  const dots = [];
+  for (let r = 0; r <= N; r++) for (let c = 0; c <= N; c++) dots.push(`<circle cx="${c * S}" cy="${r * S}" r="2.6"/>`);
+  const nums = [[0, 0, 2], [0, 2, 3], [1, 1, 0], [2, 3, 3], [3, 0, 2], [3, 2, 1]];
+  return `<svg viewBox="0 0 240 150" aria-hidden="true" focusable="false"><g transform="translate(72 27)">
+<path d="M0 0h48v24h24v-24h24v72h-48v24h-48z" fill="none" stroke="#FFF" stroke-width="3.5" stroke-linejoin="round" opacity=".95"/>
+<path class="mk" d="M96 72v24h-48" fill="none" stroke="#FFD400" stroke-width="3.5" stroke-linecap="round"/>
+<g fill="rgb(255 255 255 / .9)">${dots.join('')}</g>
+<g fill="#FFF" ${F} font-size="13" text-anchor="middle">${nums.map(([r, c, n]) => `<text x="${c * S + S / 2}" y="${r * S + 17}">${n}</text>`).join('')}</g></g></svg>`;
+})();
+
+const ART_BRIDGES = (() => {
+  const isl = [[40, 30, 3], [120, 30, 5], [200, 30, 2], [40, 118, 1], [120, 118, 3], [200, 118, 2]];
+  const isle = ([x, y, n]) => `<circle cx="${x}" cy="${y}" r="15" fill="rgb(255 255 255 / .12)" stroke="#FFF" stroke-width="2.5"/><text x="${x}" y="${y + 5}" text-anchor="middle">${n}</text>`;
+  return `<svg viewBox="0 0 240 150" aria-hidden="true" focusable="false">
+<g stroke="rgb(255 255 255 / .9)" stroke-width="3" stroke-linecap="round"><path d="M55 26h50M55 34h50"/><path d="M40 45v58"/><path d="M135 30h50"/><path d="M116 45v58M124 45v58"/><path d="M135 118h50"/></g>
+<g class="mk" stroke="#FFD400" stroke-width="3.5" stroke-linecap="round"><path d="M200 45v58"/></g>
+<g ${F} font-size="14" fill="#FFF">${isl.map(isle).join('')}</g></svg>`;
+})();
+
 // Every game on the website, in the order of the front page's cards. `page`
-// is its folder; `video` its intro (web/media/games/<video>.mp4, .vtt, .jpg).
+// is its folder; `video` its intro (web/media/games/<video>.mp4, .vtt, .jpg),
+// optional: a game without one has no video on its pages until one is added.
 // The Fantastical Logic Grid's page is the game app itself (writeGamePage).
 export const GAME_PAGES = [
   { id: 'fantastical', cls: 'flg', page: 'fantastical/', name: 'The Fantastical Logic Grid', tag: 'Story logic puzzles', art: ART_GRID, video: 'fantastical-logic-grid', howTo: 'how-to-play/',
@@ -152,6 +219,31 @@ export const GAME_PAGES = [
     points: ['Pictures from 5×5 up to 25×25', 'Every picture you uncover joins your gallery', 'Hints that show a line you can work on'],
     description: 'Free Picture Grid puzzles: shade the cells each row and column calls for and a hidden picture appears. Pictures from 5×5 to 25×25.',
     title: 'Picture Grid | Free picture logic puzzles | The Logic Grid', genre: 'Picture puzzle', css: 'modules/grid-kit/kit.css', script: 'js/kit-page.js', root: 'pg' },
+  { id: 'more-or-less', cls: 'ml', page: 'more-or-less/', name: 'More or Less', tag: 'Number puzzles', art: ART_MORELESS,
+    text: 'Fill the grid with every number once in each row and column. The signs between cells say which is less.',
+    points: ['Grids from 4×4 up to 9×9', 'Six levels, from Basic to Master', 'Notes, hints, undo and redo'],
+    description: 'Free More or Less puzzles: fill the grid with every number once in each row and column, following the less-than signs between cells. Six levels, 4×4 to 9×9.',
+    title: 'More or Less | Free number logic puzzles | The Logic Grid', genre: 'Number puzzle', css: 'modules/grid-kit/kit.css', script: 'js/kit-page.js', root: 'ml' },
+  { id: 'skyline', cls: 'sk', page: 'skyline/', name: 'Skyline', tag: 'Number puzzles', art: ART_SKYLINE,
+    text: 'Build a city of towers. The numbers at the edge say how many you can see, because tall ones hide short ones.',
+    points: ['Cities from 4×4 up to 8×8', 'Six levels, from Basic to Master', 'Hints that explain the next step'],
+    description: 'Free Skyline puzzles: build a city of towers, one of each height in every row and column, so the edge numbers show how many you can see. Six levels.',
+    title: 'Skyline | Free tower logic puzzles | The Logic Grid', genre: 'Number puzzle', css: 'modules/grid-kit/kit.css', script: 'js/kit-page.js', root: 'sk' },
+  { id: 'star-field', cls: 'sf', page: 'star-field/', name: 'Star Field', tag: 'Placement puzzles', art: ART_STARS,
+    text: 'Place stars so every row, column and region has the same number, and no two stars touch.',
+    points: ['Grids from 5×5 up to 11×11', 'One star each, then two on the biggest grids', 'Hints that explain the next step'],
+    description: 'Free Star Field puzzles: place stars so every row, column and region has the same number, and no two stars touch. Six levels, 5×5 to 11×11.',
+    title: 'Star Field | Free star logic puzzles | The Logic Grid', genre: 'Logic puzzle', css: 'modules/grid-kit/kit.css', script: 'js/kit-page.js', root: 'sf' },
+  { id: 'loop-line', cls: 'll', page: 'loop-line/', name: 'Loop Line', tag: 'Line puzzles', art: ART_LOOP,
+    text: 'Draw one closed loop around the dots so every number shows how many of its sides the loop uses.',
+    points: ['Grids from 5×5 up to 12×12', 'Six levels, from Basic to Master', 'Hints that explain the next step'],
+    description: 'Free Loop Line puzzles: draw one closed loop around the dots so every number shows how many of its sides the loop uses. Six levels, 5×5 to 12×12.',
+    title: 'Loop Line | Free loop logic puzzles | The Logic Grid', genre: 'Logic puzzle', css: 'modules/grid-kit/kit.css', script: 'js/kit-page.js', root: 'll' },
+  { id: 'island-bridges', cls: 'ib', page: 'island-bridges/', name: 'Island Bridges', tag: 'Line puzzles', art: ART_BRIDGES,
+    text: 'Join every island with straight bridges so each has its number and all of them connect.',
+    points: ['Maps from 7×7 up to 15×15', 'Six levels, from Basic to Master', 'Hints that explain the next step'],
+    description: 'Free Island Bridges puzzles: join every island with straight bridges so each has its number and all of them connect. Six levels, 7×7 to 15×15.',
+    title: 'Island Bridges | Free bridge logic puzzles | The Logic Grid', genre: 'Logic puzzle', css: 'modules/grid-kit/kit.css', script: 'js/kit-page.js', root: 'ib' },
 ];
 // The games with a page of their own written here (every game but the app).
 export const OWN_PAGES = GAME_PAGES.filter((g) => g.script);
@@ -208,6 +300,11 @@ header.top { display: flex; flex-wrap: wrap; align-items: center; justify-conten
 .art.cm { background: linear-gradient(135deg, #4A1235, #B4235A 55%, #7C2D92); }
 .art.sc { background: linear-gradient(135deg, #3B2A06, #B45309 55%, #9A3412); }
 .art.pg { background: linear-gradient(135deg, #0F3D2A, #15803D 55%, #0E7490); }
+.art.ml { background: linear-gradient(135deg, #1E1B4B, #4338CA 55%, #0369A1); }
+.art.sk { background: linear-gradient(135deg, #3B0764, #9333EA 55%, #C2410C); }
+.art.sf { background: linear-gradient(135deg, #0C1445, #1D4ED8 55%, #6D28D9); }
+.art.ll { background: linear-gradient(135deg, #3F1D0B, #C2410C 55%, #A16207); }
+.art.ib { background: linear-gradient(135deg, #083344, #0F766E 55%, #1D4ED8); }
 :root[data-theme="contrast"] .art { background: #000; }
 .body { display: flex; flex-direction: column; gap: 12px; padding: 24px 24px 26px; flex: 1; }
 .tag { font-size: .78rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
@@ -247,7 +344,7 @@ footer a { color: inherit; }
 [data-fx-hover="spotlight"] .card::after { content: ""; position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity .2s; background: radial-gradient(220px circle at var(--mx, 50%) var(--my, 50%), rgb(255 212 0 / .28), transparent 60%); }
 [data-fx-hover="spotlight"] .card:hover::after { opacity: 1; }
 [data-fx-arrival="rise"] .hero, [data-fx-arrival="rise"] .card { animation: tlg-rise .7s var(--ease) both; }
-[data-fx-arrival="rise"] .card:nth-child(2) { animation-delay: .1s; } [data-fx-arrival="rise"] .card:nth-child(3) { animation-delay: .2s; } [data-fx-arrival="rise"] .card:nth-child(4) { animation-delay: .3s; } [data-fx-arrival="rise"] .card:nth-child(5) { animation-delay: .4s; }
+[data-fx-arrival="rise"] .card:nth-child(2) { animation-delay: .1s; } [data-fx-arrival="rise"] .card:nth-child(3) { animation-delay: .2s; } [data-fx-arrival="rise"] .card:nth-child(4) { animation-delay: .3s; } [data-fx-arrival="rise"] .card:nth-child(5) { animation-delay: .4s; } [data-fx-arrival="rise"] .card:nth-child(n+6) { animation-delay: .5s; }
 [data-fx-arrival="fade"] .hero, [data-fx-arrival="fade"] .games { animation: tlg-fade .8s ease-out both; }
 @keyframes tlg-rise { from { opacity: 0; transform: translateY(18px); } }
 @keyframes tlg-fade { from { opacity: 0; } }
@@ -356,7 +453,7 @@ export const videoTag = (site, up, name, label, preload = 'none') => `<video con
 
 export function writeHubPages({ site, url, verification, tdmMeta, copyright, socialList = [], pages, updated, csp, cloud = '', socialHtml = null }) {
   const year = new Date().getUTCFullYear();
-  const description = 'The Logic Grid: free logic and number puzzle games. The Fantastical Logic Grid, NINETIMESNINE, Cage Math, Sum Cross and Picture Grid, in your browser.';
+  const description = 'The Logic Grid: ten free logic and number puzzle games in your browser, from The Fantastical Logic Grid and NINETIMESNINE to Cage Math, Skyline and Loop Line.';
   const og = (title, desc, path) => `<link rel="canonical" href="${url(path)}">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="${SITE_NAME}">
@@ -372,7 +469,7 @@ export function writeHubPages({ site, url, verification, tdmMeta, copyright, soc
   const list = { '@context': 'https://schema.org', '@type': 'ItemList', itemListElement: GAME_PAGES.map((g, i) => ({ '@type': 'ListItem', position: i + 1, name: g.name, url: url(g.page) })) };
   // The Logic Grid's introduction and each game's highlight video.
   const watchMain = hasVideo(site, 'the-logic-grid');
-  const watchGames = GAME_PAGES.filter((g) => hasVideo(site, g.video));
+  const watchGames = GAME_PAGES.filter((g) => g.video && hasVideo(site, g.video));
   const watch = watchMain || watchGames.length ? `<section class="watch" id="watch" aria-labelledby="watch-title">
 <h2 id="watch-title" data-design-text="watchTitle">See the games</h2>
 <p class="watch-lead" data-design-text="watchText">A quick look at The Logic Grid, then a minute with each game.</p>
@@ -420,7 +517,7 @@ ${themeSelect}
 <section class="hero" aria-labelledby="hero-title">
 <span class="eyebrow" data-design-text="heroEyebrow">Puzzle games</span>
 <h1 id="hero-title" data-design-text="heroTitle">Pick your puzzle.</h1>
-<p data-design-text="heroText">Five puzzle games, free to play in your browser. No guessing needed in any of them — every puzzle can be solved by reasoning alone.</p>
+<p data-design-text="heroText">Ten puzzle games, free to play in your browser. No guessing needed in any of them — every puzzle can be solved by reasoning alone.</p>
 </section>
 <dialog class="wiz-pick" id="wizard-pick" aria-labelledby="wizard-pick-h">
 <h2 id="wizard-pick-h">Which puzzle would you like to make?</h2>
@@ -434,9 +531,9 @@ ${themeSelect}
 ${watchMain ? `<dialog class="hub-welcome" id="hub-welcome" aria-labelledby="hub-welcome-h">
 <button type="button" class="hw-x" id="hub-welcome-x" aria-label="Close" title="Close (Esc)">×</button>
 <h2 id="hub-welcome-h">Welcome to The Logic Grid!</h2>
-<p id="hub-welcome-text">Five puzzle games, free to play in your browser. New here? <b>Take the tour</b>: a short narrated video, with captions, of everything on the site, from every game to your account and making your own puzzles.</p>
+<p id="hub-welcome-text">Ten puzzle games, free to play in your browser. Jump straight into <b>today's puzzle</b>, or <b>take the tour</b>: a short narrated video, with captions, of everything on the site, from every game to your account and making your own puzzles.</p>
 <div id="hub-welcome-player" hidden>${videoTag(site, '', 'the-logic-grid', 'A tour of The Logic Grid')}</div>
-<p class="hw-actions"><button type="button" class="hdr-btn" id="hub-welcome-close">Start playing</button><button type="button" class="hw-go" id="hub-welcome-tour">Take the tour</button></p>
+<p class="hw-actions"><a class="hdr-btn" id="hub-welcome-play" href="fantastical/?play=daily">Play today's puzzle</a><button type="button" class="hw-go" id="hub-welcome-tour">Take the tour</button></p>
 <p class="hw-note">The tour is always under See the games on this page.</p>
 </dialog>` : ''}
 <main id="games" class="games" tabindex="-1" aria-label="Games">
@@ -453,7 +550,7 @@ ${APP_ITEMS.map(([, href, name, text]) => `<a class="app-item" href="${href}"${h
 </div>
 <p class="app-note" id="install-ios" hidden>To install on iPhone or iPad: tap the Share button in Safari, then Add to Home Screen.</p>
 <div class="news" id="hub-news" hidden><h3>News from The Logic Grid</h3><ul id="hub-news-list"></ul></div>
-${socialList.length && socialHtml ? `<div class="follow"><h3>Follow The Logic Grid</h3>${socialHtml(socialList).replace('aria-label="Follow The Fantastical Logic Grid"', 'aria-label="Follow The Logic Grid"')}</div>` : ''}
+${socialList.length && socialHtml ? `<div class="follow"><h3>Follow The Logic Grid</h3>${socialHtml(socialList)}</div>` : ''}
 </section>
 </div>
 <footer>
@@ -468,7 +565,7 @@ ${socialList.length && socialHtml ? `<div class="follow"><h3>Follow The Logic Gr
   writeFileSync(join(site, 'index.html'), hub.replace("frame-src 'none'", "frame-src 'self'"));
   pages.unshift({ path: '', lastmod: updated, priority: 1 });
 
-  // ---------- each game's own page (NINETIMESNINE, Cage Math, Sum Cross, Picture Grid) ----------
+  // ---------- each game's own page (NINETIMESNINE and every grid-kit game) ----------
   // The game page's own security policy (it reaches the game's Worker for
   // settings and shared play data), with no inline scripts at all.
   const game = readFileSync(join(site, 'fantastical', 'index.html'), 'utf8');
@@ -502,6 +599,7 @@ ${og(g.name, npDescription, g.page)}
 <link rel="stylesheet" href="../${g.css}"${kit ? ' id="gk-css"' : ''}>
 <script src="../js/hub.js"></script>
 <script type="module" src="../${g.script}"></script>
+<script type="module" src="../js/page-visit.js"></script>
 <script type="application/ld+json">${json(npGame)}</script>
 <style>
 .np-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; padding: 14px max(16px, env(safe-area-inset-right, 0px)) 14px max(16px, env(safe-area-inset-left, 0px)); border-bottom: 1px solid var(--hairline); background: var(--surface-2); }
@@ -593,6 +691,7 @@ ${og('NINETIMESNINE rules and how to play', rulesDescription, 'ninetimesnine/rul
 <link rel="stylesheet" href="../../app.css">
 <link rel="stylesheet" href="../../modules/number-place/ui.css">
 <script src="../../js/hub.js"></script>
+<script type="module" src="../../js/page-visit.js"></script>
 ${rulesSchema.map((x) => `<script type="application/ld+json">${json(x)}</script>`).join('\n')}
 <style>
 .np-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; padding: 14px max(16px, env(safe-area-inset-right, 0px)) 14px max(16px, env(safe-area-inset-left, 0px)); border-bottom: 1px solid var(--hairline); background: var(--surface-2); }

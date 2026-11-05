@@ -58,7 +58,7 @@ const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`o
     await page.click('#dlg-game-video .dlg-x');
     assert(!(await anyOpen(page)), 'X closes the tour');
     assert(await page.waitForFunction(() => document.querySelector('#game-video').paused, null, { timeout: 3000 }).then(() => true, () => false), 'the tour stops when closed');
-    await page.click('#intro-btn');
+    await page.click('#help-btn'); await page.click('#help-intro');
     await page.waitForSelector('#dlg-video[open]');
     await page.waitForTimeout(400);
     assert(await inView(page, '#dlg-video .dlg-x'), 'video shows a close (X) button');
@@ -71,7 +71,7 @@ const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`o
     await page.click('#dlg-video .dlg-x');
     assert(!(await anyOpen(page)), 'X closes the video');
     assert(await page.evaluate(() => document.querySelector('#intro-video').paused), 'the video stops when closed');
-    await page.click('#intro-btn');
+    await page.click('#help-btn'); await page.click('#help-intro');
     await page.waitForSelector('#dlg-video[open]');
     await page.mouse.click(5, 5);
     assert(!(await anyOpen(page)), 'a click outside closes the video');

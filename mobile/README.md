@@ -1,4 +1,4 @@
-# The Fantastical Logic Grid: Android and iOS apps
+# The Logic Grid: Android and iOS apps
 
 Both apps are thin native shells around the same web build (`dist/web`), so
 every game feature, story and fix comes from `web/` with no mobile copy to

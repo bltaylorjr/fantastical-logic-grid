@@ -41,7 +41,7 @@ REPLY_TO = os.environ.get('MAIL_REPLY_TO', '').strip() or 'fantasticallogicgrid@
 # One-way emails (nothing to answer) go from here, with no Reply-To.
 MAIL_NOREPLY = os.environ.get('MAIL_NOREPLY', '').strip() or 'noreply@thelogicgrid.com'
 SITE = os.environ.get('FLG_SITE_URL', '').strip().rstrip('/') or 'https://thelogicgrid.com'
-SENDER_NAME = 'The Fantastical Logic Grid'
+SENDER_NAME = 'The Logic Grid'
 ROUNDS = 5  # at most 500 a run
 
 
@@ -72,7 +72,7 @@ def unsubscribe_link(token):
     return f'{API}/v1/daily-email/unsubscribe?t={token}'
 
 
-SUPPORT_LINE = 'The Fantastical Logic Grid is free, has no ads, and is made by one person. If you enjoy it, you can help keep it going'
+SUPPORT_LINE = 'The Logic Grid is free, has no ads, and is made by one person. If you enjoy it, you can help keep it going'
 
 
 def content(p, support=''):
@@ -85,7 +85,7 @@ def content(p, support=''):
     text = (f"Today's daily puzzle is ready.\n\n{p['title']}\n{p['difficultyName']} · {p['themeName']} · {size}\n\n"
             f"{p['opening']}\n\nPlay it free: {link}\n\nThe same puzzle for everyone today. Solve it to keep your streak going.\n\n"
             + (f"{SUPPORT_LINE}: {support}\n\n" if support else '')
-            + "--\nYou asked for the daily puzzle by email in The Fantastical Logic Grid. This is a no-reply address; questions go to support@thelogicgrid.com.\n"
+            + "--\nYou asked for the daily puzzle by email in The Logic Grid. This is a no-reply address; questions go to support@thelogicgrid.com.\n"
             "Unsubscribe with one click: {unsub}\n")
     e = html.escape
     body = ('<!doctype html><html><body style="margin:0;padding:24px;background:#f6f1e7;font-family:Arial,Helvetica,sans-serif;'
@@ -98,7 +98,7 @@ def content(p, support=''):
             'padding:12px 20px;border-radius:8px;font-weight:bold">Play today\'s puzzle</a></p>'
             '<p style="margin:0 0 14px">The same puzzle for everyone today. Solve it to keep your streak going.</p>'
             + (f'<p style="margin:0 0 14px;font-size:14px;color:#5c5246">{e(SUPPORT_LINE)}: <a href="{e(support)}" style="color:#7a3e00">support the game</a>.</p>' if support else '')
-            + '<p style="margin:20px 0 0;font-size:13px;color:#5c5246">You asked for the daily puzzle by email in The Fantastical Logic Grid. '
+            + '<p style="margin:20px 0 0;font-size:13px;color:#5c5246">You asked for the daily puzzle by email in The Logic Grid. '
             'This is a no-reply address; questions go to support@thelogicgrid.com. <a href="{unsub}" style="color:#5c5246">Unsubscribe</a> with one click.</p>'
             '</div></body></html>')
     return subject, text, body

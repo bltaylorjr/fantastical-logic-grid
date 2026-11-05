@@ -1,4 +1,4 @@
-# The Fantastical Logic Grid: browser and desktop app
+# The Logic Grid: browser and desktop app
 
 The playable game, built on the puzzle and story engine in
 `/mnt/project-files/logic-grid-engine/` (copied in at build time, never edited here).
@@ -164,6 +164,8 @@ web/engine-worker.js        runs every game's engine off the main thread (engine
 web/sw.js                   offline cache (file list stamped by the build)
 web/js/number-place.js      NINETIMESNINE screen (modules/number-place, see modules/README.md)
 web/js/np-share.js          NINETIMESNINE's anonymous play data for the learning service
+web/js/computer-race.js     Race the computer: the computer opponent's pace and the player's record (this device only)
+web/js/game-race.js         Races against other players in NINETIMESNINE and every grid-kit game
 desktop/src-tauri/          Tauri desktop shell
 scripts/                    build, local server, icons, end-to-end test
 ```

@@ -69,7 +69,7 @@ export const MORE = {
 
     { id: 'tallship', name: 'Tall Ship Voyage', description: 'Climbing the rigging and learning the ropes on an old wooden tall ship.',
       cast: { one: 'shipmate', many: 'shipmates' },
-      names: ['Abel', 'Beatrix', 'Cormac', 'Delia', 'Ewan', 'Freya', 'Garrett', 'Honor', 'Ivo', 'Jemima'],
+      names: ['Abel', 'Beatrix', 'Cormac', 'Delia', 'Ewan', 'Freya', 'Garrett', 'Honor', 'Ivo', 'Juliet'],
       categories: [
         cat('mast', 'Mast', 'climbed the {x}', 'did not climb the {x}', ['Foremast', 'Mainmast', 'Mizzenmast', 'Bowsprit', 'Crow\'s Nest', 'Topsail Yard', 'Jib Boom', 'Main Yard'], { noun: 'mast' }),
         cat('duty', 'Duty', 'was on {x} duty', 'was not on {x} duty', ['Galley', 'Bilge Pump', 'Anchor', 'Lookout', 'Bell', 'Rigging', 'Helm', 'Deck Scrub'], { noun: 'duty' }),

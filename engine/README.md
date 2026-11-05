@@ -46,7 +46,7 @@ This follows the design process step by step:
    separate brute-force search.
 6. **Grade it.** The solve path is checked against the tier's rules (hardest
    technique needed, number of advanced steps, what-if steps). If it does not
-   fit, the engine tries again with a fresh answer table (up to 60 tries or 15 seconds)
+   fit, the engine tries again with a fresh answer table (up to 60 tries; tries, not the clock, so the same seed gives the same puzzle on every device however fast or busy it is; pass `timeLimitMs` to cap the time as well)
    and returns the closest match, with a note saying how it differs.
 
 ## Player Stories
@@ -284,6 +284,38 @@ Measured in Node, old solver vs new on the same seeds and machine (Nov 2026):
 | Expert and Quantum Physicist | about 4x |
 | Theoretical Physicist | about 5x (seconds instead of tens of seconds) |
 
+## Health checks and speed tracking (no AI)
+
+`doctor.js` and `health.js` look after every game's engine with plain rules.
+They sit outside `src/`, so they never ship to players' browsers.
+
+```
+node health.js --quick     # every game at two levels: the deploy canary (about 1 s)
+node health.js             # every game and level: fixed, rotating and watched seeds (about 2 min)
+node health.js --update    # ...and adapt the speed baseline in health/
+node test/doctor-tests.js  # the checks catch faults planted in a copy of the engine
+```
+
+For each puzzle the doctor checks that the build finishes inside its time
+limit, the puzzle has what the page needs, the game's own solver works the
+stored answer out from the clues, there is exactly one answer (brute force,
+on sizes the counter handles fast), the same seed gives the same puzzle, it
+survives the trip through JSON, and hints work on a blank board and spot a
+wrong entry. A failure is run again to tell a real bug from a hiccup, and a
+seed that failed is re-checked every night until it passes 3 nights running
+(`health/watch.json`).
+
+Speed is judged against `health/baseline.json`, which adapts by itself:
+times are divided by a fixed piece of CPU work timed on the same machine, so a
+slower runner is not a slower engine; each level keeps its typical time and
+how much it normally wobbles, and only a clear slowdown (1.6x or 3x its
+wobble, and 25 ms or more) is reported. Improvements are adopted quickly, small
+drifts slowly, and a slowdown that holds for 5 nights is accepted as the new
+normal. The tuning is `SPEED` in `health.js`. The nightly run is
+`.github/workflows/engine-health.yml`; the puzzle server runs the same canary
+when it starts and the deploy runs it before a release goes live
+(docs/PUZZLE-SERVER.md).
+
 ## Shared engine core (any game)
 
 Every game runs its engine in a worker through the same two small files, so a
@@ -325,8 +357,12 @@ src/play.js        hints, checking and print text
 src/engine-host.js shared worker host for every game's engine
 src/engine-link.js shared page-side link to a game's engine worker
 cli.js             command line generator
+doctor.js          rule-based checks of every game's engine (not shipped to the page)
+health.js          nightly health run, deploy canary and adaptive speed baseline
+health/            the speed baseline and the watched seeds
 dist/              single-file browser build
 preview/           workshop page (preview.src.html + build.py -> workshop.html)
 test/run-tests.js  test suite with brute-force uniqueness check
 test/kernel-tests.js shared engine core tests
+test/doctor-tests.js the doctor catches planted faults; the speed judgement adapts
 ```

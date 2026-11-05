@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-vox-set-online"
+description = "Enables the vox_set_online command without any pre-configured scope."
+commands.allow = ["vox_set_online"]
+
+[[permission]]
+identifier = "deny-vox-set-online"
+description = "Denies the vox_set_online command without any pre-configured scope."
+commands.deny = ["vox_set_online"]

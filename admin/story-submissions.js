@@ -266,7 +266,7 @@ function detail(s) {
 function printEntry(s) {
   const e = h.esc;
   const box = $('#ss-print');
-  box.innerHTML = `<h1>The Fantastical Logic Grid: ${e(KIND[s.kind])} #${s.id}</h1>
+  box.innerHTML = `<h1>The Logic Grid: ${e(KIND[s.kind])} #${s.id}</h1>
     <p>Sent ${e(new Date(s.createdAt).toLocaleString())} from the ${e(SOURCE[s.source] || s.source)} · Status: ${e((STATUS[s.status] || [s.status])[0])}</p>
     <p>Player: ${e(s.player || (s.uid ? 'signed-in player' : 'guest'))}${s.email ? ` · Email: ${e(s.email)}` : ''} · Author credit: ${e(s.credit || 'Anonymous')} · Consent: ${s.consent ? 'given' : 'not given'}</p>
     <h2>Original submission</h2>${copyTable(s.copy)}

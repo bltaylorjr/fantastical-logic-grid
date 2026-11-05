@@ -220,7 +220,8 @@ export async function buildSeo({ root, site }) {
   // commit is the honest "last changed" date for them.
   let updated = today;
   try { updated = execFileSync('git', ['log', '-1', '--format=%cs'], { cwd: root, encoding: 'utf8' }).trim() || today; } catch {}
-  const name = 'The Fantastical Logic Grid';
+  const name = 'The Fantastical Logic Grid'; // the game these pages are about
+  const siteName = 'The Logic Grid'; // the website and business
   const pages = []; // { path, lastmod, priority }
   const quality = await readQuality(base);
   const socialList = await readSocial();
@@ -230,13 +231,14 @@ export async function buildSeo({ root, site }) {
     process.env.FLG_GOOGLE_SITE_VERIFICATION && `<meta name="google-site-verification" content="${esc(process.env.FLG_GOOGLE_SITE_VERIFICATION)}">`,
     process.env.FLG_BING_SITE_VERIFICATION && `<meta name="msvalidate.01" content="${esc(process.env.FLG_BING_SITE_VERIFICATION)}">`,
   ].filter(Boolean).join('\n');
+  // These pages are The Fantastical Logic Grid's, so they share its picture.
   const social = ({ title, description, path, type = 'website' }) => `<link rel="canonical" href="${url(path)}">
 <meta property="og:type" content="${type}">
-<meta property="og:site_name" content="${name}">
+<meta property="og:site_name" content="${siteName}">
 <meta property="og:title" content="${esc(title)}">
 <meta property="og:description" content="${esc(description)}">
 <meta property="og:url" content="${url(path)}">
-<meta property="og:image" content="${url('og-image.jpg')}">
+<meta property="og:image" content="${url('og-fantastical.jpg')}">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="${name}: story logic grid puzzles">
@@ -244,7 +246,7 @@ export async function buildSeo({ root, site }) {
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="${esc(title)}">
 <meta name="twitter:description" content="${esc(description)}">
-<meta name="twitter:image" content="${url('og-image.jpg')}">`;
+<meta name="twitter:image" content="${url('og-fantastical.jpg')}">`;
 
   // Inlined so the page paints without waiting for a stylesheet.
   const css = readFileSync(join(root, 'seo', 'site.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\s*\n\s*/g, '\n');
@@ -252,7 +254,7 @@ export async function buildSeo({ root, site }) {
   const year = Number(today.slice(0, 4));
   const owner = 'Bobby Taylor';
   const copyright = `© 2026${year > 2026 ? `–${year}` : ''} ${owner}. All rights reserved.`;
-  const trademark = `${name}™ is a trademark of ${owner}.`;
+  const trademark = `${siteName}™ and ${name}™ are trademarks of ${owner}.`;
   const tdmMeta = `<meta name="tdm-reservation" content="1">\n<meta name="tdm-policy" content="${url('terms/')}">`;
   const NAV = [['how-to-play/', 'Rules and how to play'], ['daily/', 'Daily puzzle'], ['printables/', 'Printables'], ['themes/', 'Themes'], ['difficulty-levels/', 'Difficulty levels'], ['educators/', 'For educators']];
   // Search results show about 60 characters of a title and 160 of a
@@ -354,7 +356,7 @@ ${body(up)}
   const video = {
     '@type': 'VideoObject', '@id': url('how-to-play/#video'), name: `Introduction to ${name}`,
     description: 'A narrated, captioned walkthrough of a full puzzle, from picking a theme to closing the case.',
-    thumbnailUrl: [url('og-image.jpg')], uploadDate: '2026-10-25T00:00:00-04:00',
+    thumbnailUrl: [url('og-fantastical.jpg')], uploadDate: '2026-10-25T00:00:00-04:00',
     contentUrl: url('media/intro.mp4'), embedUrl: url('how-to-play/'), inLanguage: 'en',
     ...(minutes ? { duration: `PT${minutes}M` } : {}),
   };
@@ -364,7 +366,7 @@ ${body(up)}
   const appDescription = 'Free story logic grid puzzles. Pick a difficulty, theme and size, then solve, save, resume and print. Every puzzle is a brand new story with exactly one answer.';
   const game = {
     '@context': 'https://schema.org', '@type': ['VideoGame', 'WebApplication'], name, url: url(GAME),
-    description: appDescription, image: url('og-image.jpg'), inLanguage: 'en',
+    description: appDescription, image: url('og-fantastical.jpg'), inLanguage: 'en',
     genre: ['Puzzle', 'Logic puzzle', 'Mystery'], gamePlatform: ['Web browser', 'Windows'],
     applicationCategory: 'GameApplication', operatingSystem: 'Any (web browser), Windows 10 and 11', browserRequirements: 'Requires JavaScript',
     playMode: ['SinglePlayer', 'MultiPlayer'], isAccessibleForFree: true, offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
@@ -372,10 +374,10 @@ ${body(up)}
     trailer: video,
     copyrightHolder: { '@type': 'Person', name: owner }, copyrightYear: 2026,
   };
-  const publisher = { '@type': 'Organization', name, url: url(''), logo: { '@type': 'ImageObject', url: url('icons/icon-512.png') }, sameAs: socialList.map((s) => s.url),
+  const publisher = { '@type': 'Organization', name: siteName, url: url(''), logo: { '@type': 'ImageObject', url: url('icons/icon-512.png') }, sameAs: socialList.map((s) => s.url),
     contactPoint: { '@type': 'ContactPoint', contactType: 'customer support', url: url('privacy/'), availableLanguage: 'en' } };
   game.publisher = publisher;
-  const website = { '@context': 'https://schema.org', '@type': 'WebSite', name, url: url(''), description: appDescription, inLanguage: 'en', publisher };
+  const website = { '@context': 'https://schema.org', '@type': 'WebSite', name: siteName, url: url(''), description: appDescription, inLanguage: 'en', publisher };
   const head = `<meta name="description" content="${esc(appDescription)}">
 <meta name="robots" content="index, follow, max-image-preview:large">
 ${tdmMeta}
@@ -398,7 +400,7 @@ ${verification}
   writeGamePage(site, game_html);
   pages.push({ path: GAME, lastmod: updated, priority: 1 });
   writeHubPages({ site, url, verification, tdmMeta, copyright, socialList, pages, updated, csp: SITE_CSP, cloud, socialHtml: socialPages.socialHtml });
-  // Rules and how to play pages for Cage Math, Sum Cross and Picture Grid.
+  // Rules and how to play pages for every grid-kit game.
   await writeGuides({ root, site, url, page, updated });
 
   // ---------- how to play ----------
@@ -452,7 +454,7 @@ ${playBtn(up)}
 </ol>
 <p>Stuck? Press <strong>Hint</strong>: the first hint points you to a clue, then the exact square, then the full reasoning. Undo and Redo take back any move, and <strong>Check</strong> shows whether any mark is wrong.</p>
 <h2>Watch the introduction: a full case, solved</h2>
-<video id="video" controls preload="metadata" playsinline poster="${up}og-image.jpg" width="1280" height="720">
+<video id="video" controls preload="metadata" playsinline poster="${up}og-fantastical.jpg" width="1280" height="720">
   <source src="${up}media/intro.mp4" type="video/mp4">
   <track kind="captions" srclang="en" label="English" src="${up}media/intro.en.vtt" default>
 </video>
@@ -835,7 +837,7 @@ ${playBtn(up)}`,
 <li><strong>Challenge a friend</strong> links keep the puzzle, the time to beat, and how many people played it.</li>
 </ul>
 <h2>Things you choose to send</h2>
-<p>Ideas, problem reports and story suggestions you write go to the team. Pictures and files you attach to a problem report are seen only by the team and deleted after 90 days; pictures are made smaller and cleaned of hidden details, like where a photo was taken, before they leave your device. If you are signed in and ask for a reply, the team may answer by email or in Messages.</p>
+<p>Ideas, problem reports and story suggestions you write go to the team. Pictures and files you attach to a problem report are seen only by the team and deleted after 90 days; pictures are made smaller and cleaned of hidden details, like where a photo was taken, before they leave your device. When you press Report a Problem, a screenshot of the screen you were on is attached for you; you can remove it before sending. If you are signed in and ask for a reply, the team may answer by email or in Messages.</p>
 <p><strong>Daily puzzle by email:</strong> if you are signed in and tick <strong>Email me each day's puzzle</strong>, the game keeps your account's email address to send it, once a day. Every email has a one-click unsubscribe link, and unticking the box or deleting your account removes the address.</p>
 <p><strong>Weekly and special edition puzzles by email:</strong> anyone can sign up in <strong>Menu &gt; Puzzle emails</strong>, with or without an account. The game keeps the email address and which emails you picked. If you are not signed in, we first email you a link to confirm, and nothing else is sent until you press Confirm; an address that is never confirmed is removed after 7 days. Every email has a one-click unsubscribe link and a link to change which emails you get. Unsubscribing from both, or deleting your account, removes the address.</p>
 <p><strong>Educator puzzle packages:</strong> when a teacher asks for a package on the <a href="../educators/">Educators page</a>, we keep the name, school, school email and the choices on the form to confirm the address, review the request and email the puzzles. Requests that are never confirmed or are declined are removed after 30 days. After a package is emailed, the educator may send ideas, problems, feedback and survey answers through a private link; we keep those with the request to improve our tools and to answer them by email.</p>
@@ -948,7 +950,7 @@ ${answerKey(p)}
   // 404.html is served at any depth, so its links must start at the site root.
   const root404 = new URL(base).pathname.replace(/\/?$/, '/');
   writeFileSync(join(site, '404.html'), readFileSync(join(site, '404.html'), 'utf8').replace(/(href|src)="(?!https?:|#)([^"]*)"/g, (m, a, h) => `${a}="${root404}${h}"`));
-  cpSync(join(root, 'seo', 'og-image.jpg'), join(site, 'og-image.jpg'));
+  for (const f of ['og-image.jpg', 'og-fantastical.jpg']) cpSync(join(root, 'seo', f), join(site, f));
   writeFileSync(join(site, `${INDEXNOW_KEY}.txt`), INDEXNOW_KEY);
 
   writeFileSync(join(site, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>

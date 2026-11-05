@@ -1,7 +1,8 @@
 // The front page's first-visit welcome (scripts/hub.mjs, web/js/hub.js), against
 // the website build (dist/site): it offers the tour of The Logic Grid once, plays
-// it with captions on, closes with X, Escape, Start playing or a click outside
-// (the video stops), and never shows to a player who already knows the site.
+// it with captions on, closes with X, Escape or a click outside (the video
+// stops), Play today's puzzle opens the daily puzzle (the main button for
+// visitors from another site), and it never shows to a player who already knows the site.
 const { chromium } = require('playwright');
 const { spawn } = require('child_process');
 const path = require('path');
@@ -14,12 +15,12 @@ const BASE = `http://localhost:${PORT}`;
   await new Promise((r) => setTimeout(r, 600));
   const browser = await chromium.launch();
   const errors = [];
-  const open = async (viewport = { width: 1280, height: 800 }, settings = null) => {
+  const open = async (viewport = { width: 1280, height: 800 }, settings = null, referer = undefined) => {
     const ctx = await browser.newContext({ viewport, serviceWorkers: 'block' });
     if (settings) await ctx.addInitScript((s) => { if (!localStorage.getItem('flg.settings')) localStorage.setItem('flg.settings', s); }, JSON.stringify(settings));
     const page = await ctx.newPage();
     page.on('pageerror', (e) => errors.push(String(e)));
-    await page.goto(`${BASE}/`);
+    await page.goto(`${BASE}/`, { referer });
     await page.waitForSelector('.games .card');
     await page.waitForTimeout(300);
     return page;
@@ -52,8 +53,14 @@ const BASE = `http://localhost:${PORT}`;
     await page.context().close();
 
     page = await open();
-    await page.click('#hub-welcome-close');
-    assert(!(await isOpen(page)), 'Start playing closes it');
+    await page.click('#hub-welcome-play');
+    await page.waitForURL(/\/fantastical\//);
+    assert(true, 'Play today\'s puzzle opens the daily puzzle');
+    await page.context().close();
+
+    page = await open(undefined, null, 'https://www.google.com/');
+    assert(await page.evaluate(() => document.activeElement.id) === 'hub-welcome-play', 'a visitor from a search gets Play today\'s puzzle first');
+    assert(await page.evaluate(() => document.getElementById('hub-welcome-play').className === 'hw-go'), 'as the main button');
     await page.context().close();
 
     page = await open({ width: 360, height: 640 });

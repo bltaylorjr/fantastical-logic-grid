@@ -1,0 +1,122 @@
+# Engine health: rule-based checks and speed tracking for every game's engine.
+# No AI: engine/health.js builds puzzles with the engine and checks them with
+# engine/doctor.js (one answer by brute force, the solver reaches the stored
+# answer, same seed gives the same puzzle, JSON round trip, hints work and
+# spot mistakes, builds inside their time limit).
+#
+#   - Nightly at 03:37 UTC (about 11:37 pm Eastern): every game and level, with
+#     fixed seeds (comparable timings), new seeds for the night (rare failures)
+#     and any seed that failed before (re-checked until it passes 3 nights).
+#     The speed baseline adapts by itself (see engine/health.js) and is kept in
+#     the Actions cache, starting from engine/health/baseline.json.
+#     Also reads the live puzzle server's health (start-up check, timeouts,
+#     crashes) when it is switched on.
+#     Problems go in one GitHub issue labelled engine-health, updated each
+#     night and closed on a clean night. GitHub emails the owner about new issues.
+#   - On pull requests that touch the engine or puzzle server: the same checks
+#     with one fixed seed per level; the PR fails if a puzzle is broken.
+# Free: scheduled GitHub Actions on a public repository.
+name: Engine health
+on:
+  schedule:
+    - cron: '37 3 * * *'
+  pull_request:
+    paths:
+      - 'engine/**'
+      - 'puzzle-server/**'
+      - '.github/workflows/engine-health.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  issues: write
+concurrency:
+  group: engine-health-${{ github.event_name }}-${{ github.ref }}
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Doctor tests (the checks catch planted faults)
+        run: node engine/test/doctor-tests.js
+      - name: Restore the adapted speed baseline
+        if: github.event_name != 'pull_request'
+        uses: actions/cache/restore@v4
+        with:
+          path: engine/health
+          key: engine-health-${{ github.run_id }}
+          restore-keys: engine-health-
+      - name: Check every game
+        id: run
+        run: |
+          set +e
+          if [ "${{ github.event_name }}" = pull_request ]; then
+            node engine/health.js --seeds 1 --budget-min 30 --report out/report.json --md out/report.md
+          else
+            node engine/health.js --update --budget-min 35 --report out/report.json --md out/report.md
+          fi
+          echo "code=$?" >> "$GITHUB_OUTPUT"
+      - name: Keep the adapted baseline for tomorrow
+        if: always() && github.event_name != 'pull_request'
+        uses: actions/cache/save@v4
+        with:
+          path: engine/health
+          key: engine-health-${{ github.run_id }}
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: engine-health
+          path: out/
+          retention-days: 14
+      - name: Open, update or close the engine-health issue
+        if: always() && github.event_name != 'pull_request'
+        uses: actions/github-script@v9
+        env:
+          CLOUD: ${{ vars.FLG_PUZZLE_DEPLOY == '1' && vars.FLG_CLOUD_URL || '' }}
+        with:
+          script: |
+            const fs = require('fs');
+            let report = null;
+            try { report = JSON.parse(fs.readFileSync('out/report.json', 'utf8')); } catch (e) { /* the run crashed */ }
+            const problems = [], notes = [];
+            if (!report) problems.push('The engine health run did not finish. Open the run for the error.');
+            else {
+              for (const r of report.broken) problems.push(`**${r.game}/${r.level}** seed \`${r.seed}\`: ${r.problems.join('; ')}${r.repeatable ? ' (every time)' : ''}`);
+              for (const j of report.slower) notes.push(`**${j.key}** builds in ${Math.round(j.ms)} ms, usually ${j.typicalMs} ms (${j.ratio.toFixed(2)}x, night ${j.next.slowNights} of 5 before it is accepted as normal)`);
+              if (report.outOfTime) notes.push('The run ran out of time; some checks were skipped.');
+            }
+            // The live puzzle server, through the game's Worker.
+            if (process.env.CLOUD) {
+              try {
+                const h = await (await fetch(`${process.env.CLOUD}/v1/puzzles/health`)).json();
+                if (!h.ok) problems.push(`The live puzzle server is not healthy (release ${h.release || 'unknown'}, start-up check: ${h.canary || 'unknown'}).`);
+              } catch (e) { notes.push('Could not reach the live puzzle server through the Worker.'); }
+            }
+            const label = 'engine-health';
+            const run = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const { data: open } = await github.rest.issues.listForRepo({ ...context.repo, state: 'open', labels: label });
+            if (problems.length || notes.length) {
+              const body = [`The nightly engine health run ([report](${run})) found:`,
+                problems.length ? `\n**Broken: needs a fix**\n\n${problems.map((p) => `- ${p}`).join('\n')}` : '',
+                notes.length ? `\n**Slower or worth a look**\n\n${notes.map((n) => `- ${n}`).join('\n')}` : '',
+                '\nReproduce one puzzle: `node -e "import(\'./engine/doctor.js\').then(d=>d.checkPuzzle(\'GAME\',{level:\'LEVEL\',seed:\'SEED\'})).then(console.log)"`',
+                '\nThis issue is updated every night and closes itself on a clean night.'].join('\n');
+              if (open.length) await github.rest.issues.update({ ...context.repo, issue_number: open[0].number, body });
+              else {
+                await github.rest.issues.createLabel({ ...context.repo, name: label, color: 'b60205', description: 'Opened by the nightly engine health run' }).catch(() => {});
+                await github.rest.issues.create({ ...context.repo, title: problems.length ? 'Engine health: a game engine needs a fix' : 'Engine health: things to look at', labels: [label], body });
+              }
+            } else {
+              for (const issue of open) {
+                await github.rest.issues.createComment({ ...context.repo, issue_number: issue.number, body: `A clean night: every game passed and nothing got slower ([report](${run})). Closing.` });
+                await github.rest.issues.update({ ...context.repo, issue_number: issue.number, state: 'closed', state_reason: 'completed' });
+              }
+            }
+      - name: Fail when a puzzle is broken
+        if: steps.run.outputs.code != '0'
+        run: |
+          echo "::error::engine/health.js found a broken puzzle (exit ${{ steps.run.outputs.code }}). See the summary."
+          exit 1

@@ -1,0 +1,374 @@
+{
+  "version": 1,
+  "unitNote": "times are divided by machineSpeed() in engine/doctor.js",
+  "entries": {
+    "flg/basic": {
+      "norm": 0.0804,
+      "wobble": 0.16,
+      "nights": 3,
+      "slowNights": 0
+    },
+    "flg/easy": {
+      "norm": 0.1117,
+      "wobble": 0.41,
+      "nights": 3,
+      "slowNights": 0
+    },
+    "flg/medium": {
+      "norm": 0.4234,
+      "wobble": 0.28,
+      "nights": 3,
+      "slowNights": 0
+    },
+    "flg/hard": {
+      "norm": 0.2212,
+      "wobble": 0.22,
+      "nights": 3,
+      "slowNights": 0
+    },
+    "flg/expert": {
+      "norm": 1.409,
+      "wobble": 0.18,
+      "nights": 3,
+      "slowNights": 0
+    },
+    "flg/mensa": {
+      "norm": 9.1901,
+      "wobble": 0.13,
+      "nights": 3,
+      "slowNights": 0
+    },
+    "flg/theorist": {
+      "norm": 20.4289,
+      "wobble": 0.11,
+      "nights": 3,
+      "slowNights": 0
+    },
+    "np/basic": {
+      "norm": 0.0587,
+      "wobble": 0.24,
+      "nights": 3,
+      "slowNights": 0
+    },
+    "np/easy": {
+      "norm": 0.075,
+      "wobble": 0.26,
+      "nights": 3,
+      "slowNights": 0
+    },
+    "np/medium": {
+      "norm": 0.3237,
+      "wobble": 0.13,
+      "nights": 3,
+      "slowNights": 0
+    },
+    "np/hard": {
+      "norm": 2.4251,
+      "wobble": 0.11,
+      "nights": 3,
+      "slowNights": 0
+    },
+    "np/expert": {
+      "norm": 8.4291,
+      "wobble": 0.14,
+      "nights": 3,
+      "slowNights": 0
+    },
+    "np/master": {
+      "norm": 37.4318,
+      "wobble": 0.13,
+      "nights": 3,
+      "slowNights": 0
+    },
+    "cm/basic": {
+      "norm": 0.042,
+      "wobble": 0.14,
+      "nights": 3,
+      "slowNights": 0
+    },
+    "cm/easy": {
+      "norm": 0.0598,
+      "wobble": 0.2,
+      "nights": 3,
+      "slowNights": 0
+    },
+    "cm/medium": {
+      "norm": 0.0843,
+      "wobble": 0.16,
+      "nights": 3,
+      "slowNights": 0
+    },
+    "cm/hard": {
+      "norm": 1.685,
+      "wobble": 0.22,
+      "nights": 3,
+      "slowNights": 0
+    },
+    "cm/expert": {
+      "norm": 18.5732,
+      "wobble": 0.12,
+      "nights": 3,
+      "slowNights": 0
+    },
+    "cm/master": {
+      "norm": 8.4206,
+      "wobble": 0.12,
+      "nights": 3,
+      "slowNights": 0
+    },
+    "sc/basic": {
+      "norm": 0.173,
+      "wobble": 0.11,
+      "nights": 3,
+      "slowNights": 0
+    },
+    "sc/easy": {
+      "norm": 0.5203,
+      "wobble": 0.1,
+      "nights": 3,
+      "slowNights": 0
+    },
+    "sc/medium": {
+      "norm": 1.4203,
+      "wobble": 0.18,
+      "nights": 3,
+      "slowNights": 0
+    },
+    "sc/hard": {
+      "norm": 3.0065,
+      "wobble": 0.12,
+      "nights": 3,
+      "slowNights": 0
+    },
+    "sc/expert": {
+      "norm": 27.9255,
+      "wobble": 0.12,
+      "nights": 3,
+      "slowNights": 0
+    },
+    "sc/master": {
+      "norm": 98.5292,
+      "wobble": 0.09,
+      "nights": 3,
+      "slowNights": 0
+    },
+    "pg/basic": {
+      "norm": 0.0451,
+      "wobble": 0.19,
+      "nights": 3,
+      "slowNights": 0
+    },
+    "pg/easy": {
+      "norm": 0.1138,
+      "wobble": 0.34,
+      "nights": 3,
+      "slowNights": 0
+    },
+    "pg/medium": {
+      "norm": 0.0873,
+      "wobble": 0.26,
+      "nights": 3,
+      "slowNights": 0
+    },
+    "pg/hard": {
+      "norm": 0.1875,
+      "wobble": 0.1,
+      "nights": 3,
+      "slowNights": 0
+    },
+    "pg/expert": {
+      "norm": 0.1507,
+      "wobble": 0.14,
+      "nights": 3,
+      "slowNights": 0
+    },
+    "pg/master": {
+      "norm": 0.3685,
+      "wobble": 0.12,
+      "nights": 3,
+      "slowNights": 0
+    },
+    "ml/basic": {
+      "norm": 0.092,
+      "wobble": 0.21,
+      "nights": 3,
+      "slowNights": 0
+    },
+    "ml/easy": {
+      "norm": 0.6389,
+      "wobble": 0.34,
+      "nights": 3,
+      "slowNights": 0
+    },
+    "ml/medium": {
+      "norm": 2.1631,
+      "wobble": 0.13,
+      "nights": 3,
+      "slowNights": 0
+    },
+    "ml/hard": {
+      "norm": 3.3173,
+      "wobble": 0.14,
+      "nights": 3,
+      "slowNights": 0
+    },
+    "ml/expert": {
+      "norm": 3.0518,
+      "wobble": 0.13,
+      "nights": 3,
+      "slowNights": 0
+    },
+    "ml/master": {
+      "norm": 13.7182,
+      "wobble": 0.15,
+      "nights": 3,
+      "slowNights": 0
+    },
+    "sk/basic": {
+      "norm": 0.0578,
+      "wobble": 0.11,
+      "nights": 3,
+      "slowNights": 0
+    },
+    "sk/easy": {
+      "norm": 0.0896,
+      "wobble": 0.17,
+      "nights": 3,
+      "slowNights": 0
+    },
+    "sk/medium": {
+      "norm": 0.5112,
+      "wobble": 0.28,
+      "nights": 3,
+      "slowNights": 0
+    },
+    "sk/hard": {
+      "norm": 0.6372,
+      "wobble": 0.1,
+      "nights": 3,
+      "slowNights": 0
+    },
+    "sk/expert": {
+      "norm": 7.4497,
+      "wobble": 0.11,
+      "nights": 3,
+      "slowNights": 0
+    },
+    "sk/master": {
+      "norm": 21.8178,
+      "wobble": 0.14,
+      "nights": 3,
+      "slowNights": 0
+    },
+    "sf/basic": {
+      "norm": 0.1163,
+      "wobble": 0.2,
+      "nights": 3,
+      "slowNights": 0
+    },
+    "sf/easy": {
+      "norm": 0.8513,
+      "wobble": 0.15,
+      "nights": 3,
+      "slowNights": 0
+    },
+    "sf/medium": {
+      "norm": 9.5069,
+      "wobble": 0.14,
+      "nights": 3,
+      "slowNights": 0
+    },
+    "sf/hard": {
+      "norm": 14.9773,
+      "wobble": 0.12,
+      "nights": 3,
+      "slowNights": 0
+    },
+    "sf/expert": {
+      "norm": 3.082,
+      "wobble": 0.15,
+      "nights": 3,
+      "slowNights": 0
+    },
+    "sf/master": {
+      "norm": 3.3023,
+      "wobble": 0.13,
+      "nights": 3,
+      "slowNights": 0
+    },
+    "ll/basic": {
+      "norm": 0.3968,
+      "wobble": 0.32,
+      "nights": 3,
+      "slowNights": 0
+    },
+    "ll/easy": {
+      "norm": 0.3352,
+      "wobble": 0.21,
+      "nights": 3,
+      "slowNights": 0
+    },
+    "ll/medium": {
+      "norm": 1.3986,
+      "wobble": 0.14,
+      "nights": 3,
+      "slowNights": 0
+    },
+    "ll/hard": {
+      "norm": 2.4554,
+      "wobble": 0.13,
+      "nights": 3,
+      "slowNights": 0
+    },
+    "ll/expert": {
+      "norm": 8.3607,
+      "wobble": 0.12,
+      "nights": 3,
+      "slowNights": 0
+    },
+    "ll/master": {
+      "norm": 51.0802,
+      "wobble": 0.13,
+      "nights": 3,
+      "slowNights": 0
+    },
+    "ib/basic": {
+      "norm": 0.0586,
+      "wobble": 0.38,
+      "nights": 3,
+      "slowNights": 0
+    },
+    "ib/easy": {
+      "norm": 0.373,
+      "wobble": 0.24,
+      "nights": 3,
+      "slowNights": 0
+    },
+    "ib/medium": {
+      "norm": 0.3787,
+      "wobble": 0.19,
+      "nights": 3,
+      "slowNights": 0
+    },
+    "ib/hard": {
+      "norm": 0.7539,
+      "wobble": 0.24,
+      "nights": 3,
+      "slowNights": 0
+    },
+    "ib/expert": {
+      "norm": 0.3278,
+      "wobble": 0.11,
+      "nights": 3,
+      "slowNights": 0
+    },
+    "ib/master": {
+      "norm": 7.3642,
+      "wobble": 0.14,
+      "nights": 3,
+      "slowNights": 0
+    }
+  },
+  "updated": "2026-11-04",
+  "machineUnitMs": 31.26
+}

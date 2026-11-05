@@ -68,7 +68,7 @@ ADMIN_URL = f'{API}/admin/#marketing'
 UA = 'flg-marketing-post'
 GRAPH = 'https://graph.facebook.com/v21.0'
 THREADS = 'https://graph.threads.net/v1.0'
-REDDIT_UA = 'linux:flg-marketing-post:1.0 (The Fantastical Logic Grid)'
+REDDIT_UA = 'linux:flg-marketing-post:1.0 (The Logic Grid)'
 RETRY_DAYS = 3  # a failed automatic post is tried again on the next 3 mornings
 
 KEYS = {
@@ -641,7 +641,7 @@ def email(subject, parts):
     style = 'body{font-family:Segoe UI,Arial,sans-serif;font-size:15px;line-height:1.5;color:#1d1b29;max-width:760px}h3{margin-top:26px;border-top:1px solid #ddd;padding-top:12px}'
     body = f'<!doctype html><html><head><meta charset="utf-8"><style>{style}</style></head><body>{"".join(parts)}</body></html>'
     msg = EmailMessage()
-    msg['From'] = f'The Fantastical Logic Grid <{GMAIL_USER}>'
+    msg['From'] = f'The Logic Grid <{GMAIL_USER}>'
     msg['To'] = MAIL_TO
     msg['Subject'] = subject
     msg.set_content(re.sub(r'<[^>]+>', '', re.sub(r'</(p|h3|li|pre)>', '\n', body)))
@@ -739,7 +739,7 @@ def posted_mark(day, site, link=None):
     return link
 
 
-def daily_more_sites(r, day, paths, image_urls, posted, failed):
+def daily_more_sites(r, day, paths, image_urls, posted, failed, key=''):
     """The daily puzzle on X, Threads, LinkedIn and Pinterest. Each is skipped
     quietly until its keys are saved, so the post starts there by itself the
     morning after the keys are added. A site that already has the day's puzzle
@@ -750,7 +750,7 @@ def daily_more_sites(r, day, paths, image_urls, posted, failed):
         if not has_keys(site):
             print(f"::notice::{name}: not set up yet ({', '.join(KEYS[site])}), so not posted there.")
             return
-        earlier = posted_mark(day, site)
+        earlier = posted_mark(day + key, site)
         if earlier:
             print(f'::notice::Already on {name}: {earlier}')
             posted.append((name, f'{earlier} (posted earlier)'))
@@ -766,7 +766,7 @@ def daily_more_sites(r, day, paths, image_urls, posted, failed):
             else:
                 print(f'::notice::Posted to {name}: {link}')
                 posted.append((name, link))
-            posted_mark(day, site, link)
+            posted_mark(day + key, site, link)
         except Exception as e:  # noqa: BLE001
             failed.append((name, scrub(e)))
             print(f'::warning::{name}: {scrub(e)}')
@@ -830,8 +830,12 @@ def daily_more_sites(r, day, paths, image_urls, posted, failed):
     one('pinterest', 'Pinterest', pinterest)
 
 
-def daily_puzzle():
-    """Mode daily-puzzle: posts the day's two puzzle slides (clues, then a blank
+def daily_puzzle(game=''):
+    """Mode daily-puzzle, one game: game '' is The Fantastical Logic Grid
+    (OUT_DIR/<day>.json from scripts/social-puzzle.mjs); np, cm, sc, pg, ml,
+    sk, sf, ll and ib are NINETIMESNINE, Cage Math, Sum Cross, Picture Grid, More
+    or Less, Skyline, Star Field, Loop Line and Island Bridges (OUT_DIR/<day>-<game>.json
+    from scripts/social-games.mjs, one picture each). Posts the day's puzzle slides (clues, then a blank
     grid) made and checked by scripts/social-puzzle.mjs to the game's Facebook
     Page (one post with both pictures), Instagram (a carousel), Bluesky,
     Mastodon, X, Threads, LinkedIn and Pinterest (each once its keys are
@@ -842,11 +846,16 @@ def daily_puzzle():
     so a re-run is safe."""
     day = env('SOCIAL_DAY') or datetime.now(timezone.utc).date().isoformat()
     out = env('OUT_DIR') or 'out/social'
+    key = f'-{game}' if game else ''
     try:
-        with open(os.path.join(out, f'{day}.json'), encoding='utf-8') as f:
+        with open(os.path.join(out, f'{day}{key}.json'), encoding='utf-8') as f:
             r = json.load(f)
     except (OSError, ValueError):
         r = {'ok': False, 'problems': ['The puzzle checker did not finish, so there was nothing checked to post.']}
+    if r.get('skipped'):
+        print(f"::notice::{r['problems'][0]}")
+        return 0
+    label = r.get('gameName') or 'The Fantastical Logic Grid'
     when = datetime.fromisoformat(day).strftime('%A, %B %-d')
     run = f"https://github.com/bltaylorjr/fantastical-logic-grid/actions/runs/{env('GITHUB_RUN_ID')}" if env('GITHUB_RUN_ID') else ''
     tail = (f'<p>Details: <a href="{html.escape(run)}">this run</a>. ' if run else '<p>') + \
@@ -854,7 +863,7 @@ def daily_puzzle():
     if not r.get('ok'):
         for m in r.get('problems', []):
             print(f'::error::Not posted: {m}')
-        email(f'Daily puzzle not posted, {when}', ['<p>Today\'s daily puzzle was <b>not</b> posted anywhere, because a check before posting found a problem:</p>',
+        email(f'Daily puzzle not posted ({label}), {when}', [f'<p>Today\'s daily {html.escape(label)} puzzle was <b>not</b> posted anywhere, because a check before posting found a problem:</p>',
               '<ul>' + ''.join(f'<li>{html.escape(m)}</li>' for m in r.get('problems', [])) + '</ul>', tail])
         return 1
     if not has_keys('facebook'):
@@ -894,7 +903,7 @@ def daily_puzzle():
         try:
             for n, path in enumerate(paths, 1):
                 with open(path, 'rb') as f:
-                    body, ctype = multipart({'published': 'false'}, 'source', f'logic-puzzle-{day}-{n}.jpg', f.read(), 'image/jpeg')
+                    body, ctype = multipart({'published': 'false'}, 'source', f'logic-puzzle-{day}{key}-{n}.jpg', f.read(), 'image/jpeg')
                 res = request(f'{GRAPH}/{page}/photos', method='POST', data=body, timeout=120, headers={**auth, 'Content-Type': ctype})
                 imgs = meta(f"{GRAPH}/{res['id']}?fields=images", token=token).get('images', [])
                 photos.append((res['id'], max(imgs, key=lambda i: i.get('width', 0)).get('source', '') if imgs else ''))
@@ -1010,19 +1019,19 @@ def daily_puzzle():
                     with open(path, 'rb') as f:
                         data = f.read()
                     alts = md.get('alts', [])
-                    media_ids.append(mastodon_media(base, auth_m, data, f'logic-puzzle-{day}-{n + 1}.jpg', 'image/jpeg', alts[n] if n < len(alts) else ALT))
-                # The idempotency key stops a retry from posting the same day twice.
-                res = request(f'{base}/api/v1/statuses', method='POST', headers={**auth_m, 'Idempotency-Key': f'flg-daily-{day}'},
+                    media_ids.append(mastodon_media(base, auth_m, data, f'logic-puzzle-{day}{key}-{n + 1}.jpg', 'image/jpeg', alts[n] if n < len(alts) else ALT))
+                # The idempotency key stops a retry from posting the same day (and game) twice.
+                res = request(f'{base}/api/v1/statuses', method='POST', headers={**auth_m, 'Idempotency-Key': f'flg-daily-{day}{key}'},
                               data={'status': md['text'], 'media_ids': media_ids, 'visibility': 'public', 'language': 'en'})
                 posted.append(('Mastodon', res['url']))
                 print(f"::notice::Posted to Mastodon: {res['url']}")
         except Exception as e:  # noqa: BLE001
             failed.append(('Mastodon', scrub(e)))
             print(f'::warning::Mastodon: {scrub(e)}')
-    daily_more_sites(r, day, paths, [u for _, u in photos if u], posted, failed)
+    daily_more_sites(r, day, paths, [u for _, u in photos if u], posted, failed, key)
     if failed:
-        email(f'Daily puzzle: {" and ".join(n for n, _ in failed)} did not post, {when}', [
-            f'<p>Today\'s puzzle, <b>{html.escape(r.get("title", ""))}</b>, passed every check, but posting hit a problem.</p>',
+        email(f'Daily puzzle ({label}): {" and ".join(n for n, _ in failed)} did not post, {when}', [
+            f'<p>Today\'s {html.escape(label)} puzzle, <b>{html.escape(r.get("title", ""))}</b>, passed every check, but posting hit a problem.</p>',
             '<ul>' + ''.join(f'<li><b>{html.escape(n)}:</b> {html.escape(why)}</li>' for n, why in failed) + '</ul>',
             ('<p>Posted:</p><ul>' + ''.join(f'<li>{html.escape(n)}: {html.escape(u)}</li>' for n, u in posted) + '</ul>') if posted else '',
             tail])
@@ -1032,7 +1041,17 @@ def daily_puzzle():
 
 def main():
     if MODE == 'daily-puzzle':
-        sys.exit(daily_puzzle())
+        # The Fantastical Logic Grid first, then every other game's daily puzzle
+        # (SOCIAL_GAMES, default np,cm,sc,pg,ml,sk,sf,ll,ib). One game failing never stops the others.
+        games = [''] + [g.strip() for g in (env('SOCIAL_GAMES') or 'np,cm,sc,pg,ml,sk,sf,ll,ib').split(',') if g.strip()]
+        codes = []
+        for g in games:
+            try:
+                codes.append(daily_puzzle(g))
+            except Exception as e:  # noqa: BLE001
+                print(f'::error::Daily puzzle {g or "fantastical"}: {scrub(e)}')
+                codes.append(1)
+        sys.exit(1 if any(codes) else 0)
     if MODE == 'delete':
         sys.exit(delete_posts())
     if MODE == 'check':

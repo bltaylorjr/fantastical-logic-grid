@@ -1,5 +1,5 @@
 // NINETIMESNINE: its own game screen, with the Logic Grid's look, for the numbers game.
-// Self-contained so it can drop into The Fantastical Logic Grid app or run on
+// Self-contained so it can drop into The Logic Grid app or run on
 // its own test page:
 //
 //   import { mount } from './ui.js';
@@ -92,7 +92,8 @@ const glyphHtml = (d) => (styled('glyph') ? `${esc(glyph(d))}${prefs.glyphNums ?
 const bit = (d) => 1 << (d - 1);
 const quiet = () => !!prefs.silent;
 const showStory = () => !quiet() && cfg().stories !== false;
-const play = (name) => { if (prefs.sound && !quiet()) { try { sounds[name](); } catch (e) { /* no audio */ } } };
+// Sound effects have two switches, by where they play: while solving, and at the finish.
+const play = (name) => { if (prefs[name === 'solved' ? 'sfxFinish' : 'sfxPlay'] && !quiet()) { try { sounds[name](); } catch (e) { /* no audio */ } } };
 
 // ---------- mount ----------
 
@@ -104,6 +105,9 @@ export function mount(container, host) {
   const pre = deps.storagePrefix || 'flg.np';
   K = { games: `${pre}.games`, cur: `${pre}.cur`, prefs: `${pre}.prefs`, learn: `${pre}.learn`, old: `${pre}.current` };
   prefs = { notes: false, showMistakes: false, autoClean: true, highlight: true, silent: false, sound: true, adapt: true, theme: '', level: null, size: null, variants: [], coachDone: false, style: 'classic', styleTips: {}, glyphNums: false, ...load(K.prefs, {}) };
+  // Before the two switches there was one Sound effects switch: keep the player's choice.
+  prefs.sfxPlay ??= prefs.sound !== false;
+  prefs.sfxFinish ??= prefs.sound !== false;
   if (!STYLES.some((x) => x.id === prefs.style)) prefs.style = 'classic';
   learn = createLearning({ load, keep, key: K.learn, config: cfg });
   if (deps.shared) learn.setShared(deps.shared);
@@ -139,6 +143,9 @@ export function reopen() {
 }
 
 // Opens the setup screen with a game style picked (the host's links to each game).
+// A link to today's daily puzzle (?play=daily on the NINETIMESNINE page).
+export function playDaily() { return startDaily(); }
+
 export function pickStyle(id) {
   if (!root || !STYLES.some((x) => x.id === id)) return;
   prefs.style = id;
@@ -151,6 +158,12 @@ export function pickStyle(id) {
 
 // A puzzle everyone plays (a race or a shared challenge): never filtered as "seen".
 export function startShared(puzzle, { mode = 'race' } = {}) { begin(puzzle, { mode }); }
+// A race puzzle (web/js/game-race.js): the setup screen's level, size and extra
+// rules, played the classic way, at the level's usual toughness.
+export function racePuzzle() {
+  const o = readSetup();
+  return engine.generate({ seed: Math.random().toString(36).slice(2), theme: prefs.theme || null, story: storiesOn(), toughness: 0.5, usedStories: [], ...o });
+}
 
 // Games saved by the first version of this module.
 function migrate() {
@@ -199,7 +212,7 @@ function buildSetup() {
   $('#np-theme').innerHTML = `<option value="">Any, a surprise each time</option>${themes.map((t) => `<option value="${esc(t.id)}">${esc(t.name)}</option>`).join('')}`;
   $('#np-theme').value = prefs.theme || '';
   $('#np-theme').closest('.np-field').hidden = !themes.length;
-  for (const [id, key] of [['#np-silent', 'silent'], ['#np-sound', 'sound'], ['#np-adapt', 'adapt'], ['#np-autoclean', 'autoClean'], ['#np-highlight', 'highlight']]) {
+  for (const [id, key] of [['#np-silent', 'silent'], ['#np-sfxplay', 'sfxPlay'], ['#np-sfxfinish', 'sfxFinish'], ['#np-adapt', 'adapt'], ['#np-autoclean', 'autoClean'], ['#np-highlight', 'highlight']]) {
     $(id).checked = !!prefs[key];
     $(id).onchange = (e) => { prefs[key] = e.target.checked; savePrefs(); root.classList.toggle('np-silent', quiet()); renderSetup(); };
   }

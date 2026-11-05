@@ -25,7 +25,7 @@ const clean = (v, max = 300) => (typeof v === 'string' ? v.trim().slice(0, max) 
 export async function exchange(site, { code, clientId, clientSecret, redirectUri }, fetcher = fetch) {
   const s = SITES[site];
   const form = new URLSearchParams({ grant_type: 'authorization_code', code, redirect_uri: redirectUri });
-  const headers = { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json', 'User-Agent': 'web:flg-marketing:1.0 (The Fantastical Logic Grid)' };
+  const headers = { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json', 'User-Agent': 'web:flg-marketing:1.0 (The Logic Grid)' };
   if (s.style === 'basic') headers.Authorization = `Basic ${btoa(`${clientId}:${clientSecret}`)}`;
   else if (s.style === 'tiktok') { form.set('client_key', clientId); form.set('client_secret', clientSecret); }
   else { form.set('client_id', clientId); form.set('client_secret', clientSecret); }

@@ -4,10 +4,24 @@ const VERSION = '__VERSION__';
 const FILES = __FILES__;
 const CACHE = `flg-${VERSION}`;
 
+// Copies older than this could hit an error before they offered Reload, so
+// they never updated (app errors from 1.16 kept arriving long after 1.17).
+// An update over one of them takes over at once instead of waiting.
+const MIN_GOOD = [1, 17, 0];
+const older = (v, min) => {
+  const x = String(v).split('.').map(Number);
+  if (x.some(Number.isNaN)) return false;
+  for (let i = 0; i < min.length; i++) if ((x[i] || 0) !== min[i]) return (x[i] || 0) < min[i];
+  return false;
+};
+const stuckOld = () => caches.keys().then((keys) => keys.some((k) => k.startsWith('flg-') && k !== CACHE && older(k.slice(4), MIN_GOOD)));
+
 self.addEventListener('install', (e) => {
   // A first install takes over at once; an update waits until the player
   // chooses Reload (the page sends 'skip-waiting'), so a puzzle is never cut off.
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES)).then(() => { if (!self.registration.active) return self.skipWaiting(); }));
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES)).then(async () => {
+    if (!self.registration.active || await stuckOld()) return self.skipWaiting();
+  }));
 });
 
 self.addEventListener('message', (e) => {

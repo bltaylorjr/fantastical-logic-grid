@@ -16,7 +16,7 @@ import { CLOUD, CLOUD_URL } from './cloud-config.js';
 import * as account from './account.js';
 import { feature } from './remote-config.js';
 import { platform } from './platform.js';
-import { takeHandoff } from './report-handoff.js';
+import { takeHandoff, takeScreenshot, forgetScreenshot } from './report-handoff.js';
 
 // Opened in a window over The Logic Grid's front page (?embed=1, js/hub.js):
 // Back, Cancel and Done close that window instead of leaving the front page.
@@ -35,7 +35,10 @@ const EMBEDDED = (() => { try { return window.top !== window.self && window.pare
 
 const $ = (s, el = document) => el.querySelector(s);
 const MAX = 1000;
+// Up to 3 the player picks; the automatic screenshot comes on top and does not
+// use one up (the Worker allows 4: server/src/report-files.js).
 const MAX_FILES = 3;
+const own = () => files.filter((f) => !f.auto).length;
 const MAX_BYTES = 1_048_576;
 const MAX_SIDE = 1600;
 const IMAGE = /^image\/(png|jpeg|webp|gif)$/;
@@ -162,7 +165,7 @@ async function add(list) {
 }
 async function addAll(list) {
   for (const file of [...list]) {
-    if (files.length >= MAX_FILES) { filesError(`You can attach up to ${MAX_FILES} pictures or files.`); break; }
+    if (!file.auto && own() >= MAX_FILES) { filesError(`You can attach up to ${MAX_FILES} pictures or files.`); break; }
     try {
       let blob;
       let name = file.name || 'screenshot.png';
@@ -175,9 +178,9 @@ async function addAll(list) {
       } else {
         throw new Error(`“${name}” is not a type we accept. Attach pictures, PDFs or text files (.txt, .log, .json, .csv).`);
       }
-      const item = { name, type: blob.type || file.type, size: blob.size, blob, url: blob.type.startsWith('image/') ? URL.createObjectURL(blob) : '' };
+      const item = { name, type: blob.type || file.type, size: blob.size, blob, url: blob.type.startsWith('image/') ? URL.createObjectURL(blob) : '', auto: !!file.auto };
       files.push(item);
-      say(`${name} attached, ${kb(item.size)}. ${files.length} of ${MAX_FILES}.`);
+      say(item.auto ? `A screenshot of the screen you were on is attached, ${kb(item.size)}.` : `${name} attached, ${kb(item.size)}. ${own()} of ${MAX_FILES}.`);
     } catch (e) { filesError(e.message); }
   }
   drawFiles();
@@ -193,11 +196,13 @@ function drawFiles() {
     thumb.setAttribute('aria-hidden', 'true');
     const meta = document.createElement('div');
     meta.className = 'rp-meta';
-    meta.append(Object.assign(document.createElement('div'), { className: 'rp-name', textContent: f.name }), Object.assign(document.createElement('div'), { className: 'rp-size', textContent: kb(f.size) }));
+    meta.append(Object.assign(document.createElement('div'), { className: 'rp-name', textContent: f.auto ? 'Screenshot of the screen you were on' : f.name }),
+      Object.assign(document.createElement('div'), { className: 'rp-size', textContent: f.auto ? `${kb(f.size)} · taken when you pressed Report a Problem. Remove it if you would rather not send it.` : kb(f.size) }));
     const rm = Object.assign(document.createElement('button'), { type: 'button', className: 'btn quiet small', textContent: 'Remove' });
-    rm.setAttribute('aria-label', `Remove ${f.name}`);
+    rm.setAttribute('aria-label', `Remove ${f.auto ? 'the screenshot' : f.name}`);
     rm.onclick = () => {
       if (f.url) URL.revokeObjectURL(f.url);
+      if (f.auto) forgetScreenshot();
       files.splice(i, 1);
       drawFiles();
       say(`${f.name} removed.`);
@@ -206,11 +211,26 @@ function drawFiles() {
     li.append(thumb, meta, rm);
     return li;
   }));
-  $('#rp-pick').toggleAttribute('aria-disabled', files.length >= MAX_FILES);
-  $('#rp-file').disabled = files.length >= MAX_FILES;
+  $('#rp-pick').toggleAttribute('aria-disabled', own() >= MAX_FILES);
+  $('#rp-file').disabled = own() >= MAX_FILES;
 }
 
 $('#rp-file').addEventListener('change', (e) => { add(e.target.files); e.target.value = ''; });
+
+// The screenshot taken when Report a Problem was pressed (report-handoff.js),
+// attached first. It may still be on its way from the tab behind.
+(async () => {
+  const hint = $('.rp-drop-hint');
+  const waiting = new URLSearchParams(location.search).get('shot') === '1';
+  if (waiting) hint.textContent = 'Adding a screenshot of the screen you were on…';
+  const shot = await takeScreenshot();
+  if (waiting && !busy) hint.textContent = 'or drop them here, or paste a screenshot';
+  if (!shot) return;
+  shot.auto = true;
+  await add([shot]);
+  const i = files.findIndex((f) => f.auto);
+  if (i > 0) { files.unshift(...files.splice(i, 1)); drawFiles(); }
+})();
 const drop = $('#rp-drop');
 for (const t of ['dragenter', 'dragover']) drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.add('over'); });
 for (const t of ['dragleave', 'drop']) drop.addEventListener(t, () => drop.classList.remove('over'));
@@ -294,7 +314,7 @@ function done(data, k) {
     DOCTOR_WORDS[data.doctor] || (k === 'puzzle' ? 'The team will look into it.' : 'The team will look into it, and fixes go out in the next update.'),
     REPLY_WORDS[data.reply] || '',
   ].filter(Boolean).join(' ');
-  document.title = `Report ${data.tracking} sent · The Fantastical Logic Grid`;
+  document.title = `Report ${data.tracking} sent · The Logic Grid`;
   box.focus();
 }
 

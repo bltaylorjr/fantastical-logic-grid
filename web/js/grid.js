@@ -39,7 +39,7 @@ export function createGrid(frame, puzzle, ix, handlers) {
     rc.items.forEach((it, i) => {
       const r = ri * N + i;
       matrix[r] = [];
-      h += `<tr role="row">${i === 0 ? `<th class="rcat" rowspan="${N}" scope="rowgroup">${esc(rc.name)}</th>` : ''}<th class="rowh${i === N - 1 ? ' lastrow' : ''}" scope="row" role="rowheader" data-id="${it.id}" title="${esc(it.label)}">${esc(it.label)}</th>`;
+      h += `<tr role="row">${i === 0 ? `<th class="rcat" rowspan="${N}" scope="rowgroup" title="${esc(rc.name)}"><span class="rcat-t" style="--n:${N}">${esc(rc.name)}</span></th>` : ''}<th class="rowh${i === N - 1 ? ' lastrow' : ''}" scope="row" role="rowheader" data-id="${it.id}" title="${esc(it.label)}">${esc(it.label)}</th>`;
       for (let b = 0; b < cols.length; b++) {
         if (b >= nBlocks) { h += `<td class="gap" colspan="${N}" aria-hidden="true"></td>`; continue; }
         cols[b].items.forEach((ct, j) => {

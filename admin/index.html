@@ -61,7 +61,7 @@
       <li><b>iPhone or iPad:</b> open this page in Safari, tap the Share button, then <b>Add to Home Screen</b>.</li>
       <li><b>Android:</b> open this page in Chrome, tap the menu (three dots), then <b>Install app</b> or <b>Add to Home screen</b>.</li>
     </ul>
-    <p class="muted">With <b>Keep me signed in on this device</b> ticked, it stays signed in while you use other apps. After 30 minutes without use it locks, and Face ID or your fingerprint opens it again (set that up under <b>Face ID and fingerprint</b> once you are in).</p>
+    <p class="muted">With <b>Keep me signed in on this device</b> ticked, it stays signed in while you use other apps. After 1 hour without use it locks, and Face ID or your fingerprint opens it again (set that up under <b>Face ID and fingerprint</b> once you are in).</p>
   </details>
   <details class="break-glass">
     <summary>Use the break-glass key</summary>
@@ -80,18 +80,25 @@
       <button type="button" data-dash="main" aria-pressed="true">The Logic Grid <span class="dash-sub">App</span></button>
       <button type="button" data-dash="flg" aria-pressed="false">The Fantastical Logic Grid <span class="dash-sub">Game</span></button>
       <button type="button" data-dash="ntn" aria-pressed="false">NINETIMESNINE <span class="dash-sub">Game</span></button>
-      <button type="button" data-dash="cm" aria-pressed="false">Cage Math <span class="dash-sub">Game, private preview</span></button>
-      <button type="button" data-dash="sc" aria-pressed="false">Sum Cross <span class="dash-sub">Game, private preview</span></button>
-      <button type="button" data-dash="pg" aria-pressed="false">Picture Grid <span class="dash-sub">Game, private preview</span></button>
+      <button type="button" data-dash="cm" aria-pressed="false">Cage Math <span class="dash-sub">Game</span></button>
+      <button type="button" data-dash="sc" aria-pressed="false">Sum Cross <span class="dash-sub">Game</span></button>
+      <button type="button" data-dash="pg" aria-pressed="false">Picture Grid <span class="dash-sub">Game</span></button>
+      <button type="button" data-dash="ml" aria-pressed="false">More or Less <span class="dash-sub">Game</span></button>
+      <button type="button" data-dash="sk" aria-pressed="false">Skyline <span class="dash-sub">Game</span></button>
+      <button type="button" data-dash="sf" aria-pressed="false">Star Field <span class="dash-sub">Game</span></button>
+      <button type="button" data-dash="ll" aria-pressed="false">Loop Line <span class="dash-sub">Game</span></button>
+      <button type="button" data-dash="ib" aria-pressed="false">Island Bridges <span class="dash-sub">Game</span></button>
       <button type="button" data-dash="vault" data-min="owner" aria-pressed="false" hidden>Passwords <span class="dash-sub">Owner only, locked with your master password</span></button>
     </div>
     <ul id="nav-list" data-current="main">
       <li data-dash="main"><a href="#overview" data-min="viewer">Overview</a></li>
+      <li data-dash="main"><a href="#analysis" data-min="viewer">Analysis and self-tuning <span class="count" id="count-analysis" hidden></span></a></li>
       <li data-dash="main"><a href="#visitors" data-min="viewer">Visitors</a></li>
       <li data-dash="main"><a href="#usage" data-min="viewer">Usage and free limits</a></li>
       <li data-dash="main"><a href="#search" data-min="viewer">Search (Google and Bing)</a></li>
       <li data-dash="main"><a href="#website" data-min="viewer">Website</a></li>
       <li data-dash="main"><a href="#marketing" data-min="viewer">Marketing</a></li>
+      <li data-dash="main"><a href="#voice-engine" data-min="admin">Voice engine</a></li>
       <li data-dash="main"><a href="#communication" data-min="viewer">Communication <span class="count" id="count-comm" hidden></span></a></li>
       <li data-dash="main"><a href="#errortracking" data-min="moderator">Error tracking <span class="count" id="count-errors" hidden></span></a></li>
       <li data-dash="main"><a href="#players" data-min="viewer">Players</a></li>
@@ -122,6 +129,11 @@
       <li data-dash="cm"><a href="#cagemath" data-min="viewer">Cage Math</a></li>
       <li data-dash="sc"><a href="#sumcross" data-min="viewer">Sum Cross</a></li>
       <li data-dash="pg"><a href="#picturegrid" data-min="viewer">Picture Grid</a></li>
+      <li data-dash="ml"><a href="#moreorless" data-min="viewer">More or Less</a></li>
+      <li data-dash="sk"><a href="#skyline" data-min="viewer">Skyline</a></li>
+      <li data-dash="sf"><a href="#starfield" data-min="viewer">Star Field</a></li>
+      <li data-dash="ll"><a href="#loopline" data-min="viewer">Loop Line</a></li>
+      <li data-dash="ib"><a href="#islandbridges" data-min="viewer">Island Bridges</a></li>
       <li data-dash="vault"><a href="#vault" data-min="owner">Passwords</a></li>
     </ul>
   </nav>
@@ -137,6 +149,18 @@
       <div id="ov-body"><p class="muted">Loading…</p></div>
     </section>
 
+    <section data-view="analysis" hidden aria-labelledby="h-analysis">
+      <div class="head"><h1 id="h-analysis">Analysis and self-tuning</h1>
+        <div class="row an-tools">
+          <div class="field inline"><label for="an-days">Period</label><select id="an-days"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option><option value="365">Last 365 days</option></select></div>
+          <button class="btn" type="button" id="an-refresh">Refresh</button>
+          <button class="btn primary" type="button" id="an-print">Print or save as PDF</button>
+        </div>
+      </div>
+      <p class="muted">Every number the dashboard keeps, broken down by topic: what it shows, what to do next, how the game stands in the market and what to build. Self-tuning suggests small changes from these numbers and waits for your approval. Figures with too little data behind them are marked "Too early to judge".</p>
+      <div id="an-body"><p class="muted">Loading…</p></div>
+    </section>
+
     <section data-view="details" hidden aria-labelledby="h-details">
       <p><a href="#overview"><span aria-hidden="true">‹ </span>Back to Overview</a></p>
       <div class="head"><h1 id="h-details">Details</h1>
@@ -150,7 +174,7 @@
       <div class="head"><h1 id="h-visitors">Visitors</h1>
         <div class="field inline"><label for="vis-days">Period</label><select id="vis-days"><option value="1">Today</option><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option><option value="365">Last 365 days</option></select></div>
       </div>
-      <p class="muted">People who opened the game, each device counted once a day. Guests are not signed in; players are signed in to an account. Place comes from the connection and is never stored as an address.</p>
+      <p class="muted">People who opened any page of thelogicgrid.com (the front page, any game, the account page and the information pages) or the apps, each device counted once a day however many pages it opens. Guests are not signed in; players are signed in to an account. Place comes from the connection and is never stored as an address.</p>
       <div id="vis-body"><p class="muted">Loading…</p></div>
     </section>
 
@@ -212,6 +236,12 @@
       </div>
       <p class="muted">Themes and levels that players give up on, rate low, or say are too hard or too easy, worst first. From the anonymous play summaries; a group needs at least 5 games before it is flagged. Fix ideas: add story parts in the Story workshop, switch a theme off for a while, or plan easier daily puzzles.</p>
       <div id="quality-body"><p class="muted">Loading…</p></div>
+    </section>
+
+    <section data-view="voice-engine" hidden aria-labelledby="h-voice-engine">
+      <div class="head"><h1 id="h-voice-engine">Voice engine</h1></div>
+      <p class="muted">Vox, the free voice engine every game can use, on your own computer or online. It learns from every line it speaks and from your ratings, so it keeps getting better. Here you teach it, make new voices from many speakers' samples, set auto-tune, look up any American English word and fix how it's said, translate lines into other languages, and roll back to any earlier version.</p>
+      <div id="vx-body"><p class="muted">Loading…</p></div>
     </section>
 
     <section data-view="ratings" hidden aria-labelledby="h-ratings">
@@ -513,7 +543,7 @@
       <div class="head"><h1 id="h-cagemath">Cage Math</h1>
         <div class="field inline"><label for="kit-cm-days">Period</label><select id="kit-cm-days" data-kit-days="cm"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option></select></div>
       </div>
-      <p class="muted">The numbers game's own switches and numbers. Only testers with the private preview link see it in the app until it goes public. It shares only anonymous play summaries with the rest of the app, for learning. App-wide switches are under App settings and switches.</p>
+      <p class="muted">The numbers game's own switches and numbers. Everyone sees it in the app and on its own website page unless it is switched off below. It shares only anonymous play summaries with the rest of the app, for learning. App-wide switches are under App settings and switches.</p>
       <div id="kit-cm-body" data-kit-body="cm"><p class="muted">Loading…</p></div>
     </section>
 
@@ -521,7 +551,7 @@
       <div class="head"><h1 id="h-sumcross">Sum Cross</h1>
         <div class="field inline"><label for="kit-sc-days">Period</label><select id="kit-sc-days" data-kit-days="sc"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option></select></div>
       </div>
-      <p class="muted">The numbers game's own switches and numbers. Only testers with the private preview link see it in the app until it goes public. It shares only anonymous play summaries with the rest of the app, for learning. App-wide switches are under App settings and switches.</p>
+      <p class="muted">The numbers game's own switches and numbers. Everyone sees it in the app and on its own website page unless it is switched off below. It shares only anonymous play summaries with the rest of the app, for learning. App-wide switches are under App settings and switches.</p>
       <div id="kit-sc-body" data-kit-body="sc"><p class="muted">Loading…</p></div>
     </section>
 
@@ -529,8 +559,48 @@
       <div class="head"><h1 id="h-picturegrid">Picture Grid</h1>
         <div class="field inline"><label for="kit-pg-days">Period</label><select id="kit-pg-days" data-kit-days="pg"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option></select></div>
       </div>
-      <p class="muted">The picture game's own switches and numbers. Only testers with the private preview link see it in the app until it goes public. It shares only anonymous play summaries with the rest of the app, for learning. App-wide switches are under App settings and switches.</p>
+      <p class="muted">The picture game's own switches and numbers. Everyone sees it in the app and on its own website page unless it is switched off below. It shares only anonymous play summaries with the rest of the app, for learning. App-wide switches are under App settings and switches.</p>
       <div id="kit-pg-body" data-kit-body="pg"><p class="muted">Loading…</p></div>
+    </section>
+
+    <section data-view="moreorless" hidden aria-labelledby="h-moreorless">
+      <div class="head"><h1 id="h-moreorless">More or Less</h1>
+        <div class="field inline"><label for="kit-ml-days">Period</label><select id="kit-ml-days" data-kit-days="ml"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option></select></div>
+      </div>
+      <p class="muted">The numbers game's own switches and numbers. Everyone sees it in the app and on its own website page unless it is switched off below. It shares only anonymous play summaries with the rest of the app, for learning. App-wide switches are under App settings and switches.</p>
+      <div id="kit-ml-body" data-kit-body="ml"><p class="muted">Loading…</p></div>
+    </section>
+
+    <section data-view="skyline" hidden aria-labelledby="h-skyline">
+      <div class="head"><h1 id="h-skyline">Skyline</h1>
+        <div class="field inline"><label for="kit-sk-days">Period</label><select id="kit-sk-days" data-kit-days="sk"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option></select></div>
+      </div>
+      <p class="muted">The numbers game's own switches and numbers. Everyone sees it in the app and on its own website page unless it is switched off below. It shares only anonymous play summaries with the rest of the app, for learning. App-wide switches are under App settings and switches.</p>
+      <div id="kit-sk-body" data-kit-body="sk"><p class="muted">Loading…</p></div>
+    </section>
+
+    <section data-view="starfield" hidden aria-labelledby="h-starfield">
+      <div class="head"><h1 id="h-starfield">Star Field</h1>
+        <div class="field inline"><label for="kit-sf-days">Period</label><select id="kit-sf-days" data-kit-days="sf"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option></select></div>
+      </div>
+      <p class="muted">The star game's own switches and numbers. Everyone sees it in the app and on its own website page unless it is switched off below. It shares only anonymous play summaries with the rest of the app, for learning. App-wide switches are under App settings and switches.</p>
+      <div id="kit-sf-body" data-kit-body="sf"><p class="muted">Loading…</p></div>
+    </section>
+
+    <section data-view="loopline" hidden aria-labelledby="h-loopline">
+      <div class="head"><h1 id="h-loopline">Loop Line</h1>
+        <div class="field inline"><label for="kit-ll-days">Period</label><select id="kit-ll-days" data-kit-days="ll"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option></select></div>
+      </div>
+      <p class="muted">The line game's own switches and numbers. Everyone sees it in the app and on its own website page unless it is switched off below. It shares only anonymous play summaries with the rest of the app, for learning. App-wide switches are under App settings and switches.</p>
+      <div id="kit-ll-body" data-kit-body="ll"><p class="muted">Loading…</p></div>
+    </section>
+
+    <section data-view="islandbridges" hidden aria-labelledby="h-islandbridges">
+      <div class="head"><h1 id="h-islandbridges">Island Bridges</h1>
+        <div class="field inline"><label for="kit-ib-days">Period</label><select id="kit-ib-days" data-kit-days="ib"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option></select></div>
+      </div>
+      <p class="muted">The bridge game's own switches and numbers. Everyone sees it in the app and on its own website page unless it is switched off below. It shares only anonymous play summaries with the rest of the app, for learning. App-wide switches are under App settings and switches.</p>
+      <div id="kit-ib-body" data-kit-body="ib"><p class="muted">Loading…</p></div>
     </section>
 
     <section data-view="numberplace" hidden aria-labelledby="h-numberplace">
@@ -636,7 +706,7 @@
 
     <section data-view="signin" hidden aria-labelledby="h-signin">
       <div class="head"><h1 id="h-signin">Face ID and fingerprint</h1></div>
-      <p class="muted">Sign in with your face, fingerprint or device PIN instead of your password. Your face and fingerprint never leave your device: it keeps a passkey that only opens for you, and the dashboard checks it. The dashboard stays signed in while you use other apps, locks after 30 minutes without use, and asks for Face ID or your fingerprint again to open. Once every 12 hours it asks again even if you keep using it.</p>
+      <p class="muted">Sign in with your face, fingerprint or device PIN instead of your password. Your face and fingerprint never leave your device: it keeps a passkey that only opens for you, and the dashboard checks it. The dashboard stays signed in while you use other apps, locks after 1 hour without use, and asks for Face ID or your fingerprint again to open. Once every 12 hours it asks again even if you keep using it.</p>
       <div id="pk-status"></div>
       <div class="row"><button class="btn primary" type="button" id="pk-add" hidden>Set up this device</button></div>
       <h2>Your devices</h2>

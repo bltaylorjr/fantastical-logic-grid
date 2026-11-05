@@ -9,6 +9,10 @@
   "scripts": {
     "test": "node test/run-tests.js && node test/kernel-tests.js",
     "test:quick": "node test/run-tests.js --quick",
+    "test:modes": "node test/mode-tests.js && node test/mode-off-check.js check",
+    "test:doctor": "node test/doctor-tests.js",
+    "health": "node health.js",
+    "health:quick": "node health.js --quick",
     "generate": "node cli.js"
   },
   "engines": { "node": ">=18" },

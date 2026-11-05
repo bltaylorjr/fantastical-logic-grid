@@ -244,9 +244,12 @@ function startAuth(signer) {
     await A.page.waitForFunction(() => document.querySelectorAll('#board-body tbody tr').length === 2);
     assert(true, 'the all-time board works');
     await A.page.keyboard.press('Escape');
-    // The small scoreboard at the top of the page, always in view.
+    // The small scoreboard sits at the top of the puzzle's main page, not mid-puzzle.
+    assert(await A.page.locator('#miniboard').isHidden(), 'the small scoreboard is not in the bar while a puzzle is open');
+    await A.page.click('#home-btn');
+    await A.page.waitForSelector('#screen-home:not([hidden])');
     await A.page.waitForFunction(() => /Sky Fox|You/.test(document.querySelector('#miniboard-list').textContent), null, { timeout: 10000 });
-    assert(await A.page.isVisible('#miniboard'), 'the small scoreboard shows at the top of the game page');
+    assert(await A.page.isVisible('#miniboard'), 'the small scoreboard shows at the top of the main page');
     await A.page.evaluate(() => scrollTo(0, document.body.scrollHeight));
     const top = await A.page.$eval('#miniboard', (el) => el.getBoundingClientRect().top);
     assert(top >= 0 && top < 160, `the small scoreboard stays in view while scrolling (${Math.round(top)} px from the top)`);
@@ -254,7 +257,6 @@ function startAuth(signer) {
     await A.page.waitForSelector('#dlg-board[open]');
     assert(true, 'the small scoreboard opens the full scoreboard');
     await A.page.keyboard.press('Escape');
-    await A.page.click('#home-btn');
 
     // ---- Find a race: B starts an open race, A is matched with it.
     await B.page.click('#home-btn');

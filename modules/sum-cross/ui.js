@@ -3,4 +3,4 @@
 import { createGame } from '../grid-kit/kit.js';
 import { def } from './game.js';
 
-export const { mount, unmount, suspend, reopen, setShared, state, learning, dailyOptions } = createGame(def);
+export const { mount, unmount, suspend, reopen, setShared, state, learning, dailyOptions, playDaily, racePuzzle, startShared } = createGame(def);

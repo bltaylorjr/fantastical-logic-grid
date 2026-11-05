@@ -6,12 +6,13 @@
 //
 // Cell values: 1 shaded, 2 blank (a cross), 0 not decided yet.
 //
-//   generatePictureGrid({ difficulty, size, seed, avoid, toughness, usedPictures })
+//   generatePictureGrid({ difficulty, size, seed, avoid, toughness, usedPictures, theme })
 //   getPictureGridHint(puzzle, entries)
 //   solvePictureGrid(puzzle, entries)
 import { makeRng } from './rng.js';
 import { cellName, cap, clamp01, fingerprint, pickByToughness, KIT_LEVEL_NAMES } from './kit-common.js';
 import { PG_ART } from './picture-grid-art.js';
+import { kitThemeStory } from './kit-story.js';
 
 export const PG_TECHNIQUES = {
   overlap: { level: 1, name: 'Overlapping runs' },
@@ -228,7 +229,7 @@ function proveAndGive(cells, R, C, tier, rng) {
 
 const scoreOf = (res, nGivens, R) => Math.round(res.rounds * 4 + res.steps.filter((s) => s.technique === 'cross' || s.technique === 'reach').length * 2 + R - nGivens * 3);
 
-export function generatePictureGrid({ difficulty = 'medium', size, seed = Math.random().toString(36).slice(2), avoid = [], toughness = 0.5, usedPictures = [] } = {}) {
+export function generatePictureGrid({ difficulty = 'medium', size, seed = Math.random().toString(36).slice(2), avoid = [], toughness = 0.5, usedPictures = [], theme = null } = {}) {
   const tier = PG_TIERS[difficulty];
   if (!tier) throw new Error(`Unknown difficulty "${difficulty}".`);
   const N = PG_SIZES.includes(Number(size)) ? Number(size) : tier.sizes[0];
@@ -245,9 +246,8 @@ export function generatePictureGrid({ difficulty = 'medium', size, seed = Math.r
     const proof = proveAndGive(a.cells, N, N, tier, rng);
     if (proof) found.push({ ...a, ...proof, score: scoreOf(proof.res, proof.nGivens, N) });
   }
-  const until = Date.now() + 4000;
+  // The build is bounded by work, not the clock: the same seed gives the same puzzle on every device, however fast or busy (attempt counts match the old time budget on the puzzle server, Nov 2026).
   for (let attempt = 0; found.length < 3 && attempt < 300; attempt++) {
-    if (Date.now() > until && found.length) break;
     const r2 = makeRng(`${seed}:m${attempt}`);
     const m = mosaic(N, r2, tier.mosaic);
     if (m.cells.every((v) => v === 2) || seen.has(fpOf(m.cells, N))) continue;
@@ -274,7 +274,8 @@ export function generatePictureGrid({ difficulty = 'medium', size, seed = Math.r
     rounds: res.rounds,
     toughness: pick.score,
     fingerprint: fpOf(pick.cells, N),
-    story: { id: pick.id, title: 'A hidden picture', intro: `Somewhere in this ${N}×${N} grid is a picture. Shade the cells the numbers call for and it will appear.`, ending: `The last line falls into place, and there it is: ${pick.name}, drawn one cell at a time.` },
+    // The story wraps the picture without naming it; the story id stays the picture's id (used pictures).
+    story: { ...kitThemeStory('pg', seed, { theme, picture: pick.name, classic: () => ({ id: pick.id, title: 'A hidden picture', intro: `Somewhere in this ${N}×${N} grid is a picture. Shade the cells the numbers call for and it will appear.`, ending: `The last line falls into place, and there it is: ${pick.name}, drawn one cell at a time.` }) }), id: pick.id },
     rules: [
       'Shade cells so each row and column has the runs of shaded cells its numbers call for, in order.',
       'Each number is one run: "3 1" means a run of three shaded cells, then at least one blank, then a single shaded cell.',

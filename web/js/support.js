@@ -17,10 +17,10 @@ export const SOLVE_MARKS = [3, 10, 25];
 export const STREAK_MARKS = [7, 30];
 
 export const TEXT = {
-  solve: 'Nicely solved! The Fantastical Logic Grid is free, has no ads, and is made by one person. If you enjoy it, you can help keep it going.',
+  solve: 'Nicely solved! The Logic Grid is free, has no ads, and is made by one person. If you enjoy it, you can help keep it going.',
   streak: (days) => `${days} days in a row! Thanks for playing every day. Supporters keep the daily puzzle coming.`,
   page: 'Every puzzle here is free and always will be. Running the game costs about $100 a month for the tools and the website. Supporters cover that, and get a ★ badge and extra themes as a thank-you.',
-  print: 'The Fantastical Logic Grid is free, has no ads, and is made by one person. You can support it at thelogicgrid.com.',
+  print: 'The Logic Grid is free, has no ads, and is made by one person. You can support it at thelogicgrid.com.',
 };
 
 const load = () => ({ last: 0, never: false, solves: [], streaks: [], ...(store.getLocal(KEY) || {}) });

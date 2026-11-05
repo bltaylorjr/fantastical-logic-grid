@@ -1,9 +1,10 @@
-// Cage Math, Sum Cross and Picture Grid: three games on their own screens
-// (#screen-cm, #screen-sc, #screen-pg) with The Logic Grid's look. Each is the
+// The grid-kit games (Cage Math, Sum Cross, Picture Grid, More or Less,
+// Skyline, Star Field, Loop Line, Island Bridges): each on its own screen
+// (#screen-cm, #screen-sc, ...) with The Logic Grid's look. Each is the
 // shared game screen (modules/grid-kit, copied to web/modules by the build)
 // with its game's definition, loaded the first time the player opens it, so
 // start-up stays as fast as before. Their engines run in the shared game
-// worker (engine/src/games.js: cm, sc, pg). Each keeps its own saves,
+// worker (engine/src/games.js: cm, sc, pg, ml, sk, sf, ll, ib). Each keeps its own saves,
 // settings and stats; the only thing shared is anonymous play data for the
 // learning service (kit-share.js).
 import { gameLink } from './engine-links.js';
@@ -15,6 +16,11 @@ export const KIT_GAMES = {
   'cage-math': { id: 'cm', dir: 'cage-math', name: 'Cage Math' },
   'sum-cross': { id: 'sc', dir: 'sum-cross', name: 'Sum Cross' },
   'picture-grid': { id: 'pg', dir: 'picture-grid', name: 'Picture Grid' },
+  'more-or-less': { id: 'ml', dir: 'more-or-less', name: 'More or Less' },
+  'skyline': { id: 'sk', dir: 'skyline', name: 'Skyline' },
+  'star-field': { id: 'sf', dir: 'star-field', name: 'Star Field' },
+  'loop-line': { id: 'll', dir: 'loop-line', name: 'Loop Line' },
+  'island-bridges': { id: 'ib', dir: 'island-bridges', name: 'Island Bridges' },
 };
 export const byScreen = (id) => Object.entries(KIT_GAMES).find(([, g]) => g.id === id)?.[0] || null;
 
@@ -59,6 +65,8 @@ export async function open(card, host = {}) {
         config: config(g.id),
       });
       mods[g.id] = ui;
+      // Races against other players (only when accounts are on).
+      import('./game-race.js').then((r) => r.attach(g.id, ui, rootEl)).catch(() => { /* races are optional */ });
       share.refresh(g.id).then((s) => { if (s) ui.setShared(s); });
       share.flush(g.id);
     })();
@@ -68,6 +76,8 @@ export async function open(card, host = {}) {
       return;
     }
   } else mods[g.id].reopen();
+  // A daily puzzle post's link (?play=daily) opens today's puzzle.
+  if (host.daily) await mods[g.id].playDaily();
   document.getElementById(`screen-${g.id}`).focus();
 }
 

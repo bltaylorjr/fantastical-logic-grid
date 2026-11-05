@@ -18,6 +18,7 @@
 //   printable pack counts     after 400 days
 //   puzzle problem reports    after 365 days (repaired copies after 30)
 //   site visitor counts       after 400 days
+//   daily account totals      after 400 days
 //   puzzles for contributors  30 days after they were sent (messages.js)
 // While the weekly archive email is on (archive.js), the rows it covers are
 // left for it instead, so they are emailed before they are removed.
@@ -64,6 +65,7 @@ export async function runUpkeep(env, now = Date.now()) {
     ...fileUpkeep(env, now),
     rating_insights: db.prepare('DELETE FROM rating_insights WHERE day < ?1').bind(isoDay(now - 90 * DAY)),
     visit_stats: db.prepare('DELETE FROM visit_stats WHERE day < ?1').bind(isoDay(now - 400 * DAY)),
+    account_days: db.prepare('DELETE FROM account_days WHERE day < ?1').bind(isoDay(now - 400 * DAY)),
     daily_results: db.prepare('DELETE FROM daily_results WHERE day < ?1').bind(isoDay(now - 120 * DAY)),
     print_packs: db.prepare('DELETE FROM print_packs WHERE at < ?1').bind(now - 400 * DAY),
     print_pack_stories: db.prepare('DELETE FROM print_pack_stories WHERE at < ?1').bind(now - 400 * DAY),

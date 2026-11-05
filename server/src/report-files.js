@@ -11,7 +11,9 @@
 // .json, .csv) that is valid UTF-8. Anything else (SVG and HTML included,
 // which could carry scripts) is refused.
 
-export const MAX_FILES = 3;
+// 3 the player picks, plus the screenshot the page attaches for them (it does
+// not use up one of the player's 3).
+export const MAX_FILES = 4;
 export const MAX_FILE_BYTES = 1_048_576;
 // base64 is 4/3 the size, plus room for the name and type.
 export const MAX_FILES_CHARS = MAX_FILES * (Math.ceil(MAX_FILE_BYTES / 3) * 4 + 400);

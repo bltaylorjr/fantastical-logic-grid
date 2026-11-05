@@ -1,10 +1,10 @@
-// The admin dashboard for The Fantastical Logic Grid. Served by the game's
+// The admin dashboard for The Logic Grid. Served by the game's
 // Worker at /admin/ and talks only to its /admin/v1 API (server/src/admin.js).
 // Sign-in uses Firebase's REST API with the admin's game account, or Face ID
 // or a fingerprint (passkeys.js). With "Keep me signed in on this device" the
 // session is kept in localStorage, so it survives the phone closing the app
 // while the admin uses other apps; otherwise it lives only in this tab
-// (sessionStorage). Either way it locks after 30 idle minutes, and Face ID or
+// (sessionStorage). Either way it locks after 1 idle hour, and Face ID or
 // a fingerprint opens it again.
 
 import { initPullRefresh } from './pull-refresh.js';
@@ -14,9 +14,10 @@ import { renderSiteAccounts } from './site-accounts.js';
 import { takeOAuthReturn, finishOAuth } from './oauth.js';
 import { characterView } from './characters.js';
 import { ratingsView, initRatings } from './ratings.js';
+import { voiceEngineView, initVoiceEngine } from './voice-engine.js';
 import { marketingView, initMarketing } from './marketing.js';
 import { puzzleMailView, initPuzzleMail } from './puzzle-mail.js';
-import { websiteView, initWebsite, initWebsiteEvents } from './website.js';
+import { websiteView, initWebsite, initWebsiteEvents, isEditorWindow } from './website.js';
 import { educatorsView, initEducators, educatorFeedbackView, initEducatorFeedback } from './educators.js';
 import { storySubmissionsView, initStorySubmissions } from './story-submissions.js';
 import { beatImagesView, initBeatImages } from './beat-images.js';
@@ -24,6 +25,8 @@ import { licensesView, initLicenses } from './licenses.js';
 import { mediaView } from './media.js';
 import { badgesView, initBadges, playerBadgesHtml, playerBadgeClick } from './badges.js';
 import { vaultView, initVault, lockVault } from './vault.js';
+import { analysisView, initAnalysis } from './analysis.js';
+import { initTuning } from './tuning.js';
 import { passkeysSupported, platformReady, rememberedPasskey, passkeySignIn, offerPasskey, passkeysView, initPasskeys } from './passkeys.js';
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -56,7 +59,7 @@ const pct = (a, b) => (b ? `${Math.round((100 * a) / b)}%` : '–');
 const AUTH_URL = 'https://identitytoolkit.googleapis.com/v1';
 const TOKEN_URL = 'https://securetoken.googleapis.com/v1';
 const SESSION_KEY = 'flg-admin-session';
-const IDLE_MS = 30 * 60_000;
+const IDLE_MS = 60 * 60_000;
 const ROLES = { viewer: 1, moderator: 2, admin: 3, owner: 4 };
 const TIER_NAMES = { basic: 'Basic', easy: 'Easy', medium: 'Medium', hard: 'Hard', expert: 'Expert', mensa: 'Quantum Physicist', theorist: 'Theoretical Physicist' };
 
@@ -95,8 +98,8 @@ function clearSession() {
   try { sessionStorage.removeItem(SESSION_KEY); localStorage.removeItem(SESSION_KEY); } catch (e) { /* ignore */ }
 }
 const lockWords = () => (rememberedPasskey()
-  ? 'Locked after 30 minutes without use. Use Face ID or your fingerprint to open it again.'
-  : 'Locked after 30 minutes without use. Sign in again to open it.');
+  ? 'Locked after 1 hour without use. Use Face ID or your fingerprint to open it again.'
+  : 'Locked after 1 hour without use. Sign in again to open it.');
 
 class ApiError extends Error { constructor(code, message, status) { super(message || code); this.code = code; this.status = status; } }
 
@@ -296,6 +299,7 @@ views.overview = async () => {
   const labels = d.dayList;
   setCount('#count-parts', d.review.parts.pending || 0);
   setCount('#count-names', d.review.namesWaiting || 0);
+  setCount('#count-analysis', d.review.tuning || 0);
   setCount('#count-educators', d.review.educators || 0);
   setCount('#count-story-submissions', can('moderator') ? d.review.stories || 0 : 0);
   if (can('admin')) setCount('#count-licenses', d.review.keys || 0);
@@ -739,7 +743,13 @@ async function etFile(id, fid) {
   if (!res.ok) { const d = await res.json().catch(() => ({})); throw new ApiError(d.error || 'download', d.message || `Download failed (${res.status}).`); }
   return res.blob();
 }
-const svgUrl = (svg) => `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`;
+// The game's scene picture is saved as it sits in the page, without the SVG
+// namespace a picture on its own needs (without it browsers show nothing), so
+// it is added here; animation classes are dropped.
+const svgUrl = (svg) => {
+  const own = /^\s*<svg\b[^>]*\sxmlns=/i.test(svg) ? svg : svg.replace(/^\s*<svg\b/i, '<svg xmlns="http://www.w3.org/2000/svg"');
+  return `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(own)))}`;
+};
 
 function etRowHtml(r) {
   const [cls, words] = REPORT_STATES[r.status] || ['', r.status];
@@ -802,11 +812,11 @@ async function etOpen(id) {
     ${['needs_fix', 'no_fault', 'manual', 'page'].includes(r.status) ? '<p class="muted">The puzzle doctor\'s daily code-fix task looks at reports waiting here. When its fix merges, this report is marked done with a plain note and the version, and the player who asked is emailed. Mark done by hand only if you fixed it yourself.</p>' : ''}
     <h3>Correction made</h3><p>${esc(r.note || '–')}${r.strategy ? ` <span class="muted">(${esc(STRATEGY_NAMES[r.strategy] || r.strategy)})</span>` : ''}${r.status === 'repaired' ? ` ${r.openedAt ? 'The player opened the repaired puzzle.' : 'The player has not opened the repaired puzzle yet.'}` : ''}</p>
     ${r.related.length ? `<h3>Related reports in the other category</h3><p>${r.related.map((t) => `<code>${esc(t)}</code>`).join(' ')} <span class="muted">(same screen and app version)</span></p>` : ''}
-    <h3>Pictures and files from the player</h3>${r.attachments.length ? `<ul class="et-files">${r.attachments.map((f) => `<li>${f.image ? `<img class="et-attach" data-et-img="${Number(f.id)}" alt="Picture the player attached: ${esc(f.name)}">` : ''}
+    <h3>Screenshot, pictures and files from the player</h3>${r.attachments.length ? `<ul class="et-files">${r.attachments.map((f) => `<li>${f.image ? `<img class="et-attach" data-et-img="${Number(f.id)}" alt="Picture the player attached: ${esc(f.name)}">` : ''}
       <span><b>${esc(f.name)}</b> <span class="muted">${esc(kb(f.size))}</span></span> <button class="btn small" type="button" data-et-file="${Number(f.id)}" data-et-report="${Number(r.id)}" data-name="${esc(f.name)}">Download</button></li>`).join('')}</ul>`
       : `<p class="muted">${r.files ? 'The attached files were removed (they are kept for 90 days).' : 'None attached.'}</p>`}
     <h3>Doctor's log</h3>${r.log.length ? `<ol class="et-log">${r.log.map((l) => `<li><span class="muted">${when(l.createdAt)}</span> ${logBadge(l.event)} ${esc(l.detail)}</li>`).join('')}</ol>` : '<p class="muted">No steps logged (reported before the errors database began).</p>'}
-    ${r.hasImage ? `<h3>Picture</h3><img class="et-picture" src="${svgUrl(r.image)}" alt="The puzzle's picture as the player saw it">` : ''}
+    ${r.hasImage ? `<h3>Puzzle scene</h3><p class="muted">The picture at the top of the puzzle. The screenshot of the player's screen, when there is one, is under Screenshot, pictures and files from the player.</p><img class="et-picture" src="${svgUrl(r.image)}" alt="The puzzle's scene picture">` : ''}
     ${storyHtml(r.story, 'Storyline as reported')}${storyHtml(r.repairedStory, 'Storyline as repaired')}
     <div class="row">${r.hasPuzzle ? `<button class="btn small" type="button" data-report-file="${Number(r.id)}" data-tracking="${esc(r.tracking)}">Download the reported puzzle</button>` : ''}
       ${['needs_fix', 'no_fault'].includes(r.status) && r.hasPuzzle && can('admin') ? `<button class="btn small" type="button" data-report-retry="${Number(r.id)}">Check again</button>` : ''}
@@ -1409,13 +1419,24 @@ $('#np-body').onclick = (e) => {
 };
 $('#np-days').onchange = () => show('numberplace', { keepFocus: true });
 
-// Cage Math, Sum Cross and Picture Grid: one section each, the same shape as
+// The grid-kit games (Cage Math, Sum Cross, Picture Grid, More or Less, Skyline,
+// Star Field, Loop Line, Island Bridges): one section each, the same shape as
 // NINETIMESNINE's (server/src/kit-games.js), with its own settings group.
-const KIT_SECTIONS = { cm: { view: 'cagemath', group: 'Cage Math' }, sc: { view: 'sumcross', group: 'Sum Cross' }, pg: { view: 'picturegrid', group: 'Picture Grid' } };
+const KIT_SECTIONS = {
+  cm: { view: 'cagemath', group: 'Cage Math' }, sc: { view: 'sumcross', group: 'Sum Cross' }, pg: { view: 'picturegrid', group: 'Picture Grid' },
+  ml: { view: 'moreorless', group: 'More or Less' }, sk: { view: 'skyline', group: 'Skyline' }, sf: { view: 'starfield', group: 'Star Field' },
+  ll: { view: 'loopline', group: 'Loop Line' }, ib: { view: 'islandbridges', group: 'Island Bridges' },
+};
 const KIT_TECH_NAMES = {
   cm: { nakedSingle: 'Only number left', hiddenSingle: 'Only place left', cageCombo: 'Cage combinations', cageLine: 'Cage claims a line', nakedPair: 'Matching pair', hiddenPair: 'Hidden pair', nakedTriple: 'Matching three', cageTotal: 'Line total' },
   sc: { nakedSingle: 'Only number left', hiddenSingle: 'A run needs it here', combo: 'Run combinations', comboFit: 'Fitting the combinations', nakedPair: 'Matching pair', nakedTriple: 'Matching three' },
   pg: { overlap: 'Overlapping runs', finish: 'Finished line', edge: 'Pushing from the edge', reach: 'Out of reach', cross: 'Working both ways' },
+  // The same names as each engine's list of steps (engine/src/<game>.js).
+  ml: { nakedSingle: 'Only number left', hiddenSingle: 'Only place left', signLimit: 'Sign limits', signChain: 'Sign chains', nakedPair: 'Matching pair', hiddenPair: 'Hidden pair', nakedTriple: 'Matching three' },
+  sk: { nakedSingle: 'Only number left', hiddenSingle: 'Only place left', edgeOne: 'Edge 1', edgeAll: 'Edge sees all', distance: 'Distance limits', visibility: 'Visibility counting', nakedPair: 'Matching pair', hiddenPair: 'Hidden pair', nakedTriple: 'Matching three' },
+  sf: { neighbour: 'Stars never touch', finished: 'Finished line or region', onlyPlace: 'Only room left', squeeze: 'Region claims a line', touchAll: 'Touching every choice', blocks: 'One star per 2×2 block', noRoom: 'No room left', groups: 'Regions share lines', chain: 'Following it through' },
+  ll: { zero: 'A zero', full: 'Finished number', fill: 'Every open side', dotFull: 'Two lines at a dot', deadEnd: 'Dead end', goOn: 'A line must go on', closed: 'The loop is closed', corner: 'Corner rule', smallLoop: 'No early loops', enter: 'A line into a 1 or a 3', threes: 'Two 3s side by side', pass2: 'A line through a 2', diag3: 'Two 3s corner to corner', whatIf: 'Follow it through' },
+  ib: { cross: 'Bridges can\'t cross', full: 'Island is complete', room: 'Not enough room', only: 'Every bridge it can get', must: 'Not enough without it', isolate: 'Don\'t close off a group', reach: 'Must reach the rest', whatIf: 'Follow it through' },
 };
 for (const [id, k] of Object.entries(KIT_SECTIONS)) {
   views[k.view] = async () => {
@@ -2102,6 +2123,17 @@ const badgeHelpers = { api, esc, fmt, when, day, table, can, act, ask, toast, an
 views.badges = () => badgesView(badgeHelpers);
 initBadges(badgeHelpers, (name, o) => show(name, o));
 
+// ---- Voice engine (voice-engine.js): Vox on the owner's computer, its learning, auto-tune and versions.
+const voiceHelpers = { esc, fmt, when, tile, table, can, act, ask, toast, announce, api };
+views['voice-engine'] = () => voiceEngineView(voiceHelpers);
+initVoiceEngine(voiceHelpers);
+
+// ---- Analysis report (analysis.js): every number by topic, the market and what to build next.
+const analysisHelpers = { api, esc, fmt, when, day, bytes, tile, table, bars, can, act, ask, toast, announce, setCount };
+views.analysis = () => analysisView(analysisHelpers);
+initAnalysis(analysisHelpers, (name, o) => show(name, o));
+initTuning(analysisHelpers);
+
 // ---- Puzzle emails (puzzle-mail.js): the weekly and special edition lists, sends and planner.
 views.mail = () => puzzleMailView();
 views.website = () => websiteView();
@@ -2116,6 +2148,7 @@ views.signin = () => passkeysView();
 initPasskeys({ api, esc, when, toast, act, ask, show, me: () => me, mode: () => session?.mode });
 initPuzzleMail({ api, esc, fmt, when, tile, table, can, act, ask, toast, show });
 initWebsite({ api, esc, when, table, can, act, ask, toast });
+if (isEditorWindow) document.body.classList.add('web-editor-window');
 initWebsiteEvents();
 
 // ------------------------------------------------------------- navigation
@@ -2123,10 +2156,13 @@ const MIN_ROLE = { ...Object.fromEntries($$('#nav-list a').map((a) => [a.hash.sl
 
 // Dashboards: The Logic Grid (the app: players, sign-in, messages, website,
 // marketing, keys, settings shared by every game), The Fantastical Logic Grid
-// NINETIMESNINE, Cage Math, Sum Cross and Picture Grid, plus Passwords (owner
-// only, one page with no section menu; #passwords also opens it). The menu shows the open dashboard's sections. Every
+// NINETIMESNINE and each grid-kit game, plus Passwords (owner only, one page
+// with no section menu; #passwords also opens it). The menu shows the open dashboard's sections. Every
 // address (#daily, #settings, ...) still works and opens its own dashboard.
-const DASH_HOME = { main: 'overview', flg: 'fantastical', ntn: 'numberplace', cm: 'cagemath', sc: 'sumcross', pg: 'picturegrid', vault: 'vault' };
+const DASH_HOME = {
+  main: 'overview', flg: 'fantastical', ntn: 'numberplace', cm: 'cagemath', sc: 'sumcross', pg: 'picturegrid',
+  ml: 'moreorless', sk: 'skyline', sf: 'starfield', ll: 'loopline', ib: 'islandbridges', vault: 'vault',
+};
 const dashOf = (view) => $(`#nav-list a[href="#${view}"]`)?.closest('li')?.dataset.dash;
 function setDash(dash) {
   if (!DASH_HOME[dash]) return;
@@ -2155,6 +2191,8 @@ async function show(route, { keepFocus = false } = {}) {
     history.replaceState(null, '', '#communication');
     name = 'communication';
   }
+  // The website editor's own window (Website > Open in a new window) shows only the Website page.
+  if (isEditorWindow) { name = 'website'; if (location.hash !== '#website') history.replaceState(null, '', `${location.search}#website`); }
   if (!views[name] || !can(MIN_ROLE[name])) name = 'overview';
   $$('[data-view]').forEach((s) => { s.hidden = s.dataset.view !== name; });
   // Details pages belong under Overview in the menu.
