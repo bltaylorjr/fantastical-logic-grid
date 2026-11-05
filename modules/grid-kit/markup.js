@@ -45,6 +45,7 @@ export function markup(def) {
       <div class="gk-gen-row">
         <button class="btn primary big" type="submit" id="${P}-gen">Start puzzle</button>
         <p class="gk-status" id="${P}-status" role="status" aria-live="polite"></p>
+        <p class="gk-muted gk-guest" id="${P}-guest" hidden></p>
       </div>
       <p class="gk-help" id="${P}-tuning-note"></p>
     </form>

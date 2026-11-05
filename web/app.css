@@ -1208,6 +1208,8 @@ html[data-embed] dialog::backdrop { background: transparent; }
 
 /* Trademark sign after the game's name on the home screen. */
 .hero-title .tm { font-size: .4em; vertical-align: super; line-height: 0; margin-left: .05em; font-weight: 400; }
+/* Guests: how many of today's free new puzzles are left (guest-limit.js). */
+.guest-note { margin: 8px 0 0; }
 /* Rate this puzzle: a given answer stays, locked (only the first counts). */
 .stars:disabled label, .feel:disabled .chip { cursor: default; }
 .stars:disabled:hover label { color: var(--muted); }

@@ -33,6 +33,7 @@ import { initAccounts, openAccount, onHome as accountsOnHome, signedIn } from '.
 import * as competeUi from './compete-ui.js';
 import * as computerRace from './computer-race.js';
 import * as remote from './remote-config.js';
+import * as guestLimit from './guest-limit.js';
 import { socialLinks, socialHtml, DEFAULT_LINKS } from './social.js';
 import * as perks from './perks.js';
 import * as specialBadges from './special-badges.js';
@@ -138,6 +139,16 @@ function confirmDialog({ title, text, yes, no, check }) {
     dlg.showModal();
     $('#confirm-no').focus();
   });
+}
+
+// Guests get a few new puzzles a day in every game (guest-limit.js).
+guestLimit.init({ signedIn, openAccount, confirm: confirmDialog, onChange: () => renderGuestNote() });
+function renderGuestNote() {
+  const el = $('#guest-note');
+  if (!el) return;
+  const t = guestLimit.note();
+  el.textContent = t;
+  el.hidden = !t;
 }
 
 // Every dialog's close (X) button closes it the way Escape does, and the welcome and the
@@ -302,7 +313,7 @@ function showScreen(name) {
   $('#skip-link').hidden = name !== 'play';
   $('#view-seg').hidden = name !== 'play';
   document.title = name === 'play' && S ? `${S.save.name} · The Fantastical Logic Grid` : name === 'learn' ? 'How to play · The Fantastical Logic Grid' : name === 'np' ? 'NINETIMESNINE · The Logic Grid' : kitGames.byScreen(name) ? `${kitGames.KIT_GAMES[kitGames.byScreen(name)].name} · The Logic Grid` : name === 'games' ? 'The Logic Grid' : SITE_HUB ? HOME_TITLE : 'The Fantastical Logic Grid · The Logic Grid';
-  if (name === 'home') { closeGame(); renderSaved(); renderSuggestion(); renderDaily(); accountsOnHome(); competeUi.onHome(); setTimeout(offerUpdate, 500); }
+  if (name === 'home') { closeGame(); renderGuestNote(); renderSaved(); renderSuggestion(); renderDaily(); accountsOnHome(); competeUi.onHome(); setTimeout(offerUpdate, 500); }
   wake.setPlaying(name === 'play' && S && !S.save.solved);
   updateMusic();
 }
@@ -691,6 +702,7 @@ async function openComputerRace(puzzle, skill) {
   save.vsComputer = computerRace.newRace(save, skill, plays);
   save.coach = false;
   await store.putSave(save);
+  guestLimit.started();
   openGame(save, { fresh: true });
   return save;
 }
@@ -699,6 +711,7 @@ async function findRaceSave(code) { return (await store.listSaves()).find((x) =>
 let generating = false;
 async function startGeneration() {
   if (generating) return;
+  if (!(await guestLimit.allowNew())) return;
   generating = true;
   const btn = $('#gen-btn');
   const st = $('#gen-status');
@@ -712,6 +725,7 @@ async function startGeneration() {
     save.chosenTheme = setup.theme;
     await store.putSave(save);
     st.textContent = '';
+    guestLimit.started();
     openGame(save, { fresh: true });
   } catch (e) {
     st.textContent = '';
@@ -730,6 +744,7 @@ async function startGeneration() {
 const QUICK = { difficulty: 'easy', theme: 'random', categories: 3, items: 4 };
 async function startQuick() {
   if (generating) return;
+  if (!(await guestLimit.allowNew())) return;
   generating = true;
   const btn = $('#quick-btn');
   const st = $('#quick-status');
@@ -742,6 +757,7 @@ async function startQuick() {
     save.quick = true;
     await store.putSave(save);
     st.textContent = '';
+    guestLimit.started();
     openGame(save, { fresh: true });
   } catch (e) {
     st.textContent = '';
@@ -899,6 +915,7 @@ function savedItem(s, fmt) {
 }
 
 async function renderSaved() {
+  renderGuestNote();
   let saves = [];
   try { saves = await store.listSaves(); } catch (e) { $('#saved-empty').textContent = 'Saved puzzles could not be loaded on this device.'; }
   saves.sort((a, b) => (isNewSave(b) - isNewSave(a)) || b.lastPlayed - a.lastPlayed);
@@ -3491,7 +3508,7 @@ async function init() {
   competeUi.initCompete({
     // Races are always Classic puzzles, whatever the Puzzle style.
     openDialog, toast, announce, confirmDialog, openAccount, fmtTime, makePuzzle: () => makePuzzle(null, { classic: true }),
-    setupSummary: () => `${setupSummary()}${modeActive() ? ' · Classic style' : ''}`, openRace, findRaceSave, openComputerRace,
+    setupSummary: () => `${setupSummary()}${modeActive() ? ' · Classic style' : ''}`, openRace, findRaceSave, openComputerRace, allowNew: guestLimit.allowNew,
     openSave: (save) => openGame(save),
     currentTier: () => setup.tier,
     usedStories: () => store.getMeta('usedStories', []),

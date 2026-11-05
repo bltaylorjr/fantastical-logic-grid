@@ -191,6 +191,8 @@ export const SETTINGS = {
   ratings_model: { type: 'model', default: '@cf/meta/llama-3.1-8b-instruct-fast', group: 'Alerts and reports', label: 'Workers AI model for rating summaries', help: 'Change it here when Cloudflare retires a model.' },
   // ---- Player sign-in (web/js/idle.js and biometric.js)
   player_idle_minutes: { type: 'int', min: 0, max: 1440, default: 30, group: 'Player sign-in', label: 'Sign players out after this many idle minutes', help: 'A signed-in player who has not tapped, clicked, typed or scrolled for this long is signed out to keep their account safe. Their progress is saved and synced first, and the puzzle they were on opens again when they sign back in. A warning shows 2 minutes before. 0: never sign out for being idle.' },
+  guest_daily_limit: { type: 'int', min: 0, max: 50, default: 3, group: 'Player sign-in', label: 'New puzzles a guest can start each day', help: 'Across every game together. The next one asks the guest to sign in or create a free account. Saved puzzles, the daily, weekly and special edition puzzles and How to play are always free. Counted on the game server for each device and each internet connection. 0: no limit.' },
+  guest_network_daily_limit: { type: 'int', min: 0, max: 2000, default: 60, group: 'Player sign-in', label: 'Guest puzzles from one internet connection each day', help: 'All guests on one connection together (a home, a school, a library). Stops a guest getting more by clearing their browser. Set it high enough for a classroom of guests. 0: no limit per connection, only per device.' },
   biometric_signin_enabled: { type: 'bool', default: true, group: 'Player sign-in', label: 'Fingerprint and face sign-in', help: 'Players can turn on sign-in with their device\'s fingerprint reader, face unlock, Windows Hello or screen-lock PIN, as well as their password. The check happens on the device; the game never sees a fingerprint or face. Off: the choice is hidden and every player signs in with their password.' },
   // ---- Support and premium: the game is free. These only add an optional
   // link out to a page the owner sets up elsewhere; nothing here takes
@@ -343,7 +345,7 @@ export async function publicConfig(req, env) {
       supportUrl: s.support_link_enabled && s.support_url ? s.support_url : '',
       supportAsks: !!(s.support_asks_enabled && s.support_link_enabled && s.support_url),
       premiumThemes: s.premium_extras_enabled ? s.premium_themes : [], extrasUrl: s.premium_extras_enabled ? s.extras_url : '',
-      idleMinutes: s.player_idle_minutes },
+      idleMinutes: s.player_idle_minutes, guestDailyLimit: s.guest_daily_limit },
     // NINETIMESNINE's own switches (its admin section).
     numberPlace: {
       enabled: s.np_enabled, learning: s.learning_enabled && s.np_learning_enabled, maxLevel: s.np_max_level, daily: s.np_daily_enabled,

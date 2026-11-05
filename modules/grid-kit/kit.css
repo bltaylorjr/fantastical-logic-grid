@@ -289,6 +289,8 @@
 :root[data-theme="contrast"] .gk-app .gk-ib .ln-e[data-v="1"]::before, :root[data-theme="contrast"] .gk-app .gk-ib .ln-e[data-v="2"]::before, :root[data-theme="contrast"] .gk-app .gk-ib .ln-e[data-v="2"]::after { background: #fff; }
 @media (prefers-reduced-motion: reduce) { .gk-app .gk-ln .ln-e, .gk-app .gk-ln .ln-e::before { animation: none !important; } }
 .gk-app.gk-silent .gk-ln .ln-e::before { animation: none !important; }
+/* The host's guest limit line under Start puzzle (guest-limit.js). */
+.gk-app .gk-guest { flex-basis: 100%; margin: 0; font-size: .92rem; }
 
 /* Rate this puzzle: 1 to 5 stars. Only the first rating counts, so the stars lock once given. */
 .gk-app .gk-stars { border: 0; padding: 0; margin: 12px 0 0; display: flex; flex-wrap: wrap; align-items: center; gap: 2px; }

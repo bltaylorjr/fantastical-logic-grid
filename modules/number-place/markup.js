@@ -35,6 +35,7 @@ export const markup = `
       <div class="np-gen-row">
         <button class="btn primary big" type="submit" id="np-gen">Start puzzle</button>
         <p class="np-status" id="np-status" role="status" aria-live="polite"></p>
+        <p class="np-guest" id="np-guest" hidden></p>
       </div>
       <p class="np-help" id="np-tuning-note"></p>
     </form>

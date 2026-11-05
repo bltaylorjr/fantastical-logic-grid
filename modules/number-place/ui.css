@@ -230,6 +230,8 @@
 .np-app .np-ex-key { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
 .np-app .np-ex-key .np-ex-cell { font-size: .85rem; min-width: 1.7em; min-height: 1.7em; border: 1px solid var(--np-line); border-radius: 4px; }
 @media (max-width: 760px) { .np-app .np-howto-cols { grid-template-columns: minmax(0, 1fr); } .np-app .np-howto-ex { position: static; } }
+/* The host's guest limit line under Start puzzle (guest-limit.js). */
+.np-app .np-guest { flex-basis: 100%; margin: 0; font-size: .92rem; color: var(--np-muted); }
 
 /* Rate this puzzle: 1 to 5 stars. Only the first rating counts, so the stars lock once given. */
 .np-app .np-stars { border: 0; padding: 0; margin: 12px 0 0; display: flex; flex-wrap: wrap; align-items: center; gap: 2px; }
