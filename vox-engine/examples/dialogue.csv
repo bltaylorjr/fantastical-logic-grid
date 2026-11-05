@@ -1,0 +1,7 @@
+id,voice,text,emotion,intensity,style_prompt
+guard_halt,guard,"Halt! Who goes there? [breath] *Nobody* passes without the password.",angry,0.6,
+guard_pass,guard,"Fine, fine. Go on through... and keep your blade sheathed.",,,"tired, slightly grumpy"
+merchant_hello,merchant,"Welcome, welcome! You look like someone who appreciates a *bargain*.",happy,0.8,
+merchant_secret,merchant,"[whisper 0.9]Between you and me, the dragon's hoard isn't where they say it is.[/whisper]",,,
+healer_comfort,healer,"Rest now. [warm]You did everything you could.[/warm] Did the fever break?",tender,0.7,
+narrator_intro,narrator,"The village of Ashford had not seen rain in forty days. On the forty-first, the stranger arrived.",,,"calm, measured"

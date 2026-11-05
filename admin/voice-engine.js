@@ -380,15 +380,12 @@ function deskCard(message = '') {
     <p class="vx-light" id="vx-light" role="status" aria-live="polite" data-state="checking"><span class="vx-dot" aria-hidden="true"></span><span id="vx-light-text">Checking Vox…</span></p>
     ${busy ? '<progress aria-label="Working"></progress>' : ''}
     ${message ? `<p class="error" role="alert">${h.esc(message)}</p>` : ''}
-    ${st.folder
-    ? `<p class="muted">Vox runs hidden on this computer: it starts when the admin app opens and stops when you close the app. Folder: <b>${h.esc(st.folder)}</b> · model <b>${h.esc(st.model || 'made the first time you start it')}</b></p>`
-    : `<div class="note"><p>Choose the Vox folder once: the <b>vox-engine</b> folder you unzipped (it has README.md and a folder named vox inside).</p><button class="btn primary" type="button" id="vx-app-folder">Choose the Vox folder</button></div>`}
+    <p class="muted">Vox is built into the admin app and runs hidden on this computer: it starts when the app opens and stops when you close it. The first start sets everything up by itself (Python, PyTorch and Whisper; several minutes). Model <b>${h.esc(st.model || 'made the first time it starts')}</b>.</p>
     <details class="vx-more"><summary>More</summary>
       <label class="check"><input id="vx-auto-start" type="checkbox"${st.autostart !== false ? ' checked' : ''}> Start Vox when the admin app opens</label>
       <label class="check"><input id="vx-online-app" type="checkbox"${st.online !== false ? ' checked' : ''}> Let my other devices open Vox (puts it online with a free Cloudflare address; applies the next time Vox starts)</label>
       <div class="row">
-        ${st.folder ? '<button class="btn small" type="button" id="vx-app-folder">Change folder</button>' : ''}
-        <button class="btn small" type="button" data-app-open="folder">Open the Vox folder</button>
+        <button class="btn small" type="button" data-app-open="folder">Open Vox's data folder</button>
         <button class="btn small" type="button" data-app-open="log">Open Vox's log</button>
         <button class="btn small" type="button" data-app-open="setup-log">Open the setup log</button>
       </div>
@@ -429,7 +426,6 @@ async function deskWatch() {
   if (up) setLight('up', 'Vox is running. Connecting…');
   else if (st.phase === 'failed') setLight('down', st.message);
   else if (['starting', 'installing', 'making-model', 'running'].includes(st.phase)) setLight('checking', st.message || 'Starting Vox…');
-  else if (!st.folder) setLight('down', 'Choose the Vox folder to begin.');
   else setLight('down', 'Vox is stopped. Click Start Vox.');
   if (!up && !autoTried && st.autostart !== false && st.folder && (!st.phase || st.phase === 'idle') && !st.running) {
     autoTried = true;
@@ -1142,10 +1138,6 @@ export function initVoiceEngine(helpers) {
       autoTried = true; // don't start it again by itself
       h.toast('Vox is stopped.'); h.announce('Vox is stopped.');
       await render();
-      return;
-    }
-    if (b.id === 'vx-app-folder') {
-      try { await appCall('vox_choose_folder'); deskStatus = null; autoTried = false; showOpen(); } catch (err) { if (!/No folder chosen/.test(String(err))) h.toast(String(err)); }
       return;
     }
     if (b.dataset.appOpen) {

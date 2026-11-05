@@ -1,0 +1,51 @@
+{
+  "project": {
+    "noncommercial": false
+  },
+  "sources": [
+    {
+      "name": "libritts_r",
+      "kind": "huggingface",
+      "license": "cc-by-4.0",
+      "attribution": "LibriTTS-R (Koizumi et al. 2023), openslr.org/141, CC BY 4.0",
+      "dataset": "blabble-io/libritts_r",
+      "config": "clean",
+      "split": "train.clean.360",
+      "text_column": "text_normalized",
+      "speaker_column": "speaker_id",
+      "max_items": 50000
+    },
+    {
+      "name": "hifi_tts",
+      "kind": "huggingface",
+      "license": "cc-by-4.0",
+      "attribution": "Hi-Fi TTS (Bakhturina et al. 2021), openslr.org/109, CC BY 4.0",
+      "dataset": "MikhailT/hifi-tts",
+      "config": "clean",
+      "split": "train",
+      "text_column": "text_normalized",
+      "speaker_column": "speaker",
+      "max_items": 20000
+    },
+    {
+      "name": "archive_radio_drama",
+      "kind": "internet_archive",
+      "license": "public-domain",
+      "query": "old time radio drama",
+      "mediatype": "audio",
+      "max_items": 20
+    },
+    {
+      "name": "librivox",
+      "kind": "librivox",
+      "license": "public-domain",
+      "max_books": 10,
+      "max_sections": 3
+    }
+  ],
+  "notes": [
+    "Same as sources.yaml, in JSON (works on every Python version).",
+    "Every source must declare a license; only commercial-safe licenses are accepted unless project.noncommercial is true.",
+    "More source kinds (ljspeech, crema_d, media_url, local) are described in sources.yaml."
+  ]
+}

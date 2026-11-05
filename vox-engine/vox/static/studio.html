@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vox Voice Studio</title>
+<style>
+  :root { --bg:#f6f5f2; --panel:#fff; --ink:#1d1d1f; --muted:#5f6368; --line:#dcdad5;
+          --accent:#1f5f8b; --accent-ink:#fff; --ok:#1e7a46; --err:#b3261e; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:20px 24px 8px; }
+  h1 { margin:0; font-size:22px; }
+  header p { margin:4px 0 0; color:var(--muted); font-size:14px; }
+  main { display:grid; grid-template-columns:minmax(0,1fr) 340px; gap:20px; padding:16px 24px 32px; max-width:1200px; }
+  @media (max-width:860px){ main{ grid-template-columns:1fr; } }
+  section { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:18px; }
+  h2 { font-size:15px; margin:0 0 12px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); }
+  label { display:block; font-size:14px; font-weight:600; margin:12px 0 4px; }
+  .hint { font-weight:400; color:var(--muted); font-size:13px; }
+  textarea, input[type=text], select { width:100%; padding:9px 10px; border:1px solid var(--line); border-radius:7px; font:inherit; background:#fff; color:var(--ink); }
+  textarea { min-height:130px; resize:vertical; }
+  textarea:focus, input:focus, select:focus, button:focus-visible, summary:focus-visible { outline:3px solid #9cc3e0; outline-offset:1px; }
+  .row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .slider { display:grid; grid-template-columns:1fr 48px; align-items:center; gap:8px; }
+  .slider output { font-variant-numeric:tabular-nums; text-align:right; color:var(--muted); font-size:14px; }
+  input[type=range]{ width:100%; accent-color:var(--accent); }
+  details { margin-top:14px; border-top:1px solid var(--line); padding-top:10px; }
+  summary { cursor:pointer; font-weight:600; font-size:14px; }
+  .actions { display:flex; gap:10px; margin-top:16px; flex-wrap:wrap; align-items:center; }
+  button { font:inherit; padding:9px 16px; border-radius:7px; border:1px solid var(--line); background:#fff; color:var(--ink); cursor:pointer; }
+  button.primary { background:var(--accent); color:var(--accent-ink); border-color:var(--accent); font-weight:600; }
+  button:disabled { opacity:.45; cursor:not-allowed; }
+  kbd { font-size:12px; border:1px solid var(--line); border-radius:4px; padding:0 4px; color:var(--muted); }
+  #status { min-height:24px; margin-top:12px; font-size:14px; color:var(--muted); }
+  #status.ok { color:var(--ok); } #status.err { color:var(--err); }
+  audio { width:100%; margin-top:12px; }
+  .markup { font-size:13px; color:var(--muted); margin:6px 0 0; }
+  .markup code { background:#f0efeb; padding:1px 4px; border-radius:4px; }
+  .seg { font-size:13px; color:var(--muted); margin:8px 0 0; padding-left:18px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Vox Voice Studio</h1>
+  <p id="health">Connecting to the engine…</p>
+</header>
+<main>
+  <section aria-labelledby="h-line">
+    <h2 id="h-line">Line</h2>
+    <label for="text">Dialogue</label>
+    <textarea id="text">Halt! Who goes there? [breath] *Nobody* passes without the password.</textarea>
+    <p class="markup">Markup: <code>*emphasis*</code> <code>[breath]</code> <code>[pause]</code> <code>[laugh]</code> <code>[warm]…[/warm]</code> <code>[angry 0.6]…[/angry]</code></p>
+    <div class="row">
+      <div><label for="voice">Voice</label><select id="voice"></select></div>
+      <div><label for="emotion">Emotion</label><select id="emotion"><option value="">Voice default</option></select></div>
+    </div>
+    <label for="intensity">Intensity</label>
+    <div class="slider"><input id="intensity" type="range" min="0" max="1" step="0.05" value="1"><output for="intensity">1.00</output></div>
+    <details>
+      <summary>Delivery</summary>
+      <label for="rate">Pace <span class="hint">slow … fast</span></label>
+      <div class="slider"><input id="rate" type="range" min="-2" max="2" step="0.1" value="0"><output for="rate">0.0</output></div>
+      <label for="pitch">Pitch <span class="hint">semitones</span></label>
+      <div class="slider"><input id="pitch" type="range" min="-6" max="6" step="0.5" value="0"><output for="pitch">0.0</output></div>
+      <label for="pitch_range">Expressiveness <span class="hint">monotone … animated</span></label>
+      <div class="slider"><input id="pitch_range" type="range" min="-1" max="1" step="0.1" value="0"><output for="pitch_range">0.0</output></div>
+      <label for="style_prompt">Style in plain words <span class="hint">e.g. hushed, slightly fearful</span></label>
+      <input id="style_prompt" type="text">
+      <label for="seed">Seed <span class="hint">same seed = same take</span></label>
+      <input id="seed" type="text" inputmode="numeric" placeholder="random">
+    </details>
+    <div class="actions">
+      <button class="primary" id="speak">Speak</button>
+      <button id="stream">Stream</button>
+      <span class="hint"><kbd>Ctrl</kbd>+<kbd>Enter</kbd> to speak</span>
+    </div>
+    <div id="status" role="status" aria-live="polite"></div>
+    <audio id="player" controls hidden></audio>
+    <ol id="segments" class="seg"></ol>
+  </section>
+
+  <aside>
+    <section aria-labelledby="h-edit">
+      <h2 id="h-edit">Edit this take</h2>
+      <label for="old">Replace words</label>
+      <input id="old" type="text" placeholder="words in the line">
+      <label for="new">With</label>
+      <input id="new" type="text" placeholder="new words">
+      <div class="actions">
+        <button id="replace" disabled>Replace</button>
+        <button id="undo" disabled aria-label="Undo last edit">Undo</button>
+        <button id="redo" disabled aria-label="Redo">Redo</button>
+      </div>
+    </section>
+    <section aria-labelledby="h-design" style="margin-top:20px">
+      <h2 id="h-design">New voice</h2>
+      <label for="desc">Describe it</label>
+      <input id="desc" type="text" value="deep gravelly old dwarf, slow">
+      <div class="actions"><button id="design">Create voice</button></div>
+    </section>
+  </aside>
+</main>
+<script type="module">
+import { VoxClient } from "/static/vox-client.js";
+const vox = new VoxClient(location.origin);
+const $ = (id) => document.getElementById(id);
+let take = null, editDepth = 0, redoDepth = 0;
+
+function status(msg, kind = "") { const s = $("status"); s.textContent = msg; s.className = kind; }
+function busy(on) { for (const id of ["speak", "stream", "design"]) $(id).disabled = on; }
+function syncEdit() {
+  $("replace").disabled = !take; $("undo").disabled = editDepth === 0; $("redo").disabled = redoDepth === 0;
+}
+for (const el of document.querySelectorAll("input[type=range]")) {
+  const out = el.nextElementSibling;
+  el.addEventListener("input", () => out.value = Number(el.value).toFixed(el.step < 0.1 ? 2 : 1));
+}
+function options() {
+  const o = { voice: $("voice").value, intensity: +$("intensity").value, rate: +$("rate").value,
+              pitch: +$("pitch").value, pitch_range: +$("pitch_range").value };
+  if ($("emotion").value) o.emotion = $("emotion").value;
+  if ($("style_prompt").value.trim()) o.style_prompt = $("style_prompt").value.trim();
+  if ($("seed").value.trim()) o.seed = parseInt($("seed").value, 10);
+  return o;
+}
+function show(line, label) {
+  const p = $("player"); p.src = line.url; p.hidden = false; p.play();
+  $("segments").innerHTML = line.segments.map(s => `<li>${s.start.toFixed(2)}–${s.end.toFixed(2)}s: ${s.text.replace(/</g, "&lt;")}</li>`).join("");
+  status(`${label} · ${line.duration.toFixed(2)}s · seed ${line.seed}`, "ok");
+}
+async function loadVoices(select) {
+  const vs = await vox.voices();
+  $("voice").innerHTML = vs.map(v => `<option value="${v.name}">${v.name}${v.description ? " — " + v.description : ""}</option>`).join("");
+  if (select) $("voice").value = select;
+}
+async function speak() {
+  const text = $("text").value.trim();
+  if (!text) { status("Type a line first.", "err"); $("text").focus(); return; }
+  busy(true); status("Generating…");
+  try {
+    const line = await vox.speak(text, options());
+    take = line.take; editDepth = 0; redoDepth = 0; syncEdit(); show(line, "Done");
+  } catch (e) { status(e.message, "err"); } finally { busy(false); }
+}
+async function edit(ops, label) {
+  busy(true); status(label + "…");
+  try { show(await vox.edit(take, ops), label); return true; }
+  catch (e) { status(e.message, "err"); return false; } finally { busy(false); syncEdit(); }
+}
+$("speak").onclick = speak;
+$("text").addEventListener("keydown", e => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) speak(); });
+$("stream").onclick = async () => {
+  busy(true); status("Streaming…");
+  try { const o = options(); delete o.seed; await vox.stream($("text").value, o); status("Streamed", "ok"); }
+  catch (e) { status(e.message, "err"); } finally { busy(false); }
+};
+$("replace").onclick = async () => {
+  const oldW = $("old").value.trim(), newW = $("new").value.trim();
+  if (!oldW || !newW) { status("Fill in both the words to replace and the new words.", "err"); return; }
+  if (await edit([{ op: "replace", old: oldW, new: newW }], "Replaced")) { editDepth++; redoDepth = 0; syncEdit(); }
+};
+$("undo").onclick = async () => { if (await edit([{ op: "undo" }], "Undone")) { editDepth--; redoDepth++; syncEdit(); } };
+$("redo").onclick = async () => { if (await edit([{ op: "redo" }], "Redone")) { editDepth++; redoDepth--; syncEdit(); } };
+document.addEventListener("keydown", e => {
+  if (!(e.ctrlKey || e.metaKey) || e.target.tagName === "TEXTAREA" || e.target.tagName === "INPUT") return;
+  if (e.key === "z" && !e.shiftKey && !$("undo").disabled) { e.preventDefault(); $("undo").click(); }
+  if ((e.key === "y" || (e.key === "z" && e.shiftKey)) && !$("redo").disabled) { e.preventDefault(); $("redo").click(); }
+});
+$("design").onclick = async () => {
+  busy(true); status("Creating voice…");
+  try { const v = await vox.designVoice($("desc").value); await loadVoices(v.name); status(`Created voice “${v.name}”. Press Speak to hear it.`, "ok"); }
+  catch (e) { status(e.message, "err"); } finally { busy(false); }
+};
+(async () => {
+  try {
+    const h = await vox.health();
+    $("health").textContent = `Engine ready on ${h.device}` + (h.vocoder_trained ? "" : " · vocoder not trained yet (robotic test audio)");
+    (await vox.emotions()).forEach(e => $("emotion").insertAdjacentHTML("beforeend", `<option>${e}</option>`));
+    await loadVoices();
+  } catch (e) { $("health").textContent = "Can't reach the engine. Start it with: vox serve --ckpt your_model.pt"; }
+})();
+</script>
+</body>
+</html>

@@ -6,7 +6,6 @@
   "remote": { "urls": ["https://flg-api.btay74.workers.dev/admin/*"] },
   "permissions": [
     "allow-vox-status",
-    "allow-vox-choose-folder",
     "allow-vox-start",
     "allow-vox-stop",
     "allow-vox-token",

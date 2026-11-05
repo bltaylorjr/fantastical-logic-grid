@@ -1,3 +1,11 @@
+// Vox is built into the admin app: the engine's code ships inside the app
+// (bundle resource vox-engine/, from the repo's vox-engine/ folder), and its
+// voices, models, learning and logs live in the app's own data folder
+// (%APPDATA%\com.fantasticallogicgrid.admin\vox). On the first start the app
+// sets up its own Python environment there, installs what Vox needs (PyTorch,
+// the web server, and Whisper for clear-words scoring), and brings over the
+// voices and learning from an older Vox folder if there is one.
+//
 // Vox inside the admin app: the Voice engine page can start, stop and connect to
 // Vox (the free voice engine, a Python program on this computer) without a
 // command window, and put it online with a free Cloudflare address so the
@@ -13,7 +21,6 @@ use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager, State};
-use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_opener::OpenerExt;
 
 #[cfg(windows)]
@@ -86,18 +93,31 @@ fn online_on(app: &AppHandle) -> bool {
 }
 
 fn is_vox_folder(p: &Path) -> bool {
-    p.join("vox").join("cli.py").is_file() && p.join("pyproject.toml").is_file()
+    p.join("vox").join("cli.py").is_file()
 }
 
-/// The saved Vox folder, or the first Vox folder found in the usual places.
+/// Vox's data folder (voices, models, learning, logs, its Python environment).
 fn folder(app: &AppHandle) -> Option<PathBuf> {
+    let d = app.path().app_data_dir().ok()?.join("vox");
+    fs::create_dir_all(&d).ok()?;
+    Some(d)
+}
+
+/// The engine's code, shipped inside the app.
+fn engine_dir(app: &AppHandle) -> Option<PathBuf> {
+    let d = app.path().resource_dir().ok()?.join("vox-engine");
+    is_vox_folder(&d).then_some(d)
+}
+
+/// A Vox folder from before Vox was built into the app, to bring its voices over once.
+fn old_folder(app: &AppHandle) -> Option<PathBuf> {
     if let Some(p) = read_config(app).get("folder").and_then(|p| p.as_str()).map(PathBuf::from) {
         if is_vox_folder(&p) {
             return Some(p);
         }
     }
     let home = app.path().home_dir().ok()?;
-    let tries = [
+    [
         "Downloads/MEGA/vox-engine/vox-engine",
         "Downloads/MEGA/MEGA/vox-engine/vox-engine",
         "Downloads/MEGA/MEGA/vox-engine",
@@ -109,12 +129,54 @@ fn folder(app: &AppHandle) -> Option<PathBuf> {
         "Desktop/vox-engine/vox-engine",
         "Desktop/vox-engine",
         "vox-engine",
-    ];
-    tries.iter().map(|t| home.join(t)).find(|p| is_vox_folder(p))
+    ]
+    .iter()
+    .map(|t| home.join(t))
+    .find(|p| is_vox_folder(p))
 }
 
-fn save_folder(app: &AppHandle, p: &Path) {
-    write_config(app, "folder", serde_json::json!(p));
+fn copy_dir(from: &Path, to: &Path) -> std::io::Result<()> {
+    fs::create_dir_all(to)?;
+    for e in fs::read_dir(from)? {
+        let e = e?;
+        let dest = to.join(e.file_name());
+        if e.file_type()?.is_dir() {
+            copy_dir(&e.path(), &dest)?;
+        } else if !dest.exists() {
+            fs::copy(e.path(), dest)?;
+        }
+    }
+    Ok(())
+}
+
+/// Once: voices, learning (with the admin token, so other devices keep working),
+/// trained models and the practice model from the old Vox folder.
+fn migrate(app: &AppHandle, data: &Path) {
+    let mark = data.join(".migrated");
+    if mark.exists() {
+        return;
+    }
+    if let Some(old) = old_folder(app) {
+        for d in ["voices", "learning", "runs"] {
+            if old.join(d).is_dir() {
+                let _ = copy_dir(&old.join(d), &data.join(d));
+            }
+        }
+        for f in ["practice.pt"] {
+            if old.join(f).is_file() && !data.join(f).exists() {
+                let _ = fs::copy(old.join(f), data.join(f));
+            }
+        }
+    }
+    let _ = fs::write(mark, "");
+}
+
+fn venv_python(data: &Path) -> PathBuf {
+    if cfg!(windows) {
+        data.join("venv").join("Scripts").join("python.exe")
+    } else {
+        data.join("venv").join("bin").join("python")
+    }
 }
 
 /// The address Vox printed when it went online ("Online at https://….trycloudflare.com").
@@ -161,17 +223,37 @@ fn cloudflared(app: &AppHandle) -> Option<PathBuf> {
 }
 
 /// Ends a Vox (and its cloudflared) that this app didn't start or that was
-/// left behind: stopping Python directly doesn't stop the tunnel it opened.
-fn stop_strays() {
+/// left behind: stopping Python alone doesn't stop the tunnel it opened. Uses
+/// Windows' own taskkill (no scripts, which antivirus programs distrust): the
+/// process id Vox's desktop shortcut saves (learning/vox.pid), with everything
+/// it started, and any cloudflared tunnel.
+fn stop_strays(dir: Option<&Path>) {
     #[cfg(windows)]
     {
-        let _ = hidden(Command::new("powershell").args([
-            "-NoProfile",
-            "-Command",
-            "Get-CimInstance Win32_Process -Filter \"CommandLine like '%vox.cli serve%' or CommandLine like '%vox serve %' or CommandLine like '%--url http://127.0.0.1:5150%'\" | Invoke-CimMethod -MethodName Terminate | Out-Null",
-        ]))
-        .status();
+        let kill = |args: &[&str]| {
+            let _ = hidden(Command::new("taskkill").args(args)).stdout(Stdio::null()).stderr(Stdio::null()).status();
+        };
+        if let Some(pid) = dir.and_then(|d| fs::read_to_string(d.join("learning").join("vox.pid")).ok()) {
+            let pid = pid.trim().to_string();
+            if pid.chars().all(|c| c.is_ascii_digit()) && !pid.is_empty() {
+                kill(&["/F", "/T", "/PID", &pid]);
+            }
+        }
+        kill(&["/F", "/IM", "cloudflared.exe"]);
     }
+    #[cfg(not(windows))]
+    let _ = dir;
+}
+
+/// Stops a child and everything it started (Vox and its tunnel).
+fn kill_tree(c: &mut Child) {
+    #[cfg(windows)]
+    {
+        let pid = c.id().to_string();
+        let _ = hidden(Command::new("taskkill").args(["/F", "/T", "/PID", &pid])).stdout(Stdio::null()).stderr(Stdio::null()).status();
+    }
+    let _ = c.kill();
+    let _ = c.wait();
 }
 
 /// The trained model when there is one, otherwise the practice model.
@@ -179,10 +261,38 @@ fn model(dir: &Path) -> Option<String> {
     ["runs/v1/vox.pt", "practice.pt"].iter().find(|m| dir.join(m).is_file()).map(|m| m.to_string())
 }
 
-fn python() -> Option<&'static str> {
-    ["python", "py"].into_iter().find(|p| {
-        hidden(Command::new(p).arg("--version")).stdout(Stdio::null()).stderr(Stdio::null()).status().map(|s| s.success()).unwrap_or(false)
-    })
+/// A real Python: where the python.org installer puts it (found even before
+/// Windows refreshes PATH), the py launcher, or python on PATH. The Microsoft
+/// Store shortcut named "python" fails --version, so it never counts.
+fn find_python() -> Option<String> {
+    let works = |exe: &str| {
+        hidden(Command::new(exe).arg("--version")).stdout(Stdio::null()).stderr(Stdio::null()).status().map(|s| s.success()).unwrap_or(false)
+    };
+    if let Some(local) = std::env::var_os("LOCALAPPDATA") {
+        for v in ["Python313", "Python312", "Python311"] {
+            let exe = PathBuf::from(&local).join("Programs").join("Python").join(v).join("python.exe");
+            if exe.is_file() && works(&exe.display().to_string()) {
+                return Some(exe.display().to_string());
+            }
+        }
+    }
+    ["python", "py"].into_iter().find(|p| works(p)).map(String::from)
+}
+
+/// Python, installing it (free, from python.org through winget) if it's missing.
+fn python(vox: &Vox) -> Option<String> {
+    if let Some(p) = find_python() {
+        return Some(p);
+    }
+    set(vox, "installing", "Installing Python (free, from python.org). This takes a few minutes the first time…");
+    let _ = hidden(Command::new("winget").args([
+        "install", "-e", "--id", "Python.Python.3.13", "--scope", "user", "--silent",
+        "--accept-package-agreements", "--accept-source-agreements",
+    ]))
+    .stdout(Stdio::null())
+    .stderr(Stdio::null())
+    .status();
+    find_python()
 }
 
 fn set(vox: &Vox, phase: &str, msg: &str) {
@@ -190,10 +300,10 @@ fn set(vox: &Vox, phase: &str, msg: &str) {
 }
 
 /// Runs one setup step with its output added to vox-setup-log.txt.
-fn step(dir: &Path, py: &str, args: &[&str]) -> bool {
+fn step(dir: &Path, engine: &Path, py: &str, args: &[&str]) -> bool {
     let log = fs::OpenOptions::new().create(true).append(true).open(dir.join("vox-setup-log.txt"));
     let mut cmd = Command::new(py);
-    hidden(cmd.args(args).current_dir(dir));
+    hidden(cmd.args(args).current_dir(dir)).env("PYTHONPATH", engine).env("PYTHONDONTWRITEBYTECODE", "1");
     if let Ok(log) = log {
         if let Ok(err) = log.try_clone() {
             cmd.stdout(log).stderr(err);
@@ -237,29 +347,8 @@ pub fn vox_status(app: AppHandle, vox: State<'_, Vox>) -> Status {
 }
 
 #[tauri::command]
-pub async fn vox_choose_folder(app: AppHandle) -> Result<String, String> {
-    let (tx, rx) = futures_channel::oneshot::channel();
-    let mut picker = app.dialog().file().set_title("Choose the Vox folder (vox-engine)");
-    if let Some(d) = folder(&app) {
-        picker = picker.set_directory(d);
-    }
-    picker.pick_folder(move |f| {
-        let _ = tx.send(f);
-    });
-    let picked = rx.await.ok().flatten().ok_or("No folder chosen.")?;
-    let p = picked.into_path().map_err(|_| "That folder can't be used.")?;
-    // Accept the outer folder of a double vox-engine\vox-engine unzip too.
-    let p = if is_vox_folder(&p) { p } else { p.join("vox-engine") };
-    if !is_vox_folder(&p) {
-        return Err("That isn't the Vox folder. Choose the vox-engine folder that has README.md, pyproject.toml and a vox folder inside.".into());
-    }
-    save_folder(&app, &p);
-    Ok(p.display().to_string())
-}
-
-#[tauri::command]
 pub fn vox_start(app: AppHandle) -> Result<(), String> {
-    let dir = folder(&app).ok_or("Choose the Vox folder first.")?;
+    let dir = folder(&app).ok_or("The admin app can't make its data folder.")?;
     let vox = app.state::<Vox>();
     if alive(&vox) {
         return Ok(());
@@ -279,21 +368,54 @@ pub fn vox_start(app: AppHandle) -> Result<(), String> {
     let app2 = app.clone();
     std::thread::spawn(move || {
         let vox = app2.state::<Vox>();
-        let Some(py) = python() else {
-            set(&vox, "failed", "Python isn't installed. Get it free from python.org (tick \"Add python.exe to PATH\"), then click Start Vox again.");
+        let Some(py) = python(&vox) else {
+            set(&vox, "failed", "Python couldn't be installed automatically. Get it free from python.org (tick \"Add python.exe to PATH\"), then click Start Vox again.");
             return;
         };
-        let ready = |d: &Path| step(d, py, &["-c", "import vox.cli, torch, fastapi, uvicorn"]);
-        if !ready(&dir) {
-            set(&vox, "installing", "Installing Vox. The first time this downloads free parts (PyTorch is the biggest) and takes several minutes…");
-            if !step(&dir, py, &["-m", "pip", "install", "-e", "."]) || !ready(&dir) {
-                set(&vox, "failed", "Installing Vox didn't finish. Open the setup log to see why.");
+        let Some(engine) = engine_dir(&app2) else {
+            set(&vox, "failed", "The Vox engine is missing from the admin app. Reinstall the admin app.");
+            return;
+        };
+        migrate(&app2, &dir);
+        // Vox's own Python environment, so nothing else on the computer is touched
+        let vpy = venv_python(&dir);
+        if !vpy.is_file() {
+            set(&vox, "installing", "Setting up Vox's own Python environment…");
+            if !step(&dir, &engine, &py, &["-m", "venv", &dir.join("venv").display().to_string()]) || !vpy.is_file() {
+                set(&vox, "failed", "Setting up Vox's Python environment didn't work. Open the setup log to see why.");
                 return;
+            }
+        }
+        let py = vpy.display().to_string();
+        let py = py.as_str();
+        // What Vox needs, installed again only when the list changes (app updates)
+        let req = engine.join("requirements.txt");
+        let wanted = fs::read_to_string(&req).unwrap_or_default();
+        let stamp = dir.join("venv").join("vox-requirements.txt");
+        let ready = |d: &Path| step(d, &engine, py, &["-c", "import vox.cli, torch, fastapi, uvicorn"]);
+        if fs::read_to_string(&stamp).ok().as_deref() != Some(wanted.as_str()) || !ready(&dir) {
+            set(&vox, "installing", "Installing what Vox needs. The first time this downloads free parts (PyTorch is the biggest) and takes several minutes…");
+            let _ = step(&dir, &engine, py, &["-m", "pip", "install", "--upgrade", "pip"]);
+            if !step(&dir, &engine, py, &["-m", "pip", "install", "-r", &req.display().to_string()]) || !ready(&dir) {
+                set(&vox, "failed", "Installing what Vox needs didn't finish. Open the setup log to see why.");
+                return;
+            }
+            let _ = fs::write(&stamp, &wanted);
+        }
+        // Whisper (free, on this computer): clear-words scoring and transcripts.
+        // Optional: if it can't install, Vox runs without it.
+        let whisper = dir.join("venv").join("vox-whisper-ready");
+        if !whisper.exists() {
+            set(&vox, "installing", "Installing Whisper, which checks how clearly each line is said…");
+            let ok = step(&dir, &engine, py, &["-m", "pip", "install", "faster-whisper"])
+                && step(&dir, &engine, py, &["-c", "from faster_whisper import WhisperModel; WhisperModel('base', compute_type='int8')"]);
+            if ok {
+                let _ = fs::write(&whisper, "");
             }
         }
         if model(&dir).is_none() {
             set(&vox, "making-model", "Making the practice model (practice.pt)…");
-            if !step(&dir, py, &["-m", "vox.cli", "init", "--preset", "tiny", "--out", "practice.pt"]) {
+            if !step(&dir, &engine, py, &["-m", "vox.cli", "init", "--preset", "tiny", "--out", "practice.pt"]) {
                 set(&vox, "failed", "Making the practice model didn't work. Open the setup log to see why.");
                 return;
             }
@@ -304,7 +426,9 @@ pub fn vox_start(app: AppHandle) -> Result<(), String> {
         }
         let m = model(&dir).unwrap_or_else(|| "practice.pt".into());
         let mut cmd = Command::new(py);
-        hidden(cmd.args(["-m", "vox.cli", "serve", "--ckpt", &m]).current_dir(&dir));
+        hidden(cmd.args(["-m", "vox.cli", "serve", "--ckpt", &m]).current_dir(&dir))
+            .env("PYTHONPATH", &engine)
+            .env("PYTHONDONTWRITEBYTECODE", "1");
         if online_on(&app2) {
             set(&vox, "starting", "Getting the free Cloudflare program that puts Vox online…");
             match cloudflared(&app2) {
@@ -338,16 +462,15 @@ pub fn vox_start(app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-/// Stops Vox: the copy this app started, and one started some other way
-/// (Vox.vbs or a command window) too.
+/// Stops Vox: the copy this app started, and one started from the old desktop
+/// shortcut or a command window too.
 #[tauri::command]
-pub fn vox_stop(vox: State<'_, Vox>) {
+pub fn vox_stop(app: AppHandle, vox: State<'_, Vox>) {
     vox.cancel.store(true, Ordering::SeqCst);
     if let Some(mut c) = vox.child.lock().unwrap().take() {
-        let _ = c.kill();
-        let _ = c.wait();
+        kill_tree(&mut c);
     }
-    stop_strays();
+    stop_strays(folder(&app).as_deref());
     set(&vox, "idle", "Vox is stopped.");
 }
 
@@ -374,7 +497,7 @@ pub fn vox_token(app: AppHandle) -> Option<String> {
 /// Opens the Vox folder, its log or its setup log in Windows.
 #[tauri::command]
 pub fn vox_open(app: AppHandle, what: String) -> Result<(), String> {
-    let dir = folder(&app).ok_or("Choose the Vox folder first.")?;
+    let dir = folder(&app).ok_or("The admin app can't make its data folder.")?;
     let p = match what.as_str() {
         "folder" => dir,
         "log" => dir.join("vox-log.txt"),
@@ -392,8 +515,8 @@ pub fn shutdown(app: &AppHandle) {
     let vox = app.state::<Vox>();
     vox.cancel.store(true, Ordering::SeqCst);
     if let Some(mut c) = vox.child.lock().unwrap().take() {
-        let _ = c.kill();
+        kill_tree(&mut c);
     }
-    // Also the tunnel it opened, and a Vox started from Vox.vbs or a command window.
-    stop_strays();
+    // Also a Vox started from the desktop shortcut, and any tunnel left behind.
+    stop_strays(folder(app).as_deref());
 }

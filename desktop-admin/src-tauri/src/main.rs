@@ -40,7 +40,6 @@ fn main() {
         .manage(vox::Vox::default())
         .invoke_handler(tauri::generate_handler![
             vox::vox_status,
-            vox::vox_choose_folder,
             vox::vox_start,
             vox::vox_stop,
             vox::vox_token,
