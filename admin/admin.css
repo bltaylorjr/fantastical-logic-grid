@@ -537,6 +537,7 @@ body.web-editor-window .web-frame-box iframe { height: calc(100vh - var(--top-h,
 .vx-cmd-row { align-items: center; }
 .vx-cmd-row code { font-size: 1rem; padding: 6px 10px !important; }
 #vx-launch > .row:first-child { align-items: flex-start; }
+#vx-t-notes-f[hidden] { display: none; }
 
 /* Passwords (vault.js). */
 .vault-list { list-style: none; margin: 16px 0; padding: 0; display: grid; gap: 10px; }
