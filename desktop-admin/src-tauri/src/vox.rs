@@ -99,6 +99,8 @@ fn folder(app: &AppHandle) -> Option<PathBuf> {
     let home = app.path().home_dir().ok()?;
     let tries = [
         "Downloads/MEGA/vox-engine/vox-engine",
+        "Downloads/MEGA/MEGA/vox-engine/vox-engine",
+        "Downloads/MEGA/MEGA/vox-engine",
         "Downloads/MEGA/vox-engine",
         "Downloads/vox-engine/vox-engine",
         "Downloads/vox-engine",
