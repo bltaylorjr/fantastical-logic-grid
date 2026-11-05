@@ -5,7 +5,7 @@
 //   /fantastical/   The Fantastical Logic Grid (the game page, moved here)
 //   /ninetimesnine/ NINETIMESNINE on a page of its own
 //   /cage-math/, /sum-cross/, /picture-grid/, /more-or-less/, /skyline/,
-//   /star-field/, /loop-line/, /island-bridges/  the same for each of those games
+//   /star-field/, /loop-line/, /island-bridges/, /crossword/  the same for each of those games
 // Every other file and page stays where it was, so links in emails, the
 // desktop app, the admin dashboard and game sites keep working.
 //
@@ -182,6 +182,22 @@ const ART_LOOP = (() => {
 <g fill="#FFF" ${F} font-size="13" text-anchor="middle">${nums.map(([r, c, n]) => `<text x="${c * S + S / 2}" y="${r * S + 17}">${n}</text>`).join('')}</g></g></svg>`;
 })();
 
+const ART_CROSSWORD = (() => {
+  const S = 20, N = 5;
+  const blk = ['00010', '00000', '01010', '00000', '01000'];
+  const letters = ['CAT A', 'OPERA', 'D T R', 'ELBOW', 'S EYE'];
+  let cells = '';
+  for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+    if (blk[r][c] === '1') { cells += `<rect x="${c * S}" y="${r * S}" width="${S}" height="${S}" fill="#FFF"/>`; continue; }
+    const ch = letters[r][c];
+    if (ch !== ' ' && (r === 1 || c === 0)) cells += `<text x="${c * S + S / 2}" y="${r * S + 15}"${r === 1 ? ' class="mk" fill="#FFD400"' : ''}>${ch}</text>`;
+  }
+  return `<svg viewBox="0 0 240 150" aria-hidden="true" focusable="false"><g transform="translate(70 25)">
+<rect width="${N * S}" height="${N * S}" rx="6" fill="rgb(255 255 255 / .08)" stroke="rgb(255 255 255 / .9)" stroke-width="2.5"/>
+<path d="${[1, 2, 3, 4].map((i) => `M${i * S} 0v${N * S}M0 ${i * S}h${N * S}`).join('')}" stroke="rgb(255 255 255 / .35)" stroke-width="1"/>
+<g fill="#FFF" ${F} font-size="13" text-anchor="middle">${cells}</g></g></svg>`;
+})();
+
 const ART_BRIDGES = (() => {
   const isl = [[40, 30, 3], [120, 30, 5], [200, 30, 2], [40, 118, 1], [120, 118, 3], [200, 118, 2]];
   const isle = ([x, y, n]) => `<circle cx="${x}" cy="${y}" r="15" fill="rgb(255 255 255 / .12)" stroke="#FFF" stroke-width="2.5"/><text x="${x}" y="${y + 5}" text-anchor="middle">${n}</text>`;
@@ -244,6 +260,11 @@ export const GAME_PAGES = [
     points: ['Maps from 7×7 up to 15×15', 'Six levels, from Basic to Master', 'Hints that explain the next step'],
     description: 'Free Island Bridges puzzles: join every island with straight bridges so each has its number and all of them connect. Six levels, 7×7 to 15×15.',
     title: 'Island Bridges | Free bridge logic puzzles | The Logic Grid', genre: 'Logic puzzle', css: 'modules/grid-kit/kit.css', script: 'js/kit-page.js', root: 'ib' },
+  { id: 'crossword', cls: 'cw', page: 'crossword/', name: 'Crossword', tag: 'Word puzzles', art: ART_CROSSWORD,
+    text: 'Fill the grid with words that match the clues, Across and Down. Every clue comes from a real dictionary.',
+    points: ['Grids from a 5×5 mini up to 13×13', 'Themes with starred clues from Medium up', 'Hints that point to the easiest clue'],
+    description: 'Free crossword puzzles: symmetric grids from a 5×5 mini to 13×13, themed from Medium up, with every answer and clue from a real dictionary. Six levels.',
+    title: 'Crossword | Free crossword puzzles | The Logic Grid', genre: 'Word puzzle', css: 'modules/grid-kit/kit.css', script: 'js/kit-page.js', root: 'cw' },
 ];
 // The games with a page of their own written here (every game but the app).
 export const OWN_PAGES = GAME_PAGES.filter((g) => g.script);
@@ -305,6 +326,7 @@ header.top { display: flex; flex-wrap: wrap; align-items: center; justify-conten
 .art.sf { background: linear-gradient(135deg, #0C1445, #1D4ED8 55%, #6D28D9); }
 .art.ll { background: linear-gradient(135deg, #3F1D0B, #C2410C 55%, #A16207); }
 .art.ib { background: linear-gradient(135deg, #083344, #0F766E 55%, #1D4ED8); }
+.art.cw { background: linear-gradient(135deg, #3B0764, #7C3AED 55%, #DB2777); }
 :root[data-theme="contrast"] .art { background: #000; }
 .body { display: flex; flex-direction: column; gap: 12px; padding: 24px 24px 26px; flex: 1; }
 .tag { font-size: .78rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }

@@ -37,6 +37,7 @@ export const ENGINE_GAMES = {
   sf: { name: 'Star Field', ops: 'sf-ops.js', kinds: { generate: 'build', hint: 'play' } },
   ll: { name: 'Loop Line', ops: 'll-ops.js', kinds: { generate: 'build', hint: 'play' } },
   ib: { name: 'Island Bridges', ops: 'ib-ops.js', kinds: { generate: 'build', hint: 'play' } },
+  cw: { name: 'Crossword', ops: 'cw-ops.js', kinds: { generate: 'build', hint: 'play' } },
 };
 
 // How long each kind may take, and how big a request may be.

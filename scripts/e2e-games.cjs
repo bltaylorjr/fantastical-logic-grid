@@ -7,7 +7,7 @@ const path = require('path');
 const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`ok  ${m}`); };
 // Every grid-kit game: card id, screen id, name.
 const KIT = [['cage-math', 'cm', 'Cage Math'], ['sum-cross', 'sc', 'Sum Cross'], ['picture-grid', 'pg', 'Picture Grid'], ['more-or-less', 'ml', 'More or Less'],
-  ['skyline', 'sk', 'Skyline'], ['star-field', 'sf', 'Star Field'], ['loop-line', 'll', 'Loop Line'], ['island-bridges', 'ib', 'Island Bridges']];
+  ['skyline', 'sk', 'Skyline'], ['star-field', 'sf', 'Star Field'], ['loop-line', 'll', 'Loop Line'], ['island-bridges', 'ib', 'Island Bridges'], ['crossword', 'cw', 'Crossword']];
 
 (async () => {
   const server = spawn('node', [path.join(__dirname, 'serve.mjs'), path.join(__dirname, '..', 'dist', 'web'), '8182'], { stdio: 'ignore' });
@@ -29,7 +29,7 @@ const KIT = [['cage-math', 'cm', 'Cage Math'], ['sum-cross', 'sc', 'Sum Cross'],
     assert(cards[0].id === 'logic-grid' && /^The Fantastical Logic Grid/.test(cards[0].name) && cards[0].button, 'The Fantastical Logic Grid has a card');
     assert(cards[1].id === 'ninetimesnine' && /^NINETIMESNINE/.test(cards[1].name) && cards[1].button, 'NINETIMESNINE has a card');
     assert(KIT.every(([id]) => cards.some((c) => c.id === id && c.button)), 'every grid-kit game has a card');
-    assert(cards.length === 10, `ten games, ten cards (${cards.length})`);
+    assert(cards.length === 11, `eleven games, eleven cards (${cards.length})`);
 
     // The Fantastical Logic Grid, with its welcome the first time.
     await page.click('#game-cards [data-game=logic-grid]');

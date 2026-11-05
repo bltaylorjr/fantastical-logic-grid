@@ -49,7 +49,7 @@ if (existsSync(engineSrc)) {
   // (grid-kit) and each game's definition. Their engines run in the shared game worker
   // like NINETIMESNINE's (engine/src/games.js); the test app's own worker
   // files stay behind.
-  for (const dir of ['grid-kit', 'cage-math', 'sum-cross', 'picture-grid', 'more-or-less', 'skyline', 'star-field', 'loop-line', 'island-bridges']) {
+  for (const dir of ['grid-kit', 'cage-math', 'sum-cross', 'picture-grid', 'more-or-less', 'skyline', 'star-field', 'loop-line', 'island-bridges', 'crossword']) {
     mkdirSync(join(web, 'modules', dir), { recursive: true });
     for (const n of readdirSync(join(root, 'modules', dir)).filter((f) => /\.(js|css)$/.test(f) && !['engine-worker.js', 'engine-client.js'].includes(f))) writeFileSync(join(web, 'modules', dir, n), readFileSync(join(root, 'modules', dir, n)));
   }
@@ -251,8 +251,9 @@ if (!indexHtml.includes('http-equiv="Content-Security-Policy"')) {
   writeFileSync(f, page.replace('<!-- ACCOUNT_WINDOWS -->', windows));
 }
 // The Suggest a storyline page (storyline/), the Report a Problem page
-// (report/) and the Account page (account/) get the same policy; they have no inline scripts.
-for (const dir of ['storyline', 'report', 'account']) {
+// (report/), the Account page (account/) and the admin's Book maker
+// (book-maker/) get the same policy; they have no inline scripts.
+for (const dir of ['storyline', 'report', 'account', 'book-maker']) {
   const f = join(out, dir, 'index.html');
   const page = readFileSync(f, 'utf8');
   const policy = CSP.replace(/script-src [^;]*/, "script-src 'self'");
@@ -273,8 +274,9 @@ for (const dir of ['wizard', 'wizard/check']) {
 const files = [];
 const walk = (d) => { for (const n of readdirSync(d)) { const p = join(d, n); if (statSync(p).isDirectory()) walk(p); else files.push(relative(out, p).split('\\').join('/')); } };
 walk(out);
-// The Kokoro voice engine (about 28 MB) is cached when first used, not on install.
-const shell = ['./', ...files.filter((f) => f !== 'sw.js' && !f.endsWith('icon-1024.png') && !f.startsWith('icons/screens/') && !/^vendor\/(ort|kokoro|modern-screenshot)\//.test(f) && f !== 'kokoro-worker.js' && !f.startsWith('media/'))];
+// The Kokoro voice engine (about 28 MB) and the Crossword dictionary (about 5 MB)
+// are cached when first used, not on install.
+const shell = ['./', ...files.filter((f) => f !== 'sw.js' && f !== 'engine/crossword-words.js' && !f.endsWith('icon-1024.png') && !f.startsWith('icons/screens/') && !/^vendor\/(ort|kokoro|modern-screenshot)\//.test(f) && f !== 'kokoro-worker.js' && !f.startsWith('media/'))];
 const hash = createHash('sha256');
 for (const f of files.sort()) hash.update(f).update(readFileSync(join(out, f)));
 const version = hash.digest('hex').slice(0, 10);

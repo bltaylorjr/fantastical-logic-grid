@@ -27,7 +27,7 @@ export const CELEBRATIONS = ['confetti', 'fireworks', 'stars', 'balloons', 'spar
 // Star Field, Loop Line, Island Bridges) has the same switches, in its own
 // group, shown in the admin dashboard's section for that game (cm_*, sc_*, ...).
 const KIT_SETTINGS_GAMES = [['cm', 'Cage Math', 'numbers'], ['sc', 'Sum Cross', 'numbers'], ['pg', 'Picture Grid', 'pictures'],
-  ['ml', 'More or Less', 'numbers'], ['sk', 'Skyline', 'numbers'], ['sf', 'Star Field', 'numbers'], ['ll', 'Loop Line', 'numbers'], ['ib', 'Island Bridges', 'numbers']];
+  ['ml', 'More or Less', 'numbers'], ['sk', 'Skyline', 'numbers'], ['sf', 'Star Field', 'numbers'], ['ll', 'Loop Line', 'numbers'], ['ib', 'Island Bridges', 'numbers'], ['cw', 'Crossword', 'words']];
 function kitSettings(id, name, what) {
   return {
     [`${id}_enabled`]: { type: 'bool', default: true, group: name, label: `${name} in the app`, help: `On: everyone sees the ${name} card and can play it (in the app and on its own website page). Off: the card is hidden and the page says the game is taking a break. Saved ${name} games stay on each device.` },

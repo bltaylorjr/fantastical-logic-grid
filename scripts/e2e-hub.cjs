@@ -13,7 +13,7 @@ const site = path.join(__dirname, '..', 'dist', 'site');
 const PORT = 8157;
 // Every grid-kit game: folder, id, name, and whether it has its intro videos yet.
 const KIT = [['cage-math', 'cm', 'Cage Math', true], ['sum-cross', 'sc', 'Sum Cross', true], ['picture-grid', 'pg', 'Picture Grid', true], ['more-or-less', 'ml', 'More or Less', false],
-  ['skyline', 'sk', 'Skyline', false], ['star-field', 'sf', 'Star Field', false], ['loop-line', 'll', 'Loop Line', false], ['island-bridges', 'ib', 'Island Bridges', false]];
+  ['skyline', 'sk', 'Skyline', false], ['star-field', 'sf', 'Star Field', false], ['loop-line', 'll', 'Loop Line', false], ['island-bridges', 'ib', 'Island Bridges', false], ['crossword', 'cw', 'Crossword', false]];
 const KIT_PAGES = KIT.map(([dir]) => `${dir}/`);
 const BASE = `http://localhost:${PORT}`;
 // Fonts come from npm packages; a build without them is still a fair test of everything else.

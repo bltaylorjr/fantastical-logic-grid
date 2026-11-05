@@ -33,6 +33,7 @@ runs. The list of games is `engine/src/games.js`:
 | `sf` Star Field | `engine/src/sf-ops.js` | `generate` (build), `hint` |
 | `ll` Loop Line | `engine/src/ll-ops.js` | `generate` (build), `hint` |
 | `ib` Island Bridges | `engine/src/ib-ops.js` | `generate` (build), `hint` |
+| `cw` Crossword | `engine/src/cw-ops.js` | `generate` (build), `hint` |
 
 Each operations file is one table, `OPS`, used unchanged by all three places
 an engine runs:
