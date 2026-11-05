@@ -25,7 +25,6 @@ import { hashString } from '../engine/rng.js';
 let admin = '';
 try { admin = new URL(CLOUD.learnUrl || CLOUD.syncUrl).origin; } catch (e) { /* no Worker address */ }
 const local = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
-const trusted = (origin) => origin === admin || (local && /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin));
 
 // The grid-kit games: their own print layout lives in the game's definition.
 const KIT = [
@@ -266,7 +265,8 @@ async function show(m) {
 }
 
 addEventListener('message', async (e) => {
-  if (!trusted(e.origin) || !e.data || typeof e.data !== 'object') return;
+  if (e.origin !== admin && !(local && /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(e.origin))) return;
+  if (!e.data || typeof e.data !== 'object') return;
   const m = e.data;
   const reply = (msg) => { try { e.source.postMessage(msg, local ? '*' : admin); } catch (err) { /* frame gone */ } };
   try {

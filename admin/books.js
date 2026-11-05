@@ -44,6 +44,12 @@ export const spineFor = (pages, paper) => +(pages * (PAPER[paper] || PAPER.white
 // Spine words only on books with more than 79 pages (narrower spines cannot hold them safely).
 export const spineTextOk = (pages) => pages > 79;
 const OUT = 0.375, TOP = 0.5, BOTTOM = 0.65;
+// The book's own boxes (data-b), each kept to what it may hold.
+const BOOK_FIELDS = {
+  title: (v) => String(v).slice(0, 120), subtitle: (v) => String(v).slice(0, 160), author: (v) => String(v).slice(0, 120),
+  volume: (v) => Math.min(999, Math.max(1, Math.round(Number(v)) || 1)), edition: (v) => Math.min(99, Math.max(1, Math.round(Number(v)) || 1)),
+  trim: (v) => (Object.hasOwn(TRIM, v) ? v : book.trim), paper: (v) => (v === 'cream' ? 'cream' : 'white'),
+};
 
 // ---------- talking to the Book maker ----------
 
@@ -450,7 +456,7 @@ function render() {
     return;
   }
   const locked = book.status === 'published' || !h.can('admin');
-  const pages = book.pagesShown || book.pages || 0;
+  const pages = Math.max(0, Math.round(Number(book.pagesShown || book.pages) || 0));
   const dims = coverDims(book, Math.max(pages, MIN_PAGES));
   root.innerHTML = `
     <p><button class="btn small link" type="button" id="bk-back">← All books</button></p>
@@ -727,7 +733,7 @@ function wire() {
       if (el.dataset.f === 'difficulty') { const lv = games.find((x) => x.id === s.game)?.levels.find((l) => l.id === s.difficulty); s.size = lv?.sizes?.[0]; render(); }
       changed(); return;
     }
-    if (el.dataset.b) { book[el.dataset.b] = el.type === 'number' ? Number(el.value) : el.value; book.pagesShown = 0; changed(); if (['trim', 'paper'].includes(el.dataset.b)) render(); else drawCover(); return; }
+    if (el.dataset.b && BOOK_FIELDS[el.dataset.b]) { book[el.dataset.b] = BOOK_FIELDS[el.dataset.b](el.value); book.pagesShown = 0; changed(); if (['trim', 'paper'].includes(el.dataset.b)) render(); else drawCover(); return; }
     if (el.dataset.s) { book.settings[el.dataset.s] = el.type === 'checkbox' ? el.checked : el.dataset.s === 'keysPerPage' ? Number(el.value) : el.value; book.pagesShown = 0; changed(); if (el.dataset.s === 'kind' || el.dataset.s === 'order') render(); return; }
     if (el.dataset.col) { book.cover.colors = { ...coverColors(), [el.dataset.col]: el.value }; book.cover.saved = undefined; changed(); drawCover(); return; }
     if (el.dataset.c) {
