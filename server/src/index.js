@@ -21,6 +21,7 @@
 //   GET /v1/quality                      average rating and best-rated daily puzzles (quality.js)
 //   POST /v1/translate                   the game's text in another language (translate.js)
 //   POST /v1/v                           anonymous daily visitor counts (visits.js)
+//   POST /v1/guest-play                  a guest's new puzzles today, counted per device and connection (guest-plays.js)
 //   POST /v1/m                           anonymous counts of visits from campaign links (marketing.js)
 //   GET /v1/links                        the newest posts for the link-in-bio page (marketing.js)
 //   /v1/challenges[/:code[/result]]       Challenge a friend links, no account (challenges.js)
@@ -61,6 +62,7 @@ import { handleAdmin } from './admin.js';
 import { NIGHTLY_CRONS, isMaintenanceHour, runNightly } from './nightly.js';
 import { handleMarketing } from './marketing.js';
 import { handleVisits } from './visits.js';
+import { handleGuestPlays } from './guest-plays.js';
 import { handlePerks } from './supporters.js';
 import { handleLicenses } from './licenses.js';
 import { handleBadges } from './special-badges.js';
@@ -95,6 +97,9 @@ async function route(req, env, ctx) {
     if (env.LIMIT_AUTHLESS && !(await env.LIMIT_AUTHLESS.limit({ key: ip })).success) return json(req, env, { error: 'slow_down' }, 429, { 'Retry-After': '60' });
     return publicConfig(req, env);
   }
+
+  const guestPlays = await handleGuestPlays(req, env, url);
+  if (guestPlays) return guestPlays;
 
   const learn = await handleLearn(req, env, ctx, url);
   if (learn) return learn;

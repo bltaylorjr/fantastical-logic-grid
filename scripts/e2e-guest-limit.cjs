@@ -95,6 +95,56 @@ const PORT = 8193;
     await page.waitForFunction(() => JSON.parse(localStorage.getItem('flg.guestPlays') || '{"n":0}').n === 1, null, { timeout: 30000 });
     assert(true, 'a new day gives 3 new guest puzzles again, shared with every game');
 
+    // With the game server reached, it keeps the count: clearing the browser
+    // gives a new device id, but the connection's limit still holds.
+    const plays = { dev: new Map(), net: 0 };
+    const srv = await browser.newContext({ viewport: { width: 1200, height: 900 }, serviceWorkers: 'block' });
+    await srv.route('**/js/cloud-config.js', (r) => r.fulfill({ contentType: 'text/javascript', body: config }));
+    await srv.route('http://localhost:59999/v1/guest-play', (r) => {
+      const { d, take } = JSON.parse(r.request().postData());
+      const dev = plays.dev.get(d) || 0;
+      const left = Math.min(3 - dev, 4 - plays.net);
+      const ok = left > 0;
+      if (take && ok) { plays.dev.set(d, dev + 1); plays.net += 1; }
+      r.fulfill({ contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify({ ok, left: take && ok ? left - 1 : Math.max(0, left), limit: 3 }) });
+    });
+    await srv.addInitScript(() => { if (!sessionStorage.getItem('init')) { sessionStorage.setItem('init', '1'); localStorage.setItem('flg.settings', JSON.stringify({ introOffered: true, sound: false })); } });
+    const sp = await srv.newPage();
+    sp.on('pageerror', (e) => errors.push(String(e)));
+    const sHome = async () => {
+      if (await sp.locator('#screen-games:not([hidden])').count()) await sp.click('#game-cards [data-game=logic-grid]');
+      await sp.waitForSelector('#screen-home:not([hidden]) #tier-choices input');
+      await sp.evaluate(() => document.querySelectorAll('dialog[open]').forEach((d) => d.close()));
+    };
+    await sp.goto(`http://localhost:${PORT}/`);
+    await sHome();
+    await sp.waitForFunction(() => /3 of 3/.test(document.querySelector('#guest-note').textContent));
+    for (let i = 0; i < 3; i++) {
+      await sp.click('#quick-btn');
+      await sp.waitForSelector('#screen-play:not([hidden])', { timeout: 30000 });
+      await sp.click('#back-btn');
+      await sp.waitForSelector('#screen-home:not([hidden])');
+    }
+    assert(plays.net === 3 && [...plays.dev.values()][0] === 3, 'the server counted the 3 guest puzzles');
+    await sp.click('#quick-btn');
+    await sp.waitForSelector('#dlg-confirm[open]');
+    assert(true, 'the server refuses the 4th');
+    await sp.click('#confirm-no');
+    // Clear the browser: a new device id, but the connection has 1 left of 4.
+    await sp.evaluate(() => { localStorage.clear(); localStorage.setItem('flg.settings', JSON.stringify({ introOffered: true, sound: false })); });
+    await sp.reload();
+    await sHome();
+    await sp.waitForFunction(() => /1 of 3/.test(document.querySelector('#guest-note').textContent));
+    assert(true, 'after clearing the browser the server still knows the connection\'s count');
+    await sp.click('#quick-btn');
+    await sp.waitForSelector('#screen-play:not([hidden])', { timeout: 30000 });
+    await sp.click('#back-btn');
+    await sp.waitForSelector('#screen-home:not([hidden])');
+    await sp.click('#quick-btn');
+    await sp.waitForSelector('#dlg-confirm[open]');
+    assert(plays.net === 4, 'and refuses once the connection\'s limit is used');
+    await srv.close();
+
     assert(!errors.length, `no page errors ${errors.join(' | ')}`);
     console.log('Guest limit checks passed.');
   } finally {
