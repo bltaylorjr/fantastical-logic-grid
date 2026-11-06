@@ -179,6 +179,31 @@ uses a secret, variable or binding that is not listed there.
 
 **Links:** [Workers VPC](https://dash.cloudflare.com/?to=/:account/workers/vpc/tunnels) · [GitHub variables](https://github.com/bltaylorjr/fantastical-logic-grid/settings/variables/actions) · [Full guide (docs/PUZZLE-SERVER.md)](https://github.com/bltaylorjr/fantastical-logic-grid/blob/main/docs/PUZZLE-SERVER.md)
 
+### Vox voice engine on the Oracle server
+
+**Why:** Vox, the game's own voice engine, runs on the Oracle server so the admin dashboard can use it from any device, with no download on your computer. It trains itself overnight and stays within the server's free allowance (docs/SERVER-MAINTENANCE.md). The Worker reaches it through the same Cloudflare Tunnel as the puzzle server; Vox has no public address. Until these are set, the dashboard uses Vox on your Windows computer.
+
+**Cost:** Free: the Oracle Always Free VM (shared with the puzzle server and build runners) and Cloudflare Workers VPC (free while in beta).
+
+| Name | Where | Notes |
+| --- | --- | --- |
+| `VOX` | Worker binding (server/wrangler.toml) | Workers VPC Service flg-vox ([[vpc_services]] in wrangler.toml, with its Service ID). Optional. |
+| `VOX_KEY` | Cloudflare Worker secret | Vox's admin key on the server; the Worker adds it to every request so it never reaches a browser. Optional. |
+| `LIMIT_VOX` | Worker binding (server/wrangler.toml) | Voice engine requests per admin per minute (600). Optional. |
+| `FLG_VOX_DEPLOY` | GitHub repository variable | Value: `1` Deploys Vox to the Oracle server whenever vox-engine/ changes. Optional. |
+
+**Steps:**
+
+1. After the puzzle server steps above (the tunnel `flg-puzzles` must be healthy), run `sudo bash /opt/flg/setup.sh` on the Oracle VM again so it adds Vox.
+2. Cloudflare > **Workers & Pages** > **VPC** > **VPC Services** > **Create**: name `flg-vox`, tunnel `flg-puzzles`, HTTP, IPv4 `172.30.0.11`, port `5150`. Send Claude the Service ID; it goes in `server/wrangler.toml` under `[[vpc_services]]` (binding `VOX`).
+3. Open <https://dash.cloudflare.com/?to=/:account/workers/services/view/flg-api/production/settings> (Cloudflare > **Workers & Pages** > **flg-api** > **Settings** > **Variables and Secrets**).
+4. Click **Add** (or **Edit** next to `VOX_KEY` if it is already there).
+5. Choose type **Secret**, enter the name `VOX_KEY`, paste everything after VOX_KEY= in `sudo cat /opt/flg/vox.env` on the VM as the value, and click **Deploy**.
+6. Add the variable `FLG_VOX_DEPLOY` = `1` at <https://github.com/bltaylorjr/fantastical-logic-grid/settings/variables/actions>, then run **Deploy Vox to the server** once (the first start takes about 10 minutes).
+7. Open the dashboard's **Voice engine** page on any device: it says **Connected to Vox on the server**.
+
+**Links:** [Workers VPC](https://dash.cloudflare.com/?to=/:account/workers/vpc/tunnels) · [GitHub variables](https://github.com/bltaylorjr/fantastical-logic-grid/settings/variables/actions) · [Full guide (docs/VOX-SERVER.md)](https://github.com/bltaylorjr/fantastical-logic-grid/blob/main/docs/VOX-SERVER.md)
+
 ### Dependabot and GitHub security
 
 **Why:** Dependabot opens a tested pull request when a library has an update (patch and minor updates merge themselves). Secret scanning and push protection stop a key from being pushed by mistake.
