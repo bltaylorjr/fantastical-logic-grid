@@ -10,12 +10,21 @@
 //   off      not set up (by choice or not yet)
 //   unknown  couldn't tell just now
 //
+// What's watched comes from the code (status-catalog.js, rebuilt on every
+// deploy by scripts/status-catalog.mjs): every GitHub Actions workflow, the
+// Worker's bindings, the database tables and the dashboard's pages. A new
+// workflow, table, binding, page or daily cap is watched as soon as it ships;
+// a removed one drops off. Daily caps say what they watch in settings.js
+// (watch: { usage, on }), and any other counter in the usage table shows up by
+// itself under Free allowances.
+//
 // The page refreshes this every 30 seconds while it's open and visible, so it
 // stays cheap: one batch of database counts, and the outside calls (Cloudflare's
 // analytics, GitHub Actions, the website checks) are cached here for a few
 // minutes. Nothing here changes anything, and no secret value leaves the Worker.
 
-import { getSettings } from './settings.js';
+import { getSettings, SETTINGS } from './settings.js';
+import { CATALOG } from './status-catalog.js';
 import { FREE_LIMITS, cloudflareUsage } from './usage.js';
 import { connectionStatus } from './connections.js';
 import { voxServerStatus } from './vox.js';
@@ -28,6 +37,11 @@ const DAY = 24 * HOUR;
 const isoDay = (ms) => new Date(ms).toISOString().slice(0, 10);
 const REPO = 'bltaylorjr/fantastical-logic-grid';
 const PUZZLE_ORIGIN = 'http://172.30.0.10:8080';
+const TABLES = new Set(CATALOG.tables);
+const PAGES = new Set(CATALOG.pages);
+const BINDINGS = new Set(Object.values(CATALOG.worker.bindings).flat());
+// Only link to pages the dashboard still has.
+const page = (p) => (p && PAGES.has(p) ? p : null);
 
 // Short caches for the outside calls (per Worker instance).
 const cache = new Map();
@@ -51,7 +65,7 @@ const ago = (ms, now) => {
   if (h < 48) return `${h} h ago`;
   return `${Math.round(h / 24)} days ago`;
 };
-const item = (id, label, state, value, detail, link) => ({ id, label, state, value, ...(detail ? { detail } : {}), ...(link ? { link } : {}) });
+const item = (id, label, state, value, detail, link) => ({ id, label, state, value, ...(detail ? { detail } : {}), ...(page(link) ? { link } : {}) });
 // A share of a free allowance: warn at the alert percent, down when it's used up.
 function allowance(id, label, used, limit, at, link, unit = '') {
   if (limit == null) return item(id, label, 'off', 'Off', null, link);
@@ -66,59 +80,112 @@ function lastRun(id, label, at, everyMs, now, link, extra = '') {
   return item(id, label, late ? 'warn' : 'ok', ago(at, now), late ? `Late: it should run every ${everyMs >= DAY * 2 ? `${Math.round(everyMs / DAY)} days` : everyMs >= DAY ? 'day' : 'hour'}${extra}` : extra.replace(/^; /, '') || null, link);
 }
 
+// Work waiting for you. Each needs its table; a feature that's removed (its
+// table dropped) drops off, and a new one is added here in one line.
+const WAITING = [
+  { id: 'reports-stuck', label: 'Problem reports the doctor couldn\'t fix', table: 'puzzle_reports', sql: "SELECT COUNT(*) AS n FROM puzzle_reports WHERE status = 'needs_fix'", link: 'errortracking' },
+  { id: 'messages', label: 'Unread player messages', table: 'conversations', sql: "SELECT COUNT(*) AS n FROM conversations WHERE status = 'open' AND admin_unread > 0", link: 'communication' },
+  { id: 'feedback', label: 'New ideas and problems', table: 'feedback', sql: "SELECT COUNT(*) AS n FROM feedback WHERE status = 'new'", link: 'communication' },
+  { id: 'names', label: 'Screen names to check', table: 'name_reviews', sql: 'SELECT COUNT(*) AS n FROM players p LEFT JOIN name_reviews r ON r.user_id = p.user_id WHERE r.name_key IS NULL OR r.name_key != p.name_key', link: 'names' },
+  { id: 'educators', label: 'Educator requests', table: 'educator_requests', sql: "SELECT COUNT(*) AS n FROM educator_requests WHERE status = 'pending'", link: 'educators' },
+  { id: 'edu-feedback', label: 'Educator feedback', table: 'educator_feedback', sql: "SELECT COUNT(*) AS n FROM educator_feedback WHERE status = 'new' AND kind != 'survey'", link: 'edu-feedback' },
+  { id: 'stories', label: 'Storyline submissions', table: 'story_submissions', sql: "SELECT COUNT(*) AS n FROM story_submissions WHERE status = 'new' AND source = 'form'", link: 'story-submissions' },
+  { id: 'parts', label: 'Shared story parts to review', table: 'parts', sql: "SELECT COUNT(*) AS n FROM parts WHERE status = 'pending'", link: 'stories' },
+  { id: 'keys', label: 'App key requests', table: 'licenses', sql: 'SELECT COUNT(*) AS n FROM licenses WHERE waiting = 1 AND revoked_at IS NULL', link: 'licenses' },
+  { id: 'tuning', label: 'Self-tuning changes to approve', table: 'tuning_proposals', sql: "SELECT COUNT(*) AS n FROM tuning_proposals WHERE status = 'waiting'", link: 'analysis' },
+];
+// What the other checks read, each only if its table exists.
+const READS = {
+  usage: ['usage', (db, today) => db.prepare('SELECT name, count FROM usage WHERE day = ?1').bind(today)],
+  errorsToday: ['app_errors', (db, today) => db.prepare('SELECT COALESCE(SUM(count), 0) AS n FROM app_errors WHERE day = ?1').bind(today)],
+  errorsYesterday: ['app_errors', (db, today, yesterday) => db.prepare('SELECT COALESCE(SUM(count), 0) AS n FROM app_errors WHERE day = ?1').bind(yesterday)],
+  upkeep: ['upkeep_log', (db) => db.prepare('SELECT ran_at FROM upkeep_log ORDER BY ran_at DESC LIMIT 1')],
+  archive: ['archive_log', (db) => db.prepare('SELECT ran_at, status, message FROM archive_log ORDER BY ran_at DESC LIMIT 1')],
+  search: ['search_snapshots', (db) => db.prepare('SELECT source, fetched_at, tried_at, error FROM search_snapshots')],
+  alertsWaiting: ['alert_queue', (db) => db.prepare('SELECT COUNT(*) AS n, MIN(created_at) AS oldest FROM alert_queue WHERE sent_at IS NULL')],
+  reportsWaiting: ['puzzle_reports', (db) => db.prepare("SELECT COUNT(*) AS n, MIN(created_at) AS oldest FROM puzzle_reports WHERE status IN ('new', 'checking')")],
+};
+
 async function counts(env, now) {
   const db = env.DB;
-  const today = isoDay(now);
-  const q = {
-    usage: db.prepare('SELECT name, count FROM usage WHERE day = ?1').bind(today),
-    errorsToday: db.prepare('SELECT COALESCE(SUM(count), 0) AS n FROM app_errors WHERE day = ?1').bind(today),
-    errorsYesterday: db.prepare('SELECT COALESCE(SUM(count), 0) AS n FROM app_errors WHERE day = ?1').bind(isoDay(now - DAY)),
-    upkeep: db.prepare('SELECT ran_at FROM upkeep_log ORDER BY ran_at DESC LIMIT 1'),
-    archive: db.prepare('SELECT ran_at, status, message FROM archive_log ORDER BY ran_at DESC LIMIT 1'),
-    search: db.prepare('SELECT source, fetched_at, tried_at, error FROM search_snapshots'),
-    alertsWaiting: db.prepare('SELECT COUNT(*) AS n, MIN(created_at) AS oldest FROM alert_queue WHERE sent_at IS NULL'),
-    feedbackNew: db.prepare("SELECT COUNT(*) AS n FROM feedback WHERE status = 'new'"),
-    messagesUnread: db.prepare("SELECT COUNT(*) AS n FROM conversations WHERE status = 'open' AND admin_unread > 0"),
-    namesWaiting: db.prepare('SELECT COUNT(*) AS n FROM players p LEFT JOIN name_reviews r ON r.user_id = p.user_id WHERE r.name_key IS NULL OR r.name_key != p.name_key'),
-    educatorsWaiting: db.prepare("SELECT COUNT(*) AS n FROM educator_requests WHERE status = 'pending'"),
-    storiesWaiting: db.prepare("SELECT COUNT(*) AS n FROM story_submissions WHERE status = 'new' AND source = 'form'"),
-    keysWaiting: db.prepare('SELECT COUNT(*) AS n FROM licenses WHERE waiting = 1 AND revoked_at IS NULL'),
-    tuningWaiting: db.prepare("SELECT COUNT(*) AS n FROM tuning_proposals WHERE status = 'waiting'"),
-    reportsStuck: db.prepare("SELECT COUNT(*) AS n FROM puzzle_reports WHERE status = 'needs_fix'"),
-    reportsWaiting: db.prepare("SELECT COUNT(*) AS n, MIN(created_at) AS oldest FROM puzzle_reports WHERE status IN ('new', 'checking')"),
-  };
+  const q = {};
+  for (const [k, [table, make]] of Object.entries(READS)) if (TABLES.has(table)) q[k] = make(db, isoDay(now), isoDay(now - DAY));
+  for (const w of WAITING) if (TABLES.has(w.table)) q[`w:${w.id}`] = db.prepare(w.sql);
+  q.ping = db.prepare('SELECT 1 AS n');
   const names = Object.keys(q);
   const t0 = Date.now();
   const res = await db.batch(Object.values(q));
   const ms = Date.now() - t0;
   const r = Object.fromEntries(names.map((k, i) => [k, res[i].results]));
-  const size = res[0].meta?.size_after ?? null;
+  for (const k of Object.keys(READS)) r[k] ||= [];
+  const size = res.at(-1).meta?.size_after ?? null;
   return { r, ms, size };
 }
 
-// The latest run of each GitHub Actions workflow (needs GITHUB_DISPATCH_TOKEN,
-// which has Actions access to this repository).
-async function githubRuns(env) {
+// GitHub Actions (needs GITHUB_DISPATCH_TOKEN, which has Actions access to this
+// repository). One call lists each workflow's state (GitHub turns scheduled
+// workflows off after 60 days without activity); one lists the newest 100
+// runs. Workflows that run rarely don't make it into those 100 next to the
+// every-5-minute ones, so they're asked one at a time, a few per check, and
+// remembered for half an hour. That keeps every check well inside the Worker's
+// limit on outside calls.
+const GH_PER_CHECK = 6;
+const ghRuns = new Map();     // workflow path -> { at, runs }
+const ghHeaders = (env) => ({ Authorization: `Bearer ${env.GITHUB_DISPATCH_TOKEN}`, Accept: 'application/vnd.github+json', 'User-Agent': 'flg-api status' });
+const slim = (x) => ({ status: x.status, conclusion: x.conclusion, at: Date.parse(x.updated_at || x.created_at), url: x.html_url, event: x.event, path: x.path });
+
+async function githubBulk(env) {
   if (!env.GITHUB_DISPATCH_TOKEN) return { configured: false };
   try {
-    const res = await fetch(`https://api.github.com/repos/${REPO}/actions/runs?per_page=100&exclude_pull_requests=true`, {
-      headers: { Authorization: `Bearer ${env.GITHUB_DISPATCH_TOKEN}`, Accept: 'application/vnd.github+json', 'User-Agent': 'flg-api status' },
-      signal: AbortSignal.timeout(8000),
-    });
-    if (!res.ok) return { configured: true, error: `GitHub answered ${res.status}` };
-    const j = await res.json();
-    const latest = new Map();
-    for (const run of j.workflow_runs || []) {
-      if (run.event === 'pull_request') continue;
-      if (!latest.has(run.workflow_id)) latest.set(run.workflow_id, run);
-    }
-    return {
-      configured: true,
-      runs: [...latest.values()].map((x) => ({ name: x.name, status: x.status, conclusion: x.conclusion, at: Date.parse(x.updated_at || x.created_at), url: x.html_url, event: x.event })),
-    };
+    const [wf, runs] = await Promise.all([
+      fetch(`https://api.github.com/repos/${REPO}/actions/workflows?per_page=100`, { headers: ghHeaders(env), signal: AbortSignal.timeout(8000) }),
+      fetch(`https://api.github.com/repos/${REPO}/actions/runs?per_page=100&exclude_pull_requests=true`, { headers: ghHeaders(env), signal: AbortSignal.timeout(8000) }),
+    ]);
+    if (!runs.ok) return { configured: true, error: `GitHub answered ${runs.status}` };
+    const states = wf.ok ? Object.fromEntries(((await wf.json()).workflows || []).map((w) => [w.path, w.state])) : {};
+    return { configured: true, states, runs: ((await runs.json()).workflow_runs || []).map(slim) };
   } catch (e) {
     return { configured: true, error: 'GitHub did not answer' };
   }
+}
+
+async function githubRuns(env, now) {
+  const bulk = await cached('gh', 3 * MIN, now, () => githubBulk(env));
+  if (!bulk.configured || bulk.error) return bulk;
+  const byPath = new Map();
+  for (const r of bulk.runs) if (r.event !== 'pull_request') (byPath.get(r.path) || byPath.set(r.path, []).get(r.path)).push(r);
+  for (const [path, runs] of byPath) ghRuns.set(path, { at: now, runs });
+  // The ones not in the newest 100: a few at a time, oldest answer first.
+  const want = CATALOG.workflows.filter((w) => watchable(w) && bulk.states[w.path] !== 'disabled_manually' && !byPath.has(w.path))
+    .filter((w) => !ghRuns.has(w.path) || now - ghRuns.get(w.path).at > 30 * MIN)
+    .sort((a, b) => (ghRuns.get(a.path)?.at || 0) - (ghRuns.get(b.path)?.at || 0)).slice(0, GH_PER_CHECK);
+  await Promise.all(want.map(async (w) => {
+    try {
+      const res = await fetch(`https://api.github.com/repos/${REPO}/actions/workflows/${encodeURIComponent(w.file)}/runs?per_page=10&exclude_pull_requests=true`, { headers: ghHeaders(env), signal: AbortSignal.timeout(8000) });
+      if (res.ok) ghRuns.set(w.path, { at: now, runs: ((await res.json()).workflow_runs || []).map(slim).filter((r) => r.event !== 'pull_request') });
+    } catch (e) { /* asked again next check */ }
+  }));
+  return { configured: true, states: bulk.states, known: (path) => ghRuns.get(path)?.runs };
+}
+// Pull-request checks aren't running work; everything else is.
+const watchable = (w) => w.crons.length || w.events.some((e) => e !== 'pull_request' && e !== 'pull_request_target');
+
+// What's watched, from the code alone (not from what answered just now), so
+// the page can say what was added or removed since you last looked.
+function watchedList() {
+  const w = {};
+  for (const c of CONNECTIONS) (c.checks || []).forEach((k, i) => { if ((k.type === 'http' || k.type === 'dns') && !k.optional) w[`check-${c.id}-${i}`] = k.label; });
+  if (BINDINGS.has('PUZZLES')) w.puzzles = 'Puzzle server';
+  w.vox = 'Vox voice engine';
+  for (const [key, def] of Object.entries(SETTINGS)) if (def.watch) w[`cap-${key}`] = `${def.watch.label || def.label} today`;
+  if (TABLES.has('upkeep_log')) w.nightly = 'Nightly maintenance';
+  if (TABLES.has('archive_log')) w.archive = 'Weekly archive email';
+  if (TABLES.has('alert_queue')) w['owner-alerts'] = 'Your push and email alerts';
+  if (TABLES.has('puzzle_reports')) w.doctor = 'Puzzle doctor';
+  for (const x of CATALOG.workflows.filter(watchable)) w[`wf-${x.file.replace(/\.ya?ml$/, '')}`] = x.name;
+  if (TABLES.has('app_errors')) w.errors = 'Game errors reported today';
+  for (const x of WAITING) if (TABLES.has(x.table)) w[x.id] = x.label;
+  return w;
 }
 
 async function puzzleServer(env) {
@@ -138,7 +205,7 @@ export async function statusReport(env, now = Date.now()) {
     settled(counts(env, now)),
     settled(getSettings(env, now)),
     cached('cf', 5 * MIN, now, () => cloudflareUsage(env, 2, now)),
-    cached('gh', 3 * MIN, now, () => githubRuns(env)),
+    githubRuns(env, now),
     settled(cached('conn', 5 * MIN, now, () => connectionStatus(env, now))),
     puzzleServer(env),
     voxServerStatus(env),
@@ -174,11 +241,12 @@ export async function statusReport(env, now = Date.now()) {
 
   // ---- The Oracle server
   const oracle = [];
-  if (!puzzles.ready) oracle.push(item('puzzles', 'Puzzle server', 'off', 'Not set up', 'The site builds puzzles itself until the server is connected (docs/PUZZLE-SERVER.md)'));
+  if (!BINDINGS.has('PUZZLES')) { /* the puzzle server isn't part of this Worker any more: nothing to watch */ } else if (!puzzles.ready) oracle.push(item('puzzles', 'Puzzle server', 'off', 'Not set up', 'The site builds puzzles itself until the server is connected (docs/PUZZLE-SERVER.md)'));
   else if (!puzzles.ok) oracle.push(item('puzzles', 'Puzzle server', 'down', 'Not answering', 'Players get the built-in puzzle engine meanwhile'));
   else oracle.push(item('puzzles', 'Puzzle server', puzzles.canary === 'failing' ? 'warn' : 'ok', 'Answering',
     [puzzles.release && `release ${String(puzzles.release).slice(0, 7)}`, puzzles.busy != null && `${puzzles.busy} busy`, puzzles.queued != null && `${puzzles.queued} queued`, puzzles.canary && `canary ${puzzles.canary}`].filter(Boolean).join(' · ')));
-  if (!vox.ready && vox.reason === 'not_set_up') oracle.push(item('vox', 'Vox voice engine', 'off', 'Not set up', 'Vox runs on your Windows PC until it moves to the server (docs/VOX-SERVER.md)', 'voice-engine'));
+  if (!BINDINGS.has('VOX') && !vox.ready) oracle.push(item('vox', 'Vox voice engine', 'off', 'Not set up', 'Vox runs on your Windows PC until it moves to the server (docs/VOX-SERVER.md)', 'voice-engine'));
+  else if (!vox.ready && vox.reason === 'not_set_up') oracle.push(item('vox', 'Vox voice engine', 'off', 'Not set up', 'Vox runs on your Windows PC until it moves to the server (docs/VOX-SERVER.md)', 'voice-engine'));
   else if (!vox.ready) oracle.push(item('vox', 'Vox voice engine', 'down', 'Not answering', 'The game keeps its other voices meanwhile', 'voice-engine'));
   else {
     const h = vox.health || {};
@@ -203,7 +271,7 @@ export async function statusReport(env, now = Date.now()) {
         `freed ${fmt(m.freed_mb)} MB${m.repairs?.length ? ` · fixed: ${m.repairs.join('; ')}` : ' · nothing needed fixing'}`));
     }
   }
-  groups.push({ id: 'oracle', title: 'The Oracle server', items: oracle });
+  if (oracle.length) groups.push({ id: 'oracle', title: 'The Oracle server', items: oracle });
 
   // ---- Free allowances today
   const free = [];
@@ -220,19 +288,31 @@ export async function statusReport(env, now = Date.now()) {
     const rate = c.requests ? c.errors / c.requests : 0;
     free.push(item('worker-errors', 'Worker errors today', rate >= 0.05 ? 'down' : rate >= 0.01 ? 'warn' : 'ok', fmt(c.errors), c.requests ? `${(rate * 100).toFixed(2)}% of requests` : null, 'errortracking'));
   }
+  // Daily caps say in settings.js what they watch: { usage: counter name, on: switch }.
+  const claimed = new Set();
   if (settings) {
-    free.push(settings.tts_enabled ? allowance('voices', 'Server voices today', used('tts'), settings.daily_tts_cap, at, 'settings') : item('voices', 'Server voices today', 'off', 'Off', 'Switched off in Settings', 'settings'));
-    free.push(settings.ai_pictures !== 'none' ? allowance('pictures', 'AI pictures today', used('pictures'), settings.daily_picture_cap, at, 'settings') : item('pictures', 'AI pictures today', 'off', 'Off', 'Switched off in Settings', 'settings'));
-    free.push(settings.translate_enabled ? allowance('translate', 'Translations today', used('translate'), settings.daily_translate_cap, at, 'settings') : item('translate', 'Translations today', 'off', 'Off', 'Switched off in Settings', 'settings'));
+    for (const [key, def] of Object.entries(SETTINGS)) {
+      if (!def.watch) continue;
+      claimed.add(def.watch.usage);
+      const on = typeof def.watch.on === 'function' ? def.watch.on(settings) : def.watch.on ? !!settings[def.watch.on] : true;
+      const label = `${def.watch.label || def.label} today`;
+      free.push(on ? allowance(`cap-${key}`, label, used(def.watch.usage), settings[key], at, 'settings')
+        : item(`cap-${key}`, label, 'off', 'Off', 'Switched off in Settings', 'settings'));
+    }
+  }
+  // Any other counter the game keeps today shows up by itself.
+  for (const u of db?.r.usage || []) {
+    if (claimed.has(u.name)) continue;
+    free.push(item(`count-${u.name}`, `${u.name.replace(/[_-]+/g, ' ').replace(/^./, (c) => c.toUpperCase())} today`, 'ok', fmt(u.count), 'Counted today; no daily cap is set for it'));
   }
   groups.push({ id: 'free', title: 'Free allowances (today, UTC)', items: free });
 
   // ---- Scheduled work
   const jobs = [];
   if (db) {
-    jobs.push(lastRun('nightly', 'Nightly maintenance (2 am Eastern)', db.r.upkeep[0]?.ran_at, DAY, now, 'usage'));
+    if (TABLES.has('upkeep_log')) jobs.push(lastRun('nightly', 'Nightly maintenance (Worker, 2 am Eastern)', db.r.upkeep[0]?.ran_at, DAY, now, 'usage'));
     const a = db.r.archive[0];
-    if (a && a.status === 'failed') jobs.push(item('archive', 'Weekly archive email', 'down', 'Failed', `${ago(a.ran_at, now)}${a.message ? `: ${a.message}` : ''}`, 'backups'));
+    if (!TABLES.has('archive_log')) { /* no archive any more */ } else if (a && a.status === 'failed') jobs.push(item('archive', 'Weekly archive email', 'down', 'Failed', `${ago(a.ran_at, now)}${a.message ? `: ${a.message}` : ''}`, 'backups'));
     else jobs.push(lastRun('archive', 'Weekly archive email', a?.ran_at, 7 * DAY, now, 'backups', a ? `; last: ${a.status}` : ''));
     for (const s of db.r.search) {
       const label = `${s.source === 'google' ? 'Google' : s.source === 'bing' ? 'Bing' : s.source} search numbers`;
@@ -240,20 +320,41 @@ export async function statusReport(env, now = Date.now()) {
       else jobs.push(lastRun(`search-${s.source}`, label, s.fetched_at, DAY, now, 'search'));
     }
     const w = db.r.alertsWaiting[0] || {};
-    jobs.push(item('owner-alerts', 'Your push and email alerts', w.n && now - w.oldest > 2 * HOUR ? 'warn' : 'ok', w.n ? `${w.n} waiting` : 'Nothing waiting',
+    if (TABLES.has('alert_queue')) jobs.push(item('owner-alerts', 'Your push and email alerts', w.n && now - w.oldest > 2 * HOUR ? 'warn' : 'ok', w.n ? `${w.n} waiting` : 'Nothing waiting',
       w.n && now - w.oldest > 2 * HOUR ? `Waiting since ${ago(w.oldest, now)}; they go out every hour` : 'Sent every hour', 'settings'));
     const rw = db.r.reportsWaiting[0] || {};
-    jobs.push(item('doctor', 'Puzzle doctor (problem reports)', rw.n && now - rw.oldest > 6 * HOUR ? 'warn' : 'ok', rw.n ? `${rw.n} in the queue` : 'Queue empty',
+    if (TABLES.has('puzzle_reports')) jobs.push(item('doctor', 'Puzzle doctor (problem reports)', rw.n && now - rw.oldest > 6 * HOUR ? 'warn' : 'ok', rw.n ? `${rw.n} in the queue` : 'Queue empty',
       rw.n && now - rw.oldest > 6 * HOUR ? `Oldest waiting ${ago(rw.oldest, now)}` : null, 'errortracking'));
   }
   if (conn?.github) jobs.push(lastRun('gh-report', 'GitHub connections report', conn.github.reportedAt, DAY, now, 'connections'));
   if (!gh.configured) jobs.push(item('actions', 'GitHub Actions', 'off', 'Not connected', 'Add the GITHUB_DISPATCH_TOKEN Worker secret to see each workflow\'s last run here', 'connections'));
   else if (gh.error) jobs.push(item('actions', 'GitHub Actions', 'unknown', 'Unknown', gh.error));
   else {
-    for (const run of gh.runs.sort((x, y) => x.name.localeCompare(y.name))) {
-      const state = run.status !== 'completed' ? 'ok' : run.conclusion === 'success' || run.conclusion === 'skipped' || run.conclusion === 'neutral' ? 'ok' : run.conclusion === 'cancelled' ? 'warn' : 'down';
-      jobs.push({ ...item(`run-${run.name}`, run.name, state, run.status !== 'completed' ? 'Running' : run.conclusion === 'success' ? 'Passed' : String(run.conclusion || 'Unknown').replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase()), `${ago(run.at, now)} · ${run.event}`), url: run.url, kind: 'action' });
+    let checking = 0;
+    for (const w of CATALOG.workflows.filter(watchable).sort((x, y) => x.name.localeCompare(y.name))) {
+      const id = `wf-${w.file.replace(/\.ya?ml$/, '')}`;
+      const st = gh.states[w.path];
+      const every = w.everyMinutes ? w.everyMinutes * MIN : null;
+      const sched = every ? ` · runs every ${every >= 2 * DAY ? `${Math.round(every / DAY)} days` : every >= 2 * HOUR ? `${Math.round(every / HOUR)} hours` : `${Math.round(every / MIN)} min`}` : '';
+      if (st === 'disabled_manually') { jobs.push(item(id, w.name, 'off', 'Turned off', 'Turned off on GitHub')); continue; }
+      if (st === 'disabled_inactivity') { jobs.push({ ...item(id, w.name, 'warn', 'Paused by GitHub', 'GitHub stops scheduled workflows after 60 days without activity in the repo. Open it on GitHub and choose Enable workflow.'), url: `https://github.com/${REPO}/actions/workflows/${w.file}`, kind: 'action' }); continue; }
+      const runs = gh.known(w.path);
+      if (!runs) { checking++; continue; }
+      if (!runs.length) {
+        if (every) jobs.push({ ...item(id, w.name, 'unknown', 'No runs yet', `Hasn't run yet${sched}`), url: `https://github.com/${REPO}/actions/workflows/${w.file}`, kind: 'action' });
+        continue;   // manual or on-push work that has never run: nothing to watch yet
+      }
+      const run = runs[0];
+      const lastSched = runs.find((r) => r.event === 'schedule');
+      // GitHub's schedules can run late; allow half the gap again, and at least 3 hours.
+      const late = every && lastSched && now - lastSched.at > Math.max(every * 1.5, every + 3 * HOUR);
+      let state = run.status !== 'completed' ? 'ok' : ['success', 'skipped', 'neutral'].includes(run.conclusion) ? 'ok' : run.conclusion === 'cancelled' ? 'warn' : 'down';
+      if (late && state === 'ok') state = 'warn';
+      const value = run.status !== 'completed' ? 'Running' : run.conclusion === 'success' ? 'Passed' : String(run.conclusion || 'Unknown').replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase());
+      const detail = late ? `Late: no scheduled run since ${ago(lastSched.at, now)}${sched}` : `${ago(run.at, now)} · ${run.event.replace(/_/g, ' ')}${sched}`;
+      jobs.push({ ...item(id, w.name, state, value, detail), url: run.url, kind: 'action' });
     }
+    if (checking) jobs.push(item('actions-checking', 'More GitHub workflows', 'unknown', `${checking} being checked`, 'Workflows that run rarely are looked up a few at a time; they appear here within a few minutes'));
   }
   groups.push({ id: 'jobs', title: 'Scheduled work', items: jobs });
 
@@ -261,17 +362,12 @@ export async function statusReport(env, now = Date.now()) {
   if (db) {
     const e = one('errorsToday');
     const y = one('errorsYesterday');
-    const waiting = [
-      item('errors', 'Game errors reported today', e > Math.max(50, y * 3) ? 'down' : e > Math.max(10, y * 1.5) ? 'warn' : 'ok', fmt(e), `yesterday ${fmt(y)}`, 'errortracking'),
-      item('reports-stuck', 'Problem reports the doctor couldn\'t fix', one('reportsStuck') ? 'warn' : 'ok', fmt(one('reportsStuck')), null, 'errortracking'),
-      item('messages', 'Unread player messages', one('messagesUnread') ? 'warn' : 'ok', fmt(one('messagesUnread')), null, 'communication'),
-      item('feedback', 'New ideas and problems', one('feedbackNew') ? 'warn' : 'ok', fmt(one('feedbackNew')), null, 'communication'),
-      item('names', 'Screen names to check', one('namesWaiting') ? 'warn' : 'ok', fmt(one('namesWaiting')), null, 'names'),
-      item('educators', 'Educator requests', one('educatorsWaiting') ? 'warn' : 'ok', fmt(one('educatorsWaiting')), null, 'educators'),
-      item('stories', 'Storyline submissions', one('storiesWaiting') ? 'warn' : 'ok', fmt(one('storiesWaiting')), null, 'story-submissions'),
-      item('keys', 'App key requests', one('keysWaiting') ? 'warn' : 'ok', fmt(one('keysWaiting')), null, 'licenses'),
-      item('tuning', 'Self-tuning changes to approve', one('tuningWaiting') ? 'warn' : 'ok', fmt(one('tuningWaiting')), null, 'analysis'),
-    ];
+    const waiting = TABLES.has('app_errors') ? [item('errors', 'Game errors reported today', e > Math.max(50, y * 3) ? 'down' : e > Math.max(10, y * 1.5) ? 'warn' : 'ok', fmt(e), `yesterday ${fmt(y)}`, 'errortracking')] : [];
+    for (const w of WAITING) {
+      if (!TABLES.has(w.table)) continue;
+      const n = db.r[`w:${w.id}`]?.[0]?.n || 0;
+      waiting.push(item(w.id, w.label, n ? 'warn' : 'ok', fmt(n), null, w.link));
+    }
     groups.push({ id: 'waiting', title: 'Waiting for you', items: waiting });
   }
 
@@ -281,5 +377,10 @@ export async function statusReport(env, now = Date.now()) {
   // "Waiting for you" items are work, not faults: they don't make the whole page amber.
   const faults = groups.filter((g) => g.id !== 'waiting').flatMap((g) => g.items);
   const overall = faults.some((i) => i.state === 'down') ? 'down' : faults.some((i) => i.state === 'warn') ? 'warn' : 'ok';
-  return { checkedAt: now, overall, counts: tally, refreshSeconds: 30, groups };
+  return {
+    checkedAt: now, overall, counts: tally, refreshSeconds: 30, groups,
+    // What's watched, for the page's "now also watching" note.
+    watched: watchedList(),
+    catalog: { hash: CATALOG.hash, workflows: CATALOG.workflows.filter(watchable).length, tables: CATALOG.tables.length, pages: CATALOG.pages.length, bindings: [...BINDINGS].sort() },
+  };
 }

@@ -27,6 +27,8 @@ jobs:
         run: node scripts/connections.mjs check
       - name: Server maintenance script copies match
         run: node scripts/check-server-scripts.mjs
+      - name: Status page catalog is current (a warning only; every deploy rebuilds it)
+        run: node scripts/status-catalog.mjs --check
 
   # Puzzle engine: unique solutions, stories match grids, items in order.
   engine:

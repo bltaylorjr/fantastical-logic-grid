@@ -643,3 +643,10 @@ label.check { display: inline-flex; gap: 6px; align-items: center; }
   .st-row .st-pill { grid-column: 1 / -1; }
   .st-open { grid-column: 1 / -1; }
 }
+.st-offlist > summary { cursor: pointer; list-style: none; }
+.st-offlist > summary::-webkit-details-marker { display: none; }
+.st-offlist > summary h2::before { content: '▸'; margin-right: 6px; color: var(--muted); }
+.st-offlist[open] > summary h2::before { content: '▾'; }
+.st-offlist > summary h2 { margin: 0; }
+.st-foot { font-size: .9rem; }
+.st-changed p { margin: 4px 0; }

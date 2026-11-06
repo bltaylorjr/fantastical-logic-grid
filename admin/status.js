@@ -2,6 +2,11 @@
 // server/src/status.js). Problems come first; every row says its state in
 // words as well as colour and opens the page where it's handled.
 //
+// What's watched follows the code (the server reads its workflows, tables,
+// bindings and pages on every deploy), so rows come and go as features ship
+// or are removed; the page says what changed since you last looked. Rows that
+// are switched off or not set up wait, folded away, at the bottom.
+//
 // It refreshes every 30 seconds while it's open and the tab is visible, and
 // straight away when you come back to it. The menu's count shows how many
 // things are down or need a look.
@@ -9,6 +14,12 @@
 const WORDS = { ok: 'OK', warn: 'Needs a look', down: 'Down', off: 'Not set up', unknown: 'Unknown' };
 const ICON = { ok: '✓', warn: '!', down: '✕', off: '–', unknown: '?' };
 const ONLY_KEY = 'status-only-problems';
+const SEEN_KEY = 'status-watched';
+const store = {
+  get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* private mode */ } },
+};
+
 
 let h = null;
 let timer = null;
@@ -54,14 +65,31 @@ function summary(r) {
   return { faults, headline, waiting };
 }
 
+// What's watched now, compared with what you last saw: new and removed rows.
+function changes(r) {
+  if (!r.watched) return null;
+  const now = new Map(Object.entries(r.watched));
+  const seen = store.get(SEEN_KEY);
+  if (!seen || !seen.ids) { store.set(SEEN_KEY, { ids: [...now.keys()], labels: r.watched }); return null; }
+  const was = new Set(seen.ids);
+  const added = [...now].filter(([id]) => !was.has(id)).map(([, l]) => l);
+  const removed = seen.ids.filter((id) => !now.has(id)).map((id) => seen.labels?.[id] || id);
+  return added.length || removed.length ? { added, removed, now } : null;
+}
+const list = (a) => (a.length > 6 ? `${a.slice(0, 6).join(', ')} and ${a.length - 6} more` : a.join(', '));
+
 function render() {
   const el = $('#status-body');
   if (!el || !last) return;
   const r = last;
   const { faults, headline, waiting } = summary(r);
   const only = onlyProblems();
+  const ch = changes(r);
+  const offRows = r.groups.flatMap((g) => g.items.filter((i) => i.state === 'off').map((i) => ({ ...i, group: g.title })));
   const groups = r.groups.map((g) => {
-    const items = only ? g.items.filter(isProblem) : g.items;
+    const live = g.items.filter((i) => i.state !== 'off');
+    if (!live.length) return '';
+    const items = only ? live.filter(isProblem) : live;
     const bad = g.items.filter(isProblem).length;
     if (only && !items.length) return '';
     return `<section class="card st-group" aria-labelledby="st-g-${g.id}">
@@ -77,7 +105,18 @@ function render() {
     </div>
     ${faults.length ? `<section class="card st-group st-first" aria-labelledby="st-g-first"><h2 id="st-g-first">Look at these first</h2>
       <ul class="st-list">${faults.sort((a, b) => (a.state === 'down' ? 0 : 1) - (b.state === 'down' ? 0 : 1)).map((i) => row(i, i.group)).join('')}</ul></section>` : ''}
-    ${groups || '<p class="muted">Nothing to look at. Untick “Show only problems” to see everything.</p>'}`;
+    ${groups || '<p class="muted">Nothing to look at. Untick “Show only problems” to see everything.</p>'}
+    ${offRows.length ? `<details class="card st-group st-offlist"><summary><h2>Switched off or not set up <span class="badge">${offRows.length}</span></h2></summary>
+      <p class="muted">Watched as soon as they're switched on or connected.</p>
+      <ul class="st-list">${offRows.map((i) => row(i, i.group)).join('')}</ul></details>` : ''}
+    <p class="muted st-foot">Watching ${r.catalog ? `${r.catalog.workflows} GitHub workflows, ${r.catalog.tables} database tables and ${r.catalog.pages} dashboard pages, read from the code on every deploy` : 'everything the server reports'}. New features are added here by themselves; removed ones drop off.</p>`;
+  if (ch) {
+    el.insertAdjacentHTML('afterbegin', `<div class="note st-changed" role="status"><p><b>What's watched has changed</b> since you last looked.</p>
+      ${ch.added.length ? `<p>Now also watching: ${h.esc(list(ch.added))}.</p>` : ''}
+      ${ch.removed.length ? `<p>No longer watched (removed from the apps): ${h.esc(list(ch.removed))}.</p>` : ''}
+      <div class="row"><button class="btn small" type="button" id="status-seen">Got it</button></div></div>`);
+    $('#status-seen').onclick = () => { store.set(SEEN_KEY, { ids: [...ch.now.keys()], labels: Object.fromEntries(ch.now) }); render(); $('#h-status')?.focus?.(); };
+  }
   $('#status-only').checked = only;
 }
 
