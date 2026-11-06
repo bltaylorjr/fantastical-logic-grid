@@ -643,7 +643,7 @@ label.check { display: inline-flex; gap: 6px; align-items: center; }
   .st-row .st-pill { grid-column: 1 / -1; }
   .st-open { grid-column: 1 / -1; }
 }
-.st-offlist > summary { cursor: pointer; list-style: none; }
+.st-offlist > summary { cursor: pointer; list-style: none; min-height: 44px; display: flex; align-items: center; }
 .st-offlist > summary::-webkit-details-marker { display: none; }
 .st-offlist > summary h2::before { content: '▸'; margin-right: 6px; color: var(--muted); }
 .st-offlist[open] > summary h2::before { content: '▾'; }

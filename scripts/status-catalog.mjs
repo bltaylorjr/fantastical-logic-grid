@@ -134,7 +134,9 @@ export const CATALOG = ${JSON.stringify({ hash, ...catalog }, null, 1)};
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const text = build();
-  const old = existsSync(OUT) ? readFileSync(OUT, 'utf8') : '';
+  // Read it in one step (no exists-then-read race): a missing file is just empty.
+  let old = '';
+  try { old = readFileSync(OUT, 'utf8'); } catch (e) { if (e.code !== 'ENOENT') throw e; }
   if (process.argv.includes('--check')) {
     if (old === text) console.log('Status catalog: current.');
     else {
