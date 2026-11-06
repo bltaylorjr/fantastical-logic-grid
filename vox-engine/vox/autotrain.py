@@ -105,6 +105,26 @@ class Settings:
     min_gain: float = 0.02         # how much better (word accuracy) a model must be to go live
 
 
+USAGE_FILE = os.environ.get("VOX_USAGE_FILE", "/srv/vox/usage.json")
+
+
+def server_usage() -> dict | None:
+    """The Oracle server's free-tier guard (scripts/runner/flg-usage.sh), if Vox
+    runs there: level 0 normal, 1 careful, 2 throttled, 3 essential only."""
+    try:
+        u = json.loads(Path(USAGE_FILE).read_text())
+        if time.time() - datetime.fromisoformat(u["at"].replace("Z", "+00:00")).timestamp() > 3 * 3600:
+            u = {**u, "level": max(1, int(u.get("level", 0))), "reason": "The free-tier guard hasn't reported for 3 hours; going carefully."}
+        return u
+    except Exception:
+        return None
+
+
+def throttle_level() -> int:
+    u = server_usage()
+    return int(u.get("level", 0)) if u else 0
+
+
 class AutoTrainer:
     def __init__(self, engine, root: str | Path, lock: threading.Lock, dictionary=None, learning=None):
         self.engine, self.lock, self.dictionary, self.learning = engine, lock, dictionary, learning
@@ -207,7 +227,7 @@ class AutoTrainer:
                 "skipped": dict(s["skipped"].most_common(8)), "used_gb": round(self.used_bytes() / 1e9, 2),
                 "in_window": self.in_window(),
                 "whisper": __import__("importlib.util").util.find_spec("faster_whisper") is not None,
-                "server_maintenance": self._read_maintenance()}
+                "server_maintenance": self._read_maintenance(), "server_usage": server_usage()}
 
     @staticmethod
     def _read_maintenance():
@@ -373,6 +393,14 @@ class AutoTrainer:
         from .text import normalize
         if self.asr is None:
             raise RuntimeError("Whisper isn't installed (Learning tab, Install Whisper).")
+        level = throttle_level()
+        if level >= 2:                                # throttled: no downloads at all
+            self.job["message"] = f"Gathering paused to stay within the free allowance: {(server_usage() or {}).get('reason', '')}"
+            self.state["history"].append({"at": time.time(), "phase": "gather", "added": 0, "paused": True})
+            return 0
+        if level == 1:                                # careful: half as long, twice the pauses
+            seconds /= 2
+        pause = self.settings.pause_secs * (2 if level == 1 else 1)
         words = self._words()
         sr = self.engine.sr
         limits = QualityLimits(min_snr_db=18.0)
@@ -442,7 +470,10 @@ class AutoTrainer:
                             break
             self._write("fingerprints.json", sorted(seen)[-200000:])
             self.save()
-            time.sleep(self.settings.pause_secs)
+            time.sleep(pause)
+            if throttle_level() >= 2:
+                self.job["message"] = "Gathering paused to stay within the free allowance."
+                break
         self.state["history"].append({"at": time.time(), "phase": "gather", "added": added})
         self.cleanup(quiet=True)
         return added
@@ -501,6 +532,10 @@ class AutoTrainer:
         from .config import VoxConfig
         from .train import train, train_vocoder
         self.store_learned_dialects()
+        if throttle_level() >= 3:
+            msg = "Training paused to stay within the free allowance (essential work only)."
+            self.job["message"] = msg
+            return {"trained": False, "why": msg}
         if not force and self.state["new_clips"] < self.settings.min_new_clips:
             msg = f"Waiting for more clips ({self.state['new_clips']} of {self.settings.min_new_clips})."
             self.job["message"] = msg
@@ -592,6 +627,8 @@ class AutoTrainer:
         """Speak a rotating sample of dictionary words; record how many Whisper hears."""
         if self.asr is None:
             return {"skipped": "no Whisper"}
+        if throttle_level() >= 3:
+            return {"skipped": "paused to stay within the free allowance"}
         words = self._words()
         start = self.state["last"].get("scan_cursor", 0)
         sample = [words[(start + i) % len(words)] for i in range(n_words)]

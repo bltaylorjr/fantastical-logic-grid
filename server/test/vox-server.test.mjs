@@ -19,11 +19,12 @@ let mf;
 let db;
 const KEY = 'k'.repeat(40);
 const seen = [];
+let usage = null;   // the server's free-tier guard, as Vox reports it
 // The stand-in Vox: records what reached it and answers like Vox does.
 async function voxStandIn(req) {
   const u = new URL(req.url);
   seen.push({ path: u.pathname + u.search, method: req.method, key: req.headers.get('X-Vox-Admin-Token'), auth: req.headers.get('Authorization') });
-  if (u.pathname === '/v1/health') return Response.json({ status: 'ok', release: 'abc123def456' });
+  if (u.pathname === '/v1/health') return Response.json({ status: 'ok', release: 'abc123def456', server_usage: usage });
   if (u.pathname === '/v1/speak') return new Response(new Uint8Array([82, 73, 70, 70]), { headers: { 'Content-Type': 'audio/wav', 'X-Vox-Take-Id': 't1', 'Set-Cookie': 'x=1' } });
   if (u.pathname === '/v1/admin/check') return Response.json({ ok: true });
   return Response.json({ detail: 'nope' }, { status: 404 });
@@ -97,4 +98,18 @@ test('Vox on the server: admins reach it through the dashboard, with the key add
   assert.equal((await call('/admin/v1/vox/v1/../x', { auth: owner() })).status, 404);
   // Vox's own errors come back as they are
   assert.equal((await call('/admin/v1/vox/v1/nothing', { auth: owner() })).status, 404);
+});
+
+test('the Oracle server near its free allowance shows on the alerts page', async () => {
+  usage = null;
+  let a = await call('/admin/v1/alerts', { auth: owner() });
+  assert.equal(a.status, 200); assert.ok(!a.body.alerts.some((x) => x.id.startsWith('oracle')));
+  usage = { at: new Date().toISOString(), level: 2, reason: 'Outbound data is on pace for 88% of this month\'s free 10 TB.', outbound: { used: 3e12, limit: 1e13, on_pace_percent: 88 }, disk_percent: 40, size: { ocpus: '4', memory_gb: '24', free: false } };
+  a = await call('/admin/v1/alerts', { auth: owner() });
+  const o = a.body.alerts.find((x) => x.id === 'oracle');
+  assert.ok(o && o.level === 'warn' && /88%/.test(o.text));
+  assert.ok(a.body.alerts.some((x) => x.id === 'oracle-size'));
+  // the public check never shows it
+  assert.deepEqual((await call('/admin/v1/vox-health', { origin: null })).body, { ok: true, release: 'abc123def456' });
+  usage = null;
 });

@@ -67,4 +67,17 @@ assert d.get("learned")
 # cleanup under a tiny budget drops the noisiest clips
 t.settings.budget_gb = 0.000001; out = t.cleanup(); print("cleanup at a tiny budget:", out)
 assert out["dropped_clips"] > 0
+# the server's free-tier guard: level 2 stops downloads, level 3 stops training too
+import vox.autotrain as at
+from datetime import datetime, timezone
+uf = W / "usage.json"; at.USAGE_FILE = str(uf)
+assert at.throttle_level() == 0                                        # no guard file: normal
+def guard(level, age=0):
+    uf.write_text(json.dumps({"at": datetime.fromtimestamp(time.time() - age, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "level": level, "reason": "test"}))
+guard(2); assert t.gather(60) == 0 and "free allowance" in t.job["message"]
+guard(3); r = t.train_round(force=True); assert not r["trained"] and "free allowance" in r["why"]
+assert "skipped" in t.scan_accuracy() if t.asr else True
+guard(0, age=4 * 3600); assert at.throttle_level() == 1                # a silent guard means go carefully
+assert t.status()["server_usage"]["level"] == 1
+uf.unlink(); print("throttle OK")
 print("AUTOTRAIN OK")

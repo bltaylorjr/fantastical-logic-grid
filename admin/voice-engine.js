@@ -479,9 +479,21 @@ function autoCard(a) {
   const hist = a.history.slice(0, 8).map((r) => [h.when(secs(r.at)), h.esc(r.phase),
     r.phase === 'gather' ? `${h.fmt(r.added)} new clips` : r.phase === 'train' ? `${h.fmt(r.steps)} steps · ${pct(r.candidate * 100)}% vs ${pct(r.live * 100)}% of words heard · ${r.promoted ? '<span class="badge ok">New model live</span>' : '<span class="badge">Kept the live one</span>'}` : r.phase === 'cleanup' ? `freed ${h.fmt(r.freed_mb)} MB${r.dropped_clips ? `, removed ${h.fmt(r.dropped_clips)} noisy clips` : ''}` : ''], 0);
   const m = a.server_maintenance;
+  const u = a.server_usage;
+  const LEVEL = ['Normal', 'Careful: gathering at half speed', 'Throttled: no downloads, training only', 'Essential only: serving voices, nothing else'];
+  const tb = (b) => (b / 1e12).toFixed(2);
+  const usageCard = u ? `<div class="card ${u.level >= 2 ? 'warn' : ''}" role="status"><h3>Free-tier guard</h3>
+      <p><span class="badge ${u.level ? 'warn' : 'ok'}">${h.esc(LEVEL[u.level] || `Level ${u.level}`)}</span>${u.reason ? ` ${h.esc(u.reason)}` : ''}</p>
+      <div class="tiles">
+        ${h.tile('Outbound this month', `${tb(u.outbound.used)} of ${tb(u.outbound.limit)} TB`, `on pace for ${pct(u.outbound.on_pace_percent)}% by month end`)}
+        ${h.tile('Disk', `${u.disk_percent}% full`, `Vox data ${u.vox_data_gb} GB`)}
+        ${h.tile('Server size', `${h.esc(u.size.ocpus)} cores / ${h.esc(u.size.memory_gb)} GB`, u.size.free ? 'within the free 2 cores / 12 GB' : 'bigger than free: resize it')}
+      </div>
+      <p class="muted">Checked ${h.when(Date.parse(u.at))}, every 15 minutes. Games, voices and builds always run; only gathering, training and the word crawl slow down or pause, and they resume by themselves when there's room.</p></div>` : '';
   return `<details class="card vx-settings" open><summary><h2>Automatic training</h2></summary>
     <p class="muted">Each night (${S.start_hour}:00 to ${S.end_hour}:00) while the machine is quiet, Vox searches openly licensed recordings one plain dictionary word at a time (no names, places or channels), keeps the clear speech, and Whisper writes what's said and in which language. It learns each dialect's pace and melody from recordings that name their region, counts every word it hears per language, trains, and puts a new model live only if Whisper hears more of its words than the live one's. It stays within ${S.budget_gb} GB.</p>
     ${a.whisper ? '' : '<p class="note">Needs Whisper: install it with the button below.</p>'}
+    ${usageCard}
     <div class="tiles">
       ${h.tile('Status', a.running ? h.esc(a.phase) : S.enabled ? (a.in_window ? 'Starting tonight’s round' : 'Waiting for tonight') : 'Off')}
       ${h.tile('Speech gathered', `${h.fmt(a.clips)} clips`, `${a.hours} hours · ${h.fmt(a.new_clips)} new since training`)}
@@ -963,12 +975,15 @@ const RENDER = { learning: renderLearning, review: renderReview, autotune: rende
 // While a job runs the tab refreshes every 3 seconds, but not while you are
 // typing in one of its forms: then it waits until you save or change tabs.
 let editing = false;
+// On the server every refresh is a Worker request (100,000 free a day), so it
+// refreshes every 10 seconds there and not at all while the page is hidden.
 function pollLater() {
   poll = setTimeout(() => {
     if (location.hash !== '#voice-engine') return;
     if (editing) { pollLater(); return; }
+    if (document.hidden) { document.addEventListener('visibilitychange', () => renderTab(), { once: true }); return; }
     renderTab();
-  }, 3000);
+  }, conn?.server ? 10000 : 3000);
 }
 
 async function renderTab(extra) {

@@ -36,3 +36,38 @@ checks they match) and a timer that runs it every day at 3:30 a.m., before the
 The caps add up to more than 12 GB because they're limits, not reservations,
 and the jobs rarely overlap (builds by day, Vox training at night); 8 GB of swap
 covers the rare overlap. Vox uses one core, so the puzzle server always has the other.
+
+## Free-tier guard (every 15 minutes)
+
+`/opt/flg/usage.sh` (the copy in this repo is `scripts/runner/flg-usage.sh`;
+setup writes it, and CI checks the two match) watches the three things that
+could cost money on Oracle's Always Free tier, across the calendar month:
+
+| What | Free amount | How it's measured |
+| --- | --- | --- |
+| Outbound data | 10 TB a month | the network card's sent bytes, added up per day, projected to month end |
+| Disk | 200 GB of block storage | how full `/` is |
+| Server size | 2 cores and 12 GB, running all month | the instance's own metadata |
+
+Using the processor harder doesn't cost anything (Oracle bills a shape by the
+hour, not by how busy it is), so the guard never slows the games, voice serving,
+the tunnel or builds. It only slows Vox's non-essential work:
+
+| Level | When | What Vox does |
+| --- | --- | --- |
+| 0 Normal | everything under the levels below | everything, on 1 core |
+| 1 Careful | outbound on pace for 70%, disk 75%, or a bigger-than-free size | gathers for half as long with twice the pauses |
+| 2 Throttled | outbound on pace for 85%, or disk 85% | no downloads or word crawl; trains on what it has; 0.5 core |
+| 3 Essential only | outbound on pace for 95% or 90% already used, or disk 92% | serves voices only; no gathering, training or accuracy checks; 0.25 core |
+
+Everything resumes by itself when the level drops (a new month resets the
+outbound count). If the guard stops reporting for 3 hours, Vox treats it as
+level 1.
+
+It writes `/opt/flg-puzzles/usage.json` (copied into Vox's folder, which is how
+Vox reads it) and logs each level change to `/var/log/flg-usage.log`. The
+admin dashboard shows it on **Voice engine → Learning → Automatic training**,
+and **Alerts** (with push and email, if you set them up) warns at level 2 or
+higher and whenever the server is bigger than the free size.
+
+Run it by hand: `sudo /opt/flg/usage.sh && cat /opt/flg-puzzles/usage.json`.
