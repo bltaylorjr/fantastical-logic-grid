@@ -12,10 +12,10 @@ name: Admin app for Windows
 on:
   workflow_dispatch:
   pull_request:
-    paths: ['desktop-admin/**', 'vox-engine/**', '.github/workflows/admin-desktop.yml']
+    paths: ['desktop-admin/**', 'vox-engine/**', 'admin/extension/fill.js', '.github/workflows/admin-desktop.yml']
   push:
     branches: [main]
-    paths: ['desktop-admin/**', 'vox-engine/**']
+    paths: ['desktop-admin/**', 'vox-engine/**', 'admin/extension/fill.js']
 permissions:
   contents: write
 concurrency:

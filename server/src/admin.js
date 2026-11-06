@@ -168,7 +168,7 @@ const SECURITY_HEADERS = {
   'Strict-Transport-Security': 'max-age=63072000; includeSubDomains',
   'Cross-Origin-Opener-Policy': 'same-origin',
   'Cross-Origin-Resource-Policy': 'same-origin',
-  'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=(), usb=(), serial=(), hid=(), bluetooth=(), interest-cohort=()',
+  'Permissions-Policy': 'camera=(self), microphone=(), geolocation=(), payment=(), usb=(), serial=(), hid=(), bluetooth=(), interest-cohort=()',
 };
 
 // The preview frame shows the website set in SITE_URL (a test site in tests).
@@ -1137,14 +1137,16 @@ async function api(req, env, ctx, url, path) {
   }
 }
 
-const APP_FILE = /^\/admin\/([\w-]+\.(?:js|css|svg|png|html|webmanifest))?$/;
+const APP_FILE = /^\/admin\/([\w-]+\.(?:js|css|svg|png|html|webmanifest)|vendor\/[\w-]+\.js|extension\/[\w-]+\.(?:js|png|json))?$/;
+// vendor/: the QR libraries Passwords loads when needed (jsqr.js, qrcode.js).
+// extension/: the Passwords browser extension's files, zipped by the page for download.
 // Book Studio (admin/book-studio/): its own page with its own vendored libraries.
 const STUDIO_FILE = /^\/admin\/book-studio\/((?:vendor\/)?[\w-]+(?:\.[\w-]+)*\.(?:js|css|html))?$/;
 // Book Studio edits rich text (style attributes on every formatted word) and
 // draws covers with the book fonts from Google Fonts, so its page allows
 // inline styles and those two font hosts. Scripts stay 'self' only.
 const STUDIO_CSP = "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' data: blob: https://identitytoolkit.googleapis.com https://securetoken.googleapis.com; worker-src 'self' blob:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
-const TYPES = { js: 'text/javascript; charset=utf-8', css: 'text/css; charset=utf-8', svg: 'image/svg+xml', png: 'image/png', html: 'text/html; charset=utf-8', webmanifest: 'application/manifest+json' };
+const TYPES = { js: 'text/javascript; charset=utf-8', css: 'text/css; charset=utf-8', svg: 'image/svg+xml', png: 'image/png', html: 'text/html; charset=utf-8', webmanifest: 'application/manifest+json', json: 'application/json; charset=utf-8' };
 
 async function appFile(env, url, file) {
   if (!env.ASSETS) return new Response('The admin app is not deployed with this Worker.', { status: 404 });
