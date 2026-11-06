@@ -5,6 +5,14 @@ name = "flg-api"
 main = "src/index.js"
 compatibility_date = "2026-08-01"
 
+# Before every deploy and `wrangler dev`: what the admin Status page watches,
+# read from the repo (workflows, migrations, bindings, admin pages), so new and
+# removed features are picked up by themselves (scripts/status-catalog.mjs).
+# It only rewrites src/status-catalog.js when something changed.
+[build]
+command = "node ../scripts/status-catalog.mjs"
+watch_dir = ["../.github/workflows", "migrations"]
+
 # The D1 database "flg" (created in the Cloudflare dashboard).
 [[d1_databases]]
 binding = "DB"

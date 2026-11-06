@@ -357,8 +357,9 @@ def create_app(engine: VoxEngine, learning=None, admin_token: str | None = None,
 
     @app.get("/v1/health")
     def health():
-        from .autotrain import server_usage
-        return {"status": "ok", "release": os.environ.get("VOX_RELEASE"), "server_usage": server_usage(), "device": engine.device, "vocoder_trained": engine.model.vocoder_trained,
+        from .autotrain import AutoTrainer, server_usage
+        return {"status": "ok", "release": os.environ.get("VOX_RELEASE"), "server_usage": server_usage(),
+                "server_maintenance": AutoTrainer._read_maintenance(), "device": engine.device, "vocoder_trained": engine.model.vocoder_trained,
                 "params_millions": {k: round(v, 1) for k, v in engine.model.param_count().items()},
                 "sample_rate": engine.sr, "learning": learning is not None, "public": public,
                 "dictionary": dic.installed, "text_mode": getattr(engine.cfg.model, "text_mode", "bytes"),
