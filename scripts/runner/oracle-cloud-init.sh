@@ -52,6 +52,8 @@ step "Keep containers away from the server's startup settings"
 # The startup settings (Oracle's metadata address 169.254.169.254) can hold the
 # tunnel token and the puzzle key. Build jobs run in containers, so containers
 # may not reach that address; the server itself still can. Re-applied at boot.
+# The same address is also Oracle's DNS server, so DNS (port 53) stays open:
+# without it containers can't look up any website and image builds fail.
 cat > /etc/systemd/system/flg-metadata-guard.service <<'UNIT'
 [Unit]
 Description=Block containers from the instance metadata address
@@ -60,12 +62,13 @@ Requires=docker.service
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=/bin/sh -c 'iptables -C DOCKER-USER -d 169.254.169.254 -j DROP 2>/dev/null || iptables -I DOCKER-USER -d 169.254.169.254 -j DROP'
+ExecStart=/bin/sh -c 'iptables -C DOCKER-USER -d 169.254.169.254 -j DROP 2>/dev/null || iptables -I DOCKER-USER -d 169.254.169.254 -j DROP; for p in udp tcp; do iptables -C DOCKER-USER -d 169.254.169.254 -p $$p --dport 53 -j RETURN 2>/dev/null || iptables -I DOCKER-USER -d 169.254.169.254 -p $$p --dport 53 -j RETURN; done'
 [Install]
 WantedBy=multi-user.target
 UNIT
 systemctl daemon-reload
-systemctl enable --now flg-metadata-guard.service
+systemctl enable flg-metadata-guard.service
+systemctl restart flg-metadata-guard.service   # picks up rule changes on a re-run
 
 step "Build runner image"
 mkdir -p /opt/flg-runner && cd /opt/flg-runner
