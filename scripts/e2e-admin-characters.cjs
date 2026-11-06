@@ -43,7 +43,7 @@ const SHOTS = process.env.SHOTS;
   }
   await mf.ready;
   const app = spawn('node', [path.join(__dirname, 'serve.mjs'), path.join(ROOT, 'dist', 'web'), String(APP_PORT)], { stdio: 'ignore' });
-  await new Promise((r) => setTimeout(r, 600));
+  await require('./wait-port.cjs')(APP_PORT);
   const browser = await chromium.launch();
   const problems = [];
   const watch = (page) => {

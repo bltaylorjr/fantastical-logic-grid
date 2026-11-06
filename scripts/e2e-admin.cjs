@@ -75,7 +75,7 @@ const SHOTS = process.env.SHOTS;
   const app = spawn('node', [path.join(__dirname, 'serve.mjs'), path.join(ROOT, 'dist', 'web'), String(APP_PORT)], { stdio: 'ignore' });
   // The website build, for the daily puzzle planner's preview.
   const siteServer = spawn('node', [path.join(__dirname, 'serve.mjs'), path.join(ROOT, 'dist', 'site'), String(SITE_PORT)], { stdio: 'ignore' });
-  await new Promise((r) => setTimeout(r, 600));
+  await require('./wait-port.cjs')(SITE_PORT);
 
   const browser = await chromium.launch();
   const problems = [];

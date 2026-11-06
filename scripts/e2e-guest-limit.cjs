@@ -9,7 +9,7 @@ const PORT = 8193;
 
 (async () => {
   const server = spawn('node', [path.join(__dirname, 'serve.mjs'), path.join(__dirname, '..', 'dist', 'web'), String(PORT)], { stdio: 'ignore' });
-  await new Promise((r) => setTimeout(r, 600));
+  await require('./wait-port.cjs')(PORT);
   // Accounts switched on, pointing at nothing (no sign-in happens here).
   const config = "export const CLOUD = { firebaseApiKey: 'test-key', syncUrl: 'http://localhost:59999', authUrl: 'http://localhost:59999/v1', tokenUrl: 'http://localhost:59999/v1', learnUrl: '', siteUrl: 'https://thelogicgrid.com' };\nexport const cloudEnabled = () => true;\nexport const CLOUD_URL = '';\n";
   const browser = await chromium.launch();

@@ -5,7 +5,7 @@ const assert = (c, m) => { if (!c) { console.error(`FAIL: ${m}`); process.exitCo
 const { spawn } = require('child_process');
 (async () => {
   const server = spawn('node', [require('path').join(__dirname,'serve.mjs'), require('path').join(__dirname,'..','dist','web'), '8131'], { stdio: 'ignore' });
-  await new Promise((r) => setTimeout(r, 600));
+  await require('./wait-port.cjs')('8131');
   const b = await chromium.launch(); const page = await b.newPage();
   const errs = []; page.on('pageerror', (e) => errs.push(String(e)));
   await page.addInitScript(() => {

@@ -15,7 +15,7 @@ const SITE = `http://localhost:${PORT}`;
   const server = spawn('node', [path.join(__dirname, 'serve.mjs'), path.join(__dirname, '..', 'dist', 'site'), String(PORT)], { stdio: 'ignore' });
   // Another site that frames the game, as a clickjacking page would.
   const evil = http.createServer((req, res) => { res.writeHead(200, { 'content-type': 'text/html' }); res.end(`<!doctype html><iframe id="f" src="${SITE}/" width="800" height="600"></iframe>`); }).listen(EVIL);
-  await new Promise((r) => setTimeout(r, 600));
+  await require('./wait-port.cjs')(PORT);
   const browser = await chromium.launch();
   try {
     const ctx = await browser.newContext({ serviceWorkers: 'block' });

@@ -9,7 +9,7 @@ const dir = process.argv[2] || path.join(__dirname, '..', 'dist', 'web');
 
 (async () => {
   const server = spawn('node', [path.join(__dirname, 'serve.mjs'), dir, '8163'], { stdio: 'ignore' });
-  await new Promise((r) => setTimeout(r, 600));
+  await require('./wait-port.cjs')('8163');
   const browser = await chromium.launch();
   const errors = [];
   try {

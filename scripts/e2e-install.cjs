@@ -17,7 +17,7 @@ const RELEASE = {
 
 (async () => {
   const server = spawn('node', [path.join(__dirname, 'serve.mjs'), path.join(__dirname, '..', 'dist', 'web'), String(PORT)], { stdio: 'ignore' });
-  await new Promise((r) => setTimeout(r, 600));
+  await require('./wait-port.cjs')(PORT);
   const browser = await chromium.launch();
   const errors = [];
   async function open(options, { release = true, standalone = false } = {}) {

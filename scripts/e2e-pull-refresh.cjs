@@ -17,7 +17,7 @@ const ADMIN = 8136;
     spawn('node', [path.join(__dirname, 'serve.mjs'), path.join(ROOT, 'dist', 'web'), String(GAME)], { stdio: 'ignore' }),
     spawn('node', [path.join(__dirname, 'serve.mjs'), ROOT, String(ADMIN)], { stdio: 'ignore' }),
   ];
-  await new Promise((r) => setTimeout(r, 600));
+  await require('./wait-port.cjs')(GAME); await require('./wait-port.cjs')(ADMIN);
   const browser = await chromium.launch();
   const errors = [];
   try {

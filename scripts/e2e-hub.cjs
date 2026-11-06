@@ -21,7 +21,7 @@ const ignorable = (t) => /fonts\/|Failed to decode downloaded font|OTS parsing/.
 
 (async () => {
   const server = spawn('node', [path.join(__dirname, 'serve.mjs'), site, String(PORT)], { stdio: 'ignore' });
-  await new Promise((r) => setTimeout(r, 700));
+  await require('./wait-port.cjs')(PORT);
   const browser = await chromium.launch();
   const errors = [];
   const watch = (page) => {

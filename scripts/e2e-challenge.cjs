@@ -32,7 +32,7 @@ const APP = `http://localhost:${APP_PORT}`;
   }
   await mf.ready;
   const app = spawn('node', [path.join(__dirname, 'serve.mjs'), path.join(ROOT, 'dist', 'web'), String(APP_PORT)], { stdio: 'ignore' });
-  await new Promise((r) => setTimeout(r, 600));
+  await require('./wait-port.cjs')(APP_PORT);
 
   const config = `export const CLOUD = { firebaseApiKey: '', syncUrl: '', learnUrl: 'http://localhost:${API_PORT}', siteUrl: '${APP}', appVersion: 'test' };\nexport const cloudEnabled = () => false;\nexport const CLOUD_URL = CLOUD.learnUrl;\n`;
   const browser = await chromium.launch();

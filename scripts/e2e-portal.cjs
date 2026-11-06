@@ -16,7 +16,7 @@ const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`o
     res.writeHead(200, { 'content-type': 'text/html' });
     res.end(`<!doctype html><title>Game site</title><iframe id="game" src="http://127.0.0.1:${port}/" width="1100" height="850"></iframe>`);
   }).listen(8173);
-  await new Promise((r) => setTimeout(r, 600));
+  await require('./wait-port.cjs')(8171); await require('./wait-port.cjs')(8172);
   const browser = await chromium.launch();
   const errors = [];
   try {
