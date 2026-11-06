@@ -463,7 +463,69 @@ function shell(health) {
 }
 
 // ---------------------------------------------------------------- learning
+// Automatic training (vox/autotrain.py on the engine): each night it gathers
+// openly licensed speech by single dictionary words, learns dialects and
+// vocabulary, trains, checks the new model against the live one, and scans
+// accuracy, all inside a storage budget.
+const LANG = (code) => { try { return new Intl.DisplayNames(['en'], { type: 'language' }).of(code) || code; } catch (e) { return code; } };
+function autoCard(a) {
+  if (!a) return '';
+  const S = a.settings;
+  const acc = a.accuracy.at(-1);
+  const langs = Object.entries(a.languages).sort((x, y) => y[1].clips - x[1].clips);
+  const vocab = a.vocabulary || {};
+  const dial = Object.entries(a.dialects || {});
+  const label = (id) => (options?.dialects || []).find((d) => d.id === id)?.label || id.replace(/_/g, ' ');
+  const hist = a.history.slice(0, 8).map((r) => [h.when(secs(r.at)), h.esc(r.phase),
+    r.phase === 'gather' ? `${h.fmt(r.added)} new clips` : r.phase === 'train' ? `${h.fmt(r.steps)} steps · ${pct(r.candidate * 100)}% vs ${pct(r.live * 100)}% of words heard · ${r.promoted ? '<span class="badge ok">New model live</span>' : '<span class="badge">Kept the live one</span>'}` : r.phase === 'cleanup' ? `freed ${h.fmt(r.freed_mb)} MB${r.dropped_clips ? `, removed ${h.fmt(r.dropped_clips)} noisy clips` : ''}` : ''], 0);
+  const m = a.server_maintenance;
+  return `<details class="card vx-settings" open><summary><h2>Automatic training</h2></summary>
+    <p class="muted">Each night (${S.start_hour}:00 to ${S.end_hour}:00) while the machine is quiet, Vox searches openly licensed recordings one plain dictionary word at a time (no names, places or channels), keeps the clear speech, and Whisper writes what's said and in which language. It learns each dialect's pace and melody from recordings that name their region, counts every word it hears per language, trains, and puts a new model live only if Whisper hears more of its words than the live one's. It stays within ${S.budget_gb} GB.</p>
+    ${a.whisper ? '' : '<p class="note">Needs Whisper: install it with the button below.</p>'}
+    <div class="tiles">
+      ${h.tile('Status', a.running ? h.esc(a.phase) : S.enabled ? (a.in_window ? 'Starting tonight’s round' : 'Waiting for tonight') : 'Off')}
+      ${h.tile('Speech gathered', `${h.fmt(a.clips)} clips`, `${a.hours} hours · ${h.fmt(a.new_clips)} new since training`)}
+      ${h.tile('Words searched', a.total_words ? `${h.fmt(a.cursor)} of ${h.fmt(a.total_words)}` : h.fmt(a.cursor))}
+      ${h.tile('Word accuracy', acc ? `${pct(acc.accuracy * 100)}%` : '–', acc ? `of ${acc.words} words heard back, ${h.when(secs(acc.at))}` : 'checked every night')}
+      ${h.tile('Storage', `${a.used_gb} of ${S.budget_gb} GB`)}
+    </div>
+    ${a.running ? `<p aria-live="polite">${h.esc(a.message)}</p><progress max="1" value="${Number(a.progress) || 0}" aria-label="Automatic training progress"></progress><div class="row"><button class="btn" type="button" id="vx-at-stop">Stop</button></div>`
+    : `${a.message ? `<p class="muted">${h.esc(a.message)}</p>` : ''}<div class="row">
+        <button class="btn primary" type="button" data-at-run="night">Run a full round now</button>
+        <button class="btn" type="button" data-at-run="gather">Gather speech</button>
+        <button class="btn" type="button" data-at-run="train">Train now</button>
+        <button class="btn" type="button" data-at-run="scan">Check accuracy</button>
+        <button class="btn link" type="button" id="vx-at-back">Go back to the previous model</button></div>`}
+    <details class="vx-more"><summary>Languages, vocabulary and dialects</summary>
+      ${langs.length ? `<p>${langs.map(([c, v]) => `<b>${h.esc(LANG(c))}</b>: ${h.fmt(v.clips)} clips, ${h.fmt(vocab[c]?.words || 0)} words`).join(' · ')}</p>` : '<p class="muted">No speech gathered yet.</p>'}
+      ${dial.length ? `<p>Learned from real recordings (blended into each dialect's settings as evidence grows):</p><ul>${dial.map(([id, d]) => `<li><b>${h.esc(label(id))}</b>: ${h.fmt(d.clips)} clips · pace ${d.prosody.rate >= 0 ? '+' : ''}${d.prosody.rate}, melody ${d.prosody.pitch_range >= 0 ? '+' : ''}${d.prosody.pitch_range} · ${Math.round(d.weight * 100)}% weight</li>`).join('')}</ul>` : '<p class="muted">Dialects are learned once recordings that name their region come in (at least 5 clips each).</p>'}
+      ${a.last?.missed?.length ? `<p>Words to work on (not heard back in the last check): ${h.esc(a.last.missed.slice(0, 20).join(', '))}</p>` : ''}
+    </details>
+    <details class="vx-more"><summary>Schedule and limits</summary>
+      <form id="vx-at" class="stack" novalidate>
+        <label class="check"><input id="vx-at-on" type="checkbox"${S.enabled ? ' checked' : ''}> Train automatically every night</label>
+        <div class="row">
+          <div class="field"><label for="vx-at-a">From (hour)</label><input id="vx-at-a" type="number" min="0" max="23" value="${S.start_hour}"></div>
+          <div class="field"><label for="vx-at-b">Until (hour)</label><input id="vx-at-b" type="number" min="0" max="23" value="${S.end_hour}"></div>
+          <div class="field"><label for="vx-at-gb">Storage budget (GB)</label><input id="vx-at-gb" type="number" min="2" max="500" value="${S.budget_gb}"></div>
+        </div>
+        <div class="row">
+          <div class="field"><label for="vx-at-g">Gathering (minutes a night)</label><input id="vx-at-g" type="number" min="5" max="600" value="${S.gather_minutes}"></div>
+          <div class="field"><label for="vx-at-t">Training (minutes a night)</label><input id="vx-at-t" type="number" min="5" max="600" value="${S.train_minutes}"></div>
+          <div class="field"><label for="vx-at-c">Processor cores to use</label><input id="vx-at-c" type="number" min="1" max="64" value="${S.threads}"></div>
+        </div>
+        <div class="row"><button class="btn primary" type="submit">Save</button></div>
+      </form>
+    </details>
+    ${hist.length ? `<h3>Recent rounds</h3>${h.table(['When', 'What', 'Result'], hist, '')}` : ''}
+    ${m ? `<p class="muted">Server cleanup and repair: last ran ${h.when(Date.parse(m.at))}, freed ${h.fmt(m.freed_mb)} MB, disk ${m.disk_pct}% full${m.repairs?.length ? ` · fixed: ${h.esc(m.repairs.join('; '))}` : ' · nothing needed fixing'}.</p>` : ''}
+  </details>`;
+}
+
 async function renderLearning(el) {
+  let auto = null;
+  try { auto = await vox('/v1/admin/autotrain'); } catch (e) { /* an older engine */ }
+  await loadOptions();
   const st = await vox('/v1/admin/learning');
   const s = st.settings;
   const job = st.job && !st.job.done && !st.job.failed ? st.job : null;
@@ -472,7 +534,7 @@ async function renderLearning(el) {
     r.before != null ? `${pct(r.before)} → ${pct(r.after)}` : '–',
     r.status === 'done' ? (r.promoted ? '<span class="badge ok">Promoted</span>' : '<span class="badge">Kept current</span>') : `<span class="badge ${r.status === 'failed' ? 'bad' : 'warn'}">${h.esc(r.status)}</span>`,
     h.esc(r.message || '')]);
-  el.innerHTML = `
+  el.innerHTML = `${autoCard(auto)}
     <p class="muted">Every line the engine speaks is saved and scored. Your ratings and A/B choices teach it what you like. A refinement round trains a copy of the model on its best lines and your choices, tests the copy on the same fixed lines as the current model, and switches only if the copy scores higher. Every version is kept (see Versions).</p>
     <div class="tiles">
       ${h.tile('Model in use', h.esc(st.current || '–'))}
@@ -512,7 +574,7 @@ async function renderLearning(el) {
     </details>
     <h2>Rounds</h2>
     ${h.table(['Started', 'Why', 'Learned from', 'Test score', 'Result', 'Details'], rounds, 'No rounds yet.')}`;
-  return Boolean(job);
+  return Boolean(job || auto?.running);
 }
 
 // ------------------------------------------------------------------ review
@@ -1140,6 +1202,11 @@ export function initVoiceEngine(helpers) {
       }, 'Making voices from your word list. It keeps going in the background.');
       return;
     }
+    if (f.id === 'vx-at') {
+      const n = (id) => Number($(id).value);
+      await h.act(btn, async () => { await vox('/v1/admin/autotrain/settings', { method: 'PUT', body: { enabled: $('#vx-at-on').checked, start_hour: n('#vx-at-a'), end_hour: n('#vx-at-b'), budget_gb: n('#vx-at-gb'), gather_minutes: n('#vx-at-g'), train_minutes: n('#vx-at-t'), threads: n('#vx-at-c') } }); await renderTab(); }, 'Saved.');
+      return;
+    }
     if (f.id === 'vx-disc') {
       const n = (id) => Number($(id).value);
       await h.act(btn, async () => { await vox('/v1/admin/discover/start', { method: 'POST', body: { voices: n('#vx-disc-n'), words_per_voice: n('#vx-disc-w'), speakers: n('#vx-disc-s') } }); await renderTab(); }, 'Discovering voices. It keeps going in the background.');
@@ -1317,6 +1384,13 @@ export function initVoiceEngine(helpers) {
           register: vals.register || null, delivery: vals.delivery || null, fluency: num(vals.fluency) } });
         await renderTab();
       }, 'Saved. Every line in this voice uses it now.');
+      return;
+    }
+    if (b.dataset.atRun) { await h.act(b, async () => { await vox(`/v1/admin/autotrain/run/${b.dataset.atRun}`, { method: 'POST' }); await renderTab(); }, 'Started. It keeps going in the background.'); return; }
+    if (b.id === 'vx-at-stop') { await h.act(b, async () => { await vox('/v1/admin/autotrain/stop', { method: 'POST' }); await renderTab(); }, 'Stopping after the current step.'); return; }
+    if (b.id === 'vx-at-back') {
+      if (!(await h.ask({ title: 'Go back to the previous model?', text: 'The model that was live before the last automatic training goes back into use.', ok: 'Go back' }))) return;
+      await h.act(b, async () => { await vox('/v1/admin/autotrain/rollback', { method: 'POST' }); await renderTab(); }, 'The previous model is back in use.');
       return;
     }
     if (b.id === 'vx-whisper') {

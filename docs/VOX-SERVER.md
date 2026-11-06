@@ -25,6 +25,20 @@ admin dashboard (any device) ──HTTPS, signed in──▶ Worker flg-api ─�
   server's, switches `current`, and the container restarts on it within
   15 seconds. If the admin app can reach Vox but the new release doesn't answer
   within 10 minutes, the previous release is put back.
+- **Trains itself, inside the free size.** On the server automatic training is on
+  (`VOX_AUTOTRAIN=1`; see `vox-engine/vox/autotrain.py` and the Voice engine page,
+  Learning > Automatic training). Each night from 1 to 6 a.m., when the server
+  isn't busy, using one core:
+  - it gathers openly licensed speech by single dictionary words (no names,
+    places or channels), and Whisper transcribes and identifies the language;
+  - it learns dialect pace and melody from recordings that name their region,
+    and counts vocabulary per language;
+  - it trains, and puts a new model live only if Whisper hears more of its
+    words than the live model's;
+  - it checks accuracy on a rotating sample of dictionary words.
+
+  All of it stays inside a 40 GB storage budget.
+- **Daily cleanup and repair** of the whole server: docs/SERVER-MAINTENANCE.md.
 - **The page switches by itself.** When `GET /admin/v1/vox-server` says ready,
   the Voice engine page uses the server on every device. In the Windows app it
   stops the computer's own Vox, turns off starting it with the app, and offers

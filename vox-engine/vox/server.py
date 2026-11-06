@@ -728,6 +728,43 @@ def create_app(engine: VoxEngine, learning=None, admin_token: str | None = None,
         f.unlink()
         return {"ok": True}
 
+    # ---- Automatic training (autotrain.py): gathers, learns, trains, checks, on a schedule
+    from .autotrain import AutoTrainer
+    autotrain = AutoTrainer(engine, Path(engine.voices.root).parent, lock, dic, learning)
+    autotrain.start_scheduler()
+
+    @app.get("/v1/admin/autotrain", dependencies=admin)
+    def autotrain_status():
+        return autotrain.status()
+
+    @app.put("/v1/admin/autotrain/settings", dependencies=admin)
+    def autotrain_settings(changes: dict):
+        try:
+            return autotrain.update_settings(changes)
+        except (ValueError, TypeError) as e:
+            raise HTTPException(400, str(e))
+
+    @app.post("/v1/admin/autotrain/run/{phase}", dependencies=admin)
+    def autotrain_run(phase: str):
+        try:
+            autotrain.run(phase)
+        except RuntimeError as e:
+            raise HTTPException(409, str(e))
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+        return autotrain.status()
+
+    @app.post("/v1/admin/autotrain/stop", dependencies=admin)
+    def autotrain_stop():
+        autotrain.stop()
+        return autotrain.status()
+
+    @app.post("/v1/admin/autotrain/rollback", dependencies=admin)
+    def autotrain_rollback():
+        if not autotrain.rollback():
+            raise HTTPException(409, "There's no earlier model to go back to.")
+        return autotrain.status()
+
     @app.post("/v1/admin/whisper/install", dependencies=admin)
     def whisper_install():
         """Install Whisper (faster-whisper, free) into the Python Vox runs on and

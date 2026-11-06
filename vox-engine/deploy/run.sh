@@ -10,7 +10,7 @@ set -eu
 REL="$1"
 ENGINE="/srv/vox/releases/$REL/vox-engine"
 cd /data
-export PYTHONPATH="$ENGINE" PYTHONDONTWRITEBYTECODE=1 HF_HOME=/data/hf VOX_RELEASE="$REL" HOME=/data
+export PYTHONPATH="$ENGINE" PYTHONDONTWRITEBYTECODE=1 HF_HOME=/data/hf VOX_RELEASE="$REL" HOME=/data VOX_AUTOTRAIN=1
 log() { echo "[vox $(date -u +%H:%M:%S)] $*"; }
 
 # Vox's own Python packages live in /data/venv and are (re)installed only when
