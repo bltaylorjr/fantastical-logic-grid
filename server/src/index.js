@@ -42,6 +42,7 @@ import { handleCompete } from './compete.js';
 import { handleNameSignIn } from './name-sign-in.js';
 import { handleChallenges } from './challenges.js';
 import { handleErrors } from './errors.js';
+import { handleVaultDropKey } from './vault.js';
 import { handleFeedback } from './feedback.js';
 import { handleStorySubmissions } from './story-submissions.js';
 import { handleBeatImages } from './story-images.js';
@@ -93,6 +94,10 @@ async function route(req, env, ctx) {
   const admin = await handleAdmin(req, env, ctx, url, async () => (await handleLearn(req, env, ctx, url)) || (await handleErrors(req, env, url)) || json(req, env, { error: 'not_found' }, 404));
   if (admin) return admin;
 
+  if (url.pathname === '/v1/vault-drop-key' && req.method === 'GET') {
+    const r = await handleVaultDropKey(env);
+    return json(req, env, r.body, r.status);
+  }
   if (url.pathname === '/v1/config' && req.method === 'GET') {
     const ip = req.headers.get('CF-Connecting-IP') || 'local';
     if (env.LIMIT_AUTHLESS && !(await env.LIMIT_AUTHLESS.limit({ key: ip })).success) return json(req, env, { error: 'slow_down' }, 429, { 'Retry-After': '60' });

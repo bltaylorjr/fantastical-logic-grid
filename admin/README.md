@@ -112,6 +112,16 @@ favourite star.
 - **2-step codes**: paste the setup key a site shows beside its QR code (or an
   `otpauth://` link) and the 6-digit code shows and counts down, like an
   authenticator app.
+- **Drop box**: Claude and the owner's automations can add logins they set
+  up without being able to read any. The vault has a key pair: the public half
+  (`GET /v1/vault-drop-key`) only locks; the private half is locked inside the
+  vault. `scripts/vault-drop.mjs` locks a login to it and sends it in (with
+  `FLG_ADMIN_TOKEN` or an assistant key), or with `--push` puts only the
+  locked file on a `vault-drop/<time>` branch that
+  `.github/workflows/vault-drop.yml` sends in and then deletes. Unlocking files
+  each one under its site's proper name, marked "Added by …" in its notes; one
+  with the same site and username updates the saved login and keeps the old
+  password. See `CLAUDE.md`.
 - Make a password (20 characters), a strength meter, tiles and filters for
   weak and reused passwords, the last 5 passwords kept on each login, a bin
   with Undo (emptied after 30 days), CSV import from Chrome, Edge, Firefox,

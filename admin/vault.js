@@ -18,6 +18,7 @@
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 import { deviceLabel, platformReady } from './passkeys.js';
+import { makeDropKeys, importDropPrivate, openDrop } from './vault-drop.js';
 
 const ITERATIONS = 600_000;
 const ADD_CHUNK = 40;
@@ -451,7 +452,69 @@ async function reload() {
   }
   items = out;
   if (bad) h.toast(`${bad} login(s) could not be opened with this key and are hidden.`);
+  try { await ensureDropKey(); await takeInbox(r.inbox || []); } catch (e) { if (e.code !== 'sign_in') h.toast(`The drop box could not be opened: ${e.message}`); }
   await nameLogins();
+}
+
+// ------------------------------------------------------------- the drop box
+// Claude and the owner's automations lock logins they set up to the vault's
+// public drop box key (admin/vault-drop.js, scripts/vault-drop.mjs). They can
+// add, never read. On unlock the dashboard opens them and files them here.
+async function ensureDropKey() {
+  if (!meta || meta.dropPub) return;
+  const { pub, privPkcs8 } = await makeDropKeys();
+  const iv = rand(12);
+  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, privPkcs8);
+  const body = { pub, privIv: toB64(iv), privCt: toB64(ct) };
+  await h.api('vault/drop-key', { method: 'POST', body });
+  Object.assign(meta, { dropPub: body.pub, dropPrivIv: body.privIv, dropPrivCt: body.privCt });
+}
+const str = (v, n) => String(v ?? '').slice(0, n);
+function fromDrop(x, row) {
+  const d = {
+    title: str(x.title || x.name, 120).trim(), url: str(x.url, 500).trim(), loginUrl: str(x.loginUrl, 500).trim(), username: str(x.username, 200).trim(),
+    email: str(x.email, 200).trim(), password: str(x.password, 2000), totp: str(x.totp, 500).trim(), notes: str(x.notes, 8000), fav: false,
+    fields: (Array.isArray(x.fields) ? x.fields : []).slice(0, 30).map((f) => ({ label: str(f.label, 60).trim(), value: str(f.value, 4000), secret: f.secret !== false })).filter((f) => f.label || f.value),
+    history: [], createdAt: row.createdAt || Date.now(),
+  };
+  if (!siteUrl(d.url)) d.url = '';
+  if (!siteUrl(d.loginUrl)) d.loginUrl = '';
+  d.kind = KINDS[x.kind] ? x.kind : siteInfo(d.loginUrl || d.url)?.kind || 'login';
+  d.title = properTitle(d) || 'Saved login';
+  const when = new Date(d.createdAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+  d.notes = [d.notes, `Added by ${row.source} on ${when}.`].filter(Boolean).join('\n');
+  return d;
+}
+async function takeInbox(rows) {
+  if (!rows.length || !meta?.dropPrivCt) return;
+  const pkcs8 = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: fromB64(meta.dropPrivIv) }, key, fromB64(meta.dropPrivCt));
+  const priv = await importDropPrivate(new Uint8Array(pkcs8));
+  let added = 0; let updated = 0; let bad = 0;
+  const sources = new Set();
+  for (const row of rows) {
+    let d;
+    try { d = fromDrop(await openDrop(priv, row), row); } catch { bad++; continue; }
+    // The same site and username already saved: update it, keeping the old password.
+    const same = d.username && active().find((x) => x.d.username === d.username && host(x.d.loginUrl || x.d.url) === host(d.loginUrl || d.url));
+    if (same) {
+      const o = same.d;
+      const m = { ...o };
+      for (const k of ['url', 'loginUrl', 'email', 'password', 'totp']) if (d[k]) m[k] = d[k];
+      m.fields = [...(o.fields || []).filter((f) => !d.fields.some((n) => n.label === f.label)), ...d.fields];
+      m.notes = [o.notes, d.notes].filter(Boolean).join('\n');
+      m.history = o.password && d.password && o.password !== d.password ? [{ p: o.password, at: Date.now() }, ...(o.history || [])].slice(0, 5) : o.history || [];
+      const r = await h.api(`vault/items/${same.id}`, { method: 'POST', body: await seal(m) });
+      same.d = m; same.updatedAt = r.at; updated++;
+    } else {
+      const r = await h.api('vault/items', { method: 'POST', body: { items: [await seal(d)] } });
+      items.push({ id: r.ids[0], d, updatedAt: r.at, deletedAt: null }); added++;
+    }
+    sources.add(row.source);
+    await h.api(`vault/inbox/${row.id}/done`, { method: 'POST', body: {} });
+  }
+  const what = [added && `added ${added} login(s)`, updated && `updated ${updated}`].filter(Boolean).join(' and ');
+  if (what) h.toast(`From the drop box (${[...sources].join(', ')}): ${what}.`);
+  if (bad) h.toast(`${bad} login(s) in the drop box could not be opened and were left there.`);
 }
 
 // Logins titled with only an address ("github.com") or "Imported login" get
@@ -676,6 +739,7 @@ export function initVault(helpers) {
       const m = await wrapVaultKey(p, vk);
       await h.api('vault/setup', { method: 'POST', body: m });
       meta = m; key = vk; items = []; touch();
+      await ensureDropKey();
       s1.value = ''; $('#vault-new-2').value = '';
     }, 'Passwords is set up and unlocked.');
     paint();
