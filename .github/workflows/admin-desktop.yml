@@ -31,6 +31,9 @@ jobs:
       run:
         shell: bash
     steps:
+      - if: runner.environment == 'self-hosted'
+        name: Start from an empty folder (our build server keeps the last job's files)
+        run: sudo find "$GITHUB_WORKSPACE" -mindepth 1 -delete || true
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
