@@ -5,15 +5,21 @@
 // Chromium's virtual authenticator), a publisher who has access, a viewer who
 // does not, the sample book, Apply specs, and a submission packet download
 // that is written to the audit log.
+// Grid books (the dashboard's Books and covers inside Book Studio) needs the
+// built website in dist/site (npm run build); without it that part is skipped.
 // Needs `npm install` in server/ and `node book-studio/build.mjs` first.
 // SHOTS=<folder> saves screenshots there.
 const { chromium } = require('playwright');
+const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`ok  ${m}`); };
 
 const ROOT = path.join(__dirname, '..');
 const PORT = 8172;
+const SITE_PORT = 8173;
+const SITE_DIR = path.join(__dirname, '..', 'dist', 'site');
+const HAVE_SITE = fs.existsSync(path.join(SITE_DIR, 'book-maker', 'index.html'));
 const BASE = `http://localhost:${PORT}`;
 const PROJECT = 'flg-e2e-studio';
 const TOKEN = 'break-glass-key-for-the-studio-test';
@@ -33,7 +39,7 @@ const SHOTS = process.env.SHOTS;
     compatibilityDate: '2026-08-01',
     d1Databases: ['DB'],
     assets: { directory: path.join(ROOT, 'admin'), binding: 'ASSETS', routerConfig: { invoke_user_worker_ahead_of_assets: true, has_user_worker: true } },
-    bindings: { FIREBASE_PROJECT_ID: PROJECT, ALLOWED_ORIGINS: BASE, ADMIN_TOKEN: TOKEN, OWNER_EMAIL: OWNER, FIREBASE_WEB_API_KEY: 'e2e-key', TEST_JWKS: JSON.stringify(signer.jwks) },
+    bindings: { FIREBASE_PROJECT_ID: PROJECT, ALLOWED_ORIGINS: BASE, ADMIN_TOKEN: TOKEN, OWNER_EMAIL: OWNER, FIREBASE_WEB_API_KEY: 'e2e-key', TEST_JWKS: JSON.stringify(signer.jwks), SITE_URL: `http://localhost:${SITE_PORT}` },
   });
   const db = await mf.getD1Database('DB');
   for (const f of fs.readdirSync(path.join(ROOT, 'server/migrations')).filter((n) => n.endsWith('.sql')).sort()) {
@@ -43,6 +49,7 @@ const SHOTS = process.env.SHOTS;
   await db.prepare("INSERT INTO admins (email, role, added_by, added_at) VALUES ('pub@example.com', 'publisher', 'test', 0), ('view@example.com', 'viewer', 'test', 0), ('new@example.com', 'publisher', 'test', 0)").run();
   const session = (email, uid) => JSON.stringify({ mode: 'firebase', email, idToken: signer.token({ sub: uid, email, email_verified: true }), refreshToken: 'x', exp: Date.now() + 3_000_000, seen: Date.now() });
 
+  const site = HAVE_SITE ? spawn('node', [path.join(__dirname, 'serve.mjs'), SITE_DIR, String(SITE_PORT)], { stdio: 'ignore' }) : null;
   const browser = await chromium.launch();
   const problems = [];
   // Firebase's REST API, answered with tokens the Worker trusts. A new
@@ -198,6 +205,27 @@ const SHOTS = process.env.SHOTS;
     assert((await page.textContent('#navBack')) === '← Back to Interior', 'Back returns to the step you came from');
     await page.waitForFunction(() => document.querySelector('#cvSpecs')?.textContent.includes('Full cover'), null, { timeout: 15000 });
     assert(true, 'the cover designer loads its vendored library under the page policy');
+    // Grid books: make a small book from the game's puzzles and open it in the editor.
+    if (HAVE_SITE) {
+      assert(await page.isVisible('[data-tab=gridbooks]'), 'Grid books is a tab in Book Studio');
+      await page.click('[data-tab=gridbooks]');
+      await page.click('#bk-new', { timeout: 30000 });
+      await page.waitForSelector('#bk-make', { timeout: 60000 });
+      await page.fill('#bk-c-0', '2');
+      await page.dispatchEvent('#bk-c-0', 'change');
+      await page.click('#bk-make');
+      await page.waitForSelector('#bk-studio:not([disabled])', { timeout: 120000 });
+      if (SHOTS) await page.screenshot({ path: path.join(SHOTS, 'book-studio-grid-books.png') });
+      await page.click('#bk-save');
+      await page.waitForFunction(() => /Saved/.test(document.querySelector('#bk-state')?.textContent || ''), null, { timeout: 30000 });
+      assert(true, 'a publisher makes and saves a Grid book');
+      await page.click('#bk-studio');
+      await page.waitForSelector('#view-manuscript:not([hidden]) #pages .grid-block', { timeout: 60000 });
+      const g = await page.evaluate(() => ({ pages: S.pages.length, blocks: document.querySelectorAll('#pages .grid-block').length, title: S.meta.title, css: !!document.querySelector('#gridBookCss'), over: document.querySelectorAll('#pages .page.overflow').length }));
+      assert(g.pages >= 24 && g.blocks >= 4 && g.css && g.over === 0, `Open in the editor brings the Grid book in (${g.pages} pages, ${g.blocks} puzzle blocks, nothing overflowing)`);
+      if (SHOTS) await page.screenshot({ path: path.join(SHOTS, 'book-studio-grid-opened.png') });
+      assert((await page.textContent('#navBack')) === '← Back to Grid books', 'Back returns to Grid books');
+    } else console.log('--  Grid books skipped: no dist/site (run npm run build)');
     await page.click('#applyPub');
     await page.waitForSelector('#view-publish:not([hidden]) #checkSummary .card', { timeout: 30000 });
     const pages = await page.$$eval('#pages .page', (a) => a.length);
@@ -217,6 +245,7 @@ const SHOTS = process.env.SHOTS;
     console.log('Book Studio e2e passed');
   } finally {
     await browser.close();
+    if (site) site.kill();
     await mf.dispose();
   }
 })().catch((e) => { console.error(e); process.exit(1); });

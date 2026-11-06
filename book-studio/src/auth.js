@@ -159,6 +159,7 @@ let gaOpened = false;
 function gaOpen() {
   $('#gate').hidden = true; $('#app').hidden = false;
   $('#whoEmail').textContent = gaMe.email; $('#backToAdmin').hidden = gaMe.role === 'publisher';
+  $('[data-tab=gridbooks]').hidden = false;
   gaRefreshPkButton();
   if (!gaOpened) { gaOpened = true; init(); }
 }
@@ -167,6 +168,32 @@ async function gaRefreshPkButton() {
 }
 function gaVerifyPane() {
   gaPane('verifyBox', { text: `We sent a link to ${gaSession?.email || 'your email'}. Open it to confirm your address, then come back here and press Continue.` , focus: '#verifyDone' });
+}
+
+/* ---------- Grid books: the dashboard's Books and covers, inside Book Studio ---------- */
+const GA_ROLES = { publisher: 0.5, viewer: 1, moderator: 2, admin: 3, owner: 4 };
+let gaBooks = null;
+async function gaGridBooks() {
+  try {
+    if (!gaBooks) gaBooks = await import('/admin/books.js');
+    const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    await gaBooks.booksView({
+      api: adminApi, esc,
+      // Anyone who may publish books makes, saves and publishes them here.
+      can: (role) => (role === 'admin' && gaMe?.canPublish) || (GA_ROLES[gaMe?.role] || 0) >= (GA_ROLES[role] || 9),
+      ask: async ({ title, text, fields }) => {
+        if (!fields) return confirm(`${title}\n\n${text || ''}`.trim());
+        const out = {};
+        for (const f of fields) { const v = prompt(`${title}\n${f.label}`, f.value || ''); if (v === null) return null; out[f.name] = v; }
+        return out;
+      },
+      toast: (m) => toast(m, 5000),
+      when: (t) => new Date(t).toLocaleString(),
+      openInStudio: (book) => importGridBook(book),
+    });
+  } catch (e) {
+    $('#books-body').textContent = e.message || 'Grid books did not load. Check your connection and try again.';
+  }
 }
 
 /* Every export asks the server first. Returns false (and says why) when refused. */

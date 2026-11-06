@@ -90,7 +90,7 @@ function applyBookVars(root) {
 
 function renderPages() {
   const host = $('#pages'); host.innerHTML = '';
-  applyBookVars(host);
+  applyBookVars(host); applyGridCss();
   host.style.zoom = zoom;
   S.pages.forEach((p, i) => host.appendChild(buildPageNode(i)));
   setActivePage(clamp(curPage, 0, S.pages.length - 1), false);
@@ -98,7 +98,7 @@ function renderPages() {
   renderPageList();
 }
 
-function checkAllOverflow() { $$('#pages .page').forEach(checkPageOverflow); renderPageList(); }
+function checkAllOverflow() { fitGridBlocks($('#pages')); $$('#pages .page').forEach(checkPageOverflow); renderPageList(); }
 function checkPageOverflow(pg) {
   const c = $('.content', pg); if (!c) return false;
   const o = isOverflow(c); pg.classList.toggle('overflow', o);
