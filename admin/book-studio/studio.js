@@ -1793,8 +1793,9 @@ function sanitizeGridHTML(html) {
   return doc.body.innerHTML;
 }
 // Each game's print styles, already scoped to .bk-g-<game>: no outside fetches.
+// They go in as a <style> element's textContent, which is never parsed as HTML.
 function cleanGridCss(css) {
-  return String(css || '').replace(/@import[^;]*;?/gi, '').replace(/@font-face\s*\{[^}]*\}/gi, '').replace(/url\s*\([^)]*\)/gi, 'none').replace(/<\/?style/gi, '').slice(0, 400_000);
+  return String(css || '').replace(/@import[^;]*;?/gi, '').replace(/@font-face\s*\{[^}]*\}/gi, '').replace(/url\s*\([^)]*\)/gi, 'none').slice(0, 400_000);
 }
 function applyGridCss() {
   let el = $('#gridBookCss');
@@ -1857,7 +1858,8 @@ async function importGridBook(g) {
   toast(`Opened “${p.meta.title || 'the book'}” from Grid books. Pick a publisher and press Apply specs.`, 6000);
 }
 async function placeGridCover(svg) {
-  const url = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(String(svg).replace(/<script[\s\S]*?<\/script>/gi, ''));
+  // Drawn as an image: an SVG shown as an <img> never runs scripts or loads anything.
+  const url = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(String(svg));
   const img = await new Promise((res, rej) => fabric.Image.fromURL(url, (o) => (o && o.width ? res(o) : rej(new Error('no image')))));
   const g = coverGeom();
   cv.clear(); cv.backgroundColor = '#ffffff';
