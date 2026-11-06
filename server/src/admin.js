@@ -58,6 +58,7 @@
 //   GET/POST /admin/v1/licenses        app keys for the Windows and Android apps; GET .../:id, POST .../:id/(approve|decline|revoke|restore|devices), .../:id/devices/:device/remove (licenses.js)
 //   GET/POST /admin/v1/badges          special badges; POST .../:id, .../:id/(delete|award), .../awards/:id/remove; GET .../:id/holders (special-badges.js)
 //   POST /admin/v1/puzzle-reports/(claim|done)  the puzzle doctor Action (owner); GET .../:id/puzzle, POST .../:id/retry (puzzle-reports.js)
+//   GET  /admin/v1/status              the live Status page: everything worth watching, checked at once (status.js)
 //   GET  /admin/v1/alerts              free allowances close to running out
 //   /admin/v1/notify*                  my own push and email alerts (alerts.js)
 //   GET  /admin/v1/summary?days=       the week in numbers, for the Monday summary email
@@ -108,6 +109,7 @@ import { FREE_LIMITS, cloudflareUsage } from './usage.js';
 import { plannerView, checkPlan, savePlan, resetPlan } from './daily.js';
 import { designView, checkDesign, saveDraft, discardDraft, publishDraft, restoreVersion } from './site-design.js';
 import { quality, alerts, summary, csv, CSV_KINDS } from './report.js';
+import { statusReport } from './status.js';
 import { qualityPuzzleRoutes } from './quality-puzzles.js';
 import { connectionStatus, checkGithubReport, saveGithubReport } from './connections.js';
 import { withFixes, errorFile } from './errors.js';
@@ -992,6 +994,8 @@ const ROUTES = [
   ...alertRoutes(Refusal),
   ['GET', /^analysis$/, 'viewer', 'analysis.view', async ({ env, url, now, who }) => ({ body: await analysisData(env, daysParam(url, 365), { now, role: who.role, analytics, storage }) })],
   ['GET', /^alerts$/, 'viewer', 'alerts.view', async ({ env }) => ({ body: await alerts(env) })],
+  // Polled every 30 s by the Status page, so it stays out of the audit log.
+  ['GET', /^status$/, 'viewer', 'status.view', async ({ env }) => ({ body: await statusReport(env), quiet: true })],
   ['GET', /^summary$/, 'admin', 'summary.view', async ({ env, url }) => {
     const s = await summary(env, daysParam(url, 31));
     s.enabled = (await getSettings(env)).summary_email_enabled;

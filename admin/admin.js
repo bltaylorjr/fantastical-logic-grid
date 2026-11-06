@@ -15,6 +15,7 @@ import { takeOAuthReturn, finishOAuth } from './oauth.js';
 import { characterView } from './characters.js';
 import { ratingsView, initRatings } from './ratings.js';
 import { voiceEngineView, initVoiceEngine } from './voice-engine.js';
+import { statusView, statusCount, initStatus } from './status.js';
 import { booksView } from './books.js';
 import { marketingView, initMarketing } from './marketing.js';
 import { puzzleMailView, initPuzzleMail } from './puzzle-mail.js';
@@ -2175,6 +2176,10 @@ const voiceHelpers = { esc, fmt, when, tile, table, can, act, ask, toast, announ
 views['voice-engine'] = () => voiceEngineView(voiceHelpers);
 initVoiceEngine(voiceHelpers);
 
+// ---- Status (status.js): a live page of everything worth watching.
+views.status = () => statusView();
+initStatus({ api, esc, announce });
+
 // ---- Analysis report (analysis.js): every number by topic, the market and what to build next.
 const analysisHelpers = { api, esc, fmt, when, day, bytes, tile, table, bars, can, act, ask, toast, announce, setCount };
 views.analysis = () => analysisView(analysisHelpers);
@@ -2283,6 +2288,7 @@ async function enter() {
   $$('#dash-switch [data-min]').forEach((b) => { b.hidden = !can(b.dataset.min); });
   $$('main [data-min]').forEach((el) => { el.hidden = !can(el.dataset.min); });
   show(location.hash.slice(1) || 'overview');
+  if (location.hash !== '#status') statusCount();
   offerPasskey();
   if (oauthBack) { const back = oauthBack; oauthBack = null; finishOAuth(back, { api, ask, esc, toast }); }
 }

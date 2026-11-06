@@ -19,7 +19,8 @@ let mf;
 let db;
 const KEY = 'k'.repeat(40);
 const seen = [];
-let usage = null;   // the server's free-tier guard, as Vox reports it
+let usage = null;
+const outside = [];   // the server's free-tier guard, as Vox reports it
 // The stand-in Vox: records what reached it and answers like Vox does.
 async function voxStandIn(req) {
   const u = new URL(req.url);
@@ -41,8 +42,20 @@ before(async () => {
     assets: { directory: join(root, '..', 'admin'), binding: 'ASSETS', routerConfig: { invoke_user_worker_ahead_of_assets: true, has_user_worker: true } },
     ratelimits: { LIMIT_ADMIN: { namespace_id: '1', simple: { limit: 40, period: 60 } } },
     serviceBindings: { VOX: voxStandIn },
+    // Outside calls (the website checks, GitHub): answered here, never the real internet.
+    outboundService: async (req) => {
+      const u = new URL(req.url);
+      outside.push(u.host + u.pathname);
+      if (u.host === 'api.github.com') return Response.json({ workflow_runs: [
+        { workflow_id: 1, name: 'Publish web version', status: 'completed', conclusion: 'success', updated_at: new Date().toISOString(), html_url: 'https://github.com/x/1', event: 'schedule' },
+        { workflow_id: 2, name: 'Puzzle emails', status: 'completed', conclusion: 'failure', updated_at: new Date().toISOString(), html_url: 'https://github.com/x/2', event: 'schedule' },
+        { workflow_id: 1, name: 'Publish web version', status: 'completed', conclusion: 'failure', updated_at: new Date(Date.now() - 86400000).toISOString(), html_url: 'https://github.com/x/0', event: 'schedule' },
+      ] });
+      if (u.host === 'cloudflare-dns.com') return Response.json({ Answer: [{ data: '185.199.108.153' }, { data: 'bltaylorjr.github.io.' }] });
+      return new Response('ok');
+    },
     bindings: {
-      VOX_KEY: KEY,
+      VOX_KEY: KEY, GITHUB_DISPATCH_TOKEN: 'github_pat_test',
       FIREBASE_PROJECT_ID: PROJECT, ALLOWED_ORIGINS: ORIGIN, TEST_JWKS: JSON.stringify(signer.jwks),
       // A trailing line break, as a secret pasted into the Cloudflare dashboard can have: it must still match.
       ADMIN_TOKEN: `${TOKEN}\n`,
@@ -111,5 +124,45 @@ test('the Oracle server near its free allowance shows on the alerts page', async
   assert.ok(a.body.alerts.some((x) => x.id === 'oracle-size'));
   // the public check never shows it
   assert.deepEqual((await call('/admin/v1/vox-health', { origin: null })).body, { ok: true, release: 'abc123def456' });
+  usage = null;
+});
+
+test('the Status page: everything in one report, problems first, and quiet in the audit log', async () => {
+  assert.equal((await call('/admin/v1/status')).status, 401);
+  usage = { at: new Date().toISOString(), level: 1, reason: 'The disk is 78% full.', outbound: { used: 1e12, limit: 1e13, on_pace_percent: 40 }, disk_percent: 78, vox_data_gb: 12, size: { ocpus: '2', memory_gb: '12', free: true } };
+  await db.prepare("INSERT INTO feedback (kind, topic, text, platform, version, status, created_at) VALUES ('idea', 'other', 'More cats', 'web', '1', 'new', ?1)").bind(Date.now()).run();
+  const before = (await db.prepare('SELECT COUNT(*) AS n FROM admin_audit').first()).n;
+  const r = await call('/admin/v1/status', { auth: player('p1') });
+  assert.equal(r.status, 403);
+  const s = await call('/admin/v1/status', { auth: owner() });
+  assert.equal(s.status, 200);
+  const b = s.body;
+  assert.deepEqual(b.groups.map((g) => g.id), ['online', 'oracle', 'free', 'jobs', 'waiting']);
+  const find = (id) => b.groups.flatMap((g) => g.items).find((i) => i.id === id);
+  assert.equal(find('api').state, 'ok');
+  assert.equal(find('db').state, 'ok');
+  assert.equal(find('puzzles').state, 'off');                 // no puzzle server binding in this test
+  assert.equal(find('vox').state, 'ok');
+  assert.equal(find('guard').state, 'warn'); assert.match(find('guard').detail, /78%/);
+  assert.equal(find('disk').state, 'warn');
+  assert.equal(find('size').state, 'ok');
+  assert.equal(find('cf').state, 'off');                       // no Cloudflare analytics token
+  // GitHub: the latest run of each workflow only
+  assert.equal(find('run-Publish web version').state, 'ok');
+  assert.equal(find('run-Puzzle emails').state, 'down'); assert.equal(find('run-Puzzle emails').url, 'https://github.com/x/2');
+  assert.equal(find('feedback').state, 'warn'); assert.equal(find('feedback').value, '1'); assert.equal(find('feedback').link, 'communication');
+  assert.equal(b.overall, 'down');
+  assert.ok(b.counts.down >= 1 && b.counts.warn >= 1);
+  // every item says where it's handled, in words
+  for (const i of b.groups.flatMap((g) => g.items)) {
+    assert.ok(['ok', 'warn', 'down', 'off', 'unknown'].includes(i.state), i.id);
+    assert.ok(i.label && i.value != null, i.id);
+  }
+  // polling doesn't fill the audit log
+  assert.equal((await db.prepare('SELECT COUNT(*) AS n FROM admin_audit').first()).n, before + 1);   // only the refused player
+  // GitHub is asked once, then cached
+  const n = outside.filter((x) => x.startsWith('api.github.com')).length;
+  await call('/admin/v1/status', { auth: owner() });
+  assert.equal(outside.filter((x) => x.startsWith('api.github.com')).length, n);
   usage = null;
 });
