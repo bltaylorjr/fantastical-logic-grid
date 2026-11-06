@@ -2171,7 +2171,7 @@ const bookHelpers = { api, esc, fmt, when, can, ask, toast, announce };
 views.books = () => booksView(bookHelpers);
 
 // ---- Voice engine (voice-engine.js): Vox on the owner's computer, its learning, auto-tune and versions.
-const voiceHelpers = { esc, fmt, when, tile, table, can, act, ask, toast, announce, api };
+const voiceHelpers = { esc, fmt, when, tile, table, can, act, ask, toast, announce, api, bearer };
 views['voice-engine'] = () => voiceEngineView(voiceHelpers);
 initVoiceEngine(voiceHelpers);
 

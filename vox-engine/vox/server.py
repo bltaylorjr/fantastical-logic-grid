@@ -49,6 +49,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import secrets
 import threading
@@ -356,7 +357,7 @@ def create_app(engine: VoxEngine, learning=None, admin_token: str | None = None,
 
     @app.get("/v1/health")
     def health():
-        return {"status": "ok", "device": engine.device, "vocoder_trained": engine.model.vocoder_trained,
+        return {"status": "ok", "release": os.environ.get("VOX_RELEASE"), "device": engine.device, "vocoder_trained": engine.model.vocoder_trained,
                 "params_millions": {k: round(v, 1) for k, v in engine.model.param_count().items()},
                 "sample_rate": engine.sr, "learning": learning is not None, "public": public,
                 "dictionary": dic.installed, "text_mode": getattr(engine.cfg.model, "text_mode", "bytes"),
@@ -726,6 +727,32 @@ def create_app(engine: VoxEngine, learning=None, admin_token: str | None = None,
             raise HTTPException(404, "No such dialect of yours.")
         f.unlink()
         return {"ok": True}
+
+    @app.post("/v1/admin/whisper/install", dependencies=admin)
+    def whisper_install():
+        """Install Whisper (faster-whisper, free) into the Python Vox runs on and
+        download its small model, then switch clear-words scoring on."""
+        if any(j["kind"] == "whisper" and not j["done"] for j in jobs.values()):
+            raise HTTPException(409, "Whisper is already being installed.")
+
+        def work(progress):
+            import subprocess
+            import sys
+            progress("Installing Whisper (free; a few minutes)", 0.1)
+            r = subprocess.run([sys.executable, "-m", "pip", "install", "faster-whisper"],
+                               capture_output=True, text=True)
+            if r.returncode != 0:
+                raise RuntimeError("pip couldn't install faster-whisper: " + (r.stderr or r.stdout)[-400:])
+            progress("Downloading Whisper's small model", 0.6)
+            import importlib
+            importlib.invalidate_caches()
+            from faster_whisper import WhisperModel
+            WhisperModel("base", compute_type="int8")
+            if learning is not None:                 # pick it up without a restart
+                learning.scorer._asr = None
+                learning.scorer.use_whisper = True
+            return {"ok": True}
+        return {"job": run_job("whisper", work)}
 
     @app.get("/v1/admin/check", dependencies=admin)
     def admin_check():

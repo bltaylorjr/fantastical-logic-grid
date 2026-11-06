@@ -159,6 +159,29 @@ docker run -d --name flg-puzzles --restart always --network flg --ip 172.30.0.10
   -v /opt/flg-puzzles:/srv/flg:ro node:22-bookworm-slim \
   sh -c 'r=$(cat /srv/flg/current 2>/dev/null || true); if [ -z "$r" ] || [ ! -f "/srv/flg/releases/$r/puzzle-server/server.mjs" ]; then echo "No puzzle server release yet; waiting."; sleep 30; exit 1; fi; RELEASE=$r ENGINE_DIR=/srv/flg/releases/$r/engine/src exec node /srv/flg/releases/$r/puzzle-server/server.mjs'
 
+step "Vox voice engine"
+# Vox (docs/VOX-SERVER.md) at 172.30.0.11:5150 on the private flg network.
+# Releases come from the deploy workflow into the shared folder the runners
+# already have (/opt/flg-puzzles/vox, so the runners need no changes); Vox's
+# voices, models, learning and Python packages stay in /opt/flg-vox/data.
+mkdir -p /opt/flg-puzzles/vox/releases /opt/flg-vox/data
+chown -R "$RUNNER_UID:$RUNNER_UID" /opt/flg-puzzles/vox
+chown -R 1000:1000 /opt/flg-vox/data
+if [ ! -s /opt/flg/vox.env ]; then echo "VOX_KEY=$(openssl rand -hex 32)" > /opt/flg/vox.env; fi
+chmod 600 /opt/flg/vox.env
+mkdir -p /opt/flg-vox/image && cat > /opt/flg-vox/image/Dockerfile <<'EOF'
+FROM python:3.12-slim-bookworm
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg libsndfile1 ca-certificates \
+ && rm -rf /var/lib/apt/lists/* && useradd -u 1000 -m vox
+USER vox
+EOF
+docker build -q -t flg-vox-base /opt/flg-vox/image
+docker rm -f flg-vox 2>/dev/null || true
+docker run -d --name flg-vox --restart always --network flg --ip 172.30.0.11 \
+  --cpu-shares 1024 --memory 6g --read-only --tmpfs /tmp --user 1000:1000 \
+  --env-file /opt/flg/vox.env -v /opt/flg-puzzles/vox:/srv/vox:ro -v /opt/flg-vox/data:/data flg-vox-base \
+  sh -c 'r=$(cat /srv/vox/current 2>/dev/null || true); if [ -z "$r" ] || [ ! -f "/srv/vox/releases/$r/vox-engine/deploy/run.sh" ]; then echo "No Vox release yet; waiting."; sleep 60; exit 1; fi; exec sh "/srv/vox/releases/$r/vox-engine/deploy/run.sh" "$r"'
+
 step "Cloudflare Tunnel"
 if [ -n "$TUNNEL_TOKEN" ]; then echo "TUNNEL_TOKEN=$TUNNEL_TOKEN" > /opt/flg/tunnel.env; chmod 600 /opt/flg/tunnel.env; fi
 if [ -s /opt/flg/tunnel.env ]; then
