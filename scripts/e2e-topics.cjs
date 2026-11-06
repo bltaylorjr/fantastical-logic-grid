@@ -33,8 +33,11 @@ const assert = (c, m) => { if (!c) { console.error(`FAIL: ${m}`); process.exitCo
     });
     assert(await under(), 'topics open under the chosen theme on a wide screen');
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.waitForTimeout(200);
-    assert(await under(), 'topics stay under the chosen theme on a phone');
+    // The layout moves the topics after the resize settles; slower machines
+    // (the Arm build server) need longer than a fixed pause, so wait for it.
+    let phoneOk = false;
+    for (let i = 0; i < 30 && !phoneOk; i++) { await page.waitForTimeout(100); phoneOk = await under(); }
+    assert(phoneOk, 'topics stay under the chosen theme on a phone');
     await page.check('input[name=theme][value=science]', { force: true });
     assert(await under(), 'topics follow a newly chosen theme');
     await page.setViewportSize({ width: 1280, height: 900 });

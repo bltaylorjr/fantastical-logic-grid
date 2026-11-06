@@ -76,7 +76,7 @@ mkdir -p /opt/flg-runner && cd /opt/flg-runner
 cat > Dockerfile <<'EOF'
 FROM ubuntu:24.04
 ENV DEBIAN_FRONTEND=noninteractive
-RUN apt-get update && apt-get install -y curl git jq zip unzip xz-utils sudo ca-certificates gnupg build-essential \
+RUN apt-get update && apt-get install -y curl git jq zip unzip xz-utils sudo lsb-release ca-certificates gnupg build-essential \
       python3 python3-pip python3-venv ffmpeg rsync openssh-client lftp \
  && rm -rf /var/lib/apt/lists/*
 # Node.js 22 straight from nodejs.org.
