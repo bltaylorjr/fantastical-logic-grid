@@ -9,7 +9,7 @@ const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`o
 
 (async () => {
   const server = spawn('node', [path.join(__dirname, 'serve.mjs'), path.join(__dirname, '..', 'dist', 'web'), '8159'], { stdio: 'ignore' });
-  await new Promise((r) => setTimeout(r, 600));
+  await require('./wait-port.cjs')('8159');
   const browser = await chromium.launch();
   const page = await (await browser.newContext({ viewport: { width: 1280, height: 900 } })).newPage();
   const errors = [];

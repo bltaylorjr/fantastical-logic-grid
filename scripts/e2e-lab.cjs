@@ -20,7 +20,7 @@ const dir = process.env.FLG_E2E_DIR || path.join(__dirname, '..', 'dist', 'web')
 
 (async () => {
   const server = spawn('node', [path.join(__dirname, 'serve.mjs'), dir, PORT], { stdio: 'ignore' });
-  await new Promise((r) => setTimeout(r, 600));
+  await require('./wait-port.cjs')(PORT);
   const browser = await chromium.launch();
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
   await ctx.addInitScript(() => { try { localStorage.setItem('flg.settings', JSON.stringify({ introOffered: true })); } catch (e) { /* none */ } });

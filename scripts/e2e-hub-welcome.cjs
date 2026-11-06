@@ -12,7 +12,7 @@ const BASE = `http://localhost:${PORT}`;
 
 (async () => {
   const server = spawn('node', [path.join(__dirname, 'serve.mjs'), path.join(__dirname, '..', 'dist', 'site'), String(PORT)], { stdio: 'ignore' });
-  await new Promise((r) => setTimeout(r, 600));
+  await require('./wait-port.cjs')(PORT);
   const browser = await chromium.launch();
   const errors = [];
   const open = async (viewport = { width: 1280, height: 800 }, settings = null, referer = undefined) => {

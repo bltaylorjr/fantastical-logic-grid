@@ -43,7 +43,7 @@ const iso = (ms) => new Date(ms).toISOString().slice(0, 10);
   }
   await mf.ready;
   const app = spawn('node', [path.join(__dirname, 'serve.mjs'), SITE, String(APP_PORT)], { stdio: 'ignore' });
-  await new Promise((r) => setTimeout(r, 600));
+  await require('./wait-port.cjs')(APP_PORT);
   const admin = (p, body) => fetch(`${API}/admin/v1/${p}`, { method: 'POST', headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) }).then((r) => r.json());
 
   // This week's puzzle and a special edition, as the site build publishes them.

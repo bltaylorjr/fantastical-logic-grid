@@ -10,7 +10,7 @@ const SITE = path.join(__dirname, '..', 'dist', 'site');
 (async () => {
   const latest = JSON.parse(fs.readFileSync(path.join(SITE, 'daily', 'latest.json'), 'utf8'));
   const server = spawn('node', [path.join(__dirname, 'serve.mjs'), SITE, '8131'], { stdio: 'ignore' });
-  await new Promise((r) => setTimeout(r, 600));
+  await require('./wait-port.cjs')('8131');
   const browser = await chromium.launch();
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
   await ctx.addInitScript(() => { try { localStorage.setItem('flg.settings', JSON.stringify({ introOffered: true })); } catch (e) { /* ignore */ } });

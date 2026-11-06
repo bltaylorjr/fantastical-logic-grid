@@ -43,7 +43,7 @@ const TOKEN = 'break-glass-token-for-license-e2e';
   await mf.ready;
   const admin = async (p, body) => (await fetch(`${API}/admin/v1/${p}`, { method: body ? 'POST' : 'GET', headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json' }, body: body && JSON.stringify(body) })).json();
   const app = spawn('node', [path.join(__dirname, 'serve.mjs'), path.join(ROOT, 'dist', 'web'), String(APP_PORT)], { stdio: 'ignore' });
-  await new Promise((r) => setTimeout(r, 600));
+  await require('./wait-port.cjs')(APP_PORT);
 
   const config = `export const CLOUD = { firebaseApiKey: '', syncUrl: '${API}', learnUrl: '${API}', authUrl: '', tokenUrl: '', siteUrl: 'https://thelogicgrid.com', appVersion: 'test', licenseKey: ${JSON.stringify(pub)} };\nexport const cloudEnabled = () => false;\nexport const CLOUD_URL = '${API}';\n`;
   const browser = await chromium.launch();

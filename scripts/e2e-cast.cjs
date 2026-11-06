@@ -8,7 +8,7 @@ const path = require('path');
 (async () => {
   const { PERSONALITIES, profileOf } = await import('../web/js/castbook.js');
   const server = spawn('node', [path.join(__dirname, 'serve.mjs'), path.join(__dirname, '..', 'dist', 'web'), '8137'], { stdio: 'ignore' });
-  await new Promise((r) => setTimeout(r, 600));
+  await require('./wait-port.cjs')('8137');
   const b = await chromium.launch();
   const page = await b.newPage();
   const errs = []; page.on('pageerror', (e) => errs.push(String(e)));
