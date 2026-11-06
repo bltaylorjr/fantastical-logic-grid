@@ -12,7 +12,7 @@ the buttons at the top of the menu; the menu then shows that dashboard's
 sections. Every address (`#daily`, `#settings`, ...) still works and opens
 its own dashboard.
 
-- **The Logic Grid** (the app, shared by every game): Overview, Visitors,
+- **The Logic Grid** (the app, shared by every game): Overview, Status (live), Visitors,
   Usage and free limits, Search, Website, Marketing, Books and covers, Communication, Error
   tracking, Players, Screen names, Supporters, App keys, **App settings and
   switches** (sign-in, messages, ideas and problems, languages, support,
