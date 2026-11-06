@@ -116,6 +116,7 @@ import { marketingRoutes } from './marketing.js';
 import { oauthRoutes } from './marketing-oauth.js';
 import { supporterRoutes } from './supporters.js';
 import { licenseRoutes } from './licenses.js';
+import { voxProxy, voxServerStatus, voxPublicHealth } from './vox.js';
 import { badgeRoutes, playerBadges, deleteBadgeStatements } from './special-badges.js';
 import { puzzleMailRoutes } from './puzzle-mail.js';
 import { editionRoutes } from './editions.js';
@@ -1093,12 +1094,37 @@ async function passkeySignIn(req, env, url, path) {
   }
 }
 
+// Vox on the Oracle server (src/vox.js): admins only, with its own rate limit
+// (the Voice engine page makes many small requests), passed on as they are so
+// audio and sample uploads work. Changes to Vox's admin settings are logged.
+async function voxRoute(req, env, url, path) {
+  let who = null;
+  const action = path === 'vox-server' ? 'vox.server.view' : `vox ${req.method} ${path.slice(4)}`;
+  try {
+    who = await identify(req, env);
+    if (ROLES[who.role] < ROLES.admin) throw new Refusal(403, 'role', 'This needs the admin role.');
+    const limiter = env.LIMIT_VOX || env.LIMIT_ADMIN;
+    if (limiter && !(await limiter.limit({ key: who.key })).success) throw new Refusal(429, 'slow_down', 'Too many requests. Wait a minute.');
+    if (path === 'vox-server') return reply(await voxServerStatus(env));
+    const sub = path.slice('vox/'.length);
+    const res = await voxProxy(req, env, sub, url.search);
+    if (req.method !== 'GET' && sub.startsWith('v1/admin/')) await audit(env, { actor: who.actor, role: who.role, action, status: res.status });
+    return res;
+  } catch (e) {
+    if (!(e instanceof Refusal)) { console.error(e); return reply({ error: 'server' }, 500); }
+    if (e.status !== 429) await audit(env, { actor: who ? who.actor : 'unknown', role: who?.role, action, detail: { error: e.error }, status: e.status });
+    return reply({ error: e.error, message: e.message, detail: e.message }, e.status, e.status === 429 ? { 'Retry-After': '60' } : {});
+  }
+}
+
 async function api(req, env, ctx, url, path) {
   if (path === 'client-config' && req.method === 'GET') {
     // Public by design (it only names the Firebase project), but kept out of the repo.
     return reply({ firebaseApiKey: env.FIREBASE_WEB_API_KEY || null, projectId: env.FIREBASE_PROJECT_ID || null, tokenSignIn: true });
   }
   if (req.method === 'POST' && (path === 'passkeys/sign-in/options' || path === 'passkeys/sign-in')) return passkeySignIn(req, env, url, path);
+  if (path === 'vox-health' && req.method === 'GET') return reply(await voxPublicHealth(env));
+  if (path === 'vox-server' || path.startsWith('vox/')) return voxRoute(req, env, url, path);
   let who = null;
   let action = `${req.method} ${path}`;
   let route = null;

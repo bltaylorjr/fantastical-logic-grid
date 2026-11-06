@@ -49,6 +49,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import secrets
 import threading
@@ -356,7 +357,8 @@ def create_app(engine: VoxEngine, learning=None, admin_token: str | None = None,
 
     @app.get("/v1/health")
     def health():
-        return {"status": "ok", "device": engine.device, "vocoder_trained": engine.model.vocoder_trained,
+        from .autotrain import server_usage
+        return {"status": "ok", "release": os.environ.get("VOX_RELEASE"), "server_usage": server_usage(), "device": engine.device, "vocoder_trained": engine.model.vocoder_trained,
                 "params_millions": {k: round(v, 1) for k, v in engine.model.param_count().items()},
                 "sample_rate": engine.sr, "learning": learning is not None, "public": public,
                 "dictionary": dic.installed, "text_mode": getattr(engine.cfg.model, "text_mode", "bytes"),
@@ -726,6 +728,69 @@ def create_app(engine: VoxEngine, learning=None, admin_token: str | None = None,
             raise HTTPException(404, "No such dialect of yours.")
         f.unlink()
         return {"ok": True}
+
+    # ---- Automatic training (autotrain.py): gathers, learns, trains, checks, on a schedule
+    from .autotrain import AutoTrainer
+    autotrain = AutoTrainer(engine, Path(engine.voices.root).parent, lock, dic, learning)
+    autotrain.start_scheduler()
+
+    @app.get("/v1/admin/autotrain", dependencies=admin)
+    def autotrain_status():
+        return autotrain.status()
+
+    @app.put("/v1/admin/autotrain/settings", dependencies=admin)
+    def autotrain_settings(changes: dict):
+        try:
+            return autotrain.update_settings(changes)
+        except (ValueError, TypeError) as e:
+            raise HTTPException(400, str(e))
+
+    @app.post("/v1/admin/autotrain/run/{phase}", dependencies=admin)
+    def autotrain_run(phase: str):
+        try:
+            autotrain.run(phase)
+        except RuntimeError as e:
+            raise HTTPException(409, str(e))
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+        return autotrain.status()
+
+    @app.post("/v1/admin/autotrain/stop", dependencies=admin)
+    def autotrain_stop():
+        autotrain.stop()
+        return autotrain.status()
+
+    @app.post("/v1/admin/autotrain/rollback", dependencies=admin)
+    def autotrain_rollback():
+        if not autotrain.rollback():
+            raise HTTPException(409, "There's no earlier model to go back to.")
+        return autotrain.status()
+
+    @app.post("/v1/admin/whisper/install", dependencies=admin)
+    def whisper_install():
+        """Install Whisper (faster-whisper, free) into the Python Vox runs on and
+        download its small model, then switch clear-words scoring on."""
+        if any(j["kind"] == "whisper" and not j["done"] for j in jobs.values()):
+            raise HTTPException(409, "Whisper is already being installed.")
+
+        def work(progress):
+            import subprocess
+            import sys
+            progress("Installing Whisper (free; a few minutes)", 0.1)
+            r = subprocess.run([sys.executable, "-m", "pip", "install", "faster-whisper"],
+                               capture_output=True, text=True)
+            if r.returncode != 0:
+                raise RuntimeError("pip couldn't install faster-whisper: " + (r.stderr or r.stdout)[-400:])
+            progress("Downloading Whisper's small model", 0.6)
+            import importlib
+            importlib.invalidate_caches()
+            from faster_whisper import WhisperModel
+            WhisperModel("base", compute_type="int8")
+            if learning is not None:                 # pick it up without a restart
+                learning.scorer._asr = None
+                learning.scorer.use_whisper = True
+            return {"ok": True}
+        return {"job": run_job("whisper", work)}
 
     @app.get("/v1/admin/check", dependencies=admin)
     def admin_check():
