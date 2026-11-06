@@ -617,3 +617,4 @@ label.check { display: inline-flex; gap: 6px; align-items: center; }
 .qp-method { margin: 8px 0 0; }
 .qp-method > summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; color: var(--accent); font-weight: 600; }
 .qp-method ul { margin: 4px 0 0; padding-left: 1.2em; display: grid; gap: 4px; font-size: .9rem; }
+.vault-addr { display: block; font-size: .9rem; margin: 2px 0 4px; overflow-wrap: anywhere; }

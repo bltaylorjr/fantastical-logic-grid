@@ -18,6 +18,7 @@
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 import { deviceLabel, platformReady } from './passkeys.js';
+import { makeDropKeys, importDropPrivate, openDrop } from './vault-drop.js';
 
 const ITERATIONS = 600_000;
 const ADD_CHUNK = 40;
@@ -244,6 +245,49 @@ function siteUrl(u) {
   try { const x = new URL(full); return ['http:', 'https:'].includes(x.protocol) ? x.href : ''; } catch { return ''; }
 }
 const host = (u) => { try { return new URL(siteUrl(u)).hostname.replace(/^www\./, ''); } catch { return ''; } };
+// Proper names for sites, so a login is titled "GitHub", not "github.com".
+// Matched on the end of the address (dash.cloudflare.com is Cloudflare), most
+// specific first; each also suggests the login's type.
+const SITES = [
+  ['developers.facebook.com', 'Meta for Developers', 'api'], ['business.facebook.com', 'Meta Business Suite', 'social'], ['facebook.com', 'Facebook', 'social'],
+  ['instagram.com', 'Instagram', 'social'], ['threads.net', 'Threads', 'social'], ['threads.com', 'Threads', 'social'],
+  ['developer.x.com', 'X Developer Portal', 'api'], ['x.com', 'X (Twitter)', 'social'], ['twitter.com', 'X (Twitter)', 'social'],
+  ['bsky.app', 'Bluesky', 'social'], ['bsky.social', 'Bluesky', 'social'], ['mastodon.social', 'Mastodon', 'social'], ['mastodon.gamedev.place', 'Mastodon (gamedev.place)', 'social'],
+  ['linkedin.com', 'LinkedIn', 'social'], ['studio.youtube.com', 'YouTube Studio', 'social'], ['youtube.com', 'YouTube', 'social'], ['developers.tiktok.com', 'TikTok for Developers', 'api'],
+  ['tiktok.com', 'TikTok', 'social'], ['reddit.com', 'Reddit', 'social'], ['developers.pinterest.com', 'Pinterest Developers', 'api'], ['pinterest.com', 'Pinterest', 'social'],
+  ['news.ycombinator.com', 'Hacker News', 'social'], ['producthunt.com', 'Product Hunt', 'social'], ['indiehackers.com', 'Indie Hackers', 'social'], ['discord.com', 'Discord', 'social'],
+  ['alternativeto.net', 'AlternativeTo', 'other'], ['itch.io', 'itch.io', 'other'], ['oercommons.org', 'OER Commons', 'other'],
+  ['github.com', 'GitHub', 'hosting'], ['dash.cloudflare.com', 'Cloudflare', 'hosting'], ['cloudflare.com', 'Cloudflare', 'hosting'], ['workers.dev', 'Cloudflare Workers', 'hosting'],
+  ['namecheap.com', 'Namecheap', 'hosting'], ['godaddy.com', 'GoDaddy', 'hosting'], ['netlify.com', 'Netlify', 'hosting'], ['vercel.com', 'Vercel', 'hosting'],
+  ['cloud.oracle.com', 'Oracle Cloud', 'hosting'], ['oraclecloud.com', 'Oracle Cloud', 'hosting'], ['oracle.com', 'Oracle', 'hosting'],
+  ['console.firebase.google.com', 'Firebase', 'hosting'], ['firebase.google.com', 'Firebase', 'hosting'], ['console.cloud.google.com', 'Google Cloud', 'hosting'],
+  ['aistudio.google.com', 'Google AI Studio (Gemini)', 'api'], ['search.google.com', 'Google Search Console', 'other'], ['mail.google.com', 'Gmail', 'email'], ['gmail.com', 'Gmail', 'email'],
+  ['accounts.google.com', 'Google', 'other'], ['google.com', 'Google', 'other'], ['bing.com', 'Bing Webmaster Tools', 'other'],
+  ['partner.microsoft.com', 'Microsoft Partner Center', 'api'], ['outlook.live.com', 'Outlook', 'email'], ['outlook.com', 'Outlook', 'email'], ['live.com', 'Microsoft account', 'other'], ['microsoft.com', 'Microsoft', 'other'],
+  ['pwabuilder.com', 'PWABuilder', 'other'], ['play.google.com', 'Google Play Console', 'api'], ['appstoreconnect.apple.com', 'App Store Connect', 'api'], ['developer.apple.com', 'Apple Developer', 'api'], ['icloud.com', 'iCloud', 'other'], ['apple.com', 'Apple', 'other'],
+  ['resend.com', 'Resend', 'api'], ['dashboard.stripe.com', 'Stripe', 'money'], ['stripe.com', 'Stripe', 'money'], ['paypal.com', 'PayPal', 'money'], ['venmo.com', 'Venmo', 'money'], ['cash.app', 'Cash App', 'money'],
+  ['console.anthropic.com', 'Anthropic Console', 'api'], ['claude.ai', 'Claude', 'other'], ['platform.openai.com', 'OpenAI Platform', 'api'], ['openai.com', 'OpenAI', 'other'], ['huggingface.co', 'Hugging Face', 'api'],
+  ['bitwarden.com', 'Bitwarden', 'other'], ['1password.com', '1Password', 'other'], ['dropbox.com', 'Dropbox', 'other'], ['canva.com', 'Canva', 'other'], ['adobe.com', 'Adobe', 'other'], ['figma.com', 'Figma', 'other'],
+  ['amazon.com', 'Amazon', 'other'], ['etsy.com', 'Etsy', 'money'], ['shopify.com', 'Shopify', 'hosting'], ['squarespace.com', 'Squarespace', 'hosting'], ['wix.com', 'Wix', 'hosting'], ['wordpress.com', 'WordPress.com', 'hosting'],
+  ['zoom.us', 'Zoom', 'other'], ['slack.com', 'Slack', 'other'], ['notion.so', 'Notion', 'other'], ['yahoo.com', 'Yahoo', 'email'], ['proton.me', 'Proton', 'email'],
+  ['thelogicgrid.com', 'The Logic Grid', 'login'],
+];
+const SECOND_LEVEL = /^(co|com|net|org|gov|ac|edu)$/;
+function siteInfo(u) {
+  const hn = host(u);
+  if (!hn) return null;
+  const hit = SITES.find(([d]) => hn === d || hn.endsWith(`.${d}`));
+  if (hit) return { name: hit[1], kind: hit[2] };
+  const parts = hn.split('.');
+  const label = parts.length > 2 && SECOND_LEVEL.test(parts[parts.length - 2]) ? parts[parts.length - 3] : parts[parts.length - 2] || parts[0];
+  return { name: label.split('-').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' '), kind: '' };
+}
+const siteName = (u) => siteInfo(u)?.name || '';
+// A title that is only an address ("github.com", "https://…") or a stand-in.
+const plainTitle = (t, d) => !String(t || '').trim() || /^(imported login|untitled)$/i.test(String(t).trim()) || (/^[^\s]+\.[a-z]{2,}(\/.*)?$/i.test(String(t).trim().replace(/^https?:\/\//i, '')) && !/\s/.test(String(t).trim())) || [host(d.url), host(d.loginUrl)].includes(String(t).trim().toLowerCase());
+// The proper name for a login, from its own title when that is a real name.
+const properTitle = (d) => (plainTitle(d.title, d) ? siteName(d.loginUrl || d.url) || siteName(d.url) || String(d.title || '').trim() : String(d.title).trim());
+
 function hue(s) { let x = 0; for (const c of String(s)) x = (x * 31 + c.charCodeAt(0)) % 8; return x; }
 const initial = (d) => esc((String(d.title || host(d.url) || '?').trim()[0] || '?').toUpperCase());
 const active = () => items.filter((x) => !x.deletedAt);
@@ -335,8 +379,9 @@ function renderList() {
   }
   el.innerHTML = list.map((x) => {
     const d = x.d;
-    const name = esc(d.title || host(d.url) || 'Untitled');
-    const site = host(d.loginUrl || d.url);
+    const name = esc(properTitle(d) || 'Untitled');
+    const addr = siteUrl(d.url || d.loginUrl);
+    const addrText = addr.replace(/^https?:\/\//, '').replace(/\/$/, '');
     const pw = d.password ? (shown.has(x.id) ? `<code class="vault-pw">${esc(d.password)}</code>` : '<span aria-label="hidden password">••••••••••</span>') : '<span class="muted">No password</span>';
     const flags = [d.password && strength(d.password).score === 1 && '<span class="badge warn">Weak</span>', d.password && reuse.get(d.password) > 1 && '<span class="badge warn">Reused</span>'].filter(Boolean).join(' ');
     const code = parseTotp(d.totp) ? `<span class="vault-code" data-totp="${x.id}" aria-live="off">······</span>` : '';
@@ -349,7 +394,7 @@ function renderList() {
       <span class="vault-av" data-hue="${hue(d.title)}" aria-hidden="true">${initial(d)}</span>
       <div class="vault-main">
         <b>${d.fav ? '<span aria-label="Favourite">★</span> ' : ''}${name}</b> <span class="muted">${esc(KIND_ONE[d.kind] || '')}</span> ${flags}<br>
-        ${site ? `<small class="muted">${esc(site)}</small><br>` : ''}
+        ${addr ? `<a class="vault-addr" href="${esc(addr)}" target="_blank" rel="noopener noreferrer" aria-label="${name} website: ${esc(addrText)} (opens in a new tab)">${esc(addrText)}</a>` : '<span class="vault-addr muted">No website address</span>'}
         <span class="vault-line"><span class="muted">User</span> ${esc(d.username || d.email || '–')}</span>
         <span class="vault-line"><span class="muted">Password</span> ${pw}</span>
         ${code ? `<span class="vault-line"><span class="muted">2-step</span> ${code}</span>` : ''}
@@ -407,6 +452,86 @@ async function reload() {
   }
   items = out;
   if (bad) h.toast(`${bad} login(s) could not be opened with this key and are hidden.`);
+  try { await ensureDropKey(); await takeInbox(r.inbox || []); } catch (e) { if (e.code !== 'sign_in') h.toast(`The drop box could not be opened: ${e.message}`); }
+  await nameLogins();
+}
+
+// ------------------------------------------------------------- the drop box
+// Claude and the owner's automations lock logins they set up to the vault's
+// public drop box key (admin/vault-drop.js, scripts/vault-drop.mjs). They can
+// add, never read. On unlock the dashboard opens them and files them here.
+async function ensureDropKey() {
+  if (!meta || meta.dropPub) return;
+  const { pub, privPkcs8 } = await makeDropKeys();
+  const iv = rand(12);
+  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, privPkcs8);
+  const body = { pub, privIv: toB64(iv), privCt: toB64(ct) };
+  await h.api('vault/drop-key', { method: 'POST', body });
+  Object.assign(meta, { dropPub: body.pub, dropPrivIv: body.privIv, dropPrivCt: body.privCt });
+}
+const str = (v, n) => String(v ?? '').slice(0, n);
+function fromDrop(x, row) {
+  const d = {
+    title: str(x.title || x.name, 120).trim(), url: str(x.url, 500).trim(), loginUrl: str(x.loginUrl, 500).trim(), username: str(x.username, 200).trim(),
+    email: str(x.email, 200).trim(), password: str(x.password, 2000), totp: str(x.totp, 500).trim(), notes: str(x.notes, 8000), fav: false,
+    fields: (Array.isArray(x.fields) ? x.fields : []).slice(0, 30).map((f) => ({ label: str(f.label, 60).trim(), value: str(f.value, 4000), secret: f.secret !== false })).filter((f) => f.label || f.value),
+    history: [], createdAt: row.createdAt || Date.now(),
+  };
+  if (!siteUrl(d.url)) d.url = '';
+  if (!siteUrl(d.loginUrl)) d.loginUrl = '';
+  d.kind = KINDS[x.kind] ? x.kind : siteInfo(d.loginUrl || d.url)?.kind || 'login';
+  d.title = properTitle(d) || 'Saved login';
+  const when = new Date(d.createdAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+  d.notes = [d.notes, `Added by ${row.source} on ${when}.`].filter(Boolean).join('\n');
+  return d;
+}
+async function takeInbox(rows) {
+  if (!rows.length || !meta?.dropPrivCt) return;
+  const pkcs8 = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: fromB64(meta.dropPrivIv) }, key, fromB64(meta.dropPrivCt));
+  const priv = await importDropPrivate(new Uint8Array(pkcs8));
+  let added = 0; let updated = 0; let bad = 0;
+  const sources = new Set();
+  for (const row of rows) {
+    let d;
+    try { d = fromDrop(await openDrop(priv, row), row); } catch { bad++; continue; }
+    // The same site and username already saved: update it, keeping the old password.
+    const same = d.username && active().find((x) => x.d.username === d.username && host(x.d.loginUrl || x.d.url) === host(d.loginUrl || d.url));
+    if (same) {
+      const o = same.d;
+      const m = { ...o };
+      for (const k of ['url', 'loginUrl', 'email', 'password', 'totp']) if (d[k]) m[k] = d[k];
+      m.fields = [...(o.fields || []).filter((f) => !d.fields.some((n) => n.label === f.label)), ...d.fields];
+      m.notes = [o.notes, d.notes].filter(Boolean).join('\n');
+      m.history = o.password && d.password && o.password !== d.password ? [{ p: o.password, at: Date.now() }, ...(o.history || [])].slice(0, 5) : o.history || [];
+      const r = await h.api(`vault/items/${same.id}`, { method: 'POST', body: await seal(m) });
+      same.d = m; same.updatedAt = r.at; updated++;
+    } else {
+      const r = await h.api('vault/items', { method: 'POST', body: { items: [await seal(d)] } });
+      items.push({ id: r.ids[0], d, updatedAt: r.at, deletedAt: null }); added++;
+    }
+    sources.add(row.source);
+    await h.api(`vault/inbox/${row.id}/done`, { method: 'POST', body: {} });
+  }
+  const what = [added && `added ${added} login(s)`, updated && `updated ${updated}`].filter(Boolean).join(' and ');
+  if (what) h.toast(`From the drop box (${[...sources].join(', ')}): ${what}.`);
+  if (bad) h.toast(`${bad} login(s) in the drop box could not be opened and were left there.`);
+}
+
+// Logins titled with only an address ("github.com") or "Imported login" get
+// the site's proper name, saved like any other change.
+async function nameLogins() {
+  const todo = items.filter((x) => { const t = properTitle(x.d); return t && t !== String(x.d.title || '').trim(); });
+  let done = 0;
+  for (const x of todo) {
+    const d = { ...x.d, title: properTitle(x.d) };
+    try {
+      const r = await h.api(`vault/items/${x.id}`, { method: 'POST', body: await seal(d) });
+      x.d = d;
+      x.updatedAt = r.at;
+      done++;
+    } catch { /* left as it was; tried again next unlock */ }
+  }
+  if (done) h.toast(`Gave ${done} login(s) their proper site name.`);
 }
 
 // ------------------------------------------------------------- the editor
@@ -467,7 +592,7 @@ function readEditor() {
     notes: $('#vf-notes').value, fav: $('#vf-fav').checked,
     fields: $$('#vf-extra .vault-extra').map((r) => ({ label: $('[data-x=label]', r).value.trim(), value: $('[data-x=value]', r).value, secret: $('[data-x=secret]', r).checked })).filter((f) => f.label || f.value),
   };
-  if (!d.title) d.title = host(d.url) || host(d.loginUrl);
+  d.title = properTitle(d);
   if (!d.title) return { error: 'Give the login a name or a website address.' };
   if (d.url && !siteUrl(d.url)) return { error: 'The website address does not look right.' };
   if (d.loginUrl && !siteUrl(d.loginUrl)) return { error: 'The sign-in page address does not look right.' };
@@ -529,21 +654,22 @@ function importRows(text) {
   if (rows.length < 2) return [];
   const head = rows[0].map((x) => x.trim().toLowerCase());
   const at = Object.fromEntries(Object.entries(COLS).map(([k, names]) => [k, head.findIndex((x) => names.includes(x))]));
-  if (at.password < 0 && at.username < 0) return null;
+  if (at.password < 0 && at.username < 0 && at.url < 0) return null;
   const get = (r, k) => (at[k] >= 0 ? String(r[at[k]] ?? '').trim() : '');
   return rows.slice(1).map((r) => {
     const url = get(r, 'url');
     return {
-      title: get(r, 'title') || host(url) || 'Imported login', kind: 'login', url, loginUrl: '', username: get(r, 'username'), email: get(r, 'email'),
+      title: get(r, 'title'), kind: siteInfo(url)?.kind || 'login', url, loginUrl: '', username: get(r, 'username'), email: get(r, 'email'),
       password: at.password >= 0 ? String(r[at.password] ?? '') : '', totp: get(r, 'totp'), notes: get(r, 'notes'), fav: /^(1|true|yes)$/i.test(get(r, 'fav')), fields: [], history: [], createdAt: Date.now(),
     };
-  }).filter((d) => d.password || d.username);
+  }).filter((d) => d.password || d.username || d.url) // a site with no username yet is kept, to fill in later
+    .map((d) => ({ ...d, title: properTitle(d) || 'Imported login' }));
 }
 async function importFile(file) {
   touch();
   const list = importRows(await file.text());
   $('#vault-import-file').value = '';
-  if (list === null) { h.toast('That file has no username or password column.'); return; }
+  if (list === null) { h.toast('That file has no website, username or password column.'); return; }
   if (!list.length) { h.toast('No logins found in that file.'); return; }
   const seen = new Set(active().map((x) => `${host(x.d.url)}|${x.d.username}|${x.d.password}`));
   const fresh = list.filter((d) => {
@@ -613,6 +739,7 @@ export function initVault(helpers) {
       const m = await wrapVaultKey(p, vk);
       await h.api('vault/setup', { method: 'POST', body: m });
       meta = m; key = vk; items = []; touch();
+      await ensureDropKey();
       s1.value = ''; $('#vault-new-2').value = '';
     }, 'Passwords is set up and unlocked.');
     paint();
@@ -749,7 +876,16 @@ export function initVault(helpers) {
   $('#vf-pass').oninput = meter;
   $('#vf-show').onclick = (e) => { const on = $('#vf-pass').type === 'password'; $('#vf-pass').type = on ? 'text' : 'password'; e.target.textContent = on ? 'Hide' : 'Show'; e.target.setAttribute('aria-pressed', String(on)); };
   $('#vf-make').onclick = () => { $('#vf-pass').value = makePassword(); $('#vf-pass').type = 'text'; $('#vf-show').textContent = 'Hide'; $('#vf-show').setAttribute('aria-pressed', 'true'); meter(); };
-  $('#vf-url').onblur = () => { if (!$('#vf-title').value.trim()) { const n = host($('#vf-url').value); if (n) $('#vf-title').value = n.split('.').slice(-2, -1)[0]?.replace(/^./, (c) => c.toUpperCase()) || n; } };
+  // Fills the proper site name (and type) from the address, unless a real name was typed.
+  const nameFromAddress = () => {
+    const d = { title: $('#vf-title').value, url: $('#vf-url').value, loginUrl: $('#vf-login').value };
+    const info = siteInfo(d.loginUrl || d.url) || siteInfo(d.url);
+    if (!info) return;
+    if (plainTitle(d.title, d)) $('#vf-title').value = info.name;
+    if (!editing && info.kind && $('#vf-kind').value === 'login') $('#vf-kind').value = info.kind;
+  };
+  $('#vf-url').onblur = nameFromAddress;
+  $('#vf-login').onblur = nameFromAddress;
   $('#vf-extra-add').onclick = () => { extraRow(); $$('#vf-extra [data-x=label]').pop().focus(); };
   $('#vf-extra').onclick = (e) => { if (e.target.closest('[data-x-del]')) e.target.closest('.vault-extra').remove(); };
   $('#vf-extra').onchange = (e) => { if (e.target.dataset.x === 'secret') $('[data-x=value]', e.target.closest('.vault-extra')).type = e.target.checked ? 'password' : 'text'; };
