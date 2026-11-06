@@ -245,6 +245,10 @@ if (!indexHtml.includes('http-equiv="Content-Security-Policy"')) {
     if (stamped === page) throw new Error('Could not add the version to index.html');
     writeFileSync(indexFile, stamped);
   }
+  const appFile = join(out, 'js', 'app.js');
+  const app = readFileSync(appFile, 'utf8');
+  if (!app.includes('__FLG_VERSION__')) throw new Error('Could not add the version to js/app.js');
+  writeFileSync(appFile, app.replace('__FLG_VERSION__', appVersion));
 }
 // The Account page (account/) shows the game's own Account and sync window
 // and its idle sign-out warning, copied from the game page here so the two

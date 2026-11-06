@@ -71,12 +71,13 @@ const $ = (s, el = document) => el.querySelector(s);
 // offline copy and load fresh files once; saves live elsewhere and are kept.
 // The page halts here instead of half-working.
 {
+  const codeVersion = '__FLG_VERSION__'; // filled in by the build, like the page's stamp
   const pageVersion = document.querySelector('meta[name="flg-version"]')?.content;
   const flag = 'flg-fresh-copy';
   let tried = false;
-  try { tried = sessionStorage.getItem(flag) === CLOUD.appVersion; } catch (e) { /* storage blocked: try once anyway */ }
-  if (CLOUD.appVersion && pageVersion !== CLOUD.appVersion && !tried && $('meta[name="flg-mode"]')?.content !== 'preview') {
-    try { sessionStorage.setItem(flag, CLOUD.appVersion); } catch (e) { /* ignore */ }
+  try { tried = sessionStorage.getItem(flag) === codeVersion; } catch (e) { /* storage blocked: try once anyway */ }
+  if (/^\d+\.\d+\.\d+$/.test(codeVersion) && pageVersion !== codeVersion && !tried && $('meta[name="flg-mode"]')?.content !== 'preview') {
+    try { sessionStorage.setItem(flag, codeVersion); } catch (e) { /* ignore */ }
     try {
       const regs = await navigator.serviceWorker?.getRegistrations?.() || [];
       await Promise.all(regs.map((r) => r.unregister()));
