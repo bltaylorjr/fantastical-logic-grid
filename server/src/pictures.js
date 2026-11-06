@@ -13,7 +13,21 @@ import { json, corsHeaders, readText, TooLarge } from './http.js';
 import { getSettings } from './settings.js';
 import { bump } from './learn.js';
 
-const STYLE = 'Warm storybook illustration, painterly, soft cinematic light, rich color, no text, no letters, no words, no logos, family friendly.';
+const STYLE = 'Warm storybook illustration, painterly, soft cinematic light, rich color, family friendly, a purely pictorial wordless scene with plain unmarked surfaces.';
+
+// Every picture is wordless; only the title, laid over it as page text, has
+// words. Things that usually carry writing are asked for blank, and words that
+// invite lettering (equations, numbers, price tags) are dropped.
+export function wordless(prompt) {
+  return prompt
+    .replace(/\b(an? |the )?periodic tables?\b/gi, 'a grid of colored tiles')
+    .replace(/\b(equations?|formulas?|number puzzles)\b/gi, 'chalk doodles')
+    .replace(/\b(numbers?|letters?|words?|writing|captions?|price tags?|graffiti|headlines?)\b/gi, ' ')
+    .replace(/\b(price |neon |road|roadside |street |shop |missing-person |survey |paw print )?(signs?|posters?|banners?|scoreboards?|results boards?|chalkboards?|blackboards?|billboards?|placards?|menus?|newspapers?|labels?|notebooks?|sketchbooks?|maps?)\b/gi,
+      (all, kind, thing) => `blank ${kind && /neon/i.test(kind) ? 'glowing ' : ''}${thing}`)
+    .replace(/\bblank\s+blank\b/gi, 'blank')
+    .replace(/\s+([,.])/g, '$1').replace(/,(\s*,)+/g, ',').replace(/\b(and|with|of|in)\s*([,.])/gi, '$2').replace(/\s+/g, ' ').trim();
+}
 
 async function sha256(text) {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
@@ -28,7 +42,10 @@ async function postPicture(req, env, ctx) {
   try { body = JSON.parse(await readText(req, 4_000)); } catch (e) { return json(req, env, { error: e instanceof TooLarge ? 'too_large' : 'bad_request' }, e instanceof TooLarge ? 413 : 400); }
   const kind = body?.kind === 'portrait' ? 'portrait' : 'scene';
   if (kind === 'portrait' && settings.ai_pictures !== 'all') return json(req, env, { error: 'switched_off' }, 503);
-  const prompt = String(body?.prompt || '').replace(/\s+/g, ' ').trim();
+  // Names in brackets, quotes, initials and numbers come out as made-up
+  // lettering in the picture, so they never reach the model.
+  const cleaned = String(body?.prompt || '').replace(/\([^)]*\)|\[[^\]]*\]|"[^"]*"|“[^”]*”/g, ' ').replace(/\b[A-Z]{2,}\b|\d+(st|nd|rd|th)?\b/g, ' ').replace(/\s+/g, ' ').trim();
+  const prompt = wordless(cleaned);
   if (prompt.length < 10 || prompt.length > 1500) return json(req, env, { error: 'bad_request' }, 400);
   const model = settings.picture_model;
   const key = new Request(`https://flg-cloud.internal/picture/${await sha256(`${model}|${kind}|${prompt}`)}`);
