@@ -64,6 +64,31 @@ errorReports.init();
 campaign.init();
 countVisit(signedIn());
 const $ = (s, el = document) => el.querySelector(s);
+
+// A page and code from different versions cannot work together (buttons the
+// code expects are missing: "Cannot set properties of null"). That happens
+// when the browser kept a stale page next to newer code. Clear the game's
+// offline copy and load fresh files once; saves live elsewhere and are kept.
+// The page halts here instead of half-working.
+{
+  const codeVersion = '__FLG_VERSION__'; // filled in by the build, like the page's stamp
+  const pageVersion = document.querySelector('meta[name="flg-version"]')?.content;
+  const flag = 'flg-fresh-copy';
+  let tried = false;
+  try { tried = sessionStorage.getItem(flag) === codeVersion; } catch (e) { /* storage blocked: try once anyway */ }
+  if (/^\d+\.\d+\.\d+$/.test(codeVersion) && pageVersion !== codeVersion && !tried && $('meta[name="flg-mode"]')?.content !== 'preview') {
+    try { sessionStorage.setItem(flag, codeVersion); } catch (e) { /* ignore */ }
+    try {
+      const regs = await navigator.serviceWorker?.getRegistrations?.() || [];
+      await Promise.all(regs.map((r) => r.unregister()));
+      const keys = await caches?.keys?.() || [];
+      await Promise.all(keys.filter((k) => k.startsWith('flg-')).map((k) => caches.delete(k)));
+      await fetch(location.href, { cache: 'reload' }).catch(() => null);
+    } catch (e) { /* reload anyway */ }
+    location.reload();
+    await new Promise(() => {});
+  }
+}
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const TIERS = Object.fromEntries(OPTIONS.difficulties.map((d) => [d.id, d]));
 const TIER_IDS = OPTIONS.difficulties.map((d) => d.id);
