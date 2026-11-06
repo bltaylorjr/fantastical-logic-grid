@@ -236,6 +236,16 @@ if (!indexHtml.includes('http-equiv="Content-Security-Policy"')) {
   if (!indexHtml.includes('Content-Security-Policy')) throw new Error('Could not add the security policy to index.html');
   writeFileSync(indexFile, indexHtml);
 }
+// The page carries its version, so the code can tell when the browser has
+// paired it with a page from another version and fetch a fresh copy (app.js).
+{
+  const page = readFileSync(indexFile, 'utf8');
+  if (!page.includes('name="flg-version"')) {
+    const stamped = page.replace(/(<meta charset="utf-8">)/, `$1\n<meta name="flg-version" content="${appVersion}">`);
+    if (stamped === page) throw new Error('Could not add the version to index.html');
+    writeFileSync(indexFile, stamped);
+  }
+}
 // The Account page (account/) shows the game's own Account and sync window
 // and its idle sign-out warning, copied from the game page here so the two
 // always match.
