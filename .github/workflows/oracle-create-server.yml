@@ -3,9 +3,11 @@
 # asks every 2 minutes (scripts/runner/oracle-create-server.sh). Each run
 # lasts up to 5 hours and then starts the next one (the 5-minute schedule is
 # only a backup, since GitHub doesn't always run it). It stops by
-# itself once the server exists or the deadline below has passed. The owner
-# chose to stay on the free tier, so it asks for the Always Free size (2 Arm
-# cores, 12 GB) and, after the first day, also 1 core/6 GB as a last resort.
+# itself once the server exists or the deadline below has passed. It asks for
+# the Always Free size (2 Arm cores, 12 GB, $0) and also 1 core/6 GB as a last
+# resort. The account is Pay As You Go (upgraded Nov 5, 2026), which gets Arm
+# capacity more easily; a $1 budget alert (flg-1-dollar-alert) emails the
+# owner before any charge.
 #
 # Needs the repository secret OCI_API_KEY: the private key (.pem) of an API
 # key on the btay74@outlook.com Oracle user (Oracle Cloud > profile > User
@@ -27,10 +29,12 @@ concurrency:
   group: oracle-create-server
   cancel-in-progress: false
 env:
-  # Started Nov 1, 2026 on the free tier. Stopped Nov 5, 2026: the owner is
-  # upgrading the account to Pay As You Go (which still includes 4 Arm cores
-  # and 24 GB free). A past deadline makes every run stop at once.
-  DEADLINE: '2026-11-06T01:20:00Z'
+  # Started Nov 1, 2026 on the free tier. Restarted Nov 5, 2026 after the
+  # owner upgraded the account to Pay As You Go (the upgrade can take up to a
+  # day to finish). Still asks only for the Always Free size, since Oracle
+  # doesn't confirm that upgraded accounts get more than 2 cores/12 GB free.
+  # A past deadline makes every run stop at once.
+  DEADLINE: '2026-11-20T05:00:00Z'
   # From here on the last-resort size (1 core, 6 GB) is tried too.
   SMALLER_FROM: '2026-11-02T22:15:00Z'
   # The API key's user, fingerprint and tenancy (identifiers, not secrets;
