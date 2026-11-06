@@ -27,9 +27,10 @@ const STEPS = [['manuscript', 'Interior'], ['cover', 'Cover'], ['details', 'Book
 const tabTrail = [];
 function updateStepButtons() {
   const i = STEPS.findIndex(s => s[0] === currentTab); const next = STEPS[i + 1];
-  $('#navNext').hidden = !next; if (next) $('#navNext').textContent = `Next: ${next[1]} →`;
+  $('#navNext').hidden = i < 0 || !next; if (i >= 0 && next) $('#navNext').textContent = `Next: ${next[1]} →`;
   const prev = tabTrail[tabTrail.length - 1];
-  $('#navBack').hidden = !prev; if (prev) $('#navBack').textContent = `← Back to ${STEPS.find(s => s[0] === prev)[1]}`;
+  const prevName = prev === 'gridbooks' ? 'Grid books' : STEPS.find(s => s[0] === prev)?.[1];
+  $('#navBack').hidden = !prev; if (prev) $('#navBack').textContent = `← Back to ${prevName}`;
 }
 function showTab(name, { back = false } = {}) {
   if (name === currentTab && !$('#view-' + name).hidden && name !== 'publish') return;
@@ -37,7 +38,8 @@ function showTab(name, { back = false } = {}) {
   currentTab = name;
   updateStepButtons();
   $$('.tab').forEach(t => t.setAttribute('aria-selected', t.dataset.tab === name ? 'true' : 'false'));
-  ['manuscript', 'cover', 'details', 'publish'].forEach(v => $('#view-' + v).hidden = v !== name);
+  ['manuscript', 'cover', 'details', 'publish', 'gridbooks'].forEach(v => $('#view-' + v).hidden = v !== name);
+  if (name === 'gridbooks' && typeof gaGridBooks === 'function') gaGridBooks();
   if (name === 'cover') ensureCover().then(() => { sizeCoverCanvas(); cv.calcOffset(); }).catch(() => { });
   if (name === 'publish') { syncPagesFromDom(); renderPubCard(); runChecks(); }
   if (name === 'manuscript') requestAnimationFrame(checkAllOverflow);
@@ -130,8 +132,8 @@ async function init() {
   const saved = await idbGet('current');
   if (saved && saved.pages && saved.pages.length) { loadProject(saved); $('#sbSave').textContent = 'Restored from this browser'; }
   else { busy('Building the sample book'); await buildSample(); busy(false); $('#sbSave').textContent = 'Sample book loaded. Open Project to start your own.'; }
-  const h = (location.hash || '').slice(1); if (['cover', 'details', 'publish'].includes(h)) showTab(h);
-  window.addEventListener('hashchange', () => { const t = location.hash.slice(1); if (['manuscript', 'cover', 'details', 'publish'].includes(t) && t !== currentTab) { const back = tabTrail[tabTrail.length - 1] === t; if (back) tabTrail.pop(); showTab(t, { back }); } });
+  const h = (location.hash || '').slice(1); if (['cover', 'details', 'publish'].includes(h) || (h === 'gridbooks' && !$('[data-tab=gridbooks]').hidden)) showTab(h);
+  window.addEventListener('hashchange', () => { const t = location.hash.slice(1); if (['manuscript', 'cover', 'details', 'publish', 'gridbooks'].includes(t) && t !== currentTab) { const back = tabTrail[tabTrail.length - 1] === t; if (back) tabTrail.pop(); showTab(t, { back }); } });
   document.fonts && document.fonts.ready.then(() => checkAllOverflow());
 }
 // init() runs from auth.js once Grid Admin says this account may publish

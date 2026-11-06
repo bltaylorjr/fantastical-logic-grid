@@ -504,7 +504,7 @@ function render() {
 
     <section class="card stack" aria-labelledby="bk-h-interior"><h2 id="bk-h-interior">3. Inside the book</h2>
       <p class="muted" id="bk-pages">${book.puzzles.length ? `${pages || '…'} pages · gutter ${gutterFor(pages || MIN_PAGES)} in, outside margins ${OUT} in, no bleed.` : 'Make the puzzles to see the pages.'} Print and choose <b>Save as PDF</b> (paper size: the trim size, margins: default, headers and footers off) for the file you upload.</p>
-      <div class="row"><button class="btn" type="button" id="bk-preview"${book.puzzles.length ? '' : ' disabled'}>Show the pages</button><button class="btn primary" type="button" id="bk-print"${book.puzzles.length ? '' : ' disabled'}>Print the inside</button></div>
+      <div class="row"><button class="btn" type="button" id="bk-preview"${book.puzzles.length ? '' : ' disabled'}>Show the pages</button><button class="btn primary" type="button" id="bk-print"${book.puzzles.length ? '' : ' disabled'}>Print the inside</button>${h.openInStudio ? `<button class="btn primary" type="button" id="bk-studio"${book.puzzles.length ? '' : ' disabled'}>Open in the editor</button>` : ''}</div>
     </section>
 
     <section class="card stack" aria-labelledby="bk-h-cover"><h2 id="bk-h-cover">4. The cover</h2>
@@ -659,6 +659,18 @@ async function printCover() {
   coverFrame.contentWindow.postMessage({ type: 'flg-book-print' }, new URL(data.siteUrl).origin);
 }
 
+// The book for Book Studio's editor (book-studio/src/gridbooks.js): its pages,
+// each game's print styles and the cover picture.
+function studioBook() {
+  const pages = layout(book);
+  const { svg } = coverSvg(book, Math.max(pages.length, MIN_PAGES));
+  return {
+    id: book.id, title: book.title, subtitle: book.subtitle, author: book.author, trim: book.trim, paper: book.paper, isbn: book.settings.isbn || '',
+    pages: pages.map(({ kind, head, body, front, fitAll }) => ({ kind, head, body, front: !!front, fitAll: !!fitAll })),
+    css: Object.values(book.css || {}).join('\n'), coverSvg: svg,
+  };
+}
+
 function bookBody() {
   return {
     id: book.id || undefined, title: book.title, subtitle: book.subtitle, volume: book.volume, edition: book.edition, author: book.author, trim: book.trim, paper: book.paper,
@@ -689,6 +701,7 @@ function wire() {
       changed(); render(); return;
     }
     if (t.dataset.delTpl) { if (!confirm('Delete this cover template?')) return; await h.api(`book-templates/${t.dataset.delTpl}/delete`, { method: 'POST' }); await reloadTemplates(); render(); return; }
+    if (t.id === 'bk-studio') { try { await h.openInStudio(studioBook()); } catch (err) { h.toast(err.message); } return; }
     if (t.id === 'bk-print-cover') { try { await printCover(); } catch (err) { h.toast(err.message); } return; }
     if (t.id === 'bk-svg') {
       const { svg } = coverSvg(book, Math.max(book.pagesShown || book.pages || 0, MIN_PAGES));

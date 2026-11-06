@@ -71,6 +71,7 @@
     <button class="tab" role="tab" data-tab="cover" aria-selected="false">Cover</button>
     <button class="tab" role="tab" data-tab="details" aria-selected="false">Book details</button>
     <button class="tab" role="tab" data-tab="publish" aria-selected="false">Check &amp; export</button>
+    <button class="tab" role="tab" data-tab="gridbooks" aria-selected="false" hidden>Grid books</button>
     <span class="tab-steps"><button class="btn ghost" id="navBack" type="button" hidden>← Back</button><button class="btn" id="navNext" type="button">Next: Cover →</button></span>
   </nav>
   <main>
@@ -283,6 +284,16 @@
           <label class="lab wide">Categories (one per line, e.g. GAM007000 Games &amp; Activities / Puzzles) <textarea data-meta="categories" id="m-categories" style="min-height:70px"></textarea><span class="count" id="catCount"></span></label>
         </div>
         <div class="export-row"><button class="btn" id="addFront">Insert title &amp; copyright pages</button></div>
+      </div></div>
+    </section>
+
+    <!-- GRID BOOKS (Grid Admin only: auth.js shows the tab and loads admin/books.js) -->
+    <section class="view" id="view-gridbooks" hidden>
+      <div class="scroll-page"><div class="grid-books">
+        <h1>Grid books</h1>
+        <p class="muted">Puzzle books made from the game's own puzzles: no puzzle is ever used twice. Make one here, then press <b>Open in the editor</b> to fit it to any publisher and download the submission packet.</p>
+        <div id="books-body"><p class="muted">Loading…</p></div>
+        <div id="books-frames"></div>
       </div></div>
     </section>
 

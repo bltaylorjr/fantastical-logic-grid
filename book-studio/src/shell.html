@@ -110,6 +110,26 @@ main { min-height: 0; position: relative; }
 
 /* Book content typography (inside pages) */
 .content > :first-child { margin-top: 0; }
+/* Grid books pages (gridbooks.js) */
+.grid-page { height: 100%; display: flex; flex-direction: column; }
+.grid-page .bk-head { flex: none; font-size: 8.5pt; color: #333; border-bottom: .5pt solid #999; margin-bottom: .1in; padding-bottom: 2pt; }
+.grid-room { flex: 1 1 0; min-height: 0; position: relative; overflow: hidden; }
+.grid-key { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; }
+.grid-key .bk-keyh { margin: 0 0 4pt; font-weight: 700; font-size: 10pt; }
+.grid-block { position: absolute; left: 0; right: 0; top: 0; transform-origin: top center; }
+.grid-block .bk-fit { margin: 0 auto; width: max-content; max-width: none; }
+.grid-block .bk-fit table { margin-left: auto; margin-right: auto; }
+.grid-text .bk-title { text-align: center; padding-top: 1.6in; }
+.grid-text .bk-title h1 { font: 700 26pt/1.15 "Cinzel", Georgia, serif; margin: 0 0 .2in; }
+.grid-text .bk-brand { letter-spacing: .2em; text-transform: uppercase; font-size: 9pt; margin: 0 0 .3in; }
+.grid-text .bk-sub { font-size: 13pt; margin: 0 0 .15in; } .grid-text .bk-vol { font-size: 12pt; font-weight: 700; } .grid-text .bk-author { margin-top: .6in; font-size: 12pt; }
+.grid-text .bk-copy { margin-top: auto; font-size: 8.5pt; } .grid-text .bk-copy p { margin: 0 0 6pt; }
+.grid-page .bk-contents h2, .grid-page .bk-how h2, .grid-text .bk-notes h2 { font: 700 15pt "Cinzel", Georgia, serif; margin: 0 0 .15in; }
+.grid-page .bk-contents ol { list-style: none; padding: 0; margin: 0; }
+.grid-page .bk-contents li { display: flex; gap: 4pt; margin: 0 0 4pt; } .grid-page .bk-dots { flex: 1; border-bottom: .6pt dotted #555; margin-bottom: 3pt; }
+.grid-page .bk-how { margin-bottom: .25in; } .grid-page .bk-how ul { padding-left: 14pt; } .grid-page .bk-muted { color: #444; font-size: 9pt; }
+.grid-text .bk-notes { flex: 1; background: repeating-linear-gradient(#fff 0 0.33in, #bbb 0.33in calc(0.33in + 0.5pt)); }
+.grid-text .bk-notes h2 { background: #fff; }
 .content p { margin: 0 0 .6em; }
 .content h1 { font-size: 2em; line-height: 1.15; margin: 0 0 .5em; }
 .content h2 { font-size: 1.45em; line-height: 1.2; margin: .4em 0 .45em; }
@@ -241,6 +261,7 @@ dialog::backdrop { background: rgba(10,14,20,.45); }
     <button class="tab" role="tab" data-tab="cover" aria-selected="false">Cover</button>
     <button class="tab" role="tab" data-tab="details" aria-selected="false">Book details</button>
     <button class="tab" role="tab" data-tab="publish" aria-selected="false">Check &amp; export</button>
+    <button class="tab" role="tab" data-tab="gridbooks" aria-selected="false" hidden>Grid books</button>
     <span class="tab-steps"><button class="btn ghost" id="navBack" type="button" hidden>← Back</button><button class="btn" id="navNext" type="button">Next: Cover →</button></span>
   </nav>
   <main>
@@ -453,6 +474,16 @@ dialog::backdrop { background: rgba(10,14,20,.45); }
           <label class="lab wide">Categories (one per line, e.g. GAM007000 Games &amp; Activities / Puzzles) <textarea data-meta="categories" id="m-categories" style="min-height:70px"></textarea><span class="count" id="catCount"></span></label>
         </div>
         <div class="export-row"><button class="btn" id="addFront">Insert title &amp; copyright pages</button></div>
+      </div></div>
+    </section>
+
+    <!-- GRID BOOKS (Grid Admin only: auth.js shows the tab and loads admin/books.js) -->
+    <section class="view" id="view-gridbooks" hidden>
+      <div class="scroll-page"><div class="grid-books">
+        <h1>Grid books</h1>
+        <p class="muted">Puzzle books made from the game's own puzzles: no puzzle is ever used twice. Make one here, then press <b>Open in the editor</b> to fit it to any publisher and download the submission packet.</p>
+        <div id="books-body"><p class="muted">Loading…</p></div>
+        <div id="books-frames"></div>
       </div></div>
     </section>
 

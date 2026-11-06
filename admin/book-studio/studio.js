@@ -384,7 +384,7 @@ function applyBookVars(root) {
 
 function renderPages() {
   const host = $('#pages'); host.innerHTML = '';
-  applyBookVars(host);
+  applyBookVars(host); applyGridCss();
   host.style.zoom = zoom;
   S.pages.forEach((p, i) => host.appendChild(buildPageNode(i)));
   setActivePage(clamp(curPage, 0, S.pages.length - 1), false);
@@ -392,7 +392,7 @@ function renderPages() {
   renderPageList();
 }
 
-function checkAllOverflow() { $$('#pages .page').forEach(checkPageOverflow); renderPageList(); }
+function checkAllOverflow() { fitGridBlocks($('#pages')); $$('#pages .page').forEach(checkPageOverflow); renderPageList(); }
 function checkPageOverflow(pg) {
   const c = $('.content', pg); if (!c) return false;
   const o = isOverflow(c); pg.classList.toggle('overflow', o);
@@ -1645,7 +1645,7 @@ async function renderPageCanvas(i, dpi) {
   Object.assign(sheet.style, { width: SW * IN + 'px', height: SH * IN + 'px', position: 'relative', background: '#fff', overflow: 'hidden' });
   const node = buildPageNode(i, true); node.style.position = 'absolute'; node.style.left = (recto ? bi : b) * IN + 'px'; node.style.top = b * IN + 'px'; node.style.boxShadow = 'none';
   sheet.appendChild(node); host.appendChild(sheet);
-  await nextFrame();
+  await nextFrame(); fitGridBlocks(sheet);
   const canvas = await html2canvas(sheet, { scale: dpi / IN, backgroundColor: '#ffffff', logging: false, useCORS: true });
   if (S.ink === 'bw') grayscaleCanvas(canvas);
   host.innerHTML = '';
@@ -1766,6 +1766,108 @@ function renderPubCard() {
   const L = P.links; $('#pubLinks').innerHTML = [L.guide && `<a href="${L.guide}" target="_blank" rel="noopener">Print guidelines</a>`, L.cover && `<a href="${L.cover}" target="_blank" rel="noopener">Cover calculator</a>`, L.submit && `<a href="${L.submit}" target="_blank" rel="noopener">Submit</a>`].filter(Boolean).join(' · ');
 }
 
+/* ---------- Grid books: books made from the game's own puzzles ----------
+   The Grid books tab (Grid Admin build, auth.js) runs the dashboard's Books
+   and covers (admin/books.js): the Book maker, saved books, cover templates
+   and Mark as published. "Open in the editor" there hands a book to
+   importGridBook(), which turns its pages into editor pages:
+   - title, copyright, notes and other text pages stay editable;
+   - puzzles, answer keys, contents and how-to-play pages are fixed blocks,
+     shrunk to fit the page (each game's print styles come with the book);
+   - the cover comes in as one picture on the cover canvas, to keep or redo. */
+
+// Scripts, frames, forms and event attributes never come in; Book Studio's
+// page policy (script-src 'self') is the second line.
+const GRID_DROP = 'script,iframe,frame,object,embed,applet,link,meta,base,style,form,input,button,select,textarea,template,noscript,foreignObject,portal';
+function sanitizeGridHTML(html) {
+  const doc = new DOMParser().parseFromString(`<body>${String(html)}</body>`, 'text/html');
+  $$(GRID_DROP, doc).forEach(e => e.remove());
+  $$('*', doc.body).forEach(el => {
+    [...el.attributes].forEach(a => {
+      const n = a.name.toLowerCase(); const v = a.value.replace(/[\u0000- \u007f-\u009f]/g, '');
+      if (n.startsWith('on') || n === 'contenteditable' || n === 'srcdoc' || n === 'formaction' || n === 'action') el.removeAttribute(a.name);
+      else if (/(^|:)href$|^src$|^xlink:href$/.test(n) && !/^(#|data:image\/(png|jpe?g|gif|webp);|https?:)/i.test(v)) el.removeAttribute(a.name);
+      else if (n === 'style' && /url\s*\(|expression\s*\(/i.test(v)) el.removeAttribute(a.name);
+    });
+  });
+  return doc.body.innerHTML;
+}
+// Each game's print styles, already scoped to .bk-g-<game>: no outside fetches.
+// They go in as a <style> element's textContent, which is never parsed as HTML.
+function cleanGridCss(css) {
+  return String(css || '').replace(/@import[^;]*;?/gi, '').replace(/@font-face\s*\{[^}]*\}/gi, '').replace(/url\s*\([^)]*\)/gi, 'none').slice(0, 400_000);
+}
+function applyGridCss() {
+  let el = $('#gridBookCss');
+  const css = S.gridCss || '';
+  if (!css) { if (el) el.remove(); return; }
+  if (!el) { el = document.createElement('style'); el.id = 'gridBookCss'; document.head.appendChild(el); }
+  if (el.textContent !== css) el.textContent = css;
+}
+
+// One page of a Grid book (from admin/books.js layout()) as editor HTML.
+function gridPageHtml(pg) {
+  const body = sanitizeGridHTML(pg.body || '');
+  const head = pg.head ? `<div class="bk-head" contenteditable="false">${sanitizeGridHTML(pg.head)}</div>` : '';
+  const block = (inner) => `<div class="grid-room"><div class="grid-block" contenteditable="false">${inner}</div></div>`;
+  if (pg.kind === 'key') {
+    const doc = new DOMParser().parseFromString(`<body>${body}</body>`, 'text/html');
+    const keys = $$('.bk-key', doc.body).map(k => {
+      const h = k.querySelector('.bk-keyh'); const fit = k.querySelector('.bk-fit');
+      return `<div class="grid-key">${h ? `<p class="bk-keyh">${h.innerHTML}</p>` : ''}${block(fit ? fit.outerHTML : '')}</div>`;
+    });
+    return `<div class="grid-page">${head}${keys.join('')}</div>`;
+  }
+  if (pg.kind === 'puzzle' || pg.fitAll) return `<div class="grid-page">${head}${block(pg.kind === 'puzzle' ? body : `<div class="bk-fit">${body}</div>`)}</div>`;
+  return `<div class="grid-page grid-text">${head}${body}</div>`;
+}
+
+// Shrink each fixed block to its room (also before each page is drawn for export).
+function fitGridBlocks(root) {
+  $$('.grid-room > .grid-block', root).forEach(b => {
+    const room = b.parentElement; b.style.transform = '';
+    const w = room.clientWidth, h = room.clientHeight;
+    const fit = b.firstElementChild;
+    const cw = Math.max(b.scrollWidth, fit ? fit.scrollWidth : 0), ch = b.scrollHeight;
+    if (!w || !h || !cw || !ch) return;
+    const s = Math.min(1, w / cw, h / ch);
+    if (s < 0.999) b.style.transform = `scale(${s.toFixed(4)})`;
+  });
+}
+
+// A book from the Grid books tab: { title, subtitle, author, trim, paper, isbn,
+// pages: [{ kind, head, body, front, fitAll }], css, coverSvg }.
+async function importGridBook(g) {
+  const p = blankProject();
+  p.pub = S.pub || 'kdp';
+  const trim = String(g.trim || '6x9');
+  p.trim = TRIMS[trim] ? trim : (PUBLISHERS[p.pub].defaultTrim || '6x9');
+  p.paper = g.paper === 'cream' ? 'cream' : 'white';
+  p.meta = { ...p.meta, title: String(g.title || '').slice(0, 200), subtitle: String(g.subtitle || '').slice(0, 200), author: String(g.author || '').slice(0, 120), copyright: String(g.author || '').slice(0, 120), isbn: String(g.isbn || '').slice(0, 20), pubDate: new Date().toISOString().slice(0, 10) };
+  p.gridCss = cleanGridCss(g.css);
+  p.gridBook = String(g.id || '');
+  p.pages = (g.pages || []).map(pg => ({ id: uid(), html: gridPageHtml(pg), grid: pg.kind, noFolio: !!pg.front, ...(pg.kind === 'answers' ? { answers: true } : {}) }));
+  if (!p.pages.length) p.pages = [{ id: uid(), html: '<p><br></p>' }];
+  p.cover = null;
+  loadProject(p);
+  showTab('manuscript');
+  if (g.coverSvg) {
+    try { await ensureCover(); await placeGridCover(g.coverSvg); } catch (e) { toast('The cover did not come in. Use Auto-design cover on the Cover tab.', 6000); }
+  }
+  markDirty();
+  toast(`Opened “${p.meta.title || 'the book'}” from Grid books. Pick a publisher and press Apply specs.`, 6000);
+}
+async function placeGridCover(svg) {
+  // Drawn as an image: an SVG shown as an <img> never runs scripts or loads anything.
+  const url = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(String(svg));
+  const img = await new Promise((res, rej) => fabric.Image.fromURL(url, (o) => (o && o.width ? res(o) : rej(new Error('no image')))));
+  const g = coverGeom();
+  cv.clear(); cv.backgroundColor = '#ffffff';
+  img.set({ left: 0, top: 0, scaleX: (g.W * IN) / img.width, scaleY: (g.H * IN) / img.height, selectable: false, evented: false });
+  img.role = 'bg';
+  cv.add(img); cv.requestRenderAll(); syncCoverToState();
+}
+
 /* ---------- App shell ---------- */
 function fillPubSelects() {
   for (const id of ['#pub', '#pub2']) $(id).replaceChildren(...Object.entries(PUBLISHERS).map(([k, p]) => new Option(p.name, k)));
@@ -1795,9 +1897,10 @@ const STEPS = [['manuscript', 'Interior'], ['cover', 'Cover'], ['details', 'Book
 const tabTrail = [];
 function updateStepButtons() {
   const i = STEPS.findIndex(s => s[0] === currentTab); const next = STEPS[i + 1];
-  $('#navNext').hidden = !next; if (next) $('#navNext').textContent = `Next: ${next[1]} →`;
+  $('#navNext').hidden = i < 0 || !next; if (i >= 0 && next) $('#navNext').textContent = `Next: ${next[1]} →`;
   const prev = tabTrail[tabTrail.length - 1];
-  $('#navBack').hidden = !prev; if (prev) $('#navBack').textContent = `← Back to ${STEPS.find(s => s[0] === prev)[1]}`;
+  const prevName = prev === 'gridbooks' ? 'Grid books' : STEPS.find(s => s[0] === prev)?.[1];
+  $('#navBack').hidden = !prev; if (prev) $('#navBack').textContent = `← Back to ${prevName}`;
 }
 function showTab(name, { back = false } = {}) {
   if (name === currentTab && !$('#view-' + name).hidden && name !== 'publish') return;
@@ -1805,7 +1908,8 @@ function showTab(name, { back = false } = {}) {
   currentTab = name;
   updateStepButtons();
   $$('.tab').forEach(t => t.setAttribute('aria-selected', t.dataset.tab === name ? 'true' : 'false'));
-  ['manuscript', 'cover', 'details', 'publish'].forEach(v => $('#view-' + v).hidden = v !== name);
+  ['manuscript', 'cover', 'details', 'publish', 'gridbooks'].forEach(v => $('#view-' + v).hidden = v !== name);
+  if (name === 'gridbooks' && typeof gaGridBooks === 'function') gaGridBooks();
   if (name === 'cover') ensureCover().then(() => { sizeCoverCanvas(); cv.calcOffset(); }).catch(() => { });
   if (name === 'publish') { syncPagesFromDom(); renderPubCard(); runChecks(); }
   if (name === 'manuscript') requestAnimationFrame(checkAllOverflow);
@@ -1898,8 +2002,8 @@ async function init() {
   const saved = await idbGet('current');
   if (saved && saved.pages && saved.pages.length) { loadProject(saved); $('#sbSave').textContent = 'Restored from this browser'; }
   else { busy('Building the sample book'); await buildSample(); busy(false); $('#sbSave').textContent = 'Sample book loaded. Open Project to start your own.'; }
-  const h = (location.hash || '').slice(1); if (['cover', 'details', 'publish'].includes(h)) showTab(h);
-  window.addEventListener('hashchange', () => { const t = location.hash.slice(1); if (['manuscript', 'cover', 'details', 'publish'].includes(t) && t !== currentTab) { const back = tabTrail[tabTrail.length - 1] === t; if (back) tabTrail.pop(); showTab(t, { back }); } });
+  const h = (location.hash || '').slice(1); if (['cover', 'details', 'publish'].includes(h) || (h === 'gridbooks' && !$('[data-tab=gridbooks]').hidden)) showTab(h);
+  window.addEventListener('hashchange', () => { const t = location.hash.slice(1); if (['manuscript', 'cover', 'details', 'publish', 'gridbooks'].includes(t) && t !== currentTab) { const back = tabTrail[tabTrail.length - 1] === t; if (back) tabTrail.pop(); showTab(t, { back }); } });
   document.fonts && document.fonts.ready.then(() => checkAllOverflow());
 }
 // init() runs from auth.js once Grid Admin says this account may publish
@@ -2066,6 +2170,7 @@ let gaOpened = false;
 function gaOpen() {
   $('#gate').hidden = true; $('#app').hidden = false;
   $('#whoEmail').textContent = gaMe.email; $('#backToAdmin').hidden = gaMe.role === 'publisher';
+  $('[data-tab=gridbooks]').hidden = false;
   gaRefreshPkButton();
   if (!gaOpened) { gaOpened = true; init(); }
 }
@@ -2074,6 +2179,32 @@ async function gaRefreshPkButton() {
 }
 function gaVerifyPane() {
   gaPane('verifyBox', { text: `We sent a link to ${gaSession?.email || 'your email'}. Open it to confirm your address, then come back here and press Continue.` , focus: '#verifyDone' });
+}
+
+/* ---------- Grid books: the dashboard's Books and covers, inside Book Studio ---------- */
+const GA_ROLES = { publisher: 0.5, viewer: 1, moderator: 2, admin: 3, owner: 4 };
+let gaBooks = null;
+async function gaGridBooks() {
+  try {
+    if (!gaBooks) gaBooks = await import('/admin/books.js');
+    const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    await gaBooks.booksView({
+      api: adminApi, esc,
+      // Anyone who may publish books makes, saves and publishes them here.
+      can: (role) => (role === 'admin' && gaMe?.canPublish) || (GA_ROLES[gaMe?.role] || 0) >= (GA_ROLES[role] || 9),
+      ask: async ({ title, text, fields }) => {
+        if (!fields) return confirm(`${title}\n\n${text || ''}`.trim());
+        const out = {};
+        for (const f of fields) { const v = prompt(`${title}\n${f.label}`, f.value || ''); if (v === null) return null; out[f.name] = v; }
+        return out;
+      },
+      toast: (m) => toast(m, 5000),
+      when: (t) => new Date(t).toLocaleString(),
+      openInStudio: (book) => importGridBook(book),
+    });
+  } catch (e) {
+    $('#books-body').textContent = e.message || 'Grid books did not load. Check your connection and try again.';
+  }
 }
 
 /* Every export asks the server first. Returns false (and says why) when refused. */

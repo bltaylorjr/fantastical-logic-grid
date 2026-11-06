@@ -2271,6 +2271,8 @@ async function enter() {
   // Book Studio is its own page. Publishers only ever go there; anyone else
   // with publishing access goes there when they signed in from its link.
   if (me.canPublish && (me.role === 'publisher' || location.hash === '#book-studio')) { location.replace('/admin/book-studio/'); return; }
+  // Books and covers lives in Book Studio now (its Grid books tab).
+  if (me.canPublish && location.hash === '#books') { location.replace('/admin/book-studio/#gridbooks'); return; }
   $('#login').hidden = true;
   $('#verify').hidden = true;
   $('#app').hidden = false;

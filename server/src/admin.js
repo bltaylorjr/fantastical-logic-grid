@@ -976,7 +976,8 @@ const ROUTES = [
   ...puzzleMailRoutes(Refusal),
   ...editionRoutes(Refusal),
   // ---- Books for publishing: puzzle books from every game and their covers (books.js).
-  ...bookRoutes(Refusal),
+  // Book Studio's Grid books tab: anyone who may publish books may use them.
+  ...bookRoutes(Refusal).map((r) => [...r.slice(0, 5), { ...(r[5] || {}), publishers: true }]),
   // ---- Supporters and premium extras (supporters.js).
   ...supporterRoutes(Refusal),
   // ---- App keys for the Windows and Android apps (licenses.js).
@@ -1110,7 +1111,7 @@ async function api(req, env, ctx, url, path) {
     who = await identify(req, env);
     if (env.LIMIT_ADMIN && !(await env.LIMIT_ADMIN.limit({ key: who.key })).success) throw new Refusal(429, 'slow_down', 'Too many requests. Wait a minute.');
     if (!route) throw new Refusal(404, 'not_found');
-    if (ROLES[who.role] < ROLES[route[2]]) throw new Refusal(403, 'role', `This needs the ${route[2]} role.`);
+    if (ROLES[who.role] < ROLES[route[2]] && !(route[5]?.publishers && canPublish(who))) throw new Refusal(403, 'role', `This needs the ${route[2]} role.`);
     const body = await readBody(req, route[5]?.maxBody || MAX_BODY);
     let out;
     try { out = await route[4]({ req, env, ctx, url, who, params, body, now: Date.now() }); } catch (e) {
@@ -1153,11 +1154,18 @@ async function appFile(env, url, file) {
   return new Response(res.body, { headers: { ...SECURITY_HEADERS, 'Content-Security-Policy': adminCsp(env, voxUrl), 'Content-Type': TYPES[file.split('.').pop()], ...(voxUrl ? { 'Cache-Control': 'no-store' } : {}) } });
 }
 
+// The Grid books tab shows the website's Book maker in a frame.
+function studioCsp(env) {
+  let site = 'https://thelogicgrid.com';
+  try { site = new URL(env.SITE_URL || site).origin; } catch (e) { /* default */ }
+  return STUDIO_CSP.replace("base-uri", `frame-src ${site}; base-uri`);
+}
+
 async function studioFile(env, url, file) {
   if (!env.ASSETS) return new Response('The admin app is not deployed with this Worker.', { status: 404 });
   const res = await env.ASSETS.fetch(new Request(new URL(`/book-studio/${file}`, url.origin)));
   if (!res.ok) return new Response('Not found', { status: 404, headers: SECURITY_HEADERS });
-  return new Response(res.body, { headers: { ...SECURITY_HEADERS, 'Content-Security-Policy': STUDIO_CSP, 'Content-Type': TYPES[file.split('.').pop()] } });
+  return new Response(res.body, { headers: { ...SECURITY_HEADERS, 'Content-Security-Policy': studioCsp(env), 'Content-Type': TYPES[file.split('.').pop()] } });
 }
 
 const LEGACY = /^\/admin\/(learn(\/.*)?|errors)$/;

@@ -12,7 +12,7 @@ import { createRequire } from 'node:module';
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..');
 const src = (f) => readFileSync(join(here, 'src', f), 'utf8');
-const ORDER = ['specs.js', 'core.js', 'editor.js', 'puzzles.js', 'import.js', 'cover.js', 'publish.js', 'main.js'];
+const ORDER = ['specs.js', 'core.js', 'editor.js', 'puzzles.js', 'import.js', 'cover.js', 'publish.js', 'gridbooks.js', 'main.js'];
 const standalone = process.argv.includes('--standalone');
 
 // Libraries, vendored from npm (versions pinned in book-studio/package.json).
@@ -138,7 +138,50 @@ ${html}
 </body>
 </html>
 `);
-writeFileSync(join(out, 'studio.css'), `/* Book Studio. Built from book-studio/src/shell.html by book-studio/build.mjs: do not edit here. */\n${style.trim()}\n${extraCss}`);
+// The Grid books tab runs the dashboard's own Books and covers (admin/books.js),
+// so it gets the dashboard's styles, kept inside .grid-books.
+function scopeCss(css, scope) {
+  css = css.replace(/\/\*[\s\S]*?\*\//g, '');
+  const out = [];
+  let i = 0;
+  const block = (from) => { let depth = 0; for (let k = from; k < css.length; k++) { if (css[k] === '{') depth++; else if (css[k] === '}' && --depth === 0) return k; } return css.length; };
+  const sel = (list, dark) => list.split(',').map((x) => x.trim()).filter(Boolean).map((x) => {
+    if (/^(:root|html|body)$/.test(x)) return dark || scope;
+    if (/^(html|body)[.\[:]/.test(x)) return null; // the dashboard's own page states
+    return `${scope} ${x.replace(/^(:root|html|body)\s+/, '')}`;
+  }).filter(Boolean).join(', ');
+  while (i < css.length) {
+    const open = css.indexOf('{', i);
+    if (open < 0) break;
+    const head = css.slice(i, open).trim();
+    const close = block(open);
+    const body = css.slice(open + 1, close);
+    i = close + 1;
+    if (head.startsWith('@media')) {
+      if (/print/.test(head)) continue;
+      if (/prefers-color-scheme:\s*dark/.test(head)) {
+        // Dark follows Book Studio's own theme switch as well as the system.
+        out.push(`${head} { ${scopeCss(body, scope).replaceAll(`${scope} {`, `:root:not([data-theme="light"]) ${scope} {`)} }`);
+        out.push(scopeCss(body, scope).replaceAll(`${scope} {`, `:root[data-theme="dark"] ${scope} {`));
+        continue;
+      }
+      out.push(`${head} { ${scopeCss(body, scope)} }`);
+      continue;
+    }
+    if (head.startsWith('@keyframes')) { out.push(`${head} {${body}}`); continue; }
+    if (head.startsWith('@')) continue;
+    const s2 = sel(head);
+    if (s2) out.push(`${s2} {${body}}`);
+  }
+  return out.join('\n');
+}
+const gridBooksCss = `
+/* Grid books (the dashboard's Books and covers) */
+${scopeCss(readFileSync(join(root, 'admin', 'admin.css'), 'utf8'), '.grid-books')}
+.grid-books { padding: 16px max(16px, env(safe-area-inset-left, 0px)) 24px; min-height: 100%; }
+.grid-books h1 { margin-bottom: 4px; }
+`;
+writeFileSync(join(out, 'studio.css'), `/* Book Studio. Built from book-studio/src/shell.html by book-studio/build.mjs: do not edit here. */\n${style.trim()}\n${extraCss}\n${gridBooksCss}`);
 writeFileSync(join(out, 'studio.js'), `// Book Studio. Built from book-studio/src by book-studio/build.mjs: do not edit here.\n'use strict';\n${js}\n${src('auth.js')}`);
 const require = createRequire(join(here, 'package.json'));
 for (const [, [pkg, path, file]] of Object.entries(VENDOR)) {

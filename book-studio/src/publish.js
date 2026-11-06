@@ -166,7 +166,7 @@ async function renderPageCanvas(i, dpi) {
   Object.assign(sheet.style, { width: SW * IN + 'px', height: SH * IN + 'px', position: 'relative', background: '#fff', overflow: 'hidden' });
   const node = buildPageNode(i, true); node.style.position = 'absolute'; node.style.left = (recto ? bi : b) * IN + 'px'; node.style.top = b * IN + 'px'; node.style.boxShadow = 'none';
   sheet.appendChild(node); host.appendChild(sheet);
-  await nextFrame();
+  await nextFrame(); fitGridBlocks(sheet);
   const canvas = await html2canvas(sheet, { scale: dpi / IN, backgroundColor: '#ffffff', logging: false, useCORS: true });
   if (S.ink === 'bw') grayscaleCanvas(canvas);
   host.innerHTML = '';

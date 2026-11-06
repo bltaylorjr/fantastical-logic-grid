@@ -32,6 +32,12 @@ own sign-in screen, sharing Grid Admin's session (signing in to one signs in to 
   or fingerprint** at the top does it later. Devices are listed and removed in Grid Admin
   under Face ID and fingerprint (owner, admins and the rest of the dashboard's roles).
 
+**Grid books** (Grid Admin only) is the dashboard's Books and covers (`admin/books.js`) inside
+Book Studio: books made from the game's own puzzles, never reusing one. **Open in the editor**
+turns a book into editor pages (`src/gridbooks.js`): text pages stay editable, puzzles and
+answer keys are fixed blocks shrunk to fit, and the cover comes in as one picture. Anyone
+who may publish books may make, save and publish Grid books.
+
 Books are kept in the browser that made them (IndexedDB). **Project > Save project file**
 keeps a copy or moves a book to another computer.
 

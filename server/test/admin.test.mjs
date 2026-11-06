@@ -726,14 +726,19 @@ test('publishing: Book Studio access by role or the per-admin switch, checked on
   const pm = await call('/admin/v1/me', { auth: pub });
   assert.deepEqual([pm.status, pm.body.role, pm.body.canPublish], [200, 'publisher', true]);
   assert.equal((await exp(pub)).status, 200);
-  for (const path of ['/admin/v1/analytics', '/admin/v1/players', '/admin/v1/books', '/admin/v1/audit']) assert.equal((await call(path, { auth: pub })).status, 403, path);
+  for (const path of ['/admin/v1/analytics', '/admin/v1/players', '/admin/v1/audit']) assert.equal((await call(path, { auth: pub })).status, 403, path);
+  // ...and its Grid books tab: the books and their maker, as an admin would.
+  assert.equal((await call('/admin/v1/books', { auth: pub })).status, 200);
+  assert.equal((await call('/admin/v1/books', { auth: pub, body: {} })).body.error, 'bad_book');
   // A viewer has no publishing until the owner switches it on, and loses it when switched off.
   assert.equal((await call('/admin/v1/me', { auth: viewer })).body.canPublish, false);
   assert.equal((await exp(viewer)).body.error, 'no_publishing');
+  assert.equal((await call('/admin/v1/books', { auth: viewer, body: {} })).body.error, 'role');
   assert.equal((await call('/admin/v1/admins/publishing', { auth: viewer, body: { email: 'pubview@example.com', on: true } })).status, 403);
   assert.equal((await call('/admin/v1/admins/publishing', { auth: boss, body: { email: 'pubview@example.com', on: true } })).status, 200);
   assert.equal((await call('/admin/v1/me', { auth: viewer })).body.canPublish, true);
   assert.equal((await exp(viewer)).status, 200);
+  assert.equal((await call('/admin/v1/books', { auth: viewer, body: {} })).body.error, 'bad_book');
   // Changing the role keeps the switch unless it is sent.
   await call('/admin/v1/admins', { auth: boss, body: { email: 'pubview@example.com', role: 'moderator' } });
   assert.equal((await call('/admin/v1/me', { auth: viewer })).body.canPublish, true);
@@ -755,6 +760,7 @@ test('publishing: Book Studio access by role or the per-admin switch, checked on
   const csp = page.headers.get('content-security-policy');
   assert.match(csp, /script-src 'self';/);
   assert.match(csp, /frame-ancestors 'none'/);
+  assert.match(csp, /frame-src https:\/\/[\w.:-]+;/);
   assert.equal((await call('/admin/book-studio/vendor/fabric.min.js', { origin: null })).status, 200);
   assert.equal((await call('/admin/book-studio/other/admin.js', { origin: null })).status, 404);
   await call('/admin/v1/admins/remove', { auth: boss, body: { email: 'pub@example.com' } });
