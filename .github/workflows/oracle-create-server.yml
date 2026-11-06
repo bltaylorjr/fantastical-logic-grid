@@ -27,9 +27,10 @@ concurrency:
   group: oracle-create-server
   cancel-in-progress: false
 env:
-  # Started Nov 1, 2026 (11 pm Eastern) for 24 hours; the owner chose to keep
-  # going on the free tier, so it now runs for another week.
-  DEADLINE: '2026-11-10T04:15:00Z'
+  # Started Nov 1, 2026 on the free tier. Stopped Nov 5, 2026: the owner is
+  # upgrading the account to Pay As You Go (which still includes 4 Arm cores
+  # and 24 GB free). A past deadline makes every run stop at once.
+  DEADLINE: '2026-11-06T01:20:00Z'
   # From here on the last-resort size (1 core, 6 GB) is tried too.
   SMALLER_FROM: '2026-11-02T22:15:00Z'
   # The API key's user, fingerprint and tenancy (identifiers, not secrets;
