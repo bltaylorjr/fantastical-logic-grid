@@ -205,6 +205,8 @@ export const CLOUD_URL = CLOUD.learnUrl;` }));
     await page.selectOption('#language', 'es');
     await page.click('#dlg-settings button[value=close]');
     await page.waitForFunction(() => /‹es›/.test(document.querySelector('#step-h').textContent), null, { timeout: 8000 });
+    // The heading and the step text translate separately; slower machines get the text a moment later.
+    await page.waitForFunction(() => /‹es›/.test(document.querySelector('#step-text').textContent), null, { timeout: 8000 }).catch(() => {});
     assert(/‹es›/.test(await page.textContent('#step-text')), 'the lesson is translated into the chosen language');
     await page.click('#step-next');
     await page.waitForFunction(() => /‹es›/.test(document.querySelector('#step-h').textContent), null, { timeout: 8000 });
