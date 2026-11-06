@@ -30,7 +30,13 @@ page itself keeps.
   (`/admin/v1/vox-link`, admins only), so the Voice engine page on a phone or any
   other computer connects by itself. The address changes on every start, and the
   dashboard's content policy allows only the current one. Stop Vox clears it.
-- **The page's only permissions are Vox's:** `capabilities/vox.json` lets the
+- **Passwords Log in fills in by itself:** the Passwords page calls
+  `vault_login` (`src-tauri/src/autofill.rs`, allowed for the dashboard only in
+  `capabilities/passwords.json`). It opens the site in a new app window whose
+  start-up script is `admin/extension/fill.js` with that one login: it fills the
+  username, password and 2-step code on the login's own site only, for 3 minutes,
+  and never presses Sign in. Login windows get no app permissions.
+- **The page's only other permissions are Vox's:** `capabilities/vox.json` lets the
   dashboard's own address (and nothing else) call the seven `vox_*` commands. They
   take no program, path or arguments from the page, so the page still cannot run
   anything else, read files or use any other app feature. Links that leave `/admin` (Open the game, GitHub)

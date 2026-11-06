@@ -105,10 +105,30 @@ favourite star.
   told so and keep using the master password, which always works.
 - **Locks itself** after 5 minutes without use (1 to 30, under Import, export
   and settings), on Lock now, on sign-out and on reload.
-- **Log in** opens the site's sign-in page in a new tab and copies the
-  username; then Copy password and Copy code. Copied text is cleared from the
-  clipboard after 30 seconds. A web page cannot type into another website, so
-  real autofill would need a browser extension.
+- **Log in fills everything in.** In the Windows admin app it opens the
+  site in its own window and fills it (`desktop-admin/src-tauri/src/autofill.rs`).
+  In Chrome or Edge with the Passwords extension (`admin/extension/`, downloaded
+  as a zip from Import, export and settings and added with Load unpacked) it
+  opens a new tab and fills it. Both use the same `admin/extension/fill.js`:
+  username, password (also when they are on two pages) and the current 2-step
+  code (also six one-digit boxes), only on the login's own site (same
+  registrable domain), only for 3 minutes, each field once, never pressing
+  Sign in. The page talks to the extension by its fixed id
+  (`bljdjkfhfdhehcfofbncddolbjnbkpdc`, `externally_connectable`), so other
+  extensions never see a login; the extension keeps it in session memory for
+  that tab only. Anywhere else Log in opens the site and copies the username.
+  Copied text is cleared from the clipboard after 30 seconds.
+- **2-step codes (authenticator):** scan the site's QR code with the camera,
+  choose or paste (Ctrl+V) a screenshot of it, or type the setup key. The
+  editor shows the current code to finish setup; **Add to your phone too**
+  shows the same code as a QR for Google or Microsoft Authenticator, Authy or
+  iPhone Passwords. QR reading and drawing use `vendor/jsqr.js` (Apache-2.0)
+  and `vendor/qrcode.js` (MIT), loaded only when used. The admin page allows
+  the camera for itself only (`camera=(self)`).
+- **Ask first (per device):** Face ID, a fingerprint or Windows Hello (or the
+  master password on a device without it) before showing a password or opening
+  Edit, before copying a password or code, and before Log in. One check covers
+  a minute.
 - **2-step codes**: paste the setup key a site shows beside its QR code (or an
   `otpauth://` link) and the 6-digit code shows and counts down, like an
   authenticator app.

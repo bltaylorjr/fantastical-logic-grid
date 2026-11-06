@@ -311,6 +311,200 @@ async function copy(text, what) {
   clipTimer = setTimeout(() => { if (document.hasFocus()) navigator.clipboard.writeText('').catch(() => {}); }, CLIP_CLEAR_MS);
 }
 
+// ------------------------------------------------------------- ask first (Face ID or master password)
+// Per device (Import, export and settings > Face ID and fingerprint): ask for
+// Face ID, a fingerprint or Windows Hello (or the master password on a device
+// without it) before showing, copying or logging in. One check covers a minute.
+const ASK_PREF = 'flg-vault-ask';
+const ASK_GRACE = 60_000;
+let lastCheck = 0;
+const asks = () => ({ show: false, copy: false, login: false, ...(stored(ASK_PREF) || {}) });
+async function confirmIt(what) {
+  if (!asks()[what] || Date.now() - lastCheck < ASK_GRACE) return true;
+  const d = myDevice();
+  if (d) {
+    try {
+      await navigator.credentials.get({ publicKey: { challenge: rand(32), rpId: location.hostname, timeout: 60_000, userVerification: 'required', allowCredentials: [{ type: 'public-key', id: fromB64u(d.credId) }] } });
+      lastCheck = Date.now();
+      return true;
+    } catch { /* cancelled or not working: ask for the master password instead */ }
+  }
+  const v = await h.ask({ title: 'Confirm it is you', text: d ? 'Face ID or fingerprint did not work. Type the master password instead.' : 'Type the master password to go on.', fields: [{ name: 'p', label: 'Master password', type: 'password' }], ok: 'Go on' });
+  if (!v) return false;
+  try { await unwrapVaultKey(v.p, meta); } catch { h.toast('That is not the master password.'); return false; }
+  lastCheck = Date.now();
+  return true;
+}
+
+// ------------------------------------------------------------- Log in with autofill
+// In the Windows admin app: a login window that fills in (desktop-admin autofill.rs).
+// In Chrome or Edge with the extension (admin/extension): a new tab that fills in.
+// Otherwise: open the site and copy the username.
+export const EXTENSION_ID = 'bljdjkfhfdhehcfofbncddolbjnbkpdc';
+let extension = null; // its version once it answers
+function findExtension() {
+  try {
+    globalThis.chrome?.runtime?.sendMessage?.(EXTENSION_ID, { type: 'ping' }, (r) => { void globalThis.chrome.runtime.lastError; if (r?.version) { extension = r.version; if (loaded) paintAutofill(); } });
+  } catch { /* not Chrome or Edge, or no extension */ }
+}
+const inApp = () => !!(window.__FLG_ADMIN_DESKTOP__ && window.__TAURI_INTERNALS__?.invoke);
+async function logIn(x) {
+  if (!(await confirmIt('login'))) return;
+  const d = x.d;
+  const title = properTitle(d) || 'the site';
+  const login = { title, url: siteUrl(d.loginUrl || d.url), hosts: [host(d.url), host(d.loginUrl)].filter(Boolean), username: d.username || d.email || '', password: d.password || '', totp: parseTotp(d.totp) ? d.totp : '' };
+  const parts = ['username', 'password', login.totp && '2-step code'].filter((p, i) => p && (i !== 0 || login.username) && (i !== 1 || login.password)).join(', ');
+  if (inApp()) {
+    try {
+      await window.__TAURI_INTERNALS__.invoke('vault_login', { login });
+      h.toast(`Opening ${title}. Your ${parts || 'login'} fill in by themselves; then press its Sign in button.`);
+      return;
+    } catch { /* an older app version: try the other ways */ }
+  }
+  if (extension) {
+    const ok = await new Promise((done) => {
+      try { globalThis.chrome.runtime.sendMessage(EXTENSION_ID, { type: 'fill', login }, (r) => { void globalThis.chrome.runtime.lastError; done(!!r?.ok); }); } catch { done(false); }
+    });
+    if (ok) { h.toast(`Opening ${title} in a new tab. Your ${parts || 'login'} fill in by themselves; then press its Sign in button.`); return; }
+  }
+  window.open(login.url, '_blank', 'noopener,noreferrer');
+  await copy(login.username, 'username');
+  if (!stored('flg-vault-autofill-tip')) { store('flg-vault-autofill-tip', 1); h.toast('Tip: get the browser extension (Import, export and settings) and Log in fills everything in for you.'); }
+}
+
+// Shows how Log in works here, and offers the extension.
+function paintAutofill() {
+  const el = $('#vault-autofill-state');
+  if (!el) return;
+  const how = inApp() ? ['ok', 'On: Log in opens the site in its own window and fills it in.']
+    : extension ? ['ok', `On: the browser extension (version ${esc(extension)}) fills sign-in forms.`]
+      : ['', 'Off in this browser: Log in opens the site and copies your username. Add the extension below to fill everything in.'];
+  el.innerHTML = `<span class="badge ${how[0]}">${how[0] ? 'Autofill on' : 'Autofill off'}</span> ${how[1]}`;
+  $('#vault-ext-box').hidden = inApp();
+}
+
+// Builds the extension's .zip in the browser from /admin/extension/ (stored, not compressed).
+const EXT_FILES = ['manifest.json', 'background.js', 'fill.js', 'icon-16.png', 'icon-32.png', 'icon-48.png', 'icon-128.png'];
+function crc32(a) {
+  let c; const t = crc32.t || (crc32.t = Array.from({ length: 256 }, (_, n) => { c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; return c >>> 0; }));
+  let crc = 0xffffffff;
+  for (const b of a) crc = t[(crc ^ b) & 255] ^ (crc >>> 8);
+  return (crc ^ 0xffffffff) >>> 0;
+}
+async function extensionZip() {
+  const parts = []; const dir = []; let at = 0;
+  for (const f of EXT_FILES) {
+    const r = await fetch(`extension/${f}`, { cache: 'no-cache' });
+    if (!r.ok) throw new Error(`Could not get ${f}.`);
+    const data = new Uint8Array(await r.arrayBuffer());
+    const name = enc.encode(`logic-grid-passwords/${f}`);
+    const crc = crc32(data);
+    const head = new DataView(new ArrayBuffer(30));
+    [[0, 0x04034b50, 4], [4, 20, 2], [8, 0, 2], [14, crc, 4], [18, data.length, 4], [22, data.length, 4], [26, name.length, 2]].forEach(([o, v, n]) => (n === 4 ? head.setUint32(o, v, true) : head.setUint16(o, v, true)));
+    parts.push(new Uint8Array(head.buffer), name, data);
+    const cd = new DataView(new ArrayBuffer(46));
+    [[0, 0x02014b50, 4], [4, 20, 2], [6, 20, 2], [16, crc, 4], [20, data.length, 4], [24, data.length, 4], [28, name.length, 2], [42, at, 4]].forEach(([o, v, n]) => (n === 4 ? cd.setUint32(o, v, true) : cd.setUint16(o, v, true)));
+    dir.push(new Uint8Array(cd.buffer), name);
+    at += 30 + name.length + data.length;
+  }
+  const size = dir.reduce((n, p) => n + p.length, 0);
+  const end = new DataView(new ArrayBuffer(22));
+  [[0, 0x06054b50, 4], [8, EXT_FILES.length, 2], [10, EXT_FILES.length, 2], [12, size, 4], [16, at, 4]].forEach(([o, v, n]) => (n === 4 ? end.setUint32(o, v, true) : end.setUint16(o, v, true)));
+  return new Blob([...parts, ...dir, new Uint8Array(end.buffer)], { type: 'application/zip' });
+}
+
+// ------------------------------------------------------------- authenticator codes: QR in and out
+const scripts = {};
+function loadScript(src) {
+  scripts[src] ??= new Promise((ok, no) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = () => { delete scripts[src]; no(new Error('Could not load the QR reader.')); }; document.head.append(s); });
+  return scripts[src];
+}
+async function readQr(source) {
+  await loadScript('vendor/jsqr.js');
+  const c = document.createElement('canvas');
+  const w = source.videoWidth || source.naturalWidth || source.width;
+  const hh = source.videoHeight || source.naturalHeight || source.height;
+  const scale = Math.min(1, 1600 / Math.max(w, hh));
+  c.width = Math.round(w * scale); c.height = Math.round(hh * scale);
+  const g = c.getContext('2d', { willReadFrequently: true });
+  g.drawImage(source, 0, 0, c.width, c.height);
+  const img = g.getImageData(0, 0, c.width, c.height);
+  return globalThis.jsQR(img.data, img.width, img.height, { inversionAttempts: 'attemptBoth' })?.data || '';
+}
+async function qrFromImage(blob) {
+  const url = URL.createObjectURL(blob);
+  try {
+    const img = new Image();
+    await new Promise((ok, no) => { img.onload = ok; img.onerror = () => no(new Error('That is not a picture this browser can open.')); img.src = url; });
+    return await readQr(img);
+  } finally { URL.revokeObjectURL(url); }
+}
+// Puts what a QR code held into the editor: otpauth:// links fill the key (and the username/site when empty).
+function useOtpText(text) {
+  const t = String(text || '').trim();
+  if (/^otpauth-migration:/i.test(t)) { h.toast('That is a Google Authenticator export code. Scan the QR code the website shows instead.'); return false; }
+  if (!parseTotp(t)) { h.toast(t ? 'That QR code is not a 2-step code setup.' : 'No QR code found. Try a clearer or closer picture.'); return false; }
+  $('#vf-totp').value = t;
+  try {
+    const u = new URL(t);
+    const label = decodeURIComponent(u.pathname.replace(/^\/+totp\//i, ''));
+    const issuer = u.searchParams.get('issuer') || (label.includes(':') ? label.split(':')[0] : '');
+    const account = label.includes(':') ? label.split(':').slice(1).join(':').trim() : label.trim();
+    if (account && !$('#vf-user').value.trim() && !$('#vf-email').value.trim()) $(account.includes('@') ? '#vf-email' : '#vf-user').value = account;
+    if (issuer && !$('#vf-title').value.trim()) $('#vf-title').value = issuer;
+  } catch { /* a plain key */ }
+  totpPreview();
+  h.toast('2-step code added. Type the code shown below into the site to finish turning it on.');
+  return true;
+}
+let previewTimer = null;
+async function totpPreview() {
+  clearInterval(previewTimer);
+  const el = $('#vf-totp-now');
+  const t = parseTotp($('#vf-totp').value);
+  $('#vf-totp-phone').hidden = !t;
+  if (!t) { el.textContent = ''; return; }
+  const tick = async () => { if (!$('#vault-dialog').open) { clearInterval(previewTimer); return; } const { code, left } = await totp(t); el.textContent = `Code now: ${code} (${left}s)`; };
+  tick();
+  previewTimer = setInterval(tick, 1000);
+}
+async function scanCamera() {
+  if (!navigator.mediaDevices?.getUserMedia) { h.toast('This browser has no camera access here. Use a screenshot instead.'); return; }
+  let stream;
+  try { stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } }); } catch { h.toast('The camera could not be opened. Allow it in the browser, or use a screenshot.'); return; }
+  const dlg = $('#vault-scan');
+  const video = $('#vault-scan-video');
+  video.srcObject = stream;
+  dlg.showModal();
+  await video.play().catch(() => {});
+  let stop = false;
+  const end = () => { stop = true; stream.getTracks().forEach((tr) => tr.stop()); video.srcObject = null; if (dlg.open) dlg.close(); };
+  $('#vault-scan-cancel').onclick = end;
+  dlg.onclose = end;
+  while (!stop) {
+    await new Promise((r) => setTimeout(r, 250));
+    if (stop || !video.videoWidth) continue;
+    const text = await readQr(video).catch(() => '');
+    if (text) { end(); useOtpText(text); }
+  }
+}
+async function phoneQr() {
+  const t = $('#vf-totp').value.trim();
+  if (!parseTotp(t)) return;
+  if (!(await confirmIt('show'))) return;
+  await loadScript('vendor/qrcode.js');
+  const title = $('#vf-title').value.trim() || 'Login';
+  const account = $('#vf-email').value.trim() || $('#vf-user').value.trim() || title;
+  const uri = /^otpauth:/i.test(t) ? t : `otpauth://totp/${encodeURIComponent(`${title}:${account}`)}?secret=${parseTotp(t).secret}&issuer=${encodeURIComponent(title)}`;
+  const q = globalThis.qrcode(0, 'M');
+  q.addData(uri); q.make();
+  const n = q.getModuleCount();
+  let path = '';
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (q.isDark(r, c)) path += `M${c + 4} ${r + 4}h1v1h-1z`;
+  const svg = `<svg class="vault-qr" viewBox="0 0 ${n + 8} ${n + 8}" role="img" aria-label="QR code for ${esc(title)} 2-step codes"><rect width="100%" height="100%" fill="#fff"/><path d="${path}" fill="#000"/></svg>`;
+  await h.ask({ title: 'Add to your phone', text: `${svg}<p>Scan this with Google Authenticator, Microsoft Authenticator, Authy or your phone's camera (iPhone Passwords) to get the same codes there too. <b>Anyone who sees it can make your codes</b>, so close it when you are done.</p>`, ok: 'Done' });
+}
+
 // ------------------------------------------------------------- lock and idle
 function idleMs() { return (Number(localStorage.getItem(IDLE_PREF)) || 5) * 60_000; }
 export function lockVault() {
@@ -337,6 +531,7 @@ function paint() {
   $('#vault-top').hidden = state !== 'open';
   if (state === 'open') { renderTiles(); renderList(); }
   if (state !== 'setup') paintBio();
+  if (state === 'open') paintAutofill();
 }
 
 function renderTiles() {
@@ -572,6 +767,7 @@ function openEditor(x) {
   $('#vf-show').textContent = 'Show';
   $('#vf-show').setAttribute('aria-pressed', 'false');
   $('#vf-totp').value = d.totp || '';
+  setTimeout(totpPreview);
   $('#vf-notes').value = d.notes || '';
   $('#vf-fav').checked = !!d.fav;
   $('#vf-extra').innerHTML = '';
@@ -836,15 +1032,15 @@ export function initVault(helpers) {
     const x = items.find((i) => i.id === id);
     if (!x) return;
     const d = x.d;
-    if (b.dataset.vLogin) {
-      const url = siteUrl(d.loginUrl || d.url);
-      window.open(url, '_blank', 'noopener,noreferrer');
-      await copy(d.username || d.email, 'username');
-    } else if (b.dataset.vUser) await copy(d.username || d.email, 'username');
-    else if (b.dataset.vPass) await copy(d.password, 'password');
-    else if (b.dataset.vCode) { const t = parseTotp(d.totp); if (t) await copy((await totp(t)).code, '2-step code'); }
-    else if (b.dataset.vShow) { if (shown.has(id)) shown.delete(id); else shown.add(id); renderList(); $(`[data-v-show="${id}"]`)?.focus(); }
-    else if (b.dataset.vEdit) openEditor(x);
+    if (b.dataset.vLogin) await logIn(x);
+    else if (b.dataset.vUser) await copy(d.username || d.email, 'username');
+    else if (b.dataset.vPass) { if (await confirmIt('copy')) await copy(d.password, 'password'); }
+    else if (b.dataset.vCode) { const t = parseTotp(d.totp); if (t && await confirmIt('copy')) await copy((await totp(t)).code, '2-step code'); }
+    else if (b.dataset.vShow) {
+      if (!shown.has(id) && !(await confirmIt('show'))) return;
+      if (shown.has(id)) shown.delete(id); else shown.add(id);
+      renderList(); $(`[data-v-show="${id}"]`)?.focus();
+    } else if (b.dataset.vEdit) { if (await confirmIt('show')) openEditor(x); }
     else if (b.dataset.vBin) {
       await h.act(b, async () => { const r = await h.api(`vault/items/${id}/bin`, { method: 'POST', body: {} }); x.deletedAt = r.at; });
       paint();
@@ -889,6 +1085,39 @@ export function initVault(helpers) {
   $('#vf-extra-add').onclick = () => { extraRow(); $$('#vf-extra [data-x=label]').pop().focus(); };
   $('#vf-extra').onclick = (e) => { if (e.target.closest('[data-x-del]')) e.target.closest('.vault-extra').remove(); };
   $('#vf-extra').onchange = (e) => { if (e.target.dataset.x === 'secret') $('[data-x=value]', e.target.closest('.vault-extra')).type = e.target.checked ? 'password' : 'text'; };
+
+  // Authenticator codes.
+  $('#vf-totp').oninput = totpPreview;
+  $('#vf-totp-scan').onclick = scanCamera;
+  $('#vf-totp-file').onchange = async (e) => { const f = e.target.files[0]; e.target.value = ''; if (f) { try { useOtpText(await qrFromImage(f)); } catch (x) { h.toast(x.message); } } };
+  $('#vf-totp-phone').onclick = phoneQr;
+  // A screenshot pasted anywhere in the editor is read as a QR code.
+  $('#vault-dialog').addEventListener('paste', async (e) => {
+    const f = [...(e.clipboardData?.items || [])].find((i) => i.type.startsWith('image/'))?.getAsFile();
+    if (!f) return;
+    e.preventDefault();
+    try { useOtpText(await qrFromImage(f)); } catch (x) { h.toast(x.message); }
+  });
+
+  // Ask first, per device.
+  for (const k of ['show', 'copy', 'login']) {
+    const box = $(`#vault-ask-${k}`);
+    box.checked = asks()[k];
+    box.onchange = () => { store(ASK_PREF, { ...asks(), [k]: box.checked }); h.toast(box.checked ? 'Passwords will ask first on this device.' : 'Passwords will not ask first for that on this device.'); };
+  }
+
+  // Autofill.
+  findExtension();
+  $('#vault-ext-get').onclick = async (e) => {
+    await h.act(e.currentTarget, async () => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(await extensionZip());
+      a.download = 'logic-grid-passwords-extension.zip';
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
+    }, 'Downloaded. Follow the steps below to add it.');
+  };
+  $('#vault-ext-check').onclick = () => { findExtension(); setTimeout(() => { paintAutofill(); if (!extension) h.toast('The extension was not found in this browser yet.'); }, 600); };
 
   // Import, export and master password.
   $('#vault-import-file').onchange = (e) => { const f = e.target.files[0]; if (f) importFile(f); };
