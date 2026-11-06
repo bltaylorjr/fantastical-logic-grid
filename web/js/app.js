@@ -312,7 +312,7 @@ function showScreen(name) {
   document.documentElement.dataset.screen = name;
   $('#skip-link').hidden = name !== 'play';
   $('#view-seg').hidden = name !== 'play';
-  document.title = name === 'play' && S ? `${S.save.name} · The Fantastical Logic Grid` : name === 'learn' ? 'How to play · The Fantastical Logic Grid' : name === 'np' ? 'NINETIMESNINE · The Logic Grid' : kitGames.byScreen(name) ? `${kitGames.KIT_GAMES[kitGames.byScreen(name)].name} · The Logic Grid` : name === 'games' ? 'The Logic Grid' : SITE_HUB ? HOME_TITLE : 'The Fantastical Logic Grid · The Logic Grid';
+  document.title = name === 'play' && S ? `${titleText(S.save.name)} · The Fantastical Logic Grid` : name === 'learn' ? 'How to play · The Fantastical Logic Grid' : name === 'np' ? 'NINETIMESNINE · The Logic Grid' : kitGames.byScreen(name) ? `${kitGames.KIT_GAMES[kitGames.byScreen(name)].name} · The Logic Grid` : name === 'games' ? 'The Logic Grid' : SITE_HUB ? HOME_TITLE : 'The Fantastical Logic Grid · The Logic Grid';
   if (name === 'home') { closeGame(); renderGuestNote(); renderSaved(); renderSuggestion(); renderDaily(); accountsOnHome(); competeUi.onHome(); setTimeout(offerUpdate, 500); }
   wake.setPlaying(name === 'play' && S && !S.save.solved);
   updateMusic();
@@ -904,7 +904,7 @@ function savedItem(s, fmt) {
     (s.myNotes || '').trim() ? '<span class="pill">Has notes</span>' : '',
   ].filter(Boolean).join(' ');
   return `<li class="saved-item${isNewSave(s) ? ' is-new' : ''}" data-id="${esc(s.id)}">
-      <h3 class="name">${esc(s.name)}</h3>
+      <h3 class="name">${esc(titleText(s.name))}</h3>
       <div class="info">${pills ? `${pills} ` : ''}${esc(p.theme.name)} · ${esc(p.difficulty.name)} · ${size} · ${state}<br>${s.openedAt || !isNewSave(s) ? `Last played ${esc(fmt.format(new Date(Number(s.lastPlayed) || 0)))}` : `Arrived ${esc(fmt.format(new Date(Number(s.created || s.lastPlayed) || 0)))}`}</div>
       <div class="bar" role="img" aria-label="${state}"><i style="width:${pct}%"></i></div>
       <div class="row">
@@ -1122,7 +1122,7 @@ function openGame(save, { fresh = false } = {}) {
   save.undo = save.undo || [];
   save.redo = save.redo || [];
 
-  $('#p-title').textContent = save.name;
+  $('#p-title').textContent = titleText(save.name);
   const K = ix.K, N = ix.N;
   $('#p-meta').innerHTML = [...(save.daily ? [`Daily puzzle · ${daily.longDate(save.daily)}`] : []), ...(save.editionLabel ? [save.editionLabel] : []), puzzle.difficulty.name, puzzle.theme.name, ...(puzzle.topic && puzzle.topic.id !== 'any' ? [puzzle.topic.name] : []), `${K} categories × ${N} items`, `${puzzle.clues.length} clues`].map((t) => `<span class="pill">${esc(t)}</span>`).join('');
   const paras = puzzle.story.paragraphs;
@@ -2600,7 +2600,7 @@ async function loadAiArt() {
     const blob = await ai.sceneImage(settings, p);
     if (S !== game) return;
     game.sceneUrl = URL.createObjectURL(blob);
-    $('#scene').innerHTML = `<div class="ai-scene"><img src="${game.sceneUrl}" alt=""></div>${GLINTS}`;
+    $('#scene').innerHTML = `<div class="ai-scene"><img src="${game.sceneUrl}" alt="">${sceneTitle()}</div>${GLINTS}`;
     game.sceneLayers = -1;
     updateProgress();
   } catch (e) {
@@ -2646,6 +2646,16 @@ async function loadCharacterArt() {
 // The scene shows whole from the start. Each fifth of the grid finished makes
 // the matching part of the picture light up (strips left to right), so progress
 // still shows there without hiding anything.
+// Series numbers in titles are Roman numerals in capitals: "part iii" shows
+// as "Part III". Only a word after Part, Book, Volume and the like is changed,
+// so ordinary words that happen to use those letters are left alone.
+const ROMAN = /^(?=[ivxlcdm]+$)m{0,3}(cm|cd|d?c{0,3})(xc|xl|l?x{0,3})(ix|iv|v?i{0,3})$/i;
+export function titleText(name) {
+  return String(name || '').replace(/\b(part|book|volume|vol\.|chapter|episode|act|season)(\s+)([a-z]+)\b/gi,
+    (all, word, gap, num) => (ROMAN.test(num) ? `${word[0].toUpperCase()}${word.slice(1)}${gap}${num.toUpperCase()}` : all));
+}
+// The puzzle's real title over the AI picture (the picture itself has no words).
+const sceneTitle = () => `<p class="scene-title" aria-hidden="true">${esc(titleText($('#p-title').textContent))}</p>`;
 const GLINTS = `<div class="glints" aria-hidden="true">${'<i></i>'.repeat(5)}</div>`;
 function revealScene(fraction) {
   const n = Math.min(5, Math.ceil(fraction * 5 - 1e-9));

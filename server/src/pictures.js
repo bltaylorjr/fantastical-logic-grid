@@ -13,7 +13,7 @@ import { json, corsHeaders, readText, TooLarge } from './http.js';
 import { getSettings } from './settings.js';
 import { bump } from './learn.js';
 
-const STYLE = 'Warm storybook illustration, painterly, soft cinematic light, rich color, no text, no letters, no words, no logos, family friendly.';
+const STYLE = 'Warm storybook illustration, painterly, soft cinematic light, rich color, family friendly, a purely pictorial wordless scene with plain unmarked surfaces.';
 
 async function sha256(text) {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
@@ -28,7 +28,9 @@ async function postPicture(req, env, ctx) {
   try { body = JSON.parse(await readText(req, 4_000)); } catch (e) { return json(req, env, { error: e instanceof TooLarge ? 'too_large' : 'bad_request' }, e instanceof TooLarge ? 413 : 400); }
   const kind = body?.kind === 'portrait' ? 'portrait' : 'scene';
   if (kind === 'portrait' && settings.ai_pictures !== 'all') return json(req, env, { error: 'switched_off' }, 503);
-  const prompt = String(body?.prompt || '').replace(/\s+/g, ' ').trim();
+  // Names in brackets, quotes, initials and numbers come out as made-up
+  // lettering in the picture, so they never reach the model.
+  const prompt = String(body?.prompt || '').replace(/\([^)]*\)|\[[^\]]*\]|"[^"]*"|“[^”]*”/g, ' ').replace(/\b[A-Z]{2,}\b|\d+(st|nd|rd|th)?\b/g, ' ').replace(/\s+/g, ' ').trim();
   if (prompt.length < 10 || prompt.length > 1500) return json(req, env, { error: 'bad_request' }, 400);
   const model = settings.picture_model;
   const key = new Request(`https://flg-cloud.internal/picture/${await sha256(`${model}|${kind}|${prompt}`)}`);
