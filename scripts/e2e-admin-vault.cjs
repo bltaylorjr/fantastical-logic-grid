@@ -170,6 +170,13 @@ function totp(secret, now = Date.now()) {
     await page.waitForSelector('#vault-list [data-v-edit]');
     assert(true, 'Undo puts it back');
 
+    // A login titled with only its address gets its proper name.
+    await page.click('[data-v-edit]');
+    await page.fill('#vf-title', 'namecheap.com');
+    await page.click('#vault-dlg-ok');
+    await page.waitForSelector('#vault-dialog[open]', { state: 'hidden' });
+    assert(/^(★ )?Namecheap$/.test((await page.textContent('#vault-list .vault-main > b')).trim()), 'saving "namecheap.com" as a title stores "Namecheap"');
+
     // Lock, wrong password, unlock.
     await page.click('#vault-lock');
     await page.waitForSelector('#vault-unlock:not([hidden])');
@@ -202,13 +209,16 @@ function totp(secret, now = Date.now()) {
 
     // Import a Chrome CSV, with one duplicate to skip.
     const csv = path.join(os.tmpdir(), 'chrome-passwords.csv');
-    fs.writeFileSync(csv, 'name,url,username,password,note\nGitHub,https://github.com/login,bltaylorjr,gh-Pa55-word-xyz,"two, lines\nhere"\nCloudflare,https://dash.cloudflare.com,btay74@outlook.com,cf-secret-123,\nGitHub,https://github.com/login,bltaylorjr,gh-Pa55-word-xyz,\n');
+    fs.writeFileSync(csv, 'name,url,username,password,note\ngithub.com,https://github.com/login,bltaylorjr,gh-Pa55-word-xyz,"two, lines\nhere"\ndash.cloudflare.com,https://dash.cloudflare.com,btay74@outlook.com,cf-secret-123,\n,https://www.namecheap.com/myaccount/login/,,,\nGitHub,https://github.com/login,bltaylorjr,gh-Pa55-word-xyz,\n');
     await page.setInputFiles('#vault-import-file', csv);
     await page.waitForSelector('#dialog[open]');
-    assert(/<b>2<\/b>|2 login/.test(await page.innerHTML('#dialog-body')) || /Add 2/.test(await page.textContent('#dialog-body')), 'import counts 2 new logins (the duplicate line is skipped)');
+    assert(/<b>3<\/b>/.test(await page.innerHTML('#dialog-body')), 'import counts the new logins (the duplicate line is skipped)');
     await page.click('#dialog-ok');
-    await page.waitForFunction(() => document.querySelectorAll('#vault-list .vault-item').length === 3);
+    await page.waitForFunction(() => document.querySelectorAll('#vault-list .vault-item').length === 4);
     assert(true, 'imported logins are listed');
+    const titles = await page.$$eval('#vault-list .vault-main > b', (els) => els.map((e) => e.textContent.trim()));
+    assert(['Cloudflare', 'GitHub'].every((t) => titles.includes(t)) && titles.filter((t) => t === 'Namecheap').length === 2, `imported logins get proper site names (${titles.join(', ')})`);
+    assert(/Hosting or domain/.test(await page.textContent('#vault-list')), 'and a fitting type');
     await page.fill('#vault-q', 'cloud');
     assert(await page.locator('#vault-list .vault-item').count() === 1, 'search finds Cloudflare');
     await page.fill('#vault-q', '');
@@ -235,11 +245,11 @@ function totp(secret, now = Date.now()) {
     assert(true, 'the old master password no longer works');
     await page.fill('#vault-pass', 'brand new master phrase 77');
     await page.click('#vault-unlock button[type=submit]');
-    await page.waitForFunction(() => document.querySelectorAll('#vault-list .vault-item').length === 3);
-    assert(true, 'the new master password opens all 3 logins');
+    await page.waitForFunction(() => document.querySelectorAll('#vault-list .vault-item').length === 4);
+    assert(true, 'the new master password opens all 4 logins, including the site with no username yet');
     await page.click('#vault-lock');
     await page.click('#vault-bio');
-    await page.waitForFunction(() => document.querySelectorAll('#vault-list .vault-item').length === 3);
+    await page.waitForFunction(() => document.querySelectorAll('#vault-list .vault-item').length === 4);
     assert(true, 'Face ID still works after the master password changed');
 
     // Remove the device: it needs the master password again.
