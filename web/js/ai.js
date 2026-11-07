@@ -99,8 +99,10 @@ export function paintable(text) {
 export function sceneImage(settings, puzzle) {
   const setting = settingOf(puzzle);
   const about = paintable(puzzle.story.paragraphs.slice(0, -1).join(' '));
-  const prompt = `Wide establishing shot of ${setting}.${about ? ` What is happening: ${about}` : ''} Show the place and mood only, with small distant figures, no faces in close-up, a clear open sky across the top of the picture.`;
-  return cached(`${storyKey(puzzle)}|scene-v2`, () => serverPicture(prompt, 'scene'));
+  const prompt = `Wide establishing shot of ${setting}.${about ? ` What is happening: ${about}` : ''} Show the place and mood, with any people as small whole figures in the middle distance, each drawn complete from head to feet, nobody cut off by the edge of the picture, and a clear open sky across the top.`;
+  // v3: "no faces in close-up" made the model paint people without heads, so
+  // pictures from v2 are painted again with the new words.
+  return cached(`${storyKey(puzzle)}|scene-v3`, () => serverPicture(prompt, 'scene'));
 }
 
 export function portraitImage(settings, puzzle, name) {
