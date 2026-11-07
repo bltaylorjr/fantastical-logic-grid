@@ -47,7 +47,8 @@ const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`o
     assert(after < stuckAt + 6, 'it carries on from where it stopped');
 
     await page.click('#video-close');
-    await page.waitForTimeout(300);
+    // A busy test machine can take longer than a moment to pause the video.
+    await page.waitForFunction(() => document.querySelector('#intro-video').paused, null, { timeout: 5000 }).catch(() => {});
     assert(await v('v.paused'), 'closing the Introduction stops it');
     await page.waitForFunction(() => window.__workers.some((u) => u.includes('kokoro-worker')), null, { timeout: 15000 });
     assert(true, 'voice engine starts once the Introduction is closed');
