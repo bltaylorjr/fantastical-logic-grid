@@ -7,12 +7,11 @@ import confetti from '../vendor/confetti/confetti.module.js';
 
 const BASE = { disableForReducedMotion: true, zIndex: 50 };
 
-// Emoji shapes (shapeFromText) are drawn as a picture
-// pattern. Some browsers make the pattern but cannot draw it, and then each
-// piece comes out as a big solid square: "huge white pixels" over the screen
-// (WS-PNG7BV3D). Check once, the same way the library draws, that a clear
-// picture pattern really draws clear; if not, picture shapes become stars
-// and dots instead.
+// Emoji shapes (shapeFromText) are drawn as a picture pattern. Some browsers
+// make the pattern but cannot draw it, and then each piece comes out as a big
+// solid square over the screen (WS-PNG7BV3D). Check once, the same way the
+// library draws, that a clear picture pattern really draws clear; if not,
+// picture shapes become stars and dots instead.
 let patternsOk;
 export function picturesDraw() {
   if (patternsOk !== undefined) return patternsOk;
