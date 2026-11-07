@@ -6,7 +6,49 @@
 import confetti from '../vendor/confetti/confetti.module.js';
 
 const BASE = { disableForReducedMotion: true, zIndex: 50 };
-const fire = (opts) => confetti({ ...BASE, ...opts });
+
+// Emoji shapes (shapeFromText) are drawn as a picture
+// pattern. Some browsers make the pattern but cannot draw it, and then each
+// piece comes out as a big solid square: "huge white pixels" over the screen
+// (WS-PNG7BV3D). Check once, the same way the library draws, that a clear
+// picture pattern really draws clear; if not, picture shapes become stars
+// and dots instead.
+let patternsOk;
+export function picturesDraw() {
+  if (patternsOk !== undefined) return patternsOk;
+  patternsOk = false;
+  try {
+    const blank = () => { const c = new OffscreenCanvas(2, 2); c.getContext('2d'); return c; };
+    const clear = (source) => {
+      const out = new OffscreenCanvas(2, 2);
+      const ctx = out.getContext('2d', { willReadFrequently: true });
+      ctx.fillStyle = 'rgb(255, 0, 0)';
+      const pattern = ctx.createPattern(source, 'no-repeat');
+      if (!pattern || typeof pattern.setTransform !== 'function') return false;
+      pattern.setTransform(new DOMMatrix([1, 0, 0, 1, 0, 0]));
+      ctx.fillStyle = pattern;
+      ctx.fillRect(0, 0, 2, 2);
+      return ctx.getImageData(0, 0, 1, 1).data[3] === 0;
+    };
+    patternsOk = clear(blank().transferToImageBitmap()) && clear(blank());
+  } catch (e) { patternsOk = false; }
+  return patternsOk;
+}
+// Picture shapes swapped for plain ones where pictures cannot be drawn.
+export const safeShapes = (shapes, ok = picturesDraw()) => {
+  if (!Array.isArray(shapes) || ok) return shapes;
+  const plain = shapes.filter((x) => typeof x === 'string' || (x && x.type !== 'bitmap'));
+  return plain.length ? plain : ['star', 'circle'];
+};
+// Pictures are drawn on the page itself (not in the library's worker), so the
+// check above is made where they are actually drawn.
+let onPage;
+const pageCannon = () => (onPage ||= confetti.create(null, { resize: true, useWorker: false, disableForReducedMotion: true }));
+const fire = (opts) => {
+  const pictures = Array.isArray(opts.shapes) && opts.shapes.some((x) => x && x.type === 'bitmap');
+  if (!pictures) return confetti({ ...BASE, ...opts });
+  return pageCannon()({ ...BASE, ...opts, shapes: safeShapes(opts.shapes) });
+};
 const later = (ms, fn) => setTimeout(fn, ms);
 const between = (a, b) => a + Math.random() * (b - a);
 
