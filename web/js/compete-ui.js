@@ -138,7 +138,7 @@ function renderCard() {
   }
   $('#compete-intro').textContent = user && name
     ? 'Race on the very same puzzle: the fastest solve wins. Every solved puzzle also earns points on the scoreboard.'
-    : 'Race the computer any time, or sign in and choose a screen name to race other detectives on the very same puzzle and climb the scoreboard. You never need an account to play on your own.';
+    : 'Race the computer any time, or sign in and choose a screen name to race other detectives on the very same puzzle and climb the scoreboard. Guests can play a few new puzzles a day without an account.';
   $('#compete-actions').innerHTML = actions;
   renderInvites();
 }
