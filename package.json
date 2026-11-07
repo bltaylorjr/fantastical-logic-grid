@@ -1,6 +1,6 @@
 {
   "name": "fantastical-logic-grid-app",
-  "version": "1.19.2",
+  "version": "1.19.3",
   "private": true,
   "license": "UNLICENSED",
   "description": "The Logic Grid: browser (PWA) and desktop app.",
