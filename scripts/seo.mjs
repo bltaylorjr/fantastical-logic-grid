@@ -407,7 +407,7 @@ ${verification}
   const transcript = (appHtml.match(/<details class="transcript">[\s\S]*?<\/summary>([\s\S]*?)<\/details>/) || [])[1] || '';
   const faq = [
     ['What is a logic grid puzzle?', 'A logic grid puzzle gives you a few categories, such as people, places and times, and a list of clues. You use the grid to mark which items go together until every match is known. There is no guessing: the clues lead to exactly one answer.'],
-    ['Is The Fantastical Logic Grid free?', 'Yes. It is free to play in any modern web browser, with no account and no ads. A free Windows app is also available, and a free account is optional for syncing saves between devices.'],
+    ['Is The Fantastical Logic Grid free?', 'Yes. It is free to play in any modern web browser, with no ads. Guests can start a few new puzzles a day with no account, plus the daily puzzle. A free account gives unlimited puzzles in every game and syncs saves between devices, and a free Windows app is also available.'],
     ['How do I mark the grid?', 'Tap or click a square once for an X, which means ruled out. Tap again for an O, which means confirmed. Tap a third time to clear it. Each row and column in a section has exactly one O.'],
     ['Are the stories ever repeated?', 'No. Every puzzle has a brand new story, built from the theme, topic and size you pick, and the game never gives you the same story twice.'],
     ['Can I save, resume or print a puzzle?', 'Yes. Your progress saves automatically, so you can come back any time from Saved puzzles. You can print any puzzle, blank or with your marks, with the answer key on its own page.'],
@@ -857,7 +857,7 @@ ${playBtn(up)}`,
 <li>No reading of anything on your device outside the game.</li>
 </ul>
 <h2>Children</h2>
-<p>Everything except races and the scoreboard can be played with no account and no personal details. An account needs an email address, so for a younger child a parent or teacher should make it, or simply play without one.</p>
+<p>Guests can play a few new puzzles a day, the daily puzzle and their saved puzzles with no account and no personal details. Unlimited puzzles, races against other players and the scoreboard need a free account. An account needs an email address, so for a younger child a parent or teacher should make it, or simply play without one.</p>
 <h2>Questions</h2>
 <p>${contactLink()}. To report a security problem, see <a href="https://github.com/bltaylorjr/fantastical-logic-grid/security/advisories/new" rel="noopener noreferrer nofollow" referrerpolicy="no-referrer" target="_blank">the security page</a>.</p>
 <p class="meta">Last changed: 28 October 2026.</p>`,
@@ -977,7 +977,7 @@ Sitemap: ${url('sitemap.xml')}
 `);
   writeFileSync(join(site, 'llms.txt'), `# ${name}
 
-> ${appDescription} Free in any web browser at ${url(GAME)}, offline-ready, and as a Windows app. No account needed.
+> ${appDescription} Free in any web browser at ${url(GAME)}, offline-ready, and as a Windows app. No account needed to try it; a free account gives unlimited puzzles.
 
 - Difficulty levels: ${tiers.map((t) => t.name).join(', ')}
 - Themes: ${THEMES.map((t) => t.name).join(', ')}

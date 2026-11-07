@@ -114,7 +114,7 @@ function startAuth(signer) {
     // ---- A guest sees the offer and the scoreboard, but needs an account to race.
     const A = await device('A');
     assert(await A.page.isVisible('#compete-section'), 'home shows Play against others');
-    assert(/never need an account to play on your own/.test(await cardText(A.page)), 'solo play needs no account');
+    assert(/Guests can play a few new puzzles a day without an account/.test(await cardText(A.page)), 'guests can play without an account');
     assert(/Playing as Guest/.test(await A.page.textContent('#compete-me')), 'a signed-out player shows as Guest on the card');
     assert((await A.page.textContent('#player-chip')).includes('Guest'), 'a signed-out player shows as Guest at the top');
     await A.page.click('[data-compete=board]');
