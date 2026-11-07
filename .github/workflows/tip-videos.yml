@@ -24,7 +24,7 @@ jobs:
   videos:
     if: ${{ github.event_name == 'workflow_dispatch' || !contains(github.event.head_commit.message, '[tips]') }}
     runs-on: ${{ fromJSON(vars.FLG_RUNNER || '"ubuntu-latest"') }}
-    timeout-minutes: 75
+    timeout-minutes: 120
     steps:
       - if: runner.environment == 'self-hosted'
         name: Start from an empty folder (our build server keeps the last job's files)
