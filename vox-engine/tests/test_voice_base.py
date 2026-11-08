@@ -38,7 +38,9 @@ B.source_file(W).unlink()
 
 # the engine speaks with its own model until the base voices are downloaded
 (W / "voices").mkdir()
-eng = VoxEngine(str(HERE / "practice.pt") if (HERE / "practice.pt").exists() else "practice.pt", voices_dir=W / "voices", cache_dir=None)
+practice = W / "practice.pt"
+subprocess.run([sys.executable, "-m", "vox.cli", "init", "--preset", "tiny", "--out", str(practice)], cwd=HERE, check=True, capture_output=True)
+eng = VoxEngine(str(practice), voices_dir=W / "voices", cache_dir=None)
 assert eng.source == "own"
 bdir = os.environ.get("VOX_BASE_DIR")
 if bdir and B.available():
@@ -220,5 +222,6 @@ r = go(); assert r["state"] == "budget" and "already saved" in " ".join(r["notes
 r = go("--dry-run"); assert r["state"] == "budget"
 setk("bobby/vox-train", status="error")
 r = go(); assert r["state"] == "started"                                                    # an error: start again (no recent run time known)
+assert not list((HERE / "kaggle").glob("push-*")), "staged uploads belong in the work folder, not the repo"
 print("Kaggle loop: code once, data once, sessions resume, checkpoints saved once, weekly budget kept OK")
 print("VOICE BASE OK")

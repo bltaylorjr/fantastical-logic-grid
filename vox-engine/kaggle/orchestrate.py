@@ -41,8 +41,8 @@ HERE = Path(__file__).resolve().parent
 
 
 class Kaggle:
-    def __init__(self, user: str, dry: bool = False, log=print):
-        self.user, self.dry, self.log = user, dry, log
+    def __init__(self, user: str, work: Path, dry: bool = False, log=print):
+        self.user, self.work, self.dry, self.log = user, Path(work), dry, log
 
     def run(self, *args, check: bool = True, write: bool = False) -> str:
         cmd = [*KAGGLE, *args]
@@ -82,7 +82,7 @@ class Kaggle:
         return None
 
     def push_kernel(self, slug: str, code: Path, code_file: str, gpu: bool, datasets=(), kernels=()) -> None:
-        d = code.parent / f"push-{slug}"
+        d = self.work / f"push-{slug}"            # never inside the repo
         shutil.rmtree(d, ignore_errors=True)
         d.mkdir(parents=True)
         shutil.copy2(code, d / code_file)
@@ -166,7 +166,7 @@ def step(args) -> dict:
     outbox.mkdir(parents=True, exist_ok=True)
     notes: list[str] = []
     say = lambda m: (notes.append(m), print(m))  # noqa: E731
-    k = Kaggle(args.user, args.dry_run, say)
+    k = Kaggle(args.user, work, args.dry_run, say)
     report = {"at": datetime.now(timezone.utc).isoformat(timespec="seconds"), "notes": notes}
 
     # 1. the code
