@@ -4,7 +4,9 @@
 // with email confirmation, a reset link, Face ID or fingerprint through
 // Chromium's virtual authenticator), a publisher who has access, a viewer who
 // does not, the sample book, Apply specs, and a submission packet download
-// that is written to the audit log.
+// that is written to the audit log, syncing a book between two devices (and
+// keeping both when two change it at once), the app manifest, the offline
+// service worker and Get the app.
 // Grid books (the dashboard's Books and covers inside Book Studio) needs the
 // built website in dist/site (npm run build); without it that part is skipped.
 // Needs `npm install` in server/ and `node book-studio/build.mjs` first.
@@ -239,6 +241,51 @@ const SHOTS = process.env.SHOTS;
     assert(/submission-packet\.zip$/.test(dl.suggestedFilename()), `the submission packet downloads (${dl.suggestedFilename()})`);
     const { results } = await db.prepare("SELECT actor, status FROM admin_audit WHERE action = 'publishing.export'").all();
     assert(results.some((r) => r.actor === 'pub@example.com' && r.status === 200), 'the export is written to the audit log');
+
+    // Sync: the edited book goes to the account, and opens on a second device.
+    const books = async () => (await db.prepare("SELECT id, title, rev FROM studio_books WHERE owner = 'pub@example.com' ORDER BY updated_at").all()).results;
+    await page.waitForFunction(() => syRev(S.syncId) === 1 && /^Synced/.test(document.querySelector('#sbSync').textContent), null, { timeout: 40000 }).catch(async (e) => { console.log(await page.evaluate(() => [document.querySelector('#sbSync').textContent, syPending(syCurrent()), syRev(S.syncId), syReady])); throw e; });
+    let mine = await books();
+    const title = await page.evaluate(() => S.meta.title);
+    assert(mine.length === 1 && mine[0].title === title && mine[0].id === await page.evaluate(() => S.syncId), `the book syncs to the publisher's account ("${title}")`);
+    const other = await open(session('pub@example.com', 'pub-uid'));
+    const bookId = await page.evaluate(() => S.syncId);
+    await other.waitForFunction((id) => !document.querySelector('#app').hidden && S.syncId === id && /^Synced/.test(document.querySelector('#sbSync').textContent), bookId, { timeout: 60000 });
+    assert((await other.evaluate(() => S.pages.length)) === (await page.evaluate(() => S.pages.length)), 'a new device opens the newest book from the account instead of the sample');
+    await other.evaluate(() => { S.meta.title = 'Changed on the second device'; fillMetaForm(); markDirty(); });
+    await other.waitForFunction(() => /^Synced/.test(document.querySelector('#sbSync').textContent) && syRev(S.syncId) === 2, null, { timeout: 40000 });
+    await page.evaluate(() => syCheck({ force: true }));
+    await page.waitForFunction(() => S.meta.title === 'Changed on the second device', null, { timeout: 30000 });
+    assert(true, 'the first device picks up the change from the second');
+    await other.evaluate(() => { S.meta.title = 'Second device again'; markDirty(); });
+    await other.waitForFunction(() => syRev(S.syncId) === 3, null, { timeout: 40000 });
+    await page.evaluate(() => { S.meta.title = 'First device, not synced yet'; markDirty(); });
+    await page.waitForFunction(() => /copy\)$/.test(S.meta.title) && /^Synced/.test(document.querySelector('#sbSync').textContent), null, { timeout: 40000 });
+    mine = await books();
+    assert(mine.length === 2 && mine[0].title === 'Second device again' && /^First device, not synced yet \(.+ copy\)$/.test(mine[1].title), 'changes made on two devices at once are both kept (one as a copy)');
+    await page.click('#projMenuBtn');
+    await page.waitForFunction(() => document.querySelectorAll('#syList .sy-item').length === 2);
+    assert(true, 'Project lists the books on the account');
+    await page.click('#dlgProject [data-close]');
+    await other.context().close();
+
+    // Get the app: installable, with the Windows download.
+    const mf2 = await page.evaluate(async () => { const r = await fetch('manifest.webmanifest'); return { type: r.headers.get('content-type'), body: await r.json() }; });
+    assert(/manifest\+json/.test(mf2.type) && mf2.body.scope === '/admin/book-studio/', 'Book Studio has its own app manifest');
+    const scope = await page.evaluate(async () => (await navigator.serviceWorker.ready).scope);
+    assert(scope.endsWith('/admin/book-studio/'), 'the Book Studio service worker is installed for offline use');
+    await page.click('#getApp');
+    await page.waitForSelector('#dlgApp[open]');
+    assert(/book-studio-desktop\/Book-Studio-Setup\.exe$/.test(await page.getAttribute('#appWinLink', 'href')), 'Get the app links the Windows app');
+    if (SHOTS) await page.screenshot({ path: path.join(SHOTS, 'book-studio-get-app.png') });
+    await page.click('#dlgApp [data-close]');
+    // Offline: the installed copy still opens for the account that signed in here.
+    await page.waitForTimeout(1500);
+    await page.context().setOffline(true);
+    await page.reload();
+    await page.waitForFunction(() => !document.querySelector('#app').hidden && /^Offline/.test(document.querySelector('#sbSync').textContent), null, { timeout: 30000 });
+    assert((await page.evaluate(() => S.meta.title)).includes('copy'), 'with no connection Book Studio opens with the book from this device');
+    await page.context().setOffline(false);
     await page.context().close();
 
     assert(problems.length === 0, `no script errors or blocked resources${problems.length ? `:\n${problems.join('\n')}` : ''}`);

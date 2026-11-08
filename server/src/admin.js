@@ -7,6 +7,7 @@
 //   GET  /admin/v1/client-config       the Firebase web key the sign-in form needs
 //   GET  /admin/v1/me                  who is signed in, their role and whether they may publish books
 //   POST /admin/v1/publishing/export   Book Studio (admin/book-studio/) asks before every export; logged (publishers)
+//   GET  /admin/v1/studio/books[/:id]  Book Studio's synced books (this account's own); POST .../:id, .../:id/delete (studio-sync.js)
 //   POST /admin/v1/admins/publishing   { email, on } let one admin use Book Studio (owner)
 //   GET  /admin/v1/analytics?days=     players, games, scores, races, voices, errors
 //   GET  /admin/v1/storage             rows per table, database size, free limits
@@ -123,6 +124,7 @@ import { badgeRoutes, playerBadges, deleteBadgeStatements } from './special-badg
 import { puzzleMailRoutes } from './puzzle-mail.js';
 import { editionRoutes } from './editions.js';
 import { bookRoutes } from './books.js';
+import { studioRoutes } from './studio-sync.js';
 import { educatorRoutes } from './educators.js';
 import { puzzleReportRoutes } from './puzzle-reports.js';
 import { visitorRoutes } from './visits.js';
@@ -150,7 +152,7 @@ const SESSION_MAX_S = 12 * 3600;
 const DENIED_PER_DAY = 500; // refused requests written to the audit log, so a flood cannot fill it
 const ANALYTICS_CACHE_MS = 120_000;
 const TABLES = ['sync_users', 'sync_records', 'sync_deleted_users', 'account_days', 'players', 'scores', 'races', 'race_entries', 'race_invites', 'plays', 'parts', 'usage',
-  'app_errors', 'upkeep_log', 'admins', 'admin_audit', 'settings', 'announcements', 'bans', 'name_reviews', 'archive_log', 'feedback', 'feedback_replies', 'error_fixes', 'conversations', 'conversation_messages', 'message_contacts', 'news', 'search_snapshots', 'daily_plan', 'translations', 'rating_insights', 'campaigns', 'campaign_ads', 'marketing_media', 'campaign_stats', 'challenges', 'daily_results', 'daily_email', 'supporters', 'payment_blocks', 'puzzle_mail', 'puzzle_mail_got', 'puzzle_mail_days', 'special_editions', 'educator_requests', 'special_badges', 'badge_awards', 'puzzle_reports', 'player_puzzles', 'visit_stats', 'educator_feedback', 'print_packs', 'print_pack_stories', 'admin_passkeys', 'admin_sessions', 'admin_keys', 'np_plays', 'kit_plays', 'alert_prefs', 'alert_devices', 'alert_queue', 'site_design', 'site_accounts', 'tuning_proposals', 'house_nudges', 'tuning_rules', 'vault_items', 'vault_devices', 'quality_puzzles', 'books', 'book_puzzles', 'book_templates'];
+  'app_errors', 'upkeep_log', 'admins', 'admin_audit', 'settings', 'announcements', 'bans', 'name_reviews', 'archive_log', 'feedback', 'feedback_replies', 'error_fixes', 'conversations', 'conversation_messages', 'message_contacts', 'news', 'search_snapshots', 'daily_plan', 'translations', 'rating_insights', 'campaigns', 'campaign_ads', 'marketing_media', 'campaign_stats', 'challenges', 'daily_results', 'daily_email', 'supporters', 'payment_blocks', 'puzzle_mail', 'puzzle_mail_got', 'puzzle_mail_days', 'special_editions', 'educator_requests', 'special_badges', 'badge_awards', 'puzzle_reports', 'player_puzzles', 'visit_stats', 'educator_feedback', 'print_packs', 'print_pack_stories', 'admin_passkeys', 'admin_sessions', 'admin_keys', 'np_plays', 'kit_plays', 'alert_prefs', 'alert_devices', 'alert_queue', 'site_design', 'site_accounts', 'tuning_proposals', 'house_nudges', 'tuning_rules', 'vault_items', 'vault_devices', 'quality_puzzles', 'books', 'book_puzzles', 'book_templates', 'studio_books', 'studio_book_parts'];
 // worker-src blob: lets the Media library's celebrations draw off the main
 // thread, as they do in the game (canvas-confetti makes its own small worker).
 // frame-src: the Website page's live preview shows pages of the website (only).
@@ -519,6 +521,9 @@ const ROUTES = [
     const detail = { kind: str(body.kind, 20), platform: str(body.platform, 60), pages: Math.max(0, Math.min(5000, Number(body.pages) || 0)) };
     return { body: { ok: true }, target: str(body.title, 200) || 'Untitled', detail };
   }],
+
+  // Each publisher's own books, kept on their account so they open on any device (studio-sync.js).
+  ...studioRoutes(Refusal, canPublish),
 
   ['GET', /^analytics$/, 'viewer', 'analytics.view', async ({ env, url }) => ({ body: await analytics(env, daysParam(url)) })],
   ['GET', /^search$/, 'viewer', 'search.view', async ({ env }) => ({ body: { sources: await searchSnapshots(env) } })],
@@ -1169,11 +1174,12 @@ async function api(req, env, ctx, url, path) {
 
 const APP_FILE = /^\/admin\/([\w-]+\.(?:js|css|svg|png|html|webmanifest))?$/;
 // Book Studio (admin/book-studio/): its own page with its own vendored libraries.
-const STUDIO_FILE = /^\/admin\/book-studio\/((?:vendor\/)?[\w-]+(?:\.[\w-]+)*\.(?:js|css|html))?$/;
+// manifest.webmanifest and sw.js let it install as its own app (phone, Mac, Chromebook).
+const STUDIO_FILE = /^\/admin\/book-studio\/((?:vendor\/)?[\w-]+(?:\.[\w-]+)*\.(?:js|css|html|webmanifest))?$/;
 // Book Studio edits rich text (style attributes on every formatted word) and
 // draws covers with the book fonts from Google Fonts, so its page allows
 // inline styles and those two font hosts. Scripts stay 'self' only.
-const STUDIO_CSP = "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' data: blob: https://identitytoolkit.googleapis.com https://securetoken.googleapis.com; worker-src 'self' blob:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
+const STUDIO_CSP = "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' data: blob: https://identitytoolkit.googleapis.com https://securetoken.googleapis.com; worker-src 'self' blob:; manifest-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
 const TYPES = { js: 'text/javascript; charset=utf-8', css: 'text/css; charset=utf-8', svg: 'image/svg+xml', png: 'image/png', html: 'text/html; charset=utf-8', webmanifest: 'application/manifest+json' };
 
 async function appFile(env, url, file) {
@@ -1195,7 +1201,9 @@ async function studioFile(env, url, file) {
   if (!env.ASSETS) return new Response('The admin app is not deployed with this Worker.', { status: 404 });
   const res = await env.ASSETS.fetch(new Request(new URL(`/book-studio/${file}`, url.origin)));
   if (!res.ok) return new Response('Not found', { status: 404, headers: SECURITY_HEADERS });
-  return new Response(res.body, { headers: { ...SECURITY_HEADERS, 'Content-Security-Policy': studioCsp(env), 'Content-Type': TYPES[file.split('.').pop()] } });
+  // The page and its service worker are checked on every visit, so a new version reaches installed copies at once.
+  const fresh = file === 'index.html' || file === 'sw.js' ? { 'Cache-Control': 'no-cache' } : {};
+  return new Response(res.body, { headers: { ...SECURITY_HEADERS, 'Content-Security-Policy': studioCsp(env), 'Content-Type': TYPES[file.split('.').pop()], ...fresh } });
 }
 
 const LEGACY = /^\/admin\/(learn(\/.*)?|errors)$/;

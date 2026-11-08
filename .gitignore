@@ -21,3 +21,5 @@ out/
 # Vox engine bundled into the admin app
 vox-engine/**/__pycache__/
 vox-engine/*.egg-info/
+desktop-book-studio/src-tauri/target/
+desktop-book-studio/src-tauri/gen/

@@ -145,23 +145,30 @@ async function gaBusy(button, work) {
 // After any sign-in: ask the server who this is, then open the studio.
 async function gaEnter({ fresh = false } = {}) {
   try { gaMe = await adminApi('me'); } catch (e) {
+    // No connection: an installed Book Studio still opens for the account that
+    // last signed in here (sync.js), and syncs once it is back online.
+    const offline = typeof gaOfflineMe === 'function' && syNetDown(e) && gaOfflineMe();
+    if (offline) { gaMe = offline; syOffline = true; gaOpen(); syShow('Offline: saved here, syncs when you are back online', 'off'); return; }
     if (e.code === 'verify_email') { gaVerifyPane(); return; }
     if (e.code === 'not_admin') { gaMe = null; gaShowGate('denied', `${gaSession?.email || 'This account'} has not been given Book Studio access. Ask the owner to add this email under Admins in Grid Admin.`); return; }
     if (e.status === 403) { gaShowGate('denied', e.message); return; }
     gaShowGate('sign_in', e.code === 'sign_in' ? undefined : e.message); return;
   }
   if (!gaMe.canPublish) { gaShowGate('denied'); return; }
+  if (typeof gaRememberMe === 'function') gaRememberMe();
   // Just signed in with a password on a device with Face ID or a fingerprint reader.
   if (fresh && gaSession.mode === 'firebase' && !gaPkOnHere() && !gaPkSkipped(gaMe.email) && (await gaPkReady())) { gaPane('offerBox', { focus: '#pkOfferYes' }); return; }
   gaOpen();
 }
-let gaOpened = false;
+let gaOpened = false, gaOpenedAs = '';
 function gaOpen() {
   $('#gate').hidden = true; $('#app').hidden = false;
   $('#whoEmail').textContent = gaMe.email; $('#backToAdmin').hidden = gaMe.role === 'publisher';
   $('[data-tab=gridbooks]').hidden = false;
   gaRefreshPkButton();
-  if (!gaOpened) { gaOpened = true; init(); }
+  // Someone else signed in on this page: start again, so their books load (sync.js).
+  if (gaOpened && gaOpenedAs !== gaMe.email) { location.reload(); return; }
+  if (!gaOpened) { gaOpened = true; gaOpenedAs = gaMe.email; init(); }
 }
 async function gaRefreshPkButton() {
   $('#pkSetUp').hidden = !gaMe || !gaMe.email.includes('@') || gaPkOnHere() || !(await gaPkReady());

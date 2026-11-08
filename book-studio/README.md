@@ -38,8 +38,29 @@ turns a book into editor pages (`src/gridbooks.js`): text pages stay editable, p
 answer keys are fixed blocks shrunk to fit, and the cover comes in as one picture. Anyone
 who may publish books may make, save and publish Grid books.
 
-Books are kept in the browser that made them (IndexedDB). **Project > Save project file**
-keeps a copy or moves a book to another computer.
+## Sync and the app
+
+Every book is saved in the browser first (IndexedDB), then synced to the signed-in account a
+few seconds later (`src/sync.js`, server `server/src/studio-sync.js`, tables `studio_books` and
+`studio_book_parts`). Sign in with the same email on another computer, phone or the app and
+the newest book opens; **Project > Your books on every device** lists them all, opens one or
+removes it from the account. The status bar says Synced, Offline or what went wrong.
+
+- Books belong to the account that saved them; nobody else sees them. Up to 15 MB a book,
+  200 books and 300 MB per account (pictures are most of the size).
+- If two devices change the same book before syncing, nothing is overwritten: the second
+  device's version is kept as its own book, "Title (Windows copy)".
+- One browser, two people: the book left open by one account is set aside for them, never
+  synced to the next account that signs in.
+- **Get the app** (top bar, hidden inside the app): the Windows app (`desktop-book-studio/`,
+  released by `.github/workflows/book-studio-desktop.yml` to the `book-studio-desktop` release)
+  and, everywhere else, installing the page itself (`manifest.webmanifest`, `sw.js`, both written
+  by `build.mjs`). Installed, it opens with no connection for someone who ticked "Keep me signed
+  in" and syncs when the connection is back. Exports still need a connection, because each one
+  checks in with the server.
+
+**Project > Save project file** still keeps a copy on disk. Opening a project file makes it a
+new book on the account, so it never replaces a synced one.
 
 ## Changing it
 

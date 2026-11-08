@@ -529,6 +529,7 @@ dialog::backdrop { background: rgba(10,14,20,.45); }
     <span>Cover <b id="sbCover"></b></span>
     <span id="sbCheck"></span>
     <span class="spacer" id="sbSave"></span>
+    <span id="sbSync" hidden></span>
   </footer>
 </div>
 
@@ -544,6 +545,12 @@ dialog::backdrop { background: rgba(10,14,20,.45); }
       <button class="btn danger" id="projNew">Start a blank book</button>
     </div>
     <p class="hint" id="projNewConfirm" hidden>This replaces the current book. Save a project file first if you want to keep it. <button class="btn danger" id="projNewYes">Replace it</button></p>
+    <section id="syBox" class="sy-box" hidden>
+      <div class="sy-head"><h4>Your books on every device</h4><button class="btn" id="syNow" type="button">Sync now</button></div>
+      <p class="hint">Every book you work on is saved to your account. Sign in with the same email on another computer, phone or the Book Studio app and it is there.</p>
+      <p class="hint" id="syStatus" role="status"></p>
+      <ul class="sy-list" id="syList"></ul>
+    </section>
   </div>
 </div></dialog>
 
