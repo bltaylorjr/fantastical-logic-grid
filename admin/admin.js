@@ -1298,6 +1298,32 @@ views.players = async ({ arg } = {}) => {
   if (arg && moderator) openPlayer(arg);
   else if (!arg) $('#player-detail').innerHTML = '';
 };
+// Inactive account cleanup (server/src/inactive-accounts.js): who is next,
+// loaded when the panel is opened.
+const CLEANUP_STAGES = {
+  delete: '<span class="badge bad">Deleted tonight</span>',
+  waiting: '<span class="badge warn">Warned, waiting</span>',
+  warn: '<span class="badge warn">Warning email next</span>',
+  notice: '<span class="badge warn">No email: days start tonight</span>',
+  kept: '<span class="badge ok">Never deleted</span>',
+};
+const KEEP_REASONS = { 'kept name': 'protected name', admin: 'admin account', blocked: 'blocked player' };
+async function loadCleanup() {
+  const d = await api('inactive-accounts');
+  const state = !d.firebase ? 'Off: the FIREBASE_SERVICE_ACCOUNT Worker secret is not set, so nothing is deleted.'
+    : d.enabled ? 'On.' : 'Off: nothing is deleted or emailed. This is what would happen once it is switched on.';
+  $('#cleanup-status').textContent = `${state} After ${fmt(d.days)} days with no activity (warning ${fmt(d.warnDays)} days before); `
+    + (d.nameDays ? `no screen name: ${fmt(d.nameDays)} days after the email. ` : 'no screen name: inactivity rule only. ')
+    + `Tonight: ${fmt(d.counts.delete)} to delete, ${fmt(d.counts.warn + d.counts.notice)} to warn, ${fmt(d.counts.waiting)} warned and waiting.`
+    + (d.lastDeletedAt ? ` Last deletion: ${day(d.lastDeletedAt)}.` : '');
+  $('#cleanup-rows').innerHTML = d.accounts.length ? d.accounts.map((a) => `<tr>
+      <td>${a.name ? esc(a.name) : `<i>No screen name</i> <code>${esc(a.uid)}</code>`}</td>
+      <td>${a.rule === 'name' ? 'No screen name' : a.rule ? 'Inactive' : '–'}</td><td>${day(a.lastActive)}</td>
+      <td>${CLEANUP_STAGES[a.stage] || ''}${a.keep ? ` <span class="muted">${esc(KEEP_REASONS[a.keep] || a.keep)}</span>` : ''}${a.stage === 'warn' || a.stage === 'waiting' ? (a.hasEmail ? '' : ' <span class="muted">no email</span>') : ''}</td>
+      <td>${a.deleteOn ? day(a.deleteOn) : '–'}</td></tr>`).join('')
+    : '<tr><td colspan="5" class="muted">No accounts are close to deletion.</td></tr>';
+}
+$('#cleanup').addEventListener('toggle', (e) => { if (e.target.open) loadCleanup().catch((err) => { $('#cleanup-status').textContent = err.message || 'Could not load.'; }); });
 // Changing the list closes any open player page, so the address goes back to #players.
 const reloadPlayers = () => {
   if (location.hash !== '#players') history.replaceState(null, '', '#players');

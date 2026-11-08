@@ -143,24 +143,32 @@ async function pull(db, uid, since, applied) {
   };
 }
 
+// Everything one batch needs to remove an account's data from the game's
+// server. Used by the player's own Delete account and by the automatic
+// cleanup of inactive accounts (inactive-accounts.js).
+export async function deleteAccountStatements(env, uid, now = Date.now()) {
+  return [
+    env.DB.prepare('DELETE FROM sync_records WHERE user_id = ?1').bind(uid),
+    env.DB.prepare('DELETE FROM sync_users WHERE user_id = ?1').bind(uid),
+    ...deleteCompeteStatements(env, uid),
+    ...deleteMessageStatements(env, uid),
+    ...(await deleteReplyStatements(env, uid)),
+    deleteDailyEmailStatement(env, uid),
+    ...deletePrintPackStatements(env, uid),
+    deletePuzzleMailStatement(env, uid),
+    ...deleteBadgeStatements(env, uid),
+    // Payment records stay (by email); only the link to the account goes.
+    env.DB.prepare('UPDATE supporters SET user_id = NULL WHERE user_id = ?1').bind(uid),
+    // An app key keeps working on the player's devices, no longer tied to them (licenses.js).
+    env.DB.prepare('UPDATE licenses SET user_id = NULL, email = NULL WHERE user_id = ?1').bind(uid),
+    env.DB.prepare('DELETE FROM inactive_warnings WHERE user_id = ?1').bind(uid),
+    accountDeletedStatement(env, uid, now),
+    env.DB.prepare('INSERT OR REPLACE INTO sync_deleted_users (user_id, deleted_at) VALUES (?1, ?2)').bind(uid, now),
+  ];
+}
+
 export async function handleDeleteAccount(req, env, user) {
   if (Math.floor(Date.now() / 1000) - user.authTime > RECENT_SIGN_IN) return json(req, env, { error: 'sign_in_again' }, 403);
-  await env.DB.batch([
-    env.DB.prepare('DELETE FROM sync_records WHERE user_id = ?1').bind(user.uid),
-    env.DB.prepare('DELETE FROM sync_users WHERE user_id = ?1').bind(user.uid),
-    ...deleteCompeteStatements(env, user.uid),
-    ...deleteMessageStatements(env, user.uid),
-    ...(await deleteReplyStatements(env, user.uid)),
-    deleteDailyEmailStatement(env, user.uid),
-    ...deletePrintPackStatements(env, user.uid),
-    deletePuzzleMailStatement(env, user.uid),
-    ...deleteBadgeStatements(env, user.uid),
-    // Payment records stay (by email); only the link to the account goes.
-    env.DB.prepare('UPDATE supporters SET user_id = NULL WHERE user_id = ?1').bind(user.uid),
-    // An app key keeps working on the player's devices, no longer tied to them (licenses.js).
-    env.DB.prepare('UPDATE licenses SET user_id = NULL, email = NULL WHERE user_id = ?1').bind(user.uid),
-    accountDeletedStatement(env, user.uid),
-    env.DB.prepare('INSERT OR REPLACE INTO sync_deleted_users (user_id, deleted_at) VALUES (?1, ?2)').bind(user.uid, Date.now()),
-  ]);
+  await env.DB.batch(await deleteAccountStatements(env, user.uid));
   return json(req, env, { deleted: true });
 }

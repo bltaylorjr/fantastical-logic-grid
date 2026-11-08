@@ -495,6 +495,12 @@
       <nav class="row pager" aria-label="Player pages"><button class="btn small" type="button" id="players-prev">Previous page</button><span id="players-page" class="muted"></span><button class="btn small" type="button" id="players-next">Next page</button></nav>
       <div class="row" data-min="admin"><button class="btn" type="button" data-export="players">Download all players (CSV)</button><button class="btn" type="button" data-export="scores">Download all scores (CSV)</button></div>
       <div id="player-detail"></div>
+      <details class="card" id="cleanup" data-min="admin">
+        <summary><h2 id="cleanup-h">Inactive account cleanup</h2></summary>
+        <p class="muted">Accounts with no activity (no plays, syncs, changes or sign-ins) for the set number of days are deleted every night at 2 am Eastern, with their Firebase sign-in and all their data. Players with an email are warned first. Accounts with no screen name are emailed a link to choose one and are deleted after a few days if they still have none. Fan_Logic_Admin, CobaltSockMonkey18, every admin and blocked players are never deleted. Deleted accounts cannot be brought back. Switch it on and set the days under <a href="#settings">Settings and switches</a> &gt; Inactive accounts.</p>
+        <p id="cleanup-status" role="status"></p>
+        <div class="table-wrap"><table class="table"><thead><tr><th scope="col">Screen name</th><th scope="col">Rule</th><th scope="col">Last active</th><th scope="col">Next</th><th scope="col">Deleted on</th></tr></thead><tbody id="cleanup-rows"></tbody></table></div>
+      </details>
     </section>
 
     <section data-view="badges" hidden aria-labelledby="h-badges">
