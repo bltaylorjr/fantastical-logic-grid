@@ -6,7 +6,7 @@ The "Mobile apps" workflow builds the signed APK (to install directly) and the
 AAB (the file Google Play wants) on every change, once the two signing secrets
 are set. iOS is paused.
 
-## Cost and rules (checked 2026-10-27)
+## Cost and rules (checked 2026-10-27, again 2026-11-08)
 
 - **One-time $25 registration fee.** This is the only cost and needs Bobby's
   OK before it is paid. Everything else here is free.
@@ -17,11 +17,26 @@ are set. iOS is paused.
   (Google usually answers within a week). Friends and family with a Google
   account and an Android phone are enough; they join through a link.
 
+## Where things stand (2026-11-08)
+
+- The app builds on every change (version 1.19.5 today), but only as an
+  unsigned test copy: the two signing secrets (`ANDROID_KEYSTORE_BASE64`,
+  `ANDROID_KEYSTORE_PASSWORD`) are still not set. Google Play needs the signed
+  `.aab`, so adding them is the first step.
+- Once they are set, every release on
+  https://github.com/bltaylorjr/fantastical-logic-grid/releases gets both the
+  `.apk` (install on a phone) and the `.aab` (upload to Play).
+- App keys: the Android app asks for an app key the first time it opens once
+  `LICENSE_SIGNING_KEY` is set. Google's reviewers and the 12 testers can't
+  get past that without a key, so either Play copies skip the key, or Google
+  gets a ready-approved key under **App content > App access**.
+
 ## What is ready in the repository
 
 - Package name: `com.fantasticallogicgrid.app`. It can never change once uploaded.
-- Signed builds: the "Mobile apps" workflow's artifact `android-<version>`
-  holds the `.aab` for Play and the `.apk` for direct installs. Target SDK 36
+- Signed builds: each GitHub Release gets the `.aab` for Play and the `.apk`
+  for direct installs (the "Mobile apps" workflow's artifact `android-<version>`
+  holds them too). Target SDK 36
   meets Play's current requirement.
 - Pictures in `media/play-store/` (remake with `npm run build && node scripts/play-store-assets.cjs`):
   - `icon-512.png`: app icon, 512 × 512
@@ -44,6 +59,9 @@ are set. iOS is paused.
    about **Play App Signing**, keep the default (Google holds the app signing key;
    our key becomes the upload key). Add testers by email or a Google Group,
    send them the opt-in link, and keep at least 12 of them opted in for 14 days.
+   Ask 15 or more people, so a few dropping out doesn't restart the 14 days.
+   Google also looks at whether testers actually opened the app and sent
+   feedback, so ask them to play a few puzzles during the two weeks.
 5. After 14 days: **Dashboard > Apply for production**, answer the short
    questions about the test, and wait for Google.
 6. When it is approved: **Production > Create new release**, upload the latest
