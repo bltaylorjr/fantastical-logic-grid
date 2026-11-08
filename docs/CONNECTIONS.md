@@ -449,6 +449,26 @@ uses a secret, variable or binding that is not listed there.
 
 **Links:** [Worker variables and secrets](https://dash.cloudflare.com/?to=/:account/workers/services/view/flg-api/production/settings) · [Firebase project settings](https://console.firebase.google.com/project/the-fantastical-logic-grid/settings/general) · [Full guide (admin/README.md)](https://github.com/bltaylorjr/fantastical-logic-grid/blob/main/admin/README.md)
 
+### Inactive account cleanup (Firebase admin key)
+
+**Why:** Lets the Worker remove a deleted account's Firebase sign-in, for the automatic deletion of inactive accounts and of accounts with no screen name. Without it nothing is deleted automatically.
+
+**Cost:** Free.
+
+| Name | Where | Notes |
+| --- | --- | --- |
+| `FIREBASE_SERVICE_ACCOUNT` | Cloudflare Worker secret | The whole JSON key of the Firebase Admin SDK service account. Optional. |
+
+**Steps:**
+
+1. Open <https://console.firebase.google.com/project/the-fantastical-logic-grid/settings/serviceaccounts/adminsdk> and click **Generate new private key** > **Generate key**.
+2. Open <https://dash.cloudflare.com/?to=/:account/workers/services/view/flg-api/production/settings> (Cloudflare > **Workers & Pages** > **flg-api** > **Settings** > **Variables and Secrets**).
+3. Click **Add** (or **Edit** next to `FIREBASE_SERVICE_ACCOUNT` if it is already there).
+4. Choose type **Secret**, enter the name `FIREBASE_SERVICE_ACCOUNT`, paste everything in the downloaded .json file (open it in Notepad) as the value, and click **Deploy**.
+5. Delete the downloaded file. In this dashboard open **Players** > **Inactive account cleanup** to check who would be warned and deleted, then switch on **Delete inactive accounts automatically** under **Settings and switches** > **Inactive accounts**.
+
+**Links:** [Firebase service accounts](https://console.firebase.google.com/project/the-fantastical-logic-grid/settings/serviceaccounts/adminsdk) · [Worker variables and secrets](https://dash.cloudflare.com/?to=/:account/workers/services/view/flg-api/production/settings) · [Full guide (server/INACTIVE-ACCOUNTS.md)](https://github.com/bltaylorjr/fantastical-logic-grid/blob/main/server/INACTIVE-ACCOUNTS.md)
+
 ### Google Gemini (server voices and the AI story writer)
 
 **Why:** Gives characters natural server voices and drafts story parts in the Story workshop.
