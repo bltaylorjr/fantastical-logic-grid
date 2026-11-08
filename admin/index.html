@@ -122,6 +122,7 @@
       <li data-dash="flg"><a href="#mail" data-min="viewer">Puzzle emails</a></li>
       <li data-dash="flg"><a href="#beat-images" data-min="moderator">Story beat pictures</a></li>
       <li data-dash="flg"><a href="#stories" data-min="moderator">Story workshop and review <span class="count" id="count-parts" hidden></span></a></li>
+      <li data-dash="flg"><a href="#puzzle-submissions" data-min="moderator">Puzzle submissions <span class="count" id="count-puzzle-submissions" hidden></span></a></li>
       <li data-dash="flg"><a href="#story-submissions" data-min="moderator">Storyline submissions <span class="count" id="count-story-submissions" hidden></span></a></li>
       <li data-dash="flg"><a href="#educators" data-min="moderator">Educator requests <span class="count" id="count-educators" hidden></span></a></li>
       <li data-dash="flg"><a href="#edu-feedback" data-min="moderator">Educator feedback <span class="count" id="count-edu-feedback" hidden></span></a></li>
@@ -403,6 +404,24 @@
       <h2>Errors database: every step</h2>
       <p class="muted">Each report's steps, newest first: received, files attached, the doctor started, its review, the repair or why it could not repair, the alert to you, and how it was closed. Nothing personal is kept here. Steps are kept for a year; attached files for 90 days.</p>
       <div id="et-log"><p class="muted">Loading…</p></div>
+    </section>
+
+    <section data-view="puzzle-submissions" hidden aria-labelledby="h-puzzle-submissions">
+      <div class="head"><h1 id="h-puzzle-submissions">Puzzle submissions</h1></div>
+      <p class="muted">Every puzzle players sent in, old and new: Puzzle Wizard puzzles and storylines, in four sections. <b>Awaiting approval</b> is new and resubmitted entries, <b>Awaiting edits</b> is entries the team asked the author to change, then <b>Approved</b> and <b>Published</b>. <b>Open</b> an entry to edit it, email the player who sent it (from support@thelogicgrid.com), push its puzzle to their Saved puzzles in the Logic Grid app, move it to another section, or delete it. <b>Full review</b> opens it on the Storyline submissions page for the trademark scan and corrected wording.</p>
+      <form class="row" id="ps-search" role="search" aria-label="Search puzzle submissions">
+        <div class="field grow"><label for="ps-q">Search</label><input type="search" id="ps-q" placeholder="Words, title, author credit, player, email, theme or entry number" autocomplete="off"></div>
+        <div class="field"><label for="ps-kind">Kind</label><select id="ps-kind"><option value="puzzles">Puzzles and storylines</option><option value="puzzle">Wizard puzzles</option><option value="storyline">Storylines</option><option value="">Everything (with theme and category ideas)</option></select></div>
+        <button class="btn primary" type="submit">Search</button>
+      </form>
+      <div class="sections" id="ps-tabs" role="group" aria-label="Show section"></div>
+      <p class="muted" id="ps-section-help"></p>
+      <p class="muted" id="ps-total" role="status"></p>
+      <div class="ss-layout">
+        <ul class="cards ss-list" id="ps-list"></ul>
+        <div id="ps-detail-wrap"></div>
+      </div>
+      <nav class="row pager" aria-label="Entry pages"><button class="btn small" type="button" id="ps-prev" hidden>Previous page</button><button class="btn small" type="button" id="ps-next" hidden>Next page</button></nav>
     </section>
 
     <section data-view="story-submissions" hidden aria-labelledby="h-story-submissions">

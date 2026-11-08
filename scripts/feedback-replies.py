@@ -205,6 +205,16 @@ NOTES = {
             SIGN_OFF,
         ],
     },
+    # A note the team writes to the player about their entry (Puzzle submissions page).
+    'submission_message': {
+        'subject': lambda r: f'About your {entry_words(r)}' + (f': {r["submission"]["title"]}' if (r.get('submission') or {}).get('title') else ''),
+        'blocks': lambda r: [
+            'Hello, puzzler!',
+            f'Thank you for your {entry_words(r)} for The Logic Grid. The team has a note for you about it.',
+            ('quote', 'A note from the team', r.get('note')),
+            SIGN_OFF,
+        ],
+    },
     'story_puzzle': {
         'subject': 'Your storyline puzzle is ready',
         'blocks': lambda r: [
