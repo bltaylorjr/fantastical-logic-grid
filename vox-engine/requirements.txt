@@ -13,4 +13,6 @@ cmudict
 wn
 # Whisper (free, runs on this computer): scores how clearly each line is said
 # and finds words the model says wrong; also transcribes training audio.
-faster-whisper
+# Only where its audio decoder (PyAV) has ready-made packages; elsewhere Vox
+# runs without it rather than failing to install at all.
+faster-whisper; python_version < "3.14"
