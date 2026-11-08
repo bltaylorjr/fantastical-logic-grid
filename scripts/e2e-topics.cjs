@@ -15,6 +15,7 @@ const assert = (c, m) => { if (!c) { console.error(`FAIL: ${m}`); process.exitCo
   try {
     await page.goto('http://localhost:8132/');
     await page.waitForSelector('#tier-choices input');
+    await page.waitForSelector('#dlg-welcome[open]', { timeout: 3000 }).catch(() => {});
     if (await page.locator('#dlg-welcome[open]').count()) await page.keyboard.press('Escape');
     await page.check('input[name=theme][value=random]', { force: true });
     assert(await page.locator('#topic-field').isHidden(), 'no topics for Surprise me');
