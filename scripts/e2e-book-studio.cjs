@@ -300,6 +300,38 @@ const SHOTS = process.env.SHOTS;
     await page.context().setOffline(false);
     await page.context().close();
 
+    // Make it from a topic (Grid books): find puzzles to review, keep the ticked
+    // ones; then make the whole book for a publisher, down to the submission file.
+    if (HAVE_SITE) {
+      page = await open(session('pub@example.com', 'pub-uid'));
+      await page.waitForSelector('#app:not([hidden])');
+      await page.click('[data-tab=gridbooks]');
+      await page.click('#bk-new', { timeout: 30000 });
+      await page.waitForSelector('#bk-tp-find', { timeout: 60000 });
+      const tp = await page.evaluate(() => ({ topics: document.querySelectorAll('#bk-tp-theme option').length, types: document.querySelectorAll('[data-tp-game]').length, pubs: document.querySelectorAll('#bk-tp-pub option').length }));
+      assert(tp.topics >= 20 && tp.types >= 11 && tp.pubs >= 5, `Make it from a topic offers every topic, every puzzle type and the publishers (${tp.topics} topics, ${tp.types} types, ${tp.pubs} publishers)`);
+      await page.selectOption('#bk-tp-theme', 'mystery');
+      await page.click('#bk-tp-none');
+      for (const id of ['flg', 'np', 'cw']) await page.check(`[data-tp-game="${id}"]`);
+      await page.fill('#bk-tp-count', '1'); await page.dispatchEvent('#bk-tp-count', 'change');
+      await page.click('#bk-tp-find');
+      await page.waitForSelector('#bk-found [data-pick]', { timeout: 180000 });
+      const f = await page.evaluate(() => ({ all: document.querySelectorAll('#bk-found [data-pick]').length, ticked: document.querySelectorAll('#bk-found [data-pick]:checked').length, kinds: document.querySelectorAll('#bk-found h4').length }));
+      assert(f.kinds === 3 && f.all >= 6 && f.ticked === 3, `Find puzzles to review lists more puzzles than needed for each type, one of each ticked (${f.all} found, ${f.ticked} ticked)`);
+      await page.uncheck('#bk-found [data-pick]:checked >> nth=0');
+      await page.click('#bk-tp-use');
+      const bk = await page.evaluate(async () => { const b = (await import('/admin/books.js')).currentBook(); return { n: b.puzzles.length, secs: b.settings.sections.length, topic: b.settings.topic, title: b.title, themes: b.settings.sections.map((x) => x.theme) }; });
+      assert(bk.n === 2 && bk.secs === 2 && bk.topic === 'mystery' && /Mystery/i.test(bk.title) && bk.themes.every(Boolean), `the ticked puzzles go in the book, one section a type, on the topic ("${bk.title}", ${bk.n} puzzles)`);
+      await page.selectOption('#bk-tp-pub', 'kdp');
+      await page.evaluate(() => { document.querySelector('#dpi').value = '200'; }); // a smaller, quicker file
+      page.once('dialog', (d) => d.accept()); // "Make the whole book again from this topic?"
+      const [packet] = await Promise.all([page.waitForEvent('download', { timeout: 420000 }), page.click('#bk-tp-auto')]);
+      assert(/kdp-submission-packet\.zip$/i.test(packet.suggestedFilename()), `Make the whole book for me checks it for the publisher and makes the submission file (${packet.suggestedFilename()})`);
+      const done = await page.evaluate(() => ({ pub: S.pub, errors: lastIssues.filter((i) => i.sev === 'error').length, pages: S.pages.length, title: S.meta.title, kw: S.meta.keywords }));
+      assert(done.pub === 'kdp' && done.errors === 0 && done.pages >= 24 && /Mystery/i.test(done.title) && /logic puzzles/.test(done.kw), `the book passes every publisher check (${done.pages} pages, no errors)`);
+      await page.context().close();
+    }
+
     assert(problems.length === 0, `no script errors or blocked resources${problems.length ? `:\n${problems.join('\n')}` : ''}`);
     console.log('Book Studio e2e passed');
   } finally {

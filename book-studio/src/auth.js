@@ -197,6 +197,9 @@ async function gaGridBooks() {
       toast: (m) => toast(m, 5000),
       when: (t) => new Date(t).toLocaleString(),
       openInStudio: (book) => importGridBook(book),
+      // Make it from a topic: the publishers to choose from, and the whole path to a submission file.
+      publishers: Object.entries(PUBLISHERS).map(([id, p]) => ({ id, name: p.name })),
+      makeSubmission: (book, pub) => submitGridBook(book, pub),
     });
   } catch (e) {
     $('#books-body').textContent = e.message || 'Grid books did not load. Check your connection and try again.';

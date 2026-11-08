@@ -740,6 +740,10 @@ dialog::backdrop { background: rgba(10,14,20,.45); }
 .grid-books .vault-devices { list-style: none; padding: 0; margin: 8px 0; display: grid; gap: 8px; }
 .grid-books .vault-devices li.row { justify-content: space-between; align-items: center; background: var(--bg); border-radius: 8px; padding: 8px 10px; }
 .grid-books .bk-fs { border: 0; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 12px; }
+.grid-books .bk-topic { border: 1px solid var(--line); border-radius: 10px; padding: 12px; background: var(--bg); }
+.grid-books .bk-topic h3, .grid-books .bk-topic h4 { margin: 0; }
+.grid-books .bk-topic legend { font-weight: 600; margin-bottom: 6px; }
+.grid-books .bk-tp-types { gap: 6px 16px; }
 .grid-books .bk-secs { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
 .grid-books .bk-sec { border: 1px solid var(--line); border-radius: 10px; padding: 10px; }
 .grid-books .bk-puzzles { max-height: 360px; overflow: auto; padding-left: 0; list-style: none; margin: 0; }

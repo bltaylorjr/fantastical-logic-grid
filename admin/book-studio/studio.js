@@ -1348,6 +1348,7 @@ function relayoutCover(o, n) {
   const sc = n.w / o.w;
   cv.getObjects().forEach(ob => {
     if (ob.role === 'bg') { ob.set({ left: 0, top: 0, width: N.W, height: N.H, scaleX: 1, scaleY: 1 }); ob.setCoords(); return; }
+    if (ob.role === 'gridcover') { ob.set({ left: 0, top: 0, originX: 'left', originY: 'top', scaleX: N.W / ob.width, scaleY: N.H / ob.height }); ob.setCoords(); return; }
     if (ob.role === 'bgimg') { const s = Math.max(N.W / ob.width, N.H / ob.height); ob.set({ scaleX: s, scaleY: s, left: N.W / 2, top: N.H / 2, originX: 'center', originY: 'center' }); ob.setCoords(); return; }
     const c = ob.getCenterPoint(); const r = regionOf(c.x, O); const [a0, a1] = regionSpan(r, O), [b0, b1] = regionSpan(r, N);
     const fx = (c.x - a0) / Math.max(a1 - a0, 1e-6), fy = c.y / O.H;
@@ -1453,7 +1454,10 @@ function wireCover() {
 function coverIssues() {
   const out = []; if (!cv) return out;
   const g = coverGeom(), P = PUBLISHERS[S.pub];
-  const objs = cv.getObjects().filter(o => o.role !== 'bg' && o.role !== 'bgimg');
+  // A Grid book's cover comes in as one finished picture of the whole wrap
+  // (role gridcover): it fills the front, and leaves its own barcode space.
+  const gridCover = cv.getObjects().some(o => o.role === 'gridcover');
+  const objs = cv.getObjects().filter(o => o.role !== 'bg' && o.role !== 'bgimg' && o.role !== 'gridcover');
   const spineTexts = objs.filter(o => o.role === 'spine');
   if (spineTexts.length && pageCount() < P.spineTextMinPages) out.push({ sev: 'error', id: 'spine-text', msg: `Spine text is not allowed under ${P.spineTextMinPages} pages`, sub: `${P.short} rejects spine text on a ${pageCount()}-page book because the spine is only ${fmtIn(g.sp)} wide.`, fix: () => { spineTexts.forEach(o => cv.remove(o)); cv.requestRenderAll(); markDirty(); } });
   if (!spineTexts.length && pageCount() >= P.spineTextMinPages && S.meta.title) out.push({ sev: 'info', id: 'spine-add', msg: 'No spine text yet', sub: 'Your page count allows a title on the spine.', fix: () => { addSpineText(); cv.requestRenderAll(); markDirty(); } });
@@ -1474,7 +1478,7 @@ function coverIssues() {
   cv.getObjects().filter(o => o.role === 'bgimg' && o._element).forEach(o => { const dpi = o._element.naturalWidth / (o.width * o.scaleX / IN); if (dpi < 290) out.push({ sev: 'warn', id: 'cv-bgdpi', msg: `Cover background prints at ${Math.round(dpi)} DPI`, sub: `A full-wrap background needs about ${Math.round(g.W * 300)} × ${Math.round(g.H * 300)} pixels.` }); });
   if (unsafe) out.push({ sev: 'warn', id: 'cv-safe', msg: `${unsafe} text item${unsafe > 1 ? 's' : ''} on the cover cross the safe zone`, sub: `Keep text ${P.coverSafe} in inside the trim and clear of the spine folds. Open the Cover tab and drag it inside the blue guides.` });
   if (overBarcode) out.push({ sev: 'warn', id: 'cv-barcode', msg: 'Something overlaps the barcode area', sub: 'Move text and images out of the white box on the back cover.' });
-  const front = objs.filter(o => o.getCenterPoint().x > g.frontX * IN); if (!front.length) out.push({ sev: 'error', id: 'cv-empty', msg: 'The front cover is empty', sub: 'Use Auto-design cover or add a title.', fix: () => autoDesignCover() });
+  const front = objs.filter(o => o.getCenterPoint().x > g.frontX * IN); if (!front.length && !gridCover) out.push({ sev: 'error', id: 'cv-empty', msg: 'The front cover is empty', sub: 'Use Auto-design cover or add a title.', fix: () => autoDesignCover() });
   return out;
 }
 
@@ -1846,11 +1850,12 @@ function fitGridBlocks(root) {
 // pages: [{ kind, head, body, front, fitAll }], css, coverSvg }.
 async function importGridBook(g) {
   const p = blankProject();
-  p.pub = S.pub || 'kdp';
+  p.pub = PUBLISHERS[g.pub] ? g.pub : S.pub || 'kdp';
   const trim = String(g.trim || '6x9');
   p.trim = TRIMS[trim] ? trim : (PUBLISHERS[p.pub].defaultTrim || '6x9');
   p.paper = g.paper === 'cream' ? 'cream' : 'white';
-  p.meta = { ...p.meta, title: String(g.title || '').slice(0, 200), subtitle: String(g.subtitle || '').slice(0, 200), author: String(g.author || '').slice(0, 120), copyright: String(g.author || '').slice(0, 120), isbn: String(g.isbn || '').slice(0, 20), pubDate: new Date().toISOString().slice(0, 10) };
+  p.meta = { ...p.meta, title: String(g.title || '').slice(0, 200), subtitle: String(g.subtitle || '').slice(0, 200), author: String(g.author || '').slice(0, 120), copyright: String(g.author || '').slice(0, 120), isbn: String(g.isbn || '').slice(0, 20), pubDate: new Date().toISOString().slice(0, 10),
+    ...(g.description ? { description: String(g.description).slice(0, 4000), blurb: String(g.description).slice(0, 4000) } : {}), ...(g.keywords ? { keywords: String(g.keywords).slice(0, 500) } : {}) };
   p.gridCss = cleanGridCss(g.css);
   p.gridBook = String(g.id || '');
   p.pages = (g.pages || []).map(pg => ({ id: uid(), html: gridPageHtml(pg), grid: pg.kind, noFolio: !!pg.front, ...(pg.kind === 'answers' ? { answers: true } : {}) }));
@@ -1871,9 +1876,29 @@ async function placeGridCover(svg) {
   const g = coverGeom();
   cv.clear(); cv.backgroundColor = '#ffffff';
   img.set({ left: 0, top: 0, scaleX: (g.W * IN) / img.width, scaleY: (g.H * IN) / img.height, selectable: false, evented: false });
-  img.role = 'bg';
+  img.role = 'gridcover';
   cv.add(img); cv.requestRenderAll(); syncCoverToState();
 }
+
+/* Make the whole book for me (Grid books, Make it from a topic): open the
+   book here, apply the publisher's specs, check every page and setting, and
+   make the submission packet. Anything only the person can fix (an ISBN the
+   publisher requires, say) stops it on the Publish tab with the list. */
+async function submitGridBook(g, pub) {
+  await importGridBook({ ...g, pub });
+  await applyPublisher();
+  const issues = await runChecks();
+  const errors = issues.filter(i => i.sev === 'error');
+  if (errors.length) {
+    showTab('publish');
+    toast(`Almost ready for ${PUBLISHERS[S.pub].short}: ${errors.length} thing${errors.length === 1 ? '' : 's'} to fix on the Publish tab, then Export the submission packet.`, 10000);
+    return { ready: false, errors: errors.map(e => e.msg) };
+  }
+  await exportPacket();
+  showTab('publish');
+  return { ready: true };
+}
+
 
 /* ---------- App shell ---------- */
 function fillPubSelects() {
@@ -2555,6 +2580,9 @@ async function gaGridBooks() {
       toast: (m) => toast(m, 5000),
       when: (t) => new Date(t).toLocaleString(),
       openInStudio: (book) => importGridBook(book),
+      // Make it from a topic: the publishers to choose from, and the whole path to a submission file.
+      publishers: Object.entries(PUBLISHERS).map(([id, p]) => ({ id, name: p.name })),
+      makeSubmission: (book, pub) => submitGridBook(book, pub),
     });
   } catch (e) {
     $('#books-body').textContent = e.message || 'Grid books did not load. Check your connection and try again.';
