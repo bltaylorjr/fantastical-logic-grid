@@ -3374,7 +3374,10 @@ const isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' 
 const isAndroid = /Android/i.test(ua);
 const isStandalone = () => !!(window.matchMedia?.('(display-mode: standalone)').matches || window.matchMedia?.('(display-mode: window-controls-overlay)').matches || navigator.standalone);
 let installEvent = null;
-if (!isDesktop && !isPortal) $('[data-cmd=install]').hidden = false;
+// Not in the iPhone and iPad app: it is already installed, and App Review
+// does not allow pointing players at other platforms' downloads.
+const isIOSApp = !!(window.FLGNative && window.FLGNative.platform === 'ios');
+if (!isDesktop && !isPortal && !isIOSApp) $('[data-cmd=install]').hidden = false;
 $('[data-cmd=site]').hidden = !isPortal;
 window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault();

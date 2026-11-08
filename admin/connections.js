@@ -981,6 +981,27 @@ export const CONNECTIONS = [
     ],
     steps: ['Paused. When the mobile apps resume, add both secrets from the private files.'],
     links: [{ label: 'GitHub secrets', url: `${REPO}/settings/secrets/actions` }],
+  },  {
+    id: 'ios-app-store',
+    group: 'apps',
+    title: 'iPhone and iPad app (App Store)',
+    why: 'Lets GitHub sign the iPhone and iPad app and send each new version to App Store Connect (TestFlight), with no Mac needed.',
+    cost: 'Apple Developer Program: $99 a year (Bobby approved, 2026-11-08). The App Store listing itself is free.',
+    docs: 'docs/APP-STORE.md',
+    names: [
+      { name: 'APP_STORE_CONNECT_KEY_ID', where: 'github-secret', optional: true, note: 'App Store Connect > Users and Access > Integrations > Team Keys: the Key ID.' },
+      { name: 'APP_STORE_CONNECT_ISSUER_ID', where: 'github-secret', optional: true, note: 'Shown above the keys list on the same page.' },
+      { name: 'APP_STORE_CONNECT_KEY_BASE64', where: 'github-secret', optional: true, note: 'The downloaded AuthKey_XXXX.p8 file, turned into base64.' },
+      { name: 'APPLE_TEAM_ID', where: 'github-variable', optional: true, note: 'developer.apple.com > Account > Membership details: Team ID (10 letters and numbers).' },
+    ],
+    steps: [
+      'Join the Apple Developer Program as an individual (developer.apple.com/programs/enroll).',
+      'Make an App Store Connect API key with the Admin role and download it (only once).',
+      ...GH_SECRET_STEPS('APP_STORE_CONNECT_KEY_ID', 'the Key ID'),
+      'Add the other two secrets and the APPLE_TEAM_ID variable the same way (full steps in docs/APP-STORE.md).',
+      'Run the "iPhone and iPad app" workflow by hand; the build shows in TestFlight about 15 minutes later.',
+    ],
+    links: [{ label: 'iOS workflow', url: `${REPO}/actions/workflows/ios.yml` }, { label: 'GitHub secrets', url: `${REPO}/settings/secrets/actions` }],
   },
 ];
 

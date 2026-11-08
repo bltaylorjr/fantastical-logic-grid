@@ -12,6 +12,8 @@ final class AppSchemeHandler: NSObject, WKURLSchemeHandler {
         guard let url = task.request.url else { return fail(task) }
         var path = url.path
         if path.isEmpty || path == "/" { path = "/index.html" }
+        // Folder pages (for example /privacy/) open their index.html, as on the website.
+        if path.hasSuffix("/") { path += "index.html" }
         // Everything is on the device already, so the offline service worker is not needed.
         if path.contains("..") || path == "/sw.js" { return notFound(task, url) }
         let file = root.appendingPathComponent(String(path.dropFirst()))

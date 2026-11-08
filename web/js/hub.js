@@ -141,7 +141,9 @@
     }
     var ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
     var iosNote = document.getElementById('install-ios');
-    if (iosNote && ios && navigator.standalone !== true) iosNote.hidden = false;
+    // Not inside the iPhone app itself, which is already on the home screen.
+    var inApp = !!(window.FLGNative && window.FLGNative.platform);
+    if (iosNote && ios && !inApp && navigator.standalone !== true) iosNote.hidden = false;
     loadShared();
     // Submit Puzzle Ideas (the Puzzle Wizard): the first click asks which puzzle to make (the link
     // still opens the wizard's own chooser where dialogs are not supported).
@@ -219,7 +221,8 @@
     if (!cloud || !window.fetch || preview) return;
     fetch(cloud.replace(/\/+$/, '') + '/v1/config').then(function (r) { return r.ok ? r.json() : null; }).then(function (c) {
       if (!c) return;
-      var url = c.game && c.game.supportUrl;
+      // App Store rule 3.1.1: no outside payment links in the iPhone and iPad app.
+      var url = window.FLGNative && window.FLGNative.platform === 'ios' ? '' : c.game && c.game.supportUrl;
       var support = document.getElementById('support-app');
       if (support && typeof url === 'string' && url.indexOf('https://') === 0) { support.href = url; support.hidden = false; }
       var items = Array.isArray(c.news) ? c.news.slice(0, 3) : [];

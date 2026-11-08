@@ -30,3 +30,8 @@ targets:
         SWIFT_VERSION: "5.0"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CODE_SIGN_STYLE: Automatic
+        # One app for iPhone and iPad; the App Store build sets the real version
+        # and build number (see .github/workflows/mobile.yml, job ios-app-store).
+        ENABLE_BITCODE: NO
+        SUPPORTS_MACCATALYST: NO
+        SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO

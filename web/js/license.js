@@ -156,7 +156,9 @@ export const shownKey = () => (store.getLocal(PASS) || {}).key || '';
 export async function gate(opts = {}) {
   if (opts.announce) announce = opts.announce;
   const platform = appPlatform();
-  if (!platform || !CLOUD_URL) return;
+  // The App Store does not allow an app to be unlocked with a key from outside
+  // the store (App Review Guideline 3.1.1), so the iPhone and iPad app never asks.
+  if (!platform || platform === 'ios' || !CLOUD_URL) return;
   $('#license-form').onsubmit = activate;
   const saved = store.getLocal(PASS);
   const keepChecking = () => setInterval(() => { const s = store.getLocal(PASS); if (s && !locked) recheck(s); }, LOOK_AGAIN_MS);
