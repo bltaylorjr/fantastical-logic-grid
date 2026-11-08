@@ -255,6 +255,19 @@ dialog::backdrop { background: rgba(10,14,20,.45); }
 .gate-links { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; }
 .linkbtn { background: none; border: 0; padding: 0; min-height: 44px; color: var(--accent); font: inherit; font-size: 13px; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
 .gate-error { color: var(--danger, #b42318) !important; font-weight: 600; }
+/* Sync (sync.js) and Get the app */
+#sbSync[data-kind="ok"]::before { content: "✓ "; color: var(--ok, #1a7f37); }
+#sbSync[data-kind="off"], #sbSync[data-kind="bad"] { color: var(--bad, #b42318); font-weight: 600; }
+.sy-box { border-top: 1px solid var(--line); margin-top: 14px; padding-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+.sy-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.sy-head h4 { margin: 0; font-size: 14px; }
+.sy-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 40vh; overflow: auto; }
+.sy-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; }
+.sy-item.here { border-color: var(--accent); }
+.sy-meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.sy-meta b { overflow-wrap: anywhere; }
+.sy-acts { display: flex; gap: 6px; }
+.app-way { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 10px 0; border-top: 1px solid var(--line); }
 
 
 /* Grid books (the dashboard's Books and covers) */

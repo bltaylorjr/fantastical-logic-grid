@@ -121,7 +121,7 @@ function wireShell() {
   // Project menu
   $('#projMenuBtn').onclick = () => { $('#projNewConfirm').hidden = true; openDlg('#dlgProject'); };
   $('#projSave').onclick = () => { syncPagesFromDom(); syncCoverToState(); saveFile(slug(S.meta.title) + '-project.json', JSON.stringify(S)); };
-  $('#projOpen').onclick = () => { const f = $('#fileProj'); f.value = ''; f.onchange = async () => { try { const d = JSON.parse(await f.files[0].text()); if (!d.pages) throw new Error('not a project file'); closeDlg('#dlgProject'); loadProject(d); toast('Opened ' + (d.meta?.title || 'project')); } catch (e) { toast('That file is not a Puzzle Book Studio project'); } }; f.click(); };
+  $('#projOpen').onclick = () => { const f = $('#fileProj'); f.value = ''; f.onchange = async () => { try { const d = JSON.parse(await f.files[0].text()); if (!d.pages) throw new Error('not a project file'); delete d.syncId; closeDlg('#dlgProject'); loadProject(d); toast('Opened ' + (d.meta?.title || 'project')); } catch (e) { toast('That file is not a Puzzle Book Studio project'); } }; f.click(); };
   $('#projSample').onclick = async () => { closeDlg('#dlgProject'); busy('Building the sample book'); await buildSample(); busy(false); showTab('manuscript'); };
   $('#projNew').onclick = () => { $('#projNewConfirm').hidden = false; };
   $('#projNewYes').onclick = () => { closeDlg('#dlgProject'); loadProject(blankProject()); if (cv) autoDesignCover(); toast('Started a blank book'); };
@@ -130,8 +130,11 @@ function wireShell() {
 async function init() {
   wireShell(); wireEditor(); wirePuzzles(); wireImport(); wireCover();
   const saved = await idbGet('current');
-  if (saved && saved.pages && saved.pages.length) { loadProject(saved); $('#sbSave').textContent = 'Restored from this browser'; }
+  const restored = !!(saved && saved.pages && saved.pages.length);
+  if (restored) { loadProject(saved); $('#sbSave').textContent = 'Restored from this browser'; }
   else { busy('Building the sample book'); await buildSample(); busy(false); $('#sbSave').textContent = 'Sample book loaded. Open Project to start your own.'; }
+  // Grid Admin build: fetch this account's books, open the newest on a new device (sync.js).
+  if (typeof syStart === 'function') syStart({ restored });
   const h = (location.hash || '').slice(1); if (['cover', 'details', 'publish'].includes(h) || (h === 'gridbooks' && !$('[data-tab=gridbooks]').hidden)) showTab(h);
   window.addEventListener('hashchange', () => { const t = location.hash.slice(1); if (['manuscript', 'cover', 'details', 'publish', 'gridbooks'].includes(t) && t !== currentTab) { const back = tabTrail[tabTrail.length - 1] === t; if (back) tabTrail.pop(); showTab(t, { back }); } });
   document.fonts && document.fonts.ready.then(() => checkAllOverflow());

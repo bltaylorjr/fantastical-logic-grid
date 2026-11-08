@@ -134,7 +134,10 @@ function markDirty() {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(async () => {
     syncPagesFromDom(); if (typeof syncCoverToState === 'function') syncCoverToState();
-    const ok = await idbPut('current', JSON.parse(JSON.stringify(S)));
+    const snap = JSON.stringify(S);
+    const ok = await idbPut('current', JSON.parse(snap));
     $('#sbSave').textContent = ok ? 'Saved in this browser' : 'Not saved: browser storage is unavailable. Save a project file.';
+    // Grid Admin build: also sync the book to the account (sync.js).
+    if (typeof syChanged === 'function') syChanged(snap);
   }, 1200);
 }
