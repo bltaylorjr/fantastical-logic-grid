@@ -48,8 +48,10 @@ removes it from the account. The status bar says Synced, Offline or what went wr
 
 - Books belong to the account that saved them; nobody else sees them. Up to 15 MB a book,
   200 books and 300 MB per account (pictures are most of the size).
-- If two devices change the same book before syncing, nothing is overwritten: the second
-  device's version is kept as its own book, "Title (Windows copy)".
+- Every app and device works on the same book, never a copy. If two devices change it
+  before syncing, the changes are merged into that one book (`syMerge` in `src/sync.js`):
+  a setting or page changed on only one device keeps that change, pages added on either
+  are kept, and where both changed the same thing the newest edit wins.
 - One browser, two people: the book left open by one account is set aside for them, never
   synced to the next account that signs in.
 - **Get the app** (top bar, hidden inside the app): the Windows app (`desktop-book-studio/`,
