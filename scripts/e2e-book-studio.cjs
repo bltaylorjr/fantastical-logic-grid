@@ -261,15 +261,23 @@ const SHOTS = process.env.SHOTS;
     // read back while still loading, so the book was sent straight back as a new save.
     await page.waitForFunction(() => !syPending(syCurrent()), null, { timeout: 20000 });
     assert(await page.evaluate(() => syRev(S.syncId)) === 2, 'a book opened from the account is not sent straight back');
-    await other.evaluate(() => { S.meta.title = 'Second device again'; markDirty(); });
-    await other.waitForFunction(() => syRev(S.syncId) === 3, null, { timeout: 40000 });
-    await page.evaluate(() => { S.meta.title = 'First device, not synced yet'; markDirty(); });
-    await page.waitForFunction(() => /copy\)$/.test(S.meta.title) && /^Synced/.test(document.querySelector('#sbSync').textContent), null, { timeout: 40000 });
+    // Both devices change the book before either has the other's changes: the
+    // changes are merged into the same book, never a copy.
+    const before = await page.evaluate(() => S.pages.length);
+    await other.evaluate(() => { S.meta.title = 'Second device again'; addPageAfter(S.pages.length - 1, '<p>Added on the second device</p>'); });
+    await other.waitForFunction((n) => syRev(S.syncId) >= 3 && S.pages.length === n + 1 && /^Synced/.test(document.querySelector('#sbSync').textContent), before, { timeout: 40000 });
+    await page.evaluate(() => { S.meta.subtitle = 'Subtitle from the first device'; S.meta.title = 'First device, not synced yet'; fillMetaForm(); markDirty(); });
+    await page.waitForFunction((n) => S.pages.length === n + 1 && S.meta.title === 'First device, not synced yet' && /^Synced/.test(document.querySelector('#sbSync').textContent) && !syPending(syCurrent()), before, { timeout: 60000 })
+      .catch(async (e) => { console.log(await page.evaluate(() => [document.querySelector('#sbSync').textContent, S.meta.title, S.pages.length, syRev(S.syncId)])); throw e; });
     mine = await books();
-    assert(mine.length === 2 && mine[0].title === 'Second device again' && /^First device, not synced yet \(.+ copy\)$/.test(mine[1].title), 'changes made on two devices at once are both kept (one as a copy)');
+    assert(mine.length === 1 && mine[0].id === bookId && mine[0].title === 'First device, not synced yet', `changes made on two devices at once go into the same book, not a copy (${mine.map((b) => b.title).join(' | ')})`);
+    assert(await page.evaluate(() => S.pages.some((p) => /Added on the second device/.test(p.html)) && S.meta.subtitle === 'Subtitle from the first device'), 'the page added on one device and the subtitle set on the other are both in the book');
+    await other.evaluate(() => syCheck({ force: true }));
+    await other.waitForFunction(() => S.meta.title === 'First device, not synced yet' && S.meta.subtitle === 'Subtitle from the first device', null, { timeout: 30000 });
+    assert(true, 'the second device opens the merged book');
     await page.click('#projMenuBtn');
-    await page.waitForFunction(() => document.querySelectorAll('#syList .sy-item').length === 2);
-    assert(true, 'Project lists the books on the account');
+    await page.waitForFunction(() => document.querySelectorAll('#syList .sy-item').length === 1);
+    assert(true, 'Project lists the one book on the account');
     await page.click('#dlgProject [data-close]');
     await other.context().close();
 
@@ -288,7 +296,7 @@ const SHOTS = process.env.SHOTS;
     await page.context().setOffline(true);
     await page.reload();
     await page.waitForFunction(() => !document.querySelector('#app').hidden && /^Offline/.test(document.querySelector('#sbSync').textContent), null, { timeout: 30000 });
-    assert((await page.evaluate(() => S.meta.title)).includes('copy'), 'with no connection Book Studio opens with the book from this device');
+    assert((await page.evaluate(() => S.meta.title)) === 'First device, not synced yet', 'with no connection Book Studio opens with the book from this device');
     await page.context().setOffline(false);
     await page.context().close();
 
