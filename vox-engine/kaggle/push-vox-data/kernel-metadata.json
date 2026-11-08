@@ -1,0 +1,14 @@
+{
+ "id": "bobby/vox-data",
+ "title": "vox-data",
+ "code_file": "prepare_data.py",
+ "language": "python",
+ "kernel_type": "script",
+ "is_private": true,
+ "enable_gpu": false,
+ "enable_internet": true,
+ "dataset_sources": [],
+ "kernel_sources": [],
+ "competition_sources": [],
+ "model_sources": []
+}

@@ -65,6 +65,7 @@ jobs:
             ${{ secrets.GMAIL_APP_PASSWORD != '' && 'GMAIL_APP_PASSWORD' || '' }}
             ${{ secrets.GMAIL_USER != '' && 'GMAIL_USER' || '' }}
             ${{ secrets.INSTAGRAM_ACCOUNT_ID != '' && 'INSTAGRAM_ACCOUNT_ID' || '' }}
+            ${{ secrets.KAGGLE_API_TOKEN != '' && 'KAGGLE_API_TOKEN' || '' }}
             ${{ secrets.LINKEDIN_TOKEN != '' && 'LINKEDIN_TOKEN' || '' }}
             ${{ secrets.MASTODON_TOKEN != '' && 'MASTODON_TOKEN' || '' }}
             ${{ secrets.META_PAGE_ID != '' && 'META_PAGE_ID' || '' }}

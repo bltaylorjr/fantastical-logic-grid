@@ -175,7 +175,8 @@ if [ ! -s /opt/flg/vox.env ]; then echo "VOX_KEY=$(openssl rand -hex 32)" > /opt
 chmod 600 /opt/flg/vox.env
 mkdir -p /opt/flg-vox/image && cat > /opt/flg-vox/image/Dockerfile <<'EOF'
 FROM python:3.12-slim-bookworm
-RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg libsndfile1 ca-certificates \
+# espeak-ng: the base voices' pronunciation (vox/base.py); ARM has no bundled copy
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg libsndfile1 espeak-ng ca-certificates \
  && rm -rf /var/lib/apt/lists/* && useradd -u 1000 -m vox
 USER vox
 EOF

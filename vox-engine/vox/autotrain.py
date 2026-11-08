@@ -103,6 +103,10 @@ class Settings:
     max_load: float = 1.5          # skip a round when the machine is busier than this
     vocoder_every: int = 3         # train the vocoder every Nth round
     min_gain: float = 0.02         # how much better (word accuracy) a model must be to go live
+    # Vox's own model learns on a free GPU (kaggle/); a processor is far too slow
+    # to teach it speech, so training here is off unless there's a GPU or you
+    # turn it on (for fine-tuning a model that already speaks).
+    local_training: bool = False
 
 
 USAGE_FILE = os.environ.get("VOX_USAGE_FILE", "/srv/vox/usage.json")
@@ -227,7 +231,9 @@ class AutoTrainer:
                 "skipped": dict(s["skipped"].most_common(8)), "used_gb": round(self.used_bytes() / 1e9, 2),
                 "in_window": self.in_window(),
                 "whisper": __import__("importlib.util").util.find_spec("faster_whisper") is not None,
-                "server_maintenance": self._read_maintenance(), "server_usage": server_usage()}
+                "server_maintenance": self._read_maintenance(), "server_usage": server_usage(),
+                "voice_source": {**__import__("vox.base", fromlist=["x"]).voice_source(self.root), "speaking": self.engine.source},
+                "gpu": self.gpu_status()}
 
     @staticmethod
     def _read_maintenance():
@@ -536,8 +542,16 @@ class AutoTrainer:
             msg = "Training paused to stay within the free allowance (essential work only)."
             self.job["message"] = msg
             return {"trained": False, "why": msg}
+        imported = self.import_gpu_model()
+        if imported:
+            return {"trained": False, "imported": imported, "why": "Checked the newest model from the free GPU."}
         if not force and self.state["new_clips"] < self.settings.min_new_clips:
             msg = f"Waiting for more clips ({self.state['new_clips']} of {self.settings.min_new_clips})."
+            self.job["message"] = msg
+            return {"trained": False, "why": msg}
+        if not (self.settings.local_training or torch.cuda.is_available()):
+            msg = ("Vox's own model trains on the free GPU (Kaggle); this computer gathers words, "
+                   "checks how clearly Vox speaks and tries each new model from the GPU.")
             self.job["message"] = msg
             return {"trained": False, "why": msg}
         train_p, n = self._split()
@@ -554,8 +568,8 @@ class AutoTrainer:
             cfg.train.log_every, cfg.train.save_every = 20, 10 ** 9
         step0 = 0
         if resume:
-            step0 = int(torch.load(resume, map_location="cpu", weights_only=False).get("extras", {})
-                        .get("train_state", {}).get("step", 0))
+            step0 = int((torch.load(resume, map_location="cpu", weights_only=False).get("train_state") or {})
+                        .get("step", 0))
         speed = self.state["last"].get("secs_per_step") or 4.0
         steps = max(20, int(self.settings.train_minutes * 60 / speed))
         self.job.update(phase="train", message=f"Training ({steps} steps, about {self.settings.train_minutes} minutes)", progress=0.1)
@@ -581,6 +595,7 @@ class AutoTrainer:
             voice = "narrator" if "narrator" in eng.voices.names() else (eng.voices.names() or ["narrator"])[0]
         else:                    # its own test voice, so a model of another size can't trip over saved voices
             eng = VoxEngine(model_path, voices_dir=self.dir / "eval-voices", cache_dir=None, device="cpu")
+            eng.source = "own"                 # the candidate itself, never the base voices
             if "eval" not in eng.voices.names():
                 eng.design_voice("clear neutral narrator", seed=1, name="eval")
             voice = "eval"
@@ -591,31 +606,87 @@ class AutoTrainer:
                     res = eng.speak(line, voice=voice, seed=100 + i)
             else:
                 res = eng.speak(line, voice=voice, seed=100 + i)
-            heard = set(re.sub(r"[^a-z' ]", " ", self._transcribe(res.audio, res.sample_rate)[0].lower()).split())
+            heard = set(re.sub(r"[^a-z' ]", " ", self._transcribe(res.wav, res.sample_rate)[0].lower()).split())
             want = re.sub(r"[^a-z' ]", " ", line.lower()).split()
             hit += sum(1 for w in want if w in heard)
             total += len(want)
         return hit / max(1, total)
 
     def evaluate_and_promote(self, ckpt: Path) -> dict:
-        self.job.update(phase="check", message="Checking the new model against the live one", progress=0.8)
+        """Go live with ckpt if Whisper hears more of the test lines from it than
+        from what speaks now (the base voices, or the live model)."""
+        from . import base as basevox
+        self.job.update(phase="check", message="Checking the new model against the live voices", progress=0.8)
         new = self._word_accuracy(str(ckpt))
         live = self._word_accuracy(None)
-        out = {"candidate": round(new, 3), "live": round(live, 3), "promoted": False}
-        if new >= live + self.settings.min_gain:
+        was = self.engine.source
+        out = {"candidate": round(new, 3), "live": round(live, 3), "against": was, "promoted": False}
+        if self.asr is not None and new >= live + self.settings.min_gain:
             live_dir = self.root / "runs" / "v1"
             live_dir.mkdir(parents=True, exist_ok=True)
             if (live_dir / "vox.pt").exists():
                 shutil.copy2(live_dir / "vox.pt", live_dir / "previous.pt")
             shutil.copy2(ckpt, live_dir / "vox.pt")
+            info = {"own_accuracy": round(new, 3), "at": time.time()}
+            if was == "base":
+                info["base_accuracy"] = round(live, 3)
+            basevox.set_voice_source(self.root, "own", **info)
             with self.lock:
                 self.engine.reload(live_dir / "vox.pt")
             out["promoted"] = True
+        elif was == "base":
+            self.state["last"]["base_accuracy"] = round(live, 3)
         return out
 
+    # ------------------------------------------------- models from the free GPU
+    def gpu_status(self) -> dict | None:
+        """Where training on the free GPU stands (written by vox-gpu-train.yml)."""
+        for d in self.gpu_dirs():
+            out = {}
+            for name in ("gpu-status.json", "progress.json"):
+                try:
+                    out[name.split(".")[0].replace("-", "_")] = json.loads((d / name).read_text())
+                except Exception:
+                    pass
+            if out:
+                p = out.get("progress") or {}
+                return {"report": out.get("gpu_status"), "step": p.get("step"), "gpu_hours": p.get("gpu_hours"),
+                        "sessions": (p.get("sessions") or [])[-5:], "last_tried": self.state["last"].get("gpu_model")}
+        return {"last_tried": self.state["last"].get("gpu_model")} if self.state["last"].get("gpu_model") else None
+
+    def gpu_dirs(self) -> list[Path]:
+        """Where models trained on the free GPU arrive (kaggle/ and the
+        vox-gpu-train workflow put them in the server's models folder)."""
+        dirs = [Path(os.environ.get("VOX_GPU_MODELS", "/srv/vox/models")), self.dir / "gpu"]
+        return [d for d in dirs if d.is_dir()]
+
+    def import_gpu_model(self) -> dict | None:
+        """Try the newest model from the free GPU that hasn't been tried yet."""
+        seen = self.state.setdefault("gpu_seen", [])
+        found = sorted((p for d in self.gpu_dirs() for p in d.glob("vox-*.pt")), key=lambda p: p.stat().st_mtime)
+        new = [p for p in found if f"{p.name}:{int(p.stat().st_mtime)}" not in seen]
+        if not new:
+            return None
+        ckpt = new[-1]
+        self.job.update(phase="check", message=f"Trying the newest model from the free GPU ({ckpt.name})", progress=0.5)
+        res = self.evaluate_and_promote(ckpt)
+        seen.extend(f"{p.name}:{int(p.stat().st_mtime)}" for p in new)
+        del seen[:-200]
+        self.state["last"]["gpu_model"] = {"file": ckpt.name, **res, "at": time.time()}
+        self.save()
+        return {"file": ckpt.name, **res}
+
     def rollback(self) -> bool:
+        """The previous live model, or the base voices if Vox's own model was the
+        first to go live."""
+        from . import base as basevox
         live_dir = self.root / "runs" / "v1"
         if not (live_dir / "previous.pt").exists():
+            if self.engine.source == "own" and basevox.voice_source(self.root).get("source") == "own":
+                basevox.set_voice_source(self.root, "base", at=time.time(), rolled_back=True)
+                with self.lock:
+                    self.engine.refresh_source()
+                return True
             return False
         shutil.copy2(live_dir / "previous.pt", live_dir / "vox.pt")
         with self.lock:
@@ -640,7 +711,7 @@ class AutoTrainer:
             self.job.update(phase="scan", message=f"Checking how clearly Vox says “{w}”", progress=i / n_words)
             with self.lock:
                 res = self.engine.speak(f"{w}.", voice=voice, seed=7)
-            heard = re.sub(r"[^a-z' ]", "", self._transcribe(res.audio, res.sample_rate)[0].lower()).split()
+            heard = re.sub(r"[^a-z' ]", "", self._transcribe(res.wav, res.sample_rate)[0].lower()).split()
             if w.lower() in heard:
                 hit += 1
             else:

@@ -204,6 +204,28 @@ uses a secret, variable or binding that is not listed there.
 
 **Links:** [Workers VPC](https://dash.cloudflare.com/?to=/:account/workers/vpc/tunnels) · [GitHub variables](https://github.com/bltaylorjr/fantastical-logic-grid/settings/variables/actions) · [Full guide (docs/VOX-SERVER.md)](https://github.com/bltaylorjr/fantastical-logic-grid/blob/main/docs/VOX-SERVER.md)
 
+### Vox training on the free GPU (Kaggle)
+
+**Why:** Vox's own voice model needs a GPU to learn speech; a processor would take months. Kaggle gives about 30 free GPU hours a week. The workflow "Train Vox on the free GPU" prepares openly licensed speech once (LJSpeech, public domain; VCTK and LibriTTS-R, CC BY 4.0), trains a session at a time within 24 hours a week, and hands each new model to Vox on the Oracle server. Vox switches to it by itself once Whisper hears it more clearly than the base voices; until then the base voices speak. Without these, the base voices keep speaking and nothing trains.
+
+**Cost:** Free: a Kaggle account (phone verification turns on its GPU). Everything it makes on Kaggle is private.
+
+| Name | Where | Notes |
+| --- | --- | --- |
+| `KAGGLE_API_TOKEN` | GitHub repository secret | Kaggle: your picture > Settings > API > Generate New Token. Optional. |
+| `KAGGLE_USERNAME` | GitHub repository variable | Your Kaggle username (shown in your profile address, kaggle.com/<username>). Optional. |
+
+**Steps:**
+
+1. Make a free account at <https://www.kaggle.com> (your email or Google account), then in **Settings** choose **Phone verification**: Kaggle only allows GPU use after it.
+2. In Kaggle **Settings** > **API**, choose **Generate New Token** and copy it (it isn't shown again).
+3. Open <https://github.com/bltaylorjr/fantastical-logic-grid/settings/secrets/actions> and click **New repository secret** (or the pencil next to `KAGGLE_API_TOKEN`).
+4. Name: `KAGGLE_API_TOKEN`. Secret: the token you just copied. Click **Add secret**.
+5. Add the variable `KAGGLE_USERNAME` = your Kaggle username at <https://github.com/bltaylorjr/fantastical-logic-grid/settings/variables/actions>.
+6. Run **Train Vox on the free GPU** once from the Actions tab (it then runs every 4 hours by itself). The first run prepares the data (a few hours on Kaggle's CPU); the first training session starts on the next run.
+
+**Links:** [Kaggle API settings](https://www.kaggle.com/settings) · [GitHub secrets](https://github.com/bltaylorjr/fantastical-logic-grid/settings/secrets/actions) · [Full guide (docs/VOX-GPU-TRAINING.md)](https://github.com/bltaylorjr/fantastical-logic-grid/blob/main/docs/VOX-GPU-TRAINING.md)
+
 ### Dependabot and GitHub security
 
 **Why:** Dependabot opens a tested pull request when a library has an update (patch and minor updates merge themselves). Secret scanning and push protection stop a key from being pushed by mistake.

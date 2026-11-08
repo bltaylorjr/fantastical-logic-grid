@@ -452,9 +452,29 @@ function showOpen(message = '') {
   watchEngine();
 }
 
+// Which model is speaking (vox/base.py): the base voices give real speech from
+// the start; Vox's own model takes over once Whisper hears it more clearly.
+let baseJob = null;
+function sourceLine(health) {
+  const src = health.voice_source || {};
+  const b = health.base_voices || {};
+  if (src.speaking === 'own') {
+    const why = src.source === 'own'
+      ? `Vox's own model, which beat the base voices${src.own_accuracy != null ? ` (${Math.round(src.own_accuracy * 100)}% of words heard vs ${Math.round((src.base_accuracy || 0) * 100)}%)` : ''}`
+      : b.error ? "Vox's own model, because the base voices couldn't be set up" : b.message ? "Vox's own model for now (getting the base voices ready)" : "Vox's own model";
+    const busy = baseJob && !baseJob.done;
+    return `<p class="muted" role="status">Speaking with <b>${h.esc(why)}</b>.${src.source !== 'own' && !src.forced ? ' Until it has trained on enough speech it only makes noise, so Vox uses the base voices as soon as they\'re ready.' : ''}</p>
+      ${busy ? `<p aria-live="polite">${h.esc(baseJob.message)}</p><progress max="1" value="${Number(baseJob.progress) || 0}" aria-label="Setting up the base voices"></progress>`
+      : b.message && !b.error ? `<p class="muted" aria-live="polite">${h.esc(b.message)}…</p>`
+      : src.source !== 'own' && !src.forced ? `${b.error || baseJob?.failed ? `<p class="error" role="alert">${h.esc(baseJob?.message || b.error)}</p>` : ''}<div class="row"><button class="btn primary" type="button" id="vx-base">Set up the base voices</button></div>` : ''}`;
+  }
+  return `<p class="muted" role="status">Speaking with <b>the base voices</b> (Kokoro, open source) while Vox's own model learns on a free GPU. Age, dialect and delivery are Vox's. It switches to Vox's own model by itself once Whisper hears that one more clearly.</p>`;
+}
+
 function shell(health) {
   const tabs = TABS.map(([k, label]) => `<label class="tab"><input type="radio" name="vx-tab" value="${k}"${k === tab ? ' checked' : ''}> ${label}</label>`).join('');
-  return `<div class="row vx-status"><p class="muted">Connected to <b>${h.esc(conn.server ? 'Vox on the server' : conn.linked ? 'Vox on your Windows PC' : conn.url)}</b>${health.public ? ' <span class="badge ok">online</span>' : ''}${desk && publishedUrl ? ' · <span class="muted">your other devices can open it too</span>' : ''} · model <b>${h.esc(health.version || '–')}</b> · ${h.esc(health.device)}${health.vocoder_trained ? '' : ' · <span class="badge warn">vocoder not trained yet</span>'}</p>
+  return `<div class="row vx-status"><p class="muted">Connected to <b>${h.esc(conn.server ? 'Vox on the server' : conn.linked ? 'Vox on your Windows PC' : conn.url)}</b>${health.public ? ' <span class="badge ok">online</span>' : ''}${desk && publishedUrl ? ' · <span class="muted">your other devices can open it too</span>' : ''} · model <b>${h.esc(health.version || '–')}</b> · ${h.esc(health.device)}${health.voice_source?.speaking === 'base' || health.vocoder_trained ? '' : ' · <span class="badge warn">vocoder not trained yet</span>'}</p>
+      ${sourceLine(health)}
       <div class="row">${conn.server ? (desk ? '<button class="btn small link" type="button" id="vx-where-local">Use Vox on this computer instead</button>' : '') : '<button class="btn small" type="button" id="vx-studio">Open Voice Studio</button>'}${desk && !conn.server && serverState?.ready ? '<button class="btn small" type="button" id="vx-where-server">Use Vox on the server</button>' : ''}${desk ? '<button class="btn small" type="button" id="vx-app-stop">Stop Vox</button>' : ''}
       ${conn.linked || conn.server ? '' : '<button class="btn small link" type="button" id="vx-forget">Disconnect</button>'}</div></div>
     ${health.learning ? '' : '<p class="note">Learning is off on this engine (it was started with --no-learning). Start it without that option to use this page fully.</p>'}
@@ -480,6 +500,17 @@ function autoCard(a) {
     r.phase === 'gather' ? `${h.fmt(r.added)} new clips` : r.phase === 'train' ? `${h.fmt(r.steps)} steps · ${pct(r.candidate * 100)}% vs ${pct(r.live * 100)}% of words heard · ${r.promoted ? '<span class="badge ok">New model live</span>' : '<span class="badge">Kept the live one</span>'}` : r.phase === 'cleanup' ? `freed ${h.fmt(r.freed_mb)} MB${r.dropped_clips ? `, removed ${h.fmt(r.dropped_clips)} noisy clips` : ''}` : ''], 0);
   const m = a.server_maintenance;
   const u = a.server_usage;
+  // Vox's own model, trained on Kaggle's free GPU (kaggle/, vox-gpu-train.yml)
+  const g = a.gpu;
+  const tried = g?.last_tried;
+  const gpuCard = `<div class="card" role="status"><h3>Vox's own model (free GPU)</h3>
+      ${g && (g.step != null || g.report) ? `<div class="tiles">
+        ${h.tile('Training steps', h.fmt(g.step || 0), g.gpu_hours != null ? `${h.fmt(g.gpu_hours)} GPU hours so far` : '')}
+        ${h.tile('Last session', g.sessions?.length ? h.when(Date.parse(g.sessions.at(-1).at)) : '–', g.sessions?.length ? `${g.sessions.at(-1).hours} h on ${h.esc(g.sessions.at(-1).gpu || 'GPU')}` : '')}
+        ${h.tile('Last check', tried ? `${pct(tried.candidate * 100)}% vs ${pct(tried.live * 100)}%` : 'Not yet', tried ? `of the test words heard, against ${tried.against === 'base' ? 'the base voices' : 'the live model'}${tried.promoted ? ' · now live' : ''}` : 'Each new model is tried overnight')}
+      </div>${g.report?.notes?.length ? `<p class="muted">${h.esc(g.report.notes.at(-1))} <span class="muted">(${h.when(Date.parse(g.report.at))})</span></p>` : ''}`
+      : '<p class="muted">Not started. It trains on Kaggle\'s free GPU once the Kaggle token is added to GitHub (docs/VOX-GPU-TRAINING.md). Until it beats the base voices, they keep speaking.</p>'}
+      <p class="muted">Learns to speak from about 120 hours of openly licensed recordings (LJSpeech, public domain; VCTK and LibriTTS-R, CC BY 4.0), a session of up to 8 hours at a time, within 24 GPU hours a week. It usually takes a few weeks before it speaks clearly; Vox switches to it by itself the night it beats the base voices.</p></div>`;
   const LEVEL = ['Normal', 'Careful: gathering at half speed', 'Throttled: no downloads, training only', 'Essential only: serving voices, nothing else'];
   const tb = (b) => (b / 1e12).toFixed(2);
   const usageCard = u ? `<div class="card ${u.level >= 2 ? 'warn' : ''}" role="status"><h3>Free-tier guard</h3>
@@ -493,6 +524,7 @@ function autoCard(a) {
   return `<details class="card vx-settings" open><summary><h2>Automatic training</h2></summary>
     <p class="muted">Each night (${S.start_hour}:00 to ${S.end_hour}:00) while the machine is quiet, Vox searches openly licensed recordings one plain dictionary word at a time (no names, places or channels), keeps the clear speech, and Whisper writes what's said and in which language. It learns each dialect's pace and melody from recordings that name their region, counts every word it hears per language, trains, and puts a new model live only if Whisper hears more of its words than the live one's. It stays within ${S.budget_gb} GB.</p>
     ${a.whisper ? '' : '<p class="note">Needs Whisper: install it with the button below.</p>'}
+    ${gpuCard}
     ${usageCard}
     <div class="tiles">
       ${h.tile('Status', a.running ? h.esc(a.phase) : S.enabled ? (a.in_window ? 'Starting tonight’s round' : 'Waiting for tonight') : 'Off')}
@@ -1406,6 +1438,20 @@ export function initVoiceEngine(helpers) {
     if (b.id === 'vx-at-back') {
       if (!(await h.ask({ title: 'Go back to the previous model?', text: 'The model that was live before the last automatic training goes back into use.', ok: 'Go back' }))) return;
       await h.act(b, async () => { await vox('/v1/admin/autotrain/rollback', { method: 'POST' }); await renderTab(); }, 'The previous model is back in use.');
+      return;
+    }
+    if (b.id === 'vx-base') {
+      await h.act(b, async () => {
+        const { job } = await vox('/v1/admin/base/install', { method: 'POST' });
+        baseJob = { id: job, message: 'Starting…', progress: 0, done: false };
+        const tick = async () => {
+          try { baseJob = { id: job, ...(await vox(`/v1/admin/jobs/${job}`)) }; } catch (err) { baseJob = { id: job, done: true, failed: true, message: err.message }; }
+          if (location.hash === '#voice-engine') await render();
+          if (!baseJob.done) setTimeout(tick, 3000);
+          else if (!baseJob.failed) h.toast('The base voices are ready. Vox speaks with them now.');
+        };
+        await tick();
+      });
       return;
     }
     if (b.id === 'vx-whisper') {
