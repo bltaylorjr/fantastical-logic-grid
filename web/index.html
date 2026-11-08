@@ -796,6 +796,10 @@
     <p class="help">An account keeps your puzzles in step on all your devices. Puzzles already on this device are added to it.</p>
     <div class="field"><label for="su-email">Email</label><input type="email" id="su-email" name="email" autocomplete="username email" inputmode="email" spellcheck="false" required></div>
     <div class="field"><label for="su-pass">Password</label><input type="password" id="su-pass" name="password" autocomplete="new-password" minlength="8" required aria-describedby="su-pass-help"><p class="help" id="su-pass-help">At least 8 characters. A short phrase is easy to remember.</p></div>
+    <div class="field" id="su-name-box"><label for="su-name">Screen name</label>
+      <div class="name-row"><input type="text" id="su-name" name="nickname" maxlength="20" autocomplete="nickname" spellcheck="false" required aria-describedby="su-name-help"><button class="btn" type="button" id="su-name-suggest">Suggest another</button></div>
+      <p class="help" id="su-name-help">Every account has a screen name: the only name other players see, on the scoreboard and in races, never your email. We made one up for you. Keep it, press Suggest another, or type your own (3 to 20 letters or numbers).</p>
+      <p class="sr-only" id="su-name-said" aria-live="polite"></p></div>
     <label class="check"><input type="checkbox" data-show-pass> Show password</label>
     <label class="check"><input type="checkbox" data-remember checked> Keep me signed in on this device</label>
     <p class="help">We keep only your email and your game data (saved puzzles, progress, used stories and settings, but never your API keys). You can delete your account and all of it at any time from this window.</p>
