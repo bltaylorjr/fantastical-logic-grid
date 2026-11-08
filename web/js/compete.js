@@ -48,11 +48,19 @@ export function cachedName() {
   const user = account.current();
   return p && user && p.uid === user.uid ? p.screenName : null;
 }
+// Pages that show the name hear about every change, such as the name chosen
+// in the Create an account form.
+const nameWatchers = new Set();
+export function onName(fn) { nameWatchers.add(fn); return () => nameWatchers.delete(fn); }
 function remember(screenName) {
   const user = account.current();
   store.setLocal(PROFILE, user && screenName ? { uid: user.uid, screenName } : undefined);
+  for (const fn of nameWatchers) { try { fn(screenName); } catch (e) { /* one page's problem */ } }
   return screenName;
 }
+// A load that started before a newer save (sign-up loads and saves at nearly
+// the same moment) must not put back the old, empty name.
+let nameSeq = 0;
 let acceptInvites = true;
 // False while an admin has not approved a new or changed name yet: other
 // players see "New player" until then.
@@ -60,23 +68,33 @@ let nameApproved = true;
 export const isNameApproved = () => nameApproved;
 export const acceptsInvites = () => acceptInvites;
 export async function loadName() {
+  const seq = ++nameSeq;
   const r = await call('/v1/profile');
+  if (seq !== nameSeq) return cachedName();
   acceptInvites = r.acceptInvites !== false;
   nameApproved = r.nameApproved !== false;
   return remember(r.screenName);
 }
 export async function setName(screenName, accept = acceptInvites) {
+  nameSeq++;
   const r = await call('/v1/profile', { method: 'PUT', body: { screenName, acceptInvites: !!accept } });
   acceptInvites = r.acceptInvites !== false;
   nameApproved = r.nameApproved !== false;
   return remember(r.screenName);
+}
+// Before an account is made: would the server take this name? Resolves with
+// the tidied name, or throws a CompeteError with the reason for the player.
+// { namesOff: true } when the dashboard has switched new names off.
+export async function checkName(screenName) {
+  const r = await call('/v1/names/check', { method: 'POST', body: { screenName }, auth: false });
+  return r.namesOff ? { namesOff: true } : { screenName: r.screenName };
 }
 export async function setAcceptInvites(accept) {
   const r = await call('/v1/profile', { method: 'PUT', body: { acceptInvites: !!accept } });
   acceptInvites = r.acceptInvites !== false;
   return acceptInvites;
 }
-export async function leave() { await call('/v1/profile', { method: 'DELETE' }); remember(null); }
+export async function leave() { nameSeq++; await call('/v1/profile', { method: 'DELETE' }); remember(null); }
 export function forget() { store.setLocal(PROFILE, undefined); }
 
 // Quick checks before asking the server, which has the full rules.

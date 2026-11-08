@@ -17,3 +17,5 @@
 .ac-err:empty { display: none; }
 #sync-line { display: none !important; }
 .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); max-width: min(90vw, 480px); padding: 12px 18px; border-radius: 12px; background: var(--text); color: var(--bg); font-weight: 700; z-index: 10; }
+/* A signed-in player without a screen name: this card comes first and stands out. */
+.ac-card#ac-name.needed { border: 2px solid var(--accent, currentColor); }

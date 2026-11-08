@@ -1,6 +1,7 @@
 // The Account and sync window, and the sync line above Saved puzzles.
 // Accounts are optional: everything works the same without one.
 import * as account from './account.js';
+import * as compete from './compete.js';
 import * as sync from './sync.js';
 import * as store from './store.js';
 import * as biometric from './biometric.js';
@@ -17,6 +18,9 @@ let ui = null;
 // Where to pick up after an idle sign-out: { uid, email, saveId }.
 const RESUME = 'resumeAfterSignIn';
 const bioOn = () => feature('biometrics');
+// Every new account gets a screen name in the Create an account form, unless
+// the dashboard has switched new names off.
+const namesOn = () => compete.enabled() && feature('names');
 let starting = false;
 let leaving = false;
 let countdown = null;
@@ -201,6 +205,10 @@ function show(view) {
     renderBio();
   }
   if (view === 'signin') renderSignin();
+  if (view === 'signup') {
+    $('#su-name-box').hidden = !namesOn();
+    if (!$('#su-name').value) $('#su-name').value = compete.suggestName();
+  }
   if (view === 'signout') $('#so-clear').checked = false;
   dlg().dataset.current = view;
 }
@@ -319,15 +327,44 @@ function wireDialog() {
     if (!email) return;
     const pass = $('#su-pass');
     if (pass.value.length < 8) { fail(signupForm, 'Choose a password with at least 8 characters.', pass); return; }
+    const nameInput = $('#su-name');
+    const wantName = namesOn() ? nameInput.value.trim().replace(/\s+/g, ' ') : '';
+    const nameIssue = namesOn() && compete.nameProblem(wantName);
+    if (nameIssue) { fail(signupForm, `Screen name: ${nameIssue}`, nameInput); return; }
     busy(signupForm, 'Creating your account…', async () => {
+      // No account is made until its screen name is known to be free and allowed.
+      let namesOff = false;
+      if (wantName) {
+        try { namesOff = !!(await compete.checkName(wantName)).namesOff; } catch (err) {
+          fail(signupForm, err.code === 'OFFLINE' ? 'You seem to be offline. Connect to the internet to create an account.' : `Screen name: ${err.message}`, err.code === 'OFFLINE' ? null : nameInput);
+          return;
+        }
+      }
       try {
         await account.signUp(email, pass.value, { remember: $('[data-remember]', signupForm).checked });
-        pass.value = '';
-        show('account');
-        focusView();
-        ui.toast('Account created. Your puzzles on this device are being added to it.');
-      } catch (err) { fail(signupForm, err.message, err.code === 'EMAIL_EXISTS' || err.code === 'INVALID_EMAIL' ? $('#su-email') : pass); }
+      } catch (err) { fail(signupForm, err.message, err.code === 'EMAIL_EXISTS' || err.code === 'INVALID_EMAIL' ? $('#su-email') : pass); return; }
+      pass.value = '';
+      // The account exists now. If the name is taken or not allowed, the
+      // player is asked again (with this name filled in) before playing on.
+      let named = '';
+      let nameErr = '';
+      if (wantName && !namesOff) {
+        try { named = await compete.setName(wantName); } catch (err) { nameErr = err.message; }
+      }
+      nameInput.value = '';
+      show('account');
+      focusView();
+      if (nameErr) ui.toast(`Account created, but the screen name ${wantName} could not be saved: ${nameErr} Choose another to finish.`, null, { ms: 10000 });
+      else ui.toast(`Account created${named ? ` for ${named}` : ''}. Your puzzles on this device are being added to it.`);
     });
+  };
+
+  $('#su-name-suggest').onclick = () => {
+    const input = $('#su-name');
+    input.value = compete.suggestName();
+    input.removeAttribute('aria-invalid');
+    $('.error-box', signupForm).hidden = true;
+    $('#su-name-said').textContent = `Suggested screen name: ${input.value}.`;
   };
 
   const resetForm = $('[data-view=reset]', d);

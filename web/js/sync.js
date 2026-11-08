@@ -18,6 +18,7 @@
 import { CLOUD } from './cloud-config.js';
 import * as store from './store.js';
 import * as account from './account.js';
+import { onName } from './compete.js';
 
 const STATE_KEY = 'syncState';
 // Meta records that sync, and how two copies combine.
@@ -115,6 +116,9 @@ export async function forget() {
   setStatus({ state: 'signedout' });
 }
 
+// A new account's first sync waits for its screen name: go as soon as it is saved.
+onName((n) => { if (n && account.current()) schedule(0); });
+
 export function schedule(ms) {
   clearTimeout(timer);
   timer = setTimeout(() => syncNow(), ms);
@@ -197,6 +201,12 @@ async function run() {
       account.signOut();
       if (gone) await forget();
       setStatus({ state: 'signedout', message: gone ? 'This account was deleted.' : 'Please sign in again.' });
+      return;
+    }
+    if (e.code === 'no_screen_name') {
+      // A new account syncs once its screen name is chosen (the game asks for it).
+      setStatus({ state: 'error', at: lastStatus.at, message: 'Choose a screen name to start syncing. Your puzzles are safe on this device.' });
+      schedule(60 * 1000);
       return;
     }
     if (e.code === 'OFFLINE') setStatus({ state: 'offline', at: lastStatus.at });
