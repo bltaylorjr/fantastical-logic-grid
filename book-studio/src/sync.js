@@ -133,7 +133,10 @@ async function syOpen(id, { why } = {}) {
     const r = await adminApi(`studio/books/${id}`);
     const project = { ...r.project, syncId: id };
     syWrite(SY_REVS, id, r.book.rev);
-    loadProject(project);
+    // Wait for the cover to load before taking the fingerprint: read too early,
+    // the canvas still holds the old cover, so the book looks changed and is
+    // sent straight back, and the other device's next save becomes a copy.
+    await loadProject(project);
     syWrite(SY_SIGS, id, sySign(syCurrent()));
     syRemember(r.book);
     syShowSynced();

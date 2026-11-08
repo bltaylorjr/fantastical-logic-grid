@@ -1267,6 +1267,9 @@ function wireImport() {
 
 /* ---------- Cover designer (Fabric.js) ---------- */
 let cv = null, cvZoom = 0.5, coverReady = null, lastGeom = null, showCvGuides = true;
+// Covers still loading into the canvas. Until they finish, the canvas holds the
+// old cover, so it must not be read back into S.cover (syncCoverToState).
+let cvLoading = 0;
 const THEMES = {
   navy: { name: 'Midnight', bg: '#1f3a5f', accent: '#f2c14e', text: '#ffffff', title: 'Bebas Neue', body: 'Nunito' },
   sunny: { name: 'Sunshine', bg: '#f6c945', accent: '#1d1d1d', text: '#1d1d1d', title: 'Fredoka', body: 'Nunito' },
@@ -1297,6 +1300,7 @@ function ensureCover() {
   return coverReady;
 }
 function loadCoverJSON(json, oldGeom) {
+  cvLoading++;
   return new Promise(res => {
     const fams = (json.objects || []).filter(o => o.fontFamily).map(o => o.fontFamily);
     ensureFonts(fams).then(() => cv.loadFromJSON(json, () => {
@@ -1304,7 +1308,7 @@ function loadCoverJSON(json, oldGeom) {
       if (oldGeom) relayoutCover(oldGeom, coverGeom());
       cv.requestRenderAll(); res();
     }));
-  });
+  }).finally(() => { cvLoading--; });
 }
 function sizeCoverCanvas() {
   if (!cv) return; const g = coverGeom();
@@ -1407,7 +1411,7 @@ function cvSelChanged() {
 }
 function cvSet(props) { const o = cv?.getActiveObject(); if (!o) return; o.set(props); o.setCoords(); cv.requestRenderAll(); markDirty(); }
 
-function syncCoverToState() { if (!cv) return; S.cover = cv.toJSON(CV_PROPS); S.coverGeom = coverGeom(); }
+function syncCoverToState() { if (!cv || cvLoading) return; S.cover = cv.toJSON(CV_PROPS); S.coverGeom = coverGeom(); }
 
 function wireCover() {
   $('#cvTheme').innerHTML = Object.entries(THEMES).map(([k, t]) => `<option value="${k}">${t.name}</option>`).join('');
@@ -1934,6 +1938,7 @@ function onSpecChange(fn) {
   return e => { applyLog = null; syncPagesFromDom(); fn(e); renderPages(); refreshUI(); onGeometryChanged(); markDirty(); lastIssues = []; updateStatus(); };
 }
 
+// Returns a promise that settles once the cover has finished loading too.
 function loadProject(data) {
   const base = blankProject();
   S = { ...base, ...data, meta: { ...base.meta, ...(data.meta || {}) }, margins: { ...base.margins, ...(data.margins || {}) }, body: { ...base.body, ...(data.body || {}) }, folio: { ...base.folio, ...(data.folio || {}) }, counters: { ...base.counters, ...(data.counters || {}) } };
@@ -1941,8 +1946,10 @@ function loadProject(data) {
   if (!PUBLISHERS[S.pub]) S.pub = 'kdp';
   curPage = 0; undoStack = []; lastIssues = [];
   renderPages(); refreshUI(); fillMetaForm();
-  if (cv) { const json = S.cover; if (json) loadCoverJSON(json, S.coverGeom).then(() => { lastGeom = coverGeom(); }); else autoDesignCover(); }
+  let cover = Promise.resolve();
+  if (cv) { const json = S.cover; cover = json ? loadCoverJSON(json, S.coverGeom).then(() => { lastGeom = coverGeom(); }) : autoDesignCover(); }
   markDirty();
+  return cover;
 }
 
 /* Sample book: realistic example content, generated fresh */
@@ -2150,7 +2157,10 @@ async function syOpen(id, { why } = {}) {
     const r = await adminApi(`studio/books/${id}`);
     const project = { ...r.project, syncId: id };
     syWrite(SY_REVS, id, r.book.rev);
-    loadProject(project);
+    // Wait for the cover to load before taking the fingerprint: read too early,
+    // the canvas still holds the old cover, so the book looks changed and is
+    // sent straight back, and the other device's next save becomes a copy.
+    await loadProject(project);
     syWrite(SY_SIGS, id, sySign(syCurrent()));
     syRemember(r.book);
     syShowSynced();
