@@ -1,3 +1,4 @@
+import os; os.environ.setdefault("VOX_BASE_AUTO", "0"); os.environ.setdefault("VOX_SOURCE", "own")   # these tests check Vox's own model, offline
 """End-to-end smoke test on a laptop CPU in a few minutes.
 
 It builds a synthetic toy dataset (buzzy vowel-like sounds, not real speech),

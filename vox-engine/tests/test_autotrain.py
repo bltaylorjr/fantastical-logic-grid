@@ -1,3 +1,4 @@
+import os; os.environ.setdefault("VOX_BASE_AUTO", "0"); os.environ.setdefault("VOX_SOURCE", "own")   # these tests check Vox's own model, offline
 import json, sqlite3, threading, time, shutil
 from pathlib import Path
 import numpy as np, soundfile as sf
@@ -54,6 +55,7 @@ print("dialects seen:", sorted({r["dialect"] for r in rows if r["dialect"]}), "|
 assert {"scottish", "texan"} <= {r["dialect"] for r in rows if r["dialect"]}
 # training: a short real round on the tiny model
 t.settings.train_minutes = 1; t.state["last"]["secs_per_step"] = 2.0; t.settings.vocoder_every = 1
+t.settings.local_training = True                                    # normally off: the free GPU trains (kaggle/)
 t._word_accuracy = lambda path: 0.6 if path else 0.4                 # pretend the new model is clearer
 t0 = time.time(); r = t.train_round(force=True); print(f"train round in {time.time() - t0:.0f}s:", r)
 assert r["trained"] and r["promoted"] and (W / "runs/v1/vox.pt").exists()

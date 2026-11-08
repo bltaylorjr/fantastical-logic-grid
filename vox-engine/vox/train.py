@@ -158,7 +158,9 @@ def _gen_params(model):
 
 
 def train(manifests, out_dir: str | Path, cfg: VoxConfig | None = None, resume: str | None = None,
-          max_steps: int | None = None, device: str | None = None) -> Path:
+          max_steps: int | None = None, device: str | None = None, deadline: float | None = None) -> Path:
+    """deadline: a time (time.time()) to save and stop by, for GPU sessions with
+    a time limit (kaggle/train_gpu.py)."""
     device = device or ("cuda" if torch.cuda.is_available() else "cpu")
     out = Path(out_dir); out.mkdir(parents=True, exist_ok=True)
     if resume:
@@ -192,6 +194,10 @@ def train(manifests, out_dir: str | Path, cfg: VoxConfig | None = None, resume: 
             sched.step()
     ema = {n: copy.deepcopy(getattr(model, n)).eval().requires_grad_(False) for n in GEN_PARTS}
     use_amp = device == "cuda" and tc.mixed_precision
+    # bfloat16 where the GPU has it (A100 and newer); float16 with loss scaling
+    # on older free GPUs (T4, P100), which have no bfloat16.
+    amp_dtype = torch.bfloat16 if (use_amp and torch.cuda.is_bf16_supported()) else torch.float16
+    scaler = torch.amp.GradScaler("cuda", enabled=use_amp and amp_dtype == torch.float16)
     log = open(out / "log.jsonl", "a")
     t0 = time.time()
 
@@ -199,7 +205,7 @@ def train(manifests, out_dir: str | Path, cfg: VoxConfig | None = None, resume: 
         for batch in dl:
             batch = {k: v.to(device) for k, v in batch.items()}
             B = batch["mel"].shape[0]
-            with torch.autocast("cuda", dtype=torch.bfloat16, enabled=use_amp):
+            with torch.autocast("cuda", dtype=amp_dtype, enabled=use_amp):
                 emb = model.speaker(batch["ref"], batch["ref_mask"])
                 spk_loss = model.speaker.id_loss(emb.float(), batch["speaker"] % mc.max_speakers)
                 emo = batch["emotion"]
@@ -216,9 +222,10 @@ def train(manifests, out_dir: str | Path, cfg: VoxConfig | None = None, resume: 
                                           model.style(emb.detach(), emo_w, batch["prosody"]), batch["lens"])
                 loss = fm + 0.1 * dur + 0.02 * spk_loss
             opt.zero_grad(set_to_none=True)
-            loss.backward()
+            scaler.scale(loss).backward()
+            scaler.unscale_(opt)
             gn = torch.nn.utils.clip_grad_norm_(params, tc.grad_clip)
-            opt.step(); sched.step(); step += 1
+            scaler.step(opt); scaler.update(); sched.step(); step += 1
             decay = min(tc.ema_decay, (1 + step) / (10 + step))
             with torch.no_grad():
                 for n in GEN_PARTS:
@@ -229,10 +236,13 @@ def train(manifests, out_dir: str | Path, cfg: VoxConfig | None = None, resume: 
                        "spk": spk_loss.item(), "grad": gn.item(), "lr": sched.get_last_lr()[0],
                        "secs": round(time.time() - t0, 1)}
                 print(json.dumps(rec)); log.write(json.dumps(rec) + "\n"); log.flush()
-            if step % tc.save_every == 0 or step >= total:
+            late = deadline is not None and time.time() >= deadline
+            if step % tc.save_every == 0 or step >= total or late:
                 _save_with_ema(model, ema, opt, step, ds, out / "vox.pt", device)
-            if step >= total:
+            if step >= total or late:
                 break
+        if deadline is not None and time.time() >= deadline:
+            break
     log.close()
     return out / "vox.pt"
 
@@ -331,7 +341,7 @@ def pseudo_label_emotions(ckpt: str, manifest: str, out_manifest: str | None = N
 # ===================================================================== vocoder
 def train_vocoder(ckpt: str, manifests, steps: int = 200_000, segment_secs: float = 1.0,
                   batch: int = 16, adv_start: int = 2000, device: str | None = None,
-                  save_every: int = 5000) -> None:
+                  save_every: int = 5000, deadline: float | None = None) -> None:
     device = device or ("cuda" if torch.cuda.is_available() else "cpu")
     model = VoxModel.load(ckpt, device)
     cfg = model.cfg
@@ -372,6 +382,9 @@ def train_vocoder(ckpt: str, manifests, steps: int = 200_000, segment_secs: floa
         opt_g.step()
         if step % 100 == 0 or step == 1:
             print(json.dumps({"step": step, "mel_l1": float(mel_loss), "d": float(d_loss), "g": float(g_loss)}))
-        if step % save_every == 0 or step == steps:
+        late = deadline is not None and time.time() >= deadline
+        if step % save_every == 0 or step == steps or late:
             model.vocoder_trained = True
             model.eval().save(ckpt, model.extras); voc.train()
+        if late:
+            break

@@ -242,6 +242,27 @@ export const CONNECTIONS = [
     checks: [{ type: 'http', url: 'https://flg-api.btay74.workers.dev/admin/v1/vox-health', contains: '"ok":true', label: 'The Worker reaches Vox on the server', optional: true }],
   },
   {
+    id: 'vox-gpu',
+    group: 'github',
+    title: 'Vox training on the free GPU (Kaggle)',
+    why: 'Vox\'s own voice model needs a GPU to learn speech; a processor would take months. Kaggle gives about 30 free GPU hours a week. The workflow "Train Vox on the free GPU" prepares openly licensed speech once (LJSpeech, public domain; VCTK and LibriTTS-R, CC BY 4.0), trains a session at a time within 24 hours a week, and hands each new model to Vox on the Oracle server. Vox switches to it by itself once Whisper hears it more clearly than the base voices; until then the base voices speak. Without these, the base voices keep speaking and nothing trains.',
+    cost: 'Free: a Kaggle account (phone verification turns on its GPU). Everything it makes on Kaggle is private.',
+    docs: 'docs/VOX-GPU-TRAINING.md',
+    names: [
+      { name: 'KAGGLE_API_TOKEN', where: 'github-secret', optional: true, note: 'Kaggle: your picture > Settings > API > Generate New Token.' },
+      { name: 'KAGGLE_USERNAME', where: 'github-variable', optional: true, note: 'Your Kaggle username (shown in your profile address, kaggle.com/<username>).' },
+    ],
+    steps: [
+      'Make a free account at https://www.kaggle.com (your email or Google account), then in **Settings** choose **Phone verification**: Kaggle only allows GPU use after it.',
+      'In Kaggle **Settings** > **API**, choose **Generate New Token** and copy it (it isn\'t shown again).',
+      ...GH_SECRET_STEPS('KAGGLE_API_TOKEN', 'the token you just copied'),
+      `Add the variable \`KAGGLE_USERNAME\` = your Kaggle username at ${REPO}/settings/variables/actions.`,
+      'Run **Train Vox on the free GPU** once from the Actions tab (it then runs every 4 hours by itself). The first run prepares the data (a few hours on Kaggle\'s CPU); the first training session starts on the next run.',
+    ],
+    links: [{ label: 'Kaggle API settings', url: 'https://www.kaggle.com/settings' }, { label: 'GitHub secrets', url: `${REPO}/settings/secrets/actions` }],
+    checks: [],
+  },
+  {
     id: 'github-security',
     group: 'github',
     title: 'Dependabot and GitHub security',

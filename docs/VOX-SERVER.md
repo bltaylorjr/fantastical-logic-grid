@@ -18,6 +18,11 @@ admin dashboard (any device) ──HTTPS, signed in──▶ Worker flg-api ─�
 - **Whisper included.** The container installs `vox-engine/requirements.txt`
   (CPU PyTorch, faster-whisper and the rest) into `/opt/flg-vox/data/venv` and
   downloads Whisper's small model. It does this again only when the list changes.
+- **Real voices from the start.** Vox installs its base voices (Kokoro, an open
+  model that runs on a processor) by itself, and speaks with them until its own
+  model, trained on Kaggle's free GPU, is clearer (docs/VOX-GPU-TRAINING.md).
+  The image includes espeak-ng for their pronunciation, so an existing server
+  needs `sudo bash /opt/flg/setup.sh` run once more to rebuild the image.
 - **Data stays put.** Voices, models, learning and the cache live in
   `/opt/flg-vox/data`; releases only replace the code.
 - **Updates on their own.** `.github/workflows/vox-server.yml` deploys every

@@ -358,7 +358,10 @@ def create_app(engine: VoxEngine, learning=None, admin_token: str | None = None,
     @app.get("/v1/health")
     def health():
         from .autotrain import AutoTrainer, server_usage
+        from . import base as basevox
         return {"status": "ok", "release": os.environ.get("VOX_RELEASE"), "server_usage": server_usage(),
+                "voice_source": {**basevox.voice_source(Path(engine.voices.root).parent), "speaking": engine.source},
+                "base_voices": engine.base.status(),
                 "server_maintenance": AutoTrainer._read_maintenance(), "device": engine.device, "vocoder_trained": engine.model.vocoder_trained,
                 "params_millions": {k: round(v, 1) for k, v in engine.model.param_count().items()},
                 "sample_rate": engine.sr, "learning": learning is not None, "public": public,
@@ -734,6 +737,28 @@ def create_app(engine: VoxEngine, learning=None, admin_token: str | None = None,
     from .autotrain import AutoTrainer
     autotrain = AutoTrainer(engine, Path(engine.voices.root).parent, lock, dic, learning)
     autotrain.start_scheduler()
+
+    # ---- Base voices (base.py): real speech until Vox's own model is better.
+    # Installed and downloaded by themselves at start (VOX_BASE_AUTO=0 to skip).
+    if os.environ.get("VOX_BASE_AUTO", "1") != "0" and not engine.base.ready:
+        engine.base.prefetch(on_ready=engine.refresh_source)
+    elif engine.base.ready:
+        engine.base.prefetch(on_ready=engine.refresh_source, auto_install=False)
+
+    @app.post("/v1/admin/base/install", dependencies=admin)
+    def base_install():
+        """Install and download the base voices now (normally automatic)."""
+        if any(j["kind"] == "base" and not j["done"] for j in jobs.values()):
+            raise HTTPException(409, "The base voices are already being installed.")
+
+        def work(progress):
+            from . import base as basevox
+            basevox.install(lambda m: progress(m, 0.2))
+            engine.base.load(lambda m: progress(m, 0.6))
+            engine.base.error = None
+            engine.base.message = "Ready"
+            return {"ok": True, "source": engine.refresh_source()}
+        return {"job": run_job("base", work)}
 
     @app.get("/v1/admin/autotrain", dependencies=admin)
     def autotrain_status():
