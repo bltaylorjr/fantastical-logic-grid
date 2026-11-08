@@ -84,6 +84,14 @@ const $ = (s, el = document) => el.querySelector(s);
       const keys = await caches?.keys?.() || [];
       await Promise.all(keys.filter((k) => k.startsWith('flg-')).map((k) => caches.delete(k)));
       await fetch(location.href, { cache: 'reload' }).catch(() => null);
+      // The browser's own short-term cache (about 10 minutes on the host) can
+      // still hand back the old code after the offline copy is gone, and then
+      // the reload is just as broken. Fetch every code file fresh first, using
+      // the file list in the newest sw.js.
+      const sw = await fetch(new URL('sw.js', document.baseURI), { cache: 'reload' }).then((r) => (r.ok ? r.text() : '')).catch(() => '');
+      const list = (() => { try { return JSON.parse((sw.match(/const FILES = (\[[\s\S]*?\]);/) || [])[1] || '[]'); } catch (e) { return []; } })();
+      await Promise.all(list.filter((f) => /\.(m?js|css|html)$/.test(f))
+        .map((f) => fetch(new URL(f, document.baseURI), { cache: 'reload' }).catch(() => null)));
     } catch (e) { /* reload anyway */ }
     location.reload();
     await new Promise(() => {});

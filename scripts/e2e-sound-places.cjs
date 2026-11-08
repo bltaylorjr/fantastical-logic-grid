@@ -23,6 +23,7 @@ const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`o
     page.on('pageerror', (e) => errors.push(String(e)));
     await page.goto('http://localhost:8163/');
     await page.waitForSelector('#tier-choices input');
+    await page.waitForSelector('#dlg-welcome[open]', { timeout: 3000 }).catch(() => {});
     if (await page.locator('#dlg-welcome[open]').count()) await page.keyboard.press('Escape');
     await page.check('input[name=tier][value=easy]', { force: true });
     await page.click('#gen-btn');
