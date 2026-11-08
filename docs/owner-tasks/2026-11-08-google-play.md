@@ -32,7 +32,7 @@ Reply OK in the project before paying.
    4. Install the **Google Play Console** app on your Android phone and sign in
       with the same account. Google uses it to confirm you own an Android phone.
 3. **Create the app** in Play Console: **Create app**, name
-   *The Fantastical Logic Grid*, English (United States), **Game**, **Free**,
+   *The Logic Grid* (the name on the phone), English (United States), **Game**, **Free**,
    tick the declarations.
 4. **Fill in "Set up your app"** with the answers in GOOGLE-PLAY.md: privacy
    policy https://thelogicgrid.com/privacy/, no ads, app access, target
