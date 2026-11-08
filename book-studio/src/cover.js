@@ -1,5 +1,8 @@
 /* ---------- Cover designer (Fabric.js) ---------- */
 let cv = null, cvZoom = 0.5, coverReady = null, lastGeom = null, showCvGuides = true;
+// Covers still loading into the canvas. Until they finish, the canvas holds the
+// old cover, so it must not be read back into S.cover (syncCoverToState).
+let cvLoading = 0;
 const THEMES = {
   navy: { name: 'Midnight', bg: '#1f3a5f', accent: '#f2c14e', text: '#ffffff', title: 'Bebas Neue', body: 'Nunito' },
   sunny: { name: 'Sunshine', bg: '#f6c945', accent: '#1d1d1d', text: '#1d1d1d', title: 'Fredoka', body: 'Nunito' },
@@ -30,6 +33,7 @@ function ensureCover() {
   return coverReady;
 }
 function loadCoverJSON(json, oldGeom) {
+  cvLoading++;
   return new Promise(res => {
     const fams = (json.objects || []).filter(o => o.fontFamily).map(o => o.fontFamily);
     ensureFonts(fams).then(() => cv.loadFromJSON(json, () => {
@@ -37,7 +41,7 @@ function loadCoverJSON(json, oldGeom) {
       if (oldGeom) relayoutCover(oldGeom, coverGeom());
       cv.requestRenderAll(); res();
     }));
-  });
+  }).finally(() => { cvLoading--; });
 }
 function sizeCoverCanvas() {
   if (!cv) return; const g = coverGeom();
@@ -140,7 +144,7 @@ function cvSelChanged() {
 }
 function cvSet(props) { const o = cv?.getActiveObject(); if (!o) return; o.set(props); o.setCoords(); cv.requestRenderAll(); markDirty(); }
 
-function syncCoverToState() { if (!cv) return; S.cover = cv.toJSON(CV_PROPS); S.coverGeom = coverGeom(); }
+function syncCoverToState() { if (!cv || cvLoading) return; S.cover = cv.toJSON(CV_PROPS); S.coverGeom = coverGeom(); }
 
 function wireCover() {
   $('#cvTheme').innerHTML = Object.entries(THEMES).map(([k, t]) => `<option value="${k}">${t.name}</option>`).join('');

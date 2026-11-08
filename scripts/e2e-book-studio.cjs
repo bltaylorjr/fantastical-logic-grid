@@ -257,6 +257,10 @@ const SHOTS = process.env.SHOTS;
     await page.evaluate(() => syCheck({ force: true }));
     await page.waitForFunction(() => S.meta.title === 'Changed on the second device', null, { timeout: 30000 });
     assert(true, 'the first device picks up the change from the second');
+    // Once it has opened (cover too), nothing is left to send: before, the cover was
+    // read back while still loading, so the book was sent straight back as a new save.
+    await page.waitForFunction(() => !syPending(syCurrent()), null, { timeout: 20000 });
+    assert(await page.evaluate(() => syRev(S.syncId)) === 2, 'a book opened from the account is not sent straight back');
     await other.evaluate(() => { S.meta.title = 'Second device again'; markDirty(); });
     await other.waitForFunction(() => syRev(S.syncId) === 3, null, { timeout: 40000 });
     await page.evaluate(() => { S.meta.title = 'First device, not synced yet'; markDirty(); });

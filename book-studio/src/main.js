@@ -61,6 +61,7 @@ function onSpecChange(fn) {
   return e => { applyLog = null; syncPagesFromDom(); fn(e); renderPages(); refreshUI(); onGeometryChanged(); markDirty(); lastIssues = []; updateStatus(); };
 }
 
+// Returns a promise that settles once the cover has finished loading too.
 function loadProject(data) {
   const base = blankProject();
   S = { ...base, ...data, meta: { ...base.meta, ...(data.meta || {}) }, margins: { ...base.margins, ...(data.margins || {}) }, body: { ...base.body, ...(data.body || {}) }, folio: { ...base.folio, ...(data.folio || {}) }, counters: { ...base.counters, ...(data.counters || {}) } };
@@ -68,8 +69,10 @@ function loadProject(data) {
   if (!PUBLISHERS[S.pub]) S.pub = 'kdp';
   curPage = 0; undoStack = []; lastIssues = [];
   renderPages(); refreshUI(); fillMetaForm();
-  if (cv) { const json = S.cover; if (json) loadCoverJSON(json, S.coverGeom).then(() => { lastGeom = coverGeom(); }); else autoDesignCover(); }
+  let cover = Promise.resolve();
+  if (cv) { const json = S.cover; cover = json ? loadCoverJSON(json, S.coverGeom).then(() => { lastGeom = coverGeom(); }) : autoDesignCover(); }
   markDirty();
+  return cover;
 }
 
 /* Sample book: realistic example content, generated fresh */
