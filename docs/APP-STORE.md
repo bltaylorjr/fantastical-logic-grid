@@ -52,6 +52,7 @@ email only, so Sign in with Apple is not required.
 
 `media/app-store/` (remake with `npm run build && node scripts/app-store-assets.cjs`):
 
+- Each set: `games` (the games list the app opens on), `home`, `story`, `grid`
 - `iphone-*.png`: 1320 × 2868, the 6.9" iPhone size App Store Connect asks for
 - `ipad-*.png`: 2064 × 2752, the 13" iPad size
 - App icon: built into the app (`mobile/ios/LogicGrid/Assets.xcassets`), nothing to upload
@@ -80,9 +81,9 @@ email only, so Sign in with Apple is not required.
    - On the **Variables** tab: variable `APPLE_TEAM_ID`: the Team ID
 5. **Register the app id**: https://developer.apple.com/account/resources/identifiers/add/bundleId,
    App IDs > App, Explicit Bundle ID `com.fantasticallogicgrid.app`,
-   description "The Fantastical Logic Grid". No extra capabilities.
+   description "The Logic Grid". No extra capabilities.
 6. **Create the app in App Store Connect**: https://appstoreconnect.apple.com/apps
-   > **+** > New App: platform iOS, name **The Fantastical Logic Grid**,
+   > **+** > New App: platform iOS, name **The Logic Grid**,
    language English (U.S.), bundle ID `com.fantasticallogicgrid.app`,
    SKU `flg-ios`, Full access.
 7. **Send the first build**: open
@@ -98,28 +99,34 @@ email only, so Sign in with Apple is not required.
 
 ## Listing text
 
-- **Name (30 max):** The Fantastical Logic Grid
-- **Subtitle (30 max):** Story logic puzzles, no ads
-- **Promotional text (170 max):** A new story in every case. Read the clues, fill the grid with X and O, and close the case. Free, no ads, works offline.
-- **Keywords (100 max):** logic,puzzle,grid,brain,mystery,deduction,clues,detective,daily,story,einstein,riddle
+The store app is **The Logic Grid** (Bobby, 2026-11-08): a set of puzzle
+games, with The Fantastical Logic Grid as the main game inside it. It opens on
+the games list, like the Windows app and Google Play.
+
+- **Name (30 max):** The Logic Grid
+- **Subtitle (30 max):** Story logic puzzles and more
+- **Promotional text (170 max):** Story logic grids where every case is a brand new story, plus number and grid puzzles. Every puzzle has exactly one answer. Free, no ads.
+- **Keywords (100 max):** logic,puzzle,fantastical,brain,mystery,deduction,clues,detective,daily,story,sudoku,riddle
 - **Description:**
 
-Every case in The Fantastical Logic Grid is a brand new story. Read the clues, fill the grid with X and O, and close the case. Every puzzle has exactly one answer you can reach without guessing.
+The Logic Grid is a set of puzzle games where every puzzle has exactly one answer you can reach without guessing.
+
+The main game, The Fantastical Logic Grid, turns every case into a brand new story. Read the clues, fill the grid with X and O, and close the case.
 
 • Seven difficulty levels, from Basic to Theoretical Physicist, and almost any size
 • More than 40 themes, from mysteries and holidays to national parks
 • A new daily puzzle for everyone, with streaks and badges
 • Hints that explain the reasoning, unlimited undo, and autosave
 • Characters who read their clues aloud
+• More games: NINETIMESNINE number puzzles and grid puzzles like Skyline, Star Field, Loop Line and Island Bridges
 • Play in 100 languages
 • Print any puzzle with AirPrint, with the answer key on its own page
-• Race other players and challenge friends to beat your time
+• Race other players or the computer, and challenge friends to beat your time
 • VoiceOver friendly, with dark and high-contrast colors and a Silent mode
-• Works offline
 
 Free, with no ads. Guests can play a few new puzzles a day; a free account (email only) gives unlimited puzzles, syncs your saves and lets you race.
 
-- **Category:** Games, sub-categories Puzzle and Board (or Word)
+- **Category:** Games, sub-categories Puzzle and Board
 - **Support URL:** https://thelogicgrid.com/ (contact: support@thelogicgrid.com)
 - **Marketing URL:** https://thelogicgrid.com
 - **Privacy policy URL:** https://thelogicgrid.com/privacy/
@@ -146,9 +153,10 @@ is no chat). Unrestricted web access: No. Gambling, contests: No. Expect **4+**
 
 ## Notes for App Review (paste in "Notes")
 
-> The Fantastical Logic Grid is a logic puzzle game. All game content is
-> bundled in the app and works offline. No sign-in is needed to review: tap a
-> difficulty and a theme, then Start (guests get a few new puzzles a day). A
+> The Logic Grid is a set of logic puzzle games. All game content is bundled
+> in the app and works offline. No sign-in is needed to review: open The
+> Fantastical Logic Grid from the games list, pick a difficulty and a theme,
+> then Start (guests get a few new puzzles a day). A
 > free account (email only) gives unlimited puzzles, syncs saves and races; it can be deleted in Menu > Account and
 > sync > Delete account. Screen names typed by players are approved by an admin
 > before anyone sees them, and players can report problems from Menu > Report a

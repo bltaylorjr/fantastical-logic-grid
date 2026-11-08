@@ -16,8 +16,8 @@
    2. `APP_STORE_CONNECT_ISSUER_ID` = the Issuer ID
    3. `APP_STORE_CONNECT_KEY_BASE64` = the `.p8` file as base64. In Windows PowerShell: `[Convert]::ToBase64String([IO.File]::ReadAllBytes("$HOME\Downloads\AuthKey_XXXX.p8")) | Set-Clipboard`, then paste.
    4. On the **Variables** tab: `APPLE_TEAM_ID` = the Team ID
-5. **App ID:** https://developer.apple.com/account/resources/identifiers/add/bundleId > App IDs > App. Explicit Bundle ID `com.fantasticallogicgrid.app`, description "The Fantastical Logic Grid".
-6. **New app:** https://appstoreconnect.apple.com/apps > **+** > New App. iOS, name **The Fantastical Logic Grid**, English (U.S.), bundle ID `com.fantasticallogicgrid.app`, SKU `flg-ios`.
+5. **App ID:** https://developer.apple.com/account/resources/identifiers/add/bundleId > App IDs > App. Explicit Bundle ID `com.fantasticallogicgrid.app`, description "The Logic Grid".
+6. **New app:** https://appstoreconnect.apple.com/apps > **+** > New App. iOS, name **The Logic Grid**, English (U.S.), bundle ID `com.fantasticallogicgrid.app`, SKU `flg-ios`.
 7. **First build:** https://github.com/bltaylorjr/fantastical-logic-grid/actions/workflows/ios.yml > **Run workflow**. About 15 minutes after it finishes, the build shows under TestFlight. Later releases upload by themselves.
 8. **Test on your iPhone:** install **TestFlight** from the App Store, add yourself under TestFlight > Internal Testing, open the invite.
 9. **Listing and review:** paste the text, privacy and age answers from docs/APP-STORE.md (https://github.com/bltaylorjr/fantastical-logic-grid/blob/main/docs/APP-STORE.md), upload the screenshots in media/app-store, set price **Free**, pick the build, and click **Add for Review**.

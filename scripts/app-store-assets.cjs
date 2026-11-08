@@ -1,4 +1,4 @@
-// App Store screenshots in media/app-store, taken from the real game with the
+// App Store screenshots in media/app-store for The Logic Grid, taken from the real app with the
 // iPhone app's look (data-native=ios, so no Install menu or Support link):
 //   iphone-*.png  1320 x 2868 (6.9" iPhone, the size App Store Connect asks for first)
 //   ipad-*.png    2064 x 2752 (13" iPad)
@@ -35,7 +35,12 @@ const DEVICES = [
           await page.screenshot({ path: path.join(OUT, `${d.name}-${scheme}-${what}.png`), type: 'png' });
         };
         await page.goto('http://localhost:8183/');
-        await page.waitForSelector('#tier-choices input');
+        // The app opens on The Logic Grid's games list; the first card is The Fantastical Logic Grid.
+        await page.waitForSelector('#game-cards button');
+        await shot('games');
+        await page.click('#game-cards button');
+        await page.waitForSelector('#screen-home:not([hidden])');
+        await page.waitForSelector('#tier-choices input', { state: 'attached' });
         await shot('home');
         await page.check('input[name=tier][value=easy]', { force: true });
         await page.check('input[name=theme][value=mystery]', { force: true });
