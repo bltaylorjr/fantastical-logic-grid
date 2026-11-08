@@ -104,6 +104,8 @@ const INIT = (Z) => {
   const clips = [];
   let p;
 
+  // speechPlay: voices while solving start off (Settings > Sound), which hides
+  // Read the clues aloud; the promo films it, so it is switched on here.
   async function device({ silent = false, seed = SEED } = {}) {
     const ctx = await browser.newContext({ viewport: VIEW, deviceScaleFactor: 1, reducedMotion: 'no-preference', serviceWorkers: 'block' });
     await ctx.route('**/js/cloud-config.js', (r) => r.fulfill({ contentType: 'text/javascript', body: config }));
@@ -111,7 +113,7 @@ const INIT = (Z) => {
       const res = await r.fetch();
       r.fulfill({ response: res, body: (await res.text()).replace('generatePuzzle(args)', `generatePuzzle({ ...args, seed: args.seed || '${seed}' })`) });
     });
-    await ctx.addInitScript((s) => { if (!localStorage.getItem('flg.settings')) localStorage.setItem('flg.settings', JSON.stringify({ introOffered: true, voiceProvider: 'device', silent: s, coach: false })); if (!localStorage.getItem('flg.game')) localStorage.setItem('flg.game', 'logic-grid'); }, silent);
+    await ctx.addInitScript((s) => { if (!localStorage.getItem('flg.settings')) localStorage.setItem('flg.settings', JSON.stringify({ introOffered: true, voiceProvider: 'device', silent: s, coach: false, speechPlay: true })); if (!localStorage.getItem('flg.game')) localStorage.setItem('flg.game', 'logic-grid'); }, silent);
     await ctx.addInitScript(INIT, ZOOM);
     const page = await ctx.newPage();
     page.on('pageerror', (e) => console.log('page error:', e.message));
