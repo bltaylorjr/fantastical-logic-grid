@@ -135,7 +135,7 @@ function wireShell() {
 }
 
 async function init() {
-  wireShell(); wireEditor(); wirePuzzles(); wireImport(); wireCover();
+  wireShell(); wireEditor(); wirePuzzles(); wireImport(); wireCover(); wireWriting();
   const saved = await idbGet('current');
   const restored = !!(saved && saved.pages && saved.pages.length);
   if (restored) { loadProject(saved); $('#sbSave').textContent = 'Restored from this browser'; }
