@@ -172,9 +172,15 @@ function wirePuzzles() {
     if (kind === 'wordsearch') $('#pzCount').value = $('#wsLists').value.trim().split(/\n\s*\n/).length;
   });
   $('#insPuzzle').onclick = () => openDlg('#dlgPuzzle');
+  $('#insPuzzle').addEventListener('click', () => fillThemeSelects($('#pzGenTheme'), $('#pzGenSub'), lastGenTheme.theme, lastGenTheme.sub));
+  $('#pzGenTheme').onchange = () => fillThemeSelects($('#pzGenTheme'), $('#pzGenSub'), $('#pzGenTheme').value, '');
+  $('#pzGenThemeEdit').onclick = () => openThemeEditor(() => fillThemeSelects($('#pzGenTheme'), $('#pzGenSub'), $('#pzGenTheme').value, $('#pzGenSub').value));
+  wireThemes();
   $('#pzGo').onclick = async () => {
     closeDlg('#dlgPuzzle');
+    lastGenTheme = { theme: $('#pzGenTheme').value, sub: $('#pzGenSub').value };
     await generatePuzzles(kind, {
+      theme: lastGenTheme.theme, sub: lastGenTheme.sub,
       count: clamp(+$('#pzCount').value || 1, 1, 500), perPage: +$('#pzPerPage').value, answers: $('#pzAnswers').checked, newPages: $('#pzNewPages').checked,
       diff: $('#sdDiff').value, wsSize: +$('#wsSize').value, wsDir: $('#wsDir').value, lists: $('#wsLists').value, mzSize: +$('#mzSize').value, mzShape: $('#mzShape').value
     });
@@ -191,6 +197,7 @@ async function generatePuzzles(kind, o) {
   const count = kind === 'wordsearch' ? Math.min(o.count, Math.max(lists.length, 1) * 50) : o.count;
   if (kind === 'wordsearch' && !lists.length) { toast('Add at least one word list'); return; }
   const blocks = [], answers = [];
+  const theme = o.theme ? { theme: o.theme, sub: o.sub || '' } : null;
   for (let k = 0; k < count; k++) {
     busy(`Generating ${kind === 'wordsearch' ? 'word search' : kind} ${k + 1} of ${count}`, k / count); await nextFrame();
     const num = ++S.counters[kind];
@@ -208,6 +215,9 @@ async function generatePuzzles(kind, o) {
       blocks.push(`<h2 class="center">Maze #${num}</h2>` + mazeHTML(m.puz, m.sol, size, false));
       answers.push(mazeHTML(m.puz, m.sol, 2.1, true, `Maze #${num}`));
     }
+    // The puzzle and its solution share an id, so a theme set later reaches both.
+    const pid = uid(); const tag = h => tagPuzzleHTML(h, pid, theme);
+    blocks[blocks.length - 1] = tag(blocks[blocks.length - 1]); answers[answers.length - 1] = tag(answers[answers.length - 1]);
   }
   busy(false);
   if (o.newPages) {
@@ -265,7 +275,104 @@ function regeneratePuzzle(el) {
   if (k === 'sudoku') { const filled = (el.dataset.puz || '').replace(/0/g, '').length; const diff = filled >= 36 ? 'easy' : filled >= 30 ? 'medium' : filled >= 26 ? 'hard' : 'expert'; const { puz, sol } = makeSudoku(diff); html = sudokuHTML(puz, sol, size, false); }
   else if (k === 'wordsearch') { const words = JSON.parse(el.dataset.words || '[]'); const ws = makeWordSearch(words, +el.dataset.n || 15, 'medium'); html = wordsearchHTML(ws, words, size, false); }
   else { const m = makeMaze(18, 'square'); html = mazeHTML(m.puz, m.sol, size, false); }
-  const t = document.createElement('div'); t.innerHTML = html; const nu = t.firstElementChild; el.replaceWith(nu);
+  const t = document.createElement('div'); t.innerHTML = html; const nu = t.firstElementChild;
+  ['pzTheme', 'pzSub'].forEach(k => { if (el.dataset[k]) nu.dataset[k] = el.dataset[k]; }); // keeps its theme (its old solution no longer matches, so no shared id)
+  el.replaceWith(nu);
   selPuzzle = null; showSelTools(); afterEdit();
   toast('New puzzle made. Its old solution in the answer key no longer matches; delete it there.', 5000);
+}
+
+/* ---------- Puzzle themes ----------
+   A puzzle's theme and subcategory are data-pz-theme / data-pz-sub on the
+   puzzle (or, for a Grid book page, its .grid-room), so they are saved and
+   synced with the page. A generated puzzle and its solution share data-pz-id,
+   so changing one changes both. The list is S.puzzleThemes (core.js). */
+let lastGenTheme = { theme: '', sub: '' };
+// Every generated puzzle's HTML starts with <div class="puzzle" (sudokuHTML,
+// wordsearchHTML, mazeHTML), so the attributes go in there, escaped.
+function tagPuzzleHTML(html, pid, theme) {
+  const at = ` data-pz-id="${esc(pid)}"` + (theme ? ` data-pz-theme="${esc(theme.theme)}"` + (theme.sub ? ` data-pz-sub="${esc(theme.sub)}"` : '') : '');
+  return html.replace(/<div class="puzzle"/, m => m + at);
+}
+function setPuzzleTheme(el, theme, sub) {
+  if (theme) el.dataset.pzTheme = theme; else delete el.dataset.pzTheme;
+  if (theme && sub) el.dataset.pzSub = sub; else delete el.dataset.pzSub;
+}
+// Fill a theme select and its subcategory select. A value that is no longer in
+// the list (renamed, removed, or from another book) still shows, marked so.
+function fillThemeSelects(selT, selS, theme, sub) {
+  const list = puzzleThemes();
+  const known = list.find(t => t.name === theme);
+  selT.innerHTML = '<option value="">No theme</option>' + list.map(t => `<option value="${esc(t.name)}">${esc(t.name)}</option>`).join('') +
+    (theme && !known ? `<option value="${esc(theme)}">${esc(theme)} (not in your list)</option>` : '');
+  selT.value = theme || '';
+  const subs = known ? known.subs : [];
+  selS.innerHTML = `<option value="">${theme ? 'Any ' + esc(theme.toLowerCase()) : 'Pick a theme first'}</option>` + subs.map(x => `<option value="${esc(x)}">${esc(x)}</option>`).join('') +
+    (theme && sub && !subs.includes(sub) ? `<option value="${esc(sub)}">${esc(sub)} (not in your list)</option>` : '');
+  selS.value = theme ? (sub || '') : '';
+  selS.disabled = !theme;
+}
+function showThemeTools() {
+  const el = selPuzzle; $('#pzThemeTools').hidden = !el; if (!el) return;
+  fillThemeSelects($('#pzTheme'), $('#pzSub'), el.dataset.pzTheme || '', el.dataset.pzSub || '');
+}
+// Puzzles that change with this one: its solution (same id), anywhere in the book.
+function puzzleTwins(el) {
+  const id = el.dataset.pzId; if (!id) return [el];
+  return $$('#pages .puzzle').filter(p => p === el || p.dataset.pzId === id);
+}
+function applyThemeTo(els, theme, sub) {
+  const set = new Set(); els.forEach(e => puzzleTwins(e).forEach(x => set.add(x)));
+  set.forEach(x => setPuzzleTheme(x, theme, sub));
+  syncPagesFromDom(); markDirty(); // twins can be on other pages
+  if (selPuzzle) selPuzzle.classList.add('sel');
+}
+function wireThemes() {
+  $('#pzTheme').onchange = () => { const el = selPuzzle; if (!el) return; fillThemeSelects($('#pzTheme'), $('#pzSub'), $('#pzTheme').value, ''); applyThemeTo([el], $('#pzTheme').value, ''); };
+  $('#pzSub').onchange = () => { const el = selPuzzle; if (!el) return; applyThemeTo([el], $('#pzTheme').value, $('#pzSub').value); };
+  $('#pzThemePage').onclick = () => {
+    const el = selPuzzle; if (!el) return; const pg = el.closest('.page'); if (!pg) return;
+    const all = $$('.content .puzzle, .content .grid-room', pg);
+    const th = el.dataset.pzTheme || '', sb = el.dataset.pzSub || '';
+    applyThemeTo(all, th, sb);
+    toast(th ? `${all.length} puzzle${all.length === 1 ? ' is' : 's are'} now ${th}${sb ? ' › ' + sb : ''}` : `Took the theme off ${all.length} puzzle${all.length === 1 ? '' : 's'}`);
+  };
+  $('#pzThemeEdit').onclick = () => openThemeEditor(showThemeTools);
+  $('#thAdd').onclick = () => { const r = themeRow({ name: '', subs: [] }); $('#thList').appendChild(r); $('input', r).focus(); };
+  $('#thReset').onclick = () => { $('#thList').innerHTML = ''; DEFAULT_PUZZLE_THEMES.forEach(t => $('#thList').appendChild(themeRow(t))); };
+  $('#thList').addEventListener('click', e => { const b = e.target.closest('.th-del'); if (b) b.closest('.th-row').remove(); });
+  $('#thSave').onclick = saveThemeEditor;
+}
+let themeEditorDone = null;
+function themeRow(t) {
+  const r = document.createElement('div'); r.className = 'th-row'; r.dataset.orig = t.name || '';
+  r.innerHTML = `<label class="lab">Theme <input type="text" class="th-name" maxlength="60" value="${esc(t.name)}" placeholder="Theme name"></label>` +
+    `<label class="lab th-subs">Subcategories <input type="text" class="th-sub" value="${esc(t.subs.join(', '))}" placeholder="Separate with commas"></label>` +
+    `<button class="btn danger th-del" type="button" aria-label="Remove ${esc(t.name || 'this theme')}">Remove</button>`;
+  return r;
+}
+function openThemeEditor(done) {
+  themeEditorDone = done || null;
+  const box = $('#thList'); box.innerHTML = '';
+  puzzleThemes().forEach(t => box.appendChild(themeRow(t)));
+  openDlg('#dlgThemes');
+}
+function saveThemeEditor() {
+  const rows = $$('#thList .th-row');
+  const list = cloneThemes(rows.map(r => ({ name: $('.th-name', r).value, subs: $('.th-sub', r).value.split(/[,\n]/) })));
+  if (!list.length) { toast('Keep at least one theme, or press Use the default list'); return; }
+  // A renamed theme is renamed on every puzzle in the book.
+  const renames = new Map();
+  rows.forEach(r => { const o = r.dataset.orig, n = $('.th-name', r).value.trim(); if (o && n && o !== n) renames.set(o, n); });
+  snapshot('edit themes');
+  S.puzzleThemes = list; themeSeed = list;
+  if (renames.size) {
+    // Every page is on screen in #pages, so rename there and save the pages.
+    let n = 0;
+    $$('#pages [data-pz-theme]').forEach(el => { const to = renames.get(el.dataset.pzTheme); if (to) { el.dataset.pzTheme = to; n++; } });
+    if (n) { syncPagesFromDom(); if (selPuzzle) selPuzzle.classList.add('sel'); }
+  }
+  closeDlg('#dlgThemes'); markDirty();
+  toast(`Saved ${list.length} theme${list.length === 1 ? '' : 's'}`);
+  if (themeEditorDone) themeEditorDone();
 }

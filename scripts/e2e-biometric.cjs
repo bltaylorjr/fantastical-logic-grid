@@ -139,10 +139,6 @@ function startAuth(signer) {
     const { credentials } = await cdp.send('WebAuthn.getCredentials', { authenticatorId });
     assert(credentials.length === 1, 'the device holds one passkey');
     await page.click('#dlg-account .dlg-actions:last-child [data-close]');
-    await page.waitForSelector('#dlg-name[open]');
-    await page.fill('#name-input', 'Idle Tester');
-    await page.click('#name-form button[type=submit]');
-    await page.waitForSelector('#dlg-name[open]', { state: 'detached' });
 
     // ---- Play a puzzle, then stop touching anything.
     await page.check('input[name=tier][value=easy]', { force: true });

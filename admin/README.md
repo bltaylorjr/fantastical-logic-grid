@@ -24,7 +24,7 @@ its own dashboard.
 - **The Fantastical Logic Grid**: **Fantastical home** (`#fantastical`: what is
   waiting for review, play numbers, and a way into each section), Daily
   puzzles, Characters, Media library, Puzzle quality, Ratings and insights,
-  Puzzle emails, Story workshop, Storyline submissions, Educator requests,
+  Puzzle emails, Story workshop, Puzzle submissions, Storyline submissions, Educator requests,
   Educator feedback, Badges, and **Game settings and switches**
   (`#game-settings`: play, themes, characters, voices, sounds, pictures,
   celebrations, puzzle emails, printable packs, educators, learning).

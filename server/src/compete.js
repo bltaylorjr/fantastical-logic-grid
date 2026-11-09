@@ -4,6 +4,9 @@
 //   GET    /v1/profile               the player's screen name (or null)
 //   PUT    /v1/profile               { screenName }  choose or change it
 //   DELETE /v1/profile               leave: removes the name, scores and race entries
+//   POST   /v1/names/check           { screenName }  no sign-in: would this name be
+//                                    accepted? Asked before an account is made, so
+//                                    no account is created without a screen name.
 //   POST   /v1/scores                { storyId, tier, categories, items, elapsedMs, hints, checks }
 //   GET    /v1/scoreboard?period=week|all   top players (no sign-in needed)
 //   POST   /v1/races                 { puzzle, public, game? }  start a race on this puzzle
@@ -371,7 +374,7 @@ async function standings(env, race, uid, now) {
 const getRace = (env, code) => env.DB.prepare('SELECT code, game, host_id, tier, cells, story_id, title, public, created_at, closes_at FROM races WHERE code = ?1').bind(code).first();
 
 // ------------------------------------------------------------- routing
-const ROUTES = /^\/v1\/(profile|scores|scoreboard|races|invites)(?:\/(find|[A-Z0-9]{6}|\d{1,12})(?:\/(join|finish|invite|decline))?)?$/;
+const ROUTES = /^\/v1\/(profile|scores|scoreboard|races|invites|names)(?:\/(find|check|[A-Z0-9]{6}|\d{1,12})(?:\/(join|finish|invite|decline))?)?$/;
 
 export async function handleCompete(req, env, ctx, url, signedIn) {
   const m = url.pathname.match(ROUTES);
@@ -394,6 +397,19 @@ export async function handleCompete(req, env, ctx, url, signedIn) {
   const fail = (error, status = 400, extra = {}) => json(req, env, { error, ...extra }, status);
 
   try {
+    if (area === 'names') {
+      if (sub !== 'check' || method !== 'POST') return fail('not_found', 404);
+      const settings = await getSettings(env, now);
+      if (!settings.names_enabled) return json(req, env, { ok: true, namesOff: true });
+      const b = await body(4_000);
+      const problem = checkName(b && b.screenName, { extra: settings.blocked_words });
+      if (problem) return fail(problem.code, 422, { message: problem.message });
+      const name = cleanName(b.screenName);
+      const taken = await db.prepare('SELECT 1 AS t FROM players WHERE name_key = ?1').bind(nameKey(name)).first();
+      if (taken) return fail('name_taken', 409, { message: 'Someone already has that screen name. Try adding a number or another word.' });
+      return json(req, env, { ok: true, screenName: name });
+    }
+
     // The scoreboard is public; a signed-in player also gets their own place.
     if (area === 'scoreboard' && !sub && method === 'GET') {
       const period = url.searchParams.get('period') === 'all' ? 'all' : 'week';

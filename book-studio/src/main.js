@@ -61,15 +61,22 @@ function onSpecChange(fn) {
   return e => { applyLog = null; syncPagesFromDom(); fn(e); renderPages(); refreshUI(); onGeometryChanged(); markDirty(); lastIssues = []; updateStatus(); };
 }
 
+// Returns a promise that settles once the cover has finished loading too.
 function loadProject(data) {
   const base = blankProject();
   S = { ...base, ...data, meta: { ...base.meta, ...(data.meta || {}) }, margins: { ...base.margins, ...(data.margins || {}) }, body: { ...base.body, ...(data.body || {}) }, folio: { ...base.folio, ...(data.folio || {}) }, counters: { ...base.counters, ...(data.counters || {}) } };
   if (!TRIMS[S.trim]) S.trim = PUBLISHERS[S.pub]?.defaultTrim || '8.5x11';
   if (!PUBLISHERS[S.pub]) S.pub = 'kdp';
+  // A book keeps its own theme list only once it has one (edited here, or a new
+  // book started from one); older books use the default list unchanged.
+  if (Array.isArray(data.puzzleThemes)) S.puzzleThemes = cloneThemes(data.puzzleThemes); else delete S.puzzleThemes;
+  themeSeed = S.puzzleThemes || null;
   curPage = 0; undoStack = []; lastIssues = [];
   renderPages(); refreshUI(); fillMetaForm();
-  if (cv) { const json = S.cover; if (json) loadCoverJSON(json, S.coverGeom).then(() => { lastGeom = coverGeom(); }); else autoDesignCover(); }
+  let cover = Promise.resolve();
+  if (cv) { const json = S.cover; cover = json ? loadCoverJSON(json, S.coverGeom).then(() => { lastGeom = coverGeom(); }) : autoDesignCover(); }
   markDirty();
+  return cover;
 }
 
 /* Sample book: realistic example content, generated fresh */
@@ -121,7 +128,7 @@ function wireShell() {
   // Project menu
   $('#projMenuBtn').onclick = () => { $('#projNewConfirm').hidden = true; openDlg('#dlgProject'); };
   $('#projSave').onclick = () => { syncPagesFromDom(); syncCoverToState(); saveFile(slug(S.meta.title) + '-project.json', JSON.stringify(S)); };
-  $('#projOpen').onclick = () => { const f = $('#fileProj'); f.value = ''; f.onchange = async () => { try { const d = JSON.parse(await f.files[0].text()); if (!d.pages) throw new Error('not a project file'); closeDlg('#dlgProject'); loadProject(d); toast('Opened ' + (d.meta?.title || 'project')); } catch (e) { toast('That file is not a Puzzle Book Studio project'); } }; f.click(); };
+  $('#projOpen').onclick = () => { const f = $('#fileProj'); f.value = ''; f.onchange = async () => { try { const d = JSON.parse(await f.files[0].text()); if (!d.pages) throw new Error('not a project file'); delete d.syncId; closeDlg('#dlgProject'); loadProject(d); toast('Opened ' + (d.meta?.title || 'project')); } catch (e) { toast('That file is not a Puzzle Book Studio project'); } }; f.click(); };
   $('#projSample').onclick = async () => { closeDlg('#dlgProject'); busy('Building the sample book'); await buildSample(); busy(false); showTab('manuscript'); };
   $('#projNew').onclick = () => { $('#projNewConfirm').hidden = false; };
   $('#projNewYes').onclick = () => { closeDlg('#dlgProject'); loadProject(blankProject()); if (cv) autoDesignCover(); toast('Started a blank book'); };
@@ -130,8 +137,11 @@ function wireShell() {
 async function init() {
   wireShell(); wireEditor(); wirePuzzles(); wireImport(); wireCover();
   const saved = await idbGet('current');
-  if (saved && saved.pages && saved.pages.length) { loadProject(saved); $('#sbSave').textContent = 'Restored from this browser'; }
+  const restored = !!(saved && saved.pages && saved.pages.length);
+  if (restored) { loadProject(saved); $('#sbSave').textContent = 'Restored from this browser'; }
   else { busy('Building the sample book'); await buildSample(); busy(false); $('#sbSave').textContent = 'Sample book loaded. Open Project to start your own.'; }
+  // Grid Admin build: fetch this account's books, open the newest on a new device (sync.js).
+  if (typeof syStart === 'function') syStart({ restored });
   const h = (location.hash || '').slice(1); if (['cover', 'details', 'publish'].includes(h) || (h === 'gridbooks' && !$('[data-tab=gridbooks]').hidden)) showTab(h);
   window.addEventListener('hashchange', () => { const t = location.hash.slice(1); if (['manuscript', 'cover', 'details', 'publish', 'gridbooks'].includes(t) && t !== currentTab) { const back = tabTrail[tabTrail.length - 1] === t; if (back) tabTrail.pop(); showTab(t, { back }); } });
   document.fonts && document.fonts.ready.then(() => checkAllOverflow());
