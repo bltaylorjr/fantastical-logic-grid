@@ -12,7 +12,7 @@ import { createRequire } from 'node:module';
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..');
 const src = (f) => readFileSync(join(here, 'src', f), 'utf8');
-const ORDER = ['specs.js', 'core.js', 'editor.js', 'puzzles.js', 'import.js', 'cover.js', 'publish.js', 'gridbooks.js', 'writing.js', 'main.js'];
+const ORDER = ['specs.js', 'core.js', 'editor.js', 'puzzles.js', 'import.js', 'cover.js', 'publish.js', 'gridbooks.js', 'writing.js', 'noai.js', 'main.js'];
 const standalone = process.argv.includes('--standalone');
 
 // Libraries, vendored from npm (versions pinned in book-studio/package.json).
