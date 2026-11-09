@@ -1846,8 +1846,11 @@ async function buildInteriorPDF(dpi) {
   await loadLibs('jspdf', 'html2canvas'); syncPagesFromDom();
   try { await document.fonts.ready; await ensureFonts([S.body.font, 'Courier Prime']); } catch (e) { }
   const { jsPDF } = window.jspdf; let pdf = null;
-  for (let i = 0; i < S.pages.length; i++) {
-    busy(`Rendering interior page ${i + 1} of ${S.pages.length}`, i / S.pages.length);
+  const n = S.pages.length, started = Date.now();
+  for (let i = 0; i < n; i++) {
+    // Big books take minutes: say roughly how long is left once a few pages are done.
+    const left = i >= 5 ? Math.round((Date.now() - started) / i * (n - i) / 60000) : 0;
+    busy(`Rendering interior page ${i + 1} of ${n}${left >= 1 ? ` · about ${left} min left` : ''}`, i / n);
     const { canvas, SW, SH } = await renderPageCanvas(i, dpi);
     const orient = SW > SH ? 'landscape' : 'portrait';
     if (!pdf) pdf = new jsPDF({ unit: 'in', format: [SW, SH], orientation: orient, compress: true });
@@ -2054,7 +2057,9 @@ async function importGridBook(g) {
     ...(g.description ? { description: String(g.description).slice(0, 4000), blurb: String(g.description).slice(0, 4000) } : {}), ...(g.keywords ? { keywords: String(g.keywords).slice(0, 500) } : {}) };
   p.gridCss = cleanGridCss(g.css);
   p.gridBook = String(g.id || '');
-  p.pages = (g.pages || []).map(pg => ({ id: uid(), html: gridPageHtml(pg), grid: pg.kind, noFolio: !!pg.front, ...(pg.kind === 'answers' ? { answers: true } : {}) }));
+  // The book's own title and copyright pages count as the front matter, so Apply
+  // specs does not add a second pair (and the page count asked for holds).
+  p.pages = (g.pages || []).map(pg => ({ id: uid(), html: gridPageHtml(pg), grid: pg.kind, noFolio: !!pg.front, ...(pg.kind === 'answers' ? { answers: true } : {}), ...(pg.kind === 'title' || pg.kind === 'copyright' ? { front: pg.kind } : {}) }));
   if (!p.pages.length) p.pages = [{ id: uid(), html: '<p><br></p>' }];
   p.cover = null;
   loadProject(p);
@@ -3019,7 +3024,7 @@ async function gaGridBooks() {
       when: (t) => new Date(t).toLocaleString(),
       openInStudio: (book) => importGridBook(book),
       // Make it from a topic: the publishers to choose from, and the whole path to a submission file.
-      publishers: Object.entries(PUBLISHERS).map(([id, p]) => ({ id, name: p.name })),
+      publishers: Object.entries(PUBLISHERS).map(([id, p]) => ({ id, name: p.name, pages: (trim, paper) => ({ min: p.minPages, max: p.maxPagesFor ? p.maxPagesFor(trim, paper) : p.maxPages }) })),
       makeSubmission: (book, pub) => submitGridBook(book, pub),
     });
   } catch (e) {

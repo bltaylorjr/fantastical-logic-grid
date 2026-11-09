@@ -169,6 +169,12 @@ def step(args) -> dict:
     k = Kaggle(args.user, work, args.dry_run, say)
     report = {"at": datetime.now(timezone.utc).isoformat(timespec="seconds"), "notes": notes}
 
+    # 0. Kaggle's command line works (a broken install would otherwise look like
+    # "nothing exists yet" and try to create everything)
+    probe = k.run("--version", check=False)
+    if probe.startswith("__error__"):
+        raise RuntimeError("Kaggle's command line doesn't run: " + probe[-400:])
+
     # 1. the code
     digest = code_hash(root)
     files = k.dataset_files("vox-engine-code")
