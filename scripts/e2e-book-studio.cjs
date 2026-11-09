@@ -6,7 +6,9 @@
 // does not, the sample book, Apply specs, and a submission packet download
 // that is written to the audit log, syncing a book between two devices (and
 // keeping both when two change it at once), the app manifest, the offline
-// service worker and Get the app.
+// service worker and Get the app, and Player puzzles (an approved player's
+// puzzle added to the book with its credit, downloaded, and counted as
+// published when the book is exported).
 // Grid books (the dashboard's Books and covers inside Book Studio) needs the
 // built website in dist/site (npm run build); without it that part is skipped.
 // Needs `npm install` in server/ and `node book-studio/build.mjs` first.
@@ -49,6 +51,21 @@ const SHOTS = process.env.SHOTS;
     for (const stmt of sql.split(';').map((s) => s.trim()).filter(Boolean)) await db.prepare(stmt).run();
   }
   await db.prepare("INSERT INTO admins (email, role, added_by, added_at) VALUES ('pub@example.com', 'publisher', 'test', 0), ('view@example.com', 'viewer', 'test', 0), ('new@example.com', 'publisher', 'test', 0)").run();
+  // Player puzzles: an approved Puzzle Wizard puzzle by a signed-in player, one whose author chose no credit, and one still waiting.
+  {
+    const { checkEntry } = await import(path.join(ROOT, 'web/js/wizard-fields.js'));
+    const entry = (title) => ({ ...checkEntry({
+      game: 'fantastical', title, story: 'Three sailors came back to the harbor, each wearing a different hat and carrying a different fish.',
+      ending: 'Everyone got their hat back.', difficulty: 'easy', cast: { one: 'sailor' }, names: 'Ada, Ben, Cy',
+      categories: [{ name: 'Hat', items: 'Red, Blue, Green' }, { name: 'Fish', items: 'Cod, Eel, Ray' }], answerMode: 'auto', credit: { as: 'none' }, consent: true,
+    }).value, kind: 'puzzle', seed: 'e2e1' });
+    await db.prepare("INSERT INTO players (user_id, screen_name, name_key, created_at, updated_at) VALUES ('fox-uid', 'PuzzleFox', 'puzzlefox', 0, 0)").run();
+    const add = (title, status, credit, uid) => db.prepare("INSERT INTO story_submissions (kind, source, title, credit, form, text, user_id, status, created_at, decided_at) VALUES ('puzzle', 'form', ?1, ?2, ?3, ?1, ?4, ?5, 1, 1)")
+      .bind(title, credit, JSON.stringify({ ...entry(title), credit }), uid, status).run();
+    await add('Harbor Hats', 'approved', 'Ada Fox', 'fox-uid');
+    await add('Quiet Cove', 'published', '', null);
+    await add('Waiting one', 'new', 'Kim', null);
+  }
   const session = (email, uid) => JSON.stringify({ mode: 'firebase', email, idToken: signer.token({ sub: uid, email, email_verified: true }), refreshToken: 'x', exp: Date.now() + 3_000_000, seen: Date.now() });
 
   const site = HAVE_SITE ? spawn('node', [path.join(__dirname, 'serve.mjs'), SITE_DIR, String(SITE_PORT)], { stdio: 'ignore' }) : null;
@@ -232,6 +249,43 @@ const SHOTS = process.env.SHOTS;
       const gt = await page.evaluate(() => ({ tools: document.querySelector('#pzTools').hidden, saved: (syncPagesFromDom(), S.pages.some((p) => /data-pz-theme="Mystery and adventure" data-pz-sub="Detectives"/.test(p.html))) }));
       assert(gt.tools && gt.saved, 'a Grid book puzzle takes a theme and subcategory (and offers no resize or new puzzle)');
       assert((await page.textContent('#navBack')) === '← Back to Grid books', 'Back returns to Grid books');
+
+      // Player puzzles: an approved Puzzle Wizard puzzle goes into the book with its answer key and the player's credit.
+      assert(await page.isVisible('[data-tab=players]'), 'Player puzzles is a tab in Book Studio');
+      await page.click('[data-tab=players]');
+      await page.waitForSelector('#ppBody [data-pp-add]', { timeout: 30000 });
+      const listed = await page.$$eval('#ppBody .pp-item', (a) => a.map((x) => x.textContent.replace(/\s+/g, ' ')));
+      assert(listed.length === 2 && listed.some((t) => /Harbor Hats/.test(t) && /by PuzzleFox/.test(t) && /Not in a book yet/.test(t)) && !listed.some((t) => /Waiting one/.test(t)),
+        'only approved player puzzles are listed, credited by screen name');
+      assert(listed.some((t) => /Quiet Cove/.test(t) && /chose no credit/.test(t)), 'a player who chose no credit is listed without one');
+      if (SHOTS) await page.screenshot({ path: path.join(SHOTS, 'book-studio-player-puzzles.png') });
+      const before = await page.evaluate(() => S.pages.length);
+      await page.click('#ppBody .pp-item:has-text("Harbor Hats") [data-pp-add]');
+      await page.waitForSelector('#view-manuscript:not([hidden]) #pages .page-credit', { timeout: 120000 });
+      const pp = await page.evaluate(() => ({ pages: S.pages.length, credit: document.querySelector('#pages .page-credit').textContent, key: S.pages.some((p) => p.playerKey), ids: ppBookIds(),
+        css: /\.bk-g-flg /.test(S.gridCss || ''), over: document.querySelectorAll('#pages .page.overflow').length }));
+      assert(pp.pages >= before + 2 && pp.key && pp.css && pp.over === 0 && pp.ids.length === 1, `Add to book puts the puzzle and its answer key in the book (${pp.pages - before} pages)`);
+      assert(pp.credit === 'Puzzle by PuzzleFox', 'the puzzle page footer credits the player by screen name');
+      // The story and clues wrap to the page instead of running off its edge.
+      const wide = await page.evaluate(() => [...document.querySelectorAll('#pages .grid-block')].filter((b) => b.getBoundingClientRect().right > b.parentElement.getBoundingClientRect().right + 2).length);
+      assert(wide === 0, 'every puzzle block fits inside its page');
+      if (SHOTS) { const pg = await page.$('#pages .page:has(.page-credit)'); await pg.scrollIntoViewIfNeeded(); await pg.screenshot({ path: path.join(SHOTS, 'book-studio-player-added.png') }); }
+      const kept = await db.prepare("SELECT puzzle FROM story_submissions WHERE title = 'Harbor Hats'").first();
+      assert(kept.puzzle && JSON.parse(kept.puzzle).title, 'the wizard puzzle built for the book is kept with the entry');
+      // The credit switches off for this puzzle, and back on.
+      await page.evaluate(() => setActivePage(S.pages.findIndex((p) => p.player), false));
+      assert(await page.isVisible('#pgCreditBox') && await page.isChecked('#pgCredit'), 'the player puzzle page offers Show author credit');
+      await page.uncheck('#pgCredit');
+      assert(!(await page.$('#pages .page-credit')), 'turning the credit off removes it from the page');
+      await page.check('#pgCredit');
+      assert(!!(await page.$('#pages .page-credit')), 'and turning it on shows it again');
+      // Download: the puzzle as a PDF.
+      await page.click('[data-tab=players]');
+      await page.waitForSelector('#ppBody [data-pp-pdf]');
+      const [pdl] = await Promise.all([page.waitForEvent('download', { timeout: 120000 }), page.click('#ppBody .pp-item:has-text("Harbor Hats") [data-pp-pdf]')]);
+      const pdfBytes = fs.readFileSync(await pdl.path());
+      assert(/\.pdf$/.test(pdl.suggestedFilename()) && pdfBytes.slice(0, 5).toString() === '%PDF-', `Download saves the puzzle as a PDF (${pdl.suggestedFilename()})`);
+      await page.click('[data-tab=manuscript]');
     } else console.log('--  Grid books skipped: no dist/site (run npm run build)');
     await page.click('#applyPub');
     await page.waitForSelector('#view-publish:not([hidden]) #checkSummary .card', { timeout: 30000 });
@@ -246,6 +300,11 @@ const SHOTS = process.env.SHOTS;
     assert(/submission-packet\.zip$/.test(dl.suggestedFilename()), `the submission packet downloads (${dl.suggestedFilename()})`);
     const { results } = await db.prepare("SELECT actor, status FROM admin_audit WHERE action = 'publishing.export'").all();
     assert(results.some((r) => r.actor === 'pub@example.com' && r.status === 200), 'the export is written to the audit log');
+    if (HAVE_SITE) {
+      await page.waitForFunction(() => /counted as published/.test(document.querySelector('.toast')?.textContent || ''), null, { timeout: 30000 });
+      const pubs = (await db.prepare("SELECT u.book, u.exports FROM submission_publications u JOIN story_submissions s ON s.id = u.submission_id WHERE s.title = 'Harbor Hats'").all()).results;
+      assert(pubs.length === 1 && pubs[0].book === await page.evaluate(() => S.syncId), 'the exported book counts as a publication of the player puzzle');
+    }
 
     // Sync: the edited book goes to the account, and opens on a second device.
     const books = async () => (await db.prepare("SELECT id, title, rev FROM studio_books WHERE owner = 'pub@example.com' ORDER BY updated_at").all()).results;

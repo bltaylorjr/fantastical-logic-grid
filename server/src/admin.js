@@ -7,6 +7,7 @@
 //   GET  /admin/v1/client-config       the Firebase web key the sign-in form needs
 //   GET  /admin/v1/me                  who is signed in, their role and whether they may publish books
 //   POST /admin/v1/publishing/export   Book Studio (admin/book-studio/) asks before every export; logged (publishers)
+//   GET  /admin/v1/studio/player-puzzles  approved player puzzles for Book Studio; POST .../:id/puzzle, .../published (studio-player-puzzles.js)
 //   GET  /admin/v1/studio/books[/:id]  Book Studio's synced books (this account's own); POST .../:id, .../:id/delete (studio-sync.js)
 //   POST /admin/v1/admins/publishing   { email, on } let one admin use Book Studio (owner)
 //   GET  /admin/v1/analytics?days=     players, games, scores, races, voices, errors
@@ -125,6 +126,7 @@ import { puzzleMailRoutes } from './puzzle-mail.js';
 import { editionRoutes } from './editions.js';
 import { bookRoutes } from './books.js';
 import { studioRoutes } from './studio-sync.js';
+import { playerPuzzleRoutes } from './studio-player-puzzles.js';
 import { educatorRoutes } from './educators.js';
 import { puzzleReportRoutes } from './puzzle-reports.js';
 import { visitorRoutes } from './visits.js';
@@ -506,6 +508,8 @@ const ROUTES = [
 
   // Each publisher's own books, kept on their account so they open on any device (studio-sync.js).
   ...studioRoutes(Refusal, canPublish),
+  // Approved player puzzles, to put in a book, and the books they went out in (studio-player-puzzles.js).
+  ...playerPuzzleRoutes(Refusal, canPublish),
 
   ['GET', /^analytics$/, 'viewer', 'analytics.view', async ({ env, url }) => ({ body: await analytics(env, daysParam(url)) })],
   ['GET', /^search$/, 'viewer', 'search.view', async ({ env }) => ({ body: { sources: await searchSnapshots(env) } })],
@@ -1183,11 +1187,12 @@ async function appFile(env, url, file) {
   return new Response(res.body, { headers: { ...SECURITY_HEADERS, 'Content-Security-Policy': adminCsp(env, voxUrl), 'Content-Type': TYPES[file.split('.').pop()], ...(voxUrl ? { 'Cache-Control': 'no-store' } : {}) } });
 }
 
-// The Grid books tab shows the website's Book maker in a frame.
+// The Grid books and Player puzzles tabs show the website's Book maker in a frame.
 function studioCsp(env) {
   let site = 'https://thelogicgrid.com';
   try { site = new URL(env.SITE_URL || site).origin; } catch (e) { /* default */ }
-  return STUDIO_CSP.replace("base-uri", `frame-src ${site}; base-uri`);
+  // blob: the PDF of a player's puzzle, opened in a frame to print (book-studio/src/playerpuzzles.js).
+  return STUDIO_CSP.replace("base-uri", `frame-src ${site} blob:; base-uri`);
 }
 
 async function studioFile(env, url, file) {

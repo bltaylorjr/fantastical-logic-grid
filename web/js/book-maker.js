@@ -14,6 +14,8 @@
 //   { type: 'flg-book-show', req, html, css }   draw a finished book (or cover) on this page, every
 //        page's contents shrunk to fit its page -> { type: 'flg-book-shown', req, pages }
 //   { type: 'flg-book-print' }                  print what is shown (Save as PDF for the print file)
+//   { type: 'flg-book-player', req, entry, seed, puzzle, credit }  a player's puzzle for Book Studio
+//        -> { type: 'flg-book-player', req, item, css, pdf, puzzle }
 //   { type: 'flg-puzzle-make', req, options }   one Logic Grid puzzle rebuilt for the Puzzle quality
 //        page (admin/quality.js) -> { type: 'flg-puzzle-made', req, puzzle }
 // Each item: { fp, game, gameName, title, level, size, story, rules, page, key, text }.
@@ -180,6 +182,19 @@ async function gameList() {
   return out;
 }
 
+// A printout's sections as book parts: the puzzle's pages and its answer key.
+function printParts(p, parts) {
+  const keys = parts.sections.filter(isKey), pages = parts.sections.filter((s) => !isKey(s) && !/step by step/i.test(s.querySelector('h1, h2')?.textContent || ''));
+  return {
+    rules: Array.isArray(p.rules) && p.rules.length ? p.rules.slice(0, 8).map(String) : FLG_RULES,
+    // Each part keeps its own section's class (the game's styles may need it).
+    page: pages.map((s) => `<div class="${s.className}">${s.innerHTML}</div>`).join('<div class="bk-break"></div>'),
+    key: keys.map((s) => `<div class="${s.className}">${s.innerHTML}</div>`).join(''),
+    // Every word printed, for the trademark and copyright scan.
+    text: pages.map(plainText).join(' ').slice(0, 6000),
+  };
+}
+
 async function make(m, reply) {
   const g = GAMES[m.game];
   if (!g) throw new Error('That game is not on this site.');
@@ -201,16 +216,7 @@ async function make(m, reply) {
     if (info.story) usedStories.push(info.story);
     const parts = await g.render(p);
     if (!css) css = scopeCss(parts.css, `.bk-g-${m.game}`);
-    const keys = parts.sections.filter(isKey), pages = parts.sections.filter((s) => !isKey(s) && !/step by step/i.test(s.querySelector('h1, h2')?.textContent || ''));
-    items.push({
-      fp, game: m.game, gameName: g.name, ...info,
-      rules: Array.isArray(p.rules) && p.rules.length ? p.rules.slice(0, 8).map(String) : FLG_RULES,
-      // Each part keeps its own section's class (the game's styles may need it).
-      page: pages.map((s) => `<div class="${s.className}">${s.innerHTML}</div>`).join('<div class="bk-break"></div>'),
-      key: keys.map((s) => `<div class="${s.className}">${s.innerHTML}</div>`).join(''),
-      // Every word printed, for the trademark and copyright scan.
-      text: pages.map(plainText).join(' ').slice(0, 6000),
-    });
+    items.push({ fp, game: m.game, gameName: g.name, ...info, ...printParts(p, parts) });
     reply({ type: 'flg-book-progress', req: m.req, done: items.length, count });
   }
   if (items.length < count) throw new Error(`Only ${items.length} new ${g.name} puzzles could be made with those choices. Try another level, size or theme.`);
@@ -273,6 +279,33 @@ async function rebuild(o) {
   return gameLink('flg').call('generate', opt);
 }
 
+// A player's puzzle, for Book Studio's Player puzzles page: the puzzle kept
+// with their entry, or the one they made in the Puzzle Wizard, built again
+// from their entry and its seed. Drawn by the game's own print layout, with
+// the wizard's PDF (credit: the name printed under it, or none).
+// -> { item: { game, gameName, title, level, size, rules, page, key, text }, css, pdf, puzzle }
+// puzzle is the built puzzle when it was built here (Book Studio keeps it).
+async function player(m) {
+  const credit = String(m.credit || '').replace(/[\u0000-\u001f<>]/g, '').slice(0, 60);
+  const given = m.puzzle && typeof m.puzzle === 'object' ? m.puzzle : null;
+  let p = given && given.format === 'fantastical-logic-grid' && given.save ? given.save.puzzle : given;
+  let built = null;
+  if (!p) {
+    if (!m.entry || typeof m.entry !== 'object') throw new Error('This entry has no puzzle yet.');
+    const { buildPuzzle } = await import('./wizard-build.js');
+    // The credit the author chose is printed by Book Studio, not built into the puzzle.
+    built = await buildPuzzle({ ...m.entry, credit: { as: 'none' } }, { seed: String(m.seed || 'player').slice(0, 40), credit });
+    p = built.puzzle;
+  }
+  const game = p.kind === 'number-place' ? 'np' : 'flg';
+  const g = GAMES[game];
+  const parts = await g.render(p);
+  const { flgPdf, ntnPdf } = await import('./wizard-pdf.js');
+  const pdf = built && built.credit === credit ? built.pdf : game === 'np' ? ntnPdf(p, { credit }) : flgPdf(p, { credit });
+  const info = g.meta(p);
+  return { item: { game, gameName: g.name, ...info, ...printParts(p, parts) }, css: scopeCss(parts.css, `.bk-g-${game}`), pdf, puzzle: built ? p : null };
+}
+
 addEventListener('message', async (e) => {
   if (e.origin !== admin && !(local && /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(e.origin))) return;
   if (!e.data || typeof e.data !== 'object') return;
@@ -284,6 +317,7 @@ addEventListener('message', async (e) => {
     else if (m.type === 'flg-book-show') reply({ type: 'flg-book-shown', req: m.req, pages: await show(m) });
     else if (m.type === 'flg-book-print') window.print();
     // The Puzzle quality page's Edit > Rebuild: one Logic Grid puzzle, whole.
+    else if (m.type === 'flg-book-player') reply({ type: 'flg-book-player', req: m.req, ...(await player(m)) });
     else if (m.type === 'flg-puzzle-make') reply({ type: 'flg-puzzle-made', req: m.req, puzzle: await rebuild(m.options || {}) });
   } catch (err) {
     reply({ type: 'flg-book-error', req: m.req, message: String(err?.message || err) });
