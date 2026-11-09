@@ -226,6 +226,11 @@ const SHOTS = process.env.SHOTS;
       const g = await page.evaluate(() => ({ pages: S.pages.length, blocks: document.querySelectorAll('#pages .grid-block').length, title: S.meta.title, css: !!document.querySelector('#gridBookCss'), over: document.querySelectorAll('#pages .page.overflow').length }));
       assert(g.pages >= 24 && g.blocks >= 4 && g.css && g.over === 0, `Open in the editor brings the Grid book in (${g.pages} pages, ${g.blocks} puzzle blocks, nothing overflowing)`);
       if (SHOTS) await page.screenshot({ path: path.join(SHOTS, 'book-studio-grid-opened.png') });
+      // A Grid book puzzle is a fixed block, but it still takes a theme.
+      const room = await page.$('#pages .grid-room'); await room.scrollIntoViewIfNeeded(); await room.click();
+      await page.selectOption('#pzTheme', 'Mystery and adventure'); await page.selectOption('#pzSub', 'Detectives');
+      const gt = await page.evaluate(() => ({ tools: document.querySelector('#pzTools').hidden, saved: (syncPagesFromDom(), S.pages.some((p) => /data-pz-theme="Mystery and adventure" data-pz-sub="Detectives"/.test(p.html))) }));
+      assert(gt.tools && gt.saved, 'a Grid book puzzle takes a theme and subcategory (and offers no resize or new puzzle)');
       assert((await page.textContent('#navBack')) === '← Back to Grid books', 'Back returns to Grid books');
     } else console.log('--  Grid books skipped: no dist/site (run npm run build)');
     await page.click('#applyPub');
@@ -252,11 +257,18 @@ const SHOTS = process.env.SHOTS;
     const bookId = await page.evaluate(() => S.syncId);
     await other.waitForFunction((id) => !document.querySelector('#app').hidden && S.syncId === id && /^Synced/.test(document.querySelector('#sbSync').textContent), bookId, { timeout: 60000 });
     assert((await other.evaluate(() => S.pages.length)) === (await page.evaluate(() => S.pages.length)), 'a new device opens the newest book from the account instead of the sample');
-    await other.evaluate(() => { S.meta.title = 'Changed on the second device'; fillMetaForm(); markDirty(); });
+    // The second device also gives a puzzle a theme and adds a theme to the list.
+    await other.evaluate(() => {
+      S.meta.title = 'Changed on the second device'; fillMetaForm();
+      applyThemeTo([document.querySelector('#pages .content .puzzle, #pages .content .grid-room')], 'Holidays', 'Christmas');
+      S.puzzleThemes = cloneThemes([...puzzleThemes(), { name: 'Logic grids', subs: ['Easy', 'Expert'] }]);
+      markDirty();
+    });
     await other.waitForFunction(() => /^Synced/.test(document.querySelector('#sbSync').textContent) && syRev(S.syncId) === 2, null, { timeout: 40000 });
     await page.evaluate(() => syCheck({ force: true }));
     await page.waitForFunction(() => S.meta.title === 'Changed on the second device', null, { timeout: 30000 });
     assert(true, 'the first device picks up the change from the second');
+    assert(await page.evaluate(() => document.querySelectorAll('#pages [data-pz-theme="Holidays"][data-pz-sub="Christmas"]').length >= 1 && puzzleThemes().some((t) => t.name === 'Logic grids')), 'a puzzle theme and an edited theme list sync to the other device');
     // Once it has opened (cover too), nothing is left to send: before, the cover was
     // read back while still loading, so the book was sent straight back as a new save.
     await page.waitForFunction(() => !syPending(syCurrent()), null, { timeout: 20000 });

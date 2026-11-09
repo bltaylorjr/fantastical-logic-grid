@@ -138,6 +138,15 @@ main { min-height: 0; position: relative; }
 .content blockquote { margin: 0 0 .6em; padding-left: 1em; border-left: 3px solid #999; }
 .content .puzzle { margin: 0 auto .7em; user-select: none; position: relative; }
 .content .puzzle.sel { outline: 2px solid var(--accent); outline-offset: 4px; }
+.content .grid-room.sel { outline: 2px solid var(--accent); outline-offset: -2px; }
+/* Theme tag: on screen only (exports draw pages in #renderHost, not #pages) */
+#pages .puzzle[data-pz-theme]::before, #pages .grid-room[data-pz-theme]::before { content: attr(data-pz-theme); position: absolute; right: 0; top: -1.8em; z-index: 2; font: 600 10px/1.6 system-ui, sans-serif; letter-spacing: .02em; padding: 0 7px; border-radius: 99px; background: var(--accent); color: var(--accent-ink); white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; pointer-events: none; opacity: .85; }
+#pages .puzzle[data-pz-sub]::before, #pages .grid-room[data-pz-sub]::before { content: attr(data-pz-theme) " \203A  " attr(data-pz-sub); }
+#pages .grid-room[data-pz-theme]::before { top: 4px; right: 4px; }
+.th-list { display: flex; flex-direction: column; gap: 8px; max-height: 46vh; overflow: auto; padding-right: 2px; }
+.th-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) auto; gap: 6px; align-items: end; }
+@media (max-width: 560px) { .th-row { grid-template-columns: minmax(0, 1fr) auto; } .th-row .th-subs { grid-column: 1 / -1; grid-row: 2; } }
+.linkbtn { border: 0; background: none; padding: 0; color: var(--accent); text-decoration: underline; cursor: pointer; font: inherit; }
 .pz-grid { display: grid; margin: 0 auto; border: 2.5px solid #111; background: #fff; }
 .pz-grid > div { border: 1px solid #444; display: grid; place-items: center; font-family: "Courier Prime", "Courier New", monospace; color: #111; aspect-ratio: 1; }
 .pz-sudoku > div.bt { border-top: 2.5px solid #111; } .pz-sudoku > div.bl { border-left: 2.5px solid #111; }
