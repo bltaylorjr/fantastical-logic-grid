@@ -25,6 +25,7 @@ import { storySubmissionsView, initStorySubmissions } from './story-submissions.
 import { puzzleSubmissionsView, initPuzzleSubmissions } from './puzzle-submissions.js';
 import { beatImagesView, initBeatImages } from './beat-images.js';
 import { licensesView, initLicenses } from './licenses.js';
+import { kdpView, initKdp } from './kdp.js';
 import { mediaView } from './media.js';
 import { badgesView, initBadges, playerBadgesHtml, playerBadgeClick } from './badges.js';
 import { vaultView, initVault, lockVault } from './vault.js';
@@ -2176,6 +2177,10 @@ initMarketing(marketingHelpers, (name, o) => show(name, o));
 const educatorHelpers = { api, esc, fmt, when, can, act, ask, setCount };
 views.educators = () => educatorsView(educatorHelpers);
 initEducators(educatorHelpers, (name, o) => show(name, o));
+// ---- Amazon KDP (kdp.js): each book's KDP listing, checked against KDP's rules, and its sales.
+const kdpHelpers = { api, esc, fmt, when, tile, bars, can, act, ask, toast };
+views.kdp = (o) => kdpView(kdpHelpers, o);
+initKdp(kdpHelpers, (name, o) => show(name, o));
 // ---- App keys for the Windows and Android apps (licenses.js).
 const licenseHelpers = { api, esc, fmt, when, tile, act, ask, toast, setCount };
 views.licenses = () => licensesView(licenseHelpers);

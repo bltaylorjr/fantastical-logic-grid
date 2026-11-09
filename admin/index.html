@@ -100,6 +100,7 @@
       <li data-dash="main"><a href="#website" data-min="viewer">Website</a></li>
       <li data-dash="main"><a href="#marketing" data-min="viewer">Marketing</a></li>
       <li data-dash="main"><a href="/admin/book-studio/" data-min="viewer" data-publish>Book Studio</a></li>
+      <li data-dash="main"><a href="#kdp" data-min="viewer">Amazon KDP</a></li>
       <li data-dash="main"><a href="#voice-engine" data-min="admin">Voice engine</a></li>
       <li data-dash="main"><a href="#communication" data-min="viewer">Communication <span class="count" id="count-comm" hidden></span></a></li>
       <li data-dash="main"><a href="#errortracking" data-min="moderator">Error tracking <span class="count" id="count-errors" hidden></span></a></li>
@@ -658,6 +659,17 @@
       </div>
       <p class="muted">The numbers game's own switches and numbers. It shares only anonymous play summaries with the rest of the game, for learning. The Fantastical Logic Grid's switches are on its own dashboard, and app-wide switches are under App settings and switches.</p>
       <div id="np-body"><p class="muted">Loading…</p></div>
+    </section>
+
+    <section data-view="kdp" hidden aria-labelledby="h-kdp">
+      <div class="head"><h1 id="h-kdp">Amazon KDP</h1>
+        <div class="row"><button class="btn primary" type="button" id="kdp-new" hidden>New listing</button></div>
+      </div>
+      <p class="muted">Each book's Amazon KDP listing, one for each format: the details, keywords, categories, AI answers, print and price, checked against KDP's rules and the trademark watch list so it can be copied into KDP box by box. Then where it is on KDP, the upload steps and what it sold each month. KDP has no connection for this, so nothing here changes KDP or Amazon. Make the interior and cover files in <a href="/admin/book-studio/">Book Studio</a>.</p>
+      <div class="tiles" id="kdp-tiles"></div>
+      <div id="kdp-chart"></div>
+      <div class="table-wrap"><table class="table"><thead><tr><th scope="col"><span class="sr-only">Open</span></th><th scope="col">Book</th><th scope="col">Status</th><th scope="col">Price</th><th scope="col">Copies sold</th><th scope="col">Royalties</th></tr></thead><tbody id="kdp-rows"></tbody></table></div>
+      <div class="card stack" id="kdp-editor" hidden></div>
     </section>
 
     <section data-view="licenses" hidden aria-labelledby="h-licenses">
