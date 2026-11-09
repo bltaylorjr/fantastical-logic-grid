@@ -91,6 +91,7 @@
     <button class="tab" role="tab" data-tab="details" aria-selected="false">Book details</button>
     <button class="tab" role="tab" data-tab="publish" aria-selected="false">Check &amp; export</button>
     <button class="tab" role="tab" data-tab="gridbooks" aria-selected="false" hidden>Grid books</button>
+    <button class="tab" role="tab" data-tab="players" aria-selected="false" hidden>Player puzzles</button>
     <span class="tab-steps"><button class="btn ghost" id="navBack" type="button" hidden>← Back</button><button class="btn" id="navNext" type="button">Next: Cover →</button></span>
   </nav>
   <main>
@@ -187,6 +188,11 @@
               <button class="btn" id="pgDown">Move down</button>
             </div>
             <label class="check"><input type="checkbox" id="pgNoFolio"> Hide page number on this page</label>
+            <div id="pgCreditBox" class="credit-box" hidden>
+              <label class="check"><input type="checkbox" id="pgCredit"> Show author credit on this puzzle</label>
+              <label class="check"><input type="checkbox" id="pgCreditBook"> Show author credit on every player puzzle in this book</label>
+              <p class="hint" id="pgCreditName"></p>
+            </div>
             <div class="row2"><button class="btn" id="pgBgImg">Background image</button><button class="btn" id="pgBgClear">Clear background</button></div>
           </div>
           <div class="insp-sec">
@@ -322,6 +328,29 @@
         <p class="muted">Puzzle books made from the game's own puzzles: no puzzle is ever used twice. Make one here, then press <b>Open in the editor</b> to fit it to any publisher and download the submission packet.</p>
         <div id="books-body"><p class="muted">Loading…</p></div>
         <div id="books-frames"></div>
+      </div></div>
+    </section>
+
+    <!-- PLAYER PUZZLES (Grid Admin only: auth.js shows the tab; playerpuzzles.js) -->
+    <section class="view" id="view-players" hidden>
+      <div class="scroll-page"><div class="grid-books">
+        <h1>Player puzzles</h1>
+        <p class="muted">Every puzzle players sent in that the team approved (Grid Admin, Puzzle submissions). Add one to this book, or download or print it on its own. Each puzzle counts as published in a book once that book's interior is exported.</p>
+        <form id="ppSearch" class="pp-bar" role="search">
+          <label class="lab">Search <input type="search" id="ppQ" placeholder="Title, player or #"></label>
+          <label class="lab">Game <select id="ppGame"><option value="">All games</option><option value="fantastical">The Fantastical Logic Grid</option><option value="ninetimesnine">NINETIMESNINE</option></select></label>
+          <label class="lab">Show <select id="ppUse"><option value="">All</option><option value="new">Not in a book yet</option><option value="used">Already in a book</option><option value="book">In this book</option></select></label>
+          <button class="btn" type="submit">Search</button>
+          <button class="btn ghost" type="button" id="ppReload">Refresh</button>
+        </form>
+        <div class="pp-bar">
+          <label class="lab">Answer key <select id="ppKeys"><option value="back">At the back of the book</option><option value="after">Right after the puzzle</option><option value="none">Leave it out</option></select></label>
+          <label class="check"><input type="checkbox" id="ppCredits" checked> Show author credit (screen name) at the foot of each player puzzle page</label>
+          <button class="btn primary" type="button" id="ppAddPicked" disabled>Add ticked to the book</button>
+        </div>
+        <p class="muted" id="ppCount" role="status"></p>
+        <div id="ppBody"><p class="muted">Loading…</p></div>
+        <div id="ppFrames"></div>
       </div></div>
     </section>
 

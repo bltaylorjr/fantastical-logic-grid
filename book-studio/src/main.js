@@ -29,7 +29,7 @@ function updateStepButtons() {
   const i = STEPS.findIndex(s => s[0] === currentTab); const next = STEPS[i + 1];
   $('#navNext').hidden = i < 0 || !next; if (i >= 0 && next) $('#navNext').textContent = `Next: ${next[1]} →`;
   const prev = tabTrail[tabTrail.length - 1];
-  const prevName = prev === 'gridbooks' ? 'Grid books' : STEPS.find(s => s[0] === prev)?.[1];
+  const prevName = prev === 'gridbooks' ? 'Grid books' : prev === 'players' ? 'Player puzzles' : STEPS.find(s => s[0] === prev)?.[1];
   $('#navBack').hidden = !prev; if (prev) $('#navBack').textContent = `← Back to ${prevName}`;
 }
 function showTab(name, { back = false } = {}) {
@@ -38,8 +38,9 @@ function showTab(name, { back = false } = {}) {
   currentTab = name;
   updateStepButtons();
   $$('.tab').forEach(t => t.setAttribute('aria-selected', t.dataset.tab === name ? 'true' : 'false'));
-  ['manuscript', 'cover', 'details', 'publish', 'gridbooks'].forEach(v => $('#view-' + v).hidden = v !== name);
+  ['manuscript', 'cover', 'details', 'publish', 'gridbooks', 'players'].forEach(v => $('#view-' + v).hidden = v !== name);
   if (name === 'gridbooks' && typeof gaGridBooks === 'function') gaGridBooks();
+  if (name === 'players' && typeof ppView === 'function') { syncPagesFromDom(); ppView(); }
   if (name === 'cover') ensureCover().then(() => { sizeCoverCanvas(); cv.calcOffset(); }).catch(() => { });
   if (name === 'publish') { syncPagesFromDom(); renderPubCard(); runChecks(); }
   if (name === 'manuscript') requestAnimationFrame(checkAllOverflow);
@@ -136,14 +137,15 @@ function wireShell() {
 
 async function init() {
   wireShell(); wireEditor(); wirePuzzles(); wireImport(); wireCover(); wireWriting();
+  if (typeof wirePlayerPuzzles === 'function') wirePlayerPuzzles();
   const saved = await idbGet('current');
   const restored = !!(saved && saved.pages && saved.pages.length);
   if (restored) { loadProject(saved); $('#sbSave').textContent = 'Restored from this browser'; }
   else { busy('Building the sample book'); await buildSample(); busy(false); $('#sbSave').textContent = 'Sample book loaded. Open Project to start your own.'; }
   // Grid Admin build: fetch this account's books, open the newest on a new device (sync.js).
   if (typeof syStart === 'function') syStart({ restored });
-  const h = (location.hash || '').slice(1); if (['cover', 'details', 'publish'].includes(h) || (h === 'gridbooks' && !$('[data-tab=gridbooks]').hidden)) showTab(h);
-  window.addEventListener('hashchange', () => { const t = location.hash.slice(1); if (['manuscript', 'cover', 'details', 'publish', 'gridbooks'].includes(t) && t !== currentTab) { const back = tabTrail[tabTrail.length - 1] === t; if (back) tabTrail.pop(); showTab(t, { back }); } });
+  const h = (location.hash || '').slice(1); if (['cover', 'details', 'publish'].includes(h) || (['gridbooks', 'players'].includes(h) && !$(`[data-tab=${h}]`).hidden)) showTab(h);
+  window.addEventListener('hashchange', () => { const t = location.hash.slice(1); if (['manuscript', 'cover', 'details', 'publish', 'gridbooks', 'players'].includes(t) && t !== currentTab) { const back = tabTrail[tabTrail.length - 1] === t; if (back) tabTrail.pop(); showTab(t, { back }); } });
   document.fonts && document.fonts.ready.then(() => checkAllOverflow());
 }
 // init() runs from auth.js once Grid Admin says this account may publish

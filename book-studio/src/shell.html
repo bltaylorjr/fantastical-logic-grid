@@ -103,6 +103,19 @@ main { min-height: 0; position: relative; }
 .page .content { position: absolute; outline: none; overflow: hidden; font-family: var(--book-font); font-size: var(--book-size); line-height: var(--book-lh); color: #111; word-wrap: break-word; }
 .page .content:focus { box-shadow: inset 0 0 0 1px rgba(47,125,225,.25); }
 .page .folio { position: absolute; font-family: var(--book-font); font-size: 10pt; color: #111; pointer-events: none; }
+.page .page-credit { position: absolute; font-family: var(--book-font); font-size: 8pt; font-style: italic; color: #333; pointer-events: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.credit-box { border-top: 1px solid var(--line); margin-top: 8px; padding-top: 6px; }
+.pp-bar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 12px; margin: 10px 0; }
+.pp-bar .lab { min-width: 160px; }
+.pp-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.pp-item { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel, #fff); }
+.pp-item.here { border-color: var(--accent); }
+.pp-pick input { width: 20px; height: 20px; }
+.pp-meta { flex: 1 1 260px; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.pp-title { overflow-wrap: anywhere; }
+.pp-tags { display: flex; gap: 6px; flex-wrap: wrap; }
+.pp-acts { display: flex; gap: 6px; flex-wrap: wrap; }
+.pp-print { position: fixed; right: 0; bottom: 0; width: 1px; height: 1px; border: 0; opacity: 0; }
 .page .tag { position: absolute; top: -22px; left: 0; font-family: var(--f-mono); font-size: 11px; color: var(--ink-2); display: flex; gap: 8px; white-space: nowrap; }
 .page .tag .of { color: var(--bad); font-weight: 600; }
 .page.overflow { box-shadow: 0 0 0 2px var(--bad), 0 6px 18px rgba(0,0,0,.16); }
@@ -116,8 +129,8 @@ main { min-height: 0; position: relative; }
 .grid-room { flex: 1 1 0; min-height: 0; position: relative; overflow: hidden; }
 .grid-key { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; }
 .grid-key .bk-keyh { margin: 0 0 4pt; font-weight: 700; font-size: 10pt; }
-.grid-block { position: absolute; left: 0; right: 0; top: 0; transform-origin: top center; }
-.grid-block .bk-fit { margin: 0 auto; width: max-content; max-width: none; }
+.grid-block { position: absolute; left: 0; right: 0; top: 0; transform-origin: top left; }
+.grid-block .bk-fit { margin: 0 auto; max-width: none; }
 .grid-block .bk-fit table { margin-left: auto; margin-right: auto; }
 .grid-text .bk-title { text-align: center; padding-top: 1.6in; }
 .grid-text .bk-title h1 { font: 700 26pt/1.15 "Cinzel", Georgia, serif; margin: 0 0 .2in; }
@@ -273,6 +286,7 @@ dialog::backdrop { background: rgba(10,14,20,.45); }
     <button class="tab" role="tab" data-tab="details" aria-selected="false">Book details</button>
     <button class="tab" role="tab" data-tab="publish" aria-selected="false">Check &amp; export</button>
     <button class="tab" role="tab" data-tab="gridbooks" aria-selected="false" hidden>Grid books</button>
+    <button class="tab" role="tab" data-tab="players" aria-selected="false" hidden>Player puzzles</button>
     <span class="tab-steps"><button class="btn ghost" id="navBack" type="button" hidden>← Back</button><button class="btn" id="navNext" type="button">Next: Cover →</button></span>
   </nav>
   <main>
@@ -369,6 +383,11 @@ dialog::backdrop { background: rgba(10,14,20,.45); }
               <button class="btn" id="pgDown">Move down</button>
             </div>
             <label class="check"><input type="checkbox" id="pgNoFolio"> Hide page number on this page</label>
+            <div id="pgCreditBox" class="credit-box" hidden>
+              <label class="check"><input type="checkbox" id="pgCredit"> Show author credit on this puzzle</label>
+              <label class="check"><input type="checkbox" id="pgCreditBook"> Show author credit on every player puzzle in this book</label>
+              <p class="hint" id="pgCreditName"></p>
+            </div>
             <div class="row2"><button class="btn" id="pgBgImg">Background image</button><button class="btn" id="pgBgClear">Clear background</button></div>
           </div>
           <div class="insp-sec">
@@ -504,6 +523,29 @@ dialog::backdrop { background: rgba(10,14,20,.45); }
         <p class="muted">Puzzle books made from the game's own puzzles: no puzzle is ever used twice. Make one here, then press <b>Open in the editor</b> to fit it to any publisher and download the submission packet.</p>
         <div id="books-body"><p class="muted">Loading…</p></div>
         <div id="books-frames"></div>
+      </div></div>
+    </section>
+
+    <!-- PLAYER PUZZLES (Grid Admin only: auth.js shows the tab; playerpuzzles.js) -->
+    <section class="view" id="view-players" hidden>
+      <div class="scroll-page"><div class="grid-books">
+        <h1>Player puzzles</h1>
+        <p class="muted">Every puzzle players sent in that the team approved (Grid Admin, Puzzle submissions). Add one to this book, or download or print it on its own. Each puzzle counts as published in a book once that book's interior is exported.</p>
+        <form id="ppSearch" class="pp-bar" role="search">
+          <label class="lab">Search <input type="search" id="ppQ" placeholder="Title, player or #"></label>
+          <label class="lab">Game <select id="ppGame"><option value="">All games</option><option value="fantastical">The Fantastical Logic Grid</option><option value="ninetimesnine">NINETIMESNINE</option></select></label>
+          <label class="lab">Show <select id="ppUse"><option value="">All</option><option value="new">Not in a book yet</option><option value="used">Already in a book</option><option value="book">In this book</option></select></label>
+          <button class="btn" type="submit">Search</button>
+          <button class="btn ghost" type="button" id="ppReload">Refresh</button>
+        </form>
+        <div class="pp-bar">
+          <label class="lab">Answer key <select id="ppKeys"><option value="back">At the back of the book</option><option value="after">Right after the puzzle</option><option value="none">Leave it out</option></select></label>
+          <label class="check"><input type="checkbox" id="ppCredits" checked> Show author credit (screen name) at the foot of each player puzzle page</label>
+          <button class="btn primary" type="button" id="ppAddPicked" disabled>Add ticked to the book</button>
+        </div>
+        <p class="muted" id="ppCount" role="status"></p>
+        <div id="ppBody"><p class="muted">Loading…</p></div>
+        <div id="ppFrames"></div>
       </div></div>
     </section>
 

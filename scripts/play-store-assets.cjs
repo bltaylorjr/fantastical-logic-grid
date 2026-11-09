@@ -33,8 +33,12 @@ const OUT = path.join(ROOT, 'media', 'play-store');
         await page.screenshot({ path: path.join(OUT, `phone-${scheme}-${name}.png`), type: 'png' });
       };
       await page.goto('http://localhost:8182/');
-      await page.waitForSelector('#tier-choices input');
+      // The front page lists the games; the first card is The Fantastical Logic Grid.
+      await page.waitForSelector('#game-cards button');
       await shot('home');
+      await page.click('#game-cards button');
+      await page.waitForSelector('#screen-home:not([hidden])');
+      await page.waitForSelector('#tier-choices input', { state: 'attached' });
       await page.check('input[name=tier][value=easy]', { force: true });
       await page.check('input[name=theme][value=mystery]', { force: true });
       await page.click('#gen-btn');

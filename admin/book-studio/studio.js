@@ -412,7 +412,22 @@ function buildPageNode(i, forExport) {
     else if (g.recto) { f.style.right = g.right + 'px'; } else { f.style.left = g.left + 'px'; }
     el.appendChild(f);
   }
+  // A player's puzzle (playerpuzzles.js): "Puzzle by <screen name>" at the foot
+  // of the page, when it is on for this puzzle and for the book.
+  const credit = pageCredit(p);
+  if (credit) {
+    const c = document.createElement('div'); c.className = 'page-credit'; c.textContent = credit;
+    c.style.bottom = Math.max(g.bottom / 2 - 8, 8) + 'px';
+    // Opposite the page number: centered, or on the outside edge when the number is centered.
+    if (S.folio.on && S.folio.pos === 'center') { if (g.recto) c.style.right = g.right + 'px'; else c.style.left = g.left + 'px'; }
+    else { c.style.left = g.left + 'px'; c.style.right = g.right + 'px'; c.style.textAlign = 'center'; }
+    el.appendChild(c);
+  }
   return el;
+}
+function pageCredit(p) {
+  if (!p || !p.player || !p.player.credit || p.player.show === false || S.playerCredits === false) return '';
+  return 'Puzzle by ' + String(p.player.credit).slice(0, 60);
 }
 
 function applyBookVars(root) {
@@ -463,11 +478,22 @@ function renderPageList() {
   $('#plAdd').onclick = () => addPageAfter(curPage);
 }
 
+// The author credit switches show only on a player's puzzle page.
+function refreshCreditTools() {
+  const box = $('#pgCreditBox'); if (!box) return;
+  const p = S.pages[curPage]; const pl = p && p.player;
+  box.hidden = !pl;
+  if (!pl) return;
+  $('#pgCredit').checked = !!pl.credit && pl.show !== false; $('#pgCredit').disabled = !pl.credit;
+  $('#pgCreditBook').checked = S.playerCredits !== false;
+  $('#pgCreditName').textContent = pl.credit ? `“Puzzle by ${pl.credit}” at the foot of the page.` : 'The author chose to stay anonymous, so this puzzle has no credit.';
+}
 function setActivePage(i, scroll) {
   curPage = clamp(i, 0, S.pages.length - 1);
   $$('#pages .page').forEach((p, k) => p.classList.toggle('active', k === curPage));
   $$('#pagelist .pl-item').forEach((p, k) => p.classList.toggle('active', k === curPage));
   const p = S.pages[curPage]; if (p) $('#pgNoFolio').checked = !!p.noFolio;
+  refreshCreditTools();
   if (scroll) { const el = pageEl(curPage); if (el) el.scrollIntoView({ block: 'start', behavior: 'smooth' }); }
 }
 
@@ -677,6 +703,14 @@ function wireEditor() {
   $('#bodyFont').onchange = e => { S.body.font = e.target.value; applyBookVars($('#pages')); requestAnimationFrame(checkAllOverflow); markDirty(); };
   $('#bodySize').onchange = e => { S.body.size = clamp(+e.target.value || 12, 6, 36); applyBookVars($('#pages')); requestAnimationFrame(checkAllOverflow); markDirty(); };
   $('#bodyLh').onchange = e => { S.body.lh = clamp(+e.target.value || 1.3, 1, 3); applyBookVars($('#pages')); requestAnimationFrame(checkAllOverflow); markDirty(); };
+  // Author credit on a player's puzzle page (playerpuzzles.js).
+  $('#pgCredit').onchange = e => {
+    syncPagesFromDom(); const p = S.pages[curPage]; if (!p || !p.player) return;
+    // Every page of the same puzzle follows (a puzzle can take two pages).
+    S.pages.forEach(q => { if (q.player && q.player.id === p.player.id) q.player.show = e.target.checked; });
+    renderPages(); markDirty();
+  };
+  $('#pgCreditBook').onchange = e => { syncPagesFromDom(); S.playerCredits = e.target.checked; renderPages(); markDirty(); };
   $('#folioOn').onchange = e => { syncPagesFromDom(); S.folio.on = e.target.checked; renderPages(); markDirty(); };
   $('#folioPos').onchange = e => { syncPagesFromDom(); S.folio.pos = e.target.value; renderPages(); markDirty(); };
   $('#folioStart').onchange = e => { syncPagesFromDom(); S.folio.start = Math.max(1, +e.target.value || 1); renderPages(); markDirty(); };
@@ -1907,7 +1941,7 @@ async function exportPacket() {
     dir.file(files[7], JSON.stringify(S));
     const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 3 } });
     busy('Saving', 1); busy(false);
-    await saveFile(base + '-submission-packet.zip', blob);
+    if ((await saveFile(base + '-submission-packet.zip', blob)) && typeof ppRecordExport === 'function') ppRecordExport('packet');
   } catch (e) { exportFailed(e); }
 }
 // Cancel on the progress card ends an export quietly; anything else is reported.
@@ -1916,7 +1950,7 @@ function exportFailed(e) {
   if (e && e.code === 'cancelled') { toast('Export cancelled. Nothing was saved.'); return; }
   console.error(e); toast('Export failed: ' + ((e && e.message) || e), 7000);
 }
-async function exportInterior() { if (!(await mayExport('interior'))) return; allowCancel(); try { const b = await buildInteriorPDF(+$('#dpi').value); busy('Saving', 1); busy(false); await saveFile(slug(S.meta.title) + '-interior.pdf', b); } catch (e) { exportFailed(e); } }
+async function exportInterior() { if (!(await mayExport('interior'))) return; allowCancel(); try { const b = await buildInteriorPDF(+$('#dpi').value); busy('Saving', 1); busy(false); if ((await saveFile(slug(S.meta.title) + '-interior.pdf', b)) && typeof ppRecordExport === 'function') ppRecordExport('interior'); } catch (e) { exportFailed(e); } }
 async function exportCover() { if (!(await mayExport('cover'))) return; allowCancel(); try { const { blob } = await buildCoverPDF(+$('#dpi').value); busy('Saving', 1); busy(false); await saveFile(slug(S.meta.title) + '-cover.pdf', blob); } catch (e) { exportFailed(e); } }
 
 function renderPubCard() {
@@ -1983,15 +2017,31 @@ function gridPageHtml(pg) {
 }
 
 // Shrink each fixed block to its room (also before each page is drawn for export).
+// The contents are laid out at the room's width, and wider when they must
+// shrink, so a puzzle's story and clues rewrap into the space the shrinking
+// makes instead of running off the page (as the Book maker's fitPages does).
 function fitGridBlocks(root) {
   $$('.grid-room > .grid-block', root).forEach(b => {
-    const room = b.parentElement; b.style.transform = '';
+    const room = b.parentElement; b.style.transform = ''; b.style.width = '';
     const w = room.clientWidth, h = room.clientHeight;
     const fit = b.firstElementChild;
-    const cw = Math.max(b.scrollWidth, fit ? fit.scrollWidth : 0), ch = b.scrollHeight;
+    const size = () => [Math.max(b.scrollWidth, fit ? fit.scrollWidth : 0), b.scrollHeight];
+    let [cw, ch] = size();
     if (!w || !h || !cw || !ch) return;
-    const s = Math.min(1, w / cw, h / ch);
-    if (s < 0.999) b.style.transform = `scale(${s.toFixed(4)})`;
+    let s = Math.min(1, w / cw, h / ch);
+    for (let k = 0; k < 4 && s < 0.999; k++) {
+      b.style.width = `${w / s}px`;
+      [cw, ch] = size();
+      const next = Math.max(0.1, Math.min(1, w / cw, h / ch));
+      if (Math.abs(next - s) < 0.005) { s = Math.min(s, next); break; }
+      s = next;
+    }
+    if (s < 0.999) {
+      // Some boards grow with the space they get: measure once more at the final width.
+      b.style.width = `${w / s}px`; [cw, ch] = size();
+      s = Math.max(0.1, Math.min(s, w / cw, h / ch));
+      b.style.width = `${w / s}px`; b.style.transform = `scale(${s.toFixed(4)})`;
+    } else b.style.width = '';
   });
 }
 
@@ -2213,7 +2263,7 @@ function updateStepButtons() {
   const i = STEPS.findIndex(s => s[0] === currentTab); const next = STEPS[i + 1];
   $('#navNext').hidden = i < 0 || !next; if (i >= 0 && next) $('#navNext').textContent = `Next: ${next[1]} →`;
   const prev = tabTrail[tabTrail.length - 1];
-  const prevName = prev === 'gridbooks' ? 'Grid books' : STEPS.find(s => s[0] === prev)?.[1];
+  const prevName = prev === 'gridbooks' ? 'Grid books' : prev === 'players' ? 'Player puzzles' : STEPS.find(s => s[0] === prev)?.[1];
   $('#navBack').hidden = !prev; if (prev) $('#navBack').textContent = `← Back to ${prevName}`;
 }
 function showTab(name, { back = false } = {}) {
@@ -2222,8 +2272,9 @@ function showTab(name, { back = false } = {}) {
   currentTab = name;
   updateStepButtons();
   $$('.tab').forEach(t => t.setAttribute('aria-selected', t.dataset.tab === name ? 'true' : 'false'));
-  ['manuscript', 'cover', 'details', 'publish', 'gridbooks'].forEach(v => $('#view-' + v).hidden = v !== name);
+  ['manuscript', 'cover', 'details', 'publish', 'gridbooks', 'players'].forEach(v => $('#view-' + v).hidden = v !== name);
   if (name === 'gridbooks' && typeof gaGridBooks === 'function') gaGridBooks();
+  if (name === 'players' && typeof ppView === 'function') { syncPagesFromDom(); ppView(); }
   if (name === 'cover') ensureCover().then(() => { sizeCoverCanvas(); cv.calcOffset(); }).catch(() => { });
   if (name === 'publish') { syncPagesFromDom(); renderPubCard(); runChecks(); }
   if (name === 'manuscript') requestAnimationFrame(checkAllOverflow);
@@ -2320,14 +2371,15 @@ function wireShell() {
 
 async function init() {
   wireShell(); wireEditor(); wirePuzzles(); wireImport(); wireCover(); wireWriting();
+  if (typeof wirePlayerPuzzles === 'function') wirePlayerPuzzles();
   const saved = await idbGet('current');
   const restored = !!(saved && saved.pages && saved.pages.length);
   if (restored) { loadProject(saved); $('#sbSave').textContent = 'Restored from this browser'; }
   else { busy('Building the sample book'); await buildSample(); busy(false); $('#sbSave').textContent = 'Sample book loaded. Open Project to start your own.'; }
   // Grid Admin build: fetch this account's books, open the newest on a new device (sync.js).
   if (typeof syStart === 'function') syStart({ restored });
-  const h = (location.hash || '').slice(1); if (['cover', 'details', 'publish'].includes(h) || (h === 'gridbooks' && !$('[data-tab=gridbooks]').hidden)) showTab(h);
-  window.addEventListener('hashchange', () => { const t = location.hash.slice(1); if (['manuscript', 'cover', 'details', 'publish', 'gridbooks'].includes(t) && t !== currentTab) { const back = tabTrail[tabTrail.length - 1] === t; if (back) tabTrail.pop(); showTab(t, { back }); } });
+  const h = (location.hash || '').slice(1); if (['cover', 'details', 'publish'].includes(h) || (['gridbooks', 'players'].includes(h) && !$(`[data-tab=${h}]`).hidden)) showTab(h);
+  window.addEventListener('hashchange', () => { const t = location.hash.slice(1); if (['manuscript', 'cover', 'details', 'publish', 'gridbooks', 'players'].includes(t) && t !== currentTab) { const back = tabTrail[tabTrail.length - 1] === t; if (back) tabTrail.pop(); showTab(t, { back }); } });
   document.fonts && document.fonts.ready.then(() => checkAllOverflow());
 }
 // init() runs from auth.js once Grid Admin says this account may publish
@@ -2667,6 +2719,242 @@ function syAppWire() {
 }
 syAppWire();
 
+/* ---------- Player puzzles: approved puzzles players sent in ----------
+   Grid Admin build only (auth.js shows the tab). Lists every approved player
+   puzzle (GET /admin/v1/studio/player-puzzles, server/src/studio-player-puzzles.js):
+   Puzzle Wizard puzzles and storylines in the Approved or Published section of
+   Grid Admin's Puzzle submissions page. For each one:
+   - Add to book: its puzzle page goes after the current page, its answer key
+     at the back of the book (or right after it), drawn like a Grid books page;
+   - Download: the puzzle and answer key as a PDF;
+   - Print: the same PDF, in the browser's print window.
+   The website's Book maker (web/js/book-maker.js, in a hidden frame) builds
+   each puzzle with the game's engine (a wizard puzzle again from the author's
+   entry and seed, so it is the puzzle they made) and draws it with the game's
+   print layout. A puzzle built here is kept with the entry, so every book
+   prints the same one.
+   Author credit: a player puzzle's page can show "Puzzle by <screen name>" at
+   the foot of the page (editor.js buildPageNode), switched on or off for each
+   puzzle (Current page, on the right) and for the whole book (S.playerCredits).
+   Players who chose to stay anonymous are never credited.
+   Publications: once the submission packet or the interior PDF is saved
+   (publish.js), ppRecordExport() sends the player puzzles in the book, and
+   the server counts each once per book (exporting it again does not). */
+let ppData = null;          // { items, siteUrl }
+let ppFrame = null, ppReady = null, ppReq = 0;
+const ppWaiting = new Map();
+const ppBuilt = new Map();  // id -> { item, css, pdf }
+const ppPicked = new Set();
+let ppQuery = { q: '', game: '', use: '' };
+
+const PP_GAMES = { fantastical: 'The Fantastical Logic Grid', ninetimesnine: 'NINETIMESNINE' };
+const PP_LEVELS = { basic: 'Basic', easy: 'Easy', medium: 'Medium', hard: 'Hard', expert: 'Expert', master: 'Master', mensa: 'Quantum Physicist', theorist: 'Theoretical Physicist' };
+
+// The player puzzle ids in this book (each counted once).
+function ppBookIds() {
+  return [...new Set(S.pages.map(p => p.player && Number(p.player.id)).filter(n => Number.isInteger(n) && n > 0))];
+}
+const ppCreditsOn = () => S.playerCredits !== false;
+
+/* ---------- the Book maker frame ---------- */
+function ppOnMessage(e) {
+  if (!ppData || !ppFrame || e.source !== ppFrame.contentWindow || !e.data) return;
+  let origin; try { origin = new URL(ppData.siteUrl).origin; } catch (x) { return; }
+  if (e.origin !== origin) return;
+  const m = e.data;
+  if (m.type === 'flg-book-ready') { ppReady && ppReady.resolve(); return; }
+  const w = ppWaiting.get(m.req);
+  if (w) { ppWaiting.delete(m.req); w(m); }
+}
+function ppMount() {
+  if (ppFrame) return;
+  window.addEventListener('message', ppOnMessage);
+  let resolve; ppReady = new Promise(r => { resolve = r; }); ppReady.resolve = resolve;
+  ppFrame = document.createElement('iframe');
+  ppFrame.title = 'Puzzle maker'; ppFrame.className = 'bk-frame'; ppFrame.hidden = true;
+  ppFrame.src = `${ppData.siteUrl}/book-maker/`;
+  $('#ppFrames').appendChild(ppFrame);
+}
+async function ppAsk(msg) {
+  ppMount();
+  await Promise.race([ppReady, new Promise((_, no) => setTimeout(() => no(new Error('The website did not answer. Check that it is online, then try again.')), 30000))]);
+  const id = `pp${++ppReq}`;
+  const m = await new Promise((resolve, reject) => {
+    ppWaiting.set(id, resolve);
+    setTimeout(() => { if (ppWaiting.delete(id)) reject(new Error('Building the puzzle took too long. Try again.')); }, 180000);
+    ppFrame.contentWindow.postMessage({ ...msg, req: id }, new URL(ppData.siteUrl).origin);
+  });
+  if (m.type === 'flg-book-error') throw new Error(m.message);
+  return m;
+}
+
+// The puzzle, built and drawn (once per visit).
+async function ppBuild(it) {
+  if (ppBuilt.has(it.id)) return ppBuilt.get(it.id);
+  const m = await ppAsk({ type: 'flg-book-player', entry: it.puzzle ? null : it.entry, seed: it.seed, puzzle: it.puzzle, credit: it.credit });
+  const out = { item: m.item, css: m.css, pdf: m.pdf };
+  ppBuilt.set(it.id, out);
+  // Keep the wizard puzzle just built, so every book prints this same one.
+  if (m.puzzle && !it.puzzle) {
+    it.puzzle = m.puzzle;
+    adminApi(`studio/player-puzzles/${it.id}/puzzle`, { method: 'POST', body: { puzzle: m.puzzle } }).catch(() => {});
+  }
+  return out;
+}
+
+/* ---------- the page ---------- */
+async function ppView({ reload = false } = {}) {
+  const body = $('#ppBody');
+  if (!ppData || reload) {
+    body.innerHTML = '<p class="muted">Loading…</p>';
+    try { ppData = await adminApi('studio/player-puzzles'); }
+    catch (e) { body.textContent = e.message || 'Player puzzles did not load. Check your connection and try again.'; return; }
+  }
+  $('#ppCredits').checked = ppCreditsOn();
+  ppRender();
+}
+function ppStatus(it) {
+  if (!it.puzzle && !it.entry) return 'not-built';
+  return 'ok';
+}
+function ppRender() {
+  const q = ppQuery.q.toLowerCase();
+  const inBook = new Set(ppBookIds());
+  const list = ppData.items.filter(it => (!ppQuery.game || it.game === ppQuery.game)
+    && (!ppQuery.use || (ppQuery.use === 'new' ? !it.books : ppQuery.use === 'book' ? inBook.has(it.id) : it.books > 0))
+    && (!q || [it.title, it.player, it.credit, String(it.id)].some(v => String(v || '').toLowerCase().includes(q))));
+  const ready = list.filter(it => ppStatus(it) === 'ok');
+  for (const id of [...ppPicked]) if (!ready.some(it => it.id === id)) ppPicked.delete(id);
+  $('#ppCount').textContent = `${list.length} of ${ppData.items.length} approved player puzzle${ppData.items.length === 1 ? '' : 's'}`;
+  $('#ppAddPicked').disabled = !ppPicked.size;
+  $('#ppAddPicked').textContent = ppPicked.size ? `Add ${ppPicked.size} to the book` : 'Add ticked to the book';
+  $('#ppBody').innerHTML = list.length ? `<ul class="pp-list">${list.map(it => {
+    const ok = ppStatus(it) === 'ok';
+    const level = PP_LEVELS[it.level] || it.level || '';
+    const by = it.credit ? `by <b>${esc(it.credit)}</b>` : it.anonymous ? 'The author chose no credit' : 'by a player';
+    const used = it.books ? `In ${it.books} book${it.books === 1 ? '' : 's'}${it.exports > it.books ? ` (${it.exports} exports)` : ''}` : 'Not in a book yet';
+    return `<li class="pp-item${inBook.has(it.id) ? ' here' : ''}">
+      <label class="pp-pick"><input type="checkbox" data-pp-pick="${it.id}"${ppPicked.has(it.id) ? ' checked' : ''}${ok ? '' : ' disabled'} aria-label="Tick ${esc(it.title)}"></label>
+      <div class="pp-meta">
+        <b class="pp-title">${esc(it.title)}</b>
+        <span class="muted">${esc(PP_GAMES[it.game] || it.game)}${level ? ` · ${esc(level)}` : ''} · ${it.kind === 'storyline' ? 'Storyline' : 'Puzzle Wizard'} · #${it.id}</span>
+        <span>${by}</span>
+        <span class="pp-tags"><span class="chip ${it.books ? 'ok' : ''}">${used}</span>${it.status === 'published' ? '<span class="chip">Published</span>' : ''}${inBook.has(it.id) ? '<span class="chip ok">In this book</span>' : ''}</span>
+        ${ok ? '' : '<span class="hint">No puzzle yet: build it in Grid Admin under Storyline submissions first.</span>'}
+      </div>
+      <div class="pp-acts">
+        <button class="btn primary" type="button" data-pp-add="${it.id}"${ok ? '' : ' disabled'}>Add to book</button>
+        <button class="btn" type="button" data-pp-pdf="${it.id}"${ok ? '' : ' disabled'}>Download</button>
+        <button class="btn" type="button" data-pp-print="${it.id}"${ok ? '' : ' disabled'}>Print</button>
+      </div>
+    </li>`;
+  }).join('')}</ul>` : `<p class="muted">${ppData.items.length ? 'Nothing matches. Clear the search to see them all.' : 'No approved player puzzles yet. Approve them in Grid Admin under Puzzle submissions.'}</p>`;
+}
+
+/* ---------- adding to the book ---------- */
+function ppAddCss(css) {
+  const clean = cleanGridCss(css);
+  const games = (clean.match(/\.bk-g-[\w-]+/) || [])[0];
+  if (!clean || (games && (S.gridCss || '').includes(games + ' '))) return;
+  S.gridCss = cleanGridCss(((S.gridCss || '') + '\n' + clean).trim());
+  applyGridCss();
+}
+// One player puzzle as editor pages: its puzzle page(s) and its answer key page.
+function ppPages(it, built) {
+  const x = built.item; const g = esc(x.game);
+  const head = `${esc(x.gameName)}${x.level ? ` · ${esc(x.level)}` : ''}`;
+  const parts = String(x.page || '').split('<div class="bk-break"></div>').filter(Boolean);
+  const player = { id: it.id, credit: it.credit || '', title: String(it.title || '').slice(0, 120) };
+  const pages = parts.map((part, k) => ({
+    id: uid(), grid: 'puzzle', player: { ...player },
+    html: gridPageHtml({ kind: 'puzzle', head: head + (parts.length > 1 ? ` (${k + 1} of ${parts.length})` : ''), body: `<div class="bk-fit bk-g-${g}">${part}</div>` })
+  }));
+  const key = x.key ? {
+    id: uid(), grid: 'key', playerKey: it.id,
+    html: gridPageHtml({ kind: 'key', head: `Answer · ${esc(it.title)}`, body: `<div class="bk-key"><p class="bk-keyh">${esc(it.title)}</p><div class="bk-room"><div class="bk-fit bk-g-${g}">${x.key}</div></div></div>` })
+  } : null;
+  return { pages, key };
+}
+async function ppAdd(ids) {
+  const items = ids.map(id => ppData.items.find(it => it.id === id)).filter(Boolean);
+  if (!items.length) return;
+  const where = $('#ppKeys').value;
+  const made = [];
+  try {
+    for (let k = 0; k < items.length; k++) {
+      busy(`Building “${items[k].title}” (${k + 1} of ${items.length})`, (k + 0.5) / items.length);
+      made.push([items[k], await ppBuild(items[k])]);
+    }
+  } catch (e) { busy(false); toast(e.message || 'That puzzle could not be built.', 7000); return; }
+  busy(false);
+  snapshot('player puzzles');
+  syncPagesFromDom();
+  let at = clamp(curPage, 0, S.pages.length - 1) + 1;
+  const first = at;
+  for (const [it, built] of made) {
+    ppAddCss(built.css);
+    const { pages, key } = ppPages(it, built);
+    S.pages.splice(at, 0, ...pages); at += pages.length;
+    if (key && where === 'after') { S.pages.splice(at, 0, key); at += 1; }
+    else if (key && where === 'back') S.pages.push(key);
+  }
+  renderPages(); refreshAll(); setActivePage(first, false); markDirty();
+  showTab('manuscript');
+  setTimeout(() => setActivePage(first, true), 60);
+  toast(`Added ${made.length} player puzzle${made.length === 1 ? '' : 's'}${where === 'none' ? '' : where === 'after' ? ', each with its answer key after it' : ', with the answer keys at the back'}.`, 5000);
+  made.forEach(([it]) => ppPicked.delete(it.id));
+}
+
+/* ---------- publications ---------- */
+async function ppRecordExport(kind) {
+  syncPagesFromDom();
+  const puzzles = ppBookIds(); if (!puzzles.length) return;
+  const book = typeof syEnsureId === 'function' ? syEnsureId() : '';
+  try {
+    const r = await adminApi('studio/player-puzzles/published', { method: 'POST', body: { kind, book, title: S.meta.title || 'Untitled', platform: PUBLISHERS[S.pub].name, puzzles } });
+    if (r.counted) {
+      toast(`${r.counted} player puzzle${r.counted === 1 ? '' : 's'} counted as published in this book.`, 5000);
+      ppData = null; // counts changed: load again next time
+    }
+  } catch (e) { /* the export is saved; the count catches up the next time it is exported */ }
+}
+
+/* ---------- download and print ---------- */
+async function ppPdf(id) {
+  const it = ppData.items.find(x => x.id === id); if (!it) return null;
+  busy(`Building “${it.title}”`, 0.4);
+  try { const b = await ppBuild(it); busy(false); return { it, blob: new Blob([b.pdf], { type: 'application/pdf' }) }; }
+  catch (e) { busy(false); toast(e.message || 'That puzzle could not be built.', 7000); return null; }
+}
+async function ppDownload(id) {
+  const r = await ppPdf(id); if (!r) return;
+  await saveFile(`${slug(r.it.title)}-puzzle.pdf`, r.blob);
+}
+async function ppPrint(id) {
+  const r = await ppPdf(id); if (!r) return;
+  const url = URL.createObjectURL(r.blob);
+  const f = document.createElement('iframe');
+  f.title = 'Printable puzzle'; f.className = 'pp-print';
+  f.onload = () => { try { f.contentWindow.focus(); f.contentWindow.print(); } catch (e) { window.open(url, '_blank', 'noopener'); } };
+  f.src = url; document.body.appendChild(f);
+  setTimeout(() => { f.remove(); URL.revokeObjectURL(url); }, 120000);
+}
+
+function wirePlayerPuzzles() {
+  $('#ppSearch').onsubmit = e => { e.preventDefault(); ppQuery = { q: $('#ppQ').value.trim(), game: $('#ppGame').value, use: $('#ppUse').value }; if (ppData) ppRender(); };
+  $('#ppGame').onchange = $('#ppUse').onchange = () => $('#ppSearch').requestSubmit();
+  $('#ppReload').onclick = () => { ppBuilt.clear(); ppView({ reload: true }); };
+  $('#ppCredits').onchange = e => { syncPagesFromDom(); S.playerCredits = e.target.checked; renderPages(); refreshAll(); markDirty(); toast(e.target.checked ? 'Author credit shows on player puzzle pages (where it is on for the puzzle).' : 'Author credit is off for every player puzzle in this book.'); };
+  $('#ppAddPicked').onclick = () => ppAdd([...ppPicked]);
+  $('#ppBody').onclick = e => {
+    const b = e.target.closest('button, input'); if (!b || b.disabled) return;
+    if (b.dataset.ppPick) { const id = +b.dataset.ppPick; b.checked ? ppPicked.add(id) : ppPicked.delete(id); $('#ppAddPicked').disabled = !ppPicked.size; $('#ppAddPicked').textContent = ppPicked.size ? `Add ${ppPicked.size} to the book` : 'Add ticked to the book'; return; }
+    if (b.dataset.ppAdd) ppAdd([+b.dataset.ppAdd]);
+    else if (b.dataset.ppPdf) ppDownload(+b.dataset.ppPdf);
+    else if (b.dataset.ppPrint) ppPrint(+b.dataset.ppPrint);
+  };
+}
+
 /* ---------- Sign-in for Book Studio ----------
    Book Studio has its own sign-in screen and shares the dashboard's session
    (admin/admin.js keeps it under flg-admin-session, in sessionStorage or,
@@ -2833,7 +3121,7 @@ let gaOpened = false, gaOpenedAs = '';
 function gaOpen() {
   $('#gate').hidden = true; $('#app').hidden = false;
   $('#whoEmail').textContent = gaMe.email; $('#backToAdmin').hidden = gaMe.role === 'publisher';
-  $('[data-tab=gridbooks]').hidden = false;
+  $('[data-tab=gridbooks]').hidden = false; $('[data-tab=players]').hidden = false;
   gaRefreshPkButton();
   // Someone else signed in on this page: start again, so their books load (sync.js).
   if (gaOpened && gaOpenedAs !== gaMe.email) { location.reload(); return; }
