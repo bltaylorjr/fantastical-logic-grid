@@ -1,6 +1,32 @@
 # Marketing pictures
 
-Pictures for the launch campaign's posts, one per channel size. They are
+## The Logic Grid: every game
+
+Pictures of The Logic Grid as a whole, with every game on the site drawn
+from the front page's own card art and colours (`scripts/hub.mjs`). The
+launch posts that talk about the site use these. When a game is added to the
+front page, run the tool again and it appears in every picture.
+
+| File | Size | For |
+| --- | --- | --- |
+| `logic-grid-wide-1600x900.png` | 1600 x 900 | X, Bluesky, Threads, Mastodon, LinkedIn, Reddit |
+| `logic-grid-square-1080.png` | 1080 x 1080 | Instagram, Threads and Facebook feed posts |
+| `logic-grid-pin-1000x1500.png` | 1000 x 1500 | Pinterest |
+| `logic-grid-gallery-1270x760.png` | 1270 x 760 | Product Hunt, AlternativeTo, Microsoft Store |
+| `logic-grid-itch-cover-630x500.png` | 630 x 500 | Small covers and directory thumbnails |
+| `logic-grid-facebook-cover-1640x624.png` | 1640 x 624 | Facebook Page cover (phones crop the sides) |
+| `logic-grid-x-header-1500x500.png` | 1500 x 500 | X profile header (the photo covers the bottom left) |
+
+Each has a `.jpg` twin. Rebuild them (no npm install needed, only Playwright):
+
+```
+npm run build        # or set FONT_DIR, see the top of the tool
+node media/marketing/tools/make-hub-images.mjs
+```
+
+## The Fantastical Logic Grid
+
+Pictures of the story logic puzzle game on its own, one per channel size. They are
 listed with the promo videos (`media/promo`) in the admin dashboard's
 **Marketing** section, where each ad says which ones it uses.
 
