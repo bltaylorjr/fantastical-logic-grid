@@ -38,6 +38,27 @@ turns a book into editor pages (`src/gridbooks.js`): text pages stay editable, p
 answer keys are fixed blocks shrunk to fit, and the cover comes in as one picture. Anyone
 who may publish books may make, save and publish Grid books.
 
+## Make a copy without AI content
+
+**Project > Make a copy without AI content…** (`src/noai.js`) makes a new book from the one
+open, so KDP's AI question can honestly be answered "None" for the copy. The original is
+never changed: it is synced first (or, in the stand-alone build, saved as a project file).
+
+1. **Review**: every picture (pages and cover) and every block of words (pages, cover text,
+   description, back cover blurb) is listed. Pictures whose file says an AI made them
+   (Content Credentials / C2PA, IPTC "trained algorithmic media", or an AI tool's prompt notes)
+   come ticked; words can't be told apart, so you tick what an AI wrote. Puzzles from Book
+   Studio's generators, Grid books' puzzle pages and the game's cover pictures are engine-made
+   and not listed.
+2. **The copy** opens with each ticked part taken out and a marked empty spot in its place
+   (a dashed box on the cover). On the account it is listed as "… (no AI content)".
+3. **Fill**: each spot opens in turn with a text box for your own words (or **Choose my own
+   picture** for a picture), **Leave it out** or **Later**. **Project > Fill the removed spots**
+   comes back to the rest; the Publish check and every export stop while any spot is empty.
+   What was there is shown only during that visit, for reference, and is never saved in the copy.
+
+Tested by `scripts/e2e-book-studio-noai.cjs`.
+
 ## Sync and the app
 
 Every book is saved in the browser first (IndexedDB), then synced to the signed-in account a

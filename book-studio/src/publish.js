@@ -29,6 +29,7 @@ async function runChecks(opts = {}) {
   const add = (sev, id, msg, sub, fix, act) => out.push({ sev, id, msg, sub, fix, act });
   const toDetails = { label: 'Edit details', fn: () => showTab('details') };
   if (!S.meta.title.trim()) add('error', 'title', 'The book has no title', 'Add one in Book details. It is used on the cover, title page and metadata.', null, toDetails);
+  if (typeof aiGapCount === 'function' && aiGapCount()) add('error', 'aigaps', `${aiGapCount()} removed spot${aiGapCount() === 1 ? ' is' : 's are'} still empty`, 'This copy had AI-made parts taken out. Write your own words or choose your own pictures for them, or leave them out.', null, { label: 'Fill them', fn: () => noaiOpenFill() });
   if (!S.meta.author.trim()) add('error', 'author', 'No author name', 'Add the author or pen name in Book details.', null, toDetails);
   if (!P.trims.includes(S.trim)) add('error', 'trim', `${P.short} does not print ${TRIM_LABEL(S.trim)}`, `Switch to a supported size, such as ${TRIM_LABEL(nearestTrim(P.trims))}.`, () => { S.trim = nearestTrim(P.trims); });
   const maxP = P.maxPagesFor ? P.maxPagesFor(S.trim, S.paper) : P.maxPages;
@@ -247,7 +248,11 @@ function reportText() {
 }
 
 // In Grid Admin, every export checks in first (auth.js); the stand-alone build has no check.
-const mayExport = async (kind) => (typeof checkInExport === 'function' ? checkInExport(kind) : true);
+const mayExport = async (kind) => {
+  // A copy without AI content prints nothing until every removed spot is filled or left out.
+  if (typeof aiGapCount === 'function' && aiGapCount()) { toast(`Fill or leave out the ${aiGapCount()} removed spot${aiGapCount() === 1 ? '' : 's'} first (Project › Fill the removed spots).`, 6000); noaiOpenFill(); return false; }
+  return typeof checkInExport === 'function' ? checkInExport(kind) : true;
+};
 async function exportPacket() {
   if (!(await mayExport('packet'))) return;
   allowCancel();
