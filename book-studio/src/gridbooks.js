@@ -55,15 +55,31 @@ function gridPageHtml(pg) {
 }
 
 // Shrink each fixed block to its room (also before each page is drawn for export).
+// The contents are laid out at the room's width, and wider when they must
+// shrink, so a puzzle's story and clues rewrap into the space the shrinking
+// makes instead of running off the page (as the Book maker's fitPages does).
 function fitGridBlocks(root) {
   $$('.grid-room > .grid-block', root).forEach(b => {
-    const room = b.parentElement; b.style.transform = '';
+    const room = b.parentElement; b.style.transform = ''; b.style.width = '';
     const w = room.clientWidth, h = room.clientHeight;
     const fit = b.firstElementChild;
-    const cw = Math.max(b.scrollWidth, fit ? fit.scrollWidth : 0), ch = b.scrollHeight;
+    const size = () => [Math.max(b.scrollWidth, fit ? fit.scrollWidth : 0), b.scrollHeight];
+    let [cw, ch] = size();
     if (!w || !h || !cw || !ch) return;
-    const s = Math.min(1, w / cw, h / ch);
-    if (s < 0.999) b.style.transform = `scale(${s.toFixed(4)})`;
+    let s = Math.min(1, w / cw, h / ch);
+    for (let k = 0; k < 4 && s < 0.999; k++) {
+      b.style.width = `${w / s}px`;
+      [cw, ch] = size();
+      const next = Math.max(0.1, Math.min(1, w / cw, h / ch));
+      if (Math.abs(next - s) < 0.005) { s = Math.min(s, next); break; }
+      s = next;
+    }
+    if (s < 0.999) {
+      // Some boards grow with the space they get: measure once more at the final width.
+      b.style.width = `${w / s}px`; [cw, ch] = size();
+      s = Math.max(0.1, Math.min(s, w / cw, h / ch));
+      b.style.width = `${w / s}px`; b.style.transform = `scale(${s.toFixed(4)})`;
+    } else b.style.width = '';
   });
 }
 

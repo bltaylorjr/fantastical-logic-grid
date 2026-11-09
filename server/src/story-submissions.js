@@ -390,7 +390,8 @@ ${JSON.stringify(fields)}`;
 const LIST_COLUMNS = `s.id, s.kind, (SELECT COUNT(*) FROM story_submission_images i WHERE i.submission_id = s.id) AS images, (SELECT COUNT(*) FROM story_submission_sounds d WHERE d.submission_id = s.id) AS sounds, s.source, s.theme, s.title, s.pitch, s.credit, s.consent, s.status, s.created_at AS createdAt, s.decided_at AS decidedAt,
   s.decided_by AS decidedBy, s.user_id AS uid, s.email, s.puzzle IS NOT NULL AS hasPuzzle, s.text, p.screen_name AS player,
   s.ip_verdict AS ipVerdict, s.ip_scan_at AS ipScanAt, s.edit_invited AS editInvited, s.edit_until AS editUntil, s.published_at AS publishedAt, s.published_note AS publishedNote,
-  s.pushed_at AS pushedAt, s.push_count AS pushCount`;
+  s.pushed_at AS pushedAt, s.push_count AS pushCount,
+  (SELECT COUNT(*) FROM submission_publications u WHERE u.submission_id = s.id) AS books`;
 
 function listItem(r) {
   return { ...r, consent: !!r.consent, hasPuzzle: !!r.hasPuzzle, editInvited: !!r.editInvited, themeName: nameOf(r.theme), text: String(r.text || '').slice(0, 280) };
@@ -455,6 +456,9 @@ export function storySubmissionRoutes(Refusal) {
           editInvite: s.edit_invited && (s.edit_until || 0) > Date.now() && s.status !== 'new' ? s.edit_until : null,
           publishedAt: s.published_at, publishedBy: s.published_by, publishedNote: s.published_note,
           pushedAt: s.pushed_at, pushedBy: s.pushed_by, pushCount: s.push_count || 0, puzzleKeepDays: PUZZLE_KEEP_DAYS,
+          // The books it went out in from Book Studio (studio-player-puzzles.js), newest first.
+          books: (await env.DB.prepare(`SELECT title, platform, by_email AS by, first_at AS firstAt, last_at AS lastAt, exports
+            FROM submission_publications WHERE submission_id = ?1 ORDER BY last_at DESC LIMIT 100`).bind(s.id).all()).results,
           choices: { themes: THEMES.map((t) => [t.id, t.name]), tones: TONES, difficulties: DIFFICULTIES, orders: ORDERS, roles: ROLES, genders: GENDERS,
             rewards: Object.fromEntries(Object.entries(REWARDS).map(([k, r]) => [k, r])), limits: LIMITS, maxCharacters: MAX_CHARACTERS, maxCategories: MAX_CATEGORIES },
         },
@@ -640,6 +644,7 @@ export function storySubmissionRoutes(Refusal) {
       if (!r.meta.changes) throw new Refusal(404, 'gone', 'That entry is gone.');
       await deleteSubmissionImages(env, id);
       await deleteSubmissionSounds(env, id);
+      await env.DB.prepare('DELETE FROM submission_publications WHERE submission_id = ?1').bind(Number(id)).run();
       await env.DB.prepare("UPDATE feedback_replies SET status = 'dropped', email = NULL, user_id = NULL WHERE submission_id = ?1 AND status IN ('waiting', 'held')").bind(Number(id)).run();
       return { body: { ok: true }, target: id };
     }],

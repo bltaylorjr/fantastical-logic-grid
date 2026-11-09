@@ -6,7 +6,7 @@ The "Mobile apps" workflow builds the signed APK (to install directly) and the
 AAB (the file Google Play wants) on every change, once the two signing secrets
 are set. iOS is paused.
 
-## Cost and rules (checked 2026-10-27)
+## Cost and rules (checked 2026-10-27, again 2026-11-08)
 
 - **One-time $25 registration fee.** This is the only cost and needs Bobby's
   OK before it is paid. Everything else here is free.
@@ -17,11 +17,26 @@ are set. iOS is paused.
   (Google usually answers within a week). Friends and family with a Google
   account and an Android phone are enough; they join through a link.
 
+## Where things stand (2026-11-08)
+
+- The app builds on every change (version 1.19.5 today), but only as an
+  unsigned test copy: the two signing secrets (`ANDROID_KEYSTORE_BASE64`,
+  `ANDROID_KEYSTORE_PASSWORD`) are still not set. Google Play needs the signed
+  `.aab`, so adding them is the first step.
+- Once they are set, every release on
+  https://github.com/bltaylorjr/fantastical-logic-grid/releases gets both the
+  `.apk` (install on a phone) and the `.aab` (upload to Play).
+- App keys: the Android app asks for an app key the first time it opens once
+  `LICENSE_SIGNING_KEY` is set. Google's reviewers and the 12 testers can't
+  get past that without a key, so either Play copies skip the key, or Google
+  gets a ready-approved key under **App content > App access**.
+
 ## What is ready in the repository
 
 - Package name: `com.fantasticallogicgrid.app`. It can never change once uploaded.
-- Signed builds: the "Mobile apps" workflow's artifact `android-<version>`
-  holds the `.aab` for Play and the `.apk` for direct installs. Target SDK 36
+- Signed builds: each GitHub Release gets the `.aab` for Play and the `.apk`
+  for direct installs (the "Mobile apps" workflow's artifact `android-<version>`
+  holds them too). Target SDK 36
   meets Play's current requirement.
 - Pictures in `media/play-store/` (remake with `npm run build && node scripts/play-store-assets.cjs`):
   - `icon-512.png`: app icon, 512 × 512
@@ -37,13 +52,16 @@ are set. iOS is paused.
    `fantasticallogicgrid@gmail.com` as the developer account email (private,
    for Google only). When it asks for the **contact email** that players see,
    use `support@thelogicgrid.com`. Finish the identity and phone checks.
-2. **Create app**: name **The Fantastical Logic Grid**, language English (United States),
+2. **Create app**: name **The Logic Grid**, language English (United States),
    **Game**, **Free**. Tick the declarations.
 3. **Set up your app** (the dashboard lists each item). Use the answers below.
 4. **Testing > Closed testing > Create track**. Upload the `.aab`. When asked
    about **Play App Signing**, keep the default (Google holds the app signing key;
    our key becomes the upload key). Add testers by email or a Google Group,
    send them the opt-in link, and keep at least 12 of them opted in for 14 days.
+   Ask 15 or more people, so a few dropping out doesn't restart the 14 days.
+   Google also looks at whether testers actually opened the app and sent
+   feedback, so ask them to play a few puzzles during the two weeks.
 5. After 14 days: **Dashboard > Apply for production**, answer the short
    questions about the test, and wait for Google.
 6. When it is approved: **Production > Create new release**, upload the latest
@@ -57,22 +75,28 @@ from GitHub.
 
 ## Store listing
 
+The app is **The Logic Grid** (the name on the phone's home screen and in
+the web app's manifest). The Fantastical Logic Grid is its main game.
+
 **App name (30 characters max)**
-The Fantastical Logic Grid
+The Logic Grid
 
 **Short description (80 characters max)**
-Story logic grid puzzles. Every case is a new story. Free, no ads, works offline.
+Story logic grids plus number, picture and word puzzles. Free, no ads, offline.
 
 **Full description**
-Every case in The Fantastical Logic Grid is a brand new story. Read the clues, fill the grid with X and O, and close the case. Every puzzle has exactly one answer you can reach without guessing.
+The Logic Grid is a collection of puzzle games where every puzzle has exactly one answer you can reach without guessing.
 
-• Seven difficulty levels, from Basic to Theoretical Physicist, and almost any size
-• More than 40 themes, from mysteries and holidays to national parks
+The main game, The Fantastical Logic Grid, turns every case into a brand new story. Read the clues, fill the grid with X and O, and close the case.
+
+• Story logic grids with seven difficulty levels, from Basic to Theoretical Physicist, and more than 40 themes
+• NINETIMESNINE number puzzles, with hints that teach the next step
+• More puzzle types: Cage Math, Sum Cross, Picture Grid, Skyline, Star Field, Loop Line, Island Bridges, Crossword and more
 • A new daily puzzle for everyone, with streaks and badges
 • Hints that explain the reasoning, unlimited undo, and autosave
 • Characters who read their clues aloud, in natural voices
 • Play in 100 languages
-• Print any puzzle, with the answer key on its own page
+• Print any story puzzle, with the answer key on its own page
 • Race other players and challenge friends to beat your time
 • Screen reader friendly, with dark and high-contrast colors and a Silent mode
 • Works offline once installed

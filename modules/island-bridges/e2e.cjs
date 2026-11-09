@@ -55,7 +55,14 @@ const P = 'ib', DIR = 'island-bridges';
       }
       return null;
     }, [DIR, e]);
-    const tap = async (e) => { const [fx, fy] = await pointFor(e); await page.mouse.click(box.x + fx * box.width, box.y + fy * box.height); };
+    // A story moment stays until it's closed and can cover part of the board,
+    // so close it (as a player would) and measure the board again before a tap.
+    const tap = async (e) => {
+      if (await page.locator(`#${P}-moment`).isVisible()) await page.click(`#${P}-moment-close`);
+      const b = await page.locator(`#${P}-board`).boundingBox();
+      const [fx, fy] = await pointFor(e);
+      await page.mouse.click(b.x + fx * b.width, b.y + fy * b.height);
+    };
 
     // Hints.
     for (let i = 0; i < 3; i++) await page.click(`#${P}-hint-btn`);
@@ -135,8 +142,7 @@ const P = 'ib', DIR = 'island-bridges';
     for (const t of ['dark', 'contrast', 'light']) await page.selectOption('#theme', t);
 
     // Play to the end by tapping.
-    // A tap can land on a story moment as it slides in (seen on GitHub's
-    // machines), so go over the board again until every gap is right.
+    // Go over the board again if a tap didn't take, until every gap is right.
     s = await st();
     const solvedNow = async () => (await page.locator(`#${P}-solved:not([hidden])`).count()) > 0;
     for (let pass = 0; pass < 4 && !(await solvedNow()); pass++) {
