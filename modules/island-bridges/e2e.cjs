@@ -135,14 +135,25 @@ const P = 'ib', DIR = 'island-bridges';
     for (const t of ['dark', 'contrast', 'light']) await page.selectOption('#theme', t);
 
     // Play to the end by tapping.
+    // A tap can land on a story moment as it slides in (seen on GitHub's
+    // machines), so go over the board again until every gap is right.
     s = await st();
-    for (let e = 0; e < L; e++) {
-      if (await page.locator(`#${P}-solved:not([hidden])`).count()) break;
-      const cur = (await st()).v[e];
-      const want = s.s[e] === 3 ? 0 : s.s[e];
-      let v = cur === 3 ? 0 : cur;
-      if (want === 0 && cur !== 3 && cur !== 0) { while (v !== 0) { await tap(e); v = (await st()).v[e]; } continue; }
-      for (let n = 0; n < 3 && v !== want; n++) { await tap(e); v = (await st()).v[e]; if (v === 3) v = 0; }
+    const solvedNow = async () => (await page.locator(`#${P}-solved:not([hidden])`).count()) > 0;
+    for (let pass = 0; pass < 4 && !(await solvedNow()); pass++) {
+      for (let e = 0; e < L; e++) {
+        if (await solvedNow()) break;
+        const cur = (await st()).v[e];
+        const want = s.s[e] === 3 ? 0 : s.s[e];
+        let v = cur === 3 ? 0 : cur;
+        if (want === 0 && cur !== 3 && cur !== 0) { for (let n = 0; n < 3 && v !== 0; n++) { await tap(e); v = (await st()).v[e]; } continue; }
+        for (let n = 0; n < 3 && v !== want; n++) { await tap(e); v = (await st()).v[e]; if (v === 3) v = 0; }
+      }
+      if (!(await solvedNow())) await page.waitForTimeout(500);
+    }
+    if (!(await solvedNow())) {
+      const end = await st();
+      const off = end.s.map((w, e) => [e, w === 3 ? 0 : w, end.v[e] === 3 ? 0 : end.v[e]]).filter(([, w, v]) => w !== v);
+      console.log(`not solved yet; gaps still wrong [gap, want, have]: ${JSON.stringify(off)}; moment showing: ${await page.locator(`#${P}-moment`).isVisible()}`);
     }
     await page.waitForSelector(`#${P}-solved:not([hidden])`, { timeout: 5000 });
     assert((await st()).solved, 'the puzzle is solved');
