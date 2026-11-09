@@ -323,12 +323,16 @@ const SHOTS = process.env.SHOTS;
       const bk = await page.evaluate(async () => { const b = (await import('/admin/books.js')).currentBook(); return { n: b.puzzles.length, secs: b.settings.sections.length, topic: b.settings.topic, title: b.title, themes: b.settings.sections.map((x) => x.theme) }; });
       assert(bk.n === 2 && bk.secs === 2 && bk.topic === 'mystery' && /Mystery/i.test(bk.title) && bk.themes.every(Boolean), `the ticked puzzles go in the book, one section a type, on the topic ("${bk.title}", ${bk.n} puzzles)`);
       await page.selectOption('#bk-tp-pub', 'kdp');
+      // A page count past the old 24: the book is filled with more puzzles up to it.
+      assert(await page.getAttribute('#bk-tp-pages', 'max') === '828', 'Pages goes up to the publisher\'s maximum (KDP, 6 x 9 in: 828)');
+      await page.fill('#bk-tp-pages', '40'); await page.dispatchEvent('#bk-tp-pages', 'change');
       await page.evaluate(() => { document.querySelector('#dpi').value = '200'; }); // a smaller, quicker file
       page.once('dialog', (d) => d.accept()); // "Make the whole book again from this topic?"
       const [packet] = await Promise.all([page.waitForEvent('download', { timeout: 420000 }), page.click('#bk-tp-auto')]);
       assert(/kdp-submission-packet\.zip$/i.test(packet.suggestedFilename()), `Make the whole book for me checks it for the publisher and makes the submission file (${packet.suggestedFilename()})`);
-      const done = await page.evaluate(() => ({ pub: S.pub, errors: lastIssues.filter((i) => i.sev === 'error').length, pages: S.pages.length, title: S.meta.title, kw: S.meta.keywords }));
-      assert(done.pub === 'kdp' && done.errors === 0 && done.pages >= 24 && /Mystery/i.test(done.title) && /logic puzzles/.test(done.kw), `the book passes every publisher check (${done.pages} pages, no errors)`);
+      const done = await page.evaluate(async () => ({ pub: S.pub, errors: lastIssues.filter((i) => i.sev === 'error').length, pages: S.pages.length, title: S.meta.title, kw: S.meta.keywords, puzzles: (await import('/admin/books.js')).currentBook().puzzles.length }));
+      assert(done.pub === 'kdp' && done.errors === 0 && done.pages === 40 && /Mystery/i.test(done.title) && /logic puzzles/.test(done.kw), `the book passes every publisher check (${done.pages} pages, no errors)`);
+      assert(done.puzzles > 3, `the book was filled to 40 pages with more puzzles, not only Notes pages (${done.puzzles} puzzles)`);
       await page.context().close();
     }
 
