@@ -2,8 +2,10 @@
 
     pythonw -m vox.background          start Vox (trained model if there is one,
                                        else practice.pt) and open the admin app
+    pythonw -m vox.background --quiet  start it without opening anything (at sign-in)
     pythonw -m vox.background --stop  stop it
-    python -m vox.background --shortcuts   put Vox and Stop Vox on the desktop
+    python -m vox.background --shortcuts   put Vox and Stop Vox on the desktop, and
+                                       start Vox quietly whenever you sign in
 
 pythonw is Python's own launcher for programs without a window, so no script
 host or hidden command window is involved (antivirus programs rightly distrust
@@ -43,10 +45,11 @@ def _open_admin_when_ready():
         time.sleep(0.5)
 
 
-def start() -> None:
+def start(quiet: bool = False) -> None:
     os.chdir(ROOT)
     if _up():                                  # already running: just open the page
-        webbrowser.open(ADMIN_URL)
+        if not quiet:
+            webbrowser.open(ADMIN_URL)
         return
     log = open(ROOT / "vox-log.txt", "w", buffering=1, encoding="utf-8", errors="replace")
     sys.stdout = sys.stderr = log              # pythonw has no console to print to
@@ -56,7 +59,8 @@ def start() -> None:
     if not (ROOT / model).exists():
         from .cli import main
         main(["init", "--preset", "tiny", "--out", "practice.pt"])
-    threading.Thread(target=_open_admin_when_ready, daemon=True).start()
+    if not quiet:
+        threading.Thread(target=_open_admin_when_ready, daemon=True).start()
     try:
         from .cli import main
         main(["serve", "--ckpt", model])
@@ -85,7 +89,9 @@ def stop() -> bool:
 
 def shortcuts() -> str:
     """Desktop shortcuts that run pythonw directly: double-click Vox to start
-    it, Stop Vox to stop it."""
+    it, Stop Vox to stop it. Plus one in the Startup folder, so Vox starts
+    quietly (no window, no page opening) every time you sign in, and the
+    admin app's Voice engine page finds it by itself."""
     import subprocess
     exe = Path(sys.executable)
     pyw = exe.with_name("pythonw.exe") if exe.with_name("pythonw.exe").exists() else exe
@@ -97,7 +103,10 @@ def shortcuts() -> str:
         "$l = $s.CreateShortcut((Join-Path $d ($x[0] + '.lnk'))); "
         f"$l.TargetPath = {q(pyw)}; $l.Arguments = $x[1]; $l.WorkingDirectory = {q(ROOT)}; "
         "$l.Description = $x[2]; $l.IconLocation = (Join-Path $env:SystemRoot ('System32\\' + $x[3])); $l.Save() }; "
-        "Remove-Item -ErrorAction SilentlyContinue (Join-Path $d 'Start Vox.cmd')"
+        "Remove-Item -ErrorAction SilentlyContinue (Join-Path $d 'Start Vox.cmd'); "
+        "$st = [Environment]::GetFolderPath('Startup'); $l = $s.CreateShortcut((Join-Path $st 'Vox.lnk')); "
+        f"$l.TargetPath = {q(pyw)}; $l.Arguments = '-m vox.background --quiet'; $l.WorkingDirectory = {q(ROOT)}; "
+        "$l.Description = 'Start Vox quietly at sign-in'; $l.WindowStyle = 7; $l.Save()"
     )
     subprocess.run(["powershell", "-NoProfile", "-Command", ps], check=True)
     return str(pyw)
@@ -109,4 +118,4 @@ if __name__ == "__main__":
     elif "--shortcuts" in sys.argv:
         print("Shortcuts made for", shortcuts())
     else:
-        start()
+        start(quiet="--quiet" in sys.argv)
