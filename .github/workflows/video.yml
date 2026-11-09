@@ -24,9 +24,12 @@ on:
 permissions:
   contents: write
   pull-requests: write
+# A run takes hours on the build server: let it finish, and the newest change
+# waits for it (only the latest waiting run is kept), instead of every push to
+# main cancelling a run that is nearly done.
 concurrency:
   group: video
-  cancel-in-progress: true
+  cancel-in-progress: false
 jobs:
   video:
     # The video's own pull request also touches web/, so skip it when it merges.
