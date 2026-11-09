@@ -927,6 +927,8 @@ def daily_puzzle(game=''):
     if not r.get('ok'):
         for m in r.get('problems', []):
             print(f'::error::Not posted: {m}')
+        if os.environ.get('MORE_TRIES'):  # emailed after the workflow's last try
+            return 1
         email(f'Daily puzzle not posted ({label}), {when}', [f'<p>Today\'s daily {html.escape(label)} puzzle was <b>not</b> posted anywhere, because a check before posting found a problem:</p>',
               '<ul>' + ''.join(f'<li>{html.escape(m)}</li>' for m in r.get('problems', [])) + '</ul>', tail])
         return 1
@@ -1094,6 +1096,9 @@ def daily_puzzle(game=''):
             print(f'::warning::Mastodon: {scrub(e)}')
     daily_more_sites(r, day, paths, [u for _, u in photos if u], posted, failed, key)
     if failed:
+        if os.environ.get('MORE_TRIES'):  # the workflow tries again in a few minutes: email only after the last try
+            print(f'::notice::{label}: {", ".join(n for n, _ in failed)} will be tried again.')
+            return 1
         email(f'Daily puzzle ({label}): {" and ".join(n for n, _ in failed)} did not post, {when}', [
             f'<p>Today\'s {html.escape(label)} puzzle, <b>{html.escape(r.get("title", ""))}</b>, passed every check, but posting hit a problem.</p>',
             '<ul>' + ''.join(f'<li><b>{html.escape(n)}:</b> {html.escape(why)}</li>' for n, why in failed) + '</ul>',
