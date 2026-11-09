@@ -224,6 +224,37 @@ const SHOTS = process.env.SHOTS;
     assert((await page.textContent('#navBack')) === '← Back to Interior', 'Back returns to the step you came from');
     await page.waitForFunction(() => document.querySelector('#cvSpecs')?.textContent.includes('Full cover'), null, { timeout: 15000 });
     assert(true, 'the cover designer loads its vendored library under the page policy');
+    // Writing tools: copy text out to QuillBot or Scribbr and put the fixed text back.
+    await page.evaluate(() => { window.__opened = []; window.open = (u) => { window.__opened.push(u); return {}; }; });
+    await page.evaluate(() => { const o = cv.getObjects().find((x) => x.role === 'title'); cv.setActiveObject(o); cv.requestRenderAll(); });
+    await page.click('#cvWrite');
+    await page.waitForSelector('#dlgWrite[open]');
+    const wt = await page.evaluate(() => ({ text: document.querySelector('#wtText').value, title: cv.getObjects().find((x) => x.role === 'title').text, quill: document.querySelectorAll('#wtQuill [data-wt]').length, scribbr: document.querySelectorAll('#wtScribbr [data-wt]').length }));
+    assert(wt.text === wt.title && wt.quill === 5 && wt.scribbr === 5, `Writing tools on the cover takes the selected text box and offers QuillBot and Scribbr tools (${wt.quill} + ${wt.scribbr})`);
+    await page.click('#wtQuill [data-wt] >> text=Paraphraser');
+    await page.click('#wtScribbr [data-wt] >> text=AI Detector');
+    const wtOpened = await page.evaluate(() => window.__opened);
+    assert(wtOpened[0] === 'https://quillbot.com/paraphrasing-tool' && wtOpened[1] === 'https://www.scribbr.com/ai-detector/', 'a tool button opens that QuillBot or Scribbr tool in a new tab');
+    await page.fill('#wtResult', 'A FRESHLY PARAPHRASED TITLE');
+    await page.click('#wtApply');
+    assert(await page.evaluate(() => !document.querySelector('#dlgWrite').open && cv.getObjects().find((x) => x.role === 'title').text === 'A FRESHLY PARAPHRASED TITLE'), 'Put it back replaces the cover text box');
+    await page.click('[data-tab=details]');
+    await page.focus('#m-blurb');
+    await page.click('#writeMeta');
+    assert(await page.inputValue('#wtText') === await page.inputValue('#m-blurb'), 'Writing tools on Book details takes the field you were in');
+    await page.fill('#wtResult', 'A blurb fixed in Scribbr.');
+    await page.click('#wtApply');
+    assert(await page.evaluate(() => S.meta.blurb === 'A blurb fixed in Scribbr.'), 'Put it back fills the blurb and saves it with the book');
+    await page.click('[data-tab=manuscript]');
+    const para = await page.evaluate(() => { const p = [...document.querySelectorAll('#pages .content p')].find((x) => x.textContent.trim().split(/\s+/).length > 4); const r = document.createRange(); r.selectNodeContents(p); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); p.closest('.content').focus(); sel.removeAllRanges(); sel.addRange(r); return p.textContent.trim(); });
+    await page.waitForTimeout(100);
+    await page.click('#writeBtn');
+    assert((await page.inputValue('#wtText')).trim() === para, 'Writing tools in the manuscript takes the selected text');
+    await page.fill('#wtResult', 'This sentence came back from QuillBot.');
+    await page.click('#wtApply');
+    assert(await page.evaluate(() => { syncPagesFromDom(); return S.pages.some((p) => p.html.includes('This sentence came back from QuillBot.')); }), 'Put it back replaces the selected text in the page');
+    await page.click('[data-tab=cover]');
+    await page.waitForSelector('#view-cover:not([hidden])');
     // Grid books: make a small book from the game's puzzles and open it in the editor.
     if (HAVE_SITE) {
       assert(await page.isVisible('[data-tab=gridbooks]'), 'Grid books is a tab in Book Studio');

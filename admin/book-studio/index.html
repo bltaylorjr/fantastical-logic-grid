@@ -134,6 +134,7 @@
         <div class="tgroup">
           <button class="tb" id="findBtn" title="Find and replace (Ctrl+F)">Find</button>
           <button class="tb" id="cleanBtn" title="Auto-edit text: smart quotes, dashes, spacing">Auto-edit</button>
+          <button class="tb" id="writeBtn" title="Check or rewrite the selected text or paragraph in QuillBot or Scribbr">Writing tools</button>
           <button class="tb" data-cmd="removeFormat" title="Clear formatting">Tx</button>
         </div>
         <div class="tgroup">
@@ -245,6 +246,7 @@
           <button class="tb" id="cvBack" title="Send backward">Back</button>
           <button class="tb" id="cvDup" title="Duplicate">Duplicate</button>
           <button class="tb" id="cvDel" title="Delete (Del)">Delete</button>
+          <button class="tb" id="cvWrite" title="Check or rewrite the selected text box in QuillBot or Scribbr">Writing tools</button>
         </div>
         <div class="tgroup">
           <select id="cvZoom"><option value="0.35">35%</option><option value="0.5" selected>50%</option><option value="0.75">75%</option><option value="1">100%</option></select>
@@ -315,7 +317,7 @@
           <label class="lab wide">Keywords (one per line) <textarea data-meta="keywords" id="m-keywords" style="min-height:90px"></textarea><span class="count" id="kwCount"></span></label>
           <label class="lab wide">Categories (one per line, e.g. GAM007000 Games &amp; Activities / Puzzles) <textarea data-meta="categories" id="m-categories" style="min-height:70px"></textarea><span class="count" id="catCount"></span></label>
         </div>
-        <div class="export-row"><button class="btn" id="addFront">Insert title &amp; copyright pages</button></div>
+        <div class="export-row"><button class="btn" id="addFront">Insert title &amp; copyright pages</button><button class="btn" id="writeMeta" title="Check or rewrite the title, subtitle, description or blurb (the last one you clicked in) in QuillBot or Scribbr">Writing tools</button></div>
       </div></div>
     </section>
 
@@ -519,6 +521,20 @@
     <p class="hint" id="findInfo"></p>
   </div>
   <footer><button class="btn" id="findCount">Count</button><button class="btn primary" id="findAll">Replace all</button></footer>
+</div></dialog>
+
+<!-- Writing tools dialog (writing.js) -->
+<dialog id="dlgWrite"><div class="dlg">
+  <header><h3>Writing tools</h3><button class="btn ghost" data-close>Close</button></header>
+  <div class="body">
+    <p class="hint" id="wtFrom"></p>
+    <label class="lab">Your text <textarea id="wtText" style="min-height:110px"></textarea><span class="count" id="wtCount"></span></label>
+    <div class="wt-site"><b>QuillBot</b><div class="wt-row" id="wtQuill"></div></div>
+    <div class="wt-site"><b>Scribbr</b><div class="wt-row" id="wtScribbr"></div></div>
+    <p class="hint">Each button copies your text and opens the tool in a new tab, signed in with your own account. Paste it there, copy the result, and paste it below. Plagiarism checks and longer texts may need a paid plan on their site.</p>
+    <label class="lab">Fixed text <textarea id="wtResult" style="min-height:110px" placeholder="Paste the result from QuillBot or Scribbr here"></textarea></label>
+  </div>
+  <footer><button class="btn" id="wtPaste">Paste from clipboard</button><button class="btn primary" id="wtApply">Put it back</button></footer>
 </div></dialog>
 
 <!-- Auto-edit dialog -->
