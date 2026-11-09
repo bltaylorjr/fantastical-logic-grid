@@ -27,7 +27,8 @@
 import { alert } from './alerts.js';
 import { json, readText, TooLarge } from './http.js';
 import { SEEDS } from './marketing-seed.js';
-import { getSettings } from './settings.js';
+import { getSettings, checkSetting, saveSetting } from './settings.js';
+import { NETWORKS, DEFAULT_LINKS } from '../../web/js/social.js';
 
 const DAY = 24 * 3600_000;
 const isoDay = (ms) => new Date(ms).toISOString().slice(0, 10);
@@ -303,6 +304,14 @@ function checkUrl(v, Refusal, what) {
   return u.toString();
 }
 
+// Networks whose footer link was never set (no saved setting and no built-in
+// default), so the autopilot may fill them in.
+export async function unsetNetworks(env) {
+  const { results } = await env.DB.prepare("SELECT key FROM settings WHERE key LIKE 'social\\_%' ESCAPE '\\'").all();
+  const saved = new Set(results.map((r) => r.key));
+  return NETWORKS.map((n) => n.id).filter((id) => !saved.has(`social_${id}`) && !DEFAULT_LINKS[id]);
+}
+
 export function marketingRoutes(Refusal) {
   const daysParam = (url) => Math.min(365, Math.max(1, Number(url.searchParams.get('days')) || 30));
   return [
@@ -412,6 +421,26 @@ export function marketingRoutes(Refusal) {
       }
       await env.DB.prepare('UPDATE campaign_ads SET auto_note = ?2, updated_at = ?3 WHERE id = ?1').bind(ad.id, note || 'Automatic posting failed', now).run();
       return { body: { ok: true }, target: ad.id, detail: { title: ad.title, note } };
+    }],
+
+    // Footer links fill themselves in: the poster (scripts/marketing-post.py)
+    // asks which networks have no footer link yet, looks up each connected
+    // account's profile and sends the links back. Only networks the owner has
+    // never set are filled, so a link changed or cleared in admin > Settings
+    // and switches > Social links stays as the owner left it.
+    ['GET', /^marketing\/profiles$/, 'admin', 'marketing.profiles', async ({ env }) => ({ body: { missing: await unsetNetworks(env) } })],
+    ['POST', /^marketing\/profiles$/, 'admin', 'marketing.profiles_add', async ({ env, body }) => {
+      const missing = new Set(await unsetNetworks(env));
+      const links = body && typeof body.links === 'object' && body.links ? body.links : {};
+      const added = [];
+      for (const [id, link] of Object.entries(links)) {
+        if (!missing.has(id) || typeof link !== 'string' || !link) continue;
+        const r = checkSetting(`social_${id}`, link);
+        if (r.error || !r.value) continue;
+        await saveSetting(env, `social_${id}`, r.value, 'autopilot');
+        added.push({ id, url: r.value });
+      }
+      return { body: { added }, detail: added.length ? { added: added.map((a) => a.id) } : undefined };
     }],
 
     // Post now: one approved ad goes out within a couple of minutes instead of on its posting day.
