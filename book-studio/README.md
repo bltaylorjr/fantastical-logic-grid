@@ -38,6 +38,16 @@ turns a book into editor pages (`src/gridbooks.js`): text pages stay editable, p
 answer keys are fixed blocks shrunk to fit, and the cover comes in as one picture. Anyone
 who may publish books may make, save and publish Grid books.
 
+**Pages.** Nothing caps the page count. A Grid book is at least 24 pages (the printers'
+minimum) and otherwise as long as its puzzles make it; **Pages** in the book's details pads it
+with Notes pages to a set count, up to 2,000. **Make it from a topic** takes a page count too,
+limited to the chosen publisher's range at the book's trim and paper (KDP 24 to 828, or 590
+for 8.5 x 11 and 8.5 x 8.5 on white; IngramSpark up to 1,200; Lulu, B&N Press and Bookvault
+800; D2D 64 to 740): **Make the whole book for me** adds puzzles of the ticked types until the
+book nearly reaches it, then fills the rest with Notes pages. The editor itself takes any
+number of pages, and Check & export flags a book over the publisher's maximum. Big books
+export slowly (about 2 seconds a page at 300 DPI, roughly 0.25 MB a page for black and white).
+
 ## Make a copy without AI content
 
 **Project > Make a copy without AI content…** (`src/noai.js`) makes a new book from the one

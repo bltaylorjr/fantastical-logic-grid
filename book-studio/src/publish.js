@@ -177,8 +177,11 @@ async function buildInteriorPDF(dpi) {
   await loadLibs('jspdf', 'html2canvas'); syncPagesFromDom();
   try { await document.fonts.ready; await ensureFonts([S.body.font, 'Courier Prime']); } catch (e) { }
   const { jsPDF } = window.jspdf; let pdf = null;
-  for (let i = 0; i < S.pages.length; i++) {
-    busy(`Rendering interior page ${i + 1} of ${S.pages.length}`, i / S.pages.length);
+  const n = S.pages.length, started = Date.now();
+  for (let i = 0; i < n; i++) {
+    // Big books take minutes: say roughly how long is left once a few pages are done.
+    const left = i >= 5 ? Math.round((Date.now() - started) / i * (n - i) / 60000) : 0;
+    busy(`Rendering interior page ${i + 1} of ${n}${left >= 1 ? ` · about ${left} min left` : ''}`, i / n);
     const { canvas, SW, SH } = await renderPageCanvas(i, dpi);
     const orient = SW > SH ? 'landscape' : 'portrait';
     if (!pdf) pdf = new jsPDF({ unit: 'in', format: [SW, SH], orientation: orient, compress: true });
