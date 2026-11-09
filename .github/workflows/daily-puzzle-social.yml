@@ -155,7 +155,17 @@ jobs:
           PINTEREST_REFRESH_TOKEN: ${{ secrets.PINTEREST_REFRESH_TOKEN }}
           PINTEREST_BOARD_ID: ${{ secrets.PINTEREST_BOARD_ID }}
           POSTED_DIR: out/posted
-        run: python3 -I scripts/marketing-post.py
+        # A failed site is tried again up to three times, a few minutes apart
+        # (Bluesky and Instagram sometimes fail for a moment). Sites that worked
+        # are recorded in out/posted and skipped, so nothing posts twice. The
+        # owner is emailed only if the last try still fails.
+        run: |
+          for try in 1 2 3; do
+            if [ "$try" -lt 3 ]; then export MORE_TRIES=1; else unset MORE_TRIES; fi
+            python3 -I scripts/marketing-post.py && exit 0
+            [ "$try" -lt 3 ] && { echo "::warning::Try $try of 3 left some sites unposted; trying them again in 3 minutes."; sleep 180; }
+          done
+          exit 1
       - name: Save which sites have today's puzzle, for a re-run
         if: always() && hashFiles('out/posted/**') != ''
         uses: actions/cache/save@v4
