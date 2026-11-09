@@ -1675,10 +1675,7 @@ async function buildInteriorPDF(dpi) {
     const orient = SW > SH ? 'landscape' : 'portrait';
     if (!pdf) pdf = new jsPDF({ unit: 'in', format: [SW, SH], orientation: orient, compress: true });
     else pdf.addPage([SW, SH], orient);
-    // The JPEG's bytes, not a base64 data URL: a third less memory per page,
-    // which counts on books of hundreds of pages at 300 DPI.
-    const jpg = await new Promise((ok, no) => canvas.toBlob(bl => bl ? ok(bl) : no(new Error('A page could not be drawn. The book may be too big for this device: try a lower DPI.')), 'image/jpeg', 0.95));
-    pdf.addImage(new Uint8Array(await jpg.arrayBuffer()), 'JPEG', 0, 0, SW, SH, undefined, 'FAST');
+    pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, SW, SH, undefined, 'FAST');
     canvas.width = canvas.height = 0;
   }
   setPdfInfo(pdf, 'Interior');
