@@ -411,6 +411,11 @@
       <button class="btn" id="projSample">Load sample book</button>
       <button class="btn danger" id="projNew">Start a blank book</button>
     </div>
+    <div class="export-row">
+      <button class="btn" id="noaiBtn" type="button">Make a copy without AI content…</button>
+      <button class="btn primary" id="noaiFillBtn" type="button" hidden>Fill the removed spots</button>
+    </div>
+    <p class="hint">Makes a new book with the AI-made pictures and words taken out, so you can answer "None" to KDP's AI question for it. This book stays as it is.</p>
     <p class="hint" id="projNewConfirm" hidden>This replaces the current book. Save a project file first if you want to keep it. <button class="btn danger" id="projNewYes">Replace it</button></p>
     <section id="syBox" class="sy-box" hidden>
       <div class="sy-head"><h4>Your books on every device</h4><button class="btn" id="syNow" type="button">Sync now</button></div>
@@ -419,6 +424,33 @@
       <ul class="sy-list" id="syList"></ul>
     </section>
   </div>
+</div></dialog>
+
+<!-- Make a copy without AI content (noai.js) -->
+<dialog id="dlgNoAi" class="wide"><div class="dlg">
+  <header><h3>Make a copy without AI content</h3><button class="btn ghost" data-close>Close</button></header>
+  <div class="body">
+    <p class="hint">Tick every part an AI made. Pictures labelled as AI-made in their file are already ticked; words can't be told apart, so tick any an AI wrote (the game's AI story writer counts). Puzzles from Book Studio and the game's engines aren't AI and aren't listed.</p>
+    <p id="noaiSummary" role="status"></p>
+    <div id="noaiList" class="noai-list"></div>
+  </div>
+  <footer><button class="btn ghost" data-close>Cancel</button><button class="btn primary" id="noaiMake" type="button">Make the copy</button></footer>
+</div></dialog>
+
+<dialog id="dlgNoAiFill"><div class="dlg">
+  <header><h3 id="noaiFillTitle">Removed spot</h3><span class="hint" id="noaiFillStep"></span></header>
+  <div class="body">
+    <div id="noaiFillWas"></div>
+    <label class="lab"><span id="noaiFillLabel">Your own words for this spot</span><textarea id="noaiFillText" style="min-height:140px"></textarea></label>
+    <p class="hint">A blank line starts a new paragraph. Ctrl+Enter puts it in.</p>
+  </div>
+  <footer>
+    <button class="btn ghost" id="noaiFillBack" type="button">Back</button>
+    <button class="btn ghost" id="noaiFillLater" type="button">Later</button>
+    <button class="btn" id="noaiFillOut" type="button">Leave it out</button>
+    <button class="btn" id="noaiFillPic" type="button" hidden>Choose my own picture</button>
+    <button class="btn primary" id="noaiFillPut" type="button">Put it in</button>
+  </footer>
 </div></dialog>
 
 <!-- Puzzle dialog -->

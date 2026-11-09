@@ -22,7 +22,12 @@ export const feature = (name) => !(config && config.features && config.features[
 // Themes only premium supporters can pick (web/js/perks.js), and the page
 // where players get them ('' for none).
 export const premiumThemes = () => new Set((config && config.game && config.game.premiumThemes) || []);
+// In the iPhone and iPad app the App Store does not allow links to pay or tip
+// outside Apple's own in-app purchase (App Review Guideline 3.1.1), so the
+// Support link, the gentle asks and supporter extras stay hidden there.
+export const iosApp = () => !!(typeof window !== 'undefined' && window.FLGNative && window.FLGNative.platform === 'ios');
 export const extrasUrl = () => {
+  if (iosApp()) return '';
   const u = config && config.game && config.game.extrasUrl;
   return typeof u === 'string' && u.startsWith('https://') ? u : '';
 };
@@ -33,6 +38,7 @@ export const social = () => (config && Array.isArray(config.social) ? config.soc
 export const news = () => (config && config.news) || [];
 // The owner's optional "Support the game" page (an https link), or ''.
 export const supportUrl = () => {
+  if (iosApp()) return '';
   const u = config && config.game && config.game.supportUrl;
   return typeof u === 'string' && u.startsWith('https://') ? u : '';
 };

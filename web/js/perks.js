@@ -20,7 +20,10 @@ const emit = () => { for (const fn of listeners) { try { fn(); } catch (e) { /* 
 const live = (p) => !!p && (p.until == null || p.until > Date.now());
 
 export const isSupporter = () => live(perks) && !!perks.supporter;
-export const isPremium = () => live(perks) && !!perks.premium;
+// Not in the iPhone and iPad app: extras bought outside the App Store can't be
+// unlocked there (App Review Guideline 3.1.1). The scoreboard badge still shows.
+const iosApp = () => !!(window.FLGNative && window.FLGNative.platform === 'ios');
+export const isPremium = () => !iosApp() && live(perks) && !!perks.premium;
 export const tier = () => (isSupporter() ? perks.tier || 1 : 0);
 export const TIER_NAMES = ['', 'Bronze', 'Silver', 'Gold', 'Platinum'];
 export function onChange(fn) { listeners.add(fn); return () => listeners.delete(fn); }

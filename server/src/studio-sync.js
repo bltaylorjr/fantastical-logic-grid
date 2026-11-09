@@ -54,7 +54,8 @@ export function studioRoutes(Refusal, canPublish) {
       if (!old && totals.n >= STUDIO_MAX_BOOKS) throw new Refusal(413, 'too_many', `Your account already has ${STUDIO_MAX_BOOKS} books. Delete some under Project to sync more.`);
       if (totals.size + text.length > STUDIO_MAX_TOTAL) throw new Refusal(413, 'account_full', 'Your account is full (300 MB of books). Delete some books under Project to sync more.');
       const rev = (old?.rev || 0) + 1;
-      const title = str(project.meta?.title, 200) || 'Untitled';
+      // A copy without AI content (Book Studio, noai.js) says so in the list, so it isn't mistaken for the original.
+      const title = `${str(project.meta?.title, 170) || 'Untitled'}${project.noAi ? ' (no AI content)' : ''}`;
       const device = str(body.device, 60);
       const parts = [];
       for (let i = 0; i < text.length; i += PART_CHARS) parts.push(text.slice(i, i + PART_CHARS));
