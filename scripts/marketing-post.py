@@ -580,6 +580,58 @@ def check_instagram():
     return r['username']
 
 
+def mastodon_base():
+    u = env('MASTODON_URL').rstrip('/')
+    return u if u.startswith('https://') else 'https://' + u
+
+
+# Each connected account's public profile, for the website footer's social
+# links. LinkedIn is left out: its key posts as Bobby's own profile, not a page.
+PROFILES = {
+    'bluesky': lambda: f"https://bsky.app/profile/{bluesky_session()[2]}",
+    'mastodon': lambda: request(f'{mastodon_base()}/api/v1/accounts/verify_credentials',
+                                headers={'Authorization': f"Bearer {env('MASTODON_TOKEN')}"})['url'],
+    'x': lambda: 'https://x.com/' + request('https://api.x.com/2/users/me', headers={'Authorization': oauth1('GET', 'https://api.x.com/2/users/me')})['data']['username'],
+    'facebook': lambda: meta(f"{GRAPH}/{env('META_PAGE_ID')}?fields=link", token=env('META_PAGE_TOKEN'))['link'],
+    'instagram': lambda: f'https://www.instagram.com/{check_instagram()}/',
+    'threads': lambda: 'https://www.threads.net/@' + meta(f'{THREADS}/me?fields=username', token=env('THREADS_TOKEN'))['username'],
+    'pinterest': lambda: 'https://www.pinterest.com/' + request('https://api.pinterest.com/v5/user_account', headers={'Authorization': f'Bearer {pinterest_token()}'})['username'] + '/',
+    'youtube': lambda: 'https://www.youtube.com/channel/' + request('https://www.googleapis.com/youtube/v3/channels?part=id&mine=true', headers={'Authorization': f'Bearer {youtube_token()}'})['items'][0]['id'],
+    'tiktok': lambda: 'https://www.tiktok.com/@' + tiktok('post/publish/creator_info/query/', tiktok_token())['creator_username'],
+    'reddit': lambda: 'https://www.reddit.com/user/' + request('https://oauth.reddit.com/api/v1/me', headers={'Authorization': f'Bearer {reddit_token()}', 'User-Agent': REDDIT_UA})['name'] + '/',
+}
+
+
+def add_profiles():
+    """Adds a footer link for every connected account the footer does not show yet.
+
+    The worker says which networks have never had a footer link set (one the
+    owner changed or cleared is never touched), so only those are looked up.
+    A new account appears on the website once its keys are saved and the
+    poster has run (every morning, or a key check by hand)."""
+    if not (API and TOKEN) or MODE == 'dry-run':
+        return
+    try:
+        missing = [n for n in worker('marketing/profiles').get('missing', []) if n in PROFILES and has_keys(n)]
+    except Exception as e:  # noqa: BLE001 - the footer must never stop the posting
+        print(f'::warning::Could not check the footer links: {scrub(e)}')
+        return
+    links = {}
+    for n in missing:
+        try:
+            links[n] = PROFILES[n]()
+        except Exception as e:  # noqa: BLE001
+            print(f'::warning::Could not find the {NAMES[n]} profile for the footer: {scrub(e)}')
+    if not links:
+        return
+    try:
+        added = worker('marketing/profiles', {'links': links}).get('added', [])
+        for a in added:
+            print(f"::notice::Added {NAMES[a['id']]} to the website footer: {a['url']}")
+    except Exception as e:  # noqa: BLE001
+        print(f'::warning::Could not save the footer links: {scrub(e)}')
+
+
 def check_keys():
     tests = {
         'bluesky': lambda: bluesky_session()[2],
@@ -1055,12 +1107,15 @@ def main():
     if MODE == 'delete':
         sys.exit(delete_posts())
     if MODE == 'check':
-        sys.exit(1 if check_keys() else 0)
+        bad = check_keys()
+        add_profiles()
+        sys.exit(1 if bad else 0)
     if MODE == 'message':
         sys.exit(post_message())
     if not (API and TOKEN):
         print('Not set up: FLG_CLOUD_URL and FLG_ADMIN_TOKEN are needed. Nothing to do.')
         return
+    add_profiles()
     due = worker(f'marketing/due?day={urllib.parse.quote(DAY)}')
     ads = due.get('ads', [])
     if ONLY:

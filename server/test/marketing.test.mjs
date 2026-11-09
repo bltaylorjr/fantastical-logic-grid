@@ -258,3 +258,24 @@ test('event cleaning and links', () => {
   assert.equal(trackedLink('https://thelogicgrid.com/', { channel: 'x', medium: 'social', content: '', landing: 'javascript:' }, 'c1'), 'https://thelogicgrid.com/?utm_source=x&utm_medium=social&utm_campaign=c1');
   assert.equal(trackedLink('https://thelogicgrid.com', { channel: 'x', medium: 'social', content: 'a', landing: '/daily/?play=now' }, 'c1'), 'https://thelogicgrid.com/daily/?play=now&utm_source=x&utm_medium=social&utm_campaign=c1&utm_content=a');
 });
+
+test('footer links fill themselves in only for networks the owner never set', async () => {
+  assert.equal((await call('/admin/v1/marketing/profiles', { auth: viewer() })).status, 403);
+  const before = await call('/admin/v1/marketing/profiles', { auth: TOKEN });
+  assert.equal(before.status, 200);
+  // Networks with a built-in link are never offered.
+  assert.ok(!before.body.missing.includes('facebook') && !before.body.missing.includes('x'), JSON.stringify(before.body.missing));
+  assert.ok(before.body.missing.includes('threads') && before.body.missing.includes('tiktok'));
+  // The owner cleared TikTok on purpose: it stays empty.
+  assert.equal((await call('/admin/v1/settings', { auth: owner(), body: { key: 'social_tiktok', value: '' } })).status, 200);
+  const r = await call('/admin/v1/marketing/profiles', { auth: TOKEN, body: { links: {
+    threads: 'https://www.threads.net/@thelogicgrid', tiktok: 'https://www.tiktok.com/@thelogicgrid',
+    pinterest: 'https://evil.example.com/x', facebook: 'https://www.facebook.com/other', nope: 'https://x.com/a',
+  } } });
+  assert.equal(r.status, 200);
+  assert.deepEqual(r.body.added, [{ id: 'threads', url: 'https://www.threads.net/@thelogicgrid' }]);
+  const cfg = await call('/v1/config');
+  const ids = cfg.body.social.map((s) => s.id);
+  assert.ok(ids.includes('threads') && !ids.includes('tiktok'), JSON.stringify(ids));
+  assert.ok(!(await call('/admin/v1/marketing/profiles', { auth: TOKEN })).body.missing.includes('threads'));
+});
