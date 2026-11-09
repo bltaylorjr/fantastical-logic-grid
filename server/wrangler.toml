@@ -44,7 +44,8 @@ SITE_URL = "https://thelogicgrid.com"
 # `npx wrangler secret put <NAME>` or in the dashboard as type Secret. The admin
 # dashboard also uses OWNER_EMAIL and FIREBASE_WEB_API_KEY, and optionally
 # CF_API_TOKEN and CF_ACCOUNT_ID, GSC_SERVICE_ACCOUNT and BING_WEBMASTER_KEY
-# (see ../admin/README.md).
+# (see ../admin/README.md). The automatic deletion of inactive accounts needs
+# FIREBASE_SERVICE_ACCOUNT (src/inactive-accounts.js, INACTIVE-ACCOUNTS.md).
 
 # Cloudflare Workers AI paints the game's AI pictures (src/pictures.js) on its
 # free daily allowance. No key is needed, and on the free plan it never bills.

@@ -6,7 +6,9 @@
 // (after a confirmation), email the player who sent it, put its puzzle in the
 // player's Saved puzzles in the game, and move it between sections. The full
 // review (trademark scan, corrected wording, building a storyline's puzzle) is
-// on the Storyline submissions page, one click away.
+// on the Storyline submissions page, one click away. Approved and published
+// puzzles are in Book Studio's Player puzzles tab; each shows how many books
+// it went out in (server/src/studio-player-puzzles.js).
 import { editor, readEditor, editorButton, STATUS } from './story-submissions.js';
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -43,7 +45,7 @@ function row(r) {
   const [sw, scls] = STATUS[r.status] || [r.status, ''];
   const who = [r.credit && `credit: ${r.credit}`, r.player && `player: ${r.player}`, !r.player && r.uid && 'signed-in player', !r.uid && 'guest', r.email].filter(Boolean).join(' · ');
   return `<li class="ss-row${open && open.id === r.id ? ' ss-open' : ''}">
-    <div class="row ss-row-head"><span class="badge">${e(KIND[r.kind] || r.kind)}</span><span class="badge ${scls}">${e(sw)}</span>${r.hasPuzzle ? '<span class="badge ok">Puzzle saved</span>' : ''}${r.pushCount ? `<span class="badge ok">In Saved puzzles${r.pushCount > 1 ? ` ×${r.pushCount}` : ''}</span>` : ''}
+    <div class="row ss-row-head"><span class="badge">${e(KIND[r.kind] || r.kind)}</span><span class="badge ${scls}">${e(sw)}</span>${r.hasPuzzle ? '<span class="badge ok">Puzzle saved</span>' : ''}${r.pushCount ? `<span class="badge ok">In Saved puzzles${r.pushCount > 1 ? ` ×${r.pushCount}` : ''}</span>` : ''}${r.books ? `<span class="badge ok">In ${r.books} book${r.books === 1 ? '' : 's'}</span>` : ''}
       <span class="muted">#${r.id} · ${h.when(r.createdAt)}${r.themeName ? ` · ${e(r.themeName)}` : ''}</span></div>
     <p class="ss-title"><b>${e(r.title || r.text.split('\n')[0].replace(/^Their idea: /, '') || '(no title)')}</b>${r.pitch ? ` <span class="muted">· ${e(r.pitch)}</span>` : ''}</p>
     ${who ? `<p class="muted">${e(who)}</p>` : ''}
@@ -80,6 +82,8 @@ function detail(s) {
     ${s.email ? '' : '<p class="muted" id="ps-no-email">There is no email address for this player, so they cannot be emailed.</p>'}
     ${s.uid ? '' : '<p class="muted" id="ps-no-push">Sent by a guest, so there is no Saved puzzles in the game to put it in.</p>'}
     <p><b>Puzzle:</b> ${s.puzzle ? `“${e(s.puzzle.title)}”, saved ${h.when(s.puzzle.at)}` : 'none saved yet'}${s.pushCount ? ` · put in their Saved puzzles ${s.pushCount === 1 ? 'once' : `${s.pushCount} times`}, last ${h.when(s.pushedAt)}${s.pushedBy ? ` by ${e(s.pushedBy)}` : ''}` : ''}</p>
+    <p><b>Books:</b> ${s.books && s.books.length ? `in ${s.books.length} book${s.books.length === 1 ? '' : 's'} from Book Studio (counted once per book, when its interior is exported)` : 'not in a book from Book Studio yet'}</p>
+    ${s.books && s.books.length ? `<ul class="ss-mails">${s.books.map((b) => `<li>“${e(b.title)}”${b.platform ? ` for ${e(b.platform)}` : ''}: first ${h.when(b.firstAt)}${b.exports > 1 ? `, exported ${b.exports} times, last ${h.when(b.lastAt)}` : ''}${b.by ? ` by ${e(b.by)}` : ''}</li>`).join('')}</ul>` : ''}
     ${s.editInvite ? `<p class="note">The author was asked to edit and resubmit it. Their edit link works until ${e(new Date(s.editInvite).toLocaleDateString())}.</p>` : ''}
     <h3>${s.edited ? 'Latest version' : 'As sent'}</h3>
     ${copyTable(s.copy)}
