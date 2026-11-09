@@ -103,6 +103,17 @@ test('screen names need sign-in and must be unique', async () => {
   assert.equal((await name('cal', 'Sky Fox')).status, 200, 'the old name is free again');
 });
 
+test('a screen name can be checked before the account is made', async () => {
+  const check = (screenName) => call('/v1/names/check', { body: { screenName } });
+  const ok = await check('  Quiet   Owl 42 ');
+  assert.equal(ok.status, 200, 'no sign-in needed');
+  assert.equal(ok.body.screenName, 'Quiet Owl 42');
+  assert.equal((await check('sky f0x')).status, 409, 'a taken name (look-alikes count) is refused');
+  assert.equal((await check('Sh1thead')).body.error, 'name_blocked');
+  assert.equal((await check('ab')).body.error, 'name_length');
+  assert.equal((await call('/v1/names/check', { method: 'GET' })).status, 404);
+});
+
 test('scores need a screen name, count once, and fill the scoreboard', async () => {
   const s = { storyId: 'st-1', tier: 'medium', categories: 4, items: 4, elapsedMs: 600_000, hints: 1, checks: 0 };
   assert.equal((await call('/v1/scores', { as: 'nobody', body: s })).status, 403);

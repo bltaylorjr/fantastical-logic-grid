@@ -22,6 +22,7 @@ import { puzzleMailView, initPuzzleMail } from './puzzle-mail.js';
 import { websiteView, initWebsite, initWebsiteEvents, isEditorWindow } from './website.js';
 import { educatorsView, initEducators, educatorFeedbackView, initEducatorFeedback } from './educators.js';
 import { storySubmissionsView, initStorySubmissions } from './story-submissions.js';
+import { puzzleSubmissionsView, initPuzzleSubmissions } from './puzzle-submissions.js';
 import { beatImagesView, initBeatImages } from './beat-images.js';
 import { licensesView, initLicenses } from './licenses.js';
 import { mediaView } from './media.js';
@@ -1588,6 +1589,7 @@ const FLG_SECTIONS = [
   ['#ratings', 'Ratings and insights', 'Stars and findings by level, mode and story part.', 'viewer'],
   ['#mail', 'Puzzle emails', 'The weekly and special edition puzzle emails.', 'viewer'],
   ['#stories', 'Story workshop and review', 'Write and review story parts.', 'moderator'],
+  ['#puzzle-submissions', 'Puzzle submissions', 'Puzzles players sent in: awaiting approval, awaiting edits, approved and published.', 'moderator'],
   ['#story-submissions', 'Storyline submissions', 'Storylines sent in by players.', 'moderator'],
   ['#educators', 'Educator requests', 'Printable puzzle packages for classes.', 'moderator'],
   ['#edu-feedback', 'Educator feedback', 'Notes from teachers.', 'moderator'],
@@ -2155,8 +2157,11 @@ initLicenses(licenseHelpers, (name, o) => show(name, o));
 views['edu-feedback'] = () => educatorFeedbackView(educatorHelpers);
 // ---- Storyline submissions (story-submissions.js): the Storyline Submission Database.
 const storyHelpers = { api, esc, fmt, when, can, act, ask, setCount, toast };
-views['story-submissions'] = () => storySubmissionsView(storyHelpers);
+views['story-submissions'] = (o) => storySubmissionsView(storyHelpers, o);
 initStorySubmissions(storyHelpers, (name, o) => show(name, o));
+// ---- Puzzle submissions (puzzle-submissions.js): the same database, in four sections.
+views['puzzle-submissions'] = () => puzzleSubmissionsView(storyHelpers);
+initPuzzleSubmissions(storyHelpers, (name, o) => show(name, o));
 // ---- Story beat pictures (beat-images.js): pictures the game shows with story beats.
 const beatImageHelpers = { api, esc, when, can, act, ask, toast };
 views['beat-images'] = () => beatImagesView(beatImageHelpers);

@@ -328,3 +328,104 @@ test('deleting an account keeps the entry but drops the link and address', async
   const row = await db.prepare('SELECT user_id, email, title FROM story_submissions WHERE id = ?1').bind(r.body.id).first();
   assert.deepEqual(row, { user_id: null, email: null, title: 'Bo story' });
 });
+
+test('Puzzle submissions: four sections, moving, emailing the player and pushing to Saved puzzles', async () => {
+  const owner = token('owner-uid', OWNER);
+  const pat = token('pat-uid', 'pat@example.com');
+  const r = await call('/v1/story-submissions', { auth: pat, body: { ...FORM, title: 'The Pier Puzzle' } });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  const id = r.body.id;
+  let claim = (await call('/admin/v1/replies/claim', { auth: owner, body: { limit: 50 } })).body;
+  await call('/admin/v1/replies/done', { auth: owner, body: { sent: claim.replies.map((m) => m.id), failed: [] } });
+
+  const list = async (status, kind = 'puzzles') => (await call(`/admin/v1/story-submissions?status=${status}&kind=${kind}&counts=kind`, { auth: owner })).body;
+  assert.ok((await list('new')).items.some((x) => x.id === id), 'a new storyline is Awaiting approval');
+  const themes = await list('new', 'puzzles');
+  assert.ok(themes.items.every((x) => ['puzzle', 'storyline'].includes(x.kind)), 'puzzles: wizard puzzles and storylines only');
+
+  // Asking the author to edit moves it to Awaiting edits.
+  assert.equal((await call(`/admin/v1/story-submissions/${id}/invite`, { auth: owner, body: { note: 'A few more clues, please.' } })).status, 200);
+  const edits = await list('edits');
+  assert.ok(edits.items.some((x) => x.id === id && x.editInvited));
+  assert.ok(edits.counts.edits >= 1);
+
+  // Emailing the player: a note from the team through the email queue.
+  const msg = await call(`/admin/v1/story-submissions/${id}/message`, { auth: owner, body: { text: 'Thanks! We love the pier.' } });
+  assert.equal(msg.status, 200, JSON.stringify(msg.body));
+  assert.equal((await call(`/admin/v1/story-submissions/${id}/message`, { auth: owner, body: { text: '' } })).status, 400);
+  claim = (await call('/admin/v1/replies/claim', { auth: owner, body: { limit: 50 } })).body;
+  const note = claim.replies.find((m) => m.kind === 'submission_message');
+  assert.equal(note.email, 'pat@example.com');
+  assert.equal(note.note, 'Thanks! We love the pier.');
+  assert.equal(note.submission.title, 'The Pier Puzzle');
+  await call('/admin/v1/replies/done', { auth: owner, body: { sent: claim.replies.map((m) => m.id), failed: [] } });
+
+  // Approve, then the sender builds its puzzle.
+  assert.equal((await call(`/admin/v1/story-submissions/${id}/approve`, { auth: owner, body: {} })).status, 200);
+  assert.ok((await list('approved')).items.some((x) => x.id === id));
+  claim = (await call('/admin/v1/replies/claim', { auth: owner, body: { limit: 50 } })).body;
+  const approved = claim.replies.find((m) => m.email === 'pat@example.com');
+  const puzzle = buildStorylinePuzzle({ submission: { form: approved.submission.form }, seed: 'pier' });
+  await call('/admin/v1/replies/puzzle', { auth: owner, body: { id: approved.id, puzzle } });
+  await call('/admin/v1/replies/done', { auth: owner, body: { sent: claim.replies.map((m) => m.id), failed: [] } });
+  const before = (await call('/v1/messages', { auth: pat })).body.puzzles.length;
+
+  // Push: the saved puzzle goes into the player's Saved puzzles again.
+  const push = await call(`/admin/v1/story-submissions/${id}/push`, { auth: owner, body: {} });
+  assert.equal(push.status, 200, JSON.stringify(push.body));
+  assert.equal((await call('/v1/messages', { auth: pat })).body.puzzles.length, before + 1);
+  let entry = (await call(`/admin/v1/story-submissions/${id}`, { auth: owner })).body;
+  assert.equal(entry.pushCount, 1);
+  assert.ok(entry.pushedAt);
+
+  // Publish and unpublish, by hand.
+  assert.equal((await call(`/admin/v1/story-submissions/${id}/stage`, { auth: owner, body: { stage: 'nope' } })).status, 400);
+  const pub = await call(`/admin/v1/story-submissions/${id}/stage`, { auth: owner, body: { stage: 'published', note: 'Special edition, Dec 1' } });
+  assert.equal(pub.status, 200, JSON.stringify(pub.body));
+  const published = await list('published');
+  assert.equal(published.items.find((x) => x.id === id).publishedNote, 'Special edition, Dec 1');
+  assert.equal((await call(`/admin/v1/story-submissions/${id}/approve`, { auth: owner, body: {} })).status, 409, 'published is already approved');
+  await call(`/admin/v1/story-submissions/${id}/stage`, { auth: owner, body: { stage: 'approved' } });
+  entry = (await call(`/admin/v1/story-submissions/${id}`, { auth: owner })).body;
+  assert.equal(entry.status, 'approved');
+  assert.ok(entry.decidedAt, 'keeps when it was approved');
+
+  // A guest's entry cannot be pushed, and a puzzle file is checked.
+  const guest = await call('/v1/story-submissions', { body: { ...FORM, title: 'Guest pier' } });
+  assert.equal((await call(`/admin/v1/story-submissions/${guest.body.id}/push`, { auth: owner, body: {} })).status, 400);
+  const bare = await call('/v1/story-submissions', { auth: pat, body: { ...FORM, title: 'No puzzle yet' } });
+  assert.equal((await call(`/admin/v1/story-submissions/${bare.body.id}/push`, { auth: owner, body: {} })).body.error, 'no_puzzle');
+  assert.equal((await call(`/admin/v1/story-submissions/${bare.body.id}/push`, { auth: owner, body: { puzzle: { nope: 1 } } })).status, 400);
+  const file = await call(`/admin/v1/story-submissions/${bare.body.id}/push`, { auth: owner, body: { puzzle: { format: 'fantastical-logic-grid', version: 1, save: { puzzle } } } });
+  assert.equal(file.status, 200, JSON.stringify(file.body));
+  assert.equal((await call(`/admin/v1/story-submissions/${bare.body.id}`, { auth: owner })).body.puzzle.title, puzzle.title, 'the file is kept with the entry');
+  claim = (await call('/admin/v1/replies/claim', { auth: owner, body: { limit: 50 } })).body;
+  await call('/admin/v1/replies/done', { auth: owner, body: { sent: claim.replies.map((m) => m.id), failed: [] } });
+});
+
+test('Puzzle submissions: the team corrects a wizard puzzle\'s words, and earlier invited entries backfill to Awaiting edits', async () => {
+  const owner = token('owner-uid', OWNER);
+  const { checkEntry } = await import('../../web/js/wizard-fields.js');
+  const w = checkEntry({
+    game: 'fantastical', title: 'Harbor Hats', story: 'Three sailors came back to the harbor, each wearing a different hat and carrying a different fish.',
+    ending: 'Everyone got their hat back.', difficulty: 'easy', cast: { one: 'sailor' }, names: 'Ada, Ben, Cy',
+    categories: [{ name: 'Hat', items: 'Red, Blue, Green' }, { name: 'Fish', items: 'Cod, Eel, Ray' }], answerMode: 'auto', credit: { as: 'none' }, consent: true,
+  });
+  const form = { ...w.value, kind: 'puzzle', seed: 'abc', credit: '' };
+  const row = await db.prepare(`INSERT INTO story_submissions (kind, source, title, form, text, status, created_at) VALUES ('puzzle', 'form', ?1, ?2, ?3, 'new', ?4) RETURNING id`)
+    .bind(form.title, JSON.stringify(form), 'Harbor Hats', Date.now()).first();
+  const ed = await call(`/admin/v1/story-submissions/${row.id}/edit`, { auth: owner, body: { form: { title: 'Harbour Hats', names: 'X, Y' } } });
+  assert.equal(ed.status, 200, JSON.stringify(ed.body));
+  const entry = (await call(`/admin/v1/story-submissions/${row.id}`, { auth: owner })).body;
+  assert.equal(entry.form.title, 'Harbour Hats');
+  assert.deepEqual(entry.form.names, ['Ada', 'Ben', 'Cy'], 'only the words change, never the grid');
+  assert.equal((await call(`/admin/v1/story-submissions/${row.id}/edit`, { auth: owner, body: { form: { title: '' } } })).status, 400);
+
+  // The backfill in 2280_submission_stages.sql.
+  const old = await db.prepare(`INSERT INTO story_submissions (kind, source, form, text, status, edit_invited, created_at) VALUES ('storyline', 'form', '{}', 'old', 'approved', 1, 1) RETURNING id`).first();
+  const backfill = readFileSync(join(root, 'migrations', '2280_submission_stages.sql'), 'utf8').replace(/--.*$/gm, '').split(';').map((x) => x.trim()).find((x) => x.startsWith('UPDATE'));
+  await db.prepare(backfill).run();
+  assert.equal((await db.prepare('SELECT status FROM story_submissions WHERE id = ?1').bind(old.id).first()).status, 'edits');
+  await call(`/admin/v1/story-submissions/${old.id}/delete`, { auth: owner, body: {} });
+  await call(`/admin/v1/story-submissions/${row.id}/delete`, { auth: owner, body: {} });
+});

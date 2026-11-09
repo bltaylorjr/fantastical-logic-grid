@@ -6,6 +6,11 @@
 <meta name="robots" content="noindex, nofollow">
 <title>Book Studio · Grid Admin</title>
 <link rel="icon" href="/admin/icon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="/admin/apple-touch-icon.png">
+<meta name="theme-color" content="#5B3CC4">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Book Studio">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Public+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Merriweather:ital,wght@0,400;0,700;1,400&family=Lora:ital,wght@0,400;0,700;1,400&family=EB+Garamond:ital,wght@0,400;0,700;1,400&family=Nunito:ital,wght@0,400;0,700;0,900;1,400&family=Open+Sans:ital,wght@0,400;0,700;1,400&family=Roboto+Slab:wght@400;700&family=Patrick+Hand&family=Bebas+Neue&family=Fredoka:wght@400;600&family=Courier+Prime:wght@400;700&family=Oswald:wght@400;700&family=Playfair+Display:ital,wght@0,400;0,800;1,400&family=Permanent+Marker&display=swap">
@@ -52,9 +57,23 @@
     <a class="btn big" id="gateBack" href="/admin/" hidden>Back to Grid Admin</a>
   </div>
 </div></div>
+<dialog id="dlgApp"><div class="dlg">
+  <header><h3>Get the Book Studio app</h3><button class="btn ghost" data-close>Close</button></header>
+  <div class="body">
+    <p class="hint">The app opens Book Studio in its own window, works without a connection once you have signed in (tick "Keep me signed in"), and syncs your books with your account. Sign in with the same email everywhere and your books follow you.</p>
+    <div id="appWin" class="app-way"><b>Windows</b>
+      <a class="btn primary" id="appWinLink" href="#" rel="noopener">Download for Windows</a>
+      <small class="hint">Open the file to install it; it updates itself. Windows may say "Windows protected your PC" because the app is not signed with a paid certificate: click More info, then Run anyway.</small></div>
+    <div class="app-way"><b>This device</b>
+      <button class="btn primary" id="appInstall" type="button" hidden>Install Book Studio</button>
+      <small class="hint" id="appInstallNote">In Chrome or Edge (Windows, Mac, Chromebook, Android), open the browser menu and choose Install Book Studio (or Apps, then Install).</small>
+      <small class="hint" id="appIos" hidden>On iPhone or iPad, in Safari: tap Share, then Add to Home Screen.</small>
+      <small class="hint" id="appSafari" hidden>On a Mac in Safari: choose File, then Add to Dock.</small></div>
+  </div>
+</div></dialog>
 <div id="app" hidden>
   <header class="topbar">
-    <header class="studio-bar"><a class="studio-home" id="backToAdmin" href="/admin/">← Grid Admin</a><span class="studio-who" id="whoEmail"></span><button class="btn ghost" id="pkSetUp" type="button" hidden>Set up Face ID or fingerprint</button><button class="btn ghost" id="signOutBtn" type="button">Sign out</button></header>
+    <header class="studio-bar"><a class="studio-home" id="backToAdmin" href="/admin/">← Grid Admin</a><span class="studio-who" id="whoEmail"></span><button class="btn ghost" id="getApp" type="button" hidden>Get the app</button><button class="btn ghost" id="pkSetUp" type="button" hidden>Set up Face ID or fingerprint</button><button class="btn ghost" id="signOutBtn" type="button">Sign out</button></header>
     <div class="brand"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span><span class="brand-name">Puzzle Book Studio</span></div>
     <div class="pubbar">
       <label class="field-inline"><span>Publisher</span><select id="pub"></select></label>
@@ -150,6 +169,13 @@
             <h3>Selected puzzle</h3>
             <label class="lab">Size (inches) <input type="range" id="pzSize" min="2" max="8" step="0.1"></label>
             <div class="row2"><button class="btn" id="pzRegen">New puzzle</button><button class="btn danger" id="pzDel">Delete</button></div>
+          </div>
+          <div class="insp-sec" id="pzThemeTools" hidden>
+            <h3>Puzzle theme</h3>
+            <label class="lab">Theme <select id="pzTheme"></select></label>
+            <label class="lab">Subcategory <select id="pzSub"></select></label>
+            <div class="row2"><button class="btn" id="pzThemePage" title="Give every puzzle on this page the same theme">Use on whole page</button><button class="btn" id="pzThemeEdit">Edit themes</button></div>
+            <p class="hint">Themes help you sort and plan puzzles. They are not printed.</p>
           </div>
           <div class="insp-sec">
             <h3>Current page</h3>
@@ -339,6 +365,7 @@
     <span>Cover <b id="sbCover"></b></span>
     <span id="sbCheck"></span>
     <span class="spacer" id="sbSave"></span>
+    <span id="sbSync" hidden></span>
   </footer>
 </div>
 
@@ -354,6 +381,12 @@
       <button class="btn danger" id="projNew">Start a blank book</button>
     </div>
     <p class="hint" id="projNewConfirm" hidden>This replaces the current book. Save a project file first if you want to keep it. <button class="btn danger" id="projNewYes">Replace it</button></p>
+    <section id="syBox" class="sy-box" hidden>
+      <div class="sy-head"><h4>Your books on every device</h4><button class="btn" id="syNow" type="button">Sync now</button></div>
+      <p class="hint">Every book you work on is saved to your account. Sign in with the same email on another computer, phone or the Book Studio app and it is there.</p>
+      <p class="hint" id="syStatus" role="status"></p>
+      <ul class="sy-list" id="syList"></ul>
+    </section>
   </div>
 </div></dialog>
 
@@ -380,10 +413,26 @@
       <label class="lab">Size <select id="mzSize"><option value="12">12 × 12</option><option value="18" selected>18 × 18</option><option value="25">25 × 25</option><option value="35">35 × 35</option></select></label>
       <label class="lab">Shape <select id="mzShape"><option value="square">Square</option><option value="circle">Round</option></select></label>
     </div>
+    <div class="row2">
+      <label class="lab">Theme <select id="pzGenTheme"></select></label>
+      <label class="lab">Subcategory <select id="pzGenSub"></select></label>
+    </div>
+    <p class="hint"><button class="linkbtn" type="button" id="pzGenThemeEdit">Edit the theme list</button></p>
     <label class="check"><input type="checkbox" id="pzAnswers" checked> Add solutions to the answer key at the back</label>
     <label class="check"><input type="checkbox" id="pzNewPages" checked> Put puzzles on new pages after the current page</label>
   </div>
   <footer><button class="btn" data-close>Cancel</button><button class="btn primary" id="pzGo">Generate</button></footer>
+</div></dialog>
+
+<!-- Puzzle themes dialog -->
+<dialog id="dlgThemes"><div class="dlg">
+  <header><h3>Puzzle themes</h3><button class="btn ghost" data-close>Close</button></header>
+  <div class="body">
+    <p class="hint">Each theme has its own subcategories, separated by commas. The list is saved with this book and syncs to your other devices. New books start with this list.</p>
+    <div id="thList" class="th-list"></div>
+    <div class="row2"><button class="btn" id="thAdd" type="button">Add a theme</button><button class="btn" id="thReset" type="button">Use the default list</button></div>
+  </div>
+  <footer><button class="btn" data-close>Cancel</button><button class="btn primary" id="thSave">Save themes</button></footer>
 </div></dialog>
 
 <!-- Import dialog -->

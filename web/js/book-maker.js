@@ -7,6 +7,7 @@
 //
 // Messages (only from the dashboard's own address, the game's Worker):
 //   { type: 'flg-book-games' }                       -> { type: 'flg-book-games', games }
+//        (a theme with a topic is that game's own story set for one of the main themes)
 //   { type: 'flg-book-make', req, game, difficulty, size, theme, count, avoid, usedStories, seed }
 //        -> { type: 'flg-book-progress', req, done, count } while it works
 //        -> { type: 'flg-book-made', req, items, css } or { type: 'flg-book-error', req, message }
@@ -142,7 +143,7 @@ const GAMES = {
     levels: () => NP_LEVELS,
     // NINETIMESNINE tells its own stories (engine/number-place-story.js).
     themes: async () => {
-      try { return [{ id: 'surprise', name: 'Surprise me' }, ...(await import('../engine/number-place-story.js')).NP_STORY_THEMES.map((t) => ({ id: t.id, name: t.name }))]; } catch (e) { return [{ id: 'surprise', name: 'Surprise me' }]; }
+      try { return [{ id: 'surprise', name: 'Surprise me' }, ...(await import('../engine/number-place-story.js')).NP_STORY_THEMES.map((t) => ({ id: t.id, name: t.name, topic: t.world }))]; } catch (e) { return [{ id: 'surprise', name: 'Surprise me' }]; }
     },
     async make({ difficulty, size, theme, seed, usedStories, avoid }) {
       return gameLink('np').call('generate', { difficulty, size, theme: theme && theme !== 'surprise' ? theme : null, seed, usedStories, avoid, story: true, toughness: 0.5 });

@@ -108,6 +108,7 @@ jobs:
           node scripts/e2e-puzzle-mail.cjs
           node scripts/e2e-errors.cjs
           node scripts/e2e-admin.cjs
+          node scripts/e2e-admin-puzzle-submissions.cjs
           node scripts/e2e-archive.cjs
           node scripts/e2e-educators.cjs
           node scripts/e2e-license.cjs

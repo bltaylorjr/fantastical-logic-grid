@@ -66,6 +66,19 @@ Menu > Ideas and problems, they can leave "Email me an update" ticked:
     This includes storylines sent through Share an idea.
   - **Copies the team emails (support@):** Email a copy (to any address, with
     the puzzle PDF when there is one).
+  - **A note to the player (support@):** admin > Puzzle submissions > Email the
+    player (kind `submission_message`): "About your storyline" (or puzzle),
+    with the team's note, to the address the entry has. Replies come to the
+    team's inbox.
+  - **Puzzle submissions page:** the same entries, puzzles and storylines
+    first, in sections: Awaiting approval (`new`), Awaiting edits (`edits`,
+    set by Ask the author to edit, back to `new` when they resubmit),
+    Approved, Published (`published`, marked by hand with where) and Not used.
+    Moving an entry by hand emails nobody. **Push to Saved puzzles** puts the
+    entry's saved puzzle (or a puzzle file the team chooses, kept with the
+    entry) in the signed-in player's Saved puzzles for 30 days. Delete always
+    asks first. Earlier entries the team had asked to edit were moved to
+    Awaiting edits by `2280_submission_stages.sql`.
   - **Editing:** Edit (admin, any status) saves the team's version; the
     author's original and every earlier version are kept
     (story_submission_versions), and the corrected wording, scan and puzzle

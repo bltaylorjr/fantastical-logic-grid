@@ -1,5 +1,8 @@
 /* ---------- Cover designer (Fabric.js) ---------- */
 let cv = null, cvZoom = 0.5, coverReady = null, lastGeom = null, showCvGuides = true;
+// Covers still loading into the canvas. Until they finish, the canvas holds the
+// old cover, so it must not be read back into S.cover (syncCoverToState).
+let cvLoading = 0;
 const THEMES = {
   navy: { name: 'Midnight', bg: '#1f3a5f', accent: '#f2c14e', text: '#ffffff', title: 'Bebas Neue', body: 'Nunito' },
   sunny: { name: 'Sunshine', bg: '#f6c945', accent: '#1d1d1d', text: '#1d1d1d', title: 'Fredoka', body: 'Nunito' },
@@ -30,6 +33,7 @@ function ensureCover() {
   return coverReady;
 }
 function loadCoverJSON(json, oldGeom) {
+  cvLoading++;
   return new Promise(res => {
     const fams = (json.objects || []).filter(o => o.fontFamily).map(o => o.fontFamily);
     ensureFonts(fams).then(() => cv.loadFromJSON(json, () => {
@@ -37,7 +41,7 @@ function loadCoverJSON(json, oldGeom) {
       if (oldGeom) relayoutCover(oldGeom, coverGeom());
       cv.requestRenderAll(); res();
     }));
-  });
+  }).finally(() => { cvLoading--; });
 }
 function sizeCoverCanvas() {
   if (!cv) return; const g = coverGeom();
@@ -77,6 +81,7 @@ function relayoutCover(o, n) {
   const sc = n.w / o.w;
   cv.getObjects().forEach(ob => {
     if (ob.role === 'bg') { ob.set({ left: 0, top: 0, width: N.W, height: N.H, scaleX: 1, scaleY: 1 }); ob.setCoords(); return; }
+    if (ob.role === 'gridcover') { ob.set({ left: 0, top: 0, originX: 'left', originY: 'top', scaleX: N.W / ob.width, scaleY: N.H / ob.height }); ob.setCoords(); return; }
     if (ob.role === 'bgimg') { const s = Math.max(N.W / ob.width, N.H / ob.height); ob.set({ scaleX: s, scaleY: s, left: N.W / 2, top: N.H / 2, originX: 'center', originY: 'center' }); ob.setCoords(); return; }
     const c = ob.getCenterPoint(); const r = regionOf(c.x, O); const [a0, a1] = regionSpan(r, O), [b0, b1] = regionSpan(r, N);
     const fx = (c.x - a0) / Math.max(a1 - a0, 1e-6), fy = c.y / O.H;
@@ -140,7 +145,7 @@ function cvSelChanged() {
 }
 function cvSet(props) { const o = cv?.getActiveObject(); if (!o) return; o.set(props); o.setCoords(); cv.requestRenderAll(); markDirty(); }
 
-function syncCoverToState() { if (!cv) return; S.cover = cv.toJSON(CV_PROPS); S.coverGeom = coverGeom(); }
+function syncCoverToState() { if (!cv || cvLoading) return; S.cover = cv.toJSON(CV_PROPS); S.coverGeom = coverGeom(); }
 
 function wireCover() {
   $('#cvTheme').innerHTML = Object.entries(THEMES).map(([k, t]) => `<option value="${k}">${t.name}</option>`).join('');
@@ -182,7 +187,10 @@ function wireCover() {
 function coverIssues() {
   const out = []; if (!cv) return out;
   const g = coverGeom(), P = PUBLISHERS[S.pub];
-  const objs = cv.getObjects().filter(o => o.role !== 'bg' && o.role !== 'bgimg');
+  // A Grid book's cover comes in as one finished picture of the whole wrap
+  // (role gridcover): it fills the front, and leaves its own barcode space.
+  const gridCover = cv.getObjects().some(o => o.role === 'gridcover');
+  const objs = cv.getObjects().filter(o => o.role !== 'bg' && o.role !== 'bgimg' && o.role !== 'gridcover');
   const spineTexts = objs.filter(o => o.role === 'spine');
   if (spineTexts.length && pageCount() < P.spineTextMinPages) out.push({ sev: 'error', id: 'spine-text', msg: `Spine text is not allowed under ${P.spineTextMinPages} pages`, sub: `${P.short} rejects spine text on a ${pageCount()}-page book because the spine is only ${fmtIn(g.sp)} wide.`, fix: () => { spineTexts.forEach(o => cv.remove(o)); cv.requestRenderAll(); markDirty(); } });
   if (!spineTexts.length && pageCount() >= P.spineTextMinPages && S.meta.title) out.push({ sev: 'info', id: 'spine-add', msg: 'No spine text yet', sub: 'Your page count allows a title on the spine.', fix: () => { addSpineText(); cv.requestRenderAll(); markDirty(); } });
@@ -203,7 +211,7 @@ function coverIssues() {
   cv.getObjects().filter(o => o.role === 'bgimg' && o._element).forEach(o => { const dpi = o._element.naturalWidth / (o.width * o.scaleX / IN); if (dpi < 290) out.push({ sev: 'warn', id: 'cv-bgdpi', msg: `Cover background prints at ${Math.round(dpi)} DPI`, sub: `A full-wrap background needs about ${Math.round(g.W * 300)} × ${Math.round(g.H * 300)} pixels.` }); });
   if (unsafe) out.push({ sev: 'warn', id: 'cv-safe', msg: `${unsafe} text item${unsafe > 1 ? 's' : ''} on the cover cross the safe zone`, sub: `Keep text ${P.coverSafe} in inside the trim and clear of the spine folds. Open the Cover tab and drag it inside the blue guides.` });
   if (overBarcode) out.push({ sev: 'warn', id: 'cv-barcode', msg: 'Something overlaps the barcode area', sub: 'Move text and images out of the white box on the back cover.' });
-  const front = objs.filter(o => o.getCenterPoint().x > g.frontX * IN); if (!front.length) out.push({ sev: 'error', id: 'cv-empty', msg: 'The front cover is empty', sub: 'Use Auto-design cover or add a title.', fix: () => autoDesignCover() });
+  const front = objs.filter(o => o.getCenterPoint().x > g.frontX * IN); if (!front.length && !gridCover) out.push({ sev: 'error', id: 'cv-empty', msg: 'The front cover is empty', sub: 'Use Auto-design cover or add a title.', fix: () => autoDesignCover() });
   return out;
 }
 

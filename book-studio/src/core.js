@@ -88,6 +88,39 @@ const BOOK_FONTS = ['Libre Baskerville', 'Merriweather', 'Lora', 'EB Garamond', 
 const fontStack = f => `"${f}", ${/Courier/.test(f) ? 'monospace' : /Sans|Nunito|Fredoka|Oswald|Bebas|Arial|Verdana|Hand|Marker/.test(f) ? 'sans-serif' : 'serif'}`;
 
 /* ---------- State ---------- */
+// Puzzle themes: each puzzle can carry a theme and a subcategory
+// (data-pz-theme / data-pz-sub on the puzzle, so they sync with its page).
+// The list itself is part of the book (S.puzzleThemes) and is editable;
+// a new book starts with the list of the book that was open.
+const DEFAULT_PUZZLE_THEMES = [
+  { name: 'Holidays', subs: ['Christmas', 'Hanukkah', 'Kwanzaa', 'New Year', "Valentine's Day", "St. Patrick's Day", 'Easter', "Mother's Day", "Father's Day", 'Fourth of July', 'Halloween', 'Thanksgiving'] },
+  { name: 'Seasons', subs: ['Spring', 'Summer', 'Fall', 'Winter'] },
+  { name: 'Animals', subs: ['Pets', 'Farm animals', 'Wildlife', 'Ocean life', 'Birds', 'Insects', 'Dinosaurs'] },
+  { name: 'Nature', subs: ['Gardens and flowers', 'Trees and forests', 'Weather', 'Mountains', 'Beaches'] },
+  { name: 'Food and drink', subs: ['Baking', 'Fruits and vegetables', 'Desserts', 'World food', 'Coffee and tea'] },
+  { name: 'Sports and games', subs: ['Football', 'Baseball', 'Basketball', 'Soccer', 'Golf', 'Olympics', 'Board games'] },
+  { name: 'Travel and places', subs: ['USA', 'Europe', 'World cities', 'National parks', 'Landmarks'] },
+  { name: 'Science and space', subs: ['Space and planets', 'Chemistry', 'Human body', 'Inventions', 'Technology'] },
+  { name: 'History', subs: ['Ancient world', 'American history', 'Presidents', 'Famous people'] },
+  { name: 'Arts and entertainment', subs: ['Movies', 'TV', 'Music', 'Books and authors', 'Art'] },
+  { name: 'Mystery and adventure', subs: ['Detectives', 'Pirates', 'Treasure hunts', 'Spies'] },
+  { name: 'Fantasy', subs: ['Dragons', 'Fairy tales', 'Magic', 'Mythology'] },
+  { name: 'Faith', subs: ['Bible stories', 'Hymns', 'Saints'] },
+  { name: 'Everyday life', subs: ['Home', 'School', 'Jobs', 'Transportation', 'Hobbies'] }
+];
+let themeSeed = null;
+const puzzleThemes = () => (S && S.puzzleThemes) || DEFAULT_PUZZLE_THEMES;
+function cloneThemes(list) {
+  const out = [], seen = new Set();
+  (Array.isArray(list) ? list : []).forEach(t => {
+    const name = String(t && t.name || '').trim().slice(0, 60); if (!name || seen.has(name.toLowerCase())) return; seen.add(name.toLowerCase());
+    const subs = [], ss = new Set();
+    (Array.isArray(t.subs) ? t.subs : []).forEach(x => { const v = String(x || '').trim().slice(0, 60); if (v && !ss.has(v.toLowerCase())) { ss.add(v.toLowerCase()); subs.push(v); } });
+    out.push({ name, subs: subs.slice(0, 100) });
+  });
+  return out.slice(0, 200);
+}
+
 const DEFAULT_META = { title: '', subtitle: '', author: '', contributors: '', series: '', seriesNo: '', edition: 'First edition', imprint: '', isbn: '', pubDate: '', language: 'English', price: '', audience: 'Adult', copyright: '', description: '', blurb: '', keywords: '', categories: '' };
 function blankProject() {
   return {
@@ -98,7 +131,8 @@ function blankProject() {
     folio: { on: true, pos: 'outside', start: 3 },
     pages: [{ id: uid(), html: '<h1>Untitled puzzle book</h1><p>Start typing, import a manuscript, or use Puzzles to generate pages.</p>' }],
     counters: { sudoku: 0, wordsearch: 0, maze: 0 },
-    cover: null, coverGeom: null, theme: 'navy'
+    cover: null, coverGeom: null, theme: 'navy',
+    ...(themeSeed ? { puzzleThemes: cloneThemes(themeSeed) } : {})
   };
 }
 let S = blankProject();
@@ -134,7 +168,10 @@ function markDirty() {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(async () => {
     syncPagesFromDom(); if (typeof syncCoverToState === 'function') syncCoverToState();
-    const ok = await idbPut('current', JSON.parse(JSON.stringify(S)));
+    const snap = JSON.stringify(S);
+    const ok = await idbPut('current', JSON.parse(snap));
     $('#sbSave').textContent = ok ? 'Saved in this browser' : 'Not saved: browser storage is unavailable. Save a project file.';
+    // Grid Admin build: also sync the book to the account (sync.js).
+    if (typeof syChanged === 'function') syChanged(snap);
   }, 1200);
 }
