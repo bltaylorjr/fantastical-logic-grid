@@ -34,7 +34,7 @@ jobs:
   video:
     # The video's own pull request also touches web/, so skip it when it merges.
     if: ${{ github.event_name == 'workflow_dispatch' || !contains(github.event.head_commit.message, '[video]') }}
-    runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork && '"ubuntu-latest"') || vars.FLG_RUNNER || '"ubuntu-latest"') }}
+    runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork && '"ubuntu-latest"') || '"ubuntu-latest"') }}
     # The build server shares its cores with the test runs, and the videos
     # now have more scenes (11 games in the tour). On a busy day voicing the
     # Introduction alone took 68 minutes, and 120 minutes ran out in the
