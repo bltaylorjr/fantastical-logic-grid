@@ -1007,11 +1007,11 @@ uses a secret, variable or binding that is not listed there.
 
 **Links:** [TikTok for Developers](https://developers.tiktok.com/) · [Full guide (scripts/marketing-post.py)](https://github.com/bltaylorjr/fantastical-logic-grid/blob/main/scripts/marketing-post.py)
 
-### Reddit (automatic posts)
+### Reddit (automatic posts, closed to new apps)
 
-**Why:** Lets the marketing autopilot post approved Reddit ads in the subreddit named in the ad on their day. Ads that point at a weekly thread or need a judgement call stay by hand. Replying to comments is always yours.
+**Why:** Reddit stopped accepting new requests for API access on 31 October 2026 and closes the rest in March 2027, so a new account cannot get these keys. Reddit ads come to you in the morning email to post by hand, and the footer links to the account once its link is set in Settings and switches > Social links. These steps only apply if you already had an approved Reddit app.
 
-**Cost:** Free. Reddit may ask you to fill in a short form for API access first.
+**Cost:** Free, but closed to new apps since 31 October 2026.
 
 | Name | Where | Notes |
 | --- | --- | --- |

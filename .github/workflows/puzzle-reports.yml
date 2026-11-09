@@ -16,7 +16,7 @@ concurrency:
   group: puzzle-reports
 jobs:
   examine:
-    runs-on: ${{ fromJSON(vars.FLG_RUNNER || '"ubuntu-latest"') }}
+    runs-on: ${{ fromJSON('"ubuntu-latest"') }}
     timeout-minutes: 15
     steps:
       - if: runner.environment == 'self-hosted'

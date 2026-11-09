@@ -23,7 +23,7 @@ concurrency:
 jobs:
   videos:
     if: ${{ github.event_name == 'workflow_dispatch' || !contains(github.event.head_commit.message, '[tips]') }}
-    runs-on: ${{ fromJSON(vars.FLG_RUNNER || '"ubuntu-latest"') }}
+    runs-on: ${{ fromJSON('"ubuntu-latest"') }}
     timeout-minutes: 120
     steps:
       - if: runner.environment == 'self-hosted'
