@@ -442,6 +442,23 @@ export const CONNECTIONS = [
     links: [{ label: 'Worker variables and secrets', url: CF_WORKER }, { label: 'Firebase project settings', url: `${FIREBASE}/settings/general` }],
   },
   {
+    id: 'firebase-admin',
+    group: 'google',
+    title: 'Inactive account cleanup (Firebase admin key)',
+    why: 'Lets the Worker remove a deleted account\'s Firebase sign-in, for the automatic deletion of inactive accounts and of accounts with no screen name. Without it nothing is deleted automatically.',
+    cost: 'Free.',
+    docs: 'server/INACTIVE-ACCOUNTS.md',
+    names: [
+      { name: 'FIREBASE_SERVICE_ACCOUNT', where: 'worker-secret', optional: true, note: 'The whole JSON key of the Firebase Admin SDK service account.' },
+    ],
+    steps: [
+      `Open ${FIREBASE}/settings/serviceaccounts/adminsdk and click **Generate new private key** > **Generate key**.`,
+      ...CF_SECRET_STEPS('FIREBASE_SERVICE_ACCOUNT', 'everything in the downloaded .json file (open it in Notepad)'),
+      'Delete the downloaded file. In this dashboard open **Players** > **Inactive account cleanup** to check who would be warned and deleted, then switch on **Delete inactive accounts automatically** under **Settings and switches** > **Inactive accounts**.',
+    ],
+    links: [{ label: 'Firebase service accounts', url: `${FIREBASE}/settings/serviceaccounts/adminsdk` }, { label: 'Worker variables and secrets', url: CF_WORKER }],
+  },
+  {
     id: 'gemini',
     group: 'google',
     title: 'Google Gemini (server voices and the AI story writer)',
@@ -767,9 +784,9 @@ export const CONNECTIONS = [
     id: 'reddit',
     group: 'marketing',
     oauth: 'reddit',
-    title: 'Reddit (automatic posts)',
-    why: 'Lets the marketing autopilot post approved Reddit ads in the subreddit named in the ad on their day. Ads that point at a weekly thread or need a judgement call stay by hand. Replying to comments is always yours.',
-    cost: 'Free. Reddit may ask you to fill in a short form for API access first.',
+    title: 'Reddit (automatic posts, closed to new apps)',
+    why: 'Reddit stopped accepting new requests for API access on 31 October 2026 and closes the rest in March 2027, so a new account cannot get these keys. Reddit ads come to you in the morning email to post by hand, and the footer links to the account once its link is set in Settings and switches > Social links. These steps only apply if you already had an approved Reddit app.',
+    cost: 'Free, but closed to new apps since 31 October 2026.',
     docs: 'scripts/marketing-post.py',
     names: [
       { name: 'REDDIT_CLIENT_ID', where: 'github-secret', note: 'The id shown under the app name.' },

@@ -27,7 +27,7 @@ concurrency:
 jobs:
   deploy:
     if: vars.FLG_SITE_REPO == ''
-    runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork && '"ubuntu-latest"') || vars.FLG_RUNNER || '"ubuntu-latest"') }}
+    runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork && '"ubuntu-latest"') || '"ubuntu-latest"') }}
     environment:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
@@ -61,7 +61,7 @@ jobs:
 
   site-repo:
     if: vars.FLG_SITE_REPO != ''
-    runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork && '"ubuntu-latest"') || vars.FLG_RUNNER || '"ubuntu-latest"') }}
+    runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork && '"ubuntu-latest"') || '"ubuntu-latest"') }}
     timeout-minutes: 15
     steps:
       - if: runner.environment == 'self-hosted'
@@ -103,7 +103,7 @@ jobs:
   indexnow:
     needs: [deploy, site-repo]
     if: always() && (needs.deploy.result == 'success' || needs.site-repo.result == 'success')
-    runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork && '"ubuntu-latest"') || vars.FLG_RUNNER || '"ubuntu-latest"') }}
+    runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork && '"ubuntu-latest"') || '"ubuntu-latest"') }}
     timeout-minutes: 5
     env:
       SITE: ${{ vars.FLG_SITE_URL || 'https://thelogicgrid.com' }}
@@ -126,7 +126,7 @@ jobs:
           case "$code" in 200|202|429) ;; *) exit 1 ;; esac
 
   other-hosts:
-    runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork && '"ubuntu-latest"') || vars.FLG_RUNNER || '"ubuntu-latest"') }}
+    runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork && '"ubuntu-latest"') || '"ubuntu-latest"') }}
     env:
       NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
       NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}

@@ -276,7 +276,7 @@ async function exportPacket() {
     dir.file(files[7], JSON.stringify(S));
     const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 3 } });
     busy('Saving', 1); busy(false);
-    await saveFile(base + '-submission-packet.zip', blob);
+    if ((await saveFile(base + '-submission-packet.zip', blob)) && typeof ppRecordExport === 'function') ppRecordExport('packet');
   } catch (e) { exportFailed(e); }
 }
 // Cancel on the progress card ends an export quietly; anything else is reported.
@@ -285,7 +285,7 @@ function exportFailed(e) {
   if (e && e.code === 'cancelled') { toast('Export cancelled. Nothing was saved.'); return; }
   console.error(e); toast('Export failed: ' + ((e && e.message) || e), 7000);
 }
-async function exportInterior() { if (!(await mayExport('interior'))) return; allowCancel(); try { const b = await buildInteriorPDF(+$('#dpi').value); busy('Saving', 1); busy(false); await saveFile(slug(S.meta.title) + '-interior.pdf', b); } catch (e) { exportFailed(e); } }
+async function exportInterior() { if (!(await mayExport('interior'))) return; allowCancel(); try { const b = await buildInteriorPDF(+$('#dpi').value); busy('Saving', 1); busy(false); if ((await saveFile(slug(S.meta.title) + '-interior.pdf', b)) && typeof ppRecordExport === 'function') ppRecordExport('interior'); } catch (e) { exportFailed(e); } }
 async function exportCover() { if (!(await mayExport('cover'))) return; allowCancel(); try { const { blob } = await buildCoverPDF(+$('#dpi').value); busy('Saving', 1); busy(false); await saveFile(slug(S.meta.title) + '-cover.pdf', blob); } catch (e) { exportFailed(e); } }
 
 function renderPubCard() {

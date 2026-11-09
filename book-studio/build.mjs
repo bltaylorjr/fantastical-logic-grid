@@ -214,7 +214,7 @@ ${scopeCss(readFileSync(join(root, 'admin', 'admin.css'), 'utf8'), '.grid-books'
 .grid-books h1 { margin-bottom: 4px; }
 `;
 writeFileSync(join(out, 'studio.css'), `/* Book Studio. Built from book-studio/src/shell.html by book-studio/build.mjs: do not edit here. */\n${style.trim()}\n${extraCss}\n${gridBooksCss}`);
-writeFileSync(join(out, 'studio.js'), `// Book Studio. Built from book-studio/src by book-studio/build.mjs: do not edit here.\n'use strict';\n${js}\n${src('sync.js')}\n${src('auth.js')}`);
+writeFileSync(join(out, 'studio.js'), `// Book Studio. Built from book-studio/src by book-studio/build.mjs: do not edit here.\n'use strict';\n${js}\n${src('sync.js')}\n${src('playerpuzzles.js')}\n${src('auth.js')}`);
 const require = createRequire(join(here, 'package.json'));
 for (const [, [pkg, path, file]] of Object.entries(VENDOR)) {
   const from = join(dirname(require.resolve(`${pkg}/package.json`)), path);

@@ -449,6 +449,26 @@ uses a secret, variable or binding that is not listed there.
 
 **Links:** [Worker variables and secrets](https://dash.cloudflare.com/?to=/:account/workers/services/view/flg-api/production/settings) · [Firebase project settings](https://console.firebase.google.com/project/the-fantastical-logic-grid/settings/general) · [Full guide (admin/README.md)](https://github.com/bltaylorjr/fantastical-logic-grid/blob/main/admin/README.md)
 
+### Inactive account cleanup (Firebase admin key)
+
+**Why:** Lets the Worker remove a deleted account's Firebase sign-in, for the automatic deletion of inactive accounts and of accounts with no screen name. Without it nothing is deleted automatically.
+
+**Cost:** Free.
+
+| Name | Where | Notes |
+| --- | --- | --- |
+| `FIREBASE_SERVICE_ACCOUNT` | Cloudflare Worker secret | The whole JSON key of the Firebase Admin SDK service account. Optional. |
+
+**Steps:**
+
+1. Open <https://console.firebase.google.com/project/the-fantastical-logic-grid/settings/serviceaccounts/adminsdk> and click **Generate new private key** > **Generate key**.
+2. Open <https://dash.cloudflare.com/?to=/:account/workers/services/view/flg-api/production/settings> (Cloudflare > **Workers & Pages** > **flg-api** > **Settings** > **Variables and Secrets**).
+3. Click **Add** (or **Edit** next to `FIREBASE_SERVICE_ACCOUNT` if it is already there).
+4. Choose type **Secret**, enter the name `FIREBASE_SERVICE_ACCOUNT`, paste everything in the downloaded .json file (open it in Notepad) as the value, and click **Deploy**.
+5. Delete the downloaded file. In this dashboard open **Players** > **Inactive account cleanup** to check who would be warned and deleted, then switch on **Delete inactive accounts automatically** under **Settings and switches** > **Inactive accounts**.
+
+**Links:** [Firebase service accounts](https://console.firebase.google.com/project/the-fantastical-logic-grid/settings/serviceaccounts/adminsdk) · [Worker variables and secrets](https://dash.cloudflare.com/?to=/:account/workers/services/view/flg-api/production/settings) · [Full guide (server/INACTIVE-ACCOUNTS.md)](https://github.com/bltaylorjr/fantastical-logic-grid/blob/main/server/INACTIVE-ACCOUNTS.md)
+
 ### Google Gemini (server voices and the AI story writer)
 
 **Why:** Gives characters natural server voices and drafts story parts in the Story workshop.
@@ -1007,11 +1027,11 @@ uses a secret, variable or binding that is not listed there.
 
 **Links:** [TikTok for Developers](https://developers.tiktok.com/) · [Full guide (scripts/marketing-post.py)](https://github.com/bltaylorjr/fantastical-logic-grid/blob/main/scripts/marketing-post.py)
 
-### Reddit (automatic posts)
+### Reddit (automatic posts, closed to new apps)
 
-**Why:** Lets the marketing autopilot post approved Reddit ads in the subreddit named in the ad on their day. Ads that point at a weekly thread or need a judgement call stay by hand. Replying to comments is always yours.
+**Why:** Reddit stopped accepting new requests for API access on 31 October 2026 and closes the rest in March 2027, so a new account cannot get these keys. Reddit ads come to you in the morning email to post by hand, and the footer links to the account once its link is set in Settings and switches > Social links. These steps only apply if you already had an approved Reddit app.
 
-**Cost:** Free. Reddit may ask you to fill in a short form for API access first.
+**Cost:** Free, but closed to new apps since 31 October 2026.
 
 | Name | Where | Notes |
 | --- | --- | --- |

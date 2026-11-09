@@ -21,7 +21,7 @@ concurrency:
   group: health
 jobs:
   check:
-    runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork && '"ubuntu-latest"') || vars.FLG_RUNNER || '"ubuntu-latest"') }}
+    runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork && '"ubuntu-latest"') || '"ubuntu-latest"') }}
     timeout-minutes: 10
     env:
       SITE: https://thelogicgrid.com
@@ -38,7 +38,9 @@ jobs:
           if page=$(fetch "$SITE/"); then
             grep -q 'The Fantastical Logic Grid' <<<"$page" || problems+=("The website at $SITE answers, but the game page is missing.")
           else problems+=("The website at $SITE does not answer."); fi
-          for f in sw.js manifest.webmanifest js/app.js engine/index.js; do
+          # engine/games.js ships in every build; engine/index.js does not when the
+          # private puzzle server is on (FLG_PUZZLE_SERVER=1, scripts/build.mjs).
+          for f in sw.js manifest.webmanifest js/app.js engine/games.js; do
             fetch "$SITE/$f" >/dev/null || problems+=("The website file $SITE/$f is missing, so the game may not start or work offline.")
           done
 
@@ -94,7 +96,7 @@ jobs:
 
   errors:
     if: github.event.schedule == '41 6 * * *' || github.event_name == 'workflow_dispatch'
-    runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork && '"ubuntu-latest"') || vars.FLG_RUNNER || '"ubuntu-latest"') }}
+    runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork && '"ubuntu-latest"') || '"ubuntu-latest"') }}
     timeout-minutes: 5
     env:
       API: ${{ vars.FLG_CLOUD_URL || 'https://flg-api.btay74.workers.dev' }}
@@ -128,7 +130,7 @@ jobs:
             }
 
   limits:
-    runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork && '"ubuntu-latest"') || vars.FLG_RUNNER || '"ubuntu-latest"') }}
+    runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork && '"ubuntu-latest"') || '"ubuntu-latest"') }}
     timeout-minutes: 5
     env:
       API: ${{ vars.FLG_CLOUD_URL || 'https://flg-api.btay74.workers.dev' }}
