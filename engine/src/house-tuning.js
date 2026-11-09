@@ -20,7 +20,52 @@
 //
 // Written by the weekly run. Edit by hand only to remove a bad entry that has
 // not reached its `from` date yet.
-export const HOUSE_TUNING = [];
+export const HOUSE_TUNING = [
+  {
+    "from": "2026-11-10",
+    "reasons": [
+      "Daily Basic puzzles: a little tougher within the level (0 to 0.2), because of how the daily puzzle went.",
+      "Daily Easy puzzles: a little tougher within the level (0 to 0.2), because of how the daily puzzle went.",
+      "Daily Medium puzzles: a little tougher within the level (0 to 0.1), because of how the daily puzzle went.",
+      "Daily Hard puzzles: a little tougher within the level (0 to 0.05), because of how the daily puzzle went.",
+      "Daily Expert puzzles: a little tougher within the level (0 to 0.2), because of how the daily puzzle went.",
+      "Daily Quantum Physicist puzzles: a little tougher within the level (0 to 0.2), because of how the daily puzzle went.",
+      "Daily Theoretical Physicist puzzles: a little tougher within the level (0 to 0.2), because of how the daily puzzle went."
+    ],
+    "daily": {
+      "effort": {
+        "basic": 0.2,
+        "easy": 0.2,
+        "medium": 0.1,
+        "hard": 0.05,
+        "expert": 0.2,
+        "mensa": 0.2,
+        "theorist": 0.2
+      },
+      "clueWeights": {}
+    },
+    "storyPrefs": {}
+  },
+  {
+    "from": "2026-11-10",
+    "reasons": [
+      "Older story-part preferences faded out."
+    ],
+    "daily": {
+      "effort": {
+        "basic": 0.25,
+        "easy": 0.2,
+        "medium": 0.1,
+        "hard": 0.05,
+        "expert": 0.2,
+        "mensa": 0.2,
+        "theorist": 0.2
+      },
+      "clueWeights": {}
+    },
+    "storyPrefs": {}
+  }
+];
 
 // The entry in force on `day` (YYYY-MM-DD), or null.
 export function houseTuningFor(day, list = HOUSE_TUNING) {

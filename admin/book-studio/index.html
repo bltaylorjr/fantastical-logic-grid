@@ -91,6 +91,7 @@
     <button class="tab" role="tab" data-tab="details" aria-selected="false">Book details</button>
     <button class="tab" role="tab" data-tab="publish" aria-selected="false">Check &amp; export</button>
     <button class="tab" role="tab" data-tab="gridbooks" aria-selected="false" hidden>Grid books</button>
+    <button class="tab" role="tab" data-tab="players" aria-selected="false" hidden>Player puzzles</button>
     <span class="tab-steps"><button class="btn ghost" id="navBack" type="button" hidden>← Back</button><button class="btn" id="navNext" type="button">Next: Cover →</button></span>
   </nav>
   <main>
@@ -133,6 +134,7 @@
         <div class="tgroup">
           <button class="tb" id="findBtn" title="Find and replace (Ctrl+F)">Find</button>
           <button class="tb" id="cleanBtn" title="Auto-edit text: smart quotes, dashes, spacing">Auto-edit</button>
+          <button class="tb" id="writeBtn" title="Check or rewrite the selected text or paragraph in QuillBot or Scribbr">Writing tools</button>
           <button class="tb" data-cmd="removeFormat" title="Clear formatting">Tx</button>
         </div>
         <div class="tgroup">
@@ -186,6 +188,11 @@
               <button class="btn" id="pgDown">Move down</button>
             </div>
             <label class="check"><input type="checkbox" id="pgNoFolio"> Hide page number on this page</label>
+            <div id="pgCreditBox" class="credit-box" hidden>
+              <label class="check"><input type="checkbox" id="pgCredit"> Show author credit on this puzzle</label>
+              <label class="check"><input type="checkbox" id="pgCreditBook"> Show author credit on every player puzzle in this book</label>
+              <p class="hint" id="pgCreditName"></p>
+            </div>
             <div class="row2"><button class="btn" id="pgBgImg">Background image</button><button class="btn" id="pgBgClear">Clear background</button></div>
           </div>
           <div class="insp-sec">
@@ -239,6 +246,7 @@
           <button class="tb" id="cvBack" title="Send backward">Back</button>
           <button class="tb" id="cvDup" title="Duplicate">Duplicate</button>
           <button class="tb" id="cvDel" title="Delete (Del)">Delete</button>
+          <button class="tb" id="cvWrite" title="Check or rewrite the selected text box in QuillBot or Scribbr">Writing tools</button>
         </div>
         <div class="tgroup">
           <select id="cvZoom"><option value="0.35">35%</option><option value="0.5" selected>50%</option><option value="0.75">75%</option><option value="1">100%</option></select>
@@ -309,7 +317,7 @@
           <label class="lab wide">Keywords (one per line) <textarea data-meta="keywords" id="m-keywords" style="min-height:90px"></textarea><span class="count" id="kwCount"></span></label>
           <label class="lab wide">Categories (one per line, e.g. GAM007000 Games &amp; Activities / Puzzles) <textarea data-meta="categories" id="m-categories" style="min-height:70px"></textarea><span class="count" id="catCount"></span></label>
         </div>
-        <div class="export-row"><button class="btn" id="addFront">Insert title &amp; copyright pages</button></div>
+        <div class="export-row"><button class="btn" id="addFront">Insert title &amp; copyright pages</button><button class="btn" id="writeMeta" title="Check or rewrite the title, subtitle, description or blurb (the last one you clicked in) in QuillBot or Scribbr">Writing tools</button></div>
       </div></div>
     </section>
 
@@ -320,6 +328,29 @@
         <p class="muted">Puzzle books made from the game's own puzzles: no puzzle is ever used twice. Make one here, then press <b>Open in the editor</b> to fit it to any publisher and download the submission packet.</p>
         <div id="books-body"><p class="muted">Loading…</p></div>
         <div id="books-frames"></div>
+      </div></div>
+    </section>
+
+    <!-- PLAYER PUZZLES (Grid Admin only: auth.js shows the tab; playerpuzzles.js) -->
+    <section class="view" id="view-players" hidden>
+      <div class="scroll-page"><div class="grid-books">
+        <h1>Player puzzles</h1>
+        <p class="muted">Every puzzle players sent in that the team approved (Grid Admin, Puzzle submissions). Add one to this book, or download or print it on its own. Each puzzle counts as published in a book once that book's interior is exported.</p>
+        <form id="ppSearch" class="pp-bar" role="search">
+          <label class="lab">Search <input type="search" id="ppQ" placeholder="Title, player or #"></label>
+          <label class="lab">Game <select id="ppGame"><option value="">All games</option><option value="fantastical">The Fantastical Logic Grid</option><option value="ninetimesnine">NINETIMESNINE</option></select></label>
+          <label class="lab">Show <select id="ppUse"><option value="">All</option><option value="new">Not in a book yet</option><option value="used">Already in a book</option><option value="book">In this book</option></select></label>
+          <button class="btn" type="submit">Search</button>
+          <button class="btn ghost" type="button" id="ppReload">Refresh</button>
+        </form>
+        <div class="pp-bar">
+          <label class="lab">Answer key <select id="ppKeys"><option value="back">At the back of the book</option><option value="after">Right after the puzzle</option><option value="none">Leave it out</option></select></label>
+          <label class="check"><input type="checkbox" id="ppCredits" checked> Show author credit (screen name) at the foot of each player puzzle page</label>
+          <button class="btn primary" type="button" id="ppAddPicked" disabled>Add ticked to the book</button>
+        </div>
+        <p class="muted" id="ppCount" role="status"></p>
+        <div id="ppBody"><p class="muted">Loading…</p></div>
+        <div id="ppFrames"></div>
       </div></div>
     </section>
 
@@ -380,6 +411,11 @@
       <button class="btn" id="projSample">Load sample book</button>
       <button class="btn danger" id="projNew">Start a blank book</button>
     </div>
+    <div class="export-row">
+      <button class="btn" id="noaiBtn" type="button">Make a copy without AI content…</button>
+      <button class="btn primary" id="noaiFillBtn" type="button" hidden>Fill the removed spots</button>
+    </div>
+    <p class="hint">Makes a new book with the AI-made pictures and words taken out, so you can answer "None" to KDP's AI question for it. This book stays as it is.</p>
     <p class="hint" id="projNewConfirm" hidden>This replaces the current book. Save a project file first if you want to keep it. <button class="btn danger" id="projNewYes">Replace it</button></p>
     <section id="syBox" class="sy-box" hidden>
       <div class="sy-head"><h4>Your books on every device</h4><button class="btn" id="syNow" type="button">Sync now</button></div>
@@ -388,6 +424,33 @@
       <ul class="sy-list" id="syList"></ul>
     </section>
   </div>
+</div></dialog>
+
+<!-- Make a copy without AI content (noai.js) -->
+<dialog id="dlgNoAi" class="wide"><div class="dlg">
+  <header><h3>Make a copy without AI content</h3><button class="btn ghost" data-close>Close</button></header>
+  <div class="body">
+    <p class="hint">Tick every part an AI made. Pictures labelled as AI-made in their file are already ticked; words can't be told apart, so tick any an AI wrote (the game's AI story writer counts). Puzzles from Book Studio and the game's engines aren't AI and aren't listed.</p>
+    <p id="noaiSummary" role="status"></p>
+    <div id="noaiList" class="noai-list"></div>
+  </div>
+  <footer><button class="btn ghost" data-close>Cancel</button><button class="btn primary" id="noaiMake" type="button">Make the copy</button></footer>
+</div></dialog>
+
+<dialog id="dlgNoAiFill"><div class="dlg">
+  <header><h3 id="noaiFillTitle">Removed spot</h3><span class="hint" id="noaiFillStep"></span></header>
+  <div class="body">
+    <div id="noaiFillWas"></div>
+    <label class="lab"><span id="noaiFillLabel">Your own words for this spot</span><textarea id="noaiFillText" style="min-height:140px"></textarea></label>
+    <p class="hint">A blank line starts a new paragraph. Ctrl+Enter puts it in.</p>
+  </div>
+  <footer>
+    <button class="btn ghost" id="noaiFillBack" type="button">Back</button>
+    <button class="btn ghost" id="noaiFillLater" type="button">Later</button>
+    <button class="btn" id="noaiFillOut" type="button">Leave it out</button>
+    <button class="btn" id="noaiFillPic" type="button" hidden>Choose my own picture</button>
+    <button class="btn primary" id="noaiFillPut" type="button">Put it in</button>
+  </footer>
 </div></dialog>
 
 <!-- Puzzle dialog -->
@@ -458,6 +521,20 @@
     <p class="hint" id="findInfo"></p>
   </div>
   <footer><button class="btn" id="findCount">Count</button><button class="btn primary" id="findAll">Replace all</button></footer>
+</div></dialog>
+
+<!-- Writing tools dialog (writing.js) -->
+<dialog id="dlgWrite"><div class="dlg">
+  <header><h3>Writing tools</h3><button class="btn ghost" data-close>Close</button></header>
+  <div class="body">
+    <p class="hint" id="wtFrom"></p>
+    <label class="lab">Your text <textarea id="wtText" style="min-height:110px"></textarea><span class="count" id="wtCount"></span></label>
+    <div class="wt-site"><b>QuillBot</b><div class="wt-row" id="wtQuill"></div></div>
+    <div class="wt-site"><b>Scribbr</b><div class="wt-row" id="wtScribbr"></div></div>
+    <p class="hint">Each button copies your text and opens the tool in a new tab, signed in with your own account. Paste it there, copy the result, and paste it below. Plagiarism checks and longer texts may need a paid plan on their site.</p>
+    <label class="lab">Fixed text <textarea id="wtResult" style="min-height:110px" placeholder="Paste the result from QuillBot or Scribbr here"></textarea></label>
+  </div>
+  <footer><button class="btn" id="wtPaste">Paste from clipboard</button><button class="btn primary" id="wtApply">Put it back</button></footer>
 </div></dialog>
 
 <!-- Auto-edit dialog -->

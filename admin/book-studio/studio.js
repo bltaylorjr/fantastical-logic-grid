@@ -412,7 +412,22 @@ function buildPageNode(i, forExport) {
     else if (g.recto) { f.style.right = g.right + 'px'; } else { f.style.left = g.left + 'px'; }
     el.appendChild(f);
   }
+  // A player's puzzle (playerpuzzles.js): "Puzzle by <screen name>" at the foot
+  // of the page, when it is on for this puzzle and for the book.
+  const credit = pageCredit(p);
+  if (credit) {
+    const c = document.createElement('div'); c.className = 'page-credit'; c.textContent = credit;
+    c.style.bottom = Math.max(g.bottom / 2 - 8, 8) + 'px';
+    // Opposite the page number: centered, or on the outside edge when the number is centered.
+    if (S.folio.on && S.folio.pos === 'center') { if (g.recto) c.style.right = g.right + 'px'; else c.style.left = g.left + 'px'; }
+    else { c.style.left = g.left + 'px'; c.style.right = g.right + 'px'; c.style.textAlign = 'center'; }
+    el.appendChild(c);
+  }
   return el;
+}
+function pageCredit(p) {
+  if (!p || !p.player || !p.player.credit || p.player.show === false || S.playerCredits === false) return '';
+  return 'Puzzle by ' + String(p.player.credit).slice(0, 60);
 }
 
 function applyBookVars(root) {
@@ -463,11 +478,22 @@ function renderPageList() {
   $('#plAdd').onclick = () => addPageAfter(curPage);
 }
 
+// The author credit switches show only on a player's puzzle page.
+function refreshCreditTools() {
+  const box = $('#pgCreditBox'); if (!box) return;
+  const p = S.pages[curPage]; const pl = p && p.player;
+  box.hidden = !pl;
+  if (!pl) return;
+  $('#pgCredit').checked = !!pl.credit && pl.show !== false; $('#pgCredit').disabled = !pl.credit;
+  $('#pgCreditBook').checked = S.playerCredits !== false;
+  $('#pgCreditName').textContent = pl.credit ? `“Puzzle by ${pl.credit}” at the foot of the page.` : 'The author chose to stay anonymous, so this puzzle has no credit.';
+}
 function setActivePage(i, scroll) {
   curPage = clamp(i, 0, S.pages.length - 1);
   $$('#pages .page').forEach((p, k) => p.classList.toggle('active', k === curPage));
   $$('#pagelist .pl-item').forEach((p, k) => p.classList.toggle('active', k === curPage));
   const p = S.pages[curPage]; if (p) $('#pgNoFolio').checked = !!p.noFolio;
+  refreshCreditTools();
   if (scroll) { const el = pageEl(curPage); if (el) el.scrollIntoView({ block: 'start', behavior: 'smooth' }); }
 }
 
@@ -677,6 +703,14 @@ function wireEditor() {
   $('#bodyFont').onchange = e => { S.body.font = e.target.value; applyBookVars($('#pages')); requestAnimationFrame(checkAllOverflow); markDirty(); };
   $('#bodySize').onchange = e => { S.body.size = clamp(+e.target.value || 12, 6, 36); applyBookVars($('#pages')); requestAnimationFrame(checkAllOverflow); markDirty(); };
   $('#bodyLh').onchange = e => { S.body.lh = clamp(+e.target.value || 1.3, 1, 3); applyBookVars($('#pages')); requestAnimationFrame(checkAllOverflow); markDirty(); };
+  // Author credit on a player's puzzle page (playerpuzzles.js).
+  $('#pgCredit').onchange = e => {
+    syncPagesFromDom(); const p = S.pages[curPage]; if (!p || !p.player) return;
+    // Every page of the same puzzle follows (a puzzle can take two pages).
+    S.pages.forEach(q => { if (q.player && q.player.id === p.player.id) q.player.show = e.target.checked; });
+    renderPages(); markDirty();
+  };
+  $('#pgCreditBook').onchange = e => { syncPagesFromDom(); S.playerCredits = e.target.checked; renderPages(); markDirty(); };
   $('#folioOn').onchange = e => { syncPagesFromDom(); S.folio.on = e.target.checked; renderPages(); markDirty(); };
   $('#folioPos').onchange = e => { syncPagesFromDom(); S.folio.pos = e.target.value; renderPages(); markDirty(); };
   $('#folioStart').onchange = e => { syncPagesFromDom(); S.folio.start = Math.max(1, +e.target.value || 1); renderPages(); markDirty(); };
@@ -1665,6 +1699,7 @@ async function runChecks(opts = {}) {
   const add = (sev, id, msg, sub, fix, act) => out.push({ sev, id, msg, sub, fix, act });
   const toDetails = { label: 'Edit details', fn: () => showTab('details') };
   if (!S.meta.title.trim()) add('error', 'title', 'The book has no title', 'Add one in Book details. It is used on the cover, title page and metadata.', null, toDetails);
+  if (typeof aiGapCount === 'function' && aiGapCount()) add('error', 'aigaps', `${aiGapCount()} removed spot${aiGapCount() === 1 ? ' is' : 's are'} still empty`, 'This copy had AI-made parts taken out. Write your own words or choose your own pictures for them, or leave them out.', null, { label: 'Fill them', fn: () => noaiOpenFill() });
   if (!S.meta.author.trim()) add('error', 'author', 'No author name', 'Add the author or pen name in Book details.', null, toDetails);
   if (!P.trims.includes(S.trim)) add('error', 'trim', `${P.short} does not print ${TRIM_LABEL(S.trim)}`, `Switch to a supported size, such as ${TRIM_LABEL(nearestTrim(P.trims))}.`, () => { S.trim = nearestTrim(P.trims); });
   const maxP = P.maxPagesFor ? P.maxPagesFor(S.trim, S.paper) : P.maxPages;
@@ -1812,8 +1847,11 @@ async function buildInteriorPDF(dpi) {
   await loadLibs('jspdf', 'html2canvas'); syncPagesFromDom();
   try { await document.fonts.ready; await ensureFonts([S.body.font, 'Courier Prime']); } catch (e) { }
   const { jsPDF } = window.jspdf; let pdf = null;
-  for (let i = 0; i < S.pages.length; i++) {
-    busy(`Rendering interior page ${i + 1} of ${S.pages.length}`, i / S.pages.length);
+  const n = S.pages.length, started = Date.now();
+  for (let i = 0; i < n; i++) {
+    // Big books take minutes: say roughly how long is left once a few pages are done.
+    const left = i >= 5 ? Math.round((Date.now() - started) / i * (n - i) / 60000) : 0;
+    busy(`Rendering interior page ${i + 1} of ${n}${left >= 1 ? ` · about ${left} min left` : ''}`, i / n);
     const { canvas, SW, SH } = await renderPageCanvas(i, dpi);
     const orient = SW > SH ? 'landscape' : 'portrait';
     if (!pdf) pdf = new jsPDF({ unit: 'in', format: [SW, SH], orientation: orient, compress: true });
@@ -1883,7 +1921,11 @@ function reportText() {
 }
 
 // In Grid Admin, every export checks in first (auth.js); the stand-alone build has no check.
-const mayExport = async (kind) => (typeof checkInExport === 'function' ? checkInExport(kind) : true);
+const mayExport = async (kind) => {
+  // A copy without AI content prints nothing until every removed spot is filled or left out.
+  if (typeof aiGapCount === 'function' && aiGapCount()) { toast(`Fill or leave out the ${aiGapCount()} removed spot${aiGapCount() === 1 ? '' : 's'} first (Project › Fill the removed spots).`, 6000); noaiOpenFill(); return false; }
+  return typeof checkInExport === 'function' ? checkInExport(kind) : true;
+};
 async function exportPacket() {
   if (!(await mayExport('packet'))) return;
   allowCancel();
@@ -1904,7 +1946,7 @@ async function exportPacket() {
     dir.file(files[7], JSON.stringify(S));
     const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 3 } });
     busy('Saving', 1); busy(false);
-    await saveFile(base + '-submission-packet.zip', blob);
+    if ((await saveFile(base + '-submission-packet.zip', blob)) && typeof ppRecordExport === 'function') ppRecordExport('packet');
   } catch (e) { exportFailed(e); }
 }
 // Cancel on the progress card ends an export quietly; anything else is reported.
@@ -1913,7 +1955,7 @@ function exportFailed(e) {
   if (e && e.code === 'cancelled') { toast('Export cancelled. Nothing was saved.'); return; }
   console.error(e); toast('Export failed: ' + ((e && e.message) || e), 7000);
 }
-async function exportInterior() { if (!(await mayExport('interior'))) return; allowCancel(); try { const b = await buildInteriorPDF(+$('#dpi').value); busy('Saving', 1); busy(false); await saveFile(slug(S.meta.title) + '-interior.pdf', b); } catch (e) { exportFailed(e); } }
+async function exportInterior() { if (!(await mayExport('interior'))) return; allowCancel(); try { const b = await buildInteriorPDF(+$('#dpi').value); busy('Saving', 1); busy(false); if ((await saveFile(slug(S.meta.title) + '-interior.pdf', b)) && typeof ppRecordExport === 'function') ppRecordExport('interior'); } catch (e) { exportFailed(e); } }
 async function exportCover() { if (!(await mayExport('cover'))) return; allowCancel(); try { const { blob } = await buildCoverPDF(+$('#dpi').value); busy('Saving', 1); busy(false); await saveFile(slug(S.meta.title) + '-cover.pdf', blob); } catch (e) { exportFailed(e); } }
 
 function renderPubCard() {
@@ -1980,15 +2022,31 @@ function gridPageHtml(pg) {
 }
 
 // Shrink each fixed block to its room (also before each page is drawn for export).
+// The contents are laid out at the room's width, and wider when they must
+// shrink, so a puzzle's story and clues rewrap into the space the shrinking
+// makes instead of running off the page (as the Book maker's fitPages does).
 function fitGridBlocks(root) {
   $$('.grid-room > .grid-block', root).forEach(b => {
-    const room = b.parentElement; b.style.transform = '';
+    const room = b.parentElement; b.style.transform = ''; b.style.width = '';
     const w = room.clientWidth, h = room.clientHeight;
     const fit = b.firstElementChild;
-    const cw = Math.max(b.scrollWidth, fit ? fit.scrollWidth : 0), ch = b.scrollHeight;
+    const size = () => [Math.max(b.scrollWidth, fit ? fit.scrollWidth : 0), b.scrollHeight];
+    let [cw, ch] = size();
     if (!w || !h || !cw || !ch) return;
-    const s = Math.min(1, w / cw, h / ch);
-    if (s < 0.999) b.style.transform = `scale(${s.toFixed(4)})`;
+    let s = Math.min(1, w / cw, h / ch);
+    for (let k = 0; k < 4 && s < 0.999; k++) {
+      b.style.width = `${w / s}px`;
+      [cw, ch] = size();
+      const next = Math.max(0.1, Math.min(1, w / cw, h / ch));
+      if (Math.abs(next - s) < 0.005) { s = Math.min(s, next); break; }
+      s = next;
+    }
+    if (s < 0.999) {
+      // Some boards grow with the space they get: measure once more at the final width.
+      b.style.width = `${w / s}px`; [cw, ch] = size();
+      s = Math.max(0.1, Math.min(s, w / cw, h / ch));
+      b.style.width = `${w / s}px`; b.style.transform = `scale(${s.toFixed(4)})`;
+    } else b.style.width = '';
   });
 }
 
@@ -2004,7 +2062,9 @@ async function importGridBook(g) {
     ...(g.description ? { description: String(g.description).slice(0, 4000), blurb: String(g.description).slice(0, 4000) } : {}), ...(g.keywords ? { keywords: String(g.keywords).slice(0, 500) } : {}) };
   p.gridCss = cleanGridCss(g.css);
   p.gridBook = String(g.id || '');
-  p.pages = (g.pages || []).map(pg => ({ id: uid(), html: gridPageHtml(pg), grid: pg.kind, noFolio: !!pg.front, ...(pg.kind === 'answers' ? { answers: true } : {}) }));
+  // The book's own title and copyright pages count as the front matter, so Apply
+  // specs does not add a second pair (and the page count asked for holds).
+  p.pages = (g.pages || []).map(pg => ({ id: uid(), html: gridPageHtml(pg), grid: pg.kind, noFolio: !!pg.front, ...(pg.kind === 'answers' ? { answers: true } : {}), ...(pg.kind === 'title' || pg.kind === 'copyright' ? { front: pg.kind } : {}) }));
   if (!p.pages.length) p.pages = [{ id: uid(), html: '<p><br></p>' }];
   p.cover = null;
   loadProject(p);
@@ -2046,6 +2106,416 @@ async function submitGridBook(g, pub) {
 }
 
 
+/* ---------- Writing tools: QuillBot and Scribbr ----------
+   Neither QuillBot nor Scribbr has a public API, so Book Studio hands text to
+   their own web tools: a button copies the text and opens the tool in a new
+   tab (the writer's own account, the normal browser in the desktop app), and
+   the fixed text is pasted back here and put back where it came from: the
+   selected passage or paragraph in the manuscript, a Book details field, or a
+   text box on the cover. Nothing is sent anywhere by Book Studio itself. */
+const WRITING_TOOLS = [
+  { site: 'QuillBot', name: 'Paraphraser', url: 'https://quillbot.com/paraphrasing-tool' },
+  { site: 'QuillBot', name: 'Grammar Checker', url: 'https://quillbot.com/grammar-check' },
+  { site: 'QuillBot', name: 'Summarizer', url: 'https://quillbot.com/summarize' },
+  { site: 'QuillBot', name: 'AI Detector', url: 'https://quillbot.com/ai-content-detector' },
+  { site: 'QuillBot', name: 'Plagiarism Checker', url: 'https://quillbot.com/plagiarism-checker' },
+  { site: 'Scribbr', name: 'Grammar Checker', url: 'https://www.scribbr.com/grammar-checker/' },
+  { site: 'Scribbr', name: 'Paraphraser', url: 'https://www.scribbr.com/paraphrasing-tool/' },
+  { site: 'Scribbr', name: 'AI Detector', url: 'https://www.scribbr.com/ai-detector/' },
+  { site: 'Scribbr', name: 'Plagiarism Checker', url: 'https://www.scribbr.com/plagiarism-checker/' },
+  { site: 'Scribbr', name: 'Citation Generator', url: 'https://www.scribbr.com/citation/generator/', noText: true },
+];
+const WT_META = ['title', 'subtitle', 'description', 'blurb'];
+let wtTarget = null, wtLastMeta = 'description';
+
+const wtWords = t => (t.trim().match(/\S+/g) || []).length;
+
+// The manuscript passage: the selection, or the whole paragraph the cursor is in.
+function wtPageTarget() {
+  const r = savedRange; if (!r) return null;
+  const c = r.commonAncestorContainer; const host = (c.nodeType === 1 ? c : c.parentElement)?.closest?.('.content');
+  if (!host || !document.contains(host)) return null;
+  if (!r.collapsed) {
+    const text = window.getSelection().toString() || r.toString();
+    return text.trim() ? { kind: 'page', range: r.cloneRange(), text, what: 'the selected text' } : null;
+  }
+  let block = r.startContainer.nodeType === 1 ? r.startContainer : r.startContainer.parentElement;
+  while (block && block.parentElement !== host) block = block.parentElement;
+  if (!block || block === host || block.closest('.puzzle, .grid-room, .grid-block') || block.querySelector('.puzzle, .grid-room, img, table')) return null;
+  const text = block.innerText.trim(); if (!text) return null;
+  const range = document.createRange(); range.selectNodeContents(block);
+  return { kind: 'page', range, text, what: 'this paragraph' };
+}
+
+function openWriting(target) {
+  wtTarget = target;
+  const t = $('#wtText'); t.value = target ? target.text : '';
+  $('#wtResult').value = '';
+  $('#wtFrom').textContent = target
+    ? `Working on ${target.what}. Pick a tool, then paste the fixed text below and press Put it back.`
+    : 'Nothing was selected, so type or paste text here. To fix text in the book, select it (or click in a paragraph) first.';
+  $('#wtApply').disabled = !target;
+  wtCount(); openDlg('#dlgWrite'); t.focus();
+}
+function wtCount() {
+  const n = wtWords($('#wtText').value);
+  $('#wtCount').textContent = `${n} word${n === 1 ? '' : 's'}${n > 125 ? ' · QuillBot\'s free Paraphraser takes 125 words at a time' : ''}`;
+}
+
+function wtOpenTool(tool) {
+  const t = $('#wtText'); const text = t.value;
+  if (!tool.noText) {
+    if (!text.trim()) { toast('Type or select some text first'); t.focus(); return; }
+    // Copy straight away (inside the click), before the new tab takes focus.
+    t.focus(); t.select(); let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { }
+    if (!ok && navigator.clipboard) navigator.clipboard.writeText(text).catch(() => { });
+    t.setSelectionRange(text.length, text.length);
+  }
+  const w = window.open(tool.url, '_blank', 'noopener');
+  if (w === null && !window.__FLG_BOOK_STUDIO_DESKTOP__) toast(`Your browser blocked the new tab. Allow pop-ups for Book Studio, or open ${tool.url}`, 7000);
+  else toast(tool.noText ? `Opened Scribbr's ${tool.name}` : `Copied. Paste it into ${tool.site}'s ${tool.name} with Ctrl+V (⌘V on a Mac), then copy the result and come back.`, 6000);
+}
+
+async function wtPaste() {
+  const r = $('#wtResult');
+  try {
+    const text = await navigator.clipboard.readText();
+    if (text && text.trim()) { r.value = text.trim(); toast('Pasted'); return; }
+    toast('The clipboard is empty. Copy the result in QuillBot or Scribbr first.');
+  } catch (e) { toast('Click in the box and press Ctrl+V (⌘V on a Mac) to paste'); }
+  r.focus();
+}
+
+function wtApply() {
+  const v = $('#wtResult').value.trim(); const tg = wtTarget;
+  if (!v) { toast('Paste the fixed text into the second box first'); $('#wtResult').focus(); return; }
+  if (!tg) return;
+  if (tg.kind === 'page') {
+    const c = tg.range.commonAncestorContainer; const host = (c.nodeType === 1 ? c : c.parentElement)?.closest?.('.content');
+    if (!host || !document.contains(host)) { toast('That page changed. Select the text again, then use Writing tools.'); return; }
+    closeDlg('#dlgWrite');
+    host.focus({ preventScroll: true });
+    const s = window.getSelection(); s.removeAllRanges(); s.addRange(tg.range);
+    const paras = v.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
+    if (paras.length > 1) document.execCommand('insertHTML', false, paras.map(p => `<p>${esc(p).replace(/\n/g, '<br>')}</p>`).join(''));
+    else if (v.includes('\n')) document.execCommand('insertHTML', false, esc(v).replace(/\n/g, '<br>'));
+    else document.execCommand('insertText', false, v);
+    afterEdit();
+  } else if (tg.kind === 'meta') {
+    tg.el.value = v; tg.el.dispatchEvent(new Event('input', { bubbles: true }));
+    closeDlg('#dlgWrite');
+  } else if (tg.kind === 'cover') {
+    if (!cv || !cv.getObjects().includes(tg.obj)) { toast('That text box is gone. Select one and try again.'); return; }
+    if (tg.obj.isEditing) tg.obj.exitEditing();
+    tg.obj.set('text', v); tg.obj.setCoords(); cv.requestRenderAll(); markDirty();
+    closeDlg('#dlgWrite');
+  }
+  wtTarget = null; toast('Put back in your book');
+}
+
+function wireWriting() {
+  const row = site => WRITING_TOOLS.filter(t => t.site === site).map(t => `<button class="btn" type="button" data-wt="${WRITING_TOOLS.indexOf(t)}">${esc(t.name)}</button>`).join('');
+  $('#wtQuill').innerHTML = row('QuillBot'); $('#wtScribbr').innerHTML = row('Scribbr');
+  $$('#dlgWrite [data-wt]').forEach(b => b.onclick = () => wtOpenTool(WRITING_TOOLS[+b.dataset.wt]));
+  $('#wtText').addEventListener('input', wtCount);
+  $('#wtPaste').onclick = wtPaste; $('#wtApply').onclick = wtApply;
+  // Manuscript: the selection, or the paragraph with the cursor.
+  $('#writeBtn').onclick = () => openWriting(wtPageTarget());
+  // Book details: the last of title, subtitle, description or blurb you were in.
+  WT_META.forEach(k => $(`[data-meta="${k}"]`)?.addEventListener('focus', () => { wtLastMeta = k; }));
+  $('#writeMeta').onclick = () => {
+    const el = $(`[data-meta="${wtLastMeta}"]`);
+    const label = { title: 'the title', subtitle: 'the subtitle', description: 'the description', blurb: 'the back cover blurb' }[wtLastMeta];
+    openWriting({ kind: 'meta', el, text: el.value, what: label });
+  };
+  // Cover: the selected text box.
+  $('#cvWrite').onclick = () => {
+    const o = cv?.getActiveObject();
+    if (!o || typeof o.text !== 'string') { toast('Click a text box on the cover first'); return; }
+    openWriting({ kind: 'cover', obj: o, text: o.text, what: 'the selected cover text' });
+  };
+}
+
+/* ---------- Make a copy without AI content (Project menu) ----------
+   Makes a new book from the one open, leaving the original exactly as it is,
+   with the AI-made parts taken out, so KDP's AI question can honestly be
+   answered "None" for the copy:
+
+   1. Review: every picture (pages and cover) and every block of words
+      (pages, cover text, description, back cover blurb) is listed. Pictures
+      whose file says an AI made them (C2PA / IPTC "trained algorithmic
+      media", AI image tools' prompt notes) come ticked. Words can't be
+      told apart, so you tick the ones an AI wrote. Puzzles made by Book
+      Studio's generators or the game's engines are not AI and are not listed.
+   2. The copy: the original is synced (or saved as a project file in the
+      stand-alone build), then a new book opens with each ticked part taken
+      out and a marked empty spot in its place.
+   3. Fill: each empty spot opens in turn with a text box to write what goes
+      there instead (or your own picture, for a picture), Leave it out, or
+      Later. Project > Fill the removed spots comes back to the rest, and the
+      Publish check stops an export while any are empty. */
+
+const NOAI_MARKS = [
+  [/trainedAlgorithmicMedia/i, 'the file is labelled as made by an AI'],
+  [/c2pa|jumbf/i, 'the file carries a Content Credentials (C2PA) record'],
+  [/Stable[ _-]?Diffusion|sd_xl|SDXL/i, 'made with Stable Diffusion'],
+  [/DALL[·· _-]?E|OpenAI/i, 'made with DALL·E'],
+  [/Midjourney/i, 'made with Midjourney'],
+  [/Firefly/i, 'made with Adobe Firefly'],
+  [/Imagen|SynthID|Gemini/i, 'made with Google Imagen or Gemini'],
+  [/Workers AI|@cf\/(?:black-forest-labs|stabilityai|bytedance|lykon|runwayml)/i, 'made with Cloudflare Workers AI'],
+  [/ComfyUI|NovelAI|Leonardo\.Ai|Ideogram|DreamStudio|Flux\.1|black-forest-labs/i, 'made with an AI image tool'],
+  [/Negative prompt:|Steps: \d+, Sampler:/, 'the file holds an AI image prompt'],
+];
+// The first and last part of a picture's file, where its labels are kept.
+function noaiPictureWhy(src) {
+  const s = String(src || '');
+  const m = /^data:([^;,]+)(;base64)?,/.exec(s);
+  if (!m) return '';
+  let text = '';
+  try {
+    const body = s.slice(m[0].length);
+    if (!m[2]) text = decodeURIComponent(body.slice(0, 600_000));
+    else {
+      const head = body.slice(0, 700_000 - (700_000 % 4));
+      const tailStart = Math.max(head.length, body.length - 200_000);
+      const tail = body.slice(tailStart - (tailStart % 4));
+      text = atob(head) + (tail.length && tailStart > head.length ? atob(tail) : '');
+    }
+  } catch (e) { return ''; }
+  const hit = NOAI_MARKS.find(([re]) => re.test(text));
+  return hit ? hit[1] : '';
+}
+
+const NOAI_TEXT_BLOCKS = 'p,h1,h2,h3,h4,ul,ol,blockquote,table,pre,div';
+const noaiShort = (t, n = 140) => { const s = String(t || '').replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
+
+// One page's pictures and blocks of words, in order, read from the page as
+// the editor shows it (never re-parsed from text). Puzzles and the game's
+// fixed puzzle blocks are left out: engines made them, not an AI.
+function noaiScanPage(root) {
+  const skip = (el) => el.closest('.puzzle,.grid-block,.grid-room,.bk-head,.ai-gap');
+  const out = [];
+  const walk = (el) => {
+    for (const c of [...el.children]) {
+      if (skip(c)) continue;
+      if (c.tagName === 'IMG') { out.push({ type: 'pic', el: c }); continue; }
+      const imgs = $$('img', c).filter(i => !skip(i));
+      if (c.matches(NOAI_TEXT_BLOCKS) && c.tagName === 'DIV' && c.querySelector(NOAI_TEXT_BLOCKS)) { walk(c); continue; }
+      if (c.textContent.trim() && c.matches(NOAI_TEXT_BLOCKS + ',span,b,i,em,strong')) out.push({ type: 'text', el: c });
+      imgs.forEach(i => out.push({ type: 'pic', el: i }));
+    }
+  };
+  if (root) walk(root);
+  return { items: out };
+}
+
+// Everything that could have come from an AI, for the review list.
+function noaiCollect() {
+  syncPagesFromDom(); if (typeof syncCoverToState === 'function') syncCoverToState();
+  const items = [];
+  S.pages.forEach((pg, pi) => {
+    if (pg.grid) return; // a Grid book's puzzle pages: made by the game's engines
+    noaiScanPage(contentEls()[pi]).items.forEach((it, k) => {
+      const src = it.type === 'pic' ? it.el.getAttribute('src') || '' : '';
+      items.push({ key: `p${pi}:${k}`, where: `Page ${pi + 1}`, page: pi, k, type: it.type, src, text: it.type === 'text' ? it.el.textContent : '', tag: it.el.tagName.toLowerCase(), why: it.type === 'pic' ? noaiPictureWhy(src) : '' });
+    });
+  });
+  (S.cover?.objects || []).forEach((o, k) => {
+    if (o.role === 'gridcover' || o.role === 'bg' || o.role === 'spine' || /^aigap/.test(o.role || '')) return; // the game's own cover picture, plain shapes
+    if (o.type === 'image') items.push({ key: `c${k}`, where: 'Cover', k, type: 'coverpic', src: o.src || '', why: noaiPictureWhy(o.src) });
+    else if (/textbox|i-text|text/.test(o.type) && String(o.text || '').trim()) items.push({ key: `c${k}`, where: 'Cover', k, type: 'covertext', text: o.text, role: o.role });
+  });
+  [['description', 'Description'], ['blurb', 'Back cover blurb']].forEach(([f, label]) => {
+    if (String(S.meta[f] || '').trim()) items.push({ key: `m:${f}`, where: label, type: 'meta', field: f, text: S.meta[f] });
+  });
+  return items;
+}
+
+let noaiItems = [];
+let noaiWas = {}; // what each removed spot held, this visit only: never saved into the copy
+let noaiQueue = [], noaiAt = 0;
+
+function noaiOpenReview() {
+  closeDlg('#dlgProject');
+  noaiItems = noaiCollect();
+  const flagged = noaiItems.filter(i => i.why).length;
+  const groups = {};
+  noaiItems.forEach(i => { (groups[i.where] ||= []).push(i); });
+  const row = (i) => {
+    const what = i.type === 'pic' || i.type === 'coverpic'
+      ? `<img class="noai-thumb" src="${esc(i.src)}" alt=""><span>Picture${i.why ? ` <b class="noai-flag">AI label found: ${esc(i.why)}</b>` : ''}</span>`
+      : `<span>${i.type === 'covertext' ? 'Cover words: ' : ''}${esc(noaiShort(i.text))}</span>`;
+    return `<label class="noai-item"><input type="checkbox" data-noai="${esc(i.key)}"${i.why ? ' checked' : ''}> ${what}</label>`;
+  };
+  $('#noaiList').innerHTML = noaiItems.length ? Object.entries(groups).map(([g, list]) => `<fieldset class="noai-group"><legend>${esc(g)} <button class="btn ghost" type="button" data-noai-all="${esc(g)}">Tick all</button></legend>${list.map(row).join('')}</fieldset>`).join('')
+    : '<p class="hint">Nothing to review: this book has no pictures or words of its own outside the puzzles.</p>';
+  $('#noaiSummary').textContent = `${noaiItems.length} part${noaiItems.length === 1 ? '' : 's'} to look at${flagged ? `, ${flagged} picture${flagged === 1 ? '' : 's'} labelled as AI-made (ticked)` : ''}. Tick everything an AI made; the rest stays in the copy.`;
+  noaiCount();
+  openDlg('#dlgNoAi');
+}
+function noaiCount() {
+  const n = $$('[data-noai]:checked').length;
+  $('#noaiMake').textContent = n ? `Make the copy without ${n} part${n === 1 ? '' : 's'}` : 'Make the copy';
+}
+
+async function noaiMakeCopy() {
+  const picked = new Set($$('[data-noai]:checked').map(c => c.dataset.noai));
+  closeDlg('#dlgNoAi');
+  busy('Keeping the original safe');
+  try {
+    syncPagesFromDom(); if (typeof syncCoverToState === 'function') syncCoverToState();
+    // The original stays as it is: on the account (synced first), or as a project file here.
+    const synced = typeof syPush === 'function' && typeof syReady !== 'undefined' && syReady && typeof gaMe !== 'undefined' && gaMe;
+    if (synced) await syPush();
+    else await saveFile(slug(S.meta.title) + '-original-project.json', JSON.stringify(S));
+    busy('Making the copy');
+    const copy = JSON.parse(JSON.stringify(S));
+    delete copy.syncId;
+    copy.noAi = { from: S.syncId || '', title: S.meta.title || '', at: new Date().toISOString().slice(0, 10) };
+    copy.aiGaps = [];
+    noaiWas = {};
+    const gap = (g, was) => { g.id = 'g' + uid(); copy.aiGaps.push(g); noaiWas[g.id] = was; return g.id; };
+    // Cover: the part comes off, and a dashed box keeps its place.
+    const objs = copy.cover?.objects || [];
+    const coverPicked = noaiItems.filter(i => picked.has(i.key) && (i.type === 'coverpic' || i.type === 'covertext')).sort((a, b) => b.k - a.k);
+    coverPicked.forEach(i => {
+      const o = objs[i.k]; if (!o) return;
+      const w = (o.width || 100) * (o.scaleX || 1), h = (o.height || 40) * (o.scaleY || 1);
+      const style = i.type === 'covertext' ? Object.fromEntries(['left', 'top', 'width', 'originX', 'originY', 'angle', 'fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'fill', 'textAlign', 'lineHeight', 'role'].filter(k => o[k] != null).map(k => [k, o[k]])) : null;
+      const id = gap({ kind: i.type === 'coverpic' ? 'coverpic' : 'covertext', where: 'Cover', box: { left: o.left, top: o.top, originX: o.originX || 'left', originY: o.originY || 'top', angle: o.angle || 0, w, h }, style }, i.type === 'coverpic' ? { src: i.src } : { text: i.text });
+      objs.splice(i.k, 1, { type: 'rect', version: o.version, left: o.left, top: o.top, originX: o.originX || 'left', originY: o.originY || 'top', angle: o.angle || 0, width: w, height: h, scaleX: 1, scaleY: 1, fill: 'rgba(255,255,255,0.15)', stroke: '#d33', strokeWidth: 3, strokeDashArray: [12, 8], role: 'aigap:' + id });
+    });
+    // Description and blurb.
+    noaiItems.filter(i => picked.has(i.key) && i.type === 'meta').forEach(i => {
+      gap({ kind: 'meta', where: i.where, field: i.field }, { text: copy.meta[i.field] });
+      copy.meta[i.field] = '';
+    });
+    await loadProject(copy);
+    // Pages: each ticked part becomes a marked empty spot, on the copy's pages as shown.
+    // Their prompts come first, in page order, then the cover's and the details'.
+    const later = copy.aiGaps.splice(0);
+    const byPage = {};
+    noaiItems.filter(i => picked.has(i.key) && i.page != null).forEach(i => { (byPage[i.page] ||= []).push(i); });
+    for (const [pi, list] of Object.entries(byPage)) {
+      const pg = S.pages[pi];
+      const { items } = noaiScanPage(contentEls()[pi]);
+      list.forEach(i => {
+        const el = items[i.k]?.el; if (!el || !el.isConnected) return; // inside a part already taken out
+        const isPic = i.type === 'pic';
+        const id = gap({ kind: isPic ? 'pic' : 'text', where: i.where, pageId: pg.id, tag: isPic ? 'p' : i.tag }, isPic ? { src: i.src } : { text: i.text });
+        const ph = document.createElement('div');
+        ph.className = 'ai-gap'; ph.dataset.gap = id; ph.setAttribute('contenteditable', 'false');
+        ph.textContent = `Removed: ${isPic ? 'an AI-made picture' : 'AI-written words'}. Project › Fill the removed spots`;
+        el.replaceWith(ph);
+      });
+    }
+    copy.aiGaps.push(...later);
+    S.aiGaps = copy.aiGaps;
+    syncPagesFromDom();
+    if (typeof syEnsureId === 'function') { syEnsureId(); markDirty(); }
+    showTab('manuscript');
+    busy(false);
+    toast(`Copy made without ${copy.aiGaps.length} AI part${copy.aiGaps.length === 1 ? '' : 's'}. The original is ${synced ? 'still on your account, unchanged' : 'saved as a project file'}.`, 7000);
+    if (copy.aiGaps.length) noaiOpenFill();
+  } catch (e) { busy(false); console.error(e); toast('The copy was not made: ' + (e.message || e), 7000); }
+}
+
+// ---------- Filling the removed spots ----------
+function aiGapCount() { return (S.aiGaps || []).length; }
+function noaiUpdateMenu() {
+  const n = aiGapCount(); const b = $('#noaiFillBtn');
+  if (b) { b.hidden = !n; b.textContent = `Fill the removed spots (${n})`; }
+}
+function noaiOpenFill() {
+  closeDlg('#dlgProject');
+  noaiQueue = (S.aiGaps || []).map(g => g.id); noaiAt = 0;
+  if (!noaiQueue.length) { toast('No removed spots left to fill.'); return; }
+  noaiShowGap();
+  openDlg('#dlgNoAiFill');
+}
+function noaiShowGap() {
+  const g = (S.aiGaps || []).find(x => x.id === noaiQueue[noaiAt]);
+  if (!g) { closeDlg('#dlgNoAiFill'); noaiUpdateMenu(); toast(aiGapCount() ? `${aiGapCount()} spot${aiGapCount() === 1 ? '' : 's'} left for later: Project › Fill the removed spots.` : 'Every removed spot is filled.'); return; }
+  const pic = g.kind === 'pic' || g.kind === 'coverpic';
+  const was = noaiWas[g.id];
+  $('#noaiFillTitle').textContent = `${pic ? 'A picture' : 'Words'} removed from ${g.where === 'Cover' ? 'the cover' : g.kind === 'meta' ? 'the ' + g.where.toLowerCase() : g.where.toLowerCase()}`;
+  $('#noaiFillStep').textContent = `${noaiAt + 1} of ${noaiQueue.length}`;
+  $('#noaiFillWas').innerHTML = was ? `<details><summary>What was there (the AI-made version, for reference)</summary>${was.src ? `<img class="noai-thumb big" src="${esc(was.src)}" alt="">` : `<p>${esc(was.text)}</p>`}</details>` : '<p class="hint">What was there is in the original book.</p>';
+  $('#noaiFillLabel').textContent = pic ? 'Words to put there instead (or choose your own picture)' : 'Your own words for this spot';
+  $('#noaiFillText').value = '';
+  $('#noaiFillPic').hidden = !pic;
+  $('#noaiFillBack').disabled = noaiAt === 0;
+  setTimeout(() => $('#noaiFillText').focus(), 30);
+}
+const noaiNext = () => { noaiAt++; noaiShowGap(); };
+function noaiDone(id) { S.aiGaps = (S.aiGaps || []).filter(g => g.id !== id); delete noaiWas[id]; noaiQueue.splice(noaiAt, 1); }
+
+// Puts words or a picture into a removed spot, or (content = null) takes the spot away.
+async function noaiFill(content) {
+  const g = (S.aiGaps || []).find(x => x.id === noaiQueue[noaiAt]); if (!g) return;
+  const text = content?.text ?? '';
+  if (content && !content.src && !text.trim()) { toast('Write something first, or press Leave it out.'); return; }
+  snapshot('fill a removed spot');
+  if (g.kind === 'meta') {
+    S.meta[g.field] = content ? text.trim() : '';
+    fillMetaForm();
+  } else if (g.kind === 'pic' || g.kind === 'text') {
+    const i = S.pages.findIndex(p => p.id === g.pageId);
+    const ph = $(`#pages .ai-gap[data-gap="${g.id}"]`);
+    if (ph) {
+      if (!content) ph.remove();
+      else if (content.src) { const im = document.createElement('img'); im.src = content.src; im.alt = ''; ph.replaceWith(im); }
+      else {
+        const tag = /^(h1|h2|h3|h4|blockquote)$/.test(g.tag) ? g.tag : 'p';
+        const parts = text.trim().split(/\n\s*\n/).map(t => t.trim()).filter(Boolean);
+        ph.replaceWith(...parts.map((t, k) => { const el = document.createElement(k === 0 ? tag : 'p'); el.textContent = t; return el; }));
+      }
+      syncPagesFromDom();
+      if (i >= 0 && typeof reflow === 'function') setTimeout(() => reflow(i, true), 60);
+    }
+  } else if (typeof cv !== 'undefined' && cv) {
+    await ensureCover();
+    const box = cv.getObjects().find(o => o.role === 'aigap:' + g.id);
+    if (box) cv.remove(box);
+    const b = g.box || {};
+    if (content?.src) {
+      await new Promise(res => fabric.Image.fromURL(content.src, img => {
+        if (img && img.width) { const s = Math.min(b.w / img.width, b.h / img.height) || 1; img.set({ left: b.left, top: b.top, originX: b.originX, originY: b.originY, angle: b.angle, scaleX: s, scaleY: s }); img.role = 'user'; cv.add(img); }
+        res();
+      }));
+    } else if (content) {
+      const st = { ...(g.style || {}) }; const role = st.role || 'user'; delete st.role;
+      const t = new fabric.Textbox(text.trim(), { left: b.left, top: b.top, originX: b.originX, originY: b.originY, angle: b.angle, width: b.w, fontSize: 32, fontFamily: 'Nunito', fill: '#ffffff', ...st });
+      t.role = role; cv.add(t);
+    }
+    cv.requestRenderAll(); syncCoverToState();
+  }
+  noaiDone(g.id);
+  markDirty(); noaiUpdateMenu();
+  noaiShowGap();
+}
+
+function wireNoAi() {
+  $('#noaiBtn').onclick = noaiOpenReview;
+  $('#noaiFillBtn').onclick = noaiOpenFill;
+  $('#noaiList').addEventListener('change', noaiCount);
+  $('#noaiList').addEventListener('click', e => {
+    const b = e.target.closest('[data-noai-all]'); if (!b) return;
+    const boxes = $$('input', b.closest('fieldset')); const all = boxes.every(c => c.checked);
+    boxes.forEach(c => { c.checked = !all; }); b.textContent = all ? 'Tick all' : 'Untick all'; noaiCount();
+  });
+  $('#noaiMake').onclick = noaiMakeCopy;
+  $('#noaiFillPut').onclick = () => noaiFill({ text: $('#noaiFillText').value });
+  $('#noaiFillPic').onclick = () => pickImage(src => noaiFill({ src }));
+  $('#noaiFillOut').onclick = () => noaiFill(null);
+  $('#noaiFillLater').onclick = noaiNext;
+  $('#noaiFillBack').onclick = () => { if (noaiAt > 0) { noaiAt--; noaiShowGap(); } };
+  $('#noaiFillText').addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); $('#noaiFillPut').click(); } });
+  $('#projMenuBtn').addEventListener('click', noaiUpdateMenu);
+}
+
 /* ---------- App shell ---------- */
 function fillPubSelects() {
   for (const id of ['#pub', '#pub2']) $(id).replaceChildren(...Object.entries(PUBLISHERS).map(([k, p]) => new Option(p.name, k)));
@@ -2077,7 +2547,7 @@ function updateStepButtons() {
   const i = STEPS.findIndex(s => s[0] === currentTab); const next = STEPS[i + 1];
   $('#navNext').hidden = i < 0 || !next; if (i >= 0 && next) $('#navNext').textContent = `Next: ${next[1]} →`;
   const prev = tabTrail[tabTrail.length - 1];
-  const prevName = prev === 'gridbooks' ? 'Grid books' : STEPS.find(s => s[0] === prev)?.[1];
+  const prevName = prev === 'gridbooks' ? 'Grid books' : prev === 'players' ? 'Player puzzles' : STEPS.find(s => s[0] === prev)?.[1];
   $('#navBack').hidden = !prev; if (prev) $('#navBack').textContent = `← Back to ${prevName}`;
 }
 function showTab(name, { back = false } = {}) {
@@ -2086,8 +2556,9 @@ function showTab(name, { back = false } = {}) {
   currentTab = name;
   updateStepButtons();
   $$('.tab').forEach(t => t.setAttribute('aria-selected', t.dataset.tab === name ? 'true' : 'false'));
-  ['manuscript', 'cover', 'details', 'publish', 'gridbooks'].forEach(v => $('#view-' + v).hidden = v !== name);
+  ['manuscript', 'cover', 'details', 'publish', 'gridbooks', 'players'].forEach(v => $('#view-' + v).hidden = v !== name);
   if (name === 'gridbooks' && typeof gaGridBooks === 'function') gaGridBooks();
+  if (name === 'players' && typeof ppView === 'function') { syncPagesFromDom(); ppView(); }
   if (name === 'cover') ensureCover().then(() => { sizeCoverCanvas(); cv.calcOffset(); }).catch(() => { });
   if (name === 'publish') { syncPagesFromDom(); renderPubCard(); runChecks(); }
   if (name === 'manuscript') requestAnimationFrame(checkAllOverflow);
@@ -2183,15 +2654,16 @@ function wireShell() {
 }
 
 async function init() {
-  wireShell(); wireEditor(); wirePuzzles(); wireImport(); wireCover();
+  wireShell(); wireEditor(); wirePuzzles(); wireImport(); wireCover(); wireWriting(); wireNoAi();
+  if (typeof wirePlayerPuzzles === 'function') wirePlayerPuzzles();
   const saved = await idbGet('current');
   const restored = !!(saved && saved.pages && saved.pages.length);
   if (restored) { loadProject(saved); $('#sbSave').textContent = 'Restored from this browser'; }
   else { busy('Building the sample book'); await buildSample(); busy(false); $('#sbSave').textContent = 'Sample book loaded. Open Project to start your own.'; }
   // Grid Admin build: fetch this account's books, open the newest on a new device (sync.js).
   if (typeof syStart === 'function') syStart({ restored });
-  const h = (location.hash || '').slice(1); if (['cover', 'details', 'publish'].includes(h) || (h === 'gridbooks' && !$('[data-tab=gridbooks]').hidden)) showTab(h);
-  window.addEventListener('hashchange', () => { const t = location.hash.slice(1); if (['manuscript', 'cover', 'details', 'publish', 'gridbooks'].includes(t) && t !== currentTab) { const back = tabTrail[tabTrail.length - 1] === t; if (back) tabTrail.pop(); showTab(t, { back }); } });
+  const h = (location.hash || '').slice(1); if (['cover', 'details', 'publish'].includes(h) || (['gridbooks', 'players'].includes(h) && !$(`[data-tab=${h}]`).hidden)) showTab(h);
+  window.addEventListener('hashchange', () => { const t = location.hash.slice(1); if (['manuscript', 'cover', 'details', 'publish', 'gridbooks', 'players'].includes(t) && t !== currentTab) { const back = tabTrail[tabTrail.length - 1] === t; if (back) tabTrail.pop(); showTab(t, { back }); } });
   document.fonts && document.fonts.ready.then(() => checkAllOverflow());
 }
 // init() runs from auth.js once Grid Admin says this account may publish
@@ -2531,6 +3003,242 @@ function syAppWire() {
 }
 syAppWire();
 
+/* ---------- Player puzzles: approved puzzles players sent in ----------
+   Grid Admin build only (auth.js shows the tab). Lists every approved player
+   puzzle (GET /admin/v1/studio/player-puzzles, server/src/studio-player-puzzles.js):
+   Puzzle Wizard puzzles and storylines in the Approved or Published section of
+   Grid Admin's Puzzle submissions page. For each one:
+   - Add to book: its puzzle page goes after the current page, its answer key
+     at the back of the book (or right after it), drawn like a Grid books page;
+   - Download: the puzzle and answer key as a PDF;
+   - Print: the same PDF, in the browser's print window.
+   The website's Book maker (web/js/book-maker.js, in a hidden frame) builds
+   each puzzle with the game's engine (a wizard puzzle again from the author's
+   entry and seed, so it is the puzzle they made) and draws it with the game's
+   print layout. A puzzle built here is kept with the entry, so every book
+   prints the same one.
+   Author credit: a player puzzle's page can show "Puzzle by <screen name>" at
+   the foot of the page (editor.js buildPageNode), switched on or off for each
+   puzzle (Current page, on the right) and for the whole book (S.playerCredits).
+   Players who chose to stay anonymous are never credited.
+   Publications: once the submission packet or the interior PDF is saved
+   (publish.js), ppRecordExport() sends the player puzzles in the book, and
+   the server counts each once per book (exporting it again does not). */
+let ppData = null;          // { items, siteUrl }
+let ppFrame = null, ppReady = null, ppReq = 0;
+const ppWaiting = new Map();
+const ppBuilt = new Map();  // id -> { item, css, pdf }
+const ppPicked = new Set();
+let ppQuery = { q: '', game: '', use: '' };
+
+const PP_GAMES = { fantastical: 'The Fantastical Logic Grid', ninetimesnine: 'NINETIMESNINE' };
+const PP_LEVELS = { basic: 'Basic', easy: 'Easy', medium: 'Medium', hard: 'Hard', expert: 'Expert', master: 'Master', mensa: 'Quantum Physicist', theorist: 'Theoretical Physicist' };
+
+// The player puzzle ids in this book (each counted once).
+function ppBookIds() {
+  return [...new Set(S.pages.map(p => p.player && Number(p.player.id)).filter(n => Number.isInteger(n) && n > 0))];
+}
+const ppCreditsOn = () => S.playerCredits !== false;
+
+/* ---------- the Book maker frame ---------- */
+function ppOnMessage(e) {
+  if (!ppData || !ppFrame || e.source !== ppFrame.contentWindow || !e.data) return;
+  let origin; try { origin = new URL(ppData.siteUrl).origin; } catch (x) { return; }
+  if (e.origin !== origin) return;
+  const m = e.data;
+  if (m.type === 'flg-book-ready') { ppReady && ppReady.resolve(); return; }
+  const w = ppWaiting.get(m.req);
+  if (w) { ppWaiting.delete(m.req); w(m); }
+}
+function ppMount() {
+  if (ppFrame) return;
+  window.addEventListener('message', ppOnMessage);
+  let resolve; ppReady = new Promise(r => { resolve = r; }); ppReady.resolve = resolve;
+  ppFrame = document.createElement('iframe');
+  ppFrame.title = 'Puzzle maker'; ppFrame.className = 'bk-frame'; ppFrame.hidden = true;
+  ppFrame.src = `${ppData.siteUrl}/book-maker/`;
+  $('#ppFrames').appendChild(ppFrame);
+}
+async function ppAsk(msg) {
+  ppMount();
+  await Promise.race([ppReady, new Promise((_, no) => setTimeout(() => no(new Error('The website did not answer. Check that it is online, then try again.')), 30000))]);
+  const id = `pp${++ppReq}`;
+  const m = await new Promise((resolve, reject) => {
+    ppWaiting.set(id, resolve);
+    setTimeout(() => { if (ppWaiting.delete(id)) reject(new Error('Building the puzzle took too long. Try again.')); }, 180000);
+    ppFrame.contentWindow.postMessage({ ...msg, req: id }, new URL(ppData.siteUrl).origin);
+  });
+  if (m.type === 'flg-book-error') throw new Error(m.message);
+  return m;
+}
+
+// The puzzle, built and drawn (once per visit).
+async function ppBuild(it) {
+  if (ppBuilt.has(it.id)) return ppBuilt.get(it.id);
+  const m = await ppAsk({ type: 'flg-book-player', entry: it.puzzle ? null : it.entry, seed: it.seed, puzzle: it.puzzle, credit: it.credit });
+  const out = { item: m.item, css: m.css, pdf: m.pdf };
+  ppBuilt.set(it.id, out);
+  // Keep the wizard puzzle just built, so every book prints this same one.
+  if (m.puzzle && !it.puzzle) {
+    it.puzzle = m.puzzle;
+    adminApi(`studio/player-puzzles/${it.id}/puzzle`, { method: 'POST', body: { puzzle: m.puzzle } }).catch(() => {});
+  }
+  return out;
+}
+
+/* ---------- the page ---------- */
+async function ppView({ reload = false } = {}) {
+  const body = $('#ppBody');
+  if (!ppData || reload) {
+    body.innerHTML = '<p class="muted">Loading…</p>';
+    try { ppData = await adminApi('studio/player-puzzles'); }
+    catch (e) { body.textContent = e.message || 'Player puzzles did not load. Check your connection and try again.'; return; }
+  }
+  $('#ppCredits').checked = ppCreditsOn();
+  ppRender();
+}
+function ppStatus(it) {
+  if (!it.puzzle && !it.entry) return 'not-built';
+  return 'ok';
+}
+function ppRender() {
+  const q = ppQuery.q.toLowerCase();
+  const inBook = new Set(ppBookIds());
+  const list = ppData.items.filter(it => (!ppQuery.game || it.game === ppQuery.game)
+    && (!ppQuery.use || (ppQuery.use === 'new' ? !it.books : ppQuery.use === 'book' ? inBook.has(it.id) : it.books > 0))
+    && (!q || [it.title, it.player, it.credit, String(it.id)].some(v => String(v || '').toLowerCase().includes(q))));
+  const ready = list.filter(it => ppStatus(it) === 'ok');
+  for (const id of [...ppPicked]) if (!ready.some(it => it.id === id)) ppPicked.delete(id);
+  $('#ppCount').textContent = `${list.length} of ${ppData.items.length} approved player puzzle${ppData.items.length === 1 ? '' : 's'}`;
+  $('#ppAddPicked').disabled = !ppPicked.size;
+  $('#ppAddPicked').textContent = ppPicked.size ? `Add ${ppPicked.size} to the book` : 'Add ticked to the book';
+  $('#ppBody').innerHTML = list.length ? `<ul class="pp-list">${list.map(it => {
+    const ok = ppStatus(it) === 'ok';
+    const level = PP_LEVELS[it.level] || it.level || '';
+    const by = it.credit ? `by <b>${esc(it.credit)}</b>` : it.anonymous ? 'The author chose no credit' : 'by a player';
+    const used = it.books ? `In ${it.books} book${it.books === 1 ? '' : 's'}${it.exports > it.books ? ` (${it.exports} exports)` : ''}` : 'Not in a book yet';
+    return `<li class="pp-item${inBook.has(it.id) ? ' here' : ''}">
+      <label class="pp-pick"><input type="checkbox" data-pp-pick="${it.id}"${ppPicked.has(it.id) ? ' checked' : ''}${ok ? '' : ' disabled'} aria-label="Tick ${esc(it.title)}"></label>
+      <div class="pp-meta">
+        <b class="pp-title">${esc(it.title)}</b>
+        <span class="muted">${esc(PP_GAMES[it.game] || it.game)}${level ? ` · ${esc(level)}` : ''} · ${it.kind === 'storyline' ? 'Storyline' : 'Puzzle Wizard'} · #${it.id}</span>
+        <span>${by}</span>
+        <span class="pp-tags"><span class="chip ${it.books ? 'ok' : ''}">${used}</span>${it.status === 'published' ? '<span class="chip">Published</span>' : ''}${inBook.has(it.id) ? '<span class="chip ok">In this book</span>' : ''}</span>
+        ${ok ? '' : '<span class="hint">No puzzle yet: build it in Grid Admin under Storyline submissions first.</span>'}
+      </div>
+      <div class="pp-acts">
+        <button class="btn primary" type="button" data-pp-add="${it.id}"${ok ? '' : ' disabled'}>Add to book</button>
+        <button class="btn" type="button" data-pp-pdf="${it.id}"${ok ? '' : ' disabled'}>Download</button>
+        <button class="btn" type="button" data-pp-print="${it.id}"${ok ? '' : ' disabled'}>Print</button>
+      </div>
+    </li>`;
+  }).join('')}</ul>` : `<p class="muted">${ppData.items.length ? 'Nothing matches. Clear the search to see them all.' : 'No approved player puzzles yet. Approve them in Grid Admin under Puzzle submissions.'}</p>`;
+}
+
+/* ---------- adding to the book ---------- */
+function ppAddCss(css) {
+  const clean = cleanGridCss(css);
+  const games = (clean.match(/\.bk-g-[\w-]+/) || [])[0];
+  if (!clean || (games && (S.gridCss || '').includes(games + ' '))) return;
+  S.gridCss = cleanGridCss(((S.gridCss || '') + '\n' + clean).trim());
+  applyGridCss();
+}
+// One player puzzle as editor pages: its puzzle page(s) and its answer key page.
+function ppPages(it, built) {
+  const x = built.item; const g = esc(x.game);
+  const head = `${esc(x.gameName)}${x.level ? ` · ${esc(x.level)}` : ''}`;
+  const parts = String(x.page || '').split('<div class="bk-break"></div>').filter(Boolean);
+  const player = { id: it.id, credit: it.credit || '', title: String(it.title || '').slice(0, 120) };
+  const pages = parts.map((part, k) => ({
+    id: uid(), grid: 'puzzle', player: { ...player },
+    html: gridPageHtml({ kind: 'puzzle', head: head + (parts.length > 1 ? ` (${k + 1} of ${parts.length})` : ''), body: `<div class="bk-fit bk-g-${g}">${part}</div>` })
+  }));
+  const key = x.key ? {
+    id: uid(), grid: 'key', playerKey: it.id,
+    html: gridPageHtml({ kind: 'key', head: `Answer · ${esc(it.title)}`, body: `<div class="bk-key"><p class="bk-keyh">${esc(it.title)}</p><div class="bk-room"><div class="bk-fit bk-g-${g}">${x.key}</div></div></div>` })
+  } : null;
+  return { pages, key };
+}
+async function ppAdd(ids) {
+  const items = ids.map(id => ppData.items.find(it => it.id === id)).filter(Boolean);
+  if (!items.length) return;
+  const where = $('#ppKeys').value;
+  const made = [];
+  try {
+    for (let k = 0; k < items.length; k++) {
+      busy(`Building “${items[k].title}” (${k + 1} of ${items.length})`, (k + 0.5) / items.length);
+      made.push([items[k], await ppBuild(items[k])]);
+    }
+  } catch (e) { busy(false); toast(e.message || 'That puzzle could not be built.', 7000); return; }
+  busy(false);
+  snapshot('player puzzles');
+  syncPagesFromDom();
+  let at = clamp(curPage, 0, S.pages.length - 1) + 1;
+  const first = at;
+  for (const [it, built] of made) {
+    ppAddCss(built.css);
+    const { pages, key } = ppPages(it, built);
+    S.pages.splice(at, 0, ...pages); at += pages.length;
+    if (key && where === 'after') { S.pages.splice(at, 0, key); at += 1; }
+    else if (key && where === 'back') S.pages.push(key);
+  }
+  renderPages(); refreshAll(); setActivePage(first, false); markDirty();
+  showTab('manuscript');
+  setTimeout(() => setActivePage(first, true), 60);
+  toast(`Added ${made.length} player puzzle${made.length === 1 ? '' : 's'}${where === 'none' ? '' : where === 'after' ? ', each with its answer key after it' : ', with the answer keys at the back'}.`, 5000);
+  made.forEach(([it]) => ppPicked.delete(it.id));
+}
+
+/* ---------- publications ---------- */
+async function ppRecordExport(kind) {
+  syncPagesFromDom();
+  const puzzles = ppBookIds(); if (!puzzles.length) return;
+  const book = typeof syEnsureId === 'function' ? syEnsureId() : '';
+  try {
+    const r = await adminApi('studio/player-puzzles/published', { method: 'POST', body: { kind, book, title: S.meta.title || 'Untitled', platform: PUBLISHERS[S.pub].name, puzzles } });
+    if (r.counted) {
+      toast(`${r.counted} player puzzle${r.counted === 1 ? '' : 's'} counted as published in this book.`, 5000);
+      ppData = null; // counts changed: load again next time
+    }
+  } catch (e) { /* the export is saved; the count catches up the next time it is exported */ }
+}
+
+/* ---------- download and print ---------- */
+async function ppPdf(id) {
+  const it = ppData.items.find(x => x.id === id); if (!it) return null;
+  busy(`Building “${it.title}”`, 0.4);
+  try { const b = await ppBuild(it); busy(false); return { it, blob: new Blob([b.pdf], { type: 'application/pdf' }) }; }
+  catch (e) { busy(false); toast(e.message || 'That puzzle could not be built.', 7000); return null; }
+}
+async function ppDownload(id) {
+  const r = await ppPdf(id); if (!r) return;
+  await saveFile(`${slug(r.it.title)}-puzzle.pdf`, r.blob);
+}
+async function ppPrint(id) {
+  const r = await ppPdf(id); if (!r) return;
+  const url = URL.createObjectURL(r.blob);
+  const f = document.createElement('iframe');
+  f.title = 'Printable puzzle'; f.className = 'pp-print';
+  f.onload = () => { try { f.contentWindow.focus(); f.contentWindow.print(); } catch (e) { window.open(url, '_blank', 'noopener'); } };
+  f.src = url; document.body.appendChild(f);
+  setTimeout(() => { f.remove(); URL.revokeObjectURL(url); }, 120000);
+}
+
+function wirePlayerPuzzles() {
+  $('#ppSearch').onsubmit = e => { e.preventDefault(); ppQuery = { q: $('#ppQ').value.trim(), game: $('#ppGame').value, use: $('#ppUse').value }; if (ppData) ppRender(); };
+  $('#ppGame').onchange = $('#ppUse').onchange = () => $('#ppSearch').requestSubmit();
+  $('#ppReload').onclick = () => { ppBuilt.clear(); ppView({ reload: true }); };
+  $('#ppCredits').onchange = e => { syncPagesFromDom(); S.playerCredits = e.target.checked; renderPages(); refreshAll(); markDirty(); toast(e.target.checked ? 'Author credit shows on player puzzle pages (where it is on for the puzzle).' : 'Author credit is off for every player puzzle in this book.'); };
+  $('#ppAddPicked').onclick = () => ppAdd([...ppPicked]);
+  $('#ppBody').onclick = e => {
+    const b = e.target.closest('button, input'); if (!b || b.disabled) return;
+    if (b.dataset.ppPick) { const id = +b.dataset.ppPick; b.checked ? ppPicked.add(id) : ppPicked.delete(id); $('#ppAddPicked').disabled = !ppPicked.size; $('#ppAddPicked').textContent = ppPicked.size ? `Add ${ppPicked.size} to the book` : 'Add ticked to the book'; return; }
+    if (b.dataset.ppAdd) ppAdd([+b.dataset.ppAdd]);
+    else if (b.dataset.ppPdf) ppDownload(+b.dataset.ppPdf);
+    else if (b.dataset.ppPrint) ppPrint(+b.dataset.ppPrint);
+  };
+}
+
 /* ---------- Sign-in for Book Studio ----------
    Book Studio has its own sign-in screen and shares the dashboard's session
    (admin/admin.js keeps it under flg-admin-session, in sessionStorage or,
@@ -2697,7 +3405,7 @@ let gaOpened = false, gaOpenedAs = '';
 function gaOpen() {
   $('#gate').hidden = true; $('#app').hidden = false;
   $('#whoEmail').textContent = gaMe.email; $('#backToAdmin').hidden = gaMe.role === 'publisher';
-  $('[data-tab=gridbooks]').hidden = false;
+  $('[data-tab=gridbooks]').hidden = false; $('[data-tab=players]').hidden = false;
   gaRefreshPkButton();
   // Someone else signed in on this page: start again, so their books load (sync.js).
   if (gaOpened && gaOpenedAs !== gaMe.email) { location.reload(); return; }
@@ -2731,7 +3439,7 @@ async function gaGridBooks() {
       when: (t) => new Date(t).toLocaleString(),
       openInStudio: (book) => importGridBook(book),
       // Make it from a topic: the publishers to choose from, and the whole path to a submission file.
-      publishers: Object.entries(PUBLISHERS).map(([id, p]) => ({ id, name: p.name })),
+      publishers: Object.entries(PUBLISHERS).map(([id, p]) => ({ id, name: p.name, pages: (trim, paper) => ({ min: p.minPages, max: p.maxPagesFor ? p.maxPagesFor(trim, paper) : p.maxPages }) })),
       makeSubmission: (book, pub) => submitGridBook(book, pub),
     });
   } catch (e) {

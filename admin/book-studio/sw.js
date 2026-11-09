@@ -1,7 +1,7 @@
 // Book Studio as an installed app. Built by book-studio/build.mjs: do not edit here.
 // The studio's own files are kept so it opens offline; each visit fetches
 // them fresh when there is a connection. The API and sign-in are never kept.
-const CACHE = 'book-studio-1d4a2d2f610a';
+const CACHE = 'book-studio-8ee34fd4b324';
 const SHELL = ["./","studio.css","studio.js","manifest.webmanifest","vendor/fabric.min.js","vendor/jspdf.umd.min.js","vendor/html2canvas.min.js","vendor/jszip.min.js","vendor/mammoth.browser.min.js","vendor/pdf.min.js","vendor/pdf.worker.min.js","vendor/pako.min.js","vendor/UTIF.js","vendor/marked.min.js","/admin/passkeys.js","/admin/books.js","/admin/icon.svg","/admin/icon-192.png"];
 const HERE = new URL('./', self.location).pathname;
 const KEEP = new Set(SHELL.map((f) => new URL(f, self.location).pathname));

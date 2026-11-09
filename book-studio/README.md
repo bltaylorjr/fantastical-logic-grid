@@ -38,6 +38,37 @@ turns a book into editor pages (`src/gridbooks.js`): text pages stay editable, p
 answer keys are fixed blocks shrunk to fit, and the cover comes in as one picture. Anyone
 who may publish books may make, save and publish Grid books.
 
+**Pages.** Nothing caps the page count. A Grid book is at least 24 pages (the printers'
+minimum) and otherwise as long as its puzzles make it; **Pages** in the book's details pads it
+with Notes pages to a set count, up to 2,000. **Make it from a topic** takes a page count too,
+limited to the chosen publisher's range at the book's trim and paper (KDP 24 to 828, or 590
+for 8.5 x 11 and 8.5 x 8.5 on white; IngramSpark up to 1,200; Lulu, B&N Press and Bookvault
+800; D2D 64 to 740): **Make the whole book for me** adds puzzles of the ticked types until the
+book nearly reaches it, then fills the rest with Notes pages. The editor itself takes any
+number of pages, and Check & export flags a book over the publisher's maximum. Big books
+export slowly (about 2 seconds a page at 300 DPI, roughly 0.25 MB a page for black and white).
+
+## Make a copy without AI content
+
+**Project > Make a copy without AI content…** (`src/noai.js`) makes a new book from the one
+open, so KDP's AI question can honestly be answered "None" for the copy. The original is
+never changed: it is synced first (or, in the stand-alone build, saved as a project file).
+
+1. **Review**: every picture (pages and cover) and every block of words (pages, cover text,
+   description, back cover blurb) is listed. Pictures whose file says an AI made them
+   (Content Credentials / C2PA, IPTC "trained algorithmic media", or an AI tool's prompt notes)
+   come ticked; words can't be told apart, so you tick what an AI wrote. Puzzles from Book
+   Studio's generators, Grid books' puzzle pages and the game's cover pictures are engine-made
+   and not listed.
+2. **The copy** opens with each ticked part taken out and a marked empty spot in its place
+   (a dashed box on the cover). On the account it is listed as "… (no AI content)".
+3. **Fill**: each spot opens in turn with a text box for your own words (or **Choose my own
+   picture** for a picture), **Leave it out** or **Later**. **Project > Fill the removed spots**
+   comes back to the rest; the Publish check and every export stop while any spot is empty.
+   What was there is shown only during that visit, for reference, and is never saved in the copy.
+
+Tested by `scripts/e2e-book-studio-noai.cjs`.
+
 ## Sync and the app
 
 Every book is saved in the browser first (IndexedDB), then synced to the signed-in account a
@@ -77,6 +108,37 @@ a new book starts with the list of the book that was open. A puzzle keeps its th
 
 **Project > Save project file** still keeps a copy on disk. Opening a project file makes it a
 new book on the account, so it never replaces a synced one.
+
+## Player puzzles
+
+**Player puzzles** (Grid Admin only, `src/playerpuzzles.js`) lists every puzzle players sent in
+that the team approved: Puzzle Wizard puzzles and storylines in the Approved or Published
+section of Grid Admin's **Puzzle submissions** page (`GET /admin/v1/studio/player-puzzles`,
+`server/src/studio-player-puzzles.js`). For each one:
+
+- **Add to book** puts its puzzle page after the current page and its answer key at the back
+  of the book (or right after the puzzle, or not at all). Tick several and press **Add ticked
+  to the book** to add them together.
+- **Download** saves the puzzle and its answer key as a PDF; **Print** opens the same PDF in
+  the browser's print window.
+
+The website's Book maker (`web/js/book-maker.js`, message `flg-book-player`) builds and draws
+each puzzle with the game's own engine and print layout. A wizard puzzle is built again from
+the author's entry and seed, so it is the puzzle they made, and the one built is kept with the
+entry so every book prints the same puzzle. A storyline whose puzzle is not built yet is listed
+but cannot be added until it is built under Storyline submissions.
+
+**Author credit:** a player puzzle's page shows "Puzzle by" and the player's screen name at the
+foot of the page (opposite the page number). Switch it off for one puzzle under Current page on
+the right, or for every player puzzle in the book there or on the Player puzzles tab
+(`playerCredits`). A player who chose to stay anonymous is never credited.
+
+**Publication count:** when the submission packet or the interior PDF of a book is saved, Book
+Studio sends the player puzzles in it (`POST /admin/v1/studio/player-puzzles/published`) and the
+server counts each puzzle once per book (table `submission_publications`). Exporting the same
+book again does not count again; a cover or metadata export never counts. The count shows on
+each puzzle here ("In 2 books") and on Grid Admin's Puzzle submissions page, which also lists
+the books.
 
 ## Changing it
 

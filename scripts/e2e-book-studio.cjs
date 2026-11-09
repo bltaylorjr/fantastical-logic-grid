@@ -6,7 +6,9 @@
 // does not, the sample book, Apply specs, and a submission packet download
 // that is written to the audit log, syncing a book between two devices (and
 // keeping both when two change it at once), the app manifest, the offline
-// service worker and Get the app.
+// service worker and Get the app, and Player puzzles (an approved player's
+// puzzle added to the book with its credit, downloaded, and counted as
+// published when the book is exported).
 // Grid books (the dashboard's Books and covers inside Book Studio) needs the
 // built website in dist/site (npm run build); without it that part is skipped.
 // Needs `npm install` in server/ and `node book-studio/build.mjs` first.
@@ -49,6 +51,21 @@ const SHOTS = process.env.SHOTS;
     for (const stmt of sql.split(';').map((s) => s.trim()).filter(Boolean)) await db.prepare(stmt).run();
   }
   await db.prepare("INSERT INTO admins (email, role, added_by, added_at) VALUES ('pub@example.com', 'publisher', 'test', 0), ('view@example.com', 'viewer', 'test', 0), ('new@example.com', 'publisher', 'test', 0)").run();
+  // Player puzzles: an approved Puzzle Wizard puzzle by a signed-in player, one whose author chose no credit, and one still waiting.
+  {
+    const { checkEntry } = await import(path.join(ROOT, 'web/js/wizard-fields.js'));
+    const entry = (title) => ({ ...checkEntry({
+      game: 'fantastical', title, story: 'Three sailors came back to the harbor, each wearing a different hat and carrying a different fish.',
+      ending: 'Everyone got their hat back.', difficulty: 'easy', cast: { one: 'sailor' }, names: 'Ada, Ben, Cy',
+      categories: [{ name: 'Hat', items: 'Red, Blue, Green' }, { name: 'Fish', items: 'Cod, Eel, Ray' }], answerMode: 'auto', credit: { as: 'none' }, consent: true,
+    }).value, kind: 'puzzle', seed: 'e2e1' });
+    await db.prepare("INSERT INTO players (user_id, screen_name, name_key, created_at, updated_at) VALUES ('fox-uid', 'PuzzleFox', 'puzzlefox', 0, 0)").run();
+    const add = (title, status, credit, uid) => db.prepare("INSERT INTO story_submissions (kind, source, title, credit, form, text, user_id, status, created_at, decided_at) VALUES ('puzzle', 'form', ?1, ?2, ?3, ?1, ?4, ?5, 1, 1)")
+      .bind(title, credit, JSON.stringify({ ...entry(title), credit }), uid, status).run();
+    await add('Harbor Hats', 'approved', 'Ada Fox', 'fox-uid');
+    await add('Quiet Cove', 'published', '', null);
+    await add('Waiting one', 'new', 'Kim', null);
+  }
   const session = (email, uid) => JSON.stringify({ mode: 'firebase', email, idToken: signer.token({ sub: uid, email, email_verified: true }), refreshToken: 'x', exp: Date.now() + 3_000_000, seen: Date.now() });
 
   const site = HAVE_SITE ? spawn('node', [path.join(__dirname, 'serve.mjs'), SITE_DIR, String(SITE_PORT)], { stdio: 'ignore' }) : null;
@@ -207,6 +224,37 @@ const SHOTS = process.env.SHOTS;
     assert((await page.textContent('#navBack')) === '← Back to Interior', 'Back returns to the step you came from');
     await page.waitForFunction(() => document.querySelector('#cvSpecs')?.textContent.includes('Full cover'), null, { timeout: 15000 });
     assert(true, 'the cover designer loads its vendored library under the page policy');
+    // Writing tools: copy text out to QuillBot or Scribbr and put the fixed text back.
+    await page.evaluate(() => { window.__opened = []; window.open = (u) => { window.__opened.push(u); return {}; }; });
+    await page.evaluate(() => { const o = cv.getObjects().find((x) => x.role === 'title'); cv.setActiveObject(o); cv.requestRenderAll(); });
+    await page.click('#cvWrite');
+    await page.waitForSelector('#dlgWrite[open]');
+    const wt = await page.evaluate(() => ({ text: document.querySelector('#wtText').value, title: cv.getObjects().find((x) => x.role === 'title').text, quill: document.querySelectorAll('#wtQuill [data-wt]').length, scribbr: document.querySelectorAll('#wtScribbr [data-wt]').length }));
+    assert(wt.text === wt.title && wt.quill === 5 && wt.scribbr === 5, `Writing tools on the cover takes the selected text box and offers QuillBot and Scribbr tools (${wt.quill} + ${wt.scribbr})`);
+    await page.click('#wtQuill [data-wt] >> text=Paraphraser');
+    await page.click('#wtScribbr [data-wt] >> text=AI Detector');
+    const wtOpened = await page.evaluate(() => window.__opened);
+    assert(wtOpened[0] === 'https://quillbot.com/paraphrasing-tool' && wtOpened[1] === 'https://www.scribbr.com/ai-detector/', 'a tool button opens that QuillBot or Scribbr tool in a new tab');
+    await page.fill('#wtResult', 'A FRESHLY PARAPHRASED TITLE');
+    await page.click('#wtApply');
+    assert(await page.evaluate(() => !document.querySelector('#dlgWrite').open && cv.getObjects().find((x) => x.role === 'title').text === 'A FRESHLY PARAPHRASED TITLE'), 'Put it back replaces the cover text box');
+    await page.click('[data-tab=details]');
+    await page.focus('#m-blurb');
+    await page.click('#writeMeta');
+    assert(await page.inputValue('#wtText') === await page.inputValue('#m-blurb'), 'Writing tools on Book details takes the field you were in');
+    await page.fill('#wtResult', 'A blurb fixed in Scribbr.');
+    await page.click('#wtApply');
+    assert(await page.evaluate(() => S.meta.blurb === 'A blurb fixed in Scribbr.'), 'Put it back fills the blurb and saves it with the book');
+    await page.click('[data-tab=manuscript]');
+    const para = await page.evaluate(() => { const p = [...document.querySelectorAll('#pages .content p')].find((x) => x.textContent.trim().split(/\s+/).length > 4); const r = document.createRange(); r.selectNodeContents(p); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); p.closest('.content').focus(); sel.removeAllRanges(); sel.addRange(r); return p.textContent.trim(); });
+    await page.waitForTimeout(100);
+    await page.click('#writeBtn');
+    assert((await page.inputValue('#wtText')).trim() === para, 'Writing tools in the manuscript takes the selected text');
+    await page.fill('#wtResult', 'This sentence came back from QuillBot.');
+    await page.click('#wtApply');
+    assert(await page.evaluate(() => { syncPagesFromDom(); return S.pages.some((p) => p.html.includes('This sentence came back from QuillBot.')); }), 'Put it back replaces the selected text in the page');
+    await page.click('[data-tab=cover]');
+    await page.waitForSelector('#view-cover:not([hidden])');
     // Grid books: make a small book from the game's puzzles and open it in the editor.
     if (HAVE_SITE) {
       assert(await page.isVisible('[data-tab=gridbooks]'), 'Grid books is a tab in Book Studio');
@@ -232,6 +280,43 @@ const SHOTS = process.env.SHOTS;
       const gt = await page.evaluate(() => ({ tools: document.querySelector('#pzTools').hidden, saved: (syncPagesFromDom(), S.pages.some((p) => /data-pz-theme="Mystery and adventure" data-pz-sub="Detectives"/.test(p.html))) }));
       assert(gt.tools && gt.saved, 'a Grid book puzzle takes a theme and subcategory (and offers no resize or new puzzle)');
       assert((await page.textContent('#navBack')) === '← Back to Grid books', 'Back returns to Grid books');
+
+      // Player puzzles: an approved Puzzle Wizard puzzle goes into the book with its answer key and the player's credit.
+      assert(await page.isVisible('[data-tab=players]'), 'Player puzzles is a tab in Book Studio');
+      await page.click('[data-tab=players]');
+      await page.waitForSelector('#ppBody [data-pp-add]', { timeout: 30000 });
+      const listed = await page.$$eval('#ppBody .pp-item', (a) => a.map((x) => x.textContent.replace(/\s+/g, ' ')));
+      assert(listed.length === 2 && listed.some((t) => /Harbor Hats/.test(t) && /by PuzzleFox/.test(t) && /Not in a book yet/.test(t)) && !listed.some((t) => /Waiting one/.test(t)),
+        'only approved player puzzles are listed, credited by screen name');
+      assert(listed.some((t) => /Quiet Cove/.test(t) && /chose no credit/.test(t)), 'a player who chose no credit is listed without one');
+      if (SHOTS) await page.screenshot({ path: path.join(SHOTS, 'book-studio-player-puzzles.png') });
+      const before = await page.evaluate(() => S.pages.length);
+      await page.click('#ppBody .pp-item:has-text("Harbor Hats") [data-pp-add]');
+      await page.waitForSelector('#view-manuscript:not([hidden]) #pages .page-credit', { timeout: 120000 });
+      const pp = await page.evaluate(() => ({ pages: S.pages.length, credit: document.querySelector('#pages .page-credit').textContent, key: S.pages.some((p) => p.playerKey), ids: ppBookIds(),
+        css: /\.bk-g-flg /.test(S.gridCss || ''), over: document.querySelectorAll('#pages .page.overflow').length }));
+      assert(pp.pages >= before + 2 && pp.key && pp.css && pp.over === 0 && pp.ids.length === 1, `Add to book puts the puzzle and its answer key in the book (${pp.pages - before} pages)`);
+      assert(pp.credit === 'Puzzle by PuzzleFox', 'the puzzle page footer credits the player by screen name');
+      // The story and clues wrap to the page instead of running off its edge.
+      const wide = await page.evaluate(() => [...document.querySelectorAll('#pages .grid-block')].filter((b) => b.getBoundingClientRect().right > b.parentElement.getBoundingClientRect().right + 2).length);
+      assert(wide === 0, 'every puzzle block fits inside its page');
+      if (SHOTS) { const pg = await page.$('#pages .page:has(.page-credit)'); await pg.scrollIntoViewIfNeeded(); await pg.screenshot({ path: path.join(SHOTS, 'book-studio-player-added.png') }); }
+      const kept = await db.prepare("SELECT puzzle FROM story_submissions WHERE title = 'Harbor Hats'").first();
+      assert(kept.puzzle && JSON.parse(kept.puzzle).title, 'the wizard puzzle built for the book is kept with the entry');
+      // The credit switches off for this puzzle, and back on.
+      await page.evaluate(() => setActivePage(S.pages.findIndex((p) => p.player), false));
+      assert(await page.isVisible('#pgCreditBox') && await page.isChecked('#pgCredit'), 'the player puzzle page offers Show author credit');
+      await page.uncheck('#pgCredit');
+      assert(!(await page.$('#pages .page-credit')), 'turning the credit off removes it from the page');
+      await page.check('#pgCredit');
+      assert(!!(await page.$('#pages .page-credit')), 'and turning it on shows it again');
+      // Download: the puzzle as a PDF.
+      await page.click('[data-tab=players]');
+      await page.waitForSelector('#ppBody [data-pp-pdf]');
+      const [pdl] = await Promise.all([page.waitForEvent('download', { timeout: 120000 }), page.click('#ppBody .pp-item:has-text("Harbor Hats") [data-pp-pdf]')]);
+      const pdfBytes = fs.readFileSync(await pdl.path());
+      assert(/\.pdf$/.test(pdl.suggestedFilename()) && pdfBytes.slice(0, 5).toString() === '%PDF-', `Download saves the puzzle as a PDF (${pdl.suggestedFilename()})`);
+      await page.click('[data-tab=manuscript]');
     } else console.log('--  Grid books skipped: no dist/site (run npm run build)');
     await page.click('#applyPub');
     await page.waitForSelector('#view-publish:not([hidden]) #checkSummary .card', { timeout: 30000 });
@@ -246,6 +331,11 @@ const SHOTS = process.env.SHOTS;
     assert(/submission-packet\.zip$/.test(dl.suggestedFilename()), `the submission packet downloads (${dl.suggestedFilename()})`);
     const { results } = await db.prepare("SELECT actor, status FROM admin_audit WHERE action = 'publishing.export'").all();
     assert(results.some((r) => r.actor === 'pub@example.com' && r.status === 200), 'the export is written to the audit log');
+    if (HAVE_SITE) {
+      await page.waitForFunction(() => /counted as published/.test(document.querySelector('.toast')?.textContent || ''), null, { timeout: 30000 });
+      const pubs = (await db.prepare("SELECT u.book, u.exports FROM submission_publications u JOIN story_submissions s ON s.id = u.submission_id WHERE s.title = 'Harbor Hats'").all()).results;
+      assert(pubs.length === 1 && pubs[0].book === await page.evaluate(() => S.syncId), 'the exported book counts as a publication of the player puzzle');
+    }
 
     // Sync: the edited book goes to the account, and opens on a second device.
     const books = async () => (await db.prepare("SELECT id, title, rev FROM studio_books WHERE owner = 'pub@example.com' ORDER BY updated_at").all()).results;
@@ -335,12 +425,16 @@ const SHOTS = process.env.SHOTS;
       const bk = await page.evaluate(async () => { const b = (await import('/admin/books.js')).currentBook(); return { n: b.puzzles.length, secs: b.settings.sections.length, topic: b.settings.topic, title: b.title, themes: b.settings.sections.map((x) => x.theme) }; });
       assert(bk.n === 2 && bk.secs === 2 && bk.topic === 'mystery' && /Mystery/i.test(bk.title) && bk.themes.every(Boolean), `the ticked puzzles go in the book, one section a type, on the topic ("${bk.title}", ${bk.n} puzzles)`);
       await page.selectOption('#bk-tp-pub', 'kdp');
+      // A page count past the old 24: the book is filled with more puzzles up to it.
+      assert(await page.getAttribute('#bk-tp-pages', 'max') === '828', 'Pages goes up to the publisher\'s maximum (KDP, 6 x 9 in: 828)');
+      await page.fill('#bk-tp-pages', '40'); await page.dispatchEvent('#bk-tp-pages', 'change');
       await page.evaluate(() => { document.querySelector('#dpi').value = '200'; }); // a smaller, quicker file
       page.once('dialog', (d) => d.accept()); // "Make the whole book again from this topic?"
       const [packet] = await Promise.all([page.waitForEvent('download', { timeout: 420000 }), page.click('#bk-tp-auto')]);
       assert(/kdp-submission-packet\.zip$/i.test(packet.suggestedFilename()), `Make the whole book for me checks it for the publisher and makes the submission file (${packet.suggestedFilename()})`);
-      const done = await page.evaluate(() => ({ pub: S.pub, errors: lastIssues.filter((i) => i.sev === 'error').length, pages: S.pages.length, title: S.meta.title, kw: S.meta.keywords }));
-      assert(done.pub === 'kdp' && done.errors === 0 && done.pages >= 24 && /Mystery/i.test(done.title) && /logic puzzles/.test(done.kw), `the book passes every publisher check (${done.pages} pages, no errors)`);
+      const done = await page.evaluate(async () => ({ pub: S.pub, errors: lastIssues.filter((i) => i.sev === 'error').length, pages: S.pages.length, title: S.meta.title, kw: S.meta.keywords, puzzles: (await import('/admin/books.js')).currentBook().puzzles.length }));
+      assert(done.pub === 'kdp' && done.errors === 0 && done.pages === 40 && /Mystery/i.test(done.title) && /logic puzzles/.test(done.kw), `the book passes every publisher check (${done.pages} pages, no errors)`);
+      assert(done.puzzles > 3, `the book was filled to 40 pages with more puzzles, not only Notes pages (${done.puzzles} puzzles)`);
       await page.context().close();
     }
 

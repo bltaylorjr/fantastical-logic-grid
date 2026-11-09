@@ -442,6 +442,23 @@ export const CONNECTIONS = [
     links: [{ label: 'Worker variables and secrets', url: CF_WORKER }, { label: 'Firebase project settings', url: `${FIREBASE}/settings/general` }],
   },
   {
+    id: 'firebase-admin',
+    group: 'google',
+    title: 'Inactive account cleanup (Firebase admin key)',
+    why: 'Lets the Worker remove a deleted account\'s Firebase sign-in, for the automatic deletion of inactive accounts and of accounts with no screen name. Without it nothing is deleted automatically.',
+    cost: 'Free.',
+    docs: 'server/INACTIVE-ACCOUNTS.md',
+    names: [
+      { name: 'FIREBASE_SERVICE_ACCOUNT', where: 'worker-secret', optional: true, note: 'The whole JSON key of the Firebase Admin SDK service account.' },
+    ],
+    steps: [
+      `Open ${FIREBASE}/settings/serviceaccounts/adminsdk and click **Generate new private key** > **Generate key**.`,
+      ...CF_SECRET_STEPS('FIREBASE_SERVICE_ACCOUNT', 'everything in the downloaded .json file (open it in Notepad)'),
+      'Delete the downloaded file. In this dashboard open **Players** > **Inactive account cleanup** to check who would be warned and deleted, then switch on **Delete inactive accounts automatically** under **Settings and switches** > **Inactive accounts**.',
+    ],
+    links: [{ label: 'Firebase service accounts', url: `${FIREBASE}/settings/serviceaccounts/adminsdk` }, { label: 'Worker variables and secrets', url: CF_WORKER }],
+  },
+  {
     id: 'gemini',
     group: 'google',
     title: 'Google Gemini (server voices and the AI story writer)',
@@ -767,9 +784,9 @@ export const CONNECTIONS = [
     id: 'reddit',
     group: 'marketing',
     oauth: 'reddit',
-    title: 'Reddit (automatic posts)',
-    why: 'Lets the marketing autopilot post approved Reddit ads in the subreddit named in the ad on their day. Ads that point at a weekly thread or need a judgement call stay by hand. Replying to comments is always yours.',
-    cost: 'Free. Reddit may ask you to fill in a short form for API access first.',
+    title: 'Reddit (automatic posts, closed to new apps)',
+    why: 'Reddit stopped accepting new requests for API access on 31 October 2026 and closes the rest in March 2027, so a new account cannot get these keys. Reddit ads come to you in the morning email to post by hand, and the footer links to the account once its link is set in Settings and switches > Social links. These steps only apply if you already had an approved Reddit app.',
+    cost: 'Free, but closed to new apps since 31 October 2026.',
     docs: 'scripts/marketing-post.py',
     names: [
       { name: 'REDDIT_CLIENT_ID', where: 'github-secret', note: 'The id shown under the app name.' },
@@ -981,6 +998,27 @@ export const CONNECTIONS = [
     ],
     steps: ['Paused. When the mobile apps resume, add both secrets from the private files.'],
     links: [{ label: 'GitHub secrets', url: `${REPO}/settings/secrets/actions` }],
+  },  {
+    id: 'ios-app-store',
+    group: 'apps',
+    title: 'iPhone and iPad app (App Store)',
+    why: 'Lets GitHub sign the iPhone and iPad app and send each new version to App Store Connect (TestFlight), with no Mac needed.',
+    cost: 'Apple Developer Program: $99 a year (Bobby approved, 2026-11-08). The App Store listing itself is free.',
+    docs: 'docs/APP-STORE.md',
+    names: [
+      { name: 'APP_STORE_CONNECT_KEY_ID', where: 'github-secret', optional: true, note: 'App Store Connect > Users and Access > Integrations > Team Keys: the Key ID.' },
+      { name: 'APP_STORE_CONNECT_ISSUER_ID', where: 'github-secret', optional: true, note: 'Shown above the keys list on the same page.' },
+      { name: 'APP_STORE_CONNECT_KEY_BASE64', where: 'github-secret', optional: true, note: 'The downloaded AuthKey_XXXX.p8 file, turned into base64.' },
+      { name: 'APPLE_TEAM_ID', where: 'github-variable', optional: true, note: 'developer.apple.com > Account > Membership details: Team ID (10 letters and numbers).' },
+    ],
+    steps: [
+      'Join the Apple Developer Program as an individual (developer.apple.com/programs/enroll).',
+      'Make an App Store Connect API key with the Admin role and download it (only once).',
+      ...GH_SECRET_STEPS('APP_STORE_CONNECT_KEY_ID', 'the Key ID'),
+      'Add the other two secrets and the APPLE_TEAM_ID variable the same way (full steps in docs/APP-STORE.md).',
+      'Run the "iPhone and iPad app" workflow by hand; the build shows in TestFlight about 15 minutes later.',
+    ],
+    links: [{ label: 'iOS workflow', url: `${REPO}/actions/workflows/ios.yml` }, { label: 'GitHub secrets', url: `${REPO}/settings/secrets/actions` }],
   },
 ];
 

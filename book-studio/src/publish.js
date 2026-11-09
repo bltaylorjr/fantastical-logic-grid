@@ -29,6 +29,7 @@ async function runChecks(opts = {}) {
   const add = (sev, id, msg, sub, fix, act) => out.push({ sev, id, msg, sub, fix, act });
   const toDetails = { label: 'Edit details', fn: () => showTab('details') };
   if (!S.meta.title.trim()) add('error', 'title', 'The book has no title', 'Add one in Book details. It is used on the cover, title page and metadata.', null, toDetails);
+  if (typeof aiGapCount === 'function' && aiGapCount()) add('error', 'aigaps', `${aiGapCount()} removed spot${aiGapCount() === 1 ? ' is' : 's are'} still empty`, 'This copy had AI-made parts taken out. Write your own words or choose your own pictures for them, or leave them out.', null, { label: 'Fill them', fn: () => noaiOpenFill() });
   if (!S.meta.author.trim()) add('error', 'author', 'No author name', 'Add the author or pen name in Book details.', null, toDetails);
   if (!P.trims.includes(S.trim)) add('error', 'trim', `${P.short} does not print ${TRIM_LABEL(S.trim)}`, `Switch to a supported size, such as ${TRIM_LABEL(nearestTrim(P.trims))}.`, () => { S.trim = nearestTrim(P.trims); });
   const maxP = P.maxPagesFor ? P.maxPagesFor(S.trim, S.paper) : P.maxPages;
@@ -176,8 +177,11 @@ async function buildInteriorPDF(dpi) {
   await loadLibs('jspdf', 'html2canvas'); syncPagesFromDom();
   try { await document.fonts.ready; await ensureFonts([S.body.font, 'Courier Prime']); } catch (e) { }
   const { jsPDF } = window.jspdf; let pdf = null;
-  for (let i = 0; i < S.pages.length; i++) {
-    busy(`Rendering interior page ${i + 1} of ${S.pages.length}`, i / S.pages.length);
+  const n = S.pages.length, started = Date.now();
+  for (let i = 0; i < n; i++) {
+    // Big books take minutes: say roughly how long is left once a few pages are done.
+    const left = i >= 5 ? Math.round((Date.now() - started) / i * (n - i) / 60000) : 0;
+    busy(`Rendering interior page ${i + 1} of ${n}${left >= 1 ? ` · about ${left} min left` : ''}`, i / n);
     const { canvas, SW, SH } = await renderPageCanvas(i, dpi);
     const orient = SW > SH ? 'landscape' : 'portrait';
     if (!pdf) pdf = new jsPDF({ unit: 'in', format: [SW, SH], orientation: orient, compress: true });
@@ -247,7 +251,11 @@ function reportText() {
 }
 
 // In Grid Admin, every export checks in first (auth.js); the stand-alone build has no check.
-const mayExport = async (kind) => (typeof checkInExport === 'function' ? checkInExport(kind) : true);
+const mayExport = async (kind) => {
+  // A copy without AI content prints nothing until every removed spot is filled or left out.
+  if (typeof aiGapCount === 'function' && aiGapCount()) { toast(`Fill or leave out the ${aiGapCount()} removed spot${aiGapCount() === 1 ? '' : 's'} first (Project › Fill the removed spots).`, 6000); noaiOpenFill(); return false; }
+  return typeof checkInExport === 'function' ? checkInExport(kind) : true;
+};
 async function exportPacket() {
   if (!(await mayExport('packet'))) return;
   allowCancel();
@@ -268,7 +276,7 @@ async function exportPacket() {
     dir.file(files[7], JSON.stringify(S));
     const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 3 } });
     busy('Saving', 1); busy(false);
-    await saveFile(base + '-submission-packet.zip', blob);
+    if ((await saveFile(base + '-submission-packet.zip', blob)) && typeof ppRecordExport === 'function') ppRecordExport('packet');
   } catch (e) { exportFailed(e); }
 }
 // Cancel on the progress card ends an export quietly; anything else is reported.
@@ -277,7 +285,7 @@ function exportFailed(e) {
   if (e && e.code === 'cancelled') { toast('Export cancelled. Nothing was saved.'); return; }
   console.error(e); toast('Export failed: ' + ((e && e.message) || e), 7000);
 }
-async function exportInterior() { if (!(await mayExport('interior'))) return; allowCancel(); try { const b = await buildInteriorPDF(+$('#dpi').value); busy('Saving', 1); busy(false); await saveFile(slug(S.meta.title) + '-interior.pdf', b); } catch (e) { exportFailed(e); } }
+async function exportInterior() { if (!(await mayExport('interior'))) return; allowCancel(); try { const b = await buildInteriorPDF(+$('#dpi').value); busy('Saving', 1); busy(false); if ((await saveFile(slug(S.meta.title) + '-interior.pdf', b)) && typeof ppRecordExport === 'function') ppRecordExport('interior'); } catch (e) { exportFailed(e); } }
 async function exportCover() { if (!(await mayExport('cover'))) return; allowCancel(); try { const { blob } = await buildCoverPDF(+$('#dpi').value); busy('Saving', 1); busy(false); await saveFile(slug(S.meta.title) + '-cover.pdf', blob); } catch (e) { exportFailed(e); } }
 
 function renderPubCard() {

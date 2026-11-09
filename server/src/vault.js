@@ -23,6 +23,11 @@
 //   POST /admin/v1/vault/devices             { credId, label, prfSalt, keyIv, keyCt } unlock with Face ID or fingerprint on a device
 //   POST /admin/v1/vault/devices/:id/used    note the last unlock
 //   POST /admin/v1/vault/devices/:id/remove  stop that device unlocking with Face ID or fingerprint
+//   POST /admin/v1/vault/drop-key            { pub, privIv, privCt } the drop box key pair (owner's dashboard)
+//   POST /admin/v1/vault/inbox               { epk, iv, ct, source } add a locked login to the drop box
+//                                            (any admin, the break-glass key or an assistant key: they can add, never read)
+//   POST /admin/v1/vault/inbox/:id/done      the dashboard moved it into the vault
+// Public: GET /v1/vault-drop-key             { pub } the drop box's public key (safe to share; it can only lock)
 const DAY = 24 * 3600_000;
 export const VAULT_BIN_DAYS = 30;
 export const VAULT_MAX_ITEMS = 2000;
@@ -33,6 +38,7 @@ const MAX_ITERATIONS = 5_000_000;
 const B64 = /^[A-Za-z0-9+/]+={0,2}$/;
 const B64URL = /^[A-Za-z0-9_-]{16,1400}$/;
 export const VAULT_MAX_DEVICES = 10;
+export const VAULT_INBOX_MAX = 200;
 
 const b64 = (v, min, max) => typeof v === 'string' && v.length >= min && v.length <= max && B64.test(v);
 
@@ -55,7 +61,13 @@ function checkItem(it, Refusal) {
   return { iv: it.iv, ct: it.ct };
 }
 
-const metaView = (m) => m && { salt: m.salt, iterations: m.iterations, keyIv: m.key_iv, keyCt: m.key_ct, createdAt: m.created_at, updatedAt: m.updated_at };
+const metaView = (m) => m && { salt: m.salt, iterations: m.iterations, keyIv: m.key_iv, keyCt: m.key_ct, dropPub: m.drop_pub || null, dropPrivIv: m.drop_priv_iv || null, dropPrivCt: m.drop_priv_ct || null, createdAt: m.created_at, updatedAt: m.updated_at };
+
+// GET /v1/vault-drop-key (no sign-in): the public half of the drop box key.
+export async function handleVaultDropKey(env) {
+  const m = await env.DB.prepare('SELECT drop_pub FROM vault_meta WHERE id = 1').first();
+  return m?.drop_pub ? { status: 200, body: { pub: m.drop_pub } } : { status: 404, body: { error: 'no_drop_box', message: 'Open Passwords in the admin app once to turn on the drop box.' } };
+}
 
 export function vaultRoutes(Refusal) {
   const big = { maxBody: VAULT_ITEM_CHARS * ADD_MAX + 4_000 };
@@ -63,13 +75,14 @@ export function vaultRoutes(Refusal) {
   return [
     ['GET', /^vault$/, 'owner', 'vault.open', async ({ env, who, now }) => {
       ownerOnly(who, Refusal);
-      const [, meta, items, devices] = await env.DB.batch([
+      const [, meta, items, devices, inbox] = await env.DB.batch([
         env.DB.prepare('DELETE FROM vault_items WHERE deleted_at IS NOT NULL AND deleted_at < ?1').bind(now - VAULT_BIN_DAYS * DAY),
         env.DB.prepare('SELECT * FROM vault_meta WHERE id = 1'),
         env.DB.prepare('SELECT id, iv, ct, created_at AS createdAt, updated_at AS updatedAt, deleted_at AS deletedAt FROM vault_items ORDER BY id'),
         env.DB.prepare('SELECT id, cred_id AS credId, label, prf_salt AS prfSalt, key_iv AS keyIv, key_ct AS keyCt, created_at AS createdAt, last_used_at AS lastUsedAt FROM vault_devices ORDER BY created_at'),
+        env.DB.prepare('SELECT id, epk, iv, ct, source, created_at AS createdAt FROM vault_inbox ORDER BY id'),
       ]);
-      return { body: { meta: metaView(meta.results[0] || null), items: items.results, devices: devices.results, binDays: VAULT_BIN_DAYS, maxItems: VAULT_MAX_ITEMS } };
+      return { body: { meta: metaView(meta.results[0] || null), items: items.results, devices: devices.results, inbox: inbox.results, binDays: VAULT_BIN_DAYS, maxItems: VAULT_MAX_ITEMS } };
     }],
     ['POST', /^vault\/setup$/, 'owner', 'vault.setup', async ({ env, who, body, now }) => {
       ownerOnly(who, Refusal);
@@ -146,10 +159,34 @@ export function vaultRoutes(Refusal) {
       if (!r.meta.changes) throw new Refusal(404, 'gone', 'That device was already removed.');
       return { body: { ok: true }, target: id };
     }],
+    ['POST', /^vault\/drop-key$/, 'owner', 'vault.drop-key', async ({ env, who, body, now }) => {
+      ownerOnly(who, Refusal);
+      if (!b64(body.pub, 80, 200) || !b64(body.privIv, 16, 24) || !b64(body.privCt, 100, 400)) throw new Refusal(400, 'bad_key', 'The drop box key was not sent in the right form.');
+      const r = await env.DB.prepare('UPDATE vault_meta SET drop_pub = ?1, drop_priv_iv = ?2, drop_priv_ct = ?3, updated_at = ?4 WHERE id = 1').bind(body.pub, body.privIv, body.privCt, now).run();
+      if (!r.meta.changes) throw new Refusal(404, 'no_vault', 'Set up the vault first.');
+      return { body: { ok: true } };
+    }],
+    // Write-only: anyone with admin rights (an admin, the break-glass key, an
+    // assistant key) can drop a login locked to the public key; nobody but the
+    // owner's unlocked dashboard can open it.
+    ['POST', /^vault\/inbox$/, 'admin', 'vault.drop', async ({ env, who, body, now }) => {
+      if (!b64(body.epk, 80, 200) || !b64(body.iv, 16, 24) || !b64(body.ct, 24, VAULT_ITEM_CHARS)) throw new Refusal(400, 'bad_item', 'That login is too big or was not locked in the right form.');
+      const source = String(body.source || '').replace(/[\u0000-\u001f\u007f<>]/g, '').trim().slice(0, 60) || String(who.actor).slice(0, 60);
+      if (!(await env.DB.prepare('SELECT 1 FROM vault_meta WHERE id = 1 AND drop_pub IS NOT NULL').first())) throw new Refusal(404, 'no_drop_box', 'Open Passwords in the admin app once to turn on the drop box.');
+      const { n } = await env.DB.prepare('SELECT COUNT(*) AS n FROM vault_inbox').first();
+      if (n >= VAULT_INBOX_MAX) throw new Refusal(409, 'full', 'The drop box is full. Unlock Passwords to empty it.');
+      const r = await env.DB.prepare('INSERT INTO vault_inbox (epk, iv, ct, source, created_at) VALUES (?1, ?2, ?3, ?4, ?5) RETURNING id').bind(body.epk, body.iv, body.ct, source, now).first();
+      return { body: { ok: true, id: r.id }, target: r.id, detail: { source } };
+    }, one],
+    ['POST', /^vault\/inbox\/(\d+)\/done$/, 'owner', 'vault.drop-done', async ({ env, who, params: [id] }) => {
+      ownerOnly(who, Refusal);
+      await env.DB.prepare('DELETE FROM vault_inbox WHERE id = ?1').bind(Number(id)).run();
+      return { body: { ok: true }, target: id };
+    }],
     ['POST', /^vault\/reset$/, 'owner', 'vault.reset', async ({ env, who, body }) => {
       ownerOnly(who, Refusal);
       if (body.confirm !== 'DELETE') throw new Refusal(400, 'confirm', 'Type DELETE to wipe the vault.');
-      const [items] = await env.DB.batch([env.DB.prepare('DELETE FROM vault_items'), env.DB.prepare('DELETE FROM vault_meta'), env.DB.prepare('DELETE FROM vault_devices')]);
+      const [items] = await env.DB.batch([env.DB.prepare('DELETE FROM vault_items'), env.DB.prepare('DELETE FROM vault_meta'), env.DB.prepare('DELETE FROM vault_devices'), env.DB.prepare('DELETE FROM vault_inbox')]);
       return { body: { ok: true }, detail: { removed: items.meta.changes } };
     }],
   ];

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-vault-login"
+description = "Enables the vault_login command without any pre-configured scope."
+commands.allow = ["vault_login"]
+
+[[permission]]
+identifier = "deny-vault-login"
+description = "Denies the vault_login command without any pre-configured scope."
+commands.deny = ["vault_login"]

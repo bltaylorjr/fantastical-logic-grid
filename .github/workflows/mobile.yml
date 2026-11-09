@@ -1,12 +1,12 @@
 # Builds the Android app (APK, plus an AAB for Google Play) on every change to
 # the game. After "Release desktop app" succeeds, the APK is added to that
-# GitHub Release. Started by hand with "Add the APK to the current release"
+# GitHub Release, with the AAB for Google Play. Started by hand with "Add the APK to the current release"
 # ticked, it adds the APK to the release for the current version.
 # Android release signing needs these repository secrets (otherwise a debug APK
 # is built): ANDROID_KEYSTORE_BASE64 (the .p12, base64) and ANDROID_KEYSTORE_PASSWORD.
 #
-# Android resumed (Bobby, 2026-10-27). iOS is still PAUSED: the iOS job runs
-# only when this workflow is started by hand from the Actions tab.
+# Android resumed (Bobby, 2026-10-27). iOS resumed (Bobby, 2026-11-08) and has
+# its own workflow, ios.yml ("iPhone and iPad app").
 name: Mobile apps
 on:
   workflow_dispatch:
@@ -86,41 +86,13 @@ jobs:
           path: |
             ${{ runner.temp }}/*.apk
             ${{ runner.temp }}/*.aab
-      - name: Add the APK to the release
+      - name: Add the APK and the Play bundle (AAB) to the release
         if: github.event_name == 'workflow_run' || (github.event_name == 'workflow_dispatch' && inputs.attach_to_release)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
           if [ -z "$KEYSTORE_B64" ]; then echo "::warning::Not adding a debug APK to the release."; exit 0; fi
-          gh release upload "v${{ steps.v.outputs.version }}" "$RUNNER_TEMP/The-Fantastical-Logic-Grid-${{ steps.v.outputs.version }}.apk" --clobber --repo "$GITHUB_REPOSITORY"
+          # The .aab is the file Google Play takes; phones install the .apk.
+          gh release upload "v${{ steps.v.outputs.version }}" "$RUNNER_TEMP/The-Fantastical-Logic-Grid-${{ steps.v.outputs.version }}.apk" "$RUNNER_TEMP/The-Fantastical-Logic-Grid-${{ steps.v.outputs.version }}.aab" --clobber --repo "$GITHUB_REPOSITORY"
 
-  ios:
-    # Paused (Bobby, 2026-10-25): only when started by hand.
-    if: github.event_name == 'workflow_dispatch'
-    runs-on: macos-latest
-    steps:
-      - if: runner.environment == 'self-hosted'
-        name: Start from an empty folder (our build server keeps the last job's files)
-        run: sudo find "$GITHUB_WORKSPACE" -mindepth 1 -delete || true
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 20
-          cache: npm
-      - run: npm ci
-      - run: npm run build
-      - run: brew install xcodegen
-      - name: Build for the iOS Simulator (no Apple account needed)
-        working-directory: mobile/ios
-        run: |
-          xcodegen
-          V=$(node -p "require('../../desktop/src-tauri/tauri.conf.json').version")
-          xcodebuild -project LogicGrid.xcodeproj -scheme LogicGrid -configuration Release \
-            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
-            -derivedDataPath build CODE_SIGNING_ALLOWED=NO MARKETING_VERSION="$V" build
-          cd build/Build/Products/Release-iphonesimulator && zip -qr "$RUNNER_TEMP/LogicGrid-simulator.zip" LogicGrid.app
-      - uses: actions/upload-artifact@v7
-        with:
-          name: ios-simulator-app
-          path: ${{ runner.temp }}/LogicGrid-simulator.zip

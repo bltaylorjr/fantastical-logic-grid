@@ -693,7 +693,7 @@ test('the dashboard keeps other sites and powerful features away', async () => {
   const r = await call('/admin/', { origin: null });
   assert.match(r.headers.get('strict-transport-security'), /max-age=\d{8}/);
   assert.equal(r.headers.get('cross-origin-opener-policy'), 'same-origin');
-  assert.match(r.headers.get('permissions-policy'), /camera=\(\)/);
+  assert.match(r.headers.get('permissions-policy'), /camera=\(self\)/); // the dashboard's own page only, for scanning 2-step QR codes in Passwords
 });
 
 test('new accounts stay counted after they are deleted', async () => {
@@ -763,7 +763,7 @@ test('publishing: Book Studio access by role or the per-admin switch, checked on
   const csp = page.headers.get('content-security-policy');
   assert.match(csp, /script-src 'self';/);
   assert.match(csp, /frame-ancestors 'none'/);
-  assert.match(csp, /frame-src https:\/\/[\w.:-]+;/);
+  assert.match(csp, /frame-src https:\/\/[\w.:-]+ blob:;/);
   assert.equal((await call('/admin/book-studio/vendor/fabric.min.js', { origin: null })).status, 200);
   assert.equal((await call('/admin/book-studio/other/admin.js', { origin: null })).status, 404);
   await call('/admin/v1/admins/remove', { auth: boss, body: { email: 'pub@example.com' } });

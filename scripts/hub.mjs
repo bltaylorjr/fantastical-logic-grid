@@ -475,7 +475,7 @@ export const videoTag = (site, up, name, label, preload = 'none') => `<video con
 
 export function writeHubPages({ site, url, verification, tdmMeta, copyright, socialList = [], pages, updated, csp, cloud = '', socialHtml = null }) {
   const year = new Date().getUTCFullYear();
-  const description = 'The Logic Grid: ten free logic and number puzzle games in your browser, from The Fantastical Logic Grid and NINETIMESNINE to Cage Math, Skyline and Loop Line.';
+  const description = 'The Logic Grid: eleven free puzzle games in your browser, from The Fantastical Logic Grid and NINETIMESNINE to Picture Grid, Loop Line and Crossword.';
   const og = (title, desc, path) => `<link rel="canonical" href="${url(path)}">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="${SITE_NAME}">
@@ -539,7 +539,7 @@ ${themeSelect}
 <section class="hero" aria-labelledby="hero-title">
 <span class="eyebrow" data-design-text="heroEyebrow">Puzzle games</span>
 <h1 id="hero-title" data-design-text="heroTitle">Pick your puzzle.</h1>
-<p data-design-text="heroText">Ten puzzle games, free to play in your browser. No guessing needed in any of them — every puzzle can be solved by reasoning alone.</p>
+<p data-design-text="heroText">Eleven puzzle games, free to play in your browser. No guessing needed in any of them — every puzzle can be solved by reasoning alone.</p>
 </section>
 <dialog class="wiz-pick" id="wizard-pick" aria-labelledby="wizard-pick-h">
 <h2 id="wizard-pick-h">Which puzzle would you like to make?</h2>
@@ -553,7 +553,7 @@ ${themeSelect}
 ${watchMain ? `<dialog class="hub-welcome" id="hub-welcome" aria-labelledby="hub-welcome-h">
 <button type="button" class="hw-x" id="hub-welcome-x" aria-label="Close" title="Close (Esc)">×</button>
 <h2 id="hub-welcome-h">Welcome to The Logic Grid!</h2>
-<p id="hub-welcome-text">Ten puzzle games, free to play in your browser. Jump straight into <b>today's puzzle</b>, or <b>take the tour</b>: a short narrated video, with captions, of everything on the site, from every game to your account and making your own puzzles.</p>
+<p id="hub-welcome-text">Eleven puzzle games, free to play in your browser. Jump straight into <b>today's puzzle</b>, or <b>take the tour</b>: a short narrated video, with captions, of everything on the site, from every game to your account and making your own puzzles.</p>
 <div id="hub-welcome-player" hidden>${videoTag(site, '', 'the-logic-grid', 'A tour of The Logic Grid')}</div>
 <p class="hw-actions"><a class="hdr-btn" id="hub-welcome-play" href="fantastical/?play=daily">Play today's puzzle</a><button type="button" class="hw-go" id="hub-welcome-tour">Take the tour</button></p>
 <p class="hw-note">The tour is always under See the games on this page.</p>
