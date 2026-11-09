@@ -36,7 +36,7 @@ const nextFrame = () => new Promise(r => requestAnimationFrame(() => setTimeout(
 
 /* Lazy CDN loader (only allow-listed CDNs work inside the viewer) */
 const LIBS = {
-  fabric: { url: 'https://cdn.jsdelivr.net/npm/fabric@5.3.0/dist/fabric.min.js', test: () => window.fabric },
+  fabric: { url: 'https://cdn.jsdelivr.net/npm/fabric@7.4.0/dist/index.min.js', test: () => window.fabric },
   jspdf: { url: 'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js', test: () => window.jspdf },
   html2canvas: { url: 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js', test: () => window.html2canvas },
   jszip: { url: 'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js', test: () => window.JSZip },

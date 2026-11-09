@@ -111,7 +111,7 @@ async function importGridBook(g) {
 async function placeGridCover(svg) {
   // Drawn as an image: an SVG shown as an <img> never runs scripts or loads anything.
   const url = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(String(svg));
-  const img = await new Promise((res, rej) => fabric.Image.fromURL(url, (o) => (o && o.width ? res(o) : rej(new Error('no image')))));
+  const img = await fabric.Image.fromURL(url).then((o) => { if (!o || !o.width) throw new Error('no image'); return o; });
   const g = coverGeom();
   cv.clear(); cv.backgroundColor = '#ffffff';
   img.set({ left: 0, top: 0, scaleX: (g.W * IN) / img.width, scaleY: (g.H * IN) / img.height, selectable: false, evented: false });

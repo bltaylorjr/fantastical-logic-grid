@@ -85,8 +85,8 @@ function noaiCollect() {
   });
   (S.cover?.objects || []).forEach((o, k) => {
     if (o.role === 'gridcover' || o.role === 'bg' || o.role === 'spine' || /^aigap/.test(o.role || '')) return; // the game's own cover picture, plain shapes
-    if (o.type === 'image') items.push({ key: `c${k}`, where: 'Cover', k, type: 'coverpic', src: o.src || '', why: noaiPictureWhy(o.src) });
-    else if (/textbox|i-text|text/.test(o.type) && String(o.text || '').trim()) items.push({ key: `c${k}`, where: 'Cover', k, type: 'covertext', text: o.text, role: o.role });
+    if (cvType(o) === 'image') items.push({ key: `c${k}`, where: 'Cover', k, type: 'coverpic', src: o.src || '', why: noaiPictureWhy(o.src) });
+    else if (/textbox|i-?text|text/.test(cvType(o)) && String(o.text || '').trim()) items.push({ key: `c${k}`, where: 'Cover', k, type: 'covertext', text: o.text, role: o.role });
   });
   [['description', 'Description'], ['blurb', 'Back cover blurb']].forEach(([f, label]) => {
     if (String(S.meta[f] || '').trim()) items.push({ key: `m:${f}`, where: label, type: 'meta', field: f, text: S.meta[f] });
@@ -242,10 +242,8 @@ async function noaiFill(content) {
     if (box) cv.remove(box);
     const b = g.box || {};
     if (content?.src) {
-      await new Promise(res => fabric.Image.fromURL(content.src, img => {
-        if (img && img.width) { const s = Math.min(b.w / img.width, b.h / img.height) || 1; img.set({ left: b.left, top: b.top, originX: b.originX, originY: b.originY, angle: b.angle, scaleX: s, scaleY: s }); img.role = 'user'; cv.add(img); }
-        res();
-      }));
+      const img = await fabric.Image.fromURL(content.src).catch(() => null);
+      if (img && img.width) { const s = Math.min(b.w / img.width, b.h / img.height) || 1; img.set({ left: b.left, top: b.top, originX: b.originX, originY: b.originY, angle: b.angle, scaleX: s, scaleY: s }); img.role = 'user'; cv.add(img); }
     } else if (content) {
       const st = { ...(g.style || {}) }; const role = st.role || 'user'; delete st.role;
       const t = new fabric.Textbox(text.trim(), { left: b.left, top: b.top, originX: b.originX, originY: b.originY, angle: b.angle, width: b.w, fontSize: 32, fontFamily: 'Nunito', fill: '#ffffff', ...st });
