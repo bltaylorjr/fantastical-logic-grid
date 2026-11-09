@@ -136,7 +136,7 @@ function wireShell() {
 }
 
 async function init() {
-  wireShell(); wireEditor(); wirePuzzles(); wireImport(); wireCover();
+  wireShell(); wireEditor(); wirePuzzles(); wireImport(); wireCover(); wireWriting();
   if (typeof wirePlayerPuzzles === 'function') wirePlayerPuzzles();
   const saved = await idbGet('current');
   const restored = !!(saved && saved.pages && saved.pages.length);
