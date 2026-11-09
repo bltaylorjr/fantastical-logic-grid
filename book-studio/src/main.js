@@ -61,15 +61,22 @@ function onSpecChange(fn) {
   return e => { applyLog = null; syncPagesFromDom(); fn(e); renderPages(); refreshUI(); onGeometryChanged(); markDirty(); lastIssues = []; updateStatus(); };
 }
 
+// Returns a promise that settles once the cover has finished loading too.
 function loadProject(data) {
   const base = blankProject();
   S = { ...base, ...data, meta: { ...base.meta, ...(data.meta || {}) }, margins: { ...base.margins, ...(data.margins || {}) }, body: { ...base.body, ...(data.body || {}) }, folio: { ...base.folio, ...(data.folio || {}) }, counters: { ...base.counters, ...(data.counters || {}) } };
   if (!TRIMS[S.trim]) S.trim = PUBLISHERS[S.pub]?.defaultTrim || '8.5x11';
   if (!PUBLISHERS[S.pub]) S.pub = 'kdp';
+  // A book keeps its own theme list only once it has one (edited here, or a new
+  // book started from one); older books use the default list unchanged.
+  if (Array.isArray(data.puzzleThemes)) S.puzzleThemes = cloneThemes(data.puzzleThemes); else delete S.puzzleThemes;
+  themeSeed = S.puzzleThemes || null;
   curPage = 0; undoStack = []; lastIssues = [];
   renderPages(); refreshUI(); fillMetaForm();
-  if (cv) { const json = S.cover; if (json) loadCoverJSON(json, S.coverGeom).then(() => { lastGeom = coverGeom(); }); else autoDesignCover(); }
+  let cover = Promise.resolve();
+  if (cv) { const json = S.cover; cover = json ? loadCoverJSON(json, S.coverGeom).then(() => { lastGeom = coverGeom(); }) : autoDesignCover(); }
   markDirty();
+  return cover;
 }
 
 /* Sample book: realistic example content, generated fresh */

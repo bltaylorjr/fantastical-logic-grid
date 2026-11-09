@@ -71,11 +71,12 @@ function fitGridBlocks(root) {
 // pages: [{ kind, head, body, front, fitAll }], css, coverSvg }.
 async function importGridBook(g) {
   const p = blankProject();
-  p.pub = S.pub || 'kdp';
+  p.pub = PUBLISHERS[g.pub] ? g.pub : S.pub || 'kdp';
   const trim = String(g.trim || '6x9');
   p.trim = TRIMS[trim] ? trim : (PUBLISHERS[p.pub].defaultTrim || '6x9');
   p.paper = g.paper === 'cream' ? 'cream' : 'white';
-  p.meta = { ...p.meta, title: String(g.title || '').slice(0, 200), subtitle: String(g.subtitle || '').slice(0, 200), author: String(g.author || '').slice(0, 120), copyright: String(g.author || '').slice(0, 120), isbn: String(g.isbn || '').slice(0, 20), pubDate: new Date().toISOString().slice(0, 10) };
+  p.meta = { ...p.meta, title: String(g.title || '').slice(0, 200), subtitle: String(g.subtitle || '').slice(0, 200), author: String(g.author || '').slice(0, 120), copyright: String(g.author || '').slice(0, 120), isbn: String(g.isbn || '').slice(0, 20), pubDate: new Date().toISOString().slice(0, 10),
+    ...(g.description ? { description: String(g.description).slice(0, 4000), blurb: String(g.description).slice(0, 4000) } : {}), ...(g.keywords ? { keywords: String(g.keywords).slice(0, 500) } : {}) };
   p.gridCss = cleanGridCss(g.css);
   p.gridBook = String(g.id || '');
   p.pages = (g.pages || []).map(pg => ({ id: uid(), html: gridPageHtml(pg), grid: pg.kind, noFolio: !!pg.front, ...(pg.kind === 'answers' ? { answers: true } : {}) }));
@@ -96,6 +97,26 @@ async function placeGridCover(svg) {
   const g = coverGeom();
   cv.clear(); cv.backgroundColor = '#ffffff';
   img.set({ left: 0, top: 0, scaleX: (g.W * IN) / img.width, scaleY: (g.H * IN) / img.height, selectable: false, evented: false });
-  img.role = 'bg';
+  img.role = 'gridcover';
   cv.add(img); cv.requestRenderAll(); syncCoverToState();
 }
+
+/* Make the whole book for me (Grid books, Make it from a topic): open the
+   book here, apply the publisher's specs, check every page and setting, and
+   make the submission packet. Anything only the person can fix (an ISBN the
+   publisher requires, say) stops it on the Publish tab with the list. */
+async function submitGridBook(g, pub) {
+  await importGridBook({ ...g, pub });
+  await applyPublisher();
+  const issues = await runChecks();
+  const errors = issues.filter(i => i.sev === 'error');
+  if (errors.length) {
+    showTab('publish');
+    toast(`Almost ready for ${PUBLISHERS[S.pub].short}: ${errors.length} thing${errors.length === 1 ? '' : 's'} to fix on the Publish tab, then Export the submission packet.`, 10000);
+    return { ready: false, errors: errors.map(e => e.msg) };
+  }
+  await exportPacket();
+  showTab('publish');
+  return { ready: true };
+}
+

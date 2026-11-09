@@ -241,6 +241,39 @@ const BOOK_FONTS = ['Libre Baskerville', 'Merriweather', 'Lora', 'EB Garamond', 
 const fontStack = f => `"${f}", ${/Courier/.test(f) ? 'monospace' : /Sans|Nunito|Fredoka|Oswald|Bebas|Arial|Verdana|Hand|Marker/.test(f) ? 'sans-serif' : 'serif'}`;
 
 /* ---------- State ---------- */
+// Puzzle themes: each puzzle can carry a theme and a subcategory
+// (data-pz-theme / data-pz-sub on the puzzle, so they sync with its page).
+// The list itself is part of the book (S.puzzleThemes) and is editable;
+// a new book starts with the list of the book that was open.
+const DEFAULT_PUZZLE_THEMES = [
+  { name: 'Holidays', subs: ['Christmas', 'Hanukkah', 'Kwanzaa', 'New Year', "Valentine's Day", "St. Patrick's Day", 'Easter', "Mother's Day", "Father's Day", 'Fourth of July', 'Halloween', 'Thanksgiving'] },
+  { name: 'Seasons', subs: ['Spring', 'Summer', 'Fall', 'Winter'] },
+  { name: 'Animals', subs: ['Pets', 'Farm animals', 'Wildlife', 'Ocean life', 'Birds', 'Insects', 'Dinosaurs'] },
+  { name: 'Nature', subs: ['Gardens and flowers', 'Trees and forests', 'Weather', 'Mountains', 'Beaches'] },
+  { name: 'Food and drink', subs: ['Baking', 'Fruits and vegetables', 'Desserts', 'World food', 'Coffee and tea'] },
+  { name: 'Sports and games', subs: ['Football', 'Baseball', 'Basketball', 'Soccer', 'Golf', 'Olympics', 'Board games'] },
+  { name: 'Travel and places', subs: ['USA', 'Europe', 'World cities', 'National parks', 'Landmarks'] },
+  { name: 'Science and space', subs: ['Space and planets', 'Chemistry', 'Human body', 'Inventions', 'Technology'] },
+  { name: 'History', subs: ['Ancient world', 'American history', 'Presidents', 'Famous people'] },
+  { name: 'Arts and entertainment', subs: ['Movies', 'TV', 'Music', 'Books and authors', 'Art'] },
+  { name: 'Mystery and adventure', subs: ['Detectives', 'Pirates', 'Treasure hunts', 'Spies'] },
+  { name: 'Fantasy', subs: ['Dragons', 'Fairy tales', 'Magic', 'Mythology'] },
+  { name: 'Faith', subs: ['Bible stories', 'Hymns', 'Saints'] },
+  { name: 'Everyday life', subs: ['Home', 'School', 'Jobs', 'Transportation', 'Hobbies'] }
+];
+let themeSeed = null;
+const puzzleThemes = () => (S && S.puzzleThemes) || DEFAULT_PUZZLE_THEMES;
+function cloneThemes(list) {
+  const out = [], seen = new Set();
+  (Array.isArray(list) ? list : []).forEach(t => {
+    const name = String(t && t.name || '').trim().slice(0, 60); if (!name || seen.has(name.toLowerCase())) return; seen.add(name.toLowerCase());
+    const subs = [], ss = new Set();
+    (Array.isArray(t.subs) ? t.subs : []).forEach(x => { const v = String(x || '').trim().slice(0, 60); if (v && !ss.has(v.toLowerCase())) { ss.add(v.toLowerCase()); subs.push(v); } });
+    out.push({ name, subs: subs.slice(0, 100) });
+  });
+  return out.slice(0, 200);
+}
+
 const DEFAULT_META = { title: '', subtitle: '', author: '', contributors: '', series: '', seriesNo: '', edition: 'First edition', imprint: '', isbn: '', pubDate: '', language: 'English', price: '', audience: 'Adult', copyright: '', description: '', blurb: '', keywords: '', categories: '' };
 function blankProject() {
   return {
@@ -251,7 +284,8 @@ function blankProject() {
     folio: { on: true, pos: 'outside', start: 3 },
     pages: [{ id: uid(), html: '<h1>Untitled puzzle book</h1><p>Start typing, import a manuscript, or use Puzzles to generate pages.</p>' }],
     counters: { sudoku: 0, wordsearch: 0, maze: 0 },
-    cover: null, coverGeom: null, theme: 'navy'
+    cover: null, coverGeom: null, theme: 'navy',
+    ...(themeSeed ? { puzzleThemes: cloneThemes(themeSeed) } : {})
   };
 }
 let S = blankProject();
@@ -319,7 +353,9 @@ function syncPagesFromDom() {
   if (cs.length !== S.pages.length) return;
   cs.forEach((c, i) => {
     $$('.sel', c).forEach(e => e.classList.remove('sel'));
-    S.pages[i].html = c.innerHTML;
+    // A Grid book block's shrink-to-fit scale is redone on every screen and export
+    // (fitGridBlocks); saving it made a just-opened book look changed and sync again.
+    S.pages[i].html = c.innerHTML.replace(/(<div class="grid-block" contenteditable="false") style="[^"]*"/g, '$1');
   });
 }
 
@@ -584,13 +620,13 @@ function wireEditor() {
   pagesEl.addEventListener('click', e => {
     $$('#pages .sel').forEach(x => x.classList.remove('sel'));
     selImg = null; selPuzzle = null;
-    const img = e.target.closest('.content img'); const pz = e.target.closest('.content .puzzle');
+    const img = e.target.closest('.content img'); const pz = e.target.closest('.content .puzzle') || e.target.closest('.content .grid-room');
     if (pz) { selPuzzle = pz; pz.classList.add('sel'); }
     else if (img) { selImg = img; img.classList.add('sel'); }
     showSelTools();
   });
   pagesEl.addEventListener('keydown', e => {
-    if ((e.key === 'Delete' || e.key === 'Backspace') && (selPuzzle || selImg) && document.activeElement.closest('.content')) {
+    if ((e.key === 'Delete' || e.key === 'Backspace') && ((selPuzzle && selPuzzle.classList.contains('puzzle')) || selImg) && document.activeElement.closest('.content')) {
       e.preventDefault(); (selPuzzle || selImg).remove(); selPuzzle = selImg = null; showSelTools(); afterEdit();
     }
   });
@@ -672,14 +708,17 @@ function movePage(d) {
 }
 
 function showSelTools() {
-  $('#imgTools').hidden = !selImg; $('#pzTools').hidden = !selPuzzle;
+  // A Grid book puzzle (.grid-room) is a fixed block: it takes a theme, nothing else.
+  const own = !!selPuzzle && selPuzzle.classList.contains('puzzle');
+  $('#imgTools').hidden = !selImg; $('#pzTools').hidden = !own; showThemeTools();
   if (selImg) {
     const w = selImg.style.width ? parseFloat(selImg.style.width) : 100; $('#imgW').value = w;
     $('#imgBright').value = 100; $('#imgContrast').value = 100;
     const dpi = imageDpi(selImg); $('#imgDpi').textContent = dpi ? `Print resolution at this size: ${dpi} DPI${dpi < 300 ? ' (below the 300 DPI print standard)' : ''}` : '';
     if (window.innerWidth <= 1100) $('#workspace').classList.add('show-insp');
   }
-  if (selPuzzle) $('#pzSize').value = parseFloat(selPuzzle.dataset.size || 5);
+  if (own) $('#pzSize').value = parseFloat(selPuzzle.dataset.size || 5);
+  if (selPuzzle && window.innerWidth <= 1100) $('#workspace').classList.add('show-insp');
 }
 function imageDpi(img) {
   if (!img.naturalWidth) return 0;
@@ -990,9 +1029,15 @@ function wirePuzzles() {
     if (kind === 'wordsearch') $('#pzCount').value = $('#wsLists').value.trim().split(/\n\s*\n/).length;
   });
   $('#insPuzzle').onclick = () => openDlg('#dlgPuzzle');
+  $('#insPuzzle').addEventListener('click', () => fillThemeSelects($('#pzGenTheme'), $('#pzGenSub'), lastGenTheme.theme, lastGenTheme.sub));
+  $('#pzGenTheme').onchange = () => fillThemeSelects($('#pzGenTheme'), $('#pzGenSub'), $('#pzGenTheme').value, '');
+  $('#pzGenThemeEdit').onclick = () => openThemeEditor(() => fillThemeSelects($('#pzGenTheme'), $('#pzGenSub'), $('#pzGenTheme').value, $('#pzGenSub').value));
+  wireThemes();
   $('#pzGo').onclick = async () => {
     closeDlg('#dlgPuzzle');
+    lastGenTheme = { theme: $('#pzGenTheme').value, sub: $('#pzGenSub').value };
     await generatePuzzles(kind, {
+      theme: lastGenTheme.theme, sub: lastGenTheme.sub,
       count: clamp(+$('#pzCount').value || 1, 1, 500), perPage: +$('#pzPerPage').value, answers: $('#pzAnswers').checked, newPages: $('#pzNewPages').checked,
       diff: $('#sdDiff').value, wsSize: +$('#wsSize').value, wsDir: $('#wsDir').value, lists: $('#wsLists').value, mzSize: +$('#mzSize').value, mzShape: $('#mzShape').value
     });
@@ -1009,6 +1054,7 @@ async function generatePuzzles(kind, o) {
   const count = kind === 'wordsearch' ? Math.min(o.count, Math.max(lists.length, 1) * 50) : o.count;
   if (kind === 'wordsearch' && !lists.length) { toast('Add at least one word list'); return; }
   const blocks = [], answers = [];
+  const theme = o.theme ? { theme: o.theme, sub: o.sub || '' } : null;
   for (let k = 0; k < count; k++) {
     busy(`Generating ${kind === 'wordsearch' ? 'word search' : kind} ${k + 1} of ${count}`, k / count); await nextFrame();
     const num = ++S.counters[kind];
@@ -1026,6 +1072,9 @@ async function generatePuzzles(kind, o) {
       blocks.push(`<h2 class="center">Maze #${num}</h2>` + mazeHTML(m.puz, m.sol, size, false));
       answers.push(mazeHTML(m.puz, m.sol, 2.1, true, `Maze #${num}`));
     }
+    // The puzzle and its solution share an id, so a theme set later reaches both.
+    const pid = uid(); const tag = h => tagPuzzleHTML(h, pid, theme);
+    blocks[blocks.length - 1] = tag(blocks[blocks.length - 1]); answers[answers.length - 1] = tag(answers[answers.length - 1]);
   }
   busy(false);
   if (o.newPages) {
@@ -1083,9 +1132,106 @@ function regeneratePuzzle(el) {
   if (k === 'sudoku') { const filled = (el.dataset.puz || '').replace(/0/g, '').length; const diff = filled >= 36 ? 'easy' : filled >= 30 ? 'medium' : filled >= 26 ? 'hard' : 'expert'; const { puz, sol } = makeSudoku(diff); html = sudokuHTML(puz, sol, size, false); }
   else if (k === 'wordsearch') { const words = JSON.parse(el.dataset.words || '[]'); const ws = makeWordSearch(words, +el.dataset.n || 15, 'medium'); html = wordsearchHTML(ws, words, size, false); }
   else { const m = makeMaze(18, 'square'); html = mazeHTML(m.puz, m.sol, size, false); }
-  const t = document.createElement('div'); t.innerHTML = html; const nu = t.firstElementChild; el.replaceWith(nu);
+  const t = document.createElement('div'); t.innerHTML = html; const nu = t.firstElementChild;
+  ['pzTheme', 'pzSub'].forEach(k => { if (el.dataset[k]) nu.dataset[k] = el.dataset[k]; }); // keeps its theme (its old solution no longer matches, so no shared id)
+  el.replaceWith(nu);
   selPuzzle = null; showSelTools(); afterEdit();
   toast('New puzzle made. Its old solution in the answer key no longer matches; delete it there.', 5000);
+}
+
+/* ---------- Puzzle themes ----------
+   A puzzle's theme and subcategory are data-pz-theme / data-pz-sub on the
+   puzzle (or, for a Grid book page, its .grid-room), so they are saved and
+   synced with the page. A generated puzzle and its solution share data-pz-id,
+   so changing one changes both. The list is S.puzzleThemes (core.js). */
+let lastGenTheme = { theme: '', sub: '' };
+// Every generated puzzle's HTML starts with <div class="puzzle" (sudokuHTML,
+// wordsearchHTML, mazeHTML), so the attributes go in there, escaped.
+function tagPuzzleHTML(html, pid, theme) {
+  const at = ` data-pz-id="${esc(pid)}"` + (theme ? ` data-pz-theme="${esc(theme.theme)}"` + (theme.sub ? ` data-pz-sub="${esc(theme.sub)}"` : '') : '');
+  return html.replace(/<div class="puzzle"/, m => m + at);
+}
+function setPuzzleTheme(el, theme, sub) {
+  if (theme) el.dataset.pzTheme = theme; else delete el.dataset.pzTheme;
+  if (theme && sub) el.dataset.pzSub = sub; else delete el.dataset.pzSub;
+}
+// Fill a theme select and its subcategory select. A value that is no longer in
+// the list (renamed, removed, or from another book) still shows, marked so.
+function fillThemeSelects(selT, selS, theme, sub) {
+  const list = puzzleThemes();
+  const known = list.find(t => t.name === theme);
+  selT.innerHTML = '<option value="">No theme</option>' + list.map(t => `<option value="${esc(t.name)}">${esc(t.name)}</option>`).join('') +
+    (theme && !known ? `<option value="${esc(theme)}">${esc(theme)} (not in your list)</option>` : '');
+  selT.value = theme || '';
+  const subs = known ? known.subs : [];
+  selS.innerHTML = `<option value="">${theme ? 'Any ' + esc(theme.toLowerCase()) : 'Pick a theme first'}</option>` + subs.map(x => `<option value="${esc(x)}">${esc(x)}</option>`).join('') +
+    (theme && sub && !subs.includes(sub) ? `<option value="${esc(sub)}">${esc(sub)} (not in your list)</option>` : '');
+  selS.value = theme ? (sub || '') : '';
+  selS.disabled = !theme;
+}
+function showThemeTools() {
+  const el = selPuzzle; $('#pzThemeTools').hidden = !el; if (!el) return;
+  fillThemeSelects($('#pzTheme'), $('#pzSub'), el.dataset.pzTheme || '', el.dataset.pzSub || '');
+}
+// Puzzles that change with this one: its solution (same id), anywhere in the book.
+function puzzleTwins(el) {
+  const id = el.dataset.pzId; if (!id) return [el];
+  return $$('#pages .puzzle').filter(p => p === el || p.dataset.pzId === id);
+}
+function applyThemeTo(els, theme, sub) {
+  const set = new Set(); els.forEach(e => puzzleTwins(e).forEach(x => set.add(x)));
+  set.forEach(x => setPuzzleTheme(x, theme, sub));
+  syncPagesFromDom(); markDirty(); // twins can be on other pages
+  if (selPuzzle) selPuzzle.classList.add('sel');
+}
+function wireThemes() {
+  $('#pzTheme').onchange = () => { const el = selPuzzle; if (!el) return; fillThemeSelects($('#pzTheme'), $('#pzSub'), $('#pzTheme').value, ''); applyThemeTo([el], $('#pzTheme').value, ''); };
+  $('#pzSub').onchange = () => { const el = selPuzzle; if (!el) return; applyThemeTo([el], $('#pzTheme').value, $('#pzSub').value); };
+  $('#pzThemePage').onclick = () => {
+    const el = selPuzzle; if (!el) return; const pg = el.closest('.page'); if (!pg) return;
+    const all = $$('.content .puzzle, .content .grid-room', pg);
+    const th = el.dataset.pzTheme || '', sb = el.dataset.pzSub || '';
+    applyThemeTo(all, th, sb);
+    toast(th ? `${all.length} puzzle${all.length === 1 ? ' is' : 's are'} now ${th}${sb ? ' › ' + sb : ''}` : `Took the theme off ${all.length} puzzle${all.length === 1 ? '' : 's'}`);
+  };
+  $('#pzThemeEdit').onclick = () => openThemeEditor(showThemeTools);
+  $('#thAdd').onclick = () => { const r = themeRow({ name: '', subs: [] }); $('#thList').appendChild(r); $('input', r).focus(); };
+  $('#thReset').onclick = () => { $('#thList').innerHTML = ''; DEFAULT_PUZZLE_THEMES.forEach(t => $('#thList').appendChild(themeRow(t))); };
+  $('#thList').addEventListener('click', e => { const b = e.target.closest('.th-del'); if (b) b.closest('.th-row').remove(); });
+  $('#thSave').onclick = saveThemeEditor;
+}
+let themeEditorDone = null;
+function themeRow(t) {
+  const r = document.createElement('div'); r.className = 'th-row'; r.dataset.orig = t.name || '';
+  r.innerHTML = `<label class="lab">Theme <input type="text" class="th-name" maxlength="60" value="${esc(t.name)}" placeholder="Theme name"></label>` +
+    `<label class="lab th-subs">Subcategories <input type="text" class="th-sub" value="${esc(t.subs.join(', '))}" placeholder="Separate with commas"></label>` +
+    `<button class="btn danger th-del" type="button" aria-label="Remove ${esc(t.name || 'this theme')}">Remove</button>`;
+  return r;
+}
+function openThemeEditor(done) {
+  themeEditorDone = done || null;
+  const box = $('#thList'); box.innerHTML = '';
+  puzzleThemes().forEach(t => box.appendChild(themeRow(t)));
+  openDlg('#dlgThemes');
+}
+function saveThemeEditor() {
+  const rows = $$('#thList .th-row');
+  const list = cloneThemes(rows.map(r => ({ name: $('.th-name', r).value, subs: $('.th-sub', r).value.split(/[,\n]/) })));
+  if (!list.length) { toast('Keep at least one theme, or press Use the default list'); return; }
+  // A renamed theme is renamed on every puzzle in the book.
+  const renames = new Map();
+  rows.forEach(r => { const o = r.dataset.orig, n = $('.th-name', r).value.trim(); if (o && n && o !== n) renames.set(o, n); });
+  snapshot('edit themes');
+  S.puzzleThemes = list; themeSeed = list;
+  if (renames.size) {
+    // Every page is on screen in #pages, so rename there and save the pages.
+    let n = 0;
+    $$('#pages [data-pz-theme]').forEach(el => { const to = renames.get(el.dataset.pzTheme); if (to) { el.dataset.pzTheme = to; n++; } });
+    if (n) { syncPagesFromDom(); if (selPuzzle) selPuzzle.classList.add('sel'); }
+  }
+  closeDlg('#dlgThemes'); markDirty();
+  toast(`Saved ${list.length} theme${list.length === 1 ? '' : 's'}`);
+  if (themeEditorDone) themeEditorDone();
 }
 
 /* ---------- Import ---------- */
@@ -1267,6 +1413,9 @@ function wireImport() {
 
 /* ---------- Cover designer (Fabric.js) ---------- */
 let cv = null, cvZoom = 0.5, coverReady = null, lastGeom = null, showCvGuides = true;
+// Covers still loading into the canvas. Until they finish, the canvas holds the
+// old cover, so it must not be read back into S.cover (syncCoverToState).
+let cvLoading = 0;
 const THEMES = {
   navy: { name: 'Midnight', bg: '#1f3a5f', accent: '#f2c14e', text: '#ffffff', title: 'Bebas Neue', body: 'Nunito' },
   sunny: { name: 'Sunshine', bg: '#f6c945', accent: '#1d1d1d', text: '#1d1d1d', title: 'Fredoka', body: 'Nunito' },
@@ -1297,6 +1446,7 @@ function ensureCover() {
   return coverReady;
 }
 function loadCoverJSON(json, oldGeom) {
+  cvLoading++;
   return new Promise(res => {
     const fams = (json.objects || []).filter(o => o.fontFamily).map(o => o.fontFamily);
     ensureFonts(fams).then(() => cv.loadFromJSON(json, () => {
@@ -1304,7 +1454,7 @@ function loadCoverJSON(json, oldGeom) {
       if (oldGeom) relayoutCover(oldGeom, coverGeom());
       cv.requestRenderAll(); res();
     }));
-  });
+  }).finally(() => { cvLoading--; });
 }
 function sizeCoverCanvas() {
   if (!cv) return; const g = coverGeom();
@@ -1344,6 +1494,7 @@ function relayoutCover(o, n) {
   const sc = n.w / o.w;
   cv.getObjects().forEach(ob => {
     if (ob.role === 'bg') { ob.set({ left: 0, top: 0, width: N.W, height: N.H, scaleX: 1, scaleY: 1 }); ob.setCoords(); return; }
+    if (ob.role === 'gridcover') { ob.set({ left: 0, top: 0, originX: 'left', originY: 'top', scaleX: N.W / ob.width, scaleY: N.H / ob.height }); ob.setCoords(); return; }
     if (ob.role === 'bgimg') { const s = Math.max(N.W / ob.width, N.H / ob.height); ob.set({ scaleX: s, scaleY: s, left: N.W / 2, top: N.H / 2, originX: 'center', originY: 'center' }); ob.setCoords(); return; }
     const c = ob.getCenterPoint(); const r = regionOf(c.x, O); const [a0, a1] = regionSpan(r, O), [b0, b1] = regionSpan(r, N);
     const fx = (c.x - a0) / Math.max(a1 - a0, 1e-6), fy = c.y / O.H;
@@ -1407,7 +1558,7 @@ function cvSelChanged() {
 }
 function cvSet(props) { const o = cv?.getActiveObject(); if (!o) return; o.set(props); o.setCoords(); cv.requestRenderAll(); markDirty(); }
 
-function syncCoverToState() { if (!cv) return; S.cover = cv.toJSON(CV_PROPS); S.coverGeom = coverGeom(); }
+function syncCoverToState() { if (!cv || cvLoading) return; S.cover = cv.toJSON(CV_PROPS); S.coverGeom = coverGeom(); }
 
 function wireCover() {
   $('#cvTheme').innerHTML = Object.entries(THEMES).map(([k, t]) => `<option value="${k}">${t.name}</option>`).join('');
@@ -1449,7 +1600,10 @@ function wireCover() {
 function coverIssues() {
   const out = []; if (!cv) return out;
   const g = coverGeom(), P = PUBLISHERS[S.pub];
-  const objs = cv.getObjects().filter(o => o.role !== 'bg' && o.role !== 'bgimg');
+  // A Grid book's cover comes in as one finished picture of the whole wrap
+  // (role gridcover): it fills the front, and leaves its own barcode space.
+  const gridCover = cv.getObjects().some(o => o.role === 'gridcover');
+  const objs = cv.getObjects().filter(o => o.role !== 'bg' && o.role !== 'bgimg' && o.role !== 'gridcover');
   const spineTexts = objs.filter(o => o.role === 'spine');
   if (spineTexts.length && pageCount() < P.spineTextMinPages) out.push({ sev: 'error', id: 'spine-text', msg: `Spine text is not allowed under ${P.spineTextMinPages} pages`, sub: `${P.short} rejects spine text on a ${pageCount()}-page book because the spine is only ${fmtIn(g.sp)} wide.`, fix: () => { spineTexts.forEach(o => cv.remove(o)); cv.requestRenderAll(); markDirty(); } });
   if (!spineTexts.length && pageCount() >= P.spineTextMinPages && S.meta.title) out.push({ sev: 'info', id: 'spine-add', msg: 'No spine text yet', sub: 'Your page count allows a title on the spine.', fix: () => { addSpineText(); cv.requestRenderAll(); markDirty(); } });
@@ -1470,7 +1624,7 @@ function coverIssues() {
   cv.getObjects().filter(o => o.role === 'bgimg' && o._element).forEach(o => { const dpi = o._element.naturalWidth / (o.width * o.scaleX / IN); if (dpi < 290) out.push({ sev: 'warn', id: 'cv-bgdpi', msg: `Cover background prints at ${Math.round(dpi)} DPI`, sub: `A full-wrap background needs about ${Math.round(g.W * 300)} × ${Math.round(g.H * 300)} pixels.` }); });
   if (unsafe) out.push({ sev: 'warn', id: 'cv-safe', msg: `${unsafe} text item${unsafe > 1 ? 's' : ''} on the cover cross the safe zone`, sub: `Keep text ${P.coverSafe} in inside the trim and clear of the spine folds. Open the Cover tab and drag it inside the blue guides.` });
   if (overBarcode) out.push({ sev: 'warn', id: 'cv-barcode', msg: 'Something overlaps the barcode area', sub: 'Move text and images out of the white box on the back cover.' });
-  const front = objs.filter(o => o.getCenterPoint().x > g.frontX * IN); if (!front.length) out.push({ sev: 'error', id: 'cv-empty', msg: 'The front cover is empty', sub: 'Use Auto-design cover or add a title.', fix: () => autoDesignCover() });
+  const front = objs.filter(o => o.getCenterPoint().x > g.frontX * IN); if (!front.length && !gridCover) out.push({ sev: 'error', id: 'cv-empty', msg: 'The front cover is empty', sub: 'Use Auto-design cover or add a title.', fix: () => autoDesignCover() });
   return out;
 }
 
@@ -1842,11 +1996,12 @@ function fitGridBlocks(root) {
 // pages: [{ kind, head, body, front, fitAll }], css, coverSvg }.
 async function importGridBook(g) {
   const p = blankProject();
-  p.pub = S.pub || 'kdp';
+  p.pub = PUBLISHERS[g.pub] ? g.pub : S.pub || 'kdp';
   const trim = String(g.trim || '6x9');
   p.trim = TRIMS[trim] ? trim : (PUBLISHERS[p.pub].defaultTrim || '6x9');
   p.paper = g.paper === 'cream' ? 'cream' : 'white';
-  p.meta = { ...p.meta, title: String(g.title || '').slice(0, 200), subtitle: String(g.subtitle || '').slice(0, 200), author: String(g.author || '').slice(0, 120), copyright: String(g.author || '').slice(0, 120), isbn: String(g.isbn || '').slice(0, 20), pubDate: new Date().toISOString().slice(0, 10) };
+  p.meta = { ...p.meta, title: String(g.title || '').slice(0, 200), subtitle: String(g.subtitle || '').slice(0, 200), author: String(g.author || '').slice(0, 120), copyright: String(g.author || '').slice(0, 120), isbn: String(g.isbn || '').slice(0, 20), pubDate: new Date().toISOString().slice(0, 10),
+    ...(g.description ? { description: String(g.description).slice(0, 4000), blurb: String(g.description).slice(0, 4000) } : {}), ...(g.keywords ? { keywords: String(g.keywords).slice(0, 500) } : {}) };
   p.gridCss = cleanGridCss(g.css);
   p.gridBook = String(g.id || '');
   p.pages = (g.pages || []).map(pg => ({ id: uid(), html: gridPageHtml(pg), grid: pg.kind, noFolio: !!pg.front, ...(pg.kind === 'answers' ? { answers: true } : {}) }));
@@ -1867,9 +2022,29 @@ async function placeGridCover(svg) {
   const g = coverGeom();
   cv.clear(); cv.backgroundColor = '#ffffff';
   img.set({ left: 0, top: 0, scaleX: (g.W * IN) / img.width, scaleY: (g.H * IN) / img.height, selectable: false, evented: false });
-  img.role = 'bg';
+  img.role = 'gridcover';
   cv.add(img); cv.requestRenderAll(); syncCoverToState();
 }
+
+/* Make the whole book for me (Grid books, Make it from a topic): open the
+   book here, apply the publisher's specs, check every page and setting, and
+   make the submission packet. Anything only the person can fix (an ISBN the
+   publisher requires, say) stops it on the Publish tab with the list. */
+async function submitGridBook(g, pub) {
+  await importGridBook({ ...g, pub });
+  await applyPublisher();
+  const issues = await runChecks();
+  const errors = issues.filter(i => i.sev === 'error');
+  if (errors.length) {
+    showTab('publish');
+    toast(`Almost ready for ${PUBLISHERS[S.pub].short}: ${errors.length} thing${errors.length === 1 ? '' : 's'} to fix on the Publish tab, then Export the submission packet.`, 10000);
+    return { ready: false, errors: errors.map(e => e.msg) };
+  }
+  await exportPacket();
+  showTab('publish');
+  return { ready: true };
+}
+
 
 /* ---------- App shell ---------- */
 function fillPubSelects() {
@@ -1934,15 +2109,22 @@ function onSpecChange(fn) {
   return e => { applyLog = null; syncPagesFromDom(); fn(e); renderPages(); refreshUI(); onGeometryChanged(); markDirty(); lastIssues = []; updateStatus(); };
 }
 
+// Returns a promise that settles once the cover has finished loading too.
 function loadProject(data) {
   const base = blankProject();
   S = { ...base, ...data, meta: { ...base.meta, ...(data.meta || {}) }, margins: { ...base.margins, ...(data.margins || {}) }, body: { ...base.body, ...(data.body || {}) }, folio: { ...base.folio, ...(data.folio || {}) }, counters: { ...base.counters, ...(data.counters || {}) } };
   if (!TRIMS[S.trim]) S.trim = PUBLISHERS[S.pub]?.defaultTrim || '8.5x11';
   if (!PUBLISHERS[S.pub]) S.pub = 'kdp';
+  // A book keeps its own theme list only once it has one (edited here, or a new
+  // book started from one); older books use the default list unchanged.
+  if (Array.isArray(data.puzzleThemes)) S.puzzleThemes = cloneThemes(data.puzzleThemes); else delete S.puzzleThemes;
+  themeSeed = S.puzzleThemes || null;
   curPage = 0; undoStack = []; lastIssues = [];
   renderPages(); refreshUI(); fillMetaForm();
-  if (cv) { const json = S.cover; if (json) loadCoverJSON(json, S.coverGeom).then(() => { lastGeom = coverGeom(); }); else autoDesignCover(); }
+  let cover = Promise.resolve();
+  if (cv) { const json = S.cover; cover = json ? loadCoverJSON(json, S.coverGeom).then(() => { lastGeom = coverGeom(); }) : autoDesignCover(); }
   markDirty();
+  return cover;
 }
 
 /* Sample book: realistic example content, generated fresh */
@@ -2021,8 +2203,9 @@ async function init() {
    - a change is saved in this browser first (core.js markDirty), then sent to
      the account a few seconds later (syChanged → syPush);
    - each book has an id (S.syncId) and the account counts its saves (rev).
-     A save says which rev it started from, so if another device saved first
-     nothing is overwritten: this device's version becomes a copy;
+     A save says which rev it started from. If another device saved first,
+     the two sets of changes are merged into the same book (syMerge): every
+     app and device always works on one file, never a copy;
    - when Book Studio opens or comes back into view it asks for the list and
      opens a newer version from another device, unless this one has changes
      of its own still to send;
@@ -2084,11 +2267,12 @@ async function syPush() {
   try {
     const r = await adminApi(`studio/books/${id}`, { method: 'POST', body: { project: JSON.parse(snap), baseRev: syRev(id), device: syDevice() } });
     syWrite(SY_REVS, id, r.book.rev); syWrite(SY_SIGS, id, sig);
+    await sySetBase(id, snap);
     syOffline = false; syStopped = '';
     syRemember(r.book);
     syShowSynced();
   } catch (e) {
-    if (e.code === 'changed') { syBusy = false; await syKeepAsCopy(); return; }
+    if (e.code === 'changed') { syBusy = false; await syMergeTheirs(); return; }
     if (syNetDown(e)) { syOffline = true; syShow('Offline: saved here, syncs when you are back online', 'off'); }
     else if (e.status === 413) { syStopped = sig; syShow(e.message, 'bad'); toast(e.message, 8000); }
     else if (e.status === 403) { syShow('Not synced: this account has no publishing access.', 'bad'); gaShowGate('denied', e.message); }
@@ -2098,16 +2282,93 @@ async function syPush() {
   if (syAgain) { syAgain = false; syPush(); }
 }
 
-// Another device saved this book first: keep both. This device's version
-// becomes its own book, named so the two are easy to tell apart.
-async function syKeepAsCopy() {
-  const was = S.meta.title || 'Untitled';
-  S.syncId = syNewId();
-  S.meta.title = `${was} (${syDevice()} copy)`.slice(0, 200);
-  fillMetaForm();
-  toast(`"${was}" was also changed on another device. Your changes here are kept as a separate book, "${S.meta.title}". Both are under Project.`, 10000);
-  markDirty();
-  await syPush();
+// The book as it was last synced on this device: the common starting point
+// for merging when another device saved first.
+const sySetBase = (id, snap) => idbPut('sync-base:' + id, JSON.parse(snap));
+const syGetBase = (id) => idbGet('sync-base:' + id);
+const syEq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+
+/* Three-way merge of whole books. A setting or page changed only on this
+   device keeps this device's version; one changed only on the other device
+   keeps theirs; one changed on both keeps this device's (the newest edit).
+   Pages are matched by id: added pages are kept where they were added,
+   deleted pages stay deleted unless the other device changed them. */
+function syMerge(base, mine, theirs) {
+  base = base || {};
+  const out = {};
+  const keys = new Set([...Object.keys(theirs), ...Object.keys(mine)]);
+  for (const k of keys) {
+    if (k === 'pages') continue;
+    const b = base[k], m = mine[k], t = theirs[k];
+    const objects = [b, m, t].every((v) => v == null || (typeof v === 'object' && !Array.isArray(v)));
+    if (objects && (m || t) && k !== 'cover' && k !== 'coverGeom') {
+      const o = {};
+      for (const kk of new Set([...Object.keys(t || {}), ...Object.keys(m || {})])) {
+        const bv = (b || {})[kk], mv = (m || {})[kk], tv = (t || {})[kk];
+        const v = syEq(mv, bv) ? tv : mv;
+        if (v !== undefined) o[kk] = v;
+      }
+      out[k] = o;
+    } else {
+      const v = syEq(m, b) ? t : m;
+      if (v !== undefined) out[k] = v;
+    }
+  }
+  const bp = new Map((base.pages || []).map((p) => [p.id, p]));
+  const mp = new Map((mine.pages || []).map((p) => [p.id, p]));
+  const tp = new Map((theirs.pages || []).map((p) => [p.id, p]));
+  const pages = [];
+  for (const t of theirs.pages || []) {
+    const m = mp.get(t.id), b = bp.get(t.id);
+    if (m) pages.push(syEq(m, b) ? t : m);
+    else if (!b || !syEq(t, b)) pages.push(t); // new there, or changed there after this device deleted it
+  }
+  // Pages only on this device: new here, or deleted there but changed here.
+  (mine.pages || []).forEach((m, i) => {
+    if (tp.has(m.id)) return;
+    const b = bp.get(m.id);
+    if (b && syEq(m, b)) return; // deleted there, untouched here
+    const prev = (mine.pages || []).slice(0, i).reverse().find((p) => pages.some((q) => q.id === p.id));
+    const at = prev ? pages.findIndex((q) => q.id === prev.id) + 1 : 0;
+    pages.splice(at, 0, m);
+  });
+  out.pages = pages.length ? pages : (mine.pages || theirs.pages || []);
+  out.syncId = mine.syncId || theirs.syncId;
+  return out;
+}
+
+// Another device saved this book first: fetch theirs, merge both sets of
+// changes into the same book, and save that as the next version.
+let syMerges = 0;
+async function syMergeTheirs() {
+  const id = S.syncId;
+  if (++syMerges > 3) { syMerges = 0; syShow('Not synced yet. Trying again soon.', 'bad'); syTimer = setTimeout(syPush, 30_000); return; }
+  try {
+    const r = await adminApi(`studio/books/${id}`);
+    const mine = JSON.parse(syCurrent());
+    const merged = syMerge(await syGetBase(id), mine, { ...r.project, syncId: id });
+    syWrite(SY_REVS, id, r.book.rev);
+    await sySetBase(id, JSON.stringify({ ...r.project, syncId: id }));
+    if (syEq(merged, { ...r.project, syncId: id })) {
+      // Nothing of this device's is missing there: just take their version.
+      loadProject(merged); syWrite(SY_SIGS, id, sySign(syCurrent())); syRemember(r.book); syShowSynced(); syMerges = 0; return;
+    }
+    if (!syEq(merged, mine)) {
+      const at = curPage;
+      loadProject(merged);
+      if (at > 0 && at < S.pages.length) setActivePage(at);
+      toast(`"${S.meta.title || 'This book'}" was also changed on ${r.book.device || 'another device'}. Both sets of changes are now in this book.`, 8000);
+    }
+    markDirty();
+    await syPush();
+  } catch (e) {
+    syMerges = 0;
+    if (syNetDown(e)) { syOffline = true; syShow('Offline: saved here, syncs when you are back online', 'off'); }
+    else syShow('Not synced yet. Trying again soon.', 'bad');
+    syTimer = setTimeout(syPush, 30_000);
+    return;
+  }
+  syMerges = 0;
 }
 
 function syShowSynced() { syShow(`Synced ${new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`, 'ok'); }
@@ -2150,8 +2411,12 @@ async function syOpen(id, { why } = {}) {
     const r = await adminApi(`studio/books/${id}`);
     const project = { ...r.project, syncId: id };
     syWrite(SY_REVS, id, r.book.rev);
-    loadProject(project);
+    // Wait for the cover to load before taking the fingerprint: read too early,
+    // the canvas still holds the old cover, so the book looks changed and is
+    // sent straight back, and the other device's next save becomes a copy.
+    await loadProject(project);
     syWrite(SY_SIGS, id, sySign(syCurrent()));
+    await sySetBase(id, syCurrent());
     syRemember(r.book);
     syShowSynced();
     toast(why || `Opened "${r.book.title}"`, 5000);
@@ -2465,6 +2730,9 @@ async function gaGridBooks() {
       toast: (m) => toast(m, 5000),
       when: (t) => new Date(t).toLocaleString(),
       openInStudio: (book) => importGridBook(book),
+      // Make it from a topic: the publishers to choose from, and the whole path to a submission file.
+      publishers: Object.entries(PUBLISHERS).map(([id, p]) => ({ id, name: p.name })),
+      makeSubmission: (book, pub) => submitGridBook(book, pub),
     });
   } catch (e) {
     $('#books-body').textContent = e.message || 'Grid books did not load. Check your connection and try again.';

@@ -46,6 +46,8 @@ export function initCompete(hooks) {
   $('[data-cmd=board]').hidden = false;
   $('#help-compete').hidden = false;
   name = compete.cachedName();
+  // A name saved elsewhere (the Create an account form) shows straight away.
+  compete.onName((n) => { if (account.current() && n !== name) { name = n; renderCard(); } });
   wireName();
   wireRace();
   wireBoard();
@@ -107,7 +109,16 @@ function requireName(then) {
   if (d.open) return;
   // Let the player see the account window first, then ask once it closes.
   const acct = $('#dlg-account');
-  if (acct && acct.open) { acct.addEventListener('close', () => { if (account.current() && !name) requireName(then); }, { once: true }); return; }
+  // The name may have been chosen in the Create an account form meanwhile, so
+  // check with the server again first.
+  if (acct && acct.open) {
+    acct.addEventListener('close', async () => {
+      if (!account.current()) return;
+      try { name = await compete.loadName(); renderCard(); } catch (e) { /* offline: go by what we know */ }
+      if (account.current() && !name) requireName(then);
+    }, { once: true });
+    return;
+  }
   afterName = then;
   required = true;
   openName();
@@ -230,9 +241,10 @@ export function onHome() {
 function openName() {
   const d = $('#dlg-name');
   const form = $('#name-form');
-  $('#name-input').value = name || '';
+  // A player without a name gets a made-up one filled in: keep it or type another.
+  $('#name-input').value = name || (required ? compete.suggestName() : '');
   $('#name-input').removeAttribute('aria-invalid');
-  $('#name-suggested').textContent = '';
+  $('#name-suggested').textContent = !name && required ? `Suggested name: ${$('#name-input').value}. Press Save name to use it, or edit it.` : '';
   $('#name-post').checked = ui.getSetting('postScores') !== false;
   $('#name-invites').checked = compete.acceptsInvites();
   $('#name-approval').hidden = !feature('nameApproval');

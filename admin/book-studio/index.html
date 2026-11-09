@@ -170,6 +170,13 @@
             <label class="lab">Size (inches) <input type="range" id="pzSize" min="2" max="8" step="0.1"></label>
             <div class="row2"><button class="btn" id="pzRegen">New puzzle</button><button class="btn danger" id="pzDel">Delete</button></div>
           </div>
+          <div class="insp-sec" id="pzThemeTools" hidden>
+            <h3>Puzzle theme</h3>
+            <label class="lab">Theme <select id="pzTheme"></select></label>
+            <label class="lab">Subcategory <select id="pzSub"></select></label>
+            <div class="row2"><button class="btn" id="pzThemePage" title="Give every puzzle on this page the same theme">Use on whole page</button><button class="btn" id="pzThemeEdit">Edit themes</button></div>
+            <p class="hint">Themes help you sort and plan puzzles. They are not printed.</p>
+          </div>
           <div class="insp-sec">
             <h3>Current page</h3>
             <div class="row2">
@@ -406,10 +413,26 @@
       <label class="lab">Size <select id="mzSize"><option value="12">12 × 12</option><option value="18" selected>18 × 18</option><option value="25">25 × 25</option><option value="35">35 × 35</option></select></label>
       <label class="lab">Shape <select id="mzShape"><option value="square">Square</option><option value="circle">Round</option></select></label>
     </div>
+    <div class="row2">
+      <label class="lab">Theme <select id="pzGenTheme"></select></label>
+      <label class="lab">Subcategory <select id="pzGenSub"></select></label>
+    </div>
+    <p class="hint"><button class="linkbtn" type="button" id="pzGenThemeEdit">Edit the theme list</button></p>
     <label class="check"><input type="checkbox" id="pzAnswers" checked> Add solutions to the answer key at the back</label>
     <label class="check"><input type="checkbox" id="pzNewPages" checked> Put puzzles on new pages after the current page</label>
   </div>
   <footer><button class="btn" data-close>Cancel</button><button class="btn primary" id="pzGo">Generate</button></footer>
+</div></dialog>
+
+<!-- Puzzle themes dialog -->
+<dialog id="dlgThemes"><div class="dlg">
+  <header><h3>Puzzle themes</h3><button class="btn ghost" data-close>Close</button></header>
+  <div class="body">
+    <p class="hint">Each theme has its own subcategories, separated by commas. The list is saved with this book and syncs to your other devices. New books start with this list.</p>
+    <div id="thList" class="th-list"></div>
+    <div class="row2"><button class="btn" id="thAdd" type="button">Add a theme</button><button class="btn" id="thReset" type="button">Use the default list</button></div>
+  </div>
+  <footer><button class="btn" data-close>Cancel</button><button class="btn primary" id="thSave">Save themes</button></footer>
 </div></dialog>
 
 <!-- Import dialog -->
