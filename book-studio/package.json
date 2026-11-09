@@ -10,7 +10,7 @@
     "html2canvas": "1.4.1",
     "jspdf": "4.2.1",
     "jszip": "3.10.1",
-    "mammoth": "1.6.0",
+    "mammoth": "1.11.0",
     "marked": "9.1.6",
     "pako": "2.1.0",
     "pdfjs-dist": "3.11.174",
