@@ -50,7 +50,10 @@ jobs:
           sparse-checkout: vox-engine
       - if: steps.ready.outputs.go == 'true'
         name: Kaggle's command line
-        run: python3 -m pip install --user --quiet --break-system-packages "kaggle>=1.8" || python3 -m pip install --user --quiet "kaggle>=1.8"
+        # six: kaggle 1.8's upload code imports it without listing it as a dependency
+        run: |
+          python3 -m pip install --user --quiet --break-system-packages "kaggle>=1.8" six || python3 -m pip install --user --quiet "kaggle>=1.8" six
+          python3 -m kaggle --version
       - if: steps.ready.outputs.go == 'true'
         name: Take the next step
         id: step
