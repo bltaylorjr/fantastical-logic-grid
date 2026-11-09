@@ -836,5 +836,17 @@ dialog::backdrop { background: rgba(10,14,20,.45); }
 .grid-books .st-offlist > summary h2 { margin: 0; }
 .grid-books .st-foot { font-size: .9rem; }
 .grid-books .st-changed p { margin: 4px 0; }
+.grid-books .kdp-in { display: flex; gap: 8px; align-items: flex-start; }
+.grid-books .kdp-in > input, .grid-books .kdp-in > textarea { flex: 1; min-width: 0; }
+.grid-books .kdp-body { padding: 4px 14px 14px; }
+.grid-books .kdp-money { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
+.grid-books .kdp-money > div { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; }
+.grid-books .kdp-money b { font-size: 1.3rem; }
+.grid-books #kdp-editor .note.ok { background: var(--ok-bg); border-left-color: var(--ok); }
+.grid-books #kdp-editor .note ul { margin: 6px 0 0; padding-left: 1.2em; }
+.grid-books .ok-text { color: var(--ok); }
+.grid-books .warn-text { color: var(--warn); }
+.grid-books .bad-text { color: var(--bad); }
+.grid-books #kdp-rows tr[aria-current] { background: var(--panel); outline: 2px solid var(--accent); outline-offset: -2px; }
 .grid-books { padding: 16px max(16px, env(safe-area-inset-left, 0px)) 24px; min-height: 100%; }
 .grid-books h1 { margin-bottom: 4px; }
