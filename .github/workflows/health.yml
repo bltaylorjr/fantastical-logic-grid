@@ -21,7 +21,7 @@ concurrency:
   group: health
 jobs:
   check:
-    runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork && '"ubuntu-latest"') || vars.FLG_RUNNER || '"ubuntu-latest"') }}
+    runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork && '"ubuntu-latest"') || '"ubuntu-latest"') }}
     timeout-minutes: 10
     env:
       SITE: https://thelogicgrid.com
@@ -94,7 +94,7 @@ jobs:
 
   errors:
     if: github.event.schedule == '41 6 * * *' || github.event_name == 'workflow_dispatch'
-    runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork && '"ubuntu-latest"') || vars.FLG_RUNNER || '"ubuntu-latest"') }}
+    runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork && '"ubuntu-latest"') || '"ubuntu-latest"') }}
     timeout-minutes: 5
     env:
       API: ${{ vars.FLG_CLOUD_URL || 'https://flg-api.btay74.workers.dev' }}
@@ -128,7 +128,7 @@ jobs:
             }
 
   limits:
-    runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork && '"ubuntu-latest"') || vars.FLG_RUNNER || '"ubuntu-latest"') }}
+    runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork && '"ubuntu-latest"') || '"ubuntu-latest"') }}
     timeout-minutes: 5
     env:
       API: ${{ vars.FLG_CLOUD_URL || 'https://flg-api.btay74.workers.dev' }}

@@ -17,7 +17,7 @@ concurrency:
   group: feedback-replies
 jobs:
   send:
-    runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork && '"ubuntu-latest"') || vars.FLG_RUNNER || '"ubuntu-latest"') }}
+    runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork && '"ubuntu-latest"') || '"ubuntu-latest"') }}
     # Most runs take seconds; an approved storyline's PDF installs the printer first.
     timeout-minutes: 20
     steps:

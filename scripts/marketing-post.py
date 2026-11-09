@@ -327,6 +327,18 @@ def wait_ready(url, token, field='status_code'):
     raise Failed('the site took more than 10 minutes to process the file')
 
 
+def publish_instagram(ig, creation_id, token):
+    """media_publish, retried while Instagram says the media is not ready yet
+    (error 9007 / 2207027 can come back even after the status says FINISHED)."""
+    for attempt in range(6):
+        try:
+            return meta(f'{GRAPH}/{ig}/media_publish', 'POST', {'creation_id': creation_id}, token)
+        except Failed as e:
+            if attempt == 5 or not ('2207027' in str(e) or 'not ready' in str(e).lower() or 'Media ID is not available' in str(e)):
+                raise
+            time.sleep(15)
+
+
 def instagram_id():
     """The Instagram business account linked to the Facebook Page. INSTAGRAM_ACCOUNT_ID is used
     when it is an id of its own; when it is empty or holds the Page id (an easy mix-up), the
@@ -353,7 +365,7 @@ def post_instagram(ad):
         raise Failed('Instagram needs a picture or a video')
     c = meta(f'{GRAPH}/{ig}/media', 'POST', form, token)
     wait_ready(f"{GRAPH}/{c['id']}", token)
-    r = meta(f'{GRAPH}/{ig}/media_publish', 'POST', {'creation_id': c['id']}, token)
+    r = publish_instagram(ig, c['id'], token)
     return meta(f"{GRAPH}/{r['id']}?fields=permalink", token=token).get('permalink') or 'https://www.instagram.com/'
 
 
@@ -578,6 +590,58 @@ def check_instagram():
         raise Failed('Meta shows no username for the Instagram account: make the key again with instagram_basic, '
                      'ticking the Instagram account in the pop-up.')
     return r['username']
+
+
+def mastodon_base():
+    u = env('MASTODON_URL').rstrip('/')
+    return u if u.startswith('https://') else 'https://' + u
+
+
+# Each connected account's public profile, for the website footer's social
+# links. LinkedIn is left out: its key posts as Bobby's own profile, not a page.
+PROFILES = {
+    'bluesky': lambda: f"https://bsky.app/profile/{bluesky_session()[2]}",
+    'mastodon': lambda: request(f'{mastodon_base()}/api/v1/accounts/verify_credentials',
+                                headers={'Authorization': f"Bearer {env('MASTODON_TOKEN')}"})['url'],
+    'x': lambda: 'https://x.com/' + request('https://api.x.com/2/users/me', headers={'Authorization': oauth1('GET', 'https://api.x.com/2/users/me')})['data']['username'],
+    'facebook': lambda: meta(f"{GRAPH}/{env('META_PAGE_ID')}?fields=link", token=env('META_PAGE_TOKEN'))['link'],
+    'instagram': lambda: f'https://www.instagram.com/{check_instagram()}/',
+    'threads': lambda: 'https://www.threads.net/@' + meta(f'{THREADS}/me?fields=username', token=env('THREADS_TOKEN'))['username'],
+    'pinterest': lambda: 'https://www.pinterest.com/' + request('https://api.pinterest.com/v5/user_account', headers={'Authorization': f'Bearer {pinterest_token()}'})['username'] + '/',
+    'youtube': lambda: 'https://www.youtube.com/channel/' + request('https://www.googleapis.com/youtube/v3/channels?part=id&mine=true', headers={'Authorization': f'Bearer {youtube_token()}'})['items'][0]['id'],
+    'tiktok': lambda: 'https://www.tiktok.com/@' + tiktok('post/publish/creator_info/query/', tiktok_token())['creator_username'],
+    'reddit': lambda: 'https://www.reddit.com/user/' + request('https://oauth.reddit.com/api/v1/me', headers={'Authorization': f'Bearer {reddit_token()}', 'User-Agent': REDDIT_UA})['name'] + '/',
+}
+
+
+def add_profiles():
+    """Adds a footer link for every connected account the footer does not show yet.
+
+    The worker says which networks have never had a footer link set (one the
+    owner changed or cleared is never touched), so only those are looked up.
+    A new account appears on the website once its keys are saved and the
+    poster has run (every morning, or a key check by hand)."""
+    if not (API and TOKEN) or MODE == 'dry-run':
+        return
+    try:
+        missing = [n for n in worker('marketing/profiles').get('missing', []) if n in PROFILES and has_keys(n)]
+    except Exception as e:  # noqa: BLE001 - the footer must never stop the posting
+        print(f'::warning::Could not check the footer links: {scrub(e)}')
+        return
+    links = {}
+    for n in missing:
+        try:
+            links[n] = PROFILES[n]()
+        except Exception as e:  # noqa: BLE001
+            print(f'::warning::Could not find the {NAMES[n]} profile for the footer: {scrub(e)}')
+    if not links:
+        return
+    try:
+        added = worker('marketing/profiles', {'links': links}).get('added', [])
+        for a in added:
+            print(f"::notice::Added {NAMES[a['id']]} to the website footer: {a['url']}")
+    except Exception as e:  # noqa: BLE001
+        print(f'::warning::Could not save the footer links: {scrub(e)}')
 
 
 def check_keys():
@@ -863,6 +927,8 @@ def daily_puzzle(game=''):
     if not r.get('ok'):
         for m in r.get('problems', []):
             print(f'::error::Not posted: {m}')
+        if os.environ.get('MORE_TRIES'):  # emailed after the workflow's last try
+            return 1
         email(f'Daily puzzle not posted ({label}), {when}', [f'<p>Today\'s daily {html.escape(label)} puzzle was <b>not</b> posted anywhere, because a check before posting found a problem:</p>',
               '<ul>' + ''.join(f'<li>{html.escape(m)}</li>' for m in r.get('problems', [])) + '</ul>', tail])
         return 1
@@ -938,7 +1004,7 @@ def daily_puzzle(game=''):
                         kids.append(k['id'])
                     c = meta(f'{GRAPH}/{ig_id}/media', 'POST', {'media_type': 'CAROUSEL', 'children': ','.join(kids), 'caption': text}, token)
                 wait_ready(f"{GRAPH}/{c['id']}", token)
-                pub = meta(f'{GRAPH}/{ig_id}/media_publish', 'POST', {'creation_id': c['id']}, token)
+                pub = publish_instagram(ig_id, c['id'], token)
                 link = meta(f"{GRAPH}/{pub['id']}?fields=permalink", token=token).get('permalink') or 'https://www.instagram.com/'
                 posted.append(('Instagram', link))
                 print(f'::notice::Posted to Instagram: {link}')
@@ -1030,6 +1096,9 @@ def daily_puzzle(game=''):
             print(f'::warning::Mastodon: {scrub(e)}')
     daily_more_sites(r, day, paths, [u for _, u in photos if u], posted, failed, key)
     if failed:
+        if os.environ.get('MORE_TRIES'):  # the workflow tries again in a few minutes: email only after the last try
+            print(f'::notice::{label}: {", ".join(n for n, _ in failed)} will be tried again.')
+            return 1
         email(f'Daily puzzle ({label}): {" and ".join(n for n, _ in failed)} did not post, {when}', [
             f'<p>Today\'s {html.escape(label)} puzzle, <b>{html.escape(r.get("title", ""))}</b>, passed every check, but posting hit a problem.</p>',
             '<ul>' + ''.join(f'<li><b>{html.escape(n)}:</b> {html.escape(why)}</li>' for n, why in failed) + '</ul>',
@@ -1055,12 +1124,15 @@ def main():
     if MODE == 'delete':
         sys.exit(delete_posts())
     if MODE == 'check':
-        sys.exit(1 if check_keys() else 0)
+        bad = check_keys()
+        add_profiles()
+        sys.exit(1 if bad else 0)
     if MODE == 'message':
         sys.exit(post_message())
     if not (API and TOKEN):
         print('Not set up: FLG_CLOUD_URL and FLG_ADMIN_TOKEN are needed. Nothing to do.')
         return
+    add_profiles()
     due = worker(f'marketing/due?day={urllib.parse.quote(DAY)}')
     ads = due.get('ads', [])
     if ONLY:
@@ -1075,7 +1147,8 @@ def main():
         auto = due.get('autopost') and is_auto(ad) and has_keys(ad['channel'])
         if not auto:
             if ad['postOn'] == DAY:
-                why = '' if not is_auto(ad) else (f'{NAMES[ad["channel"]]} can be posted automatically once its key is saved (admin > Connections and setup).'
+                why = '' if not is_auto(ad) else ('Reddit stopped giving new apps API access on 31 October 2026, so Reddit posts are by hand.' if ad['channel'] == 'reddit' and not has_keys('reddit') else
+                                                  f'{NAMES[ad["channel"]]} can be posted automatically once its key is saved (admin > Connections and setup).'
                                                     if due.get('autopost') else 'Automatic posting is switched off in admin Settings.')
                 by_hand.append((ad, why))
             continue

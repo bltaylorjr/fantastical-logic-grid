@@ -767,9 +767,9 @@ export const CONNECTIONS = [
     id: 'reddit',
     group: 'marketing',
     oauth: 'reddit',
-    title: 'Reddit (automatic posts)',
-    why: 'Lets the marketing autopilot post approved Reddit ads in the subreddit named in the ad on their day. Ads that point at a weekly thread or need a judgement call stay by hand. Replying to comments is always yours.',
-    cost: 'Free. Reddit may ask you to fill in a short form for API access first.',
+    title: 'Reddit (automatic posts, closed to new apps)',
+    why: 'Reddit stopped accepting new requests for API access on 31 October 2026 and closes the rest in March 2027, so a new account cannot get these keys. Reddit ads come to you in the morning email to post by hand, and the footer links to the account once its link is set in Settings and switches > Social links. These steps only apply if you already had an approved Reddit app.',
+    cost: 'Free, but closed to new apps since 31 October 2026.',
     docs: 'scripts/marketing-post.py',
     names: [
       { name: 'REDDIT_CLIENT_ID', where: 'github-secret', note: 'The id shown under the app name.' },

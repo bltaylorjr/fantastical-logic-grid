@@ -214,6 +214,30 @@
     (outside && play ? play : tour).focus();
   }
 
+  // The Follow row is built into the page, but the pages are only rebuilt
+  // nightly: swap in the live list so a page added or changed in admin
+  // (or by the marketing autopilot) shows straight away. The links are
+  // checked again by social.js, so only the known networks' https pages appear.
+  function showSocial(list) {
+    var src = me && me.src;
+    if (!src) return;
+    import(new URL('social.js', src).href).then(function (m) {
+      var links = m.socialLinks(Object.fromEntries(list.map(function (x) { return [x && x.id, x && x.url]; })));
+      var follow = document.querySelector('.follow');
+      var shown = follow ? [].map.call(follow.querySelectorAll('a.social-link'), function (a) { return a.href; }).join(' ') : '';
+      if (links.map(function (l) { return l.url; }).join(' ') === shown) return;
+      if (!links.length) { if (follow) follow.remove(); return; }
+      if (!follow) {
+        var news = document.getElementById('hub-news');
+        if (!news) return;
+        follow = document.createElement('div');
+        follow.className = 'follow';
+        news.insertAdjacentElement('afterend', follow);
+      }
+      follow.innerHTML = '<h3>Follow The Logic Grid</h3>' + m.socialHtml(links);
+    }).catch(function () { /* keep the built-in row */ });
+  }
+
   // The Support link and the latest news, as the games show them. Quietly
   // skipped when the Worker cannot be reached (offline, or not set up).
   function loadShared() {
@@ -225,6 +249,7 @@
       var url = window.FLGNative && window.FLGNative.platform === 'ios' ? '' : c.game && c.game.supportUrl;
       var support = document.getElementById('support-app');
       if (support && typeof url === 'string' && url.indexOf('https://') === 0) { support.href = url; support.hidden = false; }
+      if (Array.isArray(c.social)) showSocial(c.social);
       var items = Array.isArray(c.news) ? c.news.slice(0, 3) : [];
       var box = document.getElementById('hub-news');
       var list = document.getElementById('hub-news-list');
