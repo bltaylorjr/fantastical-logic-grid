@@ -30,7 +30,6 @@ export const DEFAULT_LINKS = {
   facebook: 'https://www.facebook.com/share/19pDDj5Ppf/',
   instagram: 'https://www.instagram.com/fantastical_logic/',
   mastodon: 'https://mastodon.social/@thelogicgrid',
-  x: 'https://x.com/the_logic_grid',
   bluesky: 'https://bsky.app/profile/thelogicgrid.bsky.social',
 };
 
