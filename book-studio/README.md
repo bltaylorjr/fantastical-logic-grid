@@ -88,6 +88,37 @@ a new book starts with the list of the book that was open. A puzzle keeps its th
 **Project > Save project file** still keeps a copy on disk. Opening a project file makes it a
 new book on the account, so it never replaces a synced one.
 
+## Player puzzles
+
+**Player puzzles** (Grid Admin only, `src/playerpuzzles.js`) lists every puzzle players sent in
+that the team approved: Puzzle Wizard puzzles and storylines in the Approved or Published
+section of Grid Admin's **Puzzle submissions** page (`GET /admin/v1/studio/player-puzzles`,
+`server/src/studio-player-puzzles.js`). For each one:
+
+- **Add to book** puts its puzzle page after the current page and its answer key at the back
+  of the book (or right after the puzzle, or not at all). Tick several and press **Add ticked
+  to the book** to add them together.
+- **Download** saves the puzzle and its answer key as a PDF; **Print** opens the same PDF in
+  the browser's print window.
+
+The website's Book maker (`web/js/book-maker.js`, message `flg-book-player`) builds and draws
+each puzzle with the game's own engine and print layout. A wizard puzzle is built again from
+the author's entry and seed, so it is the puzzle they made, and the one built is kept with the
+entry so every book prints the same puzzle. A storyline whose puzzle is not built yet is listed
+but cannot be added until it is built under Storyline submissions.
+
+**Author credit:** a player puzzle's page shows "Puzzle by" and the player's screen name at the
+foot of the page (opposite the page number). Switch it off for one puzzle under Current page on
+the right, or for every player puzzle in the book there or on the Player puzzles tab
+(`playerCredits`). A player who chose to stay anonymous is never credited.
+
+**Publication count:** when the submission packet or the interior PDF of a book is saved, Book
+Studio sends the player puzzles in it (`POST /admin/v1/studio/player-puzzles/published`) and the
+server counts each puzzle once per book (table `submission_publications`). Exporting the same
+book again does not count again; a cover or metadata export never counts. The count shows on
+each puzzle here ("In 2 books") and on Grid Admin's Puzzle submissions page, which also lists
+the books.
+
 ## Changing it
 
 The code is in `book-studio/src/` (one page: `shell.html`, then `specs.js`, `core.js`,

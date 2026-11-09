@@ -81,7 +81,22 @@ function buildPageNode(i, forExport) {
     else if (g.recto) { f.style.right = g.right + 'px'; } else { f.style.left = g.left + 'px'; }
     el.appendChild(f);
   }
+  // A player's puzzle (playerpuzzles.js): "Puzzle by <screen name>" at the foot
+  // of the page, when it is on for this puzzle and for the book.
+  const credit = pageCredit(p);
+  if (credit) {
+    const c = document.createElement('div'); c.className = 'page-credit'; c.textContent = credit;
+    c.style.bottom = Math.max(g.bottom / 2 - 8, 8) + 'px';
+    // Opposite the page number: centered, or on the outside edge when the number is centered.
+    if (S.folio.on && S.folio.pos === 'center') { if (g.recto) c.style.right = g.right + 'px'; else c.style.left = g.left + 'px'; }
+    else { c.style.left = g.left + 'px'; c.style.right = g.right + 'px'; c.style.textAlign = 'center'; }
+    el.appendChild(c);
+  }
   return el;
+}
+function pageCredit(p) {
+  if (!p || !p.player || !p.player.credit || p.player.show === false || S.playerCredits === false) return '';
+  return 'Puzzle by ' + String(p.player.credit).slice(0, 60);
 }
 
 function applyBookVars(root) {
@@ -132,11 +147,22 @@ function renderPageList() {
   $('#plAdd').onclick = () => addPageAfter(curPage);
 }
 
+// The author credit switches show only on a player's puzzle page.
+function refreshCreditTools() {
+  const box = $('#pgCreditBox'); if (!box) return;
+  const p = S.pages[curPage]; const pl = p && p.player;
+  box.hidden = !pl;
+  if (!pl) return;
+  $('#pgCredit').checked = !!pl.credit && pl.show !== false; $('#pgCredit').disabled = !pl.credit;
+  $('#pgCreditBook').checked = S.playerCredits !== false;
+  $('#pgCreditName').textContent = pl.credit ? `“Puzzle by ${pl.credit}” at the foot of the page.` : 'The author chose to stay anonymous, so this puzzle has no credit.';
+}
 function setActivePage(i, scroll) {
   curPage = clamp(i, 0, S.pages.length - 1);
   $$('#pages .page').forEach((p, k) => p.classList.toggle('active', k === curPage));
   $$('#pagelist .pl-item').forEach((p, k) => p.classList.toggle('active', k === curPage));
   const p = S.pages[curPage]; if (p) $('#pgNoFolio').checked = !!p.noFolio;
+  refreshCreditTools();
   if (scroll) { const el = pageEl(curPage); if (el) el.scrollIntoView({ block: 'start', behavior: 'smooth' }); }
 }
 
@@ -346,6 +372,14 @@ function wireEditor() {
   $('#bodyFont').onchange = e => { S.body.font = e.target.value; applyBookVars($('#pages')); requestAnimationFrame(checkAllOverflow); markDirty(); };
   $('#bodySize').onchange = e => { S.body.size = clamp(+e.target.value || 12, 6, 36); applyBookVars($('#pages')); requestAnimationFrame(checkAllOverflow); markDirty(); };
   $('#bodyLh').onchange = e => { S.body.lh = clamp(+e.target.value || 1.3, 1, 3); applyBookVars($('#pages')); requestAnimationFrame(checkAllOverflow); markDirty(); };
+  // Author credit on a player's puzzle page (playerpuzzles.js).
+  $('#pgCredit').onchange = e => {
+    syncPagesFromDom(); const p = S.pages[curPage]; if (!p || !p.player) return;
+    // Every page of the same puzzle follows (a puzzle can take two pages).
+    S.pages.forEach(q => { if (q.player && q.player.id === p.player.id) q.player.show = e.target.checked; });
+    renderPages(); markDirty();
+  };
+  $('#pgCreditBook').onchange = e => { syncPagesFromDom(); S.playerCredits = e.target.checked; renderPages(); markDirty(); };
   $('#folioOn').onchange = e => { syncPagesFromDom(); S.folio.on = e.target.checked; renderPages(); markDirty(); };
   $('#folioPos').onchange = e => { syncPagesFromDom(); S.folio.pos = e.target.value; renderPages(); markDirty(); };
   $('#folioStart').onchange = e => { syncPagesFromDom(); S.folio.start = Math.max(1, +e.target.value || 1); renderPages(); markDirty(); };

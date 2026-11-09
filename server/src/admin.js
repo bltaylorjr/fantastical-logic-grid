@@ -7,6 +7,7 @@
 //   GET  /admin/v1/client-config       the Firebase web key the sign-in form needs
 //   GET  /admin/v1/me                  who is signed in, their role and whether they may publish books
 //   POST /admin/v1/publishing/export   Book Studio (admin/book-studio/) asks before every export; logged (publishers)
+//   GET  /admin/v1/studio/player-puzzles  approved player puzzles for Book Studio; POST .../:id/puzzle, .../published (studio-player-puzzles.js)
 //   GET  /admin/v1/studio/books[/:id]  Book Studio's synced books (this account's own); POST .../:id, .../:id/delete (studio-sync.js)
 //   POST /admin/v1/admins/publishing   { email, on } let one admin use Book Studio (owner)
 //   GET  /admin/v1/analytics?days=     players, games, scores, races, voices, errors
@@ -125,6 +126,7 @@ import { puzzleMailRoutes } from './puzzle-mail.js';
 import { editionRoutes } from './editions.js';
 import { bookRoutes } from './books.js';
 import { studioRoutes } from './studio-sync.js';
+import { playerPuzzleRoutes } from './studio-player-puzzles.js';
 import { educatorRoutes } from './educators.js';
 import { puzzleReportRoutes } from './puzzle-reports.js';
 import { visitorRoutes } from './visits.js';
@@ -136,6 +138,7 @@ import { siteAccountRoutes } from './site-accounts.js';
 import { vaultRoutes } from './vault.js';
 import { SESSION_PREFIX, PasskeyError, signInOptions, checkSignIn, startSession, checkSession, endSessionStatement, forgetAdminStatements, registerOptions, register, listPasskeys, removePasskey } from './passkeys.js';
 import { accountDeletedStatement } from './sync.js';
+import { PLAYER_ROWS, inactiveOverview, claimWarnings, finishWarnings } from './inactive-accounts.js';
 
 const DAY = 24 * 3600_000;
 // publisher: may open only Book Studio (admin/book-studio/) and the routes it
@@ -152,7 +155,7 @@ const SESSION_MAX_S = 12 * 3600;
 const DENIED_PER_DAY = 500; // refused requests written to the audit log, so a flood cannot fill it
 const ANALYTICS_CACHE_MS = 120_000;
 const TABLES = ['sync_users', 'sync_records', 'sync_deleted_users', 'account_days', 'players', 'scores', 'races', 'race_entries', 'race_invites', 'plays', 'parts', 'usage',
-  'app_errors', 'upkeep_log', 'admins', 'admin_audit', 'settings', 'announcements', 'bans', 'name_reviews', 'archive_log', 'feedback', 'feedback_replies', 'error_fixes', 'conversations', 'conversation_messages', 'message_contacts', 'news', 'search_snapshots', 'daily_plan', 'translations', 'rating_insights', 'campaigns', 'campaign_ads', 'marketing_media', 'campaign_stats', 'challenges', 'daily_results', 'daily_email', 'supporters', 'payment_blocks', 'puzzle_mail', 'puzzle_mail_got', 'puzzle_mail_days', 'special_editions', 'educator_requests', 'special_badges', 'badge_awards', 'puzzle_reports', 'player_puzzles', 'visit_stats', 'educator_feedback', 'print_packs', 'print_pack_stories', 'admin_passkeys', 'admin_sessions', 'admin_keys', 'np_plays', 'kit_plays', 'alert_prefs', 'alert_devices', 'alert_queue', 'site_design', 'site_accounts', 'tuning_proposals', 'house_nudges', 'tuning_rules', 'vault_items', 'vault_devices', 'quality_puzzles', 'books', 'book_puzzles', 'book_templates', 'studio_books', 'studio_book_parts'];
+  'app_errors', 'upkeep_log', 'admins', 'admin_audit', 'settings', 'announcements', 'bans', 'name_reviews', 'archive_log', 'feedback', 'feedback_replies', 'error_fixes', 'conversations', 'conversation_messages', 'message_contacts', 'news', 'search_snapshots', 'daily_plan', 'translations', 'rating_insights', 'campaigns', 'campaign_ads', 'marketing_media', 'campaign_stats', 'challenges', 'daily_results', 'daily_email', 'supporters', 'payment_blocks', 'puzzle_mail', 'puzzle_mail_got', 'puzzle_mail_days', 'special_editions', 'educator_requests', 'special_badges', 'badge_awards', 'puzzle_reports', 'player_puzzles', 'visit_stats', 'educator_feedback', 'print_packs', 'print_pack_stories', 'admin_passkeys', 'admin_sessions', 'admin_keys', 'np_plays', 'kit_plays', 'alert_prefs', 'alert_devices', 'alert_queue', 'site_design', 'site_accounts', 'tuning_proposals', 'house_nudges', 'tuning_rules', 'vault_items', 'vault_devices', 'quality_puzzles', 'books', 'book_puzzles', 'book_templates', 'studio_books', 'studio_book_parts', 'inactive_warnings'];
 // worker-src blob: lets the Media library's celebrations draw off the main
 // thread, as they do in the game (canvas-confetti makes its own small worker).
 // frame-src: the Website page's live preview shows pages of the website (only).
@@ -391,31 +394,12 @@ async function storage(env) {
 // (banned) players, and accounts that only sync saves (no screen name yet).
 // Searchable, sortable and a page at a time. Viewers see names, dates and
 // counts only: no player ids, ban reasons or links.
-const INACTIVE_MS = 30 * DAY;
 const PLAYER_SORTS = {
   seen: 'seen', name: 'name IS NULL, name_key', joined: 'joined', solves: 'solves', races: 'races', points: 'points',
 };
 const PLAYER_SECTIONS = ['pending', 'active', 'inactive', 'blocked', 'account'];
 const PAGE_SIZES = [25, 50, 100];
-const PLAYER_ROWS = `WITH ids AS (SELECT user_id FROM players UNION SELECT user_id FROM sync_users),
-  base AS (SELECT i.user_id AS uid, pl.screen_name AS name, pl.name_key,
-    CASE WHEN pl.created_at IS NULL THEN u.created_at WHEN u.created_at IS NULL THEN pl.created_at ELSE MIN(pl.created_at, u.created_at) END AS joined,
-    u.user_id IS NOT NULL AS synced,
-    (r.name_key IS NOT NULL AND r.name_key = pl.name_key) AS approved, r.reviewed_by AS approvedBy,
-    (SELECT COALESCE(SUM(points), 0) FROM scores s WHERE s.user_id = i.user_id) AS points,
-    (SELECT COUNT(*) FROM scores s WHERE s.user_id = i.user_id) AS solves,
-    (SELECT COUNT(*) FROM race_entries e WHERE e.user_id = i.user_id) AS races,
-    MAX(COALESCE(pl.updated_at, 0), COALESCE(u.created_at, 0),
-      COALESCE((SELECT MAX(updated_at) FROM sync_records x WHERE x.user_id = i.user_id), 0),
-      COALESCE((SELECT MAX(created_at) FROM scores s WHERE s.user_id = i.user_id), 0),
-      COALESCE((SELECT MAX(joined_at) FROM race_entries e WHERE e.user_id = i.user_id), 0)) AS seen,
-    b.user_id IS NOT NULL AS banned, b.reason AS banReason, b.until AS banUntil
-    FROM ids i LEFT JOIN players pl ON pl.user_id = i.user_id LEFT JOIN sync_users u ON u.user_id = i.user_id
-    LEFT JOIN name_reviews r ON r.user_id = i.user_id
-    LEFT JOIN bans b ON b.user_id = i.user_id AND (b.until IS NULL OR b.until > ?1)),
-  rows AS (SELECT *, CASE WHEN banned THEN 'blocked' WHEN name IS NULL THEN 'account' WHEN NOT approved THEN 'pending'
-    WHEN seen < ?1 - ${INACTIVE_MS} THEN 'inactive' ELSE 'active' END AS section FROM base)`;
-
+// The query itself lives in inactive-accounts.js, which uses it for the automatic cleanup.
 async function findPlayers(env, url, now, role = 'owner') {
   const p = url.searchParams;
   const q = String(p.get('q') || '').trim().slice(0, 128);
@@ -524,6 +508,8 @@ const ROUTES = [
 
   // Each publisher's own books, kept on their account so they open on any device (studio-sync.js).
   ...studioRoutes(Refusal, canPublish),
+  // Approved player puzzles, to put in a book, and the books they went out in (studio-player-puzzles.js).
+  ...playerPuzzleRoutes(Refusal, canPublish),
 
   ['GET', /^analytics$/, 'viewer', 'analytics.view', async ({ env, url }) => ({ body: await analytics(env, daysParam(url)) })],
   ['GET', /^search$/, 'viewer', 'search.view', async ({ env }) => ({ body: { sources: await searchSnapshots(env) } })],
@@ -746,6 +732,17 @@ const ROUTES = [
   }],
 
   ['GET', /^players$/, 'viewer', 'players.search', async ({ env, url, now, who }) => ({ body: await findPlayers(env, url, now, who.role), detail: { q: url.searchParams.get('q') || '' } })],
+  // Automatic deletion of inactive accounts (inactive-accounts.js): who is next.
+  ['GET', /^inactive-accounts$/, 'admin', 'inactive.view', async ({ env, now }) => ({ body: await inactiveOverview(env, now), quiet: true })],
+  // Called once a day by the inactive-account warning Action; addresses are never written to the audit log.
+  ['POST', /^inactive-warnings\/claim$/, 'owner', 'inactive.claim', async ({ env, body, now }) => {
+    const r = await claimWarnings(env, body.limit, now);
+    return { body: r, quiet: !r.list.length, detail: { claimed: r.list.length, off: !!r.off } };
+  }],
+  ['POST', /^inactive-warnings\/done$/, 'owner', 'inactive.done', async ({ env, body, now }) => {
+    const r = await finishWarnings(env, body, now);
+    return { body: r, detail: r };
+  }],
   ['GET', /^players\/([\w-]{1,128})$/, 'moderator', 'players.view', async ({ env, params: [uid], now }) => ({ body: await playerDetail(env, uid, now), target: uid })],
   ['POST', /^players\/([\w-]{1,128})\/rename$/, 'moderator', 'players.rename', async ({ env, params: [uid], body, who, now }) => ({ target: uid, ...(await renamePlayer(env, uid, body, who, now)) })],
   ['POST', /^players\/([\w-]{1,128})\/ban$/, 'moderator', 'players.ban', async ({ env, params: [uid], body, who, now }) => {
@@ -1192,11 +1189,12 @@ async function appFile(env, url, file) {
   return new Response(res.body, { headers: { ...SECURITY_HEADERS, 'Content-Security-Policy': adminCsp(env, voxUrl), 'Content-Type': TYPES[file.split('.').pop()], ...(voxUrl ? { 'Cache-Control': 'no-store' } : {}) } });
 }
 
-// The Grid books tab shows the website's Book maker in a frame.
+// The Grid books and Player puzzles tabs show the website's Book maker in a frame.
 function studioCsp(env) {
   let site = 'https://thelogicgrid.com';
   try { site = new URL(env.SITE_URL || site).origin; } catch (e) { /* default */ }
-  return STUDIO_CSP.replace("base-uri", `frame-src ${site}; base-uri`);
+  // blob: the PDF of a player's puzzle, opened in a frame to print (book-studio/src/playerpuzzles.js).
+  return STUDIO_CSP.replace("base-uri", `frame-src ${site} blob:; base-uri`);
 }
 
 async function studioFile(env, url, file) {
