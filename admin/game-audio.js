@@ -17,7 +17,8 @@ function audio() {
     sfxGain.connect(ctx.destination);
     musicGain.connect(ctx.destination);
   }
-  if (ctx.state === 'suspended' && !document.hidden) ctx.resume();
+  // iOS also reports 'interrupted' (a call, Siri, another app's audio).
+  if (ctx.state !== 'running' && ctx.state !== 'closed' && !document.hidden) wake();
   restSoon();
   return ctx;
 }
@@ -28,14 +29,20 @@ function audio() {
 // wakes it again for the next sound.
 const REST_AFTER = 8000;
 let restTimer = 0;
+// resume() and suspend() return promises the device can refuse: iOS rejects
+// resume() with "Failed to start the audio device" while a call, Siri or
+// another app holds the speaker. Sound is optional, so a refusal just means
+// this cue is silent; the next sound tries again.
+function wake() { try { const p = ctx.resume(); if (p && p.catch) p.catch(() => {}); } catch (e) { /* stay silent */ } }
+function rest() { try { const p = ctx.suspend(); if (p && p.catch) p.catch(() => {}); } catch (e) { /* stay silent */ } }
 function restSoon() {
   clearTimeout(restTimer);
-  restTimer = setTimeout(() => { if (ctx && !music && ctx.state === 'running') ctx.suspend(); }, REST_AFTER);
+  restTimer = setTimeout(() => { if (ctx && !music && ctx.state === 'running') rest(); }, REST_AFTER);
 }
 if (typeof document !== 'undefined') document.addEventListener('visibilitychange', () => {
   if (!ctx) return;
-  if (document.hidden) { if (ctx.state === 'running') ctx.suspend(); }
-  else if (music) ctx.resume();
+  if (document.hidden) { if (ctx.state === 'running') rest(); }
+  else if (music) wake();
 });
 
 export function setVolumes({ sfx = 0.6, music: m = 0.4 } = {}) {
