@@ -164,7 +164,7 @@ let gaOpened = false, gaOpenedAs = '';
 function gaOpen() {
   $('#gate').hidden = true; $('#app').hidden = false;
   $('#whoEmail').textContent = gaMe.email; $('#backToAdmin').hidden = gaMe.role === 'publisher';
-  $('[data-tab=gridbooks]').hidden = false;
+  $('[data-tab=gridbooks]').hidden = false; $('[data-tab=players]').hidden = false;
   gaRefreshPkButton();
   // Someone else signed in on this page: start again, so their books load (sync.js).
   if (gaOpened && gaOpenedAs !== gaMe.email) { location.reload(); return; }
