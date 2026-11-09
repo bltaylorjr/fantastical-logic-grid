@@ -52,10 +52,10 @@ function noaiPictureWhy(src) {
 const NOAI_TEXT_BLOCKS = 'p,h1,h2,h3,h4,ul,ol,blockquote,table,pre,div';
 const noaiShort = (t, n = 140) => { const s = String(t || '').replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
 
-// One page's pictures and blocks of words, in order. Puzzles and the game's
+// One page's pictures and blocks of words, in order, read from the page as
+// the editor shows it (never re-parsed from text). Puzzles and the game's
 // fixed puzzle blocks are left out: engines made them, not an AI.
-function noaiScanPage(html) {
-  const doc = new DOMParser().parseFromString(`<body>${html}</body>`, 'text/html');
+function noaiScanPage(root) {
   const skip = (el) => el.closest('.puzzle,.grid-block,.grid-room,.bk-head,.ai-gap');
   const out = [];
   const walk = (el) => {
@@ -68,8 +68,8 @@ function noaiScanPage(html) {
       imgs.forEach(i => out.push({ type: 'pic', el: i }));
     }
   };
-  walk(doc.body);
-  return { doc, items: out };
+  if (root) walk(root);
+  return { items: out };
 }
 
 // Everything that could have come from an AI, for the review list.
@@ -78,7 +78,7 @@ function noaiCollect() {
   const items = [];
   S.pages.forEach((pg, pi) => {
     if (pg.grid) return; // a Grid book's puzzle pages: made by the game's engines
-    noaiScanPage(pg.html).items.forEach((it, k) => {
+    noaiScanPage(contentEls()[pi]).items.forEach((it, k) => {
       const src = it.type === 'pic' ? it.el.getAttribute('src') || '' : '';
       items.push({ key: `p${pi}:${k}`, where: `Page ${pi + 1}`, page: pi, k, type: it.type, src, text: it.type === 'text' ? it.el.textContent : '', tag: it.el.tagName.toLowerCase(), why: it.type === 'pic' ? noaiPictureWhy(src) : '' });
     });
@@ -138,23 +138,6 @@ async function noaiMakeCopy() {
     copy.aiGaps = [];
     noaiWas = {};
     const gap = (g, was) => { g.id = 'g' + uid(); copy.aiGaps.push(g); noaiWas[g.id] = was; return g.id; };
-    // Pages: each ticked part becomes a marked empty spot.
-    const byPage = {};
-    noaiItems.filter(i => picked.has(i.key) && i.page != null).forEach(i => { (byPage[i.page] ||= []).push(i); });
-    for (const [pi, list] of Object.entries(byPage)) {
-      const pg = copy.pages[pi];
-      const { doc, items } = noaiScanPage(pg.html);
-      list.forEach(i => {
-        const el = items[i.k]?.el; if (!el || !el.isConnected) return; // inside a part already taken out
-        const isPic = i.type === 'pic';
-        const id = gap({ kind: isPic ? 'pic' : 'text', where: i.where, pageId: pg.id, tag: isPic ? 'p' : i.tag }, isPic ? { src: i.src } : { text: i.text });
-        const ph = doc.createElement('div');
-        ph.className = 'ai-gap'; ph.dataset.gap = id; ph.setAttribute('contenteditable', 'false');
-        ph.textContent = `Removed: ${isPic ? 'an AI-made picture' : 'AI-written words'}. Project › Fill the removed spots`;
-        el.replaceWith(ph);
-      });
-      pg.html = doc.body.innerHTML;
-    }
     // Cover: the part comes off, and a dashed box keeps its place.
     const objs = copy.cover?.objects || [];
     const coverPicked = noaiItems.filter(i => picked.has(i.key) && (i.type === 'coverpic' || i.type === 'covertext')).sort((a, b) => b.k - a.k);
@@ -171,6 +154,27 @@ async function noaiMakeCopy() {
       copy.meta[i.field] = '';
     });
     await loadProject(copy);
+    // Pages: each ticked part becomes a marked empty spot, on the copy's pages as shown.
+    // Their prompts come first, in page order, then the cover's and the details'.
+    const later = copy.aiGaps.splice(0);
+    const byPage = {};
+    noaiItems.filter(i => picked.has(i.key) && i.page != null).forEach(i => { (byPage[i.page] ||= []).push(i); });
+    for (const [pi, list] of Object.entries(byPage)) {
+      const pg = S.pages[pi];
+      const { items } = noaiScanPage(contentEls()[pi]);
+      list.forEach(i => {
+        const el = items[i.k]?.el; if (!el || !el.isConnected) return; // inside a part already taken out
+        const isPic = i.type === 'pic';
+        const id = gap({ kind: isPic ? 'pic' : 'text', where: i.where, pageId: pg.id, tag: isPic ? 'p' : i.tag }, isPic ? { src: i.src } : { text: i.text });
+        const ph = document.createElement('div');
+        ph.className = 'ai-gap'; ph.dataset.gap = id; ph.setAttribute('contenteditable', 'false');
+        ph.textContent = `Removed: ${isPic ? 'an AI-made picture' : 'AI-written words'}. Project › Fill the removed spots`;
+        el.replaceWith(ph);
+      });
+    }
+    copy.aiGaps.push(...later);
+    S.aiGaps = copy.aiGaps;
+    syncPagesFromDom();
     if (typeof syEnsureId === 'function') { syEnsureId(); markDirty(); }
     showTab('manuscript');
     busy(false);
@@ -220,20 +224,17 @@ async function noaiFill(content) {
     fillMetaForm();
   } else if (g.kind === 'pic' || g.kind === 'text') {
     const i = S.pages.findIndex(p => p.id === g.pageId);
-    if (i >= 0) {
-      const doc = new DOMParser().parseFromString(`<body>${S.pages[i].html}</body>`, 'text/html');
-      const ph = doc.querySelector(`.ai-gap[data-gap="${g.id}"]`);
-      if (ph) {
-        if (!content) ph.remove();
-        else if (content.src) { const im = doc.createElement('img'); im.src = content.src; im.alt = ''; ph.replaceWith(im); }
-        else {
-          const tag = /^(h1|h2|h3|h4|blockquote)$/.test(g.tag) ? g.tag : 'p';
-          const parts = text.trim().split(/\n\s*\n/).map(t => t.trim()).filter(Boolean);
-          ph.replaceWith(...parts.map((t, k) => { const el = doc.createElement(k === 0 ? tag : 'p'); el.textContent = t; return el; }));
-        }
-        S.pages[i].html = doc.body.innerHTML;
+    const ph = $(`#pages .ai-gap[data-gap="${g.id}"]`);
+    if (ph) {
+      if (!content) ph.remove();
+      else if (content.src) { const im = document.createElement('img'); im.src = content.src; im.alt = ''; ph.replaceWith(im); }
+      else {
+        const tag = /^(h1|h2|h3|h4|blockquote)$/.test(g.tag) ? g.tag : 'p';
+        const parts = text.trim().split(/\n\s*\n/).map(t => t.trim()).filter(Boolean);
+        ph.replaceWith(...parts.map((t, k) => { const el = document.createElement(k === 0 ? tag : 'p'); el.textContent = t; return el; }));
       }
-      renderPages(); refreshAll(); setTimeout(() => { if (typeof reflow === 'function') reflow(i, true); }, 60);
+      syncPagesFromDom();
+      if (i >= 0 && typeof reflow === 'function') setTimeout(() => reflow(i, true), 60);
     }
   } else if (typeof cv !== 'undefined' && cv) {
     await ensureCover();
