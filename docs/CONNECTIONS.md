@@ -801,6 +801,30 @@ uses a secret, variable or binding that is not listed there.
 
 **Links:** [GitHub secrets](https://github.com/bltaylorjr/fantastical-logic-grid/settings/secrets/actions) · [Full guide (mobile/README.md)](https://github.com/bltaylorjr/fantastical-logic-grid/blob/main/mobile/README.md)
 
+### iPhone and iPad app (App Store)
+
+**Why:** Lets GitHub sign the iPhone and iPad app and send each new version to App Store Connect (TestFlight), with no Mac needed.
+
+**Cost:** Apple Developer Program: $99 a year (Bobby approved, 2026-11-08). The App Store listing itself is free.
+
+| Name | Where | Notes |
+| --- | --- | --- |
+| `APP_STORE_CONNECT_KEY_ID` | GitHub repository secret | App Store Connect > Users and Access > Integrations > Team Keys: the Key ID. Optional. |
+| `APP_STORE_CONNECT_ISSUER_ID` | GitHub repository secret | Shown above the keys list on the same page. Optional. |
+| `APP_STORE_CONNECT_KEY_BASE64` | GitHub repository secret | The downloaded AuthKey_XXXX.p8 file, turned into base64. Optional. |
+| `APPLE_TEAM_ID` | GitHub repository variable | developer.apple.com > Account > Membership details: Team ID (10 letters and numbers). Optional. |
+
+**Steps:**
+
+1. Join the Apple Developer Program as an individual (developer.apple.com/programs/enroll).
+2. Make an App Store Connect API key with the Admin role and download it (only once).
+3. Open <https://github.com/bltaylorjr/fantastical-logic-grid/settings/secrets/actions> and click **New repository secret** (or the pencil next to `APP_STORE_CONNECT_KEY_ID`).
+4. Name: `APP_STORE_CONNECT_KEY_ID`. Secret: the Key ID. Click **Add secret**.
+5. Add the other two secrets and the APPLE_TEAM_ID variable the same way (full steps in docs/APP-STORE.md).
+6. Run the "iPhone and iPad app" workflow by hand; the build shows in TestFlight about 15 minutes later.
+
+**Links:** [iOS workflow](https://github.com/bltaylorjr/fantastical-logic-grid/actions/workflows/ios.yml) · [GitHub secrets](https://github.com/bltaylorjr/fantastical-logic-grid/settings/secrets/actions) · [Full guide (docs/APP-STORE.md)](https://github.com/bltaylorjr/fantastical-logic-grid/blob/main/docs/APP-STORE.md)
+
 ## Marketing autopilot (posting the approved ads)
 
 ### Bluesky (automatic posts)

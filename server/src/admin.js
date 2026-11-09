@@ -38,6 +38,7 @@
 //   POST /admin/v1/mail/(due|claim|done)  what the puzzle email Action sends, and how it went (owner)
 //   GET  /admin/v1/specials            special edition puzzles; POST .../, .../:id, .../:id/cancel (admin, editions.js)
 //   GET  /admin/v1/books[/used|/:id]   books for publishing; POST .../, .../:id/(publish|delete), .../scan, /admin/v1/book-templates (books.js)
+//   GET  /admin/v1/kdp[/:id]           Amazon KDP listings and sales; POST .../, .../:id/delete, .../:id/sales[/:month/delete] (kdp.js)
 //   GET  /admin/v1/names?status=       screen names to moderate; POST /admin/v1/names/:uid/approve
 //   GET  /admin/v1/players?q=&filter=&sort=&dir=&page=&per=  every player, a page at a time; GET /admin/v1/players/:uid
 //   POST /admin/v1/players/:uid/(rename|ban|unban|reset-scores|delete)
@@ -125,6 +126,7 @@ import { badgeRoutes, playerBadges, deleteBadgeStatements } from './special-badg
 import { puzzleMailRoutes } from './puzzle-mail.js';
 import { editionRoutes } from './editions.js';
 import { bookRoutes } from './books.js';
+import { kdpRoutes } from './kdp.js';
 import { studioRoutes } from './studio-sync.js';
 import { playerPuzzleRoutes } from './studio-player-puzzles.js';
 import { educatorRoutes } from './educators.js';
@@ -155,7 +157,7 @@ const SESSION_MAX_S = 12 * 3600;
 const DENIED_PER_DAY = 500; // refused requests written to the audit log, so a flood cannot fill it
 const ANALYTICS_CACHE_MS = 120_000;
 const TABLES = ['sync_users', 'sync_records', 'sync_deleted_users', 'account_days', 'players', 'scores', 'races', 'race_entries', 'race_invites', 'plays', 'parts', 'usage',
-  'app_errors', 'upkeep_log', 'admins', 'admin_audit', 'settings', 'announcements', 'bans', 'name_reviews', 'archive_log', 'feedback', 'feedback_replies', 'error_fixes', 'conversations', 'conversation_messages', 'message_contacts', 'news', 'search_snapshots', 'daily_plan', 'translations', 'rating_insights', 'campaigns', 'campaign_ads', 'marketing_media', 'campaign_stats', 'challenges', 'daily_results', 'daily_email', 'supporters', 'payment_blocks', 'puzzle_mail', 'puzzle_mail_got', 'puzzle_mail_days', 'special_editions', 'educator_requests', 'special_badges', 'badge_awards', 'puzzle_reports', 'player_puzzles', 'visit_stats', 'educator_feedback', 'print_packs', 'print_pack_stories', 'admin_passkeys', 'admin_sessions', 'admin_keys', 'np_plays', 'kit_plays', 'alert_prefs', 'alert_devices', 'alert_queue', 'site_design', 'site_accounts', 'tuning_proposals', 'house_nudges', 'tuning_rules', 'vault_items', 'vault_devices', 'quality_puzzles', 'books', 'book_puzzles', 'book_templates', 'studio_books', 'studio_book_parts', 'inactive_warnings'];
+  'app_errors', 'upkeep_log', 'admins', 'admin_audit', 'settings', 'announcements', 'bans', 'name_reviews', 'archive_log', 'feedback', 'feedback_replies', 'error_fixes', 'conversations', 'conversation_messages', 'message_contacts', 'news', 'search_snapshots', 'daily_plan', 'translations', 'rating_insights', 'campaigns', 'campaign_ads', 'marketing_media', 'campaign_stats', 'challenges', 'daily_results', 'daily_email', 'supporters', 'payment_blocks', 'puzzle_mail', 'puzzle_mail_got', 'puzzle_mail_days', 'special_editions', 'educator_requests', 'special_badges', 'badge_awards', 'puzzle_reports', 'player_puzzles', 'visit_stats', 'educator_feedback', 'print_packs', 'print_pack_stories', 'admin_passkeys', 'admin_sessions', 'admin_keys', 'np_plays', 'kit_plays', 'alert_prefs', 'alert_devices', 'alert_queue', 'site_design', 'site_accounts', 'tuning_proposals', 'house_nudges', 'tuning_rules', 'vault_items', 'vault_devices', 'quality_puzzles', 'books', 'book_puzzles', 'book_templates', 'studio_books', 'studio_book_parts', 'inactive_warnings', 'kdp_listings', 'kdp_sales'];
 // worker-src blob: lets the Media library's celebrations draw off the main
 // thread, as they do in the game (canvas-confetti makes its own small worker).
 // frame-src: the Website page's live preview shows pages of the website (only).
@@ -176,7 +178,7 @@ const SECURITY_HEADERS = {
   'Strict-Transport-Security': 'max-age=63072000; includeSubDomains',
   'Cross-Origin-Opener-Policy': 'same-origin',
   'Cross-Origin-Resource-Policy': 'same-origin',
-  'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=(), usb=(), serial=(), hid=(), bluetooth=(), interest-cohort=()',
+  'Permissions-Policy': 'camera=(self), microphone=(), geolocation=(), payment=(), usb=(), serial=(), hid=(), bluetooth=(), interest-cohort=()',
 };
 
 // The preview frame shows the website set in SITE_URL (a test site in tests).
@@ -983,6 +985,8 @@ const ROUTES = [
   // ---- Books for publishing: puzzle books from every game and their covers (books.js).
   // Book Studio's Grid books tab: anyone who may publish books may use them.
   ...bookRoutes(Refusal).map((r) => [...r.slice(0, 5), { ...(r[5] || {}), publishers: true }]),
+  // ---- Amazon KDP: each book's listing, its status on KDP and its sales (kdp.js).
+  ...kdpRoutes(Refusal),
   // ---- Supporters and premium extras (supporters.js).
   ...supporterRoutes(Refusal),
   // ---- App keys for the Windows and Android apps (licenses.js).
@@ -1169,7 +1173,9 @@ async function api(req, env, ctx, url, path) {
   }
 }
 
-const APP_FILE = /^\/admin\/([\w-]+\.(?:js|css|svg|png|html|webmanifest))?$/;
+const APP_FILE = /^\/admin\/([\w-]+\.(?:js|css|svg|png|html|webmanifest)|vendor\/[\w-]+\.js|extension\/[\w-]+\.(?:js|png|json))?$/;
+// vendor/: the QR libraries Passwords loads when needed (jsqr.js, qrcode.js).
+// extension/: the Passwords browser extension's files, zipped by the page for download.
 // Book Studio (admin/book-studio/): its own page with its own vendored libraries.
 // manifest.webmanifest and sw.js let it install as its own app (phone, Mac, Chromebook).
 const STUDIO_FILE = /^\/admin\/book-studio\/((?:vendor\/)?[\w-]+(?:\.[\w-]+)*\.(?:js|css|html|webmanifest))?$/;
@@ -1177,7 +1183,7 @@ const STUDIO_FILE = /^\/admin\/book-studio\/((?:vendor\/)?[\w-]+(?:\.[\w-]+)*\.(
 // draws covers with the book fonts from Google Fonts, so its page allows
 // inline styles and those two font hosts. Scripts stay 'self' only.
 const STUDIO_CSP = "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' data: blob: https://identitytoolkit.googleapis.com https://securetoken.googleapis.com; worker-src 'self' blob:; manifest-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
-const TYPES = { js: 'text/javascript; charset=utf-8', css: 'text/css; charset=utf-8', svg: 'image/svg+xml', png: 'image/png', html: 'text/html; charset=utf-8', webmanifest: 'application/manifest+json' };
+const TYPES = { js: 'text/javascript; charset=utf-8', css: 'text/css; charset=utf-8', svg: 'image/svg+xml', png: 'image/png', html: 'text/html; charset=utf-8', webmanifest: 'application/manifest+json', json: 'application/json; charset=utf-8' };
 
 async function appFile(env, url, file) {
   if (!env.ASSETS) return new Response('The admin app is not deployed with this Worker.', { status: 404 });

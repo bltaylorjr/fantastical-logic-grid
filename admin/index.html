@@ -100,6 +100,7 @@
       <li data-dash="main"><a href="#website" data-min="viewer">Website</a></li>
       <li data-dash="main"><a href="#marketing" data-min="viewer">Marketing</a></li>
       <li data-dash="main"><a href="/admin/book-studio/" data-min="viewer" data-publish>Book Studio</a></li>
+      <li data-dash="main"><a href="#kdp" data-min="viewer">Amazon KDP</a></li>
       <li data-dash="main"><a href="#voice-engine" data-min="admin">Voice engine</a></li>
       <li data-dash="main"><a href="#communication" data-min="viewer">Communication <span class="count" id="count-comm" hidden></span></a></li>
       <li data-dash="main"><a href="#errortracking" data-min="moderator">Error tracking <span class="count" id="count-errors" hidden></span></a></li>
@@ -660,6 +661,17 @@
       <div id="np-body"><p class="muted">Loading…</p></div>
     </section>
 
+    <section data-view="kdp" hidden aria-labelledby="h-kdp">
+      <div class="head"><h1 id="h-kdp">Amazon KDP</h1>
+        <div class="row"><button class="btn primary" type="button" id="kdp-new" hidden>New listing</button></div>
+      </div>
+      <p class="muted">Each book's Amazon KDP listing, one for each format: the details, keywords, categories, AI answers, print and price, checked against KDP's rules and the trademark watch list so it can be copied into KDP box by box. Then where it is on KDP, the upload steps and what it sold each month. KDP has no connection for this, so nothing here changes KDP or Amazon. Make the interior and cover files in <a href="/admin/book-studio/">Book Studio</a>.</p>
+      <div class="tiles" id="kdp-tiles"></div>
+      <div id="kdp-chart"></div>
+      <div class="table-wrap"><table class="table"><thead><tr><th scope="col"><span class="sr-only">Open</span></th><th scope="col">Book</th><th scope="col">Status</th><th scope="col">Price</th><th scope="col">Copies sold</th><th scope="col">Royalties</th></tr></thead><tbody id="kdp-rows"></tbody></table></div>
+      <div class="card stack" id="kdp-editor" hidden></div>
+    </section>
+
     <section data-view="licenses" hidden aria-labelledby="h-licenses">
       <div class="head"><h1 id="h-licenses">App keys</h1></div>
       <p class="muted">The Windows and Android apps ask for an app key the first time they open. A key installs on <b>one</b> computer or phone; when a player asks, you can allow a <b>second</b> install with <b>Allow a 2nd install</b>. Each key can also be used for <b>2 downloads</b> from the website (Menu &gt; Install the app); after that the player needs a new key. After the first check online the app works offline, and about once a day when online it checks the key still works, so <b>Cancel key</b> or <b>Remove this install</b> stops it there. The website itself never needs a key. Free keys players ask for on the website wait at the top of this list until you click <b>Approve</b> (or <b>Decline</b>). Who can ask, and whether approval is needed: Settings and switches &gt; App keys.</p>
@@ -854,11 +866,31 @@
           <div class="row"><button class="btn" type="button" id="vault-export">Download a CSV</button></div>
           <h3>Lock after</h3>
           <div class="row"><div class="field"><label for="vault-idle">Lock when not used for</label><select id="vault-idle"><option value="1">1 minute</option><option value="5">5 minutes</option><option value="15">15 minutes</option><option value="30">30 minutes</option></select></div></div>
+          <h3>Log in and autofill</h3>
+          <p id="vault-autofill-state" role="status"></p>
+          <div id="vault-ext-box" class="stack">
+            <p class="muted">For Chrome or Microsoft Edge on a computer. Log in then opens the site and fills in your username, password and 2-step code (on that site only, for 3 minutes). You still press the site's Sign in button. In the Windows admin app this works without the extension.</p>
+            <div class="row"><button class="btn primary" type="button" id="vault-ext-get">Download the extension</button><button class="btn" type="button" id="vault-ext-check">I have added it</button></div>
+            <ol class="muted vault-steps">
+              <li>Unzip <b>logic-grid-passwords-extension.zip</b> (right-click it, then <b>Extract All</b>).</li>
+              <li>Open <b>edge://extensions</b> in Edge or <b>chrome://extensions</b> in Chrome.</li>
+              <li>Turn on <b>Developer mode</b>, press <b>Load unpacked</b> and choose the <b>logic-grid-passwords</b> folder.</li>
+              <li>Come back here and press <b>I have added it</b>.</li>
+            </ol>
+          </div>
           <h3>Face ID and fingerprint</h3>
           <p class="muted">Each device you set up can open Passwords with your face, finger or Windows Hello. It still needs the master password if Face ID stops working, and you can remove a lost device here at once.</p>
           <ul class="vault-devices" id="vault-devices"></ul>
           <p class="muted" id="vault-bio-why" hidden></p>
           <div class="row"><button class="btn" type="button" id="vault-bio-setup">Set up on this device</button></div>
+          <fieldset class="vault-fields"><legend>On this device, ask for Face ID or fingerprint before</legend>
+            <label class="check"><input type="checkbox" id="vault-ask-show"> Showing a password (and opening Edit)</label>
+            <label class="check"><input type="checkbox" id="vault-ask-copy"> Copying a password or 2-step code</label>
+            <label class="check"><input type="checkbox" id="vault-ask-login"> Log in</label>
+            <p class="muted">Devices without Face ID or fingerprint set up ask for the master password instead. One check covers the next minute.</p>
+          </fieldset>
+          <h3>Drop box</h3>
+          <p class="muted">When Claude or one of your automations sets up an account, it locks the details to this vault and drops them here. They can add logins but never read any. Each one moves into your list the next time you unlock, marked "Added by" in its notes.</p>
           <h3>Master password</h3>
           <div class="row"><button class="btn" type="button" id="vault-master">Change the master password</button></div>
         </details>
@@ -899,7 +931,16 @@
       <div class="row vault-pass-row"><input id="vf-pass" type="password" autocomplete="new-password" spellcheck="false" aria-describedby="vf-meter"><button class="btn small" type="button" id="vf-show" aria-pressed="false">Show</button><button class="btn small" type="button" id="vf-make">Make one</button></div>
       <span id="vf-meter" class="muted" aria-live="polite"></span>
     </div>
-    <div class="field"><label for="vf-totp">2-step code key (optional)</label><input id="vf-totp" autocomplete="off" spellcheck="false" placeholder="JBSW Y3DP EHPK 3PXP or otpauth://…"><span class="muted">The setup key a site shows next to its QR code for an authenticator app. With it, this page shows the 6-digit code.</span></div>
+    <fieldset class="vault-fields"><legend>2-step codes (authenticator)</legend>
+      <p class="muted">When a site offers an authenticator app, add its QR code here instead (or as well). Passwords then shows the 6-digit code, copies it, and fills it in at Log in.</p>
+      <div class="row vault-otp-row">
+        <button class="btn small" type="button" id="vf-totp-scan">Scan the QR code</button>
+        <label class="btn small" for="vf-totp-file">Use a screenshot</label><input id="vf-totp-file" type="file" accept="image/*" class="sr-only">
+        <button class="btn small" type="button" id="vf-totp-phone" hidden>Add to your phone too</button>
+      </div>
+      <p class="muted">Or paste a screenshot of the QR code here (Ctrl+V), or type the setup key the site shows under “Can’t scan it?”.</p>
+      <div class="field"><label for="vf-totp">Setup key</label><input id="vf-totp" autocomplete="off" spellcheck="false" placeholder="JBSW Y3DP EHPK 3PXP or otpauth://…" aria-describedby="vf-totp-now"><span id="vf-totp-now" class="vault-code" aria-live="off"></span></div>
+    </fieldset>
     <div class="field"><label for="vf-notes">Notes</label><textarea id="vf-notes" rows="3" placeholder="Security questions, PINs, account numbers you need to sign in…"></textarea></div>
     <fieldset class="vault-fields"><legend>Extra fields</legend>
       <div id="vf-extra"></div>
@@ -910,6 +951,11 @@
     <p class="error" id="vault-dlg-error" role="alert" hidden></p>
     <div class="row end"><button class="btn" type="button" id="vault-dlg-cancel">Cancel</button><button class="btn primary" id="vault-dlg-ok">Save</button></div>
   </form>
+</dialog>
+<dialog id="vault-scan" class="vault-dialog" aria-labelledby="vault-scan-title">
+  <h2 id="vault-scan-title">Point the camera at the QR code</h2>
+  <video id="vault-scan-video" class="vault-scan-video" playsinline muted></video>
+  <div class="row end"><button class="btn" type="button" id="vault-scan-cancel">Cancel</button></div>
 </dialog>
 <div id="ss-print" class="ss-print" aria-hidden="true"></div>
 </body>

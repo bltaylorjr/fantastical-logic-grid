@@ -693,7 +693,7 @@ test('the dashboard keeps other sites and powerful features away', async () => {
   const r = await call('/admin/', { origin: null });
   assert.match(r.headers.get('strict-transport-security'), /max-age=\d{8}/);
   assert.equal(r.headers.get('cross-origin-opener-policy'), 'same-origin');
-  assert.match(r.headers.get('permissions-policy'), /camera=\(\)/);
+  assert.match(r.headers.get('permissions-policy'), /camera=\(self\)/); // the dashboard's own page only, for scanning 2-step QR codes in Passwords
 });
 
 test('new accounts stay counted after they are deleted', async () => {

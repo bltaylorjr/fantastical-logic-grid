@@ -235,6 +235,8 @@ a { color: var(--accent); }
 
 /* Dialogs */
 dialog { border: 1px solid var(--line); border-radius: 12px; background: var(--panel); color: var(--ink); padding: 0; width: min(560px, calc(100vw - 32px)); max-height: calc(100vh - 40px); }
+.wt-site { display: flex; flex-direction: column; gap: 6px; }
+.wt-row { display: flex; flex-wrap: wrap; gap: 6px; }
 dialog::backdrop { background: rgba(10,14,20,.45); }
 .dlg { display: flex; flex-direction: column; max-height: calc(100vh - 40px); }
 .dlg header { padding: 14px 18px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; }
@@ -258,6 +260,18 @@ dialog::backdrop { background: rgba(10,14,20,.45); }
 @media (max-width: 640px) { .workspace { grid-template-columns: 1fr; } .pagelist { display: none; } .issue { grid-template-columns: 1fr; gap: 6px; } .brand-name { display: none; } }
 @media (min-width: 1101px) { #inspToggle { display: none; } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+/* Make a copy without AI content (noai.js) */
+dialog.wide { width: min(760px, calc(100vw - 32px)); }
+.noai-list { display: flex; flex-direction: column; gap: 10px; }
+.noai-group { border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; margin: 0; }
+.noai-group legend { font-weight: 700; padding: 0 4px; }
+.noai-item { display: flex; gap: 10px; align-items: center; min-height: 44px; padding: 4px 0; border-top: 1px solid var(--line); }
+.noai-item:first-of-type { border-top: 0; }
+.noai-thumb { width: 56px; height: 56px; object-fit: contain; border: 1px solid var(--line); border-radius: 6px; background: #fff; flex: none; }
+.noai-thumb.big { width: auto; height: auto; max-width: 100%; max-height: 200px; }
+.noai-flag { color: #b3261e; font-size: 12px; }
+.ai-gap { border: 2px dashed #d33; border-radius: 6px; padding: 10px; margin: 6px 0; color: #b3261e; font: 600 12px/1.3 system-ui, sans-serif; text-align: center; }
 
 .studio-bar { display: none; }
 .topbar .studio-bar { display: flex; flex-basis: 100%; align-items: center; gap: 10px; font-size: 12px; color: var(--ink-2); }
@@ -816,6 +830,12 @@ dialog::backdrop { background: rgba(10,14,20,.45); }
 .grid-books .qp-method { margin: 8px 0 0; }
 .grid-books .qp-method > summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; color: var(--accent); font-weight: 600; }
 .grid-books .qp-method ul { margin: 4px 0 0; padding-left: 1.2em; display: grid; gap: 4px; font-size: .9rem; }
+.grid-books .vault-addr { display: block; font-size: .9rem; margin: 2px 0 4px; overflow-wrap: anywhere; }
+.grid-books .vault-otp-row { flex-wrap: wrap; gap: 6px; }
+.grid-books .vault-qr { display: block; width: min(260px, 70vw); height: auto; margin: 0 auto 12px; image-rendering: pixelated; }
+.grid-books .vault-scan-video { display: block; width: 100%; max-height: 60vh; background: #000; border-radius: 8px; }
+.grid-books .vault-steps { padding-left: 1.4em; }
+.grid-books .vault-steps li { margin: 4px 0; }
 .grid-books .st-tools { align-items: center; }
 .grid-books .st-banner { display: flex; gap: 14px; align-items: center; padding: 14px 16px; border-radius: 12px; margin: 12px 0; border: 1px solid var(--line); }
 .grid-books .st-banner.st-ok { background: var(--ok-bg); }
@@ -849,5 +869,17 @@ dialog::backdrop { background: rgba(10,14,20,.45); }
 .grid-books .st-offlist > summary h2 { margin: 0; }
 .grid-books .st-foot { font-size: .9rem; }
 .grid-books .st-changed p { margin: 4px 0; }
+.grid-books .kdp-in { display: flex; gap: 8px; align-items: flex-start; }
+.grid-books .kdp-in > input, .grid-books .kdp-in > textarea { flex: 1; min-width: 0; }
+.grid-books .kdp-body { padding: 4px 14px 14px; }
+.grid-books .kdp-money { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
+.grid-books .kdp-money > div { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; }
+.grid-books .kdp-money b { font-size: 1.3rem; }
+.grid-books #kdp-editor .note.ok { background: var(--ok-bg); border-left-color: var(--ok); }
+.grid-books #kdp-editor .note ul { margin: 6px 0 0; padding-left: 1.2em; }
+.grid-books .ok-text { color: var(--ok); }
+.grid-books .warn-text { color: var(--warn); }
+.grid-books .bad-text { color: var(--bad); }
+.grid-books #kdp-rows tr[aria-current] { background: var(--panel); outline: 2px solid var(--accent); outline-offset: -2px; }
 .grid-books { padding: 16px max(16px, env(safe-area-inset-left, 0px)) 24px; min-height: 100%; }
 .grid-books h1 { margin-bottom: 4px; }

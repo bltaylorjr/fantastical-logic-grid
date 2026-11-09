@@ -45,6 +45,25 @@ export const HOUSE_TUNING = [
       "clueWeights": {}
     },
     "storyPrefs": {}
+  },
+  {
+    "from": "2026-11-10",
+    "reasons": [
+      "Older story-part preferences faded out."
+    ],
+    "daily": {
+      "effort": {
+        "basic": 0.25,
+        "easy": 0.2,
+        "medium": 0.1,
+        "hard": 0.05,
+        "expert": 0.2,
+        "mensa": 0.2,
+        "theorist": 0.2
+      },
+      "clueWeights": {}
+    },
+    "storyPrefs": {}
   }
 ];
 

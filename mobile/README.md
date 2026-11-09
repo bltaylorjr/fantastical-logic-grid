@@ -65,9 +65,11 @@ for TestFlight and the App Store.
 repository secrets `ANDROID_KEYSTORE_BASE64` and `ANDROID_KEYSTORE_PASSWORD`
 it makes the signed APK and AAB, and after each "Release desktop app" run it
 adds the APK to that release (or start it by hand with "Add the APK to the
-current release" ticked). Without them it makes a debug APK. The iOS job is
-paused and runs only when the workflow is started by hand; it compiles the app
-for the Simulator, which needs no Apple account. Google Play steps and listing:
+current release" ticked). Without them it makes a debug APK. The iPhone and iPad
+app has its own workflow, "iPhone and iPad app" (`ios.yml`): it compiles for the
+Simulator on every iOS change (no Apple account needed) and, once the Apple
+secrets are set, signs the app and uploads it to App Store Connect after each
+release, with no Mac needed. App Store steps, price and listing: `docs/APP-STORE.md`. Google Play steps and listing:
 `docs/GOOGLE-PLAY.md`.
 
 **Phone check**: `node -r ./scripts/e2e-in-game.cjs mobile/scripts/mobile-e2e.cjs` (needs Playwright)
