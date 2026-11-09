@@ -293,3 +293,80 @@ The Logic Grid, a free puzzle website, makes free printable puzzle packages for 
   WHERE created_by = 'starter plan' AND channel = 'newsletter' AND content = 'school-newsletter' AND status <> 'posted' AND body = 'Free logic puzzles for our classrooms
 
 The Fantastical Logic Grid makes free printable puzzle packages for teachers: story logic puzzles chosen by grade, level and theme, with answer keys. Teachers can ask for one with their school email at {link}' AND campaign_id = (SELECT id FROM campaigns WHERE code = 'educators-2026');
+
+-- Second pass: on the live site nine of these launch ads still had the words
+-- of a 4 Nov 2026 update (updated_at 1793681366000) instead of the starter
+-- words above, so the earlier refresh and the first pass skipped them. They
+-- have not been edited since, so they get the same new words. An ad edited by
+-- hand has a later updated_at and is left alone.
+UPDATE campaign_ads SET body = 'The Logic Grid: 11 free puzzle games in the browser, from story logic grids to number puzzles, loops, bridges and a crossword
+
+{link}
+
+The games: The Fantastical Logic Grid, NINETIMESNINE, Cage Math, Sum Cross, Picture Grid, More or Less, Skyline, Star Field, Loop Line, Island Bridges and Crossword. The first one writes a short story with a cast and clues for every logic grid puzzle. Every puzzle is made fresh, has exactly one answer, and the hints explain the next step instead of just giving it away.
+
+There are daily puzzles, races against other players or the computer, and printing with answer keys. Guests can play a few new puzzles a day, and a free account is unlimited and works in every game. Feedback welcome!', media = json_array((SELECT id FROM marketing_media WHERE url = 'https://github.com/bltaylorjr/fantastical-logic-grid/raw/main/media/marketing/logic-grid-wide-1600x900.png')), updated_at = 1794182400000
+  WHERE created_by = 'starter plan' AND channel = 'reddit' AND content = 'webgames-launch' AND status <> 'posted' AND updated_at = 1793681366000 AND campaign_id = (SELECT id FROM campaigns WHERE code = 'launch-2026');
+UPDATE campaign_ads SET body = '[Browser/Windows] The Logic Grid: 11 free puzzle games, from story logic grids to Loop Line and a crossword
+
+{link}
+
+The Fantastical Logic Grid writes a new story for every logic puzzle, across seven difficulty levels. Next to it are NINETIMESNINE, Cage Math, Sum Cross, Picture Grid, More or Less, Skyline, Star Field, Loop Line, Island Bridges and Crossword. Daily puzzles, races against players or the computer, hints that explain each step and printable answer keys. Looking for feedback on which game you would try first, and why.', updated_at = 1794182400000
+  WHERE created_by = 'starter plan' AND channel = 'reddit' AND content = 'playmygame' AND status <> 'posted' AND updated_at = 1793681366000 AND campaign_id = (SELECT id FROM campaigns WHERE code = 'launch-2026');
+UPDATE campaign_ads SET body = 'Free printable puzzles, made fresh every time 🧩
+
+The Logic Grid has 11 puzzle games you can print: story logic puzzles, number puzzles, picture puzzles, loops, bridges and crosswords. Pick the game and the level, and each puzzle prints with an answer key on its own page. Great for brain breaks, puzzle night or a quiet afternoon.
+
+Make one here: {link}', media = json_array((SELECT id FROM marketing_media WHERE url = 'https://github.com/bltaylorjr/fantastical-logic-grid/raw/main/media/marketing/logic-grid-square-1080.png')), updated_at = 1794182400000
+  WHERE created_by = 'starter plan' AND channel = 'facebook' AND content = 'groups-printable' AND status <> 'posted' AND updated_at = 1793681366000 AND campaign_id = (SELECT id FROM campaigns WHERE code = 'launch-2026');
+UPDATE campaign_ads SET body = 'Title: The Fantastical Logic Grid: logic puzzles with a story (free browser game)
+
+Description:
+Every puzzle in The Fantastical Logic Grid comes with its own story and cast. Choose a theme and one of seven levels, from Basic to Theoretical Physicist, then use the clues to work out who did what. A new daily puzzle, races against other players or the computer, hints that explain each step, and printing with answer keys.
+
+It is one of 11 free puzzle games on The Logic Grid, with NINETIMESNINE, Cage Math, Sum Cross, Picture Grid, More or Less, Skyline, Star Field, Loop Line, Island Bridges and Crossword. Guests can play a few puzzles a day, and a free account gives unlimited puzzles in every game.
+
+Play free: {link}
+
+Chapters
+0:00 Pick a theme and level
+0:20 A new story every time
+0:40 Hints that teach
+1:00 Races and the scoreboard
+1:15 Print, save and install', updated_at = 1794182400000
+  WHERE created_by = 'starter plan' AND channel = 'youtube' AND content = 'promo-90s' AND status <> 'posted' AND updated_at = 1793681366000 AND campaign_id = (SELECT id FROM campaigns WHERE code = 'launch-2026');
+UPDATE campaign_ads SET body = 'Title: Show HN: 11 puzzle generators in one site, including logic grids that write a story per puzzle
+
+URL: {link}
+
+First comment: Hi HN. The Logic Grid started as a generator for classic logic grid ("Einstein") puzzles: a solver checks each one has a single solution and grades it by the techniques needed, from simple elimination up to what-if reasoning for the top two levels, and a story engine writes the setting, cast and clue wording around the answer, never reusing a story. The same engine core now runs 10 more games (NINETIMESNINE, Cage Math, Sum Cross, Picture Grid, More or Less, Skyline, Star Field, Loop Line, Island Bridges and Crossword), each with a human-style solver for hints. It is a static PWA plus one Cloudflare Worker for accounts and races, all on free tiers. Happy to talk about the generators.', updated_at = 1794182400000
+  WHERE created_by = 'starter plan' AND channel = 'hackernews' AND content = 'show-hn' AND status <> 'posted' AND updated_at = 1793681366000 AND campaign_id = (SELECT id FROM campaigns WHERE code = 'launch-2026');
+UPDATE campaign_ads SET body = 'Name: The Logic Grid
+Tagline: 11 free puzzle games, with a fresh puzzle whenever you want
+
+Description: The Logic Grid puts 11 puzzle games in your browser: The Fantastical Logic Grid, NINETIMESNINE, Cage Math, Sum Cross, Picture Grid, More or Less, Skyline, Star Field, Loop Line, Island Bridges and Crossword. Every puzzle is made fresh with exactly one answer, hints teach each step, there are daily puzzles, races against players or the computer, and every puzzle prints with an answer key. One free account works in every game, with a Windows app too.
+
+Link: {link}
+
+Maker comment: I built this because I loved logic grid puzzle books but always ran out of puzzles. It started with one game that writes a new story for every puzzle, and now there are ten more kinds of puzzle next to it.', media = json_array((SELECT id FROM marketing_media WHERE url = 'https://github.com/bltaylorjr/fantastical-logic-grid/raw/main/media/marketing/logic-grid-gallery-1270x760.png'), (SELECT id FROM marketing_media WHERE url = 'https://github.com/bltaylorjr/fantastical-logic-grid/raw/main/media/promo/the-fantastical-logic-grid-promo-16x9.mp4')), updated_at = 1794182400000
+  WHERE created_by = 'starter plan' AND channel = 'producthunt' AND content = 'launch' AND status <> 'posted' AND updated_at = 1793681366000 AND campaign_id = (SELECT id FROM campaigns WHERE code = 'launch-2026');
+UPDATE campaign_ads SET body = 'Kind: HTML (played in the browser) or an external link to the website
+
+Short description: Logic grid puzzles with a new story every time.
+
+Page text: The Fantastical Logic Grid builds a brand-new logic puzzle whenever you want one, with its own story, cast and clues. Choose a theme and one of seven levels, from Basic to Theoretical Physicist. Every puzzle has exactly one answer, the hints explain each step, and you can print any puzzle with an answer key. Race other players or the computer, and play the daily puzzle.
+
+Play the full version on The Logic Grid, with 10 more free puzzle games: {link}
+
+Tags: puzzle, logic, deduction, mystery, casual, singleplayer, accessibility', updated_at = 1794182400000
+  WHERE created_by = 'starter plan' AND channel = 'itch' AND content = 'game-page' AND status <> 'posted' AND updated_at = 1793681366000 AND campaign_id = (SELECT id FROM campaigns WHERE code = 'launch-2026');
+UPDATE campaign_ads SET body = 'Name: The Logic Grid
+Description: 11 free puzzle games in the browser: The Fantastical Logic Grid, NINETIMESNINE, Cage Math, Sum Cross, Picture Grid, More or Less, Skyline, Star Field, Loop Line, Island Bridges and Crossword. Puzzles are made fresh with exactly one answer, with daily puzzles, races, hints that explain each step and printable answer keys. Windows app available.
+Website: {link}
+Tags: logic-puzzles, puzzle-game, brain-training, printable, crossword', media = json_array((SELECT id FROM marketing_media WHERE url = 'https://github.com/bltaylorjr/fantastical-logic-grid/raw/main/media/marketing/logic-grid-gallery-1270x760.png')), updated_at = 1794182400000
+  WHERE created_by = 'starter plan' AND channel = 'alternativeto' AND content = 'listing' AND status <> 'posted' AND updated_at = 1793681366000 AND campaign_id = (SELECT id FROM campaigns WHERE code = 'launch-2026');
+UPDATE campaign_ads SET body = 'Store name: The Logic Grid
+Short description: 11 free logic puzzle games, including story logic puzzles with a new story every time.
+Description: The Logic Grid puts 11 puzzle games in one app: The Fantastical Logic Grid (story logic puzzles from Basic to Theoretical Physicist), NINETIMESNINE, Cage Math, Sum Cross, Picture Grid, More or Less, Skyline, Star Field, Loop Line, Island Bridges and Crossword. Every puzzle has exactly one answer, hints explain each step, there is a new daily puzzle every day, and puzzles print with an answer key. One free account works in every game. Works offline.
+Website: {link}', media = json_array((SELECT id FROM marketing_media WHERE url = 'https://github.com/bltaylorjr/fantastical-logic-grid/raw/main/media/marketing/logic-grid-gallery-1270x760.png'), (SELECT id FROM marketing_media WHERE url = 'https://github.com/bltaylorjr/fantastical-logic-grid/raw/main/media/marketing/logic-grid-square-1080.png')), updated_at = 1794182400000
+  WHERE created_by = 'starter plan' AND channel = 'microsoftstore' AND content = 'pwa-listing' AND status <> 'posted' AND updated_at = 1793681366000 AND campaign_id = (SELECT id FROM campaigns WHERE code = 'launch-2026');
