@@ -1797,7 +1797,7 @@ export const TOPICS = {
         incidents: [
           { name: 'Top Cadet', text: 'At the end of the week, one camper will be named top cadet.', prize: 'the top cadet award' },
           { name: 'Meteorite', text: 'A real meteorite went missing from the display case and was found again.', prize: 'the meteorite finder badge' },
-          { name: 'Astronaut Visit', text: 'A real astronaut is visiting and wants to meet the most curious camper.', prize: 'the astronaut lunch' },
+          { name: 'Astronaut Visit', text: 'A real astronaut is visiting and wants to meet the most curious camper.', prize: 'a lunch with the astronaut' },
           { name: 'Splashdown', text: 'One team pulled off a perfect pretend splashdown.', prize: 'the splashdown medal' },
           { name: 'Moon Rock', text: 'One camper answered the hardest moon rock question.', prize: 'the moon rock ribbon' },
           { name: 'Launch Button', text: 'One lucky camper gets to press the button for the big launch.', prize: 'the launch button' },

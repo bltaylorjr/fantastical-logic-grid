@@ -197,7 +197,7 @@ const SCENES = {
       hills(r, '#86c96a', 200, 50),
       `<rect x="0" y="210" width="${W}" height="50" fill="${L.ground}"/>${Array.from({ length: 20 }, (_, i) => `<rect x="${i * 40 + 10}" y="190" width="8" height="34" fill="#f5f0e1"/>`).join('')}<rect x="0" y="198" width="${W}" height="6" fill="#f5f0e1"/>`,
       `<g fill="${L.shape}"><rect x="96" y="120" width="14" height="94"/><circle cx="103" cy="110" r="44"/><rect x="686" y="130" width="12" height="84"/><circle cx="692" cy="120" r="36"/></g>`,
-      `<path d="M330 220 L330 170 L380 140 L430 170 L430 220Z" fill="${L.accent}"/><path d="M362 220 v-26 a18 18 0 0 1 36 0 v26z" fill="#3a2a1a"/><text x="356" y="166" font-size="16" fill="#fff" font-family="sans-serif">PETS</text>`,
+      `<path d="M330 220 L330 170 L380 140 L430 170 L430 220Z" fill="${L.accent}"/><path d="M362 220 v-26 a18 18 0 0 1 36 0 v26z" fill="#3a2a1a"/><path d="M372 160 a5 5 0 1 1 0.1 0 M388 160 a5 5 0 1 1 0.1 0 M366 150 a4 4 0 1 1 0.1 0 M394 150 a4 4 0 1 1 0.1 0" fill="#fff"/>`,
       `<g fill="#6b4b2e"><ellipse cx="520" cy="226" rx="20" ry="10"/><circle cx="540" cy="216" r="9"/><path d="M536 208 l-4 -8 l8 4z M546 208 l4 -8 l-8 4z"/></g><circle cx="600" cy="232" r="6" fill="#e63946"/>`,
     ];
   },
@@ -207,7 +207,7 @@ const SCENES = {
       `<circle cx="110" cy="62" r="30" fill="${L.glow}"/><g fill="#fff" opacity=".85"><ellipse cx="520" cy="54" rx="56" ry="14"/><ellipse cx="560" cy="44" rx="34" ry="14"/><ellipse cx="300" cy="70" rx="40" ry="10"/></g>`,
       skyline(r, '#c7d3e3', 200, 30, 70),
       `<g fill="${L.shape}"><rect x="60" y="120" width="120" height="96"/><rect x="200" y="132" width="110" height="84"/><path d="M340 216 V120 l50 -30 l50 30 V216z"/><rect x="383" y="40" width="14" height="52"/><path d="M378 44 L390 14 L402 44z"/><rect x="470" y="128" width="130" height="88"/><rect x="620" y="112" width="120" height="104"/></g><path d="M384 30 h12 M390 24 v14" stroke="${L.glow}" stroke-width="3"/>`,
-      `${windows(r, 66, 128, 108, 24, 4, 1, 0.9, '#fdf6d8', '#30455e')}${windows(r, 476, 134, 118, 20, 5, 1, 0.9, '#fdf6d8', '#30455e')}${windows(r, 626, 120, 108, 30, 4, 1, 0.9, '#fdf6d8', '#30455e')}${awning(66, 108, L.accent)}${awning(206, 98, '#2a9d8f')}${awning(476, 118, '#e9c46a')}<path d="M372 216 v-34 a18 18 0 0 1 36 0 v34z" fill="#5a3a22"/><g fill="#f1ede4">${[636, 668, 700].map((x) => `<rect x="${x}" y="170" width="10" height="46"/>`).join('')}</g><text x="652" y="164" font-size="11" fill="#f1ede4" font-family="sans-serif">LIBRARY</text>`,
+      `${windows(r, 66, 128, 108, 24, 4, 1, 0.9, '#fdf6d8', '#30455e')}${windows(r, 476, 134, 118, 20, 5, 1, 0.9, '#fdf6d8', '#30455e')}${windows(r, 626, 120, 108, 30, 4, 1, 0.9, '#fdf6d8', '#30455e')}${awning(66, 108, L.accent)}${awning(206, 98, '#2a9d8f')}${awning(476, 118, '#e9c46a')}<path d="M372 216 v-34 a18 18 0 0 1 36 0 v34z" fill="#5a3a22"/><g fill="#f1ede4">${[636, 668, 700].map((x) => `<rect x="${x}" y="170" width="10" height="46"/>`).join('')}</g><rect x="636" y="156" width="74" height="8" fill="#f1ede4"/>`,
       `<rect x="0" y="216" width="${W}" height="44" fill="${L.ground}"/><rect x="0" y="214" width="${W}" height="6" fill="#d9d4c7"/>${Array.from({ length: 10 }, (_, i) => `<rect x="${i * 84 + 20}" y="238" width="40" height="4" fill="#f4e9a3"/>`).join('')}`,
       `${tree(20, 216, 60, '#3d7a35')}${tree(770, 216, 70, '#3d7a35')}<g><rect x="250" y="196" width="34" height="18" rx="4" fill="${L.accent}"/><circle cx="257" cy="216" r="4" fill="#222"/><circle cx="277" cy="216" r="4" fill="#222"/></g><rect x="446" y="176" width="3" height="40" fill="#555"/><circle cx="447" cy="172" r="6" fill="${L.glow}"/>`,
     ];
@@ -276,11 +276,10 @@ const SCENES = {
     ];
   },
   math(r, L) {
-    const sym = ['π', '∑', '√', '∞', '÷', '×', '=', '%', 'Δ', '+'];
     return [
       `<rect x="40" y="24" width="720" height="150" rx="6" fill="#20352b" stroke="#8b6b3e" stroke-width="8"/>`,
       `<g fill="none" stroke="#f4f1de" stroke-width="2.4" opacity=".85"><path d="M90 140 L150 60 L210 140 Z"/><circle cx="300" cy="100" r="40"/><path d="M260 100 h80 M300 60 v80"/><path d="M400 140 q60 -150 120 0"/></g>`,
-      `<g fill="#f4f1de" font-family="Georgia, serif" font-size="26" opacity=".9">${Array.from({ length: 8 }, (_, i) => `<text x="${560 + (i % 4) * 44}" y="${70 + Math.floor(i / 4) * 50}">${pick(r, sym)}</text>`).join('')}</g>`,
+      `<g fill="none" stroke="#f4f1de" stroke-width="2.4" opacity=".85">${Array.from({ length: 8 }, (_, i) => { const x = 560 + (i % 4) * 44, y = 60 + Math.floor(i / 4) * 50; return pick(r, [`<rect x="${x}" y="${y - 10}" width="20" height="20"/>`, `<circle cx="${x + 10}" cy="${y}" r="10"/>`, `<path d="M${x} ${y + 10} L${x + 10} ${y - 10} L${x + 20} ${y + 10}Z"/>`, `<path d="M${x} ${y} h20 M${x + 10} ${y - 10} v20"/>`]); }).join('')}</g>`,
       `<rect x="0" y="182" width="${W}" height="78" fill="${L.ground}"/><rect x="40" y="174" width="720" height="10" fill="#8b6b3e"/>${Array.from({ length: 6 }, (_, i) => `<rect x="${80 + i * 115}" y="200" width="80" height="44" rx="3" fill="${L.shape}"/>`).join('')}`,
       `<g transform="translate(640 196)"><rect width="70" height="10" rx="2" fill="#c49a6c"/>${Array.from({ length: 4 }, (_, i) => `<line x1="${8 + i * 18}" y1="0" x2="${8 + i * 18}" y2="10" stroke="#5a3a22"/>`).join('')}</g><path d="M120 196 l70 -6" stroke="${L.glow}" stroke-width="6" stroke-linecap="round"/>`,
       `<g transform="translate(380 150)"><path d="M0 40 h46 l-5 22 h-36z" fill="${L.glow}"/><path d="M8 40 q-16 -2 -14 12 M38 40 q16 -2 14 12" stroke="${L.glow}" stroke-width="4" fill="none"/></g>`,
@@ -300,7 +299,7 @@ const SCENES = {
     const flask = (x, base, c) => `<path d="M${x - 8} ${base - 60} h16 v20 l18 34 q4 8 -6 8 h-38 q-10 0 -6 -8 l18 -34z" fill="#fff" opacity=".85" stroke="#8d99ae" stroke-width="2"/><path d="M${x - 18} ${base - 22} h36 l8 14 q2 4 -4 4 h-44 q-6 0 -4 -4z" fill="${c}"/>`;
     const cells = ['H', 'He', 'C', 'N', 'O', 'Ne', 'Na', 'Cu', 'Zn', 'Au', 'Fe', 'Ca'];
     return [
-      `<g>${cells.map((c, i) => `<g transform="translate(${60 + (i % 6) * 54} ${24 + Math.floor(i / 6) * 50})"><rect width="48" height="44" rx="4" fill="#fff" stroke="#c9d1dd"/><text x="24" y="30" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="700" fill="${L.shape}">${c}</text></g>`).join('')}</g>`,
+      `<g>${cells.map((c, i) => `<g transform="translate(${60 + (i % 6) * 54} ${24 + Math.floor(i / 6) * 50})"><rect width="48" height="44" rx="4" fill="#fff" stroke="#c9d1dd"/><rect x="10" y="12" width="28" height="6" rx="3" fill="${L.shape}" opacity="${0.4 + (i % 3) * 0.25}"/><rect x="14" y="24" width="20" height="5" rx="2.5" fill="${L.shape}" opacity=".35"/></g>`).join('')}</g>`,
       `<rect x="0" y="170" width="${W}" height="90" fill="${L.ground}"/><rect x="0" y="164" width="${W}" height="12" fill="${L.shape}"/>`,
       `${flask(470, 166, L.glow)}${flask(550, 166, L.accent)}${flask(630, 166, '#ffd166')}`,
       `<g transform="translate(700 100)"><rect x="-4" y="54" width="40" height="10" rx="3" fill="${L.shape}"/><rect x="12" y="20" width="8" height="36" fill="#8d99ae"/><path d="M16 20 q-12 -14 0 -30 q12 16 0 30z" fill="#4cc9f0" opacity=".9"/></g>`,

@@ -60,7 +60,7 @@ function startAuth(signer) {
   }
   await mf.ready;
   const app = spawn('node', [path.join(__dirname, 'serve.mjs'), path.join(ROOT, 'dist', 'site'), String(APP_PORT)], { stdio: 'ignore' });
-  await new Promise((r) => setTimeout(r, 600));
+  await require('./wait-port.cjs')(APP_PORT);
   const config = `export const CLOUD = { firebaseApiKey: 'test-key', syncUrl: 'http://localhost:${API_PORT}', authUrl: 'http://localhost:${AUTH_PORT}/v1', tokenUrl: 'http://localhost:${AUTH_PORT}/v1', learnUrl: '' };\nexport const cloudEnabled = () => true;\nexport const CLOUD_URL = '';\n`;
   const browser = await chromium.launch();
   const errors = [];
@@ -94,7 +94,9 @@ function startAuth(signer) {
     await signUp(A, 'ann@example.com');
     await A.reload(); await A.waitForSelector('#np-race-card');
     await A.waitForFunction(() => /Choose a screen name/.test(document.querySelector('#np-race-card').textContent));
-    await A.click('#np-race-card [data-race=name]');
+    // A signed-in player without a name is asked straight away, with one made up.
+    await A.waitForSelector('dialog[open] [data-r=required]:not([hidden])');
+    assert(/^[A-Z][a-z]+[A-Z][a-z]+\d\d$/.test(await A.inputValue('#np-race-name')), 'a game page asks for the missing screen name, with a made-up one filled in');
     await A.fill('#np-race-name', 'Ann Racer');
     await dlg(A).locator('.race-view:not([hidden]) button[type=submit]').click();
     await A.waitForFunction(() => /Racing as Ann Racer/.test(document.querySelector('#np-race-card').textContent));
@@ -118,11 +120,18 @@ function startAuth(signer) {
     assert((await B.textContent('#np-race-card')).includes(`Sign in to join race ${code}`), 'a race link asks a signed-out player to sign in');
     assert(await B.isVisible('#np-race-card [data-race=signin]'), 'the card offers Sign in to race');
     await signUp(B, 'ben@example.com');
-    await B.evaluate(async () => (await import('/js/compete.js')).setName('Ben Swift'));
+    // Signing in on the Account page brings the player back to the race (as the
+    // Sign in button does), once they have a screen name: B has none yet, so the
+    // page asks first, with a made-up name filled in.
+    await B.goto(`${APP}/account/?game=np&race=${code}&next=https://evil.example/`);
+    await B.waitForSelector('#ac-name.needed #ac-name-needed:not([hidden])');
+    assert(/^[A-Z][a-z]+[A-Z][a-z]+\d\d$/.test(await B.inputValue('#ac-name-input')) && /ninetimesnine/.test(B.url()) === false, 'the Account page asks for the missing screen name before going back to the game');
+    await B.fill('#ac-name-input', 'Ben Swift');
+    await B.click('#ac-name-form button[type=submit]');
+    await B.waitForURL(/\/ninetimesnine\//, { timeout: 30000 });
     // Approve both names the way an admin does, so each sees the other's name.
     await db.prepare("INSERT OR REPLACE INTO name_reviews (user_id, name_key, reviewed_by, reviewed_at) SELECT user_id, name_key, 'test', 1 FROM players").run();
-    // Signing in on the Account page brings the player back to the race (as the Sign in button does).
-    await B.goto(`${APP}/account/?game=np&race=${code}&next=https://evil.example/`);
+    await B.reload();
     await B.waitForURL(new RegExp(`/ninetimesnine/\\?race=${code}$|/ninetimesnine/$`), { timeout: 30000 });
     await B.waitForSelector('#np-play-view .race-bar:not([hidden])', { timeout: 30000 });
     assert(true, 'once signed in, the Account page sends the player back to the race, who joins it');

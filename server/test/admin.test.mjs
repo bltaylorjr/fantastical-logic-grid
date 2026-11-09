@@ -58,6 +58,9 @@ async function call(path, { auth, method, body, origin = ORIGIN } = {}) {
   return { status: r.status, body: json, text, headers: r.headers };
 }
 const player = (uid) => signer.token({ sub: uid });
+// Every account has a screen name before its first sync (sync.js): give the
+// test players one, as the game's sign-up form does.
+const named = (db, uid) => db.prepare('INSERT OR IGNORE INTO players (user_id, screen_name, name_key, created_at, updated_at, accept_invites) VALUES (?1, ?1, ?1, 1, 1, 1)').bind(uid).run();
 
 test('the dashboard is served with strict security headers', async () => {
   const r = await call('/admin/', { origin: null });
@@ -699,7 +702,7 @@ test('new accounts stay counted after they are deleted', async () => {
   const today = new Date().toISOString().slice(0, 10);
   const base = (await db.prepare('SELECT made, deleted FROM account_days WHERE day = ?1').bind(today).first()) || { made: 0, deleted: 0 };
   const save = (uid) => call('/v1/sync', { auth: player(uid), body: { changes: [{ kind: 'settings', key: 'settings', data: '{}', updatedAt: Date.now(), baseRev: 0 }] } });
-  for (const uid of ['join-a', 'join-b', 'join-c']) assert.equal((await save(uid)).status, 200);
+  for (const uid of ['join-a', 'join-b', 'join-c']) { await named(db, uid); assert.equal((await save(uid)).status, 200); }
   // A second save from the same account is not a new account.
   await call('/v1/sync', { auth: player('join-a'), body: { changes: [{ kind: 'meta', key: 'solves', data: '[]', updatedAt: Date.now(), baseRev: 0 }] } });
   // One player deletes their own account; an admin deletes another, twice.

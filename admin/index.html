@@ -92,6 +92,7 @@
     </div>
     <ul id="nav-list" data-current="main">
       <li data-dash="main"><a href="#overview" data-min="viewer">Overview</a></li>
+      <li data-dash="main"><a href="#status" data-min="viewer">Status (live) <span class="count" id="count-status" hidden></span></a></li>
       <li data-dash="main"><a href="#analysis" data-min="viewer">Analysis and self-tuning <span class="count" id="count-analysis" hidden></span></a></li>
       <li data-dash="main"><a href="#visitors" data-min="viewer">Visitors</a></li>
       <li data-dash="main"><a href="#usage" data-min="viewer">Usage and free limits</a></li>
@@ -121,6 +122,7 @@
       <li data-dash="flg"><a href="#mail" data-min="viewer">Puzzle emails</a></li>
       <li data-dash="flg"><a href="#beat-images" data-min="moderator">Story beat pictures</a></li>
       <li data-dash="flg"><a href="#stories" data-min="moderator">Story workshop and review <span class="count" id="count-parts" hidden></span></a></li>
+      <li data-dash="flg"><a href="#puzzle-submissions" data-min="moderator">Puzzle submissions <span class="count" id="count-puzzle-submissions" hidden></span></a></li>
       <li data-dash="flg"><a href="#story-submissions" data-min="moderator">Storyline submissions <span class="count" id="count-story-submissions" hidden></span></a></li>
       <li data-dash="flg"><a href="#educators" data-min="moderator">Educator requests <span class="count" id="count-educators" hidden></span></a></li>
       <li data-dash="flg"><a href="#edu-feedback" data-min="moderator">Educator feedback <span class="count" id="count-edu-feedback" hidden></span></a></li>
@@ -160,6 +162,19 @@
       </div>
       <p class="muted">Every number the dashboard keeps, broken down by topic: what it shows, what to do next, how the game stands in the market and what to build. Self-tuning suggests small changes from these numbers and waits for your approval. Figures with too little data behind them are marked "Too early to judge".</p>
       <div id="an-body"><p class="muted">Loading…</p></div>
+    </section>
+
+    <section data-view="status" hidden aria-labelledby="h-status">
+      <div class="head"><h1 id="h-status">Status</h1>
+        <div class="row st-tools">
+          <span class="muted" id="status-stamp" aria-live="off"></span>
+          <label class="check"><input type="checkbox" id="status-only"> Show only problems</label>
+          <button class="btn" type="button" id="status-refresh">Check now</button>
+        </div>
+      </div>
+      <p class="muted">Everything the game needs, checked every 30 seconds while this page is open: the game online, the Oracle server, free allowances, scheduled work and what's waiting for you. Each row opens the page where it's handled.</p>
+      <p class="error" id="status-error" role="alert" hidden></p>
+      <div id="status-body"><p class="muted">Checking…</p></div>
     </section>
 
     <section data-view="details" hidden aria-labelledby="h-details">
@@ -391,6 +406,24 @@
       <div id="et-log"><p class="muted">Loading…</p></div>
     </section>
 
+    <section data-view="puzzle-submissions" hidden aria-labelledby="h-puzzle-submissions">
+      <div class="head"><h1 id="h-puzzle-submissions">Puzzle submissions</h1></div>
+      <p class="muted">Every puzzle players sent in, old and new: Puzzle Wizard puzzles and storylines, in four sections. <b>Awaiting approval</b> is new and resubmitted entries, <b>Awaiting edits</b> is entries the team asked the author to change, then <b>Approved</b> and <b>Published</b>. <b>Open</b> an entry to edit it, email the player who sent it (from support@thelogicgrid.com), push its puzzle to their Saved puzzles in the Logic Grid app, move it to another section, or delete it. <b>Full review</b> opens it on the Storyline submissions page for the trademark scan and corrected wording.</p>
+      <form class="row" id="ps-search" role="search" aria-label="Search puzzle submissions">
+        <div class="field grow"><label for="ps-q">Search</label><input type="search" id="ps-q" placeholder="Words, title, author credit, player, email, theme or entry number" autocomplete="off"></div>
+        <div class="field"><label for="ps-kind">Kind</label><select id="ps-kind"><option value="puzzles">Puzzles and storylines</option><option value="puzzle">Wizard puzzles</option><option value="storyline">Storylines</option><option value="">Everything (with theme and category ideas)</option></select></div>
+        <button class="btn primary" type="submit">Search</button>
+      </form>
+      <div class="sections" id="ps-tabs" role="group" aria-label="Show section"></div>
+      <p class="muted" id="ps-section-help"></p>
+      <p class="muted" id="ps-total" role="status"></p>
+      <div class="ss-layout">
+        <ul class="cards ss-list" id="ps-list"></ul>
+        <div id="ps-detail-wrap"></div>
+      </div>
+      <nav class="row pager" aria-label="Entry pages"><button class="btn small" type="button" id="ps-prev" hidden>Previous page</button><button class="btn small" type="button" id="ps-next" hidden>Next page</button></nav>
+    </section>
+
     <section data-view="story-submissions" hidden aria-labelledby="h-story-submissions">
       <div class="head"><h1 id="h-story-submissions">Storyline submissions</h1></div>
       <p class="muted">The Storyline Submission Database: every theme idea, category idea and storyline players sent, from the game's <b>Suggest a storyline</b> page and from <b>Share an idea</b>, kept exactly as they sent it, with the player, their author credit, their consent and the first puzzle made from an approved storyline. <b>Open</b> an entry to see the original form. <b>Scan</b> checks it for trademarks, protected characters and copied wording (a screening aid, not legal advice). <b>Approve and build puzzle</b> builds the first puzzle from the corrected words, saves it here and in the player's Saved puzzles, and emails it to the author as a PDF. Confirmations, approvals and decline thank-yous go from noreply@thelogicgrid.com; copies you email go from support@thelogicgrid.com.</p>
@@ -468,7 +501,7 @@
         <button type="button" class="btn small" data-section="account" aria-pressed="false">No screen name yet <span class="n"></span></button>
         <button type="button" class="btn small" data-section="all" aria-pressed="true">Everyone <span class="n"></span></button>
       </div>
-      <p class="muted">Every player who has an account, by section. <b>Needs approval</b>: new or changed screen names nobody has approved yet. <b>Approved, active</b>: approved names that played, synced or changed something in the last 30 days. <b>Approved, inactive</b>: approved names with nothing for over 30 days. <b>Blocked</b>: banned players. <b>No screen name yet</b>: accounts that only sync saves. Emails stay in Firebase and are not shown here; saved puzzles are only counted. <span data-min="moderator">Pick a name to see that player's page.</span> Select a column heading to sort by it.</p>
+      <p class="muted">Every player who has an account, by section. <b>Needs approval</b>: new or changed screen names nobody has approved yet. <b>Approved, active</b>: approved names that played, synced or changed something in the last 30 days. <b>Approved, inactive</b>: approved names with nothing for over 30 days. <b>Blocked</b>: banned players. <b>No screen name yet</b>: older accounts made before a screen name was required at sign-up. They are asked to choose one when they next sign in; new accounts always have one. Emails stay in Firebase and are not shown here; saved puzzles are only counted. <span data-min="moderator">Pick a name to see that player's page.</span> Select a column heading to sort by it.</p>
       <p id="players-count" class="muted" role="status"></p>
       <div class="table-wrap"><table class="table" id="players-table"><thead><tr>
         <th scope="col" data-sort="name"><button type="button" class="sort">Screen name</button></th>

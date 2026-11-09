@@ -8,7 +8,7 @@ const dir = process.argv[2] || path.join(__dirname, '..', 'dist', 'web');
 
 (async () => {
   const server = spawn('node', [path.join(__dirname, 'serve.mjs'), dir, '8149'], { stdio: 'ignore' });
-  await new Promise((r) => setTimeout(r, 600));
+  await require('./wait-port.cjs')('8149');
   const browser = await chromium.launch();
   const errors = [];
   try {
@@ -60,6 +60,7 @@ const dir = process.argv[2] || path.join(__dirname, '..', 'dist', 'web');
     await page.waitForTimeout(1200); // autosave
     await page.goto('http://localhost:8149/');
     await page.waitForSelector('#continue-btn:not([hidden])');
+    await page.waitForSelector('#dlg-welcome[open]', { timeout: 3000 }).catch(() => {});
     if (await page.locator('#dlg-welcome[open]').count()) await page.keyboard.press('Escape');
     await page.click('#continue-btn');
     await page.waitForSelector('#screen-play:not([hidden])');

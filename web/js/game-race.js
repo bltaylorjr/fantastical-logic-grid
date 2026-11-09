@@ -85,6 +85,7 @@ class Race {
         <div class="dlg-actions"><button class="btn" type="button" data-close>Cancel</button><button class="btn primary" type="submit">Join the race</button></div>
       </form>
       <form class="race-view" data-view="name" novalidate hidden>
+        <p class="help" data-r="required" hidden><b>Every account needs a screen name.</b> We made one up for you: keep it, press Suggest a name for another, or type your own.</p>
         <p class="help">Other players see only this name, in races and on the scoreboard. Never your email.</p>
         <div class="field"><label for="${g}-race-name">Screen name</label><input type="text" id="${g}-race-name" maxlength="20" autocomplete="off" spellcheck="false"></div>
         <p><button class="btn small" type="button" data-r="suggest">Suggest a name</button></p>
@@ -137,7 +138,7 @@ class Race {
     const user = account.current();
     const intro = this.$('intro', this.card), actions = this.$('actions', this.card);
     if (!user) {
-      intro.textContent = `Race other players on the very same ${NAMES[this.game]} puzzle: the fastest solve wins. Sign in with a free account to take part. You never need an account to play on your own.`;
+      intro.textContent = `Race other players on the very same ${NAMES[this.game]} puzzle: the fastest solve wins. Sign in with a free account to take part. Guests can play a few new puzzles a day without an account.`;
       actions.innerHTML = btn('signin', 'Sign in to race', true);
     } else if (!this.name) {
       intro.textContent = 'Choose a screen name to race. Other players see only that name.';
@@ -149,8 +150,13 @@ class Race {
   }
 
   async loadName() {
-    try { this.name = await compete.loadName(); } catch (e) { /* offline: keep the cached name */ }
+    let known = false;
+    try { this.name = await compete.loadName(); known = true; } catch (e) { /* offline: keep the cached name */ }
     this.render();
+    // Every account has a screen name: a signed-in player without one is asked
+    // straight away, with a made-up name filled in. Inside the app, its own
+    // screen name window asks instead (compete-ui.js).
+    if (known && !this.name && account.current() && !document.getElementById('dlg-name') && !this.dlg.open) this.openName({ required: true });
   }
 
   // Racing needs a sign-in and a screen name; ask for whichever is missing.
@@ -165,7 +171,11 @@ class Race {
     if (item && !item.hidden) { item.click(); return; }
     location.href = new URL(`../account/?game=${this.game}${this.pending ? `&race=${this.pending}` : ''}`, location.href).href;
   }
-  openName() { document.getElementById(`${this.game}-race-name`).value = this.name || ''; this.show('name', 'Choose a screen name'); }
+  openName({ required = false } = {}) {
+    document.getElementById(`${this.game}-race-name`).value = this.name || (required ? compete.suggestName() : '');
+    this.$('required').hidden = !required;
+    this.show('name', 'Choose a screen name');
+  }
 
   // ---------------------------------------------------------------- actions
   wire() {

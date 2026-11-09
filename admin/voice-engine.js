@@ -51,13 +51,23 @@ function cleanUrl(raw, { linked = false } = {}) {
   return u.origin;
 }
 
+// One way to reach Vox wherever it runs: on the server through the admin API
+// (signed in; the Worker adds Vox's key), or on a computer with its token.
+async function vfetch(path, init = {}) {
+  const headers = { ...(init.headers || {}) };
+  delete headers['X-Vox-Admin-Token'];
+  if (conn.server) headers.Authorization = `Bearer ${await h.bearer()}`;
+  else headers['X-Vox-Admin-Token'] = conn.token;
+  return fetch(conn.url + path, { ...init, headers });
+}
+
 async function vox(path, { method = 'GET', body, raw = false } = {}) {
   if (!conn) throw new Error('Not connected to the voice engine.');
   let res;
   try {
-    res = await fetch(conn.url + path, {
+    res = await vfetch(path, {
       method,
-      headers: { 'X-Vox-Admin-Token': conn.token, ...(body ? { 'Content-Type': 'application/json' } : {}) },
+      headers: body ? { 'Content-Type': 'application/json' } : {},
       body: body ? JSON.stringify(body) : undefined,
     });
   } catch (e) {
@@ -96,7 +106,7 @@ async function speakPreview(body, button) {
   if (button?.dataset.playing) { stopAudio(); return; }
   let res;
   try {
-    res = await fetch(`${conn.url}/v1/speak`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Vox-Admin-Token': conn.token }, body: JSON.stringify(body) });
+    res = await vfetch(`/v1/speak`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Vox-Admin-Token': conn.token }, body: JSON.stringify(body) });
   } catch (e) { throw new Error('The voice engine is not answering.'); }
   if (!res.ok) { let m = 'Could not make that line.'; try { m = (await res.json()).detail || m; } catch (e) { /* */ } throw new Error(m); }
   await playBlob(await res.blob(), button);
@@ -442,18 +452,124 @@ function showOpen(message = '') {
   watchEngine();
 }
 
+// Which model is speaking (vox/base.py): the base voices give real speech from
+// the start; Vox's own model takes over once Whisper hears it more clearly.
+let baseJob = null;
+function sourceLine(health) {
+  const src = health.voice_source || {};
+  const b = health.base_voices || {};
+  if (src.speaking === 'own') {
+    const why = src.source === 'own'
+      ? `Vox's own model, which beat the base voices${src.own_accuracy != null ? ` (${Math.round(src.own_accuracy * 100)}% of words heard vs ${Math.round((src.base_accuracy || 0) * 100)}%)` : ''}`
+      : b.error ? "Vox's own model, because the base voices couldn't be set up" : b.message ? "Vox's own model for now (getting the base voices ready)" : "Vox's own model";
+    const busy = baseJob && !baseJob.done;
+    return `<p class="muted" role="status">Speaking with <b>${h.esc(why)}</b>.${src.source !== 'own' && !src.forced ? ' Until it has trained on enough speech it only makes noise, so Vox uses the base voices as soon as they\'re ready.' : ''}</p>
+      ${busy ? `<p aria-live="polite">${h.esc(baseJob.message)}</p><progress max="1" value="${Number(baseJob.progress) || 0}" aria-label="Setting up the base voices"></progress>`
+      : b.message && !b.error ? `<p class="muted" aria-live="polite">${h.esc(b.message)}…</p>`
+      : src.source !== 'own' && !src.forced ? `${b.error || baseJob?.failed ? `<p class="error" role="alert">${h.esc(baseJob?.message || b.error)}</p>` : ''}<div class="row"><button class="btn primary" type="button" id="vx-base">Set up the base voices</button></div>` : ''}`;
+  }
+  return `<p class="muted" role="status">Speaking with <b>the base voices</b> (Kokoro, open source) while Vox's own model learns on a free GPU. Age, dialect and delivery are Vox's. It switches to Vox's own model by itself once Whisper hears that one more clearly.</p>`;
+}
+
 function shell(health) {
   const tabs = TABS.map(([k, label]) => `<label class="tab"><input type="radio" name="vx-tab" value="${k}"${k === tab ? ' checked' : ''}> ${label}</label>`).join('');
-  return `<div class="row vx-status"><p class="muted">Connected to <b>${h.esc(conn.linked ? 'Vox on your Windows PC' : conn.url)}</b>${health.public ? ' <span class="badge ok">online</span>' : ''}${desk && publishedUrl ? ' · <span class="muted">your other devices can open it too</span>' : ''} · model <b>${h.esc(health.version || '–')}</b> · ${h.esc(health.device)}${health.vocoder_trained ? '' : ' · <span class="badge warn">vocoder not trained yet</span>'}</p>
-      <div class="row"><button class="btn small" type="button" id="vx-studio">Open Voice Studio</button>${desk ? '<button class="btn small" type="button" id="vx-app-stop">Stop Vox</button>' : ''}
-      ${conn.linked ? '' : '<button class="btn small link" type="button" id="vx-forget">Disconnect</button>'}</div></div>
+  return `<div class="row vx-status"><p class="muted">Connected to <b>${h.esc(conn.server ? 'Vox on the server' : conn.linked ? 'Vox on your Windows PC' : conn.url)}</b>${health.public ? ' <span class="badge ok">online</span>' : ''}${desk && publishedUrl ? ' · <span class="muted">your other devices can open it too</span>' : ''} · model <b>${h.esc(health.version || '–')}</b> · ${h.esc(health.device)}${health.voice_source?.speaking === 'base' || health.vocoder_trained ? '' : ' · <span class="badge warn">vocoder not trained yet</span>'}</p>
+      ${sourceLine(health)}
+      <div class="row">${conn.server ? (desk ? '<button class="btn small link" type="button" id="vx-where-local">Use Vox on this computer instead</button>' : '') : '<button class="btn small" type="button" id="vx-studio">Open Voice Studio</button>'}${desk && !conn.server && serverState?.ready ? '<button class="btn small" type="button" id="vx-where-server">Use Vox on the server</button>' : ''}${desk ? '<button class="btn small" type="button" id="vx-app-stop">Stop Vox</button>' : ''}
+      ${conn.linked || conn.server ? '' : '<button class="btn small link" type="button" id="vx-forget">Disconnect</button>'}</div></div>
     ${health.learning ? '' : '<p class="note">Learning is off on this engine (it was started with --no-learning). Start it without that option to use this page fully.</p>'}
     <fieldset class="tabs"><legend class="sr-only">Part</legend>${tabs}</fieldset>
     <div id="vx-tab-body"><p class="muted">Loading…</p></div>`;
 }
 
 // ---------------------------------------------------------------- learning
+// Automatic training (vox/autotrain.py on the engine): each night it gathers
+// openly licensed speech by single dictionary words, learns dialects and
+// vocabulary, trains, checks the new model against the live one, and scans
+// accuracy, all inside a storage budget.
+const LANG = (code) => { try { return new Intl.DisplayNames(['en'], { type: 'language' }).of(code) || code; } catch (e) { return code; } };
+function autoCard(a) {
+  if (!a) return '';
+  const S = a.settings;
+  const acc = a.accuracy.at(-1);
+  const langs = Object.entries(a.languages).sort((x, y) => y[1].clips - x[1].clips);
+  const vocab = a.vocabulary || {};
+  const dial = Object.entries(a.dialects || {});
+  const label = (id) => (options?.dialects || []).find((d) => d.id === id)?.label || id.replace(/_/g, ' ');
+  const hist = a.history.slice(0, 8).map((r) => [h.when(secs(r.at)), h.esc(r.phase),
+    r.phase === 'gather' ? `${h.fmt(r.added)} new clips` : r.phase === 'train' ? `${h.fmt(r.steps)} steps · ${pct(r.candidate * 100)}% vs ${pct(r.live * 100)}% of words heard · ${r.promoted ? '<span class="badge ok">New model live</span>' : '<span class="badge">Kept the live one</span>'}` : r.phase === 'cleanup' ? `freed ${h.fmt(r.freed_mb)} MB${r.dropped_clips ? `, removed ${h.fmt(r.dropped_clips)} noisy clips` : ''}` : ''], 0);
+  const m = a.server_maintenance;
+  const u = a.server_usage;
+  // Vox's own model, trained on Kaggle's free GPU (kaggle/, vox-gpu-train.yml)
+  const g = a.gpu;
+  const tried = g?.last_tried;
+  const gpuCard = `<div class="card" role="status"><h3>Vox's own model (free GPU)</h3>
+      ${g && (g.step != null || g.report) ? `<div class="tiles">
+        ${h.tile('Training steps', h.fmt(g.step || 0), g.gpu_hours != null ? `${h.fmt(g.gpu_hours)} GPU hours so far` : '')}
+        ${h.tile('Last session', g.sessions?.length ? h.when(Date.parse(g.sessions.at(-1).at)) : '–', g.sessions?.length ? `${g.sessions.at(-1).hours} h on ${h.esc(g.sessions.at(-1).gpu || 'GPU')}` : '')}
+        ${h.tile('Last check', tried ? `${pct(tried.candidate * 100)}% vs ${pct(tried.live * 100)}%` : 'Not yet', tried ? `of the test words heard, against ${tried.against === 'base' ? 'the base voices' : 'the live model'}${tried.promoted ? ' · now live' : ''}` : 'Each new model is tried overnight')}
+      </div>${g.report?.notes?.length ? `<p class="muted">${h.esc(g.report.notes.at(-1))} <span class="muted">(${h.when(Date.parse(g.report.at))})</span></p>` : ''}`
+      : '<p class="muted">Not started. It trains on Kaggle\'s free GPU once the Kaggle token is added to GitHub (docs/VOX-GPU-TRAINING.md). Until it beats the base voices, they keep speaking.</p>'}
+      <p class="muted">Learns to speak from about 120 hours of openly licensed recordings (LJSpeech, public domain; VCTK and LibriTTS-R, CC BY 4.0), a session of up to 8 hours at a time, within 24 GPU hours a week. It usually takes a few weeks before it speaks clearly; Vox switches to it by itself the night it beats the base voices.</p></div>`;
+  const LEVEL = ['Normal', 'Careful: gathering at half speed', 'Throttled: no downloads, training only', 'Essential only: serving voices, nothing else'];
+  const tb = (b) => (b / 1e12).toFixed(2);
+  const usageCard = u ? `<div class="card ${u.level >= 2 ? 'warn' : ''}" role="status"><h3>Free-tier guard</h3>
+      <p><span class="badge ${u.level ? 'warn' : 'ok'}">${h.esc(LEVEL[u.level] || `Level ${u.level}`)}</span>${u.reason ? ` ${h.esc(u.reason)}` : ''}</p>
+      <div class="tiles">
+        ${h.tile('Outbound this month', `${tb(u.outbound.used)} of ${tb(u.outbound.limit)} TB`, `on pace for ${pct(u.outbound.on_pace_percent)}% by month end`)}
+        ${h.tile('Disk', `${u.disk_percent}% full`, `Vox data ${u.vox_data_gb} GB`)}
+        ${h.tile('Server size', `${h.esc(u.size.ocpus)} cores / ${h.esc(u.size.memory_gb)} GB`, u.size.free ? 'within the free 2 cores / 12 GB' : 'bigger than free: resize it')}
+      </div>
+      <p class="muted">Checked ${h.when(Date.parse(u.at))}, every 15 minutes. Games, voices and builds always run; only gathering, training and the word crawl slow down or pause, and they resume by themselves when there's room.</p></div>` : '';
+  return `<details class="card vx-settings" open><summary><h2>Automatic training</h2></summary>
+    <p class="muted">Each night (${S.start_hour}:00 to ${S.end_hour}:00) while the machine is quiet, Vox searches openly licensed recordings one plain dictionary word at a time (no names, places or channels), keeps the clear speech, and Whisper writes what's said and in which language. It learns each dialect's pace and melody from recordings that name their region, counts every word it hears per language, trains, and puts a new model live only if Whisper hears more of its words than the live one's. It stays within ${S.budget_gb} GB.</p>
+    ${a.whisper ? '' : '<p class="note">Needs Whisper: install it with the button below.</p>'}
+    ${gpuCard}
+    ${usageCard}
+    <div class="tiles">
+      ${h.tile('Status', a.running ? h.esc(a.phase) : S.enabled ? (a.in_window ? 'Starting tonight’s round' : 'Waiting for tonight') : 'Off')}
+      ${h.tile('Speech gathered', `${h.fmt(a.clips)} clips`, `${a.hours} hours · ${h.fmt(a.new_clips)} new since training`)}
+      ${h.tile('Words searched', a.total_words ? `${h.fmt(a.cursor)} of ${h.fmt(a.total_words)}` : h.fmt(a.cursor))}
+      ${h.tile('Word accuracy', acc ? `${pct(acc.accuracy * 100)}%` : '–', acc ? `of ${acc.words} words heard back, ${h.when(secs(acc.at))}` : 'checked every night')}
+      ${h.tile('Storage', `${a.used_gb} of ${S.budget_gb} GB`)}
+    </div>
+    ${a.running ? `<p aria-live="polite">${h.esc(a.message)}</p><progress max="1" value="${Number(a.progress) || 0}" aria-label="Automatic training progress"></progress><div class="row"><button class="btn" type="button" id="vx-at-stop">Stop</button></div>`
+    : `${a.message ? `<p class="muted">${h.esc(a.message)}</p>` : ''}<div class="row">
+        <button class="btn primary" type="button" data-at-run="night">Run a full round now</button>
+        <button class="btn" type="button" data-at-run="gather">Gather speech</button>
+        <button class="btn" type="button" data-at-run="train">Train now</button>
+        <button class="btn" type="button" data-at-run="scan">Check accuracy</button>
+        <button class="btn link" type="button" id="vx-at-back">Go back to the previous model</button></div>`}
+    <details class="vx-more"><summary>Languages, vocabulary and dialects</summary>
+      ${langs.length ? `<p>${langs.map(([c, v]) => `<b>${h.esc(LANG(c))}</b>: ${h.fmt(v.clips)} clips, ${h.fmt(vocab[c]?.words || 0)} words`).join(' · ')}</p>` : '<p class="muted">No speech gathered yet.</p>'}
+      ${dial.length ? `<p>Learned from real recordings (blended into each dialect's settings as evidence grows):</p><ul>${dial.map(([id, d]) => `<li><b>${h.esc(label(id))}</b>: ${h.fmt(d.clips)} clips · pace ${d.prosody.rate >= 0 ? '+' : ''}${d.prosody.rate}, melody ${d.prosody.pitch_range >= 0 ? '+' : ''}${d.prosody.pitch_range} · ${Math.round(d.weight * 100)}% weight</li>`).join('')}</ul>` : '<p class="muted">Dialects are learned once recordings that name their region come in (at least 5 clips each).</p>'}
+      ${a.last?.missed?.length ? `<p>Words to work on (not heard back in the last check): ${h.esc(a.last.missed.slice(0, 20).join(', '))}</p>` : ''}
+    </details>
+    <details class="vx-more"><summary>Schedule and limits</summary>
+      <form id="vx-at" class="stack" novalidate>
+        <label class="check"><input id="vx-at-on" type="checkbox"${S.enabled ? ' checked' : ''}> Train automatically every night</label>
+        <div class="row">
+          <div class="field"><label for="vx-at-a">From (hour)</label><input id="vx-at-a" type="number" min="0" max="23" value="${S.start_hour}"></div>
+          <div class="field"><label for="vx-at-b">Until (hour)</label><input id="vx-at-b" type="number" min="0" max="23" value="${S.end_hour}"></div>
+          <div class="field"><label for="vx-at-gb">Storage budget (GB)</label><input id="vx-at-gb" type="number" min="2" max="500" value="${S.budget_gb}"></div>
+        </div>
+        <div class="row">
+          <div class="field"><label for="vx-at-g">Gathering (minutes a night)</label><input id="vx-at-g" type="number" min="5" max="600" value="${S.gather_minutes}"></div>
+          <div class="field"><label for="vx-at-t">Training (minutes a night)</label><input id="vx-at-t" type="number" min="5" max="600" value="${S.train_minutes}"></div>
+          <div class="field"><label for="vx-at-c">Processor cores to use</label><input id="vx-at-c" type="number" min="1" max="64" value="${S.threads}"></div>
+        </div>
+        <div class="row"><button class="btn primary" type="submit">Save</button></div>
+      </form>
+    </details>
+    ${hist.length ? `<h3>Recent rounds</h3>${h.table(['When', 'What', 'Result'], hist, '')}` : ''}
+    ${m ? `<p class="muted">Server cleanup and repair: last ran ${h.when(Date.parse(m.at))}, freed ${h.fmt(m.freed_mb)} MB, disk ${m.disk_pct}% full${m.repairs?.length ? ` · fixed: ${h.esc(m.repairs.join('; '))}` : ' · nothing needed fixing'}.</p>` : ''}
+  </details>`;
+}
+
 async function renderLearning(el) {
+  let auto = null;
+  try { auto = await vox('/v1/admin/autotrain'); } catch (e) { /* an older engine */ }
+  await loadOptions();
   const st = await vox('/v1/admin/learning');
   const s = st.settings;
   const job = st.job && !st.job.done && !st.job.failed ? st.job : null;
@@ -462,7 +578,7 @@ async function renderLearning(el) {
     r.before != null ? `${pct(r.before)} → ${pct(r.after)}` : '–',
     r.status === 'done' ? (r.promoted ? '<span class="badge ok">Promoted</span>' : '<span class="badge">Kept current</span>') : `<span class="badge ${r.status === 'failed' ? 'bad' : 'warn'}">${h.esc(r.status)}</span>`,
     h.esc(r.message || '')]);
-  el.innerHTML = `
+  el.innerHTML = `${autoCard(auto)}
     <p class="muted">Every line the engine speaks is saved and scored. Your ratings and A/B choices teach it what you like. A refinement round trains a copy of the model on its best lines and your choices, tests the copy on the same fixed lines as the current model, and switches only if the copy scores higher. Every version is kept (see Versions).</p>
     <div class="tiles">
       ${h.tile('Model in use', h.esc(st.current || '–'))}
@@ -472,7 +588,8 @@ async function renderLearning(el) {
       ${h.tile('Choices to learn from', h.fmt(st.preferences), 'pairs: this one is better than that one')}
       ${h.tile('Since the last round', `${h.fmt(st.new_feedback)} / ${h.fmt(s.every_n_feedback)}`, `ratings and choices (or ${h.fmt(st.new_takes)} of ${h.fmt(s.every_n_takes)} lines)`)}
     </div>
-    ${st.whisper ? '' : '<p class="note">Clear-words scoring is off: install Whisper on the engine\'s computer (<code>pip install faster-whisper</code>) to score how clearly each line is spoken and to find words it says wrong. It is free and runs on your computer.</p>'}
+    ${st.whisper ? '' : `<div class="note"><p>Clear-words scoring is off until Whisper is installed. Whisper (free, runs where Vox runs) scores how clearly each line is spoken and finds words Vox says wrong.</p>
+      ${whisperJob && !whisperJob.done ? `<p aria-live="polite">${h.esc(whisperJob.message)}</p><progress max="1" value="${Number(whisperJob.progress) || 0}" aria-label="Installing Whisper"></progress>` : `${whisperJob?.failed ? `<p class="error" role="alert">${h.esc(whisperJob.message)}</p>` : ''}<button class="btn primary" type="button" id="vx-whisper">Install Whisper</button>`}</div>`}
     <div class="charts">${trendChart(st.trend)}</div>
     <section class="card" aria-labelledby="vx-refine-h">
       <div class="head"><h2 id="vx-refine-h">Refine</h2>
@@ -501,7 +618,7 @@ async function renderLearning(el) {
     </details>
     <h2>Rounds</h2>
     ${h.table(['Started', 'Why', 'Learned from', 'Test score', 'Result', 'Details'], rounds, 'No rounds yet.')}`;
-  return Boolean(job);
+  return Boolean(job || auto?.running);
 }
 
 // ------------------------------------------------------------------ review
@@ -577,7 +694,7 @@ function atSpec() {
   return spec;
 }
 async function renderAutotune(el) {
-  presets = presets || await (await fetch(`${conn.url}/v1/autotune/presets`)).json();
+  presets = presets || await (await vfetch(`/v1/autotune/presets`)).json();
   atVoice = atVoice && voiceList.some((v) => v.name === atVoice) ? atVoice : voiceList[0]?.name || '';
   const v = voiceList.find((x) => x.name === atVoice);
   el.innerHTML = `
@@ -612,7 +729,7 @@ async function renderVoices(el) {
       ${v.name !== 'narrator' ? `<button class="btn small danger" type="button" data-del="${h.esc(v.name)}">Delete</button>` : ''}</div>`]);
   let disc = null;
   try { disc = await vox('/v1/admin/discover'); } catch (e) { /* an older engine: no discovery */ }
-  const health = await fetch(`${conn.url}/v1/health`).then((r) => r.json()).catch(() => null);
+  const health = await vfetch(`/v1/health`).then((r) => r.json()).catch(() => null);
   el.innerHTML = `${agesCard()}${samplesForm(disc)}${discoverCard(disc, health)}<p class="muted">Auto-optimize tries several generation settings on test lines, scores each, and keeps the best for that voice; the comparisons also teach the learning loop. Refinements are the small identity nudges from takes you liked.</p>
     ${h.table(['Voice', 'Kind', 'Description', 'Auto-tune', 'Settings', 'Refinements', ''], rows, 'No voices yet.', { csv: false })}`;
   return Boolean((sampleJob && !sampleJob.done) || disc?.running);
@@ -678,7 +795,7 @@ async function showWord(word) {
   const card = $('#vx-word-card');
   let w = null, problem = '';
   try {
-    const res = await fetch(`${conn.url}/v1/dictionary/${encodeURIComponent(word)}`, { headers: { 'X-Vox-Admin-Token': conn.token } });
+    const res = await vfetch(`/v1/dictionary/${encodeURIComponent(word)}`, { headers: { 'X-Vox-Admin-Token': conn.token } });
     w = await res.json().catch(() => null);
     // A real answer always says whether the word was found; anything else is an error from the engine.
     if (!w || typeof w.found !== 'boolean') { problem = (w && typeof w.detail === 'string' && w.detail) || `The engine said ${res.status}.`; w = null; }
@@ -689,7 +806,7 @@ async function showWord(word) {
 // -------------------------------------------------------------- languages
 let langLast = { to: 'es', text: 'Welcome back, traveler. The road was long, but you made it.' };
 async function renderLanguages(el) {
-  const r = await (await fetch(`${conn.url}/v1/languages`)).json();
+  const r = await (await vfetch(`/v1/languages`)).json();
   el.innerHTML = `<p class="muted">Translate any line into ${h.fmt(r.languages.length)} languages and hear it, free and on the engine's own computer (${h.esc(r.backend)} model, ${h.esc(r.license)} license). Markup like [breath] and [warm]\u2026[/warm] is kept. Games can ask for a language on any line (<code>"translate_to": "es"</code>), and each translation is saved so it's only made once.</p>
     <form id="vx-tr" class="card stack" novalidate>
       <div class="field"><label for="vx-tr-text">Line (English)</label><textarea id="vx-tr-text" rows="2" maxlength="1000">${h.esc(langLast.text)}</textarea></div>
@@ -711,6 +828,7 @@ let sampleJob = null;
 // style, fluency, child sound patterns and the full range from a whisper to
 // singing (vox/development.py, dialects.py, delivery.py on the engine).
 let options = null;
+let whisperJob = null; // { id, message, progress, done, failed }
 let tryLine = 'Hello there! Can you help me find the red ball? I think it rolled under the big tree.';
 async function loadOptions() {
   if (!options) { try { options = await vox('/v1/voices/options'); } catch (e) { options = null; } }
@@ -889,12 +1007,15 @@ const RENDER = { learning: renderLearning, review: renderReview, autotune: rende
 // While a job runs the tab refreshes every 3 seconds, but not while you are
 // typing in one of its forms: then it waits until you save or change tabs.
 let editing = false;
+// On the server every refresh is a Worker request (100,000 free a day), so it
+// refreshes every 10 seconds there and not at all while the page is hidden.
 function pollLater() {
   poll = setTimeout(() => {
     if (location.hash !== '#voice-engine') return;
     if (editing) { pollLater(); return; }
+    if (document.hidden) { document.addEventListener('visibilitychange', () => renderTab(), { once: true }); return; }
     renderTab();
-  }, 3000);
+  }, conn?.server ? 10000 : 3000);
 }
 
 async function renderTab(extra) {
@@ -906,7 +1027,7 @@ async function renderTab(extra) {
   // stay open when the tab is drawn again.
   const open = new Set($$('details[open] > summary', el).map((s) => s.textContent.trim()));
   try {
-    voiceList = await (await fetch(`${conn.url}/v1/voices`)).json();
+    voiceList = await (await vfetch(`/v1/voices`)).json();
     const busy = await RENDER[tab](el, extra);
     $$('details > summary', el).forEach((s) => { if (open.has(s.textContent.trim())) s.parentElement.open = true; });
     if (busy) pollLater();
@@ -916,12 +1037,46 @@ async function renderTab(extra) {
   }
 }
 
+// Where Vox runs: the server when it's set up (any device), unless this
+// device chose its own computer (the Windows app's "Use Vox on this computer").
+const WHERE_KEY = 'vox-where';
+const where = () => { try { return localStorage.getItem(WHERE_KEY) || 'server'; } catch (e) { return 'server'; } };
+const setWhere = (v) => { try { localStorage.setItem(WHERE_KEY, v); } catch (e) { /* private mode */ } };
+let serverSwitched = false;
+let serverState = null; // { ready, at }
+async function serverReady() {
+  if (serverState && Date.now() - serverState.at < 60000) return serverState.ready;
+  let ready = false;
+  try { ready = !!(await h.api('vox-server')).ready; } catch (e) { ready = false; }
+  serverState = { ready, at: Date.now() };
+  return ready;
+}
+
 async function render(message = '') {
   clearTimeout(poll);
   clearTimeout(watch);
   stopAudio();
   const body = $('#vx-body');
   if (desk === null) desk = await detectDesk();
+  // Vox on the server comes first: it works the same on every device.
+  if (!message && where() === 'server' && await serverReady()) {
+    conn = { url: `${location.origin}/admin/v1/vox`, server: true };
+    if (desk && !serverSwitched) {
+      serverSwitched = true;            // the computer's own Vox isn't needed now
+      appCall('vox_stop').catch(() => {});
+      appCall('vox_set_autostart', { on: false }).catch(() => {});
+    }
+    try {
+      const health = await vox('/v1/health');
+      tokenRejected = false;
+      body.innerHTML = shell(health);
+      await renderTab();
+      return true;
+    } catch (e) {
+      body.innerHTML = `<section class="card"><p class="error" role="alert">${h.esc(e.message)}</p><div class="row"><button class="btn" type="button" id="vx-retry">Try again</button>${desk ? '<button class="btn link" type="button" id="vx-where-local">Use Vox on this computer instead</button>' : ''}</div></section>`;
+      return false;
+    }
+  }
   conn = loadConn();
   if (!desk && !message && (!conn || conn.linked)) {
     const r = await connectFromLink();
@@ -993,7 +1148,7 @@ export function initVoiceEngine(helpers) {
     suggestTimer = setTimeout(async () => {
       if (q.length < 2) return;
       try {
-        const r = await (await fetch(`${conn.url}/v1/dictionary?prefix=${encodeURIComponent(q)}`, { headers: { 'X-Vox-Admin-Token': conn.token } })).json();
+        const r = await (await vfetch(`/v1/dictionary?prefix=${encodeURIComponent(q)}`, { headers: { 'X-Vox-Admin-Token': conn.token } })).json();
         const list = $('#vx-q-list');
         if (list) list.innerHTML = r.words.map((w) => `<option value="${h.esc(w)}"></option>`).join('');
       } catch (err) { /* suggestions are optional */ }
@@ -1083,7 +1238,7 @@ export function initVoiceEngine(helpers) {
           const fd = new FormData();
           fd.append('file', file);
           let res;
-          try { res = await fetch(`${conn.url}/v1/admin/discover/list`, { method: 'POST', headers: { 'X-Vox-Admin-Token': conn.token }, body: fd }); }
+          try { res = await vfetch(`/v1/admin/discover/list`, { method: 'POST', headers: { 'X-Vox-Admin-Token': conn.token }, body: fd }); }
           catch (e) { throw new Error('The voice engine is not answering.'); }
           const j = await res.json().catch(() => ({}));
           if (res.status === 404 || res.status === 405) throw new Error('Update Vox to make voices from a word list.');
@@ -1092,6 +1247,11 @@ export function initVoiceEngine(helpers) {
         await vox('/v1/admin/discover/start', { method: 'POST', body: { voices: n('#vx-l-n'), words_per_voice: n('#vx-l-w'), speakers: n('#vx-l-s'), source: 'list' } });
         await renderTab();
       }, 'Making voices from your word list. It keeps going in the background.');
+      return;
+    }
+    if (f.id === 'vx-at') {
+      const n = (id) => Number($(id).value);
+      await h.act(btn, async () => { await vox('/v1/admin/autotrain/settings', { method: 'PUT', body: { enabled: $('#vx-at-on').checked, start_hour: n('#vx-at-a'), end_hour: n('#vx-at-b'), budget_gb: n('#vx-at-gb'), gather_minutes: n('#vx-at-g'), train_minutes: n('#vx-at-t'), threads: n('#vx-at-c') } }); await renderTab(); }, 'Saved.');
       return;
     }
     if (f.id === 'vx-disc') {
@@ -1132,7 +1292,7 @@ export function initVoiceEngine(helpers) {
         btn.textContent = 'Translating…';
         let r, j;
         try {
-          r = await fetch(`${conn.url}/v1/translate`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Vox-Admin-Token': conn.token }, body: JSON.stringify({ text, to: langLast.to }) });
+          r = await vfetch(`/v1/translate`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Vox-Admin-Token': conn.token }, body: JSON.stringify({ text, to: langLast.to }) });
           j = await r.json().catch(() => ({}));
         } catch (err) {
           throw new Error('The voice engine is not answering.');
@@ -1154,7 +1314,7 @@ export function initVoiceEngine(helpers) {
         fd.append('attribution', $('#vx-s-credit').value);
         for (const file of $('#vx-s-files').files) fd.append('files', file);
         let res;
-        try { res = await fetch(`${conn.url}/v1/admin/voices/from-samples`, { method: 'POST', headers: { 'X-Vox-Admin-Token': conn.token }, body: fd }); }
+        try { res = await vfetch(`/v1/admin/voices/from-samples`, { method: 'POST', headers: { 'X-Vox-Admin-Token': conn.token }, body: fd }); }
         catch (e) { throw new Error('The voice engine is not answering.'); }
         const j = await res.json();
         if (!res.ok) throw new Error(j.detail || 'Could not start.');
@@ -1175,6 +1335,15 @@ export function initVoiceEngine(helpers) {
     const b = e.target.closest('button');
     if (!b) return;
     if (b.id === 'vx-forget') { saveConn(null); render(); return; }
+    if (b.id === 'vx-retry') { serverState = null; await render(); return; }
+    if (b.id === 'vx-where-local') {
+      setWhere('local'); serverSwitched = false;
+      try { await appCall('vox_set_autostart', { on: true }); await appCall('vox_start'); } catch (err) { /* shown on the card */ }
+      h.toast('Using Vox on this computer. It starts by itself when the app opens.');
+      await render();
+      return;
+    }
+    if (b.id === 'vx-where-server') { setWhere('server'); serverSwitched = false; await render(); return; }
     if (b.id === 'vx-app-start') {
       tokenRejected = false;
       try { await appCall('vox_start'); } catch (err) { h.toast(String(err)); }
@@ -1262,6 +1431,41 @@ export function initVoiceEngine(helpers) {
           register: vals.register || null, delivery: vals.delivery || null, fluency: num(vals.fluency) } });
         await renderTab();
       }, 'Saved. Every line in this voice uses it now.');
+      return;
+    }
+    if (b.dataset.atRun) { await h.act(b, async () => { await vox(`/v1/admin/autotrain/run/${b.dataset.atRun}`, { method: 'POST' }); await renderTab(); }, 'Started. It keeps going in the background.'); return; }
+    if (b.id === 'vx-at-stop') { await h.act(b, async () => { await vox('/v1/admin/autotrain/stop', { method: 'POST' }); await renderTab(); }, 'Stopping after the current step.'); return; }
+    if (b.id === 'vx-at-back') {
+      if (!(await h.ask({ title: 'Go back to the previous model?', text: 'The model that was live before the last automatic training goes back into use.', ok: 'Go back' }))) return;
+      await h.act(b, async () => { await vox('/v1/admin/autotrain/rollback', { method: 'POST' }); await renderTab(); }, 'The previous model is back in use.');
+      return;
+    }
+    if (b.id === 'vx-base') {
+      await h.act(b, async () => {
+        const { job } = await vox('/v1/admin/base/install', { method: 'POST' });
+        baseJob = { id: job, message: 'Starting…', progress: 0, done: false };
+        const tick = async () => {
+          try { baseJob = { id: job, ...(await vox(`/v1/admin/jobs/${job}`)) }; } catch (err) { baseJob = { id: job, done: true, failed: true, message: err.message }; }
+          if (location.hash === '#voice-engine') await render();
+          if (!baseJob.done) setTimeout(tick, 3000);
+          else if (!baseJob.failed) h.toast('The base voices are ready. Vox speaks with them now.');
+        };
+        await tick();
+      });
+      return;
+    }
+    if (b.id === 'vx-whisper') {
+      await h.act(b, async () => {
+        const { job } = await vox('/v1/admin/whisper/install', { method: 'POST' });
+        whisperJob = { id: job, message: 'Starting…', progress: 0, done: false };
+        const tick = async () => {
+          try { whisperJob = { id: job, ...(await vox(`/v1/admin/jobs/${job}`)) }; } catch (err) { whisperJob = { id: job, done: true, failed: true, message: err.message }; }
+          if (location.hash === '#voice-engine') await renderTab();
+          if (!whisperJob.done) setTimeout(tick, 3000);
+          else if (!whisperJob.failed) h.toast('Whisper is installed. Clear-words scoring is on.');
+        };
+        await tick();
+      });
       return;
     }
     if (b.id === 'vx-disc-stop') { await h.act(b, async () => { await vox('/v1/admin/discover/stop', { method: 'POST' }); await renderTab(); }, 'Stopping after the current group of words.'); return; }

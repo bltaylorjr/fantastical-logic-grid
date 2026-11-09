@@ -33,6 +33,9 @@ jobs:
     runs-on: [self-hosted, flg]
     timeout-minutes: 20
     steps:
+      - if: runner.environment == 'self-hosted'
+        name: Start from an empty folder (our build server keeps the last job's files)
+        run: sudo find "$GITHUB_WORKSPACE" -mindepth 1 -delete || true
       - uses: actions/checkout@v7
         with:
           sparse-checkout: |

@@ -4,7 +4,9 @@
 // with email confirmation, a reset link, Face ID or fingerprint through
 // Chromium's virtual authenticator), a publisher who has access, a viewer who
 // does not, the sample book, Apply specs, and a submission packet download
-// that is written to the audit log.
+// that is written to the audit log, syncing a book between two devices (and
+// keeping both when two change it at once), the app manifest, the offline
+// service worker and Get the app.
 // Grid books (the dashboard's Books and covers inside Book Studio) needs the
 // built website in dist/site (npm run build); without it that part is skipped.
 // Needs `npm install` in server/ and `node book-studio/build.mjs` first.
@@ -224,6 +226,11 @@ const SHOTS = process.env.SHOTS;
       const g = await page.evaluate(() => ({ pages: S.pages.length, blocks: document.querySelectorAll('#pages .grid-block').length, title: S.meta.title, css: !!document.querySelector('#gridBookCss'), over: document.querySelectorAll('#pages .page.overflow').length }));
       assert(g.pages >= 24 && g.blocks >= 4 && g.css && g.over === 0, `Open in the editor brings the Grid book in (${g.pages} pages, ${g.blocks} puzzle blocks, nothing overflowing)`);
       if (SHOTS) await page.screenshot({ path: path.join(SHOTS, 'book-studio-grid-opened.png') });
+      // A Grid book puzzle is a fixed block, but it still takes a theme.
+      const room = await page.$('#pages .grid-room'); await room.scrollIntoViewIfNeeded(); await room.click();
+      await page.selectOption('#pzTheme', 'Mystery and adventure'); await page.selectOption('#pzSub', 'Detectives');
+      const gt = await page.evaluate(() => ({ tools: document.querySelector('#pzTools').hidden, saved: (syncPagesFromDom(), S.pages.some((p) => /data-pz-theme="Mystery and adventure" data-pz-sub="Detectives"/.test(p.html))) }));
+      assert(gt.tools && gt.saved, 'a Grid book puzzle takes a theme and subcategory (and offers no resize or new puzzle)');
       assert((await page.textContent('#navBack')) === '← Back to Grid books', 'Back returns to Grid books');
     } else console.log('--  Grid books skipped: no dist/site (run npm run build)');
     await page.click('#applyPub');
@@ -239,7 +246,103 @@ const SHOTS = process.env.SHOTS;
     assert(/submission-packet\.zip$/.test(dl.suggestedFilename()), `the submission packet downloads (${dl.suggestedFilename()})`);
     const { results } = await db.prepare("SELECT actor, status FROM admin_audit WHERE action = 'publishing.export'").all();
     assert(results.some((r) => r.actor === 'pub@example.com' && r.status === 200), 'the export is written to the audit log');
+
+    // Sync: the edited book goes to the account, and opens on a second device.
+    const books = async () => (await db.prepare("SELECT id, title, rev FROM studio_books WHERE owner = 'pub@example.com' ORDER BY updated_at").all()).results;
+    await page.waitForFunction(() => syRev(S.syncId) === 1 && /^Synced/.test(document.querySelector('#sbSync').textContent), null, { timeout: 40000 }).catch(async (e) => { console.log(await page.evaluate(() => [document.querySelector('#sbSync').textContent, syPending(syCurrent()), syRev(S.syncId), syReady])); throw e; });
+    let mine = await books();
+    const title = await page.evaluate(() => S.meta.title);
+    assert(mine.length === 1 && mine[0].title === title && mine[0].id === await page.evaluate(() => S.syncId), `the book syncs to the publisher's account ("${title}")`);
+    const other = await open(session('pub@example.com', 'pub-uid'));
+    const bookId = await page.evaluate(() => S.syncId);
+    await other.waitForFunction((id) => !document.querySelector('#app').hidden && S.syncId === id && /^Synced/.test(document.querySelector('#sbSync').textContent), bookId, { timeout: 60000 });
+    assert((await other.evaluate(() => S.pages.length)) === (await page.evaluate(() => S.pages.length)), 'a new device opens the newest book from the account instead of the sample');
+    // The second device also gives a puzzle a theme and adds a theme to the list.
+    await other.evaluate(() => {
+      S.meta.title = 'Changed on the second device'; fillMetaForm();
+      applyThemeTo([document.querySelector('#pages .content .puzzle, #pages .content .grid-room')], 'Holidays', 'Christmas');
+      S.puzzleThemes = cloneThemes([...puzzleThemes(), { name: 'Logic grids', subs: ['Easy', 'Expert'] }]);
+      markDirty();
+    });
+    await other.waitForFunction(() => /^Synced/.test(document.querySelector('#sbSync').textContent) && syRev(S.syncId) === 2, null, { timeout: 40000 });
+    await page.evaluate(() => syCheck({ force: true }));
+    await page.waitForFunction(() => S.meta.title === 'Changed on the second device', null, { timeout: 30000 });
+    assert(true, 'the first device picks up the change from the second');
+    assert(await page.evaluate(() => document.querySelectorAll('#pages [data-pz-theme="Holidays"][data-pz-sub="Christmas"]').length >= 1 && puzzleThemes().some((t) => t.name === 'Logic grids')), 'a puzzle theme and an edited theme list sync to the other device');
+    // Once it has opened (cover too), nothing is left to send: before, the cover was
+    // read back while still loading, so the book was sent straight back as a new save.
+    await page.waitForFunction(() => !syPending(syCurrent()), null, { timeout: 20000 });
+    assert(await page.evaluate(() => syRev(S.syncId)) === 2, 'a book opened from the account is not sent straight back');
+    // Both devices change the book before either has the other's changes: the
+    // changes are merged into the same book, never a copy.
+    const before = await page.evaluate(() => S.pages.length);
+    await other.evaluate(() => { S.meta.title = 'Second device again'; addPageAfter(S.pages.length - 1, '<p>Added on the second device</p>'); });
+    await other.waitForFunction((n) => syRev(S.syncId) >= 3 && S.pages.length === n + 1 && /^Synced/.test(document.querySelector('#sbSync').textContent), before, { timeout: 40000 });
+    await page.evaluate(() => { S.meta.subtitle = 'Subtitle from the first device'; S.meta.title = 'First device, not synced yet'; fillMetaForm(); markDirty(); });
+    await page.waitForFunction((n) => S.pages.length === n + 1 && S.meta.title === 'First device, not synced yet' && /^Synced/.test(document.querySelector('#sbSync').textContent) && !syPending(syCurrent()), before, { timeout: 60000 })
+      .catch(async (e) => { console.log(await page.evaluate(() => [document.querySelector('#sbSync').textContent, S.meta.title, S.pages.length, syRev(S.syncId)])); throw e; });
+    mine = await books();
+    assert(mine.length === 1 && mine[0].id === bookId && mine[0].title === 'First device, not synced yet', `changes made on two devices at once go into the same book, not a copy (${mine.map((b) => b.title).join(' | ')})`);
+    assert(await page.evaluate(() => S.pages.some((p) => /Added on the second device/.test(p.html)) && S.meta.subtitle === 'Subtitle from the first device'), 'the page added on one device and the subtitle set on the other are both in the book');
+    await other.evaluate(() => syCheck({ force: true }));
+    await other.waitForFunction(() => S.meta.title === 'First device, not synced yet' && S.meta.subtitle === 'Subtitle from the first device', null, { timeout: 30000 });
+    assert(true, 'the second device opens the merged book');
+    await page.click('#projMenuBtn');
+    await page.waitForFunction(() => document.querySelectorAll('#syList .sy-item').length === 1);
+    assert(true, 'Project lists the one book on the account');
+    await page.click('#dlgProject [data-close]');
+    await other.context().close();
+
+    // Get the app: installable, with the Windows download.
+    const mf2 = await page.evaluate(async () => { const r = await fetch('manifest.webmanifest'); return { type: r.headers.get('content-type'), body: await r.json() }; });
+    assert(/manifest\+json/.test(mf2.type) && mf2.body.scope === '/admin/book-studio/', 'Book Studio has its own app manifest');
+    const scope = await page.evaluate(async () => (await navigator.serviceWorker.ready).scope);
+    assert(scope.endsWith('/admin/book-studio/'), 'the Book Studio service worker is installed for offline use');
+    await page.click('#getApp');
+    await page.waitForSelector('#dlgApp[open]');
+    assert(/book-studio-desktop\/Book-Studio-Setup\.exe$/.test(await page.getAttribute('#appWinLink', 'href')), 'Get the app links the Windows app');
+    if (SHOTS) await page.screenshot({ path: path.join(SHOTS, 'book-studio-get-app.png') });
+    await page.click('#dlgApp [data-close]');
+    // Offline: the installed copy still opens for the account that signed in here.
+    await page.waitForTimeout(1500);
+    await page.context().setOffline(true);
+    await page.reload();
+    await page.waitForFunction(() => !document.querySelector('#app').hidden && /^Offline/.test(document.querySelector('#sbSync').textContent), null, { timeout: 30000 });
+    assert((await page.evaluate(() => S.meta.title)) === 'First device, not synced yet', 'with no connection Book Studio opens with the book from this device');
+    await page.context().setOffline(false);
     await page.context().close();
+
+    // Make it from a topic (Grid books): find puzzles to review, keep the ticked
+    // ones; then make the whole book for a publisher, down to the submission file.
+    if (HAVE_SITE) {
+      page = await open(session('pub@example.com', 'pub-uid'));
+      await page.waitForSelector('#app:not([hidden])');
+      await page.click('[data-tab=gridbooks]');
+      await page.click('#bk-new', { timeout: 30000 });
+      await page.waitForSelector('#bk-tp-find', { timeout: 60000 });
+      const tp = await page.evaluate(() => ({ topics: document.querySelectorAll('#bk-tp-theme option').length, types: document.querySelectorAll('[data-tp-game]').length, pubs: document.querySelectorAll('#bk-tp-pub option').length }));
+      assert(tp.topics >= 20 && tp.types >= 11 && tp.pubs >= 5, `Make it from a topic offers every topic, every puzzle type and the publishers (${tp.topics} topics, ${tp.types} types, ${tp.pubs} publishers)`);
+      await page.selectOption('#bk-tp-theme', 'mystery');
+      await page.click('#bk-tp-none');
+      for (const id of ['flg', 'np', 'cw']) await page.check(`[data-tp-game="${id}"]`);
+      await page.fill('#bk-tp-count', '1'); await page.dispatchEvent('#bk-tp-count', 'change');
+      await page.click('#bk-tp-find');
+      await page.waitForSelector('#bk-found [data-pick]', { timeout: 180000 });
+      const f = await page.evaluate(() => ({ all: document.querySelectorAll('#bk-found [data-pick]').length, ticked: document.querySelectorAll('#bk-found [data-pick]:checked').length, kinds: document.querySelectorAll('#bk-found h4').length }));
+      assert(f.kinds === 3 && f.all >= 6 && f.ticked === 3, `Find puzzles to review lists more puzzles than needed for each type, one of each ticked (${f.all} found, ${f.ticked} ticked)`);
+      await page.uncheck('#bk-found [data-pick]:checked >> nth=0');
+      await page.click('#bk-tp-use');
+      const bk = await page.evaluate(async () => { const b = (await import('/admin/books.js')).currentBook(); return { n: b.puzzles.length, secs: b.settings.sections.length, topic: b.settings.topic, title: b.title, themes: b.settings.sections.map((x) => x.theme) }; });
+      assert(bk.n === 2 && bk.secs === 2 && bk.topic === 'mystery' && /Mystery/i.test(bk.title) && bk.themes.every(Boolean), `the ticked puzzles go in the book, one section a type, on the topic ("${bk.title}", ${bk.n} puzzles)`);
+      await page.selectOption('#bk-tp-pub', 'kdp');
+      await page.evaluate(() => { document.querySelector('#dpi').value = '200'; }); // a smaller, quicker file
+      page.once('dialog', (d) => d.accept()); // "Make the whole book again from this topic?"
+      const [packet] = await Promise.all([page.waitForEvent('download', { timeout: 420000 }), page.click('#bk-tp-auto')]);
+      assert(/kdp-submission-packet\.zip$/i.test(packet.suggestedFilename()), `Make the whole book for me checks it for the publisher and makes the submission file (${packet.suggestedFilename()})`);
+      const done = await page.evaluate(() => ({ pub: S.pub, errors: lastIssues.filter((i) => i.sev === 'error').length, pages: S.pages.length, title: S.meta.title, kw: S.meta.keywords }));
+      assert(done.pub === 'kdp' && done.errors === 0 && done.pages >= 24 && /Mystery/i.test(done.title) && /logic puzzles/.test(done.kw), `the book passes every publisher check (${done.pages} pages, no errors)`);
+      await page.context().close();
+    }
 
     assert(problems.length === 0, `no script errors or blocked resources${problems.length ? `:\n${problems.join('\n')}` : ''}`);
     console.log('Book Studio e2e passed');

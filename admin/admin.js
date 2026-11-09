@@ -15,12 +15,14 @@ import { takeOAuthReturn, finishOAuth } from './oauth.js';
 import { characterView } from './characters.js';
 import { ratingsView, initRatings } from './ratings.js';
 import { voiceEngineView, initVoiceEngine } from './voice-engine.js';
+import { statusView, statusCount, initStatus } from './status.js';
 import { booksView } from './books.js';
 import { marketingView, initMarketing } from './marketing.js';
 import { puzzleMailView, initPuzzleMail } from './puzzle-mail.js';
 import { websiteView, initWebsite, initWebsiteEvents, isEditorWindow } from './website.js';
 import { educatorsView, initEducators, educatorFeedbackView, initEducatorFeedback } from './educators.js';
 import { storySubmissionsView, initStorySubmissions } from './story-submissions.js';
+import { puzzleSubmissionsView, initPuzzleSubmissions } from './puzzle-submissions.js';
 import { beatImagesView, initBeatImages } from './beat-images.js';
 import { licensesView, initLicenses } from './licenses.js';
 import { mediaView } from './media.js';
@@ -1587,6 +1589,7 @@ const FLG_SECTIONS = [
   ['#ratings', 'Ratings and insights', 'Stars and findings by level, mode and story part.', 'viewer'],
   ['#mail', 'Puzzle emails', 'The weekly and special edition puzzle emails.', 'viewer'],
   ['#stories', 'Story workshop and review', 'Write and review story parts.', 'moderator'],
+  ['#puzzle-submissions', 'Puzzle submissions', 'Puzzles players sent in: awaiting approval, awaiting edits, approved and published.', 'moderator'],
   ['#story-submissions', 'Storyline submissions', 'Storylines sent in by players.', 'moderator'],
   ['#educators', 'Educator requests', 'Printable puzzle packages for classes.', 'moderator'],
   ['#edu-feedback', 'Educator feedback', 'Notes from teachers.', 'moderator'],
@@ -2154,8 +2157,11 @@ initLicenses(licenseHelpers, (name, o) => show(name, o));
 views['edu-feedback'] = () => educatorFeedbackView(educatorHelpers);
 // ---- Storyline submissions (story-submissions.js): the Storyline Submission Database.
 const storyHelpers = { api, esc, fmt, when, can, act, ask, setCount, toast };
-views['story-submissions'] = () => storySubmissionsView(storyHelpers);
+views['story-submissions'] = (o) => storySubmissionsView(storyHelpers, o);
 initStorySubmissions(storyHelpers, (name, o) => show(name, o));
+// ---- Puzzle submissions (puzzle-submissions.js): the same database, in four sections.
+views['puzzle-submissions'] = () => puzzleSubmissionsView(storyHelpers);
+initPuzzleSubmissions(storyHelpers, (name, o) => show(name, o));
 // ---- Story beat pictures (beat-images.js): pictures the game shows with story beats.
 const beatImageHelpers = { api, esc, when, can, act, ask, toast };
 views['beat-images'] = () => beatImagesView(beatImageHelpers);
@@ -2171,9 +2177,13 @@ const bookHelpers = { api, esc, fmt, when, can, ask, toast, announce };
 views.books = () => booksView(bookHelpers);
 
 // ---- Voice engine (voice-engine.js): Vox on the owner's computer, its learning, auto-tune and versions.
-const voiceHelpers = { esc, fmt, when, tile, table, can, act, ask, toast, announce, api };
+const voiceHelpers = { esc, fmt, when, tile, table, can, act, ask, toast, announce, api, bearer };
 views['voice-engine'] = () => voiceEngineView(voiceHelpers);
 initVoiceEngine(voiceHelpers);
+
+// ---- Status (status.js): a live page of everything worth watching.
+views.status = () => statusView();
+initStatus({ api, esc, announce });
 
 // ---- Analysis report (analysis.js): every number by topic, the market and what to build next.
 const analysisHelpers = { api, esc, fmt, when, day, bytes, tile, table, bars, can, act, ask, toast, announce, setCount };
@@ -2283,6 +2293,7 @@ async function enter() {
   $$('#dash-switch [data-min]').forEach((b) => { b.hidden = !can(b.dataset.min); });
   $$('main [data-min]').forEach((el) => { el.hidden = !can(el.dataset.min); });
   show(location.hash.slice(1) || 'overview');
+  if (location.hash !== '#status') statusCount();
   offerPasskey();
   if (oauthBack) { const back = oauthBack; oauthBack = null; finishOAuth(back, { api, ask, esc, toast }); }
 }

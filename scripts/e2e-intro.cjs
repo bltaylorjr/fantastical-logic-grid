@@ -8,7 +8,7 @@ const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`o
 
 (async () => {
   const server = spawn('node', [path.join(__dirname, 'serve.mjs'), path.join(__dirname, '..', 'dist', 'web'), '8158'], { stdio: 'ignore' });
-  await new Promise((r) => setTimeout(r, 600));
+  await require('./wait-port.cjs')('8158');
   const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required', '--mute-audio'] });
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' });
   await ctx.route('https://huggingface.co/**', (r) => r.abort());
@@ -47,7 +47,8 @@ const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`o
     assert(after < stuckAt + 6, 'it carries on from where it stopped');
 
     await page.click('#video-close');
-    await page.waitForTimeout(300);
+    // A busy test machine can take longer than a moment to pause the video.
+    await page.waitForFunction(() => document.querySelector('#intro-video').paused, null, { timeout: 5000 }).catch(() => {});
     assert(await v('v.paused'), 'closing the Introduction stops it');
     await page.waitForFunction(() => window.__workers.some((u) => u.includes('kokoro-worker')), null, { timeout: 15000 });
     assert(true, 'voice engine starts once the Introduction is closed');

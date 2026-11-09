@@ -179,6 +179,53 @@ uses a secret, variable or binding that is not listed there.
 
 **Links:** [Workers VPC](https://dash.cloudflare.com/?to=/:account/workers/vpc/tunnels) · [GitHub variables](https://github.com/bltaylorjr/fantastical-logic-grid/settings/variables/actions) · [Full guide (docs/PUZZLE-SERVER.md)](https://github.com/bltaylorjr/fantastical-logic-grid/blob/main/docs/PUZZLE-SERVER.md)
 
+### Vox voice engine on the Oracle server
+
+**Why:** Vox, the game's own voice engine, runs on the Oracle server so the admin dashboard can use it from any device, with no download on your computer. It trains itself overnight and stays within the server's free allowance (docs/SERVER-MAINTENANCE.md). The Worker reaches it through the same Cloudflare Tunnel as the puzzle server; Vox has no public address. Until these are set, the dashboard uses Vox on your Windows computer.
+
+**Cost:** Free: the Oracle Always Free VM (shared with the puzzle server and build runners) and Cloudflare Workers VPC (free while in beta).
+
+| Name | Where | Notes |
+| --- | --- | --- |
+| `VOX` | Worker binding (server/wrangler.toml) | Workers VPC Service flg-vox ([[vpc_services]] in wrangler.toml, with its Service ID). Optional. |
+| `VOX_KEY` | Cloudflare Worker secret | Vox's admin key on the server; the Worker adds it to every request so it never reaches a browser. Optional. |
+| `LIMIT_VOX` | Worker binding (server/wrangler.toml) | Voice engine requests per admin per minute (600). Optional. |
+| `FLG_VOX_DEPLOY` | GitHub repository variable | Value: `1` Deploys Vox to the Oracle server whenever vox-engine/ changes. Optional. |
+
+**Steps:**
+
+1. After the puzzle server steps above (the tunnel `flg-puzzles` must be healthy), run `sudo bash /opt/flg/setup.sh` on the Oracle VM again so it adds Vox.
+2. Cloudflare > **Workers & Pages** > **VPC** > **VPC Services** > **Create**: name `flg-vox`, tunnel `flg-puzzles`, HTTP, IPv4 `172.30.0.11`, port `5150`. Send Claude the Service ID; it goes in `server/wrangler.toml` under `[[vpc_services]]` (binding `VOX`).
+3. Open <https://dash.cloudflare.com/?to=/:account/workers/services/view/flg-api/production/settings> (Cloudflare > **Workers & Pages** > **flg-api** > **Settings** > **Variables and Secrets**).
+4. Click **Add** (or **Edit** next to `VOX_KEY` if it is already there).
+5. Choose type **Secret**, enter the name `VOX_KEY`, paste everything after VOX_KEY= in `sudo cat /opt/flg/vox.env` on the VM as the value, and click **Deploy**.
+6. Add the variable `FLG_VOX_DEPLOY` = `1` at <https://github.com/bltaylorjr/fantastical-logic-grid/settings/variables/actions>, then run **Deploy Vox to the server** once (the first start takes about 10 minutes).
+7. Open the dashboard's **Voice engine** page on any device: it says **Connected to Vox on the server**.
+
+**Links:** [Workers VPC](https://dash.cloudflare.com/?to=/:account/workers/vpc/tunnels) · [GitHub variables](https://github.com/bltaylorjr/fantastical-logic-grid/settings/variables/actions) · [Full guide (docs/VOX-SERVER.md)](https://github.com/bltaylorjr/fantastical-logic-grid/blob/main/docs/VOX-SERVER.md)
+
+### Vox training on the free GPU (Kaggle)
+
+**Why:** Vox's own voice model needs a GPU to learn speech; a processor would take months. Kaggle gives about 30 free GPU hours a week. The workflow "Train Vox on the free GPU" prepares openly licensed speech once (LJSpeech, public domain; VCTK and LibriTTS-R, CC BY 4.0), trains a session at a time within 24 hours a week, and hands each new model to Vox on the Oracle server. Vox switches to it by itself once Whisper hears it more clearly than the base voices; until then the base voices speak. Without these, the base voices keep speaking and nothing trains.
+
+**Cost:** Free: a Kaggle account (phone verification turns on its GPU). Everything it makes on Kaggle is private.
+
+| Name | Where | Notes |
+| --- | --- | --- |
+| `KAGGLE_API_TOKEN` | GitHub repository secret | Kaggle: your picture > Settings > API > Generate New Token. Optional. |
+| `KAGGLE_USERNAME` | GitHub repository variable | Your Kaggle username (shown in your profile address, kaggle.com/<username>). Optional. |
+
+**Steps:**
+
+1. Make a free account at <https://www.kaggle.com> (your email or Google account), then in **Settings** choose **Phone verification**: Kaggle only allows GPU use after it.
+2. In Kaggle **Settings** > **API**, choose **Generate New Token** and copy it (it isn't shown again).
+3. Open <https://github.com/bltaylorjr/fantastical-logic-grid/settings/secrets/actions> and click **New repository secret** (or the pencil next to `KAGGLE_API_TOKEN`).
+4. Name: `KAGGLE_API_TOKEN`. Secret: the token you just copied. Click **Add secret**.
+5. Add the variable `KAGGLE_USERNAME` = your Kaggle username at <https://github.com/bltaylorjr/fantastical-logic-grid/settings/variables/actions>.
+6. Run **Train Vox on the free GPU** once from the Actions tab (it then runs every 4 hours by itself). The first run prepares the data (a few hours on Kaggle's CPU); the first training session starts on the next run.
+
+**Links:** [Kaggle API settings](https://www.kaggle.com/settings) · [GitHub secrets](https://github.com/bltaylorjr/fantastical-logic-grid/settings/secrets/actions) · [Full guide (docs/VOX-GPU-TRAINING.md)](https://github.com/bltaylorjr/fantastical-logic-grid/blob/main/docs/VOX-GPU-TRAINING.md)
+
 ### Dependabot and GitHub security
 
 **Why:** Dependabot opens a tested pull request when a library has an update (patch and minor updates merge themselves). Secret scanning and push protection stop a key from being pushed by mistake.

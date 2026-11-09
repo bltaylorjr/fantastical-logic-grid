@@ -22,7 +22,9 @@ function syncPagesFromDom() {
   if (cs.length !== S.pages.length) return;
   cs.forEach((c, i) => {
     $$('.sel', c).forEach(e => e.classList.remove('sel'));
-    S.pages[i].html = c.innerHTML;
+    // A Grid book block's shrink-to-fit scale is redone on every screen and export
+    // (fitGridBlocks); saving it made a just-opened book look changed and sync again.
+    S.pages[i].html = c.innerHTML.replace(/(<div class="grid-block" contenteditable="false") style="[^"]*"/g, '$1');
   });
 }
 
@@ -287,13 +289,13 @@ function wireEditor() {
   pagesEl.addEventListener('click', e => {
     $$('#pages .sel').forEach(x => x.classList.remove('sel'));
     selImg = null; selPuzzle = null;
-    const img = e.target.closest('.content img'); const pz = e.target.closest('.content .puzzle');
+    const img = e.target.closest('.content img'); const pz = e.target.closest('.content .puzzle') || e.target.closest('.content .grid-room');
     if (pz) { selPuzzle = pz; pz.classList.add('sel'); }
     else if (img) { selImg = img; img.classList.add('sel'); }
     showSelTools();
   });
   pagesEl.addEventListener('keydown', e => {
-    if ((e.key === 'Delete' || e.key === 'Backspace') && (selPuzzle || selImg) && document.activeElement.closest('.content')) {
+    if ((e.key === 'Delete' || e.key === 'Backspace') && ((selPuzzle && selPuzzle.classList.contains('puzzle')) || selImg) && document.activeElement.closest('.content')) {
       e.preventDefault(); (selPuzzle || selImg).remove(); selPuzzle = selImg = null; showSelTools(); afterEdit();
     }
   });
@@ -375,14 +377,17 @@ function movePage(d) {
 }
 
 function showSelTools() {
-  $('#imgTools').hidden = !selImg; $('#pzTools').hidden = !selPuzzle;
+  // A Grid book puzzle (.grid-room) is a fixed block: it takes a theme, nothing else.
+  const own = !!selPuzzle && selPuzzle.classList.contains('puzzle');
+  $('#imgTools').hidden = !selImg; $('#pzTools').hidden = !own; showThemeTools();
   if (selImg) {
     const w = selImg.style.width ? parseFloat(selImg.style.width) : 100; $('#imgW').value = w;
     $('#imgBright').value = 100; $('#imgContrast').value = 100;
     const dpi = imageDpi(selImg); $('#imgDpi').textContent = dpi ? `Print resolution at this size: ${dpi} DPI${dpi < 300 ? ' (below the 300 DPI print standard)' : ''}` : '';
     if (window.innerWidth <= 1100) $('#workspace').classList.add('show-insp');
   }
-  if (selPuzzle) $('#pzSize').value = parseFloat(selPuzzle.dataset.size || 5);
+  if (own) $('#pzSize').value = parseFloat(selPuzzle.dataset.size || 5);
+  if (selPuzzle && window.innerWidth <= 1100) $('#workspace').classList.add('show-insp');
 }
 function imageDpi(img) {
   if (!img.naturalWidth) return 0;

@@ -38,7 +38,14 @@ const call = (path, { token, method = 'POST', body, origin = ORIGIN } = {}) => m
   headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(origin ? { Origin: origin } : {}), 'Content-Type': 'application/json' },
   body: body === undefined ? undefined : JSON.stringify(body),
 });
-const sync = async (token, body) => { const r = await call('/v1/sync', { token, body }); assert.equal(r.status, 200, await r.clone().text()); return r.json(); };
+// Every account has a screen name before its first sync (sync.js): give the
+// test players one, as the game's sign-up form does.
+const named = (db, uid) => db.prepare('INSERT OR IGNORE INTO players (user_id, screen_name, name_key, created_at, updated_at, accept_invites) VALUES (?1, ?1, ?1, 1, 1, 1)').bind(uid).run();
+const subOf = (token) => JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString()).sub;
+const sync = async (token, body) => {
+  await named(await mf.getD1Database('DB'), subOf(token));
+  const r = await call('/v1/sync', { token, body }); assert.equal(r.status, 200, await r.clone().text()); return r.json();
+};
 const save = (id, extra = {}) => ({ kind: 'save', key: id, data: JSON.stringify({ id, name: `Puzzle ${id}`, ...extra }), updatedAt: Date.now(), baseRev: 0 });
 
 test('rejects requests without a valid token', async () => {
@@ -68,6 +75,23 @@ test('push, then pull on another device', async () => {
   const again = await sync(t, { since: other.cursor });
   assert.deepEqual(again.changes, []);
   assert.equal(again.more, false);
+});
+
+test('a new account cannot sync until it has a screen name; older accounts keep syncing', async () => {
+  const db = await mf.getD1Database('DB');
+  const t = signer.token({ sub: 'nameless' });
+  const r = await call('/v1/sync', { token: t, body: { changes: [save('n1')] } });
+  assert.equal(r.status, 403);
+  assert.equal((await r.json()).error, 'no_screen_name');
+  assert.equal(await db.prepare("SELECT 1 FROM sync_users WHERE user_id = 'nameless'").first(), null, 'no account row is made without a name');
+  // Pulling (no changes) is harmless and makes nothing.
+  assert.equal((await call('/v1/sync', { token: t, body: { since: 0 } })).status, 200);
+  // An account that already synced before names were required still syncs.
+  await db.prepare("INSERT INTO sync_users (user_id, rev, created_at) VALUES ('old-nameless', 0, 1)").run();
+  assert.equal((await call('/v1/sync', { token: signer.token({ sub: 'old-nameless' }), body: { changes: [save('o1')] } })).status, 200);
+  // Once named, the new account syncs.
+  await named(db, 'nameless');
+  assert.equal((await call('/v1/sync', { token: t, body: { changes: [save('n1')] } })).status, 200);
 });
 
 test('players never see each other\'s data', async () => {

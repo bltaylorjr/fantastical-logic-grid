@@ -1,5 +1,5 @@
 1
-00:00:00,250 --> 00:00:02,672
+00:00:00,250 --> 00:00:02,675
 Every puzzle tells a brand new
 story.
 
@@ -10,12 +10,12 @@ Grid!
 
 3
 00:00:07,250 --> 00:00:12,236
-Twenty-two worlds, seven
+Twenty-three worlds, seven
 levels, from Basic to
 Theoretical Physicist.
 
 4
-00:00:12,750 --> 00:00:15,678
+00:00:12,750 --> 00:00:15,676
 And every case is written
 fresh, just for you.
 

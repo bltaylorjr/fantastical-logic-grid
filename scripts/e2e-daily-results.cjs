@@ -36,7 +36,7 @@ const APP = `http://localhost:${APP_PORT}`;
   // Earlier players today: five opened it, four solved in 2, 5, 12 and 20 minutes.
   await db.prepare('INSERT INTO daily_results (day, bucket, n) VALUES (?1, -1, 5), (?1, 2, 1), (?1, 5, 1), (?1, 12, 1), (?1, 20, 1)').bind(latest.date).run();
   const app = spawn('node', [path.join(__dirname, 'serve.mjs'), SITE, String(APP_PORT)], { stdio: 'ignore' });
-  await new Promise((r) => setTimeout(r, 600));
+  await require('./wait-port.cjs')(APP_PORT);
 
   const config = `export const CLOUD = { firebaseApiKey: '', syncUrl: '', learnUrl: 'http://localhost:${API_PORT}', siteUrl: '${APP}', appVersion: 'test' };\nexport const cloudEnabled = () => false;\nexport const CLOUD_URL = CLOUD.learnUrl;\n`;
   const browser = await chromium.launch();

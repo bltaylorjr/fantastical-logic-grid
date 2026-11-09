@@ -39,6 +39,10 @@
 //   POST /admin/v1/story-submissions/:id/invite     { note } email the author a link to edit and resubmit (support@)
 //   POST /admin/v1/story-submissions/:id/build    build an approved storyline's puzzle again (after adding lists to the corrected clues)
 //   POST /admin/v1/story-submissions/:id/scan     trademark and copyright scan (ip-scan.js)
+//   POST /admin/v1/story-submissions/:id/stage    { stage, note } move it to another section without emailing anyone:
+//                                                new (Awaiting approval), edits (Awaiting edits), approved, published or declined
+//   POST /admin/v1/story-submissions/:id/message  { text } email the player who sent it a note from the team (support@)
+//   POST /admin/v1/story-submissions/:id/push     { puzzle? } put its puzzle (or the puzzle file given) in the player's Saved puzzles
 //   POST /admin/v1/story-submissions/scan-new     scan the next few new entries not scanned yet
 //
 // Senders (scripts/feedback-replies.py): the confirmation, the approval and a
@@ -57,6 +61,7 @@ import { checkSubmission, formCopy, formText, KINDS, CONSENT_TEXT, TONES, DIFFIC
 import { checkImage, saveSubmissionImages, submissionImages, deleteSubmissionImages, MAX_SUBMISSION_IMAGES, MAX_IMAGE_BYTES } from './story-images.js';
 import { checkSound, saveSubmissionSounds, submissionSounds, deleteSubmissionSounds, MAX_SUBMISSION_SOUNDS, MAX_SOUND_BYTES } from './story-sounds.js';
 import { checkEntry as checkWizard, GAMES as WIZARD_GAMES } from '../../web/js/wizard-fields.js';
+import { storePuzzle, MessageRefusal, PUZZLE_MAX_CHARS, PUZZLE_KEEP_DAYS } from './messages.js';
 
 const THEME_IDS = THEMES.map((t) => t.id);
 const PLATFORMS = new Set(['web', 'desktop', 'android', 'ios']);
@@ -202,7 +207,11 @@ async function editLink(env, id, now = Date.now(), { invite = false } = {}) {
   return `${SITE}/storyline/?edit=${id}.${key}`;
 }
 
-const STATUS_WORDS = { new: 'Waiting for review', approved: 'Approved', declined: 'Not used', closed: 'Closed' };
+const STATUS_WORDS = { new: 'Waiting for review', edits: 'Waiting for your changes', approved: 'Approved', published: 'Published', declined: 'Not used', closed: 'Closed' };
+// The sections of the Puzzle submissions page, in order (2280_submission_stages.sql).
+export const STAGES = ['new', 'edits', 'approved', 'published', 'declined', 'closed'];
+// The Puzzle Wizard fields the team may correct by hand (the words, never the grid).
+const WIZARD_TEXT = ['title', 'story', 'ending', 'opening', 'stakes', 'tone'];
 
 // May the author edit it now? While it is new, or when the team asked (an edit link still good).
 const editable = (row, now = Date.now()) => row.status === 'new' || (!!row.edit_invited && (row.edit_until || 0) > now);
@@ -238,6 +247,7 @@ export async function saveVersion(env, row, form, by, now = Date.now(), { resubm
 function checkEdit(row, body, { team = false } = {}) {
   const was = formOf(row);
   const kind = row.kind;
+  if (kind === 'puzzle') return checkWizardEdit(was, body);
   if (was.idea && kind === 'storyline' && body && typeof body.idea === 'string' && !body.title) {
     const idea = String(body.idea).replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, '').trim().slice(0, 1000);
     return idea.length >= 5 ? { value: { kind, idea, theme: was.theme || null } } : { errors: { idea: 'Write a little more.' } };
@@ -247,6 +257,19 @@ function checkEdit(row, body, { team = false } = {}) {
   const checked = checkSubmission(input, { themeIds: THEME_IDS });
   if (checked.value && team && row.source === 'idea box' && !row.consent) checked.value.consent = false;
   return checked;
+}
+
+// The team corrects a Puzzle Wizard puzzle's words. Only the text fields change;
+// the grid, answer, pictures, sounds, seed and credit stay as the author made them.
+function checkWizardEdit(was, body) {
+  const picked = {};
+  for (const k of WIZARD_TEXT) if (k in was && typeof body?.[k] === 'string') picked[k] = body[k];
+  const w = checkWizard({ ...was, ...picked, credit: { as: 'none' } });
+  const errors = Object.fromEntries(Object.entries(w.errors).filter(([k]) => k in picked));
+  if (Object.keys(errors).length) return { errors };
+  const value = { ...was };
+  for (const k of Object.keys(picked)) value[k] = w.value[k];
+  return { value };
 }
 
 async function mine(req, env) {
@@ -366,10 +389,11 @@ ${JSON.stringify(fields)}`;
 // ---------------------------------------------------------------- admin
 const LIST_COLUMNS = `s.id, s.kind, (SELECT COUNT(*) FROM story_submission_images i WHERE i.submission_id = s.id) AS images, (SELECT COUNT(*) FROM story_submission_sounds d WHERE d.submission_id = s.id) AS sounds, s.source, s.theme, s.title, s.pitch, s.credit, s.consent, s.status, s.created_at AS createdAt, s.decided_at AS decidedAt,
   s.decided_by AS decidedBy, s.user_id AS uid, s.email, s.puzzle IS NOT NULL AS hasPuzzle, s.text, p.screen_name AS player,
-  s.ip_verdict AS ipVerdict, s.ip_scan_at AS ipScanAt`;
+  s.ip_verdict AS ipVerdict, s.ip_scan_at AS ipScanAt, s.edit_invited AS editInvited, s.edit_until AS editUntil, s.published_at AS publishedAt, s.published_note AS publishedNote,
+  s.pushed_at AS pushedAt, s.push_count AS pushCount`;
 
 function listItem(r) {
-  return { ...r, consent: !!r.consent, hasPuzzle: !!r.hasPuzzle, themeName: nameOf(r.theme), text: String(r.text || '').slice(0, 280) };
+  return { ...r, consent: !!r.consent, hasPuzzle: !!r.hasPuzzle, editInvited: !!r.editInvited, themeName: nameOf(r.theme), text: String(r.text || '').slice(0, 280) };
 }
 
 export function storySubmissionRoutes(Refusal) {
@@ -381,8 +405,10 @@ export function storySubmissionRoutes(Refusal) {
   return [
     ['GET', /^story-submissions$/, 'moderator', 'story-submissions.view', async ({ env, url }) => {
       const q = String(url.searchParams.get('q') || '').trim().slice(0, 100);
-      const kind = KINDS[url.searchParams.get('kind')] ? url.searchParams.get('kind') : '';
-      const status = ['new', 'approved', 'declined', 'closed'].includes(url.searchParams.get('status')) ? url.searchParams.get('status') : '';
+      // kind: one kind, or "puzzles" for everything that makes a puzzle (wizard puzzles and storylines).
+      const kind = KINDS[url.searchParams.get('kind')] || url.searchParams.get('kind') === 'puzzles' ? url.searchParams.get('kind') : '';
+      // status: one stage, or "unused" for declined and closed together.
+      const status = [...STAGES, 'unused'].includes(url.searchParams.get('status')) ? url.searchParams.get('status') : '';
       const source = ['form', 'idea box'].includes(url.searchParams.get('source')) ? url.searchParams.get('source') : '';
       const scan = ['unscanned', 'flagged', 'clear'].includes(url.searchParams.get('scan')) ? url.searchParams.get('scan') : '';
       const page = Math.max(0, Math.min(1000, Number(url.searchParams.get('page')) || 0));
@@ -391,14 +417,18 @@ export function storySubmissionRoutes(Refusal) {
       const like = `%${q.replace(/[\\%_]/g, (m) => `\\${m}`)}%`;
       const where = `(?1 = '' OR s.text LIKE ?2 ESCAPE '\\' OR s.title LIKE ?2 ESCAPE '\\' OR s.pitch LIKE ?2 ESCAPE '\\' OR s.credit LIKE ?2 ESCAPE '\\'
           OR s.email LIKE ?2 ESCAPE '\\' OR p.screen_name LIKE ?2 ESCAPE '\\' OR CAST(s.id AS TEXT) = ?1 OR s.theme IN (SELECT value FROM json_each(?3)))
-        AND (?4 = '' OR s.kind = ?4) AND (?5 = '' OR s.status = ?5) AND (?6 = '' OR s.source = ?6)
+        AND (?4 = '' OR s.kind = ?4 OR (?4 = 'puzzles' AND s.kind IN ('puzzle', 'storyline')))
+        AND (?5 = '' OR s.status = ?5 OR (?5 = 'unused' AND s.status IN ('declined', 'closed'))) AND (?6 = '' OR s.source = ?6)
         AND (?7 = '' OR (?7 = 'unscanned' AND s.ip_verdict IS NULL) OR (?7 = 'flagged' AND s.ip_verdict IN ('check', 'problem')) OR (?7 = 'clear' AND s.ip_verdict = 'clear'))`;
       const binds = [q, like, JSON.stringify(themeIds), kind, status, source, scan];
       const from = 'FROM story_submissions s LEFT JOIN players p ON p.user_id = s.user_id';
       const [{ results }, total, counts] = await Promise.all([
         env.DB.prepare(`SELECT ${LIST_COLUMNS} ${from} WHERE ${where} ORDER BY s.created_at DESC LIMIT ${PER_PAGE} OFFSET ${page * PER_PAGE}`).bind(...binds).all(),
         env.DB.prepare(`SELECT COUNT(*) AS n ${from} WHERE ${where}`).bind(...binds).first(),
-        env.DB.prepare('SELECT status, COUNT(*) AS n FROM story_submissions GROUP BY status').all(),
+        // counts=kind: the section counts for the chosen kind only (the Puzzle submissions page).
+        url.searchParams.get('counts') === 'kind'
+          ? env.DB.prepare("SELECT status, COUNT(*) AS n FROM story_submissions WHERE ?1 = '' OR kind = ?1 OR (?1 = 'puzzles' AND kind IN ('puzzle', 'storyline')) GROUP BY status").bind(kind).all()
+          : env.DB.prepare('SELECT status, COUNT(*) AS n FROM story_submissions GROUP BY status').all(),
       ]);
       const unscanned = await env.DB.prepare("SELECT COUNT(*) AS n FROM story_submissions WHERE status = 'new' AND ip_verdict IS NULL").first();
       return { body: { items: results.map(listItem), total: total.n, page, perPage: PER_PAGE, counts: Object.fromEntries(counts.results.map((c) => [c.status, c.n])), unscannedNew: unscanned.n }, quiet: true };
@@ -423,6 +453,8 @@ export function storySubmissionRoutes(Refusal) {
           originalCopy: s.current ? formCopy(s.original, nameOf) : null,
           versions: (await env.DB.prepare('SELECT replaced_by AS by, created_at AS at, puzzle IS NOT NULL AS hadPuzzle FROM story_submission_versions WHERE submission_id = ?1 ORDER BY created_at').bind(s.id).all()).results,
           editInvite: s.edit_invited && (s.edit_until || 0) > Date.now() && s.status !== 'new' ? s.edit_until : null,
+          publishedAt: s.published_at, publishedBy: s.published_by, publishedNote: s.published_note,
+          pushedAt: s.pushed_at, pushedBy: s.pushed_by, pushCount: s.push_count || 0, puzzleKeepDays: PUZZLE_KEEP_DAYS,
           choices: { themes: THEMES.map((t) => [t.id, t.name]), tones: TONES, difficulties: DIFFICULTIES, orders: ORDERS, roles: ROLES, genders: GENDERS,
             rewards: Object.fromEntries(Object.entries(REWARDS).map(([k, r]) => [k, r])), limits: LIMITS, maxCharacters: MAX_CHARACTERS, maxCategories: MAX_CATEGORIES },
         },
@@ -456,6 +488,8 @@ export function storySubmissionRoutes(Refusal) {
       const row = await env.DB.prepare('SELECT id, email, user_id FROM story_submissions WHERE id = ?1').bind(Number(id)).first();
       if (!row) throw new Refusal(404, 'gone', 'That entry is gone.');
       if (!row.email) throw new Refusal(400, 'no_email', 'There is no address for the author, so they cannot be asked by email.');
+      // It now waits for the author's changes (Awaiting edits) until they resubmit.
+      await env.DB.prepare("UPDATE story_submissions SET status = 'edits' WHERE id = ?1 AND status != 'published'").bind(row.id).run();
       const note = String(body.note || '').replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, '').trim().slice(0, 1000);
       if (!(await queueSubmissionMail(env, { kind: 'story_edit_invite', submissionId: row.id, email: row.email, userId: row.user_id, now, cap: false, link: await editLink(env, row.id, now, { invite: true }), note: note || null }))) {
         throw new Refusal(429, 'limit', 'Emails are switched off (Settings and switches > Ideas and problems).');
@@ -476,7 +510,7 @@ export function storySubmissionRoutes(Refusal) {
     }],
     ['POST', /^story-submissions\/(\d+)\/approve$/, 'moderator', 'story-submissions.approve', async ({ env, params: [id], body, who, now }) => {
       const s = await load(env, id);
-      if (s.status === 'approved') throw new Refusal(409, 'already', 'This entry is already approved.');
+      if (s.status === 'approved' || s.status === 'published') throw new Refusal(409, 'already', `This entry is already ${s.status}.`);
       let polished = s.polished;
       if (body.polished && !sameAsOriginal(s.form, body.polished)) polished = cleanPolished(s.form, body.polished);
       // The puzzle uses corrected words: fixed now if nobody has yet (the original stays as sent).
@@ -546,6 +580,61 @@ export function storySubmissionRoutes(Refusal) {
       }
       return { body: { ok: true }, target: id, detail: { emailed: true } };
     }],
+    // Move an entry to another section by hand. Nobody is emailed (Approve,
+    // Decline and Ask the author to edit are the routes that email).
+    ['POST', /^story-submissions\/(\d+)\/stage$/, 'moderator', 'story-submissions.stage', async ({ env, params: [id], body, who, now }) => {
+      const stage = String(body.stage || '');
+      if (!['new', 'edits', 'approved', 'published', 'declined'].includes(stage)) throw new Refusal(400, 'bad_stage', 'Choose a section.');
+      const s = await env.DB.prepare('SELECT id, status FROM story_submissions WHERE id = ?1').bind(Number(id)).first();
+      if (!s) throw new Refusal(404, 'gone', 'That entry is gone.');
+      const note = String(body.note || '').replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, '').trim().slice(0, 300) || null;
+      const decided = ['approved', 'published', 'declined'].includes(stage);
+      await env.DB.prepare(`UPDATE story_submissions SET status = ?1,
+          decided_at = CASE WHEN ?2 THEN COALESCE(CASE WHEN status IN ('approved', 'published') AND ?1 IN ('approved', 'published') THEN decided_at END, ?3) ELSE NULL END,
+          decided_by = CASE WHEN ?2 THEN COALESCE(CASE WHEN status IN ('approved', 'published') AND ?1 IN ('approved', 'published') THEN decided_by END, ?4) ELSE NULL END,
+          published_at = CASE WHEN ?1 = 'published' THEN ?3 ELSE published_at END,
+          published_by = CASE WHEN ?1 = 'published' THEN ?4 ELSE published_by END,
+          published_note = CASE WHEN ?1 = 'published' THEN ?5 ELSE published_note END,
+          edit_invited = CASE WHEN ?1 = 'edits' THEN edit_invited ELSE 0 END
+        WHERE id = ?6`).bind(stage, decided ? 1 : 0, now, who.actor, note, s.id).run();
+      return { body: { ok: true, stage, was: s.status }, target: id, detail: { from: s.status, to: stage } };
+    }],
+    // A note from the team to the player who sent it, through the same email
+    // queue (feedback_replies, sent from support@ by the GitHub Action).
+    ['POST', /^story-submissions\/(\d+)\/message$/, 'moderator', 'story-submissions.message', async ({ env, params: [id], body, now }) => {
+      const s = await env.DB.prepare('SELECT id, email, user_id FROM story_submissions WHERE id = ?1').bind(Number(id)).first();
+      if (!s) throw new Refusal(404, 'gone', 'That entry is gone.');
+      if (!s.email) throw new Refusal(400, 'no_email', 'There is no email address for the player who sent it.');
+      const text = String(body.text || '').replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, '').trim().slice(0, 2000);
+      if (text.length < 2) throw new Refusal(400, 'bad_text', 'Write the message.');
+      if (!(await queueSubmissionMail(env, { kind: 'submission_message', submissionId: s.id, email: s.email, userId: s.user_id, now, cap: false, note: text }))) {
+        throw new Refusal(429, 'limit', 'Emails are switched off (Settings and switches > Ideas and problems).');
+      }
+      return { body: { ok: true }, target: id, detail: { length: text.length } };
+    }, { maxBody: 6_000 }],
+    // Put the entry's puzzle in the player's Saved puzzles in the game (kept
+    // PUZZLE_KEEP_DAYS days, like a puzzle the team attaches to a message).
+    // body.puzzle: a puzzle file saved from the game, for an entry with no
+    // saved puzzle yet (a wizard puzzle is built on the author's device); it
+    // is then kept with the entry too.
+    ['POST', /^story-submissions\/(\d+)\/push$/, 'moderator', 'story-submissions.push', async ({ env, params: [id], body, who, now }) => {
+      const s = await env.DB.prepare('SELECT id, user_id, puzzle FROM story_submissions WHERE id = ?1').bind(Number(id)).first();
+      if (!s) throw new Refusal(404, 'gone', 'That entry is gone.');
+      if (!s.user_id) throw new Refusal(400, 'no_player', 'It was sent by a guest, so there is no Saved puzzles to put it in. Email them instead.');
+      const given = body.puzzle && typeof body.puzzle === 'object' ? body.puzzle : null;
+      const value = given || (s.puzzle ? JSON.parse(s.puzzle) : null);
+      if (!value) throw new Refusal(400, 'no_puzzle', 'This entry has no saved puzzle yet. Choose a puzzle file saved from the game.');
+      let puzzleId;
+      try { puzzleId = await storePuzzle(env, s.user_id, value, who.actor, now); } catch (e) {
+        if (e instanceof MessageRefusal) throw new Refusal(e.status, e.error, e.message);
+        throw e;
+      }
+      const keep = given ? (given.format === 'fantastical-logic-grid' && given.save ? given.save.puzzle : given) : null;
+      await env.DB.prepare(`UPDATE story_submissions SET pushed_at = ?1, pushed_by = ?2, push_count = push_count + 1,
+          puzzle = COALESCE(puzzle, ?3), puzzle_at = CASE WHEN puzzle IS NULL AND ?3 IS NOT NULL THEN ?1 ELSE puzzle_at END WHERE id = ?4`)
+        .bind(now, who.actor, keep ? JSON.stringify(keep) : null, s.id).run();
+      return { body: { ok: true, puzzleId, expiresAt: now + PUZZLE_KEEP_DAYS * DAY }, target: id, detail: { file: !!given } };
+    }, { maxBody: PUZZLE_MAX_CHARS + 20_000 }],
     ['POST', /^story-submissions\/(\d+)\/delete$/, 'admin', 'story-submissions.delete', async ({ env, params: [id] }) => {
       const r = await env.DB.prepare('DELETE FROM story_submissions WHERE id = ?1').bind(Number(id)).run();
       if (!r.meta.changes) throw new Refusal(404, 'gone', 'That entry is gone.');

@@ -56,7 +56,7 @@ export const VOICE_STYLES = {
   mysterious: { name: 'Mysterious', gemini: { f: 'Aoede', m: 'Umbriel' }, kokoro: { f: 'af_aoede', m: 'am_fenrir' }, speed: 0.9 },
 };
 const PUBLIC_CACHE_MS = 60_000;
-const PORTRAIT_STYLE = 'Warm storybook illustration, painterly, soft cinematic light, rich color, no text, no letters, no words, no logos, family friendly.';
+const PORTRAIT_STYLE = 'Warm storybook illustration, painterly, soft cinematic light, rich color, family friendly, a purely pictorial wordless scene with plain unmarked surfaces.';
 
 // ------------------------------------------------------------- checks
 const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -228,7 +228,7 @@ function ai(env) {
 
 function portraitPrompt(c) {
   const who = c.gender === 'f' ? 'woman' : 'man';
-  return `Head-and-shoulders portrait of a friendly ${who} named ${c.name}, ${c.personality}.${c.look ? ` ${c.look}.` : ''} Looking at the viewer, plain softly lit background, centered, one person only.`;
+  return `Head-and-shoulders portrait of a friendly ${who}, ${c.personality}.${c.look ? ` ${c.look}.` : ''} Looking at the viewer, plain softly lit background, centered, one person only.`;
 }
 
 async function paintPortrait(env, c) {

@@ -37,7 +37,7 @@ const SHOTS = process.env.SHOTS; // a folder for screenshots
   }
   await mf.ready;
   const siteServer = spawn('node', [path.join(__dirname, 'serve.mjs'), path.join(ROOT, 'dist', 'site'), String(SITE_PORT)], { stdio: 'ignore' });
-  await new Promise((r) => setTimeout(r, 600));
+  await require('./wait-port.cjs')(SITE_PORT);
 
   const browser = await chromium.launch();
   const problems = [];

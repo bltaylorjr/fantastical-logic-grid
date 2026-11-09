@@ -457,6 +457,8 @@ input[type=range] { width: 100%; min-height: 44px; accent-color: var(--accent); 
 
 .ai-scene { position: relative; width: 100%; height: 100%; }
 .ai-scene img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* The title sits inside the picture's frame and wraps rather than running off the edge. */
+.ai-scene .scene-title { position: absolute; inset: 0 0 auto 0; margin: 0; padding: 12px 14px 28px; text-align: center; font-family: var(--display); font-weight: 700; font-size: clamp(.95rem, 2.2vw, 1.5rem); line-height: 1.2; color: #fff6dc; text-shadow: 0 1px 3px rgb(0 0 0 / .85); background: linear-gradient(rgb(0 0 0 / .55), rgb(0 0 0 / 0)); overflow-wrap: anywhere; hyphens: auto; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 /* The whole scene shows from the start; each finished fifth of the grid lights up its strip. */
 .glints { position: absolute; inset: 0; display: grid; grid-template-columns: repeat(5, 1fr); pointer-events: none; }
 .glints i { position: relative; }

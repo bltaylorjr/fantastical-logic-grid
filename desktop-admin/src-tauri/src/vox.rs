@@ -261,30 +261,63 @@ fn model(dir: &Path) -> Option<String> {
     ["runs/v1/vox.pt", "practice.pt"].iter().find(|m| dir.join(m).is_file()).map(|m| m.to_string())
 }
 
-/// A real Python: where the python.org installer puts it (found even before
-/// Windows refreshes PATH), the py launcher, or python on PATH. The Microsoft
-/// Store shortcut named "python" fails --version, so it never counts.
+/// The Python versions Vox's parts all have ready-made packages for. Newer
+/// ones (3.14, 3.15) are missing some (PyAV for Whisper, onnxruntime for the
+/// base voices), and pip then tries to compile them and fails.
+const PY_OK: std::ops::RangeInclusive<u32> = 10..=13;
+
+/// (major, minor) of a Python, or None if it doesn't run (the Microsoft Store
+/// shortcut named "python" doesn't).
+fn py_version(exe: &str, pre: &[&str]) -> Option<(u32, u32)> {
+    let out = hidden(Command::new(exe).args(pre).args(["-c", "import sys; print(sys.version_info[0], sys.version_info[1])"]))
+        .stderr(Stdio::null())
+        .output()
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    let text = String::from_utf8_lossy(&out.stdout);
+    let mut it = text.split_whitespace().filter_map(|x| x.parse::<u32>().ok());
+    Some((it.next()?, it.next()?))
+}
+
+fn supported(v: Option<(u32, u32)>) -> bool {
+    matches!(v, Some((3, m)) if PY_OK.contains(&m))
+}
+
+/// A Python Vox can use (3.10 to 3.13), even when a newer one is the default:
+/// where the python.org installer puts each version (found even before Windows
+/// refreshes PATH), the py launcher asked for each version, then python on PATH.
 fn find_python() -> Option<String> {
-    let works = |exe: &str| {
-        hidden(Command::new(exe).arg("--version")).stdout(Stdio::null()).stderr(Stdio::null()).status().map(|s| s.success()).unwrap_or(false)
-    };
     if let Some(local) = std::env::var_os("LOCALAPPDATA") {
-        for v in ["Python313", "Python312", "Python311"] {
+        for v in ["Python313", "Python312", "Python311", "Python310"] {
             let exe = PathBuf::from(&local).join("Programs").join("Python").join(v).join("python.exe");
-            if exe.is_file() && works(&exe.display().to_string()) {
-                return Some(exe.display().to_string());
+            let e = exe.display().to_string();
+            if exe.is_file() && supported(py_version(&e, &[])) {
+                return Some(e);
             }
         }
     }
-    ["python", "py"].into_iter().find(|p| works(p)).map(String::from)
+    for v in ["-3.13", "-3.12", "-3.11", "-3.10"] {
+        if supported(py_version("py", &[v])) {
+            // the launcher's own answer for where that version lives
+            let out = hidden(Command::new("py").args([v, "-c", "import sys; print(sys.executable)"])).stderr(Stdio::null()).output().ok()?;
+            let exe = String::from_utf8_lossy(&out.stdout).trim().to_string();
+            if !exe.is_empty() {
+                return Some(exe);
+            }
+        }
+    }
+    ["python", "python3"].into_iter().find(|p| supported(py_version(p, &[]))).map(String::from)
 }
 
-/// Python, installing it (free, from python.org through winget) if it's missing.
+/// Python 3.13, installing it (free, from python.org through winget) next to
+/// any other version if none Vox can use is there. Other versions are left alone.
 fn python(vox: &Vox) -> Option<String> {
     if let Some(p) = find_python() {
         return Some(p);
     }
-    set(vox, "installing", "Installing Python (free, from python.org). This takes a few minutes the first time…");
+    set(vox, "installing", "Installing Python 3.13 for Vox (free, from python.org; any other Python stays as it is). This takes a few minutes the first time…");
     let _ = hidden(Command::new("winget").args([
         "install", "-e", "--id", "Python.Python.3.13", "--scope", "user", "--silent",
         "--accept-package-agreements", "--accept-source-agreements",
@@ -293,6 +326,15 @@ fn python(vox: &Vox) -> Option<String> {
     .stderr(Stdio::null())
     .status();
     find_python()
+}
+
+/// The Python version Vox's environment was made with (from its pyvenv.cfg).
+fn venv_version(data: &Path) -> Option<(u32, u32)> {
+    let cfg = fs::read_to_string(data.join("venv").join("pyvenv.cfg")).ok()?;
+    let line = cfg.lines().find(|l| l.trim_start().starts_with("version"))?;
+    let v = line.split('=').nth(1)?.trim();
+    let mut it = v.split('.').filter_map(|x| x.parse::<u32>().ok());
+    Some((it.next()?, it.next()?))
 }
 
 fn set(vox: &Vox, phase: &str, msg: &str) {
@@ -377,8 +419,14 @@ pub fn vox_start(app: AppHandle) -> Result<(), String> {
             return;
         };
         migrate(&app2, &dir);
-        // Vox's own Python environment, so nothing else on the computer is touched
+        // Vox's own Python environment, so nothing else on the computer is touched.
+        // One made with a Python that's too new (3.14+) can't install Whisper or
+        // the base voices: make it again with a supported one.
         let vpy = venv_python(&dir);
+        if vpy.is_file() && !supported(venv_version(&dir)) {
+            set(&vox, "installing", "Rebuilding Vox's Python environment on a Python version all its parts support…");
+            let _ = fs::remove_dir_all(dir.join("venv"));
+        }
         if !vpy.is_file() {
             set(&vox, "installing", "Setting up Vox's own Python environment…");
             if !step(&dir, &engine, &py, &["-m", "venv", &dir.join("venv").display().to_string()]) || !vpy.is_file() {
@@ -519,4 +567,23 @@ pub fn shutdown(app: &AppHandle) {
     }
     // Also a Vox started from the desktop shortcut, and any tunnel left behind.
     stop_strays(folder(app).as_deref());
+}
+
+#[cfg(test)]
+mod python_version_tests {
+    use super::*;
+
+    #[test]
+    fn spots_an_environment_made_with_a_python_that_is_too_new() {
+        let d = std::env::temp_dir().join(format!("vox-venv-test-{}", std::process::id()));
+        fs::create_dir_all(d.join("venv")).unwrap();
+        fs::write(d.join("venv").join("pyvenv.cfg"), "home = C:\\Python315\ninclude-system-site-packages = false\nversion = 3.15.0\n").unwrap();
+        assert_eq!(venv_version(&d), Some((3, 15)));
+        assert!(!supported(venv_version(&d)));
+        fs::write(d.join("venv").join("pyvenv.cfg"), "home = C:\\Python313\nversion_info = 3.13.9.final.0\n").unwrap();
+        assert_eq!(venv_version(&d), Some((3, 13)));
+        assert!(supported(venv_version(&d)));
+        assert!(!supported(Some((3, 9))) && !supported(None) && supported(Some((3, 10))));
+        let _ = fs::remove_dir_all(&d);
+    }
 }

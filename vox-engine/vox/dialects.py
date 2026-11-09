@@ -294,8 +294,28 @@ def user_dialects(root: str | Path | None) -> dict[str, dict]:
     return out
 
 
+def learned(root) -> dict:
+    """What automatic training learned about each dialect's pace and melody
+    from real recordings (autotrain.py writes voices/dialects-learned.json)."""
+    try:
+        return json.loads((Path(root) / "dialects-learned.json").read_text()) if root else {}
+    except Exception:
+        return {}
+
+
 def all_dialects(root=None) -> dict[str, dict]:
-    return {**DIALECTS, **user_dialects(root)}
+    out = {**DIALECTS, **user_dialects(root)}
+    for did, l in learned(root).items():      # blend the evidence in, more as it grows (up to 60%)
+        if did in out:
+            d = dict(out[did])
+            w = float(l.get("weight", 0))
+            pros = dict(d.get("prosody") or {})
+            for k, v in (l.get("prosody") or {}).items():
+                pros[k] = round((1 - w) * pros.get(k, 0.0) + w * float(v), 3)
+            d["prosody"] = pros
+            d["learned"] = {"clips": l.get("clips", 0), "weight": w}
+            out[did] = d
+    return out
 
 
 def apply_dialect(word: str, phones: list[str], dialect: dict, strength: float = 1.0, nxt: str | None = None,
@@ -315,4 +335,4 @@ def apply_dialect(word: str, phones: list[str], dialect: dict, strength: float =
 
 def describe(root=None) -> list[dict]:
     return [{"id": k, "label": v["label"], "region": v.get("region", ""), "rules": v.get("rules", []),
-             "custom": bool(v.get("custom"))} for k, v in all_dialects(root).items()]
+             "custom": bool(v.get("custom")), "learned": v.get("learned")} for k, v in all_dialects(root).items()]

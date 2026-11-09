@@ -90,7 +90,7 @@ function startAuth(signer) {
   }
   await mf.ready;
   const app = spawn('node', [path.join(__dirname, 'serve.mjs'), path.join(ROOT, 'dist', 'web'), String(APP_PORT)], { stdio: 'ignore' });
-  await new Promise((r) => setTimeout(r, 600));
+  await require('./wait-port.cjs')(APP_PORT);
 
   const config = `export const CLOUD = { firebaseApiKey: 'test-key', syncUrl: 'http://localhost:${API_PORT}', authUrl: 'http://localhost:${AUTH_PORT}/v1', tokenUrl: 'http://localhost:${AUTH_PORT}/v1', learnUrl: '' };\nexport const cloudEnabled = () => true;\nexport const CLOUD_URL = '';\n`;
   const browser = await chromium.launch();
@@ -139,10 +139,6 @@ function startAuth(signer) {
     const { credentials } = await cdp.send('WebAuthn.getCredentials', { authenticatorId });
     assert(credentials.length === 1, 'the device holds one passkey');
     await page.click('#dlg-account .dlg-actions:last-child [data-close]');
-    await page.waitForSelector('#dlg-name[open]');
-    await page.fill('#name-input', 'Idle Tester');
-    await page.click('#name-form button[type=submit]');
-    await page.waitForSelector('#dlg-name[open]', { state: 'detached' });
 
     // ---- Play a puzzle, then stop touching anything.
     await page.check('input[name=tier][value=easy]', { force: true });
