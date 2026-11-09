@@ -35,20 +35,49 @@ function toast(text) {
 const announce = (text) => toast(text);
 
 // ---------------------------------------------------------------- screen name
+// Every account needs a screen name. A signed-in player without one (an older
+// account, or one whose chosen name was taken) is asked here first, with a
+// made-up name filled in, before going back to a game.
+let named = null; // the player's screen name, once known
 async function drawName() {
   const box = $('#ac-name');
   const me = account.current();
   box.hidden = !me || !compete.enabled();
-  if (box.hidden) return;
+  if (box.hidden) return null;
   const cached = compete.cachedName();
   $('#ac-name-now').textContent = cached ? `Your screen name: ${cached}` : 'Loading your screen name…';
+  let name = cached;
   try {
-    const name = await compete.loadName();
-    $('#ac-name-now').textContent = name ? `Your screen name: ${name}${compete.isNameApproved() ? '' : ' (waiting for approval: others see "New player" until then)'}` : 'You have not chosen a screen name yet.';
+    name = await compete.loadName();
+    $('#ac-name-now').textContent = name ? `Your screen name: ${name}${compete.isNameApproved() ? '' : ' (waiting for approval: others see "New player" until then)'}` : '';
   } catch (e) {
     $('#ac-name-now').textContent = cached ? `Your screen name: ${cached}` : 'Your screen name could not be loaded. Check your connection.';
+    named = cached;
+    return cached;
   }
+  named = name;
+  const needed = !name && remote.feature('names');
+  box.classList.toggle('needed', needed);
+  $('#ac-name-h').textContent = needed ? 'Choose your screen name' : 'Screen name';
+  $('#ac-name-needed').hidden = !needed;
+  $('#ac-name-label').textContent = name ? 'New screen name' : 'Screen name';
+  $('#ac-name-form button[type=submit]').textContent = needed ? 'Use this screen name' : 'Save screen name';
+  const input = $('#ac-name-input');
+  if (needed && !input.value) input.value = compete.suggestName();
+  if (needed) {
+    // Shown before the account window, so it is the first thing seen.
+    $('#ac-account').before(box);
+    if (!box.dataset.asked) { box.dataset.asked = '1'; box.scrollIntoView({ block: 'start' }); input.focus(); }
+  }
+  return name;
 }
+$('#ac-name-suggest').addEventListener('click', () => {
+  const input = $('#ac-name-input');
+  input.value = compete.suggestName();
+  input.removeAttribute('aria-invalid');
+  $('#ac-name-err').textContent = '';
+  $('#ac-name-said').textContent = `Suggested screen name: ${input.value}.`;
+});
 $('#ac-name-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const input = $('#ac-name-input');
@@ -56,13 +85,15 @@ $('#ac-name-form').addEventListener('submit', async (e) => {
   err.textContent = '';
   input.removeAttribute('aria-invalid');
   const name = input.value.trim();
-  if (name.length < 3) { err.textContent = 'Use at least 3 characters.'; input.setAttribute('aria-invalid', 'true'); input.focus(); return; }
+  const problem = compete.nameProblem(name);
+  if (problem) { err.textContent = problem; input.setAttribute('aria-invalid', 'true'); input.focus(); return; }
   const btn = e.target.querySelector('button[type=submit]');
   btn.disabled = true;
   try {
     const saved = await compete.setName(name);
     input.value = '';
     toast(compete.isNameApproved() ? `Saved. You are now ${saved}.` : `Saved. Others see "New player" until ${saved} is approved.`);
+    if (next) { location.href = next; return; }
     drawName();
   } catch (er) {
     err.textContent = er.message || 'That name could not be saved. Try another.';
@@ -88,8 +119,11 @@ async function start() {
   openAccount();
   // Signing out or in keeps the window showing; it is the page.
   dlg.addEventListener('close', () => setTimeout(() => { openAccount(); drawName(); }, 0));
-  account.onChange(() => { drawName(); if (next && account.current()) location.href = next; });
-  if (next && account.current()) { location.href = next; return; }
-  drawName();
+  // Back to the game once signed in with a screen name.
+  const goOn = async () => { const name = await drawName(); if (next && account.current() && name) location.href = next; };
+  account.onChange(goOn);
+  // The name chosen in the Create an account form arrives after the sign-in.
+  compete.onName((n) => { if (n && n !== named) goOn(); });
+  goOn();
 }
 start();

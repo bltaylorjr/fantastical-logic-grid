@@ -50,7 +50,11 @@ const admin = (path, body) => call(`/admin/v1/${path}`, { auth: TOKEN, body });
 const mod = (path, body) => call(`/admin/v1/${path}`, { auth: TOKEN, body });
 const DAY = 86400_000;
 const solve = (over = {}) => ({ at: Date.now(), storyId: `s${Math.random()}`, tier: 'easy', theme: 'pets', ms: 60000, hints: 1, checks: 0, mistakes: 0, revealed: false, cells: 48, categories: 3, daily: null, race: false, ...over });
+// Every account has a screen name before its first sync (sync.js): give the
+// test players one, as the game's sign-up form does.
+const named = (db, uid) => db.prepare('INSERT OR IGNORE INTO players (user_id, screen_name, name_key, created_at, updated_at, accept_invites) VALUES (?1, ?1, ?1, 1, 1, 1)').bind(uid).run();
 async function syncSolves(uid, log) {
+  await named(db, uid);
   const auth = player(uid);
   const rev = (await db.prepare("SELECT rev FROM sync_records WHERE user_id = ?1 AND kind = 'meta' AND key = 'solves'").bind(uid).first())?.rev || 0;
   const r = await call('/v1/sync', { auth, body: { changes: [{ kind: 'meta', key: 'solves', data: JSON.stringify(log), updatedAt: Date.now(), baseRev: rev }] } });

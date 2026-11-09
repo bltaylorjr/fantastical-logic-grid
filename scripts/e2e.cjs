@@ -228,6 +228,14 @@ const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`o
       await page.waitForFunction(() => !document.querySelector('.fx-rays'), null, { timeout: 10000 }).catch(() => {});
       assert(await page.locator('.fx-rays').count() === 0, 'the light rays glow removes itself');
       assert(fx.all.join() === all.join() && errors.length === 0, `every celebration effect plays without errors (${errors.join('; ')})`);
+      // WS-PNG7BV3D: where a browser cannot draw picture shapes, they become plain stars and dots, never solid squares.
+      const swap = await page.evaluate(async () => {
+        const m = await import('./js/effects.js');
+        const pic = { type: 'bitmap' };
+        return { drawsHere: m.picturesDraw(), off: m.safeShapes([pic, 'star'], false), none: m.safeShapes([pic], false), on: m.safeShapes([pic], true).length };
+      });
+      assert(swap.drawsHere === true, 'this browser draws picture shapes (so emoji celebrations stay)');
+      assert(swap.off.join() === 'star' && swap.none.join() === 'star,circle' && swap.on === 1, 'picture shapes become stars and dots where they cannot be drawn');
       assert(fx.one.length === 1 && all.includes(fx.one[0]), 'Random plays one of the checked effects');
       assert(fx.none === null, 'no effect plays when none is checked');
       await page.emulateMedia({ reducedMotion: 'reduce' });

@@ -7,6 +7,7 @@
 //   GET  /admin/v1/client-config       the Firebase web key the sign-in form needs
 //   GET  /admin/v1/me                  who is signed in, their role and whether they may publish books
 //   POST /admin/v1/publishing/export   Book Studio (admin/book-studio/) asks before every export; logged (publishers)
+//   GET  /admin/v1/studio/books[/:id]  Book Studio's synced books (this account's own); POST .../:id, .../:id/delete (studio-sync.js)
 //   POST /admin/v1/admins/publishing   { email, on } let one admin use Book Studio (owner)
 //   GET  /admin/v1/analytics?days=     players, games, scores, races, voices, errors
 //   GET  /admin/v1/storage             rows per table, database size, free limits
@@ -58,6 +59,7 @@
 //   GET/POST /admin/v1/licenses        app keys for the Windows and Android apps; GET .../:id, POST .../:id/(approve|decline|revoke|restore|devices), .../:id/devices/:device/remove (licenses.js)
 //   GET/POST /admin/v1/badges          special badges; POST .../:id, .../:id/(delete|award), .../awards/:id/remove; GET .../:id/holders (special-badges.js)
 //   POST /admin/v1/puzzle-reports/(claim|done)  the puzzle doctor Action (owner); GET .../:id/puzzle, POST .../:id/retry (puzzle-reports.js)
+//   GET  /admin/v1/status              the live Status page: everything worth watching, checked at once (status.js)
 //   GET  /admin/v1/alerts              free allowances close to running out
 //   /admin/v1/notify*                  my own push and email alerts (alerts.js)
 //   GET  /admin/v1/summary?days=       the week in numbers, for the Monday summary email
@@ -108,6 +110,7 @@ import { FREE_LIMITS, cloudflareUsage } from './usage.js';
 import { plannerView, checkPlan, savePlan, resetPlan } from './daily.js';
 import { designView, checkDesign, saveDraft, discardDraft, publishDraft, restoreVersion } from './site-design.js';
 import { quality, alerts, summary, csv, CSV_KINDS } from './report.js';
+import { statusReport } from './status.js';
 import { qualityPuzzleRoutes } from './quality-puzzles.js';
 import { connectionStatus, checkGithubReport, saveGithubReport } from './connections.js';
 import { withFixes, errorFile } from './errors.js';
@@ -116,10 +119,12 @@ import { marketingRoutes } from './marketing.js';
 import { oauthRoutes } from './marketing-oauth.js';
 import { supporterRoutes } from './supporters.js';
 import { licenseRoutes } from './licenses.js';
+import { voxProxy, voxServerStatus, voxPublicHealth } from './vox.js';
 import { badgeRoutes, playerBadges, deleteBadgeStatements } from './special-badges.js';
 import { puzzleMailRoutes } from './puzzle-mail.js';
 import { editionRoutes } from './editions.js';
 import { bookRoutes } from './books.js';
+import { studioRoutes } from './studio-sync.js';
 import { educatorRoutes } from './educators.js';
 import { puzzleReportRoutes } from './puzzle-reports.js';
 import { visitorRoutes } from './visits.js';
@@ -147,7 +152,7 @@ const SESSION_MAX_S = 12 * 3600;
 const DENIED_PER_DAY = 500; // refused requests written to the audit log, so a flood cannot fill it
 const ANALYTICS_CACHE_MS = 120_000;
 const TABLES = ['sync_users', 'sync_records', 'sync_deleted_users', 'account_days', 'players', 'scores', 'races', 'race_entries', 'race_invites', 'plays', 'parts', 'usage',
-  'app_errors', 'upkeep_log', 'admins', 'admin_audit', 'settings', 'announcements', 'bans', 'name_reviews', 'archive_log', 'feedback', 'feedback_replies', 'error_fixes', 'conversations', 'conversation_messages', 'message_contacts', 'news', 'search_snapshots', 'daily_plan', 'translations', 'rating_insights', 'campaigns', 'campaign_ads', 'marketing_media', 'campaign_stats', 'challenges', 'daily_results', 'daily_email', 'supporters', 'payment_blocks', 'puzzle_mail', 'puzzle_mail_got', 'puzzle_mail_days', 'special_editions', 'educator_requests', 'special_badges', 'badge_awards', 'puzzle_reports', 'player_puzzles', 'visit_stats', 'educator_feedback', 'print_packs', 'print_pack_stories', 'admin_passkeys', 'admin_sessions', 'admin_keys', 'np_plays', 'kit_plays', 'alert_prefs', 'alert_devices', 'alert_queue', 'site_design', 'site_accounts', 'tuning_proposals', 'house_nudges', 'tuning_rules', 'vault_items', 'vault_devices', 'quality_puzzles', 'books', 'book_puzzles', 'book_templates'];
+  'app_errors', 'upkeep_log', 'admins', 'admin_audit', 'settings', 'announcements', 'bans', 'name_reviews', 'archive_log', 'feedback', 'feedback_replies', 'error_fixes', 'conversations', 'conversation_messages', 'message_contacts', 'news', 'search_snapshots', 'daily_plan', 'translations', 'rating_insights', 'campaigns', 'campaign_ads', 'marketing_media', 'campaign_stats', 'challenges', 'daily_results', 'daily_email', 'supporters', 'payment_blocks', 'puzzle_mail', 'puzzle_mail_got', 'puzzle_mail_days', 'special_editions', 'educator_requests', 'special_badges', 'badge_awards', 'puzzle_reports', 'player_puzzles', 'visit_stats', 'educator_feedback', 'print_packs', 'print_pack_stories', 'admin_passkeys', 'admin_sessions', 'admin_keys', 'np_plays', 'kit_plays', 'alert_prefs', 'alert_devices', 'alert_queue', 'site_design', 'site_accounts', 'tuning_proposals', 'house_nudges', 'tuning_rules', 'vault_items', 'vault_devices', 'quality_puzzles', 'books', 'book_puzzles', 'book_templates', 'studio_books', 'studio_book_parts'];
 // worker-src blob: lets the Media library's celebrations draw off the main
 // thread, as they do in the game (canvas-confetti makes its own small worker).
 // frame-src: the Website page's live preview shows pages of the website (only).
@@ -516,6 +521,9 @@ const ROUTES = [
     const detail = { kind: str(body.kind, 20), platform: str(body.platform, 60), pages: Math.max(0, Math.min(5000, Number(body.pages) || 0)) };
     return { body: { ok: true }, target: str(body.title, 200) || 'Untitled', detail };
   }],
+
+  // Each publisher's own books, kept on their account so they open on any device (studio-sync.js).
+  ...studioRoutes(Refusal, canPublish),
 
   ['GET', /^analytics$/, 'viewer', 'analytics.view', async ({ env, url }) => ({ body: await analytics(env, daysParam(url)) })],
   ['GET', /^search$/, 'viewer', 'search.view', async ({ env }) => ({ body: { sources: await searchSnapshots(env) } })],
@@ -976,7 +984,8 @@ const ROUTES = [
   ...puzzleMailRoutes(Refusal),
   ...editionRoutes(Refusal),
   // ---- Books for publishing: puzzle books from every game and their covers (books.js).
-  ...bookRoutes(Refusal),
+  // Book Studio's Grid books tab: anyone who may publish books may use them.
+  ...bookRoutes(Refusal).map((r) => [...r.slice(0, 5), { ...(r[5] || {}), publishers: true }]),
   // ---- Supporters and premium extras (supporters.js).
   ...supporterRoutes(Refusal),
   // ---- App keys for the Windows and Android apps (licenses.js).
@@ -990,6 +999,8 @@ const ROUTES = [
   ...alertRoutes(Refusal),
   ['GET', /^analysis$/, 'viewer', 'analysis.view', async ({ env, url, now, who }) => ({ body: await analysisData(env, daysParam(url, 365), { now, role: who.role, analytics, storage }) })],
   ['GET', /^alerts$/, 'viewer', 'alerts.view', async ({ env }) => ({ body: await alerts(env) })],
+  // Polled every 30 s by the Status page, so it stays out of the audit log.
+  ['GET', /^status$/, 'viewer', 'status.view', async ({ env }) => ({ body: await statusReport(env), quiet: true })],
   ['GET', /^summary$/, 'admin', 'summary.view', async ({ env, url }) => {
     const s = await summary(env, daysParam(url, 31));
     s.enabled = (await getSettings(env)).summary_email_enabled;
@@ -1092,12 +1103,37 @@ async function passkeySignIn(req, env, url, path) {
   }
 }
 
+// Vox on the Oracle server (src/vox.js): admins only, with its own rate limit
+// (the Voice engine page makes many small requests), passed on as they are so
+// audio and sample uploads work. Changes to Vox's admin settings are logged.
+async function voxRoute(req, env, url, path) {
+  let who = null;
+  const action = path === 'vox-server' ? 'vox.server.view' : `vox ${req.method} ${path.slice(4)}`;
+  try {
+    who = await identify(req, env);
+    if (ROLES[who.role] < ROLES.admin) throw new Refusal(403, 'role', 'This needs the admin role.');
+    const limiter = env.LIMIT_VOX || env.LIMIT_ADMIN;
+    if (limiter && !(await limiter.limit({ key: who.key })).success) throw new Refusal(429, 'slow_down', 'Too many requests. Wait a minute.');
+    if (path === 'vox-server') return reply(await voxServerStatus(env));
+    const sub = path.slice('vox/'.length);
+    const res = await voxProxy(req, env, sub, url.search);
+    if (req.method !== 'GET' && sub.startsWith('v1/admin/')) await audit(env, { actor: who.actor, role: who.role, action, status: res.status });
+    return res;
+  } catch (e) {
+    if (!(e instanceof Refusal)) { console.error(e); return reply({ error: 'server' }, 500); }
+    if (e.status !== 429) await audit(env, { actor: who ? who.actor : 'unknown', role: who?.role, action, detail: { error: e.error }, status: e.status });
+    return reply({ error: e.error, message: e.message, detail: e.message }, e.status, e.status === 429 ? { 'Retry-After': '60' } : {});
+  }
+}
+
 async function api(req, env, ctx, url, path) {
   if (path === 'client-config' && req.method === 'GET') {
     // Public by design (it only names the Firebase project), but kept out of the repo.
     return reply({ firebaseApiKey: env.FIREBASE_WEB_API_KEY || null, projectId: env.FIREBASE_PROJECT_ID || null, tokenSignIn: true });
   }
   if (req.method === 'POST' && (path === 'passkeys/sign-in/options' || path === 'passkeys/sign-in')) return passkeySignIn(req, env, url, path);
+  if (path === 'vox-health' && req.method === 'GET') return reply(await voxPublicHealth(env));
+  if (path === 'vox-server' || path.startsWith('vox/')) return voxRoute(req, env, url, path);
   let who = null;
   let action = `${req.method} ${path}`;
   let route = null;
@@ -1110,7 +1146,7 @@ async function api(req, env, ctx, url, path) {
     who = await identify(req, env);
     if (env.LIMIT_ADMIN && !(await env.LIMIT_ADMIN.limit({ key: who.key })).success) throw new Refusal(429, 'slow_down', 'Too many requests. Wait a minute.');
     if (!route) throw new Refusal(404, 'not_found');
-    if (ROLES[who.role] < ROLES[route[2]]) throw new Refusal(403, 'role', `This needs the ${route[2]} role.`);
+    if (ROLES[who.role] < ROLES[route[2]] && !(route[5]?.publishers && canPublish(who))) throw new Refusal(403, 'role', `This needs the ${route[2]} role.`);
     const body = await readBody(req, route[5]?.maxBody || MAX_BODY);
     let out;
     try { out = await route[4]({ req, env, ctx, url, who, params, body, now: Date.now() }); } catch (e) {
@@ -1138,11 +1174,12 @@ async function api(req, env, ctx, url, path) {
 
 const APP_FILE = /^\/admin\/([\w-]+\.(?:js|css|svg|png|html|webmanifest))?$/;
 // Book Studio (admin/book-studio/): its own page with its own vendored libraries.
-const STUDIO_FILE = /^\/admin\/book-studio\/((?:vendor\/)?[\w-]+(?:\.[\w-]+)*\.(?:js|css|html))?$/;
+// manifest.webmanifest and sw.js let it install as its own app (phone, Mac, Chromebook).
+const STUDIO_FILE = /^\/admin\/book-studio\/((?:vendor\/)?[\w-]+(?:\.[\w-]+)*\.(?:js|css|html|webmanifest))?$/;
 // Book Studio edits rich text (style attributes on every formatted word) and
 // draws covers with the book fonts from Google Fonts, so its page allows
 // inline styles and those two font hosts. Scripts stay 'self' only.
-const STUDIO_CSP = "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' data: blob: https://identitytoolkit.googleapis.com https://securetoken.googleapis.com; worker-src 'self' blob:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
+const STUDIO_CSP = "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' data: blob: https://identitytoolkit.googleapis.com https://securetoken.googleapis.com; worker-src 'self' blob:; manifest-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
 const TYPES = { js: 'text/javascript; charset=utf-8', css: 'text/css; charset=utf-8', svg: 'image/svg+xml', png: 'image/png', html: 'text/html; charset=utf-8', webmanifest: 'application/manifest+json' };
 
 async function appFile(env, url, file) {
@@ -1153,11 +1190,20 @@ async function appFile(env, url, file) {
   return new Response(res.body, { headers: { ...SECURITY_HEADERS, 'Content-Security-Policy': adminCsp(env, voxUrl), 'Content-Type': TYPES[file.split('.').pop()], ...(voxUrl ? { 'Cache-Control': 'no-store' } : {}) } });
 }
 
+// The Grid books tab shows the website's Book maker in a frame.
+function studioCsp(env) {
+  let site = 'https://thelogicgrid.com';
+  try { site = new URL(env.SITE_URL || site).origin; } catch (e) { /* default */ }
+  return STUDIO_CSP.replace("base-uri", `frame-src ${site}; base-uri`);
+}
+
 async function studioFile(env, url, file) {
   if (!env.ASSETS) return new Response('The admin app is not deployed with this Worker.', { status: 404 });
   const res = await env.ASSETS.fetch(new Request(new URL(`/book-studio/${file}`, url.origin)));
   if (!res.ok) return new Response('Not found', { status: 404, headers: SECURITY_HEADERS });
-  return new Response(res.body, { headers: { ...SECURITY_HEADERS, 'Content-Security-Policy': STUDIO_CSP, 'Content-Type': TYPES[file.split('.').pop()] } });
+  // The page and its service worker are checked on every visit, so a new version reaches installed copies at once.
+  const fresh = file === 'index.html' || file === 'sw.js' ? { 'Cache-Control': 'no-cache' } : {};
+  return new Response(res.body, { headers: { ...SECURITY_HEADERS, 'Content-Security-Policy': studioCsp(env), 'Content-Type': TYPES[file.split('.').pop()], ...fresh } });
 }
 
 const LEGACY = /^\/admin\/(learn(\/.*)?|errors)$/;

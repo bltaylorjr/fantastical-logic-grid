@@ -10,6 +10,7 @@
 //   10 minutes, so a stolen old token cannot erase an account.
 
 import { json, readText, TooLarge } from './http.js';
+import { getSettings } from './settings.js';
 import { deleteCompeteStatements } from './compete.js';
 import { deleteMessageStatements } from './messages.js';
 import { deleteReplyStatements } from './replies.js';
@@ -67,6 +68,17 @@ export async function handleSync(req, env, user) {
   const out = { applied: [], conflicts: [] };
 
   if (changes.length) {
+    // Every account has a screen name: a new account's first sync waits until
+    // the player has chosen one (the game asks straight after sign-up). Older
+    // accounts that already sync keep syncing and are asked at sign-in.
+    const [known, named, settings] = await Promise.all([
+      db.prepare('SELECT 1 AS k FROM sync_users WHERE user_id = ?1').bind(uid).first(),
+      db.prepare('SELECT 1 AS k FROM players WHERE user_id = ?1').bind(uid).first(),
+      getSettings(env),
+    ]);
+    if (!known && !named && settings.names_enabled) {
+      return json(req, env, { error: 'no_screen_name', message: 'Choose a screen name to finish setting up your account. Your puzzles are safe on this device until then.' }, 403);
+    }
     const made = await db.prepare('INSERT OR IGNORE INTO sync_users (user_id, rev, created_at) VALUES (?1, 0, ?2)').bind(uid, Date.now()).run();
     if (made.meta && made.meta.changes) await accountMadeStatement(env).run();
     const { n, used } = await db.prepare('SELECT COUNT(*) AS n, COALESCE(SUM(LENGTH(data)), 0) AS used FROM sync_records WHERE user_id = ?1').bind(uid).first();

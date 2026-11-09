@@ -166,7 +166,7 @@ async function renderPageCanvas(i, dpi) {
   Object.assign(sheet.style, { width: SW * IN + 'px', height: SH * IN + 'px', position: 'relative', background: '#fff', overflow: 'hidden' });
   const node = buildPageNode(i, true); node.style.position = 'absolute'; node.style.left = (recto ? bi : b) * IN + 'px'; node.style.top = b * IN + 'px'; node.style.boxShadow = 'none';
   sheet.appendChild(node); host.appendChild(sheet);
-  await nextFrame();
+  await nextFrame(); fitGridBlocks(sheet);
   const canvas = await html2canvas(sheet, { scale: dpi / IN, backgroundColor: '#ffffff', logging: false, useCORS: true });
   if (S.ink === 'bw') grayscaleCanvas(canvas);
   host.innerHTML = '';
@@ -250,6 +250,7 @@ function reportText() {
 const mayExport = async (kind) => (typeof checkInExport === 'function' ? checkInExport(kind) : true);
 async function exportPacket() {
   if (!(await mayExport('packet'))) return;
+  allowCancel();
   const dpi = +$('#dpi').value; const base = slug(S.meta.title) + '-' + slug(PUBLISHERS[S.pub].short);
   try {
     busy('Checking the book', 0.02); await runChecks();
@@ -266,12 +267,18 @@ async function exportPacket() {
     dir.file('preflight-report.txt', reportText()); dir.file('SUBMISSION-CHECKLIST.txt', checklistText(files));
     dir.file(files[7], JSON.stringify(S));
     const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 3 } });
-    busy(false);
+    busy('Saving', 1); busy(false);
     await saveFile(base + '-submission-packet.zip', blob);
-  } catch (e) { busy(false); console.error(e); toast('Export failed: ' + (e.message || e), 7000); }
+  } catch (e) { exportFailed(e); }
 }
-async function exportInterior() { if (!(await mayExport('interior'))) return; try { const b = await buildInteriorPDF(+$('#dpi').value); busy(false); await saveFile(slug(S.meta.title) + '-interior.pdf', b); } catch (e) { busy(false); toast('Export failed: ' + e.message, 7000); } }
-async function exportCover() { if (!(await mayExport('cover'))) return; try { const { blob } = await buildCoverPDF(+$('#dpi').value); busy(false); await saveFile(slug(S.meta.title) + '-cover.pdf', blob); } catch (e) { busy(false); toast('Export failed: ' + e.message, 7000); } }
+// Cancel on the progress card ends an export quietly; anything else is reported.
+function exportFailed(e) {
+  busy(false);
+  if (e && e.code === 'cancelled') { toast('Export cancelled. Nothing was saved.'); return; }
+  console.error(e); toast('Export failed: ' + ((e && e.message) || e), 7000);
+}
+async function exportInterior() { if (!(await mayExport('interior'))) return; allowCancel(); try { const b = await buildInteriorPDF(+$('#dpi').value); busy('Saving', 1); busy(false); await saveFile(slug(S.meta.title) + '-interior.pdf', b); } catch (e) { exportFailed(e); } }
+async function exportCover() { if (!(await mayExport('cover'))) return; allowCancel(); try { const { blob } = await buildCoverPDF(+$('#dpi').value); busy('Saving', 1); busy(false); await saveFile(slug(S.meta.title) + '-cover.pdf', blob); } catch (e) { exportFailed(e); } }
 
 function renderPubCard() {
   const P = PUBLISHERS[S.pub]; const g = coverGeom(); const n = pageCount(); const rec = P.margins(n, S.bleed);

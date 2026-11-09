@@ -37,7 +37,7 @@ const TOKEN = 'e2e-educators-token';
   }
   await mf.ready;
   const site = spawn('node', [path.join(__dirname, 'serve.mjs'), path.join(ROOT, 'dist', 'site'), String(SITE_PORT)], { stdio: 'ignore' });
-  await new Promise((r) => setTimeout(r, 600));
+  await require('./wait-port.cjs')(SITE_PORT);
   const admin = async (p, body) => (await fetch(`${API}/admin/v1/${p}`, { method: body ? 'POST' : 'GET', headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json' }, body: body && JSON.stringify(body) })).json();
   const browser = await chromium.launch();
   const errors = [];

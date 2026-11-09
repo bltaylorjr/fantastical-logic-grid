@@ -17,9 +17,12 @@ const older = (v, min) => {
 const stuckOld = () => caches.keys().then((keys) => keys.some((k) => k.startsWith('flg-') && k !== CACHE && older(k.slice(4), MIN_GOOD)));
 
 self.addEventListener('install', (e) => {
+  // Each file is fetched fresh ('reload'), never from the browser's own
+  // short-term cache: a stale page saved next to new code made a broken copy
+  // ("Cannot set properties of null") that stayed until the next update.
   // A first install takes over at once; an update waits until the player
   // chooses Reload (the page sends 'skip-waiting'), so a puzzle is never cut off.
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES)).then(async () => {
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES.map((f) => new Request(f, { cache: 'reload' })))).then(async () => {
     if (!self.registration.active || await stuckOld()) return self.skipWaiting();
   }));
 });

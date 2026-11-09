@@ -136,7 +136,7 @@ async function importFiles(files) {
     for (const [k, f] of [...files].entries()) {
       busy(`Importing ${f.name}`, k / files.length); await nextFrame();
       const e = ext(f.name);
-      if (e === 'json') { const data = JSON.parse(await f.text()); if (data && data.pages) { loadProject(data); toast('Opened project ' + (data.meta?.title || f.name)); busy(false); return; } continue; }
+      if (e === 'json') { const data = JSON.parse(await f.text()); if (data && data.pages) { delete data.syncId; loadProject(data); toast('Opened project ' + (data.meta?.title || f.name)); busy(false); return; } continue; }
       const isImg = f.type.startsWith('image/') || IMG_NATIVE.includes(e) || ['tif', 'tiff', 'heic', 'heif'].includes(e);
       if (isImg) {
         const u = await imageFileToDataURL(f);

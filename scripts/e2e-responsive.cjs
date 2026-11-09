@@ -44,7 +44,7 @@ const inspect = () => {
 
 (async () => {
   const server = spawn('node', [path.join(__dirname, 'serve.mjs'), path.join(__dirname, '..', 'dist', 'web'), '8131'], { stdio: 'ignore' });
-  await new Promise((r) => setTimeout(r, 600));
+  await require('./wait-port.cjs')('8131');
   const browser = await chromium.launch();
   const errors = [];
   try {
@@ -55,6 +55,8 @@ const inspect = () => {
       const file = (s) => SHOTS && path.join(SHOTS, `${name.replace(/[^a-z0-9]+/gi, '-')}-${s}.png`);
       await page.goto('http://localhost:8131/');
       await page.waitForSelector('#tier-choices input');
+      // The welcome window can open a moment after the home screen on a busy machine.
+      await page.waitForSelector('#dlg-welcome[open]', { timeout: 3000 }).catch(() => {});
       if (await page.locator('#dlg-welcome[open]').count()) await page.keyboard.press('Escape');
 
       let p = await page.evaluate(inspect);

@@ -21,7 +21,7 @@
 </header>
 <main id="ac-main" tabindex="-1">
   <h1>Your account</h1>
-  <p class="help ac-lead">One free account for every game: your saved puzzles, progress, stats and settings follow you to every device. You never need an account to play.</p>
+  <p class="help ac-lead">One free account for every game: your saved puzzles, progress, stats and settings follow you to every device, with unlimited new puzzles. Guests can play a few new puzzles a day without an account.</p>
   <p class="error-box" id="ac-off" role="alert" hidden>Accounts are not switched on in this copy of the game. Open thelogicgrid.com to sign in.</p>
   <section class="ac-card" id="ac-account" aria-label="Sign in and sync">
     <!-- The Account and sync window: copied here from index.html when the site is built (scripts/build.mjs), so the game and this page always match. -->
@@ -29,12 +29,14 @@
   </section>
   <section class="ac-card" id="ac-name" aria-labelledby="ac-name-h" hidden>
     <h2 id="ac-name-h">Screen name</h2>
+    <p id="ac-name-needed" hidden><b>One more step: every account needs a screen name.</b> We made one up for you. Keep it, press Suggest another, or type your own.</p>
     <p class="help">The name other players see on the scoreboard and in races. Players who are not signed in show as Guest.</p>
     <p id="ac-name-now"></p>
     <form id="ac-name-form" novalidate>
-      <div class="field"><label for="ac-name-input">New screen name</label>
-        <input type="text" id="ac-name-input" maxlength="20" autocomplete="nickname" spellcheck="false" aria-describedby="ac-name-rules ac-name-err"></div>
-      <p class="help" id="ac-name-rules">3 to 20 letters, numbers, spaces, dots, dashes or underscores. New names may wait for approval before others see them.</p>
+      <div class="field"><label for="ac-name-input" id="ac-name-label">New screen name</label>
+        <div class="name-row"><input type="text" id="ac-name-input" maxlength="20" autocomplete="nickname" spellcheck="false" aria-describedby="ac-name-rules ac-name-err"><button class="btn" type="button" id="ac-name-suggest">Suggest another</button></div></div>
+      <p class="help" id="ac-name-rules">3 to 20 letters, numbers, spaces, dots, dashes or underscores. A name you type yourself may wait for approval before others see it; a suggested name shows straight away.</p>
+      <p class="sr-only" id="ac-name-said" aria-live="polite"></p>
       <p class="ac-err" id="ac-name-err" role="alert"></p>
       <div class="row-inline"><button class="btn primary" type="submit">Save screen name</button></div>
     </form>

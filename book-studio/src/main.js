@@ -22,11 +22,24 @@ function updateStatus() {
 }
 
 let currentTab = 'manuscript';
-function showTab(name) {
+// Back returns to the step you came from; Next goes to the following step.
+const STEPS = [['manuscript', 'Interior'], ['cover', 'Cover'], ['details', 'Book details'], ['publish', 'Check & export']];
+const tabTrail = [];
+function updateStepButtons() {
+  const i = STEPS.findIndex(s => s[0] === currentTab); const next = STEPS[i + 1];
+  $('#navNext').hidden = i < 0 || !next; if (i >= 0 && next) $('#navNext').textContent = `Next: ${next[1]} →`;
+  const prev = tabTrail[tabTrail.length - 1];
+  const prevName = prev === 'gridbooks' ? 'Grid books' : STEPS.find(s => s[0] === prev)?.[1];
+  $('#navBack').hidden = !prev; if (prev) $('#navBack').textContent = `← Back to ${prevName}`;
+}
+function showTab(name, { back = false } = {}) {
   if (name === currentTab && !$('#view-' + name).hidden && name !== 'publish') return;
+  if (name !== currentTab && !back) { tabTrail.push(currentTab); if (tabTrail.length > 20) tabTrail.shift(); }
   currentTab = name;
+  updateStepButtons();
   $$('.tab').forEach(t => t.setAttribute('aria-selected', t.dataset.tab === name ? 'true' : 'false'));
-  ['manuscript', 'cover', 'details', 'publish'].forEach(v => $('#view-' + v).hidden = v !== name);
+  ['manuscript', 'cover', 'details', 'publish', 'gridbooks'].forEach(v => $('#view-' + v).hidden = v !== name);
+  if (name === 'gridbooks' && typeof gaGridBooks === 'function') gaGridBooks();
   if (name === 'cover') ensureCover().then(() => { sizeCoverCanvas(); cv.calcOffset(); }).catch(() => { });
   if (name === 'publish') { syncPagesFromDom(); renderPubCard(); runChecks(); }
   if (name === 'manuscript') requestAnimationFrame(checkAllOverflow);
@@ -48,15 +61,22 @@ function onSpecChange(fn) {
   return e => { applyLog = null; syncPagesFromDom(); fn(e); renderPages(); refreshUI(); onGeometryChanged(); markDirty(); lastIssues = []; updateStatus(); };
 }
 
+// Returns a promise that settles once the cover has finished loading too.
 function loadProject(data) {
   const base = blankProject();
   S = { ...base, ...data, meta: { ...base.meta, ...(data.meta || {}) }, margins: { ...base.margins, ...(data.margins || {}) }, body: { ...base.body, ...(data.body || {}) }, folio: { ...base.folio, ...(data.folio || {}) }, counters: { ...base.counters, ...(data.counters || {}) } };
   if (!TRIMS[S.trim]) S.trim = PUBLISHERS[S.pub]?.defaultTrim || '8.5x11';
   if (!PUBLISHERS[S.pub]) S.pub = 'kdp';
+  // A book keeps its own theme list only once it has one (edited here, or a new
+  // book started from one); older books use the default list unchanged.
+  if (Array.isArray(data.puzzleThemes)) S.puzzleThemes = cloneThemes(data.puzzleThemes); else delete S.puzzleThemes;
+  themeSeed = S.puzzleThemes || null;
   curPage = 0; undoStack = []; lastIssues = [];
   renderPages(); refreshUI(); fillMetaForm();
-  if (cv) { const json = S.cover; if (json) loadCoverJSON(json, S.coverGeom).then(() => { lastGeom = coverGeom(); }); else autoDesignCover(); }
+  let cover = Promise.resolve();
+  if (cv) { const json = S.cover; cover = json ? loadCoverJSON(json, S.coverGeom).then(() => { lastGeom = coverGeom(); }) : autoDesignCover(); }
   markDirty();
+  return cover;
 }
 
 /* Sample book: realistic example content, generated fresh */
@@ -89,6 +109,9 @@ async function buildSample() {
 function wireShell() {
   fillPubSelects();
   $$('.tab').forEach(t => t.onclick = () => showTab(t.dataset.tab));
+  $('#navBack').onclick = () => { const prev = tabTrail.pop(); if (prev) showTab(prev, { back: true }); };
+  $('#navNext').onclick = () => { const i = STEPS.findIndex(s => s[0] === currentTab); if (STEPS[i + 1]) showTab(STEPS[i + 1][0]); };
+  updateStepButtons();
   const setPub = v => { S.pub = v; if (!PUBLISHERS[v].trims.includes(S.trim)) toast(`${PUBLISHERS[v].short} does not offer ${TRIM_LABEL(S.trim)}. Apply specs to switch to the nearest size.`, 5000); updateMetaCounts(); };
   $('#pub').onchange = onSpecChange(e => setPub(e.target.value));
   $('#pub2').onchange = onSpecChange(e => setPub(e.target.value));
@@ -105,7 +128,7 @@ function wireShell() {
   // Project menu
   $('#projMenuBtn').onclick = () => { $('#projNewConfirm').hidden = true; openDlg('#dlgProject'); };
   $('#projSave').onclick = () => { syncPagesFromDom(); syncCoverToState(); saveFile(slug(S.meta.title) + '-project.json', JSON.stringify(S)); };
-  $('#projOpen').onclick = () => { const f = $('#fileProj'); f.value = ''; f.onchange = async () => { try { const d = JSON.parse(await f.files[0].text()); if (!d.pages) throw new Error('not a project file'); closeDlg('#dlgProject'); loadProject(d); toast('Opened ' + (d.meta?.title || 'project')); } catch (e) { toast('That file is not a Puzzle Book Studio project'); } }; f.click(); };
+  $('#projOpen').onclick = () => { const f = $('#fileProj'); f.value = ''; f.onchange = async () => { try { const d = JSON.parse(await f.files[0].text()); if (!d.pages) throw new Error('not a project file'); delete d.syncId; closeDlg('#dlgProject'); loadProject(d); toast('Opened ' + (d.meta?.title || 'project')); } catch (e) { toast('That file is not a Puzzle Book Studio project'); } }; f.click(); };
   $('#projSample').onclick = async () => { closeDlg('#dlgProject'); busy('Building the sample book'); await buildSample(); busy(false); showTab('manuscript'); };
   $('#projNew').onclick = () => { $('#projNewConfirm').hidden = false; };
   $('#projNewYes').onclick = () => { closeDlg('#dlgProject'); loadProject(blankProject()); if (cv) autoDesignCover(); toast('Started a blank book'); };
@@ -114,10 +137,13 @@ function wireShell() {
 async function init() {
   wireShell(); wireEditor(); wirePuzzles(); wireImport(); wireCover();
   const saved = await idbGet('current');
-  if (saved && saved.pages && saved.pages.length) { loadProject(saved); $('#sbSave').textContent = 'Restored from this browser'; }
+  const restored = !!(saved && saved.pages && saved.pages.length);
+  if (restored) { loadProject(saved); $('#sbSave').textContent = 'Restored from this browser'; }
   else { busy('Building the sample book'); await buildSample(); busy(false); $('#sbSave').textContent = 'Sample book loaded. Open Project to start your own.'; }
-  const h = (location.hash || '').slice(1); if (['cover', 'details', 'publish'].includes(h)) showTab(h);
-  window.addEventListener('hashchange', () => { const t = location.hash.slice(1); if (['manuscript', 'cover', 'details', 'publish'].includes(t) && t !== currentTab) showTab(t); });
+  // Grid Admin build: fetch this account's books, open the newest on a new device (sync.js).
+  if (typeof syStart === 'function') syStart({ restored });
+  const h = (location.hash || '').slice(1); if (['cover', 'details', 'publish'].includes(h) || (h === 'gridbooks' && !$('[data-tab=gridbooks]').hidden)) showTab(h);
+  window.addEventListener('hashchange', () => { const t = location.hash.slice(1); if (['manuscript', 'cover', 'details', 'publish', 'gridbooks'].includes(t) && t !== currentTab) { const back = tabTrail[tabTrail.length - 1] === t; if (back) tabTrail.pop(); showTab(t, { back }); } });
   document.fonts && document.fonts.ready.then(() => checkAllOverflow());
 }
 // init() runs from auth.js once Grid Admin says this account may publish

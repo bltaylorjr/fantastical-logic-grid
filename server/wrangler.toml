@@ -5,6 +5,14 @@ name = "flg-api"
 main = "src/index.js"
 compatibility_date = "2026-08-01"
 
+# Before every deploy and `wrangler dev`: what the admin Status page watches,
+# read from the repo (workflows, migrations, bindings, admin pages), so new and
+# removed features are picked up by themselves (scripts/status-catalog.mjs).
+# It only rewrites src/status-catalog.js when something changed.
+[build]
+command = "node ../scripts/status-catalog.mjs"
+watch_dir = ["../.github/workflows", "migrations"]
+
 # The D1 database "flg" (created in the Cloudflare dashboard).
 [[d1_databases]]
 binding = "DB"
@@ -88,6 +96,21 @@ simple = { limit = 600, period = 60 }
 [[vpc_services]]
 binding = "PUZZLES"
 service_id = "01a1a45a-1899-7dc0-94ed-583bc6752722"
+
+# Vox on the Oracle server, through the dashboard (src/vox.js): per admin a
+# minute. The Voice engine page makes many small requests (status, takes, audio).
+[[ratelimits]]
+name = "LIMIT_VOX"
+namespace_id = "41091"
+simple = { limit = 600, period = 60 }
+
+# Vox on the Oracle server (docs/VOX-SERVER.md) needs a second Workers VPC
+# Service, flg-vox (tunnel flg-puzzles, 172.30.0.11:5150), added here as
+#   [[vpc_services]]
+#   binding = "VOX"
+#   service_id = "<its id>"
+# once it exists. Until then, and until the secret VOX_KEY is set, the Voice
+# engine page uses Vox on the computer.
 
 [[ratelimits]]
 name = "LIMIT_SYNC"

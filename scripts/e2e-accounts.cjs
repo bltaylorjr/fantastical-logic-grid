@@ -89,7 +89,7 @@ function startAuth(signer) {
   }
   await mf.ready;
   const app = spawn('node', [path.join(__dirname, 'serve.mjs'), path.join(ROOT, 'dist', 'web'), String(APP_PORT)], { stdio: 'ignore' });
-  await new Promise((r) => setTimeout(r, 600));
+  await require('./wait-port.cjs')(APP_PORT);
 
   const config = `export const CLOUD = { firebaseApiKey: 'test-key', syncUrl: 'http://localhost:${API_PORT}', authUrl: 'http://localhost:${AUTH_PORT}/v1', tokenUrl: 'http://localhost:${AUTH_PORT}/v1', learnUrl: '' };\nexport const cloudEnabled = () => true;\nexport const CLOUD_URL = '';\n`;
   const browser = await chromium.launch();
@@ -143,6 +143,20 @@ function startAuth(signer) {
     assert(await A.page.isVisible('[data-view=signin] [data-close]'), 'offers "Keep playing without an account"');
     await A.page.click('[data-view=signin] [data-go=signup]');
     await A.page.fill('#su-email', 'bobby@example.com');
+    const madeUp = await A.page.inputValue('#su-name');
+    assert(/^[A-Z][a-z]+[A-Z][a-z]+\d\d$/.test(madeUp), `the form fills in a made-up screen name (${madeUp})`);
+    await A.page.click('#su-name-suggest');
+    assert(/^[A-Z][a-z]+[A-Z][a-z]+\d\d$/.test(await A.page.inputValue('#su-name')), 'Suggest another gives a new made-up name');
+    await A.page.fill('#su-name', '');
+    await A.page.fill('#su-pass', 'correct horse battery');
+    await A.page.click('[data-view=signup] button[type=submit]');
+    await A.page.waitForSelector('[data-view=signup] .error-box:not([hidden])');
+    assert(/Screen name/.test(await A.page.textContent('[data-view=signup] .error-box')) && await A.page.getAttribute('#su-name', 'aria-invalid') === 'true', 'an account cannot be made without a screen name');
+    await A.page.fill('#su-name', 'sh1t');
+    await A.page.click('[data-view=signup] button[type=submit]');
+    await A.page.waitForFunction(() => /not allowed/.test(document.querySelector('[data-view=signup] .error-box')?.textContent || ''));
+    assert(auth.users.size === 0, 'a refused screen name stops the account from being made');
+    await A.page.fill('#su-name', 'Bobby Grid');
     await A.page.fill('#su-pass', 'short');
     await A.page.click('[data-view=signup] button[type=submit]');
     assert(/at least 8 characters/.test(await A.page.textContent('[data-view=signup] .error-box')), 'short password is refused with a clear message');
@@ -167,13 +181,10 @@ function startAuth(signer) {
     assert(n === 1, 'the guest puzzle is stored in the account');
     const settingsRow = await db.prepare("SELECT data FROM sync_records WHERE kind = 'settings'").first();
     assert(settingsRow && !('aiKey' in JSON.parse(settingsRow.data)), 'API keys are never sent with the settings');
+    assert((await db.prepare('SELECT screen_name FROM players').first())?.screen_name === 'Bobby Grid', 'the screen name from the form is saved with the new account');
     await A.page.click('#dlg-account .dlg-actions:last-child [data-close]');
-    // Signed-in players are asked for a screen name once the account window closes.
-    await A.page.waitForSelector('#dlg-name[open]');
-    assert(await A.page.isHidden('#name-cancel'), 'a new account must choose a screen name');
-    await A.page.fill('#name-input', 'Bobby Grid');
-    await A.page.click('#name-form button[type=submit]');
-    await A.page.waitForSelector('#dlg-name[open]', { state: 'detached' });
+    await A.page.waitForTimeout(500);
+    assert(await A.page.isHidden('#dlg-name[open]'), 'no second screen name question after sign-up');
 
     // ---- Device B signs in and gets everything.
     const B = await device('B');

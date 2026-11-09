@@ -78,10 +78,31 @@ const settingOf = (puzzle) => (puzzle.art && puzzle.art.setting
   : THEME_SETTING[puzzle.theme.id] || puzzle.theme.name);
 const storyKey = (puzzle) => (puzzle.story && puzzle.story.id) || puzzle.id;
 
+// The picture model paints any name, acronym, number or quote it is given as
+// made-up lettering (a fake title, "(AD III", gibberish captions). So it only
+// hears the story's plain description: sentences with names, initials,
+// numbers, brackets, quotes, lists or questions are left out. The real title
+// is laid over the picture as page text (app.js), so it is always spelled
+// right and never cut off.
+export function paintable(text) {
+  const sentences = String(text || '').replace(/\s+/g, ' ').match(/[^.!?]+[.!?]*/g) || [];
+  return sentences.map((x) => x.trim()).filter((x) => x
+    && !/[?()[\]{}"“”:;0-9]/.test(x)
+    && !/\b[A-Z]{2,}\b/.test(x)
+    && !/\b(clue|clues|teams are|team is|use the|work out|match each)\b/i.test(x)
+    && !/\s[A-Z][a-z'’]+/.test(x.replace(/^\W*\w+/, ''))
+    && !/(,[^,]+){3,}/.test(x))
+    .map((x) => x.replace(/-/g, ' ').replace(/\s+/g, ' ').toLowerCase())
+    .join(' ').slice(0, 600);
+}
+
 export function sceneImage(settings, puzzle) {
   const setting = settingOf(puzzle);
-  const prompt = `Wide establishing shot of ${setting}. Scene from this story: ${puzzle.story.paragraphs[0]} ${puzzle.story.paragraphs.slice(1, -1).join(' ')} Show the place and mood only, with small distant figures, no faces in close-up.`;
-  return cached(`${storyKey(puzzle)}|scene`, () => serverPicture(prompt, 'scene'));
+  const about = paintable(puzzle.story.paragraphs.slice(0, -1).join(' '));
+  const prompt = `Wide establishing shot of ${setting}.${about ? ` What is happening: ${about}` : ''} Show the place and mood, with any people as small whole figures in the middle distance, each drawn complete from head to feet, nobody cut off by the edge of the picture, and a clear open sky across the top.`;
+  // v3: "no faces in close-up" made the model paint people without heads, so
+  // pictures from v2 are painted again with the new words.
+  return cached(`${storyKey(puzzle)}|scene-v3`, () => serverPicture(prompt, 'scene'));
 }
 
 export function portraitImage(settings, puzzle, name) {
@@ -90,8 +111,8 @@ export function portraitImage(settings, puzzle, name) {
   const g = genderOf(name);
   // The face shows their personality: a grumpy chef frowns, a cheerful one beams.
   const who = profileOf(name);
-  const prompt = `Head-and-shoulders portrait of a ${who.label.toLowerCase()} ${g === 'f' ? 'woman' : 'man'} who ${who.about}, a ${role} named ${name}, in ${setting}, looking at the viewer, an expression that shows their personality, plain softly lit background, centered, one person only.`;
-  return cached(`${puzzle.theme.id}|${(puzzle.topic && puzzle.topic.id) || ''}|${role}|${name}|${g}|${who.personality}|portrait`, () => serverPicture(prompt, 'portrait'));
+  const prompt = `Head-and-shoulders portrait of a ${who.label.toLowerCase()} ${g === 'f' ? 'woman' : 'man'} who ${who.about}, a ${role}, in ${setting}, looking at the viewer, an expression that shows their personality, plain softly lit background, centered, one person only.`;
+  return cached(`${puzzle.theme.id}|${(puzzle.topic && puzzle.topic.id) || ''}|${role}|${name}|${g}|${who.personality}|portrait-v2`, () => serverPicture(prompt, 'portrait'));
 }
 
 // An AI portrait painted for one of the game's own characters in the admin

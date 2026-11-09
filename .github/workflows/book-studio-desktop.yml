@@ -1,0 +1,104 @@
+# Builds the Book Studio app for Windows (desktop-book-studio/) and publishes it
+# to the GitHub Release tagged book-studio-desktop, which the "Get the app" >
+# "Download for Windows" button in Book Studio and the installed app's updater
+# both use. That release is never marked "latest", so the game's own releases
+# and updates are not affected. The app opens the live Book Studio, so a change
+# to Book Studio itself needs no new app version.
+# On a pull request it only builds the installer (a check that it still builds).
+# It publishes when a version bump of desktop-book-studio/src-tauri/tauri.conf.json
+# reaches main and that version is not out yet, or from the Actions tab.
+# Needs the repository secret TAURI_SIGNING_PRIVATE_KEY (the same updater key as the game).
+name: Book Studio app for Windows
+on:
+  workflow_dispatch:
+  pull_request:
+    paths: ['desktop-book-studio/**', '.github/workflows/book-studio-desktop.yml']
+  push:
+    branches: [main]
+    paths: ['desktop-book-studio/**']
+permissions:
+  contents: write
+concurrency:
+  group: book-studio-desktop-${{ github.ref }}
+env:
+  TAG: book-studio-desktop
+  SETUP: Book-Studio-Setup.exe
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - if: runner.environment == 'self-hosted'
+        name: Start from an empty folder (our build server keeps the last job's files)
+        run: sudo find "$GITHUB_WORKSPACE" -mindepth 1 -delete || true
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20
+          cache: npm
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+      - uses: swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: desktop-book-studio/src-tauri -> target
+      - run: npm ci
+      - name: Is this version new?
+        id: v
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          version=$(node -p "require('./desktop-book-studio/src-tauri/tauri.conf.json').version")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          out=$(gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern latest.json --output - 2>/dev/null | node -p "JSON.parse(require('fs').readFileSync(0,'utf8')).version" 2>/dev/null || true)
+          echo "Released: ${out:-none}. This build: $version."
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then echo "publish=false" >> "$GITHUB_OUTPUT"
+          elif [ "$GITHUB_EVENT_NAME" = push ] && [ "$out" = "$version" ]; then echo "publish=false" >> "$GITHUB_OUTPUT"
+          else echo "publish=true" >> "$GITHUB_OUTPUT"; fi
+      - name: Build the installer
+        env:
+          # Pull requests build without the key: the installer is made, just not
+          # the signed update package (that only matters when publishing).
+          TAURI_SIGNING_PRIVATE_KEY: ${{ steps.v.outputs.publish == 'true' && secrets.TAURI_SIGNING_PRIVATE_KEY || '' }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ''
+        run: |
+          cd desktop-book-studio
+          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            npx tauri build --config '{"bundle":{"createUpdaterArtifacts":false}}'
+          else
+            npx tauri build
+          fi
+      - name: Publish to the book-studio-desktop release
+        if: steps.v.outputs.publish == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.v.outputs.version }}
+        run: |
+          dir=desktop-book-studio/src-tauri/target/release/bundle/nsis
+          exe=$(ls "$dir"/*_x64-setup.exe | head -1)
+          cp "$exe" "$SETUP"
+          sig=$(cat "$exe.sig")
+          url="https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/$SETUP"
+          node -e '
+            const [version, signature, url] = process.argv.slice(1);
+            const out = { version, notes: "", pub_date: new Date().toISOString(), platforms: { "windows-x86_64": { signature, url } } };
+            require("fs").writeFileSync("latest.json", JSON.stringify(out, null, 2));
+          ' "$VERSION" "$sig" "$url"
+          notes="Book Studio for Windows, version $VERSION. Sign in with the email that has publishing access; your books sync with your account. Download $SETUP below and open it to install; installed copies update themselves. Windows may say \"Windows protected your PC\" because the app is not signed with a paid certificate: click More info, then Run anyway."
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --title "Book Studio for Windows v$VERSION" --notes "$notes" --latest=false
+          else
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Book Studio for Windows v$VERSION" --notes "$notes" --latest=false
+          fi
+          # The installer first, then latest.json, so the updater never points at a file that is not there yet.
+          gh release upload "$TAG" "$SETUP" --repo "$GITHUB_REPOSITORY" --clobber
+          gh release upload "$TAG" latest.json --repo "$GITHUB_REPOSITORY" --clobber
+          # Checksums so anyone can check the installer is the genuine one.
+          sha256sum "$SETUP" > SHA256SUMS-book-studio.txt && cat SHA256SUMS-book-studio.txt
+          gh release upload "$TAG" SHA256SUMS-book-studio.txt --repo "$GITHUB_REPOSITORY" --clobber
+      - uses: actions/upload-artifact@v7
+        with:
+          name: book-studio-windows-installer
+          path: desktop-book-studio/src-tauri/target/release/bundle/nsis/*_x64-setup.exe
+          retention-days: 14

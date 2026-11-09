@@ -7,7 +7,7 @@ const { spawn } = require('child_process');
 const path = require('path');
 (async () => {
   const server = spawn('node', [path.join(__dirname, 'serve.mjs'), path.join(__dirname, '..', 'dist', 'web'), '8133'], { stdio: 'ignore' });
-  await new Promise((r) => setTimeout(r, 600));
+  await require('./wait-port.cjs')('8133');
   const b = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
   const page = await b.newPage();
   const errs = []; page.on('pageerror', (e) => errs.push(String(e)));

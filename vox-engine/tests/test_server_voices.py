@@ -1,3 +1,4 @@
+import os; os.environ.setdefault("VOX_BASE_AUTO", "0"); os.environ.setdefault("VOX_SOURCE", "own")   # these tests check Vox's own model, offline
 import io, time, numpy as np, soundfile as sf
 from pathlib import Path
 from fastapi.testclient import TestClient

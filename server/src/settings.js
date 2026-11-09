@@ -46,6 +46,9 @@ function kitSettings(id, name, what) {
 }
 export const KIT_GROUPS = KIT_SETTINGS_GAMES.map(([, name]) => name);
 
+// A daily cap can say what the admin Status page should watch for it:
+//   watch: { usage: <name in the usage table>, on: <switch key, or (settings) => bool>, label? }
+// and it's shown there with no other change (server/src/status.js).
 export const SETTINGS = {
   // ---- Sounds: the player can still turn their own effects and music off,
   // and the one-tap mute and Silent mode always work.
@@ -68,6 +71,7 @@ export const SETTINGS = {
   tts_enabled: { type: 'bool', default: true, group: 'Voices', label: 'Server voices (Google Gemini)', help: 'Uses the GEMINI_API_KEY Cloudflare secret on Google\'s free tier. Off: the backup server voices speak if set up, otherwise players hear the Kokoro voices.' },
   daily_tts_cap: {
     type: 'int', min: 0, max: 1000, default: (env) => Number(env.DAILY_TTS_CAP) || 300, group: 'Voices', label: 'New voice clips a day',
+    watch: { usage: 'tts', on: 'tts_enabled', label: 'Server voices' },
     help: 'Protects the free Gemini quota. Above Google\'s free daily limit Google refuses requests (it never bills on the free tier). Cached clips do not count.',
   },
   gemini_voice_model: { type: 'model', default: (env) => env.TTS_MODEL || 'gemini-3.8-flash-tts', group: 'Voices', label: 'Gemini voice model', help: 'Change it here when Google retires a model.' },
@@ -91,7 +95,7 @@ export const SETTINGS = {
       { value: 'all', label: 'Scene and character portraits (uses the allowance faster)' },
     ],
   },
-  daily_picture_cap: { type: 'int', min: 0, max: 1000, default: 100, group: 'Pictures', label: 'New AI pictures a day', help: 'Keeps inside Workers AI\'s free daily allowance (about 150 pictures). Pictures already made are kept on each device.' },
+  daily_picture_cap: { type: 'int', min: 0, max: 1000, default: 100, watch: { usage: 'pictures', on: (s) => s.ai_pictures !== 'none', label: 'AI pictures' }, group: 'Pictures', label: 'New AI pictures a day', help: 'Keeps inside Workers AI\'s free daily allowance (about 150 pictures). Pictures already made are kept on each device.' },
   picture_model: { type: 'model', default: '@cf/black-forest-labs/flux-1-schnell', group: 'Pictures', label: 'Workers AI picture model', help: 'Change it here when Cloudflare retires a model.' },
   // ---- Celebrations: shown when a puzzle is solved (not after Reveal). Never
   // shown in Silent mode or when the device asks for reduced motion.
@@ -110,7 +114,7 @@ export const SETTINGS = {
   celebrate_random: { type: 'bool', default: false, group: 'Celebrations', label: 'Random', help: 'On: each solve shows one of the checked effects, picked at random. Off: every checked effect plays together.' },
   // ---- Languages
   translate_enabled: { type: 'bool', default: true, group: 'Languages', label: 'Translations for other languages', help: 'Players can choose any of 100 languages (US English is the default). Browsers that can translate on the device do it themselves; for everyone else Cloudflare Workers AI translates on its free daily allowance and each text is kept, so it is translated once for everyone. Off: only players whose browser translates on the device get other languages.' },
-  daily_translate_cap: { type: 'int', min: 0, max: 20000, default: 3000, group: 'Languages', label: 'New translations a day', help: 'Texts sent to Workers AI each day (a menu label or a story sentence is one). Shares the free daily allowance with AI pictures. Texts already translated do not count.' },
+  daily_translate_cap: { type: 'int', min: 0, max: 20000, default: 3000, watch: { usage: 'translate', on: 'translate_enabled', label: 'Translations' }, group: 'Languages', label: 'New translations a day', help: 'Texts sent to Workers AI each day (a menu label or a story sentence is one). Shares the free daily allowance with AI pictures. Texts already translated do not count.' },
   translate_model: { type: 'model', default: '@cf/meta/m2m100-1.2b', group: 'Languages', label: 'Workers AI translation model', help: 'Change it here when Cloudflare retires a model.' },
   // ---- Characters (characters.js and the Characters section)
   characters_enabled: { type: 'bool', default: true, group: 'Characters', label: 'The game\'s own characters', help: 'Published characters from the Characters section join new puzzles as cast or narrator. Off: puzzles use only the built-in cast, and suggestions close.' },

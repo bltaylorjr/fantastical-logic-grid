@@ -240,7 +240,7 @@ async function recordIntro(browser) {
   const go = async (where, sel) => { await p.goto(`${SITE}/${where}`); await p.waitForSelector(sel); await p.waitForTimeout(300); };
   const has = async (sel) => p.evaluate((s) => { const e = document.querySelector(s); return !!e && e.getBoundingClientRect().width > 0; }, sel);
 
-  card('tlg', ['Welcome to The Logic Grid: five puzzle games, free to play in your browser.', 'Here is a quick tour of everything on the site.']);
+  card('tlg', ['Welcome to The Logic Grid: eleven puzzle games, free to play in your browser.', 'Here is a quick tour of everything on the site.']);
 
   // The front page.
   await go('', '.games .card');
@@ -258,6 +258,12 @@ async function recordIntro(browser) {
     ['cm', 'Cage Math: fill each cage so its numbers make the target, with every number once in each row and column.'],
     ['sc', 'Sum Cross: a crossword of numbers, where every run adds up to its clue.'],
     ['pg', 'Picture Grid: shade the cells each row and column calls for, and a hidden picture appears for your gallery.'],
+    ['ml', 'More or Less: every number once in each row and column, and the signs between cells say which is less.'],
+    ['sk', 'Skyline: build a city of towers. The numbers at the edge say how many you can see, because tall ones hide short ones.'],
+    ['sf', 'Star Field: place stars so every row, column and region has the same number, and no two stars touch.'],
+    ['ll', 'Loop Line: draw one closed loop around the dots, so each number shows how many of its sides the loop uses.'],
+    ['ib', 'Island Bridges: join every island with straight bridges, so each has its number and all of them connect.'],
+    ['cw', 'Crossword: fill the grid with words that match the clues, Across and Down.'],
   ];
   for (const [id, line] of GAMES) {
     if (!(await has(`.card[data-game="${id}"]`))) continue;
@@ -284,7 +290,7 @@ async function recordIntro(browser) {
   }
   await view('#app', -60);
   await hl('.app-item[href="account/"]', 8);
-  await scene('account', ['One account works in every game. Sign in once, and your saves, stats and settings follow you to every device.']);
+  await scene('account', ['Guests can start a few new puzzles a day. One free account gives you unlimited puzzles in every game.', 'Sign in once, and your saves, stats and settings follow you to every device.']);
   await hl('.app-item[href*="messages"]', 8);
   await scene('messages', ['Messages and news has notes from the team, and replies to anything you sent.']);
   await hl('.app-item[data-wizard]', 8);

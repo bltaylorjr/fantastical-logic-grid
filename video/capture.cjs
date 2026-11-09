@@ -515,11 +515,18 @@ const CSS = `
     card('online', ['You can also play with other detectives.']);
     if (await p.isVisible('#sync-line')) {
       await scrollTo('#sync-line'); await hl('#sync-line');
-      await scene('sync', ['You never need an account to play.', 'But a free account keeps your puzzles, progress and settings in step on the website, the desktop app and your phone.']);
+      await scene('sync', ['You can play as a guest, with a few new puzzles a day in every game, plus the daily puzzle, saved puzzles and How to play.', 'A free account gives you unlimited puzzles, and keeps your puzzles, progress and settings in step on the website, the desktop app and your phone.']);
       await clearFx();
       if (await p.isVisible('#player-chip')) {
         await hl('#player-chip');
         await scene('guest', ['The name at the top shows who you are playing as.', 'Until you sign in, you play as Guest.']);
+        await clearFx();
+      }
+      // Race the computer: open to everyone, guests too. Shown, not started,
+      // so the recording does not use up one of the guest's new puzzles.
+      if (await p.isVisible('#compete-section [data-compete=computer]')) {
+        await scrollTo('#compete-section'); await hl('#compete-section [data-compete=computer]');
+        await scene('race-computer', ['Race the computer pits you against a computer player on a brand new puzzle.', 'Pick how fast it plays, and the race bar shows how far along it is. Solve it first to win.']);
         await clearFx();
       }
       await p.click('#sync-btn'); await p.waitForSelector('#dlg-account[open]');
@@ -533,6 +540,9 @@ const CSS = `
       await p.click('#dlg-account .dlg-actions:last-child [data-close]').catch(() => p.keyboard.press('Escape'));
       await p.waitForTimeout(300);
       // Printable puzzle packs: signed-in players print a few new puzzles at once.
+      // Signing in opens the screen name window a moment later; let it open
+      // before closing every window, or it covers the Menu button.
+      await p.waitForSelector('#dlg-name[open]', { timeout: 5000 }).catch(() => {});
       await p.evaluate(() => document.querySelectorAll('dialog[open]').forEach((d) => d.close()));
       await p.click('#menu-btn');
       if (await p.isVisible('[data-cmd=pack]')) {

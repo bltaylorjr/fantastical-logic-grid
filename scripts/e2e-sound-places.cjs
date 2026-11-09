@@ -13,7 +13,7 @@ const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`o
 
 (async () => {
   const server = spawn('node', [path.join(__dirname, 'serve.mjs'), path.join(__dirname, '..', 'dist', 'web'), '8163'], { stdio: 'ignore' });
-  await new Promise((r) => setTimeout(r, 600));
+  await require('./wait-port.cjs')('8163');
   const browser = await chromium.launch();
   const errors = [];
   try {
@@ -23,6 +23,7 @@ const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); console.log(`o
     page.on('pageerror', (e) => errors.push(String(e)));
     await page.goto('http://localhost:8163/');
     await page.waitForSelector('#tier-choices input');
+    await page.waitForSelector('#dlg-welcome[open]', { timeout: 3000 }).catch(() => {});
     if (await page.locator('#dlg-welcome[open]').count()) await page.keyboard.press('Escape');
     await page.check('input[name=tier][value=easy]', { force: true });
     await page.click('#gen-btn');

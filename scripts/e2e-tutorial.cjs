@@ -13,7 +13,7 @@ const API = 'http://localhost:8157';
 
 (async () => {
   const server = spawn('node', [path.join(__dirname, 'serve.mjs'), path.join(__dirname, '..', 'dist', 'web'), '8156'], { stdio: 'ignore' });
-  await new Promise((r) => setTimeout(r, 600));
+  await require('./wait-port.cjs')('8156');
   const browser = await chromium.launch();
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' });
   await ctx.route('**/js/cloud-config.js', (r) => r.fulfill({ contentType: 'text/javascript', body: `export const CLOUD = { firebaseApiKey: '', syncUrl: '', learnUrl: '${API}', authUrl: '', tokenUrl: '', siteUrl: '', appVersion: 'test' };
@@ -205,6 +205,8 @@ export const CLOUD_URL = CLOUD.learnUrl;` }));
     await page.selectOption('#language', 'es');
     await page.click('#dlg-settings button[value=close]');
     await page.waitForFunction(() => /‹es›/.test(document.querySelector('#step-h').textContent), null, { timeout: 8000 });
+    // The heading and the step text translate separately; slower machines get the text a moment later.
+    await page.waitForFunction(() => /‹es›/.test(document.querySelector('#step-text').textContent), null, { timeout: 8000 }).catch(() => {});
     assert(/‹es›/.test(await page.textContent('#step-text')), 'the lesson is translated into the chosen language');
     await page.click('#step-next');
     await page.waitForFunction(() => /‹es›/.test(document.querySelector('#step-h').textContent), null, { timeout: 8000 });

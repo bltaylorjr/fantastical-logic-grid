@@ -1,0 +1,85 @@
+# Trains Vox's own voice model on Kaggle's free GPU, a session at a time, and
+# hands each new model to Vox on the Oracle server, which switches to it once
+# Whisper hears it more clearly than the base voices (vox-engine/vox/base.py).
+#
+# Every 4 hours it takes the next step (vox-engine/kaggle/orchestrate.py):
+# publish the engine's code, prepare the open training data once (LJSpeech,
+# VCTK, LibriTTS-R), collect a finished session, start the next one. It keeps
+# to 24 GPU hours a week (Kaggle gives about 30).
+#
+# Needs: the secret KAGGLE_API_TOKEN and the variable KAGGLE_USERNAME
+# (docs/VOX-GPU-TRAINING.md). Until they're set it does nothing.
+name: Train Vox on the free GPU
+on:
+  schedule:
+    - cron: '17 */4 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Only show what it would do'
+        type: boolean
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: vox-gpu-train
+  cancel-in-progress: false
+jobs:
+  train:
+    runs-on: ${{ fromJSON(vars.FLG_RUNNER || '"ubuntu-latest"') }}
+    timeout-minutes: 45
+    steps:
+      - name: Is Kaggle set up?
+        id: ready
+        env:
+          TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+          USER_NAME: ${{ vars.KAGGLE_USERNAME }}
+        run: |
+          if [ -z "$TOKEN" ] || [ -z "$USER_NAME" ]; then
+            echo "::notice title=Vox GPU training is off::Add the secret KAGGLE_API_TOKEN and the variable KAGGLE_USERNAME to turn it on (docs/VOX-GPU-TRAINING.md)."
+            echo "go=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "go=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.ready.outputs.go == 'true' && runner.environment == 'self-hosted'
+        name: Start from an empty folder (our build server keeps the last job's files)
+        run: sudo find "$GITHUB_WORKSPACE" -mindepth 1 -delete || true
+      - if: steps.ready.outputs.go == 'true'
+        uses: actions/checkout@v7
+        with:
+          sparse-checkout: vox-engine
+      - if: steps.ready.outputs.go == 'true'
+        name: Kaggle's command line
+        run: python3 -m pip install --user --quiet --break-system-packages "kaggle>=1.8" || python3 -m pip install --user --quiet "kaggle>=1.8"
+      - if: steps.ready.outputs.go == 'true'
+        name: Take the next step
+        id: step
+        env:
+          KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+          KAGGLE_USERNAME: ${{ vars.KAGGLE_USERNAME }}
+          KAGGLE_CLI: python3 -m kaggle
+        run: |
+          python3 vox-engine/kaggle/orchestrate.py --repo-root . --work "$RUNNER_TEMP/kaggle-work" --outbox kaggle-out ${{ inputs.dry_run && '--dry-run' || '' }}
+          echo "model=$(ls kaggle-out/vox-step*.pt 2>/dev/null | head -1)" >> "$GITHUB_OUTPUT"
+      - if: steps.ready.outputs.go == 'true' && runner.environment == 'self-hosted'
+        name: Hand it to Vox on the server
+        run: |
+          set -euo pipefail
+          V=/flg-puzzles/vox
+          [ -d "$V" ] || { echo "::notice::Vox isn't set up on the server yet (docs/VOX-SERVER.md); the model stays on Kaggle."; exit 0; }
+          mkdir -p "$V/models"
+          cp kaggle-out/report.json "$V/models/gpu-status.json.tmp" && mv "$V/models/gpu-status.json.tmp" "$V/models/gpu-status.json"
+          [ -f kaggle-out/progress.json ] && cp kaggle-out/progress.json "$V/models/progress.json"
+          for f in kaggle-out/vox-step*.pt; do
+            [ -e "$f" ] || continue
+            cp "$f" "$V/models/.$(basename "$f").tmp" && mv "$V/models/.$(basename "$f").tmp" "$V/models/$(basename "$f")"
+            echo "Vox tries $(basename "$f") on its next check."
+          done
+          ls -1t "$V"/models/vox-step*.pt 2>/dev/null | tail -n +4 | xargs -r rm -f
+      - if: steps.step.outputs.model != '' && runner.environment != 'self-hosted'
+        name: Keep the model for a few days (no build server to hand it to)
+        uses: actions/upload-artifact@v7
+        with:
+          name: vox-model
+          path: kaggle-out/
+          retention-days: 7

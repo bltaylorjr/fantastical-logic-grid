@@ -18,6 +18,12 @@
 //   templates for every game (each draws that game's own puzzle picture; a
 //   mix shows several). Change colors and words, save your own templates, and
 //   print the cover or download it as SVG.
+// - Make it from a topic: pick a topic (a story theme) and the puzzle types
+//   (every game), then either Find puzzles to review (more than needed, to
+//   tick the ones to keep) or Make the whole book for me (the right number,
+//   flagged ones replaced, saved). In Book Studio the whole-book path then
+//   applies the chosen publisher's specs, checks every page and setting, and
+//   makes the submission packet (h.makeSubmission).
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 
@@ -29,6 +35,8 @@ let frame = null, coverFrame = null, ready = null, coverReady = null;
 let req = 0;
 const waiting = new Map();
 let busy = false;
+let topic = null;      // Make it from a topic: { theme, games: [ids], level, count, pub }
+let found = null;      // puzzles found for a topic, to review: [{ ...item, pick }]
 
 // ---------- sizes and print rules ----------
 
@@ -447,6 +455,157 @@ function templateCards() {
   }).join('');
 }
 
+// ---------- making a book from a topic ----------
+
+// The topics: the main story themes (every game tells its stories in them).
+const topicList = () => (games.find((g) => g.id === 'flg')?.themes || games.find((g) => g.themes?.length)?.themes || []).filter((t) => t.id !== 'surprise');
+const topicName = (id) => topicList().find((t) => t.id === id)?.name || id;
+// The game's own story theme for a topic (NINETIMESNINE has its own sets).
+const themeFor = (g, theme) => (g.themes || []).find((t) => t.id === theme || t.topic === theme)?.id || null;
+// The game's level nearest the one asked for.
+function levelFor(g, want) {
+  const lv = g.levels || [];
+  const exact = lv.find((l) => l.id === want);
+  if (exact) return exact;
+  const at = LEVEL_ORDER.indexOf(want);
+  return lv.slice().sort((a, b) => Math.abs(LEVEL_ORDER.indexOf(a.id) - at) - Math.abs(LEVEL_ORDER.indexOf(b.id) - at))[0] || lv[0];
+}
+function topicDefaults() {
+  const theme = topicList()[0]?.id || 'mystery';
+  return { theme, games: games.filter((g) => themeFor(g, theme)).map((g) => g.id), level: 'easy', count: 5, pub: h.publishers?.[0]?.id || '' };
+}
+const LEVEL_NAMES = { basic: 'Basic', easy: 'Easy', medium: 'Medium', hard: 'Hard', expert: 'Expert', master: 'Master' };
+
+function topicCard() {
+  const e = h.esc;
+  topic ||= topicDefaults();
+  const types = games.map((g) => {
+    const ok = !!themeFor(g, topic.theme);
+    return `<label class="check"><input type="checkbox" data-tp-game="${e(g.id)}"${topic.games.includes(g.id) ? ' checked' : ''}${ok ? '' : ' disabled'}> ${e(g.name)}${ok ? '' : ' <span class="muted">(no puzzles for this topic)</span>'}</label>`;
+  }).join('');
+  const all = games.filter((g) => themeFor(g, topic.theme)).length;
+  return `<div class="bk-topic stack">
+    <h3>Make it from a topic</h3>
+    <p class="muted">Pick a topic and the puzzle types. Find puzzles to review gives you more than you need, so you can tick the ones to keep. Make the whole book for me does it all${h.makeSubmission ? ': it checks every page and setting for the publisher and makes the file to submit' : ''}.</p>
+    <div class="row">
+      <div class="field"><label for="bk-tp-theme">Topic</label><select id="bk-tp-theme" data-tp="theme">${topicList().map((t) => `<option value="${e(t.id)}"${t.id === topic.theme ? ' selected' : ''}>${e(t.name)}</option>`).join('')}</select></div>
+      <div class="field"><label for="bk-tp-level">Level</label><select id="bk-tp-level" data-tp="level">${Object.entries(LEVEL_NAMES).map(([id, n]) => `<option value="${id}"${id === topic.level ? ' selected' : ''}>${n}</option>`).join('')}</select></div>
+      <div class="field"><label for="bk-tp-count">Puzzles of each type</label><input id="bk-tp-count" data-tp="count" type="number" min="1" max="50" value="${Number(topic.count) || 5}"></div>
+      ${h.publishers?.length ? `<div class="field"><label for="bk-tp-pub">Publisher</label><select id="bk-tp-pub" data-tp="pub">${h.publishers.map((p) => `<option value="${e(p.id)}"${p.id === topic.pub ? ' selected' : ''}>${e(p.name)}</option>`).join('')}</select></div>` : ''}
+    </div>
+    <fieldset class="bk-fs"><legend>Puzzle types (${topic.games.length} of ${all} for this topic) <button class="btn small link" type="button" id="bk-tp-all">All</button> <button class="btn small link" type="button" id="bk-tp-none">None</button></legend><div class="row bk-tp-types">${types}</div></fieldset>
+    <div class="row"><button class="btn" type="button" id="bk-tp-find"${busy || !topic.games.length ? ' disabled' : ''}>Find puzzles to review</button>
+      <button class="btn primary" type="button" id="bk-tp-auto"${busy || !topic.games.length ? ' disabled' : ''}>Make the whole book for me</button>
+      <span id="bk-tp-progress" class="muted" role="status"></span></div>
+    ${found ? foundList() : ''}
+  </div>`;
+}
+
+const useLabel = (n) => `Put the ${n} ticked puzzle${n === 1 ? '' : 's'} in the book`;
+function foundList() {
+  const e = h.esc;
+  const picked = found.filter((p) => p.pick).length;
+  const byGame = games.filter((g) => found.some((p) => p.game === g.id));
+  return `<div class="stack" id="bk-found">
+    <p><b>${found.length} puzzles found for ${e(topicName(topic.theme))}</b> · <span id="bk-found-n">${picked} ticked</span>. Untick any you do not want, then put the ticked ones in the book.</p>
+    ${byGame.map((g) => `<h4>${e(g.name)}</h4><ul class="bk-puzzles">${found.map((p, k) => [p, k]).filter(([p]) => p.game === g.id).map(([p, k]) => `<li><label class="check"><input type="checkbox" data-pick="${k}"${p.pick ? ' checked' : ''}${p.scan === 'problem' ? ' disabled' : ''}> <b>${e(p.title)}</b></label> <span class="muted">${e(p.level)} · ${e(p.size || '')}</span>
+      ${p.scan === 'clear' ? '<span class="badge ok">Clear</span>' : `<span class="badge ${p.scan === 'problem' ? 'bad' : 'warn'}">${p.scan === 'problem' ? 'Problem: left out' : 'Check'}</span> <span class="muted">${(p.findings || []).map((f) => `${e(f.term)} (${e(f.type)})`).join(', ')}</span>`}</li>`).join('')}</ul>`).join('')}
+    <div class="row"><button class="btn primary" type="button" id="bk-tp-use"${picked ? '' : ' disabled'}>${useLabel(picked)}</button><button class="btn small link" type="button" id="bk-tp-clear">Start over</button></div>
+  </div>`;
+}
+
+// Makes puzzles for the topic: `count` of each ticked type (`extra` more to choose from).
+async function makeForTopic(count, extra = 0) {
+  const progress = () => $('#bk-tp-progress');
+  const { used } = await h.api('books/used');
+  const avoid = new Set(used.filter((u) => u.book !== book.id).map((u) => u.fp));
+  const stories = used.map((u) => u.story).filter(Boolean);
+  const made = [];
+  for (const id of topic.games) {
+    const g = games.find((x) => x.id === id);
+    const theme = themeFor(g, topic.theme);
+    if (!g || !theme) continue;
+    const lv = levelFor(g, topic.level);
+    if (progress()) progress().textContent = `Making ${g.name}…`;
+    const r = await ask({ type: 'flg-book-make', game: id, difficulty: lv?.id, size: lv?.sizes?.[0], theme, count: count + extra, avoid: [...avoid], usedStories: stories.slice(-500), seed: `${book.title}-${topic.theme}-${id}-${Date.now().toString(36)}` });
+    if (r.css) book.css[id] = r.css;
+    r.items.forEach((it, k) => { avoid.add(it.fp); if (it.story) stories.push(it.story); made.push({ ...it, theme, difficulty: lv?.id, sizeN: lv?.sizes?.[0], pick: k < count }); });
+  }
+  if (progress()) progress().textContent = 'Checking every puzzle for trademarks and protected names…';
+  const scan = await h.api('books/scan', { method: 'POST', body: { items: made.map((p) => ({ fp: p.fp, title: p.title, text: p.text })) } });
+  const byFp = new Map(scan.results.map((x) => [x.fp, x]));
+  for (const p of made) { const x = byFp.get(p.fp); p.scan = x?.verdict || 'clear'; p.findings = x?.findings || []; delete p.text; }
+  // A puzzle the scan calls a problem never goes in: tick the next one of its type instead.
+  for (const p of made.filter((x) => x.pick && x.scan === 'problem')) {
+    p.pick = false;
+    const next = made.find((x) => x.game === p.game && !x.pick && x.scan !== 'problem' && !x.tried);
+    if (next) next.pick = true;
+    p.tried = true;
+  }
+  return made;
+}
+
+// The ticked puzzles become the book's sections (one per type) and puzzles.
+function useFound(list) {
+  const picked = list.filter((p) => p.pick && p.scan !== 'problem');
+  const ids = [...new Set(picked.map((p) => p.game))];
+  book.settings.kind = ids.length > 1 ? 'mix' : 'one';
+  book.settings.topic = topic.theme;
+  book.settings.sections = ids.map((id) => {
+    const p = picked.find((x) => x.game === id);
+    return { game: id, difficulty: p.difficulty, size: p.sizeN, theme: p.theme, count: picked.filter((x) => x.game === id).length };
+  });
+  book.puzzles = picked.map(({ pick, tried, theme, difficulty, sizeN, ...p }) => ({ ...p, section: ids.indexOf(p.game) }));
+  // A book still called the default gets the topic's name.
+  const name = topicName(topic.theme);
+  if (book.title === 'Logic Puzzles' || book.settings.autoTitle) { book.title = `${name} Puzzle Book`.slice(0, 120); book.settings.autoTitle = true; }
+  if (book.subtitle === 'Brand-new puzzles for curious minds' || book.settings.autoTitle) book.subtitle = `${picked.length} brand-new ${ids.length > 1 ? `puzzles of ${ids.length} kinds` : `${games.find((g) => g.id === ids[0])?.name} puzzles`}, with every answer`.slice(0, 160);
+  book.pagesShown = 0;
+  changed();
+}
+
+async function topicFind() {
+  if (busy) return;
+  busy = true; render();
+  try {
+    const n = Math.max(1, Math.min(50, Number(topic.count) || 5));
+    found = await makeForTopic(n, Math.max(2, Math.ceil(n / 2)));
+    h.toast(`${found.length} puzzles found. Tick the ones to keep.`);
+  } catch (err) { h.toast(err.message); } finally { busy = false; render(); }
+}
+
+// Make the whole book for me: the puzzles, the book saved, then (in Book
+// Studio) the publisher's specs, every check, and the submission packet.
+async function topicAuto() {
+  if (busy) return;
+  if (book.puzzles.length && !confirm('Make the whole book again from this topic? The puzzles in it now are dropped.')) return;
+  busy = true; found = null; render();
+  const say = (m) => { const p = $('#bk-tp-progress'); if (p) p.textContent = m; };
+  try {
+    const n = Math.max(1, Math.min(50, Number(topic.count) || 5));
+    const made = await makeForTopic(n, 2);
+    const short = topic.games.filter((id) => made.filter((p) => p.game === id && p.pick).length < n);
+    if (short.length) h.toast(`Some types have fewer than ${n} clear puzzles: ${short.map(gameName).join(', ')}.`);
+    useFound(made);
+    if (!book.cover.blurb) book.cover.blurb = `${defaultBlurb(book)} Every story is set in ${topicName(topic.theme)}.`;
+    busy = false; render();
+    say('Laying out the pages…');
+    await showInterior(false);
+    say('Saving the book…');
+    const r = await h.api('books', { method: 'POST', body: bookBody() });
+    book.id = r.id; book.dirty = false;
+    render();
+    if (!h.makeSubmission) { h.toast('Book made and saved. Open it in Book Studio to check it for a publisher and make the file to submit.'); return; }
+    say('Checking it for the publisher and making the submission file…');
+    const g = studioBook();
+    g.pub = topic.pub;
+    g.description = book.cover.blurb;
+    g.keywords = [topicName(topic.theme), 'logic puzzles', ...new Set(book.puzzles.map((p) => p.gameName))].join('\n');
+    const out = await h.makeSubmission(g, topic.pub);
+    if (out && !out.ready) h.toast(`The book is open in the editor with ${out.errors.length} thing${out.errors.length === 1 ? '' : 's'} to fix before it can be submitted: ${out.errors.join('; ')}.`);
+  } catch (err) { h.toast(err.message); } finally { busy = false; if ($('#books-body') && book) render(); }
+}
+
 function render() {
   const e = h.esc;
   const root = $('#books-body');
@@ -488,6 +647,7 @@ function render() {
     </section>
 
     <section class="card stack" aria-labelledby="bk-h-puzzles"><h2 id="bk-h-puzzles">2. The puzzles</h2>
+      ${locked ? '' : topicCard()}
       <fieldset class="bk-fs"${locked ? ' disabled' : ''}>
       <div class="row">
         <div class="field"><label for="bk-kind">Book</label><select id="bk-kind" data-s="kind"><option value="one"${book.settings.kind !== 'mix' ? ' selected' : ''}>One game</option><option value="mix"${book.settings.kind === 'mix' ? ' selected' : ''}>Different puzzles (a mix of games)</option></select></div>
@@ -504,7 +664,7 @@ function render() {
 
     <section class="card stack" aria-labelledby="bk-h-interior"><h2 id="bk-h-interior">3. Inside the book</h2>
       <p class="muted" id="bk-pages">${book.puzzles.length ? `${pages || '…'} pages · gutter ${gutterFor(pages || MIN_PAGES)} in, outside margins ${OUT} in, no bleed.` : 'Make the puzzles to see the pages.'} Print and choose <b>Save as PDF</b> (paper size: the trim size, margins: default, headers and footers off) for the file you upload.</p>
-      <div class="row"><button class="btn" type="button" id="bk-preview"${book.puzzles.length ? '' : ' disabled'}>Show the pages</button><button class="btn primary" type="button" id="bk-print"${book.puzzles.length ? '' : ' disabled'}>Print the inside</button></div>
+      <div class="row"><button class="btn" type="button" id="bk-preview"${book.puzzles.length ? '' : ' disabled'}>Show the pages</button><button class="btn primary" type="button" id="bk-print"${book.puzzles.length ? '' : ' disabled'}>Print the inside</button>${h.openInStudio ? `<button class="btn primary" type="button" id="bk-studio"${book.puzzles.length ? '' : ' disabled'}>Open in the editor</button>` : ''}</div>
     </section>
 
     <section class="card stack" aria-labelledby="bk-h-cover"><h2 id="bk-h-cover">4. The cover</h2>
@@ -659,6 +819,18 @@ async function printCover() {
   coverFrame.contentWindow.postMessage({ type: 'flg-book-print' }, new URL(data.siteUrl).origin);
 }
 
+// The book for Book Studio's editor (book-studio/src/gridbooks.js): its pages,
+// each game's print styles and the cover picture.
+function studioBook() {
+  const pages = layout(book);
+  const { svg } = coverSvg(book, Math.max(pages.length, MIN_PAGES));
+  return {
+    id: book.id, title: book.title, subtitle: book.subtitle, author: book.author, trim: book.trim, paper: book.paper, isbn: book.settings.isbn || '',
+    pages: pages.map(({ kind, head, body, front, fitAll }) => ({ kind, head, body, front: !!front, fitAll: !!fitAll })),
+    css: Object.values(book.css || {}).join('\n'), coverSvg: svg,
+  };
+}
+
 function bookBody() {
   return {
     id: book.id || undefined, title: book.title, subtitle: book.subtitle, volume: book.volume, edition: book.edition, author: book.author, trim: book.trim, paper: book.paper,
@@ -673,11 +845,16 @@ function wire() {
   root.addEventListener('click', async (e) => {
     const t = e.target.closest('button');
     if (!t) return;
-    if (t.id === 'bk-new') { await loadGames(); book = blankBook(); render(); return; }
-    if (t.dataset.open) { await loadGames(); await openBook(t.dataset.open); return; }
-    if (t.id === 'bk-back') { if (book.dirty && !confirm('Leave without saving? Unsaved puzzles are lost.')) return; book = null; if (frame) frame.hidden = true; await reload(); return; }
+    if (t.id === 'bk-new') { await loadGames(); book = blankBook(); found = null; render(); return; }
+    if (t.dataset.open) { await loadGames(); found = null; await openBook(t.dataset.open); return; }
+    if (t.id === 'bk-back') { if (book.dirty && !confirm('Leave without saving? Unsaved puzzles are lost.')) return; book = null; found = null; if (frame) frame.hidden = true; await reload(); return; }
     if (t.id === 'bk-add-sec') { const last = book.settings.sections[book.settings.sections.length - 1]; book.settings.sections.push({ ...(last || {}), game: book.settings.kind === 'mix' ? (games.find((g) => !book.settings.sections.some((s) => s.game === g.id)) || games[0]).id : last?.game || games[0].id, count: last?.count || 10 }); changed(); render(); return; }
     if (t.dataset.act === 'del-sec') { const i = Number(t.closest('[data-sec]').dataset.sec); book.settings.sections.splice(i, 1); book.puzzles = book.puzzles.filter((p) => p.section !== i).map((p) => ({ ...p, section: p.section > i ? p.section - 1 : p.section })); changed(); render(); return; }
+    if (t.id === 'bk-tp-find') { await topicFind(); return; }
+    if (t.id === 'bk-tp-auto') { await topicAuto(); return; }
+    if (t.id === 'bk-tp-use') { useFound(found); found = null; render(); h.toast('The ticked puzzles are in the book. Save it when you are ready.'); return; }
+    if (t.id === 'bk-tp-clear') { found = null; render(); return; }
+    if (t.id === 'bk-tp-all' || t.id === 'bk-tp-none') { topic.games = t.id === 'bk-tp-all' ? games.filter((g) => themeFor(g, topic.theme)).map((g) => g.id) : []; render(); return; }
     if (t.id === 'bk-make') { if (book.puzzles.length && !confirm('Make every puzzle again? The ones in the list now are dropped.')) return; await makePuzzles(); return; }
     if (t.dataset.act === 'replace') { await makePuzzles(null, t.closest('[data-fp]').dataset.fp); return; }
     if (t.dataset.act === 'remove') { const fp = t.closest('[data-fp]').dataset.fp; book.puzzles = book.puzzles.filter((p) => p.fp !== fp); book.pagesShown = 0; changed(); render(); return; }
@@ -689,6 +866,7 @@ function wire() {
       changed(); render(); return;
     }
     if (t.dataset.delTpl) { if (!confirm('Delete this cover template?')) return; await h.api(`book-templates/${t.dataset.delTpl}/delete`, { method: 'POST' }); await reloadTemplates(); render(); return; }
+    if (t.id === 'bk-studio') { try { await h.openInStudio(studioBook()); } catch (err) { h.toast(err.message); } return; }
     if (t.id === 'bk-print-cover') { try { await printCover(); } catch (err) { h.toast(err.message); } return; }
     if (t.id === 'bk-svg') {
       const { svg } = coverSvg(book, Math.max(book.pagesShown || book.pages || 0, MIN_PAGES));
@@ -725,6 +903,18 @@ function wire() {
     const el = e.target;
     if (!book) return;
     if (el.id === 'bk-guides') { drawCover(); return; }
+    if (el.dataset.tp) {
+      topic[el.dataset.tp] = el.dataset.tp === 'count' ? Math.max(1, Math.min(50, Number(el.value) || 1)) : el.value;
+      if (el.dataset.tp === 'theme') { topic.games = games.filter((g) => themeFor(g, topic.theme)).map((g) => g.id); found = null; }
+      render(); return;
+    }
+    if (el.dataset.tpGame) { const id = el.dataset.tpGame; topic.games = el.checked ? [...new Set([...topic.games, id])] : topic.games.filter((x) => x !== id); render(); return; }
+    if (el.dataset.pick && found) {
+      found[Number(el.dataset.pick)].pick = el.checked;
+      const n = found.filter((p) => p.pick).length;
+      $('#bk-found-n').textContent = `${n} ticked`; $('#bk-tp-use').textContent = useLabel(n); $('#bk-tp-use').disabled = !n;
+      return;
+    }
     const sec = el.closest('[data-sec]');
     if (sec && el.dataset.f) {
       const s = book.settings.sections[Number(sec.dataset.sec)];

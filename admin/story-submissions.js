@@ -14,12 +14,12 @@ let query = { q: '', kind: '', status: 'new', source: '', scan: '', page: 0 };
 let open = null; // the entry being looked at
 
 const KIND = { theme: 'Theme idea', category: 'Category idea', storyline: 'Storyline', puzzle: 'Wizard puzzle' };
-const STATUS = { new: ['New', 'warn'], approved: ['Approved', 'ok'], declined: ['Declined', ''], closed: ['Closed', ''] };
+export const STATUS = { new: ['New', 'warn'], edits: ['Awaiting edits', 'warn'], approved: ['Approved', 'ok'], published: ['Published', 'ok'], declined: ['Declined', ''], closed: ['Closed', ''] };
 const SOURCE = { form: 'Suggest a storyline page', 'idea box': 'Share an idea' };
 const EMAIL_KIND = {
   story_received: 'Confirmation with a copy of the form (noreply@)', story_approved: 'Approval with the puzzle (noreply@)',
   submission_approved: 'Approval (noreply@)', story_declined: 'Thank-you after declining (noreply@)', submission_copy: 'Copy emailed by the team (support@)',
-  story_build: 'Puzzle built for the database (no email)', story_puzzle: 'Puzzle ready, with the PDF (noreply@)', story_edit_invite: 'Asked to edit and resubmit (support@)', idea_update: 'Waiting to tell the player (Share an idea)', idea: 'Thank-you (support@)',
+  story_build: 'Puzzle built for the database (no email)', story_puzzle: 'Puzzle ready, with the PDF (noreply@)', story_edit_invite: 'Asked to edit and resubmit (support@)', submission_message: 'A note from the team (support@)', idea_update: 'Waiting to tell the player (Share an idea)', idea: 'Thank-you (support@)',
 };
 const MAIL_STATUS = { waiting: 'waiting to go', sending: 'sending', sent: 'sent', failed: 'could not be sent', dropped: 'not sent', held: 'held until a decision' };
 const FIELD_LABEL = { title: 'Title', pitch: 'Single-line pitch', setting: 'Storyline setting', goal: 'Central mystery or goal', clues: 'Clues', beat: 'Story beat',
@@ -177,11 +177,12 @@ function catRow(c, i, ch) {
     <div class="field"><label>Order</label><select data-k="order">${ch.orders.map(([v, l]) => opt(v, l, c.order || '')).join('')}</select></div>
     <button class="btn small danger" type="button" data-ed-remove aria-label="Remove category ${i + 1}">Remove</button></div></fieldset>`;
 }
-function editor(s) {
+export function editor(s) {
   const f = s.form;
   const ch = s.choices;
   let body;
-  if (s.kind === 'theme') body = editField('idea', 'Theme idea', f.idea, { max: ch.limits.idea });
+  if (s.kind === 'puzzle') body = wizardFields(f);
+  else if (s.kind === 'theme') body = editField('idea', 'Theme idea', f.idea, { max: ch.limits.idea });
   else if (s.kind === 'category') {
     body = `<div class="field"><label for="ss-ed-theme">Theme</label><select id="ss-ed-theme" data-ed="theme">${ch.themes.map(([v, l]) => opt(v, l, f.theme)).join('')}</select></div>${editField('idea', 'Category idea', f.idea, { max: ch.limits.idea })}`;
   } else if (f.idea && !f.title) body = editField('idea', 'Their idea (from Share an idea)', f.idea, { area: true, max: 1000, rows: 5 });
@@ -209,10 +210,18 @@ function editor(s) {
     <div class="row"><button class="btn primary small" type="submit">Save the edit</button><button class="btn small" type="button" data-ed-cancel>Cancel</button></div>
   </form>`;
 }
-function readEditor(s) {
-  const box = document.querySelector('#ss-editor');
+// A Puzzle Wizard puzzle: only its words can be corrected here. The grid,
+// answer, pictures and sounds stay as the author made them in the wizard.
+const WIZARD_TEXT = [['title', 'Title', 40, false], ['story', 'Opening scene', 1200, true], ['opening', 'Opening (the case)', 400, true],
+  ['stakes', 'What is at stake', 160, false], ['ending', 'Ending', 300, true]];
+function wizardFields(f) {
+  return `<p class="note">The grid, the answer, pictures and sounds stay as the author made them. A changed puzzle is not rebuilt on the author's device: to send them the new version, attach its puzzle file with <b>Push to Saved puzzles</b>.</p>
+    ${WIZARD_TEXT.filter(([k]) => k in f).map(([k, label, max, area]) => editField(k, label, f[k], { area, max, rows: 4 })).join('')}`;
+}
+export function readEditor(s, box = document.querySelector('#ss-editor')) {
   const out = { kind: s.kind };
   for (const el of box.querySelectorAll('[data-ed]')) out[el.dataset.ed] = el.value;
+  if (s.kind === 'puzzle') return out;
   if (box.querySelector('[data-ed-char]') || box.querySelector('#ss-ed-chars')) {
     out.characters = [...box.querySelectorAll('[data-ed-char]')].map((r) => Object.fromEntries([...r.querySelectorAll('[data-c]')].map((el) => [el.dataset.c, el.value])));
     out.categories = [...box.querySelectorAll('[data-ed-cat]')].map((r) => Object.fromEntries([...r.querySelectorAll('[data-k]')].map((el) => [el.dataset.k, el.value])));
@@ -222,15 +231,38 @@ function readEditor(s) {
   return out;
 }
 
+// The editor's Add and Remove buttons (also used by the Puzzle submissions page).
+export function editorButton(b, s) {
+  const box = b.closest('#ss-editor');
+  if (!box) return false;
+  if (b.matches('[data-ed-remove]')) {
+    const row = b.closest('.ss-ed-row');
+    const list = row.parentElement;
+    row.remove();
+    [...list.children].forEach((r, i) => { r.querySelector('legend').textContent = `${r.matches('[data-ed-char]') ? 'Character' : 'Category'} ${i + 1}`; });
+    return true;
+  }
+  if (b.matches('[data-ed-add]')) {
+    const isChar = b.dataset.edAdd === 'char';
+    const list = $(isChar ? '#ss-ed-chars' : '#ss-ed-cats', box);
+    const max = isChar ? s.choices.maxCharacters : s.choices.maxCategories;
+    if (list.children.length >= max) { h.toast(`At most ${max}.`); return true; }
+    list.insertAdjacentHTML('beforeend', isChar ? charRow({}, list.children.length, s.choices) : catRow({}, list.children.length, s.choices));
+    list.lastElementChild.querySelector('input').focus();
+    return true;
+  }
+  return false;
+}
+
 function detail(s) {
   const e = h.esc;
   const [sw, scls] = STATUS[s.status] || [s.status, ''];
   const canReview = h.can('moderator');
   const actions = [
-    canReview && s.status !== 'approved' && `<button class="btn small primary" type="button" data-ss-approve>${s.kind === 'storyline' ? 'Approve and build puzzle' : 'Approve'}</button>`,
-    canReview && s.status === 'new' && '<button class="btn small" type="button" data-ss-decline>Decline</button>',
+    canReview && s.status !== 'approved' && s.status !== 'published' && `<button class="btn small primary" type="button" data-ss-approve>${s.kind === 'storyline' ? 'Approve and build puzzle' : 'Approve'}</button>`,
+    canReview && (s.status === 'new' || s.status === 'edits') && '<button class="btn small" type="button" data-ss-decline>Decline</button>',
     '<button class="btn small" type="button" data-ss-print>Print or save as PDF</button>',
-    canReview && s.kind !== 'puzzle' && '<button class="btn small" type="button" data-ss-edit>Edit</button>',
+    canReview && '<button class="btn small" type="button" data-ss-edit>Edit</button>',
     canReview && s.kind !== 'puzzle' && s.email && `<button class="btn small" type="button" data-ss-invite>${s.editInvite ? 'Ask the author again' : 'Ask the author to edit'}</button>`,
     canReview && '<button class="btn small" type="button" data-ss-email>Email a copy</button>',
     h.can('admin') && '<button class="btn small danger" type="button" data-ss-delete>Delete</button>',
@@ -242,7 +274,7 @@ function detail(s) {
   return `<article class="card stack ss-detail" id="ss-detail" tabindex="-1" aria-labelledby="ss-detail-h">
     <div class="row"><h2 id="ss-detail-h" class="grow">#${s.id} ${e(s.title || KIND[s.kind])}</h2><span class="badge">${e(KIND[s.kind])}</span><span class="badge ${scls}">${e(sw)}</span></div>
     <p class="muted">Sent ${h.when(s.createdAt)} from the ${e(SOURCE[s.source] || s.source)}${s.platform ? ` (${e(s.platform)}${s.version ? ` ${e(s.version)}` : ''})` : ''}.
-      ${s.decidedAt ? `${s.status === 'approved' ? 'Approved' : s.status === 'declined' ? 'Declined' : 'Closed'}${s.decidedBy ? ` by ${e(s.decidedBy)}` : ''} ${h.when(s.decidedAt)}.` : ''}</p>
+      ${s.decidedAt ? `${s.status === 'approved' || s.status === 'published' ? 'Approved' : s.status === 'declined' ? 'Declined' : 'Closed'}${s.decidedBy ? ` by ${e(s.decidedBy)}` : ''} ${h.when(s.decidedAt)}.` : ''}</p>
     <p><b>Player:</b> ${s.player ? e(s.player) : s.uid ? 'a signed-in player (no screen name)' : 'a guest'}${s.uid ? ` <code>${e(s.uid)}</code>` : ''}
       · <b>Email:</b> ${s.email ? `<bdi>${e(s.email)}</bdi>` : 'none given'} · <b>Author credit:</b> ${e(s.credit || (s.source === 'form' ? 'Anonymous' : 'not asked'))}
       · <b>Consent:</b> ${s.consent ? 'given' : s.source === 'form' ? 'not given' : 'not asked (Share an idea)'}</p>
@@ -287,14 +319,17 @@ async function openEntry(id, { focus = true } = {}) {
   if (focus) $('#ss-detail').focus();
 }
 
-export async function storySubmissionsView(helpers) {
+export async function storySubmissionsView(helpers, { arg } = {}) {
   h = helpers;
+  // #story-submissions/<id> (from the Puzzle submissions page) opens that entry.
+  const want = /^\d+$/.test(String(arg || '')) ? Number(arg) : null;
+  if (want) { query = { q: String(want), kind: '', status: '', source: '', scan: '', page: 0 }; $('#ss-q').value = String(want); $('#ss-kind').value = ''; $('#ss-source').value = ''; $('#ss-scan').value = ''; }
   const p = new URLSearchParams(Object.entries(query).filter(([, v]) => v !== '' && v !== 0));
   const d = await h.api(`story-submissions?${p}`);
   const c = d.counts || {};
   h.setCount('#count-story-submissions', c.new || 0);
   const all = Object.values(c).reduce((a, b) => a + b, 0);
-  $('#ss-tabs').innerHTML = [['new', 'New'], ['approved', 'Approved'], ['declined', 'Declined'], ['closed', 'Closed'], ['', 'All']]
+  $('#ss-tabs').innerHTML = [['new', 'New'], ['edits', 'Awaiting edits'], ['approved', 'Approved'], ['published', 'Published'], ['declined', 'Declined'], ['closed', 'Closed'], ['', 'All']]
     .map(([k, label]) => `<button type="button" class="btn small" data-ss-tab="${k}" aria-pressed="${k === query.status}">${label} <span class="n">${h.fmt(k ? c[k] || 0 : all)}</span></button>`).join('');
   const from = d.page * d.perPage;
   $('#ss-total').textContent = d.total ? `Showing ${h.fmt(from + 1)} to ${h.fmt(Math.min(d.total, from + d.items.length))} of ${h.fmt(d.total)}${query.q ? ` matching “${query.q}”` : ''}.` : (query.q ? `Nothing matches “${query.q}”.` : 'No entries here.');
@@ -304,7 +339,8 @@ export async function storySubmissionsView(helpers) {
   scanBtn.textContent = `Scan new entries (${h.fmt(d.unscannedNew || 0)} not scanned)`;
   $('#ss-prev').hidden = d.page === 0;
   $('#ss-next').hidden = from + d.items.length >= d.total;
-  if (open && !d.items.some((r) => r.id === open.id)) { open = null; $('#ss-detail-wrap').innerHTML = ''; }
+  if (want && d.items.some((r) => r.id === want)) await openEntry(want);
+  else if (open && !d.items.some((r) => r.id === open.id)) { open = null; $('#ss-detail-wrap').innerHTML = ''; }
   else if (open) await openEntry(open.id, { focus: false });
 }
 
@@ -318,7 +354,7 @@ export function initStorySubmissions(helpers, show) {
     const btn = e.target.querySelector('button[type=submit]');
     btn.disabled = true;
     try {
-      const r = await h.api(`story-submissions/${open.id}/edit`, { method: 'POST', body: { form: readEditor(open) } });
+      const r = await h.api(`story-submissions/${open.id}/edit`, { method: 'POST', body: { form: readEditor(open, e.target) } });
       h.toast(r.hadPuzzle ? 'Edit saved. Press Build the puzzle to make a new puzzle from it.' : 'Edit saved.');
       await openEntry(open.id);
       show('story-submissions', { keepFocus: true });
@@ -373,22 +409,7 @@ export function initStorySubmissions(helpers, show) {
       return;
     }
     if (b.matches('[data-ed-cancel]')) { $('#ss-editor-wrap').innerHTML = ''; $('#ss-detail').querySelector('[data-ss-edit]')?.focus(); return; }
-    if (b.matches('[data-ed-remove]')) {
-      const row = b.closest('.ss-ed-row');
-      const list = row.parentElement;
-      row.remove();
-      [...list.children].forEach((r, i) => { r.querySelector('legend').textContent = `${r.matches('[data-ed-char]') ? 'Character' : 'Category'} ${i + 1}`; });
-      return;
-    }
-    if (b.matches('[data-ed-add]')) {
-      const isChar = b.dataset.edAdd === 'char';
-      const list = $(isChar ? '#ss-ed-chars' : '#ss-ed-cats');
-      const max = isChar ? open.choices.maxCharacters : open.choices.maxCategories;
-      if (list.children.length >= max) { h.toast(`At most ${max}.`); return; }
-      list.insertAdjacentHTML('beforeend', isChar ? charRow({}, list.children.length, open.choices) : catRow({}, list.children.length, open.choices));
-      list.lastElementChild.querySelector('input').focus();
-      return;
-    }
+    if (editorButton(b, open)) return;
     if (b.matches('[data-ss-invite]')) {
       const v = await h.ask({
         title: 'Ask the author to edit and resubmit',

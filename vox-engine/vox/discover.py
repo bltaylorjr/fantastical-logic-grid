@@ -106,6 +106,10 @@ class Discovery:
             made_now = 0
             try:
                 while made_now < voices and not self._stop.is_set():
+                    from .autotrain import server_usage, throttle_level
+                    if throttle_level() >= 2:      # the server is near its free allowance
+                        self.job["message"] = f"Paused to stay within the free allowance: {(server_usage() or {}).get('reason', '')}"
+                        break
                     i = self.state["cursor"]
                     if i >= len(words):
                         self.job["message"] = "Every word in the dictionary has been used."
@@ -125,7 +129,7 @@ class Discovery:
                         self.state["refused"] += 1
                     self.state["recent"].append(entry)
                     self._save()
-                if not self.job["message"].startswith("Every word"):
+                if not self.job["message"].startswith(("Every word", "Paused")):
                     self.job["message"] = (f"Stopped. Made {made_now} new voice(s) this run." if self._stop.is_set()
                                            else f"Done. Made {made_now} new voice(s) this run.")
             except Exception as e:      # never takes the server down

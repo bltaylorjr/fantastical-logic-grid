@@ -19,18 +19,28 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      - if: runner.environment == 'self-hosted'
+        name: Start from an empty folder (our build server keeps the last job's files)
+        run: sudo find "$GITHUB_WORKSPACE" -mindepth 1 -delete || true
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
           node-version: 22
       - name: Setup guide lists every connection (admin/connections.js)
         run: node scripts/connections.mjs check
+      - name: Server maintenance script copies match
+        run: node scripts/check-server-scripts.mjs
+      - name: Status page catalog is current (a warning only; every deploy rebuilds it)
+        run: node scripts/status-catalog.mjs --check
 
   # Puzzle engine: unique solutions, stories match grids, items in order.
   engine:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
+      - if: runner.environment == 'self-hosted'
+        name: Start from an empty folder (our build server keeps the last job's files)
+        run: sudo find "$GITHUB_WORKSPACE" -mindepth 1 -delete || true
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
@@ -50,8 +60,11 @@ jobs:
 
   app:
     runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork && '"ubuntu-latest"') || vars.FLG_RUNNER || '"ubuntu-latest"') }}
-    timeout-minutes: 30
+    timeout-minutes: 60  # the Arm build server takes about 35 minutes; GitHub machines about 20
     steps:
+      - if: runner.environment == 'self-hosted'
+        name: Start from an empty folder (our build server keeps the last job's files)
+        run: sudo find "$GITHUB_WORKSPACE" -mindepth 1 -delete || true
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
@@ -95,6 +108,7 @@ jobs:
           node scripts/e2e-puzzle-mail.cjs
           node scripts/e2e-errors.cjs
           node scripts/e2e-admin.cjs
+          node scripts/e2e-admin-puzzle-submissions.cjs
           node scripts/e2e-archive.cjs
           node scripts/e2e-educators.cjs
           node scripts/e2e-license.cjs
@@ -126,6 +140,9 @@ jobs:
     runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork && '"ubuntu-latest"') || vars.FLG_RUNNER || '"ubuntu-latest"') }}
     timeout-minutes: 15
     steps:
+      - if: runner.environment == 'self-hosted'
+        name: Start from an empty folder (our build server keeps the last job's files)
+        run: sudo find "$GITHUB_WORKSPACE" -mindepth 1 -delete || true
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:

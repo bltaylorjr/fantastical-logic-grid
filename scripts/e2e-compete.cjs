@@ -67,7 +67,7 @@ function startAuth(signer) {
   }
   await mf.ready;
   const app = spawn('node', [path.join(__dirname, 'serve.mjs'), path.join(ROOT, 'dist', 'web'), String(APP_PORT)], { stdio: 'ignore' });
-  await new Promise((r) => setTimeout(r, 600));
+  await require('./wait-port.cjs')(APP_PORT);
 
   const config = `export const CLOUD = { firebaseApiKey: 'test-key', syncUrl: 'http://localhost:${API_PORT}', authUrl: 'http://localhost:${AUTH_PORT}/v1', tokenUrl: 'http://localhost:${AUTH_PORT}/v1', learnUrl: '' };\nexport const cloudEnabled = () => true;\nexport const CLOUD_URL = '';\n`;
   const browser = await chromium.launch();
@@ -114,7 +114,7 @@ function startAuth(signer) {
     // ---- A guest sees the offer and the scoreboard, but needs an account to race.
     const A = await device('A');
     assert(await A.page.isVisible('#compete-section'), 'home shows Play against others');
-    assert(/never need an account to play on your own/.test(await cardText(A.page)), 'solo play needs no account');
+    assert(/Guests can play a few new puzzles a day without an account/.test(await cardText(A.page)), 'guests can play without an account');
     assert(/Playing as Guest/.test(await A.page.textContent('#compete-me')), 'a signed-out player shows as Guest on the card');
     assert((await A.page.textContent('#player-chip')).includes('Guest'), 'a signed-out player shows as Guest at the top');
     await A.page.click('[data-compete=board]');

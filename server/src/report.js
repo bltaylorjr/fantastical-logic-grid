@@ -6,6 +6,7 @@
 //              with where players came from and the market test's pass marks
 //   csv()      players, scores and ideas/problems as spreadsheet files
 import { getSettings } from './settings.js';
+import { voxServerStatus } from './vox.js';
 import { FREE_LIMITS, cloudflareUsage } from './usage.js';
 import { ratingInsights } from './ratings.js';
 import { printPackTotals } from './print-packs.js';
@@ -145,6 +146,16 @@ export async function alerts(env, now = Date.now()) {
     check('requests', 'Worker requests today', latest.requests, FREE_LIMITS.workerRequestsPerDay, (p) => `${p}% of today's free 100,000 Worker requests are used. After that the game's online features stop until midnight UTC.`);
     check('reads', 'Database rows read today', latest.rowsRead, FREE_LIMITS.d1RowsReadPerDay, (p) => `${p}% of today's free 5 million database reads are used.`);
     check('writes', 'Database rows written today', latest.rowsWritten, FREE_LIMITS.d1RowsWrittenPerDay, (p) => `${p}% of today's free 100,000 database writes are used.`);
+  }
+  // The Oracle server's free-tier guard, reported through Vox's health check.
+  const vox = await voxServerStatus(env);
+  const u = vox.ready && vox.health && vox.health.server_usage;
+  if (u) {
+    const pace = u.outbound && u.outbound.on_pace_percent;
+    if (u.level >= 2) out.push({ id: 'oracle', label: 'Oracle server free allowance', used: pace, limit: 100, percent: Math.round(pace || 0), level: u.level >= 3 ? 'full' : 'warn',
+      text: `${u.reason || 'The server is near its free limits.'} Vox has paused ${u.level >= 3 ? 'everything but serving voices' : 'downloads'} until there's room again; the games keep running.` });
+    if (u.size && u.size.free === false) out.push({ id: 'oracle-size', label: 'Oracle server size', used: null, limit: null, percent: 100, level: 'warn',
+      text: `The server is ${u.size.ocpus} cores / ${u.size.memory_gb} GB, bigger than the free 2 cores / 12 GB, so Oracle charges for the difference. Resize it in the Oracle console.` });
   }
   return { checkedAt: now, alertPercent: s.alert_percent, cloudflare: cf.configured ? (cf.error ? 'error' : 'on') : 'off', alerts: out };
 }

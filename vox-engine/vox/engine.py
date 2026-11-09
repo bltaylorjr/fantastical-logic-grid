@@ -28,7 +28,8 @@ import torch
 import copy
 import re
 
-from .audio import load_audio, normalize_loudness, save_audio, to_wav_bytes
+from .audio import MelSpectrogram, load_audio, normalize_loudness, save_audio, to_wav_bytes
+from . import base as basevox
 from .autotune import autotune as apply_autotune, settings_from
 from .config import EMOTIONS
 from .model import VoxModel
@@ -85,6 +86,12 @@ class VoxEngine:
         self._pronouncer = None
         self.translator = None            # set with use_translator(); loads the model on first use
         self.on_retry_pair = None        # learning hook: (text, voice, style, kept_mel, rejected_mel)
+        # Real speech from day one: the base voices speak until Vox's own model is
+        # promoted over them (base.py). VOX_SOURCE=own|base forces one.
+        self.base = basevox.BaseVoices(Path(self.voices.root).parent)
+        self.source = "base"
+        self.refresh_source()
+        self._mel = None
         if "narrator" not in self.voices.names():      # a default voice so speak() works at once
             self.design_voice("clear calm narrator", seed=7, name="narrator")
         self._model_id = hashlib.sha1(str(sum(p.sum().item() for p in self.model.dit.out.parameters())).encode()).hexdigest()[:8]
@@ -127,8 +134,14 @@ class VoxEngine:
         if use_cache and self.cache_dir and (self.cache_dir / f"{key}.pt").exists():
             return torch.load(self.cache_dir / f"{key}.pt", weights_only=False)
 
-        mels, segments, t = [], [], 0.0
         text = self.translate_for(text, style)
+        if self.source == "base":
+            wav, segments = self._speak_base(text, voice, style, seed)
+            res = SpeechResult(wav, self.sr, self._mel_of(wav), text, style, seed, segments)
+            if use_cache and self.cache_dir:
+                torch.save(res, self.cache_dir / f"{key}.pt")
+            return res
+        mels, segments, t = [], [], 0.0
         for chunk, mel, pause in self._iter_chunks(text, voice, style, seed):
             mels.append(mel)
             dur = mel.shape[0] * self.hop / self.sr
@@ -155,6 +168,14 @@ class VoxEngine:
         style.update(style_kw)
         style.setdefault("seed", seed)
         text = self.translate_for(text, style)
+        if self.source == "base":                 # sentence by sentence, so playback starts early
+            gain = None
+            for sent in [x for x in re.split(r"(?<=[.!?])\s+", text) if x.strip()] or [text]:
+                wav, _ = self._speak_base(sent, voice, style, seed, normalize=False)
+                if gain is None:
+                    gain = float(np.abs(normalize_loudness(wav)).max() / (np.abs(wav).max() + 1e-9))
+                yield np.clip(wav * gain, -1, 1)
+            return
         gain = None
         chunks = self._iter_chunks(text, voice, style, seed)
         while True:
@@ -434,6 +455,67 @@ class VoxEngine:
         wav = dl.touch(wav, self.sr, dv.get("post"), int(style.get("seed") or 0))
         return normalize_loudness(wav) if normalize else wav
 
+    # ------------------------------------------------------- base voices
+    def refresh_source(self) -> str:
+        """Base voices until Vox's own model is promoted over them; Vox's own
+        model if the base voices' software isn't installed."""
+        want = basevox.voice_source(Path(self.voices.root).parent).get("source", "base")
+        self.source = "base" if want == "base" and self.base.ready else "own"
+        return self.source
+
+    def _mel_of(self, wav: np.ndarray) -> torch.Tensor:
+        if self._mel is None:
+            self._mel = MelSpectrogram(self.cfg.audio)
+        with torch.inference_mode():
+            return self._mel(torch.from_numpy(np.asarray(wav, dtype=np.float32)))[0].T.contiguous()
+
+    def _speak_base(self, text: str, voice, style: dict, seed: int, normalize: bool = True):
+        """A line in the base voices, with Vox's age, dialect, speaking style and
+        delivery on top (see base.py)."""
+        from . import delivery as dl, development as dev
+        v = voice if isinstance(voice, Voice) else self._load_voice(voice)
+        prof = self.profile_for(style, v)
+        text = self.apply_lexicon(self.shape_text(text, prof, seed))
+        text = re.sub(r"\[[^\]]*\]|<[^>]*>", " ", text)            # stage directions aren't spoken
+        text = re.sub(r"\s+", " ", text).strip()
+        if not basevox.has_words(text):
+            return np.zeros(int(0.3 * self.sr), dtype=np.float32), []
+        _, pros = self._resolve_style(v, style)
+        lang = style.get("translate_to") or style.get("language")
+        blend, code, base_sex = self.base.choose(v.name, prof, lang)
+        age = prof.get("age")
+        sex = prof.get("sex") or base_sex
+        alpha = 1.0
+        if age is not None:                  # the tract sized to the age, relative to the base voice
+            alpha = dev.voice_targets(float(age), sex)["formant"] / dev.formant_base(base_sex)
+            alpha = float(np.clip(alpha, 0.8, 1.45))
+        # Speak a little slower by alpha, then resample by alpha: the length comes
+        # back to normal while the formants (and pitch) move by alpha.
+        wav = self.base.speak(text, blend, code, basevox.speed_for(pros[0]) / alpha)
+        if abs(alpha - 1.0) > 0.02:
+            from scipy.signal import resample_poly
+            from fractions import Fraction
+            f = Fraction(1 / alpha).limit_denominator(64)
+            wav = resample_poly(wav, f.numerator, f.denominator).astype(np.float32)
+        dv = dl.delivery(prof.get("delivery"))
+        sung = bool(dv.get("sing") or prof.get("sing"))
+        if not sung:
+            wav = self.finish_audio(wav, style, normalize=False)
+        shift = float(pros[1])               # semitones from the voice, style and delivery
+        if age is not None:
+            target = dev.voice_targets(float(age), sex)["f0"]
+            wav = dl.move_pitch_to(wav, self.sr, target * 2 ** (shift / 12))
+        elif abs(shift) >= 0.3:
+            f0, voiced = dl._f0(wav, self.sr, max(1, self.sr // 200))
+            if voiced.sum() >= 5:
+                wav = dl.move_pitch_to(wav, self.sr, float(np.median(f0[voiced])) * 2 ** (shift / 12))
+        if sung:
+            wav = dl.sing(wav, self.sr, prof.get("sing") or {}, int(seed))
+        wav = dl.touch(wav, self.sr, dv.get("post"), int(seed))
+        wav = np.asarray(wav, dtype=np.float32)
+        segments = [{"text": text, "start": 0.0, "end": round(len(wav) / self.sr, 3)}]
+        return (normalize_loudness(wav) if normalize else wav), segments
+
     def reload(self, ckpt: str | Path) -> None:
         """Swap in another model version (used when learning promotes or rolls back)."""
         self.model = VoxModel.load(ckpt, self.device)
@@ -442,6 +524,7 @@ class VoxEngine:
         extras = getattr(self.model, "extras", {})
         self.space = SpeakerSpace(**extras["speaker_space"]) if extras.get("speaker_space") else self.space
         self._prompt_cache.clear()
+        self.refresh_source()
         self._model_id = hashlib.sha1(str(sum(p.sum().item() for p in self.model.dit.out.parameters())).encode()).hexdigest()[:8]
 
     def _resolve_style(self, v: Voice, style: dict):
@@ -495,6 +578,7 @@ class VoxEngine:
         return normalize_loudness(wav) if normalize else wav
 
     def _cache_key(self, text, style, seed) -> str:
+        style = {**style, "_source": self.source}
         v = style["voice"]
         vj = (self.voices.path(v) / "voice.json") if v in self.voices.names() else None
         vhash = sha256_bytes(vj.read_bytes())[:12] if vj else v
