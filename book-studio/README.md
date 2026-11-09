@@ -71,6 +71,20 @@ removes it from the account. The status bar says Synced, Offline or what went wr
   in" and syncs when the connection is back. Exports still need a connection, because each one
   checks in with the server.
 
+## Puzzle themes
+
+Every puzzle can have a theme and a subcategory (for example Holidays > Christmas). Pick
+them in the Puzzles dialog for a batch, or click a puzzle and use **Puzzle theme** on the
+right (Grid book puzzles too). **Use on whole page** gives the page's other puzzles the
+same one, and a generated puzzle's solution in the answer key always follows its puzzle.
+Themes show as a small tag on screen and are never printed or exported.
+
+**Edit themes** changes the list: add, rename or remove themes and their subcategories
+(comma separated). Renaming a theme renames it on every puzzle in the book. The list starts
+from `DEFAULT_PUZZLE_THEMES` in `src/core.js`, is saved with the book (`puzzleThemes`), and
+a new book starts with the list of the book that was open. A puzzle keeps its theme as
+`data-pz-theme` / `data-pz-sub` on its page, so themes sync with the book like everything else.
+
 **Project > Save project file** still keeps a copy on disk. Opening a project file makes it a
 new book on the account, so it never replaces a synced one.
 
