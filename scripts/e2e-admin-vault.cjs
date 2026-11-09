@@ -5,7 +5,8 @@
 // username), move to the bin and undo, lock, a wrong master password, unlock,
 // import a Chrome CSV, change the master password, reload (locked again),
 // Face ID unlock (Chromium's virtual authenticator with PRF), removing the
-// device, and a device without PRF getting a plain explanation.
+// device, a device without PRF getting a plain explanation, and the drop box
+// (scripts/vault-drop.mjs adds logins it cannot read; unlocking files them).
 // It also checks the database holds no readable password, name or address.
 // Needs `npm install` in server/ first. SHOTS=<folder> saves screenshots there.
 const { chromium } = require('playwright');
@@ -170,6 +171,50 @@ function totp(secret, now = Date.now()) {
     await page.waitForSelector('#vault-list [data-v-edit]');
     assert(true, 'Undo puts it back');
 
+    // A login titled with only its address gets its proper name.
+    await page.click('[data-v-edit]');
+    await page.fill('#vf-title', 'namecheap.com');
+    await page.click('#vault-dlg-ok');
+    await page.waitForSelector('#vault-dialog[open]', { state: 'hidden' });
+    assert(/^(★ )?Namecheap$/.test((await page.textContent('#vault-list .vault-main > b')).trim()), 'saving "namecheap.com" as a title stores "Namecheap"');
+
+    // The drop box: the command-line tool locks logins to the vault's public key.
+    const k = await (await fetch(`${API}/v1/vault-drop-key`)).json();
+    assert(k.pub && k.pub.length > 80, 'setting up the vault turned on the drop box key');
+    const { execFileSync } = require('child_process');
+    const dropEnv = { ...process.env, FLG_CLOUD_URL: API, FLG_ADMIN_TOKEN: 'break-glass-key-for-the-e2e-test' };
+    const out = execFileSync('node', [path.join(ROOT, 'scripts/vault-drop.mjs'), '--source', 'Claude'], { env: dropEnv, encoding: 'utf8',
+      input: JSON.stringify([
+        { url: 'https://resend.com', loginUrl: 'https://resend.com/login', email: 'owner@example.com', username: 'owner@example.com', password: 'Resend-Dash-Pass-91!', fields: [{ label: 'API key', value: 're_test_key_123456' }] },
+        { url: 'https://www.namecheap.com', username: 'bltaylor', password: 'Rotated-Namecheap-77#' },
+      ]) });
+    assert(/drop box #\d+[\s\S]*drop box #\d+/.test(out), 'the tool sends two locked logins');
+    const box = JSON.stringify((await db.prepare('SELECT * FROM vault_inbox').all()).results);
+    assert(!['Resend-Dash-Pass-91!', 're_test_key_123456', 'resend.com', 'Rotated-Namecheap-77#'].some((x) => box.includes(x)), 'the drop box holds nothing readable');
+    await page.click('#vault-lock');
+    await page.fill('#vault-pass', MASTER);
+    await page.click('#vault-unlock button[type=submit]');
+    await page.waitForFunction(() => /Resend/.test(document.querySelector('#vault-list')?.textContent || ''));
+    assert(true, 'unlocking files the new login, with its proper name');
+    assert((await db.prepare('SELECT COUNT(*) AS n FROM vault_inbox').first()).n === 0, 'and empties the drop box');
+    assert(await page.locator('#vault-list .vault-item').count() === 2, 'the Namecheap login was updated, not added twice');
+    const nc = page.locator('#vault-list .vault-item', { hasText: 'Namecheap' });
+    await nc.locator('[data-v-edit]').click();
+    assert(await page.inputValue('#vf-pass') === 'Rotated-Namecheap-77#', 'it has the new password');
+    assert((await page.textContent('#vf-history-list')).includes('Another-Strong-Pass-2026!'), 'and keeps the old one under Earlier passwords');
+    await page.click('#vault-dlg-cancel');
+    await page.locator('#vault-list .vault-item', { hasText: 'Resend' }).locator('[data-v-edit]').click();
+    assert(/Added by Claude on/.test(await page.inputValue('#vf-notes')), 'the new one says it was added by Claude');
+    assert(await page.inputValue('#vf-extra [data-x=value]') === 're_test_key_123456' && await page.isChecked('#vf-extra [data-x=secret]'), 'its API key is kept as a hidden field');
+    await page.click('#vault-dlg-cancel');
+    // Put the list back as the later checks expect (one login).
+    await page.locator('#vault-list .vault-item', { hasText: 'Resend' }).locator('[data-v-bin]').click();
+    await page.waitForFunction(() => document.querySelectorAll('#vault-list .vault-item').length === 1);
+    await page.locator('#vault-list .vault-item', { hasText: 'Namecheap' }).locator('[data-v-edit]').click();
+    await page.fill('#vf-pass', 'Another-Strong-Pass-2026!');
+    await page.click('#vault-dlg-ok');
+    await page.waitForSelector('#vault-dialog[open]', { state: 'hidden' });
+
     // Lock, wrong password, unlock.
     await page.click('#vault-lock');
     await page.waitForSelector('#vault-unlock:not([hidden])');
@@ -202,13 +247,16 @@ function totp(secret, now = Date.now()) {
 
     // Import a Chrome CSV, with one duplicate to skip.
     const csv = path.join(os.tmpdir(), 'chrome-passwords.csv');
-    fs.writeFileSync(csv, 'name,url,username,password,note\nGitHub,https://github.com/login,bltaylorjr,gh-Pa55-word-xyz,"two, lines\nhere"\nCloudflare,https://dash.cloudflare.com,btay74@outlook.com,cf-secret-123,\nGitHub,https://github.com/login,bltaylorjr,gh-Pa55-word-xyz,\n');
+    fs.writeFileSync(csv, 'name,url,username,password,note\ngithub.com,https://github.com/login,bltaylorjr,gh-Pa55-word-xyz,"two, lines\nhere"\ndash.cloudflare.com,https://dash.cloudflare.com,btay74@outlook.com,cf-secret-123,\n,https://www.namecheap.com/myaccount/login/,,,\nGitHub,https://github.com/login,bltaylorjr,gh-Pa55-word-xyz,\n');
     await page.setInputFiles('#vault-import-file', csv);
     await page.waitForSelector('#dialog[open]');
-    assert(/<b>2<\/b>|2 login/.test(await page.innerHTML('#dialog-body')) || /Add 2/.test(await page.textContent('#dialog-body')), 'import counts 2 new logins (the duplicate line is skipped)');
+    assert(/<b>3<\/b>/.test(await page.innerHTML('#dialog-body')), 'import counts the new logins (the duplicate line is skipped)');
     await page.click('#dialog-ok');
-    await page.waitForFunction(() => document.querySelectorAll('#vault-list .vault-item').length === 3);
+    await page.waitForFunction(() => document.querySelectorAll('#vault-list .vault-item').length === 4);
     assert(true, 'imported logins are listed');
+    const titles = await page.$$eval('#vault-list .vault-main > b', (els) => els.map((e) => e.textContent.trim()));
+    assert(['Cloudflare', 'GitHub'].every((t) => titles.includes(t)) && titles.filter((t) => t === 'Namecheap').length === 2, `imported logins get proper site names (${titles.join(', ')})`);
+    assert(/Hosting or domain/.test(await page.textContent('#vault-list')), 'and a fitting type');
     await page.fill('#vault-q', 'cloud');
     assert(await page.locator('#vault-list .vault-item').count() === 1, 'search finds Cloudflare');
     await page.fill('#vault-q', '');
@@ -235,11 +283,11 @@ function totp(secret, now = Date.now()) {
     assert(true, 'the old master password no longer works');
     await page.fill('#vault-pass', 'brand new master phrase 77');
     await page.click('#vault-unlock button[type=submit]');
-    await page.waitForFunction(() => document.querySelectorAll('#vault-list .vault-item').length === 3);
-    assert(true, 'the new master password opens all 3 logins');
+    await page.waitForFunction(() => document.querySelectorAll('#vault-list .vault-item').length === 4);
+    assert(true, 'the new master password opens all 4 logins, including the site with no username yet');
     await page.click('#vault-lock');
     await page.click('#vault-bio');
-    await page.waitForFunction(() => document.querySelectorAll('#vault-list .vault-item').length === 3);
+    await page.waitForFunction(() => document.querySelectorAll('#vault-list .vault-item').length === 4);
     assert(true, 'Face ID still works after the master password changed');
 
     // Remove the device: it needs the master password again.

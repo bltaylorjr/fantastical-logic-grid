@@ -2,11 +2,13 @@
 // admin dashboard (https://flg-api.btay74.workers.dev/admin/), so it is always
 // the live version with the server's own strict CSP and sign-in. The page gets one
 // set of app permissions, for Vox only (capabilities/vox.json, see vox.rs): it can
-// start, stop and connect to the voice engine. Links that leave the dashboard open
+// start, stop and connect to the voice engine, and Passwords may open a login window
+// that fills a saved login (capabilities/passwords.json, see autofill.rs). Links that leave the dashboard open
 // in the normal browser, and updates are checked here in Rust against GitHub
 // Releases (tag admin-desktop), asking before installing.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod autofill;
 mod vox;
 
 use tauri::{AppHandle, RunEvent, WebviewUrl, WebviewWindowBuilder, WindowEvent};
@@ -45,7 +47,8 @@ fn main() {
             vox::vox_token,
             vox::vox_open,
             vox::vox_set_online,
-            vox::vox_set_autostart
+            vox::vox_set_autostart,
+            autofill::vault_login
         ])
         .setup(|app| {
             let nav = app.handle().clone();
