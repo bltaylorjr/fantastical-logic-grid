@@ -38,7 +38,9 @@ jobs:
           if page=$(fetch "$SITE/"); then
             grep -q 'The Fantastical Logic Grid' <<<"$page" || problems+=("The website at $SITE answers, but the game page is missing.")
           else problems+=("The website at $SITE does not answer."); fi
-          for f in sw.js manifest.webmanifest js/app.js engine/index.js; do
+          # engine/games.js ships in every build; engine/index.js does not when the
+          # private puzzle server is on (FLG_PUZZLE_SERVER=1, scripts/build.mjs).
+          for f in sw.js manifest.webmanifest js/app.js engine/games.js; do
             fetch "$SITE/$f" >/dev/null || problems+=("The website file $SITE/$f is missing, so the game may not start or work offline.")
           done
 
