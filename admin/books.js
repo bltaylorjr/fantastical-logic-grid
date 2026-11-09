@@ -46,6 +46,15 @@ const TRIM_NAMES = { '6x9': '6 × 9 in (most popular for puzzle books)', '7x10':
 export const PAPER = { white: 0.002252, cream: 0.0025 };
 export const BLEED = 0.125;
 export const MIN_PAGES = 24;
+// The most pages any printer here takes (the server keeps no more); each
+// publisher's own maximum is lower (Book Studio's specs: h.publishers).
+export const MAX_PAGES = 2000;
+// The page count asked for (settings.pages): blank Notes pages fill the book up
+// to it. 0 means as many pages as the puzzles need.
+export const targetPages = (b) => { const n = Math.round(Number(b?.settings?.pages) || 0); return n > 0 ? Math.max(MIN_PAGES, Math.min(MAX_PAGES, n)) : 0; };
+// Most puzzles one book holds (the server's limit) and one type the maker makes at once.
+const MAX_PUZZLES = 1000;
+const MAX_EACH = 200;
 // The inside margin (gutter) grows with the page count (KDP's table).
 export const gutterFor = (pages) => (pages <= 150 ? 0.375 : pages <= 300 ? 0.5 : pages <= 500 ? 0.625 : pages <= 700 ? 0.75 : 0.875);
 export const spineFor = (pages, paper) => +(pages * (PAPER[paper] || PAPER.white)).toFixed(4);
@@ -160,8 +169,10 @@ export function layout(b) {
       pages.push({ kind: 'key', head: `Answers · Puzzle ${group[0].n}${group.length > 1 ? `–${group[group.length - 1].n}` : ''}`, body: group.map(keyPage).join(''), keys: group.length });
     }
   }
-  // Blank pages for notes: at least the printer's minimum, and an even count.
-  while (pages.length < MIN_PAGES || pages.length % 2) pages.push({ kind: 'notes', body: '<div class="bk-notes"><h2>Notes</h2></div>' });
+  // Blank pages for notes: at least the printer's minimum (or the page count
+  // asked for), and an even count.
+  const fill = Math.max(MIN_PAGES, targetPages(b));
+  while (pages.length < fill || pages.length % 2) pages.push({ kind: 'notes', body: '<div class="bk-notes"><h2>Notes</h2></div>' });
   if (contentsAt >= 0) {
     // Runs of puzzles from the same game and level read as one line.
     const runs = [];
@@ -472,9 +483,22 @@ function levelFor(g, want) {
 }
 function topicDefaults() {
   const theme = topicList()[0]?.id || 'mystery';
-  return { theme, games: games.filter((g) => themeFor(g, theme)).map((g) => g.id), level: 'easy', count: 5, pub: h.publishers?.[0]?.id || '' };
+  return { theme, games: games.filter((g) => themeFor(g, theme)).map((g) => g.id), level: 'easy', count: 5, pages: 0, pub: h.publishers?.[0]?.id || '' };
 }
 const LEVEL_NAMES = { basic: 'Basic', easy: 'Easy', medium: 'Medium', hard: 'Hard', expert: 'Expert', master: 'Master' };
+
+// A publisher's page range at the book's trim and paper: { name, min, max }.
+// No publisher: the printer minimum up to the most any printer takes.
+function pubRange(id) {
+  const p = h.publishers?.find((x) => x.id === id);
+  const r = p?.pages ? p.pages(book.trim, book.paper) : null;
+  return r ? { name: p.name, min: Math.max(1, r.min), max: Math.min(MAX_PAGES, r.max) } : { name: '', min: MIN_PAGES, max: MAX_PAGES };
+}
+// The most pages each publisher takes at this trim and paper, for the Pages hint.
+function pageLimitsNote() {
+  const list = (h.publishers || []).filter((p) => p.pages && p.id !== 'custom').map((p) => `${h.esc(p.name)} ${p.pages(book.trim, book.paper).max.toLocaleString()}`);
+  return list.length ? ` Most pages at this size and paper: ${list.join(', ')}.` : '';
+}
 
 function topicCard() {
   const e = h.esc;
@@ -484,15 +508,18 @@ function topicCard() {
     return `<label class="check"><input type="checkbox" data-tp-game="${e(g.id)}"${topic.games.includes(g.id) ? ' checked' : ''}${ok ? '' : ' disabled'}> ${e(g.name)}${ok ? '' : ' <span class="muted">(no puzzles for this topic)</span>'}</label>`;
   }).join('');
   const all = games.filter((g) => themeFor(g, topic.theme)).length;
+  const range = pubRange(topic.pub);
   return `<div class="bk-topic stack">
     <h3>Make it from a topic</h3>
     <p class="muted">Pick a topic and the puzzle types. Find puzzles to review gives you more than you need, so you can tick the ones to keep. Make the whole book for me does it all${h.makeSubmission ? ': it checks every page and setting for the publisher and makes the file to submit' : ''}.</p>
     <div class="row">
       <div class="field"><label for="bk-tp-theme">Topic</label><select id="bk-tp-theme" data-tp="theme">${topicList().map((t) => `<option value="${e(t.id)}"${t.id === topic.theme ? ' selected' : ''}>${e(t.name)}</option>`).join('')}</select></div>
       <div class="field"><label for="bk-tp-level">Level</label><select id="bk-tp-level" data-tp="level">${Object.entries(LEVEL_NAMES).map(([id, n]) => `<option value="${id}"${id === topic.level ? ' selected' : ''}>${n}</option>`).join('')}</select></div>
-      <div class="field"><label for="bk-tp-count">Puzzles of each type</label><input id="bk-tp-count" data-tp="count" type="number" min="1" max="50" value="${Number(topic.count) || 5}"></div>
+      <div class="field"><label for="bk-tp-count">Puzzles of each type</label><input id="bk-tp-count" data-tp="count" type="number" min="1" max="${MAX_EACH}" value="${Number(topic.count) || 5}"></div>
       ${h.publishers?.length ? `<div class="field"><label for="bk-tp-pub">Publisher</label><select id="bk-tp-pub" data-tp="pub">${h.publishers.map((p) => `<option value="${e(p.id)}"${p.id === topic.pub ? ' selected' : ''}>${e(p.name)}</option>`).join('')}</select></div>` : ''}
+      <div class="field"><label for="bk-tp-pages">Pages (optional)</label><input id="bk-tp-pages" data-tp="pages" type="number" min="${range.min}" max="${range.max}" step="2" placeholder="As needed" value="${topic.pages || ''}" aria-describedby="bk-tp-pages-help"></div>
     </div>
+    <p class="muted" id="bk-tp-pages-help">Pages: Make the whole book for me adds puzzles of these types until the book nearly reaches this many pages, then fills the rest with Notes pages. ${range.name ? `${e(range.name)} takes ${range.min}–${range.max} pages at ${e(book.trim)} in on ${e(book.paper)} paper.` : `Up to ${MAX_PAGES} pages.`}</p>
     <fieldset class="bk-fs"><legend>Puzzle types (${topic.games.length} of ${all} for this topic) <button class="btn small link" type="button" id="bk-tp-all">All</button> <button class="btn small link" type="button" id="bk-tp-none">None</button></legend><div class="row bk-tp-types">${types}</div></fieldset>
     <div class="row"><button class="btn" type="button" id="bk-tp-find"${busy || !topic.games.length ? ' disabled' : ''}>Find puzzles to review</button>
       <button class="btn primary" type="button" id="bk-tp-auto"${busy || !topic.games.length ? ' disabled' : ''}>Make the whole book for me</button>
@@ -514,26 +541,39 @@ function foundList() {
   </div>`;
 }
 
+// The trademark and copyright scan, a batch at a time (big books have hundreds
+// of puzzles; the server reads at most 1,000 and 4 MB in one go).
+async function scanAll(items) {
+  const byFp = new Map();
+  for (let i = 0; i < items.length; i += 150) {
+    const scan = await h.api('books/scan', { method: 'POST', body: { items: items.slice(i, i + 150).map((p) => ({ fp: p.fp, title: p.title, text: p.text })) } });
+    for (const x of scan.results) byFp.set(x.fp, x);
+  }
+  return byFp;
+}
+
 // Makes puzzles for the topic: `count` of each ticked type (`extra` more to choose from).
-async function makeForTopic(count, extra = 0) {
+// `ids`: the types to make (all the topic's ticked ones by default); `keep`: puzzles
+// already in the book, never made again.
+async function makeForTopic(count, extra = 0, ids = topic.games, keep = []) {
   const progress = () => $('#bk-tp-progress');
   const { used } = await h.api('books/used');
   const avoid = new Set(used.filter((u) => u.book !== book.id).map((u) => u.fp));
   const stories = used.map((u) => u.story).filter(Boolean);
+  for (const p of keep) { avoid.add(p.fp); if (p.story) stories.push(p.story); }
   const made = [];
-  for (const id of topic.games) {
+  for (const id of ids) {
     const g = games.find((x) => x.id === id);
     const theme = themeFor(g, topic.theme);
     if (!g || !theme) continue;
     const lv = levelFor(g, topic.level);
     if (progress()) progress().textContent = `Making ${g.name}…`;
-    const r = await ask({ type: 'flg-book-make', game: id, difficulty: lv?.id, size: lv?.sizes?.[0], theme, count: count + extra, avoid: [...avoid], usedStories: stories.slice(-500), seed: `${book.title}-${topic.theme}-${id}-${Date.now().toString(36)}` });
+    const r = await ask({ type: 'flg-book-make', game: id, difficulty: lv?.id, size: lv?.sizes?.[0], theme, count: Math.min(MAX_EACH, count + extra), avoid: [...avoid], usedStories: stories.slice(-500), seed: `${book.title}-${topic.theme}-${id}-${Date.now().toString(36)}` });
     if (r.css) book.css[id] = r.css;
     r.items.forEach((it, k) => { avoid.add(it.fp); if (it.story) stories.push(it.story); made.push({ ...it, theme, difficulty: lv?.id, sizeN: lv?.sizes?.[0], pick: k < count }); });
   }
   if (progress()) progress().textContent = 'Checking every puzzle for trademarks and protected names…';
-  const scan = await h.api('books/scan', { method: 'POST', body: { items: made.map((p) => ({ fp: p.fp, title: p.title, text: p.text })) } });
-  const byFp = new Map(scan.results.map((x) => [x.fp, x]));
+  const byFp = await scanAll(made);
   for (const p of made) { const x = byFp.get(p.fp); p.scan = x?.verdict || 'clear'; p.findings = x?.findings || []; delete p.text; }
   // A puzzle the scan calls a problem never goes in: tick the next one of its type instead.
   for (const p of made.filter((x) => x.pick && x.scan === 'problem')) {
@@ -559,16 +599,71 @@ function useFound(list) {
   // A book still called the default gets the topic's name.
   const name = topicName(topic.theme);
   if (book.title === 'Logic Puzzles' || book.settings.autoTitle) { book.title = `${name} Puzzle Book`.slice(0, 120); book.settings.autoTitle = true; }
-  if (book.subtitle === 'Brand-new puzzles for curious minds' || book.settings.autoTitle) book.subtitle = `${picked.length} brand-new ${ids.length > 1 ? `puzzles of ${ids.length} kinds` : `${games.find((g) => g.id === ids[0])?.name} puzzles`}, with every answer`.slice(0, 160);
+  if (book.subtitle === 'Brand-new puzzles for curious minds' || book.settings.autoTitle) autoSubtitle();
   book.pagesShown = 0;
   changed();
+}
+function autoSubtitle() {
+  const ids = [...new Set(book.puzzles.map((p) => p.game))];
+  book.subtitle = `${book.puzzles.length} brand-new ${ids.length > 1 ? `puzzles of ${ids.length} kinds` : `${games.find((g) => g.id === ids[0])?.name} puzzles`}, with every answer`.slice(0, 160);
+}
+
+// Grows the book toward `goal` pages with more puzzles of the types already in
+// it (Notes pages fill what is left), then drops puzzles from the end if it went
+// over. Returns the page count.
+async function fillTo(goal, say) {
+  const notes = () => layout(book).filter((p) => p.kind === 'notes').length;
+  let real = await showInterior(false);
+  for (let round = 0; round < 6; round++) {
+    const n = book.puzzles.length;
+    const content = real - notes();
+    // Pages per puzzle, counting the title, contents and answers too, so the
+    // guess stays low and the next round tops it up.
+    const per = Math.max(0.25, content / Math.max(1, n));
+    const more = Math.min(MAX_PUZZLES - n, Math.floor((goal - content - 1) / per));
+    if (more < 1) break;
+    const ids = [...new Set(book.puzzles.map((p) => p.game))];
+    const each = Math.min(MAX_EACH, Math.ceil(more / ids.length));
+    say(`${real} pages so far. Making about ${each * ids.length} more puzzles to reach ${goal}…`);
+    let made;
+    try { made = await makeForTopic(each, 2, ids, book.puzzles); } catch (err) { h.toast(`${err.message} The book stops at ${real} pages.`); break; }
+    const picked = made.filter((p) => p.pick && p.scan !== 'problem');
+    if (!picked.length) break;
+    for (const p of picked) {
+      const { pick, tried, theme, difficulty, sizeN, ...rest } = p;
+      const at = book.settings.sections.findIndex((s) => s.game === p.game);
+      book.puzzles.push({ ...rest, section: at });
+      if (at >= 0) book.settings.sections[at].count = (Number(book.settings.sections[at].count) || 0) + 1;
+    }
+    book.pagesShown = 0;
+    real = await showInterior(false);
+  }
+  // Over the goal: take puzzles off the end of the biggest section until it fits.
+  for (let tries = 0; real > goal && book.puzzles.length > 1 && tries < 40; tries++) {
+    const per = Math.max(0.25, (real - notes()) / book.puzzles.length);
+    const drop = Math.max(1, Math.min(book.puzzles.length - 1, Math.ceil((real - goal) / per)));
+    say(`${real} pages: taking ${drop} puzzle${drop === 1 ? '' : 's'} out to fit ${goal}…`);
+    for (let k = 0; k < drop; k++) {
+      const counts = new Map();
+      for (const p of book.puzzles) counts.set(p.section, (counts.get(p.section) || 0) + 1);
+      const big = [...counts.entries()].sort((a, b) => b[1] - a[1])[0][0];
+      const at = book.puzzles.map((p) => p.section).lastIndexOf(big);
+      book.puzzles.splice(at, 1);
+      const s = book.settings.sections[big];
+      if (s) s.count = Math.max(1, (Number(s.count) || 1) - 1);
+    }
+    book.pagesShown = 0;
+    real = await showInterior(false);
+  }
+  if (book.settings.autoTitle) autoSubtitle();
+  return real;
 }
 
 async function topicFind() {
   if (busy) return;
   busy = true; render();
   try {
-    const n = Math.max(1, Math.min(50, Number(topic.count) || 5));
+    const n = Math.max(1, Math.min(MAX_EACH, Number(topic.count) || 5));
     found = await makeForTopic(n, Math.max(2, Math.ceil(n / 2)));
     h.toast(`${found.length} puzzles found. Tick the ones to keep.`);
   } catch (err) { h.toast(err.message); } finally { busy = false; render(); }
@@ -582,15 +677,23 @@ async function topicAuto() {
   busy = true; found = null; render();
   const say = (m) => { const p = $('#bk-tp-progress'); if (p) p.textContent = m; };
   try {
-    const n = Math.max(1, Math.min(50, Number(topic.count) || 5));
+    const n = Math.max(1, Math.min(MAX_EACH, Number(topic.count) || 5));
+    const range = pubRange(topic.pub);
+    // The pages asked for (within the publisher's range), else at least its minimum.
+    const goal = topic.pages ? Math.max(range.min, Math.min(range.max, topic.pages)) : 0;
+    book.settings.pages = goal || (range.min > MIN_PAGES ? range.min : Math.min(range.max, targetPages(book)));
     const made = await makeForTopic(n, 2);
     const short = topic.games.filter((id) => made.filter((p) => p.game === id && p.pick).length < n);
     if (short.length) h.toast(`Some types have fewer than ${n} clear puzzles: ${short.map(gameName).join(', ')}.`);
     useFound(made);
     if (!book.cover.blurb) book.cover.blurb = `${defaultBlurb(book)} Every story is set in ${topicName(topic.theme)}.`;
-    busy = false; render();
+    // Filling to a page count makes more puzzles, so the buttons stay off until it is done.
+    busy = !!goal; render();
     say('Laying out the pages…');
-    await showInterior(false);
+    const real = goal ? await fillTo(goal, say) : await showInterior(false);
+    busy = false;
+    if (real > range.max) h.toast(`The book has ${real} pages, more than the ${range.max} ${range.name || 'a printer'} takes. Use fewer puzzles of each type or set Pages.`);
+    render();
     say('Saving the book…');
     const r = await h.api('books', { method: 'POST', body: bookBody() });
     book.id = r.id; book.dirty = false;
@@ -635,6 +738,7 @@ function render() {
       <div class="row">
         <div class="field"><label for="bk-trim">Trim size</label><select id="bk-trim" data-b="trim">${Object.keys(TRIM).map((t) => `<option value="${t}"${t === book.trim ? ' selected' : ''}>${TRIM_NAMES[t]}</option>`).join('')}</select></div>
         <div class="field"><label for="bk-paper">Paper</label><select id="bk-paper" data-b="paper"><option value="white"${book.paper === 'white' ? ' selected' : ''}>White</option><option value="cream"${book.paper === 'cream' ? ' selected' : ''}>Cream</option></select></div>
+        <div class="field"><label for="bk-pagecount">Pages (optional)</label><input id="bk-pagecount" data-s="pages" type="number" min="${MIN_PAGES}" max="${MAX_PAGES}" step="2" placeholder="As needed" value="${targetPages(book) || ''}" aria-describedby="bk-pagecount-help"></div>
         <div class="field"><label for="bk-keys">Answer keys</label><select id="bk-keys" data-s="keys"><option value="back"${book.settings.keys !== 'each' ? ' selected' : ''}>At the back</option><option value="each"${book.settings.keys === 'each' ? ' selected' : ''}>After each puzzle</option></select></div>
         <div class="field"><label for="bk-kpp">Keys on a page</label><select id="bk-kpp" data-s="keysPerPage"><option value="1"${book.settings.keysPerPage !== 2 ? ' selected' : ''}>One</option><option value="2"${book.settings.keysPerPage === 2 ? ' selected' : ''}>Two</option></select></div>
       </div>
@@ -643,6 +747,7 @@ function render() {
         <label class="check"><input type="checkbox" data-s="howto"${book.settings.howto !== false ? ' checked' : ''}> How to play pages</label>
         <label class="check"><input type="checkbox" data-s="showVolume"${book.settings.showVolume ? ' checked' : ''}> Show "Volume 1" on the first volume</label>
       </div>
+      <p class="muted" id="bk-pagecount-help">Pages: leave it empty for as many pages as the puzzles need (at least ${MIN_PAGES}), or set a count and blank Notes pages fill the book up to it.${pageLimitsNote()}</p>
       </fieldset>
     </section>
 
@@ -771,8 +876,7 @@ async function makePuzzles(onlySection = null, replaceFp = null) {
       for (const it of r.items) { avoid.add(it.fp); if (it.story) stories.push(it.story); made.push({ ...it, section: i }); }
     }
     if (progress()) progress().textContent = 'Checking every puzzle for trademarks and protected names…';
-    const scan = await h.api('books/scan', { method: 'POST', body: { items: made.map((p) => ({ fp: p.fp, title: p.title, text: p.text })) } });
-    const byFp = new Map(scan.results.map((x) => [x.fp, x]));
+    const byFp = await scanAll(made);
     for (const p of made) { const x = byFp.get(p.fp); p.scan = x?.verdict || 'clear'; p.findings = x?.findings || []; delete p.text; }
     if (replaceFp) {
       const at = book.puzzles.findIndex((p) => p.fp === replaceFp);
@@ -904,7 +1008,10 @@ function wire() {
     if (!book) return;
     if (el.id === 'bk-guides') { drawCover(); return; }
     if (el.dataset.tp) {
-      topic[el.dataset.tp] = el.dataset.tp === 'count' ? Math.max(1, Math.min(50, Number(el.value) || 1)) : el.value;
+      const k = el.dataset.tp;
+      topic[k] = k === 'count' ? Math.max(1, Math.min(MAX_EACH, Number(el.value) || 1)) : k === 'pages' ? (Number(el.value) > 0 ? Math.round(Number(el.value)) : 0) : el.value;
+      // Pages stay inside the chosen publisher's range.
+      if (topic.pages && (k === 'pages' || k === 'pub')) { const r = pubRange(topic.pub); topic.pages = Math.max(r.min, Math.min(r.max, topic.pages)); }
       if (el.dataset.tp === 'theme') { topic.games = games.filter((g) => themeFor(g, topic.theme)).map((g) => g.id); found = null; }
       render(); return;
     }
@@ -924,6 +1031,7 @@ function wire() {
       changed(); return;
     }
     if (el.dataset.b && BOOK_FIELDS[el.dataset.b]) { book[el.dataset.b] = BOOK_FIELDS[el.dataset.b](el.value); book.pagesShown = 0; changed(); if (['trim', 'paper'].includes(el.dataset.b)) render(); else drawCover(); return; }
+    if (el.dataset.s === 'pages') { book.settings.pages = targetPages({ settings: { pages: el.value } }); el.value = book.settings.pages || ''; book.pagesShown = 0; changed(); return; }
     if (el.dataset.s) { book.settings[el.dataset.s] = el.type === 'checkbox' ? el.checked : el.dataset.s === 'keysPerPage' ? Number(el.value) : el.value; book.pagesShown = 0; changed(); if (el.dataset.s === 'kind' || el.dataset.s === 'order') render(); return; }
     if (el.dataset.col) { book.cover.colors = { ...coverColors(), [el.dataset.col]: el.value }; book.cover.saved = undefined; changed(); drawCover(); return; }
     if (el.dataset.c) {

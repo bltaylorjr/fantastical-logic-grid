@@ -198,7 +198,7 @@ async function gaGridBooks() {
       when: (t) => new Date(t).toLocaleString(),
       openInStudio: (book) => importGridBook(book),
       // Make it from a topic: the publishers to choose from, and the whole path to a submission file.
-      publishers: Object.entries(PUBLISHERS).map(([id, p]) => ({ id, name: p.name })),
+      publishers: Object.entries(PUBLISHERS).map(([id, p]) => ({ id, name: p.name, pages: (trim, paper) => ({ min: p.minPages, max: p.maxPagesFor ? p.maxPagesFor(trim, paper) : p.maxPages }) })),
       makeSubmission: (book, pub) => submitGridBook(book, pub),
     });
   } catch (e) {
