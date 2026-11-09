@@ -327,6 +327,18 @@ def wait_ready(url, token, field='status_code'):
     raise Failed('the site took more than 10 minutes to process the file')
 
 
+def publish_instagram(ig, creation_id, token):
+    """media_publish, retried while Instagram says the media is not ready yet
+    (error 9007 / 2207027 can come back even after the status says FINISHED)."""
+    for attempt in range(6):
+        try:
+            return meta(f'{GRAPH}/{ig}/media_publish', 'POST', {'creation_id': creation_id}, token)
+        except Failed as e:
+            if attempt == 5 or not ('2207027' in str(e) or 'not ready' in str(e).lower() or 'Media ID is not available' in str(e)):
+                raise
+            time.sleep(15)
+
+
 def instagram_id():
     """The Instagram business account linked to the Facebook Page. INSTAGRAM_ACCOUNT_ID is used
     when it is an id of its own; when it is empty or holds the Page id (an easy mix-up), the
@@ -353,7 +365,7 @@ def post_instagram(ad):
         raise Failed('Instagram needs a picture or a video')
     c = meta(f'{GRAPH}/{ig}/media', 'POST', form, token)
     wait_ready(f"{GRAPH}/{c['id']}", token)
-    r = meta(f'{GRAPH}/{ig}/media_publish', 'POST', {'creation_id': c['id']}, token)
+    r = publish_instagram(ig, c['id'], token)
     return meta(f"{GRAPH}/{r['id']}?fields=permalink", token=token).get('permalink') or 'https://www.instagram.com/'
 
 
@@ -990,7 +1002,7 @@ def daily_puzzle(game=''):
                         kids.append(k['id'])
                     c = meta(f'{GRAPH}/{ig_id}/media', 'POST', {'media_type': 'CAROUSEL', 'children': ','.join(kids), 'caption': text}, token)
                 wait_ready(f"{GRAPH}/{c['id']}", token)
-                pub = meta(f'{GRAPH}/{ig_id}/media_publish', 'POST', {'creation_id': c['id']}, token)
+                pub = publish_instagram(ig_id, c['id'], token)
                 link = meta(f"{GRAPH}/{pub['id']}?fields=permalink", token=token).get('permalink') or 'https://www.instagram.com/'
                 posted.append(('Instagram', link))
                 print(f'::notice::Posted to Instagram: {link}')
