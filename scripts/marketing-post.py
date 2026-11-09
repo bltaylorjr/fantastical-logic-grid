@@ -1147,7 +1147,8 @@ def main():
         auto = due.get('autopost') and is_auto(ad) and has_keys(ad['channel'])
         if not auto:
             if ad['postOn'] == DAY:
-                why = '' if not is_auto(ad) else (f'{NAMES[ad["channel"]]} can be posted automatically once its key is saved (admin > Connections and setup).'
+                why = '' if not is_auto(ad) else ('Reddit stopped giving new apps API access on 31 October 2026, so Reddit posts are by hand.' if ad['channel'] == 'reddit' and not has_keys('reddit') else
+                                                  f'{NAMES[ad["channel"]]} can be posted automatically once its key is saved (admin > Connections and setup).'
                                                     if due.get('autopost') else 'Automatic posting is switched off in admin Settings.')
                 by_hand.append((ad, why))
             continue
