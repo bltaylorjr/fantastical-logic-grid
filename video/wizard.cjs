@@ -78,7 +78,7 @@ function helpers(p, shots, scenes) {
     },
     async scene(name, sentences) {
       await p.waitForTimeout(250);
-      await p.screenshot({ path: path.join(shots, `${name}.png`) });
+      await p.screenshot({ path: path.join(shots, `${name}.png`), timeout: 90000 }); // longer: a busy build server
       scenes.push({ shot: `shots/${name}.png`, sentences });
       await clear();
     },
