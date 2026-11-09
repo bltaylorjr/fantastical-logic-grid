@@ -288,12 +288,11 @@ function regeneratePuzzle(el) {
    synced with the page. A generated puzzle and its solution share data-pz-id,
    so changing one changes both. The list is S.puzzleThemes (core.js). */
 let lastGenTheme = { theme: '', sub: '' };
+// Every generated puzzle's HTML starts with <div class="puzzle" (sudokuHTML,
+// wordsearchHTML, mazeHTML), so the attributes go in there, escaped.
 function tagPuzzleHTML(html, pid, theme) {
-  const t = document.createElement('div'); t.innerHTML = html;
-  const el = t.querySelector('.puzzle'); if (!el) return html;
-  el.dataset.pzId = pid;
-  if (theme) { el.dataset.pzTheme = theme.theme; if (theme.sub) el.dataset.pzSub = theme.sub; }
-  return t.innerHTML;
+  const at = ` data-pz-id="${esc(pid)}"` + (theme ? ` data-pz-theme="${esc(theme.theme)}"` + (theme.sub ? ` data-pz-sub="${esc(theme.sub)}"` : '') : '');
+  return html.replace(/<div class="puzzle"/, m => m + at);
 }
 function setPuzzleTheme(el, theme, sub) {
   if (theme) el.dataset.pzTheme = theme; else delete el.dataset.pzTheme;
@@ -368,16 +367,10 @@ function saveThemeEditor() {
   snapshot('edit themes');
   S.puzzleThemes = list; themeSeed = list;
   if (renames.size) {
-    const all = () => $$('#pages .puzzle, #pages .grid-room');
-    const at = selPuzzle ? all().indexOf(selPuzzle) : -1;
+    // Every page is on screen in #pages, so rename there and save the pages.
     let n = 0;
-    S.pages.forEach(p => {
-      if (!/data-pz-theme/.test(p.html || '')) return;
-      const d = document.createElement('div'); d.innerHTML = p.html; let hit = false;
-      $$('[data-pz-theme]', d).forEach(el => { const to = renames.get(el.dataset.pzTheme); if (to) { el.dataset.pzTheme = to; hit = true; n++; } });
-      if (hit) p.html = d.innerHTML;
-    });
-    if (n) { renderPages(); selPuzzle = at >= 0 ? all()[at] || null : null; if (selPuzzle) selPuzzle.classList.add('sel'); }
+    $$('#pages [data-pz-theme]').forEach(el => { const to = renames.get(el.dataset.pzTheme); if (to) { el.dataset.pzTheme = to; n++; } });
+    if (n) { syncPagesFromDom(); if (selPuzzle) selPuzzle.classList.add('sel'); }
   }
   closeDlg('#dlgThemes'); markDirty();
   toast(`Saved ${list.length} theme${list.length === 1 ? '' : 's'}`);
