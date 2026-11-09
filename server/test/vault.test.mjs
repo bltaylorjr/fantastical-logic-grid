@@ -144,3 +144,36 @@ test('vault: Face ID devices are added, listed, noted, removed, and wiped with t
   v = await call('/admin/v1/vault', { auth: owner });
   assert.equal(v.body.devices.length, 0, 'a wipe removes the devices too');
 });
+
+test('vault: the drop box takes locked logins from admins and assistant keys, and only the owner files them', async () => {
+  const owner = token('owner-uid', OWNER);
+  await call('/admin/v1/vault/setup', { auth: owner, body: meta() });
+  const pub = b64(91);
+  assert.equal((await call('/v1/vault-drop-key')).status, 404, 'no key until the dashboard turns it on');
+  const drop = { epk: b64(91), iv: b64(12), ct: b64(300), source: 'Claude' };
+  assert.equal((await call('/admin/v1/vault/inbox', { auth: owner, body: drop })).status, 404, 'needs the drop box key first');
+  assert.equal((await call('/admin/v1/vault/drop-key', { auth: 'break-glass-token-for-tests-1234', body: { pub, privIv: b64(12), privCt: b64(154) } })).status, 403, 'only the owner sets the key');
+  assert.equal((await call('/admin/v1/vault/drop-key', { auth: owner, body: { pub, privIv: b64(12), privCt: b64(154) } })).status, 200);
+  const k = await call('/v1/vault-drop-key');
+  assert.equal(k.status, 200);
+  assert.equal(k.body.pub, pub, 'the public key is shared without sign-in');
+  assert.equal((await call('/admin/v1/vault/inbox', { auth: owner, body: { ...drop, ct: 'plain text' } })).status, 400, 'only locked text');
+  const glass = await call('/admin/v1/vault/inbox', { auth: 'break-glass-token-for-tests-1234', body: drop });
+  assert.equal(glass.status, 200, 'the break-glass key (used by the workflow) can drop');
+  const made = await call('/admin/v1/admin-keys', { auth: owner, body: { name: 'Claude', role: 'admin', days: 1 } });
+  const viaKey = await call('/admin/v1/vault/inbox', { auth: made.body.key, body: { ...drop, source: '<b>Claude</b>' } });
+  assert.equal(viaKey.status, 200, 'an assistant key can drop');
+  assert.equal((await call('/admin/v1/vault', { auth: made.body.key })).status, 403, 'but cannot read the vault');
+  assert.equal((await call(`/admin/v1/vault/inbox/${glass.body.id}/done`, { auth: made.body.key, body: {} })).status, 403, 'or empty the drop box');
+  let v = await call('/admin/v1/vault', { auth: owner });
+  assert.equal(v.body.inbox.length, 2);
+  assert.equal(v.body.meta.dropPub, pub);
+  assert.ok(!v.body.inbox.some((x) => /[<>]/.test(x.source)), 'the source label is cleaned');
+  assert.equal((await call(`/admin/v1/vault/inbox/${glass.body.id}/done`, { auth: owner, body: {} })).status, 200);
+  v = await call('/admin/v1/vault', { auth: owner });
+  assert.equal(v.body.inbox.length, 1);
+  await call('/admin/v1/vault/reset', { auth: owner, body: { confirm: 'DELETE' } });
+  v = await call('/admin/v1/vault', { auth: owner });
+  assert.equal(v.body.inbox.length, 0, 'a wipe empties the drop box');
+  assert.equal((await call('/v1/vault-drop-key')).status, 404, 'and removes the key');
+});

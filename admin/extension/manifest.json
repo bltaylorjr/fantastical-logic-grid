@@ -1,0 +1,38 @@
+{
+  "manifest_version": 3,
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA3Zt3JysnOaQlXjYVOkGqDUMP9kAvCLmEY0o/NytK+YvtVkeMuxfiJQ6aMpMx9kaHW2fwFBL03kC3KfCOZT85V+XcnJNfK6I7r5cU0RXTV4PS1iIow936B4r1/JelIvhjaShtBV3CGcfXZ6T8GnYAaEw7X6lW5GYWdkF7aAjsL/+cloujKPr1b8PyVKNKaOhrhrSovuIxy52nXhtx/wWjOZm2HO5lCX7RIlzu89WoLOMPPAh9K2uLr1a+6sMs8qZbv8ABCI9zCDO1nqAPinlCl36yViUATmWoDxCYYM6OaFGqnwenA0Cr0lynS/MQMYT6Ok6JEKw4hhy/VdE/jDvopwIDAQAB",
+  "name": "The Logic Grid Passwords",
+  "short_name": "Passwords",
+  "version": "1.0.0",
+  "description": "Log in buttons in The Logic Grid admin Passwords page open the site and fill in your username, password and 2-step code.",
+  "minimum_chrome_version": "116",
+  "icons": {
+    "16": "icon-16.png",
+    "32": "icon-32.png",
+    "48": "icon-48.png",
+    "128": "icon-128.png"
+  },
+  "permissions": [
+    "scripting",
+    "storage"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "The Logic Grid Passwords",
+    "default_icon": {
+      "16": "icon-16.png",
+      "32": "icon-32.png"
+    }
+  },
+  "externally_connectable": {
+    "matches": [
+      "https://flg-api.btay74.workers.dev/admin/*",
+      "http://localhost/admin/*"
+    ]
+  }
+}

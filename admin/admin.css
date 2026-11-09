@@ -621,6 +621,12 @@ label.check { display: inline-flex; gap: 6px; align-items: center; }
 .qp-method { margin: 8px 0 0; }
 .qp-method > summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; color: var(--accent); font-weight: 600; }
 .qp-method ul { margin: 4px 0 0; padding-left: 1.2em; display: grid; gap: 4px; font-size: .9rem; }
+.vault-addr { display: block; font-size: .9rem; margin: 2px 0 4px; overflow-wrap: anywhere; }
+.vault-otp-row { flex-wrap: wrap; gap: 6px; }
+.vault-qr { display: block; width: min(260px, 70vw); height: auto; margin: 0 auto 12px; image-rendering: pixelated; }
+.vault-scan-video { display: block; width: 100%; max-height: 60vh; background: #000; border-radius: 8px; }
+.vault-steps { padding-left: 1.4em; }
+.vault-steps li { margin: 4px 0; }
 
 /* Status (status.js): state in words and an icon as well as colour. */
 .st-tools { align-items: center; }

@@ -830,6 +830,12 @@ dialog.wide { width: min(760px, calc(100vw - 32px)); }
 .grid-books .qp-method { margin: 8px 0 0; }
 .grid-books .qp-method > summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; color: var(--accent); font-weight: 600; }
 .grid-books .qp-method ul { margin: 4px 0 0; padding-left: 1.2em; display: grid; gap: 4px; font-size: .9rem; }
+.grid-books .vault-addr { display: block; font-size: .9rem; margin: 2px 0 4px; overflow-wrap: anywhere; }
+.grid-books .vault-otp-row { flex-wrap: wrap; gap: 6px; }
+.grid-books .vault-qr { display: block; width: min(260px, 70vw); height: auto; margin: 0 auto 12px; image-rendering: pixelated; }
+.grid-books .vault-scan-video { display: block; width: 100%; max-height: 60vh; background: #000; border-radius: 8px; }
+.grid-books .vault-steps { padding-left: 1.4em; }
+.grid-books .vault-steps li { margin: 4px 0; }
 .grid-books .st-tools { align-items: center; }
 .grid-books .st-banner { display: flex; gap: 14px; align-items: center; padding: 14px 16px; border-radius: 12px; margin: 12px 0; border: 1px solid var(--line); }
 .grid-books .st-banner.st-ok { background: var(--ok-bg); }
