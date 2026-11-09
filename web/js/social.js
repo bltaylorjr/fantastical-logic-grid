@@ -3,7 +3,9 @@
 // (scripts/seo.mjs) and the game's home screen footer (app.js). Only the
 // networks with a link set are shown, so a new page appears as soon as its
 // link is added: in the game within about a minute, on the website after the
-// next nightly build.
+// next nightly build. The marketing autopilot (scripts/marketing-post.py)
+// adds the link itself for every account whose posting keys are saved, unless
+// the owner has set or cleared that network's link in admin.
 //
 // Each link is the network's icon, drawn inline (no extra download, nothing
 // for the page's security rules to allow), with its name for screen readers
@@ -28,6 +30,8 @@ export const DEFAULT_LINKS = {
   facebook: 'https://www.facebook.com/share/19pDDj5Ppf/',
   instagram: 'https://www.instagram.com/fantastical_logic/',
   mastodon: 'https://mastodon.social/@thelogicgrid',
+  x: 'https://x.com/the_logic_grid',
+  bluesky: 'https://bsky.app/profile/thelogicgrid.bsky.social',
 };
 
 // [{ id, name, url }] for the networks with a usable link, in NETWORKS order.

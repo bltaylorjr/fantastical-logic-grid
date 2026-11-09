@@ -200,7 +200,10 @@ const CSS = `
   // [caption, spoken] when the voice needs a different spelling.
   async function scene(name, sentences) {
     await p.waitForTimeout(300);
-    await p.screenshot({ path: path.join(SHOTS, `${name}.png`) });
+    // A busy build server can take longer than the usual 30 s for one picture
+    // (run 42551883006 stopped here): give it longer, and try once more.
+    const shot = () => p.screenshot({ path: path.join(SHOTS, `${name}.png`), timeout: 90000 });
+    await shot().catch(async (e) => { console.log(`scene ${name}: picture timed out, trying again (${e.message.split('\n')[0]})`); await p.waitForTimeout(2000); await shot(); });
     scenes.push({ shot: `shots/${name}.png`, sentences });
     console.log('scene', name);
   }

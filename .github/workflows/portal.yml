@@ -16,7 +16,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   zip:
-    runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork && '"ubuntu-latest"') || vars.FLG_RUNNER || '"ubuntu-latest"') }}
+    runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork && '"ubuntu-latest"') || '"ubuntu-latest"') }}
     steps:
       - if: runner.environment == 'self-hosted'
         name: Start from an empty folder (our build server keeps the last job's files)
