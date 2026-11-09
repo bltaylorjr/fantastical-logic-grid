@@ -79,7 +79,9 @@ async function importGridBook(g) {
     ...(g.description ? { description: String(g.description).slice(0, 4000), blurb: String(g.description).slice(0, 4000) } : {}), ...(g.keywords ? { keywords: String(g.keywords).slice(0, 500) } : {}) };
   p.gridCss = cleanGridCss(g.css);
   p.gridBook = String(g.id || '');
-  p.pages = (g.pages || []).map(pg => ({ id: uid(), html: gridPageHtml(pg), grid: pg.kind, noFolio: !!pg.front, ...(pg.kind === 'answers' ? { answers: true } : {}) }));
+  // The book's own title and copyright pages count as the front matter, so Apply
+  // specs does not add a second pair (and the page count asked for holds).
+  p.pages = (g.pages || []).map(pg => ({ id: uid(), html: gridPageHtml(pg), grid: pg.kind, noFolio: !!pg.front, ...(pg.kind === 'answers' ? { answers: true } : {}), ...(pg.kind === 'title' || pg.kind === 'copyright' ? { front: pg.kind } : {}) }));
   if (!p.pages.length) p.pages = [{ id: uid(), html: '<p><br></p>' }];
   p.cover = null;
   loadProject(p);
