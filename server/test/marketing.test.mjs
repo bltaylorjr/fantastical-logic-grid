@@ -264,7 +264,7 @@ test('footer links fill themselves in only for networks the owner never set', as
   const before = await call('/admin/v1/marketing/profiles', { auth: TOKEN });
   assert.equal(before.status, 200);
   // Networks with a built-in link are never offered.
-  assert.ok(!before.body.missing.includes('facebook') && !before.body.missing.includes('x'), JSON.stringify(before.body.missing));
+  assert.ok(!before.body.missing.includes('facebook') && !before.body.missing.includes('bluesky'), JSON.stringify(before.body.missing));
   assert.ok(before.body.missing.includes('threads') && before.body.missing.includes('tiktok'));
   // The owner cleared TikTok on purpose: it stays empty.
   assert.equal((await call('/admin/v1/settings', { auth: owner(), body: { key: 'social_tiktok', value: '' } })).status, 200);
