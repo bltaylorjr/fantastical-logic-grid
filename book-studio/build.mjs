@@ -7,7 +7,6 @@
 import { readFileSync, writeFileSync, mkdirSync, copyFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createRequire } from 'node:module';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..');
@@ -17,7 +16,7 @@ const standalone = process.argv.includes('--standalone');
 
 // Libraries, vendored from npm (versions pinned in book-studio/package.json).
 const VENDOR = {
-  fabric: ['fabric', 'dist/fabric.min.js', 'fabric.min.js'],
+  fabric: ['fabric', 'dist/index.min.js', 'fabric.min.js'],
   jspdf: ['jspdf', 'dist/jspdf.umd.min.js', 'jspdf.umd.min.js'],
   html2canvas: ['html2canvas', 'dist/html2canvas.min.js', 'html2canvas.min.js'],
   jszip: ['jszip', 'dist/jszip.min.js', 'jszip.min.js'],
@@ -215,9 +214,9 @@ ${scopeCss(readFileSync(join(root, 'admin', 'admin.css'), 'utf8'), '.grid-books'
 `;
 writeFileSync(join(out, 'studio.css'), `/* Book Studio. Built from book-studio/src/shell.html by book-studio/build.mjs: do not edit here. */\n${style.trim()}\n${extraCss}\n${gridBooksCss}`);
 writeFileSync(join(out, 'studio.js'), `// Book Studio. Built from book-studio/src by book-studio/build.mjs: do not edit here.\n'use strict';\n${js}\n${src('sync.js')}\n${src('playerpuzzles.js')}\n${src('auth.js')}`);
-const require = createRequire(join(here, 'package.json'));
 for (const [, [pkg, path, file]] of Object.entries(VENDOR)) {
-  const from = join(dirname(require.resolve(`${pkg}/package.json`)), path);
+  // Straight from node_modules: some packages (Fabric 7) don't export their package.json.
+  const from = join(here, 'node_modules', pkg, path);
   if (!existsSync(from)) throw new Error(`missing ${from}: run npm --prefix book-studio install`);
   copyFileSync(from, join(out, 'vendor', file));
 }

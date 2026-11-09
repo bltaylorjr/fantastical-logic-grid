@@ -1459,6 +1459,8 @@ const THEMES = {
   ink: { name: 'Ink & red', bg: '#121212', accent: '#e63946', text: '#ffffff', title: 'Bebas Neue', body: 'Open Sans' }
 };
 const CV_PROPS = ['role', 'selectable', 'evented'];
+// An object's kind in lower case: Fabric 6+ writes "Textbox" and "Image" where 5 wrote "textbox" and "image".
+const cvType = (o) => String(o?.type || '').toLowerCase();
 
 async function ensureFonts(fams) { try { await Promise.all([...new Set(fams)].map(f => document.fonts.load(`40px "${f}"`))); } catch (e) { } }
 
@@ -1466,8 +1468,10 @@ function ensureCover() {
   if (coverReady) return coverReady;
   coverReady = (async () => {
     await loadLib('fabric');
-    fabric.Object.prototype.transparentCorners = false;
-    fabric.Object.prototype.cornerColor = '#1f5fd6'; fabric.Object.prototype.borderColor = '#1f5fd6'; fabric.Object.prototype.cornerSize = 10;
+    // Fabric 6+ keeps defaults in ownDefaults. Positions stay measured from the
+    // top left, as in Fabric 5 (7 centres them by default), so saved covers don't move.
+    Object.assign(fabric.FabricObject.ownDefaults, { originX: 'left', originY: 'top' });
+    Object.assign(fabric.InteractiveFabricObject.ownDefaults, { transparentCorners: false, cornerColor: '#1f5fd6', borderColor: '#1f5fd6', cornerSize: 10 });
     cv = new fabric.Canvas('coverCanvas', { preserveObjectStacking: true, backgroundColor: '#ffffff' });
     cv.on('selection:created', cvSelChanged); cv.on('selection:updated', cvSelChanged); cv.on('selection:cleared', cvSelChanged);
     cv.on('object:modified', () => markDirty()); cv.on('text:changed', () => markDirty());
@@ -1483,11 +1487,11 @@ function loadCoverJSON(json, oldGeom) {
   cvLoading++;
   return new Promise(res => {
     const fams = (json.objects || []).filter(o => o.fontFamily).map(o => o.fontFamily);
-    ensureFonts(fams).then(() => cv.loadFromJSON(json, () => {
+    ensureFonts(fams).then(() => cv.loadFromJSON(json)).then(() => {
       sizeCoverCanvas();
       if (oldGeom) relayoutCover(oldGeom, coverGeom());
       cv.requestRenderAll(); res();
-    }));
+    });
   }).finally(() => { cvLoading--; });
 }
 function sizeCoverCanvas() {
@@ -1533,7 +1537,7 @@ function relayoutCover(o, n) {
     const c = ob.getCenterPoint(); const r = regionOf(c.x, O); const [a0, a1] = regionSpan(r, O), [b0, b1] = regionSpan(r, N);
     const fx = (c.x - a0) / Math.max(a1 - a0, 1e-6), fy = c.y / O.H;
     if (Math.abs(sc - 1) > 0.001 && r !== 'spine') ob.set({ scaleX: ob.scaleX * sc, scaleY: ob.scaleY * sc });
-    if (r === 'spine' && ob.type === 'textbox') { const maxF = (n.sp * IN) * 0.55; if (ob.fontSize * ob.scaleY > maxF) ob.set({ scaleX: maxF / ob.fontSize, scaleY: maxF / ob.fontSize }); }
+    if (r === 'spine' && cvType(ob) === 'textbox') { const maxF = (n.sp * IN) * 0.55; if (ob.fontSize * ob.scaleY > maxF) ob.set({ scaleX: maxF / ob.fontSize, scaleY: maxF / ob.fontSize }); }
     ob.setPositionByOrigin(new fabric.Point(b0 + fx * (b1 - b0), fy * N.H), 'center', 'center'); ob.setCoords();
   });
   cv.requestRenderAll();
@@ -1584,7 +1588,7 @@ function addSpineText(t) {
 
 function cvSelChanged() {
   const o = cv.getActiveObject(); $('#cvObjTools').hidden = !o; if (!o) return;
-  const isText = 'fontFamily' in o && o.type !== 'group';
+  const isText = 'fontFamily' in o && cvType(o) !== 'group';
   ['cvFont', 'cvSize', 'cvBold', 'cvItalic', 'cvAlign'].forEach(id => $('#' + id).disabled = !isText);
   if (isText) { $('#cvFont').value = o.fontFamily; $('#cvSize').value = Math.round(o.fontSize * o.scaleY); $('#cvAlign').value = o.textAlign || 'left'; }
   const fill = typeof o.fill === 'string' && o.fill.startsWith('#') ? o.fill : '#ffffff'; $('#cvColor').value = fill.length === 7 ? fill : '#ffffff';
@@ -1592,7 +1596,7 @@ function cvSelChanged() {
 }
 function cvSet(props) { const o = cv?.getActiveObject(); if (!o) return; o.set(props); o.setCoords(); cv.requestRenderAll(); markDirty(); }
 
-function syncCoverToState() { if (!cv || cvLoading) return; S.cover = cv.toJSON(CV_PROPS); S.coverGeom = coverGeom(); }
+function syncCoverToState() { if (!cv || cvLoading) return; S.cover = cv.toObject(CV_PROPS); S.coverGeom = coverGeom(); }
 
 function wireCover() {
   $('#cvTheme').innerHTML = Object.entries(THEMES).map(([k, t]) => `<option value="${k}">${t.name}</option>`).join('');
@@ -1600,16 +1604,16 @@ function wireCover() {
   $('#cvAuto').onclick = async () => { await ensureCover(); await autoDesignCover($('#cvTheme').value); toast('Cover rebuilt from your book details'); };
   $('#cvTheme').onchange = async e => { await ensureCover(); await autoDesignCover(e.target.value); };
   $('#cvText').onclick = async () => { await ensureCover(); const g = coverGeom(); const t = new fabric.Textbox('Double-click to edit', { left: (g.frontX + g.w / 2) * IN, top: (g.b + g.h / 2) * IN, originX: 'center', originY: 'center', width: g.w * IN * 0.7, fontSize: 40, fontFamily: 'Nunito', fill: '#ffffff', textAlign: 'center' }); t.role = 'user'; cv.add(t); cv.setActiveObject(t); cv.requestRenderAll(); markDirty(); };
-  $('#cvImage').onclick = async () => { await ensureCover(); pickImage(u => fabric.Image.fromURL(u, img => { const g = coverGeom(); const s = (g.w * IN * 0.6) / img.width; img.set({ scaleX: s, scaleY: s, left: (g.frontX + g.w / 2) * IN, top: (g.b + g.h / 2) * IN, originX: 'center', originY: 'center' }); img.role = 'user'; cv.add(img); cv.setActiveObject(img); cv.requestRenderAll(); markDirty(); })); };
-  $('#cvBgImg').onclick = async () => { await ensureCover(); pickImage(u => fabric.Image.fromURL(u, img => { const g = coverGeom(); cv.getObjects().filter(o => o.role === 'bgimg').forEach(o => cv.remove(o)); const s = Math.max(g.W * IN / img.width, g.H * IN / img.height); img.set({ scaleX: s, scaleY: s, left: g.W * IN / 2, top: g.H * IN / 2, originX: 'center', originY: 'center' }); img.role = 'bgimg'; cv.add(img); const bgi = cv.getObjects().findIndex(o => o.role === 'bg'); img.moveTo(bgi + 1); cv.requestRenderAll(); markDirty(); })); };
+  $('#cvImage').onclick = async () => { await ensureCover(); pickImage(u => fabric.Image.fromURL(u).then(img => { const g = coverGeom(); const s = (g.w * IN * 0.6) / img.width; img.set({ scaleX: s, scaleY: s, left: (g.frontX + g.w / 2) * IN, top: (g.b + g.h / 2) * IN, originX: 'center', originY: 'center' }); img.role = 'user'; cv.add(img); cv.setActiveObject(img); cv.requestRenderAll(); markDirty(); })); };
+  $('#cvBgImg').onclick = async () => { await ensureCover(); pickImage(u => fabric.Image.fromURL(u).then(img => { const g = coverGeom(); cv.getObjects().filter(o => o.role === 'bgimg').forEach(o => cv.remove(o)); const s = Math.max(g.W * IN / img.width, g.H * IN / img.height); img.set({ scaleX: s, scaleY: s, left: g.W * IN / 2, top: g.H * IN / 2, originX: 'center', originY: 'center' }); img.role = 'bgimg'; cv.add(img); const bgi = cv.getObjects().findIndex(o => o.role === 'bg'); img.moveTo(bgi + 1); cv.requestRenderAll(); markDirty(); })); };
   $('#cvRect').onclick = async () => { await ensureCover(); const g = coverGeom(); const r = new fabric.Rect({ left: (g.frontX + g.w / 2) * IN, top: (g.b + g.h / 2) * IN, originX: 'center', originY: 'center', width: g.w * IN * 0.6, height: g.w * IN * 0.25, fill: (THEMES[S.theme] || THEMES.navy).accent, rx: 8, ry: 8 }); r.role = 'user'; cv.add(r); cv.setActiveObject(r); cv.requestRenderAll(); markDirty(); };
   $('#cvCircle').onclick = async () => { await ensureCover(); const g = coverGeom(); const r = new fabric.Circle({ left: (g.frontX + g.w / 2) * IN, top: (g.b + g.h / 2) * IN, originX: 'center', originY: 'center', radius: g.w * IN * 0.15, fill: (THEMES[S.theme] || THEMES.navy).accent }); r.role = 'user'; cv.add(r); cv.setActiveObject(r); cv.requestRenderAll(); markDirty(); };
   $('#cvGrid').onclick = async () => { await ensureCover(); const g = coverGeom(); const m = motifGroup(g.w * IN * 0.4, THEMES[S.theme] || THEMES.navy); m.set({ left: (g.frontX + g.w / 2) * IN, top: (g.b + g.h / 2) * IN }); cv.add(m); cv.setActiveObject(m); cv.requestRenderAll(); markDirty(); };
   $('#cvBg').oninput = async e => { await ensureCover(); const bg = cv.getObjects().find(o => o.role === 'bg'); if (bg) { bg.set('fill', e.target.value); cv.requestRenderAll(); markDirty(); } };
-  $('#cvFwd').onclick = () => { const o = cv?.getActiveObject(); if (o) { o.bringForward(); cv.requestRenderAll(); markDirty(); } };
-  $('#cvBack').onclick = () => { const o = cv?.getActiveObject(); if (o) { const bgi = cv.getObjects().findIndex(x => x.role === 'bg' || x.role === 'bgimg'); if (cv.getObjects().indexOf(o) > bgi + 1) o.sendBackwards(); cv.requestRenderAll(); markDirty(); } };
-  $('#cvDup').onclick = () => { const o = cv?.getActiveObject(); if (o) o.clone(c => { c.set({ left: o.left + 20, top: o.top + 20 }); c.role = o.role === 'bg' ? 'user' : o.role; cv.add(c); cv.setActiveObject(c); cv.requestRenderAll(); markDirty(); }, CV_PROPS); };
-  const del = () => { const o = cv?.getActiveObject(); if (!o || o.isEditing) return; (o.type === 'activeSelection' ? o.getObjects() : [o]).forEach(x => cv.remove(x)); cv.discardActiveObject(); cv.requestRenderAll(); markDirty(); };
+  $('#cvFwd').onclick = () => { const o = cv?.getActiveObject(); if (o) { cv.bringObjectForward(o); cv.requestRenderAll(); markDirty(); } };
+  $('#cvBack').onclick = () => { const o = cv?.getActiveObject(); if (o) { const bgi = cv.getObjects().findIndex(x => x.role === 'bg' || x.role === 'bgimg'); if (cv.getObjects().indexOf(o) > bgi + 1) cv.sendObjectBackwards(o); cv.requestRenderAll(); markDirty(); } };
+  $('#cvDup').onclick = () => { const o = cv?.getActiveObject(); if (o) o.clone(CV_PROPS).then(c => { c.set({ left: o.left + 20, top: o.top + 20 }); c.role = o.role === 'bg' ? 'user' : o.role; cv.add(c); cv.setActiveObject(c); cv.requestRenderAll(); markDirty(); }); };
+  const del = () => { const o = cv?.getActiveObject(); if (!o || o.isEditing) return; (cvType(o) === 'activeselection' ? o.getObjects() : [o]).forEach(x => cv.remove(x)); cv.discardActiveObject(); cv.requestRenderAll(); markDirty(); };
   $('#cvDel').onclick = del;
   document.addEventListener('keydown', e => { if ($('#view-cover').hidden) return; if ((e.key === 'Delete' || e.key === 'Backspace') && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) { const o = cv?.getActiveObject(); if (o && !o.isEditing) { e.preventDefault(); del(); } } });
   $('#cvZoom').onchange = e => { cvZoom = +e.target.value; sizeCoverCanvas(); };
@@ -1645,15 +1649,15 @@ function coverIssues() {
   const barcode = { l: (g.spineX - bc.from - bc.w) * IN, t: (g.H - g.b - bc.from - bc.h) * IN, r: (g.spineX - bc.from) * IN, b: (g.H - g.b - bc.from) * IN };
   let unsafe = 0, overBarcode = 0;
   objs.forEach(o => {
-    const r = o.getBoundingRect(true, true); const L = r.left, T = r.top, R = r.left + r.width, B = r.top + r.height;
-    const isText = o.type === 'textbox' || o.type === 'text' || o.type === 'i-text';
+    const r = o.getBoundingRect(); const L = r.left, T = r.top, R = r.left + r.width, B = r.top + r.height;
+    const isText = ['textbox', 'text', 'i-text', 'itext'].includes(cvType(o));
     if (isText) {
       const reg = regionOf(o.getCenterPoint().x, { spineX: g.spineX * IN, frontX: g.frontX * IN });
       let x0, x1; if (reg === 'back') { x0 = g.backX * IN + s; x1 = g.spineX * IN - s; } else if (reg === 'front') { x0 = g.frontX * IN + s; x1 = (g.frontX + g.w) * IN - s; } else { x0 = g.spineX * IN + P.spineTextClearance * IN; x1 = g.frontX * IN - P.spineTextClearance * IN; }
       if (L < x0 - 1 || R > x1 + 1 || T < g.b * IN + s - 1 || B > (g.b + g.h) * IN - s + 1) unsafe++;
     }
-    if (o.role !== 'motif' && L < barcode.r && R > barcode.l && T < barcode.b && B > barcode.t && (isText || o.type === 'image')) overBarcode++;
-    if (o.type === 'image' && o._element) { const dpi = o._element.naturalWidth / (o.width * o.scaleX / IN); if (dpi < 290) out.push({ sev: 'warn', id: 'cv-dpi', msg: `Cover image prints at ${Math.round(dpi)} DPI`, sub: 'Use an image with more pixels or make it smaller. 300 DPI is the print standard.' }); }
+    if (o.role !== 'motif' && L < barcode.r && R > barcode.l && T < barcode.b && B > barcode.t && (isText || cvType(o) === 'image')) overBarcode++;
+    if (cvType(o) === 'image' && o._element) { const dpi = o._element.naturalWidth / (o.width * o.scaleX / IN); if (dpi < 290) out.push({ sev: 'warn', id: 'cv-dpi', msg: `Cover image prints at ${Math.round(dpi)} DPI`, sub: 'Use an image with more pixels or make it smaller. 300 DPI is the print standard.' }); }
   });
   cv.getObjects().filter(o => o.role === 'bgimg' && o._element).forEach(o => { const dpi = o._element.naturalWidth / (o.width * o.scaleX / IN); if (dpi < 290) out.push({ sev: 'warn', id: 'cv-bgdpi', msg: `Cover background prints at ${Math.round(dpi)} DPI`, sub: `A full-wrap background needs about ${Math.round(g.W * 300)} × ${Math.round(g.H * 300)} pixels.` }); });
   if (unsafe) out.push({ sev: 'warn', id: 'cv-safe', msg: `${unsafe} text item${unsafe > 1 ? 's' : ''} on the cover cross the safe zone`, sub: `Keep text ${P.coverSafe} in inside the trim and clear of the spine folds. Open the Cover tab and drag it inside the blue guides.` });
@@ -2078,7 +2082,7 @@ async function importGridBook(g) {
 async function placeGridCover(svg) {
   // Drawn as an image: an SVG shown as an <img> never runs scripts or loads anything.
   const url = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(String(svg));
-  const img = await new Promise((res, rej) => fabric.Image.fromURL(url, (o) => (o && o.width ? res(o) : rej(new Error('no image')))));
+  const img = await fabric.Image.fromURL(url).then((o) => { if (!o || !o.width) throw new Error('no image'); return o; });
   const g = coverGeom();
   cv.clear(); cv.backgroundColor = '#ffffff';
   img.set({ left: 0, top: 0, scaleX: (g.W * IN) / img.width, scaleY: (g.H * IN) / img.height, selectable: false, evented: false });
@@ -2324,8 +2328,8 @@ function noaiCollect() {
   });
   (S.cover?.objects || []).forEach((o, k) => {
     if (o.role === 'gridcover' || o.role === 'bg' || o.role === 'spine' || /^aigap/.test(o.role || '')) return; // the game's own cover picture, plain shapes
-    if (o.type === 'image') items.push({ key: `c${k}`, where: 'Cover', k, type: 'coverpic', src: o.src || '', why: noaiPictureWhy(o.src) });
-    else if (/textbox|i-text|text/.test(o.type) && String(o.text || '').trim()) items.push({ key: `c${k}`, where: 'Cover', k, type: 'covertext', text: o.text, role: o.role });
+    if (cvType(o) === 'image') items.push({ key: `c${k}`, where: 'Cover', k, type: 'coverpic', src: o.src || '', why: noaiPictureWhy(o.src) });
+    else if (/textbox|i-?text|text/.test(cvType(o)) && String(o.text || '').trim()) items.push({ key: `c${k}`, where: 'Cover', k, type: 'covertext', text: o.text, role: o.role });
   });
   [['description', 'Description'], ['blurb', 'Back cover blurb']].forEach(([f, label]) => {
     if (String(S.meta[f] || '').trim()) items.push({ key: `m:${f}`, where: label, type: 'meta', field: f, text: S.meta[f] });
@@ -2481,10 +2485,8 @@ async function noaiFill(content) {
     if (box) cv.remove(box);
     const b = g.box || {};
     if (content?.src) {
-      await new Promise(res => fabric.Image.fromURL(content.src, img => {
-        if (img && img.width) { const s = Math.min(b.w / img.width, b.h / img.height) || 1; img.set({ left: b.left, top: b.top, originX: b.originX, originY: b.originY, angle: b.angle, scaleX: s, scaleY: s }); img.role = 'user'; cv.add(img); }
-        res();
-      }));
+      const img = await fabric.Image.fromURL(content.src).catch(() => null);
+      if (img && img.width) { const s = Math.min(b.w / img.width, b.h / img.height) || 1; img.set({ left: b.left, top: b.top, originX: b.originX, originY: b.originY, angle: b.angle, scaleX: s, scaleY: s }); img.role = 'user'; cv.add(img); }
     } else if (content) {
       const st = { ...(g.style || {}) }; const role = st.role || 'user'; delete st.role;
       const t = new fabric.Textbox(text.trim(), { left: b.left, top: b.top, originX: b.originX, originY: b.originY, angle: b.angle, width: b.w, fontSize: 32, fontFamily: 'Nunito', fill: '#ffffff', ...st });
