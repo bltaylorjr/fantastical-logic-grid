@@ -291,6 +291,10 @@ const SPOKEN = [
   [/\bHmph\b/g, 'Hmmf'],
   [/\bhmph\b/g, 'hmmf'],
   [/\bRollie\b/g, 'Rawlee'],
+  // "Hooray" read with the stress on "hoo"; "Hurray" puts it on "ray"
+  // (player report PZ-QMMMF2S3).
+  [/\bHooray\b/g, 'Hurray'],
+  [/\bhooray\b/g, 'hurray'],
   [/\(([^)]*)\)/g, ', $1,'],
   [/,\s*([.,!?;:])/g, '$1'],
   [/\s{2,}/g, ' '],
