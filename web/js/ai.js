@@ -285,6 +285,12 @@ const SPOKEN = [
   // shelter scale read 12 pounds."): said "red", not "reed" (player report
   // PZ-4W26P5V8). "Read the clues" stays as it is.
   [/\b(scales?|station|meters?|gauges?|clocks?|signs?|thermometers?|displays?|boards?|tags?|labels?|dials?|counters?|odometers?|speedometers?|timers?|screens?|readouts?|receipts?|notes?|cards?)\s+read\b/gi, '$1 red'],
+  // Words voices spell out or say wrong, written the way they sound: "Hmph"
+  // is a grunt, not the letters H-M-P-H, and the name Rollie sounds like the
+  // city Raleigh (player reports PZ-7D4RJ2GF, PZ-FAXSH5QD).
+  [/\bHmph\b/g, 'Hmmf'],
+  [/\bhmph\b/g, 'hmmf'],
+  [/\bRollie\b/g, 'Rawlee'],
   [/\(([^)]*)\)/g, ', $1,'],
   [/,\s*([.,!?;:])/g, '$1'],
   [/\s{2,}/g, ' '],

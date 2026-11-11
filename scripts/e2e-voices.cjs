@@ -60,6 +60,9 @@ const { spawn } = require('child_process');
   // is left alone (player report PZ-4W26P5V8).
   const read = await page.evaluate(async () => (await import('./js/ai.js')).speechText('The shelter scale read 12 pounds. The scale at the weigh station read 40 pounds. Read the story, then read 3 clues.'));
   assert(read === 'The shelter scale red 12 pounds. The scale at the weigh station red 40 pounds. Read the story, then read 3 clues.', `past-tense read is said "red" (${read})`);
+  // "Hmph" is said as a grunt and Rollie like Raleigh (PZ-7D4RJ2GF, PZ-FAXSH5QD).
+  const sounds = await page.evaluate(async () => (await import('./js/ai.js')).speechText('Hmph. Not bad, Rollie. hmph.'));
+  assert(sounds === 'Hmmf. Not bad, Rawlee. hmmf.', `Hmph and Rollie are said the way they sound (${sounds})`);
   assert(!errs.length, 'no page errors');
   await b.close(); server.kill();
 })();
