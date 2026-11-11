@@ -75,7 +75,8 @@ let shown = -1;      // sections done when the last beat was checked (-1 = not y
 let box = null;
 let speakFn = null;
 
-// A new or reopened puzzle. `speak(text)` reads a beat aloud (or does nothing).
+// A new or reopened puzzle. `speak(text, whisper)` reads a beat aloud (or
+// does nothing); `whisper` is the end of the text to whisper, or ''.
 export function start(puzzle, { silent = false, speak = null } = {}) {
   beats = [];
   shown = -1;
@@ -140,6 +141,7 @@ function show(beat, isNew) {
     box.classList.remove('new');
     void box.offsetWidth;
     box.classList.add('new');
-    if (speakFn) try { speakFn(beat.text); } catch (e) { /* no voice */ }
+    // A hushed beat (beats.js WHISPERS) passes the words to whisper.
+    if (speakFn) try { speakFn(beat.text, beat.whisper || ''); } catch (e) { /* no voice */ }
   }
 }
