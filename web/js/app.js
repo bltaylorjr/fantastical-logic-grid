@@ -2569,7 +2569,7 @@ function renderMedia() {
   S.sceneLayers = -1;
   // The whole picture shows from the start; finished sections light up its parts.
   $('#scene').innerHTML = `${sceneSvg(p, 5, { animate: false })}${GLINTS}`;
-  director.start(p, { silent: settings.silent, speak: (text) => { if (voiceOn('play')) ai.speak(settings, p, 'narrator', text, { volume: settings.volume / 100 }).catch(() => {}); } });
+  director.start(p, { silent: settings.silent, speak: (text, whisper) => { if (voiceOn('play')) ai.speak(settings, p, 'narrator', text, { volume: settings.volume / 100, whisper }).catch(() => {}); } });
   const names = S.ix.cats[0].items.map((i) => i.label);
   const drawCastRow = () => {
   $('#cast-row').innerHTML = names.map((n) => {

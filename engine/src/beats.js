@@ -46,6 +46,23 @@ export const BEATS = {
   mystery: { early: [], middle: [], late: [] },
 };
 
+// Words the narrator whispers when a beat ends with them (Bobby, 2026-11-11):
+// the rest of the beat is read softly, then a pause, then these words as a
+// slow, hushed whisper. A leading "and" is whispered with them.
+export const WHISPERS = ['everyone goes quiet'];
+
+// The whispered end of a beat ("and everyone goes quiet."), or null.
+export function whisperPart(text) {
+  const low = String(text || '').toLowerCase();
+  for (const w of WHISPERS) {
+    let at = low.lastIndexOf(w);
+    if (at < 0) continue;
+    if (low.slice(0, at).endsWith('and ')) at -= 4;
+    return text.slice(at).trim();
+  }
+  return null;
+}
+
 const STAGES = ['early', 'middle', 'late'];
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 
@@ -76,6 +93,8 @@ export function storyBeats(puzzle, beats = BEATS) {
     }
     // Beats spread evenly over the sections before the last one.
     const after = Math.max(1, Math.round(((i + 1) * (sections - 1)) / count));
-    return { stage, after, text: text.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? vars[k] : m)) };
+    const filled = text.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? vars[k] : m));
+    const whisper = whisperPart(filled);
+    return whisper ? { stage, after, text: filled, whisper } : { stage, after, text: filled };
   });
 }

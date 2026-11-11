@@ -14,6 +14,7 @@ import { profileOf } from './castbook.js';
 import { feature } from './remote-config.js';
 import * as i18n from './i18n.js';
 import { characterOf, narratorOf } from './cast.js';
+import { whisperBlob } from './whisper.js';
 
 const pending = new Map();
 const THEME_SETTING = {
@@ -321,8 +322,8 @@ let speakToken = 0;
 // moves to the Kokoro voices on this device until tomorrow.
 let cloudOffUntil = 0;
 const cloudVoicesReady = () => !!CLOUD_URL && feature('voices') && Date.now() > cloudOffUntil;
-async function cloudTts(text, voice) {
-  const res = await fetch(`${CLOUD_URL}/v1/tts`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, voice, lang: i18n.speechTag() }) });
+async function cloudTts(text, voice, style = '') {
+  const res = await fetch(`${CLOUD_URL}/v1/tts`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, voice, lang: i18n.speechTag(), ...(style ? { style } : {}) }) });
   if (!res.ok) {
     // Used up for today (or not set up): rest until the next day, or an hour on other errors.
     cloudOffUntil = Date.now() + (res.status === 429 || res.status === 503 ? 3600 * 1000 * 6 : 3600 * 1000);
@@ -353,11 +354,11 @@ function voicePlan(settings, puzzle, who) {
   const other = !i18n.isEnglish();
   if (source === 'server' && !settings.noServerVoices && cloudVoicesReady()) {
     const voice = narr ? 'Charon' : profileOf(who).voice.gemini; // Charon: male, steady
-    return { seed, kind: 'cloud', gap: 80, key: `g2|${voice}`, make: (t) => cloudTts(t, voice) };
+    return { seed, kind: 'cloud', gap: 80, key: `g2|${voice}`, make: (t, st) => cloudTts(t, voice, st) };
   }
   if (!other && (kokoroReady(settings) || kokoroLoading())) {
     const v = narr ? { kokoro: KOKORO_NARRATOR, pace: 0.94, standIn: KOKORO_NARRATOR } : profileOf(who).voice;
-    return { seed, kind: 'kokoro', gap: 220, key: `k3|${v.kokoro}|${v.pace}`, make: (t) => kokoroTts(t, v.kokoro, v.pace, v.standIn) };
+    return { seed, kind: 'kokoro', gap: 220, key: `k3|${v.kokoro}|${v.pace}`, make: (t, st) => kokoroTts(t, v.kokoro, v.pace * pace(st), v.standIn) };
   }
   return { seed, kind: 'device' };
 }
@@ -372,17 +373,28 @@ function ownVoicePlan(settings, c) {
   const device = { seed, kind: 'device', speaker: c.name };
   if (source === 'device') return device;
   if (source === 'server' && !settings.noServerVoices && cloudVoicesReady() && GEMINI_F.concat(GEMINI_M, ['Charon']).includes(v.gemini)) {
-    return { seed, kind: 'cloud', gap: 80, speaker: c.name, key: `g2|${v.gemini}`, make: (t) => cloudTts(t, v.gemini) };
+    return { seed, kind: 'cloud', gap: 80, speaker: c.name, key: `g2|${v.gemini}`, make: (t, st) => cloudTts(t, v.gemini, st) };
   }
   if (i18n.isEnglish() && (kokoroReady(settings) || kokoroLoading()) && /^a[fm]_[a-z]+$/.test(v.kokoro || '')) {
     const speed = Math.min(1.2, Math.max(0.8, Number(v.speed) || 1));
-    return { seed, kind: 'kokoro', gap: 220, speaker: c.name, key: `k2|${v.kokoro}|${speed}`, make: (t) => kokoroTts(t, v.kokoro, speed) };
+    return { seed, kind: 'kokoro', gap: 220, speaker: c.name, key: `k2|${v.kokoro}|${speed}`, make: (t, st) => kokoroTts(t, v.kokoro, speed * pace(st)) };
   }
   return device;
 }
 // Which voice would speak right now: 'cloud', 'kokoro' or 'device'.
 export const voiceKind = (settings, puzzle, who = 'narrator') => voicePlan(settings, puzzle, who).kind;
-const clip = (plan, text) => cached(`voice|${plan.key}|${hashOf(text)}|${text.length}`, () => plan.make(text));
+// Hushed delivery for story moments (beats.js WHISPERS): 'soft' is a quiet,
+// slower reading, 'whisper' a slow whisper. Server and Kokoro clips for a
+// whisper are turned into real whispers on this device (whisper.js).
+const PACE = { soft: 0.95, whisper: 0.82 };
+const pace = (style) => PACE[style] || 1;
+const clip = (plan, text, style = '') => cached(`voice|${plan.key}${style ? `|${style}` : ''}|${hashOf(text)}|${text.length}`, async () => {
+  const blob = await plan.make(text, style);
+  if (style !== 'whisper') return blob;
+  const out = await whisperBlob(blob);
+  if (blob.standIn) out.standIn = true;
+  return out;
+});
 
 // Start making the first clip early (for example when a puzzle opens), so
 // pressing Read aloud plays at once.
@@ -408,7 +420,7 @@ function playBlob(blob, volume, token) {
     audio.play().catch((e) => { URL.revokeObjectURL(url); reject(e); });
   });
 }
-function speakDevice(text, seed, who, volume, token) {
+function speakDevice(text, seed, who, volume, token, style = '') {
   if (!window.speechSynthesis || token !== speakToken) return Promise.resolve(false);
   const v = deviceVoice(seed, who === 'narrator', who);
   // One utterance per sentence gives a natural pause between sentences.
@@ -422,8 +434,8 @@ function speakDevice(text, seed, who, volume, token) {
       if (v) u.voice = v;
       u.lang = (v && v.lang) || i18n.speechTag();
       const own = who === 'narrator' ? null : profileOf(who).voice;
-      u.rate = own ? own.rate : 0.92;
-      u.pitch = own ? own.pitch : 1;
+      u.rate = (own ? own.rate : 0.92) * pace(style);
+      u.pitch = (own ? own.pitch : 1) * (style === 'whisper' ? 0.85 : 1);
       u.volume = volume;
       if (i === parts.length - 1) u.onend = u.onerror = end;
       speechSynthesis.speak(u);
@@ -433,9 +445,19 @@ function speakDevice(text, seed, who, volume, token) {
 }
 
 // who: a character's name, or 'narrator'. Resolves when speech ends.
-export async function speak(settings, puzzle, who, text, { volume = 1 } = {}) {
+// whisper: the words at the end of `text` to whisper (beats.js whisperPart).
+// The words before them are read softly, then a pause, then the whisper.
+export async function speak(settings, puzzle, who, text, { volume = 1, whisper = '' } = {}) {
   stopSpeaking();
-  await say(settings, puzzle, who, text, volume, speakToken);
+  const token = speakToken;
+  const at = whisper ? String(text).lastIndexOf(whisper) : -1;
+  if (at < 0) { await say(settings, puzzle, who, text, volume, token); return; }
+  const lead = text.slice(0, at).trim();
+  if (lead) {
+    if (!(await say(settings, puzzle, who, lead, volume * 0.85, token, 'soft'))) return;
+    await new Promise((r) => setTimeout(r, 700));
+  }
+  if (token === speakToken) await say(settings, puzzle, who, whisper, volume * 0.75, token, 'whisper');
 }
 
 // Several speakers in turn, for example every clue told by its witness.
@@ -457,7 +479,7 @@ export async function speakLines(settings, puzzle, lines, { volume = 1, onLine }
 // Speaks one text with one voice. If a natural voice fails partway, the rest
 // is read by the next voice that works, so no words are skipped.
 // Resolves true when the whole text was spoken, false if stopped.
-async function say(settings, puzzle, who, text, volume, token) {
+async function say(settings, puzzle, who, text, volume, token, style = '') {
   let clean = speechText(text);
   if (!i18n.isEnglish()) {
     clean = speechText(await i18n.t(clean));
@@ -465,15 +487,15 @@ async function say(settings, puzzle, who, text, volume, token) {
   }
   const plan = voicePlan(settings, puzzle, who);
   const speaker = plan.speaker || who;
-  if (plan.kind === 'device') return speakDevice(clean, plan.seed, speaker, volume, token);
+  if (plan.kind === 'device') return speakDevice(clean, plan.seed, speaker, volume, token, style);
   if (plan.kind === 'kokoro' && kokoroLoading()) {
-    try { await kokoroDownload(); } catch (e) { return speakDevice(clean, plan.seed, speaker, volume, token); }
+    try { await kokoroDownload(); } catch (e) { return speakDevice(clean, plan.seed, speaker, volume, token, style); }
     if (token !== speakToken) return false;
   }
   const parts = speechChunks(clean);
   // Make the next piece while the current one plays.
   const jobs = parts.map(() => null);
-  const job = (i) => { if (i < parts.length && !jobs[i]) { jobs[i] = clip(plan, parts[i]); jobs[i].catch(() => {}); } return jobs[i]; };
+  const job = (i) => { if (i < parts.length && !jobs[i]) { jobs[i] = clip(plan, parts[i], style); jobs[i].catch(() => {}); } return jobs[i]; };
   const rest = (i) => parts.slice(i).join(' ');
   for (let i = 0; i < parts.length; i++) {
     if (token !== speakToken) return false;
@@ -483,9 +505,9 @@ async function say(settings, puzzle, who, text, volume, token) {
       job(i + 1);
     } catch (e) {
       if (token !== speakToken) return false;
-      if (plan.kind === 'cloud') return say({ ...settings, noServerVoices: true }, puzzle, who, rest(i), volume, token);
+      if (plan.kind === 'cloud') return say({ ...settings, noServerVoices: true }, puzzle, who, rest(i), volume, token, style);
       console.warn('Natural voice unavailable, using device voice:', e.message);
-      return speakDevice(rest(i), plan.seed, speaker, volume, token);
+      return speakDevice(rest(i), plan.seed, speaker, volume, token, style);
     }
     try {
       if (!(await playBlob(blob, volume, token))) return false;
@@ -494,7 +516,7 @@ async function say(settings, puzzle, who, text, volume, token) {
     } catch (e) {
       if (token !== speakToken || (e && e.name === 'NotAllowedError')) return false;
       console.warn('Voice clip did not play, using device voice:', e && e.message);
-      return speakDevice(rest(i), plan.seed, speaker, volume, token);
+      return speakDevice(rest(i), plan.seed, speaker, volume, token, style);
     }
   }
   return token === speakToken;

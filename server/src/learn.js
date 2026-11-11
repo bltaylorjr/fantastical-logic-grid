@@ -296,12 +296,20 @@ async function bumpChars(env, n, cap) {
 }
 
 // Gemini voice: base64 PCM (or WAV) inside a generateContent answer.
-async function geminiTts(env, model, voice, text) {
+// Hushed story moments (web/js/ai.js PACE): how Gemini is asked to read them,
+// and the pace for Chirp, which has no whisper of its own (the game turns
+// its clip into a whisper on the player's device).
+const STYLES = {
+  soft: { say: 'Say this quietly and a little slowly, in a hushed storytelling voice', rate: 0.92 },
+  whisper: { say: 'Whisper this very softly and slowly, as if the whole room has just gone silent', rate: 0.8 },
+};
+
+async function geminiTts(env, model, voice, text, style) {
   const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': env.GEMINI_API_KEY },
     body: JSON.stringify({
-      contents: [{ parts: [{ text }] }],
+      contents: [{ parts: [{ text: style ? `${STYLES[style].say}: ${text}` : text }] }],
       generationConfig: { responseModalities: ['AUDIO'], speechConfig: { languageCode: 'en-US', voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } } },
     }),
   });
@@ -317,11 +325,11 @@ async function geminiTts(env, model, voice, text) {
 // Google Cloud Text-to-Speech, Chirp 3 HD: the same voice names as Gemini,
 // so a character sounds the same whichever one speaks. LINEAR16 comes back
 // as a whole WAV file.
-async function chirpTts(env, voice, text, lang) {
+async function chirpTts(env, voice, text, lang, style) {
   const res = await fetch('https://texttospeech.googleapis.com/v1/text:synthesize', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': env.GOOGLE_TTS_KEY },
-    body: JSON.stringify({ input: { text }, voice: { languageCode: lang, name: `${lang}-Chirp3-HD-${voice}` }, audioConfig: { audioEncoding: 'LINEAR16', sampleRateHertz: 24000 } }),
+    body: JSON.stringify({ input: { text }, voice: { languageCode: lang, name: `${lang}-Chirp3-HD-${voice}` }, audioConfig: { audioEncoding: 'LINEAR16', sampleRateHertz: 24000, ...(style ? { speakingRate: STYLES[style].rate } : {}) } }),
   });
   if (!res.ok) return { status: res.status };
   const j = await res.json();
@@ -350,11 +358,13 @@ async function postTts(req, env, ctx, headers) {
   const voice = GEMINI_VOICES.has(body.voice) ? body.voice : 'Charon';
   const lang = /^[a-z]{2,3}-[A-Z]{2}$/.test(body.lang || '') ? body.lang : 'en-US';
   if (!text || text.length > 400) return json({ error: 'Text must be 1 to 400 characters.' }, 400, headers);
+  const style = Object.hasOwn(STYLES, body.style) ? body.style : '';
+  const tag = style ? `|${style}` : '';
   const model = settings.gemini_voice_model;
   const cache = caches.default;
   const keys = {
-    gemini: new Request(`https://flg-cloud.internal/tts/${await sha256(`${model}|${voice}|${text}`)}`),
-    chirp: new Request(`https://flg-cloud.internal/tts/${await sha256(`chirp3|${lang}|${voice}|${text}`)}`),
+    gemini: new Request(`https://flg-cloud.internal/tts/${await sha256(`${model}|${voice}${tag}|${text}`)}`),
+    chirp: new Request(`https://flg-cloud.internal/tts/${await sha256(`chirp3|${lang}|${voice}${tag}|${text}`)}`),
   };
   for (const k of [keys.gemini, keys.chirp]) {
     const hit = await cache.match(k);
@@ -363,9 +373,9 @@ async function postTts(req, env, ctx, headers) {
   let out = { status: 429 };
   let used = 'gemini';
   // Only new clips count toward the caps.
-  if (gemini && settings.daily_tts_cap > 0 && (await bump(env, 'tts', settings.daily_tts_cap))) out = await geminiTts(env, model, voice, text);
+  if (gemini && settings.daily_tts_cap > 0 && (await bump(env, 'tts', settings.daily_tts_cap))) out = await geminiTts(env, model, voice, text, style);
   if (!out.wav && chirp && (await bumpChars(env, text.length, settings.gcloud_tts_month_cap))) {
-    out = await chirpTts(env, voice, text, lang);
+    out = await chirpTts(env, voice, text, lang, style);
     used = 'chirp';
   }
   if (!out.wav) {
