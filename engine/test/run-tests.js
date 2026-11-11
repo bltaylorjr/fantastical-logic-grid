@@ -608,6 +608,17 @@ for (const diff of ['easy', 'medium', 'expert']) {
   check('wizard: an item given to two people is refused', /exactly one/.test(refused), refused);
 }
 
+// Riding stables: an age or height comparison must not read as if a rider
+// were the horse ("rides a younger horse than Bo"); player report PZ-QMMMF2S3.
+{
+  let bad = '';
+  for (let i = 0; i < 12 && !bad; i++) {
+    const p = generatePuzzle({ difficulty: i % 2 ? 'hard' : 'medium', theme: 'farm', topic: 'stables', seed: `stables-${i}` });
+    bad = p.clues.map((c) => c.text || c).find((t) => /horse than (?!the one ridden by)/.test(t)) || '';
+  }
+  check('stables: horse comparisons name the rider, not a horse', !bad, bad);
+}
+
 console.log('\nGeneration time per tier (ms, avg / max):');
 for (const [t, arr] of Object.entries(timing)) console.log(`  ${t.padEnd(7)} ${Math.round(arr.reduce((s, x) => s + x, 0) / arr.length)} / ${Math.max(...arr)}`);
 console.log(`Brute-force uniqueness: ${bruteChecked} checked, ${bruteSkipped} too large to enumerate in time`);

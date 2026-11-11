@@ -63,6 +63,9 @@ const { spawn } = require('child_process');
   // "Hmph" is said as a grunt and Rollie like Raleigh (PZ-7D4RJ2GF, PZ-FAXSH5QD).
   const sounds = await page.evaluate(async () => (await import('./js/ai.js')).speechText('Hmph. Not bad, Rollie. hmph.'));
   assert(sounds === 'Hmmf. Not bad, Rawlee. hmmf.', `Hmph and Rollie are said the way they sound (${sounds})`);
+  // "Hooray" is said with the stress on "ray" (PZ-QMMMF2S3).
+  const yay = await page.evaluate(async () => (await import('./js/ai.js')).speechText('Hooray! Three, two, one, hooray!'));
+  assert(yay === 'Hurray! Three, two, one, hurray!', `Hooray is said hurray (${yay})`);
   assert(!errs.length, 'no page errors');
   await b.close(); server.kill();
 })();
