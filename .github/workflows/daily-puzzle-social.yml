@@ -39,6 +39,9 @@
 # Only some games: repository variable DAILY_PUZZLE_GAMES (e.g. np,cm; empty or
 # unset = all nine; none = the Logic Grid only).
 # Pause it: repository variable DAILY_PUZZLE_SOCIAL = off.
+# Skip some sites: repository variable SOCIAL_SITES_OFF (default facebook,instagram,threads,
+# switched off 11 Nov 2026; set it to none to post everywhere again);
+# the rest still post. Also stops scheduled ads to those sites (marketing-post.yml).
 # Uses the marketing autopilot's Facebook keys (META_PAGE_ID, META_PAGE_TOKEN;
 # Instagram also needs instagram_basic and instagram_content_publish on the key).
 # Free: scheduled GitHub Actions on a public repo, the Facebook Graph API and Gmail.
@@ -136,6 +139,9 @@ jobs:
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           OWNER_TASKS_TO: ${{ secrets.OWNER_TASKS_TO }}
+          # Sites switched off: Meta (Facebook, Instagram, Threads) since 11 Nov 2026 at the owner's request.
+          # Repository variable SOCIAL_SITES_OFF overrides it; set it to none to post everywhere again.
+          SOCIAL_SITES_OFF: ${{ vars.SOCIAL_SITES_OFF || 'facebook,instagram,threads' }}
           META_PAGE_ID: ${{ secrets.META_PAGE_ID }}
           META_PAGE_TOKEN: ${{ secrets.META_PAGE_TOKEN }}
           INSTAGRAM_ACCOUNT_ID: ${{ secrets.INSTAGRAM_ACCOUNT_ID }}

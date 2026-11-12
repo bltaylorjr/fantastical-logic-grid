@@ -93,8 +93,14 @@ def env(name):
     return os.environ.get(name, '').strip()
 
 
+# Sites switched off by the owner (repository variable SOCIAL_SITES_OFF, e.g.
+# facebook,instagram,threads): nothing is posted there, automatically or as a
+# reminder to post by hand, until the site is taken off the list.
+SITES_OFF = {x.strip().lower() for x in os.environ.get('SOCIAL_SITES_OFF', '').split(',') if x.strip()}
+
+
 def has_keys(channel):
-    return channel in KEYS and all(env(k) for k in KEYS[channel])
+    return channel in KEYS and channel not in SITES_OFF and all(env(k) for k in KEYS[channel])
 
 
 def is_auto(ad):
@@ -811,6 +817,9 @@ def daily_more_sites(r, day, paths, image_urls, posted, failed, key=''):
     marker = r['answerUrl']
 
     def one(site, name, fn):
+        if site in SITES_OFF:
+            print(f'::notice::{name}: switched off (SOCIAL_SITES_OFF), so not posted there.')
+            return
         if not has_keys(site):
             print(f"::notice::{name}: not set up yet ({', '.join(KEYS[site])}), so not posted there.")
             return
@@ -932,85 +941,91 @@ def daily_puzzle(game=''):
         email(f'Daily puzzle not posted ({label}), {when}', [f'<p>Today\'s daily {html.escape(label)} puzzle was <b>not</b> posted anywhere, because a check before posting found a problem:</p>',
               '<ul>' + ''.join(f'<li>{html.escape(m)}</li>' for m in r.get('problems', [])) + '</ul>', tail])
         return 1
-    if not has_keys('facebook'):
+    meta_on = has_keys('facebook')
+    if not meta_on and 'facebook' not in SITES_OFF:
         print('::error::The Facebook keys (META_PAGE_ID, META_PAGE_TOKEN) are not saved.')
         return 1
-    page, token = page_key()
     marker = r['answerUrl']
     paths = r.get('images') or [r['image']]
     posted, failed = [], []
-    auth = {'Authorization': f'Bearer {token}'}
-
-    def already(name, url, field, link_field):
-        try:
-            recent = meta(url, token=token).get('data', [])
-        except Exception as e:  # noqa: BLE001 - a failed look is reported when posting fails too
-            print(f'::warning::Could not read recent {name} posts: {scrub(e)}')
-            return None
-        done = next((x for x in recent if marker in (x.get(field) or '')), None)
-        if done:
-            link = done.get(link_field, '')
-            print(f'::notice::Already on {name}: {link}')
-            posted.append((name, f'{link} (posted earlier)'))
-        return done
-
-    fb_done = already('the Facebook Page', f'{GRAPH}/{page}/posts?fields=message,permalink_url&limit=25', 'message', 'permalink_url')
-    ig_id = None
-    try:
-        ig_id = instagram_id()
-    except Exception as e:  # noqa: BLE001
-        failed.append(('Instagram', scrub(e)))
-    ig_done = ig_id and already('Instagram', f'{GRAPH}/{ig_id}/media?fields=caption,permalink&limit=25', 'caption', 'permalink')
-
-    # Each slide is uploaded to the Page unpublished: Facebook attaches them to one
-    # post, and Instagram takes them by the web address Facebook gives each copy.
     photos = []
-    if not fb_done or (ig_id and not ig_done):
+    if not meta_on:
+        print('::notice::Facebook and Instagram are switched off (SOCIAL_SITES_OFF), so not posted there.')
+    else:
+        page, token = page_key()
+        auth = {'Authorization': f'Bearer {token}'}
+
+        def already(name, url, field, link_field):
+            try:
+                recent = meta(url, token=token).get('data', [])
+            except Exception as e:  # noqa: BLE001 - a failed look is reported when posting fails too
+                print(f'::warning::Could not read recent {name} posts: {scrub(e)}')
+                return None
+            done = next((x for x in recent if marker in (x.get(field) or '')), None)
+            if done:
+                link = done.get(link_field, '')
+                print(f'::notice::Already on {name}: {link}')
+                posted.append((name, f'{link} (posted earlier)'))
+            return done
+
+        fb_done = already('the Facebook Page', f'{GRAPH}/{page}/posts?fields=message,permalink_url&limit=25', 'message', 'permalink_url')
+        ig_id = None
         try:
-            for n, path in enumerate(paths, 1):
-                with open(path, 'rb') as f:
-                    body, ctype = multipart({'published': 'false'}, 'source', f'logic-puzzle-{day}{key}-{n}.jpg', f.read(), 'image/jpeg')
-                res = request(f'{GRAPH}/{page}/photos', method='POST', data=body, timeout=120, headers={**auth, 'Content-Type': ctype})
-                imgs = meta(f"{GRAPH}/{res['id']}?fields=images", token=token).get('images', [])
-                photos.append((res['id'], max(imgs, key=lambda i: i.get('width', 0)).get('source', '') if imgs else ''))
+            ig_id = None if 'instagram' in SITES_OFF else instagram_id()
         except Exception as e:  # noqa: BLE001
-            failed.append(('Pictures', f'could not upload the slides: {scrub(e)}'))
-            print(f'::warning::Could not upload the slides: {scrub(e)}')
-            photos = []
-    if photos and len(photos) == len(paths):
-        if not fb_done:
+            failed.append(('Instagram', scrub(e)))
+        ig_done = ig_id and already('Instagram', f'{GRAPH}/{ig_id}/media?fields=caption,permalink&limit=25', 'caption', 'permalink')
+
+        # Each slide is uploaded to the Page unpublished: Facebook attaches them to one
+        # post, and Instagram takes them by the web address Facebook gives each copy.
+        photos = []
+        if not fb_done or (ig_id and not ig_done):
             try:
-                form = {'message': r['caption'], **{f'attached_media[{i}]': json.dumps({'media_fbid': pid}) for i, (pid, _) in enumerate(photos)}}
-                res = meta(f'{GRAPH}/{page}/feed', 'POST', form, token)
-                link = f"https://www.facebook.com/{res['id']}"
-                posted.append(('Facebook Page', link))
-                print(f'::notice::Posted to the Facebook Page: {link}')
+                for n, path in enumerate(paths, 1):
+                    with open(path, 'rb') as f:
+                        body, ctype = multipart({'published': 'false'}, 'source', f'logic-puzzle-{day}{key}-{n}.jpg', f.read(), 'image/jpeg')
+                    res = request(f'{GRAPH}/{page}/photos', method='POST', data=body, timeout=120, headers={**auth, 'Content-Type': ctype})
+                    imgs = meta(f"{GRAPH}/{res['id']}?fields=images", token=token).get('images', [])
+                    photos.append((res['id'], max(imgs, key=lambda i: i.get('width', 0)).get('source', '') if imgs else ''))
             except Exception as e:  # noqa: BLE001
-                failed.append(('Facebook Page', scrub(e)))
-                print(f'::warning::Facebook Page: {scrub(e)}')
-        if ig_id and not ig_done:
-            try:
-                urls = [u for _, u in photos]
-                if not all(urls):
-                    raise Failed('no web address for a slide to give Instagram')
-                text = r.get('instagramCaption') or r['caption']
-                if len(urls) == 1:
-                    c = meta(f'{GRAPH}/{ig_id}/media', 'POST', {'image_url': urls[0], 'caption': text}, token)
-                else:
-                    kids = []
-                    for u in urls:
-                        k = meta(f'{GRAPH}/{ig_id}/media', 'POST', {'image_url': u, 'is_carousel_item': 'true'}, token)
-                        wait_ready(f"{GRAPH}/{k['id']}", token)
-                        kids.append(k['id'])
-                    c = meta(f'{GRAPH}/{ig_id}/media', 'POST', {'media_type': 'CAROUSEL', 'children': ','.join(kids), 'caption': text}, token)
-                wait_ready(f"{GRAPH}/{c['id']}", token)
-                pub = publish_instagram(ig_id, c['id'], token)
-                link = meta(f"{GRAPH}/{pub['id']}?fields=permalink", token=token).get('permalink') or 'https://www.instagram.com/'
-                posted.append(('Instagram', link))
-                print(f'::notice::Posted to Instagram: {link}')
-            except Exception as e:  # noqa: BLE001
-                failed.append(('Instagram', scrub(e)))
-                print(f'::warning::Instagram: {scrub(e)}')
+                failed.append(('Pictures', f'could not upload the slides: {scrub(e)}'))
+                print(f'::warning::Could not upload the slides: {scrub(e)}')
+                photos = []
+        if photos and len(photos) == len(paths):
+            if not fb_done:
+                try:
+                    form = {'message': r['caption'], **{f'attached_media[{i}]': json.dumps({'media_fbid': pid}) for i, (pid, _) in enumerate(photos)}}
+                    res = meta(f'{GRAPH}/{page}/feed', 'POST', form, token)
+                    link = f"https://www.facebook.com/{res['id']}"
+                    posted.append(('Facebook Page', link))
+                    print(f'::notice::Posted to the Facebook Page: {link}')
+                except Exception as e:  # noqa: BLE001
+                    failed.append(('Facebook Page', scrub(e)))
+                    print(f'::warning::Facebook Page: {scrub(e)}')
+            if ig_id and not ig_done:
+                try:
+                    urls = [u for _, u in photos]
+                    if not all(urls):
+                        raise Failed('no web address for a slide to give Instagram')
+                    text = r.get('instagramCaption') or r['caption']
+                    if len(urls) == 1:
+                        c = meta(f'{GRAPH}/{ig_id}/media', 'POST', {'image_url': urls[0], 'caption': text}, token)
+                    else:
+                        kids = []
+                        for u in urls:
+                            k = meta(f'{GRAPH}/{ig_id}/media', 'POST', {'image_url': u, 'is_carousel_item': 'true'}, token)
+                            wait_ready(f"{GRAPH}/{k['id']}", token)
+                            kids.append(k['id'])
+                        c = meta(f'{GRAPH}/{ig_id}/media', 'POST', {'media_type': 'CAROUSEL', 'children': ','.join(kids), 'caption': text}, token)
+                    wait_ready(f"{GRAPH}/{c['id']}", token)
+                    pub = publish_instagram(ig_id, c['id'], token)
+                    link = meta(f"{GRAPH}/{pub['id']}?fields=permalink", token=token).get('permalink') or 'https://www.instagram.com/'
+                    posted.append(('Instagram', link))
+                    print(f'::notice::Posted to Instagram: {link}')
+                except Exception as e:  # noqa: BLE001
+                    failed.append(('Instagram', scrub(e)))
+                    print(f'::warning::Instagram: {scrub(e)}')
+
     # Bluesky: both slides with their alt text; skipped quietly until its keys are saved.
     bs = r.get('bluesky')
     if not has_keys('bluesky'):
@@ -1144,6 +1159,9 @@ def main():
     print(f'{DAY}: {len(ads)} approved ads due (automatic posting {"on" if due.get("autopost") else "off"}).')
     posted, failed, by_hand = [], [], []
     for ad in ads:
+        if ad['channel'] in SITES_OFF:
+            print(f"::notice::Skipped ad {ad['id']}: {NAMES.get(ad['channel'], ad['channel'])} is switched off (SOCIAL_SITES_OFF).")
+            continue
         auto = due.get('autopost') and is_auto(ad) and has_keys(ad['channel'])
         if not auto:
             if ad['postOn'] == DAY:
