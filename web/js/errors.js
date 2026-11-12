@@ -7,6 +7,7 @@
 import { CLOUD_URL, CLOUD } from './cloud-config.js';
 import { feature } from './remote-config.js';
 import { platform } from './platform.js';
+import { fromAddOn } from './error-filter.js';
 
 const MAX_PER_SESSION = 10;
 const seen = new Set();
@@ -33,6 +34,7 @@ export function report(err, kind = 'error') {
   const message = String((err && err.message) || err || '').slice(0, 500);
   if (!message) return;
   const stack = String((err && err.stack) || '').slice(0, 2000);
+  if (fromAddOn(stack)) return;
   const key = `${kind}|${message}|${stack.slice(0, 200)}`;
   if (seen.has(key)) return;
   seen.add(key);
