@@ -85,6 +85,9 @@ jobs:
           X_API_SECRET: ${{ secrets.X_API_SECRET }}
           X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
           X_ACCESS_SECRET: ${{ secrets.X_ACCESS_SECRET }}
+          # Sites switched off: Meta (Facebook, Instagram, Threads) since 11 Nov 2026 at the owner's request.
+          # Repository variable SOCIAL_SITES_OFF overrides it; set it to none to post everywhere again.
+          SOCIAL_SITES_OFF: ${{ vars.SOCIAL_SITES_OFF || 'facebook,instagram,threads' }}
           META_PAGE_ID: ${{ secrets.META_PAGE_ID }}
           META_PAGE_TOKEN: ${{ secrets.META_PAGE_TOKEN }}
           INSTAGRAM_ACCOUNT_ID: ${{ secrets.INSTAGRAM_ACCOUNT_ID }}
