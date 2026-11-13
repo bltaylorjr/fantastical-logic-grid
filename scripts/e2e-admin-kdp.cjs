@@ -96,7 +96,9 @@ const SHOTS = process.env.SHOTS;
     await page.waitForFunction(() => /#kdp\/kdp-/.test(location.hash));
     const row = await db.prepare('SELECT * FROM kdp_listings').first();
     assert(row && row.book_id === 'bk-e2e-1' && JSON.parse(row.listing).price.usd === 9.99, 'Save keeps the listing linked to the Grid book');
-    assert(/Ready for KDP/.test(await page.textContent('#kdp-rows')), 'The list shows it is ready');
+    // Save changes the address first, then reloads the listing and redraws the list, so wait for the redraw.
+    const listReady = await page.waitForFunction(() => /Ready for KDP/.test(document.querySelector('#kdp-rows')?.textContent || ''), null, { timeout: 10000 }).then(() => true, () => false);
+    assert(listReady, 'The list shows it is ready');
     if (SHOTS) await page.screenshot({ path: path.join(SHOTS, 'kdp-editor.png'), fullPage: true });
 
     // A month of sales.
