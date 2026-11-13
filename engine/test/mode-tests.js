@@ -297,6 +297,14 @@ for (const mode of ['timeline', 'seating']) {
 for (const [mode, list] of Object.entries(samples)) {
   for (const s of list) console.log(`\n${mode} ${s.tier} (${s.theme}): ${s.title}\n  INTRO: ${s.intro}\n  ${s.clues.join('\n  ')}\n  ENDING: ${s.ending}`);
 }
+// Seating Plan words say "around the table", not "round the table" (player
+// reports PZ-JFNCTFUW, PZ-HDSEW6JA). "A round table" is still fine.
+{
+  const { readFileSync } = await import('node:fs');
+  const files = ['../src/lab-stories.js', '../src/modes.js', '../../web/index.html'];
+  const bad = files.flatMap((f) => readFileSync(new URL(f, import.meta.url), 'utf8').split('\n').filter((l) => /(?<![A-Za-z])round (?:one|the|a|an) /.test(l)).map((l) => `${f}: ${l.trim()}`));
+  check('seating words say "around the table"', !bad.length, bad.slice(0, 3).join(' | '));
+}
 console.log(`\nslowest check ${Math.max(...timings)} ms`);
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

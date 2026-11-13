@@ -38,7 +38,7 @@
 //            flies"), so write "{culprit}, who {where}" or "the {one} who
 //            {where}". Keep endings kind: nobody is really a villain.
 //
-// HOW TO WRITE A SEATING PLAN (guests round one round table)
+// HOW TO WRITE A SEATING PLAN (guests around one round table)
 //   occasion the event, short, with "the" ("the team banquet"). Story
 //            moments use it.
 //   thing    what was left at one seat ("a thank-you card for the coach").
@@ -433,7 +433,7 @@ export const SEATING_STORIES = {
     setting: 'a round table in a candlelit manor dining room, rain on the windows', mood: 'moody, elegant, warm',
     titles: ['Dinner at the Manor', 'The Unsigned Invitation'],
     openings: [
-      'The storm kept everyone in, so {n} {many} sat down to dinner round the manor\'s old round table.',
+      'The storm kept everyone in, so {n} {many} sat down to dinner around the manor\'s old round table.',
       'Candles flickered as {n} {many} took their places for dinner at Bramblewood Manor.',
     ],
     incident: 'After the soup, the butler found {thing} at {seat}.',
@@ -447,7 +447,7 @@ export const SEATING_STORIES = {
     setting: 'a round table in a rooftop restaurant, city lights all round', mood: 'sleek, warm, a little secret',
     titles: ['The Farewell Dinner', 'Invisible Ink'],
     openings: [
-      'The chief was retiring, so {n} {many} met for one last dinner round a round table on the roof.',
+      'The chief was retiring, so {n} {many} met for one last dinner around a round table on the roof.',
       'No missions tonight: {n} {many} sat down together for the chief\'s farewell dinner.',
     ],
     incident: 'When the plates were cleared, the chief found {thing} at {seat}.',
@@ -461,7 +461,7 @@ export const SEATING_STORIES = {
     setting: 'a round wooden table at a jungle base camp, lanterns overhead', mood: 'warm, wild, cheerful',
     titles: ['The Camp Feast', 'A Map at Supper'],
     openings: [
-      'After the last trip of the season, {n} {many} sat down to a feast round the camp\'s round table.',
+      'After the last trip of the season, {n} {many} sat down to a feast around the camp\'s round table.',
       'Lanterns swung in the breeze as {n} {many} gathered for supper at base camp.',
     ],
     incident: 'Under one plate, someone found {thing} at {seat}.',
@@ -489,7 +489,7 @@ export const SEATING_STORIES = {
     setting: 'a round party table with balloons tied to every chair', mood: 'bright, happy, festive',
     titles: ['The Birthday Table', 'The Card With No Name'],
     openings: [
-      '{n} {many} came to the birthday party and sat round one big round table.',
+      '{n} {many} came to the birthday party and sat around one big round table.',
       'Balloons bobbed over every chair as {n} {many} found their places.',
     ],
     incident: 'When the candles were blown out, someone found {thing} at {seat}.',
@@ -517,7 +517,7 @@ export const SEATING_STORIES = {
     setting: 'a round table in a starship\'s dining deck, stars sliding past the window', mood: 'shiny, cozy, starry',
     titles: ['Dinner on the Starship', 'The Humming Robot'],
     openings: [
-      'Between two stars, {n} {many} sat down to dinner round the ship\'s round table.',
+      'Between two stars, {n} {many} sat down to dinner around the ship\'s round table.',
       'The ship slowed to cruising speed as {n} {many} gathered on the dining deck.',
     ],
     incident: 'Over dessert, {thing} switched on at {seat}.',
@@ -531,7 +531,7 @@ export const SEATING_STORIES = {
     setting: 'a round banquet table in a sports hall, medals on display', mood: 'proud, lively, warm',
     titles: ['The Team Banquet', 'A Card for the Coach'],
     openings: [
-      'At the end of the season, {n} {many} sat down round one round table for the team banquet.',
+      'At the end of the season, {n} {many} sat down around one round table for the team banquet.',
       'Cheers filled the hall as {n} {many} took their seats for the banquet.',
     ],
     incident: 'After the speeches, someone found {thing} at {seat}.',
@@ -545,7 +545,7 @@ export const SEATING_STORIES = {
     setting: 'a round table in a restaurant kitchen after closing, pots still warm', mood: 'warm, tasty, friendly',
     titles: ['The Chefs\' Supper', 'The Secret Sauce'],
     openings: [
-      'After the contest, {n} {many} cooked for each other and sat round one round table.',
+      'After the contest, {n} {many} cooked for each other and sat around one round table.',
       'Pans cooled on the stove while {n} {many} sat down to share a supper.',
     ],
     incident: 'Tucked under a napkin, someone found {thing} at {seat}.',
@@ -559,7 +559,7 @@ export const SEATING_STORIES = {
     setting: 'a round picnic table in a park, pets playing on the grass', mood: 'sunny, playful, happy',
     titles: ['The Pet Picnic', 'Treats With a Bow'],
     openings: [
-      'After the pet show, {n} {many} shared a picnic round a round table in the park.',
+      'After the pet show, {n} {many} shared a picnic around a round table in the park.',
       'Tails wagged under the table as {n} {many} sat down for a picnic.',
     ],
     incident: 'When the picnic was over, someone found {thing} at {seat}.',
@@ -573,7 +573,7 @@ export const SEATING_STORIES = {
     setting: 'a round table in the middle of a quiet street, string lights overhead', mood: 'friendly, relaxed, warm',
     titles: ['The Street Potluck', 'A Jar of Jam'],
     openings: [
-      'The street was closed for the evening, and {n} {many} sat round one round table for a potluck.',
+      'The street was closed for the evening, and {n} {many} sat around one round table for a potluck.',
       'String lights came on as {n} {many} brought chairs out for the street potluck.',
     ],
     incident: 'At the end of the night, someone found {thing} at {seat}.',
@@ -587,7 +587,7 @@ export const SEATING_STORIES = {
     setting: 'a round table in a log lodge, a fire crackling', mood: 'woodsy, warm, calm',
     titles: ['Supper at the Lodge', 'The Wildflower Bookmark'],
     openings: [
-      'After a long day of hiking, {n} {many} sat down round the lodge\'s round table.',
+      'After a long day of hiking, {n} {many} sat down around the lodge\'s round table.',
       'The fire crackled as {n} {many} shared stories over supper at the lodge.',
     ],
     incident: 'When the bowls were cleared, someone found {thing} at {seat}.',
@@ -601,7 +601,7 @@ export const SEATING_STORIES = {
     setting: 'a round table on a hotel terrace by the sea', mood: 'sunny, relaxed, festive',
     titles: ['The Welcome Dinner', 'A Postcard for the Chef'],
     openings: [
-      'On their first night, {n} {many} met at the hotel\'s welcome dinner round one round table.',
+      'On their first night, {n} {many} met at the hotel\'s welcome dinner around one round table.',
       'Waves rolled in below the terrace as {n} {many} sat down to dinner.',
     ],
     incident: 'After dinner, a waiter found {thing} at {seat}.',
@@ -615,8 +615,8 @@ export const SEATING_STORIES = {
     setting: 'a round table in a hall full of model buildings', mood: 'proud, bright, friendly',
     titles: ['The Builders\' Dinner', 'A Tiny Table'],
     openings: [
-      'After the model fair, {n} {many} sat down for dinner round one round table.',
-      'Models of towers and bridges stood all round the hall as {n} {many} took their seats.',
+      'After the model fair, {n} {many} sat down for dinner around one round table.',
+      'Models of towers and bridges stood all around the hall as {n} {many} took their seats.',
     ],
     incident: 'Over dessert, someone noticed {thing} at {seat}.',
     endings: [
@@ -629,7 +629,7 @@ export const SEATING_STORIES = {
     setting: 'a round table in a late-night diner after a concert', mood: 'happy, tired, glowing',
     titles: ['After the Show', 'The Napkin Song'],
     openings: [
-      'After the big show, {n} {many} sat down for a late dinner round one round table.',
+      'After the big show, {n} {many} sat down for a late dinner around one round table.',
       'Their ears still ringing, {n} {many} piled into the diner after the concert.',
     ],
     incident: 'When the bill came, someone found {thing} at {seat}.',
@@ -643,7 +643,7 @@ export const SEATING_STORIES = {
     setting: 'a round table in a harbor tavern, lanterns and ropes hanging from the beams', mood: 'merry, salty, rowdy',
     titles: ['The Pirate Feast', 'A Ship in a Bottle'],
     openings: [
-      'After the big race, {n} {many} had a pirate feast round the tavern\'s round table.',
+      'After the big race, {n} {many} had a pirate feast around the tavern\'s round table.',
       'Lanterns swung from the beams as {n} {many} sat down to a pirate feast.',
     ],
     incident: 'When the feast was done, someone found {thing} at {seat}.',
@@ -657,7 +657,7 @@ export const SEATING_STORIES = {
     setting: 'a round table in a barn, hay bales and lanterns all round', mood: 'warm, golden, homey',
     titles: ['The Harvest Supper', 'A Jar of Honey'],
     openings: [
-      'When the harvest was in, {n} {many} sat down to supper round one round table in the barn.',
+      'When the harvest was in, {n} {many} sat down to supper around one round table in the barn.',
       'Lanterns glowed in the barn as {n} {many} sat down to the harvest supper.',
     ],
     incident: 'After the pie, someone found {thing} at {seat}.',
@@ -671,7 +671,7 @@ export const SEATING_STORIES = {
     setting: 'a round table in a bright lab break room, posters on the walls', mood: 'bright, clever, friendly',
     titles: ['The Lab Lunch', 'The Atom Cupcake'],
     openings: [
-      'After a long week, {n} {many} took a break and sat down for lunch round one round table.',
+      'After a long week, {n} {many} took a break and sat down for lunch around one round table.',
       'The experiments could wait: {n} {many} sat down together for the lab lunch.',
     ],
     incident: 'When lunch was over, someone found {thing} at {seat}.',
@@ -685,7 +685,7 @@ export const SEATING_STORIES = {
     setting: 'a round table covered in pizza boxes and scrap paper', mood: 'clever, cheerful, cozy',
     titles: ['Pizza Night', 'The Unanswered Riddle'],
     openings: [
-      'After the contest, {n} {many} shared pizza round one round table.',
+      'After the contest, {n} {many} shared pizza around one round table.',
       'Pizza boxes piled up as {n} {many} sat down for math club pizza night.',
     ],
     incident: 'Under one pizza box, someone found {thing} at {seat}.',
@@ -696,11 +696,11 @@ export const SEATING_STORIES = {
   },
   biology: {
     occasion: 'the field station supper', thing: 'a sketch of a rare moth', cats: ['animal', 'habitat', 'tool'],
-    setting: 'a round table on the porch of a field station, moths round the lamp', mood: 'calm, green, curious',
+    setting: 'a round table on the porch of a field station, moths around the lamp', mood: 'calm, green, curious',
     titles: ['Supper at the Field Station', 'The Moth Sketch'],
     openings: [
-      'At the end of fieldwork, {n} {many} sat down to supper round one round table on the porch.',
-      'Moths danced round the lamp as {n} {many} gathered for supper.',
+      'At the end of fieldwork, {n} {many} sat down to supper around one round table on the porch.',
+      'Moths danced around the lamp as {n} {many} gathered for supper.',
     ],
     incident: 'When the plates were stacked, someone found {thing} at {seat}.',
     endings: [
@@ -713,7 +713,7 @@ export const SEATING_STORIES = {
     setting: 'a round picnic table on a dark hilltop under the stars', mood: 'starry, hushed, cozy',
     titles: ['The Midnight Picnic', 'A Star for the Host'],
     openings: [
-      'Under a clear sky, {n} {many} shared a midnight picnic round one round table.',
+      'Under a clear sky, {n} {many} shared a midnight picnic around one round table.',
       'The stars were out as {n} {many} sat down for a picnic on the hill.',
     ],
     incident: 'When the cocoa was gone, someone found {thing} at {seat}.',
@@ -728,7 +728,7 @@ export const SEATING_STORIES = {
     titles: ['The Upside-Down Tea Party', 'The Teacup That Pours Up'],
     openings: [
       'The table floated, the chairs hung from the ceiling, and {n} {many} sat down to tea.',
-      'In a dream where up was down, {n} {many} met for tea round one round table.',
+      'In a dream where up was down, {n} {many} met for tea around one round table.',
     ],
     incident: 'When the tea ran out, someone found {thing} at {seat}.',
     endings: [
@@ -741,7 +741,7 @@ export const SEATING_STORIES = {
     setting: 'a round table under a maple tree, leaves drifting down', mood: 'crisp, golden, cozy',
     titles: ['The Festival Supper', 'The Leaf Pie'],
     openings: [
-      'As the festival ended, {n} {many} sat down to supper round one round table.',
+      'As the festival ended, {n} {many} sat down to supper around one round table.',
       'Leaves drifted onto the table as {n} {many} gathered for the festival supper.',
     ],
     incident: 'When the plates were cleared, someone found {thing} at {seat}.',
@@ -800,7 +800,7 @@ export const LAB_BEATS = {
     default: {
       early: [
         'The first {many} find their seats. Somewhere at {scene}, a glass clinks.',
-        '{name} passes the bread round the table, to the left, of course.',
+        '{name} passes the bread around the table, to the left, of course.',
       ],
       middle: [
         'Halfway through {scene}, the chatter grows louder and someone asks for seconds.',
@@ -822,8 +822,8 @@ export const LAB_BEATS = {
       late: ['The lanterns sway. The feast is nearly over, and only a few seats are still a mystery.'],
     },
     holiday: {
-      early: ['Someone pulls a cracker, and paper hats go round the table.'],
-      middle: ['{name} asks for more gravy, and the dish goes round the table.'],
+      early: ['Someone pulls a cracker, and paper hats go around the table.'],
+      middle: ['{name} asks for more gravy, and the dish goes around the table.'],
       late: ['Dessert is coming out of the oven. Only a few seats are left to place.'],
     },
   },
@@ -950,8 +950,8 @@ export const FALLBACK_SEATING = [
     thing: 'a thank-you note tucked under a plate',
     titles: ['The Harvest Supper', 'A Note Under the Plate'],
     openings: [
-      'After the last field was cut, {n} {many} gathered round the old oak table at Brookfield Farm for the harvest supper.',
-      'The farmhouse kitchen smelled of bread and apples as {n} neighbors took their places round one round table.',
+      'After the last field was cut, {n} {many} gathered around the old oak table at Brookfield Farm for the harvest supper.',
+      'The farmhouse kitchen smelled of bread and apples as {n} neighbors took their places around one round table.',
     ],
     incident: 'When the plates were cleared, someone found {thing} at {seat}, signed only with a drawing of a wheat sheaf.',
     endings: [
@@ -972,7 +972,7 @@ export const FALLBACK_SEATING = [
     thing: 'an unsigned speech card',
     titles: ['The Unsigned Speech', 'Ten Years On'],
     openings: [
-      'Ten years after they left school, {n} old classmates met again round one round table in the Linden Hotel ballroom.',
+      'Ten years after they left school, {n} old classmates met again around one round table in the Linden Hotel ballroom.',
       'The reunion committee set a single round table for {n} {many} who had not seen each other in years.',
     ],
     incident: 'Before dessert, a waiter found {thing} at {seat}: a funny, kind toast to the whole class, with no name on it.',
@@ -995,7 +995,7 @@ export const FALLBACK_SEATING = [
     titles: ['The Finished Puzzle', 'Tea at the Puzzle Society'],
     openings: [
       'The Puzzle Society meets every Thursday, and tonight {n} {many} sat round their famous round table.',
-      'Teacups clinked as {n} members of the Puzzle Society took their usual chairs round the round table.',
+      'Teacups clinked as {n} members of the Puzzle Society took their usual chairs around the round table.',
     ],
     incident: 'Halfway through the evening, the chair spotted {thing} at {seat}, solved in record time.',
     endings: [
@@ -1017,7 +1017,7 @@ export const FALLBACK_SEATING = [
     titles: ['The Captain\'s Table', 'The Brass Compass'],
     openings: [
       'On the last night of the voyage, {n} {many} were invited to dine at the captain\'s round table.',
-      'The ship\'s band played softly as {n} passengers found their place cards round the captain\'s table.',
+      'The ship\'s band played softly as {n} passengers found their place cards around the captain\'s table.',
     ],
     incident: 'After the toast, the purser found {thing} at {seat}, engraved with the words "for the captain".',
     endings: [

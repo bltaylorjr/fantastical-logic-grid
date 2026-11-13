@@ -6,7 +6,7 @@
 //             right after, an hour before, between, first and last). The
 //             crime's time is told in the story; the ending names the culprit
 //             from the solved grid.
-//   seating   Seating Plan: guests round one table, seats numbered clockwise.
+//   seating   Seating Plan: guests around one table, seats numbered clockwise.
 //             Clues: sits next to, directly across from, two seats to the
 //             left of, does not sit next to. Seats wrap round (the last seat
 //             is next to Seat 1), and the solver reasons with that.
@@ -33,7 +33,7 @@ import { countWords } from './story-parts.js';
 
 export const LAB_MODES = {
   timeline: { id: 'timeline', name: 'Timeline Case', summary: 'A whodunit told by the clock: before, right after, between, first and last.' },
-  seating: { id: 'seating', name: 'Seating Plan', summary: 'Guests round one table: next to, across from, two seats to the left.' },
+  seating: { id: 'seating', name: 'Seating Plan', summary: 'Guests around one table: next to, across from, two seats to the left.' },
 };
 
 export const isLabMode = (mode) => typeof mode === 'string' && Object.prototype.hasOwnProperty.call(LAB_MODES, mode);
@@ -230,11 +230,11 @@ export function buildModeModel(o) {
   } else {
     for (const c of rng.shuffle(frame.cats).slice(0, K - 2)) cats.push(named(c.id, c));
     const s = frame.seat;
-    const across = N % 2 === 0 ? ' "Directly across" means exactly halfway round the table.' : '';
+    const across = N % 2 === 0 ? ' "Directly across" means exactly halfway around the table.' : '';
     cats.push({
       id: 'seat', name: s.name, noun: s.noun, labels: Array.from({ length: N }, (_, i) => `${s.name} ${i + 1}`), values: Array.from({ length: N }, (_, i) => i + 1),
       pos: s.pos, neg: s.neg,
-      note: `The ${N} ${s.name.toLowerCase()}s are numbered clockwise round one round table, so {high} is next to {low}. Everyone faces the middle, so the ${s.name.toLowerCase()} on a {one}'s left is the next one clockwise.${across}`,
+      note: `The ${N} ${s.name.toLowerCase()}s are numbered clockwise around one round table, so {high} is next to {low}. Everyone faces the middle, so the ${s.name.toLowerCase()} on a {one}'s left is the next one clockwise.${across}`,
       ordinal: {
         ring: true,
         nextTo: 'sat next to', across: 'sat directly across from', left2: `sat two ${s.name.toLowerCase()}s to the left of`, notNext: 'did not sit next to',
