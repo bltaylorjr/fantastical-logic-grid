@@ -61,9 +61,13 @@ class Kaggle:
     # ------------------------------------------------------------- notebooks
     def kernel_status(self, slug: str) -> str:
         """complete | running | queued | error | cancelled | missing"""
-        out = self.run("kernels", "status", self.ref(slug), check=False).lower()
+        raw = self.run("kernels", "status", self.ref(slug), check=False)
+        out = raw.lower()
         if out.startswith("__error__"):
-            return "missing" if ("404" in out or "not found" in out) else "unknown"
+            # Kaggle answers "Permission 'kernels.get' was denied" for a private
+            # notebook that doesn't exist yet, the same as for someone else's.
+            gone = ("404" in out or "not found" in out or "kernels.get' was denied" in out)
+            return "missing" if gone else "unknown"
         for s in ("complete", "running", "queued", "error", "cancel"):
             if s in out:
                 return "cancelled" if s == "cancel" else s
@@ -73,7 +77,7 @@ class Kaggle:
         out = self.run("kernels", "list", "--mine", "--csv", "--page-size", "100", check=False)
         if out.startswith("__error__"):
             return None
-        for row in csv.DictReader(io.StringIO(out)):
+        for row in csv.DictReader(io.StringIO(_csv_part(out, "ref"))):
             if row.get("ref", "").lower() == self.ref(slug).lower() and row.get("lastRunTime"):
                 try:
                     return datetime.fromisoformat(row["lastRunTime"].replace("Z", "+00:00")).replace(tzinfo=timezone.utc)
@@ -104,7 +108,7 @@ class Kaggle:
         out = self.run("datasets", "files", self.ref(slug), "--csv", check=False)
         if out.startswith("__error__"):
             return None
-        return [r.get("name", "") for r in csv.DictReader(io.StringIO(out))]
+        return [r.get("name", "") for r in csv.DictReader(io.StringIO(_csv_part(out, "name")))]
 
     def publish_dataset(self, slug: str, folder: Path, message: str, exists: bool) -> None:
         (folder / "dataset-metadata.json").write_text(json.dumps(
@@ -122,6 +126,16 @@ class Kaggle:
                 return True
             time.sleep(15)
         return False
+
+
+def _csv_part(out: str, first: str) -> str:
+    """The CSV in a Kaggle answer: it can start with other lines (such as
+    "Next Page Token = ...") before the header."""
+    lines = out.splitlines()
+    for i, line in enumerate(lines):
+        if line.strip().lower().startswith(first + ","):
+            return "\n".join(lines[i:])
+    return ""
 
 
 def code_hash(root: Path) -> str:
@@ -188,6 +202,10 @@ def step(args) -> dict:
     # 2. the data
     data = k.kernel_status("vox-data")
     report["data"] = data
+    if data == "unknown":
+        say("Kaggle's answer about the data notebook wasn't understood: "
+            + k.run("kernels", "status", k.ref("vox-data"), check=False).strip()[-300:])
+        return {**report, "state": "data"}
     if data in ("missing", "error", "cancelled"):
         say("Preparing the training data on Kaggle (LJSpeech, VCTK, LibriTTS-R; a few hours on a CPU)." if data == "missing"
             else f"Preparing the training data again (the last try ended: {data}).")
@@ -200,6 +218,10 @@ def step(args) -> dict:
     # 3. the last training session
     train = k.kernel_status("vox-train")
     report["train"] = train
+    if train == "unknown":
+        say("Kaggle's answer about the training notebook wasn't understood: "
+            + k.run("kernels", "status", k.ref("vox-train"), check=False).strip()[-300:])
+        return {**report, "state": "training"}
     ckpt_files = k.dataset_files("vox-ckpt")
     progress: dict = {"sessions": []}
     if train in ("running", "queued"):

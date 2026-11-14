@@ -169,14 +169,14 @@ def meta(p, name): return json.loads((Path(p) / name).read_text())
 if a[:2] == ['datasets', 'files']:
     d = st['datasets'].get(a[2])
     if d is None: print('404 Not Found'); save(); sys.exit(1)
-    print('name,size'); [print(f + ',1') for f in d]
+    print('Next Page Token = CfDJ8abc'); print('name,size,creationDate'); [print(f + ',1,2026-11-13') for f in d]   # as kaggle 1.8 answers
 elif a[:2] in (['datasets', 'create'], ['datasets', 'version']):
     p = a[a.index('-p') + 1]; m = meta(p, 'dataset-metadata.json')
     st['datasets'][m['id']] = sorted(x.name for x in Path(p).iterdir() if x.name != 'dataset-metadata.json'); print('ok')
 elif a[:2] == ['datasets', 'status']: print('ready')
 elif a[:2] == ['kernels', 'status']:
     k = st['kernels'].get(a[2])
-    if k is None: print('404 Not Found'); save(); sys.exit(1)
+    if k is None: print(f"Cannot access kernel '{a[2]}' (Permission 'kernels.get' was denied)."); save(); sys.exit(1)   # Kaggle's answer for a notebook that doesn't exist yet
     print(f'{a[2]} has status "KernelWorkerStatus.{k["status"].upper()}"')
 elif a[:2] == ['kernels', 'push']:
     p = a[a.index('-p') + 1]; m = meta(p, 'kernel-metadata.json')
@@ -185,7 +185,7 @@ elif a[:2] == ['kernels', 'push']:
 elif a[:2] == ['kernels', 'output']:
     p = Path(a[a.index('-p') + 1]); out = st['kernels'][a[2]].get('output', {})
     for name, text in out.items(): (p / name).write_text(text)
-elif a[:2] == ['kernels', 'list']: print('ref,title,author,lastRunTime,totalVotes')
+elif a[:2] == ['kernels', 'list']: print('Next Page Token = x'); print('ref,title,author,lastRunTime,totalVotes')
 save()
 """)
 envk = {**os.environ, "KAGGLE_CLI": f"{sys.executable} {fake}", "FAKE_STATE": str(state), "KAGGLE_USERNAME": "bobby"}
