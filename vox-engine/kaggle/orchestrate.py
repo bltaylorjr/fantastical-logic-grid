@@ -61,7 +61,9 @@ class Kaggle:
     # ------------------------------------------------------------- notebooks
     def kernel_status(self, slug: str) -> str:
         """complete | running | queued | error | cancelled | missing"""
-        out = self.run("kernels", "status", self.ref(slug), check=False).lower()
+        raw = self.run("kernels", "status", self.ref(slug), check=False)
+        print(f"[kaggle] kernels status {slug}: {raw.strip()[-400:]}")
+        out = raw.lower()
         if out.startswith("__error__"):
             return "missing" if ("404" in out or "not found" in out) else "unknown"
         for s in ("complete", "running", "queued", "error", "cancel"):
@@ -102,6 +104,7 @@ class Kaggle:
     # -------------------------------------------------------------- datasets
     def dataset_files(self, slug: str) -> list[str] | None:
         out = self.run("datasets", "files", self.ref(slug), "--csv", check=False)
+        print(f"[kaggle] datasets files {slug}: {out.strip()[:300]}")
         if out.startswith("__error__"):
             return None
         return [r.get("name", "") for r in csv.DictReader(io.StringIO(out))]
