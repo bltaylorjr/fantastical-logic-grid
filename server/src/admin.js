@@ -156,7 +156,7 @@ const MAX_BODY = 8_000;
 const SESSION_MAX_S = 12 * 3600;
 const DENIED_PER_DAY = 500; // refused requests written to the audit log, so a flood cannot fill it
 const ANALYTICS_CACHE_MS = 120_000;
-const TABLES = ['sync_users', 'sync_records', 'sync_deleted_users', 'account_days', 'players', 'scores', 'races', 'race_entries', 'race_invites', 'plays', 'parts', 'usage',
+const TABLES = ['sync_users', 'sync_records', 'sync_deleted_users', 'account_logins', 'account_days', 'players', 'scores', 'races', 'race_entries', 'race_invites', 'plays', 'parts', 'usage',
   'app_errors', 'upkeep_log', 'admins', 'admin_audit', 'settings', 'announcements', 'bans', 'name_reviews', 'archive_log', 'feedback', 'feedback_replies', 'error_fixes', 'conversations', 'conversation_messages', 'message_contacts', 'news', 'search_snapshots', 'daily_plan', 'translations', 'rating_insights', 'campaigns', 'campaign_ads', 'marketing_media', 'campaign_stats', 'challenges', 'daily_results', 'daily_email', 'supporters', 'payment_blocks', 'puzzle_mail', 'puzzle_mail_got', 'puzzle_mail_days', 'special_editions', 'educator_requests', 'special_badges', 'badge_awards', 'puzzle_reports', 'player_puzzles', 'visit_stats', 'educator_feedback', 'print_packs', 'print_pack_stories', 'admin_passkeys', 'admin_sessions', 'admin_keys', 'np_plays', 'kit_plays', 'alert_prefs', 'alert_devices', 'alert_queue', 'site_design', 'site_accounts', 'tuning_proposals', 'house_nudges', 'tuning_rules', 'vault_items', 'vault_devices', 'quality_puzzles', 'books', 'book_puzzles', 'book_templates', 'studio_books', 'studio_book_parts', 'inactive_warnings', 'kdp_listings', 'kdp_sales'];
 // worker-src blob: lets the Media library's celebrations draw off the main
 // thread, as they do in the game (canvas-confetti makes its own small worker).
@@ -438,7 +438,7 @@ async function findPlayers(env, url, now, role = 'owner') {
 
 async function playerDetail(env, uid, now) {
   const db = env.DB;
-  const [profile, acct, records, deleted, ban, byKind, recent, hosted, entered, review] = (await db.batch([
+  const [profile, acct, records, deleted, ban, byKind, recent, hosted, entered, review, login] = (await db.batch([
     db.prepare('SELECT screen_name AS name, name_key, created_at, updated_at FROM players WHERE user_id = ?1').bind(uid),
     db.prepare('SELECT created_at, rev FROM sync_users WHERE user_id = ?1').bind(uid),
     db.prepare("SELECT COUNT(*) AS n, SUM(kind = 'save' AND deleted = 0) AS saves, COALESCE(SUM(length(data)), 0) AS bytes, MAX(updated_at) AS last FROM sync_records WHERE user_id = ?1").bind(uid),
@@ -449,8 +449,9 @@ async function playerDetail(env, uid, now) {
     db.prepare('SELECT COUNT(*) AS n FROM races WHERE host_id = ?1').bind(uid),
     db.prepare('SELECT COUNT(*) AS n, COALESCE(SUM(solved), 0) AS solved FROM race_entries WHERE user_id = ?1').bind(uid),
     db.prepare('SELECT name_key, reviewed_by, reviewed_at FROM name_reviews WHERE user_id = ?1').bind(uid),
+    db.prepare('SELECT first_at, last_at FROM account_logins WHERE user_id = ?1').bind(uid),
   ])).map((x) => x.results);
-  if (!profile.length && !acct.length && !byKind.length && !deleted.length) throw new Refusal(404, 'no_player', 'No player has that id.');
+  if (!profile.length && !acct.length && !byKind.length && !deleted.length && !login.length) throw new Refusal(404, 'no_player', 'No player has that id.');
   const p = profile[0];
   return {
     uid,
@@ -459,6 +460,7 @@ async function playerDetail(env, uid, now) {
     nameReviewed: !!(p && review[0] && review[0].name_key === p.name_key),
     account: acct[0] ? { createdAt: acct[0].created_at, records: records[0].n, saves: records[0].saves || 0, bytes: records[0].bytes, lastSync: records[0].last } : null,
     deletedAt: deleted[0] ? deleted[0].deleted_at : null,
+    signIn: login[0] ? { first: login[0].first_at, last: login[0].last_at } : null,
     ban: ban[0] || null,
     scores: Object.fromEntries(byKind.map((x) => [x.kind, { solves: x.n, points: x.points }])),
     recentScores: recent,
@@ -772,6 +774,7 @@ const ROUTES = [
     await env.DB.batch([
       env.DB.prepare('DELETE FROM sync_records WHERE user_id = ?1').bind(uid),
       env.DB.prepare('DELETE FROM sync_users WHERE user_id = ?1').bind(uid),
+      env.DB.prepare('DELETE FROM account_logins WHERE user_id = ?1').bind(uid),
       ...deleteCompeteStatements(env, uid),
       ...deleteMessageStatements(env, uid),
       ...(await deleteReplyStatements(env, uid)),

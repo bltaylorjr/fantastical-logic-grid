@@ -94,6 +94,34 @@ test('a new account cannot sync until it has a screen name; older accounts keep 
   assert.equal((await call('/v1/sync', { token: t, body: { changes: [save('n1')] } })).status, 200);
 });
 
+test('every sign-in is noted, so the admin list shows accounts with no name or saves yet', async () => {
+  const db = await mf.getD1Database('DB');
+  const day = new Date().toISOString().slice(0, 10);
+  const made = async () => ((await db.prepare('SELECT made FROM account_days WHERE day = ?1').bind(day).first()) || { made: 0 }).made;
+  const before = await made();
+  const t = signer.token({ sub: 'just-signed-in' });
+  // The game pulls straight after signing in, before any name is chosen.
+  assert.equal((await call('/v1/sync', { token: t, body: { since: 0 } })).status, 200);
+  const row = await db.prepare("SELECT first_at, last_at FROM account_logins WHERE user_id = 'just-signed-in'").first();
+  assert.ok(row && row.first_at > 0, 'the sign-in is noted');
+  assert.equal(await made(), before + 1, 'counted as a new account');
+  assert.equal((await call('/v1/sync', { token: t, body: { since: 0 } })).status, 200);
+  // Choosing a name and syncing later does not count the account again.
+  await named(db, 'just-signed-in');
+  assert.equal((await call('/v1/sync', { token: t, body: { changes: [save('j1')] } })).status, 200);
+  assert.equal(await made(), before + 1, 'counted once');
+  // An account that already synced before is not counted as new.
+  await db.prepare("INSERT INTO sync_users (user_id, rev, created_at) VALUES ('old-signer', 0, 1)").run();
+  assert.equal((await call('/v1/sync', { token: signer.token({ sub: 'old-signer' }), body: { since: 0 } })).status, 200);
+  assert.equal(await made(), before + 1);
+  // Deleting the account removes the note, and a still-valid token does not add it back.
+  const fresh = signer.token({ sub: 'just-signed-in', auth_time: Math.floor(Date.now() / 1000) });
+  assert.equal((await call('/v1/account', { token: fresh, method: 'DELETE' })).status, 200);
+  assert.equal(await db.prepare("SELECT 1 FROM account_logins WHERE user_id = 'just-signed-in'").first(), null);
+  await call('/v1/sync', { token: t, body: { since: 0 } });
+  assert.equal(await db.prepare("SELECT 1 FROM account_logins WHERE user_id = 'just-signed-in'").first(), null);
+});
+
 test('players never see each other\'s data', async () => {
   const bob = await sync(signer.token({ sub: 'bob' }), { since: 0 });
   assert.deepEqual(bob.changes, []);

@@ -32,7 +32,7 @@
 import { alert } from './alerts.js';
 import { json, readText, TooLarge } from './http.js';
 import { checkName, cleanName, nameKey, hasBlockedWords, isSuggestedName } from './names.js';
-import { isDeleted } from './sync.js';
+import { isDeleted, recordSignIn } from './sync.js';
 import { AuthError } from './auth.js';
 import { getSettings } from './settings.js';
 import { supporterTiers } from './supporters.js';
@@ -443,6 +443,8 @@ export async function handleCompete(req, env, ctx, url, signedIn) {
     const off = (what) => fail('switched_off', 503, { message: `${what} are switched off for now. Please try again later.` });
 
     if (area === 'profile' && !sub) {
+      // The game asks for the name straight after every sign-in.
+      if (method === 'GET') await recordSignIn(env, uid, now);
       if (method === 'GET') return json(req, env, { screenName: profile ? profile.screen_name : null, acceptInvites: profile ? !!profile.accept_invites : true, nameApproved: profile ? await isApproved(env, uid, settings) : null });
       if (method === 'DELETE') {
         await db.batch(deleteCompeteStatements(env, uid));
