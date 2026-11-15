@@ -1381,6 +1381,7 @@ async function openPlayer(uid) {
       ${tile('Races', fmt(p.races.entered), `${fmt(p.races.solved)} solved · ${fmt(p.races.hosted)} hosted`)}
       ${p.account ? tile('Synced account', `${fmt(p.account.saves)} saves`, `${bytes(p.account.bytes)} · since ${day(p.account.createdAt)} · last sync ${day(p.account.lastSync)}`) : tile('Synced account', 'None')}
       ${tile('Screen name', p.screenName ? (p.nameReviewed ? 'Approved' : 'Needs approval') : '–', p.nameSince ? `since ${day(p.nameSince)}` : '')}
+      ${p.signIn ? tile('Signed in', day(p.signIn.last), `first ${day(p.signIn.first)}`) : ''}
     </div>
     <div class="row">
       ${can('admin') && !p.deletedAt ? '<button class="btn primary" type="button" data-act="message">Send a message</button>' : ''}

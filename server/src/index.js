@@ -73,7 +73,7 @@ import { publicConfig } from './settings.js';
 import { deepHealth } from './upkeep.js';
 import { runArchive } from './archive.js';
 import { sendWaiting, alert } from './alerts.js';
-import { handleSync, handleDeleteAccount, isDeleted } from './sync.js';
+import { handleSync, handleDeleteAccount, isDeleted, recordSignIn } from './sync.js';
 import { verifyIdToken, AuthError } from './auth.js';
 import { json, corsHeaders, secured } from './http.js';
 
@@ -213,6 +213,7 @@ async function route(req, env, ctx) {
   }
   if (env.LIMIT_SYNC && !(await env.LIMIT_SYNC.limit({ key: user.uid })).success) return json(req, env, { error: 'slow_down' }, 429, { 'Retry-After': '60' });
   if (await isDeleted(env, user.uid)) return json(req, env, { error: 'account_deleted' }, 401);
+  if (isSync) await recordSignIn(env, user.uid);
   return isSync ? handleSync(req, env, user) : handleDeleteAccount(req, env, user);
 }
 

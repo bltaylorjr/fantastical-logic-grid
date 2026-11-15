@@ -33,6 +33,25 @@ export function accountDeletedStatement(env, uid, now = Date.now()) {
     ON CONFLICT (day) DO UPDATE SET deleted = deleted + 1`).bind(utcDay(now), uid);
 }
 
+// Notes that an account signed in to the game (its first sync or screen-name
+// check after signing in), so the admin Players list shows every account from
+// its first sign-in, including one that has no screen name yet and has not
+// synced. The first sign-in counts the account as made for the day. A deleted
+// account (whose token can still work for up to an hour) is not noted again.
+const SIGN_IN_EVERY = 10 * 60_000;
+export async function recordSignIn(env, uid, now = Date.now()) {
+  const db = env.DB;
+  const fresh = `NOT EXISTS (SELECT 1 FROM account_logins WHERE user_id = ?1) AND NOT EXISTS (SELECT 1 FROM sync_users WHERE user_id = ?1)
+    AND NOT EXISTS (SELECT 1 FROM players WHERE user_id = ?1) AND NOT EXISTS (SELECT 1 FROM sync_deleted_users WHERE user_id = ?1)`;
+  await db.batch([
+    db.prepare(`INSERT INTO account_days (day, made, deleted) SELECT ?2, 1, 0 WHERE ${fresh}
+      ON CONFLICT (day) DO UPDATE SET made = made + 1`).bind(uid, utcDay(now)),
+    db.prepare(`INSERT INTO account_logins (user_id, first_at, last_at, counted) SELECT ?1, ?2, ?2, ${fresh}
+      WHERE NOT EXISTS (SELECT 1 FROM sync_deleted_users WHERE user_id = ?1)
+      ON CONFLICT (user_id) DO UPDATE SET last_at = excluded.last_at WHERE account_logins.last_at < excluded.last_at - ?3`).bind(uid, now, SIGN_IN_EVERY),
+  ]);
+}
+
 const KINDS = new Set(['save', 'meta', 'settings']);
 const MAX_CHANGES = 100;
 const MAX_RECORD_CHARS = 1_000_000;
@@ -80,7 +99,8 @@ export async function handleSync(req, env, user) {
       return json(req, env, { error: 'no_screen_name', message: 'Choose a screen name to finish setting up your account. Your puzzles are safe on this device until then.' }, 403);
     }
     const made = await db.prepare('INSERT OR IGNORE INTO sync_users (user_id, rev, created_at) VALUES (?1, 0, ?2)').bind(uid, Date.now()).run();
-    if (made.meta && made.meta.changes) await accountMadeStatement(env).run();
+    // Counted once: an account its first sign-in already counted is not counted again.
+    if (made.meta && made.meta.changes && !(await db.prepare('SELECT 1 AS k FROM account_logins WHERE user_id = ?1 AND counted = 1').bind(uid).first())) await accountMadeStatement(env).run();
     const { n, used } = await db.prepare('SELECT COUNT(*) AS n, COALESCE(SUM(LENGTH(data)), 0) AS used FROM sync_records WHERE user_id = ?1').bind(uid).first();
     const full = n >= MAX_RECORDS;
     const incoming = changes.reduce((s, c) => s + (c.deleted ? 0 : c.data.length), 0);
@@ -174,6 +194,7 @@ export async function deleteAccountStatements(env, uid, now = Date.now()) {
     // An app key keeps working on the player's devices, no longer tied to them (licenses.js).
     env.DB.prepare('UPDATE licenses SET user_id = NULL, email = NULL WHERE user_id = ?1').bind(uid),
     env.DB.prepare('DELETE FROM inactive_warnings WHERE user_id = ?1').bind(uid),
+    env.DB.prepare('DELETE FROM account_logins WHERE user_id = ?1').bind(uid),
     accountDeletedStatement(env, uid, now),
     env.DB.prepare('INSERT OR REPLACE INTO sync_deleted_users (user_id, deleted_at) VALUES (?1, ?2)').bind(uid, now),
   ];

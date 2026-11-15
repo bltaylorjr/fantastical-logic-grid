@@ -19,9 +19,9 @@
 //   refused) is deleted without a warning. At most MAX_PER_NIGHT a night, each
 //   one written to the admin audit log as "auto-cleanup".
 //
-// Every account needs a screen name. An account without one (a sync_users row
-// with no players row) is emailed a link to its account page, where a name is
-// suggested, and is deleted unnamed_grace_days (3) after that email if it
+// Every account needs a screen name. An account without one (a sync_users or
+// account_logins row with no players row) is emailed a link to its account
+// page, where a name is suggested, and is deleted unnamed_grace_days (3) after that email if it
 // still has no name, whatever its activity. One with no email address gets
 // the same days from the night it is first found ('notice').
 //
@@ -50,21 +50,21 @@ const EMAIL = /^[^\s@<>"]+@[^\s@<>"]+\.[^\s@<>"]+$/;
 
 // Every account (screen name, synced saves or both) with its last activity on
 // the game server and which section of the admin player list it is in. ?1 is now.
-export const PLAYER_ROWS = `WITH ids AS (SELECT user_id FROM players UNION SELECT user_id FROM sync_users),
+export const PLAYER_ROWS = `WITH ids AS (SELECT user_id FROM players UNION SELECT user_id FROM sync_users UNION SELECT user_id FROM account_logins),
   base AS (SELECT i.user_id AS uid, pl.screen_name AS name, pl.name_key, pl.email,
-    CASE WHEN pl.created_at IS NULL THEN u.created_at WHEN u.created_at IS NULL THEN pl.created_at ELSE MIN(pl.created_at, u.created_at) END AS joined,
+    MIN(COALESCE(pl.created_at, 9e15), COALESCE(u.created_at, 9e15), COALESCE(l.first_at, 9e15)) AS joined,
     u.user_id IS NOT NULL AS synced,
     (r.name_key IS NOT NULL AND r.name_key = pl.name_key) AS approved, r.reviewed_by AS approvedBy,
     (SELECT COALESCE(SUM(points), 0) FROM scores s WHERE s.user_id = i.user_id) AS points,
     (SELECT COUNT(*) FROM scores s WHERE s.user_id = i.user_id) AS solves,
     (SELECT COUNT(*) FROM race_entries e WHERE e.user_id = i.user_id) AS races,
-    MAX(COALESCE(pl.updated_at, 0), COALESCE(u.created_at, 0),
+    MAX(COALESCE(pl.updated_at, 0), COALESCE(u.created_at, 0), COALESCE(l.last_at, 0),
       COALESCE((SELECT MAX(updated_at) FROM sync_records x WHERE x.user_id = i.user_id), 0),
       COALESCE((SELECT MAX(created_at) FROM scores s WHERE s.user_id = i.user_id), 0),
       COALESCE((SELECT MAX(joined_at) FROM race_entries e WHERE e.user_id = i.user_id), 0)) AS seen,
     b.user_id IS NOT NULL AS banned, b.reason AS banReason, b.until AS banUntil
     FROM ids i LEFT JOIN players pl ON pl.user_id = i.user_id LEFT JOIN sync_users u ON u.user_id = i.user_id
-    LEFT JOIN name_reviews r ON r.user_id = i.user_id
+    LEFT JOIN account_logins l ON l.user_id = i.user_id LEFT JOIN name_reviews r ON r.user_id = i.user_id
     LEFT JOIN bans b ON b.user_id = i.user_id AND (b.until IS NULL OR b.until > ?1)),
   rows AS (SELECT *, CASE WHEN banned THEN 'blocked' WHEN name IS NULL THEN 'account' WHEN NOT approved THEN 'pending'
     WHEN seen < ?1 - ${30 * DAY} THEN 'inactive' ELSE 'active' END AS section FROM base)`;

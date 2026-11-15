@@ -473,7 +473,8 @@ test('players: every player in sections, searchable, sortable, a page at a time'
   // A moderator from the roles test, so these calls do not use up the owner's rate limit.
   const mod = idToken('mod-uid', 'mod@example.com');
   const now = Date.now();
-  const add = async (uid, name, { seen = now, approved = false, banned = false, synced = false } = {}) => {
+  const add = async (uid, name, { seen = now, approved = false, banned = false, synced = false, login = false } = {}) => {
+    if (login) await db.prepare('INSERT INTO account_logins (user_id, first_at, last_at) VALUES (?1, ?2, ?2)').bind(uid, seen).run();
     if (name) await db.prepare('INSERT INTO players (user_id, screen_name, name_key, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?4)').bind(uid, name, name.toLowerCase().replace(/[^a-z0-9]/g, ''), seen).run();
     if (synced) await db.prepare('INSERT INTO sync_users (user_id, rev, created_at) VALUES (?1, 1, ?2)').bind(uid, seen).run();
     if (approved) await db.prepare('INSERT INTO name_reviews (user_id, name_key, reviewed_by, reviewed_at) VALUES (?1, ?2, ?3, ?4)').bind(uid, name.toLowerCase().replace(/[^a-z0-9]/g, ''), 'test', now).run();
@@ -484,6 +485,8 @@ test('players: every player in sections, searchable, sortable, a page at a time'
   await add('sec-old', 'Olly Oldtimer', { approved: true, seen: now - 45 * 24 * 3600_000 });
   await add('sec-ban', 'Bart Blocked', { approved: true, banned: true });
   await add('sec-sync-only', null, { synced: true });
+  // Signed in, but no name chosen and nothing synced yet.
+  await add('sec-login-only', null, { login: true, seen: now - 3600_000 });
   // Recent play keeps an approved name active even when the name is old.
   await add('sec-racer', 'Rita Racer', { approved: true, seen: now - 60 * 24 * 3600_000 });
   await db.prepare("INSERT INTO scores (user_id, story_id, kind, tier, cells, elapsed_ms, hints, checks, points, created_at) VALUES ('sec-racer', 's-r', 'solo', 'easy', 48, 60000, 0, 0, 25, ?1)").bind(now).run();
@@ -497,6 +500,8 @@ test('players: every player in sections, searchable, sortable, a page at a time'
   assert.equal(section('sec-sync-only'), 'account');
   assert.equal(section('sec-racer'), 'active');
   assert.equal(all.players.find((p) => p.uid === 'sec-sync-only').name, null);
+  assert.equal(section('sec-login-only'), 'account');
+  assert.equal(all.players.find((p) => p.uid === 'sec-login-only').joined, now - 3600_000);
   assert.equal(all.sections.all, all.total);
   for (const s of ['pending', 'active', 'inactive', 'blocked', 'account']) assert.ok(all.sections[s] >= 1, s);
 

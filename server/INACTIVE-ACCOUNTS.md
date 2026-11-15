@@ -14,7 +14,9 @@ account cleanup. Settings: Settings and switches > Inactive accounts.
 - **Accounts with no screen name.** Emailed a link to
   https://thelogicgrid.com/account/ (which suggests a name), and deleted
   `unnamed_grace_days` (3) after that email if they still have no name. With no
-  email address, the days start the night the account is first found.
+  email address, the days start the night the account is first found. Since
+  `account_logins` (migration 2330), this includes accounts that signed in but
+  never chose a name or synced, which the game's server did not see before.
 - **Never deleted:** Fan_Logic_Admin, CobaltSockMonkey18 (and CobaltSockMonkey),
   the owner and every admin (matched by email), and blocked players.
 - Deleting removes the Firebase sign-in first, then all the account's data
