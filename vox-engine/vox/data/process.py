@@ -174,7 +174,8 @@ class Transcriber:
         else:
             r = self.model.transcribe(x, word_timestamps=True)
             words = [(w["word"].strip(), w["start"], w["end"]) for s in r["segments"] for w in s.get("words", [])]
-        return " ".join(w for w, _, _ in words), words
+        from ..heard import FIXER                  # your spelling fixes and one spelling per sound ("hmph" -> "humph")
+        return FIXER.fix_text(" ".join(w for w, _, _ in words)), FIXER.fix_words(words)
 
 
 # ----------------------------------------------------------- auto-labeling
