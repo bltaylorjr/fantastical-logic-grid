@@ -60,9 +60,10 @@ const { spawn } = require('child_process');
   // is left alone (player report PZ-4W26P5V8).
   const read = await page.evaluate(async () => (await import('./js/ai.js')).speechText('The shelter scale read 12 pounds. The scale at the weigh station read 40 pounds. Read the story, then read 3 clues.'));
   assert(read === 'The shelter scale red 12 pounds. The scale at the weigh station red 40 pounds. Read the story, then read 3 clues.', `past-tense read is said "red" (${read})`);
-  // "Hmph" is said as a grunt and Rollie like Raleigh (PZ-7D4RJ2GF, PZ-FAXSH5QD).
+  // "Hmph" is said as "Hmm", never spelled out, and Rollie like Raleigh
+  // (PZ-7D4RJ2GF, PZ-FAXSH5QD, PZ-C9TJ9GWP).
   const sounds = await page.evaluate(async () => (await import('./js/ai.js')).speechText('Hmph. Not bad, Rollie. hmph.'));
-  assert(sounds === 'Hmmf. Not bad, Rawlee. hmmf.', `Hmph and Rollie are said the way they sound (${sounds})`);
+  assert(sounds === 'Hmm. Not bad, Rawlee. hmm.', `Hmph and Rollie are said the way they sound (${sounds})`);
   // "Seat" before a number is said as one sound, not "see-at" (PZ-EBUPXW4S).
   const seat = await page.evaluate(async () => (await import('./js/ai.js')).speechText('A riddle was found at Seat 2. Seats 1 and 6 are empty. Take a seat by the window.'));
   assert(seat === 'A riddle was found at Seet 2. Seets 1 and 6 are empty. Take a seat by the window.', `Seat before a number is said "seet" (${seat})`);
