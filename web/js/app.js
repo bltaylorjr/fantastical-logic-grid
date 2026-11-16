@@ -1847,7 +1847,9 @@ function showSolved(celebrate) {
   const tier = S.puzzle.difficulty.id;
   const i = TIER_IDS.indexOf(tier);
   $('#solved-h').textContent = save.revealed ? 'Solution revealed' : 'Case closed!';
-  $('#ending').textContent = S.puzzle.story.ending;
+  // No story ending after a puzzle (Bobby, 2026-11-16): the cheer is the last word.
+  $('#ending').textContent = '';
+  $('#ending').hidden = true;
   // A solved Seating Plan shows its round table.
   $('#mode-table')?.remove();
   if (S.puzzle.mode === 'seating') $('#ending').insertAdjacentHTML('afterend', `<div id="mode-table">${tableSvg(S.puzzle)}</div>`);
@@ -1895,8 +1897,8 @@ function showSolved(celebrate) {
   if (celebrate && voiceOn('finish')) {
     setTimeout(() => {
       if (!S || !S.save.solved) return;
-      const said = [...(cheerLine ? [{ who: cheer.id && cheer.id === S.puzzle.narrator ? 'narrator' : cheer.name, text: cheerLine }] : []), { who: 'narrator', text: S.puzzle.story.ending }];
-      ai.speakLines(settings, S.puzzle, said, { volume: settings.volume / 100 });
+      const said = cheerLine ? [{ who: cheer.id && cheer.id === S.puzzle.narrator ? 'narrator' : cheer.name, text: cheerLine }] : [];
+      if (said.length) ai.speakLines(settings, S.puzzle, said, { volume: settings.volume / 100 });
     }, 1200);
   }
   res.classList.remove('celebrate');
@@ -1911,7 +1913,7 @@ function showSolved(celebrate) {
     $('#solved').dataset.effects = shown ? shown.join(' ') : '';
     $('#solved').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
     $('#solved').focus({ preventScroll: true });
-    announce(`${save.revealed ? 'Solution revealed.' : 'Solved!'} ${S.puzzle.story.ending}`);
+    announce(save.revealed ? 'Solution revealed.' : 'Solved!');
   }
 }
 

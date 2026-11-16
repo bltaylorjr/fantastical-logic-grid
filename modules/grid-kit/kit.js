@@ -728,7 +728,7 @@ export function createGame(def) {
     const box = $('solved');
     box.hidden = false;
     $('solved-h').textContent = G.revealed ? 'Here is the answer' : def.solvedTitle ? def.solvedTitle(G.p) : 'Solved!';
-    $('ending').textContent = showStory() && G.p.story?.ending ? G.p.story.ending : '';
+    $('ending').textContent = ''; // no story ending after a puzzle
     $('ending').hidden = !$('ending').textContent;
     $('solved-text').textContent = G.revealed ? 'This one does not count as solved. The next one will.' : `${G.p.difficulty.name} in ${fmtTime(G.ms)}${G.hints ? ` with ${G.hints} hint${G.hints === 1 ? '' : 's'}` : ' with no hints'}${G.mistakes ? `, ${G.mistakes} mistake${G.mistakes === 1 ? '' : 's'}` : ''}.`;
     showReview();

@@ -159,7 +159,7 @@ const shots = process.env.NP_SHOTS;
       }
       await pg.waitForSelector('#np-solved:not([hidden])');
       if (round === 0) {
-        assert((await pg.textContent('#np-ending')).length > 20, 'solving shows the story ending');
+        assert(!(await pg.textContent('#np-ending')).trim(), 'solving shows no story ending');
         assert(/First grid/.test(await pg.textContent('#np-new-badges')), 'a new badge is announced');
         await pg.click('[data-feel=easy]');
         assert(/tougher/.test(await pg.textContent('#np-feel-done')), 'rating it too easy promises a tougher one');

@@ -67,7 +67,7 @@ function puzzleParts(puzzle, options) {
   const table = `<table class="ptab"><thead><tr>${puzzle.answerKey.columns.map((c) => `<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>${puzzle.answerKey.rows.map((r) => `<tr>${r.map((v) => `<td>${esc(v)}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
   const answers = `<h2>Questions</h2><ol>${puzzle.answerKey.questions.map((q) => `<li>${esc(q.question)} <b>${esc(q.answer)}</b></li>`).join('')}</ol>`;
   const steps = options.steps ? `<h2>Step by step</h2><ol class="psteps">${puzzle.solvePath.map((s) => `<li>${esc(s.explanation)}</li>`).join('')}</ol>` : '';
-  const key = `<section class="pp"><h1>${label}Answer key</h1><p class="pmeta">${esc(puzzle.title)} · ${meta}</p>${gridTable(puzzle, ix, solvedState, cellPt)}<h2>Solution</h2>${table}${answers}<h2>How it ends</h2><p>${esc(puzzle.story.ending)}</p>${steps}</section>`;
+  const key = `<section class="pp"><h1>${label}Answer key</h1><p class="pmeta">${esc(puzzle.title)} · ${meta}</p>${gridTable(puzzle, ix, solvedState, cellPt)}<h2>Solution</h2>${table}${answers}${steps}</section>`;
   return { pages, key };
 }
 

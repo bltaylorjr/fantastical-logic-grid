@@ -72,7 +72,6 @@ export function formatPuzzleText(puzzle, { answerKey = true } = {}) {
     for (const r of puzzle.answerKey.rows) lines.push(row(r));
     lines.push('');
     for (const q of puzzle.answerKey.questions) lines.push(`  ${q.question} ${q.answer}`);
-    lines.push('', puzzle.story.ending);
   }
   return lines.join('\n');
 }
