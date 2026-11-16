@@ -291,6 +291,9 @@ const SPOKEN = [
   [/\bHmph\b/g, 'Hmmf'],
   [/\bhmph\b/g, 'hmmf'],
   [/\bRollie\b/g, 'Rawlee'],
+  // "Seat" right before a number ("Seat 2") came out as "see-at 2", though the
+  // word alone was fine; spelled "Seet" it is always one sound (PZ-EBUPXW4S).
+  [/\b([Ss])eat(s?) (?=\d)/g, '$1eet$2 '],
   // "Hooray" read with the stress on "hoo"; "Hurray" puts it on "ray"
   // (player report PZ-QMMMF2S3).
   [/\bHooray\b/g, 'Hurray'],
