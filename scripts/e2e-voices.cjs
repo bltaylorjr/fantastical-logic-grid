@@ -64,6 +64,9 @@ const { spawn } = require('child_process');
   // (PZ-7D4RJ2GF, PZ-FAXSH5QD, PZ-C9TJ9GWP).
   const sounds = await page.evaluate(async () => (await import('./js/ai.js')).speechText('Hmph. Not bad, Rollie. hmph.'));
   assert(sounds === 'Hmm. Not bad, Rawlee. hmm.', `Hmph and Rollie are said the way they sound (${sounds})`);
+  // "Seat" before a number is said as one sound, not "see-at" (PZ-EBUPXW4S).
+  const seat = await page.evaluate(async () => (await import('./js/ai.js')).speechText('A riddle was found at Seat 2. Seats 1 and 6 are empty. Take a seat by the window.'));
+  assert(seat === 'A riddle was found at Seet 2. Seets 1 and 6 are empty. Take a seat by the window.', `Seat before a number is said "seet" (${seat})`);
   // "Hooray" is said with the stress on "ray" (PZ-QMMMF2S3).
   const yay = await page.evaluate(async () => (await import('./js/ai.js')).speechText('Hooray! Three, two, one, hooray!'));
   assert(yay === 'Hurray! Three, two, one, hurray!', `Hooray is said hurray (${yay})`);
