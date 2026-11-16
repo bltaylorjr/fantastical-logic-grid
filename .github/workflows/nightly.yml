@@ -182,5 +182,9 @@ jobs:
         with:
           name: nightly-lighthouse
           path: .lighthouseci
+          # .lighthouseci starts with a dot, and upload-artifact leaves out
+          # hidden files unless asked, so the weekly improvement run's speed
+          # trend had no nights to read.
+          include-hidden-files: true
           retention-days: 14
           if-no-files-found: ignore
