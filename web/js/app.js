@@ -1841,6 +1841,9 @@ function fmtTime(ms) {
   return h ? `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}` : `${m}:${String(sec).padStart(2, '0')}`;
 }
 
+// What the narrator says when a puzzle is solved: short, clear praise.
+const SOLVE_PRAISE = ['Great job!', 'Well done!', 'Nicely solved!', 'Great work, puzzle solver!', 'Excellent work!'];
+
 function showSolved(celebrate) {
   const save = S.save;
   wake.setPlaying(false);
@@ -1897,7 +1900,9 @@ function showSolved(celebrate) {
   if (celebrate && voiceOn('finish')) {
     setTimeout(() => {
       if (!S || !S.save.solved) return;
-      const said = cheerLine ? [{ who: cheer.id && cheer.id === S.puzzle.narrator ? 'narrator' : cheer.name, text: cheerLine }] : [];
+      // The cheer, then the narrator's short praise in a clear, normal voice
+      // (Bobby, 2026-11-16). No praise for a revealed answer.
+      const said = [...(cheerLine ? [{ who: cheer.id && cheer.id === S.puzzle.narrator ? 'narrator' : cheer.name, text: cheerLine }] : []), ...(save.revealed ? [] : [{ who: 'narrator', text: SOLVE_PRAISE[Math.floor(Math.random() * SOLVE_PRAISE.length)] }])];
       if (said.length) ai.speakLines(settings, S.puzzle, said, { volume: settings.volume / 100 });
     }, 1200);
   }
