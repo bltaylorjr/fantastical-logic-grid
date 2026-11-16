@@ -45,6 +45,8 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
 
+from .heard import compare_words
+
 import numpy as np
 
 AUDIO = (".mp3", ".ogg", ".flac", ".wav")
@@ -341,7 +343,11 @@ class AutoTrainer:
         segs = list(segs)
         words = [(w.word.strip(), w.start, w.end) for s in segs for w in (s.words or [])]
         conf = float(np.mean([s.avg_logprob for s in segs])) if segs else -9.0
-        return " ".join(w for w, _, _ in words), words, info.language, float(info.language_probability), conf
+        from .heard import FIXER                   # your spelling fixes and one spelling per sound ("hmph" -> "humph")
+        text = " ".join(w for w, _, _ in words)
+        if info.language == "en":
+            text, words = FIXER.fix_text(text), FIXER.fix_words(words)
+        return text, words, info.language, float(info.language_probability), conf
 
     def _search(self, word: str, n: int, dl: Path) -> list[dict]:
         from .data.sources import LicenseError, _download, _http_json, check_license, normalize_license
@@ -606,8 +612,8 @@ class AutoTrainer:
                     res = eng.speak(line, voice=voice, seed=100 + i)
             else:
                 res = eng.speak(line, voice=voice, seed=100 + i)
-            heard = set(re.sub(r"[^a-z' ]", " ", self._transcribe(res.wav, res.sample_rate)[0].lower()).split())
-            want = re.sub(r"[^a-z' ]", " ", line.lower()).split()
+            heard = set(compare_words(self._transcribe(res.wav, res.sample_rate)[0]))
+            want = compare_words(line)
             hit += sum(1 for w in want if w in heard)
             total += len(want)
         return hit / max(1, total)
@@ -711,8 +717,8 @@ class AutoTrainer:
             self.job.update(phase="scan", message=f"Checking how clearly Vox says “{w}”", progress=i / n_words)
             with self.lock:
                 res = self.engine.speak(f"{w}.", voice=voice, seed=7)
-            heard = re.sub(r"[^a-z' ]", "", self._transcribe(res.wav, res.sample_rate)[0].lower()).split()
-            if w.lower() in heard:
+            heard = set(compare_words(self._transcribe(res.wav, res.sample_rate)[0]))
+            if all(x in heard for x in compare_words(w)):
                 hit += 1
             else:
                 missed.append(w)

@@ -32,6 +32,9 @@ the server starts and kept in learning/admin_token.txt)
   POST   /v1/admin/models/{version}/promote    switch to a version (roll forward/back)
   POST   /v1/admin/models/rollback
   GET    /v1/admin/lexicon   PUT /v1/admin/lexicon   DELETE /v1/admin/lexicon/{word}
+  GET    /v1/admin/heard     PUT /v1/admin/heard     DELETE /v1/admin/heard/{heard}
+                                                     how Whisper writes words (heard.py)
+  POST   /v1/admin/heard/check                       try a line through the Whisper fixes
   PATCH  /v1/admin/voices/{name}               auto-tune default, description, reset tuning
   POST   /v1/admin/voices/{name}/optimize      auto-optimize generation settings
   POST   /v1/admin/voices/{name}/undo-refine   put back the voice before the last refinement
@@ -195,6 +198,11 @@ class TranslateRequest(BaseModel):
 class WordRequest(BaseModel):
     word: str
     say_as: str
+
+
+class HeardRequest(BaseModel):
+    heard: str          # what Whisper writes ("hmph")
+    write_as: str       # what it should be ("humf")
 
 
 class VoicePatch(BaseModel):
@@ -920,6 +928,30 @@ def create_app(engine: VoxEngine, learning=None, admin_token: str | None = None,
     def admin_lexicon_delete(word: str):
         need_learning().delete_word(word)
         return {"ok": True}
+
+    # How Whisper writes words (heard.py): your fixes plus one spelling per sound.
+    @app.get("/v1/admin/heard", dependencies=admin)
+    def admin_heard():
+        from .heard import SOUNDS
+        return {"fixes": need_learning().heard_fixes(), "sounds": SOUNDS}
+
+    @app.put("/v1/admin/heard", dependencies=admin)
+    def admin_heard_put(req: HeardRequest):
+        try:
+            need_learning().set_heard(req.heard, req.write_as)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+        return {"ok": True}
+
+    @app.delete("/v1/admin/heard/{heard}", dependencies=admin)
+    def admin_heard_delete(heard: str):
+        need_learning().delete_heard(heard)
+        return {"ok": True}
+
+    @app.post("/v1/admin/heard/check", dependencies=admin)
+    def admin_heard_check(req: dict):
+        from .heard import FIXER
+        return {"text": FIXER.fix_text(str(req.get("text", ""))[:2000])}
 
     @app.patch("/v1/admin/voices/{name}", dependencies=admin)
     def admin_voice_patch(name: str, req: VoicePatch):
