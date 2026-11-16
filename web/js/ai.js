@@ -287,9 +287,10 @@ const SPOKEN = [
   [/\b(scales?|station|meters?|gauges?|clocks?|signs?|thermometers?|displays?|boards?|tags?|labels?|dials?|counters?|odometers?|speedometers?|timers?|screens?|readouts?|receipts?|notes?|cards?)\s+read\b/gi, '$1 red'],
   // Words voices spell out or say wrong, written the way they sound: "Hmph"
   // is a grunt, not the letters H-M-P-H, and the name Rollie sounds like the
-  // city Raleigh (player reports PZ-7D4RJ2GF, PZ-FAXSH5QD).
-  [/\bHmph\b/g, 'Hmmf'],
-  [/\bhmph\b/g, 'hmmf'],
+  // city Raleigh (player reports PZ-7D4RJ2GF, PZ-FAXSH5QD). "Hmmf" was still
+  // spelled out letter by letter, so the grunt is said "Hmm" (PZ-C9TJ9GWP).
+  [/\bHmph\b/g, 'Hmm'],
+  [/\bhmph\b/g, 'hmm'],
   [/\bRollie\b/g, 'Rawlee'],
   // "Hooray" read with the stress on "hoo"; "Hurray" puts it on "ray"
   // (player report PZ-QMMMF2S3).
