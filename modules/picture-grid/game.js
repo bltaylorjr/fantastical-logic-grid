@@ -99,7 +99,7 @@ export const def = {
       for (let c = 0; c < C; c++) html += `<td class="${values[r * C + c] === 1 ? 'on' : ''}${c % 5 === 4 && c < C - 1 ? ' b5r' : ''}"></td>`;
       html += '</tr>';
     }
-    return `${html}</table>${answers && p.picture ? `<p class="intro" style="text-align:center">${esc(p.story?.ending || '')}</p>` : ''}`;
+    return `${html}</table>`;
   },
   cleanPuzzle(p) {
     if (!p || typeof p !== 'object') return null;

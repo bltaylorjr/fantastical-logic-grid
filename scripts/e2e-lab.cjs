@@ -59,7 +59,7 @@ const dir = process.env.FLG_E2E_DIR || path.join(__dirname, '..', 'dist', 'web')
     await solveByHand();
     await page.waitForSelector('#solved:not([hidden])', { timeout: 20000 });
     const ending = await page.textContent('#ending');
-    assert(ending.length > 20, `${mode}: solved, ending "${ending.slice(0, 80)}..."`);
+    assert(!ending.trim(), `${mode}: solved, with no story ending after it`);
     const beat = await page.evaluate(() => { const b = document.querySelector('#story-beat'); return b && !b.hidden ? b.textContent.trim() : ''; });
     if (beats) assert(beat.length > 10, `${mode}: a story moment was shown ("${beat}")`);
     else assert(!beat, `${mode}: no story moments with ?beats=0`);

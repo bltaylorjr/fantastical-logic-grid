@@ -114,8 +114,6 @@ export function flgPdf(p, { paper = 'letter', credit = '' } = {}) {
     for (const q of p.answerKey.questions) top = doc.paragraph(M, top, `${q.question} ${q.answer}`, width, { size: 10.5 }) + 2;
     top += 10;
   }
-  doc.text(M, top, 'How it ends', { size: 12, bold: true });
-  top = doc.paragraph(M, top + 18, p.story.ending, width, { size: 10.5 });
   footer(doc, credit);
   return doc.bytes();
 }
@@ -167,7 +165,6 @@ export function ntnPdf(p, { paper = 'letter', credit = '' } = {}) {
   doc.text(M, top, title, { size: 10, gray: 0.35 });
   top += 26;
   top = ntnGrid(doc, p, p.solution, doc.width / 2, top, Math.min(width, 420)) + 20;
-  if (p.story?.ending) { doc.text(M, top, 'How it ends', { size: 12, bold: true }); doc.paragraph(M, top + 18, p.story.ending, width, { size: 10.5 }); }
   footer(doc, credit);
   return doc.bytes();
 }

@@ -41,7 +41,7 @@ export function printableHtml(game, { marks = false, paper = 'letter', answers =
   html += `<section class="page"><h1>${esc(title)}</h1><p class="meta">NINETIMESNINE · ${esc(p.difficulty.name)} · ${Number(p.size)}×${Number(p.size)}${game.daily ? ` · Daily ${esc(game.daily)}` : ''}</p>`;
   if (p.story?.intro) html += `<p class="intro">${esc(p.story.intro)}</p>`;
   html += `<ul>${p.rules.map((r) => `<li>${esc(r)}</li>`).join('')}</ul>${table(p, values, p.givens)}</section>`;
-  if (answers) html += `<section class="page"><h2>Answer key</h2>${table(p, p.solution, p.givens)}${p.story?.ending ? `<p class="intro" style="margin-top:5mm">${esc(p.story.ending)}</p>` : ''}</section>`;
+  if (answers) html += `<section class="page"><h2>Answer key</h2>${table(p, p.solution, p.givens)}</section>`;
   if (steps) {
     const items = p.solvePath.map((s) => `<li>${esc(s.why)}${s.place ? ` <b>${Number(s.place[1])} at ${cellName(p.size, s.place[0])}.</b>` : ''}</li>`).join('');
     html += `<section class="page"><h2>Step by step</h2><ol class="steps">${items}</ol></section>`;

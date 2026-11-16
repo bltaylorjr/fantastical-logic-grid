@@ -1,6 +1,6 @@
 // Story beats: short moments of story that appear while the player solves,
 // one after another as grid sections are finished. They move the story along
-// between the opening (shown at the start) and the ending (shown on solve).
+// after the opening (shown at the start).
 //
 // The game shows beats unless the admin dashboard switches them off
 // (web/js/director.js). Generated puzzles do not change: beats are
@@ -46,10 +46,12 @@ export const BEATS = {
   mystery: { early: [], middle: [], late: [] },
 };
 
-// Words the narrator whispers when a beat ends with them (Bobby, 2026-11-11):
-// the rest of the beat is read softly, then a pause, then these words as a
-// slow, hushed whisper. A leading "and" is whispered with them.
-export const WHISPERS = ['everyone goes quiet'];
+// Words the narrator whispers when a beat ends with them: the rest of the
+// beat is read softly, then a pause, then these words as a slow, hushed
+// whisper. A leading "and" is whispered with them. None for now: the whisper
+// near the end of a puzzle sounded creepy (Bobby, 2026-11-16), so every beat
+// is read in the narrator's clear, normal voice.
+export const WHISPERS = [];
 
 // The whispered end of a beat ("and everyone goes quiet."), or null.
 export function whisperPart(text) {

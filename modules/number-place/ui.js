@@ -1030,7 +1030,7 @@ function showSolved({ fresh, newBadges = [] }) {
   const box = $('#np-solved');
   const sr = G.styleResult || styleResult();
   $('#np-solved-h').textContent = G.revealed ? 'The answer' : styled('rival') ? (sr.won ? 'You win!' : sr.tie ? 'A draw!' : 'The rival wins') : 'Solved!';
-  $('#np-ending').textContent = showStory() && p.story?.ending && !G.revealed ? p.story.ending : '';
+  $('#np-ending').textContent = ''; // no story ending after a puzzle
   $('#np-ending').hidden = !$('#np-ending').textContent;
   if (G.revealed) $('#np-solved-text').textContent = 'Here is the whole answer. Watch the solution to see how each number follows from the last.';
   else {

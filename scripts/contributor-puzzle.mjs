@@ -34,7 +34,6 @@ ${(p.questions || []).length ? `<div class="keep"><h2>Questions</h2>
 <table><thead><tr>${key.columns.map((c) => `<th scope="col">${esc(c)}</th>`).join('')}</tr></thead>
 <tbody>${key.rows.map((r) => `<tr>${r.map((v, j) => (j ? `<td>${esc(v)}</td>` : `<th scope="row">${esc(v)}</th>`)).join('')}</tr>`).join('')}</tbody></table>
 ${(key.questions || []).length ? `<h2>Questions</h2><ol>${key.questions.map((q) => `<li>${esc(q.question)} <strong>${esc(q.answer)}</strong></li>`).join('')}</ol>` : ''}
-${p.story?.ending ? `<p>${esc(p.story.ending)}</p>` : ''}
 </section>` : '';
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${esc(p.title)}</title><style>${css(false)}
 .brand{font-size:.85em;color:#6b5a2e;margin:0 0 .3em}

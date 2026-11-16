@@ -22,7 +22,7 @@ export function printableHtml(game, def, { marks = false, paper = 'letter', answ
   html += `<section class="page"><h1>${esc(title)}</h1><p class="meta">${esc(def.name)} · ${esc(p.difficulty.name)} · ${esc(def.sizeLabel(p.size))}${game.daily ? ` · Daily ${esc(game.daily)}` : ''}</p>`;
   if (p.story?.intro) html += `<p class="intro">${esc(p.story.intro)}</p>`;
   html += `<ul>${p.rules.map((r) => `<li>${esc(r)}</li>`).join('')}</ul>${def.printBoard(p, values, { answers: false })}</section>`;
-  if (answers) html += `<section class="page"><h2>Answer key</h2>${def.printBoard(p, p.solution, { answers: true })}${p.story?.ending ? `<p class="intro" style="margin-top:5mm">${esc(p.story.ending)}</p>` : ''}</section>`;
+  if (answers) html += `<section class="page"><h2>Answer key</h2>${def.printBoard(p, p.solution, { answers: true })}</section>`;
   if (steps) html += `<section class="page"><h2>Step by step</h2><ol class="steps">${p.solvePath.map((s) => `<li><b>${esc(s.techniqueName)}.</b> ${esc(s.why)}</li>`).join('')}</ol></section>`;
   return `${html}</body></html>`;
 }

@@ -1841,13 +1841,18 @@ function fmtTime(ms) {
   return h ? `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}` : `${m}:${String(sec).padStart(2, '0')}`;
 }
 
+// What the narrator says when a puzzle is solved: short, clear praise.
+const SOLVE_PRAISE = ['Great job!', 'Well done!', 'Nicely solved!', 'Great work, puzzle solver!', 'Excellent work!'];
+
 function showSolved(celebrate) {
   const save = S.save;
   wake.setPlaying(false);
   const tier = S.puzzle.difficulty.id;
   const i = TIER_IDS.indexOf(tier);
   $('#solved-h').textContent = save.revealed ? 'Solution revealed' : 'Case closed!';
-  $('#ending').textContent = S.puzzle.story.ending;
+  // No story ending after a puzzle (Bobby, 2026-11-16): the cheer is the last word.
+  $('#ending').textContent = '';
+  $('#ending').hidden = true;
   // A solved Seating Plan shows its round table.
   $('#mode-table')?.remove();
   if (S.puzzle.mode === 'seating') $('#ending').insertAdjacentHTML('afterend', `<div id="mode-table">${tableSvg(S.puzzle)}</div>`);
@@ -1895,8 +1900,10 @@ function showSolved(celebrate) {
   if (celebrate && voiceOn('finish')) {
     setTimeout(() => {
       if (!S || !S.save.solved) return;
-      const said = [...(cheerLine ? [{ who: cheer.id && cheer.id === S.puzzle.narrator ? 'narrator' : cheer.name, text: cheerLine }] : []), { who: 'narrator', text: S.puzzle.story.ending }];
-      ai.speakLines(settings, S.puzzle, said, { volume: settings.volume / 100 });
+      // The cheer, then the narrator's short praise in a clear, normal voice
+      // (Bobby, 2026-11-16). No praise for a revealed answer.
+      const said = [...(cheerLine ? [{ who: cheer.id && cheer.id === S.puzzle.narrator ? 'narrator' : cheer.name, text: cheerLine }] : []), ...(save.revealed ? [] : [{ who: 'narrator', text: SOLVE_PRAISE[Math.floor(Math.random() * SOLVE_PRAISE.length)] }])];
+      if (said.length) ai.speakLines(settings, S.puzzle, said, { volume: settings.volume / 100 });
     }, 1200);
   }
   res.classList.remove('celebrate');
@@ -1911,7 +1918,7 @@ function showSolved(celebrate) {
     $('#solved').dataset.effects = shown ? shown.join(' ') : '';
     $('#solved').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
     $('#solved').focus({ preventScroll: true });
-    announce(`${save.revealed ? 'Solution revealed.' : 'Solved!'} ${S.puzzle.story.ending}`);
+    announce(save.revealed ? 'Solution revealed.' : 'Solved!');
   }
 }
 

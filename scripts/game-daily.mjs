@@ -451,7 +451,6 @@ ${p.story?.intro ? `<p>${esc(p.story.intro)}</p>` : ''}
 <summary>Show the answer key (spoilers)</summary>
 <div class="card">${g.board(p, p.solution, true)}</div>
 ${p.picture?.name ? `<p>The hidden picture: <b>${esc(p.picture.name)}</b>.</p>` : ''}
-${p.story?.ending && g.id !== 'pg' ? `<p>${esc(p.story.ending)}</p>` : ''}
 </details>
 ${earlier.length ? `<h2>Earlier daily ${esc(g.name)} puzzles</h2><ul class="archive">${earlier.map(([d, t]) => `<li><a href="${up}${answerPath(g, d)}">${esc(longDate(d))}: ${esc(t)}</a></li>`).join('')}</ul>` : ''}
 <footer>© ${date.slice(0, 4)} Bobby Taylor. The Logic Grid™ · <a href="${up}${g.page}">${esc(g.name)}</a></footer>

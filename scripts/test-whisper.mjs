@@ -1,23 +1,24 @@
-// The hushed story moment (Bobby, 2026-11-11): "Only one part of the puzzle
-// is left, and everyone goes quiet." ends in a whisper. Checks that the beat
-// carries the words to whisper, and that whisper.js really removes the
-// voice's pitch (a whisper has no buzz) while keeping the clip's length.
+// The story moment "Only one part of the puzzle is left, and everyone goes
+// quiet." used to end in a whisper (2026-11-11); since 2026-11-16 nothing is
+// whispered (it sounded creepy). Checks that no beat carries words to
+// whisper, and that whisper.js still removes the voice's pitch (a whisper has
+// no buzz) while keeping the clip's length.
 import assert from 'node:assert/strict';
 import { BEATS, whisperPart, storyBeats } from '../engine/src/beats.js';
 import { whisperSamples, wavBytes } from '../web/js/whisper.js';
 
 const line = BEATS.default.late.find((t) => /everyone goes quiet/.test(t));
 assert.equal(line, 'Only one part of the puzzle is left, and everyone goes quiet.');
-assert.equal(whisperPart(line), 'and everyone goes quiet.');
+assert.equal(whisperPart(line), null);
 assert.equal(whisperPart('The first pieces fall into place.'), null);
 
-// A puzzle whose late beat is the hushed line carries `whisper`.
+// No puzzle's late beat carries `whisper`, the hushed line included.
 const fake = (id) => ({ grid: { blocks: [1, 2, 3, 4] }, theme: { id: 'nowhere' }, story: { id }, categories: [{ items: [{ label: 'Ann' }, { label: 'Bo' }] }], cast: { one: 'guest', many: 'guests' } });
 let found = false;
 for (let i = 0; i < 200 && !found; i++) {
   const late = storyBeats(fake(`s${i}`)).find((b) => b.stage === 'late');
-  if (late.text === line) { assert.equal(late.whisper, 'and everyone goes quiet.'); found = true; }
-  else assert.equal(late.whisper, undefined);
+  assert.equal(late.whisper, undefined);
+  if (late.text === line) found = true;
 }
 assert.ok(found, 'some puzzle gets the hushed line');
 
