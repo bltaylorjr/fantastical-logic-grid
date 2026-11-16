@@ -20,10 +20,12 @@ name: Weekly improvement
 on:
   schedule:
     - cron: '23 8 * * 1'   # Mondays 08:23 UTC
-    # GitHub sometimes skips a scheduled run when it is busy (it skipped
-    # 2026-11-02). This backup an hour and a half later runs only when the
-    # 08:23 run did not, and still before the weekly Claude task (10:41 UTC
-    # in winter, 09:41 UTC in summer).
+    # GitHub sometimes skips a scheduled run or starts it hours late (it
+    # skipped 2026-11-02 and started about 10 hours late on 2026-11-09). This
+    # backup an hour and a half later runs only when the 08:23 run did not,
+    # and the weekly Claude task starts a run by hand if neither has. A
+    # scheduled run that starts after another run already finished that day
+    # does nothing, so the report and email are never repeated.
     - cron: '47 9 * * 1'   # Mondays 09:47 UTC, backup
   workflow_dispatch:
     inputs:
@@ -43,7 +45,7 @@ permissions:
 concurrency:
   group: improve
 jobs:
-  # The backup schedule runs only when nothing ran this week's report today.
+  # A scheduled run goes ahead only when no other run finished today.
   when:
     if: vars.IMPROVE != 'off'
     runs-on: ubuntu-latest
@@ -53,13 +55,13 @@ jobs:
       - id: check
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          BACKUP: ${{ github.event_name == 'schedule' && github.event.schedule == '47 9 * * 1' }}
+          SCHEDULED: ${{ github.event_name == 'schedule' }}
         run: |
           go=true
-          if [ "$BACKUP" = true ]; then
+          if [ "$SCHEDULED" = true ]; then
             done=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow improve.yml --created ">=$(date -u +%F)" --json databaseId,conclusion \
               -q "[.[] | select(.databaseId != ${{ github.run_id }} and .conclusion == \"success\")] | length")
-            if [ "${done:-0}" -gt 0 ]; then go=false; echo "The report already ran today, so the backup has nothing to do."; fi
+            if [ "${done:-0}" -gt 0 ]; then go=false; echo "The report already ran today, so this scheduled run has nothing to do."; fi
           fi
           echo "go=$go" >> "$GITHUB_OUTPUT"
 

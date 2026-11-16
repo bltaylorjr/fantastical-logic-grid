@@ -64,6 +64,27 @@ export const HOUSE_TUNING = [
       "clueWeights": {}
     },
     "storyPrefs": {}
+  },
+  {
+    "from": "2026-11-17",
+    "reasons": [
+      "Daily Basic puzzles: a little gentler within the level (0.25 to 0.1), following what everyone's games taught the shared learning.",
+      "Daily Easy puzzles: a little gentler within the level (0.2 to 0), following what everyone's games taught the shared learning.",
+      "Daily Medium puzzles: a little gentler within the level (0.1 to -0.1), following what everyone's games taught the shared learning.",
+      "Daily Hard puzzles: a little gentler within the level (0.05 to -0.1), following what everyone's games taught the shared learning.",
+      "Daily Expert puzzles: a little gentler within the level (0.2 to 0), following what everyone's games taught the shared learning.",
+      "Daily Quantum Physicist puzzles: a little gentler within the level (0.2 to 0), following what everyone's games taught the shared learning.",
+      "Daily Theoretical Physicist puzzles: a little gentler within the level (0.2 to 0), following what everyone's games taught the shared learning."
+    ],
+    "daily": {
+      "effort": {
+        "basic": 0.1,
+        "medium": -0.1,
+        "hard": -0.1
+      },
+      "clueWeights": {}
+    },
+    "storyPrefs": {}
   }
 ];
 

@@ -759,11 +759,15 @@ function usageNote(w) {
   return w.usage_pronunciations.length ? '<p class="muted">Said two ways depending on use; the engine picks from the words around it.</p>' : '';
 }
 async function renderWords(el, prefill = '') {
-  const [r, d] = await Promise.all([vox('/v1/admin/lexicon'), vox('/v1/admin/dictionary')]);
+  const [r, d, hd] = await Promise.all([vox('/v1/admin/lexicon'), vox('/v1/admin/dictionary'),
+    vox('/v1/admin/heard').catch(() => ({ fixes: {}, sounds: {} }))]);
   const running = d.running && d.running[0];
+  const heardRows = Object.entries(hd.fixes).map(([w, to]) => [h.esc(w), `<b>${h.esc(to)}</b>`,
+    `<button class="btn small danger" type="button" data-unheard="${h.esc(w)}">Remove</button>`]);
+  const soundRows = Object.entries(hd.sounds).map(([canon, vs]) => [`<b>${h.esc(canon)}</b>`, h.esc(vs.filter((v) => v !== canon).join(', '))]);
   const rows = Object.entries(r.words).map(([w, say]) => [`<b>${h.esc(w)}</b>`, h.esc(say),
     `<div class="row"><button class="btn small" type="button" data-say="${h.esc(w)}">Hear</button><button class="btn small danger" type="button" data-unword="${h.esc(w)}">Remove</button></div>`]);
-  const issues = r.issues.map((i) => [`<b>${h.esc(i.word)}</b>`, `${h.fmt(i.misses)} of ${h.fmt(i.seen)}`, `<button class="btn small" type="button" data-fix="${h.esc(i.word)}">Add a fix</button>`]);
+  const issues = r.issues.map((i) => [`<b>${h.esc(i.word)}</b>`, `${h.fmt(i.misses)} of ${h.fmt(i.seen)}`, `<div class="row"><button class="btn small" type="button" data-fix="${h.esc(i.word)}">Fix how it's said</button><button class="btn small" type="button" data-heardfix="${h.esc(i.word)}">Fix how Whisper spells it</button></div>`]);
   const status = d.installed
     ? `<p class="muted">American English dictionary: <b>${h.fmt(d.words)}</b> words and phrases, ${h.fmt(d.with_pronunciation)} with pronunciations, ${h.fmt(d.senses)} meanings (CMU Pronouncing Dictionary and Open English WordNet). Words it doesn't list are worked out by its letters-to-sounds model${d.guesser ? ` (${Math.round(d.guesser.words_ignoring_stress * 100)}% exactly right on words it never saw)` : ''}.</p>`
     : running ? `<p>Installing the dictionary: ${h.esc(running.message)}</p><progress max="1" value="${Number(running.progress) || 0}" aria-label="Progress"></progress>`
@@ -784,8 +788,24 @@ async function renderWords(el, prefill = '') {
     </form>
     ${h.table(['Word', 'Said as', ''], rows, 'No fixes yet.', { csv: false })}
     <h2>Words it may be saying wrong</h2>
-    <p class="muted">Words the transcriber often fails to hear in the engine's own lines (needs Whisper).</p>
-    ${h.table(['Word', 'Misheard', ''], issues, 'None found.', { csv: false })}`;
+    <p class="muted">Words the transcriber often fails to hear in the engine's own lines (needs Whisper). If Vox says it right but Whisper writes it another way, fix how Whisper spells it instead.</p>
+    ${h.table(['Word', 'Misheard', ''], issues, 'None found.', { csv: false })}
+    <h2>How Whisper spells words</h2>
+    <p class="muted">Whisper writes sounds like "humf" many ways (hmph, humph, hmf). Each sound already gets one spelling, so the engine doesn't count its own line as misheard, and recordings it learns from are saved with the right words. Add your own fix for any word Whisper gets wrong. Your fixes win over the built-in spellings.</p>
+    <form id="vx-heard" class="card row" novalidate>
+      <div class="field"><label for="vx-hw">Whisper writes</label><input id="vx-hw" type="text" maxlength="64" autocomplete="off" spellcheck="false" required></div>
+      <div class="field grow"><label for="vx-hw-to">Should be</label><input id="vx-hw-to" type="text" maxlength="64" autocomplete="off" spellcheck="false" required></div>
+      <button class="btn primary" type="submit">Save fix</button>
+    </form>
+    ${h.table(['Whisper writes', 'Fixed to', ''], heardRows, 'No fixes yet.', { csv: false })}
+    <form id="vx-heard-try" class="row">
+      <div class="field grow"><label for="vx-hw-line">Try a line</label><input id="vx-hw-line" type="text" maxlength="500" placeholder="Hmph. Mhm, hmmmm, uh huh." autocomplete="off" spellcheck="false"></div>
+      <button class="btn" type="submit">Check</button>
+    </form>
+    <p id="vx-hw-out" aria-live="polite"></p>
+    <details><summary>Built-in sound spellings (${h.fmt(soundRows.length)})</summary>
+      ${h.table(['Spelled as', 'Also written as'], soundRows, 'None.', { csv: false })}
+    </details>`;
   if (wordQuery) await showWord(wordQuery);
   if (prefill) $('#vx-say').focus();
   return Boolean(running);
@@ -1328,6 +1348,20 @@ export function initVoiceEngine(helpers) {
         await vox('/v1/admin/lexicon', { method: 'PUT', body: { word, say_as: sayAs } });
         await renderTab();
       }, 'Fix saved. Every line uses it from now on.');
+    } else if (f.id === 'vx-heard') {
+      await h.act(btn, async () => {
+        const heard = $('#vx-hw').value.trim(), writeAs = $('#vx-hw-to').value.trim();
+        if (!heard || !writeAs) throw new Error('Fill in what Whisper writes and what it should be.');
+        await vox('/v1/admin/heard', { method: 'PUT', body: { heard, write_as: writeAs } });
+        await renderTab();
+      }, 'Fix saved. Whisper\'s writing is fixed from now on.');
+    } else if (f.id === 'vx-heard-try') {
+      await h.act(btn, async () => {
+        const text = $('#vx-hw-line').value.trim();
+        if (!text) throw new Error('Type a line to check.');
+        const { text: out } = await vox('/v1/admin/heard/check', { method: 'POST', body: { text } });
+        $('#vx-hw-out').innerHTML = `Saved as: <b>${h.esc(out)}</b>`;
+      });
     }
   });
 
@@ -1506,6 +1540,17 @@ export function initVoiceEngine(helpers) {
       $('#vx-say').value = '';
       $('#vx-say').focus();
       $('#vx-word').scrollIntoView({ block: 'center' });
+      return;
+    }
+    if (b.dataset.heardfix) {
+      $('#vx-hw').value = '';
+      $('#vx-hw-to').value = b.dataset.heardfix;
+      $('#vx-hw').focus();
+      $('#vx-heard').scrollIntoView({ block: 'center' });
+      return;
+    }
+    if (b.dataset.unheard) {
+      await h.act(b, async () => { await vox(`/v1/admin/heard/${encodeURIComponent(b.dataset.unheard)}`, { method: 'DELETE' }); await renderTab(); }, 'Fix removed.');
       return;
     }
     if (b.dataset.unword) {

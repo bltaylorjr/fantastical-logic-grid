@@ -156,6 +156,8 @@ fi
 if [ -d .lighthouseci ]; then
   for f in .lighthouseci/lhr-*.json; do
     [ -f "$f" ] || continue
+    # When a page is slow to respond, name what kept it busy (run log only).
+    jq -r 'select(.audits["total-blocking-time"].numericValue > 300) | "Busiest parts of \(.finalDisplayedUrl | sub("^https?://[^/]+"; "")): " + ([.audits["bootup-time"].details.items[]? | "\(.url | sub("^https?://[^/]+"; "")) \(.total | round) ms"] | .[0:5] | join(", ")) + "; long tasks: " + ([.audits["long-tasks"].details.items[]? | "\(.url | sub("^https?://[^/]+"; "")) \(.duration | round) ms"] | .[0:5] | join(", "))' "$f" || true
     jq -r '"Lighthouse \(.finalDisplayedUrl | sub("^https?://[^/]+"; "")): speed \(.categories.performance.score * 100 | round), accessibility \(.categories.accessibility.score * 100 | round), SEO \(.categories.seo.score * 100 | round); first paint \(.audits["first-contentful-paint"].displayValue), largest paint \(.audits["largest-contentful-paint"].displayValue), layout shift \(.audits["cumulative-layout-shift"].displayValue)."' "$f" | while read -r l; do note "$l"; done
   done
 fi

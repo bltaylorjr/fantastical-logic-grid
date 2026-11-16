@@ -96,6 +96,7 @@ class LearningStore:
     CREATE TABLE IF NOT EXISTS prefs(id INTEGER PRIMARY KEY AUTOINCREMENT, created REAL,
         winner TEXT, loser TEXT, kind TEXT, used_in TEXT);
     CREATE TABLE IF NOT EXISTS lexicon(word TEXT PRIMARY KEY, say_as TEXT, created REAL);
+    CREATE TABLE IF NOT EXISTS heard_fixes(heard TEXT PRIMARY KEY, write_as TEXT, created REAL);
     CREATE TABLE IF NOT EXISTS word_issues(word TEXT PRIMARY KEY, misses INTEGER, seen INTEGER, last REAL);
     CREATE TABLE IF NOT EXISTS versions(version TEXT PRIMARY KEY, created REAL, path TEXT,
         parent TEXT, quality REAL, status TEXT, note TEXT, voices TEXT);
@@ -191,10 +192,12 @@ class QualityScorer:
         missed: list[str] = []
         if self.asr is not None and plain:
             from .data.augment import word_error_rate
+            from .heard import compare_words      # "humf" in the line and "hmph" from Whisper are the same word
             heard = self.asr(wav, sr)[0]
-            s["intelligibility"] = float(max(0.0, 1 - word_error_rate(plain, heard)) * 100)
-            hw = set(words_of(heard))
-            missed = [w for w in words_of(plain) if w not in hw and len(w) > 2]
+            s["intelligibility"] = float(max(0.0, 1 - word_error_rate(" ".join(compare_words(plain)),
+                                                                        " ".join(compare_words(heard)))) * 100)
+            hw = set(compare_words(heard))
+            missed = [w for w in words_of(plain) if len(w) > 2 and not all(x in hw for x in compare_words(w))]
         have = {k: v for k, v in s.items() if v is not None}
         wsum = sum(self.WEIGHTS[k] for k in have)
         s["overall"] = round(sum(self.WEIGHTS[k] * v for k, v in have.items()) / wsum, 2) if wsum else 0.0
@@ -223,6 +226,7 @@ class LearningSystem:
         self._job_thread: threading.Thread | None = None
         engine.on_retry_pair = self._retry_pair
         engine.set_lexicon(self.lexicon())
+        self._load_heard()
         if not self.store.q("SELECT 1 FROM versions LIMIT 1"):
             self.store.x("INSERT INTO versions VALUES(?,?,?,?,?,?,?,?)",
                          ("v0001", time.time(), engine.ckpt_path or "", None, None, "current",
@@ -385,6 +389,30 @@ class LearningSystem:
     def delete_word(self, word: str) -> None:
         self.store.x("DELETE FROM lexicon WHERE word=?", (word,))
         self.engine.set_lexicon(self.lexicon())
+
+    # Whisper spelling fixes (heard.py): what Whisper writes -> what it should be.
+    def heard_fixes(self) -> dict[str, str]:
+        return {r["heard"]: r["write_as"] for r in self.store.q("SELECT heard, write_as FROM heard_fixes ORDER BY heard")}
+
+    def _load_heard(self) -> None:
+        from .heard import FIXER
+        FIXER.load(self.heard_fixes())
+
+    def set_heard(self, heard: str, write_as: str) -> None:
+        heard, write_as = " ".join(heard.split()).lower(), " ".join(write_as.split())
+        if not heard or not write_as or len(heard) > 64 or len(write_as) > 64:
+            raise ValueError("Give what Whisper writes and what it should be (up to 64 characters each).")
+        if heard == write_as.lower():
+            raise ValueError("Those are the same, so there's nothing to fix.")
+        self.store.x("INSERT INTO heard_fixes VALUES(?,?,?) ON CONFLICT(heard) DO UPDATE SET write_as=excluded.write_as",
+                     (heard, write_as, time.time()))
+        self._load_heard()
+        for w in set(words_of(write_as)):        # start counting this word fresh now Whisper's spelling is fixed
+            self.store.x("DELETE FROM word_issues WHERE word=?", (w,))
+
+    def delete_heard(self, heard: str) -> None:
+        self.store.x("DELETE FROM heard_fixes WHERE heard=?", (" ".join(heard.split()).lower(),))
+        self._load_heard()
 
     def word_issues(self, limit: int = 30) -> list[dict]:
         return self.store.q("SELECT word, misses, seen, ROUND(1.0*misses/seen, 2) AS miss_rate FROM word_issues "
