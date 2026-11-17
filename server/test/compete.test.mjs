@@ -369,3 +369,52 @@ test('challenges: invite a player by screen name, who accepts or declines', asyn
   await call('/v1/profile', { as: 'eli', method: 'DELETE' });
   assert.equal((await db.prepare("SELECT COUNT(*) AS n FROM race_invites WHERE from_id = 'eli' OR to_id = 'eli'").first()).n, 0);
 });
+
+test('an account that left without choosing a name gets a suggested one and is asked to keep or change it', async () => {
+  const uid = 'auto-named-1';
+  // Signed in just now: still time to choose at sign-up, so no name yet.
+  let r = await call('/v1/profile', { as: uid, method: 'GET' });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.screenName, null);
+  assert.equal(r.body.autoNamed, false);
+  // Twenty minutes later the next sign-in gives it a suggested, approved name.
+  await db.prepare('UPDATE account_logins SET first_at = first_at - ?2 WHERE user_id = ?1').bind(uid, 20 * 60_000).run();
+  r = await call('/v1/profile', { as: uid, method: 'GET' });
+  assert.equal(r.status, 200);
+  assert.ok(isSuggestedName(r.body.screenName), r.body.screenName);
+  assert.equal(r.body.autoNamed, true);
+  assert.equal(r.body.nameApproved, true);
+  const picked = r.body.screenName;
+  // The same name on the next sign-in, still waiting for the player to keep it.
+  r = await call('/v1/profile', { as: uid, method: 'GET' });
+  assert.equal(r.body.screenName, picked);
+  assert.equal(r.body.autoNamed, true);
+  // Keeping it clears the flag.
+  r = await call('/v1/profile', { as: uid, method: 'PUT', body: { screenName: picked } });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.autoNamed, false);
+  r = await call('/v1/profile', { as: uid, method: 'GET' });
+  assert.equal(r.body.autoNamed, false);
+});
+
+test('the hourly run names every account still without a name', async () => {
+  const { nameNamelessAccounts } = await import('../src/auto-names.js');
+  const old = Date.now() - 2 * 3600_000;
+  await db.prepare('INSERT INTO sync_users (user_id, rev, created_at) VALUES (?1, 0, ?2)').bind('auto-named-old-sync', old).run();
+  await db.prepare('INSERT INTO account_logins (user_id, first_at, last_at, counted) VALUES (?1, ?2, ?2, 1)').bind('auto-named-old-login', old).run();
+  await db.prepare('INSERT INTO account_logins (user_id, first_at, last_at, counted) VALUES (?1, ?2, ?2, 1)').bind('auto-named-new', Date.now()).run();
+  await db.prepare('INSERT INTO account_logins (user_id, first_at, last_at, counted) VALUES (?1, ?2, ?2, 1)').bind('auto-named-banned', old).run();
+  await db.prepare("INSERT INTO bans (user_id, reason, banned_by, banned_at, until) VALUES ('auto-named-banned', 'test', 'test', 1, NULL)").run();
+  const named = await nameNamelessAccounts({ DB: db });
+  const uids = named.map((x) => x.uid).sort();
+  assert.ok(uids.includes('auto-named-old-sync'));
+  assert.ok(uids.includes('auto-named-old-login'));
+  assert.ok(!uids.includes('auto-named-new'));
+  assert.ok(!uids.includes('auto-named-banned'));
+  for (const x of named) assert.ok(isSuggestedName(x.name));
+  const row = await db.prepare('SELECT auto_named, name_key FROM players WHERE user_id = ?1').bind('auto-named-old-sync').first();
+  assert.equal(row.auto_named, 1);
+  assert.ok(await db.prepare('SELECT 1 FROM name_reviews WHERE user_id = ?1 AND name_key = ?2').bind('auto-named-old-sync', row.name_key).first());
+  // Nothing left to do on a second run.
+  assert.equal((await nameNamelessAccounts({ DB: db })).filter((x) => x.uid.startsWith('auto-named-old')).length, 0);
+});

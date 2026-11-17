@@ -33,6 +33,7 @@ import { alert } from './alerts.js';
 import { json, readText, TooLarge } from './http.js';
 import { checkName, cleanName, nameKey, hasBlockedWords, isSuggestedName } from './names.js';
 import { isDeleted, recordSignIn } from './sync.js';
+import { giveSuggestedName, GRACE_MS } from './auto-names.js';
 import { AuthError } from './auth.js';
 import { getSettings } from './settings.js';
 import { supporterTiers } from './supporters.js';
@@ -431,7 +432,7 @@ export async function handleCompete(req, env, ctx, url, signedIn) {
     const uid = user.uid;
     const isWrite = method !== 'GET';
     if (isWrite && env.LIMIT_COMPETE && !(await env.LIMIT_COMPETE.limit({ key: uid })).success) return fail('slow_down', 429);
-    const profile = await db.prepare('SELECT screen_name, accept_invites, email FROM players WHERE user_id = ?1').bind(uid).first();
+    let profile = await db.prepare('SELECT screen_name, accept_invites, email, auto_named FROM players WHERE user_id = ?1').bind(uid).first();
     // Keeps the email behind the screen name current, for screen-name sign-in.
     if (profile && user.email && profile.email !== user.email) await db.prepare('UPDATE players SET email = ?2 WHERE user_id = ?1').bind(uid, user.email).run();
     const settings = await getSettings(env, now);
@@ -444,8 +445,23 @@ export async function handleCompete(req, env, ctx, url, signedIn) {
 
     if (area === 'profile' && !sub) {
       // The game asks for the name straight after every sign-in.
-      if (method === 'GET') await recordSignIn(env, uid, now);
-      if (method === 'GET') return json(req, env, { screenName: profile ? profile.screen_name : null, acceptInvites: profile ? !!profile.accept_invites : true, nameApproved: profile ? await isApproved(env, uid, settings) : null });
+      if (method === 'GET') {
+        await recordSignIn(env, uid, now);
+        // Every account has a name: one that signed up a while ago and never
+        // chose one gets a suggested name now, and is asked to keep or change it.
+        if (!profile && settings.names_enabled) {
+          const first = await db.prepare(`SELECT MIN(at) AS at FROM (SELECT first_at AS at FROM account_logins WHERE user_id = ?1
+            UNION ALL SELECT created_at AS at FROM sync_users WHERE user_id = ?1)`).bind(uid).first('at');
+          if (first && first <= now - GRACE_MS && !(await banOf(env, uid, now)) && (await giveSuggestedName(env, uid, now))) {
+            boardCache.clear();
+            profile = await db.prepare('SELECT screen_name, accept_invites, email, auto_named FROM players WHERE user_id = ?1').bind(uid).first();
+          }
+        }
+        return json(req, env, {
+          screenName: profile ? profile.screen_name : null, acceptInvites: profile ? !!profile.accept_invites : true,
+          nameApproved: profile ? await isApproved(env, uid, settings) : null, autoNamed: !!(profile && profile.auto_named),
+        });
+      }
       if (method === 'DELETE') {
         await db.batch(deleteCompeteStatements(env, uid));
         boardCache.clear();
@@ -468,7 +484,7 @@ export async function handleCompete(req, env, ctx, url, signedIn) {
         const accept = typeof b.acceptInvites === 'boolean' ? (b.acceptInvites ? 1 : 0) : (profile ? profile.accept_invites : 1);
         await db.prepare(`INSERT INTO players (user_id, screen_name, name_key, created_at, updated_at, accept_invites, email) VALUES (?1, ?2, ?3, ?4, ?4, ?5, ?6)
           ON CONFLICT (user_id) DO UPDATE SET screen_name = excluded.screen_name, name_key = excluded.name_key, updated_at = excluded.updated_at,
-            accept_invites = excluded.accept_invites, email = COALESCE(excluded.email, players.email)`).bind(uid, name, key, now, accept, user.email || null).run();
+            accept_invites = excluded.accept_invites, email = COALESCE(excluded.email, players.email), auto_named = 0`).bind(uid, name, key, now, accept, user.email || null).run();
         // Names from Suggest a name are approved straight away; typed names wait for an admin.
         if (isSuggestedName(name)) {
           await db.prepare("INSERT OR REPLACE INTO name_reviews (user_id, name_key, reviewed_by, reviewed_at) VALUES (?1, ?2, 'automatic (suggested name)', ?3)").bind(uid, key, now).run();
@@ -477,7 +493,7 @@ export async function handleCompete(req, env, ctx, url, signedIn) {
         const approved = await isApproved(env, uid, settings);
         // Sent with the hourly round-up, since names come in often.
         if (!approved) await alert(env, null, { category: 'approvals', instant: false, title: 'A screen name is waiting', body: `A player chose "${name}". Approve it in Screen names.`, link: 'names' });
-        return json(req, env, { screenName: name, acceptInvites: !!accept, nameApproved: approved });
+        return json(req, env, { screenName: name, acceptInvites: !!accept, nameApproved: approved, autoNamed: false });
       }
       return fail('not_found', 404);
     }

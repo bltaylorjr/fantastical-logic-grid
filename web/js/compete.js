@@ -66,6 +66,10 @@ let acceptInvites = true;
 // players see "New player" until then.
 let nameApproved = true;
 export const isNameApproved = () => nameApproved;
+// True while the player's name was picked by the game (they left without
+// choosing one): they are asked once to keep it or choose their own.
+let autoNamed = false;
+export const isAutoNamed = () => autoNamed;
 export const acceptsInvites = () => acceptInvites;
 export async function loadName() {
   const seq = ++nameSeq;
@@ -73,6 +77,7 @@ export async function loadName() {
   if (seq !== nameSeq) return cachedName();
   acceptInvites = r.acceptInvites !== false;
   nameApproved = r.nameApproved !== false;
+  autoNamed = !!r.autoNamed;
   return remember(r.screenName);
 }
 export async function setName(screenName, accept = acceptInvites) {
@@ -80,6 +85,7 @@ export async function setName(screenName, accept = acceptInvites) {
   const r = await call('/v1/profile', { method: 'PUT', body: { screenName, acceptInvites: !!accept } });
   acceptInvites = r.acceptInvites !== false;
   nameApproved = r.nameApproved !== false;
+  autoNamed = false;
   return remember(r.screenName);
 }
 // Before an account is made: would the server take this name? Resolves with
@@ -95,7 +101,7 @@ export async function setAcceptInvites(accept) {
   return acceptInvites;
 }
 export async function leave() { nameSeq++; await call('/v1/profile', { method: 'DELETE' }); remember(null); }
-export function forget() { store.setLocal(PROFILE, undefined); }
+export function forget() { autoNamed = false; store.setLocal(PROFILE, undefined); }
 
 // Quick checks before asking the server, which has the full rules.
 export function nameProblem(raw) {

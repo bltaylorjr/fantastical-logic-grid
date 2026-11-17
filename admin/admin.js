@@ -1273,7 +1273,7 @@ views.players = async ({ arg } = {}) => {
   $$('#players-table th[data-sort]').forEach((th) => (th.dataset.sort === d.sort ? th.setAttribute('aria-sort', d.dir === 'asc' ? 'ascending' : 'descending') : th.removeAttribute('aria-sort')));
   const moderator = can('moderator') && d.ids;
   const nameCell = (p) => {
-    const label = p.name ? esc(p.name) : `<i>No screen name</i>${moderator ? ` <code>${esc(p.uid)}</code>` : ''}`;
+    const label = p.name ? `${esc(p.name)}${p.autoNamed ? ' <span class="badge">Picked by the game</span>' : ''}` : `<i>No screen name</i>${moderator ? ` <code>${esc(p.uid)}</code>` : ''}`;
     return moderator ? `<a class="rowlink" href="#players/${encodeURIComponent(p.uid)}">${label}</a>` : label;
   };
   const actions = (p) => {
@@ -1297,6 +1297,7 @@ views.players = async ({ arg } = {}) => {
   $('#players-page').textContent = `Page ${fmt(d.page)} of ${fmt(d.pages)}`;
   $('#players-prev').disabled = d.page <= 1;
   $('#players-next').disabled = d.page >= d.pages;
+  $('#players-name-all').hidden = !moderator || !d.sections.account;
   if (arg && moderator) openPlayer(arg);
   else if (!arg) $('#player-detail').innerHTML = '';
 };
@@ -1334,6 +1335,15 @@ const reloadPlayers = () => {
 $('#players-form').onsubmit = (e) => { e.preventDefault(); playerList.page = 1; if (location.hash !== '#players') location.hash = 'players'; else reloadPlayers(); };
 $('#players-sort').onchange = () => { playerList.page = 1; playerList.dir = ''; reloadPlayers(); };
 $('#players-per').onchange = () => { playerList.page = 1; reloadPlayers(); };
+$('#players-name-all').onclick = async (e) => {
+  const btn = e.currentTarget;
+  btn.disabled = true;
+  try {
+    const r = await api('players/name-all', { method: 'POST' });
+    toast(r.named ? `Gave ${fmt(r.named)} ${r.named === 1 ? 'account a screen name' : 'accounts screen names'}. They are asked to keep or change it when they next sign in.` : 'No accounts needed a name. Accounts made in the last 15 minutes still have time to choose their own.');
+    reloadPlayers();
+  } catch (err) { toast(err.message); } finally { btn.disabled = false; }
+};
 $('#players-prev').onclick = () => { playerList.page -= 1; reloadPlayers(); };
 $('#players-next').onclick = () => { playerList.page += 1; reloadPlayers(); };
 $('#players-sections').onclick = (e) => {
@@ -1380,7 +1390,7 @@ async function openPlayer(uid) {
       ${tile('Scored solves', fmt((sc.solo?.solves || 0) + (sc.race?.solves || 0)))}
       ${tile('Races', fmt(p.races.entered), `${fmt(p.races.solved)} solved · ${fmt(p.races.hosted)} hosted`)}
       ${p.account ? tile('Synced account', `${fmt(p.account.saves)} saves`, `${bytes(p.account.bytes)} · since ${day(p.account.createdAt)} · last sync ${day(p.account.lastSync)}`) : tile('Synced account', 'None')}
-      ${tile('Screen name', p.screenName ? (p.nameReviewed ? 'Approved' : 'Needs approval') : '–', p.nameSince ? `since ${day(p.nameSince)}` : '')}
+      ${tile('Screen name', p.screenName ? (p.nameReviewed ? 'Approved' : 'Needs approval') : '–', [p.autoNamed ? 'picked by the game; the player is asked to keep or change it' : '', p.nameSince ? `since ${day(p.nameSince)}` : ''].filter(Boolean).join(' · '))}
       ${p.signIn ? tile('Signed in', day(p.signIn.last), `first ${day(p.signIn.first)}`) : ''}
     </div>
     <div class="row">

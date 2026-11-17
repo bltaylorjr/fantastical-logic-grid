@@ -90,6 +90,7 @@
 // Privacy: anonymous learning data (plays, parts) is only ever counted on its
 // own. Nothing here joins it to accounts, and saved puzzles are only counted,
 // never shown.
+import { nameNamelessAccounts } from './auto-names.js';
 import { json, readText, TooLarge } from './http.js';
 import { verifyIdToken, AuthError } from './auth.js';
 import { checkName, cleanName, nameKey, hasBlockedWords } from './names.js';
@@ -431,7 +432,7 @@ async function findPlayers(env, url, now, role = 'owner') {
   const players = list.map((x) => ({
     ...(full ? { uid: x.uid, banReason: x.banReason, banUntil: x.banUntil, approvedBy: x.approvedBy } : {}),
     name: x.name, section: x.section, joined: x.joined, seen: x.seen || null, synced: !!x.synced,
-    points: x.points, solves: x.solves, races: x.races, banned: !!x.banned, approved: !!x.approved,
+    points: x.points, solves: x.solves, races: x.races, banned: !!x.banned, approved: !!x.approved, autoNamed: !!x.autoNamed,
   }));
   return { players, total, page, per, pages: Math.max(1, Math.ceil(total / per)), sort, dir: dir.toLowerCase(), filter, sections, ids: full };
 }
@@ -439,7 +440,7 @@ async function findPlayers(env, url, now, role = 'owner') {
 async function playerDetail(env, uid, now) {
   const db = env.DB;
   const [profile, acct, records, deleted, ban, byKind, recent, hosted, entered, review, login] = (await db.batch([
-    db.prepare('SELECT screen_name AS name, name_key, created_at, updated_at FROM players WHERE user_id = ?1').bind(uid),
+    db.prepare('SELECT screen_name AS name, name_key, created_at, updated_at, auto_named FROM players WHERE user_id = ?1').bind(uid),
     db.prepare('SELECT created_at, rev FROM sync_users WHERE user_id = ?1').bind(uid),
     db.prepare("SELECT COUNT(*) AS n, SUM(kind = 'save' AND deleted = 0) AS saves, COALESCE(SUM(length(data)), 0) AS bytes, MAX(updated_at) AS last FROM sync_records WHERE user_id = ?1").bind(uid),
     db.prepare('SELECT deleted_at FROM sync_deleted_users WHERE user_id = ?1').bind(uid),
@@ -457,6 +458,7 @@ async function playerDetail(env, uid, now) {
     uid,
     screenName: p ? p.name : null,
     nameSince: p ? p.updated_at : null,
+    autoNamed: !!(p && p.auto_named),
     nameReviewed: !!(p && review[0] && review[0].name_key === p.name_key),
     account: acct[0] ? { createdAt: acct[0].created_at, records: records[0].n, saves: records[0].saves || 0, bytes: records[0].bytes, lastSync: records[0].last } : null,
     deletedAt: deleted[0] ? deleted[0].deleted_at : null,
@@ -748,6 +750,12 @@ const ROUTES = [
     return { body: r, detail: r };
   }],
   ['GET', /^players\/([\w-]{1,128})$/, 'moderator', 'players.view', async ({ env, params: [uid], now }) => ({ body: await playerDetail(env, uid, now), target: uid })],
+  // Every account without a screen name gets a suggested one now, instead of waiting for the hourly run.
+  ['POST', /^players\/name-all$/, 'moderator', 'players.name_all', async ({ env, now }) => {
+    const named = await nameNamelessAccounts(env, now);
+    if (named.length) clearBoardCache();
+    return { body: { named: named.length }, detail: { named: named.map((x) => x.name) } };
+  }],
   ['POST', /^players\/([\w-]{1,128})\/rename$/, 'moderator', 'players.rename', async ({ env, params: [uid], body, who, now }) => ({ target: uid, ...(await renamePlayer(env, uid, body, who, now)) })],
   ['POST', /^players\/([\w-]{1,128})\/ban$/, 'moderator', 'players.ban', async ({ env, params: [uid], body, who, now }) => {
     const days = body.days == null ? null : Number(body.days);

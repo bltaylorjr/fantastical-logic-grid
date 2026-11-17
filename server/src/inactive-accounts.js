@@ -51,7 +51,7 @@ const EMAIL = /^[^\s@<>"]+@[^\s@<>"]+\.[^\s@<>"]+$/;
 // Every account (screen name, synced saves or both) with its last activity on
 // the game server and which section of the admin player list it is in. ?1 is now.
 export const PLAYER_ROWS = `WITH ids AS (SELECT user_id FROM players UNION SELECT user_id FROM sync_users UNION SELECT user_id FROM account_logins),
-  base AS (SELECT i.user_id AS uid, pl.screen_name AS name, pl.name_key, pl.email,
+  base AS (SELECT i.user_id AS uid, pl.screen_name AS name, pl.name_key, pl.email, COALESCE(pl.auto_named, 0) AS autoNamed,
     MIN(COALESCE(pl.created_at, 9e15), COALESCE(u.created_at, 9e15), COALESCE(l.first_at, 9e15)) AS joined,
     u.user_id IS NOT NULL AS synced,
     (r.name_key IS NOT NULL AND r.name_key = pl.name_key) AS approved, r.reviewed_by AS approvedBy,
