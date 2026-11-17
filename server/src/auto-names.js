@@ -14,9 +14,19 @@ export const GRACE_MS = 15 * 60_000;
 const BATCH = 200;
 const TRIES = 40;
 
+// A whole number from 0 to n - 1, every one equally likely (values past the
+// last full run of n are drawn again, so none is favoured).
+function below(n) {
+  const limit = Math.floor(0x100000000 / n) * n;
+  const buf = new Uint32Array(1);
+  for (;;) {
+    crypto.getRandomValues(buf);
+    if (buf[0] < limit) return buf[0] - Math.floor(buf[0] / n) * n;
+  }
+}
+
 function suggestion() {
-  const r = crypto.getRandomValues(new Uint32Array(3));
-  return `${SUGGEST_ADJ[r[0] % SUGGEST_ADJ.length]}${SUGGEST_NOUN[r[1] % SUGGEST_NOUN.length]}${10 + (r[2] % 90)}`;
+  return `${SUGGEST_ADJ[below(SUGGEST_ADJ.length)]}${SUGGEST_NOUN[below(SUGGEST_NOUN.length)]}${10 + below(90)}`;
 }
 
 // Gives one nameless account a free suggested name. Returns the name, or null
