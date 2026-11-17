@@ -33,6 +33,8 @@ export const CLOUD_URL = CLOUD.learnUrl;` }));
       if (req.method() === 'OPTIONS') return r.fulfill({ status: 204, headers: cors, body: '' });
       if (p === '/token') return reply({ id_token: 'id', expires_in: '3600' });
       if (p === '/v1/config') return reply({ announcements: [], disabledThemes: [], features: {}, game: {} });
+      // A signed-in player with a screen name, so the name window does not ask.
+      if (p === '/v1/profile') return reply({ screenName: 'SwiftOwl42', acceptInvites: true, nameApproved: true, autoNamed: false });
       if (p === '/v1/print-packs' && req.method() === 'GET') return reply(state);
       if (p === '/v1/print-packs') {
         const body = JSON.parse(req.postData());
@@ -52,7 +54,7 @@ export const CLOUD_URL = CLOUD.learnUrl;` }));
     return { ctx, page, errors, posts };
   };
   const openPack = async (page) => {
-    // The pick-a-screen-name window opens for a new account; it is not part of this check.
+    // Any first-visit window (welcome) is not part of this check.
     await page.evaluate(() => document.querySelectorAll('dialog[open]').forEach((d) => d.close()));
     await page.click('#menu-btn');
     assert(await page.isVisible('[data-cmd=pack]'), 'the menu has Printable puzzle pack');

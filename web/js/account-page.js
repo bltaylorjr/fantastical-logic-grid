@@ -56,20 +56,26 @@ async function drawName() {
     return cached;
   }
   named = name;
-  const needed = !name && remote.feature('names');
+  // No name yet, or one the game picked because the player left before
+  // choosing: keep it or choose another before going back to a game.
+  const picked = !!name && compete.isAutoNamed();
+  const needed = (!name || picked) && remote.feature('names');
   box.classList.toggle('needed', needed);
   $('#ac-name-h').textContent = needed ? 'Choose your screen name' : 'Screen name';
   $('#ac-name-needed').hidden = !needed;
+  $('#ac-name-needed').innerHTML = picked
+    ? '<b>One more step: every account needs a screen name.</b> You left before choosing one, so the game picked this one for you. Keep it, press Suggest another, or type your own.'
+    : '<b>One more step: every account needs a screen name.</b> We made one up for you. Keep it, press Suggest another, or type your own.';
   $('#ac-name-label').textContent = name ? 'New screen name' : 'Screen name';
   $('#ac-name-form button[type=submit]').textContent = needed ? 'Use this screen name' : 'Save screen name';
   const input = $('#ac-name-input');
-  if (needed && !input.value) input.value = compete.suggestName();
+  if (needed && !input.value) input.value = picked ? name : compete.suggestName();
   if (needed) {
     // Shown before the account window, so it is the first thing seen.
     $('#ac-account').before(box);
     if (!box.dataset.asked) { box.dataset.asked = '1'; box.scrollIntoView({ block: 'start' }); input.focus(); }
   }
-  return name;
+  return needed ? null : name;
 }
 $('#ac-name-suggest').addEventListener('click', () => {
   const input = $('#ac-name-input');

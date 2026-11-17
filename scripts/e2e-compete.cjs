@@ -34,6 +34,13 @@ function startAuth(signer) {
         refresh.set(rt, { uid, email: body.email });
         return ok(res, { localId: uid, email: body.email, idToken: signer.token({ sub: uid, email: body.email }), refreshToken: rt, expiresIn: '3600' });
       }
+      if (route === '/v1/accounts:signInWithPassword') {
+        const [, u] = [...refresh].find(([, x]) => x.email === body.email) || [];
+        if (!u) { res.writeHead(400, { 'content-type': 'application/json', 'access-control-allow-origin': '*' }); return res.end(JSON.stringify({ error: { message: 'INVALID_LOGIN_CREDENTIALS' } })); }
+        const rt = crypto.randomUUID();
+        refresh.set(rt, u);
+        return ok(res, { localId: u.uid, email: u.email, idToken: signer.token({ sub: u.uid, email: u.email }), refreshToken: rt, expiresIn: '3600' });
+      }
       if (route === '/v1/token') {
         const u = refresh.get(body.refresh_token);
         return ok(res, { id_token: signer.token({ sub: u.uid, email: u.email }), refresh_token: body.refresh_token, expires_in: '3600', user_id: u.uid });
@@ -341,6 +348,19 @@ function startAuth(signer) {
     await A.page.waitForSelector('#dlg-name[open]', { state: 'detached' });
     await A.page.waitForFunction(() => document.querySelector('#player-chip').textContent.includes('Guest'));
     assert(/Playing as Guest/.test(await A.page.textContent('#compete-me')), 'signing out instead shows the player as Guest');
+
+    // ---- Left without a name: the game picks one, and asks to keep or change it at the next sign-in.
+    await db.prepare("UPDATE account_logins SET first_at = first_at - 3600000 WHERE user_id NOT IN (SELECT user_id FROM players)").run();
+    await A.page.evaluate(async () => (await import('./js/account.js')).signIn('ann@example.com', 'correct horse battery'));
+    await A.page.waitForSelector('#dlg-name[open] #name-signout:not([hidden])', { timeout: 15000 });
+    assert(/Keep or change/.test(await A.page.textContent('#name-h')), 'a name picked by the game is shown to keep or change');
+    const picked = await A.page.inputValue('#name-input');
+    assert(/^[A-Z][a-z]+[A-Z][a-z]+[1-9][0-9]$/.test(picked) && (await db.prepare('SELECT auto_named FROM players WHERE screen_name = ?').bind(picked).first())?.auto_named === 1, `the picked name is saved for the account (${picked})`);
+    await A.page.click('#name-form button[type=submit]');
+    await A.page.waitForSelector('#dlg-name[open]', { state: 'detached' });
+    assert((await db.prepare('SELECT auto_named FROM players WHERE screen_name = ?').bind(picked).first()).auto_named === 0, 'keeping the picked name finishes the account');
+    await A.page.evaluate(async () => (await import('./js/account.js')).signOut());
+    await A.page.waitForFunction(() => document.querySelector('#player-chip').textContent.includes('Guest'));
 
     // Accessibility basics.
     const labels = await A.page.$$eval('#dlg-name input, #dlg-race input', (els) => els.every((i) => i.labels && i.labels.length));

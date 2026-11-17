@@ -34,6 +34,9 @@ let shareCode = null; // the race in the share window
 let invites = []; // challenges waiting for this player
 let seenInvites = null; // ids already announced, null until the first check
 let required = false; // the name window is open because a signed-in player has no name yet
+// A signed-in player still has to choose: no name, or one the game picked
+// for them because they left before choosing (they keep it or change it).
+const mustChoose = () => !!account.current() && (!name || compete.isAutoNamed());
 export const GUEST = 'Guest';
 
 export function initCompete(hooks) {
@@ -100,7 +103,7 @@ async function refreshName() {
   pendingCode = null;
   // Signed-in players always play under a screen name: ask straight after
   // sign-in or sign-up, and on the first sign-in of an older account.
-  if (known && !name && account.current()) { requireName(code ? () => openJoin(code) : null); return; }
+  if (known && mustChoose()) { requireName(code ? () => openJoin(code) : null); return; }
   if (code) needName(() => openJoin(code));
 }
 
@@ -115,7 +118,7 @@ function requireName(then) {
     acct.addEventListener('close', async () => {
       if (!account.current()) return;
       try { name = await compete.loadName(); renderCard(); } catch (e) { /* offline: go by what we know */ }
-      if (account.current() && !name) requireName(then);
+      if (mustChoose()) requireName(then);
     }, { once: true });
     return;
   }
@@ -244,14 +247,19 @@ function openName() {
   // A player without a name gets a made-up one filled in: keep it or type another.
   $('#name-input').value = name || (required ? compete.suggestName() : '');
   $('#name-input').removeAttribute('aria-invalid');
-  $('#name-suggested').textContent = !name && required ? `Suggested name: ${$('#name-input').value}. Press Save name to use it, or edit it.` : '';
+  const picked = required && name && compete.isAutoNamed();
+  $('#name-suggested').textContent = picked ? `The game picked ${name} for you. Press Save name to keep it, or type your own.`
+    : !name && required ? `Suggested name: ${$('#name-input').value}. Press Save name to use it, or edit it.` : '';
+  $('#name-required').textContent = picked
+    ? `You left before choosing a screen name, so the game picked ${name} for you. Keep it or type your own to go on playing signed in. Players who are not signed in show as Guest.`
+    : 'You are signed in, so choose a screen name to play under. Players who are not signed in show as Guest.';
   $('#name-post').checked = ui.getSetting('postScores') !== false;
   $('#name-invites').checked = compete.acceptsInvites();
   $('#name-approval').hidden = !feature('nameApproval');
   $('.error-box', form).hidden = true;
-  $('#name-leave').hidden = !name;
+  $('#name-leave').hidden = !name || required;
   $('#name-leave').open = false;
-  $('#name-h').textContent = name ? 'Change your screen name' : 'Choose a screen name';
+  $('#name-h').textContent = picked ? 'Keep or change your screen name' : name ? 'Change your screen name' : 'Choose a screen name';
   $('#name-required').hidden = !required;
   $('#name-cancel').hidden = required;
   $('#name-signout').hidden = !required;
@@ -265,7 +273,15 @@ function wireName() {
   const form = $('#name-form');
   const fail = (text) => { const box = $('.error-box', form); box.textContent = text; box.hidden = false; $('#name-input').setAttribute('aria-invalid', 'true'); $('#name-input').focus(); };
   d.addEventListener('click', (e) => { if (e.target.closest('[data-close]')) d.close(); });
-  d.addEventListener('close', () => { afterName = null; required = false; });
+  d.addEventListener('close', () => {
+    const then = afterName;
+    const wasRequired = required;
+    afterName = null;
+    required = false;
+    // Something else closed the window (such as opening How to play): a
+    // signed-in player without a chosen name is asked again straight away.
+    if (wasRequired && mustChoose()) setTimeout(() => { if (mustChoose()) requireName(then); }, 0);
+  });
   // A required name can't be skipped with Escape: choose one or sign out.
   d.addEventListener('cancel', (e) => { if (required) e.preventDefault(); });
   $('#name-signout').onclick = async () => {

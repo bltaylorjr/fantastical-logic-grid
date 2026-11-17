@@ -156,7 +156,7 @@ class Race {
     // Every account has a screen name: a signed-in player without one is asked
     // straight away, with a made-up name filled in. Inside the app, its own
     // screen name window asks instead (compete-ui.js).
-    if (known && !this.name && account.current() && !document.getElementById('dlg-name') && !this.dlg.open) this.openName({ required: true });
+    if (known && (!this.name || compete.isAutoNamed()) && account.current() && !document.getElementById('dlg-name') && !this.dlg.open) this.openName({ required: true });
   }
 
   // Racing needs a sign-in and a screen name; ask for whichever is missing.
@@ -174,7 +174,11 @@ class Race {
   openName({ required = false } = {}) {
     document.getElementById(`${this.game}-race-name`).value = this.name || (required ? compete.suggestName() : '');
     this.$('required').hidden = !required;
-    this.show('name', 'Choose a screen name');
+    const picked = required && this.name && compete.isAutoNamed();
+    this.$('required').innerHTML = picked
+      ? '<b>Every account needs a screen name.</b> You left before choosing one, so the game picked this one for you: keep it, press Suggest a name for another, or type your own.'
+      : '<b>Every account needs a screen name.</b> We made one up for you: keep it, press Suggest a name for another, or type your own.';
+    this.show('name', picked ? 'Keep or change your screen name' : 'Choose a screen name');
   }
 
   // ---------------------------------------------------------------- actions

@@ -36,6 +36,7 @@
 // old data, database tidy-up, Google and Bing search numbers) and the weekly
 // archive email (archive.js), on the crons in wrangler.toml.
 
+import { nameNamelessAccounts } from './auto-names.js';
 import { handlePuzzles } from './puzzles.js';
 import { handleLearn } from './learn.js';
 import { handleCompete } from './compete.js';
@@ -232,6 +233,8 @@ export default {
       // numbers caught up if a night's fetch failed (search.js), so they keep
       // themselves current without anyone pressing Refresh.
       ctx.waitUntil(sendWaiting(env).then((r) => { if (r.sent) console.log('alerts', JSON.stringify(r)); }));
+      // Accounts that left without choosing a screen name get a suggested one (auto-names.js).
+      ctx.waitUntil(nameNamelessAccounts(env).then((r) => { if (r.length) console.log('auto names', r.length); }, (e) => console.error('auto names', e)));
       ctx.waitUntil(catchUpSearch(env).then((r) => { if (Object.values(r).some((v) => v === 'ok' || v === 'error')) console.log('search catch-up', JSON.stringify(r)); }, (e) => console.error('search catch-up', e)));
       return;
     }
