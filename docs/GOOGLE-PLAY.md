@@ -126,8 +126,13 @@ Free, with no ads. An account is optional and only needed to sync between device
   - **Personal info > Email address**: collected, optional, for account
     management and the optional daily puzzle email. Not shared.
   - **Personal info > User IDs**: collected, optional (the sign-in account id), account management. Not shared.
+  - **Location > Approximate location**: collected, optional (only while
+    signed in: the city, region and country of the connection, for the
+    player's admin profile; kept 180 days), analytics. Not shared.
   - **App activity > App interactions**: collected, optional (anonymous play
-    summaries; can be turned off in Settings > Learning), analytics. Not shared.
+    summaries, which can be turned off in Settings > Learning; and, while
+    signed in, the days played and roughly how long the game was open),
+    analytics. Not shared.
   - **App activity > Other user-generated content**: collected, optional
     (ideas and problem reports players send, and synced notes), for app
     functionality and support. Not shared.

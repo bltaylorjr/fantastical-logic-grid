@@ -446,7 +446,7 @@ export async function handleCompete(req, env, ctx, url, signedIn) {
     if (area === 'profile' && !sub) {
       // The game asks for the name straight after every sign-in.
       if (method === 'GET') {
-        await recordSignIn(env, uid, now);
+        await recordSignIn(env, uid, now, req);
         // Every account has a name: one that signed up a while ago and never
         // chose one gets a suggested name now, and is asked to keep or change it.
         if (!profile && settings.names_enabled) {

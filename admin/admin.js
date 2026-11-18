@@ -1400,11 +1400,18 @@ async function openPlayer(uid) {
       ${can('admin') ? '<button class="btn danger" data-act="reset-scores">Reset scores</button><button class="btn danger" data-act="delete">Delete account data</button>' : ''}
     </div>
     ${playerBadgesHtml(badgeHelpers, p)}
+    <section class="profile" aria-labelledby="h-profile">
+      <div class="row"><h3 id="h-profile">Profile: what they play, when, where and how long</h3>
+        <div class="field inline"><label for="pf-days">Period</label><select id="pf-days"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option><option value="180">Last 180 days</option></select></div></div>
+      <div id="player-profile"><p class="muted">Loading…</p></div>
+    </section>
     <h3>Latest scores</h3>
     ${table([{ label: 'When' }, { label: 'Kind' }, { label: 'Difficulty' }, { label: 'Cells', num: 1 }, { label: 'Time', num: 1 }, { label: 'Hints', num: 1 }, { label: 'Points', num: 1 }],
       p.recentScores.map((s) => [when(s.at), s.kind === 'race' ? 'Race' : 'Solo', esc(TIER_NAMES[s.tier] || s.tier), fmt(s.cells), `${Math.round(s.elapsedMs / 60000)} min`, fmt(s.hints), fmt(s.points)]), 'No scores.')}
   </div>`;
   $('#player-card').focus();
+  $('#pf-days').onchange = () => loadProfile(uid, $('#pf-days').value);
+  loadProfile(uid, $('#pf-days').value);
   $('#player-card').onclick = async (e) => {
     if (await playerBadgeClick(badgeHelpers, e, p, () => openPlayer(uid))) return;
     const b = e.target.closest('button[data-act]');
@@ -1412,6 +1419,71 @@ async function openPlayer(uid) {
     if (b.dataset.act === 'message') { messagePlayer(uid); return; }
     if (await playerAction(b.dataset.act, uid, name, b)) { if (b.dataset.act === 'delete') show('players'); openPlayer(uid); }
   };
+}
+
+// ------------------------------------------------------------- player profile
+// From the player's synced solve log and saves, and the rough places and
+// times their signed-in game checked in from (server/src/profiles.js).
+const dur = (ms) => {
+  const m = Math.round((Number(ms) || 0) / 60000);
+  if (!ms) return '–';
+  if (m < 1) return 'under 1 min';
+  return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${m % 60} min`;
+};
+const mins = (m) => (m ? dur(m * 60000) : 'under 5 min');
+const themeLabel = (id) => (id ? String(id).replace(/[-_]+/g, ' ').replace(/^\w/, (c) => c.toUpperCase()) : '–');
+const placeLabel = (p) => [p.city, p.region, countryName(p.country)].filter(Boolean).join(', ');
+const OS_NAMES = { windows: 'Windows', mac: 'Mac', android: 'Android', ios: 'iPhone or iPad', linux: 'Linux', chromeos: 'Chromebook', other: 'Other' };
+const DEVICE_NAMES = { mobile: 'phone', tablet: 'tablet', desktop: 'computer' };
+async function loadProfile(uid, days) {
+  const box = $('#player-profile');
+  if (!box) return;
+  box.innerHTML = '<p class="muted">Loading…</p>';
+  let d;
+  try { d = await api(`players/${encodeURIComponent(uid)}/profile?days=${encodeURIComponent(days)}`); } catch (e) { box.innerHTML = `<p class="error">${esc(e.message)}</p>`; return; }
+  if (!$('#player-profile') || $('#pf-days').value !== String(days)) return; // another player or period was opened meanwhile
+  const st = d.stats, a = d.activity;
+  const kind = (x) => [x.daily ? `Daily ${esc(x.daily)}` : '', x.race ? 'Race' : ''].filter(Boolean).join(' · ') || 'Free play';
+  box.innerHTML = `
+    <h4>Game statistics (all time)</h4>
+    <div class="tiles">
+      ${tile('Puzzles finished', fmt(st.played), `${fmt(st.recentPlayed)} in the last ${d.days} days${st.last ? ` · last ${day(st.last)}` : ''}`)}
+      ${tile('Solved', fmt(st.solved), `${st.solveRate == null ? '–' : `${st.solveRate}%`} solved · ${fmt(st.revealed)} answers shown`)}
+      ${tile('Time solving', dur(st.totalMs), `about ${dur(st.avgMs)} a puzzle`)}
+      ${tile('Hints', fmt(st.hints), `${st.avgHints == null ? '–' : st.avgHints} a puzzle · ${fmt(st.noHints)} solved with none`)}
+      ${tile('Checks and mistakes', `${fmt(st.checks)} · ${fmt(st.mistakes)}`, 'checks · mistakes')}
+      ${tile('Daily puzzles', fmt(st.daily), `streak ${fmt(st.streak.current)} · best ${fmt(st.streak.best)}`)}
+      ${tile('Races finished', fmt(st.races))}
+      ${tile('Playing since', day(st.first))}
+    </div>
+    <h4>When and how long (last ${d.days} days)</h4>
+    <div class="tiles">
+      ${tile('Days played', fmt(a.daysActive))}
+      ${tile('Time in the game', a.daysActive ? mins(a.minutes) : '–', `${fmt(a.sessions)} visits`)}
+      ${tile('Places', fmt(a.places.length), a.places[0] ? `mostly ${esc(placeLabel(a.places[0]))}` : '')}
+    </div>
+    <p class="muted">Times are rough: the game checks in about every 5 minutes while it is open and signed in. Places are approximate (city, region and country from the connection, never an exact address), and are kept for 180 days.</p>
+    ${table([{ label: 'Day' }, { label: 'First seen' }, { label: 'Last seen' }, { label: 'Time in the game', num: 1 }, { label: 'Visits', num: 1 }],
+      a.perDay.map((x) => [esc(x.day), new Date(x.first).toLocaleTimeString([], { timeStyle: 'short' }), new Date(x.last).toLocaleTimeString([], { timeStyle: 'short' }), mins(x.minutes), fmt(x.sessions)]),
+      'No signed-in play in this period yet.')}
+    <h4>From where</h4>
+    ${table([{ label: 'Place (approximate)' }, { label: 'Days', num: 1 }, { label: 'Time', num: 1 }, { label: 'Last seen' }],
+      a.places.map((x) => [esc(placeLabel(x)), fmt(x.days), mins(x.minutes), when(x.last)]), 'No places in this period yet.')}
+    <h4>On what</h4>
+    ${table([{ label: 'Device' }, { label: 'Days', num: 1 }, { label: 'Time', num: 1 }],
+      a.devices.map((x) => [`${esc(OS_NAMES[x.os] || x.os)} ${esc(DEVICE_NAMES[x.device] || x.device)}`, fmt(x.days), mins(x.minutes)]), 'No devices in this period yet.')}
+    <h4>By difficulty</h4>
+    ${table([{ label: 'Difficulty' }, { label: 'Finished', num: 1 }, { label: 'Solved', num: 1 }, { label: 'Average time', num: 1 }, { label: 'Best time', num: 1 }, { label: 'Hints a puzzle', num: 1 }],
+      d.byTier.map((x) => [esc(TIER_NAMES[x.tier] || x.tier || '–'), fmt(x.played), fmt(x.solved), dur(x.avgMs), dur(x.bestMs), String(x.avgHints)]), 'No finished puzzles yet.')}
+    <h4>Favorite themes</h4>
+    ${table([{ label: 'Theme' }, { label: 'Finished', num: 1 }], d.byTheme.map((x) => [esc(themeLabel(x.theme)), fmt(x.played)]), 'No themes yet.')}
+    <h4>Puzzles in progress</h4>
+    ${table([{ label: 'Puzzle' }, { label: 'Difficulty' }, { label: 'Theme' }, { label: 'Done', num: 1 }, { label: 'Time so far', num: 1 }, { label: 'Hints', num: 1 }, { label: 'Started' }, { label: 'Last played' }],
+      d.inProgress.map((x) => [esc(x.name || '–'), esc(TIER_NAMES[x.tier] || x.tier || '–'), esc(themeLabel(x.theme)), `${x.percent}%`, dur(x.ms), fmt(x.hints), when(x.started), when(x.lastPlayed)]), 'No puzzles in progress.')}
+    <h4>Latest finished puzzles</h4>
+    ${table([{ label: 'When' }, { label: 'Kind' }, { label: 'Difficulty' }, { label: 'Theme' }, { label: 'Time', num: 1 }, { label: 'Hints', num: 1 }, { label: 'Checks', num: 1 }, { label: 'Mistakes', num: 1 }, { label: 'Result' }],
+      d.recent.map((x) => [when(x.at), kind(x), esc(TIER_NAMES[x.tier] || x.tier || '–'), esc(themeLabel(x.theme)), dur(x.ms), fmt(x.hints), fmt(x.checks), fmt(x.mistakes), x.revealed ? 'Answer shown' : 'Solved']), 'No finished puzzles yet.')}
+    <p class="muted">Puzzles and stats come from what the player's game syncs to their account, so a guest or someone who plays signed out is not counted. Star ratings stay anonymous and are never linked to a player.</p>`;
 }
 
 const NP_GROUP = 'NINETIMESNINE';

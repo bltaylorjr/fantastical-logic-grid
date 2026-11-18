@@ -214,7 +214,7 @@ async function route(req, env, ctx) {
   }
   if (env.LIMIT_SYNC && !(await env.LIMIT_SYNC.limit({ key: user.uid })).success) return json(req, env, { error: 'slow_down' }, 429, { 'Retry-After': '60' });
   if (await isDeleted(env, user.uid)) return json(req, env, { error: 'account_deleted' }, 401);
-  if (isSync) await recordSignIn(env, user.uid);
+  if (isSync) await recordSignIn(env, user.uid, Date.now(), req);
   return isSync ? handleSync(req, env, user) : handleDeleteAccount(req, env, user);
 }
 

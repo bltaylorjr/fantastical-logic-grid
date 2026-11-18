@@ -828,6 +828,7 @@ ${playBtn(up)}`,
 <p>Your puzzles, notes, settings, stats and badges are saved in your browser or the app on your device. They stay there unless you sign in to sync them.</p>
 <h2>If you make an account</h2>
 <p>An account is optional. It uses Google Firebase sign-in with your email address and a password. Your saves, notes, settings and stats are then kept on the game's server so they appear on all your devices. You can delete the account and everything synced with it at any time in <strong>Menu &gt; Account and sync</strong>.</p>
+<p>While you are signed in, the game's server also notes, for each day you play, roughly where you played from (the city, region and country that the connection comes from, never your street address or exact location), what kind of device it was (such as a Windows computer or an Android phone), and about how long the game was open. With your synced stats, this lets the team see how the game is used and help you if something goes wrong. Only the game's team can see it. It is kept for 180 days and is removed straight away if you delete your account. Play without an account and none of this is kept.</p>
 <p>A screen name is needed only for races and the scoreboard, and it is the only thing other players see. Never your email. Once you have one, you can also sign in with your screen name instead of your email; for that, the game's server keeps your account email next to your screen name. It is never shown or sent to anyone, and it is removed with your screen name.</p>
 <h2>Anonymous numbers</h2>
 <p>To make the puzzles better, the game sends counts and summaries that are not tied to you, your account or your device:</p>
@@ -848,7 +849,7 @@ ${playBtn(up)}`,
 <li><strong>Natural voices:</strong> the words being read aloud are sent to Google (Gemini or Google Cloud text-to-speech) through the game's server. Google may use text sent to its free services to improve them. Choose the device's own voices in Settings to keep speech on your device.</li>
 <li><strong>Translations and pictures:</strong> text to translate and the description of a story's scene go to Cloudflare Workers AI through the game's server.</li>
 <li><strong>Your own AI key:</strong> if you paste an OpenAI or Google key in Settings, the game talks to that service directly with your key. The key stays on your device.</li>
-<li><strong>Hosting:</strong> the website is hosted by GitHub Pages and the game's server runs on Cloudflare. Like any website, they see the address your requests come from. The game's server uses it only to slow down floods of requests and does not store it.</li>
+<li><strong>Hosting:</strong> the website is hosted by GitHub Pages and the game's server runs on Cloudflare. Like any website, they see the address your requests come from. The game's server uses it only to slow down floods of requests and to look up the rough place described above, and does not store it.</li>
 </ul>
 <h2>What the game never does</h2>
 <ul>
@@ -860,7 +861,7 @@ ${playBtn(up)}`,
 <p>Guests can play a few new puzzles a day, the daily puzzle and their saved puzzles with no account and no personal details. Unlimited puzzles, races against other players and the scoreboard need a free account. An account needs an email address, so for a younger child a parent or teacher should make it, or simply play without one.</p>
 <h2>Questions</h2>
 <p>${contactLink()}. To report a security problem, see <a href="https://github.com/bltaylorjr/fantastical-logic-grid/security/advisories/new" rel="noopener noreferrer nofollow" referrerpolicy="no-referrer" target="_blank">the security page</a>.</p>
-<p class="meta">Last changed: 28 October 2026.</p>`,
+<p class="meta">Last changed: 18 November 2026.</p>`,
   });
 
   // ---------- Printable worksheets (teachers and parents) ----------

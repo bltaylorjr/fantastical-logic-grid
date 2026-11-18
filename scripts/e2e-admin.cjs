@@ -65,6 +65,11 @@ const SHOTS = process.env.SHOTS;
   await db.prepare('INSERT INTO sync_users (user_id, rev, created_at) VALUES (?1, 0, ?2)').bind('player-1', now - 86400000).run();
   await db.prepare('INSERT INTO players (user_id, screen_name, name_key, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?4)').bind('player-1', 'Sneaky Name', 'sneakyname', now).run();
   await db.prepare("INSERT INTO scores (user_id, story_id, kind, tier, cells, elapsed_ms, hints, checks, points, created_at) VALUES ('player-1', 's1', 'solo', 'easy', 48, 300000, 0, 0, 25, ?1)").bind(now).run();
+  // Player profile: a synced solve log and one day's rough place.
+  const solveLog = [{ at: now - 3600000, storyId: 's1', tier: 'easy', theme: 'pirate-cove', ms: 300000, hints: 0, checks: 0, mistakes: 0, revealed: false, cells: 48, daily: null, race: false },
+    { at: now - 7200000, storyId: 's0', tier: 'hard', theme: 'space', ms: 960000, hints: 2, checks: 1, mistakes: 1, revealed: false, cells: 75, daily: null, race: false }];
+  await db.prepare("INSERT INTO sync_records (user_id, kind, key, data, updated_at, rev) VALUES ('player-1', 'meta', 'solves', ?1, ?2, 1)").bind(JSON.stringify(solveLog), now).run();
+  await db.prepare("INSERT INTO account_places (user_id, day, country, region, city, os, device, first_at, last_at, minutes, sessions) VALUES ('player-1', ?1, 'US', 'Ohio', 'Columbus', 'windows', 'desktop', ?2, ?3, 35, 2)").bind(new Date(now).toISOString().slice(0, 10), now - 7200000, now - 3600000).run();
   const gsc = { site: 'https://thelogicgrid.com/', start: '2026-09-27', end: '2026-10-24', totals: { clicks: 40, impressions: 900, ctr: 4.4, position: 7.3 },
     byDay: [{ date: '2026-10-23', clicks: 15, impressions: 400 }, { date: '2026-10-24', clicks: 25, impressions: 500 }],
     queries: [{ key: 'logic grid puzzles', clicks: 30, impressions: 600, ctr: 5, position: 4.2 }], pages: [{ key: 'https://thelogicgrid.com/rules.html', clicks: 8, impressions: 90, ctr: 8.9, position: 5 }],
@@ -449,6 +454,8 @@ const SHOTS = process.env.SHOTS;
     await page.click('#players-rows a.rowlink[href="#players/player-1"]');
     await page.waitForSelector('#player-card');
     assert(/Latest scores/.test(await page.textContent('#player-card')), 'a player opens with their scores');
+    await page.waitForFunction(() => /Game statistics/.test((document.querySelector('#player-profile') || {}).textContent || ''));
+    assert(/From where/.test(await page.textContent('#player-profile')) && /By difficulty/.test(await page.textContent('#player-profile')), 'the player profile shows stats, places and difficulty');
     await shot(page, '3-player');
 
     await openSection(page, 'supporters');
