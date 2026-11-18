@@ -881,5 +881,7 @@ dialog.wide { width: min(760px, calc(100vw - 32px)); }
 .grid-books .warn-text { color: var(--warn); }
 .grid-books .bad-text { color: var(--bad); }
 .grid-books #kdp-rows tr[aria-current] { background: var(--panel); outline: 2px solid var(--accent); outline-offset: -2px; }
+.grid-books .profile > .row { justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+.grid-books .profile h4 { margin: 18px 0 6px; }
 .grid-books { padding: 16px max(16px, env(safe-area-inset-left, 0px)) 24px; min-height: 100%; }
 .grid-books h1 { margin-bottom: 4px; }
