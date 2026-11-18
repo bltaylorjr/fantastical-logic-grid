@@ -99,8 +99,11 @@ function startAuth(signer) {
   await ctx.route('**/js/cloud-config.js', (r) => r.fulfill({ contentType: 'text/javascript', body: config }));
   await ctx.route('https://api.pwnedpasswords.com/range/**', (r) => r.fulfill({ contentType: 'text/plain', body: '0000000000000000000000000000000000B:0\r\n' }));
   await ctx.addInitScript((mins) => {
-    if (!localStorage.getItem('flg.settings')) localStorage.setItem('flg.settings', JSON.stringify({ introOffered: true, voiceProvider: 'device' }));
-    localStorage.setItem('flg.remoteConfig', JSON.stringify({ announcements: [], disabledThemes: [], features: {}, defaults: {}, game: { idleMinutes: mins }, news: [], fetchedAt: Date.now() }));
+    // No story read aloud and no music: the game never signs out while a
+    // voice or sound is playing, and on the slower build server the story
+    // voice kept playing past the wait for the "Still playing?" warning.
+    if (!localStorage.getItem('flg.settings')) localStorage.setItem('flg.settings', JSON.stringify({ introOffered: true, voiceProvider: 'device', speechStory: false, speechFinish: false, music: false, chosen: ['music'] }));
+    localStorage.setItem('flg.remoteConfig', JSON.stringify({ announcements: [], disabledThemes: [], features: {}, defaults: {}, game: { idleMinutes: mins, readAloud: false, voiceSource: 'device' }, news: [], fetchedAt: Date.now() }));
   }, IDLE_MINUTES);
   await ctx.addInitScript(() => { try { localStorage.setItem('flg.savedOpen', 'true'); } catch (e) { /* none */ } }); // Saved Puzzles box open (its sync button is inside)
   const page = await ctx.newPage();
@@ -147,7 +150,13 @@ function startAuth(signer) {
     const title = await page.textContent('#p-title');
     await page.locator('td.c').nth(0).click();
     await page.locator('td.c').nth(5).click();
-    await page.waitForSelector('#dlg-idle[open]', { timeout: 20000 });
+    await page.waitForSelector('#dlg-idle[open]', { timeout: 20000 }).catch(async (e) => {
+      // Say what kept the game awake, so a failure here can be read from the log.
+      const busy = await page.evaluate(() => ({ speaking: !!(window.speechSynthesis && speechSynthesis.speaking),
+        playing: [...document.querySelectorAll('video, audio')].filter((m) => !m.paused && !m.ended).map((m) => m.currentSrc || m.id || m.tagName) }));
+      console.log('media while waiting for the idle warning:', JSON.stringify(busy));
+      throw e;
+    });
     assert(/signed out in/.test(await page.textContent('#idle-p')), 'a "Still playing?" warning shows before the sign-out');
     await page.click('#idle-stay');
     await page.waitForSelector('#dlg-idle[open]', { state: 'detached' });
