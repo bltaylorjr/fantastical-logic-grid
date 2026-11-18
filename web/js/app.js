@@ -2048,7 +2048,10 @@ async function showDailyNumbers(save, sent) {
   nums.hidden = false;
 }
 function badgeHtml(b) {
-  return `<li class="badge-item${b.at === null ? ' locked' : ''}"><span class="badge-mark" aria-hidden="true">${b.at === null ? '◇' : '◆'}</span><span><b>${esc(b.name)}</b><small>${esc(b.text)}${b.at ? ` Earned ${esc(new Date(b.at).toLocaleDateString())}.` : ''}</small></span>${b.at === null ? '<span class="sr-only">Not earned yet.</span>' : ''}</li>`;
+  // Badges still to earn that count toward a number show how far along the player is.
+  const [have, need] = b.at === null && b.progress ? b.progress : [0, 0];
+  const bar = need ? ` ${have} of ${need} so far.</small><progress max="${need}" value="${have}" aria-label="${esc(`${b.name}: ${have} of ${need}`)}"></progress>` : '</small>';
+  return `<li class="badge-item${b.at === null ? ' locked' : ''}"><span class="badge-mark" aria-hidden="true">${b.at === null ? '◇' : '◆'}</span><span><b>${esc(b.name)}</b><small>${esc(b.text)}${b.at ? ` Earned ${esc(new Date(b.at).toLocaleDateString())}.` : ''}${bar}</span>${b.at === null ? '<span class="sr-only">Not earned yet.</span>' : ''}</li>`;
 }
 
 $('#share-result').onclick = async () => {
