@@ -290,7 +290,7 @@ async function recordIntro(browser) {
   }
   await view('#app', -60);
   await hl('.app-item[href="account/"]', 8);
-  await scene('account', ['Guests can start a few new puzzles a day. One free account gives you unlimited puzzles in every game.', 'Sign in once, and your saves, stats and settings follow you to every device.']);
+  await scene('account', ['Guests can start a few new puzzles a week. One free account gives you unlimited puzzles in every game.', 'Sign in once, and your saves, stats and settings follow you to every device.']);
   await hl('.app-item[href*="messages"]', 8);
   await scene('messages', ['Messages and news has notes from the team, and replies to anything you sent.']);
   await hl('.app-item[data-wizard]', 8);

@@ -518,7 +518,7 @@ const CSS = `
     card('online', ['You can also play with other detectives.']);
     if (await p.isVisible('#sync-line')) {
       await scrollTo('#sync-line'); await hl('#sync-line');
-      await scene('sync', ['You can play as a guest, with a few new puzzles a day in every game, plus the daily puzzle, saved puzzles and How to play.', 'A free account gives you unlimited puzzles, and keeps your puzzles, progress and settings in step on the website, the desktop app and your phone.']);
+      await scene('sync', ['You can play as a guest, with a few new puzzles a week in every game, plus the daily puzzle, saved puzzles and How to play.', 'A free account gives you unlimited puzzles, and keeps your puzzles, progress and settings in step on the website, the desktop app and your phone.']);
       await clearFx();
       if (await p.isVisible('#player-chip')) {
         await hl('#player-chip');

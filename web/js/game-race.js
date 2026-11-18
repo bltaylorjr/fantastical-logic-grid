@@ -138,7 +138,7 @@ class Race {
     const user = account.current();
     const intro = this.$('intro', this.card), actions = this.$('actions', this.card);
     if (!user) {
-      intro.textContent = `Race other players on the very same ${NAMES[this.game]} puzzle: the fastest solve wins. Sign in with a free account to take part. Guests can play a few new puzzles a day without an account.`;
+      intro.textContent = `Race other players on the very same ${NAMES[this.game]} puzzle: the fastest solve wins. Sign in with a free account to take part. Guests can play a few new puzzles a week without an account.`;
       actions.innerHTML = btn('signin', 'Sign in to race', true);
     } else if (!this.name) {
       intro.textContent = 'Choose a screen name to race. Other players see only that name.';
